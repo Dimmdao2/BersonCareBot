@@ -12,7 +12,7 @@ All native calls are unavailable unless the active main-frame URL has the exact 
 
 | Plugin | Methods | Events / result shape |
 | --- | --- | --- |
-| `NativeJitsi` | `start({endpoint, roomReference, accessToken})`, `hangup()`, `retry()` | `conference`: `{state: 'joined'|'terminated'|'error', code?}`. The endpoint is an exact build-time match, the room is opaque and token never enters logs. |
+| `NativeJitsi` | `start({endpoint, roomReference, accessToken})`, `hangup()`, `retry()` | Start/retry and `conference` events carry an opaque per-launch `conferenceId`; the plugin derives it from the SDK broadcast's room URL and discards unowned events, so a replaced Activity cannot terminate its replacement. Event shape: `{state: 'joined'|'terminated'|'error', conferenceId, code?}`. The endpoint is an exact build-time match, the room is opaque and token never enters logs. |
 | `DeviceMedia` | `captureMedia({kind})`, `pickMedia({requiresDuration?})`, `pickDocument({mimeTypes})`, `upload({handle, offset, length, presignedUrl, headers})`, `cancelUpload()`, `release({handle})` | Selection returns `{outcome:'selected', handle, mimeType, displayName, sizeBytes, durationSeconds?, source, kind}`; cancellation is `{outcome:'cancelled', reason}`. The URI and bytes stay native. |
 | `UniversalPush` | `configure({projectId})`, `requestPermission()`, `getState()`, `revoke()` | `push`: non-secret state/permission/error/deleted-message events and a token only over the trusted bridge; a valid data message gives `{event:'message', pushSurface, notificationKind, route}`. |
 

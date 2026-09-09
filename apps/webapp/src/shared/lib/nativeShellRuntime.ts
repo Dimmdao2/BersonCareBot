@@ -212,29 +212,41 @@ export function addUniversalPushListener(onEvent: (event: NativePushListenerEven
 // ---------------------------------------------------------------------------
 
 export type NativeJitsiConferenceEvent =
-  | { state: 'joined' }
-  | { state: 'terminated' }
-  | { state: 'error'; code: string | null };
+  | { state: 'joined'; conferenceId: string | null }
+  | { state: 'terminated'; conferenceId: string | null }
+  | { state: 'error'; code: string | null; conferenceId: string | null };
 
-export type NativeJitsiStartOutcome = 'started' | 'permission_denied' | 'launch_failed' | 'unavailable';
+export type NativeJitsiStartOutcome = {
+  state: 'started' | 'permission_denied' | 'launch_failed' | 'unavailable';
+  conferenceId: string | null;
+};
 
 function nativeJitsiPlugin(): CapacitorPluginCallable | null {
   return plugin('NativeJitsi');
 }
 
 function nativeJitsiOutcome(raw: unknown): NativeJitsiStartOutcome {
-  if (!raw || typeof raw !== 'object') return 'unavailable';
-  const state = (raw as Record<string, unknown>).state;
+  if (!raw || typeof raw !== 'object') return { state: 'unavailable', conferenceId: null };
+  const value = raw as Record<string, unknown>;
+  const state = value.state;
+  const conferenceId = typeof value.conferenceId === 'string' && value.conferenceId.length > 0
+    ? value.conferenceId
+    : null;
   return state === 'started' || state === 'permission_denied' || state === 'launch_failed'
-    ? state
-    : 'unavailable';
+    ? { state, conferenceId }
+    : { state: 'unavailable', conferenceId: null };
 }
 
 function nativeJitsiConferenceEvent(raw: unknown): NativeJitsiConferenceEvent | null {
   if (!raw || typeof raw !== 'object') return null;
   const event = raw as Record<string, unknown>;
-  if (event.state === 'joined' || event.state === 'terminated') return { state: event.state };
-  if (event.state === 'error') return { state: 'error', code: typeof event.code === 'string' ? event.code : null };
+  const conferenceId = typeof event.conferenceId === 'string' && event.conferenceId.length > 0
+    ? event.conferenceId
+    : null;
+  if (event.state === 'joined' || event.state === 'terminated') return { state: event.state, conferenceId };
+  if (event.state === 'error') {
+    return { state: 'error', code: typeof event.code === 'string' ? event.code : null, conferenceId };
+  }
   return null;
 }
 
@@ -245,22 +257,22 @@ export async function startNativeJitsi(input: {
   accessToken: string;
 }): Promise<NativeJitsiStartOutcome> {
   const nativeJitsi = nativeJitsiPlugin();
-  if (!nativeJitsi || typeof nativeJitsi.start !== 'function') return 'unavailable';
+  if (!nativeJitsi || typeof nativeJitsi.start !== 'function') return { state: 'unavailable', conferenceId: null };
   try {
     return nativeJitsiOutcome(await nativeJitsi.start(input));
   } catch {
-    return 'unavailable';
+    return { state: 'unavailable', conferenceId: null };
   }
 }
 
 /** Retries only the plugin-owned terminal conference; the token remains inside the native plugin. */
 export async function retryNativeJitsi(): Promise<NativeJitsiStartOutcome> {
   const nativeJitsi = nativeJitsiPlugin();
-  if (!nativeJitsi || typeof nativeJitsi.retry !== 'function') return 'unavailable';
+  if (!nativeJitsi || typeof nativeJitsi.retry !== 'function') return { state: 'unavailable', conferenceId: null };
   try {
     return nativeJitsiOutcome(await nativeJitsi.retry());
   } catch {
-    return 'unavailable';
+    return { state: 'unavailable', conferenceId: null };
   }
 }
 

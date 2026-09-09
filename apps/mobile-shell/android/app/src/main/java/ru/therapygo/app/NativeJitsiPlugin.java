@@ -12,6 +12,7 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 import com.getcapacitor.annotation.Permission;
 import com.getcapacitor.annotation.PermissionCallback;
 import java.net.URL;
+import java.util.UUID;
 import org.jitsi.meet.sdk.BroadcastEvent;
 import org.jitsi.meet.sdk.BroadcastIntentHelper;
 import org.jitsi.meet.sdk.JitsiMeetActivity;
@@ -33,15 +34,23 @@ public final class NativeJitsiPlugin extends Plugin {
     // "terminated" a second time right after "error" and close the web stage that already reacted.
     private boolean terminalEmitted;
     private boolean conferenceActive;
+    private String conferenceId;
+    private String conferenceUrl;
+    private String previousConferenceId;
+    private String previousConferenceUrl;
 
     private final android.content.BroadcastReceiver conferenceReceiver = new android.content.BroadcastReceiver() {
         @Override
         public void onReceive(android.content.Context context, Intent intent) {
             BroadcastEvent event = new BroadcastEvent(intent);
             BroadcastEvent.Type type = event.getType();
+            String eventConferenceId = conferenceIdFor(event);
+            // SDK broadcasts are process-wide. A room URL is the only source identity they carry,
+            // so never relabel an old Activity's event with the replacement launch's identifier.
+            if (conferenceId != null && !conferenceId.equals(eventConferenceId)) return;
             if (type == BroadcastEvent.Type.CONFERENCE_JOINED) {
                 terminal = false;
-                emit("joined", null);
+                emit("joined", null, eventConferenceId);
             } else if (type == BroadcastEvent.Type.CONFERENCE_TERMINATED || type == BroadcastEvent.Type.READY_TO_CLOSE) {
                 conferenceActive = false;
                 if (terminalEmitted) return;
@@ -49,9 +58,9 @@ public final class NativeJitsiPlugin extends Plugin {
                 terminal = true;
                 String error = conferenceError(event);
                 if (error != null) {
-                    emit("error", error);
+                    emit("error", error, eventConferenceId);
                 } else {
-                    emit("terminated", null);
+                    emit("terminated", null, eventConferenceId);
                 }
             }
         }
@@ -158,6 +167,10 @@ public final class NativeJitsiPlugin extends Plugin {
             terminal = false;
             terminalEmitted = false;
             conferenceActive = true;
+            previousConferenceId = conferenceId;
+            previousConferenceUrl = conferenceUrl;
+            conferenceId = UUID.randomUUID().toString();
+            conferenceUrl = conferenceUrl(session);
             JitsiMeetActivity.launch(getContext(), options);
             call.resolve(outcome("started"));
         } catch (Exception ignored) {
@@ -189,9 +202,37 @@ public final class NativeJitsiPlugin extends Plugin {
     }
 
     private void emit(String state, String code) {
+        emit(state, code, conferenceId);
+    }
+
+    private void emit(String state, String code, String eventConferenceId) {
         JSObject event = outcome(state);
         if (code != null) event.put("code", code);
+        if (eventConferenceId != null) event.put("conferenceId", eventConferenceId);
         notifyListeners("conference", event);
+    }
+
+    private String conferenceIdFor(BroadcastEvent event) {
+        Object value = event.getData().get("url");
+        if (!(value instanceof String)) return null;
+        String eventUrl = conferenceUrl((String) value);
+        if (eventUrl.equals(conferenceUrl)) return conferenceId;
+        if (eventUrl.equals(previousConferenceUrl)) return previousConferenceId;
+        return null;
+    }
+
+    private static String conferenceUrl(JitsiSession session) {
+        return conferenceUrl(session.endpoint + "/" + session.roomReference);
+    }
+
+    private static String conferenceUrl(String value) {
+        try {
+            URL url = new URL(value);
+            String path = url.getPath().replaceAll("/+$", "");
+            return url.getProtocol() + "://" + url.getHost() + path;
+        } catch (Exception ignored) {
+            return "";
+        }
     }
 
     private static String conferenceError(BroadcastEvent event) {
@@ -201,9 +242,10 @@ public final class NativeJitsiPlugin extends Plugin {
         return code.matches("[A-Za-z0-9._-]{1,80}") ? code : "conference_error";
     }
 
-    private static JSObject outcome(String state) {
+    private JSObject outcome(String state) {
         JSObject value = new JSObject();
         value.put("state", state);
+        if (conferenceId != null) value.put("conferenceId", conferenceId);
         return value;
     }
 

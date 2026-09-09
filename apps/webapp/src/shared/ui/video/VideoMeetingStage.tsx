@@ -32,22 +32,42 @@ function NativeJitsiMeetingRenderer({ session, onHangup, onDiagnostic, className
   const onDiagnosticRef = useRef(onDiagnostic);
   const ownsConferenceRef = useRef(false);
   const terminalRef = useRef(false);
+  const conferenceIdRef = useRef<string | null>(null);
+  const replacedConferenceRef = useRef(false);
+  const previousSessionRef = useRef<Pick<VideoMeetingRenderSession, 'endpoint' | 'roomReference' | 'accessToken'> | null>(null);
   const [state, setState] = useState<'connecting' | 'error' | 'browser_fallback'>('connecting');
-  onHangupRef.current = onHangup;
-  onDiagnosticRef.current = onDiagnostic;
 
   useEffect(() => {
-    if (!session.endpoint) {
-      setState('browser_fallback');
-      return;
-    }
+    onHangupRef.current = onHangup;
+    onDiagnosticRef.current = onDiagnostic;
+  }, [onDiagnostic, onHangup]);
+
+  useEffect(() => {
+    if (!session.endpoint) return;
     let active = true;
     let joinedAt: number | null = null;
+    const previousSession = previousSessionRef.current;
+    if (
+      previousSession &&
+      (previousSession.endpoint !== session.endpoint ||
+        previousSession.roomReference !== session.roomReference ||
+        previousSession.accessToken !== session.accessToken)
+    ) {
+      replacedConferenceRef.current = true;
+    }
+    previousSessionRef.current = {
+      endpoint: session.endpoint,
+      roomReference: session.roomReference,
+      accessToken: session.accessToken,
+    };
     ownsConferenceRef.current = false;
     terminalRef.current = false;
-    setState('connecting');
+    conferenceIdRef.current = null;
     const removeListener = addNativeJitsiConferenceListener((event) => {
       if (!active) return;
+      // The Android bridge tags real launches. Once a stage has replaced a conference, an untagged
+      // legacy broadcast has no ownership proof and cannot be allowed to terminate the replacement.
+      if (conferenceIdRef.current ? event.conferenceId !== conferenceIdRef.current : replacedConferenceRef.current) return;
       if (event.state === 'joined') {
         joinedAt = Date.now();
         onDiagnosticRef.current?.({ event: 'join' });
@@ -70,11 +90,16 @@ function NativeJitsiMeetingRenderer({ session, onHangup, onDiagnostic, className
     void startNativeJitsi({ endpoint: session.endpoint, roomReference: session.roomReference, accessToken: session.accessToken })
       .then((outcome) => {
         if (!active) return;
-        if (outcome === 'started') {
+        const normalizedOutcome = typeof outcome === 'string'
+          ? { state: outcome, conferenceId: null }
+          : outcome;
+        setState('connecting');
+        conferenceIdRef.current = normalizedOutcome.conferenceId;
+        if (normalizedOutcome.state === 'started') {
           ownsConferenceRef.current = true;
           return;
         }
-        if (outcome === 'unavailable') {
+        if (normalizedOutcome.state === 'unavailable') {
           active = false;
           removeListener();
           setState('browser_fallback');
@@ -92,7 +117,7 @@ function NativeJitsiMeetingRenderer({ session, onHangup, onDiagnostic, className
     };
   }, [session.accessToken, session.endpoint, session.roomReference]);
 
-  if (state === 'browser_fallback') {
+  if (!session.endpoint || state === 'browser_fallback') {
     return <JitsiMeetingRenderer session={session} onHangup={onHangup} onDiagnostic={onDiagnostic} className={className} />;
   }
   const stageClassName = className ?? 'flex min-h-[320px] items-center justify-center bg-muted text-sm text-muted-foreground';
@@ -108,8 +133,12 @@ function NativeJitsiMeetingRenderer({ session, onHangup, onDiagnostic, className
               terminalRef.current = false;
               setState('connecting');
               void retryNativeJitsi().then((outcome) => {
-                if (outcome === 'started') ownsConferenceRef.current = true;
-                else if (outcome === 'unavailable') setState('browser_fallback');
+                const normalizedOutcome = typeof outcome === 'string'
+                  ? { state: outcome, conferenceId: null }
+                  : outcome;
+                conferenceIdRef.current = normalizedOutcome.conferenceId;
+                if (normalizedOutcome.state === 'started') ownsConferenceRef.current = true;
+                else if (normalizedOutcome.state === 'unavailable') setState('browser_fallback');
                 else setState('error');
               });
             }}
