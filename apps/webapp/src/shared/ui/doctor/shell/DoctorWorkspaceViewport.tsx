@@ -1,10 +1,13 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { useRef, type ReactNode } from 'react';
 import type { DoctorMenuAccess } from '@/shared/ui/doctor/doctorNavLinks';
 import { DoctorBottomNav } from '@/shared/ui/doctor/shell/DoctorBottomNav';
 import { DoctorHeader } from '@/shared/ui/doctor/shell/DoctorHeader';
 import { useDoctorShellChrome } from '@/shared/ui/doctor/shell/DoctorShellChromeContext';
+import { useReportShellChromeHeight } from '@/shared/hooks/useReportShellChromeHeight';
+
+export const DOCTOR_DOCKED_TABS_HEIGHT_VAR = '--doctor-docked-tabs-height';
 
 type DoctorWorkspaceViewportProps = {
   header: {
@@ -43,6 +46,9 @@ export function DoctorWorkspaceViewport({
   children,
 }: DoctorWorkspaceViewportProps) {
   const shellChrome = useDoctorShellChrome();
+  const dockedTabsRef = useRef<HTMLDivElement>(null);
+
+  useReportShellChromeHeight(dockedTabsRef, DOCTOR_DOCKED_TABS_HEIGHT_VAR);
 
   return (
     <div
@@ -56,8 +62,10 @@ export function DoctorWorkspaceViewport({
           {children}
         </div>
       </div>
-      {shellChrome?.mobileSubsectionTabs}
-      {shellChrome?.mobileBottomTabs}
+      <div ref={dockedTabsRef} className="shrink-0 md:hidden">
+        {shellChrome?.mobileSubsectionTabs}
+        {shellChrome?.mobileBottomTabs}
+      </div>
       {bottomNav ? <DoctorBottomNav {...bottomNav} /> : null}
     </div>
   );

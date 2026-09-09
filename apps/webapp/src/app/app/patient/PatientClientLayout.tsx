@@ -53,7 +53,7 @@ export function PatientClientLayout({
   return (
     <ActiveCallCoordinator
       floatingIndicator={<PatientActiveCallIndicator />}
-      activeRouteClassName="fixed inset-x-0 top-[var(--patient-header-bar-height,0px)] bottom-[var(--patient-bottom-nav-height,0px)] z-40 bg-black"
+      activeRouteClassName="fixed inset-x-0 top-0 bottom-[var(--patient-bottom-nav-height,0px)] z-40 bg-black"
     >
       <PatientPhonePromptChromeProvider>
         <MiniAppShareContactGate channelPolicy={authChannelPolicy}>

@@ -123,7 +123,7 @@ export function DoctorWorkspaceShell({
   return (
     <ActiveCallCoordinator
       floatingIndicator={<DoctorActiveCallIndicator />}
-      activeRouteClassName="fixed inset-x-0 top-[var(--doctor-header-height,0px)] bottom-[var(--doctor-bottom-nav-height,0px)] z-30 bg-black"
+      activeRouteClassName="fixed inset-x-0 top-0 bottom-[calc(var(--doctor-bottom-nav-height,0px)+var(--doctor-docked-tabs-height,0px))] z-30 bg-black"
     >
       <DoctorSupportUnreadProvider
         enabled={clinicalRuntimeEnabled}
