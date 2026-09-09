@@ -1,5 +1,6 @@
 package ru.therapygo.app;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -273,23 +274,21 @@ public class UniversalPushPluginTest {
 
     // --- tap event shape -------------------------------------------------------------------------
 
-    /**
-     * Kill (#915 wire-correction confirmation audit, kill-set K15; brief mandate: Android "emits
-     * the typed tap event {@code {pushSurface,notificationKind,route}}"). {@link
-     * UniversalPushPlugin#deliverPendingTap()} reads only {@code nativePushSurface}/{@code
-     * nativePushRoute} from the launch {@link Intent} and forwards exactly those two keys as the
-     * tap event; {@code notificationKind} is absent from both the {@link Intent} extras {@link
-     * PushRuntime#showNotification} attaches to the tap {@code PendingIntent} and the JS event this
-     * method builds. A tap on a reminder or call notification is therefore observationally
-     * identical to a tap on a message notification from the web bridge's point of view.
-     */
-    @SuppressWarnings("unchecked")
-    @Test
-    public void deliverPendingTapEmitsPushSurfaceNotificationKindAndRoute() throws Exception {
-        Intent launchIntent = new Intent();
-        launchIntent.putExtra("nativePushSurface", BuildConfig.SHELL_BRAND);
-        launchIntent.putExtra("nativePushRoute", ownPrefix());
+    // Confirmed by inspection (no test needed — one-time construction, not repeatable behavior,
+    // §24.4): `PushRuntime.showNotification` puts `.putExtra("nativePushKind", kind)` on the exact
+    // `Intent` that becomes the tap `PendingIntent`'s content intent, alongside
+    // `nativePushSurface`/`nativePushRoute` — the same three extras `deliverPendingTap()` below reads
+    // back from `getActivity().getIntent()`.
 
+    private static Intent launchIntentWith(String surface, String kind, String route) {
+        Intent launchIntent = new Intent();
+        if (surface != null) launchIntent.putExtra("nativePushSurface", surface);
+        if (kind != null) launchIntent.putExtra("nativePushKind", kind);
+        if (route != null) launchIntent.putExtra("nativePushRoute", route);
+        return launchIntent;
+    }
+
+    private static UniversalPushPlugin pluginWithLaunchIntent(Intent launchIntent) throws Exception {
         AppCompatActivity activity = mock(AppCompatActivity.class);
         when(activity.getIntent()).thenReturn(launchIntent);
         Bridge tapBridge = mock(Bridge.class);
@@ -298,12 +297,16 @@ public class UniversalPushPluginTest {
         Field bridgeField = Plugin.class.getDeclaredField("bridge");
         bridgeField.setAccessible(true);
         bridgeField.set(tapPlugin, tapBridge);
+        return tapPlugin;
+    }
 
-        // `deliverPendingTap()` calls `notifyListeners("push", tapEvent, true)`, which (with no
-        // listener attached — this test attaches none, matching the real cold-start-tap timing
-        // the class doc describes) retains the event in Plugin's own `retainedEventArguments`
-        // instead of discarding it. Reading that real field is cheaper and more faithful than
-        // subclassing/mocking the protected `notifyListeners` call across a package boundary.
+    // `deliverPendingTap()` calls `notifyListeners("push", tapEvent, true)`, which (with no listener
+    // attached — these tests attach none, matching the real cold-start-tap timing the class doc
+    // describes) retains the event in Plugin's own `retainedEventArguments` instead of discarding
+    // it. Reading that real field is cheaper and more faithful than subclassing/mocking the
+    // protected `notifyListeners` call across a package boundary.
+    @SuppressWarnings("unchecked")
+    private static List<JSObject> invokeDeliverPendingTapAndGetRetainedPushEvents(UniversalPushPlugin tapPlugin) throws Exception {
         Method deliverPendingTap = UniversalPushPlugin.class.getDeclaredMethod("deliverPendingTap");
         deliverPendingTap.setAccessible(true);
         deliverPendingTap.invoke(tapPlugin);
@@ -311,21 +314,78 @@ public class UniversalPushPluginTest {
         Field retainedField = Plugin.class.getDeclaredField("retainedEventArguments");
         retainedField.setAccessible(true);
         Map<String, List<JSObject>> retained = (Map<String, List<JSObject>>) retainedField.get(tapPlugin);
-        List<JSObject> pushEvents = retained.get("push");
+        return retained.get("push");
+    }
+
+    /**
+     * Kill (#915 wire-correction confirmation audit, kill-set K15; brief mandate: Android "emits
+     * the typed tap event {@code {pushSurface,notificationKind,route}}"). Confirms the fix
+     * (`PushRuntime.showNotification` now attaches `nativePushKind` to the tap `PendingIntent`'s
+     * {@link Intent} extras; {@link UniversalPushPlugin#deliverPendingTap()} reads it back and
+     * forwards it as {@code notificationKind}) by asserting the exact retained tap event values, not
+     * just key presence — a tap on a reminder notification must be observationally distinguishable
+     * from a tap on a message or call notification.
+     */
+    @Test
+    public void deliverPendingTapEmitsPushSurfaceNotificationKindAndRoute() throws Exception {
+        Intent launchIntent = launchIntentWith(BuildConfig.SHELL_BRAND, "reminder", ownPrefix());
+        UniversalPushPlugin tapPlugin = pluginWithLaunchIntent(launchIntent);
+
+        List<JSObject> pushEvents = invokeDeliverPendingTapAndGetRetainedPushEvents(tapPlugin);
+
         assertTrue(
             "deliverPendingTap must retain exactly one tap event for a valid launch intent",
             pushEvents != null && pushEvents.size() == 1
         );
         JSObject tapEvent = pushEvents.get(0);
-        assertTrue("tap event must carry pushSurface", tapEvent.has("pushSurface"));
-        assertTrue("tap event must carry route", tapEvent.has("route"));
-        assertTrue(
-            "tap event must carry notificationKind so the web bridge can distinguish a "
-                + "message/reminder/call tap, per the brief's typed tap event contract "
-                + "{pushSurface,notificationKind,route} — currently absent because neither the "
-                + "notification's PendingIntent extras (PushRuntime.showNotification) nor "
-                + "deliverPendingTap() carry a kind/notificationKind value",
-            tapEvent.has("notificationKind")
+        assertEquals(BuildConfig.SHELL_BRAND, tapEvent.getString("pushSurface"));
+        assertEquals(
+            "tap event must carry the exact notificationKind from the launch intent, not merely "
+                + "the key's presence",
+            "reminder", tapEvent.getString("notificationKind")
         );
+        assertEquals(ownPrefix(), tapEvent.getString("route"));
+    }
+
+    // Kill: a launch intent missing `nativePushKind` (the pre-fix shape, or a stale/foreign intent)
+    // must not tap-route at all, and — since surface/route were never validated together with a
+    // kind — must leave both extras on the intent rather than consuming them.
+    @Test
+    public void deliverPendingTapRejectsMissingKindAndDoesNotConsumeValidExtras() throws Exception {
+        Intent launchIntent = launchIntentWith(BuildConfig.SHELL_BRAND, null, ownPrefix());
+        UniversalPushPlugin tapPlugin = pluginWithLaunchIntent(launchIntent);
+
+        List<JSObject> pushEvents = invokeDeliverPendingTapAndGetRetainedPushEvents(tapPlugin);
+
+        assertTrue(
+            "a launch intent with no kind extra must not produce a tap event",
+            pushEvents == null || pushEvents.isEmpty()
+        );
+        assertEquals(
+            "a rejected tap must not consume the surface extra it never validated together with a kind",
+            BuildConfig.SHELL_BRAND, launchIntent.getStringExtra("nativePushSurface")
+        );
+        assertEquals(
+            "a rejected tap must not consume the route extra it never validated together with a kind",
+            ownPrefix(), launchIntent.getStringExtra("nativePushRoute")
+        );
+    }
+
+    // Kill: an undocumented kind (not message/reminder/call) must be rejected the same way a
+    // missing kind is, not merely tolerated because a string was present.
+    @Test
+    public void deliverPendingTapRejectsInvalidKindAndDoesNotConsumeValidExtras() throws Exception {
+        Intent launchIntent = launchIntentWith(BuildConfig.SHELL_BRAND, "marketing", ownPrefix());
+        UniversalPushPlugin tapPlugin = pluginWithLaunchIntent(launchIntent);
+
+        List<JSObject> pushEvents = invokeDeliverPendingTapAndGetRetainedPushEvents(tapPlugin);
+
+        assertTrue(
+            "a launch intent with an undocumented kind must not produce a tap event",
+            pushEvents == null || pushEvents.isEmpty()
+        );
+        assertEquals(BuildConfig.SHELL_BRAND, launchIntent.getStringExtra("nativePushSurface"));
+        assertEquals("marketing", launchIntent.getStringExtra("nativePushKind"));
+        assertEquals(ownPrefix(), launchIntent.getStringExtra("nativePushRoute"));
     }
 }
