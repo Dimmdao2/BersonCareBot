@@ -16,11 +16,12 @@ import { patientPrimaryActionClass } from '@/shared/ui/patient/patientVisual';
 import { useNativeRuntime } from '@/shared/hooks/useNativeRuntime';
 import {
   captureDeviceMedia,
+  disposeDeviceMediaSelection,
   isNativeDeviceMediaAvailable,
   pickDeviceMediaFromGallery,
   type DeviceMediaPickResult,
 } from '@/shared/lib/deviceMedia';
-import { deviceMediaMultipartUpload } from '@/shared/lib/media/deviceMediaMultipartUpload';
+import { deviceMediaMultipartUploadToDestination } from '@/shared/lib/media/deviceMediaMultipartUpload';
 
 export type ProgramItemSubmissionSourceDialogHandle = {
   open: () => void;
@@ -113,13 +114,18 @@ export const ProgramItemSubmissionSourceDialog = forwardRef<
         fallback();
         return;
       }
-      if (pick.outcome === 'cancelled' || disabled || busy) return;
+      if (pick.outcome === 'cancelled') return;
       const { selection } = pick;
-      const isVideo = selection.kind === 'video';
-      setBusy(true);
-      setOpen(false);
-      resetIosMobileZoom();
+      // A native selection owns a device-storage handle from here on (audit MUST FIX 1) — every
+      // exit below, including the `disabled`/`busy` race and both duration refusals, must release
+      // it exactly once. One chokepoint (`finally`), not a `dispose()` sprinkled into each return;
+      // it is idempotent, so the upload's own terminal release below never double-fires.
       try {
+        if (disabled || busy) return;
+        const isVideo = selection.kind === 'video';
+        setBusy(true);
+        setOpen(false);
+        resetIosMobileZoom();
         if (isVideo) {
           if (selection.durationSeconds === null) {
             onError?.('video_metadata_unavailable');
@@ -130,15 +136,9 @@ export const ProgramItemSubmissionSourceDialog = forwardRef<
             return;
           }
         }
-        const { mediaId } = await deviceMediaMultipartUpload({
+        const { mediaId } = await deviceMediaMultipartUploadToDestination({
           selection,
-          begin: {
-            url: '/api/patient/media/program-submission/presign',
-            extraBody: {
-              instanceId,
-              ...(isVideo ? { durationSeconds: selection.durationSeconds } : {}),
-            },
-          },
+          destination: { kind: 'patient_program_submission', instanceId },
           signal: new AbortController().signal,
           onProgress: () => {},
         });
@@ -159,6 +159,7 @@ export const ProgramItemSubmissionSourceDialog = forwardRef<
         onError?.('network_error');
       } finally {
         setBusy(false);
+        await disposeDeviceMediaSelection(selection);
       }
     },
     [busy, disabled, instanceId, itemId, onError, onUploaded],

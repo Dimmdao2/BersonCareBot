@@ -43,9 +43,10 @@ import { Separator } from '@/shared/ui/doctor/primitives/separator';
 import { FILE_INPUT_ACCEPT } from '@/modules/media/uploadAllowedMime';
 import { libraryMultipartAbort, libraryMultipartUpload } from './libraryMultipartUpload';
 import { UploadRequestError, uploadWithProgress } from '@/shared/lib/media/uploadTransport';
-import { deviceMediaMultipartUpload } from '@/shared/lib/media/deviceMediaMultipartUpload';
+import { deviceMediaMultipartUploadToDestination } from '@/shared/lib/media/deviceMediaMultipartUpload';
 import {
   captureDeviceMedia,
+  disposeDeviceMediaSelection,
   isNativeDeviceMediaAvailable,
   pickDeviceMediaFromGallery,
   type DeviceMediaPickResult,
@@ -805,7 +806,12 @@ export function MediaLibraryClient({
    * upload backend, no base64 bridge.
    */
   async function uploadNativeSelection(pick: DeviceMediaPickResult) {
-    if (pick.outcome !== 'selected' || uploadBlockedAtClientRoot) return;
+    if (pick.outcome !== 'selected') return;
+    if (uploadBlockedAtClientRoot) {
+      // Discarded before any transfer to the upload lifecycle (audit MUST FIX 1) — release now.
+      await disposeDeviceMediaSelection(pick.selection);
+      return;
+    }
     setUploading(true);
     setUploadPercent(0);
     setUploadStatus(pick.selection.displayName);
@@ -814,9 +820,9 @@ export function MediaLibraryClient({
     const ac = new AbortController();
     uploadAbortRef.current = ac;
     try {
-      await deviceMediaMultipartUpload({
+      await deviceMediaMultipartUploadToDestination({
         selection: pick.selection,
-        begin: { url: '/api/media/multipart/init', extraBody: { folderId: uploadTargetFolderIdResolved } },
+        destination: { kind: 'cms_media_library', folderId: uploadTargetFolderIdResolved },
         signal: ac.signal,
         onSessionReady: (sid) => {
           multipartSessionRef.current = sid;
@@ -830,9 +836,8 @@ export function MediaLibraryClient({
         setReloadKey((x) => x + 1);
       }
     } catch {
-      if (multipartSessionRef.current && !ac.signal.aborted) {
-        void libraryMultipartAbort(multipartSessionRef.current);
-      }
+      // The shared lifecycle already aborts its own session on failure/cancel — no duplicate
+      // abort POST here (§5, correction #915).
       setError(ac.signal.aborted ? 'Загрузка отменена' : 'Не удалось загрузить файл');
       if (!ac.signal.aborted) setUploadStatus('Загрузка остановлена из-за ошибки');
     } finally {
@@ -848,7 +853,14 @@ export function MediaLibraryClient({
 
   async function onMobileCapturePress() {
     if (nativeMediaAvailable) {
-      await uploadNativeSelection(await captureDeviceMedia('photo'));
+      const pick = await captureDeviceMedia('photo');
+      // MUST FIX 2 (audit): an absent/rejected native plugin falls back to the mounted browser
+      // input, same as the other four surfaces — never silently drops the tap.
+      if (pick.outcome === 'unavailable') {
+        mobileCaptureInputRef.current?.click();
+        return;
+      }
+      await uploadNativeSelection(pick);
       return;
     }
     mobileCaptureInputRef.current?.click();
@@ -856,7 +868,12 @@ export function MediaLibraryClient({
 
   async function onMobileFilesPress() {
     if (nativeMediaAvailable) {
-      await uploadNativeSelection(await pickDeviceMediaFromGallery());
+      const pick = await pickDeviceMediaFromGallery();
+      if (pick.outcome === 'unavailable') {
+        mobileFilesInputRef.current?.click();
+        return;
+      }
+      await uploadNativeSelection(pick);
       return;
     }
     mobileFilesInputRef.current?.click();

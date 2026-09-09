@@ -58,7 +58,7 @@ import {
   type DeviceMediaPickResult,
   type DeviceMediaSelection,
 } from '@/shared/lib/deviceMedia';
-import { deviceMediaMultipartUpload } from '@/shared/lib/media/deviceMediaMultipartUpload';
+import { deviceMediaMultipartUploadToDestination } from '@/shared/lib/media/deviceMediaMultipartUpload';
 
 // ---------------------------------------------------------------------------
 // Types — match API response
@@ -208,7 +208,9 @@ function FilesHeaderActions({ disabled, onPickFile }: FilesHeaderActionsProps) {
 
   async function onDocument() {
     if (nativeMediaAvailable) {
-      handleNativePick(await pickDeviceDocument(['*/*']), () => documentRef.current?.click());
+      // M5-03: the narrow, plugin-matching document MIME allowlist — `pickDeviceDocument` takes
+      // no caller-supplied list, so this can no longer smuggle a wide `['*/*']` request.
+      handleNativePick(await pickDeviceDocument(), () => documentRef.current?.click());
       return;
     }
     documentRef.current?.click();
@@ -654,16 +656,9 @@ export function PatientTabFiles({
     setUploading(true);
     setUploadError(null);
     try {
-      await deviceMediaMultipartUpload({
+      await deviceMediaMultipartUploadToDestination({
         selection,
-        begin: {
-          url: `/api/doctor/patients/${userId}/files`,
-          extraBody: {
-            category: DEFAULT_UPLOAD_CATEGORY,
-            fileName: selection.displayName,
-            sizeBytes: selection.sizeBytes,
-          },
-        },
+        destination: { kind: 'doctor_patient_file', userId, category: DEFAULT_UPLOAD_CATEGORY },
         signal: new AbortController().signal,
         onProgress: () => {},
       });

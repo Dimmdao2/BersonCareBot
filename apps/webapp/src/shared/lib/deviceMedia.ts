@@ -15,6 +15,7 @@ import {
   captureNativeDeviceMedia,
   pickNativeDeviceDocument,
   pickNativeDeviceMedia,
+  releaseNativeDeviceMediaHandle,
   type NativeDeviceMediaKind,
   type NativeDeviceMediaSource,
 } from '@/shared/lib/nativeShellRuntime';
@@ -118,9 +119,25 @@ export async function pickDeviceMediaFromGallery(opts?: {
   return toPickResult(await pickNativeDeviceMedia(opts), 'gallery');
 }
 
-/** System document picker with a narrow, natively re-validated MIME allowlist (M5-03). */
-export async function pickDeviceDocument(mimeTypes: string[]): Promise<DeviceMediaPickResult> {
-  return toPickResult(await pickNativeDeviceDocument(mimeTypes), 'document');
+/**
+ * The one narrow document-MIME allowlist this seam will ever request (M5-03) — matches the
+ * accepted Android plugin's own request-filter/result re-check allowlist exactly
+ * (`DeviceMediaPlugin.DOCUMENT_MIME_PATTERN`, `apps/mobile-shell/android/.../DeviceMediaPlugin.java`).
+ * `pickDeviceDocument` takes no caller-supplied MIME list — widening this is a native-plugin change,
+ * never a client-side argument.
+ */
+export const NATIVE_DOCUMENT_MIME_TYPES: readonly string[] = [
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'text/plain',
+];
+
+/** System document picker with the narrow, natively re-validated MIME allowlist above (M5-03). */
+export async function pickDeviceDocument(): Promise<DeviceMediaPickResult> {
+  return toPickResult(await pickNativeDeviceDocument([...NATIVE_DOCUMENT_MIME_TYPES]), 'document');
 }
 
 /** Filename a begin door should record — the real `File.name` for browser, the native descriptor
@@ -132,4 +149,26 @@ export function deviceMediaSelectionFilename(selection: DeviceMediaSelection): s
 export function deviceMediaSelectionMimeType(selection: DeviceMediaSelection): string {
   const raw = selection.origin === 'native' ? selection.mimeType : selection.file.type;
   return (raw || 'application/octet-stream').toLowerCase();
+}
+
+/**
+ * Ownership chokepoint (audit MUST FIX 1, #915 correction, §5 «один общий проход»): a native
+ * selection is an owned resource from `{outcome:'selected'}` until it is either transferred into
+ * `deviceMediaMultipartUpload` (which disposes it in its own terminal `finally`) or discarded here
+ * directly. Every caller — refusal before begin, wrong-kind refusal, replacement, dialog
+ * close/reset, component teardown, AND the upload lifecycle's own terminal path — calls this same
+ * function on the *same selection object reference* it was handed; it is idempotent per selection
+ * (a `WeakSet`, checked-then-added synchronously with no `await` in between), so no path can
+ * double-release or race the upload's own release. Keyed by object identity rather than the handle
+ * string on purpose — two unrelated picks never collide even if a plugin/test double reuses a
+ * handle value, and entries never need manual eviction (GC reclaims them with the selection).
+ * Browser selections are always a no-op — nothing native to release.
+ */
+const releasedNativeDeviceMediaSelections = new WeakSet<DeviceMediaNativeSelection>();
+
+export async function disposeDeviceMediaSelection(selection: DeviceMediaSelection): Promise<void> {
+  if (selection.origin !== 'native') return;
+  if (releasedNativeDeviceMediaSelections.has(selection)) return;
+  releasedNativeDeviceMediaSelections.add(selection);
+  await releaseNativeDeviceMediaHandle(selection.handle);
 }

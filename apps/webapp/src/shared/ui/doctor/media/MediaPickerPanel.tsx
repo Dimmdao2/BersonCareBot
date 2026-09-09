@@ -42,7 +42,7 @@ import {
   pickDeviceMediaFromGallery,
   type DeviceMediaNativeSelection,
 } from '@/shared/lib/deviceMedia';
-import { deviceMediaMultipartUpload } from '@/shared/lib/media/deviceMediaMultipartUpload';
+import { deviceMediaMultipartUploadToDestination } from '@/shared/lib/media/deviceMediaMultipartUpload';
 
 function kindFromMimeForListItem(mimeType: string): MediaListItem['kind'] {
   const lower = mimeType.toLowerCase();
@@ -445,9 +445,9 @@ export function MediaPickerPanel({
       setUploading(true);
       setUploadProgress(0);
       try {
-        const { mediaId } = await deviceMediaMultipartUpload({
+        const { mediaId } = await deviceMediaMultipartUploadToDestination({
           selection,
-          begin: { url: '/api/media/multipart/init', extraBody: { folderId: uploadTargetFolderId } },
+          destination: { kind: 'cms_media_library', folderId: uploadTargetFolderId },
           signal: new AbortController().signal,
           onProgress: (loaded, total) => {
             if (total > 0) setUploadProgress(Math.round((100 * loaded) / total));

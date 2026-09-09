@@ -16,15 +16,14 @@
  */
 import { putPartWithProgress, UploadRequestError } from '@/shared/lib/media/uploadTransport';
 import { beginBusy, endBusy } from '@/shared/lib/busyRegistry';
-import {
-  releaseNativeDeviceMediaHandle,
-  uploadNativeDeviceMediaRange,
-} from '@/shared/lib/nativeShellRuntime';
+import { cancelNativeDeviceMediaUpload, uploadNativeDeviceMediaRange } from '@/shared/lib/nativeShellRuntime';
 import {
   deviceMediaSelectionFilename,
   deviceMediaSelectionMimeType,
+  disposeDeviceMediaSelection,
   type DeviceMediaSelection,
 } from '@/shared/lib/deviceMedia';
+import type { PatientFileCategory } from '@/modules/patient-files/ports';
 
 export type DeviceMediaMultipartBeginRequest = {
   /** One of the already-authorized begin doors; each supplies its own closed server policy. */
@@ -94,6 +93,18 @@ export async function deviceMediaMultipartUpload(params: {
 
   const busyId = `media-upload:${filename}:${totalBytes}:${Date.now()}`;
   beginBusy(busyId);
+
+  // A native range upload runs one HTTPS call at a time inside the plugin (M5-04); wire the caller's
+  // AbortSignal to its `cancelUpload()` bridge only while that call can actually be in flight, so an
+  // abort mid-part stops the native network call instead of only the JS-side await. Best-effort and
+  // idempotent by construction (`cancelNativeDeviceMediaUpload` swallows a no-op/absent-plugin call).
+  let onAbortCancelNative: (() => void) | null = null;
+  if (isNative) {
+    onAbortCancelNative = () => {
+      void cancelNativeDeviceMediaUpload();
+    };
+    params.signal.addEventListener('abort', onAbortCancelNative);
+  }
 
   try {
     const initRes = await fetch(params.begin.url, {
@@ -248,8 +259,72 @@ export async function deviceMediaMultipartUpload(params: {
     }
   } finally {
     endBusy(busyId);
-    // Terminal (success/abort/error) — release exactly once. A recoverable part retry above
-    // never reaches here, so it correctly reuses the same handle/range.
-    if (isNative) await releaseNativeDeviceMediaHandle(selection.handle);
+    if (onAbortCancelNative) params.signal.removeEventListener('abort', onAbortCancelNative);
+    // Terminal (success/abort/error) — release exactly once, through the same idempotent
+    // chokepoint every UI caller's own refusal/replace/close/unmount path uses. A recoverable
+    // part retry above never reaches here, so it correctly reuses the same handle/range.
+    await disposeDeviceMediaSelection(selection);
   }
+}
+
+// ---------------------------------------------------------------------------
+// Closed construction gate (#915 correction, §10a): the only door product code may use to begin
+// a multipart upload. Exactly the four accepted destinations map here to their own already-
+// authorized URL and exact allowed body fields — a caller cannot express a URL, an `extraBody`,
+// a bucket/key/storage/policy/owner argument, or override `uploadMode`. `deviceMediaMultipartUpload`
+// above stays the one shared engine (retries, concurrency, progress, abort, handle release); this
+// wrapper only narrows what a caller may ask it to do.
+// ---------------------------------------------------------------------------
+
+export type DeviceMediaMultipartDestination =
+  | { kind: 'cms_media_library'; folderId: string | null }
+  | { kind: 'patient_program_submission'; instanceId: string }
+  | { kind: 'doctor_patient_file'; userId: string; category: PatientFileCategory }
+  | { kind: 'individual_exercise_video'; instanceId: string };
+
+function resolveDestinationBeginRequest(
+  destination: DeviceMediaMultipartDestination,
+  selection: DeviceMediaSelection,
+): DeviceMediaMultipartBeginRequest {
+  switch (destination.kind) {
+    case 'cms_media_library':
+      return { url: '/api/media/multipart/init', extraBody: { folderId: destination.folderId } };
+    case 'patient_program_submission': {
+      const extraBody: Record<string, unknown> = { instanceId: destination.instanceId };
+      if (selection.kind === 'video' && selection.durationSeconds !== null) {
+        extraBody.durationSeconds = selection.durationSeconds;
+      }
+      return { url: '/api/patient/media/program-submission/presign', extraBody };
+    }
+    case 'doctor_patient_file':
+      return {
+        url: `/api/doctor/patients/${encodeURIComponent(destination.userId)}/files`,
+        extraBody: {
+          category: destination.category,
+          fileName: deviceMediaSelectionFilename(selection),
+          sizeBytes: selection.sizeBytes,
+        },
+      };
+    case 'individual_exercise_video':
+      return {
+        url: `/api/doctor/treatment-program-instances/${encodeURIComponent(destination.instanceId)}/media-presign`,
+        extraBody: {},
+      };
+  }
+}
+
+export async function deviceMediaMultipartUploadToDestination(params: {
+  selection: DeviceMediaSelection;
+  destination: DeviceMediaMultipartDestination;
+  onProgress: (loaded: number, total: number) => void;
+  signal: AbortSignal;
+  onSessionReady?: (sessionId: string) => void;
+}): Promise<{ url: string; mediaId: string }> {
+  return deviceMediaMultipartUpload({
+    selection: params.selection,
+    begin: resolveDestinationBeginRequest(params.destination, params.selection),
+    onProgress: params.onProgress,
+    signal: params.signal,
+    onSessionReady: params.onSessionReady,
+  });
 }
