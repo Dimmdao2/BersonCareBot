@@ -2,7 +2,7 @@
 
 **Candidate:** `7e8a32b32cd0e74d50954285e03dffcb7dfc6e57`  
 **Date:** 2026-09-09  
-**Verdict:** **FAIL — NOT FOR LAND (required live same-/cross-organization evidence is unavailable; no new reachable implementation finding found by the view gates).**
+**Verdict:** **BLOCKED — NOT FOR LAND (the corrected live proof reaches candidate deployment state, but named DEV has not executed the candidate forward migration; no reachable product finding was observed).**
 
 ## Authority and classification before tests
 
@@ -37,8 +37,32 @@ No new test was written: the existing real-port DEV proof already has the indepe
 - `RUN_CLINIC_DOMAIN_WRITE_CONSTRAINTS_DB=1 node --test deploy/postgres/privileges/clinic-domain-write-constraints.devDbProof.test.mjs` → 4 pass / 1 fail. The only failed case aborts before a write with `DEV fixture requires two organizations`.
 - `set -a; source /home/dev/dev-projects/BersonCareBot/apps/webapp/.env.dev; set +a; USE_REAL_DATABASE=1 RUN_CUSTOM_DOMAIN_BINDING_DB=1 pnpm --dir apps/webapp exec vitest run src/infra/repos/pgCustomDomainBinding.devDbProof.test.ts` → could not start: `Command "vitest" not found` in this worktree. No DB operation occurred.
 
-## Exact live-evidence boundary
+## Corrected live-evidence boundary
 
-Named DEV currently has no pair of organizations required by both existing proofs. The real-port proof requires an active staff membership plus an organization without that membership; its same-org save is force-rolled back and its cross-org spoof assertion must return `42501`. The legacy duplicate-host proof independently requires two organizations and force-rolls back. Creating a second organization is prohibited by the brief, so neither same-org persistence nor cross-org refusal/hostname capture is claimed. This is an acceptance-data/runtime blocker, not a claim that the candidate has a reachable defect.
+The earlier assertion that this real-port proof needed a second DEV organization was false. The auditor-owned proof now discovers only one existing active staff membership, keeps that verified staff principal and its own organization context, force-rolls back the same-organization save, and calls the public port with a random different `organizationId`. It creates no fixture, organization, or persistent binding.
 
-The candidate's production files remain byte-identical to `7e8a32b32`; this audit adds only this artifact and the queue row. TEST/PROD, DNS, TLS, nginx, and `:5200` were not touched.
+The opt-in proof was run through the host test lock with the canonical DEV env and the candidate declaration's generated, in-memory port capability manifest:
+
+```text
+/home/dev/brain/host-orch/run-tests.sh 'set -a; source /home/dev/dev-projects/BersonCareBot/apps/webapp/.env.dev; set +a; eval "$(node deploy/postgres/privileges/generate-cli.mjs --env dev --db bcb_webapp_dev --port-context-env webapp)"; USE_REAL_DATABASE=1 RUN_CUSTOM_DOMAIN_BINDING_DB=1 pnpm --dir apps/webapp exec vitest run src/infra/repos/pgCustomDomainBinding.devDbProof.test.ts'
+```
+
+Both cases reached the real port-context path, but stopped at SQLSTATE `42883`: `app.save_custom_domain_binding_intent(text,uuid,text,text)` is absent from named DEV. This is the candidate's pending forward migration, not a same-/cross-organization data precondition and not a product finding. The required owner-aware rollback-only check proves the exact candidate DDL/function body compiles under its declared owner and leaves DEV unchanged:
+
+```text
+bash deploy/host/migrate-dev.sh --preflight --runtime-env-root /home/dev/dev-projects/BersonCareBot
+```
+
+Result: `migrate-dev preflight: PASS` with `pending=2 total=151` and explicit `ROLLBACK`. The brief forbids executing the migration, so the successful own-save and `42501` spoof observations cannot be honestly claimed and this audit is not PASS FOR LAND.
+
+Supporting checks passed:
+
+```text
+pnpm run check:db-privileges-generated
+node scripts/check-migration-privileges.mjs
+pnpm --dir apps/webapp typecheck
+pnpm --dir apps/webapp exec eslint src/infra/repos/pgCustomDomainBinding.devDbProof.test.ts
+git diff --check
+```
+
+The old duplicate-host proof still needs two existing organizations, but it is not this intent-door oracle. TEST/PROD, DNS, TLS, nginx, `:5200`, and all persistent DEV state were untouched.

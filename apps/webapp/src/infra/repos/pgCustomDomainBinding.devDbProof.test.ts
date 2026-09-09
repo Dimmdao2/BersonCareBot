@@ -13,10 +13,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { describe, expect, it } from 'vitest';
-import { runWithDbStaffPrincipal } from '@bersoncare/db-principal';
-import { runInDrizzleMutationTransaction } from '@/infra/db/drizzleMutationTx';
-import { createPgCustomDomainBindingPort } from './pgCustomDomainBinding';
+import { beforeAll, describe, expect, it } from 'vitest';
 
 const enabled =
   process.env.USE_REAL_DATABASE === '1' &&
@@ -25,7 +22,6 @@ const enabled =
 type StaffFixture = {
   platformUserId: string;
   ownOrganizationId: string;
-  foreignOrganizationId: string;
 };
 
 class ExpectedRollback extends Error {}
@@ -51,30 +47,18 @@ function devFixture(): StaffFixture {
       '-v',
       'ON_ERROR_STOP=1',
       '-c',
-      `SELECT member.platform_user_id || '|' || member.organization_id || '|' || foreign_org.organization_id
+      `SELECT member.platform_user_id || '|' || member.organization_id
          FROM public.be_organization_members AS member
-         JOIN LATERAL (
-           SELECT candidate.id AS organization_id
-             FROM public.be_organizations AS candidate
-            WHERE NOT EXISTS (
-              SELECT 1
-                FROM public.be_organization_members AS own_membership
-               WHERE own_membership.platform_user_id = member.platform_user_id
-                 AND own_membership.organization_id = candidate.id
-                 AND own_membership.status = 'active'
-            )
-            LIMIT 1
-         ) AS foreign_org ON TRUE
         WHERE member.status = 'active'
         LIMIT 1`,
     ],
     { encoding: 'utf8' },
   ).trim();
-  const [platformUserId, ownOrganizationId, foreignOrganizationId] = output.split('|');
-  if (!platformUserId || !ownOrganizationId || !foreignOrganizationId) {
-    throw new Error('DEV requires an active staff membership and an organization without that membership');
+  const [platformUserId, ownOrganizationId] = output.split('|');
+  if (!platformUserId || !ownOrganizationId) {
+    throw new Error('DEV requires an active staff membership');
   }
-  return { platformUserId, ownOrganizationId, foreignOrganizationId };
+  return { platformUserId, ownOrganizationId };
 }
 
 function uniqueBaseDomain(): string {
@@ -96,6 +80,19 @@ async function captureRejection(action: () => Promise<unknown>): Promise<{ code?
 }
 
 describe.skipIf(!enabled)('custom-domain ordinary staff save against named DEV', () => {
+  let runWithDbStaffPrincipal: typeof import('@bersoncare/db-principal').runWithDbStaffPrincipal;
+  let runInDrizzleMutationTransaction: typeof import('@/infra/db/drizzleMutationTx').runInDrizzleMutationTransaction;
+  let createPgCustomDomainBindingPort: typeof import('./pgCustomDomainBinding').createPgCustomDomainBindingPort;
+
+  beforeAll(async () => {
+    // vitest.setup.ts deliberately restores hermetic suites to legacy-guc. This opt-in proof must
+    // load the real Drizzle port only after restoring the canonical DEV port-context boundary.
+    process.env.DB_PRINCIPAL_CONTEXT_MODE = 'port-context';
+    ({ runWithDbStaffPrincipal } = await import('@bersoncare/db-principal'));
+    ({ runInDrizzleMutationTransaction } = await import('@/infra/db/drizzleMutationTx'));
+    ({ createPgCustomDomainBindingPort } = await import('./pgCustomDomainBinding'));
+  });
+
   it('accepts the member organization through the real Drizzle port and leaves no binding behind', async () => {
     const fixture = devFixture();
     const port = createPgCustomDomainBindingPort();
@@ -125,20 +122,21 @@ describe.skipIf(!enabled)('custom-domain ordinary staff save against named DEV',
     expect(result).toMatchObject({ ok: true, state: { status: 'pending', placement: 'apex' } });
   });
 
-  it('refuses the same staff actor when it claims an organization without membership', async () => {
+  it('refuses the same staff actor when it spoofs another organization UUID', async () => {
     const fixture = devFixture();
     const port = createPgCustomDomainBindingPort();
+    const spoofedOrganizationId = randomUUID();
     const refusal = await captureRejection(() =>
       runWithDbStaffPrincipal(
         {
-          organizationId: fixture.foreignOrganizationId,
+          organizationId: fixture.ownOrganizationId,
           platformUserId: fixture.platformUserId,
           source: 'custom-domain-dev-db-proof',
         },
         () =>
           runInDrizzleMutationTransaction(() =>
             port.setCustomDomainIntent({
-              organizationId: fixture.foreignOrganizationId,
+              organizationId: spoofedOrganizationId,
               baseDomain: uniqueBaseDomain(),
               placement: 'apex',
             }),
