@@ -134,13 +134,14 @@ Scope: `apps/webapp/src/shared/lib/pwa/**`, `shared/lib/surface/surfaceLayoutMet
 строка M1 не заводит второй источник имени, иконок или манифеста — только параметризует существующий
 (`AGENTS.md` §5).
 
-- [ ] **M1-01.** Default patient PWA называется **TherapyGo**: значение меняется в единственном литерале
+- [x] **M1-01.** Default patient PWA называется **TherapyGo**: значение меняется в единственном литерале
       `PATIENT_DEFAULT_SURFACE_NAME` (`config/productSurfaceNames.ts`, сегодня `'Therapygo'`), env-override
       `PATIENT_APP_NAME` продолжает работать. `id`, `scope` и `start_url=/app/patient` установленного приложения
       не меняются — контракт уже установленных PWA переезд не трогает. Доказательство: product/correction
       `93f2d7b34` + `4f646315c`, независимый confirmation `ce42f825f`, landing `66ef65468`; публичный manifest
       oracle сохранил `id/scope/start_url` и env-aware surface resolver. Новая owner-коррекция написания
-      `TherapyGo` открыла пункт повторно до отдельного product/audit/landing evidence.
+      `TherapyGo` закрыта: product `bc221c4a2`, independent audit/tests `941607a78`, port landing `5a2107450`;
+      публичный manifest oracle сохранил `id/scope/start_url`, fault injection поймал 4/4 класса.
 - [x] **M1-02.** Patient-манифест и patient-метаданные отдают знак **с шариком**, производный от
       `brand/therapygo-app-icon-source.png`: 192, 512, отдельный `purpose: 'maskable'` и apple-touch 180.
       Источник не квадратный (§3a), поэтому derive-шаг явно центрирует знак на квадратном холсте и оставляет
@@ -204,10 +205,11 @@ Scope: `apps/mobile-shell/**`, `pnpm-workspace.yaml`, root workspace wiring, bui
       `pnpm -r --parallel run typecheck`, `eslint .` и `pnpm run ci` проходят с ним — либо потому, что пакет
       несёт реальные скрипты, либо потому, что их отсутствие объявлено явно. Gradle/Android артефакты и локальные
       SDK-пути не попадают в git (`git status --porcelain` чист после сборки).
-- [ ] **M2-03.** Flavors имеют отдельные application IDs, names, supplied icons/adaptive icons, splash resources,
+- [x] **M2-03.** Flavors имеют отдельные application IDs, names, supplied icons/adaptive icons, splash resources,
       theme colors, start URLs and allowed origins. Signing credentials/service tokens отсутствуют в git и bundle.
       Доказательство прежней конфигурации: `49f584040` сверил четыре APK через `aapt` и secret/artifact scan;
-      landing `d7f99340c`. Новая owner-коррекция label `TherapyGo` требует нового APK evidence до повторного закрытия.
+      landing `d7f99340c`. Owner-коррекция label `TherapyGo` доказана отдельным product `bc221c4a2` и independent
+      audit `941607a78`: `aapt` подтвердил labels всех четырёх brand×environment APK, port landing `5a2107450`.
 - [x] **M2-04.** Shell показывает startup/loading/offline/server-unavailable state, корректно обрабатывает Android
       back/navigation и не обещает offline business data. HTTP/WebView cache используется штатно, video cache не
       добавляется. Доказательство: `49f584040` нашёл main-frame defect, `a0dfd6576` исправил его; тот же retained
@@ -508,10 +510,10 @@ security/audit gates идут без этих входов. Отсутствую
 | M2-00 | done | Port ops run `mobile-android-toolchain-ops-20260909`: `/home/dev/.local/share/bcb-android/env.sh`; `javac 21.0.12.1`, cmdline-tools `23.0.0`, build-tools `36.0.0`, platform 36, adb `37.0.1`, emulator `37.1.11`, API 36 Google APIs x86_64 image and `bcb-api36` AVD. Exact `df -B1 /`: before `18180792320`, after run `9359036416`, consumed `8821755904` bytes. Lead repeated all version/list checks. |
 | M2-00a | open | System image/AVD are installed, but `id dev` lacks group `kvm`; `/dev/kvm` is `root:kvm 0660`, and passwordless sudo is unavailable. Requires `sudo usermod -aG kvm dev` plus new login/`sg kvm`. |
 | M2-01, M2-04…M2-08 | done | Product `533bb29b1`, independent blind audit/tests `49f584040`, accepted correction `a0dfd6576`, port landing `d7f99340c`; exact evidence is in `.lead/runs/mobile-shell-foundation-audit-20260909/`. |
-| M2-03 | open | Базовая четырехвариантная конфигурация доказана `49f584040`/`d7f99340c`; owner-коррекция Android label на `TherapyGo` ожидает новый product/audit/landing evidence. |
+| M2-03 | done | Базовая четырехвариантная конфигурация доказана `49f584040`/`d7f99340c`; owner-коррекция Android label `TherapyGo` — product `bc221c4a2`, independent audit `941607a78` с `aapt` для четырёх APK, port landing `5a2107450`. |
 | M2-02 | open | Workspace wiring/typecheck/lint/build are proven; the root `pnpm run ci` clause remains for final integrated M7-06 and is not claimed early. |
 | M1-02, M1-03, M1-05, M1-06 | done | Двухбрендовые PWA manifests/icons/surfaces реализованы, поведенчески проверены и посажены в `feat/doctor-ui-rebuild` через port: product `ae14e0f16`, audit `fd04fbc27`, confirmation `041abf541`, landing `66ef65468`. |
-| M1-01 | open | PWA identity wiring доказан `ae14e0f16`/`fd04fbc27`/`041abf541`/`66ef65468`; owner-коррекция display name на `TherapyGo` ожидает новый product/audit/landing evidence. |
+| M1-01 | done | PWA identity wiring доказан `ae14e0f16`/`fd04fbc27`/`041abf541`/`66ef65468`; owner-коррекция display name `TherapyGo` — product `bc221c4a2`, independent manifest/fault audit `941607a78`, port landing `5a2107450`. |
 | M1-04 | open | Финальный named-DEV HTTP проход `ee0c91fc8` (landing `0f7a8374e`) подтвердил, что HTTP 500 `native_push_token_keyring_unavailable` устранён, а TherapyGo/Therapysto metadata/manifests/install routes и исключение platform-admin работают. В DEV сейчас `count(*) = 0` и для `org_custom_domain_bindings`, и для `clinic_public_directory_entries`, поэтому живого branded-patient host для проверки нет; authenticated doctor redirect и полный browser/PWA fallback остаются в M7-03. |
 | M1-07, M3-01…M3-03 | done | Product/corrections `d54b34775`, `4e6a5b188`, `312ef14e3`; independent continuation/tests `44b494331` после отклонённого первичного PASS; retained `5 files / 71 tests`, PWA native-shell `6/6`, typecheck/scoped ESLint; port landing `4d84fb260`. |
 | M4-02 | done | Native Jitsi lifecycle/permission/hangup/retry through `d1c983a3c`; four-variant Android matrix; port landing `a722d9bf8`. Web selection seam remains M4-01/M4-04/M4-05. |
