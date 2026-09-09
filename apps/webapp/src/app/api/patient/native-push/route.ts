@@ -22,7 +22,7 @@ function unavailableResponse() {
   );
 }
 
-/** Patient route fixes Therapy Go; the client cannot select a surface. */
+/** Patient route fixes TherapyGo; the client cannot select a surface. */
 export async function GET() {
   const gate = await requirePatientApiBusinessAccess();
   if (!gate.ok) return gate.response;
