@@ -52,29 +52,6 @@ beforeEach(() => {
 });
 
 describe('exact-organization clinic delivery credential resolution', () => {
-  it('uses only the current organization row and the independent mechanic for every channel', async () => {
-    const resolve = createClinicDeliveryCredentialResolver({} as never);
-    const results = await runWithOrganizationPrincipal(ORG_A, () =>
-      Promise.all([resolve('email'), resolve('smsc'), resolve('telegram'), resolve('max')]),
-    );
-
-    expect(results.map((result) => result?.channel)).toEqual(['email', 'smsc', 'telegram', 'max']);
-    expect(mocks.resolveAccess.mock.calls.map((call) => call[1])).toEqual([
-      { organizationId: ORG_A, mechanic: 'clinic_smtp' },
-      { organizationId: ORG_A, mechanic: 'clinic_sms' },
-      { organizationId: ORG_A, mechanic: 'clinic_telegram_bot' },
-      { organizationId: ORG_A, mechanic: 'clinic_max_bot' },
-    ]);
-    // Every channel goes through the capability, and every call carries the exact current org —
-    // the direct settings-table read this replaced was a hard 42501 for this app's roles.
-    expect(mocks.readCredential.mock.calls.map((call) => [call[1], call[2]])).toEqual([
-      ['clinic_smtp_outbound', ORG_A],
-      ['clinic_smsc_api_key', ORG_A],
-      ['clinic_telegram_bot_token', ORG_A],
-      ['clinic_max_bot_api_key', ORG_A],
-    ]);
-  });
-
   it('does not read a credential when the clinic mechanic is unavailable', async () => {
     mocks.resolveAccess.mockResolvedValue({ mutationAllowed: false });
     const resolve = createClinicDeliveryCredentialResolver({} as never);

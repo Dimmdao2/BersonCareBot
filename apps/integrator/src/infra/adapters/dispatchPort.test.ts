@@ -382,6 +382,33 @@ describe('clinic-owned delivery routing', () => {
     ).not.toHaveProperty('clinicCredential');
   });
 
+  it('keeps a staff message on the platform staff identity despite an enabled clinic bot', async () => {
+    const send = vi.fn(async (_intent: OutgoingIntent) => ({}));
+    const port = createDefaultDispatchPort({
+      adapters: [{ canHandle: () => true, send }],
+      resolveClinicDeliveryCredential: async () => ({
+        channel: 'telegram',
+        botToken: 'clinic-a-token',
+      }),
+    });
+    const intent = clinicIfConfiguredIntent('telegram');
+    intent.payload = {
+      ...intent.payload,
+      delivery: { channels: ['telegram'], senderScope: 'clinic_if_configured', audience: 'staff' },
+    };
+
+    await expect(port.dispatchOutgoing(intent)).resolves.toEqual({});
+    expect(send).toHaveBeenCalledOnce();
+    expect(
+      (send.mock.calls[0]?.[0].payload as {
+        delivery: { clinicCredential?: unknown; platformAudience?: unknown };
+      }).delivery,
+    ).toMatchObject({ platformAudience: 'staff' });
+    expect(
+      (send.mock.calls[0]?.[0].payload as { delivery: { clinicCredential?: unknown } }).delivery,
+    ).not.toHaveProperty('clinicCredential');
+  });
+
   it('falls back to the platform credential only for clinic-preferred essential delivery', async () => {
     const send = vi
       .fn(async (_intent: OutgoingIntent) => ({ telegramMessageId: 0 }))
