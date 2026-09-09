@@ -7,7 +7,8 @@
 - `AGENTS.md`: до каждого действия карта заголовков; полностью прочитать §1, §1a, §1b, §9, §10, §10a, §10b, §11, §12 и §24.
 - `docs/ARCHITECTURE/LOCAL_DEV_AND_AGENT_TESTING.md` — единственный канон локального live-запуска, изолированного порта и обычного входа.
 - `docs/_TODO/NATIVE_MOBILE_APP_INITIATIVE/MASTER_PLAN.md`: актуальные §M1, §M4, §M5 и §M7.
-- Точный критерий §M7-03: «Оба TEST APK variants собираются на Linux (`assembleTherapygoTestDebug` и `assembleTherapystoTestDebug`); для обеих APK проверяются applicationId/label/icon/deep-link host и branded-vs-default behavior. Browser/PWA live acceptance покрывает install metadata обеих поверхностей, брендированную поверхность §M1-04, file fallback и iframe Jitsi».
+- Точный критерий §M7-03: «Оба TEST APK variants собираются на Linux (зависит от `M2-00`). Browser/PWA live acceptance покрывает install metadata обеих поверхностей, брендированную поверхность §M1-04, file fallback и iframe Jitsi — это выполнимо в репозитории и на именованном DEV/TEST без внешних гейтов».
+- Owner-коррекция §1.1: patient display name — `TherapyGo`, одним словом с заглавной `G`; технические идентификаторы `therapygo` не меняются.
 - Принятый PWA live-отчёт `.lead/runs/mobile-pwa-live-bootstrap-recheck-20260909/90-final-audit-report.md` (report commit `ee0c91fc8`).
 - Принятый browser Jitsi live-отчёт `docs/audit/video-live-ui-final-verification-2026-09-08.md`.
 - Принятые итоговые отчёты и evidence DeviceMedia correction и NativeJitsi web-seam на проверяемом integrated SHA.
@@ -19,8 +20,8 @@
 ## Strong reuse gate
 
 1. Сначала сравнить затронутые пути и зафиксировать решение о reuse.
-2. Переиспользовать PWA metadata evidence `ee0c91fc8`, если после него не менялись относящиеся к metadata/manifest/branding/install-surface файлы.
-3. Переиспользовать существующее evidence Linux TEST APK build и `aapt dump badging`, если после доказанного SHA не менялись `apps/mobile-shell/**`, workspace dependency manifests и lockfile. Если менялись — обе TEST APK собрать только через host lock из `AGENTS.md` и повторить badging-проверку.
+2. Старое PWA metadata evidence `ee0c91fc8` не доказывает исправленное написание. Для точного `TherapyGo` переиспользовать новый принятый naming-audit только если после него не менялись относящиеся к metadata/manifest/branding/install-surface файлы; остальное неизменённое PWA evidence можно переиспользовать отдельно.
+3. Старое APK badging evidence не доказывает исправленный label. Переиспользовать новый naming-audit Linux build/`aapt dump badging` только если после его SHA не менялись `apps/mobile-shell/**`, workspace dependency manifests и lockfile. Если менялись — обе TEST APK собрать только через host lock из `AGENTS.md` и повторить badging-проверку.
 4. Не повторять уже доказанные metadata/Gradle проверки, если релевантный код неизменен. В отчёте назвать точные использованные SHA/команды/артефакты.
 
 ## Live browser acceptance
