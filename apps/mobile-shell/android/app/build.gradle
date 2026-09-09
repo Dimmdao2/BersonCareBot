@@ -29,6 +29,12 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }
+    testOptions {
+        unitTests {
+            includeAndroidResources = false
+            returnDefaultValues = false
+        }
+    }
     flavorDimensions += ["brand", "environment"]
     productFlavors {
         therapygo {
@@ -80,6 +86,11 @@ dependencies {
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
     implementation project(':capacitor-android')
     testImplementation "junit:junit:$junitVersion"
+    // Audit-added (#915 auditor-live): behavioral acceptance tests for NavigationPolicyPlugin,
+    // TrustedOriginGate and ShellRuntimePlugin need a real android.net.Uri/WebView/Bridge boundary.
+    testImplementation "org.robolectric:robolectric:$robolectricVersion"
+    testImplementation "androidx.test:core:$androidxTestCoreVersion"
+    testImplementation "org.mockito:mockito-core:$mockitoCoreVersion"
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
     implementation project(':capacitor-cordova-android-plugins')
