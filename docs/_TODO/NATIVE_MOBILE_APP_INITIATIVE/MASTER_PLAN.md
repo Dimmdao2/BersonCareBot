@@ -203,10 +203,11 @@ Scope: `apps/mobile-shell/**`, `pnpm-workspace.yaml`, root workspace wiring, bui
       `ANDROID_HOME` задан, `sdkmanager --list_installed` и `adb --version` печатают версии, занятое место названо
       числом. Установка на DEV-бокс разрешена решением §6a `G-1`; ни одна другая строка M2/M7, требующая сборки
       APK, до фактической проверки toolchain закрыта быть не может.
-- [ ] **M2-00a.** Для `M7-04` дополнительно: установлен system image эмулятора и пользователь агента добавлен в
-      группу `kvm` (сегодня он в неё не входит — §3a). Без KVM эмулятор запускается программной эмуляцией и как
-      приёмочный инструмент непригоден. Это привилегированное host-действие: выполняется порт-агентом по решению
-      `G-1`, не из рабочего хода.
+- [x] **M2-00a.** Для `M7-04` дополнительно: установлен system image эмулятора и пользователь агента добавлен в
+      группу `kvm`. Host-gate выполнен 2026-09-09: `sudo -n usermod -aG kvm dev`; `getent group kvm` вернул
+      `kvm:x:994:dev`, а `sg kvm -c "id && test -r /dev/kvm && test -w /dev/kvm && echo kvm-access-pass"`
+      завершился `kvm-access-pass`. KVM-backed AVD действительно стартовал в независимом M7-04 проходе; его
+      отдельный сетевой/System UI runtime-блокер не отменяет выполненный prerequisite и разбирается в M7-04.
 - [x] **M2-01.** Создан один workspace package на pin-compatible Capacitor 8 с Android source artifacts, двумя
       product flavors `therapygo`/`therapysto` и environment dimension `test`/`production`. Четыре логические
       brand×environment комбинации воспроизводимы: debug APK честно отмечены как debug-key signed, release APK/AAB
@@ -550,7 +551,7 @@ security/audit gates идут без этих входов. Отсутствую
 | M0-02 | done | Exact commands/results are recorded in §3a and M0-02; lead recalculated them on `18b61f52b`. |
 | M0-03 | done | Independent high-Opus plan candidate `0864df016`, landed by port as `229a243e7`; lead corrected two contradictions exposed by read-only architecture mapping before product launch. |
 | M2-00 | done | Port ops run `mobile-android-toolchain-ops-20260909`: `/home/dev/.local/share/bcb-android/env.sh`; `javac 21.0.12.1`, cmdline-tools `23.0.0`, build-tools `36.0.0`, platform 36, adb `37.0.1`, emulator `37.1.11`, API 36 Google APIs x86_64 image and `bcb-api36` AVD. Exact `df -B1 /`: before `18180792320`, after run `9359036416`, consumed `8821755904` bytes. Lead repeated all version/list checks. |
-| M2-00a | open | System image/AVD are installed, but `id dev` lacks group `kvm`; `/dev/kvm` is `root:kvm 0660`, and passwordless sudo is unavailable. Requires `sudo usermod -aG kvm dev` plus new login/`sg kvm`. |
+| M2-00a | done | `sudo -n usermod -aG kvm dev`; `getent group kvm` → `kvm:x:994:dev`; `sg kvm -c "id && test -r /dev/kvm && test -w /dev/kvm && echo kvm-access-pass"` → PASS. The independent emulator run then started the API 36 AVD under KVM. |
 | M2-01, M2-04…M2-08 | done | Product `533bb29b1`, independent blind audit/tests `49f584040`, accepted correction `a0dfd6576`, port landing `d7f99340c`; exact evidence is in `.lead/runs/mobile-shell-foundation-audit-20260909/`. |
 | M2-03 | done | Базовая четырехвариантная конфигурация доказана `49f584040`/`d7f99340c`; owner-коррекция Android label `TherapyGo` — product `bc221c4a2`, independent audit `941607a78` с `aapt` для четырёх APK, port landing `5a2107450`. |
 | M2-02 | open | Workspace wiring/typecheck/lint/build are proven; the root `pnpm run ci` clause remains for final integrated M7-06 and is not claimed early. |
