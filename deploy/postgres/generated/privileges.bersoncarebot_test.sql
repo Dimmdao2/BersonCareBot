@@ -15611,7 +15611,7 @@ GRANT SELECT ("hostname", "organization_id", "status") ON TABLE "public"."org_cu
 GRANT UPDATE ("activated_at", "status", "status_reason", "updated_at") ON TABLE "public"."org_custom_domain_bindings" TO "app_seam_custom_domain_owner";
 GRANT SELECT ("base_domain", "hostname", "organization_id", "placement", "status") ON TABLE "public"."org_custom_domain_bindings" TO "app_seam_settings_runtime_owner";
 GRANT SELECT ON TABLE "public"."org_custom_domain_bindings" TO "app_staff";
-GRANT INSERT ("base_domain", "created_by_platform_user_id", "hostname", "organization_id", "placement", "status", "subdomain_label") ON TABLE "public"."org_custom_domain_bindings" TO "app_staff";
+GRANT INSERT ("activated_at", "base_domain", "created_at", "created_by_platform_user_id", "hostname", "id", "organization_id", "placement", "status", "status_reason", "subdomain_label", "updated_at") ON TABLE "public"."org_custom_domain_bindings" TO "app_staff";
 GRANT UPDATE ("status", "status_reason", "updated_at") ON TABLE "public"."org_custom_domain_bindings" TO "app_staff";
 -- последовательности public.org_custom_domain_bindings: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$

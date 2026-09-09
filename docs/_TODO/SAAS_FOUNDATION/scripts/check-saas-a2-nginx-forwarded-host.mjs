@@ -8,11 +8,12 @@ function usage() {
     'Usage:',
     '  sudo nginx -T 2>/tmp/nginx.dump && node docs/_TODO/SAAS_FOUNDATION/scripts/check-saas-a2-nginx-forwarded-host.mjs --nginx-dump=/tmp/nginx.dump',
     '  node docs/_TODO/SAAS_FOUNDATION/scripts/check-saas-a2-nginx-forwarded-host.mjs --self-test',
+    '  node docs/_TODO/SAAS_FOUNDATION/scripts/check-saas-a2-nginx-forwarded-host.mjs --nginx-dump=/tmp/nginx.dump --required-host=test.bersoncare.ru',
   ].join('\n');
 }
 
 function parseArgs(argv) {
-  const options = { nginxDump: null, selfTest: false };
+  const options = { nginxDump: null, requiredHost: null, selfTest: false };
   for (const arg of argv) {
     if (arg === '--help' || arg === '-h') {
       console.log(usage());
@@ -20,6 +21,10 @@ function parseArgs(argv) {
     }
     if (arg.startsWith('--nginx-dump=')) {
       options.nginxDump = arg.slice('--nginx-dump='.length);
+      continue;
+    }
+    if (arg.startsWith('--required-host=')) {
+      options.requiredHost = arg.slice('--required-host='.length);
       continue;
     }
     if (arg === '--self-test') {
@@ -120,6 +125,17 @@ function selectWebappServerBlock(nginxDump) {
   );
 }
 
+function selectRequiredWebappServerBlock(nginxDump, hostname) {
+  const escapedHostname = hostname.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const serverBlock = extractServerBlocks(nginxDump).find(
+    (block) =>
+      new RegExp(`server_name\\s+[^;]*\\b${escapedHostname}\\b[^;]*;`, 'i').test(block) &&
+      /proxy_pass\s+http:\/\/127\.0\.0\.1:6300\s*;/i.test(block),
+  );
+  assert(serverBlock, `--nginx-dump: missing webapp vhost for required host ${hostname}`);
+  return serverBlock;
+}
+
 function assertProxyHeader(block, headerName, expectedValue) {
   const escapedName = headerName.replaceAll('-', '\\-');
   const escapedValue = expectedValue.replaceAll('$', '\\$');
@@ -192,6 +208,16 @@ function assertYooKassaWebhookIngress(serverBlock) {
   assertProxyHeader(callbackLocation, 'X-Forwarded-For', '$proxy_add_x_forwarded_for');
 }
 
+function assertRequiredCustomDomainVhost(nginxDump, hostname) {
+  const serverBlock = selectRequiredWebappServerBlock(nginxDump, hostname);
+  assertWebappProxyContract(serverBlock, `required host ${hostname}`);
+  assertYooKassaWebhookIngress(serverBlock);
+  assert(
+    !/return\s+30[1278]\s+https:\/\/test\.(?:therapysto|therapygo)\.ru/i.test(serverBlock),
+    `required host ${hostname} must not redirect to a platform TEST hostname`,
+  );
+}
+
 function runSelfTest() {
   const validConfig = `server {
     server_name test.bersoncare.ru;
@@ -246,10 +272,12 @@ try {
     process.exit(0);
   }
   assert(options.nginxDump, `--nginx-dump is required\n\n${usage()}`);
+  assert(!options.requiredHost || /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/.test(options.requiredHost), 'invalid --required-host');
   const nginxDump = read(options.nginxDump);
   const webappServerBlock = selectWebappServerBlock(nginxDump);
   assertWebappProxyContract(webappServerBlock, '--nginx-dump');
   assertYooKassaWebhookIngress(webappServerBlock);
+  if (options.requiredHost) assertRequiredCustomDomainVhost(nginxDump, options.requiredHost);
   console.log('check-saas-a2-nginx-forwarded-host: OK');
 } catch (error) {
   const message = error instanceof Error ? error.message : String(error);

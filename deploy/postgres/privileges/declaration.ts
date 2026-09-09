@@ -17339,13 +17339,18 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "INSERT"
         ],
         "columns": [
+          "id",
           "organization_id",
           "base_domain",
           "placement",
           "subdomain_label",
           "hostname",
           "status",
-          "created_by_platform_user_id"
+          "status_reason",
+          "created_by_platform_user_id",
+          "activated_at",
+          "created_at",
+          "updated_at"
         ]
       },
       {

@@ -8,9 +8,9 @@ STAFF_HOST="test.therapysto.ru"
 ADMIN_HOST="admin.test.therapysto.ru"
 PATIENT_HOST="test.therapygo.ru"
 KNOWN_TENANT_HOST="berson.test.therapygo.ru"
-LEGACY_HOST="test.bersoncare.ru"
+BERSONCARE_HOST="test.bersoncare.ru"
 SURFACE_CERT="/etc/letsencrypt/live/therapysto-test-surfaces"
-LEGACY_CERT="/etc/letsencrypt/live/test.bersoncare.ru"
+BERSONCARE_CERT="/etc/letsencrypt/live/test.bersoncare.ru"
 SURFACE_AVAILABLE="/etc/nginx/sites-available/therapysto-test-surfaces"
 SURFACE_ENABLED="/etc/nginx/sites-enabled/therapysto-test-surfaces"
 LEGACY_AVAILABLE="/etc/nginx/sites-available/test.bersoncare.ru"
@@ -52,7 +52,7 @@ assert_test_only() {
   [ "$WEBAPP_UPSTREAM" = "http://127.0.0.1:6300" ] || fatal "unexpected webapp upstream"
   [ "$INTEGRATOR_UPSTREAM" = "http://127.0.0.1:3300" ] || fatal "unexpected integrator upstream"
   [ -f "$A2_CHECKER" ] || fatal "missing A2 checker: $A2_CHECKER"
-  [ -f "$LEGACY_AVAILABLE" ] || fatal "missing legacy TEST vhost: $LEGACY_AVAILABLE"
+  [ -f "$LEGACY_AVAILABLE" ] || fatal "missing Berson Care TEST vhost: $LEGACY_AVAILABLE"
   [ "$(readlink -f "$LEGACY_ENABLED")" = "$LEGACY_AVAILABLE" ] \
     || fatal "$LEGACY_ENABLED must point to $LEGACY_AVAILABLE"
 }
@@ -174,11 +174,11 @@ server {
 NGINX
 }
 
-render_legacy_vhost() {
+render_bersoncare_custom_domain_vhost() {
   local output="$1"
   cat >"$output" <<'NGINX'
-# Transitional legacy TEST host. Browser routes move to the split product domains;
-# the existing payment callback remains live while provider configuration catches up.
+# Berson Care branded TEST patient custom domain. Host is intentionally preserved
+# for the shared Host -> organization resolver; this is not a redirect surface.
 # Source: deploy/host/apply-test-surface-domains.sh
 server {
     listen 80;
@@ -217,18 +217,30 @@ server {
         allow 2a02:5180::/32;
         deny all;
         proxy_pass http://127.0.0.1:6300;
-        proxy_set_header Host test.therapysto.ru;
-        proxy_set_header X-Forwarded-Host test.therapysto.ru;
-        proxy_set_header X-Forwarded-Proto https;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_read_timeout 120s;
+        proxy_send_timeout 120s;
     }
 
-    location ~ ^/(?:app/patient|book|join|live|setup)(?:/|$) {
-        return 307 https://test.therapygo.ru$request_uri;
-    }
     location / {
-        return 307 https://test.therapysto.ru$request_uri;
+        proxy_pass http://127.0.0.1:6300;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_read_timeout 120s;
+        proxy_send_timeout 120s;
     }
 }
 NGINX
@@ -243,7 +255,7 @@ install_root_file() {
 
 assert_test_only
 assert_cert_covers "$SURFACE_CERT" "$STAFF_HOST" "$ADMIN_HOST" "$PATIENT_HOST" "$KNOWN_TENANT_HOST"
-assert_cert_covers "$LEGACY_CERT" "$LEGACY_HOST"
+assert_cert_covers "$BERSONCARE_CERT" "$BERSONCARE_HOST"
 
 surface_rendered="$(mktemp /tmp/therapysto-test-surfaces.XXXXXX)"
 legacy_rendered="$(mktemp /tmp/bersoncare-test-legacy.XXXXXX)"
@@ -251,14 +263,14 @@ combined_rendered="$(mktemp /tmp/therapysto-test-nginx-combined.XXXXXX)"
 cleanup() { rm -f "$surface_rendered" "$legacy_rendered" "$combined_rendered"; }
 trap cleanup EXIT
 render_surface_vhost "$surface_rendered"
-render_legacy_vhost "$legacy_rendered"
+render_bersoncare_custom_domain_vhost "$legacy_rendered"
 cat "$surface_rendered" "$legacy_rendered" >"$combined_rendered"
-node "$A2_CHECKER" --nginx-dump="$combined_rendered"
+node "$A2_CHECKER" --nginx-dump="$combined_rendered" --required-host="$BERSONCARE_HOST"
 
 if [ "$ACTION" = "dry-run" ]; then
   log "dry-run OK"
   echo "   surfaces: $STAFF_HOST $ADMIN_HOST $PATIENT_HOST $KNOWN_TENANT_HOST"
-  echo "   legacy:   $LEGACY_HOST -> split domains"
+  echo "   branded:  $BERSONCARE_HOST -> TEST webapp (preserved Host)"
   echo "   apply:    bash deploy/host/apply-test-surface-domains.sh --apply"
   exit 0
 fi
@@ -292,7 +304,7 @@ if ! sudo systemctl reload nginx; then restore; fatal "nginx reload failed; prev
 
 active_dump="$(mktemp /tmp/therapysto-test-nginx-active.XXXXXX)"
 sudo nginx -T >"$active_dump" 2>/dev/null
-if ! node "$A2_CHECKER" --nginx-dump="$active_dump"; then
+if ! node "$A2_CHECKER" --nginx-dump="$active_dump" --required-host="$BERSONCARE_HOST"; then
   rm -f "$active_dump"
   restore
   fatal "active nginx contract check failed; previous vhosts restored"
