@@ -475,11 +475,15 @@ authority нельзя: он частично отменён владельце�
       Jitsi — это выполнимо в репозитории и на именованном DEV/TEST без внешних гейтов. Свежий проход `e40904b37`
       доказал обе TEST APK, обычный вход пациента кодом и врача паролем, browser media fallback и один self-hosted Jitsi iframe.
       Строка остаётся открытой: headless не отдал OS chooser/internal navigation/terminal callback, а published branded host в DEV отсутствует.
-- [ ] **M7-04.** Android acceptance на эмуляторе покрывает origins/внешние ссылки, камеру, документы, native Jitsi,
-      состояния разрешений и tap уведомления с подставным провайдером. Физическое устройство и реальная доставка
-      через инфраструктуру RuStore — внешние гейты §6, они блокируют только эту строку и `M7-05`. KVM/NAT подняты и гость достигает
-      оба TEST host, но API 36 image стабильно падает в `com.android.systemui` ANR; отчёт `7bf5613eb`, landing `e94465518`.
-- [ ] **M7-05.** Реальная доставка Universal Push подтверждена на TEST после закрытия внешних гейтов §6.
+- [ ] **M7-04.** Первичная Android acceptance на эмуляторе покрывает origins/внешние ссылки, камеру, документы,
+      native Jitsi, состояния разрешений и tap уведомления с подставным провайдером. Проверка на физическом
+      устройстве относится к отдельному owner release-stage после завершения интерфейса и не блокирует эту строку
+      или готовность текущего плана. KVM/NAT подняты и гость достигает оба TEST host, но API 36 image стабильно
+      падает в `com.android.systemui` ANR; отчёт `7bf5613eb`, landing `e94465518`.
+- [-] ~~**M7-05.** Реальная доставка Universal Push подтверждена на TEST после закрытия внешних гейтов §6.~~ —
+      **ОТМЕНЕНО ВЛАДЕЛЬЦЕМ 2026-09-09 ИЗ ТЕКУЩЕГО ПЛАНА:** RuStore пока не публикуется; подключение реальных
+      project credentials, доставка и проверка на физическом устройстве выполняются владельцем отдельным
+      release-stage после завершения интерфейса и не являются блокером этой инициативы.
 - [x] **M7-06.** Targeted/phase проверки зелёные на candidate SHAs. Поскольку изменение затрагивает root
       dependencies, lockfile, webapp, integrator и Android package, один полный CI гоняется под общим замком хоста
       (`/home/dev/brain/host-orch/run-tests.sh "pnpm run ci"`) только на финальной интеграции. Более позднее прямое
@@ -496,7 +500,8 @@ authority нельзя: он частично отменён владельце�
       `/var/log/bersoncarebot/deploy-test/deploy-test.20260909T153234Z.qAKn4g.log`). Четыре TEST-сервиса активны,
       integrator и обе web-поверхности отвечают `{"ok":true,"db":"up"}`; `git worktree list --porcelain` показал
       только основной checkout, поиск процессов по путям/именам mobile workstream не нашёл живых worker-процессов.
-      `#915` оставлен `doing` ровно из-за открытых M1-04/M7-03/M7-04/M7-05, а не из-за незавершённой интеграции.
+      `#915` оставлен `doing` ровно из-за открытых M1-04/M7-03/M7-04, а не из-за незавершённой интеграции;
+      M7-05 удалён владельцем из текущего плана и к `doing` больше не относится.
 
 ## 5. Parallel workstreams
 
@@ -533,18 +538,22 @@ Lead приземляет проверенные ветки по одной, р�
 `VideoMeetingStage`, `mediaUploadAdapter`, `createDefaultDispatchPort`, `resolveNotificationChannels`,
 `platformIntegrationAvailability`, `system-settings/registry.ts`.
 
-## 6. External/owner gates — not reasons to stop repository work
+## 6. Owner release handoff — вне критериев завершения этого плана
 
-- RuStore application cards, final immutable package IDs, Universal Push project IDs/service tokens.
-- Release keystore/signing, signed AAB/APK and store submission.
-- Physical Android real-device acceptance and final notification delivery through RuStore infrastructure.
-- PROD credentials/configuration/deploy and any Google Play/App Store work.
+- RuStore application cards, final immutable package IDs, Universal Push project IDs/service tokens;
+- release keystore/signing, signed AAB/APK и store submission;
+- проверка на физическом Android-устройстве и реальная доставка через инфраструктуру RuStore;
+- PROD credentials/configuration/deploy и любые Google Play/App Store работы.
+
+Владелец 2026-09-09 перенёс эти действия в отдельный release-stage после завершения интерфейса. Они не блокируют
+готовность текущего плана, taskdb `#915` или закрытие цели; текущая работа обязана оставить готовые к этой проверке
+сборки, настройки и документированный handoff. Первичная Android-проверка на эмуляторе остаётся M7-04.
+
 - Android SDK/JDK/emulator setup на DEV-боксе разрешён владельцем 2026-09-09 и исполняется как M2-00/M2-00a;
   это больше не owner gate.
 
 Repository code, unsigned TEST APKs, mocks/fakes against published protocols, PWA behavior, documentation и
-security/audit gates идут без этих входов. Отсутствующий внешний вход фиксируется блокером конкретной строки,
-никогда — поводом бросить план.
+security/audit gates идут без этих входов.
 
 ## 6a. Owner gates одним листом
 
@@ -584,7 +593,7 @@ security/audit gates идут без этих входов. Отсутствую
 | M7-02 | done | Lead test-policy gate: harmful mobile UI/source-shape checks removed; retained web behavior `6 files / 17 tests`, both package typecheck/lint gates and four-variant NativeJitsi/UniversalPush tests PASS. |
 | M7-01 | done | Independent shell/navigation, PWA/native runtime, Jitsi/media and native-push target/provider audit chains are recorded above; final patient passwordless injection `f0e639897`, accepted landing `3bbc5d86c`. |
 | M7-03 | open | Report `e40904b37`, landing `6741fbba8`: both fresh TEST APKs, ordinary patient OTP/doctor password login, browser media fallback and one self-hosted Jitsi iframe PASS; OS chooser, post-iframe internal navigation/terminal callbacks are blocked by headless instrumentation, M1-04 by absent published branded host. |
-| M7-04 | open | KVM and guest NAT PASS; `com.android.systemui` ANR prevents stable WebView acceptance (`7bf5613eb`, landing `e94465518`). |
-| M7-05 | open | External RuStore application credentials, signing and a physical delivery target are not available. |
+| M7-04 | open | KVM and guest NAT PASS; `com.android.systemui` ANR prevents stable emulator WebView acceptance (`7bf5613eb`, landing `e94465518`). Physical-device acceptance is a later owner release-stage and does not block this row. |
+| M7-05 | cancelled by owner | Removed from this plan on 2026-09-09: real RuStore credentials/delivery, signing and physical-device release acceptance happen after the interface is complete and do not block #915. |
 | M7-06 | done | `TEST_CPUSET=0-7 VITEST_MAX_WORKERS=8 /home/dev/brain/host-orch/run-tests.sh "pnpm install --frozen-lockfile && pnpm run ci"` PASS on `c77af9e666001100a0719608c91cfa720fc32f2c`; `runs/ci-last.json` records stable HEAD and exit 0. |
 | M7-07 | done | Checked push/GitHub run `34370560492` and named TEST deploy both proved executable SHA `b5bc7e396a2172c4150b88d9cfae52267c1185c2`; four services and both TEST origins are healthy. Taskdb `#915` matches the remaining acceptance blockers; only the main worktree exists and no mobile worker process remains. |
