@@ -401,6 +401,10 @@ export function createSystemSettingsService(
       return port.getWebPushVapidPublicKeyOnly();
     },
 
+    getNativePushProjectId(appId: 'therapygo' | 'therapysto'): Promise<string | null> {
+      return port.getNativePushProjectId(appId);
+    },
+
     async updateSetting(
       key: string,
       scope: SystemSettingScope,

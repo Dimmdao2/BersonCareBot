@@ -52,11 +52,48 @@ function asString(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined;
 }
 
-/** Legacy rows predate typed pushSurface; infer only canonical same-surface cabinet routes. */
-function resolveNativeSurface(pushSurface: 'therapygo' | 'therapysto' | undefined, url: string): 'therapygo' | 'therapysto' | null {
-  if (pushSurface === 'therapygo' || pushSurface === 'therapysto') return pushSurface;
-  if (url === '/app/patient' || url.startsWith('/app/patient/')) return 'therapygo';
-  if (url === '/app/doctor' || url.startsWith('/app/doctor/') || url === '/app/settings' || url.startsWith('/app/settings/')) return 'therapysto';
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function isRouteAtOrBelow(pathname: string, root: string): boolean {
+  return pathname === root || pathname.startsWith(`${root}/`);
+}
+
+/** Legacy rows predate typed pushSurface; infer only canonical relative cabinet routes. */
+function resolveNativeSurface(
+  rawPushExtras: unknown,
+  rawUrl: string,
+): 'therapygo' | 'therapysto' | null {
+  const pushExtras = asRecord(rawPushExtras);
+  if (pushExtras && Object.hasOwn(pushExtras, 'pushSurface')) {
+    const value = pushExtras.pushSurface;
+    return value === 'therapygo' || value === 'therapysto' ? value : null;
+  }
+  if (!rawUrl.startsWith('/') || rawUrl.startsWith('//')) return null;
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl, 'https://native-route.invalid');
+  } catch {
+    return null;
+  }
+  if (
+    parsed.origin !== 'https://native-route.invalid' ||
+    parsed.username !== '' ||
+    parsed.password !== ''
+  ) {
+    return null;
+  }
+  if (isRouteAtOrBelow(parsed.pathname, '/app/patient')) return 'therapygo';
+  if (
+    isRouteAtOrBelow(parsed.pathname, '/app/doctor') ||
+    isRouteAtOrBelow(parsed.pathname, '/app/settings') ||
+    isRouteAtOrBelow(parsed.pathname, '/app/account')
+  ) {
+    return 'therapysto';
+  }
   return null;
 }
 
@@ -95,13 +132,16 @@ export function createWebPushDeliveryAdapter(deps: {
 
       const extras = payload.pushExtras ?? {};
       const url = asString(payload.url) ?? '/';
-      const nativeSurface = resolveNativeSurface(extras.pushSurface, url);
+      const nativeSurface = resolveNativeSurface(payload.pushExtras, url);
+      const getNativeTargetsForUser = webPushAccessPort.getNativeTargetsForUser;
+      const getRuStoreConfig = webPushAccessPort.getRuStoreConfig;
+      const nativeAccessConfigured = getNativeTargetsForUser && getRuStoreConfig;
       // Fetch subscriptions + VAPID in parallel (Model β — M2M read from webapp).
       const [subscriptions, vapidResult, nativeTargets] = await Promise.all([
         webPushAccessPort.getSubscriptionsForUser(pushUserId, organizationId),
         webPushAccessPort.getVapidCredentials(organizationId).catch(() => null),
-        nativeSurface && webPushAccessPort.getNativeTargetsForUser
-          ? webPushAccessPort.getNativeTargetsForUser(pushUserId, organizationId, nativeSurface).catch(() => [])
+        nativeSurface && nativeAccessConfigured
+          ? getNativeTargetsForUser(pushUserId, organizationId, nativeSurface).catch(() => [])
           : Promise.resolve([]),
       ]);
 
@@ -176,8 +216,15 @@ export function createWebPushDeliveryAdapter(deps: {
 
       let nativeDelivered = 0; let nativeErrors = 0; let nativeDeactivated = 0;
       for (const target of nativeTargets) {
-        if (target.provider !== 'rustore' || target.appId !== nativeSurface || !webPushAccessPort.getRuStoreConfig) continue;
-        const config = await webPushAccessPort.getRuStoreConfig(target.appId, organizationId).catch(() => null);
+        if (
+          target.provider !== 'rustore' ||
+          (target.appId !== 'therapygo' && target.appId !== 'therapysto') ||
+          target.appId !== nativeSurface ||
+          !getRuStoreConfig
+        ) {
+          continue;
+        }
+        const config = await getRuStoreConfig(target.appId, organizationId).catch(() => null);
         if (!config) continue;
         const result = await sendRuStoreUniversalPush({ config, token: target.token, data: { route: url, title, body, pushSurface: target.appId } });
         if (result.ok) nativeDelivered += 1;

@@ -18,3 +18,24 @@ CREATE TABLE native_push_targets (
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_object_owner
 CREATE INDEX idx_native_push_targets_active_user ON native_push_targets (user_id, app_id, provider, deactivated_at);
+--> statement-breakpoint
+-- BCB-MIGRATION-OWNER: app_seam_settings_preauth_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
+CREATE FUNCTION app.get_native_push_project_id(requested_app_id text)
+RETURNS text
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $$
+  SELECT NULLIF(btrim(s.value_json #>> '{value,projectId}'), '')
+  FROM public.system_settings AS s
+  WHERE s.key = CASE requested_app_id
+    WHEN 'therapygo' THEN 'rustore_universal_push_therapygo'
+    WHEN 'therapysto' THEN 'rustore_universal_push_therapysto'
+    ELSE NULL
+  END
+    AND s.scope = 'admin'
+    AND s.organization_id IS NULL
+  LIMIT 1
+$$;

@@ -3688,6 +3688,44 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "invocation": "runtime"
   },
+  "app.get_native_push_project_id(text)": {
+    "owner": "app_seam_settings_preauth_owner",
+    "security": "DEFINER",
+    "returns": "text",
+    "returnsSet": false,
+    "volatility": "STABLE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "native-push.client-project-id.read",
+    "typedArgs": [
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.system_settings",
+        "columns": [
+          "key",
+          "scope",
+          "value_json",
+          "organization_id"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
   "app.integrator_event_idempotency_read(text)": {
     "owner": "app_seam_delivery_scope_owner",
     "security": "DEFINER",
@@ -26612,6 +26650,9 @@ const REV10_CONTEXT = {
     get_web_push_vapid_public_key: { port: 'webapp', sessionRole: 'app_patient',
       targetRole: 'app_patient', contextClass: 'patient', purpose: 'patient.web-push.vapid-public-key.read',
       functionIdentity: 'app.get_web_push_vapid_public_key()' },
+    get_native_push_project_id: { port: 'webapp', sessionRole: 'app_patient',
+      targetRole: 'app_patient', contextClass: 'patient', purpose: 'native-push.client-project-id.read',
+      functionIdentity: 'app.get_native_push_project_id(text)' },
     resolve_outgoing_delivery_scope: { port: 'integrator', sessionRole: 'app_integrator_request',
       targetRole: 'app_operational_delivery_worker', contextClass: 'service', purpose: 'delivery.resolve-scope',
       functionIdentity: 'app.resolve_outgoing_delivery_scope(uuid)' },
@@ -28228,6 +28269,12 @@ const REV10_CONTEXT = {
       owner: 'app_seam_settings_preauth_owner', execute: ['app_patient'],
       purpose: 'patient.web-push.vapid-public-key.read', typedArgs: [], volatility: 'STABLE',
       parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+    }),
+    'app.get_native_push_project_id(text)': rev10Function({
+      ...BUSINESS_SEAM_FUNCTIONS['app.get_native_push_project_id(text)'],
+      owner: 'app_seam_settings_preauth_owner', execute: ['app_patient'],
+      purpose: 'native-push.client-project-id.read', typedArgs: ['text'], volatility: 'STABLE',
+      parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog'],
     }),
     'app.resolve_saas_billing_invoice_for_webhook(text,text)': rev10Function({
       ...BUSINESS_SEAM_FUNCTIONS['app.resolve_saas_billing_invoice_for_webhook(text,text)'],

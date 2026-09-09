@@ -14,8 +14,8 @@
 import { createHmac } from 'node:crypto';
 import { integratorWebhookSecret } from '../../config/env.js';
 import type {
+  ConfiguredWebPushAccessPort,
   VapidCredentials,
-  WebPushAccessPort,
   WebPushSubscriptionPayload,
 } from '../../kernel/contracts/index.js';
 
@@ -87,7 +87,7 @@ async function fetchSignedGet<T>(input: {
  */
 export function createWebPushAccessPort(deps: {
   getAppBaseUrl: () => Promise<string>;
-}): WebPushAccessPort {
+}): ConfiguredWebPushAccessPort {
   const { getAppBaseUrl } = deps;
 
   return {
