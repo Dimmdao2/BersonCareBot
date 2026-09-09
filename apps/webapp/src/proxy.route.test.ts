@@ -730,7 +730,9 @@ describe('B5: one patient tree with resolved context', () => {
     expect(middlewareRequestSurface(root)).toEqual(middlewareRequestSurface(canonicalCard));
   });
 
-  it('uses the internal HTTP listener when nginx exposes a branded root over HTTPS', async () => {
+  it('keeps an nginx HTTPS rewrite on the standalone server internal origin', async () => {
+    vi.stubEnv('HOST', '127.0.0.1');
+    vi.stubEnv('PORT', '6300');
     const runtime = await loadProxyForSurfaceConfiguration(PLATFORM_SURFACE_CONFIGURATIONS[1]);
     const response = await runtime.proxy(
       new NextRequest('https://localhost:6300/', {
@@ -743,7 +745,7 @@ describe('B5: one patient tree with resolved context', () => {
     );
 
     expect(response.headers.get('x-middleware-rewrite')).toBe(
-      'http://localhost:6300/clinic-a',
+      'https://127.0.0.1:6300/clinic-a',
     );
   });
 

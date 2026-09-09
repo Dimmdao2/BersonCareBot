@@ -50,14 +50,21 @@ function internalRewriteTarget(request: NextRequest, pathname: string): URL {
   const target = request.nextUrl.clone();
   target.pathname = pathname;
 
-  // Behind the host nginx, Next reconstructs the public HTTPS scheme while retaining its
-  // loopback listener address. A rewrite to that reconstructed URL would make Next speak TLS to
-  // its own plain-HTTP port and fail before the routed page can render.
+  // Next relativizes middleware rewrites only when their origin exactly matches its own init URL.
+  // nginx reaches the listener as `localhost`, while the standalone server is started with
+  // HOST=127.0.0.1; normalizing that loopback alias keeps this an internal route rewrite instead of
+  // making Next proxy to itself over the reconstructed public HTTPS scheme.
+  const requestHostname = target.hostname.toLowerCase();
+  const runtimeHostname = process.env.HOST?.trim().toLowerCase();
+  const localListenerHostnames = new Set(['localhost', '127.0.0.1', '[::1]', '0.0.0.0', '[::]']);
   if (
-    target.protocol === 'https:' &&
-    ['localhost', '127.0.0.1', '[::1]'].includes(target.hostname.toLowerCase())
+    runtimeHostname &&
+    localListenerHostnames.has(requestHostname) &&
+    localListenerHostnames.has(runtimeHostname)
   ) {
-    target.protocol = 'http:';
+    target.hostname = runtimeHostname;
+    const runtimePort = process.env.PORT?.trim();
+    if (runtimePort && /^\d+$/.test(runtimePort)) target.port = runtimePort;
   }
 
   return target;
