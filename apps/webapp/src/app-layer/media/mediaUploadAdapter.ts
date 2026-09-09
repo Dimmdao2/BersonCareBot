@@ -32,6 +32,11 @@ import {
   type UploadPolicyId,
   type UploadValidationResult,
 } from '@/modules/media/uploadValidation';
+import {
+  chooseMultipartPartSize,
+  MULTIPART_SESSION_TTL_MS,
+  multipartMaxPartNumber,
+} from '@/modules/media/multipartConstants';
 
 export type PreparedMediaUpload = Readonly<{
   id: string;
@@ -112,6 +117,57 @@ export async function beginPreparedMultipartUpload(
     metadata,
     target: upload.target,
   });
+}
+
+/**
+ * One multipart begin lifecycle for every already-authorized media door. The route selects the
+ * closed policy before this call and supplies only its existing pending-row creator; it never
+ * selects a bucket, object key, or multipart metadata.
+ */
+export async function beginAuthorizedMultipartUpload(input: {
+  upload: PreparedMediaUpload;
+  ownerUserId: string;
+  createPendingAndSession: (params: {
+    mediaId: string;
+    sessionId: string;
+    uploadId: string;
+    partSizeBytes: number;
+    expiresAt: Date;
+  }) => Promise<void>;
+  abortPending: (mediaId: string) => Promise<unknown>;
+}): Promise<{
+  mediaId: string;
+  sessionId: string;
+  uploadId: string;
+  partSizeBytes: number;
+  maxParts: number;
+  expiresAt: Date;
+}> {
+  const mediaId = input.upload.id;
+  const sessionId = randomUUID();
+  const partSizeBytes = chooseMultipartPartSize(input.upload.intent.sizeBytes);
+  const maxParts = multipartMaxPartNumber(input.upload.intent.sizeBytes, partSizeBytes);
+  const expiresAt = new Date(Date.now() + MULTIPART_SESSION_TTL_MS);
+  let uploadId: string | null = null;
+  try {
+    const created = await beginPreparedMultipartUpload(input.upload, {
+      'media-id': mediaId,
+      'owner-user-id': input.ownerUserId,
+      'expected-size': String(input.upload.intent.sizeBytes),
+      'upload-policy': input.upload.intent.policyId,
+    });
+    uploadId = created.uploadId;
+    await input.createPendingAndSession({ mediaId, sessionId, uploadId, partSizeBytes, expiresAt });
+    return { mediaId, sessionId, uploadId, partSizeBytes, maxParts, expiresAt };
+  } catch (error) {
+    if (uploadId) {
+      await abortPreparedMultipartUpload(input.upload.key, uploadId, input.upload.target).catch(
+        () => undefined,
+      );
+    }
+    await input.abortPending(mediaId).catch(() => undefined);
+    throw error;
+  }
 }
 
 export function presignPreparedUploadPart(session: {
