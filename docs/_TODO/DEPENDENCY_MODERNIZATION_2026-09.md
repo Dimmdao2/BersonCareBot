@@ -534,6 +534,62 @@ pnpm run dependencies:health                                     # → 7 зна�
 | `3c2ca0966` | D4 — `@maxhub/max-bot-api` 0.3.1 |
 | `77d86d95d` | D5 — `react-day-picker` 10 |
 
+### D7 — совместимое обновление 2026-09-09
+
+Владелец поручил выполнить только безопасное рациональное обновление прямо в интеграционной ветке, без отдельного
+воркера и без перехода на несовместимые major-версии. Lockfile пересобран одним согласованным графом.
+
+| Workspace | Обновлено |
+|---|---|
+| root | `@typescript-eslint/eslint-plugin` 8.69.0 → 8.70.0; `@typescript-eslint/parser` 8.69.0 → 8.70.0 |
+| `apps/integrator` | `fastify` 5.11.3 → 5.12.3; `googleapis` 178.0.0 → 178.1.1; `grammy` 1.45.1 → 1.46.0; `nodemailer` 10.0.0 → 10.0.1; `zod` 4.4.3 → 4.5.4; `@aws-sdk/client-s3` 3.1107.0 → 3.1128.0; `@types/luxon` 3.7.4 → 3.7.5; `@types/pg` 8.21.0 → 8.23.1; `tsx` 4.23.12 → 4.23.13; manifest `undici` 7.24.3 → 8.10.2 (фактический граф уже был на 8.10.2 через root override); `vite` 8.2.1 → 8.2.2 |
+| `apps/media-worker` | `@aws-sdk/client-s3` 3.1107.0 → 3.1128.0; `zod` 4.4.3 → 4.5.4; `tsx` 4.23.12 → 4.23.13 |
+| `apps/webapp` runtime | `@aws-sdk/client-s3` и `@aws-sdk/s3-request-presigner` 3.1107.0 → 3.1128.0; `@base-ui/react` 1.7.0 → 1.8.0; `@simplewebauthn/server` 14.0.0 → 14.0.1; `@tanstack/react-virtual` 3.14.9 → 3.14.11; вся прямая группа Tiptap 3.30.5 → 3.31.3; `altcha` 3.2.1 → 3.2.2; `altcha-lib` 2.3.2 → 2.4.0; `hls.js` 1.6.17 → 1.7.2; `isomorphic-dompurify` 4.1.0 → 4.2.0; `jose` 6.2.11 → 6.2.12; `libphonenumber-js` 1.13.10 → 1.13.12; `lucide-react` 1.31.0 → 1.43.0; `nodemailer` 10.0.0 → 10.0.1; `react-colorful` 5.8.0 → 5.8.1; `react-phone-number-input` 3.4.17 → 3.4.18; `zod` 4.4.3 → 4.5.4 |
+| `apps/webapp` dev | `@testing-library/react` 16.3.2 → 16.3.3; `@testing-library/user-event` 14.6.3 → 14.6.7; `@types/luxon` 3.7.4 → 3.7.5; `@types/pg` 8.21.0 → 8.23.1; `@types/react-dom` 19.2.4 → 19.2.7; `postcss` 8.5.26 → 8.5.28; `shadcn` 4.16.2 → 4.21.0; `tsx` 4.23.12 → 4.23.13; `vite` 8.2.1 → 8.2.2 |
+| packages | `@sentry/node` 10.70.0 → 10.73.0 (`error-tracking`); `@types/pg` 8.21.0 → 8.23.1 (`platform-merge`) |
+
+Root overrides `@tiptap/core` и `@tiptap/pm` подняты до 3.31.3 вместе со всей прямой Tiptap-группой. Добавлен
+override `eslint-plugin-react-hooks = 7.0.1`: без него даже сохранённый `eslint-config-next@16.3.3` разрешал
+несовместимый 7.1.1 и создавал массовые новые lint-ошибки.
+
+Осознанно откатили после проверки совместимости:
+
+- `next`, `eslint-config-next`, `@next/bundle-analyzer` 16.3.4 → 16.3.3: новый транзитивный hooks-plugin ломал
+  текущую lint-конфигурацию;
+- `recharts` 3.10.1 → 3.8.1: в 3.10 удалён используемый `Area.baseLine`; обновление потребовало бы продуктовой
+  переделки геометрии графика, что не относится к безопасному dependency refresh.
+
+Команда `pnpm --silent outdated -r --format json` после обновления сообщает 12 оставшихся позиций:
+Next-трио 16.3.4 и Recharts 3.10.1 с подтверждёнными выше несовместимостями, `@types/node` 26 для mobile-shell на
+Node 22, а также уже задокументированные major-блокеры ESLint 10, FullCalendar 7, Stryker 10 и TypeScript 7.
+
+`pnpm run dependencies:health` показывает только 8 существенных major-позиций из этого остатка: ESLint/@eslint,
+FullCalendar core/react, Stryker core/runner, TypeScript и `@types/node`; известных уязвимостей не сообщает.
+
+При разборе CI удалены тесты, которые закрепляли написание product-name, точные количества registry и
+промежуточные DTO вместо конечного поведения. Обязательный запрет на такие тесты добавлен в `AGENTS.md` §10a и
+в приёмочный gate §24.4/§24.7. Полезные проверки конечного поведения и PWA install identity сохранены.
+
+Проверки текущего прохода:
+
+```bash
+pnpm install --frozen-lockfile
+# → rc=0
+pnpm run audit:registry
+# → registry-prod-audit: no known vulnerabilities (all deps, audit-level >= low)
+/home/dev/brain/host-orch/run-tests.sh "pnpm run lint"
+# → rc=0; одна существующая warning StaffSecuritySection.tsx, ошибок нет
+pnpm --dir apps/webapp exec vitest run <7 затронутых файлов>
+# → 7 files passed, 84 tests passed
+pnpm --dir apps/integrator exec vitest run \
+  src/integrations/bersoncare/relaySurfaceTitleFailClosed.audit.test.ts
+# → 1 file passed, 8 tests passed
+/home/dev/brain/host-orch/run-tests.sh "pnpm run ci:resume:after-test-webapp"
+# → media-worker 29 passed; error-tracking 13 passed; integrator build и webapp production build прошли;
+#   последующий audit остановлен на незавершённом соседнем native-push registry:
+#   public.native_push_targets отсутствует в tiers-218.tsv
+```
+
 ## Lead acceptance
 
 - [ ] Независимый auditor-live проверил diff, dependency compatibility и named behavior risks.

@@ -20,7 +20,7 @@
     "drizzle-orm": "^0.45.2"
   },
   "devDependencies": {
-    "@types/pg": "^8.21.0",
+    "@types/pg": "^8.23.1",
     "typescript": "^6.0.3"
   },
   "peerDependencies": {
