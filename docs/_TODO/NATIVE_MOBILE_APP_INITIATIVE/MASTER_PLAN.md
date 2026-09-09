@@ -1,4 +1,4 @@
-# Therapy Go + Therapysto thin Capacitor apps — execution plan
+# TherapyGo + Therapysto thin Capacitor apps — execution plan
 
 Дата owner-решения: **2026-09-09**. Taskdb: **#915**. Статус: **doing**.
 Интеграционная ветка: `feat/doctor-ui-rebuild`. PROD, store submission и release signing вне автономного scope.
@@ -10,7 +10,7 @@ scope). Открытые owner-развилки собраны одним лис
 ## 1. Owner authority and immutable outcome
 
 1. Выпустить два отдельных Android-приложения для RuStore:
-   - **Therapy Go** — пациент;
+   - **TherapyGo** — пациент. Владелец уточнил 2026-09-09: это одно слово, `G` заглавная;
    - **Therapysto** — специалист.
 2. Это тонкие Capacitor-обёртки над действующим Next.js. Webapp, SSR/RSC, серверная авторизация, страницы и
    бизнес-правила не копируются и не переносятся в отдельный mobile frontend.
@@ -18,7 +18,7 @@ scope). Открытые owner-развилки собраны одним лис
 4. Нативные возможности: Universal Push от RuStore, Jitsi Android SDK, камера с выбором фото/видео внутри одного
    экрана, общая галерея фото/видео и отдельный выбор документов.
 5. Новые app/PWA иконки:
-   - Therapy Go — `apps/webapp/public/brand/therapygo-app-icon-source.png`, знак с шариком;
+   - TherapyGo — `apps/webapp/public/brand/therapygo-app-icon-source.png`, знак с шариком;
    - Therapysto — `apps/webapp/public/brand/therapysto-app-icon-source.png`, знак без шарика.
    Старые admin/clinic-brand assets не удалять; platform-admin не подменять пациентским приложением.
 6. Сторонние URL открываются только внешним браузером. Привилегированный WebView загружает только собственные
@@ -49,7 +49,7 @@ CORS-allowlist» **отменены решением 2026-09-09** — отдел
                         existing Next.js webapp
                 therapygo.ru             therapysto.ru
                      |                         |
-          PWA Therapy Go (iOS/Android)  PWA Therapysto (iOS/Android)
+          PWA TherapyGo (iOS/Android)  PWA Therapysto (iOS/Android)
                      |                         |
               Android WebView           Android WebView
                  patient flavor         specialist flavor
@@ -134,26 +134,27 @@ Scope: `apps/webapp/src/shared/lib/pwa/**`, `shared/lib/surface/surfaceLayoutMet
 строка M1 не заводит второй источник имени, иконок или манифеста — только параметризует существующий
 (`AGENTS.md` §5).
 
-- [x] **M1-01.** Default patient PWA называется **Therapy Go**: значение меняется в единственном литерале
+- [ ] **M1-01.** Default patient PWA называется **TherapyGo**: значение меняется в единственном литерале
       `PATIENT_DEFAULT_SURFACE_NAME` (`config/productSurfaceNames.ts`, сегодня `'Therapygo'`), env-override
       `PATIENT_APP_NAME` продолжает работать. `id`, `scope` и `start_url=/app/patient` установленного приложения
       не меняются — контракт уже установленных PWA переезд не трогает. Доказательство: product/correction
       `93f2d7b34` + `4f646315c`, независимый confirmation `ce42f825f`, landing `66ef65468`; публичный manifest
-      oracle сохранил `id/scope/start_url` и env-aware surface resolver.
+      oracle сохранил `id/scope/start_url` и env-aware surface resolver. Новая owner-коррекция написания
+      `TherapyGo` открыла пункт повторно до отдельного product/audit/landing evidence.
 - [x] **M1-02.** Patient-манифест и patient-метаданные отдают знак **с шариком**, производный от
       `brand/therapygo-app-icon-source.png`: 192, 512, отдельный `purpose: 'maskable'` и apple-touch 180.
       Источник не квадратный (§3a), поэтому derive-шаг явно центрирует знак на квадратном холсте и оставляет
       maskable safe-zone; команда деривации и полученные размеры записаны в строке доказательства. Доказательство:
       `ce42f825f` дважды выполнил `pnpm --dir apps/mobile-shell run derive:brand-assets`, сравнил хеши 42 файлов и
-      `identify` подтвердил Therapy Go 192/512/maskable 512/apple-touch 180; landing `66ef65468`.
+      `identify` подтвердил TherapyGo 192/512/maskable 512/apple-touch 180; landing `66ef65468`.
 - [x] **M1-03.** Staff PWA называется Therapysto, отдаёт знак **без шарика**, производный от
       `brand/therapysto-app-icon-source.png`, с тем же набором 192/512/maskable/apple-touch и `start_url=/app/doctor`.
       Patient и staff манифесты не ссылаются на файлы друг друга (`rg` по обоим builder'ам). Доказательство:
       независимый manifest oracle/fault injection `ce42f825f` (**убито 3 / непойманных 0**) и двухпроходная
       проверка производных Therapysto assets; landing `66ef65468`.
 - [ ] **M1-04.** Брендированная пациентская поверхность (`patient_branded`) НЕ переименовывается и НЕ
-      переиконивается в Therapy Go: имя по-прежнему берётся из `effectivePatientBrand.patientAppName`, а знак
-      Therapy Go остаётся идентичностью `patient_default`. Сегодня branded-поверхность наследует пациентские
+      переиконивается в TherapyGo: имя по-прежнему берётся из `effectivePatientBrand.patientAppName`, а знак
+      TherapyGo остаётся идентичностью `patient_default`. Сегодня branded-поверхность наследует пациентские
       иконки из `patientLayoutMetadata`, поэтому подмена файла молча перекрасила бы каждую клинику — это прямо
       запрещено owner-пунктом §1.5 «clinic-brand assets не подменять». Доказательство — снимок метаданных обеих
       поверхностей на именованном DEV.
@@ -203,9 +204,10 @@ Scope: `apps/mobile-shell/**`, `pnpm-workspace.yaml`, root workspace wiring, bui
       `pnpm -r --parallel run typecheck`, `eslint .` и `pnpm run ci` проходят с ним — либо потому, что пакет
       несёт реальные скрипты, либо потому, что их отсутствие объявлено явно. Gradle/Android артефакты и локальные
       SDK-пути не попадают в git (`git status --porcelain` чист после сборки).
-- [x] **M2-03.** Flavors имеют отдельные application IDs, names, supplied icons/adaptive icons, splash resources,
+- [ ] **M2-03.** Flavors имеют отдельные application IDs, names, supplied icons/adaptive icons, splash resources,
       theme colors, start URLs and allowed origins. Signing credentials/service tokens отсутствуют в git и bundle.
-      Доказательство: `49f584040` сверил четыре APK через `aapt` и secret/artifact scan; landing `d7f99340c`.
+      Доказательство прежней конфигурации: `49f584040` сверил четыре APK через `aapt` и secret/artifact scan;
+      landing `d7f99340c`. Новая owner-коррекция label `TherapyGo` требует нового APK evidence до повторного закрытия.
 - [x] **M2-04.** Shell показывает startup/loading/offline/server-unavailable state, корректно обрабатывает Android
       back/navigation и не обещает offline business data. HTTP/WebView cache используется штатно, video cache не
       добавляется. Доказательство: `49f584040` нашёл main-frame defect, `a0dfd6576` исправил его; тот же retained
@@ -216,7 +218,7 @@ Scope: `apps/mobile-shell/**`, `pnpm-workspace.yaml`, root workspace wiring, bui
       Правило одно и параметризуется build config — второй проверки «а ещё здесь» не заводится. Доказательство:
       blind kill-set/fault injection `49f584040` (28 тестов × 4 variants), landing `d7f99340c`.
 - [x] **M2-06.** Первый Android-релиз разрешает внутри привилегированного WebView только один platform bootstrap
-      origin конкретного build variant: Therapy Go — patient platform origin, Therapysto — staff platform origin;
+      origin конкретного build variant: TherapyGo — patient platform origin, Therapysto — staff platform origin;
       TEST и production раздельны. Runtime/server-discovered расширения allowlist и custom-domain origin нет. 308
       или навигация на custom-domain проходит через M2-05 во внешний браузер; bridge/plugins там недоступны.
       Неизвестный, cross-surface или неподтверждённый origin fail-closed считается внешним. Доказательство:
@@ -274,7 +276,7 @@ VM-10, VM-11, VM-12, UI-08, UI-09, UI-10. `M4-01` по определению т
       user start, microphone/camera permissions, hangup and retry, and never prints room/JWT/guest secret in logs.
       Доказательство: native product/corrections through `f156170e9`, independent lifecycle tests/fault injection
       through `d1c983a3c`, 83 tests × 4 variants plus assemble/lint matrix; landing `a722d9bf8`.
-- [ ] **M4-03.** Therapy Go and Therapysto both reach the same self-hosted `meet.therapysto.ru`/TEST counterpart;
+- [ ] **M4-03.** TherapyGo and Therapysto both reach the same self-hosted `meet.therapysto.ru`/TEST counterpart;
       `meet.jit.si`, JaaS and other external media/telemetry endpoints are absent. Jitsi JWT/issuer/secret
       по-прежнему читаются только из restricted `system_settings` (`jitsi_*` ключи) и в bundle не попадают.
 - [ ] **M4-04.** Specialist can return from native call to the unchanged notes/encounter page; no separate mobile
@@ -505,10 +507,12 @@ security/audit gates идут без этих входов. Отсутствую
 | M0-03 | done | Independent high-Opus plan candidate `0864df016`, landed by port as `229a243e7`; lead corrected two contradictions exposed by read-only architecture mapping before product launch. |
 | M2-00 | done | Port ops run `mobile-android-toolchain-ops-20260909`: `/home/dev/.local/share/bcb-android/env.sh`; `javac 21.0.12.1`, cmdline-tools `23.0.0`, build-tools `36.0.0`, platform 36, adb `37.0.1`, emulator `37.1.11`, API 36 Google APIs x86_64 image and `bcb-api36` AVD. Exact `df -B1 /`: before `18180792320`, after run `9359036416`, consumed `8821755904` bytes. Lead repeated all version/list checks. |
 | M2-00a | open | System image/AVD are installed, but `id dev` lacks group `kvm`; `/dev/kvm` is `root:kvm 0660`, and passwordless sudo is unavailable. Requires `sudo usermod -aG kvm dev` plus new login/`sg kvm`. |
-| M2-01, M2-03…M2-08 | done | Product `533bb29b1`, independent blind audit/tests `49f584040`, accepted correction `a0dfd6576`, port landing `d7f99340c`; exact evidence is in `.lead/runs/mobile-shell-foundation-audit-20260909/`. |
+| M2-01, M2-04…M2-08 | done | Product `533bb29b1`, independent blind audit/tests `49f584040`, accepted correction `a0dfd6576`, port landing `d7f99340c`; exact evidence is in `.lead/runs/mobile-shell-foundation-audit-20260909/`. |
+| M2-03 | open | Базовая четырехвариантная конфигурация доказана `49f584040`/`d7f99340c`; owner-коррекция Android label на `TherapyGo` ожидает новый product/audit/landing evidence. |
 | M2-02 | open | Workspace wiring/typecheck/lint/build are proven; the root `pnpm run ci` clause remains for final integrated M7-06 and is not claimed early. |
-| M1-01…M1-03, M1-05, M1-06 | done | Двухбрендовые PWA manifests/icons/surfaces реализованы, поведенчески проверены и посажены в `feat/doctor-ui-rebuild` через port: product `ae14e0f16`, audit `fd04fbc27`, confirmation `041abf541`, landing `66ef65468`. |
-| M1-04 | open | Финальный named-DEV HTTP проход `ee0c91fc8` (landing `0f7a8374e`) подтвердил, что HTTP 500 `native_push_token_keyring_unavailable` устранён, а Therapy Go/Therapysto metadata/manifests/install routes и исключение platform-admin работают. В DEV сейчас `count(*) = 0` и для `org_custom_domain_bindings`, и для `clinic_public_directory_entries`, поэтому живого branded-patient host для проверки нет; authenticated doctor redirect и полный browser/PWA fallback остаются в M7-03. |
+| M1-02, M1-03, M1-05, M1-06 | done | Двухбрендовые PWA manifests/icons/surfaces реализованы, поведенчески проверены и посажены в `feat/doctor-ui-rebuild` через port: product `ae14e0f16`, audit `fd04fbc27`, confirmation `041abf541`, landing `66ef65468`. |
+| M1-01 | open | PWA identity wiring доказан `ae14e0f16`/`fd04fbc27`/`041abf541`/`66ef65468`; owner-коррекция display name на `TherapyGo` ожидает новый product/audit/landing evidence. |
+| M1-04 | open | Финальный named-DEV HTTP проход `ee0c91fc8` (landing `0f7a8374e`) подтвердил, что HTTP 500 `native_push_token_keyring_unavailable` устранён, а TherapyGo/Therapysto metadata/manifests/install routes и исключение platform-admin работают. В DEV сейчас `count(*) = 0` и для `org_custom_domain_bindings`, и для `clinic_public_directory_entries`, поэтому живого branded-patient host для проверки нет; authenticated doctor redirect и полный browser/PWA fallback остаются в M7-03. |
 | M1-07, M3-01…M3-03 | done | Product/corrections `d54b34775`, `4e6a5b188`, `312ef14e3`; independent continuation/tests `44b494331` после отклонённого первичного PASS; retained `5 files / 71 tests`, PWA native-shell `6/6`, typecheck/scoped ESLint; port landing `4d84fb260`. |
 | M4-02 | done | Native Jitsi lifecycle/permission/hangup/retry through `d1c983a3c`; four-variant Android matrix; port landing `a722d9bf8`. Web selection seam remains M4-01/M4-04/M4-05. |
 | M5-02, M5-03 | done | Corrected CameraX result handoff/document MIME validation `bfe25db0b`; independent confirmation `d1c983a3c`; port landing `a722d9bf8`. |

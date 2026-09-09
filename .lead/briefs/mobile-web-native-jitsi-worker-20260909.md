@@ -35,7 +35,7 @@ Activity owns the conference. Map native `joined`, `terminated` and `error` into
 fetches, logs or copies a token. Unmount/session replacement removes listeners and hangs up only the owned active
 conference; a late event from an old session cannot affect a new room.
 
-Therapy Go and Therapysto both use the same self-hosted endpoint supplied by the authorized render session. Do not
+TherapyGo and Therapysto both use the same self-hosted endpoint supplied by the authorized render session. Do not
 introduce `meet.jit.si`, JaaS, external telemetry or bundled issuer/secret/config. Runtime capability selects only
 the client renderer and never authorizes a role, room, org or endpoint.
 
