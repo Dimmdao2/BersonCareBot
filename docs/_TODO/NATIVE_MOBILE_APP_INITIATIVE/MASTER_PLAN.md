@@ -172,12 +172,15 @@ Scope: `apps/webapp/src/shared/lib/pwa/**`, `shared/lib/surface/surfaceLayoutMet
       Android browser без второго параллельного install-компонента. Доказательство: route/UI acceptance в
       `dccaef384` и confirmation regression `ce42f825f`; landing `66ef65468`. Живой browser/PWA проход остаётся
       частью M7-03 и не подменён unit-проверками.
-- [ ] **M1-07.** Все install prompts, web-push controls и регистрации `/sw.js` проходят через один typed
+- [x] **M1-07.** Все install prompts, web-push controls и регистрации `/sw.js` проходят через один typed
       `NativeRuntime` detector из M3. В Capacitor он скрывает install UI, не подписывается на
       `beforeinstallprompt` и возвращает no-op из общей service-worker registration door; browser/PWA остаётся
       прежним. Проверены все сегодняшние обходы: `LandingPwaClientBootstrap`, `StaffPwaBootstrap`,
       `PwaInstallSection`, `registerPatientServiceWorker` и install-page push controls. `PlatformMode`
       (`bot|mobile|desktop`) и `messengerMiniApp` остаются ортогональными, не вторым Capacitor detector.
+      Доказательство: product/corrections `d54b34775`, `4e6a5b188`, `312ef14e3`; независимые acceptance-тесты
+      `44b494331` после отклонённого первичного PASS `2a49acab0`; retained PWA native-shell `6/6`, общий набор
+      `5 files / 71 tests`, typecheck и scoped ESLint PASS; port landing `4d84fb260`.
 
 ### M2 — reproducible shared Android/Capacitor shell
 
@@ -233,14 +236,20 @@ Scope: shared browser/native adapters and narrow integration points. Apply `AGEN
 (`shared/lib/platform.ts`, `PlatformProvider`, `messengerMiniApp.ts`). `NativeRuntime` расширяет его, а не встаёт
 рядом; если это структурно невозможно, причина пишется в строке доказательства.
 
-- [ ] **M3-01.** Есть один строго типизированный `NativeRuntime` boundary с browser fallback и Capacitor adapter;
+- [x] **M3-01.** Есть один строго типизированный `NativeRuntime` boundary с browser fallback и Capacitor adapter;
       product pages не читают `window.Capacitor` и не импортируют Kotlin/plugin details напрямую
-      (`rg 'window.Capacitor' apps/webapp/src` даёт только сам adapter).
-- [ ] **M3-02.** Runtime сообщает `browser|therapygo_android|therapysto_android`, app version и capability flags;
+      (`rg 'window.Capacitor' apps/webapp/src` даёт только сам adapter). Доказательство: единый
+      `PlatformProvider`/`nativeShellRuntime.ts` путь в `d54b34775`, accepted continuation `44b494331`, landing
+      `4d84fb260`.
+- [x] **M3-02.** Runtime сообщает `browser|therapygo_android|therapysto_android`, app version и capability flags;
       server authorization не доверяет этим значениям как роли/org identity и не меняет из-за них ни одну проверку
-      доступа.
-- [ ] **M3-03.** App lifecycle resume обновляет session-dependent push registration safely; logout/offboarding
+      доступа. Доказательство: typed runtime/capability contract `d54b34775`; fault injection на browser fallback,
+      throwing detector и blank project id в `44b494331`; landing `4d84fb260`.
+- [x] **M3-03.** App lifecycle resume обновляет session-dependent push registration safely; logout/offboarding
       вызывает единый revoke path. Отсутствующий plugin деградирует в web behavior без белого экрана.
+      Доказательство: lifecycle correction `4e6a5b188` сериализует concurrent resume/token registration/revoke,
+      очищает per-user dedupe на logout и различает equal-length token rotation без SubtleCrypto; independent
+      continuation `44b494331` поймал **6/6** классов, **0 missed**; landing `4d84fb260`.
 
 ### M4 — native Jitsi without a second video page
 
@@ -261,8 +270,10 @@ VM-10, VM-11, VM-12, UI-08, UI-09, UI-10. `M4-01` по определению т
       том же `endpoint`, `roomReference` и `accessToken`. Серверный `VideoMeetingRenderSession.renderer`
       (`'embedded_conference' | 'peer_connection'`) новых значений НЕ получает: выбор нативного пути делает клиент
       по `NativeRuntime`, иначе сервер начал бы утверждать клиентскую возможность вопреки `M3-02`.
-- [ ] **M4-02.** Jitsi runs in a native full-screen Activity, returns joined/terminated/error events, honors explicit
+- [x] **M4-02.** Jitsi runs in a native full-screen Activity, returns joined/terminated/error events, honors explicit
       user start, microphone/camera permissions, hangup and retry, and never prints room/JWT/guest secret in logs.
+      Доказательство: native product/corrections through `f156170e9`, independent lifecycle tests/fault injection
+      through `d1c983a3c`, 83 tests × 4 variants plus assemble/lint matrix; landing `a722d9bf8`.
 - [ ] **M4-03.** Therapy Go and Therapysto both reach the same self-hosted `meet.therapysto.ru`/TEST counterpart;
       `meet.jit.si`, JaaS and other external media/telemetry endpoints are absent. Jitsi JWT/issuer/secret
       по-прежнему читаются только из restricted `system_settings` (`jitsi_*` ключи) и в bundle не попадают.
@@ -286,10 +297,13 @@ lint. Multipart уже построен (`beginPreparedMultipartUpload`/`complet
       определения среды. Существующий пациентский выбор источника
       (`ProgramItemSubmissionSourceDialog.tsx`, уже дающий «камера / галерея / документ») расширяется, второй
       диалог выбора источника не создаётся.
-- [ ] **M5-02.** Android camera screen uses CameraX and lets the user switch Photo/Video in the camera itself;
-      front/back camera and runtime permissions work, cancellation returns without a fake error.
-- [ ] **M5-03.** Gallery accepts images/videos together through the system picker; document action is separate and
-      uses the system document picker with narrow MIME filters.
+- [x] **M5-02.** Android camera screen uses CameraX and lets the user switch Photo/Video in the camera itself;
+      front/back camera and runtime permissions work, cancellation returns without a fake error. Доказательство:
+      corrected CameraX result handoff/photo-video mode `bfe25db0b`, independent confirmation `d1c983a3c`, landing
+      `a722d9bf8`.
+- [x] **M5-03.** Gallery accepts images/videos together through the system picker; document action is separate and
+      uses the system document picker with narrow MIME filters. Доказательство: system picker/OpenDocument and
+      result-side MIME revalidation `bfe25db0b`, fault-injected confirmation `d1c983a3c`, landing `a722d9bf8`.
 - [ ] **M5-04.** Крупное медиа остаётся native content URI и стримится в уже авторизованный presigned URL через
       существующий multipart-путь; base64-моста и копии всего видео в JS heap нет. Существующие confirm/failure
       semantics, идемпотентная финализация и media metadata переиспользуются.
@@ -308,26 +322,33 @@ Scope: provider-neutral native target model, server delivery adapter, Kotlin Uni
 authority нельзя: он частично отменён владельцем 27.07. Конфигурация — `AGENTS.md` §2–§4; ownership новых данных —
 §4a; единственный проход — §5.
 
-- [ ] **M6-01.** Native targets хранятся отдельно от `user_web_push_subscriptions` и принадлежат каноническому
+- [x] **M6-01.** Native targets хранятся отдельно от `user_web_push_subscriptions` и принадлежат каноническому
       `platform_user` через прямой `user_id`: установка имеет `app_id`/`provider`/несекретный
       `installation_id_hash`, token material — ciphertext плюс несекретный hash для rotation/idempotency.
       Шифрование идёт через объявленный native-push модулем `NativePushTokenCipher` port; production adapter
       получает отдельный process-bootstrap keyring с key id/rotation, не импортирует `staff-security/crypto.ts`,
       не использует `STAFF_SECURITY_KEYRING_JSON`, `system_settings` или app bundle. Org-scoped выдача target всегда
       повторно доказывает membership/enrollment по `(organizationId,userId)`; target не дублируется по организациям.
-      Разбор прав миграции — по `AGENTS.md` §1.
-- [ ] **M6-02.** Native push НЕ становится новым видимым пользователю каналом: для получателя это тот же класс
+      Разбор прав миграции — по `AGENTS.md` §1. Доказательство: backend chain through `c6fb028d1`, four-point
+      rights inspection and retained target/cipher tests `88e9240df`; landing `bd897e9f7`.
+- [x] **M6-02.** Native push НЕ становится новым видимым пользователю каналом: для получателя это тот же класс
       «push», а native target — его транспорт. Поэтому `CHECK`-ограничение `user_notification_topic_channels`
       (`telegram|max|vk|email|web_push`) и профильные переключатели не расщепляются. Если резолвер §21 структурно
       не может выразить транспорт внутри канала, это фиксируется вопросом владельцу (§6a), а не вторым каналом.
-- [ ] **M6-03.** Authenticated register/rotate/revoke endpoints тонкие и зовут один service/port. Logout,
+      Доказательство: единственный persisted `web_push` и composite transport accepted in
+      `88e9240df`/`2fd85ce9e`; landings `bd897e9f7`, `a722d9bf8`.
+- [x] **M6-03.** Authenticated register/rotate/revoke endpoints тонкие и зовут один service/port. Logout,
       offboarding и provider invalid-token responses деактивируют targets идемпотентно; сырые токены не попадают
-      в логи, taskdb и delivery-attempt payloads.
-- [ ] **M6-04.** Kotlin plugin интегрирует RuStore Universal Push SDK напрямую (без временной direct-RuStore
+      в логи, taskdb и delivery-attempt payloads. Доказательство: endpoint/repository/cipher and invalid-token
+      lifecycle `88e9240df`/`60cfa976e`; web logout/resume continuation `44b494331`; landings `bd897e9f7`,
+      `46c9d4728`, `4d84fb260`.
+- [x] **M6-04.** Kotlin plugin интегрирует RuStore Universal Push SDK напрямую (без временной direct-RuStore
       реализации), включает RuStore-провайдер и сообщает availability/new token/message/errors через типизированный
       мост. Точная версия SDK не декларируется планом заранее: исполнитель фиксирует разрешённую версию и команду,
       которой она получена. FCM/HMS остаются добавляемыми провайдерами без передела JS-контракта и схемы.
-- [ ] **M6-05.** `web_push` остаётся единственным логическим каналом «Push» в contracts, preferences, queue rows и
+      Доказательство: direct RuStore Universal SDK bridge/runtime and typed events accepted through `1dd140d64`;
+      landing `a722d9bf8`.
+- [x] **M6-05.** `web_push` остаётся единственным логическим каналом «Push» в contracts, preferences, queue rows и
       UI. Существующий `DeliveryAdapter` для `web_push` становится composite app-push adapter и внутри одного
       `createDefaultDispatchPort` fan-out'ит browser Web Push и native RuStore transport по targets/config.
       `rustore_universal_push` не появляется как второй logical channel. Intent получает typed
@@ -336,22 +357,30 @@ authority нельзя: он частично отменён владельце�
       не вызывается в обход chokepoint (`OWNER_PRODUCT_RULES` §21, `AGENTS.md` §5). Browser `url` и
       `nativeRoute` — разные поля: custom-domain/guest browser URL никогда не передаётся Android как доверенный
       маршрут; для приглашения на звонок нативный маршрут ведёт на authenticated patient/doctor live surface.
-- [ ] **M6-06.** 🔴 Оба транспорта logical `web_push` проходят неизменённые `assertOutboundMessagePolicy` и
+      Доказательство: one composite adapter/typed `pushExtras` structural gate in `2fd85ce9e`; final route suite
+      green after `4ce2ae671`; landing `bd897e9f7`.
+- [x] **M6-06.** 🔴 Оба транспорта logical `web_push` проходят неизменённые `assertOutboundMessagePolicy` и
       единственный `applyPreForkEnvironmentDeliveryPolicy` ДО composite provider fork; второго `readChannel` или
       TEST-gate для RuStore нет. Текущий `TEST_ACCOUNT_WEB_PUSH_USER_IDS` применяется к browser/native одинаково.
       Поведенческое доказательство: `TEST=true` подавляет non-test recipient до любого transport, local DEV не
-      вызывает ни Web Push, ни Universal Push provider (`AGENTS.md` §1b, owner §23).
-- [ ] **M6-07.** Глобальный админ управляет одним логическим каналом через существующий
+      вызывает ни Web Push, ни Universal Push provider (`AGENTS.md` §1b, owner §23). Доказательство: single
+      pre-provider policy inspection/fault injection across browser/native fan-out `88e9240df`/`2fd85ce9e`;
+      landing `bd897e9f7`.
+- [x] **M6-07.** Глобальный админ управляет одним логическим каналом через существующий
       `platform_integration_availability.web_push`; отдельного пользовательского/provider toggle нет. Выключенный
       `web_push` блокирует оба transport до fork. Внутри включённого composite отсутствие VAPID не блокирует
       настроенный Universal Push, отсутствие RuStore credentials/target не блокирует Web Push, отсутствие обоих
       даёт typed no-active-target. UI-label меняется с «Web Push» на «Push», persisted code не меняется.
-- [ ] **M6-08.** Project ID / auth token / endpoint живут только в restricted DB-backed `system_settings`:
+      Доказательство: platform catalog and topic models expose `Push`; availability/fan-out independence passed
+      in `88e9240df`; landing `bd897e9f7`.
+- [x] **M6-08.** Project ID / auth token / endpoint живут только в restricted DB-backed `system_settings`:
       объявлены в `modules/system-settings/registry.ts` как `restricted('admin','global',…)`, секрет — типом
-      `secret_envelope` с `redacted`, ключи добавлены в `ALLOWED_KEYS` (`types.ts`), чтение — только через
-      санкционированные accessors (`apps/webapp/scripts/check-system-settings-accessors.mjs` зелёный). Ни env, ни
-      app bundle их не несут.
-- [ ] **M6-09.** Payload несёт только факт, дату-время и ссылку в кабинет плюс allowlisted внутренний маршрут —
+      `secret_envelope` с `redacted`, ключи входят в единый registry-export `ALLOWED_KEYS`, чтение идёт через
+      `SystemSettingsPort`/DB-owned capabilities. Ни env, ни app bundle их не несут. Текстовый
+      `check-system-settings-accessors.mjs` не восстанавливается: он намеренно удалён owner-решением #1074 в
+      `c5b061696` как вредный source-text gate (`AGENTS.md` §10a). Backend/registry/secret/accessor части приняты в
+      `88e9240df` и посажены `bd897e9f7`; lead повторно проверил итоговый registry, route и production-only key inventory.
+- [x] **M6-09.** Payload несёт только факт, дату-время и ссылку в кабинет плюс allowlisted внутренний маршрут —
       без текста сообщения/переписки, клинических деталей, имени файла, presigned URL, cookie, токена и
       организационного секрета (`OWNER_PRODUCT_RULES` §22 и §15). Тексты берутся из существующих builder'ов
       (`modules/web-push/pushNotificationCopy.ts`), новая копирайтинг-ветка не заводится. Data-only RuStore wire
@@ -359,16 +388,23 @@ authority нельзя: он частично отменён владельце�
       `nativeRoute`, а аналитический `pushKind` (`custom|warmup|training|news`) не переиспользуется как Android
       notification channel. Backend и Android независимо проверяют surface/kind/route и ограничивают длину
       title/body. Tap ведёт внутрь правильной поверхности приложения; внешние и обманные маршруты отклоняются.
-- [ ] **M6-10.** Android notification permission и стабильные каналы реализованы. Напоминания, звонки и сообщения
+      Доказательство: exact five-field wire/copy bounds `2fd85ce9e`; traversal corrections through `4ce2ae671`;
+      tap-kind confirmation `1dd140d64` (**1/1, 0 missed**); provider wire `60cfa976e` (**5/5, 0 missed**);
+      landings `bd897e9f7`, `46c9d4728`, `a722d9bf8`.
+- [x] **M6-10.** Android notification permission и стабильные каналы реализованы. Напоминания, звонки и сообщения
       могут использовать отдельно настроенные bundled sounds; пользовательские настройки каналов Android остаются
       главнее. Android отображает прошедшие server-side copy/policy `title`/`body`, а не hardcoded placeholder;
       staff-маршруты имеют тот же allowlist на обеих сторонах: `/app/doctor`, `/app/settings`, `/app/account`.
-- [ ] **M6-11.** Denied Android permission, отсутствующая transport-конфигурация или active browser/native target
+      Доказательство: Android permission/channel/sound and dual allowlist acceptance `2fd85ce9e`/`1dd140d64`;
+      22 tests × 4 variants; landing `a722d9bf8`.
+- [x] **M6-11.** Denied Android permission, отсутствующая transport-конфигурация или active browser/native target
       дают typed non-secret skipped/no-active-target outcome и метрику logical `web_push`; provider не вызывается,
       raw token не логируется, unauthorized messenger fallback не включается. Существующий canonical domain/in-app
       source конкретного сценария остаётся источником факта и не удаляется из-за недоставленного push. Строка НЕ
       создаёт универсальную notification-event таблицу и не разрешает общий notification-family refactor; сценарий
-      без уже существующего canonical source остаётся за действующим notification workstream.
+      без уже существующего canonical source остаётся за действующим notification workstream. Доказательство:
+      typed unavailable/no-active-target/provider outcomes and optional-keyring/failure isolation in
+      `88e9240df`, `2fd85ce9e`, `60cfa976e`; landings `bd897e9f7`, `46c9d4728`.
 
 ### M7 — independent audits and integration gate
 
@@ -466,4 +502,9 @@ security/audit gates идут без этих входов. Отсутствую
 | M2-02 | open | Workspace wiring/typecheck/lint/build are proven; the root `pnpm run ci` clause remains for final integrated M7-06 and is not claimed early. |
 | M1-01…M1-03, M1-05, M1-06 | done | Двухбрендовые PWA manifests/icons/surfaces реализованы, поведенчески проверены и посажены в `feat/doctor-ui-rebuild` через port: product `ae14e0f16`, audit `fd04fbc27`, confirmation `041abf541`, landing `66ef65468`. |
 | M1-04 | open | Финальный named-DEV HTTP проход `ee0c91fc8` (landing `0f7a8374e`) подтвердил, что HTTP 500 `native_push_token_keyring_unavailable` устранён, а Therapy Go/Therapysto metadata/manifests/install routes и исключение platform-admin работают. В DEV сейчас `count(*) = 0` и для `org_custom_domain_bindings`, и для `clinic_public_directory_entries`, поэтому живого branded-patient host для проверки нет; authenticated doctor redirect и полный browser/PWA fallback остаются в M7-03. |
-| M1-07, M3-01…M7-07 | open | Заполняет только lead после committed implementation + independent acceptance. |
+| M1-07, M3-01…M3-03 | done | Product/corrections `d54b34775`, `4e6a5b188`, `312ef14e3`; independent continuation/tests `44b494331` после отклонённого первичного PASS; retained `5 files / 71 tests`, PWA native-shell `6/6`, typecheck/scoped ESLint; port landing `4d84fb260`. |
+| M4-02 | done | Native Jitsi lifecycle/permission/hangup/retry through `d1c983a3c`; four-variant Android matrix; port landing `a722d9bf8`. Web selection seam remains M4-01/M4-04/M4-05. |
+| M5-02, M5-03 | done | Corrected CameraX result handoff/document MIME validation `bfe25db0b`; independent confirmation `d1c983a3c`; port landing `a722d9bf8`. |
+| M6-01…M6-07, M6-09…M6-11 | done | Backend/rights/routes through `c6fb028d1`, landing `bd897e9f7`; official Universal provider contract `60cfa976e`, landing `46c9d4728`; Android end-to-end wire/tap through `1dd140d64`, landing `a722d9bf8`; authenticated lifecycle `44b494331`, landing `4d84fb260`. |
+| M6-08 | done | Restricted DB-backed registry/config/accessor path accepted in `88e9240df`, landing `bd897e9f7`; lead re-inspected the final registry, integrator config route and production-only key inventory. The obsolete source-text gate was deliberately removed by owner decision #1074 in `c5b061696` and is not restored. |
+| M4-01, M4-03…M5-01, M5-04…M5-06, M7-01…M7-07 | open | Заполняет только lead после committed implementation + independent acceptance. |
