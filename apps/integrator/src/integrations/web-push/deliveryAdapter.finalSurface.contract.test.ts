@@ -89,8 +89,8 @@ describe('final native surface resolver — M6-05/M6-09', () => {
   ])('dispatches native Push only to the matching provider target for %s', async (_case, url, expectedSurface) => {
     const sentTo: string[] = [];
     globalThis.fetch = vi.fn(async (_input: unknown, init?: { body?: unknown }) => {
-      const body = JSON.parse(String(init?.body)) as { data: { pushSurface: string } };
-      sentTo.push(body.data.pushSurface);
+      const body = JSON.parse(String(init?.body)) as { message: { data: { pushSurface: string } } };
+      sentTo.push(body.message.data.pushSurface);
       return new Response(JSON.stringify({}), { status: 200 });
     }) as never;
     const port: WebPushAccessPort = {
