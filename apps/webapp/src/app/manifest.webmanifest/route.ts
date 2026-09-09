@@ -1,4 +1,5 @@
 import { buildPatientPwaManifest } from '@/shared/lib/pwa/patientPwaManifest';
+import { canSurfaceEnterRoute } from '@/config/surfaceRoutes';
 import {
   arePlatformSurfaceHostsDistinct,
   DEFAULT_SURFACE_AUTH_POLICY_CONFIG,
@@ -13,12 +14,12 @@ import { getResolvedSurface } from '@/shared/lib/surface/requestSurface.server';
  */
 export async function GET() {
   const resolved = await getResolvedSurface();
+  if (!canSurfaceEnterRoute(resolved.surface, '/manifest.webmanifest')) {
+    return new Response(null, { status: 404 });
+  }
   // On the transitional single Host the resolver deliberately keeps staff identity, but this
   // legacy URL still belongs to already-installed patient PWAs. Preserve that contract without
   // teaching the Host resolver about pathname.
-  if (resolved.surface === 'platform_admin') {
-    return new Response(null, { status: 404 });
-  }
   const manifestSurface: ResolvedSurface =
     resolved.surface === 'staff' && !arePlatformSurfaceHostsDistinct()
       ? {

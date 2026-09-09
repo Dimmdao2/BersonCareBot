@@ -3,6 +3,10 @@ import { surfaceDisplayName, type ResolvedSurface } from '@/shared/lib/surface/r
 
 export const PATIENT_PWA_MANIFEST_PATH = '/manifest.webmanifest';
 export const PATIENT_BROWSER_ICON_32 = '/therapygo-favicon-32.png';
+export const PATIENT_PWA_ICON_192 = '/therapygo-pwa-icon-192.png';
+export const PATIENT_PWA_ICON_512 = '/therapygo-pwa-icon-512.png';
+export const PATIENT_PWA_ICON_MASKABLE_512 = '/therapygo-pwa-icon-maskable-512.png';
+export const PATIENT_PWA_APPLE_TOUCH = '/therapygo-apple-touch-icon.png';
 
 /**
  * Манифест установленного пациентского приложения.
@@ -37,16 +41,22 @@ export function buildPatientPwaManifest(resolved: ResolvedSurface): MetadataRout
     lang: 'ru',
     icons: [
       {
-        src: '/pwa-icon-192.png',
+        src: PATIENT_PWA_ICON_192,
         sizes: '192x192',
         type: 'image/png',
         purpose: 'any',
       },
       {
-        src: '/pwa-icon-512.png',
+        src: PATIENT_PWA_ICON_512,
         sizes: '512x512',
         type: 'image/png',
         purpose: 'any',
+      },
+      {
+        src: PATIENT_PWA_ICON_MASKABLE_512,
+        sizes: '512x512',
+        type: 'image/png',
+        purpose: 'maskable',
       },
     ],
   };

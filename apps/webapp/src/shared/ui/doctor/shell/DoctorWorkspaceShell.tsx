@@ -131,8 +131,8 @@ export function DoctorWorkspaceShell({
       <Suspense fallback={null}>
         <AppAccessDeniedToastEffect />
       </Suspense>
-      <StaffPwaBootstrap />
-      <StaffWebPushBootstrap />
+      {!isPlatformOperator ? <StaffPwaBootstrap /> : null}
+      {!isPlatformOperator ? <StaffWebPushBootstrap /> : null}
       <StaffCalendarTimezoneBootstrap />
       <DoctorShellChromeProvider>
         <DoctorPatientTermsProvider

@@ -88,7 +88,7 @@ export function StaffPwaInstallSection() {
     return (
       <div className="space-y-2 text-sm leading-relaxed text-muted-foreground">
         <p>
-          Меню <strong className="text-foreground">Поделиться</strong> →{' '}
+          Safari на iPhone / iPad: <strong className="text-foreground">Поделиться</strong> →{' '}
           <strong className="text-foreground">На экран «Домой»</strong>.
         </p>
         <p>После установки ярлык откроет кабинет специалиста.</p>
@@ -111,7 +111,7 @@ export function StaffPwaInstallSection() {
             Edge.
           </>
         ) : (
-          <>Меню браузера (⋮) → «Установить приложение…».</>
+          <>Android (Chrome / Edge): меню браузера (⋮) → «Установить приложение…».</>
         )}
       </p>
     </div>
