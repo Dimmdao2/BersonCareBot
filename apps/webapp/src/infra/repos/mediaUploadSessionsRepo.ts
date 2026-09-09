@@ -325,32 +325,28 @@ export async function abortMultipartPendingTx(
     return { ok: 'already_final' };
   }
 
+  if (row.media_status !== 'pending') {
+    return { ok: 'not_found' };
+  }
+
+  // Same terminal treatment as the expiry state machine (`stageExpiredMultipartSessionForPurgeTx`):
+  // metadata for a file that never arrived must not outlive the upload it describes. Removing the
+  // link before the media row is essential: that row's `ON DELETE SET NULL` FK would otherwise
+  // erase the predicate needed to remove the legacy-visible `patient_files` record.
+  await runWebappSql(
+    db,
+    sql`DELETE FROM patient_files WHERE media_file_id = ${row.media_id}::uuid`,
+  );
   const del = await runWebappSql(
     db,
     sql`DELETE FROM media_files WHERE id = ${row.media_id}::uuid AND status = 'pending'`,
   );
   if ((del.rowCount ?? 0) === 0) {
-    const again = await runWebappSql<{ m: string | null }>(
-      db,
-      sql`SELECT m.status AS m
-         FROM media_upload_sessions s
-         LEFT JOIN media_files m ON m.id = s.media_id
-        WHERE s.id = ${sessionId}::uuid`,
-    );
-    const ms = again.rows[0]?.m;
-    if (ms === 'ready') {
-      return { ok: 'already_completed' };
-    }
-    return { ok: 'not_found' };
+    // The selected media row is held FOR UPDATE in this transaction. A failed pending delete after
+    // the linked-row cleanup is therefore an invariant violation; throwing rolls the whole
+    // transaction back instead of committing a partial abort.
+    throw new Error('MEDIA_MULTIPART_ABORT_PENDING_ROW_CHANGED');
   }
-  // Same terminal treatment as the expiry state machine (`stageExpiredMultipartSessionForPurgeTx`):
-  // metadata for a file that never arrived must not outlive the upload it describes. Removing the
-  // link in the same transaction/lock as the media row keeps the doctor patient-file abort from
-  // leaving a legacy-visible `patient_files` row behind the `ON DELETE SET NULL` FK.
-  await runWebappSql(
-    db,
-    sql`DELETE FROM patient_files WHERE media_file_id = ${row.media_id}::uuid`,
-  );
 
   return {
     ok: 'aborted',
