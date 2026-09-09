@@ -670,6 +670,56 @@ REVOKE ALL ON FUNCTION app.read_operator_health_probe_config() FROM
   app_operational_diagnostic, app_operational_delivery_worker, app_operational_media_worker;
 GRANT EXECUTE ON FUNCTION app.read_operator_health_probe_config() TO app_operational_scheduler;
 
+-- P5 keeps mailbox and SMTP credentials in the same restricted settings root. The scheduler can
+-- read only this one mailbox and the two fixed platform sender profiles; it never receives table
+-- SELECT or a caller-chosen settings key.
+CREATE OR REPLACE FUNCTION app.read_operator_health_imap_setting()
+RETURNS jsonb
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $function$
+  SELECT setting.value_json
+  FROM public.system_settings AS setting
+  WHERE setting.key = 'operator_health_imap'
+    AND setting.scope = 'admin'
+    AND setting.organization_id IS NULL
+  LIMIT 1
+$function$;
+ALTER FUNCTION app.read_operator_health_imap_setting() OWNER TO app_owner;
+REVOKE ALL ON FUNCTION app.read_operator_health_imap_setting() FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.read_operator_health_imap_setting() FROM
+  app_staff, app_patient, app_worker,
+  app_operational_diagnostic, app_operational_delivery_worker, app_operational_media_worker;
+GRANT EXECUTE ON FUNCTION app.read_operator_health_imap_setting() TO app_operational_scheduler;
+
+CREATE OR REPLACE FUNCTION app.read_operator_health_smtp_outbound_setting(p_audience text)
+RETURNS jsonb
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $function$
+  SELECT setting.value_json
+  FROM public.system_settings AS setting
+  WHERE p_audience IN ('patient', 'staff')
+    AND setting.key = CASE p_audience
+      WHEN 'patient' THEN 'therapygo_smtp_outbound'
+      WHEN 'staff' THEN 'therapysto_smtp_outbound'
+    END
+    AND setting.scope = 'admin'
+    AND setting.organization_id IS NULL
+  LIMIT 1
+$function$;
+ALTER FUNCTION app.read_operator_health_smtp_outbound_setting(text) OWNER TO app_owner;
+REVOKE ALL ON FUNCTION app.read_operator_health_smtp_outbound_setting(text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.read_operator_health_smtp_outbound_setting(text) FROM
+  app_staff, app_patient, app_worker,
+  app_operational_diagnostic, app_operational_delivery_worker, app_operational_media_worker;
+GRANT EXECUTE ON FUNCTION app.read_operator_health_smtp_outbound_setting(text)
+  TO app_operational_scheduler;
+
 -- Verbose-logging flag for integrator operational logs. Boolean-only, fail-safe false; both
 -- background contours read it on their own cadence, neither may reach the settings table.
 -- Body lives in deploy/postgres/integrator-server-runtime-config.sql (the API and webhook
@@ -822,6 +872,8 @@ BEGIN
   IF p_dedup_key_prefix IS NULL
     OR p_dedup_key_prefix NOT IN (
       'outbound:max:', 'outbound:telegram:', 'outbound:google_calendar:',
+      'outbound_delivery_provider:email:email_patient_round_trip_failed',
+      'outbound_delivery_provider:email:email_staff_round_trip_failed',
       'outbound_delivery_provider:max:',
       'outbound_delivery_provider:telegram:',
       'outbound_delivery_provider:google_calendar:'
@@ -842,7 +894,8 @@ BEGIN
         NOT v_page_on_first_only
         OR incident.error_class IN (
           'provider_quota_exhausted', 'provider_credit_exhausted',
-          'provider_auth_rejected', 'provider_not_configured'
+          'provider_auth_rejected', 'provider_not_configured',
+          'email_patient_round_trip_failed', 'email_staff_round_trip_failed'
         )
       )
     RETURNING incident.id
@@ -879,7 +932,9 @@ BEGIN
     OR (p_integration, p_error_class) NOT IN (
       ('max', 'max_probe_failed'),
       ('telegram', 'telegram_probe_failed'),
-      ('google_calendar', 'google_calendar_probe_failed')
+      ('google_calendar', 'google_calendar_probe_failed'),
+      ('email', 'email_patient_round_trip_failed'),
+      ('email', 'email_staff_round_trip_failed')
     )
     OR length(COALESCE(p_error_detail, '')) > 1000
   THEN
@@ -1297,6 +1352,8 @@ WITH managed(role_name) AS (VALUES
   ('function','app.release_principal_context()','EXECUTE','app_operational_scheduler',false),
   ('function','app.list_scheduler_reminder_organization_ids()','EXECUTE','app_operational_scheduler',false),
   ('function','app.read_operator_health_probe_config()','EXECUTE','app_operational_scheduler',false),
+  ('function','app.read_operator_health_imap_setting()','EXECUTE','app_operational_scheduler',false),
+  ('function','app.read_operator_health_smtp_outbound_setting(text)','EXECUTE','app_operational_scheduler',false),
   ('function','app.read_operational_verbose_log_flag()','EXECUTE','app_operational_scheduler',false),
   ('function','app.list_google_calendar_probe_organization_ids()','EXECUTE','app_operational_scheduler',false),
   ('function','app.read_operator_outbound_probe_meta()','EXECUTE','app_operational_scheduler',false),

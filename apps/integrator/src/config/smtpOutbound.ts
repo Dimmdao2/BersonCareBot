@@ -8,7 +8,9 @@ import type { DbPort } from '../kernel/contracts/index.js';
 import { logger } from '../infra/observability/logger.js';
 import { parseSystemSettingInnerWithSchema } from '../infra/db/publicSystemSettings.js';
 import { fetchIntegratorProviderRuntimeSettingValueJson } from '../infra/db/publicSystemSettings.js';
+import { readOperatorHealthSmtpOutboundSettingValueJson } from '../infra/db/publicRestrictedSettings.js';
 import { runWithBootstrapPrincipal } from '../infra/principal/organizationPrincipal.js';
+import { getCurrentIntegratorTechnicalRuntimeRole } from '../infra/db/withClient.js';
 import {
   platformCredentialKey,
   type PlatformDeliveryAudience,
@@ -86,14 +88,17 @@ export async function resolveSmtpOutboundConfig(
   audience: PlatformDeliveryAudience = 'patient',
 ): Promise<ResolvedSmtpOutboundConfig> {
   try {
-    const valueJson = await runWithBootstrapPrincipal(
-      { source: 'integrator-server-runtime-config' },
-      () =>
-        fetchIntegratorProviderRuntimeSettingValueJson(
-          db,
-          platformCredentialKey(audience, 'email'),
-        ),
-    );
+    const valueJson =
+      getCurrentIntegratorTechnicalRuntimeRole() === 'app_operational_scheduler'
+        ? await readOperatorHealthSmtpOutboundSettingValueJson(db, audience)
+        : await runWithBootstrapPrincipal(
+            { source: 'integrator-server-runtime-config' },
+            () =>
+              fetchIntegratorProviderRuntimeSettingValueJson(
+                db,
+                platformCredentialKey(audience, 'email'),
+              ),
+          );
     const fromDb = valueJson !== null ? parseSmtpOutboundValueJson(valueJson) : null;
     return fromDb ?? emptyResolved();
   } catch {

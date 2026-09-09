@@ -39,6 +39,7 @@
     "fastify": "^5.12.3",
     "googleapis": "^178.1.1",
     "grammy": "^1.46.0",
+    "imapflow": "^1.7.8",
     "luxon": "^3.7.2",
     "node-fetch": "^3.3.2",
     "nodemailer": "^10.0.1",

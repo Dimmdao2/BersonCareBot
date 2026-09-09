@@ -30,6 +30,10 @@ export type SendMailParams = {
   from?: string;
   fromName?: string;
   replyTo?: string;
+  /** Bound transport setup and socket inactivity for a health probe without changing normal delivery. */
+  timeoutMs?: number;
+  /** Probe ownership marker; never use this to carry user content or credentials. */
+  headers?: Record<string, string>;
   /** Опциональные вложения (например, .ics-файл). */
   attachments?: MailAttachment[];
 };
@@ -43,17 +47,17 @@ export type SendMailResult = {
 
 let transportCache: { sig: string; transport: Transporter } | null = null;
 
-function transportSignature(cfg: ResolvedSmtpOutboundConfig): string {
+function transportSignature(cfg: ResolvedSmtpOutboundConfig, timeoutMs?: number): string {
   return createHash('sha256')
     .update(
-      `${cfg.smtpHost}\0${cfg.smtpPort}\0${cfg.smtpSecure}\0${cfg.smtpUser}\0${cfg.smtpPass}\0${cfg.fromAddress}`,
+      `${cfg.smtpHost}\0${cfg.smtpPort}\0${cfg.smtpSecure}\0${cfg.smtpUser}\0${cfg.smtpPass}\0${cfg.fromAddress}\0${timeoutMs ?? ''}`,
     )
     .digest('hex');
 }
 
-function getOrCreateTransport(cfg: ResolvedSmtpOutboundConfig): Transporter | null {
+function getOrCreateTransport(cfg: ResolvedSmtpOutboundConfig, timeoutMs?: number): Transporter | null {
   if (!cfg.configured) return null;
-  const sig = transportSignature(cfg);
+  const sig = transportSignature(cfg, timeoutMs);
   if (transportCache?.sig !== sig) {
     transportCache = {
       sig,
@@ -65,6 +69,13 @@ function getOrCreateTransport(cfg: ResolvedSmtpOutboundConfig): Transporter | nu
           user: cfg.smtpUser,
           pass: cfg.smtpPass,
         },
+        ...(timeoutMs !== undefined
+          ? {
+              connectionTimeout: timeoutMs,
+              greetingTimeout: timeoutMs,
+              socketTimeout: timeoutMs,
+            }
+          : {}),
       }),
     };
   }
@@ -78,7 +89,7 @@ export async function sendMail(
   resolved: ResolvedSmtpOutboundConfig,
   params: SendMailParams,
 ): Promise<SendMailResult> {
-  const transport = getOrCreateTransport(resolved);
+  const transport = getOrCreateTransport(resolved, params.timeoutMs);
   const toList = Array.isArray(params.to) ? params.to : [params.to];
   const fromAddress = params.from ?? resolved.fromAddress;
   const fromName = params.fromName ?? resolved.senderDisplayName;
@@ -98,6 +109,7 @@ export async function sendMail(
     ...(params.text !== undefined ? { text: params.text } : {}),
     ...(params.html !== undefined ? { html: params.html } : {}),
     ...(params.replyTo !== undefined ? { replyTo: params.replyTo } : {}),
+    ...(params.headers !== undefined ? { headers: params.headers } : {}),
     ...(params.attachments?.length ? { attachments: params.attachments } : {}),
   });
 
