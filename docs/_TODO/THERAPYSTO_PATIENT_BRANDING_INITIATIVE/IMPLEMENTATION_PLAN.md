@@ -421,6 +421,10 @@ Jane, Cliniko, Fresha считают цвета и логотип космети
   общий delivery resolver по типу аудитории/поверхности, а не вызывающие вручную. Клинические overrides сохраняют
   приоритет только для patient-facing intents своей организации. Другие будущие каналы (VK, WhatsApp и т. п.)
   входят в ту же модель, но не реализуются этим уточнением без отдельного подключения провайдера.
+- **Уточнение владельца 09.09.2026 — бот клиники является частью оплаченного брендирования.** Telegram/MAX
+  credentials конкретной организации настраиваются только во вкладке «Брендирование» и доступны только при
+  активном entitlement брендирования. Общие настройки клиники и глобальная админка не создают второй путь записи
+  tenant credentials; глобальная админка хранит только платформенные TherapyGo/Therapysto credentials.
 - Все patient-facing intents — подтверждение телефона средствами мессенджера, login/recovery/security codes и
   обычные уведомления — несут контекст организации и идут через существующий `dispatchPort` как
   `clinic_if_configured`: платформенный TherapyGo-бот является рабочим путём по умолчанию, а настроенный и живьём
@@ -577,7 +581,8 @@ Checkbox закрывается только доказательством, у�
   дерево маршрутов на вручную подставленном resolved context, но не живой branded Host: production lookup не
   подключён. Пункт закрывается только вместе с `B3` живым Next Host-smoke всех перечисленных маршрутов.
 - [ ] `TPB-12a` Обычные платформенные TherapyGo Telegram/MAX-боты подтверждают телефон средствами мессенджера,
-  доставляют patient-коды входа и обычные patient-уведомления. Если клиника подключила свой Telegram/MAX-бот,
+  доставляют patient-коды входа и обычные patient-уведомления. Если клиника с активным оплаченным брендированием
+  подключила свой Telegram/MAX-бот через вкладку «Брендирование»,
   её пациентские интенты идут через него без
   отката на платформенный sender; если не подключила — работает платформенный бот с именем клиники. Рассылки
   доступны только брендированным клиникам; SMS branding не считается. Доказательство:
@@ -960,8 +965,8 @@ injection, targeted route/UI tests, migration dry-run DEV→TEST, lint+typecheck
 - [ ] `C3` Провести все Telegram/MAX intents через существующий параметризованный dispatch port с audience-aware
   платформенным credential: TherapyGo для patient confirmation/recovery/security/notification, Therapysto для
   staff operational notifications. Patient intent использует `clinic_if_configured`: TherapyGo работает по
-  умолчанию, а собственный
-  проверенный бот клиники принимает её интенты без fallback после своего включения.
+  умолчанию, а собственный проверенный бот клиники принимает её интенты без fallback после своего включения
+  только через единый branding write-path и при активном entitlement оплаченного брендирования.
   Доказательство: route/producer fault injection краснит `sendOtpRoute.route.test.ts`,
   `materializePatientReminderDeliveries.unit.test.ts` и `dispatchPort.test.ts`; целевой прогон —
   16 integrator + 27 webapp tests, `pnpm --dir apps/{integrator,webapp} typecheck`.
