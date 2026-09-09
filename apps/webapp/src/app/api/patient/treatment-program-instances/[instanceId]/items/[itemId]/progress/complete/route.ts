@@ -12,6 +12,7 @@ const completeBodySchema = z
     reps: z.number().int().positive().max(5000).optional(),
     sets: z.number().int().positive().max(500).optional(),
     weightKg: z.number().min(0).max(500).optional(),
+    pain010: z.number().int().min(0).max(10).optional(),
   })
   .strict();
 

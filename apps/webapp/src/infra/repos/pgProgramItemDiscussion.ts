@@ -313,11 +313,11 @@ export function createPgProgramItemDiscussionPort(): ProgramItemDiscussionPort {
 
     async listMessagesForStageItem(
       stageItemId: string,
-      limit = 200,
+      limit: number | null = 200,
       offset = 0,
     ): Promise<ProgramItemDiscussionMessage[]> {
       const db = getDrizzle();
-      const safeLimit = Math.max(1, Math.trunc(limit));
+      const safeLimit = limit == null ? null : Math.max(1, Math.trunc(limit));
       const safeOffset = Math.max(0, Math.trunc(offset));
       const rows = await db
         .select()
@@ -327,9 +327,9 @@ export function createPgProgramItemDiscussionPort(): ProgramItemDiscussionPort {
           asc(programItemDiscussionMessages.createdAt),
           asc(programItemDiscussionMessages.id),
         )
-        .limit(safeLimit)
         .offset(safeOffset);
-      return rows.map(mapMessage);
+      const limitedRows = safeLimit == null ? rows : rows.slice(0, safeLimit);
+      return limitedRows.map(mapMessage);
     },
 
     async listAttentionSummaryForStageItems(stageItemIds: string[]) {

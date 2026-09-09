@@ -333,17 +333,18 @@ export function createInMemoryProgramActionLogPort(): ProgramActionLogPort {
     },
 
     async listDoneForStageItemInWindow(params) {
+      const start = params.windowStartUtcIso;
+      const end = params.windowEndUtcExclusiveIso;
       const filtered = rows.filter(
         (r) =>
           r.instanceId === params.instanceId &&
           r.instanceStageItemId === params.instanceStageItemId &&
           r.actionType === 'done' &&
-          r.createdAt >= params.windowStartUtcIso &&
-          r.createdAt < params.windowEndUtcExclusiveIso,
+          (start && end ? r.createdAt >= start && r.createdAt < end : true),
       );
       filtered.sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0));
       const out: ProgramActionLogListRow[] = [];
-      for (const r of filtered.slice(0, 50)) {
+      for (const r of filtered.slice(0, start && end ? 50 : filtered.length)) {
         if (!PROGRAM_ACTION_TYPES.includes(r.actionType as ProgramActionType)) continue;
         out.push({
           id: r.id,

@@ -593,7 +593,14 @@ export function createPgProgramActionLogPort(): ProgramActionLogPort {
 
     async listDoneForStageItemInWindow(params) {
       const db = getDrizzle();
-      const rows = await db
+      const windowConditions =
+        params.windowStartUtcIso && params.windowEndUtcExclusiveIso
+          ? [
+              gte(logTable.createdAt, params.windowStartUtcIso),
+              lt(logTable.createdAt, params.windowEndUtcExclusiveIso),
+            ]
+          : [];
+      const query = db
         .select({
           id: logTable.id,
           instanceId: logTable.instanceId,
@@ -611,12 +618,14 @@ export function createPgProgramActionLogPort(): ProgramActionLogPort {
             eq(logTable.instanceId, params.instanceId),
             eq(logTable.instanceStageItemId, params.instanceStageItemId),
             eq(logTable.actionType, 'done'),
-            gte(logTable.createdAt, params.windowStartUtcIso),
-            lt(logTable.createdAt, params.windowEndUtcExclusiveIso),
+            ...windowConditions,
           ),
         )
-        .orderBy(desc(logTable.createdAt))
-        .limit(50);
+        .orderBy(desc(logTable.createdAt));
+      const rows =
+        params.windowStartUtcIso && params.windowEndUtcExclusiveIso
+          ? await query.limit(50)
+          : await query;
 
       const out: ProgramActionLogListRow[] = [];
       for (const r of rows) {

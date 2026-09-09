@@ -1494,6 +1494,7 @@ const treatmentProgramProgressService = createTreatmentProgramProgressService({
   tests: treatmentProgramTestAttemptsPort,
   events: treatmentProgramEventsPort,
   actionLog: programActionLogPort,
+  discussion: programItemDiscussionPort,
 });
 
 const lfkTemplatesPort = !inMemoryRepos ? pgLfkTemplatesPort : inMemoryLfkTemplatesPort;

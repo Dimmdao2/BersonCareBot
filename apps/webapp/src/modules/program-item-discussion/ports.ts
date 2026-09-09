@@ -15,7 +15,8 @@ export type ProgramItemDiscussionPort = {
   insertMessage(input: ProgramItemDiscussionMessageInsert): Promise<ProgramItemDiscussionMessage>;
   listMessagesForStageItem(
     stageItemId: string,
-    limit?: number,
+    /** `null` is the doctor exercise-history request: do not hide older patient comments. */
+    limit?: number | null,
     offset?: number,
   ): Promise<ProgramItemDiscussionMessage[]>;
   listAttentionSummaryForStageItems(

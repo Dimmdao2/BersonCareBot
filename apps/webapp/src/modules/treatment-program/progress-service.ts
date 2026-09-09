@@ -4,6 +4,7 @@ import type {
   TreatmentProgramTestAttemptsPort,
   ProgramActionLogPort,
 } from './ports';
+import type { ProgramItemDiscussionPort } from '@/modules/program-item-discussion/ports';
 import { buildAppendEventInput, normalizeEventReason } from './event-recording';
 import { assertUuid } from './service';
 import { inferNormalizedDecisionFromScoring, scoringConfigIsQualitative } from './progress-scoring';
@@ -158,11 +159,13 @@ export function createTreatmentProgramProgressService(deps: {
   tests: TreatmentProgramTestAttemptsPort;
   events?: TreatmentProgramEventsPort;
   actionLog: ProgramActionLogPort;
+  discussion?: Pick<ProgramItemDiscussionPort, 'listMessagesForStageItem'>;
   now?: () => string;
 }) {
   const { instances, tests } = deps;
   const events = deps.events;
   const actionLog = deps.actionLog;
+  const discussion = deps.discussion;
   const nowIso = deps.now ?? (() => new Date().toISOString());
 
   async function appendEv(params: Parameters<typeof buildAppendEventInput>[0]): Promise<void> {
@@ -272,6 +275,76 @@ export function createTreatmentProgramProgressService(deps: {
     return instances.touchCurrentPatientProgramItem ? fn() : instances.runInMutationTransaction(fn);
   }
 
+  function metricPointFromActionRow(row: ProgramActionLogListRow): import('./types').ExerciseMetricPoint {
+    const payload = row.payload ?? {};
+    const difficulty = payload.perceivedDifficulty;
+    return {
+      completionId: row.id,
+      at: row.createdAt,
+      reps: typeof payload.reps === 'number' && Number.isFinite(payload.reps) ? payload.reps : null,
+      sets: typeof payload.sets === 'number' && Number.isFinite(payload.sets) ? payload.sets : null,
+      weightKg:
+        typeof payload.weightKg === 'number' && Number.isFinite(payload.weightKg)
+          ? payload.weightKg
+          : null,
+      pain010:
+        typeof payload.pain010 === 'number' &&
+        Number.isInteger(payload.pain010) &&
+        payload.pain010 >= 0 &&
+        payload.pain010 <= 10
+          ? payload.pain010
+          : null,
+      difficulty:
+        difficulty === 'easy' || difficulty === 'medium' || difficulty === 'hard'
+          ? difficulty
+          : null,
+    };
+  }
+
+  async function listExerciseMetrics(params: {
+    instanceId: string;
+    instanceStageItemId: string;
+    scope: 'all' | 'window';
+    windowDays?: 7 | 30;
+    windowStartUtcIso?: string;
+    windowEndUtcExclusiveIso?: string;
+  }): Promise<import('./types').ExerciseMetricPoint[]> {
+    assertUuid(params.instanceId);
+    assertUuid(params.instanceStageItemId);
+    const hasExplicitStart = typeof params.windowStartUtcIso === 'string';
+    const hasExplicitEnd = typeof params.windowEndUtcExclusiveIso === 'string';
+    if (params.scope === 'all') {
+      if (hasExplicitStart || hasExplicitEnd) throw new Error('invalid_metric_window');
+      const rows = await actionLog.listDoneForStageItemInWindow({
+        instanceId: params.instanceId,
+        instanceStageItemId: params.instanceStageItemId,
+      });
+      return rows.map(metricPointFromActionRow);
+    }
+    if (hasExplicitStart !== hasExplicitEnd) throw new Error('invalid_metric_window');
+
+    let windowStartUtcIso: string;
+    let windowEndUtcIso: string;
+    if (hasExplicitStart && hasExplicitEnd) {
+      windowStartUtcIso = params.windowStartUtcIso!;
+      windowEndUtcIso = params.windowEndUtcExclusiveIso!;
+    } else {
+      const now = new Date();
+      const windowEndDate = new Date(now.getTime() + 60_000);
+      windowEndUtcIso = windowEndDate.toISOString();
+      const windowStartDate = new Date(now);
+      windowStartDate.setUTCDate(windowStartDate.getUTCDate() - (params.windowDays ?? 7));
+      windowStartUtcIso = windowStartDate.toISOString();
+    }
+    const rows = await actionLog.listDoneForStageItemInWindow({
+      instanceId: params.instanceId,
+      instanceStageItemId: params.instanceStageItemId,
+      windowStartUtcIso,
+      windowEndUtcExclusiveIso: windowEndUtcIso,
+    });
+    return rows.map(metricPointFromActionRow);
+  }
+
   return {
     async patientTouchStageItem(input: {
       patientUserId: string;
@@ -290,6 +363,7 @@ export function createTreatmentProgramProgressService(deps: {
         reps?: number;
         sets?: number;
         weightKg?: number;
+        pain010?: number;
       };
       repeatCooldownMinutes: number;
     }): Promise<{
@@ -367,6 +441,14 @@ export function createTreatmentProgramProgressService(deps: {
         ) {
           completionPayload.weightKg = input.completion.weightKg;
         }
+        if (
+          typeof input.completion?.pain010 === 'number' &&
+          Number.isInteger(input.completion.pain010) &&
+          input.completion.pain010 >= 0 &&
+          input.completion.pain010 <= 10
+        ) {
+          completionPayload.pain010 = input.completion.pain010;
+        }
         const completion = await actionLog.insertAction({
           instanceId: input.instanceId,
           instanceStageItemId: item.id,
@@ -411,10 +493,14 @@ export function createTreatmentProgramProgressService(deps: {
       const sets = typeof p.sets === 'number' && Number.isFinite(p.sets) ? p.sets : null;
       const weightKg =
         typeof p.weightKg === 'number' && Number.isFinite(p.weightKg) ? p.weightKg : null;
+      const pain010 =
+        typeof p.pain010 === 'number' && Number.isInteger(p.pain010) && p.pain010 >= 0 && p.pain010 <= 10
+          ? p.pain010
+          : null;
       const d = p.perceivedDifficulty;
       const difficulty: import('./types').LfkPostSessionDifficulty | null =
         d === 'easy' || d === 'medium' || d === 'hard' ? d : null;
-      return { completionId: row.id, at: row.createdAt, reps, sets, weightKg, difficulty };
+      return { completionId: row.id, at: row.createdAt, reps, sets, weightKg, pain010, difficulty };
     },
 
     async enrichSimpleCompletion(input: {
@@ -427,6 +513,7 @@ export function createTreatmentProgramProgressService(deps: {
         reps?: number;
         sets?: number;
         weightKg?: number;
+        pain010?: number;
       };
     }): Promise<import('./types').ExerciseMetricPoint> {
       assertUuid(input.patientUserId);
@@ -452,6 +539,10 @@ export function createTreatmentProgramProgressService(deps: {
         reps: typeof p.reps === 'number' && Number.isFinite(p.reps) ? p.reps : null,
         sets: typeof p.sets === 'number' && Number.isFinite(p.sets) ? p.sets : null,
         weightKg: typeof p.weightKg === 'number' && Number.isFinite(p.weightKg) ? p.weightKg : null,
+        pain010:
+          typeof p.pain010 === 'number' && Number.isInteger(p.pain010) && p.pain010 >= 0 && p.pain010 <= 10
+            ? p.pain010
+            : null,
         difficulty: d === 'easy' || d === 'medium' || d === 'hard' ? d : null,
       };
     },
@@ -749,74 +840,34 @@ export function createTreatmentProgramProgressService(deps: {
       windowStartUtcIso?: string;
       windowEndUtcExclusiveIso?: string;
     }): Promise<import('./types').ExerciseMetricPoint[]> {
+      return listExerciseMetrics({ ...params, scope: 'window' });
+    },
+
+    async listExerciseHistory(params: {
+      instanceId: string;
+      instanceStageItemId: string;
+    }): Promise<{
+      points: import('./types').ExerciseMetricPoint[];
+      comments: import('./types').ExerciseHistoryComment[];
+    }> {
       assertUuid(params.instanceId);
       assertUuid(params.instanceStageItemId);
-      const hasExplicitStart = typeof params.windowStartUtcIso === 'string';
-      const hasExplicitEnd = typeof params.windowEndUtcExclusiveIso === 'string';
-      if (hasExplicitStart !== hasExplicitEnd) throw new Error('invalid_metric_window');
-
-      let windowStartUtcIso: string;
-      let windowEndUtcIso: string;
-      if (hasExplicitStart && hasExplicitEnd) {
-        windowStartUtcIso = params.windowStartUtcIso!;
-        windowEndUtcIso = params.windowEndUtcExclusiveIso!;
-      } else {
-        const now = new Date();
-        // Use +1 min as exclusive upper bound so rows created at "now" are included.
-        const windowEndDate = new Date(now.getTime() + 60_000);
-        windowEndUtcIso = windowEndDate.toISOString();
-        const windowStartDate = new Date(now);
-        windowStartDate.setUTCDate(windowStartDate.getUTCDate() - (params.windowDays ?? 7));
-        windowStartUtcIso = windowStartDate.toISOString();
-      }
-      const rows = await actionLog.listDoneForStageItemInWindow({
-        instanceId: params.instanceId,
-        instanceStageItemId: params.instanceStageItemId,
-        windowStartUtcIso,
-        windowEndUtcExclusiveIso: windowEndUtcIso,
+      const [points, messages] = await Promise.all([
+        listExerciseMetrics({ ...params, scope: 'all' }),
+        discussion?.listMessagesForStageItem(params.instanceStageItemId, null) ?? Promise.resolve([]),
+      ]);
+      const comments = messages.flatMap((message) => {
+        const body = message.senderRole === 'patient' ? message.body?.trim() : null;
+        return body ? [{ id: message.id, at: message.createdAt, body }] : [];
       });
-      return rows.map((r) => {
-        const p = r.payload ?? {};
-        const reps = typeof p.reps === 'number' && Number.isFinite(p.reps) ? p.reps : null;
-        const weightKg =
-          typeof p.weightKg === 'number' && Number.isFinite(p.weightKg) ? p.weightKg : null;
-        const sets = typeof p.sets === 'number' && Number.isFinite(p.sets) ? p.sets : null;
-        const d = p.perceivedDifficulty;
-        const difficulty: import('./types').LfkPostSessionDifficulty | null =
-          d === 'easy' || d === 'medium' || d === 'hard' ? d : null;
-        return { completionId: r.id, at: r.createdAt, reps, weightKg, sets, difficulty };
-      });
+      return { points, comments };
     },
 
     async listExerciseMetricsForWeek(params: {
       instanceId: string;
       instanceStageItemId: string;
     }): Promise<import('./types').ExerciseMetricPoint[]> {
-      assertUuid(params.instanceId);
-      assertUuid(params.instanceStageItemId);
-      const now = new Date();
-      const windowEndDate = new Date(now.getTime() + 60_000);
-      const windowEndUtcIso = windowEndDate.toISOString();
-      const windowStartDate = new Date(now);
-      windowStartDate.setUTCDate(windowStartDate.getUTCDate() - 7);
-      const windowStartUtcIso = windowStartDate.toISOString();
-      const rows = await actionLog.listDoneForStageItemInWindow({
-        instanceId: params.instanceId,
-        instanceStageItemId: params.instanceStageItemId,
-        windowStartUtcIso,
-        windowEndUtcExclusiveIso: windowEndUtcIso,
-      });
-      return rows.map((r) => {
-        const p = r.payload ?? {};
-        const reps = typeof p.reps === 'number' && Number.isFinite(p.reps) ? p.reps : null;
-        const weightKg =
-          typeof p.weightKg === 'number' && Number.isFinite(p.weightKg) ? p.weightKg : null;
-        const sets = typeof p.sets === 'number' && Number.isFinite(p.sets) ? p.sets : null;
-        const d = p.perceivedDifficulty;
-        const difficulty: import('./types').LfkPostSessionDifficulty | null =
-          d === 'easy' || d === 'medium' || d === 'hard' ? d : null;
-        return { completionId: r.id, at: r.createdAt, reps, weightKg, sets, difficulty };
-      });
+      return listExerciseMetrics({ ...params, scope: 'window', windowDays: 7 });
     },
 
     async listPendingTestEvaluationsForPatient(

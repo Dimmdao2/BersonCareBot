@@ -37,6 +37,32 @@ body:has(#app-shell-doctor),
   --doctor-nav-active-fg: var(--primary);
   --doctor-nav-hover-bg: var(--muted);
 
+  /* Exercise statistics: one semantic palette for the chart and execution journal. */
+  --doctor-exercise-difficulty-none: #c8cdd4;
+  --doctor-exercise-difficulty-easy: #a9ccfa;
+  --doctor-exercise-difficulty-medium: #5d98ed;
+  --doctor-exercise-difficulty-hard: #2864b8;
+  --doctor-exercise-pain-chart: #f04f4f;
+  --doctor-exercise-pain-0: #d9f2e2;
+  --doctor-exercise-pain-1: #cdeed9;
+  --doctor-exercise-pain-2: #bfe8cf;
+  --doctor-exercise-pain-3: #f7e8ac;
+  --doctor-exercise-pain-4: #f7d39a;
+  --doctor-exercise-pain-5: #f5ba89;
+  --doctor-exercise-pain-6: #f29d7f;
+  --doctor-exercise-pain-7: #ed8175;
+  --doctor-exercise-pain-8: #e96568;
+  --doctor-exercise-pain-9: #e24e5b;
+  --doctor-exercise-pain-10: #d93b50;
+  --doctor-exercise-completion-bg: #e1eeff;
+  --doctor-exercise-completion-text: #173a70;
+  --doctor-exercise-date-inactive: #778397;
+  --doctor-exercise-chart-grid: #e4eaf1;
+  --doctor-exercise-chart-guide: #e8edf3;
+  --doctor-exercise-chart-axis: #75839a;
+  --doctor-exercise-chart-label: #60708a;
+  --doctor-exercise-comment-bg: #f7f9fc;
+
   /*
    * Липкий офсет для блоков внутри контента (per-page шапка, каталожные тулбары, chrome карточки клиента).
    * <md (мобильный): content — отдельная строка под DoctorHeader → дополнительный офсет не нужен.

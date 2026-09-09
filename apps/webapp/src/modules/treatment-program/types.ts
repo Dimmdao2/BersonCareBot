@@ -674,7 +674,7 @@ export type LfkPostSessionDifficulty = 'easy' | 'medium' | 'hard';
 
 /**
  * Одна точка данных для микро-графика статистики выполнения упражнения (B.3).
- * Поля `reps`, `weightKg`, `sets`, `difficulty` — null, если не зафиксированы.
+ * Поля `reps`, `weightKg`, `sets`, `pain010`, `difficulty` — null, если не зафиксированы.
  */
 export type ExerciseMetricPoint = {
   /** Stable action-log identifier used to enrich this exact completion. */
@@ -684,7 +684,15 @@ export type ExerciseMetricPoint = {
   reps: number | null;
   weightKg: number | null;
   sets: number | null;
+  pain010: number | null;
   difficulty: LfkPostSessionDifficulty | null;
+};
+
+/** Текстовый комментарий пациента к упражнению; связан с календарной датой в UI, не с выполнением. */
+export type ExerciseHistoryComment = {
+  id: string;
+  at: string;
+  body: string;
 };
 
 /** A4: результат теста без оценки врача для inbox «К проверке». */

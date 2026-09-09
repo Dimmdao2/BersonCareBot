@@ -8,9 +8,10 @@
  *   stageItemId    — UUID элемента этапа (`instance_stage_item_id`)
  *   windowDays     — 7 | 30, если не передан календарный диапазон
  *   from, to       — календарный диапазон YYYY-MM-DD в зоне пациента
+ *   scope=all      — вся история упражнения и текстовые комментарии пациента
  *
- * Возвращает массив точек `ExerciseMetricPoint[]` (reps, weightKg, sets, difficulty)
- * за выбранный период. Только записи `action_type = done`.
+ * Возвращает точки `ExerciseMetricPoint[]` (reps, weightKg, sets, pain010, difficulty).
+ * В `scope=all` дополнительно возвращает комментарии пациента к упражнению.
  */
 import { DateTime } from 'luxon';
 import { NextResponse } from 'next/server';
@@ -31,6 +32,7 @@ const querySchema = z
       .transform((v) => (v == null ? undefined : v === '30' ? 30 : 7) as 7 | 30 | undefined),
     from: dateSchema.optional(),
     to: dateSchema.optional(),
+    scope: z.enum(['all']).optional(),
   })
   .refine((value) => Boolean(value.from) === Boolean(value.to), {
     message: 'from_and_to_must_be_provided_together',
@@ -47,12 +49,13 @@ export async function GET(request: Request) {
     windowDays: searchParams.get('windowDays') ?? undefined,
     from: searchParams.get('from') ?? undefined,
     to: searchParams.get('to') ?? undefined,
+    scope: searchParams.get('scope') ?? undefined,
   });
   if (!parsed.success) {
     return NextResponse.json({ ok: false, error: 'invalid_query' }, { status: 400 });
   }
 
-  const { instanceId, stageItemId, windowDays, from, to } = parsed.data;
+  const { instanceId, stageItemId, windowDays, from, to, scope } = parsed.data;
 
   try {
     const deps = buildAppDeps();
@@ -68,13 +71,15 @@ export async function GET(request: Request) {
       return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
     }
 
+    if (scope === 'all' && (from || to || windowDays)) {
+      return NextResponse.json({ ok: false, error: 'invalid_query' }, { status: 400 });
+    }
+
+    const patientIana =
+      (await deps.patientCalendarTimezone.getIanaForUser(resolved.instance.patientUserId)) ?? 'UTC';
     const explicitWindow =
       from && to
         ? await (async () => {
-            const patientIana =
-              (await deps.patientCalendarTimezone.getIanaForUser(
-                resolved.instance.patientUserId,
-              )) ?? 'UTC';
             const start = DateTime.fromISO(from, { zone: patientIana }).startOf('day');
             const end = DateTime.fromISO(to, { zone: patientIana })
               .plus({ days: 1 })
@@ -90,6 +95,16 @@ export async function GET(request: Request) {
       return NextResponse.json({ ok: false, error: 'invalid_query' }, { status: 400 });
     }
 
+    if (scope === 'all') {
+      const history = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+        deps.treatmentProgramProgress.listExerciseHistory({
+          instanceId,
+          instanceStageItemId: stageItemId,
+        }),
+      );
+      return NextResponse.json({ ok: true, iana: patientIana, ...history });
+    }
+
     const points = await withDoctorWorkspacePrincipal(gate.ctx, () =>
       deps.treatmentProgramProgress.listExerciseMetricsForWindow({
         instanceId,
@@ -97,7 +112,7 @@ export async function GET(request: Request) {
         ...(explicitWindow ?? { windowDays: windowDays ?? 7 }),
       }),
     );
-    return NextResponse.json({ ok: true, points });
+    return NextResponse.json({ ok: true, iana: patientIana, points });
   } catch {
     return NextResponse.json({ ok: false, error: 'server_error' }, { status: 500 });
   }

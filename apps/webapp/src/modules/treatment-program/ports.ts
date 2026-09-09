@@ -435,6 +435,7 @@ export type ProgramActionLogPort = {
       reps?: number;
       sets?: number;
       weightKg?: number;
+      pain010?: number;
     };
   }): Promise<{ id: string; createdAt: string }>;
   insertAction(input: ProgramActionLogInsert): Promise<{ id: string; createdAt: string }>;
@@ -458,6 +459,7 @@ export type ProgramActionLogPort = {
       reps?: number;
       sets?: number;
       weightKg?: number;
+      pain010?: number;
     };
   }): Promise<{ id: string; createdAt: string; payload: Record<string, unknown> | null } | null>;
   /** Удаляет «простые» `done` за окно (не трогает `test_submitted` / `lfk_exercise_done`). */
@@ -564,13 +566,14 @@ export type ProgramActionLogPort = {
   }): Promise<ProgramActionLogListRow[]>;
   /**
    * Записи `done` по конкретному элементу экземпляра за UTC-окно.
-   * Используется для микро-графика динамики выполнения упражнения (Этап B.3).
-   * Возвращает записи в порядке убывания `created_at` (новые сверху), limit = 50.
+   * Используется для динамики выполнения упражнения. Окно ограничено 50 записями;
+   * без границ возвращает полную историю врача по одному упражнению.
    */
   listDoneForStageItemInWindow(params: {
     instanceId: string;
     instanceStageItemId: string;
-    windowStartUtcIso: string;
-    windowEndUtcExclusiveIso: string;
+    /** Omit both bounds only for the doctor-facing complete exercise history. */
+    windowStartUtcIso?: string;
+    windowEndUtcExclusiveIso?: string;
   }): Promise<ProgramActionLogListRow[]>;
 };

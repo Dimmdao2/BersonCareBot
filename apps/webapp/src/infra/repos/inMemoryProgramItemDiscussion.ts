@@ -116,17 +116,17 @@ export function createInMemoryProgramItemDiscussionPort(): ProgramItemDiscussion
 
     async listMessagesForStageItem(
       stageItemId: string,
-      limit = 200,
+      limit: number | null = 200,
       offset = 0,
     ): Promise<ProgramItemDiscussionMessage[]> {
-      const safeLimit = Math.max(1, Math.trunc(limit));
+      const safeLimit = limit == null ? null : Math.max(1, Math.trunc(limit));
       const safeOffset = Math.max(0, Math.trunc(offset));
       return [...rows.values()]
         .filter((x) => x.instanceStageItemId === stageItemId)
         .sort((a, b) =>
           a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : a.id.localeCompare(b.id),
         )
-        .slice(safeOffset, safeOffset + safeLimit)
+        .slice(safeOffset, safeLimit == null ? undefined : safeOffset + safeLimit)
         .map((x) => ({ ...x }));
     },
 
