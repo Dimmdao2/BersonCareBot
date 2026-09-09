@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useCallback, useState, type ReactNode } from 'react';
+import { useCallback, useRef, useState, type ReactNode } from 'react';
 import { AlignRight, ArrowLeft } from 'lucide-react';
 import { Button, buttonVariants } from '@/shared/ui/doctor/primitives/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/shared/ui/doctor/primitives/sheet';
@@ -20,6 +20,7 @@ import { doctorPageTitleClass } from '@/shared/ui/doctor/doctorVisual';
 import type { DoctorMenuAccess } from '@/shared/ui/doctor/doctorNavLinks';
 import { useDoctorShellChrome } from '@/shared/ui/doctor/shell/DoctorShellChromeContext';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
+import { useReportShellChromeHeight } from '@/shared/hooks/useReportShellChromeHeight';
 import { routePaths } from '@/app-layer/routes/paths';
 import { STAFF_SURFACE_NAME } from '@/config/productSurfaceNames';
 
@@ -37,6 +38,8 @@ type DoctorHeaderProps = {
   globalActions?: ReactNode;
 };
 
+export const DOCTOR_HEADER_HEIGHT_VAR = '--doctor-header-height';
+
 /** Touch target ≥ 44px; базовый `icon` = 32px — переопределение. */
 const HEADER_ICON_CLASS = cn(
   buttonVariants({ variant: 'ghost', size: 'icon' }),
@@ -53,6 +56,7 @@ export function DoctorHeader({
   showWorkspaceModeSwitch,
   globalActions,
 }: DoctorHeaderProps) {
+  const headerRef = useRef<HTMLElement>(null);
   const router = useRouter();
   const pathname = usePathname() ?? '/app/doctor';
   const shellChrome = useDoctorShellChrome();
@@ -63,6 +67,8 @@ export function DoctorHeader({
   const showBack = Boolean(backHref);
   const closeMenu = useCallback(() => setMenuOpen(false), []);
 
+  useReportShellChromeHeight(headerRef, DOCTOR_HEADER_HEIGHT_VAR);
+
   const goBack = useCallback(() => {
     if (backHref) router.push(backHref);
   }, [backHref, router]);
@@ -70,6 +76,7 @@ export function DoctorHeader({
   return (
     <>
       <header
+        ref={headerRef}
         id="doctor-header"
         className={cn(
           // Глобальная шапка — только мобильный (<md). На desktop кабинет = сайдбар + контент

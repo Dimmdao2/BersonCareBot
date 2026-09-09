@@ -121,62 +121,65 @@ export function DoctorWorkspaceShell({
     workspaceContext.canAccessClinicalWorkspace;
 
   return (
-    <ActiveCallCoordinator floatingIndicator={<DoctorActiveCallIndicator />}>
-    <DoctorSupportUnreadProvider
-      enabled={clinicalRuntimeEnabled}
-      directChatEnabled={workspaceModules?.direct_chat ?? clinicalRuntimeEnabled}
-      programCommentsEnabled={workspaceModules?.program_comments ?? clinicalRuntimeEnabled}
-      rehabilitationEnabled={workspaceModules?.rehabilitation ?? clinicalRuntimeEnabled}
-      registrationFailuresEnabled={
-        clinicalRuntimeEnabled && capabilities.includes('platform.operations')
-      }
+    <ActiveCallCoordinator
+      floatingIndicator={<DoctorActiveCallIndicator />}
+      activeRouteClassName="fixed inset-x-0 top-[var(--doctor-header-height,0px)] bottom-[var(--doctor-bottom-nav-height,0px)] z-30 bg-black"
     >
-      <Suspense fallback={null}>
-        <AppAccessDeniedToastEffect />
-      </Suspense>
-      {!isPlatformOperator ? <StaffPwaBootstrap /> : null}
-      {!isPlatformOperator ? <StaffWebPushBootstrap /> : null}
-      <StaffCalendarTimezoneBootstrap />
-      <DoctorShellChromeProvider>
-        <DoctorPatientTermsProvider
-          patientLabel={patientLabel}
-          supportGroupLabel={supportGroupLabel}
-        >
-          <DoctorWorkspaceViewport
-            header={{
-              userDisplayName,
-              isPlatformOperator,
-              menuAccess,
-              patientLabel,
-              hideMenuOnDesktop: showDoctorDesktopNav,
-              menuKind,
-              showWorkspaceModeSwitch,
-              globalActions: mobileHeaderActions,
-            }}
-            sidebar={
-              showDoctorDesktopNav ? (
-                <DoctorAdminSidebar
-                  userDisplayName={userDisplayName}
-                  menuAccess={menuAccess}
-                  patientLabel={patientLabel}
-                  homeHref={homeHref}
-                  brand={brand}
-                  menuKind={menuKind}
-                  showWorkspaceModeSwitch={showWorkspaceModeSwitch}
-                />
-              ) : undefined
-            }
-            bottomNav={
-              menuKind === 'doctor' && showClinicalShortcuts
-                ? { menuAccess, patientLabel }
-                : undefined
-            }
+      <DoctorSupportUnreadProvider
+        enabled={clinicalRuntimeEnabled}
+        directChatEnabled={workspaceModules?.direct_chat ?? clinicalRuntimeEnabled}
+        programCommentsEnabled={workspaceModules?.program_comments ?? clinicalRuntimeEnabled}
+        rehabilitationEnabled={workspaceModules?.rehabilitation ?? clinicalRuntimeEnabled}
+        registrationFailuresEnabled={
+          clinicalRuntimeEnabled && capabilities.includes('platform.operations')
+        }
+      >
+        <Suspense fallback={null}>
+          <AppAccessDeniedToastEffect />
+        </Suspense>
+        {!isPlatformOperator ? <StaffPwaBootstrap /> : null}
+        {!isPlatformOperator ? <StaffWebPushBootstrap /> : null}
+        <StaffCalendarTimezoneBootstrap />
+        <DoctorShellChromeProvider>
+          <DoctorPatientTermsProvider
+            patientLabel={patientLabel}
+            supportGroupLabel={supportGroupLabel}
           >
-            {children}
-          </DoctorWorkspaceViewport>
-        </DoctorPatientTermsProvider>
-      </DoctorShellChromeProvider>
-    </DoctorSupportUnreadProvider>
+            <DoctorWorkspaceViewport
+              header={{
+                userDisplayName,
+                isPlatformOperator,
+                menuAccess,
+                patientLabel,
+                hideMenuOnDesktop: showDoctorDesktopNav,
+                menuKind,
+                showWorkspaceModeSwitch,
+                globalActions: mobileHeaderActions,
+              }}
+              sidebar={
+                showDoctorDesktopNav ? (
+                  <DoctorAdminSidebar
+                    userDisplayName={userDisplayName}
+                    menuAccess={menuAccess}
+                    patientLabel={patientLabel}
+                    homeHref={homeHref}
+                    brand={brand}
+                    menuKind={menuKind}
+                    showWorkspaceModeSwitch={showWorkspaceModeSwitch}
+                  />
+                ) : undefined
+              }
+              bottomNav={
+                menuKind === 'doctor' && showClinicalShortcuts
+                  ? { menuAccess, patientLabel }
+                  : undefined
+              }
+            >
+              {children}
+            </DoctorWorkspaceViewport>
+          </DoctorPatientTermsProvider>
+        </DoctorShellChromeProvider>
+      </DoctorSupportUnreadProvider>
     </ActiveCallCoordinator>
   );
 }
