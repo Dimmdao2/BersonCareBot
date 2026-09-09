@@ -172,12 +172,15 @@ Scope: `apps/webapp/src/shared/lib/pwa/**`, `shared/lib/surface/surfaceLayoutMet
       Android browser без второго параллельного install-компонента. Доказательство: route/UI acceptance в
       `dccaef384` и confirmation regression `ce42f825f`; landing `66ef65468`. Живой browser/PWA проход остаётся
       частью M7-03 и не подменён unit-проверками.
-- [ ] **M1-07.** Все install prompts, web-push controls и регистрации `/sw.js` проходят через один typed
+- [x] **M1-07.** Все install prompts, web-push controls и регистрации `/sw.js` проходят через один typed
       `NativeRuntime` detector из M3. В Capacitor он скрывает install UI, не подписывается на
       `beforeinstallprompt` и возвращает no-op из общей service-worker registration door; browser/PWA остаётся
       прежним. Проверены все сегодняшние обходы: `LandingPwaClientBootstrap`, `StaffPwaBootstrap`,
       `PwaInstallSection`, `registerPatientServiceWorker` и install-page push controls. `PlatformMode`
       (`bot|mobile|desktop`) и `messengerMiniApp` остаются ортогональными, не вторым Capacitor detector.
+      Доказательство: product/corrections `d54b34775`, `4e6a5b188`, `312ef14e3`; независимые acceptance-тесты
+      `44b494331` после отклонённого первичного PASS `2a49acab0`; retained PWA native-shell `6/6`, общий набор
+      `5 files / 71 tests`, typecheck и scoped ESLint PASS; port landing `4d84fb260`.
 
 ### M2 — reproducible shared Android/Capacitor shell
 
@@ -233,14 +236,20 @@ Scope: shared browser/native adapters and narrow integration points. Apply `AGEN
 (`shared/lib/platform.ts`, `PlatformProvider`, `messengerMiniApp.ts`). `NativeRuntime` расширяет его, а не встаёт
 рядом; если это структурно невозможно, причина пишется в строке доказательства.
 
-- [ ] **M3-01.** Есть один строго типизированный `NativeRuntime` boundary с browser fallback и Capacitor adapter;
+- [x] **M3-01.** Есть один строго типизированный `NativeRuntime` boundary с browser fallback и Capacitor adapter;
       product pages не читают `window.Capacitor` и не импортируют Kotlin/plugin details напрямую
-      (`rg 'window.Capacitor' apps/webapp/src` даёт только сам adapter).
-- [ ] **M3-02.** Runtime сообщает `browser|therapygo_android|therapysto_android`, app version и capability flags;
+      (`rg 'window.Capacitor' apps/webapp/src` даёт только сам adapter). Доказательство: единый
+      `PlatformProvider`/`nativeShellRuntime.ts` путь в `d54b34775`, accepted continuation `44b494331`, landing
+      `4d84fb260`.
+- [x] **M3-02.** Runtime сообщает `browser|therapygo_android|therapysto_android`, app version и capability flags;
       server authorization не доверяет этим значениям как роли/org identity и не меняет из-за них ни одну проверку
-      доступа.
-- [ ] **M3-03.** App lifecycle resume обновляет session-dependent push registration safely; logout/offboarding
+      доступа. Доказательство: typed runtime/capability contract `d54b34775`; fault injection на browser fallback,
+      throwing detector и blank project id в `44b494331`; landing `4d84fb260`.
+- [x] **M3-03.** App lifecycle resume обновляет session-dependent push registration safely; logout/offboarding
       вызывает единый revoke path. Отсутствующий plugin деградирует в web behavior без белого экрана.
+      Доказательство: lifecycle correction `4e6a5b188` сериализует concurrent resume/token registration/revoke,
+      очищает per-user dedupe на logout и различает equal-length token rotation без SubtleCrypto; independent
+      continuation `44b494331` поймал **6/6** классов, **0 missed**; landing `4d84fb260`.
 
 ### M4 — native Jitsi without a second video page
 
@@ -466,4 +475,5 @@ security/audit gates идут без этих входов. Отсутствую
 | M2-02 | open | Workspace wiring/typecheck/lint/build are proven; the root `pnpm run ci` clause remains for final integrated M7-06 and is not claimed early. |
 | M1-01…M1-03, M1-05, M1-06 | done | Двухбрендовые PWA manifests/icons/surfaces реализованы, поведенчески проверены и посажены в `feat/doctor-ui-rebuild` через port: product `ae14e0f16`, audit `fd04fbc27`, confirmation `041abf541`, landing `66ef65468`. |
 | M1-04 | open | Финальный named-DEV HTTP проход `ee0c91fc8` (landing `0f7a8374e`) подтвердил, что HTTP 500 `native_push_token_keyring_unavailable` устранён, а Therapy Go/Therapysto metadata/manifests/install routes и исключение platform-admin работают. В DEV сейчас `count(*) = 0` и для `org_custom_domain_bindings`, и для `clinic_public_directory_entries`, поэтому живого branded-patient host для проверки нет; authenticated doctor redirect и полный browser/PWA fallback остаются в M7-03. |
-| M1-07, M3-01…M7-07 | open | Заполняет только lead после committed implementation + independent acceptance. |
+| M1-07, M3-01…M3-03 | done | Product/corrections `d54b34775`, `4e6a5b188`, `312ef14e3`; independent continuation/tests `44b494331` после отклонённого первичного PASS; retained `5 files / 71 tests`, PWA native-shell `6/6`, typecheck/scoped ESLint; port landing `4d84fb260`. |
+| M4-01…M7-07 | open | Заполняет только lead после committed implementation + independent acceptance. |
