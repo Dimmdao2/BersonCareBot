@@ -33,7 +33,11 @@ function capacitorGlobal(): CapacitorGlobal | null {
  */
 export function isNativeShellActive(): boolean {
   const cap = capacitorGlobal();
-  return cap?.isNativePlatform?.() === true;
+  try {
+    return cap?.isNativePlatform?.() === true;
+  } catch {
+    return false;
+  }
 }
 
 function plugin(name: 'ShellRuntime' | 'UniversalPush' | 'App'): CapacitorPluginCallable | null {
@@ -98,10 +102,12 @@ export async function detectNativeRuntimeSnapshot(): Promise<NativeRuntimeSnapsh
 
 /** Non-secret project id only — validated by the caller before being passed here (M6-08/M6-09). */
 export async function configureUniversalPush(projectId: string): Promise<boolean> {
+  const normalizedProjectId = projectId.trim();
+  if (!normalizedProjectId) return false;
   const push = plugin('UniversalPush');
   if (!push || typeof push.configure !== 'function') return false;
   try {
-    await push.configure({ projectId });
+    await push.configure({ projectId: normalizedProjectId });
     return true;
   } catch {
     return false;

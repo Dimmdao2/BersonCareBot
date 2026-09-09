@@ -24,11 +24,12 @@ export async function fetchNativePushStatus(kind: NativePushAppKind): Promise<Na
     if (!res.ok) return null;
     const body = (await res.json()) as Record<string, unknown>;
     if (body.ok !== true) return null;
+    const projectId = typeof body.projectId === 'string' ? body.projectId.trim() : '';
     return {
       ok: true,
       active: body.active === true,
       providers: Array.isArray(body.providers) ? (body.providers as string[]) : [],
-      projectId: typeof body.projectId === 'string' ? body.projectId : null,
+      projectId: projectId || null,
       runtime: body.runtime === 'unavailable' ? 'unavailable' : undefined,
     };
   } catch {

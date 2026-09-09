@@ -39,15 +39,39 @@ export type NativePushEnableResult =
         | 'error';
     };
 
-async function persistToken(kind: NativePushAppKind, installationId: string, token: string): Promise<boolean> {
+const mutationTails = new Map<NativePushAppKind, Promise<void>>();
+const registrationBlocked = new Set<NativePushAppKind>();
+
+async function enqueueMutation<T>(kind: NativePushAppKind, mutation: () => Promise<T>): Promise<T> {
+  const previous = mutationTails.get(kind) ?? Promise.resolve();
+  const run = previous.catch(() => undefined).then(mutation);
+  const tail = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  mutationTails.set(kind, tail);
+  try {
+    return await run;
+  } finally {
+    if (mutationTails.get(kind) === tail) mutationTails.delete(kind);
+  }
+}
+
+async function persistToken(
+  kind: NativePushAppKind,
+  installationId: string,
+  token: string,
+  fingerprint?: string,
+): Promise<boolean> {
   const outcome = await registerNativePushInstallation(kind, { installationId, token });
   if (outcome !== 'ok') return false;
-  writeLastSyncedTokenHash(kind, await shortTokenFingerprint(token));
+  writeLastSyncedTokenHash(kind, fingerprint ?? (await shortTokenFingerprint(token)));
   return true;
 }
 
 /** Explicit user-gesture flow: configure → request permission → persist token. Call only from a click handler. */
 export async function enableNativePushSubscription(kind: NativePushAppKind): Promise<NativePushEnableResult> {
+  registrationBlocked.delete(kind);
   const status = await fetchNativePushStatus(kind);
   if (!status || !status.projectId) return { ok: false, reason: 'vapid_unavailable' };
 
@@ -60,11 +84,15 @@ export async function enableNativePushSubscription(kind: NativePushAppKind): Pro
 
   const state = await getUniversalPushState();
   if (!state?.token) return { ok: false, reason: 'error' };
+  const token = state.token;
 
   const installationId = getOrCreateNativePushInstallationId(kind);
   if (!installationId) return { ok: false, reason: 'error' };
 
-  const saved = await persistToken(kind, installationId, state.token);
+  const saved = await enqueueMutation(kind, async () => {
+    if (registrationBlocked.has(kind)) return false;
+    return persistToken(kind, installationId, token);
+  });
   return saved ? { ok: true } : { ok: false, reason: 'save_failed' };
 }
 
@@ -80,21 +108,27 @@ export async function reconcileNativePushSubscription(kind: NativePushAppKind): 
 
 /** Same dedupe path, driven by a `push` token-rotation event instead of a fresh `getState()` read. */
 export async function reconcileNativePushToken(kind: NativePushAppKind, token: string): Promise<void> {
+  if (registrationBlocked.has(kind)) return;
   const installationId = getOrCreateNativePushInstallationId(kind);
   if (!installationId) return;
   const hash = await shortTokenFingerprint(token);
-  if (hash === readLastSyncedTokenHash(kind)) return;
-  await persistToken(kind, installationId, token);
+  await enqueueMutation(kind, async () => {
+    if (registrationBlocked.has(kind) || hash === readLastSyncedTokenHash(kind)) return;
+    await persistToken(kind, installationId, token, hash);
+  });
 }
 
 /** Explicit disable action (staff "Отключить" parity). Best-effort; always resolves. */
 export async function disableNativePushSubscription(kind: NativePushAppKind): Promise<boolean> {
-  const installationId = readNativePushInstallationId(kind);
-  if (installationId) {
-    await revokeNativePushInstallation(kind, { installationId });
-  }
-  await revokeUniversalPush();
-  clearLastSyncedTokenHash(kind);
+  registrationBlocked.add(kind);
+  await enqueueMutation(kind, async () => {
+    const installationId = readNativePushInstallationId(kind);
+    if (installationId) {
+      await revokeNativePushInstallation(kind, { installationId });
+    }
+    await revokeUniversalPush();
+    clearLastSyncedTokenHash(kind);
+  });
   return true;
 }
 
@@ -105,9 +139,13 @@ export async function disableNativePushSubscription(kind: NativePushAppKind): Pr
  */
 export async function revokeNativePushBeforeLogout(kind: NativeRuntimeKind): Promise<void> {
   if (kind === 'browser') return;
-  const installationId = readNativePushInstallationId(kind);
-  if (installationId) {
-    await revokeNativePushInstallation(kind, { installationId });
-  }
-  await revokeUniversalPush();
+  registrationBlocked.add(kind);
+  await enqueueMutation(kind, async () => {
+    const installationId = readNativePushInstallationId(kind);
+    if (installationId) {
+      await revokeNativePushInstallation(kind, { installationId });
+    }
+    await revokeUniversalPush();
+    clearLastSyncedTokenHash(kind);
+  });
 }

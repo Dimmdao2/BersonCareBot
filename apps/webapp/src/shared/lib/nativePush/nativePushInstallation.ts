@@ -86,7 +86,16 @@ export async function shortTokenFingerprint(token: string): Promise<string> {
       .map((b) => b.toString(16).padStart(2, '0'))
       .join('');
   } catch {
-    // Fallback keeps dedupe best-effort even without SubtleCrypto (still never logs the raw token).
-    return `len:${token.length}`;
+    // Distinguish equal-length rotations without persisting or logging the raw token when SubtleCrypto is absent.
+    let hashA = 0x811c9dc5;
+    let hashB = 0x9e3779b9;
+    for (let index = 0; index < token.length; index += 1) {
+      const code = token.charCodeAt(index);
+      hashA = Math.imul(hashA ^ code, 0x01000193);
+      hashB = Math.imul(hashB ^ code, 0x85ebca6b);
+    }
+    const hexA = (hashA >>> 0).toString(16).padStart(8, '0');
+    const hexB = (hashB >>> 0).toString(16).padStart(8, '0');
+    return `fallback:${hexA}${hexB}:${token.length}`;
   }
 }
