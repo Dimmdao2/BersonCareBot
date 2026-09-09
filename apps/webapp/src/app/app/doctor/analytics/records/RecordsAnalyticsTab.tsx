@@ -1,32 +1,27 @@
 'use client';
 
-import { DateTime } from 'luxon';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
-import type { AdminStatsTimePreset } from '@/modules/admin-platform-stats/types';
-import type { AppointmentBranchPoint, AppointmentDayPoint, ScheduleKpis } from '@/modules/doctor-appointments/ports';
+import type { AppointmentDayPoint, ScheduleKpis } from '@/modules/doctor-appointments/ports';
 import type { DoctorAnalyticsMetricKey } from '@/modules/doctor-analytics-metric-accounts/ports';
 import { DoctorMetricList } from '@/shared/ui/doctor/DoctorMetricList';
 import { DoctorSection, DoctorSectionTitle } from '@/shared/ui/doctor/DoctorSection';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 import { MetricAccountsDialog } from '@/shared/ui/doctor/analytics/MetricAccountsDialog';
 
-import { AnalyticsPeriodToolbar } from '../clients/AnalyticsPeriodToolbar';
 import { DoctorStatCard } from '../clients/DoctorStatCard';
 import { AppointmentsDynamicsChart } from '../clients/AppointmentsDynamicsChart';
 import {
   analyticsApiErrorMessage,
   buildAdminStatsQuery,
-  resolveAnalyticsPeriodLabel,
-  validateCustomAnalyticsPeriod,
-  ymdMinusDays,
   type AnalyticsPeriodValue,
 } from '../clients/analyticsPeriodUi';
 
 type Props = {
-  calendarTodayYmd: string;
-  displayIana: string;
   patientGenPlural?: string;
+  period: AnalyticsPeriodValue;
+  periodReady: boolean;
+  locationFilter: string | null;
 };
 
 type ApiResponse = {
@@ -34,112 +29,60 @@ type ApiResponse = {
   error?: string;
   kpis?: ScheduleKpis;
   daySeries?: AppointmentDayPoint[];
-  branchSeries?: AppointmentBranchPoint[];
 };
 
-export function RecordsAnalyticsTab({
-  calendarTodayYmd,
-  displayIana,
-  patientGenPlural = 'пациентов',
-}: Props) {
-  const [preset, setPreset] = useState<AdminStatsTimePreset>('week');
-  const [customFrom, setCustomFrom] = useState('');
-  const [customTo, setCustomTo] = useState('');
-  const [appliedPeriod, setAppliedPeriod] = useState<AnalyticsPeriodValue>({
-    preset: 'week',
-    customFrom: '',
-    customTo: '',
-  });
-  const [periodError, setPeriodError] = useState<string | null>(null);
-  const [periodReady, setPeriodReady] = useState(true);
+type RecordsMetricView =
+  | 'all'
+  | 'past'
+  | 'future'
+  | 'unique'
+  | 'first'
+  | 'repeat'
+  | 'cancelled'
+  | 'rescheduled'
+  | 'subscription';
 
+export function RecordsAnalyticsTab({
+  patientGenPlural = 'пациентов',
+  period,
+  periodReady,
+  locationFilter,
+}: Props) {
   const [kpis, setKpis] = useState<ScheduleKpis | null>(null);
   const [daySeries, setDaySeries] = useState<AppointmentDayPoint[]>([]);
-  const [branchSeries, setBranchSeries] = useState<AppointmentBranchPoint[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [metricDialogOpen, setMetricDialogOpen] = useState(false);
   const [selectedMetric, setSelectedMetric] = useState<DoctorAnalyticsMetricKey | null>(null);
   const [selectedMetricTitle, setSelectedMetricTitle] = useState('');
-  const [selectedOnlyCancelled, setSelectedOnlyCancelled] = useState(false);
-
-  const period = useMemo<AnalyticsPeriodValue>(
-    () => ({ preset, customFrom, customTo }),
-    [preset, customFrom, customTo],
-  );
-  const periodLabel = useMemo(
-    () => resolveAnalyticsPeriodLabel(displayIana, appliedPeriod),
-    [displayIana, appliedPeriod],
-  );
-
-  const applyPeriod = useCallback((next: AnalyticsPeriodValue) => {
-    const err = validateCustomAnalyticsPeriod(next);
-    if (err) {
-      setPeriodError(err);
-      setPeriodReady(false);
-      return;
-    }
-    setPeriodError(null);
-    setPeriodReady(true);
-    setAppliedPeriod(next);
-  }, []);
-
-  const handlePresetChange = useCallback(
-    (next: AdminStatsTimePreset) => {
-      setPreset(next);
-      if (next === 'custom') {
-        const t = calendarTodayYmd.trim() || DateTime.now().setZone(displayIana).toISODate() || '';
-        const from = ymdMinusDays(t, 6);
-        setCustomFrom(from);
-        setCustomTo(t);
-        applyPeriod({ preset: 'custom', customFrom: from, customTo: t });
-        return;
-      }
-      setCustomFrom('');
-      setCustomTo('');
-      applyPeriod({ preset: next, customFrom: '', customTo: '' });
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- displayIana стабилен в рамках сессии
-    [applyPeriod, calendarTodayYmd],
-  );
-
-  const handleApplyCustom = useCallback(() => applyPeriod(period), [applyPeriod, period]);
-  const handleCustomFromChange = useCallback((value: string) => {
-    setCustomFrom(value);
-    setPeriodError(null);
-  }, []);
-  const handleCustomToChange = useCallback((value: string) => {
-    setCustomTo(value);
-    setPeriodError(null);
-  }, []);
+  const [selectedView, setSelectedView] = useState<RecordsMetricView>('all');
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const q = buildAdminStatsQuery(appliedPeriod);
+      const q = new URLSearchParams(buildAdminStatsQuery(period));
+      if (locationFilter === 'online') q.set('location', 'online');
+      else if (locationFilter) q.set('branchId', locationFilter);
       const res = await fetch(`/api/doctor/analytics/records?${q}`, { cache: 'no-store' });
       const json = (await res.json()) as ApiResponse;
       if (!res.ok || !json.ok || !json.kpis) {
         setKpis(null);
         setDaySeries([]);
-        setBranchSeries([]);
         setError(analyticsApiErrorMessage(json.error, res.status));
         return;
       }
       setKpis(json.kpis);
       setDaySeries(json.daySeries ?? []);
-      setBranchSeries(json.branchSeries ?? []);
     } catch {
       setKpis(null);
       setDaySeries([]);
-      setBranchSeries([]);
       setError('Не удалось загрузить аналитику.');
     } finally {
       setLoading(false);
     }
-  }, [appliedPeriod]);
+  }, [locationFilter, period]);
 
   useEffect(() => {
     if (!periodReady) return;
@@ -147,28 +90,18 @@ export function RecordsAnalyticsTab({
   }, [load, periodReady]);
 
   const openMetric = useCallback(
-    (metric: DoctorAnalyticsMetricKey, title: string, onlyCancelled: boolean) => {
+    (metric: DoctorAnalyticsMetricKey, title: string, view: RecordsMetricView) => {
       setSelectedMetric(metric);
       setSelectedMetricTitle(title);
-      setSelectedOnlyCancelled(onlyCancelled);
+      setSelectedView(view);
       setMetricDialogOpen(true);
     },
     [],
   );
 
   return (
-    <div className="flex flex-col gap-3 max-w-6xl">
-      <AnalyticsPeriodToolbar
-        period={period}
-        periodLabel={periodLabel}
-        periodError={periodError}
-        onPresetChange={handlePresetChange}
-        onCustomFromChange={handleCustomFromChange}
-        onCustomToChange={handleCustomToChange}
-        onApplyCustom={handleApplyCustom}
-      />
-
-      <DoctorSection id="doctor-analytics-records-section">
+    <div className="flex min-h-0 min-w-0 w-full max-w-6xl flex-1 flex-col gap-3 overflow-x-hidden overflow-y-auto py-3">
+      <DoctorSection id="doctor-analytics-records-section" className="min-w-0 overflow-hidden">
         <DoctorSectionTitle>Записи</DoctorSectionTitle>
 
         {error ? (
@@ -181,81 +114,84 @@ export function RecordsAnalyticsTab({
 
         {kpis ? (
           <>
-            <DoctorMetricList id="doctor-analytics-records-cards">
+            {daySeries.length > 1 ? (
+              <div className="mb-4 min-w-0 overflow-hidden">
+                <AppointmentsDynamicsChart series={daySeries} />
+              </div>
+            ) : null}
+
+            <DoctorMetricList id="doctor-analytics-records-cards" columns="analytics">
               <DoctorStatCard
                 id="doctor-analytics-records-total"
                 title="Всего записей"
                 value={kpis.recordsInPeriod}
-                onClick={() => openMetric('analytics_records_period', 'Записи за период', false)}
+                onClick={() => openMetric('analytics_records_period', 'Записи за период', 'all')}
               />
               <DoctorStatCard
                 id="doctor-analytics-records-past"
                 title="Состоявшиеся"
                 value={kpis.pastInPeriod}
+                onClick={() =>
+                  openMetric('analytics_records_period', 'Состоявшиеся записи', 'past')
+                }
               />
               <DoctorStatCard
                 id="doctor-analytics-records-future"
                 title="Будущие"
                 value={kpis.futureInPeriod}
+                onClick={() => openMetric('analytics_records_period', 'Будущие записи', 'future')}
               />
               <DoctorStatCard
                 id="doctor-analytics-records-unique"
                 title={`Уникальных ${patientGenPlural}`}
                 value={kpis.uniquePatientsInPeriod}
+                onClick={() =>
+                  openMetric('analytics_records_period', `Уникальные ${patientGenPlural}`, 'unique')
+                }
               />
               <DoctorStatCard
                 id="doctor-analytics-records-first"
                 title="Первичных"
                 value={kpis.firstVisitInPeriod}
+                onClick={() => openMetric('analytics_records_period', 'Первичные записи', 'first')}
               />
               <DoctorStatCard
                 id="doctor-analytics-records-repeat"
                 title="Повторных"
                 value={kpis.repeatVisitInPeriod}
+                onClick={() => openMetric('analytics_records_period', 'Повторные записи', 'repeat')}
               />
               <DoctorStatCard
                 id="doctor-analytics-records-cancellations"
                 title="Отмены"
                 value={kpis.cancellationsInPeriod}
                 tone="warning"
+                valueClassName="text-destructive"
                 onClick={() =>
-                  openMetric('analytics_records_cancelled', 'Отменённые записи за период', true)
+                  openMetric(
+                    'analytics_records_cancelled',
+                    'Отменённые записи за период',
+                    'cancelled',
+                  )
                 }
               />
               <DoctorStatCard
                 id="doctor-analytics-records-reschedules"
                 title="Переносы"
                 value={kpis.reschedulesInPeriod}
+                onClick={() =>
+                  openMetric('analytics_records_period', 'Перенесённые записи', 'rescheduled')
+                }
               />
               <DoctorStatCard
                 id="doctor-analytics-records-by-subscription"
                 title="По абонементу"
                 value={kpis.bySubscriptionInPeriod}
+                onClick={() =>
+                  openMetric('analytics_records_period', 'Записи по абонементу', 'subscription')
+                }
               />
             </DoctorMetricList>
-
-            {daySeries.length > 1 ? (
-              <div className="mt-4">
-                <AppointmentsDynamicsChart series={daySeries} />
-              </div>
-            ) : null}
-
-            {branchSeries.length > 1 ? (
-              <div className="mt-4 max-w-3xl">
-                <h4 className="text-sm font-medium text-muted-foreground mb-2">По филиалам</h4>
-                <DoctorMetricList id="doctor-analytics-records-branches">
-                  {branchSeries.map((b) => (
-                    <DoctorStatCard
-                      key={b.branchName}
-                      id={`doctor-analytics-records-branch-${b.branchName}`}
-                      title={b.branchName}
-                      value={b.pastVisits}
-                      hint={`Отменено: ${b.cancelledVisits}`}
-                    />
-                  ))}
-                </DoctorMetricList>
-              </div>
-            ) : null}
           </>
         ) : null}
       </DoctorSection>
@@ -265,9 +201,17 @@ export function RecordsAnalyticsTab({
         onOpenChange={setMetricDialogOpen}
         metric={selectedMetric}
         title={selectedMetricTitle}
-        period={appliedPeriod}
+        period={period}
         apiPath="/api/doctor/analytics/records/drilldown"
-        extraQuery={selectedOnlyCancelled ? { onlyCancelled: '1' } : undefined}
+        extraQuery={{
+          view: selectedView,
+          ...(locationFilter === 'online'
+            ? { location: 'online' }
+            : locationFilter
+              ? { branchId: locationFilter }
+              : {}),
+        }}
+        tone={selectedView === 'cancelled' ? 'destructive' : 'neutral'}
       />
     </div>
   );

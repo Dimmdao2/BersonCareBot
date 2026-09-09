@@ -14,7 +14,7 @@ export const inMemoryDoctorAppointmentsPort: DoctorAppointmentsPort = {
     _filter: DoctorAppointmentsListFilter,
     _audience?: { excludedUserIds?: string[] },
   ): Promise<AppointmentRow[]> {
-    return []; // branchName included in AppointmentRow when using pg port
+    return []; // branchName/rescheduleCount are included when using the pg port
   },
   async getAppointmentStats(
     _filter: DoctorAppointmentStatsFilter,

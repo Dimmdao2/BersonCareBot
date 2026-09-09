@@ -64,6 +64,8 @@ export type AppointmentRow = {
   packageTitle: string | null;
   /** Human sequential package number rendered as `аб.#NNN`. */
   packageDisplayNumber: number | null;
+  /** Number of completed reschedules for analytics drill-down. */
+  rescheduleCount: number;
 };
 
 /** Агрегатная статистика по записям за календарное окно (`app_display_timezone`). */
@@ -102,6 +104,10 @@ export type DoctorAppointmentsAudience = {
   excludedUserIds?: string[];
   organizationId?: string;
   visibilityActor?: PatientVisibilityActor;
+  /** Optional branch slice used by doctor analytics and its drill-down. */
+  branchId?: string | null;
+  /** Online is exposed beside physical branches in the analytics location picker. */
+  onlineOnly?: boolean;
 };
 
 export type DoctorScheduleKpisAudience = {
@@ -144,6 +150,7 @@ export type ScheduleKpisQuery = {
   /** ISO-строка конца диапазона (исключительно, бизнес-таймзона). */
   to: string;
   branchId?: string | null;
+  deliveryFormat?: 'online' | null;
   serviceId?: string | null;
   /** Server-resolved specialist scope; null means the authorized whole-clinic scope. */
   specialistId?: string | null;

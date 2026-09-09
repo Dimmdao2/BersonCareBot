@@ -249,8 +249,7 @@ export function createStaffAppointmentPaymentsService(deps: StaffAppointmentPaym
     // до появления снимка, иначе показанное и выставленное разошлись бы.
     const snapshot = snapshots.find((row) => row.appointmentId === input.appointmentId) ?? null;
     const totalMinor = snapshot?.priceMinor ?? booking?.priceMinorSnapshot ?? null;
-    const capturedMinor =
-      summary?.payment?.status === 'succeeded' ? summary.payment.amountMinor : 0;
+    const capturedMinor = summary?.payment?.status === 'captured' ? summary.payment.amountMinor : 0;
     const manualPaidMinor = manual
       .filter((payment) => payment.status === 'paid')
       .reduce((sum, payment) => sum + payment.amountMinor, 0);

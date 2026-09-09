@@ -17,6 +17,7 @@ import { buildAdminStatsQuery } from '@/app/app/doctor/analytics/clients/analyti
 import { patientCardHref } from '@/app/app/doctor/patients/patientCardHref';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
+import { cn } from '@/lib/utils';
 
 type Props = {
   open: boolean;
@@ -28,6 +29,7 @@ type Props = {
   /** Default: admin metric-accounts route. */
   apiPath?: string;
   extraQuery?: Record<string, string>;
+  tone?: 'neutral' | 'destructive';
 };
 
 const PAGE_SIZE = 30;
@@ -56,6 +58,7 @@ export function MetricAccountsDialog({
   period,
   apiPath = DEFAULT_API_PATH,
   extraQuery,
+  tone = 'neutral',
 }: Props) {
   const [items, setItems] = useState<DoctorAnalyticsMetricAccountItem[]>([]);
   const [offset, setOffset] = useState(0);
@@ -149,7 +152,12 @@ export function MetricAccountsDialog({
             {items.map((item, idx) => (
               <li
                 key={`${item.userId}-${item.eventAt ?? 'none'}-${idx}`}
-                className="rounded-md border border-border/60 p-2"
+                className={cn(
+                  'rounded-md border p-2',
+                  tone === 'destructive'
+                    ? 'border-destructive/35 bg-destructive/5'
+                    : 'border-border/60',
+                )}
               >
                 {item.userId ? (
                   <Link

@@ -32,5 +32,36 @@ export async function GET(request: Request) {
     excludedUserIds: audience.excludedUserIds,
   });
 
-  return NextResponse.json({ ok: true, rows });
+  const contentIds = rows
+    .filter((row) => row.targetKind === 'content_page')
+    .map((row) => row.targetId);
+  const exerciseIds = rows
+    .filter((row) => row.targetKind === 'lfk_exercise')
+    .map((row) => row.targetId);
+  const templateIds = rows
+    .filter((row) => row.targetKind === 'lfk_complex')
+    .map((row) => row.targetId);
+  const [contentMetas, exerciseTitles, templateTitles] = await Promise.all([
+    deps.contentPages.listMetaByIds(contentIds),
+    deps.lfkExercises.listExerciseTitlesByIds(exerciseIds, { includePlatformBase: false }),
+    Promise.all(
+      templateIds.map(async (id) => {
+        const template = await deps.lfkTemplates.getTemplate(id, { includePlatformBase: false });
+        return [id, template?.title ?? null] as const;
+      }),
+    ),
+  ]);
+  const contentTitles = new Map(contentMetas.map((meta) => [meta.id, meta.title]));
+  const templateTitleMap = new Map(templateTitles);
+  const enriched = rows.map((row) => ({
+    ...row,
+    label:
+      row.targetKind === 'content_page'
+        ? (contentTitles.get(row.targetId) ?? null)
+        : row.targetKind === 'lfk_exercise'
+          ? (exerciseTitles.get(row.targetId) ?? null)
+          : (templateTitleMap.get(row.targetId) ?? null),
+  }));
+
+  return NextResponse.json({ ok: true, rows: enriched });
 }

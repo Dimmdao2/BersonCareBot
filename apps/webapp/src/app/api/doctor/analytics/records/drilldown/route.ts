@@ -14,8 +14,23 @@ import { requireEntitlementForRead } from '@/app-layer/guards/requireEntitlement
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { loadDoctorAnalyticsAudience } from '@/app-layer/analytics/loadAnalyticsAudience';
 import { parseAdminStatsTimePreset } from '@/modules/admin-platform-stats/parseAdminStatsTimePreset';
+import { resolveAppointmentStatsBounds } from '@/modules/doctor-appointments/resolveAppointmentStatsBounds';
+import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
 import type { AppointmentRow } from '@/modules/doctor-appointments/ports';
 import type { DoctorAnalyticsMetricAccountItem } from '@/modules/doctor-analytics-metric-accounts/ports';
+import { z } from 'zod';
+
+const viewSchema = z.enum([
+  'all',
+  'past',
+  'future',
+  'unique',
+  'first',
+  'repeat',
+  'cancelled',
+  'rescheduled',
+  'subscription',
+]);
 
 function mapRow(row: AppointmentRow, onlyCancelled: boolean): DoctorAnalyticsMetricAccountItem {
   return {
@@ -47,7 +62,18 @@ export async function GET(req: Request) {
   if (preset !== 'custom' && (fromRaw || toRaw)) {
     return NextResponse.json({ ok: false, error: 'unexpected_from_to' }, { status: 400 });
   }
-  const onlyCancelled = url.searchParams.get('onlyCancelled') === '1';
+  const viewResult = viewSchema.safeParse(url.searchParams.get('view') ?? 'all');
+  if (!viewResult.success) {
+    return NextResponse.json({ ok: false, error: 'invalid_view' }, { status: 400 });
+  }
+  const view = viewResult.data;
+  const onlyCancelled = view === 'cancelled';
+  const branchRaw = url.searchParams.get('branchId');
+  const onlineOnly = url.searchParams.get('location') === 'online';
+  const branchId = branchRaw && z.string().uuid().safeParse(branchRaw).success ? branchRaw : null;
+  if (branchRaw && !branchId) {
+    return NextResponse.json({ ok: false, error: 'invalid_branch' }, { status: 400 });
+  }
   const limit = Number.parseInt(url.searchParams.get('limit') ?? '30', 10);
   const offset = Number.parseInt(url.searchParams.get('offset') ?? '0', 10);
   if (!Number.isFinite(limit) || limit < 1 || limit > 100) {
@@ -60,23 +86,56 @@ export async function GET(req: Request) {
   try {
     const audience = await loadDoctorAnalyticsAudience();
     const deps = buildAppDeps();
-    const rows = await withDoctorWorkspacePrincipal(
+    const result = await withDoctorWorkspacePrincipal(
       gate.ctx,
       'doctor-statistics.analytics-records-drilldown.read',
-      () =>
-        deps.doctorAppointments.listAppointmentsForSpecialist(
-          {
-            kind: 'periodRange',
-            period: { kind: 'preset', preset, customFrom: fromRaw, customTo: toRaw },
-            onlyCancelled,
-          },
+      async () => {
+        const period = { kind: 'preset' as const, preset, customFrom: fromRaw, customTo: toRaw };
+        const rows = await deps.doctorAppointments.listAppointmentsForSpecialist(
+          { kind: 'periodRange', period, onlyCancelled },
           {
             organizationId: gate.ctx.organizationId,
             visibilityActor: gate.ctx,
             excludedUserIds: audience.excludedUserIds,
+            branchId,
+            onlineOnly,
           },
-        ),
+        );
+        if (onlyCancelled || view === 'all') return rows;
+
+        const now = Date.now();
+        if (view === 'past') {
+          return rows.filter((row) => row.recordAtIso && Date.parse(row.recordAtIso) < now);
+        }
+        if (view === 'future') {
+          return rows.filter((row) => row.recordAtIso && Date.parse(row.recordAtIso) >= now);
+        }
+        if (view === 'rescheduled') return rows.filter((row) => row.rescheduleCount > 0);
+        if (view === 'subscription') return rows.filter((row) => row.packageUsageRef !== null);
+        if (view === 'unique') {
+          return [...new Map(rows.map((row) => [row.clientUserId || row.id, row])).values()];
+        }
+
+        const iana = await getAppDisplayTimeZone();
+        const bounds = resolveAppointmentStatsBounds(period, iana);
+        const specialistId = gate.ctx.canManageAllSpecialists ? null : gate.ctx.specialistId;
+        const kpis = await deps.doctorAppointments.getScheduleKpis(
+          {
+            from: bounds.from,
+            to: bounds.toExclusive,
+            specialistId,
+            branchId,
+            deliveryFormat: onlineOnly ? 'online' : null,
+          },
+          { organizationId: gate.ctx.organizationId, excludedUserIds: audience.excludedUserIds },
+        );
+        const firstIds = new Set(kpis.firstVisitIds);
+        return rows.filter((row) =>
+          view === 'first' ? firstIds.has(row.id) : !firstIds.has(row.id),
+        );
+      },
     );
+    const rows = result;
     const pageEnd = offset + limit + 1;
     const pageRows = rows.slice(offset, pageEnd);
     const hasMore = pageRows.length > limit;

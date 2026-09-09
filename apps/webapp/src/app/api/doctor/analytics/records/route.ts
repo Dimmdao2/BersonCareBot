@@ -15,6 +15,7 @@ import { loadDoctorAnalyticsAudience } from '@/app-layer/analytics/loadAnalytics
 import { resolveAppointmentStatsBounds } from '@/modules/doctor-appointments/resolveAppointmentStatsBounds';
 import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
 import { parseAdminStatsTimePreset } from '@/modules/admin-platform-stats/parseAdminStatsTimePreset';
+import { z } from 'zod';
 
 export async function GET(req: Request) {
   const gate = await requireDoctorWorkspaceApiContext();
@@ -39,6 +40,12 @@ export async function GET(req: Request) {
   const preset = parseAdminStatsTimePreset(url.searchParams.get('preset'));
   const fromRaw = url.searchParams.get('from') ?? undefined;
   const toRaw = url.searchParams.get('to') ?? undefined;
+  const branchRaw = url.searchParams.get('branchId');
+  const onlineOnly = url.searchParams.get('location') === 'online';
+  const branchId = branchRaw && z.string().uuid().safeParse(branchRaw).success ? branchRaw : null;
+  if (branchRaw && !branchId) {
+    return NextResponse.json({ ok: false, error: 'invalid_branch' }, { status: 400 });
+  }
   if (preset !== 'custom' && (fromRaw || toRaw)) {
     return NextResponse.json({ ok: false, error: 'unexpected_from_to' }, { status: 400 });
   }
@@ -57,13 +64,21 @@ export async function GET(req: Request) {
       () =>
         Promise.all([
           deps.doctorAppointments.getScheduleKpis(
-            { from: bounds.from, to: bounds.toExclusive, specialistId },
+            {
+              from: bounds.from,
+              to: bounds.toExclusive,
+              specialistId,
+              branchId,
+              deliveryFormat: onlineOnly ? 'online' : null,
+            },
             { organizationId: gate.ctx.organizationId, excludedUserIds: audience.excludedUserIds },
           ),
           deps.doctorAppointments.getAppointmentDailySeries(filter, {
             organizationId: gate.ctx.organizationId,
             visibilityActor: gate.ctx,
             excludedUserIds: audience.excludedUserIds,
+            branchId,
+            onlineOnly,
           }),
         ]),
     );

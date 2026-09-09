@@ -222,6 +222,12 @@ body:has(#app-shell-doctor),
   scrollbar-width: none;
 }
 
+/* Recharts wrappers are not keyboard actions; suppress browser focus chrome on chart canvas. */
+#app-shell-doctor .recharts-wrapper:focus,
+#app-shell-doctor .recharts-surface:focus {
+  outline: none;
+}
+
 .doctor-weekly-chart-scroll::-webkit-scrollbar {
   display: none;
 }

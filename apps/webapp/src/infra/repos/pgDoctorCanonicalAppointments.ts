@@ -70,8 +70,16 @@ function appointmentVisibilityCond(audience: DoctorAppointmentsAudience | undefi
   if (!audience?.organizationId) return undefined;
   const actor = audience.visibilityActor;
   if (!actor) throw new Error('patient_visibility_actor_required');
-  if (actor.canManageAllSpecialists) return undefined;
-  return actor.specialistId ? eq(beAppointments.specialistId, actor.specialistId) : sql`false`;
+  const specialistCond = actor.canManageAllSpecialists
+    ? undefined
+    : actor.specialistId
+      ? eq(beAppointments.specialistId, actor.specialistId)
+      : sql`false`;
+  const branchCond = audience.branchId ? eq(beAppointments.branchId, audience.branchId) : undefined;
+  const deliveryCond = audience.onlineOnly
+    ? eq(beAppointments.deliveryFormat, 'online')
+    : undefined;
+  return and(specialistCond, branchCond, deliveryCond);
 }
 
 const BE_APPOINTMENTS_NOT_PURGED = sql.raw(PURGED_CANONICAL_BE_APPOINTMENTS_NOT_EXISTS_SQL);
@@ -128,6 +136,7 @@ type ListRow = {
   packageUsageRef: string | null;
   packageTitle: string | null;
   packageDisplayNumber: number | null;
+  rescheduleCount: number;
 };
 
 function mapListRow(row: ListRow): AppointmentRow {
@@ -160,6 +169,7 @@ function mapListRow(row: ListRow): AppointmentRow {
     packageUsageRef: row.packageUsageRef,
     packageTitle: row.packageTitle,
     packageDisplayNumber: row.packageDisplayNumber,
+    rescheduleCount: row.rescheduleCount,
   };
 }
 
@@ -179,6 +189,7 @@ const listSelect = {
   packageUsageRef: beAppointments.packageUsageRef,
   packageTitle: bePatientPackages.title,
   packageDisplayNumber: bePatientPackages.displayNumber,
+  rescheduleCount: beAppointments.rescheduleCount,
 };
 
 const UUID_TEXT_RE =
@@ -597,12 +608,15 @@ export function createPgDoctorCanonicalAppointmentsPort(
       const db = getDrizzle();
       const organizationId = audience.organizationId;
       const nowIso = new Date().toISOString();
-      const { from, to: toExclusive, branchId, serviceId, specialistId } = query;
+      const { from, to: toExclusive, branchId, deliveryFormat, serviceId, specialistId } = query;
       const excluded = audience?.excludedUserIds ?? [];
       const userAudience = appointmentUserAudienceCond(excluded);
 
       // Optional branch/service filters
       const branchCond = branchId ? eq(beAppointments.branchId, branchId) : undefined;
+      const deliveryCond = deliveryFormat
+        ? eq(beAppointments.deliveryFormat, deliveryFormat)
+        : undefined;
       const serviceCond = serviceId ? eq(beAppointments.serviceId, serviceId) : undefined;
       const specialistCond = specialistId
         ? eq(beAppointments.specialistId, specialistId)
@@ -617,6 +631,7 @@ export function createPgDoctorCanonicalAppointmentsPort(
         notInArray(beAppointments.status, [...CANCELLED_STATUSES]),
         userAudience,
         branchCond,
+        deliveryCond,
         serviceCond,
         specialistCond,
         BE_APPOINTMENTS_NOT_PURGED,
@@ -631,6 +646,7 @@ export function createPgDoctorCanonicalAppointmentsPort(
         inArray(beAppointments.status, [...CANCELLED_STATUSES]),
         userAudience,
         branchCond,
+        deliveryCond,
         serviceCond,
         specialistCond,
         BE_APPOINTMENTS_NOT_PURGED,
@@ -733,7 +749,11 @@ export function createPgDoctorCanonicalAppointmentsPort(
       const { from, toExclusive, fromDay, toDay } = resolveAppointmentStatsBounds(filter, iana);
       const userAudience = appointmentUserAudienceCond(audience?.excludedUserIds ?? []);
       const specialistAudience = appointmentVisibilityCond(audience);
-      const orgCond = and(eq(beAppointments.organizationId, organizationId), userAudience, specialistAudience);
+      const orgCond = and(
+        eq(beAppointments.organizationId, organizationId),
+        userAudience,
+        specialistAudience,
+      );
 
       const startAtDay = localCalendarDateSql(beAppointments.startAt, iana);
       const createdAtDay = localCalendarDateSql(beAppointments.createdAt, iana);

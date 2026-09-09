@@ -17,7 +17,6 @@ import {
   DoctorSectionTitle,
 } from '@/shared/ui/doctor/DoctorSection';
 import { Button } from '@/shared/ui/doctor/primitives/button';
-import { Badge } from '@/shared/ui/doctor/primitives/badge';
 import { DoctorMobileSectionTabs } from '@/shared/ui/doctor/shell/DoctorMobileSectionTabs';
 import { DoctorShellMobileSubsectionTabsRegistration } from '@/shared/ui/doctor/shell/DoctorShellChromeContext';
 import { Input } from '@/shared/ui/doctor/primitives/input';
@@ -33,12 +32,7 @@ import toast from 'react-hot-toast';
 import type { ScheduleTabProps } from '../scheduleTabRegistry';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
-import {
-  DoctorModal,
-  DoctorModalCompositeTitle,
-  DoctorModalStackedTitle,
-} from '@/shared/ui/doctor/DoctorModal';
-import { DoctorModalSummaryBar } from '@/shared/ui/doctor/DoctorModalSummaryBar';
+import { DoctorModal, DoctorModalCompositeTitle } from '@/shared/ui/doctor/DoctorModal';
 import { DoctorResultCount } from '@/shared/ui/doctor/DoctorResultCount';
 import {
   DoctorDnaFlatList,
@@ -46,15 +40,11 @@ import {
   doctorDnaFlatListRowClass,
 } from '@/shared/ui/doctor/DoctorDnaFlatListRow';
 import { SYSTEM_SETTING_REGISTRY } from '@/modules/system-settings/registry';
-import { formatPatientPackageShortLabel } from '@/modules/memberships/display';
-import type {
-  PackageItemInput,
-  PatientPackageListItem,
-  PatientPackageStatus,
-  SubscriptionPackageRecord,
-} from '@/modules/memberships/types';
-import { patientCardHref } from '@/app/app/doctor/patients/patientCardHref';
-import { PatientPackageSessionsList } from '@/app/app/doctor/clients/PatientPackageSessionsList';
+import type { PackageItemInput, SubscriptionPackageRecord } from '@/modules/memberships/types';
+import {
+  DoctorSoldMembershipsModal,
+  type DoctorSoldMembership,
+} from '@/shared/ui/doctor/DoctorSoldMembershipsModal';
 import { cn } from '@/lib/utils';
 
 // ---------------------------------------------------------------------------
@@ -193,46 +183,12 @@ type PackagesState =
   | { phase: 'error'; message: string }
   | { phase: 'ready'; packages: CatalogPackage[]; services: PackageService[] };
 
-type SoldPackage = PatientPackageListItem & {
-  patientDisplayName: string;
-};
-
-type SoldPackagesState =
-  | { phase: 'idle' }
-  | { phase: 'loading' }
-  | { phase: 'error' }
-  | { phase: 'ready'; packages: SoldPackage[] };
-
 function formatPackageMoney(priceMinor: number, currency = 'RUB'): string {
   return new Intl.NumberFormat('ru-RU', {
     style: 'currency',
     currency,
     maximumFractionDigits: 0,
   }).format(priceMinor / 100);
-}
-
-function formatPackageDate(value: string | null): string {
-  if (!value) return '—';
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return '—';
-  return parsed.toLocaleDateString('ru-RU');
-}
-
-function soldPackageStatusLabel(status: PatientPackageStatus): string {
-  switch (status) {
-    case 'active':
-      return 'Активен';
-    case 'expired':
-      return 'Истёк';
-    case 'cancelled':
-      return 'Закрыт';
-    case 'awaiting_payment':
-      return 'Ожидает оплаты';
-    case 'offered':
-      return 'Не активирован';
-    default:
-      return status;
-  }
 }
 
 function pluralizeSessions(value: number): string {
@@ -262,18 +218,6 @@ function formatValidityDays(value: number | null): string {
   return `${value} ${suffix}`;
 }
 
-function soldPackageTotalSessions(pkg: SoldPackage): number {
-  return pkg.balance.items.reduce((sum, item) => sum + item.quantityInitial, 0);
-}
-
-function soldPackagePaymentLabel(pkg: SoldPackage): string {
-  if (pkg.status === 'awaiting_payment') return 'Ожидает оплаты';
-  if (pkg.paidAmountMinor === 0) return 'Без оплаты';
-  if (pkg.paymentIntentId) return 'Онлайн';
-  if (pkg.paidAmountMinor !== null) return 'В клинике';
-  return '—';
-}
-
 function SectionPackages({ readOnly }: { readOnly: boolean }) {
   const [state, setState] = useState<PackagesState>({ phase: 'loading' });
   const [, startTransition] = useTransition();
@@ -282,8 +226,7 @@ function SectionPackages({ readOnly }: { readOnly: boolean }) {
   const [packageFormOpen, setPackageFormOpen] = useState(false);
   const [editingPackage, setEditingPackage] = useState<CatalogPackage | null>(null);
   const [soldOpen, setSoldOpen] = useState(false);
-  const [soldState, setSoldState] = useState<SoldPackagesState>({ phase: 'idle' });
-  const [selectedSoldPackage, setSelectedSoldPackage] = useState<SoldPackage | null>(null);
+  const [soldPackages, setSoldPackages] = useState<DoctorSoldMembership[] | null>(null);
 
   // Create form state
   const [title, setTitle] = useState('');
@@ -316,14 +259,13 @@ function SectionPackages({ readOnly }: { readOnly: boolean }) {
   }, []);
 
   const loadSoldPackages = useCallback(async () => {
-    setSoldState({ phase: 'loading' });
     try {
-      const json = await apiJson<{ ok: boolean; packages: SoldPackage[] }>(
+      const json = await apiJson<{ ok: boolean; packages: DoctorSoldMembership[] }>(
         '/api/doctor/booking-engine/patient-packages/sold',
       );
-      setSoldState({ phase: 'ready', packages: json.packages });
+      setSoldPackages(json.packages);
     } catch {
-      setSoldState({ phase: 'error' });
+      setSoldPackages(null);
     }
   }, []);
 
@@ -467,17 +409,9 @@ function SectionPackages({ readOnly }: { readOnly: boolean }) {
     packageView === 'active' ? pkg.isActive : !pkg.isActive,
   );
   const selectedCatalogSoldCount =
-    selectedCatalogPackage && soldState.phase === 'ready'
-      ? soldState.packages.filter((pkg) => pkg.subscriptionPackageId === selectedCatalogPackage.id)
-          .length
+    selectedCatalogPackage && soldPackages
+      ? soldPackages.filter((pkg) => pkg.subscriptionPackageId === selectedCatalogPackage.id).length
       : null;
-  const selectedSoldTotal = selectedSoldPackage ? soldPackageTotalSessions(selectedSoldPackage) : 0;
-  const selectedSoldRemaining = selectedSoldPackage
-    ? selectedSoldPackage.balance.items.reduce((sum, item) => sum + item.displayRemaining, 0)
-    : 0;
-  const selectedSoldReserved = selectedSoldPackage
-    ? selectedSoldPackage.balance.items.reduce((sum, item) => sum + item.reserved, 0)
-    : 0;
 
   return (
     <>
@@ -527,9 +461,6 @@ function SectionPackages({ readOnly }: { readOnly: boolean }) {
               variant="outline"
               onClick={() => {
                 setSoldOpen(true);
-                if (soldState.phase === 'idle' || soldState.phase === 'error') {
-                  void loadSoldPackages();
-                }
               }}
             >
               <ShoppingBag className="size-4" aria-hidden />
@@ -553,9 +484,7 @@ function SectionPackages({ readOnly }: { readOnly: boolean }) {
                     )}
                     onClick={() => {
                       setSelectedCatalogPackage(pkg);
-                      if (soldState.phase === 'idle' || soldState.phase === 'error') {
-                        void loadSoldPackages();
-                      }
+                      if (!soldPackages) void loadSoldPackages();
                     }}
                   >
                     <span className="flex min-w-0 flex-col gap-0.5">
@@ -774,160 +703,12 @@ function SectionPackages({ readOnly }: { readOnly: boolean }) {
         ) : null}
       </DoctorModal>
 
-      <DoctorModal
+      <DoctorSoldMembershipsModal
         open={soldOpen}
-        onClose={() => {
-          setSoldOpen(false);
-          setSelectedSoldPackage(null);
-        }}
-        title="Проданные абонементы"
-        bodyVariant="list"
-        desktopPresentation="right-sheet"
-        bodyHeader={
-          soldState.phase === 'ready' ? (
-            <DoctorModalSummaryBar>Всего {soldState.packages.length}</DoctorModalSummaryBar>
-          ) : undefined
-        }
-      >
-        {soldState.phase === 'loading' || soldState.phase === 'idle' ? (
-          <DoctorPanelLoading className="py-8" />
-        ) : soldState.phase === 'error' ? (
-          <div className="flex items-center gap-2 px-4 py-4">
-            <p className="text-sm text-destructive">Не удалось загрузить абонементы</p>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => void loadSoldPackages()}
-            >
-              Повторить
-            </Button>
-          </div>
-        ) : soldState.packages.length > 0 ? (
-          <DoctorDnaFlatList>
-            {soldState.packages.map((pkg) => {
-              const totalSessions = soldPackageTotalSessions(pkg);
-              return (
-                <li key={pkg.id}>
-                  <button
-                    type="button"
-                    className={cn(
-                      doctorDnaFlatListRowClass,
-                      doctorDnaFlatListClickableClass,
-                      'grid w-full grid-cols-[minmax(0,1fr)_auto] text-left',
-                    )}
-                    onClick={() => setSelectedSoldPackage(pkg)}
-                  >
-                    <span className="flex min-w-0 flex-col gap-0.5">
-                      <span className="truncate text-base font-normal text-foreground">
-                        {pkg.patientDisplayName}
-                      </span>
-                      <span className="truncate text-sm text-foreground/80">{pkg.title}</span>
-                      <span className="text-sm text-foreground/80">
-                        Продан {formatPackageDate(pkg.soldAt ?? pkg.createdAt)} · до{' '}
-                        {formatPackageDate(pkg.validUntil)}
-                      </span>
-                    </span>
-                    <span className="flex items-center gap-2">
-                      <span className="flex flex-col items-end gap-0.5 text-sm">
-                        <span>{formatPackageMoney(pkg.priceMinor, pkg.currency)}</span>
-                        <span className="text-muted-foreground">
-                          {totalSessions} {pluralizeSessions(totalSessions)}
-                        </span>
-                      </span>
-                      <ChevronRight className="size-4 text-muted-foreground" aria-hidden />
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-          </DoctorDnaFlatList>
-        ) : (
-          <DoctorEmptyState>Проданных абонементов нет</DoctorEmptyState>
-        )}
-      </DoctorModal>
-
-      <DoctorModal
-        open={selectedSoldPackage != null}
-        onClose={() => setSelectedSoldPackage(null)}
-        title={
-          <DoctorModalStackedTitle
-            label="Абонемент"
-            patientName={selectedSoldPackage?.patientDisplayName}
-            patientHref={
-              selectedSoldPackage ? patientCardHref(selectedSoldPackage.platformUserId) : null
-            }
-          />
-        }
-        nested
-        desktopPresentation="right-sheet"
-      >
-        {selectedSoldPackage ? (
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="text-base font-medium text-foreground">{selectedSoldPackage.title}</p>
-              <Badge variant="outline">{soldPackageStatusLabel(selectedSoldPackage.status)}</Badge>
-              <Badge variant="secondary">
-                {formatPatientPackageShortLabel(selectedSoldPackage.displayNumber)}
-              </Badge>
-            </div>
-            <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm">
-              <dt className="text-muted-foreground">Продан</dt>
-              <dd>
-                {formatPackageDate(selectedSoldPackage.soldAt ?? selectedSoldPackage.createdAt)}
-              </dd>
-              <dt className="text-muted-foreground">Стоимость</dt>
-              <dd>
-                {formatPackageMoney(selectedSoldPackage.priceMinor, selectedSoldPackage.currency)}
-              </dd>
-              <dt className="text-muted-foreground">Оплата</dt>
-              <dd>{soldPackagePaymentLabel(selectedSoldPackage)}</dd>
-              <dt className="text-muted-foreground">Действует до</dt>
-              <dd>{formatPackageDate(selectedSoldPackage.validUntil)}</dd>
-              <dt className="text-muted-foreground">Использовано</dt>
-              <dd>
-                {selectedSoldTotal - selectedSoldRemaining} из {selectedSoldTotal}
-              </dd>
-              <dt className="text-muted-foreground">Зарезервировано</dt>
-              <dd>{selectedSoldReserved}</dd>
-            </dl>
-            <div className="space-y-2">
-              <p className="text-sm font-medium">Состав</p>
-              <ul className="m-0 list-none space-y-1 p-0">
-                {selectedSoldPackage.balance.items.map((item) => (
-                  <li
-                    key={item.patientPackageItemId}
-                    className="flex items-center justify-between gap-3 rounded-lg bg-muted/30 px-3 py-2 text-sm"
-                  >
-                    <span>{item.serviceTitle ?? 'Услуга'}</span>
-                    <span className="text-muted-foreground">
-                      осталось {item.displayRemaining} из {item.quantityInitial}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-            {selectedSoldPackage.notes?.trim() ? (
-              <div className="space-y-1">
-                <p className="text-sm font-medium">Комментарий</p>
-                <p className="whitespace-pre-wrap text-sm text-foreground/80">
-                  {selectedSoldPackage.notes.trim()}
-                </p>
-              </div>
-            ) : null}
-            <div className="border-t border-border/60 pt-4">
-              <PatientPackageSessionsList
-                packageId={selectedSoldPackage.id}
-                apiBase="/api/doctor/booking-engine/patient-packages"
-                mutationsAllowed={!readOnly}
-                nestedModals
-                onChanged={() => void loadSoldPackages()}
-                onError={() => toast.error('Не удалось обновить абонемент')}
-              />
-            </div>
-          </div>
-        ) : null}
-      </DoctorModal>
+        onOpenChange={setSoldOpen}
+        readOnly={readOnly}
+        onPackagesLoaded={setSoldPackages}
+      />
     </>
   );
 }

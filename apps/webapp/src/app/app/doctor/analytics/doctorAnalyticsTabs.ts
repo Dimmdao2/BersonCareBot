@@ -15,7 +15,7 @@
 
 export const ANALYTICS_BASE = '/app/doctor/analytics';
 
-export type AnalyticsTabId = 'records' | 'activity';
+export type AnalyticsTabId = 'records' | 'activity' | 'materials' | 'finance';
 
 export type AnalyticsTab = {
   id: AnalyticsTabId;
@@ -26,6 +26,8 @@ export type AnalyticsTab = {
 export const ANALYTICS_TABS: AnalyticsTab[] = [
   { id: 'records', label: 'Записи', href: `${ANALYTICS_BASE}?tab=records` },
   { id: 'activity', label: 'Активность', href: `${ANALYTICS_BASE}?tab=activity` },
+  { id: 'materials', label: 'Материалы', href: `${ANALYTICS_BASE}?tab=materials` },
+  { id: 'finance', label: 'Финансы', href: `${ANALYTICS_BASE}?tab=finance` },
 ];
 
 export const ANALYTICS_DEFAULT_TAB: AnalyticsTabId = 'records';
@@ -37,6 +39,10 @@ export function analyticsTabFromQuery(tab: string | null | undefined): Analytics
       return 'records';
     case 'activity':
       return 'activity';
+    case 'materials':
+      return 'materials';
+    case 'finance':
+      return 'finance';
     default:
       return ANALYTICS_DEFAULT_TAB;
   }

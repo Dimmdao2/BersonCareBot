@@ -2,9 +2,15 @@
 
 import Image from 'next/image';
 import toast from 'react-hot-toast';
-import { useCallback, useRef, useState, useTransition } from 'react';
+import { CircleCheck } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
-import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
+import { DoctorModal, DoctorModalFooter } from '@/shared/ui/doctor/DoctorModal';
+import {
+  doctorBodyTextClass,
+  doctorPaymentAmountClass,
+  doctorSecondaryListTextClass,
+} from '@/shared/ui/doctor/doctorVisual';
 import type { CalendarAppointmentPaymentView } from '@/modules/booking-calendar/types';
 import { sendPaymentLinkToPatientChat } from '../sendPaymentLinkToPatientChat';
 import { localQrCodeDataUri } from './localQrCode';
@@ -22,7 +28,8 @@ function errorLabel(error: string, patientSingularLabel: string) {
   }
   if (error === 'appointment_amount_unavailable') return 'Стоимость записи не определена.';
   if (error === 'already_paid') return 'Запись уже оплачена.';
-  if (error === 'chat_send_failed') return `Не удалось отправить ссылку в чат ${patientSingularLabel.toLowerCase()}.`;
+  if (error === 'chat_send_failed')
+    return `Не удалось отправить ссылку в чат ${patientSingularLabel.toLowerCase()}.`;
   return 'Не удалось выполнить действие.';
 }
 
@@ -31,6 +38,9 @@ export function AppointmentPaymentSection({
   appointmentId,
   view,
   patientUserId,
+  patientName,
+  appointmentWhen,
+  onPaymentChange,
 }: {
   apiBase: string;
   appointmentId: string;
@@ -41,15 +51,39 @@ export function AppointmentPaymentSection({
   view: CalendarAppointmentPaymentView;
   /** Needed only for the chat send; omitting it hides that option. */
   patientUserId?: string | null;
+  patientName: string;
+  appointmentWhen: string;
+  onPaymentChange?: (payment: CalendarAppointmentPaymentView) => void;
 }) {
   const { patientSingularLabel } = useDoctorPatientTerms();
   const [current, setCurrent] = useState(view);
-  const [link, setLink] = useState<string | null>(null);
+  const [createdLink, setCreatedLink] = useState<string | null>(null);
   const [collectOpen, setCollectOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [chatSent, setChatSent] = useState(false);
   const [pending, startTransition] = useTransition();
   const requestVersion = useRef(0);
+  const currentRef = useRef(view);
+  const onPaymentChangeRef = useRef(onPaymentChange);
+
+  useEffect(() => {
+    onPaymentChangeRef.current = onPaymentChange;
+  }, [onPaymentChange]);
+
+  useEffect(() => {
+    currentRef.current = view;
+    setCurrent(view);
+    setCreatedLink(null);
+    setCopied(false);
+    setChatSent(false);
+  }, [appointmentId, view]);
+
+  const applyPayment = useCallback((payment: CalendarAppointmentPaymentView) => {
+    const changed = JSON.stringify(currentRef.current) !== JSON.stringify(payment);
+    currentRef.current = payment;
+    setCurrent(payment);
+    if (changed) onPaymentChangeRef.current?.(payment);
+  }, []);
 
   const reload = useCallback(
     async (targetAppointmentId: string, version: number) => {
@@ -59,9 +93,9 @@ export function AppointmentPaymentSection({
       const json = (await response.json()) as Response;
       if (!response.ok || !json.payment) throw new Error(json.error ?? 'not_found');
       if (version !== requestVersion.current) return;
-      setCurrent(json.payment);
+      applyPayment(json.payment);
     },
-    [apiBase],
+    [apiBase, applyPayment],
   );
 
   const run = (action: 'cash' | 'link') =>
@@ -86,7 +120,7 @@ export function AppointmentPaymentSection({
         if (!response.ok || !json.ok) throw new Error(json.error ?? 'request_failed');
         if (version !== requestVersion.current) return;
         if (json.paymentLink) {
-          setLink(json.paymentLink);
+          setCreatedLink(json.paymentLink);
           setCopied(false);
           setChatSent(false);
         }
@@ -94,10 +128,17 @@ export function AppointmentPaymentSection({
         await reload(targetAppointmentId, version);
       } catch (cause) {
         if (version === requestVersion.current) {
-          toast.error(errorLabel(cause instanceof Error ? cause.message : 'request_failed', patientSingularLabel));
+          toast.error(
+            errorLabel(
+              cause instanceof Error ? cause.message : 'request_failed',
+              patientSingularLabel,
+            ),
+          );
         }
       }
     });
+
+  const link = createdLink ?? current.prepayment?.checkoutUrl ?? null;
 
   const copyLink = () =>
     startTransition(async () => {
@@ -122,7 +163,7 @@ export function AppointmentPaymentSection({
       else toast.error(errorLabel('chat_send_failed', patientSingularLabel));
     });
 
-  const captured = current.payment?.status === 'succeeded' ? current.payment.amountMinor : 0;
+  const captured = current.payment?.status === 'captured' ? current.payment.amountMinor : 0;
   const paid = captured + current.manualPaidMinor;
   const totalMinor = current.totalMinor;
   // PAY-APPT-06: показываем ТРЕБУЕМУЮ предоплату из снимка записи — то же число, на которое
@@ -147,6 +188,17 @@ export function AppointmentPaymentSection({
         ? `Не оплачено · предоплата ${money(prepaymentDueMinor, current.prepayment?.currency)}`
         : 'Не оплачено';
 
+  useEffect(() => {
+    if (!collectOpen || isSettled) return;
+    const refresh = () => {
+      const version = requestVersion.current;
+      void reload(appointmentId, version).catch(() => undefined);
+    };
+    refresh();
+    const timer = window.setInterval(refresh, 2500);
+    return () => window.clearInterval(timer);
+  }, [appointmentId, collectOpen, isSettled, reload]);
+
   // Owner acceptance MONEY-06: the block exists only for a clinic whose tariff carries payments.
   if (!current.paymentsEntitled) return null;
 
@@ -167,84 +219,97 @@ export function AppointmentPaymentSection({
         open={collectOpen}
         onClose={() => setCollectOpen(false)}
         title="Приём оплаты"
+        titleSubject={patientName}
         size="sm"
+        nested
       >
-        <div className="flex flex-col gap-3 text-sm">
-          <p className="font-medium">К оплате: {money(remaining ?? 0)}</p>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="self-start"
-            disabled={pending}
-            onClick={() => run('cash')}
-          >
-            Оплачено наличными
-          </Button>
-          {current.onlinePaymentAvailable ? (
+        <div className="flex flex-col gap-4">
+          <p className={doctorSecondaryListTextClass}>{appointmentWhen}</p>
+          {isSettled ? (
+            <div className="flex min-h-56 flex-col items-center justify-center gap-3 py-6 text-center text-emerald-700">
+              <CircleCheck className="size-12" aria-hidden />
+              <div className="space-y-1">
+                <p className={doctorBodyTextClass}>Оплачено</p>
+                <p className={doctorPaymentAmountClass}>{money(paid)}</p>
+              </div>
+            </div>
+          ) : (
             <>
+              <div className="space-y-2 py-2">
+                <p className={doctorBodyTextClass}>К оплате</p>
+                <p className={doctorPaymentAmountClass}>{money(remaining ?? 0)}</p>
+              </div>
               {/*
                 PAY-APPT-05/06: счёт выставляется на требуемую предоплату, поэтому её сумма стоит
                 рядом с кнопкой — показанное и созданное намерение обязаны совпадать.
               */}
-              {prepaymentDueMinor !== null && prepaymentDueMinor !== remaining ? (
+              {current.onlinePaymentAvailable &&
+              prepaymentDueMinor !== null &&
+              prepaymentDueMinor !== remaining ? (
                 <p className="text-muted-foreground">
                   Счёт на предоплату: {money(prepaymentDueMinor, current.prepayment?.currency)}
                 </p>
               ) : null}
-              <Button
-                type="button"
-                size="sm"
-                className="self-start"
-                disabled={pending}
-                onClick={() => run('link')}
-              >
-                Выставить счёт
-              </Button>
               {link ? (
-                <div className="flex flex-col gap-2">
-                  <a
-                    className="break-all text-primary underline"
-                    href={link}
-                    target="_blank"
-                    rel="noreferrer"
+                <div className="flex flex-col gap-3">
+                  <button
+                    type="button"
+                    className="cursor-copy break-all rounded-lg border border-border bg-muted/20 p-3 text-left text-sm text-primary"
+                    onClick={copyLink}
                   >
                     {link}
-                  </a>
+                  </button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={pending}
+                    onClick={copyLink}
+                  >
+                    {copied ? 'Ссылка скопирована' : 'Скопировать ссылку'}
+                  </Button>
                   <Image
-                    width={144}
-                    height={144}
+                    width={288}
+                    height={288}
                     alt="QR-код платёжной ссылки"
                     src={localQrCodeDataUri(link)}
+                    className="mx-auto h-auto w-full max-w-72"
                     unoptimized
                   />
-                  <div className="flex flex-wrap gap-2">
+                  {current.patientChatAvailable && patientUserId ? (
                     <Button
                       type="button"
                       size="sm"
                       variant="outline"
                       disabled={pending}
-                      onClick={copyLink}
+                      onClick={sendLinkToChat}
                     >
-                      {copied ? 'Ссылка скопирована' : 'Скопировать ссылку'}
+                      {chatSent ? 'Отправлено в чат' : 'Отправить в чат'}
                     </Button>
-                    {current.patientChatAvailable && patientUserId ? (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        disabled={pending}
-                        onClick={sendLinkToChat}
-                      >
-                        {chatSent ? 'Отправлено в чат' : 'Отправить в чат'}
-                      </Button>
-                    ) : null}
-                  </div>
+                  ) : null}
                 </div>
               ) : null}
             </>
-          ) : null}
+          )}
         </div>
+        {!isSettled && canCollect ? (
+          <DoctorModalFooter>
+            {current.onlinePaymentAvailable ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={pending}
+                onClick={() => run('link')}
+              >
+                Выставить счёт
+              </Button>
+            ) : null}
+            <Button type="button" size="sm" disabled={pending} onClick={() => run('cash')}>
+              Оплачено наличными
+            </Button>
+          </DoctorModalFooter>
+        ) : null}
       </DoctorModal>
     </section>
   );

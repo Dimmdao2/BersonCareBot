@@ -125,6 +125,9 @@ import { inMemoryDoctorAnalyticsMetricAccountsPort } from '@/infra/repos/inMemor
 import { createPgDoctorProgramActivityPort } from '@/infra/repos/pgDoctorProgramActivity';
 import { inMemoryDoctorProgramActivityPort } from '@/infra/repos/inMemoryDoctorProgramActivity';
 import { createDoctorProgramActivityService } from '@/modules/doctor-program-activity/service';
+import { createDoctorFinanceAnalyticsService } from '@/modules/doctor-finance-analytics/service';
+import { emptyDoctorFinanceAnalyticsPort } from '@/modules/doctor-finance-analytics/ports';
+import { createPgDoctorFinanceAnalyticsPort } from '@/infra/repos/pgDoctorFinanceAnalytics';
 import { createPgDoctorCanonicalAppointmentsPort } from '@/infra/repos/pgDoctorCanonicalAppointments';
 import { getPurchaseSectionState } from '@/modules/purchases/service';
 import {
@@ -715,7 +718,8 @@ const patientInvitesService = createPatientInvitesService({ port: patientInvites
 const integratorWebPushDeliveryPort = createPgIntegratorWebPushDeliveryPort({
   nativePushTargets: nativePushTargetsPort,
   hasActivePatientEnrollment: (userId, organizationId) =>
-    patientOrganizationService?.hasActiveEnrollment(userId, organizationId) ?? Promise.resolve(false),
+    patientOrganizationService?.hasActiveEnrollment(userId, organizationId) ??
+    Promise.resolve(false),
   hasActiveStaffMembership: (userId, organizationId) =>
     organizationMembershipService.hasActiveMembership(userId, organizationId),
 });
@@ -1052,6 +1056,9 @@ const doctorProgramActivityPort = !inMemoryRepos
 const doctorProgramActivityService = createDoctorProgramActivityService({
   activityPort: doctorProgramActivityPort,
 });
+const doctorFinanceAnalyticsService = createDoctorFinanceAnalyticsService(
+  !inMemoryRepos ? createPgDoctorFinanceAnalyticsPort() : emptyDoctorFinanceAnalyticsPort,
+);
 const membershipsPort = !inMemoryRepos ? createPgMembershipsPort() : null;
 const entitlementsPort = !inMemoryRepos ? createPgEntitlementsPort() : null;
 const entitlementsService = entitlementsPort
@@ -2172,6 +2179,7 @@ function _buildAppDeps() {
     materialRating: materialRatingService,
     materialRatingFeedback: materialRatingFeedbackService,
     doctorProgramActivity: doctorProgramActivityService,
+    doctorFinanceAnalytics: doctorFinanceAnalyticsService,
     warmupFeelingCompletion: warmupFeelingCompletionPort,
     patientMood: patientMoodService,
     treatmentProgramProgress: treatmentProgramProgressService,

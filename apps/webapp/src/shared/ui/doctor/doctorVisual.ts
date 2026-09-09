@@ -103,6 +103,10 @@ export const doctorPanelBottomShadowClass = 'shadow-[0_1px_3px_rgba(15,23,42,0.0
 export const doctorMetricValueClass =
   'text-[18px] font-semibold tabular-nums leading-tight text-foreground';
 
+/** Prominent payable/paid amount in a financial action modal. */
+export const doctorPaymentAmountClass =
+  'text-[28px] font-semibold tabular-nums leading-none tracking-tight text-foreground';
+
 /** Inline/secondary numeric value that belongs in a text row rather than a full KPI. */
 export const doctorInlineMetricValueClass = 'text-base font-semibold tabular-nums leading-none';
 

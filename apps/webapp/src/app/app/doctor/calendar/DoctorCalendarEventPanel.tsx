@@ -1148,6 +1148,11 @@ function DoctorCalendarEventPanelInner({
             appointmentId={selected.id}
             view={selected.payment}
             patientUserId={selected.platformUserId}
+            patientName={patientName}
+            appointmentWhen={formatEventAtWords(selected.startAt, timeZone)}
+            onPaymentChange={(payment) => {
+              onUpdated?.({ ...selected, payment });
+            }}
           />
         ) : null}
 

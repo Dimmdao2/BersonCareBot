@@ -113,7 +113,7 @@ export function DoctorHeader({
             ) : null}
           </div>
 
-          <div className="flex shrink-0 items-center">
+          <div className="flex shrink-0 items-center gap-2">
             {globalActions}
             <Button
               type="button"
@@ -138,8 +138,8 @@ export function DoctorHeader({
           className="flex h-[100dvh] max-h-[100dvh] min-h-0 w-full max-w-[22rem] flex-col gap-0 overflow-hidden p-0 sm:max-w-sm"
         >
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 pb-[env(safe-area-inset-bottom,0px)] pt-[max(0.75rem,env(safe-area-inset-top,0px))]">
-            <SheetHeader className="shrink-0 border-0 px-0 py-2 text-left">
-              <SheetTitle className="flex items-center gap-2.5 text-left font-semibold tracking-tight">
+            <SheetHeader className="shrink-0 border-0 px-3 py-2 text-left">
+              <SheetTitle className="flex items-center gap-1.5 text-left font-semibold tracking-tight">
                 <Image
                   src="/brand/therapysto-mark.png"
                   alt=""
