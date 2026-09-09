@@ -3,7 +3,7 @@
  * `.lead/runs/mobile-native-push-wire-confirmation-audit-20260909/00-blind-killset.md` K3/K5).
  *
  * Failure caught: a resolver-selected logical web_push invite enters the durable queue without its
- * fixed Therapy Go surface (crossing the native app boundary), without notificationKind:'call'
+ * fixed TherapyGo surface (crossing the native app boundary), without notificationKind:'call'
  * (rendering/routing on the wrong Android channel), or with the browser guest URL reused as the
  * native route (an absolute/custom-domain/guest link becoming a trusted in-app Android route).
  */
@@ -18,7 +18,7 @@ const ids = {
 } as const;
 
 describe('video invitation native Push producer — M6-05', () => {
-  it('preserves an explicit Therapy Go surface, a call notificationKind and a route independent of the guest URL in the one durable web_push intent', async () => {
+  it('preserves an explicit TherapyGo surface, a call notificationKind and a route independent of the guest URL in the one durable web_push intent', async () => {
     const enqueue = vi.fn().mockResolvedValue(true);
     const notification = createVideoMeetingInvitationNotification({
       channelPreferences: {
