@@ -66,7 +66,8 @@ const cases = [
     audience: 'staff' as const,
     values: {
       therapysto_telegram_bot_token: 'bot-token',
-      telegram_webhook_secret: 'webhook-secret',
+      therapysto_telegram_webhook_secret: 'webhook-secret',
+      therapysto_telegram_mode: 'webhook',
       telegram_send_menu_on_button_press: true,
     },
     read: readTelegramRuntimeConfig,
@@ -88,7 +89,7 @@ const cases = [
     audience: 'staff' as const,
     values: {
       therapysto_max_bot_api_key: 'api-key',
-      max_webhook_secret: 'webhook-secret',
+      therapysto_max_webhook_secret: 'webhook-secret',
       max_api_base_url: 'https://platform-api.max.ru',
     },
     read: readMaxRuntimeConfig,
@@ -141,6 +142,7 @@ describe('DB-backed messenger and SMS runtime configuration', () => {
     it(`${scenario.name}: enables only complete canonical configuration`, async () => {
       await expect(scenario.read(dbFor(scenario.values), scenario.audience)).resolves.toMatchObject({
         enabled: true,
+        ...(scenario.name === 'Therapysto Telegram' ? { mode: 'webhook' } : {}),
       });
     });
 
@@ -149,15 +151,27 @@ describe('DB-backed messenger and SMS runtime configuration', () => {
       if (scenario.channel === 'max') malformed.max_api_base_url = 'not-a-url';
       if (scenario.channel === 'smsc') malformed.smsc_base_url = 'not-a-url';
       if (scenario.channel === 'telegram') {
-        malformed.telegram_mode = 'webhook';
-        malformed.telegram_webhook_secret = '';
+        if (scenario.audience === 'staff') {
+          malformed.therapysto_telegram_mode = 'webhook';
+          malformed.therapysto_telegram_webhook_secret = '';
+        } else {
+          malformed.telegram_mode = 'webhook';
+          malformed.telegram_webhook_secret = '';
+        }
       }
       const disabled = { ...scenario.values } as Record<string, unknown>;
       if (scenario.channel === 'telegram') {
-        disabled.telegram_mode = 'webhook';
-        disabled.telegram_webhook_secret = '';
+        if (scenario.audience === 'staff') {
+          disabled.therapysto_telegram_mode = 'webhook';
+          disabled.therapysto_telegram_webhook_secret = '';
+        } else {
+          disabled.telegram_mode = 'webhook';
+          disabled.telegram_webhook_secret = '';
+        }
       }
-      if (scenario.channel === 'max') disabled.max_webhook_secret = '';
+      if (scenario.channel === 'max') {
+        disabled[scenario.audience === 'staff' ? 'therapysto_max_webhook_secret' : 'max_webhook_secret'] = '';
+      }
       if (scenario.channel === 'smsc') disabled.smsc_enabled = false;
       const configurations = [
         dbFor(disabled),
