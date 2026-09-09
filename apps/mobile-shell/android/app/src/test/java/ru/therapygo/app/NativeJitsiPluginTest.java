@@ -297,6 +297,28 @@ public class NativeJitsiPluginTest {
         verify(listener, never()).resolve(any(JSObject.class));
     }
 
+    // Kill: destruction/background cleanup is treated as a terminal hangup and ends a call that
+    // Android is continuing in the SDK-owned system PiP path.
+    @Test
+    public void activityDestructionDoesNotSynthesizeATerminalConferenceEvent() throws Exception {
+        PluginCall listener = registerConferenceListener();
+        Field callbacksField = NativeJitsiPlugin.class.getDeclaredField("activityCallbacks");
+        callbacksField.setAccessible(true);
+        android.app.Application.ActivityLifecycleCallbacks callbacks =
+            (android.app.Application.ActivityLifecycleCallbacks) callbacksField.get(plugin);
+        android.app.Activity activity = mock(android.app.Activity.class);
+        Field conferenceActivityField = NativeJitsiPlugin.class.getDeclaredField("conferenceActivity");
+        conferenceActivityField.setAccessible(true);
+        conferenceActivityField.set(plugin, activity);
+        Field conferenceIdField = NativeJitsiPlugin.class.getDeclaredField("conferenceId");
+        conferenceIdField.setAccessible(true);
+        conferenceIdField.set(plugin, "active-launch-0001");
+
+        callbacks.onActivityDestroyed(activity);
+
+        verify(listener, never()).resolve(any(JSObject.class));
+    }
+
     // A fresh CONFERENCE_JOINED still notifies normally (dedup only guards the terminal side).
     @Test
     public void conferenceJoinedStillEmitsNormally() throws Exception {
