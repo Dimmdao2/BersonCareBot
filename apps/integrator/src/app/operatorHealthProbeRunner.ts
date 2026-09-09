@@ -1,5 +1,5 @@
 import type { DispatchPort } from '../kernel/contracts/index.js';
-import { randomUUID } from 'node:crypto';
+import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import { ImapFlow } from 'imapflow';
 import { z } from 'zod';
 import { logger } from '../infra/observability/logger.js';
@@ -42,7 +42,8 @@ export type ProbeOutcome = 'ok' | 'fail' | 'skipped_not_configured';
 
 const HEALTH_PROBE_SUBJECT_PREFIX = 'BCB-operator-health-v1:';
 const HEALTH_PROBE_HEADER = 'X-BersonCare-Operator-Health-Probe';
-const HEALTH_PROBE_HEADER_VALUE = 'v1';
+const HEALTH_PROBE_OWNERSHIP_VERSION = 'v2';
+const HEALTH_PROBE_VERIFIED_KEYWORD = '$BCBOperatorHealthVerifiedV2';
 const EMAIL_AUDIENCES: ReadonlyArray<{
   audience: PlatformDeliveryAudience;
   marker: 'therapygo' | 'therapysto';
@@ -61,6 +62,12 @@ const operatorHealthImapSchema = z.object({
 });
 
 type OperatorHealthImapConfig = z.infer<typeof operatorHealthImapSchema>;
+
+type EmailProbeProfile = {
+  audience: PlatformDeliveryAudience;
+  marker: 'therapygo' | 'therapysto';
+  smtp: Awaited<ReturnType<typeof resolveSmtpOutboundConfig>>;
+};
 
 const lastProbeAttemptAtMs = new Map<OperatorHealthProbeName, number>();
 
@@ -97,11 +104,64 @@ function normalizedAddress(value: string | undefined): string {
   return (value ?? '').trim().toLowerCase();
 }
 
-function hasOwnedProbeHeader(headers: Buffer | undefined): boolean {
-  return headers
-    ?.toString('utf8')
-    .toLowerCase()
-    .includes(`${HEALTH_PROBE_HEADER.toLowerCase()}: ${HEALTH_PROBE_HEADER_VALUE}`) ?? false;
+function readHeaderValue(headers: Buffer | undefined, headerName: string): string | null {
+  const unfolded = headers?.toString('utf8').replace(/\r?\n[ \t]+/g, ' ');
+  if (!unfolded) return null;
+  const prefix = `${headerName.toLowerCase()}:`;
+  const line = unfolded.split(/\r?\n/).find((candidate) => candidate.toLowerCase().startsWith(prefix));
+  return line?.slice(prefix.length).trim() || null;
+}
+
+function createProbeOwnershipMarker(input: {
+  audience: PlatformDeliveryAudience;
+  runId: string;
+  subject: string;
+  senderAddress: string;
+  recipientAddress: string;
+  secret: string;
+}): string {
+  const signed = [
+    HEALTH_PROBE_OWNERSHIP_VERSION,
+    input.audience,
+    input.runId,
+    input.subject,
+    normalizedAddress(input.senderAddress),
+    normalizedAddress(input.recipientAddress),
+  ].join('\0');
+  const signature = createHmac('sha256', input.secret).update(signed).digest('base64url');
+  return `${HEALTH_PROBE_OWNERSHIP_VERSION}.${input.audience}.${input.runId}.${signature}`;
+}
+
+function hasVerifiedProbeOwnership(input: {
+  headers: Buffer | undefined;
+  subject: string | undefined;
+  senderAddress: string | undefined;
+  recipientAddress: string;
+  profile: EmailProbeProfile;
+}): boolean {
+  const marker = readHeaderValue(input.headers, HEALTH_PROBE_HEADER);
+  const parts = marker?.split('.') ?? [];
+  if (
+    !marker ||
+    parts.length !== 4 ||
+    parts[0] !== HEALTH_PROBE_OWNERSHIP_VERSION ||
+    parts[1] !== input.profile.audience ||
+    !parts[2] ||
+    !input.subject?.startsWith(HEALTH_PROBE_SUBJECT_PREFIX)
+  ) {
+    return false;
+  }
+  const expected = createProbeOwnershipMarker({
+    audience: input.profile.audience,
+    runId: parts[2],
+    subject: input.subject,
+    senderAddress: input.senderAddress ?? '',
+    recipientAddress: input.recipientAddress,
+    secret: input.profile.smtp.smtpPass,
+  });
+  const received = Buffer.from(marker);
+  const expectedBuffer = Buffer.from(expected);
+  return received.length === expectedBuffer.length && timingSafeEqual(received, expectedBuffer);
 }
 
 async function withImapMailbox<T>(input: {
@@ -123,12 +183,13 @@ async function withImapMailbox<T>(input: {
     await withProbeTimeout(client.connect(), input.timeoutMs);
     return await input.run(client);
   } finally {
-    await withProbeTimeout(
-      client.logout().catch(() => {
-        client.close();
-      }),
-      input.timeoutMs,
-    ).catch(() => undefined);
+    try {
+      await withProbeTimeout(client.logout(), input.timeoutMs).catch(() => undefined);
+    } finally {
+      // `logout()` is graceful and may remain pending after the wrapper deadline. `close()` is
+      // immediate and idempotent, so the timeout path never leaves its TCP socket behind.
+      client.close();
+    }
   }
 }
 
@@ -136,34 +197,44 @@ async function mailboxHasProbe(input: {
   imap: OperatorHealthImapConfig;
   timeoutMs: number;
   subject: string;
-  senderAddress: string;
+  recipientAddress: string;
+  profile: EmailProbeProfile;
 }): Promise<boolean> {
   return withImapMailbox({
     imap: input.imap,
     timeoutMs: input.timeoutMs,
     run: async (client) => {
       const lock = await withProbeTimeout(
-        client.getMailboxLock(input.imap.folder, { readOnly: true }),
+        client.getMailboxLock(input.imap.folder),
         input.timeoutMs,
       );
       try {
         const uids =
-          (await withProbeTimeout(
-          client.search({ subject: input.subject, header: { [HEALTH_PROBE_HEADER]: HEALTH_PROBE_HEADER_VALUE } }, { uid: true }),
-          input.timeoutMs,
-          )) || [];
+          (await withProbeTimeout(client.search({ subject: input.subject }, { uid: true }), input.timeoutMs)) || [];
         if (uids.length === 0) return false;
         const messages = await withProbeTimeout(
           client.fetchAll(uids, { envelope: true, headers: [HEALTH_PROBE_HEADER] }, { uid: true }),
           input.timeoutMs,
         );
-        const expectedSender = normalizedAddress(input.senderAddress);
-        return messages.some(
+        const matched = messages.find(
           (message) =>
             message.envelope?.subject === input.subject &&
-            normalizedAddress(message.envelope?.from?.[0]?.address) === expectedSender &&
-            hasOwnedProbeHeader(message.headers),
+            hasVerifiedProbeOwnership({
+              headers: message.headers,
+              subject: message.envelope?.subject,
+              senderAddress: message.envelope?.from?.[0]?.address,
+              recipientAddress: input.recipientAddress,
+              profile: input.profile,
+            }),
         );
+        if (!matched) return false;
+        // A sender cannot set this mailbox keyword through SMTP. Cleanup therefore needs both a
+        // current-credential HMAC and a mailbox-local acknowledgement of this exact arrival.
+        await withProbeTimeout(
+          client.messageFlagsAdd([matched.uid], [HEALTH_PROBE_VERIFIED_KEYWORD], { uid: true }),
+          input.timeoutMs,
+        ).catch(() => undefined);
+        return true;
       } finally {
         lock.release();
       }
@@ -175,7 +246,7 @@ async function cleanupOwnedProbeMessages(input: {
   imap: OperatorHealthImapConfig;
   timeoutMs: number;
   retentionMs: number;
-  senderAddresses: readonly string[];
+  profiles: readonly EmailProbeProfile[];
 }): Promise<void> {
   await withImapMailbox({
     imap: input.imap,
@@ -185,8 +256,8 @@ async function cleanupOwnedProbeMessages(input: {
       try {
         const uids =
           (await withProbeTimeout(
-          client.search({ header: { [HEALTH_PROBE_HEADER]: HEALTH_PROBE_HEADER_VALUE } }, { uid: true }),
-          input.timeoutMs,
+            client.search({ keyword: HEALTH_PROBE_VERIFIED_KEYWORD }, { uid: true }),
+            input.timeoutMs,
           )) || [];
         if (uids.length === 0) return;
         const messages = await withProbeTimeout(
@@ -197,16 +268,25 @@ async function cleanupOwnedProbeMessages(input: {
           ),
           input.timeoutMs,
         );
-        const allowedSenders = new Set(input.senderAddresses.map(normalizedAddress));
         const cutoff = Date.now() - input.retentionMs;
         const ownedOldUids = messages
           .filter(
-            (message) =>
-              message.envelope?.subject?.startsWith(HEALTH_PROBE_SUBJECT_PREFIX) &&
-              hasOwnedProbeHeader(message.headers) &&
-              allowedSenders.has(normalizedAddress(message.envelope?.from?.[0]?.address)) &&
-              message.internalDate instanceof Date &&
-              message.internalDate.getTime() < cutoff,
+            (message) => {
+              const profile = input.profiles.find((candidate) =>
+                hasVerifiedProbeOwnership({
+                  headers: message.headers,
+                  subject: message.envelope?.subject,
+                  senderAddress: message.envelope?.from?.[0]?.address,
+                  recipientAddress: input.imap.address,
+                  profile: candidate,
+                }),
+              );
+              return (
+                profile !== undefined &&
+                message.internalDate instanceof Date &&
+                message.internalDate.getTime() < cutoff
+              );
+            },
           )
           .map((message) => message.uid);
         if (ownedOldUids.length > 0) {
@@ -246,7 +326,7 @@ async function runEmailRoundTripProbe(input: {
     return { outcome: 'skipped_not_configured', audiences, cleanupPerformed: false };
   }
 
-  const resolvedProfiles = await Promise.all(
+  const resolvedProfiles: EmailProbeProfile[] = await Promise.all(
     EMAIL_AUDIENCES.map(async ({ audience, marker }) => ({
       audience,
       marker,
@@ -260,6 +340,14 @@ async function runEmailRoundTripProbe(input: {
       continue;
     }
     const subject = `${HEALTH_PROBE_SUBJECT_PREFIX}${runId}:${profile.marker}`;
+    const ownershipMarker = createProbeOwnershipMarker({
+      audience: profile.audience,
+      runId,
+      subject,
+      senderAddress: profile.smtp.fromAddress,
+      recipientAddress: imap.address,
+      secret: profile.smtp.smtpPass,
+    });
     try {
       const sent = await withProbeTimeout(
         sendMail(profile.smtp, {
@@ -267,7 +355,7 @@ async function runEmailRoundTripProbe(input: {
           subject,
           text: 'Platform SMTP delivery health probe.',
           timeoutMs: input.config.email.timeoutMs,
-          headers: { [HEALTH_PROBE_HEADER]: HEALTH_PROBE_HEADER_VALUE },
+          headers: { [HEALTH_PROBE_HEADER]: ownershipMarker },
         }),
         input.config.email.timeoutMs,
       );
@@ -288,7 +376,8 @@ async function runEmailRoundTripProbe(input: {
           imap,
           timeoutMs,
           subject,
-          senderAddress: profile.smtp.fromAddress,
+          recipientAddress: imap.address,
+          profile,
         }).catch(() => false);
         if (!arrived && Date.now() < deadlineAt) {
           await new Promise((resolve) => setTimeout(resolve, Math.min(5_000, deadlineAt - Date.now())));
@@ -312,9 +401,7 @@ async function runEmailRoundTripProbe(input: {
       imap,
       timeoutMs: input.config.email.timeoutMs,
       retentionMs: input.config.email.retentionMs,
-      senderAddresses: resolvedProfiles
-        .filter((profile) => profile.smtp.configured)
-        .map((profile) => profile.smtp.fromAddress),
+      profiles: resolvedProfiles.filter((profile) => profile.smtp.configured),
     }).then(
       () => {
         input.details.emailCleanup = 'ok';

@@ -915,7 +915,8 @@ GRANT EXECUTE ON FUNCTION app.resolve_operator_probe_incidents(text) TO app_oper
 -- Probe failures must open an incident too, but app.open_or_touch_operator_incident stays
 -- delivery-worker-only (the cross-contour block below asserts the scheduler does NOT hold it).
 -- This is the scheduler's own narrow door: direction, integration and error_class are pinned to
--- the three outbound probes, so it can never open an incident for another contour's failure.
+-- the outbound probes it owns. Email round-trip misses must live in the existing red provider
+-- namespace; ordinary MAX/Telegram/Google probes retain their established outbound namespace.
 CREATE OR REPLACE FUNCTION app.open_or_touch_operator_probe_incident(
   p_integration text,
   p_error_class text,
@@ -942,15 +943,27 @@ BEGIN
       USING ERRCODE = '23514';
   END IF;
 
-  RETURN QUERY
-  SELECT incident.id, incident.occurrence_count
-  FROM app.open_or_touch_operator_incident(
-    'outbound:' || p_integration || ':' || p_error_class,
-    'outbound',
-    p_integration,
-    p_error_class,
-    NULLIF(p_error_detail, '')
-  ) AS incident;
+  IF p_integration = 'email' THEN
+    RETURN QUERY
+    SELECT incident.id, incident.occurrence_count
+    FROM app.open_or_touch_operator_incident(
+      'outbound_delivery_provider:' || p_integration || ':' || p_error_class,
+      'outbound_delivery_provider',
+      p_integration,
+      p_error_class,
+      NULLIF(p_error_detail, '')
+    ) AS incident;
+  ELSE
+    RETURN QUERY
+    SELECT incident.id, incident.occurrence_count
+    FROM app.open_or_touch_operator_incident(
+      'outbound:' || p_integration || ':' || p_error_class,
+      'outbound',
+      p_integration,
+      p_error_class,
+      NULLIF(p_error_detail, '')
+    ) AS incident;
+  END IF;
 END
 $function$;
 ALTER FUNCTION app.open_or_touch_operator_probe_incident(text, text, text) OWNER TO app_owner;
