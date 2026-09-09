@@ -168,13 +168,15 @@ Scope: `apps/webapp/src/shared/lib/pwa/**`, `shared/lib/surface/surfaceLayoutMet
       переиконивается в TherapyGo: имя по-прежнему берётся из `effectivePatientBrand.patientAppName`, а знак
       TherapyGo остаётся идентичностью `patient_default`. До исправления branded-поверхность наследовала общий
       patient icon-set, поэтому простая подмена файлов молча перекрасила бы каждую клинику — это прямо запрещено
-      owner-пунктом §1.5 «clinic-brand assets не подменять». Доказательство на именованном TEST
+      owner-пунктом §1.5 «clinic-brand assets не подменять». Доказательство на стандартном TEST tenant-поддомене
       2026-09-09: `curl https://test.therapygo.ru/manifest.webmanifest` вернул `TherapyGo`, новые
       `/therapygo-pwa-icon-*` и maskable; `curl https://berson.test.therapygo.ru/manifest.webmanifest` для
       существующего slug `berson` вернул имя клиники `Точка Здоровья`, прежние `/pwa-icon-192.png` и
       `/pwa-icon-512.png` без TherapyGo/maskable. HTML обеих `/app` подтвердил соответствующие title и разные
-      apple-touch assets; SHA-256 пар новых/старых 192 и apple-touch файлов различаются. Custom-domain запись для
-      этого доказательства не нужна: рабочий TEST slug был найден штатной страницей настроек, данные не менялись.
+      apple-touch assets; SHA-256 пар новых/старых 192 и apple-touch файлов различаются. Это доказывает
+      сохранность clinic-brand identity на общем техническом домене, но не доказывает подключение
+      брендированного custom domain `app.bersoncare.ru`; custom-domain lifecycle принадлежит
+      `THERAPYSTO_PATIENT_BRANDING_INITIATIVE` / taskdb `#787`. Данные в этом проходе не менялись.
 - [x] **M1-05.** Platform-admin полностью исключён из patient/staff PWA-пути: `surfaceLayoutMetadata` для
       `platform_admin` не возвращает `staffPwaLayoutMetadata`; metadata `/app/admin/**` не содержит staff
       manifest/apple-web-app/staff icons; оба manifest route отвечают 404 на admin surface. `DoctorWorkspaceShell`
@@ -479,7 +481,8 @@ authority нельзя: он частично отменён владельце�
       покрывает install metadata обеих поверхностей, file fallback и iframe
       Jitsi — это выполнимо в репозитории и на именованном DEV/TEST без внешних гейтов. Свежий проход `e40904b37`
       доказал обе TEST APK, обычный вход пациента кодом и врача паролем, browser media fallback и один self-hosted Jitsi iframe.
-      Брендированный TEST-host принят отдельно в M1-04. Строка остаётся открытой только потому, что прежний
+      Clinic-brand identity на стандартном TEST tenant-поддомене принята отдельно в M1-04; это не custom-domain acceptance.
+      Строка остаётся открытой только потому, что прежний
       headless-проход не отдал OS chooser/internal navigation/terminal callback.
 - [ ] **M7-04.** Первичная Android acceptance на эмуляторе покрывает origins/внешние ссылки, камеру, документы,
       native Jitsi, состояния разрешений и tap уведомления с подставным провайдером. Проверка на физическом
@@ -588,7 +591,7 @@ security/audit gates идут без этих входов.
 | M2-02 | done | Full root CI on `c77af9e666001100a0719608c91cfa720fc32f2c`: all 5 phases PASS, `exitCode=0`, `movedDuringRun=false`; post-build tree clean. |
 | M1-02, M1-03, M1-05, M1-06 | done | Двухбрендовые PWA manifests/icons/surfaces реализованы, поведенчески проверены и посажены в `feat/doctor-ui-rebuild` через port: product `ae14e0f16`, audit `fd04fbc27`, confirmation `041abf541`, landing `66ef65468`. |
 | M1-01 | done | PWA identity wiring доказан `ae14e0f16`/`fd04fbc27`/`041abf541`/`66ef65468`; owner-коррекция display name `TherapyGo` — product `bc221c4a2`, independent manifest/fault audit `941607a78`, port landing `5a2107450`. |
-| M1-04 | done | Named TEST runtime comparison on 2026-09-09: `test.therapygo.ru` returns TherapyGo title/manifest/new icons/maskable; existing owner slug `berson.test.therapygo.ru` returns clinic title `Точка Здоровья`, legacy blue icons/apple-touch and no TherapyGo/maskable entry. Both manifests retain the same `/app` id/scope and `/app/patient` start URL. No DB/domain mutation was made. |
+| M1-04 | done | Named TEST runtime comparison on 2026-09-09: `test.therapygo.ru` returns TherapyGo title/manifest/new icons/maskable; standard tenant subdomain `berson.test.therapygo.ru` returns clinic title `Точка Здоровья`, legacy blue icons/apple-touch and no TherapyGo/maskable entry. Both manifests retain the same `/app` id/scope and `/app/patient` start URL. This proves clinic-brand preservation, not the separate custom-domain binding `app.bersoncare.ru`; no DB/domain mutation was made. |
 | M1-07, M3-01…M3-03 | done | Product/corrections `d54b34775`, `4e6a5b188`, `312ef14e3`; independent continuation/tests `44b494331` после отклонённого первичного PASS; retained `5 files / 71 tests`, PWA native-shell `6/6`, typecheck/scoped ESLint; port landing `4d84fb260`. |
 | M4-02 | done | Базовая native Jitsi Activity/permission/event реализация принята через `d1c983a3c` и landing `a722d9bf8`; owner-коррекция PiP + explicit-end-only закрыта product `037f473ee`, combined candidate `3ab89ae15` и independent report `7d519dc80`. Финальная web continuity correction/test landed как `474e98fbe`/`535089a53`. |
 | M5-02, M5-03 | done | Corrected CameraX result handoff/document MIME validation `bfe25db0b`; independent confirmation `d1c983a3c`; port landing `a722d9bf8`. |
@@ -598,7 +601,7 @@ security/audit gates идут без этих входов.
 | M4-01, M4-03…M4-06 | done | Product `0d54836a5` + Android `037f473ee`, combined candidate `3ab89ae15`, independent report `7d519dc80`, accepted continuity correction/test `6b1b3d736`/`535089a53`, landing `474e98fbe`. |
 | M7-02 | done | Lead test-policy gate: harmful mobile UI/source-shape checks removed; retained web behavior `6 files / 17 tests`, both package typecheck/lint gates and four-variant NativeJitsi/UniversalPush tests PASS. |
 | M7-01 | done | Independent shell/navigation, PWA/native runtime, Jitsi/media and native-push target/provider audit chains are recorded above; final patient passwordless injection `f0e639897`, accepted landing `3bbc5d86c`. |
-| M7-03 | open | Report `e40904b37`, landing `6741fbba8`: both fresh TEST APKs, ordinary patient OTP/doctor password login, browser media fallback and one self-hosted Jitsi iframe PASS. M1-04 branded TEST host is now proven separately; only OS chooser and post-iframe internal navigation/terminal callbacks remain under live recheck. |
+| M7-03 | open | Report `e40904b37`, landing `6741fbba8`: both fresh TEST APKs, ordinary patient OTP/doctor password login, browser media fallback and one self-hosted Jitsi iframe PASS. M1-04 clinic-brand behavior on the standard TEST tenant subdomain is proven separately; this is not custom-domain acceptance. Only OS chooser and post-iframe internal navigation/terminal callbacks remain under live recheck. |
 | M7-04 | open | KVM and guest NAT PASS; `com.android.systemui` ANR prevents stable emulator WebView acceptance (`7bf5613eb`, landing `e94465518`). Physical-device acceptance is a later owner release-stage and does not block this row. |
 | M7-05 | cancelled by owner | Removed from this plan on 2026-09-09: real RuStore credentials/delivery, signing and physical-device release acceptance happen after the interface is complete and do not block #915. |
 | M7-06 | done | `TEST_CPUSET=0-7 VITEST_MAX_WORKERS=8 /home/dev/brain/host-orch/run-tests.sh "pnpm install --frozen-lockfile && pnpm run ci"` PASS on `c77af9e666001100a0719608c91cfa720fc32f2c`; `runs/ci-last.json` records stable HEAD and exit 0. |
