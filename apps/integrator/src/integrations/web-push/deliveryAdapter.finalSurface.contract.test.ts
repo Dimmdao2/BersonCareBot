@@ -62,6 +62,14 @@ describe('final native surface resolver — M6-05/M6-09', () => {
     ['a protocol-relative URL', '//therapygo.example.test/app/patient'],
     ['an admin route', '/app/admin'],
     ['an encoded-slash traversal-shaped patient route', '/app/patient/%2F..%2Fadmin'],
+    ['an encoded-dot traversal-shaped patient route', '/app/patient/%2e%2e/admin'],
+    ['a raw backslash traversal-shaped patient route', '/app/patient\\..\\admin'],
+    ['a raw traversal normalized back to a patient route', '/app/patient/../patient'],
+    [
+      'a protocol-relative URL with an otherwise valid explicit surface',
+      '//therapygo.example.test/app/patient',
+      { pushSurface: 'therapygo' },
+    ],
   ])('does not dispatch native Push for %s', async (_case, url, pushExtras?: unknown) => {
     const providerFetch = vi.fn();
     globalThis.fetch = providerFetch as never;
@@ -73,6 +81,30 @@ describe('final native surface resolver — M6-05/M6-09', () => {
 
     expect(providerFetch).not.toHaveBeenCalled();
     expect(result.webPushOutcome).toMatchObject({ status: 'skipped', reason: 'no_active_target' });
+  });
+
+  it.each([
+    ['a canonical patient route', '/app/patient/notifications', 'therapygo'],
+    ['a canonical staff route', '/app/doctor/appointments', 'therapysto'],
+  ])('dispatches native Push only to the matching provider target for %s', async (_case, url, expectedSurface) => {
+    const sentTo: string[] = [];
+    globalThis.fetch = vi.fn(async (_input: unknown, init?: { body?: unknown }) => {
+      const body = JSON.parse(String(init?.body)) as { data: { pushSurface: string } };
+      sentTo.push(body.data.pushSurface);
+      return new Response(JSON.stringify({}), { status: 200 });
+    }) as never;
+    const port: WebPushAccessPort = {
+      ...nativeOnlyPort(),
+      getNativeTargetsForUser: vi.fn(async () => [
+        { id: 'target-therapygo', appId: 'therapygo', provider: 'rustore', token: 'tok-go' },
+        { id: 'target-therapysto', appId: 'therapysto', provider: 'rustore', token: 'tok-sto' },
+      ]),
+    };
+    const adapter = createWebPushDeliveryAdapter({ webPushAccessPort: port });
+
+    await runWithOrganizationPrincipal(ORG, () => adapter.send(intent({ url })));
+
+    expect(sentTo).toEqual([expectedSurface]);
   });
 
   it('revalidates an untrusted production access response before native provider dispatch', async () => {
