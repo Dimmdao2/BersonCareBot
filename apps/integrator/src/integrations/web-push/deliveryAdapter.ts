@@ -73,7 +73,10 @@ function resolveNativeSurface(
   if (
     rawUrl.length > 256 ||
     !/^\/[A-Za-z0-9/_?=&.-]*$/.test(rawUrl) ||
-    rawUrl.startsWith('//')
+    rawUrl.startsWith('//') ||
+    (rawUrl.split('?', 1)[0] ?? '')
+      .split('/')
+      .some((segment) => segment === '.' || segment === '..')
   ) {
     return null;
   }
