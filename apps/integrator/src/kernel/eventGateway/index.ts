@@ -22,6 +22,16 @@ export type EventGatewayDeps = {
   dedupTtlSec?: number;
 };
 
+function isUnsupportedStaffPlatformCommand(event: IncomingEvent): boolean {
+  if (event.meta.source !== 'telegram' && event.meta.source !== 'max') return false;
+  const facts = event.payload.facts;
+  return (
+    typeof facts === 'object' &&
+    facts !== null &&
+    (facts as Record<string, unknown>).platformAudience === 'staff'
+  );
+}
+
 /**
  * Создает единую входную точку обработки нормализованных событий.
  * Поток: validate -> rateLimit -> dedup -> accepted/rejected/dropped.
@@ -58,6 +68,13 @@ export function createEventGateway(deps: EventGatewayDeps): EventGateway {
       const acquired = await idempotencyPort.tryAcquire(dedupKey, dedupTtlSec);
       if (!acquired) {
         return { status: 'dropped', dedupKey, reason: 'DUPLICATE' };
+      }
+
+      // Both provider adapters authenticate and normalize staff-bot updates into this same
+      // gateway. There is no approved staff command/link surface yet, so acknowledge the
+      // supported transport while preventing the patient command pipeline from interpreting it.
+      if (isUnsupportedStaffPlatformCommand(event)) {
+        return { status: 'accepted_noop', dedupKey, reason: 'UNSUPPORTED_STAFF_PLATFORM_COMMAND' };
       }
 
       if (pipeline) {

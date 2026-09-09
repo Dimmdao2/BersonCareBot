@@ -20,6 +20,10 @@ import type {
   ClinicDeliveryCredential,
   ClinicDeliveryCredentialResolveOptions,
 } from '../db/clinicDeliveryCredentials.js';
+import {
+  resolvePlatformDeliveryAudience,
+  type PlatformDeliveryAudience,
+} from './platformDeliveryAudience.js';
 
 const providerAttemptFailures = new WeakSet<object>();
 
@@ -64,6 +68,7 @@ type DeliveryPayload = {
     senderScope?: unknown;
     clinicCredential?: ClinicDeliveryCredential;
     clinicCredentialProbe?: unknown;
+    platformAudience?: PlatformDeliveryAudience;
   };
 } & Record<string, unknown>;
 
@@ -148,6 +153,21 @@ function withClinicCredential(
     payload: {
       ...payload,
       delivery: { ...(payload.delivery ?? {}), clinicCredential: credential },
+    },
+  };
+}
+
+function withPlatformDeliveryAudience(
+  intent: OutgoingIntent,
+  audience: PlatformDeliveryAudience,
+): OutgoingIntent {
+  if (intent.type !== 'message.send') return intent;
+  const payload = intent.payload as DeliveryPayload;
+  return {
+    ...intent,
+    payload: {
+      ...payload,
+      delivery: { ...(payload.delivery ?? {}), platformAudience: audience },
     },
   };
 }
@@ -401,20 +421,22 @@ export function createDefaultDispatchPort(deps: {
       const intentToSend = clinicSenderName
         ? withClinicSenderPrefix(intentForChannel, clinicSenderName)
         : intentForChannel;
+      const brandedIntent = withPlatformDeliveryAudience(
+        intentToSend,
+        resolvePlatformDeliveryAudience(intentToSend),
+      );
       try {
         if (clinicCredential) {
           try {
-            sendResult = await adapter.send(
-              withClinicCredential(intentForChannel, clinicCredential),
-            );
+            sendResult = await adapter.send(withClinicCredential(brandedIntent, clinicCredential));
           } catch (clinicError) {
             // Essential traffic remains deliverable through the platform. Clinic-required flows
             // (broadcasts and bot support) must never silently assume the platform sender.
             if (senderScope === 'clinic_required') throw clinicError;
-            sendResult = await adapter.send(intentToSend);
+            sendResult = await adapter.send(brandedIntent);
           }
         } else {
-          sendResult = await adapter.send(intentToSend);
+          sendResult = await adapter.send(brandedIntent);
         }
       } catch (providerError) {
         // Adapter-local configuration and payload validation happens before any network call.

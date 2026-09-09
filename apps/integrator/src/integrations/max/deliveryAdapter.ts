@@ -11,6 +11,7 @@ import { MaxSendError } from './client.js';
 import { parseMaxPlatformUserId, readMaxOutboundRecipient } from './maxRecipient.js';
 import { getMaxRuntimeConfig } from '../../infra/adapters/integrationRuntimeConfig.js';
 import { readChannel } from '../../infra/adapters/channelRouting.js';
+import type { PlatformDeliveryAudience } from '../../infra/adapters/platformDeliveryAudience.js';
 
 /**
  * MAX Platform API: `open_app` открывает мини-приложение внутри клиента (MAX Bridge + initData).
@@ -35,7 +36,11 @@ type DeliveryPayload = {
   notification?: unknown;
   replyMarkup?: unknown;
   parse_mode?: string;
-  delivery?: { channels?: unknown; clinicCredential?: { channel?: unknown; apiKey?: unknown } };
+  delivery?: {
+    channels?: unknown;
+    clinicCredential?: { channel?: unknown; apiKey?: unknown };
+    platformAudience?: PlatformDeliveryAudience;
+  };
 } & Record<string, unknown>;
 
 /**
@@ -137,7 +142,9 @@ export function createMaxDeliveryAdapter(): DeliveryAdapter {
         clinicCredential?.channel === 'max' && typeof clinicCredential.apiKey === 'string'
           ? clinicCredential.apiKey.trim()
           : '';
-      const runtimeConfig = await getMaxRuntimeConfig();
+      const runtimeConfig = await getMaxRuntimeConfig(
+        payload.delivery?.platformAudience ?? 'patient',
+      );
       if (!clinicApiKey && !runtimeConfig.enabled) {
         throw new Error('MAX_RUNTIME_CONFIG_UNAVAILABLE');
       }

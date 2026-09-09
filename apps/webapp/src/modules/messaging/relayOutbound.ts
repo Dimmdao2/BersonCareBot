@@ -12,8 +12,7 @@ import {
 } from '@/modules/system-settings/integrationRuntime';
 
 export type RelayResult =
-  | { ok: true; status: 'accepted' | 'duplicate' | 'skipped' }
-  | { ok: false; reason: string };
+  { ok: true; status: 'accepted' | 'duplicate' | 'skipped' } | { ok: false; reason: string };
 
 export type RelayInlineButton = { text: string; callback_data: string };
 
@@ -45,6 +44,8 @@ type RelayOutboundBaseParams<C extends string> = {
   icsFilename?: string;
   /** Clinic-required traffic never falls back; patient context requires it only when configured. */
   senderScope?: 'clinic_required' | 'clinic_if_configured';
+  /** Typed delivery audience; dispatch maps it to a platform credential, never the caller. */
+  audience?: 'staff' | 'patient';
   /** Settings-only live probe: force the saved clinic credential even before readiness is enabled. */
   clinicCredentialProbe?: true;
 };
@@ -77,8 +78,7 @@ function sleep(ms: number): Promise<void> {
 }
 
 type AttemptResult =
-  | { ok: true; status: string }
-  | { ok: false; error: string; httpStatus: number };
+  { ok: true; status: string } | { ok: false; error: string; httpStatus: number };
 
 async function attemptRelay(url: string, body: string, secret: string): Promise<AttemptResult> {
   const timestamp = String(Math.floor(Date.now() / 1000));
@@ -152,6 +152,9 @@ export async function relayOutbound<C extends string>(
   }
   if (params.senderScope) {
     bodyObj.senderScope = params.senderScope;
+  }
+  if (params.audience) {
+    bodyObj.audience = params.audience;
   }
   if (params.clinicCredentialProbe) {
     bodyObj.clinicCredentialProbe = true;

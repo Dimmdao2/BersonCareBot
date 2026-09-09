@@ -6,6 +6,7 @@ import { Bot } from 'grammy';
 import type { ApiClientOptions } from 'grammy';
 import type { MessagingPort } from '../../kernel/domain/ports/messaging.js';
 import { getTelegramRuntimeConfig } from '../../infra/adapters/integrationRuntimeConfig.js';
+import type { PlatformDeliveryAudience } from '../../infra/adapters/platformDeliveryAudience.js';
 
 function getBot(botToken: string): Bot {
   return new Bot(botToken, {
@@ -13,15 +14,16 @@ function getBot(botToken: string): Bot {
   });
 }
 
-let botInstance: { token: string; bot: Bot } | null = null;
+const botInstances = new Map<PlatformDeliveryAudience, { token: string; bot: Bot }>();
 
-export async function getBotInstance(): Promise<Bot> {
-  const config = await getTelegramRuntimeConfig();
+export async function getBotInstance(audience: PlatformDeliveryAudience = 'patient'): Promise<Bot> {
+  const config = await getTelegramRuntimeConfig(audience);
   if (!config.enabled) throw new Error('TELEGRAM_RUNTIME_CONFIG_UNAVAILABLE');
-  if (botInstance?.token !== config.botToken) {
-    botInstance = { token: config.botToken, bot: getBot(config.botToken) };
+  const cached = botInstances.get(audience);
+  if (cached?.token !== config.botToken) {
+    botInstances.set(audience, { token: config.botToken, bot: getBot(config.botToken) });
   }
-  return botInstance.bot;
+  return botInstances.get(audience)!.bot;
 }
 
 export function createMessagingPort(botToken?: string): MessagingPort {

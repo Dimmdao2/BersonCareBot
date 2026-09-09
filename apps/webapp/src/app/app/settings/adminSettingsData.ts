@@ -37,22 +37,63 @@ export const ADMIN_TAB_REDIRECTS: Record<string, string> = {
 };
 
 const ADMIN_SETTINGS_PAGE_REQUIRED_KEYS = [
-  'error_tracking_dsn', 'error_tracking_enabled', 'important_fallback_delay_minutes',
+  'error_tracking_dsn',
+  'error_tracking_enabled',
+  'important_fallback_delay_minutes',
   'patient_app_maintenance_enabled',
-  'patient_app_maintenance_message', 'patient_program_discussion_doctor_reply_from_log_enabled',
-  'patient_program_discussion_ui_enabled', 'patient_program_discussion_media_submission_enabled',
-  'patient_booking_url', 'operator_health_alert_config', 'admin_incident_alert_config',
+  'patient_app_maintenance_message',
+  'patient_program_discussion_doctor_reply_from_log_enabled',
+  'patient_program_discussion_ui_enabled',
+  'patient_program_discussion_media_submission_enabled',
+  'patient_booking_url',
+  'operator_health_alert_config',
+  'admin_incident_alert_config',
   'operator_alert_fallback_email',
-  'video_playback_api_enabled', 'video_hls_pipeline_enabled',
-  'video_hls_new_uploads_auto_transcode', 'video_hls_reconcile_enabled', 'video_watermark_enabled',
-  'video_presign_ttl_seconds', 'support_contact_url', 'app_display_timezone',
-  'telegram_login_bot_username', 'max_login_bot_nickname', 'max_bot_api_key', 'vk_web_login_url',
-  'vk_id_application_id', 'vk_id_client_secret', 'vk_id_redirect_uri', 'yandex_oauth_client_id',
-  'yandex_oauth_client_secret', 'yandex_oauth_redirect_uri', 'google_client_id',
-  'google_client_secret', 'google_oauth_login_redirect_uri', 'google_redirect_uri',
-  'apple_oauth_client_id', 'apple_oauth_team_id', 'apple_oauth_key_id', 'apple_oauth_private_key',
-  'apple_oauth_redirect_uri', 'google_refresh_token', 'google_calendar_id',
-  'google_calendar_enabled', 'google_connected_email', 'notifications_topics', 'smtp_outbound',
+  'video_playback_api_enabled',
+  'video_hls_pipeline_enabled',
+  'video_hls_new_uploads_auto_transcode',
+  'video_hls_reconcile_enabled',
+  'video_watermark_enabled',
+  'video_presign_ttl_seconds',
+  'support_contact_url',
+  'app_display_timezone',
+  'telegram_login_bot_username',
+  'max_login_bot_nickname',
+  'max_bot_api_key',
+  'vk_web_login_url',
+  'vk_id_application_id',
+  'vk_id_client_secret',
+  'vk_id_redirect_uri',
+  'yandex_oauth_client_id',
+  'yandex_oauth_client_secret',
+  'yandex_oauth_redirect_uri',
+  'google_client_id',
+  'google_client_secret',
+  'google_oauth_login_redirect_uri',
+  'google_redirect_uri',
+  'apple_oauth_client_id',
+  'apple_oauth_team_id',
+  'apple_oauth_key_id',
+  'apple_oauth_private_key',
+  'apple_oauth_redirect_uri',
+  'google_refresh_token',
+  'google_calendar_id',
+  'google_calendar_enabled',
+  'google_connected_email',
+  'notifications_topics',
+  'smtp_outbound',
+  'therapygo_smtp_outbound',
+  'therapysto_smtp_outbound',
+  'therapygo_telegram_bot_token',
+  'therapysto_telegram_bot_token',
+  'therapygo_telegram_webhook_secret',
+  'therapysto_telegram_webhook_secret',
+  'therapygo_telegram_mode',
+  'therapysto_telegram_mode',
+  'therapygo_max_bot_api_key',
+  'therapysto_max_bot_api_key',
+  'therapygo_max_webhook_secret',
+  'therapysto_max_webhook_secret',
   'web_push_vapid',
   'rustore_universal_push_therapygo',
   'rustore_universal_push_therapysto',
@@ -148,8 +189,9 @@ function parseVideoPresignTtlSeconds(valueJson: unknown): number {
 
 function parseAdminSmtpOutboundForUi(
   settings: Array<{ key: string; valueJson: unknown }>,
+  settingKey: EmailSmtpSectionProps['settingKey'],
 ): EmailSmtpSectionProps {
-  const row = settings.find((x) => x.key === 'smtp_outbound');
+  const row = settings.find((x) => x.key === settingKey);
   const inner = row ? getValueJson<unknown>(row.valueJson, null) : null;
   let host = '';
   let port = 587;
@@ -172,7 +214,7 @@ function parseAdminSmtpOutboundForUi(
     const p = typeof o.password === 'string' ? o.password : '';
     hasStoredPassword = p.trim().length > 0;
   }
-  return { host, port, secure, user, from, hasStoredPassword };
+  return { settingKey, host, port, secure, user, from, hasStoredPassword };
 }
 
 export function parseHealthArchiveProbeParam(
@@ -234,6 +276,7 @@ export type AdminSettingsPageData = {
   };
   notificationsTopicsRows: NotificationTopicRow[];
   smtpOutboundUi: EmailSmtpSectionProps;
+  platformSmtpUi: { therapyGo: EmailSmtpSectionProps; therapysto: EmailSmtpSectionProps };
   webPushVapidUi: { publicKey: string; hasStoredPrivateKey: boolean };
   errorTracking: { enabled: boolean; hasStoredDsn: boolean };
 };
@@ -397,7 +440,11 @@ export async function loadAdminSettingsPageData(): Promise<AdminSettingsPageData
     notificationsTopicsRows: parseNotificationsTopics(
       adminSettingsList.find((x) => x.key === 'notifications_topics')?.valueJson ?? null,
     ),
-    smtpOutboundUi: parseAdminSmtpOutboundForUi(adminSettingsList),
+    smtpOutboundUi: parseAdminSmtpOutboundForUi(adminSettingsList, 'smtp_outbound'),
+    platformSmtpUi: {
+      therapyGo: parseAdminSmtpOutboundForUi(adminSettingsList, 'therapygo_smtp_outbound'),
+      therapysto: parseAdminSmtpOutboundForUi(adminSettingsList, 'therapysto_smtp_outbound'),
+    },
     webPushVapidUi: (() => {
       const row = adminSettingsList.find((x) => x.key === 'web_push_vapid');
       const inner = row ? getValueJson<unknown>(row.valueJson, null) : null;

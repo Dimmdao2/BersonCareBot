@@ -11,6 +11,8 @@ import { DoctorField } from '@/shared/ui/doctor/DoctorField';
 import { patchAdminSetting } from './patchAdminSetting';
 
 export type EmailSmtpSectionProps = {
+  settingKey: 'smtp_outbound' | 'therapygo_smtp_outbound' | 'therapysto_smtp_outbound';
+  title?: string;
   host: string;
   port: number;
   secure: boolean;
@@ -20,6 +22,8 @@ export type EmailSmtpSectionProps = {
 };
 
 export function EmailSmtpSection({
+  settingKey,
+  title = 'Исходящая почта (SMTP)',
   host: initialHost,
   port: initialPort,
   secure: initialSecure,
@@ -48,7 +52,7 @@ export function EmailSmtpSection({
         return;
       }
       try {
-        const ok = await patchAdminSetting('smtp_outbound', {
+        const ok = await patchAdminSetting(settingKey, {
           host,
           port: portNum,
           secure,
@@ -99,7 +103,7 @@ export function EmailSmtpSection({
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-base">Исходящая почта (SMTP)</CardTitle>
+        <CardTitle className="text-base">{title}</CardTitle>
         <p className="text-xs text-muted-foreground">
           Коды подтверждения отправляет интегратор. Пустое поле «Пароль» — не менять сохранённый.
         </p>
@@ -173,32 +177,34 @@ export function EmailSmtpSection({
           {error && <span className="text-sm text-destructive">{error}</span>}
         </div>
 
-        <div className="flex max-w-xl flex-col gap-2 border-t border-border pt-4 sm:flex-row sm:items-end sm:gap-3">
-          <DoctorField
-            label="Тест — кому"
-            htmlFor="smtp-test-recipient"
-            width="lg"
-            className="min-w-0 flex-1"
-          >
-            <Input
-              id="smtp-test-recipient"
-              type="email"
-              value={testTo}
-              onChange={(e) => setTestTo(e.target.value)}
-              disabled={isTestPending}
-              autoComplete="off"
-              placeholder="email получателя"
-            />
-          </DoctorField>
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={handleTestSend}
-            disabled={isTestPending || !testTo.trim()}
-          >
-            {isTestPending ? 'Отправка…' : 'Отправить тест'}
-          </Button>
-        </div>
+        {settingKey === 'smtp_outbound' ? (
+          <div className="flex max-w-xl flex-col gap-2 border-t border-border pt-4 sm:flex-row sm:items-end sm:gap-3">
+            <DoctorField
+              label="Тест — кому"
+              htmlFor="smtp-test-recipient"
+              width="lg"
+              className="min-w-0 flex-1"
+            >
+              <Input
+                id="smtp-test-recipient"
+                type="email"
+                value={testTo}
+                onChange={(e) => setTestTo(e.target.value)}
+                disabled={isTestPending}
+                autoComplete="off"
+                placeholder="email получателя"
+              />
+            </DoctorField>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={handleTestSend}
+              disabled={isTestPending || !testTo.trim()}
+            >
+              {isTestPending ? 'Отправка…' : 'Отправить тест'}
+            </Button>
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   );

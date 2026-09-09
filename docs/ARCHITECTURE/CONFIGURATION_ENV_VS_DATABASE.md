@@ -45,10 +45,10 @@ scope и ownership, а SECURITY DEFINER resolvers возвращают public, a
 
 ### MAX: ник бота для channel-link vs числовые id пользователей
 
-| Что                                     | Где                                                                                                                                         | Назначение                                                                                                                                    |
-| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Ник бота MAX** (путь `max.ru/<nick>`) | **`max_login_bot_nickname`** в `system_settings` | Диплинк `https://max.ru/<nick>?start=link_…` при привязке из веба ([документация MAX](https://dev.max.ru/docs/chatbots/bots-coding/prepare)); DB-read fail-closed. |
-| **Числовые Max user id**                | `allowed_max_ids`, `admin_max_ids`, `doctor_max_ids` и т.д.                                                                                 | Вайтлист/роли входа; **не** замена ника бота для диплинка.                                                                                    |
+| Что                                     | Где                                                         | Назначение                                                                                                                                                         |
+| --------------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Ник бота MAX** (путь `max.ru/<nick>`) | **`max_login_bot_nickname`** в `system_settings`            | Диплинк `https://max.ru/<nick>?start=link_…` при привязке из веба ([документация MAX](https://dev.max.ru/docs/chatbots/bots-coding/prepare)); DB-read fail-closed. |
+| **Числовые Max user id**                | `allowed_max_ids`, `admin_max_ids`, `doctor_max_ids` и т.д. | Вайтлист/роли входа; **не** замена ника бота для диплинка.                                                                                                         |
 
 - **Yandex OAuth (backend-only):** `yandex_oauth_client_id`, `yandex_oauth_client_secret`, `yandex_oauth_redirect_uri` — редактирование через admin Settings; **не** дублировать в env webapp.
 - **Google Calendar OAuth + integration:** платформа хранит `google_client_id`, `google_client_secret`, `google_redirect_uri` — это регистрация нашего приложения в Google. Каждая клиника хранит только свою связь: `google_refresh_token`, `google_calendar_id`, `google_calendar_enabled`, `google_connected_email`, с exact `organization_id` read без global fallback. Поэтому запись одной клиники не может попасть в календарь другой. Миграция `0271_google_calendar_clinic_connection` переносит legacy-строки автоматически только в действительно одно-клиничной базе; в multi-clinic базе не угадывает владельца, и клиника подключает Google заново в своём Settings UI. Env-переменные `GOOGLE_*` в integrator помечены `@deprecated` и оставлены как fallback только для платформенной OAuth-идентичности на переходный период.
@@ -139,3 +139,17 @@ Per-channel предпочтения по темам (`user_notification_topic_c
 - Webapp (главная пациента — doctor UI, server actions с `revalidatePath`): `apps/webapp/src/app/app/doctor/patient-home/patientHomeDoctorSettingsActions.ts` (в т.ч. `savePatientHomeRepeatCooldownsAction` для пауз повтора).
 - Webapp (нормализация / batch): `apps/webapp/src/modules/system-settings/modesFormKeys.ts`, `adminSettingsPatchNormalize.ts`, `ports.ts` (`upsertManyInTransaction`), `infra/repos/pgSystemSettings.ts`, `infra/repos/inMemorySystemSettings.ts`.
 - Integrator: `apps/integrator/src/config/env.ts`, `apps/integrator/src/infra/db/publicSystemSettings.ts`.
+
+## Platform delivery credentials by audience
+
+Outbound platform credentials are restricted `admin/global` rows in canonical
+`public.system_settings`: `therapygo_smtp_outbound`, `therapygo_telegram_bot_token`,
+`therapygo_max_bot_api_key` for patient traffic, and the matching `therapysto_*` keys for staff
+traffic. The integrator reads them only through the existing fixed-allowlist provider capability;
+they are never environment values or client projections.
+
+`clinic_smtp_outbound`, `clinic_telegram_bot_token` and `clinic_max_bot_api_key` remain an exact,
+verified clinic override for patient-facing delivery only. A missing new platform credential fails
+closed for that audience: operators must populate both TherapyGo and Therapysto rows before cutover.
+The legacy unscoped `smtp_outbound`, `telegram_bot_token` and `max_bot_api_key` are not an automatic
+mapping for either brand, because no owner-approved runtime metadata proves their identity.

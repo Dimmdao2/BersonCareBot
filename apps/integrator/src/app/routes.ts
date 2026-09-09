@@ -181,24 +181,29 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
     setupProviderSurface: env.NODE_ENV !== 'development',
     dedicatedBotInboundForward,
   };
-  const telegramRuntimeConfig = await getTelegramRuntimeConfig();
-  if (env.NODE_ENV !== 'development' && telegramRuntimeConfig.mode === 'long_polling') {
-    // RU-isolated host: Telegram cannot reach us inbound — pull updates via
-    // getUpdates instead of a webhook. Dedicated clinic bots still receive
-    // their own webhooks because they are separate bot instances.
-    startTelegramLongPolling(telegramWebhookDeps);
-    if (deps.registerTelegramWebhookRoutes) {
-      app.register(async (instance) => {
-        await deps.registerTelegramWebhookRoutes?.(instance, {
-          ...telegramWebhookDeps,
-          setupProviderSurface: false,
-          registerPlatformWebhook: false,
-        });
-      });
+  const telegramRuntimeConfigs = await Promise.all([
+    getTelegramRuntimeConfig('patient'),
+    getTelegramRuntimeConfig('staff'),
+  ]);
+  if (env.NODE_ENV !== 'development') {
+    for (const [audience, config] of [
+      ['patient', telegramRuntimeConfigs[0]],
+      ['staff', telegramRuntimeConfigs[1]],
+    ] as const) {
+      if (config.enabled && config.mode === 'long_polling') {
+        // Each platform identity owns its own update stream. The downstream event path remains
+        // shared and receives the audience as typed context.
+        startTelegramLongPolling(telegramWebhookDeps, audience);
+      }
     }
-  } else if (deps.registerTelegramWebhookRoutes) {
+  }
+  if (deps.registerTelegramWebhookRoutes) {
     app.register(async (instance) => {
-      await deps.registerTelegramWebhookRoutes?.(instance, telegramWebhookDeps);
+      await deps.registerTelegramWebhookRoutes?.(instance, {
+        ...telegramWebhookDeps,
+        setupProviderSurface:
+          env.NODE_ENV !== 'development' && telegramRuntimeConfigs.some((config) => config.enabled),
+      });
     });
   }
   if (deps.registerMaxWebhookRoutes) {

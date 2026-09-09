@@ -29,6 +29,7 @@ export async function sendOperatorFallbackEmail(input: {
     input.to,
     stampOperatorAlertSubject(input.subject),
     input.text,
+    'staff',
   );
   if (!result.ok) {
     logger.warn(
