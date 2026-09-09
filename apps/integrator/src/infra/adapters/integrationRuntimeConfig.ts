@@ -11,6 +11,8 @@ import {
 import { runWithBootstrapPrincipal } from '../principal/organizationPrincipal.js';
 import {
   platformCredentialKey,
+  platformTelegramModeKey,
+  platformWebhookSecretKey,
   type PlatformDeliveryAudience,
 } from './platformDeliveryAudience.js';
 
@@ -43,6 +45,24 @@ const value = async (db: DbPort, key: IntegratorProviderRuntimeSettingKey): Prom
 const url = (input: string): string => (z.string().url().safeParse(input).success ? input : '');
 const telegramRuntimeModeSchema = z.enum(['webhook', 'long_polling']);
 
+function oppositeAudience(audience: PlatformDeliveryAudience): PlatformDeliveryAudience {
+  return audience === 'patient' ? 'staff' : 'patient';
+}
+
+/**
+ * Legacy shared transport settings remain readable only while the other platform identity is
+ * absent. Once both credentials exist, a shared value can authenticate neither identity: each
+ * must carry its own secret/mode.
+ */
+function legacyValueForSinglePlatformIdentity(
+  configuredValue: string,
+  legacyValue: string,
+  otherIdentityCredential: string,
+): string {
+  if (configuredValue) return configuredValue;
+  return otherIdentityCredential ? '' : legacyValue;
+}
+
 export const isTelegramRuntimeConfigEnabled = (
   mode: TelegramRuntimeMode,
   botToken: string,
@@ -55,19 +75,36 @@ export async function readTelegramRuntimeConfig(
   audience: PlatformDeliveryAudience = 'patient',
 ): Promise<TelegramRuntimeConfig> {
   try {
-    const [botToken, webhookSecret, menu, rawMode] = await runWithBootstrapPrincipal(
-      { source: 'integrator-server-runtime-config' },
-      () =>
-        Promise.all([
-          value(db, platformCredentialKey(audience, 'telegram')),
-          value(db, 'telegram_webhook_secret'),
-          fetchIntegratorProviderRuntimeSettingValueJson(db, 'telegram_send_menu_on_button_press'),
-          fetchIntegratorRuntimeSettingValueJson(db, 'telegram_mode'),
-        ]),
+    const [
+      botToken,
+      configuredWebhookSecret,
+      otherBotToken,
+      menu,
+      configuredRawMode,
+      legacyWebhookSecret,
+      legacyRawMode,
+    ] = await runWithBootstrapPrincipal({ source: 'integrator-server-runtime-config' }, () =>
+      Promise.all([
+        value(db, platformCredentialKey(audience, 'telegram')),
+        value(db, platformWebhookSecretKey(audience, 'telegram')),
+        value(db, platformCredentialKey(oppositeAudience(audience), 'telegram')),
+        fetchIntegratorProviderRuntimeSettingValueJson(db, 'telegram_send_menu_on_button_press'),
+        fetchIntegratorProviderRuntimeSettingValueJson(db, platformTelegramModeKey(audience)),
+        value(db, 'telegram_webhook_secret'),
+        fetchIntegratorRuntimeSettingValueJson(db, 'telegram_mode'),
+      ]),
     );
-    const mode =
-      telegramRuntimeModeSchema.safeParse(parseSystemSettingStringValue(rawMode)).data ??
-      'long_polling';
+    const webhookSecret = legacyValueForSinglePlatformIdentity(
+      configuredWebhookSecret,
+      legacyWebhookSecret,
+      otherBotToken,
+    );
+    const modeValue = legacyValueForSinglePlatformIdentity(
+      parseSystemSettingStringValue(configuredRawMode) ?? '',
+      parseSystemSettingStringValue(legacyRawMode) ?? '',
+      otherBotToken,
+    );
+    const mode = telegramRuntimeModeSchema.safeParse(modeValue).data ?? 'long_polling';
     return {
       enabled: isTelegramRuntimeConfigEnabled(mode, botToken, webhookSecret),
       mode,
@@ -96,14 +133,20 @@ export async function readMaxRuntimeConfig(
   audience: PlatformDeliveryAudience = 'patient',
 ): Promise<MaxRuntimeConfig> {
   try {
-    const [apiKey, webhookSecret, baseUrlRaw] = await runWithBootstrapPrincipal(
-      { source: 'integrator-server-runtime-config' },
-      () =>
+    const [apiKey, configuredWebhookSecret, otherApiKey, baseUrlRaw, legacyWebhookSecret] =
+      await runWithBootstrapPrincipal({ source: 'integrator-server-runtime-config' }, () =>
         Promise.all([
           value(db, platformCredentialKey(audience, 'max')),
-          value(db, 'max_webhook_secret'),
+          value(db, platformWebhookSecretKey(audience, 'max')),
+          value(db, platformCredentialKey(oppositeAudience(audience), 'max')),
           value(db, 'max_api_base_url'),
+          value(db, 'max_webhook_secret'),
         ]),
+      );
+    const webhookSecret = legacyValueForSinglePlatformIdentity(
+      configuredWebhookSecret,
+      legacyWebhookSecret,
+      otherApiKey,
     );
     const baseUrl = url(baseUrlRaw);
     return { enabled: Boolean(apiKey && webhookSecret && baseUrl), apiKey, webhookSecret, baseUrl };

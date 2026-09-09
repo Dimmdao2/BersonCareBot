@@ -117,7 +117,7 @@ function buildIntent(payload: Payload): OutgoingIntent {
         recipient: { email: payload.recipient },
         subject,
         message: { text: payload.text },
-        delivery: { channels: ['email'] },
+        delivery: { channels: ['email'], audience: 'staff' },
       },
     };
   }

@@ -44,3 +44,25 @@ export function platformCredentialKey(
   }
   return audience === 'staff' ? 'therapysto_max_bot_api_key' : 'therapygo_max_bot_api_key';
 }
+
+export function platformWebhookSecretKey(
+  audience: PlatformDeliveryAudience,
+  channel: 'telegram' | 'max',
+):
+  | 'therapygo_telegram_webhook_secret'
+  | 'therapysto_telegram_webhook_secret'
+  | 'therapygo_max_webhook_secret'
+  | 'therapysto_max_webhook_secret' {
+  if (channel === 'telegram') {
+    return audience === 'staff'
+      ? 'therapysto_telegram_webhook_secret'
+      : 'therapygo_telegram_webhook_secret';
+  }
+  return audience === 'staff' ? 'therapysto_max_webhook_secret' : 'therapygo_max_webhook_secret';
+}
+
+export function platformTelegramModeKey(
+  audience: PlatformDeliveryAudience,
+): 'therapygo_telegram_mode' | 'therapysto_telegram_mode' {
+  return audience === 'staff' ? 'therapysto_telegram_mode' : 'therapygo_telegram_mode';
+}

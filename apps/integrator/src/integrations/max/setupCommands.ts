@@ -1,14 +1,17 @@
 import { logger } from '../../infra/observability/logger.js';
 import { setMaxBotCommands } from './client.js';
 import { getMaxRuntimeConfig } from '../../infra/adapters/integrationRuntimeConfig.js';
+import type { PlatformDeliveryAudience } from '../../infra/adapters/platformDeliveryAudience.js';
 
-let setupStarted = false;
+const setupStarted = new Set<PlatformDeliveryAudience>();
 
-export async function setupMaxCommands(): Promise<void> {
-  if (setupStarted) return;
-  setupStarted = true;
+export async function setupMaxCommands(
+  audience: PlatformDeliveryAudience = 'patient',
+): Promise<void> {
+  if (setupStarted.has(audience)) return;
+  setupStarted.add(audience);
 
-  const config = await getMaxRuntimeConfig();
+  const config = await getMaxRuntimeConfig(audience);
   if (!config.enabled) return;
   /** Пустой список — убираем slash-команды из меню клиента MAX; навигация через инлайн-кнопки. */
   const ok = await setMaxBotCommands({ apiKey: config.apiKey, baseUrl: config.baseUrl }, []);

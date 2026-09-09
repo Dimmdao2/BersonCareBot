@@ -21,9 +21,10 @@ BEGIN
   FROM public.system_settings AS setting
   WHERE p_key IN (
       'telegram_bot_token', 'therapygo_telegram_bot_token', 'therapysto_telegram_bot_token',
-      'telegram_webhook_secret', 'telegram_send_menu_on_button_press',
+      'telegram_webhook_secret', 'therapygo_telegram_webhook_secret', 'therapysto_telegram_webhook_secret',
+      'therapygo_telegram_mode', 'therapysto_telegram_mode', 'telegram_send_menu_on_button_press',
       'max_bot_api_key', 'therapygo_max_bot_api_key', 'therapysto_max_bot_api_key',
-      'max_webhook_secret', 'max_api_base_url',
+      'max_webhook_secret', 'therapygo_max_webhook_secret', 'therapysto_max_webhook_secret', 'max_api_base_url',
       'therapygo_smtp_outbound', 'therapysto_smtp_outbound',
       'vk_community_access_token', 'vk_callback_secret', 'vk_callback_confirmation_token',
       'smsc_enabled', 'smsc_api_key', 'smsc_base_url'

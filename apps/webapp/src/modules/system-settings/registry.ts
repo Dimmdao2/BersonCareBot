@@ -234,6 +234,8 @@ export const SYSTEM_SETTING_REGISTRY = {
   therapygo_max_bot_api_key: restricted('admin', 'global', 'secret_envelope'),
   /** Therapysto's staff-facing MAX sender. Never shared with patient delivery. */
   therapysto_max_bot_api_key: restricted('admin', 'global', 'secret_envelope'),
+  therapygo_max_webhook_secret: restricted('admin', 'global', 'secret_envelope'),
+  therapysto_max_webhook_secret: restricted('admin', 'global', 'secret_envelope'),
   max_webhook_secret: restricted('admin', 'global', 'secret_envelope'),
   max_api_base_url: restricted('admin', 'global', 'url', 'absent'),
   vk_community_access_token: restricted('admin', 'global', 'secret_envelope'),
@@ -250,6 +252,10 @@ export const SYSTEM_SETTING_REGISTRY = {
   therapygo_telegram_bot_token: restricted('admin', 'global', 'secret_envelope'),
   /** Therapysto's staff-facing Telegram sender. Never shared with patient delivery. */
   therapysto_telegram_bot_token: restricted('admin', 'global', 'secret_envelope'),
+  therapygo_telegram_webhook_secret: restricted('admin', 'global', 'secret_envelope'),
+  therapysto_telegram_webhook_secret: restricted('admin', 'global', 'secret_envelope'),
+  therapygo_telegram_mode: runtime('admin', 'global', 'server', 'string', 'long_polling'),
+  therapysto_telegram_mode: runtime('admin', 'global', 'server', 'string', 'long_polling'),
   telegram_webhook_secret: restricted('admin', 'global', 'secret_envelope'),
   telegram_mode: runtime('admin', 'global', 'server', 'string', 'long_polling'),
   telegram_send_menu_on_button_press: restricted('admin', 'global', 'boolean', 'false'),

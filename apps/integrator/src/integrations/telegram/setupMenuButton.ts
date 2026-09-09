@@ -4,10 +4,13 @@
  */
 import { logger } from '../../infra/observability/logger.js';
 import { getBotInstance } from './client.js';
+import type { PlatformDeliveryAudience } from '../../infra/adapters/platformDeliveryAudience.js';
 
-export async function setupTelegramMenuButton(): Promise<void> {
+export async function setupTelegramMenuButton(
+  audience: PlatformDeliveryAudience = 'patient',
+): Promise<void> {
   try {
-    const api = (await getBotInstance()).api;
+    const api = (await getBotInstance(audience)).api;
     await api.deleteMyCommands();
     await api.deleteMyCommands({ scope: { type: 'all_private_chats' } });
     await api.setMyCommands([]);
@@ -15,7 +18,6 @@ export async function setupTelegramMenuButton(): Promise<void> {
 
     await api.setChatMenuButton({ menu_button: { type: 'default' } });
     logger.info('Telegram: setChatMenuButton (default) ok');
-
   } catch (err) {
     const record = typeof err === 'object' && err !== null ? err : null;
     logger.warn(

@@ -60,8 +60,13 @@ const useSudoPostgres = process.argv.includes('--sudo-postgres');
 const rollbackOnly = process.argv.includes('--rollback-only');
 // Rollback validation accepts only the canonical migrations folder. Legacy includes can perform
 // external side effects that a PostgreSQL ROLLBACK cannot undo.
-const rollbackOnlyLegacyOptions = ['--step', '--owner', '--migration', '--backfill', '--post']
-  .filter((option) => process.argv.includes(option));
+const rollbackOnlyLegacyOptions = [
+  '--step',
+  '--owner',
+  '--migration',
+  '--backfill',
+  '--post',
+].filter((option) => process.argv.includes(option));
 if (rollbackOnly && rollbackOnlyLegacyOptions.length > 0) {
   throw new Error(
     `--rollback-only cannot be combined with legacy execution option(s): ${rollbackOnlyLegacyOptions.join(', ')}`,
@@ -75,6 +80,35 @@ function spawnPsql(args, options = {}) {
   return useSudoPostgres
     ? spawnSync('sudo', ['-n', '-u', 'postgres', 'psql', ...args], options)
     : spawnSync('psql', args, options);
+}
+
+/**
+ * Owner-marked DDL needs declaration-validated app schema access. CREATE is revoked before a
+ * regular commit; rollback-only preflight discards the complete transaction.
+ */
+function renderPreflightMigrationOwnerAccess(dbName, owners) {
+  const generator = resolve(import.meta.dirname, 'generate-cli.mjs');
+  const result = spawnSync(
+    process.execPath,
+    [
+      '--experimental-strip-types',
+      generator,
+      '--db',
+      dbName,
+      '--migration-owner-access',
+      '--migration-owners',
+      owners.join(','),
+    ],
+    { encoding: 'utf8' },
+  );
+  if (result.status !== 0) {
+    const detail =
+      result.error?.message ?? result.stderr ?? result.stdout ?? 'unknown generator failure';
+    throw new Error(
+      `cannot render declaration migration-owner access for rollback preflight of ${dbName}: ${detail}`,
+    );
+  }
+  return result.stdout ?? '';
 }
 
 /**
@@ -92,8 +126,18 @@ function spawnPsql(args, options = {}) {
  */
 function bootstrapLedger(db, folder) {
   const result = spawnPsql(
-    ['-X', '-U', 'postgres', '-d', db, '-v', 'ON_ERROR_STOP=1', '-q', '-c',
-      renderLedgerBootstrapSql(readLegacyJournalEntries(folder))],
+    [
+      '-X',
+      '-U',
+      'postgres',
+      '-d',
+      db,
+      '-v',
+      'ON_ERROR_STOP=1',
+      '-q',
+      '-c',
+      renderLedgerBootstrapSql(readLegacyJournalEntries(folder)),
+    ],
     { encoding: 'utf8' },
   );
   if (result.status !== 0) {
@@ -104,21 +148,41 @@ function bootstrapLedger(db, folder) {
 
 function readAppliedDrizzleRows(db) {
   const result = spawnPsql(
-    ['-X', '-U', 'postgres', '-d', db, '-v', 'ON_ERROR_STOP=1', '-At', '-F', '\t', '-c',
-      "SELECT id, hash, created_at, COALESCE(tag, '') FROM drizzle.__drizzle_migrations ORDER BY created_at"],
+    [
+      '-X',
+      '-U',
+      'postgres',
+      '-d',
+      db,
+      '-v',
+      'ON_ERROR_STOP=1',
+      '-At',
+      '-F',
+      '\t',
+      '-c',
+      "SELECT id, hash, created_at, COALESCE(tag, '') FROM drizzle.__drizzle_migrations ORDER BY created_at",
+    ],
     { encoding: 'utf8' },
   );
   if (result.status !== 0) {
     process.stderr.write(result.stderr ?? '');
     throw new Error('cannot read Drizzle migration ledger');
   }
-  return String(result.stdout ?? '').trim().split('\n').filter(Boolean).map((line) => {
-    const [id, hash, createdAt, tag] = line.split('\t');
-    if (!/^\d+$/u.test(id ?? '') || !/^[0-9a-f]{64}$/u.test(hash ?? '') || !/^\d+$/u.test(createdAt ?? '')) {
-      throw new Error('invalid Drizzle migration ledger row');
-    }
-    return { id: Number(id), hash, createdAt: Number(createdAt), tag: tag || null };
-  });
+  return String(result.stdout ?? '')
+    .trim()
+    .split('\n')
+    .filter(Boolean)
+    .map((line) => {
+      const [id, hash, createdAt, tag] = line.split('\t');
+      if (
+        !/^\d+$/u.test(id ?? '') ||
+        !/^[0-9a-f]{64}$/u.test(hash ?? '') ||
+        !/^\d+$/u.test(createdAt ?? '')
+      ) {
+        throw new Error('invalid Drizzle migration ledger row');
+      }
+      return { id: Number(id), hash, createdAt: Number(createdAt), tag: tag || null };
+    });
 }
 
 /**
@@ -143,13 +207,19 @@ function findMissingObjects(db, migrations, catalogMigrationTags) {
     throw new Error(`cannot verify that applied migrations of ${db} still hold their objects`);
   }
   const present = new Map(
-    String(result.stdout ?? '').trim().split('\n').filter(Boolean).map((line) => {
-      const [at, flag] = line.split('\t');
-      return [Number(at), flag === 't'];
-    }),
+    String(result.stdout ?? '')
+      .trim()
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => {
+        const [at, flag] = line.split('\t');
+        return [Number(at), flag === 't'];
+      }),
   );
   if (present.size !== objects.length) {
-    throw new Error(`object presence probe answered for ${present.size} of ${objects.length} objects`);
+    throw new Error(
+      `object presence probe answered for ${present.size} of ${objects.length} objects`,
+    );
   }
   return objects.filter((_, index) => present.get(index) === false);
 }
@@ -167,7 +237,8 @@ const reapplyTags = values('reapply');
 // safe instead of a hand-wave — see the validation next to its use.
 const relabelPairs = values('relabel').map((pair) => {
   const at = pair.indexOf(':');
-  if (at <= 0 || at === pair.length - 1) throw new Error(`--relabel must be <old-tag>:<new-tag>, got '${pair}'`);
+  if (at <= 0 || at === pair.length - 1)
+    throw new Error(`--relabel must be <old-tag>:<new-tag>, got '${pair}'`);
   return { oldTag: pair.slice(0, at), newTag: pair.slice(at + 1) };
 });
 // --drop-foreign removes a foreign ledger row that is not a rename of anything in this folder — a
@@ -194,10 +265,13 @@ const dropForeignHashes = values('drop-foreign-hash');
 // of that.
 const unapplyTags = values('unapply');
 const legacyOwners = values('owner');
-const legacyMigration = process.argv.includes('--migration') ? realpathSync(resolve(value('migration'))) : null;
+const legacyMigration = process.argv.includes('--migration')
+  ? realpathSync(resolve(value('migration')))
+  : null;
 let steps = values('step').map((step) => {
   const at = step.indexOf(':');
-  if (at <= 0 || at === step.length - 1) throw new Error(`--step must be <owner>:<sql-file>, got '${step}'`);
+  if (at <= 0 || at === step.length - 1)
+    throw new Error(`--step must be <owner>:<sql-file>, got '${step}'`);
   return { owner: step.slice(0, at), migration: realpathSync(resolve(step.slice(at + 1))) };
 });
 const drizzleFolder = process.argv.includes('--drizzle-folder')
@@ -213,8 +287,13 @@ let unapplyStatements = [];
 if (reapplyTags.length > 0 && !drizzleFolder) {
   throw new Error('--reapply is supported only with --drizzle-folder');
 }
-if ((relabelPairs.length > 0 || dropForeignTags.length > 0 || dropForeignHashes.length > 0) && !drizzleFolder) {
-  throw new Error('--relabel, --drop-foreign and --drop-foreign-hash are supported only with --drizzle-folder');
+if (
+  (relabelPairs.length > 0 || dropForeignTags.length > 0 || dropForeignHashes.length > 0) &&
+  !drizzleFolder
+) {
+  throw new Error(
+    '--relabel, --drop-foreign and --drop-foreign-hash are supported only with --drizzle-folder',
+  );
 }
 if (unapplyTags.length > 0 && !drizzleFolder) {
   throw new Error('--unapply is supported only with --drizzle-folder');
@@ -235,7 +314,10 @@ if (drizzleFolder) {
   if (nameViolations.length > 0) {
     fail(
       nameViolations
-        .map((tag) => `${tag}.sql is not named YYYYMMDDTHHMMSS_lower_snake_case; there are no exceptions.`)
+        .map(
+          (tag) =>
+            `${tag}.sql is not named YYYYMMDDTHHMMSS_lower_snake_case; there are no exceptions.`,
+        )
         .join('\n'),
     );
   }
@@ -245,8 +327,11 @@ if (drizzleFolder) {
   if (timestampCollisions.length > 0) {
     fail(
       timestampCollisions
-        .map((collision) => `migration timestamp ${collision.timestamp} is shared by ${collision.tags.join(', ')};`
-          + ' the applied historical collisions are a closed baseline, pick a free UTC second.')
+        .map(
+          (collision) =>
+            `migration timestamp ${collision.timestamp} is shared by ${collision.tags.join(', ')};` +
+            ' the applied historical collisions are a closed baseline, pick a free UTC second.',
+        )
         .join('\n'),
     );
   }
@@ -258,7 +343,9 @@ if (drizzleFolder) {
   for (const { oldTag, newTag } of relabelPairs) {
     const row = foreignByTag.get(oldTag);
     if (!row) {
-      fail(`--relabel names ${oldTag}, which is not a foreign ledger row of ${db} (nothing to relabel)`);
+      fail(
+        `--relabel names ${oldTag}, which is not a foreign ledger row of ${db} (nothing to relabel)`,
+      );
     }
     const file = migrations.find((migration) => migration.tag === newTag);
     if (!file) {
@@ -269,9 +356,9 @@ if (drizzleFolder) {
     }
     if (file.hash !== row.hash) {
       fail(
-        `--relabel ${oldTag}:${newTag} refused: ${newTag}.sql hash (${file.hash}) does not match the `
-          + `foreign row's hash (${row.hash}); this is not a pure rename, so relabeling would hide content `
-          + 'drift instead of proving its absence. Resolve the drift first (rollback and reapply under the new name).',
+        `--relabel ${oldTag}:${newTag} refused: ${newTag}.sql hash (${file.hash}) does not match the ` +
+          `foreign row's hash (${row.hash}); this is not a pure rename, so relabeling would hide content ` +
+          'drift instead of proving its absence. Resolve the drift first (rollback and reapply under the new name).',
       );
     }
     relabelStatements.push(
@@ -283,32 +370,36 @@ if (drizzleFolder) {
   for (const tag of dropForeignTags) {
     const row = foreignByTag.get(tag);
     if (!row) {
-      fail(`--drop-foreign names ${tag}, which is not a foreign ledger row of ${db} (nothing to drop)`);
+      fail(
+        `--drop-foreign names ${tag}, which is not a foreign ledger row of ${db} (nothing to drop)`,
+      );
     }
     const claimant = migrations.find((migration) => migration.hash === row.hash);
     if (claimant) {
       fail(
-        `--drop-foreign ${tag} refused: its hash (${row.hash}) matches ${claimant.tag}.sql in this folder — `
-          + `this is a rename, not a dead row. Use --relabel ${tag}:${claimant.tag} instead.`,
+        `--drop-foreign ${tag} refused: its hash (${row.hash}) matches ${claimant.tag}.sql in this folder — ` +
+          `this is a rename, not a dead row. Use --relabel ${tag}:${claimant.tag} instead.`,
       );
     }
-    dropForeignStatements.push(`DELETE FROM drizzle.__drizzle_migrations WHERE tag = ${sqlLiteral(tag)};`);
+    dropForeignStatements.push(
+      `DELETE FROM drizzle.__drizzle_migrations WHERE tag = ${sqlLiteral(tag)};`,
+    );
   }
 
   for (const hash of dropForeignHashes) {
     const rows = foreign.filter((row) => row.tag === null && row.hash === hash);
     if (rows.length !== 1) {
       fail(
-        `--drop-foreign-hash names ${hash}, which is not exactly one tagless foreign ledger row of ${db} `
-          + '(nothing unambiguous to drop).',
+        `--drop-foreign-hash names ${hash}, which is not exactly one tagless foreign ledger row of ${db} ` +
+          '(nothing unambiguous to drop).',
       );
     }
     const [row] = rows;
     const claimant = migrations.find((migration) => migration.hash === row.hash);
     if (claimant) {
       fail(
-        `--drop-foreign-hash ${hash} refused: its hash matches ${claimant.tag}.sql in this folder — `
-          + 'this is a rename, not a dead row. Use --relabel after restoring its old tag instead.',
+        `--drop-foreign-hash ${hash} refused: its hash matches ${claimant.tag}.sql in this folder — ` +
+          'this is a rename, not a dead row. Use --relabel after restoring its old tag instead.',
       );
     }
     dropForeignHashStatements.push(
@@ -325,19 +416,21 @@ if (drizzleFolder) {
     const file = migrations.find((migration) => migration.tag === tag);
     if (!file) {
       fail(
-        `--unapply names ${tag}, which is a foreign ledger row of ${db} (no file in ${drizzleFolder} claims `
-          + `it) — use --drop-foreign ${tag} instead.`,
+        `--unapply names ${tag}, which is a foreign ledger row of ${db} (no file in ${drizzleFolder} claims ` +
+          `it) — use --drop-foreign ${tag} instead.`,
       );
     }
     if (file.hash !== row.hash) {
       fail(
-        `--unapply ${tag} refused: ${tag}.sql hash (${file.hash}) does not match the ledger row's hash `
-          + `(${row.hash}); the file has changed since this tag was applied, so unapplying would erase the `
-          + 'only record of what actually ran instead of proving its absence. Resolve the drift first '
-          + '(restore the file to the content that was applied, or give the new content its own tag).',
+        `--unapply ${tag} refused: ${tag}.sql hash (${file.hash}) does not match the ledger row's hash ` +
+          `(${row.hash}); the file has changed since this tag was applied, so unapplying would erase the ` +
+          'only record of what actually ran instead of proving its absence. Resolve the drift first ' +
+          '(restore the file to the content that was applied, or give the new content its own tag).',
       );
     }
-    unapplyStatements.push(`DELETE FROM drizzle.__drizzle_migrations WHERE tag = ${sqlLiteral(tag)};`);
+    unapplyStatements.push(
+      `DELETE FROM drizzle.__drizzle_migrations WHERE tag = ${sqlLiteral(tag)};`,
+    );
   }
 
   // Migrations this same run is about to relabel onto count as applied for pending purposes — they
@@ -346,13 +439,19 @@ if (drizzleFolder) {
   const pendingByLedger = selectPendingMigrations(migrations, effectiveAppliedRows);
   const pendingTags = new Set(pendingByLedger.map((migration) => migration.tag));
 
-  const unknownReapply = reapplyTags.filter((tag) => !migrations.some((migration) => migration.tag === tag));
+  const unknownReapply = reapplyTags.filter(
+    (tag) => !migrations.some((migration) => migration.tag === tag),
+  );
   if (unknownReapply.length > 0) {
-    fail(`--reapply names ${unknownReapply.join(', ')}, which is not a migration file in ${drizzleFolder}`);
+    fail(
+      `--reapply names ${unknownReapply.join(', ')}, which is not a migration file in ${drizzleFolder}`,
+    );
   }
   const alreadyPending = reapplyTags.filter((tag) => pendingTags.has(tag));
   if (alreadyPending.length > 0) {
-    fail(`--reapply names ${alreadyPending.join(', ')}, which ${db} has not applied at all; it is ordinary pending work`);
+    fail(
+      `--reapply names ${alreadyPending.join(', ')}, which ${db} has not applied at all; it is ordinary pending work`,
+    );
   }
 
   const applied = migrations.filter((migration) => !pendingTags.has(migration.tag));
@@ -372,9 +471,9 @@ if (drizzleFolder) {
       renamed
         .map(
           ({ migration, row }) =>
-            `${migration.tag}.sql is byte-identical to a migration ${db} already applied under a name this `
-              + `checkout does not carry (ledger created_at=${row.createdAt}); renaming an applied migration `
-              + 'is forbidden. Restore the original file name, or if this is genuinely new work, change its SQL.',
+            `${migration.tag}.sql is byte-identical to a migration ${db} already applied under a name this ` +
+            `checkout does not carry (ledger created_at=${row.createdAt}); renaming an applied migration ` +
+            'is forbidden. Restore the original file name, or if this is genuinely new work, change its SQL.',
         )
         .join('\n'),
     );
@@ -385,11 +484,15 @@ if (drizzleFolder) {
   // Keep canonical folder order: concatenating applied and pending sets could invert a create/drop
   // pair when a newly landed migration sorts below an applied one.
   const guardTags = new Set([
-    ...applied.filter((migration) => !reapplyTags.includes(migration.tag)).map((migration) => migration.tag),
+    ...applied
+      .filter((migration) => !reapplyTags.includes(migration.tag))
+      .map((migration) => migration.tag),
     ...pending.map((migration) => migration.tag),
   ]);
   const catalogMigrationTags = new Set(
-    applied.filter((migration) => !reapplyTags.includes(migration.tag)).map((migration) => migration.tag),
+    applied
+      .filter((migration) => !reapplyTags.includes(migration.tag))
+      .map((migration) => migration.tag),
   );
   const missing = findMissingObjects(
     db,
@@ -400,19 +503,23 @@ if (drizzleFolder) {
     const holders = [...new Set(missing.map((object) => object.tag))];
     fail(
       [
-        `${db} records ${holders.length} migration(s) as applied whose objects are not in the catalog, `
-          + 'so the ledger is answering for a schema it does not have:',
+        `${db} records ${holders.length} migration(s) as applied whose objects are not in the catalog, ` +
+          'so the ledger is answering for a schema it does not have:',
         ...missing.map((object) => `  absent: ${describeObject(object)}`),
-        'Re-run with '
-          + `${holders.map((tag) => `--reapply ${tag}`).join(' ')} `
-          + 'to send them through this same wrapper again, after confirming each is safe to execute twice.',
+        'Re-run with ' +
+          `${holders.map((tag) => `--reapply ${tag}`).join(' ')} ` +
+          'to send them through this same wrapper again, after confirming each is safe to execute twice.',
       ].join('\n'),
     );
   }
   steps = pending.flatMap((migration) =>
     parseOwnerStatements(migration.source, migration.tag).map((statement) => ({
       ...statement,
-      drizzle: { hash: migration.hash, tag: migration.tag, reapply: reapplyTags.includes(migration.tag) },
+      drizzle: {
+        hash: migration.hash,
+        tag: migration.tag,
+        reapply: reapplyTags.includes(migration.tag),
+      },
     })),
   );
   drizzleSummary = {
@@ -426,46 +533,66 @@ if (drizzleFolder) {
     unapplied: unapplyStatements.length,
   };
   if (
-    pending.length === 0
-    && relabelStatements.length === 0
-    && dropForeignStatements.length === 0
-    && dropForeignHashStatements.length === 0
-    && unapplyStatements.length === 0
+    pending.length === 0 &&
+    relabelStatements.length === 0 &&
+    dropForeignStatements.length === 0 &&
+    dropForeignHashStatements.length === 0 &&
+    unapplyStatements.length === 0
   ) {
     console.log(
-      `Drizzle owner-ordered migration already current for ${sqlIdentifier(db)}: pending=0 total=${migrations.length} `
-        + `verified-objects=${collectExpectedObjects(applied).length} foreign-ledger-rows=${foreign.length}`,
+      `Drizzle owner-ordered migration already current for ${sqlIdentifier(db)}: pending=0 total=${migrations.length} ` +
+        `verified-objects=${collectExpectedObjects(applied).length} foreign-ledger-rows=${foreign.length}`,
     );
     process.exit(0);
   }
 } else if (steps.length === 0) {
   if (legacyOwners.length !== 1 || !legacyMigration) {
-    throw new Error('use one legacy --owner + --migration pair, or one or more --step <owner>:<sql-file>');
+    throw new Error(
+      'use one legacy --owner + --migration pair, or one or more --step <owner>:<sql-file>',
+    );
   }
   steps.push({ owner: legacyOwners[0], migration: legacyMigration });
 }
 const owners = [...new Set(steps.filter((step) => !step.backfill).map((step) => step.owner))];
-const temporarySchemaCreates = [...new Map(
-  steps
-    .filter((step) => step.schemaCreate)
-    .map((step) => [`${step.owner}:${step.schemaCreate}`, { owner: step.owner, schema: step.schemaCreate }]),
-).values()];
-const temporaryLanguageUsages = [...new Map(
-  steps
-    .filter((step) => step.languageUsage)
-    .map((step) => [`${step.owner}:${step.languageUsage}`, { owner: step.owner, language: step.languageUsage }]),
-).values()];
-const temporaryFunctionRehomes = [...new Map(
-  steps
-    .filter((step) => step.functionRehome)
-    .map((step) => [
-      step.functionRehome,
-      { owner: step.owner, functionIdentity: step.functionRehome },
-    ]),
-).values()];
-const backfill = process.argv.includes('--backfill') ? realpathSync(resolve(value('backfill'))) : null;
+const temporarySchemaCreates = [
+  ...new Map(
+    steps
+      .filter((step) => step.schemaCreate)
+      .map((step) => [
+        `${step.owner}:${step.schemaCreate}`,
+        { owner: step.owner, schema: step.schemaCreate },
+      ]),
+  ).values(),
+];
+const temporaryLanguageUsages = [
+  ...new Map(
+    steps
+      .filter((step) => step.languageUsage)
+      .map((step) => [
+        `${step.owner}:${step.languageUsage}`,
+        { owner: step.owner, language: step.languageUsage },
+      ]),
+  ).values(),
+];
+const temporaryFunctionRehomes = [
+  ...new Map(
+    steps
+      .filter((step) => step.functionRehome)
+      .map((step) => [
+        step.functionRehome,
+        { owner: step.owner, functionIdentity: step.functionRehome },
+      ]),
+  ).values(),
+];
+const backfill = process.argv.includes('--backfill')
+  ? realpathSync(resolve(value('backfill')))
+  : null;
 const post = process.argv.includes('--post') ? realpathSync(resolve(value('post'))) : null;
-if (steps.some((step) => step.migration && !existsSync(step.migration)) || (backfill && !existsSync(backfill)) || (post && !existsSync(post))) {
+if (
+  steps.some((step) => step.migration && !existsSync(step.migration)) ||
+  (backfill && !existsSync(backfill)) ||
+  (post && !existsSync(post))
+) {
   throw new Error('migration/backfill/post file does not exist');
 }
 
@@ -475,17 +602,26 @@ const temporaryMembershipAssertion = renderTemporaryMembershipAssertion(migrator
 const statements = [
   '\\set ON_ERROR_STOP on',
   'BEGIN;',
+  ...(drizzleFolder && owners.length > 0 ? [renderPreflightMigrationOwnerAccess(db, owners)] : []),
   ...relabelStatements,
   ...dropForeignStatements,
   ...dropForeignHashStatements,
   ...unapplyStatements,
-  ...owners.map((owner) => `GRANT ${sqlIdentifier(owner)} TO ${qMigrator} WITH ADMIN FALSE, INHERIT FALSE, SET TRUE;`),
-  ...temporarySchemaCreates.map(({ owner, schema }) =>
-    `GRANT CREATE, USAGE ON SCHEMA ${sqlIdentifier(schema)} TO ${sqlIdentifier(owner)};`),
-  ...temporaryLanguageUsages.map(({ owner, language }) =>
-    `GRANT USAGE ON LANGUAGE ${sqlIdentifier(language)} TO ${sqlIdentifier(owner)};`),
-  ...temporaryFunctionRehomes.map(({ owner, functionIdentity }) =>
-    `DO $bcb_rehome$ BEGIN
+  ...owners.map(
+    (owner) =>
+      `GRANT ${sqlIdentifier(owner)} TO ${qMigrator} WITH ADMIN FALSE, INHERIT FALSE, SET TRUE;`,
+  ),
+  ...temporarySchemaCreates.map(
+    ({ owner, schema }) =>
+      `GRANT CREATE, USAGE ON SCHEMA ${sqlIdentifier(schema)} TO ${sqlIdentifier(owner)};`,
+  ),
+  ...temporaryLanguageUsages.map(
+    ({ owner, language }) =>
+      `GRANT USAGE ON LANGUAGE ${sqlIdentifier(language)} TO ${sqlIdentifier(owner)};`,
+  ),
+  ...temporaryFunctionRehomes.map(
+    ({ owner, functionIdentity }) =>
+      `DO $bcb_rehome$ BEGIN
        IF pg_catalog.to_regprocedure(${sqlLiteral(functionIdentity)}) IS NOT NULL THEN
          EXECUTE pg_catalog.format(
            'ALTER FUNCTION %s OWNER TO %I',
@@ -493,11 +629,12 @@ const statements = [
            ${sqlLiteral(owner)}
          );
        END IF;
-     END $bcb_rehome$;`),
+     END $bcb_rehome$;`,
+  ),
   `SET LOCAL SESSION AUTHORIZATION ${qMigrator};`,
   ...steps.flatMap(({ owner, migration, sql, drizzle, backfill }, index) => {
-    const closesDrizzleMigration = drizzle
-      && (index === steps.length - 1 || steps[index + 1]?.drizzle?.tag !== drizzle.tag);
+    const closesDrizzleMigration =
+      drizzle && (index === steps.length - 1 || steps[index + 1]?.drizzle?.tag !== drizzle.tag);
     const execution = backfill
       ? [
           'RESET ROLE;',
@@ -531,10 +668,17 @@ const statements = [
   }),
   'RESET SESSION AUTHORIZATION;',
   ...(backfill ? [`\\i ${backfill}`] : []),
-  ...temporarySchemaCreates.map(({ owner, schema }) =>
-    `REVOKE CREATE, USAGE ON SCHEMA ${sqlIdentifier(schema)} FROM ${sqlIdentifier(owner)};`),
-  ...temporaryLanguageUsages.map(({ owner, language }) =>
-    `REVOKE USAGE ON LANGUAGE ${sqlIdentifier(language)} FROM ${sqlIdentifier(owner)};`),
+  ...temporarySchemaCreates.map(
+    ({ owner, schema }) =>
+      `REVOKE CREATE, USAGE ON SCHEMA ${sqlIdentifier(schema)} FROM ${sqlIdentifier(owner)};`,
+  ),
+  ...temporaryLanguageUsages.map(
+    ({ owner, language }) =>
+      `REVOKE USAGE ON LANGUAGE ${sqlIdentifier(language)} FROM ${sqlIdentifier(owner)};`,
+  ),
+  ...(drizzleFolder && owners.length > 0
+    ? [`REVOKE CREATE ON SCHEMA "app" FROM ${owners.map(sqlIdentifier).join(', ')};`]
+    : []),
   ...owners.map((owner) => `REVOKE ${sqlIdentifier(owner)} FROM ${qMigrator};`),
   `DO $$ BEGIN
      ${temporaryMembershipAssertion ?? ''}
@@ -546,7 +690,10 @@ const statements = [
   rollbackOnly ? 'ROLLBACK;' : 'COMMIT;',
 ].join('\n');
 
-const result = spawnPsql(['-X', '-U', 'postgres', '-d', db, '-v', 'ON_ERROR_STOP=1'], { input: statements, encoding: 'utf8' });
+const result = spawnPsql(['-X', '-U', 'postgres', '-d', db, '-v', 'ON_ERROR_STOP=1'], {
+  input: statements,
+  encoding: 'utf8',
+});
 process.stdout.write(result.stdout ?? '');
 process.stderr.write(result.stderr ?? '');
 if (result.status !== 0) process.exit(result.status ?? 1);
@@ -556,8 +703,12 @@ if (drizzleSummary) {
       `Drizzle owner-ordered migration validated and rolled back for ${qDb}: pending=${drizzleSummary.pending} total=${drizzleSummary.total} reapplied=${drizzleSummary.reapplied} foreign-ledger-rows=${drizzleSummary.foreign} relabeled=${drizzleSummary.relabeled} dropped-foreign=${drizzleSummary.droppedForeign} dropped-foreign-by-hash=${drizzleSummary.droppedForeignByHash} unapplied=${drizzleSummary.unapplied}`,
     );
   } else {
-    console.log(`Drizzle owner-ordered migration committed for ${qDb}: pending=${drizzleSummary.pending} total=${drizzleSummary.total} reapplied=${drizzleSummary.reapplied} foreign-ledger-rows=${drizzleSummary.foreign} relabeled=${drizzleSummary.relabeled} dropped-foreign=${drizzleSummary.droppedForeign} dropped-foreign-by-hash=${drizzleSummary.droppedForeignByHash} unapplied=${drizzleSummary.unapplied}`);
+    console.log(
+      `Drizzle owner-ordered migration committed for ${qDb}: pending=${drizzleSummary.pending} total=${drizzleSummary.total} reapplied=${drizzleSummary.reapplied} foreign-ledger-rows=${drizzleSummary.foreign} relabeled=${drizzleSummary.relabeled} dropped-foreign=${drizzleSummary.droppedForeign} dropped-foreign-by-hash=${drizzleSummary.droppedForeignByHash} unapplied=${drizzleSummary.unapplied}`,
+    );
   }
 } else {
-  console.log(`revision-10 migration committed for ${qDb} with temporary ${qMigrator} owner memberships revoked`);
+  console.log(
+    `revision-10 migration committed for ${qDb} with temporary ${qMigrator} owner memberships revoked`,
+  );
 }

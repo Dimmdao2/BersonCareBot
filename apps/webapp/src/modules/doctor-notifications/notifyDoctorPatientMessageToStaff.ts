@@ -176,6 +176,7 @@ export async function notifyDoctorPatientMessageToStaff(
         recipient,
         text: messengerText,
         userId,
+        audience: 'staff',
         ...(replyMarkup ? { replyMarkup } : {}),
       }).catch((err: unknown) => {
         logger.warn({ err, userId, topicCode: input.topicCode }, 'doctor staff max failed');
