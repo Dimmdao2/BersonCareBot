@@ -26,9 +26,13 @@ import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
+import java.io.File;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.nio.file.Files;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -280,5 +284,74 @@ public class DeviceMediaPluginTest {
                 expectedWrapper.getCause() instanceof java.io.IOException
             );
         }
+    }
+
+    // --- upload(): single-flight guard (kill-set brief item 5, concurrency) ---------------------
+    //
+    // The HTTP status/ETag classification in streamRange() (2xx-only, non-empty-ETag-required,
+    // redirects not followed) is confirmed by inspection, not a live-network test: this sandbox's
+    // JVM has Robolectric's Conscrypt security provider registered ahead of the JDK's own SunJSSE
+    // (`Security.getProviders()[0] == "Conscrypt"`), and both are independently broken for a real
+    // local TLS handshake here — Conscrypt's socket implementation throws
+    // `InaccessibleObjectException` reflecting into `java.net.InetAddress` internals the module
+    // system closes off on a plain (non-Android) JVM, and forcing SunJSSE explicitly instead hits
+    // `sun.security.ssl.NamedGroup`'s static initializer, which unconditionally resolves
+    // `AlgorithmParameters.getInstance("EC")` without a provider qualifier and gets routed back into
+    // the same broken Conscrypt EC engine by provider-priority lookup. Reaching for a JVM-wide
+    // `Security.removeProvider`/`URL.setURLStreamHandlerFactory` workaround to force a clean TLS
+    // stack would mutate process-global state for the rest of this test run to cover three lines of
+    // linear boolean logic (`status<200||status>=300||etag==null||etag.length()>256`) that is easy
+    // to read directly — the same proportionality call the shell-foundation and native-capabilities
+    // audits already made for CameraX/Jitsi permission-grant simulation. See the final report for
+    // the one residual gap this inspection found (empty, non-null ETag).
+
+    private Object fakeMediaHandle(File materialized, long sizeBytes) throws Exception {
+        Class<?> handleClass = Class.forName("ru.therapygo.app.DeviceMediaPlugin$MediaHandle");
+        Constructor<?> constructor = handleClass.getDeclaredConstructor(
+            DeviceMediaPlugin.class, String.class, Uri.class, File.class, String.class, String.class,
+            long.class, Long.class, String.class, String.class
+        );
+        constructor.setAccessible(true);
+        return constructor.newInstance(
+            plugin, "handle-1", Uri.parse("content://selected/1"), materialized, "image/jpeg",
+            "photo.jpg", sizeBytes, null, "gallery", "photo"
+        );
+    }
+
+    private AtomicBoolean uploadingFlag() throws Exception {
+        Field field = DeviceMediaPlugin.class.getDeclaredField("uploading");
+        field.setAccessible(true);
+        return (AtomicBoolean) field.get(plugin);
+    }
+
+    // Kill: a second upload() call while one is already in flight replaces/races the shared
+    // activeUpload connection instead of being rejected outright.
+    @Test
+    public void uploadRejectsASecondCallWhileOneIsAlreadyInProgress() throws Exception {
+        uploadingFlag().set(true); // simulate a first upload already streaming on its own thread
+        PluginCall call = mock(PluginCall.class);
+        when(call.getString(eq("handle"), anyString())).thenReturn("handle-1");
+        when(call.getLong(eq("offset"), org.mockito.ArgumentMatchers.anyLong())).thenReturn(0L);
+        when(call.getLong(eq("length"), org.mockito.ArgumentMatchers.anyLong())).thenReturn(10L);
+        when(call.getString(eq("presignedUrl"), anyString()))
+            .thenReturn("https://" + allowedHostForThisEnvironment() + "/bucket/key?X-Amz-Signature=abc");
+        when(call.getObject(eq("headers"), any(JSObject.class))).thenReturn(new JSObject());
+        untrustedOriginIsFalse();
+
+        // A handle must exist for the request to reach the concurrency guard at all.
+        Field handlesField = DeviceMediaPlugin.class.getDeclaredField("handles");
+        handlesField.setAccessible(true);
+        java.util.Map<String, Object> handles = (java.util.Map<String, Object>) handlesField.get(plugin);
+        File source = File.createTempFile("upload-src", ".bin");
+        Files.write(source.toPath(), new byte[10]);
+        handles.put("handle-1", fakeMediaHandle(source, 10L));
+
+        plugin.upload(call);
+
+        verify(call).reject("An upload is already in progress");
+    }
+
+    private void untrustedOriginIsFalse() {
+        when(webView.getUrl()).thenReturn(ShellVariant.startUrl());
     }
 }
