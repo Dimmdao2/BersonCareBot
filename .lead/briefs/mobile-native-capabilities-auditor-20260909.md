@@ -1,3 +1,9 @@
+# Тест или взгляд
+
+Повторяемые plugin security, lifecycle, picker, byte-range upload и notification contracts проверяй
+поведенческими тестами через публичные Kotlin seams. Dependency graph, manifest, resources, APK/AAB, permissions,
+16-KiB alignment и отсутствие секретов проверяй build/artifact inspection; тесты на текст исходника не пиши.
+
 # Auditor-live brief — #915 Android native capability plugins
 
 Independently audit the exact committed Android native-capabilities candidate. Product code is read-only. You may

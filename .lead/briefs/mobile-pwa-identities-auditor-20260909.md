@@ -1,3 +1,9 @@
+# Тест или взгляд
+
+Повторяемые manifest/metadata route, role gate и bootstrap side-effect contracts проверяй поведенческими тестами
+через публичные builders/routes. PNG derivation, safe-zone, retained legacy assets, layout/source consolidation и
+отсутствие дублирования проверяй одноразовым asset/diff inspection; тесты на текст/DOM/число файлов не пиши.
+
 # Auditor-live brief — #915 PWA identities/install surfaces
 
 Independently audit the exact committed M1-01…M1-06 candidate. Product code is read-only. You may add/commit only
