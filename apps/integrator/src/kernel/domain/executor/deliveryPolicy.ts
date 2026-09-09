@@ -43,8 +43,15 @@ export function applyDirectBotSenderScope(
   ctx: DomainContext,
 ): Record<string, unknown> {
   const senderScope = resolveDirectBotSenderScope(ctx);
-  if (!senderScope || asString(delivery.senderScope)) return delivery;
-  return { ...delivery, senderScope };
+  if (!senderScope) return delivery;
+  const facts = asRecord(ctx.base?.facts);
+  return {
+    ...delivery,
+    ...(asString(delivery.senderScope) === null ? { senderScope } : {}),
+    ...(facts.platformAudience === 'staff' && asString(delivery.audience) === null
+      ? { audience: 'staff' }
+      : {}),
+  };
 }
 
 /**

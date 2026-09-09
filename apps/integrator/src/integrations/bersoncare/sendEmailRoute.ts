@@ -29,6 +29,7 @@ import {
   type OutboundProviderErrorClass,
 } from '@bersoncare/operator-db-schema';
 import { mailProfileRequestSchema } from '../email/mailProfile.js';
+import type { PlatformDeliveryAudience } from '../../infra/adapters/platformDeliveryAudience.js';
 
 const WINDOW_SECONDS = 300;
 
@@ -48,6 +49,8 @@ const sendEmailBodySchema = z
     code: z.string().optional(),
     mailProfile: encodedMailProfileSchema.optional(),
     text: z.string().optional(),
+    /** Auth-code callers from the historical signed contract remain patient-only. */
+    audience: z.enum(['staff', 'patient']).optional(),
     templateId: z.string().optional(),
     idempotencyKey: z.string().min(1),
   })
@@ -157,8 +160,9 @@ export async function registerBersoncareSendEmailRoute(
 
     const payload = parsed.data;
     const isAuthCode = Boolean(payload.code?.trim());
+    const audience: PlatformDeliveryAudience = payload.audience ?? 'patient';
     // Provider readiness follows policy so a disabled channel cannot probe provider state.
-    const resolved = await resolveSmtpOutboundConfig(db);
+    const resolved = await resolveSmtpOutboundConfig(db, audience);
     if (!isResolvedMailerConfigured(resolved)) {
       await recordProviderFailureSafely(recordProviderFailure, 'provider_not_configured');
       return reply.code(503).send({ ok: false, error: 'email_not_configured' });
@@ -195,13 +199,11 @@ export async function registerBersoncareSendEmailRoute(
     // Dispatch through the single chokepoint — the pre-fork dev redirect inside
     // dispatchOutgoing applies automatically (PLAN D7).
     const intent = messageToIntent(msg);
-    if (isAuthCode) {
-      intent.payload = {
-        ...intent.payload,
-        authCode: payload.code,
-        mailProfile: payload.mailProfile,
-      };
-    }
+    intent.payload = {
+      ...intent.payload,
+      delivery: { channels: ['email'], audience },
+      ...(isAuthCode ? { authCode: payload.code, mailProfile: payload.mailProfile } : {}),
+    };
     try {
       await dispatchPort.dispatchOutgoing(intent);
     } catch (error) {

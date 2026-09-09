@@ -4,6 +4,8 @@ import { env, integratorWebhookSecret } from '@/config/env';
 import { withAuthDeliveryChannelGate } from '@/modules/auth/authDeliveryGate';
 import type { MailProfileRequest } from '@/modules/auth/mailProfile';
 
+export type PlatformEmailAudience = 'staff' | 'patient';
+
 type SendEmailResult = { ok: true } | { ok: false; error: string };
 
 export type IntegratorEmailAdapterDeps = {
@@ -72,8 +74,8 @@ export function createIntegratorEmailAdapter(deps: IntegratorEmailAdapterDeps) {
       const mailProfileJson = JSON.stringify(mailProfile);
       const gated = await withAuthDeliveryChannelGate('email', () =>
         postSendEmail(
-          { to, code, mailProfile: mailProfileJson },
-          emailIdempotencyKey({ to, code, mailProfile: mailProfileJson }),
+          { to, code, mailProfile: mailProfileJson, audience: 'patient' },
+          emailIdempotencyKey({ to, code, mailProfile: mailProfileJson, audience: 'patient' }),
         ),
       );
       if (!gated.ok && 'reason' in gated) {
@@ -86,8 +88,9 @@ export function createIntegratorEmailAdapter(deps: IntegratorEmailAdapterDeps) {
       to: string,
       subject: string,
       text: string,
+      audience: PlatformEmailAudience,
     ): Promise<SendEmailResult> {
-      return postSendEmail({ to, subject, text }, `email:send:${randomUUID()}`);
+      return postSendEmail({ to, subject, text, audience }, `email:send:${randomUUID()}`);
     },
   };
 }
@@ -113,5 +116,5 @@ export async function sendEmailSetupLinkViaIntegrator(
     integratorBaseUrl: env.INTEGRATOR_API_URL,
     sharedSecret: integratorWebhookSecret(),
   });
-  return adapter.sendTransactionalEmail(to, subject, text);
+  return adapter.sendTransactionalEmail(to, subject, text, 'staff');
 }

@@ -50,21 +50,46 @@ function intent(channel: 'telegram' | 'max' | 'smsc'): OutgoingIntent {
 
 const cases = [
   {
-    name: 'Telegram',
+    name: 'TherapyGo Telegram',
     channel: 'telegram' as const,
+    audience: 'patient' as const,
     values: {
-      telegram_bot_token: 'bot-token',
+      therapygo_telegram_bot_token: 'bot-token',
       telegram_webhook_secret: 'webhook-secret',
       telegram_send_menu_on_button_press: true,
     },
     read: readTelegramRuntimeConfig,
   },
   {
-    name: 'MAX',
-    channel: 'max' as const,
+    name: 'Therapysto Telegram',
+    channel: 'telegram' as const,
+    audience: 'staff' as const,
     values: {
-      max_bot_api_key: 'api-key',
+      therapysto_telegram_bot_token: 'bot-token',
+      therapysto_telegram_webhook_secret: 'webhook-secret',
+      therapysto_telegram_mode: 'webhook',
+      telegram_send_menu_on_button_press: true,
+    },
+    read: readTelegramRuntimeConfig,
+  },
+  {
+    name: 'TherapyGo MAX',
+    channel: 'max' as const,
+    audience: 'patient' as const,
+    values: {
+      therapygo_max_bot_api_key: 'api-key',
       max_webhook_secret: 'webhook-secret',
+      max_api_base_url: 'https://platform-api.max.ru',
+    },
+    read: readMaxRuntimeConfig,
+  },
+  {
+    name: 'Therapysto MAX',
+    channel: 'max' as const,
+    audience: 'staff' as const,
+    values: {
+      therapysto_max_bot_api_key: 'api-key',
+      therapysto_max_webhook_secret: 'webhook-secret',
       max_api_base_url: 'https://platform-api.max.ru',
     },
     read: readMaxRuntimeConfig,
@@ -72,6 +97,7 @@ const cases = [
   {
     name: 'SMSC',
     channel: 'smsc' as const,
+    audience: undefined,
     values: { smsc_enabled: true, smsc_api_key: 'api-key', smsc_base_url: 'https://smsc.ru/sys/send.php' },
     read: readSmscRuntimeConfig,
   },
@@ -81,13 +107,15 @@ describe('DB-backed messenger and SMS runtime configuration', () => {
   describe('Telegram transport requirements', () => {
     it('enables long polling with a bot token and no webhook secret', async () => {
       await expect(
-        readTelegramRuntimeConfig(dbFor({ telegram_mode: 'long_polling', telegram_bot_token: 'bot-token' })),
+        readTelegramRuntimeConfig(
+          dbFor({ telegram_mode: 'long_polling', therapygo_telegram_bot_token: 'bot-token' }),
+        ),
       ).resolves.toMatchObject({ mode: 'long_polling', enabled: true });
     });
 
     it('keeps webhook disabled with a bot token and no webhook secret', async () => {
       await expect(
-        readTelegramRuntimeConfig(dbFor({ telegram_mode: 'webhook', telegram_bot_token: 'bot-token' })),
+        readTelegramRuntimeConfig(dbFor({ telegram_mode: 'webhook', therapygo_telegram_bot_token: 'bot-token' })),
       ).resolves.toMatchObject({ enabled: false });
     });
 
@@ -96,7 +124,7 @@ describe('DB-backed messenger and SMS runtime configuration', () => {
         readTelegramRuntimeConfig(
           dbFor({
             telegram_mode: 'webhook',
-            telegram_bot_token: 'bot-token',
+            therapygo_telegram_bot_token: 'bot-token',
             telegram_webhook_secret: 'webhook-secret',
           }),
         ),
@@ -112,7 +140,10 @@ describe('DB-backed messenger and SMS runtime configuration', () => {
 
   for (const scenario of cases) {
     it(`${scenario.name}: enables only complete canonical configuration`, async () => {
-      await expect(scenario.read(dbFor(scenario.values))).resolves.toMatchObject({ enabled: true });
+      await expect(scenario.read(dbFor(scenario.values), scenario.audience)).resolves.toMatchObject({
+        enabled: true,
+        ...(scenario.name === 'Therapysto Telegram' ? { mode: 'webhook' } : {}),
+      });
     });
 
     it(`${scenario.name}: disabled, missing, malformed, and denied configuration reaches no adapter`, async () => {
@@ -120,15 +151,27 @@ describe('DB-backed messenger and SMS runtime configuration', () => {
       if (scenario.channel === 'max') malformed.max_api_base_url = 'not-a-url';
       if (scenario.channel === 'smsc') malformed.smsc_base_url = 'not-a-url';
       if (scenario.channel === 'telegram') {
-        malformed.telegram_mode = 'webhook';
-        malformed.telegram_webhook_secret = '';
+        if (scenario.audience === 'staff') {
+          malformed.therapysto_telegram_mode = 'webhook';
+          malformed.therapysto_telegram_webhook_secret = '';
+        } else {
+          malformed.telegram_mode = 'webhook';
+          malformed.telegram_webhook_secret = '';
+        }
       }
       const disabled = { ...scenario.values } as Record<string, unknown>;
       if (scenario.channel === 'telegram') {
-        disabled.telegram_mode = 'webhook';
-        disabled.telegram_webhook_secret = '';
+        if (scenario.audience === 'staff') {
+          disabled.therapysto_telegram_mode = 'webhook';
+          disabled.therapysto_telegram_webhook_secret = '';
+        } else {
+          disabled.telegram_mode = 'webhook';
+          disabled.telegram_webhook_secret = '';
+        }
       }
-      if (scenario.channel === 'max') disabled.max_webhook_secret = '';
+      if (scenario.channel === 'max') {
+        disabled[scenario.audience === 'staff' ? 'therapysto_max_webhook_secret' : 'max_webhook_secret'] = '';
+      }
       if (scenario.channel === 'smsc') disabled.smsc_enabled = false;
       const configurations = [
         dbFor(disabled),
@@ -141,7 +184,7 @@ describe('DB-backed messenger and SMS runtime configuration', () => {
         const adapter: DeliveryAdapter = { canHandle: () => true, send: vi.fn() };
         const port = createDefaultDispatchPort({
           adapters: [adapter],
-          isPlatformIntegrationEnabled: async () => (await scenario.read(db)).enabled,
+          isPlatformIntegrationEnabled: async () => (await scenario.read(db, scenario.audience)).enabled,
         });
         await expect(port.dispatchOutgoing(intent(scenario.channel))).rejects.toThrow(
           `PLATFORM_INTEGRATION_DISABLED:${scenario.channel}`,

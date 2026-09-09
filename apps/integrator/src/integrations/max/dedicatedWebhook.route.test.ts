@@ -1,6 +1,6 @@
 import Fastify from 'fastify';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { EventGateway } from '../../kernel/contracts/index.js';
+import type { EventGateway, IncomingEvent } from '../../kernel/contracts/index.js';
 import { getCurrentOrganizationPrincipalId } from '../../infra/principal/organizationPrincipal.js';
 import type { DedicatedBotInboundForwardDeps } from '../common/clinicBotInboundForward.js';
 import { registerMaxWebhookRoutes } from './webhook.js';
@@ -179,6 +179,60 @@ describe('dedicated MAX inbound ownership', () => {
 });
 
 describe('platform MAX resolver failures', () => {
+  it('keeps the Therapysto webhook on its own credential and staff event context', async () => {
+    const handled: IncomingEvent[] = [];
+    const handleIncomingEvent = async (event: IncomingEvent) => {
+      handled.push(event);
+      return { status: 'accepted_noop' as const };
+    };
+    const app = Fastify({ logger: false });
+    apps.push(app);
+    await registerMaxWebhookRoutes(app, {
+      eventGateway: { handleIncomingEvent } as unknown as EventGateway,
+      setupProviderSurface: false,
+      getRuntimeConfig: async (audience = 'patient') => ({
+        enabled: true,
+        apiKey: audience === 'staff' ? 'therapysto-key' : 'therapygo-key',
+        webhookSecret: audience === 'staff' ? 'therapysto-secret' : 'therapygo-secret',
+        baseUrl: 'https://platform-api.max.test',
+      }),
+    });
+    const payload = {
+      update_type: 'message_created' as const,
+      timestamp: 71,
+      message: {
+        body: { mid: 'message-71', text: 'help' },
+        sender: { user_id: 42 },
+        recipient: { chat_id: 42 },
+      },
+    };
+
+    const [accepted, rejected] = await Promise.all([
+      app.inject({
+        method: 'POST',
+        url: '/webhook/max/staff',
+        headers: { 'x-max-bot-api-secret': 'therapysto-secret' },
+        payload,
+      }),
+      app.inject({
+        method: 'POST',
+        url: '/webhook/max/staff',
+        headers: { 'x-max-bot-api-secret': 'therapygo-secret' },
+        payload,
+      }),
+    ]);
+
+    expect(accepted.statusCode).toBe(200);
+    expect(rejected.json()).toEqual({ ok: false, error: 'Forbidden' });
+    expect(handled).toHaveLength(1);
+    const event = handled[0];
+    if (!event) throw new Error('staff webhook was not dispatched');
+    // Owner oracle: staff input cannot be parsed as a patient command/link surface.
+    const facts = event.payload.facts as Record<string, unknown>;
+    expect(facts.platformAudience).toBe('staff');
+    expect(facts.links).toBeUndefined();
+  });
+
   const payload = {
     update_type: 'message_created' as const,
     timestamp: 1,

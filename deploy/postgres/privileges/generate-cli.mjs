@@ -53,15 +53,35 @@ const DEFAULT_OUT_DIR = path.join(repoRoot, 'deploy', 'postgres', 'generated');
 function parseArgs(argv) {
   const args = { flags: new Set(), values: new Map() };
   const knownFlags = new Set([
-    'all', 'check', 'gaps', 'census', 'stdout', 'no-allowlist', 'port-context-only',
+    'all',
+    'check',
+    'gaps',
+    'census',
+    'stdout',
+    'no-allowlist',
+    'port-context-only',
     'port-context-verify',
-    'env-login-shells', 'env-login-variables', 'env-verify',
-    'shared-role-baseline', 'shared-role-verify',
-    'catalog-closure-verify', 'pre-session-gate-verify', 'relation-wall-registry',
-    'relation-wall-registry-seed-only', 'target-access-only',
+    'env-login-shells',
+    'env-login-variables',
+    'env-verify',
+    'shared-role-baseline',
+    'shared-role-verify',
+    'catalog-closure-verify',
+    'pre-session-gate-verify',
+    'relation-wall-registry',
+    'relation-wall-registry-seed-only',
+    'target-access-only',
+    'migration-owner-access',
   ]);
   const knownValues = new Set([
-    'db', 'out', 'out-dir', 'declaration', 'env', 'legacy-role-quarantine', 'port-context-env',
+    'db',
+    'out',
+    'out-dir',
+    'declaration',
+    'env',
+    'legacy-role-quarantine',
+    'port-context-env',
+    'migration-owners',
   ]);
   for (let i = 0; i < argv.length; i += 1) {
     const token = argv[i];
@@ -71,7 +91,8 @@ function parseArgs(argv) {
     if (!takesValue && !knownFlags.has(key)) throw new Error(`неизвестный флаг '--${key}'`);
     if (takesValue) {
       const value = argv[i + 1];
-      if (value === undefined || value.startsWith('--')) throw new Error(`--${key} требует значение`);
+      if (value === undefined || value.startsWith('--'))
+        throw new Error(`--${key} требует значение`);
       args.values.set(key, value);
       i += 1;
     } else {
@@ -100,11 +121,18 @@ function artifactPaths(outDir, dbName) {
 
 function buildArtifacts(declaration, dbName, withAllowlist, source, portContextOnly = false) {
   if (portContextOnly) {
-    return [{ kind: 'portContext', text: generatePortContextCapabilitySeedSql(declaration, dbName) }];
+    return [
+      { kind: 'portContext', text: generatePortContextCapabilitySeedSql(declaration, dbName) },
+    ];
   }
-  const artifacts = [{ kind: 'privileges', text: generatePrivilegesSql(declaration, dbName, { source }) }];
+  const artifacts = [
+    { kind: 'privileges', text: generatePrivilegesSql(declaration, dbName, { source }) },
+  ];
   if (withAllowlist) {
-    artifacts.push({ kind: 'allowlist', text: generateOrgAllowlistSql(declaration, dbName, { source }) });
+    artifacts.push({
+      kind: 'allowlist',
+      text: generateOrgAllowlistSql(declaration, dbName, { source }),
+    });
   }
   return artifacts;
 }
@@ -115,8 +143,10 @@ function firstDifference(expected, actual) {
   const b = actual.split('\n');
   for (let i = 0; i < Math.max(a.length, b.length); i += 1) {
     if (a[i] !== b[i]) {
-      return `строка ${i + 1}:\n  закоммичено: ${JSON.stringify(a[i] ?? '<конец файла>')}\n`
-        + `  сгенерировано: ${JSON.stringify(b[i] ?? '<конец файла>')}`;
+      return (
+        `строка ${i + 1}:\n  закоммичено: ${JSON.stringify(a[i] ?? '<конец файла>')}\n` +
+        `  сгенерировано: ${JSON.stringify(b[i] ?? '<конец файла>')}`
+      );
     }
   }
   return 'файлы различаются только длиной';
@@ -134,13 +164,59 @@ function reportGaps(declaration, dbNames) {
     }, {});
     const active = tables.filter((table) => table.disposition === 'ACTIVE').length;
     const pending = tables.filter((table) => table.disposition === 'PENDING_REMOVAL').length;
-    const directEntries = tables.reduce((count, table) => count + (table.access?.kind === 'direct'
-      ? Object.keys(table.grants ?? {}).length : 0), 0);
+    const directEntries = tables.reduce(
+      (count, table) =>
+        count + (table.access?.kind === 'direct' ? Object.keys(table.grants ?? {}).length : 0),
+      0,
+    );
     total += gaps.length;
-    console.log(`\n=== ${dbName}: classified=${tables.length} active=${active} pending=${pending} access=${JSON.stringify(access)} directGrantEntries=${directEntries} unresolved=${access.unresolved ?? 0} gaps=${gaps.length} ===`);
+    console.log(
+      `\n=== ${dbName}: classified=${tables.length} active=${active} pending=${pending} access=${JSON.stringify(access)} directGrantEntries=${directEntries} unresolved=${access.unresolved ?? 0} gaps=${gaps.length} ===`,
+    );
     for (const gap of gaps) console.log(`  • ${gap.site}: ${gap.reason}`);
   }
   return total;
+}
+
+function quoteIdentifier(value) {
+  return `"${value.replaceAll('"', '""')}"`;
+}
+
+/**
+ * Migration validation may need an ACL that a subsequent declaration reconcile would provide to
+ * a newly introduced DDL owner. This deliberately renders only declared `app` schema usage/create
+ * access: it is not a target-access reconcile and cannot widen table, function, role, or runtime
+ * login privileges. CREATE is transaction-scoped by the owner-ordered runner.
+ */
+function generateMigrationOwnerAccessSql(declaration, dbName, ownerList) {
+  const database = declaration.databases[dbName];
+  const appUsage = database?.schemas?.app?.usage;
+  const creators = database?.creators;
+  if (!Array.isArray(appUsage))
+    throw new Error(`${dbName}: declaration has no app schema usage list`);
+  if (!Array.isArray(creators))
+    throw new Error(`${dbName}: declaration has no migration creator list`);
+  const declaredRoles = new Set(Object.keys(declaration.cluster.roles));
+  const owners = [...new Set(ownerList.split(',').filter(Boolean))];
+  if (owners.length === 0) throw new Error('--migration-owners must name at least one owner');
+  for (const owner of owners) {
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/u.test(owner) || !declaredRoles.has(owner)) {
+      throw new Error(`undeclared migration owner '${owner}'`);
+    }
+    if (!appUsage.includes(owner)) {
+      throw new Error(`${dbName}: migration owner '${owner}' lacks declared app schema usage`);
+    }
+    if (!creators.includes(owner)) {
+      throw new Error(
+        `${dbName}: migration owner '${owner}' lacks declared migration creator authority`,
+      );
+    }
+  }
+  return [
+    '-- transaction-scoped migration owner access from the canonical declaration',
+    `GRANT CREATE, USAGE ON SCHEMA "app" TO ${owners.map(quoteIdentifier).join(', ')};`,
+    '',
+  ].join('\n');
 }
 
 async function main() {
@@ -158,10 +234,22 @@ async function main() {
     if (dbNames.length !== 1 || !args.values.has('db')) {
       throw new Error('--target-access-only requires exactly one --db');
     }
-    process.stdout.write(generatePrivilegesSql(declaration, dbNames[0], {
-      source: path.relative(repoRoot, path.resolve(declarationPath)),
-      includeClusterState: false,
-    }));
+    process.stdout.write(
+      generatePrivilegesSql(declaration, dbNames[0], {
+        source: path.relative(repoRoot, path.resolve(declarationPath)),
+        includeClusterState: false,
+      }),
+    );
+    return;
+  }
+
+  if (args.flags.has('migration-owner-access')) {
+    if (dbNames.length !== 1 || !args.values.has('db') || !args.values.has('migration-owners')) {
+      throw new Error('--migration-owner-access requires exactly one --db and --migration-owners');
+    }
+    process.stdout.write(
+      generateMigrationOwnerAccessSql(declaration, dbNames[0], args.values.get('migration-owners')),
+    );
     return;
   }
 
@@ -177,10 +265,11 @@ async function main() {
     if (args.values.has('db') || args.values.has('env')) {
       throw new Error('--legacy-role-quarantine is cluster-wide and rejects --db/--env');
     }
-    process.stdout.write(generateLegacyRoleQuarantineSql(
-      declaration,
-      { only: [args.values.get('legacy-role-quarantine')] },
-    ));
+    process.stdout.write(
+      generateLegacyRoleQuarantineSql(declaration, {
+        only: [args.values.get('legacy-role-quarantine')],
+      }),
+    );
     return;
   }
 
@@ -211,7 +300,8 @@ async function main() {
   }
 
   if (args.flags.has('relation-wall-registry')) {
-    if (dbNames.length !== 1 || !args.values.has('db')) throw new Error('--relation-wall-registry requires --db');
+    if (dbNames.length !== 1 || !args.values.has('db'))
+      throw new Error('--relation-wall-registry requires --db');
     process.stdout.write(generateRelationWallRegistrySeedSql(declaration, dbNames[0]));
     return;
   }
@@ -220,14 +310,11 @@ async function main() {
     if (dbNames.length !== 1 || !args.values.has('db')) {
       throw new Error('--relation-wall-registry-seed-only requires --db');
     }
-    process.stdout.write(generateRelationWallRegistrySeedSql(
-      declaration,
-      dbNames[0],
-      { reconcileOwners: false },
-    ));
+    process.stdout.write(
+      generateRelationWallRegistrySeedSql(declaration, dbNames[0], { reconcileOwners: false }),
+    );
     return;
   }
-
 
   if (args.flags.has('gaps')) {
     const total = reportGaps(declaration, dbNames);
@@ -238,11 +325,16 @@ async function main() {
     for (const dbName of dbNames) {
       const result = assertNoUndeclaredRuntimeSurface(declaration, dbName);
       const principals = assertPatientCallsiteDoors(declaration, dbName);
-      const active = Object.values(declaration.databases[dbName].tables)
-        .filter((table) => table.disposition === 'ACTIVE').length;
-      console.log(`ok ${dbName}: production source census checked ${active} ACTIVE relations across ${result.files} source files`);
-      console.log(`ok ${dbName}: ${principals.patientOnlyModules} patient-only modules reach only the`
-        + ` ${principals.relationsWithPatientDoor} relations that have a patient door`);
+      const active = Object.values(declaration.databases[dbName].tables).filter(
+        (table) => table.disposition === 'ACTIVE',
+      ).length;
+      console.log(
+        `ok ${dbName}: production source census checked ${active} ACTIVE relations across ${result.files} source files`,
+      );
+      console.log(
+        `ok ${dbName}: ${principals.patientOnlyModules} patient-only modules reach only the` +
+          ` ${principals.relationsWithPatientDoor} relations that have a patient door`,
+      );
     }
     return;
   }
@@ -280,18 +372,30 @@ async function main() {
     let red = 0;
     for (const dbName of dbNames) {
       const paths = artifactPaths(outDir, dbName);
-      for (const artifact of buildArtifacts(declaration, dbName, withAllowlist, source, portContextOnly)) {
+      for (const artifact of buildArtifacts(
+        declaration,
+        dbName,
+        withAllowlist,
+        source,
+        portContextOnly,
+      )) {
         const file = paths[artifact.kind];
         if (!fs.existsSync(file)) {
-          console.error(`КРАСНЫЙ ${dbName}/${artifact.kind}: артефакт ${path.relative(repoRoot, file)} не закоммичен`);
+          console.error(
+            `КРАСНЫЙ ${dbName}/${artifact.kind}: артефакт ${path.relative(repoRoot, file)} не закоммичен`,
+          );
           red += 1;
           continue;
         }
         const committed = fs.readFileSync(file, 'utf8');
         if (committed === artifact.text) {
-          console.log(`ok ${dbName}/${artifact.kind}: ${path.relative(repoRoot, file)} совпадает побайтно`);
+          console.log(
+            `ok ${dbName}/${artifact.kind}: ${path.relative(repoRoot, file)} совпадает побайтно`,
+          );
         } else {
-          console.error(`КРАСНЫЙ ${dbName}/${artifact.kind}: ${path.relative(repoRoot, file)} разошёлся с декларацией`);
+          console.error(
+            `КРАСНЫЙ ${dbName}/${artifact.kind}: ${path.relative(repoRoot, file)} разошёлся с декларацией`,
+          );
           console.error(firstDifference(committed, artifact.text));
           red += 1;
         }
@@ -307,9 +411,11 @@ async function main() {
 
   if (args.flags.has('stdout') || (args.values.has('out') && args.values.get('out') === '-')) {
     if (dbNames.length !== 1) throw new Error('--stdout требует ровно одну базу (--db)');
-    process.stdout.write(portContextOnly
-      ? generatePortContextCapabilitySeedSql(declaration, dbNames[0])
-      : generatePrivilegesSql(declaration, dbNames[0], { source }));
+    process.stdout.write(
+      portContextOnly
+        ? generatePortContextCapabilitySeedSql(declaration, dbNames[0])
+        : generatePrivilegesSql(declaration, dbNames[0], { source }),
+    );
     return;
   }
 
@@ -318,10 +424,17 @@ async function main() {
   fs.mkdirSync(explicitOut ? path.dirname(path.resolve(explicitOut)) : outDir, { recursive: true });
   for (const dbName of dbNames) {
     const paths = artifactPaths(outDir, dbName);
-    for (const artifact of buildArtifacts(declaration, dbName, withAllowlist, source, portContextOnly)) {
-      const file = explicitOut && ['privileges', 'portContext'].includes(artifact.kind)
-        ? path.resolve(explicitOut)
-        : paths[artifact.kind];
+    for (const artifact of buildArtifacts(
+      declaration,
+      dbName,
+      withAllowlist,
+      source,
+      portContextOnly,
+    )) {
+      const file =
+        explicitOut && ['privileges', 'portContext'].includes(artifact.kind)
+          ? path.resolve(explicitOut)
+          : paths[artifact.kind];
       if (explicitOut && !['privileges', 'portContext'].includes(artifact.kind)) continue;
       fs.writeFileSync(file, artifact.text, 'utf8');
       console.log(`записано: ${path.relative(repoRoot, file)} (${artifact.text.length} байт)`);

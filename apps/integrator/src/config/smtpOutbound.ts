@@ -1,16 +1,20 @@
 /**
  * Resolved outbound SMTP used by `/api/bersoncare/send-email`.
- * Source of truth: restricted DB-backed `public.system_settings.smtp_outbound` (admin).
+ * Source of truth: audience-selected restricted DB-backed `public.system_settings` profile (admin).
  * The delivery process receives only an argumentless database capability for this credential.
  */
 import { z } from 'zod';
 import type { DbPort } from '../kernel/contracts/index.js';
 import { logger } from '../infra/observability/logger.js';
 import { parseSystemSettingInnerWithSchema } from '../infra/db/publicSystemSettings.js';
-import { readSmtpOutboundSettingValueJson } from '../infra/db/publicRestrictedSettings.js';
+import { fetchIntegratorProviderRuntimeSettingValueJson } from '../infra/db/publicSystemSettings.js';
 import { runWithBootstrapPrincipal } from '../infra/principal/organizationPrincipal.js';
+import {
+  platformCredentialKey,
+  type PlatformDeliveryAudience,
+} from '../infra/adapters/platformDeliveryAudience.js';
 
-const KEY = 'smtp_outbound';
+const KEY = 'platform_smtp_outbound';
 
 export type ResolvedSmtpOutboundConfig = {
   configured: boolean;
@@ -77,11 +81,18 @@ export function parseSmtpOutboundValueJson(valueJson: unknown): ResolvedSmtpOutb
 }
 
 /** Resolves the current restricted DB setting on every call. */
-export async function resolveSmtpOutboundConfig(db: DbPort): Promise<ResolvedSmtpOutboundConfig> {
+export async function resolveSmtpOutboundConfig(
+  db: DbPort,
+  audience: PlatformDeliveryAudience = 'patient',
+): Promise<ResolvedSmtpOutboundConfig> {
   try {
     const valueJson = await runWithBootstrapPrincipal(
       { source: 'integrator-server-runtime-config' },
-      () => readSmtpOutboundSettingValueJson(db),
+      () =>
+        fetchIntegratorProviderRuntimeSettingValueJson(
+          db,
+          platformCredentialKey(audience, 'email'),
+        ),
     );
     const fromDb = valueJson !== null ? parseSmtpOutboundValueJson(valueJson) : null;
     return fromDb ?? emptyResolved();
