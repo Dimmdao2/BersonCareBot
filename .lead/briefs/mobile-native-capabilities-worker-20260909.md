@@ -66,16 +66,21 @@ permission.
 
 Gallery uses Android Photo Picker `PickVisualMedia(ImageAndVideo)` with system fallback; documents use
 `OpenDocument`/CATEGORY_OPENABLE and exact MIME allowlists supplied from the closed web contract. Validate MIME from
-ContentResolver, return display name and nullable size as metadata only, and use persistable URI permission only
-when restart survival requires it. Return one descriptor `{handle, uri, mimeType, displayName, sizeBytes|null,
-source, kind}`; the opaque handle, not arbitrary JavaScript URI, authorizes subsequent upload. Release/cancel removes
-temporary files and handle state.
+ContentResolver, return display name, exact size and optional extracted video duration as metadata only, and use
+persistable URI permission only when restart survival requires it. Server multipart init needs exact size before the
+first part URL: if the provider reports unknown size or is non-seekable, materialize it once into app-private
+seekable storage during handle preparation, then return the measured size. For video, `durationSeconds` comes from
+`MediaMetadataRetriever`; a destination that requires duration gets a typed metadata failure instead of a guess.
+Return one descriptor `{handle,mimeType,displayName,sizeBytes,durationSeconds?,source,kind}`; do not expose the
+content URI to JavaScript. The opaque handle, not arbitrary JavaScript URI, authorizes subsequent upload.
+Release/cancel removes temporary files and handle state.
 
 Implement native streaming of one exact multipart range to a server-authorized presigned HTTPS URL. Each call takes
 an opaque selected handle plus `{offset,length,presignedUrl,headers}` and returns bounded HTTP status/ETag. Reopen and
 seek for every retry; write exactly `length`, never the whole source for every part. Use ParcelFileDescriptor/
-FileChannel when seekable; for a non-seekable provider or unknown size copy once to an app-private seekable temp file
-without entering JS heap, then delete on completion/cancel/failure. Cancellation closes the stream/network call.
+FileChannel when seekable; any non-seekable/unknown-size source has already been copied once during handle
+preparation, never lazily after server init. Delete app-private material on release or terminal completion/cancel/
+failure. Cancellation closes the stream/network call.
 
 The upload transport accepts only exact HTTPS object-storage hosts used by the product: configure separate
 compile-time allowlists for TEST/production from the documented Selectel/Yandex/TEST endpoints, reject userinfo,
