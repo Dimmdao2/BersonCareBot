@@ -12,7 +12,7 @@ All native calls are unavailable unless the active main-frame URL has the exact 
 
 | Plugin | Methods | Events / result shape |
 | --- | --- | --- |
-| `NativeJitsi` | `start({endpoint, roomReference, accessToken})`, `hangup()`, `retry()` | `conference`: `{state: 'joined'|'terminated'|'error', code?}`. The endpoint is an exact build-time match, the room is opaque and token never enters logs. |
+| `NativeJitsi` | `start({endpoint, roomReference, accessToken, conferenceId})`, `hangup({conferenceId})`, `retry({conferenceId})` | Start/retry and `conference` events carry an opaque per-launch `conferenceId`. The shell serializes a replacement until the prior `JitsiMeetActivity` is destroyed, then emits only that launch's id; cleanup addresses its own id, including a permission-pending launch. Event shape: `{state: 'joined'|'terminated'|'error', conferenceId, code?}`. A shell that cannot echo the id is unavailable and the web stage uses the iframe. The endpoint is an exact build-time match, the room is opaque and token never enters logs. |
 | `DeviceMedia` | `captureMedia({kind})`, `pickMedia({requiresDuration?})`, `pickDocument({mimeTypes})`, `upload({handle, offset, length, presignedUrl, headers})`, `cancelUpload()`, `release({handle})` | Selection returns `{outcome:'selected', handle, mimeType, displayName, sizeBytes, durationSeconds?, source, kind}`; cancellation is `{outcome:'cancelled', reason}`. The URI and bytes stay native. |
 | `UniversalPush` | `configure({projectId})`, `requestPermission()`, `getState()`, `revoke()` | `push`: non-secret state/permission/error/deleted-message events and a token only over the trusted bridge; a valid data message gives `{event:'message', pushSurface, notificationKind, route}`. |
 

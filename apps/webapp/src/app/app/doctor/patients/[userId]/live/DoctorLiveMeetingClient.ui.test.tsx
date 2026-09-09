@@ -22,6 +22,10 @@ vi.mock('@/app/app/doctor/clients/DoctorNotesPanel', () => ({
 vi.mock('../visits/EncounterPageClient', () => ({
   EncounterPageClient: () => <div data-testid="encounter-panel">encounter</div>,
 }));
+vi.mock('next/navigation', () => ({
+  usePathname: () => '/app/doctor/patients/11111111-1111-4111-8111-111111111111/live',
+  useRouter: () => ({ push: vi.fn() }),
+}));
 
 const { DoctorLiveMeetingClient } = await import('./DoctorLiveMeetingClient');
 

@@ -13,6 +13,8 @@ import { PatientOrganizationContextProvider } from '@/shared/ui/patient/organiza
 import type { AuthChannelUiPolicy } from '@/modules/auth/otpChannelUi';
 import { PatientRuntimeFeaturesProvider } from '@/shared/ui/patient/PatientRuntimeFeaturesContext';
 import type { WorkspaceModuleEffective } from '@/modules/system-settings/doctorWorkspaceComposition';
+import { ActiveCallCoordinator } from '@/shared/ui/video/ActiveCallCoordinator';
+import { PatientActiveCallIndicator } from '@/shared/ui/patient/calls/PatientActiveCallIndicator';
 
 /** Клиентская обёртка пациентского раздела (гейт Mini App). Серверный редирект по телефону — в `layout.tsx`. */
 export function PatientClientLayout({
@@ -49,6 +51,7 @@ export function PatientClientLayout({
     children
   );
   return (
+    <ActiveCallCoordinator floatingIndicator={<PatientActiveCallIndicator />}>
     <PatientPhonePromptChromeProvider>
       <MiniAppShareContactGate channelPolicy={authChannelPolicy}>
         <PatientWebPushProvider>
@@ -63,5 +66,6 @@ export function PatientClientLayout({
         </PatientWebPushProvider>
       </MiniAppShareContactGate>
     </PatientPhonePromptChromeProvider>
+    </ActiveCallCoordinator>
   );
 }

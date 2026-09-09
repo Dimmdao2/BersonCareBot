@@ -1,11 +1,13 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 import { Copy, Play } from 'lucide-react';
 import type { VideoMeetingRenderSession } from '@/modules/video-meetings/ports';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/doctor/primitives/tabs';
 import { VideoMeetingStage } from '@/shared/ui/video/VideoMeetingStage';
+import { useActiveCall } from '@/shared/ui/video/ActiveCallCoordinator';
 import { DoctorNotesPanel } from '@/app/app/doctor/clients/DoctorNotesPanel';
 import { EncounterPageClient } from '../visits/EncounterPageClient';
 
@@ -42,6 +44,9 @@ export function DoctorLiveMeetingClient({
   encountersEnabled: boolean;
   medicalRecordEnabled: boolean;
 }) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const activeCall = useActiveCall();
   const startedRef = useRef(false);
   const mountRequestedRef = useRef(false);
   const prepareInFlightRef = useRef<Promise<void> | null>(null);
@@ -61,11 +66,30 @@ export function DoctorLiveMeetingClient({
       });
       const data = await response.json() as SessionResponse;
       if (!response.ok || !data.ok || !data.session || !data.meetingId) throw new Error('prepare_failed');
-      meetingIdRef.current = data.meetingId;
-      setPreparedMeetingId(data.meetingId);
+      const meetingId = data.meetingId;
+      meetingIdRef.current = meetingId;
+      setPreparedMeetingId(meetingId);
       if (data.guestUrl) setGuestUrl(data.guestUrl);
       if (data.notification) setNotification(data.notification);
-      if (mount) setSession(data.session);
+      if (mount) {
+        const returnUrl = `${pathname}${appointmentId ? `?${new URLSearchParams({ appointmentId })}` : ''}`;
+        const activated = activeCall.activate({
+          session: data.session,
+          returnUrl,
+          onTerminal: () => {
+            void fetch(`/api/doctor/clients/${encodeURIComponent(userId)}/video-meetings/${encodeURIComponent(meetingId)}`, {
+              method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'end' }),
+            });
+          },
+          onDiagnostic: (diagnostic) => {
+            void fetch(`/api/doctor/clients/${encodeURIComponent(userId)}/video-meetings/${encodeURIComponent(meetingId)}`, {
+              method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ diagnostic }),
+            });
+          },
+        });
+        if (!activated) throw new Error('active_call_exists');
+        setSession(data.session);
+      }
     };
     const previous = prepareInFlightRef.current;
     const current = previous ? previous.catch(() => undefined).then(request) : request();
@@ -76,16 +100,17 @@ export function DoctorLiveMeetingClient({
       if (prepareInFlightRef.current === current) prepareInFlightRef.current = null;
     });
     return current;
-  }, [appointmentId, userId]);
+  }, [activeCall, appointmentId, pathname, userId]);
 
   useEffect(() => {
+    if (activeCall.activeCall) return;
     if (startedRef.current) return;
     startedRef.current = true;
     queueMicrotask(() => { void prepare(false).catch(() => setError(true)); });
-  }, [prepare]);
+  }, [activeCall.activeCall, prepare]);
 
   const start = useCallback(() => {
-    if (mountRequestedRef.current || session) return;
+    if (mountRequestedRef.current || session || activeCall.activeCall) return;
     mountRequestedRef.current = true;
     setStarting(true);
     setError(false);
@@ -95,36 +120,34 @@ export function DoctorLiveMeetingClient({
         setError(true);
       })
       .finally(() => setStarting(false));
-  }, [prepare, session]);
+  }, [activeCall.activeCall, prepare, session]);
 
   const retryPrepare = useCallback(() => {
     setError(false);
     void prepare(false).catch(() => setError(true));
   }, [prepare]);
 
-  const end = useCallback(() => {
-    const meetingId = meetingIdRef.current;
-    if (!meetingId) return;
-    meetingIdRef.current = null;
-    setPreparedMeetingId(null);
-    void fetch(`/api/doctor/clients/${encodeURIComponent(userId)}/video-meetings/${encodeURIComponent(meetingId)}`, {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'end' }),
-    });
-  }, [userId]);
-
-  const reportDiagnostic = useCallback((diagnostic: { event: 'join' | 'error' | 'end'; durationMs?: number; transport?: 'p2p' | 'relay'; errorClass?: 'connection' | 'media' | 'provider' }) => {
-    const meetingId = meetingIdRef.current;
-    if (!meetingId) return;
-    void fetch(`/api/doctor/clients/${encodeURIComponent(userId)}/video-meetings/${encodeURIComponent(meetingId)}`, {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ diagnostic }),
-    });
-  }, [userId]);
+  const activeSession = activeCall.activeCall?.session ?? session;
 
   return (
     <main className="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-y-auto lg:grid-cols-[minmax(0,1fr)_420px] lg:overflow-hidden">
       <section className="relative flex min-h-[320px] min-w-0 overflow-hidden rounded-lg bg-black lg:min-h-0">
-        <VideoMeetingStage className="relative flex min-h-0 flex-1 bg-black" session={session} onHangup={end} onDiagnostic={reportDiagnostic} />
-        {!session ? (
+        {!activeCall.isMobile && (activeCall.isActiveRoute || !activeCall.activeCall) ? (
+          <VideoMeetingStage
+            className="relative flex min-h-0 flex-1 bg-black"
+            session={activeSession}
+            onHangup={activeCall.completeFromRenderer}
+            onDiagnostic={activeCall.reportDiagnostic}
+          />
+        ) : null}
+        {activeCall.activeCall && !activeCall.isActiveRoute ? (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <Button type="button" onClick={() => router.push(activeCall.activeCall!.returnUrl)}>
+              Вернуться к звонку
+            </Button>
+          </div>
+        ) : null}
+        {!activeSession ? (
           <div className="absolute inset-0 flex items-center justify-center">
             <Button type="button" size="lg" disabled={starting} onClick={start}><Play className="size-5" /> Начать звонок</Button>
           </div>

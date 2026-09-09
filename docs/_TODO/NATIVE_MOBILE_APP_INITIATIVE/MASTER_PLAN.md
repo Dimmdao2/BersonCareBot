@@ -280,33 +280,47 @@ VM-10, VM-11, VM-12, UI-08, UI-09, UI-10. `M4-01` по определению т
    переписывается;
 3. владелец `#1100` остаётся authority для browser-пути; расхождение — вопрос владельцу, не правка M4.
 
-- [ ] **M4-01.** `VideoMeetingStage` сохраняет один provider-neutral render contract на все три production-входа.
+- [x] **M4-01.** `VideoMeetingStage` сохраняет один provider-neutral render contract на все три production-входа.
       Browser использует существующий iframe renderer; доверенный Android runtime открывает Jitsi Android SDK на
       том же `endpoint`, `roomReference` и `accessToken`. Серверный `VideoMeetingRenderSession.renderer`
       (`'embedded_conference' | 'peer_connection'`) новых значений НЕ получает: выбор нативного пути делает клиент
       по `NativeRuntime`, иначе сервер начал бы утверждать клиентскую возможность вопреки `M3-02`.
-- [ ] **M4-02.** Jitsi runs in a native full-screen Activity and automatically continues in Android
+      Доказательство: web product `0d54836a5`, combined candidate `3ab89ae15`, independent diff/runtime-seam
+      audit `7d519dc80` и итоговый отчёт `90-final-audit-report.md`.
+- [x] **M4-02.** Jitsi runs in a native full-screen Activity and automatically continues in Android
       Picture-in-Picture when the user leaves the call screen or backgrounds the app. Web-page unmount/navigation
       never sends hangup; only the explicit native «Завершить звонок» action ends the call. The plugin returns
       joined/terminated/error events, honors explicit user start, microphone/camera permissions and retry, and never
       prints room/JWT/guest secret in logs. Базовая Activity/permission/event реализация принята через
-      `f156170e9`/`d1c983a3c`/`a722d9bf8`; owner-коррекция PiP + explicit-end-only от 2026-09-09 открыта до нового
-      product SHA и независимой acceptance.
-- [ ] **M4-03.** TherapyGo and Therapysto both reach the same self-hosted `meet.therapysto.ru`/TEST counterpart;
+      `f156170e9`/`d1c983a3c`/`a722d9bf8`; owner-коррекция PiP + explicit-end-only от 2026-09-09 закрыта новым
+      product SHA и независимой acceptance. Доказательство: Android product `037f473ee`, SDK PiP bytecode/view
+      inspection и четыре зелёные flavor-сборки/теста в independent report `7d519dc80`; реальный device gate
+      вынесен в M7 и не подменён repository-проверкой.
+- [x] **M4-03.** TherapyGo and Therapysto both reach the same self-hosted `meet.therapysto.ru`/TEST counterpart;
       `meet.jit.si`, JaaS and other external media/telemetry endpoints are absent. Jitsi JWT/issuer/secret
       по-прежнему читаются только из restricted `system_settings` (`jitsi_*` ключи) и в bundle не попадают.
-- [ ] **M4-04.** Specialist can return to the unchanged notes/encounter page while the native call continues in
+      Доказательство: exact endpoint gate `037f473ee`, четыре flavor suites и bundle/config inspection в
+      independent report `7d519dc80`.
+- [x] **M4-04.** Specialist can return to the unchanged notes/encounter page while the native call continues in
       Picture-in-Picture, then the existing web hangup/encounter callback runs only after explicit native termination;
       no separate mobile notes implementation is created. Browser/PWA mobile navigation also preserves the same
       active conference; browser PiP is used when available and a compact in-app video window is the fallback.
-- [ ] **M4-05.** Нативный adapter подключён к тому же нейтральному шву, что и будущий PeerJS/native-WebRTC provider
+      Доказательство: persistent web product `0d54836a5`, Android explicit-end-only `037f473ee`, independent
+      route/guest/encounter inspection `7d519dc80`; audit-found narrowed-id type regression исправлен, затронутая
+      существующая doctor UI suite прошла 5/5, exact typecheck filter дал 0 diagnostics этой страницы.
+- [x] **M4-05.** Нативный adapter подключён к тому же нейтральному шву, что и будущий PeerJS/native-WebRTC provider
       (`#1100` VM-08), и не закрывает смену провайдера: замена рендера не требует правки product-страниц.
-- [ ] **M4-06.** Один persistent active-call coordinator выше route boundary владеет текущей render-session,
+      Доказательство: provider-neutral seam inspection на combined candidate `3ab89ae15` в independent report
+      `7d519dc80`; второй meeting page/server renderer не создан.
+- [x] **M4-06.** Один persistent active-call coordinator выше route boundary владеет текущей render-session,
       terminal callback и точным return URL. На остальных мобильных patient/doctor страницах зонально раздельные
       UI-компоненты показывают компактный индикатор справа снизу над нижней навигацией (камера + мягко пульсирующая
       точка), возвращают в текущий звонок и не позволяют обычным start-call controls начать второй звонок. Переход
       внутри приложения не размонтирует conference; explicit end очищает coordinator ровно один раз. Guest `/live`
       сохраняет действующий standalone путь. Десктопная раскладка остаётся без нового floating UI.
+      Доказательство: zonally separate coordinator/indicator/start-control product `0d54836a5`, combined audit
+      inspection/fault injection `7d519dc80`; два новых internal-contract теста аудитора отклонены по обновлённому
+      §10a и удалены до landing, что записано в lead-acceptance отчёта.
 
 ### M5 — camera, gallery, documents and streaming upload
 

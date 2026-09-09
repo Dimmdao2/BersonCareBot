@@ -1,9 +1,11 @@
 'use client';
 
 import { useEffect, useState, type ReactNode } from 'react';
+import { usePathname } from 'next/navigation';
 import type { VideoMeetingRenderSession } from '@/modules/video-meetings/ports';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/patient/primitives/tabs';
 import { VideoMeetingStage } from '@/shared/ui/video/VideoMeetingStage';
+import { useActiveCall } from '@/shared/ui/video/ActiveCallCoordinator';
 import { patientBodyTextClass } from '@/shared/ui/patient/patientVisual';
 
 export function PatientLiveMeetingClient({
@@ -15,14 +17,23 @@ export function PatientLiveMeetingClient({
   diaryPanel?: ReactNode;
   programPanel?: ReactNode;
 }) {
+  const pathname = usePathname();
+  const activeCall = useActiveCall();
   const [session, setSession] = useState<VideoMeetingRenderSession | null>(null);
   const [refused, setRefused] = useState(false);
   useEffect(() => {
+    if (activeCall.activeCall) return;
     void fetch(`/api/patient/video-meetings/${encodeURIComponent(meetingId)}/join`, { method: 'POST' })
       .then(async (response) => ({ response, data: await response.json() as { ok?: boolean; session?: VideoMeetingRenderSession } }))
-      .then(({ response, data }) => response.ok && data.ok && data.session ? setSession(data.session) : setRefused(true))
+      .then(({ response, data }) => {
+        if (!response.ok || !data.ok || !data.session) {
+          setRefused(true);
+          return;
+        }
+        if (activeCall.activate({ session: data.session, returnUrl: pathname })) setSession(data.session);
+      })
       .catch(() => setRefused(true));
-  }, [meetingId]);
+  }, [activeCall, meetingId, pathname]);
   if (refused) {
     return (
       <main className={`flex min-h-screen items-center justify-center ${patientBodyTextClass}`}>
@@ -34,9 +45,15 @@ export function PatientLiveMeetingClient({
   return (
     <main className={hasPatientPanels ? 'grid min-h-screen grid-cols-1 lg:grid-cols-[minmax(0,1fr)_420px]' : 'min-h-screen bg-black'}>
       <section className="min-w-0 bg-black">
-        <VideoMeetingStage session={session} />
+        {!activeCall.isMobile ? (
+          <VideoMeetingStage
+            session={activeCall.activeCall?.session ?? session}
+            onHangup={activeCall.completeFromRenderer}
+            onDiagnostic={activeCall.reportDiagnostic}
+          />
+        ) : null}
       </section>
-      {session && hasPatientPanels ? (
+      {(activeCall.activeCall?.session ?? session) && hasPatientPanels ? (
         <aside className="min-w-0 overflow-hidden border bg-[var(--patient-bg)] p-3">
           <Tabs defaultValue={diaryPanel ? 'diary' : 'program'}>
             <TabsList className={`grid w-full ${diaryPanel && programPanel ? 'grid-cols-2' : 'grid-cols-1'}`}>
