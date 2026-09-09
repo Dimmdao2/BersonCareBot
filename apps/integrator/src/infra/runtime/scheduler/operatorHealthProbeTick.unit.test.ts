@@ -45,6 +45,7 @@ describe('scheduled operator health due gate', () => {
         max: '2026-08-03T09:49:59.999Z',
         telegram: '2026-08-03T09:55:00.001Z',
         google_calendar: '2026-08-03T09:50:00.000Z',
+        email: '2026-08-03T09:50:00.001Z',
       },
     });
 
@@ -60,6 +61,7 @@ describe('scheduled operator health due gate', () => {
         max: '2026-08-03T09:55:00.001Z',
         telegram: '2026-08-03T09:55:00.001Z',
         google_calendar: '2026-08-03T09:55:00.001Z',
+        email: '2026-08-03T09:55:00.001Z',
       },
     });
 
@@ -74,6 +76,7 @@ describe('scheduled operator health due gate', () => {
         max: null,
         telegram: '2026-08-03T09:55:00.001Z',
         google_calendar: '2026-08-03T09:55:00.001Z',
+        email: '2026-08-03T09:55:00.001Z',
       },
     });
 
@@ -89,12 +92,27 @@ describe('scheduled operator health due gate', () => {
     expect(h.runProbes).not.toHaveBeenCalled();
   });
 
+  it('runs the two-audience SMTP/IMAP probe when its own cadence is due', async () => {
+    const h = deps({
+      lastRunAt: {
+        max: '2026-08-03T09:55:00.001Z',
+        telegram: '2026-08-03T09:55:00.001Z',
+        google_calendar: '2026-08-03T09:55:00.001Z',
+        email: '2026-08-03T09:44:59.999Z',
+      },
+    });
+
+    await expect(runScheduledOperatorHealthProbeTick(h.value)).resolves.toBe(true);
+    expect(h.runProbes).toHaveBeenCalledWith(expect.objectContaining({ probes: ['email'] }));
+  });
+
   it('treats an invalid persisted lastRunAt as due instead of freezing the probe', async () => {
     const h = deps({
       lastRunAt: {
         max: 'not-a-date',
         telegram: '2026-08-03T09:55:00.001Z',
         google_calendar: '2026-08-03T09:55:00.001Z',
+        email: '2026-08-03T09:55:00.001Z',
       },
     });
 

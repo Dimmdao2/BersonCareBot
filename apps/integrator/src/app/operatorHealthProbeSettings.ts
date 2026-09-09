@@ -7,8 +7,9 @@ import {
 } from '../infra/db/publicSystemSettings.js';
 
 export const OPERATOR_HEALTH_PROBE_CONFIG_KEY = 'operator_health_probe_config';
-export const OPERATOR_HEALTH_PROBE_NAMES = ['max', 'telegram', 'google_calendar'] as const;
+export const OPERATOR_HEALTH_PROBE_NAMES = ['max', 'telegram', 'google_calendar', 'email'] as const;
 export type OperatorHealthProbeName = (typeof OPERATOR_HEALTH_PROBE_NAMES)[number];
+export type OperatorHealthExternalProbeName = Exclude<OperatorHealthProbeName, 'email'>;
 export type OperatorHealthEmailProbeConfig = {
   intervalMs: number;
   timeoutMs: number;
@@ -17,7 +18,7 @@ export type OperatorHealthEmailProbeConfig = {
   cleanupIntervalMs: number;
 };
 export type OperatorHealthProbeConfig = {
-  [K in OperatorHealthProbeName]: {
+  [K in OperatorHealthExternalProbeName]: {
     enabled: boolean;
     intervalMs: number;
     timeoutMs: number;

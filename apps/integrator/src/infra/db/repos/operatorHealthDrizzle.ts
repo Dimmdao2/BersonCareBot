@@ -122,7 +122,12 @@ export async function resolveOutboundProviderIncidentsAfterConfirmedDelivery(
  * `outgoingDeliveryWorker.ts:745`) с другой сигнатурой. Второй путь к той же записи — нарушение §5.
  */
 
-const OPERATOR_OUTBOUND_PROBE_CHANNELS = ['max', 'telegram', 'google_calendar'] as const;
+const OPERATOR_OUTBOUND_PROBE_CHANNELS = [
+  'max',
+  'telegram',
+  'google_calendar',
+  'email',
+] as const;
 type OperatorOutboundProbeChannel = (typeof OPERATOR_OUTBOUND_PROBE_CHANNELS)[number];
 
 /**
@@ -149,12 +154,15 @@ async function readOperatorOutboundProbeMeta(): Promise<Record<string, unknown>>
 }
 
 /**
- * Записать результат синтетических проб в `operator_job_status` для 3-strike critical tick.
+ * Записать общий результат синтетических проб в единственную scheduler-owned status row.
  */
 export async function recordOperatorOutboundProbeRun(input: {
   max: string;
   telegram: string;
   google_calendar: string;
+  email?: string;
+  emailAudiences?: Record<string, string>;
+  cleanupPerformed?: boolean;
   probed?: readonly OperatorOutboundProbeChannel[];
 }): Promise<{
   consecutiveFailRuns: number;
@@ -173,10 +181,12 @@ export async function recordOperatorOutboundProbeRun(input: {
     prevMeta.lastRunAt && typeof prevMeta.lastRunAt === 'object'
       ? (prevMeta.lastRunAt as Record<string, unknown>)
       : {};
+  const previousLastCleanupAt =
+    typeof prevMeta.lastCleanupAt === 'string' ? prevMeta.lastCleanupAt : null;
   const consecutiveFailures: Record<string, number> = {};
   const lastRunAt: Record<string, string> = {};
   for (const channel of OPERATOR_OUTBOUND_PROBE_CHANNELS) {
-    const outcome = input[channel];
+    const outcome = input[channel] ?? 'skipped_not_configured';
     const previous =
       typeof previousFailures[channel] === 'number' && Number.isFinite(previousFailures[channel])
         ? Math.max(0, Math.trunc(previousFailures[channel] as number))
@@ -201,9 +211,12 @@ export async function recordOperatorOutboundProbeRun(input: {
     max: input.max,
     telegram: input.telegram,
     google_calendar: input.google_calendar,
+    email: input.email ?? 'skipped_not_configured',
+    ...(input.emailAudiences ? { emailAudiences: input.emailAudiences } : {}),
     consecutiveFailRuns,
     consecutiveFailures,
     lastRunAt,
+    lastCleanupAt: input.cleanupPerformed ? finishedIso : previousLastCleanupAt,
   };
 
   await runIntegratorSql(
@@ -233,10 +246,16 @@ export async function getOperatorOutboundProbeLastRunAt(): Promise<Record<string
   );
 }
 
+/** The same scheduler-owned status row also throttles destructive probe mailbox cleanup. */
+export async function getOperatorOutboundProbeLastCleanupAt(): Promise<string | null> {
+  const meta = await readOperatorOutboundProbeMeta();
+  return typeof meta.lastCleanupAt === 'string' && meta.lastCleanupAt ? meta.lastCleanupAt : null;
+}
+
 /**
  * Проба выздоровела — закрыть то, что открыла она сама.
  *
- * Ключей два, потому что у пробы два класса отказа. Обычный промах (таймаут, сеть) живёт под
+ * У обычной пробы два класса отказа. Обычный промах (таймаут, сеть) живёт под
  * `outbound:<интеграция>:` и ждёт порога подряд идущих промахов. Отказ по учётным данным, квоте
  * или ненастроенности пейджится с первого раза и потому лежит там же, где такой же отказ
  * настоящей отправки, — под `outbound_delivery_provider:<интеграция>:`.
@@ -247,8 +266,15 @@ export async function getOperatorOutboundProbeLastRunAt(): Promise<Record<string
  * успехом соседней проверки.
  */
 export async function resolveOpenOperatorOutboundProbeIncidents(
-  integration: 'max' | 'telegram' | 'google_calendar',
+  integration: 'max' | 'telegram' | 'google_calendar' | 'email',
+  emailAudience?: 'patient' | 'staff',
 ): Promise<number> {
+  if (integration === 'email') {
+    if (!emailAudience) return 0;
+    return resolveOpenOperatorIncidentsByDedupKeyPrefix(
+      `outbound_delivery_provider:email:email_${emailAudience}_round_trip_failed`,
+    );
+  }
   const probeResolved = await resolveOpenOperatorIncidentsByDedupKeyPrefix(
     `outbound:${integration}:`,
   );

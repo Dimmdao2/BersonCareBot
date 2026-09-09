@@ -38,10 +38,10 @@ export async function runScheduledOperatorHealthProbeTick(
     const lastRunAt = await deps.loadLastRunAt();
     const due = OPERATOR_HEALTH_PROBE_NAMES.filter(
       (name) =>
-        config[name].enabled &&
+        (name === 'email' || config[name].enabled) &&
         isOperatorHealthProbeDue({
           lastRunAt: lastRunAt[name] ?? null,
-          intervalMs: config[name].intervalMs,
+          intervalMs: name === 'email' ? config.email.intervalMs : config[name].intervalMs,
           now,
         }),
     );

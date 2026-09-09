@@ -73,6 +73,12 @@ Execution authority/status: subordinate artifact of
       TEST использует только разрешённый owner mailbox. Адрес и credentials задаются restricted настройками, не
       попадают в plan/log/env. Текущий комментарий в `operatorHealthProbeConfig.ts` честно говорит, что IMAP
       round-trip runner ещё не реализован: одна сохранённая форма выполнением этой строки не считается.
+      Worker evidence 09.09: candidate extends the existing scheduler/probe result and incident seams with two
+      audience-tagged SMTP sends, bounded restricted-IMAP arrival confirmation and owned-message retention cleanup;
+      DEV is an explicit no-op. Static evidence: `pnpm --dir apps/integrator typecheck`, `lint`, `build`,
+      `bash -n deploy/host/assert-c4-operational-runtime-ready.sh`, and `git diff --check` passed; no provider or
+      mailbox was contacted. This checkbox remains open pending one independent audit and the owner-authorized TEST
+      live gate for the dedicated owner mailbox.
 
 ## Риски / принципы
 
