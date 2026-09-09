@@ -281,6 +281,22 @@ public class NativeJitsiPluginTest {
         assertEquals("error", captor.getValue().getString("state"));
     }
 
+    // Kill (continuation brief item 1): once room A has been destroyed and room B is the
+    // current launch, a late terminal broadcast from A must not be relabelled as B and end B's
+    // web stage. The SDK broadcast has no conference id of its own, so this is the exact silent
+    // ownership loss the lifecycle handoff must prevent.
+    @Test
+    public void latePriorConferenceTerminationCannotBeEmittedAsTheReplacementLaunch() throws Exception {
+        PluginCall listener = registerConferenceListener();
+        Field conferenceIdField = NativeJitsiPlugin.class.getDeclaredField("conferenceId");
+        conferenceIdField.setAccessible(true);
+        conferenceIdField.set(plugin, "replacement-launch-0001");
+
+        deliverConferenceBroadcast(BroadcastEvent.Type.CONFERENCE_TERMINATED, null);
+
+        verify(listener, never()).resolve(any(JSObject.class));
+    }
+
     // A fresh CONFERENCE_JOINED still notifies normally (dedup only guards the terminal side).
     @Test
     public void conferenceJoinedStillEmitsNormally() throws Exception {
