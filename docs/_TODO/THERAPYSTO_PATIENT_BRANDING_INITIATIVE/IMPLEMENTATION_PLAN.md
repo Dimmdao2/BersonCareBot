@@ -987,7 +987,8 @@ injection, targeted route/UI tests, migration dry-run DEV→TEST, lint+typecheck
   добавленный 09.09 выбор физического SMTP/From по аудитории.
   **Фактическое состояние кандидата #787 (09.09.2026):** общий dispatch/runtime/inbound путь несёт typed
   `staff|patient`; platform Telegram/MAX credentials, webhook secrets и Telegram modes разведены по identity;
-  legacy shared secret разрешён только пока второй identity отсутствует. Staff Telegram/MAX update после
+  legacy shared settings остаются только patient-facing TherapyGo fallback на время cutover; staff/Therapysto
+  никогда их не читает и требует собственные credential/secret/mode. Staff Telegram/MAX update после
   собственной аутентификации проходит общий gateway как `accepted_noop`, пока staff command/link UX не утверждён,
   и не создаёт patient surface. Immediate staff email передаёт `staff` через signed boundary до SMTP readiness/send;
   patient auth явно передаёт `patient`, а clinic SMTP остаётся patient override. Targeted 85 integrator и 66 webapp

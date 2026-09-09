@@ -93,7 +93,7 @@ function buildIntent(payload: Payload): OutgoingIntent {
         recipient:
           payload.channel === 'max' ? { userId: payload.recipient } : { chatId: payload.recipient },
         message: { text: payload.text },
-        delivery: { channels: [payload.channel] },
+        delivery: { channels: [payload.channel], audience: 'staff' },
       },
     };
   }

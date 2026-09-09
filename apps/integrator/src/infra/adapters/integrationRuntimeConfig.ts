@@ -45,22 +45,18 @@ const value = async (db: DbPort, key: IntegratorProviderRuntimeSettingKey): Prom
 const url = (input: string): string => (z.string().url().safeParse(input).success ? input : '');
 const telegramRuntimeModeSchema = z.enum(['webhook', 'long_polling']);
 
-function oppositeAudience(audience: PlatformDeliveryAudience): PlatformDeliveryAudience {
-  return audience === 'patient' ? 'staff' : 'patient';
-}
-
 /**
- * Legacy shared transport settings remain readable only while the other platform identity is
- * absent. Once both credentials exist, a shared value can authenticate neither identity: each
- * must carry its own secret/mode.
+ * The pre-split shared transport identity was the patient-facing TherapyGo identity. Keep those
+ * values as a patient-only cutover fallback; staff/Therapysto never reads or authenticates with
+ * the legacy identity.
  */
-function legacyValueForSinglePlatformIdentity(
+function legacyPatientValue(
+  audience: PlatformDeliveryAudience,
   configuredValue: string,
   legacyValue: string,
-  otherIdentityCredential: string,
 ): string {
   if (configuredValue) return configuredValue;
-  return otherIdentityCredential ? '' : legacyValue;
+  return audience === 'patient' ? legacyValue : '';
 }
 
 export const isTelegramRuntimeConfigEnabled = (
@@ -78,7 +74,6 @@ export async function readTelegramRuntimeConfig(
     const [
       botToken,
       configuredWebhookSecret,
-      otherBotToken,
       menu,
       configuredRawMode,
       legacyWebhookSecret,
@@ -87,22 +82,21 @@ export async function readTelegramRuntimeConfig(
       Promise.all([
         value(db, platformCredentialKey(audience, 'telegram')),
         value(db, platformWebhookSecretKey(audience, 'telegram')),
-        value(db, platformCredentialKey(oppositeAudience(audience), 'telegram')),
         fetchIntegratorProviderRuntimeSettingValueJson(db, 'telegram_send_menu_on_button_press'),
         fetchIntegratorProviderRuntimeSettingValueJson(db, platformTelegramModeKey(audience)),
         value(db, 'telegram_webhook_secret'),
         fetchIntegratorRuntimeSettingValueJson(db, 'telegram_mode'),
       ]),
     );
-    const webhookSecret = legacyValueForSinglePlatformIdentity(
+    const webhookSecret = legacyPatientValue(
+      audience,
       configuredWebhookSecret,
       legacyWebhookSecret,
-      otherBotToken,
     );
-    const modeValue = legacyValueForSinglePlatformIdentity(
+    const modeValue = legacyPatientValue(
+      audience,
       parseSystemSettingStringValue(configuredRawMode) ?? '',
       parseSystemSettingStringValue(legacyRawMode) ?? '',
-      otherBotToken,
     );
     const mode = telegramRuntimeModeSchema.safeParse(modeValue).data ?? 'long_polling';
     return {
@@ -133,20 +127,19 @@ export async function readMaxRuntimeConfig(
   audience: PlatformDeliveryAudience = 'patient',
 ): Promise<MaxRuntimeConfig> {
   try {
-    const [apiKey, configuredWebhookSecret, otherApiKey, baseUrlRaw, legacyWebhookSecret] =
+    const [apiKey, configuredWebhookSecret, baseUrlRaw, legacyWebhookSecret] =
       await runWithBootstrapPrincipal({ source: 'integrator-server-runtime-config' }, () =>
         Promise.all([
           value(db, platformCredentialKey(audience, 'max')),
           value(db, platformWebhookSecretKey(audience, 'max')),
-          value(db, platformCredentialKey(oppositeAudience(audience), 'max')),
           value(db, 'max_api_base_url'),
           value(db, 'max_webhook_secret'),
         ]),
       );
-    const webhookSecret = legacyValueForSinglePlatformIdentity(
+    const webhookSecret = legacyPatientValue(
+      audience,
       configuredWebhookSecret,
       legacyWebhookSecret,
-      otherApiKey,
     );
     const baseUrl = url(baseUrlRaw);
     return { enabled: Boolean(apiKey && webhookSecret && baseUrl), apiKey, webhookSecret, baseUrl };
