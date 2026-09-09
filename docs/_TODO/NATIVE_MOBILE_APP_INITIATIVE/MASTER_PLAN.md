@@ -134,34 +134,44 @@ Scope: `apps/webapp/src/shared/lib/pwa/**`, `shared/lib/surface/surfaceLayoutMet
 строка M1 не заводит второй источник имени, иконок или манифеста — только параметризует существующий
 (`AGENTS.md` §5).
 
-- [ ] **M1-01.** Default patient PWA называется **Therapy Go**: значение меняется в единственном литерале
+- [x] **M1-01.** Default patient PWA называется **Therapy Go**: значение меняется в единственном литерале
       `PATIENT_DEFAULT_SURFACE_NAME` (`config/productSurfaceNames.ts`, сегодня `'Therapygo'`), env-override
       `PATIENT_APP_NAME` продолжает работать. `id`, `scope` и `start_url=/app/patient` установленного приложения
-      не меняются — контракт уже установленных PWA переезд не трогает.
-- [ ] **M1-02.** Patient-манифест и patient-метаданные отдают знак **с шариком**, производный от
+      не меняются — контракт уже установленных PWA переезд не трогает. Доказательство: product/correction
+      `93f2d7b34` + `4f646315c`, независимый confirmation `ce42f825f`, landing `66ef65468`; публичный manifest
+      oracle сохранил `id/scope/start_url` и env-aware surface resolver.
+- [x] **M1-02.** Patient-манифест и patient-метаданные отдают знак **с шариком**, производный от
       `brand/therapygo-app-icon-source.png`: 192, 512, отдельный `purpose: 'maskable'` и apple-touch 180.
       Источник не квадратный (§3a), поэтому derive-шаг явно центрирует знак на квадратном холсте и оставляет
-      maskable safe-zone; команда деривации и полученные размеры записаны в строке доказательства.
-- [ ] **M1-03.** Staff PWA называется Therapysto, отдаёт знак **без шарика**, производный от
+      maskable safe-zone; команда деривации и полученные размеры записаны в строке доказательства. Доказательство:
+      `ce42f825f` дважды выполнил `pnpm --dir apps/mobile-shell run derive:brand-assets`, сравнил хеши 42 файлов и
+      `identify` подтвердил Therapy Go 192/512/maskable 512/apple-touch 180; landing `66ef65468`.
+- [x] **M1-03.** Staff PWA называется Therapysto, отдаёт знак **без шарика**, производный от
       `brand/therapysto-app-icon-source.png`, с тем же набором 192/512/maskable/apple-touch и `start_url=/app/doctor`.
-      Patient и staff манифесты не ссылаются на файлы друг друга (`rg` по обоим builder'ам).
+      Patient и staff манифесты не ссылаются на файлы друг друга (`rg` по обоим builder'ам). Доказательство:
+      независимый manifest oracle/fault injection `ce42f825f` (**убито 3 / непойманных 0**) и двухпроходная
+      проверка производных Therapysto assets; landing `66ef65468`.
 - [ ] **M1-04.** Брендированная пациентская поверхность (`patient_branded`) НЕ переименовывается и НЕ
       переиконивается в Therapy Go: имя по-прежнему берётся из `effectivePatientBrand.patientAppName`, а знак
       Therapy Go остаётся идентичностью `patient_default`. Сегодня branded-поверхность наследует пациентские
       иконки из `patientLayoutMetadata`, поэтому подмена файла молча перекрасила бы каждую клинику — это прямо
       запрещено owner-пунктом §1.5 «clinic-brand assets не подменять». Доказательство — снимок метаданных обеих
       поверхностей на именованном DEV.
-- [ ] **M1-05.** Platform-admin полностью исключён из patient/staff PWA-пути: `surfaceLayoutMetadata` для
+- [x] **M1-05.** Platform-admin полностью исключён из patient/staff PWA-пути: `surfaceLayoutMetadata` для
       `platform_admin` не возвращает `staffPwaLayoutMetadata`; metadata `/app/admin/**` не содержит staff
       manifest/apple-web-app/staff icons; оба manifest route отвечают 404 на admin surface. `DoctorWorkspaceShell`
       на admin surface не монтирует `StaffPwaBootstrap`, а account/install UI не показывается ни при каком tab.
       Существующий чёрный admin asset сохраняется. Сегодня это НЕ готовое поведение: root resolver, staff manifest,
-      account install section и bootstrap пропускают platform-admin, поэтому проверяется каждый вход.
-- [ ] **M1-06.** Единственные пользовательские install-поверхности — `/app/patient/install` и
+      account install section и bootstrap пропускают platform-admin, поэтому проверяется каждый вход. Доказательство:
+      audit chain `dccaef384` + `ce42f825f`, 8 файлов / 50 retained tests, platform-admin metadata oracle и
+      manifest/account/bootstrap route checks; landing `66ef65468`.
+- [x] **M1-06.** Единственные пользовательские install-поверхности — `/app/patient/install` и
       `/app/account?tab=install` для специалиста. `/app/doctor/install` остаётся совместимым redirect специалиста
       на account install и не показывает UI platform-admin; новый `/setup` не создаётся. Patient использует
       существующий `PwaInstallSection`, staff — `StaffPwaInstallSection`; обе дают краткие инструкции iOS Safari и
-      Android browser без второго параллельного install-компонента.
+      Android browser без второго параллельного install-компонента. Доказательство: route/UI acceptance в
+      `dccaef384` и confirmation regression `ce42f825f`; landing `66ef65468`. Живой browser/PWA проход остаётся
+      частью M7-03 и не подменён unit-проверками.
 - [ ] **M1-07.** Все install prompts, web-push controls и регистрации `/sw.js` проходят через один typed
       `NativeRuntime` detector из M3. В Capacitor он скрывает install UI, не подписывается на
       `beforeinstallprompt` и возвращает no-op из общей service-worker registration door; browser/PWA остаётся
