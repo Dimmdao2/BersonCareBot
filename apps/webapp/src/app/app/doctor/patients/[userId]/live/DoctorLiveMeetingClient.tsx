@@ -66,8 +66,9 @@ export function DoctorLiveMeetingClient({
       });
       const data = await response.json() as SessionResponse;
       if (!response.ok || !data.ok || !data.session || !data.meetingId) throw new Error('prepare_failed');
-      meetingIdRef.current = data.meetingId;
-      setPreparedMeetingId(data.meetingId);
+      const meetingId = data.meetingId;
+      meetingIdRef.current = meetingId;
+      setPreparedMeetingId(meetingId);
       if (data.guestUrl) setGuestUrl(data.guestUrl);
       if (data.notification) setNotification(data.notification);
       if (mount) {
@@ -76,12 +77,12 @@ export function DoctorLiveMeetingClient({
           session: data.session,
           returnUrl,
           onTerminal: () => {
-            void fetch(`/api/doctor/clients/${encodeURIComponent(userId)}/video-meetings/${encodeURIComponent(data.meetingId)}`, {
+            void fetch(`/api/doctor/clients/${encodeURIComponent(userId)}/video-meetings/${encodeURIComponent(meetingId)}`, {
               method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'end' }),
             });
           },
           onDiagnostic: (diagnostic) => {
-            void fetch(`/api/doctor/clients/${encodeURIComponent(userId)}/video-meetings/${encodeURIComponent(data.meetingId)}`, {
+            void fetch(`/api/doctor/clients/${encodeURIComponent(userId)}/video-meetings/${encodeURIComponent(meetingId)}`, {
               method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ diagnostic }),
             });
           },

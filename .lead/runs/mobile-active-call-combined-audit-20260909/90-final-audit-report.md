@@ -67,3 +67,21 @@ Inspected candidate diff and these relevant paths: Android manifest, `NativeJits
 - PiP’s actual system transition, camera/microphone permission UX, and native SDK Activity behavior need emulator or physical-device acceptance. `ls -l /dev/kvm; id` shows `/dev/kvm` owned by group `kvm` while `dev` is not a member, so KVM acceleration is unavailable to this user.
 - Physical device verification and RuStore signing/submission remain owner/provider gates.
 - No DEV/TEST live call, PROD, external Jitsi endpoint, or RuStore interaction was performed.
+
+## Lead acceptance after the audit
+
+The candidate-local type regression was corrected by retaining the narrowed meeting id before the terminal and
+diagnostic callbacks. `pnpm --dir apps/webapp typecheck` still exits `2` on unrelated pre-existing workspace
+artifact diagnostics, but an exact filter over its output now reports zero `DoctorLiveMeetingClient` diagnostics.
+The affected pre-existing doctor UI suite passed its 5 existing cases during the targeted run, and scoped ESLint
+passes.
+
+After the owner tightened `AGENTS.md` §10a, the lead rejected both tests newly introduced by this audit:
+
+- the coordinator test replaced the real meeting stage and asserted an internal provider/context contract rather
+  than an independently observed product outcome;
+- the Android lifecycle test reached private plugin fields by reflection and asserted an internal callback absence.
+
+Both were removed before landing. The `next/navigation` setup repair in the existing doctor UI suite remains because
+it only lets that pre-existing suite reach its existing behavioral oracle. The audit's inspection and temporary
+fault-injection observations remain evidence, but the rejected tests are not retained as regression machinery.
