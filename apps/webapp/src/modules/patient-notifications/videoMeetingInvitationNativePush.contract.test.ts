@@ -1,8 +1,11 @@
 /**
- * Final #915 auditor-live oracle for the video invitation producer.
+ * #915 auditor-live oracle for the video invitation producer (M6-05/M6-09 wire correction pass,
+ * `.lead/runs/mobile-native-push-wire-confirmation-audit-20260909/00-blind-killset.md` K3/K5).
  *
  * Failure caught: a resolver-selected logical web_push invite enters the durable queue without its
- * fixed Therapy Go surface, allowing legacy route inference to choose a different native app.
+ * fixed Therapy Go surface (crossing the native app boundary), without notificationKind:'call'
+ * (rendering/routing on the wrong Android channel), or with the browser guest URL reused as the
+ * native route (an absolute/custom-domain/guest link becoming a trusted in-app Android route).
  */
 import { describe, expect, it, vi } from 'vitest';
 import { createVideoMeetingInvitationNotification } from './videoMeetingInvitationNotification';
@@ -15,12 +18,17 @@ const ids = {
 } as const;
 
 describe('video invitation native Push producer — M6-05', () => {
-  it('preserves an explicit Therapy Go surface in the one durable web_push intent', async () => {
+  it('preserves an explicit Therapy Go surface, a call notificationKind and a route independent of the guest URL in the one durable web_push intent', async () => {
     const enqueue = vi.fn().mockResolvedValue(true);
     const notification = createVideoMeetingInvitationNotification({
       channelPreferences: {
         getPreferences: async () => [],
-        upsertPreference: async () => {},
+        upsertPreference: async () => ({
+          channelCode: 'web_push',
+          isEnabledForMessages: true,
+          isEnabledForNotifications: true,
+          isPreferredForAuth: false,
+        }),
         getBroadcastNotificationFlagsBatch: async () => new Map(),
         getPreferredAuthChannelCode: async () => null,
         setPreferredAuthChannel: async () => {},
@@ -61,7 +69,11 @@ describe('video invitation native Push producer — M6-05', () => {
         text: 'Вас пригласили на видеовстречу.',
         title: 'Приглашение на видеовстречу',
         url: 'https://clinic.therapygo.ru/live#opaque-invite-fragment',
-        pushExtras: { pushSurface: 'therapygo' },
+        pushExtras: {
+          pushSurface: 'therapygo',
+          nativeRoute: `/app/patient/live/${ids.meeting}`,
+          notificationKind: 'call',
+        },
       },
     });
     expect(result).toMatchObject({

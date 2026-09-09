@@ -6,12 +6,17 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import android.content.Intent;
 import android.webkit.WebView;
+import androidx.appcompat.app.AppCompatActivity;
 import com.getcapacitor.Bridge;
+import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.util.List;
+import java.util.Map;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -63,6 +68,12 @@ public class UniversalPushPluginTest {
         Method method = UniversalPushPlugin.class.getDeclaredMethod("validKind", String.class);
         method.setAccessible(true);
         return (Boolean) method.invoke(null, kind);
+    }
+
+    private static boolean invokeValidCopy(String title, String body) throws Exception {
+        Method method = UniversalPushPlugin.class.getDeclaredMethod("validCopy", String.class, String.class);
+        method.setAccessible(true);
+        return (Boolean) method.invoke(null, title, body);
     }
 
     // Kill: configure() reaches RuStore init/token fetch from an untrusted/foreign current page.
@@ -206,5 +217,115 @@ public class UniversalPushPluginTest {
         assertTrue(invokeValidKind("call"));
         assertFalse(invokeValidKind("marketing"));
         assertFalse(invokeValidKind(null));
+    }
+
+    // Kill (#915 wire-correction confirmation audit, kill-set K12/K14): Therapysto's staff surface
+    // spans three roots server-side (deliveryAdapter.ts:surfaceForPathname —
+    // /app/doctor,/app/settings,/app/account). `validRoute` takes `surface` as an explicit
+    // parameter, independent of this build's own compiled brand, so both non-doctor prefixes are
+    // probed directly rather than only through this run's own flavor.
+    @Test
+    public void acceptsTherapystoSettingsAndAccountPrefixesNotJustDoctor() throws Exception {
+        assertTrue(invokeValidRoute("therapysto", "/app/settings"));
+        assertTrue(invokeValidRoute("therapysto", "/app/settings/profile"));
+        assertTrue(invokeValidRoute("therapysto", "/app/account"));
+        assertTrue(invokeValidRoute("therapysto", "/app/account/security"));
+        assertFalse(
+            "a lookalike prefix that only shares a string prefix with an allowed root must not validate",
+            invokeValidRoute("therapysto", "/app/settingsish")
+        );
+    }
+
+    // --- validCopy -----------------------------------------------------------------------------
+
+    // Kill (M6-09/M6-10): a data push with missing/blank/overlong title or overlong body must never
+    // reach `showNotification` — Android independently enforces the bound rather than trusting the
+    // server's own truncation.
+    @Test
+    public void validCopyRejectsMissingBlankOrOversizedFields() throws Exception {
+        assertTrue(invokeValidCopy("Title", "Body"));
+        assertTrue("an empty body is allowed (many notifications carry only a title)", invokeValidCopy("Title", ""));
+        assertFalse(invokeValidCopy(null, "Body"));
+        assertFalse(invokeValidCopy("  ", "Body"));
+        assertFalse(invokeValidCopy("Title", null));
+        StringBuilder longTitle = new StringBuilder();
+        while (longTitle.length() <= 120) longTitle.append('a');
+        assertFalse(invokeValidCopy(longTitle.toString(), "Body"));
+        StringBuilder longBody = new StringBuilder();
+        while (longBody.length() <= 240) longBody.append('a');
+        assertFalse(invokeValidCopy("Title", longBody.toString()));
+    }
+
+    // Kill: a bound checked in UTF-16 code units instead of Unicode code points would reject a
+    // 120-code-point title that contains a surrogate-pair emoji (which is 1 code point / 2 chars),
+    // since title.length() would read 121 for it — mirrors the integrator's
+    // `truncateCodePoints` contract (deliveryAdapter.ts) so the two never disagree.
+    @Test
+    public void validCopyCountsUnicodeCodePointsNotChars() throws Exception {
+        StringBuilder exactly120CodePoints = new StringBuilder();
+        for (int i = 0; i < 119; i++) exactly120CodePoints.append('a');
+        exactly120CodePoints.appendCodePoint(0x1F600); // 😀 — one code point, two UTF-16 chars
+        assertTrue(
+            "a title with exactly 120 code points (one of them a surrogate-pair emoji) must be accepted",
+            invokeValidCopy(exactly120CodePoints.toString(), "Body")
+        );
+    }
+
+    // --- tap event shape -------------------------------------------------------------------------
+
+    /**
+     * Kill (#915 wire-correction confirmation audit, kill-set K15; brief mandate: Android "emits
+     * the typed tap event {@code {pushSurface,notificationKind,route}}"). {@link
+     * UniversalPushPlugin#deliverPendingTap()} reads only {@code nativePushSurface}/{@code
+     * nativePushRoute} from the launch {@link Intent} and forwards exactly those two keys as the
+     * tap event; {@code notificationKind} is absent from both the {@link Intent} extras {@link
+     * PushRuntime#showNotification} attaches to the tap {@code PendingIntent} and the JS event this
+     * method builds. A tap on a reminder or call notification is therefore observationally
+     * identical to a tap on a message notification from the web bridge's point of view.
+     */
+    @SuppressWarnings("unchecked")
+    @Test
+    public void deliverPendingTapEmitsPushSurfaceNotificationKindAndRoute() throws Exception {
+        Intent launchIntent = new Intent();
+        launchIntent.putExtra("nativePushSurface", BuildConfig.SHELL_BRAND);
+        launchIntent.putExtra("nativePushRoute", ownPrefix());
+
+        AppCompatActivity activity = mock(AppCompatActivity.class);
+        when(activity.getIntent()).thenReturn(launchIntent);
+        Bridge tapBridge = mock(Bridge.class);
+        when(tapBridge.getActivity()).thenReturn(activity);
+        UniversalPushPlugin tapPlugin = new UniversalPushPlugin();
+        Field bridgeField = Plugin.class.getDeclaredField("bridge");
+        bridgeField.setAccessible(true);
+        bridgeField.set(tapPlugin, tapBridge);
+
+        // `deliverPendingTap()` calls `notifyListeners("push", tapEvent, true)`, which (with no
+        // listener attached — this test attaches none, matching the real cold-start-tap timing
+        // the class doc describes) retains the event in Plugin's own `retainedEventArguments`
+        // instead of discarding it. Reading that real field is cheaper and more faithful than
+        // subclassing/mocking the protected `notifyListeners` call across a package boundary.
+        Method deliverPendingTap = UniversalPushPlugin.class.getDeclaredMethod("deliverPendingTap");
+        deliverPendingTap.setAccessible(true);
+        deliverPendingTap.invoke(tapPlugin);
+
+        Field retainedField = Plugin.class.getDeclaredField("retainedEventArguments");
+        retainedField.setAccessible(true);
+        Map<String, List<JSObject>> retained = (Map<String, List<JSObject>>) retainedField.get(tapPlugin);
+        List<JSObject> pushEvents = retained.get("push");
+        assertTrue(
+            "deliverPendingTap must retain exactly one tap event for a valid launch intent",
+            pushEvents != null && pushEvents.size() == 1
+        );
+        JSObject tapEvent = pushEvents.get(0);
+        assertTrue("tap event must carry pushSurface", tapEvent.has("pushSurface"));
+        assertTrue("tap event must carry route", tapEvent.has("route"));
+        assertTrue(
+            "tap event must carry notificationKind so the web bridge can distinguish a "
+                + "message/reminder/call tap, per the brief's typed tap event contract "
+                + "{pushSurface,notificationKind,route} — currently absent because neither the "
+                + "notification's PendingIntent extras (PushRuntime.showNotification) nor "
+                + "deliverPendingTap() carry a kind/notificationKind value",
+            tapEvent.has("notificationKind")
+        );
     }
 }
