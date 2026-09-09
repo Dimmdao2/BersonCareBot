@@ -457,7 +457,9 @@ authority нельзя: он частично отменён владельце�
 - [ ] **M7-05.** Реальная доставка Universal Push подтверждена на TEST после закрытия внешних гейтов §6.
 - [ ] **M7-06.** Targeted/phase проверки зелёные на candidate SHAs. Поскольку изменение затрагивает root
       dependencies, lockfile, webapp, integrator и Android package, один полный CI гоняется под общим замком хоста
-      (`/home/dev/brain/host-orch/run-tests.sh "pnpm run ci"`) только на финальной интеграции.
+      (`/home/dev/brain/host-orch/run-tests.sh "pnpm run ci"`) только на финальной интеграции. По прямому решению
+      владельца 2026-09-09 этот прогон выполняется им после завершения параллельного обновления пакетов; текущий
+      workstream его не запускает и до полученного результата строку не закрывает.
 - [ ] **M7-07.** Интегрированный `feat/doctor-ui-rebuild` содержит plan evidence по каждому чекбоксу, taskdb `#915`
       соответствует факту, коммиты запушены через проверенный wrapper (`pnpm push:checked`), ни один worker
       clone/process не остался живым.
