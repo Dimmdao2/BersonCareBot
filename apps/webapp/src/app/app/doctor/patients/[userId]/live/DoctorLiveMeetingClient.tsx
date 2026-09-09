@@ -77,6 +77,11 @@ export function DoctorLiveMeetingClient({
           session: data.session,
           returnUrl,
           onTerminal: () => {
+            // The coordinator owns the live conference, while this local value only bridges the
+            // activation render. Drop both when Jitsi ends so the desktop page cannot keep the
+            // already-finished iframe mounted from its stale fallback session.
+            setSession(null);
+            mountRequestedRef.current = false;
             void fetch(`/api/doctor/clients/${encodeURIComponent(userId)}/video-meetings/${encodeURIComponent(meetingId)}`, {
               method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'end' }),
             });
