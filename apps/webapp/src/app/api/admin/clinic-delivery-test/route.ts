@@ -27,6 +27,14 @@ const MECHANIC: Readonly<Record<z.infer<typeof bodySchema>['channel'], OrgMechan
   max: 'clinic_max_bot',
 };
 
+function requiredMechanics(channel: z.infer<typeof bodySchema>['channel']): readonly OrgMechanic[] {
+  return channel === 'telegram'
+    ? ['branding', 'clinic_telegram_bot']
+    : channel === 'max'
+      ? ['branding', 'clinic_max_bot']
+      : ['clinic_smtp'];
+}
+
 function employeeRecipient(
   channel: z.infer<typeof bodySchema>['channel'],
   user: {
@@ -60,8 +68,10 @@ export async function POST(request: Request) {
   }
 
   const { channel } = parsed.data;
-  const entitlement = await requireEntitlementForMutation(gate.ctx, MECHANIC[channel]);
-  if (!entitlement.ok) return entitlement.response;
+  for (const mechanic of requiredMechanics(channel)) {
+    const entitlement = await requireEntitlementForMutation(gate.ctx, mechanic);
+    if (!entitlement.ok) return entitlement.response;
+  }
   const recipient = employeeRecipient(channel, gate.ctx.session.user);
   if (!recipient) {
     return NextResponse.json(
