@@ -50,6 +50,9 @@ behavioral test or one-time view and name the observable failure it would expose
   URLs, fragments, userinfo, sibling surfaces, backslashes and raw/encoded traversal;
 - cold-process receipt still renders a valid notification, invalid data never renders, and permission/target/provider
   skipped outcomes do not manufacture a second logical notification family or messenger fallback.
+- when `NATIVE_PUSH_TOKEN_KEYRING_JSON` is absent, ordinary Next/PWA bootstrap remains operational instead of
+  throwing `native_push_token_keyring_unavailable`; native registration/delivery returns the M6-11 typed
+  non-secret skipped/no-active-target outcome, while configured keyring behavior still works.
 
 Inspect architecture boundaries separately: one existing typed `pushExtras`/queue path, one composite logical
 `web_push` adapter, one pre-provider environment policy, no duplicate route-policy or notification-event stack,
