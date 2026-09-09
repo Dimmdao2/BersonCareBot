@@ -292,11 +292,12 @@ Scope: один media-source adapter, Android CameraX/pickers и существ�
 lint. Multipart уже построен (`beginPreparedMultipartUpload`/`completePreparedMultipartUpload`/
 `tryFinalizeMultipartIdempotentTx`, маршрут `/api/media/multipart/part-url`).
 
-- [ ] **M5-01.** Один контракт `DeviceMedia` (`captureMedia`, `pickMedia`, `pickDocument`, `upload`) обслуживает
+- [x] **M5-01.** Один контракт `DeviceMedia` (`captureMedia`, `pickMedia`, `pickDocument`, `upload`) обслуживает
       все 6 существующих UI-точек выбора файла (§3a); каждая из них параметризует этот шов вместо собственного
       определения среды. Существующий пациентский выбор источника
       (`ProgramItemSubmissionSourceDialog.tsx`, уже дающий «камера / галерея / документ») расширяется, второй
-      диалог выбора источника не создаётся.
+      диалог выбора источника не создаётся. Доказательство: product `ba92a6623`, independent audit/tests
+      `eca72e42b` + report `61c71a436`, accepted correction `ac8998f37`, port landing `bfcb4afba`.
 - [x] **M5-02.** Android camera screen uses CameraX and lets the user switch Photo/Video in the camera itself;
       front/back camera and runtime permissions work, cancellation returns without a fake error. Доказательство:
       corrected CameraX result handoff/photo-video mode `bfe25db0b`, independent confirmation `d1c983a3c`, landing
@@ -304,14 +305,20 @@ lint. Multipart уже построен (`beginPreparedMultipartUpload`/`complet
 - [x] **M5-03.** Gallery accepts images/videos together through the system picker; document action is separate and
       uses the system document picker with narrow MIME filters. Доказательство: system picker/OpenDocument and
       result-side MIME revalidation `bfe25db0b`, fault-injected confirmation `d1c983a3c`, landing `a722d9bf8`.
-- [ ] **M5-04.** Крупное медиа остаётся native content URI и стримится в уже авторизованный presigned URL через
+      Web seam removes the wildcard request and uses the same closed six-MIME list in `ac8998f37`, landing
+      `bfcb4afba`.
+- [x] **M5-04.** Крупное медиа остаётся native content URI и стримится в уже авторизованный presigned URL через
       существующий multipart-путь; base64-моста и копии всего видео в JS heap нет. Существующие confirm/failure
-      semantics, идемпотентная финализация и media metadata переиспользуются.
-- [ ] **M5-05.** Нативный путь проходит ту же дверь: `node apps/webapp/scripts/check-media-upload-door.mjs` и
+      semantics, идемпотентная финализация и media metadata переиспользуются. Доказательство: shared range-upload
+      lifecycle/oracle `eca72e42b`, correction `ac8998f37`, landing `bfcb4afba`.
+- [x] **M5-05.** Нативный путь проходит ту же дверь: `node apps/webapp/scripts/check-media-upload-door.mjs` и
       `--self-test` зелёные, ни один маршрут не получает новый storage-аргумент и не зовёт `presignPutUrl`/
       `s3*` в обход `mediaUploadAdapter`. Выбор бакета по-прежнему делает `policyId`, а не вызывающий.
-- [ ] **M5-06.** Browser/PWA сохраняет standards-based file inputs с раздельными camera/media/document действиями
+      Доказательство: upload-door + self-test/chokepoint/boundary gates на `ac8998f37`, port landing `bfcb4afba`.
+- [x] **M5-06.** Browser/PWA сохраняет standards-based file inputs с раздельными camera/media/document действиями
       там, где браузер их даёт. Native-only возможность никогда не ухудшает браузерную загрузку.
+      Доказательство: retained browser/native fallback oracle `eca72e42b`, accepted correction `ac8998f37`,
+      port landing `bfcb4afba`; итоговый live browser chooser остаётся частью M7-03.
 
 ### M6 — RuStore Universal Push end to end
 
@@ -507,4 +514,5 @@ security/audit gates идут без этих входов. Отсутствую
 | M5-02, M5-03 | done | Corrected CameraX result handoff/document MIME validation `bfe25db0b`; independent confirmation `d1c983a3c`; port landing `a722d9bf8`. |
 | M6-01…M6-07, M6-09…M6-11 | done | Backend/rights/routes through `c6fb028d1`, landing `bd897e9f7`; official Universal provider contract `60cfa976e`, landing `46c9d4728`; Android end-to-end wire/tap through `1dd140d64`, landing `a722d9bf8`; authenticated lifecycle `44b494331`, landing `4d84fb260`. |
 | M6-08 | done | Restricted DB-backed registry/config/accessor path accepted in `88e9240df`, landing `bd897e9f7`; lead re-inspected the final registry, integrator config route and production-only key inventory. The obsolete source-text gate was deliberately removed by owner decision #1074 in `c5b061696` and is not restored. |
-| M4-01, M4-03…M5-01, M5-04…M5-06, M7-01…M7-07 | open | Заполняет только lead после committed implementation + independent acceptance. |
+| M5-01, M5-04…M5-06 | done | Product `ba92a6623`; independent audit/tests `eca72e42b`, report `61c71a436`; accepted correction `ac8998f37`; port landing `bfcb4afba`. Original fault ledger: убито 10, непойманных 0; retained oracle and targeted media gates green. |
+| M4-01, M4-03…M4-05, M7-01…M7-07 | open | Заполняет только lead после committed implementation + independent acceptance. |
