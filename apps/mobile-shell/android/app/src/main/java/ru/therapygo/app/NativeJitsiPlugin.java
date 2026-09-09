@@ -1,7 +1,10 @@
 package ru.therapygo.app;
 
 import android.Manifest;
+import android.app.Activity;
+import android.app.Application;
 import android.content.Intent;
+import android.os.Bundle;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.PermissionState;
@@ -12,7 +15,6 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 import com.getcapacitor.annotation.Permission;
 import com.getcapacitor.annotation.PermissionCallback;
 import java.net.URL;
-import java.util.UUID;
 import org.jitsi.meet.sdk.BroadcastEvent;
 import org.jitsi.meet.sdk.BroadcastIntentHelper;
 import org.jitsi.meet.sdk.JitsiMeetActivity;
@@ -35,34 +37,62 @@ public final class NativeJitsiPlugin extends Plugin {
     private boolean terminalEmitted;
     private boolean conferenceActive;
     private String conferenceId;
-    private String conferenceUrl;
-    private String previousConferenceId;
-    private String previousConferenceUrl;
+    private Activity conferenceActivity;
+    private boolean cancellationRequested;
+    private PendingLaunch pendingLaunch;
+    private PendingPermission pendingPermission;
+    private Application application;
 
     private final android.content.BroadcastReceiver conferenceReceiver = new android.content.BroadcastReceiver() {
         @Override
         public void onReceive(android.content.Context context, Intent intent) {
             BroadcastEvent event = new BroadcastEvent(intent);
             BroadcastEvent.Type type = event.getType();
-            String eventConferenceId = conferenceIdFor(event);
-            // SDK broadcasts are process-wide. A room URL is the only source identity they carry,
-            // so never relabel an old Activity's event with the replacement launch's identifier.
-            if (conferenceId != null && !conferenceId.equals(eventConferenceId)) return;
             if (type == BroadcastEvent.Type.CONFERENCE_JOINED) {
                 terminal = false;
-                emit("joined", null, eventConferenceId);
+                emit("joined", null, conferenceId);
             } else if (type == BroadcastEvent.Type.CONFERENCE_TERMINATED || type == BroadcastEvent.Type.READY_TO_CLOSE) {
-                conferenceActive = false;
                 if (terminalEmitted) return;
                 terminalEmitted = true;
                 terminal = true;
                 String error = conferenceError(event);
                 if (error != null) {
-                    emit("error", error, eventConferenceId);
+                    emit("error", error, conferenceId);
                 } else {
-                    emit("terminated", null, eventConferenceId);
+                    emit("terminated", null, conferenceId);
                 }
             }
+        }
+    };
+
+    private final Application.ActivityLifecycleCallbacks activityCallbacks = new Application.ActivityLifecycleCallbacks() {
+        @Override
+        public void onActivityCreated(Activity activity, Bundle savedInstanceState) {
+            if (!(activity instanceof JitsiMeetActivity) || conferenceId == null) return;
+            conferenceActivity = activity;
+            if (cancellationRequested) activity.finish();
+        }
+
+        @Override public void onActivityStarted(Activity activity) {}
+        @Override public void onActivityResumed(Activity activity) {}
+        @Override public void onActivityPaused(Activity activity) {}
+        @Override public void onActivityStopped(Activity activity) {}
+        @Override public void onActivitySaveInstanceState(Activity activity, Bundle outState) {}
+
+        @Override
+        public void onActivityDestroyed(Activity activity) {
+            if (activity != conferenceActivity) return;
+            String closedConferenceId = conferenceId;
+            conferenceActivity = null;
+            conferenceActive = false;
+            cancellationRequested = false;
+            if (!terminalEmitted) {
+                terminalEmitted = true;
+                terminal = true;
+                emit("terminated", null, closedConferenceId);
+            }
+            conferenceId = null;
+            launchPendingAfterClose();
         }
     };
 
@@ -73,11 +103,14 @@ public final class NativeJitsiPlugin extends Plugin {
         filter.addAction(BroadcastEvent.Type.CONFERENCE_TERMINATED.getAction());
         filter.addAction(BroadcastEvent.Type.READY_TO_CLOSE.getAction());
         LocalBroadcastManager.getInstance(getContext()).registerReceiver(conferenceReceiver, filter);
+        application = (Application) getContext().getApplicationContext();
+        application.registerActivityLifecycleCallbacks(activityCallbacks);
     }
 
     @Override
     protected void handleOnDestroy() {
         LocalBroadcastManager.getInstance(getContext()).unregisterReceiver(conferenceReceiver);
+        if (application != null) application.unregisterActivityLifecycleCallbacks(activityCallbacks);
     }
 
     @PluginMethod
@@ -85,37 +118,48 @@ public final class NativeJitsiPlugin extends Plugin {
         if (!isTrusted(call)) return;
         JitsiSession session = validatedSession(call);
         if (session == null) return;
+        String launchId = launchId(call);
+        if (launchId == null) return;
         retrySession = session;
-        if (getPermissionState("camera") != PermissionState.GRANTED
-            || getPermissionState("microphone") != PermissionState.GRANTED) {
+        if (permissionsMissing()) {
+            pendingPermission = new PendingPermission(call, session, launchId);
             requestPermissionForAliases(new String[] { "camera", "microphone" }, call, "onCallPermissions");
             return;
         }
-        launch(call, session);
+        call.resolve(outcome(acceptLaunch(session, launchId) ? "started" : "launch_failed", launchId));
     }
 
     @PermissionCallback
     private void onCallPermissions(PluginCall call) {
         if (!isTrusted(call)) return;
-        if (getPermissionState("camera") != PermissionState.GRANTED
-            || getPermissionState("microphone") != PermissionState.GRANTED) {
-            emit("error", "permission_denied");
-            call.resolve(outcome("permission_denied"));
+        PendingPermission pending = takePendingPermission(call);
+        if (pending == null) return;
+        if (permissionsMissing()) {
+            emit("error", "permission_denied", pending.conferenceId);
+            call.resolve(outcome("permission_denied", pending.conferenceId));
             return;
         }
-        JitsiSession session = validatedSession(call);
-        if (session != null) launch(call, session);
+        call.resolve(outcome(acceptLaunch(pending.session, pending.conferenceId) ? "started" : "launch_failed", pending.conferenceId));
     }
 
     @PluginMethod
     public void hangup(PluginCall call) {
         if (!isTrusted(call)) return;
-        // Idempotent: only send the hang-up broadcast while this plugin owns an active conference, so
-        // a repeated/late hangup() call is a no-op instead of a stray broadcast with nothing to hear it.
-        if (conferenceActive) {
+        String launchId = call.getString("conferenceId");
+        if (pendingPermission != null && matches(launchId, pendingPermission.conferenceId)) {
+            PendingPermission cancelled = pendingPermission;
+            pendingPermission = null;
+            cancelled.call.resolve(outcome("cancelled", cancelled.conferenceId));
+        }
+        if (pendingLaunch != null && matches(launchId, pendingLaunch.conferenceId)) pendingLaunch = null;
+        // A cleanup is addressed to the launch that requested it. A stale stage therefore cannot
+        // hang up a later replacement. If the Activity has not been created yet, the lifecycle
+        // callback finishes that exact Activity before it can become a live conference.
+        if (conferenceActive && matches(launchId, conferenceId)) {
+            cancellationRequested = true;
             LocalBroadcastManager.getInstance(getContext()).sendBroadcast(BroadcastIntentHelper.buildHangUpIntent());
         }
-        call.resolve(outcome("requested"));
+        call.resolve(outcome("requested", launchId));
     }
 
     @PluginMethod
@@ -125,31 +169,48 @@ public final class NativeJitsiPlugin extends Plugin {
             call.reject("No terminal native conference is available to retry");
             return;
         }
-        if (getPermissionState("camera") != PermissionState.GRANTED
-            || getPermissionState("microphone") != PermissionState.GRANTED) {
+        String launchId = launchId(call);
+        if (launchId == null) return;
+        if (permissionsMissing()) {
+            pendingPermission = new PendingPermission(call, retrySession, launchId);
             requestPermissionForAliases(new String[] { "camera", "microphone" }, call, "onRetryPermissions");
             return;
         }
-        launch(call, retrySession);
+        call.resolve(outcome(acceptLaunch(retrySession, launchId) ? "started" : "launch_failed", launchId));
     }
 
     @PermissionCallback
     private void onRetryPermissions(PluginCall call) {
         if (!isTrusted(call)) return;
-        if (getPermissionState("camera") != PermissionState.GRANTED
-            || getPermissionState("microphone") != PermissionState.GRANTED) {
-            emit("error", "permission_denied");
-            call.resolve(outcome("permission_denied"));
+        PendingPermission pending = takePendingPermission(call);
+        if (pending == null) return;
+        if (permissionsMissing()) {
+            emit("error", "permission_denied", pending.conferenceId);
+            call.resolve(outcome("permission_denied", pending.conferenceId));
             return;
         }
         if (!terminal || retrySession == null) {
             call.reject("No terminal native conference is available to retry");
             return;
         }
-        launch(call, retrySession);
+        call.resolve(outcome(acceptLaunch(pending.session, pending.conferenceId) ? "started" : "launch_failed", pending.conferenceId));
     }
 
-    private void launch(PluginCall call, JitsiSession session) {
+    private boolean acceptLaunch(JitsiSession session, String launchId) {
+        if (conferenceId != null) {
+            pendingLaunch = new PendingLaunch(session, launchId);
+            return true;
+        }
+        return launch(session, launchId);
+    }
+
+    private void launchPendingAfterClose() {
+        PendingLaunch next = pendingLaunch;
+        pendingLaunch = null;
+        if (next != null) launch(next.session, next.conferenceId);
+    }
+
+    private boolean launch(JitsiSession session, String launchId) {
         try {
             JitsiMeetConferenceOptions options = new JitsiMeetConferenceOptions.Builder()
                 .setServerURL(new URL(session.endpoint))
@@ -167,18 +228,17 @@ public final class NativeJitsiPlugin extends Plugin {
             terminal = false;
             terminalEmitted = false;
             conferenceActive = true;
-            previousConferenceId = conferenceId;
-            previousConferenceUrl = conferenceUrl;
-            conferenceId = UUID.randomUUID().toString();
-            conferenceUrl = conferenceUrl(session);
+            cancellationRequested = false;
+            conferenceId = launchId;
             JitsiMeetActivity.launch(getContext(), options);
-            call.resolve(outcome("started"));
+            return true;
         } catch (Exception ignored) {
             terminal = true;
             terminalEmitted = true;
             conferenceActive = false;
-            emit("error", "launch_failed");
-            call.resolve(outcome("launch_failed"));
+            emit("error", "launch_failed", launchId);
+            conferenceId = null;
+            return false;
         }
     }
 
@@ -195,44 +255,40 @@ public final class NativeJitsiPlugin extends Plugin {
         return new JitsiSession(endpoint, room, token);
     }
 
+    private String launchId(PluginCall call) {
+        String value = call.getString("conferenceId", "");
+        if (value.matches("[A-Za-z0-9_-]{16,128}")) return value;
+        call.reject("Invalid native conference launch");
+        return null;
+    }
+
+    private boolean permissionsMissing() {
+        return getPermissionState("camera") != PermissionState.GRANTED
+            || getPermissionState("microphone") != PermissionState.GRANTED;
+    }
+
+    private PendingPermission takePendingPermission(PluginCall call) {
+        if (pendingPermission == null || pendingPermission.call != call) return null;
+        PendingPermission pending = pendingPermission;
+        pendingPermission = null;
+        return pending;
+    }
+
+    private static boolean matches(String targetId, String ownedId) {
+        return targetId == null || targetId.equals(ownedId);
+    }
+
     private boolean isTrusted(PluginCall call) {
         if (TrustedOriginGate.isTrusted(getBridge().getWebView())) return true;
         call.reject("Unavailable from this page");
         return false;
     }
 
-    private void emit(String state, String code) {
-        emit(state, code, conferenceId);
-    }
-
     private void emit(String state, String code, String eventConferenceId) {
-        JSObject event = outcome(state);
+        JSObject event = outcome(state, eventConferenceId);
         if (code != null) event.put("code", code);
         if (eventConferenceId != null) event.put("conferenceId", eventConferenceId);
         notifyListeners("conference", event);
-    }
-
-    private String conferenceIdFor(BroadcastEvent event) {
-        Object value = event.getData().get("url");
-        if (!(value instanceof String)) return null;
-        String eventUrl = conferenceUrl((String) value);
-        if (eventUrl.equals(conferenceUrl)) return conferenceId;
-        if (eventUrl.equals(previousConferenceUrl)) return previousConferenceId;
-        return null;
-    }
-
-    private static String conferenceUrl(JitsiSession session) {
-        return conferenceUrl(session.endpoint + "/" + session.roomReference);
-    }
-
-    private static String conferenceUrl(String value) {
-        try {
-            URL url = new URL(value);
-            String path = url.getPath().replaceAll("/+$", "");
-            return url.getProtocol() + "://" + url.getHost() + path;
-        } catch (Exception ignored) {
-            return "";
-        }
     }
 
     private static String conferenceError(BroadcastEvent event) {
@@ -242,11 +298,30 @@ public final class NativeJitsiPlugin extends Plugin {
         return code.matches("[A-Za-z0-9._-]{1,80}") ? code : "conference_error";
     }
 
-    private JSObject outcome(String state) {
+    private JSObject outcome(String state, String eventConferenceId) {
         JSObject value = new JSObject();
         value.put("state", state);
-        if (conferenceId != null) value.put("conferenceId", conferenceId);
+        if (eventConferenceId != null) value.put("conferenceId", eventConferenceId);
         return value;
+    }
+
+    private static class PendingLaunch {
+        final JitsiSession session;
+        final String conferenceId;
+
+        PendingLaunch(JitsiSession session, String conferenceId) {
+            this.session = session;
+            this.conferenceId = conferenceId;
+        }
+    }
+
+    private static final class PendingPermission extends PendingLaunch {
+        final PluginCall call;
+
+        PendingPermission(PluginCall call, JitsiSession session, String conferenceId) {
+            super(session, conferenceId);
+            this.call = call;
+        }
     }
 
     private static final class JitsiSession {

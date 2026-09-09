@@ -221,19 +221,25 @@ export type NativeJitsiStartOutcome = {
   conferenceId: string | null;
 };
 
+export type NativeJitsiStartOperation = {
+  conferenceId: string;
+  outcome: Promise<NativeJitsiStartOutcome>;
+};
+
 function nativeJitsiPlugin(): CapacitorPluginCallable | null {
   return plugin('NativeJitsi');
 }
 
-function nativeJitsiOutcome(raw: unknown): NativeJitsiStartOutcome {
+function nativeJitsiOutcome(raw: unknown, conferenceId: string): NativeJitsiStartOutcome {
   if (!raw || typeof raw !== 'object') return { state: 'unavailable', conferenceId: null };
   const value = raw as Record<string, unknown>;
   const state = value.state;
-  const conferenceId = typeof value.conferenceId === 'string' && value.conferenceId.length > 0
+  const receivedConferenceId = typeof value.conferenceId === 'string' && value.conferenceId.length > 0
     ? value.conferenceId
     : null;
-  return state === 'started' || state === 'permission_denied' || state === 'launch_failed'
-    ? { state, conferenceId }
+  return (state === 'started' || state === 'permission_denied' || state === 'launch_failed')
+    && receivedConferenceId === conferenceId
+    ? { state, conferenceId: receivedConferenceId }
     : { state: 'unavailable', conferenceId: null };
 }
 
@@ -250,38 +256,70 @@ function nativeJitsiConferenceEvent(raw: unknown): NativeJitsiConferenceEvent | 
   return null;
 }
 
+function createNativeJitsiConferenceId(): string | null {
+  return typeof crypto?.randomUUID === 'function' ? crypto.randomUUID().replaceAll('-', '') : null;
+}
+
 /** Starts the native Activity with the already-authorized render session. It never logs or persists it. */
-export async function startNativeJitsi(input: {
+export function startNativeJitsi(input: {
   endpoint: string;
   roomReference: string;
   accessToken: string;
-}): Promise<NativeJitsiStartOutcome> {
+}): NativeJitsiStartOperation | Promise<NativeJitsiStartOutcome> {
   const nativeJitsi = nativeJitsiPlugin();
-  if (!nativeJitsi || typeof nativeJitsi.start !== 'function') return { state: 'unavailable', conferenceId: null };
-  try {
-    return nativeJitsiOutcome(await nativeJitsi.start(input));
-  } catch {
-    return { state: 'unavailable', conferenceId: null };
+  const conferenceId = createNativeJitsiConferenceId();
+  if (!nativeJitsi || typeof nativeJitsi.start !== 'function' || !conferenceId) {
+    return Promise.resolve({ state: 'unavailable', conferenceId: null });
   }
+  let start: Promise<unknown>;
+  try {
+    start = Promise.resolve(nativeJitsi.start({ ...input, conferenceId }));
+  } catch {
+    return Promise.resolve({ state: 'unavailable', conferenceId: null });
+  }
+  return {
+    conferenceId,
+    outcome: start
+      .then((raw) => nativeJitsiOutcome(raw, conferenceId))
+      .then(async (outcome) => {
+        if (outcome.state === 'unavailable') await hangupNativeJitsi(conferenceId);
+        return outcome;
+      })
+      .catch(() => ({ state: 'unavailable', conferenceId: null })),
+  };
 }
 
 /** Retries only the plugin-owned terminal conference; the token remains inside the native plugin. */
-export async function retryNativeJitsi(): Promise<NativeJitsiStartOutcome> {
+export function retryNativeJitsi(): NativeJitsiStartOperation | Promise<NativeJitsiStartOutcome> {
   const nativeJitsi = nativeJitsiPlugin();
-  if (!nativeJitsi || typeof nativeJitsi.retry !== 'function') return { state: 'unavailable', conferenceId: null };
-  try {
-    return nativeJitsiOutcome(await nativeJitsi.retry());
-  } catch {
-    return { state: 'unavailable', conferenceId: null };
+  const conferenceId = createNativeJitsiConferenceId();
+  if (!nativeJitsi || typeof nativeJitsi.retry !== 'function' || !conferenceId) {
+    return Promise.resolve({ state: 'unavailable', conferenceId: null });
   }
+  let retry: Promise<unknown>;
+  try {
+    retry = Promise.resolve(nativeJitsi.retry({ conferenceId }));
+  } catch {
+    return Promise.resolve({ state: 'unavailable', conferenceId: null });
+  }
+  return {
+    conferenceId,
+    outcome: retry
+      .then((raw) => nativeJitsiOutcome(raw, conferenceId))
+      .then(async (outcome) => {
+        if (outcome.state === 'unavailable') await hangupNativeJitsi(conferenceId);
+        return outcome;
+      })
+      .catch(() => ({ state: 'unavailable', conferenceId: null })),
+  };
 }
 
 /** Best-effort and idempotent on the Android side. Used only by the renderer that started the conference. */
-export async function hangupNativeJitsi(): Promise<void> {
+export async function hangupNativeJitsi(conferenceId?: string): Promise<void> {
   const nativeJitsi = nativeJitsiPlugin();
   if (!nativeJitsi || typeof nativeJitsi.hangup !== 'function') return;
   try {
-    await nativeJitsi.hangup();
+    await nativeJitsi.hangup(conferenceId ? { conferenceId } : {});
   } catch {
     /* The Activity may already have returned. */
   }
