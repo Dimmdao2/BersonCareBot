@@ -213,10 +213,11 @@ Scope: `apps/mobile-shell/**`, `pnpm-workspace.yaml`, root workspace wiring, bui
       brand×environment комбинации воспроизводимы: debug APK честно отмечены как debug-key signed, release APK/AAB
       собираются unsigned без внешнего release keystore; стандартные debug/release build types не удаляются.
       Доказательство: product `533bb29b1`, audit `49f584040`, all-variant build `a0dfd6576`, landing `d7f99340c`.
-- [ ] **M2-02.** Пакет корректно встроен в monorepo: добавлен в `pnpm-workspace.yaml`, и корневые
+- [x] **M2-02.** Пакет корректно встроен в monorepo: добавлен в `pnpm-workspace.yaml`, и корневые
       `pnpm -r --parallel run typecheck`, `eslint .` и `pnpm run ci` проходят с ним — либо потому, что пакет
       несёт реальные скрипты, либо потому, что их отсутствие объявлено явно. Gradle/Android артефакты и локальные
-      SDK-пути не попадают в git (`git status --porcelain` чист после сборки).
+      SDK-пути не попадают в git (`git status --porcelain` чист после сборки). Доказательство: полный корневой CI на
+      `c77af9e666001100a0719608c91cfa720fc32f2c` завершил все 5 фаз с `exitCode=0`, `movedDuringRun=false`; `git status --short` после сборки пуст.
 - [x] **M2-03.** Flavors имеют отдельные application IDs, names, supplied icons/adaptive icons, splash resources,
       theme colors, start URLs and allowed origins. Signing credentials/service tokens отсутствуют в git и bundle.
       Доказательство прежней конфигурации: `49f584040` сверил четыре APK через `aapt` и secret/artifact scan;
@@ -479,11 +480,13 @@ authority нельзя: он частично отменён владельце�
       через инфраструктуру RuStore — внешние гейты §6, они блокируют только эту строку и `M7-05`. KVM/NAT подняты и гость достигает
       оба TEST host, но API 36 image стабильно падает в `com.android.systemui` ANR; отчёт `7bf5613eb`, landing `e94465518`.
 - [ ] **M7-05.** Реальная доставка Universal Push подтверждена на TEST после закрытия внешних гейтов §6.
-- [ ] **M7-06.** Targeted/phase проверки зелёные на candidate SHAs. Поскольку изменение затрагивает root
+- [x] **M7-06.** Targeted/phase проверки зелёные на candidate SHAs. Поскольку изменение затрагивает root
       dependencies, lockfile, webapp, integrator и Android package, один полный CI гоняется под общим замком хоста
       (`/home/dev/brain/host-orch/run-tests.sh "pnpm run ci"`) только на финальной интеграции. Более позднее прямое
       решение владельца 2026-09-09: текущий workstream сам запускает этот один прогон после landing всех изменений,
-      затем push и TEST deploy; до результата строка не закрывается.
+      затем push и TEST deploy; до результата строка не закрывается. Доказательство: `TEST_CPUSET=0-7 VITEST_MAX_WORKERS=8
+      /home/dev/brain/host-orch/run-tests.sh "pnpm install --frozen-lockfile && pnpm run ci"` на `c77af9e666001100a0719608c91cfa720fc32f2c` — PASS, 5/5 фаз,
+      `stepsExit=0`, `exitCode=0`, `movedDuringRun=false`, 2026-09-09 18:26 MSK.
 - [ ] **M7-07.** Интегрированный `feat/doctor-ui-rebuild` содержит plan evidence по каждому чекбоксу, taskdb `#915`
       соответствует факту, коммиты запушены через проверенный wrapper (`pnpm push:checked`), ни один worker
       clone/process не остался живым.
@@ -560,7 +563,7 @@ security/audit gates идут без этих входов. Отсутствую
 | M2-00a | done | `sudo -n usermod -aG kvm dev`; `getent group kvm` → `kvm:x:994:dev`; `sg kvm -c "id && test -r /dev/kvm && test -w /dev/kvm && echo kvm-access-pass"` → PASS. The independent emulator run then started the API 36 AVD under KVM. |
 | M2-01, M2-04…M2-08 | done | Product `533bb29b1`, independent blind audit/tests `49f584040`, accepted correction `a0dfd6576`, port landing `d7f99340c`; exact evidence is in `.lead/runs/mobile-shell-foundation-audit-20260909/`. |
 | M2-03 | done | Базовая четырехвариантная конфигурация доказана `49f584040`/`d7f99340c`; owner-коррекция Android label `TherapyGo` — product `bc221c4a2`, independent audit `941607a78` с `aapt` для четырёх APK, port landing `5a2107450`. |
-| M2-02 | open | Workspace wiring/typecheck/lint/build are proven; the root `pnpm run ci` clause remains for final integrated M7-06 and is not claimed early. |
+| M2-02 | done | Full root CI on `c77af9e666001100a0719608c91cfa720fc32f2c`: all 5 phases PASS, `exitCode=0`, `movedDuringRun=false`; post-build tree clean. |
 | M1-02, M1-03, M1-05, M1-06 | done | Двухбрендовые PWA manifests/icons/surfaces реализованы, поведенчески проверены и посажены в `feat/doctor-ui-rebuild` через port: product `ae14e0f16`, audit `fd04fbc27`, confirmation `041abf541`, landing `66ef65468`. |
 | M1-01 | done | PWA identity wiring доказан `ae14e0f16`/`fd04fbc27`/`041abf541`/`66ef65468`; owner-коррекция display name `TherapyGo` — product `bc221c4a2`, independent manifest/fault audit `941607a78`, port landing `5a2107450`. |
 | M1-04 | open | Финальный named-DEV HTTP проход `ee0c91fc8` (landing `0f7a8374e`) подтвердил, что HTTP 500 `native_push_token_keyring_unavailable` устранён, а TherapyGo/Therapysto metadata/manifests/install routes и исключение platform-admin работают. В DEV сейчас `count(*) = 0` и для `org_custom_domain_bindings`, и для `clinic_public_directory_entries`, поэтому живого branded-patient host для проверки нет; authenticated doctor redirect и полный browser/PWA fallback остаются в M7-03. |
@@ -576,4 +579,5 @@ security/audit gates идут без этих входов. Отсутствую
 | M7-03 | open | Report `e40904b37`, landing `6741fbba8`: both fresh TEST APKs, ordinary patient OTP/doctor password login, browser media fallback and one self-hosted Jitsi iframe PASS; OS chooser, post-iframe internal navigation/terminal callbacks are blocked by headless instrumentation, M1-04 by absent published branded host. |
 | M7-04 | open | KVM and guest NAT PASS; `com.android.systemui` ANR prevents stable WebView acceptance (`7bf5613eb`, landing `e94465518`). |
 | M7-05 | open | External RuStore application credentials, signing and a physical delivery target are not available. |
-| M7-06, M7-07 | open | Final integrated full CI, checked push, named TEST deploy evidence, taskdb synchronization and clone/process cleanup remain. |
+| M7-06 | done | `TEST_CPUSET=0-7 VITEST_MAX_WORKERS=8 /home/dev/brain/host-orch/run-tests.sh "pnpm install --frozen-lockfile && pnpm run ci"` PASS on `c77af9e666001100a0719608c91cfa720fc32f2c`; `runs/ci-last.json` records stable HEAD and exit 0. |
+| M7-07 | open | Checked push, named TEST deploy evidence, taskdb synchronization and final clone/process cleanup remain. |
