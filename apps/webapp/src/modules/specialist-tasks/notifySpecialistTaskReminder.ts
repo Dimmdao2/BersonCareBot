@@ -178,7 +178,7 @@ export async function notifySpecialistTaskReminder(
           metadata: {
             title: 'Задача',
             url: openUrl,
-            pushExtras: { tag },
+            pushExtras: { tag, pushSurface: 'therapysto' },
           },
         }).catch((err: unknown) => {
           logger.warn({ err, taskId: task.id }, 'specialist task reminder web push relay failed');

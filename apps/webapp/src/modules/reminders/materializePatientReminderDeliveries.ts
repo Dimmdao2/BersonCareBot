@@ -221,6 +221,7 @@ export function materializePatientReminderDeliveries(input: {
         title,
         url: openUrl,
         pushExtras: {
+          pushSurface: 'therapygo',
           tag: `reminder:${occurrence.id}:g${occurrence.deliveryGeneration}`,
           topicCode,
           intentType: 'patient_reminder',

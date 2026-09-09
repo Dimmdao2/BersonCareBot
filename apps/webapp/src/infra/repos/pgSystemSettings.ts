@@ -629,6 +629,17 @@ export function createPgSystemSettingsPort(): SystemSettingsPort {
       return typeof v === 'string' && v.trim() ? v.trim() : null;
     },
 
+    async getNativePushProjectId(appId): Promise<string | null> {
+      const r = await runWebappNamedRoot<{ project_id: string | null }>(
+        getWebappSqlDb(),
+        'app.get_native_push_project_id(text)',
+        [appId],
+        sql`SELECT app.get_native_push_project_id(${appId}::text) AS project_id`,
+      );
+      const projectId = r.rows[0]?.project_id;
+      return typeof projectId === 'string' && projectId.trim() ? projectId.trim() : null;
+    },
+
     async getByScope(
       scope: SystemSettingScope,
       options: SystemSettingsReadOptions = {},

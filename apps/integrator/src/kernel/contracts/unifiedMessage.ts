@@ -74,6 +74,8 @@ export type UnifiedContent = {
    * Nullable fields preserved as `string | null` to match the source type exactly.
    */
   pushExtras?: {
+    /** Product surface chosen by the producer, never a provider selector. */
+    pushSurface?: 'therapygo' | 'therapysto';
     tag?: string;
     trackingId?: string;
     /** Matches WebPushClientPayload.topicCode?: string | null */

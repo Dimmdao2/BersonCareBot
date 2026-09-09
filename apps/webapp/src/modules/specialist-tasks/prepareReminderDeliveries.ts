@@ -131,7 +131,7 @@ export async function prepareSpecialistTaskReminderDeliveries(
           title: 'Напоминание о задачах',
           url: '/app/doctor#doctor-today-global-tasks',
           message: { text: 'Проверьте задачи в кабинете.' },
-          pushExtras: { tag: `specialist_task:${task.id}` },
+          pushExtras: { tag: `specialist_task:${task.id}`, pushSurface: 'therapysto' },
           delivery: { channels: ['web_push'] },
         },
       });

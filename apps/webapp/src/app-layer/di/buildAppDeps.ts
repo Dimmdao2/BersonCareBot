@@ -175,6 +175,9 @@ import { inMemoryWebPushSubscriptionsPort } from '@/infra/repos/inMemoryWebPushS
 import { pgChannelPreferencesPort } from '@/infra/repos/pgChannelPreferences';
 import { createPgWebPushSubscriptionsPort } from '@/infra/repos/pgWebPushSubscriptions';
 import { createPgIntegratorWebPushDeliveryPort } from '@/infra/repos/pgIntegratorWebPushDelivery';
+import { createPgNativePushTargetsPort } from '@/infra/repos/pgNativePushTargets';
+import { createNativePushTokenCipherFromEnv } from '@/modules/web-push/nativePush';
+import { createNativePushTargetsService } from '@/modules/web-push/nativePushTargets';
 import {
   createPgPatientNotificationTopicsPort,
   inMemoryPatientNotificationTopicsPort,
@@ -540,7 +543,12 @@ const channelPreferencesPort = !inMemoryRepos
 const webPushSubscriptionsPort = !inMemoryRepos
   ? createPgWebPushSubscriptionsPort()
   : inMemoryWebPushSubscriptionsPort;
-const integratorWebPushDeliveryPort = createPgIntegratorWebPushDeliveryPort();
+const nativePushTargetsPort = !inMemoryRepos
+  ? createPgNativePushTargetsPort(createNativePushTokenCipherFromEnv())
+  : undefined;
+const nativePushTargets = nativePushTargetsPort
+  ? createNativePushTargetsService(nativePushTargetsPort)
+  : undefined;
 const reminderTransactionalEmailCooldownPort = !inMemoryRepos
   ? createPgReminderTransactionalEmailCooldownPort()
   : createNoOpReminderTransactionalEmailCooldownPort();
@@ -702,6 +710,14 @@ const patientInvitesPort = !inMemoryRepos
   ? createPgPatientInvitesPort()
   : createInMemoryPatientInvitesPort();
 const patientInvitesService = createPatientInvitesService({ port: patientInvitesPort });
+
+const integratorWebPushDeliveryPort = createPgIntegratorWebPushDeliveryPort({
+  nativePushTargets: nativePushTargetsPort,
+  hasActivePatientEnrollment: (userId, organizationId) =>
+    patientOrganizationService?.hasActiveEnrollment(userId, organizationId) ?? Promise.resolve(false),
+  hasActiveStaffMembership: (userId, organizationId) =>
+    organizationMembershipService.hasActiveMembership(userId, organizationId),
+});
 const doctorWorkspaceDirectoryService = createDoctorWorkspaceDirectoryService({
   membershipPort: organizationMembershipPort,
 });
@@ -2034,6 +2050,7 @@ function _buildAppDeps() {
     channelPreferences: channelPreferencesService,
     channelPreferencesPort,
     webPushSubscriptions: webPushSubscriptionsPort,
+    nativePushTargets,
     integratorWebPushDelivery: integratorWebPushDeliveryPort,
     readReminderNotifyGate: readReminderWebappNotifyGate,
     loadPlatformUserChannelBindings,

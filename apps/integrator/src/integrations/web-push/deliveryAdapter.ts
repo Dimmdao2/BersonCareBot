@@ -27,6 +27,7 @@ import type {
 import { readChannel } from '../../infra/adapters/channelRouting.js';
 import { logger } from '../../infra/observability/logger.js';
 import { sendWebPushViaProvider } from './client.js';
+import { sendRuStoreUniversalPush } from './rustoreUniversalClient.js';
 import { getCurrentOrganizationPrincipalId } from '../../infra/principal/organizationPrincipal.js';
 
 type WebPushDeliveryPayload = {
@@ -42,12 +43,70 @@ type WebPushDeliveryPayload = {
     pushKind?: string | null;
     warmupSloganKey?: string | null;
     occurrenceId?: string | null;
+    pushSurface?: 'therapygo' | 'therapysto';
   };
   delivery?: { channels?: unknown };
 } & Record<string, unknown>;
 
 function asString(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function isRouteAtOrBelow(pathname: string, root: string): boolean {
+  return pathname === root || pathname.startsWith(`${root}/`);
+}
+
+/** Legacy rows predate typed pushSurface; infer only canonical relative cabinet routes. */
+function resolveNativeSurface(
+  rawPushExtras: unknown,
+  rawUrl: string,
+): 'therapygo' | 'therapysto' | null {
+  // Keep the backend route grammar identical to the native tap gate. In particular, do not let
+  // encoded separators or traversal-shaped legacy URLs reach a provider and acquire a different
+  // meaning when a downstream URI parser decodes them.
+  if (
+    rawUrl.length > 256 ||
+    !/^\/[A-Za-z0-9/_?=&.-]*$/.test(rawUrl) ||
+    rawUrl.startsWith('//') ||
+    (rawUrl.split('?', 1)[0] ?? '')
+      .split('/')
+      .some((segment) => segment === '.' || segment === '..')
+  ) {
+    return null;
+  }
+  const pushExtras = asRecord(rawPushExtras);
+  if (pushExtras && Object.hasOwn(pushExtras, 'pushSurface')) {
+    const value = pushExtras.pushSurface;
+    return value === 'therapygo' || value === 'therapysto' ? value : null;
+  }
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl, 'https://native-route.invalid');
+  } catch {
+    return null;
+  }
+  if (
+    parsed.origin !== 'https://native-route.invalid' ||
+    parsed.username !== '' ||
+    parsed.password !== ''
+  ) {
+    return null;
+  }
+  if (isRouteAtOrBelow(parsed.pathname, '/app/patient')) return 'therapygo';
+  if (
+    isRouteAtOrBelow(parsed.pathname, '/app/doctor') ||
+    isRouteAtOrBelow(parsed.pathname, '/app/settings') ||
+    isRouteAtOrBelow(parsed.pathname, '/app/account')
+  ) {
+    return 'therapysto';
+  }
+  return null;
 }
 
 export function createWebPushDeliveryAdapter(deps: {
@@ -83,13 +142,22 @@ export function createWebPushDeliveryAdapter(deps: {
         throw new Error('WEB_PUSH_ORGANIZATION_PRINCIPAL_REQUIRED');
       }
 
+      const extras = payload.pushExtras ?? {};
+      const url = asString(payload.url) ?? '/';
+      const nativeSurface = resolveNativeSurface(payload.pushExtras, url);
+      const getNativeTargetsForUser = webPushAccessPort.getNativeTargetsForUser;
+      const getRuStoreConfig = webPushAccessPort.getRuStoreConfig;
+      const nativeAccessConfigured = getNativeTargetsForUser && getRuStoreConfig;
       // Fetch subscriptions + VAPID in parallel (Model β — M2M read from webapp).
-      const [subscriptions, vapid] = await Promise.all([
+      const [subscriptions, vapidResult, nativeTargets] = await Promise.all([
         webPushAccessPort.getSubscriptionsForUser(pushUserId, organizationId),
-        webPushAccessPort.getVapidCredentials(organizationId),
+        webPushAccessPort.getVapidCredentials(organizationId).catch(() => null),
+        nativeSurface && nativeAccessConfigured
+          ? getNativeTargetsForUser(pushUserId, organizationId, nativeSurface).catch(() => [])
+          : Promise.resolve([]),
       ]);
 
-      if (subscriptions.length === 0) {
+      if (subscriptions.length === 0 && nativeTargets.length === 0) {
         logger.info(
           { scope: 'web_push', event: 'web_push_no_subscriptions', pushUserId },
           '[web-push] no active subscriptions for user — skipping',
@@ -97,7 +165,7 @@ export function createWebPushDeliveryAdapter(deps: {
         return {
           webPushOutcome: {
             status: 'skipped',
-            reason: 'no_active_subscriptions',
+            reason: 'no_active_target',
             delivered: 0,
             errors: 0,
             deactivated: 0,
@@ -106,12 +174,10 @@ export function createWebPushDeliveryAdapter(deps: {
       }
 
       const body = asString(payload.message?.text) ?? '';
-      const url = asString(payload.url) ?? '/';
-      const extras = payload.pushExtras ?? {};
 
-      const result = await sendWebPushViaProvider({
+      const browserResult = vapidResult && subscriptions.length > 0 ? await sendWebPushViaProvider({
         subscriptions,
-        vapid,
+        vapid: vapidResult,
         payload: {
           title,
           body,
@@ -158,31 +224,52 @@ export function createWebPushDeliveryAdapter(deps: {
             );
           }
         },
-      });
+      }) : { delivered: 0, errors: 0, deactivated: 0 };
+
+      let nativeDelivered = 0; let nativeErrors = 0; let nativeDeactivated = 0;
+      for (const target of nativeTargets) {
+        if (
+          target.provider !== 'rustore' ||
+          (target.appId !== 'therapygo' && target.appId !== 'therapysto') ||
+          target.appId !== nativeSurface ||
+          !getRuStoreConfig
+        ) {
+          continue;
+        }
+        const config = await getRuStoreConfig(target.appId, organizationId).catch(() => null);
+        if (!config) continue;
+        const result = await sendRuStoreUniversalPush({ config, token: target.token, data: { route: url, title, body, pushSurface: target.appId } });
+        if (result.ok) nativeDelivered += 1;
+        else { nativeErrors += 1; if (result.invalidToken && webPushAccessPort.deactivateNativeTarget && await webPushAccessPort.deactivateNativeTarget(target.id, organizationId)) nativeDeactivated += 1; }
+      }
+      const delivered = browserResult.delivered + nativeDelivered;
+      const errors = browserResult.errors + nativeErrors;
 
       logger.info(
         {
           scope: 'web_push',
           event: 'web_push_sent',
           pushUserId,
-          delivered: result.delivered,
-          errors: result.errors,
-          deactivated: result.deactivated,
+          delivered,
+          errors,
+          deactivated: browserResult.deactivated + nativeDeactivated,
+          transports: { browser: { delivered: browserResult.delivered, errors: browserResult.errors, deactivated: browserResult.deactivated }, native: { delivered: nativeDelivered, errors: nativeErrors, deactivated: nativeDeactivated } },
         },
         '[web-push] push delivery complete',
       );
 
       return {
         webPushOutcome: {
-          status: result.delivered > 0 ? 'success' : result.errors > 0 ? 'failed' : 'skipped',
-          ...(result.delivered === 0 && result.errors > 0 ? { reason: 'provider_error' } : {}),
-          delivered: result.delivered,
-          errors: result.errors,
-          deactivated: result.deactivated,
-          ...(result.failureStatusCode !== undefined
-            ? { providerStatusCode: result.failureStatusCode }
+          status: delivered > 0 ? 'success' : errors > 0 ? 'failed' : 'skipped',
+          ...(delivered === 0 && errors > 0 ? { reason: 'provider_error' } : {}),
+          delivered,
+          errors,
+          deactivated: browserResult.deactivated + nativeDeactivated,
+          transports: { browser: { delivered: browserResult.delivered, errors: browserResult.errors, deactivated: browserResult.deactivated }, native: { delivered: nativeDelivered, errors: nativeErrors, deactivated: nativeDeactivated } },
+          ...(browserResult.failureStatusCode !== undefined
+            ? { providerStatusCode: browserResult.failureStatusCode }
             : {}),
-          ...(result.failureCode ? { providerErrorCode: result.failureCode } : {}),
+          ...(browserResult.failureCode ? { providerErrorCode: browserResult.failureCode } : {}),
         },
       };
     },
