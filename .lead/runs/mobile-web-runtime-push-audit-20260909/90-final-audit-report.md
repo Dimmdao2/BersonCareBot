@@ -1,6 +1,10 @@
 # Final audit report — #915 web NativeRuntime + Universal Push client
 
-**Verdict: PASS**
+**Verdict: SUPERSEDED — not accepted as PASS.** This pass's own K1 was never fault-injected, K5 exercised
+only sequential calls (not genuine concurrency), and it did not cover the reachable logout→login dedupe
+failure the lead later found and fixed in `4e6a5b188`. The candidate reviewed here (`d54b34775`) is no
+longer the tip of this workstream. Continuation and binary verdict:
+`.lead/runs/mobile-web-runtime-push-audit-correction-20260909/90-final-audit-report.md`.
 
 Candidate: `d54b34775` (`feat(mobile): one web NativeRuntime boundary + native-push client lifecycle #915`)
 on branch `wt/mobile-web-runtime-push-20260909`, base `feat/doctor-ui-rebuild` @ `36db05106`. Scope:
@@ -17,7 +21,7 @@ then wrote acceptance tests for each named class, ran them green, then injected 
 fault per class and confirmed red, then restored the production file byte-for-byte (`git diff --check` /
 `git status --porcelain` clean on product code before commit).
 
-## Kill tally: 7/7 killed, 0 uncaught
+## Kill tally: 7/7 killed, 0 uncaught (stale — see superseding note above; K1/K5 rows below were not actually fault-injected/were sequential-only)
 
 | ID | Class | Test file | Injected fault | Result |
 |---|---|---|---|---|

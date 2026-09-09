@@ -4,17 +4,25 @@
  * K1 — an absent plugin, a rejecting/throwing `getRuntimeInfo`, or any malformed JSON shape from the
  *      native bridge must resolve to `BROWSER_NATIVE_RUNTIME`, never throw and never leave the caller
  *      believing it runs native when it does not (a false-native snapshot could unlock native-only UI/
- *      push flow with nothing behind it — dorogoy i tikhiy otkaz).
+ *      push flow with nothing behind it — dorogoy i tikhiy otkaz). The synchronous `isNativeShellActive()`
+ *      chokepoint (gates PWA/service-worker/install doors, M1-07) carries the same contract: a bridge that
+ *      throws synchronously must not crash the caller either.
  * K2 — only `brand==='therapygo'`/`'therapysto'` map to a closed kind; any other brand string (typo,
  *      cross-brand, unexpected value) must fall back to browser, not silently pick a brand.
+ * K5 continuation — `configureUniversalPush` never forwards a blank/whitespace project id to the native
+ *      plugin (a project id is not a secret, but an empty one would still misconfigure the provider on the
+ *      next explicit enable action).
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BROWSER_NATIVE_RUNTIME } from '@/shared/lib/platform';
-import { detectNativeRuntimeSnapshot, isNativeShellActive } from './nativeShellRuntime';
+import { configureUniversalPush, detectNativeRuntimeSnapshot, isNativeShellActive } from './nativeShellRuntime';
 
 type FakeCapacitor = {
   isNativePlatform: () => boolean;
-  Plugins?: { ShellRuntime?: { getRuntimeInfo: () => Promise<unknown> } };
+  Plugins?: {
+    ShellRuntime?: { getRuntimeInfo: () => Promise<unknown> };
+    UniversalPush?: { configure: (input: { projectId: string }) => Promise<unknown> };
+  };
 };
 
 function stubCapacitor(cap: FakeCapacitor | undefined): void {
@@ -37,6 +45,16 @@ describe('isNativeShellActive', () => {
 
     stubCapacitor({ isNativePlatform: () => true });
     expect(isNativeShellActive()).toBe(true);
+  });
+
+  it('returns false instead of throwing when the bridge call itself throws synchronously', () => {
+    stubCapacitor({
+      isNativePlatform: () => {
+        throw new Error('bridge not ready');
+      },
+    });
+    expect(() => isNativeShellActive()).not.toThrow();
+    expect(isNativeShellActive()).toBe(false);
   });
 });
 
@@ -107,4 +125,22 @@ describe('detectNativeRuntimeSnapshot — K2 closed brand→kind mapping', () =>
       await expect(detectNativeRuntimeSnapshot()).resolves.toEqual(BROWSER_NATIVE_RUNTIME);
     },
   );
+});
+
+describe('configureUniversalPush — blank project id never reaches the plugin', () => {
+  it.each(['', '   ', '\t\n'])('rejects without calling UniversalPush.configure: %j', async (projectId) => {
+    const configureMock = vi.fn().mockResolvedValue(undefined);
+    stubCapacitor({ isNativePlatform: () => true, Plugins: { UniversalPush: { configure: configureMock } } });
+
+    await expect(configureUniversalPush(projectId)).resolves.toBe(false);
+    expect(configureMock).not.toHaveBeenCalled();
+  });
+
+  it('trims and forwards a non-blank project id', async () => {
+    const configureMock = vi.fn().mockResolvedValue(undefined);
+    stubCapacitor({ isNativePlatform: () => true, Plugins: { UniversalPush: { configure: configureMock } } });
+
+    await expect(configureUniversalPush('  proj-1  ')).resolves.toBe(true);
+    expect(configureMock).toHaveBeenCalledWith({ projectId: 'proj-1' });
+  });
 });
