@@ -67,12 +67,21 @@ function resolveNativeSurface(
   rawPushExtras: unknown,
   rawUrl: string,
 ): 'therapygo' | 'therapysto' | null {
+  // Keep the backend route grammar identical to the native tap gate. In particular, do not let
+  // encoded separators or traversal-shaped legacy URLs reach a provider and acquire a different
+  // meaning when a downstream URI parser decodes them.
+  if (
+    rawUrl.length > 256 ||
+    !/^\/[A-Za-z0-9/_?=&.-]*$/.test(rawUrl) ||
+    rawUrl.startsWith('//')
+  ) {
+    return null;
+  }
   const pushExtras = asRecord(rawPushExtras);
   if (pushExtras && Object.hasOwn(pushExtras, 'pushSurface')) {
     const value = pushExtras.pushSurface;
     return value === 'therapygo' || value === 'therapysto' ? value : null;
   }
-  if (!rawUrl.startsWith('/') || rawUrl.startsWith('//')) return null;
   let parsed: URL;
   try {
     parsed = new URL(rawUrl, 'https://native-route.invalid');
