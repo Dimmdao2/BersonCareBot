@@ -456,10 +456,13 @@ authority нельзя: он частично отменён владельце�
 
 ### M7 — independent audits and integration gate
 
-- [ ] **M7-01.** Каждая новая поверхность получает один независимый `auditor-live` проход: shell/navigation
+- [x] **M7-01.** Каждая новая поверхность получает один независимый `auditor-live` проход: shell/navigation
       security, web/native bridge + PWA, Jitsi/media, native-target lifecycle/provider delivery. Аудитор начинает
       с «тест или взгляд» (§24.4), строит blind kill-set до чтения тестов и фиксирует fault-injection evidence.
       Аудитор не слабее автора; его находка вне owner scope — вопрос владельцу, а не работа (§24.6).
+      Доказательство: поверхности M1–M6 приняты цепочками независимых аудитов, перечисленных
+      в «7. Evidence ledger»; финальная парольная коррекция пациента дополнительно прошла независимую security-инъекцию
+      `f0e639897` (`20/20`, убито 1, непойманных 0), landing `3bbc5d86c`.
 - [x] **M7-02.** Workers тестов не писали. Тесты аудитора защищают только устойчивое поведение и security-контракты;
       тестов на текст исходника, формулировки/количество/раскладку UI и на факт вызова реализации нет, а
       встреченные в затронутом scope — удалены, кроме incident-backed с названным наблюдаемым отказом.
@@ -468,10 +471,13 @@ authority нельзя: он частично отменён владельце�
       typecheck и scoped lint, NativeJitsi/UniversalPush tests во всех четырёх Android variants — PASS.
 - [ ] **M7-03.** Оба TEST APK variants собираются на Linux (зависит от `M2-00`). Browser/PWA live acceptance
       покрывает install metadata обеих поверхностей, брендированную поверхность §M1-04, file fallback и iframe
-      Jitsi — это выполнимо в репозитории и на именованном DEV/TEST без внешних гейтов.
+      Jitsi — это выполнимо в репозитории и на именованном DEV/TEST без внешних гейтов. Свежий проход `e40904b37`
+      доказал обе TEST APK, обычный вход пациента кодом и врача паролем, browser media fallback и один self-hosted Jitsi iframe.
+      Строка остаётся открытой: headless не отдал OS chooser/internal navigation/terminal callback, а published branded host в DEV отсутствует.
 - [ ] **M7-04.** Android acceptance на эмуляторе покрывает origins/внешние ссылки, камеру, документы, native Jitsi,
       состояния разрешений и tap уведомления с подставным провайдером. Физическое устройство и реальная доставка
-      через инфраструктуру RuStore — внешние гейты §6, они блокируют только эту строку и `M7-05`.
+      через инфраструктуру RuStore — внешние гейты §6, они блокируют только эту строку и `M7-05`. KVM/NAT подняты и гость достигает
+      оба TEST host, но API 36 image стабильно падает в `com.android.systemui` ANR; отчёт `7bf5613eb`, landing `e94465518`.
 - [ ] **M7-05.** Реальная доставка Universal Push подтверждена на TEST после закрытия внешних гейтов §6.
 - [ ] **M7-06.** Targeted/phase проверки зелёные на candidate SHAs. Поскольку изменение затрагивает root
       dependencies, lockfile, webapp, integrator и Android package, один полный CI гоняется под общим замком хоста
@@ -566,4 +572,8 @@ security/audit gates идут без этих входов. Отсутствую
 | M5-01, M5-04…M5-06 | done | Product `ba92a6623`; independent audit/tests `eca72e42b`, report `61c71a436`; accepted correction `ac8998f37`; port landing `bfcb4afba`. Original fault ledger: убито 10, непойманных 0; retained oracle and targeted media gates green. |
 | M4-01, M4-03…M4-06 | done | Product `0d54836a5` + Android `037f473ee`, combined candidate `3ab89ae15`, independent report `7d519dc80`, accepted continuity correction/test `6b1b3d736`/`535089a53`, landing `474e98fbe`. |
 | M7-02 | done | Lead test-policy gate: harmful mobile UI/source-shape checks removed; retained web behavior `6 files / 17 tests`, both package typecheck/lint gates and four-variant NativeJitsi/UniversalPush tests PASS. |
-| M7-01, M7-03…M7-07 | open | Закрывает lead только после applicable independent/live, full-CI, push/deploy и внешних device/provider gates. |
+| M7-01 | done | Independent shell/navigation, PWA/native runtime, Jitsi/media and native-push target/provider audit chains are recorded above; final patient passwordless injection `f0e639897`, accepted landing `3bbc5d86c`. |
+| M7-03 | open | Report `e40904b37`, landing `6741fbba8`: both fresh TEST APKs, ordinary patient OTP/doctor password login, browser media fallback and one self-hosted Jitsi iframe PASS; OS chooser, post-iframe internal navigation/terminal callbacks are blocked by headless instrumentation, M1-04 by absent published branded host. |
+| M7-04 | open | KVM and guest NAT PASS; `com.android.systemui` ANR prevents stable WebView acceptance (`7bf5613eb`, landing `e94465518`). |
+| M7-05 | open | External RuStore application credentials, signing and a physical delivery target are not available. |
+| M7-06, M7-07 | open | Final integrated full CI, checked push, named TEST deploy evidence, taskdb synchronization and clone/process cleanup remain. |
