@@ -106,6 +106,7 @@ export function JitsiMeetingRenderer({
       return;
     }
     let disposed = false;
+    let terminal = false;
     let joinedAt: number | null = null;
     setState('loading');
     void loadJitsi(endpoint)
@@ -135,6 +136,12 @@ export function JitsiMeetingRenderer({
           },
         });
         apiRef.current = api;
+        const endConference = () => {
+          if (disposed || terminal) return;
+          terminal = true;
+          onDiagnosticRef.current?.({ event: 'end', ...(joinedAt ? { durationMs: Date.now() - joinedAt } : {}) });
+          onHangupRef.current?.();
+        };
         const remoteParticipants = new Set<string>();
         let filmstripVisible = true;
         const setFilmstripVisible = (visible: boolean) => {
@@ -175,10 +182,8 @@ export function JitsiMeetingRenderer({
         });
         api.addEventListener('cameraError', () => onDiagnosticRef.current?.({ event: 'error', errorClass: 'media' }));
         api.addEventListener('micError', () => onDiagnosticRef.current?.({ event: 'error', errorClass: 'media' }));
-        api.addEventListener('readyToClose', () => {
-          onDiagnosticRef.current?.({ event: 'end', ...(joinedAt ? { durationMs: Date.now() - joinedAt } : {}) });
-          onHangupRef.current?.();
-        });
+        api.addEventListener('videoConferenceLeft', endConference);
+        api.addEventListener('readyToClose', endConference);
         // Once Jitsi owns the iframe it must also own the connecting/error UI. Waiting for a
         // conference event here can permanently cover an already-rendering call when the automatic
         // join outruns External API listener registration.
