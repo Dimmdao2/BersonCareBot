@@ -41,7 +41,7 @@ export function isNativeShellActive(): boolean {
 }
 
 function plugin(
-  name: 'ShellRuntime' | 'UniversalPush' | 'App' | 'DeviceMedia',
+  name: 'ShellRuntime' | 'UniversalPush' | 'App' | 'DeviceMedia' | 'NativeJitsi',
 ): CapacitorPluginCallable | null {
   const cap = capacitorGlobal();
   if (!cap?.isNativePlatform?.()) return null;
@@ -202,6 +202,105 @@ export function addUniversalPushListener(onEvent: (event: NativePushListenerEven
   return () => {
     removed = true;
     handle?.remove?.();
+  };
+}
+
+// ---------------------------------------------------------------------------
+// NativeJitsi (M4-01): the browser-facing half of the already accepted Android
+// plugin. This adapter owns all plugin shape validation and listener cleanup;
+// product pages keep using the provider-neutral VideoMeetingStage contract.
+// ---------------------------------------------------------------------------
+
+export type NativeJitsiConferenceEvent =
+  | { state: 'joined' }
+  | { state: 'terminated' }
+  | { state: 'error'; code: string | null };
+
+export type NativeJitsiStartOutcome = 'started' | 'permission_denied' | 'launch_failed' | 'unavailable';
+
+function nativeJitsiPlugin(): CapacitorPluginCallable | null {
+  return plugin('NativeJitsi');
+}
+
+function nativeJitsiOutcome(raw: unknown): NativeJitsiStartOutcome {
+  if (!raw || typeof raw !== 'object') return 'unavailable';
+  const state = (raw as Record<string, unknown>).state;
+  return state === 'started' || state === 'permission_denied' || state === 'launch_failed'
+    ? state
+    : 'unavailable';
+}
+
+function nativeJitsiConferenceEvent(raw: unknown): NativeJitsiConferenceEvent | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const event = raw as Record<string, unknown>;
+  if (event.state === 'joined' || event.state === 'terminated') return { state: event.state };
+  if (event.state === 'error') return { state: 'error', code: typeof event.code === 'string' ? event.code : null };
+  return null;
+}
+
+/** Starts the native Activity with the already-authorized render session. It never logs or persists it. */
+export async function startNativeJitsi(input: {
+  endpoint: string;
+  roomReference: string;
+  accessToken: string;
+}): Promise<NativeJitsiStartOutcome> {
+  const nativeJitsi = nativeJitsiPlugin();
+  if (!nativeJitsi || typeof nativeJitsi.start !== 'function') return 'unavailable';
+  try {
+    return nativeJitsiOutcome(await nativeJitsi.start(input));
+  } catch {
+    return 'unavailable';
+  }
+}
+
+/** Retries only the plugin-owned terminal conference; the token remains inside the native plugin. */
+export async function retryNativeJitsi(): Promise<NativeJitsiStartOutcome> {
+  const nativeJitsi = nativeJitsiPlugin();
+  if (!nativeJitsi || typeof nativeJitsi.retry !== 'function') return 'unavailable';
+  try {
+    return nativeJitsiOutcome(await nativeJitsi.retry());
+  } catch {
+    return 'unavailable';
+  }
+}
+
+/** Best-effort and idempotent on the Android side. Used only by the renderer that started the conference. */
+export async function hangupNativeJitsi(): Promise<void> {
+  const nativeJitsi = nativeJitsiPlugin();
+  if (!nativeJitsi || typeof nativeJitsi.hangup !== 'function') return;
+  try {
+    await nativeJitsi.hangup();
+  } catch {
+    /* The Activity may already have returned. */
+  }
+}
+
+/** Registers one native conference listener and makes removal safe even when registration resolves late. */
+export function addNativeJitsiConferenceListener(
+  onEvent: (event: NativeJitsiConferenceEvent) => void,
+): () => void {
+  const nativeJitsi = nativeJitsiPlugin();
+  if (!nativeJitsi || typeof nativeJitsi.addListener !== 'function') return () => {};
+  let removed = false;
+  let handle: { remove: () => void } | null = null;
+  void nativeJitsi
+    .addListener('conference', (raw: unknown) => {
+      if (removed) return;
+      const event = nativeJitsiConferenceEvent(raw);
+      if (event) onEvent(event);
+    })
+    .then((listenerHandle) => {
+      const candidate = listenerHandle as { remove?: () => void } | null;
+      if (removed) {
+        candidate?.remove?.();
+        return;
+      }
+      if (typeof candidate?.remove === 'function') handle = { remove: candidate.remove.bind(candidate) };
+    })
+    .catch(() => {});
+  return () => {
+    removed = true;
+    handle?.remove();
   };
 }
 
