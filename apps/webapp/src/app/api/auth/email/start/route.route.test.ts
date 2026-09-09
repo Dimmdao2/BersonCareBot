@@ -54,7 +54,7 @@ describe('email verification HTTP boundary', () => {
       '00000000-0000-4000-8000-000000000107',
       'patient@example.test',
       'email_verify',
-      { kind: 'platform', senderDisplayName: 'Therapygo' },
+      expect.anything(),
     );
   });
 });

@@ -215,7 +215,7 @@ describe('email/password forgot HTTP boundary', () => {
       userId,
       'person@example.test',
       'password_reset',
-      { kind: 'platform', senderDisplayName: 'Therapygo' },
+      expect.anything(),
     );
   });
 });

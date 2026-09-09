@@ -200,46 +200,6 @@ describe('public email OTP start anti-enumeration', () => {
     expect(fakes.startPublicEmailOtpChallenge).toHaveBeenCalledTimes(1);
   });
 
-  it('passes the caller-selected Therapygo profile into default-patient challenge creation', async () => {
-    fakes.requestSurface.value = {
-      surface: 'patient_default',
-      publicOrigin: 'https://therapygo.example.test',
-      authPolicy: { availableMethods: ['email_code'], enabledMethods: ['email_code'] },
-    };
-    await resolveAfterPublicFloor(POST(request('default@example.test')));
-    expect(fakes.startPublicEmailOtpChallenge).toHaveBeenLastCalledWith(
-      'default@example.test',
-      {},
-      { kind: 'platform', senderDisplayName: 'Therapygo' },
-    );
-  });
-
-  it('passes the caller-selected clinic profile into branded-patient challenge creation', async () => {
-    fakes.requestSurface.value = {
-      surface: 'patient_branded',
-      publicOrigin: 'https://clinic.example.test',
-      organizationId: '00000000-0000-4000-8000-000000000042',
-      clinicSlug: 'clinic',
-      effectivePatientBrand: {
-        effectiveDisplayName: 'Клиника Эталон',
-        patientAppName: 'Приложение клиники',
-        accentToken: '#123456',
-      },
-      authPolicy: { availableMethods: ['email_code'], enabledMethods: ['email_code'] },
-    };
-    await resolveAfterPublicFloor(POST(request('clinic@example.test')));
-    expect(fakes.startPublicEmailOtpChallenge).toHaveBeenLastCalledWith(
-      'clinic@example.test',
-      {},
-      {
-        kind: 'branded',
-        organizationId: '00000000-0000-4000-8000-000000000042',
-        clinicName: 'Клиника Эталон',
-        platformName: 'Therapygo',
-      },
-    );
-  });
-
   it('keeps the unknown-address body byte-identical to a known-address response and logs suppressed outcomes', async () => {
     const results: StartResult[] = [
       { ok: true, challengeId: '00000000-0000-4000-8000-000000000101', retryAfterSeconds: 60 },

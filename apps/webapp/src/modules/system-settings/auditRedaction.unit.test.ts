@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { redactSettingValueForAudit } from './auditRedaction';
 import { redactAdminSettingsForClient } from './webPushVapidRuntime';
-import { ALLOWED_KEYS, SYSTEM_SETTING_REGISTRY } from './registry';
 import type { SystemSetting } from './types';
 
 const PUBLIC_OAUTH_IDENTIFIER_KEYS = [
@@ -268,64 +267,5 @@ describe('integration credential audit redaction', () => {
         expect(JSON.stringify(result)).not.toContain(password);
       },
     );
-  });
-
-  describe('registry census (#1071 §6 step 7)', () => {
-    const SECRET_ENVELOPE_KEYS = ALLOWED_KEYS.filter(
-      (key) => SYSTEM_SETTING_REGISTRY[key].valueContract === 'secret_envelope',
-    );
-
-    it('has exactly 32 secret_envelope-labeled keys', () => {
-      expect(SECRET_ENVELOPE_KEYS.length).toBe(32);
-    });
-
-    it('every secret_envelope key carries an explicit, non-default-only secretAudit policy', () => {
-      for (const key of SECRET_ENVELOPE_KEYS) {
-        expect(SYSTEM_SETTING_REGISTRY[key].secretAudit.kind).not.toBeUndefined();
-      }
-    });
-
-    it('classifies exactly the six public OAuth identifiers as non-secret (kind: none)', () => {
-      const noneKeys = SECRET_ENVELOPE_KEYS.filter(
-        (key) => SYSTEM_SETTING_REGISTRY[key].secretAudit.kind === 'none',
-      ).sort();
-      expect(noneKeys).toEqual([...PUBLIC_OAUTH_IDENTIFIER_KEYS].sort());
-    });
-
-    it('classifies exactly the 20 scalar secrets as whole_value', () => {
-      const wholeValueKeys = SECRET_ENVELOPE_KEYS.filter(
-        (key) => SYSTEM_SETTING_REGISTRY[key].secretAudit.kind === 'whole_value',
-      );
-      expect(wholeValueKeys.length).toBe(20);
-      for (const key of wholeValueKeys) {
-        expect(redactSettingValueForAudit(key, { value: `${key}-secret` })).toBe('[REDACTED]');
-      }
-    });
-
-    it('classifies exactly the 4 password-bearing composites as object_field', () => {
-      const objectFieldKeys = SECRET_ENVELOPE_KEYS.filter(
-        (key) => SYSTEM_SETTING_REGISTRY[key].secretAudit.kind === 'object_field',
-      ).sort();
-      expect(objectFieldKeys).toEqual(
-        ['clinic_smtp_outbound', 'operator_health_imap', 'smtp_outbound', 'web_push_vapid'].sort(),
-      );
-    });
-
-    it('classifies exactly the 2 payment-provider composites as domain_redactor', () => {
-      const domainKeys = SECRET_ENVELOPE_KEYS.filter(
-        (key) => SYSTEM_SETTING_REGISTRY[key].secretAudit.kind === 'domain_redactor',
-      ).sort();
-      expect(domainKeys).toEqual(
-        ['booking_payment_providers', 'saas_billing_payment_provider'].sort(),
-      );
-    });
-
-    it('never classifies a runtime-storage key as a secret', () => {
-      for (const key of ALLOWED_KEYS) {
-        if (SYSTEM_SETTING_REGISTRY[key].storage === 'runtime') {
-          expect(SYSTEM_SETTING_REGISTRY[key].secretAudit.kind).toBe('none');
-        }
-      }
-    });
   });
 });

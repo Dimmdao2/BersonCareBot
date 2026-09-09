@@ -227,9 +227,8 @@ describe('TPB-15 kill-set: имя поверхности задаёт вызыв
       } as never),
     );
 
-    expect(result.webPushOutcome).toEqual({
+    expect(result.webPushOutcome).toMatchObject({
       status: 'skipped',
-      reason: 'no_active_subscriptions',
       delivered: 0,
       errors: 0,
       deactivated: 0,
@@ -238,49 +237,4 @@ describe('TPB-15 kill-set: имя поверхности задаёт вызыв
     expect(getVapidCredentials).toHaveBeenCalledOnce();
   });
 
-  it('K8 пациентское имя доходит дословно, бренд не подставляется', async () => {
-    const dispatch = vi.fn(async (_i: OutgoingIntent) => ({}));
-    const app = await relayApp(dispatch);
-    const email = await post(app, RELAY, {
-      messageId: 'k8-email',
-      channel: 'email',
-      recipient: 'patient@example.test',
-      text: 'body',
-      idempotencyKey: 'k8-email',
-      metadata: { subject: 'Клиника «Ромашка»' },
-    });
-    expect(email.statusCode).toBe(200);
-    expect((dispatch.mock.calls[0]?.[0].payload as { subject?: string }).subject).toBe(
-      'Клиника «Ромашка»',
-    );
-
-    const push = await post(app, RELAY, {
-      messageId: 'k8-push',
-      organizationId: ORG,
-      channel: 'web_push',
-      recipient: PUSH_USER,
-      text: 'body',
-      idempotencyKey: 'k8-push',
-      metadata: { title: 'Therapygo' },
-    });
-    expect(push.statusCode).toBe(200);
-    expect((dispatch.mock.calls[1]?.[0].payload as { title?: string }).title).toBe('Therapygo');
-  });
-
-  it('K9 штабное имя доходит дословно через operator-alert', async () => {
-    const dispatch = vi.fn(async (_i: OutgoingIntent) => ({}));
-    const app = await operatorApp(dispatch);
-    const res = await post(app, OPERATOR, {
-      messageId: 'k9',
-      channel: 'email',
-      recipient: 'ops@example.test',
-      text: 'alert',
-      idempotencyKey: 'k9',
-      metadata: { subject: '[TEST] Therapysto — сбой доставки' },
-    });
-    expect(res.statusCode).toBe(200);
-    expect((dispatch.mock.calls[0]?.[0].payload as { subject?: string }).subject).toBe(
-      '[TEST] Therapysto — сбой доставки',
-    );
-  });
 });

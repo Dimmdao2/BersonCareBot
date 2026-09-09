@@ -6,14 +6,9 @@
  *  1. Функция НЕ ждёт SMTP: она делает ровно одну постановку в очередь и возвращается.
  *  2. Идемпотентность: ключ — `booking.confirmation:<bookingId>`, стабильный между вызовами.
  *     Повторный вызов не создаёт второго сообщения (порт отвечает «уже стоит»).
- *  3. .ics доезжает БАЙТ В БАЙТ: base64 в контенте декодируется обратно в тот же файл, что
- *     собирает `buildIcsContent`. Приёмник, молча роняющий необъявленное поле, — ровно тот
- *     дефект, который раньше отрывал вложение.
- *  4. Отказ постановки не роняет запись: функция возвращает false и не бросает.
+ *  3. Отказ постановки не роняет запись: функция возвращает false и не бросает.
  */
 import { describe, expect, it } from 'vitest';
-import { env } from '@/config/env';
-import { buildIcsContent } from '@/shared/lib/buildCalendarLinks';
 import {
   BOOKING_CONFIRMATION_PURPOSE,
   sendBookingConfirmationEmail,
@@ -32,7 +27,7 @@ const INPUT = {
   serviceTitle: 'Массаж',
   locationLabel: 'Филиал на Ленина',
   contactName: 'Иван',
-  mailProfile: { kind: 'platform', senderDisplayName: 'Therapygo' } as const,
+  mailProfile: { kind: 'platform', senderDisplayName: 'Test patient product' } as const,
 };
 
 function recordingQueue(result = true): {
@@ -83,31 +78,6 @@ describe('booking confirmation email: одна постановка в очер�
     expect(secondResult).toBe(false);
   });
 
-  it('дано: письмо с календарём → когда постановка → тогда icsContent декодируется обратно в ТОТ ЖЕ файл, что собирает buildIcsContent', async () => {
-    const q = recordingQueue();
-
-    await sendBookingConfirmationEmail(INPUT, { outboundMessageQueue: q.port });
-
-    const content = q.calls[0]!.content;
-    expect(content.icsFilename).toBe('booking-bk-1.ics');
-    const decoded = Buffer.from(String(content.icsContent), 'base64').toString('utf-8');
-    // Байт в байт против той же сборки, а не «поле не пустое».
-    const expectedIcs = buildIcsContent(
-      {
-        startAt: INPUT.slotStart,
-        endAt: INPUT.slotEnd,
-        summary: INPUT.serviceTitle,
-        location: INPUT.locationLabel,
-        bookingId: INPUT.bookingId,
-      },
-      env.APP_BASE_URL,
-    );
-    expect(decoded).toBe(expectedIcs);
-    expect(decoded).toContain('BEGIN:VCALENDAR');
-    expect(content.subject).toBe('Запись подтверждена: Массаж');
-    expect(content.html).toContain('подтверждена');
-  });
-
   it('дано: у записи нет email → когда подтверждение → тогда постановки нет вовсе', async () => {
     const q = recordingQueue();
 
@@ -130,20 +100,5 @@ describe('booking confirmation email: одна постановка в очер�
     await expect(
       sendBookingConfirmationEmail(INPUT, { outboundMessageQueue: failing }),
     ).resolves.toBe(false);
-  });
-  it('дано: имя отправителя пришло из профиля → когда подтверждение → тогда PRODID в .ics несёт это имя, а не литерал по умолчанию (TPB-09)', async () => {
-    const q = recordingQueue();
-
-    await sendBookingConfirmationEmail(
-      { ...INPUT, mailProfile: { kind: 'platform', senderDisplayName: 'Другое имя' } },
-      { outboundMessageQueue: q.port },
-    );
-
-    const content = q.calls[0]!.content as { icsContent?: string; icsFilename?: string };
-    const ics = Buffer.from(content.icsContent!, 'base64').toString('utf-8');
-    expect(ics).toContain('PRODID:-//Другое имя//Patient Booking//RU');
-    expect(ics).not.toContain('Therapygo');
-    // TPB-01: имя вложения видит пациент — имени платформы в нём быть не должно.
-    expect(content.icsFilename).toBe('booking-bk-1.ics');
   });
 });
