@@ -191,6 +191,7 @@ final class PushRuntime {
         Intent intent = new Intent(context, MainActivity.class)
             .setAction("ru.therapygo.app.PUSH_TAP")
             .putExtra("nativePushSurface", surface)
+            .putExtra("nativePushKind", kind)
             .putExtra("nativePushRoute", route)
             .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         PendingIntent tap = PendingIntent.getActivity(

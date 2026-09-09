@@ -98,12 +98,15 @@ public final class UniversalPushPlugin extends Plugin {
     private void deliverPendingTap() {
         Intent intent = getActivity().getIntent();
         String surface = intent.getStringExtra("nativePushSurface");
+        String kind = intent.getStringExtra("nativePushKind");
         String route = intent.getStringExtra("nativePushRoute");
-        if (validSurface(surface) && validRoute(surface, route)) {
+        if (validSurface(surface) && validKind(kind) && validRoute(surface, route)) {
             JSObject pendingTap = state("tap");
             pendingTap.put("pushSurface", surface);
+            pendingTap.put("notificationKind", kind);
             pendingTap.put("route", route);
             intent.removeExtra("nativePushSurface");
+            intent.removeExtra("nativePushKind");
             intent.removeExtra("nativePushRoute");
             // A cold-start tap precedes WebView bridge readiness; Capacitor delivers this once to the first listener.
             notifyListeners("push", pendingTap, true);
