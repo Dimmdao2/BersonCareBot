@@ -1,3 +1,9 @@
+# Тест или взгляд
+
+Повторяемые access, lifecycle, encryption и composite-delivery контракты проверяй поведенческими тестами через
+публичные module/route/adapter seams. Состав migration, grants, wiring, отсутствие секретов и итоговое состояние
+проверяй чтением diff, генераторами привилегий и rollback-only introspection; тесты на строки исходника/SQL не пиши.
+
 # Auditor-live brief — #915 native/composite Push backend
 
 Independently audit the exact committed M6 server candidate. Product code is read-only. You may add and commit only
