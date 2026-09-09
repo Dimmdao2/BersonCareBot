@@ -31879,9 +31879,17 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
   },
   'public.media_upload_sessions': {
     kind: 'direct',
-    purpose: 'the accepted media housekeeping worker expires multipart sessions across clinics',
+    purpose: 'the accepted media housekeeping worker expires multipart sessions across clinics; a patient resumes only its own program-submission session',
     codePaths: ['apps/webapp/src/infra/repos/mediaUploadSessionsRepo.ts'],
     grants: [
+      { role: 'app_patient', operations: ['SELECT'], columns: [
+        'id', 'media_id', 's3_key', 'upload_id', 'owner_user_id', 'status',
+        'expected_size_bytes', 'mime_type', 'part_size_bytes', 'expires_at', 'organization_id',
+        'completed_at', 'updated_at',
+      ] },
+      { role: 'app_patient', operations: ['UPDATE'], columns: [
+        'status', 'completed_at', 'last_error', 'updated_at',
+      ] },
       { role: 'app_operational_media_worker', operations: ['SELECT', 'UPDATE', 'DELETE'], columns: 'table' },
     ],
   },

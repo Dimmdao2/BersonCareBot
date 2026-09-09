@@ -22,6 +22,8 @@ export type UploadSessionRow = {
   expires_at: Date;
   /** Из media_files: сессия живёт в том же хранилище, что и строка, ради которой она открыта. */
   storage_target: StorageTarget;
+  organization_id: string;
+  usage_purpose: string | null;
 };
 
 export type FinalizeMultipartResult = {
@@ -38,7 +40,7 @@ export type AbortMultipartDbResult =
 const uploadSessionReturning = sql`
   s.id, s.media_id, s.s3_key, s.upload_id, s.owner_user_id, s.status,
   s.expected_size_bytes::text, s.mime_type, m.original_name, s.part_size_bytes, s.expires_at,
-  m.storage_target
+  m.storage_target, s.organization_id, m.usage_purpose
 `;
 
 export async function insertUploadSessionTx(
@@ -78,7 +80,7 @@ export async function claimUploadSessionForCompletingTx(
   client: PoolClient,
   sessionId: string,
   ownerUserId: string,
-  organizationId: string,
+  organizationId: string | null,
 ): Promise<UploadSessionRow | null> {
   const db = getWebappSqlFromPgClient(client);
   const res = await runWebappSql<UploadSessionRow>(
@@ -89,7 +91,7 @@ export async function claimUploadSessionForCompletingTx(
       WHERE s.id = ${sessionId}::uuid
         AND s.media_id = m.id
         AND s.owner_user_id = ${ownerUserId}::uuid
-        AND m.organization_id = ${organizationId}::uuid
+        AND (${organizationId}::uuid IS NULL OR m.organization_id = ${organizationId}::uuid)
         AND s.status IN ('initiated', 'uploading')
         AND s.expires_at > now()
       RETURNING ${uploadSessionReturning}`,
@@ -120,7 +122,7 @@ export async function getCompletingSessionTx(
   client: PoolClient,
   sessionId: string,
   ownerUserId: string,
-  organizationId: string,
+  organizationId: string | null,
 ): Promise<UploadSessionRow | null> {
   const db = getWebappSqlFromPgClient(client);
   const res = await runWebappSql<UploadSessionRow>(
@@ -130,11 +132,65 @@ export async function getCompletingSessionTx(
        JOIN media_files m ON m.id = s.media_id
       WHERE s.id = ${sessionId}::uuid
         AND s.owner_user_id = ${ownerUserId}::uuid
-        AND m.organization_id = ${organizationId}::uuid
+        AND (${organizationId}::uuid IS NULL OR m.organization_id = ${organizationId}::uuid)
         AND s.status = 'completing'
         AND s.expires_at > now()`,
   );
   return res.rows[0] ?? null;
+}
+
+/** A retry after the final CAS returns the original accepted media identity, never re-finalizes. */
+export async function getCompletedSessionTx(
+  client: PoolClient,
+  sessionId: string,
+  ownerUserId: string,
+  organizationId: string | null,
+): Promise<UploadSessionRow | null> {
+  const db = getWebappSqlFromPgClient(client);
+  const res = await runWebappSql<UploadSessionRow>(
+    db,
+    sql`SELECT ${uploadSessionReturning}
+       FROM media_upload_sessions s
+       JOIN media_files m ON m.id = s.media_id
+      WHERE s.id = ${sessionId}::uuid
+        AND s.owner_user_id = ${ownerUserId}::uuid
+        AND (${organizationId}::uuid IS NULL OR m.organization_id = ${organizationId}::uuid)
+        AND s.status = 'completed'
+        AND m.status = 'ready'`,
+  );
+  return res.rows[0] ?? null;
+}
+
+/** The shared final CAS for policy-specific finalizers that already made their pending row ready. */
+export async function completeMultipartSessionAfterPolicyFinalizerTx(
+  client: PoolClient,
+  sessionId: string,
+  mediaId: string,
+  ownerUserId: string,
+  organizationId: string,
+): Promise<'finalized' | 'already_done' | 'not_ready' | 'partial'> {
+  const db = getWebappSqlFromPgClient(client);
+  const state = await runWebappSql<{ s: string; m: string }>(
+    db,
+    sql`SELECT s.status AS s, m.status AS m
+       FROM media_upload_sessions s
+       JOIN media_files m ON m.id = s.media_id
+      WHERE s.id = ${sessionId}::uuid
+        AND s.media_id = ${mediaId}::uuid
+        AND s.owner_user_id = ${ownerUserId}::uuid
+        AND m.organization_id = ${organizationId}::uuid`,
+  );
+  const row = state.rows[0];
+  if (!row) return 'partial';
+  if (row.s === 'completed' && row.m === 'ready') return 'already_done';
+  if (row.m !== 'ready') return 'not_ready';
+  const updated = await runWebappSql(
+    db,
+    sql`UPDATE media_upload_sessions
+        SET status = 'completed', completed_at = now(), updated_at = now()
+      WHERE id = ${sessionId}::uuid AND status = 'completing'`,
+  );
+  return (updated.rowCount ?? 0) === 1 ? 'finalized' : 'partial';
 }
 
 /** Mark completing -> failed (single transition; no revert + failed double-write). */
@@ -413,18 +469,19 @@ export type GatePartUrlResult =
 export async function gateUploadSessionForPartUrl(
   sessionId: string,
   ownerUserId: string,
-  organizationId: string,
+  organizationId: string | null,
 ): Promise<GatePartUrlResult> {
   const res = await runWebappSql<UploadSessionRow & { expired: boolean }>(
     getWebappSqlDb(),
     sql`SELECT s.id, s.media_id, s.s3_key, s.upload_id, s.owner_user_id, s.status,
             s.expected_size_bytes::text, s.mime_type, m.original_name, s.part_size_bytes, s.expires_at,
+            m.storage_target, s.organization_id, m.usage_purpose,
             (expires_at <= now()) AS expired
        FROM media_upload_sessions s
        JOIN media_files m ON m.id = s.media_id
       WHERE s.id = ${sessionId}::uuid
         AND s.owner_user_id = ${ownerUserId}::uuid
-        AND m.organization_id = ${organizationId}::uuid`,
+        AND (${organizationId}::uuid IS NULL OR m.organization_id = ${organizationId}::uuid)`,
   );
   const raw = res.rows[0];
   if (!raw) {

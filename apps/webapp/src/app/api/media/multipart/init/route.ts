@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { env, isS3MediaEnabled } from '@/config/env';
@@ -9,17 +8,11 @@ import { pgValidateUserAssignableMediaFolder } from '@/app-layer/media/clientMed
 import { insertUploadSessionTx } from '@/app-layer/media/mediaUploadSessionsRepo';
 import { insertPendingMediaFileTx } from '@/app-layer/media/s3MediaStorage';
 import {
-  abortPreparedMultipartUpload,
   abortPendingMediaUpload,
-  beginPreparedMultipartUpload,
+  beginAuthorizedMultipartUpload,
   prepareMediaUpload,
 } from '@/app-layer/media/mediaUploadAdapter';
 import { withUserLifecycleLock } from '@/app-layer/locks/userLifecycleLock';
-import {
-  chooseMultipartPartSize,
-  MULTIPART_SESSION_TTL_MS,
-  multipartMaxPartNumber,
-} from '@/modules/media/multipartConstants';
 import { uploadValidationResponse } from '@/modules/media/uploadValidation';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
@@ -83,72 +76,51 @@ export async function POST(request: Request) {
     folderId = null;
   }
 
-  const mediaId = upload.id;
-  const sessionId = randomUUID();
-  const key = upload.key;
-  const readUrl = `/api/media/${mediaId}`;
-  const partSizeBytes = chooseMultipartPartSize(upload.intent.sizeBytes);
-  const maxParts = multipartMaxPartNumber(upload.intent.sizeBytes, partSizeBytes);
-  const expiresAt = new Date(Date.now() + MULTIPART_SESSION_TTL_MS);
-
-  const metadata = {
-    'media-id': mediaId,
-    'owner-user-id': session.user.userId,
-    'expected-size': String(upload.intent.sizeBytes),
-  };
-
-  let uploadId: string | null = null;
   try {
-    const created = await beginPreparedMultipartUpload(upload, metadata);
-    uploadId = created.uploadId;
-
-    await withDoctorWorkspacePrincipal(gate.ctx, () =>
-      withUserLifecycleLock(getPool(), session.user.userId, 'shared', async (client) => {
-        await insertPendingMediaFileTx(client, {
-          id: mediaId,
-          filename: parsed.data.filename,
-          key,
-          mimeType: upload.intent.mimeType,
-          sizeBytes: upload.intent.sizeBytes,
-          userId: session.user.userId,
-          folderId,
-          storageTarget: upload.target,
-        });
-        await insertUploadSessionTx(client, {
-          sessionId,
-          mediaId,
-          s3Key: key,
-          uploadId: created.uploadId,
-          ownerUserId: session.user.userId,
-          expectedSizeBytes: upload.intent.sizeBytes,
-          mimeType: upload.intent.mimeType,
-          partSizeBytes,
-          expiresAt,
-        });
-      }),
-    );
+    const begun = await beginAuthorizedMultipartUpload({
+      upload,
+      ownerUserId: session.user.userId,
+      createPendingAndSession: ({ mediaId, sessionId, uploadId, partSizeBytes, expiresAt }) =>
+        withDoctorWorkspacePrincipal(gate.ctx, () =>
+          withUserLifecycleLock(getPool(), session.user.userId, 'shared', async (client) => {
+            await insertPendingMediaFileTx(client, {
+              id: mediaId,
+              filename: parsed.data.filename,
+              key: upload.key,
+              mimeType: upload.intent.mimeType,
+              sizeBytes: upload.intent.sizeBytes,
+              userId: session.user.userId,
+              folderId,
+              storageTarget: upload.target,
+            });
+            await insertUploadSessionTx(client, {
+              sessionId,
+              mediaId,
+              s3Key: upload.key,
+              uploadId,
+              ownerUserId: session.user.userId,
+              expectedSizeBytes: upload.intent.sizeBytes,
+              mimeType: upload.intent.mimeType,
+              partSizeBytes,
+              expiresAt,
+            });
+          }),
+        ),
+      abortPending: (mediaId) =>
+        withDoctorWorkspacePrincipal(gate.ctx, () => abortPendingMediaUpload(mediaId)),
+    });
 
     return NextResponse.json({
       ok: true as const,
-      mediaId,
-      sessionId,
-      uploadId: created.uploadId,
-      partSizeBytes,
-      maxParts,
-      expiresAt: expiresAt.toISOString(),
-      readUrl,
+      mediaId: begun.mediaId,
+      sessionId: begun.sessionId,
+      uploadId: begun.uploadId,
+      partSizeBytes: begun.partSizeBytes,
+      maxParts: begun.maxParts,
+      expiresAt: begun.expiresAt.toISOString(),
+      readUrl: `/api/media/${begun.mediaId}`,
     });
   } catch (e) {
-    if (uploadId) {
-      await abortPreparedMultipartUpload(key, uploadId, upload.target).catch(() => {
-        /* best-effort */
-      });
-    }
-    await withDoctorWorkspacePrincipal(gate.ctx, () => abortPendingMediaUpload(mediaId)).catch(
-      () => {
-        /* ignore */
-      },
-    );
     logger.error({ err: e }, '[media/multipart/init] failed');
     return NextResponse.json({ ok: false, error: 'multipart_init_failed' }, { status: 500 });
   }

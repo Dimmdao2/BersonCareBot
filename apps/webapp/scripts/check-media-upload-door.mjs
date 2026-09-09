@@ -24,7 +24,11 @@ const receivedDoorBindings = new Set([
   'validateBufferedMediaUpload',
   'validateReceivedMediaObject',
 ]);
-const preparedWriteBindings = new Set(['presignPreparedUpload', 'beginPreparedMultipartUpload']);
+const preparedWriteBindings = new Set([
+  'presignPreparedUpload',
+  'beginPreparedMultipartUpload',
+  'beginAuthorizedMultipartUpload',
+]);
 const multipartCompletionBindings = new Set(['completePreparedMultipartUpload']);
 const receivedAcceptanceBindings = new Set([
   'acceptReceivedMedia',
@@ -38,6 +42,7 @@ const statePrimitives = new Set([
   'confirmMediaFileReady',
   'confirmProgramSubmissionMediaFileReady',
   'tryFinalizeMultipartIdempotentTx',
+  'insertUploadSessionTx',
 ]);
 const readyPrimitives = new Set([
   'confirmMediaFileReady',
