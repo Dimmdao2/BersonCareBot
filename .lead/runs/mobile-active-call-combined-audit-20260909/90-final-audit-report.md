@@ -76,12 +76,14 @@ artifact diagnostics, but an exact filter over its output now reports zero `Doct
 The affected pre-existing doctor UI suite passed its 5 existing cases during the targeted run, and scoped ESLint
 passes.
 
-After the owner tightened `AGENTS.md` §10a, the lead rejected both tests newly introduced by this audit:
+After the owner tightened `AGENTS.md` §10a, the lead reclassified the two tests introduced by this audit:
 
-- the coordinator test replaced the real meeting stage and asserted an internal provider/context contract rather
-  than an independently observed product outcome;
-- the Android lifecycle test reached private plugin fields by reflection and asserted an internal callback absence.
+- the coordinator test is retained: its independent oracle is the owner's explicit active-call continuity decision,
+  the observed failures are silent loss/replacement of a live consultation and duplicate encounter termination, it
+  uses the coordinator's public hook, and both fault injections made its assertions red;
+- the Android lifecycle test is rejected: it reached private plugin fields by reflection and asserted an internal
+  callback absence instead of the public Android/PiP result.
 
-Both were removed before landing. The `next/navigation` setup repair in the existing doctor UI suite remains because
-it only lets that pre-existing suite reach its existing behavioral oracle. The audit's inspection and temporary
-fault-injection observations remain evidence, but the rejected tests are not retained as regression machinery.
+The `next/navigation` setup repair in the existing doctor UI suite remains because it only lets that pre-existing
+suite reach its existing behavioral oracle. The audit's inspection and temporary fault-injection observations remain
+evidence; only the reflection-based test is excluded from regression machinery.

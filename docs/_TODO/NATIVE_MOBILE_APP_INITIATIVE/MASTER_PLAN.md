@@ -319,8 +319,8 @@ VM-10, VM-11, VM-12, UI-08, UI-09, UI-10. `M4-01` по определению т
       внутри приложения не размонтирует conference; explicit end очищает coordinator ровно один раз. Guest `/live`
       сохраняет действующий standalone путь. Десктопная раскладка остаётся без нового floating UI.
       Доказательство: zonally separate coordinator/indicator/start-control product `0d54836a5`, combined audit
-      inspection/fault injection `7d519dc80`; два новых internal-contract теста аудитора отклонены по обновлённому
-      §10a и удалены до landing, что записано в lead-acceptance отчёта.
+      inspection/fault injection `7d519dc80`; coordinator behavior test принят по обновлённому §10a, а
+      reflection-based Android internal-contract test отклонён, что записано в lead-acceptance отчёта.
 
 ### M5 — camera, gallery, documents and streaming upload
 
