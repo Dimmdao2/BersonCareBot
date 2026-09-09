@@ -82,7 +82,7 @@ Build one typed native-push client bootstrap over the accepted routes:
   patient/staff Push controls keep their public contract but select the native transport instead of PushManager;
 - logout through the existing single logout/sign-out door performs best-effort authenticated DELETE before session
   destruction, then plugin `revoke`; offboarding remains server-owned. Do not create a second logout component;
-- tap events accept only the already validated native `{surface,route}` shape and route through Next navigation
+- tap events accept only the already validated native `{pushSurface,notificationKind,route}` shape and route through Next navigation
   inside the matching app surface. A mismatch, external URL, protocol-relative URL, admin/account cross-surface
   route or malformed event is ignored fail-closed.
 
@@ -104,4 +104,3 @@ build/type checks that do not claim live device behavior. Do not run full root C
 dev server or alter services. Commit all and only allowed paths explicitly, never `git add -A`; do not push. Commit
 message references `#915`, exact M-IDs, evidence and remaining DeviceMedia/device/RuStore/live gates. Report SHA,
 public TS contracts, commands/results and factual blockers. Do not finish while a foreground check is running.
-
