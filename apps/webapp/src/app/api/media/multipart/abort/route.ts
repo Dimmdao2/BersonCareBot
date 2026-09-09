@@ -4,18 +4,18 @@ import { env, isS3MediaEnabled } from '@/config/env';
 import { logger } from '@/app-layer/logging/logger';
 import { getPool } from '@/app-layer/db/client';
 import { withMultipartSessionLock } from '@/app-layer/locks/multipartSessionLock';
-import { abortMultipartPendingTx } from '@/app-layer/media/mediaUploadSessionsRepo';
+import {
+  abortMultipartPendingTx,
+  gateUploadSessionForPartUrl,
+} from '@/app-layer/media/mediaUploadSessionsRepo';
 import {
   abortPreparedMultipartUpload,
   abortPendingProgramSubmissionUpload,
-  inspectReceivedMediaObject,
 } from '@/app-layer/media/mediaUploadAdapter';
-import { gateUploadSessionForPartUrl } from '@/app-layer/media/mediaUploadSessionsRepo';
 import {
   requireMediaMultipartApiContext,
   withMediaMultipartPrincipal,
 } from '@/app-layer/guards/mediaMultipartApiContext';
-import { parseUploadPolicyId } from '@/modules/media/uploadValidation';
 import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
 
 const bodySchema = z.object({
@@ -57,10 +57,12 @@ export async function POST(request: Request) {
         { status: active.error === 'session_not_found' ? 404 : 409 },
       );
     const row = active.row;
-    const head = await inspectReceivedMediaObject(row.s3_key, row.storage_target);
-    if (parseUploadPolicyId(head?.metadata['upload-policy']) !== 'patient-program-submission') {
-      return NextResponse.json({ ok: false, error: 'session_not_found' }, { status: 404 });
-    }
+    // Authorization is already complete: `gateUploadSessionForPartUrl` bound this row to the
+    // calling patient's own `owner_user_id` and to a live pre-completion status. Every session a
+    // patient caller can reach is one their own program-submission presign door created — there is
+    // no second patient multipart policy to distinguish. The previous `HeadObject`-based policy
+    // check trusted S3 metadata that a `CreateMultipartUpload` never produces before completion, so
+    // it always 404'd a legitimate pre-completion abort instead of authorizing from this durable row.
     await withMediaMultipartPrincipal(
       gate.ctx,
       row.organization_id,
@@ -75,8 +77,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true as const });
   }
 
+  // Narrowed here, not inside the closure below: a property-path narrowing (`gate.ctx.kind`) does
+  // not survive into a nested function body, and this generic branch must stay doctor-only/org-bound.
+  if (gate.ctx.kind !== 'doctor') {
+    return NextResponse.json({ ok: false, error: 'unexpected_context' }, { status: 500 });
+  }
+  const ownerUserId = gate.ctx.userId;
+  const organizationId = gate.ctx.organizationId;
+
   const dbResult = await withMultipartSessionLock(pool, sessionId, async (client) =>
-    abortMultipartPendingTx(client, sessionId, gate.ctx.userId, gate.ctx.organizationId),
+    abortMultipartPendingTx(client, sessionId, ownerUserId, organizationId),
   );
 
   if (dbResult.ok === 'not_found') {

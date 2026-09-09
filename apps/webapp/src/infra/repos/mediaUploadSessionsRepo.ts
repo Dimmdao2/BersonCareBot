@@ -343,6 +343,14 @@ export async function abortMultipartPendingTx(
     }
     return { ok: 'not_found' };
   }
+  // Same terminal treatment as the expiry state machine (`stageExpiredMultipartSessionForPurgeTx`):
+  // metadata for a file that never arrived must not outlive the upload it describes. Removing the
+  // link in the same transaction/lock as the media row keeps the doctor patient-file abort from
+  // leaving a legacy-visible `patient_files` row behind the `ON DELETE SET NULL` FK.
+  await runWebappSql(
+    db,
+    sql`DELETE FROM patient_files WHERE media_file_id = ${row.media_id}::uuid`,
+  );
 
   return {
     ok: 'aborted',
@@ -507,7 +515,7 @@ export async function classifyMultipartCompleteRejection(
   _pool: Pool,
   sessionId: string,
   ownerUserId: string,
-  organizationId: string,
+  organizationId: string | null,
 ): Promise<MultipartCompleteRejectError> {
   const res = await runWebappSql<{ status: string; expired: boolean }>(
     getWebappSqlDb(),
@@ -517,7 +525,7 @@ export async function classifyMultipartCompleteRejection(
        JOIN media_files m ON m.id = s.media_id
       WHERE s.id = ${sessionId}::uuid
         AND s.owner_user_id = ${ownerUserId}::uuid
-        AND m.organization_id = ${organizationId}::uuid`,
+        AND (${organizationId}::uuid IS NULL OR m.organization_id = ${organizationId}::uuid)`,
   );
   const row = res.rows[0];
   if (!row) {

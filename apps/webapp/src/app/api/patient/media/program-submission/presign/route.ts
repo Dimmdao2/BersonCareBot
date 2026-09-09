@@ -104,6 +104,7 @@ export async function POST(request: Request) {
     return NextResponse.json(rejection.body, { status: rejection.status });
   }
   const upload = prepared.value;
+  const mediaId = upload.id;
 
   try {
     if (parsed.data.uploadMode === 'multipart') {
@@ -165,7 +166,6 @@ export async function POST(request: Request) {
         readUrl: `/api/media/${begun.mediaId}`,
       });
     }
-    const mediaId = upload.id;
     const key = upload.key;
     await createPendingProgramSubmissionMediaFile({
       id: mediaId,
