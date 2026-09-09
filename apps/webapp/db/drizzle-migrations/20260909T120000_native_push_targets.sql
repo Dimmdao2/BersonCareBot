@@ -1,5 +1,5 @@
--- BCB-MIGRATION-VERIFY: SELECT to_regclass('public.native_push_targets') IS NOT NULL
 -- BCB-MIGRATION-OWNER: app_object_owner
+-- BCB-MIGRATION-VERIFY: SELECT to_regclass('public.native_push_targets') IS NOT NULL
 CREATE TABLE native_push_targets (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL REFERENCES platform_users(id) ON DELETE CASCADE,

@@ -191,7 +191,7 @@ export async function notifyDoctorPatientMessageToStaff(
         metadata: {
           title: 'Новое сообщение',
           url: input.notificationUrl,
-          pushExtras: { tag },
+          pushExtras: { tag, pushSurface: 'therapysto' },
         },
       }).catch((err: unknown) => {
         logger.warn(

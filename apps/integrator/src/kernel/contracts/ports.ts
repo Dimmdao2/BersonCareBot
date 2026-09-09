@@ -624,7 +624,8 @@ export type WebPushAccessPort = {
     endpoint: string,
     organizationId: string,
   ): Promise<boolean>;
-  getNativeTargetsForUser(pushUserId: string, organizationId: string): Promise<Array<{ id: string; appId: 'therapygo' | 'therapysto'; provider: 'rustore' | 'fcm' | 'hms'; token: string }>>;
-  getRuStoreConfig(appId: 'therapygo' | 'therapysto', organizationId: string): Promise<{ endpoint: string; projectId: string; authToken: string } | null>;
-  deactivateNativeTarget(targetId: string, organizationId: string): Promise<boolean>;
+  /** Optional transport extension: browser-only deployments and existing fakes remain valid. */
+  getNativeTargetsForUser?(pushUserId: string, organizationId: string, appId: 'therapygo' | 'therapysto'): Promise<Array<{ id: string; appId: string; provider: string; token: string }>>;
+  getRuStoreConfig?(appId: 'therapygo' | 'therapysto', organizationId: string): Promise<{ endpoint: string; projectId: string; authToken: string } | null>;
+  deactivateNativeTarget?(targetId: string, organizationId: string): Promise<boolean>;
 };

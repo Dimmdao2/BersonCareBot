@@ -4,10 +4,23 @@ export const NATIVE_PUSH_APP_IDS = ['therapygo', 'therapysto'] as const;
 export const NATIVE_PUSH_PROVIDERS = ['rustore', 'fcm', 'hms'] as const;
 export type NativePushAppId = (typeof NATIVE_PUSH_APP_IDS)[number];
 export type NativePushProvider = (typeof NATIVE_PUSH_PROVIDERS)[number];
-export type NativePushTokenCipher = { encrypt(token: string): { ciphertext: string; keyId: string }; decrypt(ciphertext: string, keyId: string): string };
+export type NativePushTokenCipherContext = {
+  userId: string;
+  appId: NativePushAppId;
+  provider: NativePushProvider;
+  installationIdHash: string;
+};
+export type NativePushTokenCipher = {
+  encrypt(token: string, context: NativePushTokenCipherContext): { ciphertext: string; keyId: string };
+  decrypt(ciphertext: string, keyId: string, context: NativePushTokenCipherContext): string;
+};
 
 export function nativePushHash(value: string): string { return createHash('sha256').update(value).digest('base64url'); }
 export function isNativePushProvider(value: unknown): value is NativePushProvider { return typeof value === 'string' && (NATIVE_PUSH_PROVIDERS as readonly string[]).includes(value); }
+
+function aad(context: NativePushTokenCipherContext): Buffer {
+  return Buffer.from(`${context.userId}:${context.appId}:${context.provider}:${context.installationIdHash}`, 'utf8');
+}
 
 /** Dedicated bootstrap keyring. It intentionally has no settings or staff-security dependency. */
 export function createNativePushTokenCipherFromEnv(raw = process.env.NATIVE_PUSH_TOKEN_KEYRING_JSON): NativePushTokenCipher {
@@ -26,7 +39,7 @@ export function createNativePushTokenCipherFromEnv(raw = process.env.NATIVE_PUSH
     return key;
   };
   return {
-    encrypt(token) { const iv = randomBytes(12); const cipher = createCipheriv('aes-256-gcm', keyFor(activeKeyId), iv); const body = Buffer.concat([cipher.update(token, 'utf8'), cipher.final()]); return { keyId: activeKeyId, ciphertext: Buffer.concat([iv, cipher.getAuthTag(), body]).toString('base64url') }; },
-    decrypt(ciphertext, keyId) { const data = Buffer.from(ciphertext, 'base64url'); if (data.length < 29) throw new Error('native_push_token_ciphertext_invalid'); const decipher = createDecipheriv('aes-256-gcm', keyFor(keyId), data.subarray(0, 12)); decipher.setAuthTag(data.subarray(12, 28)); return Buffer.concat([decipher.update(data.subarray(28)), decipher.final()]).toString('utf8'); },
+    encrypt(token, context) { const iv = randomBytes(12); const cipher = createCipheriv('aes-256-gcm', keyFor(activeKeyId), iv); cipher.setAAD(aad(context)); const body = Buffer.concat([cipher.update(token, 'utf8'), cipher.final()]); return { keyId: activeKeyId, ciphertext: Buffer.concat([iv, cipher.getAuthTag(), body]).toString('base64url') }; },
+    decrypt(ciphertext, keyId, context) { const data = Buffer.from(ciphertext, 'base64url'); if (data.length < 29) throw new Error('native_push_token_ciphertext_invalid'); const decipher = createDecipheriv('aes-256-gcm', keyFor(keyId), data.subarray(0, 12)); decipher.setAAD(aad(context)); decipher.setAuthTag(data.subarray(12, 28)); return Buffer.concat([decipher.update(data.subarray(28)), decipher.final()]).toString('utf8'); },
   };
 }

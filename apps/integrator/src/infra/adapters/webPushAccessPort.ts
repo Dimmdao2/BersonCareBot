@@ -166,9 +166,9 @@ export function createWebPushAccessPort(deps: {
         return false;
       }
     },
-    async getNativeTargetsForUser(pushUserId, organizationId) {
+    async getNativeTargetsForUser(pushUserId, organizationId, appId) {
       const { baseUrl, secret } = await requireAccessConfig(getAppBaseUrl, organizationId);
-      return fetchSignedGet({ baseUrl, path: '/api/integrator/web-push/native-targets', query: { userId: pushUserId, organizationId }, secret, parseResponse: (data) => {
+      return fetchSignedGet({ baseUrl, path: '/api/integrator/web-push/native-targets', query: { userId: pushUserId, organizationId, appId }, secret, parseResponse: (data) => {
         if (!Array.isArray(data.targets)) return null;
         const targets = data.targets as Array<Record<string, unknown>>;
         return targets.every((t) => typeof t.id === 'string' && (t.appId === 'therapygo' || t.appId === 'therapysto') && (t.provider === 'rustore' || t.provider === 'fcm' || t.provider === 'hms') && typeof t.token === 'string') ? targets as Array<{ id: string; appId: 'therapygo' | 'therapysto'; provider: 'rustore' | 'fcm' | 'hms'; token: string }> : null;

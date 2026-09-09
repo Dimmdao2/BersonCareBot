@@ -3,6 +3,8 @@ import { getWebappSqlDb, runWebappNamedRoot } from '@/infra/db/runWebappSql';
 import type {
   IntegratorWebPushDeliveryPort,
   IntegratorWebPushDeliverySettings,
+  NativePushAppId,
+  NativePushTargetLifecyclePort,
   WebPushSubscriptionPayloadV1,
 } from '@/modules/web-push/ports';
 
@@ -34,7 +36,11 @@ function parseSubscription(value: unknown): WebPushSubscriptionPayloadV1 | null 
   return { endpoint, expirationTime: null, keys: { p256dh, auth } };
 }
 
-export function createPgIntegratorWebPushDeliveryPort(): IntegratorWebPushDeliveryPort {
+export function createPgIntegratorWebPushDeliveryPort(deps: {
+  nativePushTargets?: NativePushTargetLifecyclePort;
+  hasActivePatientEnrollment(userId: string, organizationId: string): Promise<boolean>;
+  hasActiveStaffMembership(userId: string, organizationId: string): Promise<boolean>;
+}): IntegratorWebPushDeliveryPort {
   return {
     async listAuthorizedSubscriptions(organizationId, userId) {
       const result = await runWebappNamedRoot<{ payload: SubscriptionRootPayload | null }>(
@@ -69,6 +75,23 @@ export function createPgIntegratorWebPushDeliveryPort(): IntegratorWebPushDelive
         webPushVapidValueJson: payload.web_push_vapid ?? null,
         vapidSubject: typeof payload.vapid_subject === 'string' ? payload.vapid_subject : null,
       } satisfies IntegratorWebPushDeliverySettings;
+    },
+    async listAuthorizedNativeTargets(organizationId, userId, appId) {
+      const authorized = appId === 'therapygo'
+        ? await deps.hasActivePatientEnrollment(userId, organizationId)
+        : await deps.hasActiveStaffMembership(userId, organizationId);
+      if (!authorized) return null;
+      return deps.nativePushTargets?.listActive(userId, appId) ?? [];
+    },
+    async deactivateAuthorizedNativeTarget(organizationId, targetId) {
+      const target = await deps.nativePushTargets?.activeTarget(targetId);
+      if (!target) return false;
+      const authorized = target.appId === 'therapygo'
+        ? await deps.hasActivePatientEnrollment(target.userId, organizationId)
+        : await deps.hasActiveStaffMembership(target.userId, organizationId);
+      if (!authorized) return null;
+      await deps.nativePushTargets?.deactivateById(targetId);
+      return true;
     },
   };
 }

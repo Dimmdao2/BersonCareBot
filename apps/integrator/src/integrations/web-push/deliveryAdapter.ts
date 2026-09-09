@@ -52,6 +52,14 @@ function asString(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined;
 }
 
+/** Legacy rows predate typed pushSurface; infer only canonical same-surface cabinet routes. */
+function resolveNativeSurface(pushSurface: 'therapygo' | 'therapysto' | undefined, url: string): 'therapygo' | 'therapysto' | null {
+  if (pushSurface === 'therapygo' || pushSurface === 'therapysto') return pushSurface;
+  if (url === '/app/patient' || url.startsWith('/app/patient/')) return 'therapygo';
+  if (url === '/app/doctor' || url.startsWith('/app/doctor/') || url === '/app/settings' || url.startsWith('/app/settings/')) return 'therapysto';
+  return null;
+}
+
 export function createWebPushDeliveryAdapter(deps: {
   webPushAccessPort: WebPushAccessPort;
 }): DeliveryAdapter {
@@ -85,11 +93,16 @@ export function createWebPushDeliveryAdapter(deps: {
         throw new Error('WEB_PUSH_ORGANIZATION_PRINCIPAL_REQUIRED');
       }
 
+      const extras = payload.pushExtras ?? {};
+      const url = asString(payload.url) ?? '/';
+      const nativeSurface = resolveNativeSurface(extras.pushSurface, url);
       // Fetch subscriptions + VAPID in parallel (Model β — M2M read from webapp).
       const [subscriptions, vapidResult, nativeTargets] = await Promise.all([
         webPushAccessPort.getSubscriptionsForUser(pushUserId, organizationId),
         webPushAccessPort.getVapidCredentials(organizationId).catch(() => null),
-        webPushAccessPort.getNativeTargetsForUser(pushUserId, organizationId).catch(() => []),
+        nativeSurface && webPushAccessPort.getNativeTargetsForUser
+          ? webPushAccessPort.getNativeTargetsForUser(pushUserId, organizationId, nativeSurface).catch(() => [])
+          : Promise.resolve([]),
       ]);
 
       if (subscriptions.length === 0 && nativeTargets.length === 0) {
@@ -109,8 +122,6 @@ export function createWebPushDeliveryAdapter(deps: {
       }
 
       const body = asString(payload.message?.text) ?? '';
-      const url = asString(payload.url) ?? '/';
-      const extras = payload.pushExtras ?? {};
 
       const browserResult = vapidResult && subscriptions.length > 0 ? await sendWebPushViaProvider({
         subscriptions,
@@ -164,14 +175,13 @@ export function createWebPushDeliveryAdapter(deps: {
       }) : { delivered: 0, errors: 0, deactivated: 0 };
 
       let nativeDelivered = 0; let nativeErrors = 0; let nativeDeactivated = 0;
-      const nativeSurface = extras.pushSurface;
       for (const target of nativeTargets) {
-        if (target.provider !== 'rustore' || (nativeSurface && target.appId !== nativeSurface)) continue;
+        if (target.provider !== 'rustore' || target.appId !== nativeSurface || !webPushAccessPort.getRuStoreConfig) continue;
         const config = await webPushAccessPort.getRuStoreConfig(target.appId, organizationId).catch(() => null);
         if (!config) continue;
         const result = await sendRuStoreUniversalPush({ config, token: target.token, data: { route: url, title, body, pushSurface: target.appId } });
         if (result.ok) nativeDelivered += 1;
-        else { nativeErrors += 1; if (result.invalidToken && await webPushAccessPort.deactivateNativeTarget(target.id, organizationId)) nativeDeactivated += 1; }
+        else { nativeErrors += 1; if (result.invalidToken && webPushAccessPort.deactivateNativeTarget && await webPushAccessPort.deactivateNativeTarget(target.id, organizationId)) nativeDeactivated += 1; }
       }
       const delivered = browserResult.delivered + nativeDelivered;
       const errors = browserResult.errors + nativeErrors;
