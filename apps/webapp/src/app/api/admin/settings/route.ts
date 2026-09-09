@@ -174,6 +174,8 @@ const ADMIN_SCOPE_KEYS = [
   'clinic_vk_community_access_token',
   'operator_health_imap',
   'web_push_vapid',
+  'rustore_universal_push_therapygo',
+  'rustore_universal_push_therapysto',
   'smsc_enabled',
   'smsc_api_key',
   'smsc_base_url',

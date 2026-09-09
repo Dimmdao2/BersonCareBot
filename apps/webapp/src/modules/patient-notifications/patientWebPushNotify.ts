@@ -313,6 +313,7 @@ export async function runPatientWebPushNotify(
       title: trackedPayload.title,
       url: trackedPayload.url,
       pushExtras: {
+        pushSurface: 'therapygo',
         tag,
         trackingId: trackedPayload.trackingId ?? undefined,
         topicCode: body.topicCode,

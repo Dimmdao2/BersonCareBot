@@ -46,26 +46,6 @@ function rebaseRedirectToPublicOrigin(response: NextResponse, publicOrigin: stri
   );
 }
 
-function internalRewriteTarget(request: NextRequest, pathname: string): URL {
-  const target = request.nextUrl.clone();
-  target.pathname = pathname;
-
-  // Next relativizes middleware rewrites only when their origin exactly matches its own init URL.
-  // nginx reaches the listener through a loopback alias, while every supported webapp runtime binds
-  // Next to 127.0.0.1. Proxy workers do not reliably inherit the standalone server's HOSTNAME, so use
-  // the canonical listener address directly; this keeps the rewrite internal instead of making Next
-  // proxy to itself over the reconstructed public HTTPS scheme.
-  const requestHostname = target.hostname.toLowerCase();
-  const localListenerHostnames = new Set(['localhost', '127.0.0.1', '[::1]', '0.0.0.0', '[::]']);
-  if (localListenerHostnames.has(requestHostname)) {
-    target.hostname = '127.0.0.1';
-    const runtimePort = process.env.PORT?.trim();
-    if (runtimePort && /^\d+$/.test(runtimePort)) target.port = runtimePort;
-  }
-
-  return target;
-}
-
 export async function proxy(
   request: NextRequest,
   // Next always supplies a `NextFetchEvent` here in production. It is deliberately typed `unknown`
@@ -225,7 +205,11 @@ export async function proxy(
   requestHeaders.set('x-bc-search', request.nextUrl.search);
   const response = patientRewritePath
     ? NextResponse.rewrite(
-        internalRewriteTarget(request, patientRewritePath),
+        (() => {
+          const target = request.nextUrl.clone();
+          target.pathname = patientRewritePath;
+          return target;
+        })(),
         { request: { headers: requestHeaders } },
       )
     : NextResponse.next({

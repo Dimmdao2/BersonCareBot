@@ -57,7 +57,7 @@ export async function sendAdminIncidentStaffWebPush(
         metadata: {
           title: input.pushTitle,
           url: input.pushUrl,
-          pushExtras: { tag },
+          pushExtras: { tag, pushSurface: 'therapysto' },
         },
       }).catch((err: unknown) => {
         logger.warn(

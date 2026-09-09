@@ -47,6 +47,21 @@ export function createInMemorySystemSettingsPort(): SystemSettingsPort {
       return typeof pk === 'string' && pk.trim() ? pk.trim() : null;
     },
 
+    async getNativePushProjectId(appId): Promise<string | null> {
+      const key = appId === 'therapygo'
+        ? 'rustore_universal_push_therapygo'
+        : 'rustore_universal_push_therapysto';
+      const row = store.get(makeKey(key, 'admin'));
+      const valueJson = row?.valueJson;
+      if (valueJson === null || typeof valueJson !== 'object' || Array.isArray(valueJson)) {
+        return null;
+      }
+      const inner = (valueJson as Record<string, unknown>).value;
+      if (inner === null || typeof inner !== 'object' || Array.isArray(inner)) return null;
+      const projectId = (inner as Record<string, unknown>).projectId;
+      return typeof projectId === 'string' && projectId.trim() ? projectId.trim() : null;
+    },
+
 
     async getByScope(
       scope: SystemSettingScope,

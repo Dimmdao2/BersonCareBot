@@ -131,7 +131,7 @@ export function prepareAppointmentReminderDeliveries(
             title: 'Напоминание о записи',
             message: { text },
             url: '/app/patient/booking',
-            pushExtras: { tag: eventId.slice(0, 240), topicCode: 'appointment_reminders' },
+            pushExtras: { tag: eventId.slice(0, 240), topicCode: 'appointment_reminders', pushSurface: 'therapygo' },
             delivery: { channels: ['web_push'], maxAttempts: 1 },
           },
         },

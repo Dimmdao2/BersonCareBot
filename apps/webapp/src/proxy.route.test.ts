@@ -730,24 +730,6 @@ describe('B5: one patient tree with resolved context', () => {
     expect(middlewareRequestSurface(root)).toEqual(middlewareRequestSurface(canonicalCard));
   });
 
-  it('keeps an nginx HTTPS rewrite on the standalone server internal origin', async () => {
-    vi.stubEnv('PORT', '6300');
-    const runtime = await loadProxyForSurfaceConfiguration(PLATFORM_SURFACE_CONFIGURATIONS[1]);
-    const response = await runtime.proxy(
-      new NextRequest('https://localhost:6300/', {
-        headers: {
-          host: `clinic-a.${runtime.patientOrigin.hostname}`,
-          'x-forwarded-proto': 'https',
-        },
-      }),
-      activeTenantSurface(),
-    );
-
-    expect(response.headers.get('x-middleware-rewrite')).toBe(
-      'https://127.0.0.1:6300/clinic-a',
-    );
-  });
-
   it('keeps Therapysto home and its specialist directory unreachable on patient origins', async () => {
     const runtime = await loadProxyForSurfaceConfiguration(PLATFORM_SURFACE_CONFIGURATIONS[1]);
     const brandedOrigin = new URL(`https://clinic-a.${runtime.patientOrigin.hostname}`);

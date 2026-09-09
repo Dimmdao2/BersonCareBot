@@ -67,7 +67,7 @@ function intentPayload(
         title,
         url,
         message: { text: linesFirst(text) },
-        pushExtras: { tag: eventId },
+        pushExtras: { tag: eventId, pushSurface: 'therapysto' },
         delivery: { channels: [channel] },
       };
   }
