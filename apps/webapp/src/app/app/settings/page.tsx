@@ -370,9 +370,16 @@ export default async function SettingsPage({
       valueOf<unknown>(clientClinicAdminSetting('booking_payment_enabled')?.valueJson, false) ===
       true;
 
-    const [clinicSmtpEnabled, externalCalendarEnabled] = await Promise.all([
+    const [
+      clinicSmtpEnabled,
+      externalCalendarEnabled,
+      clinicTelegramBotMutation,
+      clinicMaxBotMutation,
+    ] = await Promise.all([
       isMechanicIncluded(workspace, 'clinic_smtp'),
       isMechanicIncluded(workspace, 'external_calendar'),
+      getMechanicMutationAvailability(workspace, 'clinic_telegram_bot'),
+      getMechanicMutationAvailability(workspace, 'clinic_max_bot'),
     ]);
     const clinicAdminSetting = (key: string) =>
       clinicAdminSettings.find(
@@ -395,21 +402,29 @@ export default async function SettingsPage({
         readiness: parseClinicDeliveryReadiness(clinicSmtpSetting?.valueJson),
       },
       smsConfigured: clinicAdminSetting('clinic_smsc_api_key') !== null,
-      telegramConfigured: clinicTelegramSetting !== null,
-      telegramReadiness: parseClinicDeliveryReadiness(clinicTelegramSetting?.valueJson),
-      telegramBot: parseClinicBotPublicConfig(clinicTelegramSetting?.valueJson),
-      maxConfigured: clinicMaxSetting !== null,
-      maxReadiness: parseClinicDeliveryReadiness(clinicMaxSetting?.valueJson),
-      maxBot: parseClinicBotPublicConfig(clinicMaxSetting?.valueJson),
       vkConfigured: clinicAdminSetting('clinic_vk_community_access_token') !== null,
-      telegramWebhookPath: dedicatedBotWebhookPath(
-        'telegram',
-        clinicAdminSetting('clinic_telegram_bot_token')?.valueJson,
-      ),
-      maxWebhookPath: dedicatedBotWebhookPath(
-        'max',
-        clinicAdminSetting('clinic_max_bot_api_key')?.valueJson,
-      ),
+    };
+    const clinicBots = {
+      telegram: {
+        available:
+          brandingState.brandingMutationAvailable &&
+          clinicTelegramBotMutation.available &&
+          isPlatformIntegrationAvailable(integrationAvailability, 'telegram'),
+        configured: clinicTelegramSetting !== null,
+        readiness: parseClinicDeliveryReadiness(clinicTelegramSetting?.valueJson),
+        publicConfig: parseClinicBotPublicConfig(clinicTelegramSetting?.valueJson),
+        webhookPath: dedicatedBotWebhookPath('telegram', clinicTelegramSetting?.valueJson),
+      },
+      max: {
+        available:
+          brandingState.brandingMutationAvailable &&
+          clinicMaxBotMutation.available &&
+          isPlatformIntegrationAvailable(integrationAvailability, 'max'),
+        configured: clinicMaxSetting !== null,
+        readiness: parseClinicDeliveryReadiness(clinicMaxSetting?.valueJson),
+        publicConfig: parseClinicBotPublicConfig(clinicMaxSetting?.valueJson),
+        webhookPath: dedicatedBotWebhookPath('max', clinicMaxSetting?.valueJson),
+      },
     };
     return (
       <DoctorAppShell title="Настройки" user={workspace.session.user}>
@@ -437,6 +452,7 @@ export default async function SettingsPage({
             publishedDisplayName={publishedBrand?.displayName ?? null}
             publishedLogoMediaId={publishedBrand?.logoMediaId ?? null}
             publishedLogoUrl={publishedLogoUrl}
+            clinicBots={clinicBots}
           />
         ) : null}
         {customDomainSurface?.directUrl ? (

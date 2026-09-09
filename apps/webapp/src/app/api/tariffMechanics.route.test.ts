@@ -644,8 +644,6 @@ describe('tariff and platform mutation gates', () => {
   it.each([
     ['clinic_smtp_outbound', 'clinic_smtp'],
     ['clinic_smsc_api_key', 'clinic_sms'],
-    ['clinic_telegram_bot_token', 'clinic_telegram_bot'],
-    ['clinic_max_bot_api_key', 'clinic_max_bot'],
   ] as const)(
     'refuses clinic delivery setting %s without its independent %s entitlement',
     async (key, mechanic) => {
@@ -672,6 +670,52 @@ describe('tariff and platform mutation gates', () => {
         mechanic,
       });
       expect(requireEntitlementForMutation).toHaveBeenCalledWith(workspace, mechanic);
+    },
+  );
+
+  it.each([
+    ['clinic_telegram_bot_token', 'clinic_telegram_bot'],
+    ['clinic_max_bot_api_key', 'clinic_max_bot'],
+  ] as const)(
+    'refuses branded bot setting %s when branding is unavailable even if %s is available',
+    async (key, channelMechanic) => {
+      vi.mocked(requireEntitlementForMutation).mockImplementation(async (_workspace, mechanic) =>
+        mechanic === 'branding' ? denied : ({ ok: true } as never),
+      );
+
+      const response = await updateAdminSetting(
+        request('https://app.example.test/api/admin/settings', { key, value: 'secret' }),
+      );
+
+      expect(response.status).toBe(403);
+      await expect(response.json()).resolves.toMatchObject({
+        error: 'entitlement_required',
+        mechanic: 'branding',
+      });
+      expect(requireEntitlementForMutation).toHaveBeenCalledWith(workspace, 'branding');
+    },
+  );
+
+  it.each([
+    ['clinic_telegram_bot_token', 'clinic_telegram_bot'],
+    ['clinic_max_bot_api_key', 'clinic_max_bot'],
+  ] as const)(
+    'refuses branded bot setting %s when its additional %s gate is unavailable',
+    async (key, channelMechanic) => {
+      vi.mocked(requireEntitlementForMutation).mockImplementation(async (_workspace, mechanic) =>
+        mechanic === channelMechanic ? denied : ({ ok: true } as never),
+      );
+
+      const response = await updateAdminSetting(
+        request('https://app.example.test/api/admin/settings', { key, value: 'secret' }),
+      );
+
+      expect(response.status).toBe(403);
+      await expect(response.json()).resolves.toMatchObject({
+        error: 'entitlement_required',
+        mechanic: channelMechanic,
+      });
+      expect(requireEntitlementForMutation).toHaveBeenCalledWith(workspace, channelMechanic);
     },
   );
 

@@ -30,18 +30,35 @@ export type ClinicDeliveryCredentialResolveOptions = {
 
 const SETTINGS: Record<
   ClinicDeliveryChannel,
-  { key: IntegratorClinicDeliveryCredentialKey; mechanic: string }
+  { key: IntegratorClinicDeliveryCredentialKey; mechanics: readonly string[] }
 > = {
-  email: { key: 'clinic_smtp_outbound', mechanic: 'clinic_smtp' },
-  smsc: { key: 'clinic_smsc_api_key', mechanic: 'clinic_sms' },
-  telegram: { key: 'clinic_telegram_bot_token', mechanic: 'clinic_telegram_bot' },
-  max: { key: 'clinic_max_bot_api_key', mechanic: 'clinic_max_bot' },
-  vk: { key: 'clinic_vk_community_access_token', mechanic: 'clinic_vk_community' },
+  email: { key: 'clinic_smtp_outbound', mechanics: ['clinic_smtp'] },
+  smsc: { key: 'clinic_smsc_api_key', mechanics: ['clinic_sms'] },
+  telegram: { key: 'clinic_telegram_bot_token', mechanics: ['branding', 'clinic_telegram_bot'] },
+  max: { key: 'clinic_max_bot_api_key', mechanics: ['branding', 'clinic_max_bot'] },
+  vk: { key: 'clinic_vk_community_access_token', mechanics: ['clinic_vk_community'] },
 };
 
 function exactCurrentOrganization(): string | null {
   const organizationId = getCurrentOrganizationPrincipalId()?.trim() ?? '';
   return organizationId || null;
+}
+
+/** One credential gate for every per-organization delivery reader. Telegram/MAX add the paid
+ * branding entitlement; the remaining channels retain their existing tariff mechanic. */
+async function hasCredentialAccess(
+  db: DbPort,
+  organizationId: string,
+  channel: ClinicDeliveryChannel,
+): Promise<boolean> {
+  for (const mechanic of SETTINGS[channel].mechanics) {
+    const access = await resolveOrganizationMechanicLifecycleAccess(db, {
+      organizationId,
+      mechanic,
+    });
+    if (!access.mutationAllowed) return false;
+  }
+  return true;
 }
 
 /**
@@ -55,13 +72,9 @@ export function createClinicDeliveryCredentialResolver(db: DbPort) {
   ): Promise<ClinicDeliveryCredential | null> {
     const organizationId = exactCurrentOrganization();
     if (!organizationId) return null;
-    const setting = SETTINGS[channel];
     try {
-      const access = await resolveOrganizationMechanicLifecycleAccess(db, {
-        organizationId,
-        mechanic: setting.mechanic,
-      });
-      if (!access.mutationAllowed) return null;
+      if (!(await hasCredentialAccess(db, organizationId, channel))) return null;
+      const setting = SETTINGS[channel];
       const valueJson = await fetchIntegratorClinicDeliveryCredentialValueJson(
         db,
         setting.key,
@@ -112,12 +125,8 @@ export function createClinicBotInboundForwardingResolver(db: DbPort) {
   ): Promise<ClinicBotInboundForwarding | null> {
     const organizationId = exactCurrentOrganization();
     if (!organizationId) return null;
+    if (!(await hasCredentialAccess(db, organizationId, channel))) return null;
     const setting = SETTINGS[channel];
-    const access = await resolveOrganizationMechanicLifecycleAccess(db, {
-      organizationId,
-      mechanic: setting.mechanic,
-    });
-    if (!access.mutationAllowed) return null;
     const valueJson = await fetchIntegratorClinicDeliveryCredentialValueJson(
       db,
       setting.key,

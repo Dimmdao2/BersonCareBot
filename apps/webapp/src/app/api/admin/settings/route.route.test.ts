@@ -223,6 +223,32 @@ describe('global-admin settings HTTP boundary', () => {
     expect(fakes.updateSetting).not.toHaveBeenCalled();
   });
 
+  it('does not let a clinic mutate the global TherapyGo Telegram credential', async () => {
+    const doctorSession = {
+      ...platformSession,
+      user: { ...platformSession.user, role: 'doctor' },
+    };
+    fakes.getCurrentSession.mockResolvedValue(doctorSession);
+    fakes.requireClinic.mockResolvedValue({
+      ok: true,
+      ctx: {
+        session: doctorSession,
+        organizationId: '00000000-0000-4000-8000-000000000118',
+        membershipRole: 'owner',
+      },
+    });
+
+    const response = await patch({ key: 'therapygo_telegram_bot_token', value: 'clinic-secret' });
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: false,
+      error: 'forbidden_global_setting',
+      key: 'therapygo_telegram_bot_token',
+    });
+    expect(fakes.updateSetting).not.toHaveBeenCalled();
+  });
+
   it('persists and reads back the enabled global material-ratings switch for platform operations', async () => {
     const saved = {
       key: 'material_ratings_enabled',

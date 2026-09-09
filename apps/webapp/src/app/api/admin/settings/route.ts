@@ -24,6 +24,7 @@ import {
 } from '@/app-layer/guards/requireEntitlement';
 import { systemSettingsOrgContextErrorResponse } from '@/app-layer/guards/systemSettingsOrgContextResponse';
 import { getCurrentSession } from '@/modules/auth/service';
+import type { OrgMechanic } from '@/modules/org-entitlements/types';
 import { ALLOWED_KEYS, type SystemSetting } from '@/modules/system-settings/types';
 import { isPerOrgSettingKey } from '@/modules/system-settings/orgScopedKeys';
 import { OperatorHealthProbeConfigInvalidError } from '@/modules/system-settings/operatorHealthProbeConfig';
@@ -332,28 +333,29 @@ const EXTERNAL_CALENDAR_ENTITLEMENT_SETTING_KEYS = new Set([
 const CLINIC_DELIVERY_CHANNEL_ENTITLEMENTS = new Map<
   string,
   {
-    mechanic:
-      | 'clinic_smtp'
-      | 'clinic_sms'
-      | 'clinic_telegram_bot'
-      | 'clinic_max_bot'
-      | 'clinic_vk_community';
+    mechanics: readonly OrgMechanic[];
     action: string;
   }
 >([
-  ['clinic_smtp_outbound', { mechanic: 'clinic_smtp', action: 'настроить собственный SMTP' }],
-  ['clinic_smsc_api_key', { mechanic: 'clinic_sms', action: 'настроить собственный SMS-канал' }],
+  ['clinic_smtp_outbound', { mechanics: ['clinic_smtp'], action: 'настроить собственный SMTP' }],
+  ['clinic_smsc_api_key', { mechanics: ['clinic_sms'], action: 'настроить собственный SMS-канал' }],
   [
     'clinic_telegram_bot_token',
-    { mechanic: 'clinic_telegram_bot', action: 'настроить собственного Telegram-бота' },
+    {
+      mechanics: ['branding', 'clinic_telegram_bot'],
+      action: 'настроить собственного Telegram-бота',
+    },
   ],
   [
     'clinic_max_bot_api_key',
-    { mechanic: 'clinic_max_bot', action: 'настроить собственного MAX-бота' },
+    {
+      mechanics: ['branding', 'clinic_max_bot'],
+      action: 'настроить собственного MAX-бота',
+    },
   ],
   [
     'clinic_vk_community_access_token',
-    { mechanic: 'clinic_vk_community', action: 'настроить собственное сообщество VK' },
+    { mechanics: ['clinic_vk_community'], action: 'настроить собственное сообщество VK' },
   ],
 ]);
 
@@ -715,15 +717,11 @@ export async function PATCH(request: Request) {
   }
   const clinicDeliveryEntitlement = CLINIC_DELIVERY_CHANNEL_ENTITLEMENTS.get(parsed.data.key);
   if (clinicDeliveryEntitlement && gate.ctx.kind === 'clinic') {
-    const entitlement = await requireEntitlementForMutation(
-      gate.ctx.workspace,
-      clinicDeliveryEntitlement.mechanic,
-    );
-    if (!entitlement.ok) {
-      return entitlementMutationRefusalResponse(
-        clinicDeliveryEntitlement.mechanic,
-        clinicDeliveryEntitlement.action,
-      );
+    for (const mechanic of clinicDeliveryEntitlement.mechanics) {
+      const entitlement = await requireEntitlementForMutation(gate.ctx.workspace, mechanic);
+      if (!entitlement.ok) {
+        return entitlementMutationRefusalResponse(mechanic, clinicDeliveryEntitlement.action);
+      }
     }
     const integration = CLINIC_DELIVERY_SETTING_INTEGRATIONS.get(parsed.data.key)!;
     const integrationState = await readClinicDeliveryIntegrationState(

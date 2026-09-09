@@ -77,6 +77,27 @@ describe('C3 R2-4: clinic delivery credential needs tariff mechanic AND a stored
     expect(fetchIntegratorClinicDeliveryCredentialValueJson).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ['telegram', 'branding'],
+    ['telegram', 'clinic_telegram_bot'],
+    ['max', 'branding'],
+    ['max', 'clinic_max_bot'],
+  ] as const)(
+    'keeps the platform fallback when the required %s mechanic %s is disabled',
+    async (channel, deniedMechanic) => {
+      resolveOrganizationMechanicLifecycleAccess.mockImplementation(
+        async (_db, input: { mechanic: string }) => ({
+          mutationAllowed: input.mechanic !== deniedMechanic,
+        }),
+      );
+      fetchIntegratorClinicDeliveryCredentialValueJson.mockResolvedValue(storedToken('clinic-token'));
+      const resolve = createClinicDeliveryCredentialResolver(db);
+
+      await expect(runWithOrganizationPrincipal(ORG, () => resolve(channel))).resolves.toBeNull();
+      expect(fetchIntegratorClinicDeliveryCredentialValueJson).not.toHaveBeenCalled();
+    },
+  );
+
   it('returns null when the mechanic is allowed but no token is stored (default path stays platform)', async () => {
     resolveOrganizationMechanicLifecycleAccess.mockResolvedValue({ mutationAllowed: true });
     fetchIntegratorClinicDeliveryCredentialValueJson.mockResolvedValue(null);

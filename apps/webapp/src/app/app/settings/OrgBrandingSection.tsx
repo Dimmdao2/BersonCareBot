@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import toast from 'react-hot-toast';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { DoctorField } from '@/shared/ui/doctor/DoctorField';
@@ -13,7 +14,11 @@ import {
 import type { ActionFailureFields } from '@/shared/http/apiResponse';
 import { ActionFailureText } from '@/shared/ui/doctor/ActionFailureText';
 import { OrgBrandLogoControl, type OrgBrandLogoChange } from './OrgBrandLogoControl';
+import { SecretSettingInput } from './SecretSettingInput';
 import { saveOrgBranding } from './brandingActions';
+import { apiJson } from '@/shared/lib/apiJson';
+import type { ClinicDeliveryReadiness } from '@/modules/system-settings/clinicDeliveryReadiness';
+import type { ClinicBotPublicConfig } from '@/modules/system-settings/clinicBotConfig';
 import {
   ORGANIZATION_NAME_MAX_LENGTH,
   ORGANIZATION_NAME_TOO_LONG_CODE,
@@ -28,6 +33,18 @@ type Props = {
   publishedDisplayName: string | null;
   publishedLogoMediaId: string | null;
   publishedLogoUrl: string | null;
+  clinicBots?: {
+    telegram: ClinicBotSettings;
+    max: ClinicBotSettings;
+  };
+};
+
+type ClinicBotSettings = {
+  available: boolean;
+  configured: boolean;
+  readiness: ClinicDeliveryReadiness;
+  publicConfig: ClinicBotPublicConfig;
+  webhookPath: string | null;
 };
 
 const SAVE_ERROR_MESSAGES: Record<string, string> = {
@@ -35,6 +52,181 @@ const SAVE_ERROR_MESSAGES: Record<string, string> = {
   commercial_read_only: 'Брендирование доступно только для просмотра.',
   [ORGANIZATION_NAME_TOO_LONG_CODE]: ORGANIZATION_NAME_TOO_LONG_MESSAGE,
 };
+
+async function saveBotSetting(
+  key: 'clinic_telegram_bot_token' | 'clinic_max_bot_api_key',
+  config: ClinicBotPublicConfig,
+): Promise<void> {
+  await apiJson('/api/admin/settings', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      key,
+      value: {
+        value: '',
+        botPublicId: config.botPublicId ?? '',
+        inboundForwarding: config.inboundForwarding ?? { enabled: false, destinationChatId: '' },
+      },
+    }),
+  });
+}
+
+function ClinicBotControls({
+  channel,
+  settings,
+}: Readonly<{
+  channel: 'telegram' | 'max';
+  settings: ClinicBotSettings;
+}>) {
+  const settingKey =
+    channel === 'telegram' ? 'clinic_telegram_bot_token' : 'clinic_max_bot_api_key';
+  const [configured, setConfigured] = useState(settings.configured);
+  const [readiness, setReadiness] = useState(settings.readiness);
+  const [botPublicId, setBotPublicId] = useState(settings.publicConfig.botPublicId ?? '');
+  const [forwardingEnabled, setForwardingEnabled] = useState(
+    settings.publicConfig.inboundForwarding?.enabled === true,
+  );
+  const [destinationChatId, setDestinationChatId] = useState(
+    settings.publicConfig.inboundForwarding?.destinationChatId ?? '',
+  );
+  const [probePending, setProbePending] = useState(false);
+  const [pending, startTransition] = useTransition();
+  const title = channel === 'telegram' ? 'Telegram-бот' : 'MAX-бот';
+  const handleLabel =
+    channel === 'telegram' ? 'Публичный @username бота' : 'Публичный ник бота MAX';
+
+  const testChannel = () => {
+    setProbePending(true);
+    startTransition(async () => {
+      try {
+        const result = await apiJson<{ ok: true; readiness: ClinicDeliveryReadiness }>(
+          '/api/admin/clinic-delivery-test',
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ channel }),
+          },
+        );
+        setReadiness(result.readiness);
+      } catch (cause) {
+        const reason =
+          cause instanceof Error && cause.message.trim()
+            ? cause.message
+            : 'Канал не принял проверочное сообщение.';
+        setReadiness({ status: 'failed', checkedAt: new Date().toISOString(), reason });
+      } finally {
+        setProbePending(false);
+      }
+    });
+  };
+
+  const readinessText =
+    readiness.status === 'enabled'
+      ? 'Канал включён'
+      : readiness.status === 'failed'
+        ? `Проверка не прошла: ${readiness.reason}`
+        : 'Ждём проверочной отправки';
+
+  return (
+    <section className="flex flex-col gap-2">
+      <SecretSettingInput
+        title={title}
+        description={`Credential собственного ${title} клиники.`}
+        settingKey={settingKey}
+        configured={configured}
+        configuredLabel="Настройки сохранены"
+        saveSetting={async (key, value) => {
+          await apiJson('/api/admin/settings', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ key, value: { value } }),
+          });
+        }}
+        webhookPath={settings.webhookPath}
+        onSaved={() => {
+          setConfigured(true);
+          setReadiness({ status: 'pending' });
+        }}
+      />
+      <div className="flex flex-col items-start gap-2">
+        <p
+          className={
+            readiness.status === 'failed'
+              ? 'text-xs text-destructive'
+              : 'text-xs text-muted-foreground'
+          }
+        >
+          {readinessText}
+        </p>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={!configured || probePending}
+          onClick={testChannel}
+        >
+          {probePending ? 'Отправляем…' : 'Отправить проверку себе'}
+        </Button>
+      </div>
+      {configured ? (
+        <div className="flex flex-col gap-2">
+          <Input
+            value={botPublicId}
+            onChange={(event) => setBotPublicId(event.target.value)}
+            placeholder={handleLabel}
+            spellCheck={false}
+            disabled={pending}
+          />
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={forwardingEnabled}
+              disabled={pending}
+              onChange={(event) => setForwardingEnabled(event.target.checked)}
+            />
+            Пересылать входящие сообщения
+          </label>
+          <Input
+            value={destinationChatId}
+            onChange={(event) => setDestinationChatId(event.target.value)}
+            placeholder="Id чата, куда пересылать"
+            inputMode="numeric"
+            spellCheck={false}
+            disabled={pending}
+          />
+          <Button
+            type="button"
+            size="sm"
+            className="w-fit"
+            disabled={pending}
+            onClick={() =>
+              startTransition(async () => {
+                try {
+                  await saveBotSetting(settingKey, {
+                    botPublicId: botPublicId.trim() ? botPublicId.trim() : null,
+                    inboundForwarding: {
+                      enabled: forwardingEnabled,
+                      destinationChatId: destinationChatId.trim(),
+                    },
+                  });
+                  toast.success('Настройки бота сохранены');
+                } catch (cause) {
+                  toast.error(
+                    cause instanceof Error && cause.message.trim()
+                      ? cause.message
+                      : 'Не удалось сохранить настройки бота.',
+                  );
+                }
+              })
+            }
+          >
+            Сохранить настройки бота
+          </Button>
+        </div>
+      ) : null}
+    </section>
+  );
+}
 
 /**
  * UX-05 B2 — the clinic brand editing surface (settings "Клиника" tab). Owner-specified fields
@@ -48,6 +240,7 @@ export function OrgBrandingSection({
   publishedDisplayName,
   publishedLogoMediaId,
   publishedLogoUrl,
+  clinicBots,
 }: Props) {
   const router = useRouter();
   const [name, setName] = useState(publishedDisplayName ?? coreDisplayName);
@@ -141,6 +334,13 @@ export function OrgBrandingSection({
             {saving ? 'Сохранение…' : 'Сохранить'}
           </Button>
         </div>
+
+        {clinicBots?.telegram.available ? (
+          <ClinicBotControls channel="telegram" settings={clinicBots.telegram} />
+        ) : null}
+        {clinicBots?.max.available ? (
+          <ClinicBotControls channel="max" settings={clinicBots.max} />
+        ) : null}
       </div>
     </DoctorSection>
   );

@@ -84,6 +84,7 @@ type RequestedSenderScope = 'clinic_required' | 'clinic_if_configured' | 'platfo
 async function clinicSenderScope(
   intent: OutgoingIntent,
   channel: ClinicDeliveryChannel | null,
+  platformAudience: PlatformDeliveryAudience,
   resolveCredential:
     | ((
         channel: ClinicDeliveryChannel,
@@ -101,6 +102,11 @@ async function clinicSenderScope(
     intent.meta.outboundMessageClass === 'operator_security' &&
     intent.meta.outboundCapability === 'operator_alert'
   ) {
+    return { senderScope: 'platform_required', clinicCredential: null, requestedScope: undefined };
+  }
+  // Tenant bots are a patient-facing override only. This lives in the one sender-selection
+  // choke point, so staff producers cannot accidentally select a clinic credential.
+  if (platformAudience === 'staff') {
     return { senderScope: 'platform_required', clinicCredential: null, requestedScope: undefined };
   }
   const requestedScope =
@@ -383,6 +389,7 @@ export function createDefaultDispatchPort(deps: {
       // unchanged.
       let sendResult: DeliverySendResult | void;
       const clinicChannel = asClinicDeliveryChannel(channel);
+      const platformAudience = resolvePlatformDeliveryAudience(intentForChannel);
       const probe = isClinicCredentialProbe(intentForChannel);
       // Проверочная отправка идёт ИМЕННО ещё не подтверждённым кредентиалом: иначе включить
       // канал было бы невозможно — резолвер отдаёт только уже включённые (`C5(б)`).
@@ -399,6 +406,7 @@ export function createDefaultDispatchPort(deps: {
         : await clinicSenderScope(
             intentForChannel,
             clinicChannel,
+            platformAudience,
             deps.resolveClinicDeliveryCredential,
           );
       const senderScope = resolved.senderScope;
@@ -421,10 +429,7 @@ export function createDefaultDispatchPort(deps: {
       const intentToSend = clinicSenderName
         ? withClinicSenderPrefix(intentForChannel, clinicSenderName)
         : intentForChannel;
-      const brandedIntent = withPlatformDeliveryAudience(
-        intentToSend,
-        resolvePlatformDeliveryAudience(intentToSend),
-      );
+      const brandedIntent = withPlatformDeliveryAudience(intentToSend, platformAudience);
       try {
         if (clinicCredential) {
           try {
