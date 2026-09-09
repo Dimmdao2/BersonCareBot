@@ -1,0 +1,55 @@
+# Тест или взгляд
+
+Это один разовый live/browser integration-аудит итогового committed SHA. Production-код и существующие тесты read-only; аудитор создаёт только итоговый audit-artifact. Повторно доказывать уже принятые неизменённые поверхности запрещено.
+
+## Authority
+
+- `AGENTS.md`: до каждого действия карта заголовков; полностью прочитать §1, §1a, §1b, §9, §10, §10a, §10b, §11, §12 и §24.
+- `docs/ARCHITECTURE/LOCAL_DEV_AND_AGENT_TESTING.md` — единственный канон локального live-запуска, изолированного порта и обычного входа.
+- `docs/_TODO/NATIVE_MOBILE_APP_INITIATIVE/MASTER_PLAN.md`: актуальные §M1, §M4, §M5 и §M7.
+- Точный критерий §M7-03: «Оба TEST APK variants собираются на Linux (`assembleTherapygoTestDebug` и `assembleTherapystoTestDebug`); для обеих APK проверяются applicationId/label/icon/deep-link host и branded-vs-default behavior. Browser/PWA live acceptance покрывает install metadata обеих поверхностей, брендированную поверхность §M1-04, file fallback и iframe Jitsi».
+- Принятый PWA live-отчёт `.lead/runs/mobile-pwa-live-bootstrap-recheck-20260909/90-final-audit-report.md` (report commit `ee0c91fc8`).
+- Принятый browser Jitsi live-отчёт `docs/audit/video-live-ui-final-verification-2026-09-08.md`.
+- Принятые итоговые отчёты и evidence DeviceMedia correction и NativeJitsi web-seam на проверяемом integrated SHA.
+
+## Предмет
+
+Проверяется точный committed candidate, созданный от актуального `feat/doctor-ui-rebuild` после landing DeviceMedia correction и NativeJitsi web-seam. До проверки записать полный SHA. Не вливать в candidate более свежий `feat` после фиксации предмета.
+
+## Strong reuse gate
+
+1. Сначала сравнить затронутые пути и зафиксировать решение о reuse.
+2. Переиспользовать PWA metadata evidence `ee0c91fc8`, если после него не менялись относящиеся к metadata/manifest/branding/install-surface файлы.
+3. Переиспользовать существующее evidence Linux TEST APK build и `aapt dump badging`, если после доказанного SHA не менялись `apps/mobile-shell/**`, workspace dependency manifests и lockfile. Если менялись — обе TEST APK собрать только через host lock из `AGENTS.md` и повторить badging-проверку.
+4. Не повторять уже доказанные metadata/Gradle проверки, если релевантный код неизменен. В отчёте назвать точные использованные SHA/команды/артефакты.
+
+## Live browser acceptance
+
+Запустить candidate по канону на свободном изолированном порту из диапазона `5210–5219`. Допустима только ссылка на штатный `.env` по канону; секреты не читать и не печатать. Входить обычными owner DEV-учётками. Не занимать общий `5200`, не трогать PROD, не запускать provider delivery, миграции или реальные upload side effects.
+
+### File fallback
+
+- Доказать, что обычный browser/PWA runtime не определяется как нативный Capacitor runtime и не вызывает `DeviceMedia`.
+- На достижимых patient и doctor/CMS поверхностях вызвать пользовательские действия камеры/галереи/документа и подтвердить фактическое browser file chooser поведение. Chooser отменить: upload и DB mutation не выполнять.
+- Минимум: patient camera/gallery/document и одна достижимая doctor/CMS upload-source поверхность.
+- Отдельно инспекцией итогового diff/кода сопоставить все шесть production file inputs/source paths с требуемыми `accept`/`capture` и browser fallback. Это проверка итогового состояния, не тест на строки исходника.
+- Если live-поверхность недостижима из-за отсутствующих штатных DEV-данных, назвать точный blocker и использовать сохранённый поведенческий oracle/принятый audit для этого пункта; не создавать фиктивные записи и не подменять live утверждением по коду.
+
+### Browser iframe Jitsi
+
+- На итоговом integrated SHA обычным doctor/patient путём явно начать встречу и доказать, что browser path создаёт ровно один iframe существующего renderer, использует только self-hosted Jitsi endpoint и не вызывает `NativeJitsi`.
+- Использовать synthetic media по локальному канону. Не запрашивать реальную камеру/микрофон хоста.
+- Сделать разовый forced first-script failure: интерфейс обязан показать штатный retry, после retry должен существовать ровно один iframe.
+- Можно переиспользовать штатные DEV-данные и путь из #1100; не создавать обходной тестовый UI и не принимать прямой вызов функции вместо пользовательского пути.
+
+## Граница finding
+
+Finding существует только для достижимого нарушения §M7-03/owner requirement, обязательного repo-rule либо реальной build/runtime/integration regression с impact и evidence. Стиль, альтернативная архитектура, теоретическое hardening и отсутствие внешних ресурсов не finding. Внешние ограничения §M1-04, §M7-04 и §M7-05 фиксируются как blockers, если к моменту проверки всё ещё отсутствуют published branded DEV host, физическое устройство/эмулятор с KVM или owner RuStore signing credentials.
+
+## Результат
+
+- Единственный новый файл: `.lead/runs/mobile-final-integrated-browser-acceptance-20260909/90-final-audit-report.md`.
+- Указать candidate SHA, точные команды и порты, reused evidence с проверкой неизменности путей, бинарный результат каждого подпункта §M7-03 и все реальные blockers.
+- Это one-time live view, поэтому в конце: `убито 0 / непойманных 0`; новых source-shape тестов не писать.
+- Все запущенные процессы, порт и временный browser context очистить.
+- Закоммитить только audit-artifact явным staging, не push. Ход не заканчивать до завершения foreground-проверок и коммита.
