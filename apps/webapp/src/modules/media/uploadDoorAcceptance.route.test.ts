@@ -655,6 +655,7 @@ describe('Ч1 received object at real confirm handlers', () => {
           'media-id': ids.media,
           'owner-user-id': ids.doctor,
           'expected-size': '3',
+          'upload-policy': 'cms',
         },
       }),
     );

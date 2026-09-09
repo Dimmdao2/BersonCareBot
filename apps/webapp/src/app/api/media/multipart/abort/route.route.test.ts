@@ -1,11 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const fakes = vi.hoisted(() => ({
+  abortPendingTx: vi.fn(),
   abortPendingProgramSubmission: vi.fn(),
   abortPrepared: vi.fn(),
   gateSession: vi.fn(),
   inspectObject: vi.fn(),
   requireContext: vi.fn(),
+  requireEntitlement: vi.fn(),
   withPrincipal: vi.fn(),
   withSessionLock: vi.fn(),
 }));
@@ -19,7 +21,7 @@ vi.mock('@/app-layer/locks/multipartSessionLock', () => ({
   withMultipartSessionLock: fakes.withSessionLock,
 }));
 vi.mock('@/app-layer/media/mediaUploadSessionsRepo', () => ({
-  abortMultipartPendingTx: vi.fn(),
+  abortMultipartPendingTx: fakes.abortPendingTx,
   gateUploadSessionForPartUrl: fakes.gateSession,
 }));
 vi.mock('@/app-layer/media/mediaUploadAdapter', () => ({
@@ -32,7 +34,7 @@ vi.mock('@/app-layer/guards/mediaMultipartApiContext', () => ({
   withMediaMultipartPrincipal: fakes.withPrincipal,
 }));
 vi.mock('@/app-layer/guards/requireEntitlement', () => ({
-  requireEntitlementForMutation: vi.fn(),
+  requireEntitlementForMutation: fakes.requireEntitlement,
 }));
 vi.mock('@/app-layer/logging/logger', () => ({ logger: { warn: vi.fn() } }));
 
@@ -64,6 +66,17 @@ beforeEach(() => {
   );
   fakes.abortPendingProgramSubmission.mockResolvedValue(true);
   fakes.abortPrepared.mockResolvedValue(undefined);
+  fakes.requireEntitlement.mockResolvedValue({ ok: true });
+  fakes.withSessionLock.mockImplementation(
+    async (_pool: unknown, _sessionId: string, action: (client: unknown) => Promise<unknown>) =>
+      action({}),
+  );
+  fakes.abortPendingTx.mockResolvedValue({
+    ok: 'aborted',
+    s3Key: 'patient-files/example.jpg',
+    uploadId: 'doctor-multipart-upload-id',
+    storageTarget: 'patient',
+  });
 });
 
 describe('patient program-submission multipart abort', () => {
@@ -84,5 +97,61 @@ describe('patient program-submission multipart abort', () => {
       'multipart-upload-id',
       'patient',
     );
+  });
+});
+
+describe('doctor patient-file multipart abort', () => {
+  it('returns the terminal success only after the organization-bound cleanup port accepts the pending session', async () => {
+    fakes.requireContext.mockResolvedValue({
+      ok: true,
+      ctx: {
+        kind: 'doctor',
+        userId: patientId,
+        organizationId,
+        doctor: { ctx: { organizationId } },
+      },
+    });
+
+    const response = await POST(
+      new Request('https://app.test/api/media/multipart/abort', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ sessionId }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true });
+    expect(fakes.abortPendingTx).toHaveBeenCalledWith({}, sessionId, patientId, organizationId);
+    expect(fakes.abortPrepared).toHaveBeenCalledWith(
+      'patient-files/example.jpg',
+      'doctor-multipart-upload-id',
+      'patient',
+    );
+  });
+
+  it('keeps terminal session outcomes distinct from a newly aborted patient-file upload', async () => {
+    fakes.requireContext.mockResolvedValue({
+      ok: true,
+      ctx: {
+        kind: 'doctor',
+        userId: patientId,
+        organizationId,
+        doctor: { ctx: { organizationId } },
+      },
+    });
+    fakes.abortPendingTx.mockResolvedValue({ ok: 'already_completed' });
+
+    const response = await POST(
+      new Request('https://app.test/api/media/multipart/abort', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ sessionId }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true, alreadyCompleted: true });
+    expect(fakes.abortPrepared).not.toHaveBeenCalled();
   });
 });
