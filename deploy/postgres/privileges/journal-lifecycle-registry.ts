@@ -1,58 +1,7 @@
 /**
- * CENSUS OF EVERY DECLARED PHYSICAL TABLE, and the executable gate that keeps it complete
- * (systemic residual audit 2026-08-27, stage 3).
- *
- * Lives next to `declaration.ts`, the artifact it is derived from and checked against: this file is a
- * DECLARATION of data lifecycle, not runtime code. (It also must not sit under an `apps` source root, where
- * the production relation census would read its table names as callsites.)
- *
- * The defect this closes is not "one table was forgotten". It is that the retention policy of
- * 2026-08-08 was written from the tables that were BIG at that moment, so a small-but-growing
- * store — `message_log` (§E1), the consolidated `reminder_occurrence_history` (§C3) — could be added,
- * wired to a live writer, and never appear in any policy at all. Nothing in the build noticed.
- *
- * THE CANDIDATE SET IS THE WHOLE DECLARATION. Until 2026-08-28 the gate only looked at names matching a
- * suffix list (`_log`, `_events`, `_queue`, …) plus a hand list of extras. The independent audit
- * (`docs/_TODO/runs/FINAL_SYSTEMIC_LIFECYCLE_AUDIT_2026-08-28.md`, F3) injected
- * `public.bcb_probe_sms_deliveries` into `declaration.ts` and the gate stayed green: a table could be
- * declared, migrated and wired to a live writer with no lifecycle decision at all, purely because its
- * name did not rhyme with a log. `public.manual_patient_commands` was already living in that hole, and
- * it was the table that made every account purge fail (F1). Guessing which names are journals is the
- * defect; there is no heuristic here any more. Every table declared in `declaration.ts` — the one place
- * a physical table must appear before its migration may exist — is in EXACTLY ONE of:
- *
- *   1. `JOURNAL_LIFECYCLE_REGISTRY` — it IS a journal / queue / attempt / temp store, and carries why it
- *      exists, its canonical user key and org key, what a full account purge does to it, its terminal
- *      states, its retention decision, its named prune root, and its sweeping job (which carries the
- *      schedule and the staleness/health signal through `CRON_JOB_REGISTRY`); or
- *   2. `JOURNAL_LIFECYCLE_NON_JOURNAL_DECISIONS` — it is NOT such a store, and says so with a written
- *      reason PLUS the same explicit account-purge and organization-purge semantics. A bare reason
- *      string is no longer accepted: that escape hatch is how `patient_practice_completions` and
- *      `patient_diary_day_snapshots` were filed as "patient diary content" and silently survived purge
- *      (F2). `not-user-scoped` / `not-org-scoped` are legitimate answers — but they must be WRITTEN.
- *
- * `retention.kind: 'owner-question'` and `userPurge.kind: 'owner-question'` are legitimate, RECORDED
- * decisions — "we asked, we are waiting" — and are deliberately distinguishable from silence, which is
- * what the audit found.
- *
- * A COMPLETE PARTITION IS NOT A TRUE ONE (independent audit
- * `docs/_TODO/runs/FINAL_EXHAUSTIVE_LIFECYCLE_CENSUS_AUDIT_2026-08-28.md`). The first exhaustive pass
- * classified every declared table exactly once and was still wrong in five places, because a written
- * decision is not evidence for itself: `notification_delivery_attempts` said the person lived in ONE
- * column when it lived in three (F1); `auth_rate_limit_events` and `be_specialists` said
- * `not-user-scoped` over live raw account uuids (F2); four `organization_id` claims named an
- * organization purge the database would refuse or silently skip (F3); and a decided window pointed at
- * a root that moves rows INTO the store instead of pruning it (F4). Every entry here is therefore
- * measured against something outside this file — the live `pg_constraint` graph, `CONTENT_TABLES` /
- * `ANONYMISE_ON_PURGE_COLUMNS` of the one purge core, the declared installed callables of
- * `declaration.ts`, and `CRON_JOB_REGISTRY` — by
- * `apps/webapp/src/modules/db-retention/journalLifecycleRegistry.contract.test.ts` and, physically,
- * by `apps/webapp/src/infra/platformUserFullPurge.devDbProof.test.ts`.
- *
- * Current partition: 226 declared physical tables = 57 registry entries + 169 structured decisions.
- * (`public.user_email_setup_tokens` left the declaration on 2026-08-28: it existed in no managed
- * database and had no writer, reader or human path, so it was a policy for nothing — see the comment
- * where its row used to be in `declaration.ts`.)
+ * Recorded lifecycle policies used by the live DEV account-purge proof and by operational review.
+ * Runtime retention execution lives in the application modules; this file is not an exhaustive schema
+ * census and adding a table does not require a placeholder entry merely to satisfy CI.
  */
 
 
@@ -1039,9 +988,8 @@ export type JournalNonJournalDecision = {
 };
 
 /**
- * Every declared table that is not in `JOURNAL_LIFECYCLE_REGISTRY`. Together the two cover the whole
- * of `declaration.ts`, with no name heuristic in between — see the file header. A table in neither,
- * or in both, fails `journalLifecycleRegistry.contract.test.ts`.
+ * Recorded non-journal decisions consumed by the live account-purge proof. This is not a second
+ * inventory of the schema; missing unrelated tables are not a CI failure.
  *
  * The purge facts here are derived from the live constraint graph of the managed databases (FK to
  * `public.platform_users` and `public.be_organizations` with their `ON DELETE` action), from

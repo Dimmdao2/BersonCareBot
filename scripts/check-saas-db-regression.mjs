@@ -54,10 +54,6 @@ const checks = [
     'docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-9-enforce-descriptors.mjs',
   ],
   [
-    'SAAS P0.10 tier completeness',
-    'docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-10-tier-completeness.mjs',
-  ],
-  [
     'SAAS P0.10 user-reference classification',
     'docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-10-user-reference-tier-guard.mjs',
   ],

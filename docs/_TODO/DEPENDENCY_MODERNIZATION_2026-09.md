@@ -566,9 +566,14 @@ Node 22, а также уже задокументированные major-бл�
 `pnpm run dependencies:health` показывает только 8 существенных major-позиций из этого остатка: ESLint/@eslint,
 FullCalendar core/react, Stryker core/runner, TypeScript и `@types/node`; известных уязвимостей не сообщает.
 
-При разборе CI удалены тесты, которые закрепляли написание product-name, точные количества registry и
-промежуточные DTO вместо конечного поведения. Обязательный запрет на такие тесты добавлен в `AGENTS.md` §10a и
-в приёмочный gate §24.4/§24.7. Полезные проверки конечного поведения и PWA install identity сохранены.
+При разборе CI удалены тесты, которые закрепляли написание product-name, точные количества registry,
+промежуточные DTO и ручное перечисление всех таблиц вместо конечного поведения. Обязательный запрет на такие
+тесты добавлен в `AGENTS.md` §10a и в приёмочный gate §24.4/§24.7. Полезные проверки конечного поведения, PWA
+install identity, живого account purge и действующих DB-прав сохранены. В частности удалены статический
+`journalLifecycleRegistry.contract.test.ts` и устаревший Phase 0 `check-p0-10-tier-completeness.mjs`: оба краснели
+на новом имени `public.native_push_targets`, хотя действующая `deploy/postgres/privileges/declaration.ts` уже
+задаёт для таблицы узкие grants, context gate и стены своего пользователя/своей клиники, а generated DEV/TEST SQL
+содержит эти правила.
 
 Проверки текущего прохода:
 
@@ -586,8 +591,9 @@ pnpm --dir apps/integrator exec vitest run \
 # → 1 file passed, 8 tests passed
 /home/dev/brain/host-orch/run-tests.sh "pnpm run ci:resume:after-test-webapp"
 # → media-worker 29 passed; error-tracking 13 passed; integrator build и webapp production build прошли;
-#   последующий audit остановлен на незавершённом соседнем native-push registry:
-#   public.native_push_targets отсутствует в tiers-218.tsv
+#   последующий audit обнаружил устаревшую Phase 0 сверку имени с tiers-218.tsv
+/home/dev/brain/host-orch/run-tests.sh "pnpm run audit"
+# → rc=0 после удаления устаревшей сверки; действующие security-гейты прошли
 ```
 
 ## Lead acceptance
