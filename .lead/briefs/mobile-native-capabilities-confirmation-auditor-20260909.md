@@ -1,4 +1,7 @@
-# Confirmation auditor brief — #915 Android native capabilities correction
+# Тест или взгляд — #915 Android native capabilities correction
+
+Повторяемые native lifecycle, route, MIME и HTTP-result контракты проверяются поведенческими unit/contract tests;
+merged-manifest, artifact identity, secret/log absence and truly external device/KVM gates are one-time inspection.
 
 Authority: `docs/_TODO/NATIVE_MOBILE_APP_INITIATIVE/MASTER_PLAN.md` stages M4, M5, M6 and M7; original candidate
 `fafa7dcf0`; audit binding `9ede81483`; independent audit/tests `657a8b7d7`; correction authority `04a478d90`;
