@@ -11,7 +11,6 @@ const TEST_PASSWORD = '123456testTEST';
 const EXPECTED_ACCOUNTS = [
   { email: 'dimmdao@yandex.ru', role: 'doctor', fallbackPhone: '+79643805480' },
   { email: 'dimmdao@gmail.com', role: 'admin', fallbackPhone: null },
-  { email: 'kinesiospace@gmail.com', role: 'client', fallbackPhone: '+79189000782' },
 ];
 
 function fail(message) {
@@ -37,7 +36,7 @@ function parseArgs(argv) {
 }
 
 function runSelfTest() {
-  if (EXPECTED_ACCOUNTS.length !== 3) fail('expected exactly three owner accounts');
+  if (EXPECTED_ACCOUNTS.length !== 2) fail('expected doctor and global-admin owner accounts');
   for (const account of EXPECTED_ACCOUNTS) {
     if (!/^password-email:v1:[0-9a-f]{64}$/.test(identifierKey(account.email))) {
       fail(`invalid password protection key for ${account.email}`);

@@ -914,8 +914,8 @@ sudo -u postgres psql -d "$DB" -v ON_ERROR_STOP=1 \
 log "restore preserved TEST SMTP"
 restore_test_smtp_outbound
 
-# A fresh PROD dump correctly carries PROD credential hashes, but the three published owner accounts have one
-# stable password on named DEV/TEST (AGENTS.md §1a). Restore that TEST-only contract while writers remain stopped;
+# A fresh PROD dump correctly carries PROD credential hashes, but the published doctor and global-admin owner accounts
+# have one stable password on named DEV/TEST (AGENTS.md §1a). Restore that TEST-only contract while writers remain stopped;
 # the helper refuses every database except exact bersoncarebot_test and never prints the password or hashes.
 log "restore canonical TEST owner account passwords"
 sudo -u postgres env \

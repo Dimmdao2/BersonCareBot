@@ -243,7 +243,7 @@ http://127.0.0.1:5200/api/me` — живой сервер отвечает, а �
 
 ## 4. Обычный вход и dev-only clear-session helper
 
-На DEV/TEST проверки ролей проходят только штатным email/password, OAuth или messenger-входом уже зарегистрированных owner-учёток и клиник. Не создавайте fixture-учётки, не используйте token/preset-вход и не читайте пароли из env. Постоянный контракт owner-входа записан только в `AGENTS.md` §1a.
+На DEV/TEST проверки ролей проходят только штатным входом уже зарегистрированных owner-учёток и клиник: doctor и global-admin — email/password, patient — существующим email-code/OTP, OAuth, messenger или passkey flow. Не создавайте fixture-учётки, не используйте token/preset-вход и не читайте пароли из env. Постоянный контракт owner-входа записан в `AGENTS.md` §1a. Для изолированной проверки DEV-кандидата `DEV_EMAIL_OTP_DEBUG=true` при `NODE_ENV=development` выводит в лог локального development-сервера только что сгенерированный OTP; это не authenticated bypass и не может включиться на TEST/production.
 
 `/api/auth/dev-public` сохранён только как dev-only helper для очистки текущей session-cookie и context-cookies перед обычным публичным входом или регистрацией. Он доступен только при `NODE_ENV=development` и `ALLOW_DEV_AUTH_BYPASS=true`; authenticated role или session он не создаёт.
 
