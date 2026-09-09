@@ -731,7 +731,6 @@ describe('B5: one patient tree with resolved context', () => {
   });
 
   it('keeps an nginx HTTPS rewrite on the standalone server internal origin', async () => {
-    vi.stubEnv('HOSTNAME', '127.0.0.1');
     vi.stubEnv('PORT', '6300');
     const runtime = await loadProxyForSurfaceConfiguration(PLATFORM_SURFACE_CONFIGURATIONS[1]);
     const response = await runtime.proxy(
