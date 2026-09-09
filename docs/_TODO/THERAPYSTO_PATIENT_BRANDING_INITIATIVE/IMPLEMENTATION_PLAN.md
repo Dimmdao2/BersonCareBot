@@ -114,6 +114,11 @@ wildcard-сертификат покрывает все клиники, подк
 
 ### 1.2a Раскладка адресов у клиники со своим доменом (владелец, 22.08.2026)
 
+**TEST-уточнение владельца 09.09.2026:** переходный `test.bersoncare.ru` больше не нужен как legacy-вход после
+перехода на Therapysto и становится тестовым custom domain Berson Care. На TEST он подключается как целиком выделенный
+под приложение exact hostname (`placement=apex`, `baseDomain=test.bersoncare.ru`); production-схема не меняется: боевой
+брендированный адрес остаётся `app.bersoncare.ru`.
+
 Дословно: «bersoncare.ru — лендинг приложения; app.bersoncare.ru — логин; app.bersoncare.ru/setup —
 инструкция установки приложения, с которой ставится оно».
 
@@ -410,16 +415,30 @@ Jane, Cliniko, Fresha считают цвета и логотип космети
 
 ### 1.5 Боты и transactional mail
 
+- **Уточнение владельца 09.09.2026 — платформенные каналы разделяются по аудитории.** Один общий transport с
+  разным display name недостаточен. Для специалистов используются платформенные SMTP, Telegram-бот и MAX-бот
+  Therapysto; для пациентов — отдельные платформенные SMTP, Telegram-бот и MAX-бот TherapyGo. Выбор делает один
+  общий delivery resolver по типу аудитории/поверхности, а не вызывающие вручную. Клинические overrides сохраняют
+  приоритет только для patient-facing intents своей организации. Другие будущие каналы (VK, WhatsApp и т. п.)
+  входят в ту же модель, но не реализуются этим уточнением без отдельного подключения провайдера.
+- **Уточнение владельца 09.09.2026 — бот клиники является частью оплаченного брендирования.** Telegram/MAX
+  credentials конкретной организации настраиваются только во вкладке «Брендирование» и доступны только при
+  активном entitlement брендирования. Общие настройки клиники и глобальная админка не создают второй путь записи
+  tenant credentials; глобальная админка хранит только платформенные TherapyGo/Therapysto credentials.
 - Все patient-facing intents — подтверждение телефона средствами мессенджера, login/recovery/security codes и
   обычные уведомления — несут контекст организации и идут через существующий `dispatchPort` как
-  `clinic_if_configured`: обычный платформенный бот является рабочим путём по умолчанию, а настроенный и живьём
+  `clinic_if_configured`: платформенный TherapyGo-бот является рабочим путём по умолчанию, а настроенный и живьём
   проверенный бот клиники забирает её интенты без отката на платформенного отправителя.
+- Staff-facing рабочие уведомления (как минимум новая запись, перенос/отмена и сообщение пациента) используют
+  платформенный Therapysto-бот как дополнительный канал к push. Это нужно и специалистам, работающим только в
+  браузере на компьютере; установка мобильного приложения не является условием доставки.
 - Branded activation не требует собственного Telegram/MAX-бота. Неготовый собственный канал не включается;
-  обычный платформенный бот продолжает подтверждать телефон и доставлять коды и уведомления. Только рассылки
+  платформенный TherapyGo-бот продолжает подтверждать телефон и доставлять коды и уведомления. Только рассылки
   доступны исключительно брендированным клиникам.
 - SMS остаётся отдельной tariff capability и в branding не включается.
-- Existing `clinic_smtp_outbound` остаётся transport source. Один transactional-mail profile resolver соединяет
-  его с `EffectivePatientBrand` и per-org template overrides.
+- Existing `clinic_smtp_outbound` остаётся transport source для patient-facing клинического override. Один
+  transactional-mail resolver выбирает Therapysto SMTP для staff, TherapyGo SMTP для стандартного patient и
+  clinic SMTP для branded patient, соединяя transport с `EffectivePatientBrand` и per-org template overrides.
 - Template overrides хранятся в одном новом per-org `system_settings` key и допускаются только для реально
   существующих patient transactional template IDs и allowlisted variables. Используется один renderer;
   произвольный mass-mail editor/рассылки не строятся.
@@ -561,16 +580,28 @@ Checkbox закрывается только доказательством, у�
   Аудиты 24.08 (`AUDIT_NIGHT_B5_2026-08-23.md`, `AUDIT_NIGHT_B5A_2026-08-23.md`) доказали переиспользуемое
   дерево маршрутов на вручную подставленном resolved context, но не живой branded Host: production lookup не
   подключён. Пункт закрывается только вместе с `B3` живым Next Host-smoke всех перечисленных маршрутов.
-- [ ] `TPB-12` Обычный Therapysto-бот подтверждает телефон средствами мессенджера, доставляет коды входа и
-  обычные уведомления. Если клиника подключила свой Telegram/MAX-бот, её пациентские интенты идут через него без
+- [ ] `TPB-12a` Обычные платформенные TherapyGo Telegram/MAX-боты подтверждают телефон средствами мессенджера,
+  доставляют patient-коды входа и обычные patient-уведомления. Если клиника с активным оплаченным брендированием
+  подключила свой Telegram/MAX-бот через вкладку «Брендирование»,
+  её пациентские интенты идут через него без
   отката на платформенный sender; если не подключила — работает платформенный бот с именем клиники. Рассылки
   доступны только брендированным клиникам; SMS branding не считается. Доказательство:
   `AUDIT3_C3_2026-08-24.md` (`PASS`, 3/3 инъекции) и `AUDIT_C3_F1_2026-08-24.md` (`PASS`, 5/5) закрывает кодовую
-  политику. Галочка остаётся открытой до общего с Track D живого provider-gate: existing owner подтверждает
+  политику clinic override, но не новое audience-разделение платформенных credentials. Галочка остаётся открытой
+  до общего с Track D живого provider-gate: existing owner подтверждает
   телефон в мессенджере, получает код и сессию, а запись действительно доставляет подтверждение и напоминание.
+- [ ] `TPB-12b` Платформенные Therapysto Telegram/MAX-боты доставляют специалисту рабочие уведомления независимо
+  от установки мобильного приложения. Patient intent не уходит через Therapysto credential, а staff intent не
+  уходит через TherapyGo credential. Доказательство: end-to-end dispatch по публичной границе для обеих аудиторий и живая
+  доставка тестовых событий обоими провайдерами на TEST после ввода credentials.
 - [x] `TPB-13` Branded transactional patient mail использует clinic SMTP/sender/template; mass mailing не изменён.
   Доказательство: template/profile selection tests и delivery fault injection.
   **Закрыт 24.08.2026** (приёмка ведущего по закрывающим независимым аудитам): `REAUDIT_NIGHT_C4_2026-08-23.md` (PASS, FOR LAND) и `AUDIT2_C4_TENANT_LEAK_2026-08-23.md` (PASS, FOR LAND) — брендированное транзакционное письмо пациенту идёт через SMTP и профиль отправителя своей клиники, предикат арендатора доставлен в живые базы, массовая рассылка не изменена. Убитые инъекции покрывают потерю branded-пары с fail-closed и утечку чужой идентичности.
+- [ ] `TPB-13a` Платформенные transactional письма физически отправляются разными SMTP/From по аудитории:
+  специалисту — Therapysto, стандартному пациенту — TherapyGo. Existing clinic SMTP остаётся третьим
+  patient-facing override; при его недоступности fallback выбирает TherapyGo, а не Therapysto. Доказательство:
+  end-to-end выбор transport по конечному recipient context, защита от перекрёстного credential и живая отправка
+  с обоих платформенных доменов на TEST после ввода credentials.
 - [ ] `TPB-14` Клиника самостоятельно подключает собственный домен из кабинета: вводит базовый домен, выбирает
   корень либо вычисляемый системой `app.`-поддомен, получает одну точную DNS-инструкцию, видит readiness, а TLS
   выпускается и продлевается автоматически без per-tenant правки nginx/Certbot оператором. Доказательство:
@@ -931,23 +962,29 @@ injection, targeted route/UI tests, migration dry-run DEV→TEST, lint+typecheck
   resolver допускает одну global config только на включённых patient-поверхностях, а signed state и exact
   callback allowlist исключают подмену host/org/provider.
   **Закрыт 24.08.2026** (приёмка ведущего по закрывающему независимому аудиту): `AUDIT_C1_C2_2026-08-24.md` — PASS круга 1 по `C2`, 5/5 инъекций: точность allowlist, гейт пациентской поверхности, сверка origin в state, подмена host/org/provider отбивается.
-- [x] `C3` Провести все patient Telegram/MAX confirmation/recovery/security/notification intents через
-  существующий dispatch port как `clinic_if_configured`: платформенный бот работает по умолчанию, а собственный
-  проверенный бот клиники принимает её интенты без fallback после своего включения.
+- [ ] `C3` Провести все Telegram/MAX intents через существующий параметризованный dispatch port с audience-aware
+  платформенным credential: TherapyGo для patient confirmation/recovery/security/notification, Therapysto для
+  staff operational notifications. Patient intent использует `clinic_if_configured`: TherapyGo работает по
+  умолчанию, а собственный проверенный бот клиники принимает её интенты без fallback после своего включения
+  только через единый branding write-path и при активном entitlement оплаченного брендирования.
   Доказательство: route/producer fault injection краснит `sendOtpRoute.route.test.ts`,
   `materializePatientReminderDeliveries.unit.test.ts` и `dispatchPort.test.ts`; целевой прогон —
   16 integrator + 27 webapp tests, `pnpm --dir apps/{integrator,webapp} typecheck`.
-  **Приёмка ведущего 24.08.2026** по закрывающему аудиту `AUDIT3_C3_2026-08-24.md` — PASS круга 3, 3/3 инъекции.
+  **Приёмка ведущего 24.08.2026** по закрывающему аудиту `AUDIT3_C3_2026-08-24.md` — PASS круга 3, 3/3 инъекции;
+  это доказательство сохраняется для clinic override, но не закрывает добавленное 09.09 audience-разделение
+  платформенных credentials и staff delivery.
   Открытая находка другого слоя `F-1`: `app.enqueue_outbound_message` срезает маркер `clinic_if_configured`,
   из-за чего у клиники СО своим ботом на одном продюсере остаётся откат на платформенного отправителя;
   путь по умолчанию при этом не ломается. Вынесено отдельным кругом.
-- [x] `C4` Расширить existing SMTP config только sender display data, добавить один org-scoped transactional template
-  setting и один mail-profile resolver/renderer. Не трогать doctor broadcasts/mass mailing кроме сохранения текущего
+- [ ] `C4` Параметризовать existing SMTP resolver двумя платформенными transport profiles: Therapysto для staff и
+  TherapyGo для standard patient, сохранив `clinic_smtp_outbound` как patient-facing org override; sender profile,
+  org-scoped transactional template и renderer остаются одним общим путём. Не трогать doctor broadcasts/mass mailing кроме сохранения текущего
   поведения. Доказательство: `apps/integrator/src/integrations/email/mailProfile.unit.test.ts` (Therapysto,
-  Therapygo, branded pair and fail-closed owner-copy absence); `pnpm typecheck`; scoped integrator/webapp lint;
+  TherapyGo, branded pair and fail-closed owner-copy absence); `pnpm typecheck`; scoped integrator/webapp lint;
   `bash deploy/host/migrate-dev.sh --preflight` и `--execute` на DEV. Формулировка branded-пары остаётся значением
   `clinic_transactional_mail_template`, которое должен написать владелец; без него доставка намеренно не подменяет
-  клинику платформенным именем.
+  клинику платформенным именем. Доказательства 24.08 по display/template/clinic override сохраняются, но не закрывают
+  добавленный 09.09 выбор физического SMTP/From по аудитории.
 - `C5` **Переписан по решению владельца 23.08.2026 (§1.2h).** Гейт готовности встаёт ровно в двух местах, а не
   на пути по умолчанию:
   - [ ] `C5a` **Свой домен клиники не включается**, пока ожидаемая A- или CNAME-запись не ведёт на наш edge,
