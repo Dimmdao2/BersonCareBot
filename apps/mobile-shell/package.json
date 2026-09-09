@@ -6,8 +6,8 @@
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "eslint . --max-warnings=0",
-    "derive:icons": "node scripts/derive-android-icons.mjs",
-    "sync": "pnpm run derive:icons && cap sync android",
+    "derive:brand-assets": "node scripts/derive-brand-assets.mjs",
+    "sync": "pnpm run derive:brand-assets && cap sync android",
     "build": "pnpm run typecheck && pnpm run lint && pnpm run sync",
     "assemble:debug": "bash scripts/gradle.sh assembleTherapygoTestDebug assembleTherapygoProductionDebug assembleTherapystoTestDebug assembleTherapystoProductionDebug",
     "assemble:release": "bash scripts/gradle.sh assembleTherapygoTestRelease assembleTherapygoProductionRelease assembleTherapystoTestRelease assembleTherapystoProductionRelease",

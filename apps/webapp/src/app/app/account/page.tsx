@@ -152,20 +152,17 @@ export default async function AccountPage({
   const { session, workspaceContext } = await loadStaffAccountPageContext();
   const restrictedSecuritySession = isRestrictedStaffSecuritySession(session);
   const isPlatformConsole = session.user.role === 'admin';
-  if (isPlatformConsole && requestedTab === 'notifications') {
-    redirect('/app/admin/notifications');
-  }
+  if (isPlatformConsole) redirect('/app/admin');
   const recoveryOnly =
     session.staffSecurity?.assurance === 'recovery' ||
     session.staffSecurity?.assurance === 'recovery_confirmation';
   const tab = restrictedSecuritySession ? 'security' : requestedTab;
-  const showAllSections = isPlatformConsole && !restrictedSecuritySession && !recoveryOnly;
   const deps = buildAppDeps();
 
-  const showProfile = showAllSections || tab === 'profile';
-  const showSecurity = showAllSections || tab === 'security';
-  const showNotifications = !isPlatformConsole && tab === 'notifications';
-  const showInstall = showAllSections || tab === 'install';
+  const showProfile = tab === 'profile';
+  const showSecurity = tab === 'security';
+  const showNotifications = tab === 'notifications';
+  const showInstall = tab === 'install';
 
   const [profileContent, securityContent, notificationsContent] = await Promise.all([
     showProfile ? loadProfileContent(deps, session.user.userId, workspaceContext) : null,

@@ -13,7 +13,8 @@ push/video/media business paths, modify the plan, deploy, or replace/delete reta
 ## Mandatory reading and blind order
 
 1. Run `grep -n "^## \|^### " AGENTS.md`; read the global decision method, §1/§1b, §5, §9–§12, §15–§17,
-   §21 and §24 completely. Read §10a/§10b before opening any test. Read the active M1/M7 authority, patient/doctor
+   §21 and §24 completely. Read §10a/§10b before opening any test. Read the active M1/M7 authority in
+   `docs/_TODO/NATIVE_MOBILE_APP_INITIATIVE/MASTER_PLAN.md`, patient/doctor
    style guides, surface/branding authority and exact base→candidate diff.
 2. Before reading tests, persist the kill-set below in
    `.lead/runs/mobile-pwa-identities-audit-20260909/00-blind-killset.md`. Existing tests are implementation evidence,

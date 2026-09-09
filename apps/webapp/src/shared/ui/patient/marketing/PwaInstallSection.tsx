@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { routePaths } from '@/app-layer/routes/paths';
 import { Button } from '@/shared/ui/patient/primitives/button';
 import { isMessengerMiniAppHost } from '@/shared/lib/messengerMiniApp';
@@ -31,7 +31,7 @@ function isLikelySafariNotChromium(): boolean {
 }
 
 /** Блок установки PWA: Chrome (`beforeinstallprompt`), iOS (текст), без SW в Mini App. */
-export function PwaInstallSection() {
+export function PwaInstallSection({ notificationControls }: { notificationControls?: ReactNode }) {
   const surfaceName = useSurfaceName();
   const { patientGenitive } = usePatientTerms();
   const [mounted, setMounted] = useState(false);
@@ -87,10 +87,7 @@ export function PwaInstallSection() {
       className="rounded-[var(--patient-marketing-card-radius)] border border-[var(--patient-marketing-card-border)] bg-[var(--patient-marketing-card-bg)] p-6 shadow-[var(--patient-marketing-card-shadow)] backdrop-blur-[2px]"
       aria-labelledby="pwa-install-heading"
     >
-      <h2
-        id="pwa-install-heading"
-        className="patient-type-section-title patient-text-accent"
-      >
+      <h2 id="pwa-install-heading" className="patient-type-section-title patient-text-accent">
         Установить приложение
       </h2>
 
@@ -108,7 +105,9 @@ export function PwaInstallSection() {
             Меню <strong>Поделиться</strong> → <strong>На экран «Домой»</strong> (в Safari шаги
             такие; в Chrome на iOS названия могут отличаться — ищите добавление на домашний экран).
           </p>
-          <p className="patient-text-secondary">После установки ярлык откроет кабинет {patientGenitive}.</p>
+          <p className="patient-text-secondary">
+            После установки ярлык откроет кабинет {patientGenitive}.
+          </p>
         </div>
       ) : null}
 
@@ -131,13 +130,15 @@ export function PwaInstallSection() {
               </>
             ) : (
               <>
-                Если кнопки нет: меню браузера (⋮) → «Установить приложение…» или «Приложение
-                {` ${surfaceName}…».`}
+                Android (Chrome / Edge): меню браузера (⋮) → «Установить приложение…» или
+                {` «Приложение ${surfaceName}…».`}
               </>
             )}
           </p>
         </div>
       ) : null}
+
+      {notificationControls ? <div className="mt-4">{notificationControls}</div> : null}
     </section>
   );
 }

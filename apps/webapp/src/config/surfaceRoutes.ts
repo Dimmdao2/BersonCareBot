@@ -1,4 +1,8 @@
-import type { RequestSurface, ResolvedSurface } from '@/shared/lib/surface/requestSurface';
+import {
+  arePlatformSurfaceHostsDistinct,
+  type RequestSurface,
+  type ResolvedSurface,
+} from '@/shared/lib/surface/requestSurface';
 import { publicBookPaths, publicClinicCardPath } from '@/shared/publicBook/paths';
 
 /**
@@ -146,10 +150,7 @@ export function classifySurfaceRoute(pathname: string): SurfaceRouteAudience | n
   return null;
 }
 
-export function canSurfaceEnterRoute(
-  surface: RequestSurface,
-  pathname: string,
-): boolean {
+export function canSurfaceEnterRoute(surface: RequestSurface, pathname: string): boolean {
   // Role-login paths are browser doors for one product surface each. The path itself never
   // chooses a surface, but accepting another surface's door would present the wrong product
   // before the post-auth role guard has a chance to run.
@@ -159,10 +160,14 @@ export function canSurfaceEnterRoute(
     return surface === 'patient_default' || surface === 'patient_branded';
   }
   if (pathname === '/manifest.webmanifest') {
-    return surface === 'patient_default' || surface === 'patient_branded';
+    return (
+      surface === 'patient_default' ||
+      surface === 'patient_branded' ||
+      (surface === 'staff' && !arePlatformSurfaceHostsDistinct())
+    );
   }
   if (pathname === '/manifest-staff.webmanifest') {
-    return surface === 'staff' || surface === 'platform_admin';
+    return surface === 'staff';
   }
   if (pathname === '/sw.js' || pathname.startsWith('/api/')) return true;
   if (pathname === '/book/embed.js') {
@@ -181,10 +186,7 @@ export function canSurfaceEnterRoute(
  * The single patient route projection. Both patient surfaces keep the same physical pages; only
  * the already-resolved context changes which existing page owns a Host-short entry path.
  */
-export function patientTreeRewritePath(
-  resolved: ResolvedSurface,
-  pathname: string,
-): string | null {
+export function patientTreeRewritePath(resolved: ResolvedSurface, pathname: string): string | null {
   const path = normalizePathname(pathname);
   if (resolved.surface === 'patient_default') {
     return path === '/' ? '/app' : null;

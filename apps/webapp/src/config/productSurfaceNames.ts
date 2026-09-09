@@ -21,4 +21,4 @@
  *   fallback and `env.ts`'s default.
  */
 export const STAFF_SURFACE_NAME = 'Therapysto';
-export const PATIENT_DEFAULT_SURFACE_NAME = 'Therapygo';
+export const PATIENT_DEFAULT_SURFACE_NAME = 'Therapy Go';
