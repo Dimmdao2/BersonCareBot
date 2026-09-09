@@ -52,10 +52,10 @@ function internalRewriteTarget(request: NextRequest, pathname: string): URL {
 
   // Next relativizes middleware rewrites only when their origin exactly matches its own init URL.
   // nginx reaches the listener as `localhost`, while the standalone server is started with
-  // HOST=127.0.0.1; normalizing that loopback alias keeps this an internal route rewrite instead of
+  // HOSTNAME=127.0.0.1; normalizing that loopback alias keeps this an internal route rewrite instead of
   // making Next proxy to itself over the reconstructed public HTTPS scheme.
   const requestHostname = target.hostname.toLowerCase();
-  const runtimeHostname = process.env.HOST?.trim().toLowerCase();
+  const runtimeHostname = (process.env.HOSTNAME ?? process.env.HOST)?.trim().toLowerCase();
   const localListenerHostnames = new Set(['localhost', '127.0.0.1', '[::1]', '0.0.0.0', '[::]']);
   if (
     runtimeHostname &&
