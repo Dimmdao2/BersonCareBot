@@ -16,6 +16,7 @@ import {
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import {
   beAppointments,
+  beAppointmentHistoryEvents,
   beBranches,
   beClinicServices,
   beRooms,
@@ -43,14 +44,12 @@ import type {
 } from '@/modules/booking-calendar/types';
 import { isBuiltInOnlineLocation } from '@/modules/booking-engine/onlineLocation';
 import { filterCanonicalRowsNotPurged } from '@/infra/repos/doctorAppointmentPurgeFilter';
-import { formatDoctorFio } from '@/shared/lib/fio';
+import { formatDoctorFioShort, formatDoctorFioShortLabel } from '@/shared/lib/fio';
 
 const UUID_RE = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 
 /**
- * APPT-LIST-03: одно правило ФИО на все строки календаря. Прежняя склейка
- * «Имя Фамилия» теряла отчество у структурированных карточек и оставляла его у тех,
- * что падали на сырой displayName, — в списке соседние записи выглядели по-разному.
+ * Appointment lists use the compact doctor label: surname and first name, without patronymic.
  */
 function patientDisplayName(row: {
   displayName: string;
@@ -59,7 +58,7 @@ function patientDisplayName(row: {
   patronymic: string | null;
 }): string {
   return (
-    formatDoctorFio(
+    formatDoctorFioShort(
       { lastName: row.lastName, firstName: row.firstName, patronymic: row.patronymic },
       row.displayName.trim(),
     ) || 'Пациент'
@@ -76,7 +75,7 @@ function contactNameFromAttribution(
       : typeof attr.contactName === 'string'
         ? attr.contactName
         : null;
-  return v?.trim() || null;
+  return formatDoctorFioShortLabel(v, '') || null;
 }
 
 export function isPrepaymentPending(
@@ -269,79 +268,98 @@ export function createPgBookingCalendarPort(): BookingCalendarPort {
       const packageByUsageRef = new Map<string, { title: string; displayNumber: number }>();
       const formCommentsByAppt = new Map<string, { label: string; value: string }[]>();
       const primaryCommentByAppt = new Map<string, string>();
+      const prepaymentExpiredAppointmentIds = new Set<string>();
       const packageUsageRefs = rows
         .map((row) => row.packageUsageRef)
         .filter((usageRef): usageRef is string => usageRef != null && UUID_RE.test(usageRef));
 
       if (appointmentIds.length > 0) {
-        const [bookingRows, paymentRows, packageRows, submissionRows, staffCommentRows] =
-          await Promise.all([
-            db
-              .select({
-                appointmentId: patientBookings.canonicalAppointmentId,
-                status: patientBookings.status,
-              })
-              .from(patientBookings)
-              .where(inArray(patientBookings.canonicalAppointmentId, appointmentIds)),
-            db
-              .select({
-                appointmentId: bePaymentIntents.appointmentId,
-                status: bePaymentIntents.status,
-              })
-              .from(bePaymentIntents)
-              .where(inArray(bePaymentIntents.appointmentId, appointmentIds))
-              .orderBy(desc(bePaymentIntents.createdAt)),
-            db
-              .select({
-                usageId: bePackageUsages.id,
-                title: bePatientPackages.title,
-                displayNumber: bePatientPackages.displayNumber,
-              })
-              .from(bePackageUsages)
-              .innerJoin(
-                bePatientPackages,
-                eq(bePatientPackages.id, bePackageUsages.patientPackageId),
-              )
-              .where(
-                packageUsageRefs.length > 0
-                  ? inArray(bePackageUsages.id, packageUsageRefs)
-                  : sql`false`,
+        const [
+          bookingRows,
+          paymentRows,
+          packageRows,
+          submissionRows,
+          staffCommentRows,
+          historyRows,
+        ] = await Promise.all([
+          db
+            .select({
+              appointmentId: patientBookings.canonicalAppointmentId,
+              status: patientBookings.status,
+            })
+            .from(patientBookings)
+            .where(inArray(patientBookings.canonicalAppointmentId, appointmentIds)),
+          db
+            .select({
+              appointmentId: bePaymentIntents.appointmentId,
+              status: bePaymentIntents.status,
+            })
+            .from(bePaymentIntents)
+            .where(inArray(bePaymentIntents.appointmentId, appointmentIds))
+            .orderBy(desc(bePaymentIntents.createdAt)),
+          db
+            .select({
+              usageId: bePackageUsages.id,
+              title: bePatientPackages.title,
+              displayNumber: bePatientPackages.displayNumber,
+            })
+            .from(bePackageUsages)
+            .innerJoin(
+              bePatientPackages,
+              eq(bePatientPackages.id, bePackageUsages.patientPackageId),
+            )
+            .where(
+              packageUsageRefs.length > 0
+                ? inArray(bePackageUsages.id, packageUsageRefs)
+                : sql`false`,
+            ),
+          db
+            .select({
+              appointmentId: beBookingFormSubmissions.appointmentId,
+              label: beBookingFormFields.label,
+              valueText: beBookingFormSubmissions.valueText,
+            })
+            .from(beBookingFormSubmissions)
+            .innerJoin(
+              beBookingFormFields,
+              eq(beBookingFormFields.id, beBookingFormSubmissions.fieldId),
+            )
+            .where(
+              and(
+                eq(beBookingFormSubmissions.organizationId, filters.organizationId),
+                inArray(beBookingFormSubmissions.appointmentId, appointmentIds),
+                eq(beBookingFormFields.visibleToStaff, true),
               ),
-            db
-              .select({
-                appointmentId: beBookingFormSubmissions.appointmentId,
-                label: beBookingFormFields.label,
-                valueText: beBookingFormSubmissions.valueText,
-              })
-              .from(beBookingFormSubmissions)
-              .innerJoin(
-                beBookingFormFields,
-                eq(beBookingFormFields.id, beBookingFormSubmissions.fieldId),
-              )
-              .where(
-                and(
-                  eq(beBookingFormSubmissions.organizationId, filters.organizationId),
-                  inArray(beBookingFormSubmissions.appointmentId, appointmentIds),
-                  eq(beBookingFormFields.visibleToStaff, true),
-                ),
+            ),
+          // APPT-DETAIL-11: основной комментарий записи едет тем же батчем, что и остальные
+          // детали. Иначе карточка сначала рисует пустое поле, а «Изменить» открывается с
+          // пустым черновиком поверх существующего текста.
+          db
+            .select({
+              appointmentId: beAppointmentStaffComments.appointmentId,
+              body: beAppointmentStaffComments.body,
+            })
+            .from(beAppointmentStaffComments)
+            .where(
+              and(
+                eq(beAppointmentStaffComments.organizationId, filters.organizationId),
+                inArray(beAppointmentStaffComments.appointmentId, appointmentIds),
               ),
-            // APPT-DETAIL-11: основной комментарий записи едет тем же батчем, что и остальные
-            // детали. Иначе карточка сначала рисует пустое поле, а «Изменить» открывается с
-            // пустым черновиком поверх существующего текста.
-            db
-              .select({
-                appointmentId: beAppointmentStaffComments.appointmentId,
-                body: beAppointmentStaffComments.body,
-              })
-              .from(beAppointmentStaffComments)
-              .where(
-                and(
-                  eq(beAppointmentStaffComments.organizationId, filters.organizationId),
-                  inArray(beAppointmentStaffComments.appointmentId, appointmentIds),
-                ),
-              )
-              .orderBy(desc(beAppointmentStaffComments.createdAt)),
-          ]);
+            )
+            .orderBy(desc(beAppointmentStaffComments.createdAt)),
+          db
+            .select({
+              appointmentId: beAppointmentHistoryEvents.appointmentId,
+              payload: beAppointmentHistoryEvents.payload,
+            })
+            .from(beAppointmentHistoryEvents)
+            .where(
+              and(
+                eq(beAppointmentHistoryEvents.organizationId, filters.organizationId),
+                inArray(beAppointmentHistoryEvents.appointmentId, appointmentIds),
+              ),
+            ),
+        ]);
 
         for (const b of bookingRows) {
           if (b.appointmentId && !bookingStatusByAppt.has(b.appointmentId)) {
@@ -373,6 +391,11 @@ export function createPgBookingCalendarPort(): BookingCalendarPort {
           const list = formCommentsByAppt.get(sub.appointmentId) ?? [];
           list.push({ label: sub.label, value });
           formCommentsByAppt.set(sub.appointmentId, list);
+        }
+        for (const history of historyRows) {
+          if (history.payload.source === 'prepayment_expired') {
+            prepaymentExpiredAppointmentIds.add(history.appointmentId);
+          }
         }
       }
 
@@ -419,6 +442,7 @@ export function createPgBookingCalendarPort(): BookingCalendarPort {
           bookingStatus: bookingStatusByAppt.get(row.id) ?? null,
           paymentStatus,
           prepaymentPending: isPrepaymentPending(status, paymentStatus),
+          prepaymentExpired: prepaymentExpiredAppointmentIds.has(row.id),
           packageUsageRef: row.packageUsageRef ?? null,
           packageTitle: packageData?.title ?? null,
           packageDisplayNumber: packageData?.displayNumber ?? null,

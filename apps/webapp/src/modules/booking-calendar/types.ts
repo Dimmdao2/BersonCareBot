@@ -138,6 +138,8 @@ export type CalendarAppointmentEvent = {
   bookingStatus: string | null;
   paymentStatus: string | null;
   prepaymentPending: boolean;
+  /** Cancellation was produced by the prepayment-deadline worker. */
+  prepaymentExpired?: boolean;
   packageUsageRef: string | null;
   packageTitle: string | null;
   packageDisplayNumber: number | null;

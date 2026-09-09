@@ -1,13 +1,12 @@
 'use client';
 
-import Link from 'next/link';
 import { patientCardHref } from '../patients/patientCardHref';
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { DateTime } from 'luxon';
 import toast from 'react-hot-toast';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/shared/ui/doctor/primitives/badge';
-import { Button, buttonVariants } from '@/shared/ui/doctor/primitives/button';
+import { Button } from '@/shared/ui/doctor/primitives/button';
 import {
   DoctorModal,
   DoctorModalFooter,
@@ -89,7 +88,10 @@ type Props = {
   /** Called after a canonical manual appointment has been created successfully. */
   onCreated?: (appointmentId: string) => void;
   /** Host-owned canonical create footer continuation (for example encounter modality). */
-  createContinuation?: { onOffline: (appointmentId: string) => void; onOnline: (appointmentId: string) => void };
+  createContinuation?: {
+    onOffline: (appointmentId: string) => void;
+    onOnline: (appointmentId: string) => void;
+  };
   /** Обновляет открытую карточку после правки, не закрывая первый слой модалки. */
   onUpdated?: (appointment?: CalendarAppointmentEvent) => void;
   /** §3.6: открыть панель сразу в режиме создания, минуя плейсхолдер */
@@ -144,6 +146,14 @@ function formatRescheduleCount(count: number): string {
   if (mod10 === 1) return `${count} перенос`;
   if (mod10 >= 2 && mod10 <= 4) return `${count} переноса`;
   return `${count} переносов`;
+}
+
+function lifecycleActorLabel(actorType: string, patientLabel: string): string {
+  if (actorType === 'patient') return patientLabel;
+  if (actorType === 'specialist') return 'Специалист';
+  if (actorType === 'admin') return 'Администратор';
+  if (actorType === 'system') return 'Система';
+  return actorType;
 }
 
 function isDifferentCalendarMinute(left: string, right: string, timeZone: string): boolean {
@@ -333,9 +343,9 @@ function DoctorCalendarEventPanelInner({
   const [cancelOpen, setCancelOpen] = useState(false);
   /** ENCOUNTER-APPOINTMENT-05: подтверждение конфликта показывается ДО сохранения. */
   const [overlapConfirmOpen, setOverlapConfirmOpen] = useState(false);
-  const [overlapContinuation, setOverlapContinuation] = useState<
-    { onCreated?: (appointmentId: string) => void } | null
-  >(null);
+  const [overlapContinuation, setOverlapContinuation] = useState<{
+    onCreated?: (appointmentId: string) => void;
+  } | null>(null);
   const [cancelDraft, setCancelDraft] = useState<AppointmentCancelDraft>(EMPTY_CANCEL_DRAFT);
   const [message, setMessage] = useState<string | null>(null);
   // APPT-FORM-13: правка идёт двумя контрактами (запись и комментарий). Отказ комментария
@@ -451,7 +461,7 @@ function DoctorCalendarEventPanelInner({
       serviceId,
       patient: createInitialPatient,
       deliveryFormat:
-        filterMeta.branches.find((branch) => branch.id === createInitialBranchId)?.isOnline === true
+        filterMeta.branches.find((branch) => branch.id === nextBranchId)?.isOnline === true
           ? 'online'
           : 'in_person',
       ...serviceFinancialDefaults(filterMeta.services, serviceId),
@@ -529,6 +539,10 @@ function DoctorCalendarEventPanelInner({
       return;
     }
     const isNewPatient = patient?.isNew === true;
+    const deliveryFormat =
+      filterMeta.branches.find((branch) => branch.id === submission.branchId)?.isOnline === true
+        ? 'online'
+        : (options?.deliveryFormat ?? draft.deliveryFormat);
     startTransition(async () => {
       const res = await fetch(
         isNewPatient
@@ -547,13 +561,13 @@ function DoctorCalendarEventPanelInner({
                   patronymic: patient.patronymic ?? null,
                   phone: patient.phone,
                   email: patient.email ?? null,
-                  deliveryFormat: options?.deliveryFormat ?? draft.deliveryFormat,
+                  deliveryFormat,
                 }
               : {
                   platformUserId: patient?.id ?? null,
                   phoneNormalized: patient?.phone?.trim() || null,
                   ...financials,
-                  deliveryFormat: options?.deliveryFormat ?? draft.deliveryFormat,
+                  deliveryFormat,
                   ...(options?.allowOverlap ? { allowOverlap: true } : {}),
                 }),
             startAt,
@@ -643,13 +657,42 @@ function DoctorCalendarEventPanelInner({
         />
         {createContinuation ? (
           <DoctorModalFooter>
-            <Button type="button" variant="outline" disabled={pending} onClick={() => submitCreate({ onCreated: createContinuation.onOffline, deliveryFormat: 'in_person' })}>Очный приём</Button>
-            <Button type="button" disabled={pending} onClick={() => submitCreate({ onCreated: createContinuation.onOnline, deliveryFormat: 'online' })}>Онлайн-приём</Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={pending}
+              onClick={() =>
+                submitCreate({
+                  onCreated: createContinuation.onOffline,
+                  deliveryFormat: 'in_person',
+                })
+              }
+            >
+              Очный приём
+            </Button>
+            <Button
+              type="button"
+              disabled={pending}
+              onClick={() =>
+                submitCreate({ onCreated: createContinuation.onOnline, deliveryFormat: 'online' })
+              }
+            >
+              Онлайн-приём
+            </Button>
           </DoctorModalFooter>
         ) : (
           <DoctorModalFooter>
-            <Button type="button" variant="outline" disabled={pending} onClick={pendingRefresh ? onChanged : onClose}>Отмена</Button>
-            <Button type="button" disabled={pending} onClick={() => submitCreate()}>Сохранить</Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={pending}
+              onClick={pendingRefresh ? onChanged : onClose}
+            >
+              Отмена
+            </Button>
+            <Button type="button" disabled={pending} onClick={() => submitCreate()}>
+              Сохранить
+            </Button>
           </DoctorModalFooter>
         )}
 
@@ -692,6 +735,16 @@ function DoctorCalendarEventPanelInner({
 
   const statusView = doctorAppointmentStatusView(selected);
   const cancelled = isCancelledAppointmentStatus(selected.status);
+  const latestReschedule = lifecycle?.reschedules.at(-1) ?? null;
+  const detailStatusLabel = cancelled
+    ? selected.status === 'late_cancellation'
+      ? 'Поздняя отмена'
+      : 'Отмена'
+    : latestReschedule || selected.rescheduleCount > 0 || selected.status === 'rescheduled'
+      ? latestReschedule?.wasInFreeRescheduleWindow === false
+        ? 'Поздний перенос'
+        : 'Перенос'
+      : statusView.label;
   const durationMinutes = eventDurationMinutes(selected, timeZone);
   const specialistOption: CalendarFilterOption | null = selected.specialistId
     ? (filterMeta.specialists.find((option) => option.id === selected.specialistId) ?? {
@@ -743,7 +796,10 @@ function DoctorCalendarEventPanelInner({
       },
       comment: primaryComment,
       status: selected.status,
-      deliveryFormat: selected.deliveryFormat,
+      deliveryFormat:
+        filterMeta.branches.find((branch) => branch.id === selected.branchId)?.isOnline === true
+          ? 'online'
+          : selected.deliveryFormat,
       // PAY-APPT-01/03: правка открывается на СНИМКЕ САМОЙ записи, а не на текущей цене каталога:
       // сохранённая врачом стоимость не должна уезжать за прайсом при первом же открытии формы.
       ...appointmentSnapshotDraftMoney(selected, filterMeta.services),
@@ -932,7 +988,12 @@ function DoctorCalendarEventPanelInner({
 
   const deleteCancelled = () => {
     // R22: удаление уже отменённой записи — пациенту не уведомляем (purge без side-effects).
-    if (!window.confirm(`Удалить запись из календаря и кабинета ${patientSingularLabel.toLowerCase()}?`)) return;
+    if (
+      !window.confirm(
+        `Удалить запись из календаря и кабинета ${patientSingularLabel.toLowerCase()}?`,
+      )
+    )
+      return;
     startTransition(async () => {
       const res = await fetch(`${apiBase}/appointments/${encodeURIComponent(selected.id)}/delete`, {
         method: 'POST',
@@ -954,13 +1015,11 @@ function DoctorCalendarEventPanelInner({
     isDifferentCalendarMinute(selected.originalStartAt, selected.startAt, timeZone),
   );
   const patientName = selected.patientName ?? patientSingularLabel;
-  const visitHref = selected.platformUserId
-    ? patientCardHref(selected.platformUserId, {
-        tab: 'karta',
-        createVisitFrom: selected.id,
-        visitDate: selected.startAt ? selected.startAt.slice(0, 10) : undefined,
-      })
-    : null;
+  const canMutateAppointment =
+    appointmentsManageOwn &&
+    canUseOwnSpecialistAppointmentActions(ownSpecialistId, selected.specialistId);
+  const canDeleteAppointment =
+    canMutateAppointment && isStaffDeletableCancelledStatus(selected.status);
 
   return (
     <div
@@ -983,7 +1042,7 @@ function DoctorCalendarEventPanelInner({
             appointmentStatusToneClass(selected),
           )}
         >
-          {statusView.label}
+          {detailStatusLabel}
         </Badge>
       </div>
       {hasRealOriginalStart && selected.originalStartAt ? (
@@ -1010,6 +1069,12 @@ function DoctorCalendarEventPanelInner({
           <div>
             <dt className={doctorSecondaryListTextClass}>Услуга</dt>
             <dd className={doctorBodyTextClass}>{selected.serviceTitle ?? '—'}</dd>
+          </div>
+          <div>
+            <dt className={doctorSecondaryListTextClass}>Формат</dt>
+            <dd className={doctorBodyTextClass}>
+              {selected.deliveryFormat === 'online' ? 'Онлайн-приём' : 'Очный приём'}
+            </dd>
           </div>
           <div>
             <dt className={doctorSecondaryListTextClass}>Длительность</dt>
@@ -1071,88 +1136,82 @@ function DoctorCalendarEventPanelInner({
           />
         ) : null}
 
-        {lifecycle?.cancellations.length ? (
-          <div className="space-y-1">
-            {lifecycle.cancellations.map((c) => (
-              <p key={c.id} className="text-xs text-muted-foreground">
-                Отмена ({cancellationDecisionTypeLabel(c.cancellationType)})
-                {c.staffComment ? `: ${c.staffComment}` : ''}
-              </p>
-            ))}
+        {lifecycle?.reschedules.map((reschedule) => (
+          <div key={reschedule.id} className="space-y-1 border-t border-border pt-3">
+            <p className={doctorBodyTextClass}>
+              {reschedule.wasInFreeRescheduleWindow ? 'Перенос' : 'Поздний перенос'}
+            </p>
+            <p className={doctorSecondaryListTextClass}>
+              Кто: {lifecycleActorLabel(reschedule.actorType, patientSingularLabel)}
+            </p>
+            <p className={doctorSecondaryListTextClass}>
+              С {formatEventAt(reschedule.fromStartAt, timeZone)} на{' '}
+              {formatEventAt(reschedule.toStartAt, timeZone)}
+            </p>
+            {reschedule.reason ? (
+              <p className={doctorSecondaryListTextClass}>Причина: {reschedule.reason}</p>
+            ) : null}
+            {reschedule.staffComment ? (
+              <p className={doctorSecondaryListTextClass}>Комментарий: {reschedule.staffComment}</p>
+            ) : null}
           </div>
-        ) : null}
+        ))}
+        {lifecycle?.cancellations.map((cancellation) => (
+          <div key={cancellation.id} className="space-y-1 border-t border-border pt-3">
+            <p className={doctorBodyTextClass}>
+              {selected.status === 'late_cancellation' ? 'Поздняя отмена' : 'Отмена'}
+            </p>
+            <p className={doctorSecondaryListTextClass}>
+              Кто: {lifecycleActorLabel(cancellation.actorType, patientSingularLabel)}
+            </p>
+            <p className={doctorSecondaryListTextClass}>
+              Условия:{' '}
+              {cancellation.wasPenalized
+                ? 'Со штрафом'
+                : cancellation.wasFree
+                  ? 'Без штрафа'
+                  : cancellationDecisionTypeLabel(cancellation.cancellationType)}
+            </p>
+            {cancellation.packageSessionCharged ? (
+              <p className={doctorSecondaryListTextClass}>Сеанс абонемента списан</p>
+            ) : null}
+            {cancellation.prepaymentRetained ? (
+              <p className={doctorSecondaryListTextClass}>Предоплата удержана</p>
+            ) : cancellation.prepaymentRefunded ? (
+              <p className={doctorSecondaryListTextClass}>Предоплата возвращена</p>
+            ) : null}
+            {cancellation.reason ? (
+              <p className={doctorSecondaryListTextClass}>Причина: {cancellation.reason}</p>
+            ) : null}
+            {cancellation.staffComment ? (
+              <p className={doctorSecondaryListTextClass}>
+                Комментарий: {cancellation.staffComment}
+              </p>
+            ) : null}
+          </div>
+        ))}
       </div>
 
-      {/* APPT-DETAIL-08: «Изменить», «Отменить», «Начать приём» — в общем футере модалки. */}
-      <DoctorModalFooter>
-        {cancelled ? (
-          <>
-            {appointmentsManageOwn &&
-            canUseOwnSpecialistAppointmentActions(ownSpecialistId, selected.specialistId) &&
-            isStaffDeletableCancelledStatus(selected.status) ? (
-              <Button
-                type="button"
-                variant="outline"
-                className="text-destructive"
-                disabled={pending}
-                onClick={deleteCancelled}
-              >
-                Удалить
-              </Button>
-            ) : null}
-            {visitHref ? (
-              <Link href={visitHref} className={buttonVariants()}>
-                Начать приём
-              </Link>
-            ) : (
-              <Button type="button" disabled>
-                Начать приём
-              </Button>
-            )}
-          </>
-        ) : (
-          <>
-            {appointmentsManageOwn ? (
-              <>
-                <Button type="button" variant="outline" disabled={pending} onClick={openEditForm}>
-                  Изменить
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="text-destructive"
-                  disabled={pending}
-                  onClick={() => setCancelOpen(true)}
-                >
-                  Отменить
-                </Button>
-              </>
-            ) : null}
-            {visitHref ? (
-              <Link href={visitHref} className={buttonVariants()}>
-                Начать приём
-              </Link>
-            ) : (
-              <Button type="button" disabled>
-                Начать приём
-              </Button>
-            )}
-          </>
-        )}
-      </DoctorModalFooter>
-
-      <DoctorAppointmentCancelModal
-        open={cancelOpen}
-        onClose={() => setCancelOpen(false)}
-        whenLabel={formatEventAtWords(selected.startAt, timeZone)}
-        patientLabel={patientName}
-        patientHref={selected.platformUserId ? patientCardHref(selected.platformUserId) : null}
-        patientOnSupport={selected.patientOnSupport === true}
-        draft={cancelDraft}
-        onDraftChange={(patch) => setCancelDraft((current) => ({ ...current, ...patch }))}
-        pending={pending}
-        onConfirm={confirmCancel}
-      />
+      {canDeleteAppointment || (!cancelled && canMutateAppointment) ? (
+        <DoctorModalFooter>
+          {canDeleteAppointment ? (
+            <Button
+              type="button"
+              variant="outline"
+              className="text-destructive"
+              disabled={pending}
+              onClick={deleteCancelled}
+            >
+              Удалить
+            </Button>
+          ) : null}
+          {!cancelled && canMutateAppointment ? (
+            <Button type="button" variant="outline" disabled={pending} onClick={openEditForm}>
+              Изменить
+            </Button>
+          ) : null}
+        </DoctorModalFooter>
+      ) : null}
 
       <DoctorModal
         open={mode === 'edit'}
@@ -1183,14 +1242,33 @@ function DoctorCalendarEventPanelInner({
           message={message}
         />
         <DoctorModalFooter>
-          <Button type="button" variant="outline" disabled={pending} onClick={closeEditForm}>
-            Отмена
+          <Button
+            type="button"
+            variant="outline"
+            className="text-destructive"
+            disabled={pending}
+            onClick={() => setCancelOpen(true)}
+          >
+            Отменить
           </Button>
           <Button type="button" disabled={pending} onClick={submitEdit}>
             Сохранить
           </Button>
         </DoctorModalFooter>
       </DoctorModal>
+
+      <DoctorAppointmentCancelModal
+        open={cancelOpen}
+        onClose={() => setCancelOpen(false)}
+        whenLabel={formatEventAtWords(selected.startAt, timeZone)}
+        patientLabel={patientName}
+        patientHref={selected.platformUserId ? patientCardHref(selected.platformUserId) : null}
+        patientOnSupport={selected.patientOnSupport === true}
+        draft={cancelDraft}
+        onDraftChange={(patch) => setCancelDraft((current) => ({ ...current, ...patch }))}
+        pending={pending}
+        onConfirm={confirmCancel}
+      />
     </div>
   );
 }

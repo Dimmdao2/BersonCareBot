@@ -105,7 +105,7 @@ export function TodayAppointmentFullModal({
 
   function handleUpdated(updated?: CalendarAppointmentEvent) {
     if (updated) setEvent(updated);
-    else setRefetch((n) => n + 1);
+    setRefetch((n) => n + 1);
     onChanged?.();
   }
 

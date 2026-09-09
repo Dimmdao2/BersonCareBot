@@ -11,7 +11,17 @@ import {
   runWebappSql,
   runWebappTransaction,
 } from '@/infra/db/runWebappSql';
-import { type SQL, and, countDistinct, eq, inArray, isNull, sql } from 'drizzle-orm';
+import {
+  type SQL,
+  and,
+  countDistinct,
+  desc,
+  eq,
+  inArray,
+  isNotNull,
+  isNull,
+  sql,
+} from 'drizzle-orm';
 import { resolveCanonicalUserId } from '@/infra/repos/pgCanonicalPlatformUser';
 import type { ChannelBindings } from '@/shared/types/session';
 import type {
@@ -55,13 +65,23 @@ import {
   sqlActiveTelegramBinding,
   sqlMessengerBotBlocked,
 } from '@/modules/doctor-clients/activeMessengerBindingSql';
-import { beAppointments, orgEnrollments } from '../../../db/schema/bookingEngine';
+import {
+  beAppointmentHistoryEvents,
+  beAppointments,
+  beBranches,
+  beClinicServices,
+  beSpecialists,
+  orgEnrollments,
+} from '../../../db/schema/bookingEngine';
 import {
   bePackageUsages,
   bePatientPackageItems,
   bePatientPackages,
 } from '../../../db/schema/bookingMemberships';
 import { beAppointmentReschedules } from '../../../db/schema/bookingPolicies';
+import { bePaymentIntents } from '../../../db/schema/bookingPayments';
+import { patientPayment } from '../../../db/schema/patientPayments';
+import { clinicalVisit } from '../../../db/schema/patientClinical';
 
 function rowToBindings(
   rows: { channel_code: string; external_id: string; bot_blocked_at?: string | null }[],
@@ -785,69 +805,107 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       organizationId?: string,
       options?: import('@/modules/doctor-clients/ports').PatientCardEncounterProjectionOptions,
     ): Promise<PatientAppointmentItem[]> {
-      const pool = getPool();
       const canonicalId = (await resolveCanonicalUserId(getWebappSqlDb(), userId)) ?? userId;
-      const hasVisitRecordExpression =
-        options?.includeEncounterData === false
-          ? sql`false`
-          : sql`EXISTS (
-             SELECT 1
-             FROM clinical_visit cv
-             WHERE cv.canonical_appointment_id = bea.id
-               AND cv.patient_user_id = bea.platform_user_id
-               AND cv.organization_id = bea.organization_id
-           )`;
+      const db = getDrizzle();
+      const latestPayment = db
+        .selectDistinctOn([bePaymentIntents.appointmentId], {
+          appointmentId: bePaymentIntents.appointmentId,
+          status: bePaymentIntents.status,
+          amountMinor: bePaymentIntents.amountMinor,
+        })
+        .from(bePaymentIntents)
+        .where(isNotNull(bePaymentIntents.appointmentId))
+        .orderBy(bePaymentIntents.appointmentId, desc(bePaymentIntents.createdAt))
+        .as('latest_patient_appointment_payment');
+      const latestReschedule = db
+        .selectDistinctOn([beAppointmentReschedules.appointmentId], {
+          appointmentId: beAppointmentReschedules.appointmentId,
+          wasInFreeWindow: beAppointmentReschedules.wasInFreeRescheduleWindow,
+        })
+        .from(beAppointmentReschedules)
+        .orderBy(beAppointmentReschedules.appointmentId, desc(beAppointmentReschedules.createdAt))
+        .as('latest_patient_appointment_reschedule');
+      const manualPayments = db
+        .select({
+          appointmentId: patientPayment.appointmentId,
+          amountMinor: sql<number>`COALESCE(SUM(${patientPayment.amountMinor}), 0)::integer`.as(
+            'amount_minor',
+          ),
+        })
+        .from(patientPayment)
+        .where(and(isNotNull(patientPayment.appointmentId), eq(patientPayment.status, 'paid')))
+        .groupBy(patientPayment.appointmentId)
+        .as('patient_appointment_manual_payments');
+      const expiredPrepayments = db
+        .selectDistinct({ appointmentId: beAppointmentHistoryEvents.appointmentId })
+        .from(beAppointmentHistoryEvents)
+        .where(sql`${beAppointmentHistoryEvents.payload}->>'source' = 'prepayment_expired'`)
+        .as('expired_patient_appointment_prepayments');
+      const visitAppointments = db
+        .selectDistinct({ appointmentId: clinicalVisit.canonicalAppointmentId })
+        .from(clinicalVisit)
+        .where(
+          and(
+            eq(clinicalVisit.patientUserId, canonicalId),
+            ...(organizationId ? [eq(clinicalVisit.organizationId, organizationId)] : []),
+          ),
+        )
+        .as('patient_clinical_visit_appointments');
 
-      const rows = await runWebappSql<{
-        internal_id: string;
-        id: string;
-        record_at: Date | string | null;
-        status: string;
-        service_title: string | null;
-        duration_minutes: number | null;
-        branch_name: string | null;
-        branch_short_name: string | null;
-        branch_timezone: string | null;
-        specialist_name: string | null;
-        is_package: boolean | null;
-        patient_package_id: string | null;
-        package_title: string | null;
-        package_display_number: number | null;
-        has_visit_record: boolean;
-      }>(
-        getWebappSqlDb(),
-        sql`SELECT
-           bea.id::text AS internal_id,
-           bea.id::text AS id,
-           bea.start_at AS record_at,
-           bea.status,
-           svc.title AS service_title,
-           bea.duration_minutes,
-           br.title AS branch_name,
-           br.short_title AS branch_short_name,
-           br.timezone AS branch_timezone,
-           spec.full_name AS specialist_name,
-           (bea.package_usage_ref IS NOT NULL)::boolean AS is_package,
-           u.patient_package_id::text AS patient_package_id,
-           pp.title AS package_title,
-           pp.display_number AS package_display_number,
-           ${hasVisitRecordExpression} AS has_visit_record
-         FROM be_appointments bea
-         LEFT JOIN be_branches br ON br.id = bea.branch_id
-         LEFT JOIN be_specialists spec ON spec.id = bea.specialist_id
-         LEFT JOIN be_clinic_services svc ON svc.id = bea.service_id
-         LEFT JOIN be_package_usages u ON u.id::text = bea.package_usage_ref
-         LEFT JOIN be_patient_packages pp ON pp.id = u.patient_package_id
-         WHERE bea.platform_user_id = ${canonicalId}::uuid
-           AND bea.deleted_at IS NULL
-           AND (${organizationId ?? null}::uuid IS NULL OR bea.organization_id = ${organizationId ?? null}::uuid)
-         ORDER BY bea.start_at DESC`,
-      );
+      const rows = await db
+        .select({
+          id: beAppointments.id,
+          recordAt: beAppointments.startAt,
+          status: beAppointments.status,
+          deliveryFormat: beAppointments.deliveryFormat,
+          serviceTitle: beClinicServices.title,
+          durationMinutes: beAppointments.durationMinutes,
+          branchName: beBranches.title,
+          branchShortName: beBranches.shortTitle,
+          branchTimezone: beBranches.timezone,
+          specialistName: beSpecialists.fullName,
+          packageUsageRef: beAppointments.packageUsageRef,
+          patientPackageId: bePackageUsages.patientPackageId,
+          packageTitle: bePatientPackages.title,
+          packageDisplayNumber: bePatientPackages.displayNumber,
+          priceMinor: beAppointments.priceMinor,
+          prepaymentRequiredMinor: beAppointments.prepaymentRequiredMinor,
+          prepaymentPaidMinor: beAppointments.prepaymentPaidMinor,
+          paymentStatus: latestPayment.status,
+          paymentAmountMinor: latestPayment.amountMinor,
+          manualPaidMinor: manualPayments.amountMinor,
+          latestRescheduleAppointmentId: latestReschedule.appointmentId,
+          latestRescheduleWasInFreeWindow: latestReschedule.wasInFreeWindow,
+          expiredPrepaymentAppointmentId: expiredPrepayments.appointmentId,
+          visitAppointmentId: visitAppointments.appointmentId,
+        })
+        .from(beAppointments)
+        .leftJoin(beBranches, eq(beBranches.id, beAppointments.branchId))
+        .leftJoin(beSpecialists, eq(beSpecialists.id, beAppointments.specialistId))
+        .leftJoin(beClinicServices, eq(beClinicServices.id, beAppointments.serviceId))
+        .leftJoin(
+          bePackageUsages,
+          sql`${bePackageUsages.id}::text = ${beAppointments.packageUsageRef}`,
+        )
+        .leftJoin(bePatientPackages, eq(bePatientPackages.id, bePackageUsages.patientPackageId))
+        .leftJoin(latestPayment, eq(latestPayment.appointmentId, beAppointments.id))
+        .leftJoin(latestReschedule, eq(latestReschedule.appointmentId, beAppointments.id))
+        .leftJoin(manualPayments, eq(manualPayments.appointmentId, beAppointments.id))
+        .leftJoin(expiredPrepayments, eq(expiredPrepayments.appointmentId, beAppointments.id))
+        .leftJoin(visitAppointments, eq(visitAppointments.appointmentId, beAppointments.id))
+        .where(
+          and(
+            eq(beAppointments.platformUserId, canonicalId),
+            isNull(beAppointments.deletedAt),
+            ...(organizationId ? [eq(beAppointments.organizationId, organizationId)] : []),
+          ),
+        )
+        .orderBy(desc(beAppointments.startAt));
 
       const now = Date.now();
 
-      return rows.rows.map((row): PatientAppointmentItem => {
-        const recordAtMs = row.record_at ? new Date(row.record_at).getTime() : null;
+      return rows.map((row): PatientAppointmentItem => {
+        const recordAtMs = row.recordAt ? new Date(row.recordAt).getTime() : null;
         const isPast = recordAtMs !== null && recordAtMs < now;
 
         let status: PatientAppointmentItem['status'];
@@ -870,7 +928,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
           status = isPast ? 'completed' : 'upcoming';
         }
 
-        const durationRaw = row.duration_minutes;
+        const durationRaw = row.durationMinutes;
         const durationMin =
           typeof durationRaw === 'number' && Number.isFinite(durationRaw)
             ? Math.round(durationRaw)
@@ -878,21 +936,38 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
 
         return {
           id: row.id,
-          internalId: row.internal_id ?? null,
-          dateTime: row.record_at ? new Date(row.record_at).toISOString() : '',
+          internalId: row.id,
+          dateTime: row.recordAt ? new Date(row.recordAt).toISOString() : '',
           status,
           isLateCancellation: row.status === 'late_cancellation',
-          serviceName: (row.service_title && row.service_title.trim()) || null,
-          location: row.branch_name ?? null,
-          locationShort: row.branch_short_name ?? null,
-          branchTimeZone: row.branch_timezone ?? null,
-          specialistName: row.specialist_name ?? null,
+          hasReschedule: row.latestRescheduleAppointmentId != null,
+          isLateReschedule:
+            row.latestRescheduleAppointmentId != null &&
+            row.latestRescheduleWasInFreeWindow === false,
+          deliveryFormat: row.deliveryFormat === 'online' ? 'online' : 'in_person',
+          serviceName: (row.serviceTitle && row.serviceTitle.trim()) || null,
+          location: row.branchName ?? null,
+          locationShort: row.branchShortName ?? null,
+          branchTimeZone: row.branchTimezone ?? null,
+          specialistName: row.specialistName ?? null,
           durationMin,
-          isPackage: row.is_package ?? null,
-          patientPackageId: row.patient_package_id ?? null,
-          packageTitle: row.package_title ?? null,
-          packageDisplayNumber: row.package_display_number ?? null,
-          hasVisitRecord: row.has_visit_record,
+          isPackage: row.packageUsageRef != null,
+          patientPackageId: row.patientPackageId ?? null,
+          packageTitle: row.packageTitle ?? null,
+          packageDisplayNumber: row.packageDisplayNumber ?? null,
+          paymentStatus: row.paymentStatus ?? null,
+          paymentAmountMinor: row.paymentAmountMinor ?? null,
+          totalMinor: row.priceMinor ?? null,
+          manualPaidMinor: row.manualPaidMinor ?? 0,
+          prepaymentRequiredMinor: row.prepaymentRequiredMinor,
+          prepaymentPaidMinor: row.prepaymentPaidMinor,
+          prepaymentPending:
+            row.status === 'awaiting_payment' ||
+            row.paymentStatus === 'pending' ||
+            row.paymentStatus === 'processing',
+          prepaymentExpired: row.expiredPrepaymentAppointmentId != null,
+          hasVisitRecord:
+            options?.includeEncounterData === false ? false : row.visitAppointmentId != null,
         };
       });
     },

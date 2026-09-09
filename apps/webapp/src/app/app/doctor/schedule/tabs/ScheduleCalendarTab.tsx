@@ -10,6 +10,7 @@ import {
   useState,
   useTransition,
   type CSSProperties,
+  type Ref,
 } from 'react';
 import dynamic from 'next/dynamic';
 import { DateTime } from 'luxon';
@@ -22,14 +23,12 @@ import { DoctorCatalogStickyToolbar } from '@/shared/ui/doctor/DoctorCatalogStic
 import {
   DOCTOR_CALENDAR_TODAY_MARKER_CLASS,
   buildDoctorCalendarNonWorkingRanges,
-  doctorAppointmentStatusView,
   doctorCalendarAppointmentBranchColors,
   doctorCalendarAppointmentClassName,
   doctorCalendarAppointmentDisplay,
   doctorCalendarBranchColorRgba,
   doctorCalendarNonWorkingClassNames,
   formatDoctorCalendarHour,
-  type DoctorAppointmentStatusView,
 } from '@/shared/ui/doctor/calendar/doctorCalendarPresentation';
 import {
   DOCTOR_ACTIVE_FILTER_BUTTON_CLASS,
@@ -79,16 +78,12 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from '@/shared/ui/doctor/primitives/dropdown-menu';
-import {
-  doctorAppointmentStatusMarkerClass,
-  doctorAppointmentStatusTextClass,
-  doctorSectionCardClass,
-  doctorSectionTitleClass,
-} from '@/shared/ui/doctor/doctorVisual';
+import { doctorSectionCardClass, doctorSectionTitleClass } from '@/shared/ui/doctor/doctorVisual';
 import { routePaths } from '@/app-layer/routes/paths';
 import { DOCTOR_SCHEDULE_CALENDAR_REFRESH_EVENT } from '../scheduleCalendarEvents';
 import { formatPatientPackageShortLabel } from '@/modules/memberships/display';
 import { patientCardHref } from '../../patients/patientCardHref';
+import { DoctorAppointmentIndicators } from '../../calendar/DoctorAppointmentIndicators';
 import { deriveCalendarInitialScrollTime } from '@/modules/booking-calendar/visibleTimeWindow';
 import {
   addBreakToWorkingDay,
@@ -536,20 +531,8 @@ type ListDayCardProps = {
   nextApptId?: string;
   branchShortLabels: ReadonlyMap<string, string>;
   showSpecialist: boolean;
+  nextAppointmentRef?: Ref<HTMLButtonElement>;
 };
-
-/**
- * APPT-LIST-04: в строке показывается только реально произошедшее с записью — перенос, виды отмены
- * и (PAY-APPT-13) ожидание оплаты. Обычные «создана/подтверждена» не дублируют саму строку.
- *
- * Сама лесенка статусов и их роли в палитре — общая (`doctorAppointmentStatusView`), чтобы список,
- * сетка и панель деталей не могли разойтись; здесь остаётся только правило списка «показываем то,
- * что произошло».
- */
-function listRowStatus(appt: CalendarAppointmentEvent): DoctorAppointmentStatusView | null {
-  const statusView = doctorAppointmentStatusView(appt);
-  return statusView.notable ? statusView : null;
-}
 
 // R29: фон строки списка повторяет статусную палитру календаря (eventClassName);
 // прошедшие приглушаются, отменённые — destructive + line-through.
@@ -583,6 +566,7 @@ function ListDayCard({
   nextApptId,
   branchShortLabels,
   showSpecialist,
+  nextAppointmentRef,
 }: ListDayCardProps) {
   return (
     <div
@@ -598,12 +582,12 @@ function ListDayCard({
           const end = parseFeedInstant(appt.endAt, timeZone).toFormat('HH:mm');
           const cancelled = isCancelledAppointmentStatus(appt.status);
           const isNext = appt.id === nextApptId;
-          const statusView = listRowStatus(appt);
           const branchLabel = appt.branchId
             ? (branchShortLabels.get(appt.branchId) ?? appt.branchTitle)
             : appt.branchTitle;
           return (
             <Button
+              ref={isNext ? nextAppointmentRef : undefined}
               key={appt.id}
               type="button"
               variant="ghost"
@@ -642,36 +626,22 @@ function ListDayCard({
                     <span className="truncate">{appt.specialistName}</span>
                   ) : null}
                   {appt.serviceTitle ? <span className="truncate">{appt.serviceTitle}</span> : null}
-                  {appt.packageUsageRef || appt.packageTitle ? (
-                    <span
-                      className="rounded-md border border-violet-500/30 bg-violet-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-violet-900"
-                      title={appt.packageTitle ?? undefined}
-                    >
-                      {formatPatientPackageShortLabel(appt.packageDisplayNumber)}
-                    </span>
-                  ) : null}
-                  {statusView ? (
-                    // APPT-LIST-04: справа — фактический статус записи, не выдуманная отметка.
-                    <span
-                      className={cn(
-                        'ml-auto flex shrink-0 items-center gap-1.5 text-xs',
-                        statusView.role
-                          ? doctorAppointmentStatusTextClass(statusView.role)
-                          : 'text-muted-foreground',
-                      )}
-                      data-testid={`list-appt-status-${appt.id}`}
-                    >
-                      {statusView.role ? (
-                        <span
-                          className={doctorAppointmentStatusMarkerClass(statusView.role)}
-                          aria-hidden
-                        />
-                      ) : null}
-                      {statusView.label}
-                    </span>
-                  ) : null}
                 </span>
               </span>
+              <DoctorAppointmentIndicators
+                className="mt-0.5"
+                deliveryFormat={appt.deliveryFormat}
+                hasPackage={Boolean(appt.packageUsageRef || appt.packageTitle)}
+                appointmentStatus={appt.status}
+                paymentStatus={appt.payment?.payment?.status ?? appt.paymentStatus}
+                paymentAmountMinor={appt.payment?.payment?.amountMinor}
+                totalMinor={appt.payment?.totalMinor}
+                manualPaidMinor={appt.payment?.manualPaidMinor}
+                prepaymentRequiredMinor={appt.payment?.prepayment?.requiredMinor}
+                prepaymentPaidMinor={appt.payment?.prepayment?.paidMinor}
+                prepaymentPending={appt.prepaymentPending}
+                prepaymentExpired={appt.prepaymentExpired}
+              />
             </Button>
           );
         })}
@@ -715,6 +685,7 @@ function ListView({
 }: ListViewProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const anchorMarkerRef = useRef<HTMLDivElement>(null);
+  const nextAppointmentRef = useRef<HTMLButtonElement>(null);
   const earlierSentinelRef = useRef<HTMLDivElement>(null);
   const laterSentinelRef = useRef<HTMLDivElement>(null);
   const positionedAnchorRef = useRef<string | null>(null);
@@ -791,8 +762,16 @@ function ListView({
     }
     const isExplicitTodayRequest = scrollToTodayRequest > positionedTodayRequestRef.current;
     const frame = window.requestAnimationFrame(() => {
+      const targetNode =
+        isExplicitTodayRequest && nextAppointmentRef.current
+          ? nextAppointmentRef.current
+          : markerNode;
+      const targetTop =
+        targetNode.getBoundingClientRect().top -
+        scrollNode.getBoundingClientRect().top +
+        scrollNode.scrollTop;
       scrollNode.scrollTo({
-        top: Math.max(0, markerNode.offsetTop - 8),
+        top: Math.max(0, targetTop - 8),
         behavior: isExplicitTodayRequest ? 'smooth' : 'auto',
       });
       positionedAnchorRef.current = anchorDate;
@@ -884,6 +863,7 @@ function ListView({
                 nextApptId={nextApptId}
                 branchShortLabels={branchShortLabels}
                 showSpecialist={showSpecialist}
+                nextAppointmentRef={nextAppointmentRef}
               />
             </Fragment>
           ))}

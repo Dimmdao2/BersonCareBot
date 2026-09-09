@@ -50,6 +50,7 @@ import {
 } from '@/modules/memberships/display';
 import { DoctorNewAppointmentModal } from '@/app/app/doctor/calendar/DoctorNewAppointmentModal';
 import { TodayAppointmentFullModal } from '@/app/app/doctor/TodayAppointmentFullModal';
+import { DoctorAppointmentIndicators } from '@/app/app/doctor/calendar/DoctorAppointmentIndicators';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -82,6 +83,17 @@ interface DisplayAppointment {
   packageTitle?: string | null;
   packageDisplayNumber?: number | null;
   isLateCancellation?: boolean;
+  hasReschedule?: boolean;
+  isLateReschedule?: boolean;
+  deliveryFormat?: PatientAppointmentItem['deliveryFormat'];
+  paymentStatus?: string | null;
+  paymentAmountMinor?: number | null;
+  totalMinor?: number | null;
+  manualPaidMinor?: number;
+  prepaymentRequiredMinor?: number;
+  prepaymentPaidMinor?: number;
+  prepaymentPending?: boolean;
+  prepaymentExpired?: boolean;
 }
 
 /** Маппинг PatientAppointmentItem → DisplayAppointment. */
@@ -109,6 +121,17 @@ function mapRealToDisplay(item: PatientAppointmentItem): DisplayAppointment {
     packageTitle: item.packageTitle ?? null,
     packageDisplayNumber: item.packageDisplayNumber ?? null,
     isLateCancellation: item.isLateCancellation === true,
+    hasReschedule: item.hasReschedule === true,
+    isLateReschedule: item.isLateReschedule === true,
+    deliveryFormat: item.deliveryFormat,
+    paymentStatus: item.paymentStatus ?? null,
+    paymentAmountMinor: item.paymentAmountMinor ?? null,
+    totalMinor: item.totalMinor ?? null,
+    manualPaidMinor: item.manualPaidMinor ?? 0,
+    prepaymentRequiredMinor: item.prepaymentRequiredMinor ?? 0,
+    prepaymentPaidMinor: item.prepaymentPaidMinor ?? 0,
+    prepaymentPending: item.prepaymentPending === true,
+    prepaymentExpired: item.prepaymentExpired === true,
   };
 }
 
@@ -171,21 +194,35 @@ function openTab(tabId: string) {
 function StatusChip({
   status,
   rescheduledToDate,
+  isLateCancellation,
+  hasReschedule,
+  isLateReschedule,
 }: {
   status: AppointmentStatus;
   rescheduledToDate?: string;
+  isLateCancellation?: boolean;
+  hasReschedule?: boolean;
+  isLateReschedule?: boolean;
 }) {
+  if (status === 'canceled') {
+    return (
+      <span className="inline-flex items-center whitespace-nowrap rounded-md bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
+        {isLateCancellation ? 'поздняя отмена' : 'отмена'}
+      </span>
+    );
+  }
+  if (status === 'rescheduled' || hasReschedule) {
+    return (
+      <span className="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium whitespace-nowrap bg-[#fdf3dd] text-[#9a6b15]">
+        {isLateReschedule ? 'поздний перенос' : 'перенос'}
+        {rescheduledToDate ? ` → ${rescheduledToDate}` : ''}
+      </span>
+    );
+  }
   if (status === 'completed') {
     return (
       <span className="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium whitespace-nowrap bg-[#e7f4ec] text-[#1f7a45]">
         состоялась
-      </span>
-    );
-  }
-  if (status === 'rescheduled') {
-    return (
-      <span className="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium whitespace-nowrap bg-[#fdf3dd] text-[#9a6b15]">
-        перенос{rescheduledToDate ? ` → ${rescheduledToDate}` : ''}
       </span>
     );
   }
@@ -203,12 +240,7 @@ function StatusChip({
       </span>
     );
   }
-  // canceled
-  return (
-    <span className="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium whitespace-nowrap bg-destructive/10 text-destructive">
-      отмена
-    </span>
-  );
+  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -575,7 +607,7 @@ export function PatientTabRecords({
                       )}
                       onClick={() => setSelectedAppointmentId(appt.id)}
                     >
-                      <span className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-0.5">
+                      <span className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-3 gap-y-0.5">
                         <span
                           className={cn(
                             doctorDnaFlatListPrimaryClass,
@@ -586,13 +618,29 @@ export function PatientTabRecords({
                         >
                           {fmtDate(appt.date)} · {appt.time}
                         </span>
+                        <DoctorAppointmentIndicators
+                          deliveryFormat={appt.deliveryFormat}
+                          hasPackage={appt.isPackage === true}
+                          appointmentStatus={appt.status}
+                          paymentStatus={appt.paymentStatus}
+                          paymentAmountMinor={appt.paymentAmountMinor}
+                          totalMinor={appt.totalMinor}
+                          manualPaidMinor={appt.manualPaidMinor}
+                          prepaymentRequiredMinor={appt.prepaymentRequiredMinor}
+                          prepaymentPaidMinor={appt.prepaymentPaidMinor}
+                          prepaymentPending={appt.prepaymentPending}
+                          prepaymentExpired={appt.prepaymentExpired}
+                        />
                         <span className="flex shrink-0 items-center justify-end gap-2">
                           <StatusChip
                             status={appt.status}
                             rescheduledToDate={appt.rescheduledToDate}
+                            isLateCancellation={appt.isLateCancellation}
+                            hasReschedule={appt.hasReschedule}
+                            isLateReschedule={appt.isLateReschedule}
                           />
                         </span>
-                        <span className={`${doctorDnaFlatListMetaClass} truncate`}>
+                        <span className={`${doctorDnaFlatListMetaClass} col-span-2 truncate`}>
                           {appt.service}
                           {appt.durationMin ? ` · ${appt.durationMin} мин` : ''}
                         </span>

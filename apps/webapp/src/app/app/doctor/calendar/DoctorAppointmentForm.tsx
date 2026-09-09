@@ -123,6 +123,8 @@ export function DoctorAppointmentForm({
   );
   const branchMode = resolveCalendarCreateFieldMode(filterMeta.branches, activeFilters.branchId);
   const serviceMode = resolveCalendarCreateFieldMode(serviceOptions, activeFilters.serviceId);
+  const selectedBranchIsOnline =
+    filterMeta.branches.find((branch) => branch.id === draft.branchId)?.isOnline === true;
 
   const setServiceId = (value: string | null) => {
     const service = value ? serviceOptions.find((option) => option.id === value) : undefined;
@@ -219,7 +221,7 @@ export function DoctorAppointmentForm({
         <Label>Формат</Label>
         <Select
           value={draft.deliveryFormat}
-          disabled={pending}
+          disabled={pending || selectedBranchIsOnline}
           onValueChange={(value) =>
             onDraftChange({ deliveryFormat: value as AppointmentDeliveryFormat })
           }

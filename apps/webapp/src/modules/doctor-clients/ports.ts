@@ -247,6 +247,11 @@ export type PatientAppointmentItem = {
   status: 'completed' | 'rescheduled' | 'canceled' | 'upcoming';
   /** True only for the canonical late_cancellation status. */
   isLateCancellation?: boolean;
+  /** At least one reschedule exists for this canonical appointment. */
+  hasReschedule?: boolean;
+  /** The latest reschedule happened outside the free window. */
+  isLateReschedule?: boolean;
+  deliveryFormat?: import('@/modules/booking-engine/types').AppointmentDeliveryFormat;
   /** Тип/услуга из canonical service title. */
   serviceName: string | null;
   /** Локация/филиал из canonical branch title. */
@@ -267,6 +272,14 @@ export type PatientAppointmentItem = {
   patientPackageId?: string | null;
   packageTitle?: string | null;
   packageDisplayNumber?: number | null;
+  paymentStatus?: string | null;
+  paymentAmountMinor?: number | null;
+  totalMinor?: number | null;
+  manualPaidMinor?: number;
+  prepaymentRequiredMinor?: number;
+  prepaymentPaidMinor?: number;
+  prepaymentPending?: boolean;
+  prepaymentExpired?: boolean;
   /** True when this canonical appointment already owns a clinical visit note. */
   hasVisitRecord?: boolean;
 };
