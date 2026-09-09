@@ -66,7 +66,7 @@ describe('native web_push composite fan-out — kill-set §6/§7/§10', () => {
       'target belonging to a different app than the one being addressed — ' +
       'fault: no producer in this repo sets `pushExtras.pushSurface` (see report), so the fallback ' +
       "path is what every current caller actually exercises. It currently fans out to a user's " +
-      'targets across BOTH apps, which crosses the Therapy Go / Therapysto identity boundary.',
+      'targets across BOTH apps, which crosses the TherapyGo / Therapysto identity boundary.',
     async () => {
       globalThis.fetch = vi.fn(async () => new Response(JSON.stringify({}), { status: 200 })) as never;
       const sentTo: string[] = [];
@@ -84,7 +84,7 @@ describe('native web_push composite fan-out — kill-set §6/§7/§10', () => {
       });
       const adapter = createWebPushDeliveryAdapter({ webPushAccessPort: port });
 
-      // Intent produced by a Therapy Go (patient) notification path — no pushSurface set,
+      // Intent produced by a TherapyGo (patient) notification path — no pushSurface set,
       // matching every real caller in this repo today (rg -n "pushSurface" finds zero producers).
       const result = await runWithOrganizationPrincipal(ORG, () => adapter.send(intent()));
 

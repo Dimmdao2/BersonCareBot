@@ -2,7 +2,7 @@
  * Final #915 auditor-live oracle for the corrected native route/surface seam.
  *
  * Failure caught: a legacy queue row can make the native provider dispatch a route that is not a
- * canonical relative cabinet route, crossing the Therapy Go/Therapysto surface boundary or
+ * canonical relative cabinet route, crossing the TherapyGo/Therapysto surface boundary or
  * handing a traversal-shaped path to the native tap router.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
