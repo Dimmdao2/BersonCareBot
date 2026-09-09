@@ -1,3 +1,9 @@
+# SUPERSEDED — do not launch
+
+This combined audit brief was split with its worker stage. Use `mobile-web-runtime-push-auditor-20260909.md`, then
+after the audited runtime landing and `#1100` landing use `mobile-web-native-jitsi-auditor-20260909.md`. This file
+remains only as historical evidence.
+
 # Тест или взгляд
 
 Repeatable runtime selection, fallback, service-worker/install suppression, native Jitsi lifecycle and native-push

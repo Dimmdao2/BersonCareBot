@@ -1,3 +1,9 @@
+# SUPERSEDED — do not launch
+
+This combined brief was split after current dependency inspection. Use
+`mobile-web-runtime-push-worker-20260909.md` first; after its audited landing and the landing of `#1100`, run
+`mobile-web-native-jitsi-worker-20260909.md`. This file remains only as historical evidence.
+
 # Worker brief — #915 one web NativeRuntime with native Jitsi and push
 
 Deliver M1-07, M3-01…M3-03, M4-01/M4-04/M4-05 and the authenticated web-client half of M6-03/M6-09 as one
