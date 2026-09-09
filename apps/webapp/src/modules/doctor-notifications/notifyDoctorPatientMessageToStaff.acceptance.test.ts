@@ -74,8 +74,16 @@ describe.each(['doctor_patient_messages', 'doctor_patient_program_notes'] as con
 
       expect(listActiveStaffUserIds).not.toHaveBeenCalled();
       expect(fakes.relayOutbound).toHaveBeenCalledTimes(1);
+      // Owner oracle (§1.5 / TPB-12b): this staff notification must reach the
+      // staff platform. relayOutbound is the external dispatch boundary; without
+      // the audience it silently selects TherapyGo downstream.
       expect(fakes.relayOutbound).toHaveBeenCalledWith(
-        expect.objectContaining({ channel: 'max', recipient: 'max-1', userId: 'org-1-doctor' }),
+        expect.objectContaining({
+          channel: 'max',
+          recipient: 'max-1',
+          userId: 'org-1-doctor',
+          audience: 'staff',
+        }),
       );
       expect(result).toEqual({ telegramDelivered: 0, maxDelivered: 1, pushDelivered: 0 });
     });
