@@ -24,7 +24,7 @@ android {
             buildConfigField "boolean", "SHELL_DEBUG", "true"
         }
         release {
-            minifyEnabled false
+            minifyEnabled true
             buildConfigField "boolean", "SHELL_DEBUG", "false"
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
@@ -84,6 +84,14 @@ dependencies {
     implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
     implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    implementation "androidx.camera:camera-core:$cameraXVersion"
+    implementation "androidx.camera:camera-camera2:$cameraXVersion"
+    implementation "androidx.camera:camera-lifecycle:$cameraXVersion"
+    implementation "androidx.camera:camera-view:$cameraXVersion"
+    implementation "androidx.camera:camera-video:$cameraXVersion"
+    implementation "org.jitsi.react:jitsi-meet-sdk:13.1.1"
+    implementation "ru.rustore.sdk:universalpush:7.4.1"
+    implementation "ru.rustore.sdk:universalrustore:7.4.1"
     implementation project(':capacitor-android')
     testImplementation "junit:junit:$junitVersion"
     // Audit-added (#915 auditor-live): behavioral acceptance tests for NavigationPolicyPlugin,
@@ -97,12 +105,3 @@ dependencies {
 }
 
 apply from: 'capacitor.build.gradle'
-
-try {
-    def servicesJSON = file('google-services.json')
-    if (servicesJSON.text) {
-        apply plugin: 'com.google.gms.google-services'
-    }
-} catch(Exception e) {
-    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
-}

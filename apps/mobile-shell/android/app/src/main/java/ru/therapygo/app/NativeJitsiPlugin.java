@@ -1,0 +1,180 @@
+package ru.therapygo.app;
+
+import android.Manifest;
+import android.content.Intent;
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
+import com.getcapacitor.JSObject;
+import com.getcapacitor.PermissionState;
+import com.getcapacitor.Plugin;
+import com.getcapacitor.PluginCall;
+import com.getcapacitor.PluginMethod;
+import com.getcapacitor.annotation.CapacitorPlugin;
+import com.getcapacitor.annotation.Permission;
+import com.getcapacitor.annotation.PermissionCallback;
+import java.net.URL;
+import org.jitsi.meet.sdk.BroadcastEvent;
+import org.jitsi.meet.sdk.BroadcastIntentHelper;
+import org.jitsi.meet.sdk.JitsiMeetActivity;
+import org.jitsi.meet.sdk.JitsiMeetConferenceOptions;
+
+/** A narrow adapter for the existing provider-neutral web meeting session. */
+@CapacitorPlugin(
+    name = "NativeJitsi",
+    permissions = {
+        @Permission(alias = "camera", strings = { Manifest.permission.CAMERA }),
+        @Permission(alias = "microphone", strings = { Manifest.permission.RECORD_AUDIO })
+    }
+)
+public final class NativeJitsiPlugin extends Plugin {
+    private JitsiSession retrySession;
+    private boolean terminal;
+
+    private final android.content.BroadcastReceiver conferenceReceiver = new android.content.BroadcastReceiver() {
+        @Override
+        public void onReceive(android.content.Context context, Intent intent) {
+            BroadcastEvent event = new BroadcastEvent(intent);
+            BroadcastEvent.Type type = event.getType();
+            if (type == BroadcastEvent.Type.CONFERENCE_JOINED) {
+                terminal = false;
+                emit("joined", null);
+            } else if (type == BroadcastEvent.Type.CONFERENCE_TERMINATED || type == BroadcastEvent.Type.READY_TO_CLOSE) {
+                terminal = true;
+                String error = conferenceError(event);
+                if (error != null) emit("error", error);
+                emit("terminated", null);
+            }
+        }
+    };
+
+    @Override
+    public void load() {
+        android.content.IntentFilter filter = new android.content.IntentFilter();
+        filter.addAction(BroadcastEvent.Type.CONFERENCE_JOINED.getAction());
+        filter.addAction(BroadcastEvent.Type.CONFERENCE_TERMINATED.getAction());
+        filter.addAction(BroadcastEvent.Type.READY_TO_CLOSE.getAction());
+        LocalBroadcastManager.getInstance(getContext()).registerReceiver(conferenceReceiver, filter);
+    }
+
+    @Override
+    protected void handleOnDestroy() {
+        LocalBroadcastManager.getInstance(getContext()).unregisterReceiver(conferenceReceiver);
+    }
+
+    @PluginMethod
+    public void start(PluginCall call) {
+        if (!isTrusted(call)) return;
+        JitsiSession session = validatedSession(call);
+        if (session == null) return;
+        retrySession = session;
+        if (getPermissionState("camera") != PermissionState.GRANTED
+            || getPermissionState("microphone") != PermissionState.GRANTED) {
+            requestPermissionForAliases(new String[] { "camera", "microphone" }, call, "onCallPermissions");
+            return;
+        }
+        launch(call, session);
+    }
+
+    @PermissionCallback
+    private void onCallPermissions(PluginCall call) {
+        if (!isTrusted(call)) return;
+        if (getPermissionState("camera") != PermissionState.GRANTED
+            || getPermissionState("microphone") != PermissionState.GRANTED) {
+            emit("error", "permission_denied");
+            call.resolve(outcome("permission_denied"));
+            return;
+        }
+        JitsiSession session = validatedSession(call);
+        if (session != null) launch(call, session);
+    }
+
+    @PluginMethod
+    public void hangup(PluginCall call) {
+        if (!isTrusted(call)) return;
+        LocalBroadcastManager.getInstance(getContext()).sendBroadcast(BroadcastIntentHelper.buildHangUpIntent());
+        call.resolve(outcome("requested"));
+    }
+
+    @PluginMethod
+    public void retry(PluginCall call) {
+        if (!isTrusted(call)) return;
+        if (!terminal || retrySession == null) {
+            call.reject("No terminal native conference is available to retry");
+            return;
+        }
+        launch(call, retrySession);
+    }
+
+    private void launch(PluginCall call, JitsiSession session) {
+        try {
+            JitsiMeetConferenceOptions options = new JitsiMeetConferenceOptions.Builder()
+                .setServerURL(new URL(session.endpoint))
+                .setRoom(session.roomReference)
+                .setToken(session.accessToken)
+                .setFeatureFlag("welcomepage.enabled", false)
+                .setFeatureFlag("recording.enabled", false)
+                .setFeatureFlag("live-streaming.enabled", false)
+                .setFeatureFlag("invite.enabled", false)
+                .setFeatureFlag("calendar.enabled", false)
+                .setFeatureFlag("add-people.enabled", false)
+                .setFeatureFlag("analytics.enabled", false)
+                .build();
+            terminal = false;
+            JitsiMeetActivity.launch(getContext(), options);
+            call.resolve(outcome("started"));
+        } catch (Exception ignored) {
+            terminal = true;
+            emit("error", "launch_failed");
+            call.resolve(outcome("launch_failed"));
+        }
+    }
+
+    private JitsiSession validatedSession(PluginCall call) {
+        String endpoint = call.getString("endpoint", "");
+        String room = call.getString("roomReference", "");
+        String token = call.getString("accessToken", "");
+        if (!ShellVariant.jitsiEndpoint().equals(endpoint)
+            || !room.matches("[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
+            || token.isBlank()) {
+            call.reject("Invalid native conference session");
+            return null;
+        }
+        return new JitsiSession(endpoint, room, token);
+    }
+
+    private boolean isTrusted(PluginCall call) {
+        if (TrustedOriginGate.isTrusted(getBridge().getWebView())) return true;
+        call.reject("Unavailable from this page");
+        return false;
+    }
+
+    private void emit(String state, String code) {
+        JSObject event = outcome(state);
+        if (code != null) event.put("code", code);
+        notifyListeners("conference", event);
+    }
+
+    private static String conferenceError(BroadcastEvent event) {
+        Object value = event.getData().get("error");
+        if (!(value instanceof String)) return null;
+        String code = (String) value;
+        return code.matches("[A-Za-z0-9._-]{1,80}") ? code : "conference_error";
+    }
+
+    private static JSObject outcome(String state) {
+        JSObject value = new JSObject();
+        value.put("state", state);
+        return value;
+    }
+
+    private static final class JitsiSession {
+        final String endpoint;
+        final String roomReference;
+        final String accessToken;
+
+        JitsiSession(String endpoint, String roomReference, String accessToken) {
+            this.endpoint = endpoint;
+            this.roomReference = roomReference;
+            this.accessToken = accessToken;
+        }
+    }
+}
