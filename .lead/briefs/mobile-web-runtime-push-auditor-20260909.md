@@ -13,7 +13,8 @@ schema/migrations, integrator/provider delivery, video/media paths, data/service
 ## Mandatory reading and blind order
 
 Run the AGENTS.md heading map; read the global decision method, §1/§1b, §2–§5, §9–§12, §15–§17, §21–§22 and
-§24 completely, with §10a/§10b before opening tests. Read the complete active plan M1/M3/M6/M7,
+§24 completely, with §10a/§10b before opening tests. Read the complete active plan
+`docs/_TODO/NATIVE_MOBILE_APP_INITIATIVE/MASTER_PLAN.md` M1/M3/M6/M7,
 `apps/mobile-shell/README.md`, accepted native/push audit evidence, existing platform/PWA/web-push docs and the
 exact base→candidate diff. Persist the kill-set below before reading tests in
 `.lead/runs/mobile-web-runtime-push-audit-20260909/00-blind-killset.md`.

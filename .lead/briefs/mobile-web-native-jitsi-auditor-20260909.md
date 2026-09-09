@@ -13,7 +13,8 @@ not fix product code or touch Android, PWA/push/media, schema/backend/provider c
 ## Mandatory reading and blind order
 
 Run the AGENTS.md heading map; read the global decision method, §1/§1b, §5, §9–§12, §15–§17, §21 and §24
-completely, with §10a/§10b before tests. Read the active mobile plan M3/M4/M7, landed `#1100` authority/evidence,
+completely, with §10a/§10b before tests. Read the active mobile plan
+`docs/_TODO/NATIVE_MOBILE_APP_INITIATIVE/MASTER_PLAN.md` M3/M4/M7, landed `#1100` authority/evidence,
 accepted native/runtime audit evidence, video module docs and exact base→candidate diff. Persist the kill-set below
 before reading tests in `.lead/runs/mobile-web-native-jitsi-audit-20260909/00-blind-killset.md`.
 

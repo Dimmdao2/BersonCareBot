@@ -10,7 +10,8 @@ delivery, product page copies, data/services or PROD.
 
 Run `grep -n "^## \|^### " AGENTS.md`; read the global decision method, §1/§1b, §5, §7, §9–§12, §15–§17,
 §21 and §24 completely. Read `README.md`, `docs/README.md`, server/local-dev conventions,
-`docs/ORCHESTRATION_BINDINGS.md`, the complete active mobile plan M3/M4/M7, the current taskdb `#1100` plan and
+`docs/ORCHESTRATION_BINDINGS.md`, the complete active mobile plan
+`docs/_TODO/NATIVE_MOBILE_APP_INITIATIVE/MASTER_PLAN.md` M3/M4/M7, the current taskdb `#1100` plan and
 final landed evidence, `apps/mobile-shell/README.md`, accepted native/runtime audits, video module docs and every
 touched implementation before changing code. Use code-search before exact `rg`.
 
