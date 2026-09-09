@@ -48,6 +48,17 @@ import {
   doctorMetaTextClass,
 } from '@/shared/ui/doctor/doctorVisual';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
+import { useNativeRuntime } from '@/shared/hooks/useNativeRuntime';
+import {
+  browserDeviceMediaSelection,
+  captureDeviceMedia,
+  isNativeDeviceMediaAvailable,
+  pickDeviceDocument,
+  pickDeviceMediaFromGallery,
+  type DeviceMediaPickResult,
+  type DeviceMediaSelection,
+} from '@/shared/lib/deviceMedia';
+import { deviceMediaMultipartUpload } from '@/shared/lib/media/deviceMediaMultipartUpload';
 
 // ---------------------------------------------------------------------------
 // Types — match API response
@@ -136,25 +147,71 @@ function uploadErrorMessage(error: string | undefined): string {
 
 type FilesHeaderActionsProps = {
   disabled: boolean;
-  onPickFile: (file: File) => void;
+  onPickFile: (selection: DeviceMediaSelection) => void;
 };
 
 /**
- * Три действия справа от заголовка. Все три — нативные `<input type="file">` с разным
- * accept/capture (браузерное поведение, без кастомного UI выбора): камера открывает
- * компактный выбор «Фото / Видео» и затем нужный capture-mode; медиатека — библиотека без
- * предложения камеры; документ — системный выбор файлов (без accept-фильтра под изображения).
+ * Три действия справа от заголовка. Browser/PWA — те же `<input type="file">` с разным
+ * accept/capture, без кастомного UI выбора: камера открывает компактный выбор «Фото / Видео» и
+ * затем нужный capture-mode; медиатека — библиотека без предложения камеры; документ — системный
+ * выбор файлов (без accept-фильтра под изображения). Inside the Capacitor shell the same three
+ * actions call `DeviceMedia` instead (M5-01): the browser inputs stay mounted and unchanged as the
+ * fallback for a rejected/absent native call (M5-06).
  */
 function FilesHeaderActions({ disabled, onPickFile }: FilesHeaderActionsProps) {
+  const nativeRuntime = useNativeRuntime();
+  const nativeMediaAvailable = isNativeDeviceMediaAvailable(nativeRuntime);
   const cameraPhotoRef = useRef<HTMLInputElement>(null);
   const cameraVideoRef = useRef<HTMLInputElement>(null);
   const libraryRef = useRef<HTMLInputElement>(null);
   const documentRef = useRef<HTMLInputElement>(null);
 
-  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (file) onPickFile(file);
+  function handleChange(source: 'camera' | 'gallery' | 'document') {
+    return (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      e.target.value = '';
+      if (file) onPickFile(browserDeviceMediaSelection(file, source));
+    };
+  }
+
+  function handleNativePick(pick: DeviceMediaPickResult, fallback: () => void) {
+    if (pick.outcome === 'selected') {
+      onPickFile(pick.selection);
+      return;
+    }
+    if (pick.outcome === 'unavailable') fallback();
+  }
+
+  async function onCameraPhoto() {
+    if (nativeMediaAvailable) {
+      handleNativePick(await captureDeviceMedia('photo'), () => cameraPhotoRef.current?.click());
+      return;
+    }
+    cameraPhotoRef.current?.click();
+  }
+
+  async function onCameraVideo() {
+    if (nativeMediaAvailable) {
+      handleNativePick(await captureDeviceMedia('video'), () => cameraVideoRef.current?.click());
+      return;
+    }
+    cameraVideoRef.current?.click();
+  }
+
+  async function onLibrary() {
+    if (nativeMediaAvailable) {
+      handleNativePick(await pickDeviceMediaFromGallery(), () => libraryRef.current?.click());
+      return;
+    }
+    libraryRef.current?.click();
+  }
+
+  async function onDocument() {
+    if (nativeMediaAvailable) {
+      handleNativePick(await pickDeviceDocument(['*/*']), () => documentRef.current?.click());
+      return;
+    }
+    documentRef.current?.click();
   }
 
   return (
@@ -167,7 +224,7 @@ function FilesHeaderActions({ disabled, onPickFile }: FilesHeaderActionsProps) {
         className="sr-only"
         tabIndex={-1}
         aria-hidden
-        onChange={handleChange}
+        onChange={handleChange('camera')}
       />
       <input
         ref={cameraVideoRef}
@@ -177,7 +234,7 @@ function FilesHeaderActions({ disabled, onPickFile }: FilesHeaderActionsProps) {
         className="sr-only"
         tabIndex={-1}
         aria-hidden
-        onChange={handleChange}
+        onChange={handleChange('camera')}
       />
       <input
         ref={libraryRef}
@@ -186,7 +243,7 @@ function FilesHeaderActions({ disabled, onPickFile }: FilesHeaderActionsProps) {
         className="sr-only"
         tabIndex={-1}
         aria-hidden
-        onChange={handleChange}
+        onChange={handleChange('gallery')}
       />
       <input
         ref={documentRef}
@@ -194,7 +251,7 @@ function FilesHeaderActions({ disabled, onPickFile }: FilesHeaderActionsProps) {
         className="sr-only"
         tabIndex={-1}
         aria-hidden
-        onChange={handleChange}
+        onChange={handleChange('document')}
       />
 
       <DropdownMenu>
@@ -209,8 +266,8 @@ function FilesHeaderActions({ disabled, onPickFile }: FilesHeaderActionsProps) {
           <Camera className="size-4" aria-hidden />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={() => cameraPhotoRef.current?.click()}>Фото</DropdownMenuItem>
-          <DropdownMenuItem onClick={() => cameraVideoRef.current?.click()}>Видео</DropdownMenuItem>
+          <DropdownMenuItem onClick={() => void onCameraPhoto()}>Фото</DropdownMenuItem>
+          <DropdownMenuItem onClick={() => void onCameraVideo()}>Видео</DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
 
@@ -219,7 +276,7 @@ function FilesHeaderActions({ disabled, onPickFile }: FilesHeaderActionsProps) {
         variant="ghost"
         title="Медиатека"
         disabled={disabled}
-        onClick={() => libraryRef.current?.click()}
+        onClick={() => void onLibrary()}
         className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border p-0 text-muted-foreground hover:bg-muted hover:text-foreground md:hidden"
       >
         <ImageIcon className="size-4" aria-hidden />
@@ -230,7 +287,7 @@ function FilesHeaderActions({ disabled, onPickFile }: FilesHeaderActionsProps) {
         variant="ghost"
         title="Документ"
         disabled={disabled}
-        onClick={() => documentRef.current?.click()}
+        onClick={() => void onDocument()}
         className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border p-0 text-muted-foreground hover:bg-muted hover:text-foreground md:hidden"
       >
         <FilePlus className="size-4" aria-hidden />
@@ -241,7 +298,7 @@ function FilesHeaderActions({ disabled, onPickFile }: FilesHeaderActionsProps) {
         variant="secondary"
         title="Загрузить файл"
         disabled={disabled}
-        onClick={() => documentRef.current?.click()}
+        onClick={() => void onDocument()}
         className="hidden md:inline-flex"
       >
         Загрузить файл
@@ -591,7 +648,39 @@ export function PatientTabFiles({
 
   const previewFile = files.find((f) => f.id === previewFileId) ?? null;
 
-  async function uploadPickedFile(file: File) {
+  /** Native selection (M5-04): large media stays a native content URI and streams through the
+   * same already-authorized multipart door the single-PUT browser path already uses below. */
+  async function uploadNativePickedMedia(selection: Extract<DeviceMediaSelection, { origin: 'native' }>) {
+    setUploading(true);
+    setUploadError(null);
+    try {
+      await deviceMediaMultipartUpload({
+        selection,
+        begin: {
+          url: `/api/doctor/patients/${userId}/files`,
+          extraBody: {
+            category: DEFAULT_UPLOAD_CATEGORY,
+            fileName: selection.displayName,
+            sizeBytes: selection.sizeBytes,
+          },
+        },
+        signal: new AbortController().signal,
+        onProgress: () => {},
+      });
+      await loadFiles();
+    } catch {
+      setUploadError('Сетевая ошибка при загрузке файла');
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function uploadPickedFile(selection: DeviceMediaSelection) {
+    if (selection.origin === 'native') {
+      await uploadNativePickedMedia(selection);
+      return;
+    }
+    const file = selection.file;
     setUploading(true);
     setUploadError(null);
     try {

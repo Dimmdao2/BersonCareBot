@@ -33,7 +33,16 @@ import { DoctorDifficulty1to10Slider } from '@/shared/ui/doctor/DoctorDifficulty
 import { ReferenceMultiSelect } from '@/shared/ui/doctor/ReferenceMultiSelect';
 import { ReferenceSelect } from '@/shared/ui/doctor/ReferenceSelect';
 import { EXERCISE_LOAD_TYPE_CATEGORY_CODE } from '@/modules/lfk-exercises/exerciseLoadTypeReference';
-import { putWithProgress } from '@/shared/ui/doctor/media/uploadWithProgress';
+import { putWithProgress } from '@/shared/lib/media/uploadTransport';
+import { deviceMediaMultipartUpload } from '@/shared/lib/media/deviceMediaMultipartUpload';
+import { useNativeRuntime } from '@/shared/hooks/useNativeRuntime';
+import {
+  browserDeviceMediaSelection,
+  deviceMediaSelectionFilename,
+  isNativeDeviceMediaAvailable,
+  pickDeviceMediaFromGallery,
+  type DeviceMediaSelection,
+} from '@/shared/lib/deviceMedia';
 import type { TreatmentProgramLibraryPickType } from '@/modules/treatment-program/types';
 import type { TreatmentProgramInstanceStageItemView } from '@/modules/treatment-program/types';
 import {
@@ -188,6 +197,8 @@ export function InstanceAddLibraryItemDialog(props: {
   editLocked: boolean;
 }) {
   const { patientGenitive } = useDoctorPatientTerms();
+  const nativeRuntime = useNativeRuntime();
+  const nativeMediaAvailable = isNativeDeviceMediaAvailable(nativeRuntime);
   const { open, onOpenChange, spec, library, editLocked } = props;
   const { addItemCreate, deleteItem, displayDetail } = useInstanceEditorDraft();
   const [itemSearch, setItemSearch] = useState('');
@@ -207,7 +218,7 @@ export function InstanceAddLibraryItemDialog(props: {
   const [individualDifficulty, setIndividualDifficulty] = useState(5);
   const [individualContraindications, setIndividualContraindications] = useState('');
   const [individualTags, setIndividualTags] = useState('');
-  const [individualVideo, setIndividualVideo] = useState<File | null>(null);
+  const [individualVideo, setIndividualVideo] = useState<DeviceMediaSelection | null>(null);
   const [individualSaveToCatalog, setIndividualSaveToCatalog] = useState(false);
   const [individualReps, setIndividualReps] = useState('');
   const [individualSets, setIndividualSets] = useState('');
@@ -426,7 +437,21 @@ export function InstanceAddLibraryItemDialog(props: {
     return parsed;
   }
 
-  async function uploadIndividualVideo(file: File): Promise<string> {
+  async function uploadIndividualVideo(selection: DeviceMediaSelection): Promise<string> {
+    if (selection.origin === 'native') {
+      // M5-04: large media stays a native content URI, streamed through the same
+      // already-authorized multipart door this destination already exposes (`uploadMode`).
+      const { mediaId } = await deviceMediaMultipartUpload({
+        selection,
+        begin: {
+          url: `/api/doctor/treatment-program-instances/${encodeURIComponent(displayDetail.id)}/media-presign`,
+        },
+        signal: new AbortController().signal,
+        onProgress: () => {},
+      });
+      return mediaId;
+    }
+    const file = selection.file;
     const presign = await fetch(
       `/api/doctor/treatment-program-instances/${encodeURIComponent(displayDetail.id)}/media-presign`,
       {
@@ -462,6 +487,16 @@ export function InstanceAddLibraryItemDialog(props: {
       throw new Error(confirmData?.error ?? 'Не удалось подтвердить загрузку видео');
     }
     return presignData.mediaId;
+  }
+
+  async function onPickIndividualVideoNative() {
+    const pick = await pickDeviceMediaFromGallery();
+    if (pick.outcome !== 'selected') return;
+    if (pick.selection.kind !== 'video') {
+      setError('Выберите видео');
+      return;
+    }
+    setIndividualVideo(pick.selection);
   }
 
   async function submitIndividualExercise() {
@@ -697,13 +732,34 @@ export function InstanceAddLibraryItemDialog(props: {
               </div>
               <div className="flex flex-col gap-2">
                 <Label htmlFor="tp-individual-video">Видео</Label>
-                <Input
-                  id="tp-individual-video"
-                  type="file"
-                  accept="video/*"
-                  disabled={editLocked || individualBusy}
-                  onChange={(event) => setIndividualVideo(event.target.files?.[0] ?? null)}
-                />
+                {nativeMediaAvailable ? (
+                  <div className="flex flex-col gap-1">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={editLocked || individualBusy}
+                      onClick={() => void onPickIndividualVideoNative()}
+                    >
+                      {individualVideo ? 'Заменить видео…' : 'Выбрать видео…'}
+                    </Button>
+                    {individualVideo ? (
+                      <span className="text-xs text-muted-foreground">
+                        {deviceMediaSelectionFilename(individualVideo)}
+                      </span>
+                    ) : null}
+                  </div>
+                ) : (
+                  <Input
+                    id="tp-individual-video"
+                    type="file"
+                    accept="video/*"
+                    disabled={editLocked || individualBusy}
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      setIndividualVideo(file ? browserDeviceMediaSelection(file, 'gallery') : null);
+                    }}
+                  />
+                )}
                 <p className="text-xs text-muted-foreground">
                   После сохранения программы видео нельзя заменить.
                 </p>

@@ -22,10 +22,7 @@ import type { MediaExerciseUsageEntry, MediaFolderRecord } from '@/modules/media
 import { cn } from '@/lib/utils';
 import { PickerSearchField } from '@/shared/ui/doctor/PickerSearchField';
 import { fetchAdminMediaListItem } from '@/shared/ui/doctor/media/fetchAdminMediaListItem';
-import {
-  UploadRequestError,
-  uploadWithProgress,
-} from '@/shared/ui/doctor/media/uploadWithProgress';
+import { UploadRequestError, uploadWithProgress } from '@/shared/lib/media/uploadTransport';
 import { FILE_INPUT_ACCEPT } from '@/modules/media/uploadAllowedMime';
 import { MediaLibraryFolderScopeSelect } from '@/shared/ui/doctor/media/MediaLibraryFolderScopeSelect';
 import { mediaFolderPathLabel } from '@/shared/ui/doctor/media/mediaFolderScopeUtils';
@@ -39,6 +36,13 @@ import {
   mediaLibraryListSortLabel,
   parseMediaLibraryListSortPreset,
 } from '@/shared/ui/doctor/media/mediaLibraryListSortOptions';
+import { useNativeRuntime } from '@/shared/hooks/useNativeRuntime';
+import {
+  isNativeDeviceMediaAvailable,
+  pickDeviceMediaFromGallery,
+  type DeviceMediaNativeSelection,
+} from '@/shared/lib/deviceMedia';
+import { deviceMediaMultipartUpload } from '@/shared/lib/media/deviceMediaMultipartUpload';
 
 function kindFromMimeForListItem(mimeType: string): MediaListItem['kind'] {
   const lower = mimeType.toLowerCase();
@@ -164,6 +168,8 @@ export function MediaPickerPanel({
   showSort,
   showFolderScope = true,
 }: MediaPickerPanelProps) {
+  const nativeRuntime = useNativeRuntime();
+  const nativeMediaAvailable = isNativeDeviceMediaAvailable(nativeRuntime);
   const [query, setQuery] = useState('');
   const [listSortPreset, setListSortPreset] = useState<MediaLibraryListSortPreset>('date:desc');
   const [folders, setFolders] = useState<MediaFolderRecord[]>([]);
@@ -429,6 +435,61 @@ export function MediaPickerPanel({
     [handleUploadFile],
   );
 
+  /**
+   * Native selection (M5-01/M5-04): streams through the same authorized `mediaUploadAdapter` CMS
+   * multipart door the library screen already uses — no second CMS upload backend.
+   */
+  const handleUploadNativeSelection = useCallback(
+    async (selection: DeviceMediaNativeSelection) => {
+      setUploadError(null);
+      setUploading(true);
+      setUploadProgress(0);
+      try {
+        const { mediaId } = await deviceMediaMultipartUpload({
+          selection,
+          begin: { url: '/api/media/multipart/init', extraBody: { folderId: uploadTargetFolderId } },
+          signal: new AbortController().signal,
+          onProgress: (loaded, total) => {
+            if (total > 0) setUploadProgress(Math.round((100 * loaded) / total));
+          },
+        });
+        const row = await fetchAdminMediaListItem(mediaId);
+        if (!row) {
+          setUploadError(
+            'Файл загружен, но не удалось получить данные для выбора. Обновите список в библиотеке.',
+          );
+          return;
+        }
+        if (!isPickedRowAllowedForKind(row, kind)) {
+          setUploadError(uploadKindRejectedRuMessage(kind));
+          return;
+        }
+        invalidateMediaLibraryPickerListCache(listUrl);
+        setLibraryReloadKey((k) => k + 1);
+        onPick(row);
+      } catch {
+        setUploadError(mapUploadErrorByCode(undefined));
+      } finally {
+        setUploading(false);
+        setUploadProgress(0);
+      }
+    },
+    [onPick, uploadTargetFolderId, kind, listUrl],
+  );
+
+  async function onUploadButtonPress() {
+    if (nativeMediaAvailable && kind !== 'all') {
+      const pick = await pickDeviceMediaFromGallery();
+      if (pick.outcome === 'selected') {
+        await handleUploadNativeSelection(pick.selection);
+        return;
+      }
+      if (pick.outcome === 'unavailable') fileInputRef.current?.click();
+      return;
+    }
+    fileInputRef.current?.click();
+  }
+
   return (
     <Tabs defaultValue="library" className="flex flex-col gap-3">
       <TabsList className="w-full justify-start">
@@ -569,7 +630,7 @@ export function MediaPickerPanel({
             variant="outline"
             disabled={uploading}
             aria-label="Выбрать файл для загрузки в медиабиблиотеку"
-            onClick={() => fileInputRef.current?.click()}
+            onClick={() => void onUploadButtonPress()}
           >
             Выбрать файл…
           </Button>

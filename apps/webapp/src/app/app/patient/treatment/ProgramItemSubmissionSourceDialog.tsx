@@ -4,10 +4,23 @@ import { forwardRef, useCallback, useImperativeHandle, useRef, useState } from '
 import { Camera, FolderOpen, ImageIcon } from 'lucide-react';
 import { Button } from '@/shared/ui/patient/primitives/button';
 import { PatientModal } from '@/shared/ui/patient/PatientModal';
-import { PROGRAM_SUBMISSION_FILE_INPUT_ACCEPT } from '@/modules/media/programSubmissionUploadLimits';
+import {
+  MIN_PROGRAM_SUBMISSION_VIDEO_DURATION_SECONDS,
+  PROGRAM_SUBMISSION_FILE_INPUT_ACCEPT,
+} from '@/modules/media/programSubmissionUploadLimits';
 import { uploadProgramSubmissionToDiscussion } from '@/app/app/patient/treatment/uploadProgramSubmissionToDiscussion';
+import { waitForProgramSubmissionMediaReady } from '@/app/app/patient/treatment/uploadProgramSubmissionMedia';
+import { attachProgramItemDiscussionMedia } from '@/app/app/patient/treatment/attachProgramItemDiscussionMedia';
 import { cn } from '@/lib/utils';
 import { patientPrimaryActionClass } from '@/shared/ui/patient/patientVisual';
+import { useNativeRuntime } from '@/shared/hooks/useNativeRuntime';
+import {
+  captureDeviceMedia,
+  isNativeDeviceMediaAvailable,
+  pickDeviceMediaFromGallery,
+  type DeviceMediaPickResult,
+} from '@/shared/lib/deviceMedia';
+import { deviceMediaMultipartUpload } from '@/shared/lib/media/deviceMediaMultipartUpload';
 
 export type ProgramItemSubmissionSourceDialogHandle = {
   open: () => void;
@@ -45,6 +58,8 @@ export const ProgramItemSubmissionSourceDialog = forwardRef<
   }
 >(function ProgramItemSubmissionSourceDialog(props, ref) {
   const { instanceId, itemId, disabled, onUploaded, onError } = props;
+  const nativeRuntime = useNativeRuntime();
+  const nativeMediaAvailable = isNativeDeviceMediaAvailable(nativeRuntime);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const recordInputRef = useRef<HTMLInputElement>(null);
@@ -87,6 +102,99 @@ export const ProgramItemSubmissionSourceDialog = forwardRef<
     [busy, disabled, instanceId, itemId, onError, onUploaded],
   );
 
+  /**
+   * Native selection (M5-01/M5-04): большое видео остаётся native content URI и стримится через
+   * тот же multipart-путь, что уже авторизован для этой submission-двери; duration/access/attach
+   * поведение — то же, что и у browser-пути выше (`processFile`).
+   */
+  const processNativeSelection = useCallback(
+    async (pick: DeviceMediaPickResult, fallback: () => void) => {
+      if (pick.outcome === 'unavailable') {
+        fallback();
+        return;
+      }
+      if (pick.outcome === 'cancelled' || disabled || busy) return;
+      const { selection } = pick;
+      const isVideo = selection.kind === 'video';
+      setBusy(true);
+      setOpen(false);
+      resetIosMobileZoom();
+      try {
+        if (isVideo) {
+          if (selection.durationSeconds === null) {
+            onError?.('video_metadata_unavailable');
+            return;
+          }
+          if (selection.durationSeconds < MIN_PROGRAM_SUBMISSION_VIDEO_DURATION_SECONDS) {
+            onError?.('video_too_short');
+            return;
+          }
+        }
+        const { mediaId } = await deviceMediaMultipartUpload({
+          selection,
+          begin: {
+            url: '/api/patient/media/program-submission/presign',
+            extraBody: {
+              instanceId,
+              ...(isVideo ? { durationSeconds: selection.durationSeconds } : {}),
+            },
+          },
+          signal: new AbortController().signal,
+          onProgress: () => {},
+        });
+        if (isVideo) {
+          const ready = await waitForProgramSubmissionMediaReady(mediaId, instanceId);
+          if (!ready) {
+            onError?.('video_processing_timeout');
+            return;
+          }
+        }
+        const attached = await attachProgramItemDiscussionMedia({ instanceId, itemId, mediaFileId: mediaId });
+        if (!attached.ok) {
+          onError?.(attached.error);
+          return;
+        }
+        await onUploaded?.();
+      } catch {
+        onError?.('network_error');
+      } finally {
+        setBusy(false);
+      }
+    },
+    [busy, disabled, instanceId, itemId, onError, onUploaded],
+  );
+
+  async function onRecordPress() {
+    if (disabled || busy) return;
+    if (nativeMediaAvailable) {
+      await processNativeSelection(await captureDeviceMedia('photo'), () => recordInputRef.current?.click());
+      return;
+    }
+    recordInputRef.current?.click();
+  }
+
+  async function onGalleryPress() {
+    if (disabled || busy) return;
+    if (nativeMediaAvailable) {
+      await processNativeSelection(await pickDeviceMediaFromGallery({ requiresDuration: true }), () =>
+        galleryInputRef.current?.click(),
+      );
+      return;
+    }
+    galleryInputRef.current?.click();
+  }
+
+  async function onFilesPress() {
+    if (disabled || busy) return;
+    if (nativeMediaAvailable) {
+      await processNativeSelection(await pickDeviceMediaFromGallery({ requiresDuration: true }), () =>
+        fileInputRef.current?.click(),
+      );
+      return;
+    }
+    fileInputRef.current?.click();
+  }
+
   return (
     <>
       <input
@@ -128,7 +236,7 @@ export const ProgramItemSubmissionSourceDialog = forwardRef<
             type="button"
             className={cn(patientPrimaryActionClass, 'justify-start gap-2')}
             disabled={disabled || busy}
-            onClick={() => recordInputRef.current?.click()}
+            onClick={() => void onRecordPress()}
           >
             <Camera className="size-4 shrink-0" aria-hidden />
             Записать
@@ -138,7 +246,7 @@ export const ProgramItemSubmissionSourceDialog = forwardRef<
             variant="outline"
             className="justify-start gap-2"
             disabled={disabled || busy}
-            onClick={() => galleryInputRef.current?.click()}
+            onClick={() => void onGalleryPress()}
           >
             <ImageIcon className="size-4 shrink-0" aria-hidden />
             Галерея
@@ -148,7 +256,7 @@ export const ProgramItemSubmissionSourceDialog = forwardRef<
             variant="outline"
             className="justify-start gap-2"
             disabled={disabled || busy}
-            onClick={() => fileInputRef.current?.click()}
+            onClick={() => void onFilesPress()}
           >
             <FolderOpen className="size-4 shrink-0" aria-hidden />
             Файлы

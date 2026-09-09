@@ -42,10 +42,15 @@ import {
 import { Separator } from '@/shared/ui/doctor/primitives/separator';
 import { FILE_INPUT_ACCEPT } from '@/modules/media/uploadAllowedMime';
 import { libraryMultipartAbort, libraryMultipartUpload } from './libraryMultipartUpload';
+import { UploadRequestError, uploadWithProgress } from '@/shared/lib/media/uploadTransport';
+import { deviceMediaMultipartUpload } from '@/shared/lib/media/deviceMediaMultipartUpload';
 import {
-  UploadRequestError,
-  uploadWithProgress,
-} from '@/shared/ui/doctor/media/uploadWithProgress';
+  captureDeviceMedia,
+  isNativeDeviceMediaAvailable,
+  pickDeviceMediaFromGallery,
+  type DeviceMediaPickResult,
+} from '@/shared/lib/deviceMedia';
+import { useNativeRuntime } from '@/shared/hooks/useNativeRuntime';
 import { MediaCard } from './MediaCard';
 import { MediaCardActionsMenu } from './MediaCardActionsMenu';
 import { MediaLightbox } from './MediaLightbox';
@@ -391,6 +396,8 @@ export function MediaLibraryClient({
   canSeeDeleteErrorsLink = false,
 }: MediaLibraryClientProps = {}) {
   const { patientSingularLabel } = useDoctorPatientTerms();
+  const nativeRuntime = useNativeRuntime();
+  const nativeMediaAvailable = isNativeDeviceMediaAvailable(nativeRuntime);
   const [kind, setKind] = useState<MediaKindFilter>('all');
   const [sortBy, setSortBy] = useState<SortBy>('date');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
@@ -790,6 +797,69 @@ export function MediaLibraryClient({
         setUploadStatus(null);
       }, 1200);
     }
+  }
+
+  /**
+   * Native camera/gallery selection (M5-01/M5-04): large media stays a native content URI and
+   * streams through the same authorized multipart door the browser path already uses — no second
+   * upload backend, no base64 bridge.
+   */
+  async function uploadNativeSelection(pick: DeviceMediaPickResult) {
+    if (pick.outcome !== 'selected' || uploadBlockedAtClientRoot) return;
+    setUploading(true);
+    setUploadPercent(0);
+    setUploadStatus(pick.selection.displayName);
+    setError(null);
+    multipartSessionRef.current = null;
+    const ac = new AbortController();
+    uploadAbortRef.current = ac;
+    try {
+      await deviceMediaMultipartUpload({
+        selection: pick.selection,
+        begin: { url: '/api/media/multipart/init', extraBody: { folderId: uploadTargetFolderIdResolved } },
+        signal: ac.signal,
+        onSessionReady: (sid) => {
+          multipartSessionRef.current = sid;
+        },
+        onProgress: (loaded, total) => {
+          setUploadPercent(Math.max(0, Math.min(100, Math.round((100 * loaded) / (total || 1)))));
+        },
+      });
+      if (!ac.signal.aborted) {
+        setUploadStatus('Загрузка завершена');
+        setReloadKey((x) => x + 1);
+      }
+    } catch {
+      if (multipartSessionRef.current && !ac.signal.aborted) {
+        void libraryMultipartAbort(multipartSessionRef.current);
+      }
+      setError(ac.signal.aborted ? 'Загрузка отменена' : 'Не удалось загрузить файл');
+      if (!ac.signal.aborted) setUploadStatus('Загрузка остановлена из-за ошибки');
+    } finally {
+      uploadAbortRef.current = null;
+      multipartSessionRef.current = null;
+      setUploading(false);
+      setTimeout(() => {
+        setUploadPercent(null);
+        setUploadStatus(null);
+      }, 1200);
+    }
+  }
+
+  async function onMobileCapturePress() {
+    if (nativeMediaAvailable) {
+      await uploadNativeSelection(await captureDeviceMedia('photo'));
+      return;
+    }
+    mobileCaptureInputRef.current?.click();
+  }
+
+  async function onMobileFilesPress() {
+    if (nativeMediaAvailable) {
+      await uploadNativeSelection(await pickDeviceMediaFromGallery());
+      return;
+    }
+    mobileFilesInputRef.current?.click();
   }
 
   async function onUploadFile(e: ChangeEvent<HTMLInputElement>) {
@@ -1567,7 +1637,7 @@ export function MediaLibraryClient({
                   variant="outline"
                   className="h-10"
                   disabled={uploading || uploadBlockedAtClientRoot}
-                  onClick={() => mobileCaptureInputRef.current?.click()}
+                  onClick={() => void onMobileCapturePress()}
                 >
                   Снять фото/видео
                 </Button>
@@ -1576,7 +1646,7 @@ export function MediaLibraryClient({
                   variant="outline"
                   className="h-10"
                   disabled={uploading || uploadBlockedAtClientRoot}
-                  onClick={() => mobileFilesInputRef.current?.click()}
+                  onClick={() => void onMobileFilesPress()}
                 >
                   {uploading ? 'Загрузка...' : 'Выбрать из файлов'}
                 </Button>
