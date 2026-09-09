@@ -3,7 +3,7 @@
 ## Authority and scope
 
 - Continue only in `/home/dev/dev-projects/bcb-wt-mobile-web-native-jitsi-20260909` on `wt/mobile-web-native-jitsi-20260909`; this is the closing same-branch product pass for the existing independent finding.
-- Before every action follow the heading-map gate and read the relevant `AGENTS.md` §5, §9–§10b, §12 and §24 plus mobile plan M3/M4/M7, the original audit report, retained `VideoMeetingStage.ui.test.tsx`, and first correction `3b86797a9`.
+- Before every action follow the heading-map gate and read the relevant `AGENTS.md` §5, §9–§10b, §12 and §24 plus `docs/_TODO/NATIVE_MOBILE_APP_INITIATIVE/MASTER_PLAN.md` M3/M4/M7, the original audit report, retained `VideoMeetingStage.ui.test.tsx`, and first correction `3b86797a9`.
 - Product code/contract documentation only. Do not edit or add tests, audit artifacts, plans, taskdb, queue, DB, deploy, unrelated UI or product callers. Do not push.
 
 ## Exact remaining failure class
