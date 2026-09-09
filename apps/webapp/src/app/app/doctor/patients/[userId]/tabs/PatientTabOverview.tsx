@@ -12,7 +12,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ListPlus, NotebookPen } from 'lucide-react';
+import { ListPlus, ListTodo, NotebookPen } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { PatientCardHeader, PatientAppointmentItem } from '@/modules/doctor-clients/ports';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
@@ -51,10 +51,7 @@ import {
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { DoctorStatCard } from '@/app/app/doctor/analytics/clients/DoctorStatCard';
 import { formatPatientPackageLongLabel } from '@/modules/memberships/display';
-import {
-  DoctorModal,
-  DoctorModalStackedTitle,
-} from '@/shared/ui/doctor/DoctorModal';
+import { DoctorModal, DoctorModalStackedTitle } from '@/shared/ui/doctor/DoctorModal';
 import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
 import { DoctorCatalogMediaStaticThumb } from '@/shared/ui/doctor/media/DoctorCatalogMediaStaticThumb';
 import {
@@ -73,6 +70,7 @@ import { DoctorProgramItemDiscussionDialog } from '@/app/app/doctor/clients/[use
 import { DoctorAttentionBadge } from '@/shared/ui/doctor/DoctorAttentionBadge';
 import { formatDoctorFioShort } from '@/shared/lib/fio';
 import { SpecialistTaskFormDialog } from '@/app/app/doctor/clients/SpecialistTaskFormDialog';
+import { SpecialistTaskDetailsDialog } from '@/app/app/doctor/clients/SpecialistTaskDetailsDialog';
 import { SpecialistTaskRow as TaskRow } from '@/app/app/doctor/clients/SpecialistTaskRow';
 import {
   isSpecialistTaskDueOnDate,
@@ -86,6 +84,9 @@ import {
 } from '@/shared/ui/doctor/DoctorExerciseActivityCalendar';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 import { DoctorNotesPanel } from '@/app/app/doctor/clients/DoctorNotesPanel';
+import { DoctorModalSummaryBar } from '@/shared/ui/doctor/DoctorModalSummaryBar';
+import { DOCTOR_ACTIVE_FILTER_BUTTON_CLASS } from '@/shared/ui/doctor/calendar/DoctorSchedulePeriodNav';
+import { notifyDoctorTasksChanged } from '@/shared/ui/doctor/shell/doctorShellBadgeEvents';
 
 // ---------------------------------------------------------------------------
 // Backend response types
@@ -763,7 +764,7 @@ function buildSsrSeedData(
   const notesList = notes;
   const notesStatus: WidgetStatus = isBootstrapEnvelopeFailed(initialNotes) ? 'error' : 'ok';
 
-  const tasksList = tasks.filter((t) => !t.completedAt);
+  const tasksList = [...tasks];
   tasksList.sort((a, b) => {
     if (!a.dueAt && !b.dueAt) return 0;
     if (!a.dueAt) return 1;
@@ -953,7 +954,9 @@ export function PatientTabOverview({
   const [notesModalOpen, setNotesModalOpen] = useState(false);
   const [tasksModalOpen, setTasksModalOpen] = useState(false);
   const [taskFormOpen, setTaskFormOpen] = useState(false);
-  const [editingTask, setEditingTask] = useState<SpecialistTaskRow | null>(null);
+  const [taskView, setTaskView] = useState<'open' | 'completed'>('open');
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [taskBusy, setTaskBusy] = useState(false);
   const [stageExercisesModalOpen, setStageExercisesModalOpen] = useState(false);
   const [selectedStageExerciseId, setSelectedStageExerciseId] = useState<string | null>(null);
   const [stageExerciseDiscussionOpen, setStageExerciseDiscussionOpen] = useState(false);
@@ -1131,7 +1134,9 @@ export function PatientTabOverview({
     const fetchTasks =
       !specialistTasksReadable || (hasSsrData && ssrSeedRef.current === userId)
         ? Promise.resolve(null as TasksApiResponse | null)
-        : fetch(`/api/doctor/clients/${userId}/tasks`, { credentials: 'include' })
+        : fetch(`/api/doctor/clients/${userId}/tasks?includeCompleted=1`, {
+            credentials: 'include',
+          })
             .then((r) => (r.ok ? (r.json() as Promise<TasksApiResponse>) : null))
             .catch(() => null);
 
@@ -1260,10 +1265,10 @@ export function PatientTabOverview({
         let tasksList: SpecialistTaskRow[];
         let tasksStatus: WidgetStatus;
         if (usingSsrForClinical && unwrapBootstrapEnvelope(initialTasks) != null) {
-          tasksList = unwrapBootstrapEnvelope(initialTasks)!.filter((t) => !t.completedAt);
+          tasksList = [...unwrapBootstrapEnvelope(initialTasks)!];
           tasksStatus = 'ok';
         } else {
-          tasksList = (tasks?.tasks ?? []).filter((t) => !t.completedAt);
+          tasksList = [...(tasks?.tasks ?? [])];
           tasksStatus = !tasks ? 'error' : 'ok';
         }
         tasksList.sort((a, b) => {
@@ -1472,7 +1477,6 @@ export function PatientTabOverview({
       };
     });
     setTaskFormOpen(false);
-    setEditingTask(null);
   }
 
   function handleTaskDeleted(taskId: string) {
@@ -1480,7 +1484,34 @@ export function PatientTabOverview({
       prev ? { ...prev, tasks: prev.tasks.filter((task) => task.id !== taskId) } : prev,
     );
     setTaskFormOpen(false);
-    setEditingTask(null);
+    setSelectedTaskId(null);
+  }
+
+  async function handleTaskComplete(taskId: string): Promise<boolean> {
+    setTaskBusy(true);
+    try {
+      const response = await fetch(`/api/doctor/tasks/${encodeURIComponent(taskId)}/complete`, {
+        method: 'POST',
+      });
+      if (!response.ok) return false;
+      const result = (await response.json()) as { task?: SpecialistTaskRow };
+      if (!result.task) return false;
+      setData((current) =>
+        current
+          ? {
+              ...current,
+              tasks: current.tasks.map((task) => (task.id === taskId ? result.task! : task)),
+            }
+          : current,
+      );
+      setSelectedTaskId(null);
+      notifyDoctorTasksChanged();
+      return true;
+    } catch {
+      return false;
+    } finally {
+      setTaskBusy(false);
+    }
   }
 
   // Calendar month nav helpers
@@ -1609,6 +1640,13 @@ export function PatientTabOverview({
       ? selectSpecialistTasksDueTodayOrOverdue(data?.tasks ?? [], tasksTodayIso, tasksDisplayIana)
       : (data?.tasks.filter((task) => isSpecialistTaskOverdue(task)) ?? []);
   const tasksNeedAttention = attentionTasks.length > 0;
+  const openTasks = data?.tasks.filter((task) => !task.completedAt) ?? [];
+  const completedTasks = data?.tasks.filter((task) => Boolean(task.completedAt)) ?? [];
+  const visibleTasks = taskView === 'completed' ? completedTasks : openTasks;
+  const selectedTask = selectedTaskId
+    ? (data?.tasks.find((task) => task.id === selectedTaskId) ?? null)
+    : null;
+  const showingCompletedTasks = taskView === 'completed';
 
   const exerciseCalendar = (
     <DoctorExerciseActivityCalendar
@@ -1635,12 +1673,12 @@ export function PatientTabOverview({
       open={taskFormOpen}
       onOpenChange={(open) => {
         setTaskFormOpen(open);
-        if (!open) setEditingTask(null);
       }}
       patientUserId={userId}
-      editing={editingTask}
+      editing={null}
       patientDisplayName={patientHeaderName ?? undefined}
       patientOnSupport={header?.support.isOnSupport === true}
+      patientVariant="context"
       onSaved={handleTaskSaved}
       onDeleted={handleTaskDeleted}
     />
@@ -1887,14 +1925,13 @@ export function PatientTabOverview({
             <DoctorStatCard
               id="patient-overview-tasks"
               title="Задач"
-              value={data?.tasks.length ?? 0}
+              value={openTasks.length}
               tone={tasksNeedAttention ? 'warning' : 'neutral'}
               valueClassName={tasksNeedAttention ? 'text-destructive' : undefined}
               onClick={(data?.tasks.length ?? 0) > 0 ? () => setTasksModalOpen(true) : undefined}
               actionIcon={<ListPlus className="size-5" aria-hidden />}
               actionLabel="Добавить задачу"
               onActionClick={() => {
-                setEditingTask(null);
                 setTaskFormOpen(true);
               }}
               className="h-full"
@@ -1918,14 +1955,7 @@ export function PatientTabOverview({
                 specialistTasksAvailable ? (
                   <>
                     <span aria-hidden className="max-sm:block sm:hidden" />
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={() => {
-                        setEditingTask(null);
-                        setTaskFormOpen(true);
-                      }}
-                    >
+                    <Button type="button" size="sm" onClick={() => setTaskFormOpen(true)}>
                       <ListPlus className="size-4" aria-hidden />
                       Новая задача
                     </Button>
@@ -1933,20 +1963,64 @@ export function PatientTabOverview({
                 ) : null
               }
             >
+              <DoctorModalSummaryBar className="flex items-start justify-between gap-3">
+                <span className="text-sm font-medium tabular-nums">
+                  {showingCompletedTasks ? 'Выполненных' : 'Открытых'}{' '}
+                  {showingCompletedTasks ? completedTasks.length : openTasks.length}
+                </span>
+                <span className="flex shrink-0 items-start gap-1">
+                  <Button
+                    type="button"
+                    size="icon-sm"
+                    variant="outline"
+                    className={cn(showingCompletedTasks && DOCTOR_ACTIVE_FILTER_BUTTON_CLASS)}
+                    aria-label={
+                      showingCompletedTasks
+                        ? 'Показать открытые задачи'
+                        : 'Показать выполненные задачи'
+                    }
+                    title={
+                      showingCompletedTasks
+                        ? 'Показать открытые задачи'
+                        : 'Показать выполненные задачи'
+                    }
+                    aria-pressed={showingCompletedTasks}
+                    onClick={() => {
+                      setTaskView(showingCompletedTasks ? 'open' : 'completed');
+                      setSelectedTaskId(null);
+                    }}
+                  >
+                    <ListTodo className="size-4" aria-hidden />
+                  </Button>
+                  {specialistTasksAvailable ? (
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      className="text-primary hover:text-primary"
+                      aria-label="Новая задача"
+                      title="Новая задача"
+                      onClick={() => setTaskFormOpen(true)}
+                    >
+                      <ListPlus className="size-6" aria-hidden />
+                    </Button>
+                  ) : null}
+                </span>
+              </DoctorModalSummaryBar>
               {isLoading ? (
                 <DoctorPanelLoading className="px-4 py-4" />
               ) : data?.tasksStatus === 'error' ? (
                 <p className="px-4 py-2 text-sm text-destructive">Не удалось загрузить задачи.</p>
-              ) : data?.tasks.length ? (
+              ) : visibleTasks.length ? (
                 <DoctorDnaFlatList>
-                  {data.tasks.map((task) => (
+                  {visibleTasks.map((task) => (
                     <li key={task.id}>
                       <TaskRow
                         as="div"
                         task={task}
                         displayIana={tasksDisplayIana}
+                        showPatient={false}
                         patientDisplayName={header?.identity.displayName}
-                        patientOnSupport={header?.support.isOnSupport === true}
                         dueToday={
                           tasksTodayIso && tasksDisplayIana
                             ? isSpecialistTaskDueOnDate(task, tasksTodayIso, tasksDisplayIana)
@@ -1955,17 +2029,35 @@ export function PatientTabOverview({
                         canMutate={specialistTasksAvailable}
                         mobileFlat
                         onOpen={(selected) => {
-                          setEditingTask(selected);
-                          setTaskFormOpen(true);
+                          setSelectedTaskId(selected.id);
                         }}
                       />
                     </li>
                   ))}
                 </DoctorDnaFlatList>
               ) : (
-                <DoctorEmptyState>Задач нет</DoctorEmptyState>
+                <DoctorEmptyState>
+                  {showingCompletedTasks ? 'Выполненных задач нет' : 'Открытых задач нет'}
+                </DoctorEmptyState>
               )}
               {tasksModalOpen ? taskFormDialog : null}
+              {tasksModalOpen ? (
+                <SpecialistTaskDetailsDialog
+                  open={selectedTask != null}
+                  onClose={() => setSelectedTaskId(null)}
+                  task={selectedTask}
+                  patientDisplayName={patientHeaderName ?? undefined}
+                  patientOnSupport={header?.support.isOnSupport === true}
+                  patientVariant="context"
+                  displayIana={tasksDisplayIana}
+                  canMutate={specialistTasksAvailable}
+                  busy={taskBusy}
+                  desktopPresentation="right-sheet"
+                  onComplete={handleTaskComplete}
+                  onTaskSaved={handleTaskSaved}
+                  onTaskDeleted={handleTaskDeleted}
+                />
+              ) : null}
             </DoctorModal>
             {!tasksModalOpen ? taskFormDialog : null}
           </section>

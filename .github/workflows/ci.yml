@@ -128,7 +128,7 @@ jobs:
       - uses: ./.github/actions/cancel-on-failure
 
   test-webapp-behavior:
-    name: Test (webapp unit / route / UI)
+    name: Test (webapp unit / route)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -138,7 +138,7 @@ jobs:
           path: |
             apps/webapp/node_modules/.vite
             apps/webapp/node_modules/.experimental-vitest-cache
-          key: vitest-webapp-behavior-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml', 'apps/webapp/vitest.config.ts', 'apps/webapp/vitest.setup.ts', 'apps/webapp/vitest.ui.setup.ts', 'apps/webapp/vitest.globalSetup.ts') }}
+          key: vitest-webapp-behavior-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml', 'apps/webapp/vitest.config.ts', 'apps/webapp/vitest.setup.ts', 'apps/webapp/vitest.globalSetup.ts') }}
           restore-keys: |
             vitest-webapp-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-
       - run: pnpm test:webapp:behavior

@@ -539,7 +539,9 @@ Retired 2026-07-27: `RUBITIME_WEBHOOK_TOKEN` и `RUBITIME_API_KEY` не явля
 На `151.x` разрешены только ручные DEV-процессы и юниты `bersoncarebot-*-test.service`.
 Локальные имена `bersoncarebot-*-prod.service` обязаны оставаться `masked`; их нельзя `unmask`, устанавливать
 из `deploy/systemd/*-prod.service` или запускать. Шаблонов **`bersoncarebot-*-dev.service`** в репозитории нет:
-локальная разработка — процессы вручную (`pnpm webapp:dev` и т.д.), не systemd. Если на хосте остались старые
+локальная разработка — процессы вручную, не systemd. Единственный webapp DEV запускается как Turbopack на
+`127.0.0.1:5200` по [`AGENTS.md` §1a](../../AGENTS.md#1a-локальный-dev-и-тестирование-ui); отдельные candidate-
+порты и второй Next запрещены. Если на хосте остались старые
 файлы `*-dev.service` в `/etc/systemd/system/`, их нужно **disable**, удалить и `daemon-reload`
 (см. [`deploy/HOST_DEPLOY_README.md`](../../deploy/HOST_DEPLOY_README.md)).
 
@@ -562,7 +564,7 @@ Retired 2026-07-27: `RUBITIME_WEBHOOK_TOKEN` и `RUBITIME_API_KEY` не явля
 
 | Сервис         | Типично                                                                       |
 | -------------- | ----------------------------------------------------------------------------- |
-| Webapp dev     | порт из `apps/webapp/.env.dev` (часто `127.0.0.1:5200`) при `pnpm webapp:dev` |
+| Webapp dev     | единственный Turbopack `127.0.0.1:5200` по `AGENTS.md` §1a                  |
 | Integrator dev | при необходимости отдельный процесс; URL в `INTEGRATOR_API_URL` в webapp dev  |
 
 ### Webapp dev env: подтвержденные ключи

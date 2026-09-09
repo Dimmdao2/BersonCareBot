@@ -23,7 +23,6 @@
     "test:webapp:fast": "pnpm --dir apps/webapp test:fast",
     "test:webapp:unit": "pnpm --dir apps/webapp test:unit",
     "test:webapp:route": "pnpm --dir apps/webapp test:route",
-    "test:webapp:ui": "pnpm --dir apps/webapp test:ui",
     "test:webapp:behavior": "pnpm --dir apps/webapp test:behavior",
     "test:media-worker": "pnpm --dir apps/media-worker test",
     "test:db-principal": "pnpm --dir packages/db-principal test",

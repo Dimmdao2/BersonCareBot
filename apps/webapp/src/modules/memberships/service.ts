@@ -224,6 +224,14 @@ export function createMembershipsService(deps: {
       return Promise.all(rows.map((r) => withBalance(r)));
     },
 
+    async listPatientPackagesForPatientIds(organizationId: string, platformUserIds: string[]) {
+      const rows = await deps.port.listPatientPackagesForPatientIds(
+        organizationId,
+        platformUserIds,
+      );
+      return Promise.all(rows.map((row) => withBalance(row)));
+    },
+
     async getPatientPackageDetail(id: string, organizationId: string) {
       const pkg = await deps.port.getPatientPackage(id, organizationId);
       if (!pkg) return null;

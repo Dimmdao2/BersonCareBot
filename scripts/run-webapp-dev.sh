@@ -6,7 +6,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 WEBAPP="$ROOT/apps/webapp"
 MODE="${1:-turbo}"
-PORT="${DEV_WEBAPP_PORT:-5200}"
+PORT=5200
 MAX_RSS_KIB="${DEV_NEXT_MAX_RSS_KIB:-12582912}" # 12 GiB safety ceiling, not a reservation.
 MAX_OLD_SPACE_MB="${DEV_NEXT_MAX_OLD_SPACE_MB:-6144}"
 LOG_DIR="$WEBAPP/.next"
@@ -17,18 +17,23 @@ if [[ "${DEV_NEXT_SOURCE_MAPS:-0}" == "1" ]]; then
   SOURCE_MAP_ARGS=()
 fi
 
-case "$MODE" in
-  turbo)
-    NEXT_ARGS=(dev "${SOURCE_MAP_ARGS[@]}" -H 127.0.0.1 -p "$PORT")
-    ;;
-  webpack)
-    NEXT_ARGS=(dev --webpack "${SOURCE_MAP_ARGS[@]}" -H 127.0.0.1 -p "$PORT")
-    ;;
-  *)
-    echo "usage: $0 [turbo|webpack]" >&2
-    exit 2
-    ;;
-esac
+if [[ -n "${DEV_WEBAPP_PORT:-}" && "${DEV_WEBAPP_PORT}" != "5200" ]]; then
+  echo "DEV webapp has one allowed port: 5200" >&2
+  exit 2
+fi
+
+if [[ "$MODE" != "turbo" ]]; then
+  echo "DEV webapp has one allowed compiler: turbopack" >&2
+  exit 2
+fi
+
+launcher_nice="$(ps -o ni= -p "$$" | tr -d '[:space:]')"
+if [[ "$launcher_nice" =~ ^[0-9]+$ ]] && (( launcher_nice > 0 )); then
+  echo "refusing to start DEV Next with degraded nice priority $launcher_nice" >&2
+  exit 2
+fi
+
+NEXT_ARGS=(dev "${SOURCE_MAP_ARGS[@]}" -H 127.0.0.1 -p "$PORT")
 
 bash "$ROOT/scripts/kill-local-dev-ports.sh" webapp
 mkdir -p "$LOG_DIR"

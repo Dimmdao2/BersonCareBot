@@ -472,7 +472,11 @@ export function PatientCardClient({
 
   if (!header) {
     return (
-      <DoctorAppShell title={`Карточка ${patientSingularLabel.toLocaleLowerCase('ru-RU')}`} backHref={patientListHref} mobileBottomGutter>
+      <DoctorAppShell
+        title={`Карточка ${patientSingularLabel.toLocaleLowerCase('ru-RU')}`}
+        backHref={patientListHref}
+        mobileBottomGutter
+      >
         <DoctorPageHeader
           id="doctor-patient-card-header"
           title={`Карточка ${patientSingularLabel.toLocaleLowerCase('ru-RU')}`}
@@ -618,31 +622,41 @@ export function PatientCardClient({
               ) : null}
 
               {workspaceModules?.encounters !== false || workspaceModules?.video_meetings ? (
-                <div className="mt-3 flex flex-wrap gap-2">
+                <div className="mt-3 flex flex-nowrap gap-1 sm:gap-2">
                   {workspaceModules?.encounters !== false ? (
                     <>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setEncounterHistoryOpen(true)}
-                  >
-                    История приёмов
-                  </Button>
-                  <Button type="button" size="sm" onClick={() => openEncounterStart()}>
-                    Начать приём
-                  </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setEncounterHistoryOpen(true)}
+                      >
+                        История
+                      </Button>
+                      <Button type="button" size="sm" onClick={() => openEncounterStart()}>
+                        Начать приём
+                      </Button>
                     </>
                   ) : null}
                   {workspaceModules?.video_meetings ? (
-                    <Link
-                      className={buttonVariants({ size: 'sm', className: 'size-9 p-0' })}
-                      href={activeCall?.returnUrl ?? `/app/doctor/patients/${encodeURIComponent(identity.userId)}/live`}
-                      title={activeCall ? 'Вернуться к звонку' : 'Начать видеозвонок'}
-                      aria-label={activeCall ? 'Вернуться к звонку' : 'Начать видеозвонок'}
+                    <Button
+                      size="sm"
+                      className="gap-2"
+                      render={
+                        <Link
+                          href={
+                            activeCall?.returnUrl ??
+                            `/app/doctor/patients/${encodeURIComponent(identity.userId)}/live`
+                          }
+                        />
+                      }
+                      nativeButton={false}
+                      title={activeCall ? 'Вернуться к звонку' : 'Видеосессия'}
+                      aria-label={activeCall ? 'Вернуться к звонку' : 'Видеосессия'}
                     >
-                      <Video className="size-4" />
-                    </Link>
+                      {activeCall ? 'Вернуться к звонку' : 'Видеосессия'}
+                      <Video className="size-4 shrink-0" aria-hidden />
+                    </Button>
                   ) : null}
                 </div>
               ) : null}

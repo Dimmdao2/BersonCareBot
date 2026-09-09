@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 import { isDoctorCatalogMissingFilter } from '@/shared/lib/doctorCatalogEmptyFieldFilter';
 import { useDoctorCatalogDisplayList } from '@/shared/hooks/useDoctorCatalogDisplayList';
 import { useDoctorCatalogClientFilterMerge } from '@/shared/hooks/useDoctorCatalogClientFilterMerge';
-import { doctorCatalogListEmptyClass } from '@/shared/ui/doctor/doctorVisual';
+import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
 import { useDoctorCatalogMasterSelectionSync } from '@/shared/hooks/useDoctorCatalogMasterSelectionSync';
 import type { CatalogMasterTitleSort } from '@/shared/ui/doctor/DoctorCatalogMasterListHeader';
 import { DoctorCatalogListSortHeader } from '@/shared/ui/doctor/DoctorCatalogListSortHeader';
@@ -154,7 +154,7 @@ function TestSetsContent({
 
   const renderRows = (onPick: (s: TestSet) => void, activeId: string | null) =>
     displayList.length === 0 ? (
-      <p className={doctorCatalogListEmptyClass}>Нет наборов по заданным условиям.</p>
+      <DoctorEmptyState>Нет наборов по заданным условиям.</DoctorEmptyState>
     ) : (
       <VirtualizedItemGrid
         items={displayList}

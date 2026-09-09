@@ -133,26 +133,26 @@ SSH-клиентом; отсутствие слушателя `15200` на DEV-h
 
 | Команда                                 | Что делает                                                               | Когда использовать                                                  |
 | --------------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------- |
-| `pnpm run dev`                          | **Параллельно** integrator + webapp (`tsx watch` + `next dev --webpack`) | Полный стек: бот-API, webhooks, SMS relay, сценарии с integrator    |
-| `pnpm run webapp:dev`                   | Только webapp; перед стартом `kill-local-dev-ports`                      | UI врача/пациента, API routes webapp, **без** integrator            |
-| `pnpm run dev:turbo`                    | Webapp на **Turbopack** (`next dev`, без `--webpack`)                    | Быстрый HMR при правках React/страниц                               |
-| `pnpm --dir apps/webapp run dev:visual` | Webapp **webpack** + `WATCHPACK_POLLING` / `CHOKIDAR_USEPOLLING`         | Удалённая FS, Docker volume, VM — когда hot reload «не видит» файлы |
+| `pnpm run dev`                          | **Параллельно** integrator + единственный webapp Turbopack               | Полный стек: бот-API, webhooks, SMS relay, сценарии с integrator    |
+| `pnpm run webapp:dev`                   | Только единственный webapp Turbopack; перед стартом освобождает `:5200`  | UI врача/пациента, API routes webapp, **без** integrator            |
+| `pnpm run dev:turbo`                    | Webapp на **Turbopack** (`next dev`, без `--webpack`)                    | Штатный DEV webapp                                                  |
+| `pnpm --dir apps/webapp run dev:visual` | Тот же Turbopack + file polling                                          | Только когда hot reload «не видит» файлы                            |
 | `pnpm run dev:stop`                     | Остановить слушатели на dev-портах webapp + integrator                   | Перед повторным стартом, если порт занят                            |
 
 Эквиваленты **внутри** `apps/webapp`:
 
 ```bash
-pnpm dev          # webpack, 127.0.0.1:5200
+pnpm dev          # turbopack, 127.0.0.1:5200
 pnpm dev:turbo    # turbopack
-pnpm dev:visual   # webpack + polling
+pnpm dev:visual   # turbopack + polling
 pnpm dev:stop
 ```
 
 **Выбор по задаче:**
 
-- Правки **только** doctor/patient страниц и webapp API → `webapp:dev` или `dev:turbo` достаточно.
+- Правки **только** doctor/patient страниц и webapp API → общий `dev:turbo` на `:5200` достаточен.
 - Тест **доставки**, projection, integrator webhooks, `POST /api/integrator/*` → `pnpm run dev` (оба процесса).
-- Агент в headless/удалённой среде без нормального file watch → `dev:visual`.
+- При сломанном file watch оператор заменяет общий процесс командой `dev:visual`; второй Next не запускается.
 
 ### 3.2 Integrator (отдельно)
 
@@ -216,16 +216,14 @@ sudo -u postgres psql -d bcb_webapp_dev -At -c "SELECT pg_get_userbyid(proowner)
 
 ---
 
-## 3b. Candidate сначала проверяется, затем приземляется (владелец, 21.08)
+## 3b. Candidate проверяется без второго Next server
 
-**ЗАМЕНЕНО 21.08.2026:** прежняя blanket-последовательность «сделал → приземлил → впервые проверил живьём»
-не действует. Landing не используется как способ узнать, работает ли кандидат.
-
-До landing ветка проходит затронутые тесты, независимый аудит и применимую живую проверку отдельным verifier:
-UI/runtime — на изолированном candidate-порту, DB migration — owner-aware rollback-only preflight на именованной
-DEV с реальными statement owners и `FORCE RLS`. Голый прогон SQL от `postgres` не подходит. Для миграции порядок:
-candidate rollback-preflight → проверки → аудит → landing → повторный интеграционный preflight → `--execute`.
-Post-landing общий сервер подтверждает уже проверенное интеграционное дерево, а не принимает непроверенную ветку.
+Действующий канон единственного DEV Next задан в [`AGENTS.md` §1a](../../AGENTS.md#1a-локальный-dev-и-тестирование-ui).
+До landing ветка проходит затронутые тесты, независимый аудит и, для DB migration, owner-aware rollback-only
+preflight на именованной DEV с реальными statement owners и `FORCE RLS`; голый прогон SQL от `postgres` не
+подходит. После этого кандидат приземляется, общий Turbopack `:5200` подхватывает интеграционное дерево, и
+отдельный verifier выполняет обязательную живую UI/runtime-приёмку. Найденный live-дефект открывает correction
+того же scope; один факт landing не означает, что live acceptance пройден.
 
 **Если сервер уже занят кем-то:** сначала посмотреть, что там (`curl -s -o /dev/null -w '%{http_code}'
 http://127.0.0.1:5200/api/me` — живой сервер отвечает, а не молчит), подождать, обновить страницу.
@@ -236,17 +234,16 @@ http://127.0.0.1:5200/api/me` — живой сервер отвечает, а �
 - ⛔ Не запускать `pnpm dev`, `pnpm dev:turbo`, `pnpm webapp:dev` ради своей проверки: они СНАЧАЛА убивают
   слушателей порта (`scripts/kill-local-dev-ports.sh`) и занимают 5200, роняя общий сервер и чужие идущие
   прогоны. 01.08 так дважды обрывалась проверка посреди работы.
+- ⛔ Не запускать `next dev` или `next start` на `5210–5219` либо любом другом дополнительном webapp-порту.
+  Worker/auditor использует общий `:5200` только в выделенное окно live-приёмки после landing.
 - ⛔ Не возвращать работу со словами «среда не позволяет проверить». Инструменты есть: `pnpm migrate`,
   `pnpm migrate:legacy`, все режимы запуска. Проверка не сделана — назвать точную команду и её вывод.
-
-**Candidate-прогон** использует свой порт из 5210–5219 и запуск мимо скриптов-убийц: `cd apps/webapp && pnpm migrate && npx next dev
--H 127.0.0.1 -p 5210`. Порты 4200 (интегратор), 3200 и 6200 (прод на этом же боксе) не трогать.
 
 ---
 
 ## 4. Обычный вход и dev-only clear-session helper
 
-На DEV/TEST проверки ролей проходят только штатным входом уже зарегистрированных owner-учёток и клиник: doctor и global-admin — email/password, patient — существующим email-code/OTP, OAuth, messenger или passkey flow. Не создавайте fixture-учётки, не используйте token/preset-вход и не читайте пароли из env. Постоянный контракт owner-входа записан в `AGENTS.md` §1a. Для изолированной проверки DEV-кандидата `DEV_EMAIL_OTP_DEBUG=true` при `NODE_ENV=development` выводит в лог локального development-сервера только что сгенерированный OTP; это не authenticated bypass и не может включиться на TEST/production.
+На DEV/TEST проверки ролей проходят только штатным входом уже зарегистрированных owner-учёток и клиник: doctor и global-admin — email/password, patient — существующим email-code/OTP, OAuth, messenger или passkey flow. Не создавайте fixture-учётки, не используйте token/preset-вход и не читайте пароли из env. Постоянный контракт owner-входа записан в `AGENTS.md` §1a. Для DEV-проверки passwordless-входа `DEV_EMAIL_OTP_DEBUG=true` при `NODE_ENV=development` выводит в лог единственного development-сервера только что сгенерированный OTP; это не authenticated bypass и не может включиться на TEST/production.
 
 `/api/auth/dev-public` сохранён только как dev-only helper для очистки текущей session-cookie и context-cookies перед обычным публичным входом или регистрацией. Он доступен только при `NODE_ENV=development` и `ALLOW_DEV_AUTH_BYPASS=true`; authenticated role или session он не создаёт.
 
@@ -272,7 +269,8 @@ http://127.0.0.1:5200/api/me` — живой сервер отвечает, а �
 
 ### 6.1 UI кабинетов
 
-Запустите нужный dev-режим только по правилам §3b, откройте `/app` и войдите штатным способом уже зарегистрированной owner-учётки. После сессии переходите на нужный кабинет или настройки по обычному URL.
+Используйте уже работающий общий Turbopack `http://127.0.0.1:5200`, откройте `/app` и войдите штатным способом
+уже зарегистрированной owner-учётки. После сессии переходите на нужный кабинет или настройки по обычному URL.
 
 ### 6.4 Напоминания / scheduler / доставка в бот
 
@@ -316,8 +314,8 @@ staff-порт → telemetry-role → protected functions. Перезапуск 
 | Команда                       | Область                                     |
 | ------------------------------ | -------------------------------------------- |
 | `pnpm test:webapp:fast`        | Vitest project `fast` (шардируется в CI)     |
-| `pnpm test:webapp:behavior`    | Projects `unit` + `route` + `ui`             |
-| `pnpm test:webapp`             | все четыре project сразу                     |
+| `pnpm test:webapp:behavior`    | Projects `unit` + `route`                    |
+| `pnpm test:webapp`             | все три project сразу                        |
 | `pnpm run ci`                  | полный барьер перед push                     |
 
 Политика: [`.cursor/rules/test-execution-policy.md`](../../.cursor/rules/test-execution-policy.md), [`apps/webapp/e2e/README.md`](../../apps/webapp/e2e/README.md).

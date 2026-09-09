@@ -41,14 +41,6 @@ export const doctorCatalogRowClass =
 export const doctorCatalogRowActiveClass =
   'border-primary/25 bg-primary/15 text-primary hover:bg-primary/20 dark:bg-primary/20 dark:hover:bg-primary/25';
 
-/** Empty state copy in catalog master list (list mode). */
-export const doctorCatalogListEmptyClass =
-  'px-2 pb-2 text-base leading-6 text-muted-foreground md:text-sm md:leading-5';
-
-/** Empty state copy in catalog tile grid. */
-export const doctorCatalogListEmptyTilesClass =
-  'px-2 text-base leading-6 text-muted-foreground md:text-sm md:leading-5';
-
 /** Standalone catalog editor page shell (new / [id] routes outside split-layout). */
 export const doctorCatalogEditorSectionClass =
   'flex flex-col gap-3 rounded-[var(--doctor-page-block-radius,12px)] border border-border bg-card p-[var(--doctor-block-padding,18px)] shadow-sm';
@@ -195,9 +187,9 @@ export const DOCTOR_APPOINTMENT_PAYMENT_PENDING_EVENT_CLASS = 'doctor-appt-payme
 
 // -- Empty states -------------------------------------------------------------
 
-/** Default container for empty states in doctor pages. */
+/** Default centered container for empty lists in doctor pages and modals. */
 export const doctorEmptyStateClass =
-  'flex flex-col gap-2 text-base leading-6 text-muted-foreground md:text-sm md:leading-5';
+  'flex h-full min-h-32 flex-col items-center justify-center gap-2 px-[var(--doctor-block-padding,18px)] py-6 text-center text-base leading-6 text-muted-foreground md:text-sm md:leading-5';
 
 /** Compact empty-state variant for dense panels / inline hints inside cards. */
 export const doctorEmptyStateCompactClass = 'flex flex-col gap-2 text-xs text-muted-foreground';

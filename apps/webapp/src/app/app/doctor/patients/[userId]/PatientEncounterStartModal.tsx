@@ -22,6 +22,7 @@ import {
   DoctorModalStackedTitle,
 } from '@/shared/ui/doctor/DoctorModal';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
+import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
 import {
   DoctorDnaFlatList,
   doctorDnaFlatListMetaClass,
@@ -273,7 +274,7 @@ export function PatientEncounterStartModal({
             Не удалось загрузить записи {patientGenitive}.
           </p>
         ) : appointments.length === 0 ? (
-          <p className="px-4 py-4 text-sm text-muted-foreground">Доступных записей нет.</p>
+          <DoctorEmptyState>Доступных записей нет.</DoctorEmptyState>
         ) : (
           <div className="flex min-h-0 flex-col">
             {featuredAppointment ? (
@@ -312,7 +313,9 @@ export function PatientEncounterStartModal({
           appointmentsManageOwn={appointmentsManageOwn}
           onClose={onClose}
           onCreated={openEncounter}
-          createContinuation={videoMeetingsEnabled ? { onOffline: openEncounter, onOnline: openOnline } : undefined}
+          createContinuation={
+            videoMeetingsEnabled ? { onOffline: openEncounter, onOnline: openOnline } : undefined
+          }
         />
       ) : (
         <p className="py-4 text-sm text-foreground">Будет создан новый приём без записи.</p>

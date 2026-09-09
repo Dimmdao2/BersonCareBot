@@ -11,6 +11,7 @@ import { CatalogRightPane } from '@/shared/ui/doctor/catalog/CatalogRightPane';
 import { DoctorCatalogFiltersToolbar } from '@/shared/ui/doctor/DoctorCatalogFiltersToolbar';
 import { DoctorSearchInput } from '@/shared/ui/doctor/DoctorSearchInput';
 import { DoctorResultCount } from '@/shared/ui/doctor/DoctorResultCount';
+import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
 import {
   DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE,
   DOCTOR_DESKTOP_ATTACH_TO_PAGE_HEADER_CLASS,
@@ -305,9 +306,9 @@ export function DoctorTasksPageClient({
                   </section>
                 ))}
                 {!visibleTaskCount ? (
-                  <p className="px-3 py-2 text-sm text-muted-foreground">
+                  <DoctorEmptyState>
                     {query.trim() ? 'Задачи не найдены' : 'Нет задач'}
-                  </p>
+                  </DoctorEmptyState>
                 ) : null}
               </div>
             </CatalogLeftPane>

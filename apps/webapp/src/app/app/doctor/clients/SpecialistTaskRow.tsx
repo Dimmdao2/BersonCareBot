@@ -41,12 +41,31 @@ type Props = {
   canMutate?: boolean;
   patientDisplayName?: string;
   patientOnSupport?: boolean;
+  showPatient?: boolean;
   dueToday?: boolean;
   onOpen?: (task: Task) => void;
   as?: 'li' | 'div';
   active?: boolean;
   mobileFlat?: boolean;
 };
+
+function hasSameNameParts(left: string, right: string): boolean {
+  const parts = (value: string) =>
+    value.trim().toLocaleLowerCase('ru-RU').split(/\s+/).filter(Boolean).sort().join(' ');
+  return parts(left) === parts(right);
+}
+
+export function getSpecialistTaskPatientContextContent(
+  task: Task,
+  patientDisplayName?: string,
+): { title: string; description: string | null } {
+  const titleDuplicatesPatient =
+    Boolean(patientDisplayName?.trim()) && hasSameNameParts(task.title, patientDisplayName ?? '');
+  return {
+    title: titleDuplicatesPatient ? task.description?.trim() || 'Задача' : task.title,
+    description: titleDuplicatesPatient ? null : task.description?.trim() || null,
+  };
+}
 
 export function SpecialistTaskRow({
   task,
@@ -57,6 +76,7 @@ export function SpecialistTaskRow({
   canMutate = true,
   patientDisplayName,
   patientOnSupport = false,
+  showPatient = true,
   dueToday = false,
   onOpen,
   as = 'li',
@@ -67,6 +87,11 @@ export function SpecialistTaskRow({
   const overdue = !dueToday && isSpecialistTaskOverdue(task);
   const completed = Boolean(task.completedAt);
   const dueLabel = formatSpecialistTaskWhen(task.dueAt, displayIana, task.dueHasTime !== false);
+  const patientContextContent = getSpecialistTaskPatientContextContent(task, patientDisplayName);
+  const visibleTitle = showPatient ? task.title : patientContextContent.title;
+  const visibleDescription = showPatient
+    ? task.description?.trim() || null
+    : patientContextContent.description;
   const Container = as;
 
   if (onOpen) {
@@ -88,7 +113,7 @@ export function SpecialistTaskRow({
           onClick={() => onOpen(task)}
         >
           <span className="flex min-w-0 flex-col gap-0.5">
-            {task.patientUserId ? (
+            {showPatient && task.patientUserId ? (
               <DoctorPatientName
                 isOnSupport={patientOnSupport}
                 className="truncate text-sm leading-5 font-medium text-foreground"
@@ -96,10 +121,10 @@ export function SpecialistTaskRow({
                 {patientDisplayName?.trim() || patientSingularLabel}
               </DoctorPatientName>
             ) : null}
-            <span className="truncate text-base font-normal text-foreground">{task.title}</span>
-            {task.description?.trim() ? (
+            <span className="truncate text-base font-normal text-foreground">{visibleTitle}</span>
+            {visibleDescription ? (
               <span className={cn('truncate text-muted-foreground', doctorSecondaryListTextClass)}>
-                {task.description.trim()}
+                {visibleDescription}
               </span>
             ) : null}
           </span>

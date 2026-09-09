@@ -941,23 +941,24 @@ ml-1.5 rounded-full bg-primary-foreground px-1.5 py-0.5 text-xs font-semibold ta
 
 ## 18. Пустые состояния
 
-Единый паттерн — внутри любого контейнера:
+Единый паттерн — `DoctorEmptyState`. Пустой список получает центрирование, минимальную высоту и системные
+внутренние отступы; caller не прижимает сообщение к краю модалки или секции:
 
 ```tsx
-<div className="flex flex-col gap-2 text-sm text-muted-foreground">
+<DoctorEmptyState>
   <p>{emptyMessage}</p>
   {fallbackHref && (
     <Link href={fallbackHref} className="text-primary underline underline-offset-2 w-fit">
       {fallbackLabel}
     </Link>
   )}
-</div>
+</DoctorEmptyState>
 ```
 
-В каталожном list/tile режиме:
+В каталожном list/tile режиме используется тот же компонент:
 
 ```tsx
-<p className="px-2 pb-2 text-sm text-muted-foreground">Нет элементов по заданным фильтрам.</p>
+<DoctorEmptyState>Нет элементов по заданным фильтрам.</DoctorEmptyState>
 ```
 
 ---
@@ -1017,12 +1018,6 @@ export const doctorCatalogRowClass =
 export const doctorCatalogRowActiveClass =
   'border-primary/25 bg-primary/15 text-primary hover:bg-primary/20 dark:bg-primary/20 dark:hover:bg-primary/25';
 
-/** Пустой master-list (list mode). */
-export const doctorCatalogListEmptyClass = 'px-2 pb-2 text-sm text-muted-foreground';
-
-/** Пустая tile-сетка каталога. */
-export const doctorCatalogListEmptyTilesClass = 'px-2 text-sm text-muted-foreground';
-
 /** Standalone editor page (`new` / `[id]` вне split-layout). */
 export const doctorCatalogEditorSectionClass =
   'flex flex-col gap-3 rounded-lg border border-border bg-card p-4 shadow-sm';
@@ -1046,8 +1041,9 @@ export const doctorHoverLinkClass = 'text-primary underline-offset-4 hover:under
 
 // ── Пустые состояния ────────────────────────────────────────────────────────
 
-/** Обёртка пустого состояния. */
-export const doctorEmptyStateClass = 'flex flex-col gap-2 text-sm text-muted-foreground';
+/** Центрированная обёртка пустого списка с системными отступами. */
+export const doctorEmptyStateClass =
+  'flex h-full min-h-32 flex-col items-center justify-center gap-2 px-[var(--doctor-block-padding,18px)] py-6 text-center text-sm text-muted-foreground';
 
 // ── Сетки ───────────────────────────────────────────────────────────────────
 

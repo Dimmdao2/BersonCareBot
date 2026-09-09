@@ -352,6 +352,7 @@ type Props = {
   onDeleted?: (taskId: string) => void;
   patientDisplayName?: string;
   patientOnSupport?: boolean;
+  patientVariant?: 'link' | 'context';
 };
 
 export function SpecialistTaskFormDialog({
@@ -363,6 +364,7 @@ export function SpecialistTaskFormDialog({
   onDeleted,
   patientDisplayName,
   patientOnSupport = false,
+  patientVariant = 'link',
 }: Props) {
   const { patientSingularLabel } = useDoctorPatientTerms();
   const formId = useId();
@@ -420,6 +422,7 @@ export function SpecialistTaskFormDialog({
             }
             patientHref={editing.patientUserId ? patientCardHref(editing.patientUserId) : null}
             patientOnSupport={patientOnSupport}
+            patientVariant={patientVariant}
           />
         ) : patientUserId && resolvedPatientDisplayName ? (
           <DoctorModalStackedTitle
@@ -427,6 +430,7 @@ export function SpecialistTaskFormDialog({
             patientName={resolvedPatientDisplayName}
             patientHref={patientCardHref(patientUserId)}
             patientOnSupport={patientOnSupport}
+            patientVariant={patientVariant}
           />
         ) : (
           'Новая задача'

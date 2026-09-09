@@ -112,6 +112,7 @@ UI: `PatientMembershipsSection`, `/app/patient/memberships/pay`, `/app/patient/m
 | -------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | GET/POST | `/api/doctor/booking-engine/packages`                                                                                                   |
 | GET/POST | `/api/doctor/booking-engine/patient-packages` (`?platformUserId=` on GET; manual POST optional `title`, `notes`; catalog offer `notes`) |
+| GET      | `/api/doctor/booking-engine/patient-packages/sold` — visibility-scoped история экземпляров абонементов всех доступных врачу пациентов |
 | PATCH    | `.../patient-packages/[id]` — `{ notes: string \| null }`                                                                              |
 | GET      | `.../patient-packages/[id]/sessions?includePast=` — session rows + server `actions`                                                    |
 | POST     | `.../patient-packages/[id]/consume`                                                                                                    |
@@ -120,7 +121,10 @@ UI: `PatientMembershipsSection`, `/app/patient/memberships/pay`, `/app/patient/m
 
 Past appointment detach/refund is always available to staff and requires the dedicated past-action confirmation.
 
-UI: **`DoctorClientMembershipsPanel`** + `PatientPackageCard` / `PatientPackageSessionsList` on patient card tab «Записи».
+UI: **`DoctorClientMembershipsPanel`** + `PatientPackageCard` / `PatientPackageSessionsList` on patient card tab
+«Записи»; вкладка календаря «Абонементы» управляет активным/архивным каталогом, создаёт и изменяет его позиции в
+модалке и открывает историю проданных экземпляров с балансом и связанными записями. Проданный экземпляр хранит
+снимок условий на момент продажи и не меняется при последующем редактировании каталога.
 
 ## Race safety — ST-02 advisory lock
 

@@ -338,11 +338,14 @@ FullCalendar Premium и DayPilot Lite на одном и том же сущес�
 
 ### M4. Schedule и packages
 
-- [x] Заменить Schedule Setup на `Абонементы` для solo.
-- [x] Для clinic specialist оставить `Записи / График работы`; mutation actions зависят от M1 capabilities.
+- [x] Заменить Schedule Setup на `Абонементы` для owner/admin в solo и clinic composition (owner correction
+  09.09.2026); обычный specialist без organization-management authority не получает каталожный writer.
+- [x] Для owner/admin календарь содержит `Записи / График работы / Абонементы`; mutation actions зависят от
+  organization-management authority и tariff capability.
 - [x] Ограничить `availability.manage_own` собственным графиком/исключениями и применением готового шаблона;
   общий template CRUD оставить management authority.
-- [x] Перенести clinic package-template management в management Catalog без копии package business logic.
+- [x] Переиспользовать один package writer и в management Catalog, и во вкладке календаря «Абонементы», без
+  копии package business logic.
 - [x] Сохранить полезные старые deep links через redirect/normalization и удалить только мёртвую композицию.
 
 ### M5. Management appointments — отложено владельцем 07.09.2026

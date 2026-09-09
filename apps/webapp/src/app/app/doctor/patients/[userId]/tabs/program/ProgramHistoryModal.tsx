@@ -14,6 +14,7 @@ import {
 import type { TreatmentProgramInstanceSummary } from '@/modules/treatment-program/types';
 import { cn } from '@/lib/utils';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
+import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
 
 type Props = {
   open: boolean;
@@ -80,7 +81,7 @@ export function ProgramHistoryModal({ open, onOpenChange, userId }: Props) {
             Не удалось загрузить программы.
           </p>
         ) : instances.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Программ пока нет.</p>
+          <DoctorEmptyState>Программ пока нет.</DoctorEmptyState>
         ) : (
           <div className="flex flex-col gap-3">
             {activeInstances.length > 0 ? (

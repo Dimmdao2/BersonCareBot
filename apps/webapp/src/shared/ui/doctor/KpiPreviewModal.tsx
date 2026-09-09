@@ -11,6 +11,7 @@ import { DoctorModal, type DoctorModalDesktopPresentation } from './DoctorModal'
 import { Button } from './primitives/button';
 import { Input } from './primitives/input';
 import { DoctorPanelLoading } from './DoctorPanelLoading';
+import { DoctorEmptyState } from './DoctorEmptyState';
 import { DoctorDnaFlatList } from './DoctorDnaFlatListRow';
 import { cn } from '@/lib/utils';
 
@@ -171,11 +172,9 @@ export function KpiPreviewModal<T>({
         {loading ? (
           <DoctorPanelLoading className="min-h-32 px-4" />
         ) : filtered.length === 0 ? (
-          <div className="flex min-h-full items-center justify-center px-4">
-            {emptyState ?? (
-              <p className="py-4 text-center text-sm text-muted-foreground">Нет элементов</p>
-            )}
-          </div>
+          <DoctorEmptyState className="min-h-full">
+            {emptyState ?? 'Нет элементов'}
+          </DoctorEmptyState>
         ) : (
           <DoctorDnaFlatList>
             {filtered.map((item, idx) =>

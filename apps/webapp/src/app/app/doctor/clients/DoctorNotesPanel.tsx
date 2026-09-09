@@ -23,8 +23,6 @@ export function DoctorNotesPanel({ userId, embedded = false }: Props) {
   const [notes, setNotes] = useState<Note[]>([]);
   const notesRef = useRef<Note[]>([]);
   const [today, setToday] = useState<Today | null>(null);
-  const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
-  const [savingDates, setSavingDates] = useState<Set<string>>(() => new Set());
   const [errorDates, setErrorDates] = useState<Set<string>>(() => new Set());
   const [loading, setLoading] = useState(true);
   const versionsRef = useRef(new Map<string, number>());
@@ -45,7 +43,6 @@ export function DoctorNotesPanel({ userId, embedded = false }: Props) {
       if (!res.ok || !data.ok || !data.today) return;
       replaceNotes(data.notes ?? []);
       setToday(data.today);
-      setExpanded(new Set([data.today.date]));
     } finally {
       setLoading(false);
     }
@@ -58,7 +55,6 @@ export function DoctorNotesPanel({ userId, embedded = false }: Props) {
       if (!note) return;
       const version = versionsRef.current.get(noteDate) ?? 0;
       savingRef.current.add(noteDate);
-      setSavingDates((current) => new Set(current).add(noteDate));
       setErrorDates((current) => {
         const next = new Set(current);
         next.delete(noteDate);
@@ -93,11 +89,6 @@ export function DoctorNotesPanel({ userId, embedded = false }: Props) {
         );
       } finally {
         savingRef.current.delete(noteDate);
-        setSavingDates((current) => {
-          const next = new Set(current);
-          next.delete(noteDate);
-          return next;
-        });
         if ((versionsRef.current.get(noteDate) ?? 0) > version) {
           timersRef.current.set(
             noteDate,
@@ -127,15 +118,6 @@ export function DoctorNotesPanel({ userId, embedded = false }: Props) {
     [replaceNotes, saveDate],
   );
 
-  const toggleExpanded = useCallback((noteDate: string) => {
-    setExpanded((current) => {
-      const next = new Set(current);
-      if (next.has(noteDate)) next.delete(noteDate);
-      else next.add(noteDate);
-      return next;
-    });
-  }, []);
-
   useEffect(() => {
     const timers = timersRef.current;
     const versions = versionsRef.current;
@@ -152,53 +134,33 @@ export function DoctorNotesPanel({ userId, embedded = false }: Props) {
   }, [load, saveDate]);
 
   const visibleNotes = today
-    ? [...notes].sort((a, b) => b.noteDate.localeCompare(a.noteDate))
+    ? [...notes].sort((a, b) => a.noteDate.localeCompare(b.noteDate))
     : notes;
   const renderedNotes =
     today && !visibleNotes.some((note) => note.noteDate === today.date)
-      ? [{ id: `new-${today.date}`, noteDate: today.date, text: '' }, ...visibleNotes]
+      ? [...visibleNotes, { id: `new-${today.date}`, noteDate: today.date, text: '' }]
       : visibleNotes;
   const body = (
     <>
       {loading ? <DoctorPanelLoading className="py-6" /> : null}
-      <ul id="doctor-notes-list" className="m-0 list-none space-y-3 p-0">
+      <ul
+        id="doctor-notes-list"
+        className="m-0 list-none space-y-5 px-[var(--doctor-list-inline-padding,18px)] py-4"
+      >
         {renderedNotes.map((note) => {
           const isToday = note.noteDate === today?.date;
-          const isExpanded = isToday || expanded.has(note.noteDate);
           return (
-            <li key={note.noteDate} id={`doctor-note-${note.noteDate}`} className="text-sm">
-              <button
-                type="button"
-                className="mb-1 text-left text-xs text-muted-foreground"
-                onClick={() => {
-                  if (!isToday) toggleExpanded(note.noteDate);
-                }}
-                aria-expanded={isExpanded}
-              >
-                {formatDate(note.noteDate)}
-              </button>
-              {isExpanded ? (
-                <Textarea
-                  id={`doctor-note-text-${note.noteDate}`}
-                  value={note.text}
-                  onChange={(event) => changeText(note.noteDate, event.target.value)}
-                  rows={isToday ? 3 : 2}
-                  className="min-h-[56px] border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
-                  placeholder={isToday ? 'Заметка…' : undefined}
-                  maxLength={8000}
-                />
-              ) : (
-                <button
-                  type="button"
-                  className="line-clamp-3 block w-full whitespace-pre-wrap text-left"
-                  onClick={() => toggleExpanded(note.noteDate)}
-                >
-                  {note.text}
-                </button>
-              )}
-              {savingDates.has(note.noteDate) ? (
-                <p className="mt-1 text-xs text-muted-foreground">Сохранение…</p>
-              ) : null}
+            <li key={note.noteDate} id={`doctor-note-${note.noteDate}`} className="space-y-1.5">
+              <p className="text-base font-medium text-foreground">{formatDate(note.noteDate)}</p>
+              <Textarea
+                id={`doctor-note-text-${note.noteDate}`}
+                value={note.text}
+                onChange={(event) => changeText(note.noteDate, event.target.value)}
+                rows={isToday ? 3 : 2}
+                className="min-h-[64px] resize-none overflow-hidden border-0 bg-transparent px-0 text-base leading-6 shadow-none [field-sizing:content] focus-visible:ring-0"
+                placeholder={isToday ? 'Заметка…' : undefined}
+                maxLength={8000}
+              />
               {errorDates.has(note.noteDate) ? (
                 <p className="mt-1 text-xs text-destructive">Сохранение будет повторено</p>
               ) : null}

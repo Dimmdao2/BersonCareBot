@@ -10,6 +10,7 @@ import {
   DialogTrigger,
 } from '@/shared/ui/doctor/primitives/dialog';
 import { Button } from '@/shared/ui/doctor/primitives/button';
+import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
 import { Plus } from 'lucide-react';
 import type { SystemParentCode } from '@/modules/content-sections/types';
 import { attachArticleSectionToSystemFolder } from './sections/actions';
@@ -82,7 +83,7 @@ export function AttachExistingSectionsModal({
           </p>
         ) : null}
         {freeSections.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Нет свободных разделов для переноса.</p>
+          <DoctorEmptyState>Нет свободных разделов для переноса.</DoctorEmptyState>
         ) : (
           <ul className="flex max-h-[min(60vh,420px)] flex-col gap-1 overflow-y-auto pr-1">
             {freeSections.map((s) => (
