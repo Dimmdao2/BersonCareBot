@@ -121,7 +121,12 @@ case "$JITSI_DEPLOYMENT" in
     JITSI_NFT_TARGET_CONF="/etc/nftables-therapysto-jitsi-prod.conf"
     JITSI_NFT_UNIT_NAME="therapysto-jitsi-prod-network-policy.service"
     JITSI_NFT_BACKUP_ROOT="/var/backups/therapysto-jitsi-prod-network-policy"
-    JITSI_TLS_LINEAGE="therapysto-jitsi-prod"
+    # Отдельной линии сертификата на этом хосте НЕТ намеренно: существующая линия `therapysto` уже
+    # выписана на meet.therapysto.ru и turn.therapysto.ru вместе с остальными именами прода (замерено
+    # 10.09.2026 по SAN). Вторая линия на те же имена удвоила бы поверхность продления ради одного
+    # только имени каталога, и продлевать пришлось бы обе, иначе видео однажды тихо останется со
+    # старым сертификатом. На TEST линия своя, потому что там она и была заведена своей.
+    JITSI_TLS_LINEAGE="therapysto"
     JITSI_COMPOSE_PROJECT="therapysto-jitsi-prod"
     ;;
   *)
