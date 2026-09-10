@@ -21,6 +21,8 @@ function buildService() {
     accentToken: null,
     logoMediaId: null,
     logoMediaReady: false,
+    appIconMediaId: null,
+    appIconMediaReady: false,
     createdByPlatformUserId: actorPlatformUserId,
     publishedByPlatformUserId: null,
     archivedByPlatformUserId: null,

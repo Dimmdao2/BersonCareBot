@@ -63,6 +63,8 @@ export type AnonymousPatientSurfaceProjection = Readonly<{
   patientAppName: string;
   accentToken: string;
   logoUrl?: string;
+  /** Validated source media id of the clinic app icon; size URLs are built by `patientPwaIconSet`. */
+  appIconMediaId?: string;
   /** Present only when this organization currently has an ACTIVE custom-domain binding. */
   activeCustomDomainHostname?: string;
   /** Existing anonymous-safe clinic bot identities; credentials never enter this projection. */

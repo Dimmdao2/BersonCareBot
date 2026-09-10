@@ -26,6 +26,12 @@ type Props = {
   initialUrl: string | null;
   onChange: (next: OrgBrandLogoChange) => void;
   disabled?: boolean;
+  /** Подпись пустого состояния квадрата предпросмотра. */
+  emptyLabel?: string;
+  /** Заголовок диалога выбора файла. */
+  pickerTitle?: string;
+  /** Префикс ключа панели выбора: два контрола на одной странице не должны делить состояние. */
+  instanceKey?: string;
 };
 
 /**
@@ -39,12 +45,18 @@ type Props = {
  * hand-rolled upload path. Only the two-button chrome here is new; `MediaLibraryPickerDialog`
  * (the shared component other forms use) is left untouched because its "Изменить" dropdown chrome
  * does not match the owner's exact two-action naming for this screen.
+ *
+ * Тот же контрол обслуживает и «Иконку приложения» (владелец 10.09.2026, вариант A): различаются
+ * только подписи и заголовок диалога, поэтому это параметры, а не второй такой же компонент.
  */
 export function OrgBrandLogoControl({
   initialMediaId,
   initialUrl,
   onChange,
   disabled = false,
+  emptyLabel = 'Нет лого',
+  pickerTitle = 'Логотип организации',
+  instanceKey = 'org-brand-logo',
 }: Props) {
   const [open, setOpen] = useState(false);
   const [logo, setLogo] = useState<PickedLogo | null>(
@@ -117,7 +129,7 @@ export function OrgBrandLogoControl({
             labels={{ skipped: 'Без превью', failed: 'Ошибка превью' }}
           />
         ) : (
-          <span className="px-1 text-center text-[10px] text-muted-foreground">Нет лого</span>
+          <span className="px-1 text-center text-[10px] text-muted-foreground">{emptyLabel}</span>
         )}
       </div>
       <div className="flex flex-wrap gap-2">
@@ -141,9 +153,9 @@ export function OrgBrandLogoControl({
         </Button>
       </div>
 
-      <MediaPickerShell title="Логотип организации" open={open} onOpenChange={setOpen}>
+      <MediaPickerShell title={pickerTitle} open={open} onOpenChange={setOpen}>
         <MediaPickerPanel
-          key={open ? 'org-brand-logo-open' : 'org-brand-logo-closed'}
+          key={open ? `${instanceKey}-open` : `${instanceKey}-closed`}
           open={open}
           apiKind="image"
           kind="image"

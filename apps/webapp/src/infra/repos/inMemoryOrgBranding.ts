@@ -1,8 +1,9 @@
 /**
  * In-memory organization-branding port (Vitest / no-DB runs). It mirrors the guarantees migration
  * 0238 enforces in PostgreSQL: one draft and one published revision per organization, publication
- * only as a transition, archived history retained, and a logo that must be owned by the SAME
- * organization (the DB trigger `app.guard_org_brand_revision()` is the authoritative chokepoint).
+ * only as a transition, archived history retained, and brand media (logo and app icon) that must be
+ * owned by the SAME organization (the DB trigger `app.guard_org_brand_revision()` is the
+ * authoritative chokepoint).
  */
 import { randomUUID } from 'node:crypto';
 import type {
@@ -50,9 +51,10 @@ export function seedInMemoryOrgBrandingMedia(input: SeedMedia): void {
 
 /**
  * Mirrors what PostgreSQL does when the media purge deletes a referenced asset:
- * `logo_media_id … ON DELETE SET NULL` clears the reference on EVERY revision — including published
- * and archived ones — and deletes nothing else (migration 0238; the trigger's FK tolerance was added
- * after the independent audit proved the delete previously failed with SQLSTATE P0001).
+ * `logo_media_id`/`app_icon_media_id … ON DELETE SET NULL` clear the reference on EVERY revision —
+ * including published and archived ones — and delete nothing else (migration 0238; the trigger's FK
+ * tolerance was added after the independent audit proved the delete previously failed with SQLSTATE
+ * P0001, and was extended to the app icon with the owner's 2026-09-10 decision).
  */
 export function purgeInMemoryOrgBrandingMedia(mediaId: string): void {
   media.delete(mediaId);
@@ -61,6 +63,10 @@ export function purgeInMemoryOrgBrandingMedia(mediaId: string): void {
       revision.logoMediaId = null;
       revision.logoMediaReady = false;
     }
+    if (revision.appIconMediaId === mediaId) {
+      revision.appIconMediaId = null;
+      revision.appIconMediaReady = false;
+    }
   }
 }
 
@@ -68,36 +74,52 @@ export function purgeInMemoryOrgBrandingMedia(mediaId: string): void {
 export function listInMemoryOrgBrandRevisions(organizationId: string): OrgBrandRevision[] {
   return revisions
     .filter((revision) => revision.organizationId === organizationId)
-    .map((revision) => ({ ...revision, logoMediaReady: logoReady(revision) }));
+    .map(withMediaReadiness);
 }
 
-function logoReady(revision: Pick<OrgBrandRevision, 'logoMediaId' | 'organizationId'>): boolean {
-  if (!revision.logoMediaId) return false;
-  const asset = media.get(revision.logoMediaId);
+/** Один предикат готовности на оба медиа-поля бренда: условия у них дословно одни и те же. */
+function mediaReady(organizationId: string, mediaId: string | null): boolean {
+  if (!mediaId) return false;
+  const asset = media.get(mediaId);
   if (!asset) return false;
   return (
     asset.organizationId !== null &&
-    asset.organizationId === revision.organizationId &&
+    asset.organizationId === organizationId &&
     asset.ready &&
     asset.image
   );
+}
+
+function withMediaReadiness(revision: OrgBrandRevision): OrgBrandRevision {
+  return {
+    ...revision,
+    logoMediaReady: mediaReady(revision.organizationId, revision.logoMediaId),
+    appIconMediaReady: mediaReady(revision.organizationId, revision.appIconMediaId),
+  };
 }
 
 function find(organizationId: string, status: OrgBrandRevisionStatus): OrgBrandRevision | null {
   const found = revisions.find(
     (revision) => revision.organizationId === organizationId && revision.status === status,
   );
-  return found ? { ...found, logoMediaReady: logoReady(found) } : null;
+  return found ? withMediaReadiness(found) : null;
 }
 
-function assertLogoOwnedByOrganization(input: {
-  organizationId: string;
-  logoMediaId: string | null;
-}): void {
-  if (!input.logoMediaId) return;
-  const asset = media.get(input.logoMediaId);
-  if (!asset || asset.organizationId === null || asset.organizationId !== input.organizationId) {
-    throw new Error('org_brand_logo_media_must_be_owned_by_organization');
+/** Оба медиа-поля бренда отвергаются одинаково — своим сообщением триггера на каждое. */
+function assertBrandMediaOwnedByOrganization(input: SaveOrgBrandDraftInput): void {
+  const checks = [
+    { mediaId: input.logoMediaId, error: 'org_brand_logo_media_must_be_owned_by_organization' },
+    {
+      mediaId: input.appIconMediaId,
+      error: 'org_brand_app_icon_media_must_be_owned_by_organization',
+    },
+  ];
+  for (const check of checks) {
+    if (!check.mediaId) continue;
+    const asset = media.get(check.mediaId);
+    if (!asset || asset.organizationId === null || asset.organizationId !== input.organizationId) {
+      throw new Error(check.error);
+    }
   }
 }
 
@@ -116,7 +138,7 @@ export function createInMemoryOrgBrandingPort(): OrgBrandingPort {
     },
 
     async saveDraft(input: SaveOrgBrandDraftInput): Promise<OrgBrandRevision> {
-      assertLogoOwnedByOrganization(input);
+      assertBrandMediaOwnedByOrganization(input);
       const now = new Date().toISOString();
       const existing = revisions.find(
         (revision) =>
@@ -127,8 +149,9 @@ export function createInMemoryOrgBrandingPort(): OrgBrandingPort {
         existing.patientAppName = input.patientAppName;
         existing.accentToken = input.accentToken;
         existing.logoMediaId = input.logoMediaId;
+        existing.appIconMediaId = input.appIconMediaId;
         existing.updatedAt = now;
-        return { ...existing, logoMediaReady: logoReady(existing) };
+        return withMediaReadiness(existing);
       }
       const draft: OrgBrandRevision = {
         id: randomUUID(),
@@ -139,6 +162,8 @@ export function createInMemoryOrgBrandingPort(): OrgBrandingPort {
         accentToken: input.accentToken,
         logoMediaId: input.logoMediaId,
         logoMediaReady: false,
+        appIconMediaId: input.appIconMediaId,
+        appIconMediaReady: false,
         createdByPlatformUserId: input.actorPlatformUserId,
         publishedByPlatformUserId: null,
         archivedByPlatformUserId: null,
@@ -148,7 +173,7 @@ export function createInMemoryOrgBrandingPort(): OrgBrandingPort {
         updatedAt: now,
       };
       revisions.push(draft);
-      return { ...draft, logoMediaReady: logoReady(draft) };
+      return withMediaReadiness(draft);
     },
 
     async publishDraft(input: {
@@ -173,7 +198,7 @@ export function createInMemoryOrgBrandingPort(): OrgBrandingPort {
       draft.publishedAt = now;
       draft.publishedByPlatformUserId = input.actorPlatformUserId;
       draft.updatedAt = now;
-      return { ...draft, logoMediaReady: logoReady(draft) };
+      return withMediaReadiness(draft);
     },
 
     async unpublish(input: {

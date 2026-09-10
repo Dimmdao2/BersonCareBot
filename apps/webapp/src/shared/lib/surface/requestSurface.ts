@@ -266,11 +266,23 @@ function sanitizeEffectivePatientBrand(value: unknown): EffectivePatientBrand | 
   ) {
     return null;
   }
+  // Иконка приложения переходит границу как ОДИН media id: адреса размеров строит только сервер
+  // (`patientPwaIconSet`), поэтому подделать URL иконки через заголовок поверхности нечем.
+  const appIconMediaId = candidate.appIconMediaId?.trim().toLowerCase();
+  if (
+    appIconMediaId !== undefined &&
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(
+      appIconMediaId,
+    )
+  ) {
+    return null;
+  }
   return {
     effectiveDisplayName,
     patientAppName,
     accentToken,
     ...(logoUrl ? { logoUrl } : {}),
+    ...(appIconMediaId ? { appIconMediaId } : {}),
   };
 }
 

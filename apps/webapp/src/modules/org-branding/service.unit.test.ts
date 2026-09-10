@@ -17,6 +17,8 @@ const published: OrgBrandRevision = {
   accentToken: '#7A3CC2',
   logoMediaId,
   logoMediaReady: true,
+  appIconMediaId: null,
+  appIconMediaReady: false,
   createdByPlatformUserId: actorPlatformUserId,
   publishedByPlatformUserId: actorPlatformUserId,
   archivedByPlatformUserId: null,
@@ -69,8 +71,68 @@ describe('organization branding entitlement ladder', () => {
       patientAppName: 'Приложение клиники',
       accentToken: '#7a3cc2',
       logoMediaId: null,
+      appIconMediaId: null,
     });
     expect(port.publishDraft).toHaveBeenCalledWith({ organizationId, actorPlatformUserId });
+  });
+
+  it('сохранение без поля иконки приложения не снимает уже поставленную иконку', async () => {
+    const appIconMediaId = '33333333-3333-4333-8333-333333333333';
+    const port = {
+      ...brandingPort(),
+      getPublishedRevision: vi.fn(async () => ({
+        ...published,
+        appIconMediaId,
+        appIconMediaReady: true,
+      })),
+    };
+    const service = createOrgBrandingService({
+      port,
+      resolveBrandingAccess: async () => access('full_access'),
+    });
+    const ctx = {
+      organizationId,
+      actorPlatformUserId,
+      hasOrganizationManagementCapability: true as const,
+    };
+
+    await service.saveDraft(ctx, { displayName: 'Новый бренд', logoMediaId: null });
+    expect(port.saveDraft).toHaveBeenCalledWith(
+      expect.objectContaining({ appIconMediaId }),
+    );
+  });
+
+  it('иконка приложения доходит до анонимной поверхности только когда медиа готово', async () => {
+    const appIconMediaId = '44444444-4444-4444-8444-444444444444';
+    const service = createOrgBrandingService({
+      port: {
+        ...brandingPort(),
+        getPublishedRevision: vi.fn(async () => ({
+          ...published,
+          appIconMediaId,
+          appIconMediaReady: false,
+        })),
+      },
+      resolveBrandingAccess: async () => access('full_access'),
+    });
+    await expect(
+      service.resolveEffectiveOrgBranding(organizationId, 'anonymous'),
+    ).resolves.toEqual(expect.not.objectContaining({ appIconMediaId }));
+
+    const ready = createOrgBrandingService({
+      port: {
+        ...brandingPort(),
+        getPublishedRevision: vi.fn(async () => ({
+          ...published,
+          appIconMediaId,
+          appIconMediaReady: true,
+        })),
+      },
+      resolveBrandingAccess: async () => access('full_access'),
+    });
+    await expect(ready.resolveEffectiveOrgBranding(organizationId, 'anonymous')).resolves.toEqual(
+      expect.objectContaining({ appIconMediaId }),
+    );
   });
 
   it('refuses a 101-character paid clinic-name override instead of shortening it', async () => {

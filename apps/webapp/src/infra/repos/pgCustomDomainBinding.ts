@@ -98,6 +98,7 @@ export function createPgCustomDomainBindingPort(): CustomDomainBindingPort {
         patient_app_name: string;
         accent_token: string;
         logo_url: string | null;
+        app_icon_media_id: string | null;
         active_custom_domain_hostname: string | null;
         clinic_messenger_bots: ClinicMessengerBots | null;
       }>(
@@ -115,6 +116,7 @@ export function createPgCustomDomainBindingPort(): CustomDomainBindingPort {
         patientAppName: row.patient_app_name,
         accentToken: row.accent_token,
         ...(row.logo_url ? { logoUrl: row.logo_url } : {}),
+        ...(row.app_icon_media_id ? { appIconMediaId: row.app_icon_media_id } : {}),
         ...(row.active_custom_domain_hostname
           ? { activeCustomDomainHostname: row.active_custom_domain_hostname }
           : {}),

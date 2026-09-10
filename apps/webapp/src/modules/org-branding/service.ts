@@ -47,6 +47,12 @@ export type EffectiveOrgBranding = {
     patientAppName: string | null;
     accentToken: string | null;
     logoUrl: string | null;
+    /**
+     * Источник иконки установленного приложения и фавикона как validated media id, а НЕ URL:
+     * у иконки не один адрес, а набор размеров, который собирает `patientPwaIconSet`
+     * (решение владельца 10.09.2026, вариант A).
+     */
+    appIconMediaId: string | null;
   };
   /** The name a surface should render: paid override when applied, else the core name. */
   effectiveDisplayName: string;
@@ -68,6 +74,8 @@ export type AnonymousPatientBrand = Readonly<{
   patientAppName: string;
   accentToken: string;
   logoUrl?: string;
+  /** Media id источника иконки приложения; набор размеров собирает `patientPwaIconSet`. */
+  appIconMediaId?: string;
 }>;
 
 export type OrgBrandingManagementState = {
@@ -84,6 +92,8 @@ export type OrgBrandingManagementState = {
 export type OrgBrandDraftInput = {
   displayName: string | null;
   logoMediaId: string | null;
+  /** Omission preserves the retained draft/published value, as with the other optional fields. */
+  appIconMediaId?: string | null;
   /** Omission preserves the retained draft/published value for the existing two-field settings UI. */
   patientAppName?: string | null;
   /** Omission preserves the retained draft/published value for the existing two-field settings UI. */
@@ -102,8 +112,8 @@ const ACCENT_TOKEN_RE = /^#[0-9a-f]{6}$/i;
 /**
  * Keys a caller must never be able to smuggle into a branding mutation. `organizationId` and
  * `organization_id` would attempt to retarget the tenant (§3.6, §5.3); `logoUrl` / `logo_url` /
- * `logoMediaUrl` would attempt to dictate the effective asset URL instead of referencing a media
- * row the server can validate. This is a structural guard: the typed input has no such fields, so
+ * `logoMediaUrl` / `appIconUrl` would attempt to dictate the effective asset URL instead of
+ * referencing a media row the server can validate. This is a structural guard: the typed input has no such fields, so
  * only an untyped/adversarial caller can reach it — and it fails loudly instead of being ignored.
  */
 const REJECTED_MUTATION_KEYS = [
@@ -115,6 +125,9 @@ const REJECTED_MUTATION_KEYS = [
   'logo_url',
   'logoMediaUrl',
   'logoPath',
+  'appIconUrl',
+  'app_icon_url',
+  'appIconMediaUrl',
 ] as const;
 
 export const CALLER_SUPPLIED_ORGANIZATION_ID_ERROR = 'caller_supplied_branding_field_rejected';
@@ -148,11 +161,15 @@ function assertValidOrganizationNameInput(value: string | null | undefined): voi
   if (!validated.ok) throw new Error(ORGANIZATION_NAME_TOO_LONG_CODE);
 }
 
-function normalizeLogoMediaId(value: string | null | undefined): string | null {
+/** Один нормализатор на оба медиа-поля бренда; отличается только код отказа. */
+function normalizeBrandMediaId(
+  value: string | null | undefined,
+  invalidErrorCode: string,
+): string | null {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
   if (trimmed === '') return null;
-  if (!UUID_RE.test(trimmed)) throw new Error('org_brand_logo_media_id_invalid');
+  if (!UUID_RE.test(trimmed)) throw new Error(invalidErrorCode);
   return trimmed.toLowerCase();
 }
 
@@ -172,7 +189,13 @@ function platformOnly(
   return {
     organizationId: core.organizationId,
     core: { displayName: core.displayName, isActive: core.isActive },
-    paid: { displayName: null, patientAppName: null, accentToken: null, logoUrl: null },
+    paid: {
+      displayName: null,
+      patientAppName: null,
+      accentToken: null,
+      logoUrl: null,
+      appIconMediaId: null,
+    },
     effectiveDisplayName,
     effectivePatientAppName: effectiveDisplayName,
     effectiveAccentToken: DEFAULT_PATIENT_ACCENT_TOKEN,
@@ -187,6 +210,7 @@ function anonymousPatientBrand(effective: EffectiveOrgBranding): AnonymousPatien
     patientAppName: effective.effectivePatientAppName,
     accentToken: effective.effectiveAccentToken,
     ...(effective.paid.logoUrl ? { logoUrl: effective.paid.logoUrl } : {}),
+    ...(effective.paid.appIconMediaId ? { appIconMediaId: effective.paid.appIconMediaId } : {}),
   };
 }
 
@@ -254,6 +278,8 @@ export function createOrgBrandingService(deps: {
       published.logoMediaReady && published.logoMediaId
         ? orgBrandLogoUrl(published.logoMediaId)
         : null;
+    const appIconMediaId =
+      published.appIconMediaReady && published.appIconMediaId ? published.appIconMediaId : null;
 
     return {
       organizationId: core.organizationId,
@@ -263,6 +289,7 @@ export function createOrgBrandingService(deps: {
         patientAppName: paidPatientAppName,
         accentToken: paidAccentToken,
         logoUrl,
+        appIconMediaId,
       },
       effectiveDisplayName: paidDisplayName ?? coreDisplayName,
       effectivePatientAppName: paidPatientAppName ?? paidDisplayName ?? coreDisplayName,
@@ -327,12 +354,16 @@ export function createOrgBrandingService(deps: {
         'patientAppName',
       );
       const preservesAccentToken = !Object.prototype.hasOwnProperty.call(input, 'accentToken');
+      const preservesAppIconMediaId = !Object.prototype.hasOwnProperty.call(
+        input,
+        'appIconMediaId',
+      );
       assertValidOrganizationNameInput(input.displayName);
       if (!preservesPatientAppName) {
         assertValidOrganizationNameInput(input.patientAppName);
       }
       const retained =
-        preservesPatientAppName || preservesAccentToken
+        preservesPatientAppName || preservesAccentToken || preservesAppIconMediaId
           ? ((await deps.port.getDraftRevision(ctx.organizationId)) ??
             (await deps.port.getPublishedRevision(ctx.organizationId)))
           : null;
@@ -347,7 +378,10 @@ export function createOrgBrandingService(deps: {
         accentToken: preservesAccentToken
           ? normalizeAccentToken(retained?.accentToken)
           : normalizeAccentToken(input.accentToken),
-        logoMediaId: normalizeLogoMediaId(input.logoMediaId),
+        logoMediaId: normalizeBrandMediaId(input.logoMediaId, 'org_brand_logo_media_id_invalid'),
+        appIconMediaId: preservesAppIconMediaId
+          ? normalizeBrandMediaId(retained?.appIconMediaId, 'org_brand_app_icon_media_id_invalid')
+          : normalizeBrandMediaId(input.appIconMediaId, 'org_brand_app_icon_media_id_invalid'),
       });
       return { ok: true, draft };
     },

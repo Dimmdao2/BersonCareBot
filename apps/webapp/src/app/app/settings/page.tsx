@@ -294,6 +294,12 @@ export default async function SettingsPage({
       publishedBrand?.logoMediaReady && publishedBrand.logoMediaId
         ? orgBrandLogoUrl(publishedBrand.logoMediaId)
         : null;
+    // Предпросмотр иконки в кабинете берёт ИСХОДНИК через ту же сессионную дверь медиа, что и
+    // логотип: готовые размеры — для пациентской поверхности, а врачу надо видеть, что он выбрал.
+    const publishedAppIconUrl =
+      publishedBrand?.appIconMediaReady && publishedBrand.appIconMediaId
+        ? orgBrandLogoUrl(publishedBrand.appIconMediaId)
+        : null;
     const patientLabel = valueOf(
       doctorSettings.find((setting) => setting.key === 'patient_label')?.valueJson,
       'пациент',
@@ -479,13 +485,15 @@ export default async function SettingsPage({
         ) : null}
         {brandingState.brandingVisible ? (
           <OrgBrandingSection
-            key={`${brandingState.accessState}:${publishedBrand ? 'published' : 'unpublished'}:${publishedBrand?.displayName ?? ''}:${publishedBrand?.logoMediaId ?? ''}`}
+            key={`${brandingState.accessState}:${publishedBrand ? 'published' : 'unpublished'}:${publishedBrand?.displayName ?? ''}:${publishedBrand?.logoMediaId ?? ''}:${publishedBrand?.appIconMediaId ?? ''}`}
             brandingMutationAvailable={brandingState.brandingMutationAvailable}
             coreDisplayName={brandingState.effective.core.displayName}
             hasPublishedRevision={publishedBrand !== null}
             publishedDisplayName={publishedBrand?.displayName ?? null}
             publishedLogoMediaId={publishedBrand?.logoMediaId ?? null}
             publishedLogoUrl={publishedLogoUrl}
+            publishedAppIconMediaId={publishedBrand?.appIconMediaId ?? null}
+            publishedAppIconUrl={publishedAppIconUrl}
             clinicBots={clinicBots}
           />
         ) : null}
@@ -637,7 +645,12 @@ export default async function SettingsPage({
     () => deps.saasBilling.getOwnTariffChangeState(workspace.organizationId),
   );
   const entitlements = entitlementsFromSnapshot(snapshot);
-  const mechanicRows: BillingMechanicRow[] = MECHANICS.map((mechanic) => ({
+  // Owner ruling 2026-09-10: a solo cabinet never mentions team capacity — neither the seat count
+  // nor a «Режим клиники» row, which would read as a mode marker. The clinic mode owns those rows.
+  const hideTeamCapacity = composition === 'solo';
+  const mechanicRows: BillingMechanicRow[] = MECHANICS.filter(
+    (mechanic) => !(hideTeamCapacity && mechanic === 'clinic_team'),
+  ).map((mechanic) => ({
     mechanic,
     label: MECHANIC_REGISTRY[mechanic].label,
     enabled: entitlements[mechanic],
@@ -646,7 +659,9 @@ export default async function SettingsPage({
   // cross-org `getEnforcedQuotaUsage` (see resolveOwnOrgQuotaProjections).
   const quotaUsage = (
     await resolveOwnOrgQuotaProjections(deps.orgEntitlements, workspace.organizationId)
-  ).map((projection) => ({ ...projection, label: MECHANIC_REGISTRY[projection.mechanic].label }));
+  )
+    .filter((projection) => !(hideTeamCapacity && projection.mechanic === 'clinic_team'))
+    .map((projection) => ({ ...projection, label: MECHANIC_REGISTRY[projection.mechanic].label }));
 
   return (
     <DoctorAppShell title="Тариф и биллинг" user={workspace.session.user}>

@@ -32,6 +32,7 @@ import { pgMediaUsageSummaryForMediaId } from '@/infra/repos/pgMediaUsageSummary
 import {
   s3AbortMultipartUpload,
   s3DeleteObject,
+  s3HeadObject,
   s3ListObjectKeysUnderPrefix,
   s3ObjectKey,
   s3PublicUrl,
@@ -53,6 +54,7 @@ import {
   parseVideoProcessingStatus,
 } from '@/modules/media/videoHlsFields';
 import { mediaPreviewUrlById } from '@/shared/lib/mediaPreviewUrls';
+import { ORG_APP_ICON_VARIANTS, orgAppIconObjectKey } from '@/shared/lib/brand/orgAppIcon';
 import {
   isTrustedHlsArtifactS3Key,
   isTrustedPosterS3Key,
@@ -1410,6 +1412,15 @@ export async function purgePendingMediaDeleteBatch(
     }
 
     try {
+      // Готовые размеры иконки клиники (владелец 10.09.2026) ключуются media id и всегда лежат в
+      // `library`, поэтому удаляются отдельно от target-скоупных ключей строки. Один HEAD решает,
+      // нужен ли этот шаг вообще: у обычного медиа-файла таких объектов нет, и он ничего не стоит.
+      const lastIconVariant = ORG_APP_ICON_VARIANTS[ORG_APP_ICON_VARIANTS.length - 1]!;
+      if (await s3HeadObject(orgAppIconObjectKey(row.id, lastIconVariant), 'library')) {
+        for (const variant of ORG_APP_ICON_VARIANTS) {
+          await s3DeleteObject(orgAppIconObjectKey(row.id, variant), 'library');
+        }
+      }
       for (const key of keysToDelete) {
         await s3DeleteObject(key, claim.storageTarget);
       }

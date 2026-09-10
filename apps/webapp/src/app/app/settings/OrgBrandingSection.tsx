@@ -35,6 +35,9 @@ type Props = {
   publishedDisplayName: string | null;
   publishedLogoMediaId: string | null;
   publishedLogoUrl: string | null;
+  /** Опубликованная иконка приложения и её URL предпросмотра; `null` — иконка не поставлена. */
+  publishedAppIconMediaId: string | null;
+  publishedAppIconUrl: string | null;
   clinicBots?: {
     telegram: ClinicBotSettings;
     max: ClinicBotSettings;
@@ -52,6 +55,9 @@ type ClinicBotSettings = {
 const SAVE_ERROR_MESSAGES: Record<string, string> = {
   entitlement_disabled: 'Брендирование недоступно на текущем тарифе.',
   commercial_read_only: 'Брендирование доступно только для просмотра.',
+  app_icon_source_unavailable: 'Файл иконки недоступен. Загрузите картинку заново.',
+  app_icon_encode_failed: 'Не удалось подготовить размеры иконки. Нужна картинка PNG или JPEG.',
+  app_icon_store_failed: 'Не удалось сохранить размеры иконки. Попробуйте ещё раз.',
   [ORGANIZATION_NAME_TOO_LONG_CODE]: ORGANIZATION_NAME_TOO_LONG_MESSAGE,
 };
 
@@ -243,21 +249,32 @@ export function OrgBrandingSection({
   publishedDisplayName,
   publishedLogoMediaId,
   publishedLogoUrl,
+  publishedAppIconMediaId,
+  publishedAppIconUrl,
   clinicBots,
 }: Props) {
   const router = useRouter();
   const [name, setName] = useState(publishedDisplayName ?? coreDisplayName);
   const [logoMediaId, setLogoMediaId] = useState<string | null>(publishedLogoMediaId);
+  const [appIconMediaId, setAppIconMediaId] = useState<string | null>(publishedAppIconMediaId);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<ActionFailureFields | null>(null);
   const [justSaved, setJustSaved] = useState(false);
 
   const baselineName = (publishedDisplayName ?? coreDisplayName).trim();
   const dirty =
-    !hasPublishedRevision || name.trim() !== baselineName || logoMediaId !== publishedLogoMediaId;
+    !hasPublishedRevision ||
+    name.trim() !== baselineName ||
+    logoMediaId !== publishedLogoMediaId ||
+    appIconMediaId !== publishedAppIconMediaId;
 
   function handleLogoChange(next: OrgBrandLogoChange) {
     setLogoMediaId(next?.mediaId ?? null);
+    setJustSaved(false);
+  }
+
+  function handleAppIconChange(next: OrgBrandLogoChange) {
+    setAppIconMediaId(next?.mediaId ?? null);
     setJustSaved(false);
   }
 
@@ -271,7 +288,7 @@ export function OrgBrandingSection({
       // straightforward "cleared back to platform default" state instead of an inert duplicate.
       const displayName =
         trimmedName === '' || trimmedName === coreDisplayName.trim() ? null : trimmedName;
-      const result = await saveOrgBranding({ displayName, logoMediaId });
+      const result = await saveOrgBranding({ displayName, logoMediaId, appIconMediaId });
       if (!result.ok) {
         // The known codes keep their own sentence; the support reference travels with whatever the
         // door could not name, so an unmapped save failure is still traceable from this screen.
@@ -322,6 +339,23 @@ export function OrgBrandingSection({
             initialUrl={publishedLogoUrl}
             disabled={!brandingMutationAvailable || saving}
             onChange={handleLogoChange}
+          />
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <span className="text-sm font-medium">Иконка приложения</span>
+          <p className="text-xs text-muted-foreground">
+            Квадратная картинка: она встаёт на иконку установленного приложения пациента и на
+            фавикон сайта. Нужные размеры готовятся сразу при сохранении.
+          </p>
+          <OrgBrandLogoControl
+            initialMediaId={publishedAppIconMediaId}
+            initialUrl={publishedAppIconUrl}
+            disabled={!brandingMutationAvailable || saving}
+            onChange={handleAppIconChange}
+            emptyLabel="Нет иконки"
+            pickerTitle="Иконка приложения"
+            instanceKey="org-brand-app-icon"
           />
         </div>
 

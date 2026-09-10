@@ -35,6 +35,14 @@ export type OrgBrandRevision = {
    * is `status = 'ready'` and is an image. Never derived from anything the client sends.
    */
   logoMediaReady: boolean;
+  /**
+   * Квадратный источник иконки установленного приложения и фавикона (решение владельца
+   * 10.09.2026, вариант A). Отдельно от логотипа: логотип широкий, и квадрат 192×192 с
+   * фавиконом 32×32 из него получаются обрезанными.
+   */
+  appIconMediaId: string | null;
+  /** Серверная готовность `appIconMediaId` — те же четыре условия, что и у логотипа. */
+  appIconMediaReady: boolean;
   createdByPlatformUserId: string;
   publishedByPlatformUserId: string | null;
   archivedByPlatformUserId: string | null;
@@ -51,6 +59,7 @@ export type SaveOrgBrandDraftInput = {
   patientAppName: string | null;
   accentToken: string | null;
   logoMediaId: string | null;
+  appIconMediaId: string | null;
 };
 
 export type OrgBrandingPort = {
@@ -61,7 +70,8 @@ export type OrgBrandingPort = {
   /**
    * Creates or updates the single draft revision of this organization. Rejects a logo that is not
    * owned by the same organization with `org_brand_logo_media_must_be_owned_by_organization`
-   * (the database trigger from migration 0238 is the authoritative chokepoint).
+   * (the database trigger from migration 0238 is the authoritative chokepoint); the app icon is
+   * rejected the same way with `org_brand_app_icon_media_must_be_owned_by_organization`.
    */
   saveDraft(input: SaveOrgBrandDraftInput): Promise<OrgBrandRevision>;
   /**

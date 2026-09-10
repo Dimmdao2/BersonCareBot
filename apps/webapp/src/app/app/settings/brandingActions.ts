@@ -5,6 +5,7 @@ import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireOrgBrandingManagementContext } from '@/app-layer/guards/requireOrgBrandingManagementContext';
 import { requireEntitlementForMutationAction } from '@/app-layer/guards/requireEntitlement';
 import { safeActionFailure, type ActionFailureFields } from '@/shared/http/apiResponse';
+import { writeOrgAppIconRenditions } from '@/app-layer/media/orgAppIconRenditions';
 
 type ActionState = { ok: true } | ({ ok: false } & ActionFailureFields);
 
@@ -36,6 +37,8 @@ function revalidateOrgBrandingSurfaces(): void {
 export async function saveOrgBranding(input: {
   displayName: string | null;
   logoMediaId: string | null;
+  /** Отсутствие поля сохраняет прежнюю иконку; `null` — снять её. */
+  appIconMediaId?: string | null;
 }): Promise<ActionState> {
   try {
     const ctx = await requireOrgBrandingManagementContext();
@@ -51,8 +54,19 @@ export async function saveOrgBranding(input: {
     const draftResult = await deps.orgBranding.saveDraft(ctx, {
       displayName: input.displayName,
       logoMediaId: input.logoMediaId,
+      ...(Object.prototype.hasOwnProperty.call(input, 'appIconMediaId')
+        ? { appIconMediaId: input.appIconMediaId ?? null }
+        : {}),
     });
     if (!draftResult.ok) return fail(draftResult.code);
+    // Владелец: «в идеале сразу при установке или смене и переформатируется под фавикон и все
+    // остальные форматы». Поэтому размеры считаются ЗДЕСЬ, до публикации: пока их нет, публиковать
+    // иконку нечем, и брендированная поверхность честно осталась бы на платформенном наборе.
+    // Отказ виден врачу сразу, а не превращается в молча пропавшую иконку.
+    if (draftResult.draft.appIconMediaId) {
+      const renditions = await writeOrgAppIconRenditions(draftResult.draft.appIconMediaId);
+      if (!renditions.ok) return fail(`app_icon_${renditions.reason}`);
+    }
     const publishResult = await deps.orgBranding.publishDraft(ctx);
     if (!publishResult.ok) return fail(publishResult.code);
     revalidateOrgBrandingSurfaces();

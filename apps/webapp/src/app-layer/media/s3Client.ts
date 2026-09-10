@@ -13,6 +13,7 @@ export {
   s3HeadObject,
   s3HeadObjectDetails,
   s3ObjectKey,
+  s3PutObjectBody,
   s3CreateMultipartUpload,
   storageBucketFor,
   isPatientStorageSeparate,

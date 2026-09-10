@@ -7,7 +7,8 @@ import { type SQL, sql } from 'drizzle-orm';
  * `org_brand_revisions_exact_org_staff` re-checks `organization_id = app.current_org_id()` for
  * reads and writes, so a wrong organization id cannot be written even if it reached this layer.
  * The `/api/media/<uuid>` logo readiness is computed here in SQL from `public.media_files` — the
- * same media infrastructure `lfk_exercise_media` uses — and never from client input.
+ * same media infrastructure `lfk_exercise_media` uses — and never from client input. The app-icon
+ * source (owner decision 2026-09-10) is validated by the identical four-condition join.
  *
  * No statement here reads a table the calling role is not supposed to hold privileges on: the core
  * organization context goes through `app.read_org_brand_core_context()` (0238), not through
@@ -43,6 +44,8 @@ type RevisionRow = {
   accent_token: string | null;
   logo_media_id: string | null;
   logo_media_ready: boolean;
+  app_icon_media_id: string | null;
+  app_icon_media_ready: boolean;
   created_by_platform_user_id: string;
   published_by_platform_user_id: string | null;
   archived_by_platform_user_id: string | null;
@@ -69,6 +72,8 @@ function mapRevision(row: RevisionRow): OrgBrandRevision {
     accentToken: row.accent_token,
     logoMediaId: row.logo_media_id,
     logoMediaReady: row.logo_media_ready === true,
+    appIconMediaId: row.app_icon_media_id,
+    appIconMediaReady: row.app_icon_media_ready === true,
     createdByPlatformUserId: row.created_by_platform_user_id,
     publishedByPlatformUserId: row.published_by_platform_user_id,
     archivedByPlatformUserId: row.archived_by_platform_user_id,
@@ -94,6 +99,8 @@ const revisionSelectSql = (organizationId: string, status: OrgBrandRevisionStatu
     revision.accent_token,
     revision.logo_media_id::text AS logo_media_id,
     (logo.id IS NOT NULL) AS logo_media_ready,
+    revision.app_icon_media_id::text AS app_icon_media_id,
+    (app_icon.id IS NOT NULL) AS app_icon_media_ready,
     revision.created_by_platform_user_id::text AS created_by_platform_user_id,
     revision.published_by_platform_user_id::text AS published_by_platform_user_id,
     revision.archived_by_platform_user_id::text AS archived_by_platform_user_id,
@@ -108,6 +115,12 @@ const revisionSelectSql = (organizationId: string, status: OrgBrandRevisionStatu
    AND logo.organization_id = revision.organization_id
    AND logo.status = 'ready'
    AND logo.mime_type LIKE 'image/%'
+  LEFT JOIN public.media_files AS app_icon
+    ON app_icon.id = revision.app_icon_media_id
+   AND app_icon.owner_kind = 'organization'
+   AND app_icon.organization_id = revision.organization_id
+   AND app_icon.status = 'ready'
+   AND app_icon.mime_type LIKE 'image/%'
   WHERE revision.organization_id = ${organizationId}::uuid
     AND revision.status = ${status}::text
   LIMIT 1
@@ -171,14 +184,15 @@ export function createPgOrgBrandingPort(): OrgBrandingPort {
         getWebappSqlDb(),
         sql`INSERT INTO public.org_brand_revisions (
            organization_id, status, display_name, patient_app_name, accent_token, logo_media_id,
-           created_by_platform_user_id
-         ) VALUES (${input.organizationId}::uuid, 'draft', ${input.displayName}::text, ${input.patientAppName}::text, ${input.accentToken}::text, ${input.logoMediaId}::uuid, ${input.actorPlatformUserId}::uuid)
+           app_icon_media_id, created_by_platform_user_id
+         ) VALUES (${input.organizationId}::uuid, 'draft', ${input.displayName}::text, ${input.patientAppName}::text, ${input.accentToken}::text, ${input.logoMediaId}::uuid, ${input.appIconMediaId}::uuid, ${input.actorPlatformUserId}::uuid)
          ON CONFLICT (organization_id) WHERE status = 'draft'
          DO UPDATE SET
            display_name = EXCLUDED.display_name,
            patient_app_name = EXCLUDED.patient_app_name,
            accent_token = EXCLUDED.accent_token,
            logo_media_id = EXCLUDED.logo_media_id,
+           app_icon_media_id = EXCLUDED.app_icon_media_id,
            updated_at = now()`,
       );
       const draft = await selectRevision(input.organizationId, 'draft');

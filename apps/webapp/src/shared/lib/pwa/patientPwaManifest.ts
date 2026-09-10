@@ -1,5 +1,6 @@
 import type { MetadataRoute } from 'next';
 import { surfaceDisplayName, type ResolvedSurface } from '@/shared/lib/surface/requestSurface';
+import { isOrgAppIconMediaId, orgAppIconUrl } from '@/shared/lib/brand/orgAppIcon';
 
 export const PATIENT_PWA_MANIFEST_PATH = '/manifest.webmanifest';
 export const PATIENT_BROWSER_ICON_32 = '/therapygo-favicon-32.png';
@@ -26,8 +27,12 @@ export const PATIENT_DEFAULT_PWA_ICON_SET: PatientPwaIconSet = {
   appleTouch: PATIENT_PWA_APPLE_TOUCH,
 };
 
-/** Legacy blue clinic identity remains until individual clinic PWA artwork exists. */
-const brandedPatientPwaIcons: PatientPwaIconSet = {
+/**
+ * Набор брендированной поверхности, пока клиника НЕ поставила свою иконку. Это исторические
+ * синие ассеты; они остаются именно фолбэком (§10 контракта бренда: непригодный ассет
+ * деградирует к платформенному набору, а не к пустоте).
+ */
+const brandedPatientPwaIconsFallback: PatientPwaIconSet = {
   browserIcon: '/pwa-icon-192.png',
   browserIconSize: '192x192',
   icon192: '/pwa-icon-192.png',
@@ -35,11 +40,33 @@ const brandedPatientPwaIcons: PatientPwaIconSet = {
   appleTouch: '/apple-touch-icon.png',
 };
 
+/**
+ * Набор иконок клиники из ОДНОГО валидированного media id (владелец 10.09.2026, вариант A).
+ * Адреса строит только сервер по общему словарю размеров, поэтому набор не может разъехаться с
+ * тем, что реально сгенерировано при сохранении.
+ */
+function clinicPatientPwaIcons(appIconMediaId: string): PatientPwaIconSet {
+  return {
+    browserIcon: orgAppIconUrl(appIconMediaId, '32'),
+    browserIconSize: '32x32',
+    icon192: orgAppIconUrl(appIconMediaId, '192'),
+    icon512: orgAppIconUrl(appIconMediaId, '512'),
+    maskableIcon512: orgAppIconUrl(appIconMediaId, 'maskable-512'),
+    appleTouch: orgAppIconUrl(appIconMediaId, '180'),
+  };
+}
+
 /** The one patient icon-set boundary for both the manifest and document metadata. */
 export function patientPwaIconSet(resolved: ResolvedSurface): PatientPwaIconSet {
   if (resolved.surface === 'patient_default') return PATIENT_DEFAULT_PWA_ICON_SET;
-  if (resolved.surface === 'patient_branded') return brandedPatientPwaIcons;
-  throw new Error('patient_icon_set_requires_patient_surface');
+  if (resolved.surface !== 'patient_branded') {
+    throw new Error('patient_icon_set_requires_patient_surface');
+  }
+  // Бренд уже прошёл санитайзер поверхности: id либо валидный uuid, либо его нет вовсе.
+  const appIconMediaId = resolved.effectivePatientBrand?.appIconMediaId;
+  return appIconMediaId && isOrgAppIconMediaId(appIconMediaId)
+    ? clinicPatientPwaIcons(appIconMediaId)
+    : brandedPatientPwaIconsFallback;
 }
 
 /**

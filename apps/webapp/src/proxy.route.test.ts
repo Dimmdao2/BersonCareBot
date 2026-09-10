@@ -1016,6 +1016,8 @@ describe('B4a: адрес клиники на нашем поддомене жи
     accentToken: '#0F766E',
     logoMediaId: PAID_LOGO_MEDIA_ID,
     logoMediaReady: true,
+    appIconMediaId: null,
+    appIconMediaReady: false,
     createdByPlatformUserId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
     publishedByPlatformUserId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
     archivedByPlatformUserId: null,

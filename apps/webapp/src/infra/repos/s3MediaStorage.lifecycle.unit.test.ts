@@ -13,6 +13,7 @@ const fakes = vi.hoisted(() => ({
   runNamedRoot: vi.fn(),
   runMutation: vi.fn(),
   s3DeleteObject: vi.fn(),
+  s3HeadObject: vi.fn(),
   s3AbortMultipartUpload: vi.fn(),
   s3PutObjectBody: vi.fn(),
   s3ListObjectKeysUnderPrefix: vi.fn(),
@@ -46,6 +47,7 @@ vi.mock('@/infra/db/drizzleMutationTx', () => ({
 vi.mock('@/infra/s3/client', () => ({
   s3AbortMultipartUpload: fakes.s3AbortMultipartUpload,
   s3DeleteObject: fakes.s3DeleteObject,
+  s3HeadObject: fakes.s3HeadObject,
   s3ListObjectKeysUnderPrefix: fakes.s3ListObjectKeysUnderPrefix,
   s3ObjectKey: (id: string, filename: string) => `media/${id}/${filename}`,
   s3PublicUrl: vi.fn(),
@@ -98,6 +100,7 @@ describe('proxy S3-to-DB lifecycle', () => {
     fakes.insertValues.mockResolvedValue(undefined);
     fakes.s3PutObjectBody.mockResolvedValue(undefined);
     fakes.s3ListObjectKeysUnderPrefix.mockResolvedValue([]);
+    fakes.s3HeadObject.mockResolvedValue(false);
     fakes.readyReturning.mockResolvedValue([]);
     fakes.abortReturning.mockResolvedValue([]);
     fakes.deleteWhere.mockResolvedValue(undefined);
@@ -311,6 +314,47 @@ describe('pending upload abort lifecycle', () => {
       ['complete', MEDIA_ID, null, CLAIM_TOKEN],
       expect.anything(),
     );
+  });
+
+  /**
+   * Иконка клиники (владелец 10.09.2026) держит пять готовых размеров в `org-app-icons/<id>/`.
+   * Удаление исходного медиа-файла обнуляет ссылку в бренде через FK, но объекты в хранилище
+   * останутся мусором, если чистка о них не знает. Обычный медиа-файл при этом не должен платить
+   * пятью лишними удалениями — поэтому шаг включает один HEAD.
+   */
+  it('чистит готовые размеры иконки клиники и не трогает их у обычного файла', async () => {
+    fakes.s3DeleteObject.mockResolvedValue(undefined);
+    fakes.s3HeadObject.mockResolvedValue(true);
+    fakes.runNamedRoot
+      .mockResolvedValueOnce({
+        rows: [{ result: { action: 'stage', stagedCount: 0, removedEmpty: 0 } }],
+      })
+      .mockResolvedValueOnce(claimedStep())
+      .mockResolvedValueOnce({ rows: [{ result: { action: 'complete', deleted: true } }] });
+
+    await expect(purgePendingMediaDeleteBatch(1)).resolves.toEqual({ removed: 1, errors: 0 });
+
+    for (const variant of ['32', '180', '192', '512', 'maskable-512']) {
+      expect(fakes.s3DeleteObject).toHaveBeenCalledWith(
+        `org-app-icons/${MEDIA_ID}/${variant}.png`,
+        'library',
+      );
+    }
+
+    vi.clearAllMocks();
+    fakes.s3DeleteObject.mockResolvedValue(undefined);
+    fakes.s3ListObjectKeysUnderPrefix.mockResolvedValue([]);
+    fakes.s3HeadObject.mockResolvedValue(false);
+    fakes.runNamedRoot
+      .mockResolvedValueOnce({
+        rows: [{ result: { action: 'stage', stagedCount: 0, removedEmpty: 0 } }],
+      })
+      .mockResolvedValueOnce(claimedStep())
+      .mockResolvedValueOnce({ rows: [{ result: { action: 'complete', deleted: true } }] });
+
+    await expect(purgePendingMediaDeleteBatch(1)).resolves.toEqual({ removed: 1, errors: 0 });
+    expect(fakes.s3DeleteObject).toHaveBeenCalledTimes(1);
+    expect(fakes.s3DeleteObject).toHaveBeenCalledWith(MEDIA_KEY, 'library');
   });
 
   it('reports an error when the DB does not confirm final row deletion', async () => {

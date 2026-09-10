@@ -94,6 +94,7 @@ export const productionTenantSurfaceLookup: TenantSurfaceLookup = async (
       patientAppName: projection.patientAppName,
       accentToken: projection.accentToken,
       ...(projection.logoUrl ? { logoUrl: projection.logoUrl } : {}),
+      ...(projection.appIconMediaId ? { appIconMediaId: projection.appIconMediaId } : {}),
     },
     ...(projection.activeCustomDomainHostname
       ? { activeCustomDomainHostname: projection.activeCustomDomainHostname }
