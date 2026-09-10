@@ -8,46 +8,57 @@
 #
 #   bash tools/deploy-prod-from-dev.sh            # выложить текущую ветку
 #   bash tools/deploy-prod-from-dev.sh <ref>      # выложить конкретную ветку/коммит/тег
+#
+# ДВА ПУТИ ДОСТУПА, и скрипт выбирает сам. Целевой — учётка `deploy` с правом sudo ровно на четыре
+# команды конвейера; вход root по SSH при этом закрыт (deploy/host/prod/harden-ssh-close-root.sh).
+# Переходный — прежний вход root, пока эта учётка не заведена. Автовыбор существует, чтобы переход не
+# требовал согласованного «дня X»: сначала работает деплой, потом закрывается root, и ни один шаг не
+# ломает другой. Когда root закроют насовсем, ветка с root просто перестанет срабатывать.
 set -euo pipefail
 
 PROD_HOST=135.106.187.95
 PROD_KEY="${THERAPYSTO_PROD_KEY:-$HOME/.ssh/therapysto_prod_build_20260817}"
 PROD_BRANCH=prod-probe
+PIPELINE=/opt/therapysto/pipeline
+SRC=/opt/therapysto/src
 REF="${1:-HEAD}"
 
 [ -f "$PROD_KEY" ] || { echo "FATAL: нет ключа $PROD_KEY" >&2; exit 1; }
 COMMIT=$(git rev-parse --verify "$REF") || { echo "FATAL: не разрешается ref '$REF'" >&2; exit 1; }
 
-echo "==> доставляю $(git log --oneline -1 "$COMMIT") на прод"
-GIT_SSH_COMMAND="ssh -i $PROD_KEY -o IdentitiesOnly=yes -o BatchMode=yes" \
-  git push --force "ssh://root@$PROD_HOST/opt/therapysto/git/therapysto.git" "$COMMIT:refs/heads/$PROD_BRANCH"
+SSH_OPTS=(-i "$PROD_KEY" -o IdentitiesOnly=yes -o BatchMode=yes)
 
-# Сам конвейер (compose, Dockerfile, blue/green-скрипты) живёт на хосте отдельной копией в
-# /opt/therapysto/pipeline и читается оттуда, а не из выложенного дерева. Копию надо обновлять
-# из того же коммита, иначе прод собирает новый код старой машинерией: правка compose уезжает в git,
-# на хосте её нет, и деплой падает по причине, которую в репозитории уже починили. Раскладка та же,
-# что делает deploy/host/prod/setup-docker-bluegreen.sh — здесь повторяется только она.
+# Учётка выбирается проверкой, а не догадкой: пробуем непривилегированный путь и берём его, если он жив.
+if ssh "${SSH_OPTS[@]}" -o ConnectTimeout=10 "deploy@$PROD_HOST" true 2>/dev/null; then
+  ACCOUNT=deploy
+  echo "==> доступ: учётка deploy, привилегии через sudo на команды конвейера"
+elif ssh "${SSH_OPTS[@]}" -o ConnectTimeout=10 "root@$PROD_HOST" true 2>/dev/null; then
+  ACCOUNT=root
+  echo "==> доступ: root (переходный режим — выполните deploy/host/prod/harden-ssh-close-root.sh --setup)"
+else
+  echo "FATAL: ни deploy@, ни root@ не пускают по ключу $PROD_KEY" >&2
+  exit 1
+fi
+
+echo "==> доставляю $(git log --oneline -1 "$COMMIT") на прод"
+GIT_SSH_COMMAND="ssh ${SSH_OPTS[*]}" \
+  git push --force "ssh://$ACCOUNT@$PROD_HOST/opt/therapysto/git/therapysto.git" "$COMMIT:refs/heads/$PROD_BRANCH"
+
+# Раскладка конвейера живёт на хосте отдельным root-owned скриптом, а не строкой команд здесь: строку
+# нельзя разрешить в sudoers, а файл — можно. Это и есть то, что позволило убрать вход root.
 echo "==> обновляю конвейер на проде из этого же коммита"
-ssh -i "$PROD_KEY" -o IdentitiesOnly=yes -o BatchMode=yes "root@$PROD_HOST" "
-  set -e
-  git -C /opt/therapysto/src fetch --prune origin
-  git -C /opt/therapysto/src reset --hard $COMMIT
-  S=/opt/therapysto/src/deploy/host/prod
-  D=/opt/therapysto/src/deploy/docker
-  P=/opt/therapysto/pipeline
-  for f in therapysto-bluegreen-lib.sh therapysto-deploy therapysto-rollback therapysto-status cutover-edge-to-caddy.sh rollback-edge-to-nginx.sh check-caddy-edge-health.sh; do
-    install -m 0755 -o root -g root \"\$S/\$f\" \"\$P/\$f\"
-  done
-  install -m 0644 -o root -g root /opt/therapysto/src/deploy/caddy/Caddyfile.template \"\$P/Caddyfile.template\"
-  install -m 0755 -o root -g root /opt/therapysto/src/deploy/caddy/build-caddy-edge.sh \"\$P/build-caddy-edge.sh\"
-  install -m 0644 -o root -g root /opt/therapysto/src/deploy/nginx/prod/therapysto-internal.conf.template \"\$P/therapysto-internal.conf.template\"
-  for f in therapysto-caddy-edge.service therapysto-caddy-edge-health.service therapysto-caddy-edge-health.timer; do
-    install -m 0644 -o root -g root \"/opt/therapysto/src/deploy/systemd/\$f\" \"\$P/\$f\"
-  done
-  install -m 0644 -o root -g root \"\$D/Dockerfile\" \"\$P/Dockerfile\"
-  install -m 0644 -o root -g root \"\$D/docker-compose.yml\" \"\$P/docker-compose.yml\"
-"
+if [ "$ACCOUNT" = deploy ]; then
+  ssh "${SSH_OPTS[@]}" "deploy@$PROD_HOST" "sudo -n $PIPELINE/install-pipeline.sh $COMMIT"
+else
+  # Переходный путь: установленной копии скрипта может ещё не быть, поэтому дерево подтягивается здесь,
+  # а раскладку выполняет тот же скрипт прямо из дерева — включая установку самого себя в конвейер.
+  ssh "${SSH_OPTS[@]}" "root@$PROD_HOST" \
+    "set -e; git -C $SRC fetch --prune origin; git -C $SRC reset --hard $COMMIT; bash $SRC/deploy/host/prod/install-pipeline.sh $COMMIT"
+fi
 
 echo "==> запускаю blue/green-деплой на проде"
-exec ssh -i "$PROD_KEY" -o IdentitiesOnly=yes -o BatchMode=yes "root@$PROD_HOST" \
-  "/opt/therapysto/pipeline/therapysto-deploy $PROD_BRANCH"
+if [ "$ACCOUNT" = deploy ]; then
+  exec ssh "${SSH_OPTS[@]}" "deploy@$PROD_HOST" "sudo -n $PIPELINE/therapysto-deploy $PROD_BRANCH"
+else
+  exec ssh "${SSH_OPTS[@]}" "root@$PROD_HOST" "$PIPELINE/therapysto-deploy $PROD_BRANCH"
+fi
