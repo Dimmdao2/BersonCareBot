@@ -81,6 +81,10 @@ services:
     env_file:
       - ${THERAPYSTO_ENV_DIR:?THERAPYSTO_ENV_DIR is required}/webapp.prod
     environment:
+      # Каталог возможностей порт-контекста приезжает ПЕРЕМЕННОЙ, а не строкой в env-файле: он выводится
+      # из выкладываемого коммита, то есть это часть кода. `environment` перекрывает `env_file`, поэтому
+      # даже если в файле осталась строка от прежней схемы, действует эта.
+      WEBAPP_PORT_CONTEXT_CAPABILITIES_JSON: ${WEBAPP_PORT_CONTEXT_CAPABILITIES_JSON:?WEBAPP_PORT_CONTEXT_CAPABILITIES_JSON is required}
       # Порт по умолчанию, а не 6200, ровно по одной причине: свои же фоновые процессы зовут вебапп
       # по его публичному имени, и `Host` тогда несёт `:порт`. Резолвер поверхностей сверяет Host
       # точно и на `therapysto.ru:6200` отвечает 404 — media-worker падал на первом же обращении.
@@ -112,6 +116,8 @@ services:
     env_file:
       - ${THERAPYSTO_ENV_DIR}/api.prod
     environment:
+      # См. пояснение у webapp: каталог порт-контекста выводится из коммита и едет переменной.
+      INTEGRATOR_PORT_CONTEXT_CAPABILITIES_JSON: ${INTEGRATOR_PORT_CONTEXT_CAPABILITIES_JSON:?INTEGRATOR_PORT_CONTEXT_CAPABILITIES_JSON is required}
       PORT: "3200"
     ports:
       - "127.0.0.1:${THERAPYSTO_API_PORT:?THERAPYSTO_API_PORT is required}:3200"
@@ -133,6 +139,10 @@ services:
     command: ["node", "dist/infra/runtime/scheduler/main.js"]
     env_file:
       - ${THERAPYSTO_ENV_DIR}/api.prod
+    environment:
+      # Планировщик — тот же код integrator, и каталог ему нужен ровно так же. Раньше он доставался
+      # ему строкой из api.prod; теперь — переменной, как и всем остальным.
+      INTEGRATOR_PORT_CONTEXT_CAPABILITIES_JSON: ${INTEGRATOR_PORT_CONTEXT_CAPABILITIES_JSON:?INTEGRATOR_PORT_CONTEXT_CAPABILITIES_JSON is required}
 
   media-worker:
     <<: *app

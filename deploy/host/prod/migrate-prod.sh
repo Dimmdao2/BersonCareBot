@@ -74,11 +74,14 @@ say "4/5 миграции интегратора"
 node "$INTEGRATOR_MIGRATOR" --db "$DB" --migrator "$MIGRATOR" --owner app_object_owner \
   --root "$SRC/apps/integrator" --sudo-postgres || die "миграции интегратора не применились"
 
-say "5/5 сверка прав и описатели порт-контекста"
+say "5/5 сверка прав"
 ( set -a && . "$ENV_DIR/reconcile.env" && set +a &&
   node deploy/postgres/privileges/reconcile-access.mjs \
     --env "$ENV_NAME" --db "$DB" --admin-socket /var/run/postgresql ) ||
   die "сверка прав не прошла"
-bash "$SRC/deploy/host/prod/refresh-prod-runtime-env.sh" || die "описатели порт-контекста не обновились"
+# Здесь БОЛЬШЕ НЕТ шага, переписывающего каталог порт-контекста в env-файлах. Каталог выводится из
+# выкладываемого коммита, поэтому он часть кода, а не настройка: конвейер считает его на запуске цвета
+# и передаёт контейнеру переменной (см. port_context_webapp в therapysto-bluegreen-lib.sh). Выкладка
+# файлы настроек не открывает — ни на запись, ни для снятия копии.
 
 say "готово — схема и права соответствуют выложенному коммиту"

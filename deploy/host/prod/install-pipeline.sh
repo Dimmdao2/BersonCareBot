@@ -57,7 +57,7 @@ D="$SRC/deploy/docker"
 
 for f in therapysto-bluegreen-lib.sh therapysto-deploy therapysto-rollback therapysto-status \
          cutover-edge-to-caddy.sh rollback-edge-to-nginx.sh check-caddy-edge-health.sh \
-         install-pipeline.sh; do
+         runtime-database.sh install-pipeline.sh; do
   install -m 0755 -o root -g root "$S/$f" "$PIPELINE/$f"
 done
 install -m 0644 -o root -g root "$SRC/deploy/caddy/Caddyfile.template" "$PIPELINE/Caddyfile.template"

@@ -86,6 +86,7 @@ function parseArgs(argv) {
     'env',
     'legacy-role-quarantine',
     'port-context-env',
+    'port-context-value',
     'migration-owners',
   ]);
   for (let i = 0; i < argv.length; i += 1) {
@@ -392,6 +393,20 @@ async function main() {
     }
     if (args.flags.has('env-verify')) {
       process.stdout.write(generateEnvironmentVerifierSql(declaration, env, args.values.get('db')));
+      return;
+    }
+    // Чистое значение, без обёртки KEY='...'. Нужно тому, кто передаёт список контейнеру ПЕРЕМЕННОЙ,
+    // а не дописывает строку в файл настроек: env-файл — это то, что человек заполняет один раз, и
+    // автоматике там делать нечего. Обёрнутый вариант ниже оставлен для окружений, которые пока
+    // читают его из файла.
+    if (args.values.has('port-context-value')) {
+      const rendered = renderPortContextRuntimeEnv(
+        declaration,
+        env,
+        args.values.get('db'),
+        args.values.get('port-context-value'),
+      );
+      process.stdout.write(rendered.value);
       return;
     }
     if (args.values.has('port-context-env')) {

@@ -21,6 +21,11 @@ THERAPYSTO_UPSTREAM_CONF=/etc/nginx/conf.d/20-therapysto-upstream.conf
 THERAPYSTO_IMAGE_REPO=therapysto-app
 THERAPYSTO_KEEP_IMAGES="${THERAPYSTO_KEEP_IMAGES:-5}"
 
+# Имя базы и окружение — из общего источника, того же, которым пользуется связывание видео.
+# shellcheck source=deploy/host/prod/runtime-database.sh
+. "$THERAPYSTO_PIPELINE/runtime-database.sh" 2>/dev/null ||
+  . "$THERAPYSTO_SRC/deploy/host/prod/runtime-database.sh"
+
 # Ports are per colour and bound to loopback only; nginx is the sole public door.
 THERAPYSTO_BLUE_WEBAPP_PORT=6201
 THERAPYSTO_BLUE_API_PORT=3201
@@ -79,6 +84,15 @@ require_pipeline() {
   local avail_gb
   avail_gb=$(df -BG --output=avail "$THERAPYSTO_ROOT" | tail -1 | tr -dc '0-9')
   [ "${avail_gb:-0}" -ge 10 ] || die "only ${avail_gb}G free under $THERAPYSTO_ROOT; need at least 10G"
+
+  # Обязательные настройки — ТОЛЬКО читаются. Раньше эта проверка жила в шаге, который заодно
+  # переписывал env; шаг убран, а проверка нужна: пустой APP_BASE_URL превращается в отказ маршрутизации
+  # поверхностей уже после переключения, то есть в сломанный прод вместо несостоявшейся выкладки.
+  local key
+  for key in APP_BASE_URL PATIENT_APP_ORIGIN CUSTOM_DOMAIN_EDGE_IP CUSTOM_DOMAIN_CNAME_TARGET PATIENT_APP_NAME; do
+    grep -q "^$key=" "$THERAPYSTO_ENV_DIR/webapp.prod" ||
+      die "в webapp.prod не заполнен $key — заполнить по deploy/env/.env.webapp.prod.example"
+  done
 }
 
 # ------------------------------------------------------------------ colours
@@ -111,6 +125,37 @@ app_key_gid() {
   printf '%s\n' "$gid"
 }
 
+# Каталог возможностей порт-контекста — список «какая операция ходит в базу под какой ролью». Он
+# ВЫВОДИТСЯ из выкладываемого коммита, то есть это часть кода, а не настройка, и потому он не хранится
+# в env и никем в env не дописывается: файл настроек человек заполняет один раз, автоматике там делать
+# нечего. Считается здесь и уезжает в контейнер обычной переменной окружения.
+#
+# Имя базы читается из env — это как раз настоящая настройка, и читать её оттуда правильно; запись —
+# нет. Значение считается один раз за прогон: compose зовётся и на up, и на down, и на ps, а генератор
+# на каждом вызове — это несколько секунд впустую.
+THERAPYSTO_PC_WEBAPP=""
+THERAPYSTO_PC_INTEGRATOR=""
+
+port_context_value() {
+  local port="$1" db env_name
+  db=$(THERAPYSTO_ENV_DIR="$THERAPYSTO_ENV_DIR" runtime_database) ||
+    die "не удалось определить базу рантайма для каталога порт-контекста"
+  env_name=$(runtime_environment "$db") || die "неизвестное окружение для базы $db"
+  node --experimental-strip-types "$THERAPYSTO_SRC/deploy/postgres/privileges/generate-cli.mjs" \
+    --env "$env_name" --db "$db" --port-context-value "$port" ||
+    die "не удалось построить каталог порт-контекста для $port"
+}
+
+port_context_webapp() {
+  [ -n "$THERAPYSTO_PC_WEBAPP" ] || THERAPYSTO_PC_WEBAPP=$(port_context_value webapp)
+  printf '%s' "$THERAPYSTO_PC_WEBAPP"
+}
+
+port_context_integrator() {
+  [ -n "$THERAPYSTO_PC_INTEGRATOR" ] || THERAPYSTO_PC_INTEGRATOR=$(port_context_value integrator)
+  printf '%s' "$THERAPYSTO_PC_INTEGRATOR"
+}
+
 # Every compose invocation goes through here so the project name, file and variables can never drift
 # between the deploy path and the rollback path.
 compose() {
@@ -118,6 +163,8 @@ compose() {
   THERAPYSTO_IMAGE="$image" \
   THERAPYSTO_COLOUR="$colour" \
   THERAPYSTO_ENV_DIR="$THERAPYSTO_ENV_DIR" \
+  WEBAPP_PORT_CONTEXT_CAPABILITIES_JSON="$(port_context_webapp)" \
+  INTEGRATOR_PORT_CONTEXT_CAPABILITIES_JSON="$(port_context_integrator)" \
   THERAPYSTO_WEBAPP_PORT="$(colour_webapp_port "$colour")" \
   THERAPYSTO_API_PORT="$(colour_api_port "$colour")" \
   THERAPYSTO_NETWORK_SUBNET="$(colour_subnet "$colour")" \
