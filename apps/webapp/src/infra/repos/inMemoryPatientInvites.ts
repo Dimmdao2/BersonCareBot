@@ -20,7 +20,7 @@ type StoredInvite = PatientInviteRecord & {
   proofVerifiedAt: string | null;
   organizationTitle: string;
   acceptedByPlatformUserId: string | null;
-  acceptedVia: 'email_otp' | null;
+  acceptedVia: 'email_otp' | 'session' | null;
   revokedByPlatformUserId: string | null;
   supersededByInviteId: string | null;
 };
@@ -28,7 +28,7 @@ type StoredInvite = PatientInviteRecord & {
 type EnrollmentState = {
   status: 'invited' | 'active' | 'inactive';
   portalActivatedAt: string | null;
-  portalActivatedVia: 'patient_invite_email_otp' | null;
+  portalActivatedVia: 'patient_invite_email_otp' | 'patient_invite_session' | null;
 };
 
 const invites: StoredInvite[] = [];
@@ -349,6 +349,31 @@ export function createInMemoryPatientInvitesPort(): PatientInvitesPort {
       invite.status = 'accepted';
       invite.acceptedByPlatformUserId = invite.patientUserId;
       invite.acceptedVia = 'email_otp';
+      return { ok: true, organizationId: invite.organizationId };
+    },
+
+    async redeemWithSession({ continuationHash, authenticatedPlatformUserId }) {
+      const invite = byContinuation(continuationHash);
+      if (!invite) return { ok: false, code: 'invalid_continuation' };
+      const lifecycle = lifecycleFailure(invite);
+      if (lifecycle) return lifecycle;
+      // Вошёл не тот человек — доказательства ИМЕННО ЭТОГО приглашения нет, дальше почтовый путь.
+      if (invite.patientUserId !== authenticatedPlatformUserId) {
+        return { ok: false, code: 'unproved_identity' };
+      }
+      const enrollment = relationship(invite.organizationId, invite.patientUserId);
+      if (enrollment.portalActivatedAt) return { ok: false, code: 'already_linked' };
+      if (enrollment.status !== 'invited' && enrollment.status !== 'active') {
+        return { ok: false, code: 'inactive_relationship' };
+      }
+      enrollments.set(key(invite.organizationId, invite.patientUserId), {
+        status: 'active',
+        portalActivatedAt: new Date().toISOString(),
+        portalActivatedVia: 'patient_invite_session',
+      });
+      invite.status = 'accepted';
+      invite.acceptedByPlatformUserId = invite.patientUserId;
+      invite.acceptedVia = 'session';
       return { ok: true, organizationId: invite.organizationId };
     },
 

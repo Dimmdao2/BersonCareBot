@@ -375,6 +375,23 @@ export function createPgPatientInvitesPort(): PatientInvitesPort {
         : failure(row?.code ?? 'invalid_continuation');
     },
 
+    async redeemWithSession({ continuationHash, authenticatedPlatformUserId }) {
+      if (getCurrentDbPrincipalPlatformUserId() !== authenticatedPlatformUserId) {
+        return failure('unproved_identity');
+      }
+      const db = getDrizzle();
+      const result = await db.transaction((tx) =>
+        tx.execute<RedeemRow>(sql`
+          SELECT ok, code, organization_id
+          FROM app.redeem_patient_invite_session(${continuationHash})
+        `),
+      );
+      const row = result.rows[0];
+      return row?.ok && row.organization_id
+        ? { ok: true, organizationId: row.organization_id }
+        : failure(row?.code ?? 'invalid_continuation');
+    },
+
     async claimUnboundEmailProof({
       continuationHash,
       emailNormalized,

@@ -102,6 +102,20 @@ export type PatientInvitesPort = {
     continuationHash: string;
     authenticatedPlatformUserId: string;
   }): Promise<{ ok: true; organizationId: string } | PatientInviteFailure>;
+  /**
+   * Приглашение открыл ТОТ ЖЕ человек, кому оно выписано: сессия и есть доказательство личности,
+   * второй раз доказывать её кодом из письма незачем (владелец 10.09: «если он уже залогинен, то у
+   * него открывается его кабинет сразу в эту клинику»).
+   *
+   * Вошедший, не совпадающий с записью пациента из приглашения, получает `unproved_identity` — это
+   * НЕ отказ в доступе, а отсутствие доказательства именно этого приглашения: вызывающий
+   * откатывается на почтовый экран. Привязать чужой идентификатор молча нельзя — это слияние двух
+   * разных людей, и решают его люди.
+   */
+  redeemWithSession(input: {
+    continuationHash: string;
+    authenticatedPlatformUserId: string;
+  }): Promise<{ ok: true; organizationId: string } | PatientInviteFailure>;
   claimUnboundEmailProof(input: {
     continuationHash: string;
     emailNormalized: string;

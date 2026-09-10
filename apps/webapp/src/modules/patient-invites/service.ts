@@ -266,6 +266,24 @@ export function createPatientInvitesService(deps: {
       });
     },
 
+    /**
+     * Принять приглашение по живой сессии — без второго доказательства личности.
+     *
+     * Владелец 10.09: «если он уже залогинен, то у него открывается его кабинет сразу в эту
+     * клинику». Дверь узкая намеренно: она принимает только совпадение вошедшего с записью
+     * пациента из приглашения, а любой другой исход возвращает `unproved_identity`, после чего
+     * вызывающий показывает обычный почтовый экран.
+     */
+    redeemWithSession(continuation: string, authenticatedPlatformUserId: string) {
+      if (continuation.length < 32) {
+        return Promise.resolve(lifecycleFailure('invalid_continuation'));
+      }
+      return deps.port.redeemWithSession({
+        continuationHash: hashPatientInviteContinuation(continuation),
+        authenticatedPlatformUserId,
+      });
+    },
+
     claimUnboundEmailProof(continuation: string, emailRaw: string) {
       const emailNormalized = normalizeEmail(emailRaw);
       const continuationHash = hashPatientInviteContinuation(continuation);

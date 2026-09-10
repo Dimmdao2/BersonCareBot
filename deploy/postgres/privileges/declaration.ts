@@ -9174,6 +9174,123 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "invocation": "runtime"
   },
+  "app.redeem_patient_invite_session(text)": {
+    "owner": "app_seam_patient_invite_owner",
+    "security": "DEFINER",
+    "returns": "record",
+    "returnsSet": true,
+    "volatility": "VOLATILE",
+    "parallel": "UNSAFE",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_patient"
+    ],
+    "purpose": "evidence/25+30 narrow seam owned by app_seam_patient_invite_owner",
+    "typedArgs": [
+      "text"
+    ],
+    "databases": ALL_DECLARED_DATABASES,
+    "relationSurfaces": [
+      {
+        "relation": "public.be_organizations",
+        "columns": [
+          "id",
+          "is_active",
+          "updated_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.org_enrollments",
+        "columns": [
+          "id",
+          "organization_id",
+          "platform_user_id",
+          "status",
+          "portal_activated_at",
+          "portal_activated_via"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.patient_invites",
+        "columns": [
+          "id",
+          "organization_id",
+          "patient_user_id",
+          "enrollment_id",
+          "status",
+          "invited_email_normalized",
+          "expires_at",
+          "accepted_by_platform_user_id",
+          "accepted_via",
+          "continuation_hash",
+          "continuation_expires_at",
+          "proof_email_normalized",
+          "proof_code_hash",
+          "proof_expires_at",
+          "proof_verified_at",
+          "updated_at",
+          "accepted_at",
+          "recipient_binding"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.patient_merge_candidates",
+        "columns": [
+          "id",
+          "organization_id",
+          "anchor_user_id",
+          "candidate_user_id",
+          "reason",
+          "status",
+          "payload"
+        ],
+        "operations": [
+          "SELECT",
+          "INSERT"
+        ],
+        "operationColumns": {
+          "SELECT": [
+            "organization_id",
+            "anchor_user_id",
+            "candidate_user_id",
+            "status"
+          ]
+        },
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.platform_users",
+        "columns": [
+          "id",
+          "role",
+          "updated_at",
+          "merged_into_id"
+        ],
+        "operations": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
   "app.refresh_specialist_task_reminder_materialization(text)": {
     "owner": "app_seam_reminder_specialist_owner",
     "security": "DEFINER",
@@ -24483,6 +24600,10 @@ const ROW_LOCK_SURFACES: Readonly<Record<string, Readonly<Record<string, string>
     'public.be_organizations': 'updated_at',
     'public.platform_users': 'updated_at',
   },
+  'app.redeem_patient_invite_session(text)': {
+    'public.be_organizations': 'updated_at',
+    'public.platform_users': 'updated_at',
+  },
   'app.reserve_current_patient_booking_package(text)': { 'public.be_patient_packages': 'updated_at' },
   'app.start_patient_invite_email_proof(text,text,text,timestamp with time zone,text,bigint,text)': {
     'public.be_organizations': 'updated_at',
@@ -24630,6 +24751,12 @@ const TENANT_WALL_CROSSINGS: Readonly<Record<string, Readonly<Record<string, str
     'public.be_organizations': 'клиника берётся ИЗ строки приглашения и проверяется на активность',
     'public.org_enrollments': 'зачисление по ключам из той же строки приглашения',
     'public.user_contacts': 'почта человека приглашения — её подтверждение и есть смысл двери',
+  },
+
+  'app.redeem_patient_invite_session(text)': {
+    'public.patient_invites': 'приглашение находит неугадываемый continuation_hash; предъявитель клинике ещё не принадлежит',
+    'public.be_organizations': 'клиника берётся ИЗ строки приглашения и проверяется на активность',
+    'public.org_enrollments': 'зачисление по ключам из той же строки приглашения',
   },
 
   // app.resolve_payment_webhook_organization — пометка снята #215 (2026-09-05, TEST-POLICY-AUDIT F-1):
