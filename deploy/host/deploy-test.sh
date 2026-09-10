@@ -257,6 +257,12 @@ chmod 644 "$BUNDLE"
 sudo -u deploy git -C "$DEPLOY_REPO" fetch "$BUNDLE" "$BRANCH"
 sudo -u deploy git -C "$DEPLOY_REPO" checkout -f -B "$BRANCH" FETCH_HEAD
 
+# The branded TEST hostname is installed by the one surface-domain renderer, not
+# by a parallel manual nginx/certbot procedure.  It runs from the deployed commit
+# so its rendered vhost and certificate request match the code entering TEST.
+bash "$DEPLOY_REPO/deploy/host/apply-test-surface-domains.sh" --apply
+bash "$DEPLOY_REPO/deploy/host/apply-test-vpn-dns.sh" --apply
+
 OWNER_MIGRATOR="$DEPLOY_REPO/deploy/postgres/privileges/migrate-local.mjs"
 INTEGRATOR_MIGRATOR="$DEPLOY_REPO/deploy/postgres/privileges/migrate-integrator-local.mjs"
 RECONCILER="$DEPLOY_REPO/deploy/postgres/privileges/reconcile-access.mjs"

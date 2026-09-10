@@ -13,8 +13,8 @@
 пациентов называется **Therapygo** (`therapygo.ru`); пациент конкретной клиники видит бренд своей клиники.
 `BersonCare` — первая клиника-арендатор, а не имя продукта. Это не «чат-бот с кнопками», а **основной кабинет в PWA** (пациент и специалист). **Web Push — основной канал уведомлений** в PWA; Telegram, MAX, SMS и email — дополнительные каналы доставки. См. [`ARCHITECTURE/NOTIFICATION_CHANNELS.md`](ARCHITECTURE/NOTIFICATION_CHANNELS.md).
 
-Это целевая карта имён и доменов. На 27.08.2026 TEST сохраняет действующий адрес `test.bersoncare.ru`;
-DNS/TLS/proxy/env для новых доменов ещё не включены.
+Это целевая карта имён и доменов. На TEST branded Berson Care patient application использует `app.bersoncare.ru`;
+публичный DNS уже указывает на TEST, а TLS/proxy/env применяются штатным TEST deploy после landing.
 
 Пользователь может зайти из мессенджера (Mini App), установить PWA или открыть сайт в браузере — ядро сценариев живёт в webapp под `/app`.
 
