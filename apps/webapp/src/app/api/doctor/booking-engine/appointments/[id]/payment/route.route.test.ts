@@ -212,7 +212,7 @@ describe('doctor appointment payment route', () => {
       appointmentId: APPOINTMENT_ID,
       appointmentStatus: 'confirmed',
       intent: null,
-      payment: { amountMinor: 2_500, status: 'succeeded' },
+      payment: { amountMinor: 2_500, status: 'captured' },
       history: [],
     });
     fakes.listAppointmentPayments.mockResolvedValue([

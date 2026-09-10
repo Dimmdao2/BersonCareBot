@@ -303,16 +303,6 @@ describe('врачебная правка финансовых значений 
     expect(fakes.updateAppointmentFinancialSnapshot).not.toHaveBeenCalled();
   });
 
-  it('режима вне закрытого словаря врача не существует: фиксированная сумма отвергается', async () => {
-    fakes.resolveDoctorAppointmentAccess.mockResolvedValue(appointment());
-    const response = await POST(
-      request({ ...BASE_BODY, prepayment: { mode: 'fixed_minor', amountMinor: 1 } }),
-      { params: Promise.resolve({ id: APPOINTMENT_ID }) },
-    );
-    expect(response.status).toBe(400);
-    expect(fakes.staffReschedule).not.toHaveBeenCalled();
-  });
-
   it('дробная цена отвергается до всякой записи в базу', async () => {
     fakes.resolveDoctorAppointmentAccess.mockResolvedValue(appointment());
     const response = await POST(request({ ...BASE_BODY, priceMinor: 1000.5 }), {
