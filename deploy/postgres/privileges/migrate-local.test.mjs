@@ -31,7 +31,7 @@ function createRollbackRuntime() {
   writeFileSync(
     join(migrations, '20260817T000100_probe.sql'),
     [
-      '-- BCB-MIGRATION-OWNER: app_probe_owner',
+      '-- BCB-MIGRATION-OWNER: app_seam_custom_domain_owner',
       '-- BCB-MIGRATION-SCHEMA-CREATE: app',
       '-- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql',
       '-- BCB-MIGRATION-REHOME-FUNCTION: app.rollback_probe()',
@@ -85,12 +85,12 @@ test('rollback-only sends pending Drizzle DDL through one transaction without a 
   assert.match(transaction, /ALTER FUNCTION %s OWNER TO %I/u);
   assert.match(
     transaction,
-    /GRANT CREATE, USAGE ON SCHEMA "app" TO "app_probe_owner";/u,
+    /GRANT CREATE, USAGE ON SCHEMA "app" TO "app_seam_custom_domain_owner";/u,
     'a new seam-owned app function needs both CREATE and name resolution inside schema app',
   );
   assert.match(
     transaction,
-    /REVOKE CREATE, USAGE ON SCHEMA "app" FROM "app_probe_owner";/u,
+    /REVOKE CREATE, USAGE ON SCHEMA "app" FROM "app_seam_custom_domain_owner";/u,
     'temporary schema privileges must not survive the migration transaction',
   );
   assert.match(transaction, /to_regprocedure\('app\.rollback_probe\(\)'\)/u);
@@ -222,7 +222,7 @@ function createLedgerRuntime({
     writeFileSync(
       join(migrations, `${tag}.sql`),
       [
-        '-- BCB-MIGRATION-OWNER: app_probe_owner',
+        '-- BCB-MIGRATION-OWNER: app_seam_custom_domain_owner',
         migrationSql[tag]
           ?? `CREATE OR REPLACE FUNCTION app.door_${tag}() RETURNS integer LANGUAGE sql AS $$ SELECT 1 $$;`,
         '',
@@ -523,7 +523,7 @@ test('a new timestamp-named file is applied normally, not refused by the name ga
   const runtime = createLedgerRuntime({ appliedTags: ['20260820T000100_first', '20260820T000000_late_arrival', '20260820T000200_third'] });
   writeFileSync(
     join(runtime.migrations, '20260820T014233_new_work.sql'),
-    '-- BCB-MIGRATION-OWNER: app_probe_owner\nCREATE OR REPLACE FUNCTION app.door_new_work() RETURNS integer LANGUAGE sql AS $$ SELECT 1 $$;\n',
+    '-- BCB-MIGRATION-OWNER: app_seam_custom_domain_owner\nCREATE OR REPLACE FUNCTION app.door_new_work() RETURNS integer LANGUAGE sql AS $$ SELECT 1 $$;\n',
   );
 
   const result = runLedgerMigrator(runtime);
