@@ -166,6 +166,7 @@ export async function listStaffAppointmentPaymentViews(
         ? {
             mode: snapshot.prepaymentMode,
             percentBps: snapshot.prepaymentPercentBps,
+            amountMinor: snapshot.prepaymentAmountMinor,
             requiredMinor: snapshot.prepaymentRequiredMinor,
             paidMinor: snapshot.prepaymentPaidMinor,
             currency: snapshot.priceCurrency,

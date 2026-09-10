@@ -33,6 +33,7 @@ import { DoctorCalendarCreateFormField } from './DoctorCalendarCreateFormField';
 export type AppointmentPrepaymentDraft = {
   mode: PrepaymentMode;
   percent: string;
+  amountRubles: string;
 };
 
 /** Черновик записи. Одна форма обслуживает и создание, и режим «Изменить». */
@@ -60,14 +61,18 @@ export type AppointmentFormDraft = {
   prepaymentOverridden: boolean;
 };
 
-/** Переопределяемые врачом условия — ровно три, названные владельцем. */
 const PREPAYMENT_MODE_LABELS: Record<PrepaymentMode, string> = {
   disabled: 'Без предоплаты',
   percent: 'Процент предоплаты',
   full_price: 'Полная предоплата',
   fixed_minor: 'Фиксированная сумма',
 };
-const OVERRIDABLE_PREPAYMENT_MODES: PrepaymentMode[] = ['disabled', 'percent', 'full_price'];
+const OVERRIDABLE_PREPAYMENT_MODES: PrepaymentMode[] = [
+  'disabled',
+  'fixed_minor',
+  'percent',
+  'full_price',
+];
 const DELIVERY_FORMAT_LABELS: Record<AppointmentDeliveryFormat, string> = {
   in_person: 'Очный приём',
   online: 'Онлайн-приём',
@@ -125,13 +130,33 @@ export function DoctorAppointmentForm({
   const serviceMode = resolveCalendarCreateFieldMode(serviceOptions, activeFilters.serviceId);
   const selectedBranchIsOnline =
     filterMeta.branches.find((branch) => branch.id === draft.branchId)?.isOnline === true;
+  const onlineBranchIds = new Set(
+    filterMeta.branches.filter((branch) => branch.isOnline === true).map((branch) => branch.id),
+  );
 
-  const setServiceId = (value: string | null) => {
+  const serviceSupportsOnline = (serviceId: string | null) => {
+    if (!serviceId || !draft.specialistId) return false;
+    return (
+      filterMeta.services
+        .find((service) => service.id === serviceId)
+        ?.availability.some(
+          (availability) =>
+            availability.specialistId === draft.specialistId &&
+            onlineBranchIds.has(availability.branchId),
+        ) === true
+    );
+  };
+
+  const serviceDraftPatch = (value: string | null): Partial<AppointmentFormDraft> => {
     const service = value ? serviceOptions.find((option) => option.id === value) : undefined;
-    const duration = service?.durationMinutes ?? null;
-    // PAY-APPT-02: смена услуги подставляет цену и условие новой услуги, но ровно до тех пор,
-    // пока врач не задал их сам. Уже сохранённое ручное значение не переписывается молча.
-    const financialDefaults: Partial<AppointmentFormDraft> = {
+    const supportsOnline = serviceSupportsOnline(value);
+    return {
+      serviceId: value,
+      durationMinutes: service?.durationMinutes ?? null,
+      deliveryFormat:
+        selectedBranchIsOnline || (draft.deliveryFormat === 'online' && supportsOnline)
+          ? 'online'
+          : 'in_person',
       ...(draft.priceOverridden
         ? {}
         : { priceRubles: servicePriceRublesInput(service?.priceMinor ?? null) }),
@@ -142,16 +167,17 @@ export function DoctorAppointmentForm({
               ? {
                   mode: service.prepaymentDefault.mode,
                   percent: prepaymentPercentFromBps(service.prepaymentDefault.percentBps),
+                  amountRubles: servicePriceRublesInput(service.prepaymentDefault.amountMinor ?? null),
                 }
               : null,
           }),
     };
-    // APPT-FORM-09: длительность подставляется из услуги и остаётся редактируемой.
-    onDraftChange({
-      serviceId: value,
-      ...(duration ? { durationMinutes: duration } : {}),
-      ...financialDefaults,
-    });
+  };
+
+  const setServiceId = (value: string | null) => {
+    // PAY-APPT-02: смена услуги подставляет цену и условие новой услуги, но ровно до тех пор,
+    // пока врач не задал их сам. Уже сохранённое ручное значение не переписывается молча.
+    onDraftChange(serviceDraftPatch(value));
   };
 
   const prepayment = draft.prepayment;
@@ -175,16 +201,6 @@ export function DoctorAppointmentForm({
         />
       )}
 
-      <div className="flex flex-col gap-1">
-        <Label>Начало</Label>
-        <DoctorDateTimePicker
-          value={draft.start}
-          ariaLabel="Начало"
-          onChange={(start) => onDraftChange({ start })}
-          disabled={pending}
-        />
-      </div>
-
       {hideSpecialist ? null : (
         <DoctorCalendarCreateFormField
           fieldLabel="Специалист"
@@ -203,46 +219,63 @@ export function DoctorAppointmentForm({
         mode={branchMode}
         options={filterMeta.branches}
         value={draft.branchId}
-        noneLabel="Филиал"
+        noneLabel="Выберите филиал"
         emptyLabel="Нет доступных филиалов."
         disabled={pending}
-        onChange={(branchId) =>
+        onChange={(branchId) => {
+          const nextServices = branchId
+            ? filterMeta.services.filter((service) =>
+                service.availability.some(
+                  (availability) =>
+                    availability.specialistId === draft.specialistId &&
+                    availability.branchId === branchId,
+                ),
+              )
+            : [];
+          const nextServiceId = nextServices.some((service) => service.id === draft.serviceId)
+            ? draft.serviceId
+            : nextServices.length === 1
+              ? nextServices[0]!.id
+              : null;
+          const nextService = nextServices.find((service) => service.id === nextServiceId);
+          const nextBranchIsOnline =
+            filterMeta.branches.find((branch) => branch.id === branchId)?.isOnline === true;
           onDraftChange({
             branchId,
-            deliveryFormat:
-              filterMeta.branches.find((branch) => branch.id === branchId)?.isOnline === true
-                ? 'online'
-                : 'in_person',
-          })
-        }
+            serviceId: nextServiceId,
+            durationMinutes: nextService?.durationMinutes ?? null,
+            deliveryFormat: nextBranchIsOnline ? 'online' : 'in_person',
+            ...(draft.priceOverridden
+              ? {}
+              : { priceRubles: servicePriceRublesInput(nextService?.priceMinor ?? null) }),
+            ...(draft.prepaymentOverridden
+              ? {}
+              : {
+                  prepayment: nextService?.prepaymentDefault
+                    ? {
+                        mode: nextService.prepaymentDefault.mode,
+                        percent: prepaymentPercentFromBps(
+                          nextService.prepaymentDefault.percentBps,
+                        ),
+                        amountRubles: servicePriceRublesInput(
+                          nextService.prepaymentDefault.amountMinor ?? null,
+                        ),
+                      }
+                    : null,
+                }),
+          });
+        }}
       />
 
-      <div className="flex flex-col gap-1">
-        <Label>Формат</Label>
-        <Select
-          value={draft.deliveryFormat}
-          disabled={pending || selectedBranchIsOnline}
-          onValueChange={(value) =>
-            onDraftChange({ deliveryFormat: value as AppointmentDeliveryFormat })
-          }
-        >
-          <SelectTrigger displayLabel={DELIVERY_FORMAT_LABELS[draft.deliveryFormat]} />
-          <SelectContent>
-            <SelectItem value="in_person">Очный приём</SelectItem>
-            <SelectItem value="online">Онлайн-приём</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
       <DoctorCalendarCreateFormField
-        fieldLabel="Сеанс"
+        fieldLabel="Услуга"
         mode={serviceMode}
         options={serviceOptions}
         value={draft.serviceId}
-        noneLabel="Сеанс"
+        noneLabel="Выберите услугу"
         emptyLabel={
           draft.specialistId && draft.branchId
-            ? 'Нет доступных сеансов для выбранных специалиста и филиала.'
+            ? 'Нет доступных услуг для выбранных специалиста и филиала.'
             : 'Сначала выберите специалиста и филиал.'
         }
         disabled={pending}
@@ -250,87 +283,136 @@ export function DoctorAppointmentForm({
       />
 
       <div className="flex flex-col gap-1">
-        <Label htmlFor="appointment-duration">Длительность, мин</Label>
-        <Input
-          id="appointment-duration"
-          type="number"
-          inputMode="numeric"
-          min={5}
-          step={5}
-          className="w-full"
-          aria-label="Длительность, мин"
-          disabled={pending}
-          value={draft.durationMinutes ?? ''}
-          onChange={(event) => {
-            const next = Number.parseInt(event.target.value, 10);
-            onDraftChange({ durationMinutes: Number.isFinite(next) ? next : null });
-          }}
-        />
-      </div>
-
-      <div className="flex flex-col gap-1">
-        <Label htmlFor="appointment-price">Стоимость, ₽</Label>
-        <Input
-          id="appointment-price"
-          inputMode="decimal"
-          className="w-full"
-          aria-label="Стоимость, ₽"
-          disabled={pending}
-          value={draft.priceRubles}
-          onChange={(event) =>
-            onDraftChange({ priceRubles: event.target.value, priceOverridden: true })
-          }
-        />
-      </div>
-
-      {prepayment ? (
-        <div className="flex flex-col gap-1">
-          <Label>Условие оплаты</Label>
+        <Label>Формат</Label>
+        {selectedBranchIsOnline || !serviceSupportsOnline(draft.serviceId) ? (
+          <Input
+            readOnly
+            value={DELIVERY_FORMAT_LABELS[selectedBranchIsOnline ? 'online' : 'in_person']}
+            aria-label="Формат"
+          />
+        ) : (
           <Select
-            value={prepayment.mode}
+            value={draft.deliveryFormat}
             disabled={pending}
             onValueChange={(value) =>
-              onDraftChange({
-                prepayment: { ...prepayment, mode: (value as PrepaymentMode) ?? 'disabled' },
-                prepaymentOverridden: true,
-              })
+              onDraftChange({ deliveryFormat: value as AppointmentDeliveryFormat })
             }
           >
             <SelectTrigger
-              className="w-full"
-              aria-label="Условие оплаты"
-              displayLabel={PREPAYMENT_MODE_LABELS[prepayment.mode]}
-            >
-              <SelectValue />
-            </SelectTrigger>
+              aria-label="Формат"
+              displayLabel={DELIVERY_FORMAT_LABELS[draft.deliveryFormat]}
+            />
             <SelectContent>
-              {prepaymentModeOptions.map((option) => (
-                <SelectItem key={option} value={option} label={PREPAYMENT_MODE_LABELS[option]}>
-                  {PREPAYMENT_MODE_LABELS[option]}
-                </SelectItem>
-              ))}
+              <SelectItem value="in_person">Очный приём</SelectItem>
+              <SelectItem value="online">Онлайн-приём</SelectItem>
             </SelectContent>
           </Select>
-        </div>
-      ) : null}
+        )}
+      </div>
 
-      {prepayment?.mode === 'percent' ? (
-        <div className="flex flex-col gap-1">
-          <Label htmlFor="appointment-prepayment-percent">Процент предоплаты, %</Label>
+      <div className="flex flex-col gap-1">
+        <Label>Начало</Label>
+        <DoctorDateTimePicker
+          value={draft.start}
+          ariaLabel="Начало"
+          onChange={(start) => onDraftChange({ start })}
+          disabled={pending}
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <div className="flex min-w-0 flex-col gap-1">
+          <Label htmlFor="appointment-duration">Длительность, мин</Label>
           <Input
-            id="appointment-prepayment-percent"
-            inputMode="decimal"
-            className="w-full"
-            aria-label="Процент предоплаты, %"
+            id="appointment-duration"
+            type="number"
+            inputMode="numeric"
+            min={5}
+            step={5}
+            aria-label="Длительность, мин"
             disabled={pending}
-            value={prepayment.percent}
+            value={draft.durationMinutes ?? ''}
+            onChange={(event) => {
+              const next = Number.parseInt(event.target.value, 10);
+              onDraftChange({ durationMinutes: Number.isFinite(next) ? next : null });
+            }}
+          />
+        </div>
+        <div className="flex min-w-0 flex-col gap-1">
+          <Label htmlFor="appointment-price">Стоимость, ₽</Label>
+          <Input
+            id="appointment-price"
+            inputMode="decimal"
+            aria-label="Стоимость, ₽"
+            disabled={pending}
+            value={draft.priceRubles}
             onChange={(event) =>
-              onDraftChange({
-                prepayment: { ...prepayment, percent: event.target.value },
-                prepaymentOverridden: true,
-              })
+              onDraftChange({ priceRubles: event.target.value, priceOverridden: true })
             }
           />
+        </div>
+      </div>
+
+      {prepayment ? (
+        <div className="grid grid-cols-[minmax(0,3fr)_minmax(0,2fr)] gap-2">
+          <div className="flex min-w-0 flex-col gap-1">
+            <Label>Условия предоплаты</Label>
+            <Select
+              value={prepayment.mode}
+              disabled={pending}
+              onValueChange={(value) =>
+                onDraftChange({
+                  prepayment: { ...prepayment, mode: (value as PrepaymentMode) ?? 'disabled' },
+                  prepaymentOverridden: true,
+                })
+              }
+            >
+              <SelectTrigger
+                aria-label="Условия предоплаты"
+                displayLabel={PREPAYMENT_MODE_LABELS[prepayment.mode]}
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {prepaymentModeOptions.map((option) => (
+                  <SelectItem key={option} value={option} label={PREPAYMENT_MODE_LABELS[option]}>
+                    {PREPAYMENT_MODE_LABELS[option]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex min-w-0 flex-col gap-1">
+            <Label htmlFor="appointment-prepayment-value">
+              {prepayment.mode === 'percent'
+                ? '%'
+                : prepayment.mode === 'fixed_minor'
+                  ? 'руб.'
+                  : 'Значение'}
+            </Label>
+            <Input
+              id="appointment-prepayment-value"
+              inputMode="decimal"
+              aria-label={prepayment.mode === 'percent' ? 'Процент' : 'Сумма предоплаты, руб.'}
+              disabled={pending || !['percent', 'fixed_minor'].includes(prepayment.mode)}
+              value={
+                prepayment.mode === 'percent'
+                  ? prepayment.percent
+                  : prepayment.mode === 'fixed_minor'
+                    ? prepayment.amountRubles
+                    : ''
+              }
+              onChange={(event) =>
+                onDraftChange({
+                  prepayment:
+                    prepayment.mode === 'percent'
+                      ? { ...prepayment, percent: event.target.value }
+                      : { ...prepayment, amountRubles: event.target.value },
+                  prepaymentOverridden: true,
+                })
+              }
+            />
+          </div>
         </div>
       ) : null}
 

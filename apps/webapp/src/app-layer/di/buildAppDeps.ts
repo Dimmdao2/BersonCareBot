@@ -835,12 +835,16 @@ const bookingCalendarService =
           const settings = await paymentsService.getSettings(organizationId);
           if (!settings.enabled) return null;
           const policies = await paymentsService.listPrepaymentPolicies(organizationId);
-          const byService = new Map<string, { mode: PrepaymentMode; percentBps: number | null }>();
+          const byService = new Map<
+            string,
+            { mode: PrepaymentMode; percentBps: number | null; amountMinor: number | null }
+          >();
           for (const policy of policies) {
             if (!policy.serviceId || !policy.isActive) continue;
             byService.set(policy.serviceId, {
               mode: policy.mode,
               percentBps: policy.percentBps,
+              amountMinor: policy.amountMinor,
             });
           }
           return byService;

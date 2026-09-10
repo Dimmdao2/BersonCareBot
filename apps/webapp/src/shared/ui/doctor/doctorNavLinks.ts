@@ -157,8 +157,13 @@ const RAW_DOCTOR_MENU_ITEMS: DoctorMenuLinkItem[] = [
         href: '/app/doctor/treatment-program-promo',
         requiresPromoEntitlement: true,
       },
-      { id: 'references', label: 'Справочники', href: '/app/doctor/references' },
     ],
+  },
+  {
+    id: 'references',
+    label: 'Справочники',
+    href: '/app/doctor/references',
+    requiresWorkspaceModule: 'rehabilitation',
   },
   {
     id: 'files-and-media',
@@ -177,12 +182,6 @@ const RAW_DOCTOR_MENU_ITEMS: DoctorMenuLinkItem[] = [
     label: 'Курсы',
     href: '/app/doctor/courses',
     requiresCoursesEntitlement: true,
-  },
-  {
-    id: 'patient-home',
-    label: 'Главная пациента',
-    href: '/app/doctor/patient-home',
-    requiresPatientHomeTodayEntitlement: true,
   },
   // NOTE: the platform operator's own destinations (analytics + the former "system" cluster)
   // moved out to `platformNavLinks.ts` — the platform shell has its own dedicated, flat
