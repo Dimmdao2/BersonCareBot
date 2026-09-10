@@ -99,8 +99,10 @@ export async function proxy(
   // the request arrived on that hostname itself (`resolveRequestSurface`'s own comparison), so an
   // active custom domain never redirects to itself.
   if (resolvedSurface.redirectToHostname) {
-    const target = request.nextUrl.clone();
-    target.host = resolvedSurface.redirectToHostname;
+    const target = new URL(
+      `${request.nextUrl.pathname}${request.nextUrl.search}`,
+      `https://${resolvedSurface.redirectToHostname}`,
+    );
     const response = NextResponse.redirect(target, 308);
     response.headers.set(BC_CORRELATION_ID_HEADER, correlationId);
     return response;
@@ -205,18 +207,7 @@ export async function proxy(
   requestHeaders.set('x-bc-search', request.nextUrl.search);
   const response = patientRewritePath
     ? NextResponse.rewrite(
-        (() => {
-          const target = request.nextUrl.clone();
-          target.pathname = patientRewritePath;
-          // A standalone Next server behind the repository TLS proxy derives this URL from its
-          // loopback bind address, while `x-forwarded-proto` correctly describes the public HTTPS
-          // request. Rewriting to `https://127.0.0.1:PORT` then fails against the plain-HTTP local
-          // listener. Keep public origins unchanged; only normalize Next's own loopback transport.
-          if (target.hostname === '127.0.0.1' || target.hostname === 'localhost') {
-            target.protocol = 'http:';
-          }
-          return target;
-        })(),
+        new URL(`${patientRewritePath}${request.nextUrl.search}`, resolvedSurface.publicOrigin),
         { request: { headers: requestHeaders } },
       )
     : NextResponse.next({
