@@ -509,7 +509,13 @@ function ExerciseJournal({ days }: { days: JournalDay[] }) {
 
   useEffect(() => {
     const container = scrollRef.current;
-    if (container) container.scrollTop = container.scrollHeight;
+    if (!container) return;
+    const monthHeaders = container.querySelectorAll<HTMLElement>('[data-journal-month]');
+    const latestMonth = monthHeaders.item(monthHeaders.length - 1);
+    const columns = container.querySelector<HTMLElement>('[data-journal-columns]');
+    if (latestMonth) {
+      container.scrollTop = Math.max(0, latestMonth.offsetTop - (columns?.offsetHeight ?? 0));
+    }
   }, [days.length]);
 
   if (days.length === 0) {
@@ -526,7 +532,10 @@ function ExerciseJournal({ days }: { days: JournalDay[] }) {
       <h2 className={doctorSectionTitleClass}>Журнал выполнений</h2>
       <div ref={scrollRef} className="mt-3 max-h-[22rem] overflow-y-auto overscroll-y-contain">
         <div>
-          <div className="grid grid-cols-[3.65rem_minmax(4.85rem,1fr)_2.45rem_2.65rem_4.85rem_1.25rem] border-b border-border/70 px-1.5 py-2 text-[10px] text-muted-foreground">
+          <div
+            data-journal-columns
+            className="sticky top-0 z-10 grid grid-cols-[3.65rem_minmax(4.85rem,1fr)_2.45rem_2.65rem_4.85rem_1.25rem] border-b border-border/70 bg-white px-1.5 py-2 text-[10px] text-muted-foreground"
+          >
             <span>Дата</span>
             <span>Повт. × подх.</span>
             <span>Вес</span>
@@ -546,6 +555,7 @@ function ExerciseJournal({ days }: { days: JournalDay[] }) {
                 ? [
                     <div
                       key={`month-${monthHeader}`}
+                      data-journal-month={monthHeader}
                       className="mt-3 rounded-md bg-muted/60 px-2.5 py-2 text-sm font-medium text-muted-foreground"
                     >
                       {monthLabel(day.date)}
