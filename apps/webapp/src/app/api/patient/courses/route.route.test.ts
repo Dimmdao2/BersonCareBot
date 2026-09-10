@@ -51,7 +51,7 @@ describe('GET /api/patient/courses', () => {
       error: 'entitlement_required',
       mechanic: 'courses',
       message:
-        'Невозможно выполнить действие: этот раздел не входит в ваш тариф. Чтобы выполнить действие, включите этот раздел в тарифе.',
+        'Невозможно выполнить действие: этот раздел не входит в ваш тариф.',
     });
     expect(listAssignedForPatient).not.toHaveBeenCalled();
   });

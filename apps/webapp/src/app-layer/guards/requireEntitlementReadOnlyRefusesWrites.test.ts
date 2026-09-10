@@ -50,8 +50,7 @@ import type { MechanicAccessState, OrgMechanic } from '@/modules/org-entitlement
  * Spelled out here on purpose: the oracle must not be the implementation under test.
  */
 const TARIFF_REFUSAL_SENTENCE =
-  'Невозможно выполнить действие: этот раздел не входит в ваш тариф. ' +
-  'Чтобы выполнить действие, включите этот раздел в тарифе.';
+  'Невозможно выполнить действие: этот раздел не входит в ваш тариф.';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '22222222-2222-4222-8222-222222222222';
@@ -263,7 +262,7 @@ describe('read-only access state refuses writes across mechanics (§5a 3.1a/3.1b
       error: 'entitlement_required',
       mechanic: 'external_calendar',
       message:
-        'Невозможно подключить внешний календарь: этот раздел не входит в ваш тариф. Чтобы выполнить действие, включите этот раздел в тарифе.',
+        'Невозможно подключить внешний календарь: этот раздел не входит в ваш тариф.',
     });
   });
 

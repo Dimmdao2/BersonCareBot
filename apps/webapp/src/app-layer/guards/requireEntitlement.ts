@@ -47,7 +47,7 @@ export function entitlementMutationRefusalMessage(
     case 'access_lifecycle_unconfigured':
       return `Невозможно ${action}: для этого раздела не настроены условия доступа в вашем тарифе.`;
     case 'entitlement_required':
-      return `Невозможно ${action}: этот раздел не входит в ваш тариф. Чтобы выполнить действие, включите этот раздел в тарифе.`;
+      return `Невозможно ${action}: этот раздел не входит в ваш тариф.`;
   }
 }
 
