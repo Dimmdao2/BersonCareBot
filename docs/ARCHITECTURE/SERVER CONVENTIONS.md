@@ -235,6 +235,20 @@ bash tools/deploy-prod-from-dev.sh <ref>    # выложить конкретн�
 (`/opt/therapysto/pipeline`: compose, Dockerfile, blue/green-скрипты) и запускает его; своей логики
 выкладки не несёт. На самом хосте те же операции доступны как `deploy-prod`, `rollback-prod`, `prod-status`.
 
+**Доступ владельца с ноутбука.** Учётка `dim` (UID 1000) в группе `sudo`, вход только по ключу —
+парольная аутентификация и вход root по паролю выключены. На Mac владельца прописаны два его ключа
+(`id_ed25519` и `saas-prod-lindy`), алиас в `~/.ssh/config`:
+
+```
+Host new-prod
+  HostName 135.106.187.95
+  User dim
+  IdentityFile ~/.ssh/id_ed25519
+  IdentitiesOnly yes
+```
+
+Root получается через `sudo -i` паролем пользователя `dim`, а не входом под root.
+
 **Ключ доступа:** `~/.ssh/therapysto_prod_build_20260817` (root). **Каталоги:** `/opt/therapysto/{src,git,env,pipeline,state,releases}`,
 env-файлы `env/{api.prod,webapp.prod}`, пароли рантайм-логинов — `env/reconcile.env` (600, root).
 
