@@ -5,10 +5,12 @@ import { SAAS_ISOLATION_EVENT_CLASSES } from '@bersoncare/error-tracking';
 import { verifyInternalJobBearer } from '@/middleware/internalJobBearer';
 import { logger } from '@/app-layer/logging/logger';
 import {
-  assertMediaWorkerControlReady, claimMediaWorkerControlJob, completeMediaWorkerHlsJob,
-  completeMediaWorkerProgramJob, failMediaWorkerJob, loadMediaWorkerControlMedia,
-  markMediaWorkerProcessing, readMediaWorkerErrorTrackingConfig, readMediaWorkerWatermarkEnabled,
-  reportMediaWorkerIsolationFailure, retryMediaWorkerJob,
+  assertMediaWorkerControlReady, claimMediaPreviewOrder, claimMediaWorkerControlJob,
+  completeMediaPreviewImage, completeMediaPreviewPoster, completeMediaWorkerHlsJob,
+  completeMediaWorkerProgramJob, failMediaPreview, failMediaWorkerJob, loadMediaWorkerControlMedia,
+  markMediaWorkerProcessing, readMediaPreviewHostedBytes, readMediaWorkerErrorTrackingConfig,
+  readMediaWorkerWatermarkEnabled, recordMediaPreviewTick, reportMediaWorkerIsolationFailure,
+  retryMediaWorkerJob,
 } from '@/app-layer/media/mediaWorkerControl';
 
 const jobSchema = z.object({ id: z.string().uuid(), mediaId: z.string().uuid() }).strict();
@@ -26,6 +28,18 @@ const commandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('failed'), job: jobSchema, lockedBy: z.string().min(1).max(200), error: z.string().max(8000) }),
   z.object({ type: z.literal('done_hls'), job: jobSchema, lockedBy: z.string().min(1).max(200), values: z.object({ masterKey: z.string().max(2000).optional(), artifactPrefix: z.string().max(2000).optional(), posterKey: z.string().max(2000).optional(), qualitiesJson: z.string().max(8000).optional(), durationSeconds: z.number().nonnegative().nullable().optional() }) }),
   z.object({ type: z.literal('done_program'), job: jobSchema, lockedBy: z.string().min(1).max(200), values: z.object({ outputKey: z.string().min(1).max(2000), posterKey: z.string().min(1).max(2000), qualitiesJson: z.string().max(8000), durationSeconds: z.number().nonnegative().nullable() }) }),
+  /*
+   * Очередь превью (М7, `docs/_TODO/STORAGE_PACKAGES_2026-09-10.md`). Тот же шов и тот же
+   * принципал, что у пересборки видео: воркер занимает наряд, разбирает байты у себя и
+   * отчитывается об исходе. Ни один ключ объекта в отчёте НЕ передаётся: и ключи вывода, и
+   * вытесненный исходник вебапп считает сам от `mediaId` и от текущей строки.
+   */
+  z.object({ type: z.literal('preview_claim'), leaseMinutes: z.number().int().positive().max(24 * 60) }),
+  z.object({ type: z.literal('preview_hosted_bytes'), mediaId: z.string().uuid() }),
+  z.object({ type: z.literal('preview_done_image'), mediaId: z.string().uuid(), values: z.object({ mimeType: z.string().min(1).max(200), sizeBytes: z.number().int().nonnegative(), width: z.number().int().positive(), height: z.number().int().positive() }) }),
+  z.object({ type: z.literal('preview_done_poster'), mediaId: z.string().uuid(), values: z.object({ width: z.number().int().positive().nullable(), height: z.number().int().positive().nullable() }) }),
+  z.object({ type: z.literal('preview_failed'), mediaId: z.string().uuid(), error: z.string().max(8000) }),
+  z.object({ type: z.literal('preview_tick'), processed: z.number().int().nonnegative(), errors: z.number().int().nonnegative(), durationMs: z.number().int().nonnegative() }),
 ]);
 
 export async function POST(request: Request) {
@@ -48,6 +62,12 @@ export async function POST(request: Request) {
       case 'failed': await failMediaWorkerJob(command.job, command.lockedBy, command.error); break;
       case 'done_hls': await completeMediaWorkerHlsJob(command.job, command.lockedBy, command.values); break;
       case 'done_program': await completeMediaWorkerProgramJob(command.job, command.lockedBy, command.values); break;
+      case 'preview_claim': return NextResponse.json({ ok: true, result: await claimMediaPreviewOrder(command.leaseMinutes) });
+      case 'preview_hosted_bytes': return NextResponse.json({ ok: true, result: await readMediaPreviewHostedBytes(command.mediaId) });
+      case 'preview_done_image': await completeMediaPreviewImage({ mediaId: command.mediaId, ...command.values }); break;
+      case 'preview_done_poster': await completeMediaPreviewPoster({ mediaId: command.mediaId, ...command.values }); break;
+      case 'preview_failed': await failMediaPreview(command.mediaId, command.error); break;
+      case 'preview_tick': await recordMediaPreviewTick({ processed: command.processed, errors: command.errors, durationMs: command.durationMs }); break;
     }
     return NextResponse.json({ ok: true, result: null });
   } catch (error) {

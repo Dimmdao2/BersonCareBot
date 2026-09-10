@@ -1,0 +1,360 @@
+import { and, asc, eq, isNotNull, isNull, lte, notInArray, or, sql } from 'drizzle-orm';
+import { getPool } from '@/infra/db/client';
+import { getWebappSqlFromPgClient, runWebappSql } from '@/infra/db/runWebappSql';
+import { withPoolTransaction } from '@/infra/db/withClient';
+import { logger } from '@/infra/logging/logger';
+import { mediaFiles } from '../../../db/schema/schema';
+import { parseStorageTarget, s3DeleteObject, s3PreviewKey, s3StandardImageKey } from '@/infra/s3/client';
+import type { StorageTarget } from '@/shared/types/storageTarget';
+import {
+  MAX_PREVIEW_ATTEMPTS,
+  backoffMinutesAfterFailure,
+  isPermanentPreviewError,
+  planMediaPreview,
+  type MediaPreviewPlan,
+} from '@/modules/media/mediaPreviewPlan';
+
+/**
+ * Очередь превью со стороны БАЗЫ. Байты здесь не разбираются: ни sharp, ни ImageMagick, ни ffmpeg
+ * этот файл не зовёт и звать не может — их разбирает `apps/media-worker` (М7 плана
+ * `docs/_TODO/STORAGE_PACKAGES_2026-09-10.md`).
+ *
+ * Устройство ровно то же, что у очереди пересборки видео (`pgMediaWorkerControl.ts`): воркер
+ * занимает работу, делает её у себя и отчитывается об исходе. Второго механизма не заводим.
+ *
+ * ЗАМОК — это сам статус строки. Занятая строка переходит в `preview_status = 'processing'`, и её
+ * `preview_next_attempt_at` становится сроком аренды: пока он не истёк, строку не выдадут второму
+ * воркеру, а после истечения она возвращается в оборот сама, без отдельного «reclaim»-задания.
+ * Отдельной колонки `locked_by` намеренно НЕТ: исход наряда детерминирован (ключи выводятся из
+ * `media_id`, повторная обработка даёт байт в байт тот же объект), поэтому от гонки защищает
+ * условие `preview_status = 'processing'` в каждом отчёте, а лишняя колонка стоила бы миграции и
+ * четырёх мест в декларации прав ради факта, который ничего не решает.
+ */
+
+/** Сколько строк подряд разрешено «пропустить» за один claim, прежде чем ответить «пусто». */
+const MAX_SKIPS_PER_CLAIM = 25;
+
+export type MediaPreviewOrder = {
+  mediaId: string;
+  /** Сколько неудачных попыток уже пережила строка; воркер кладёт это в лог, решение — за вебаппом. */
+  attempts: number;
+  storageTarget: StorageTarget;
+  plan: MediaPreviewPlan;
+  /** Ключи вывода считает ВЕБАПП: воркер их не выдумывает и не выводит из чужих данных. */
+  standardKey: string;
+  smKey: string;
+  mdKey: string;
+};
+
+export type MediaPreviewClaimResult =
+  | { kind: 'idle' }
+  | { kind: 'claimed'; order: MediaPreviewOrder };
+
+type PreviewRow = {
+  id: string;
+  s3_key: string | null;
+  mime_type: string;
+  size_bytes: unknown;
+  preview_attempts: number | null;
+  usage_purpose: string | null;
+  hosted_video_source_url: string | null;
+  storage_target: unknown;
+};
+
+type WebappTxSql = Parameters<typeof runWebappSql>[0];
+
+/**
+ * Строка, которую можно взять в работу: либо ждущая своей очереди, либо занятая воркером, чья
+ * аренда истекла (упал, был убит, потерял связь со швом).
+ */
+function claimableRowFilter() {
+  return and(
+    or(
+      and(
+        eq(mediaFiles.previewStatus, 'pending'),
+        or(
+          isNull(mediaFiles.previewNextAttemptAt),
+          lte(mediaFiles.previewNextAttemptAt, new Date().toISOString()),
+        ),
+      ),
+      and(
+        eq(mediaFiles.previewStatus, 'processing'),
+        lte(mediaFiles.previewNextAttemptAt, new Date().toISOString()),
+      ),
+    ),
+    or(
+      and(isNotNull(mediaFiles.s3Key), sql`length(trim(${mediaFiles.s3Key})) > 0`),
+      eq(mediaFiles.usagePurpose, 'hosted_video_preview'),
+    ),
+    or(
+      isNull(mediaFiles.status),
+      notInArray(mediaFiles.status, ['pending', 'deleting', 'pending_delete']),
+    ),
+  );
+}
+
+async function markSkipped(db: WebappTxSql, mediaId: string): Promise<void> {
+  await runWebappSql(
+    db,
+    sql`UPDATE media_files SET preview_status = 'skipped', preview_next_attempt_at = NULL
+        WHERE id = ${mediaId}::uuid`,
+  );
+}
+
+/**
+ * Одна попытка занять работу. Строку, которой превью не положено вовсе, закрываем прямо здесь:
+ * это решение по mime и размеру, чужих байт оно не касается и воркеру не нужно.
+ */
+async function claimOnce(leaseMinutes: number): Promise<MediaPreviewClaimResult | 'skipped'> {
+  const pool = getPool();
+  return withPoolTransaction<MediaPreviewClaimResult | 'skipped'>(pool, async (client) => {
+    const db = getWebappSqlFromPgClient(client);
+    const rows = (await db
+      .select({
+        id: mediaFiles.id,
+        s3_key: mediaFiles.s3Key,
+        mime_type: mediaFiles.mimeType,
+        size_bytes: mediaFiles.sizeBytes,
+        preview_attempts: mediaFiles.previewAttempts,
+        usage_purpose: mediaFiles.usagePurpose,
+        hosted_video_source_url: mediaFiles.hostedVideoSourceUrl,
+        storage_target: mediaFiles.storageTarget,
+      })
+      .from(mediaFiles)
+      .where(claimableRowFilter())
+      .orderBy(asc(mediaFiles.createdAt))
+      .limit(1)
+      .for('update', { skipLocked: true })) as unknown as PreviewRow[];
+
+    if (rows.length === 0) return { kind: 'idle' };
+    const row = rows[0]!;
+
+    const plan = planMediaPreview({
+      mimeType: row.mime_type,
+      sizeBytes: Number(row.size_bytes) || 0,
+      s3Key: row.s3_key,
+      usagePurpose: row.usage_purpose,
+      hostedVideoSourceUrl: row.hosted_video_source_url,
+    });
+
+    if (plan.kind === 'skip') {
+      await markSkipped(db, row.id);
+      logger.info(
+        { mediaId: row.id, reason: plan.reason },
+        '[mediaPreviewControl] preview not applicable, skipped',
+      );
+      return 'skipped';
+    }
+
+    /* Хранилище берётся из строки и уезжает в наряд: воркер пишет и читает только в нём. */
+    const storageTarget = parseStorageTarget(row.storage_target);
+    await runWebappSql(
+      db,
+      sql`UPDATE media_files SET
+             preview_status = 'processing',
+             preview_next_attempt_at = now() + (${leaseMinutes}::numeric * interval '1 minute')
+           WHERE id = ${row.id}::uuid`,
+    );
+    return {
+      kind: 'claimed',
+      order: {
+        mediaId: row.id,
+        attempts: row.preview_attempts ?? 0,
+        storageTarget,
+        plan,
+        standardKey: s3StandardImageKey(row.id),
+        smKey: s3PreviewKey(row.id, 'sm'),
+        mdKey: s3PreviewKey(row.id, 'md'),
+      },
+    };
+  });
+}
+
+export async function claimMediaPreviewOrder(leaseMinutes: number): Promise<MediaPreviewClaimResult> {
+  for (let i = 0; i < MAX_SKIPS_PER_CLAIM; i++) {
+    const result = await claimOnce(leaseMinutes);
+    if (result !== 'skipped') return result;
+  }
+  return { kind: 'idle' };
+}
+
+/**
+ * Исходник, который вытеснен нашим рендишном, удаляется ТОЛЬКО после коммита строки — до этого
+ * момента он единственная копия (решение владельца 19.08.2026, SECURITY_CANON §5). Отказ здесь
+ * теряет байты в бакете, но никогда — фотографию пациента.
+ */
+async function deleteSupersededOriginal(key: string, target: StorageTarget): Promise<void> {
+  try {
+    await s3DeleteObject(key, target);
+    logger.info({ sourceKey: key }, '[mediaPreviewControl] original deleted after standard rendition');
+  } catch (e) {
+    logger.warn({ err: e, sourceKey: key }, '[mediaPreviewControl] original delete failed, non-fatal');
+  }
+}
+
+export type MediaPreviewImageResult = {
+  mediaId: string;
+  mimeType: string;
+  sizeBytes: number;
+  width: number;
+  height: number;
+};
+
+/**
+ * Ключи вывода и вытесненный исходник вебапп СЧИТАЕТ САМ, а не берёт из отчёта.
+ *
+ * Ключи детерминированы от `media_id` — те же самые, что уехали в наряд, — а вытеснен ровно тот
+ * объект, на который строка указывала до этого UPDATE. Отдай мы воркеру право назвать ключ, у
+ * процесса, разбирающего враждебные байты, появилось бы два примитива: «перенаправь строку на
+ * произвольный объект» и «удали произвольный объект». Ни один ему не нужен.
+ *
+ * `standard_rendition_at` ставит этот UPDATE и больше ничто: это единственный факт строки о том,
+ * что объект по `s3_key` — вывод НАШЕГО энкодера, а не загрузка пользователя. Суффикс ключа или
+ * mime `image/webp` были бы соглашением об именовании и полем под контролем загрузчика, а не фактом.
+ */
+export async function completeMediaPreviewImage(result: MediaPreviewImageResult): Promise<void> {
+  const pool = getPool();
+  const standardKey = s3StandardImageKey(result.mediaId);
+  const superseded = await withPoolTransaction<
+    { key: string; target: StorageTarget } | null | 'not_claimed'
+  >(pool, async (client) => {
+    const db = getWebappSqlFromPgClient(client);
+    const rows = await db
+      .select({ s3Key: mediaFiles.s3Key, storageTarget: mediaFiles.storageTarget })
+      .from(mediaFiles)
+      .where(and(eq(mediaFiles.id, result.mediaId), eq(mediaFiles.previewStatus, 'processing')))
+      .limit(1)
+      .for('update');
+    if (rows.length === 0) return 'not_claimed';
+    const previousKey = rows[0]!.s3Key?.trim() ?? '';
+    const target = parseStorageTarget(rows[0]!.storageTarget);
+    await runWebappSql(
+      db,
+      sql`UPDATE media_files SET
+             s3_key = ${standardKey},
+             mime_type = ${result.mimeType},
+             size_bytes = ${result.sizeBytes},
+             preview_status = 'ready',
+             preview_sm_key = ${s3PreviewKey(result.mediaId, 'sm')},
+             preview_md_key = ${s3PreviewKey(result.mediaId, 'md')},
+             preview_attempts = 0,
+             preview_next_attempt_at = NULL,
+             source_width = ${result.width},
+             source_height = ${result.height},
+             standard_rendition_at = now()
+           WHERE id = ${result.mediaId}::uuid`,
+    );
+    return previousKey && previousKey !== standardKey ? { key: previousKey, target } : null;
+  });
+  if (superseded === 'not_claimed') {
+    logger.warn(
+      { mediaId: result.mediaId },
+      '[mediaPreviewControl] image outcome ignored: row is no longer claimed',
+    );
+    return;
+  }
+  logger.info(
+    {
+      mediaId: result.mediaId,
+      standardKey,
+      sizeBytes: result.sizeBytes,
+      width: result.width,
+      height: result.height,
+    },
+    '[mediaPreviewControl] standard rendition stored',
+  );
+  if (superseded) await deleteSupersededOriginal(superseded.key, superseded.target);
+}
+
+export type MediaPreviewPosterResult = {
+  mediaId: string;
+  width: number | null;
+  height: number | null;
+};
+
+/** Видео: исходник остаётся на месте, меняются только эскизы и измеренный размер кадра. */
+export async function completeMediaPreviewPoster(result: MediaPreviewPosterResult): Promise<void> {
+  const pool = getPool();
+  await withPoolTransaction<void>(pool, async (client) => {
+    const db = getWebappSqlFromPgClient(client);
+    await runWebappSql(
+      db,
+      sql`UPDATE media_files SET
+             preview_status = 'ready',
+             preview_sm_key = ${s3PreviewKey(result.mediaId, 'sm')},
+             preview_md_key = ${s3PreviewKey(result.mediaId, 'md')},
+             preview_attempts = 0,
+             preview_next_attempt_at = NULL,
+             source_width = ${result.width},
+             source_height = ${result.height}
+           WHERE id = ${result.mediaId}::uuid AND preview_status = 'processing'`,
+    );
+  });
+}
+
+/**
+ * Отказ наряда. Классификация — здесь, а не у воркера: воркер присылает текст ошибки, а «это
+ * навсегда» / «повторить через N минут» / «попытки кончились» решает вебапп по своим правилам.
+ * Иначе процесс, разбирающий враждебные байты, сам решал бы, какую строку больше не трогать.
+ */
+export async function failMediaPreview(mediaId: string, error: string): Promise<void> {
+  const pool = getPool();
+  await withPoolTransaction<void>(pool, async (client) => {
+    const db = getWebappSqlFromPgClient(client);
+    const rows = await db
+      .select({ id: mediaFiles.id, attempts: mediaFiles.previewAttempts })
+      .from(mediaFiles)
+      .where(and(eq(mediaFiles.id, mediaId), eq(mediaFiles.previewStatus, 'processing')))
+      .limit(1)
+      .for('update');
+    if (rows.length === 0) {
+      logger.warn(
+        { mediaId },
+        '[mediaPreviewControl] failure ignored: row is no longer claimed',
+      );
+      return;
+    }
+    if (isPermanentPreviewError(error)) {
+      await markSkipped(db, mediaId);
+      logger.warn({ mediaId, error }, '[mediaPreviewControl] permanent error, skipped');
+      return;
+    }
+    const nextAttempts = (rows[0]!.attempts ?? 0) + 1;
+    if (nextAttempts >= MAX_PREVIEW_ATTEMPTS) {
+      await runWebappSql(
+        db,
+        sql`UPDATE media_files SET
+               preview_status = 'failed',
+               preview_attempts = ${nextAttempts},
+               preview_next_attempt_at = NULL
+             WHERE id = ${mediaId}::uuid`,
+      );
+    } else {
+      const minutes = backoffMinutesAfterFailure(nextAttempts);
+      await runWebappSql(
+        db,
+        sql`UPDATE media_files SET
+               preview_status = 'pending',
+               preview_attempts = ${nextAttempts},
+               preview_next_attempt_at = now() + (${minutes}::numeric * interval '1 minute')
+             WHERE id = ${mediaId}::uuid`,
+      );
+    }
+    logger.error({ mediaId, error }, '[mediaPreviewControl] preview failed');
+  });
+}
+
+/** Адрес чужой обложки для строки, которую воркер уже занял. */
+export async function readHostedPreviewSourceUrl(mediaId: string): Promise<string | null> {
+  const pool = getPool();
+  return withPoolTransaction<string | null>(pool, async (client) => {
+    const db = getWebappSqlFromPgClient(client);
+    const rows = await db
+      .select({ url: mediaFiles.hostedVideoSourceUrl })
+      .from(mediaFiles)
+      .where(and(eq(mediaFiles.id, mediaId), eq(mediaFiles.previewStatus, 'processing')))
+      .limit(1);
+    const url = rows[0]?.url?.trim();
+    return url ? url : null;
+  });
+}

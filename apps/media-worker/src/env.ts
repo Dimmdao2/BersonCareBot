@@ -30,6 +30,21 @@ const schema = z.object({
   STALE_LOCK_MINUTES: z.coerce.number().int().positive().default(30),
   MAX_TRANSCODE_ATTEMPTS: z.coerce.number().int().positive().default(5),
   FFMPEG_TIMEOUT_MS: z.coerce.number().int().positive().default(7200000),
+  /*
+   * Превью — это ОДИН кадр или одна переупаковка картинки, минуты, а не часы. Потолок HLS
+   * (два часа) применять к ним нельзя: зависший разбор держал бы аренду строки всё это время.
+   */
+  PREVIEW_TIMEOUT_MS: z.coerce.number().int().positive().default(120_000),
+  /**
+   * Срок аренды занятой строки превью. Больше самого долгого разбора с запасом: истёкшая аренда
+   * означает «воркер не вернулся», и строку заберёт следующий.
+   */
+  PREVIEW_LEASE_MINUTES: z.coerce.number().int().positive().max(24 * 60).default(15),
+  /** Запасной разбор HEIC. Пусто — ищем `magick`, затем `convert` в PATH. */
+  MAGICK_PATH: z
+    .string()
+    .optional()
+    .transform((v) => (v ?? '').trim()),
   LOG_LEVEL: z.string().optional().default('info'),
   FFMPEG_PATH: z
     .string()
@@ -97,6 +112,9 @@ export function loadMediaWorkerEnv(): MediaWorkerEnv {
     STALE_LOCK_MINUTES: process.env.MEDIA_WORKER_STALE_LOCK_MINUTES,
     MAX_TRANSCODE_ATTEMPTS: process.env.MEDIA_WORKER_MAX_ATTEMPTS,
     FFMPEG_TIMEOUT_MS: process.env.MEDIA_WORKER_FFMPEG_TIMEOUT_MS,
+    PREVIEW_TIMEOUT_MS: process.env.MEDIA_WORKER_PREVIEW_TIMEOUT_MS,
+    PREVIEW_LEASE_MINUTES: process.env.MEDIA_WORKER_PREVIEW_LEASE_MINUTES,
+    MAGICK_PATH: process.env.MAGICK_PATH,
     LOG_LEVEL: process.env.LOG_LEVEL,
     FFMPEG_PATH: process.env.FFMPEG_PATH,
     MEDIA_WORKER_LOCK_ID: process.env.MEDIA_WORKER_LOCK_ID,

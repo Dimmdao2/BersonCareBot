@@ -2022,7 +2022,7 @@ export const mediaFiles = pgTable(
     }).onDelete('set null'),
     check(
       'media_files_preview_status_check',
-      sql`preview_status = ANY (ARRAY['pending'::text, 'ready'::text, 'failed'::text, 'skipped'::text])`,
+      sql`preview_status = ANY (ARRAY['pending'::text, 'processing'::text, 'ready'::text, 'failed'::text, 'skipped'::text])`,
     ),
     check(
       'media_files_size_bytes_check',

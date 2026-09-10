@@ -9,6 +9,8 @@ export async function extractPosterWithFallback(params: {
   videoFilter?: string;
   cwd: string;
   timeoutMs: number;
+  /** Ограничение входных протоколов ffmpeg; см. `buildPosterFfmpegArgs`. */
+  protocolWhitelist?: string;
 }): Promise<void> {
   let lastError = 'ffmpeg_poster_missing_output';
 
@@ -16,7 +18,13 @@ export async function extractPosterWithFallback(params: {
     await rm(params.outputJpg, { force: true });
     const run = await runFfmpeg(
       params.ffmpegBin,
-      buildPosterFfmpegArgs(params.inputFile, params.outputJpg, params.videoFilter, seekSeconds),
+      buildPosterFfmpegArgs(
+        params.inputFile,
+        params.outputJpg,
+        params.videoFilter,
+        seekSeconds,
+        params.protocolWhitelist,
+      ),
       {
         cwd: params.cwd,
         timeoutMs: params.timeoutMs,

@@ -37,13 +37,25 @@ export function buildHlsSingleVariantArgs(params: {
   ];
 }
 
+/**
+ * `protocolWhitelist` ставится ПЕРЕД `-i` и потому ограничивает только вход.
+ *
+ * Зачем: контейнер — это данные, которые прислал кто-то снаружи, и внутри него может лежать
+ * ссылка на чужой адрес (плейлист, `concat`, внешняя дорожка). Без белого списка ffmpeg сходит по
+ * такой ссылке сам. У превью вход всегда локальный файл, поэтому там список — ровно `file`.
+ */
 export function buildPosterFfmpegArgs(
   inputFile: string,
   outputJpg: string,
   videoFilter?: string,
   seekSeconds = 1,
+  protocolWhitelist?: string,
 ): string[] {
-  const a = ['-y', '-ss', String(seekSeconds), '-i', inputFile];
+  const a = ['-y'];
+  if (protocolWhitelist) {
+    a.push('-protocol_whitelist', protocolWhitelist);
+  }
+  a.push('-ss', String(seekSeconds), '-i', inputFile);
   if (videoFilter) {
     a.push('-vf', videoFilter);
   }

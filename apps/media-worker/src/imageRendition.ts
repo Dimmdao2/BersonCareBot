@@ -11,6 +11,12 @@ import sharp from 'sharp';
  *    instead of trying to recognise it.
  *
  * Approved parameters: 1080 px on the SHORT side, WebP.
+ *
+ * Этот файл переехал сюда из `apps/webapp/src/modules/media/imageStandardRendition.ts`
+ * 10.09.2026 (М7 плана `docs/_TODO/STORAGE_PACKAGES_2026-09-10.md`). Причина переезда — не
+ * архитектурная опрятность: sharp/libvips разбирает присланные снаружи байты, и делал он это
+ * внутри процесса, который держит пулы к базе, сессионный секрет и отвечает пациентам. Копии в
+ * вебаппе НЕ остаётся: два энкодера с одними и теми же параметрами разъехались бы молча.
  */
 export const STANDARD_IMAGE_SHORT_SIDE = 1080;
 export const STANDARD_IMAGE_MIME = 'image/webp';
@@ -110,60 +116,27 @@ export async function encodeStandardImageRendition(source: Buffer): Promise<Stan
   };
 }
 
-export type ImageStandardRenditionDeps = {
-  encode: (source: Buffer) => Promise<StandardImageRendition>;
-  putObject: (key: string, body: Buffer, mimeType: string) => Promise<void>;
-  headObject: (key: string) => Promise<boolean>;
-  thumbnails: (source: Buffer) => Promise<{ sm: Buffer; md: Buffer }>;
-};
+/** Thumbnails are derived from our own re-encoded output, never from the raw upload. */
+export async function thumbnailsSmMd(raw: Buffer): Promise<{ sm: Buffer; md: Buffer }> {
+  const sm = await sharp(raw)
+    .rotate()
+    .resize(160, 160, { fit: 'inside' })
+    .jpeg({ quality: 82 })
+    .toBuffer();
+  const md = await sharp(raw)
+    .rotate()
+    .resize(400, 400, { fit: 'inside' })
+    .jpeg({ quality: 85 })
+    .toBuffer();
+  return { sm, md };
+}
 
-export type ImageStandardRenditionOutcome = {
-  standardKey: string;
-  mimeType: string;
-  sizeBytes: number;
-  width: number;
-  height: number;
-  smKey: string;
-  mdKey: string;
-  /** Key of the upload that the rendition replaces; the caller deletes it AFTER the row is committed. */
-  supersededOriginalKey: string | null;
-};
-
-/**
- * Writes the standard rendition and its thumbnails, and reports which upload it replaces.
- *
- * Deliberately does NOT delete anything. Ordering is the whole point: the original may only be
- * dropped once the rendition is durably stored AND the row points at it, and the row is committed
- * by the caller's transaction. Every failure below therefore leaves the original untouched.
- */
-export async function buildImageStandardRendition(
-  params: {
-    originalKey: string;
-    standardKey: string;
-    smKey: string;
-    mdKey: string;
-    source: Buffer;
-  },
-  deps: ImageStandardRenditionDeps,
-): Promise<ImageStandardRenditionOutcome> {
-  const rendition = await deps.encode(params.source);
-  await deps.putObject(params.standardKey, rendition.buffer, rendition.mimeType);
-  const stored = await deps.headObject(params.standardKey);
-  if (!stored) {
-    throw new Error('standard_rendition_head_missing_after_upload');
-  }
-  const { sm, md } = await deps.thumbnails(rendition.buffer);
-  await deps.putObject(params.smKey, sm, 'image/jpeg');
-  await deps.putObject(params.mdKey, md, 'image/jpeg');
-  return {
-    standardKey: params.standardKey,
-    mimeType: rendition.mimeType,
-    sizeBytes: rendition.buffer.byteLength,
-    width: rendition.width,
-    height: rendition.height,
-    smKey: params.smKey,
-    mdKey: params.mdKey,
-    supersededOriginalKey:
-      params.originalKey && params.originalKey !== params.standardKey ? params.originalKey : null,
-  };
+/** Размеры кадра, снятого ffmpeg: постер полноразмерный, поэтому это и есть размер видео. */
+export async function imageDimensions(
+  buffer: Buffer,
+): Promise<{ width: number; height: number } | null> {
+  const meta = await sharp(buffer).metadata();
+  const displayed = meta.autoOrient ?? { width: meta.width ?? 0, height: meta.height ?? 0 };
+  if (!displayed.width || !displayed.height) return null;
+  return { width: displayed.width, height: displayed.height };
 }
