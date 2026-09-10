@@ -6,7 +6,7 @@
 # the REG.RU DNS module and is deliberately not a supported runtime.
 #
 # Caddy is the only public listener on 80/443. Nginx remains a loopback-only,
-# trusted downstream for the existing blue/green bcb_webapp upstream switch.
+# trusted downstream for the existing blue/green therapysto_webapp upstream switch.
 
 (edge_common) {
 	encode gzip zstd
@@ -34,7 +34,7 @@
 	email {$CADDY_ACME_EMAIL}
 	acme_ca {$CADDY_ACME_CA:https://acme-v02.api.letsencrypt.org/directory}
 	storage file_system {
-		root {$CADDY_DATA_DIR:/opt/bersoncarebot/state/caddy}
+		root {$CADDY_DATA_DIR:/opt/therapysto/state/caddy}
 	}
 
 	# The built-in module syntax takes the endpoint as its sole argument. A
@@ -45,7 +45,7 @@
 	}
 
 	log default {
-		output file {$CADDY_DATA_DIR:/opt/bersoncarebot/state/caddy}/access.log {
+		output file {$CADDY_DATA_DIR:/opt/therapysto/state/caddy}/access.log {
 			roll_size 100mb
 			roll_keep 10
 		}

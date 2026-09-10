@@ -96,8 +96,8 @@ table inet filter {
     # bridges created by anything else that happens to be installed later. docker0 belongs in the
     # list because image builds run on the default bridge, not on a colour: without it every build
     # hangs on apt and npm with timeouts that read like the internet is down.
-    iifname { "bcb-blue", "bcb-green", "docker0" } accept
-    oifname { "bcb-blue", "bcb-green", "docker0" } ct state established,related accept
+    iifname { "tsto-blue", "tsto-green", "docker0" } accept
+    oifname { "tsto-blue", "tsto-green", "docker0" } ct state established,related accept
   }
 
   chain output {

@@ -21,7 +21,7 @@ fi
   echo 'FATAL: the pinned builder supports Linux x86_64 only' >&2; exit 1;
 }
 
-work_dir=$(mktemp -d "${TMPDIR:-/tmp}/bcb-caddy-build.XXXXXX")
+work_dir=$(mktemp -d "${TMPDIR:-/tmp}/therapysto-caddy-build.XXXXXX")
 # Go deliberately makes module-cache sources read-only. Restore owner write
 # permission before removing this private temporary cache so cleanup itself
 # cannot turn an otherwise successful build into a failed validation.

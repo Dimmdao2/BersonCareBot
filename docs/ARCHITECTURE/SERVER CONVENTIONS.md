@@ -66,7 +66,7 @@ whitelist». До закрытия `SEC-02` нельзя опираться на
 | -------------------------------------------------- | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
 | **СТАРЫЙ ПРОД** (`adelaide`, работает до переезда) | `135.106.162.170` (Selectel, Ubuntu 24.04)  | Прод-приложение (api/worker/scheduler/webapp/media-worker), прод-БД `bersoncarebot` на PG16 `127.0.0.1:5432`, nginx, крон-слой, бэкапы                                                                                                                                                                                                                                                                                                              | `bersoncare.ru`, `www.bersoncare.ru`, `tgcarebot.bersonservices.ru` → все `135.106.162.170`                                        |
 | **OLD / DEV / RELAY / TEST**                       | `151.241.228.122` (исходный хост = dev-box) | (1) **AmneziaWG egress-релей** Telegram для прод-бота — `awg-quick@awg0`, UDP `51822`, **НЕ ТРОГАТЬ** (прод-бот зависит); (2) dev-окружение (Next `:5200`); (3) старый прод **остановлен и замаскирован** (`bersoncarebot-*-prod.service` → `/dev/null`, снятые unit-файлы в root-only архиве `/var/backups/bersoncarebot-disabled-prod-units-20260729/`, cron.d в `/root/bcb-cron-disabled-*`); (4) именованный **TEST** с разделёнными Therapysto/TherapyGo поверхностями | `test.therapysto.ru`, `admin.test.therapysto.ru`, `test.therapygo.ru`, `*.test.therapygo.ru`, legacy compatibility host `test.bersoncare.ru`, целевой branded Berson Care host `app.bersoncare.ru`, `meet.test.therapysto.ru`, `turn.test.therapysto.ru` → `151.241.228.122` |
-| **НОВЫЙ ПРОД** (`bcb-prod`, вводится 09.2026)      | `135.106.187.95` (Selectel, Ubuntu 24.04)   | Целевая платформа Therapysto/TherapyGo: **blue/green на docker** (`/opt/bersoncarebot`), PostgreSQL 16.15 с mTLS и порт-контекстом, корень под LUKS, nftables policy drop. На период проб доступ к 443 открыт ТОЛЬКО с dev-бокса `151.241.228.122` (владелец заходит через VPN с этим выходом), ACME на 80 открыт всем.                                                                                                                             | `therapysto.ru`, `www`, `admin.therapysto.ru`, `therapygo.ru`, `www`, `*.therapygo.ru`, `app.bersoncare.ru` → все `135.106.187.95` |
+| **НОВЫЙ ПРОД** (`therapysto-prod`, вводится 09.2026)      | `135.106.187.95` (Selectel, Ubuntu 24.04)   | Целевая платформа Therapysto/TherapyGo: **blue/green на docker** (`/opt/therapysto`), PostgreSQL 16.15 с mTLS и порт-контекстом, корень под LUKS, nftables policy drop. На период проб доступ к 443 открыт ТОЛЬКО с dev-бокса `151.241.228.122` (владелец заходит через VPN с этим выходом), ACME на 80 открыт всем.                                                                                                                             | `therapysto.ru`, `www`, `admin.therapysto.ru`, `therapygo.ru`, `www`, `*.therapygo.ru`, `app.bersoncare.ru` → все `135.106.187.95` |
 | ~~`161.104.34.216`~~                               | **DECOMMISSIONED**                          | Первый целевой прод-VDS — оказался **заблокирован из РФ** (РКН/ТСПУ, мёртв весь IP), удалён. Прод пересобран клоном на `135.x`. **Урок: новый IP всегда проверять `nc -vz <ip> 443` с РФ-бытового интернета ДО переезда.**                                                                                                                                                                                                                          | —                                                                                                                                  |
 
 ### Сетевой периметр (владелец, 19.08 — целевая политика прода)
@@ -191,8 +191,40 @@ UDP/TCP-запросы на порт `53` в этот split resolver. `awg0`, wg
 пересобирая. За каждым цветом закреплена своя подсеть (`172.30.0.0/24` blue, `172.31.0.0/24` green): база
 слушает адрес шлюза этого моста, и правило nftables пускает 5432 только с него.
 
+**Именование на новом проде: только `therapysto` / `therapygo`, никаких `bersoncarebot` и `bcb`
+(решение владельца, 10.09.2026).** Правило распространяется на каталоги, юниты systemd, docker-сети и
+проекты, образы, обёртки в `/usr/local/bin`, файлы nginx, правила sudoers/auditd/AIDE и переменные
+окружения конвейера. Старые имена остались только там, где они не про новый прод: TEST-хост
+(`/opt/projects/bersoncarebot-test`, юниты `bersoncarebot-*-test`) и СТАРЫЙ прод на `135.106.162.170`.
+
+| Что | Старое имя | Имя на новом проде |
+|---|---|---|
+| Корень | `/opt/bersoncarebot` | `/opt/therapysto` |
+| Секреты/конфиг хоста | `/etc/bersoncarebot` | `/etc/therapysto` |
+| Состояние и логи служб | `/var/{lib,log}/bersoncarebot` | `/var/{lib,log}/therapysto` |
+| Bare-репозиторий | `git/bcb.git` | `git/therapysto.git` |
+| Скрипты конвейера | `bcb-deploy`, `bcb-rollback`, `bcb-status`, `bcb-bluegreen-lib.sh` | `therapysto-deploy`, `therapysto-rollback`, `therapysto-status`, `therapysto-bluegreen-lib.sh` |
+| Образ | `bcb-app` | `therapysto-app` |
+| Docker-сеть и compose-проект | `bcb-blue` / `bcb-green` | `therapysto-blue` / `therapysto-green` |
+| Интерфейс моста | `bcb-blue` / `bcb-green` | `tsto-blue` / `tsto-green` |
+| Юниты Caddy | `bersoncarebot-caddy-edge*` | `therapysto-caddy-edge*` |
+| Сайт nginx | `/etc/nginx/sites-available/bcb` | `/etc/nginx/sites-available/therapysto` |
+| Переменные конвейера | `BCB_*` | `THERAPYSTO_*` |
+| Группа ключей порт-контекста | `bcb-app-prod` | `therapysto-app-prod` |
+
+**Имя интерфейса моста короче имени сети намеренно.** Имя сетевого интерфейса в ядре ограничено 15
+символами (IFNAMSIZ), а `therapysto-green` — шестнадцать: docker принял бы такую сеть и упал бы на
+создании моста. Поэтому сеть и compose-проект носят полное имя, а интерфейс — сокращённое `tsto-*`, и
+ровно оно стоит в правилах nftables.
+
+**Что осталось со старым именем сознательно.** Имя базы `bersoncarebot_test` и логины `bcb_test_*` — по
+причине, описанной ниже в разделе «База»: декларация прав знает ровно два имени баз, и переименование
+базы — это правка декларации, общей с TEST, а не переименование каталога. Имена LVM/LUKS (`bcbvg`,
+`bcbcrypt`, метка swap `bcb-swap`) заданы при установке системы; их смена требует перегенерации initramfs
+и перезагрузки с вводом парольной фразы LUKS на консоли.
+
 **Деплой запускается с dev-бокса одной командой** — GitHub в схеме не участвует, прод забирает код из
-собственного bare-репозитория `/opt/bersoncarebot/git/bcb.git`:
+собственного bare-репозитория `/opt/therapysto/git/therapysto.git`:
 
 ```bash
 bash tools/deploy-prod-from-dev.sh          # выложить текущую ветку
@@ -200,10 +232,10 @@ bash tools/deploy-prod-from-dev.sh <ref>    # выложить конкретн�
 ```
 
 Скрипт доставляет коммит в репозиторий прода, обновляет из этого же коммита сам конвейер
-(`/opt/bersoncarebot/pipeline`: compose, Dockerfile, blue/green-скрипты) и запускает его; своей логики
+(`/opt/therapysto/pipeline`: compose, Dockerfile, blue/green-скрипты) и запускает его; своей логики
 выкладки не несёт. На самом хосте те же операции доступны как `deploy-prod`, `rollback-prod`, `prod-status`.
 
-**Ключ доступа:** `~/.ssh/bcb_prod_build_20260817` (root). **Каталоги:** `/opt/bersoncarebot/{src,git,env,pipeline,state,releases}`,
+**Ключ доступа:** `~/.ssh/therapysto_prod_build_20260817` (root). **Каталоги:** `/opt/therapysto/{src,git,env,pipeline,state,releases}`,
 env-файлы `env/{api.prod,webapp.prod}`, пароли рантайм-логинов — `env/reconcile.env` (600, root).
 
 `env/webapp.prod` копируется из `deploy/env/.env.webapp.prod.example`: `APP_BASE_URL=https://therapysto.ru`,
@@ -218,7 +250,7 @@ legacy `bersoncare.ru` state на `135.106.162.170` и не применяетс
 доступа у них нет:
 
 ```bash
-cd /opt/bersoncarebot/src && set -a && . /opt/bersoncarebot/env/reconcile.env && set +a && \
+cd /opt/therapysto/src && set -a && . /opt/therapysto/env/reconcile.env && set +a && \
   node deploy/postgres/privileges/reconcile-access.mjs \
     --env test --db bersoncarebot_test --admin-socket /var/run/postgresql
 ```
@@ -233,8 +265,8 @@ sudo -u postgres pg_dump -Fc --no-owner --no-acl -h /var/run/postgresql \
   -d bersoncarebot_test -f /tmp/bcb_test_$(date +%Y%m%d).dump
 
 # 2. Доставить дамп на прод и положить туда, куда достаёт postgres
-scp -i ~/.ssh/bcb_prod_build_20260817 /tmp/bcb_test_<дата>.dump \
-  root@135.106.187.95:/opt/bersoncarebot/state/
+scp -i ~/.ssh/therapysto_prod_build_20260817 /tmp/bcb_test_<дата>.dump \
+  root@135.106.187.95:/opt/therapysto/state/
 
 # 3. Выложить код (сборка, здоровье, переключение nginx делает конвейер прода)
 bash tools/deploy-prod-from-dev.sh                 # текущая ветка
@@ -243,13 +275,14 @@ bash tools/deploy-prod-from-dev.sh                 # текущая ветка
 На хосте прода, между шагом 2 и шагом 3, база меняется так (иначе новый код встретит старую схему):
 
 ```bash
-docker stop bcb-<цвет>-media-worker-1 bcb-<цвет>-scheduler-1 bcb-<цвет>-webapp-1 bcb-<цвет>-api-1
+docker stop therapysto-<цвет>-media-worker-1 therapysto-<цвет>-scheduler-1 \
+  therapysto-<цвет>-webapp-1 therapysto-<цвет>-api-1
 install -d -o postgres -g postgres -m 0700 /var/lib/postgresql/bcb-transfer
 runuser -u postgres -- pg_dump -Fc -d bersoncarebot_test \
   -f /var/lib/postgresql/bcb-transfer/pre-copy-$(date +%s).dump          # откат
-install -o postgres -g postgres -m 0600 /opt/bersoncarebot/state/<дамп> \
+install -o postgres -g postgres -m 0600 /opt/therapysto/state/<дамп> \
   /var/lib/postgresql/bcb-transfer/<дамп>
-cd /opt/bersoncarebot/src
+cd /opt/therapysto/src
 sudo -u postgres bash deploy/host/restore-test-db-from-dump.sh /var/lib/postgresql/bcb-transfer/<дамп>
 sudo -u postgres psql -d bersoncarebot_test -c 'ALTER EXTENSION pgcrypto SET SCHEMA app_ext;'
 bash deploy/host/prod/refresh-prod-runtime-env.sh   # описатели порт-контекста из выкладываемого коммита

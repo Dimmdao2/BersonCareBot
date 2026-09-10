@@ -3,45 +3,45 @@
 # 135.106.187.95. Run as root only after explicit owner authorization.
 #
 # The installed pipeline owns every file used below. Caddy keeps public TLS;
-# loopback-only nginx keeps the existing blue/green bcb_webapp upstream switch.
+# loopback-only nginx keeps the existing blue/green therapysto_webapp upstream switch.
 set -euo pipefail
 
-BCB_ROOT=/opt/bersoncarebot
-BCB_ENV_DIR="$BCB_ROOT/env"
-BCB_PIPELINE="$BCB_ROOT/pipeline"
-BCB_PUBLIC_SITE=/etc/nginx/sites-available/bcb
-CADDY_ENV_FILE="$BCB_ENV_DIR/caddy.prod"
+THERAPYSTO_ROOT=/opt/therapysto
+THERAPYSTO_ENV_DIR="$THERAPYSTO_ROOT/env"
+THERAPYSTO_PIPELINE="$THERAPYSTO_ROOT/pipeline"
+THERAPYSTO_PUBLIC_SITE=/etc/nginx/sites-available/therapysto
+CADDY_ENV_FILE="$THERAPYSTO_ENV_DIR/caddy.prod"
 CADDYFILE_DEST=/etc/caddy/Caddyfile
-CADDY_BINARY=/usr/local/bin/bcb-caddy
-CADDY_SERVICE=bersoncarebot-caddy-edge.service
-CADDY_HEALTH_TIMER=bersoncarebot-caddy-edge-health.timer
+CADDY_BINARY=/usr/local/bin/therapysto-caddy
+CADDY_SERVICE=therapysto-caddy-edge.service
+CADDY_HEALTH_TIMER=therapysto-caddy-edge-health.timer
 
 say()  { printf '\033[1m==>\033[0m %s\n' "$*"; }
 info() { printf '    %s\n' "$*"; }
 die()  { printf '\033[31mFATAL: %s\033[0m\n' "$*" >&2; exit 1; }
 
 [ "$(id -u)" = 0 ] || die "must run as root"
-[ -f /etc/bcb-pipeline.conf ] || die "pipeline not installed (run setup-docker-bluegreen.sh first)"
-. /etc/bcb-pipeline.conf
-[ -f "$BCB_PIPELINE/bcb-bluegreen-lib.sh" ] || die "pipeline library missing at $BCB_PIPELINE/bcb-bluegreen-lib.sh"
-. "$BCB_PIPELINE/bcb-bluegreen-lib.sh"
+[ -f /etc/therapysto-pipeline.conf ] || die "pipeline not installed (run setup-docker-bluegreen.sh first)"
+. /etc/therapysto-pipeline.conf
+[ -f "$THERAPYSTO_PIPELINE/therapysto-bluegreen-lib.sh" ] || die "pipeline library missing at $THERAPYSTO_PIPELINE/therapysto-bluegreen-lib.sh"
+. "$THERAPYSTO_PIPELINE/therapysto-bluegreen-lib.sh"
 require_prod_host
 
-CADDYFILE_SRC="$BCB_PIPELINE/Caddyfile.template"
-NGINX_TEMPLATE_SRC="$BCB_PIPELINE/bcb-internal.conf.template"
-CADDY_BUILD="$BCB_PIPELINE/build-caddy-edge.sh"
+CADDYFILE_SRC="$THERAPYSTO_PIPELINE/Caddyfile.template"
+NGINX_TEMPLATE_SRC="$THERAPYSTO_PIPELINE/therapysto-internal.conf.template"
+CADDY_BUILD="$THERAPYSTO_PIPELINE/build-caddy-edge.sh"
 
 say "preflight"
 for file in "$CADDYFILE_SRC" "$NGINX_TEMPLATE_SRC" "$CADDY_BUILD" \
-            "$BCB_PIPELINE/bersoncarebot-caddy-edge.service" \
-            "$BCB_PIPELINE/bersoncarebot-caddy-edge-health.service" \
-            "$BCB_PIPELINE/bersoncarebot-caddy-edge-health.timer"; do
+            "$THERAPYSTO_PIPELINE/therapysto-caddy-edge.service" \
+            "$THERAPYSTO_PIPELINE/therapysto-caddy-edge-health.service" \
+            "$THERAPYSTO_PIPELINE/therapysto-caddy-edge-health.timer"; do
   [ -f "$file" ] || die "missing installed edge asset: $file"
 done
 [ -x "$CADDY_BUILD" ] || die "not executable: $CADDY_BUILD"
 [ -f "$CADDY_ENV_FILE" ] || die "missing $CADDY_ENV_FILE"
-[ -f "$BCB_PUBLIC_SITE" ] || die "missing $BCB_PUBLIC_SITE"
-grep -q 'bcb_webapp' "$BCB_PUBLIC_SITE" || die "$BCB_PUBLIC_SITE has no bcb_webapp proxy_pass yet"
+[ -f "$THERAPYSTO_PUBLIC_SITE" ] || die "missing $THERAPYSTO_PUBLIC_SITE"
+grep -q 'therapysto_webapp' "$THERAPYSTO_PUBLIC_SITE" || die "$THERAPYSTO_PUBLIC_SITE has no therapysto_webapp proxy_pass yet"
 for key in CADDY_ACME_EMAIL CADDY_PLATFORM_DOMAINS CADDY_REGRU_USERNAME CADDY_REGRU_PASSWORD CADDY_ASK_URL CADDY_UPSTREAM; do
   grep -qE "^${key}=" "$CADDY_ENV_FILE" || die "$CADDY_ENV_FILE is missing $key"
 done
@@ -69,16 +69,16 @@ install -d -m 0750 -o caddy -g caddy "$(sed -n 's/^CADDY_DATA_DIR=//p' "$CADDY_E
 ) || die "Caddyfile did not validate — nginx has NOT been touched"
 
 say "backing up and replacing the public nginx site"
-BACKUP="/etc/nginx/sites-available/bcb.pre-caddy.$(date +%s)"
-cp "$BCB_PUBLIC_SITE" "$BACKUP"
+BACKUP="/etc/nginx/sites-available/therapysto.pre-caddy.$(date +%s)"
+cp "$THERAPYSTO_PUBLIC_SITE" "$BACKUP"
 info "previous public site saved at $BACKUP"
-sed "s/__BCB_EDGE_INTERNAL_PORT__/$INTERNAL_PORT/" "$NGINX_TEMPLATE_SRC" > "$BCB_PUBLIC_SITE"
+sed "s/__THERAPYSTO_EDGE_INTERNAL_PORT__/$INTERNAL_PORT/" "$NGINX_TEMPLATE_SRC" > "$THERAPYSTO_PUBLIC_SITE"
 if ! nginx -t >/dev/null 2>&1; then
-  cp "$BACKUP" "$BCB_PUBLIC_SITE"
+  cp "$BACKUP" "$THERAPYSTO_PUBLIC_SITE"
   die "generated internal nginx site is invalid; restored $BACKUP unchanged"
 fi
 systemctl reload nginx || {
-  cp "$BACKUP" "$BCB_PUBLIC_SITE"
+  cp "$BACKUP" "$THERAPYSTO_PUBLIC_SITE"
   nginx -t && systemctl reload nginx
   die "nginx reload failed; restored previous public site"
 }
@@ -86,9 +86,9 @@ systemctl reload nginx || {
 say "installing Caddy edge and its health timer"
 install -d -m 0755 /etc/caddy
 install -m 0644 "$CADDYFILE_SRC" "$CADDYFILE_DEST"
-install -m 0644 "$BCB_PIPELINE/bersoncarebot-caddy-edge.service" "/etc/systemd/system/$CADDY_SERVICE"
-install -m 0644 "$BCB_PIPELINE/bersoncarebot-caddy-edge-health.service" /etc/systemd/system/bersoncarebot-caddy-edge-health.service
-install -m 0644 "$BCB_PIPELINE/bersoncarebot-caddy-edge-health.timer" "/etc/systemd/system/$CADDY_HEALTH_TIMER"
+install -m 0644 "$THERAPYSTO_PIPELINE/therapysto-caddy-edge.service" "/etc/systemd/system/$CADDY_SERVICE"
+install -m 0644 "$THERAPYSTO_PIPELINE/therapysto-caddy-edge-health.service" /etc/systemd/system/therapysto-caddy-edge-health.service
+install -m 0644 "$THERAPYSTO_PIPELINE/therapysto-caddy-edge-health.timer" "/etc/systemd/system/$CADDY_HEALTH_TIMER"
 systemctl daemon-reload
 systemctl enable --now "$CADDY_SERVICE" >/dev/null 2>&1
 systemctl restart "$CADDY_SERVICE" || die "Caddy failed to start — run rollback-edge-to-nginx.sh now"

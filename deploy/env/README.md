@@ -10,7 +10,7 @@
 
 ## Новый trial PROD — `135.106.187.95` (Therapysto / TherapyGo, blue/green)
 
-Blue/green pipeline читает `/opt/bersoncarebot/env/webapp.prod`; его единственный repository copy-source —
+Blue/green pipeline читает `/opt/therapysto/env/webapp.prod`; его единственный repository copy-source —
 `deploy/env/.env.webapp.prod.example`. Он задаёт уже утверждённое разделение поверхностей:
 
 - `APP_BASE_URL=https://therapysto.ru` — staff/admin;

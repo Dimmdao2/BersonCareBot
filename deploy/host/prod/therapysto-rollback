@@ -13,9 +13,9 @@
 # pre-migration dump, and it costs whatever was written since.
 
 set -uo pipefail
-LIB=/opt/bersoncarebot/pipeline/bcb-bluegreen-lib.sh
+LIB=/opt/therapysto/pipeline/therapysto-bluegreen-lib.sh
 [ -f "$LIB" ] || { echo "FATAL: pipeline library missing at $LIB" >&2; exit 1; }
-. /etc/bcb-pipeline.conf
+. /etc/therapysto-pipeline.conf
 . "$LIB"
 
 [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ] && { sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'; exit 0; }
@@ -32,8 +32,8 @@ if [ -z "$TARGET_IMAGE" ]; then
   # in the log too and are skipped: rolling back onto a release that never became healthy would just
   # fail the same gate again, slower.
   TARGET_IMAGE=$(awk -F'\t' -v cur="$CURRENT_IMAGE" \
-    '($2=="deploy" || $2=="rollback") && $4!=cur {last=$4} END{print last}' "$BCB_RELEASES_LOG" 2>/dev/null)
-  [ -n "$TARGET_IMAGE" ] || die "no previous successful release found in $BCB_RELEASES_LOG"
+    '($2=="deploy" || $2=="rollback") && $4!=cur {last=$4} END{print last}' "$THERAPYSTO_RELEASES_LOG" 2>/dev/null)
+  [ -n "$TARGET_IMAGE" ] || die "no previous successful release found in $THERAPYSTO_RELEASES_LOG"
 fi
 
 docker image inspect "$TARGET_IMAGE" >/dev/null 2>&1 ||
@@ -45,6 +45,6 @@ warn "this restores code only; database schema changes are not undone"
 # Deliberately the same code path as a normal deploy, health gate included. A rollback that skipped
 # the gate could replace a broken release with a release that is broken for a different reason and
 # report success.
-/opt/bersoncarebot/pipeline/bcb-deploy --no-build "$TARGET_IMAGE" || die "rollback failed; $ACTIVE is still live"
+/opt/therapysto/pipeline/therapysto-deploy --no-build "$TARGET_IMAGE" || die "rollback failed; $ACTIVE is still live"
 record_release "$(active_colour)" "$TARGET_IMAGE" "${TARGET_IMAGE##*:}" "rollback"
 say "rolled back to $TARGET_IMAGE"

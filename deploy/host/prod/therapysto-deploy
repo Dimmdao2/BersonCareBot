@@ -9,13 +9,13 @@
 #   deploy-prod --no-build <img> put an already-built image live (this is what rollback-prod uses)
 
 set -uo pipefail
-LIB=/opt/bersoncarebot/pipeline/bcb-bluegreen-lib.sh
+LIB=/opt/therapysto/pipeline/therapysto-bluegreen-lib.sh
 # shellcheck source=/dev/null
 [ -f "$LIB" ] || { echo "FATAL: pipeline library missing at $LIB" >&2; exit 1; }
-. /etc/bcb-pipeline.conf
+. /etc/therapysto-pipeline.conf
 . "$LIB"
 
-REF="${BCB_BRANCH:-main}"
+REF="${THERAPYSTO_BRANCH:-main}"
 BUILD=1
 PREBUILT=""
 while [ $# -gt 0 ]; do
@@ -30,7 +30,7 @@ require_pipeline
 
 # One deploy at a time. Two concurrent runs would each see the other's colour as idle and fight over
 # the same ports and the same nginx file.
-exec 9>"$BCB_STATE/deploy.lock"
+exec 9>"$THERAPYSTO_STATE/deploy.lock"
 flock -n 9 || die "another deploy or rollback is already running"
 
 ACTIVE=$(active_colour)
@@ -40,20 +40,20 @@ say "active colour: $ACTIVE → deploying onto: $TARGET"
 if [ "$BUILD" = 1 ]; then
   # ---------------------------------------------------------------- source
   say "fetching $REF from GitHub"
-  [ -d "$BCB_SRC/.git" ] || die "source checkout missing at $BCB_SRC (run setup-docker-bluegreen.sh)"
-  export GIT_SSH_COMMAND="ssh -i $BCB_DEPLOY_KEY -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes"
-  git -C "$BCB_SRC" fetch --prune origin || die "git fetch failed (is the deploy key still authorised?)"
+  [ -d "$THERAPYSTO_SRC/.git" ] || die "source checkout missing at $THERAPYSTO_SRC (run setup-docker-bluegreen.sh)"
+  export GIT_SSH_COMMAND="ssh -i $THERAPYSTO_DEPLOY_KEY -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes"
+  git -C "$THERAPYSTO_SRC" fetch --prune origin || die "git fetch failed (is the deploy key still authorised?)"
   # Hard reset, not merge: the checkout is a build input, not a workspace. Anything local in it is
   # by definition not what was reviewed on GitHub, and a deploy that silently carries it forward is
   # how a production host ends up running code that exists nowhere else.
-  git -C "$BCB_SRC" reset --hard "origin/$REF" 2>/dev/null || git -C "$BCB_SRC" reset --hard "$REF" ||
+  git -C "$THERAPYSTO_SRC" reset --hard "origin/$REF" 2>/dev/null || git -C "$THERAPYSTO_SRC" reset --hard "$REF" ||
     die "cannot resolve ref '$REF'"
-  git -C "$BCB_SRC" clean -fdx -e node_modules >/dev/null
+  git -C "$THERAPYSTO_SRC" clean -fdx -e node_modules >/dev/null
 
-  COMMIT=$(git -C "$BCB_SRC" rev-parse --short HEAD)
-  SUBJECT=$(git -C "$BCB_SRC" log -1 --format='%s')
+  COMMIT=$(git -C "$THERAPYSTO_SRC" rev-parse --short HEAD)
+  SUBJECT=$(git -C "$THERAPYSTO_SRC" log -1 --format='%s')
   info "commit $COMMIT — $SUBJECT"
-  IMAGE="$BCB_IMAGE_REPO:$COMMIT"
+  IMAGE="$THERAPYSTO_IMAGE_REPO:$COMMIT"
 
   # ---------------------------------------------------------------- build
   # Built here rather than pulled from a registry: there is no registry, and adding one would mean a
@@ -61,21 +61,21 @@ if [ "$BUILD" = 1 ]; then
   # minutes of CPU on a machine that is otherwise idle during a manual deploy.
   say "building $IMAGE (this takes a few minutes)"
   docker build \
-    --file "$BCB_PIPELINE/Dockerfile" \
+    --file "$THERAPYSTO_PIPELINE/Dockerfile" \
     --build-arg GIT_COMMIT="$COMMIT" \
     --build-arg BUILD_TIME="$(date -u +%FT%TZ)" \
     --tag "$IMAGE" \
-    "$BCB_SRC" || die "build failed; nothing was deployed and $ACTIVE is still serving"
+    "$THERAPYSTO_SRC" || die "build failed; nothing was deployed and $ACTIVE is still serving"
 else
   IMAGE="$PREBUILT"
   docker image inspect "$IMAGE" >/dev/null 2>&1 || die "image not found locally: $IMAGE"
-  COMMIT=$(docker inspect --format '{{index .Config.Labels "bcb.commit"}}' "$IMAGE" 2>/dev/null)
+  COMMIT=$(docker inspect --format '{{index .Config.Labels "therapysto.commit"}}' "$IMAGE" 2>/dev/null)
   COMMIT="${COMMIT:-${IMAGE##*:}}"
   say "using existing image $IMAGE"
 fi
 
 # ---------------------------------------------------------------- gate
-export BCB_IMAGE="$IMAGE"
+export THERAPYSTO_IMAGE="$IMAGE"
 start_colour_frontends "$TARGET" "$IMAGE"
 
 if ! wait_for_colour_health "$TARGET"; then

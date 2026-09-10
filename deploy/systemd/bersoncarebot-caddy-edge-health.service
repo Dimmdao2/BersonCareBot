@@ -1,8 +1,0 @@
-[Unit]
-Description=BersonCare Caddy edge certificate-store health check
-After=bersoncarebot-caddy-edge.service
-
-[Service]
-Type=oneshot
-EnvironmentFile=-/opt/bersoncarebot/env/caddy.prod
-ExecStart=/opt/bersoncarebot/pipeline/check-caddy-edge-health.sh

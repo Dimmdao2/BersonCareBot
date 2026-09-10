@@ -10,32 +10,37 @@
 
 set -uo pipefail
 
-BCB_ROOT=/opt/bersoncarebot
-BCB_SRC="$BCB_ROOT/src"
-BCB_ENV_DIR="$BCB_ROOT/env"
-BCB_PIPELINE="$BCB_ROOT/pipeline"
-BCB_STATE="$BCB_ROOT/state"
-BCB_ACTIVE_FILE="$BCB_STATE/active-colour"
-BCB_RELEASES_LOG="$BCB_STATE/releases.log"
-BCB_UPSTREAM_CONF=/etc/nginx/conf.d/20-bcb-upstream.conf
-BCB_IMAGE_REPO=bcb-app
-BCB_KEEP_IMAGES="${BCB_KEEP_IMAGES:-5}"
+THERAPYSTO_ROOT=/opt/therapysto
+THERAPYSTO_SRC="$THERAPYSTO_ROOT/src"
+THERAPYSTO_ENV_DIR="$THERAPYSTO_ROOT/env"
+THERAPYSTO_PIPELINE="$THERAPYSTO_ROOT/pipeline"
+THERAPYSTO_STATE="$THERAPYSTO_ROOT/state"
+THERAPYSTO_ACTIVE_FILE="$THERAPYSTO_STATE/active-colour"
+THERAPYSTO_RELEASES_LOG="$THERAPYSTO_STATE/releases.log"
+THERAPYSTO_UPSTREAM_CONF=/etc/nginx/conf.d/20-therapysto-upstream.conf
+THERAPYSTO_IMAGE_REPO=therapysto-app
+THERAPYSTO_KEEP_IMAGES="${THERAPYSTO_KEEP_IMAGES:-5}"
 
 # Ports are per colour and bound to loopback only; nginx is the sole public door.
-BCB_BLUE_WEBAPP_PORT=6201
-BCB_BLUE_API_PORT=3201
-BCB_GREEN_WEBAPP_PORT=6202
-BCB_GREEN_API_PORT=3202
+THERAPYSTO_BLUE_WEBAPP_PORT=6201
+THERAPYSTO_BLUE_API_PORT=3201
+THERAPYSTO_GREEN_WEBAPP_PORT=6202
+THERAPYSTO_GREEN_API_PORT=3202
 
 # Каждый цвет получает СВОЮ фиксированную подсеть вместо той, что docker выдаёт сам. Причина не в
 # аккуратности: приложение ходит в PostgreSQL по TCP с клиентским сертификатом (порт-контекст), то
 # есть база обязана слушать адрес шлюза этого моста, а firewall — пускать только с него. Плавающая
 # подсеть означала бы, что после пересоздания сети слушающий адрес и правило перестают совпадать, и
 # деплой падал бы на «база недоступна» без единой подсказки почему.
-BCB_BLUE_SUBNET=172.30.0.0/24
-BCB_BLUE_GATEWAY=172.30.0.1
-BCB_GREEN_SUBNET=172.31.0.0/24
-BCB_GREEN_GATEWAY=172.31.0.1
+THERAPYSTO_BLUE_SUBNET=172.30.0.0/24
+THERAPYSTO_BLUE_GATEWAY=172.30.0.1
+THERAPYSTO_GREEN_SUBNET=172.31.0.0/24
+THERAPYSTO_GREEN_GATEWAY=172.31.0.1
+
+# Имя моста в ядре ограничено 15 символами (IFNAMSIZ), поэтому оно короче имени сети/проекта.
+# Эти же строки стоят в правилах nftables — менять их можно только вместе с firewall.
+THERAPYSTO_BLUE_IFACE=tsto-blue
+THERAPYSTO_GREEN_IFACE=tsto-green
 
 say()  { printf '\033[1m==>\033[0m %s\n' "$*"; }
 info() { printf '    %s\n' "$*"; }
@@ -51,7 +56,7 @@ require_root() { [ "$(id -u)" = 0 ] || die "must run as root (use the deploy-pro
 # accident. Identity is asserted against the interface list, not the hostname alone, because a
 # hostname is one `hostnamectl` away from being a lie.
 require_prod_host() {
-  local expected="${BCB_PROD_IP:?BCB_PROD_IP must be set in /etc/bcb-pipeline.conf}" addr found=0
+  local expected="${THERAPYSTO_PROD_IP:?THERAPYSTO_PROD_IP must be set in /etc/therapysto-pipeline.conf}" addr found=0
   for addr in $(hostname -I 2>/dev/null); do
     [ "$addr" = "$expected" ] && { found=1; break; }
   done
@@ -61,37 +66,38 @@ require_prod_host() {
 require_pipeline() {
   require_root
   require_prod_host
-  [ -d "$BCB_PIPELINE" ] || die "pipeline is not installed: $BCB_PIPELINE missing (run setup-docker-bluegreen.sh)"
+  [ -d "$THERAPYSTO_PIPELINE" ] || die "pipeline is not installed: $THERAPYSTO_PIPELINE missing (run setup-docker-bluegreen.sh)"
   command -v docker >/dev/null || die "docker is not installed"
   docker info >/dev/null 2>&1 || die "docker daemon is not responding"
-  mkdir -p "$BCB_STATE"
+  mkdir -p "$THERAPYSTO_STATE"
   local f
   for f in api.prod webapp.prod media-worker.prod; do
-    [ -f "$BCB_ENV_DIR/$f" ] || die "environment file missing: $BCB_ENV_DIR/$f"
+    [ -f "$THERAPYSTO_ENV_DIR/$f" ] || die "environment file missing: $THERAPYSTO_ENV_DIR/$f"
   done
   # A build needs room. Running out of disk halfway through leaves a half-written image and a host
   # with no space to clean it up with, which is a much worse morning than refusing here.
   local avail_gb
-  avail_gb=$(df -BG --output=avail "$BCB_ROOT" | tail -1 | tr -dc '0-9')
-  [ "${avail_gb:-0}" -ge 10 ] || die "only ${avail_gb}G free under $BCB_ROOT; need at least 10G"
+  avail_gb=$(df -BG --output=avail "$THERAPYSTO_ROOT" | tail -1 | tr -dc '0-9')
+  [ "${avail_gb:-0}" -ge 10 ] || die "only ${avail_gb}G free under $THERAPYSTO_ROOT; need at least 10G"
 }
 
 # ------------------------------------------------------------------ colours
 
-active_colour() { [ -f "$BCB_ACTIVE_FILE" ] && cat "$BCB_ACTIVE_FILE" || echo none; }
+active_colour() { [ -f "$THERAPYSTO_ACTIVE_FILE" ] && cat "$THERAPYSTO_ACTIVE_FILE" || echo none; }
 idle_colour()   { case "$(active_colour)" in blue) echo green;; green) echo blue;; *) echo blue;; esac; }
 
-colour_webapp_port() { case "$1" in blue) echo $BCB_BLUE_WEBAPP_PORT;; green) echo $BCB_GREEN_WEBAPP_PORT;; *) return 1;; esac; }
-colour_api_port()    { case "$1" in blue) echo $BCB_BLUE_API_PORT;;    green) echo $BCB_GREEN_API_PORT;;    *) return 1;; esac; }
-colour_subnet()      { case "$1" in blue) echo $BCB_BLUE_SUBNET;;     green) echo $BCB_GREEN_SUBNET;;     *) return 1;; esac; }
-colour_gateway()     { case "$1" in blue) echo $BCB_BLUE_GATEWAY;;    green) echo $BCB_GREEN_GATEWAY;;    *) return 1;; esac; }
+colour_webapp_port() { case "$1" in blue) echo $THERAPYSTO_BLUE_WEBAPP_PORT;; green) echo $THERAPYSTO_GREEN_WEBAPP_PORT;; *) return 1;; esac; }
+colour_api_port()    { case "$1" in blue) echo $THERAPYSTO_BLUE_API_PORT;;    green) echo $THERAPYSTO_GREEN_API_PORT;;    *) return 1;; esac; }
+colour_subnet()      { case "$1" in blue) echo $THERAPYSTO_BLUE_SUBNET;;     green) echo $THERAPYSTO_GREEN_SUBNET;;     *) return 1;; esac; }
+colour_gateway()     { case "$1" in blue) echo $THERAPYSTO_BLUE_GATEWAY;;    green) echo $THERAPYSTO_GREEN_GATEWAY;;    *) return 1;; esac; }
+colour_iface()       { case "$1" in blue) echo $THERAPYSTO_BLUE_IFACE;;      green) echo $THERAPYSTO_GREEN_IFACE;;      *) return 1;; esac; }
 
 # Имя, под которым вебапп отвечает СЕБЕ и своим фоновым процессам. Берётся не из головы и не копией
 # строки в конфиг: маршрутизация поверхностей отказывает закрыто на незнакомом `Host`, поэтому имя
 # выводится из APP_BASE_URL тем же единственным seam'ом, что и health-проверка деплоя.
 surface_host() {
-  ( set -a; . "$BCB_ENV_DIR/webapp.prod"; set +a
-    node "$BCB_SRC/deploy/host/webapp-health-host.mjs" ) ||
+  ( set -a; . "$THERAPYSTO_ENV_DIR/webapp.prod"; set +a
+    node "$THERAPYSTO_SRC/deploy/host/webapp-health-host.mjs" ) ||
     die "cannot derive the surface host from APP_BASE_URL in webapp.prod"
 }
 
@@ -100,8 +106,8 @@ surface_host() {
 # контейнер тогда не прочитал бы ключ, а сообщение было бы про «нечитаемый PEM».
 app_key_gid() {
   local gid
-  gid=$(getent group bcb-app-prod | cut -d: -f3)
-  [ -n "$gid" ] || die "host group bcb-app-prod is missing; the port-context keys have no readable group"
+  gid=$(getent group therapysto-app-prod | cut -d: -f3)
+  [ -n "$gid" ] || die "host group therapysto-app-prod is missing; the port-context keys have no readable group"
   printf '%s\n' "$gid"
 }
 
@@ -109,21 +115,22 @@ app_key_gid() {
 # between the deploy path and the rollback path.
 compose() {
   local colour="$1" image="$2"; shift 2
-  BCB_IMAGE="$image" \
-  BCB_COLOUR="$colour" \
-  BCB_ENV_DIR="$BCB_ENV_DIR" \
-  BCB_WEBAPP_PORT="$(colour_webapp_port "$colour")" \
-  BCB_API_PORT="$(colour_api_port "$colour")" \
-  BCB_NETWORK_SUBNET="$(colour_subnet "$colour")" \
-  BCB_NETWORK_GATEWAY="$(colour_gateway "$colour")" \
-  BCB_SURFACE_HOST="$(surface_host)" \
-  BCB_APP_KEY_GID="$(app_key_gid)" \
-  docker compose -p "bcb-$colour" -f "$BCB_PIPELINE/docker-compose.yml" "$@"
+  THERAPYSTO_IMAGE="$image" \
+  THERAPYSTO_COLOUR="$colour" \
+  THERAPYSTO_ENV_DIR="$THERAPYSTO_ENV_DIR" \
+  THERAPYSTO_WEBAPP_PORT="$(colour_webapp_port "$colour")" \
+  THERAPYSTO_API_PORT="$(colour_api_port "$colour")" \
+  THERAPYSTO_NETWORK_SUBNET="$(colour_subnet "$colour")" \
+  THERAPYSTO_NETWORK_GATEWAY="$(colour_gateway "$colour")" \
+  THERAPYSTO_BRIDGE_IFACE="$(colour_iface "$colour")" \
+  THERAPYSTO_SURFACE_HOST="$(surface_host)" \
+  THERAPYSTO_APP_KEY_GID="$(app_key_gid)" \
+  docker compose -p "therapysto-$colour" -f "$THERAPYSTO_PIPELINE/docker-compose.yml" "$@"
 }
 
 # The image a colour is actually running, asked of the container rather than of our own notes.
 colour_running_image() {
-  docker inspect --format '{{.Config.Image}}' "bcb-$1-webapp-1" 2>/dev/null || true
+  docker inspect --format '{{.Config.Image}}' "therapysto-$1-webapp-1" 2>/dev/null || true
 }
 
 # ------------------------------------------------------------------ bring up and gate
@@ -139,12 +146,12 @@ start_colour_frontends() {
 # restart loop; the container's verdict is the honest one. `unhealthy` fails immediately instead of
 # waiting out the timeout — the retries already happened inside the healthcheck.
 wait_for_colour_health() {
-  local colour="$1" deadline=$((SECONDS + ${BCB_HEALTH_TIMEOUT:-180})) svc state
+  local colour="$1" deadline=$((SECONDS + ${THERAPYSTO_HEALTH_TIMEOUT:-180})) svc state
   say "waiting for $colour to report healthy"
   while [ $SECONDS -lt $deadline ]; do
     local all_ok=1
     for svc in webapp api; do
-      state=$(docker inspect --format '{{.State.Health.Status}}' "bcb-$colour-$svc-1" 2>/dev/null || echo missing)
+      state=$(docker inspect --format '{{.State.Health.Status}}' "therapysto-$colour-$svc-1" 2>/dev/null || echo missing)
       case "$state" in
         healthy)   ;;
         unhealthy) warn "$svc is unhealthy"; return 1 ;;
@@ -154,7 +161,7 @@ wait_for_colour_health() {
     [ "$all_ok" = 1 ] && { info "webapp and api are healthy"; return 0; }
     sleep 3
   done
-  warn "$colour did not become healthy within ${BCB_HEALTH_TIMEOUT:-180}s"
+  warn "$colour did not become healthy within ${THERAPYSTO_HEALTH_TIMEOUT:-180}s"
   return 1
 }
 
@@ -167,20 +174,20 @@ wait_for_colour_health() {
 switch_nginx_to() {
   local colour="$1" backup
   backup=$(mktemp)
-  [ -f "$BCB_UPSTREAM_CONF" ] && cp "$BCB_UPSTREAM_CONF" "$backup"
-  cat > "$BCB_UPSTREAM_CONF" <<EOF
+  [ -f "$THERAPYSTO_UPSTREAM_CONF" ] && cp "$THERAPYSTO_UPSTREAM_CONF" "$backup"
+  cat > "$THERAPYSTO_UPSTREAM_CONF" <<EOF
 # Written by the blue-green pipeline. Active colour: $colour
-upstream bcb_webapp { server 127.0.0.1:$(colour_webapp_port "$colour"); keepalive 32; }
-upstream bcb_api    { server 127.0.0.1:$(colour_api_port "$colour");    keepalive 32; }
+upstream therapysto_webapp { server 127.0.0.1:$(colour_webapp_port "$colour"); keepalive 32; }
+upstream therapysto_api    { server 127.0.0.1:$(colour_api_port "$colour");    keepalive 32; }
 EOF
   if ! nginx -t >/dev/null 2>&1; then
-    [ -s "$backup" ] && cp "$backup" "$BCB_UPSTREAM_CONF" || rm -f "$BCB_UPSTREAM_CONF"
+    [ -s "$backup" ] && cp "$backup" "$THERAPYSTO_UPSTREAM_CONF" || rm -f "$THERAPYSTO_UPSTREAM_CONF"
     rm -f "$backup"
     die "nginx rejected the new upstream config; nothing was switched"
   fi
   rm -f "$backup"
   systemctl reload nginx || die "nginx reload failed"
-  echo "$colour" > "$BCB_ACTIVE_FILE"
+  echo "$colour" > "$THERAPYSTO_ACTIVE_FILE"
   say "nginx now serves $colour"
 }
 
@@ -208,20 +215,20 @@ retire_colour() {
 abandon_colour() {
   local colour="$1"
   warn "tearing down $colour; the live colour was not touched"
-  compose "$colour" "${BCB_IMAGE:-$BCB_IMAGE_REPO:latest}" --profile singletons down --remove-orphans 2>/dev/null
+  compose "$colour" "${THERAPYSTO_IMAGE:-$THERAPYSTO_IMAGE_REPO:latest}" --profile singletons down --remove-orphans 2>/dev/null
 }
 
 record_release() {
   local colour="$1" image="$2" commit="$3" kind="$4"
-  printf '%s\t%s\t%s\t%s\t%s\n' "$(date -u +%FT%TZ)" "$kind" "$colour" "$image" "$commit" >> "$BCB_RELEASES_LOG"
+  printf '%s\t%s\t%s\t%s\t%s\n' "$(date -u +%FT%TZ)" "$kind" "$colour" "$image" "$commit" >> "$THERAPYSTO_RELEASES_LOG"
 }
 
 # Old images are what rollback runs on, so they are kept deliberately rather than pruned by a
 # scheduled `docker system prune` that has no idea which ones matter.
 prune_old_images() {
-  local keep="$BCB_KEEP_IMAGES" img
+  local keep="$THERAPYSTO_KEEP_IMAGES" img
   docker images --format '{{.Repository}}:{{.Tag}}\t{{.CreatedAt}}' |
-    awk -v repo="$BCB_IMAGE_REPO" -F'\t' '$1 ~ "^"repo":" {print}' |
+    awk -v repo="$THERAPYSTO_IMAGE_REPO" -F'\t' '$1 ~ "^"repo":" {print}' |
     sort -k2 -r | tail -n +$((keep + 1)) | cut -f1 |
   while read -r img; do
     [ -n "$img" ] || continue

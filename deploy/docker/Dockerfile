@@ -45,10 +45,10 @@ RUN pnpm build \
  && bash deploy/host/sync-webapp-standalone-assets.sh
 
 # The build id is baked in so a running container can be asked what it is, without trusting the tag
-# someone typed. This is what `bcb-status` reports.
+# someone typed. This is what `therapysto-status` reports.
 ARG GIT_COMMIT=unknown
 ARG BUILD_TIME=unknown
-RUN printf 'BCB_GIT_COMMIT=%s\nBCB_BUILD_TIME=%s\n' "$GIT_COMMIT" "$BUILD_TIME" > /app/.build-id
+RUN printf 'THERAPYSTO_GIT_COMMIT=%s\nTHERAPYSTO_BUILD_TIME=%s\n' "$GIT_COMMIT" "$BUILD_TIME" > /app/.build-id
 
 # ---------------------------------------------------------------------------------------------
 FROM ${NODE_IMAGE} AS runtime

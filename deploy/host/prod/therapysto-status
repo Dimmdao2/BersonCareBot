@@ -6,9 +6,9 @@
 #   prod-status --logs     recent output from the live containers
 
 set -uo pipefail
-LIB=/opt/bersoncarebot/pipeline/bcb-bluegreen-lib.sh
+LIB=/opt/therapysto/pipeline/therapysto-bluegreen-lib.sh
 [ -f "$LIB" ] || { echo "FATAL: pipeline library missing at $LIB" >&2; exit 1; }
-. /etc/bcb-pipeline.conf
+. /etc/therapysto-pipeline.conf
 . "$LIB"
 
 ACTIVE=$(active_colour)
@@ -16,9 +16,9 @@ IDLE=$(idle_colour)
 
 case "${1:-}" in
   --history)
-    [ -f "$BCB_RELEASES_LOG" ] || { echo "no releases yet"; exit 0; }
+    [ -f "$THERAPYSTO_RELEASES_LOG" ] || { echo "no releases yet"; exit 0; }
     printf '%-22s %-9s %-6s %-28s %s\n' WHEN KIND COLOUR IMAGE COMMIT
-    awk -F'\t' '{printf "%-22s %-9s %-6s %-28s %s\n", $1,$2,$3,$4,$5}' "$BCB_RELEASES_LOG"
+    awk -F'\t' '{printf "%-22s %-9s %-6s %-28s %s\n", $1,$2,$3,$4,$5}' "$THERAPYSTO_RELEASES_LOG"
     exit 0 ;;
   --logs)
     [ "$ACTIVE" = none ] && { echo "nothing is deployed"; exit 0; }
@@ -35,7 +35,7 @@ if [ "$ACTIVE" != none ]; then
   # may have retagged since.
   docker run --rm --entrypoint cat "$IMG" /app/.build-id 2>/dev/null | sed 's/^/                /'
 fi
-echo "nginx sends to: $(grep -oE '127\.0\.0\.1:[0-9]+' "$BCB_UPSTREAM_CONF" 2>/dev/null | paste -sd' ' || echo '<not configured>')"
+echo "nginx sends to: $(grep -oE '127\.0\.0\.1:[0-9]+' "$THERAPYSTO_UPSTREAM_CONF" 2>/dev/null | paste -sd' ' || echo '<not configured>')"
 echo
 echo "containers:"
-docker ps --filter 'name=bcb-' --format '  {{.Names}}\t{{.Status}}\t{{.Image}}' | sed 's/\t/  /g'
+docker ps --filter 'name=therapysto-' --format '  {{.Names}}\t{{.Status}}\t{{.Image}}' | sed 's/\t/  /g'

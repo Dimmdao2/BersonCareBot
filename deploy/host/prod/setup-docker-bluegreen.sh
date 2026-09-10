@@ -2,18 +2,18 @@
 # One-time installation of the blue-green deploy pipeline on the production host. Run as root.
 # Re-running is safe: every step checks for its own result first.
 #
-#   BCB_PROD_IP=135.106.187.95 BCB_OWNER=dim bash setup-docker-bluegreen.sh
+#   THERAPYSTO_PROD_IP=135.106.187.95 THERAPYSTO_OWNER=dim bash setup-docker-bluegreen.sh
 #
 # What it leaves behind: docker, a source checkout that can fetch from GitHub, the pipeline scripts in
 # a root-owned directory, three commands the owner can run, and nginx pointing at whichever colour is
 # live. It does not deploy anything — that is `deploy-prod`.
 set -uo pipefail
 
-PROD_IP="${BCB_PROD_IP:?BCB_PROD_IP is required}"
-OWNER="${BCB_OWNER:-dim}"
-BRANCH="${BCB_BRANCH:-main}"
-REPO="${BCB_REPO:-git@github.com:dimmdao/BersonCareBot.git}"
-ROOT=/opt/bersoncarebot
+PROD_IP="${THERAPYSTO_PROD_IP:?THERAPYSTO_PROD_IP is required}"
+OWNER="${THERAPYSTO_OWNER:-dim}"
+BRANCH="${THERAPYSTO_BRANCH:-main}"
+REPO="${THERAPYSTO_REPO:-git@github.com:dimmdao/BersonCareBot.git}"
+ROOT=/opt/therapysto
 PIPELINE="$ROOT/pipeline"
 KEY=/root/.ssh/bcb_github_deploy
 
@@ -73,7 +73,7 @@ docker info >/dev/null 2>&1 || die "docker daemon is not responding after instal
 # deploy/host/harden-network-and-ssh.sh carries the same two lines; they are applied here as well so an
 # already-hardened host need not be re-hardened — that script arms a dead-man timer and waits for a
 # human to confirm connectivity, which is the wrong ceremony for adding two accept rules.
-if ! grep -q 'bcb-blue' /etc/nftables.conf 2>/dev/null; then
+if ! grep -q 'tsto-blue' /etc/nftables.conf 2>/dev/null; then
   say "allowing container traffic through the host firewall"
   cp /etc/nftables.conf "/var/backups/nftables.pre-docker.$(date +%s).conf"
   awk '
@@ -83,8 +83,8 @@ if ! grep -q 'bcb-blue' /etc/nftables.conf 2>/dev/null; then
       print "    # Container traffic: docker'"'"'s own rules live in the legacy ip filter table, but a packet"
       print "    # must clear both tables. Interface names are fixed in the compose file so this rule can"
       print "    # name them exactly instead of wildcarding every bridge on the host."
-      print "    iifname { \"bcb-blue\", \"bcb-green\", \"docker0\" } accept"
-      print "    oifname { \"bcb-blue\", \"bcb-green\", \"docker0\" } ct state established,related accept"
+      print "    iifname { \"tsto-blue\", \"tsto-green\", \"docker0\" } accept"
+      print "    oifname { \"tsto-blue\", \"tsto-green\", \"docker0\" } ct state established,related accept"
       done = 1
     }
   ' /etc/nftables.conf > /tmp/nftables.new
@@ -112,7 +112,7 @@ install -d -m 0755 -o root -g root "$ROOT/src"
 [ -d "$ROOT/env" ] || install -d -m 0750 -o root -g root "$ROOT/env"
 
 SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-for f in bcb-bluegreen-lib.sh bcb-deploy bcb-rollback bcb-status; do
+for f in tsto-bluegreen-lib.sh therapysto-deploy therapysto-rollback therapysto-status; do
   [ -f "$SRC_DIR/$f" ] || die "missing pipeline file next to this script: $f"
   install -m 0755 -o root -g root "$SRC_DIR/$f" "$PIPELINE/$f"
 done
@@ -120,12 +120,12 @@ for f in cutover-edge-to-caddy.sh rollback-edge-to-nginx.sh check-caddy-edge-hea
   [ -f "$SRC_DIR/$f" ] || die "missing edge pipeline file next to this script: $f"
   install -m 0755 -o root -g root "$SRC_DIR/$f" "$PIPELINE/$f"
 done
-for f in Caddyfile.template build-caddy-edge.sh bcb-internal.conf.template \
-         bersoncarebot-caddy-edge.service bersoncarebot-caddy-edge-health.service \
-         bersoncarebot-caddy-edge-health.timer; do
+for f in Caddyfile.template build-caddy-edge.sh therapysto-internal.conf.template \
+         therapysto-caddy-edge.service therapysto-caddy-edge-health.service \
+         therapysto-caddy-edge-health.timer; do
   case "$f" in
     Caddyfile.template|build-caddy-edge.sh) source="$SRC_DIR/../../caddy/$f" ;;
-    bcb-internal.conf.template) source="$SRC_DIR/../../nginx/prod/$f" ;;
+    therapysto-internal.conf.template) source="$SRC_DIR/../../nginx/prod/$f" ;;
     *) source="$SRC_DIR/../../systemd/$f" ;;
   esac
   [ -f "$source" ] || die "missing edge pipeline asset: $source"
@@ -139,19 +139,19 @@ done
 install -m 0644 -o root -g root "$SRC_DIR/../../docker/Dockerfile"         "$PIPELINE/Dockerfile"
 install -m 0644 -o root -g root "$SRC_DIR/../../docker/docker-compose.yml" "$PIPELINE/docker-compose.yml"
 
-cat > /etc/bcb-pipeline.conf <<EOF
+cat > /etc/therapysto-pipeline.conf <<EOF
 # Read by every pipeline command. Root-owned; the deploy scripts refuse to run anywhere this does not match.
-BCB_PROD_IP=$PROD_IP
-BCB_BRANCH=$BRANCH
-BCB_DEPLOY_KEY=$KEY
+THERAPYSTO_PROD_IP=$PROD_IP
+THERAPYSTO_BRANCH=$BRANCH
+THERAPYSTO_DEPLOY_KEY=$KEY
 EOF
-chmod 0644 /etc/bcb-pipeline.conf
+chmod 0644 /etc/therapysto-pipeline.conf
 
 # ---------------------------------------------------------------- github
 if [ ! -f "$KEY" ]; then
   say "generating a deploy key for GitHub"
   install -d -m 0700 /root/.ssh
-  ssh-keygen -t ed25519 -N '' -C "bcb-prod-deploy-$(hostname -s)" -f "$KEY" >/dev/null
+  ssh-keygen -t ed25519 -N '' -C "therapysto-prod-deploy-$(hostname -s)" -f "$KEY" >/dev/null
   echo
   echo "  Add this as a READ-ONLY deploy key on the repository:"
   echo
@@ -180,7 +180,7 @@ fi
 say "installing the owner commands"
 # Thin wrappers rather than shell aliases: they work in any shell, over ssh, and in a cron entry, and
 # there is exactly one place where the sudo boundary is written down.
-for pair in "deploy-prod:bcb-deploy" "rollback-prod:bcb-rollback" "prod-status:bcb-status"; do
+for pair in "deploy-prod:therapysto-deploy" "rollback-prod:therapysto-rollback" "prod-status:therapysto-status"; do
   cmd="${pair%%:*}"; target="${pair##*:}"
   cat > "/usr/local/bin/$cmd" <<EOF
 #!/bin/sh
@@ -194,32 +194,32 @@ done
 # undo the account separation this host was built with. Instead the three specific scripts are
 # allowed through sudo, and they are root-owned and not writable by the owner, so their content
 # cannot be changed by the account they grant privilege to.
-cat > /etc/sudoers.d/20-bcb-deploy <<EOF
+cat > /etc/sudoers.d/20-therapysto-deploy <<EOF
 # Production deploy commands. Password required (owner's ruling); the scripts themselves are root-owned.
-$OWNER ALL=(root) $PIPELINE/bcb-deploy, $PIPELINE/bcb-rollback, $PIPELINE/bcb-status
+$OWNER ALL=(root) $PIPELINE/therapysto-deploy, $PIPELINE/therapysto-rollback, $PIPELINE/therapysto-status
 EOF
-chmod 0440 /etc/sudoers.d/20-bcb-deploy
-visudo -cf /etc/sudoers.d/20-bcb-deploy >/dev/null || { rm -f /etc/sudoers.d/20-bcb-deploy; die "generated sudoers rule is invalid"; }
+chmod 0440 /etc/sudoers.d/20-therapysto-deploy
+visudo -cf /etc/sudoers.d/20-therapysto-deploy >/dev/null || { rm -f /etc/sudoers.d/20-therapysto-deploy; die "generated sudoers rule is invalid"; }
 
 # ---------------------------------------------------------------- nginx
 say "pointing nginx at the pipeline"
 # A placeholder upstream so nginx starts before the first deploy. It points at the blue ports, which
 # nothing is listening on yet; the site config below serves 503 until a colour is actually live.
-[ -f /etc/nginx/conf.d/20-bcb-upstream.conf ] || cat > /etc/nginx/conf.d/20-bcb-upstream.conf <<'EOF'
+[ -f /etc/nginx/conf.d/20-therapysto-upstream.conf ] || cat > /etc/nginx/conf.d/20-therapysto-upstream.conf <<'EOF'
 # Written by the blue-green pipeline. Active colour: none yet
-upstream bcb_webapp { server 127.0.0.1:6201; keepalive 32; }
-upstream bcb_api    { server 127.0.0.1:3201; keepalive 32; }
+upstream therapysto_webapp { server 127.0.0.1:6201; keepalive 32; }
+upstream therapysto_api    { server 127.0.0.1:3201; keepalive 32; }
 EOF
 
-if ! grep -q 'bcb_webapp' /etc/nginx/sites-available/bcb 2>/dev/null; then
-  cp /etc/nginx/sites-available/bcb "/etc/nginx/sites-available/bcb.pre-bluegreen.$(date +%s)"
+if ! grep -q 'therapysto_webapp' /etc/nginx/sites-available/therapysto 2>/dev/null; then
+  cp /etc/nginx/sites-available/therapysto "/etc/nginx/sites-available/therapysto.pre-bluegreen.$(date +%s)"
   python3 - <<'PY'
 import re, pathlib
-p = pathlib.Path('/etc/nginx/sites-available/bcb')
+p = pathlib.Path('/etc/nginx/sites-available/therapysto')
 s = p.read_text()
 # Replace only the placeholder 503 location, leaving the TLS and header configuration untouched.
 new_loc = '''    location / {
-        proxy_pass http://bcb_webapp;
+        proxy_pass http://therapysto_webapp;
         proxy_http_version 1.1;
         proxy_set_header Host              $host;
         proxy_set_header X-Real-IP         $remote_addr;

@@ -8,21 +8,21 @@
 # `systemd-analyze security`, and the sandbox is only accepted if the score is in the safe band.
 set -uo pipefail
 
-RELEASE_ROOT=/opt/bersoncarebot
-DROPIN=10-bcb-sandbox.conf
+RELEASE_ROOT=/opt/therapysto
+DROPIN=10-therapysto-sandbox.conf
 
 log() { echo "[sandbox] $*"; }
 die() { echo "[sandbox] FATAL: $*" >&2; exit 1; }
 [ "$(id -u)" = 0 ] || die "must run as root"
 
 # unit-suffix : service user : extra directives
-# D30 Ш9: worker and scheduler are one resident process/unit now (bersoncarebot-scheduler-prod.service);
-# there is no separate bersoncarebot-worker-prod.service to sandbox.
+# D30 Ш9: worker and scheduler are one resident process/unit now (therapysto-scheduler-prod.service);
+# there is no separate therapysto-worker-prod.service to sandbox.
 UNITS="
-webapp:bcb-webapp:
-api:bcb-api:
-scheduler:bcb-scheduler:
-media-worker:bcb-media-worker:media
+webapp:therapysto-webapp:
+api:therapysto-api:
+scheduler:therapysto-scheduler:
+media-worker:therapysto-media-worker:media
 "
 
 common_block() { # $1 = service user, $2 = state dir name
@@ -59,7 +59,7 @@ UMask=0077
 # omitted, because an exception nobody can find is an exception nobody reviews.
 MemoryDenyWriteExecute=no
 
-ReadWritePaths=/var/lib/bersoncarebot/$2 /var/log/bersoncarebot/$2
+ReadWritePaths=/var/lib/therapysto/$2 /var/log/therapysto/$2
 ReadOnlyPaths=$RELEASE_ROOT/releases
 EOF
 }
@@ -70,7 +70,7 @@ for row in $UNITS; do
   [ -z "$row" ] && continue
   svc="${row%%:*}"; rest="${row#*:}"
   user="${rest%%:*}"; extra="${rest#*:}"
-  unit="bersoncarebot-${svc}-prod.service"
+  unit="therapysto-${svc}-prod.service"
   dir="/etc/systemd/system/${unit}.d"
   install -d -m 0755 "$dir"
   {
@@ -83,7 +83,7 @@ for row in $UNITS; do
 CPUQuota=50%
 # Temporary files must land on disk with a known size: /tmp is a memory filesystem on many systems, and a
 # two-gigabyte clip would then be written into RAM.
-Environment=TMPDIR=/var/lib/bersoncarebot/media-worker/tmp
+Environment=TMPDIR=/var/lib/therapysto/media-worker/tmp
 # ffmpeg adjusts thread priorities and resource limits; without @resources it dies on SIGSYS mid-transcode.
 SystemCallFilter=@system-service @resources
 EOF
@@ -95,18 +95,18 @@ EOF
   log "wrote $dir/$DROPIN"
 done
 
-install -d -m 0750 -o bcb-media-worker -g bcb-media-worker /var/lib/bersoncarebot/media-worker/tmp
+install -d -m 0750 -o therapysto-media-worker -g therapysto-media-worker /var/lib/therapysto/media-worker/tmp
 
 systemctl daemon-reload
 
 # ---------------------------------------------------------------- proof
 # The real units target the old host and are not installed here, so the drop-in is scored on a synthetic
 # unit that carries exactly the same block. This measures the sandbox itself rather than our intention.
-PROBE=/etc/systemd/system/bcb-sandbox-probe.service
+PROBE=/etc/systemd/system/therapysto-sandbox-probe.service
 {
   echo "[Unit]"
   echo "Description=BersonCare sandbox probe (never started)"
-  common_block bcb-webapp webapp
+  common_block therapysto-webapp webapp
   echo "Type=oneshot"
   echo "ExecStart=/bin/true"
   echo "SystemCallFilter=@system-service"
@@ -115,7 +115,7 @@ systemctl daemon-reload
 
 # The summary line reads "Overall exposure level for X: 2.4 OK :-)" — the field positions shift with the
 # verdict word and the emoticon, so the number is extracted as a number rather than by column.
-SCORE=$(systemd-analyze security bcb-sandbox-probe.service 2>/dev/null |
+SCORE=$(systemd-analyze security therapysto-sandbox-probe.service 2>/dev/null |
         sed -n 's/.*Overall exposure level[^:]*: *\([0-9]\+\.[0-9]\+\).*/\1/p' | head -1)
 log "systemd-analyze exposure for the sandbox block: ${SCORE:-unknown} (lower is safer, 10 is unconfined)"
 
@@ -125,20 +125,20 @@ vcheck() { if eval "$2"; then echo "  ok   $1"; else echo "  FAIL $1"; vfail=1; 
 for row in $UNITS; do
   [ -z "$row" ] && continue
   svc="${row%%:*}"
-  vcheck "drop-in present for $svc" "[ -s /etc/systemd/system/bersoncarebot-${svc}-prod.service.d/$DROPIN ]"
+  vcheck "drop-in present for $svc" "[ -s /etc/systemd/system/therapysto-${svc}-prod.service.d/$DROPIN ]"
 done
 # systemd-analyze verify prints nothing at all when the unit is fine, so grepping its output for the
 # absence of an error word fails on a correct unit. The exit status is the answer.
-vcheck "probe parses without error"   'systemd-analyze verify bcb-sandbox-probe.service'
+vcheck "probe parses without error"   'systemd-analyze verify therapysto-sandbox-probe.service'
 # The numeric guard is not decoration: when SCORE parsed as the word "OK", awk read it as an unset
 # variable worth 0, and "0 < 5" reported a passing sandbox that had never been measured.
 vcheck "exposure score is numeric"    'printf "%s" "$SCORE" | grep -qE "^[0-9]+\.[0-9]+$"'
 vcheck "exposure is below 5"          'printf "%s" "$SCORE" | grep -qE "^[0-9]+\.[0-9]+$" && awk "BEGIN{exit !($SCORE < 5)}"'
-vcheck "capabilities are dropped"     'systemctl show bcb-sandbox-probe.service -p CapabilityBoundingSet --value | grep -qx ""'
-vcheck "new privileges refused"       'systemctl show bcb-sandbox-probe.service -p NoNewPrivileges --value | grep -qx yes'
-vcheck "filesystem is read-only"      'systemctl show bcb-sandbox-probe.service -p ProtectSystem --value | grep -qx strict'
-vcheck "media tmp dir exists on disk"  '[ -d /var/lib/bersoncarebot/media-worker/tmp ]'
-vcheck "media quota is set"           'grep -q "CPUQuota=50%" /etc/systemd/system/bersoncarebot-media-worker-prod.service.d/'"$DROPIN"
+vcheck "capabilities are dropped"     'systemctl show therapysto-sandbox-probe.service -p CapabilityBoundingSet --value | grep -qx ""'
+vcheck "new privileges refused"       'systemctl show therapysto-sandbox-probe.service -p NoNewPrivileges --value | grep -qx yes'
+vcheck "filesystem is read-only"      'systemctl show therapysto-sandbox-probe.service -p ProtectSystem --value | grep -qx strict'
+vcheck "media tmp dir exists on disk"  '[ -d /var/lib/therapysto/media-worker/tmp ]'
+vcheck "media quota is set"           'grep -q "CPUQuota=50%" /etc/systemd/system/therapysto-media-worker-prod.service.d/'"$DROPIN"
 
 rm -f "$PROBE"
 systemctl daemon-reload

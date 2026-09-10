@@ -14,7 +14,7 @@ set -u
 
 JSON=0
 [ "${1:-}" = "--json" ] && JSON=1
-PG_VERSION="${BCB_PG_VERSION:-16}"
+PG_VERSION="${THERAPYSTO_PG_VERSION:-16}"
 SERVICES="webapp api worker scheduler media-worker"
 
 pass=0; fail=0; failed_names=()
@@ -80,11 +80,11 @@ check "host auth does not trust anyone" \
 
 section "service accounts and paths"
 for svc in $SERVICES; do
-  check "user bcb-$svc exists without a shell" 'getent passwd bcb-'"$svc"' | grep -q nologin'
-  check "bcb-$svc cannot write the release tree" \
-    '! sudo -u bcb-'"$svc"' test -w /opt/bersoncarebot/releases'
+  check "user therapysto-$svc exists without a shell" 'getent passwd therapysto-'"$svc"' | grep -q nologin'
+  check "therapysto-$svc cannot write the release tree" \
+    '! sudo -u therapysto-'"$svc"' test -w /opt/therapysto/releases'
 done
-check "environment directory is root-only" '[ "$(stat -c "%U %a" /opt/bersoncarebot/env)" = "root 750" ]'
+check "environment directory is root-only" '[ "$(stat -c "%U %a" /opt/therapysto/env)" = "root 750" ]'
 check "backup directory is root-only 0700" '[ "$(stat -c "%U %a" /opt/backups)" = "root 700" ]'
 check "no world-writable files under /opt" '! find /opt -xdev -type f -perm -0002 -print -quit | grep -q .'
 check "no unexpected sudo rights" \

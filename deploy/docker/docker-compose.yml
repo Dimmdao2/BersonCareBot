@@ -1,4 +1,4 @@
-# One stack definition, instantiated twice — once as project `bcb-blue`, once as `bcb-green`.
+# One stack definition, instantiated twice — once as project `therapysto-blue`, once as `therapysto-green`.
 # The colour is not written anywhere in this file: it arrives as the compose project name, and the
 # published ports arrive as variables. That is what makes the two colours provably identical.
 #
@@ -10,22 +10,26 @@
 # `br-<hash>` docker would pick. The host firewall drops forwarded traffic by default, so container
 # networking only works because a rule names these interfaces — and a rule can only name them if the
 # name is stable across restarts.
+#
+# Имя СЕТИ и имя ИНТЕРФЕЙСА здесь намеренно разные. Интерфейс ядра ограничен 15 символами (IFNAMSIZ),
+# а `therapysto-green` — шестнадцать: docker принял бы такую сеть и упал бы на создании моста. Поэтому
+# интерфейс носит сокращённое имя, и ровно оно стоит в правилах firewall.
 networks:
   default:
-    name: bcb-${BCB_COLOUR:?BCB_COLOUR is required}
+    name: therapysto-${THERAPYSTO_COLOUR:?THERAPYSTO_COLOUR is required}
     driver: bridge
     driver_opts:
-      com.docker.network.bridge.name: bcb-${BCB_COLOUR}
+      com.docker.network.bridge.name: ${THERAPYSTO_BRIDGE_IFACE:?THERAPYSTO_BRIDGE_IFACE is required}
     ipam:
       config:
-        # Подсеть закреплена за цветом (см. bcb-bluegreen-lib.sh): PostgreSQL слушает адрес шлюза
+        # Подсеть закреплена за цветом (см. therapysto-bluegreen-lib.sh): PostgreSQL слушает адрес шлюза
         # этого моста, и правило firewall пускает 5432 только с него. Плавающая подсеть развалила бы
         # обе привязки разом.
-        - subnet: ${BCB_NETWORK_SUBNET:?BCB_NETWORK_SUBNET is required}
-          gateway: ${BCB_NETWORK_GATEWAY:?BCB_NETWORK_GATEWAY is required}
+        - subnet: ${THERAPYSTO_NETWORK_SUBNET:?THERAPYSTO_NETWORK_SUBNET is required}
+          gateway: ${THERAPYSTO_NETWORK_GATEWAY:?THERAPYSTO_NETWORK_GATEWAY is required}
 
 x-app: &app
-  image: ${BCB_IMAGE:?BCB_IMAGE is required}
+  image: ${THERAPYSTO_IMAGE:?THERAPYSTO_IMAGE is required}
   restart: unless-stopped
   # The database is on the host, inside the encrypted volume, and does not listen on TCP. Reaching it
   # through the mounted unix socket keeps it that way: no port opens for the sake of the containers.
@@ -35,7 +39,7 @@ x-app: &app
     # значит файлы обязаны быть видны ВНУТРИ контейнера; смонтированы только на чтение.
     # Монтируется ИМЕННО подкаталог клиентского материала, а не весь postgres-mtls: выше по дереву
     # лежат приватный ключ удостоверяющего центра и ключ сервера, которым в приложении делать нечего.
-    - /etc/bersoncarebot/postgres-mtls/prod:/etc/bersoncarebot/postgres-mtls/prod:ro
+    - /etc/therapysto/postgres-mtls/prod:/etc/therapysto/postgres-mtls/prod:ro
   # Nothing here writes to its own filesystem; uploads go to S3 and logs go to stdout.
   read_only: true
   tmpfs:
@@ -47,12 +51,12 @@ x-app: &app
   # дефолтного моста (172.17.0.1), где PostgreSQL не слушает и куда firewall не пускает, — соединение
   # умирает, не дойдя до сервера, и в логе видно только «query error» без единой строки со стороны БД.
   extra_hosts:
-    - "db.host:${BCB_NETWORK_GATEWAY}"
-  # Ключи ролей лежат на хосте как root:bcb-app-prod 0640 — тот же канон, что на dev/test, где группа
+    - "db.host:${THERAPYSTO_NETWORK_GATEWAY}"
+  # Ключи ролей лежат на хосте как root:therapysto-app-prod 0640 — тот же канон, что на dev/test, где группа
   # ключа равна учётке сервиса. Процесс в контейнере ходит под своим uid, поэтому читать их он может
   # только получив эту группу дополнительной; иначе пришлось бы открывать ключи всем подряд.
   group_add:
-    - "${BCB_APP_KEY_GID:?BCB_APP_KEY_GID is required}"
+    - "${THERAPYSTO_APP_KEY_GID:?THERAPYSTO_APP_KEY_GID is required}"
   security_opt:
     - no-new-privileges:true
   cap_drop:
@@ -60,7 +64,7 @@ x-app: &app
   logging:
     driver: journald
     options:
-      tag: "bcb-{{.Name}}"
+      tag: "therapysto-{{.Name}}"
 
 services:
   webapp:
@@ -71,11 +75,11 @@ services:
         # docker-сервиса: маршрутизация поверхностей отвечает 404 на незнакомый `Host`, и `webapp`
         # для неё — незнакомый хост.
         aliases:
-          - ${BCB_SURFACE_HOST:?BCB_SURFACE_HOST is required}
+          - ${THERAPYSTO_SURFACE_HOST:?THERAPYSTO_SURFACE_HOST is required}
     working_dir: /app/apps/webapp/.next/standalone/apps/webapp
     command: ["node", "server.js"]
     env_file:
-      - ${BCB_ENV_DIR:?BCB_ENV_DIR is required}/webapp.prod
+      - ${THERAPYSTO_ENV_DIR:?THERAPYSTO_ENV_DIR is required}/webapp.prod
     environment:
       # Порт по умолчанию, а не 6200, ровно по одной причине: свои же фоновые процессы зовут вебапп
       # по его публичному имени, и `Host` тогда несёт `:порт`. Резолвер поверхностей сверяет Host
@@ -91,7 +95,7 @@ services:
     sysctls:
       net.ipv4.ip_unprivileged_port_start: "0"
     ports:
-      - "127.0.0.1:${BCB_WEBAPP_PORT:?BCB_WEBAPP_PORT is required}:80"
+      - "127.0.0.1:${THERAPYSTO_WEBAPP_PORT:?THERAPYSTO_WEBAPP_PORT is required}:80"
     healthcheck:
       # The surface resolver rejects a bare loopback Host. Derive the header only from a validated
       # exact origin so malformed env cannot inject another curl header.
@@ -106,11 +110,11 @@ services:
     working_dir: /app/apps/integrator
     command: ["node", "dist/main.js"]
     env_file:
-      - ${BCB_ENV_DIR}/api.prod
+      - ${THERAPYSTO_ENV_DIR}/api.prod
     environment:
       PORT: "3200"
     ports:
-      - "127.0.0.1:${BCB_API_PORT:?BCB_API_PORT is required}:3200"
+      - "127.0.0.1:${THERAPYSTO_API_PORT:?THERAPYSTO_API_PORT is required}:3200"
     healthcheck:
       # /health reports the database too, so a container that starts but cannot reach postgres is
       # unhealthy rather than green — the deploy gate reads this.
@@ -128,7 +132,7 @@ services:
     working_dir: /app/apps/integrator
     command: ["node", "dist/infra/runtime/scheduler/main.js"]
     env_file:
-      - ${BCB_ENV_DIR}/api.prod
+      - ${THERAPYSTO_ENV_DIR}/api.prod
 
   media-worker:
     <<: *app
@@ -136,12 +140,12 @@ services:
     working_dir: /app/apps/media-worker
     command: ["node", "dist/main.js"]
     env_file:
-      - ${BCB_ENV_DIR}/media-worker.prod
+      - ${THERAPYSTO_ENV_DIR}/media-worker.prod
     environment:
       # Pinned to this project's own webapp, overriding whatever the env file says. The control route
       # is how the media worker reaches the database at all, and a worker talking to the other colour's
       # webapp would be running new code against the old release's control seam.
-      MEDIA_WORKER_CONTROL_URL: "http://${BCB_SURFACE_HOST}"
+      MEDIA_WORKER_CONTROL_URL: "http://${THERAPYSTO_SURFACE_HOST}"
     depends_on:
       webapp:
         condition: service_healthy

@@ -7,11 +7,11 @@
 # не обновить, рантайм ходит в базу с каталогом возможностей прошлой выкладки: логины есть, а
 # капабилити под новые двери нет.
 #
-# Запускать на хосте прода из /opt/bersoncarebot/src ПОСЛЕ обновления дерева и ДО запуска bcb-deploy.
+# Запускать на хосте прода из /opt/therapysto/src ПОСЛЕ обновления дерева и ДО запуска therapysto-deploy.
 set -euo pipefail
 
-SRC=/opt/bersoncarebot/src
-ENV_DIR=/opt/bersoncarebot/env
+SRC=/opt/therapysto/src
+ENV_DIR=/opt/therapysto/env
 DB=bersoncarebot_test
 ENV_NAME=test
 

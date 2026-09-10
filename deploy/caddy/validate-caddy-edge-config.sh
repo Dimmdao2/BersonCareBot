@@ -4,7 +4,7 @@
 set -euo pipefail
 
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-work_dir=$(mktemp -d "${TMPDIR:-/tmp}/bcb-caddy-validate.XXXXXX")
+work_dir=$(mktemp -d "${TMPDIR:-/tmp}/therapysto-caddy-validate.XXXXXX")
 cleanup() {
   chmod -R u+w "$work_dir" 2>/dev/null || true
   rm -rf "$work_dir"

@@ -7,8 +7,8 @@
 # set of controls". See DEFERRED_INFRA_TRIGGERS.md D-3.
 set -uo pipefail
 
-RELEASE_ROOT=/opt/bersoncarebot
-JOURNAL_MAX="${BCB_JOURNAL_MAX:-2G}"
+RELEASE_ROOT=/opt/therapysto
+JOURNAL_MAX="${THERAPYSTO_JOURNAL_MAX:-2G}"
 JOURNALD_ONLY=false
 
 log() { echo "[audit] $*"; }
@@ -22,7 +22,7 @@ case "${1:-}" in
 esac
 
 [[ "$JOURNAL_MAX" =~ ^[1-9][0-9]*([KMGTPE])?$ ]] || \
-  die "BCB_JOURNAL_MAX must be a positive integer with an optional K/M/G/T/P/E suffix"
+  die "THERAPYSTO_JOURNAL_MAX must be a positive integer with an optional K/M/G/T/P/E suffix"
 
 [ "$(id -u)" = 0 ] || die "must run as root"
 export DEBIAN_FRONTEND=noninteractive
@@ -36,7 +36,7 @@ fi
 # Rules are deliberately few. An audit log nobody can read is the same as no audit log, and every extra
 # rule costs disk on a volume that also holds the database.
 if ! $JOURNALD_ONLY; then
-cat > /etc/audit/rules.d/10-bcb.rules <<EOF
+cat > /etc/audit/rules.d/10-therapysto.rules <<EOF
 # Managed by deploy/host/setup-audit-and-integrity.sh
 -D
 -b 8192
@@ -72,14 +72,14 @@ cat > /etc/audit/rules.d/10-bcb.rules <<EOF
 -a always,exit -F arch=b64 -S adjtimex,settimeofday,clock_settime -k time_change
 EOF
 
-augenrules --load >/dev/null 2>&1 || auditctl -R /etc/audit/rules.d/10-bcb.rules >/dev/null 2>&1
+augenrules --load >/dev/null 2>&1 || auditctl -R /etc/audit/rules.d/10-therapysto.rules >/dev/null 2>&1
 systemctl enable --now auditd >/dev/null 2>&1 || true
 fi
 
 # ---------------------------------------------------------------- journald bounds
 install -d -m 0755 /etc/systemd/journald.conf.d
-rm -f /etc/systemd/journald.conf.d/10-bcb.conf
-cat > /etc/systemd/journald.conf.d/zz-bcb.conf <<EOF
+rm -f /etc/systemd/journald.conf.d/10-therapysto.conf
+cat > /etc/systemd/journald.conf.d/zz-therapysto.conf <<EOF
 [Journal]
 Storage=persistent
 # Bounded on purpose: logs share the encrypted volume with the database, and an unbounded journal turns a
@@ -93,11 +93,11 @@ systemctl restart systemd-journald >/dev/null 2>&1 || die "systemd-journald rest
 
 # ---------------------------------------------------------------- AIDE
 if ! $JOURNALD_ONLY; then
-cat > /etc/aide/aide.conf.d/99-bcb <<EOF
+cat > /etc/aide/aide.conf.d/99-therapysto <<EOF
 # Managed by deploy/host/setup-audit-and-integrity.sh
 !/var/log/.*
 !/var/lib/postgresql/.*
-!/var/lib/bersoncarebot/.*
+!/var/lib/therapysto/.*
 !/proc/.*
 !/sys/.*
 !/run/.*

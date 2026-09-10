@@ -6,9 +6,9 @@
 # are deliberately not created here. Application units and releases are installed by the deploy scripts.
 set -euo pipefail
 
-PG_VERSION="${BCB_PG_VERSION:-16}"
+PG_VERSION="${THERAPYSTO_PG_VERSION:-16}"
 SERVICES="webapp api worker scheduler media-worker"
-RELEASE_ROOT=/opt/bersoncarebot
+RELEASE_ROOT=/opt/therapysto
 BACKUP_ROOT=/opt/backups
 
 log() { echo "[base] $*"; }
@@ -28,7 +28,7 @@ apt-get install -y -qq --no-install-recommends \
 # One user per service, no shell, no home to log into. A compromised media transcoder must not be able to
 # read the webapp's environment file, so the split is by service rather than one shared "app" account.
 for svc in $SERVICES; do
-  user="bcb-$svc"
+  user="therapysto-$svc"
   if ! id -u "$user" >/dev/null 2>&1; then
     useradd --system --no-create-home --shell /usr/sbin/nologin --comment "BersonCare $svc" "$user"
     log "created $user"
@@ -46,11 +46,11 @@ install -d -m 0700 -o root   -g root   "$BACKUP_ROOT"
 install -d -m 0700 -o root   -g root   "$BACKUP_ROOT/scripts"
 
 for svc in $SERVICES; do
-  install -d -m 0750 -o "bcb-$svc" -g "bcb-$svc" "/var/lib/bersoncarebot/$svc"
-  install -d -m 0750 -o "bcb-$svc" -g "bcb-$svc" "/var/log/bersoncarebot/$svc"
+  install -d -m 0750 -o "therapysto-$svc" -g "therapysto-$svc" "/var/lib/therapysto/$svc"
+  install -d -m 0750 -o "therapysto-$svc" -g "therapysto-$svc" "/var/log/therapysto/$svc"
 done
-install -d -m 0755 -o root -g root /var/lib/bersoncarebot
-install -d -m 0755 -o root -g root /var/log/bersoncarebot
+install -d -m 0755 -o root -g root /var/lib/therapysto
+install -d -m 0755 -o root -g root /var/log/therapysto
 
 # ---------------------------------------------------------------- postgresql
 CLUSTER_DIR="/var/lib/postgresql/$PG_VERSION/main"
@@ -79,7 +79,7 @@ if [ ! -d "$CLUSTER_DIR" ]; then
 fi
 
 install -d -m 0755 "$CONF_DIR/conf.d"
-cat > "$CONF_DIR/conf.d/10-bcb.conf" <<EOF
+cat > "$CONF_DIR/conf.d/10-therapysto.conf" <<EOF
 # Managed by deploy/host/bootstrap-base-host.sh
 # The database is reachable over the local Unix socket only. Nothing on this host needs TCP to reach it,
 # and an accidental bind to the public interface is the failure this line exists to make impossible.
@@ -102,7 +102,7 @@ systemctl enable postgresql >/dev/null 2>&1 || true
 pg_ctlcluster "$PG_VERSION" main restart 2>/dev/null || systemctl restart postgresql
 
 # ---------------------------------------------------------------- automatic security updates
-cat > /etc/apt/apt.conf.d/20bcb-unattended <<'EOF'
+cat > /etc/apt/apt.conf.d/20therapysto-unattended <<'EOF'
 APT::Periodic::Update-Package-Lists "1";
 APT::Periodic::Unattended-Upgrade "1";
 APT::Periodic::AutocleanInterval "7";
@@ -125,8 +125,8 @@ vcheck "unix socket present"             "ls /var/run/postgresql/.s.PGSQL.5432 >
 vcheck "scram password encryption"       "su - postgres -c \"psql -tAc 'show password_encryption'\" | grep -q scram-sha-256"
 vcheck "statement logging off"           "su - postgres -c \"psql -tAc 'show log_statement'\" | grep -q none"
 for svc in $SERVICES; do
-  vcheck "user bcb-$svc has no shell"    "getent passwd bcb-$svc | grep -q nologin"
-  vcheck "state dir for $svc is 0750"    "[ \"\$(stat -c %a /var/lib/bersoncarebot/$svc)\" = 750 ]"
+  vcheck "user therapysto-$svc has no shell"    "getent passwd therapysto-$svc | grep -q nologin"
+  vcheck "state dir for $svc is 0750"    "[ \"\$(stat -c %a /var/lib/therapysto/$svc)\" = 750 ]"
 done
 vcheck "env dir is root-only"            "[ \"\$(stat -c '%U %a' $RELEASE_ROOT/env)\" = 'root 750' ]"
 vcheck "backup dir is root-only 0700"    "[ \"\$(stat -c '%U %a' $BACKUP_ROOT)\" = 'root 700' ]"

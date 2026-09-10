@@ -1,13 +1,13 @@
 # Internal-only nginx frontend for the blue-green pipeline, installed by
 # deploy/host/prod/cutover-edge-to-caddy.sh in place of the public-facing
-# /etc/nginx/sites-available/bcb once Caddy has taken over 80/443.
+# /etc/nginx/sites-available/therapysto once Caddy has taken over 80/443.
 #
 # This is the SAME location/proxy_pass contract setup-docker-bluegreen.sh writes into the public
 # site today (proxy_set_header Host $host; upgrade support; the same proxy_next_upstream/timeout
-# choices) against the SAME `bcb_webapp` upstream name written by
-# /etc/nginx/conf.d/20-bcb-upstream.conf. bcb-bluegreen-lib.sh's switch_nginx_to() only ever
+# choices) against the SAME `therapysto_webapp` upstream name written by
+# /etc/nginx/conf.d/20-therapysto-upstream.conf. therapysto-bluegreen-lib.sh's switch_nginx_to() only ever
 # rewrites that upstream file, never this one, so `deploy-prod`/`rollback-prod` colour switching
-# needs zero changes to keep working after this cutover. `bcb_api` is defined in the same upstream
+# needs zero changes to keep working after this cutover. `therapysto_api` is defined in the same upstream
 # file but, exactly as in the current public site, is not routed by any location block here — this
 # change neither adds nor removes API exposure.
 #
@@ -18,18 +18,18 @@
 # chain. Nginx must preserve those headers verbatim and must never replace them with its own
 # loopback peer or `http` hop values.
 #
-# __BCB_EDGE_INTERNAL_PORT__ is substituted by the cutover script from CADDY_UPSTREAM's port
+# __THERAPYSTO_EDGE_INTERNAL_PORT__ is substituted by the cutover script from CADDY_UPSTREAM's port
 # (deploy/env/.env.caddy.prod.example); it is not read from this file at runtime.
 
 server {
-    listen 127.0.0.1:__BCB_EDGE_INTERNAL_PORT__;
+    listen 127.0.0.1:__THERAPYSTO_EDGE_INTERNAL_PORT__;
     server_name _;
 
     client_max_body_size 2048m;
     proxy_read_timeout 300s;
 
     location / {
-        proxy_pass http://bcb_webapp;
+        proxy_pass http://therapysto_webapp;
         proxy_http_version 1.1;
         proxy_set_header Host              $http_host;
         proxy_set_header X-Real-IP         $http_x_real_ip;
