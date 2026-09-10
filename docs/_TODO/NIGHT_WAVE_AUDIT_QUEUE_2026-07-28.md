@@ -2391,3 +2391,5 @@ no configured values for these reads, so successful invocation returned NULL wit
 
 Blocker handed back to the implementing worker/lead: make this migration safely recover either missing function
 through the sanctioned entrypoint, preserving the accepted signatures and restricted grants. P5 remains open.
+
+| **Platform clinic brand/domain status #787 — `INDEPENDENT AUDIT FAIL, CORRECTION REQUIRED`**, product `930f86804`, audit `140f5dc4f`; artifact `docs/_TODO/THERAPYSTO_PATIENT_BRANDING_INITIATIVE/AUDIT_PLATFORM_CLINIC_BRAND_DOMAIN_STATUS_2026-09-10.md` | Existing platform-admin read composition and platform-only narrow capability are directionally accepted, but the candidate is not landable: it can report quarantined domain history as current, omits regenerated port-context capability artifacts, and uses evidence literals rejected by the strict privilege declaration type. One bounded correction owns these three findings; no live host/provider claim is made. |
