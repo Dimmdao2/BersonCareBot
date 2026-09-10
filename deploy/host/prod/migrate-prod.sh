@@ -22,7 +22,7 @@
 set -uo pipefail
 
 SRC=/opt/therapysto/src
-ENV_DIR=/opt/therapysto/env
+ENV_DIR=/etc/therapysto/env
 
 die() { echo "FATAL: migrate-prod: $*" >&2; exit 1; }
 say() { printf '\033[1m==>\033[0m %s\n' "$*"; }

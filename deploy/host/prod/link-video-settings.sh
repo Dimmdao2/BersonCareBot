@@ -26,7 +26,7 @@ esac
 # shellcheck source=deploy/host/prod/runtime-database.sh
 . "$(dirname "$0")/runtime-database.sh"
 DB=$(runtime_database) || exit 1
-ENV_FILE=/opt/therapysto/env/video/jitsi.prod
+ENV_FILE=/etc/therapysto/env/video/jitsi.prod
 PUBLIC_URL=https://meet.therapysto.ru
 XMPP_DOMAIN=meet.therapysto.ru
 

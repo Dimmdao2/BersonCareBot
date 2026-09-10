@@ -4,5 +4,5 @@ After=therapysto-caddy-edge.service
 
 [Service]
 Type=oneshot
-EnvironmentFile=-/opt/therapysto/env/caddy.prod
+EnvironmentFile=-/etc/therapysto/env/caddy.prod
 ExecStart=/opt/therapysto/pipeline/check-caddy-edge-health.sh

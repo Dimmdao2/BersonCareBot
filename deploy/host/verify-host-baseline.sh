@@ -105,7 +105,7 @@ done
 # грубым способом — 0755, то есть каталог со всеми секретами прода мог перечислить любой пользователь.
 # Здесь проход открыт ровно одной группе и без права чтения самого каталога.
 check "каталог env закрыт: root + проход только у видео-стека" \
-  '[ "$(stat -c "%U:%G %a" /opt/therapysto/env)" = "root:therapysto-video 710" ]'
+  '[ "$(stat -c "%U:%G %a" /etc/therapysto/env)" = "root:therapysto-video 710" ]'
 check "backup directory is root-only 0700" '[ "$(stat -c "%U %a" /opt/backups)" = "root 700" ]'
 check "no world-writable files under /opt" '! find /opt -xdev -type f -perm -0002 -print -quit | grep -q .'
 check "no unexpected sudo rights" \

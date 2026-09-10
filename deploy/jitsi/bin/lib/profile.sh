@@ -36,9 +36,9 @@ JITSI_TEST_ENV_FILE_DEFAULT="/opt/env/bersoncarebot/jitsi.test"
 # У прода env-файлы видео лежат в СВОЁМ каталоге, а не рядом с env приложения. Причина не
 # косметическая: render-secrets.sh дописывает в этот файл сгенерированные пароли XMPP и TURN через
 # временный файл рядом с ним, то есть каталогу нужна запись от учётки стека. Каталог
-# /opt/therapysto/env держит reconcile.env с паролями ролей базы — открывать его на запись кому-то
+# /etc/therapysto/env держит reconcile.env с паролями ролей базы — открывать его на запись кому-то
 # ещё нельзя, поэтому у видео свой.
-JITSI_PROD_ENV_FILE_DEFAULT="/opt/therapysto/env/video/jitsi.prod"
+JITSI_PROD_ENV_FILE_DEFAULT="/etc/therapysto/env/video/jitsi.prod"
 
 if [[ -z "${JITSI_DEPLOYMENT:-}" ]]; then
   jitsi__found=""
@@ -102,7 +102,7 @@ case "$JITSI_DEPLOYMENT" in
     JITSI_TURN_HOST="turn.therapysto.ru"
     JITSI_PACKAGE_ROOT="/etc/therapysto/jitsi-prod"
     JITSI_ENV_FILE="${JITSI_ENV_FILE:-$JITSI_PROD_ENV_FILE_DEFAULT}"
-    JITSI_TURN_ENV_FILE="${JITSI_TURN_ENV_FILE:-/opt/therapysto/env/video/jitsi-coturn.prod}"
+    JITSI_TURN_ENV_FILE="${JITSI_TURN_ENV_FILE:-/etc/therapysto/env/video/jitsi-coturn.prod}"
     # One canonical name only on the new production host: no compatibility alias was ever published there.
     JITSI_NGINX_SERVER_NAMES="meet.therapysto.ru"
     JITSI_CERT_HOSTS="meet.therapysto.ru turn.therapysto.ru"

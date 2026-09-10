@@ -12,7 +12,15 @@ set -uo pipefail
 
 THERAPYSTO_ROOT=/opt/therapysto
 THERAPYSTO_SRC="$THERAPYSTO_ROOT/src"
-THERAPYSTO_ENV_DIR="$THERAPYSTO_ROOT/env"
+# Настройки живут ВНЕ каталога проекта. Причина конкретная: /opt/therapysto принадлежит учётке deploy,
+# а владелец каталога распоряжается записями внутри него — то есть учётка, от которой идёт выкладка,
+# могла переименовать env и подставить свой. Права 0710 на самом каталоге от этого не защищают.
+# /etc/therapysto принадлежит root, там же лежит материал mTLS постгреса.
+#
+# Запасной путь — только на время перехода: пока по проду не проехала выкладка с этой правкой, на хосте
+# может стоять копия конвейера, которая знает лишь старое место.
+THERAPYSTO_ENV_DIR=/etc/therapysto/env
+[ -d "$THERAPYSTO_ENV_DIR" ] || THERAPYSTO_ENV_DIR="$THERAPYSTO_ROOT/env"
 THERAPYSTO_PIPELINE="$THERAPYSTO_ROOT/pipeline"
 THERAPYSTO_STATE="$THERAPYSTO_ROOT/state"
 THERAPYSTO_ACTIVE_FILE="$THERAPYSTO_STATE/active-colour"

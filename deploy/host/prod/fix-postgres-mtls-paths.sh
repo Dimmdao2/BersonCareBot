@@ -104,7 +104,7 @@ probe() {
   local db pass rc
   db=$(psql_admin -Atc "select datname from pg_database where datname not in ('postgres','template0','template1') limit 1")
   # shellcheck disable=SC1091
-  pass=$(set -a; . /opt/therapysto/env/reconcile.env; set +a; printf '%s' "${BCB_TEST_INTEGRATOR_PASSWORD:-}")
+  pass=$(set -a; . /etc/therapysto/env/reconcile.env; set +a; printf '%s' "${BCB_TEST_INTEGRATOR_PASSWORD:-}")
   [ -n "$pass" ] || { rm -rf "$work"; return 1; }
   PGPASSWORD="$pass" psql -X -Atc 'select 1' \
     "host=127.0.0.1 port=5432 dbname=$db user=$PROBE_LOGIN sslmode=require sslcert=$work/c.crt sslkey=$work/c.key sslrootcert=$NEW_ROOT/ca.crt" \

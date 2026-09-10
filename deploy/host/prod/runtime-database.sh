@@ -16,7 +16,7 @@
 #   runtime_database        # печатает имя базы, падает с внятной причиной
 #   runtime_environment DB  # печатает окружение декларации для этого имени
 
-therapysto_env_dir() { echo "${THERAPYSTO_ENV_DIR:-/opt/therapysto/env}"; }
+therapysto_env_dir() { echo "${THERAPYSTO_ENV_DIR:-/etc/therapysto/env}"; }
 
 runtime_database() {
   local env_dir; env_dir=$(therapysto_env_dir)
