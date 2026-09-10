@@ -7,6 +7,7 @@ import type {
   SaasBillingSubscription,
   TariffBillingPeriodCode,
 } from '@/modules/saas-billing/ports';
+import { SAAS_BILLING_STORAGE_PACKAGE_DESCRIPTION } from '@/modules/saas-billing/ports';
 import { withReceiptSnapshot } from '@/modules/saas-billing/fiscalReceipt';
 import { purchasedTariffId, purchasedTariffPeriodPair } from '@/modules/saas-billing/payableTariff';
 import { carriedSeatDebtMinor } from '@/modules/saas-billing/proration';
@@ -1026,6 +1027,45 @@ export function createInMemorySaasBillingRepository(
       return { outcome: 'invoice' as const, invoice: row, created: true };
     },
 
+    async listStoragePackageOffers(organizationId) {
+      const authority = [...rows.values()].find(
+        (row) => row.organizationId === organizationId && row.source === 'paid_subscription',
+      );
+      const current = storagePackagePricingFor(
+        authority?.paidStoragePackageId ?? null,
+        authority?.billingPeriodCode ?? null,
+      );
+      const asOf = now().toISOString();
+      return {
+        currentPackageId: current?.packageId ?? null,
+        currentPeriodEndsAt: authority?.currentPeriodEndsAt ?? null,
+        packages: [...storagePackages.values()]
+          .filter((row) => (row.isActive ?? true) || row.id === current?.packageId)
+          .map((row) => {
+            const pricing = storagePackagePricingFor(
+              row.id,
+              authority?.billingPeriodCode ?? null,
+            )!;
+            return {
+              packageId: row.id,
+              name: row.id,
+              bytes: row.bytes,
+              isActive: row.isActive ?? true,
+              offer: decideStoragePackagePurchase({
+                current,
+                target: pricing,
+                tariffCurrency: authority
+                  ? (tariffs.get(purchasedTariffId(authority))?.currency ?? null)
+                  : null,
+                currentPeriodStartsAt: authority?.currentPeriodStartsAt ?? null,
+                currentPeriodEndsAt: authority?.currentPeriodEndsAt ?? null,
+                asOf,
+              }),
+            };
+          }),
+      };
+    },
+
     async createStoragePackageInvoiceIfNeeded(input) {
       const authorityEntry = [...rows.entries()].find(
         ([, row]) =>
@@ -1079,7 +1119,7 @@ export function createInMemorySaasBillingRepository(
         invoiceKind: 'storage_package',
         additionalSeatQuantity: 0,
         storagePackageId: input.storagePackageId,
-        description: 'Дополнительное место для файлов сверх тарифа',
+        description: SAAS_BILLING_STORAGE_PACKAGE_DESCRIPTION,
         amountMinor: offer.amountMinor,
         currency: offer.currency,
         carriedDebtMinor: 0,

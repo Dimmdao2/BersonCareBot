@@ -5,7 +5,10 @@ import {
   type PaymentProviderVerifyResult,
 } from '@/modules/payments/providerPort';
 import type { TariffDowngradeBlock } from '@/modules/org-entitlements/service';
-import { SAAS_BILLING_SEAT_OVERAGE_DESCRIPTION } from './ports';
+import {
+  SAAS_BILLING_SEAT_OVERAGE_DESCRIPTION,
+  SAAS_BILLING_STORAGE_PACKAGE_DESCRIPTION,
+} from './ports';
 import type {
   ResolvedSaasBillingPaymentProvider,
   SaasBillingInvoiceStatus,
@@ -14,19 +17,21 @@ import type {
   SaasBillingProviderEventEnvelope,
   SaasBillingReconciliationDiscrepancy,
   SaasBillingReconciliationResult,
+  SaasBillingInvoice,
   SaasBillingRepositoryPort,
   SaasBillingSettingsReadPort,
 } from './ports';
 import { paidPeriodEndsAtForCode } from './paidPeriod';
 import { saasBillingInvoiceExpiresAt } from './invoiceValidity';
 import type { SeatOverageQuote } from './seatOverageQuote';
+import type { StoragePackageQuote } from './storagePackageQuote';
 
 /**
- * Счёт за место всегда получает срок от единственной двери, поэтому его отсутствие означает не
+ * Счёт за покупку внутри периода всегда получает срок от единственной двери, поэтому его отсутствие означает не
  * «бессрочный счёт», а сборку мимо двери. Провайдеру уходит именно этот момент: у ЮKassa счёт по
  * нему сам переходит в `canceled` — второй рубеж к нашей проверке при приёме денег.
  */
-function requireSeatOverageInvoiceExpiresAt(invoice: { expiresAt: string | null }): string {
+function requireProratedPurchaseInvoiceExpiresAt(invoice: { expiresAt: string | null }): string {
   if (invoice.expiresAt === null) {
     throw new Error('saas_billing_seat_overage_invoice_expiry_missing');
   }
@@ -54,7 +59,6 @@ import { routePaths } from '@/app-layer/routes/paths';
  * or is only seeing the resulting invoice later after an unattended autopay tick (К5).
  */
 const SAAS_BILLING_RETURN_URL = `${env.APP_BASE_URL}${routePaths.settings}?tab=billing`;
-const SAAS_SEAT_BILLING_RETURN_URL = `${env.APP_BASE_URL}${routePaths.settings}?tab=team`;
 
 /**
  * §5a/2.1c — INVARIANT OF THE TWO MONEY FLOWS. The path by which a clinic pays US for its tariff is
@@ -467,40 +471,71 @@ export function createSaasBillingService(dependencies: {
     }
   }
 
-  async function purchaseSeatOverage(input: {
+  /**
+   * ОДИН порядок оплаты для ОБЕИХ покупок внутри оплаченного периода — места сверх тарифа и пакета
+   * объёма. Различаются они только тем, что перечислено в {@link PRORATED_PURCHASE_PAYMENT}: имя
+   * пространства идемпотентности, вкладка возврата и назначение платежа. Всё остальное — порядок
+   * «выставить счёт → приложить фискальный чек → открыть намерение у провайдера → записать ссылку
+   * на оплату» — совпадает дословно, и второй его копией мы бы получили два ответа на вопрос «что
+   * происходит после нажатия кнопки».
+   *
+   * Решение «можно ли продать и почём» здесь по-прежнему НЕ принимается: его целиком выдаёт
+   * единственная дверь внутри репозитория, под замком организации (владелец 19.08: «Как можно
+   * решать что-то в двух местах?»).
+   */
+  const PRORATED_PURCHASE_PAYMENT = {
+    seat_overage: {
+      idempotencyNamespace: 'saas_seat_overage',
+      returnUrl: `${env.APP_BASE_URL}${routePaths.settings}?tab=team`,
+      returnUrlParam: 'seatPayment',
+      intentPurpose: 'saas_billing_seat_overage',
+      description: SAAS_BILLING_SEAT_OVERAGE_DESCRIPTION,
+    },
+    storage_package: {
+      idempotencyNamespace: 'saas_storage_package',
+      returnUrl: `${env.APP_BASE_URL}${routePaths.settings}?tab=billing`,
+      returnUrlParam: 'storagePayment',
+      intentPurpose: 'saas_billing_storage_package',
+      description: SAAS_BILLING_STORAGE_PACKAGE_DESCRIPTION,
+    },
+  } as const;
+
+  async function payForProratedPurchase<R extends { outcome: string }>(input: {
     organizationId: string;
+    kind: keyof typeof PRORATED_PURCHASE_PAYMENT;
     /** Уже проверенная котировка сервера: из неё берутся и цена, и личность покупки. */
-    quote: SeatOverageQuote;
+    quote: { purchaseKey: string; priceMinor: number; currency: string };
+    /**
+     * Выставление счёта единственной дверью репозитория. Ключ идемпотентности провайдера ей
+     * ПЕРЕДАЁТСЯ, а не выводится внутри: он выводится из личности покупки в котировке, и второго
+     * механизма однократности нет — повтор той же котировки даёт тот же счёт.
+     */
+    raiseInvoice: (context: {
+      saasBillingSubscriptionId: string;
+      providerId: string;
+      providerIdempotencyKey: string;
+    }) => Promise<R | { outcome: 'invoice'; invoice: SaasBillingInvoice; created: boolean }>;
   }) {
     const subscription = await dependencies.repository.requireOwnTariffBillingSubscription(
       input.organizationId,
     );
     const provider = await resolvePaymentProvider();
-    // Здесь БОЛЬШЕ НЕ РЕШАЕТСЯ, можно ли продать место и почём. Раньше решалось: сценарий сам
-    // проверял оплаченный период и сам собирал отрезок услуги и срок счёта — и отвечал не так, как
-    // расчёт цены на пути приглашения. Владелец 19.08: «Как можно решать что-то в двух местах?».
-    // Теперь ответ целиком выдаёт `modules/saas-billing/seatOverage.ts` внутри репозитория, под
-    // замком организации: цена, отрезок услуги и срок жизни счёта приходят одним предложением.
-    const result = await dependencies.repository.createSeatOverageInvoiceIfNeeded({
-      organizationId: input.organizationId,
+    const kind = PRORATED_PURCHASE_PAYMENT[input.kind];
+    const result = await input.raiseInvoice({
       saasBillingSubscriptionId: subscription.saasBillingSubscriptionId,
-      quotePriceMinor: input.quote.priceMinor,
-      quoteCurrency: input.quote.currency,
       providerId: provider.providerId,
-      // Идемпотентность НЕ удваивается: ключ провайдера, который уже был единственным механизмом,
-      // теперь выводится из личности покупки внутри котировки. Повтор той же котировки — тот же
-      // ключ, то есть тот же счёт. Второй счёт требует второй котировки.
-      providerIdempotencyKey: `saas_seat_overage:${input.organizationId}:${input.quote.purchaseKey}`,
+      providerIdempotencyKey: `${kind.idempotencyNamespace}:${input.organizationId}:${input.quote.purchaseKey}`,
     });
-    if (result.outcome !== 'invoice') return result;
-    if (result.invoice.providerCheckoutUrl) {
-      return { outcome: 'seat_opened' as const, invoice: result.invoice };
+    if (result.outcome !== 'invoice') return result as R;
+    const raised = result as { outcome: 'invoice'; invoice: SaasBillingInvoice; created: boolean };
+    if (raised.invoice.providerCheckoutUrl) {
+      return { outcome: 'purchased' as const, invoice: raised.invoice };
     }
 
-    const returnUrl = new URL(SAAS_SEAT_BILLING_RETURN_URL);
-    returnUrl.searchParams.set('seatPayment', result.invoice.id);
+    const returnUrl = new URL(kind.returnUrl);
+    returnUrl.searchParams.set(kind.returnUrlParam, raised.invoice.id);
     const fiscalized = await attachFiscalReceiptIfConfigured(
-      result.invoice,
+      raised.invoice,
       provider.payeeRequisites,
     );
     const intent = await provider.adapter.createIntent({
@@ -508,30 +543,79 @@ export function createSaasBillingService(dependencies: {
       currency: fiscalized.invoice.currency,
       idempotencyKey: fiscalized.invoice.providerIdempotencyKey,
       payerRef: `organization:${input.organizationId}`,
-      purpose: 'saas_billing_seat_overage',
-      subjectRef: result.invoice.id,
+      purpose: kind.intentPurpose,
+      subjectRef: raised.invoice.id,
       returnUrl: returnUrl.toString(),
       // Срок уходит ПРОВАЙДЕРУ, а не только в нашу строку: у ЮKassa счёт по истечении сам
       // переходит в `canceled`, и это единственный способ не принять деньги по мёртвому счёту
       // вообще. Без этого срок оставался комментарием — находка F1 слепого аудита 19.08.
       invoice: {
-        description: result.invoice.description ?? SAAS_BILLING_SEAT_OVERAGE_DESCRIPTION,
-        expiresAt: requireSeatOverageInvoiceExpiresAt(result.invoice),
+        description: raised.invoice.description ?? kind.description,
+        expiresAt: requireProratedPurchaseInvoiceExpiresAt(raised.invoice),
       },
       metadata: {
         organizationId: input.organizationId,
-        saasBillingInvoiceId: result.invoice.id,
+        saasBillingInvoiceId: raised.invoice.id,
         saasBillingSubscriptionId: subscription.saasBillingSubscriptionId,
       },
       providerConfig: provider.providerConfig,
       receipt: fiscalized.receipt,
     });
     const invoice = await dependencies.repository.attachSaasBillingInvoiceProviderIntent({
-      saasBillingInvoiceId: result.invoice.id,
+      saasBillingInvoiceId: raised.invoice.id,
       providerInvoiceRef: intent.providerIntentRef,
       providerCheckoutUrl: intent.checkoutUrl ?? null,
     });
-    return { outcome: 'seat_opened' as const, invoice };
+    return { outcome: 'purchased' as const, invoice };
+  }
+
+  async function purchaseSeatOverage(input: {
+    organizationId: string;
+    quote: SeatOverageQuote;
+  }) {
+    const result = await payForProratedPurchase({
+      organizationId: input.organizationId,
+      kind: 'seat_overage',
+      quote: input.quote,
+      raiseInvoice: (context) =>
+        dependencies.repository.createSeatOverageInvoiceIfNeeded({
+          organizationId: input.organizationId,
+          quotePriceMinor: input.quote.priceMinor,
+          quoteCurrency: input.quote.currency,
+          ...context,
+        }),
+    });
+    // Имя исхода у места своё и остаётся своим: экран говорит «место открыто», а не «покупка прошла».
+    return result.outcome === 'purchased'
+      ? { outcome: 'seat_opened' as const, invoice: result.invoice }
+      : result;
+  }
+
+  /**
+   * Докупка объёма. Владелец 10.09: «если человек хочет, он может просто докупить объём
+   * дополнительно» — и объём открывается сразу, а платится пропорциональная часть остатка периода.
+   */
+  async function purchaseStoragePackage(input: {
+    organizationId: string;
+    storagePackageId: string;
+    quote: StoragePackageQuote;
+  }) {
+    const result = await payForProratedPurchase({
+      organizationId: input.organizationId,
+      kind: 'storage_package',
+      quote: input.quote,
+      raiseInvoice: (context) =>
+        dependencies.repository.createStoragePackageInvoiceIfNeeded({
+          organizationId: input.organizationId,
+          storagePackageId: input.storagePackageId,
+          quotePriceMinor: input.quote.priceMinor,
+          quoteCurrency: input.quote.currency,
+          ...context,
+        }),
+    });
+    return result.outcome === 'purchased'
+      ? { outcome: 'storage_opened' as const, invoice: result.invoice }
+      : result;
   }
 
   return {
@@ -857,6 +941,12 @@ export function createSaasBillingService(dependencies: {
 
     createManualSaasBillingInvoice,
     purchaseSeatOverage,
+    purchaseStoragePackage,
+
+    /** Витрина докупки объёма для кабинета — тот же расчёт, что и у счёта (см. порт). */
+    listStoragePackageOffers(organizationId: string) {
+      return dependencies.repository.listStoragePackageOffers(organizationId);
+    },
 
     /**
      * К4 — only a `draft`/`pending` invoice can be cancelled; see `cancelSaasBillingInvoice` port

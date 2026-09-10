@@ -1,4 +1,4 @@
-import { and, eq, gt, inArray, isNull, ne, or, sql } from 'drizzle-orm';
+import { and, eq, gt, isNull, ne, or, sql } from 'drizzle-orm';
 import type { WebappSqlExecutor } from '@/infra/db/runWebappSql';
 import { beOrganizationMembers, beOrganizations } from '../../../db/schema/bookingEngine';
 import { organizationMemberInvites } from '../../../db/schema/organizationMemberInvites';
@@ -199,11 +199,7 @@ async function readClinicTeamContext(tx: WebappSqlExecutor, organizationId: stri
  * цену пакета. Нет строки в матрице для этой пары — пакет за этот период не продаётся, и дверь
  * ответит `not_sold`, а не посчитает цену «примерно».
  */
-async function readStoragePackageContext(
-  tx: WebappSqlExecutor,
-  organizationId: string,
-  targetPackageId: string,
-) {
+async function readStoragePackageContext(tx: WebappSqlExecutor, organizationId: string) {
   const [organization] = await tx
     .select({ tariffId: beOrganizations.tariffId })
     .from(beOrganizations)
@@ -226,49 +222,57 @@ async function readStoragePackageContext(
     )
     .limit(1);
 
-  const wanted = [targetPackageId, subscription?.paidStoragePackageId ?? null].filter(
-    (id): id is string => id !== null,
-  );
-  const rows = wanted.length
-    ? await tx
-        .select({
-          packageId: saasStoragePackages.id,
-          bytes: saasStoragePackages.bytes,
-          isActive: saasStoragePackages.isActive,
-          currency: saasStoragePackages.currency,
-          priceMinor: saasStoragePackagePeriodPrices.priceMinor,
-        })
-        .from(saasStoragePackages)
-        .leftJoin(
-          saasStoragePackagePeriodPrices,
-          and(
-            eq(saasStoragePackagePeriodPrices.packageId, saasStoragePackages.id),
-            eq(
-              saasStoragePackagePeriodPrices.billingPeriodCode,
-              subscription?.billingPeriodCode ?? '',
-            ),
-          ),
-        )
-        .where(inArray(saasStoragePackages.id, wanted))
-    : [];
-  const byId = new Map<string, StoragePackagePeriodPricing>(
-    rows.map((row) => [
-      row.packageId,
-      {
-        packageId: row.packageId,
-        bytes: Number(row.bytes),
-        priceMinor: row.priceMinor ?? null,
-        currency: row.currency,
-        isActive: row.isActive,
-      },
-    ]),
-  );
+  // Читается ВЕСЬ каталог, а не только запрошенный пакет: тот же снимок отвечает и на «почём этот»,
+  // и на «что вообще можно купить», поэтому цена на экране и цена в счёте не могут разъехаться —
+  // они из одного чтения под одним замком. Снятые с продажи строки приходят тоже: у клиники может
+  // действовать пакет, который платформа уже не продаёт, и его размер всё равно нужен для расчёта
+  // доплаты за переход.
+  const rows = await tx
+    .select({
+      packageId: saasStoragePackages.id,
+      name: saasStoragePackages.name,
+      bytes: saasStoragePackages.bytes,
+      isActive: saasStoragePackages.isActive,
+      currency: saasStoragePackages.currency,
+      sortOrder: saasStoragePackages.sortOrder,
+      priceMinor: saasStoragePackagePeriodPrices.priceMinor,
+    })
+    .from(saasStoragePackages)
+    .leftJoin(
+      saasStoragePackagePeriodPrices,
+      and(
+        eq(saasStoragePackagePeriodPrices.packageId, saasStoragePackages.id),
+        eq(saasStoragePackagePeriodPrices.billingPeriodCode, subscription?.billingPeriodCode ?? ''),
+      ),
+    )
+    .where(
+      or(
+        eq(saasStoragePackages.isActive, true),
+        subscription?.paidStoragePackageId
+          ? eq(saasStoragePackages.id, subscription.paidStoragePackageId)
+          : sql`false`,
+      ),
+    )
+    .orderBy(saasStoragePackages.sortOrder, saasStoragePackages.bytes);
+  const packages = rows.map((row) => ({
+    name: row.name,
+    sortOrder: row.sortOrder,
+    pricing: {
+      packageId: row.packageId,
+      bytes: Number(row.bytes),
+      priceMinor: row.priceMinor ?? null,
+      currency: row.currency,
+      isActive: row.isActive,
+    } satisfies StoragePackagePeriodPricing,
+  }));
+  const byId = new Map(packages.map((row) => [row.pricing.packageId, row.pricing]));
 
   return {
+    packages,
     current: subscription?.paidStoragePackageId
       ? (byId.get(subscription.paidStoragePackageId) ?? null)
       : null,
-    target: byId.get(targetPackageId) ?? null,
+    packageById: byId,
     tariffCurrency: tariff?.currency ?? null,
     currentPeriodStartsAt: subscription?.currentPeriodStartsAt ?? null,
     currentPeriodEndsAt: subscription?.currentPeriodEndsAt ?? null,
@@ -341,6 +345,17 @@ export function createTransactionQuotaPort() {
         resolveStoragePackagePurchase(
           targetPackageId: string,
         ): Promise<StoragePackagePurchaseOffer>;
+        resolveStoragePackageOffers(): Promise<{
+          currentPackageId: string | null;
+          currentPeriodEndsAt: string | null;
+          packages: {
+            packageId: string;
+            name: string;
+            bytes: number;
+            isActive: boolean;
+            offer: StoragePackagePurchaseOffer;
+          }[];
+        }>;
       }) => Promise<T>,
     ): Promise<T> {
       const lockKey =
@@ -406,22 +421,46 @@ export function createTransactionQuotaPort() {
          * входных данных, как у мест.
          */
         async resolveStoragePackagePurchase(targetPackageId) {
-          const context = await readStoragePackageContext(
-            tx,
-            input.organizationId,
-            targetPackageId,
-          );
+          const context = await readStoragePackageContext(tx, input.organizationId);
+          const target = context.packageById.get(targetPackageId);
           // Пакета нет в каталоге вовсе — продавать нечего; отдельного исхода у двери для этого
           // нет, потому что для покупателя «нет такого пакета» и «не продаётся» неразличимы.
-          if (!context.target) return { outcome: 'not_sold' as const };
+          if (!target) return { outcome: 'not_sold' as const };
           return decideStoragePackagePurchase({
             current: context.current,
-            target: context.target,
+            target,
             tariffCurrency: context.tariffCurrency,
             currentPeriodStartsAt: context.currentPeriodStartsAt,
             currentPeriodEndsAt: context.currentPeriodEndsAt,
             asOf: new Date().toISOString(),
           });
+        },
+        /**
+         * Витрина: КАЖДЫЙ пакет каталога со своим предложением, посчитанным ТОЙ ЖЕ дверью и в том
+         * же чтении, что и цена в счёте. Отдельного «расчёта для экрана» не существует — именно
+         * поэтому показанная цена и списанная сумма не могут разойтись.
+         */
+        async resolveStoragePackageOffers() {
+          const context = await readStoragePackageContext(tx, input.organizationId);
+          const asOf = new Date().toISOString();
+          return {
+            currentPackageId: context.current?.packageId ?? null,
+            currentPeriodEndsAt: context.currentPeriodEndsAt,
+            packages: context.packages.map((row) => ({
+              packageId: row.pricing.packageId,
+              name: row.name,
+              bytes: row.pricing.bytes,
+              isActive: row.pricing.isActive,
+              offer: decideStoragePackagePurchase({
+                current: context.current,
+                target: row.pricing,
+                tariffCurrency: context.tariffCurrency,
+                currentPeriodStartsAt: context.currentPeriodStartsAt,
+                currentPeriodEndsAt: context.currentPeriodEndsAt,
+                asOf,
+              }),
+            })),
+          };
         },
       });
     },

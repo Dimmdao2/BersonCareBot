@@ -8,6 +8,10 @@ import { SaasBillingTariffDowngradeBlockedError } from '@/modules/saas-billing/s
 import { PaymentProviderRequestRefusedError } from '@/modules/payments/providerPort';
 import { SAAS_BILLING_TARIFF_NOT_PAYABLE } from '@/modules/saas-billing/payableTariff';
 import { handleSeatOveragePurchase } from './seatOveragePurchase';
+import {
+  handleStoragePackagePurchase,
+  storagePackageOffersBody,
+} from './storagePackagePurchase';
 
 type BillingOperation = 'overview' | 'tariff-change' | 'renewal';
 
@@ -42,7 +46,20 @@ export async function GET() {
       },
       () => buildAppDeps().saasBilling.getOwnTariffChangeState(gate.ctx.organizationId),
     );
-    return NextResponse.json({ ok: true, billing, tariffChange });
+    // Витрина докупки объёма приезжает тем же ответом, что и тариф: экран «Тариф и биллинг»
+    // показывает заполненность и кнопку «Увеличить место» в одном блоке (владелец 10.09).
+    const storage = storagePackageOffersBody(
+      gate.ctx.organizationId,
+      await runWithDbClinicBillingPrincipal(
+        {
+          organizationId: gate.ctx.organizationId,
+          platformUserId: gate.ctx.session.user.userId,
+          source: 'clinic-billing-read',
+        },
+        () => buildAppDeps().saasBilling.listStoragePackageOffers(gate.ctx.organizationId),
+      ),
+    );
+    return NextResponse.json({ ok: true, billing, tariffChange, storage });
   } catch (error) {
     logBillingFailure('overview', error, 'repository_unavailable');
     return NextResponse.json({ ok: false, error: 'saas_billing_unavailable' }, { status: 503 });
@@ -264,12 +281,21 @@ export async function DELETE() {
  * so it must never itself be gated by the state it exists to fix (§5a/2.1c, enforced structurally by
  * `modules/saas-billing/service.test.ts`).
  */
-const purchaseSchema = z.object({
-  purchase: z.literal('seat_overage'),
-  // Единственное, что приходит от браузера, — котировка, выписанная этим же сервером. Ни суммы, ни
-  // валюты, ни ключа запроса: цену и личность покупки сервер берёт из собственной подписи.
-  quote: z.string().min(1).max(2000),
-});
+const purchaseSchema = z.discriminatedUnion('purchase', [
+  z.object({
+    purchase: z.literal('seat_overage'),
+    // Единственное, что приходит от браузера, — котировка, выписанная этим же сервером. Ни суммы,
+    // ни валюты, ни ключа запроса: цену и личность покупки сервер берёт из собственной подписи.
+    quote: z.string().min(1).max(2000),
+  }),
+  z.object({
+    purchase: z.literal('storage_package'),
+    // Идентификатор пакета приходит открыто, но он же ВПИСАН В ПОДПИСЬ котировки: подставить
+    // подпись цены дешёвого пакета к дорогому нечем.
+    storagePackageId: z.string().uuid(),
+    quote: z.string().min(1).max(2000),
+  }),
+]);
 
 export async function POST(request: Request) {
   const gate = await requireClinicManagementApiContext({ allowCabinetRecovery: true });
@@ -288,10 +314,17 @@ export async function POST(request: Request) {
     source: 'clinic-billing-invoice' as const,
   };
   try {
-    if (purchase.success) {
+    if (purchase.success && purchase.data.purchase === 'seat_overage') {
       return await handleSeatOveragePurchase(gate.ctx, purchase.data, (input) =>
         runWithDbClinicBillingPrincipal(principal, () =>
           buildAppDeps().saasBilling.purchaseSeatOverage(input),
+        ),
+      );
+    }
+    if (purchase.success && purchase.data.purchase === 'storage_package') {
+      return await handleStoragePackagePurchase(gate.ctx, purchase.data, (input) =>
+        runWithDbClinicBillingPrincipal(principal, () =>
+          buildAppDeps().saasBilling.purchaseStoragePackage(input),
         ),
       );
     }

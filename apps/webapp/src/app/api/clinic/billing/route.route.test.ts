@@ -31,6 +31,7 @@ describe('/api/clinic/billing tariff change', () => {
   const scheduleOwnTariffChange = vi.fn();
   const cancelOwnTariffChange = vi.fn();
   const updateOwnBillingEmail = vi.fn();
+  const listStoragePackageOffers = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -45,7 +46,13 @@ describe('/api/clinic/billing tariff change', () => {
         scheduleOwnTariffChange,
         cancelOwnTariffChange,
         updateOwnBillingEmail,
+        listStoragePackageOffers,
       },
+    });
+    listStoragePackageOffers.mockResolvedValue({
+      currentPackageId: null,
+      currentPeriodEndsAt: null,
+      packages: [],
     });
   });
 

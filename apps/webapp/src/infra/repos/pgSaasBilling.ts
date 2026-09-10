@@ -15,7 +15,10 @@ import type {
   SaasBillingSubscriptionDueForRenewal,
   SaasBillingSubscriptionReadRow,
 } from '@/modules/saas-billing/ports';
-import { PRORATED_PURCHASE_INVOICE_KINDS } from '@/modules/saas-billing/ports';
+import {
+  PRORATED_PURCHASE_INVOICE_KINDS,
+  SAAS_BILLING_STORAGE_PACKAGE_DESCRIPTION,
+} from '@/modules/saas-billing/ports';
 import { purchasedTariffId, purchasedTariffPeriodPair } from '@/modules/saas-billing/payableTariff';
 import {
   carriedSeatDebtMinor,
@@ -1800,6 +1803,14 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
       );
     },
 
+    async listStoragePackageOffers(organizationId) {
+      return getDrizzle().transaction((tx) =>
+        transactionQuotaPort.withinLock(tx, { organizationId, mechanic: 'files' }, (quota) =>
+          quota.resolveStoragePackageOffers(),
+        ),
+      );
+    },
+
     /**
      * Докупка объёма — тот же порядок, что у продажи места выше, и по тем же причинам: замок
      * организации (механика `files`, под которым считается занятое место), решение единственной
@@ -1905,7 +1916,7 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
               invoiceKind: 'storage_package',
               additionalSeatQuantity: 0,
               storagePackageId: input.storagePackageId,
-              description: 'Дополнительное место для файлов сверх тарифа',
+              description: SAAS_BILLING_STORAGE_PACKAGE_DESCRIPTION,
               // Сумма, отрезок услуги и срок оплаты — из ОДНОГО предложения, как у мест.
               amountMinor: offer.amountMinor,
               currency: offer.currency,

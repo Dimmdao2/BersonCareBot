@@ -2,6 +2,7 @@ import type { PaymentProviderPort, PaymentReceipt } from '@/modules/payments/pro
 import type { PaymentProviderConfig } from '@/modules/payments/types';
 import type { OrgCommercialLifecycleState } from '@/modules/org-entitlements/types';
 import type { BillingPeriodOption } from './billingPeriodCatalog';
+import type { StoragePackagePurchaseOffer } from './storagePackage';
 
 export type TariffBillingPeriodCode = string;
 
@@ -21,6 +22,10 @@ export const PRORATED_PURCHASE_INVOICE_KINDS = ['seat_overage', 'storage_package
 /** Единственный текст строки счёта за место — и у выставления, и у перевыставления, и у провайдера. */
 export const SAAS_BILLING_SEAT_OVERAGE_DESCRIPTION =
   'Дополнительное место специалиста сверх тарифа';
+
+/** Единственный текст строки счёта за пакет объёма — те же три места, что и у строки выше. */
+export const SAAS_BILLING_STORAGE_PACKAGE_DESCRIPTION =
+  'Дополнительное место для файлов сверх тарифа';
 
 /** К2 — `pending` until the provider webhook confirms it; `failed` frees the amount for a retry. */
 export type SaasBillingRefundStatus = 'pending' | 'succeeded' | 'failed' | 'canceled';
@@ -245,6 +250,18 @@ export type SaasBillingSeatOverageInvoiceResult =
   | { outcome: 'paid_period_over' }
   | { outcome: 'price_changed'; priceMinor: number; currency: string; priceStableUntil: string }
   | { outcome: 'invoice'; invoice: SaasBillingInvoice; created: boolean };
+
+export type SaasBillingStoragePackageOffers = {
+  currentPackageId: string | null;
+  currentPeriodEndsAt: string | null;
+  packages: {
+    packageId: string;
+    name: string;
+    bytes: number;
+    isActive: boolean;
+    offer: StoragePackagePurchaseOffer;
+  }[];
+};
 
 export type SaasBillingStoragePackageInvoiceResult =
   /** Этот пакет уже действует, снят с продажи, или его нельзя выставить в валюте тарифа. */
@@ -603,6 +620,13 @@ export type SaasBillingRepositoryPort = {
    * единственная дверь `modules/saas-billing/storagePackage.ts`, а из браузера не приходит ни
    * одного денежного значения.
    */
+  /**
+   * Витрина докупки для кабинета: каталог пакетов с предложением по каждому, посчитанным ТОЙ ЖЕ
+   * дверью, что считает сумму счёта, и в том же чтении. Отдельного «расчёта для экрана» нет —
+   * поэтому показанная цена и списанная сумма не могут разойтись.
+   */
+  listStoragePackageOffers(organizationId: string): Promise<SaasBillingStoragePackageOffers>;
+
   createStoragePackageInvoiceIfNeeded(input: {
     organizationId: string;
     saasBillingSubscriptionId: string;
