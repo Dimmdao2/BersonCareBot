@@ -203,7 +203,7 @@ function OverridesSection({ organization }: { organization: PlatformOrganization
 const QUOTA_THRESHOLD_LABEL: Record<OrgQuotaProjection['threshold'], string | null> = {
   below_warning: null,
   warning: 'Приближается к пределу',
-  reached: 'Превышение',
+  reached: 'Предел достигнут',
 };
 
 function UsageSection({
@@ -557,7 +557,7 @@ function ClinicsList({ data }: { data: PlatformClinicsData }) {
                     </Badge>
                     {(data.quotaProjections[organization.id] ?? []).some(
                       (projection) => projection.threshold === 'reached',
-                    ) && <Badge variant="destructive">Превышение</Badge>}
+                    ) && <Badge variant="destructive">Предел достигнут</Badge>}
                   </div>
                   <div className="text-sm text-muted-foreground">
                     <span className="md:hidden">Пробный период: </span>

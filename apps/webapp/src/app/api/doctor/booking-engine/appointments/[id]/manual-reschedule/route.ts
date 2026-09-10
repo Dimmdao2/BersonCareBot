@@ -18,8 +18,9 @@ import {
 
 /** PAY-APPT-03: тот же закрытый словарь режимов, что и у создания записи врачом. */
 const prepaymentOverrideSchema = z.object({
-  mode: z.enum(['disabled', 'percent', 'full_price']),
+  mode: z.enum(['disabled', 'fixed_minor', 'percent', 'full_price']),
   percentBps: z.number().int().min(0).max(10_000).nullable().optional(),
+  amountMinor: z.number().int().min(0).nullable().optional(),
 });
 
 const bodySchema = z.object({

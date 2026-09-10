@@ -65,7 +65,11 @@ export type CalendarServiceFilterOption = CalendarFilterOption & {
    * PAY-APPT-03: исходное условие оплаты этой услуги. `null` — клиника предоплату не принимает
    * (механика или настройки выключены), и условия оплаты в форме нет вовсе.
    */
-  prepaymentDefault: { mode: PrepaymentMode; percentBps: number | null } | null;
+  prepaymentDefault: {
+    mode: PrepaymentMode;
+    percentBps: number | null;
+    amountMinor?: number | null;
+  } | null;
 };
 
 export type CalendarFilterMeta = {
@@ -101,6 +105,8 @@ export type CalendarAppointmentPaymentView = {
     mode: PrepaymentMode;
     /** Базисные пункты процента; `null` для остальных режимов. */
     percentBps: number | null;
+    /** Фиксированная сумма в копейках; `null` для остальных режимов. */
+    amountMinor?: number | null;
     requiredMinor: number;
     paidMinor: number;
     currency: string;

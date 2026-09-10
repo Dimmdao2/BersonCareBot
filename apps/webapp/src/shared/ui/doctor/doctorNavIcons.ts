@@ -49,6 +49,8 @@ export function getDoctorMenuIcon(id: string): ElementType | null {
       return MessageCircle;
     case 'library':
       return BookOpen;
+    case 'references':
+      return ScrollText;
     case 'content':
       return FileText;
     case 'files-and-media':

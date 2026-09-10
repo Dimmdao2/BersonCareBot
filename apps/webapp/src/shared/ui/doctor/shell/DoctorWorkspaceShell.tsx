@@ -170,7 +170,7 @@ export function DoctorWorkspaceShell({
                 ) : undefined
               }
               bottomNav={
-                menuKind === 'doctor' && showClinicalShortcuts
+                (menuKind === 'doctor' || menuKind === 'management') && showClinicalShortcuts
                   ? { menuAccess, patientLabel }
                   : undefined
               }

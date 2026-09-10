@@ -16,13 +16,16 @@ import { parseRublesInput, rublesToMinor } from '@/app/app/settings/bookingSoloA
 export type AppointmentFinancialRequestFields = {
   /** Минорные единицы (копейки). Дробных денег контракт не принимает вовсе. */
   priceMinor?: number | null;
-  prepayment?: { mode: 'disabled' | 'percent' | 'full_price'; percentBps: number | null } | null;
+  prepayment?: {
+    mode: 'disabled' | 'fixed_minor' | 'percent' | 'full_price';
+    percentBps: number | null;
+    amountMinor: number | null;
+  } | null;
 };
 
 export class AppointmentFormFinancialsError extends Error {}
 
-/** Ровно те режимы, которые врач вправе поставить конкретной записи (owner acceptance, K1). */
-const OVERRIDABLE_MODES = new Set(['disabled', 'percent', 'full_price']);
+const OVERRIDABLE_MODES = new Set(['disabled', 'fixed_minor', 'percent', 'full_price']);
 
 function priceMinorFromInput(raw: string): number | null {
   const trimmed = raw.trim();
@@ -54,6 +57,24 @@ function percentBpsFromInput(raw: string): number {
   return bps;
 }
 
+function prepaymentAmountMinorFromInput(raw: string): number {
+  const trimmed = raw.trim();
+  if (!trimmed) {
+    throw new AppointmentFormFinancialsError('Укажите фиксированную сумму предоплаты.');
+  }
+  let rubles: number;
+  try {
+    rubles = parseRublesInput(trimmed);
+  } catch {
+    throw new AppointmentFormFinancialsError('Укажите сумму предоплаты числом.');
+  }
+  const minor = rublesToMinor(rubles);
+  if (!Number.isSafeInteger(minor) || minor < 0) {
+    throw new AppointmentFormFinancialsError('Укажите сумму предоплаты числом.');
+  }
+  return minor;
+}
+
 export function appointmentFinancialRequestFields(
   draft: Pick<
     AppointmentFormDraft,
@@ -67,10 +88,18 @@ export function appointmentFinancialRequestFields(
   // Режим, которого нет в словаре записи (например фиксированная сумма клиники), остаётся
   // политикой услуги: врач его видит, но переопределением он не становится.
   if (draft.prepaymentOverridden && draft.prepayment && OVERRIDABLE_MODES.has(draft.prepayment.mode)) {
-    const mode = draft.prepayment.mode as 'disabled' | 'percent' | 'full_price';
+    const mode = draft.prepayment.mode as
+      | 'disabled'
+      | 'fixed_minor'
+      | 'percent'
+      | 'full_price';
     fields.prepayment = {
       mode,
       percentBps: mode === 'percent' ? percentBpsFromInput(draft.prepayment.percent) : null,
+      amountMinor:
+        mode === 'fixed_minor'
+          ? prepaymentAmountMinorFromInput(draft.prepayment.amountRubles)
+          : null,
     };
   }
   return fields;

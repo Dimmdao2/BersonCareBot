@@ -271,6 +271,7 @@ export type AppointmentFinancialSnapshotRecord = {
   priceCurrency: string;
   prepaymentMode: PrepaymentMode;
   prepaymentPercentBps: number | null;
+  prepaymentAmountMinor?: number | null;
   prepaymentRequiredMinor: number;
   prepaymentPaidMinor: number;
   paymentDeadlineAt: string | null;

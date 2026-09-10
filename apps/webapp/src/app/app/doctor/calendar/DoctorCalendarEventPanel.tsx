@@ -271,7 +271,11 @@ function appointmentSnapshotDraftMoney(
   return {
     priceRubles: totalMinor == null ? defaults.priceRubles : servicePriceRublesInput(totalMinor),
     prepayment: snapshot
-      ? { mode: snapshot.mode, percent: prepaymentPercentFromBps(snapshot.percentBps) }
+      ? {
+          mode: snapshot.mode,
+          percent: prepaymentPercentFromBps(snapshot.percentBps),
+          amountRubles: servicePriceRublesInput(snapshot.amountMinor ?? snapshot.requiredMinor),
+        }
       : defaults.prepayment,
   };
 }
@@ -292,6 +296,7 @@ function serviceFinancialDefaults(
       ? {
           mode: service.prepaymentDefault.mode,
           percent: prepaymentPercentFromBps(service.prepaymentDefault.percentBps),
+          amountRubles: servicePriceRublesInput(service.prepaymentDefault.amountMinor ?? null),
         }
       : null,
   };
@@ -448,7 +453,9 @@ function DoctorCalendarEventPanelInner({
     );
     const serviceId = initialServices.some((service) => service.id === initialServiceId)
       ? initialServiceId
-      : null;
+      : initialServices.length === 1
+        ? initialServices[0]!.id
+        : null;
     const dragMinutes = dragDurationMinutes(createInitialStart, createInitialEnd);
     const serviceMinutes = serviceId
       ? (initialServices.find((service) => service.id === serviceId)?.durationMinutes ?? null)
@@ -825,7 +832,7 @@ function DoctorCalendarEventPanelInner({
       return;
     }
     if (!draft.branchId || !draft.serviceId) {
-      setMessage('Укажите филиал и сеанс.');
+      setMessage('Укажите филиал и услугу.');
       return;
     }
     const currentStart = parseEventDateTime(selected.startAt, timeZone);

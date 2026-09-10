@@ -46,7 +46,12 @@ type Deps = {
    */
   resolveServicePrepaymentDefaults?: (
     organizationId: string,
-  ) => Promise<Map<string, { mode: PrepaymentMode; percentBps: number | null }> | null>;
+  ) => Promise<
+    Map<
+      string,
+      { mode: PrepaymentMode; percentBps: number | null; amountMinor: number | null }
+    > | null
+  >;
 };
 
 function mapBlock(block: ScheduleBlockRecord): CalendarBlockEvent {
@@ -299,7 +304,11 @@ export function createBookingCalendarService(deps: Deps): BookingCalendarService
         services: filterMeta.services.map((service) => ({
           ...service,
           prepaymentDefault: prepaymentDefaults
-            ? (prepaymentDefaults.get(service.id) ?? { mode: 'disabled' as const, percentBps: null })
+            ? (prepaymentDefaults.get(service.id) ?? {
+                mode: 'disabled' as const,
+                percentBps: null,
+                amountMinor: null,
+              })
             : null,
         })),
       };

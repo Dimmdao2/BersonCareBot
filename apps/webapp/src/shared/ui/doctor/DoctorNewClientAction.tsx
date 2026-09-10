@@ -6,15 +6,9 @@ import { useState, type ReactNode } from 'react';
 import { routePaths } from '@/app-layer/routes/paths';
 import { cn } from '@/lib/utils';
 import { DoctorModal, type DoctorModalDesktopPresentation } from './DoctorModal';
-import { DoctorDateTimePicker } from './DoctorDateTimePicker';
 import { Button } from './primitives/button';
 import { Input } from './primitives/input';
 import { Label } from './primitives/label';
-
-function currentLocalDateTimeValue(clockToleranceMinutes = 0): string {
-  const now = new Date(Date.now() + clockToleranceMinutes * 60_000);
-  return new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
-}
 
 function manualVisitErrorLabel(result: { error?: string; message?: string }): string {
   if (result.message) return result.message;
@@ -61,7 +55,6 @@ export function DoctorNewClientAction({
   const [patronymic, setPatronymic] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
-  const [visitedAt, setVisitedAt] = useState('');
   const [requestId, setRequestId] = useState(() => crypto.randomUUID());
 
   const singularLower = patientSingularLabel.toLocaleLowerCase('ru-RU');
@@ -74,7 +67,6 @@ export function DoctorNewClientAction({
     setPatronymic('');
     setPhone('');
     setEmail('');
-    setVisitedAt('');
     setRequestId(crypto.randomUUID());
   }
 
@@ -96,34 +88,18 @@ export function DoctorNewClientAction({
     }
     setPending(true);
     try {
-      const hasVisit = visitedAt.trim().length > 0;
-      const response = hasVisit
-        ? await fetch('/api/doctor/booking-engine/appointments/manual-patient-visit', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              requestId,
-              kind: 'walk_in',
-              lastName,
-              firstName,
-              patronymic: patronymic.trim() || null,
-              phone,
-              email: email.trim() || null,
-              visitedAt: new Date(visitedAt).toISOString(),
-            }),
-          })
-        : await fetch('/api/doctor/clients', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              requestId,
-              lastName,
-              firstName,
-              patronymic: patronymic.trim() || null,
-              phone: phone.trim() || null,
-              email: email.trim() || null,
-            }),
-          });
+      const response = await fetch('/api/doctor/clients', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          requestId,
+          lastName,
+          firstName,
+          patronymic: patronymic.trim() || null,
+          phone: phone.trim() || null,
+          email: email.trim() || null,
+        }),
+      });
       const result = (await response.json()) as {
         ok?: boolean;
         error?: string;
@@ -187,11 +163,6 @@ export function DoctorNewClientAction({
         }
       >
         <div className="flex flex-col gap-3">
-          <p className="text-xs text-muted-foreground">
-            Карточка {singularLower}а создастся всегда. Дата и время визита — по желанию: если
-            указать, визит зафиксируется как состоявшийся вместе с карточкой. Доступ в портал не
-            активируется.
-          </p>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="grid gap-1.5">
               <Label htmlFor="doctor-new-client-last-name">Фамилия</Label>
@@ -238,16 +209,6 @@ export function DoctorNewClientAction({
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
                 autoComplete="email"
-              />
-            </div>
-            <div className="grid gap-1.5 sm:col-span-2">
-              <Label htmlFor="doctor-new-client-visited-at">Дата и время визита, если есть</Label>
-              <DoctorDateTimePicker
-                id="doctor-new-client-visited-at"
-                value={visitedAt}
-                max={currentLocalDateTimeValue(2)}
-                placeholder="Не указано — создастся только карточка"
-                onChange={setVisitedAt}
               />
             </div>
           </div>

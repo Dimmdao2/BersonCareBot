@@ -48,8 +48,9 @@ import {
  * «процент» — `percent`, «полная» — `full_price`. Второго словаря рядом не заводится.
  */
 const prepaymentOverrideSchema = z.object({
-  mode: z.enum(['disabled', 'percent', 'full_price']),
+  mode: z.enum(['disabled', 'fixed_minor', 'percent', 'full_price']),
   percentBps: z.number().int().min(0).max(10_000).nullable().optional(),
+  amountMinor: z.number().int().min(0).nullable().optional(),
 });
 
 const bodySchema = z.object({
