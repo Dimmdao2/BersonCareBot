@@ -19,7 +19,9 @@ import {
   parseReturnShape,
 } from './function-return-shape.mjs';
 
-const DATABASES = ['bersoncarebot_test', 'bcb_webapp_dev'];
+// Каждая объявленная база, а не вписанный руками список: новая база заводится в
+// `REV10_DATABASE_ENV` (declaration.ts) и автоматически попадает под эту проверку.
+const DATABASES = Object.keys(declaration.databases);
 
 const functionsFor = (database) => Object.entries(declaration.portContext.functions)
   .filter(([, fn]) => !fn.databases || fn.databases.includes(database));

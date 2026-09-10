@@ -41,7 +41,9 @@ import {
 import { assertNameCensus } from './name-census.mjs';
 import { tenantWalledRelationsAcrossDatabases } from './tenant-wall.mjs';
 
-const DATABASES = ['bersoncarebot_test', 'bcb_webapp_dev'];
+// Каждая объявленная база, а не вписанный руками список: новая база заводится в
+// `REV10_DATABASE_ENV` (declaration.ts) и автоматически попадает под эту проверку.
+const DATABASES = Object.keys(declaration.databases);
 const INSTALL_PORT_CONTEXT = 'app.install_port_context';
 
 const artifactBodies = () => new Map(latestArtifactFunctions(activeSchemaArtifacts())

@@ -108,6 +108,15 @@ export interface RoleDecl {
   members?: string[];
   /** true = роли ещё нет в живом каталоге; её создаёт roles-install (§B шаг 1). */
   isNew?: boolean;
+  /**
+   * Среды, в кластерах которых эта роль существует. Опущено = роль общая для ВСЕХ кластеров
+   * (так объявлены все канонические `app_*` роли — форма сред одинакова). Заполняется только
+   * там, где идентичность по своей природе принадлежит одной среде: например мигратор деплоя
+   * (`bcb_dev_migrator`, `bcb_test_migrator`, `therapysto_prod_migrator`). Без этого поля
+   * артефакт прод-базы создавал бы у себя роли с именами `bcb_*`, которых на новом проде быть
+   * не должно (решение владельца 10.09.2026), а dev/test-кластер — прод-мигратора.
+   */
+  envs?: readonly string[];
   why?: string;
 }
 
@@ -489,6 +498,13 @@ export interface PrivilegeDeclaration {
   ownerGatesOpen: OwnerGate[];
   cluster: {
     envs: string[];
+    /**
+     * Какие среды делят ОДИН физический кластер PostgreSQL. Артефакт базы применяется к одному
+     * кластеру, поэтому имена принципалов ЧУЖОГО кластера в него попадать не должны: без этой
+     * группировки dev/test-артефакт называл бы прод-логины, которых в его кластере нет.
+     * Каждая среда из `envs` обязана лежать ровно в одной группе.
+     */
+    colocated?: readonly (readonly string[])[];
     roles: Record<string, RoleDecl>;
   };
   envMapping: Record<string, Record<string, LoginRecord>>;

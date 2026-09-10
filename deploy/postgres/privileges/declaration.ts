@@ -1,10 +1,13 @@
 /**
  * declaration.ts — DB privilege-layer DECLARATION («как должно быть»): единственный источник истины.
  *
- * СТАТУС. Revision 10 ниже — исполняемый источник DEV/TEST: из него генерируются роли,
+ * СТАТУС. Revision 10 ниже — исполняемый источник DEV/TEST/PROD: из него генерируются роли,
  *   логины, ACL, RLS, context catalog и двусторонние каталожные проверки. Верхняя часть файла остаётся
  *   нейтральным инвентарём объектов; её старые отзывы, гейты и очередь кода в исполняемую декларацию
- *   не попадают.
+ *   не попадают. PROD (`therapysto_prod`) заведён 10.09.2026 одним проходом с переименованием ролей:
+ *   до этого декларация знала ровно два имени баз, и новый прод поэтому работал на базе с именем
+ *   `bersoncarebot_test`. Форма прода — ровно форма TEST (те же порты, роли, членства); отличаются
+ *   имена логинов, имена password-env и база.
  *
  * ФОРМА (компактная; полные правила — README §«Компактная форма»). Грамматика вынесена в `types.ts`.
  *   Строка таблицы несёт ТОЛЬКО решения: имя, класс, одну строку обоснования, отклонения от умолчаний
@@ -20,7 +23,9 @@
  *
  * Скоупинг (SCHEME §A): `cluster` (роли + области) — УРОВЕНЬ КЛАСТЕРА; `databases.<db>` (схемы,
  *   таблицы, функции, типы, definer-исключения, creators, orgTableAllowlist, dbSettings) — на базу.
- *   Две управляемые базы РАЗЛИЧАЮТСЯ; dev-дельты объявлены явно.
+ *   Управляемые базы РАЗЛИЧАЮТСЯ; dev-дельты объявлены явно. Кластеров при этом ДВА: dev+test делят
+ *   один PG16 на dev-боксе, prod — свой (`cluster.colocated`), поэтому артефакт базы называет только
+ *   принципалов своего кластера, а роль, привязанная к среде (`RoleDecl.envs`), в чужой не едет.
  *
  * ─────────────────────────────────────────────────────────────────────────────────────────────
  * // ПРОБЕЛЫ — что файл разрешить НЕ смог (вход генератора Ф2.3 + триаж владельца).
@@ -178,6 +183,38 @@ export const OBSOLETE_CONTEXT_SIGNATURES = [
   'app.reset_principal_context()',
 ] as const;
 
+/* ────────────────────────── УПРАВЛЯЕМЫЕ БАЗЫ: ОДНО МЕСТО ──────────────────────────
+ * Каждая объявленная база и её среда в env-маппинге. Это ЕДИНСТВЕННОЕ место, где база
+ * заводится: из этой карты берут имя и `declaration.databases`, и `revision10Database`,
+ * и константа «все базы» ниже. Раньше связь база→среда была тернарником
+ * `name === 'bersoncarebot_test' ? 'test' : 'dev'`, то есть ЛЮБОЕ незнакомое имя молча
+ * получало dev-логины; теперь незнакомое имя ОТКАЗЫВАЕТ (см. `revision10Database`).
+ *
+ * Среды: `dev` (`bcb_webapp_dev`) и `test` (`bersoncarebot_test`) живут в одном кластере
+ * PG16 на dev-боксе; `prod` (`therapysto_prod`) — отдельный кластер на хосте нового прода,
+ * той же формы (те же порты, те же канонические роли, те же членства), отличаются только
+ * имена логинов и база. Имена нового прода — по решению владельца 10.09.2026
+ * («Именование на новом проде» в `docs/ARCHITECTURE/SERVER CONVENTIONS.md`): ни `bersoncarebot`,
+ * ни `bcb` в них нет.
+ */
+export const REV10_DATABASE_ENV = {
+  bersoncarebot_test: 'test',
+  bcb_webapp_dev: 'dev',
+  therapysto_prod: 'prod',
+} as const;
+
+export type Revision10DatabaseName = keyof typeof REV10_DATABASE_ENV;
+
+/**
+ * «Функция есть во ВСЕХ объявленных базах». Поле `databases` на функции — это СУЖЕНИЕ
+ * (types.ts: опущенное поле уже означает все базы), поэтому список «все базы» не должен
+ * переписываться в каждой из ~230 статей: новая база правится в `REV10_DATABASE_ENV` выше,
+ * и все эти статьи едут за ней. Заморожен: список общий на все статьи.
+ */
+export const ALL_DECLARED_DATABASES: readonly Revision10DatabaseName[] = Object.freeze(
+  Object.keys(REV10_DATABASE_ENV) as Revision10DatabaseName[],
+);
+
 export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
   'app.commit_patient_reminder_materialization(uuid,text,text,uuid,text,timestamp with time zone,integer,text)': {
     owner: 'app_seam_reminder_materialization_owner', security: 'DEFINER', returns: 'jsonb',
@@ -185,7 +222,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     proconfig: ['search_path=pg_catalog'], execute: ['app_tenant_service'],
     purpose: 'atomically validates and materializes one tenant reminder occurrence and its queue rows',
     typedArgs: ['uuid', 'text', 'text', 'uuid', 'text', 'timestamp with time zone', 'integer', 'text'],
-    databases: ['bersoncarebot_test', 'bcb_webapp_dev'],
+    databases: ALL_DECLARED_DATABASES,
     relationSurfaces: [
       { relation: 'public.reminder_rules', columns: ['integrator_rule_id', 'organization_id', 'platform_user_id', 'is_enabled', 'notification_topic_code'], operations: ['SELECT'], evidence: 'pg16-function-body-lexical-upper-bound' },
       { relation: 'public.org_enrollments', columns: ['organization_id', 'platform_user_id', 'status'], operations: ['SELECT'], evidence: 'pg16-function-body-lexical-upper-bound' },
@@ -200,7 +237,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     proconfig: ['search_path=pg_catalog'], execute: ['app_tenant_service'],
     purpose: 'reads one tenant patient delivery-target snapshot without exposing relations',
     typedArgs: ['uuid', 'uuid', 'text', 'timestamp with time zone'],
-    databases: ['bersoncarebot_test', 'bcb_webapp_dev'],
+    databases: ALL_DECLARED_DATABASES,
     relationSurfaces: [
       { relation: 'public.org_enrollments', columns: ['organization_id', 'platform_user_id', 'status'], operations: ['SELECT'], evidence: 'pg16-function-body-lexical-upper-bound' },
       { relation: 'public.platform_users', columns: ['id', 'is_blocked', 'is_archived', 'merged_into_id', 'reminder_muted_until'], operations: ['SELECT'], evidence: 'pg16-function-body-lexical-upper-bound' },
@@ -217,7 +254,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     returnsSet: false, volatility: 'STABLE', parallel: 'RESTRICTED',
     proconfig: ['search_path=pg_catalog'], execute: ['app_tenant_service'],
     purpose: 'reads one tenant reminder rule, due occurrence, and linked-title snapshot',
-    typedArgs: ['uuid', 'timestamp with time zone'], databases: ['bersoncarebot_test', 'bcb_webapp_dev'],
+    typedArgs: ['uuid', 'timestamp with time zone'], databases: ALL_DECLARED_DATABASES,
     relationSurfaces: [
       { relation: 'public.reminder_rules', columns: ['integrator_rule_id', 'organization_id', 'platform_user_id', 'category', 'is_enabled', 'schedule_type', 'timezone', 'interval_minutes', 'window_start_minute', 'window_end_minute', 'days_mask', 'schedule_data', 'quiet_hours_start_minute', 'quiet_hours_end_minute', 'linked_object_type', 'linked_object_id', 'custom_title', 'custom_text', 'display_title', 'reminder_intent', 'notification_topic_code'], operations: ['SELECT'], evidence: 'pg16-function-body-lexical-upper-bound' },
       { relation: 'public.reminder_occurrence_history', columns: ['integrator_occurrence_id', 'integrator_rule_id', 'platform_user_id', 'occurrence_key', 'planned_at', 'status', 'delivery_generation', 'organization_id'], operations: ['SELECT'], evidence: 'pg16-function-body-lexical-upper-bound' },
@@ -244,10 +281,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "uuid",
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.be_organization_members",
@@ -388,10 +422,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "integer",
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.outgoing_delivery_queue",
@@ -434,10 +465,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "uuid",
       "uuid"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.be_organizations",
@@ -501,10 +529,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "uuid"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.outgoing_delivery_queue",
@@ -555,10 +580,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "uuid"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.channel_link_secrets",
@@ -591,10 +613,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "uuid"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.channel_link_secrets",
@@ -628,10 +647,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "uuid"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.channel_link_secrets",
@@ -666,10 +682,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "text",
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.channel_link_secrets",
@@ -709,10 +722,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "text",
       "timestamp with time zone"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.channel_link_secrets",
@@ -749,10 +759,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.login_tokens",
@@ -791,10 +798,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "text",
       "timestamp with time zone"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.login_tokens",
@@ -830,10 +834,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_login_token_owner",
     "typedArgs": [],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.login_tokens",
@@ -867,10 +868,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.login_tokens",
@@ -905,10 +903,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.login_tokens",
@@ -948,10 +943,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "text",
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.user_oauth_bindings",
@@ -986,10 +978,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "uuid"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.user_oauth_bindings",
@@ -1026,10 +1015,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "text",
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.user_oauth_bindings",
@@ -1067,10 +1053,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "text",
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.user_channel_bindings",
@@ -1107,10 +1090,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "text",
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.user_channel_bindings",
@@ -1151,10 +1131,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "integer",
       "integer"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.auth_rate_limit_events",
@@ -1191,10 +1168,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "text",
       "timestamp with time zone"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.staff_security_profiles",
@@ -1229,10 +1203,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_self_security_owner",
     "typedArgs": [],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.platform_users",
@@ -1268,10 +1239,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "text",
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.patient_invites",
@@ -1314,10 +1282,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "uuid",
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.admin_audit_log",
@@ -1478,10 +1443,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "bigint",
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "app.context_signing_secrets",
@@ -1610,10 +1572,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "uuid"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.user_phone_history",
@@ -1648,10 +1607,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "text",
       "jsonb"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.staff_security_profiles",
@@ -1693,10 +1649,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_staff_security_owner",
     "typedArgs": [],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.staff_security_profiles",
@@ -1734,10 +1687,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "text",
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.staff_security_profiles",
@@ -1778,10 +1728,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.staff_security_profiles",
@@ -1823,10 +1770,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "text",
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.specialist_signup_intents",
@@ -1866,10 +1810,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "uuid"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.be_organizations",
@@ -1914,10 +1855,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_password_auth_owner",
     "typedArgs": [],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.user_password_credentials",
@@ -1948,10 +1886,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_oauth_owner",
     "typedArgs": [],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.user_oauth_bindings",
@@ -1982,10 +1917,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_specialist_provision_owner",
     "typedArgs": [],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.be_organization_members",
@@ -2034,10 +1966,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "uuid"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.email_challenges",
@@ -2070,10 +1999,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "uuid"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.email_challenges",
@@ -2107,10 +2033,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "uuid",
       "uuid"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.email_challenges",
@@ -2149,10 +2072,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "uuid",
       "uuid"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.email_challenges",
@@ -2189,10 +2109,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "uuid"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.email_otp_locks",
@@ -2226,10 +2143,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "uuid",
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.platform_users",
@@ -2263,10 +2177,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "uuid",
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.email_send_cooldowns",
@@ -2301,10 +2212,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "uuid",
       "bigint"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.email_challenges",
@@ -2344,10 +2252,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "bigint",
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.email_challenges",
@@ -2386,10 +2291,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "uuid"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.email_challenges",
@@ -2426,10 +2328,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "text",
       "bigint"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.email_challenges",
@@ -2467,10 +2366,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "uuid"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.email_otp_locks",
@@ -2506,10 +2402,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "uuid"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.email_otp_locks",
@@ -2543,10 +2436,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "uuid",
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.email_challenges",
@@ -2583,10 +2473,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "uuid",
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.email_challenges",
@@ -2621,10 +2508,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "uuid",
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.email_send_cooldowns",
@@ -2661,10 +2545,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "uuid",
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.platform_users",
@@ -2699,10 +2580,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "text",
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.email_challenges",
@@ -2756,10 +2634,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "uuid"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.platform_users",
@@ -2794,10 +2669,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.email_send_cooldowns",
@@ -2831,10 +2703,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "text",
       "bigint"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.email_challenges",
@@ -2872,10 +2741,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.platform_users",
@@ -2912,10 +2778,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.platform_users",
@@ -2951,10 +2814,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "text",
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.platform_users",
@@ -2993,10 +2853,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "uuid"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.platform_users",
@@ -3031,10 +2888,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.platform_users",
@@ -3078,10 +2932,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "uuid"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.email_challenges",
@@ -3119,10 +2970,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "text",
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.platform_users",
@@ -3172,10 +3020,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_staff_security_owner",
     "typedArgs": [],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.staff_security_profiles",
@@ -3215,10 +3060,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "text",
       "timestamp with time zone"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.be_organizations",
@@ -3290,10 +3132,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.platform_users",
@@ -3339,10 +3178,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_specialist_provision_owner",
     "typedArgs": [],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.specialist_signup_intents",
@@ -3386,10 +3222,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "uuid",
       "uuid"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.specialist_signup_intents",
@@ -3432,10 +3265,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "uuid"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.user_channel_preferences",
@@ -3470,10 +3300,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.system_settings",
@@ -3508,10 +3335,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.reference_catalog_baselines",
@@ -3544,10 +3368,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "uuid"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.specialist_signup_intents",
@@ -3587,10 +3408,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_staff_security_owner",
     "typedArgs": [],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.staff_security_profiles",
@@ -3632,10 +3450,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_staff_security_owner",
     "typedArgs": [],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.staff_security_profiles",
@@ -3667,10 +3482,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_settings_preauth_owner",
     "typedArgs": [],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.system_settings",
@@ -3705,10 +3517,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.system_settings",
@@ -3743,10 +3552,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.idempotency_keys",
@@ -3786,10 +3592,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "text",
       "integer"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.idempotency_keys",
@@ -3844,10 +3647,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "uuid",
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.media_files",
@@ -3893,10 +3693,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_telemetry_exclusion_owner",
     "typedArgs": [],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.org_enrollments",
@@ -3964,10 +3761,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_settings_preauth_owner",
     "typedArgs": [],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.system_settings",
@@ -4002,10 +3796,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.organization_slug_claims",
@@ -4037,10 +3828,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "uuid"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.platform_users",
@@ -4096,10 +3884,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_settings_preauth_owner",
     "typedArgs": [],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.system_settings",
@@ -4132,10 +3917,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_settings_preauth_owner",
     "typedArgs": [],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.system_settings",
@@ -4168,10 +3950,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_settings_preauth_owner",
     "typedArgs": [],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.system_settings",
@@ -4205,10 +3984,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_catalog_public_owner",
     "typedArgs": [],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.booking_cities",
@@ -4242,10 +4018,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_telemetry_operator_owner",
     "typedArgs": [],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.system_settings",
@@ -4281,10 +4054,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "uuid"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.be_organization_members",
@@ -4338,10 +4108,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_reminder_materialization_owner",
     "typedArgs": [],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.reminder_occurrence_history",
@@ -4388,10 +4155,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "timestamp with time zone"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.platform_users",
@@ -4437,10 +4201,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.be_organizations",
@@ -4516,10 +4277,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.be_organizations",
@@ -4574,10 +4332,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "uuid"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.operator_incidents",
@@ -4611,10 +4366,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "integer",
       "text[]"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.reminder_occurrence_history",
@@ -4689,10 +4441,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "text",
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.operator_incidents",
@@ -4736,10 +4485,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "text",
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [],
     "delegatesTo": [
       "app.open_or_touch_operator_incident(text,text,text,text,text)"
@@ -4763,10 +4509,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "uuid"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.operator_incidents",
@@ -4804,10 +4547,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "text",
       "boolean"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.user_passkey_challenges",
@@ -4868,10 +4608,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "text",
       "boolean"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.user_passkey_challenges",
@@ -4925,10 +4662,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.user_passkey_credentials",
@@ -4963,10 +4697,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "uuid",
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.user_passkey_accounts",
@@ -5007,10 +4738,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "text",
       "timestamp with time zone"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.user_passkey_challenges",
@@ -5048,10 +4776,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_passkey_owner",
     "typedArgs": [],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.user_passkey_credentials",
@@ -5087,10 +4812,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_passkey_owner",
     "typedArgs": [],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.user_passkey_credentials",
@@ -5126,10 +4848,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "uuid",
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.user_passkey_challenges",
@@ -5168,10 +4887,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.user_passkey_accounts",
@@ -5221,10 +4937,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "text",
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.password_login_identifier_protection",
@@ -5296,10 +5009,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "text",
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.password_login_identifier_protection",
@@ -5374,10 +5084,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "uuid",
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.password_altcha_challenges",
@@ -5467,10 +5174,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "uuid",
       "boolean"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.password_login_identifier_protection",
@@ -5542,10 +5246,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "text",
       "timestamp with time zone"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.password_altcha_challenges",
@@ -5617,10 +5318,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_password_auth_owner",
     "typedArgs": [],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.system_settings",
@@ -5655,10 +5353,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.reminder_occurrence_history",
@@ -5705,10 +5400,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "text",
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.reminder_occurrence_history",
@@ -5784,10 +5476,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "text",
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.org_enrollments",
@@ -5854,10 +5543,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "text",
       "integer"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.org_enrollments",
@@ -5928,10 +5614,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.phone_challenges",
@@ -5964,10 +5647,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.phone_otp_locks",
@@ -6001,10 +5681,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "text",
       "bigint"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.phone_otp_locks",
@@ -6040,10 +5717,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.phone_otp_locks",
@@ -6076,10 +5750,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.phone_challenges",
@@ -6112,10 +5783,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.phone_challenges",
@@ -6149,10 +5817,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "text",
       "bigint"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.phone_challenges",
@@ -6187,10 +5852,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.phone_challenges",
@@ -6233,10 +5895,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "text",
       "integer"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.phone_challenges",
@@ -6278,10 +5937,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "integer",
       "integer"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.phone_challenges",
@@ -6339,10 +5995,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "text",
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.phone_challenges",
@@ -6394,10 +6047,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "uuid"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.be_organizations",
@@ -6443,10 +6093,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "execute": [],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_self_security_owner",
     "typedArgs": [],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.platform_users",
@@ -6481,10 +6128,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "uuid"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.be_organization_members",
@@ -6641,10 +6285,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "purpose": "evidence/25+30 narrow seam owned by saas_system_health_owner",
     "typedArgs": [],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.media_playback_resolution_events",
@@ -6695,10 +6336,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "purpose": "evidence/25+30 narrow seam owned by saas_system_health_owner",
     "typedArgs": [],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.media_hls_proxy_error_events",
@@ -6729,10 +6367,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "purpose": "evidence/25+30 narrow seam owned by saas_system_health_owner",
     "typedArgs": [],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.system_settings",
@@ -6945,10 +6580,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "purpose": "evidence/25+30 narrow seam owned by saas_system_health_owner",
     "typedArgs": [],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.media_files",
@@ -7040,10 +6672,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_org_commerce_owner",
     "typedArgs": [],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.be_branches",
@@ -7074,10 +6703,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_patient_org_projection_owner",
     "typedArgs": [],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.be_organizations",
@@ -7124,10 +6750,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_patient_booking_owner",
     "typedArgs": [],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.be_appointments",
@@ -7229,10 +6852,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "purpose": "current patient public booking catalog for the signed active organization",
     "typedArgs": [],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.org_enrollments",
@@ -7327,10 +6947,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "text",
       "timestamp with time zone"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.be_appointments",
@@ -7494,10 +7111,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_patient_org_projection_owner",
     "typedArgs": [],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.be_organizations",
@@ -7592,10 +7206,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "text",
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.org_enrollments",
@@ -7644,10 +7255,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "uuid"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.be_organization_members",
@@ -7694,10 +7302,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.system_settings",
@@ -7733,10 +7338,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "text",
       "uuid"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.system_settings",
@@ -7772,10 +7374,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "text",
       "uuid"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.system_settings",
@@ -7808,10 +7407,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_settings_integrator_owner",
     "typedArgs": [],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.system_settings",
@@ -7846,10 +7442,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.system_settings",
@@ -7884,10 +7477,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.system_settings",
@@ -7920,10 +7510,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_settings_integrator_owner",
     "typedArgs": [],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.system_settings",
@@ -7956,10 +7543,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "purpose": "evidence/25+30 narrow seam owned by saas_telemetry_owner",
     "typedArgs": [],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.saas_isolation_coverage_runs",
@@ -7997,10 +7581,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.system_settings",
@@ -8033,10 +7614,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_settings_integrator_owner",
     "typedArgs": [],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.system_settings",
@@ -8069,10 +7647,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "purpose": "scheduler-only read of the fixed operator-health IMAP setting",
     "typedArgs": [],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.system_settings",
@@ -8107,10 +7682,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.system_settings",
@@ -8143,10 +7715,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_telemetry_operator_owner",
     "typedArgs": [],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.operator_job_status",
@@ -8180,10 +7749,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "uuid"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.be_organizations",
@@ -8217,10 +7783,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "uuid"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.be_organization_members",
@@ -8292,10 +7855,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_telemetry_operator_owner",
     "typedArgs": [],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.operator_incidents",
@@ -8327,10 +7887,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_settings_integrator_owner",
     "typedArgs": [],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.system_settings",
@@ -8365,10 +7922,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "uuid"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.lfk_complex_exercises",
@@ -8451,10 +8005,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "uuid[]"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.lfk_complex_exercises",
@@ -8520,10 +8071,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "uuid"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.lfk_complex_template_exercises",
@@ -8612,10 +8160,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "uuid"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.media_files",
@@ -8664,10 +8209,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "text",
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.system_settings",
@@ -8702,10 +8244,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "uuid"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.email_send_cooldowns",
@@ -8737,10 +8276,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "purpose": "billing.clinic.provider.read",
     "typedArgs": [],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.system_settings",
@@ -8769,7 +8305,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "execute": ["app_platform_settings"],
     "purpose": "billing.platform.provider.read",
     "typedArgs": [],
-    "databases": ["bersoncarebot_test", "bcb_webapp_dev"],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [{
       "relation": "public.system_settings",
       "columns": ["key", "scope", "value_json", "organization_id"],
@@ -8789,7 +8325,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "execute": ["app_pre_session"],
     "purpose": "billing.webhook.provider.read",
     "typedArgs": [],
-    "databases": ["bersoncarebot_test", "bcb_webapp_dev"],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [{
       "relation": "public.system_settings",
       "columns": ["key", "scope", "value_json", "organization_id"],
@@ -8813,10 +8349,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "purpose": "evidence/25+30 narrow seam owned by saas_telemetry_owner",
     "typedArgs": [],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.saas_isolation_events",
@@ -8853,10 +8386,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "purpose": "evidence/25+30 narrow seam owned by saas_telemetry_owner",
     "typedArgs": [],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.saas_isolation_event_hourly",
@@ -8889,10 +8419,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.system_settings",
@@ -8928,10 +8455,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "text",
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.system_settings",
@@ -8971,10 +8495,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "text",
       "jsonb"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.org_enrollments",
@@ -9073,10 +8594,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "text",
       "uuid"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.org_enrollments",
@@ -9195,10 +8713,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_staff_security_owner",
     "typedArgs": [],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.staff_security_profiles",
@@ -9236,10 +8751,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "uuid",
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.media_files",
@@ -9290,10 +8802,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "text",
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.integration_webhook_last_status",
@@ -9352,10 +8861,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "text",
       "timestamp with time zone"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.notification_delivery_attempts",
@@ -9415,10 +8921,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "text",
       "jsonb"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.operator_job_status",
@@ -9461,10 +8964,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "uuid"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.email_send_cooldowns",
@@ -9506,10 +9006,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "integer",
       "integer"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.saas_isolation_coverage_runs",
@@ -9564,10 +9061,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.be_organizations",
@@ -9684,10 +9178,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.outgoing_delivery_queue",
@@ -9727,10 +9218,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "uuid",
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.specialist_signup_intents",
@@ -9772,10 +9260,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "text",
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.saas_isolation_event_hourly",
@@ -9832,10 +9317,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_staff_security_owner",
     "typedArgs": [],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [],
     "delegatesTo": [
       "app.current_patient_user_id()"
@@ -9860,10 +9342,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "text",
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.clinic_dedicated_bot_bindings",
@@ -9898,10 +9377,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "uuid"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.be_organizations",
@@ -9960,10 +9436,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "uuid"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.be_organizations",
@@ -10033,10 +9506,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.operator_incidents",
@@ -10072,10 +9542,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "uuid"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.admin_audit_log",
@@ -10177,10 +9644,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "uuid",
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.admin_audit_log",
@@ -10295,10 +9759,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "uuid"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.reminder_occurrence_history",
@@ -10380,10 +9841,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "text",
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.be_payment_intents",
@@ -10431,10 +9889,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "text",
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.patient_payment",
@@ -10471,10 +9926,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "uuid",
       "uuid"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.be_branches",
@@ -10536,10 +9988,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.be_organizations",
@@ -10579,10 +10028,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.be_organizations",
@@ -10641,10 +10087,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "text",
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.saas_billing_invoices",
@@ -10675,7 +10118,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "execute": ["app_worker"],
     "purpose": "billing.webhook.refund.resolve",
     "typedArgs": ["text", "text"],
-    "databases": ["bersoncarebot_test", "bcb_webapp_dev"],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [{
       "relation": "public.saas_billing_refunds",
       "columns": ["id", "organization_id", "saas_billing_invoice_id", "amount_minor", "currency", "status",
@@ -10702,10 +10145,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "uuid"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.be_appointments",
@@ -10844,10 +10284,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "uuid"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.reminder_occurrence_history",
@@ -10994,10 +10431,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "uuid"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.outgoing_delivery_queue",
@@ -11034,10 +10468,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_staff_security_owner",
     "typedArgs": [],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.staff_security_profiles",
@@ -11077,10 +10508,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "uuid",
       "uuid"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [],
     "delegatesTo": [
       "app.current_org_id()",
@@ -11106,10 +10534,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "uuid",
       "uuid"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.saas_billing_subscriptions",
@@ -11174,10 +10599,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.staff_security_profiles",
@@ -11211,10 +10633,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "execute": [],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_specialist_provision_owner",
     "typedArgs": [],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [],
     "delegatesTo": [
       "app.seed_reference_catalog_snapshot(uuid)"
@@ -11236,10 +10655,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "uuid"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.reference_catalog_baselines",
@@ -11317,10 +10733,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "text",
       "boolean"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.org_enrollments",
@@ -11368,10 +10781,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.user_password_credentials",
@@ -11408,10 +10818,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "uuid"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.platform_users",
@@ -11543,10 +10950,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "uuid"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.user_password_credentials",
@@ -11578,10 +10982,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "uuid"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.user_oauth_bindings",
@@ -11620,10 +11021,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "bigint",
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "app.context_signing_secrets",
@@ -11691,10 +11089,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_specialist_provision_owner",
     "typedArgs": [],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.admin_audit_log",
@@ -11804,10 +11199,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "execute": [],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_dedicated_bot_owner",
     "typedArgs": [],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.clinic_dedicated_bot_bindings",
@@ -11845,10 +11237,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "uuid"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.org_enrollments",
@@ -11899,10 +11288,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "uuid"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.org_enrollments",
@@ -11974,10 +11360,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "text",
       "timestamp with time zone"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "public.reminder_occurrence_history",
@@ -12054,10 +11437,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "bigint",
       "text"
     ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       {
         "relation": "app.context_signing_secrets",
@@ -12123,7 +11503,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "execute": ["app_patient"],
     "purpose": "looks up one active hash-only guest video invite without exposing patient data or room existence",
     "typedArgs": ["text"],
-    "databases": ["bersoncarebot_test", "bcb_webapp_dev"],
+    "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
       { "relation": "public.video_meeting_invites", "columns": ["meeting_id", "secret_hash", "status", "expires_at"], "operations": ["SELECT"], "evidence": "pg16-function-body-lexical-upper-bound" },
       { "relation": "public.video_meetings", "columns": ["id", "organization_id", "patient_user_id", "specialist_id", "provider_room_ref", "status", "expires_at"], "operations": ["SELECT"], "evidence": "pg16-function-body-lexical-upper-bound" }
@@ -24763,14 +24143,26 @@ function revision10Role(kind: RoleDecl['kind'], scope: RoleDecl['scope'], why: s
     createrole: false, rolconfig: null, members: [], why };
 }
 
+/** Роль, существующая только в кластерах перечисленных сред (см. `RoleDecl.envs`). */
+function revision10EnvRole(
+  envs: readonly string[], kind: RoleDecl['kind'], scope: RoleDecl['scope'], why: string,
+): RoleDecl {
+  return { ...revision10Role(kind, scope, why), envs };
+}
+
 const REV10_ROLES: Record<string, RoleDecl> = Object.fromEntries([
   ...REV10_RUNTIME.map((name) => [name, revision10Role('terminal', 'NONE', 'revision-10 runtime role')]),
   ['app_platform_settings', revision10Role('terminal', 'GLOBAL', 'global settings and system-health surface')],
   ['app_platform_admin', revision10Role('terminal', 'GLOBAL', 'cross-organization directory/admin surface')],
   ...REV10_SEAM_OWNERS.map((name) => [name, revision10Role('owner', 'NONE', 'revision-10 narrow seam owner')]),
   ['app_object_owner', revision10Role('owner', 'NONE', 'ordinary application objects only; no definer functions')],
-  ['bcb_dev_migrator', revision10Role('service', 'NONE', 'local postgres migration wrapper identity')],
-  ['bcb_test_migrator', revision10Role('service', 'NONE', 'local postgres migration wrapper identity')],
+  // Мигратор — идентичность ДЕПЛОЯ одной среды, а не общая роль платформы: его имя несёт имя
+  // среды, и в чужом кластере такой роли быть не должно. Поэтому у каждого объявлен свой `envs`:
+  // без него артефакт `therapysto_prod` создавал бы на новом проде роли `bcb_*` (запрещено
+  // решением владельца 10.09.2026), а dev/test-кластер — прод-мигратора.
+  ['bcb_dev_migrator', revision10EnvRole(['dev'], 'service', 'NONE', 'local postgres migration wrapper identity')],
+  ['bcb_test_migrator', revision10EnvRole(['test'], 'service', 'NONE', 'local postgres migration wrapper identity')],
+  ['therapysto_prod_migrator', revision10EnvRole(['prod'], 'service', 'NONE', 'local postgres migration wrapper identity')],
   ['postgres', { kind: 'superuser', scope: 'GLOBAL', login: true, superuser: true, bypassrls: true,
     inherit: true, createrole: true, rolconfig: null, why: 'local administrative exception only' }],
 ]);
@@ -24819,6 +24211,30 @@ const REV10_ENV_MAPPING: Record<string, Record<string, LoginRecord>> = {
         'app_operational_scheduler', 'app_integrator_tenant_service', 'app_service'].map(rev10Membership),
     ], login: true, superuser: false, bypassrls: false, createrole: false, inherit: false,
     passwordEnv: 'BCB_TEST_INTEGRATOR_PASSWORD', rolconfig: null, connect: ['bersoncarebot_test'] },
+  },
+  // PROD (`therapysto_prod`, хост нового прода) — ПОБУКВЕННО та же форма, что `test`: те же четыре
+  // порта, те же канонические роли, те же членства. Отличаются только имена логинов, имена
+  // password-env и база, к которой они подключаются. Имена — решение владельца 10.09.2026
+  // («Именование на новом проде»): без `bersoncarebot` и без `bcb`.
+  prod: {
+    therapysto_prod_webapp_staff: { port: 'webapp', canonicalRole: 'app_staff', memberships: [
+      ...['app_pre_session', 'app_staff', 'app_clinic_billing', 'app_worker', 'app_tenant_service',
+        'app_operational_media_worker', 'app_operational_maintenance', 'saas_telemetry_operator'].map(rev10Membership),
+    ], login: true, superuser: false, bypassrls: false, createrole: false, inherit: false,
+    passwordEnv: 'THERAPYSTO_PROD_WEBAPP_STAFF_PASSWORD', rolconfig: null, connect: ['therapysto_prod'] },
+    therapysto_prod_webapp_patient: { port: 'webapp', canonicalRole: 'app_patient', memberships: [
+      rev10Membership('app_pre_session'), rev10Membership('app_patient'),
+    ], login: true, superuser: false, bypassrls: false, createrole: false, inherit: false,
+    passwordEnv: 'THERAPYSTO_PROD_WEBAPP_PATIENT_PASSWORD', rolconfig: null, connect: ['therapysto_prod'] },
+    therapysto_prod_webapp_global_admin: { port: 'webapp', canonicalRole: 'app_platform_settings', memberships: [
+      rev10Membership('app_platform_settings'), rev10Membership('app_platform_admin'),
+    ], login: true, superuser: false, bypassrls: false, createrole: false, inherit: false,
+    passwordEnv: 'THERAPYSTO_PROD_WEBAPP_GLOBAL_ADMIN_PASSWORD', rolconfig: null, connect: ['therapysto_prod'] },
+    therapysto_prod_integrator: { port: 'integrator', canonicalRole: 'app_integrator_request', memberships: [
+      ...['app_integrator_request', 'app_integrator_resolver', 'app_operational_delivery_worker',
+        'app_operational_scheduler', 'app_integrator_tenant_service', 'app_service'].map(rev10Membership),
+    ], login: true, superuser: false, bypassrls: false, createrole: false, inherit: false,
+    passwordEnv: 'THERAPYSTO_PROD_INTEGRATOR_PASSWORD', rolconfig: null, connect: ['therapysto_prod'] },
   },
 };
 
@@ -28223,7 +27639,7 @@ const REV10_CONTEXT = {
             'stored_path'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
-      databases: ['bersoncarebot_test', 'bcb_webapp_dev'],
+      databases: ALL_DECLARED_DATABASES,
     }),
     'app.save_public_clinic_card(uuid,text,text,text,text,uuid,text,boolean)': rev10Function({
       owner: 'app_seam_public_clinic_card_owner', security: 'DEFINER', returns: 'jsonb',
@@ -28243,7 +27659,7 @@ const REV10_CONTEXT = {
             'locations_json', 'card_is_published', 'updated_at'],
           operations: ['SELECT' as const, 'UPDATE' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
-      databases: ['bersoncarebot_test', 'bcb_webapp_dev'],
+      databases: ALL_DECLARED_DATABASES,
     }),
     // Custom-domain binding lifecycle (B2/B8/C5a, reopened #787). Own seam
     // `app_seam_custom_domain_owner` — never combined with `app_seam_public_slug_owner` /
@@ -28262,7 +27678,7 @@ const REV10_CONTEXT = {
         { relation: 'public.org_brand_revisions', columns: ['organization_id', 'status'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
-      databases: ['bersoncarebot_test', 'bcb_webapp_dev'],
+      databases: ALL_DECLARED_DATABASES,
     }),
     'app.read_anonymous_patient_surface_projection(uuid)': rev10Function({
       owner: 'app_seam_custom_domain_owner', security: 'DEFINER', returns: 'record',
@@ -28286,7 +27702,7 @@ const REV10_CONTEXT = {
         { relation: 'public.org_custom_domain_bindings', columns: ['organization_id', 'status', 'hostname'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
-      databases: ['bersoncarebot_test', 'bcb_webapp_dev'],
+      databases: ALL_DECLARED_DATABASES,
     }),
     'app.save_custom_domain_binding_intent(text,uuid,text,text)': rev10Function({
       owner: 'app_seam_custom_domain_owner', security: 'DEFINER', returns: 'jsonb',
@@ -28307,7 +27723,7 @@ const REV10_CONTEXT = {
           },
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
-      databases: ['bersoncarebot_test', 'bcb_webapp_dev'],
+      databases: ALL_DECLARED_DATABASES,
     }),
     'app.custom_domain_ask_is_authorized(text)': rev10Function({
       owner: 'app_seam_custom_domain_owner', security: 'DEFINER', returns: 'boolean',
@@ -28323,7 +27739,7 @@ const REV10_CONTEXT = {
         { relation: 'public.org_brand_revisions', columns: ['organization_id', 'status'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
-      databases: ['bersoncarebot_test', 'bcb_webapp_dev'],
+      databases: ALL_DECLARED_DATABASES,
     }),
     'app.custom_domain_apply_transition(text,text,text)': rev10Function({
       owner: 'app_seam_custom_domain_owner', security: 'DEFINER', returns: 'jsonb',
@@ -28342,7 +27758,7 @@ const REV10_CONTEXT = {
         { relation: 'public.org_brand_revisions', columns: ['organization_id', 'status'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
-      databases: ['bersoncarebot_test', 'bcb_webapp_dev'],
+      databases: ALL_DECLARED_DATABASES,
     }),
     'app.get_web_push_vapid_public_key()': rev10Function({
       ...BUSINESS_SEAM_FUNCTIONS['app.get_web_push_vapid_public_key()'],
@@ -30801,7 +30217,7 @@ const REV10_CONTEXT = {
           columns: ['organization_id', 'hostname', 'status', 'status_reason', 'updated_at'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
-      databases: ['bersoncarebot_test', 'bcb_webapp_dev'],
+      databases: ALL_DECLARED_DATABASES,
     }),
     // D26 §5.8 platform support door (Track D synthesis 26.08): one door, four action variants
     // (AGENTS.md §5) — block/unblock/revoke one contact/revoke one channel binding on a duplicate
@@ -33093,8 +32509,20 @@ function revision10SeamOwnerPolicy(tableKey: string, index: number, access: Rela
     using: `(${predicate})`, withCheck: `(${predicate})`, note: `only declared narrow owners may reach ${tableKey}` }];
 }
 
-function revision10Database(name: 'bersoncarebot_test' | 'bcb_webapp_dev'): DatabaseDecl {
-  const loginNames = Object.keys(REV10_ENV_MAPPING[name === 'bersoncarebot_test' ? 'test' : 'dev']);
+function revision10Database(name: Revision10DatabaseName): DatabaseDecl {
+  // Раньше здесь стоял двусторонний тернарник `name === 'bersoncarebot_test' ? 'test' : 'dev'`:
+  // ЛЮБОЕ незнакомое имя базы молча получало логины среды dev, то есть чужой среде выдавались
+  // чужие принципалы. Теперь связь берётся из единственной карты и незнакомое имя ОТКАЗЫВАЕТ.
+  const env: string | undefined = REV10_DATABASE_ENV[name];
+  if (!env) {
+    throw new Error(`revision10Database: база '${name}' не объявлена в REV10_DATABASE_ENV — `
+      + 'заведите её там вместе со средой; умолчания на среду нет');
+  }
+  const envLogins = REV10_ENV_MAPPING[env];
+  if (!envLogins) {
+    throw new Error(`revision10Database: база '${name}' объявлена в среде '${env}', которой нет в REV10_ENV_MAPPING`);
+  }
+  const loginNames = Object.keys(envLogins);
   const known = new Set([...Object.keys(REV10_ROLES), ...loginNames, 'pg_database_owner']);
   const tables = Object.fromEntries(Object.entries(APP_TABLES).map(([key, table], index) => {
     const active = table.disposition === 'ACTIVE';
@@ -33285,15 +32713,18 @@ export const declaration: PrivilegeDeclaration = {
   codeMustChange: [],
   ownerGatesOpen: [],
   cluster: {
-    envs: ['test', 'dev'], // TEST + dev на одном общем PG16 :5432 (SCHEME §A); прод вне скоупа
+    // TEST + dev делят ОДИН кластер PG16 :5432 на dev-боксе (SCHEME §A). PROD — не «вне скоупа»:
+    // он объявлен здесь же той же формы, но живёт в СВОЁМ кластере на хосте нового прода, поэтому
+    // артефакт каждой базы называет только принципалов своего кластера (`cluster.colocated`).
+    envs: ['test', 'dev', 'prod'],
+    colocated: [['dev', 'test'], ['prod']],
     roles: REV10_ROLES,
   },
   zeroState: { legacyRoles: [] },
   envMapping: REV10_ENV_MAPPING,
-  databases: {
-    bersoncarebot_test: revision10Database('bersoncarebot_test'),
-    bcb_webapp_dev: revision10Database('bcb_webapp_dev'),
-  },
+  databases: Object.fromEntries(
+    ALL_DECLARED_DATABASES.map((name) => [name, revision10Database(name)]),
+  ),
   portContext: REV10_CONTEXT,
 };
 

@@ -28,7 +28,9 @@ import {
   SCHEMA_SNAPSHOT, activeSchemaArtifacts, latestArtifactFunctions, rowLockedRelations,
 } from './function-body-surface.mjs';
 
-const DATABASES = ['bersoncarebot_test', 'bcb_webapp_dev'];
+// Каждая объявленная база, а не вписанный руками список: новая база заводится в
+// `REV10_DATABASE_ENV` (declaration.ts) и автоматически попадает под эту проверку.
+const DATABASES = Object.keys(declaration.databases);
 
 const declaredSignature = (name) => Object.keys(declaration.portContext.functions)
   .filter((signature) => signature.startsWith(`${name}(`));

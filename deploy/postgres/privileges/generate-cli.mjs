@@ -11,6 +11,10 @@
  *   node deploy/postgres/privileges/generate-cli.mjs --env <env> --db <база> --port-context-env <webapp|integrator>
  *   node deploy/postgres/privileges/generate-cli.mjs --all --port-context-only # exact DB capability seeds
  *   node deploy/postgres/privileges/generate-cli.mjs --legacy-role-quarantine <role> # attribute-only; no CREATE/GRANT
+ *   node deploy/postgres/privileges/generate-cli.mjs --shared-role-baseline [--db <база>] # роли кластера
+ *   node deploy/postgres/privileges/generate-cli.mjs --shared-role-verify   [--db <база>] # сверка ролей
+ *     ⤷ здесь `--db` называет ЦЕЛЕВОЙ КЛАСТЕР (по базе), а не выбирает объекты базы: роли, объявленные
+ *       только для чужой среды (мигратор соседнего окружения), в чужой кластер не попадают.
  *
  * Флаги:
  *   --declaration <путь>  другой файл декларации (по умолчанию ./declaration.ts) — нужен пруф-фикстурам
@@ -254,10 +258,17 @@ async function main() {
   }
 
   if (args.flags.has('shared-role-baseline')) {
-    if (args.values.has('db') || args.values.has('env')) {
-      throw new Error('--shared-role-baseline is cluster-wide and rejects --db/--env');
+    if (args.values.has('env')) {
+      throw new Error('--shared-role-baseline is cluster-wide and rejects --env');
     }
-    process.stdout.write(generateSharedRoleBaselineSql(declaration));
+    // `--db` НЕ выбирает базу (ролевой слой кластерный) — он называет ЦЕЛЕВОЙ КЛАСТЕР: роли,
+    // объявленные только для чужой среды (мигратор соседа), в него не попадают. Без `--db`
+    // кластер неизвестен, и раскладывается НАДМНОЖЕСТВО — все объявленные роли, как раньше:
+    // лишняя роль здесь — неиспользуемый NOLOGIN без единого гранта, а не расширение доступа.
+    // Хостовым скриптам dev/test стоит передавать сюда свой `--db "$DB"`, чтобы и этого не было.
+    process.stdout.write(
+      generateSharedRoleBaselineSql(declaration, args.values.get('db') ?? null),
+    );
     return;
   }
 
@@ -274,10 +285,14 @@ async function main() {
   }
 
   if (args.flags.has('shared-role-verify')) {
-    if (args.values.has('db') || args.values.has('env')) {
-      throw new Error('--shared-role-verify is cluster-wide and rejects --db/--env');
+    if (args.values.has('env')) {
+      throw new Error('--shared-role-verify is cluster-wide and rejects --env');
     }
-    process.stdout.write(generateSharedRoleVerifierSql(declaration));
+    // То же значение `--db`, что у `--shared-role-baseline`: имя ЦЕЛЕВОГО КЛАСТЕРА, а не выбор
+    // объектов базы. Без него сверяются все объявленные роли (прежнее поведение).
+    process.stdout.write(
+      generateSharedRoleVerifierSql(declaration, args.values.get('db') ?? null),
+    );
     return;
   }
 

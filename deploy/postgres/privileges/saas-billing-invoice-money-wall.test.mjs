@@ -17,7 +17,9 @@ import { declaration } from './declaration.ts';
 // identity (see the migration owning this signature).
 const REFRESH_SEAM = 'app.refresh_saas_billing_invoice_purchased_tariff(uuid,uuid,uuid,text)';
 const MONEY_COLUMNS = ['amount_minor', 'additional_seat_quantity'];
-const DATABASES = ['bcb_webapp_dev', 'bersoncarebot_test'];
+// Каждая объявленная база, а не вписанный руками список: новая база заводится в
+// `REV10_DATABASE_ENV` (declaration.ts) и автоматически попадает под эту проверку.
+const DATABASES = Object.keys(declaration.databases);
 
 const columnPrivilege = (grant, priv) =>
   (grant?.privs ?? []).find((entry) => entry && typeof entry === 'object' && entry.priv === priv);

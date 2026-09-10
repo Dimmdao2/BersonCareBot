@@ -99,7 +99,9 @@ const sql = [
   generator('--env', envName, '--db', dbName),
   // Verify the complete shared graph after repairing this target's exact four
   // login edges. Sibling or rogue edges are never repaired here.
-  generator('--shared-role-verify'),
+  // `--db` здесь называет КЛАСТЕР цели: роль-мигратор объявлена на среду, и требовать мигратора
+  // соседнего окружения в этом кластере — гарантированный ложный drift.
+  generator('--shared-role-verify', '--db', dbName),
   repositorySql('deploy/postgres/port-context/contract.sql'),
   generator('--db', dbName, '--relation-wall-registry'),
   repositorySql(`deploy/postgres/generated/org-allowlist.${dbName}.sql`),

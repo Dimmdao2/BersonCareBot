@@ -122,6 +122,46 @@ function principals(declaration) {
   return { roles, logins };
 }
 
+/**
+ * Среды, которые делят один физический кластер с `env`. Артефакт применяется к ОДНОМУ кластеру,
+ * поэтому в него нельзя вписывать имена логинов чужого кластера. Без объявленной группировки
+ * (`cluster.colocated`) поведение прежнее — все объявленные среды считаются одним кластером.
+ */
+function coLocatedEnvs(declaration, env) {
+  const groups = declaration.cluster?.colocated;
+  if (!Array.isArray(groups)) return Object.keys(declaration.envMapping ?? {});
+  const matching = groups.filter((names) => names.includes(env));
+  if (matching.length !== 1) {
+    throw new DeclarationGapError([{ site: 'cluster.colocated',
+      reason: `среда '${env}' обязана входить РОВНО в одну группу кластера, найдено ${matching.length}` }]);
+  }
+  return [...matching[0]];
+}
+
+/** Среда, чьи логины подключаются к базе. Ровно одна: две среды на одну базу — это дефект. */
+function environmentOfDatabase(declaration, dbName) {
+  const envs = Object.entries(declaration.envMapping ?? {})
+    .filter(([, mapping]) => Object.values(mapping).some((login) => login.connect?.includes(dbName)))
+    .map(([env]) => env);
+  if (envs.length !== 1) {
+    throw new DeclarationGapError([{ site: `databases.${dbName}`,
+      reason: `база обязана принадлежать РОВНО одной среде env-маппинга, найдено ${envs.length}` }]);
+  }
+  return envs[0];
+}
+
+/**
+ * Объявленные логины кластера, которому принадлежит `dbName`. Ровно эти имена артефакт защищает
+ * от «обнулить членства»: их членства раскладывает env-рендер, а не артефакт. Логины ЧУЖОГО
+ * кластера в этот список не входят — их в целевом кластере не существует.
+ */
+function clusterLoginNames(declaration, dbName) {
+  const envs = new Set(coLocatedEnvs(declaration, environmentOfDatabase(declaration, dbName)));
+  return [...new Set(Object.entries(declaration.envMapping ?? {})
+    .filter(([env]) => envs.has(env))
+    .flatMap(([, mapping]) => Object.keys(mapping)))].sort();
+}
+
 function isSystemRole(name) {
   return typeof name === 'string' && name.startsWith('pg_');
 }
@@ -131,11 +171,28 @@ function isSystemRole(name) {
  * все управляемые роли»). Суперпользователь исключён (не управляется декларацией), владелец
  * объекта исключается вызывающим кодом — иначе REVOKE снёс бы владельцу его собственный ACL.
  */
-function managedRoleNames(declaration) {
+function managedRoleNames(declaration, clusterEnvs = null) {
   return Object.entries(declaration.cluster.roles)
     .filter(([, decl]) => decl.kind !== 'superuser')
+    .filter(([, decl]) => roleBelongsToCluster(decl, clusterEnvs))
     .map(([name]) => name)
     .sort();
+}
+
+/**
+ * Роль без `envs` — общая для всех кластеров. Роль с `envs` живёт только там, где кластер
+ * обслуживает хотя бы одну из этих сред; `clusterEnvs === null` = «не сужаем» (кластерные
+ * операции без цели).
+ */
+function roleBelongsToCluster(decl, clusterEnvs) {
+  if (clusterEnvs === null || !Array.isArray(decl?.envs)) return true;
+  return decl.envs.some((env) => clusterEnvs.includes(env));
+}
+
+/** Имена ролей кластера, обслуживающего `dbName`, в стабильном порядке. */
+function clusterRoleNames(declaration, clusterEnvs) {
+  return sortedKeys(declaration.cluster.roles)
+    .filter((name) => roleBelongsToCluster(declaration.cluster.roles[name], clusterEnvs));
 }
 function functionExecute(db, fn) {
   const logins = fn.loginExecute ? db.database.connect ?? [] : [];
@@ -602,8 +659,12 @@ export function generateEnvLoginVariableSql(declaration, env, dbName) {
 
 /** Read-only guard for the shared cluster-role baseline used by a per-target
  * reconcile. Shared drift is repaired only by the separate host baseline. */
-export function generateSharedRoleVerifierSql(declaration) {
-  const expectedRoles = managedRoleNames(declaration).map((roleName) => {
+export function generateSharedRoleVerifierSql(declaration, dbName = null) {
+  // `dbName` сужает проверку до ролей ТОГО кластера, где живёт эта база: мигратор среды в чужом
+  // кластере не существует, и требовать его там — гарантированный ложный drift (а на новом проде
+  // ещё и требование роли с запрещённым именем `bcb_*`). Без `dbName` поведение прежнее.
+  const clusterEnvs = dbName === null ? null : coLocatedEnvs(declaration, environmentOfDatabase(declaration, dbName));
+  const expectedRoles = managedRoleNames(declaration, clusterEnvs).map((roleName) => {
     const role = declaration.cluster.roles[roleName];
     return `(${lit(roleName)}::name,${role.login},${role.superuser},false,${role.bypassrls},${role.inherit},${role.createrole},false)`;
   }).join(',\n');
@@ -614,7 +675,8 @@ export function generateSharedRoleVerifierSql(declaration) {
       expectedEdges.push([roleName, membership.role, membership.admin, membership.inherit, membership.set, true]);
     }
   }
-  for (const records of Object.values(declaration.envMapping ?? {})) {
+  for (const [env, records] of Object.entries(declaration.envMapping ?? {})) {
+    if (clusterEnvs !== null && !clusterEnvs.includes(env)) continue;
     for (const [loginName, record] of Object.entries(records)) {
       for (const membership of record.memberships ?? []) {
         expectedEdges.push([
@@ -666,9 +728,12 @@ export function generateEnvironmentVerifierSql(declaration, env, dbName) {
   if (!db) throw new DeclarationGapError([{ site: `databases.${dbName}`, reason: 'database is absent' }]);
   const records = environmentLoginRecords(declaration, env, dbName);
   const names = records.map(([name]) => name);
-  const allDeclaredLoginNames = [...new Set(Object.values(declaration.envMapping ?? {})
-    .flatMap((mapping) => Object.keys(mapping)))].sort();
-  const declaredRoleNames = Object.keys(declaration.cluster?.roles ?? {}).sort();
+  // Только логины СВОЕГО кластера: логин соседнего кластера в этой инсталляции не существует,
+  // и разрешать ему тут появиться нельзя — иначе сверка молча пропустит чужое имя.
+  const allDeclaredLoginNames = clusterLoginNames(declaration, dbName);
+  const declaredRoleNames = clusterRoleNames(
+    declaration, coLocatedEnvs(declaration, environmentOfDatabase(declaration, dbName)),
+  );
   const legacyRoleNames = [...new Set(declaration.zeroState?.legacyRoles ?? [])].sort();
   const allowedManagedNames = [...new Set([
     ...allDeclaredLoginNames,
@@ -1289,16 +1354,21 @@ export function generateLegacyRoleQuarantineSql(declaration, options = {}) {
   return out.join('\n');
 }
 
-export function generateSharedRoleBaselineSql(declaration) {
-  const managed = managedRoleNames(declaration);
+export function generateSharedRoleBaselineSql(declaration, dbName = null) {
+  // `dbName` сужает базовую раскладку до ролей кластера этой базы. Без него — все объявленные
+  // роли, как раньше (кластерная операция без названной цели).
+  const clusterEnvs = dbName === null ? null : coLocatedEnvs(declaration, environmentOfDatabase(declaration, dbName));
+  const managed = managedRoleNames(declaration, clusterEnvs);
   const expectedMemberships = [];
   for (const [roleName, role] of Object.entries(declaration.cluster.roles)) {
     if (role.kind === 'superuser') continue;
+    if (!roleBelongsToCluster(role, clusterEnvs)) continue;
     for (const membership of role.grantedTo ?? []) {
       expectedMemberships.push([roleName, membership.role, membership.admin, membership.inherit, membership.set]);
     }
   }
-  for (const records of Object.values(declaration.envMapping ?? {})) {
+  for (const [env, records] of Object.entries(declaration.envMapping ?? {})) {
+    if (clusterEnvs !== null && !clusterEnvs.includes(env)) continue;
     for (const [loginName, record] of Object.entries(records)) {
       for (const membership of record.memberships ?? []) {
         expectedMemberships.push([
@@ -1711,7 +1781,8 @@ export function generateFunctionCensusSql(declaration, dbName, options = {}) {
   if (!db || !context) throw new DeclarationGapError([{ site: `databases.${dbName}`, reason: 'database or port context is absent' }]);
   const dbLogins = Object.entries(declaration.envMapping ?? {}).flatMap(([, mapping]) =>
     Object.entries(mapping).filter(([, login]) => login.connect?.includes(dbName)).map(([name]) => name));
-  const managed = managedRoleNames(declaration);
+  const clusterEnvs = coLocatedEnvs(declaration, environmentOfDatabase(declaration, dbName));
+  const managed = managedRoleNames(declaration, clusterEnvs);
   const revokeTargets = (owner) => [...new Set([...managed, ...dbLogins])].filter((role) => role !== owner).sort();
   const databaseFunctions = functionEntriesForDatabase(context, dbName).sort(([a], [b]) => a.localeCompare(b));
   const seamOwners = [...new Set(databaseFunctions
@@ -1838,9 +1909,11 @@ export function generatePrivilegesSql(declaration, dbName, options = {}) {
   const { roles, logins } = principals(declaration);
   const dbLogins = Object.entries(declaration.envMapping ?? {}).flatMap(([, mapping]) =>
     Object.entries(mapping).filter(([, login]) => login.connect?.includes(dbName)).map(([name]) => name));
-  const allDeclaredLoginNames = [...new Set(Object.values(declaration.envMapping ?? {})
-    .flatMap((mapping) => Object.keys(mapping)))].sort();
-  const managed = managedRoleNames(declaration);
+  // Логины СВОЕГО кластера: артефакт применяется к одному кластеру, и защищать от «обнулить
+  // членства» он должен ровно тех, кого env-рендер в этом кластере и создаёт.
+  const clusterLogins = clusterLoginNames(declaration, dbName);
+  const clusterEnvs = coLocatedEnvs(declaration, environmentOfDatabase(declaration, dbName));
+  const managed = managedRoleNames(declaration, clusterEnvs);
   const dbOwner = db.database.owner;
   const isLogin = (name) => logins.has(name) && !roles.has(name);
   const isRole = (name) => roles.has(name);
@@ -1892,7 +1965,7 @@ export function generatePrivilegesSql(declaration, dbName, options = {}) {
   if (!includeClusterState) {
     out.push('-- Target-only reconcile: cluster-role baseline is a separate host operation.', '');
   } else {
-    for (const roleName of sortedKeys(declaration.cluster.roles)) {
+    for (const roleName of clusterRoleNames(declaration, clusterEnvs)) {
       const role = declaration.cluster.roles[roleName];
       if (role.kind === 'superuser') {
         out.push(`-- роль ${roleName}: kind=superuser — объявлена для сверки §F, декларацией НЕ управляется.`, '');
@@ -1972,12 +2045,12 @@ export function generatePrivilegesSql(declaration, dbName, options = {}) {
   if (!includeClusterState) {
     out.push('-- Target-only reconcile: role-to-role memberships are verified, not mutated.');
   } else {
-    for (const roleName of sortedKeys(declaration.cluster.roles)) {
+    for (const roleName of clusterRoleNames(declaration, clusterEnvs)) {
       const role = declaration.cluster.roles[roleName];
       if (role.kind === 'superuser') continue;
       if (Array.isArray(role.members) && role.members.length === 0) {
         out.push(`-- ${roleName}: members: [] — ноль членов в стационаре (SCHEME §C/§E).`);
-        emitMembershipRevokeToEmpty(out, roleName, isSeamOwnerName(roleName), allDeclaredLoginNames);
+        emitMembershipRevokeToEmpty(out, roleName, isSeamOwnerName(roleName), clusterLogins);
       }
       for (const m of [...(role.grantedTo ?? [])].sort((a, b) => a.role.localeCompare(b.role))) {
         if (isLogin(m.role)) {

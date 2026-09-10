@@ -7,6 +7,9 @@ import { declaration } from './declaration.ts';
 import { BUSINESS_SEAM_FUNCTIONS } from './function-census.ts';
 import { REV10_CLINICAL_ACCESS } from './relation-access.ts';
 
+// Каждая объявленная база, а не вписанный руками список: новая база заводится в
+// `REV10_DATABASE_ENV` (declaration.ts) и автоматически попадает под эти проверки.
+const DECLARED_DATABASES = Object.keys(declaration.databases);
 const WEBAPP_ROOT = fileURLToPath(new URL('../../../apps/webapp/', import.meta.url));
 
 function drizzleSchemaColumns(schemaExport, schemaModule = './db/schema/schema.ts') {
@@ -97,7 +100,7 @@ test('platform commercial scope is present in the active relation matrix and row
     'public.saas_trial_policy': ['SELECT', 'INSERT', 'UPDATE'],
     'public.saas_registration_tariff_policy': ['SELECT', 'INSERT', 'UPDATE'],
   };
-  for (const dbName of ['bcb_webapp_dev', 'bersoncarebot_test']) {
+  for (const dbName of DECLARED_DATABASES) {
     const tables = declaration.databases[dbName].tables;
     for (const [relation, operations] of Object.entries(expected)) {
       const access = tables[relation].access;
@@ -164,7 +167,7 @@ test('platform registration journal is a sanitized named root, not a raw relatio
     operations: ['SELECT'],
     evidence: 'pg16-function-body-lexical-upper-bound',
   }]);
-  for (const dbName of ['bcb_webapp_dev', 'bersoncarebot_test']) {
+  for (const dbName of DECLARED_DATABASES) {
     const access = declaration.databases[dbName].tables[
       'public.product_analytics_events_recent'
     ].access;
@@ -211,7 +214,7 @@ test('patient booking catalog is exposed only through its signed organization ro
 });
 
 test('patient reminder history is readable and its seen cursor mutates only through a named root', () => {
-  for (const dbName of ['bcb_webapp_dev', 'bersoncarebot_test']) {
+  for (const dbName of DECLARED_DATABASES) {
     const table = declaration.databases[dbName].tables['public.reminder_occurrence_history'];
     assert.equal(table.access.kind, 'direct');
     const patientGrants = table.access.grants.filter((grant) => grant.role === 'app_patient');
@@ -248,7 +251,7 @@ test('patient reminder cancellation reaches the canonical occurrence only throug
   assert.deepEqual(occurrence.columns, [
     'integrator_rule_id', 'status', 'organization_id', 'platform_user_id',
   ]);
-  for (const dbName of ['bcb_webapp_dev', 'bersoncarebot_test']) {
+  for (const dbName of DECLARED_DATABASES) {
     const table = declaration.databases[dbName].tables['public.reminder_occurrence_history'];
     const tenantPolicy = table.policies.find((candidate) =>
       candidate.name.startsWith('rev10_tenant_delete_'));
@@ -275,7 +278,7 @@ test('ON CONFLICT seams grant SELECT only on their exact arbiter columns', () =>
       (candidate) => candidate.relation === relation,
     );
     assert.deepEqual(surface?.operationColumns?.SELECT, columns, `${signature}:${relation}`);
-    for (const dbName of ['bcb_webapp_dev', 'bersoncarebot_test']) {
+    for (const dbName of DECLARED_DATABASES) {
       const grant = declaration.databases[dbName].tables[relation].grants[
         declaration.portContext.functions[signature].owner
       ];
@@ -310,7 +313,7 @@ test('definer aggregate and ctid scans retain the table-level reads required by 
       ? ['SELECT', 'DELETE']
       : ['SELECT'];
     assert.deepEqual(surface?.tableOperations, expectedTableOperations, `${signature}:${relation}`);
-    for (const dbName of ['bcb_webapp_dev', 'bersoncarebot_test']) {
+    for (const dbName of DECLARED_DATABASES) {
       const grant = declaration.databases[dbName].tables[relation].grants[root.owner];
       for (const operation of expectedTableOperations) {
         assert.ok(grant.privs.includes(operation), `${dbName}:${signature}:${relation}:${operation}`);
@@ -352,7 +355,7 @@ test('declaration wrappers never narrow canonical function relation operations',
 });
 
 test('reference catalogs are complete within the current clinic and only staff mutates items', () => {
-  for (const dbName of ['bcb_webapp_dev', 'bersoncarebot_test']) {
+  for (const dbName of DECLARED_DATABASES) {
     const tables = declaration.databases[dbName].tables;
     const categories = tables['public.reference_categories'];
     const items = tables['public.reference_items'];
@@ -380,7 +383,7 @@ test('reference catalogs are complete within the current clinic and only staff m
 });
 
 test('patient symptom entries are self-readable and mutate only through named roots', () => {
-  for (const dbName of ['bcb_webapp_dev', 'bersoncarebot_test']) {
+  for (const dbName of DECLARED_DATABASES) {
     const table = declaration.databases[dbName].tables['public.symptom_entries'];
     assert.equal(table.access.kind, 'direct');
     const patientGrants = table.access.grants.filter((grant) => grant.role === 'app_patient');
@@ -802,7 +805,7 @@ test('no direct INSERT or UPDATE grant is table-wide', () => {
 });
 
 test('billing relations use the clinic, platform, and webhook worker roles without ordinary staff mutation', () => {
-  for (const dbName of ['bcb_webapp_dev', 'bersoncarebot_test']) {
+  for (const dbName of DECLARED_DATABASES) {
     const access = declaration.databases[dbName].tables['public.saas_billing_periods'].access;
     assert.equal(access.kind, 'direct');
     assert.equal(
@@ -1510,7 +1513,7 @@ test('converted patient self-action writes are reachable only through exact name
 });
 
 test('patient material rating rows remain self-only and aggregate access uses one named root', () => {
-  for (const dbName of ['bcb_webapp_dev', 'bersoncarebot_test']) {
+  for (const dbName of DECLARED_DATABASES) {
     const tables = declaration.databases[dbName].tables;
     const ratings = tables['public.material_ratings'];
     const ratingPatientGrants = ratings.access.grants.filter(
@@ -1699,7 +1702,7 @@ const REV10_ACTOR_SELF_SERVICE_POLICIES = {
 };
 
 test('account self-service walls are gated by the actor reference, never by the subject one', () => {
-  for (const dbName of ['bcb_webapp_dev', 'bersoncarebot_test']) {
+  for (const dbName of DECLARED_DATABASES) {
     const tables = declaration.databases[dbName].tables;
     for (const [relation, prefix] of Object.entries(REV10_ACTOR_SELF_SERVICE_POLICIES)) {
       const policy = tables[relation].policies.find((candidate) =>
