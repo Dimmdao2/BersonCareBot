@@ -761,7 +761,7 @@ bash deploy/host/apply-test-surface-env.sh --apply
 
 Первый скрипт проверяет exact SAN certificate, сохраняет nginx vhosts в root-only backup, проверяет `nginx -t`
 и SaaS forwarded-host contract, затем делает reload с rollback при ошибке. Второй атомарно меняет только
-`APP_BASE_URL`, `PATIENT_APP_ORIGIN` и `PATIENT_APP_NAME` в существующих TEST env с сохранением metadata и backup.
+`APP_BASE_URL`, `PATIENT_APP_ORIGIN` и `PATIENT_APP_NAME` в существующих TEST env с сохранением metadata и backup. The normal `deploy-test.sh` path invokes the surface installer and the TEST VPN split-DNS installer from the deployed commit; do not run a separate nginx or Certbot procedure for the branded host.
 Старое имя `apply-test-nginx-webapp.sh` является compatibility wrapper первого скрипта.
 ### Отдельный webapp deploy
 

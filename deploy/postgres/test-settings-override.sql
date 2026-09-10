@@ -64,7 +64,7 @@ SET LOCAL session_replication_role = origin;
 
 -- ── 1. app_base_url ──────────────────────────────────────────────────────────
 INSERT INTO public.system_settings (key, scope, value_json, updated_at, updated_by)
-VALUES ('app_base_url', 'admin', '{"value":"https://test.bersoncare.ru"}'::jsonb, NOW(), NULL)
+VALUES ('app_base_url', 'admin', '{"value":"https://app.bersoncare.ru"}'::jsonb, NOW(), NULL)
 ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE
   SET value_json = EXCLUDED.value_json, updated_at = EXCLUDED.updated_at, updated_by = EXCLUDED.updated_by;
 
@@ -118,16 +118,16 @@ SET LOCAL session_replication_role = origin;
 
 -- 6c. OAuth redirect URIs.
 UPDATE public.system_settings SET value_json = jsonb_set(value_json, '{value}',
-  '"https://test.bersoncare.ru/api/auth/oauth/callback/yandex"'::jsonb), updated_at = NOW(), updated_by = NULL
+  '"https://app.bersoncare.ru/api/auth/oauth/callback/yandex"'::jsonb), updated_at = NOW(), updated_by = NULL
 WHERE key = 'yandex_oauth_redirect_uri' AND scope = 'admin';
 UPDATE public.system_settings SET value_json = jsonb_set(value_json, '{value}',
-  '"https://test.bersoncare.ru/api/auth/oauth/callback/google"'::jsonb), updated_at = NOW(), updated_by = NULL
+  '"https://app.bersoncare.ru/api/auth/oauth/callback/google"'::jsonb), updated_at = NOW(), updated_by = NULL
 WHERE key = 'google_redirect_uri' AND scope = 'admin';
 UPDATE public.system_settings SET value_json = jsonb_set(value_json, '{value}',
-  '"https://test.bersoncare.ru/api/auth/oauth/callback/google-login"'::jsonb), updated_at = NOW(), updated_by = NULL
+  '"https://app.bersoncare.ru/api/auth/oauth/callback/google-login"'::jsonb), updated_at = NOW(), updated_by = NULL
 WHERE key = 'google_oauth_login_redirect_uri' AND scope = 'admin';
 UPDATE public.system_settings SET value_json = jsonb_set(value_json, '{value}',
-  '"https://test.bersoncare.ru/api/auth/oauth/callback/apple"'::jsonb), updated_at = NOW(), updated_by = NULL
+  '"https://app.bersoncare.ru/api/auth/oauth/callback/apple"'::jsonb), updated_at = NOW(), updated_by = NULL
 WHERE key = 'apple_oauth_redirect_uri' AND scope = 'admin';
 
 -- ── 7. Identity role-allowlist normalization (STOPGAP, owner 2026-07-13) ──────

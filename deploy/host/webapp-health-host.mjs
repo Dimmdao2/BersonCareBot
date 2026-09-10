@@ -9,8 +9,8 @@
  * из-за которой три шаблона молча получали 404 (находка B1 сводного аудита 27.08.2026).
  *
  * Режимы (по умолчанию — прежний, только `Host`, чтобы не ломать существующих вызывающих):
- *   node webapp-health-host.mjs                → test.bersoncare.ru
- *   node webapp-health-host.mjs --origin       → https://test.bersoncare.ru
+ *   node webapp-health-host.mjs                → host derived from APP_BASE_URL
+ *   node webapp-health-host.mjs --origin       → origin derived from APP_BASE_URL
  *   node webapp-health-host.mjs --scheme       → https
  *   node webapp-health-host.mjs --surface-env  → три строки KEY=value для `eval` в shell
  */

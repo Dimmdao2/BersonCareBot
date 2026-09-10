@@ -4,8 +4,8 @@
 
 **Текущее состояние.** На именованном TEST активированы отдельные origins `test.therapysto.ru`,
 `admin.test.therapysto.ru` и `test.therapygo.ru`; DNS wildcard `*.test.therapygo.ru` направлен на TEST.
-Host resolver и live staff/patient surfaces работают через один webapp; `test.bersoncare.ru` — branded TEST patient
-custom domain Berson Care с exact apex binding. Для произвольных tenant-host остаётся внешний TLS-gate: wildcard-сертификат требует
+Host resolver и live staff/patient surfaces работают через один webapp; `app.bersoncare.ru` — branded TEST patient
+custom domain Berson Care. Для произвольных tenant-host остаётся внешний TLS-gate: wildcard-сертификат требует
 DNS-01; временный exact-сертификат покрывает только перечисленные имена. Новый PROD этим cutover не затрагивался.
 
 Реально остались: production-композиция Host→tenant, self-service подключение собственного домена с
@@ -114,10 +114,8 @@ wildcard-сертификат покрывает все клиники, подк
 
 ### 1.2a Раскладка адресов у клиники со своим доменом (владелец, 22.08.2026)
 
-**TEST-уточнение владельца 09.09.2026:** переходный `test.bersoncare.ru` больше не нужен как legacy-вход после
-перехода на Therapysto и становится тестовым custom domain Berson Care. На TEST он подключается как целиком выделенный
-под приложение exact hostname (`placement=apex`, `baseDomain=test.bersoncare.ru`); production-схема не меняется: боевой
-брендированный адрес остаётся `app.bersoncare.ru`.
+**TEST-решение владельца 10.09.2026:** branded Berson Care patient application на TEST использует
+`app.bersoncare.ru`; `test.bersoncare.ru` больше не является активным branded TEST hostname.
 
 Дословно: «bersoncare.ru — лендинг приложения; app.bersoncare.ru — логин; app.bersoncare.ru/setup —
 инструкция установки приложения, с которой ставится оно».
@@ -367,8 +365,8 @@ Jane, Cliniko, Fresha считают цвета и логотип космети
 Актуальное решение владельца: Codex принимает ветку, доводит план до конца и может сводить ветки и исправлять
 пересечения. При сведении обе семантики должны сохраниться: данные и выбор отправителя из брендирования, журнал
 попыток Track D и доступ к delivery-root только узкой роли `app_integrator_tenant_service`; широкая
-`app_tenant_service` должна получать отказ. На TEST `test.bersoncare.ru` работает как branded Berson Care patient
-custom domain с exact apex binding; боевой адрес Berson Care остаётся `app.bersoncare.ru` и этим этапом не меняется.
+`app_tenant_service` должна получать отказ. На TEST `app.bersoncare.ru` работает как branded Berson Care patient
+custom domain с exact hostname binding.
 
 ### 1.3 Поверхности и маршруты
 

@@ -11,7 +11,7 @@ set -euo pipefail
 EXPECTED_HOST_IP="151.241.228.122"
 VPN_INTERFACE="awg1"
 VPN_ADDRESS="172.31.9.1"
-SERVER_NAMES=("test.bersoncare.ru" "test.therapysto.ru" "test.therapygo.ru")
+SERVER_NAMES=("app.bersoncare.ru" "test.therapysto.ru" "test.therapygo.ru")
 DNSMASQ_CONF="/etc/dnsmasq.d/awg-test.conf"
 OBSOLETE_SYSTEMD_DROPIN="/etc/systemd/system/dnsmasq.service.d/bersoncare-test-awg1.conf"
 DNS_REDIRECT_UNIT="/etc/systemd/system/bersoncare-test-vpn-dns-redirect.service"
@@ -62,7 +62,7 @@ assert_test_only() {
   [ "$EXPECTED_HOST_IP" = "151.241.228.122" ] || fatal "unexpected TEST host guard"
   [ "$VPN_INTERFACE" = "awg1" ] || fatal "VPN_INTERFACE must be awg1"
   [ "$VPN_ADDRESS" = "172.31.9.1" ] || fatal "VPN_ADDRESS must be the awg1 gateway"
-  [ "${SERVER_NAMES[*]}" = "test.bersoncare.ru test.therapysto.ru test.therapygo.ru" ] \
+  [ "${SERVER_NAMES[*]}" = "app.bersoncare.ru test.therapysto.ru test.therapygo.ru" ] \
     || fatal "unexpected TEST split-DNS names"
 
   ip -4 -o address show scope global | awk '{print $4}' | cut -d/ -f1 \
@@ -81,7 +81,7 @@ no-hosts
 # gateway so iOS does not follow the endpoint-exclusion route around the VPN.
 bind-dynamic
 listen-address=172.31.9.1
-address=/test.bersoncare.ru/172.31.9.1
+address=/app.bersoncare.ru/172.31.9.1
 address=/test.therapysto.ru/172.31.9.1
 address=/test.therapygo.ru/172.31.9.1
 no-resolv
