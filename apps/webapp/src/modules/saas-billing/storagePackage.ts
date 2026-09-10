@@ -160,3 +160,23 @@ export function decideStoragePackageRelease(input: {
   }
   return { outcome: 'released_at_period_end', effectiveAt: input.currentPeriodEndsAt };
 }
+
+/**
+ * КАКОЙ пакет действует со следующего периода — одно правило, одна реализация.
+ *
+ * Три колонки подписки описывают три различимых состояния (см. миграцию
+ * `20260910T193000`), и вопрос «что продлевать» имеет ровно один ответ, который обязан совпадать у
+ * счёта продления, у переноса при оплате и у экрана. Написанный трижды, он разошёлся бы молча и на
+ * деньгах: счёт бы выставили за старый пакет, а подняли бы новый.
+ *
+ * Порядок важен: назначенный переход побеждает, отказ снимает пакет, иначе продолжается текущий.
+ */
+export function storagePackageForNextPeriod(subscription: {
+  paidStoragePackageId: string | null;
+  pendingStoragePackageId: string | null;
+  storagePackageCancelAtPeriodEnd: boolean;
+}): string | null {
+  if (subscription.pendingStoragePackageId) return subscription.pendingStoragePackageId;
+  if (subscription.storagePackageCancelAtPeriodEnd) return null;
+  return subscription.paidStoragePackageId;
+}

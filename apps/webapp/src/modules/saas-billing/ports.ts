@@ -321,6 +321,14 @@ export type SaasBillingSubscriptionDueForRenewal = {
    */
   billingPeriodMonths: number;
   billingPeriodPriceMinor: number;
+  /**
+   * Пакет объёма, действующий со СЛЕДУЮЩЕГО периода, и его цена за этот период — из того же
+   * повышенного корня и по той же причине: у `app_worker` нет SELECT на каталог пакетов, и
+   * появляться ему там незачем. `null` в обоих полях — «пакета нет»; пакет без цены за период
+   * отбрасывает разбор, потому что счёт без объёма отдал бы клинике место даром.
+   */
+  storagePackageId: string | null;
+  storagePackagePriceMinor: number | null;
   /** The end of the period just paid — the new period's `servicePeriodStartsAt`, never `now()`. */
   currentPeriodEndsAt: string;
   /** К6 — off-session charge target; `null` until a `payment.succeeded` webhook reports one. */
@@ -732,6 +740,13 @@ export type SaasBillingRepositoryPort = {
      * grant there by design.
      */
     tariffPriceMinor: number;
+    /**
+     * Пакет объёма следующего периода и его цена — по тому же основанию, что и `tariffPriceMinor`:
+     * читает их повышенный корень, а не `app_worker`, у которого нет SELECT на каталог пакетов.
+     * `null` в обоих — пакета нет.
+     */
+    storagePackageId: string | null;
+    storagePackagePriceMinor: number | null;
   }): Promise<{ invoice: SaasBillingInvoice; created: boolean }>;
 
   /**

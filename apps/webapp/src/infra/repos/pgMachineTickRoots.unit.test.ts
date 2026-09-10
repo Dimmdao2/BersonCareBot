@@ -157,6 +157,9 @@ it('тик продления видит подписку, у которой к�
       billingPeriod: 'month',
       billingPeriodMonths: 1,
       billingPeriodPriceMinor: 49_000,
+      // Пакета объёма у этой подписки нет — оба поля пустые, и счёт продления объём не считает.
+      storagePackageId: null,
+      storagePackagePriceMinor: null,
       currentPeriodEndsAt: '2026-08-19T07:00:00.000Z',
       savedPaymentMethodId: 'pm-1',
       autopayConsentedAt: '2026-08-01T07:00:00.000Z',

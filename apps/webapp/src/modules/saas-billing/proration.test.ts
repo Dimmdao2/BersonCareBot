@@ -102,6 +102,7 @@ describe('saasBillingPeriodAmountMinor', () => {
         additionalSeatPriceMinor: 150_000,
         additionalSeatQuantity: 2,
         carriedDebtMinor: 0,
+        storagePackagePriceMinor: null,
       }),
     ).toBe(800_000);
   });
@@ -113,6 +114,7 @@ describe('saasBillingPeriodAmountMinor', () => {
         additionalSeatPriceMinor: 150_000,
         additionalSeatQuantity: 1,
         carriedDebtMinor: 0,
+        storagePackagePriceMinor: null,
       }),
     ).toBe(650_000);
   });
@@ -124,7 +126,33 @@ describe('saasBillingPeriodAmountMinor', () => {
         additionalSeatPriceMinor: null,
         additionalSeatQuantity: 1,
         carriedDebtMinor: 0,
+        storagePackagePriceMinor: null,
       }),
     ).toThrow('saas_billing_additional_seat_price_missing');
+  });
+
+  /** Владелец 10.09: «со следующего периода счёт выставляется» — объём входит в тот же ОДИН счёт. */
+  it('bills the purchased storage package inside the same single period invoice', () => {
+    expect(
+      saasBillingPeriodAmountMinor({
+        tariffPriceMinor: 500_000,
+        additionalSeatPriceMinor: 150_000,
+        additionalSeatQuantity: 1,
+        carriedDebtMinor: 0,
+        storagePackagePriceMinor: 30_000,
+      }),
+    ).toBe(680_000);
+  });
+
+  it('refuses a negative or fractional storage price instead of billing a plausible wrong number', () => {
+    expect(() =>
+      saasBillingPeriodAmountMinor({
+        tariffPriceMinor: 500_000,
+        additionalSeatPriceMinor: null,
+        additionalSeatQuantity: 0,
+        carriedDebtMinor: 0,
+        storagePackagePriceMinor: -1,
+      }),
+    ).toThrow('saas_billing_storage_package_price_invalid');
   });
 });

@@ -26707,8 +26707,8 @@ const REV10_CONTEXT = {
         { relation: 'public.saas_billing_invoices',
           columns: ['id', 'organization_id', 'saas_billing_subscription_id', 'invoice_kind', 'description',
             'expires_at', 'status', 'provider_invoice_ref', 'carried_debt_minor', 'tariff_id', 'tariff_name',
-            'amount_minor', 'currency', 'tariff_billing_period', 'additional_seat_quantity', 'tariff_snapshot',
-            'updated_at'],
+            'amount_minor', 'currency', 'tariff_billing_period', 'additional_seat_quantity', 'storage_package_id',
+            'tariff_snapshot', 'updated_at'],
           operations: ['SELECT' as const, 'UPDATE' as const],
           operationColumns: {
             // `carried_debt_minor` ЧИТАЕТСЯ (миграция 0050): пересчитанная сумма периода складывается
@@ -26718,14 +26718,20 @@ const REV10_CONTEXT = {
             SELECT: ['id', 'organization_id', 'saas_billing_subscription_id', 'invoice_kind', 'description',
               'expires_at', 'status', 'provider_invoice_ref', 'carried_debt_minor'],
             UPDATE: ['tariff_id', 'tariff_name', 'amount_minor', 'currency', 'tariff_billing_period',
-              'additional_seat_quantity', 'tariff_snapshot', 'updated_at'],
+              'additional_seat_quantity', 'storage_package_id', 'tariff_snapshot', 'updated_at'],
           },
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
         // F-1 gap closed 2026-09-05: the body now also reads/validates the PAIR (not just the
         // tariff), so it needs both period columns too.
         { relation: 'public.saas_billing_subscriptions',
           columns: ['id', 'organization_id', 'tariff_id', 'billing_period_code', 'pending_tariff_id',
-            'pending_billing_period_code', 'paid_additional_seats'],
+            'pending_billing_period_code', 'paid_additional_seats', 'paid_storage_package_id',
+            'pending_storage_package_id', 'storage_package_cancel_at_period_end'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        // Цена пакета объёма за оплачиваемый период — тем же чтением, что и цена тарифа: сумму
+        // счёта выводит шов, а не вызывающий (владелец 10.09, «со следующего периода счёт выставляется»).
+        { relation: 'public.saas_storage_package_period_prices',
+          columns: ['package_id', 'billing_period_code', 'price_minor'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         // цена больше не берётся из `saas_tariffs.price_minor`/`billing_period` — она приходит из
         // денежной матрицы по паре (tariff_id, p_billing_period_code).
@@ -28173,7 +28179,9 @@ const REV10_CONTEXT = {
         { relation: 'public.saas_billing_subscriptions',
           columns: ['id', 'organization_id', 'tariff_id', 'pending_tariff_id', 'billing_period_code',
             'pending_billing_period_code', 'source', 'status', 'current_period_ends_at', 'cancelled_at',
-            'saved_payment_method_id', 'autopay_consented_at', 'autopay_revoked_at'],
+            'saved_payment_method_id', 'autopay_consented_at', 'autopay_revoked_at',
+            'paid_storage_package_id', 'pending_storage_package_id',
+            'storage_package_cancel_at_period_end'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         // F-2/F-3 (independent audit-live, 2026-09-05) — this root now ALSO resolves the purchased
         // pair's month count and price, trusted, so `app_worker` never needs a broad SELECT on
@@ -28182,6 +28190,11 @@ const REV10_CONTEXT = {
         { relation: 'public.saas_billing_periods', columns: ['code', 'months'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.saas_tariff_period_prices', columns: ['tariff_id', 'billing_period_code', 'price_minor'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        // То же основание, что строкой выше, но для объёма (10.09.2026): цена пакета за
+        // оплачиваемый период приходит из этого корня, и `app_worker` не открывает каталог пакетов.
+        { relation: 'public.saas_storage_package_period_prices',
+          columns: ['package_id', 'billing_period_code', 'price_minor'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),

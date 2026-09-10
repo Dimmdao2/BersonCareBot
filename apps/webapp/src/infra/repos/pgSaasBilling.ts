@@ -30,6 +30,7 @@ import {
   captureSaasBillingPaidInvoice,
 } from '@/modules/saas-billing/invoiceOperations';
 import { saasBillingInvoiceExpiresAt } from '@/modules/saas-billing/invoiceValidity';
+import { storagePackageForNextPeriod } from '@/modules/saas-billing/storagePackage';
 import {
   isSaasBillingSeatDebtForPeriod,
   saasBillingSeatDebtCandidateBound,
@@ -47,6 +48,7 @@ import {
 } from '../../../db/schema/saasBilling';
 import {
   saasOrganizationTrials,
+  saasStoragePackagePeriodPrices,
   saasTariffPeriodPrices,
   saasTariffs,
   saasTrialPolicy,
@@ -90,6 +92,16 @@ function parseSaasBillingSubscriptionsDueForRenewal(
       row.billingPeriodPriceMinor >= 0
         ? row.billingPeriodPriceMinor
         : null;
+    // Пакет объёма следующего периода. Есть пакет, но нет цены за этот период — строка
+    // отбрасывается целиком, как и при непроставленной цене тарифа: выставить продление без объёма
+    // значило бы отдать место даром, а увидеть это было бы уже не по чему.
+    const storagePackageId = text(row.storagePackageId);
+    const storagePackagePriceMinor =
+      typeof row.storagePackagePriceMinor === 'number' &&
+      Number.isInteger(row.storagePackagePriceMinor) &&
+      row.storagePackagePriceMinor >= 0
+        ? row.storagePackagePriceMinor
+        : null;
     if (
       !saasBillingSubscriptionId ||
       !organizationId ||
@@ -97,7 +109,8 @@ function parseSaasBillingSubscriptionsDueForRenewal(
       !billingPeriod ||
       !currentPeriodEndsAt ||
       billingPeriodMonths === null ||
-      billingPeriodPriceMinor === null
+      billingPeriodPriceMinor === null ||
+      (storagePackageId !== null && storagePackagePriceMinor === null)
     ) {
       return [];
     }
@@ -110,6 +123,8 @@ function parseSaasBillingSubscriptionsDueForRenewal(
         billingPeriod,
         billingPeriodMonths,
         billingPeriodPriceMinor,
+        storagePackageId,
+        storagePackagePriceMinor: storagePackageId === null ? null : storagePackagePriceMinor,
         currentPeriodEndsAt,
         savedPaymentMethodId: text(row.savedPaymentMethodId),
         autopayConsentedAt: nullableToIsoStringSafe(text(row.autopayConsentedAt)),
@@ -314,6 +329,42 @@ async function setStoragePackageAllowance(
     );
 }
 
+/**
+ * Цена пакета объёма, которая входит в счёт СЛЕДУЮЩЕГО периода, и сам этот пакет.
+ *
+ * Какой пакет действует со следующего периода, решает единственное правило
+ * (`storagePackageForNextPeriod`), а не третья по счёту копия «pending или paid» в SQL. Цена
+ * берётся за тот период, которым платят, — по той же матрице, что и на витрине покупки.
+ *
+ * Отсутствие цены — ГРОМКИЙ отказ, той же формы, что у места без цены: строка каталога без цены за
+ * этот период означает дыру в каталоге, и молча выставленный счёт без объёма отдал бы клинике
+ * место даром, а нам показал бы правдоподобное неверное число.
+ */
+async function readNextPeriodStoragePackage(
+  tx: Transaction,
+  subscription: {
+    paidStoragePackageId: string | null;
+    pendingStoragePackageId: string | null;
+    storagePackageCancelAtPeriodEnd: boolean;
+  },
+  billingPeriodCode: string,
+): Promise<{ storagePackageId: string; priceMinor: number } | null> {
+  const storagePackageId = storagePackageForNextPeriod(subscription);
+  if (!storagePackageId) return null;
+  const [price] = await tx
+    .select({ priceMinor: saasStoragePackagePeriodPrices.priceMinor })
+    .from(saasStoragePackagePeriodPrices)
+    .where(
+      and(
+        eq(saasStoragePackagePeriodPrices.packageId, storagePackageId),
+        eq(saasStoragePackagePeriodPrices.billingPeriodCode, billingPeriodCode),
+      ),
+    )
+    .limit(1);
+  if (!price) throw new Error('saas_billing_storage_package_price_missing');
+  return { storagePackageId, priceMinor: price.priceMinor };
+}
+
 /** Refunds that count against an invoice's remaining refundable amount — a `failed` attempt does not. */
 const OPEN_REFUND_STATUSES = ['pending', 'succeeded'] as const;
 
@@ -479,7 +530,19 @@ async function promotePaidInvoice(
       currentPeriodEndsAt: invoice.servicePeriodEndsAt,
       tariffSnapshot,
       updatedAt: new Date().toISOString(),
-      ...(isRenewalPeriodInvoice ? { paidAdditionalSeats: invoice.additionalSeatQuantity } : {}),
+      ...(isRenewalPeriodInvoice
+        ? {
+            paidAdditionalSeats: invoice.additionalSeatQuantity,
+            // Тот же перенос, что у мест, и по той же причине: новый период начинается с тем
+            // объёмом, который ОПЛАЧЕН его собственным счётом, поэтому назначенный переход и
+            // отказ вступают ровно здесь и гасятся здесь же. Пакет может и УМЕНЬШИТЬСЯ (или
+            // исчезнуть) — Р-18 запрещает отбирать оплаченное задним числом, но не запрещает не
+            // продлевать.
+            paidStoragePackageId: invoice.storagePackageId,
+            pendingStoragePackageId: null,
+            storagePackageCancelAtPeriodEnd: false,
+          }
+        : {}),
     })
     .where(eq(saasBillingSubscriptions.id, subscription.id));
   await applyPaidSaasBillingTariff(tx, invoice.id, organizationId);
@@ -1189,6 +1252,10 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
             pendingTariffId: saasBillingSubscriptions.pendingTariffId,
             pendingBillingPeriodCode: saasBillingSubscriptions.pendingBillingPeriodCode,
             paidAdditionalSeats: saasBillingSubscriptions.paidAdditionalSeats,
+            paidStoragePackageId: saasBillingSubscriptions.paidStoragePackageId,
+            pendingStoragePackageId: saasBillingSubscriptions.pendingStoragePackageId,
+            storagePackageCancelAtPeriodEnd:
+              saasBillingSubscriptions.storagePackageCancelAtPeriodEnd,
           })
           .from(saasBillingSubscriptions)
           .where(
@@ -1255,11 +1322,19 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           asOf: input.asOf,
           periodCurrency,
         });
+        // Владелец 10.09: «со следующего периода счёт выставляется» — цена действующего пакета
+        // входит в счёт продления строкой, ровно как количество мест.
+        const storagePackage = await readNextPeriodStoragePackage(
+          tx,
+          subscription,
+          purchasedPair.billingPeriodCode,
+        );
         const amountMinor = saasBillingPeriodAmountMinor({
           tariffPriceMinor: tariff.amountMinor,
           additionalSeatPriceMinor: tariff.additionalSeatPriceMinor,
           additionalSeatQuantity,
           carriedDebtMinor: seatDebt.totalMinor,
+          storagePackagePriceMinor: storagePackage?.priceMinor ?? null,
         });
 
         if (existingRenewal) {
@@ -1288,6 +1363,13 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
                 additionalSeatPriceMinor: tariff.additionalSeatPriceMinor,
                 additionalSeatQuantity: existingRenewal.additionalSeatQuantity,
                 carriedDebtMinor: existingRenewal.carriedDebtMinor,
+                // Сверяется объём, вписанный В ЭТОТ черновик, а не сегодняшний: докупка, сделанная
+                // после того как черновик выставлен, не переоценивает его — она уже оплачена
+                // пропорцией, а полную цену пакета возьмёт следующий период. Та же логика, что у
+                // счётчика мест строкой выше.
+                storagePackagePriceMinor: existingRenewal.storagePackageId
+                  ? (storagePackage?.priceMinor ?? null)
+                  : null,
               })
           ) {
             return { invoice: toSaasBillingInvoice(existingRenewal), created: false };
@@ -2215,6 +2297,11 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           additionalSeatPriceMinor: authority.additionalSeatPriceMinor,
           additionalSeatQuantity,
           carriedDebtMinor: seatDebt.totalMinor,
+          // Та же дисциплина, что у цены тарифа (F-2): цена пакета ПРИХОДИТ из повышенного корня,
+          // и эта дверь её не выводит сама — `app_worker` каталог пакетов не читает.
+          storagePackagePriceMinor: input.storagePackageId === null
+            ? null
+            : input.storagePackagePriceMinor,
         });
 
         const tariffSnapshot = await readTariffSnapshotForPeriod(tx, authority.tariffId);
@@ -2230,6 +2317,7 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
                 tariffName: authority.tariffName,
                 invoiceKind: 'tariff_period',
                 additionalSeatQuantity,
+                storagePackageId: input.storagePackageId,
                 amountMinor,
                 carriedDebtMinor: seatDebt.totalMinor,
                 currency: periodCurrency,
@@ -2406,9 +2494,11 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           .limit(1)
           .for('update');
         if (!refund) throw new Error('saas_billing_refund_not_found');
+        // Частичный возврат покупки внутри периода невозможен ни для места, ни для объёма: обе
+        // возвращают не сумму, а САМУ услугу — половину места и половину пакета вернуть нечем.
         if (
           status === 'succeeded' &&
-          invoice.invoiceKind === 'seat_overage' &&
+          (PRORATED_PURCHASE_INVOICE_KINDS as readonly string[]).includes(invoice.invoiceKind) &&
           refund.amountMinor !== invoice.amountMinor
         ) {
           throw new Error('saas_billing_seat_overage_partial_refund_forbidden');
@@ -2423,6 +2513,17 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
         if (!row) return toSaasBillingRefund(refund);
         if (status === 'succeeded' && invoice.invoiceKind === 'seat_overage') {
           await moveSeatOverageAllowance(tx, subscription.id, -invoice.additionalSeatQuantity);
+        }
+        // Возврат за пакет снимает ровно ТОТ пакет, за который вернули деньги, и только если он до
+        // сих пор действует: клиника могла успеть перейти на другой, и снимать его нечем и не за
+        // что. Занятость места здесь НЕ проверяется намеренно — возврат делает оператор платформы,
+        // и это его решение, а не отказ клиники (для отказа есть своя дверь с проверкой).
+        if (status === 'succeeded' && invoice.invoiceKind === 'storage_package') {
+          await setStoragePackageAllowance(tx, {
+            saasBillingSubscriptionId: subscription.id,
+            expectedCurrentPackageId: invoice.storagePackageId,
+            nextPackageId: null,
+          });
         }
         return toSaasBillingRefund(row);
       });

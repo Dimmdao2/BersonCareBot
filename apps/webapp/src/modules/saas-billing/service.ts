@@ -1055,6 +1055,10 @@ export function createSaasBillingService(dependencies: {
               expiresAt: saasBillingInvoiceExpiresAt(now(), provider.invoiceValidityDays),
               asOf,
               tariffPriceMinor: subscription.billingPeriodPriceMinor,
+              // Цена пакета объёма приходит из того же повышенного корня, что и цена тарифа: сам
+              // воркер каталога пакетов не читает (у роли нет SELECT), и сумму он не выдумывает.
+              storagePackageId: subscription.storagePackageId,
+              storagePackagePriceMinor: subscription.storagePackagePriceMinor,
             });
           if (!wasCreated) {
             alreadyInvoiced += 1;

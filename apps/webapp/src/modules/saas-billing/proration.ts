@@ -73,6 +73,13 @@ export function saasBillingPeriodAmountMinor(input: {
   additionalSeatPriceMinor: number | null;
   additionalSeatQuantity: number;
   carriedDebtMinor: number;
+  /**
+   * Цена действующего пакета объёма за ЭТОТ период (владелец 10.09: «со следующего периода счёт
+   * выставляется»). `null` — пакета нет. Поле обязательное по той же причине, что и `carriedDebtMinor`:
+   * счёт продления выставляют две двери, и новая дверь, забывшая про объём, обязана не собираться,
+   * а не тихо выставлять сумму, за которую клиника получит больше, чем оплатила.
+   */
+  storagePackagePriceMinor: number | null;
 }): number {
   if (input.additionalSeatQuantity > 0 && input.additionalSeatPriceMinor === null) {
     throw new Error('saas_billing_additional_seat_price_missing');
@@ -80,9 +87,16 @@ export function saasBillingPeriodAmountMinor(input: {
   if (!Number.isInteger(input.carriedDebtMinor) || input.carriedDebtMinor < 0) {
     throw new Error('saas_billing_carried_debt_invalid');
   }
+  if (
+    input.storagePackagePriceMinor !== null &&
+    (!Number.isInteger(input.storagePackagePriceMinor) || input.storagePackagePriceMinor < 0)
+  ) {
+    throw new Error('saas_billing_storage_package_price_invalid');
+  }
   return (
     input.tariffPriceMinor +
     input.additionalSeatQuantity * (input.additionalSeatPriceMinor ?? 0) +
+    (input.storagePackagePriceMinor ?? 0) +
     input.carriedDebtMinor
   );
 }

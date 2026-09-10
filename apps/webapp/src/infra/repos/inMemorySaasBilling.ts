@@ -14,6 +14,7 @@ import { carriedSeatDebtMinor } from '@/modules/saas-billing/proration';
 import { decideSeatOverage } from '@/modules/saas-billing/seatOverage';
 import {
   decideStoragePackagePurchase,
+  storagePackageForNextPeriod,
   type StoragePackagePeriodPricing,
 } from '@/modules/saas-billing/storagePackage';
 import {
@@ -890,6 +891,15 @@ export function createInMemorySaasBillingRepository(
               currentPeriodStartsAt: paidInvoice.servicePeriodStartsAt,
               currentPeriodEndsAt: paidInvoice.servicePeriodEndsAt,
               tariffSnapshot: paidInvoice.tariffSnapshot,
+              // Как в pg-репозитории: новый период начинается с тем объёмом, который оплачен его
+              // собственным счётом; назначенный переход и отказ вступают и гасятся ровно здесь.
+              ...(paidInvoice.invoiceKind === 'tariff_period' && paidInvoice.description === null
+                ? {
+                    paidStoragePackageId: paidInvoice.storagePackageId,
+                    pendingStoragePackageId: null,
+                    storagePackageCancelAtPeriodEnd: false,
+                  }
+                : {}),
             });
             cancelledAtBySubscriptionId.delete(latest.id);
             organizationTariffs.set(input.organizationId, paidInvoice.tariffId);
@@ -1256,6 +1266,12 @@ export function createInMemorySaasBillingRepository(
               billingPeriod: purchasedPair.billingPeriodCode,
               billingPeriodMonths,
               billingPeriodPriceMinor,
+              storagePackageId: storagePackageForNextPeriod(row),
+              storagePackagePriceMinor:
+                storagePackagePricingFor(
+                  storagePackageForNextPeriod(row),
+                  purchasedPair.billingPeriodCode,
+                )?.priceMinor ?? null,
               currentPeriodEndsAt: row.currentPeriodEndsAt as string,
               savedPaymentMethodId: row.savedPaymentMethodId,
               autopayConsentedAt: row.autopayConsentedAt,
@@ -1306,9 +1322,14 @@ export function createInMemorySaasBillingRepository(
         tariffName: 'In-memory tariff',
         invoiceKind: 'tariff_period',
         additionalSeatQuantity: authority.paidAdditionalSeats,
-        storagePackageId: null,
+        // Как и цена периода: пакет и его цена приходят от вызывающего, читавшего повышенный
+        // корень, — двойник их сам не выводит, иначе он описывал бы контракт, которого нет.
+        storagePackageId: input.storagePackageId,
         description: null,
-        amountMinor: periodPriceMinor + seatDebt.totalMinor,
+        amountMinor:
+          periodPriceMinor +
+          (input.storagePackageId === null ? 0 : (input.storagePackagePriceMinor ?? 0)) +
+          seatDebt.totalMinor,
         carriedDebtMinor: seatDebt.totalMinor,
         supersededByInvoiceId: null,
         currency: tariff?.currency ?? 'RUB',
@@ -1355,6 +1376,9 @@ export function createInMemorySaasBillingRepository(
         lifecycleState: 'active',
         currentPeriodStartsAt: candidate.servicePeriodStartsAt,
         currentPeriodEndsAt: candidate.servicePeriodEndsAt,
+        paidStoragePackageId: candidate.storagePackageId,
+        pendingStoragePackageId: null,
+        storagePackageCancelAtPeriodEnd: false,
       });
       organizationTariffs.set(organizationId, candidate.tariffId);
       return true;
