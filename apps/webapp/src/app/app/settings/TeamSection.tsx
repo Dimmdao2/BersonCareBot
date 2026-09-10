@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiJson } from '@/shared/lib/apiJson';
+import { formatMinorAmount } from '@/shared/lib/formatMinorAmount';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Badge } from '@/shared/ui/doctor/primitives/badge';
@@ -46,18 +47,6 @@ const INVITE_ERROR_MESSAGES: Record<string, string> = {
   already_member: 'Этот email уже участвует в организации.',
   invalid_email: 'Некорректный email',
 };
-
-function formatSeatOveragePrice(priceMinor: number, currency: string): string {
-  try {
-    return new Intl.NumberFormat('ru-RU', {
-      style: 'currency',
-      currency,
-      maximumFractionDigits: 2,
-    }).format(priceMinor / 100);
-  } catch {
-    return `${new Intl.NumberFormat('ru-RU').format(priceMinor / 100)} ${currency}`;
-  }
-}
 
 export type TeamMemberRow = {
   id: string;
@@ -386,7 +375,7 @@ export function TeamSection({ members, invites, seats, canMutateTeam }: Props) {
                 <p>
                   Все места по тарифу заняты. Дополнительное место специалиста стоит{' '}
                   <strong>
-                    {formatSeatOveragePrice(
+                    {formatMinorAmount(
                       seatOverageConfirm.priceMinor,
                       seatOverageConfirm.currency,
                     )}
@@ -420,7 +409,7 @@ export function TeamSection({ members, invites, seats, canMutateTeam }: Props) {
                 <p>
                   Место открыто. Счёт на{' '}
                   <strong>
-                    {formatSeatOveragePrice(
+                    {formatMinorAmount(
                       seatInvoiceNotice.priceMinor,
                       seatInvoiceNotice.currency,
                     )}

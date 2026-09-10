@@ -17,6 +17,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import toast from 'react-hot-toast';
 import { Camera, FilePlus, Image as ImageIcon } from 'lucide-react';
 import type { PatientCardHeader } from '@/modules/doctor-clients/ports';
@@ -24,6 +25,7 @@ import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTer
 import type { PatientFileCategory } from '@/modules/patient-files/ports';
 import type { Visit } from '@/modules/patient-clinical/ports';
 import { cn } from '@/lib/utils';
+import { routePaths } from '@/app-layer/routes/paths';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import {
   DropdownMenu,
@@ -696,7 +698,7 @@ export function PatientTabFiles({
         error?: string;
       } | null;
       if (!res.ok || !data?.ok || !data.uploadUrl || !data.file?.id) {
-        setUploadError(uploadErrorMessage(data?.error));
+        setUploadError(data?.error ?? 'Ошибка создания метаданных');
         return;
       }
       const pendingFileId = data.file.id;
@@ -720,7 +722,7 @@ export function PatientTabFiles({
         error?: string;
       } | null;
       if (!confirmRes.ok || !confirm?.ok) {
-        setUploadError(uploadErrorMessage(confirm?.error));
+        setUploadError(confirm?.error ?? 'Ошибка создания метаданных');
         return;
       }
       await loadFiles();
@@ -782,7 +784,21 @@ export function PatientTabFiles({
         <span className={doctorSectionTitleClass}>Файлы и медиа</span>
         <FilesHeaderActions disabled={uploading} onPickFile={(f) => void uploadPickedFile(f)} />
       </div>
-      {uploadError && <p className="text-xs text-destructive">{uploadError}</p>}
+      {/* `uploadError` держит СЫРОЙ код отказа, а не готовую фразу: переполнение обязано вести
+          туда, где место докупается, а не оставлять человека перед стеной (владелец 10.09). */}
+      {uploadError && (
+        <p className="text-xs text-destructive">
+          {uploadErrorMessage(uploadError)}
+          {uploadError === 'file_storage_limit_reached' ? (
+            <>
+              {' '}
+              <Link className="underline" href={`${routePaths.settings}?tab=billing`}>
+                Увеличить место
+              </Link>
+            </>
+          ) : null}
+        </p>
+      )}
 
       {/* FILES-09: fills whatever height PatientCardClient reserves for the active Files tab
           (flex-1 against the shared full-height tab-panel contract, PatientCardClient.tsx) —

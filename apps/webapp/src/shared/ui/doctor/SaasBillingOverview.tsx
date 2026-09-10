@@ -12,6 +12,7 @@ import {
   doctorDnaFlatListRowClass,
 } from '@/shared/ui/doctor/DoctorDnaFlatListRow';
 import { Badge } from '@/shared/ui/doctor/primitives/badge';
+import { formatMinorAmount } from '@/shared/lib/formatMinorAmount';
 
 const SUBSCRIPTION_STATUS_LABELS = {
   pending_payment: 'Ожидает оплаты',
@@ -52,18 +53,6 @@ function formatDate(value: string): string {
     month: 'short',
     year: 'numeric',
   }).format(new Date(value));
-}
-
-function formatAmount(amountMinor: number, currency: string): string {
-  try {
-    return new Intl.NumberFormat('ru-RU', {
-      style: 'currency',
-      currency,
-      maximumFractionDigits: 2,
-    }).format(amountMinor / 100);
-  } catch {
-    return `${new Intl.NumberFormat('ru-RU').format(amountMinor / 100)} ${currency}`;
-  }
 }
 
 function formatPeriod(startsAt: string | null, endsAt: string | null): string | null {
@@ -153,13 +142,13 @@ export function SaasBillingOverview({
                   {invoice.carriedDebtMinor > 0 ? (
                     <span className={doctorDnaFlatListMetaClass}>
                       Включён долг за места с прошлого периода:{' '}
-                      {formatAmount(invoice.carriedDebtMinor, invoice.currency)}
+                      {formatMinorAmount(invoice.carriedDebtMinor, invoice.currency)}
                     </span>
                   ) : null}
                 </span>
                 <span className="text-right">
                   <span className="block text-sm font-medium text-foreground">
-                    {formatAmount(invoice.amountMinor, invoice.currency)}
+                    {formatMinorAmount(invoice.amountMinor, invoice.currency)}
                   </span>
                   <Badge variant={invoice.status === 'failed' ? 'destructive' : 'outline'}>
                     {invoice.status === 'void' && invoice.supersededByInvoiceId
