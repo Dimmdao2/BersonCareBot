@@ -2451,7 +2451,6 @@ export const patientHomeBlocks = pgTable(
     description: text().default('').notNull(),
     isVisible: boolean('is_visible').default(true).notNull(),
     sortOrder: integer('sort_order').default(0).notNull(),
-    iconImageUrl: text('icon_image_url'),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .defaultNow()
       .notNull(),

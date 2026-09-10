@@ -463,12 +463,9 @@ async function renderPatientHomeToday({
   const unreadChatCount =
     session && personalTierOk ? await deps.messaging.patient.unreadCount(session.user.userId) : 0;
 
-  const blockLeadingIconFor = (code: PatientHomeBlockCode) => {
-    const cmsIcon = homeBlocks.find((b) => b.code === code)?.iconImageUrl ?? null;
-    const resolved = resolvePatientHomeBlockLeadingIconUrl(code, cmsIcon);
-    if (resolved?.startsWith('/patient/')) return resolved;
-    return stripApiMediaForAnonymousGuest(resolved, anonymousGuest);
-  };
+  // Иконки блоков — только bundled-ассеты репозитория, поэтому гостю нечего вырезать.
+  const blockLeadingIconFor = (code: PatientHomeBlockCode) =>
+    resolvePatientHomeBlockLeadingIconUrl(code);
 
   const wellbeingWeekAnchorNowMs =
     patientHomeReminderEvaluatedAt?.getTime() ?? serverRenderInstant.getTime();

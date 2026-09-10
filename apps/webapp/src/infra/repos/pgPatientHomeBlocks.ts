@@ -52,7 +52,6 @@ export function createPgPatientHomeBlocksPort(): PatientHomeBlocksPort {
         description: row.description,
         isVisible: row.isVisible,
         sortOrder: row.sortOrder,
-        iconImageUrl: row.iconImageUrl ?? null,
         items: itemsByBlock.get(row.code) ?? [],
       }));
     },
@@ -63,18 +62,6 @@ export function createPgPatientHomeBlocksPort(): PatientHomeBlocksPort {
         .update(patientHomeBlocks)
         .set({ isVisible: visible, updatedAt: sql`now()` })
         .where(eq(patientHomeBlocks.code, code));
-    },
-
-    async setBlockIcon(code, iconImageUrl) {
-      const db = getDrizzle();
-      const updated = await db
-        .update(patientHomeBlocks)
-        .set({ iconImageUrl, updatedAt: sql`now()` })
-        .where(eq(patientHomeBlocks.code, code))
-        .returning({ code: patientHomeBlocks.code });
-      if (updated.length === 0) {
-        throw new Error(`unknown_patient_home_block_code:${code}`);
-      }
     },
 
     async reorderBlocks(orderedCodes) {

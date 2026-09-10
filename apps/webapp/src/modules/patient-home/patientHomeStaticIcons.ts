@@ -46,12 +46,11 @@ export const PATIENT_HOME_MOOD_OPTIONS: readonly PatientHomeMoodOption[] = Objec
   ),
 );
 
-export function resolvePatientHomeBlockLeadingIconUrl(
-  code: PatientHomeBlockCode,
-  cmsIconImageUrl: string | null | undefined,
-): string | null {
-  const staticUrl = PATIENT_HOME_BLOCK_STATIC_ICON_URL[code];
-  if (staticUrl) return staticUrl;
-  const cms = cmsIconImageUrl?.trim();
-  return cms && cms.length > 0 ? cms : null;
+/**
+ * Ведущая иконка блока главной. Единственный источник — bundled-ассеты репозитория, одинаковые
+ * для всех клиник: ни S3, ни настройки в БД (решение владельца 10.09.2026, продолжение решения
+ * 18.08.2026 по иконкам самочувствия).
+ */
+export function resolvePatientHomeBlockLeadingIconUrl(code: PatientHomeBlockCode): string | null {
+  return PATIENT_HOME_BLOCK_STATIC_ICON_URL[code] ?? null;
 }

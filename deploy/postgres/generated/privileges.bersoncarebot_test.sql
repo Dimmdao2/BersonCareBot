@@ -16459,7 +16459,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."patient_home_blocks" FROM "app_clinic_b
 GRANT SELECT ON TABLE "public"."patient_home_blocks" TO "app_patient";
 GRANT SELECT ("code", "is_visible", "organization_id") ON TABLE "public"."patient_home_blocks" TO "app_seam_patient_self_actions_owner";
 GRANT SELECT, DELETE ON TABLE "public"."patient_home_blocks" TO "app_staff";
-GRANT UPDATE ("icon_image_url", "is_visible", "sort_order", "updated_at") ON TABLE "public"."patient_home_blocks" TO "app_staff";
+GRANT UPDATE ("is_visible", "sort_order", "updated_at") ON TABLE "public"."patient_home_blocks" TO "app_staff";
 -- последовательности public.patient_home_blocks: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;

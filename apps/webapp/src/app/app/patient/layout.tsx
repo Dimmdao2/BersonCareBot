@@ -185,11 +185,13 @@ export default async function PatientLayout({ children }: { children: ReactNode 
     // platform patient requests carry no brand, so preserve the existing patient-principal read.
     // This fallback disappears from the request path as soon as the Host supplies this tenant's
     // safe brand; never resolve the same brand twice.
-    const resolvedPatientBrand =
+    // Тот же признак решает и выбор организации: адрес уже назвал её, выбирать пациенту нечего.
+    const brandedOrganizationSurface =
       resolvedSurface.surface === 'patient_branded' &&
-      resolvedSurface.organizationId === patientOrganizationId
-        ? resolvedSurface.effectivePatientBrand
-        : null;
+      resolvedSurface.organizationId === patientOrganizationId;
+    const resolvedPatientBrand = brandedOrganizationSurface
+      ? resolvedSurface.effectivePatientBrand
+      : null;
     const effectiveDisplayName = resolvedPatientBrand
       ? resolvedPatientBrand.effectiveDisplayName
       : await withPatientOrganizationPrincipal(
@@ -260,6 +262,7 @@ export default async function PatientLayout({ children }: { children: ReactNode 
           organizationContext={patientBrandingContext}
           workspaceModules={workspaceModules}
           patientLabel={patientLabel}
+          brandedOrganizationSurface={brandedOrganizationSurface}
           authChannelPolicy={authChannelPolicy}
           materialRatingsEnabled={materialRatingsEnabled}
         >
@@ -280,6 +283,7 @@ export default async function PatientLayout({ children }: { children: ReactNode 
         workspaceModules={workspaceModules}
         patientLabel={patientLabel}
         rememberOrganizationOnMount={patientContext.selectedBy === 'only_active'}
+        brandedOrganizationSurface={brandedOrganizationSurface}
         authChannelPolicy={authChannelPolicy}
         materialRatingsEnabled={materialRatingsEnabled}
       >

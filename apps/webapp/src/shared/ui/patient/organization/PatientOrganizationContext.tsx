@@ -39,6 +39,12 @@ export type PatientOrganizationClientContext = {
   contextChangeNotice: boolean;
   workspaceModules: WorkspaceModuleEffective | null;
   patientTerms: PatientTerms;
+  /**
+   * Пациент вошёл в кабинет с брендированного адреса СВОЕЙ организации: организацию выбрал
+   * домен, а не пациент. Полоса выбора организации на такой поверхности не показывается
+   * (решение владельца 10.09.2026).
+   */
+  brandedOrganizationSurface: boolean;
 };
 
 const Context = createContext<PatientOrganizationClientContext | null>(null);
@@ -75,6 +81,7 @@ export function PatientOrganizationContextProvider({
   rememberOrganizationOnMount = false,
   workspaceModules = null,
   patientLabel,
+  brandedOrganizationSurface = false,
   checkContextChangeReceipt = true,
   navigate = replacePatientLocation,
   children,
@@ -84,6 +91,7 @@ export function PatientOrganizationContextProvider({
   rememberOrganizationOnMount?: boolean;
   workspaceModules?: WorkspaceModuleEffective | null;
   patientLabel?: unknown;
+  brandedOrganizationSurface?: boolean;
   checkContextChangeReceipt?: boolean;
   navigate?: PatientOrganizationNavigate;
   children: ReactNode;
@@ -133,6 +141,7 @@ export function PatientOrganizationContextProvider({
       contextChangeNotice,
       workspaceModules,
       patientTerms: resolvePatientTerms(patientLabel),
+      brandedOrganizationSurface,
       async switchOrganization(organizationId) {
         if (switchingRef.current || organizationId === organization.organizationId) return;
         switchingRef.current = true;
@@ -152,7 +161,16 @@ export function PatientOrganizationContextProvider({
         }
       },
     }),
-    [contextChangeNotice, navigate, organization, organizations, patientLabel, switching, workspaceModules],
+    [
+      brandedOrganizationSurface,
+      contextChangeNotice,
+      navigate,
+      organization,
+      organizations,
+      patientLabel,
+      switching,
+      workspaceModules,
+    ],
   );
 
   return (
@@ -171,6 +189,8 @@ export function PatientOrganizationContextProvider({
 export function PatientOrganizationContextBar() {
   const context = usePatientOrganizationContext();
   if (!context) return null;
+  // Брендированный адрес клиники сам называет организацию: показывать её выбор здесь нечему.
+  if (context.brandedOrganizationSurface) return null;
   const multiple = context.organizations.length > 1;
   return (
     <div className="grid w-full min-w-0 shrink-0 gap-2 patient-shell-above-slot-pad">

@@ -18048,7 +18048,6 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "UPDATE"
         ],
         "columns": [
-          "icon_image_url",
           "is_visible",
           "sort_order",
           "updated_at"

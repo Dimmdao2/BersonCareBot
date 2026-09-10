@@ -2,7 +2,6 @@
 
 import { useMemo, useState, useTransition } from 'react';
 import { EllipsisVertical } from 'lucide-react';
-import { MediaLibraryPickerDialog } from '@/app/app/doctor/content/MediaLibraryPickerDialog';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import {
   DropdownMenu,
@@ -16,10 +15,7 @@ import {
 import { getPatientHomeBlockEditorMetadata } from '@/modules/patient-home/blockEditorMetadata';
 import type { ActionFailureFields } from '@/shared/http/apiResponse';
 import { ActionFailureText } from '@/shared/ui/doctor/ActionFailureText';
-import {
-  canManageItemsForBlock,
-  supportsConfigurablePatientHomeBlockIcon,
-} from '@/modules/patient-home/blocks';
+import { canManageItemsForBlock } from '@/modules/patient-home/blocks';
 import type { PatientHomeBlock } from '@/modules/patient-home/ports';
 import type { PatientHomeBlockRuntimeStatus } from '@/modules/patient-home/patientHomeRuntimeStatus';
 import type { PatientHomeRefDisplayTitles } from '@/modules/patient-home/patientHomeBlockItemDisplayTitle';
@@ -27,7 +23,7 @@ import {
   listUnresolvedPatientHomeBlockItems,
   partitionUnresolvedPatientHomeItemsByVisibility,
 } from '@/modules/patient-home/patientHomeUnresolvedRefs';
-import { togglePatientHomeBlockVisibility, setPatientHomeBlockIcon } from './actions';
+import { togglePatientHomeBlockVisibility } from './actions';
 import { PatientHomeAddItemDialog } from './PatientHomeAddItemDialog';
 import { PatientHomeBlockItemsDialog } from './PatientHomeBlockItemsDialog';
 import { PatientHomeBlockPreview } from './PatientHomeBlockPreview';
@@ -81,18 +77,6 @@ export function PatientHomeBlockSettingsCard({
     setError(null);
     startTransition(async () => {
       const res = await togglePatientHomeBlockVisibility(block.code, !block.isVisible);
-      if (!res.ok) {
-        setError(res);
-        return;
-      }
-      onChanged();
-    });
-  };
-
-  const handleBlockIconChange = (next: string | null) => {
-    setError(null);
-    startTransition(async () => {
-      const res = await setPatientHomeBlockIcon(block.code, next);
       if (!res.ok) {
         setError(res);
         return;
@@ -170,56 +154,6 @@ export function PatientHomeBlockSettingsCard({
           canManageItems && visibleUnresolved.length > 0 ? () => setRepairOpen(true) : undefined
         }
       />
-      {supportsConfigurablePatientHomeBlockIcon(block.code) ? (
-        <div className="mt-3 rounded-lg border border-border/80 bg-muted/30 p-3">
-          <div className="text-xs font-semibold text-muted-foreground">Иконка блока</div>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Картинка из медиатеки вместо стандартной иконки на главной {patientGenitive}. Очистите,
-            чтобы вернуть значок по умолчанию.
-          </p>
-          <div className="mt-3 flex flex-wrap items-end gap-3">
-            <div
-              className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-background"
-              aria-hidden
-            >
-              {block.iconImageUrl?.trim() ? (
-                // eslint-disable-next-line @next/next/no-img-element -- CMS URL
-                <img
-                  src={block.iconImageUrl.trim()}
-                  alt=""
-                  className="size-10 object-cover"
-                  loading="lazy"
-                />
-              ) : (
-                <span className="px-1 text-center text-[10px] text-muted-foreground">Нет</span>
-              )}
-            </div>
-            <div className="min-w-0 flex-1">
-              <MediaLibraryPickerDialog
-                kind="image"
-                value={block.iconImageUrl ?? ''}
-                onChange={(url) => {
-                  const next = url.trim();
-                  handleBlockIconChange(next.length > 0 ? next : null);
-                }}
-                pickerTitle="Иконка блока"
-                selectButtonLabel="Выбрать изображение"
-                showPreview={false}
-              />
-            </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="shrink-0"
-              disabled={isPending || !block.iconImageUrl}
-              onClick={() => handleBlockIconChange(null)}
-            >
-              Очистить иконку
-            </Button>
-          </div>
-        </div>
-      ) : null}
       {repairOnlyHiddenBroken ? (
         <div className="mt-3 rounded-lg border border-amber-200/80 bg-amber-50/60 p-3 text-xs text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
           <p className="mb-2">

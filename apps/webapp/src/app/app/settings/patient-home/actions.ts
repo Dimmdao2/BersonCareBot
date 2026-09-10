@@ -16,7 +16,6 @@ import {
 import {
   allowedTargetTypesForBlock,
   isPatientHomeBlockCode,
-  supportsConfigurablePatientHomeBlockIcon,
 } from '@/modules/patient-home/blocks';
 import type { PatientHomeBlockItemTargetType } from '@/modules/patient-home/ports';
 import { PATIENT_HOME_USEFUL_POST_BADGE_LABEL } from '@/modules/patient-home/usefulPostPresentation';
@@ -166,30 +165,6 @@ export async function togglePatientHomeBlockVisibility(
     return { ok: true };
   } catch (error) {
     return fail(safeActionFailure(error, 'toggle_failed', 'patient_home_settings_failed'));
-  }
-}
-
-export async function setPatientHomeBlockIcon(
-  code: string,
-  iconImageUrl: string | null,
-): Promise<ActionState> {
-  try {
-    const workspace = await requireDoctorForPatientHomeMutation();
-    if (!isPatientHomeBlockCode(code)) return fail('invalid_block_code');
-    if (!supportsConfigurablePatientHomeBlockIcon(code)) return fail('block_icon_not_supported');
-    const raw = typeof iconImageUrl === 'string' ? iconImageUrl.trim() : '';
-    const normalized = raw.length > 0 ? raw : null;
-    if (normalized && !API_MEDIA_URL_RE.test(normalized) && !isLegacyAbsoluteUrl(normalized)) {
-      return fail('Иконка должна быть выбрана из библиотеки файлов');
-    }
-    const deps = buildAppDeps();
-    await withDoctorWorkspacePrincipal(workspace, 'doctor.patient-home.set-icon', () =>
-      deps.patientHomeBlocks.setBlockIcon(code, normalized),
-    );
-    revalidatePatientHomeSettings();
-    return { ok: true };
-  } catch (error) {
-    return fail(safeActionFailure(error, 'set_block_icon_failed', 'patient_home_settings_failed'));
   }
 }
 

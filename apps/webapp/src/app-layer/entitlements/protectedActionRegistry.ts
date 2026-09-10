@@ -269,16 +269,6 @@ export const PROTECTED_ACTION_MAPPINGS = [
     serviceBoundary: 'deps.patientHomeBlocks.*',
   },
   {
-    id: 'patient-home.icon',
-    mechanic: ['cms_pages', 'patient_home_today'],
-    file: 'src/app/app/settings/patient-home/actions.ts',
-    exportName: 'setPatientHomeBlockIcon',
-    method: 'action',
-    authContext: 'requireDoctorWorkspaceContext',
-    guard: 'requireDoctorForPatientHomeMutation',
-    serviceBoundary: 'deps.patientHomeBlocks.setBlockIcon',
-  },
-  {
     id: 'patient-home.blocks.reorder',
     mechanic: ['cms_pages', 'patient_home_today', 'warmups'],
     file: 'src/app/app/settings/patient-home/actions.ts',

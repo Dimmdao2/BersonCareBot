@@ -13,7 +13,6 @@ function buildService() {
   const port: PatientHomeBlocksPort = {
     listBlocksWithItems: vi.fn(async () => []),
     setBlockVisibility,
-    setBlockIcon: vi.fn(async () => undefined),
     reorderBlocks: vi.fn(async () => undefined),
     addItem: vi.fn(async () => 'item-1'),
     updateItem: vi.fn(async () => undefined),

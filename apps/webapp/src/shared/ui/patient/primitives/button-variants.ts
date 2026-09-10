@@ -44,6 +44,12 @@ function isPatientSize(size: ButtonVariants['size']): size is PatientSize {
 /**
  * Patient button classes. Global-compatible variants retain their shared implementation;
  * patient actions reuse the semantic patientVisual classes for Buttons and Links alike.
+ *
+ * `className` проходит через `cn` (tailwind-merge) на ОБОИХ ветках, как в общей обёртке
+ * `shared/ui/primitives/button.tsx`: иначе утилиты варианта переживают собственные классы
+ * вызова, и побеждает та, что стоит позже в сгенерированном CSS, а не та, что написана в
+ * компоненте. Так шкала самочувствия получала `px-3` варианта поверх своего `p-0` и резала
+ * эмодзи в вертикальную полоску 12×36.
  */
 export function buttonVariants(props: ButtonVariantProps = {}): string {
   const { className, variant, size } = props;
@@ -56,5 +62,8 @@ export function buttonVariants(props: ButtonVariantProps = {}): string {
     );
   }
 
-  return sharedButtonVariants({ variant, size: isPatientSize(size) ? undefined : size, className });
+  return cn(
+    sharedButtonVariants({ variant, size: isPatientSize(size) ? undefined : size }),
+    className,
+  );
 }
