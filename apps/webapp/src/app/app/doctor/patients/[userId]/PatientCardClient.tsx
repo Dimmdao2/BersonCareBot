@@ -585,6 +585,7 @@ export function PatientCardClient({
               {workspaceModules?.client_portal !== false ? (
                 <PatientPortalInviteControls
                   patientUserId={identity.userId}
+                  patientName={formatDoctorFioShort(identity, identity.displayName || '—')}
                   initialState={
                     shellMeta.portalState ?? {
                       status: 'not_activated',

@@ -5,9 +5,32 @@ import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspace
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import type { PatientVisibilityActor } from '@/modules/patient-visibility/ports';
 import { requireDoctorWorkspaceModuleForApi } from '@/app-layer/guards/workspaceModuleAccess';
+import { patientInviteRelativeUrl } from '@/modules/patient-invites/service';
+import { renderInviteQrDataUri } from '@/modules/patient-invites/inviteQr';
 
 const paramsSchema = z.object({ userId: z.string().uuid() });
 const revokeSchema = z.object({ inviteId: z.string().uuid() }).strict();
+
+/**
+ * Ссылка и её QR-код собираются В ОДНОМ месте: показать человеку код, ведущий не туда, куда ведёт
+ * скопированная ссылка, — тихий и очень дорогой отказ (пациент попадает в чужой кабинет или в 404,
+ * а в интерфейсе всё зелено). Поэтому обе двери — и GET, и POST — берут пару отсюда.
+ *
+ * Origin — у той же единственной двери, что и все прочие пациентские ссылки клиники: у клиники со
+ * своим доменом приглашение обязано вести на её домен, а не на хост, где сейчас стоит специалист.
+ * Именно у `deps.resolvePatientPublicOrigin`, а не у сервиса напрямую: витрина, из которой origin
+ * выводится, объявлена пред-сессионной, и под принципалом специалиста прямой вызов падает 500.
+ */
+async function inviteLinkPayload(
+  deps: ReturnType<typeof buildAppDeps>,
+  organizationId: string,
+  inviteId: string,
+): Promise<{ url: string; qrDataUri: string } | null> {
+  const patientOrigin = await deps.resolvePatientPublicOrigin?.(organizationId);
+  if (!patientOrigin) return null;
+  const url = new URL(patientInviteRelativeUrl(inviteId), patientOrigin).toString();
+  return { url, qrDataUri: await renderInviteQrDataUri(url) };
+}
 
 async function resolvePatient(
   userId: string,
@@ -36,7 +59,12 @@ export async function GET(_request: Request, { params }: { params: Promise<{ use
   const state = await withDoctorWorkspacePrincipal(gate.ctx, () =>
     patient.deps.patientInvites.getPortalStatus(gate.ctx.organizationId, patient.patientUserId),
   );
-  return NextResponse.json({ ok: true, state });
+  // Пока приглашение живо, его ссылку можно показать снова — она выводится из самого приглашения,
+  // а не хранится. Поэтому экран открывается уже со ссылкой, и «Пригласить» ничего не переделывает.
+  const link = state.inviteId
+    ? await inviteLinkPayload(patient.deps, gate.ctx.organizationId, state.inviteId)
+    : null;
+  return NextResponse.json({ ok: true, state, ...(link ?? {}) });
 }
 
 export async function POST(_request: Request, { params }: { params: Promise<{ userId: string }> }) {
@@ -83,19 +111,15 @@ export async function POST(_request: Request, { params }: { params: Promise<{ us
   // хостах, поэтому `window.location.origin` в кабинете врача давал ссылку на хост специалистов —
   // а `/join` принадлежит пациентской поверхности, и прокси отвечал на ней 404 (владелец 10.09
   // прислал ровно это: ссылка вела на 127.0.0.1, а Safari предлагал «сохранить файл start»).
-  // Origin берётся у той же единственной двери, что и все прочие пациентские ссылки клиники, —
-  // поэтому у брендированной клиники приглашение автоматически ведёт на её собственный домен.
-  const patientOrigin = await patient.deps.customDomainBinding?.resolvePatientPublicOrigin(
-    gate.ctx.organizationId,
-  );
-  if (!patientOrigin) {
+  const link = await inviteLinkPayload(patient.deps, gate.ctx.organizationId, result.invite.id);
+  if (!link) {
     return NextResponse.json({ ok: false, error: 'patient_origin_unresolved' }, { status: 503 });
   }
   return NextResponse.json({
     ok: true,
     inviteId: result.invite.id,
     expiresAt: result.invite.expiresAt,
-    url: new URL(result.relativeUrl, patientOrigin).toString(),
+    ...link,
   });
 }
 

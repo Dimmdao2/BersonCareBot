@@ -33,6 +33,35 @@ function opaqueToken(): string {
   return randomBytes(32).toString('base64url');
 }
 
+/**
+ * Ссылка приглашения ВЫВОДИТСЯ из приглашения, а не запоминается.
+ *
+ * Владелец 10.09 (вечер), дословно: «не надо писать „выпустить новую ссылку“… просто если эта
+ * ссылка уже создана, её не надо переделывать, надо просто её снова показать… когда она истечёт,
+ * тогда просто происходит создание новой».
+ *
+ * До этого секрет был случайным и в базе лежал только его хеш — показать выданную ссылку второй раз
+ * было физически нечем, поэтому повторное нажатие выпускало НОВОЕ приглашение и гасило прежнее: ту
+ * самую ссылку, которую специалист уже мог отправить человеку. Теперь секрет детерминированно
+ * выводится из идентификатора приглашения и серверного перца, а в базе по-прежнему лежит только
+ * хеш — устройство хранения и функция обмена не меняются, но ссылку можно показать снова, пока
+ * приглашение живо.
+ *
+ * Утечка одной только базы ссылки не даёт: без перца из окружения секрет из идентификатора не
+ * получить.
+ */
+function bearerForInvite(inviteId: string): string {
+  return createHmac('sha256', invitePepper())
+    .update(`patient-invite:bearer-material:v1:${inviteId}`)
+    .digest('base64url');
+}
+
+/** Единственное место, где секрет превращается в путь. Абсолютный адрес добавляет вызывающий. */
+export function patientInviteRelativeUrl(inviteId: string): string {
+  // Фрагмент на сервер не уходит: секрет живёт только в браузере того, кто открыл ссылку.
+  return `/join/start#${bearerForInvite(inviteId)}`;
+}
+
 function generateEmailCode(): string {
   return String(randomInt(100000, 1000000));
 }
@@ -97,14 +126,28 @@ export function createPatientInvitesService(deps: {
       invitedEmail: string | null;
       createdByPlatformUserId: string;
     }) {
+      // Живое приглашение НЕ переделывается: та же ссылка показывается снова (владелец 10.09).
+      const current = await deps.port.getPortalStatus({
+        organizationId: input.organizationId,
+        patientUserId: input.patientUserId,
+      });
+      if (current.status === 'invited' && current.inviteId) {
+        return {
+          ok: true as const,
+          invite: { id: current.inviteId, expiresAt: current.expiresAt },
+          relativeUrl: patientInviteRelativeUrl(current.inviteId),
+          reused: true as const,
+        };
+      }
       const normalizedRecipient = input.invitedEmail ? normalizeEmail(input.invitedEmail) : '';
       const invitedEmailNormalized = normalizedRecipient || null;
       const recipientBinding = invitedEmailNormalized
         ? ('bound_email' as const)
         : ('unbound_email_claim' as const);
-      const bearer = opaqueToken();
+      const inviteId = randomUUID();
+      const bearer = bearerForInvite(inviteId);
       const result = await deps.port.createReplacingPending({
-        id: randomUUID(),
+        id: inviteId,
         organizationId: input.organizationId,
         patientUserId: input.patientUserId,
         tokenHash: hashPatientInviteBearer(bearer),
@@ -118,7 +161,8 @@ export function createPatientInvitesService(deps: {
         ok: true as const,
         invite: result.invite,
         // Fragment never reaches the server. The browser exchanges this raw bearer once.
-        relativeUrl: `/join/start#${bearer}`,
+        relativeUrl: patientInviteRelativeUrl(result.invite.id),
+        reused: false as const,
       };
     },
 

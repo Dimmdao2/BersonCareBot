@@ -2203,6 +2203,16 @@ function _buildAppDeps() {
     clinicPublicCard: clinicPublicCardService,
     /** B2/B8/C5a custom-domain binding lifecycle (`null` only in Vitest without a DB). */
     customDomainBinding: customDomainBindingService,
+    /**
+     * Пациентский origin клиники — ЕДИНСТВЕННАЯ дверь для всех, кто собирает ссылку человеку.
+     *
+     * Брать его напрямую у `customDomainBinding` нельзя: витрина, из которой он выводится,
+     * объявлена как пред-сессионная (`app.read_anonymous_patient_surface_projection`, роль
+     * `app_pre_session`), и под принципалом специалиста тот же вызов падает «Missing unique
+     * declared webapp port capability». Здесь он уже обёрнут в bootstrap-принципал — то есть
+     * читается той самой наименее привилегированной ролью, для которой и объявлен.
+     */
+    resolvePatientPublicOrigin,
     bookingEngine: bookingEngineService,
     bookingSync: bookingSyncPortForPayments,
     /** Raw PG port for admin booking-engine API (null only in Vitest without DB). */

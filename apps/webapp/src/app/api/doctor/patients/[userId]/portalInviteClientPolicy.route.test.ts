@@ -37,6 +37,8 @@ import {
   defaultDoctorWorkspaceComposition,
 } from '@/modules/system-settings/doctorWorkspaceComposition';
 import { createSystemSettingsService } from '@/modules/system-settings/service';
+import { patientInviteRelativeUrl } from '@/modules/patient-invites/service';
+import { renderInviteQrDataUri } from '@/modules/patient-invites/inviteQr';
 import {
   DELETE as revokePortalInvite,
   GET as readPortalInvite,
@@ -90,15 +92,14 @@ async function depsFor(options: { clientPortal: boolean; portalAllowed: boolean 
       }),
     },
     // Ссылку собирает сервер, и origin у неё — пациентский (у брендированной клиники её домен),
-    // а не тот хост, на котором стоит специалист.
-    customDomainBinding: {
-      resolvePatientPublicOrigin: vi.fn().mockResolvedValue('https://patient.example.test'),
-    },
+    // а не тот хост, на котором стоит специалист. Дверь именно эта: у сервиса напрямую та же
+    // витрина объявлена пред-сессионной и под принципалом специалиста отвечает 500.
+    resolvePatientPublicOrigin: vi.fn().mockResolvedValue('https://patient.example.test'),
     patientInvites: {
       issue: vi.fn().mockResolvedValue({
         ok: true,
         invite: { id: INVITE_ID, expiresAt: '2026-09-14T00:00:00.000Z' },
-        relativeUrl: `/join/start#${INVITE_ID}`,
+        relativeUrl: patientInviteRelativeUrl(INVITE_ID),
       }),
       revoke: vi.fn().mockResolvedValue(true),
       getPortalStatus: vi
@@ -144,13 +145,18 @@ describe('C3M-10 portal invite door', () => {
     expect(deps.patientInvites.issue).toHaveBeenCalledTimes(1);
     // Ссылка обязана вести на пациентскую поверхность: собранная от хоста специалиста, она
     // упирается в 404 чужой поверхности и в браузере телефона выглядит как «сохранить файл».
-    const body = (await response.json()) as { url?: unknown };
-    expect(body.url).toBe(`https://patient.example.test/join/start#${INVITE_ID}`);
+    const body = (await response.json()) as { url?: unknown; qrDataUri?: unknown };
+    const expectedUrl = `https://patient.example.test${patientInviteRelativeUrl(INVITE_ID)}`;
+    expect(body.url).toBe(expectedUrl);
+    // QR-код и скопированная ссылка обязаны вести в ОДНО место. Код, снятый с другой строки (с
+    // относительного пути или с хоста специалиста), — молчаливый отказ: в кабинете всё зелено, а
+    // человек с телефоном упирается в чужую поверхность.
+    expect(body.qrDataUri).toBe(await renderInviteQrDataUri(expectedUrl));
   });
 
   it('отказывается выдавать ссылку, пока пациентский адрес клиники неизвестен', async () => {
     const deps = await depsFor({ clientPortal: true, portalAllowed: true });
-    deps.customDomainBinding.resolvePatientPublicOrigin.mockRejectedValueOnce(
+    deps.resolvePatientPublicOrigin.mockRejectedValueOnce(
       new Error('patient_public_origin_unresolved'),
     );
     fakes.buildAppDeps.mockReturnValue(deps);

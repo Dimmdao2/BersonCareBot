@@ -1,10 +1,17 @@
 'use client';
 
 import { useState } from 'react';
-import { Copy, Link2Off } from 'lucide-react';
+import { Copy, Link2Off, QrCode } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/shared/ui/doctor/primitives/dialog';
 import type { PatientPortalStatus } from '@/modules/patient-invites/ports';
 
 type PortalState = {
@@ -19,7 +26,11 @@ type IssueResponse = {
   inviteId?: unknown;
   expiresAt?: unknown;
   url?: unknown;
+  qrDataUri?: unknown;
 };
+
+/** Ссылка и её QR-код всегда приходят парой от сервера и живут в состоянии тоже парой. */
+type InviteLink = { url: string; qrDataUri: string };
 
 const labels: Record<PatientPortalStatus, string> = {
   not_activated: 'Кабинет не активирован',
@@ -29,14 +40,18 @@ const labels: Record<PatientPortalStatus, string> = {
 
 export function PatientPortalInviteControls({
   patientUserId,
+  patientName,
   initialState,
 }: {
   patientUserId: string;
+  /** Фамилия и имя пациента — заголовок модалки с QR-кодом (владелец 10.09). */
+  patientName: string;
   initialState: PortalState;
 }) {
   const [state, setState] = useState(initialState);
   const [pending, setPending] = useState(false);
-  const [generatedUrl, setGeneratedUrl] = useState<string | null>(null);
+  const [link, setLink] = useState<InviteLink | null>(null);
+  const [qrOpen, setQrOpen] = useState(false);
   // PPI-01: clipboard permission is separate from invite creation — a denied/unavailable
   // clipboard must not read as invite failure. Mirrors the copy-button pattern in
   // ClinicBookingLinkSection (explicit fallback control, no error toast on copy failure).
@@ -75,17 +90,21 @@ export function PatientPortalInviteControls({
         json?.ok !== true ||
         typeof json.inviteId !== 'string' ||
         typeof json.expiresAt !== 'string' ||
-        typeof json.url !== 'string'
+        typeof json.url !== 'string' ||
+        typeof json.qrDataUri !== 'string'
       ) {
         toast.error('Не удалось создать приглашение');
         return;
       }
       // Абсолютную ссылку собирает сервер: у клиники со своим доменом она обязана вести на её
       // домен, а не на тот хост, где сейчас стоит специалист.
+      const reused = state.inviteId === json.inviteId;
       setState({ status: 'invited', inviteId: json.inviteId, expiresAt: json.expiresAt });
-      setGeneratedUrl(json.url);
+      setLink({ url: json.url, qrDataUri: json.qrDataUri });
       setCopyStatus('idle');
-      toast.success('Ссылка приглашения создана');
+      // Живое приглашение сервер возвращает как есть — специалисту важно понимать, что человеку
+      // уже отправленная ссылка от нажатия не погасла.
+      toast.success(reused ? 'Ссылка приглашения ещё действует' : 'Ссылка приглашения создана');
     } catch {
       toast.error('Не удалось создать приглашение');
     } finally {
@@ -94,20 +113,10 @@ export function PatientPortalInviteControls({
   }
 
   /**
-   * Повторное нажатие НЕ выпускает вторую ссылку молча. В базе лежит только хеш токена, поэтому
-   * показать выданную ранее ссылку невозможно в принципе — а новый выпуск гасит прежнюю
-   * (`createReplacingPending`). То есть молчаливый перевыпуск отзывал ссылку, которую специалист
-   * уже кому-то отправил (владелец 10.09: «каждый раз новое создаётся, зачем это надо?»).
+   * Владелец 10.09: «пусть остаётся „Пригласить“… если эта ссылка уже создана, её не надо
+   * переделывать, надо просто её снова показать; когда истечёт — тогда создаётся новая». Решает
+   * это сервер: живое приглашение он возвращает как есть, истёкшее заменяет новым.
    */
-  function requestNewLink() {
-    if (
-      generatedUrl !== null &&
-      !window.confirm('Прежняя ссылка перестанет работать. Выпустить новую?')
-    ) {
-      return;
-    }
-    void issue();
-  }
 
   async function revoke() {
     if (!state.inviteId) return;
@@ -123,7 +132,8 @@ export function PatientPortalInviteControls({
         return;
       }
       setState({ status: 'not_activated', inviteId: null, expiresAt: null });
-      setGeneratedUrl(null);
+      setLink(null);
+      setQrOpen(false);
       toast.success('Приглашение отозвано.');
     } catch {
       toast.error('Не удалось отозвать приглашение.');
@@ -145,11 +155,11 @@ export function PatientPortalInviteControls({
         variant="outline"
         size="sm"
         disabled={pending}
-        onClick={requestNewLink}
+        onClick={() => void issue()}
         className="h-7 gap-1 px-2.5 text-xs"
       >
         <Copy className="h-3.5 w-3.5" />
-        {generatedUrl ? 'Выпустить новую ссылку' : 'Пригласить'}
+        Пригласить
       </Button>
       {state.status === 'invited' ? (
         <Button
@@ -163,12 +173,12 @@ export function PatientPortalInviteControls({
           Отозвать
         </Button>
       ) : null}
-      {generatedUrl ? (
+      {link ? (
         <>
           <Input
             readOnly
             aria-label="Ссылка приглашения"
-            value={generatedUrl}
+            value={link.url}
             onFocus={(event) => event.currentTarget.select()}
             className="basis-full text-xs"
           />
@@ -177,15 +187,55 @@ export function PatientPortalInviteControls({
             variant="outline"
             size="sm"
             className="h-7 px-2.5 text-xs"
-            onClick={() => copyGeneratedUrl(generatedUrl)}
+            onClick={() => copyGeneratedUrl(link.url)}
           >
             {copyStatus === 'copied' ? 'Скопировано' : 'Скопировать'}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-7 gap-1 px-2.5 text-xs"
+            onClick={() => setQrOpen(true)}
+          >
+            <QrCode className="h-3.5 w-3.5" />
+            Показать QR-код
           </Button>
           {copyStatus === 'failed' ? (
             <p role="alert" className="w-full text-xs text-destructive">
               Не удалось скопировать ссылку, скопируйте вручную из поля выше.
             </p>
           ) : null}
+          {/*
+           * Модалка нужна ровно для одного: человек напротив наводит на экран телефон. Поэтому в
+           * ней только код — крупно и по центру, — а сама ссылка в ней НЕ печатается (владелец
+           * 10.09: «наверху заголовок модалки слева приглашение, справа фамилия имя пациента без
+           * ссылки просто чёрным шрифтом»).
+           */}
+          <Dialog open={qrOpen} onOpenChange={setQrOpen}>
+            <DialogContent className="bg-white sm:max-w-md">
+              <DialogHeader>
+                <div className="flex items-baseline justify-between gap-3 pr-8">
+                  <DialogTitle className="text-black">Приглашение</DialogTitle>
+                  <span className="truncate text-sm font-medium text-black">{patientName}</span>
+                </div>
+                <DialogDescription className="sr-only">
+                  Наведите камеру телефона на код, чтобы открыть кабинет пациента.
+                </DialogDescription>
+              </DialogHeader>
+              {/*
+               * `<img>`, а не вставка разметки: картинка из `data:`-ссылки не исполняет скриптов и
+               * не попадает в DOM страницы, поэтому `dangerouslySetInnerHTML` здесь не нужен.
+               */}
+              {/* eslint-disable-next-line @next/next/no-img-element -- оптимизировать нечего: это
+                  полтора килобайта векторной разметки в `data:`-ссылке, `next/image` их не грузит */}
+              <img
+                src={link.qrDataUri}
+                alt="QR-код приглашения"
+                className="mx-auto block h-auto w-full max-w-[22rem] bg-white"
+              />
+            </DialogContent>
+          </Dialog>
         </>
       ) : null}
     </div>
