@@ -420,11 +420,21 @@ describe('org entitlement mechanic classes', () => {
     };
 
     expect(tariff.mechanics).not.toHaveProperty('patient_card');
-    expect(tariff.mechanics).not.toHaveProperty('clinic_team');
+    // Owner ruling 2026-09-10: the cabinet mode is an explicit tariff property, so a seat number
+    // alone no longer grants team management — three seats on a tariff whose mode switch is off
+    // stay a solo cabinet, and the switch itself round-trips through the constructor.
+    expect(tariff.mechanics.clinic_team).toBe(false);
     expect(entitlementsFromSnapshot(await assignedPort.getSnapshot('org'))).toMatchObject({
-      clinic_team: true,
+      clinic_team: false,
       files: true,
     });
+    expect(
+      entitlementsFromSnapshot({
+        tariff: { ...(await assignedPort.getSnapshot('org')).tariff!, mechanics: { clinic_team: true } },
+        overrides: [],
+        access: activeAccess,
+      }).clinic_team,
+    ).toBe(true);
     vi.mocked(buildAppDeps).mockReturnValue({
       orgEntitlements: assignedPort,
     } as ReturnType<typeof buildAppDeps>);

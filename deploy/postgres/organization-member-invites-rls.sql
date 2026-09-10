@@ -276,15 +276,16 @@ BEGIN
   -- entitlement at invite-creation time. An invite issued before a downgrade/OFF must not activate
   -- ANY clinic-team membership growth — this applies to every invited role, including `admin`,
   -- which never consumes a numeric seat but still grows the paid clinic-team capability. Mirrors
-  -- resolveClinicSeatLimit's override > tariff precedence. `clinic_team` is a numeric seats
-  -- mechanic: the tariff includes it by configuring included_seats, not by writing the legacy
-  -- mechanics JSON. This check is duplicated here because it must run inside this same FOR
-  -- UPDATE-locked transaction to be atomic. Checked, and denied, before any
-  -- platform_users/membership/invite mutation below.
+  -- resolveClinicSeatLimit's override > tariff precedence. Owner ruling 2026-09-10: `clinic_team`
+  -- is the cabinet-mode property the tariff switches on («Режим кабинета»), NOT a conclusion drawn
+  -- from `included_seats` — «число мест - не показатель … у соло механика приглашений отключена в
+  -- принципе». `included_seats` says only how many seats the clinic mode sells. This check is
+  -- duplicated here because it must run inside this same FOR UPDATE-locked transaction to be
+  -- atomic. Checked, and denied, before any platform_users/membership/invite mutation below.
   SELECT COALESCE(
     (SELECT eo.enabled FROM public.saas_org_entitlement_overrides AS eo
      WHERE eo.organization_id = v_invite.organization_id AND eo.mechanic = 'clinic_team'),
-    (SELECT t.included_seats IS NOT NULL
+    (SELECT COALESCE((t.mechanics ->> 'clinic_team')::boolean, false)
      FROM public.be_organizations AS o
      JOIN public.saas_tariffs AS t ON t.id = o.tariff_id
      WHERE o.id = v_invite.organization_id),

@@ -3,20 +3,20 @@ import type { ClinicSeatStatus } from '@/modules/clinic-seats/service';
 export type DoctorWorkspaceComposition = 'solo' | 'clinic';
 
 /**
- * One conservative composition projection. A retained member or invite keeps management visible
- * after a downgrade; entitlement only blocks adding seats, never hides the existing team.
+ * The cabinet mode is a TARIFF PROPERTY, not a headcount. Owner ruling 2026-09-10: «число мест — не
+ * показатель, админ клиники может начинать с одного себя и приглашать других; у соло механика
+ * приглашений отключена в принципе». So the authority is the `clinic_team` mechanic («Режим
+ * клиники»), which the platform administrator switches on the tariff — the same mechanic every
+ * invite/member/seat route already gates on, so solo cannot invite anyone even by direct request.
+ *
+ * The single non-tariff case left is data safety, not a mode guess: an organization that still
+ * holds more than one member after a downgrade keeps management reachable so those people can be
+ * removed. Seat counts (`limit`) never decide the mode.
  */
 export function resolveDoctorWorkspaceComposition(params: {
   clinicTeamEntitled: boolean;
   seats: ClinicSeatStatus;
 }): DoctorWorkspaceComposition {
-  // A configured tariff is authoritative: one specialist place is the solo product,
-  // while a tariff that actually includes multiple places opens clinic management.
-  // Retained extra members keep management reachable after a downgrade so they can be removed.
-  if (params.seats.configured) {
-    return params.seats.limit > 1 || params.seats.used > 1 ? 'clinic' : 'solo';
-  }
-  // Compatibility organizations without a configured seat quota retain the former
-  // entitlement-based projection until their tariff is configured explicitly.
-  return params.clinicTeamEntitled || params.seats.used > 1 ? 'clinic' : 'solo';
+  if (params.clinicTeamEntitled) return 'clinic';
+  return params.seats.used > 1 ? 'clinic' : 'solo';
 }

@@ -160,11 +160,19 @@ const NOTIFICATION_CONDITION_LABELS: Record<AccessNotificationCondition, string>
 const CONSTRUCTOR_MECHANICS = MECHANICS.filter(
   (mechanic) => MECHANIC_REGISTRY[mechanic].class === 'возможность',
 );
+/**
+ * Owner ruling 2026-09-10: the cabinet mode is a tariff property, not a headcount — «число мест не
+ * показатель, админ клиники может начинать с одного себя». `clinic_team` is that property: it opens
+ * team management and invitations, and `resolveDoctorWorkspaceComposition` reads it. It is edited by
+ * the mode switch below rather than by the generic capability grid (its class is «места»), but it
+ * must round-trip through the draft — otherwise every save would silently clear it.
+ */
+const TARIFF_DRAFT_MECHANICS = [...CONSTRUCTOR_MECHANICS, 'clinic_team' as const];
 const OVERRIDABLE_MECHANICS = MECHANICS.filter(
   (mechanic) => MECHANIC_REGISTRY[mechanic].class !== 'никогда',
 );
 const emptyMechanics = (): Record<OrgMechanic, boolean> =>
-  Object.fromEntries(CONSTRUCTOR_MECHANICS.map((mechanic) => [mechanic, false])) as Record<
+  Object.fromEntries(TARIFF_DRAFT_MECHANICS.map((mechanic) => [mechanic, false])) as Record<
     OrgMechanic,
     boolean
   >;
@@ -204,7 +212,7 @@ function tariffToDraft(tariff: Tariff): TariffDraft {
     discountedPriceMinor: tariff.discountedPriceMinor,
     isActive: tariff.isActive,
     mechanics: Object.fromEntries(
-      CONSTRUCTOR_MECHANICS.map((mechanic) => [mechanic, tariff.mechanics[mechanic] === true]),
+      TARIFF_DRAFT_MECHANICS.map((mechanic) => [mechanic, tariff.mechanics[mechanic] === true]),
     ) as Record<OrgMechanic, boolean>,
     quotas: tariff.quotas,
     systemAccessPolicy: tariff.systemAccessPolicy
@@ -965,8 +973,15 @@ export function CommercialConstructorClient() {
       systemAccessPolicy,
       mechanicAccessPolicies: {},
       mailingTemplates: tariff.mailingTemplates,
-      includedSeats: nullableNonnegativeInteger(tariff.includedSeats),
-      additionalSeatPriceMinor: Number.isFinite(additionalSeatPrice) ? additionalSeatPrice : null,
+      // Solo mode has exactly one place and nothing to sell on top of it, whatever an older
+      // revision of this tariff once stored in the hidden seat fields.
+      includedSeats: tariff.mechanics.clinic_team
+        ? nullableNonnegativeInteger(tariff.includedSeats)
+        : 1,
+      additionalSeatPriceMinor:
+        tariff.mechanics.clinic_team && Number.isFinite(additionalSeatPrice)
+          ? additionalSeatPrice
+          : null,
       discountedPriceMinor: tariff.discountedPriceMinor,
       isActive: tariff.isActive,
     };
@@ -1132,31 +1147,67 @@ export function CommercialConstructorClient() {
                 )}
               </div>
               <div className="space-y-1">
-                <Label htmlFor="tariff-seats">Мест специалистов</Label>
-                <Input
-                  id="tariff-seats"
-                  type="number"
-                  min="0"
-                  required
-                  value={tariff.includedSeats}
-                  onChange={(event) => setTariff({ ...tariff, includedSeats: event.target.value })}
-                />
+                <Label htmlFor="tariff-cabinet-mode">Режим кабинета</Label>
+                <Select
+                  value={tariff.mechanics.clinic_team ? 'clinic' : 'solo'}
+                  onValueChange={(value) => {
+                    if (value !== 'solo' && value !== 'clinic') return;
+                    const clinic = value === 'clinic';
+                    setTariff((current) => ({
+                      ...current,
+                      mechanics: { ...current.mechanics, clinic_team: clinic },
+                      // Solo has no team at all: one place, no overage price to sell.
+                      includedSeats: clinic ? current.includedSeats : '1',
+                      additionalSeatPriceRub: clinic ? current.additionalSeatPriceRub : '',
+                    }));
+                  }}
+                >
+                  <SelectTrigger id="tariff-cabinet-mode">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="solo">Соло-специалист</SelectItem>
+                    <SelectItem value="clinic">Клиника с командой</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-muted-foreground text-sm">
+                  Соло: один специалист, приглашения и раздел «Команда» выключены, режим управления
+                  клиникой не появляется. Клиника: команда и приглашения доступны сразу, даже пока
+                  администратор работает один.
+                </p>
               </div>
-              <div className="space-y-1">
-                <Label htmlFor="tariff-seat-overage-price">
-                  Цена доп. места, ₽ (пусто — превышение запрещено)
-                </Label>
-                <Input
-                  id="tariff-seat-overage-price"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={tariff.additionalSeatPriceRub}
-                  onChange={(event) =>
-                    setTariff({ ...tariff, additionalSeatPriceRub: event.target.value })
-                  }
-                />
-              </div>
+              {tariff.mechanics.clinic_team ? (
+                <>
+                  <div className="space-y-1">
+                    <Label htmlFor="tariff-seats">Мест специалистов</Label>
+                    <Input
+                      id="tariff-seats"
+                      type="number"
+                      min="0"
+                      required
+                      value={tariff.includedSeats}
+                      onChange={(event) =>
+                        setTariff({ ...tariff, includedSeats: event.target.value })
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="tariff-seat-overage-price">
+                      Цена доп. места, ₽ (пусто — превышение запрещено)
+                    </Label>
+                    <Input
+                      id="tariff-seat-overage-price"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={tariff.additionalSeatPriceRub}
+                      onChange={(event) =>
+                        setTariff({ ...tariff, additionalSeatPriceRub: event.target.value })
+                      }
+                    />
+                  </div>
+                </>
+              ) : null}
             </div>
             <div className="space-y-1">
               <Label htmlFor="tariff-description">Описание</Label>

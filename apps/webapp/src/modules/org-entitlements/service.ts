@@ -258,7 +258,10 @@ function normalizeTariffInput(input: TariffInput) {
     assertMechanic(mechanic);
   }
   for (const mechanic of MECHANICS) {
-    if (MECHANIC_REGISTRY[mechanic].class === 'возможность') {
+    // `clinic_team` is the cabinet-mode property («Режим кабинета» in the tariff editor), so it is
+    // persisted next to the capability toggles even though its class is «места». Before this it was
+    // stripped here, and every save of a clinic tariff silently turned it into a solo one.
+    if (MECHANIC_REGISTRY[mechanic].class === 'возможность' || mechanic === 'clinic_team') {
       mechanics[mechanic] = input.mechanics[mechanic] === true;
     }
   }
@@ -360,6 +363,11 @@ function isMechanicIncludedFromSnapshot(
   // #1069 §2.13 (owner 01.08): «нет активного тарифа и нет триала → доступа нет» — no compatibility
   // carve-out survives for a tariff-less organization.
   if (!snapshot.tariff) return false;
+  // Owner ruling 2026-09-10: the cabinet mode is an explicit tariff property, not a headcount —
+  // «число мест не показатель, админ клиники может начинать с одного себя и приглашать других».
+  // So `clinic_team` follows its own switch in the tariff editor; a configured seat number no
+  // longer implies team management (that reading turned every one-seat tariff into a clinic).
+  if (mechanic === 'clinic_team') return snapshot.tariff.mechanics[mechanic] === true;
   if (mechanicClass === 'места') return snapshot.tariff.includedSeats !== null;
   if (mechanicIsLimitBearing(mechanicClass)) return true;
   return snapshot.tariff.mechanics[mechanic] === true;
