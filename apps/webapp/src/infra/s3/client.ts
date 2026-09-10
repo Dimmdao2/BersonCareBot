@@ -14,6 +14,7 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Readable } from 'node:stream';
 import { env } from '@/config/env';
 import type { StorageTarget } from '@/shared/types/storageTarget';
+import { contentDispositionHeaderValue } from '@/shared/lib/contentDisposition';
 export { parseStorageTarget } from '@/shared/types/storageTarget';
 
 const PRESIGN_PUT_EXPIRES_SEC = 900;
@@ -189,12 +190,10 @@ const INLINE_RENDERABLE_MIME: ReadonlySet<string> = new Set([
   'application/vnd.apple.mpegurl',
 ]);
 
-/** RFC 5987 — a filename with a comma or a quote in it must not be able to inject header parameters. */
+/** Экранирование имени — в общем помощнике; здесь остаётся только выбор inline/attachment. */
 function contentDispositionFor(mimeType: string | undefined, filename: string | undefined): string {
   const kind = mimeType && INLINE_RENDERABLE_MIME.has(mimeType) ? 'inline' : 'attachment';
-  if (!filename) return kind;
-  const ascii = filename.replace(/[^\x20-\x7e]/g, '_').replace(/["\\]/g, '_');
-  return `${kind}; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(filename)}`;
+  return contentDispositionHeaderValue(kind, filename);
 }
 
 /**

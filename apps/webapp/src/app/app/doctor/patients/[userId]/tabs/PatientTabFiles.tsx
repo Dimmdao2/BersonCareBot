@@ -79,6 +79,12 @@ export type FileRecord = {
   uploadedByUserId: string;
   createdAt: string; // ISO
   previewUrl: string | null; // presigned GET from API
+  /**
+   * Загрузил ли этот файл текущий специалист (М6). Считает сервер по общему правилу
+   * `modules/media/rawOriginalDownloadRule.ts`; здесь — только показ кнопки, право проверяет
+   * сам маршрут `GET /api/media/[id]/original`.
+   */
+  canDownloadSource?: boolean;
 };
 
 /** Default category for files uploaded via the compact camera/library/document actions (FILES-04). */
@@ -557,24 +563,44 @@ function FilePreviewModal({
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            {file.previewUrl && (
-              <>
+            {/*
+             * У видео пресайн-ссылка на хранилище не «скачивает», а проигрывает: атрибут
+             * `download` на чужом origin браузер игнорирует, а `Content-Disposition` там inline.
+             * Поэтому для видео вместо неё стоит выдача исходника вложением (М6).
+             */}
+            {isVideo && file.mediaFileId ? (
+              file.canDownloadSource ? (
                 <a
-                  href={file.previewUrl}
-                  download={file.fileName}
+                  href={`/api/media/${file.mediaFileId}/original`}
                   className="text-sm text-primary hover:underline"
                 >
-                  Скачать
+                  Скачать исходник
                 </a>
-                <a
-                  href={file.previewUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm text-primary hover:underline"
-                >
-                  Открыть
-                </a>
-              </>
+              ) : (
+                <span className="text-sm text-muted-foreground">
+                  Исходник скачивает специалист, который его загрузил
+                </span>
+              )
+            ) : (
+              file.previewUrl && (
+                <>
+                  <a
+                    href={file.previewUrl}
+                    download={file.fileName}
+                    className="text-sm text-primary hover:underline"
+                  >
+                    Скачать
+                  </a>
+                  <a
+                    href={file.previewUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-primary hover:underline"
+                  >
+                    Открыть
+                  </a>
+                </>
+              )
             )}
             <Button
               type="button"

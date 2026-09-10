@@ -391,11 +391,14 @@ function MediaFolderTreePane({
 export type MediaLibraryClientProps = {
   /** Только admin в admin mode — см. страницу delete-errors и ops/debug сценарий. */
   canSeeDeleteErrorsLink?: boolean;
+  /** Текущий специалист: исходник скачивает только тот, кто файл загрузил (М6). */
+  currentUserId: string;
 };
 
 export function MediaLibraryClient({
   canSeeDeleteErrorsLink = false,
-}: MediaLibraryClientProps = {}) {
+  currentUserId,
+}: MediaLibraryClientProps) {
   const { patientSingularLabel } = useDoctorPatientTerms();
   const nativeRuntime = useNativeRuntime();
   const nativeMediaAvailable = isNativeDeviceMediaAvailable(nativeRuntime);
@@ -1747,6 +1750,7 @@ export function MediaLibraryClient({
                   <MediaCard
                     key={item.id}
                     item={item}
+                    currentUserId={currentUserId}
                     deleting={deletingId === item.id}
                     copied={copiedItemId === item.id}
                     resolutionText={resolutionText(item)}
@@ -1778,6 +1782,7 @@ export function MediaLibraryClient({
                     <MediaCardActionsMenu
                       triggerVariant="label"
                       item={item}
+                      currentUserId={currentUserId}
                       resolutionText={resolutionText(item)}
                       copied={copiedItemId === item.id}
                       deleting={deletingId === item.id}
@@ -1865,6 +1870,7 @@ export function MediaLibraryClient({
                         <td className="px-3 py-2">
                           <MediaCardActionsMenu
                             item={item}
+                            currentUserId={currentUserId}
                             resolutionText={resolutionText(item)}
                             copied={copiedItemId === item.id}
                             deleting={deletingId === item.id}

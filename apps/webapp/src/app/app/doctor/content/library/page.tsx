@@ -14,7 +14,10 @@ export default async function DoctorContentLibraryPage() {
       layout="full-height"
     >
       <DoctorPageHeader title="Библиотека файлов" />
-      <MediaLibraryClient canSeeDeleteErrorsLink={session.user.role === 'admin'} />
+      <MediaLibraryClient
+        canSeeDeleteErrorsLink={session.user.role === 'admin'}
+        currentUserId={session.user.userId}
+      />
     </DoctorAppShell>
   );
 }

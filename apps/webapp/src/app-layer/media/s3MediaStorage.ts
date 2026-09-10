@@ -12,9 +12,14 @@ export {
   getProgramSubmissionMediaStatusRow,
   isProgramSubmissionMediaAttachReady,
   getMediaS3KeyForRedirect,
+  getMediaOriginalObjectForDownload,
   insertPendingMediaFileTx,
   createPendingProgramSubmissionMediaFile,
   listMediaDeleteErrors,
   purgePendingMediaDeleteBatch,
 } from '@/infra/repos/s3MediaStorage';
-export type { MediaAccessRow, MediaObjectLocation } from '@/infra/repos/s3MediaStorage';
+export type {
+  MediaAccessRow,
+  MediaObjectLocation,
+  MediaOriginalDownloadObject,
+} from '@/infra/repos/s3MediaStorage';
