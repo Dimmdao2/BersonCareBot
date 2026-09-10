@@ -41,6 +41,11 @@ services:
     # запускается сразу под нужным UID и s6 не использует.
     security_opt:
       - "no-new-privileges:false"
+    # Служебный пользователь внутри этих образов — фиксированный uid 1000, и апстрим его менять не
+    # даёт. Каталоги CONFIG принадлежат учётке стека, поэтому запись выдаётся по группе: контейнер
+    # получает её дополнительной. Так же на этом хосте контейнеры приложения читают ключи mTLS.
+    group_add:
+      - "${COTURN_CONTAINER_GID:-1000}"
     # Verified against the pinned tag's own nginx template
     # (web/rootfs/defaults/default in jitsi/docker-jitsi-meet@stable-11146-2): with DISABLE_HTTPS=1 the
     # container's nginx only ever opens a plain-HTTP `listen 8000` server block — the `listen 8443 ssl`
@@ -68,6 +73,11 @@ services:
     # запускается сразу под нужным UID и s6 не использует.
     security_opt:
       - "no-new-privileges:false"
+    # Служебный пользователь внутри этих образов — фиксированный uid 1000, и апстрим его менять не
+    # даёт. Каталоги CONFIG принадлежат учётке стека, поэтому запись выдаётся по группе: контейнер
+    # получает её дополнительной. Так же на этом хосте контейнеры приложения читают ключи mTLS.
+    group_add:
+      - "${COTURN_CONTAINER_GID:-1000}"
     image: "ghcr.io/jitsi/prosody:${JITSI_RELEASE_TAG}@sha256:9e341b10134d947e49ca338b9efe8d70ac9d6e8d89d621da2246dfa79fe50363"
     # Browser clients must keep receiving the public TURN hostname. Only the
     # Prosody container resolves that name to this compose network's explicit
@@ -97,6 +107,11 @@ services:
     # запускается сразу под нужным UID и s6 не использует.
     security_opt:
       - "no-new-privileges:false"
+    # Служебный пользователь внутри этих образов — фиксированный uid 1000, и апстрим его менять не
+    # даёт. Каталоги CONFIG принадлежат учётке стека, поэтому запись выдаётся по группе: контейнер
+    # получает её дополнительной. Так же на этом хосте контейнеры приложения читают ключи mTLS.
+    group_add:
+      - "${COTURN_CONTAINER_GID:-1000}"
     image: "ghcr.io/jitsi/jicofo:${JITSI_RELEASE_TAG}@sha256:a8d64e46eaa340751a2b5530a4abd4175adf05bff07e9775fc48daae6364cfe9"
     # No public port — Jicofo only talks to Prosody/JVB over the internal bridge network. `!override`
     # (Compose Specification merge tag), not a plain `[]`: compose merges sequences by *appending* across
@@ -117,6 +132,11 @@ services:
     # запускается сразу под нужным UID и s6 не использует.
     security_opt:
       - "no-new-privileges:false"
+    # Служебный пользователь внутри этих образов — фиксированный uid 1000, и апстрим его менять не
+    # даёт. Каталоги CONFIG принадлежат учётке стека, поэтому запись выдаётся по группе: контейнер
+    # получает её дополнительной. Так же на этом хосте контейнеры приложения читают ключи mTLS.
+    group_add:
+      - "${COTURN_CONTAINER_GID:-1000}"
     image: "ghcr.io/jitsi/jvb:${JITSI_RELEASE_TAG}@sha256:d7dc646d21af07530ae6acf1ace23ea4782445d0362004621a32a5a632a964e9"
     # UDP media stays public (ICE candidates must be directly reachable). The internal Colibri REST API
     # (COLIBRI_REST_ENABLED=1, see env/jitsi-{test,prod}.env.example) IS turned on here, but upstream's own base

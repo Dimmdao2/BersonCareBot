@@ -274,11 +274,18 @@ if [[ "$candidate_vendor" != "$VENDOR_DIR" ]]; then
   trap - EXIT
 fi
 
+# Режим 0775, а не 0755, и это не небрежность. Каталоги создаёт учётка, под которой выполняется
+# install.sh, а ПИШУТ в них служебные пользователи внутри апстрим-образов — там это фиксированный
+# uid 1000, и поменять его образы не дают. Когда uid учётки случайно совпадал с 1000 (как на TEST),
+# вопрос не возникал; на проде под 1000 живёт человек, и отдавать ему каталоги стека нельзя.
+# Поэтому доступ выдаётся по ГРУППЕ: каталоги остаются за учёткой стека, группа — её же, а
+# контейнеры получают эту группу дополнительной (`group_add` в оверлее). Тот же приём этот хост уже
+# использует, чтобы контейнеры приложения читали ключи mTLS.
 log "creating CONFIG tree at $CONFIG (docker-jitsi-meet's own required subdirectories)"
 for sub in web storage/web storage/transcripts tmp/web-load-test \
            prosody/config prosody/prosody-plugins-custom storage/prosody \
            jicofo jvb; do
-  install -d -m 0755 "$CONFIG/$sub" 2>/dev/null || fail "could not create $CONFIG/$sub — operator prerequisite: $(dirname "$JITSI_PACKAGE_ROOT") must exist and be writable by this user (same convention as postgres-mtls), see docs/ARCHITECTURE/SERVER CONVENTIONS.md §mTLS"
+  install -d -m 0775 "$CONFIG/$sub" 2>/dev/null || fail "could not create $CONFIG/$sub — operator prerequisite: $(dirname "$JITSI_PACKAGE_ROOT") must exist and be writable by this user (same convention as postgres-mtls), see docs/ARCHITECTURE/SERVER CONVENTIONS.md §mTLS"
 done
 
 log "creating coturn writable log/state directories for UID:GID ${COTURN_CONTAINER_UID}:${COTURN_CONTAINER_GID}"
