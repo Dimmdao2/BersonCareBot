@@ -264,6 +264,23 @@ async function readStaffSnapshot(organizationId: string): Promise<OrgEntitlement
     const tariff = access.tariffId
       ? await readEffectiveTariff(tx, organizationId, access.tariffId)
       : null;
+    // Докупленный объём (владелец 10.09.2026) — байты пакета, который организация оплачивает
+    // сейчас. Читается ссылкой на каталог, а не скопированным числом: правка каталога не должна
+    // оставлять на подписке устаревший объём. Пакета нет — 0, и потолок остаётся тарифным.
+    const [purchasedStorage] = await tx
+      .select({ bytes: saasStoragePackages.bytes })
+      .from(saasBillingSubscriptions)
+      .innerJoin(
+        saasStoragePackages,
+        eq(saasStoragePackages.id, saasBillingSubscriptions.paidStoragePackageId),
+      )
+      .where(
+        and(
+          eq(saasBillingSubscriptions.organizationId, organizationId),
+          eq(saasBillingSubscriptions.source, 'paid_subscription'),
+        ),
+      )
+      .limit(1);
     const overrides = await tx
       .select({
         mechanic: saasOrgEntitlementOverrides.mechanic,
@@ -290,6 +307,7 @@ async function readStaffSnapshot(organizationId: string): Promise<OrgEntitlement
         ...override,
         quota: override.quota as TariffQuota | null,
       })),
+      purchasedStorageBytes: Number(purchasedStorage?.bytes ?? 0),
       access,
     };
   });

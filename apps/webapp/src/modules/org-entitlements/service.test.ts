@@ -504,7 +504,10 @@ describe('org entitlement mechanic classes', () => {
    * на безлимитном тарифе, однажды купившая пакет, тихо получила бы потолок.
    */
   it('adds the purchased storage package to the tariff ceiling and never caps an unlimited one', () => {
-    const withQuota = (files: TariffQuota | undefined, purchasedStorageBytes: number) => ({
+    const withQuota = (
+      files: { kind: 'numeric' | 'unlimited'; limit: number | null; unit: 'bytes'; warningAtPercent: number | null } | undefined,
+      purchasedStorageBytes: number,
+    ) => ({
       tariff: {
         mechanics: {},
         quotas: files ? { files } : {},
@@ -528,7 +531,7 @@ describe('org entitlement mechanic classes', () => {
     // «Без ограничения» и «числа нет вовсе» докупка не трогает.
     expect(
       fileStorageLimitFromSnapshot(
-        withQuota({ kind: 'unlimited', limit: null, unit: 'bytes', warningAtPercent: null }, 2048),
+        withQuota({ kind: 'unlimited' as const, limit: null, unit: 'bytes' as const, warningAtPercent: null }, 2048),
       ),
     ).toBeNull();
     expect(fileStorageLimitFromSnapshot(withQuota(undefined, 2048))).toBeNull();
