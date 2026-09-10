@@ -295,11 +295,17 @@ export function OrgCustomDomainSection({
             <p>
               Адрес приложения: <span className="font-medium">{binding.hostname}</span>
             </p>
-            {binding.dnsInstruction ? (
-              <p>
-                {binding.dnsInstruction.recordType} {binding.dnsInstruction.name} →{' '}
-                {binding.dnsInstruction.value}
-              </p>
+            {binding.dnsInstructions ? (
+              <div className="flex flex-col gap-1">
+                {binding.dnsInstructions.map((instruction) => (
+                  <p key={`${instruction.recordType}-${instruction.name}`}>
+                    {instruction.recordType} {instruction.name} → {instruction.value}
+                  </p>
+                ))}
+                {binding.placement === 'subdomain' ? (
+                  <p className="text-muted-foreground">Достаточно одной из этих записей.</p>
+                ) : null}
+              </div>
             ) : null}
             <p
               className={binding.status === 'failed' ? 'text-destructive' : 'text-muted-foreground'}
