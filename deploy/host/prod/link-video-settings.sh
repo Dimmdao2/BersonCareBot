@@ -21,7 +21,11 @@ case " $(hostname -I) " in
   *) die "этот скрипт только для нового прода 135.106.187.95" ;;
 esac
 
-DB=bersoncarebot_test
+# Имя базы берётся из того же источника, что и у обновления описателей порт-контекста: зашитое
+# здесь имя пережило бы переименование базы и записало бы настройки видео в несуществующую.
+# shellcheck source=deploy/host/prod/runtime-database.sh
+. "$(dirname "$0")/runtime-database.sh"
+DB=$(runtime_database) || exit 1
 ENV_FILE=/opt/therapysto/env/jitsi.prod
 PUBLIC_URL=https://meet.therapysto.ru
 XMPP_DOMAIN=meet.therapysto.ru
