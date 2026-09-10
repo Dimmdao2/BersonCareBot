@@ -2,12 +2,15 @@ import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS } from '@/shared/ui/doctor/doctorWorkspaceLayout';
 import { doctorSectionTabClass } from '@/shared/ui/doctor/DoctorSectionTabs';
-import { ALL_SETTINGS_TABS, type SettingsTabId } from './settingsTabs';
+import type { DoctorWorkspaceComposition } from '@/modules/doctor-workspace/composition';
+import { settingsTabsFor, type SettingsTabId } from './settingsTabs';
 
 type Props = {
   activeTab: SettingsTabId;
   /** Sections the current user may access — a section outside this list is never rendered. */
   visibleTabs: SettingsTabId[];
+  /** Server-resolved composition; only the labels differ, never the destinations. */
+  composition: DoctorWorkspaceComposition;
 };
 
 /**
@@ -16,8 +19,8 @@ type Props = {
  * gate-vs-render split lives in `page.tsx`, this component only ever renders what it is told is
  * visible — it never links to a section the viewer cannot open).
  */
-export function SettingsTabsNav({ activeTab, visibleTabs }: Props) {
-  const tabs = ALL_SETTINGS_TABS.filter((tab) => visibleTabs.includes(tab.id));
+export function SettingsTabsNav({ activeTab, visibleTabs, composition }: Props) {
+  const tabs = settingsTabsFor(composition).filter((tab) => visibleTabs.includes(tab.id));
   if (tabs.length < 2) return null;
 
   return (

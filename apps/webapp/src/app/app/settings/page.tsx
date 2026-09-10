@@ -47,6 +47,7 @@ import { SettingsTabsNav } from './SettingsTabsNav';
 import type { SettingsTabId } from './settingsTabs';
 import { TeamSection } from './TeamSection';
 import { BookingSoloSpecialistsSection } from './BookingSoloSpecialistsSection';
+import { ManagementBookingSections } from '../manage/ManagementBookingSections';
 import { PATIENT_DEFAULT_SURFACE } from '@/config/productSurfaces';
 import { parseDoctorTodayPreferences } from '@/modules/system-settings/doctorTodayPreferences';
 import { isPlatformIntegrationAvailable } from '@/modules/system-settings/platformIntegrationAvailability';
@@ -68,7 +69,7 @@ import {
 } from '@/modules/system-settings/patientTerms';
 import { DoctorPatientTermsProvider } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
-type LegacySettingsTab = 'specialist' | 'organization' | 'team' | 'billing' | 'install';
+type LegacySettingsTab = 'specialist' | 'organization' | 'booking' | 'team' | 'billing' | 'install';
 
 function valueOf<T>(valueJson: unknown, fallback: T): T {
   return valueJson !== null &&
@@ -88,7 +89,11 @@ function dedicatedBotWebhookPath(channel: 'telegram' | 'max', valueJson: unknown
 function parseTab(raw: string | string[] | undefined): LegacySettingsTab | null {
   const value = typeof raw === 'string' ? raw : raw?.[0];
   if (value === undefined) return null;
-  return value === 'organization' || value === 'team' || value === 'billing' || value === 'install'
+  return value === 'organization' ||
+    value === 'booking' ||
+    value === 'team' ||
+    value === 'billing' ||
+    value === 'install'
     ? value
     : 'specialist';
 }
@@ -160,6 +165,9 @@ export default async function SettingsPage({
     workspace.membershipRole === 'owner' || workspace.membershipRole === 'admin' || isGlobalAdmin;
   const visibleTabs: SettingsTabId[] = [
     'organization',
+    // Owner ruling 2026-09-10: solo has no cabinet-mode switch, so the booking writers that clinic
+    // management owns under `/app/manage` are reached here instead — one settings place, no mode.
+    ...(composition === 'solo' ? (['booking'] as const) : []),
     ...(composition === 'solo' && workspace.specialistId !== null ? (['specialist'] as const) : []),
     ...(composition === 'clinic' && teamEntitlement.ok ? (['team'] as const) : []),
     ...(canAccessBilling ? (['billing'] as const) : []),
@@ -172,8 +180,36 @@ export default async function SettingsPage({
     return (
       <DoctorAppShell title="Профиль специалиста" user={workspace.session.user}>
         <DoctorPageHeader title="Профиль специалиста" />
-        <SettingsTabsNav activeTab="specialist" visibleTabs={visibleTabs} />
+        <SettingsTabsNav
+          activeTab="specialist"
+          visibleTabs={visibleTabs}
+          composition={composition}
+        />
         <BookingSoloSpecialistsSection />
+      </DoctorAppShell>
+    );
+  }
+
+  if (tab === 'booking') {
+    // Clinic composition keeps these writers in its own management workspace; only the solo hub
+    // hosts them here, so the section never exists in two navigations at once.
+    if (composition !== 'solo') redirect('/app/manage/online-booking');
+    const [notificationTemplatesVisibility, doctorStatisticsVisibility] = await Promise.all([
+      getMechanicSurfaceVisibility(workspace, 'branding'),
+      getMechanicSurfaceVisibility(workspace, 'doctor_statistics'),
+    ]);
+    return (
+      <DoctorAppShell title="Онлайн-запись" user={workspace.session.user} layout="full-height">
+        <DoctorPageHeader title="Онлайн-запись" />
+        <SettingsTabsNav activeTab="booking" visibleTabs={visibleTabs} composition={composition} />
+        <ManagementBookingSections
+          basePath={routePaths.settings}
+          notificationTemplatesVisible={notificationTemplatesVisibility.specialistNavigation}
+          doctorStatisticsEnabled={doctorStatisticsVisibility.specialistNavigation}
+          // Memberships stay with the solo specialist's own «Расписание» writer — one place per
+          // writer, so the same section is not offered from two menus.
+          packagesVisible={false}
+        />
       </DoctorAppShell>
     );
   }
@@ -429,7 +465,11 @@ export default async function SettingsPage({
     return (
       <DoctorAppShell title="Настройки" user={workspace.session.user}>
         <DoctorPageHeader title="Настройки" />
-        <SettingsTabsNav activeTab="organization" visibleTabs={visibleTabs} />
+        <SettingsTabsNav
+          activeTab="organization"
+          visibleTabs={visibleTabs}
+          composition={composition}
+        />
         {workspace.membershipRole === 'owner' && workspace.specialistId === null ? (
           <DoctorSection>
             <DoctorSectionHeader>
@@ -554,7 +594,7 @@ export default async function SettingsPage({
     return (
       <DoctorAppShell title="Команда" user={workspace.session.user}>
         <DoctorPageHeader title="Команда" />
-        <SettingsTabsNav activeTab="team" visibleTabs={visibleTabs} />
+        <SettingsTabsNav activeTab="team" visibleTabs={visibleTabs} composition={composition} />
         <TeamSection
           members={members.map((member) => ({
             id: member.id,
@@ -618,7 +658,7 @@ export default async function SettingsPage({
   return (
     <DoctorAppShell title="Тариф и биллинг" user={workspace.session.user}>
       <DoctorPageHeader title="Тариф и биллинг" />
-      <SettingsTabsNav activeTab="billing" visibleTabs={visibleTabs} />
+      <SettingsTabsNav activeTab="billing" visibleTabs={visibleTabs} composition={composition} />
       <BillingSection
         tariffName={snapshot.tariff?.name ?? null}
         commercialStateLabel={describeCommercialAccessState(snapshot.access)}

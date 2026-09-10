@@ -13,12 +13,27 @@ const MANAGEMENT_BOOKING_SECTIONS = new Set([
   'packages',
 ]);
 
+/**
+ * One client entry into the canonical booking writers, parameterised instead of copied: clinic
+ * management mounts it under `/app/manage`, the solo settings hub under `/app/settings?tab=booking`
+ * (owner ruling 2026-09-10 — solo keeps every setting in one place, without a cabinet-mode switch).
+ * The query string is carried over untouched apart from `section`, so the caller's own params
+ * (e.g. `tab=booking`) survive section navigation.
+ */
 export function ManagementBookingSections({
   defaultSection = 'locations',
   basePath = '/app/manage',
+  packagesVisible = true,
+  packagesReadOnly = false,
+  notificationTemplatesVisible = true,
+  doctorStatisticsEnabled = false,
 }: {
   defaultSection?: string;
   basePath?: string;
+  packagesVisible?: boolean;
+  packagesReadOnly?: boolean;
+  notificationTemplatesVisible?: boolean;
+  doctorStatisticsEnabled?: boolean;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -36,10 +51,10 @@ export function ManagementBookingSections({
         router.replace(`${basePath}${next.size ? `?${next.toString()}` : ''}`);
       }}
       isActive
-      packagesVisible
-      packagesReadOnly={false}
-      notificationTemplatesVisible
-      doctorStatisticsEnabled={false}
+      packagesVisible={packagesVisible}
+      packagesReadOnly={packagesReadOnly}
+      notificationTemplatesVisible={notificationTemplatesVisible}
+      doctorStatisticsEnabled={doctorStatisticsEnabled}
     />
   );
 }

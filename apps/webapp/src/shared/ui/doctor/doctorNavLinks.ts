@@ -46,6 +46,8 @@ export type DoctorMenuLinkItem = {
   requiresSpecialistTasksEntitlement?: boolean;
   requiresWorkspaceModule?: WorkspaceModuleKey;
   requiresAnyWorkspaceModule?: readonly WorkspaceModuleKey[];
+  /** Solo-only entry: the clinic composition reaches the same destination from its management menu. */
+  requiresSoloSettingsHub?: boolean;
 };
 
 export type DoctorMenuAccessTier = 'doctor' | 'staff' | 'clinic_admin' | 'global_admin';
@@ -58,6 +60,11 @@ export type DoctorMenuAccess = {
   patientHomeTodayEnabled?: boolean;
   specialistTasksEnabled?: boolean;
   workspaceModules?: WorkspaceModuleEffective;
+  /**
+   * Server-resolved solo composition. Solo has no cabinet-mode switch, so its settings entry lives
+   * in this very menu; the clinic composition keeps them in the separate management menu instead.
+   */
+  soloSettingsHub?: boolean;
 };
 
 export function getDoctorShellHomeHref(access: DoctorMenuAccess): string {
@@ -80,6 +87,7 @@ export function isDoctorMenuLinkVisible(
   if (item.requiresCmsEntitlement && !access.cmsEnabled) return false;
   if (item.requiresPatientHomeTodayEntitlement && !access.patientHomeTodayEnabled) return false;
   if (item.requiresSpecialistTasksEntitlement && !access.specialistTasksEnabled) return false;
+  if (item.requiresSoloSettingsHub && !access.soloSettingsHub) return false;
   if (
     item.requiresWorkspaceModule &&
     access.workspaceModules?.[item.requiresWorkspaceModule] === false
@@ -182,6 +190,16 @@ const RAW_DOCTOR_MENU_ITEMS: DoctorMenuLinkItem[] = [
     label: 'Курсы',
     href: '/app/doctor/courses',
     requiresCoursesEntitlement: true,
+  },
+  // Owner ruling 2026-09-10: the solo product has no cabinet-mode switch, so every management
+  // destination (clinic/app settings, online booking, specialist profile, tariff) is reached from
+  // this single entry. Removing the switch had left solo with no way into settings at all.
+  {
+    id: 'settings',
+    label: 'Настройки',
+    href: routePaths.settings,
+    accessTier: 'clinic_admin',
+    requiresSoloSettingsHub: true,
   },
   // NOTE: the platform operator's own destinations (analytics + the former "system" cluster)
   // moved out to `platformNavLinks.ts` — the platform shell has its own dedicated, flat

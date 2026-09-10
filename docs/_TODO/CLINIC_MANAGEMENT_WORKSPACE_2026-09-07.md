@@ -322,6 +322,9 @@ FullCalendar Premium и DayPilot Lite на одном и том же сущес�
   не создавать визуально эквивалентный shell с нуля.
 - [x] Добавить capability-gated mode switch для owner/admin со specialist binding и корректные landing rules для
   management-only пользователя.
+- [x] Management mode не докует специалистскую нижнюю панель: `DoctorBottomNav` принадлежит только клиническому
+  меню (owner correction 10.09.2026 — «в настройках клиники панель нижнего меню специалиста, такого тут быть не
+  должно»). Evidence: `DoctorWorkspaceShell` bottomNav снова `menuKind === 'doctor'`, отменён `bf8fcee15`.
 - [x] Ограничить `/app/doctor/**` scope `mine` для всех clinic memberships; clinic/specialist scope разрешать
   только management routes через параметризованный resolver `#1028`.
 - [x] Убрать clinic-management links из specialist menu в clinic composition; solo сохраняет единый Settings.
@@ -329,6 +332,18 @@ FullCalendar Premium и DayPilot Lite на одном и том же сущес�
 ### M3. Перекомпоновка Settings и существующих booking sections
 
 - [x] Собрать solo Settings в целевую структуру §3.1 и скрыть Team. Evidence: solo exposes `Профиль специалиста` beside existing clinic and billing sections; Team stays capability/composition-gated.
+  ⚠️ Галочка была преждевременной: после M2/M4 (mode switch только у clinic + Schedule Setup, свёрнутый до
+  `Абонементы`) у solo не осталось ни пункта меню «Настройки», ни доступа к booking-секциям §3.1 — `/app/manage`
+  редиректит solo обратно в Settings. Закрыто пунктом ниже.
+- [x] Вернуть solo единственный вход в настройки без смены режима кабинета (owner correction 10.09.2026:
+  «для соло все настройки должны быть в одном месте и без смены режима кабинета… и настройки записи, и клиники
+  и приложения»). Evidence: `doctorNavLinks` пункт `settings` под composition-gate `soloSettingsHub`; вкладка
+  `?tab=booking` в `/app/settings` монтирует те же booking writers через параметризованный
+  `ManagementBookingSections` (basePath = settings), без второго writer; live DEV solo: sidebar «Настройки»,
+  вкладки `Кабинет / Онлайн-запись / Профиль специалиста / Тариф и биллинг`, секции
+  `Филиалы / Услуги / Специалисты / Публичная форма / Правила записи / Тексты уведомлений` отдают 200.
+  Отступление от §3.1: отдельная группа «Услуги и место приёма» не заводится — эти writers живут секциями внутри
+  `Онлайн-запись`, как в management mode; `Абонементы` остаются единственным местом в «Расписании».
 - [x] В management mode подключить существующие Team, branches, services, specialists, public form, rules,
   notifications, payments, integrations, branding и billing components к их новым разделам. Evidence:
   `MANAGEMENT_NAV` + `ManagementBookingSections` reuse existing writers.

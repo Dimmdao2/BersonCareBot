@@ -110,6 +110,8 @@ export function DoctorWorkspaceShell({
     patientHomeTodayEnabled,
     specialistTasksEnabled,
     workspaceModules,
+    // Solo has no cabinet-mode switch, so its own menu carries the settings entry.
+    soloSettingsHub: workspaceComposition === 'solo',
   };
   const homeHref = getDoctorShellHomeHref(menuAccess);
   const showClinicalShortcuts = capabilities.includes('clinical.workspace');
@@ -170,7 +172,9 @@ export function DoctorWorkspaceShell({
                 ) : undefined
               }
               bottomNav={
-                (menuKind === 'doctor' || menuKind === 'management') && showClinicalShortcuts
+                // Owner 2026-09-10: the specialist bottom bar belongs to the clinical menu only —
+                // clinic management is not the specialist workspace and must not dock it.
+                menuKind === 'doctor' && showClinicalShortcuts
                   ? { menuAccess, patientLabel }
                   : undefined
               }
