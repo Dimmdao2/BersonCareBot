@@ -17,6 +17,7 @@ import {
   type RegistrationTariffPolicy,
   type PaidPeriodPolicy,
   type BillingPeriodOption,
+  type StoragePackage,
   type Tariff,
   type TariffQuota,
   type TariffQuotaMap,
@@ -33,6 +34,7 @@ import {
   DoctorSectionTitle,
 } from '@/shared/ui/doctor/DoctorSection';
 import { DataLoadFailureNotice } from '@/shared/ui/doctor/DataLoadFailureNotice';
+import { formatBytesAsMb } from '@/shared/lib/formatStorageMb';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Checkbox } from '@/shared/ui/doctor/primitives/checkbox';
@@ -65,6 +67,7 @@ type CommercialState = {
   registrationTariffPolicy: RegistrationTariffPolicy;
   billingPeriods: BillingPeriodOption[];
   paidPeriodPolicy: PaidPeriodPolicy | null;
+  storagePackages: StoragePackage[];
 };
 
 type CommercialMutationResponse = {
@@ -754,6 +757,282 @@ function BillingPeriodsPanel({
   );
 }
 
+/**
+ * Владелец 10.09.2026: «Пакеты с количеством места должны настраиваться в кабинете
+ * администраторов… какие пакеты можно докупать? Какой объём? Сколько стоит?». Каталог
+ * платформенный, как тарифы: организация пакет не заводит, она выбирает его из этого списка.
+ *
+ * Объём админ вводит В ГИГАБАЙТАХ, а хранится и считается он в БАЙТАХ — той же мерой, что и
+ * счётчик занятого; пересчёт живёт ровно здесь, на границе экрана, и рядом показывается то самое
+ * число, которое увидит арендатор. Цена — та же сетка периодов, что у тарифа: пустая строка не
+ * отправляется нулём, сервер сам называет незаполненный период
+ * (`saas_tariff_period_price_missing`). Снятый с продажи пакет не удаляется: он остаётся у
+ * купивших его организаций, поэтому здесь есть «Продаётся», но нет «Удалить».
+ */
+const BYTES_PER_GIGABYTE = 1024 * 1024 * 1024;
+
+type StoragePackagePriceDraft = { billingPeriodCode: string; priceRub: string };
+
+type StoragePackageDraft = {
+  id: string | null;
+  name: string;
+  gigabytes: string;
+  sortOrder: string;
+  isActive: boolean;
+  periodPrices: StoragePackagePriceDraft[];
+};
+
+function emptyStoragePackageDraft(periods: readonly BillingPeriodOption[]): StoragePackageDraft {
+  return {
+    id: null,
+    name: '',
+    gigabytes: '',
+    sortOrder: '0',
+    isActive: true,
+    periodPrices: periods.map((period) => ({ billingPeriodCode: period.code, priceRub: '' })),
+  };
+}
+
+function storagePackageDraft(
+  storagePackage: StoragePackage,
+  periods: readonly BillingPeriodOption[],
+): StoragePackageDraft {
+  return {
+    id: storagePackage.id,
+    name: storagePackage.name,
+    gigabytes: String(
+      Number((storagePackage.bytes / BYTES_PER_GIGABYTE).toFixed(3)),
+    ),
+    sortOrder: String(storagePackage.sortOrder),
+    isActive: storagePackage.isActive,
+    periodPrices: periods.map((period) => {
+      const price = storagePackage.periodPrices.find(
+        (row) => row.billingPeriodCode === period.code,
+      );
+      return {
+        billingPeriodCode: period.code,
+        priceRub: price ? String(price.priceMinor / 100) : '',
+      };
+    }),
+  };
+}
+
+function StoragePackagesPanel({
+  packages,
+  selectablePeriods,
+  busy,
+  onSubmit,
+}: {
+  packages: StoragePackage[];
+  selectablePeriods: BillingPeriodOption[];
+  busy: boolean;
+  onSubmit: (input: {
+    id: string | null;
+    storagePackage: {
+      name: string;
+      bytes: number;
+      currency: string | null;
+      periodPrices: { billingPeriodCode: string; priceMinor: number }[];
+      isActive: boolean;
+      sortOrder: number;
+    };
+  }) => Promise<void>;
+}) {
+  const [draft, setDraft] = useState<StoragePackageDraft>(() =>
+    emptyStoragePackageDraft(selectablePeriods),
+  );
+  // Период могли включить или снять, пока экран открыт: строки цен следуют за текущей сеткой —
+  // правкой при рендере, а не эффектом (https://react.dev/learn/you-might-not-need-an-effect).
+  const [seenPeriods, setSeenPeriods] = useState(selectablePeriods);
+  if (selectablePeriods !== seenPeriods) {
+    setSeenPeriods(selectablePeriods);
+    setDraft((current) => ({
+      ...current,
+      periodPrices: selectablePeriods.map((period) => ({
+        billingPeriodCode: period.code,
+        priceRub:
+          current.periodPrices.find((row) => row.billingPeriodCode === period.code)?.priceRub ?? '',
+      })),
+    }));
+  }
+
+  const bytes = draft.gigabytes.trim()
+    ? Math.round(Number(draft.gigabytes) * BYTES_PER_GIGABYTE)
+    : 0;
+
+  return (
+    <div className="grid gap-3 xl:grid-cols-[minmax(240px,0.7fr)_minmax(0,1.3fr)]">
+      <DoctorSection>
+        <DoctorSectionHeader>
+          <DoctorSectionTitle>Пакеты объёма</DoctorSectionTitle>
+        </DoctorSectionHeader>
+        <div className="divide-y divide-border/70">
+          {packages.length === 0 ? (
+            <p className="px-[18px] py-3 text-sm text-muted-foreground">
+              Пакеты ещё не созданы — докупить объём пока нечем.
+            </p>
+          ) : null}
+          {packages.map((storagePackage) => (
+            <button
+              key={storagePackage.id}
+              type="button"
+              className="flex w-full flex-col items-start gap-1 px-[18px] py-3 text-left hover:bg-muted/40"
+              onClick={() => setDraft(storagePackageDraft(storagePackage, selectablePeriods))}
+            >
+              <span className="text-sm font-medium">{storagePackage.name}</span>
+              <span className="text-xs text-muted-foreground">
+                {formatBytesAsMb(storagePackage.bytes)}
+                {storagePackage.isActive ? '' : ' · снят с продажи'}
+              </span>
+            </button>
+          ))}
+        </div>
+        <div className="px-[18px] py-3">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setDraft(emptyStoragePackageDraft(selectablePeriods))}
+          >
+            Новый пакет
+          </Button>
+        </div>
+      </DoctorSection>
+
+      <DoctorSection className="space-y-4">
+        <DoctorSectionHeader>
+          <DoctorSectionTitle>{draft.id ? 'Пакет' : 'Новый пакет'}</DoctorSectionTitle>
+        </DoctorSectionHeader>
+        <div className="space-y-4 px-[18px] pb-4">
+          <div className="grid gap-2 sm:grid-cols-[1.4fr_0.8fr_0.6fr]">
+            <div className="space-y-1">
+              <Label htmlFor="storage-package-name">Название</Label>
+              <Input
+                id="storage-package-name"
+                value={draft.name}
+                placeholder="+50 ГБ"
+                onChange={(event) => setDraft({ ...draft, name: event.target.value })}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="storage-package-gigabytes">Объём, ГБ</Label>
+              <Input
+                id="storage-package-gigabytes"
+                type="number"
+                min="0"
+                step="1"
+                value={draft.gigabytes}
+                onChange={(event) => setDraft({ ...draft, gigabytes: event.target.value })}
+              />
+              <p className="text-xs text-muted-foreground">
+                {bytes > 0 ? formatBytesAsMb(bytes) : 'Объём не указан'}
+              </p>
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="storage-package-sort-order">Порядок</Label>
+              <Input
+                id="storage-package-sort-order"
+                type="number"
+                value={draft.sortOrder}
+                onChange={(event) => setDraft({ ...draft, sortOrder: event.target.value })}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2 rounded-xl border border-border/70 p-3">
+            <Label>Цена за период</Label>
+            {selectablePeriods.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Нет ни одного активного периода оплаты — включите период на вкладке «Периоды
+                оплаты», иначе пакет некуда оценить.
+              </p>
+            ) : null}
+            {selectablePeriods.map((period) => {
+              const row = draft.periodPrices.find(
+                (price) => price.billingPeriodCode === period.code,
+              );
+              return (
+                <div key={period.code} className="grid items-end gap-2 sm:grid-cols-[1fr_1fr]">
+                  <div className="text-sm text-muted-foreground">{period.label}</div>
+                  <Input
+                    type="number"
+                    min="0"
+                    aria-label={`Цена пакета за период «${period.label}», ₽`}
+                    placeholder="₽"
+                    value={row?.priceRub ?? ''}
+                    onChange={(event) =>
+                      setDraft({
+                        ...draft,
+                        periodPrices: draft.periodPrices.map((price) =>
+                          price.billingPeriodCode === period.code
+                            ? { ...price, priceRub: event.target.value }
+                            : price,
+                        ),
+                      })
+                    }
+                  />
+                </div>
+              );
+            })}
+          </div>
+
+          <Label className="flex items-center gap-2 text-sm">
+            <Checkbox
+              checked={draft.isActive}
+              onCheckedChange={(checked) => setDraft({ ...draft, isActive: checked === true })}
+            />
+            Продаётся
+          </Label>
+          <p className="text-xs text-muted-foreground">
+            Снятый с продажи пакет остаётся у тех, кто его уже купил, и продолжает попадать в их
+            счета — из каталога он только перестаёт предлагаться.
+          </p>
+
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                const periodPrices = draft.periodPrices.flatMap((row) => {
+                  if (!row.priceRub.trim()) return [];
+                  const priceMinor = Math.round(Number(row.priceRub) * 100);
+                  if (!Number.isFinite(priceMinor)) return [];
+                  return [{ billingPeriodCode: row.billingPeriodCode, priceMinor }];
+                });
+                void onSubmit({
+                  id: draft.id,
+                  storagePackage: {
+                    name: draft.name,
+                    bytes,
+                    currency: periodPrices.length === 0 ? null : 'RUB',
+                    periodPrices,
+                    isActive: draft.isActive,
+                    sortOrder: Number.parseInt(draft.sortOrder, 10) || 0,
+                  },
+                }).then(() => {
+                  if (!draft.id) setDraft(emptyStoragePackageDraft(selectablePeriods));
+                });
+              }}
+            >
+              {draft.id ? 'Сохранить' : 'Создать'}
+            </Button>
+            {draft.id ? (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={busy}
+                onClick={() => setDraft(emptyStoragePackageDraft(selectablePeriods))}
+              >
+                Отменить правку
+              </Button>
+            ) : null}
+          </div>
+        </div>
+      </DoctorSection>
+    </div>
+  );
+}
+
 export function CommercialConstructorClient() {
   const searchParams = useSearchParams();
   const organizationIdFromUrl = searchParams.get('organizationId')?.trim() ?? '';
@@ -765,6 +1044,7 @@ export function CommercialConstructorClient() {
     registrationTariffPolicy: { tariffId: null },
     billingPeriods: [],
     paidPeriodPolicy: null,
+    storagePackages: [],
   });
   const [tariff, setTariff] = useState<TariffDraft>(emptyTariffDraft);
   const [reason, setReason] = useState('');
@@ -809,6 +1089,7 @@ export function CommercialConstructorClient() {
       registrationTariffPolicy: payload.registrationTariffPolicy ?? { tariffId: null },
       billingPeriods: payload.billingPeriods ?? [],
       paidPeriodPolicy: payload.paidPeriodPolicy ?? null,
+      storagePackages: payload.storagePackages ?? [],
     });
   }, []);
 
@@ -1031,6 +1312,7 @@ export function CommercialConstructorClient() {
       <TabsList>
         <TabsTrigger value="tariffs">Тарифы</TabsTrigger>
         <TabsTrigger value="periods">Периоды оплаты</TabsTrigger>
+        <TabsTrigger value="storage">Пакеты объёма</TabsTrigger>
         <TabsTrigger value="organizations">Организации</TabsTrigger>
         <TabsTrigger value="trial">Триал</TabsTrigger>
         <TabsTrigger value="notifications">Уведомления</TabsTrigger>
@@ -1336,6 +1618,22 @@ export function CommercialConstructorClient() {
             mutate(
               { action: 'set_billing_period_selectable', code, isSelectable, reason },
               isSelectable ? 'Период включён' : 'Период отключён',
+            )
+          }
+        />
+      </TabsContent>
+
+      <TabsContent value="storage">
+        <StoragePackagesPanel
+          packages={state.storagePackages}
+          selectablePeriods={selectableBillingPeriods}
+          busy={busy}
+          onSubmit={({ id, storagePackage }) =>
+            mutate(
+              id
+                ? { action: 'update_storage_package', storagePackageId: id, storagePackage, reason }
+                : { action: 'create_storage_package', storagePackage, reason },
+              id ? 'Пакет объёма обновлён' : 'Пакет объёма создан',
             )
           }
         />

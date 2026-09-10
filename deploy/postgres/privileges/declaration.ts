@@ -22587,6 +22587,7 @@ export const PLATFORM_ROLE_SCOPE: PlatformRoleScope = {
     'public.saas_billing_accounts', 'public.saas_billing_invoices', 'public.saas_billing_subscriptions',
     'public.saas_billing_provider_events', 'public.saas_billing_refunds', 'public.saas_billing_periods',
     'public.saas_tariff_period_prices', // #1069 owner decision 2026-09-05 (period grid)
+    'public.saas_storage_packages', 'public.saas_storage_package_period_prices', // докупка объёма (владелец 10.09)
     'public.saas_org_entitlement_overrides', 'public.saas_organization_trials', 'public.saas_tariffs',
     'public.saas_trial_policy', 'public.saas_registration_tariff_policy', 'public.saas_paid_period_policy',
     'public.admin_audit_log',
@@ -23685,6 +23686,18 @@ const TABLE_ROWS: TableRow[] = [
     pol: 'та же форма, что у соседнего saas_billing_periods выше: закрыто ГРАНТОМ (app_staff/app_clinic_billing '
     + 'read, app_platform_settings SELECT/INSERT/UPDATE — DELETE снят 05.09, запись только upsert), а не '
     + 'RLS-политикой — тот же класс риска I9, если RLS когда-либо включат на этой таблице',
+    defect: ['D4-role-escalation', 'I9-grant-instead-of-policy'] },
+  { t: 'public.saas_storage_packages', cls: 'R', why: 'каталог пакетов докупки объёма (владелец 10.09.2026) — '
+    + 'платформенный список «объём + цена», из которого организация выбирает докупку; без чтения '
+    + 'арендатором экран докупки пуст, без записи платформой каталога нет',
+    pol: 'та же форма, что у соседней saas_tariff_period_prices: закрыто ГРАНТОМ (app_staff/app_clinic_billing '
+    + 'read, app_platform_settings SELECT/INSERT/UPDATE), а не RLS-политикой — платформенный каталог не '
+    + 'принадлежит организации и делить его по арендатору нечем',
+    defect: ['D4-role-escalation', 'I9-grant-instead-of-policy'] },
+  { t: 'public.saas_storage_package_period_prices', cls: 'R', why: 'цена пакета докупки за период — '
+    + 'денежная матрица той же формы, что у тарифа; без неё ни экран докупки, ни счёт не знают суммы',
+    pol: 'закрыто ГРАНТОМ так же, как цена тарифа за период (app_staff/app_clinic_billing read, '
+    + 'app_platform_settings SELECT/INSERT/UPDATE)',
     defect: ['D4-role-escalation', 'I9-grant-instead-of-policy'] },
   { t: 'public.saas_billing_provider_events', cls: 'C', org: true, why: 'вебхуки провайдера — идемпотентность оплаты',
     defect: ['D4-role-escalation'] },
@@ -31692,6 +31705,32 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
       // F-4 (independent audit-live, 2026-09-05) — DELETE removed: `writeTariffPeriodPrices` is now
       // a pure upsert (never a delete-all/full-replace), so the write path no longer uses it and the
       // grant was an overgrant against "retirement is non-destructive" (owner decision 2).
+      { role: 'app_platform_settings', operations: ['SELECT', 'INSERT', 'UPDATE'], columns: 'table' },
+    ],
+  },
+  'public.saas_storage_packages': {
+    kind: 'direct',
+    purpose: 'каталог пакетов докупки объёма (владелец 10.09.2026): арендатор читает, что можно купить; платформа одна его ведёт',
+    codePaths: [
+      'apps/webapp/src/infra/repos/pgPlatformEntitlements.ts',
+      'apps/webapp/src/infra/repos/pgOrgEntitlements.ts',
+    ],
+    grants: [
+      { role: 'app_staff', operations: ['SELECT'], columns: 'table' },
+      { role: 'app_clinic_billing', operations: ['SELECT'], columns: 'table' },
+      { role: 'app_platform_settings', operations: ['SELECT', 'INSERT', 'UPDATE'], columns: 'table' },
+    ],
+  },
+  'public.saas_storage_package_period_prices': {
+    kind: 'direct',
+    purpose: 'цена пакета докупки за период — арендатор видит сумму своего периода, платформа её задаёт',
+    codePaths: [
+      'apps/webapp/src/infra/repos/pgPlatformEntitlements.ts',
+      'apps/webapp/src/infra/repos/pgOrgEntitlements.ts',
+    ],
+    grants: [
+      { role: 'app_staff', operations: ['SELECT'], columns: 'table' },
+      { role: 'app_clinic_billing', operations: ['SELECT'], columns: 'table' },
       { role: 'app_platform_settings', operations: ['SELECT', 'INSERT', 'UPDATE'], columns: 'table' },
     ],
   },

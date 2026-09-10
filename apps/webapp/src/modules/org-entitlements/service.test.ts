@@ -351,6 +351,13 @@ describe('org entitlement mechanic classes', () => {
         throw new Error('not_used');
       },
       archiveTariff: async () => {},
+      listStoragePackages: async () => [],
+      createStoragePackage: async () => {
+        throw new Error('not_used');
+      },
+      updateStoragePackage: async () => {
+        throw new Error('not_used');
+      },
       assignTariff: async () => {},
       upsertOverride: async () => {},
       deleteOverride: async () => {},
@@ -515,6 +522,13 @@ describe('org entitlement mechanic classes', () => {
         throw new Error('not_used');
       },
       archiveTariff: async () => {},
+      listStoragePackages: async () => [],
+      createStoragePackage: async () => {
+        throw new Error('not_used');
+      },
+      updateStoragePackage: async () => {
+        throw new Error('not_used');
+      },
       assignTariff: async () => {},
       upsertOverride: async () => {},
       deleteOverride: async () => {},
@@ -994,6 +1008,13 @@ describe('tariff downgrade guard (§5a stage 4b.3/4b.4 — "ручка 2")', () 
         throw new Error('not_used');
       },
       archiveTariff: async () => {},
+      listStoragePackages: async () => [],
+      createStoragePackage: async () => {
+        throw new Error('not_used');
+      },
+      updateStoragePackage: async () => {
+        throw new Error('not_used');
+      },
       assignTariff: async (organizationId, tariffId) => {
         assignCalls.push([organizationId, tariffId]);
       },
@@ -1102,6 +1123,13 @@ describe('access ladder terminal state (§5a stage 4b.2 — exactly two values)'
         throw new Error('not_used');
       },
       archiveTariff: async () => {},
+      listStoragePackages: async () => [],
+      createStoragePackage: async () => {
+        throw new Error('not_used');
+      },
+      updateStoragePackage: async () => {
+        throw new Error('not_used');
+      },
       assignTariff: async () => {},
       upsertOverride: async () => {},
       deleteOverride: async () => {},
@@ -1185,6 +1213,13 @@ describe('§5a stage 6.4 — critical mechanics carry neither a ladder nor a num
         throw new Error('not_used');
       },
       archiveTariff: async () => {},
+      listStoragePackages: async () => [],
+      createStoragePackage: async () => {
+        throw new Error('not_used');
+      },
+      updateStoragePackage: async () => {
+        throw new Error('not_used');
+      },
       assignTariff: async () => {},
       upsertOverride: async () => {},
       deleteOverride: async () => {},
@@ -1356,6 +1391,13 @@ describe('§5a stage 6.3 — enabling one mechanic follows the owner\'s sequence
         throw new Error('not_used');
       },
       archiveTariff: async () => {},
+      listStoragePackages: async () => [],
+      createStoragePackage: async () => {
+        throw new Error('not_used');
+      },
+      updateStoragePackage: async () => {
+        throw new Error('not_used');
+      },
       assignTariff: async () => {},
       upsertOverride: async (input) => {
         overrides.push(input);
@@ -1493,6 +1535,13 @@ describe('§5a item 2.6a — the owner sets the value, the code only refuses wha
         throw new Error('not_used');
       },
       archiveTariff: async () => {},
+      listStoragePackages: async () => [],
+      createStoragePackage: async () => {
+        throw new Error('not_used');
+      },
+      updateStoragePackage: async () => {
+        throw new Error('not_used');
+      },
       assignTariff: async () => {},
       upsertOverride: async () => {},
       deleteOverride: async () => {},
@@ -1773,6 +1822,13 @@ describe('§5a item 2.6a — политика триала настраивае�
         throw new Error('not_used');
       },
       archiveTariff: async () => {},
+      listStoragePackages: async () => [],
+      createStoragePackage: async () => {
+        throw new Error('not_used');
+      },
+      updateStoragePackage: async () => {
+        throw new Error('not_used');
+      },
       assignTariff: async () => {},
       upsertOverride: async () => {},
       deleteOverride: async () => {},
@@ -2106,5 +2162,61 @@ describe('§5a #1069 Т8 (owner 03.08) — discounted price is explicit per tari
         reason: '',
       }),
     ).rejects.toThrow('tariff_discounted_price_invalid');
+  });
+});
+
+/**
+ * Владелец 10.09.2026: «Пакеты с количеством места должны настраиваться в кабинете
+ * администраторов… какой объём? сколько стоит?». Проверяется то, что делает пакет продаваемым:
+ * объём, который реально что-то добавляет, и цена за КАЖДЫЙ продаваемый сейчас период — иначе
+ * арендатор увидит пакет, который невозможно оценить в его периоде подписки.
+ */
+describe('storage package catalog', () => {
+  const audit = { actorId: 'admin', reason: 'storage package catalog' };
+  const packageInput = {
+    name: '+50 ГБ',
+    bytes: 50 * 1024 * 1024 * 1024,
+    currency: 'RUB',
+    periodPrices: [
+      { billingPeriodCode: 'month', priceMinor: 19_900 },
+      { billingPeriodCode: 'half_year', priceMinor: 99_900 },
+      { billingPeriodCode: 'year', priceMinor: 179_900 },
+    ],
+    isActive: true,
+    sortOrder: 10,
+  };
+
+  it('saves a package with its full period price matrix and reads it back', async () => {
+    const service = createPlatformEntitlementsService(createInMemoryPlatformEntitlementsPort());
+    const created = await service.createStoragePackage(packageInput, audit);
+
+    expect(created.bytes).toBe(53_687_091_200);
+    expect(await service.listStoragePackages()).toEqual([created]);
+
+    const updated = await service.updateStoragePackage(
+      created.id,
+      { ...packageInput, isActive: false },
+      audit,
+    );
+    // Снятый с продажи пакет остаётся в каталоге: его уже могли купить.
+    expect(updated.isActive).toBe(false);
+    expect(await service.listStoragePackages()).toHaveLength(1);
+  });
+
+  it('refuses a package priced for only some of the currently selectable periods', async () => {
+    const service = createPlatformEntitlementsService(createInMemoryPlatformEntitlementsPort());
+    await expect(
+      service.createStoragePackage(
+        { ...packageInput, periodPrices: [{ billingPeriodCode: 'month', priceMinor: 19_900 }] },
+        audit,
+      ),
+    ).rejects.toThrow('saas_tariff_period_price_missing:half_year,year');
+  });
+
+  it('refuses a package that grants no volume at all', async () => {
+    const service = createPlatformEntitlementsService(createInMemoryPlatformEntitlementsPort());
+    await expect(
+      service.createStoragePackage({ ...packageInput, bytes: 0 }, audit),
+    ).rejects.toThrow('storage_package_bytes_invalid');
   });
 });

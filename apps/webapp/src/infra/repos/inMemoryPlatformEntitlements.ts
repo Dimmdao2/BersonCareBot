@@ -3,6 +3,7 @@ import type {
   BillingPeriodOption,
   PaidPeriodPolicy,
   RegistrationTariffPolicy,
+  StoragePackage,
   Tariff,
   TrialPolicy,
 } from '@/modules/org-entitlements/types';
@@ -15,6 +16,7 @@ const DEFAULT_BILLING_PERIODS: BillingPeriodOption[] = [
 
 export function createInMemoryPlatformEntitlementsPort(): PlatformEntitlementsPort {
   const tariffs = new Map<string, Tariff>();
+  const storagePackages = new Map<string, StoragePackage>();
   const organizationTariffs = new Map<string, string | null>();
   const organizationIsActive = new Map<string, boolean>();
   const trials = new Map<
@@ -140,6 +142,29 @@ export function createInMemoryPlatformEntitlementsPort(): PlatformEntitlementsPo
       const tariff = { ...current, ...input, updatedAt: new Date().toISOString() };
       tariffs.set(id, tariff);
       return tariff;
+    },
+    async listStoragePackages() {
+      return [...storagePackages.values()].sort(
+        (left, right) => left.sortOrder - right.sortOrder || left.name.localeCompare(right.name),
+      );
+    },
+    async createStoragePackage(input) {
+      const now = new Date().toISOString();
+      const storagePackage: StoragePackage = {
+        ...input,
+        id: crypto.randomUUID(),
+        createdAt: now,
+        updatedAt: now,
+      };
+      storagePackages.set(storagePackage.id, storagePackage);
+      return storagePackage;
+    },
+    async updateStoragePackage(id, input) {
+      const current = storagePackages.get(id);
+      if (!current) throw new Error('storage_package_not_found');
+      const storagePackage = { ...current, ...input, updatedAt: new Date().toISOString() };
+      storagePackages.set(id, storagePackage);
+      return storagePackage;
     },
     async archiveTariff(id) {
       const current = tariffs.get(id);

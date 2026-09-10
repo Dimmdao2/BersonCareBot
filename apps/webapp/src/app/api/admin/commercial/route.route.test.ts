@@ -31,6 +31,8 @@ import {
   saasTariffs,
   saasBillingPeriods,
   saasTariffPeriodPrices,
+  saasStoragePackages,
+  saasStoragePackagePeriodPrices,
 } from '../../../../../db/schema/saasEntitlements';
 import { GET, POST } from './route';
 
@@ -96,6 +98,14 @@ beforeEach(() => {
           return Object.assign(Promise.resolve(storedPeriodPrices), {
             orderBy: async () => storedPeriodPrices,
           });
+        }
+        // Каталог пакетов объёма (владелец 10.09.2026) читается тем же GET: пустой каталог —
+        // законное состояние платформы, двойник обязан на него отвечать, а не падать.
+        if (table === saasStoragePackages) {
+          return { orderBy: async () => [] };
+        }
+        if (table === saasStoragePackagePeriodPrices) {
+          return Object.assign(Promise.resolve([]), { orderBy: async () => [] });
         }
         if (table !== saasTariffs) throw new Error('unexpected_select_table');
         return {

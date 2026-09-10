@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import {
+  bigint,
   boolean,
   check,
   foreignKey,
@@ -420,5 +421,79 @@ export const saasOrganizationTrials = pgTable(
       'saas_organization_trials_post_tariff_check',
       sql`(${table.postTrialBehavior} = 'tariff' AND ${table.postTrialTariffId} IS NOT NULL) OR (${table.postTrialBehavior} <> 'tariff' AND ${table.postTrialTariffId} IS NULL)`,
     ),
+  ],
+);
+
+/**
+ * Поручение владельца 10.09.2026: «Пакеты с количеством места должны настраиваться в кабинете
+ * администраторов… какие пакеты можно докупать? Какой объём? Сколько стоит?». Каталог платформенный,
+ * как и тарифы: организация не заводит себе пакет, она выбирает его из этого списка.
+ *
+ * Объём — в БАЙТАХ, той же мерой, что и счётчик занятого (`media_files.size_bytes`), поэтому
+ * сложение лимита с пакетом нигде не требует пересчёта единиц. Цена живёт не здесь, а
+ * в {@link saasStoragePackagePeriodPrices}: владелец 10.09 выбрал «цена за период тарифа, как у
+ * дополнительного места», а периодов у платформы столько, сколько строк в `saas_billing_periods`.
+ *
+ * План работы — `docs/_TODO/STORAGE_PACKAGES_2026-09-10.md`.
+ */
+export const saasStoragePackages = pgTable(
+  'saas_storage_packages',
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    name: text().notNull(),
+    /** Дополнительный объём пакета в байтах — прибавляется к числу тарифа, а не заменяет его. */
+    bytes: bigint('bytes', { mode: 'number' }).notNull(),
+    currency: text(),
+    /** Снятый с продажи пакет не исчезает: он остаётся у тех, кто его уже купил. */
+    isActive: boolean('is_active').default(true).notNull(),
+    sortOrder: integer('sort_order').default(0).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    check('saas_storage_packages_bytes_check', sql`${table.bytes} > 0`),
+    index('idx_saas_storage_packages_active_sort').on(table.isActive, table.sortOrder),
+  ],
+);
+
+/**
+ * Цена пакета за период — та же форма, что у {@link saasTariffPeriodPrices}: одна строка на пару
+ * (пакет, период). Иначе одно число «цена за период» означало бы разное для месячного и годового
+ * тарифа, а докупка обязана считаться по периоду ТОГО тарифа, к которому она куплена (Р-15).
+ */
+export const saasStoragePackagePeriodPrices = pgTable(
+  'saas_storage_package_period_prices',
+  {
+    packageId: uuid('package_id').notNull(),
+    billingPeriodCode: text('billing_period_code').notNull(),
+    priceMinor: integer('price_minor').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.packageId, table.billingPeriodCode] }),
+    index('idx_saas_storage_package_period_prices_period').on(
+      table.billingPeriodCode,
+      table.packageId,
+    ),
+    foreignKey({
+      columns: [table.packageId],
+      foreignColumns: [saasStoragePackages.id],
+      name: 'saas_storage_package_period_prices_package_id_fkey',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [table.billingPeriodCode],
+      foreignColumns: [saasBillingPeriods.code],
+      name: 'saas_storage_package_period_prices_billing_period_code_fkey',
+    }).onDelete('restrict'),
+    check('saas_storage_package_period_prices_price_check', sql`${table.priceMinor} >= 0`),
   ],
 );

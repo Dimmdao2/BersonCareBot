@@ -303,6 +303,34 @@ export type TariffPeriodPrice = {
   discountedPriceMinor: number | null;
 };
 
+/**
+ * Пакет докупки объёма — платформенный каталог (владелец 10.09.2026: «Пакеты с количеством места
+ * должны настраиваться в кабинете администраторов… какой объём? сколько стоит?»).
+ *
+ * Объём в БАЙТАХ — та же мера, что у счётчика занятого и у числа `files` в тарифе, поэтому
+ * «лимит тарифа + купленный пакет» складывается без пересчёта единиц. Цена — по периоду, как у
+ * тарифа: одно число «за период» означало бы разное для месячного и годового тарифа.
+ *
+ * План — `docs/_TODO/STORAGE_PACKAGES_2026-09-10.md`.
+ */
+export type StoragePackage = {
+  id: string;
+  name: string;
+  bytes: number;
+  currency: string | null;
+  periodPrices: StoragePackagePeriodPrice[];
+  /** Снятый с продажи пакет остаётся у тех, кто его купил, и не исчезает из счетов. */
+  isActive: boolean;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type StoragePackagePeriodPrice = {
+  billingPeriodCode: string;
+  priceMinor: number;
+};
+
 export type Tariff = {
   id: string;
   name: string;

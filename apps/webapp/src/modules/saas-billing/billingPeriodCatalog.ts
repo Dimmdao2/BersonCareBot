@@ -28,9 +28,18 @@ export type TariffPeriodPrice = {
  * selectable period, no unknown code, no duplicate, no negative amount. Called by BOTH the write
  * path (`createTariff`/`updateTariff`) and the completeness gate a period activation runs, so the
  * two can never silently disagree on what "complete" means.
+ *
+ * Владелец 10.09.2026 назначил пакетам докупки объёма ту же сетку цен («цена за период тарифа, как
+ * у дополнительного места»), поэтому их запись проходит ЭТУ же проверку, а не свою вторую копию.
+ * Скидки у пакета нет — `discountedPriceMinor` необязателен, и отсутствующее поле проверку не
+ * трогает (проверяется только реально указанная скидка).
  */
 export function assertCompleteTariffPeriodPriceMatrix(
-  periodPrices: readonly TariffPeriodPrice[],
+  periodPrices: readonly {
+    billingPeriodCode: string;
+    priceMinor: number;
+    discountedPriceMinor?: number | null;
+  }[],
   selectablePeriodCodes: readonly string[],
 ): void {
   const seen = new Set<string>();
@@ -47,6 +56,7 @@ export function assertCompleteTariffPeriodPriceMatrix(
     }
     if (
       row.discountedPriceMinor !== null &&
+      row.discountedPriceMinor !== undefined &&
       (!Number.isInteger(row.discountedPriceMinor) || row.discountedPriceMinor < 0)
     ) {
       throw new Error(`saas_tariff_period_price_discount_invalid:${row.billingPeriodCode}`);

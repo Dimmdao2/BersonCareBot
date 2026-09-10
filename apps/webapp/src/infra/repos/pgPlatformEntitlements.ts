@@ -22,6 +22,8 @@ import type {
   RegistrationTariffPolicy,
   PaidPeriodPolicy,
   BillingPeriodOption,
+  StoragePackage,
+  StoragePackagePeriodPrice,
   Tariff,
   TariffPeriodPrice,
   TariffQuota,
@@ -36,6 +38,8 @@ import {
   saasOrgEntitlementOverrides,
   saasPaidPeriodPolicy,
   saasRegistrationTariffPolicy,
+  saasStoragePackagePeriodPrices,
+  saasStoragePackages,
   saasTariffPeriodPrices,
   saasTariffs,
   saasTrialPolicy,
@@ -104,6 +108,68 @@ function toTariff(
     ) as DowngradePolicyMap,
     mailingTemplates: row.mailingTemplates as MailingTemplate[],
   };
+}
+
+function toStoragePackage(
+  row: typeof saasStoragePackages.$inferSelect,
+  periodPrices: readonly StoragePackagePeriodPrice[],
+): StoragePackage {
+  return {
+    id: row.id,
+    name: row.name,
+    bytes: row.bytes,
+    currency: row.currency,
+    periodPrices: [...periodPrices],
+    isActive: row.isActive,
+    sortOrder: row.sortOrder,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  };
+}
+
+function storagePackageValues(input: Omit<StoragePackage, 'id' | 'createdAt' | 'updatedAt'>) {
+  return {
+    name: input.name,
+    bytes: input.bytes,
+    currency: input.currency,
+    isActive: input.isActive,
+    sortOrder: input.sortOrder,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+/**
+ * Тот же неразрушающий upsert, что и у цен тарифа ({@link writeTariffPeriodPrices}), и по той же
+ * причине: строку цены за период, который уже сняли с продажи, удалять нельзя — на неё смотрит
+ * счёт уже купившей организации. Полнота матрицы по СЕЙЧАС продаваемым периодам проверена выше
+ * вызовом `assertCompleteTariffPeriodPriceMatrix`.
+ */
+async function writeStoragePackagePeriodPrices(
+  tx: Transaction,
+  packageId: string,
+  periodPrices: readonly StoragePackagePeriodPrice[],
+): Promise<void> {
+  if (periodPrices.length === 0) return;
+  await tx
+    .insert(saasStoragePackagePeriodPrices)
+    .values(
+      periodPrices.map((row) => ({
+        packageId,
+        billingPeriodCode: row.billingPeriodCode,
+        priceMinor: row.priceMinor,
+        updatedAt: new Date().toISOString(),
+      })),
+    )
+    .onConflictDoUpdate({
+      target: [
+        saasStoragePackagePeriodPrices.packageId,
+        saasStoragePackagePeriodPrices.billingPeriodCode,
+      ],
+      set: {
+        priceMinor: sql`excluded.price_minor`,
+        updatedAt: sql`excluded.updated_at`,
+      },
+    });
 }
 
 function toPaidPeriodPolicy(row: typeof saasPaidPeriodPolicy.$inferSelect): PaidPeriodPolicy {
@@ -793,6 +859,84 @@ export function createPgPlatformEntitlementsPort(dependencies?: {
           before,
           after,
         });
+      });
+    },
+
+    /**
+     * Каталог пакетов докупки объёма (владелец 10.09.2026) читается ЦЕЛИКОМ, включая снятые с
+     * продажи: снятый пакет остаётся у купивших его организаций, и счёт с экраном обязаны назвать
+     * его по имени. Форма — та же, что у `listTariffs`: строки и цены двумя запросами, склейка по
+     * id, чтобы пакет без единой цены всё равно был виден админу.
+     */
+    async listStoragePackages() {
+      assertPlatformOperationsPrincipal();
+      const [rows, priceRows] = await Promise.all([
+        getDrizzle()
+          .select()
+          .from(saasStoragePackages)
+          .orderBy(saasStoragePackages.sortOrder, saasStoragePackages.name),
+        getDrizzle().select().from(saasStoragePackagePeriodPrices),
+      ]);
+      const pricesByPackage = new Map<string, StoragePackagePeriodPrice[]>();
+      for (const row of priceRows) {
+        const list = pricesByPackage.get(row.packageId) ?? [];
+        list.push({ billingPeriodCode: row.billingPeriodCode, priceMinor: row.priceMinor });
+        pricesByPackage.set(row.packageId, list);
+      }
+      return rows.map((row) => toStoragePackage(row, pricesByPackage.get(row.id) ?? []));
+    },
+
+    async createStoragePackage(input, audit) {
+      assertPlatformOperationsPrincipal();
+      return getDrizzle().transaction(async (tx) => {
+        const selectableCodes = await lockSelectablePeriodCodes(tx);
+        assertCompleteTariffPeriodPriceMatrix(input.periodPrices, selectableCodes);
+        const [row] = await tx
+          .insert(saasStoragePackages)
+          .values(storagePackageValues(input))
+          .returning();
+        if (!row) throw new Error('storage_package_create_failed');
+        await writeStoragePackagePeriodPrices(tx, row.id, input.periodPrices);
+        await appendAudit(tx, {
+          audit,
+          action: 'saas_storage_package_create',
+          targetId: row.id,
+          organizationId: null,
+          before: null,
+          after: { ...row, periodPrices: input.periodPrices },
+        });
+        return toStoragePackage(row, input.periodPrices);
+      });
+    },
+
+    async updateStoragePackage(id, input, audit) {
+      assertPlatformOperationsPrincipal();
+      return getDrizzle().transaction(async (tx) => {
+        const [before] = await tx
+          .select()
+          .from(saasStoragePackages)
+          .where(eq(saasStoragePackages.id, id))
+          .limit(1)
+          .for('update');
+        if (!before) throw new Error('storage_package_not_found');
+        const selectableCodes = await lockSelectablePeriodCodes(tx);
+        assertCompleteTariffPeriodPriceMatrix(input.periodPrices, selectableCodes);
+        const [row] = await tx
+          .update(saasStoragePackages)
+          .set(storagePackageValues(input))
+          .where(eq(saasStoragePackages.id, id))
+          .returning();
+        if (!row) throw new Error('storage_package_update_failed');
+        await writeStoragePackagePeriodPrices(tx, id, input.periodPrices);
+        await appendAudit(tx, {
+          audit,
+          action: 'saas_storage_package_update',
+          targetId: id,
+          organizationId: null,
+          before,
+          after: { ...row, periodPrices: input.periodPrices },
+        });
+        return toStoragePackage(row, input.periodPrices);
       });
     },
 

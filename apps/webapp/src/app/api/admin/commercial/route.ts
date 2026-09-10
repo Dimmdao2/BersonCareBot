@@ -64,6 +64,14 @@ const COMMERCIAL_ERROR_RULES: ApiErrorLiteralRules = {
   tariff_quota_warning_invalid: { code: 'tariff_quota_warning_invalid', status: 400 },
   tariff_quota_warning_unsupported: { code: 'tariff_quota_warning_unsupported', status: 400 },
   tariff_seat_limit_invalid: { code: 'tariff_seat_limit_invalid', status: 400 },
+  // Владелец 10.09.2026 — каталог пакетов докупки объёма
+  // (`normalizeStoragePackageInput` в modules/org-entitlements/service.ts).
+  storage_package_bytes_invalid: { code: 'storage_package_bytes_invalid', status: 400 },
+  storage_package_currency_required: { code: 'storage_package_currency_required', status: 400 },
+  storage_package_name_required: { code: 'storage_package_name_required', status: 400 },
+  storage_package_not_found: { code: 'storage_package_not_found', status: 400 },
+  storage_package_price_invalid: { code: 'storage_package_price_invalid', status: 400 },
+  storage_package_sort_order_invalid: { code: 'storage_package_sort_order_invalid', status: 400 },
   trial_discount_window_invalid: { code: 'trial_discount_window_invalid', status: 400 },
   trial_duration_invalid: { code: 'trial_duration_invalid', status: 400 },
   trial_post_tariff_forbidden: { code: 'trial_post_tariff_forbidden', status: 400 },
@@ -157,6 +165,23 @@ const tariffInputSchema = z.object({
   isActive: z.boolean(),
 });
 
+// Владелец 10.09.2026: пакет докупки объёма — «какой объём и сколько стоит». Объём в БАЙТАХ, той
+// же мерой, что и счётчик занятого; цена — та же матрица периодов, что у тарифа, но без скидки:
+// скидочного окна у докупки нет, и лишнего поля здесь тоже нет.
+const storagePackagePeriodPriceSchema = z.object({
+  billingPeriodCode: z.string().trim().min(1),
+  priceMinor: z.number().int().nonnegative(),
+});
+
+const storagePackageInputSchema = z.object({
+  name: z.string().trim().min(1),
+  bytes: z.number().int().positive(),
+  currency: z.string().trim().min(1).nullable(),
+  periodPrices: z.array(storagePackagePeriodPriceSchema),
+  isActive: z.boolean(),
+  sortOrder: z.number().int(),
+});
+
 const trialPolicySchema = z.object({
   durationDays: z.number().int().positive(),
   discountWindowDays: z.number().int().nonnegative(),
@@ -248,6 +273,17 @@ const operationSchema = z.discriminatedUnion('action', [
     isSelectable: z.boolean(),
     reason: reasonSchema,
   }),
+  z.object({
+    action: z.literal('create_storage_package'),
+    storagePackage: storagePackageInputSchema,
+    reason: reasonSchema,
+  }),
+  z.object({
+    action: z.literal('update_storage_package'),
+    storagePackageId: uuidSchema,
+    storagePackage: storagePackageInputSchema,
+    reason: reasonSchema,
+  }),
   z.object({ action: z.literal('start_trial'), organizationId: uuidSchema, reason: reasonSchema }),
 ]);
 
@@ -263,14 +299,22 @@ export async function GET() {
   if (!gate.ok) return gate.response;
 
   const service = buildAppDeps().platformEntitlements;
-  const [tariffs, organizations, trialPolicy, registrationTariffPolicy, billingPeriods, paidPeriodPolicy] =
-    await Promise.all([
+  const [
+    tariffs,
+    organizations,
+    trialPolicy,
+    registrationTariffPolicy,
+    billingPeriods,
+    paidPeriodPolicy,
+    storagePackages,
+  ] = await Promise.all([
     service.listTariffs(),
     service.listOrganizations(),
     service.getTrialPolicy(),
     service.getRegistrationTariffPolicy(),
     service.listBillingPeriods(),
     service.getPaidPeriodPolicy(),
+    service.listStoragePackages(),
   ]);
   return NextResponse.json({
     ok: true,
@@ -280,6 +324,7 @@ export async function GET() {
     registrationTariffPolicy,
     billingPeriods,
     paidPeriodPolicy,
+    storagePackages,
   });
 }
 
@@ -349,6 +394,16 @@ export async function POST(request: Request) {
         result = await service.setBillingPeriodSelectable(
           operation.code,
           operation.isSelectable,
+          audit,
+        );
+        break;
+      case 'create_storage_package':
+        result = await service.createStoragePackage(operation.storagePackage, audit);
+        break;
+      case 'update_storage_package':
+        result = await service.updateStoragePackage(
+          operation.storagePackageId,
+          operation.storagePackage,
           audit,
         );
         break;

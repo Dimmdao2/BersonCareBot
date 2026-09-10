@@ -14,6 +14,7 @@ import type {
   OrgEntitlementOverride,
   PaidPeriodPolicy,
   RegistrationTariffPolicy,
+  StoragePackage,
   Tariff,
   TariffQuota,
   TariffQuotaMap,
@@ -158,6 +159,20 @@ export type PlatformEntitlementsPort = {
     audit: PlatformMutationAudit,
   ): Promise<Tariff>;
   archiveTariff(id: string, audit: PlatformMutationAudit): Promise<void>;
+  /**
+   * Каталог пакетов докупки объёма (владелец 10.09.2026). Читается целиком, включая снятые с
+   * продажи: снятый пакет остаётся у купивших, и экран обязан назвать его по имени.
+   */
+  listStoragePackages(): Promise<StoragePackage[]>;
+  createStoragePackage(
+    input: Omit<StoragePackage, 'id' | 'createdAt' | 'updatedAt'>,
+    audit: PlatformMutationAudit,
+  ): Promise<StoragePackage>;
+  updateStoragePackage(
+    id: string,
+    input: Omit<StoragePackage, 'id' | 'createdAt' | 'updatedAt'>,
+    audit: PlatformMutationAudit,
+  ): Promise<StoragePackage>;
   /**
    * Real, current usage for the numeric (`запас`/`объём`) mechanics — used ONLY to evaluate
    * §5a stage 4b.3's downgrade guard before a tariff switch. Same counts as each mechanic's own

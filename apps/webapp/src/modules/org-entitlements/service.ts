@@ -19,6 +19,7 @@ import {
   type OrgMechanic,
   type PaidPeriodPolicy,
   type RegistrationTariffPolicy,
+  type StoragePackage,
   type Tariff,
   type TariffPeriodPrice,
   type TariffQuota,
@@ -193,6 +194,40 @@ type TariffInput = Omit<
 > & {
   downgradePolicies?: DowngradePolicyMap;
 };
+
+type StoragePackageInput = Omit<StoragePackage, 'id' | 'createdAt' | 'updatedAt'>;
+
+/**
+ * Владелец 10.09.2026: пакет — это «какой объём и сколько стоит», поэтому пустое имя, нулевой или
+ * дробный объём и цена без валюты сохраняться не должны. Объём хранится и проверяется В БАЙТАХ —
+ * той же мерой, что и счётчик занятого, чтобы сложение «лимит тарифа + пакет» нигде не
+ * пересчитывало единицы. Полнота матрицы цен по текущей сетке периодов проверяется вызывающим
+ * (`createStoragePackage`/`updateStoragePackage`), который один знает продаваемые коды.
+ */
+function normalizeStoragePackageInput(input: StoragePackageInput): StoragePackageInput {
+  const name = input.name.trim();
+  if (!name) throw new Error('storage_package_name_required');
+  if (!Number.isSafeInteger(input.bytes) || input.bytes <= 0) {
+    throw new Error('storage_package_bytes_invalid');
+  }
+  for (const row of input.periodPrices) {
+    if (!Number.isSafeInteger(row.priceMinor) || row.priceMinor < 0) {
+      throw new Error('storage_package_price_invalid');
+    }
+  }
+  if (input.periodPrices.length > 0 && !input.currency?.trim()) {
+    throw new Error('storage_package_currency_required');
+  }
+  if (!Number.isSafeInteger(input.sortOrder)) {
+    throw new Error('storage_package_sort_order_invalid');
+  }
+  return {
+    ...input,
+    name,
+    currency: input.currency?.trim() ? input.currency.trim() : null,
+    periodPrices: [...input.periodPrices],
+  };
+}
 
 function normalizeTariffInput(input: TariffInput) {
   const name = input.name.trim();
@@ -802,6 +837,33 @@ export function createPlatformEntitlementsService(port: PlatformEntitlementsPort
     },
     archiveTariff: (id: string, audit: PlatformMutationAudit) => {
       return port.archiveTariff(id, audit);
+    },
+    /**
+     * Пакеты докупки объёма (владелец 10.09.2026: «пакеты с количеством места должны настраиваться
+     * в кабинете администраторов… какой объём? сколько стоит?»). Цена задаётся той же сеткой
+     * периодов, что и у тарифа, и проверяется ТЕМ ЖЕ гейтом полноты: второй копии правила
+     * «полная матрица цен» не заводим.
+     */
+    listStoragePackages: () => port.listStoragePackages(),
+    createStoragePackage: async (input: StoragePackageInput, audit: PlatformMutationAudit) => {
+      const periods = await port.listBillingPeriods();
+      const selectableCodes = periods
+        .filter((period) => period.isSelectable)
+        .map((period) => period.code);
+      assertCompleteTariffPeriodPriceMatrix(input.periodPrices, selectableCodes);
+      return port.createStoragePackage(normalizeStoragePackageInput(input), audit);
+    },
+    updateStoragePackage: async (
+      id: string,
+      input: StoragePackageInput,
+      audit: PlatformMutationAudit,
+    ) => {
+      const periods = await port.listBillingPeriods();
+      const selectableCodes = periods
+        .filter((period) => period.isSelectable)
+        .map((period) => period.code);
+      assertCompleteTariffPeriodPriceMatrix(input.periodPrices, selectableCodes);
+      return port.updateStoragePackage(id, normalizeStoragePackageInput(input), audit);
     },
     assignTariff: async (
       organizationId: string,
