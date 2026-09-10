@@ -153,7 +153,11 @@ export function redactAdminSettingsForClient(settings: SystemSetting[]): SystemS
         valueJson: { value: { configured: typeof value === 'string' && value.trim().length > 0 } },
       };
     }
-    if (s.key === 'clinic_smtp_outbound') {
+    if (
+      s.key === 'therapygo_smtp_outbound' ||
+      s.key === 'therapysto_smtp_outbound' ||
+      s.key === 'clinic_smtp_outbound'
+    ) {
       const value =
         s.valueJson && typeof s.valueJson === 'object' && 'value' in s.valueJson
           ? (s.valueJson as Record<string, unknown>).value

@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireOrgBrandingManagementContext } from '@/app-layer/guards/requireOrgBrandingManagementContext';
+import { requireEntitlementForMutationAction } from '@/app-layer/guards/requireEntitlement';
 import { safeActionFailure, type ActionFailureFields } from '@/shared/http/apiResponse';
 
 type ActionState = { ok: true } | ({ ok: false } & ActionFailureFields);
@@ -38,6 +39,14 @@ export async function saveOrgBranding(input: {
 }): Promise<ActionState> {
   try {
     const ctx = await requireOrgBrandingManagementContext();
+    const entitlement = await requireEntitlementForMutationAction(ctx, 'branding');
+    if (!entitlement.ok) {
+      return fail(
+        entitlement.reason === 'commercial_read_only'
+          ? 'commercial_read_only'
+          : 'entitlement_disabled',
+      );
+    }
     const deps = buildAppDeps();
     const draftResult = await deps.orgBranding.saveDraft(ctx, {
       displayName: input.displayName,
