@@ -61,11 +61,13 @@ assert_test_only() {
 
 assert_cert_covers() {
   local cert="$1"; shift
+  sudo test -s "$cert/cert.pem" || fatal "missing leaf certificate: $cert/cert.pem"
   sudo test -s "$cert/fullchain.pem" || fatal "missing certificate: $cert/fullchain.pem"
   sudo test -s "$cert/privkey.pem" || fatal "missing private key: $cert/privkey.pem"
   local hostname
   for hostname in "$@"; do
-    sudo openssl x509 -in "$cert/fullchain.pem" -noout -checkhost "$hostname" >/dev/null \
+    sudo openssl verify -CAfile "$cert/fullchain.pem" -verify_hostname "$hostname" \
+      "$cert/cert.pem" >/dev/null \
       || fatal "$cert does not cover $hostname"
   done
   sudo openssl x509 -in "$cert/fullchain.pem" -noout -checkend 86400 >/dev/null \
@@ -251,9 +253,15 @@ NGINX
 
 install_root_file() {
   local source="$1" target="$2" tmp
-  tmp="$(sudo mktemp "${target}.tmp.XXXXXX")"
-  sudo install -m 0644 -o root -g root "$source" "$tmp"
-  sudo mv -f -- "$tmp" "$target"
+  tmp="$(sudo mktemp "${target}.tmp.XXXXXX")" || return 1
+  if ! sudo install -m 0644 -o root -g root "$source" "$tmp"; then
+    sudo rm -f -- "$tmp"
+    return 1
+  fi
+  if ! sudo mv -f -- "$tmp" "$target"; then
+    sudo rm -f -- "$tmp"
+    return 1
+  fi
 }
 
 assert_test_only
@@ -262,7 +270,11 @@ assert_cert_covers "$SURFACE_CERT" "$STAFF_HOST" "$ADMIN_HOST" "$PATIENT_HOST" "
 surface_rendered="$(mktemp /tmp/therapysto-test-surfaces.XXXXXX)"
 legacy_rendered="$(mktemp /tmp/bersoncare-test-legacy.XXXXXX)"
 combined_rendered="$(mktemp /tmp/therapysto-test-nginx-combined.XXXXXX)"
-cleanup() { rm -f "$surface_rendered" "$legacy_rendered" "$combined_rendered"; }
+active_dump=""
+cleanup() {
+  rm -f "$surface_rendered" "$legacy_rendered" "$combined_rendered"
+  [ -z "$active_dump" ] || rm -f "$active_dump"
+}
 trap cleanup EXIT
 render_surface_vhost "$surface_rendered"
 # A new hostname has no matching certificate yet.  On --apply, bootstrap its
@@ -302,57 +314,94 @@ fi
 if sudo test -e "$SURFACE_AVAILABLE"; then
   sudo cp -a -- "$SURFACE_AVAILABLE" "$backup_dir/therapysto-test-surfaces"
 fi
+for enabled_path in "$LEGACY_ENABLED" "$RETIRED_ENABLED" "$SURFACE_ENABLED"; do
+  if sudo test -e "$enabled_path" || sudo test -L "$enabled_path"; then
+    sudo cp -a --no-dereference -- "$enabled_path" "$backup_dir/$(basename "$enabled_path").enabled"
+  fi
+done
 
-restore() {
-  if sudo test -e "$backup_dir/app.bersoncare.ru"; then
-    sudo cp -a -- "$backup_dir/app.bersoncare.ru" "$LEGACY_AVAILABLE"
-  else
-    sudo rm -f -- "$LEGACY_AVAILABLE" "$LEGACY_ENABLED"
+restore_enabled_entry() {
+  local backup="$1" target="$2" link_target
+  sudo rm -f -- "$target" || return 1
+  if sudo test -L "$backup"; then
+    link_target="$(sudo readlink -- "$backup")" || return 1
+    sudo ln -s -- "$link_target" "$target" || return 1
+  elif sudo test -e "$backup"; then
+    install_root_file "$backup" "$target" || return 1
   fi
-  if sudo test -e "$backup_dir/test.bersoncare.ru"; then
-    sudo cp -a -- "$backup_dir/test.bersoncare.ru" "$RETIRED_AVAILABLE"
-    sudo ln -sfn "$RETIRED_AVAILABLE" "$RETIRED_ENABLED"
-  else
-    sudo rm -f -- "$RETIRED_AVAILABLE" "$RETIRED_ENABLED"
-  fi
-  if sudo test -e "$backup_dir/therapysto-test-surfaces"; then
-    sudo cp -a -- "$backup_dir/therapysto-test-surfaces" "$SURFACE_AVAILABLE"
-    sudo ln -sfn "$SURFACE_AVAILABLE" "$SURFACE_ENABLED"
-  else
-    sudo rm -f -- "$SURFACE_AVAILABLE" "$SURFACE_ENABLED"
-  fi
-  sudo nginx -t >/dev/null 2>&1 && sudo systemctl reload nginx >/dev/null 2>&1 || true
 }
 
+restore() {
+  local restore_failed=0
+  if sudo test -e "$backup_dir/app.bersoncare.ru"; then
+    install_root_file "$backup_dir/app.bersoncare.ru" "$LEGACY_AVAILABLE" || restore_failed=1
+  else
+    sudo rm -f -- "$LEGACY_AVAILABLE" || restore_failed=1
+  fi
+  if sudo test -e "$backup_dir/test.bersoncare.ru"; then
+    install_root_file "$backup_dir/test.bersoncare.ru" "$RETIRED_AVAILABLE" || restore_failed=1
+  else
+    sudo rm -f -- "$RETIRED_AVAILABLE" || restore_failed=1
+  fi
+  if sudo test -e "$backup_dir/therapysto-test-surfaces"; then
+    install_root_file "$backup_dir/therapysto-test-surfaces" "$SURFACE_AVAILABLE" || restore_failed=1
+  else
+    sudo rm -f -- "$SURFACE_AVAILABLE" || restore_failed=1
+  fi
+  restore_enabled_entry "$backup_dir/app.bersoncare.ru.enabled" "$LEGACY_ENABLED" || restore_failed=1
+  restore_enabled_entry "$backup_dir/test.bersoncare.ru.enabled" "$RETIRED_ENABLED" || restore_failed=1
+  restore_enabled_entry "$backup_dir/therapysto-test-surfaces.enabled" "$SURFACE_ENABLED" || restore_failed=1
+  if ! sudo nginx -t >/dev/null 2>&1; then
+    restore_failed=1
+  elif ! sudo systemctl reload nginx >/dev/null 2>&1; then
+    restore_failed=1
+  fi
+  return "$restore_failed"
+}
+
+rollback_required=0
+finish() {
+  local status=$?
+  trap - EXIT
+  if [ "$status" -ne 0 ] && [ "$rollback_required" -eq 1 ]; then
+    if restore; then
+      echo "deploy rollback: previous TEST vhosts restored" >&2
+    else
+      echo "FATAL: deploy rollback failed; inspect $backup_dir and nginx immediately" >&2
+      status=1
+    fi
+  fi
+  cleanup
+  exit "$status"
+}
+trap finish EXIT
+
 log "install split TEST vhosts"
+rollback_required=1
 install_root_file "$surface_rendered" "$SURFACE_AVAILABLE"
 install_root_file "$legacy_rendered" "$LEGACY_AVAILABLE"
 sudo ln -sfn "$SURFACE_AVAILABLE" "$SURFACE_ENABLED"
 sudo ln -sfn "$LEGACY_AVAILABLE" "$LEGACY_ENABLED"
 sudo rm -f -- "$RETIRED_ENABLED" "$RETIRED_AVAILABLE"
-if ! sudo nginx -t; then restore; fatal "nginx validation failed; previous vhosts restored"; fi
-if ! sudo systemctl reload nginx; then restore; fatal "nginx reload failed; previous vhosts restored"; fi
+sudo nginx -t || fatal "nginx validation failed; rollback requested"
+sudo systemctl reload nginx || fatal "nginx reload failed; rollback requested"
 
 # The HTTP vhost above exposes only ACME challenges.  Request the exact branded
 # hostname after that vhost is live, then prove the installed certificate matches
 # before declaring the new TLS surface usable.
 if ! sudo certbot certonly --webroot -w /var/www/html --non-interactive \
   --keep-until-expiring --cert-name "$BERSONCARE_HOST" -d "$BERSONCARE_HOST"; then
-  restore
-  fatal "certificate request failed for $BERSONCARE_HOST; previous vhosts restored"
+  fatal "certificate request failed for $BERSONCARE_HOST; rollback requested"
 fi
 assert_cert_covers "$BERSONCARE_CERT" "$BERSONCARE_HOST"
 render_bersoncare_custom_domain_vhost "$legacy_rendered" "$BERSONCARE_CERT"
 install_root_file "$legacy_rendered" "$LEGACY_AVAILABLE"
-if ! sudo nginx -t; then restore; fatal "nginx validation failed after certificate issuance; previous vhosts restored"; fi
-if ! sudo systemctl reload nginx; then restore; fatal "nginx reload failed after certificate issuance; previous vhosts restored"; fi
+sudo nginx -t || fatal "nginx validation failed after certificate issuance; rollback requested"
+sudo systemctl reload nginx || fatal "nginx reload failed after certificate issuance; rollback requested"
 
 active_dump="$(mktemp /tmp/therapysto-test-nginx-active.XXXXXX)"
-sudo nginx -T >"$active_dump" 2>/dev/null
-if ! node "$A2_CHECKER" --nginx-dump="$active_dump" --required-host="$BERSONCARE_HOST"; then
-  rm -f "$active_dump"
-  restore
-  fatal "active nginx contract check failed; previous vhosts restored"
-fi
-rm -f "$active_dump"
+sudo nginx -T >"$active_dump" 2>/dev/null || fatal "active nginx dump failed; rollback requested"
+node "$A2_CHECKER" --nginx-dump="$active_dump" --required-host="$BERSONCARE_HOST" \
+  || fatal "active nginx contract check failed; rollback requested"
+rollback_required=0
 log "apply OK; backup: $backup_dir"
