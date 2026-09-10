@@ -38,4 +38,12 @@ chown -R "$ACCOUNT:$ACCOUNT" "$DST"
 # Права на секреты внутри копии не расширяются: если что-то там уже было 0600, tar это сохранил.
 find "$DST/bin" -name '*.sh' -exec chmod 0755 {} +
 
+# Пакет ищет свой unit-файл сетевой политики по «$HERE/../systemd», то есть рядом с собой — в
+# репозитории это deploy/systemd, соседний каталог. Копия обязана воспроизвести это соседство,
+# иначе apply-network-policy.sh не находит артефакт и отказывается работать.
+install -d -m 0755 -o "$ACCOUNT" -g "$ACCOUNT" "$(dirname "$DST")/systemd"
+install -m 0644 -o "$ACCOUNT" -g "$ACCOUNT" \
+  /opt/therapysto/src/deploy/systemd/therapysto-jitsi-prod-network-policy.service \
+  "$(dirname "$DST")/systemd/therapysto-jitsi-prod-network-policy.service"
+
 echo "пакет видео разложен в $DST из $(git -C /opt/therapysto/src rev-parse --short HEAD)"
