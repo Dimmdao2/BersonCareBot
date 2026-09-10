@@ -949,6 +949,15 @@ export function createSaasBillingService(dependencies: {
     },
 
     /**
+     * Отказ от пакета. Решение целиком принадлежит репозиторию: оно требует того же замка и той же
+     * транзакции, что и подсчёт занятого места, — сервис здесь только маршрут, второго правила
+     * «можно ли отказаться» у него нет.
+     */
+    releaseStoragePackage(input: { organizationId: string }) {
+      return dependencies.repository.releaseStoragePackage(input);
+    },
+
+    /**
      * К4 — only a `draft`/`pending` invoice can be cancelled; see `cancelSaasBillingInvoice` port
      * doc. Автоматический счёт за место отказывается отменяться (Р-17): срок счёта один — конец
      * периода, после которого долг переносится в счёт следующего периода (Р-18), перевыставления

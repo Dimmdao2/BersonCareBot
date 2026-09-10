@@ -14,6 +14,7 @@ import { carriedSeatDebtMinor } from '@/modules/saas-billing/proration';
 import { decideSeatOverage } from '@/modules/saas-billing/seatOverage';
 import {
   decideStoragePackagePurchase,
+  decideStoragePackageRelease,
   storagePackageForNextPeriod,
   type StoragePackagePeriodPricing,
 } from '@/modules/saas-billing/storagePackage';
@@ -128,6 +129,12 @@ export function createInMemorySaasBillingRepository(
       isActive?: boolean;
       periodPrices?: Record<string, number>;
     }[];
+    /**
+     * Занятое место и потолок БЕЗ пакета — по организациям. Двойник их не вычисляет: в боевом
+     * репозитории они приходят из общего шва учёта и из тарифа, и выдумывать здесь второй способ
+     * считать занятое означало бы описать контракт, которого нет.
+     */
+    storageUsage?: Record<string, { usedBytes: number; limitWithoutPackageBytes: number | null }>;
   } = {},
 ): SaasBillingRepositoryPort {
   const now = input.now ?? (() => new Date());
@@ -153,6 +160,7 @@ export function createInMemorySaasBillingRepository(
   const storagePackages = new Map(
     (input.storagePackages ?? []).map((row) => [row.id, row]),
   );
+  const storageUsage = new Map(Object.entries(input.storageUsage ?? {}));
   /** Цена пакета за период подписки — зеркало `saas_storage_package_period_prices`. */
   function storagePackagePricingFor(
     packageId: string | null,
@@ -690,6 +698,12 @@ export function createInMemorySaasBillingRepository(
       // PAIR's own row in the price matrix, never a single tariff-level price.
       const periodPriceMinor = periodPriceFor(purchasedPair.tariffId, purchasedPair.billingPeriodCode);
       const tariffBillingPeriod = purchasedPair.billingPeriodCode;
+      // Владелец 10.09: «со следующего периода счёт выставляется» — цена действующего пакета
+      // объёма входит в счёт продления строкой, как количество мест. Какой это пакет, решает то же
+      // единственное правило, что и в pg-репозитории и на тике продления.
+      const nextStoragePackageId = storagePackageForNextPeriod(authority);
+      const nextStoragePackagePriceMinor =
+        storagePackagePricingFor(nextStoragePackageId, tariffBillingPeriod)?.priceMinor ?? 0;
       if (existingRenewal) {
         // Same refresh rule as the pg repository: an unclaimed draft for this period that names a
         // tariff or period the clinic is no longer buying is rewritten, never handed back as is.
@@ -706,13 +720,13 @@ export function createInMemorySaasBillingRepository(
           ...existingRenewal,
           tariffId: purchasedTariffId(authority),
           tariffName: tariff?.name ?? 'In-memory tariff',
-          amountMinor: periodPriceMinor ?? 0,
+          amountMinor: (periodPriceMinor ?? 0) + nextStoragePackagePriceMinor,
           carriedDebtMinor: 0,
           supersededByInvoiceId: null,
           currency: tariff?.currency ?? 'RUB',
           tariffBillingPeriod,
           additionalSeatQuantity: authority.paidAdditionalSeats,
-          storagePackageId: null,
+          storagePackageId: nextStoragePackageId,
           tariffSnapshot: tariffSnapshotFor(purchasedPair.tariffId, purchasedPair.billingPeriodCode),
         };
         invoices.set(refreshed.id, refreshed);
@@ -736,9 +750,9 @@ export function createInMemorySaasBillingRepository(
         tariffName: tariff?.name ?? 'In-memory tariff',
         invoiceKind: 'tariff_period',
         additionalSeatQuantity: authority.paidAdditionalSeats,
-        storagePackageId: null,
+        storagePackageId: nextStoragePackageId,
         description: null,
-        amountMinor: (periodPriceMinor ?? 0) + seatDebt.totalMinor,
+        amountMinor: (periodPriceMinor ?? 0) + seatDebt.totalMinor + nextStoragePackagePriceMinor,
         carriedDebtMinor: seatDebt.totalMinor,
         supersededByInvoiceId: null,
         currency: tariff?.currency ?? 'RUB',
@@ -1146,9 +1160,43 @@ export function createInMemorySaasBillingRepository(
         providerIdempotencyKey: input.providerIdempotencyKey,
       };
       invoices.set(row.id, row);
-      // Объём открывается СРАЗУ вместе с выставлением счёта (Р-15) — как в pg-репозитории.
-      rows.set(authorityKey, { ...authority, paidStoragePackageId: input.storagePackageId });
+      // Объём открывается СРАЗУ вместе с выставлением счёта (Р-15) — как в pg-репозитории, и так
+      // же гасит прежний отказ и назначенный переход: продлевать надо ровно то, что купили.
+      rows.set(authorityKey, {
+        ...authority,
+        paidStoragePackageId: input.storagePackageId,
+        pendingStoragePackageId: null,
+        storagePackageCancelAtPeriodEnd: false,
+      });
       return { outcome: 'invoice' as const, invoice: row, created: true };
+    },
+
+    /** Отказ от пакета — тот же вердикт той же двери, что и в pg-репозитории. */
+    async releaseStoragePackage(input) {
+      const authorityEntry = [...rows.entries()].find(
+        ([, row]) =>
+          row.organizationId === input.organizationId && row.source === 'paid_subscription',
+      );
+      if (!authorityEntry) return { outcome: 'no_package' as const };
+      const [authorityKey, authority] = authorityEntry;
+      const usage = storageUsage.get(input.organizationId);
+      const decision = decideStoragePackageRelease({
+        current: storagePackagePricingFor(
+          authority.paidStoragePackageId,
+          authority.billingPeriodCode,
+        ),
+        limitWithoutPackageBytes: usage?.limitWithoutPackageBytes ?? null,
+        usedBytes: usage?.usedBytes ?? 0,
+        currentPeriodEndsAt: authority.currentPeriodEndsAt,
+      });
+      if (decision.outcome !== 'released_at_period_end') return decision;
+      // Услуга продолжается до конца оплаченного периода (Р-18) — гаснет только продление.
+      rows.set(authorityKey, {
+        ...authority,
+        pendingStoragePackageId: null,
+        storagePackageCancelAtPeriodEnd: true,
+      });
+      return decision;
     },
 
     async cancelSaasBillingInvoice({ saasBillingInvoiceId }) {

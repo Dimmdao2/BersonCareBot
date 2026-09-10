@@ -310,13 +310,20 @@ async function setStoragePackageAllowance(
   input: {
     saasBillingSubscriptionId: string;
     expectedCurrentPackageId: string | null;
-    nextPackageId: string | null;
+    /** Что действует СЕЙЧАС. При отказе не меняется: Р-18 — оплаченное назад не отбираем. */
+    paidStoragePackageId: string | null;
+    /** Что назначено на следующий период (у покупки и отказа — ничего). */
+    pendingStoragePackageId: string | null;
+    /** Продлевать ли пакет. Покупка это намерение ПРОДОЛЖАТЬ, поэтому она гасит прежний отказ. */
+    cancelAtPeriodEnd: boolean;
   },
 ): Promise<void> {
   await tx
     .update(saasBillingSubscriptions)
     .set({
-      paidStoragePackageId: input.nextPackageId,
+      paidStoragePackageId: input.paidStoragePackageId,
+      pendingStoragePackageId: input.pendingStoragePackageId,
+      storagePackageCancelAtPeriodEnd: input.cancelAtPeriodEnd,
       updatedAt: new Date().toISOString(),
     })
     .where(
@@ -2016,10 +2023,61 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
               await setStoragePackageAllowance(tx, {
                 saasBillingSubscriptionId: subscription.id,
                 expectedCurrentPackageId: subscription.paidStoragePackageId,
-                nextPackageId: input.storagePackageId,
+                paidStoragePackageId: input.storagePackageId,
+                // Покупка гасит и назначенный переход, и прежний отказ: клиника только что
+                // сказала, какой объём ей нужен, и продлевать надо именно его. Без этого
+                // купленный после отказа пакет молча не дожил бы до следующего периода.
+                pendingStoragePackageId: null,
+                cancelAtPeriodEnd: false,
               });
             }
             return { outcome: 'invoice' as const, ...inserted };
+          },
+        ),
+      );
+    },
+
+    /**
+     * Отказ от пакета. Тот же замок, та же дверь, та же транзакция, что у покупки и у загрузки
+     * файла: между «сколько занято» и «можно ли отказаться» не должна помещаться чужая загрузка,
+     * иначе клиника отказалась бы от пакета ровно в тот момент, когда его заняли.
+     *
+     * Владелец 10.09, дословно: «пока он места не освободит, этого не может произойти — отказ на
+     * отключение доппакета»; и «отключение происходит… в конце оплаченного периода». Поэтому
+     * отказ НЕ снимает объём сейчас (Р-18 — оплаченное назад не отбираем), а гасит продление;
+     * назначенный переход при этом тоже гаснет: следующий период начинается без пакета.
+     */
+    async releaseStoragePackage(input) {
+      return getDrizzle().transaction((tx) =>
+        transactionQuotaPort.withinLock(
+          tx,
+          { organizationId: input.organizationId, mechanic: 'files' },
+          async (quota) => {
+            const [subscription] = await tx
+              .select()
+              .from(saasBillingSubscriptions)
+              .where(
+                and(
+                  eq(saasBillingSubscriptions.organizationId, input.organizationId),
+                  eq(saasBillingSubscriptions.source, 'paid_subscription'),
+                ),
+              )
+              .limit(1)
+              .for('update');
+            if (!subscription) return { outcome: 'no_package' as const };
+
+            const decision = await quota.resolveStoragePackageRelease();
+            if (decision.outcome !== 'released_at_period_end') return decision;
+
+            await setStoragePackageAllowance(tx, {
+              saasBillingSubscriptionId: subscription.id,
+              expectedCurrentPackageId: subscription.paidStoragePackageId,
+              // Объём остаётся до конца оплаченного периода — снимается ПРОДЛЕНИЕ, а не услуга.
+              paidStoragePackageId: subscription.paidStoragePackageId,
+              pendingStoragePackageId: null,
+              cancelAtPeriodEnd: true,
+            });
+            return decision;
           },
         ),
       );
@@ -2522,7 +2580,9 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           await setStoragePackageAllowance(tx, {
             saasBillingSubscriptionId: subscription.id,
             expectedCurrentPackageId: invoice.storagePackageId,
-            nextPackageId: null,
+            paidStoragePackageId: null,
+            pendingStoragePackageId: null,
+            cancelAtPeriodEnd: false,
           });
         }
         return toSaasBillingRefund(row);

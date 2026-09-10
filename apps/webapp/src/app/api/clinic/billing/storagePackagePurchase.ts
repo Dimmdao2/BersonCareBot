@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server';
 import type { DoctorWorkspaceAccessContext } from '@/app-layer/guards/requireRole';
 import type { SaasBillingService } from '@/modules/saas-billing/service';
-import type { SaasBillingStoragePackageOffers } from '@/modules/saas-billing/ports';
+import type {
+  SaasBillingStoragePackageOffers,
+  SaasBillingStoragePackageReleaseResult,
+} from '@/modules/saas-billing/ports';
 import {
   storagePackageQuoteBody,
   verifyStoragePackageQuote,
@@ -135,5 +138,39 @@ export async function handleStoragePackagePurchase(
     ...(result.invoice.providerCheckoutUrl
       ? { checkoutUrl: result.invoice.providerCheckoutUrl }
       : {}),
+  });
+}
+
+/**
+ * Отказ от пакета. Отказной ответ обязан НАЗВАТЬ число: сколько именно освободить, чтобы отказ
+ * прошёл (владелец 10.09: «пока он места не освободит, этого не может произойти»). Экран без этого
+ * числа превращается в глухую стену — человек видит «нельзя» и не знает, что сделать.
+ */
+export async function handleStoragePackageRelease(
+  release: () => Promise<SaasBillingStoragePackageReleaseResult>,
+): Promise<NextResponse> {
+  const result = await release();
+  if (result.outcome === 'no_package') {
+    return NextResponse.json(
+      { ok: false, error: 'saas_billing_no_storage_package' },
+      { status: 409 },
+    );
+  }
+  if (result.outcome === 'occupied') {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: 'storage_package_occupied',
+        freeBytes: result.freeBytes,
+        limitWithoutPackage: result.limitWithoutPackage,
+      },
+      { status: 409 },
+    );
+  }
+  // Р-18: оплаченное назад не отбирается — объём работает до конца периода, дальше не продлевается.
+  return NextResponse.json({
+    ok: true,
+    outcome: 'released_at_period_end',
+    effectiveAt: result.effectiveAt,
   });
 }

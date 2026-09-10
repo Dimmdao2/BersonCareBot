@@ -14,8 +14,10 @@ import { billableAdditionalSeats } from '@/modules/saas-billing/proration';
 import { decideSeatOverage, type SeatOverageOffer } from '@/modules/saas-billing/seatOverage';
 import {
   decideStoragePackagePurchase,
+  decideStoragePackageRelease,
   type StoragePackagePeriodPricing,
   type StoragePackagePurchaseOffer,
+  type StoragePackageReleaseDecision,
 } from '@/modules/saas-billing/storagePackage';
 
 export type StockQuotaMechanic = 'branches' | 'files';
@@ -133,6 +135,10 @@ async function readQuotaContext(tx: WebappSqlExecutor, organizationId: string, m
   const configured = override?.quota ?? tariff?.quotas[mechanic];
   return {
     tariffId: organization?.tariffId ?? null,
+    // Потолок БЕЗ докупленного пакета — то, что останется, если пакет не продлить. Отдельного
+    // чтения для этого нет: и «сколько можно занять сейчас», и «сколько останется без пакета»
+    // приходят из одного и того же `configured`, поэтому разойтись им негде.
+    configuredQuota: configured,
     // Владелец 10.09.2026: докупленный пакет поднимает потолок объёма. Складывает его с тарифом ТА
     // ЖЕ функция, что и экран «использовано из включённого» — второго правила сложения нет.
     quota:
@@ -356,6 +362,7 @@ export function createTransactionQuotaPort() {
             offer: StoragePackagePurchaseOffer;
           }[];
         }>;
+        resolveStoragePackageRelease(): Promise<StoragePackageReleaseDecision>;
       }) => Promise<T>,
     ): Promise<T> {
       const lockKey =
@@ -461,6 +468,38 @@ export function createTransactionQuotaPort() {
               }),
             })),
           };
+        },
+        /**
+         * ЕДИНСТВЕННЫЙ вход к решению «можно ли сейчас отказаться от пакета» — под тем же замком
+         * механики `files`, что и покупка и загрузка файла. Владелец 10.09: «пока он места не
+         * освободит, этого не может произойти — отказ на отключение доппакета». Занятое берётся
+         * ровно там же, откуда его берёт экран «использовано из включённого», — из общего шва
+         * учёта (владелец 10.09: «всё что загружено в аккаунт», «никаких разделений при подсчёте
+         * нигде быть не должно»), а не из отдельного подсчёта «для отказа».
+         */
+        async resolveStoragePackageRelease() {
+          const context = await readStoragePackageContext(tx, input.organizationId);
+          const quota = await readQuotaContext(tx, input.organizationId, 'files');
+          const usage = await tx.execute(sql`
+            SELECT organization_id::text AS organization_id, files_used
+            FROM app.read_current_org_tariff_transition_usage()
+          `);
+          const usageRow = usage.rows[0] as
+            | { organization_id: string; files_used: number | string }
+            | undefined;
+          // Шов выводит организацию из принципала сам; расхождение означает, что решение считают
+          // не про ту клинику, и молчать об этом нельзя.
+          if (!usageRow || usageRow.organization_id !== input.organizationId) {
+            throw new Error('own_tariff_transition_usage_context_denied');
+          }
+          const limitWithoutPackage = parseStockQuota(quota.configuredQuota);
+          return decideStoragePackageRelease({
+            current: context.current,
+            limitWithoutPackageBytes:
+              limitWithoutPackage?.kind === 'numeric' ? limitWithoutPackage.limit : null,
+            usedBytes: Number(usageRow.files_used ?? 0),
+            currentPeriodEndsAt: context.currentPeriodEndsAt,
+          });
         },
       });
     },

@@ -273,6 +273,19 @@ export type SaasBillingStoragePackageInvoiceResult =
   | { outcome: 'price_changed'; priceMinor: number; currency: string; priceStableUntil: string }
   | { outcome: 'invoice'; invoice: SaasBillingInvoice; created: boolean };
 
+/**
+ * Итог отказа от пакета. Дверь `decideStoragePackageRelease` отвечает тем же составом, и здесь он
+ * лишь дополнен фактом записи: экран обязан назвать число, которое надо освободить, а не просто
+ * отказать (владелец 10.09: «пока он места не освободит, этого не может произойти»).
+ */
+export type SaasBillingStoragePackageReleaseResult =
+  /** Отказываться не от чего: докупленного пакета у подписки нет. */
+  | { outcome: 'no_package' }
+  /** Занято больше, чем останется без пакета. `freeBytes` — сколько ИМЕННО надо освободить. */
+  | { outcome: 'occupied'; freeBytes: number; limitWithoutPackage: number }
+  /** Р-18: оплаченное назад не отбираем — пакет работает до конца периода и не продлевается. */
+  | { outcome: 'released_at_period_end'; effectiveAt: string | null };
+
 export type SaasBillingReconciliationDiscrepancy =
   | {
       kind: 'missing_in_provider';
@@ -644,6 +657,16 @@ export type SaasBillingRepositoryPort = {
     providerId: string;
     providerIdempotencyKey: string;
   }): Promise<SaasBillingStoragePackageInvoiceResult>;
+
+  /**
+   * Отказ от докупленного пакета. Решает ТА ЖЕ дверь, что и покупка, под тем же замком механики
+   * `files`, которым закрыта загрузка файла: иначе между «занято» на экране и «занято» в решении
+   * поместилась бы чужая загрузка. Пакет при отказе НЕ снимается сейчас — Р-18 запрещает отбирать
+   * оплаченное задним числом; снимается продление.
+   */
+  releaseStoragePackage(input: {
+    organizationId: string;
+  }): Promise<SaasBillingStoragePackageReleaseResult>;
 
   /**
    * К4 — platform-wide by design, same as the refund reservation this mirrors: looked up by

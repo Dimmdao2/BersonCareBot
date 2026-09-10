@@ -10,6 +10,7 @@ import { SAAS_BILLING_TARIFF_NOT_PAYABLE } from '@/modules/saas-billing/payableT
 import { handleSeatOveragePurchase } from './seatOveragePurchase';
 import {
   handleStoragePackagePurchase,
+  handleStoragePackageRelease,
   storagePackageOffersBody,
 } from './storagePackagePurchase';
 
@@ -77,6 +78,10 @@ const billingPatchSchema = z.union([
   // from `DELETE` above, which cancels a scheduled PENDING tariff/period change, not the
   // subscription itself.
   z.object({ action: z.literal('cancel_subscription') }),
+  // Отказ от докупленного пакета объёма. Живёт рядом с отказом от подписки и устроен так же:
+  // ничего уже оплаченного не отбирает, гасит продление (владелец 10.09 — «отключение происходит…
+  // в конце оплаченного периода»). Денег в запросе нет — отказ их не двигает.
+  z.object({ action: z.literal('release_storage_package') }),
 ]);
 
 async function requireBillingManager() {
@@ -201,6 +206,21 @@ export async function PATCH(request: Request) {
         );
       }
       return NextResponse.json({ ok: true });
+    }
+    if ('action' in parsed.data && parsed.data.action === 'release_storage_package') {
+      return await handleStoragePackageRelease(() =>
+        runWithDbClinicBillingPrincipal(
+          {
+            organizationId: gate.ctx.organizationId,
+            platformUserId: gate.ctx.session.user.userId,
+            source: 'clinic-billing-storage-package-release',
+          },
+          () =>
+            buildAppDeps().saasBilling.releaseStoragePackage({
+              organizationId: gate.ctx.organizationId,
+            }),
+        ),
+      );
     }
     if ('billingEmail' in parsed.data) {
       const billingEmailInput = parsed.data.billingEmail;
