@@ -42,7 +42,19 @@ say "2. каталоги"
 [ -d /var/lib/bersoncarebot ] && { mv /var/lib/bersoncarebot /var/lib/therapysto || die "mv /var/lib"; echo "    /var/lib/bersoncarebot -> /var/lib/therapysto"; }
 [ -d /var/log/bersoncarebot ] && { mv /var/log/bersoncarebot /var/log/therapysto || die "mv /var/log"; echo "    /var/log/bersoncarebot -> /var/log/therapysto"; }
 
-say "3. пользователи и группы служб"
+say "3. голый репозиторий и remote рабочего дерева"
+# tools/deploy-prod-from-dev.sh пушит в /opt/therapysto/git/therapysto.git и делает fetch origin в
+# рабочем дереве — без этих двух правок первый же деплой после переименования не найдёт репозиторий.
+if [ -d /opt/therapysto/git/bcb.git ]; then
+  mv /opt/therapysto/git/bcb.git /opt/therapysto/git/therapysto.git
+  echo "    git/bcb.git -> git/therapysto.git"
+fi
+if [ -d /opt/therapysto/src/.git ]; then
+  git -C /opt/therapysto/src remote set-url origin /opt/therapysto/git/therapysto.git
+  echo "    origin рабочего дерева: $(git -C /opt/therapysto/src remote get-url origin)"
+fi
+
+say "4. пользователи и группы служб"
 # GID сохраняется при groupmod, поэтому групповое владение ключами порт-контекста не рвётся.
 getent group bcb-app-prod >/dev/null && groupmod -n therapysto-app-prod bcb-app-prod && echo "    группа bcb-app-prod -> therapysto-app-prod"
 for svc in webapp api scheduler worker media-worker; do
@@ -51,7 +63,7 @@ for svc in webapp api scheduler worker media-worker; do
   getent group "bcb-$svc" >/dev/null && groupmod -n "therapysto-$svc" "bcb-$svc" 2>/dev/null
 done
 
-say "4. env рантайма: пути клиентских сертификатов порт-контекста"
+say "5. env рантайма: пути клиентских сертификатов порт-контекста"
 # Контейнер монтирует /etc/therapysto/postgres-mtls/prod по тому же пути, что видит приложение,
 # поэтому значения в env обязаны съехать вместе с каталогом — иначе пул mTLS не откроется.
 for f in /opt/therapysto/env/*.prod /opt/therapysto/env/reconcile.env; do
@@ -62,7 +74,7 @@ for f in /opt/therapysto/env/*.prod /opt/therapysto/env/reconcile.env; do
   echo "    переписан $f"
 done
 
-say "5. конфиг конвейера"
+say "6. конфиг конвейера"
 if [ -f /etc/bcb-pipeline.conf ]; then
   sed 's/^BCB_/THERAPYSTO_/' /etc/bcb-pipeline.conf > /etc/therapysto-pipeline.conf
   chmod 0644 /etc/therapysto-pipeline.conf
@@ -70,7 +82,7 @@ if [ -f /etc/bcb-pipeline.conf ]; then
   echo "    /etc/therapysto-pipeline.conf создан"
 fi
 
-say "6. обёртки в /usr/local/bin"
+say "7. обёртки в /usr/local/bin"
 for pair in "deploy-prod:therapysto-deploy" "rollback-prod:therapysto-rollback" "prod-status:therapysto-status"; do
   w="${pair%%:*}"; t="${pair##*:}"
   printf '#!/bin/sh\nexec sudo /opt/therapysto/pipeline/%s "$@"\n' "$t" > "/usr/local/bin/$w"
@@ -78,7 +90,7 @@ for pair in "deploy-prod:therapysto-deploy" "rollback-prod:therapysto-rollback" 
 done
 echo "    обновлены deploy-prod / rollback-prod / prod-status"
 
-say "7. sudoers"
+say "8. sudoers"
 # Имя владельца берём из действующего правила, чтобы не зашивать его здесь второй раз.
 OWNER=$(awk '/ALL=\(root\)/ {print $1; exit}' /etc/sudoers.d/20-bcb-deploy 2>/dev/null)
 [ -n "$OWNER" ] || OWNER=$(awk '/ALL=\(root\)/ {print $1; exit}' /etc/sudoers.d/20-therapysto-deploy 2>/dev/null)
@@ -96,7 +108,7 @@ mv /etc/sudoers.d/20-therapysto-deploy.new /etc/sudoers.d/20-therapysto-deploy
 rm -f /etc/sudoers.d/20-bcb-deploy
 echo "    /etc/sudoers.d/20-therapysto-deploy принят visudo (владелец: $OWNER)"
 
-say "8. nginx: сайт и upstream"
+say "9. nginx: сайт и upstream"
 if [ -f /etc/nginx/sites-available/bcb ]; then
   cp -a /etc/nginx/sites-available/bcb "/root/nginx-bcb.pre-rename.$TS"
   mv /etc/nginx/sites-available/bcb /etc/nginx/sites-available/therapysto
@@ -114,7 +126,7 @@ nginx -t 2>&1 | sed 's/^/    /'
 nginx -t >/dev/null 2>&1 || die "nginx не принимает конфигурацию; копия сайта в /root/nginx-bcb.pre-rename.$TS"
 systemctl reload nginx && echo "    nginx перезагружен"
 
-say "9. firewall: имена мостов в /etc/nftables.conf (персистентность после перезагрузки)"
+say "10. firewall: имена мостов в /etc/nftables.conf (персистентность после перезагрузки)"
 if grep -q '"bcb-blue"\|"bcb-green"' /etc/nftables.conf; then
   cp -a /etc/nftables.conf "/var/backups/nftables.pre-rename.$TS.conf"
   sed -i 's/"bcb-blue"/"tsto-blue"/g; s/"bcb-green"/"tsto-green"/g' /etc/nftables.conf
@@ -122,7 +134,7 @@ if grep -q '"bcb-blue"\|"bcb-green"' /etc/nftables.conf; then
   echo "    /etc/nftables.conf обновлён и проверен nft -c"
 fi
 
-say "10. живые правила firewall (по одному, по handle)"
+say "11. живые правила firewall (по одному, по handle)"
 live_swap() {
   local chain="$1" match="$2"; shift 2
   local handle
@@ -137,7 +149,7 @@ live_swap input   'bcb-blue.*5432'    iifname '{ "tsto-blue", "tsto-green" }' tc
 live_swap forward 'iifname.*bcb-blue' iifname '{ "docker0", "tsto-blue", "tsto-green" }' accept
 live_swap forward 'oifname.*bcb-blue' oifname '{ "docker0", "tsto-blue", "tsto-green" }' ct state established,related accept
 
-say "11. systemd-дропины, аудит, целостность, антивирус"
+say "12. systemd-дропины, аудит, целостность, антивирус"
 for d in /etc/systemd/system/bersoncarebot-*-prod.service.d; do
   [ -d "$d" ] || continue
   nd=${d/bersoncarebot-/therapysto-}
@@ -169,7 +181,7 @@ systemctl daemon-reload
 systemctl enable therapysto-malware-scan.timer >/dev/null 2>&1 && echo "    таймер антивируса включён под новым именем"
 augenrules --load >/dev/null 2>&1 && echo "    правила auditd перезагружены"
 
-say "12. имя самого хоста"
+say "13. имя самого хоста"
 # Конвейер сверяет принадлежность к проду по локальному IPv4, а не по hostname (см. require_prod_host в
 # therapysto-bluegreen-lib.sh), поэтому переименование хоста ничего в нём не ломает.
 if [ "$(hostnamectl --static)" = "bcb-prod" ]; then
@@ -179,7 +191,7 @@ if [ "$(hostnamectl --static)" = "bcb-prod" ]; then
   echo "    hostname bcb-prod -> therapysto-prod"
 fi
 
-say "13. старые сети docker"
+say "14. старые сети docker"
 for n in bcb-blue bcb-green; do
   docker network inspect "$n" >/dev/null 2>&1 && docker network rm "$n" >/dev/null 2>&1 && echo "    удалена сеть $n"
 done
