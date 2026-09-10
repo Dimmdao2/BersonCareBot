@@ -23,8 +23,8 @@ declares `JITSI_DEPLOYMENT=` as its first key.
 | Meet host | `meet.test.therapysto.ru` | `meet.therapysto.ru` |
 | TURN host | `turn.test.therapysto.ru` | `turn.therapysto.ru` |
 | Package root | `/etc/bersoncarebot/jitsi-test` | `/etc/therapysto/jitsi-prod` |
-| Jitsi env file | `/opt/env/bersoncarebot/jitsi.test` | `/opt/therapysto/env/jitsi.prod` |
-| coturn env file | `/opt/env/bersoncarebot/jitsi-coturn.test` | `/opt/therapysto/env/jitsi-coturn.prod` |
+| Jitsi env file | `/opt/env/bersoncarebot/jitsi.test` | `/opt/therapysto/env/video/jitsi.prod` |
+| coturn env file | `/opt/env/bersoncarebot/jitsi-coturn.test` | `/opt/therapysto/env/video/jitsi-coturn.prod` |
 | Env templates | `env/jitsi-test.env.example`, `env/coturn-test.env.example` | `env/jitsi-prod.env.example`, `env/coturn-prod.env.example` |
 | nftables objects / source | own table `bcb_jitsi_test` / `nftables-bcb-jitsi-test.conf` | chains `therapysto_jitsi_prod_in`, `therapysto_jitsi_prod_fwd` inside the host's own `inet filter` / `nftables-therapysto-jitsi-prod.conf` |
 | Boot unit | `../systemd/bersoncarebot-jitsi-test-network-policy.service` | `../systemd/therapysto-jitsi-prod-network-policy.service` |

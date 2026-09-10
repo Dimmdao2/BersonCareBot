@@ -10,8 +10,8 @@ error in every script under `bin/`.
 | Meet host | `meet.test.therapysto.ru` | `meet.therapysto.ru` |
 | TURN host | `turn.test.therapysto.ru` | `turn.therapysto.ru` |
 | Package root | `/etc/bersoncarebot/jitsi-test` | `/etc/therapysto/jitsi-prod` |
-| Jitsi env file | `/opt/env/bersoncarebot/jitsi.test` | `/opt/therapysto/env/jitsi.prod` |
-| coturn env file | `/opt/env/bersoncarebot/jitsi-coturn.test` | `/opt/therapysto/env/jitsi-coturn.prod` |
+| Jitsi env file | `/opt/env/bersoncarebot/jitsi.test` | `/opt/therapysto/env/video/jitsi.prod` |
+| coturn env file | `/opt/env/bersoncarebot/jitsi-coturn.test` | `/opt/therapysto/env/video/jitsi-coturn.prod` |
 | nftables objects | own table `inet bcb_jitsi_test` | chains `therapysto_jitsi_prod_in` / `therapysto_jitsi_prod_fwd` inside the host's own `inet filter` table — no table of its own |
 | nftables source | `nftables-bcb-jitsi-test.conf` | `nftables-therapysto-jitsi-prod.conf` |
 | Boot unit | `../systemd/bersoncarebot-jitsi-test-network-policy.service` | `../systemd/therapysto-jitsi-prod-network-policy.service` |
@@ -215,7 +215,7 @@ far as this package knows:
    `/etc/therapysto/jitsi-prod`), the same one-time root bootstrap the TEST host needed under its own name
    (`docs/ARCHITECTURE/SERVER CONVENTIONS.md` §mTLS).
 5. **The two env files**, copied from `env/jitsi-prod.env.example` / `env/coturn-prod.env.example` to
-   `/opt/therapysto/env/jitsi.prod` and `/opt/therapysto/env/jitsi-coturn.prod` at mode `0600`, with
+   `/opt/therapysto/env/video/jitsi.prod` and `/opt/therapysto/env/video/jitsi-coturn.prod` at mode `0600`, with
    `JWT_APP_SECRET` filled in from the application's `system_settings`.
 6. **A Selectel Security Group review.** `135.106.187.95` sits behind a Selectel SG in the current canon
    (`151.x` does not). This package does not touch the SG and makes no claim about its current contents —
