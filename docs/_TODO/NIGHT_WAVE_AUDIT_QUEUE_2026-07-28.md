@@ -2324,3 +2324,65 @@ identity-по-имени-файла вместо watermark по `when` (влит
 | **Berson Care TEST custom domain #787 — `INDEPENDENT AUDIT FAIL, SECURITY FIX RUNNING`**, worker authority `e4322fa25`, product `941c632ea`, audit brief `f6d072f13`/`1782ee9bf`, audit/test/report `d9cba2016` (carried into candidate as `e8ec3348c`), fixing authority `71ab6628e` on `wt/berson-test-custom-domain-20260909`; artifact `docs/_TODO/THERAPYSTO_PATIENT_BRANDING_INITIATIVE/AUDIT_BERSON_TEST_CUSTOM_DOMAIN_2026-09-09.md` | The nginx render/checker and active terminology passed, but the DB boundary did not: curing Drizzle's `42501` by granting every named INSERT column lets the staff role explicitly choose server-owned identity/timestamps and activation/readiness state. The privilege README confirms that merely removing defaulted columns would restore the same `42501`, so the accepted continuation must narrow the effective staff intent door and remove direct lifecycle authority while preserving one canonical binding path. The auditor's real DEV port test is retained unchanged; current named DEV lacked the second-organization fixture, so same-org/cross-org behavior remains a live pre-landing gate. B2/B8/C5a/D and actual TEST application remain open. |
 | **Berson Care TEST custom-domain security re-audit — `FAIL, NOT FOR LAND`**, candidate `7e8a32b32`; artifact `docs/_TODO/THERAPYSTO_PATIENT_BRANDING_INITIATIVE/AUDIT_BERSON_TEST_CUSTOM_DOMAIN_SECURITY_REAUDIT_2026-09-09.md` | View gates found no new reachable implementation violation: `app_staff` is read-only on bindings; the sole staff door is the declared, actor-context-bound definer root; quarantine/retry/supersede/clear remain in that root; generated DEV/TEST declarations match; migration has no local ACL and owner-aware named-DEV preflight ended in `ROLLBACK`. PASS is prohibited because the existing real-port same-/cross-org proof cannot run: named DEV has no second organization and this worktree lacks Vitest. No fixture, TEST/PROD, DNS/TLS/nginx or product file was touched. |
 | **Android API 34 VPN viewer #915 — `OPS EVIDENCE ACCEPTED; VIEWER UNAVAILABLE, PHYSICAL DEVICE DEFERRED`**, report `8858dc830` on `wt/mobile-emulator-api34-viewer-20260910`; artifact `.lead/runs/mobile-emulator-api34-viewer-20260910/90-report.md` | A fresh KVM-backed Android 14 guest reached `adb device` and `sys.boot_completed=1`, and the Therapy Go TEST APK was installed. Before either application could be accepted, Android's own `com.android.systemui` entered a visible ANR; therefore no application UI, native bridge, provider path or browser-viewer URL is claimed. The failure is host/emulator evidence, not a product defect. All run-owned emulator, Xvfb, VNC/noVNC processes and sockets were stopped. The owner deferred physical-device acceptance and RuStore delivery, so repeating the same server-emulator method is not a completion gate. |
+
+
+## Operator-health mail capabilities #950 — independent migration audit 2026-09-10
+
+| Candidate | Verdict | Evidence |
+|---|---|---|
+| `83a491301009c53a369599ca1a1de3756ce9de3b`, base `a381aed58209e76aaddea2c68f0d939383c2969f` | **FAIL — NOT FOR LAND: MIG-P5-01** | Exact committed diff inspected; named-DEV owner-aware first-application preflight passed and rolled back. Partial-catalog recovery failed with `42723` under the declared owner. This is the migration audit only, not P5 mailbox/live acceptance. |
+
+**Classification before inspection.** LOOK: active schema-B delivery versus retired C4, timestamp identity/order,
+statement-owner markers, verification probe, signatures, definer owner/search path, migration privilege prohibition,
+declaration/generated ACL and the settings choke point. TEST/runtime observation: accepted-context denial and
+scheduler access; repeat execution/recovery. The SMTP/IMAP arrival, deadline, retention and incident behavior belongs
+to the existing P5 audit/live gate. No new permanent test was admitted: this pass concerns the quality of a specific
+migration/privilege change, and a SQL/source-shape test would not protect the owner's mailbox.
+
+**MIG-P5-01 — partial-catalog recovery cannot restore the missing capability.** The new migration
+`apps/webapp/db/drizzle-migrations/20260910T010740_operator_health_mail_settings_capabilities.sql:8` and `:33`
+uses unconditional `CREATE FUNCTION` for both signatures. Reachable recovery scenario: the migration's ledger row
+exists, its IMAP function remains, and its SMTP function is missing. The owner-ordered runner detects the absent
+object and directs the operator to the sanctioned `--reapply` path (`migrate-local.mjs`, missing-object refusal and
+`parseOwnerStatements` execution). Reapplying this file fails on the surviving IMAP signature before it can restore
+SMTP. The inverse loss fails on the surviving SMTP signature and rolls the recreated IMAP function back. Impact:
+the sanctioned recovery leaves scheduler mail configuration inaccessible and blocks the migration/reconcile path.
+Requirement: this brief's explicit idempotency gate and AGENTS.md §1's recovery through the canonical entrypoint.
+The ordinary ledger skip is safe but does not make this named recovery executable.
+
+**Observed reproduction:** `node /tmp/operator-health-mail-capabilities-runtime-audit.mjs` (log
+`/tmp/operator-health-mail-capabilities-runtime-audit.log`) parsed the exact candidate with repository
+`parseOwnerStatements`, used declaration-generated owner access and candidate-generated function ACL, and ran on
+`bcb_webapp_dev` inside `BEGIN … ROLLBACK`. It created both functions as
+`bcb_dev_migrator → app_seam_settings_integrator_owner`, dropped only the candidate SMTP function in that same
+transaction, then attempted the unchanged IMAP creation as that owner. PostgreSQL returned
+`42723 function "read_operator_health_imap_setting" already exists with same argument types`;
+`missing_smtp_still_not_repaired = true`. Final `candidate_objects_rolled_back = true` confirmed that neither
+candidate function survived. No migration application/recovery was committed, and no product fix was made.
+
+**Written privilege review.** Only these function objects are added; no tables, columns or policies change.
+Both bodies execute as the existing NOLOGIN/NOBYPASSRLS `app_seam_settings_integrator_owner`, with
+`SECURITY DEFINER`, `STABLE`, `PARALLEL RESTRICTED`, `search_path=pg_catalog`. Their reads require only SELECT on
+`public.system_settings(key, scope, organization_id, value_json)` plus the existing context-guard execution/schema
+access. That exact column SELECT is already declared and was confirmed in DEV; scheduler has no direct column
+SELECT. Generated reconcile revokes PUBLIC/managed-role execution and grants only `app_operational_scheduler`
+(excluding the function owner's inherent execution). No wider secret-reader role is added. The bodies call the
+shared attested-context guard before reading fixed global/admin keys; SMTP selects its fixed profile by closed
+patient/staff audience. Existing `publicRestrictedSettings.ts` consumers remain behind the integrator DB port and
+existing scheduler service/relation capability; no new generic settings-key reader or parallel policy is introduced.
+The one-time runtime probe observed denial without/after clearing accepted context and successful invocation with
+a transaction-local accepted scheduler catalog row. That row was installed by the local audit administrator and
+rolled back: this is body/ACL/context evidence, not a claim of end-to-end signed-port or mailbox delivery. DEV has
+no configured values for these reads, so successful invocation returned NULL without printing secrets.
+
+**Mandatory validation (independently run):**
+
+- `node deploy/postgres/privileges/generate-cli.mjs --check` — PASS, committed generated outputs match.
+- `node deploy/postgres/privileges/generate-cli.mjs --gaps` — PASS for declared DEV/TEST targets; offline only.
+- `/home/dev/dev-projects/BersonCareBot/node_modules/.bin/tsc --noEmit --strict -p deploy/postgres/privileges` — PASS.
+- `node deploy/postgres/privileges/migrate-local.mjs --db bcb_webapp_dev --migrator bcb_dev_migrator --drizzle-folder /home/dev/dev-projects/bcb-wt-operator-health-mail-capabilities-20260910/apps/webapp/db/drizzle-migrations --sudo-postgres --rollback-only` — PASS, actual statement owners, final ROLLBACK. Existing ledger/bootstrap objects were checked read-only first. The host wrapper was not run because its preflight separately commits shared-role baseline/registry seeding, contrary to this brief's no-mutation limit.
+- `pnpm run test:db-privileges` — FAIL: final dependency-resolved run reports `176 pass / 7 fail / 157 skipped`; log `/tmp/operator-health-mail-capabilities-audit-db-privileges-final.log`. The remaining failures all use undeclared fixture role `app_probe_owner`. Exact-parent reproduction: `audit_baseline_dir=$(mktemp -d /tmp/operator-health-mail-audit-base.XXXXXX)`; `git archive HEAD^ deploy/postgres/privileges | tar -x -C "$audit_baseline_dir"`; `node --test "$audit_baseline_dir/deploy/postgres/privileges/migrate-local.test.mjs"` — the identical failing test names (`27 pass / 7 fail`), log `/tmp/operator-health-mail-capabilities-audit-baseline-runner.log`. Runner/test/generator sources are unchanged by the candidate (`git diff --quiet HEAD^ HEAD -- deploy/postgres/privileges/migrate-local.test.mjs deploy/postgres/privileges/migrate-local.mjs deploy/postgres/privileges/generate-cli.mjs deploy/postgres/privileges/generate.mjs`). These baseline failures are not additional candidate findings and were not fixed by this audit.
+- `git diff --check HEAD^ HEAD` — PASS. No new acceptance tests, Next, full CI, TEST/PROD connection or real delivery.
+
+Blocker handed back to the implementing worker/lead: make this migration safely recover either missing function
+through the sanctioned entrypoint, preserving the accepted signatures and restricted grants. P5 remains open.
