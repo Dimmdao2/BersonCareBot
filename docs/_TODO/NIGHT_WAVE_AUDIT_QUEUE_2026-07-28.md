@@ -2391,3 +2391,5 @@ no configured values for these reads, so successful invocation returned NULL wit
 
 Blocker handed back to the implementing worker/lead: make this migration safely recover either missing function
 through the sanctioned entrypoint, preserving the accepted signatures and restricted grants. P5 remains open.
+
+| **Custom-domain A-or-CNAME alternatives #787 — `INDEPENDENT AUDIT FAIL, CORRECTION REQUIRED`**, product `7ae3a72b4`, audit `f547b434a`; artifact `docs/_TODO/THERAPYSTO_PATIENT_BRANDING_INITIATIVE/AUDIT_CUSTOM_DOMAIN_DNS_ALTERNATIVES_2026-09-10.md` | Exact A, normalized CNAME, apex-only A and TLS/routing fail-closed behavior pass when both runtime targets are configured. The candidate is not landable because the two optional alternatives are incorrectly coupled: configuring only one valid target rejects the custom domain and hides its instruction. One bounded correction must accept every configured supported alternative independently; no live DNS/host claim is made. |
