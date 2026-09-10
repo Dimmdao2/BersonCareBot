@@ -1,12 +1,12 @@
 # Therapysto + универсальное patient-branding — implementation plan
 
-**Дата:** 2026-08-21. **Актуализировано:** 2026-09-10 после выбора `app.bersoncare.ru` и DNS A/CNAME.
+**Дата:** 2026-08-21. **Актуализировано:** 2026-09-10 после выбора `app.bersoncare.ru`, DNS A/CNAME и временного TEST nginx edge.
 
 **Текущее состояние.** На именованном TEST активированы отдельные origins `test.therapysto.ru`,
 `admin.test.therapysto.ru` и `test.therapygo.ru`; DNS wildcard `*.test.therapygo.ru` направлен на TEST.
-Host resolver и live staff/patient surfaces работают через один webapp; branded TEST patient custom domain
-Berson Care — `app.bersoncare.ru`. Его публичная A-запись уже ведёт на TEST, но TLS и routing-gate ещё не включены.
-Новый PROD этим этапом не затрагивается.
+Host resolver и live staff/patient surfaces работают через один webapp; целевой branded TEST patient custom domain
+Berson Care — `app.bersoncare.ru`. Его внешний DNS target остаётся runtime-предусловием, а точный TEST TLS и
+routing-gate ещё не включены. Новый PROD этим этапом не затрагивается.
 
 Реально остались: production-композиция Host→tenant, self-service подключение собственного домена с
 автоматическим TLS, доменное включение платформенных адресов, BersonCare как первый живой branded tenant и
@@ -117,9 +117,9 @@ wildcard-сертификат покрывает все клиники, подк
 ### 1.2a Раскладка адресов у клиники со своим доменом (владелец, 22.08.2026)
 
 **TEST-решение владельца 10.09.2026:** branded Berson Care patient application на TEST использует
-`app.bersoncare.ru`; `test.bersoncare.ru` больше не является активным branded TEST hostname. На TEST временно
-допустим существующий nginx с exact Let's Encrypt/Certbot certificate; Caddy проверяется отдельно при пробном
-запуске нового production-контура.
+`app.bersoncare.ru`; `test.bersoncare.ru` больше не является активным branded TEST hostname. Для текущей проверки
+TEST временно использует существующий nginx и вручную выпущенный точный Let's Encrypt/Certbot-сертификат.
+Автоматический Caddy edge проверяется отдельно с нуля на новом PROD и не является блокером завершения TEST-этапа.
 
 Дословно: «bersoncare.ru — лендинг приложения; app.bersoncare.ru — логин; app.bersoncare.ru/setup —
 инструкция установки приложения, с которой ставится оно».
