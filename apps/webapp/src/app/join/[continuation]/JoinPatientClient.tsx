@@ -90,12 +90,44 @@ function terminalCopy(code: PatientInviteLifecycleCode | null): { title: string;
   }
 }
 
+/**
+ * Что показывать над приглашением. `patientAppName` — имя пациентского приложения этой поверхности
+ * (TherapyGo или имя брендированной клиники), `clinicLogoUrl` появляется ТОЛЬКО когда страница уже
+ * убедилась, что хост принадлежит той же клинике, что и приглашение (см. `page.tsx`).
+ */
+export type JoinBrand = { patientAppName?: string; clinicLogoUrl?: string };
+
+function JoinBrandHeader({ brand, clinicTitle }: { brand: JoinBrand; clinicTitle: string | null }) {
+  if (!brand.patientAppName && !brand.clinicLogoUrl) return null;
+  return (
+    <div className="flex flex-col items-center gap-2">
+      {brand.clinicLogoUrl ? (
+        // Логотип клиники приходит с медиа-хоста арендатора и меняется по её публикации:
+        // next/image потребовал бы заранее объявленного списка хостов.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={brand.clinicLogoUrl}
+          alt={clinicTitle ?? ''}
+          className="h-14 w-auto max-w-[12rem] object-contain"
+        />
+      ) : null}
+      {brand.patientAppName ? (
+        <span className="text-xs uppercase tracking-wide text-muted-foreground">
+          {brand.patientAppName}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
 export function JoinPatientClient({
   preview,
   failureCode,
+  brand,
 }: {
   preview: PatientInvitePublicPreview | null;
   failureCode: PatientInviteLifecycleCode | null;
+  brand: JoinBrand;
 }) {
   const router = useRouter();
   const [email, setEmail] = useState('');
@@ -108,7 +140,8 @@ export function JoinPatientClient({
     const copy = terminalCopy(failureCode);
     return (
       <main className="mx-auto flex min-h-screen w-full max-w-md items-center px-4 py-8">
-        <div className="w-full rounded-xl border border-border bg-card p-5 text-center">
+        <div className="flex w-full flex-col gap-3 rounded-xl border border-border bg-card p-5 text-center">
+          <JoinBrandHeader brand={brand} clinicTitle={null} />
           <h1 className="text-lg font-semibold text-foreground">{copy.title}</h1>
           <p className="mt-2 text-sm text-muted-foreground">{copy.detail}</p>
         </div>
@@ -153,6 +186,7 @@ export function JoinPatientClient({
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-md items-center px-4 py-8">
       <div className="flex w-full flex-col gap-4 rounded-xl border border-border bg-card p-5">
+        <JoinBrandHeader brand={brand} clinicTitle={preview.organizationTitle} />
         <div>
           <h1 className="text-lg font-semibold text-foreground">Доступ к кабинету пациента</h1>
           <p className="mt-1 text-sm text-muted-foreground">

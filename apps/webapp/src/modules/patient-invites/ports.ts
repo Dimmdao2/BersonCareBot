@@ -73,9 +73,16 @@ export type PatientInvitesPort = {
     continuationHash: string;
     continuationExpiresAt: string;
   }): Promise<{ ok: true; preview: PatientInvitePublicPreview } | PatientInviteFailure>;
-  lookupContinuation(
-    continuationHash: string,
-  ): Promise<{ ok: true; preview: PatientInvitePublicPreview } | PatientInviteFailure>;
+  /**
+   * `organizationId` — организация САМОГО приглашения. Она нужна экрану, чтобы сверить её с
+   * организацией хоста: continuation можно открыть на хосте чужой клиники, и без сверки человек
+   * увидел бы приглашение одной клиники под логотипом другой. В браузер идентификатор не уходит —
+   * сравнение делает серверный компонент страницы.
+   */
+  lookupContinuation(continuationHash: string): Promise<
+    | { ok: true; preview: PatientInvitePublicPreview; organizationId: string }
+    | PatientInviteFailure
+  >;
   startEmailProof(input: {
     continuationHash: string;
     emailNormalized: string;

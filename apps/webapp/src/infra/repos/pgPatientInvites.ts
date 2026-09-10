@@ -285,19 +285,22 @@ export function createPgPatientInvitesPort(): PatientInvitesPort {
     },
 
     async lookupContinuation(continuationHash) {
-      const result = await runWebappNamedRoot<PreviewFunctionRow>(
+      const result = await runWebappNamedRoot<PreviewFunctionRow & { organization_id: string | null }>(
         getWebappSqlDb(),
         'app.lookup_patient_invite_continuation(text)',
         [continuationHash],
         sql`
-          SELECT ok, code, organization_title, recipient_hint, invite_expires_at
+          SELECT ok, code, organization_title, recipient_hint, invite_expires_at, organization_id
           FROM app.lookup_patient_invite_continuation(${continuationHash})
         `,
       );
       const row = result.rows[0];
       if (!row?.ok) return failure(row?.code ?? 'invalid_continuation');
       const preview = mapPreview(row);
-      return preview ? { ok: true, preview } : failure('invalid_continuation');
+      // Организация приглашения нужна экрану, чтобы не показать чужой бренд; в браузер она не идёт.
+      return preview && row.organization_id
+        ? { ok: true, preview, organizationId: row.organization_id }
+        : failure('invalid_continuation');
     },
 
     async startEmailProof({ continuationHash, emailNormalized, codeHash, proofExpiresAt }) {

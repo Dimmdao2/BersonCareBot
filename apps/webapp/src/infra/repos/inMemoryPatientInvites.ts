@@ -259,7 +259,7 @@ export function createInMemoryPatientInvitesPort(): PatientInvitesPort {
       if (!invite.continuationExpiresAt || Date.parse(invite.continuationExpiresAt) <= Date.now()) {
         return { ok: false, code: 'invalid_continuation' };
       }
-      return { ok: true, preview: preview(invite) };
+      return { ok: true, preview: preview(invite), organizationId: invite.organizationId };
     },
 
     async startEmailProof({ continuationHash, emailNormalized, codeHash, proofExpiresAt }) {
