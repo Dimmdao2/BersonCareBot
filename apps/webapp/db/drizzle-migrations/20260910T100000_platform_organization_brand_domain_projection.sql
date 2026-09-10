@@ -36,6 +36,7 @@ LEFT JOIN LATERAL (
   SELECT binding.hostname, binding.status, binding.status_reason
   FROM public.org_custom_domain_bindings AS binding
   WHERE binding.organization_id = organization.id
+    AND binding.status <> 'quarantine'
   ORDER BY binding.updated_at DESC
   LIMIT 1
 ) AS domain ON true
