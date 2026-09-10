@@ -17166,6 +17166,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         ],
         "columns": [
           "accent_token",
+          "app_icon_media_id",
           "created_by_platform_user_id",
           "display_name",
           "logo_media_id",
@@ -17181,6 +17182,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         ],
         "columns": [
           "accent_token",
+          "app_icon_media_id",
           "archived_at",
           "archived_by_platform_user_id",
           "display_name",
@@ -28274,7 +28276,8 @@ const REV10_CONTEXT = {
         { relation: 'public.clinic_public_directory_entries', columns: ['organization_id', 'is_published', 'slug'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.org_brand_revisions',
-          columns: ['id', 'organization_id', 'status', 'display_name', 'patient_app_name', 'accent_token', 'logo_media_id'],
+          columns: ['id', 'organization_id', 'status', 'display_name', 'patient_app_name', 'accent_token', 'logo_media_id',
+            'app_icon_media_id'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.media_files', columns: ['id', 'owner_kind', 'organization_id', 'status', 'mime_type'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },

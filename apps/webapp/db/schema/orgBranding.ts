@@ -35,6 +35,13 @@ export const orgBrandRevisions = pgTable(
     accentToken: text('accent_token'),
     /** Paid logo as a `public.media_files` id; the effective `/api/media/<uuid>` URL is server-computed. */
     logoMediaId: uuid('logo_media_id'),
+    /**
+     * Квадратная иконка установленного приложения и фавикона клиники как id `public.media_files`
+     * (решение владельца 10.09.2026, вариант A). Отдельное поле, а не логотип: логотип обычно
+     * широкий, и квадрат 192×192 с фавиконом 32×32 из него получаются плохими. Готовые размеры
+     * выводит `app-layer/media/orgAppIconRenditions.ts`, URL считает сервер.
+     */
+    appIconMediaId: uuid('app_icon_media_id'),
     createdByPlatformUserId: uuid('created_by_platform_user_id').notNull(),
     publishedByPlatformUserId: uuid('published_by_platform_user_id'),
     archivedByPlatformUserId: uuid('archived_by_platform_user_id'),
@@ -58,6 +65,9 @@ export const orgBrandRevisions = pgTable(
     index('idx_org_brand_revisions_logo_media')
       .on(table.logoMediaId)
       .where(sql`${table.logoMediaId} IS NOT NULL`),
+    index('idx_org_brand_revisions_app_icon_media')
+      .on(table.appIconMediaId)
+      .where(sql`${table.appIconMediaId} IS NOT NULL`),
     foreignKey({
       columns: [table.organizationId],
       foreignColumns: [beOrganizations.id],
@@ -67,6 +77,11 @@ export const orgBrandRevisions = pgTable(
       columns: [table.logoMediaId],
       foreignColumns: [mediaFiles.id],
       name: 'org_brand_revisions_logo_media_id_fkey',
+    }).onDelete('set null'),
+    foreignKey({
+      columns: [table.appIconMediaId],
+      foreignColumns: [mediaFiles.id],
+      name: 'org_brand_revisions_app_icon_media_id_fkey',
     }).onDelete('set null'),
     foreignKey({
       columns: [table.createdByPlatformUserId],

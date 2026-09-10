@@ -1207,13 +1207,13 @@ test('patient page relations have exact self/current-clinic access and published
     grant.role === 'app_patient' && grant.operations.some((operation) => operation !== 'SELECT')), false);
   assert.deepEqual(branding.access.grants.find((grant) =>
     grant.role === 'app_staff' && grant.operations.includes('INSERT'))?.columns,
-  ['accent_token', 'created_by_platform_user_id', 'display_name', 'logo_media_id',
-    'organization_id', 'patient_app_name', 'status']);
+  ['accent_token', 'app_icon_media_id', 'created_by_platform_user_id', 'display_name',
+    'logo_media_id', 'organization_id', 'patient_app_name', 'status']);
   assert.deepEqual(branding.access.grants.find((grant) =>
     grant.role === 'app_staff' && grant.operations.includes('UPDATE'))?.columns,
-  ['accent_token', 'archived_at', 'archived_by_platform_user_id', 'display_name',
-    'logo_media_id', 'patient_app_name', 'published_at', 'published_by_platform_user_id',
-    'status', 'updated_at']);
+  ['accent_token', 'app_icon_media_id', 'archived_at', 'archived_by_platform_user_id',
+    'display_name', 'logo_media_id', 'patient_app_name', 'published_at',
+    'published_by_platform_user_id', 'status', 'updated_at']);
 
   const media = tables['public.media_files'];
   assert.deepEqual(media.access.grants.find((grant) => grant.role === 'app_patient')?.columns,
