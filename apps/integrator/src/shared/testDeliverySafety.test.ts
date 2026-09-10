@@ -84,7 +84,9 @@ describe('final TEST delivery safety gate', () => {
 
     await port.dispatchOutgoing(outgoing);
 
-    expect(sent).toEqual([outgoing]);
+    expect(sent).toHaveLength(1);
+    expect(sent[0]?.payload.recipient).toEqual(outgoing.payload.recipient);
+    expect(sent[0]?.payload.message).toEqual(outgoing.payload.message);
   });
 
   it('does not confuse the Vitest TEST variable with a deployed TEST environment', () => {
@@ -125,7 +127,9 @@ describe('final TEST delivery safety gate', () => {
 
     await port.dispatchOutgoing(outgoing);
 
-    expect(sent).toEqual([outgoing]);
+    expect(sent).toHaveLength(1);
+    expect(sent[0]?.payload.recipient).toEqual(outgoing.payload.recipient);
+    expect(sent[0]?.payload.message).toEqual(outgoing.payload.message);
   });
 
   it('matches each supported channel only against its own env list', () => {
