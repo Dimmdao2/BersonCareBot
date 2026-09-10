@@ -10,8 +10,8 @@ set -euo pipefail
 SSH_PORT="${BCB_SSH_PORT:-22}"
 ROLLBACK_MIN="${BCB_ROLLBACK_MIN:-10}"
 RULES=/etc/nftables.conf
-BACKUP=/var/backups/nftables.pre-bcb.conf
-ROLLBACK_UNIT=bcb-nft-rollback
+BACKUP=/var/backups/nftables.pre-therapysto.conf
+ROLLBACK_UNIT=therapysto-nft-rollback
 
 log() { echo "[harden] $*"; }
 die() { echo "[harden] FATAL: $*" >&2; exit 1; }
@@ -22,7 +22,7 @@ die() { echo "[harden] FATAL: $*" >&2; exit 1; }
 if [ "${1:-}" = "--confirm" ]; then
   systemctl stop "${ROLLBACK_UNIT}.timer" 2>/dev/null || true
   systemctl reset-failed "${ROLLBACK_UNIT}.service" 2>/dev/null || true
-  rm -f /run/bcb-nft-pending
+  rm -f /run/therapysto-nft-pending
   log "rollback timer cancelled; the ruleset is now permanent"
   exit 0
 fi
@@ -36,22 +36,22 @@ if [ ! -f "$BACKUP" ]; then
   chmod 600 "$BACKUP"
 fi
 
-cat > /usr/local/sbin/bcb-nft-rollback <<EOF
+cat > /usr/local/sbin/therapysto-nft-rollback <<EOF
 #!/bin/sh
 # Restores the pre-hardening state. Runs only if nobody confirmed the new rules in time.
-[ -f /run/bcb-nft-pending ] || exit 0
+[ -f /run/therapysto-nft-pending ] || exit 0
 nft flush ruleset
 [ -s "$BACKUP" ] && nft -f "$BACKUP"
 systemctl disable --now nftables 2>/dev/null || true
-logger -t bcb-nft-rollback "firewall rolled back: nobody confirmed connectivity"
-rm -f /run/bcb-nft-pending
+logger -t therapysto-nft-rollback "firewall rolled back: nobody confirmed connectivity"
+rm -f /run/therapysto-nft-pending
 EOF
-chmod 700 /usr/local/sbin/bcb-nft-rollback
+chmod 700 /usr/local/sbin/therapysto-nft-rollback
 
-touch /run/bcb-nft-pending
+touch /run/therapysto-nft-pending
 systemctl stop "${ROLLBACK_UNIT}.timer" 2>/dev/null || true
 systemd-run --unit="$ROLLBACK_UNIT" --on-active="${ROLLBACK_MIN}min" \
-  /usr/local/sbin/bcb-nft-rollback >/dev/null
+  /usr/local/sbin/therapysto-nft-rollback >/dev/null
 log "dead-man timer armed: the firewall reverts in ${ROLLBACK_MIN} min unless confirmed"
 
 # ---------------------------------------------------------------- ruleset
@@ -116,7 +116,7 @@ log "ruleset applied and enabled at boot"
 # Root by key remains for now: there are no named administrators on this host yet, and disabling it before
 # they exist would leave no way in at all. Superseded by IS-I1-04 once service and admin users are created.
 install -d -m 755 /etc/ssh/sshd_config.d
-cat > /etc/ssh/sshd_config.d/10-bcb-hardening.conf <<EOF
+cat > /etc/ssh/sshd_config.d/10-therapysto-hardening.conf <<EOF
 PermitRootLogin prohibit-password
 PasswordAuthentication no
 KbdInteractiveAuthentication no
@@ -130,13 +130,16 @@ AllowTcpForwarding no
 ClientAliveInterval 300
 ClientAliveCountMax 2
 EOF
-chmod 644 /etc/ssh/sshd_config.d/10-bcb-hardening.conf
+chmod 644 /etc/ssh/sshd_config.d/10-therapysto-hardening.conf
+# Дроп-ин под старым именем надо снести, а не оставить рядом: sshd берёт ПЕРВОЕ вхождение каждого
+# ключа по алфавиту файлов, то есть забытый 10-bcb-* тихо победил бы новый конфиг.
+rm -f /etc/ssh/sshd_config.d/10-bcb-hardening.conf
 sshd -t || die "sshd config is invalid; not restarting"
 systemctl reload ssh || systemctl restart ssh
 log "sshd hardened"
 
 # ---------------------------------------------------------------- fail2ban
-cat > /etc/fail2ban/jail.d/10-bcb-sshd.local <<EOF
+cat > /etc/fail2ban/jail.d/10-therapysto-sshd.local <<EOF
 [sshd]
 enabled  = true
 port     = $SSH_PORT
@@ -145,6 +148,7 @@ maxretry = 5
 findtime = 10m
 bantime  = 1h
 EOF
+rm -f /etc/fail2ban/jail.d/10-bcb-sshd.local
 systemctl enable --now fail2ban >/dev/null 2>&1 || true
 log "fail2ban enabled"
 
@@ -168,7 +172,7 @@ vcheck "password auth disabled"      'sshd -T | grep -qx "passwordauthentication
 vcheck "root password login refused" 'sshd -T | grep -qE "^permitrootlogin (prohibit-password|without-password)$"'
 vcheck "fail2ban running"            'systemctl is-active fail2ban >/dev/null 2>&1'
 vcheck "sshd jail active"            'fail2ban-client status sshd >/dev/null 2>&1'
-vcheck "rollback armed"              '[ -f /run/bcb-nft-pending ]'
+vcheck "rollback armed"              '[ -f /run/therapysto-nft-pending ]'
 [ "$vfail" = 0 ] || die "hardening incomplete"
 
 log "DONE. Reconnect in a NEW session to prove the rules did not lock you out, then run:"
