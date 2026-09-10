@@ -36,6 +36,17 @@ import {
 import { productionTenantSurfaceLookup } from '@/app-layer/surface/productionTenantSurfaceLookup';
 import { CUSTOM_DOMAIN_ROUTING_PROBE_PATH } from '@/modules/domain-health/domainCertificateProbe';
 
+/** Страница «здесь такого адреса нет» — одна строка, без подсказок про устройство хостов. */
+const SURFACE_NOT_FOUND_BODY =
+  '<!doctype html><html lang="ru"><head><meta charset="utf-8">' +
+  '<meta name="viewport" content="width=device-width, initial-scale=1">' +
+  '<title>Страница не найдена</title></head>' +
+  '<body style="font:16px/1.5 system-ui,sans-serif;margin:0;padding:2rem;color:#111">' +
+  '<p>Страница не найдена.</p>' +
+  '<p>Возможно, ссылка устарела или открыта не на том сайте — попросите отправить её заново.</p>' +
+  '</body></html>';
+
+
 function rebaseRedirectToPublicOrigin(response: NextResponse, publicOrigin: string): void {
   const location = response.headers.get('location');
   if (!location) return;
@@ -88,7 +99,15 @@ export async function proxy(
     !resolvedSurface ||
     (surfaceHostsAreDistinct && !canSurfaceEnterRoute(resolvedSurface.surface, routedPathname))
   ) {
-    const response = new NextResponse(null, { status: 404 });
+    // Тело и тип обязательны. Пустой ответ без `Content-Type` браузер не считает страницей: Safari
+    // на телефоне предлагает СОХРАНИТЬ ФАЙЛ, названный последним куском пути, — владелец 10.09
+    // получил «Хотите загрузить файл „start“?» вместо страницы приглашения. Что здесь показано,
+    // сознательно не зависит от поверхности: этот ответ отдаётся ДО опознания арендатора, и
+    // говорить, какие адреса на этом хосте существуют, он не должен.
+    const response = new NextResponse(SURFACE_NOT_FOUND_BODY, {
+      status: 404,
+      headers: { 'Content-Type': 'text/html; charset=utf-8' },
+    });
     response.headers.set('Cache-Control', 'no-store');
     response.headers.set(BC_CORRELATION_ID_HEADER, correlationId);
     return response;

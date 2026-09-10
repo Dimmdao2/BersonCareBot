@@ -73,6 +73,9 @@ const session = {
 
 const listCoursesForDoctor = vi.fn();
 const getOrganizationBillingOverview = vi.fn();
+// Обзор биллинга с 10.09 отдаёт и витрину докупки объёма; без неё маршрут падает в 503, и
+// лестница доступа «читает свой тариф» проверялась бы на отказе, а не на разрешении.
+const listStoragePackageOffers = vi.fn();
 const getOwnTariffChangeState = vi.fn();
 const createOwnTariffRenewalInvoice = vi.fn();
 
@@ -111,7 +114,12 @@ function withCabinet(cabinet: CabinetAccessResolution | Error): void {
       }),
     },
     courses: { listCoursesForDoctor },
-    saasBilling: { getOrganizationBillingOverview, getOwnTariffChangeState, createOwnTariffRenewalInvoice },
+    saasBilling: {
+      getOrganizationBillingOverview,
+      getOwnTariffChangeState,
+      createOwnTariffRenewalInvoice,
+      listStoragePackageOffers,
+    },
   } as unknown as ReturnType<typeof buildAppDeps>);
 }
 
@@ -131,6 +139,11 @@ beforeEach(() => {
   vi.mocked(getCurrentSession).mockResolvedValue(session as never);
   listCoursesForDoctor.mockResolvedValue(EXISTING_COURSES);
   getOrganizationBillingOverview.mockResolvedValue(BILLING_OVERVIEW);
+  listStoragePackageOffers.mockResolvedValue({
+    currentPackageId: null,
+    currentPeriodEndsAt: null,
+    packages: [],
+  });
   getOwnTariffChangeState.mockResolvedValue(null);
   createOwnTariffRenewalInvoice.mockResolvedValue({
     id: 'invoice-own-tariff-1',

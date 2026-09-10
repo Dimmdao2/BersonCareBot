@@ -18,7 +18,7 @@ type IssueResponse = {
   error?: unknown;
   inviteId?: unknown;
   expiresAt?: unknown;
-  relativeUrl?: unknown;
+  url?: unknown;
 };
 
 const labels: Record<PatientPortalStatus, string> = {
@@ -42,16 +42,28 @@ export function PatientPortalInviteControls({
   // ClinicBookingLinkSection (explicit fallback control, no error toast on copy failure).
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
 
-  async function copyGeneratedUrl(url: string) {
+  /**
+   * Копирование живёт ОТДЕЛЬНО от выпуска и вызывается прямо в обработчике нажатия. Раньше оно
+   * стояло после `await fetch`, и Safari на телефоне к этому моменту уже не считал вызов жестом
+   * пользователя — отсюда «Не удалось скопировать ссылку» при исправной ссылке (владелец 10.09).
+   */
+  function copyGeneratedUrl(url: string) {
     try {
-      await navigator.clipboard.writeText(url);
-      setCopyStatus('copied');
+      const written = navigator.clipboard?.writeText(url);
+      if (!written) {
+        setCopyStatus('failed');
+        return;
+      }
+      void written.then(
+        () => setCopyStatus('copied'),
+        () => setCopyStatus('failed'),
+      );
     } catch {
       setCopyStatus('failed');
     }
   }
 
-  async function issueAndCopy() {
+  async function issue() {
     setPending(true);
     try {
       const response = await fetch(`/api/doctor/patients/${patientUserId}/portal-invite`, {
@@ -63,22 +75,38 @@ export function PatientPortalInviteControls({
         json?.ok !== true ||
         typeof json.inviteId !== 'string' ||
         typeof json.expiresAt !== 'string' ||
-        typeof json.relativeUrl !== 'string'
+        typeof json.url !== 'string'
       ) {
         toast.error('Не удалось создать приглашение');
         return;
       }
-      const absoluteUrl = `${window.location.origin}${json.relativeUrl}`;
+      // Абсолютную ссылку собирает сервер: у клиники со своим доменом она обязана вести на её
+      // домен, а не на тот хост, где сейчас стоит специалист.
       setState({ status: 'invited', inviteId: json.inviteId, expiresAt: json.expiresAt });
-      setGeneratedUrl(absoluteUrl);
+      setGeneratedUrl(json.url);
       setCopyStatus('idle');
-      toast.success('Приглашение создано');
-      await copyGeneratedUrl(absoluteUrl);
+      toast.success('Ссылка приглашения создана');
     } catch {
       toast.error('Не удалось создать приглашение');
     } finally {
       setPending(false);
     }
+  }
+
+  /**
+   * Повторное нажатие НЕ выпускает вторую ссылку молча. В базе лежит только хеш токена, поэтому
+   * показать выданную ранее ссылку невозможно в принципе — а новый выпуск гасит прежнюю
+   * (`createReplacingPending`). То есть молчаливый перевыпуск отзывал ссылку, которую специалист
+   * уже кому-то отправил (владелец 10.09: «каждый раз новое создаётся, зачем это надо?»).
+   */
+  function requestNewLink() {
+    if (
+      generatedUrl !== null &&
+      !window.confirm('Прежняя ссылка перестанет работать. Выпустить новую?')
+    ) {
+      return;
+    }
+    void issue();
   }
 
   async function revoke() {
@@ -117,11 +145,11 @@ export function PatientPortalInviteControls({
         variant="outline"
         size="sm"
         disabled={pending}
-        onClick={() => void issueAndCopy()}
+        onClick={requestNewLink}
         className="h-7 gap-1 px-2.5 text-xs"
       >
         <Copy className="h-3.5 w-3.5" />
-        Пригласить
+        {generatedUrl ? 'Выпустить новую ссылку' : 'Пригласить'}
       </Button>
       {state.status === 'invited' ? (
         <Button
@@ -149,7 +177,7 @@ export function PatientPortalInviteControls({
             variant="outline"
             size="sm"
             className="h-7 px-2.5 text-xs"
-            onClick={() => void copyGeneratedUrl(generatedUrl)}
+            onClick={() => copyGeneratedUrl(generatedUrl)}
           >
             {copyStatus === 'copied' ? 'Скопировано' : 'Скопировать'}
           </Button>

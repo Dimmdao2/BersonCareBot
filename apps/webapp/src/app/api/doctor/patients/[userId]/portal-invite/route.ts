@@ -79,11 +79,23 @@ export async function POST(_request: Request, { params }: { params: Promise<{ us
     const status = result.code === 'already_linked' ? 409 : result.code === 'wrong_org' ? 404 : 400;
     return NextResponse.json({ ok: false, error: result.code }, { status });
   }
+  // Ссылку собирает СЕРВЕР, а не браузер. Кабинет специалиста и кабинет пациента живут на разных
+  // хостах, поэтому `window.location.origin` в кабинете врача давал ссылку на хост специалистов —
+  // а `/join` принадлежит пациентской поверхности, и прокси отвечал на ней 404 (владелец 10.09
+  // прислал ровно это: ссылка вела на 127.0.0.1, а Safari предлагал «сохранить файл start»).
+  // Origin берётся у той же единственной двери, что и все прочие пациентские ссылки клиники, —
+  // поэтому у брендированной клиники приглашение автоматически ведёт на её собственный домен.
+  const patientOrigin = await patient.deps.customDomainBinding?.resolvePatientPublicOrigin(
+    gate.ctx.organizationId,
+  );
+  if (!patientOrigin) {
+    return NextResponse.json({ ok: false, error: 'patient_origin_unresolved' }, { status: 503 });
+  }
   return NextResponse.json({
     ok: true,
     inviteId: result.invite.id,
     expiresAt: result.invite.expiresAt,
-    relativeUrl: result.relativeUrl,
+    url: new URL(result.relativeUrl, patientOrigin).toString(),
   });
 }
 

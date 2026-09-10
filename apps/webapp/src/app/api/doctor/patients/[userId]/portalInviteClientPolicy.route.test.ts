@@ -89,11 +89,16 @@ async function depsFor(options: { clientPortal: boolean; portalAllowed: boolean 
         mediaAllowed: true,
       }),
     },
+    // Ссылку собирает сервер, и origin у неё — пациентский (у брендированной клиники её домен),
+    // а не тот хост, на котором стоит специалист.
+    customDomainBinding: {
+      resolvePatientPublicOrigin: vi.fn().mockResolvedValue('https://patient.example.test'),
+    },
     patientInvites: {
       issue: vi.fn().mockResolvedValue({
         ok: true,
         invite: { id: INVITE_ID, expiresAt: '2026-09-14T00:00:00.000Z' },
-        relativeUrl: `/join/${INVITE_ID}`,
+        relativeUrl: `/join/start#${INVITE_ID}`,
       }),
       revoke: vi.fn().mockResolvedValue(true),
       getPortalStatus: vi
@@ -137,6 +142,23 @@ describe('C3M-10 portal invite door', () => {
 
     expect(response.status).toBe(200);
     expect(deps.patientInvites.issue).toHaveBeenCalledTimes(1);
+    // Ссылка обязана вести на пациентскую поверхность: собранная от хоста специалиста, она
+    // упирается в 404 чужой поверхности и в браузере телефона выглядит как «сохранить файл».
+    const body = (await response.json()) as { url?: unknown };
+    expect(body.url).toBe(`https://patient.example.test/join/start#${INVITE_ID}`);
+  });
+
+  it('отказывается выдавать ссылку, пока пациентский адрес клиники неизвестен', async () => {
+    const deps = await depsFor({ clientPortal: true, portalAllowed: true });
+    deps.customDomainBinding.resolvePatientPublicOrigin.mockRejectedValueOnce(
+      new Error('patient_public_origin_unresolved'),
+    );
+    fakes.buildAppDeps.mockReturnValue(deps);
+
+    // Молча собрать ссылку «хоть от какого-нибудь» хоста нельзя: она уйдёт человеку и не откроется.
+    await expect(
+      issuePortalInvite(new Request('https://app.example.test'), params),
+    ).rejects.toThrow();
   });
 
   it('refuses to issue an invite when the organization turned the portal off', async () => {
