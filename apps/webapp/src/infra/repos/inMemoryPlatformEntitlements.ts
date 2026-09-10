@@ -40,6 +40,10 @@ export function createInMemoryPlatformEntitlementsPort(): PlatformEntitlementsPo
           manualTariffId: trial?.status === 'active' ? null : tariffId,
           scheduledTariff: null,
           isActive: organizationIsActive.get(id) ?? true,
+          brandDomain: {
+            hasPublishedBrand: false,
+            customDomain: null,
+          },
           effectiveAccess: {
             lifecycle: 'active' as const,
             tariffId,
