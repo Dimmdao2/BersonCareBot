@@ -10,7 +10,6 @@ export const WEBAPP_LOCKED_INFRA_CRON_SOURCES = new Set<string>([
   'api/internal/media-playback-stats/retention:POST',
   'api/internal/media-pending-delete/purge:POST',
   'api/internal/media-multipart/cleanup:POST',
-  'api/internal/media-preview/process:POST',
   'api/internal/media-transcode/enqueue:POST',
   'api/internal/media-transcode/reconcile:POST',
   'api/internal/product-analytics/retention:POST',
@@ -31,7 +30,6 @@ export const WEBAPP_LOCKED_INFRA_CRON_SOURCES = new Set<string>([
 export const WEBAPP_LOCKED_MEDIA_CRON_SOURCES = new Set<string>([
   'api/internal/media-pending-delete/purge:POST',
   'api/internal/media-multipart/cleanup:POST',
-  'api/internal/media-preview/process:POST',
   'api/internal/media-transcode/enqueue:POST',
   'api/internal/media-transcode/reconcile:POST',
 ]);
