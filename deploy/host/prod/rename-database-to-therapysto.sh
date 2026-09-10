@@ -144,16 +144,24 @@ fi
 
 ########################################  БЭКАП  ########################################
 step "1/8 проверенный бэкап"
-install -d -m 0700 -o postgres -g postgres "$BACKUP_DIR"
+install -d -m 0700 -o root -g root "$BACKUP_DIR"
+# Дамп пишется сначала в собственный каталог postgres, а не прямо в каталог бэкапов: тот закрыт для
+# всех, кроме root (0750), а pg_dump выполняется от postgres и туда даже не войдёт. Ослаблять права
+# каталога с бэкапами ради удобства нельзя — в нём лежат дампы базы целиком, поэтому файлы переносит
+# root после того, как они сняты.
+stage=$(runuser -u postgres -- mktemp -d -p /var/lib/postgresql rename-dump.XXXXXX) ||
+  die "не удалось создать промежуточный каталог для дампа"
 runuser -u postgres -- pg_dump -Fc -h /var/run/postgresql -p 5432 -d "$OLD_DB" \
-  -f "$BACKUP_DIR/$OLD_DB.dump" || die "не удалось снять дамп базы"
+  -f "$stage/$OLD_DB.dump" || die "не удалось снять дамп базы"
 # Дампу верим только после того, как он прочитан обратно: непроверенный бэкап — это не бэкап.
-runuser -u postgres -- pg_restore --list "$BACKUP_DIR/$OLD_DB.dump" >/dev/null ||
+runuser -u postgres -- pg_restore --list "$stage/$OLD_DB.dump" >/dev/null ||
   die "дамп нечитаем — дальше нельзя"
-[ "$(head -c5 -- "$BACKUP_DIR/$OLD_DB.dump")" = PGDMP ] || die "дамп не в ожидаемом формате"
+[ "$(head -c5 -- "$stage/$OLD_DB.dump")" = PGDMP ] || die "дамп не в ожидаемом формате"
 # Роли и их пароли лежат вне базы, и переименование трогает именно их.
 runuser -u postgres -- pg_dumpall -h /var/run/postgresql -p 5432 --globals-only \
-  -f "$BACKUP_DIR/globals.sql" || die "не удалось снять глобальные объекты"
+  -f "$stage/globals.sql" || die "не удалось снять глобальные объекты"
+mv "$stage/$OLD_DB.dump" "$stage/globals.sql" "$BACKUP_DIR/" || die "не удалось перенести дамп в каталог бэкапов"
+rmdir "$stage"
 cp -a "$ENV_DIR/reconcile.env" "$ENV_DIR/webapp.prod" "$ENV_DIR/api.prod" "$BACKUP_DIR/"
 cp -a "$HBA" "$BACKUP_DIR/pg_hba.conf"
 cp -a "$MTLS/prod" "$BACKUP_DIR/mtls-prod"
