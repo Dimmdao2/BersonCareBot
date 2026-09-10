@@ -70,4 +70,10 @@ done
 install -m 0644 -o root -g root "$D/Dockerfile" "$PIPELINE/Dockerfile"
 install -m 0644 -o root -g root "$D/docker-compose.yml" "$PIPELINE/docker-compose.yml"
 
+# Пакет видео живёт отдельной копией по той же причине, что и конвейер, плюс одна своя: он пишет
+# рядом с собой, а дерево исходников выкладка чистит. Обновляется тем же коммитом.
+if [ -x "$SRC/deploy/host/prod/install-video-package.sh" ] && getent passwd therapysto-video >/dev/null; then
+  bash "$SRC/deploy/host/prod/install-video-package.sh"
+fi
+
 echo "конвейер разложен из $COMMIT"
