@@ -180,7 +180,10 @@ async function withImapMailbox<T>(input: {
     socketTimeout: input.timeoutMs,
   });
   try {
-    await withProbeTimeout(client.connect(), input.timeoutMs);
+    // This is the external IMAP transport, not a PostgreSQL pool checkout. Bind the instance
+    // method before applying the shared timeout so the DB chokepoint signal stays unambiguous.
+    const connectMailbox = client.connect.bind(client);
+    await withProbeTimeout(connectMailbox(), input.timeoutMs);
     return await input.run(client);
   } finally {
     try {
