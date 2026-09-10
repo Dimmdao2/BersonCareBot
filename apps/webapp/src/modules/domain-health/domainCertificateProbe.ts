@@ -13,7 +13,8 @@ export type DomainCertificateProbeDeps = {
 
 export type DomainLifecycleExpectation = Readonly<
   | { placement: 'apex'; edgeIp: string }
-  | { placement: 'subdomain'; cnameTarget: string }
+  | { placement: 'subdomain'; edgeIp: string; cnameTarget?: string }
+  | { placement: 'subdomain'; edgeIp?: string; cnameTarget: string }
 >;
 
 export type DomainHealthIssue =
@@ -38,6 +39,14 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+function normalizeCnameTarget(value: string): string {
+  return value.replace(/\.$/u, '').toLowerCase();
+}
+
+function hasExactEdgeAnswer(resolved: readonly string[], edgeIp: string | undefined): boolean {
+  return Boolean(edgeIp && resolved.length === 1 && resolved[0] === edgeIp);
+}
+
 /** Checks DNS and TLS independently so one failed half never hides the other. */
 export async function checkDomainCertificateHealth(
   hostname: string,
@@ -52,42 +61,79 @@ export async function checkDomainCertificateHealth(
   let tlsReady = false;
   let routingReady = false;
 
-  try {
-    resolved = await deps.resolveDns(hostname);
-    if (resolved.length === 0) {
-      issues.push({ code: 'resolution_failed', detail: 'empty_answer' });
-    } else if (lifecycleExpectation?.placement === 'apex') {
-      const exactEdgeAnswer =
-        resolved.length === 1 && resolved[0] === lifecycleExpectation.edgeIp;
-      if (!exactEdgeAnswer) {
+  if (lifecycleExpectation?.placement === 'subdomain') {
+    let addressResolutionError: string | null = null;
+    try {
+      resolved = await deps.resolveDns(hostname);
+    } catch (error) {
+      addressResolutionError = errorMessage(error);
+    }
+
+    // A valid direct edge record is sufficient; an absent CNAME is normal in that configuration.
+    if (hasExactEdgeAnswer(resolved, lifecycleExpectation.edgeIp)) {
+      dnsReady = true;
+    } else if (!lifecycleExpectation.cnameTarget) {
+      if (addressResolutionError) {
+        issues.push({ code: 'resolution_failed', detail: addressResolutionError });
+      } else if (resolved.length === 0) {
+        issues.push({ code: 'resolution_failed', detail: 'empty_answer' });
+      } else {
+        issues.push({ code: 'dns_mismatch', detail: resolved.join(',') });
+      }
+    } else if (!deps.resolveCname) {
+      issues.push({
+        code: 'resolution_failed',
+        detail: addressResolutionError ?? 'cname_probe_unavailable',
+      });
+    } else {
+      try {
+        const expected = normalizeCnameTarget(lifecycleExpectation.cnameTarget);
+        const aliases = (await deps.resolveCname(hostname)).map(normalizeCnameTarget);
+        if (aliases.includes(expected)) {
+          dnsReady = true;
+        } else if (addressResolutionError && aliases.length === 0) {
+          issues.push({ code: 'resolution_failed', detail: addressResolutionError });
+        } else if (resolved.length === 0 && aliases.length === 0) {
+          issues.push({ code: 'resolution_failed', detail: 'empty_answer' });
+        } else {
+          issues.push({
+            code: 'dns_mismatch',
+            detail: aliases.join(',') || resolved.join(',') || 'empty_cname_answer',
+          });
+        }
+      } catch (error) {
+        if (addressResolutionError) {
+          issues.push({ code: 'resolution_failed', detail: addressResolutionError });
+        } else {
+          issues.push({
+            code: 'dns_mismatch',
+            detail: resolved.join(',') || errorMessage(error),
+          });
+        }
+      }
+    }
+  } else {
+    try {
+      resolved = await deps.resolveDns(hostname);
+      if (resolved.length === 0) {
+        issues.push({ code: 'resolution_failed', detail: 'empty_answer' });
+      } else if (lifecycleExpectation?.placement === 'apex') {
+        if (!hasExactEdgeAnswer(resolved, lifecycleExpectation.edgeIp)) {
+          issues.push({ code: 'dns_mismatch', detail: resolved.join(',') });
+        } else {
+          dnsReady = true;
+        }
+      } else if (
+        expectedDestinationIps.length > 0 &&
+        !resolved.some((ip) => expectedDestinationIps.includes(ip))
+      ) {
         issues.push({ code: 'dns_mismatch', detail: resolved.join(',') });
       } else {
         dnsReady = true;
       }
-    } else if (lifecycleExpectation?.placement === 'subdomain') {
-      if (!deps.resolveCname) {
-        issues.push({ code: 'resolution_failed', detail: 'cname_probe_unavailable' });
-      } else {
-        const expected = lifecycleExpectation.cnameTarget.replace(/\.$/u, '').toLowerCase();
-        const aliases = (await deps.resolveCname(hostname)).map((value) =>
-          value.replace(/\.$/u, '').toLowerCase(),
-        );
-        if (!aliases.includes(expected)) {
-          issues.push({ code: 'dns_mismatch', detail: aliases.join(',') || 'empty_cname_answer' });
-        } else {
-          dnsReady = true;
-        }
-      }
-    } else if (
-      expectedDestinationIps.length > 0 &&
-      !resolved.some((ip) => expectedDestinationIps.includes(ip))
-    ) {
-      issues.push({ code: 'dns_mismatch', detail: resolved.join(',') });
-    } else {
-      dnsReady = true;
+    } catch (error) {
+      issues.push({ code: 'resolution_failed', detail: errorMessage(error) });
     }
-  } catch (error) {
-    issues.push({ code: 'resolution_failed', detail: errorMessage(error) });
   }
 
   // Lifecycle activation is deliberately ordered. DNS mismatch must never reach Caddy/TLS.

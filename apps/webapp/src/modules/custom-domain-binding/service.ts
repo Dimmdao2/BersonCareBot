@@ -103,13 +103,21 @@ export function createCustomDomainBindingService(
     state: CustomDomainBindingState | null,
   ): CustomDomainBindingState | null => {
     if (!state) return null;
-    const dnsInstruction =
-      state.placement === 'apex' && deps?.edgeIp
-        ? { recordType: 'A' as const, name: '@' as const, value: deps.edgeIp }
-        : state.placement === 'subdomain' && deps?.cnameTarget
-          ? { recordType: 'CNAME' as const, name: 'app' as const, value: deps.cnameTarget }
-          : null;
-    return { ...state, dnsInstruction };
+    if (state.placement === 'apex') {
+      return {
+        ...state,
+        dnsInstructions: deps?.edgeIp
+          ? [{ recordType: 'A', name: '@', value: deps.edgeIp }]
+          : null,
+      };
+    }
+    const dnsInstructions = [
+      ...(deps?.edgeIp ? [{ recordType: 'A' as const, name: 'app' as const, value: deps.edgeIp }] : []),
+      ...(deps?.cnameTarget
+        ? [{ recordType: 'CNAME' as const, name: 'app' as const, value: deps.cnameTarget }]
+        : []),
+    ];
+    return { ...state, dnsInstructions: dnsInstructions.length > 0 ? dnsInstructions : null };
   };
   const isBindingLifecycleEligible = (organizationId: string): Promise<boolean> =>
     deps?.resolveCustomDomainEntitlement(organizationId) ?? Promise.resolve(true);

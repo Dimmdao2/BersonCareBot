@@ -82,9 +82,28 @@ function expectationFor(target: CanonicalLifecycleTarget): DomainLifecycleExpect
       ? { placement: 'apex', edgeIp: env.CUSTOM_DOMAIN_EDGE_IP }
       : null;
   }
+  if (env.CUSTOM_DOMAIN_EDGE_IP && env.CUSTOM_DOMAIN_CNAME_TARGET) {
+    return {
+      placement: 'subdomain',
+      edgeIp: env.CUSTOM_DOMAIN_EDGE_IP,
+      cnameTarget: env.CUSTOM_DOMAIN_CNAME_TARGET,
+    };
+  }
+  if (env.CUSTOM_DOMAIN_EDGE_IP) {
+    return { placement: 'subdomain', edgeIp: env.CUSTOM_DOMAIN_EDGE_IP };
+  }
   return env.CUSTOM_DOMAIN_CNAME_TARGET
     ? { placement: 'subdomain', cnameTarget: env.CUSTOM_DOMAIN_CNAME_TARGET }
     : null;
+}
+
+function missingRuntimeTargetReason(target: CanonicalLifecycleTarget): string {
+  if (target.placement === 'apex') return 'runtime_edge_ip_missing';
+  const missing = [
+    !env.CUSTOM_DOMAIN_EDGE_IP ? 'edge_ip' : null,
+    !env.CUSTOM_DOMAIN_CNAME_TARGET ? 'cname_target' : null,
+  ].filter((value): value is string => value !== null);
+  return `runtime_${missing.join('_and_')}_missing`;
 }
 
 /**
@@ -150,7 +169,7 @@ export async function runDomainHealthTick(
       const transition = await appDeps.customDomainBinding.transitionBindingStatus({
         hostname: target.hostname,
         transition: 'mark_failed',
-        reason: `runtime_${target.placement === 'apex' ? 'edge_ip' : 'cname_target'}_missing`,
+        reason: missingRuntimeTargetReason(target),
       });
       if (!transition.ok) {
         failures.push(`${target.hostname}: lifecycle transition refused (${transition.code})`);
