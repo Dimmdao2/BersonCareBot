@@ -1,16 +1,22 @@
-import { and, eq, gt, isNull, ne, or, sql } from 'drizzle-orm';
+import { and, eq, gt, inArray, isNull, ne, or, sql } from 'drizzle-orm';
 import type { WebappSqlExecutor } from '@/infra/db/runWebappSql';
 import { beOrganizationMembers, beOrganizations } from '../../../db/schema/bookingEngine';
 import { organizationMemberInvites } from '../../../db/schema/organizationMemberInvites';
 import { saasBillingSubscriptions } from '../../../db/schema/saasBilling';
 import {
   saasOrgEntitlementOverrides,
+  saasStoragePackagePeriodPrices,
   saasStoragePackages,
 } from '../../../db/schema/saasEntitlements';
 import { fileQuotaWithPurchasedStorage } from '@/modules/org-entitlements/service';
 import type { TariffQuota } from '@/modules/org-entitlements/types';
 import { billableAdditionalSeats } from '@/modules/saas-billing/proration';
 import { decideSeatOverage, type SeatOverageOffer } from '@/modules/saas-billing/seatOverage';
+import {
+  decideStoragePackagePurchase,
+  type StoragePackagePeriodPricing,
+  type StoragePackagePurchaseOffer,
+} from '@/modules/saas-billing/storagePackage';
 
 export type StockQuotaMechanic = 'branches' | 'files';
 export type TransactionQuotaMechanic = StockQuotaMechanic | 'clinic_team';
@@ -184,6 +190,91 @@ async function readClinicTeamContext(tx: WebappSqlExecutor, organizationId: stri
   };
 }
 
+/**
+ * Вход двери продажи объёма — тот же приём, что у `readClinicTeamContext` выше: здесь только сбор
+ * данных, решение принимает `modules/saas-billing/storagePackage.ts`.
+ *
+ * Цена пакета берётся за ПЕРИОД ПОДПИСКИ организации, а не «за месяц»: докупка живёт внутри
+ * периода основного тарифа и кончается вместе с ним, поэтому у годовой подписки она стоит годовую
+ * цену пакета. Нет строки в матрице для этой пары — пакет за этот период не продаётся, и дверь
+ * ответит `not_sold`, а не посчитает цену «примерно».
+ */
+async function readStoragePackageContext(
+  tx: WebappSqlExecutor,
+  organizationId: string,
+  targetPackageId: string,
+) {
+  const [organization] = await tx
+    .select({ tariffId: beOrganizations.tariffId })
+    .from(beOrganizations)
+    .where(eq(beOrganizations.id, organizationId))
+    .limit(1);
+  const tariff = await readEffectiveTariff(tx, organizationId, organization?.tariffId ?? null);
+  const [subscription] = await tx
+    .select({
+      paidStoragePackageId: saasBillingSubscriptions.paidStoragePackageId,
+      billingPeriodCode: saasBillingSubscriptions.billingPeriodCode,
+      currentPeriodStartsAt: saasBillingSubscriptions.currentPeriodStartsAt,
+      currentPeriodEndsAt: saasBillingSubscriptions.currentPeriodEndsAt,
+    })
+    .from(saasBillingSubscriptions)
+    .where(
+      and(
+        eq(saasBillingSubscriptions.organizationId, organizationId),
+        eq(saasBillingSubscriptions.source, 'paid_subscription'),
+      ),
+    )
+    .limit(1);
+
+  const wanted = [targetPackageId, subscription?.paidStoragePackageId ?? null].filter(
+    (id): id is string => id !== null,
+  );
+  const rows = wanted.length
+    ? await tx
+        .select({
+          packageId: saasStoragePackages.id,
+          bytes: saasStoragePackages.bytes,
+          isActive: saasStoragePackages.isActive,
+          currency: saasStoragePackages.currency,
+          priceMinor: saasStoragePackagePeriodPrices.priceMinor,
+        })
+        .from(saasStoragePackages)
+        .leftJoin(
+          saasStoragePackagePeriodPrices,
+          and(
+            eq(saasStoragePackagePeriodPrices.packageId, saasStoragePackages.id),
+            eq(
+              saasStoragePackagePeriodPrices.billingPeriodCode,
+              subscription?.billingPeriodCode ?? '',
+            ),
+          ),
+        )
+        .where(inArray(saasStoragePackages.id, wanted))
+    : [];
+  const byId = new Map<string, StoragePackagePeriodPricing>(
+    rows.map((row) => [
+      row.packageId,
+      {
+        packageId: row.packageId,
+        bytes: Number(row.bytes),
+        priceMinor: row.priceMinor ?? null,
+        currency: row.currency,
+        isActive: row.isActive,
+      },
+    ]),
+  );
+
+  return {
+    current: subscription?.paidStoragePackageId
+      ? (byId.get(subscription.paidStoragePackageId) ?? null)
+      : null,
+    target: byId.get(targetPackageId) ?? null,
+    tariffCurrency: tariff?.currency ?? null,
+    currentPeriodStartsAt: subscription?.currentPeriodStartsAt ?? null,
+    currentPeriodEndsAt: subscription?.currentPeriodEndsAt ?? null,
+  };
+}
+
 async function countClinicTeamUsage(
   tx: WebappSqlExecutor,
   organizationId: string,
@@ -247,6 +338,9 @@ export function createTransactionQuotaPort() {
           excludedPendingEmail?: string;
         }): Promise<SeatOverageOffer>;
         resolveBillableAdditionalSeats(paidAdditionalSeats: number): Promise<number>;
+        resolveStoragePackagePurchase(
+          targetPackageId: string,
+        ): Promise<StoragePackagePurchaseOffer>;
       }) => Promise<T>,
     ): Promise<T> {
       const lockKey =
@@ -303,6 +397,30 @@ export function createTransactionQuotaPort() {
             includedSeats: context.includedSeats,
             paidAdditionalSeats,
             activeSeatsUsed: await countClinicTeamUsage(tx, input.organizationId, undefined),
+          });
+        },
+        /**
+         * ЕДИНСТВЕННЫЙ вход к решению «можно ли продать объём и почём» — и экран цены, и дверь
+         * покупки идут сюда, под замком той же механики `files`, под которым считается занятое
+         * место. Само решение живёт в `modules/saas-billing/storagePackage.ts`; здесь только сбор
+         * входных данных, как у мест.
+         */
+        async resolveStoragePackagePurchase(targetPackageId) {
+          const context = await readStoragePackageContext(
+            tx,
+            input.organizationId,
+            targetPackageId,
+          );
+          // Пакета нет в каталоге вовсе — продавать нечего; отдельного исхода у двери для этого
+          // нет, потому что для покупателя «нет такого пакета» и «не продаётся» неразличимы.
+          if (!context.target) return { outcome: 'not_sold' as const };
+          return decideStoragePackagePurchase({
+            current: context.current,
+            target: context.target,
+            tariffCurrency: context.tariffCurrency,
+            currentPeriodStartsAt: context.currentPeriodStartsAt,
+            currentPeriodEndsAt: context.currentPeriodEndsAt,
+            asOf: new Date().toISOString(),
           });
         },
       });

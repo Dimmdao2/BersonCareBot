@@ -44,7 +44,11 @@ export const SAAS_BILLING_INVOICE_STATUS_VALUES = [
   'void',
 ] as const;
 export type SaasBillingInvoiceStatus = (typeof SAAS_BILLING_INVOICE_STATUS_VALUES)[number];
-export const SAAS_BILLING_INVOICE_KIND_VALUES = ['tariff_period', 'seat_overage'] as const;
+export const SAAS_BILLING_INVOICE_KIND_VALUES = [
+  'tariff_period',
+  'seat_overage',
+  'storage_package',
+] as const;
 export type SaasBillingInvoiceKind = (typeof SAAS_BILLING_INVOICE_KIND_VALUES)[number];
 
 /**
@@ -301,6 +305,11 @@ export const saasBillingInvoices = pgTable(
     /** Преемник при перевыставлении: счёт, на который переехала сумма этого счёта. Отличает
      *  «аннулирован, потому что выставлен ошибочно» от «аннулирован, потому что перевыставлен». */
     supersededByInvoiceId: uuid('superseded_by_invoice_id'),
+    /** Пакет объёма, за который выставлен счёт: ссылка на каталог, а не скопированные байты —
+     *  сколько в пакете места, знает каталог, и второго ответа на этот вопрос быть не должно.
+     *  Обязателен для `storage_package`; у счёта продления заполнен, когда цена действующего
+     *  пакета вошла в его сумму строкой (как `additionalSeatQuantity` для мест). */
+    storagePackageId: uuid('storage_package_id'),
     status: text().$type<SaasBillingInvoiceStatus>().default('draft').notNull(),
     providerId: text('provider_id').notNull(),
     providerInvoiceRef: text('provider_invoice_ref'),
@@ -330,10 +339,10 @@ export const saasBillingInvoices = pgTable(
     index('idx_saas_billing_invoices_status_created').on(table.status, table.createdAt),
     /** Долг за место ищет КАЖДОЕ выставление счёта следующего периода: подписка + конец отрезка
      *  услуги, только неоплаченные счета за место. Без него это seq scan журнала на каждом тике. */
-    index('idx_saas_billing_invoices_seat_debt')
+    index('idx_saas_billing_invoices_prorated_debt')
       .on(table.saasBillingSubscriptionId, table.servicePeriodEndsAt)
       .where(
-        sql`${table.invoiceKind} = 'seat_overage' AND ${table.status} IN ('draft', 'pending')`,
+        sql`${table.invoiceKind} IN ('seat_overage', 'storage_package') AND ${table.status} IN ('draft', 'pending')`,
       ),
     foreignKey({
       columns: [table.organizationId],
@@ -360,6 +369,11 @@ export const saasBillingInvoices = pgTable(
       foreignColumns: [saasTariffs.id],
       name: 'saas_billing_invoices_tariff_id_fkey',
     }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.storagePackageId],
+      foreignColumns: [saasStoragePackages.id],
+      name: 'saas_billing_invoices_storage_package_id_fkey',
+    }).onDelete('restrict'),
     // #1069 owner decision 2026-09-05 — replaces the closed `day|month|year` literal list: any
     // catalog code (including a later-retired one) stays valid on old snapshot rows forever.
     foreignKey({
@@ -378,7 +392,8 @@ export const saasBillingInvoices = pgTable(
       'saas_billing_invoices_superseded_is_void_check',
       sql`${table.supersededByInvoiceId} IS NULL OR ${table.status} = 'void'`,
     ),
-    check('saas_billing_invoices_kind_check', sql`${table.invoiceKind} = ANY (ARRAY['tariff_period'::text, 'seat_overage'::text])`),
+    check('saas_billing_invoices_kind_check', sql`${table.invoiceKind} = ANY (ARRAY['tariff_period'::text, 'seat_overage'::text, 'storage_package'::text])`),
+    check('saas_billing_invoices_storage_package_check', sql`${table.invoiceKind} <> 'storage_package' OR ${table.storagePackageId} IS NOT NULL`),
     check('saas_billing_invoices_additional_seat_quantity_check', sql`${table.additionalSeatQuantity} >= 0 AND (${table.invoiceKind} <> 'seat_overage' OR ${table.additionalSeatQuantity} > 0)`),
     check('saas_billing_invoices_currency_check', sql`${table.currency} ~ '^[A-Z]{3}$'`),
     check(

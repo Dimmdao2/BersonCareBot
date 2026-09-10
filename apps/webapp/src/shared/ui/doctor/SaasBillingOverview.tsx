@@ -43,6 +43,7 @@ const INVOICE_STATUS_LABELS = {
 const INVOICE_KIND_LABELS = {
   tariff_period: 'Тарифный период',
   seat_overage: 'Дополнительные места',
+  storage_package: 'Дополнительное место для файлов',
 } as const;
 
 function formatDate(value: string): string {

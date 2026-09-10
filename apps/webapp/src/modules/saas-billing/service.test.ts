@@ -58,6 +58,7 @@ const invoice: SaasBillingInvoice = {
   tariffName: 'Стандарт',
   invoiceKind: 'tariff_period',
   additionalSeatQuantity: 0,
+  storagePackageId: null,
   description: null,
   amountMinor: 10_000,
   carriedDebtMinor: 0,

@@ -12,6 +12,10 @@ import { purchasedTariffId, purchasedTariffPeriodPair } from '@/modules/saas-bil
 import { carriedSeatDebtMinor } from '@/modules/saas-billing/proration';
 import { decideSeatOverage } from '@/modules/saas-billing/seatOverage';
 import {
+  decideStoragePackagePurchase,
+  type StoragePackagePeriodPricing,
+} from '@/modules/saas-billing/storagePackage';
+import {
   reissueWithSuccessor,
   saasBillingInvoiceCancelVerdict,
   captureSaasBillingPaidInvoice,
@@ -111,6 +115,17 @@ export function createInMemorySaasBillingRepository(
      * настоящее «сейчас» и получал цену другого дня.
      */
     now?: () => Date;
+    /**
+     * Каталог пакетов объёма — тот же приём, что `tariffs`: двойник не выдумывает цены, он берёт
+     * их из фикстуры теста. Пусто — платформа объём не продаёт, и дверь отвечает отказом.
+     */
+    storagePackages?: {
+      id: string;
+      bytes: number;
+      currency: string | null;
+      isActive?: boolean;
+      periodPrices?: Record<string, number>;
+    }[];
   } = {},
 ): SaasBillingRepositoryPort {
   const now = input.now ?? (() => new Date());
@@ -133,6 +148,25 @@ export function createInMemorySaasBillingRepository(
   const tariffs = new Map(
     (input.tariffs ?? []).map((tariff) => [tariff.id, normalizeTariffFixture(tariff)]),
   );
+  const storagePackages = new Map(
+    (input.storagePackages ?? []).map((row) => [row.id, row]),
+  );
+  /** Цена пакета за период подписки — зеркало `saas_storage_package_period_prices`. */
+  function storagePackagePricingFor(
+    packageId: string | null,
+    billingPeriodCode: string | null,
+  ): StoragePackagePeriodPricing | null {
+    if (!packageId) return null;
+    const row = storagePackages.get(packageId);
+    if (!row) return null;
+    return {
+      packageId: row.id,
+      bytes: row.bytes,
+      priceMinor: billingPeriodCode ? (row.periodPrices?.[billingPeriodCode] ?? null) : null,
+      currency: row.currency,
+      isActive: row.isActive ?? true,
+    };
+  }
   /** #1069 owner decision 2026-09-05 (period grid) — the (tariff, period) PAIR's own price, looked
    *  up in that tariff's matrix; mirrors `saas_tariff_period_prices` for every caller that needs it. */
   function periodPriceFor(tariffId: string, billingPeriodCode: string): number | null {
@@ -325,6 +359,9 @@ export function createInMemorySaasBillingRepository(
         readOnlyEndsAt: null,
         tariffSnapshot: null,
         paidAdditionalSeats: 0,
+        paidStoragePackageId: null,
+        pendingStoragePackageId: null,
+        storagePackageCancelAtPeriodEnd: false,
       });
       void actorId;
       // Зеркало миграции 0024 (владелец 18.08, L-11): выбор записан строкой подписки
@@ -599,6 +636,11 @@ export function createInMemorySaasBillingRepository(
             tariffSnapshot:
               period && billingPeriodCode ? tariffSnapshotFor(tariffId, billingPeriodCode) : null,
             paidAdditionalSeats: 0,
+            // Купленный объём переживает ручное назначение тарифа: за него заплачено, и снимать
+            // его вправе только отказ клиники (и только с конца оплаченного периода).
+            paidStoragePackageId: current?.paidStoragePackageId ?? null,
+            pendingStoragePackageId: current?.pendingStoragePackageId ?? null,
+            storagePackageCancelAtPeriodEnd: current?.storagePackageCancelAtPeriodEnd ?? false,
           });
           cancelledAtBySubscriptionId.delete(current?.id ?? '');
         },
@@ -668,6 +710,7 @@ export function createInMemorySaasBillingRepository(
           currency: tariff?.currency ?? 'RUB',
           tariffBillingPeriod,
           additionalSeatQuantity: authority.paidAdditionalSeats,
+          storagePackageId: null,
           tariffSnapshot: tariffSnapshotFor(purchasedPair.tariffId, purchasedPair.billingPeriodCode),
         };
         invoices.set(refreshed.id, refreshed);
@@ -691,6 +734,7 @@ export function createInMemorySaasBillingRepository(
         tariffName: tariff?.name ?? 'In-memory tariff',
         invoiceKind: 'tariff_period',
         additionalSeatQuantity: authority.paidAdditionalSeats,
+        storagePackageId: null,
         description: null,
         amountMinor: (periodPriceMinor ?? 0) + seatDebt.totalMinor,
         carriedDebtMinor: seatDebt.totalMinor,
@@ -880,6 +924,7 @@ export function createInMemorySaasBillingRepository(
         tariffName: tariff?.name ?? 'In-memory tariff',
         invoiceKind: input.invoiceKind,
         additionalSeatQuantity: input.additionalSeatQuantity,
+        storagePackageId: null,
         description: input.description,
         amountMinor: input.amountMinor,
         carriedDebtMinor: 0,
@@ -951,6 +996,7 @@ export function createInMemorySaasBillingRepository(
         tariffName: 'In-memory tariff',
         invoiceKind: 'seat_overage',
         additionalSeatQuantity: 1,
+        storagePackageId: null,
         description: 'Дополнительное место специалиста сверх тарифа',
         amountMinor: offer.priceMinor,
         currency: offer.currency,
@@ -977,6 +1023,81 @@ export function createInMemorySaasBillingRepository(
         ...authority,
         paidAdditionalSeats: authority.paidAdditionalSeats + 1,
       });
+      return { outcome: 'invoice' as const, invoice: row, created: true };
+    },
+
+    async createStoragePackageInvoiceIfNeeded(input) {
+      const authorityEntry = [...rows.entries()].find(
+        ([, row]) =>
+          row.id === input.saasBillingSubscriptionId && row.organizationId === input.organizationId,
+      );
+      if (!authorityEntry) throw new Error('saas_billing_subscription_not_found');
+      const [authorityKey, authority] = authorityEntry;
+      const existing = [...invoices.values()].find(
+        (row) =>
+          row.providerId === input.providerId &&
+          row.providerIdempotencyKey === input.providerIdempotencyKey,
+      );
+      // Как в pg-репозитории: решение принимает ЕДИНСТВЕННАЯ дверь, а цена из котировки только
+      // СВЕРЯЕТСЯ. Двойник со своим расчётом описывал бы контракт, которого нет.
+      const target = storagePackagePricingFor(input.storagePackageId, authority.billingPeriodCode);
+      if (!target) return { outcome: 'storage_package_unavailable' as const };
+      const offer = decideStoragePackagePurchase({
+        current: storagePackagePricingFor(
+          authority.paidStoragePackageId,
+          authority.billingPeriodCode,
+        ),
+        target,
+        tariffCurrency: tariffs.get(purchasedTariffId(authority))?.currency ?? null,
+        currentPeriodStartsAt: authority.currentPeriodStartsAt,
+        currentPeriodEndsAt: authority.currentPeriodEndsAt,
+        asOf: now().toISOString(),
+      });
+      if (offer.outcome === 'already_active' || offer.outcome === 'not_sold') {
+        return { outcome: 'storage_package_unavailable' as const };
+      }
+      if (offer.outcome === 'paid_period_over') return { outcome: 'paid_period_over' as const };
+      if (offer.outcome === 'downgrade_at_period_end') {
+        return { outcome: 'downgrade_at_period_end' as const };
+      }
+      if (input.quotePriceMinor !== offer.amountMinor || input.quoteCurrency !== offer.currency) {
+        return {
+          outcome: 'price_changed' as const,
+          priceMinor: offer.amountMinor,
+          currency: offer.currency,
+          priceStableUntil: offer.priceStableUntil,
+        };
+      }
+      if (existing) return { outcome: 'invoice' as const, invoice: existing, created: false };
+      const row: SaasBillingInvoice = {
+        id: crypto.randomUUID(),
+        organizationId: authority.organizationId,
+        saasBillingAccountId: authority.saasBillingAccountId,
+        saasBillingSubscriptionId: authority.id,
+        tariffId: authority.tariffId,
+        tariffName: 'In-memory tariff',
+        invoiceKind: 'storage_package',
+        additionalSeatQuantity: 0,
+        storagePackageId: input.storagePackageId,
+        description: 'Дополнительное место для файлов сверх тарифа',
+        amountMinor: offer.amountMinor,
+        currency: offer.currency,
+        carriedDebtMinor: 0,
+        supersededByInvoiceId: null,
+        tariffBillingPeriod: authority.billingPeriodCode ?? 'month',
+        tariffSnapshot: null,
+        servicePeriodStartsAt: offer.servicePeriodStartsAt,
+        servicePeriodEndsAt: offer.servicePeriodEndsAt,
+        expiresAt: offer.expiresAt,
+        status: 'draft',
+        providerId: input.providerId,
+        providerInvoiceRef: null,
+        providerCheckoutUrl: null,
+        providerIdempotencyKey: input.providerIdempotencyKey,
+      };
+      invoices.set(row.id, row);
+      // Объём открывается СРАЗУ вместе с выставлением счёта (Р-15) — как в pg-репозитории.
+      rows.set(authorityKey, { ...authority, paidStoragePackageId: input.storagePackageId });
       return { outcome: 'invoice' as const, invoice: row, created: true };
     },
 
@@ -1030,6 +1151,9 @@ export function createInMemorySaasBillingRepository(
         readOnlyEndsAt: current?.readOnlyEndsAt ?? null,
         tariffSnapshot: current?.tariffSnapshot ?? null,
         paidAdditionalSeats: current?.paidAdditionalSeats ?? 0,
+        paidStoragePackageId: current?.paidStoragePackageId ?? null,
+        pendingStoragePackageId: current?.pendingStoragePackageId ?? null,
+        storagePackageCancelAtPeriodEnd: current?.storagePackageCancelAtPeriodEnd ?? false,
       };
       rows.set(key, row);
       // Owner ruling 18.08.2026 — price AND billing period come from the ONE (tariff, period) PAIR
@@ -1142,6 +1266,7 @@ export function createInMemorySaasBillingRepository(
         tariffName: 'In-memory tariff',
         invoiceKind: 'tariff_period',
         additionalSeatQuantity: authority.paidAdditionalSeats,
+        storagePackageId: null,
         description: null,
         amountMinor: periodPriceMinor + seatDebt.totalMinor,
         carriedDebtMinor: seatDebt.totalMinor,

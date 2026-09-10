@@ -15,6 +15,7 @@ import type {
   SaasBillingSubscriptionDueForRenewal,
   SaasBillingSubscriptionReadRow,
 } from '@/modules/saas-billing/ports';
+import { PRORATED_PURCHASE_INVOICE_KINDS } from '@/modules/saas-billing/ports';
 import { purchasedTariffId, purchasedTariffPeriodPair } from '@/modules/saas-billing/payableTariff';
 import {
   carriedSeatDebtMinor,
@@ -206,7 +207,7 @@ async function readSeatDebtForPeriod(
       and(
         eq(saasBillingInvoices.organizationId, input.organizationId),
         eq(saasBillingInvoices.saasBillingSubscriptionId, input.saasBillingSubscriptionId),
-        eq(saasBillingInvoices.invoiceKind, 'seat_overage'),
+        inArray(saasBillingInvoices.invoiceKind, [...PRORATED_PURCHASE_INVOICE_KINDS]),
         inArray(saasBillingInvoices.status, ['draft', 'pending']),
         lte(saasBillingInvoices.servicePeriodEndsAt, saasBillingSeatDebtCandidateBound(scope)),
       ),
@@ -273,6 +274,41 @@ async function moveSeatOverageAllowance(
       updatedAt: new Date().toISOString(),
     })
     .where(eq(saasBillingSubscriptions.id, saasBillingSubscriptionId));
+}
+
+/**
+ * ЕДИНСТВЕННОЕ место, где меняется `paid_storage_package_id` — колонка, которая И ЕСТЬ доступ к
+ * докупленному объёму: потолок поднимает не платёж, а эта запись (Р-15, та же редакция, что у мест).
+ *
+ * Замок организации она НЕ берёт сама: вызывающий уже держит строку подписки `FOR UPDATE` или замок
+ * механики `files` с момента, когда прочитал текущий пакет.
+ *
+ * `expectedCurrentPackageId` — не перестраховка: между чтением и записью пакет мог уже смениться
+ * (вторая покупка, возврат), и тогда снимать/ставить нечего. Запись, которая «просто перезаписывает»,
+ * молча отменила бы чужое решение.
+ */
+async function setStoragePackageAllowance(
+  tx: Transaction,
+  input: {
+    saasBillingSubscriptionId: string;
+    expectedCurrentPackageId: string | null;
+    nextPackageId: string | null;
+  },
+): Promise<void> {
+  await tx
+    .update(saasBillingSubscriptions)
+    .set({
+      paidStoragePackageId: input.nextPackageId,
+      updatedAt: new Date().toISOString(),
+    })
+    .where(
+      and(
+        eq(saasBillingSubscriptions.id, input.saasBillingSubscriptionId),
+        input.expectedCurrentPackageId === null
+          ? isNull(saasBillingSubscriptions.paidStoragePackageId)
+          : eq(saasBillingSubscriptions.paidStoragePackageId, input.expectedCurrentPackageId),
+      ),
+    );
 }
 
 /** Refunds that count against an invoice's remaining refundable amount — a `failed` attempt does not. */
@@ -1757,6 +1793,138 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
             // приём денег место открывал, а срока счёта не проверял никто.
             if (inserted.created) {
               await moveSeatOverageAllowance(tx, subscription.id, +1);
+            }
+            return { outcome: 'invoice' as const, ...inserted };
+          },
+        ),
+      );
+    },
+
+    /**
+     * Докупка объёма — тот же порядок, что у продажи места выше, и по тем же причинам: замок
+     * организации (механика `files`, под которым считается занятое место), решение единственной
+     * двери `storagePackage.ts`, сверка котировки, счёт под тем же замком, и — как у мест —
+     * объём открывается В МОМЕНТ ВЫСТАВЛЕНИЯ счёта, а не по приходу денег (владелец 10.09:
+     * «предоставляется пакет места [сразу], со следующего периода счёт выставляется»).
+     */
+    async createStoragePackageInvoiceIfNeeded(input) {
+      return getDrizzle().transaction((tx) =>
+        transactionQuotaPort.withinLock(
+          tx,
+          { organizationId: input.organizationId, mechanic: 'files' },
+          async (quota) => {
+            const [subscription] = await tx
+              .select()
+              .from(saasBillingSubscriptions)
+              .where(
+                and(
+                  eq(saasBillingSubscriptions.id, input.saasBillingSubscriptionId),
+                  eq(saasBillingSubscriptions.organizationId, input.organizationId),
+                  eq(saasBillingSubscriptions.source, 'paid_subscription'),
+                ),
+              )
+              .limit(1)
+              .for('update');
+            if (!subscription) throw new Error('saas_billing_subscription_not_found');
+
+            const [existing] = await tx
+              .select()
+              .from(saasBillingInvoices)
+              .where(
+                and(
+                  eq(saasBillingInvoices.providerId, input.providerId),
+                  eq(saasBillingInvoices.providerIdempotencyKey, input.providerIdempotencyKey),
+                ),
+              )
+              .limit(1)
+              .for('update');
+
+            const offer = await quota.resolveStoragePackagePurchase(input.storagePackageId);
+            if (offer.outcome === 'already_active' || offer.outcome === 'not_sold') {
+              return { outcome: 'storage_package_unavailable' as const };
+            }
+            if (offer.outcome === 'paid_period_over') {
+              return { outcome: 'paid_period_over' as const };
+            }
+            if (offer.outcome === 'downgrade_at_period_end') {
+              return { outcome: 'downgrade_at_period_end' as const };
+            }
+
+            const effectiveTariffResult = await tx.execute(sql`
+          SELECT
+            tariff.id::text AS tariff_id,
+            tariff.name AS tariff_name,
+            tariff.currency,
+            tariff.billing_period,
+            to_jsonb(tariff) AS tariff_snapshot
+          FROM public.be_organizations AS organization
+          JOIN LATERAL app.saas_billing_effective_tariff_for_current_org(
+            organization.id,
+            organization.tariff_id
+          ) AS tariff ON true
+          WHERE organization.id = ${input.organizationId}::uuid
+        `);
+            const tariff = effectiveTariffResult.rows[0] as
+              | {
+                  tariff_id: string;
+                  tariff_name: string;
+                  currency: string | null;
+                  billing_period: string;
+                  tariff_snapshot: Record<string, unknown>;
+                }
+              | undefined;
+            if (!tariff) return { outcome: 'storage_package_unavailable' as const };
+
+            // Как у мест: на счёт идёт число, посчитанное ЗДЕСЬ И СЕЙЧАС единственной дверью, а
+            // равенство с котировкой лишь доказывает, что человеку показали именно его.
+            if (
+              input.quotePriceMinor !== offer.amountMinor ||
+              input.quoteCurrency !== offer.currency
+            ) {
+              return {
+                outcome: 'price_changed' as const,
+                priceMinor: offer.amountMinor,
+                currency: offer.currency,
+                priceStableUntil: offer.priceStableUntil,
+              };
+            }
+            if (existing) {
+              return {
+                outcome: 'invoice' as const,
+                invoice: toSaasBillingInvoice(existing),
+                created: false,
+              };
+            }
+
+            const inserted = await insertSaasBillingInvoiceIdempotent(tx, {
+              organizationId: input.organizationId,
+              saasBillingAccountId: subscription.saasBillingAccountId,
+              saasBillingSubscriptionId: subscription.id,
+              tariffId: tariff.tariff_id,
+              tariffName: tariff.tariff_name,
+              invoiceKind: 'storage_package',
+              additionalSeatQuantity: 0,
+              storagePackageId: input.storagePackageId,
+              description: 'Дополнительное место для файлов сверх тарифа',
+              // Сумма, отрезок услуги и срок оплаты — из ОДНОГО предложения, как у мест.
+              amountMinor: offer.amountMinor,
+              currency: offer.currency,
+              tariffBillingPeriod: tariff.billing_period,
+              tariffSnapshot: tariff.tariff_snapshot,
+              servicePeriodStartsAt: offer.servicePeriodStartsAt,
+              servicePeriodEndsAt: offer.servicePeriodEndsAt,
+              // Р-19: срок у счёта один — конец периода той услуги, которую он продаёт.
+              expiresAt: offer.expiresAt,
+              status: 'draft',
+              providerId: input.providerId,
+              providerIdempotencyKey: input.providerIdempotencyKey,
+            });
+            if (inserted.created) {
+              await setStoragePackageAllowance(tx, {
+                saasBillingSubscriptionId: subscription.id,
+                expectedCurrentPackageId: subscription.paidStoragePackageId,
+                nextPackageId: input.storagePackageId,
+              });
             }
             return { outcome: 'invoice' as const, ...inserted };
           },

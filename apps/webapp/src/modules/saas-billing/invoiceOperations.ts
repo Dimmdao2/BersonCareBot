@@ -19,7 +19,11 @@
  * прямому запросу.
  */
 
-import type { SaasBillingInvoiceKind, SaasBillingInvoiceStatus } from './ports';
+import {
+  PRORATED_PURCHASE_INVOICE_KINDS,
+  type SaasBillingInvoiceKind,
+  type SaasBillingInvoiceStatus,
+} from './ports';
 
 /** Всё, что нужно знать о счёте, чтобы решить его судьбу: вид услуги и текущее состояние. */
 export type SaasBillingInvoiceOperationSubject = {
@@ -45,14 +49,15 @@ function isAwaitingPayment(status: SaasBillingInvoiceStatus): boolean {
 /**
  * Можно ли ОТМЕНИТЬ этот счёт.
  *
- * Вид проверяется ПЕРВЫМ и отдельным отказом: «счёт за место отменить нельзя» — это не про статус,
- * и оператор должен услышать именно это, а не «счёт не в том состоянии». Для счёта за место другого
- * действия нет (Р-19): срок один — конец периода, дальше Р-18.
+ * Вид проверяется ПЕРВЫМ и отдельным отказом: «счёт за покупку внутри периода отменить нельзя» —
+ * это не про статус, и оператор должен услышать именно это, а не «счёт не в том состоянии». Для
+ * такого счёта другого действия нет (Р-19): срок один — конец периода, дальше Р-18. Правило одно
+ * на оба вида покупок внутри периода — место сверх тарифа и пакет объёма (10.09.2026).
  */
 export function saasBillingInvoiceCancelVerdict(
   invoice: SaasBillingInvoiceOperationSubject,
 ): SaasBillingInvoiceVerdict<SaasBillingInvoiceCancelRefusal> {
-  if (invoice.invoiceKind === 'seat_overage') {
+  if ((PRORATED_PURCHASE_INVOICE_KINDS as readonly string[]).includes(invoice.invoiceKind)) {
     return { allowed: false, refusal: 'seat_invoice_not_cancellable' };
   }
   if (!isAwaitingPayment(invoice.status)) {

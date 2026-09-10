@@ -8,7 +8,15 @@ export type TariffBillingPeriodCode = string;
 export type SaasBillingSource = 'manual' | 'paid_subscription';
 export type SaasBillingSubscriptionStatus = 'pending_payment' | 'active' | 'expired' | 'cancelled';
 export type SaasBillingInvoiceStatus = 'draft' | 'pending' | 'paid' | 'failed' | 'void';
-export type SaasBillingInvoiceKind = 'tariff_period' | 'seat_overage';
+/**
+ * Виды счёта. `seat_overage` и `storage_package` — ДВЕ покупки внутри уже оплаченного периода,
+ * устроенные одинаково (пропорция остатка, срок до конца периода, неоплаченный долг переезжает в
+ * продление), поэтому правила Р-15/Р-18/Р-19 написаны для них ОБОИХ один раз, а не по копии на вид.
+ */
+export type SaasBillingInvoiceKind = 'tariff_period' | 'seat_overage' | 'storage_package';
+
+/** Покупка внутри оплаченного периода — счёт, чей неоплаченный остаток становится долгом (Р-18). */
+export const PRORATED_PURCHASE_INVOICE_KINDS = ['seat_overage', 'storage_package'] as const;
 /** Existing `tariff_period` rows that are a paid-period upgrade use this visible, durable description. */
 /** Единственный текст строки счёта за место — и у выставления, и у перевыставления, и у провайдера. */
 export const SAAS_BILLING_SEAT_OVERAGE_DESCRIPTION =
@@ -44,6 +52,12 @@ export type SaasBillingSubscription = {
   /** Immutable current paid-period tariff snapshot; null only when no paid period exists. */
   tariffSnapshot: Record<string, unknown> | null;
   paidAdditionalSeats: number;
+  /** Действующий пакет объёма — то, что подняло потолок ПРЯМО СЕЙЧАС (объём даётся при покупке). */
+  paidStoragePackageId: string | null;
+  /** Переход на пакет другого размера — с начала следующего периода (Р-18: назад не отбираем). */
+  pendingStoragePackageId: string | null;
+  /** Отказ от пакета с конца оплаченного периода. Отдельный флаг: `pending = null` означает «перехода нет». */
+  storagePackageCancelAtPeriodEnd: boolean;
 };
 
 export type SaasBillingInvoice = {
@@ -55,6 +69,12 @@ export type SaasBillingInvoice = {
   tariffName: string;
   invoiceKind: SaasBillingInvoiceKind;
   additionalSeatQuantity: number;
+  /**
+   * Пакет объёма, за который выставлен счёт: ссылка на каталог, а не скопированные байты. У счёта
+   * `storage_package` заполнен всегда; у счёта продления — когда цена действующего пакета вошла в
+   * его сумму строкой (как `additionalSeatQuantity` для мест).
+   */
+  storagePackageId: string | null;
   /** К4 — admin-entered "за что" for a manual invoice; `null` for auto/renewal invoices. */
   description: string | null;
   amountMinor: number;
@@ -223,6 +243,16 @@ export type SaasBillingSeatOverageInvoiceResult =
   | { outcome: 'seat_overage_unavailable' }
   /** Р-15: оплаченного периода нет или он кончился — остатка, в который продают место, нет. */
   | { outcome: 'paid_period_over' }
+  | { outcome: 'price_changed'; priceMinor: number; currency: string; priceStableUntil: string }
+  | { outcome: 'invoice'; invoice: SaasBillingInvoice; created: boolean };
+
+export type SaasBillingStoragePackageInvoiceResult =
+  /** Этот пакет уже действует, снят с продажи, или его нельзя выставить в валюте тарифа. */
+  | { outcome: 'storage_package_unavailable' }
+  /** Р-15: оплаченного периода нет или он кончился — остатка, в который продают объём, нет. */
+  | { outcome: 'paid_period_over' }
+  /** Переход на МЕНЬШИЙ пакет деньгами внутри периода не решается — он вступает с продления. */
+  | { outcome: 'downgrade_at_period_end' }
   | { outcome: 'price_changed'; priceMinor: number; currency: string; priceStableUntil: string }
   | { outcome: 'invoice'; invoice: SaasBillingInvoice; created: boolean };
 
@@ -566,6 +596,22 @@ export type SaasBillingRepositoryPort = {
     providerId: string;
     providerIdempotencyKey: string;
   }): Promise<SaasBillingSeatOverageInvoiceResult>;
+
+  /**
+   * Докупка объёма. Устроена ровно как продажа места выше и по тем же причинам: цену пересчитывает
+   * реализация под замком организации и СВЕРЯЕТ с котировкой, отрезок услуги и срок счёта выдаёт
+   * единственная дверь `modules/saas-billing/storagePackage.ts`, а из браузера не приходит ни
+   * одного денежного значения.
+   */
+  createStoragePackageInvoiceIfNeeded(input: {
+    organizationId: string;
+    saasBillingSubscriptionId: string;
+    storagePackageId: string;
+    quotePriceMinor: number;
+    quoteCurrency: string;
+    providerId: string;
+    providerIdempotencyKey: string;
+  }): Promise<SaasBillingStoragePackageInvoiceResult>;
 
   /**
    * К4 — platform-wide by design, same as the refund reservation this mirrors: looked up by
