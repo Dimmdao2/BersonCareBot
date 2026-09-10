@@ -44,3 +44,13 @@ runtime_environment() {
     *) echo "runtime-database: база '${1:-}' не объявлена в декларации прав — добавьте её туда, а не сюда" >&2; return 1 ;;
   esac
 }
+
+# Мигратор — тоже имя, и тоже одно на всю машину. Он живёт здесь, а не в вызывающем скрипте, по той
+# же причине: третье место, знающее имена ролей, разъедется при следующем переименовании.
+runtime_migrator() {
+  case "${1:-}" in
+    prod) echo therapysto_prod_migrator ;;
+    test) echo bcb_test_migrator ;;
+    *) echo "runtime-database: не знаю мигратора для окружения '${1:-}'" >&2; return 1 ;;
+  esac
+}

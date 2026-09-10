@@ -276,22 +276,10 @@ for f in "$ENV_DIR/webapp.prod" "$ENV_DIR/api.prod"; do
 done
 
 ########################################  ПРАВА  ########################################
-step "7/8 права декларацией под именем prod"
-node --experimental-strip-types "$GEN" --shared-role-baseline --db "$NEW_DB" |
-  psql_admin -1 -h /var/run/postgresql -p 5432 -d postgres >/dev/null ||
-  die "кластерный базис не разложился"
-node --experimental-strip-types "$GEN" --shared-role-verify --db "$NEW_DB" |
-  psql_admin -1 -h /var/run/postgresql -p 5432 -d postgres >/dev/null ||
-  die "кластерный базис не сверился"
-echo "    кластерные роли разложены и сверены"
-
-( cd "$SRC" && set -a && . "$ENV_DIR/reconcile.env" && set +a &&
-  node deploy/postgres/privileges/reconcile-access.mjs \
-    --env prod --db "$NEW_DB" --admin-socket /var/run/postgresql ) ||
-  die "сверка прав не прошла — рантайм НЕ поднят, база уже переименована; см. $BACKUP_DIR"
-echo "    права разложены и проверены"
-
-step "8/8 чужие роли, описатели порт-контекста, рантайм"
+step "7/8 чужие роли, миграции и права"
+# Чужие роли убираются ДО сверки прав. Сверка отказывается работать, пока в кластере живёт
+# объявленная где-то ещё, но не здесь роль («undeclared managed BCB role survived»), — и это
+# правильно: она не должна решать за оператора, что с ней делать. Решаем здесь и до неё.
 for role in "${FOREIGN_ROLES[@]}"; do
   if [ "$(scalar "select count(*) from pg_roles where rolname = '$role'")" = 1 ]; then
     # DROP не пройдёт, если у роли остались объекты или гранты — и это правильно: молча
@@ -299,13 +287,17 @@ for role in "${FOREIGN_ROLES[@]}"; do
     if psql_admin -q -d postgres -c "DROP ROLE $role;" 2>/dev/null; then
       echo "    удалена чужая роль $role"
     else
-      echo "    ВНИМАНИЕ: роль $role не удалена (за ней числятся объекты или права) — разберитесь отдельно"
+      die "роль $role не удаляется (за ней числятся объекты или права) — сверка прав всё равно откажет; разберитесь с ней"
     fi
   fi
 done
 
-bash "$SRC/deploy/host/prod/refresh-prod-runtime-env.sh" ||
-  die "не удалось обновить описатели порт-контекста"
+# Дальше — тот же самый шаг, что делает обычная выкладка: миграции, права, описатели порт-контекста.
+# Своей копии этой последовательности здесь нет намеренно: она уже расходилась бы с общей.
+# Схема обязана догнать декларацию ДО сверки прав — иначе сверка падает на первой отсутствующей
+# таблице, ровно как 10.09.2026 на `saas_storage_package_period_prices`.
+step "8/8 схема, права, рантайм"
+bash "$SRC/deploy/host/prod/migrate-prod.sh" || die "схема и права не сошлись; база уже переименована, бэкап в $BACKUP_DIR"
 
 say "поднимаю рантайм"
 "$ROOT/pipeline/therapysto-deploy" prod-probe ||
