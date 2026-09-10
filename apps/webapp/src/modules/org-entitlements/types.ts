@@ -478,5 +478,12 @@ export type OrgEntitlementSnapshot = {
     expiresAt: string | null;
     seatLimitOverride: number | null;
   }>;
+  /**
+   * Байты ДОКУПЛЕННОГО пакета объёма (владелец 10.09.2026), 0 или отсутствует — пакета нет.
+   * Отдельным числом, а не подмешанным в `tariff.quotas`: тариф остаётся тем, что настроила
+   * платформа, а докупка — тем, что организация купила сверх него. Складывает их одно место —
+   * `fileQuotaWithPurchasedStorage` в service.ts.
+   */
+  purchasedStorageBytes?: number;
   access: EffectiveOrgCommercialAccess;
 };

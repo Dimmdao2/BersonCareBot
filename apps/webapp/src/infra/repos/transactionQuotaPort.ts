@@ -3,7 +3,12 @@ import type { WebappSqlExecutor } from '@/infra/db/runWebappSql';
 import { beOrganizationMembers, beOrganizations } from '../../../db/schema/bookingEngine';
 import { organizationMemberInvites } from '../../../db/schema/organizationMemberInvites';
 import { saasBillingSubscriptions } from '../../../db/schema/saasBilling';
-import { saasOrgEntitlementOverrides } from '../../../db/schema/saasEntitlements';
+import {
+  saasOrgEntitlementOverrides,
+  saasStoragePackages,
+} from '../../../db/schema/saasEntitlements';
+import { fileQuotaWithPurchasedStorage } from '@/modules/org-entitlements/service';
+import type { TariffQuota } from '@/modules/org-entitlements/types';
 import { billableAdditionalSeats } from '@/modules/saas-billing/proration';
 import { decideSeatOverage, type SeatOverageOffer } from '@/modules/saas-billing/seatOverage';
 
@@ -72,6 +77,32 @@ async function readEffectiveTariff(
   return (result.rows[0] as EffectiveTariffRow | undefined) ?? null;
 }
 
+/**
+ * Байты докупленного пакета объёма — читаются под тем же замком и в той же транзакции, что и сама
+ * проверка записи, чтобы покупка и загрузка не увидели разный потолок. Ссылка на каталог, а не
+ * скопированное число (см. `saas_billing_subscriptions.paid_storage_package_id`).
+ */
+async function readPurchasedStorageBytes(
+  tx: WebappSqlExecutor,
+  organizationId: string,
+): Promise<number> {
+  const [row] = await tx
+    .select({ bytes: saasStoragePackages.bytes })
+    .from(saasBillingSubscriptions)
+    .innerJoin(
+      saasStoragePackages,
+      eq(saasStoragePackages.id, saasBillingSubscriptions.paidStoragePackageId),
+    )
+    .where(
+      and(
+        eq(saasBillingSubscriptions.organizationId, organizationId),
+        eq(saasBillingSubscriptions.source, 'paid_subscription'),
+      ),
+    )
+    .limit(1);
+  return Number(row?.bytes ?? 0);
+}
+
 async function readQuotaContext(tx: WebappSqlExecutor, organizationId: string, mechanic: string) {
   const [organization] = await tx
     .select({ tariffId: beOrganizations.tariffId })
@@ -93,9 +124,18 @@ async function readQuotaContext(tx: WebappSqlExecutor, organizationId: string, m
     )
     .limit(1);
   const tariff = await readEffectiveTariff(tx, organizationId, organization?.tariffId ?? null);
+  const configured = override?.quota ?? tariff?.quotas[mechanic];
   return {
     tariffId: organization?.tariffId ?? null,
-    quota: override?.quota ?? tariff?.quotas[mechanic],
+    // Владелец 10.09.2026: докупленный пакет поднимает потолок объёма. Складывает его с тарифом ТА
+    // ЖЕ функция, что и экран «использовано из включённого» — второго правила сложения нет.
+    quota:
+      mechanic === 'files'
+        ? fileQuotaWithPurchasedStorage(
+            configured as TariffQuota | undefined,
+            await readPurchasedStorageBytes(tx, organizationId),
+          )
+        : configured,
   };
 }
 

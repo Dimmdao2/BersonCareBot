@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import {
+  boolean,
   check,
   foreignKey,
   index,
@@ -13,7 +14,12 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core';
 import { beOrganizations } from './bookingEngine';
-import { saasBillingPeriods, saasTariffPeriodPrices, saasTariffs } from './saasEntitlements';
+import {
+  saasBillingPeriods,
+  saasStoragePackages,
+  saasTariffPeriodPrices,
+  saasTariffs,
+} from './saasEntitlements';
 
 export const SAAS_BILLING_SOURCE_VALUES = ['manual', 'paid_subscription'] as const;
 export type SaasBillingSource = (typeof SAAS_BILLING_SOURCE_VALUES)[number];
@@ -139,6 +145,21 @@ export const saasBillingSubscriptions = pgTable(
      */
     tariffSnapshot: jsonb('tariff_snapshot').$type<Record<string, unknown>>(),
     paidAdditionalSeats: integer('paid_additional_seats').default(0).notNull(),
+    /**
+     * Докупка объёма (владелец 10.09.2026) живёт там же, где докупка мест: ССЫЛКА на пакет
+     * каталога, а не скопированное число байт — у одного пакета не должно быть двух ответов на
+     * вопрос «сколько в нём места». Действует сразу с покупки.
+     */
+    paidStoragePackageId: uuid('paid_storage_package_id'),
+    /** Переход на пакет другого размера — вступает с начала следующего оплаченного периода. */
+    pendingStoragePackageId: uuid('pending_storage_package_id'),
+    /**
+     * Отказ от пакета с конца оплаченного периода. Отдельный флаг, а не «pending = NULL»: NULL
+     * означает «перехода нет», и одним полем «нет перехода» и «переход в ноль» неразличимы.
+     */
+    storagePackageCancelAtPeriodEnd: boolean('storage_package_cancel_at_period_end')
+      .default(false)
+      .notNull(),
     cancelledAt: timestamp('cancelled_at', { withTimezone: true, mode: 'string' }),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .defaultNow()
@@ -177,6 +198,23 @@ export const saasBillingSubscriptions = pgTable(
       foreignColumns: [saasTariffs.id],
       name: 'saas_billing_subscriptions_pending_tariff_id_fkey',
     }).onDelete('restrict'),
+    // Снятый с продажи пакет из каталога не удаляется; попытку удалить строку, за которую платит
+    // живая организация, база обязана отклонить, а не обнулить ей объём.
+    foreignKey({
+      columns: [table.paidStoragePackageId],
+      foreignColumns: [saasStoragePackages.id],
+      name: 'saas_billing_subscriptions_paid_storage_package_id_fkey',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.pendingStoragePackageId],
+      foreignColumns: [saasStoragePackages.id],
+      name: 'saas_billing_subscriptions_pending_storage_package_id_fkey',
+    }).onDelete('restrict'),
+    index('idx_saas_billing_subscriptions_paid_storage_package').on(table.paidStoragePackageId),
+    check(
+      'saas_billing_subscriptions_storage_package_change_check',
+      sql`(${table.pendingStoragePackageId} IS NULL OR NOT ${table.storagePackageCancelAtPeriodEnd}) AND (${table.paidStoragePackageId} IS NOT NULL OR (${table.pendingStoragePackageId} IS NULL AND NOT ${table.storagePackageCancelAtPeriodEnd}))`,
+    ),
     // #1069 owner decision 2026-09-05 — the pair being purchased must be an actually priced pair.
     // MATCH SIMPLE (Postgres default) skips the check while either column of a pair is NULL, which
     // is exactly the pre-first-payment/no-pending-change state.

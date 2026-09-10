@@ -498,6 +498,42 @@ describe('org entitlement mechanic classes', () => {
     expect(fileStorageLimitFromSnapshot(snapshot)).toBe(1024);
   });
 
+  /**
+   * Владелец 10.09.2026: докупленный пакет ПОДНИМАЕТ потолок объёма. Проверяется именно сложение
+   * с тарифным числом и то, что докупка не превращает безлимит в конечный лимит, — иначе клиника
+   * на безлимитном тарифе, однажды купившая пакет, тихо получила бы потолок.
+   */
+  it('adds the purchased storage package to the tariff ceiling and never caps an unlimited one', () => {
+    const withQuota = (files: TariffQuota | undefined, purchasedStorageBytes: number) => ({
+      tariff: {
+        mechanics: {},
+        quotas: files ? { files } : {},
+        includedSeats: null,
+        ...unconfiguredPolicies,
+      },
+      overrides: [],
+      purchasedStorageBytes,
+      access: activeAccess,
+    });
+    const numericFiles = {
+      kind: 'numeric' as const,
+      limit: 1024,
+      unit: 'bytes' as const,
+      warningAtPercent: null,
+    };
+
+    expect(fileStorageLimitFromSnapshot(withQuota(numericFiles, 2048))).toBe(3072);
+    // Пакета нет — потолок ровно тарифный.
+    expect(fileStorageLimitFromSnapshot(withQuota(numericFiles, 0))).toBe(1024);
+    // «Без ограничения» и «числа нет вовсе» докупка не трогает.
+    expect(
+      fileStorageLimitFromSnapshot(
+        withQuota({ kind: 'unlimited', limit: null, unit: 'bytes', warningAtPercent: null }, 2048),
+      ),
+    ).toBeNull();
+    expect(fileStorageLimitFromSnapshot(withQuota(undefined, 2048))).toBeNull();
+  });
+
   it('accepts owner numbers for stock mechanics without opening numbers for possibility mechanics', async () => {
     let storedTariff: Tariff | null = null;
     const platformPort: PlatformEntitlementsPort = {

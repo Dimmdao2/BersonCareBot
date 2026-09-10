@@ -357,16 +357,36 @@ function isOverrideActive(expiresAt: string | null | undefined): boolean {
  * {@link isMechanicIncludedFromSnapshot}.
  */
 function numericQuotaFromSnapshot(
-  snapshot: Pick<OrgEntitlementSnapshot, 'tariff' | 'overrides'>,
+  snapshot: Pick<OrgEntitlementSnapshot, 'tariff' | 'overrides' | 'purchasedStorageBytes'>,
   mechanic: OrgMechanic,
 ): TariffQuota | undefined {
   const override = snapshot.overrides.find(
     (entry) => entry.mechanic === mechanic && isOverrideActive(entry.expiresAt),
   );
-  return (
+  const configured =
     override?.quota ??
-    (snapshot.tariff?.quotas as Partial<Record<OrgMechanic, TariffQuota>> | undefined)?.[mechanic]
-  );
+    (snapshot.tariff?.quotas as Partial<Record<OrgMechanic, TariffQuota>> | undefined)?.[mechanic];
+  return mechanic === 'files'
+    ? fileQuotaWithPurchasedStorage(configured, snapshot.purchasedStorageBytes ?? 0)
+    : configured;
+}
+
+/**
+ * Владелец 10.09.2026: докупленный пакет ПОДНИМАЕТ потолок объёма, а не заменяет его. Сложение
+ * живёт ровно здесь, и сюда же приходит проверка записи под замком организации
+ * (`transactionQuotaPort`), чтобы «сколько можно занять» на экране и «сколько разрешит загрузка»
+ * никогда не считались двумя разными правилами.
+ *
+ * Тариф без числа («без ограничения» или квоты нет вовсе) пакет НЕ трогает: складывать не с чем, и
+ * покупка объёма поверх безлимита не делает лимит конечным.
+ */
+export function fileQuotaWithPurchasedStorage(
+  quota: TariffQuota | undefined,
+  purchasedBytes: number,
+): TariffQuota | undefined {
+  if (!Number.isFinite(purchasedBytes) || purchasedBytes <= 0) return quota;
+  if (!quota || quota.kind !== 'numeric' || quota.limit === null) return quota;
+  return { ...quota, limit: quota.limit + purchasedBytes };
 }
 
 /**
@@ -419,7 +439,7 @@ function isMechanicIncludedFromSnapshot(
  * доступа нет». A tariff-less organization refuses growth, full stop — no compatibility carve-out.
  */
 export function fileStorageLimitFromSnapshot(
-  snapshot: Pick<OrgEntitlementSnapshot, 'tariff' | 'overrides'>,
+  snapshot: Pick<OrgEntitlementSnapshot, 'tariff' | 'overrides' | 'purchasedStorageBytes'>,
 ): number | null | undefined {
   if (!snapshot.tariff) return undefined;
   const quota = numericQuotaFromSnapshot(snapshot, 'files');
@@ -449,7 +469,7 @@ export function entitlementsFromSnapshot(
  * declared future quota keys intentionally do not appear here.
  */
 function projectQuotas(
-  snapshot: Pick<OrgEntitlementSnapshot, 'tariff' | 'overrides'>,
+  snapshot: Pick<OrgEntitlementSnapshot, 'tariff' | 'overrides' | 'purchasedStorageBytes'>,
   usage: Partial<Record<OrgMechanic, number>>,
 ): OrgQuotaProjection[] {
   const activeOverrides = new Map(
