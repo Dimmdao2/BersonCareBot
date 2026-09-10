@@ -54,9 +54,23 @@ section "network perimeter"
 check "nftables input policy is drop" 'nft list chain inet filter input | grep -q "policy drop"'
 check "nftables forward policy is drop" 'nft list chain inet filter forward | grep -q "policy drop"'
 check "nftables enabled at boot" 'systemctl is-enabled nftables'
-check "nothing but ssh/http/https listens publicly" \
-  '! ss -tlnH | awk "{print \$4}" | grep -vE "^(127\.|\[::1\]|\*:22$|\[::\]:22$|0\.0\.0\.0:22$|\[::\]:(80|443)$|0\.0\.0\.0:(80|443)$)" | grep -q .'
-check "postgres does not listen on tcp" '! ss -tlnH | grep -q ":5432"'
+# Список открытых портов вырос вместе с видео: coturn держит STUN/TURN (3478/5349), JVB — медиа 10000/udp
+# и запасной TCP-харвестер 4443. Проверка перечисляет их поимённо, а не «всё, что не 22/80/443, это
+# нарушение»: иначе она либо врёт красным на исправной машине, либо её отключают и она не ловит уже ничего.
+check "публично слушают только ssh/http/https и порты видео" \
+  '! ss -tlnH | awk "{print \$4}" | grep -vE "^(127\.|\[::1\]|172\.3[01]\.0\.1:)" | grep -vE ":(22|80|443|3478|5349|4443)$" | grep -q .'
+# Порт, который слушает процесс, и порт, доступный из интернета, — разные вещи: политика input здесь drop,
+# поэтому доказательством служит НАБОР ПРИНЯТЫХ портов в nftables, а не список сокетов. Ровно так отличается
+# рабочий сокет coturn на случайном высоком порту (закрыт) от настоящей дыры (принят правилом).
+check "firewall принимает только ожидаемые udp-порты" \
+  '! nft list ruleset | grep -oE "udp dport [{ ]*[0-9,\- ]+" | grep -vE "(3478|10000|49152-49252)" | grep -q .'
+# Postgres БОЛЬШЕ НЕ «не слушает tcp»: контейнеры blue/green ходят к нему по mTLS через шлюз своего моста.
+# Свойство, которое надо доказывать теперь, — что он слушает ТОЛЬКО петлю и эти два шлюза, и что 5432
+# принимается лишь с интерфейсов мостов, а не с публичного адреса.
+check "postgres слушает только петлю и шлюзы мостов" \
+  '! ss -tlnH | grep ":5432" | awk "{print \$4}" | grep -vE "^(127\.0\.0\.1|172\.3[01]\.0\.1):5432$" | grep -q .'
+check "5432 принимается только с интерфейсов blue/green" \
+  'nft list ruleset | grep -q "iifname { \"tsto-blue\", \"tsto-green\" } tcp dport 5432"'
 
 section "ssh"
 check "password authentication disabled" 'sshd -T | grep -qx "passwordauthentication no"'
@@ -70,8 +84,10 @@ check "sshd jail is active" 'fail2ban-client status sshd'
 section "postgresql"
 check "cluster is accepting connections" 'pg_isready -q'
 check "data checksums are on" 'su - postgres -c "psql -tAc \"show data_checksums\"" | grep -q on'
-check "listen_addresses is empty" \
-  '[ -z "$(su - postgres -c "psql -tAc \"show listen_addresses\"" | tr -d "[:space:]")" ]'
+# Пустой listen_addresses был верен до перехода на docker; теперь там ровно петля и два шлюза мостов.
+# Проверяем ИМЕННО это, а не «непусто»: непусто было бы правдой и для 0.0.0.0.
+check "listen_addresses — только петля и шлюзы мостов" \
+  '[ "$(su - postgres -c "psql -tAc \"show listen_addresses\"" | tr -d "[:space:]")" = "127.0.0.1,172.30.0.1,172.31.0.1" ]'
 check "password encryption is scram-sha-256" \
   'su - postgres -c "psql -tAc \"show password_encryption\"" | grep -q scram-sha-256'
 check "statement text is not logged" 'su - postgres -c "psql -tAc \"show log_statement\"" | grep -q none'
@@ -84,7 +100,12 @@ for svc in $SERVICES; do
   check "therapysto-$svc cannot write the release tree" \
     '! sudo -u therapysto-'"$svc"' test -w /opt/therapysto/releases'
 done
-check "environment directory is root-only" '[ "$(stat -c "%U %a" /opt/therapysto/env)" = "root 750" ]'
+# 0710 root:therapysto-video, а не 0750 root:root. Внутри лежит подкаталог video/ (0700), который читает
+# учётка видео-стека, и без права ПРОХОДА через родителя она до него не дотянется. Раньше это чинили самым
+# грубым способом — 0755, то есть каталог со всеми секретами прода мог перечислить любой пользователь.
+# Здесь проход открыт ровно одной группе и без права чтения самого каталога.
+check "каталог env закрыт: root + проход только у видео-стека" \
+  '[ "$(stat -c "%U:%G %a" /opt/therapysto/env)" = "root:therapysto-video 710" ]'
 check "backup directory is root-only 0700" '[ "$(stat -c "%U %a" /opt/backups)" = "root 700" ]'
 check "no world-writable files under /opt" '! find /opt -xdev -type f -perm -0002 -print -quit | grep -q .'
 check "no unexpected sudo rights" \

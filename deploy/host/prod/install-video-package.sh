@@ -31,6 +31,17 @@ esac
 [ -d "$SRC" ] || die "нет пакета в дереве исходников: $SRC"
 getent passwd "$ACCOUNT" >/dev/null || die "нет учётки $ACCOUNT"
 
+# Право ПРОХОДА к своему env — здесь, а не в bootstrap: там учётки видео ещё не существует, и bootstrap
+# честно оставляет каталог секретов 0750 root:root. Видео-стек читает /opt/therapysto/env/video (0700,
+# своя учётка), но без бита x на родителе он до него не дотянется. Расширяем ровно на группу и ровно на
+# проход: читать сам каталог группа по-прежнему не может, посторонние — ничего.
+# Так это чинить нельзя: chmod 755 (было именно так) отдаёт перечисление каталога со ВСЕМИ секретами прода
+# любому пользователю системы.
+if [ -d /opt/therapysto/env ]; then
+  chown root:"$ACCOUNT" /opt/therapysto/env
+  chmod 0710 /opt/therapysto/env
+fi
+
 install -d -m 0755 -o "$ACCOUNT" -g "$ACCOUNT" "$DST"
 # Всё, кроме vendor: он принадлежит копии, а не коммиту.
 tar -C "$SRC" -cf - --exclude=vendor . | tar -C "$DST" -xf -
