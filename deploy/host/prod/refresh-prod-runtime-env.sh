@@ -34,6 +34,16 @@ ts=$(date +%s)
 cp -a "$ENV_DIR/webapp.prod" "$ENV_DIR/webapp.prod.pre-env-refresh.$ts"
 cp -a "$ENV_DIR/api.prod" "$ENV_DIR/api.prod.pre-env-refresh.$ts"
 
+# Копии подчищаются здесь же. Шаг выполняется на КАЖДОЙ выкладке, а в этих файлах лежат все секреты
+# прода целиком — без прополки каталог за месяц набирает десятки полных копий секретов, и каждая живёт
+# ровно столько же, сколько действующая. Три последних покрывают откат на пару выкладок назад; всё,
+# что старше, — это уже не страховка, а множимая поверхность утечки.
+for prefix in webapp.prod api.prod; do
+  ls -1t "$ENV_DIR/$prefix.pre-env-refresh."* 2>/dev/null | tail -n +4 | while IFS= read -r stale; do
+    rm -f "$stale"
+  done
+done
+
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 node --experimental-strip-types deploy/postgres/privileges/generate-cli.mjs \
