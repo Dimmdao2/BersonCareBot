@@ -212,12 +212,15 @@ const BACKGROUND_JOB_MANIFEST_SOURCE = [
      * Строка осталась и стала честнее: отметку пишет тот, кто делает работу. Резидентный воркер
      * шлёт её через тот же контрольный шов (`preview_tick`) не реже раза в минуту, в том числе в
      * простое. Пустая строка теперь означает «воркер не работает», а не «cron не сработал».
+     *
+     * Своей двери у строки нет: `POST /api/internal/media-worker/control` — общий шов воркера, он
+     * уже объявлен в `INTERNAL_JOB_BEARER_NON_MANIFEST_PATHS`. Продублировать его здесь значило бы
+     * стереть границу «manifest ⇄ не-manifest», по которой считается CSRF-исключение.
      */
     kind: 'resident_scheduler',
     scheduleOwner: 'resident_scheduler',
     scheduleHint: 'резидентный media-worker, отметка не реже раза в минуту',
     environments: ['prod', 'test'],
-    route: { method: 'POST', path: '/api/internal/media-worker/control' },
     principal: 'internal_job_bearer',
     surfaceIdentity: 'app_public_origin',
     staleAfterSec: 3 * 60,
