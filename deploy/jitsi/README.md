@@ -1,23 +1,67 @@
-# Jitsi/coturn TEST deployment package (#1100 stream C)
+# Jitsi/coturn deployment package — two profiles (#1100 stream C)
 
 Plan: [`docs/_TODO/VIDEO_MEETINGS_JITSI_2026-09.md`](../../docs/_TODO/VIDEO_MEETINGS_JITSI_2026-09.md), owner
 requirements VM-01..06, infra side of VM-02/03/04, Wave 1 stream C. This package is the deployable artifact;
-it does not apply itself to any host and has not been run against TEST by this worker — see
-[Status and what remains](#status-and-what-remains).
+it does not apply itself to any host — see [Status and what remains](#status-and-what-remains).
 
 This is a standalone infra package. It knows nothing about `system_settings`, `video-meetings` application
-service, or any webapp route; it only stands up a self-hosted Jitsi Meet + coturn stack on TEST and proves it
+service, or any webapp route; it only stands up a self-hosted Jitsi Meet + coturn stack and proves it
 behaves the way the plan requires. Streams A/B/D wire the application to it.
+
+## Two profiles, one package
+
+`JITSI_DEPLOYMENT` selects the profile and is resolved exactly once, in
+[`bin/lib/profile.sh`](bin/lib/profile.sh), which every script under `bin/` sources. **There is no default
+profile**: an absent or unknown value is a fatal error, because a package that guesses its own profile would
+eventually render TEST hostnames on a production host (or the reverse) and report success. The value comes
+from the process environment (`export`, systemd `Environment=`) or from the deployment env file, which
+declares `JITSI_DEPLOYMENT=` as its first key.
+
+| | `test` | `prod` |
+| --- | --- | --- |
+| Host | `151.241.228.122` (DEV/RELAY/TEST) | `135.106.187.95` (new production) |
+| Meet host | `meet.test.therapysto.ru` | `meet.therapysto.ru` |
+| TURN host | `turn.test.therapysto.ru` | `turn.therapysto.ru` |
+| Package root | `/etc/bersoncarebot/jitsi-test` | `/etc/therapysto/jitsi-prod` |
+| Jitsi env file | `/opt/env/bersoncarebot/jitsi.test` | `/opt/therapysto/env/jitsi.prod` |
+| coturn env file | `/opt/env/bersoncarebot/jitsi-coturn.test` | `/opt/therapysto/env/jitsi-coturn.prod` |
+| Env templates | `env/jitsi-test.env.example`, `env/coturn-test.env.example` | `env/jitsi-prod.env.example`, `env/coturn-prod.env.example` |
+| nftables objects / source | own table `bcb_jitsi_test` / `nftables-bcb-jitsi-test.conf` | chains `therapysto_jitsi_prod_in`, `therapysto_jitsi_prod_fwd` inside the host's own `inet filter` / `nftables-therapysto-jitsi-prod.conf` |
+| Boot unit | `../systemd/bersoncarebot-jitsi-test-network-policy.service` | `../systemd/therapysto-jitsi-prod-network-policy.service` |
+| nginx template | `nginx/meet-test.vhost.template.conf` | `nginx/meet-prod.vhost.template.conf` |
+| ACME lineage | `/etc/letsencrypt/live/bcb-jitsi-test` | `/etc/letsencrypt/live/therapysto-jitsi-prod` |
+| Compose project | `bcb-jitsi-test` | `therapysto-jitsi-prod` |
+| coturn container | `bcb-jitsi-test-coturn` | `therapysto-jitsi-prod-coturn` |
+| Secret store | `/etc/bersoncarebot/jitsi-test/secrets` | `/etc/therapysto/jitsi-prod/secrets` |
+| JWT app id / issuer / audience | `bcb-video-meetings-test` | `therapysto-video-meetings` |
+| Log tag | `[jitsi-test]` | `[jitsi-prod]` |
+
+**The prod column carries no `bersoncarebot`/`bcb` name anywhere** — owner ruling of 10.09.2026, recorded in
+[`docs/ARCHITECTURE/SERVER CONVENTIONS.md`](../../docs/ARCHITECTURE/SERVER%20CONVENTIONS.md) §"Именование на
+новом проде" (roots, systemd units, docker networks and compose projects, images, nginx files, tables). The
+TEST host deliberately keeps the historical names it is already running under, so the two profiles no longer
+share a name stem and `bin/lib/profile.sh` spells both sets out per profile instead of building them from
+`bcb-jitsi-${JITSI_DEPLOYMENT}`. The IFNAMSIZ trap that document records (a kernel interface name may not
+exceed 15 characters, which is why the host's bridges are `tsto-blue`/`tsto-green`) does not bite here:
+this stack's compose file asks for no bridge name, so docker names the bridge `br-<hash>` and
+`therapysto-jitsi-prod` is only ever a compose project/network name.
+
+**The legacy production host `135.106.162.170` is refused under both profiles.** `jitsi_require_host()`
+checks for that address first and fails with its own distinct message before it even looks at whether the
+profile's own address is present, so no combination of `JITSI_DEPLOYMENT` and env files can point this
+package at the old production box. Everything else the two profiles share verbatim: the pinned release and
+archive hash, the image digests, the ports, the limits, the JWT/auth semantics, the TURN credential
+semantics, and every security assertion.
 
 ## Architecture
 
 ```text
-                         151.241.228.122 (DEV/RELAY/TEST host — the only host this package targets)
+                         the profile's own host (151.241.228.122 on test, 135.106.187.95 on prod)
 
   browser  ── HTTPS ──▶  nginx (existing host front door, new vhost, terminates TLS)
                               │  proxy_pass http://127.0.0.1:${HTTP_PORT} (plain HTTP — DISABLE_HTTPS=1)
                               ▼
-                       docker compose project "bcb-jitsi-test" (own bridge network, no host network mode)
+                       docker compose project (bcb-jitsi-test / therapysto-jitsi-prod; own bridge network, no host network mode)
                        ┌────────────────────────────────────────────────────────────┐
                        │  web (ghcr.io/jitsi/web)            127.0.0.1 only          │
                        │  prosody (ghcr.io/jitsi/prosody)    internal bridge only    │
@@ -46,27 +90,32 @@ compose file entirely or explicitly `0`/unset in the env template — see
 | Path | Purpose |
 | --- | --- |
 | `VERSIONS.md` | pinned image tags + how to re-verify/bump them |
-| `NETWORK_POLICY.md` | port table, proposed nftables diff, DNS/TLS prerequisites |
-| `RUNBOOK.md` | the six required TEST proof scenarios |
-| `env/jitsi-test.env.example` | non-secret Jitsi/JVB/Prosody config template |
-| `env/coturn-test.env.example` | non-secret coturn config template |
+| `NETWORK_POLICY.md` | profile table, port table, the two nftables shapes, DNS/TLS prerequisites |
+| `RUNBOOK.md` | the six required proof scenarios |
+| `bin/lib/profile.sh` | the one place that resolves `JITSI_DEPLOYMENT` into host/hostnames/paths/table/tag, and the shared fail-closed host gate (incl. the legacy-prod refusal) |
+| `env/jitsi-test.env.example`, `env/jitsi-prod.env.example` | non-secret Jitsi/JVB/Prosody config templates, one per profile |
+| `env/coturn-test.env.example`, `env/coturn-prod.env.example` | non-secret coturn config templates, one per profile |
 | `config/web/custom-config.js`, `custom-interface_config.js` | minimal UI, no branding, no third-party requests |
 | `coturn/turnserver.conf.template` | coturn shared-secret + TLS + relay-range config |
-| `docker-compose.override.test.yml` | TEST-only overlay (ports, no host network, resource limits) over the vendored upstream compose file |
-| `nginx/meet-test.vhost.template.conf` | new nginx vhost for the meet web endpoint, same template style as the existing webapp vhost |
-| `../systemd/bersoncarebot-jitsi-test.service` | wraps `docker compose` lifecycle the same way other TEST units wrap `node` |
+| `docker-compose.override.test.yml` | overlay shared by both profiles (ports, no host network, resource limits) over the vendored upstream compose file; keeps its historical `.test.` filename, everything profile-specific in it is interpolated |
+| `nftables-bcb-jitsi-test.conf` | additive reject-table after the main chain on the ACCEPT-policy TEST host (`NETWORK_POLICY.md`) |
+| `nftables-therapysto-jitsi-prod.conf` | raw-port policy for the drop-policy prod host: two regular chains added to the host's own `inet filter` table plus one jump from each base chain — coturn on `input`, DNAT'd JVB media on `forward` (`NETWORK_POLICY.md`) |
+| `nginx/meet-test.vhost.template.conf`, `nginx/meet-prod.vhost.template.conf` | nginx vhost for the meet web endpoint, one per profile, same template style as the existing webapp vhost |
+| `../systemd/bersoncarebot-jitsi-test.service` | wraps `docker compose` lifecycle the same way other TEST units wrap `node`; there is no prod equivalent yet (the prod trial is applied by hand) |
+| `../systemd/bersoncarebot-jitsi-test-network-policy.service` | boot unit that installs the TEST profile's own nftables table |
+| `../systemd/therapysto-jitsi-prod-network-policy.service` | boot unit that re-applies the prod chains after `nftables.service` has loaded the host ruleset, and before `docker.service` |
 | `bin/install.sh` | idempotent apply: preflight (incl. port collisions), fetch + hash-verify pinned release, create the CONFIG tree, render config from templates + secret store, dry-run the merged compose config, bring the stack up |
 | `bin/render-secrets.sh` | generates/loads host-side Prosody/JVB/coturn secrets only (never the app JWT secret); every substitution is argv-safe and atomic |
 | `bin/reconcile-xmpp-service-credentials.sh` | updates Prosody's persisted focus/JVB accounts from container env over stdin, restarts the two clients and proves Jicofo authenticated |
 | `bin/health-check.sh` | config + network proof: `prosodyctl check`, container + JVB REST health, mandatory credentialed TURN allocation over UDP and TLS |
-| `bin/sync-coturn-tls.sh` | root-only TEST hook: validate the shared ACME certificate, atomically stage a private deploy-owned copy for non-root coturn, and restart coturn if running |
-| `bin/apply-domain-cutover.sh` | root-only checked TEST env cutover from legacy video names to canonical Therapysto names; secrets remain opaque |
-| `bin/apply-nginx.sh` | TEST-only checked apply for the public meet vhost; validates nginx and restores the previous target if validation/reload fails |
+| `bin/sync-coturn-tls.sh` | root-only hook: validate the profile's ACME certificate against every SAN it requires, atomically stage a private deploy-owned copy for non-root coturn, and restart coturn if running |
+| `bin/apply-domain-cutover.sh` | root-only checked TEST-profile-only env cutover from legacy video names to canonical Therapysto names; refuses to run under the prod profile; secrets remain opaque |
+| `bin/apply-nginx.sh` | checked apply for the profile's public meet vhost; validates nginx and restores the previous target if validation/reload fails |
 | `bin/restart.sh` | restart in place (re-render config, recreate containers) |
 | `bin/stop.sh` | plain compose `down` with full context — what the systemd unit's `ExecStop` calls |
 | `bin/rollback.sh` | tear down to the exact pre-apply state by default (see "Design decisions") |
 | `bin/probe-no-foreign-endpoints.sh` | DNS/egress capture proving no foreign runtime endpoint is contacted |
-| `bin/check-latest-jitsi-tag.sh` | re-verify the pinned upstream tag against GitHub releases, and re-verify every pinned image digest against the registries for drift |
+| `bin/check-latest-jitsi-tag.sh` | re-verify that both profiles' env templates carry the same pin, that the pinned upstream tag is still upstream's release, and that every pinned image digest still matches the registries |
 
 ## Design decisions and why
 
@@ -174,39 +223,109 @@ compose file entirely or explicitly `0`/unset in the env template — see
   copy under `${CONFIG}/coturn/tls`. Run `bin/sync-coturn-tls.sh` once after issuance and install it as the
   certbot deploy hook so each successful renewal validates both SANs, atomically refreshes the copy and
   restarts only the TEST coturn container when it is already running.
+- **One profile library, no per-script host literal.** Every script under `bin/` used to carry its own
+  `[[ "$address" == 151.241.228.122 ]]` loop, its own `/opt/env/bersoncarebot/jitsi.test` default and its own
+  `[jitsi-test]` log tag. A second host would have meant editing that idiom in nine places and hoping none
+  was missed — the classic way a "prod-safe" package ends up half-converted. `bin/lib/profile.sh` is now the
+  single source: it resolves the profile, exports every profile-derived value, and owns `jitsi_require_host`.
+  The gate got *stronger* in the process (legacy-prod refusal), never weaker: the per-env assertions on
+  `TURN_EXTERNAL_IP`, `STUN_HOST`, `TURN_HOST` and `TURNS_HOST` all remain, with the expected value now
+  derived from the profile instead of written out as a literal.
+- **Two nftables shapes, because the two hosts have opposite base policies.** TEST is `policy accept` and
+  gets its own reject-table after the main chain. Prod's `/etc/nftables.conf` declares `inet filter` with
+  `input` and `forward` at `policy drop`, and there an additive accept-table opens nothing at all: an
+  `accept` ends evaluation of its own chain, not of the hook, so the packet still meets the drop-policy
+  chain. The prod profile therefore owns no table — it adds two regular chains to the host's own
+  `inet filter` and jumps into them from `input` (host-networked coturn) and `forward` (bridged, DNAT'd JVB
+  media, which never reaches `input` at all). `/etc/nftables.conf` is never rewritten; the boot unit
+  re-applies the chains after `nftables.service`, and `bin/apply-network-policy.sh` removes the jumps by
+  handle before the chains on re-apply and then verifies both chains and both jumps exist.
+  `NETWORK_POLICY.md` "Two base policies, two policy shapes" carries the full reasoning, the per-component
+  port split, and why the media ports are open to any source while the web vhost stays trial-gated.
 - **Single host, single nginx front door.** The TEST surfaces' existing IP-allowlist model (network
   policy lives in the nginx server block, not in a host firewall — see `NETWORK_POLICY.md`) is reused for the
   meet web vhost rather than opening a second, differently-secured entry point. The web container binds only
   `127.0.0.1:${HTTP_PORT}`; nginx is the only thing exposed on 443. This is a deliberate scope decision,
   not an oversight: TEST has no real external users (only the owner, from VPN-trusted subnets — see
   `docs/_TODO/VIDEO_MEETINGS_JITSI_2026-09.md` §6.7), so the guest `/live` proof the plan asks for runs from
-  the owner's own VPN-connected browser context, same as every other TEST page.
+  the owner's own VPN-connected browser context, same as every other TEST page. The prod vhost keeps the
+  same shape with a trial-sized allow-list (`151.241.228.122`, `127.0.0.1`, `deny all`): during the trial
+  the owner's VPN exit is the only intended client, and opening that vhost to the public internet is a
+  separate, explicit owner decision.
 - **JVB media (UDP `${JVB_PORT}`) and coturn (3478/udp+tcp, 5349/tcp-tls, relay range) bypass nginx
   entirely** — they are raw UDP/TCP, not HTTP, and are bound directly on the host, because
-  ICE candidates must be reachable without an HTTP proxy in front of them. `NETWORK_POLICY.md` proposes an
-  versioned additive nftables table restricts exactly this surface to the TEST trust boundary.
+  ICE candidates must be reachable without an HTTP proxy in front of them. `NETWORK_POLICY.md` describes the
+  versioned additive nftables table that restricts exactly this surface to each profile's trust boundary.
 
 ## Status and what remains
+
+### `test` profile
 
 The package is running on TEST. DNS, trusted TLS, nginx, Prosody/JVB/coturn and the additive raw-port policy
 have passed live health checks. Canonical TEST video names are `meet.test.therapysto.ru` and
 `turn.test.therapysto.ru`; BersonCare and TherapyGo video names remain temporary certificate-backed aliases.
-Before this package is "done" against the full product plan:
+**One migration step is required on the running TEST host.** `/opt/env/bersoncarebot/jitsi.test` and
+`/opt/env/bersoncarebot/jitsi-coturn.test` must gain a `JITSI_DEPLOYMENT=test` line (the env templates now
+carry it). Without it every script — including the certbot deploy hook `bin/sync-coturn-tls.sh`, which
+inherits no environment from certbot — refuses to guess a profile and fails closed. Exporting
+`JITSI_DEPLOYMENT=test` for a single interactive run works too, but the env-file line is what makes the
+unattended paths (systemd unit, renewal hook) keep working.
 
-1. `/etc/bersoncarebot` (parent of both the CONFIG tree and the secret store) must exist and be writable by
-   whichever user runs `bin/install.sh` — same one-time root bootstrap this host already needed for
+### `prod` profile — **never run anywhere**
+
+Nothing in the prod profile has been applied to `135.106.187.95` (or to any other host). The prod env
+templates, `nftables-therapysto-jitsi-prod.conf`, `nginx/meet-prod.vhost.template.conf` and the prod boot unit are
+reviewed and syntax-checked in the repository only. There is no host evidence for any of them, and this
+document does not claim any. The prerequisites that are **not** part of this package are listed in
+`NETWORK_POLICY.md` "Prod prerequisites this package does not own":
+
+1. DNS A records for `meet.therapysto.ru` and `turn.therapysto.ru` → `135.106.187.95`.
+2. A certificate lineage `/etc/letsencrypt/live/therapysto-jitsi-prod` covering both of those names.
+3. The host's own `table inet filter` with `input`/`forward` base chains, loaded from `/etc/nftables.conf`
+   at boot — that is what the prod policy adds its chains to. **No edit to `/etc/nftables.conf` is needed
+   or performed**: the earlier "pairing" prerequisite belonged to the additive accept-table that has been
+   replaced. `bin/apply-network-policy.sh --check` runs `nft -c -f` against the **live** ruleset, so a
+   missing table or base chain fails there rather than after a green apply line.
+4. A Selectel Security Group review for the same ports (SG exists in front of `135.x`, not `151.x`).
+5. There is no `therapysto-jitsi-prod.service` compose lifecycle unit: the prod trial is meant to be
+   applied by hand with `bin/install.sh --apply`, so the prod boot unit only installs the network policy.
+
+### Both profiles
+
+1. The package root's parent (`/etc/bersoncarebot` on TEST, `/etc/therapysto` on prod — parent of both the
+   CONFIG tree and the secret store) must exist and be writable by
+   whichever user runs `bin/install.sh` — same one-time root bootstrap the TEST host already needed for
    `/etc/bersoncarebot/postgres-mtls/` (`docs/ARCHITECTURE/SERVER CONVENTIONS.md` §mTLS). `bin/install.sh`
    fails closed with this exact message if it cannot create its subdirectories, rather than a raw
    permission-denied trace.
 2. The JWT signing secret Jitsi verifies against must be copied from `system_settings` (stream A's table) into
    this package's `JWT_APP_SECRET` at apply time — this package treats it as an externally supplied input
-   (see `env/jitsi-test.env.example`), not something it generates, reads from the DB, or stores independently.
+   (see the profile's env template), not something it generates, reads from the DB, or stores independently.
 3. Repeat the browser scenarios after the canonical names are switched in the application provider settings;
    health alone proves the stack, not a complete user call path.
 
 ## Validation performed in this worktree
 
-- `bash -n` on every script in `bin/`.
+- `bash -n` on every script in `bin/` (including `bin/lib/profile.sh`).
+- Profile resolution exercised directly: absent `JITSI_DEPLOYMENT` fails closed, an unknown value fails
+  closed, `test`/`prod` each export the expected host/hostnames/paths/table/tag, resolution from a
+  deployment env file works, and `jitsi_require_host` refuses a host that does not own the profile's
+  address.
+- `docker compose ... config` on `docker-compose.override.test.yml` with each profile's env template:
+  the compose project, `container_name` and the Prosody `extra_hosts` TURN mapping all render to that
+  profile's values (`bcb-jitsi-test` / `bcb-jitsi-test-coturn` / `turn.test.therapysto.ru` and
+  `therapysto-jitsi-prod` / `therapysto-jitsi-prod-coturn` / `turn.therapysto.ru`), with no change to the
+  TEST rendering. Re-run after the prod rename: `container_name` now interpolates
+  `${JITSI_COTURN_CONTAINER}` from `bin/lib/profile.sh` instead of rebuilding a `bcb-jitsi-` stem, and both
+  profiles render the values above.
+- `nftables-therapysto-jitsi-prod.conf` parsed by `nft -c`. NOTE: in this worktree `nft` cannot reach
+  netlink, so it reports `Operation not permitted` for the prod file **and** for the already-live TEST file
+  — this is a GRAMMAR-level check only (confirmed to be a real parse: a deliberately corrupted copy of the
+  same file reports `syntax error` at the right line before the netlink message, the clean file reports
+  none). The prod file adds chains to the host's *existing* `inet filter` table, so whether that table and
+  its base chains exist can only be validated on the host, where `bin/apply-network-policy.sh --check` runs
+  `nft -c -f` against the live ruleset.
+- `systemd-analyze verify` on `../systemd/therapysto-jitsi-prod-network-policy.service` — clean.
 - `node -e` syntax parse of `config/web/custom-config.js` and `config/web/custom-interface_config.js` (not
   executable Node modules — Jitsi config fragments — so `node --check` does not apply to them directly).
 - `git diff --check` (no trailing whitespace/conflict markers).

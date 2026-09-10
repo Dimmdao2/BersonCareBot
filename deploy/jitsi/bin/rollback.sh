@@ -10,7 +10,7 @@
 # DNS records, TLS certificates, the host nginx vhost, and the host firewall are unmodified by design (see
 # NETWORK_POLICY.md) and are reported as such below, not silently ignored.
 #
-#   bin/rollback.sh              full exact-restore (see above).
+#   bin/rollback.sh              full exact-restore (see above), for the profile bin/lib/profile.sh resolves.
 #   bin/rollback.sh --keep-cache stop/remove containers, network and this package's named volumes, but
 #                                 keep the vendored upstream download and the secret store so a follow-up
 #                                 --apply does not re-fetch/re-generate anything. NOT the default and NOT
@@ -20,27 +20,27 @@ set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$HERE"
+# shellcheck source=lib/profile.sh
+source "$HERE/bin/lib/profile.sh"
 
-on_dev_test_host=0
-for address in $(hostname -I 2>/dev/null || true); do
-  [[ "$address" == 151.241.228.122 ]] && on_dev_test_host=1
-done
-[[ "$on_dev_test_host" == 1 ]] || { echo "FATAL: not on 151.241.228.122" >&2; exit 1; }
+jitsi_require_host
 
 MODE="${1:-}"
 [[ -z "$MODE" || "$MODE" == "--keep-cache" ]] || { echo "usage: $0 [--keep-cache]" >&2; exit 2; }
 
-ENV_FILE="${JITSI_TEST_ENV_FILE:-/opt/env/bersoncarebot/jitsi.test}"
+ENV_FILE="$JITSI_ENV_FILE"
 [[ -f "$ENV_FILE" ]] || { echo "FATAL: missing $ENV_FILE" >&2; exit 1; }
 # shellcheck disable=SC1090
 set -a; source "$ENV_FILE"; set +a
-TURN_ENV_FILE="${TURN_TEST_ENV_FILE:-/opt/env/bersoncarebot/jitsi-coturn.test}"
+[[ "${JITSI_DEPLOYMENT:-}" == "$JITSI_PROFILE_RESOLVED" ]] \
+  || { echo "FATAL: $ENV_FILE declares JITSI_DEPLOYMENT='${JITSI_DEPLOYMENT:-<unset>}', this run resolved '$JITSI_PROFILE_RESOLVED'" >&2; exit 1; }
+TURN_ENV_FILE="$JITSI_TURN_ENV_FILE"
 [[ -f "$TURN_ENV_FILE" ]] || { echo "FATAL: missing $TURN_ENV_FILE" >&2; exit 1; }
 # shellcheck disable=SC1090
 set -a; source "$TURN_ENV_FILE"; set +a
 CONFIG_DIR="$(realpath -m -- "${CONFIG:-/}")"
-SECRET_STORE_DIR="$(realpath -m -- "${JITSI_TEST_SECRET_STORE:-/etc/bersoncarebot/jitsi-test/secrets}")"
-PACKAGE_ROOT="/etc/bersoncarebot/jitsi-test"
+SECRET_STORE_DIR="$(realpath -m -- "$JITSI_TEST_SECRET_STORE")"
+PACKAGE_ROOT="$JITSI_PACKAGE_ROOT"
 [[ "$CONFIG_DIR" == "$PACKAGE_ROOT/"?* ]] || {
   echo "FATAL: CONFIG must resolve below $PACKAGE_ROOT; refusing rollback target $CONFIG_DIR" >&2
   exit 1
@@ -59,22 +59,22 @@ if [[ -d "$VENDOR_DIR" ]]; then
     -f "$HERE/docker-compose.override.test.yml" \
     --env-file "$ENV_FILE" \
     --project-directory "$HERE" \
-    -p bcb-jitsi-test down --remove-orphans -v
+    -p "$JITSI_COMPOSE_PROJECT" down --remove-orphans -v
 else
   # Vendor dir gone but containers might still exist under the project name — remove by project label only.
-  docker compose -p bcb-jitsi-test down --remove-orphans -v 2>/dev/null || true
+  docker compose -p "$JITSI_COMPOSE_PROJECT" down --remove-orphans -v 2>/dev/null || true
 fi
-echo "[jitsi-test] stack stopped and removed with this project's named volumes"
+echo "$JITSI_LOG_TAG stack stopped and removed with this project's named volumes"
 
 if [[ "$MODE" == "--keep-cache" ]]; then
-  echo "[jitsi-test] --keep-cache: leaving vendor/ and the secret store in place (NOT an exact pre-apply restore)"
+  echo "$JITSI_LOG_TAG --keep-cache: leaving vendor/ and the secret store in place (NOT an exact pre-apply restore)"
 else
   rm -rf "$HERE/vendor"
   rm -f "$HERE/coturn/turnserver.rendered.conf"
   rm -rf "$HERE/coturn/log" "$HERE/coturn/state"
   rm -rf "$SECRET_STORE_DIR"
   rm -rf "$CONFIG_DIR"
-  echo "[jitsi-test] purged vendor/, rendered config, coturn log/state, secret store, and CONFIG tree — pre-apply state restored"
+  echo "$JITSI_LOG_TAG purged vendor/, rendered config, coturn log/state, secret store, and CONFIG tree — pre-apply state restored"
 fi
 
-echo "[jitsi-test] unchanged by this script (external to this package, per NETWORK_POLICY.md): DNS records, TLS certificates, the host nginx vhost, and the host firewall"
+echo "$JITSI_LOG_TAG unchanged by this script (external to this package, per NETWORK_POLICY.md): DNS records, TLS certificates, the host nginx vhost, and the host firewall"

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Captures traffic on the dedicated Jitsi compose bridge during a live call and asserts every address is
-# either our own stack (151.241.228.122) or a loopback/internal address. Capturing the host egress device
+# either our own stack (the profile's own public address, plus the trial client address on PROD) or a
+# loopback/internal address. Capturing the host egress device
 # is deliberately forbidden: that device also carries unrelated app/Telegram/DNS traffic and would
 # attribute other services' destinations to Jitsi. Browser requests are checked separately by the live
 # acceptance scenario, while coturn/JVB public listeners are covered by health-check allocations.
@@ -11,9 +12,13 @@
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-CAPTURE_FILE="/tmp/jitsi-test-no-foreign-endpoints.pcap"
-PID_FILE="/tmp/jitsi-test-no-foreign-endpoints.pid"
-ALLOWED_IPS=("151.241.228.122" "127.0.0.1")
+# shellcheck source=lib/profile.sh
+source "$HERE/bin/lib/profile.sh"
+
+CAPTURE_FILE="/tmp/jitsi-${JITSI_DEPLOYMENT}-no-foreign-endpoints.pcap"
+PID_FILE="/tmp/jitsi-${JITSI_DEPLOYMENT}-no-foreign-endpoints.pid"
+# shellcheck disable=SC2206
+ALLOWED_IPS=($JITSI_TRUSTED_PEER_IPS)
 
 case "${1:-}" in
   start)
@@ -22,17 +27,17 @@ case "${1:-}" in
       echo "FATAL: capture already running with pid $(cat "$PID_FILE")" >&2
       exit 1
     fi
-    network_id="$(docker network inspect bcb-jitsi-test_meet.jitsi --format '{{.Id}}' 2>/dev/null || true)"
-    [[ -n "$network_id" ]] || { echo "FATAL: bcb-jitsi-test compose network is absent" >&2; exit 1; }
+    network_id="$(docker network inspect "${JITSI_COMPOSE_PROJECT}_meet.jitsi" --format '{{.Id}}' 2>/dev/null || true)"
+    [[ -n "$network_id" ]] || { echo "FATAL: $JITSI_COMPOSE_PROJECT compose network is absent" >&2; exit 1; }
     iface="br-${network_id:0:12}"
     ip link show "$iface" >/dev/null 2>&1 || { echo "FATAL: compose bridge $iface is absent" >&2; exit 1; }
     rm -f "$CAPTURE_FILE"
     nohup tcpdump -i "$iface" -w "$CAPTURE_FILE" \
-      >/tmp/jitsi-test-no-foreign-endpoints.log 2>&1 &
+      >"/tmp/jitsi-${JITSI_DEPLOYMENT}-no-foreign-endpoints.log" 2>&1 &
     echo $! > "$PID_FILE"
     sleep 1
     if ! kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
-      echo "FATAL: tcpdump failed to start: $(tail -n 1 /tmp/jitsi-test-no-foreign-endpoints.log)" >&2
+      echo "FATAL: tcpdump failed to start: $(tail -n 1 "/tmp/jitsi-${JITSI_DEPLOYMENT}-no-foreign-endpoints.log")" >&2
       rm -f "$PID_FILE"
       exit 1
     fi

@@ -7,26 +7,26 @@ set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$HERE"
+# shellcheck source=lib/profile.sh
+source "$HERE/bin/lib/profile.sh"
 
 fail=0
 ok() { echo "  ok    $*"; }
 bad() { echo "  FAIL  $*"; fail=1; }
 
-on_dev_test_host=0
-for address in $(hostname -I 2>/dev/null || true); do
-  [[ "$address" == 151.241.228.122 ]] && on_dev_test_host=1
-done
-[[ "$on_dev_test_host" == 1 ]] || { echo "FATAL: not on 151.241.228.122" >&2; exit 1; }
+jitsi_require_host
 
 # Load the same env the running stack was rendered/started from — without this, every ${VAR:-default}
 # below silently checks the *default* port/value instead of whatever was actually configured, which would
 # let a misconfigured deployment report PASS against ports nothing is listening on.
-ENV_FILE="${JITSI_TEST_ENV_FILE:-/opt/env/bersoncarebot/jitsi.test}"
+ENV_FILE="$JITSI_ENV_FILE"
 [[ -f "$ENV_FILE" ]] || { echo "FATAL: missing $ENV_FILE" >&2; exit 1; }
 unset TURN_USERNAME TURN_PASSWORD
 # shellcheck disable=SC1090
 set -a; source "$ENV_FILE"; set +a
-TURN_ENV_FILE="${TURN_TEST_ENV_FILE:-/opt/env/bersoncarebot/jitsi-coturn.test}"
+[[ "${JITSI_DEPLOYMENT:-}" == "$JITSI_PROFILE_RESOLVED" ]] \
+  || { echo "FATAL: $ENV_FILE declares JITSI_DEPLOYMENT='${JITSI_DEPLOYMENT:-<unset>}', this run resolved '$JITSI_PROFILE_RESOLVED'" >&2; exit 1; }
+TURN_ENV_FILE="$JITSI_TURN_ENV_FILE"
 [[ -f "$TURN_ENV_FILE" ]] || { echo "FATAL: missing $TURN_ENV_FILE" >&2; exit 1; }
 # shellcheck disable=SC1090
 set -a; source "$TURN_ENV_FILE"; set +a
@@ -37,7 +37,7 @@ export COTURN_CONTAINER_UID COTURN_CONTAINER_GID
 VENDOR_DIR="$HERE/vendor/docker-jitsi-meet-${JITSI_RELEASE_TAG:-unknown}"
 # --project-directory: see install.sh's identical flag — without it the override's relative bind-mount
 # sources resolve against $VENDOR_DIR (the first -f file's directory), not deploy/jitsi/.
-COMPOSE_ARGS=(-f "$VENDOR_DIR/docker-compose.yml" -f "$HERE/docker-compose.override.test.yml" --env-file "$ENV_FILE" --project-directory "$HERE" -p bcb-jitsi-test)
+COMPOSE_ARGS=(-f "$VENDOR_DIR/docker-compose.yml" -f "$HERE/docker-compose.override.test.yml" --env-file "$ENV_FILE" --project-directory "$HERE" -p "$JITSI_COMPOSE_PROJECT")
 
 # Compose reports containers as running before JVB's REST endpoint and coturn's
 # own healthcheck are ready. A health command run immediately after --apply must
@@ -149,10 +149,10 @@ if [[ -n "$prosody_cid" ]]; then
   }
   check_external_service_set "$XMPP_DOMAIN"
   check_external_service_set "metadata.${XMPP_DOMAIN}"
-  if docker exec "$prosody_cid" prosodyctl --config /run/prosody/config/prosody.cfg.lua check config >/tmp/jitsi-test-prosodyctl-config.log 2>&1; then
+  if docker exec "$prosody_cid" prosodyctl --config /run/prosody/config/prosody.cfg.lua check config >"/tmp/jitsi-${JITSI_DEPLOYMENT}-prosodyctl-config.log" 2>&1; then
     ok "prosodyctl check config passed"
   else
-    bad "prosodyctl check config failed — see /tmp/jitsi-test-prosodyctl-config.log"
+    bad "prosodyctl check config failed — see /tmp/jitsi-${JITSI_DEPLOYMENT}-prosodyctl-config.log"
   fi
   if docker exec "$prosody_cid" grep -q 'muc_max_occupants = "2"' /run/prosody/config/conf.d/jitsi-meet.cfg.lua 2>/dev/null; then
     ok "rendered MUC config carries muc_max_occupants = \"2\""
@@ -182,9 +182,9 @@ else
   # the host's public address instead: uclient then completes normally and deletes its allocation, so the
   # health check is repeatable without restarting coturn or disturbing an active call. The peer PID file is
   # unique to this health process, and cleanup only kills that exact process.
-  turn_peer_addr="${TURN_EXTERNAL_IP:-151.241.228.122}"
+  turn_peer_addr="${TURN_EXTERNAL_IP:-$JITSI_EXPECTED_HOST_IP}"
   turn_peer_port="$((35000 + ($$ % 10000)))"
-  turn_peer_pid_file="/tmp/bcb-jitsi-health-peer-$$.pid"
+  turn_peer_pid_file="/tmp/${JITSI_COMPOSE_PROJECT}-health-peer-$$.pid"
   stop_turn_peer() {
     docker exec "$coturn_cid" sh -ceu '
       pid_file="$1"
@@ -270,7 +270,7 @@ if [[ -n "$web_generated_config" ]]; then
       process.stdout.write(JSON.stringify((context.config?.p2p?.stunServers ?? []).map(item => item.urls)));
     });
   ' <<<"$web_generated_config" 2>/dev/null || true)"
-  expected_p2p_stun="[\"stun:${TURN_CERT_DOMAIN:-turn.test.therapysto.ru}:${TURN_LISTEN_PORT:-3478}\"]"
+  expected_p2p_stun="[\"stun:${TURN_CERT_DOMAIN:-$JITSI_TURN_HOST}:${TURN_LISTEN_PORT:-3478}\"]"
   if [[ "$evaluated_p2p_stun" == "$expected_p2p_stun" ]]; then
     ok "served config.js contains the correctly rendered self-hosted P2P STUN endpoint"
   else

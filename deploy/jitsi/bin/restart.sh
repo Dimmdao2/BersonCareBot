@@ -1,23 +1,23 @@
 #!/usr/bin/env bash
 # Restart the stack in place: re-render config (in case a secret rotated) and recreate containers without
-# re-fetching the upstream release. Idempotent, TEST-only.
+# re-fetching the upstream release. Idempotent, and bound to the profile resolved by bin/lib/profile.sh.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$HERE"
+# shellcheck source=lib/profile.sh
+source "$HERE/bin/lib/profile.sh"
 
-on_dev_test_host=0
-for address in $(hostname -I 2>/dev/null || true); do
-  [[ "$address" == 151.241.228.122 ]] && on_dev_test_host=1
-done
-[[ "$on_dev_test_host" == 1 ]] || { echo "FATAL: not on 151.241.228.122" >&2; exit 1; }
+jitsi_require_host
 
-ENV_FILE="${JITSI_TEST_ENV_FILE:-/opt/env/bersoncarebot/jitsi.test}"
+ENV_FILE="$JITSI_ENV_FILE"
 [[ -f "$ENV_FILE" ]] || { echo "FATAL: missing $ENV_FILE" >&2; exit 1; }
 unset TURN_USERNAME TURN_PASSWORD
 # shellcheck disable=SC1090
 set -a; source "$ENV_FILE"; set +a
-TURN_ENV_FILE="${TURN_TEST_ENV_FILE:-/opt/env/bersoncarebot/jitsi-coturn.test}"
+[[ "${JITSI_DEPLOYMENT:-}" == "$JITSI_PROFILE_RESOLVED" ]] \
+  || { echo "FATAL: $ENV_FILE declares JITSI_DEPLOYMENT='${JITSI_DEPLOYMENT:-<unset>}', this run resolved '$JITSI_PROFILE_RESOLVED'" >&2; exit 1; }
+TURN_ENV_FILE="$JITSI_TURN_ENV_FILE"
 [[ -f "$TURN_ENV_FILE" ]] || { echo "FATAL: missing $TURN_ENV_FILE" >&2; exit 1; }
 # shellcheck disable=SC1090
 set -a; source "$TURN_ENV_FILE"; set +a
@@ -37,7 +37,7 @@ COMPOSE_ARGS=(
   # See install.sh's identical flag: without it, the override's relative bind-mount sources resolve
   # against $VENDOR_DIR (the first -f file's directory), not deploy/jitsi/.
   --project-directory "$HERE"
-  -p bcb-jitsi-test
+  -p "$JITSI_COMPOSE_PROJECT"
 )
 
 docker compose "${COMPOSE_ARGS[@]}" config >/dev/null || {
@@ -48,4 +48,4 @@ docker compose "${COMPOSE_ARGS[@]}" config >/dev/null || {
 docker compose "${COMPOSE_ARGS[@]}" up -d --force-recreate
 bash "$HERE/bin/reconcile-xmpp-service-credentials.sh"
 
-echo "[jitsi-test] restarted; run bin/health-check.sh to confirm"
+echo "$JITSI_LOG_TAG restarted; run bin/health-check.sh to confirm"

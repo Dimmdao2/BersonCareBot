@@ -1,4 +1,8 @@
-# TEST-only overlay for #1100 stream C. Applied together with the *upstream* docker-jitsi-meet
+# Compose overlay for #1100 stream C, shared by BOTH deployment profiles (test and prod). The file keeps
+# its historical `.test.` name because audit records and the systemd units already reference it by that
+# path; everything profile-specific in it is interpolated from the env file / process environment
+# (JITSI_DEPLOYMENT, TURN_HOST, CONFIG, ports), never hardcoded. Applied together with the *upstream*
+# docker-jitsi-meet
 # docker-compose.yml (vendored by bin/install.sh into vendor/docker-jitsi-meet-${JITSI_RELEASE_TAG}/,
 # git-ignored — see README.md "Design decisions"), with the upstream file listed FIRST so the merge and
 # the runtime CONFIG tree it expects resolve against the vendored release, not this directory:
@@ -6,15 +10,15 @@
 #   docker compose \
 #     -f vendor/docker-jitsi-meet-${JITSI_RELEASE_TAG}/docker-compose.yml \
 #     -f deploy/jitsi/docker-compose.override.test.yml \
-#     --env-file /opt/env/bersoncarebot/jitsi.test \
-#     -p bcb-jitsi-test up -d
+#     --env-file <the profile's env file, see bin/lib/profile.sh> \
+#     -p <the profile's compose project, see bin/lib/profile.sh> up -d
 #
 # bin/install.sh, bin/restart.sh and bin/rollback.sh all invoke exactly this two-file, one-env-file
 # context; the systemd unit's ExecStop uses bin/stop.sh, which does the same, instead of bare
-# `docker compose -p bcb-jitsi-test down` (that has no compose file to read and cannot know the project
+# `docker compose -p <project> down` (that has no compose file to read and cannot know the project
 # definition it should be tearing down — see README.md "Design decisions").
 #
-# CONFIG (a normal key in the sourced env file, see env/jitsi-test.env.example) is a deterministic
+# CONFIG (a normal key in the sourced env file, see env/jitsi-{test,prod}.env.example) is a deterministic
 # absolute host path, not a relative one — upstream's own docker-compose.yml resolves every
 # `${CONFIG}/...` volume source against it, and a relative or unset CONFIG is exactly F1 from
 # docs/audit/jitsi-coturn-test-package-2026-09-08.md (upstream fell back to resolving those paths inside
@@ -49,8 +53,13 @@ services:
     # (normally 172.17.0.1), not this project's bridge; coturn's reply then
     # comes from the project gateway and Prosody correctly rejects the changed
     # source tuple. The configurable subnet below makes this mapping stable.
+    #
+    # TURN_HOST (not a literal) so the mapping follows the profile: turn.test.therapysto.ru on TEST,
+    # turn.therapysto.ru on PROD. It is deliberately left without a default — an empty TURN_HOST renders
+    # an invalid extra_hosts entry and compose refuses, instead of silently mapping the other profile's
+    # hostname. bin/install.sh separately asserts TURN_HOST equals the profile's expected value.
     extra_hosts:
-      - "turn.test.therapysto.ru:${JITSI_DOCKER_GATEWAY:-172.30.110.1}"
+      - "${TURN_HOST}:${JITSI_DOCKER_GATEWAY:-172.30.110.1}"
   jicofo:
     image: "ghcr.io/jitsi/jicofo:${JITSI_RELEASE_TAG}@sha256:a8d64e46eaa340751a2b5530a4abd4175adf05bff07e9775fc48daae6364cfe9"
     # No public port — Jicofo only talks to Prosody/JVB over the internal bridge network. `!override`
@@ -62,7 +71,7 @@ services:
   jvb:
     image: "ghcr.io/jitsi/jvb:${JITSI_RELEASE_TAG}@sha256:d7dc646d21af07530ae6acf1ace23ea4782445d0362004621a32a5a632a964e9"
     # UDP media stays public (ICE candidates must be directly reachable). The internal Colibri REST API
-    # (COLIBRI_REST_ENABLED=1, see env/jitsi-test.env.example) IS turned on here, but upstream's own base
+    # (COLIBRI_REST_ENABLED=1, see env/jitsi-{test,prod}.env.example) IS turned on here, but upstream's own base
     # compose already binds it to `127.0.0.1:${JVB_COLIBRI_PORT:-8080}:8080` — loopback only, never a new
     # public surface — because bin/health-check.sh needs `GET /about/health` on it to prove JVB health
     # instead of trusting `State.Running` alone (see doc/health-checks.md in jitsi/jitsi-videobridge).
@@ -76,10 +85,17 @@ services:
 
   coturn:
     image: "coturn/coturn:${COTURN_IMAGE_TAG}@sha256:aa68aab64a3b929d57fc2924c98ea447bf996cf8dade2508e7b71eaf23f1f14e"
-    container_name: bcb-jitsi-test-coturn
+    # Profile-scoped so an operator on either host sees the deployment in the container name. Taken from
+    # $JITSI_COTURN_CONTAINER (bin/lib/profile.sh), which is what bin/sync-coturn-tls.sh restarts — not
+    # rebuilt from ${JITSI_DEPLOYMENT} here, because the two profiles no longer share a name stem
+    # (bcb-jitsi-test on TEST, therapysto-jitsi-prod on the new production host, which carries no
+    # `bcb`/`bersoncarebot` names at all). Deliberately without a default, same reasoning as TURN_HOST
+    # above: every script in this package sources profile.sh before invoking compose, so an empty value
+    # means compose was run outside that path and should refuse rather than invent a container name.
+    container_name: "${JITSI_COTURN_CONTAINER}"
     restart: "${RESTART_POLICY:-unless-stopped}"
     # The rendered config and the private TLS copy are both 0600 and owned by the deploy account
-    # (UID/GID 1000 on TEST). Do not replace this with root or relax either file to 0644: the explicit
+    # (UID/GID 1000 on both profiles). Do not replace this with root or relax either file to 0644: the explicit
     # numeric user is the least-privilege boundary that lets coturn read only its own mounted assets.
     user: "${COTURN_CONTAINER_UID:-1000}:${COTURN_CONTAINER_GID:-1000}"
     # coturn needs to see real client source ports for its relay allocations; host networking is the

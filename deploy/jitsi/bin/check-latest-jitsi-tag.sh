@@ -4,15 +4,35 @@
 # registries report for the currently-pinned tag right now. A mismatch there means the tag was
 # re-published/moved since VERSIONS.md recorded it — exactly the drift VERSIONS.md's "Bumping the pin"
 # section says to re-run this check for. Does not change anything and does not touch any host — safe to
-# run from anywhere with internet access.
+# run from anywhere with internet access. Deliberately does NOT source bin/lib/profile.sh: it never touches
+# a host, and both deployment profiles must carry the exact same pin.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 fail=0
 
-PINNED="$(grep -E '^JITSI_RELEASE_TAG=' "$HERE/env/jitsi-test.env.example" | cut -d= -f2)"
-COTURN_TAG="$(grep -E '^COTURN_IMAGE_TAG=' "$HERE/env/coturn-test.env.example" | cut -d= -f2)"
+pin_of() { grep -E "^$2=" "$HERE/env/$1" | cut -d= -f2; }
 
+PINNED="$(pin_of jitsi-test.env.example JITSI_RELEASE_TAG)"
+ARCHIVE_SHA="$(pin_of jitsi-test.env.example ARCHIVE_SHA256)"
+COTURN_TAG="$(pin_of coturn-test.env.example COTURN_IMAGE_TAG)"
+
+# The package now ships one env template per profile. Both templates must pin the same upstream release,
+# archive hash and coturn image — the image digests in docker-compose.override.test.yml are shared by both
+# profiles, so a divergent pin in one template would run unverified images on that host.
+echo "[pin agreement between the test and prod env templates]"
+for pair in "jitsi:JITSI_RELEASE_TAG:$PINNED" "jitsi:ARCHIVE_SHA256:$ARCHIVE_SHA" "coturn:COTURN_IMAGE_TAG:$COTURN_TAG"; do
+  family="${pair%%:*}"; rest="${pair#*:}"; key="${rest%%:*}"; expected="${rest#*:}"
+  actual="$(pin_of "${family}-prod.env.example" "$key" || true)"
+  if [[ "$actual" != "$expected" ]]; then
+    echo "  DRIFT env/${family}-prod.env.example pins $key='$actual', env/${family}-test.env.example pins '$expected' — the two profiles must share one pin"
+    fail=1
+  else
+    echo "  ok    $key agrees across both env templates"
+  fi
+done
+
+echo
 echo "pinned tag (this package):  $PINNED"
 
 latest_json="$(curl -fsS https://api.github.com/repos/jitsi/docker-jitsi-meet/releases/latest)"

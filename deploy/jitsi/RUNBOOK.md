@@ -1,9 +1,25 @@
-# TEST runbook — Jitsi/coturn proof (#1100 stream C)
+# Runbook — Jitsi/coturn proof (#1100 stream C)
 
-Prerequisite: `bin/install.sh --apply` has run and `bin/health-check.sh` returns `RESULT: PASS`. None of this
-has been executed by the worker that wrote this package — see `README.md` "Status and what remains". Each
-scenario below names the exact command/observation that counts as evidence; "page returned 200" is never
-sufficient on its own (repo convention, `AGENTS.md` §3a).
+Prerequisite: `bin/install.sh --apply` has run for the profile under test and `bin/health-check.sh` returns
+`RESULT: PASS`. Each scenario below names the exact command/observation that counts as evidence; "page
+returned 200" is never sufficient on its own (repo convention, `AGENTS.md` §3a).
+
+**Which profile.** Every command here is profile-scoped through `JITSI_DEPLOYMENT` (`bin/lib/profile.sh`),
+so the same runbook covers both hosts; substitute the profile's own hostnames and public address:
+
+| | `test` | `prod` |
+| --- | --- | --- |
+| Host / public address | `151.241.228.122` | `135.106.187.95` |
+| Meet URL | `https://meet.test.therapysto.ru` | `https://meet.therapysto.ru` |
+| TURN host | `turn.test.therapysto.ru` | `turn.therapysto.ru` |
+| Compose project | `bcb-jitsi-test` | `therapysto-jitsi-prod` |
+
+**Status.** These scenarios have been run against the **test** profile only. **No scenario here has ever
+been executed on `135.106.187.95`** — the prod profile is repository-only so far (`README.md` "Status and
+what remains"), and its prerequisites (DNS, certificate, the host's own `inet filter` table for the policy
+chains to attach to, the Selectel SG) must exist before scenario 1 can even start there. The legacy
+production host `135.106.162.170` is refused by the package under both profiles and is not a runbook target
+at all.
 
 All scenarios use synthetic media (`getUserMedia` fake device flags), not the owner's real camera/mic, unless
 noted — that is sufficient proof per the plan's §6.8 explicit allowance.
@@ -43,9 +59,9 @@ noted — that is sufficient proof per the plan's §6.8 explicit allowance.
 
 ## 4. Forced TURN / TLS fallback (VM-03/VM-04)
 
-1. Force ICE to exclude host/srflx candidates for one context (e.g. Chrome's `--force-webrtc-ip-handling-policy=disable_non_proxied_udp` or a network namespace that blocks direct UDP between the two contexts but allows UDP/TCP to `turn.test.therapysto.ru`).
-2. **Evidence:** selected candidate pair's type is `relay`, and the relay candidate's IP matches
-   `151.241.228.122` (our coturn), never a foreign relay address. Separately, block UDP to port 3478 only
+1. Force ICE to exclude host/srflx candidates for one context (e.g. Chrome's `--force-webrtc-ip-handling-policy=disable_non_proxied_udp` or a network namespace that blocks direct UDP between the two contexts but allows UDP/TCP to the profile's TURN host).
+2. **Evidence:** selected candidate pair's type is `relay`, and the relay candidate's IP matches the
+   profile's own public address (our coturn), never a foreign relay address. Separately, block UDP to port 3478 only
    (leave 5349/tcp reachable) and confirm the client falls back to TURN-over-TLS: relay candidate present via
    the TLS listener, connection still completes.
 3. Cross-check server side: `docker logs <coturn container>` shows an `ALLOCATE` for the session's ephemeral
@@ -58,16 +74,17 @@ noted — that is sufficient proof per the plan's §6.8 explicit allowance.
    `config.p2p.enabled = false` override via a scenario-only test flag, or force a third silent observer to
    push the room off P2P) so the call routes through JVB instead of P2P/TURN-relayed-P2P.
 2. **Evidence:** `docker logs <jvb container>` shows a `Conference` created for the room and both endpoints'
-   ICE stats show the selected remote candidate as the JVB's `JVB_ADVERTISE_IPS` address
-   (`151.241.228.122`), confirming our own JVB is the non-P2P fallback and not any external bridge.
+   ICE stats show the selected remote candidate as the JVB's `JVB_ADVERTISE_IPS` address (the profile's own
+   public address), confirming our own JVB is the non-P2P fallback and not any external bridge.
 
 ## 6. DNS/network capture proving no foreign runtime endpoint (VM-04)
 
 1. `bin/probe-no-foreign-endpoints.sh start` before opening either browser context.
 2. Run scenario 1 end to end (join, short call, hangup).
 3. `bin/probe-no-foreign-endpoints.sh stop` — **evidence** is its own `RESULT: PASS` line, i.e. every
-   observed remote IP on the monitored TURN/JVB/HTTPS/DNS ports resolved to `151.241.228.122` or a
-   loopback/RFC1918 address belonging to the test browser contexts themselves.
+   observed remote IP on the monitored TURN/JVB/HTTPS/DNS ports was in the profile's trusted set
+   (`151.241.228.122` + loopback on test; `135.106.187.95`, the trial client `151.241.228.122`, and
+   loopback on prod) or a loopback/RFC1918 address belonging to the browser contexts themselves.
 4. Separately, inspect each browser context's `chrome://net-export` or devtools Network panel for the whole
    session and confirm zero requests to `meet-jit-si-turnrelay.jitsi.net`, `stun.l.google.com`,
    `*.callstats.io`, `*.jitsi.net`, `*.8x8.vc`, `*.gravatar.com`, or any Google/Microsoft calendar/analytics
@@ -81,7 +98,7 @@ noted — that is sufficient proof per the plan's §6.8 explicit allowance.
 - `bin/restart.sh` then `bin/health-check.sh` again → still `RESULT: PASS`, and an in-progress call (scenario
   1) is expected to drop on `--force-recreate` — note this as a known limitation (no graceful drain), not a
   defect, since the plan does not ask for zero-downtime restart of a video stack.
-- `bin/rollback.sh` (no flags — the default, exact-restore behavior) → `docker compose -p bcb-jitsi-test ps`
+- `bin/rollback.sh` (no flags — the default, exact-restore behavior) → `docker compose -p <the profile's compose project> ps`
   shows no containers, the package's named volumes are gone, and `vendor/`, the rendered config files, and
   the secret store are all removed; a subsequent `bin/install.sh --apply` comes back up clean with a
   freshly downloaded release and newly generated internal passwords (confirm old `jicofo-auth-password`

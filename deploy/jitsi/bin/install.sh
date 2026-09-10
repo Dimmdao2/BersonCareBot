@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
-# Idempotent TEST-only install/apply for the Jitsi/coturn stack (#1100 stream C).
+# Idempotent per-profile install/apply for the Jitsi/coturn stack (#1100 stream C).
+#
+# The profile (TEST host 151.241.228.122 or the NEW production host 135.106.187.95) comes from
+# JITSI_DEPLOYMENT via bin/lib/profile.sh — there is no default, and the legacy production host
+# 135.106.162.170 is refused under both profiles.
 #
 #   bin/install.sh --check   read-only: verify prerequisites (host identity, DNS, TLS material, upstream
 #                            tag reachability, secret inputs present, port collisions), print exactly what
@@ -10,12 +14,15 @@
 #                            the full merged compose config, and bring the stack up. Safe to re-run: every
 #                            step is written to be a no-op when its target state already holds.
 #
-# This script has not been run against any host by the worker that wrote it — see ../README.md "Status and
-# what remains". It is reviewed, syntax-checked (`bash -n`), and dry-run-safe (--check performs no writes).
+# The TEST profile is what has actually been exercised on a host; the prod profile has never been run
+# anywhere — see ../README.md "Status and what remains". This script is reviewed, syntax-checked
+# (`bash -n`), and dry-run-safe (--check performs no writes).
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$HERE"
+# shellcheck source=lib/profile.sh
+source "$HERE/bin/lib/profile.sh"
 
 MODE="${1:-}"
 [[ "$MODE" == "--check" || "$MODE" == "--apply" ]] || {
@@ -23,27 +30,33 @@ MODE="${1:-}"
   exit 2
 }
 
-log() { echo "[jitsi-test] $*"; }
-fail() { echo "[jitsi-test] FATAL: $*" >&2; exit 1; }
+log() { echo "$JITSI_LOG_TAG $*"; }
+fail() { echo "$JITSI_LOG_TAG FATAL: $*" >&2; exit 1; }
 
-# --- 1. Host identity gate (fail closed) — same idiom as deploy/host/deploy-test.sh ---
-on_dev_test_host=0
-for address in $(hostname -I 2>/dev/null || true); do
-  [[ "$address" == 151.241.228.122 ]] && on_dev_test_host=1
-done
-[[ "$on_dev_test_host" == 1 ]] || fail "this package targets only DEV/RELAY/TEST host 151.241.228.122; refusing to run here"
+# --- 1. Host identity gate (fail closed) — profile-derived, and refuses the legacy production host under
+#        every profile. See bin/lib/profile.sh. ---
+jitsi_require_host
 
 # --- 2. Load non-secret env (must exist; install.sh does not invent values) ---
-ENV_FILE="${JITSI_TEST_ENV_FILE:-/opt/env/bersoncarebot/jitsi.test}"
-[[ -f "$ENV_FILE" ]] || fail "missing $ENV_FILE — copy env/jitsi-test.env.example there first and fill in the externally-supplied JWT_APP_SECRET"
+ENV_FILE="$JITSI_ENV_FILE"
+[[ -f "$ENV_FILE" ]] || fail "missing $ENV_FILE — copy $JITSI_ENV_EXAMPLE there first and fill in the externally-supplied JWT_APP_SECRET"
 unset TURN_USERNAME TURN_PASSWORD
 # shellcheck disable=SC1090
 set -a; source "$ENV_FILE"; set +a
+# The env file may re-declare JITSI_DEPLOYMENT; it must agree with the profile this run resolved, or every
+# path/hostname assertion below would be checking a different deployment than the one being applied.
+[[ "${JITSI_DEPLOYMENT:-}" == "$JITSI_PROFILE_RESOLVED" ]] \
+  || fail "$ENV_FILE declares JITSI_DEPLOYMENT='${JITSI_DEPLOYMENT:-<unset>}' but this run resolved profile '$JITSI_PROFILE_RESOLVED'"
 
-TURN_ENV_FILE="${TURN_TEST_ENV_FILE:-/opt/env/bersoncarebot/jitsi-coturn.test}"
-[[ -f "$TURN_ENV_FILE" ]] || fail "missing $TURN_ENV_FILE — copy env/coturn-test.env.example there first"
+TURN_ENV_FILE="$JITSI_TURN_ENV_FILE"
+[[ -f "$TURN_ENV_FILE" ]] || fail "missing $TURN_ENV_FILE — copy $JITSI_TURN_ENV_EXAMPLE there first"
 # shellcheck disable=SC1090
 set -a; source "$TURN_ENV_FILE"; set +a
+# Same agreement check for the coturn env file: a mismatched pair of env files (one profile's Jitsi file
+# beside the other profile's coturn file) would otherwise render a TURN realm/external IP from one host
+# into a stack running on the other.
+[[ "${JITSI_DEPLOYMENT:-}" == "$JITSI_PROFILE_RESOLVED" ]] \
+  || fail "$TURN_ENV_FILE declares JITSI_DEPLOYMENT='${JITSI_DEPLOYMENT:-<unset>}' but this run resolved profile '$JITSI_PROFILE_RESOLVED'"
 COTURN_CONTAINER_UID="${COTURN_CONTAINER_UID:-1000}"
 COTURN_CONTAINER_GID="${COTURN_CONTAINER_GID:-1000}"
 export COTURN_CONTAINER_UID COTURN_CONTAINER_GID
@@ -77,11 +90,11 @@ require_var TURN_EXTERNAL_IP
 for required_turn_var in STUN_HOST STUN_PORT TURN_HOST TURN_PORT TURN_TRANSPORT TURNS_HOST TURNS_PORT TURN_TTL; do
   require_var "$required_turn_var"
 done
-[[ "$TURN_EXTERNAL_IP" == 151.241.228.122 ]] || { echo "  MISMATCH TURN_EXTERNAL_IP=$TURN_EXTERNAL_IP, expected 151.241.228.122"; missing=1; }
-[[ "${CONFIG:-}" == /* ]] || { echo "  MISMATCH CONFIG=${CONFIG:-<empty>}, must be an absolute path (see env/jitsi-test.env.example)"; missing=1; }
+[[ "$TURN_EXTERNAL_IP" == "$JITSI_EXPECTED_HOST_IP" ]] || { echo "  MISMATCH TURN_EXTERNAL_IP=$TURN_EXTERNAL_IP, expected $JITSI_EXPECTED_HOST_IP"; missing=1; }
+[[ "${CONFIG:-}" == /* ]] || { echo "  MISMATCH CONFIG=${CONFIG:-<empty>}, must be an absolute path (see $JITSI_ENV_EXAMPLE)"; missing=1; }
 for own_turn_host in STUN_HOST TURN_HOST TURNS_HOST; do
-  [[ "${!own_turn_host}" == "turn.test.therapysto.ru" ]] || {
-    echo "  MISMATCH $own_turn_host must be turn.test.therapysto.ru"; missing=1;
+  [[ "${!own_turn_host}" == "$JITSI_TURN_HOST" ]] || {
+    echo "  MISMATCH $own_turn_host must be $JITSI_TURN_HOST"; missing=1;
   }
 done
 [[ "${STUN_PORT:-}" == "3478" && "${TURN_PORT:-}" == "3478" && "${TURNS_PORT:-}" == "5349" && "${TURN_TRANSPORT:-}" == "udp" && "${TURN_TTL:-}" == "3600" ]] || {
@@ -98,9 +111,9 @@ for stun_var in P2P_STUN_SERVERS JVB_STUN_SERVERS; do
   fi
 done
 
-package_root="/etc/bersoncarebot/jitsi-test"
+package_root="$JITSI_PACKAGE_ROOT"
 resolved_config="$(realpath -m -- "${CONFIG:-/}")"
-resolved_secret_store="$(realpath -m -- "${JITSI_TEST_SECRET_STORE:-$package_root/secrets}")"
+resolved_secret_store="$(realpath -m -- "$JITSI_TEST_SECRET_STORE")"
 [[ "$resolved_config" == "$package_root/"?* ]] || {
   echo "  MISMATCH CONFIG must be an exact descendant of $package_root (resolved: $resolved_config)"
   missing=1
@@ -118,9 +131,9 @@ elif [[ "$(id -u)" != "$COTURN_CONTAINER_UID" || "$(id -g)" != "$COTURN_CONTAINE
 fi
 
 # --- 3. DNS prerequisite (NETWORK_POLICY.md) ---
-for host in "meet.test.therapysto.ru" "turn.test.therapysto.ru"; do
+for host in "$JITSI_MEET_HOST" "$JITSI_TURN_HOST"; do
   if ! getent ahostsv4 "$host" >/dev/null 2>&1; then
-    echo "  MISSING  DNS A record for $host -> 151.241.228.122 (create at the DNS provider first)"
+    echo "  MISSING  DNS A record for $host -> $JITSI_EXPECTED_HOST_IP (create at the DNS provider first)"
     missing=1
   fi
 done
@@ -139,7 +152,7 @@ fi
 for tls_file in fullchain.pem privkey.pem; do
   tls_path="$coturn_tls_dir/$tls_file"
   if [[ ! -s "$tls_path" ]]; then
-    echo "  MISSING  $tls_path — stage a certificate for turn.test.therapysto.ru first"
+    echo "  MISSING  $tls_path — stage a certificate for $JITSI_TURN_HOST first"
     missing=1
   elif [[ "$(stat -c '%a:%u:%g' "$tls_path")" != "600:${COTURN_CONTAINER_UID:-unknown}:${COTURN_CONTAINER_GID:-unknown}" ]]; then
     echo "  MISMATCH $tls_path must be mode 0600 and owned by ${COTURN_CONTAINER_UID:-unknown}:${COTURN_CONTAINER_GID:-unknown}"
@@ -158,7 +171,7 @@ fi
 #        download/render/mutation happens (not just at `docker compose up` time, when it would be too
 #        late: the vendor fetch and secret render below would already have run). ---
 existing_services="$(docker ps \
-  --filter label=com.docker.compose.project=bcb-jitsi-test \
+  --filter "label=com.docker.compose.project=$JITSI_COMPOSE_PROJECT" \
   --format '{{.Label "com.docker.compose.service"}}' 2>/dev/null | sort -u || true)"
 existing_project_complete=1
 for service in web prosody jicofo jvb coturn; do
@@ -166,9 +179,9 @@ for service in web prosody jicofo jvb coturn; do
 done
 
 if [[ "$existing_project_complete" == 1 ]]; then
-  log "exact bcb-jitsi-test project is already running; its own listeners are allowed for idempotent re-apply"
+  log "exact $JITSI_COMPOSE_PROJECT project is already running; its own listeners are allowed for idempotent re-apply"
 elif [[ -n "$existing_services" ]]; then
-  echo "  COLLISION  partial bcb-jitsi-test project is running (${existing_services//$'\n'/, }); stop or repair it before apply"
+  echo "  COLLISION  partial $JITSI_COMPOSE_PROJECT project is running (${existing_services//$'\n'/, }); stop or repair it before apply"
   missing=1
 elif ! command -v ss >/dev/null 2>&1; then
   echo "  MISSING  ss (iproute2) — required to check port collisions before mutating anything; install it first"
@@ -248,7 +261,7 @@ candidate_compose_args=(
   -f "$HERE/docker-compose.override.test.yml"
   --env-file "$ENV_FILE"
   --project-directory "$HERE"
-  -p bcb-jitsi-test
+  -p "$JITSI_COMPOSE_PROJECT"
 )
 log "preflight: validating the full merged compose config before package mutation"
 docker compose "${candidate_compose_args[@]}" config >/dev/null || fail "docker compose config failed against the merged upstream+override tree — nothing was changed"
@@ -265,7 +278,7 @@ log "creating CONFIG tree at $CONFIG (docker-jitsi-meet's own required subdirect
 for sub in web storage/web storage/transcripts tmp/web-load-test \
            prosody/config prosody/prosody-plugins-custom storage/prosody \
            jicofo jvb; do
-  install -d -m 0755 "$CONFIG/$sub" 2>/dev/null || fail "could not create $CONFIG/$sub — operator prerequisite: /etc/bersoncarebot must exist and be writable by this user (same convention as postgres-mtls), see docs/ARCHITECTURE/SERVER CONVENTIONS.md §mTLS"
+  install -d -m 0755 "$CONFIG/$sub" 2>/dev/null || fail "could not create $CONFIG/$sub — operator prerequisite: $(dirname "$JITSI_PACKAGE_ROOT") must exist and be writable by this user (same convention as postgres-mtls), see docs/ARCHITECTURE/SERVER CONVENTIONS.md §mTLS"
 done
 
 log "creating coturn writable log/state directories for UID:GID ${COTURN_CONTAINER_UID}:${COTURN_CONTAINER_GID}"
@@ -292,13 +305,13 @@ COMPOSE_ARGS=(
   # release instead of deploy/jitsi/, reproducing finding F1 with different symptoms. Confirmed with
   # `docker compose ... config` against a real vendored tree before landing this fix.
   --project-directory "$HERE"
-  -p bcb-jitsi-test
+  -p "$JITSI_COMPOSE_PROJECT"
 )
 
 log "validating the final merged compose context after rendering"
 docker compose "${COMPOSE_ARGS[@]}" config >/dev/null || fail "docker compose config failed after rendering — see output above; nothing was started"
 
-log "bringing the compose stack up (project bcb-jitsi-test)"
+log "bringing the compose stack up (project $JITSI_COMPOSE_PROJECT)"
 docker compose "${COMPOSE_ARGS[@]}" up -d
 bash "$HERE/bin/reconcile-xmpp-service-credentials.sh"
 

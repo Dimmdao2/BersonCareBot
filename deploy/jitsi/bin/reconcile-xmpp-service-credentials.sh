@@ -5,21 +5,20 @@
 # Prosody container and never appear in host/container argv or output.
 set -euo pipefail
 
-on_dev_test_host=0
-for address in $(hostname -I 2>/dev/null || true); do
-  [[ "$address" == 151.241.228.122 ]] && on_dev_test_host=1
-done
-[[ "$on_dev_test_host" == 1 ]] || { echo "FATAL: not on 151.241.228.122" >&2; exit 1; }
+# shellcheck source=lib/profile.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/profile.sh"
+
+jitsi_require_host
 
 container_id() {
   docker ps \
-    --filter label=com.docker.compose.project=bcb-jitsi-test \
+    --filter "label=com.docker.compose.project=$JITSI_COMPOSE_PROJECT" \
     --filter "label=com.docker.compose.service=$1" \
     --format '{{.ID}}' | head -n 1
 }
 
 prosody_cid="$(container_id prosody)"
-[[ -n "$prosody_cid" ]] || { echo "FATAL: bcb-jitsi-test Prosody container is not running" >&2; exit 1; }
+[[ -n "$prosody_cid" ]] || { echo "FATAL: $JITSI_COMPOSE_PROJECT Prosody container is not running" >&2; exit 1; }
 
 prosody_ready=0
 for _ in $(seq 1 60); do
@@ -56,7 +55,7 @@ done
 jicofo_cid="$(container_id jicofo)"
 jvb_cid="$(container_id jvb)"
 [[ -n "$jicofo_cid" && -n "$jvb_cid" ]] || {
-  echo "FATAL: bcb-jitsi-test Jicofo/JVB containers are not running" >&2
+  echo "FATAL: $JITSI_COMPOSE_PROJECT Jicofo/JVB containers are not running" >&2
   exit 1
 }
 started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -78,4 +77,4 @@ done
   exit 1
 }
 
-echo "[jitsi-test] persisted XMPP service credentials reconciled; Jicofo authenticated"
+echo "$JITSI_LOG_TAG persisted XMPP service credentials reconciled; Jicofo authenticated"

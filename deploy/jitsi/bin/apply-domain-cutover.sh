@@ -1,20 +1,29 @@
 #!/usr/bin/env bash
 # Atomically move the existing TEST Jitsi/coturn env from legacy BersonCare
 # hostnames to canonical Therapysto hostnames without reading or rewriting secrets.
+#
+# TEST-only by construction, and it stays that way after the package became two-profile: the canonical
+# table below is the one-off TEST rename (bersoncare/therapygo -> therapysto on the *.test.* names). The
+# production profile was never on those legacy names, so there is nothing here for it to cut over; running
+# this against the prod env file would rewrite production hostnames into TEST ones. Hence the explicit
+# profile assertion in addition to the shared host gate.
 set -euo pipefail
 umask 077
 
-MODE="${1:---check}"
-EXPECTED_HOST_IP="151.241.228.122"
-JITSI_ENV="${JITSI_TEST_ENV_FILE:-/opt/env/bersoncarebot/jitsi.test}"
-TURN_ENV="${TURN_TEST_ENV_FILE:-/opt/env/bersoncarebot/jitsi-coturn.test}"
-BACKUP_ROOT="/var/backups/bersoncare-jitsi-test-domain-cutover"
+# shellcheck source=lib/profile.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/profile.sh"
 
-fail() { echo "[jitsi-test-domain] FATAL: $*" >&2; exit 1; }
+MODE="${1:---check}"
+JITSI_ENV="$JITSI_ENV_FILE"
+TURN_ENV="$JITSI_TURN_ENV_FILE"
+BACKUP_ROOT="/var/backups/bersoncare-jitsi-${JITSI_DEPLOYMENT}-domain-cutover"
+
+fail() { echo "[jitsi-${JITSI_DEPLOYMENT}-domain] FATAL: $*" >&2; exit 1; }
 [[ "$MODE" == --check || "$MODE" == --apply ]] || fail "usage: $0 [--check|--apply]"
 [[ "$(id -u)" == 0 ]] || fail "$MODE must run as root"
-hostname -I | tr ' ' '\n' | grep -Fxq "$EXPECTED_HOST_IP" \
-  || fail "this script targets only TEST host $EXPECTED_HOST_IP"
+[[ "$JITSI_DEPLOYMENT" == test ]] \
+  || fail "this is the one-off TEST legacy-name cutover; it must never rewrite the '$JITSI_DEPLOYMENT' env file"
+jitsi_require_host
 
 for file in "$JITSI_ENV" "$TURN_ENV"; do
   [[ -f "$file" && ! -L "$file" ]] || fail "expected a regular TEST env file: $file"
@@ -80,15 +89,15 @@ bash -n "$jitsi_rendered"
 bash -n "$turn_rendered"
 
 if [[ "$MODE" == --check ]]; then
-  echo "[jitsi-test-domain] rendered canonical TEST domains successfully; no env changed"
+  echo "[jitsi-${JITSI_DEPLOYMENT}-domain] rendered canonical TEST domains successfully; no env changed"
   exit 0
 fi
 
 timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
 backup_dir="$BACKUP_ROOT/$timestamp"
 install -d -m 0700 -o root -g root "$backup_dir"
-cp -a -- "$JITSI_ENV" "$backup_dir/jitsi.test"
-cp -a -- "$TURN_ENV" "$backup_dir/jitsi-coturn.test"
+cp -a -- "$JITSI_ENV" "$backup_dir/$(basename "$JITSI_ENV")"
+cp -a -- "$TURN_ENV" "$backup_dir/$(basename "$TURN_ENV")"
 
 install_preserving_metadata() {
   local rendered="$1" target="$2" mode owner group tmp
@@ -102,4 +111,4 @@ install_preserving_metadata() {
 
 install_preserving_metadata "$jitsi_rendered" "$JITSI_ENV"
 install_preserving_metadata "$turn_rendered" "$TURN_ENV"
-echo "[jitsi-test-domain] applied canonical domains; backup: $backup_dir"
+echo "[jitsi-${JITSI_DEPLOYMENT}-domain] applied canonical domains; backup: $backup_dir"

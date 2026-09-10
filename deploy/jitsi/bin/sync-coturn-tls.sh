@@ -1,24 +1,24 @@
 #!/usr/bin/env bash
-# TEST-only ACME deploy hook/manual apply path. Coturn runs as deploy's non-root UID and cannot read
+# Per-profile ACME deploy hook/manual apply path. Coturn runs as deploy's non-root UID and cannot read
 # /etc/letsencrypt, so it receives an atomic 0600 copy under CONFIG. Run as root after issuance/renewal.
+# The lineage name and the set of SANs the certificate must cover are profile-derived (bin/lib/profile.sh).
 set -euo pipefail
 
-ENV_FILE="${JITSI_TEST_ENV_FILE:-/opt/env/bersoncarebot/jitsi.test}"
-TURN_ENV_FILE="${TURN_TEST_ENV_FILE:-/opt/env/bersoncarebot/jitsi-coturn.test}"
-LINEAGE="${RENEWED_LINEAGE:-/etc/letsencrypt/live/bcb-jitsi-test}"
-EXPECTED_LINEAGE="/etc/letsencrypt/live/bcb-jitsi-test"
+# shellcheck source=lib/profile.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/profile.sh"
 
-fail() { echo "[jitsi-test-tls] FATAL: $*" >&2; exit 1; }
+ENV_FILE="$JITSI_ENV_FILE"
+TURN_ENV_FILE="$JITSI_TURN_ENV_FILE"
+EXPECTED_LINEAGE="/etc/letsencrypt/live/$JITSI_TLS_LINEAGE"
+LINEAGE="${RENEWED_LINEAGE:-$EXPECTED_LINEAGE}"
+
+fail() { echo "[jitsi-${JITSI_DEPLOYMENT}-tls] FATAL: $*" >&2; exit 1; }
 [[ "$(id -u)" == 0 ]] || fail "run as root: the ACME private key is root-readable only"
 
-on_dev_test_host=0
-for address in $(hostname -I 2>/dev/null || true); do
-  [[ "$address" == 151.241.228.122 ]] && on_dev_test_host=1
-done
-[[ "$on_dev_test_host" == 1 ]] || fail "this hook targets only DEV/RELAY/TEST host 151.241.228.122"
+jitsi_require_host
 if [[ "$LINEAGE" != "$EXPECTED_LINEAGE" ]]; then
   if [[ -n "${RENEWED_LINEAGE:-}" ]]; then
-    echo "[jitsi-test-tls] skipping unrelated renewed lineage"
+    echo "[jitsi-${JITSI_DEPLOYMENT}-tls] skipping unrelated renewed lineage"
     exit 0
   fi
   fail "unexpected certificate lineage: $LINEAGE"
@@ -32,17 +32,18 @@ set -a; source "$TURN_ENV_FILE"; set +a
 COTURN_CONTAINER_UID="${COTURN_CONTAINER_UID:-1000}"
 COTURN_CONTAINER_GID="${COTURN_CONTAINER_GID:-1000}"
 
-[[ "${CONFIG:-}" == /etc/bersoncarebot/jitsi-test/* ]] || fail "CONFIG must remain below /etc/bersoncarebot/jitsi-test"
+[[ "${CONFIG:-}" == "$JITSI_PACKAGE_ROOT"/* ]] || fail "CONFIG must remain below $JITSI_PACKAGE_ROOT"
 [[ "${COTURN_CONTAINER_UID:-}" =~ ^[0-9]+$ ]] || fail "COTURN_CONTAINER_UID must be numeric"
 [[ "${COTURN_CONTAINER_GID:-}" =~ ^[0-9]+$ ]] || fail "COTURN_CONTAINER_GID must be numeric"
 
 source_cert="$LINEAGE/fullchain.pem"
 source_key="$LINEAGE/privkey.pem"
 [[ -s "$source_cert" && -s "$source_key" ]] || fail "certificate lineage is incomplete"
-for expected_host in \
-  meet.test.therapysto.ru turn.test.therapysto.ru \
-  meet.test.therapygo.ru turn.test.therapygo.ru \
-  meet.test.bersoncare.ru turn.test.bersoncare.ru; do
+# JITSI_CERT_HOSTS is the profile's required SAN set: on TEST the canonical Therapysto names plus the
+# TherapyGo/BersonCare transition aliases, on PROD only meet./turn.therapysto.ru. Word-splitting is the
+# intended read of this space-separated list.
+# shellcheck disable=SC2086
+for expected_host in $JITSI_CERT_HOSTS; do
   openssl x509 -in "$source_cert" -noout -checkhost "$expected_host" >/dev/null \
     || fail "certificate does not cover $expected_host"
 done
@@ -61,9 +62,9 @@ mv -f -- "$tmp_cert" "$target_dir/fullchain.pem"
 mv -f -- "$tmp_key" "$target_dir/privkey.pem"
 trap - EXIT
 
-if docker container inspect bcb-jitsi-test-coturn >/dev/null 2>&1; then
-  docker restart bcb-jitsi-test-coturn >/dev/null
-  echo "[jitsi-test-tls] staged renewed certificate and restarted coturn"
+if docker container inspect "$JITSI_COTURN_CONTAINER" >/dev/null 2>&1; then
+  docker restart "$JITSI_COTURN_CONTAINER" >/dev/null
+  echo "[jitsi-${JITSI_DEPLOYMENT}-tls] staged renewed certificate and restarted coturn"
 else
-  echo "[jitsi-test-tls] staged certificate; coturn is not running"
+  echo "[jitsi-${JITSI_DEPLOYMENT}-tls] staged certificate; coturn is not running"
 fi

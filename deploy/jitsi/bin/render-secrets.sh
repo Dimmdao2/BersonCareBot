@@ -4,7 +4,7 @@
 # secret; it never touches, generates, or reads the app JWT signing secret (JWT_APP_SECRET), which is an
 # externally supplied input already present in the sourced env file by the time this script runs.
 #
-# Secret store: /etc/bersoncarebot/jitsi-test/secrets/ (0700, owner deploy:deploy), one file per value,
+# Secret store: $JITSI_PACKAGE_ROOT/secrets/ (0700, owner deploy:deploy), one file per value,
 # 0600 — same shape as the existing Postgres mTLS material convention in
 # docs/ARCHITECTURE/SERVER CONVENTIONS.md §mTLS (root/owner-only directory, narrow file perms, never
 # world-readable, never printed). Never logged, never echoed — every write below is silent on success.
@@ -21,15 +21,18 @@ set -euo pipefail
 umask 077
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-STORE="${JITSI_TEST_SECRET_STORE:-/etc/bersoncarebot/jitsi-test/secrets}"
-PACKAGE_ROOT="/etc/bersoncarebot/jitsi-test"
+# shellcheck source=lib/profile.sh
+source "$HERE/bin/lib/profile.sh"
+
+STORE="$JITSI_TEST_SECRET_STORE"
+PACKAGE_ROOT="$JITSI_PACKAGE_ROOT"
 STORE="$(realpath -m -- "$STORE")"
 [[ "$STORE" == "$PACKAGE_ROOT/"?* ]] || {
   echo "FATAL: JITSI_TEST_SECRET_STORE must resolve below $PACKAGE_ROOT; refusing $STORE" >&2
   exit 1
 }
 
-log() { echo "[jitsi-test/secrets] $*"; }
+log() { echo "[jitsi-${JITSI_DEPLOYMENT}/secrets] $*"; }
 
 install -d -m 0700 -o "$(id -u)" -g "$(id -g)" "$STORE" 2>/dev/null || install -d -m 0700 "$STORE"
 
@@ -74,11 +77,11 @@ JVB_AUTH_PASSWORD="$(cat "$STORE/jvb-auth-password")"
 TURN_SHARED_SECRET="$(cat "$STORE/turn-shared-secret")"
 
 # --- Patch the private app env file that install.sh's `docker compose --env-file` actually reads ---
-# We do not overwrite the operator-edited jitsi.test file's non-secret values; we only patch in the
+# We do not overwrite the operator-edited deployment env file's non-secret values; we only patch in the
 # generated internal passwords and the coturn HMAC key, in place, idempotently, and without a secret ever
 # appearing in argv. The key is consumed only by upstream Prosody's global external_services template as
 # TURN_CREDENTIALS; it is never served to the browser as a static TURN username/password.
-ENV_FILE="${JITSI_TEST_ENV_FILE:-/opt/env/bersoncarebot/jitsi.test}"
+ENV_FILE="$JITSI_ENV_FILE"
 [[ -w "$ENV_FILE" ]] || { echo "FATAL: $ENV_FILE must be writable to synchronize private Jitsi credentials" >&2; exit 1; }
 [[ "$(stat -c '%a' "$ENV_FILE")" == "600" ]] || {
   echo "FATAL: $ENV_FILE must be mode 0600 before storing TURN_CREDENTIALS" >&2
@@ -108,8 +111,8 @@ while IFS= read -r line || [[ -n "$line" ]]; do
   line="${line//__TURN_RELAY_MIN__/${TURN_RELAY_MIN:-49152}}"
   line="${line//__TURN_RELAY_MAX__/${TURN_RELAY_MAX:-49252}}"
   line="${line//__TURN_SHARED_SECRET__/${TURN_SHARED_SECRET}}"
-  line="${line//__TURN_REALM__/${TURN_REALM:-turn.test.therapysto.ru}}"
-  line="${line//__TURN_EXTERNAL_IP__/${TURN_EXTERNAL_IP:-151.241.228.122}}"
+  line="${line//__TURN_REALM__/${TURN_REALM:-$JITSI_TURN_HOST}}"
+  line="${line//__TURN_EXTERNAL_IP__/${TURN_EXTERNAL_IP:-$JITSI_EXPECTED_HOST_IP}}"
   line="${line//__TURN_MAX_ALLOCATIONS__/${TURN_MAX_ALLOCATIONS:-8}}"
   printf '%s\n' "$line"
 done < "$HERE/coturn/turnserver.conf.template" > "$coturn_tmp"

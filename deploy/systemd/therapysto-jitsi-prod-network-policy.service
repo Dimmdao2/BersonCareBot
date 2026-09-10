@@ -1,0 +1,36 @@
+[Unit]
+Description=Therapysto Jitsi PROD media network policy (chains inside the host's inet filter table)
+Documentation=file:/opt/therapysto/src/deploy/jitsi/NETWORK_POLICY.md
+# This policy owns NO table of its own. It adds two regular chains to the host's existing
+# `table inet filter` and jumps into them from that table's `input` and `forward` base chains, because on
+# a drop-policy host an accept in a separate, earlier base chain opens nothing (see
+# deploy/jitsi/nftables-therapysto-jitsi-prod.conf).
+#
+# Ordering follows from that. nftables.service flushes the ruleset and loads /etc/nftables.conf, which is
+# where the `inet filter` table and its two base chains come from — so this unit must run AFTER it, or the
+# chains it adds are wiped a moment later and the jumps have nothing to attach to. Requires= makes that a
+# dependency, not just an order: without the base ruleset there is nothing to add to, and failing loudly
+# is better than a green unit over a policy that never landed. Docker's own `table ip filter`
+# (iptables-nft) is a separate table and is never touched.
+After=nftables.service
+Requires=nftables.service
+# JVB media is DNAT'd and traverses the forward chain, so the policy has to exist before any media
+# container can start. There is no compose lifecycle unit on this host (the trial is applied by hand — see
+# deploy/jitsi/README.md), so the ordering is expressed against docker.service itself.
+Before=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/nft -f /etc/nftables-therapysto-jitsi-prod.conf
+
+# No ExecStartPre/ExecStop teardown on purpose. The TEST unit can afford `nft delete table inet
+# bcb_jitsi_test` because that table is entirely its own; here the same shape would name the HOST's
+# `inet filter` table and delete the whole firewall. Removing this policy from a running host means
+# deleting the two jump rules by handle and only then the two chains (a chain that is still a jump target
+# cannot be deleted) — that logic lives in deploy/jitsi/bin/apply-network-policy.sh, which is also what a
+# re-apply goes through. At boot no teardown is needed at all: nftables.service has just loaded a fresh
+# ruleset, so ExecStart adds these chains exactly once.
+
+[Install]
+WantedBy=multi-user.target
