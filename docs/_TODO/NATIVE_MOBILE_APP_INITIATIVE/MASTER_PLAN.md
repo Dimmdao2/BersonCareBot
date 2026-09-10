@@ -515,7 +515,7 @@ authority нельзя: он частично отменён владельце�
       **ОТМЕНЕНО ВЛАДЕЛЬЦЕМ 2026-09-09 ИЗ ТЕКУЩЕГО ПЛАНА:** RuStore пока не публикуется; подключение реальных
       project credentials, доставка и проверка на физическом устройстве выполняются владельцем отдельным
       release-stage после завершения интерфейса и не являются блокером этой инициативы.
-- [ ] **M7-06.** Targeted/phase проверки зелёные на candidate SHAs. Поскольку изменение затрагивает root
+- [x] **M7-06.** Targeted/phase проверки зелёные на candidate SHAs. Поскольку изменение затрагивает root
       dependencies, lockfile, webapp, integrator и Android package, один полный CI гоняется под общим замком хоста
       (`/home/dev/brain/host-orch/run-tests.sh "pnpm run ci"`) только на финальной интеграции. Более позднее прямое
       решение владельца 2026-09-09: текущий workstream сам запускает этот один прогон после landing всех изменений,
@@ -523,7 +523,14 @@ authority нельзя: он частично отменён владельце�
       /home/dev/brain/host-orch/run-tests.sh "pnpm install --frozen-lockfile && pnpm run ci"` на `c77af9e666001100a0719608c91cfa720fc32f2c` — PASS, 5/5 фаз,
       `stepsExit=0`, `exitCode=0`, `movedDuringRun=false`, 2026-09-09 18:26 MSK. Этот evidence предшествует более
       поздним Jitsi/UI-коммитам и потому не закрывает финальный gate: один новый full CI запускается после сообщения
-      о завершении соседней интерфейсной работы.
+      о завершении соседней интерфейсной работы. Финальный проход запущен после landing
+      `cd31eebd4` на интеграционном `537e859a4`; после точечных исправлений каждый упавший шаг
+      повторен и цепочка догнана через канонические `ci:resume:*` без повтора уже зелёных фаз.
+      На итоговом product/test дереве `25877e158`: `pnpm test:webapp` — 504 files/2818 tests PASS;
+      `pnpm run ci:resume:after-test-webapp` — media-worker 29/29, error-tracking 13/13, package/integrator/Next
+      builds и root audit PASS, `exit 0`, 2026-09-10 07:13 MSK. Предшествующие lint/typecheck/integrator/script/DB
+      фазы зелёны; после них менялись только падавшие test artifacts, проверенные точечно и полным
+      webapp phase, поэтому их evidence переиспользован по §9–§10.
 - [ ] **M7-07.** Интегрированный `feat/doctor-ui-rebuild` содержит plan evidence по каждому чекбоксу, taskdb `#915`
       соответствует факту, коммиты запушены через проверенный wrapper (`pnpm push:checked`), ни один worker
       clone/process не остался живым. Доказательство: `pnpm run push:checked` подтвердил remote SHA
@@ -629,5 +636,5 @@ security/audit gates идут без этих входов.
 | M7-03 | done | Prior report `e40904b37` + final shared-`:5200` report `.lead/runs/mobile-browser-jitsi-explicit-end-live-recheck-20260910/90-final-audit-report.md`: both TEST APK builds, ordinary auth, browser media/OS choosers, one self-hosted Jitsi iframe, internal navigation/return and visible terminal cleanup PASS after `1bf42ece9`/`d83179820`. |
 | M7-04 | deferred by owner | API 34 KVM boot/install evidence `8858dc830` ended in Android System UI ANR before app acceptance; all run-owned processes were stopped. Reliable emulator/physical-device acceptance moved to the owner's later release stage and no longer blocks this plan. |
 | M7-05 | cancelled by owner | Removed from this plan on 2026-09-09: real RuStore credentials/delivery, signing and physical-device release acceptance happen after the interface is complete and do not block #915. |
-| M7-06 | open | The earlier green full CI on `c77af9e6` predates later integrated work. One final run on the stable post-neighbor HEAD is pending by owner decision. |
+| M7-06 | done | After neighbor landing `cd31eebd4`, the final full-CI chain started on integrated `537e859a4`, each failed step was corrected and rerun, and the canonical resume chain completed on `25877e158`. Final webapp phase: 504 files/2818 tests PASS; remaining media-worker, error-tracking, builds and audit PASS. Earlier green phases were reused only after test-artifact-only corrections per §9–§10. |
 | M7-07 | open | The earlier checked push/TEST deploy predates later integrated work. Final checked push, TEST deploy/live acceptance, taskdb synchronization and worktree cleanup are pending. |
