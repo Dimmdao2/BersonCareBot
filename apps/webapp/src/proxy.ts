@@ -208,6 +208,13 @@ export async function proxy(
         (() => {
           const target = request.nextUrl.clone();
           target.pathname = patientRewritePath;
+          // A standalone Next server behind the repository TLS proxy derives this URL from its
+          // loopback bind address, while `x-forwarded-proto` correctly describes the public HTTPS
+          // request. Rewriting to `https://127.0.0.1:PORT` then fails against the plain-HTTP local
+          // listener. Keep public origins unchanged; only normalize Next's own loopback transport.
+          if (target.hostname === '127.0.0.1' || target.hostname === 'localhost') {
+            target.protocol = 'http:';
+          }
           return target;
         })(),
         { request: { headers: requestHeaders } },
