@@ -223,6 +223,53 @@ cd /opt/bersoncarebot/src && set -a && . /opt/bersoncarebot/env/reconcile.env &&
     --env test --db bersoncarebot_test --admin-socket /var/run/postgresql
 ```
 
+**Перенос состояния с TEST на новый прод — порядок, который проверен 10.09.2026.** Гит в схеме не
+участвует ни на одном шаге; всё запускается **с dev-бокса `151.241.228.122`** из
+`/home/dev/dev-projects/BersonCareBot`, кроме шагов, помеченных «на хосте прода».
+
+```bash
+# 1. Снять базу TEST (dev-бокс, TEST живёт на этом же хосте)
+sudo -u postgres pg_dump -Fc --no-owner --no-acl -h /var/run/postgresql \
+  -d bersoncarebot_test -f /tmp/bcb_test_$(date +%Y%m%d).dump
+
+# 2. Доставить дамп на прод и положить туда, куда достаёт postgres
+scp -i ~/.ssh/bcb_prod_build_20260817 /tmp/bcb_test_<дата>.dump \
+  root@135.106.187.95:/opt/bersoncarebot/state/
+
+# 3. Выложить код (сборка, здоровье, переключение nginx делает конвейер прода)
+bash tools/deploy-prod-from-dev.sh                 # текущая ветка
+```
+
+На хосте прода, между шагом 2 и шагом 3, база меняется так (иначе новый код встретит старую схему):
+
+```bash
+docker stop bcb-<цвет>-media-worker-1 bcb-<цвет>-scheduler-1 bcb-<цвет>-webapp-1 bcb-<цвет>-api-1
+install -d -o postgres -g postgres -m 0700 /var/lib/postgresql/bcb-transfer
+runuser -u postgres -- pg_dump -Fc -d bersoncarebot_test \
+  -f /var/lib/postgresql/bcb-transfer/pre-copy-$(date +%s).dump          # откат
+install -o postgres -g postgres -m 0600 /opt/bersoncarebot/state/<дамп> \
+  /var/lib/postgresql/bcb-transfer/<дамп>
+cd /opt/bersoncarebot/src
+sudo -u postgres bash deploy/host/restore-test-db-from-dump.sh /var/lib/postgresql/bcb-transfer/<дамп>
+sudo -u postgres psql -d bersoncarebot_test -c 'ALTER EXTENSION pgcrypto SET SCHEMA app_ext;'
+bash deploy/host/prod/refresh-prod-runtime-env.sh   # описатели порт-контекста из выкладываемого коммита
+```
+
+и затем сверка прав (см. блок выше). Четыре грабли, на которые эта последовательность уже наступила:
+
+1. **Роли кластера в дамп не попадают.** Политики ссылаются на роли по имени, поэтому недостающую роль
+   (10.09 это была `app_seam_custom_domain_owner`) надо создать `CREATE ROLE … NOLOGIN NOINHERIT` до
+   восстановления, иначе `pg_restore` падает на первой же политике.
+2. **`pgcrypto` должен жить в `app_ext`.** Примитив восстановления создаёт расширение в схеме по
+   умолчанию, дамп своё `CREATE EXTENSION … WITH SCHEMA app_ext` пропускает как уже существующее, и
+   сверка прав падает на `app_ext.digest`. Лечится одним `ALTER EXTENSION … SET SCHEMA`.
+3. **Описатели порт-контекста живут в env, а деплой их не трогает.** Их надо перерендерить из
+   выкладываемого коммита (`generate-cli.mjs --port-context-env webapp|integrator`), иначе рантайм
+   работает по каталогу возможностей прошлой выкладки.
+4. **Свои же контейнеры ходят к вебаппу через nginx.** Пациентский корень переписывается на `/app` по
+   публичному origin, поэтому в allow-list на время проб входят подсети мостов `172.30.0.0/24` и
+   `172.31.0.0/24` — без них пациентский домен отвечает 403 при живом приложении.
+
 **mTLS.** Приватный ключ CA лежит в `/etc/bersoncarebot/postgres-mtls/authority/private/` (0700) и в
 контейнеры не попадает; приложению монтируется только `/etc/bersoncarebot/postgres-mtls/prod/` — публичная
 часть CA и четыре клиентские пары. Ключи ролей открыты группе `bcb-app-prod`, и контейнер получает её
