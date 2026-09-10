@@ -29,7 +29,6 @@ import { MarkdownEditor } from '@/shared/ui/doctor/markdown/MarkdownEditor';
 import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
 import { Checkbox } from '@/shared/ui/doctor/primitives/checkbox';
 import { Card, CardContent } from '@/shared/ui/doctor/primitives/card';
-import { DoctorDifficulty1to10Slider } from '@/shared/ui/doctor/DoctorDifficulty1to10Slider';
 import { ReferenceMultiSelect } from '@/shared/ui/doctor/ReferenceMultiSelect';
 import { ReferenceSelect } from '@/shared/ui/doctor/ReferenceSelect';
 import { EXERCISE_LOAD_TYPE_CATEGORY_CODE } from '@/modules/lfk-exercises/exerciseLoadTypeReference';
@@ -217,7 +216,6 @@ export function InstanceAddLibraryItemDialog(props: {
   const [individualDescription, setIndividualDescription] = useState('');
   const [individualRegionRefIds, setIndividualRegionRefIds] = useState<string[]>([]);
   const [individualLoadType, setIndividualLoadType] = useState<string | null>(null);
-  const [individualDifficulty, setIndividualDifficulty] = useState(5);
   const [individualContraindications, setIndividualContraindications] = useState('');
   const [individualTags, setIndividualTags] = useState('');
   const [individualVideo, setIndividualVideo] = useState<DeviceMediaSelection | null>(null);
@@ -260,7 +258,6 @@ export function InstanceAddLibraryItemDialog(props: {
     setIndividualDescription('');
     setIndividualRegionRefIds([]);
     setIndividualLoadType(null);
-    setIndividualDifficulty(5);
     setIndividualContraindications('');
     setIndividualTags('');
     setIndividualVideo(null);
@@ -555,7 +552,6 @@ export function InstanceAddLibraryItemDialog(props: {
         description: individualDescription.trim() || null,
         regionRefIds: individualRegionRefIds,
         loadType: individualLoadType,
-        difficulty1_10: individualDifficulty,
         contraindications: individualContraindications.trim() || null,
         tags: tags.length > 0 ? tags : null,
         mediaId,
@@ -567,7 +563,6 @@ export function InstanceAddLibraryItemDialog(props: {
           title,
           description: individualDescription.trim() || null,
           contraindications: individualContraindications.trim() || null,
-          difficulty: individualDifficulty,
           loadType: individualLoadType,
           exerciseScope: individualSaveToCatalog ? 'catalog' : 'personal',
           ...(mediaId
@@ -711,13 +706,6 @@ export function InstanceAddLibraryItemDialog(props: {
                   placeholder="Например, разгибание колена сидя"
                 />
               </div>
-              <DoctorDifficulty1to10Slider
-                id="tp-individual-difficulty"
-                name="difficulty1_10"
-                value={individualDifficulty}
-                onChange={setIndividualDifficulty}
-                label="Сложность:"
-              />
               <div className="flex flex-col gap-2">
                 <Label htmlFor="tp-individual-load">Тип нагрузки</Label>
                 <ReferenceSelect

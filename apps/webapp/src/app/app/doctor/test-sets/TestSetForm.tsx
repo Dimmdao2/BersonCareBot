@@ -135,6 +135,7 @@ type Props = {
   ) => Promise<UnarchiveTestSetState>;
   externalUsageSnapshot?: TestSetUsageSnapshot;
   clinicalTestsLibrary?: ClinicalTestLibraryPickRow[];
+  modalFooter?: boolean;
 };
 
 function WorkspaceListPreserveHidden({ w }: { w?: Props['workspaceListPreserve'] }) {
@@ -155,6 +156,7 @@ export function TestSetForm({
   unarchiveAction = unarchiveDoctorTestSet,
   externalUsageSnapshot,
   clinicalTestsLibrary = [],
+  modalFooter = false,
 }: Props) {
   const terms = useDoctorPatientTerms();
   const recordKey = testSet?.id ?? 'create';
@@ -520,6 +522,7 @@ export function TestSetForm({
         }
         saveIntentValue="save_draft"
         publishIntentValue="publish"
+        modalFooter={modalFooter}
       />
 
       <p className="text-xs text-muted-foreground">

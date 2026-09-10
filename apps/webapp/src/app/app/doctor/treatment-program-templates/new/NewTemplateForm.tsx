@@ -16,6 +16,7 @@ import {
 import { cn } from '@/lib/utils';
 import { TREATMENT_PROGRAM_TEMPLATES_PATH } from '../paths';
 import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
+import { DoctorModalFooter } from '@/shared/ui/doctor/DoctorModal';
 
 const TEMPLATE_STATUS_LABEL: Record<'draft' | 'published' | 'archived', string> = {
   draft: 'Черновик',
@@ -35,6 +36,8 @@ export type NewTemplateFormProps = {
    * Передайте `true` только если нужен явный выбор статуса на отдельной странице.
    */
   showStatusField?: boolean;
+  modalFooter?: boolean;
+  onCreated?: (id: string) => void;
 };
 
 export function NewTemplateForm({
@@ -42,6 +45,8 @@ export function NewTemplateForm({
   className,
   titleInputId = 'tpl-title',
   showStatusField: showStatusFieldProp,
+  modalFooter = false,
+  onCreated,
 }: NewTemplateFormProps) {
   const router = useRouter();
   const showStatusField = showStatusFieldProp ?? false;
@@ -70,72 +75,90 @@ export function NewTemplateForm({
         setError(readSafeApiErrorText(json, 'Не удалось создать'));
         return;
       }
-      router.push(`${TREATMENT_PROGRAM_TEMPLATES_PATH}/${json.item.id}`);
+      if (onCreated) onCreated(json.item.id);
+      else router.push(`${TREATMENT_PROGRAM_TEMPLATES_PATH}/${json.item.id}`);
       router.refresh();
     } finally {
       setPending(false);
     }
   }
 
+  const formId = `${titleInputId}-form`;
+
   return (
-    <form onSubmit={onSubmit} className={cn('flex max-w-xl flex-col gap-4', className)}>
-      {error ? (
-        <p role="alert" className="text-sm text-destructive">
-          {error}
-        </p>
-      ) : null}
-      <div className="flex flex-col gap-2">
-        <Label htmlFor={titleInputId}>Название шаблона</Label>
-        <Input
-          id={titleInputId}
-          className="text-sm"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          maxLength={2000}
-          required
-          autoFocus={showCancelLink}
-        />
-      </div>
-      {showStatusField ? (
-        <div className="flex flex-col gap-2">
-          <Label htmlFor={`${titleInputId}-status`}>Статус</Label>
-          <Select
-            value={status}
-            onValueChange={(v) => setStatus(v as typeof status)}
-            items={{
-              draft: TEMPLATE_STATUS_LABEL.draft,
-              published: TEMPLATE_STATUS_LABEL.published,
-              archived: TEMPLATE_STATUS_LABEL.archived,
-            }}
-          >
-            <SelectTrigger
-              id={`${titleInputId}-status`}
-              size="sm"
-              className="w-full max-w-md justify-between text-left"
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="draft">Черновик</SelectItem>
-              <SelectItem value="published">Опубликован</SelectItem>
-              <SelectItem value="archived">Архив</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      ) : null}
-      <div className="flex flex-wrap gap-2">
-        <Button type="submit" disabled={pending}>
-          {pending ? 'Создание…' : 'Создать'}
-        </Button>
-        {showCancelLink ? (
-          <Link
-            href={TREATMENT_PROGRAM_TEMPLATES_PATH}
-            className={cn(buttonVariants({ variant: 'outline' }))}
-          >
-            Отмена
-          </Link>
+    <>
+      <form
+        id={formId}
+        onSubmit={onSubmit}
+        className={cn('flex max-w-xl flex-col gap-4', className)}
+      >
+        {error ? (
+          <p role="alert" className="text-sm text-destructive">
+            {error}
+          </p>
         ) : null}
-      </div>
-    </form>
+        <div className="flex flex-col gap-2">
+          <Label htmlFor={titleInputId}>Название шаблона</Label>
+          <Input
+            id={titleInputId}
+            className="text-sm"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            maxLength={2000}
+            required
+            autoFocus={showCancelLink}
+          />
+        </div>
+        {showStatusField ? (
+          <div className="flex flex-col gap-2">
+            <Label htmlFor={`${titleInputId}-status`}>Статус</Label>
+            <Select
+              value={status}
+              onValueChange={(v) => setStatus(v as typeof status)}
+              items={{
+                draft: TEMPLATE_STATUS_LABEL.draft,
+                published: TEMPLATE_STATUS_LABEL.published,
+                archived: TEMPLATE_STATUS_LABEL.archived,
+              }}
+            >
+              <SelectTrigger
+                id={`${titleInputId}-status`}
+                size="sm"
+                className="w-full max-w-md justify-between text-left"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="draft">Черновик</SelectItem>
+                <SelectItem value="published">Опубликован</SelectItem>
+                <SelectItem value="archived">Архив</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        ) : null}
+        {!modalFooter ? (
+          <div className="flex flex-wrap gap-2">
+            <Button type="submit" disabled={pending}>
+              {pending ? 'Создание…' : 'Создать'}
+            </Button>
+            {showCancelLink ? (
+              <Link
+                href={TREATMENT_PROGRAM_TEMPLATES_PATH}
+                className={cn(buttonVariants({ variant: 'outline' }))}
+              >
+                Отмена
+              </Link>
+            ) : null}
+          </div>
+        ) : null}
+      </form>
+      {modalFooter ? (
+        <DoctorModalFooter>
+          <Button type="submit" form={formId} disabled={pending}>
+            {pending ? 'Создание…' : 'Создать'}
+          </Button>
+        </DoctorModalFooter>
+      ) : null}
+    </>
   );
 }

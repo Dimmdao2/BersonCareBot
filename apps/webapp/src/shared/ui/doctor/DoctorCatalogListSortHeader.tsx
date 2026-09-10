@@ -8,6 +8,8 @@ import type { CatalogMasterTitleSort } from '@/shared/ui/doctor/DoctorCatalogMas
 import { CatalogStatusFilters } from '@/shared/ui/doctor/CatalogStatusFilters';
 import { DoctorCatalogArchiveScopeSelect } from '@/shared/ui/doctor/DoctorCatalogArchiveScopeSelect';
 import { DoctorCatalogTitleSortSelect } from '@/shared/ui/doctor/DoctorCatalogTitleSortSelect';
+import { LayoutGrid, List } from 'lucide-react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
 
 export type DoctorCatalogListSortHeaderProps = {
   summaryLine: string;
@@ -18,6 +20,8 @@ export type DoctorCatalogListSortHeaderProps = {
   /** ЛФК / шаблоны программ / наборы тестов: архив × публикация. */
   catalogPubArch?: DoctorCatalogPubArchQuery;
   archiveScopeExtraParams?: Record<string, string | null | undefined>;
+  viewMode?: 'tiles' | 'list';
+  onToggleView?: () => void;
 };
 
 /** Левая шапка каталога без переключателя «список/плитка»: сортировка (~160px) + счётчик. */
@@ -28,6 +32,8 @@ export function DoctorCatalogListSortHeader({
   archiveScope,
   catalogPubArch,
   archiveScopeExtraParams,
+  viewMode,
+  onToggleView,
 }: DoctorCatalogListSortHeaderProps) {
   return (
     <div className="flex flex-col gap-2 border-b border-border/60 pb-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-2">
@@ -48,9 +54,26 @@ export function DoctorCatalogListSortHeader({
           />
         ) : null}
       </div>
-      <p className="min-w-0 flex-1 truncate text-xs text-muted-foreground sm:text-end">
-        {summaryLine}
-      </p>
+      <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
+        <p className="min-w-0 truncate text-xs text-muted-foreground sm:text-end">{summaryLine}</p>
+        {viewMode && onToggleView ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            className="size-[32px] shrink-0"
+            onClick={onToggleView}
+            aria-label={viewMode === 'tiles' ? 'Показать список' : 'Показать карточки'}
+            title={viewMode === 'tiles' ? 'Список' : 'Карточки'}
+          >
+            {viewMode === 'tiles' ? (
+              <List className="size-4" aria-hidden />
+            ) : (
+              <LayoutGrid className="size-4" aria-hidden />
+            )}
+          </Button>
+        ) : null}
+      </div>
     </div>
   );
 }

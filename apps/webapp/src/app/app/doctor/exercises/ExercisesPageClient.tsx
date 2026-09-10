@@ -32,9 +32,11 @@ import {
   DoctorCatalogToolbarFiltersSlot,
 } from '@/shared/ui/doctor/DoctorCatalogFiltersToolbar';
 import {
-  doctorCatalogRowActiveClass,
-  doctorCatalogRowClass,
-} from '@/shared/ui/doctor/doctorVisual';
+  DoctorDnaFlatList,
+  DoctorDnaFlatListSelectionStrip,
+  doctorDnaFlatListClickableClass,
+  doctorDnaFlatListRowClass,
+} from '@/shared/ui/doctor/DoctorDnaFlatListRow';
 import type { DoctorCatalogToolbarLayout } from '@/shared/ui/doctor/DoctorCatalogFiltersForm';
 import {
   DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_EXPANDED,
@@ -54,6 +56,10 @@ import {
 } from './actionsInline';
 import { ExerciseTileCard } from './ExerciseTileCard';
 import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
+import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
+import { DoctorCatalogMobileToolbar } from '@/shared/ui/doctor/DoctorCatalogMobileToolbar';
+import { DoctorCatalogTitleSortSelect } from '@/shared/ui/doctor/DoctorCatalogTitleSortSelect';
+import { DoctorCatalogArchiveScopeSelect } from '@/shared/ui/doctor/DoctorCatalogArchiveScopeSelect';
 import { useDoctorCatalogDisplayList } from '@/shared/hooks/useDoctorCatalogDisplayList';
 import { useDoctorCatalogClientFilterMerge } from '@/shared/hooks/useDoctorCatalogClientFilterMerge';
 import type { ReferenceItemDto } from '@/modules/references/referenceCache';
@@ -251,7 +257,7 @@ function ExercisesContent({
     list.length === 0 ? (
       <DoctorEmptyState>Нет упражнений по заданным фильтрам.</DoctorEmptyState>
     ) : (
-      <ul className="flex h-full min-h-0 flex-col gap-1 overflow-y-auto">
+      <DoctorDnaFlatList className="h-full min-h-0 overflow-y-auto">
         {list.map((ex) => {
           const active = opts.activeId === ex.id;
           return (
@@ -261,8 +267,13 @@ function ExercisesContent({
                   type="button"
                   variant="ghost"
                   onClick={() => opts.onRowSelect(ex.id)}
-                  className={cn(doctorCatalogRowClass, active && doctorCatalogRowActiveClass)}
+                  className={cn(
+                    doctorDnaFlatListRowClass,
+                    doctorDnaFlatListClickableClass,
+                    'h-auto min-h-0 w-full rounded-none bg-transparent text-left shadow-none',
+                  )}
                 >
+                  {active ? <DoctorDnaFlatListSelectionStrip /> : null}
                   {mediaNode(ex)}
                   <span className="min-w-0 text-left">
                     <span className="line-clamp-2">{ex.title}</span>
@@ -277,7 +288,7 @@ function ExercisesContent({
             </li>
           );
         })}
-      </ul>
+      </DoctorDnaFlatList>
     );
 
   const renderExerciseTiles = (
@@ -308,26 +319,79 @@ function ExercisesContent({
       />
     );
 
+  const exerciseForm = (
+    <ExerciseForm
+      exercise={exerciseForDesktop}
+      bodyRegionItems={bodyRegionItems}
+      loadTypeItems={loadTypeItems}
+      saveAction={saveExerciseInline}
+      archiveAction={archiveExerciseInline}
+      unarchiveAction={unarchiveExerciseInline}
+      listArchiveScope={filters.listStatus}
+      viewHint={viewMode}
+      externalUsageSnapshot={usageForSelection}
+    />
+  );
+
   const rightPanel = (
     <CatalogRightPane className="h-full">
-      <ExerciseForm
-        exercise={mobileSheet?.exercise ?? exerciseForDesktop}
-        bodyRegionItems={bodyRegionItems}
-        loadTypeItems={loadTypeItems}
-        saveAction={saveExerciseInline}
-        archiveAction={archiveExerciseInline}
-        unarchiveAction={unarchiveExerciseInline}
-        listArchiveScope={filters.listStatus}
-        viewHint={viewMode}
-        externalUsageSnapshot={usageForSelection}
-      />
+      {isDesktopViewport ? exerciseForm : null}
     </CatalogRightPane>
   );
 
+  const mobileSearch = (
+    <ExercisesFiltersForm
+      idPrefix="ex-mobile-search"
+      q={filters.q}
+      regionCode={filters.regionCode}
+      loadType={filters.loadType}
+      view={viewMode}
+      titleSort={filters.titleSort}
+      selectedId={desktopSelectedId}
+      presentation="search-only"
+    />
+  );
+
+  const mobileFilters = (
+    <>
+      <ExercisesFiltersForm
+        idPrefix="ex-mobile-filters"
+        q={filters.q}
+        bodyRegionItems={bodyRegionItems}
+        loadTypeItems={loadTypeItems}
+        regionCode={filters.regionCode}
+        loadType={filters.loadType}
+        view={viewMode}
+        titleSort={filters.titleSort}
+        selectedId={desktopSelectedId}
+        presentation="facets-only"
+        stacked
+      />
+      <DoctorCatalogTitleSortSelect
+        value={filters.titleSort ?? 'default'}
+        onValueChange={(value) => changeTitleSort(value === 'default' ? null : value)}
+        className="w-full max-w-none"
+      />
+      <DoctorCatalogArchiveScopeSelect
+        value={filters.listStatus}
+        extraParams={{ view: viewMode, titleSort: filters.titleSort }}
+        className="w-full max-w-none"
+      />
+    </>
+  );
+
+  const openNewExercise = () => {
+    setDesktopSelectedId(null);
+    if (isDesktopViewport) setMobileSheet(null);
+    else setMobileSheet({ exercise: null });
+  };
+
   return (
     <DoctorCatalogPageLayout
+      mobileEdgeToEdge
       toolbar={
         <DoctorCatalogFiltersToolbar
+          className="hidden md:block"
           filters={
             <DoctorCatalogToolbarFiltersSlot>
               <ExercisesFiltersForm
@@ -347,10 +411,7 @@ function ExercisesContent({
           end={
             <CreateExerciseMenu
               triggerId="doctor-exercises-create-link-desktop"
-              onNewExercise={() => {
-                setDesktopSelectedId(null);
-                setMobileSheet({ exercise: null });
-              }}
+              onNewExercise={openNewExercise}
             />
           }
         />
@@ -367,6 +428,7 @@ function ExercisesContent({
             stickySplit={false}
             stickyToolbarRows={1}
             className="h-full"
+            mobileEdgeToEdge
             headerSlot={
               <DoctorCatalogMasterListHeader
                 summaryLine={
@@ -400,7 +462,7 @@ function ExercisesContent({
                     onRowSelect: (id) => {
                       const found = displayExercises.find((e) => e.id === id) ?? null;
                       setDesktopSelectedId(id);
-                      setMobileSheet(found ? { exercise: found } : null);
+                      if (!isDesktopViewport) setMobileSheet(found ? { exercise: found } : null);
                     },
                   })
                 : renderExerciseTiles(displayExercises, {
@@ -408,7 +470,7 @@ function ExercisesContent({
                     onTileSelect: (id) => {
                       const found = displayExercises.find((e) => e.id === id) ?? null;
                       setDesktopSelectedId(id);
-                      setMobileSheet(found ? { exercise: found } : null);
+                      if (!isDesktopViewport) setMobileSheet(found ? { exercise: found } : null);
                     },
                     columns: activeTileColumns,
                   })}
@@ -416,20 +478,44 @@ function ExercisesContent({
           </CatalogLeftPane>
         }
         right={rightPanel}
-        mobileView={mobileSheet != null ? 'detail' : 'list'}
-        mobileBackSlot={
-          mobileSheet != null ? (
-            <Button
-              variant="ghost"
-              type="button"
-              className="mb-2 h-9 px-2"
-              onClick={() => setMobileSheet(null)}
-            >
-              ← Назад
-            </Button>
-          ) : null
-        }
+        mobileView="list"
       />
+      <DoctorCatalogMobileToolbar
+        search={mobileSearch}
+        filters={mobileFilters}
+        filterActive={Boolean(
+          filters.regionCode ||
+          filters.loadType ||
+          filters.titleSort ||
+          filters.listStatus !== 'active',
+        )}
+        viewMode={toolbarViewMode}
+        onToggleView={toggleViewMode}
+        onCreate={openNewExercise}
+        createLabel="Новое упражнение"
+      />
+      <DoctorModal
+        open={!isDesktopViewport && mobileSheet !== null}
+        onClose={() => setMobileSheet(null)}
+        title={mobileSheet?.exercise?.title ?? 'Новое упражнение'}
+        size="content"
+        desktopPresentation="right-sheet"
+      >
+        {!isDesktopViewport && mobileSheet !== null ? (
+          <ExerciseForm
+            exercise={mobileSheet.exercise}
+            bodyRegionItems={bodyRegionItems}
+            loadTypeItems={loadTypeItems}
+            saveAction={saveExerciseInline}
+            archiveAction={archiveExerciseInline}
+            unarchiveAction={unarchiveExerciseInline}
+            listArchiveScope={filters.listStatus}
+            viewHint={viewMode}
+            externalUsageSnapshot={usageForSelection}
+            modalFooter
+          />
+        ) : null}
+      </DoctorModal>
     </DoctorCatalogPageLayout>
   );
 }

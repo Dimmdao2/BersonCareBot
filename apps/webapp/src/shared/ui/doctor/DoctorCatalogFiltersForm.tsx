@@ -66,6 +66,10 @@ export type DoctorCatalogFiltersFormProps = {
   onFilterToolbarLayoutChange?: (layout: DoctorCatalogToolbarLayout) => void;
   /** Локальный режим для каталогов внутри диалогов: без изменения URL и server navigation. */
   onFiltersChange?: (filters: DoctorCatalogFiltersChange) => void;
+  /** Позволяет переиспользовать ту же механику в нижнем mobile toolbar и его модалке. */
+  presentation?: 'all' | 'search-only' | 'facets-only';
+  /** Вертикальная полноширинная раскладка контролов внутри `DoctorModal`. */
+  stacked?: boolean;
 };
 
 function applyParamsPatch(
@@ -101,6 +105,8 @@ export function DoctorCatalogFiltersForm({
   leadingSlot,
   onFilterToolbarLayoutChange,
   onFiltersChange,
+  presentation = 'all',
+  stacked = false,
 }: DoctorCatalogFiltersFormProps) {
   const pathname = usePathname();
 
@@ -248,13 +254,14 @@ export function DoctorCatalogFiltersForm({
         setSelectedRegionCode(code);
         navigateWithPatch({ region: code });
       }}
+      stacked={stacked}
     />
   ) : null;
 
   let typesFilterNode: ReactNode = null;
   if (tertiaryFilter) {
     typesFilterNode = (
-      <div className="w-40 shrink-0">
+      <div className={cn(stacked ? 'w-full' : 'w-40 shrink-0')}>
         <label className="sr-only" htmlFor={`${idPrefix}-${tertiaryFilter.paramName}`}>
           {tertiaryFilter.label}
         </label>
@@ -281,7 +288,7 @@ export function DoctorCatalogFiltersForm({
     );
   } else if (showLoadFilter) {
     typesFilterNode = (
-      <div className="w-40 shrink-0">
+      <div className={cn(stacked ? 'w-full' : 'w-40 shrink-0')}>
         <label className="sr-only" htmlFor={`${idPrefix}-load`}>
           Тип нагрузки
         </label>
@@ -307,26 +314,30 @@ export function DoctorCatalogFiltersForm({
   }
 
   return (
-    <div className={cn('flex w-full min-w-0 flex-col gap-2')}>
-      <div className="flex flex-wrap items-center gap-2">
+    <div className="flex w-full min-w-0 flex-col gap-2">
+      <div
+        className={cn('flex gap-2', stacked ? 'flex-col items-stretch' : 'flex-wrap items-center')}
+      >
         {leadingSlot}
-        <div className="w-[168px] min-w-[140px] shrink-0">
-          <label className="sr-only" htmlFor={`${idPrefix}-q`}>
-            Поиск по названию
-          </label>
-          <Input
-            id={`${idPrefix}-q`}
-            value={qInput}
-            onChange={(e) => {
-              setQInput(e.target.value);
-              scheduleCommitQ();
-            }}
-            placeholder="Поиск по названию"
-            className="w-full"
-          />
-        </div>
-        {regionField}
-        {typesFilterNode}
+        {presentation !== 'facets-only' ? (
+          <div className={cn(stacked ? 'w-full' : 'w-[168px] min-w-[140px] shrink-0')}>
+            <label className="sr-only" htmlFor={`${idPrefix}-q`}>
+              Поиск по названию
+            </label>
+            <Input
+              id={`${idPrefix}-q`}
+              value={qInput}
+              onChange={(e) => {
+                setQInput(e.target.value);
+                scheduleCommitQ();
+              }}
+              placeholder="Поиск по названию"
+              className="w-full"
+            />
+          </div>
+        ) : null}
+        {presentation !== 'search-only' ? regionField : null}
+        {presentation !== 'search-only' ? typesFilterNode : null}
       </div>
     </div>
   );
@@ -337,14 +348,16 @@ function RegionFilterField({
   items,
   selectedRegionCode,
   onRegionChange,
+  stacked,
 }: {
   idPrefix: string;
   items?: ReferenceItemDto[];
   selectedRegionCode: string | null;
   onRegionChange: (code: string | null) => void;
+  stacked: boolean;
 }) {
   return (
-    <div className="w-40 shrink-0">
+    <div className={cn(stacked ? 'w-full' : 'w-40 shrink-0')}>
       <label className="sr-only" htmlFor={`${idPrefix}-region`}>
         Регион
       </label>
@@ -356,7 +369,7 @@ function RegionFilterField({
         submitField="code"
         value={selectedRegionCode}
         onChange={onRegionChange}
-        placeholder="Выберите регион"
+        placeholder="Все регионы"
         clearOptionLabel="Все регионы"
         missingValueOption={missingRegionOption}
         showAllOnFocus

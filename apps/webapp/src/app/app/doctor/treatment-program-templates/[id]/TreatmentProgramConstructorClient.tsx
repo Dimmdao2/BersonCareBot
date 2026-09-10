@@ -142,6 +142,7 @@ type Props = {
   externalUsageSnapshot?: TreatmentProgramTemplateUsageSnapshot;
   /** После успешной архивации (например обновить список в master-detail). */
   onArchived?: () => void;
+  modalFooter?: boolean;
 };
 
 function TemplateUsageSectionsView({
@@ -418,6 +419,7 @@ export function TreatmentProgramConstructorClient({
   library,
   externalUsageSnapshot,
   onArchived,
+  modalFooter = false,
 }: Props) {
   const { patientGenPlural } = useDoctorPatientTerms();
   const router = useRouter();
@@ -1861,6 +1863,7 @@ export function TreatmentProgramConstructorClient({
         publishDisabled={busy || isArchived || detail.status === 'published'}
         onPersist={() => void patchPublicationStatus('draft')}
         onPublish={() => void patchPublicationStatus('published')}
+        modalFooter={modalFooter}
       />
 
       <div className="border-t border-border/60 pt-4">
@@ -2067,7 +2070,9 @@ export function TreatmentProgramConstructorClient({
                           itemSettingsContext.item.itemType !== 'recommendation' &&
                           itemSettingsContext.item.itemType !== 'clinical_test'
                         ) {
-                          toast.error('Без группы допустимы только рекомендации и клинические тесты');
+                          toast.error(
+                            'Без группы допустимы только рекомендации и клинические тесты',
+                          );
                           return;
                         }
                         setBusy(true);
@@ -2477,9 +2482,8 @@ export function TreatmentProgramConstructorClient({
           <DialogHeader>
             <DialogTitle>Отправить шаблон в архив?</DialogTitle>
             <DialogDescription>
-              Есть активные программы или опубликованные курсы, ссылающиеся на этот
-              шаблон. В архиве шаблон нельзя назначать заново; уже запущенные программы и история
-              сохраняются.
+              Есть активные программы или опубликованные курсы, ссылающиеся на этот шаблон. В архиве
+              шаблон нельзя назначать заново; уже запущенные программы и история сохраняются.
             </DialogDescription>
           </DialogHeader>
           <TemplateUsageSectionsView sections={archiveWarnSections} />

@@ -51,11 +51,17 @@ import {
 } from './actionsInline';
 import { useDoctorCatalogDisplayList } from '@/shared/hooks/useDoctorCatalogDisplayList';
 import { useDoctorCatalogClientFilterMerge } from '@/shared/hooks/useDoctorCatalogClientFilterMerge';
+import { doctorInteractiveSurfaceButtonClass } from '@/shared/ui/doctor/doctorVisual';
 import {
-  doctorInteractiveSurfaceButtonClass,
-  doctorCatalogRowActiveClass,
-  doctorCatalogRowClass,
-} from '@/shared/ui/doctor/doctorVisual';
+  DoctorDnaFlatList,
+  DoctorDnaFlatListSelectionStrip,
+  doctorDnaFlatListClickableClass,
+  doctorDnaFlatListRowClass,
+} from '@/shared/ui/doctor/DoctorDnaFlatListRow';
+import { DoctorCatalogMobileToolbar } from '@/shared/ui/doctor/DoctorCatalogMobileToolbar';
+import { DoctorCatalogTitleSortSelect } from '@/shared/ui/doctor/DoctorCatalogTitleSortSelect';
+import { DoctorCatalogArchiveScopeSelect } from '@/shared/ui/doctor/DoctorCatalogArchiveScopeSelect';
+import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
 export type RecommendationsViewMode = 'tiles' | 'list';
 export type RecommendationTitleSort = 'asc' | 'desc';
 
@@ -337,7 +343,7 @@ function RecommendationsContent({
     list.length === 0 ? (
       <DoctorEmptyState>Нет рекомендаций по заданным фильтрам.</DoctorEmptyState>
     ) : (
-      <ul className="flex h-full min-h-0 flex-col gap-1 overflow-y-auto">
+      <DoctorDnaFlatList className="h-full min-h-0 overflow-y-auto">
         {list.map((r) => {
           const active = opts.activeId === r.id;
           return (
@@ -347,8 +353,13 @@ function RecommendationsContent({
                   type="button"
                   variant="ghost"
                   onClick={() => opts.onRowSelect(r.id)}
-                  className={cn(doctorCatalogRowClass, active && doctorCatalogRowActiveClass)}
+                  className={cn(
+                    doctorDnaFlatListRowClass,
+                    doctorDnaFlatListClickableClass,
+                    'h-auto min-h-0 w-full rounded-none bg-transparent text-left shadow-none',
+                  )}
                 >
+                  {active ? <DoctorDnaFlatListSelectionStrip /> : null}
                   {mediaThumbRow(r)}
                   <span className="flex min-w-0 flex-1 flex-col items-start gap-0.5">
                     <span className="line-clamp-2">{r.title}</span>
@@ -361,7 +372,7 @@ function RecommendationsContent({
             </li>
           );
         })}
-      </ul>
+      </DoctorDnaFlatList>
     );
 
   const renderRecommendationTiles = (
@@ -395,13 +406,19 @@ function RecommendationsContent({
   const pickRow = (id: string) => {
     const found = displayRecommendations.find((r) => r.id === id) ?? null;
     setDesktopSelectedId(id);
-    setMobileSheet(found ? { recommendation: found } : null);
+    if (!isDesktopViewport) setMobileSheet(found ? { recommendation: found } : null);
+  };
+
+  const openNewRecommendation = () => {
+    setDesktopSelectedId(null);
+    if (isDesktopViewport) setMobileSheet(null);
+    else setMobileSheet({ recommendation: null });
   };
 
   const rightPanel = (
     <CatalogRightPane className="h-full">
       <RecommendationForm
-        recommendation={formRecommendation ?? undefined}
+        recommendation={recommendationForDesktop ?? undefined}
         domainCatalogItems={domainCatalogItems}
         saveAction={saveRecommendationInline}
         archiveAction={archiveRecommendationInline}
@@ -419,10 +436,51 @@ function RecommendationsContent({
     </CatalogRightPane>
   );
 
+  const mobileSearch = (
+    <DoctorCatalogFiltersForm
+      idPrefix="rec-mobile-search"
+      q={filters.q}
+      regionCode={filters.regionCode}
+      tertiaryFilter={recommendationTertiaryFilter}
+      view={viewMode}
+      titleSort={filters.titleSort}
+      selectedId={desktopSelectedId}
+      presentation="search-only"
+    />
+  );
+
+  const mobileFilters = (
+    <>
+      <DoctorCatalogFiltersForm
+        idPrefix="rec-mobile-filters"
+        q={filters.q}
+        regionCode={filters.regionCode}
+        tertiaryFilter={recommendationTertiaryFilter}
+        view={viewMode}
+        titleSort={filters.titleSort}
+        selectedId={desktopSelectedId}
+        presentation="facets-only"
+        stacked
+      />
+      <DoctorCatalogTitleSortSelect
+        value={filters.titleSort ?? 'default'}
+        onValueChange={(value) => changeTitleSort(value === 'default' ? null : value)}
+        className="w-full max-w-none"
+      />
+      <DoctorCatalogArchiveScopeSelect
+        value={filters.listStatus}
+        extraParams={{ view: viewMode, titleSort: filters.titleSort }}
+        className="w-full max-w-none"
+      />
+    </>
+  );
+
   return (
     <DoctorCatalogPageLayout
+      mobileEdgeToEdge
       toolbar={
         <DoctorCatalogFiltersToolbar
+          className="hidden md:block"
           filters={
             <DoctorCatalogToolbarFiltersSlot>
               <DoctorCatalogFiltersForm
@@ -444,8 +502,7 @@ function RecommendationsContent({
               id="doctor-recommendations-create"
               className={doctorCatalogToolbarPrimaryActionClassName}
               onClick={() => {
-                setDesktopSelectedId(null);
-                setMobileSheet({ recommendation: null });
+                openNewRecommendation();
               }}
             >
               Создать рекомендацию
@@ -473,6 +530,7 @@ function RecommendationsContent({
             stickySplit={false}
             stickyToolbarRows={1}
             className="h-full"
+            mobileEdgeToEdge
             headerSlot={
               <DoctorCatalogMasterListHeader
                 summaryLine={
@@ -514,20 +572,49 @@ function RecommendationsContent({
           </CatalogLeftPane>
         }
         right={rightPanel}
-        mobileView={mobileSheet != null ? 'detail' : 'list'}
-        mobileBackSlot={
-          mobileSheet != null ? (
-            <Button
-              variant="ghost"
-              type="button"
-              className="mb-2 h-9 px-2"
-              onClick={() => setMobileSheet(null)}
-            >
-              ← Назад
-            </Button>
-          ) : null
-        }
+        mobileView="list"
       />
+      <DoctorCatalogMobileToolbar
+        search={mobileSearch}
+        filters={mobileFilters}
+        filterActive={Boolean(
+          filters.regionCode ||
+          filters.domain ||
+          filters.titleSort ||
+          filters.listStatus !== 'active',
+        )}
+        viewMode={toolbarViewMode}
+        onToggleView={toggleViewMode}
+        onCreate={openNewRecommendation}
+        createLabel="Новая рекомендация"
+      />
+      <DoctorModal
+        open={!isDesktopViewport && mobileSheet !== null}
+        onClose={() => setMobileSheet(null)}
+        title={mobileSheet?.recommendation?.title ?? 'Новая рекомендация'}
+        size="content"
+        desktopPresentation="right-sheet"
+      >
+        {!isDesktopViewport && mobileSheet !== null ? (
+          <RecommendationForm
+            recommendation={mobileSheet.recommendation ?? undefined}
+            domainCatalogItems={domainCatalogItems}
+            saveAction={saveRecommendationInline}
+            archiveAction={archiveRecommendationInline}
+            unarchiveAction={unarchiveRecommendationInline}
+            workspaceView={viewMode}
+            workspaceListPreserve={{
+              q: filters.q,
+              titleSort: filters.titleSort,
+              regionCode: filters.regionCode,
+              domain: filters.domain,
+              listStatus: filters.listStatus,
+            }}
+            externalUsageSnapshot={usageForSelection}
+            modalFooter
+          />
+        ) : null}
+      </DoctorModal>
     </DoctorCatalogPageLayout>
   );
 }

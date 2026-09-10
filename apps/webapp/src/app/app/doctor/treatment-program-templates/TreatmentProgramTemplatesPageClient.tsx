@@ -43,6 +43,12 @@ import { DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE } from '@/shared/ui/doctor/doc
 import { TreatmentProgramTemplateStatusBadge } from './TreatmentProgramTemplateStatusBadge';
 import { loadTreatmentProgramLibrary } from './loadTreatmentProgramLibrary';
 import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
+import { useViewportMinWidth } from '@/shared/hooks/useViewportMinWidth';
+import { DoctorCatalogMobileToolbar } from '@/shared/ui/doctor/DoctorCatalogMobileToolbar';
+import { CatalogStatusFilters } from '@/shared/ui/doctor/CatalogStatusFilters';
+import { DoctorCatalogTitleSortSelect } from '@/shared/ui/doctor/DoctorCatalogTitleSortSelect';
+import { DoctorCatalogVisibilityMark } from '@/shared/ui/doctor/DoctorCatalogVisibilityMark';
+import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
 
 /** Краткая строка счётчиков + подпись для aria (список шаблонов). */
 function templateListCountsText(
@@ -145,6 +151,7 @@ function TreatmentProgramTemplatesContent({
   const [library, setLibrary] = useState<TreatmentProgramLibraryPickers | null>(null);
   const [libraryLoading, setLibraryLoading] = useState(false);
   const [libraryError, setLibraryError] = useState<string | null>(null);
+  const isDesktopViewport = useViewportMinWidth(1024);
   const detailFetchGenRef = useRef(0);
   const libraryFetchGenRef = useRef(0);
 
@@ -281,7 +288,7 @@ function TreatmentProgramTemplatesContent({
         overscan={4}
         keyExtractor={(t) => t.id}
         containerClassName="h-full min-h-0"
-        gridClassName="gap-1 pb-1"
+        gridClassName="gap-0 p-0"
         renderItem={(t) => {
           const active = activeId === t.id;
           const counts = templateListCountsText(t.stageCount, t.itemCount);
@@ -302,19 +309,14 @@ function TreatmentProgramTemplatesContent({
                   {counts.line}
                 </span>
               }
-              badge={
-                <TreatmentProgramTemplateStatusBadge
-                  status={t.status}
-                  className="w-full justify-center text-[10px] leading-tight"
-                />
-              }
+              badge={<DoctorCatalogVisibilityMark status={t.status} />}
             />
           );
         }}
       />
     );
 
-  const rightInner = (() => {
+  const renderRightInner = (modalFooter = false) => {
     if (!selected) {
       return (
         <div className="flex flex-col gap-3">
@@ -325,7 +327,18 @@ function TreatmentProgramTemplatesContent({
           <NewTemplateForm
             showCancelLink={false}
             showStatusField={false}
-            titleInputId="tpl-title-catalog-inline"
+            titleInputId={modalFooter ? 'tpl-title-catalog-mobile' : 'tpl-title-catalog-inline'}
+            modalFooter={modalFooter}
+            onCreated={
+              modalFooter
+                ? (id) => {
+                    setCreating(false);
+                    setSelectedId(id);
+                    setMobileSheet(null);
+                    router.refresh();
+                  }
+                : undefined
+            }
           />
         </div>
       );
@@ -352,18 +365,24 @@ function TreatmentProgramTemplatesContent({
             setMobileSheet(null);
             setDetail(null);
           }}
+          modalFooter={modalFooter}
         />
       );
     }
     return <DoctorPanelLoading className="min-h-48" />;
-  })();
+  };
 
-  const desktopRight = <CatalogRightPane className="h-full">{rightInner}</CatalogRightPane>;
+  const desktopRight = (
+    <CatalogRightPane className="h-full">
+      {isDesktopViewport ? renderRightInner() : null}
+    </CatalogRightPane>
+  );
 
   const mobileDetailOpen = creating || mobileSheet != null;
 
   const toolbar = (
     <DoctorCatalogFiltersToolbar
+      className="hidden md:block"
       filters={
         <DoctorCatalogToolbarFiltersSlot>
           <DoctorCatalogFiltersForm
@@ -382,11 +401,7 @@ function TreatmentProgramTemplatesContent({
           type="button"
           className={doctorCatalogToolbarPrimaryActionClassName}
           id="doctor-treatment-program-templates-new"
-          onClick={() => {
-            setCreating(true);
-            setSelectedId(null);
-            setMobileSheet(null);
-          }}
+          onClick={openNewTemplate}
         >
           Создать
         </Button>
@@ -394,8 +409,47 @@ function TreatmentProgramTemplatesContent({
     />
   );
 
+  function openNewTemplate() {
+    setCreating(true);
+    setSelectedId(null);
+    setMobileSheet(null);
+  }
+
+  const pickTemplate = (template: TreatmentProgramTemplate) => {
+    setCreating(false);
+    setSelectedId(template.id);
+    if (!isDesktopViewport) setMobileSheet(template);
+  };
+
+  const mobileSearch = (
+    <DoctorCatalogFiltersForm
+      idPrefix={`${formKey}-tpt-mobile-search`}
+      q={mergedFilters.q}
+      showRegionFilter={false}
+      showLoadFilter={false}
+      titleSort={mergedFilters.titleSort}
+      catalogPubArch={mergedFilters.listPubArch}
+      presentation="search-only"
+    />
+  );
+
+  const mobileFilters = (
+    <>
+      <DoctorCatalogTitleSortSelect
+        value={titleSortForHeader ?? 'default'}
+        onValueChange={(value) => changeTitleSort(value === 'default' ? null : value)}
+        className="w-full max-w-none"
+      />
+      <CatalogStatusFilters
+        value={mergedFilters.listPubArch}
+        extraParams={{ titleSort: mergedFilters.titleSort }}
+        className="flex-col items-stretch [&>div]:w-full [&>div]:max-w-none"
+      />
+    </>
+  );
+
   return (
-    <DoctorCatalogPageLayout toolbar={toolbar}>
+    <DoctorCatalogPageLayout toolbar={toolbar} mobileEdgeToEdge>
       <CatalogSplitLayout
         className={DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE}
         left={
@@ -403,6 +457,7 @@ function TreatmentProgramTemplatesContent({
             stickySplit={false}
             stickyToolbarRows={1}
             className="h-full"
+            mobileEdgeToEdge
             headerSlot={
               <DoctorCatalogListSortHeader
                 summaryLine={
@@ -425,34 +480,38 @@ function TreatmentProgramTemplatesContent({
               aria-busy={isListPending}
             >
               {renderRows(
-                (t) => {
-                  setCreating(false);
-                  setSelectedId(t.id);
-                  setMobileSheet(t);
-                },
+                pickTemplate,
                 creating ? null : (selected?.id ?? mobileSheet?.id ?? null),
               )}
             </div>
           </CatalogLeftPane>
         }
         right={desktopRight}
-        mobileView={mobileDetailOpen ? 'detail' : 'list'}
-        mobileBackSlot={
-          mobileDetailOpen ? (
-            <Button
-              variant="ghost"
-              type="button"
-              className="mb-2 h-9 px-2"
-              onClick={() => {
-                setMobileSheet(null);
-                setCreating(false);
-              }}
-            >
-              ← Назад
-            </Button>
-          ) : null
-        }
+        mobileView="list"
       />
+      <DoctorCatalogMobileToolbar
+        search={mobileSearch}
+        filters={mobileFilters}
+        filterActive={Boolean(
+          mergedFilters.titleSort ||
+          mergedFilters.listPubArch.arch !== 'active' ||
+          mergedFilters.listPubArch.pub !== 'all',
+        )}
+        onCreate={openNewTemplate}
+        createLabel="Новый шаблон программы"
+      />
+      <DoctorModal
+        open={!isDesktopViewport && mobileDetailOpen}
+        onClose={() => {
+          setMobileSheet(null);
+          setCreating(false);
+        }}
+        title={creating ? 'Новый шаблон программы' : (mobileSheet?.title ?? 'Шаблон программы')}
+        size="content"
+        desktopPresentation="right-sheet"
+      >
+        {!isDesktopViewport && mobileDetailOpen ? renderRightInner(true) : null}
+      </DoctorModal>
     </DoctorCatalogPageLayout>
   );
 }

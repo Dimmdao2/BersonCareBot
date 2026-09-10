@@ -2,7 +2,6 @@
 
 import Link from 'next/link';
 import { useActionState, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { DoctorDifficulty1to10Slider } from '@/shared/ui/doctor/DoctorDifficulty1to10Slider';
 import { ReferenceSelect } from '@/shared/ui/doctor/ReferenceSelect';
 import { ReferenceMultiSelect } from '@/shared/ui/doctor/ReferenceMultiSelect';
 import { Button } from '@/shared/ui/doctor/primitives/button';
@@ -49,10 +48,10 @@ import {
   exerciseUsageSections,
   type ExerciseUsageSection,
 } from './exerciseUsageSummaryText';
-import { MaterialRatingBlock } from '@/shared/ui/doctor/material-rating/MaterialRatingBlock';
 import type { ReferenceItemDto } from '@/modules/references/referenceCache';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
+import { DoctorModalFooter } from '@/shared/ui/doctor/DoctorModal';
 
 function ExerciseUsageSectionsView({ sections }: { sections: ExerciseUsageSection[] }) {
   if (sections.length === 0) {
@@ -95,7 +94,6 @@ export type ExerciseFormValues = {
   contraindications: string;
   regionRefIds: string[];
   loadType: ExerciseLoadType | '';
-  difficulty: number;
   mediaUrl: string;
   mediaType: '' | ExerciseMediaType;
 };
@@ -109,7 +107,6 @@ export function exerciseToFormValues(exercise: Exercise | null | undefined): Exe
     contraindications: exercise?.contraindications ?? '',
     regionRefIds: exercise?.regionRefIds ? [...exercise.regionRefIds] : [],
     loadType: (exercise?.loadType ?? '') as ExerciseLoadType | '',
-    difficulty: exercise?.difficulty1_10 ?? 5,
     mediaUrl: initialMedia?.mediaUrl ?? '',
     mediaType: (initialMedia?.mediaType ?? '') as ExerciseFormValues['mediaType'],
   };
@@ -140,6 +137,8 @@ type ExerciseFormProps = {
   externalUsageSnapshot?: ExerciseUsageSnapshot;
   bodyRegionItems?: ReferenceItemDto[];
   loadTypeItems?: ReferenceItemDto[];
+  /** В мобильной модалке основное действие принадлежит закреплённому футеру. */
+  modalFooter?: boolean;
 };
 
 export function ExerciseForm({
@@ -152,6 +151,7 @@ export function ExerciseForm({
   externalUsageSnapshot,
   bodyRegionItems,
   loadTypeItems,
+  modalFooter = false,
 }: ExerciseFormProps) {
   const terms = useDoctorPatientTerms();
   const recordKey = exercise?.id ?? 'create';
@@ -275,6 +275,7 @@ export function ExerciseForm({
   const isArchived = !!exercise?.isArchived;
   const isReadOnly = exercise?.ownerKind === 'platform';
   const isHostedMedia = values.mediaType === 'hosted_video';
+  const formId = `doctor-exercise-form-${recordKey}`;
 
   /**
    * Канонизация — та же функция, что и на сервере: в поле остаётся то, что реально сохранится,
@@ -309,13 +310,16 @@ export function ExerciseForm({
           </p>
         </div>
       ) : null}
-      <form action={formAction} className="flex flex-col gap-4">
+      <form id={formId} action={formAction} className="flex flex-col gap-4">
         {displayError ? (
           <p role="alert" className="text-sm text-destructive">
             {displayError}
           </p>
         ) : null}
         {exercise ? <input type="hidden" name="id" value={exercise.id} /> : null}
+        {exercise?.difficulty1_10 != null ? (
+          <input type="hidden" name="difficulty1_10" value={exercise.difficulty1_10} />
+        ) : null}
         {viewHint ? <input type="hidden" name="view" value={viewHint} /> : null}
         {listArchiveScope ? <input type="hidden" name="status" value={listArchiveScope} /> : null}
         <input type="hidden" name="mediaUrl" value={values.mediaUrl} />
@@ -368,7 +372,9 @@ export function ExerciseForm({
               */}
               {values.mediaUrl && !isHostedMedia ? null : (
                 <div className="flex flex-col gap-2">
-                  <Label htmlFor="ex-hosted-url">Ссылка на видео ({HOSTED_VIDEO_ALLOWED_HOSTS_RU})</Label>
+                  <Label htmlFor="ex-hosted-url">
+                    Ссылка на видео ({HOSTED_VIDEO_ALLOWED_HOSTS_RU})
+                  </Label>
                   <Input
                     id="ex-hosted-url"
                     inputMode="url"
@@ -391,7 +397,10 @@ export function ExerciseForm({
 
               {isHostedMedia && values.mediaUrl ? (
                 <div className="flex flex-col gap-2">
-                  <HostedVideoEmbed url={values.mediaUrl} title={values.title || 'Видео упражнения'} />
+                  <HostedVideoEmbed
+                    url={values.mediaUrl}
+                    title={values.title || 'Видео упражнения'}
+                  />
                   <div>
                     <Button
                       type="button"
@@ -409,14 +418,6 @@ export function ExerciseForm({
                 </div>
               ) : null}
             </div>
-
-            <DoctorDifficulty1to10Slider
-              id="ex-difficulty"
-              name="difficulty1_10"
-              value={values.difficulty}
-              onChange={(n) => setValues((v) => ({ ...v, difficulty: n }))}
-              label="Сложность:"
-            />
 
             <div className="flex flex-col gap-3">
               <Label htmlFor="ex-tags">Теги (через запятую)</Label>
@@ -487,7 +488,7 @@ export function ExerciseForm({
               />
             </div>
 
-            {!isReadOnly ? (
+            {!isReadOnly && !modalFooter ? (
               <div className="flex flex-wrap gap-2">
                 <Button type="submit" disabled={savePending}>
                   {savePending ? 'Сохранение…' : exercise ? 'Сохранить' : 'Создать упражнение'}
@@ -498,6 +499,14 @@ export function ExerciseForm({
         </fieldset>
       </form>
 
+      {!isReadOnly && modalFooter ? (
+        <DoctorModalFooter>
+          <Button type="submit" form={formId} disabled={savePending}>
+            {savePending ? 'Сохранение…' : exercise ? 'Сохранить' : 'Создать упражнение'}
+          </Button>
+        </DoctorModalFooter>
+      ) : null}
+
       {exercise && !isReadOnly && isArchived ? (
         <div className="rounded-md border border-border/60 bg-muted/30 p-3 text-sm">
           <p className="font-medium text-foreground">Упражнение в архиве</p>
@@ -505,13 +514,13 @@ export function ExerciseForm({
             Верните из архива, чтобы снова назначать и редактировать.
           </p>
           <div className="mb-3 mt-3 rounded-md border border-border/60 bg-muted/20 p-3">
-            <p className="text-sm font-medium text-foreground">Где используется</p>
+            <p className="text-sm font-medium text-foreground">Используется</p>
             {usageBusy ? (
               <DoctorPanelLoading className="mt-1 py-4" />
             ) : usageLoadError ? (
               <p className="mt-1 text-sm text-muted-foreground">{usageLoadError}</p>
             ) : !usage ? null : !exerciseUsageHasAnyReference(usage) ? (
-              <p className="mt-1 text-sm text-muted-foreground">Пока не используется</p>
+              <p className="mt-1 text-sm text-muted-foreground">Пока нигде</p>
             ) : (
               <ExerciseUsageSectionsView sections={usageSections} />
             )}
@@ -537,21 +546,13 @@ export function ExerciseForm({
       {exercise && !isReadOnly && !isArchived ? (
         <div className="border-t border-border/60 pt-4">
           <div className="mb-3 rounded-md border border-border/60 bg-muted/20 p-3">
-            <MaterialRatingBlock
-              targetKind="lfk_exercise"
-              targetId={exercise.id}
-              variant="doctorCompact"
-              readOnly
-            />
-          </div>
-          <div className="mb-3 rounded-md border border-border/60 bg-muted/20 p-3">
-            <p className="text-sm font-medium text-foreground">Где используется</p>
+            <p className="text-sm font-medium text-foreground">Используется</p>
             {usageBusy ? (
               <DoctorPanelLoading className="mt-1 py-4" />
             ) : usageLoadError ? (
               <p className="mt-1 text-sm text-muted-foreground">{usageLoadError}</p>
             ) : !usage ? null : !exerciseUsageHasAnyReference(usage) ? (
-              <p className="mt-1 text-sm text-muted-foreground">Пока не используется</p>
+              <p className="mt-1 text-sm text-muted-foreground">Пока нигде</p>
             ) : (
               <ExerciseUsageSectionsView sections={usageSections} />
             )}

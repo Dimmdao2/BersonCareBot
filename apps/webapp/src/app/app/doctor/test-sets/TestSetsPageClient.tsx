@@ -42,7 +42,12 @@ import { MediaThumb } from '@/shared/ui/doctor/media/MediaThumb';
 import { clinicalTestMediaItemToPreviewUi } from '@/shared/ui/doctor/media/mediaPreviewUiModel';
 import type { ClinicalTestLibraryPickRow } from './clinicalTestLibraryRows';
 import { TestSetForm } from './TestSetForm';
-import { TestSetMasterListStatusBadge } from './TestSetMasterListStatusBadge';
+import { useViewportMinWidth } from '@/shared/hooks/useViewportMinWidth';
+import { DoctorCatalogMobileToolbar } from '@/shared/ui/doctor/DoctorCatalogMobileToolbar';
+import { CatalogStatusFilters } from '@/shared/ui/doctor/CatalogStatusFilters';
+import { DoctorCatalogTitleSortSelect } from '@/shared/ui/doctor/DoctorCatalogTitleSortSelect';
+import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
+import { DoctorCatalogVisibilityMark } from '@/shared/ui/doctor/DoctorCatalogVisibilityMark';
 
 type TestSetsBootstrap = {
   items: TestSet[];
@@ -92,6 +97,7 @@ function TestSetsContent({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [mobileSheet, setMobileSheet] = useState<TestSet | null>(null);
+  const isDesktopViewport = useViewportMinWidth(1024);
 
   const filterScope = useMemo(() => ({ ...filters, titleSort }), [filters, titleSort]);
   const mergedFilters = useDoctorCatalogClientFilterMerge(filterScope);
@@ -163,7 +169,7 @@ function TestSetsContent({
         overscan={4}
         keyExtractor={(s) => s.id}
         containerClassName="h-full min-h-0"
-        gridClassName="gap-1 pb-1"
+        gridClassName="gap-0 p-0"
         renderItem={(s) => {
           const active = activeId === s.id;
           const sortedItems = [...s.items].sort((a, b) => a.sortOrder - b.sortOrder);
@@ -209,10 +215,8 @@ function TestSetsContent({
               title={s.title}
               meta={<>Тестов в наборе: {s.items.length}</>}
               badge={
-                <TestSetMasterListStatusBadge
-                  publicationStatus={s.publicationStatus}
-                  isArchived={s.isArchived}
-                  className="w-full justify-center text-[10px] leading-tight"
+                <DoctorCatalogVisibilityMark
+                  status={s.isArchived ? 'archived' : s.publicationStatus}
                 />
               }
             />
@@ -257,12 +261,11 @@ function TestSetsContent({
     </div>
   );
 
-  const desktopRight = <CatalogRightPane className="h-full">{rightInner}</CatalogRightPane>;
-
   const mobileDetailOpen = creating || mobileSheet != null;
 
   const toolbar = (
     <DoctorCatalogFiltersToolbar
+      className="hidden md:block"
       filters={
         <DoctorCatalogToolbarFiltersSlot>
           <DoctorCatalogFiltersForm
@@ -282,11 +285,7 @@ function TestSetsContent({
           type="button"
           size="sm"
           className={doctorCatalogToolbarPrimaryActionClassName}
-          onClick={() => {
-            setCreating(true);
-            setSelectedId(null);
-            setMobileSheet(null);
-          }}
+          onClick={openNewTestSet}
         >
           Создать
         </Button>
@@ -294,8 +293,57 @@ function TestSetsContent({
     />
   );
 
+  function openNewTestSet() {
+    setCreating(true);
+    setSelectedId(null);
+    setMobileSheet(null);
+  }
+
+  const pickTestSet = (testSet: TestSet) => {
+    setCreating(false);
+    setSelectedId(testSet.id);
+    if (!isDesktopViewport) setMobileSheet(testSet);
+  };
+
+  const mobileSearch = (
+    <DoctorCatalogFiltersForm
+      idPrefix="ts-mobile-search"
+      q={mergedFilters.q}
+      regionCode={mergedFilters.regionCode}
+      showLoadFilter={false}
+      titleSort={mergedFilters.titleSort}
+      catalogPubArch={mergedFilters.listPubArch}
+      presentation="search-only"
+    />
+  );
+
+  const mobileFilters = (
+    <>
+      <DoctorCatalogFiltersForm
+        idPrefix="ts-mobile-filters"
+        q={mergedFilters.q}
+        regionCode={mergedFilters.regionCode}
+        showLoadFilter={false}
+        titleSort={mergedFilters.titleSort}
+        catalogPubArch={mergedFilters.listPubArch}
+        presentation="facets-only"
+        stacked
+      />
+      <DoctorCatalogTitleSortSelect
+        value={titleSortForHeader ?? 'default'}
+        onValueChange={(value) => changeTitleSort(value === 'default' ? null : value)}
+        className="w-full max-w-none"
+      />
+      <CatalogStatusFilters
+        value={mergedFilters.listPubArch}
+        extraParams={{ titleSort: mergedFilters.titleSort }}
+        className="flex-col items-stretch [&>div]:w-full [&>div]:max-w-none"
+      />
+    </>
+  );
+
   return (
-    <DoctorCatalogPageLayout toolbar={toolbar}>
+    <DoctorCatalogPageLayout toolbar={toolbar} mobileEdgeToEdge>
       <CatalogSplitLayout
         className={cn(
           filterToolbarLayout === 'expanded'
@@ -307,6 +355,7 @@ function TestSetsContent({
             stickySplit={false}
             stickyToolbarRows={1}
             className="h-full"
+            mobileEdgeToEdge
             headerSlot={
               <DoctorCatalogListSortHeader
                 summaryLine={
@@ -328,35 +377,58 @@ function TestSetsContent({
               )}
               aria-busy={isListPending}
             >
-              {renderRows(
-                (s) => {
-                  setCreating(false);
-                  setSelectedId(s.id);
-                  setMobileSheet(s);
-                },
-                creating ? null : (selected?.id ?? mobileSheet?.id ?? null),
-              )}
+              {renderRows(pickTestSet, creating ? null : (selected?.id ?? mobileSheet?.id ?? null))}
             </div>
           </CatalogLeftPane>
         }
-        right={desktopRight}
-        mobileView={mobileDetailOpen ? 'detail' : 'list'}
-        mobileBackSlot={
-          mobileDetailOpen ? (
-            <Button
-              variant="ghost"
-              type="button"
-              className="mb-2 h-9 px-2"
-              onClick={() => {
-                setMobileSheet(null);
-                setCreating(false);
-              }}
-            >
-              ← Назад
-            </Button>
-          ) : null
+        right={
+          <CatalogRightPane className="h-full">
+            {isDesktopViewport ? rightInner : null}
+          </CatalogRightPane>
         }
+        mobileView="list"
       />
+      <DoctorCatalogMobileToolbar
+        search={mobileSearch}
+        filters={mobileFilters}
+        filterActive={Boolean(
+          mergedFilters.regionCode ||
+          mergedFilters.titleSort ||
+          mergedFilters.listPubArch.arch !== 'active' ||
+          mergedFilters.listPubArch.pub !== 'all',
+        )}
+        onCreate={openNewTestSet}
+        createLabel="Новый набор тестов"
+      />
+      <DoctorModal
+        open={!isDesktopViewport && mobileDetailOpen}
+        onClose={() => {
+          setMobileSheet(null);
+          setCreating(false);
+        }}
+        title={creating ? 'Новый набор тестов' : (mobileSheet?.title ?? 'Набор тестов')}
+        size="content"
+        desktopPresentation="right-sheet"
+      >
+        {!isDesktopViewport && mobileDetailOpen ? (
+          <TestSetForm
+            key={creating ? 'test-set-mobile-draft' : mobileSheet?.id}
+            testSet={creating ? null : mobileSheet}
+            saveAction={saveDoctorTestSetInline}
+            archiveAction={archiveDoctorTestSetInline}
+            unarchiveAction={unarchiveDoctorTestSetInline}
+            workspaceListPreserve={{
+              q: mergedFilters.q,
+              titleSort: mergedFilters.titleSort,
+              regionCode: mergedFilters.regionCode,
+              listPubArch: mergedFilters.listPubArch,
+            }}
+            externalUsageSnapshot={usageForSelection}
+            clinicalTestsLibrary={clinicalTestsLibrary}
+            modalFooter
+          />
+        ) : null}
+      </DoctorModal>
     </DoctorCatalogPageLayout>
   );
 }

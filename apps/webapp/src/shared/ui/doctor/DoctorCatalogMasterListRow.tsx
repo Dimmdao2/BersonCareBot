@@ -2,8 +2,14 @@
 
 import type { ReactNode } from 'react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
-import { doctorInteractiveSurfaceButtonClass } from '@/shared/ui/doctor/doctorVisual';
 import { cn } from '@/lib/utils';
+import {
+  DoctorDnaFlatListSelectionStrip,
+  doctorDnaFlatListClickableClass,
+  doctorDnaFlatListPrimaryClass,
+  doctorDnaFlatListRowClass,
+  doctorDnaFlatListSecondaryClass,
+} from '@/shared/ui/doctor/DoctorDnaFlatListRow';
 
 export type DoctorCatalogMasterListRowProps = {
   active: boolean;
@@ -13,13 +19,12 @@ export type DoctorCatalogMasterListRowProps = {
   title: string;
   /** Вторая строка под заголовком (счётчики и т.п.). */
   meta: ReactNode;
-  /** Правая колонка: бейдж Черновик / Опубликован / В архиве. */
+  /** Компактная отметка состояния справа. */
   badge: ReactNode;
 };
 
 /**
- * Строка master-списка каталога врача: как в «Комплексы ЛФК» — превью-сетка слева в кнопке,
- * заголовок + мета, отдельная колонка с бейджем статуса.
+ * Строка master-списка каталога врача в общей геометрии плоских списков.
  */
 export function DoctorCatalogMasterListRow({
   active,
@@ -30,42 +35,35 @@ export function DoctorCatalogMasterListRow({
   badge,
 }: DoctorCatalogMasterListRowProps) {
   return (
-    <li className="border-b border-border bg-card/30 last:border-b-0">
-      <div className="flex w-full items-stretch gap-0">
-        <Button
-          type="button"
-          variant="ghost"
-          onClick={onPick}
-          className={cn(
-            doctorInteractiveSurfaceButtonClass,
-            'flex min-w-0 flex-1 items-center gap-2 rounded-none border border-transparent px-[var(--doctor-list-inline-padding,18px)] py-2.5 text-left text-base font-normal hover:bg-muted/80',
-            active &&
-              'border-primary/25 bg-primary/15 text-primary hover:bg-primary/20 dark:bg-primary/20 dark:hover:bg-primary/25',
-          )}
-        >
-          <div className="flex min-h-[30px] flex-wrap content-end items-end gap-1">
-            {previewInner}
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="line-clamp-2 font-normal leading-tight">{title}</div>
-            <div
-              className={cn(
-                'text-xs tabular-nums',
-                active ? 'text-primary/70' : 'text-muted-foreground',
-              )}
-            >
-              {meta}
-            </div>
-          </div>
-        </Button>
-        <div
-          className="flex w-[6.75rem] shrink-0 flex-col items-stretch justify-center border-l border-border/40 bg-background/50 px-1 py-1"
-          onClick={(e) => e.stopPropagation()}
-          onPointerDown={(e) => e.stopPropagation()}
-        >
-          {badge}
+    <div className="border-b border-[var(--doctor-flat-list-divider,#f0efeb)] last:border-b-0">
+      <Button
+        type="button"
+        variant="ghost"
+        onClick={onPick}
+        className={cn(
+          doctorDnaFlatListRowClass,
+          doctorDnaFlatListClickableClass,
+          'h-auto min-h-0 w-full rounded-none bg-transparent text-left shadow-none',
+        )}
+      >
+        {active ? <DoctorDnaFlatListSelectionStrip /> : null}
+        <div className="flex min-h-[30px] shrink-0 flex-wrap content-center items-center gap-1">
+          {previewInner}
         </div>
-      </div>
-    </li>
+        <div className="min-w-0 flex-1">
+          <div
+            className={cn(
+              doctorDnaFlatListPrimaryClass,
+              'line-clamp-2 whitespace-normal leading-snug',
+              active && 'text-primary',
+            )}
+          >
+            {title}
+          </div>
+          <div className={cn(doctorDnaFlatListSecondaryClass, 'truncate tabular-nums')}>{meta}</div>
+        </div>
+        <span className="flex size-8 shrink-0 items-center justify-center">{badge}</span>
+      </Button>
+    </div>
   );
 }

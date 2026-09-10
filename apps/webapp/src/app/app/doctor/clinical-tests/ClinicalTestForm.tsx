@@ -61,6 +61,7 @@ import {
   type ClinicalTestMeasureRowModel,
 } from './ClinicalTestMeasureRowsEditor';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
+import { DoctorModalFooter } from '@/shared/ui/doctor/DoctorModal';
 
 export type ClinicalTestFormValues = {
   title: string;
@@ -262,6 +263,7 @@ type ClinicalTestFormProps = {
    * подгружается через `fetchDoctorClinicalTestUsageSnapshot`.
    */
   externalUsageSnapshot?: ClinicalTestUsageSnapshot;
+  modalFooter?: boolean;
 };
 
 export function ClinicalTestForm({
@@ -274,6 +276,7 @@ export function ClinicalTestForm({
   archiveAction = archiveClinicalTest,
   unarchiveAction = unarchiveClinicalTest,
   externalUsageSnapshot,
+  modalFooter = false,
 }: ClinicalTestFormProps) {
   const terms = useDoctorPatientTerms();
   const { patientSingularLabel } = terms;
@@ -394,6 +397,7 @@ export function ClinicalTestForm({
     unarchiveState?.ok === false && 'error' in unarchiveState ? unarchiveState.error : null;
 
   const isArchived = !!test?.isArchived;
+  const formId = `doctor-clinical-test-form-${recordKey}`;
 
   const clinicalStructuredJson = useMemo(() => {
     try {
@@ -405,7 +409,7 @@ export function ClinicalTestForm({
 
   return (
     <div className="flex max-w-2xl flex-col gap-4">
-      <form action={formAction} className="flex flex-col gap-4">
+      <form id={formId} action={formAction} className="flex flex-col gap-4">
         {localError ? (
           <p role="alert" className="text-sm text-destructive">
             {localError}
@@ -563,8 +567,8 @@ export function ClinicalTestForm({
                   </Select>
                   {values.schemaType === 'numeric' ? (
                     <p className="text-xs text-muted-foreground leading-snug">
-                      {patientSingularLabel} вводит одно число между min и max ниже. Примеры: боль 0–10, угол в
-                      градусах 0–180, процент выполнения 0–100.
+                      {patientSingularLabel} вводит одно число между min и max ниже. Примеры: боль
+                      0–10, угол в градусах 0–180, процент выполнения 0–100.
                     </p>
                   ) : null}
                 </div>
@@ -677,7 +681,7 @@ export function ClinicalTestForm({
               </div>
             </div>
 
-            <div className="flex flex-wrap gap-2">
+            <div className={cn('flex flex-wrap gap-2', modalFooter && 'hidden')}>
               <Button type="submit" disabled={savePending}>
                 {savePending ? 'Сохранение…' : test ? 'Сохранить' : 'Создать тест'}
               </Button>
@@ -688,6 +692,14 @@ export function ClinicalTestForm({
           </div>
         </fieldset>
       </form>
+
+      {modalFooter ? (
+        <DoctorModalFooter>
+          <Button type="submit" form={formId} disabled={savePending}>
+            {savePending ? 'Сохранение…' : test ? 'Сохранить' : 'Создать тест'}
+          </Button>
+        </DoctorModalFooter>
+      ) : null}
 
       {test ? (
         <div className="border-t border-border/60 pt-4">

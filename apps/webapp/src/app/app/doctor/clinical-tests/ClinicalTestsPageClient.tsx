@@ -46,11 +46,17 @@ import { Card, CardContent } from '@/shared/ui/doctor/primitives/card';
 import { ClinicalTestForm } from './ClinicalTestForm';
 import { useDoctorCatalogDisplayList } from '@/shared/hooks/useDoctorCatalogDisplayList';
 import { useDoctorCatalogClientFilterMerge } from '@/shared/hooks/useDoctorCatalogClientFilterMerge';
+import { doctorInteractiveSurfaceButtonClass } from '@/shared/ui/doctor/doctorVisual';
 import {
-  doctorInteractiveSurfaceButtonClass,
-  doctorCatalogRowActiveClass,
-  doctorCatalogRowClass,
-} from '@/shared/ui/doctor/doctorVisual';
+  DoctorDnaFlatList,
+  DoctorDnaFlatListSelectionStrip,
+  doctorDnaFlatListClickableClass,
+  doctorDnaFlatListRowClass,
+} from '@/shared/ui/doctor/DoctorDnaFlatListRow';
+import { DoctorCatalogMobileToolbar } from '@/shared/ui/doctor/DoctorCatalogMobileToolbar';
+import { DoctorCatalogTitleSortSelect } from '@/shared/ui/doctor/DoctorCatalogTitleSortSelect';
+import { DoctorCatalogArchiveScopeSelect } from '@/shared/ui/doctor/DoctorCatalogArchiveScopeSelect';
+import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
 
 export type ClinicalTestsViewMode = 'tiles' | 'list';
 export type ClinicalTestTitleSort = 'asc' | 'desc';
@@ -293,7 +299,7 @@ function ClinicalTestsContent({
     list.length === 0 ? (
       <DoctorEmptyState>Нет тестов по заданным фильтрам.</DoctorEmptyState>
     ) : (
-      <ul className="flex h-full min-h-0 flex-col gap-1 overflow-y-auto">
+      <DoctorDnaFlatList className="h-full min-h-0 overflow-y-auto">
         {list.map((t) => {
           const active = opts.activeId === t.id;
           return (
@@ -303,8 +309,13 @@ function ClinicalTestsContent({
                   type="button"
                   variant="ghost"
                   onClick={() => opts.onRowSelect(t.id)}
-                  className={cn(doctorCatalogRowClass, active && doctorCatalogRowActiveClass)}
+                  className={cn(
+                    doctorDnaFlatListRowClass,
+                    doctorDnaFlatListClickableClass,
+                    'h-auto min-h-0 w-full rounded-none bg-transparent text-left shadow-none',
+                  )}
                 >
+                  {active ? <DoctorDnaFlatListSelectionStrip /> : null}
                   {mediaThumbRow(t)}
                   <span className="line-clamp-2">{t.title}</span>
                 </Button>
@@ -312,7 +323,7 @@ function ClinicalTestsContent({
             </li>
           );
         })}
-      </ul>
+      </DoctorDnaFlatList>
     );
 
   const renderTestTiles = (
@@ -346,13 +357,19 @@ function ClinicalTestsContent({
   const pickRow = (id: string) => {
     const found = displayTests.find((t) => t.id === id) ?? null;
     setDesktopSelectedId(id);
-    setMobileSheet(found ? { test: found } : null);
+    if (!isDesktopViewport) setMobileSheet(found ? { test: found } : null);
+  };
+
+  const openNewTest = () => {
+    setDesktopSelectedId(null);
+    if (isDesktopViewport) setMobileSheet(null);
+    else setMobileSheet({ test: null });
   };
 
   const rightPanel = (
     <CatalogRightPane className="h-full">
       <ClinicalTestForm
-        test={formTest ?? undefined}
+        test={testForDesktop ?? undefined}
         saveAction={saveClinicalTestInline}
         archiveAction={archiveClinicalTestInline}
         unarchiveAction={unarchiveClinicalTestInline}
@@ -370,10 +387,61 @@ function ClinicalTestsContent({
     </CatalogRightPane>
   );
 
+  const filterDefinition = {
+    items: assessmentKindFilterItems,
+    paramName: 'assessment',
+    value: filters.assessmentKind ?? null,
+    label: 'Вид оценки',
+    placeholder: 'Все виды',
+    clearLabel: 'Все виды',
+    summaryLabel: 'Вид оценки',
+  };
+
+  const mobileSearch = (
+    <DoctorCatalogFiltersForm
+      idPrefix="ct-mobile-search"
+      q={filters.q}
+      regionCode={filters.regionCode}
+      tertiaryFilter={filterDefinition}
+      view={viewMode}
+      titleSort={filters.titleSort}
+      selectedId={desktopSelectedId}
+      presentation="search-only"
+    />
+  );
+
+  const mobileFilters = (
+    <>
+      <DoctorCatalogFiltersForm
+        idPrefix="ct-mobile-filters"
+        q={filters.q}
+        regionCode={filters.regionCode}
+        tertiaryFilter={filterDefinition}
+        view={viewMode}
+        titleSort={filters.titleSort}
+        selectedId={desktopSelectedId}
+        presentation="facets-only"
+        stacked
+      />
+      <DoctorCatalogTitleSortSelect
+        value={filters.titleSort ?? 'default'}
+        onValueChange={(value) => changeTitleSort(value === 'default' ? null : value)}
+        className="w-full max-w-none"
+      />
+      <DoctorCatalogArchiveScopeSelect
+        value={filters.listStatus}
+        extraParams={{ view: viewMode, titleSort: filters.titleSort }}
+        className="w-full max-w-none"
+      />
+    </>
+  );
+
   return (
     <DoctorCatalogPageLayout
+      mobileEdgeToEdge
       toolbar={
         <DoctorCatalogFiltersToolbar
+          className="hidden md:block"
           filters={
             <DoctorCatalogToolbarFiltersSlot>
               <DoctorCatalogFiltersForm
@@ -403,8 +471,7 @@ function ClinicalTestsContent({
               id="doctor-clinical-tests-create"
               className={doctorCatalogToolbarPrimaryActionClassName}
               onClick={() => {
-                setDesktopSelectedId(null);
-                setMobileSheet({ test: null });
+                openNewTest();
               }}
             >
               Создать тест
@@ -432,6 +499,7 @@ function ClinicalTestsContent({
             stickySplit={false}
             stickyToolbarRows={1}
             className="h-full"
+            mobileEdgeToEdge
             headerSlot={
               <DoctorCatalogMasterListHeader
                 summaryLine={
@@ -471,20 +539,49 @@ function ClinicalTestsContent({
           </CatalogLeftPane>
         }
         right={rightPanel}
-        mobileView={mobileSheet != null ? 'detail' : 'list'}
-        mobileBackSlot={
-          mobileSheet != null ? (
-            <Button
-              variant="ghost"
-              type="button"
-              className="mb-2 h-9 px-2"
-              onClick={() => setMobileSheet(null)}
-            >
-              ← Назад
-            </Button>
-          ) : null
-        }
+        mobileView="list"
       />
+      <DoctorCatalogMobileToolbar
+        search={mobileSearch}
+        filters={mobileFilters}
+        filterActive={Boolean(
+          filters.regionCode ||
+          filters.assessmentKind ||
+          filters.titleSort ||
+          filters.listStatus !== 'active',
+        )}
+        viewMode={toolbarViewMode}
+        onToggleView={toggleViewMode}
+        onCreate={openNewTest}
+        createLabel="Новый тест"
+      />
+      <DoctorModal
+        open={!isDesktopViewport && mobileSheet !== null}
+        onClose={() => setMobileSheet(null)}
+        title={mobileSheet?.test?.title ?? 'Новый тест'}
+        size="content"
+        desktopPresentation="right-sheet"
+      >
+        {!isDesktopViewport && mobileSheet !== null ? (
+          <ClinicalTestForm
+            test={mobileSheet.test ?? undefined}
+            saveAction={saveClinicalTestInline}
+            archiveAction={archiveClinicalTestInline}
+            unarchiveAction={unarchiveClinicalTestInline}
+            workspaceView={viewMode}
+            assessmentKindSelectOptions={assessmentKindSelectOptions}
+            workspaceListPreserve={{
+              q: filters.q,
+              titleSort: filters.titleSort,
+              regionCode: filters.regionCode,
+              assessmentKind: filters.assessmentKind,
+              listStatus: filters.listStatus,
+            }}
+            externalUsageSnapshot={usageForSelection}
+            modalFooter
+          />
+        ) : null}
+      </DoctorModal>
     </DoctorCatalogPageLayout>
   );
 }

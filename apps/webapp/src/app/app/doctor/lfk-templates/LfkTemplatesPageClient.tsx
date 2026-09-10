@@ -16,6 +16,7 @@ import {
   type DoctorCatalogToolbarLayout,
 } from '@/shared/ui/doctor/DoctorCatalogFiltersForm';
 import { DoctorCatalogListSortHeader } from '@/shared/ui/doctor/DoctorCatalogListSortHeader';
+import { DoctorCatalogTitleSortSelect } from '@/shared/ui/doctor/DoctorCatalogTitleSortSelect';
 import type { CatalogMasterTitleSort } from '@/shared/ui/doctor/DoctorCatalogMasterListHeader';
 import { CatalogLeftPane } from '@/shared/ui/doctor/catalog/CatalogLeftPane';
 import { CatalogRightPane } from '@/shared/ui/doctor/catalog/CatalogRightPane';
@@ -32,7 +33,6 @@ import { MediaThumb } from '@/shared/ui/doctor/media/MediaThumb';
 import { exerciseMediaToPreviewUi } from '@/shared/ui/doctor/media/mediaPreviewUiModel';
 import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
-import { LfkTemplateStatusBadge } from './LfkTemplateStatusBadge';
 import { LfkTemplatePreviewPanel } from './LfkTemplatePreviewPanel';
 import { buildLfkTemplatesListPreserveQuery } from './lfkTemplatesListPreserveQuery';
 import type { DoctorCatalogPubArchQuery } from '@/shared/lib/doctorCatalogListStatus';
@@ -41,6 +41,11 @@ import {
   DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_EXPANDED,
   DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE,
 } from '@/shared/ui/doctor/doctorWorkspaceLayout';
+import { useViewportMinWidth } from '@/shared/hooks/useViewportMinWidth';
+import { DoctorCatalogMobileToolbar } from '@/shared/ui/doctor/DoctorCatalogMobileToolbar';
+import { CatalogStatusFilters } from '@/shared/ui/doctor/CatalogStatusFilters';
+import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
+import { DoctorCatalogVisibilityMark } from '@/shared/ui/doctor/DoctorCatalogVisibilityMark';
 
 /** @dnd-kit editor — только при create/select, не на cold first paint списка. */
 const TemplateEditor = dynamic(() => import('./TemplateEditor').then((mod) => mod.TemplateEditor), {
@@ -102,6 +107,7 @@ function LfkTemplatesContent({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [mobileSheet, setMobileSheet] = useState<Template | null>(null);
+  const isDesktopViewport = useViewportMinWidth(1024);
 
   const filterScope = useMemo(() => ({ ...filters, titleSort }), [filters, titleSort]);
   const mergedFilters = useDoctorCatalogClientFilterMerge(filterScope);
@@ -212,7 +218,7 @@ function LfkTemplatesContent({
         overscan={4}
         keyExtractor={(t) => t.id}
         containerClassName="h-full min-h-0"
-        gridClassName="gap-1 pb-1"
+        gridClassName="gap-0 p-0"
         renderItem={(t) => {
           const active = activeId === t.id;
           const rowN = t.exerciseCount ?? t.exercises.length;
@@ -251,12 +257,7 @@ function LfkTemplatesContent({
               previewInner={previewInner}
               title={t.title}
               meta={<>Упражнений: {rowN}</>}
-              badge={
-                <LfkTemplateStatusBadge
-                  status={t.status}
-                  className="w-full justify-center text-[10px] leading-tight"
-                />
-              }
+              badge={<DoctorCatalogVisibilityMark status={t.status} />}
             />
           );
         }}
@@ -265,7 +266,7 @@ function LfkTemplatesContent({
 
   const desktopRight = (
     <CatalogRightPane className="h-full">
-      {creating ? (
+      {!isDesktopViewport ? null : creating ? (
         <div className="flex min-h-0 flex-1 flex-col">
           <TemplateEditor
             key="new-lfk-template"
@@ -302,8 +303,15 @@ function LfkTemplatesContent({
 
   const mobileDetailOpen = creating || mobileSheet != null;
 
+  const openNewTemplate = () => {
+    setCreating(true);
+    setSelectedId(null);
+    setMobileSheet(null);
+  };
+
   const toolbar = (
     <DoctorCatalogFiltersToolbar
+      className="hidden md:block"
       filters={
         <DoctorCatalogToolbarFiltersSlot>
           <DoctorCatalogFiltersForm
@@ -323,9 +331,7 @@ function LfkTemplatesContent({
           className={doctorCatalogToolbarPrimaryActionClassName}
           id="doctor-lfk-templates-new-link"
           onClick={() => {
-            setCreating(true);
-            setSelectedId(null);
-            setMobileSheet(null);
+            openNewTemplate();
           }}
         >
           Создать
@@ -338,11 +344,48 @@ function LfkTemplatesContent({
     setCreating(false);
     const found = displayList.find((t) => t.id === id) ?? null;
     setSelectedId(id);
-    setMobileSheet(found);
+    if (!isDesktopViewport) setMobileSheet(found);
   };
 
+  const mobileSearch = (
+    <DoctorCatalogFiltersForm
+      idPrefix="lfk-tpl-mobile-search"
+      q={mergedFilters.q}
+      regionCode={mergedFilters.regionCode}
+      loadType={mergedFilters.loadType}
+      titleSort={mergedFilters.titleSort}
+      catalogPubArch={mergedFilters.listPubArch}
+      presentation="search-only"
+    />
+  );
+
+  const mobileFilters = (
+    <>
+      <DoctorCatalogFiltersForm
+        idPrefix="lfk-tpl-mobile-filters"
+        q={mergedFilters.q}
+        regionCode={mergedFilters.regionCode}
+        loadType={mergedFilters.loadType}
+        titleSort={mergedFilters.titleSort}
+        catalogPubArch={mergedFilters.listPubArch}
+        presentation="facets-only"
+        stacked
+      />
+      <DoctorCatalogTitleSortSelect
+        value={titleSortForHeader ?? 'default'}
+        onValueChange={(value) => changeTitleSort(value === 'default' ? null : value)}
+        className="w-full max-w-none"
+      />
+      <CatalogStatusFilters
+        value={mergedFilters.listPubArch}
+        extraParams={{ titleSort: mergedFilters.titleSort }}
+        className="flex-col items-stretch [&>div]:w-full [&>div]:max-w-none"
+      />
+    </>
+  );
+
   return (
-    <DoctorCatalogPageLayout toolbar={toolbar}>
+    <DoctorCatalogPageLayout toolbar={toolbar} mobileEdgeToEdge>
       <CatalogSplitLayout
         className={cn(
           filterToolbarLayout === 'expanded'
@@ -354,6 +397,7 @@ function LfkTemplatesContent({
             stickySplit={false}
             stickyToolbarRows={1}
             className="h-full"
+            mobileEdgeToEdge
             headerSlot={
               <DoctorCatalogListSortHeader
                 summaryLine={
@@ -383,23 +427,59 @@ function LfkTemplatesContent({
           </CatalogLeftPane>
         }
         right={desktopRight}
-        mobileView={mobileDetailOpen ? 'detail' : 'list'}
-        mobileBackSlot={
-          mobileDetailOpen ? (
-            <Button
-              variant="ghost"
-              type="button"
-              className="mb-2 h-9 px-2"
-              onClick={() => {
-                setMobileSheet(null);
-                setCreating(false);
-              }}
-            >
-              ← Назад
-            </Button>
-          ) : null
-        }
+        mobileView="list"
       />
+      <DoctorCatalogMobileToolbar
+        search={mobileSearch}
+        filters={mobileFilters}
+        filterActive={Boolean(
+          mergedFilters.regionCode ||
+          mergedFilters.loadType ||
+          mergedFilters.titleSort ||
+          mergedFilters.listPubArch.arch !== 'active' ||
+          mergedFilters.listPubArch.pub !== 'all',
+        )}
+        onCreate={openNewTemplate}
+        createLabel="Новый комплекс"
+      />
+      <DoctorModal
+        open={!isDesktopViewport && mobileDetailOpen}
+        onClose={() => {
+          setMobileSheet(null);
+          setCreating(false);
+        }}
+        title={creating ? 'Новый комплекс' : (mobileSheet?.title ?? 'Комплекс')}
+        size="content"
+        desktopPresentation="right-sheet"
+      >
+        {!isDesktopViewport && mobileDetailOpen ? (
+          creating ? (
+            <TemplateEditor
+              key="new-lfk-template-mobile"
+              template={null}
+              exerciseCatalog={exerciseCatalog}
+              listPreserveQuery={listPreserveQuery}
+              onCreated={(id) => {
+                setCreating(false);
+                setSelectedId(id);
+                setMobileSheet(null);
+                router.refresh();
+              }}
+              modalFooter
+            />
+          ) : mobileSheet?.ownerKind === 'platform' ? (
+            <LfkTemplatePreviewPanel template={mobileSheet} />
+          ) : mobileSheet ? (
+            <TemplateEditor
+              key={`${mobileSheet.id}-mobile`}
+              template={mobileSheet}
+              exerciseCatalog={exerciseCatalog}
+              listPreserveQuery={listPreserveQuery}
+              modalFooter
+            />
+          ) : null
+        ) : null}
+      </DoctorModal>
     </DoctorCatalogPageLayout>
   );
 }

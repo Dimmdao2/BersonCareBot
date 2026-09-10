@@ -339,6 +339,7 @@ type TemplateEditorProps = {
   listPreserveQuery?: string;
   /** После первого сохранения нового черновика — чтобы список выбрал созданную строку. */
   onCreated?: (id: string) => void;
+  modalFooter?: boolean;
 };
 
 export function TemplateEditor({
@@ -347,6 +348,7 @@ export function TemplateEditor({
   externalUsageSnapshot,
   listPreserveQuery = '',
   onCreated,
+  modalFooter = false,
 }: TemplateEditorProps) {
   const terms = useDoctorPatientTerms();
   const router = useRouter();
@@ -669,6 +671,7 @@ export function TemplateEditor({
         persistLabel={published ? 'Сохранить изменения' : 'Сохранить черновик'}
         onPersist={persist}
         onPublish={publish}
+        modalFooter={modalFooter}
       />
 
       <div className="border-t border-border/60 pt-4">

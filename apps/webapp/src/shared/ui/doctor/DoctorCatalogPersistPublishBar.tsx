@@ -2,6 +2,7 @@
 
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { cn } from '@/lib/utils';
+import { DoctorModalFooter } from '@/shared/ui/doctor/DoctorModal';
 
 const rowClass = 'flex flex-wrap gap-2 border-t border-border/60 pt-4';
 
@@ -23,6 +24,7 @@ type Base = {
   buttonSize?: SizeProp['size'];
   saveVariant?: 'default' | 'secondary';
   intentName?: string;
+  modalFooter?: boolean;
 };
 
 export type DoctorCatalogPersistPublishBarCallbacksProps = Base & {
@@ -39,8 +41,7 @@ export type DoctorCatalogPersistPublishBarFormIntentProps = Base & {
 };
 
 export type DoctorCatalogPersistPublishBarProps =
-  | DoctorCatalogPersistPublishBarCallbacksProps
-  | DoctorCatalogPersistPublishBarFormIntentProps;
+  DoctorCatalogPersistPublishBarCallbacksProps | DoctorCatalogPersistPublishBarFormIntentProps;
 
 export function DoctorCatalogPersistPublishBar(props: DoctorCatalogPersistPublishBarProps) {
   const {
@@ -56,6 +57,7 @@ export function DoctorCatalogPersistPublishBar(props: DoctorCatalogPersistPublis
     buttonSize,
     saveVariant = 'default',
     intentName = 'intent',
+    modalFooter = false,
   } = props;
 
   const persistDisabled = persistDisabledOverride ?? (isArchived || pending);
@@ -124,10 +126,12 @@ export function DoctorCatalogPersistPublishBar(props: DoctorCatalogPersistPublis
       </Button>
     );
 
-  return (
-    <div className={cn(rowClass, className)}>
+  const actions = (
+    <div className={cn(!modalFooter && rowClass, className)}>
       {persistNode}
       {publishNode}
     </div>
   );
+
+  return modalFooter ? <DoctorModalFooter>{actions}</DoctorModalFooter> : actions;
 }

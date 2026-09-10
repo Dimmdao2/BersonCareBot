@@ -48,6 +48,7 @@ import {
 } from './recommendationUsageSummaryText';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
+import { DoctorModalFooter } from '@/shared/ui/doctor/DoctorModal';
 
 function RecommendationUsageSectionsView({ sections }: { sections: RecommendationUsageSection[] }) {
   if (sections.length === 0) {
@@ -145,6 +146,7 @@ type Props = {
     formData: FormData,
   ) => Promise<UnarchiveRecommendationState>;
   externalUsageSnapshot?: RecommendationUsageSnapshot;
+  modalFooter?: boolean;
 };
 
 export function RecommendationForm({
@@ -157,6 +159,7 @@ export function RecommendationForm({
   archiveAction = archiveRecommendation,
   unarchiveAction = unarchiveRecommendation,
   externalUsageSnapshot,
+  modalFooter = false,
 }: Props) {
   const terms = useDoctorPatientTerms();
   const recordKey = recommendation?.id ?? 'create';
@@ -267,6 +270,7 @@ export function RecommendationForm({
     unarchiveState?.ok === false && 'error' in unarchiveState ? unarchiveState.error : null;
 
   const isArchived = !!recommendation?.isArchived;
+  const formId = `doctor-recommendation-form-${recordKey}`;
 
   const domainPrefetchedItems = useMemo(() => {
     const opts = buildRecommendationDomainSelectOptions(
@@ -283,7 +287,7 @@ export function RecommendationForm({
 
   return (
     <div className="flex max-w-2xl flex-col gap-4">
-      <form action={formAction} className="flex flex-col gap-4">
+      <form id={formId} action={formAction} className="flex flex-col gap-4">
         {localError ? (
           <p role="alert" className="text-sm text-destructive">
             {localError}
@@ -443,7 +447,7 @@ export function RecommendationForm({
               />
             </div>
 
-            <div className="flex flex-wrap gap-2">
+            <div className={cn('flex flex-wrap gap-2', modalFooter && 'hidden')}>
               <Button type="submit" disabled={pending}>
                 {pending ? 'Сохранение…' : recommendation ? 'Сохранить' : 'Создать'}
               </Button>
@@ -454,6 +458,14 @@ export function RecommendationForm({
           </div>
         </fieldset>
       </form>
+
+      {modalFooter ? (
+        <DoctorModalFooter>
+          <Button type="submit" form={formId} disabled={pending}>
+            {pending ? 'Сохранение…' : recommendation ? 'Сохранить' : 'Создать'}
+          </Button>
+        </DoctorModalFooter>
+      ) : null}
 
       {recommendation ? (
         <div className="border-t border-border/60 pt-4">
