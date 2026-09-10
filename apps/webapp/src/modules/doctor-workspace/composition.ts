@@ -10,10 +10,13 @@ export function resolveDoctorWorkspaceComposition(params: {
   clinicTeamEntitled: boolean;
   seats: ClinicSeatStatus;
 }): DoctorWorkspaceComposition {
-  // A team-capable workspace must keep its management surface before a second
-  // member exists. Retained active members/invites (`used`) keep it available
-  // after a downgrade, including legacy organizations without a configured cap.
-  if (params.clinicTeamEntitled || params.seats.used > 1) return 'clinic';
-  if (params.seats.configured && params.seats.limit > 1) return 'clinic';
-  return 'solo';
+  // A configured tariff is authoritative: one specialist place is the solo product,
+  // while a tariff that actually includes multiple places opens clinic management.
+  // Retained extra members keep management reachable after a downgrade so they can be removed.
+  if (params.seats.configured) {
+    return params.seats.limit > 1 || params.seats.used > 1 ? 'clinic' : 'solo';
+  }
+  // Compatibility organizations without a configured seat quota retain the former
+  // entitlement-based projection until their tariff is configured explicitly.
+  return params.clinicTeamEntitled || params.seats.used > 1 ? 'clinic' : 'solo';
 }

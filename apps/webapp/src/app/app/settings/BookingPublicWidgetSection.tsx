@@ -80,6 +80,7 @@ export function BookingPublicWidgetSection() {
             title="Предпросмотр записи"
             className="h-[min(720px,70vh)] w-full rounded-md border bg-background"
             loading="lazy"
+            sandbox="allow-forms allow-scripts allow-same-origin"
           />
         ) : pending ? null : (
           <p className="text-sm text-muted-foreground">Публичная форма пока недоступна.</p>
