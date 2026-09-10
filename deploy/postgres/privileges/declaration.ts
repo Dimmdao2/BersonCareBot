@@ -8054,6 +8054,80 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "invocation": "runtime"
   },
+  "app.read_operator_health_imap_setting()": {
+    "owner": "app_seam_settings_integrator_owner",
+    "security": "DEFINER",
+    "returns": "jsonb",
+    "returnsSet": false,
+    "volatility": "STABLE",
+    "parallel": "RESTRICTED",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_operational_scheduler"
+    ],
+    "purpose": "scheduler-only read of the fixed operator-health IMAP setting",
+    "typedArgs": [],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.system_settings",
+        "columns": [
+          "key",
+          "scope",
+          "organization_id",
+          "value_json"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
+  "app.read_operator_health_smtp_outbound_setting(text)": {
+    "owner": "app_seam_settings_integrator_owner",
+    "security": "DEFINER",
+    "returns": "jsonb",
+    "returnsSet": false,
+    "volatility": "STABLE",
+    "parallel": "RESTRICTED",
+    "proconfig": [
+      "search_path=pg_catalog"
+    ],
+    "execute": [
+      "app_operational_scheduler"
+    ],
+    "purpose": "scheduler-only read of one fixed platform SMTP profile selected by the closed audience",
+    "typedArgs": [
+      "text"
+    ],
+    "databases": [
+      "bersoncarebot_test",
+      "bcb_webapp_dev"
+    ],
+    "relationSurfaces": [
+      {
+        "relation": "public.system_settings",
+        "columns": [
+          "key",
+          "scope",
+          "organization_id",
+          "value_json"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
+    "invocation": "runtime"
+  },
   "app.read_operator_outbound_probe_meta()": {
     "owner": "app_seam_telemetry_operator_owner",
     "security": "DEFINER",
@@ -26106,6 +26180,11 @@ const REV10_CONTEXT = {
       targetRole: 'app_platform_settings', contextClass: 'platform',
       purpose: 'platform.organization.set-is-active',
       functionIdentity: 'app.set_platform_organization_is_active(uuid,boolean)' },
+    webapp_platform_organization_brand_domain_status: { port: 'webapp',
+      runtimeName: 'platform_organization_brand_domain_status', sessionRole: 'app_platform_settings',
+      targetRole: 'app_platform_settings', contextClass: 'platform',
+      purpose: 'platform.organization.brand-domain-status.read',
+      functionIdentity: 'app.list_platform_organization_brand_domain_status()' },
     webapp_platform_support_account_action: { port: 'webapp',
       runtimeName: 'platform_support_account_action', sessionRole: 'app_platform_settings',
       targetRole: 'app_platform_settings', contextClass: 'platform',
@@ -28210,7 +28289,7 @@ const REV10_CONTEXT = {
     'app.save_custom_domain_binding_intent(text,uuid,text,text)': rev10Function({
       owner: 'app_seam_custom_domain_owner', security: 'DEFINER', returns: 'jsonb',
       returnsSet: false, execute: ['app_staff'],
-      purpose: 'staff sets, retries, supersedes, or clears only its own custom-domain intent',
+      purpose: 'staff sets, retries, supersedes, clears, or reclaims only its own custom-domain intent',
       typedArgs: ['text', 'uuid', 'text', 'text'], volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
@@ -28221,7 +28300,8 @@ const REV10_CONTEXT = {
           operationColumns: {
             INSERT: ['organization_id', 'base_domain', 'placement', 'subdomain_label', 'hostname',
               'status', 'created_by_platform_user_id'],
-            UPDATE: ['status', 'status_reason', 'updated_at'],
+            UPDATE: ['base_domain', 'placement', 'subdomain_label', 'hostname', 'status', 'status_reason',
+              'activated_at', 'updated_at'],
           },
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
@@ -30704,6 +30784,22 @@ const REV10_CONTEXT = {
         columns: ['id', 'is_active', 'updated_at'],
         operations: ['SELECT' as const, 'UPDATE' as const],
         evidence: 'exact UPDATE in migration 0050' as const }],
+    }),
+    'app.list_platform_organization_brand_domain_status()': rev10Function({
+      owner: 'app_seam_custom_domain_owner', security: 'DEFINER', returns: 'record', returnsSet: true,
+      execute: ['app_platform_settings'],
+      purpose: 'return only published-brand existence and configured custom-domain lifecycle for platform organization projection',
+      typedArgs: [], volatility: 'STABLE', parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.be_organizations', columns: ['id'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.org_brand_revisions', columns: ['organization_id', 'status'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.org_custom_domain_bindings',
+          columns: ['organization_id', 'hostname', 'status', 'status_reason', 'updated_at'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+      databases: ['bersoncarebot_test', 'bcb_webapp_dev'],
     }),
     // D26 §5.8 platform support door (Track D synthesis 26.08): one door, four action variants
     // (AGENTS.md §5) — block/unblock/revoke one contact/revoke one channel binding on a duplicate

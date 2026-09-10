@@ -23,9 +23,10 @@ import { platformUsers } from './schema';
  *
  * Uniqueness is GLOBAL and PERMANENT (`uq_org_custom_domain_bindings_hostname` has no status
  * filter): once any organization has ever bound a hostname, that exact hostname cannot be bound by
- * anyone else again, even after the row moves to `quarantine`. This mirrors the tombstone discipline
- * `organization_slug_claims` already uses for the same anti-squatting reason — a domain a clinic
- * gave up is not immediately available to a stranger who was watching for exactly that.
+ * any other organization again, even after the row moves to `quarantine`. This mirrors the tombstone
+ * discipline `organization_slug_claims` already uses for the same anti-squatting reason — a domain a
+ * clinic gave up is not immediately available to a stranger who was watching for exactly that. The
+ * immutable original organization may reclaim its own exact derived hostname through the sole intent door.
  *
  * `organizationId` is nullable ON PURPOSE, same tombstone rule as `organization_slug_claims`: if the
  * owning organization is deleted, the FK nulls this column and the row survives as an unlinked
@@ -48,8 +49,9 @@ export type OrgCustomDomainPlacement = (typeof ORG_CUSTOM_DOMAIN_PLACEMENTS)[num
  * `failed` — the verifier could not proceed (bad DNS, CA rejection, etc.); `statusReason` holds why.
  * `suspended` — was active, now paused (e.g. tariff no longer includes the mechanic) without losing
  *   the binding row itself.
- * `quarantine` — permanently retired; the hostname stays claimed (see uniqueness note above) but the
- *   row never again resolves anything.
+ * `quarantine` — inactive and unavailable to every other organization; the hostname stays claimed
+ *   (see uniqueness note above), never resolves anything, and only its immutable original owner may
+ *   return it to `pending` through the sole intent door.
  */
 export const ORG_CUSTOM_DOMAIN_STATUSES = [
   'pending',

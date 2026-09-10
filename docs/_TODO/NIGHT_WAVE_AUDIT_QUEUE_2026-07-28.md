@@ -4,6 +4,8 @@
 > задач. Упомянутые `runs/briefs/**`, `runs/integrator-cleanup/**` и raw logs удалены из checkout; их содержимое
 > доступно в Git history. Текущую работу определяют taskdb и планы из `docs/CURRENT_AUTHORITY_MAP.md`.
 
+<!-- in-flight gate registration: candidate 83a491301; independent FAIL audit 09831fbcf; correction aec8cbf00; independent PASS audit d7c1a2d07 (MIG-P5-01). The complete audit artifact lands with the corrected candidate branch. -->
+
 # Очередь независимого аудита ночной волны 28.07
 
 ## TherapyGo + Therapysto mobile #915 — 09.09
@@ -72,6 +74,8 @@
 | слой | коммит | вердикт |
 |---|---|---|
 | Настройка и независимая desktop/mobile-приёмка | product `062eb52eb`, acceptance `b48ae835a`, live audit `a6a3dfe83`, queue registration `c01e44176` (`wt/branding-domain-ui-20260907`) | **INDEPENDENT LIVE-VIEW PASS — FOR LAND.** На изолированном candidate `58cdd83c1` владелец клиники видит существующую карточку собственного домена с выбором корневого домена или `app.`; desktop `1440×1100` и mobile `390×844` без обрезки и горизонтального переполнения. Route-acceptance подтверждает, что управляемая браузером метка поддомена не проходит в каноническую запись. Данные клиники, DNS, TLS, TEST и PROD не менялись; общий `:5200` не затронут. Артефакт: `docs/_TODO/THERAPYSTO_PATIENT_BRANDING_INITIATIVE/AUDIT_CUSTOM_DOMAIN_UI_2026-09-07.md`. |
+| Понятная настройка и наблюдаемая перепроверка домена | candidate `ae8276d4f`, identical cherry-pick `b768a10e3`, independent audit `1729851fa` (`wt/domain-settings-feedback-20260910`) | **PASS — LAND-READY FOR LATER LIVE BROWSER ACCEPTANCE.** Клиент отправляет только базовый домен и выбранное размещение; server-owned вычисление `app.`, entitlement, uniqueness, lifecycle и переходы не обходятся. Preview различает введённую основу и итоговый hostname, ошибки API/сети/JSON остаются пользовательскими, повторная проверка всегда даёт видимый результат, сохранённые DNS/TLS/routing/runtime причины объясняются без выдуманной готовности. `git diff --check bf8fcee15 ae8276d4f` PASS; UI/DOM-тесты и live-claim отсутствуют по §10a. |
+| Решение владельца по DNS поддомена | plan `845720d36` (`wt/custom-domain-dns-alternatives-20260910`) | **OWNER DECISION RECORDED.** Для вычисленного `app.<домен>` платформа принимает либо точную A-запись на edge IP, либо точную CNAME-запись на канонический target; достаточно одного рабочего варианта. TEST временно остаётся на nginx/Certbot, новый PROD Caddy проверяется отдельно. Это authority-запись, не audit verdict продуктового кода. |
 
 ## Patient absolute links #787 — 07.09
 
@@ -2325,3 +2329,71 @@ identity-по-имени-файла вместо watermark по `when` (влит
 | **Berson Care TEST custom-domain security re-audit — `FAIL, NOT FOR LAND`**, candidate `7e8a32b32`; artifact `docs/_TODO/THERAPYSTO_PATIENT_BRANDING_INITIATIVE/AUDIT_BERSON_TEST_CUSTOM_DOMAIN_SECURITY_REAUDIT_2026-09-09.md` | View gates found no new reachable implementation violation: `app_staff` is read-only on bindings; the sole staff door is the declared, actor-context-bound definer root; quarantine/retry/supersede/clear remain in that root; generated DEV/TEST declarations match; migration has no local ACL and owner-aware named-DEV preflight ended in `ROLLBACK`. PASS is prohibited because the existing real-port same-/cross-org proof cannot run: named DEV has no second organization and this worktree lacks Vitest. No fixture, TEST/PROD, DNS/TLS/nginx or product file was touched. |
 | **Android API 34 VPN viewer #915 — `OPS EVIDENCE ACCEPTED; VIEWER UNAVAILABLE, PHYSICAL DEVICE DEFERRED`**, report `8858dc830` on `wt/mobile-emulator-api34-viewer-20260910`; artifact `.lead/runs/mobile-emulator-api34-viewer-20260910/90-report.md` | A fresh KVM-backed Android 14 guest reached `adb device` and `sys.boot_completed=1`, and the Therapy Go TEST APK was installed. Before either application could be accepted, Android's own `com.android.systemui` entered a visible ANR; therefore no application UI, native bridge, provider path or browser-viewer URL is claimed. The failure is host/emulator evidence, not a product defect. All run-owned emulator, Xvfb, VNC/noVNC processes and sockets were stopped. The owner deferred physical-device acceptance and RuStore delivery, so repeating the same server-emulator method is not a completion gate. |
 | **Berson Care TEST nginx/Certbot edge #787 — `INDEPENDENT AUDIT FAIL, NOT FOR LAND`**, candidate `122e99fe6` against base `e57eb6b91`; read-only TEST evidence 10.09.2026 | **Reachable first-install blocker (scenario 2 / current TEST precondition):** `dig +short +time=2 +tries=1 @1.1.1.1 app.bersoncare.ru A`, the same command against `@8.8.8.8`, and the current TEST resolver `@172.31.9.1` each returned `135.106.187.95`, while TEST is `151.241.228.122` (`hostname -I`). The installed TEST split-DNS config still has only `address=/test.bersoncare.ru/172.31.9.1`; candidate `deploy/host/deploy-test.sh:263` invokes the surface installer (and its HTTP-01 `certbot certonly --webroot ... -d app.bersoncare.ru` at `apply-test-surface-domains.sh:339-342`) before it invokes the split-DNS installer at line 264. Therefore Let’s Encrypt reaches `135.106.187.95`, not the temporary HTTP ACME vhost on TEST: exact certificate issuance cannot complete, and the script rolls back. This violates the required first-install HTTP-ACME reachability and valid current TEST preconditions. Static shell/diff checks plus both candidate `--dry-run` render/check gates otherwise passed; no apply, certificate request, reload, DNS/env/DB mutation, Caddy/PROD probe, full CI, or Next server was run. |
+
+
+## Operator-health mail capabilities #950 — independent migration audit 2026-09-10
+
+| Candidate | Verdict | Evidence |
+|---|---|---|
+| `83a491301009c53a369599ca1a1de3756ce9de3b`, base `a381aed58209e76aaddea2c68f0d939383c2969f` | **FAIL — NOT FOR LAND: MIG-P5-01** | Exact committed diff inspected; named-DEV owner-aware first-application preflight passed and rolled back. Partial-catalog recovery failed with `42723` under the declared owner. This is the migration audit only, not P5 mailbox/live acceptance. |
+| `aec8cbf00fa559daca44fd4e702b9f4d32136eb9`, correction of `83a491301009c53a369599ca1a1de3756ce9de3b` | **PASS — MIGRATION LAND-READY; P5 MAILBOX/LIVE ACCEPTANCE NOT CLAIMED** | Exact correction diff changes only both accepted `CREATE FUNCTION` statements to `CREATE OR REPLACE FUNCTION`. The named-DEV owner-aware first application passed and rolled back; independent missing-SMTP and missing-IMAP probes, using the same repository parser and declared owner, each restored both functions without `42723` and ended in `ROLLBACK`. Runtime introspection preserved both signatures, `app_seam_settings_integrator_owner`, `SECURITY DEFINER`, `search_path=pg_catalog`, `STABLE`/`PARALLEL RESTRICTED`, exact four-column `system_settings` SELECT, accepted-context denial/scheduler success, fixed-key/closed-audience bodies and owner-plus-scheduler-only ACL. The migration contains no privilege DDL. Generator `--check`/`--gaps` (`unresolved=0`, `gaps=0` for DEV and TEST declarations), strict privilege typecheck, migration privilege/order checks and correction `git diff --check` passed; post-probe catalog/ledger/migrator state was unchanged. |
+
+**Classification before inspection.** LOOK: active schema-B delivery versus retired C4, timestamp identity/order,
+statement-owner markers, verification probe, signatures, definer owner/search path, migration privilege prohibition,
+declaration/generated ACL and the settings choke point. TEST/runtime observation: accepted-context denial and
+scheduler access; repeat execution/recovery. The SMTP/IMAP arrival, deadline, retention and incident behavior belongs
+to the existing P5 audit/live gate. No new permanent test was admitted: this pass concerns the quality of a specific
+migration/privilege change, and a SQL/source-shape test would not protect the owner's mailbox.
+
+**MIG-P5-01 — partial-catalog recovery cannot restore the missing capability.** The new migration
+`apps/webapp/db/drizzle-migrations/20260910T010740_operator_health_mail_settings_capabilities.sql:8` and `:33`
+uses unconditional `CREATE FUNCTION` for both signatures. Reachable recovery scenario: the migration's ledger row
+exists, its IMAP function remains, and its SMTP function is missing. The owner-ordered runner detects the absent
+object and directs the operator to the sanctioned `--reapply` path (`migrate-local.mjs`, missing-object refusal and
+`parseOwnerStatements` execution). Reapplying this file fails on the surviving IMAP signature before it can restore
+SMTP. The inverse loss fails on the surviving SMTP signature and rolls the recreated IMAP function back. Impact:
+the sanctioned recovery leaves scheduler mail configuration inaccessible and blocks the migration/reconcile path.
+Requirement: this brief's explicit idempotency gate and AGENTS.md §1's recovery through the canonical entrypoint.
+The ordinary ledger skip is safe but does not make this named recovery executable.
+
+**Observed reproduction:** `node /tmp/operator-health-mail-capabilities-runtime-audit.mjs` (log
+`/tmp/operator-health-mail-capabilities-runtime-audit.log`) parsed the exact candidate with repository
+`parseOwnerStatements`, used declaration-generated owner access and candidate-generated function ACL, and ran on
+`bcb_webapp_dev` inside `BEGIN … ROLLBACK`. It created both functions as
+`bcb_dev_migrator → app_seam_settings_integrator_owner`, dropped only the candidate SMTP function in that same
+transaction, then attempted the unchanged IMAP creation as that owner. PostgreSQL returned
+`42723 function "read_operator_health_imap_setting" already exists with same argument types`;
+`missing_smtp_still_not_repaired = true`. Final `candidate_objects_rolled_back = true` confirmed that neither
+candidate function survived. No migration application/recovery was committed, and no product fix was made.
+
+**Written privilege review.** Only these function objects are added; no tables, columns or policies change.
+Both bodies execute as the existing NOLOGIN/NOBYPASSRLS `app_seam_settings_integrator_owner`, with
+`SECURITY DEFINER`, `STABLE`, `PARALLEL RESTRICTED`, `search_path=pg_catalog`. Their reads require only SELECT on
+`public.system_settings(key, scope, organization_id, value_json)` plus the existing context-guard execution/schema
+access. That exact column SELECT is already declared and was confirmed in DEV; scheduler has no direct column
+SELECT. Generated reconcile revokes PUBLIC/managed-role execution and grants only `app_operational_scheduler`
+(excluding the function owner's inherent execution). No wider secret-reader role is added. The bodies call the
+shared attested-context guard before reading fixed global/admin keys; SMTP selects its fixed profile by closed
+patient/staff audience. Existing `publicRestrictedSettings.ts` consumers remain behind the integrator DB port and
+existing scheduler service/relation capability; no new generic settings-key reader or parallel policy is introduced.
+The one-time runtime probe observed denial without/after clearing accepted context and successful invocation with
+a transaction-local accepted scheduler catalog row. That row was installed by the local audit administrator and
+rolled back: this is body/ACL/context evidence, not a claim of end-to-end signed-port or mailbox delivery. DEV has
+no configured values for these reads, so successful invocation returned NULL without printing secrets.
+
+**Mandatory validation (independently run):**
+
+- `node deploy/postgres/privileges/generate-cli.mjs --check` — PASS, committed generated outputs match.
+- `node deploy/postgres/privileges/generate-cli.mjs --gaps` — PASS for declared DEV/TEST targets; offline only.
+- `/home/dev/dev-projects/BersonCareBot/node_modules/.bin/tsc --noEmit --strict -p deploy/postgres/privileges` — PASS.
+- `node deploy/postgres/privileges/migrate-local.mjs --db bcb_webapp_dev --migrator bcb_dev_migrator --drizzle-folder /home/dev/dev-projects/bcb-wt-operator-health-mail-capabilities-20260910/apps/webapp/db/drizzle-migrations --sudo-postgres --rollback-only` — PASS, actual statement owners, final ROLLBACK. Existing ledger/bootstrap objects were checked read-only first. The host wrapper was not run because its preflight separately commits shared-role baseline/registry seeding, contrary to this brief's no-mutation limit.
+- `pnpm run test:db-privileges` — FAIL: final dependency-resolved run reports `176 pass / 7 fail / 157 skipped`; log `/tmp/operator-health-mail-capabilities-audit-db-privileges-final.log`. The remaining failures all use undeclared fixture role `app_probe_owner`. Exact-parent reproduction: `audit_baseline_dir=$(mktemp -d /tmp/operator-health-mail-audit-base.XXXXXX)`; `git archive HEAD^ deploy/postgres/privileges | tar -x -C "$audit_baseline_dir"`; `node --test "$audit_baseline_dir/deploy/postgres/privileges/migrate-local.test.mjs"` — the identical failing test names (`27 pass / 7 fail`), log `/tmp/operator-health-mail-capabilities-audit-baseline-runner.log`. Runner/test/generator sources are unchanged by the candidate (`git diff --quiet HEAD^ HEAD -- deploy/postgres/privileges/migrate-local.test.mjs deploy/postgres/privileges/migrate-local.mjs deploy/postgres/privileges/generate-cli.mjs deploy/postgres/privileges/generate.mjs`). These baseline failures are not additional candidate findings and were not fixed by this audit.
+- `git diff --check HEAD^ HEAD` — PASS. No new acceptance tests, Next, full CI, TEST/PROD connection or real delivery.
+
+Blocker handed back to the implementing worker/lead: make this migration safely recover either missing function
+through the sanctioned entrypoint, preserving the accepted signatures and restricted grants. P5 remains open.
+| **Same-organization custom-host reclaim #787 — `INDEPENDENT AUDIT PASS, FOR LAND`**, exact candidate `21da71e0509ce0b96f0018cad5aee593726ba759`, product `7f277383a2d548ead1ed94cc3809f4d40a3edbb5` on `wt/custom-domain-same-org-reclaim-20260910`; artifact `docs/_TODO/THERAPYSTO_PATIENT_BRANDING_INITIATIVE/AUDIT_SAME_ORG_CUSTOM_DOMAIN_RECLAIM_2026-09-10.md` | Blind TEST/VIEW kill-set preceded test reading. Named-DEV rollback-only restricted-owner execution confirms own-host pending reclaim, atomic supersede, foreign/null-owner refusal, context/organization guards and immutable owner. Owner/null/context/org/activation faults were caught by the one-time probe. Declaration parity/gaps/census, privilege typecheck, migration ACL/static gates and exact owner-aware preflight PASS. Extra mock migration-runner suite has inherited undeclared `app_probe_owner` failures, explicitly recorded in the report; it is not claimed green. No product fix, permanent fixture, migration apply, TEST/PROD, DNS/TLS or deployed-runtime proof. Lead landing/live acceptance remains pending. |
+
+| **Platform clinic brand/domain status #787 — `CORRECTION ACCEPTED, FOR LAND`**, product `930f86804`, audit `140f5dc4f`, queue registration `81cce9151`, accepted correction `aa8e357d9`; artifact `docs/_TODO/THERAPYSTO_PATIENT_BRANDING_INITIATIVE/AUDIT_PLATFORM_CLINIC_BRAND_DOMAIN_STATUS_2026-09-10.md` | The correction closes all three exact audit findings without changing tests or adding a path: quarantined history is excluded from the current-domain projection, relation evidence uses the strict declaration contract, and canonical generation restores both privilege and port-context parity artifacts. Focused strict type/lint, migration static/order, privilege census/generator and rollback-only named-DEV preflight pass. Live platform-clinic display remains a post-land check. |
+| **Custom-domain A-or-CNAME alternatives #787 — `CORRECTION ACCEPTED, FOR LAND`**, product `7ae3a72b4`, audit `f547b434a`, queue registration `d3bcd5c92`, accepted correction `9a15812e5`; artifact `docs/_TODO/THERAPYSTO_PATIENT_BRANDING_INITIATIVE/AUDIT_CUSTOM_DOMAIN_DNS_ALTERNATIVES_2026-09-10.md` | The correction closes the exact coupled-target failure inside the existing health/service chokepoints: A-only, CNAME-only and both-target configurations construct truthful expectations and expose every configured instruction; missing both stays fail-closed, apex stays exact-A-only, and TLS/routing gates are unchanged. Existing focused behavior passed `3 files / 14 tests`, plus typecheck, scoped lint, a one-time public service-boundary probe and diff-check. Tests were not changed; live DNS remains post-land evidence. |
+| **Same-organization custom-host reclaim #787 — `INDEPENDENT AUDIT PASS, FOR LAND`**, exact candidate `21da71e0509ce0b96f0018cad5aee593726ba759`, product `7f277383a2d548ead1ed94cc3809f4d40a3edbb5`, audit `ca1ce019b` on `wt/custom-domain-same-org-reclaim-20260910`; artifact `docs/_TODO/THERAPYSTO_PATIENT_BRANDING_INITIATIVE/AUDIT_SAME_ORG_CUSTOM_DOMAIN_RECLAIM_2026-09-10.md` | Blind TEST/VIEW kill-set preceded test reading. Named-DEV rollback-only restricted-owner execution confirms own-host pending reclaim, atomic supersede, foreign/null-owner refusal, context/organization guards and immutable owner. Owner/null/context/org/activation faults were caught by the one-time probe. Declaration parity/gaps/census, privilege typecheck, migration ACL/static gates and exact owner-aware preflight PASS. Extra mock migration-runner suite has inherited undeclared `app_probe_owner` failures, explicitly recorded in the report; it is not claimed green. No product fix, permanent fixture, migration apply, TEST/PROD, DNS/TLS or deployed-runtime proof. Lead landing/live acceptance remains pending. |

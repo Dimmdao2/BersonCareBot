@@ -9,7 +9,7 @@
 
 На TEST эта схема активна с 08.09.2026: кабинет специалистов и общий вход — `test.therapysto.ru`,
 платформенная админка — `admin.test.therapysto.ru`, клиентский кабинет — `test.therapygo.ru`.
-`app.bersoncare.ru` — branded TEST patient custom domain Berson Care; он проксируется в тот же webapp с сохранением Host.
+`test.bersoncare.ru` остаётся legacy TEST compatibility-адресом; целевой branded TEST patient custom domain Berson Care — `app.bersoncare.ru`.
 
 - **Стек:** TypeScript (ESM), Next.js, Fastify, PostgreSQL (Drizzle + SQL-migrations integrator), grammY, Vitest
 - **Каналы:** PWA (`/app`) — основной UI; **Web Push — основной канал уведомлений**; Telegram, MAX, SMS, email — дополнительные; запись — собственный движок (см. [`docs/ARCHITECTURE/NOTIFICATION_CHANNELS.md`](docs/ARCHITECTURE/NOTIFICATION_CHANNELS.md))

@@ -20,11 +20,11 @@ export type CustomDomainBindingState = Readonly<{
   status: OrgCustomDomainStatus;
   statusReason: string | null;
   activatedAt: string | null;
-  dnsInstruction?: Readonly<{
+  dnsInstructions?: readonly Readonly<{
     recordType: 'A' | 'CNAME';
     name: '@' | 'app';
     value: string;
-  }> | null;
+  }>[] | null;
 }>;
 
 /**
@@ -89,8 +89,9 @@ export type CustomDomainBindingPort = {
    * Staff write path: set the clinic's custom-domain intent. The final `hostname` is ALWAYS
    * computed server-side from `baseDomain` + `placement` (+ `subdomainLabel`) — never accepted
    * precomputed. Superseding an existing binding quarantines it first (B8): the old hostname stays
-   * permanently claimed (anti-squatting, same discipline as `organization_slug_claims`), never
-   * reused by anyone, including this same organization.
+   * permanently claimed against every other organization (anti-squatting, same discipline as
+   * `organization_slug_claims`). Its immutable original organization may reclaim that exact
+   * derived hostname, returning it to pending through this same door.
    */
   setCustomDomainIntent(input: SetCustomDomainIntentInput): Promise<CustomDomainIntentResult>;
 

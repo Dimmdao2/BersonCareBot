@@ -53,6 +53,7 @@ type JournalDay = {
 };
 
 type ChartDay = JournalDay & {
+  chartKey: string;
   volume: number | null;
   pain010: number | null;
   painLine010: number | null;
@@ -74,6 +75,20 @@ const difficultyColor: Record<LfkPostSessionDifficulty | 'none', string> = {
   medium: 'var(--doctor-exercise-difficulty-medium)',
   hard: 'var(--doctor-exercise-difficulty-hard)',
 };
+
+const painToneClass = [
+  'bg-[var(--doctor-exercise-pain-0)]',
+  'bg-[var(--doctor-exercise-pain-1)]',
+  'bg-[var(--doctor-exercise-pain-2)]',
+  'bg-[var(--doctor-exercise-pain-3)]',
+  'bg-[var(--doctor-exercise-pain-4)]',
+  'bg-[var(--doctor-exercise-pain-5)]',
+  'bg-[var(--doctor-exercise-pain-6)]',
+  'bg-[var(--doctor-exercise-pain-7)]',
+  'bg-[var(--doctor-exercise-pain-8)]',
+  'bg-[var(--doctor-exercise-pain-9)]',
+  'bg-[var(--doctor-exercise-pain-10)]',
+] as const;
 
 function parseStoredDate(value: string): DateTime {
   const iso = DateTime.fromISO(value, { setZone: true });
@@ -112,7 +127,10 @@ function formatRepsSets(point: ExerciseMetricPoint): string {
 }
 
 function painClass(value: number): string {
-  return `bg-[var(--doctor-exercise-pain-${value})]`;
+  return cn(
+    painToneClass[value] ?? painToneClass[0],
+    value >= 8 ? 'text-white' : 'text-foreground',
+  );
 }
 
 function addDays(date: string, amount: number): string {
@@ -173,32 +191,46 @@ function calendarDaysFromJournal(days: JournalDay[]): JournalDay[] {
 
 function chartDaysFromJournal(days: JournalDay[]): ChartDay[] {
   let previousWeight: number | null = null;
-  const chartDays = days.map((day) => {
-    const lastCompletion = day.completions[day.completions.length - 1] ?? null;
-    const volumeValues = day.completions.flatMap((point) =>
-      point.reps !== null && point.sets !== null ? [point.reps * point.sets] : [],
-    );
-    const lastWeightKg = lastCompletion?.weightKg ?? null;
-    const delta =
-      lastWeightKg !== null && previousWeight !== null ? lastWeightKg - previousWeight : null;
-    if (lastWeightKg !== null) previousWeight = lastWeightKg;
-    return {
-      ...day,
-      volume: volumeValues.length > 0 ? volumeValues.reduce((sum, value) => sum + value, 0) : null,
-      pain010: lastCompletion?.pain010 ?? null,
-      painLine010: lastCompletion?.pain010 ?? null,
-      difficulty: lastCompletion?.difficulty ?? null,
-      lastWeightKg,
-      weightChangeLabel: delta && delta !== 0 ? `${delta > 0 ? '+' : ''}${delta}\u00a0кг` : null,
-      // Keeps the fixed clinical 0–10 axis and its guides visible even before pain is entered.
-      painScale: 0,
-    };
+  const chartDays = days.flatMap((day) => {
+    const entries = day.completions.length > 0 ? day.completions : [null];
+    return entries.map((completion, completionIndex) => {
+      const lastWeightKg = completion?.weightKg ?? null;
+      const delta =
+        lastWeightKg !== null && previousWeight !== null ? lastWeightKg - previousWeight : null;
+      if (lastWeightKg !== null) previousWeight = lastWeightKg;
+      return {
+        ...day,
+        chartKey: completion?.completionId ?? `${day.date}-${completionIndex}`,
+        completions: completion ? [completion] : [],
+        volume:
+          completion?.reps !== null &&
+          completion?.reps !== undefined &&
+          completion.sets !== null &&
+          completion.sets !== undefined
+            ? completion.reps * completion.sets
+            : null,
+        pain010: completion?.pain010 ?? null,
+        painLine010: completion?.pain010 ?? null,
+        difficulty: completion?.difficulty ?? null,
+        lastWeightKg,
+        weightChangeLabel: delta && delta !== 0 ? `${delta > 0 ? '+' : ''}${delta}\u00a0кг` : null,
+        // Keeps the fixed clinical 0–10 axis and its guides visible even before pain is entered.
+        painScale: 0,
+      };
+    });
   });
   let previousPainIndex: number | null = null;
   for (let index = 0; index < chartDays.length; index += 1) {
     const currentPain = chartDays[index]?.pain010;
     if (currentPain === null || currentPain === undefined) continue;
-    if (previousPainIndex !== null && index - previousPainIndex <= 4) {
+    const previousPainDay =
+      previousPainIndex === null ? null : (chartDays[previousPainIndex]?.date ?? null);
+    const currentDay = chartDays[index]?.date ?? null;
+    const dayGap =
+      previousPainDay && currentDay
+        ? DateTime.fromISO(currentDay).diff(DateTime.fromISO(previousPainDay), 'days').days
+        : Number.POSITIVE_INFINITY;
+    if (previousPainIndex !== null && dayGap <= 4) {
       const previousPain = chartDays[previousPainIndex]?.pain010;
       if (previousPain !== null && previousPain !== undefined) {
         for (let bridgeIndex = previousPainIndex + 1; bridgeIndex < index; bridgeIndex += 1) {
@@ -220,7 +252,16 @@ function volumeAxisTicks(days: ChartDay[]): number[] {
   const targetStep = Math.max(1, largestVolume / 3);
   const exponent = 10 ** Math.floor(Math.log10(targetStep));
   const normalized = targetStep / exponent;
-  const step = (normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10) * exponent;
+  const step =
+    (normalized <= 1
+      ? 1
+      : normalized <= 2
+        ? 2
+        : normalized <= 2.5
+          ? 2.5
+          : normalized <= 5
+            ? 5
+            : 10) * exponent;
   return [0, step, step * 2, step * 3];
 }
 
@@ -236,11 +277,11 @@ function ChartSideAxis({
   const isLeft = side === 'left';
   return (
     <div
-      className={cn('relative h-[252px] shrink-0', isLeft ? 'w-[34px]' : 'w-[28px]')}
+      className={cn('relative h-64 shrink-0', isLeft ? 'w-[34px]' : 'w-[28px]')}
       aria-hidden="true"
     >
       <span
-        className={cn('absolute top-[22px] bottom-[62px] w-px', isLeft ? 'right-0' : 'left-0')}
+        className={cn('absolute top-[22px] bottom-[66px] w-px', isLeft ? 'right-0' : 'left-0')}
         style={{ backgroundColor: color }}
       />
       {values.map((value, index) => (
@@ -263,30 +304,21 @@ function ChartDateTick({
   x = 0,
   y = 0,
   payload,
-  completedDates,
+  entriesByKey,
 }: {
   x?: number;
   y?: number;
   payload?: { value?: string | number };
-  completedDates: Set<string>;
+  entriesByKey: Map<string, ChartDay>;
 }) {
-  const date = typeof payload?.value === 'string' ? payload.value : null;
-  if (!date) return null;
-  const complete = completedDates.has(date);
+  const chartKey = typeof payload?.value === 'string' ? payload.value : null;
+  const day = chartKey ? entriesByKey.get(chartKey) : null;
+  if (!day) return null;
+  const complete = day.completions.length > 0;
   return (
     <g transform={`translate(${x},${y})`}>
-      {complete ? (
-        <rect
-          x={-15}
-          y={-13}
-          width={30}
-          height={27}
-          rx={7}
-          fill="var(--doctor-exercise-completion-bg)"
-        />
-      ) : null}
       <text
-        y={3}
+        y={13}
         textAnchor="middle"
         fill={
           complete
@@ -296,11 +328,12 @@ function ChartDateTick({
         fontSize={12}
         fontWeight={complete ? 600 : 400}
       >
-        {dateDayLabel(date)}
+        {dateDayLabel(day.date)}
       </text>
-      <text y={19} textAnchor="middle" fill="var(--doctor-exercise-date-inactive)" fontSize={10}>
-        {weekdayLabel(date)}
+      <text y={28} textAnchor="middle" fill="var(--doctor-exercise-date-inactive)" fontSize={10}>
+        {weekdayLabel(day.date)}
       </text>
+      {complete ? <circle cy={40} r={2.5} fill="var(--doctor-exercise-completion-dot)" /> : null}
     </g>
   );
 }
@@ -333,24 +366,55 @@ function ExerciseChartTooltip({
 function ExerciseDynamicsChart({ days }: { days: ChartDay[] }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const width = Math.max(298, days.length * 40);
-  const completedDates = new Set(
-    days.filter((day) => day.completions.length > 0).map((day) => day.date),
-  );
-  const hasValues = days.some((day) => day.volume !== null || day.pain010 !== null);
-  const volumeTicks = volumeAxisTicks(days);
+  const entriesByKey = new Map(days.map((day) => [day.chartKey, day]));
+  const [visibleRange, setVisibleRange] = useState(() => ({
+    start: Math.max(0, days.length - 8),
+    end: days.length,
+  }));
+  const hasValues = days.some((day) => day.completions.length > 0);
+  const visibleDays = days.slice(visibleRange.start, visibleRange.end);
+  const volumeTicks = volumeAxisTicks(visibleDays.length > 0 ? visibleDays : days.slice(-8));
 
   useEffect(() => {
     const container = scrollRef.current;
-    if (container) container.scrollLeft = container.scrollWidth;
-  }, [days.length]);
+    if (!container) return;
+    let frame: number | null = null;
+    const syncVisibleRange = () => {
+      if (frame !== null) cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const columnWidth = width / Math.max(1, days.length);
+        const start = Math.max(0, Math.floor(container.scrollLeft / columnWidth));
+        const end = Math.min(
+          days.length,
+          Math.max(
+            start + 1,
+            Math.ceil((container.scrollLeft + container.clientWidth) / columnWidth),
+          ),
+        );
+        setVisibleRange((current) =>
+          current.start === start && current.end === end ? current : { start, end },
+        );
+      });
+    };
+    const resizeObserver = new ResizeObserver(syncVisibleRange);
+    container.addEventListener('scroll', syncVisibleRange, { passive: true });
+    resizeObserver.observe(container);
+    container.scrollLeft = container.scrollWidth;
+    syncVisibleRange();
+    return () => {
+      if (frame !== null) cancelAnimationFrame(frame);
+      container.removeEventListener('scroll', syncVisibleRange);
+      resizeObserver.disconnect();
+    };
+  }, [days.length, width]);
 
   return (
-    <section className="space-y-3" aria-label="Динамика">
-      <h2 className={doctorSectionTitleClass}>Динамика</h2>
+    <section className="shrink-0 space-y-3 pb-4" aria-label="Динамика">
+      <h2 className={cn(doctorSectionTitleClass, 'px-4 pt-3')}>Динамика</h2>
 
       {hasValues ? (
-        <div className="rounded-lg border border-border/60 bg-white p-2.5">
-          <div className="flex items-start justify-between px-1">
+        <div>
+          <div className="flex items-start justify-between px-4">
             <div>
               <p className="text-sm font-semibold text-primary">Объём</p>
               <p className={doctorMetaTextClass}>подходы × повторы</p>
@@ -360,7 +424,7 @@ function ExerciseDynamicsChart({ days }: { days: ChartDay[] }) {
               <p className={doctorMetaTextClass}>(0–10)</p>
             </div>
           </div>
-          <div className="mt-1 flex">
+          <div className="mt-1 flex px-2">
             <ChartSideAxis
               values={[...volumeTicks].reverse()}
               side="left"
@@ -375,7 +439,7 @@ function ExerciseDynamicsChart({ days }: { days: ChartDay[] }) {
               <div style={{ width }}>
                 <ComposedChart
                   width={width}
-                  height={252}
+                  height={256}
                   data={days}
                   margin={{ top: 22, right: 0, bottom: 12, left: 0 }}
                 >
@@ -394,11 +458,11 @@ function ExerciseDynamicsChart({ days }: { days: ChartDay[] }) {
                     />
                   ))}
                   <XAxis
-                    dataKey="date"
+                    dataKey="chartKey"
                     axisLine={{ stroke: 'var(--doctor-exercise-chart-axis)' }}
                     tickLine={false}
-                    tick={<ChartDateTick completedDates={completedDates} />}
-                    height={50}
+                    tick={<ChartDateTick entriesByKey={entriesByKey} />}
+                    height={54}
                     interval={0}
                   />
                   <YAxis
@@ -423,7 +487,7 @@ function ExerciseDynamicsChart({ days }: { days: ChartDay[] }) {
                   >
                     {days.map((day) => (
                       <Cell
-                        key={day.date}
+                        key={day.chartKey}
                         fill={difficultyColor[day.difficulty ?? 'none']}
                         fillOpacity={0.8}
                       />
@@ -460,8 +524,8 @@ function ExerciseDynamicsChart({ days }: { days: ChartDay[] }) {
                       ? []
                       : [
                           <ReferenceDot
-                            key={day.date}
-                            x={day.date}
+                            key={day.chartKey}
+                            x={day.chartKey}
                             yAxisId="pain"
                             y={day.pain010}
                             r={4}
@@ -480,7 +544,7 @@ function ExerciseDynamicsChart({ days }: { days: ChartDay[] }) {
               color="var(--doctor-exercise-pain-chart)"
             />
           </div>
-          <div className={cn(doctorMetaTextClass, 'mt-3 flex flex-wrap gap-x-3 gap-y-1')}>
+          <div className={cn(doctorMetaTextClass, 'mt-3 flex flex-wrap gap-x-3 gap-y-1 px-4')}>
             {(['none', 'easy', 'medium', 'hard'] as const).map((difficulty) => (
               <span key={difficulty} className="inline-flex items-center gap-1.5">
                 <span
@@ -497,7 +561,7 @@ function ExerciseDynamicsChart({ days }: { days: ChartDay[] }) {
           </div>
         </div>
       ) : (
-        <p className={doctorMetaTextClass}>Данные выполнения пока не появились</p>
+        <p className={cn(doctorMetaTextClass, 'px-4')}>Данные выполнения пока не появились</p>
       )}
     </section>
   );
@@ -514,27 +578,34 @@ function ExerciseJournal({ days }: { days: JournalDay[] }) {
     const latestMonth = monthHeaders.item(monthHeaders.length - 1);
     const columns = container.querySelector<HTMLElement>('[data-journal-columns]');
     if (latestMonth) {
-      container.scrollTop = Math.max(0, latestMonth.offsetTop - (columns?.offsetHeight ?? 0));
+      const monthTop =
+        latestMonth.getBoundingClientRect().top -
+        container.getBoundingClientRect().top +
+        container.scrollTop;
+      container.scrollTop = Math.max(0, monthTop - (columns?.offsetHeight ?? 0) - 8);
     }
   }, [days.length]);
 
   if (days.length === 0) {
     return (
-      <section className="border-t border-border/60 pt-4">
-        <h2 className={doctorSectionTitleClass}>Журнал выполнений</h2>
-        <p className={cn(doctorMetaTextClass, 'mt-2')}>История выполнения пока пуста</p>
+      <section className="border-t border-border/60 pt-3">
+        <h2 className={cn(doctorSectionTitleClass, 'px-4')}>Журнал выполнений</h2>
+        <p className={cn(doctorMetaTextClass, 'mt-2 px-4')}>История выполнения пока пуста</p>
       </section>
     );
   }
 
   return (
-    <section className="border-t border-border/60 pt-4" aria-label="Журнал выполнений">
-      <h2 className={doctorSectionTitleClass}>Журнал выполнений</h2>
-      <div ref={scrollRef} className="mt-3 max-h-[22rem] overflow-y-auto overscroll-y-contain">
+    <section
+      className="flex min-h-0 flex-1 flex-col border-t border-border/60 pt-3"
+      aria-label="Журнал выполнений"
+    >
+      <h2 className={cn(doctorSectionTitleClass, 'shrink-0 px-4')}>Журнал выполнений</h2>
+      <div ref={scrollRef} className="mt-2 min-h-0 flex-1 overflow-y-auto overscroll-y-contain">
         <div>
           <div
             data-journal-columns
-            className="sticky top-0 z-10 grid grid-cols-[3.65rem_minmax(4.85rem,1fr)_2.45rem_2.65rem_4.85rem_1.25rem] border-b border-border/70 bg-white px-1.5 py-2 text-[10px] text-muted-foreground"
+            className="sticky top-0 z-10 grid grid-cols-[4rem_6rem_3.5rem_2.875rem_minmax(4rem,1fr)_1.25rem] gap-x-1 border-b border-border/70 bg-white px-3 py-2 text-[10px] text-muted-foreground"
           >
             <span>Дата</span>
             <span>Повт. × подх.</span>
@@ -556,7 +627,7 @@ function ExerciseJournal({ days }: { days: JournalDay[] }) {
                     <div
                       key={`month-${monthHeader}`}
                       data-journal-month={monthHeader}
-                      className="mt-3 rounded-md bg-muted/60 px-2.5 py-2 text-sm font-medium text-muted-foreground"
+                      className="mx-3 mt-2 rounded-md bg-muted/60 px-3 py-2 text-sm font-medium text-muted-foreground"
                     >
                       {monthLabel(day.date)}
                     </div>,
@@ -568,12 +639,12 @@ function ExerciseJournal({ days }: { days: JournalDay[] }) {
                 return (
                   <div
                     key={point?.completionId ?? `${day.date}-empty`}
-                    className="grid grid-cols-[3.65rem_minmax(4.85rem,1fr)_2.45rem_2.65rem_4.85rem_1.25rem] items-center border-b border-border/60 px-1.5 py-2 text-xs text-foreground"
+                    className="grid min-h-12 grid-cols-[4rem_6rem_3.5rem_2.875rem_minmax(4rem,1fr)_1.25rem] items-center gap-x-1 border-b border-border/60 px-3 py-1.5 text-sm text-foreground"
                   >
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1.5">
                       <span
                         className={cn(
-                          'inline-flex min-w-8 justify-center rounded-md px-1.5 py-1 text-xs font-semibold tabular-nums',
+                          'inline-flex size-9 shrink-0 items-center justify-center rounded-md text-sm font-semibold tabular-nums',
                           complete
                             ? 'bg-[var(--doctor-exercise-completion-bg)] text-[var(--doctor-exercise-completion-text)]'
                             : 'text-[var(--doctor-exercise-date-inactive)]',
@@ -581,12 +652,12 @@ function ExerciseJournal({ days }: { days: JournalDay[] }) {
                       >
                         {dateDayLabel(day.date)}
                       </span>
-                      <span className="text-[10px] text-muted-foreground">
+                      <span className="text-xs text-muted-foreground">
                         {weekdayLabel(day.date)}
                       </span>
                     </div>
-                    <span>{point ? formatRepsSets(point) : '—'}</span>
-                    <span>
+                    <span className="whitespace-nowrap">{point ? formatRepsSets(point) : '—'}</span>
+                    <span className="whitespace-nowrap">
                       {point?.weightKg !== null && point?.weightKg !== undefined
                         ? formatWeight(point.weightKg)
                         : '—'}
@@ -595,7 +666,7 @@ function ExerciseJournal({ days }: { days: JournalDay[] }) {
                       {point?.pain010 !== null && point?.pain010 !== undefined ? (
                         <span
                           className={cn(
-                            'inline-flex min-w-7 justify-center rounded-md px-1.5 py-1 font-semibold',
+                            'inline-flex h-7 w-9 items-center justify-center rounded-lg px-1.5 font-semibold',
                             painClass(point.pain010),
                           )}
                         >
@@ -609,11 +680,11 @@ function ExerciseJournal({ days }: { days: JournalDay[] }) {
                       {point?.difficulty ? (
                         <span
                           className={cn(
-                            'inline-flex w-full justify-center rounded-md px-1 py-1 text-[10px] font-medium whitespace-nowrap',
+                            'inline-flex h-7 w-16 items-center justify-center rounded-lg px-1 text-xs font-medium whitespace-nowrap',
                             point.difficulty === 'easy' &&
-                              'bg-[color:color-mix(in_srgb,var(--doctor-exercise-difficulty-easy)_35%,white)] text-primary',
+                              'bg-[color:color-mix(in_srgb,var(--doctor-exercise-difficulty-easy)_45%,white)] text-[var(--doctor-exercise-completion-text)]',
                             point.difficulty === 'medium' &&
-                              'bg-[color:color-mix(in_srgb,var(--doctor-exercise-difficulty-medium)_24%,white)] text-primary',
+                              'bg-[color:color-mix(in_srgb,var(--doctor-exercise-difficulty-medium)_36%,white)] text-[var(--doctor-exercise-completion-text)]',
                             point.difficulty === 'hard' &&
                               'bg-[var(--doctor-exercise-difficulty-hard)] text-white',
                           )}
@@ -648,7 +719,7 @@ function ExerciseJournal({ days }: { days: JournalDay[] }) {
                 ? [
                     <div
                       key={`comments-${day.date}`}
-                      className="border-b border-border/60 bg-[var(--doctor-exercise-comment-bg)] px-3 py-3"
+                      className="border-b border-border/60 bg-[var(--doctor-exercise-comment-bg)] px-4 py-3"
                     >
                       <div className="space-y-2 text-sm text-foreground">
                         {day.comments.map((comment) => (
@@ -763,7 +834,8 @@ export function DoctorExerciseStatisticsModal({
         />
       }
       size="content"
-      bodyClassName="space-y-5"
+      bodyVariant="list"
+      bodyClassName="flex flex-col overflow-hidden"
     >
       {history.key !== requestKey || history.state === 'loading' ? (
         <DoctorPanelLoading className="min-h-48" />
