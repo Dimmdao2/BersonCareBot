@@ -1,6 +1,6 @@
 # TherapyGo + Therapysto thin Capacitor apps — execution plan
 
-Дата owner-решения: **2026-09-09**. Taskdb: **#915**. Статус: **doing**.
+Дата owner-решения: **2026-09-09**. Taskdb: **#915**. Статус: **done**.
 Интеграционная ветка: `feat/doctor-ui-rebuild`. PROD, store submission и release signing вне автономного scope.
 
 Независимый Opus plan review (M0-03) выполнен 2026-09-09 против базы `a40a1a211`. Его находки внесены прямо в
@@ -531,18 +531,24 @@ authority нельзя: он частично отменён владельце�
       builds и root audit PASS, `exit 0`, 2026-09-10 07:13 MSK. Предшествующие lint/typecheck/integrator/script/DB
       фазы зелёны; после них менялись только падавшие test artifacts, проверенные точечно и полным
       webapp phase, поэтому их evidence переиспользован по §9–§10.
-- [ ] **M7-07.** Интегрированный `feat/doctor-ui-rebuild` содержит plan evidence по каждому чекбоксу, taskdb `#915`
+- [x] **M7-07.** Интегрированный `feat/doctor-ui-rebuild` содержит plan evidence по каждому чекбоксу, taskdb `#915`
       соответствует факту, коммиты запушены через проверенный wrapper (`pnpm push:checked`), ни один worker
-      clone/process не остался живым. Доказательство: `pnpm run push:checked` подтвердил remote SHA
-      `b5bc7e396a2172c4150b88d9cfae52267c1185c2` и зелёный GitHub run `34370560492`; штатный
-      `bash deploy/host/deploy-test.sh feat/doctor-ui-rebuild --reapply ...` завершился `PASS` и развернул тот же
-      SHA в `/opt/projects/bersoncarebot-test` (transcript
-      `/var/log/bersoncarebot/deploy-test/deploy-test.20260909T153234Z.qAKn4g.log`). Четыре TEST-сервиса активны,
-      integrator и обе web-поверхности отвечают `{"ok":true,"db":"up"}`; `git worktree list --porcelain` показал
-      только основной checkout, поиск процессов по путям/именам mobile workstream не нашёл живых worker-процессов.
-      Этот push/deploy evidence предшествует новым интегрированным изменениям и больше не доказывает текущий HEAD.
-      Строка остаётся открытой до одного финального full CI, checked push, TEST deploy, live acceptance и уборки;
-      M7-04/M7-05 перенесены владельцем из текущего completion gate.
+      clone/process не остался живым. Доказательство: финальная интеграционная CI-цепочка описана в M7-06;
+      `pnpm run push:checked` подтвердил runtime-bearing remote SHA
+      `882e7a06897a084de8e194901d9b322d42cc2dbc` и зелёный GitHub Security run `34439008925`.
+      Штатный `bash deploy/host/deploy-test.sh feat/doctor-ui-rebuild` завершился `PASS` и развернул тот же SHA
+      в `/opt/projects/bersoncarebot-test`; transcript
+      `/var/log/bersoncarebot/deploy-test/deploy-test.20260910T045626Z.5n1qmq.log`. Четыре TEST-сервиса
+      (`api`, `scheduler`, `webapp`, `media-worker`) имеют `active`; domain-health job — PASS; health staff,
+      platform-admin, TherapyGo и `app.bersoncare.ru` — HTTP 200. `app.bersoncare.ru/` — HTTP 200 и сразу
+      брендированный вход «Точка Здоровья», manifest сохраняет clinic-brand icons и `portrait-primary`, exact
+      certificate SAN — `app.bersoncare.ru`; технический `berson.test.therapygo.ru` возвращает 308 на тот же
+      path/query без внутреннего `:6300`. Найденные при живой приёмке разрывы закрыты TEST env reconciliation +
+      forward-миграцией `e62e745cd` и public-origin routing `882e7a068`; их targeted evidence: DEV owner-aware
+      migration preflight/execute PASS, surface-env dry-run PASS, proxy 2 files/31 tests, scoped ESLint и webapp
+      typecheck PASS. `git worktree list --porcelain` показывает только основной checkout; процессный поиск и
+      orchestrator status показывают ноль worker/auditor процессов. M7-04/M7-05 перенесены владельцем из текущего
+      completion gate.
 
 ## 5. Parallel workstreams
 
@@ -637,4 +643,4 @@ security/audit gates идут без этих входов.
 | M7-04 | deferred by owner | API 34 KVM boot/install evidence `8858dc830` ended in Android System UI ANR before app acceptance; all run-owned processes were stopped. Reliable emulator/physical-device acceptance moved to the owner's later release stage and no longer blocks this plan. |
 | M7-05 | cancelled by owner | Removed from this plan on 2026-09-09: real RuStore credentials/delivery, signing and physical-device release acceptance happen after the interface is complete and do not block #915. |
 | M7-06 | done | After neighbor landing `cd31eebd4`, the final full-CI chain started on integrated `537e859a4`, each failed step was corrected and rerun, and the canonical resume chain completed on `25877e158`. Final webapp phase: 504 files/2818 tests PASS; remaining media-worker, error-tracking, builds and audit PASS. Earlier green phases were reused only after test-artifact-only corrections per §9–§10. |
-| M7-07 | open | The earlier checked push/TEST deploy predates later integrated work. Final checked push, TEST deploy/live acceptance, taskdb synchronization and worktree cleanup are pending. |
+| M7-07 | done | Runtime-bearing SHA `882e7a068` passed checked push (`34439008925`), canonical TEST deploy (`deploy-test.20260910T045626Z.5n1qmq.log`) and live acceptance: all four services/domain-health/health surfaces PASS; branded root/login/manifest/certificate and clean technical-host 308 PASS. Only the primary worktree and orchestrator process remain. |
