@@ -133,7 +133,7 @@ function ClinicBotControls({
     <section className="flex flex-col gap-2">
       <SecretSettingInput
         title={title}
-        description={`Credential собственного ${title} клиники.`}
+        description={`Credential собственного ${title} организации.`}
         settingKey={settingKey}
         configured={configured}
         configuredLabel="Настройки сохранены"
@@ -254,9 +254,7 @@ export function OrgBrandingSection({
 
   const baselineName = (publishedDisplayName ?? coreDisplayName).trim();
   const dirty =
-    !hasPublishedRevision ||
-    name.trim() !== baselineName ||
-    logoMediaId !== publishedLogoMediaId;
+    !hasPublishedRevision || name.trim() !== baselineName || logoMediaId !== publishedLogoMediaId;
 
   function handleLogoChange(next: OrgBrandLogoChange) {
     setLogoMediaId(next?.mediaId ?? null);
@@ -293,7 +291,7 @@ export function OrgBrandingSection({
   return (
     <DoctorSection>
       <DoctorSectionHeader>
-        <DoctorSectionTitle>Бренд клиники</DoctorSectionTitle>
+        <DoctorSectionTitle>Бренд организации</DoctorSectionTitle>
       </DoctorSectionHeader>
 
       {!brandingMutationAvailable ? (
@@ -304,7 +302,7 @@ export function OrgBrandingSection({
       ) : null}
 
       <div className="flex max-w-md flex-col gap-4">
-        <DoctorField label="Название клиники" htmlFor="org-brand-name">
+        <DoctorField label="Название организации" htmlFor="org-brand-name">
           <Input
             id="org-brand-name"
             value={name}

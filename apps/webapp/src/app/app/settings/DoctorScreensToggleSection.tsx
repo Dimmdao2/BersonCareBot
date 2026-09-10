@@ -54,7 +54,7 @@ export function DoctorScreensToggleSection({ initialDisabled }: DoctorScreensTog
       </DoctorSectionHeader>
       <LabeledSwitch
         label="Показывать мне врачебные экраны"
-        hint="Отключите, если пользуетесь этим кабинетом только как администратор клиники."
+        hint="Отключите, если пользуетесь этим кабинетом только как администратор организации."
         checked={!disabled}
         onCheckedChange={(checked) => void handleChange(checked)}
         disabled={saving}

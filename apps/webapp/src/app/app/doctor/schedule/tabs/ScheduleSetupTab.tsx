@@ -74,11 +74,13 @@ const DEFAULT_SECTION: SetupSectionId = 'locations';
 type SetupSectionVisibility = Readonly<{
   notifications: boolean;
   packages: boolean;
+  specialists: boolean;
 }>;
 
 function sectionIsVisible(section: SetupSectionDef, visibility: SetupSectionVisibility): boolean {
   if (section.id === 'notifications') return visibility.notifications;
   if (section.id === 'packages') return visibility.packages;
+  if (section.id === 'specialists') return visibility.specialists;
   return true;
 }
 
@@ -767,14 +769,16 @@ export function ScheduleSetupTab({
   notificationTemplatesVisible = true,
   packagesVisible = true,
   packagesReadOnly = false,
+  specialistsVisible = true,
   setupPackagesOnly = false,
 }: ScheduleTabProps) {
   const sectionVisibility: SetupSectionVisibility = useMemo(
     () => ({
       notifications: notificationTemplatesVisible,
       packages: packagesVisible,
+      specialists: specialistsVisible,
     }),
-    [notificationTemplatesVisible, packagesVisible],
+    [notificationTemplatesVisible, packagesVisible, specialistsVisible],
   );
   const [activeSection, setActiveSectionState] = useState<SetupSectionId>(() =>
     setupPackagesOnly ? 'packages' : resolveSectionId(deepLinkParams.section, sectionVisibility),

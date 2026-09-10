@@ -147,7 +147,7 @@ export function BillingSection({
         )}
 
         <div className="space-y-1.5">
-          <p className="text-sm font-medium text-foreground">Что доступно клинике</p>
+          <p className="text-sm font-medium text-foreground">Что доступно организации</p>
           <ul aria-label="Механики тарифа" className={doctorDnaFlatListClass}>
             {mechanics.map((row) => (
               <li

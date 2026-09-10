@@ -44,7 +44,18 @@ type SpecialistRow = {
   sortOrder: number;
 };
 
-export function BookingSoloSpecialistsSection() {
+/**
+ * Owner ruling 2026-09-10: a solo tariff has exactly one specialist, so its own settings tab must
+ * open that profile straight away — a catalogue list with «Добавить специалиста» offers a second
+ * specialist the tariff has no place for. Clinic management keeps the list; both variants drive the
+ * same `/api/admin/booking-engine/specialists` writer, there is no second implementation.
+ */
+export function BookingSoloSpecialistsSection({
+  variant = 'list',
+}: {
+  variant?: 'list' | 'solo-profile';
+} = {}) {
+  const { patientGenitive } = useDoctorPatientTerms();
   const [specialists, setSpecialists] = useState<SpecialistRow[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -83,6 +94,20 @@ export function BookingSoloSpecialistsSection() {
       void load();
     });
   }, [load]);
+
+  // The solo profile edits the single loaded specialist in place; seeding is keyed on its id so a
+  // background reload never overwrites what the owner is typing.
+  const soloSpecialist = specialists.length === 1 ? specialists[0] : null;
+  const soloSpecialistId = soloSpecialist?.id ?? null;
+  useEffect(() => {
+    if (variant !== 'solo-profile' || soloSpecialistId === null) return;
+    const loaded = specialists.find((specialist) => specialist.id === soloSpecialistId);
+    if (!loaded) return;
+    setEditFullName(loaded.fullName);
+    setEditDescription(loaded.description ?? '');
+    // `specialists` is intentionally out of the dependency list: only a changed identity reseeds.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [variant, soloSpecialistId]);
 
   function run(task: () => Promise<unknown>, onSuccess?: () => void) {
     setActionError(null);
@@ -160,6 +185,29 @@ export function BookingSoloSpecialistsSection() {
     );
   }
 
+  function saveSoloProfile() {
+    const name = editFullName.trim();
+    if (!name) return;
+    const body = JSON.stringify({ fullName: name, description: editDescription.trim() || null });
+    run(() =>
+      soloSpecialist
+        ? apiJson(`${BASE}/specialists/${soloSpecialist.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body,
+          })
+        : apiJson(`${BASE}/specialists`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              fullName: name,
+              description: editDescription.trim() || null,
+              sortOrder: 10,
+            }),
+          }),
+    );
+  }
+
   function reorderSpecialists(event: DragEndEvent) {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
@@ -190,6 +238,51 @@ export function BookingSoloSpecialistsSection() {
         await load();
       }
     });
+  }
+
+  if (variant === 'solo-profile' && specialists.length <= 1) {
+    return (
+      <DoctorSection>
+        <DoctorSectionHeader>
+          <DoctorSectionTitle>Профиль специалиста</DoctorSectionTitle>
+        </DoctorSectionHeader>
+
+        {loadError ? <p className="text-sm text-destructive">{loadError}</p> : null}
+        {actionError ? <p className="text-sm text-destructive">{actionError}</p> : null}
+
+        <div className="flex flex-col gap-1">
+          <Label htmlFor="specialist-solo-name">ФИО</Label>
+          <Input
+            id="specialist-solo-name"
+            value={editFullName}
+            onChange={(event) => setEditFullName(event.target.value)}
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <Label htmlFor="specialist-solo-description">Описание для {patientGenitive}</Label>
+          <Textarea
+            id="specialist-solo-description"
+            rows={4}
+            className="min-h-24 resize-y"
+            value={editDescription}
+            onChange={(event) => setEditDescription(event.target.value)}
+          />
+          <p className="text-sm text-muted-foreground">
+            Это имя и описание видят при онлайн-записи.
+          </p>
+        </div>
+        <div>
+          <Button
+            type="button"
+            size="sm"
+            disabled={pending || !editFullName.trim()}
+            onClick={saveSoloProfile}
+          >
+            Сохранить
+          </Button>
+        </div>
+      </DoctorSection>
+    );
   }
 
   return (

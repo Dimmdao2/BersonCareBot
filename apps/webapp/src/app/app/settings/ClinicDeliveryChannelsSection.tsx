@@ -126,12 +126,12 @@ export function ClinicDeliveryChannelsSection({
   return (
     <Card id="clinic-delivery-channels" className="border-border">
       <CardHeader className="pb-2">
-        <CardTitle className="text-base">Каналы доставки клиники</CardTitle>
+        <CardTitle className="text-base">Каналы доставки организации</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-6">
         <p className="text-xs text-muted-foreground">
           Пока проверка собственного канала не прошла, сообщения продолжает доставлять канал
-          платформы от имени клиники.
+          платформы от имени организации.
         </p>
         {isPlatformIntegrationAvailable(platformAvailability, 'email') ? (
           <section className="flex flex-col gap-2">
@@ -230,7 +230,7 @@ export function ClinicDeliveryChannelsSection({
         {isPlatformIntegrationAvailable(platformAvailability, 'smsc') ? (
           <SecretSettingInput
             title="SMS"
-            description="API-ключ SMSC клиники."
+            description="API-ключ SMSC организации."
             settingKey="clinic_smsc_api_key"
             configured={initial.smsConfigured}
             saveSetting={saveSetting}
@@ -239,7 +239,7 @@ export function ClinicDeliveryChannelsSection({
         {isPlatformIntegrationAvailable(platformAvailability, 'vk') ? (
           <SecretSettingInput
             title="Сообщество VK"
-            description="Токен сообщества для исходящих сообщений от имени клиники. Входящий Callback API остаётся у сообщества платформы."
+            description="Токен сообщества для исходящих сообщений от имени организации. Входящий Callback API остаётся у сообщества платформы."
             settingKey="clinic_vk_community_access_token"
             configured={initial.vkConfigured}
             saveSetting={saveSetting}

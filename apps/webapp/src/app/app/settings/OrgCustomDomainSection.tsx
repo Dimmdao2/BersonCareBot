@@ -46,9 +46,9 @@ type SaveResponse =
 const SAVE_ERROR_MESSAGES: Record<string, string> = {
   entitlement_required: 'Собственный домен недоступен на текущем тарифе.',
   commercial_read_only: 'Собственный домен доступен только для просмотра.',
-  forbidden_owner_setting: 'Изменить домен может только владелец клиники.',
+  forbidden_owner_setting: 'Изменить домен может только владелец организации.',
   invalid_value: 'Введите базовый домен без протокола и пути.',
-  custom_domain_hostname_taken: 'Этот адрес уже подключён к другой клинике.',
+  custom_domain_hostname_taken: 'Этот адрес уже подключён к другой организации.',
   custom_domain_invalid_base_domain: 'Введите базовый домен без протокола и пути.',
 };
 
@@ -57,7 +57,7 @@ class DomainPatchError extends Error {}
 function statusReasonMessage(reason: string | null): string | null {
   if (!reason) return null;
   if (reason === 'organization_brand_or_custom_domain_entitlement_inactive') {
-    return 'Проверьте, что клиника активна, бренд опубликован и тариф включает собственный домен.';
+    return 'Проверьте, что организация активна, бренд опубликован и тариф включает собственный домен.';
   }
   if (reason.startsWith('runtime_edge_ip_missing') || reason.startsWith('runtime_cname_target_missing')) {
     return 'Платформа ещё не настроена для этой DNS-записи. Обратитесь в поддержку.';

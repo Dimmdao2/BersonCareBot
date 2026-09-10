@@ -23,7 +23,7 @@ const MANAGEMENT_MENU_ITEMS: readonly DoctorMenuLinkItem[] = [
     ],
   },
   { id: 'online-booking', label: 'Онлайн-запись', href: '/app/manage/online-booking' },
-  { id: 'settings', label: 'Настройки клиники', href: '/app/settings?tab=organization' },
+  { id: 'settings', label: 'Настройки организации', href: '/app/settings?tab=organization' },
   { id: 'billing', label: 'Тариф', href: '/app/settings?tab=billing' },
 ];
 

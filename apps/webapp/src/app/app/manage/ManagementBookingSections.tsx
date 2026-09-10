@@ -26,6 +26,7 @@ export function ManagementBookingSections({
   packagesVisible = true,
   packagesReadOnly = false,
   notificationTemplatesVisible = true,
+  specialistsVisible = true,
   doctorStatisticsEnabled = false,
 }: {
   defaultSection?: string;
@@ -33,6 +34,7 @@ export function ManagementBookingSections({
   packagesVisible?: boolean;
   packagesReadOnly?: boolean;
   notificationTemplatesVisible?: boolean;
+  specialistsVisible?: boolean;
   doctorStatisticsEnabled?: boolean;
 }) {
   const router = useRouter();
@@ -54,6 +56,7 @@ export function ManagementBookingSections({
       packagesVisible={packagesVisible}
       packagesReadOnly={packagesReadOnly}
       notificationTemplatesVisible={notificationTemplatesVisible}
+      specialistsVisible={specialistsVisible}
       doctorStatisticsEnabled={doctorStatisticsEnabled}
     />
   );

@@ -121,7 +121,7 @@ export function ClinicSlugSection({ initialState, patientOrigin }: ClinicSlugSec
 
   const slugField = (
     <DoctorField
-      label="Slug клиники"
+      label="Slug организации"
       htmlFor={fieldId}
       hint="Латинские буквы, цифры и дефисы, от 3 до 63 символов."
     >
@@ -186,10 +186,10 @@ export function ClinicSlugSection({ initialState, patientOrigin }: ClinicSlugSec
                 <DialogHeader>
                   <DialogTitle>Изменить адрес публичной записи</DialogTitle>
                   <DialogDescription>
-                    Старый адрес продолжит работать и навсегда останется за вашей клиникой — другой
-                    клинике он не достанется никогда. Самостоятельно адрес меняют один раз за всё
-                    время работы клиники: после этой смены любую следующую, включая возврат на
-                    прежний адрес, делает поддержка.
+                    Старый адрес продолжит работать и навсегда останется за вашей организацией —
+                    другой организации он не достанется никогда. Самостоятельно адрес меняют один
+                    раз за всё время работы организации: после этой смены любую следующую, включая
+                    возврат на прежний адрес, делает поддержка.
                   </DialogDescription>
                 </DialogHeader>
                 <div className="flex flex-col gap-3">
@@ -203,8 +203,8 @@ export function ClinicSlugSection({ initialState, patientOrigin }: ClinicSlugSec
                       className="mt-0.5"
                     />
                     <span>
-                      Я понимаю: старый адрес останется за моей клиникой, а самостоятельная смена у
-                      клиники одна.
+                      Я понимаю: старый адрес останется за моей организацией, а самостоятельная
+                      смена у организации одна.
                     </span>
                   </label>
                   {error ? (

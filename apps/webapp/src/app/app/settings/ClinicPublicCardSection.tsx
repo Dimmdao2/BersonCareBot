@@ -45,7 +45,7 @@ export function clinicPublicCardErrorMessage(code: string): string {
     case 'duplicate_photo':
       return 'Одна и та же фотография добавлена дважды.';
     case 'media_not_owned':
-      return 'Этот файл не принадлежит вашей клинике.';
+      return 'Этот файл не принадлежит вашей организации.';
     default:
       return 'Не удалось сохранить страницу. Повторите попытку.';
   }
@@ -123,7 +123,7 @@ export function ClinicPublicCardSection({
   return (
     <DoctorSection>
       <DoctorSectionHeader>
-        <DoctorSectionTitle>Страница клиники</DoctorSectionTitle>
+        <DoctorSectionTitle>Страница организации</DoctorSectionTitle>
       </DoctorSectionHeader>
 
       <div className="flex flex-col gap-4">
@@ -138,7 +138,7 @@ export function ClinicPublicCardSection({
           </a>
         ) : (
           <p className="text-sm text-muted-foreground">
-            Сначала задайте адрес клиники в разделе «Публичная запись».
+            Сначала задайте адрес организации в разделе «Публичная запись».
           </p>
         )}
 
@@ -248,7 +248,7 @@ export function ClinicPublicCardSection({
             disabled={pending}
             className="mt-0.5"
           />
-          <span>Показывать страницу клиники</span>
+          <span>Показывать страницу организации</span>
         </label>
 
         <label className="flex items-start gap-2 text-sm" htmlFor={rootEntryId}>
@@ -268,7 +268,7 @@ export function ClinicPublicCardSection({
         </Button>
       </div>
 
-      <MediaPickerShell title="Логотип клиники" open={logoPickerOpen} onOpenChange={setLogoPickerOpen}>
+      <MediaPickerShell title="Логотип организации" open={logoPickerOpen} onOpenChange={setLogoPickerOpen}>
         <MediaPickerPanel
           key={logoPickerOpen ? 'clinic-card-logo-open' : 'clinic-card-logo-closed'}
           open={logoPickerOpen}
@@ -287,7 +287,7 @@ export function ClinicPublicCardSection({
       </MediaPickerShell>
 
       <MediaPickerShell
-        title="Фотографии клиники"
+        title="Фотографии организации"
         open={photoPickerOpen}
         onOpenChange={setPhotoPickerOpen}
       >

@@ -26,8 +26,8 @@ const ERROR_LABELS: Record<string, string> = {
   saas_billing_payment_provider_unavailable:
     'Оплата тарифа временно недоступна: платёжный магазин платформы не настроен.',
   saas_billing_checkout_unavailable: 'Не удалось получить ссылку на оплату. Попробуйте ещё раз.',
-  billing_admin_required: 'Оплату тарифа может запустить только владелец или администратор клиники.',
-  saas_billing_tariff_downgrade_blocked: 'Понижение недоступно: сначала приведите клинику к новому тарифу.',
+  billing_admin_required: 'Оплату тарифа может запустить только владелец или администратор организации.',
+  saas_billing_tariff_downgrade_blocked: 'Понижение недоступно: сначала приведите организацию к новому тарифу.',
   saas_billing_tariff_upgrade_proration_unavailable:
     'Повышение с разными валютами или периодами пока нельзя рассчитать автоматически.',
   saas_billing_tariff_upgrade_not_more_expensive: 'Этот тариф не является повышением.',

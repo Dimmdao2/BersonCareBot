@@ -37,11 +37,11 @@ export function ClinicStaffSecuritySection({ initialRequired }: { initialRequire
   return (
     <DoctorSection>
       <DoctorSectionHeader>
-        <DoctorSectionTitle>Безопасность команды</DoctorSectionTitle>
+        <DoctorSectionTitle>Безопасность входа</DoctorSectionTitle>
       </DoctorSectionHeader>
       <div className="flex items-center justify-between gap-4">
         <div className="flex flex-col gap-1">
-          <Label htmlFor="clinic-staff-second-factor">Требовать второй фактор для команды</Label>
+          <Label htmlFor="clinic-staff-second-factor">Требовать второй фактор при входе</Label>
           <p className="text-sm text-muted-foreground">
             После пароля сотрудники используют личный TOTP или код на подтверждённый email.
           </p>

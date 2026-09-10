@@ -8,7 +8,7 @@ import type { SaasBillingSubscriptionReadRow } from '@/modules/saas-billing/port
 
 const ERROR_LABELS: Record<string, string> = {
   saas_billing_no_tariff_assigned: 'Тариф ещё не назначен — обратитесь к администратору платформы.',
-  billing_admin_required: 'Включить или отключить автосписание может только владелец или администратор клиники.',
+  billing_admin_required: 'Включить или отключить автосписание может только владелец или администратор организации.',
 };
 
 function formatError(code: string | undefined): string {

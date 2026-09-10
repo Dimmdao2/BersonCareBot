@@ -141,7 +141,7 @@ export function OrgBrandLogoControl({
         </Button>
       </div>
 
-      <MediaPickerShell title="Логотип клиники" open={open} onOpenChange={setOpen}>
+      <MediaPickerShell title="Логотип организации" open={open} onOpenChange={setOpen}>
         <MediaPickerPanel
           key={open ? 'org-brand-logo-open' : 'org-brand-logo-closed'}
           open={open}

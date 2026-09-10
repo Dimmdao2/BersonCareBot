@@ -185,8 +185,8 @@ export function AuthProvidersSection({
           <p className="text-xs text-muted-foreground">
             Провайдеры входа и OAuth. Значения в{' '}
             <code className="rounded bg-muted px-1">system_settings</code> (admin). Redirect для
-            календаря Google — во этой платформенной форме; клиника подключает только свой аккаунт и
-            календарь.
+            календаря Google — во этой платформенной форме; организация подключает только свой
+            аккаунт и календарь.
           </p>
         </CardHeader>
         <CardContent className="flex flex-col gap-5">
@@ -424,7 +424,7 @@ export function AuthProvidersSection({
               label="Redirect URI для Calendar"
               htmlFor="auth-google-calendar-redirect"
               width="lg"
-              hint="Это OAuth callback нашего приложения, общий для всех клиник. Учётную запись и календарь выбирает каждая клиника в своих настройках."
+              hint="Это OAuth callback нашего приложения, общий для всех организаций. Учётную запись и календарь выбирает каждая организация в своих настройках."
             >
               <Input
                 id="auth-google-calendar-redirect"

@@ -28,7 +28,7 @@ type Props = {
 };
 
 export function DoctorTodayPreferencesSection({ initialPreferences, settingsEndpoint }: Props) {
-  const { patientPluralLabel, supportGroupLabel } = useDoctorPatientTerms();
+  const { patientGenPlural, supportGroupLabel } = useDoctorPatientTerms();
   const [preferences, setPreferences] = useState(initialPreferences);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -65,10 +65,7 @@ export function DoctorTodayPreferencesSection({ initialPreferences, settingsEndp
         <DoctorSectionTitle>Сегодня</DoctorSectionTitle>
       </DoctorSectionHeader>
       <div className="flex flex-col gap-4">
-        <DoctorField
-          label={`Список ${patientPluralLabel.toLowerCase()}`}
-          htmlFor="doctor-today-people-list"
-        >
+        <DoctorField label={`Список ${patientGenPlural}`} htmlFor="doctor-today-people-list">
           <Select
             value={preferences.peopleListMode}
             onValueChange={setPeopleListMode}

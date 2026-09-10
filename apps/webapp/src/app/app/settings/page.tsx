@@ -180,12 +180,8 @@ export default async function SettingsPage({
     return (
       <DoctorAppShell title="Профиль специалиста" user={workspace.session.user}>
         <DoctorPageHeader title="Профиль специалиста" />
-        <SettingsTabsNav
-          activeTab="specialist"
-          visibleTabs={visibleTabs}
-          composition={composition}
-        />
-        <BookingSoloSpecialistsSection />
+        <SettingsTabsNav activeTab="specialist" visibleTabs={visibleTabs} />
+        <BookingSoloSpecialistsSection variant="solo-profile" />
       </DoctorAppShell>
     );
   }
@@ -201,14 +197,15 @@ export default async function SettingsPage({
     return (
       <DoctorAppShell title="Онлайн-запись" user={workspace.session.user} layout="full-height">
         <DoctorPageHeader title="Онлайн-запись" />
-        <SettingsTabsNav activeTab="booking" visibleTabs={visibleTabs} composition={composition} />
+        <SettingsTabsNav activeTab="booking" visibleTabs={visibleTabs} />
         <ManagementBookingSections
           basePath={routePaths.settings}
           notificationTemplatesVisible={notificationTemplatesVisibility.specialistNavigation}
           doctorStatisticsEnabled={doctorStatisticsVisibility.specialistNavigation}
-          // Memberships stay with the solo specialist's own «Расписание» writer — one place per
-          // writer, so the same section is not offered from two menus.
+          // Memberships stay with the solo specialist's own «Расписание» writer, and the single
+          // specialist is edited in the tab next door — one place per writer, no duplicates.
           packagesVisible={false}
+          specialistsVisible={false}
         />
       </DoctorAppShell>
     );
@@ -465,11 +462,7 @@ export default async function SettingsPage({
     return (
       <DoctorAppShell title="Настройки" user={workspace.session.user}>
         <DoctorPageHeader title="Настройки" />
-        <SettingsTabsNav
-          activeTab="organization"
-          visibleTabs={visibleTabs}
-          composition={composition}
-        />
+        <SettingsTabsNav activeTab="organization" visibleTabs={visibleTabs} />
         {workspace.membershipRole === 'owner' && workspace.specialistId === null ? (
           <DoctorSection>
             <DoctorSectionHeader>
@@ -594,7 +587,7 @@ export default async function SettingsPage({
     return (
       <DoctorAppShell title="Команда" user={workspace.session.user}>
         <DoctorPageHeader title="Команда" />
-        <SettingsTabsNav activeTab="team" visibleTabs={visibleTabs} composition={composition} />
+        <SettingsTabsNav activeTab="team" visibleTabs={visibleTabs} />
         <TeamSection
           members={members.map((member) => ({
             id: member.id,
@@ -658,7 +651,7 @@ export default async function SettingsPage({
   return (
     <DoctorAppShell title="Тариф и биллинг" user={workspace.session.user}>
       <DoctorPageHeader title="Тариф и биллинг" />
-      <SettingsTabsNav activeTab="billing" visibleTabs={visibleTabs} composition={composition} />
+      <SettingsTabsNav activeTab="billing" visibleTabs={visibleTabs} />
       <BillingSection
         tariffName={snapshot.tariff?.name ?? null}
         commercialStateLabel={describeCommercialAccessState(snapshot.access)}

@@ -135,7 +135,7 @@ export function AdminSettingsSection({
         <section className="flex flex-col gap-3 rounded-lg border border-border/80 bg-muted/20 p-4">
           <p className="text-sm font-semibold">Режим техработ пациентского приложения</p>
           <p className="text-xs text-muted-foreground">
-            Показывает экран техработ пациентам и пользователям кабинетов клиник. Глобальный
+            Показывает экран техработ пациентам и пользователям кабинетов организаций. Глобальный
             администратор сохраняет доступ, чтобы выключить режим.
           </p>
           <LabeledSwitch

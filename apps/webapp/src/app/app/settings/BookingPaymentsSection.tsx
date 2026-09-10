@@ -176,8 +176,8 @@ export function BookingPaymentsSection({
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-sm text-muted-foreground">
-          Эквайринговый счёт клиники: провайдер приёма оплат и его реквизиты. Услуги, их стоимость и
-          условия предоплаты настраиваются в «Расписание → Настройки записи».
+          Эквайринговый счёт организации: провайдер приёма оплат и его реквизиты. Услуги, их
+          стоимость и условия предоплаты настраиваются в разделе «Онлайн-запись».
         </p>
         {readOnly ? (
           <p className="text-sm text-muted-foreground">

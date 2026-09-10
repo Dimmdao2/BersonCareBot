@@ -7,7 +7,7 @@ import type { SaasBillingSubscriptionReadRow } from '@/modules/saas-billing/port
 const ERROR_LABELS: Record<string, string> = {
   saas_billing_no_tariff_assigned: 'Тариф ещё не назначен — обратитесь к администратору платформы.',
   saas_billing_no_active_paid_subscription: 'Отменять пока нечего — оплаченного периода ещё нет.',
-  billing_admin_required: 'Отменить подписку может только владелец или администратор клиники.',
+  billing_admin_required: 'Отменить подписку может только владелец или администратор организации.',
 };
 
 function formatError(code: string | undefined): string {
@@ -42,9 +42,7 @@ export function CancelSubscriptionButton({
         body: JSON.stringify({ action: 'cancel_subscription' }),
       });
       const body = (await response.json().catch(() => null)) as
-        | { ok: true }
-        | { ok: false; error?: string }
-        | null;
+        { ok: true } | { ok: false; error?: string } | null;
       if (!body?.ok) {
         setError(formatError(body?.error));
         return;

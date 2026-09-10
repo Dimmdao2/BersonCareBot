@@ -56,12 +56,12 @@ const ONLINE_CATEGORIES = [
 ] as const;
 
 const AVAILABILITY_MESSAGES: Record<Exclude<PrepaymentAvailability['reason'], null>, string> = {
-  entitlement_required: 'Предоплата не входит в тариф клиники.',
-  commercial_read_only: 'Предоплата сейчас доступна только для просмотра по тарифу клиники.',
-  commercial_blocked: 'Предоплата недоступна по тарифу клиники.',
-  access_lifecycle_unconfigured: 'Для предоплаты не настроены условия доступа в тарифе клиники.',
-  payments_disabled: 'Платежи отключены в настройках клиники.',
-  payment_provider_unavailable: 'Настройте активного платёжного провайдера в кабинете клиники.',
+  entitlement_required: 'Предоплата не входит в тариф организации.',
+  commercial_read_only: 'Предоплата сейчас доступна только для просмотра по тарифу организации.',
+  commercial_blocked: 'Предоплата недоступна по тарифу организации.',
+  access_lifecycle_unconfigured: 'Для предоплаты не настроены условия доступа в тарифе организации.',
+  payments_disabled: 'Платежи отключены в настройках организации.',
+  payment_provider_unavailable: 'Настройте активного платёжного провайдера в кабинете организации.',
 };
 
 export function BookingPrepaymentSection() {

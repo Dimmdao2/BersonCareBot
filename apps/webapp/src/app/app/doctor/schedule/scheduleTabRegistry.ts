@@ -25,6 +25,8 @@ export type ScheduleTabProps = {
   /** Tariff-backed visibility and mutability of patient membership package controls. */
   packagesVisible?: boolean;
   packagesReadOnly?: boolean;
+  /** Hidden where the single specialist is edited elsewhere (solo settings own that profile). */
+  specialistsVisible?: boolean;
   /** The only remaining solo Schedule setup section is the existing package writer. */
   setupPackagesOnly?: boolean;
   /** Server-resolved role/specialist capabilities shared by calendar/KPI/create. */
