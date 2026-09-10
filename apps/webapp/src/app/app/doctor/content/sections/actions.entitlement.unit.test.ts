@@ -65,7 +65,7 @@ describe('saveContentSection entitlement boundary', () => {
     await expect(saveContentSection(null, formData())).resolves.toEqual({
       ok: false,
       error:
-        'Невозможно изменить контент: раздел сейчас доступен только для просмотра по тарифу клиники.',
+        'Невозможно изменить контент: раздел сейчас доступен только для просмотра по вашему тарифу.',
     });
     expect(getBySlug).not.toHaveBeenCalled();
   });
@@ -90,7 +90,7 @@ describe('saveContentSection entitlement boundary', () => {
     await expect(saveContentPage(null, pageFormData())).resolves.toEqual({
       ok: false,
       error:
-        'Невозможно изменить контент: раздел сейчас доступен только для просмотра по тарифу клиники.',
+        'Невозможно изменить контент: раздел сейчас доступен только для просмотра по вашему тарифу.',
     });
     expect(getBySlug).not.toHaveBeenCalled();
     expect(listAll).not.toHaveBeenCalled();

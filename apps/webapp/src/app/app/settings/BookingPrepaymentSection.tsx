@@ -56,10 +56,10 @@ const ONLINE_CATEGORIES = [
 ] as const;
 
 const AVAILABILITY_MESSAGES: Record<Exclude<PrepaymentAvailability['reason'], null>, string> = {
-  entitlement_required: 'Предоплата не входит в тариф организации.',
-  commercial_read_only: 'Предоплата сейчас доступна только для просмотра по тарифу организации.',
-  commercial_blocked: 'Предоплата недоступна по тарифу организации.',
-  access_lifecycle_unconfigured: 'Для предоплаты не настроены условия доступа в тарифе организации.',
+  entitlement_required: 'Предоплата не входит в ваш тариф.',
+  commercial_read_only: 'Предоплата сейчас доступна только для просмотра по вашему тарифу.',
+  commercial_blocked: 'Предоплата недоступна по вашему тарифу.',
+  access_lifecycle_unconfigured: 'Для предоплаты не настроены условия доступа в вашем тарифе.',
   payments_disabled: 'Платежи отключены в настройках организации.',
   payment_provider_unavailable: 'Настройте активного платёжного провайдера в кабинете организации.',
 };

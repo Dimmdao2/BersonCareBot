@@ -41,13 +41,13 @@ export function entitlementMutationRefusalMessage(
 ): string {
   switch (reason) {
     case 'commercial_read_only':
-      return `Невозможно ${action}: раздел сейчас доступен только для просмотра по тарифу клиники.`;
+      return `Невозможно ${action}: раздел сейчас доступен только для просмотра по вашему тарифу.`;
     case 'commercial_blocked':
-      return `Невозможно ${action}: доступ к этому разделу временно приостановлен по тарифу клиники.`;
+      return `Невозможно ${action}: доступ к этому разделу временно приостановлен по вашему тарифу.`;
     case 'access_lifecycle_unconfigured':
-      return `Невозможно ${action}: для этого раздела не настроены условия доступа в тарифе клиники.`;
+      return `Невозможно ${action}: для этого раздела не настроены условия доступа в вашем тарифе.`;
     case 'entitlement_required':
-      return `Невозможно ${action}: этот раздел не входит в ваш тариф. Чтобы выполнить действие, включите этот раздел в тарифе клиники.`;
+      return `Невозможно ${action}: этот раздел не входит в ваш тариф. Чтобы выполнить действие, включите этот раздел в тарифе.`;
   }
 }
 
@@ -59,8 +59,8 @@ export function entitlementMutationRefusalMessage(
  */
 export function quotaLimitReachedRefusalMessage(mechanic: OrgMechanic, action: string): string {
   return (
-    `Невозможно ${action}: в тарифе клиники исчерпан лимит «${MECHANIC_REGISTRY[mechanic].label}». ` +
-    'Чтобы продолжить, увеличьте лимит в тарифе клиники.'
+    `Невозможно ${action}: в вашем тарифе исчерпан лимит «${MECHANIC_REGISTRY[mechanic].label}». ` +
+    'Чтобы продолжить, увеличьте лимит в тарифе.'
   );
 }
 

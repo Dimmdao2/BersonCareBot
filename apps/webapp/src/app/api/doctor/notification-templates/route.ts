@@ -138,7 +138,7 @@ export async function PUT(request: Request) {
     if (isInvalidTemplateError(error)) return invalidTemplateResponse();
     const clearanceRefusal = mechanicWriteClearanceRefusalResponse(
       error,
-      'Невозможно сохранить шаблон: тарифная механика клиники не разрешила запись.',
+      'Невозможно сохранить шаблон: тарифная механика не разрешила запись.',
     );
     if (clearanceRefusal) return clearanceRefusal;
     throw error;

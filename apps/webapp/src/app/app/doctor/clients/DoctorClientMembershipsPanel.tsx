@@ -104,7 +104,7 @@ const PACKAGE_STATUS_LABELS: Record<string, string> = {
 const ERROR_LABELS: Record<string, string> = {
   invalid_form: 'Проверьте цену и состав абонемента.',
   create_failed: 'Не удалось сохранить абонемент.',
-  entitlement_required: 'Действие не входит в тариф клиники.',
+  entitlement_required: 'Действие не входит в ваш тариф.',
   payments_disabled: 'Приём платежей выключен для клиники.',
   payment_provider_unavailable: 'Платёжный провайдер не настроен.',
   payments_unavailable: 'Платёжный модуль недоступен.',

@@ -15,7 +15,7 @@ vi.mock('@/app-layer/guards/requireEntitlement', async () => {
   const entitlementMutationRefusalMessage = (action: string) =>
     'Невозможно ' +
     action +
-    ': этот раздел не входит в ваш тариф. Чтобы выполнить действие, включите этот раздел в тарифе клиники.';
+    ': этот раздел не входит в ваш тариф. Чтобы выполнить действие, включите этот раздел в тарифе.';
   return {
     getMechanicMutationAvailability: vi.fn(),
     requireEntitlementForRead: vi.fn(),
@@ -402,7 +402,7 @@ describe('tariff and platform mutation gates', () => {
     await expect(savePatientHomePracticeTargetAction(3)).resolves.toMatchObject({
       ok: false,
       error:
-        'Невозможно изменить настройки главной страницы пациента: этот раздел не входит в ваш тариф. Чтобы выполнить действие, включите этот раздел в тарифе клиники.',
+        'Невозможно изменить настройки главной страницы пациента: этот раздел не входит в ваш тариф. Чтобы выполнить действие, включите этот раздел в тарифе.',
     });
   });
 
@@ -900,7 +900,7 @@ describe('tariff and platform mutation gates', () => {
     await expect(saveContentSection(null, form)).resolves.toMatchObject({
       ok: false,
       error:
-        'Невозможно изменить контент разминок: этот раздел не входит в ваш тариф. Чтобы выполнить действие, включите этот раздел в тарифе клиники.',
+        'Невозможно изменить контент разминок: этот раздел не входит в ваш тариф. Чтобы выполнить действие, включите этот раздел в тарифе.',
     });
   });
 

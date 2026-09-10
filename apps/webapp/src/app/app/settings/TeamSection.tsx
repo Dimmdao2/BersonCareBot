@@ -287,7 +287,7 @@ export function TeamSection({ members, invites, seats, canMutateTeam }: Props) {
         <p className="text-muted-foreground text-sm">{formatSeatStatus(seats)}</p>
         {!canMutateTeam ? (
           <p className="text-muted-foreground text-sm" role="status">
-            Команда сейчас доступна только для просмотра по тарифу организации.
+            Команда сейчас доступна только для просмотра по вашему тарифу.
           </p>
         ) : null}
         {members.length === 0 ? (
