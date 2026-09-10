@@ -174,8 +174,9 @@ UDP/TCP-запросы на порт `53` в этот split resolver. `awg0`, wg
   PWA-подписки (восстановленная из дампа привязана к prod-origin/VAPID).
 - Тест-БД `bersoncarebot_test` на том же PG16 (`:5432`); порты **`:3300`** (integrator) / **`:6300`** (webapp, чтобы не пересечься с dev `:5200` и прод-портами); **ТЕСТ-токен** бота (не прод); web-доступ к новым доменам залочен тем же IP allowlist (см. «Доступы / VPN»).
 - Активные origins: `APP_BASE_URL=https://test.therapysto.ru`, `PATIENT_APP_ORIGIN=https://test.therapygo.ru`,
-  `PATIENT_APP_NAME=TherapyGo`. Nginx/TLS применяются через `apply-test-surface-domains.sh`, env — через
-  `apply-test-surface-env.sh`. Произвольный tenant под `*.test.therapygo.ru` требует wildcard-сертификата DNS-01;
+  `PATIENT_APP_NAME=TherapyGo`; custom-domain targets: `CUSTOM_DOMAIN_EDGE_IP=151.241.228.122`,
+  `CUSTOM_DOMAIN_CNAME_TARGET=test.therapygo.ru`. Nginx/TLS применяются через `apply-test-surface-domains.sh`,
+  env — через `apply-test-surface-env.sh`. Произвольный tenant под `*.test.therapygo.ru` требует wildcard-сертификата DNS-01;
   DNS wildcard сам по себе TLS не завершает.
 - **Деплой (факт):** обычный `bash deploy/host/deploy-test.sh` обновляет существующую именованную TEST БД.
   Отдельный owner-authorized full-reset path умеет прочитать свежий PROD dump и атомарно получить текущий B-state

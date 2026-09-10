@@ -11,6 +11,8 @@ BACKUP_ROOT="/var/backups/bersoncare-test-surface-env"
 STAFF_ORIGIN="https://test.therapysto.ru"
 PATIENT_ORIGIN="https://test.therapygo.ru"
 PATIENT_NAME="TherapyGo"
+CUSTOM_DOMAIN_EDGE_IP="151.241.228.122"
+CUSTOM_DOMAIN_CNAME_TARGET="test.therapygo.ru"
 ACTION="dry-run"
 
 fatal() { echo "FATAL: $*" >&2; exit 1; }
@@ -36,8 +38,8 @@ done
 
 render_env() {
   local source="$1" output="$2" kind="$3"
-  sudo awk -v kind="$kind" -v staff="$STAFF_ORIGIN" -v patient="$PATIENT_ORIGIN" -v patient_name="$PATIENT_NAME" '
-    BEGIN { app_seen=0; patient_seen=0; name_seen=0 }
+  sudo awk -v kind="$kind" -v staff="$STAFF_ORIGIN" -v patient="$PATIENT_ORIGIN" -v patient_name="$PATIENT_NAME" -v edge_ip="$CUSTOM_DOMAIN_EDGE_IP" -v cname_target="$CUSTOM_DOMAIN_CNAME_TARGET" '
+    BEGIN { app_seen=0; patient_seen=0; name_seen=0; edge_seen=0; cname_seen=0 }
     /^APP_BASE_URL=/ {
       if (++app_seen > 1) { exit 41 }
       print "APP_BASE_URL=\047" staff "\047"
@@ -53,11 +55,23 @@ render_env() {
       if (kind == "webapp") print "PATIENT_APP_NAME=\047" patient_name "\047"
       next
     }
+    /^CUSTOM_DOMAIN_EDGE_IP=/ {
+      if (++edge_seen > 1) { exit 44 }
+      if (kind == "webapp") print "CUSTOM_DOMAIN_EDGE_IP=\047" edge_ip "\047"
+      next
+    }
+    /^CUSTOM_DOMAIN_CNAME_TARGET=/ {
+      if (++cname_seen > 1) { exit 45 }
+      if (kind == "webapp") print "CUSTOM_DOMAIN_CNAME_TARGET=\047" cname_target "\047"
+      next
+    }
     { print }
     END {
       if (app_seen == 0) print "APP_BASE_URL=\047" staff "\047"
       if (kind == "webapp" && patient_seen == 0) print "PATIENT_APP_ORIGIN=\047" patient "\047"
       if (kind == "webapp" && name_seen == 0) print "PATIENT_APP_NAME=\047" patient_name "\047"
+      if (kind == "webapp" && edge_seen == 0) print "CUSTOM_DOMAIN_EDGE_IP=\047" edge_ip "\047"
+      if (kind == "webapp" && cname_seen == 0) print "CUSTOM_DOMAIN_CNAME_TARGET=\047" cname_target "\047"
     }
   ' "$source" >"$output" || fatal "cannot render $source"
 }
@@ -71,6 +85,10 @@ validate_rendered() {
     [ "$(grep -c '^PATIENT_APP_NAME=' "$rendered")" -eq 1 ] || fatal "PATIENT_APP_NAME is not unique"
     grep -Fxq "PATIENT_APP_ORIGIN='$PATIENT_ORIGIN'" "$rendered" || fatal "PATIENT_APP_ORIGIN mismatch"
     grep -Fxq "PATIENT_APP_NAME='$PATIENT_NAME'" "$rendered" || fatal "PATIENT_APP_NAME mismatch"
+    [ "$(grep -c '^CUSTOM_DOMAIN_EDGE_IP=' "$rendered")" -eq 1 ] || fatal "CUSTOM_DOMAIN_EDGE_IP is not unique"
+    [ "$(grep -c '^CUSTOM_DOMAIN_CNAME_TARGET=' "$rendered")" -eq 1 ] || fatal "CUSTOM_DOMAIN_CNAME_TARGET is not unique"
+    grep -Fxq "CUSTOM_DOMAIN_EDGE_IP='$CUSTOM_DOMAIN_EDGE_IP'" "$rendered" || fatal "CUSTOM_DOMAIN_EDGE_IP mismatch"
+    grep -Fxq "CUSTOM_DOMAIN_CNAME_TARGET='$CUSTOM_DOMAIN_CNAME_TARGET'" "$rendered" || fatal "CUSTOM_DOMAIN_CNAME_TARGET mismatch"
   fi
   bash -n "$rendered" || fatal "$kind env is not valid shell syntax"
 }
@@ -89,6 +107,8 @@ if [ "$ACTION" = "dry-run" ]; then
   echo "   APP_BASE_URL=$STAFF_ORIGIN"
   echo "   PATIENT_APP_ORIGIN=$PATIENT_ORIGIN"
   echo "   PATIENT_APP_NAME=$PATIENT_NAME"
+  echo "   CUSTOM_DOMAIN_EDGE_IP=$CUSTOM_DOMAIN_EDGE_IP"
+  echo "   CUSTOM_DOMAIN_CNAME_TARGET=$CUSTOM_DOMAIN_CNAME_TARGET"
   exit 0
 fi
 
