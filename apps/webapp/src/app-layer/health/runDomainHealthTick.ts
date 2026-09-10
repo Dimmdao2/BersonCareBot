@@ -82,12 +82,18 @@ function expectationFor(target: CanonicalLifecycleTarget): DomainLifecycleExpect
       ? { placement: 'apex', edgeIp: env.CUSTOM_DOMAIN_EDGE_IP }
       : null;
   }
-  return env.CUSTOM_DOMAIN_EDGE_IP && env.CUSTOM_DOMAIN_CNAME_TARGET
-    ? {
-        placement: 'subdomain',
-        edgeIp: env.CUSTOM_DOMAIN_EDGE_IP,
-        cnameTarget: env.CUSTOM_DOMAIN_CNAME_TARGET,
-      }
+  if (env.CUSTOM_DOMAIN_EDGE_IP && env.CUSTOM_DOMAIN_CNAME_TARGET) {
+    return {
+      placement: 'subdomain',
+      edgeIp: env.CUSTOM_DOMAIN_EDGE_IP,
+      cnameTarget: env.CUSTOM_DOMAIN_CNAME_TARGET,
+    };
+  }
+  if (env.CUSTOM_DOMAIN_EDGE_IP) {
+    return { placement: 'subdomain', edgeIp: env.CUSTOM_DOMAIN_EDGE_IP };
+  }
+  return env.CUSTOM_DOMAIN_CNAME_TARGET
+    ? { placement: 'subdomain', cnameTarget: env.CUSTOM_DOMAIN_CNAME_TARGET }
     : null;
 }
 

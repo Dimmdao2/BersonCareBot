@@ -13,6 +13,7 @@ export type DomainCertificateProbeDeps = {
 
 export type DomainLifecycleExpectation = Readonly<
   | { placement: 'apex'; edgeIp: string }
+  | { placement: 'subdomain'; edgeIp: string; cnameTarget?: string }
   | { placement: 'subdomain'; edgeIp?: string; cnameTarget: string }
 >;
 
@@ -71,6 +72,14 @@ export async function checkDomainCertificateHealth(
     // A valid direct edge record is sufficient; an absent CNAME is normal in that configuration.
     if (hasExactEdgeAnswer(resolved, lifecycleExpectation.edgeIp)) {
       dnsReady = true;
+    } else if (!lifecycleExpectation.cnameTarget) {
+      if (addressResolutionError) {
+        issues.push({ code: 'resolution_failed', detail: addressResolutionError });
+      } else if (resolved.length === 0) {
+        issues.push({ code: 'resolution_failed', detail: 'empty_answer' });
+      } else {
+        issues.push({ code: 'dns_mismatch', detail: resolved.join(',') });
+      }
     } else if (!deps.resolveCname) {
       issues.push({
         code: 'resolution_failed',
