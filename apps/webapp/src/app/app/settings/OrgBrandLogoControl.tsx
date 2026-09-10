@@ -32,6 +32,8 @@ type Props = {
   pickerTitle?: string;
   /** Префикс ключа панели выбора: два контрола на одной странице не должны делить состояние. */
   instanceKey?: string;
+  /** Ограничение по размеру картинки для этого поля (см. `MediaPickerPanel.sourceGate`). */
+  sourceGate?: (size: { width: number; height: number } | null) => string | null;
 };
 
 /**
@@ -57,6 +59,7 @@ export function OrgBrandLogoControl({
   emptyLabel = 'Нет лого',
   pickerTitle = 'Логотип организации',
   instanceKey = 'org-brand-logo',
+  sourceGate,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [logo, setLogo] = useState<PickedLogo | null>(
@@ -165,6 +168,7 @@ export function OrgBrandLogoControl({
           onPickerFolderIdChange={() => {}}
           showSort={false}
           showFolderScope={false}
+          {...(sourceGate ? { sourceGate } : {})}
         />
       </MediaPickerShell>
     </div>

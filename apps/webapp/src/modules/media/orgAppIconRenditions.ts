@@ -3,6 +3,8 @@ import {
   ORG_APP_ICON_VARIANTS,
   ORG_APP_ICON_VARIANT_SIZE,
   orgAppIconObjectKey,
+  orgAppIconSourceRejection,
+  type OrgAppIconSourceRejection,
   type OrgAppIconVariant,
 } from '@/shared/lib/brand/orgAppIcon';
 
@@ -30,6 +32,26 @@ import {
 const MASKABLE_CONTENT_RATIO = 0.66;
 const MASKABLE_BACKGROUND = { r: 255, g: 255, b: 255, alpha: 1 } as const;
 const TRANSPARENT = { r: 0, g: 0, b: 0, alpha: 0 } as const;
+
+/**
+ * Отказ по размеру исходника, поднятый как ошибка: вызывающий слой различает его по `reason`
+ * и показывает врачу причину, а не «не удалось сохранить».
+ *
+ * Это ВТОРАЯ линия, не первая: врача останавливает пикер ещё до загрузки файла
+ * (`MediaPickerPanel.sourceGate`). Сюда доезжают только те случаи, где браузер размер не измерил,
+ * и уже лежащие в библиотеке файлы. Верхняя граница здесь почти никогда не срабатывает: загрузка
+ * переупаковывает картинку в стандартный рендишн (`STANDARD_IMAGE_SHORT_SIDE`), и слишком большой
+ * исходник к этому моменту уже уменьшен — реальная работа этой проверки — нижняя граница.
+ */
+export class OrgAppIconSourceRejected extends Error {
+  readonly reason: OrgAppIconSourceRejection;
+
+  constructor(reason: OrgAppIconSourceRejection) {
+    super(`org_app_icon_${reason}`);
+    this.name = 'OrgAppIconSourceRejected';
+    this.reason = reason;
+  }
+}
 
 export type OrgAppIconRendition = {
   variant: OrgAppIconVariant;
@@ -79,9 +101,17 @@ export async function encodeOrgAppIconRenditions(
   source: Buffer,
 ): Promise<OrgAppIconRendition[]> {
   const metadata = await sharp(source).metadata();
-  if (!metadata.width || !metadata.height) {
+  // `autoOrient` — размер как его видит человек: у повёрнутого EXIF-снимка width/height ещё не
+  // переставлены, а мерить надо то, что попадёт в иконку после `.rotate()`.
+  const displayed = metadata.autoOrient ?? {
+    width: metadata.width ?? 0,
+    height: metadata.height ?? 0,
+  };
+  if (!displayed.width || !displayed.height) {
     throw new Error('org_app_icon_source_size_unknown');
   }
+  const rejection = orgAppIconSourceRejection(displayed);
+  if (rejection) throw new OrgAppIconSourceRejected(rejection);
   const renditions: OrgAppIconRendition[] = [];
   for (const variant of ORG_APP_ICON_VARIANTS) {
     renditions.push({

@@ -17,6 +17,12 @@ import { OrgBrandLogoControl, type OrgBrandLogoChange } from './OrgBrandLogoCont
 import { SecretSettingInput } from './SecretSettingInput';
 import { saveOrgBranding } from './brandingActions';
 import { apiJson } from '@/shared/lib/apiJson';
+import {
+  ORG_APP_ICON_MAX_SOURCE_SIDE,
+  ORG_APP_ICON_MIN_SOURCE_SIDE,
+  orgAppIconSourceRejection,
+  orgAppIconSourceRejectionMessage,
+} from '@/shared/lib/brand/orgAppIcon';
 import type { ClinicDeliveryReadiness } from '@/modules/system-settings/clinicDeliveryReadiness';
 import type { ClinicBotPublicConfig } from '@/modules/system-settings/clinicBotConfig';
 import {
@@ -56,10 +62,21 @@ const SAVE_ERROR_MESSAGES: Record<string, string> = {
   entitlement_disabled: 'Брендирование недоступно на текущем тарифе.',
   commercial_read_only: 'Брендирование доступно только для просмотра.',
   app_icon_source_unavailable: 'Файл иконки недоступен. Загрузите картинку заново.',
+  app_icon_source_too_small: orgAppIconSourceRejectionMessage('source_too_small'),
+  app_icon_source_too_large: orgAppIconSourceRejectionMessage('source_too_large'),
   app_icon_encode_failed: 'Не удалось подготовить размеры иконки. Нужна картинка PNG или JPEG.',
   app_icon_store_failed: 'Не удалось сохранить размеры иконки. Попробуйте ещё раз.',
   [ORGANIZATION_NAME_TOO_LONG_CODE]: ORGANIZATION_NAME_TOO_LONG_MESSAGE,
 };
+
+/**
+ * Гейт поля «Иконка приложения» (владелец 10.09.2026: «слишком маленький исходник как и слишком
+ * большой — не давать загрузить»). Тот же словарь границ, что и на сервере, — расходиться нечем.
+ */
+function appIconSourceGate(size: { width: number; height: number } | null): string | null {
+  const rejection = orgAppIconSourceRejection(size);
+  return rejection ? orgAppIconSourceRejectionMessage(rejection) : null;
+}
 
 async function saveBotSetting(
   key: 'clinic_telegram_bot_token' | 'clinic_max_bot_api_key',
@@ -346,7 +363,8 @@ export function OrgBrandingSection({
           <span className="text-sm font-medium">Иконка приложения</span>
           <p className="text-xs text-muted-foreground">
             Квадратная картинка: она встаёт на иконку установленного приложения пациента и на
-            фавикон сайта. Нужные размеры готовятся сразу при сохранении.
+            фавикон сайта. Нужные размеры готовятся сразу при сохранении. Сторона от{' '}
+            {ORG_APP_ICON_MIN_SOURCE_SIDE} до {ORG_APP_ICON_MAX_SOURCE_SIDE} px.
           </p>
           <OrgBrandLogoControl
             initialMediaId={publishedAppIconMediaId}
@@ -356,6 +374,7 @@ export function OrgBrandingSection({
             emptyLabel="Нет иконки"
             pickerTitle="Иконка приложения"
             instanceKey="org-brand-app-icon"
+            sourceGate={appIconSourceGate}
           />
         </div>
 

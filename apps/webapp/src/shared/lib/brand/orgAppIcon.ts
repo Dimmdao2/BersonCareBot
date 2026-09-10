@@ -58,3 +58,46 @@ export function parseOrgAppIconVariantSegment(segment: string): OrgAppIconVarian
 export function isOrgAppIconMediaId(value: string): boolean {
   return MEDIA_ID_RE.test(value);
 }
+
+/**
+ * Границы исходника (владелец 10.09.2026: «слишком маленький исходник как и слишком большой —
+ * отклонять… просто не давать загрузить»).
+ *
+ * Считаем по ДЛИННОЙ стороне, потому что именно она задаёт масштаб при `fit: 'contain'`:
+ * длинная сторона ≥ 512 — значит самый большой вариант (512×512) собирается без растягивания,
+ * то есть иконка не будет мыльной. Ниже — растягивание неизбежно, и лучше сказать врачу сразу,
+ * чем показать пациенту размытый фавикон.
+ *
+ * Верхняя граница — про материал, а не про диск: 4096 px по длинной стороне это ещё иконка/логотип,
+ * а всё, что больше, — фотография не по адресу (и лишние минуты загрузки на телефоне врача).
+ */
+export const ORG_APP_ICON_MIN_SOURCE_SIDE = 512;
+export const ORG_APP_ICON_MAX_SOURCE_SIDE = 4096;
+
+export type OrgAppIconSourceRejection = 'source_too_small' | 'source_too_large';
+
+/**
+ * Отказ по размеру исходника или `null`, если размер подходит. Неизвестный размер (`null`) —
+ * НЕ отказ: клиент не всегда может измерить файл, и последнее слово остаётся за сервером,
+ * который читает уже сохранённые байты.
+ *
+ * Одна функция обслуживает все три места, где это спрашивают: выбор файла в кабинете доктора,
+ * выбор готового файла из библиотеки и переформатирование на сервере.
+ */
+export function orgAppIconSourceRejection(
+  size: { width: number; height: number } | null,
+): OrgAppIconSourceRejection | null {
+  if (!size || !Number.isFinite(size.width) || !Number.isFinite(size.height)) return null;
+  if (size.width <= 0 || size.height <= 0) return null;
+  const longSide = Math.max(size.width, size.height);
+  if (longSide < ORG_APP_ICON_MIN_SOURCE_SIDE) return 'source_too_small';
+  if (longSide > ORG_APP_ICON_MAX_SOURCE_SIDE) return 'source_too_large';
+  return null;
+}
+
+/** Единая формулировка отказа: врач читает одно и то же и в диалоге выбора, и при сохранении. */
+export function orgAppIconSourceRejectionMessage(reason: OrgAppIconSourceRejection): string {
+  return reason === 'source_too_small'
+    ? `Картинка слишком маленькая для иконки приложения: нужна сторона не меньше ${ORG_APP_ICON_MIN_SOURCE_SIDE} px (иконка собирается в размере 512×512).`
+    : `Картинка слишком большая для иконки приложения: сторона не больше ${ORG_APP_ICON_MAX_SOURCE_SIDE} px. Уменьшите файл и загрузите снова.`;
+}

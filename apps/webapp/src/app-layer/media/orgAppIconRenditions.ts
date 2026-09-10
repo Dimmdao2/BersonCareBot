@@ -5,7 +5,10 @@ import {
   s3HeadObject,
   s3PutObjectBody,
 } from '@/app-layer/media/s3Client';
-import { encodeOrgAppIconRenditions } from '@/modules/media/orgAppIconRenditions';
+import {
+  encodeOrgAppIconRenditions,
+  OrgAppIconSourceRejected,
+} from '@/modules/media/orgAppIconRenditions';
 import {
   ORG_APP_ICON_VARIANTS,
   orgAppIconObjectKey,
@@ -28,7 +31,15 @@ const RENDITION_MIME = 'image/png';
 
 export type OrgAppIconRenditionOutcome =
   | { ok: true; keys: string[] }
-  | { ok: false; reason: 'source_unavailable' | 'encode_failed' | 'store_failed' };
+  | {
+      ok: false;
+      reason:
+        | 'source_unavailable'
+        | 'source_too_small'
+        | 'source_too_large'
+        | 'encode_failed'
+        | 'store_failed';
+    };
 
 /**
  * Готовые размеры неизменяемы для своего media id — смена иконки означает другой id, — поэтому
@@ -63,6 +74,20 @@ export async function writeOrgAppIconRenditions(
   try {
     renditions = await encodeOrgAppIconRenditions(mediaId, source.buf);
   } catch (err) {
+    // Негодный размер — не сбой переформатирования, а отказ по материалу: у него своя причина,
+    // чтобы врач прочитал «слишком маленькая картинка», а не «не удалось».
+    if (err instanceof OrgAppIconSourceRejected) {
+      logger.info(
+        {
+          scope: 'org_app_icon',
+          event: 'org_app_icon_source_rejected',
+          mediaId,
+          reason: err.reason,
+        },
+        '[org-app-icon] source rejected',
+      );
+      return { ok: false, reason: err.reason };
+    }
     logger.warn(
       {
         scope: 'org_app_icon',

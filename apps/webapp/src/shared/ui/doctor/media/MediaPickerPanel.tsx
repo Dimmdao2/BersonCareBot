@@ -23,6 +23,7 @@ import { cn } from '@/lib/utils';
 import { PickerSearchField } from '@/shared/ui/doctor/PickerSearchField';
 import { fetchAdminMediaListItem } from '@/shared/ui/doctor/media/fetchAdminMediaListItem';
 import { UploadRequestError, uploadWithProgress } from '@/shared/lib/media/uploadTransport';
+import { readImageFileDimensions } from '@/shared/lib/media/readImageFileDimensions';
 import { FILE_INPUT_ACCEPT } from '@/modules/media/uploadAllowedMime';
 import { MediaLibraryFolderScopeSelect } from '@/shared/ui/doctor/media/MediaLibraryFolderScopeSelect';
 import { mediaFolderPathLabel } from '@/shared/ui/doctor/media/mediaFolderScopeUtils';
@@ -78,6 +79,13 @@ function appendFolderIdToFormData(fd: FormData, folderId: string | null) {
     return;
   }
   fd.set('folderId', folderId);
+}
+
+/** Размеры сохранённого файла, если библиотека их знает; иначе «неизвестно». */
+function rowSourceSize(row: MediaListItem): { width: number; height: number } | null {
+  return row.sourceWidth && row.sourceHeight
+    ? { width: row.sourceWidth, height: row.sourceHeight }
+    : null;
 }
 
 function isPickedRowAllowedForKind(
@@ -152,6 +160,16 @@ export type MediaPickerPanelProps = {
   showSort: boolean;
   /** Блок «Папка» (все / корень / конкретная папка). По умолчанию включён. */
   showFolderScope?: boolean;
+  /**
+   * Ограничение по размеру картинки для КОНКРЕТНОГО поля: возвращает текст отказа или `null`.
+   * `null` на входе — размер неизвестен (браузер не смог измерить, в библиотечной строке нет
+   * размеров): тогда решение остаётся за сервером и здесь отказа нет.
+   *
+   * Одна функция обслуживает все входы файла в поле — загрузку с устройства (проверка ДО отправки,
+   * файл на сервер не уходит) и выбор готового файла из библиотеки, — поэтому поле не может
+   * получить негодную картинку одним путём в обход другого.
+   */
+  sourceGate?: (size: { width: number; height: number } | null) => string | null;
 };
 
 /**
@@ -167,6 +185,7 @@ export function MediaPickerPanel({
   onPickerFolderIdChange,
   showSort,
   showFolderScope = true,
+  sourceGate,
 }: MediaPickerPanelProps) {
   const nativeRuntime = useNativeRuntime();
   const nativeMediaAvailable = isNativeDeviceMediaAvailable(nativeRuntime);
@@ -186,6 +205,8 @@ export function MediaPickerPanel({
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  /** Отказ по выбору готового файла из библиотеки — отдельно от ошибок загрузки. */
+  const [pickError, setPickError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const uploadInputId = useId();
 
@@ -359,6 +380,18 @@ export function MediaPickerPanel({
   const handleUploadFile = useCallback(
     async (file: File) => {
       setUploadError(null);
+      setPickError(null);
+      // Владелец 10.09.2026 про иконку приложения: «просто не давать загрузить». Поэтому размер
+      // измеряется здесь, у врача на устройстве, и негодный файл на сервер не уходит вообще —
+      // после загрузки его уже не проверить: сервер хранит свой переупакованный рендишн.
+      if (sourceGate) {
+        const rejection = sourceGate(await readImageFileDimensions(file));
+        if (rejection) {
+          setUploadError(rejection);
+          if (fileInputRef.current) fileInputRef.current.value = '';
+          return;
+        }
+      }
       setUploading(true);
       setUploadProgress(0);
       try {
@@ -424,7 +457,7 @@ export function MediaPickerPanel({
         if (fileInputRef.current) fileInputRef.current.value = '';
       }
     },
-    [onPick, uploadTargetFolderId, kind, listUrl],
+    [onPick, uploadTargetFolderId, kind, listUrl, sourceGate],
   );
 
   const onFileInputChange = useCallback(
@@ -464,6 +497,13 @@ export function MediaPickerPanel({
           setUploadError(uploadKindRejectedRuMessage(kind));
           return;
         }
+        // Нативный выбор отдаёт непрозрачный handle без размеров, измерить до отправки нечего —
+        // поэтому здесь проверяется уже сохранённая строка: в поле негодная картинка не попадёт.
+        const rejection = sourceGate?.(rowSourceSize(row));
+        if (rejection) {
+          setUploadError(rejection);
+          return;
+        }
         invalidateMediaLibraryPickerListCache(listUrl);
         setLibraryReloadKey((k) => k + 1);
         onPick(row);
@@ -474,7 +514,21 @@ export function MediaPickerPanel({
         setUploadProgress(0);
       }
     },
-    [onPick, uploadTargetFolderId, kind, listUrl],
+    [onPick, uploadTargetFolderId, kind, listUrl, sourceGate],
+  );
+
+  /** Выбор готового файла из библиотеки: тот же гейт, но по размерам, записанным при загрузке. */
+  const handleLibraryPick = useCallback(
+    (row: MediaListItem) => {
+      setPickError(null);
+      const rejection = sourceGate?.(rowSourceSize(row));
+      if (rejection) {
+        setPickError(rejection);
+        return;
+      }
+      onPick(row);
+    },
+    [onPick, sourceGate],
   );
 
   async function onUploadButtonPress() {
@@ -585,10 +639,12 @@ export function MediaPickerPanel({
           items={displayedItems}
           loading={listLoading}
           error={listError}
-          onSelect={onPick}
+          onSelect={handleLibraryPick}
           exerciseUsageByMediaId={exercisePicker ? exerciseUsageByMediaId : undefined}
           enableQuickPreview={exercisePicker}
         />
+
+        {pickError ? <p className="text-sm text-destructive">{pickError}</p> : null}
 
         {serverSearchPending || !listLoading ? (
           <MediaPickerListFooter

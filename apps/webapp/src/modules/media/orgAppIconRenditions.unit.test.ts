@@ -1,10 +1,13 @@
 import sharp from 'sharp';
 import { describe, expect, it } from 'vitest';
 import {
+  ORG_APP_ICON_MAX_SOURCE_SIDE,
+  ORG_APP_ICON_MIN_SOURCE_SIDE,
   ORG_APP_ICON_VARIANTS,
+  orgAppIconSourceRejection,
   parseOrgAppIconVariantSegment,
 } from '@/shared/lib/brand/orgAppIcon';
-import { encodeOrgAppIconRenditions } from './orgAppIconRenditions';
+import { encodeOrgAppIconRenditions, OrgAppIconSourceRejected } from './orgAppIconRenditions';
 
 const MEDIA_ID = '5f6e7d8c-9a0b-4c1d-8e2f-3a4b5c6d7e8f';
 
@@ -12,6 +15,14 @@ const MEDIA_ID = '5f6e7d8c-9a0b-4c1d-8e2f-3a4b5c6d7e8f';
 async function wideTransparentSource(): Promise<Buffer> {
   return sharp({
     create: { width: 600, height: 200, channels: 4, background: { r: 0, g: 90, b: 200, alpha: 1 } },
+  })
+    .png()
+    .toBuffer();
+}
+
+async function squareSource(side: number): Promise<Buffer> {
+  return sharp({
+    create: { width: side, height: side, channels: 4, background: { r: 0, g: 90, b: 200, alpha: 1 } },
   })
     .png()
     .toBuffer();
@@ -63,6 +74,42 @@ describe('переформатирование иконки клиники', () 
     // Угол — белый фон, а не прозрачность: Android показал бы прозрачное чёрным.
     expect(pixel(2, 2)).toEqual({ r: 255, g: 255, b: 255, a: 255 });
     expect(pixel(Math.floor(info.width / 2), Math.floor(info.height / 2)).b).toBeGreaterThan(100);
+  });
+
+  /**
+   * Владелец 10.09.2026: «слишком маленький исходник как и слишком большой — отклонять… просто не
+   * давать загрузить». Первым отказывает пикер в кабинете (там файл вообще не уходит на сервер),
+   * здесь проверяется вторая линия: то, что доехало до переформатирования, тоже не проходит.
+   */
+  describe('границы исходника', () => {
+    it('маленький исходник отклоняется с отдельной причиной, а не молча растягивается', async () => {
+      await expect(
+        encodeOrgAppIconRenditions(MEDIA_ID, await squareSource(ORG_APP_ICON_MIN_SOURCE_SIDE - 1)),
+      ).rejects.toMatchObject({ reason: 'source_too_small' });
+    });
+
+    it('слишком большой исходник отклоняется', async () => {
+      await expect(
+        encodeOrgAppIconRenditions(MEDIA_ID, await squareSource(ORG_APP_ICON_MAX_SOURCE_SIDE + 1)),
+      ).rejects.toBeInstanceOf(OrgAppIconSourceRejected);
+    });
+
+    it('исходник ровно по нижней границе принимается: граница не «больше», а «не меньше»', async () => {
+      const renditions = await encodeOrgAppIconRenditions(
+        MEDIA_ID,
+        await squareSource(ORG_APP_ICON_MIN_SOURCE_SIDE),
+      );
+      expect(renditions).toHaveLength(ORG_APP_ICON_VARIANTS.length);
+    });
+
+    it('границу считает длинная сторона — она задаёт масштаб при вписывании', () => {
+      // Узкий, но длинный логотип вписывается в 512 без растягивания, поэтому он годен.
+      expect(orgAppIconSourceRejection({ width: 1200, height: 300 })).toBeNull();
+      expect(orgAppIconSourceRejection({ width: 300, height: 300 })).toBe('source_too_small');
+      expect(orgAppIconSourceRejection({ width: 8000, height: 400 })).toBe('source_too_large');
+      // Неизвестный размер — не отказ: последнее слово у того, кто читает байты.
+      expect(orgAppIconSourceRejection(null)).toBeNull();
+    });
   });
 
   it('чужой сегмент адреса не превращается в вариант', () => {

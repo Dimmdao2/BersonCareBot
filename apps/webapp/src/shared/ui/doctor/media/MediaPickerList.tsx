@@ -25,6 +25,12 @@ export type MediaListItem = {
   previewSmUrl?: string | null;
   previewMdUrl?: string | null;
   previewStatus?: MediaPreviewStatus;
+  /**
+   * Размеры сохранённого файла — та же строка API, что и в `mediaListItemTypes`. Нужны полям с
+   * ограничением по размеру картинки (иконка приложения клиники), поэтому не выбрасываются.
+   */
+  sourceWidth?: number | null;
+  sourceHeight?: number | null;
 };
 
 type Props = {
