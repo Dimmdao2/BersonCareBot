@@ -21,11 +21,14 @@ type PageProps = { params: Promise<{ continuation: string }> };
  * Идентификатор организации в браузер не уходит: сравнение целиком здесь, наружу отдаётся только
  * готовая пара «логотип + имя приложения».
  */
-async function brandForInvite(inviteOrganizationId: string): Promise<JoinBrand> {
+async function brandForInvite(inviteOrganizationId: string | null): Promise<JoinBrand> {
   const surface = await getOptionalResolvedSurface().catch(() => null);
   const brand = surface?.effectivePatientBrand;
   if (!brand) return {};
-  const sameClinic = surface.organizationId === inviteOrganizationId;
+  // Организация приглашения неизвестна (кука не совпала, ссылка протухла) — значит и утверждать,
+  // чьё это приглашение, нечем: остаётся имя приложения, то есть «логотип терапии» без клиники.
+  const sameClinic =
+    inviteOrganizationId !== null && surface.organizationId === inviteOrganizationId;
   return {
     patientAppName: brand.patientAppName,
     ...(sameClinic && brand.logoUrl ? { clinicLogoUrl: brand.logoUrl } : {}),
@@ -37,7 +40,13 @@ export default async function JoinContinuationPage({ params }: PageProps) {
   if (!z.string().min(32).max(256).safeParse(continuation).success) notFound();
   const cookieContinuation = await readPatientInviteContinuationCookie();
   if (cookieContinuation !== continuation) {
-    return <JoinPatientClient preview={null} failureCode="invalid_continuation" brand={{}} />;
+    return (
+      <JoinPatientClient
+        preview={null}
+        failureCode="invalid_continuation"
+        brand={await brandForInvite(null)}
+      />
+    );
   }
   stampBootstrapPrincipal('join/[continuation]:page');
   const result = await buildAppDeps().patientInvites.lookupContinuation(continuation);
@@ -45,7 +54,7 @@ export default async function JoinContinuationPage({ params }: PageProps) {
     <JoinPatientClient
       preview={result.ok ? result.preview : null}
       failureCode={result.ok ? null : result.code}
-      brand={result.ok ? await brandForInvite(result.organizationId) : {}}
+      brand={await brandForInvite(result.ok ? result.organizationId : null)}
     />
   );
 }

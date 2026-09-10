@@ -103,6 +103,20 @@ describe('экран приглашения — бренд', () => {
     expect(html).toContain('Точка Здоровья');
   });
 
+  it('когда приглашение неизвестно, остаётся имя приложения — но не логотип клиники', async () => {
+    // Кука продолжения не совпала (ссылку открыли в другом браузере или она протухла). Чьё это
+    // приглашение, сказать нечем, поэтому логотип клиники хоста был бы утверждением на пустом
+    // месте; имя приложения — это «логотип терапии», он про нас, а не про клинику.
+    fakes.readCookie.mockResolvedValue('d'.repeat(43));
+    fakes.resolvedSurface.mockResolvedValue(surfaceOf(INVITE_ORGANIZATION));
+
+    const html = await render();
+
+    expect(html).not.toContain(CLINIC_LOGO);
+    expect(html).toContain('TherapyGo');
+    expect(html).toContain('Ссылка недействительна');
+  });
+
   it('без резолва поверхности экран остаётся рабочим, просто без бренда', async () => {
     fakes.resolvedSurface.mockResolvedValue(null);
 
