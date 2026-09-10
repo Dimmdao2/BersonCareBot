@@ -191,10 +191,23 @@ BEGIN
         (SELECT count(*) FROM public.org_enrollments AS enrollment
          WHERE enrollment.organization_id = p_organization_id
            AND enrollment.status IN ('invited', 'active'))::int AS patient_count_used,
-        COALESCE(
-          (SELECT sum(file.size_bytes) FROM public.patient_files AS file
-           WHERE file.organization_id = p_organization_id),
-          0
+        (
+          -- Владелец 10.09.2026: одно число на весь аккаунт, без разделения по видам
+          -- загруженного. `media_files` — журнал всего загруженного организацией;
+          -- `patient_files` добавляется только там, где своей строки в журнале нет.
+          COALESCE(
+            (SELECT sum(uploaded.size_bytes) FROM public.media_files AS uploaded
+             WHERE uploaded.organization_id = p_organization_id
+               AND uploaded.status = 'ready'),
+            0
+          )
+          +
+          COALESCE(
+            (SELECT sum(file.size_bytes) FROM public.patient_files AS file
+             WHERE file.organization_id = p_organization_id
+               AND file.media_file_id IS NULL),
+            0
+          )
         )::bigint AS files_used
       WHERE p_organization_id IS NOT NULL
     $function$

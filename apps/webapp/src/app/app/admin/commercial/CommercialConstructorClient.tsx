@@ -1237,9 +1237,9 @@ export function CommercialConstructorClient() {
                 );
               })}
               <div className="space-y-2 rounded-xl border border-border/70 p-3">
-                <Label>Файлы пациентов</Label>
+                <Label>Объём файлов</Label>
                 <NumericLimitEditor
-                  label="Файлы пациентов"
+                  label="Объём файлов"
                   unit="bytes"
                   warnable={quotaMechanicSupportsWarning('files')}
                   unsettable={false}

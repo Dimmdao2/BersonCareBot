@@ -3,7 +3,7 @@
  * Uses Drizzle ORM; no business logic here.
  */
 
-import { and, eq, asc, isNull, or, sql } from 'drizzle-orm';
+import { and, eq, asc, isNull, sql } from 'drizzle-orm';
 import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import { runDrizzleMutationTransaction } from '@/infra/db/drizzleMutationTx';
@@ -48,21 +48,36 @@ function currentPrincipalOrganizationId(): string {
   return principalOrganizationId;
 }
 
+/**
+ * Занятое организацией место — ОДНО число на весь аккаунт (владелец 10.09.2026: «всё что
+ * загружено в аккаунт… никаких разделений при подсчёте нигде быть не должно вообще»). Раньше
+ * здесь суммировались только файлы пациентов, и медиатека, контент и материалы упражнений той же
+ * организации в лимит не попадали.
+ *
+ * `media_files` — единственный журнал загруженного: в него пишут и файлы пациента, и медиатека
+ * (`s3MediaStorage`), и упражнения (`pgLfkExercises`), поэтому суммируется он, а строка
+ * `patient_files` добавляется только тогда, когда своей строки в журнале у неё нет (исторические
+ * записи с `media_file_id IS NULL`) — иначе один и тот же файл посчитался бы дважды.
+ *
+ * Считаются готовые объекты: незавершённая загрузка (`pending`) места ещё не занимает — её
+ * собственный размер добавляет `increment` в проверке под замком, — а помеченное к удалению
+ * держать в лимите нельзя.
+ */
 async function countStorageUsedBytes(
   db: Pick<ReturnType<typeof getDrizzle>, 'select'>,
   organizationId: string,
 ): Promise<number> {
-  const [usage] = await db
+  const [uploaded] = await db
+    .select({ usedBytes: sql<number>`COALESCE(SUM(${mediaFiles.sizeBytes}), 0)::bigint` })
+    .from(mediaFiles)
+    .where(and(eq(mediaFiles.organizationId, organizationId), eq(mediaFiles.status, 'ready')));
+  const [unlinked] = await db
     .select({ usedBytes: sql<number>`COALESCE(SUM(${patientFiles.sizeBytes}), 0)::bigint` })
     .from(patientFiles)
-    .leftJoin(mediaFiles, eq(patientFiles.mediaFileId, mediaFiles.id))
     .where(
-      and(
-        eq(patientFiles.organizationId, organizationId),
-        or(isNull(patientFiles.mediaFileId), eq(mediaFiles.status, 'ready')),
-      ),
+      and(eq(patientFiles.organizationId, organizationId), isNull(patientFiles.mediaFileId)),
     );
-  return Number(usage?.usedBytes ?? 0);
+  return Number(uploaded?.usedBytes ?? 0) + Number(unlinked?.usedBytes ?? 0);
 }
 
 function currentWriteOrganizationId(...fallbacks: (string | null | undefined)[]): string {

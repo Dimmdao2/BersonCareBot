@@ -7826,11 +7826,24 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
         "evidence": "pg16-function-body-lexical-upper-bound"
       },
       {
+        "relation": "public.media_files",
+        "columns": [
+          "organization_id",
+          "size_bytes",
+          "status"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
         "relation": "public.patient_files",
         "columns": [
           "id",
           "size_bytes",
-          "organization_id"
+          "organization_id",
+          "media_file_id"
         ],
         "operations": [
           "SELECT"

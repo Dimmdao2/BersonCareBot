@@ -59,7 +59,7 @@ export const MECHANIC_REGISTRY = {
   cms_pages: { class: 'возможность', label: 'Страницы CMS', quotaEnforcement: 'declared_no_enforcement' },
   // Checked via transactionQuotaPort in pgPatientFiles.createFile under an org advisory
   // lock, not by a database trigger — concurrency is verified on the named DEV flow.
-  files: { class: 'объём', label: 'Файлы пациентов', quotaEnforcement: 'application_transaction_snapshot', quotaUnit: 'bytes' },
+  files: { class: 'объём', label: 'Объём файлов', quotaEnforcement: 'application_transaction_snapshot', quotaUnit: 'bytes' },
   patient_card: { class: 'никогда', label: 'Карточка пациента', quotaEnforcement: 'declared_no_enforcement' },
   subscriptions: { class: 'возможность', label: 'Абонементы пациентов', quotaEnforcement: 'declared_no_enforcement' },
   payments: { class: 'возможность', label: 'Оплата записи', quotaEnforcement: 'declared_no_enforcement' },
