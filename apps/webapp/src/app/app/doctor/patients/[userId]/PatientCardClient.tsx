@@ -9,6 +9,7 @@
 import { useState, useEffect, useCallback, useMemo, Suspense, use, type ReactNode } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import type { PatientCardHeader } from '@/modules/doctor-clients/ports';
 import type { AnamnesisState, ClinicalState, Visit } from '@/modules/patient-clinical/ports';
 import type { Comorbidity } from '@/modules/patient-comorbidities/ports';
@@ -364,6 +365,7 @@ export function PatientCardClient({
   workspaceModules,
   appointmentsManageOwn = true,
 }: Props) {
+  const router = useRouter();
   const { activeCall } = useActiveCall();
   const { patientGenitive, patientSingularLabel, supportGroupLabel } = useDoctorPatientTerms();
   const header = shellMeta.cardHeader;
@@ -612,21 +614,17 @@ export function PatientCardClient({
                   ) : null}
                   {workspaceModules?.video_meetings ? (
                     <Button
-                      size="sm"
-                      className="gap-2"
-                      render={
-                        <Link
-                          href={
-                            activeCall?.returnUrl ??
-                            `/app/doctor/patients/${encodeURIComponent(identity.userId)}/live`
-                          }
-                        />
+                      type="button"
+                      size="icon"
+                      onClick={() =>
+                        router.push(
+                          activeCall?.returnUrl ??
+                            `/app/doctor/patients/${encodeURIComponent(identity.userId)}/live`,
+                        )
                       }
-                      nativeButton={false}
                       title={activeCall ? 'Вернуться к звонку' : 'Видеосессия'}
                       aria-label={activeCall ? 'Вернуться к звонку' : 'Видеосессия'}
                     >
-                      {activeCall ? 'Вернуться к звонку' : 'Видеосессия'}
                       <Video className="size-4 shrink-0" aria-hidden />
                     </Button>
                   ) : null}

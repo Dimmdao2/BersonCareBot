@@ -189,7 +189,7 @@ function chartDaysFromJournal(days: JournalDay[]): ChartDay[] {
       painLine010: lastCompletion?.pain010 ?? null,
       difficulty: lastCompletion?.difficulty ?? null,
       lastWeightKg,
-      weightChangeLabel: delta && delta !== 0 ? `${delta > 0 ? '+' : ''}${delta} кг` : null,
+      weightChangeLabel: delta && delta !== 0 ? `${delta > 0 ? '+' : ''}${delta}\u00a0кг` : null,
       // Keeps the fixed clinical 0–10 axis and its guides visible even before pain is entered.
       painScale: 0,
     };
@@ -368,7 +368,8 @@ function ExerciseDynamicsChart({ days }: { days: ChartDay[] }) {
             />
             <div
               ref={scrollRef}
-              className="doctor-weekly-chart-scroll min-w-0 flex-1 overflow-x-auto overscroll-x-contain"
+              className="doctor-weekly-chart-scroll min-w-0 flex-1 touch-pan-x overflow-x-auto overscroll-x-contain"
+              style={{ WebkitOverflowScrolling: 'touch' }}
               aria-label="График динамики: прокрутите влево для более ранних дат"
             >
               <div style={{ width }}>
@@ -418,6 +419,7 @@ function ExerciseDynamicsChart({ days }: { days: ChartDay[] }) {
                     maxBarSize={23}
                     fill="var(--doctor-exercise-difficulty-none)"
                     fillOpacity={0.8}
+                    isAnimationActive={false}
                   >
                     {days.map((day) => (
                       <Cell
@@ -503,6 +505,13 @@ function ExerciseDynamicsChart({ days }: { days: ChartDay[] }) {
 
 function ExerciseJournal({ days }: { days: JournalDay[] }) {
   const [expandedDate, setExpandedDate] = useState<string | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const container = scrollRef.current;
+    if (container) container.scrollTop = container.scrollHeight;
+  }, [days.length]);
+
   if (days.length === 0) {
     return (
       <section className="border-t border-border/60 pt-4">
@@ -515,7 +524,7 @@ function ExerciseJournal({ days }: { days: JournalDay[] }) {
   return (
     <section className="border-t border-border/60 pt-4" aria-label="Журнал выполнений">
       <h2 className={doctorSectionTitleClass}>Журнал выполнений</h2>
-      <div className="mt-3">
+      <div ref={scrollRef} className="mt-3 max-h-[22rem] overflow-y-auto overscroll-y-contain">
         <div>
           <div className="grid grid-cols-[3.65rem_minmax(4.85rem,1fr)_2.45rem_2.65rem_4.85rem_1.25rem] border-b border-border/70 px-1.5 py-2 text-[10px] text-muted-foreground">
             <span>Дата</span>
