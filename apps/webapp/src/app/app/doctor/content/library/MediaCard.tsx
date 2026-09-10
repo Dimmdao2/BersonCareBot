@@ -27,6 +27,8 @@ type MediaItem = {
 
 type Props = {
   item: MediaItem;
+  /** Кто смотрит карточку — решает, показывать ли пункт скачивания исходника (М6). */
+  currentUserId: string;
   deleting: boolean;
   copied: boolean;
   resolutionText?: string | null;
@@ -47,6 +49,7 @@ const thumbLabels = { skipped: 'Превью не создаётся', failed: '
 
 export function MediaCard({
   item,
+  currentUserId,
   deleting,
   copied,
   resolutionText,
@@ -114,6 +117,7 @@ export function MediaCard({
         </p>
         <MediaCardActionsMenu
           item={item}
+          currentUserId={currentUserId}
           resolutionText={resolutionText}
           copied={copied}
           deleting={deleting}

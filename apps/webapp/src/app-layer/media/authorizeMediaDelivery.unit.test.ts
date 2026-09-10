@@ -91,6 +91,47 @@ describe('authorizeMediaDelivery', () => {
     });
   });
 
+  it('gives the raw original only to the account that uploaded it', async () => {
+    mocks.getMediaAccessRow.mockResolvedValue({ ...organizationRow, uploaded_by: 'doctor-1' });
+
+    await expect(
+      authorizeMediaDelivery(mediaId, session('doctor', 'doctor-1'), { intent: 'raw_original' }),
+    ).resolves.toMatchObject({ ok: true });
+
+    // Тот же кабинет, та же организация, playback этому врачу разрешён — а исходник нет.
+    await expect(
+      authorizeMediaDelivery(mediaId, session('doctor', 'doctor-2')),
+    ).resolves.toMatchObject({ ok: true });
+    await expect(
+      authorizeMediaDelivery(mediaId, session('doctor', 'doctor-2'), { intent: 'raw_original' }),
+    ).resolves.toEqual({ ok: false, reason: 'forbidden' });
+    await expect(
+      authorizeMediaDelivery(mediaId, session('admin', 'admin-1'), { intent: 'raw_original' }),
+    ).resolves.toEqual({ ok: false, reason: 'forbidden' });
+  });
+
+  it('refuses the raw original when the row names no uploader', async () => {
+    mocks.getMediaAccessRow.mockResolvedValue({
+      ...organizationRow,
+      uploaded_by: null as unknown as string,
+    });
+
+    await expect(
+      authorizeMediaDelivery(mediaId, session('doctor', 'doctor-1'), { intent: 'raw_original' }),
+    ).resolves.toEqual({ ok: false, reason: 'forbidden' });
+  });
+
+  it('never hands the raw original out of the platform library', async () => {
+    mocks.getMediaAccessRow
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ ...organizationRow, uploaded_by: 'doctor-1' });
+    mocks.resolvePlatformLfkMediaAccess.mockResolvedValue(true);
+
+    await expect(
+      authorizeMediaDelivery(mediaId, session('doctor', 'doctor-1'), { intent: 'raw_original' }),
+    ).resolves.toEqual({ ok: false, reason: 'forbidden' });
+  });
+
   it('uses platform media only after its explicit resolver grants the retry', async () => {
     mocks.getMediaAccessRow.mockResolvedValueOnce(null).mockResolvedValueOnce(organizationRow);
     mocks.resolvePlatformLfkMediaAccess.mockResolvedValue(true);

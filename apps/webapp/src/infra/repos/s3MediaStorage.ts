@@ -1200,6 +1200,51 @@ export async function getMediaS3KeyForRedirect(
   return platformRow?.s3_key ? { key: platformRow.s3_key, target: 'library' } : null;
 }
 
+export type MediaOriginalDownloadObject = MediaObjectLocation & {
+  /** Имя файла, под которым его загрузили: уходит в `Content-Disposition` скачивания. */
+  originalName: string;
+  /**
+   * Момент, когда объект по `s3_key` заменён выводом нашего энкодера (картинки, SECURITY_CANON §5).
+   * Не NULL = исходника уже нет, и называть отдаваемое «исходником» нельзя.
+   */
+  standardRenditionAt: string | null;
+};
+
+/**
+ * Объект для скачивания исходника (М6). Отдельно от `getMediaS3KeyForRedirect`, потому что здесь
+ * дополнительно нужно исходное имя файла и факт замены объекта рендишном; авторизация при этом
+ * не дублируется — она уже прошла через `authorizeMediaDelivery`.
+ *
+ * Платформенная библиотека сюда не заходит намеренно: её строки не принадлежат организации, и
+ * дверь отказывает по `intent: 'raw_original'` раньше этого чтения.
+ */
+export async function getMediaOriginalObjectForDownload(
+  id: string,
+): Promise<MediaOriginalDownloadObject | null> {
+  const organizationId = currentPrincipalOrganizationId();
+  const res = await runWebappSql<{
+    s3_key: string | null;
+    storage_target: string | null;
+    original_name: string;
+    standard_rendition_at: string | null;
+  }>(
+    getWebappSqlDb(),
+    sql`SELECT s3_key, storage_target, original_name, standard_rendition_at
+         FROM media_files
+         WHERE id = ${id}::uuid AND s3_key IS NOT NULL
+           AND owner_kind = 'organization' AND organization_id = ${organizationId}::uuid
+           AND ${mediaReadableStatusPredicate}`,
+  );
+  const row = res.rows[0];
+  if (!row?.s3_key) return null;
+  return {
+    key: row.s3_key,
+    target: parseStorageTarget(row.storage_target),
+    originalName: row.original_name,
+    standardRenditionAt: row.standard_rendition_at,
+  };
+}
+
 /** Presigned-GET target for generated preview JPEG (sm/md). */
 export async function getMediaPreviewS3KeyForRedirect(
   id: string,

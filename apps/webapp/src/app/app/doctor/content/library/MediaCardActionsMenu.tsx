@@ -29,6 +29,11 @@ export type MediaItemForMenu = {
 
 type Props = {
   item: MediaItemForMenu;
+  /**
+   * Кто смотрит меню. Исходник отдаётся только загрузившему специалисту (М6), поэтому пункт
+   * скачивания у остальных не показывается — тот же ответ, что даст маршрут, только без 403.
+   */
+  currentUserId: string;
   resolutionText?: string | null;
   copied: boolean;
   deleting: boolean;
@@ -46,6 +51,7 @@ type Props = {
 
 export function MediaCardActionsMenu({
   item,
+  currentUserId,
   resolutionText,
   copied,
   deleting,
@@ -59,6 +65,12 @@ export function MediaCardActionsMenu({
   triggerVariant = 'icon',
 }: Props) {
   const previewLabel = item.kind === 'file' ? 'Предпросмотр' : 'Просмотр';
+  const canDownloadSource = item.userId != null && item.userId === currentUserId;
+  /*
+   * У картинки объекта-исходника уже нет: `mediaPreviewWorker` заменяет его своим стандартным
+   * рендишном (SECURITY_CANON §5). Поэтому «исходником» скачиваемое называется только у видео.
+   */
+  const downloadSourceLabel = item.kind === 'video' ? 'Скачать исходник' : 'Скачать файл';
   const [menuOpen, setMenuOpen] = useState(false);
   const [usageLines, setUsageLines] = useState<string[] | null>(null);
   const [usageLoading, setUsageLoading] = useState(false);
@@ -129,6 +141,15 @@ export function MediaCardActionsMenu({
               }}
             >
               Открыть в новой вкладке
+            </DropdownMenuItem>
+          ) : null}
+          {canDownloadSource ? (
+            /*
+             * Обычная ссылка, а не router.push: маршрут отдаёт вложение, а не страницу — навигацией
+             * Next такой ответ не обрабатывается.
+             */
+            <DropdownMenuItem render={<a href={`/api/media/${item.id}/original`} />}>
+              {downloadSourceLabel}
             </DropdownMenuItem>
           ) : null}
           <DropdownMenuItem onClick={onRename}>Переименовать</DropdownMenuItem>

@@ -28,6 +28,7 @@ import { insertUploadSessionTx } from '@/app-layer/media/mediaUploadSessionsRepo
 import { withUserLifecycleLock } from '@/app-layer/locks/userLifecycleLock';
 import { getPool } from '@/app-layer/db/client';
 import { uploadValidationResponse } from '@/modules/media/uploadValidation';
+import { isRawOriginalUploader } from '@/modules/media/rawOriginalDownloadRule';
 import type { PatientFileCategory } from '@/modules/patient-files/ports';
 import { PATIENT_FILE_CATEGORIES } from '@/modules/patient-files/ports';
 import { pgEnsureClientPatientFolder } from '@/app-layer/media/clientMediaFolders';
@@ -105,6 +106,16 @@ export async function GET(request: Request, { params }: { params: Promise<{ user
         ...f,
         visitId: workspaceModules.encounters ? f.visitId : null,
         previewUrl,
+        /*
+         * Подсказка интерфейсу, а не право: сам файл отдаёт GET /api/media/[id]/original, и
+         * решение там принимает та же дверь по этому же правилу (М6).
+         */
+        canDownloadSource:
+          f.mediaFileId != null &&
+          isRawOriginalUploader({
+            uploadedBy: f.uploadedByUserId,
+            requesterUserId: gate.ctx.session.user.userId,
+          }),
       };
     }),
   );

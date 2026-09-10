@@ -11,6 +11,7 @@ organization isolation). Описывает текущее поведение we
 | `GET /api/media/[id]/playback`        | `assertMediaPlaybackAccess` + access row                                                                         | Флаг `video_playback_api_enabled`; для submission — progressive MP4 only (без HLS). Stats skip для submission.                                                                                                                                                                                                                                                                                                                                                             |
 | `GET /api/media/[id]/hls/[[...path]]` | Сессия + `assertMediaPlaybackAccess` + access row + `video_playback_api_enabled`                                 | Потоковая отдача master/variant/сегментов из private bucket через webapp; `getMediaRowForPlayback` + `isTrustedHlsArtifactS3Key`. Сегменты с **`Range`** (206). Ошибки ответов прокси — в `media_hls_proxy_error_events` (не на каждый успешный байт). Без сессии — **401** + structured **`warn`** `hls_proxy_error` (`reasonCode: session_unauthorized`); без включённого playback API — **503** — эти два случая в таблицу телеметрии **не** пишутся (политика объёма). |
 | `GET /api/media/[id]/preview/[size]`  | Валидная doctor workspace либо активная patient organization                                                     | Превью использует тот же organization/submission access row; при отсутствии превью — редирект на `GET /api/media/[id]`.                                                                                                                                                                                                                                                                                                                                                    |
+| `GET /api/media/[id]/original`        | Валидная doctor workspace + `authorizeMediaDelivery` с `intent: 'raw_original'`                                  | Скачивание загруженного файла (М6). Поверх организационной стены — совпадение с `media_files.uploaded_by` (`modules/media/rawOriginalDownloadRule.ts`); платформенная библиотека и пациентская сессия сюда не заходят. Байты идут **через вебапп**, presigned URL не выпускается: `Content-Disposition: attachment` + `Content-Type: application/octet-stream` + `X-Content-Type-Options: nosniff` + `Cache-Control: no-store`, `Accept-Ranges: none`.                       |
 | `POST /api/media/presign`             | Валидная doctor workspace                                                                                        | Создание pending-записи сразу штампует `organization_id`; это не потоковое чтение.                                                                                                                                                                                                                                                                                                                                                                                         |
 
 `/api/media/*` **не** входит в `patientRouteApiPolicy` / `PATIENT_BUSINESS_API_PREFIXES`: это общие маршруты Next, не поверхность `/api/patient/*`.
@@ -52,6 +53,22 @@ organization isolation). Описывает текущее поведение we
 - **Контент по slug** (`/app/patient/content/[slug]`): `requiresAuth` → `resolvePatientCanViewAuthOnlyContent`; при необходимости `patientRscPersonalDataGate`; RSC может заранее вызвать `resolveMediaPlaybackPayload` только при наличии сессии — это удобство и согласованность с playback API, а не ACL на UUID.
 - **Markdown тела страницы (`body_md`):** на клиенте для ссылок на `/api/media/{uuid}` выполняется тот же **`GET /api/media/{id}/playback`** с cookie-сессией; без сессии или при ошибке пользователь видит обычную ссылку, а не встроенный плеер ([`MarkdownEmbeddedLink.tsx`](../../apps/webapp/src/shared/ui/markdown/MarkdownEmbeddedLink.tsx)).
 - **Программа лечения (пациент):** загрузка данных через `getInstanceForPatient(userId, instanceId)` — пациент не получает чужой инстанс в UI; видимость пунктов этапа — `stage-semantics` и `docs/ARCHITECTURE/PATIENT_TREATMENT_PROGRAM_STAGE_SURFACES.md`. Плеер в модалке (`PatientProgramStageItemModal`) использует тот же `/api/media/...`, если UUID утечёл вне этого контекста.
+
+## Скачивание исходника: почему не редирект на presigned URL
+
+Владелец 10.09.2026: «исходник отдаём… только тому специалисту, который это загрузил, и только как
+вложение… неисполняемый в браузере, несмотря на то, что это видео».
+
+Хранилище умеет переопределить `response-content-type` и `response-content-disposition` в подписи
+(`presignGetUrl(..., { mimeType, filename })`), но **`X-Content-Type-Options: nosniff` в presigned URL
+поставить нечем** — этого параметра у S3 нет. Поэтому `GET /api/media/[id]/original` отдаёт байты
+потоком через вебапп: все три заголовка стоят на нашем ответе, presigned URL не выпускается вовсе,
+и «короткой ссылки», которую можно переслать или переиспользовать для встроенного проигрывания,
+не существует — каждое скачивание заново предъявляет сессию.
+
+У картинок отдаётся стандартный рендишн, а не исходник: `mediaPreviewWorker` заменяет объект по
+`s3_key` своим выводом и ставит `standard_rendition_at` (SECURITY_CANON §5). Поэтому в интерфейсе
+слово «исходник» стоит только у видео, у остальных типов — «Скачать файл».
 
 ## Исключение по смыслу «владение файлом» (не поток каталога)
 
