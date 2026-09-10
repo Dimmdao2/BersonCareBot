@@ -92,8 +92,7 @@ describe('clinic-owner branch create', () => {
       error: 'branch_quota_reached',
       mechanic: 'branches',
       message:
-        'Невозможно создать локацию: в вашем тарифе исчерпан лимит «Филиалы». ' +
-        'Чтобы продолжить, увеличьте лимит в тарифе.',
+        'Невозможно создать локацию: в вашем тарифе исчерпан лимит «Филиалы».',
     });
     expect(fakes.createPhysicalBranch).toHaveBeenCalledTimes(1);
   });
