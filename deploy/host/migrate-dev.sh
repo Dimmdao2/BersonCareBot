@@ -264,11 +264,11 @@ if [[ "$MODE" == "--preflight" ]]; then
   # roles or grants and the candidate validation never commits a reconcile.
   run_tracked bash -c '
     set -Eeuo pipefail
-    node --experimental-strip-types "$1" --shared-role-baseline |
+    node --experimental-strip-types "$1" --shared-role-baseline --db "$2" |
       sudo -n -u postgres psql -X -1 -d postgres -v ON_ERROR_STOP=1
-    node --experimental-strip-types "$1" --shared-role-verify |
+    node --experimental-strip-types "$1" --shared-role-verify --db "$2" |
       sudo -n -u postgres psql -X -1 -d postgres -v ON_ERROR_STOP=1
-  ' bash "$PRIVILEGE_GENERATOR"
+  ' bash "$PRIVILEGE_GENERATOR" "$TARGET_DB"
   seed_relation_wall_registry
   run_tracked node "$OWNER_MIGRATOR" \
     --db "$TARGET_DB" \
@@ -288,11 +288,11 @@ cd "$REPO_ROOT"
 # the per-database reconciler can grant a newly introduced capability to one of the four port logins.
 run_tracked bash -c '
   set -Eeuo pipefail
-  node --experimental-strip-types "$1" --shared-role-baseline |
+  node --experimental-strip-types "$1" --shared-role-baseline --db "$2" |
     sudo -n -u postgres psql -X -1 -d postgres -v ON_ERROR_STOP=1
-  node --experimental-strip-types "$1" --shared-role-verify |
+  node --experimental-strip-types "$1" --shared-role-verify --db "$2" |
     sudo -n -u postgres psql -X -1 -d postgres -v ON_ERROR_STOP=1
-' bash "$PRIVILEGE_GENERATOR"
+' bash "$PRIVILEGE_GENERATOR" "$TARGET_DB"
 
 # The event trigger checks this declaration-derived registry while CREATE TABLE is executing.
 # Seed it before the first migration; owner reconciliation stays in the mandatory final reconcile,

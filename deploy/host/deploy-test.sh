@@ -324,9 +324,9 @@ target_sessions="$(db_call 'проверка простоя TEST-базы' "$DB_
 [[ "$target_sessions" == 0 ]] || fail "TEST database is not quiescent: $target_sessions session(s)"
 
 db_pipeline 'shared-role-baseline' "$DB_CALL_TIMEOUT_S" \
-  "node --experimental-strip-types '$GENERATOR' --shared-role-baseline | sudo -n -u postgres psql -X -1 -d postgres -v ON_ERROR_STOP=1"
+  "node --experimental-strip-types '$GENERATOR' --shared-role-baseline --db '$DB' | sudo -n -u postgres psql -X -1 -d postgres -v ON_ERROR_STOP=1"
 db_pipeline 'shared-role-verify' "$DB_CALL_TIMEOUT_S" \
-  "node --experimental-strip-types '$GENERATOR' --shared-role-verify | sudo -n -u postgres psql -X -1 -d postgres -v ON_ERROR_STOP=1"
+  "node --experimental-strip-types '$GENERATOR' --shared-role-verify --db '$DB' | sudo -n -u postgres psql -X -1 -d postgres -v ON_ERROR_STOP=1"
 db_pipeline 'реестр стены рождения отношений до миграций' "$DB_CALL_TIMEOUT_S" \
   "node --experimental-strip-types '$GENERATOR' --db '$DB' --relation-wall-registry-seed-only | sudo -n -u postgres psql -X -1 -d '$DB' -v ON_ERROR_STOP=1"
 

@@ -11,10 +11,11 @@
  *   node deploy/postgres/privileges/generate-cli.mjs --env <env> --db <база> --port-context-env <webapp|integrator>
  *   node deploy/postgres/privileges/generate-cli.mjs --all --port-context-only # exact DB capability seeds
  *   node deploy/postgres/privileges/generate-cli.mjs --legacy-role-quarantine <role> # attribute-only; no CREATE/GRANT
- *   node deploy/postgres/privileges/generate-cli.mjs --shared-role-baseline [--db <база>] # роли кластера
- *   node deploy/postgres/privileges/generate-cli.mjs --shared-role-verify   [--db <база>] # сверка ролей
+ *   node deploy/postgres/privileges/generate-cli.mjs --shared-role-baseline --db <база>   # роли кластера
+ *   node deploy/postgres/privileges/generate-cli.mjs --shared-role-verify   --db <база>   # сверка ролей
  *     ⤷ здесь `--db` называет ЦЕЛЕВОЙ КЛАСТЕР (по базе), а не выбирает объекты базы: роли, объявленные
  *       только для чужой среды (мигратор соседнего окружения), в чужой кластер не попадают.
+ *       Аргумент обязателен: угаданный кластер даёт молча неверный ответ, а не приблизительный.
  *
  * Флаги:
  *   --declaration <путь>  другой файл декларации (по умолчанию ./declaration.ts) — нужен пруф-фикстурам
@@ -223,6 +224,24 @@ function generateMigrationOwnerAccessSql(declaration, dbName, ownerList) {
   ].join('\n');
 }
 
+/**
+ * Кластерные примитивы обязаны знать ЦЕЛЕВОЙ КЛАСТЕР. Имя базы здесь не выбирает объекты — оно лишь
+ * называет кластер, которому база принадлежит; ролевой слой один на кластер. Пока кластер был один,
+ * умолчание «все объявленные роли» совпадало с истиной. Второй кластер сделал это умолчание молча
+ * неверным сразу для обоих, поэтому его нет: вызывающий, который не может назвать базу, не может и
+ * применить результат.
+ */
+function requireClusterDb(args, flag) {
+  const db = args.values.get('db');
+  if (!db) {
+    throw new Error(
+      `${flag} требует --db <база целевого кластера>: ролевой слой кластерный, ` +
+        'и без имени базы кластер не определён. Передайте ту же базу, к которой идёт reconcile.',
+    );
+  }
+  return db;
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   const declarationPath = args.values.get('declaration') ?? DEFAULT_DECLARATION;
@@ -262,12 +281,15 @@ async function main() {
       throw new Error('--shared-role-baseline is cluster-wide and rejects --env');
     }
     // `--db` НЕ выбирает базу (ролевой слой кластерный) — он называет ЦЕЛЕВОЙ КЛАСТЕР: роли,
-    // объявленные только для чужой среды (мигратор соседа), в него не попадают. Без `--db`
-    // кластер неизвестен, и раскладывается НАДМНОЖЕСТВО — все объявленные роли, как раньше:
-    // лишняя роль здесь — неиспользуемый NOLOGIN без единого гранта, а не расширение доступа.
-    // Хостовым скриптам dev/test стоит передавать сюда свой `--db "$DB"`, чтобы и этого не было.
+    // объявленные только для чужой среды (мигратор соседа), в него не попадают.
+    // ОБЯЗАТЕЛЕН. Раньше он был необязательным и без него раскладывалось надмножество всех
+    // объявленных ролей — пока кластер был один, это было безобидно. С появлением второго
+    // кластера умолчание стало молча неверным для ЛЮБОГО из них, а парный `--shared-role-verify`
+    // на том же надмножестве падает на чужой роли, которой в этом кластере нет и быть не должно.
+    // Отказ вместо умолчания: у вызывающего имя базы всегда под рукой, а угадать кластер нельзя.
+    requireClusterDb(args, '--shared-role-baseline');
     process.stdout.write(
-      generateSharedRoleBaselineSql(declaration, args.values.get('db') ?? null),
+      generateSharedRoleBaselineSql(declaration, args.values.get('db')),
     );
     return;
   }
@@ -289,9 +311,12 @@ async function main() {
       throw new Error('--shared-role-verify is cluster-wide and rejects --env');
     }
     // То же значение `--db`, что у `--shared-role-baseline`: имя ЦЕЛЕВОГО КЛАСТЕРА, а не выбор
-    // объектов базы. Без него сверяются все объявленные роли (прежнее поведение).
+    // объектов базы, и так же обязательное. Здесь цена умолчания выше всего: сверка требует
+    // СУЩЕСТВОВАНИЯ каждой ожидаемой роли и вылетает исключением на первой чужой — то есть
+    // надмножество не «немного лишнего», а гарантированный отказ деплоя в исправном кластере.
+    requireClusterDb(args, '--shared-role-verify');
     process.stdout.write(
-      generateSharedRoleVerifierSql(declaration, args.values.get('db') ?? null),
+      generateSharedRoleVerifierSql(declaration, args.values.get('db')),
     );
     return;
   }

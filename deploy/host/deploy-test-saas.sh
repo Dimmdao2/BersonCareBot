@@ -109,9 +109,9 @@ log(){ echo; echo "== [deploy-test-saas] $* =="; }
 # named by the historical migration chain. Install only NOLOGIN role prerequisites here. Database ACL,
 # login shells, credentials and port-context grants remain downstream of the completed schema migration.
 install_pre_migration_role_prerequisites(){
-  node --experimental-strip-types "$DEPLOY_REPO/$PRIVILEGE_GENERATOR" --shared-role-baseline |
+  node --experimental-strip-types "$DEPLOY_REPO/$PRIVILEGE_GENERATOR" --shared-role-baseline --db "$DB" |
     sudo -u postgres psql -X -1 -d postgres -v ON_ERROR_STOP=1
-  node --experimental-strip-types "$DEPLOY_REPO/$PRIVILEGE_GENERATOR" --shared-role-verify |
+  node --experimental-strip-types "$DEPLOY_REPO/$PRIVILEGE_GENERATOR" --shared-role-verify --db "$DB" |
     sudo -u postgres psql -X -1 -d postgres -v ON_ERROR_STOP=1
 }
 

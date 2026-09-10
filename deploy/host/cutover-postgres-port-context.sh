@@ -180,7 +180,7 @@ port_context_cutover_install_target() {
     chmod 0600 "$backup_file" &&
     runuser -u postgres -- pg_restore --list "$backup_file" >/dev/null &&
     [[ "$(head -c5 -- "$backup_file")" == PGDMP ]] &&
-    node --experimental-strip-types "$generator" --shared-role-baseline |
+    node --experimental-strip-types "$generator" --shared-role-baseline --db "$database" |
       runuser -u postgres -- psql -X -1 -h /var/run/postgresql -p 5432 -U postgres -d postgres \
         -v ON_ERROR_STOP=1 &&
     node --experimental-strip-types "$reconcile" \

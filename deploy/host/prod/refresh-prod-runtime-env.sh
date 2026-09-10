@@ -12,8 +12,6 @@ set -euo pipefail
 
 SRC=/opt/therapysto/src
 ENV_DIR=/opt/therapysto/env
-DB=bersoncarebot_test
-ENV_NAME=test
 
 fail() { echo "FATAL: refresh-prod-runtime-env: $*" >&2; exit 1; }
 
@@ -22,6 +20,31 @@ expected=135.106.187.95
 case " $(hostname -I) " in *" $expected "*) : ;; *) fail "this host has no local IPv4 $expected" ;; esac
 [ -d "$SRC" ] || fail "no source tree at $SRC"
 [ -r "$ENV_DIR/webapp.prod" ] && [ -r "$ENV_DIR/api.prod" ] || fail "runtime env files are unreadable"
+
+# Имя базы НЕ зашито здесь: оно берётся из тех же env-файлов, по которым в базу ходит рантайм.
+# Пока прод жил на скопированной базе TEST, зашитое имя было верным; после переименования оно молча
+# разошлось бы с рантаймом, и описатели порт-контекста уехали бы не в ту базу.
+#
+# Читаются ВСЕ строки подключения (webapp ходит тремя ролями, api — четвёртой), а не одна выбранная:
+# имя ключа у каждой своё (DATABASE_URL_STAFF/_PATIENT/_GLOBAL_ADMIN, INTEGRATOR_DB_URL), и никакого
+# общего DATABASE_URL в этих файлах нет. Требование единственного имени — заодно проверка целостности:
+# если после переименования базы одна из четырёх строк осталась старой, скрипт остановится здесь, а не
+# выдаст каталог возможностей в базу, куда половина рантайма уже не ходит.
+mapfile -t dbs < <(cat "$ENV_DIR/webapp.prod" "$ENV_DIR/api.prod" |
+  grep -oE "postgres(ql)?://[^'\" ]+" |
+  sed -E 's#^.*/([A-Za-z0-9_]+)(\?.*)?$#\1#' | sort -u)
+[ "${#dbs[@]}" -gt 0 ] || fail "в $ENV_DIR/{webapp,api}.prod нет ни одной строки подключения postgres://"
+[ "${#dbs[@]}" -eq 1 ] || fail "рантайм ходит в РАЗНЫЕ базы: ${dbs[*]} — сначала приведите env-файлы к одной"
+DB="${dbs[0]}"
+# Окружение выводится из имени базы, а не задаётся отдельно: два независимых значения рано или поздно
+# разъезжаются. Незнакомое имя — отказ, а не подстановка умолчания: тихо выдать одному окружению
+# каталог возможностей другого хуже, чем не выполниться.
+case "$DB" in
+  therapysto_prod) ENV_NAME=prod ;;
+  bersoncarebot_test) ENV_NAME=test ;;
+  *) fail "база '$DB' не объявлена в декларации прав — добавьте её туда, а не сюда" ;;
+esac
+echo "refresh-prod-runtime-env: база $DB, окружение $ENV_NAME"
 
 cd "$SRC"
 ts=$(date +%s)

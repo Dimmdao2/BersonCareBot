@@ -444,11 +444,11 @@ reconcile_declaration() {
   # the proof of the final role/privilege state; this wrapper renders no privileges of its own.
   run_tracked bash -c '
     set -Eeuo pipefail
-    node --experimental-strip-types "$1" --shared-role-baseline |
+    node --experimental-strip-types "$1" --shared-role-baseline --db "$4" |
       sudo -n -u postgres psql -X -1 -h "$2" -p "$3" -d postgres -v ON_ERROR_STOP=1
-    node --experimental-strip-types "$1" --shared-role-verify |
+    node --experimental-strip-types "$1" --shared-role-verify --db "$4" |
       sudo -n -u postgres psql -X -1 -h "$2" -p "$3" -d postgres -v ON_ERROR_STOP=1
-  ' bash "$PRIVILEGE_GENERATOR" "$ADMIN_SOCKET" "$ADMIN_PORT"
+  ' bash "$PRIVILEGE_GENERATOR" "$ADMIN_SOCKET" "$ADMIN_PORT" "$TARGET_DB"
 
   run_tracked bash -o pipefail -c '
     node --experimental-strip-types "$1" --db "$2" --relation-wall-registry-seed-only |
