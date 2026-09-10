@@ -300,32 +300,15 @@ export function createPgPatientInvitesPort(): PatientInvitesPort {
       return preview ? { ok: true, preview } : failure('invalid_continuation');
     },
 
-    async startEmailProof({
-      continuationHash,
-      emailNormalized,
-      codeHash,
-      proofExpiresAt,
-      authorizationNonce,
-      authorizationExpiresEpoch,
-      authorizationSignature,
-    }) {
+    async startEmailProof({ continuationHash, emailNormalized, codeHash, proofExpiresAt }) {
       const result = await runWebappNamedRoot<FunctionBaseRow>(
         getWebappSqlDb(),
-        'app.start_patient_invite_email_proof(text,text,text,timestamp with time zone,text,bigint,text)',
-        [
-          continuationHash,
-          emailNormalized,
-          codeHash,
-          proofExpiresAt,
-          authorizationNonce,
-          authorizationExpiresEpoch,
-          authorizationSignature,
-        ],
+        'app.start_patient_invite_email_proof(text,text,text,timestamp with time zone)',
+        [continuationHash, emailNormalized, codeHash, proofExpiresAt],
         sql`
           SELECT ok, code
           FROM app.start_patient_invite_email_proof(
-            ${continuationHash}, ${emailNormalized}, ${codeHash}, ${proofExpiresAt}::timestamptz,
-            ${authorizationNonce}, ${authorizationExpiresEpoch}::bigint, ${authorizationSignature}
+            ${continuationHash}, ${emailNormalized}, ${codeHash}, ${proofExpiresAt}::timestamptz
           )
         `,
       );
@@ -347,30 +330,15 @@ export function createPgPatientInvitesPort(): PatientInvitesPort {
       return result.rows[0]?.cancelled === true;
     },
 
-    async verifyEmailProof({
-      continuationHash,
-      emailNormalized,
-      codeHash,
-      authorizationNonce,
-      authorizationExpiresEpoch,
-      authorizationSignature,
-    }) {
+    async verifyEmailProof({ continuationHash, emailNormalized, codeHash }) {
       const result = await runWebappNamedRoot<FunctionBaseRow>(
         getWebappSqlDb(),
-        'app.verify_patient_invite_email_proof(text,text,text,text,bigint,text)',
-        [
-          continuationHash,
-          emailNormalized,
-          codeHash,
-          authorizationNonce,
-          authorizationExpiresEpoch,
-          authorizationSignature,
-        ],
+        'app.verify_patient_invite_email_proof(text,text,text)',
+        [continuationHash, emailNormalized, codeHash],
         sql`
           SELECT ok, code
           FROM app.verify_patient_invite_email_proof(
-            ${continuationHash}, ${emailNormalized}, ${codeHash},
-            ${authorizationNonce}, ${authorizationExpiresEpoch}::bigint, ${authorizationSignature}
+            ${continuationHash}, ${emailNormalized}, ${codeHash}
           )
         `,
       );
@@ -423,28 +391,15 @@ export function createPgPatientInvitesPort(): PatientInvitesPort {
         : failure(row?.code ?? 'invalid_continuation');
     },
 
-    async claimUnboundEmailProof({
-      continuationHash,
-      emailNormalized,
-      authorizationNonce,
-      authorizationExpiresEpoch,
-      authorizationSignature,
-    }) {
+    async claimUnboundEmailProof({ continuationHash, emailNormalized }) {
       const result = await runWebappNamedRoot<ClaimRow>(
         getWebappSqlDb(),
-        'app.claim_unbound_patient_invite_email(text,text,text,bigint,text)',
-        [
-          continuationHash,
-          emailNormalized,
-          authorizationNonce,
-          authorizationExpiresEpoch,
-          authorizationSignature,
-        ],
+        'app.claim_unbound_patient_invite_email(text,text)',
+        [continuationHash, emailNormalized],
         sql`
           SELECT ok, code, organization_id, patient_user_id
           FROM app.claim_unbound_patient_invite_email(
-            ${continuationHash}, ${emailNormalized}, ${authorizationNonce},
-            ${authorizationExpiresEpoch}::bigint, ${authorizationSignature}
+            ${continuationHash}, ${emailNormalized}
           )
         `,
       );

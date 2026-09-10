@@ -1422,7 +1422,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "invocation": "runtime"
   },
-  "app.claim_unbound_patient_invite_email(text,text,text,bigint,text)": {
+  "app.claim_unbound_patient_invite_email(text,text)": {
     "owner": "app_seam_patient_invite_owner",
     "security": "DEFINER",
     "returns": "record",
@@ -1438,24 +1438,10 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "purpose": "evidence/25+30 narrow seam owned by app_seam_patient_invite_owner",
     "typedArgs": [
       "text",
-      "text",
-      "text",
-      "bigint",
       "text"
     ],
     "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
-      {
-        "relation": "app.context_signing_secrets",
-        "columns": [
-          "id",
-          "secret"
-        ],
-        "operations": [
-          "SELECT"
-        ],
-        "evidence": "pg16-function-body-lexical-upper-bound"
-      },
       {
         "relation": "public.be_organizations",
         "columns": [
@@ -11128,7 +11114,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "invocation": "runtime"
   },
-  "app.start_patient_invite_email_proof(text,text,text,timestamp with time zone,text,bigint,text)": {
+  "app.start_patient_invite_email_proof(text,text,text,timestamp with time zone)": {
     "owner": "app_seam_patient_invite_owner",
     "security": "DEFINER",
     "returns": "record",
@@ -11146,24 +11132,10 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "text",
       "text",
       "text",
-      "timestamp with time zone",
-      "text",
-      "bigint",
-      "text"
+      "timestamp with time zone"
     ],
     "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
-      {
-        "relation": "app.context_signing_secrets",
-        "columns": [
-          "id",
-          "secret"
-        ],
-        "operations": [
-          "SELECT"
-        ],
-        "evidence": "pg16-function-body-lexical-upper-bound"
-      },
       {
         "relation": "public.be_organizations",
         "columns": [
@@ -11545,7 +11517,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "invocation": "internal"
   },
-  "app.verify_patient_invite_email_proof(text,text,text,text,bigint,text)": {
+  "app.verify_patient_invite_email_proof(text,text,text)": {
     "owner": "app_seam_patient_invite_owner",
     "security": "DEFINER",
     "returns": "record",
@@ -11562,24 +11534,10 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "typedArgs": [
       "text",
       "text",
-      "text",
-      "text",
-      "bigint",
       "text"
     ],
     "databases": ALL_DECLARED_DATABASES,
     "relationSurfaces": [
-      {
-        "relation": "app.context_signing_secrets",
-        "columns": [
-          "id",
-          "secret"
-        ],
-        "operations": [
-          "SELECT"
-        ],
-        "evidence": "pg16-function-body-lexical-upper-bound"
-      },
       {
         "relation": "public.be_organizations",
         "columns": [
@@ -23292,8 +23250,8 @@ const TABLE_ROWS: TableRow[] = [
       + 'Track D final cutover (#987): единственный рантайм-доступ — definer app.prune_context_nonce_ledger '
       + '(владелец app_object_owner), больше никто не читает и не пишет' },
   { t: 'app.context_signing_secrets', cls: 'T', owner: 'app_owner',
-    wall: 'definer-only', wallWhy: 'patient invite proof HMAC доступен только трём declared definer-функциям',
-    why: 'HMAC-секрет короткоживущей авторизации start/verify/claim email-приглашения пациента' },
+    why: 'HMAC-секрет снятого второго замка на дверях подтверждения почты приглашения: с миграции '
+      + '20260911T020000 таблицу не читает никто, рантайм-обращений нет' },
   { t: 'app.principal_context', cls: 'T', owner: 'app_owner',
     why: 'закрытый технический остаток DEV-схемы; новый контекст привязан к транзакции в accepted_port_contexts' },
   { t: 'drizzle.__drizzle_migrations', cls: 'T', rls: 'off', why: 'журнал применённых миграций webapp — миграции '
@@ -24452,7 +24410,7 @@ const CANONICAL_CONTACT_COLUMNS = [
 const CANONICAL_CONTACT_SURFACE_CORRECTIONS: Readonly<Record<string, CanonicalContactSurfaceCorrection>> = {
   'app.accept_org_invite(text,uuid,text)': { contacts: ['SELECT', 'INSERT', 'UPDATE'] },
   'app.archive_operator_health_failures(text,integer,uuid)': { contacts: ['SELECT'] },
-  'app.claim_unbound_patient_invite_email(text,text,text,bigint,text)': {
+  'app.claim_unbound_patient_invite_email(text,text)': {
     contacts: ['SELECT', 'INSERT', 'UPDATE'], operations: { 'public.platform_users': ['SELECT'] },
   },
   'app.email_auth_verify_user_email(uuid,text)': {
@@ -24581,7 +24539,7 @@ const ROW_LOCK_SURFACES: Readonly<Record<string, Readonly<Record<string, string>
     // У таблицы нет `updated_at`: её единственная отметка времени — `occurred_at`.
     'public.auth_rate_limit_events': 'occurred_at',
   },
-  'app.claim_unbound_patient_invite_email(text,text,text,bigint,text)': {
+  'app.claim_unbound_patient_invite_email(text,text)': {
     'public.be_organizations': 'updated_at',
     'public.platform_users': 'updated_at',
   },
@@ -24605,14 +24563,14 @@ const ROW_LOCK_SURFACES: Readonly<Record<string, Readonly<Record<string, string>
     'public.platform_users': 'updated_at',
   },
   'app.reserve_current_patient_booking_package(text)': { 'public.be_patient_packages': 'updated_at' },
-  'app.start_patient_invite_email_proof(text,text,text,timestamp with time zone,text,bigint,text)': {
+  'app.start_patient_invite_email_proof(text,text,text,timestamp with time zone)': {
     'public.be_organizations': 'updated_at',
   },
   'app.start_provisioned_organization_trial()': {
     'public.saas_registration_tariff_policy': 'updated_at',
     'public.saas_trial_policy': 'updated_at',
   },
-  'app.verify_patient_invite_email_proof(text,text,text,text,bigint,text)': {
+  'app.verify_patient_invite_email_proof(text,text,text)': {
     'public.be_organizations': 'updated_at',
   },
 };
@@ -24665,7 +24623,7 @@ const TENANT_WALL_CROSSINGS: Readonly<Record<string, Readonly<Record<string, str
   // Пациентское приглашение: вся цепочка адресуется секретом (`continuation_hash`/`token_hash`), и
   // до его предъявления человек клиникой не опознан. Организацию тут не проверяют — её ИЗВЛЕКАЮТ
   // из самой строки приглашения и дальше ведут по ней.
-  'app.claim_unbound_patient_invite_email(text,text,text,bigint,text)': {
+  'app.claim_unbound_patient_invite_email(text,text)': {
     'public.patient_invites': 'приглашение находит неугадываемый continuation_hash; предъявитель клинике ещё не принадлежит',
     'public.be_organizations': 'клиника берётся ИЗ строки приглашения и проверяется на активность — сравнивать её не с чем',
     'public.org_enrollments': 'зачисление той же строки приглашения (enrollment_id + organization_id приглашения), а не произвольное',
@@ -24764,11 +24722,11 @@ const TENANT_WALL_CROSSINGS: Readonly<Record<string, Readonly<Record<string, str
   // не зовёт, поэтому вопрос «почему тут нет организационного предиката для арендатора» больше не
   // встаёт — пометка объясняла отсутствие предиката ИМЕННО арендному вызывающему, которого не стало.
 
-  'app.start_patient_invite_email_proof(text,text,text,timestamp with time zone,text,bigint,text)': {
+  'app.start_patient_invite_email_proof(text,text,text,timestamp with time zone)': {
     'public.patient_invites': 'приглашение находит неугадываемый continuation_hash; подтверждение почты идёт до вступления в клинику',
     'public.be_organizations': 'клиника приглашения проверяется на активность перед отправкой кода',
   },
-  'app.verify_patient_invite_email_proof(text,text,text,text,bigint,text)': {
+  'app.verify_patient_invite_email_proof(text,text,text)': {
     'public.patient_invites': 'приглашение находит неугадываемый continuation_hash; сверка кода идёт до вступления в клинику',
     'public.be_organizations': 'клиника приглашения проверяется на активность перед зачётом кода',
   },
@@ -26121,11 +26079,11 @@ const REV10_CONTEXT = {
     patient_invite_email_proof_start: { port: 'webapp', sessionRole: 'app_patient',
       targetRole: 'app_pre_session', contextClass: 'pre_session',
       purpose: 'patient-invite.email-proof.start',
-      functionIdentity: 'app.start_patient_invite_email_proof(text,text,text,timestamp with time zone,text,bigint,text)' },
+      functionIdentity: 'app.start_patient_invite_email_proof(text,text,text,timestamp with time zone)' },
     patient_invite_email_proof_verify: { port: 'webapp', sessionRole: 'app_patient',
       targetRole: 'app_pre_session', contextClass: 'pre_session',
       purpose: 'patient-invite.email-proof.verify',
-      functionIdentity: 'app.verify_patient_invite_email_proof(text,text,text,text,bigint,text)' },
+      functionIdentity: 'app.verify_patient_invite_email_proof(text,text,text)' },
     patient_invite_email_proof_cancel: { port: 'webapp', sessionRole: 'app_patient',
       targetRole: 'app_pre_session', contextClass: 'pre_session',
       purpose: 'patient-invite.email-proof.cancel',
@@ -26133,7 +26091,7 @@ const REV10_CONTEXT = {
     patient_invite_unbound_email_claim: { port: 'webapp', sessionRole: 'app_patient',
       targetRole: 'app_pre_session', contextClass: 'pre_session',
       purpose: 'patient-invite.unbound-email.claim',
-      functionIdentity: 'app.claim_unbound_patient_invite_email(text,text,text,bigint,text)' },
+      functionIdentity: 'app.claim_unbound_patient_invite_email(text,text)' },
     auth_oauth_upsert_binding: { port: 'webapp', sessionRole: 'app_patient', targetRole: 'app_pre_session',
       contextClass: 'pre_session', purpose: 'auth.oauth.callback.upsert-binding',
       functionIdentity: 'app.auth_oauth_upsert_binding(uuid,text,text,text)' },
@@ -31963,6 +31921,16 @@ const REV10_NO_RUNTIME_ACCESS: Record<string, Extract<RelationAccess, { kind: 'n
   // `app_object_owner`, so the definer root would see zero rows under FORCE RLS forever (the exact
   // "дорого И молча" failure the audit measured live — owner sees 0 of 6 expired nonce rows, no
   // error). Table-level classification now falls through naturally to 'named-seams'.
+  // Единственными читателями были три двери подтверждения почты приглашения. Они перестали
+  // подписывать свои аргументы вторым HMAC поверх того, что уже связывает порт-контекст
+  // (`20260911T020000_invite_proof_doors_stop_re_signing_what_the_port_binds.sql`), и таблица
+  // осталась без единого рантайм-обращения. Замер 11.09.2026: на TEST в ней было 0 строк, на DEV —
+  // строка эпохи режима `locked`, не совпадающая ни с одним секретом приложения; то есть замок,
+  // который она держала, не был закрыт ни в одном окружении.
+  'app.context_signing_secrets': { kind: 'no-runtime-surface', purpose: 'HMAC secret of the retired second lock on the patient-invite proof doors', evidence: [
+    'node /home/dev/brain/tools/code-search.mjs "context_signing_secrets" --repo bcb: только миграции и dev-refresh',
+    "SELECT proname FROM pg_proc WHERE position('context_signing_secrets' IN prosrc) > 0 — пусто после миграции 20260911T020000",
+  ] },
   'app.principal_context': { kind: 'no-runtime-surface', purpose: 'obsolete session-row context replaced by transaction-bound app_ext.accepted_port_contexts', evidence: [
     'node /home/dev/brain/tools/code-search.mjs "principal_context runtime" --repo bcb: legacy migrations/tests only',
     'deploy/postgres/port-context/contract.sql installs accepted_port_contexts rows',

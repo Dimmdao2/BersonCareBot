@@ -81,18 +81,12 @@ export type PatientInvitesPort = {
     emailNormalized: string;
     codeHash: string;
     proofExpiresAt: string;
-    authorizationNonce: string;
-    authorizationExpiresEpoch: number;
-    authorizationSignature: string;
   }): Promise<{ ok: true } | PatientInviteFailure>;
   cancelEmailProof(input: { continuationHash: string; codeHash: string }): Promise<boolean>;
   verifyEmailProof(input: {
     continuationHash: string;
     emailNormalized: string;
     codeHash: string;
-    authorizationNonce: string;
-    authorizationExpiresEpoch: number;
-    authorizationSignature: string;
   }): Promise<
     | { ok: true }
     | PatientInviteFailure
@@ -119,8 +113,5 @@ export type PatientInvitesPort = {
   claimUnboundEmailProof(input: {
     continuationHash: string;
     emailNormalized: string;
-    authorizationNonce: string;
-    authorizationExpiresEpoch: number;
-    authorizationSignature: string;
   }): Promise<{ ok: true; organizationId: string; patientUserId: string } | PatientInviteFailure>;
 };

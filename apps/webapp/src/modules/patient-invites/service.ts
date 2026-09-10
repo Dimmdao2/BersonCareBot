@@ -9,7 +9,6 @@ import { platformMailProfileForRecipientRole } from '@/modules/auth/mailProfile'
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const CONTINUATION_TTL_MS = 10 * 60 * 1000;
 const PROOF_TTL_MS = 10 * 60 * 1000;
-const PROOF_AUTHORIZATION_TTL_MS = 60 * 1000;
 
 function invitePepper(): string {
   return integratorWebhookSecret() || env.SESSION_COOKIE_SECRET || 'test-patient-invite-pepper';
@@ -72,33 +71,6 @@ function hashPatientInviteEmailCode(code: string): string {
     .digest('hex');
 }
 
-function proofAuthorization(input: {
-  action: 'start' | 'verify' | 'claim';
-  continuationHash: string;
-  emailNormalized: string;
-  codeHash: string;
-  proofExpiresEpoch: number | null;
-}) {
-  const nonce = randomUUID();
-  const expiresEpoch = Math.floor((Date.now() + PROOF_AUTHORIZATION_TTL_MS) / 1000);
-  const canonical = [
-    'patient-invite-proof',
-    'v1',
-    input.action,
-    nonce,
-    String(expiresEpoch),
-    input.continuationHash,
-    input.emailNormalized,
-    input.codeHash,
-    input.proofExpiresEpoch == null ? '' : String(input.proofExpiresEpoch),
-  ].join('|');
-  const secret = env.DB_PRINCIPAL_SIGNING_SECRET || invitePepper();
-  return {
-    authorizationNonce: nonce,
-    authorizationExpiresEpoch: expiresEpoch,
-    authorizationSignature: createHmac('sha256', secret).update(canonical).digest('hex'),
-  };
-}
 
 function lifecycleFailure(code: PatientInviteLifecycleCode): PatientInviteFailure {
   return { ok: false, code };
@@ -212,13 +184,6 @@ export function createPatientInvitesService(deps: {
         emailNormalized,
         codeHash,
         proofExpiresAt,
-        ...proofAuthorization({
-          action: 'start',
-          continuationHash,
-          emailNormalized,
-          codeHash,
-          proofExpiresEpoch: Math.floor(Date.parse(proofExpiresAt) / 1000),
-        }),
       });
       if (!started.ok) return started;
       const sent = await sendEmailCode(
@@ -248,13 +213,6 @@ export function createPatientInvitesService(deps: {
         continuationHash,
         emailNormalized,
         codeHash,
-        ...proofAuthorization({
-          action: 'verify',
-          continuationHash,
-          emailNormalized,
-          codeHash,
-          proofExpiresEpoch: null,
-        }),
       });
     },
 
@@ -290,13 +248,6 @@ export function createPatientInvitesService(deps: {
       return deps.port.claimUnboundEmailProof({
         continuationHash,
         emailNormalized,
-        ...proofAuthorization({
-          action: 'claim',
-          continuationHash,
-          emailNormalized,
-          codeHash: '',
-          proofExpiresEpoch: null,
-        }),
       });
     },
   };
