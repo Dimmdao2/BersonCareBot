@@ -212,7 +212,7 @@ function parseAdminSmtpOutboundForUi(
     user = typeof o.user === 'string' ? o.user.trim() : '';
     from = typeof o.from === 'string' ? o.from.trim() : '';
     const p = typeof o.password === 'string' ? o.password : '';
-    hasStoredPassword = p.trim().length > 0;
+    hasStoredPassword = o.hasStoredPassword === true || p.trim().length > 0;
   }
   return { settingKey, host, port, secure, user, from, hasStoredPassword };
 }

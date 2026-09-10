@@ -446,9 +446,10 @@ export default async function SettingsPage({
         ) : null}
         {brandingState.brandingVisible ? (
           <OrgBrandingSection
-            key={`${brandingState.accessState}:${publishedBrand?.displayName ?? ''}:${publishedBrand?.logoMediaId ?? ''}`}
+            key={`${brandingState.accessState}:${publishedBrand ? 'published' : 'unpublished'}:${publishedBrand?.displayName ?? ''}:${publishedBrand?.logoMediaId ?? ''}`}
             brandingMutationAvailable={brandingState.brandingMutationAvailable}
             coreDisplayName={brandingState.effective.core.displayName}
+            hasPublishedRevision={publishedBrand !== null}
             publishedDisplayName={publishedBrand?.displayName ?? null}
             publishedLogoMediaId={publishedBrand?.logoMediaId ?? null}
             publishedLogoUrl={publishedLogoUrl}

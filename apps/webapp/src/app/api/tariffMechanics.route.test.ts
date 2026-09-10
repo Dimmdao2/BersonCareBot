@@ -1300,6 +1300,11 @@ describe('tariff and platform mutation gates', () => {
         }),
       }),
     } as unknown as ReturnType<typeof buildAppDeps>);
+    vi.mocked(requireEntitlementForMutationAction).mockResolvedValue({
+      ok: false,
+      reason: 'entitlement_required',
+      mechanic: 'branding',
+    });
 
     await expect(saveOrgBranding({ displayName: 'Клиника', logoMediaId: null })).resolves.toEqual({
       ok: false,
