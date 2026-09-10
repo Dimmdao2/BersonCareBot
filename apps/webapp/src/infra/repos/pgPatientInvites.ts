@@ -4,6 +4,7 @@ import {
   getCurrentDbPrincipalPlatformUserId,
 } from '@bersoncare/db-principal';
 import { getDrizzle } from '@/app-layer/db/drizzle';
+import { getWebappSqlDb, runWebappNamedRoot } from '@/infra/db/runWebappSql';
 import { patientInvites } from '../../../db/schema/patientInvites';
 import { orgEnrollments } from '../../../db/schema/bookingEngine';
 import type {
@@ -261,16 +262,21 @@ export function createPgPatientInvitesPort(): PatientInvitesPort {
     },
 
     async exchangeBearer(input) {
-      const db = getDrizzle();
-      const result = await db.transaction((tx) =>
-        tx.execute<PreviewFunctionRow>(sql`
+      // Человек идёт по ссылке БЕЗ сессии: принципал здесь bootstrap, и порт-контекст выбирает
+      // capability по ИМЕНИ функции. Без именованного корня он падал на общем ключе `pre_session`,
+      // которого в карте нет, — и обмен отвечал 500 ещё до всякой проверки приглашения.
+      const result = await runWebappNamedRoot<PreviewFunctionRow>(
+        getWebappSqlDb(),
+        'app.exchange_patient_invite(text,text,timestamp with time zone)',
+        [input.tokenHash, input.continuationHash, input.continuationExpiresAt],
+        sql`
           SELECT ok, code, organization_title, recipient_hint, invite_expires_at
           FROM app.exchange_patient_invite(
             ${input.tokenHash},
             ${input.continuationHash},
             ${input.continuationExpiresAt}::timestamptz
           )
-        `),
+        `,
       );
       const row = result.rows[0];
       if (!row?.ok) return failure(row?.code ?? 'invalid_token');
@@ -279,11 +285,15 @@ export function createPgPatientInvitesPort(): PatientInvitesPort {
     },
 
     async lookupContinuation(continuationHash) {
-      const db = getDrizzle();
-      const result = await db.execute<PreviewFunctionRow>(sql`
-        SELECT ok, code, organization_title, recipient_hint, invite_expires_at
-        FROM app.lookup_patient_invite_continuation(${continuationHash})
-      `);
+      const result = await runWebappNamedRoot<PreviewFunctionRow>(
+        getWebappSqlDb(),
+        'app.lookup_patient_invite_continuation(text)',
+        [continuationHash],
+        sql`
+          SELECT ok, code, organization_title, recipient_hint, invite_expires_at
+          FROM app.lookup_patient_invite_continuation(${continuationHash})
+        `,
+      );
       const row = result.rows[0];
       if (!row?.ok) return failure(row?.code ?? 'invalid_continuation');
       const preview = mapPreview(row);
@@ -299,28 +309,40 @@ export function createPgPatientInvitesPort(): PatientInvitesPort {
       authorizationExpiresEpoch,
       authorizationSignature,
     }) {
-      const db = getDrizzle();
-      const result = await db.transaction((tx) =>
-        tx.execute<FunctionBaseRow>(sql`
+      const result = await runWebappNamedRoot<FunctionBaseRow>(
+        getWebappSqlDb(),
+        'app.start_patient_invite_email_proof(text,text,text,timestamp with time zone,text,bigint,text)',
+        [
+          continuationHash,
+          emailNormalized,
+          codeHash,
+          proofExpiresAt,
+          authorizationNonce,
+          authorizationExpiresEpoch,
+          authorizationSignature,
+        ],
+        sql`
           SELECT ok, code
           FROM app.start_patient_invite_email_proof(
             ${continuationHash}, ${emailNormalized}, ${codeHash}, ${proofExpiresAt}::timestamptz,
             ${authorizationNonce}, ${authorizationExpiresEpoch}::bigint, ${authorizationSignature}
           )
-        `),
+        `,
       );
       const row = result.rows[0];
       return row?.ok ? { ok: true } : failure(row?.code ?? 'invalid_continuation');
     },
 
     async cancelEmailProof({ continuationHash, codeHash }) {
-      const db = getDrizzle();
-      const result = await db.transaction((tx) =>
-        tx.execute<{ cancelled: boolean }>(sql`
+      const result = await runWebappNamedRoot<{ cancelled: boolean }>(
+        getWebappSqlDb(),
+        'app.cancel_patient_invite_email_proof(text,text)',
+        [continuationHash, codeHash],
+        sql`
           SELECT app.cancel_patient_invite_email_proof(
             ${continuationHash}, ${codeHash}
           ) AS cancelled
-        `),
+        `,
       );
       return result.rows[0]?.cancelled === true;
     },
@@ -333,15 +355,24 @@ export function createPgPatientInvitesPort(): PatientInvitesPort {
       authorizationExpiresEpoch,
       authorizationSignature,
     }) {
-      const db = getDrizzle();
-      const result = await db.transaction((tx) =>
-        tx.execute<FunctionBaseRow>(sql`
+      const result = await runWebappNamedRoot<FunctionBaseRow>(
+        getWebappSqlDb(),
+        'app.verify_patient_invite_email_proof(text,text,text,text,bigint,text)',
+        [
+          continuationHash,
+          emailNormalized,
+          codeHash,
+          authorizationNonce,
+          authorizationExpiresEpoch,
+          authorizationSignature,
+        ],
+        sql`
           SELECT ok, code
           FROM app.verify_patient_invite_email_proof(
             ${continuationHash}, ${emailNormalized}, ${codeHash},
             ${authorizationNonce}, ${authorizationExpiresEpoch}::bigint, ${authorizationSignature}
           )
-        `),
+        `,
       );
       const row = result.rows[0];
       if (row?.ok) return { ok: true };
@@ -399,15 +430,23 @@ export function createPgPatientInvitesPort(): PatientInvitesPort {
       authorizationExpiresEpoch,
       authorizationSignature,
     }) {
-      const db = getDrizzle();
-      const result = await db.transaction((tx) =>
-        tx.execute<ClaimRow>(sql`
+      const result = await runWebappNamedRoot<ClaimRow>(
+        getWebappSqlDb(),
+        'app.claim_unbound_patient_invite_email(text,text,text,bigint,text)',
+        [
+          continuationHash,
+          emailNormalized,
+          authorizationNonce,
+          authorizationExpiresEpoch,
+          authorizationSignature,
+        ],
+        sql`
           SELECT ok, code, organization_id, patient_user_id
           FROM app.claim_unbound_patient_invite_email(
             ${continuationHash}, ${emailNormalized}, ${authorizationNonce},
             ${authorizationExpiresEpoch}::bigint, ${authorizationSignature}
           )
-        `),
+        `,
       );
       const row = result.rows[0];
       return row?.ok && row.organization_id && row.patient_user_id

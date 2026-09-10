@@ -1232,7 +1232,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "search_path=pg_catalog"
     ],
     "execute": [
-      "app_patient"
+      "app_pre_session"
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_patient_invite_owner",
     "typedArgs": [
@@ -1433,7 +1433,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "search_path=pg_catalog"
     ],
     "execute": [
-      "app_patient"
+      "app_pre_session"
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_patient_invite_owner",
     "typedArgs": [
@@ -3052,7 +3052,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "search_path=pg_catalog"
     ],
     "execute": [
-      "app_patient"
+      "app_pre_session"
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_patient_invite_owner",
     "typedArgs": [
@@ -4195,7 +4195,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "search_path=pg_catalog"
     ],
     "execute": [
-      "app_patient"
+      "app_pre_session"
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_patient_invite_owner",
     "typedArgs": [
@@ -11139,7 +11139,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "search_path=pg_catalog"
     ],
     "execute": [
-      "app_patient"
+      "app_pre_session"
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_patient_invite_owner",
     "typedArgs": [
@@ -11556,7 +11556,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "search_path=pg_catalog"
     ],
     "execute": [
-      "app_patient"
+      "app_pre_session"
     ],
     "purpose": "evidence/25+30 narrow seam owned by app_seam_patient_invite_owner",
     "typedArgs": [
@@ -26106,6 +26106,34 @@ const REV10_CONTEXT = {
     auth_oauth_find_user: { port: 'webapp', sessionRole: 'app_patient', targetRole: 'app_pre_session',
       contextClass: 'pre_session', purpose: 'auth.oauth.callback.find-binding',
       functionIdentity: 'app.auth_oauth_find_user(text,text)' },
+    // Шесть пред-сессионных дверей приглашения пациента. Человек идёт по ссылке БЕЗ сессии:
+    // маршрут ставит bootstrap-принципал, а тот берёт только capability класса `pre_session`. Без
+    // этих строк первый же шаг обмена отвечал 500 «Missing declared webapp port capability»
+    // (замер 11.09.2026 на живом DEV и TEST) — принять приглашение было нельзя вообще.
+    patient_invite_exchange_bearer: { port: 'webapp', sessionRole: 'app_patient',
+      targetRole: 'app_pre_session', contextClass: 'pre_session',
+      purpose: 'patient-invite.bearer.exchange',
+      functionIdentity: 'app.exchange_patient_invite(text,text,timestamp with time zone)' },
+    patient_invite_lookup_continuation: { port: 'webapp', sessionRole: 'app_patient',
+      targetRole: 'app_pre_session', contextClass: 'pre_session',
+      purpose: 'patient-invite.continuation.lookup',
+      functionIdentity: 'app.lookup_patient_invite_continuation(text)' },
+    patient_invite_email_proof_start: { port: 'webapp', sessionRole: 'app_patient',
+      targetRole: 'app_pre_session', contextClass: 'pre_session',
+      purpose: 'patient-invite.email-proof.start',
+      functionIdentity: 'app.start_patient_invite_email_proof(text,text,text,timestamp with time zone,text,bigint,text)' },
+    patient_invite_email_proof_verify: { port: 'webapp', sessionRole: 'app_patient',
+      targetRole: 'app_pre_session', contextClass: 'pre_session',
+      purpose: 'patient-invite.email-proof.verify',
+      functionIdentity: 'app.verify_patient_invite_email_proof(text,text,text,text,bigint,text)' },
+    patient_invite_email_proof_cancel: { port: 'webapp', sessionRole: 'app_patient',
+      targetRole: 'app_pre_session', contextClass: 'pre_session',
+      purpose: 'patient-invite.email-proof.cancel',
+      functionIdentity: 'app.cancel_patient_invite_email_proof(text,text)' },
+    patient_invite_unbound_email_claim: { port: 'webapp', sessionRole: 'app_patient',
+      targetRole: 'app_pre_session', contextClass: 'pre_session',
+      purpose: 'patient-invite.unbound-email.claim',
+      functionIdentity: 'app.claim_unbound_patient_invite_email(text,text,text,bigint,text)' },
     auth_oauth_upsert_binding: { port: 'webapp', sessionRole: 'app_patient', targetRole: 'app_pre_session',
       contextClass: 'pre_session', purpose: 'auth.oauth.callback.upsert-binding',
       functionIdentity: 'app.auth_oauth_upsert_binding(uuid,text,text,text)' },
