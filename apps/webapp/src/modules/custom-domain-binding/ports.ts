@@ -20,11 +20,11 @@ export type CustomDomainBindingState = Readonly<{
   status: OrgCustomDomainStatus;
   statusReason: string | null;
   activatedAt: string | null;
-  dnsInstruction?: Readonly<{
+  dnsInstructions?: readonly Readonly<{
     recordType: 'A' | 'CNAME';
     name: '@' | 'app';
     value: string;
-  }> | null;
+  }>[] | null;
 }>;
 
 /**
