@@ -33,7 +33,7 @@ rendered="$(mktemp "/tmp/${JITSI_COMPOSE_PROJECT}-nginx.XXXXXX")"
 backup=""
 cleanup() { rm -f "$rendered"; }
 trap cleanup EXIT
-sed -e "s|__SERVER_NAMES__|$SERVER_NAMES|g" -e "s|__UPSTREAM__|$UPSTREAM|g" "$TEMPLATE" >"$rendered"
+sed -e "s|__SERVER_NAMES__|$SERVER_NAMES|g" -e "s|__UPSTREAM__|$UPSTREAM|g" -e "s|__TLS_LINEAGE__|$JITSI_TLS_LINEAGE|g" "$TEMPLATE" >"$rendered"
 if grep -q '__[A-Z_]*__' "$rendered"; then
   fail "unresolved template placeholder"
 fi
