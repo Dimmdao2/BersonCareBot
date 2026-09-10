@@ -37,6 +37,7 @@ vi.mock('next/navigation', async () => ({
   useRouter: () => ({ replace: vi.fn() }),
 }));
 
+import { PATIENT_DEFAULT_SURFACE } from '@/config/productSurfaces';
 import JoinContinuationPage from './page';
 
 const CONTINUATION = 'c'.repeat(43);
@@ -60,7 +61,9 @@ function surfaceOf(organizationId: string) {
 }
 
 async function render(): Promise<string> {
-  const page = await JoinContinuationPage({ params: Promise.resolve({ continuation: CONTINUATION }) });
+  const page = await JoinContinuationPage({
+    params: Promise.resolve({ continuation: CONTINUATION }),
+  });
   return renderToStaticMarkup(page);
 }
 
@@ -117,7 +120,21 @@ describe('экран приглашения — бренд', () => {
     expect(html).toContain('Ссылка недействительна');
   });
 
-  it('без резолва поверхности экран остаётся рабочим, просто без бренда', async () => {
+  it('на общем пациентском входе остаётся имя платформенного приложения', async () => {
+    // Клиничного бренда тут нет по устройству поверхности, а безымянным экран быть не должен:
+    // именно сюда уводит редирект с чужого хоста (`proxy.ts`).
+    fakes.resolvedSurface.mockResolvedValue({
+      ...surfaceOf(INVITE_ORGANIZATION),
+      effectivePatientBrand: undefined,
+    });
+
+    const html = await render();
+
+    expect(html).not.toContain(CLINIC_LOGO);
+    expect(html).toContain(PATIENT_DEFAULT_SURFACE.name);
+  });
+
+  it('без резолва поверхности экран остаётся рабочим, просто без клиничного бренда', async () => {
     fakes.resolvedSurface.mockResolvedValue(null);
 
     const html = await render();

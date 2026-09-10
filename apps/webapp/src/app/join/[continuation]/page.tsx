@@ -4,6 +4,7 @@ import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipa
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { readPatientInviteContinuationCookie } from '@/modules/patient-invites/continuationCookie';
 import { getOptionalResolvedSurface } from '@/shared/lib/surface/requestSurface.server';
+import { PATIENT_DEFAULT_SURFACE } from '@/config/productSurfaces';
 import { JoinPatientClient, type JoinBrand } from './JoinPatientClient';
 
 type PageProps = { params: Promise<{ continuation: string }> };
@@ -24,13 +25,17 @@ type PageProps = { params: Promise<{ continuation: string }> };
 async function brandForInvite(inviteOrganizationId: string | null): Promise<JoinBrand> {
   const surface = await getOptionalResolvedSurface().catch(() => null);
   const brand = surface?.effectivePatientBrand;
-  if (!brand) return {};
+  // Имя приложения есть всегда — это и есть «логотип терапии». Без клиничного бренда (общий
+  // пациентский вход) остаётся имя платформенного приложения: экран не должен быть безымянным,
+  // именно на него уводит редирект с чужого хоста.
+  const patientAppName = brand?.patientAppName ?? PATIENT_DEFAULT_SURFACE.name;
+  if (!brand) return { patientAppName };
   // Организация приглашения неизвестна (кука не совпала, ссылка протухла) — значит и утверждать,
-  // чьё это приглашение, нечем: остаётся имя приложения, то есть «логотип терапии» без клиники.
+  // чьё это приглашение, нечем: остаётся имя приложения, то есть клиника без логотипа.
   const sameClinic =
     inviteOrganizationId !== null && surface.organizationId === inviteOrganizationId;
   return {
-    patientAppName: brand.patientAppName,
+    patientAppName,
     ...(sameClinic && brand.logoUrl ? { clinicLogoUrl: brand.logoUrl } : {}),
   };
 }
