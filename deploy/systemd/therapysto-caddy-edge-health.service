@@ -1,5 +1,5 @@
 [Unit]
-Description=BersonCare Caddy edge certificate-store health check
+Description=Therapysto Caddy edge certificate-store health check
 After=therapysto-caddy-edge.service
 
 [Service]

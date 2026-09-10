@@ -1,5 +1,5 @@
 [Unit]
-Description=Hourly BersonCare Caddy edge certificate-store health check
+Description=Hourly Therapysto Caddy edge certificate-store health check
 
 [Timer]
 OnCalendar=hourly

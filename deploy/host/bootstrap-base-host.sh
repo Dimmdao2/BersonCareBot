@@ -30,14 +30,14 @@ apt-get install -y -qq --no-install-recommends \
 for svc in $SERVICES; do
   user="therapysto-$svc"
   if ! id -u "$user" >/dev/null 2>&1; then
-    useradd --system --no-create-home --shell /usr/sbin/nologin --comment "BersonCare $svc" "$user"
+    useradd --system --no-create-home --shell /usr/sbin/nologin --comment "Therapysto $svc" "$user"
     log "created $user"
   fi
 done
 
 # The deploy account owns released code; runtime users only read it. That way a compromised runtime process
 # cannot rewrite the code it is about to execute on the next restart.
-id -u deploy >/dev/null 2>&1 || useradd --system --create-home --shell /bin/bash --comment "BersonCare deploy" deploy
+id -u deploy >/dev/null 2>&1 || useradd --system --create-home --shell /bin/bash --comment "Therapysto deploy" deploy
 
 install -d -m 0755 -o deploy -g deploy "$RELEASE_ROOT"
 install -d -m 0750 -o deploy -g deploy "$RELEASE_ROOT/releases"

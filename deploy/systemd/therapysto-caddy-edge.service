@@ -1,5 +1,5 @@
 [Unit]
-Description=BersonCare Caddy custom-domain TLS edge
+Description=Therapysto Caddy custom-domain TLS edge
 After=network-online.target nginx.service
 Wants=network-online.target
 

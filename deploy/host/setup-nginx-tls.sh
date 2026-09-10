@@ -10,9 +10,8 @@
 # and does not change when the certificate is replaced.
 set -uo pipefail
 
-APP_PORT="${BCB_APP_PORT:-6200}"
-CERT_DIR=/etc/ssl/bcb
-SERVER_NAME="${BCB_SERVER_NAME:-_}"
+CERT_DIR=/etc/ssl/therapysto
+SERVER_NAME="${THERAPYSTO_SERVER_NAME:-_}"
 
 log() { echo "[nginx] $*"; }
 die() { echo "[nginx] FATAL: $*" >&2; exit 1; }
@@ -26,7 +25,7 @@ if [ ! -s "$CERT_DIR/self-signed.crt" ]; then
   log "generating a placeholder self-signed certificate"
   openssl req -x509 -newkey rsa:4096 -sha256 -days 365 -nodes \
     -keyout "$CERT_DIR/self-signed.key" -out "$CERT_DIR/self-signed.crt" \
-    -subj "/CN=bcb-prod-placeholder" >/dev/null 2>&1
+    -subj "/CN=therapysto-prod-placeholder" >/dev/null 2>&1
 fi
 chmod 0600 "$CERT_DIR/self-signed.key"
 chmod 0644 "$CERT_DIR/self-signed.crt"
@@ -44,23 +43,28 @@ fi
 # out — visibly, so the next reader sees that the policy moved rather than wondering where it went.
 # The delimiter is @, not |: the pattern itself contains an alternation, and sed would read that | as the
 # end of the expression.
-sed -i -E 's@^(\s*)(ssl_protocols|ssl_prefer_server_ciphers)([^;]*);@\1# superseded by conf.d/10-bcb-tls.conf: \2\3;@' /etc/nginx/nginx.conf
+sed -i -E 's@^(\s*)(ssl_protocols|ssl_prefer_server_ciphers)([^;]*);@\1# superseded by conf.d/10-therapysto-tls.conf: \2\3;@' /etc/nginx/nginx.conf
 
-cat > /etc/nginx/conf.d/10-bcb-tls.conf <<EOF
+# А эта строка чинит след ПРЕДЫДУЩЕГО прогона под старым именем: там, где комментарий уже стоит, первый
+# sed его не тронет (он ищет живую директиву), и в nginx.conf навсегда остаётся ссылка на файл, которого
+# больше нет. Правится текстом комментария, не директивой — поведение сервера не меняется.
+sed -i -E 's@# superseded by conf\.d/10-bcb-tls\.conf:@# superseded by conf.d/10-therapysto-tls.conf:@' /etc/nginx/nginx.conf
+
+cat > /etc/nginx/conf.d/10-therapysto-tls.conf <<EOF
 # Managed by deploy/host/setup-nginx-tls.sh
 ssl_protocols TLSv1.2 TLSv1.3;
 ssl_prefer_server_ciphers off;
 ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305;
 ssl_dhparam $CERT_DIR/dhparam.pem;
 ssl_session_timeout 1d;
-ssl_session_cache shared:BcbSSL:10m;
+ssl_session_cache shared:TherapystoSSL:10m;
 ssl_session_tickets off;
 
 # The version banner tells an attacker which known bugs to try first and helps nobody else.
 server_tokens off;
 EOF
 
-cat > /etc/nginx/sites-available/bcb <<EOF
+cat > /etc/nginx/sites-available/therapysto <<EOF
 # Managed by deploy/host/setup-nginx-tls.sh
 server {
     listen 80 default_server;
@@ -95,13 +99,19 @@ server {
         # default_type, NOT add_header: a single add_header in a location cancels every header inherited
         # from the server block, so setting the content type here silently dropped HSTS and the rest.
         default_type text/plain;
-        return 503 "BersonCare: host is provisioned, application is not deployed yet\n";
+        return 503 "Therapysto: host is provisioned, application is not deployed yet\n";
     }
 }
 EOF
 
-ln -sf /etc/nginx/sites-available/bcb /etc/nginx/sites-enabled/bcb
+ln -sf /etc/nginx/sites-available/therapysto /etc/nginx/sites-enabled/therapysto
 rm -f /etc/nginx/sites-enabled/default
+
+# Хост мог быть поднят прошлой редакцией скрипта, когда всё звалось bcb. Старые файлы надо снести, а не
+# оставить рядом: два конфига в conf.d объявят ssl_prefer_server_ciphers дважды, и nginx -t упадёт —
+# то есть безобидный на вид остаток чужого имени валит перезагрузку сервера.
+rm -f /etc/nginx/conf.d/10-bcb-tls.conf
+rm -f /etc/nginx/sites-enabled/bcb /etc/nginx/sites-available/bcb
 
 nginx -t 2>/dev/null || die "nginx configuration is invalid; not reloading"
 systemctl enable --now nginx >/dev/null 2>&1

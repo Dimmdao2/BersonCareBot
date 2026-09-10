@@ -166,19 +166,27 @@ for f in /etc/audit/rules.d/10-bcb.rules /etc/aide/aide.conf.d/99-bcb \
   [ "$f" != "$nf" ] && mv "$f" "$nf"
   echo "    $f -> $nf"
 done
-if [ -f /etc/systemd/system/bcb-malware-scan.service ]; then
-  systemctl disable --now bcb-malware-scan.timer >/dev/null 2>&1
-  for u in service timer; do
-    [ -f "/etc/systemd/system/bcb-malware-scan.$u" ] || continue
-    sed -i 's|/opt/bersoncarebot|/opt/therapysto|g; s|/var/lib/bersoncarebot|/var/lib/therapysto|g; s/bcb-malware-scan/therapysto-malware-scan/g; s/bcb-malware/therapysto-malware/g; s|/var/lib/bcb-quarantine|/var/lib/therapysto-quarantine|g' \
-      "/etc/systemd/system/bcb-malware-scan.$u"
-    mv "/etc/systemd/system/bcb-malware-scan.$u" "/etc/systemd/system/therapysto-malware-scan.$u"
-  done
-  echo "    bcb-malware-scan -> therapysto-malware-scan"
+# Антивирус НЕ переименовывается, а сносится. Решение владельца, оно же вывод 786fac33c: сканер закрыт
+# как принятый риск, потому что сигнатуры из этого региона недостижимы (403 от CDN, проверено с двух
+# хостов), а сканер без сигнатур объявляет чистым что угодно — то есть производит доказательство защиты,
+# которой нет. Этот хост собран 17.08, на два дня раньше решения, и утащил установку с собой.
+for u in therapysto-malware-scan bcb-malware-scan; do
+  systemctl disable --now "$u.timer" >/dev/null 2>&1 || true
+  rm -f "/etc/systemd/system/$u.service" "/etc/systemd/system/$u.timer"
+done
+rm -f /usr/local/sbin/therapysto-malware-scan /usr/local/sbin/bcb-malware-scan
+for q in /var/lib/bcb-quarantine /var/lib/therapysto-quarantine; do
+  # Карантин удаляется, только если пуст: непустой означает, что сканер что-то отложил, и это надо
+  # увидеть глазами, а не стереть заодно с юнитом.
+  [ -d "$q" ] && rmdir "$q" 2>/dev/null && echo "    убран пустой карантин $q"
+done
+if dpkg -l clamav >/dev/null 2>&1; then
+  DEBIAN_FRONTEND=noninteractive apt-get purge -y -qq clamav clamav-base clamav-freshclam >/dev/null 2>&1 || true
+  DEBIAN_FRONTEND=noninteractive apt-get autoremove -y -qq >/dev/null 2>&1 || true
+  rm -rf /var/lib/clamav
 fi
-[ -d /var/lib/bcb-quarantine ] && mv /var/lib/bcb-quarantine /var/lib/therapysto-quarantine
+echo "    антивирус снят (принятый риск, 786fac33c)"
 systemctl daemon-reload
-systemctl enable therapysto-malware-scan.timer >/dev/null 2>&1 && echo "    таймер антивируса включён под новым именем"
 augenrules --load >/dev/null 2>&1 && echo "    правила auditd перезагружены"
 
 say "13. имя самого хоста"

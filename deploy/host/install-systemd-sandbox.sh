@@ -105,7 +105,7 @@ systemctl daemon-reload
 PROBE=/etc/systemd/system/therapysto-sandbox-probe.service
 {
   echo "[Unit]"
-  echo "Description=BersonCare sandbox probe (never started)"
+  echo "Description=Therapysto sandbox probe (never started)"
   common_block therapysto-webapp webapp
   echo "Type=oneshot"
   echo "ExecStart=/bin/true"

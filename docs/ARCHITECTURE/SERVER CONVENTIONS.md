@@ -209,6 +209,10 @@ UDP/TCP-запросы на порт `53` в этот split resolver. `awg0`, wg
 | Интерфейс моста | `bcb-blue` / `bcb-green` | `tsto-blue` / `tsto-green` |
 | Юниты Caddy | `bersoncarebot-caddy-edge*` | `therapysto-caddy-edge*` |
 | Сайт nginx | `/etc/nginx/sites-available/bcb` | `/etc/nginx/sites-available/therapysto` |
+| TLS-политика nginx (http-контекст) | `conf.d/10-bcb-tls.conf` | `conf.d/10-therapysto-tls.conf` |
+| Материал self-signed + dhparam | `/etc/ssl/bcb` | `/etc/ssl/therapysto` |
+| Зона TLS-сессий | `shared:BcbSSL:10m` | `shared:TherapystoSSL:10m` |
+| GECOS служебных учёток | `BersonCare <служба>` | `Therapysto <служба>` |
 | Переменные конвейера | `BCB_*` | `THERAPYSTO_*` |
 | Группа ключей порт-контекста | `bcb-app-prod` | `therapysto-app-prod` |
 
@@ -216,6 +220,13 @@ UDP/TCP-запросы на порт `53` в этот split resolver. `awg0`, wg
 символами (IFNAMSIZ), а `therapysto-green` — шестнадцать: docker принял бы такую сеть и упал бы на
 создании моста. Поэтому сеть и compose-проект носят полное имя, а интерфейс — сокращённое `tsto-*`, и
 ровно оно стоит в правилах nftables.
+
+**Антивируса на новом проде НЕТ (владелец, 10.09.2026).** Хост собран 17.08, на два дня раньше решения
+`786fac33c` («сканер не ставится нигде»), и утащил с собой установленный ClamAV: таймер, юниты, карантин.
+Сигнатуры он не скачал ни разу — CDN отвечает 403 на этот регион (проверено повторно 10.09, cf-ray `…-HEL`),
+то есть сканер объявлял бы чистым что угодно. Снесён целиком: пакеты, юниты, `/var/lib/clamav`, карантин.
+Защита от вредоносного содержимого — переупаковка, а не распознавание: видео пересобирается в HLS, картинка
+— в стандартный рендишен без EXIF (`6d3881b76`), оригинал в обоих случаях удаляется.
 
 **Что осталось со старым именем сознательно.** Имена LVM/LUKS (`bcbvg`, `bcbcrypt`, метка swap
 `bcb-swap`) заданы при установке системы; их смена требует перегенерации initramfs и перезагрузки с
