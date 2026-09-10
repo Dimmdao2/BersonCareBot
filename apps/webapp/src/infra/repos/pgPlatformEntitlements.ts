@@ -7,6 +7,7 @@ import {
   type CommercialAccessPaidPeriodInput,
 } from '@/infra/repos/commercialAccessComputation';
 import type {
+  PlatformCustomDomainStatus,
   PlatformEntitlementsPort,
   PlatformMutationAudit,
   PlatformTrialStatus,
@@ -49,6 +50,14 @@ type Transaction = Parameters<Parameters<Db['transaction']>[0]>[0];
 type EnforcedQuotaUsageRow = {
   clinic_team_used: number | string;
   files_used: number | string;
+};
+
+type PlatformOrganizationBrandDomainStatusRow = {
+  organization_id: string;
+  has_published_brand: boolean;
+  custom_domain_hostname: string | null;
+  custom_domain_status: PlatformCustomDomainStatus | null;
+  custom_domain_status_reason: string | null;
 };
 
 function numericUsage(value: number | string | undefined, field: string): number {
@@ -396,6 +405,28 @@ export function createPgPlatformEntitlementsPort(dependencies?: {
 
     async listOrganizations() {
       assertPlatformOperationsPrincipal();
+      const { rows: brandDomainRows } = await runWebappNamedRoot<PlatformOrganizationBrandDomainStatusRow>(
+        getWebappSqlDb(),
+        'app.list_platform_organization_brand_domain_status()',
+        [],
+        sql`SELECT * FROM app.list_platform_organization_brand_domain_status()`,
+      );
+      const brandDomainByOrganizationId = new Map(
+        brandDomainRows.map((row) => [
+          row.organization_id,
+          {
+            hasPublishedBrand: row.has_published_brand,
+            customDomain:
+              row.custom_domain_hostname !== null && row.custom_domain_status !== null
+                ? {
+                    hostname: row.custom_domain_hostname,
+                    status: row.custom_domain_status,
+                    statusReason: row.custom_domain_status_reason,
+                  }
+                : null,
+          },
+        ]),
+      );
       return getDrizzle().transaction(async (tx) => {
         // A transaction is pinned to one exact PostgreSQL client in port-context mode.
         // Keep its statements sequential: concurrent client.query() calls on the same
@@ -497,6 +528,10 @@ export function createPgPlatformEntitlementsPort(dependencies?: {
           });
           return {
             ...organization,
+            brandDomain: brandDomainByOrganizationId.get(organization.id) ?? {
+              hasPublishedBrand: false,
+              customDomain: null,
+            },
             manualTariffId: manualTariffByOrg.get(organization.id) ?? null,
             scheduledTariff: scheduledTariffByOrg.get(organization.id) ?? null,
             effectiveAccess,

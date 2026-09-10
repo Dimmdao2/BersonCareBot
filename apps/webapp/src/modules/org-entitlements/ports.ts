@@ -79,6 +79,24 @@ export type PlatformMutationAudit = { actorId: string | null; reason: string };
 /** #1069 Т5-Т8: the trial-extension `grace` stage is gone — the post-trial rule now applies the
  * instant `endsAt` passes. */
 export type PlatformTrialStatus = 'active' | 'expired' | 'ended';
+export type PlatformCustomDomainStatus =
+  | 'pending'
+  | 'dns_ready'
+  | 'active'
+  | 'failed'
+  | 'suspended'
+  | 'quarantine';
+
+/** Read-only platform-operations projection; it never exposes a brand draft or DNS proof material. */
+export type PlatformOrganizationBrandDomainStatus = {
+  hasPublishedBrand: boolean;
+  customDomain: {
+    hostname: string;
+    status: PlatformCustomDomainStatus;
+    statusReason: string | null;
+  } | null;
+};
+
 export type PlatformOrganizationSummary = {
   id: string;
   title: string;
@@ -88,6 +106,8 @@ export type PlatformOrganizationSummary = {
   /** A restrictive tariff chosen for the next paid cycle, if one is scheduled. */
   scheduledTariff: { tariffId: string; effectiveAt: string } | null;
   isActive: boolean;
+  /** Present in the DB-backed platform projection; optional for legacy in-memory callers. */
+  brandDomain?: PlatformOrganizationBrandDomainStatus;
   effectiveAccess: EffectiveOrgCommercialAccess;
   overrides: OrgEntitlementOverride[];
   trial: {

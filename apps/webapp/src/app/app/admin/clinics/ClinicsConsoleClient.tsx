@@ -2,7 +2,10 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { PlatformOrganizationSummary } from '@/modules/org-entitlements/ports';
+import type {
+  PlatformCustomDomainStatus,
+  PlatformOrganizationSummary,
+} from '@/modules/org-entitlements/ports';
 import type { SaasBillingOverview as SaasBillingOverviewData } from '@/modules/saas-billing/ports';
 import {
   MECHANICS,
@@ -92,6 +95,21 @@ const TRIAL_STATUS_LABELS: Record<
   expired: 'Истёк',
   ended: 'Завершён',
 };
+
+const CUSTOM_DOMAIN_STATUS_LABELS: Record<PlatformCustomDomainStatus, string> = {
+  pending: 'Ожидает проверки',
+  dns_ready: 'DNS готов',
+  active: 'Активен',
+  failed: 'Ошибка',
+  suspended: 'Приостановлен',
+  quarantine: 'Карантин',
+};
+
+function customDomainBadgeVariant(status: PlatformCustomDomainStatus): 'secondary' | 'outline' | 'destructive' {
+  if (status === 'failed' || status === 'suspended') return 'destructive';
+  if (status === 'active') return 'secondary';
+  return 'outline';
+}
 
 const MEMBERSHIP_ROLE_LABELS: Record<PlatformClinicMember['role'], string> = {
   owner: 'Владелец',
@@ -351,7 +369,6 @@ function ClinicsList({ data }: { data: PlatformClinicsData }) {
     () => new Map(data.tariffs.map((tariff) => [tariff.id, tariff])),
     [data.tariffs],
   );
-
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [trialFilter, setTrialFilter] = useState<string | null>(null);
@@ -704,6 +721,10 @@ function ClinicDetail({
     () => new Map(data.tariffs.map((tariff) => [tariff.id, tariff])),
     [data.tariffs],
   );
+  const brandDomain = organization?.brandDomain ?? {
+    hasPublishedBrand: false,
+    customDomain: null,
+  };
 
   if (!organization) {
     return (
@@ -738,7 +759,7 @@ function ClinicDetail({
             Все клиники
           </Link>
         </div>
-        <dl className="grid gap-2 sm:grid-cols-3">
+        <dl className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
           <div className={doctorSectionItemClass}>
             <dt className="text-xs text-muted-foreground">Тариф</dt>
             <dd className="mt-1 font-medium">{tariffName(organization, tariffsById)}</dd>
@@ -755,6 +776,36 @@ function ClinicDetail({
             organization={organization}
             onOrganizationsRefresh={onOrganizationsRefresh}
           />
+          <div className={doctorSectionItemClass}>
+            <dt className="text-xs text-muted-foreground">Бренд</dt>
+            <dd className="mt-1">
+              <Badge variant={brandDomain.hasPublishedBrand ? 'secondary' : 'outline'}>
+                {brandDomain.hasPublishedBrand ? 'Опубликован' : 'Не опубликован'}
+              </Badge>
+            </dd>
+          </div>
+          <div className={doctorSectionItemClass}>
+            <dt className="text-xs text-muted-foreground">Свой домен</dt>
+            <dd className="mt-1 space-y-1">
+              {brandDomain.customDomain ? (
+                <>
+                  <p className="break-all font-medium">
+                    {brandDomain.customDomain.hostname}
+                  </p>
+                  <Badge variant={customDomainBadgeVariant(brandDomain.customDomain.status)}>
+                    {CUSTOM_DOMAIN_STATUS_LABELS[brandDomain.customDomain.status]}
+                  </Badge>
+                  {brandDomain.customDomain.statusReason ? (
+                    <p className="text-xs text-muted-foreground">
+                      {brandDomain.customDomain.statusReason}
+                    </p>
+                  ) : null}
+                </>
+              ) : (
+                <p className="font-medium">Не настроен</p>
+              )}
+            </dd>
+          </div>
         </dl>
       </DoctorSection>
 
