@@ -29,6 +29,8 @@ type Props = {
   brandingMutationAvailable: boolean;
   /** Canonical organization name — never gated by the paid mechanic, always defined (§3.4). */
   coreDisplayName: string;
+  /** A first publication is still a mutation when it keeps the canonical name and has no logo. */
+  hasPublishedRevision: boolean;
   /** Currently published paid name override, or `null` when none is set (uses the core name). */
   publishedDisplayName: string | null;
   publishedLogoMediaId: string | null;
@@ -237,6 +239,7 @@ function ClinicBotControls({
 export function OrgBrandingSection({
   brandingMutationAvailable,
   coreDisplayName,
+  hasPublishedRevision,
   publishedDisplayName,
   publishedLogoMediaId,
   publishedLogoUrl,
@@ -250,7 +253,10 @@ export function OrgBrandingSection({
   const [justSaved, setJustSaved] = useState(false);
 
   const baselineName = (publishedDisplayName ?? coreDisplayName).trim();
-  const dirty = name.trim() !== baselineName || logoMediaId !== publishedLogoMediaId;
+  const dirty =
+    !hasPublishedRevision ||
+    name.trim() !== baselineName ||
+    logoMediaId !== publishedLogoMediaId;
 
   function handleLogoChange(next: OrgBrandLogoChange) {
     setLogoMediaId(next?.mediaId ?? null);
