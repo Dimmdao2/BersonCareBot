@@ -39,7 +39,7 @@ say "active colour: $ACTIVE → deploying onto: $TARGET"
 
 if [ "$BUILD" = 1 ]; then
   # ---------------------------------------------------------------- source
-  say "fetching $REF from GitHub"
+  say "fetching $REF from the host's own bare repository"
   [ -d "$THERAPYSTO_SRC/.git" ] || die "source checkout missing at $THERAPYSTO_SRC (run setup-docker-bluegreen.sh)"
   export GIT_SSH_COMMAND="ssh -i $THERAPYSTO_DEPLOY_KEY -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes"
   git -C "$THERAPYSTO_SRC" fetch --prune origin || die "git fetch failed (is the deploy key still authorised?)"
