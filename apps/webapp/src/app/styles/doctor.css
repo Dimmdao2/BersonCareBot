@@ -56,6 +56,7 @@ body:has(#app-shell-doctor),
   --doctor-exercise-pain-10: #d93b50;
   --doctor-exercise-completion-bg: #e1eeff;
   --doctor-exercise-completion-text: #173a70;
+  --doctor-exercise-completion-dot: #42a66b;
   --doctor-exercise-date-inactive: #778397;
   --doctor-exercise-chart-grid: #e4eaf1;
   --doctor-exercise-chart-guide: #e8edf3;
