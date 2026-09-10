@@ -13,6 +13,8 @@ BRANDED=berson.therapygo.ru
 CUSTOM=app.bersoncare.ru
 UNKNOWN=zzz-nonexistent.therapygo.ru
 OLD=bersoncare.ru
+MEET=meet.therapysto.ru
+TURN=turn.therapysto.ru
 PROD_IP=135.106.187.95
 OLD_IP=135.106.162.170
 
@@ -74,6 +76,32 @@ for h in "$BRANDED" "$CUSTOM"; do
     *)   bad "$h" "ответ $c";;
   esac
 done
+
+section "Видео (meet и turn)"
+# Проверяется отдельно от кабинетов: имена появились позже и обслуживаются другим стеком —
+# meet идёт через тот же nginx в контейнер jitsi, а turn слушает хост напрямую, мимо nginx.
+for h in "$MEET" "$TURN"; do
+  ip=$(dig +short A "$h" @8.8.8.8 | head -1)
+  [ "$ip" = "$PROD_IP" ] && ok "$h → $PROD_IP" || bad "$h" "DNS ведёт на «$ip»"
+done
+# Сертификат общий с кабинетами, поэтому проверяем не отдельную выписку, а наличие имён в SAN.
+san=$(echo | openssl s_client -servername "$STAFF" -connect "$STAFF:443" 2>/dev/null |
+      openssl x509 -noout -text 2>/dev/null | grep -A1 "Subject Alternative Name" | tail -1)
+for h in "$MEET" "$TURN"; do
+  grep -q "DNS:$h" <<<"$san" && ok "$h — имя в сертификате" || bad "$h" "имени нет в SAN сертификата"
+done
+c=$(code "https://$MEET/"); case "$c" in
+  200) ok "$MEET отвечает 200";;
+  403) bad "$MEET" "403 — запрос пришёл не с разрешённого адреса (проверка запускается с dev-бокса)";;
+  *)   bad "$MEET" "ответ $c — стек видео не поднят или nginx на него не смотрит";;
+esac
+# STUN binding request: пять нулевых байт длины и cookie 0x2112A442. Ответ доказывает, что coturn
+# слушает и отвечает, чего HTTP-проверкой на этом порту не увидеть.
+if command -v stunclient >/dev/null 2>&1; then
+  stunclient "$TURN" 3478 >/dev/null 2>&1 && ok "$TURN отвечает на STUN" || bad "$TURN" "STUN без ответа"
+else
+  printf '  · %s: STUN не проверен (нет stunclient); поставить `apt-get install stuntman-client`\n' "$TURN"
+fi
 
 section "Старый прод не задет"
 ip=$(dig +short A "$OLD" @8.8.8.8 | head -1)
