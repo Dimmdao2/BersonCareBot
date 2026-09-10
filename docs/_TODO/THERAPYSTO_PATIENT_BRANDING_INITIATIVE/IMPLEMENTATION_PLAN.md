@@ -903,8 +903,11 @@ identity seam, а не набор getters.
 - [ ] `B2` Защитить вычисленный effective hostname от дубля и повторного назначения другой организации.
   Существующий partial unique index на `org_custom_domain_hostname` доказывает только уникальность сохранённой
   строки запроса; для self-service lifecycle нужен server-owned binding с immutable `organization_id`, global
-  uniqueness, readiness и quarantine. Доказательство: DB constraint/procedure tests и попытки cross-org claim,
-  rename, disable и повторного claim до/после карантина.
+  uniqueness, readiness и quarantine. Quarantined hostname остаётся недоступным другой организации (включая
+  tombstone с `organization_id IS NULL`), но его immutable исходная организация может вернуть exact derived
+  hostname через тот же staff intent door в `pending`; `organization_id` при этом не переписывается.
+  Доказательство: DB constraint/procedure tests и попытки cross-org claim, rename, disable и повторного claim
+  до/после карантина.
 - [ ] `B3` Реализовать один `RequestSurfaceResolver` и подключить к существующему request choke point. Результат
   резолва переиспользуется routing, metadata/manifest и absolute links. **Установка приложения (манифест,
   иконки, `start_url`) идёт из этого же резолва по Host** — решение владельца 22.08.2026, см. §1.3.
