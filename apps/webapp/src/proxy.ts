@@ -27,6 +27,7 @@ import {
 } from '@/middleware/platformContext';
 import { decideCsrfOrigin } from '@/middleware/csrfOrigin';
 import { canSurfaceEnterRoute, patientTreeRewritePath } from '@/config/surfaceRoutes';
+import { PATIENT_DEFAULT_SURFACE } from '@/config/productSurfaces';
 import {
   arePlatformSurfaceHostsDistinct,
   RESOLVED_SURFACE_HEADER,
@@ -46,6 +47,38 @@ const SURFACE_NOT_FOUND_BODY =
   '<p>Возможно, ссылка устарела или открыта не на том сайте — попросите отправить её заново.</p>' +
   '</body></html>';
 
+
+/**
+ * Куда отправить человека, открывшего ССЫЛКУ ПРИГЛАШЕНИЯ не на том сайте.
+ *
+ * Владелец 10.09: «надо не пустой 404, а сообщение, надо перенаправлять или там что?.. либо
+ * перенаправлять просто на терапиго». Сообщение уже есть — `SURFACE_NOT_FOUND_BODY`. Здесь вторая
+ * половина, и она сознательно накрывает ТОЛЬКО `/join/**`.
+ *
+ * Почему только приглашение, а не всякий промах хостом. Жёсткий `404` на чужом и на неопознанном
+ * хосте — не косметика, а решение B4a/B5/B6: неизвестный Host не получает НИКАКОГО ската на
+ * платформу, и адреса одной поверхности не подтверждаются с другой. Ломать это ради удобства
+ * нельзя. Но приглашение стоит особняком: ссылку человеку выдала клиника, он её не составлял, и
+ * тупик стоит ему доступа к кабинету. Секрета в ответе не появляется — continuation и так у него в
+ * руках, а поверхность назначения ровно одна: `/join` объявлен пациентским
+ * (`SURFACE_ROUTE_RULES`), поэтому цель — общий пациентский вход, а не догадка по Host.
+ *
+ * Отдельно про носитель: у `/join/start` он живёт во ФРАГМЕНТЕ ссылки, а фрагмент браузер переносит
+ * через редирект сам — переход доводится до конца, а не обрывается.
+ *
+ * Чего этот шов НЕ делает: не редиректит не-GET (клиент ждёт ответ, а не навигацию) и не уводит с
+ * самого пациентского хоста — там `404` на `/join/**` означает промах в самом адресе, а не в хосте.
+ */
+function inviteRedirectTarget(request: NextRequest, routedPathname: string): URL | null {
+  if (request.method !== 'GET' && request.method !== 'HEAD') return null;
+  if (routedPathname !== '/join' && !routedPathname.startsWith('/join/')) return null;
+  const target = new URL(
+    `${routedPathname}${request.nextUrl.search}`,
+    PATIENT_DEFAULT_SURFACE.origin,
+  );
+  // Уже на этом origin — значит промах не в хосте, и редирект был бы петлёй.
+  return target.origin === request.nextUrl.origin ? null : target;
+}
 
 function rebaseRedirectToPublicOrigin(response: NextResponse, publicOrigin: string): void {
   const location = response.headers.get('location');
@@ -104,6 +137,15 @@ export async function proxy(
     // получил «Хотите загрузить файл „start“?» вместо страницы приглашения. Что здесь показано,
     // сознательно не зависит от поверхности: этот ответ отдаётся ДО опознания арендатора, и
     // говорить, какие адреса на этом хосте существуют, он не должен.
+    const elsewhere = inviteRedirectTarget(request, routedPathname);
+    if (elsewhere) {
+      // 307, а не 308: путь может появиться на этом хосте позже, и запомненный браузером навсегда
+      // редирект пришлось бы потом выковыривать у каждого пользователя.
+      const redirect = NextResponse.redirect(elsewhere, 307);
+      redirect.headers.set('Cache-Control', 'no-store');
+      redirect.headers.set(BC_CORRELATION_ID_HEADER, correlationId);
+      return redirect;
+    }
     const response = new NextResponse(SURFACE_NOT_FOUND_BODY, {
       status: 404,
       headers: { 'Content-Type': 'text/html; charset=utf-8' },

@@ -1286,3 +1286,82 @@ describe('B4a: адрес клиники на нашем поддомене жи
     expect(middlewareRequestSurface(response)?.surface).toBe('patient_branded');
   });
 });
+
+/**
+ * Ссылка приглашения, открытая не на том сайте, доводит человека до конца, а не в тупик.
+ *
+ * Владелец 10.09, дословно: «надо не пустой 404, а сообщение, надо перенаправлять или там что?..
+ * либо перенаправлять просто на терапиго». Он открыл `/join/start#<носитель>` на хосте
+ * специалистов и получил тупик — а ссылку ему выдала клиника, и он её не составлял.
+ *
+ * ЧТО ЛОМАЕТСЯ БЕЗ ЭТОГО ФАЙЛА, если перепутать масштаб: с одной стороны — приглашение снова
+ * упирается в `404` и человек теряет доступ к кабинету; с другой — соблазн увести на пациентский
+ * вход ЛЮБОЙ промах хостом, а это отменило бы решение `B4a`/`B5`/`B6` («неизвестный Host не
+ * получает никакого ската на платформу»). Поэтому здесь проверяется и то, что редирект есть у
+ * `/join/**`, и то, что его НЕТ ни у API, ни у не-GET, ни у соседних поверхностей.
+ */
+describe('ссылка приглашения на чужом хосте уезжает на пациентский вход', () => {
+  const CONTINUATION = `/join/${'c'.repeat(43)}`;
+
+  it('с хоста специалистов уводит на пациентский, сохраняя путь и запрос', async () => {
+    const runtime = await loadProxyForSurfaceConfiguration(PLATFORM_SURFACE_CONFIGURATIONS[1]);
+
+    const response = await runtime.proxy(
+      requestFor(runtime.staffOrigin, `${CONTINUATION}?utm=letter`),
+    );
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get('location')).toBe(
+      new URL(`${CONTINUATION}?utm=letter`, runtime.patientOrigin).toString(),
+    );
+    expect(response.headers.get('cache-control')).toBe('no-store');
+  });
+
+  it('с неопознанного хоста уводит туда же — это единственный адрес, который поможет', async () => {
+    const runtime = await loadProxyForSurfaceConfiguration(PLATFORM_SURFACE_CONFIGURATIONS[1]);
+
+    const response = await runtime.proxy(
+      requestFor(new URL('https://untrusted.example'), '/join/start'),
+    );
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get('location')).toBe(
+      new URL('/join/start', runtime.patientOrigin).toString(),
+    );
+  });
+
+  it('на самом пациентском хосте приглашение открывается, а не редиректится по кругу', async () => {
+    const runtime = await loadProxyForSurfaceConfiguration(PLATFORM_SURFACE_CONFIGURATIONS[1]);
+
+    const response = await runtime.proxy(requestFor(runtime.patientOrigin, CONTINUATION));
+
+    expect(response.status).toBe(200);
+  });
+
+  it('не-GET остаётся честным 404: клиент ждёт ответ, а не навигацию', async () => {
+    const runtime = await loadProxyForSurfaceConfiguration(PLATFORM_SURFACE_CONFIGURATIONS[1]);
+
+    const response = await runtime.proxy(
+      requestFor(runtime.staffOrigin, CONTINUATION, { method: 'POST' }),
+    );
+
+    expect(response.status).toBe(404);
+  });
+
+  it('двери `/api/join/**` не редиректятся — ответ читает код, а не человек', async () => {
+    const runtime = await loadProxyForSurfaceConfiguration(PLATFORM_SURFACE_CONFIGURATIONS[1]);
+
+    const response = await runtime.proxy(requestFor(runtime.staffOrigin, '/api/join/email/start'));
+
+    expect(response.status).not.toBe(307);
+    expect(response.headers.get('location')).toBeNull();
+  });
+
+  it('соседние пациентские адреса на чужом хосте по-прежнему hard-404 (решение B5)', async () => {
+    const runtime = await loadProxyForSurfaceConfiguration(PLATFORM_SURFACE_CONFIGURATIONS[1]);
+
+    const response = await runtime.proxy(requestFor(runtime.staffOrigin, '/app/patient/login'));
+
+    expect(response.status).toBe(404);
+  });
+});
