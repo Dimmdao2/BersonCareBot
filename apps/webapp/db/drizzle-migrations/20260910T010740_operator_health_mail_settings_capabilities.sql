@@ -5,7 +5,7 @@
 -- P5 scheduler-only capabilities. The generic scheduler relation context is the accepted caller
 -- contract of the already-shipped integrator consumer; the fixed keys keep restricted values out
 -- of the route-visible probe-config accessor and out of direct system_settings access.
-CREATE FUNCTION app.read_operator_health_imap_setting()
+CREATE OR REPLACE FUNCTION app.read_operator_health_imap_setting()
 RETURNS jsonb
 LANGUAGE sql
 STABLE
@@ -30,7 +30,7 @@ $function$;
 -- BCB-MIGRATION-OWNER: app_seam_settings_integrator_owner
 -- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: sql
-CREATE FUNCTION app.read_operator_health_smtp_outbound_setting(p_audience text)
+CREATE OR REPLACE FUNCTION app.read_operator_health_smtp_outbound_setting(p_audience text)
 RETURNS jsonb
 LANGUAGE sql
 STABLE
