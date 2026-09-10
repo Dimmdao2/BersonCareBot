@@ -29,6 +29,18 @@
 # port/volume/image digest is needed.
 services:
   web:
+    # Образы jitsi построены на s6-overlay: контейнер стартует под root, s6-overlay-suexec сбрасывает
+    # привилегии на служебного пользователя, и только ПОСЛЕ этого поднимается сам сервис. Смена
+    # пользователя — это setuid, а демон docker на новом проде запущен с "no-new-privileges": true
+    # (/etc/docker/daemon.json, общесистемное усиление). Под ним suexec падает, процесс остаётся под
+    # непривилегированным пользователем образа и не может писать в /run, который апстрим монтирует
+    # tmpfs с режимом 1750, — контейнер уходит в бесконечный рестарт с «cannot create /run/test of
+    # writability». Флаг здесь ВОЗВРАЩАЕТ этим четырём контейнерам обычное поведение docker, а не
+    # выдаёт им новых прав: capabilities не добавляются, привилегированного режима нет, а сам s6
+    # использует setuid только чтобы права ПОНИЗИТЬ. coturn ниже в исключении не нуждается — он
+    # запускается сразу под нужным UID и s6 не использует.
+    security_opt:
+      - "no-new-privileges:false"
     # Verified against the pinned tag's own nginx template
     # (web/rootfs/defaults/default in jitsi/docker-jitsi-meet@stable-11146-2): with DISABLE_HTTPS=1 the
     # container's nginx only ever opens a plain-HTTP `listen 8000` server block — the `listen 8443 ssl`
@@ -44,6 +56,18 @@ services:
       - ./config/web/custom-interface_config.js:/config/custom-interface_config.js:ro
 
   prosody:
+    # Образы jitsi построены на s6-overlay: контейнер стартует под root, s6-overlay-suexec сбрасывает
+    # привилегии на служебного пользователя, и только ПОСЛЕ этого поднимается сам сервис. Смена
+    # пользователя — это setuid, а демон docker на новом проде запущен с "no-new-privileges": true
+    # (/etc/docker/daemon.json, общесистемное усиление). Под ним suexec падает, процесс остаётся под
+    # непривилегированным пользователем образа и не может писать в /run, который апстрим монтирует
+    # tmpfs с режимом 1750, — контейнер уходит в бесконечный рестарт с «cannot create /run/test of
+    # writability». Флаг здесь ВОЗВРАЩАЕТ этим четырём контейнерам обычное поведение docker, а не
+    # выдаёт им новых прав: capabilities не добавляются, привилегированного режима нет, а сам s6
+    # использует setuid только чтобы права ПОНИЗИТЬ. coturn ниже в исключении не нуждается — он
+    # запускается сразу под нужным UID и s6 не использует.
+    security_opt:
+      - "no-new-privileges:false"
     image: "ghcr.io/jitsi/prosody:${JITSI_RELEASE_TAG}@sha256:9e341b10134d947e49ca338b9efe8d70ac9d6e8d89d621da2246dfa79fe50363"
     # Browser clients must keep receiving the public TURN hostname. Only the
     # Prosody container resolves that name to this compose network's explicit
@@ -61,6 +85,18 @@ services:
     extra_hosts:
       - "${TURN_HOST}:${JITSI_DOCKER_GATEWAY:-172.30.110.1}"
   jicofo:
+    # Образы jitsi построены на s6-overlay: контейнер стартует под root, s6-overlay-suexec сбрасывает
+    # привилегии на служебного пользователя, и только ПОСЛЕ этого поднимается сам сервис. Смена
+    # пользователя — это setuid, а демон docker на новом проде запущен с "no-new-privileges": true
+    # (/etc/docker/daemon.json, общесистемное усиление). Под ним suexec падает, процесс остаётся под
+    # непривилегированным пользователем образа и не может писать в /run, который апстрим монтирует
+    # tmpfs с режимом 1750, — контейнер уходит в бесконечный рестарт с «cannot create /run/test of
+    # writability». Флаг здесь ВОЗВРАЩАЕТ этим четырём контейнерам обычное поведение docker, а не
+    # выдаёт им новых прав: capabilities не добавляются, привилегированного режима нет, а сам s6
+    # использует setuid только чтобы права ПОНИЗИТЬ. coturn ниже в исключении не нуждается — он
+    # запускается сразу под нужным UID и s6 не использует.
+    security_opt:
+      - "no-new-privileges:false"
     image: "ghcr.io/jitsi/jicofo:${JITSI_RELEASE_TAG}@sha256:a8d64e46eaa340751a2b5530a4abd4175adf05bff07e9775fc48daae6364cfe9"
     # No public port — Jicofo only talks to Prosody/JVB over the internal bridge network. `!override`
     # (Compose Specification merge tag), not a plain `[]`: compose merges sequences by *appending* across
@@ -69,6 +105,18 @@ services:
     ports: !override []
 
   jvb:
+    # Образы jitsi построены на s6-overlay: контейнер стартует под root, s6-overlay-suexec сбрасывает
+    # привилегии на служебного пользователя, и только ПОСЛЕ этого поднимается сам сервис. Смена
+    # пользователя — это setuid, а демон docker на новом проде запущен с "no-new-privileges": true
+    # (/etc/docker/daemon.json, общесистемное усиление). Под ним suexec падает, процесс остаётся под
+    # непривилегированным пользователем образа и не может писать в /run, который апстрим монтирует
+    # tmpfs с режимом 1750, — контейнер уходит в бесконечный рестарт с «cannot create /run/test of
+    # writability». Флаг здесь ВОЗВРАЩАЕТ этим четырём контейнерам обычное поведение docker, а не
+    # выдаёт им новых прав: capabilities не добавляются, привилегированного режима нет, а сам s6
+    # использует setuid только чтобы права ПОНИЗИТЬ. coturn ниже в исключении не нуждается — он
+    # запускается сразу под нужным UID и s6 не использует.
+    security_opt:
+      - "no-new-privileges:false"
     image: "ghcr.io/jitsi/jvb:${JITSI_RELEASE_TAG}@sha256:d7dc646d21af07530ae6acf1ace23ea4782445d0362004621a32a5a632a964e9"
     # UDP media stays public (ICE candidates must be directly reachable). The internal Colibri REST API
     # (COLIBRI_REST_ENABLED=1, see env/jitsi-{test,prod}.env.example) IS turned on here, but upstream's own base
