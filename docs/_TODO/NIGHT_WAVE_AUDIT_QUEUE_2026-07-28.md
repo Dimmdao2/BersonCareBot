@@ -4,6 +4,8 @@
 > задач. Упомянутые `runs/briefs/**`, `runs/integrator-cleanup/**` и raw logs удалены из checkout; их содержимое
 > доступно в Git history. Текущую работу определяют taskdb и планы из `docs/CURRENT_AUTHORITY_MAP.md`.
 
+<!-- in-flight gate registration: candidate 83a491301; independent FAIL audit 09831fbcf; correction aec8cbf00; independent PASS audit d7c1a2d07 (MIG-P5-01). The complete audit artifact lands with the corrected candidate branch. -->
+
 # Очередь независимого аудита ночной волны 28.07
 
 ## TherapyGo + Therapysto mobile #915 — 09.09
@@ -72,6 +74,8 @@
 | слой | коммит | вердикт |
 |---|---|---|
 | Настройка и независимая desktop/mobile-приёмка | product `062eb52eb`, acceptance `b48ae835a`, live audit `a6a3dfe83`, queue registration `c01e44176` (`wt/branding-domain-ui-20260907`) | **INDEPENDENT LIVE-VIEW PASS — FOR LAND.** На изолированном candidate `58cdd83c1` владелец клиники видит существующую карточку собственного домена с выбором корневого домена или `app.`; desktop `1440×1100` и mobile `390×844` без обрезки и горизонтального переполнения. Route-acceptance подтверждает, что управляемая браузером метка поддомена не проходит в каноническую запись. Данные клиники, DNS, TLS, TEST и PROD не менялись; общий `:5200` не затронут. Артефакт: `docs/_TODO/THERAPYSTO_PATIENT_BRANDING_INITIATIVE/AUDIT_CUSTOM_DOMAIN_UI_2026-09-07.md`. |
+| Понятная настройка и наблюдаемая перепроверка домена | candidate `ae8276d4f`, identical cherry-pick `b768a10e3`, independent audit `1729851fa` (`wt/domain-settings-feedback-20260910`) | **PASS — LAND-READY FOR LATER LIVE BROWSER ACCEPTANCE.** Клиент отправляет только базовый домен и выбранное размещение; server-owned вычисление `app.`, entitlement, uniqueness, lifecycle и переходы не обходятся. Preview различает введённую основу и итоговый hostname, ошибки API/сети/JSON остаются пользовательскими, повторная проверка всегда даёт видимый результат, сохранённые DNS/TLS/routing/runtime причины объясняются без выдуманной готовности. `git diff --check bf8fcee15 ae8276d4f` PASS; UI/DOM-тесты и live-claim отсутствуют по §10a. |
+| Решение владельца по DNS поддомена | plan `845720d36` (`wt/custom-domain-dns-alternatives-20260910`) | **OWNER DECISION RECORDED.** Для вычисленного `app.<домен>` платформа принимает либо точную A-запись на edge IP, либо точную CNAME-запись на канонический target; достаточно одного рабочего варианта. TEST временно остаётся на nginx/Certbot, новый PROD Caddy проверяется отдельно. Это authority-запись, не audit verdict продуктового кода. |
 
 ## Patient absolute links #787 — 07.09
 
