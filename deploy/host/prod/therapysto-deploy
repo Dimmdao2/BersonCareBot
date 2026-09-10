@@ -74,6 +74,22 @@ else
   say "using existing image $IMAGE"
 fi
 
+# ---------------------------------------------------------------- schema
+# Схема догоняет выкладываемый коммит ДО того, как на нём запустится новый цвет. Иначе рантайм
+# обращается к таблицам, которых в базе нет, — а blue/green на общей базе не спасает: старый цвет
+# тоже видит одну и ту же схему. Шаг стоит после сборки и до старта: если миграции не прошли,
+# переключения не будет и текущий цвет продолжает обслуживать.
+#
+# Пропустить его можно только явно, и это не «быстрый деплой», а признание, что коммит миграций не
+# несёт: THERAPYSTO_SKIP_MIGRATIONS=1. Автоматика этого флага не ставит.
+if [ "${THERAPYSTO_SKIP_MIGRATIONS:-0}" = 1 ]; then
+  warn "миграции пропущены по THERAPYSTO_SKIP_MIGRATIONS=1"
+else
+  say "applying migrations and reconciling privileges for $COMMIT"
+  bash "$THERAPYSTO_SRC/deploy/host/prod/migrate-prod.sh" ||
+    die "schema/privileges did not reach $COMMIT — $ACTIVE is still live and untouched"
+fi
+
 # ---------------------------------------------------------------- gate
 export THERAPYSTO_IMAGE="$IMAGE"
 start_colour_frontends "$TARGET" "$IMAGE"
