@@ -342,8 +342,9 @@ function RecommendationsContent({
         keyExtractor={(r) => r.id}
         containerClassName="h-full min-h-0"
         gridClassName="gap-0 p-0"
-        renderItem={(r) => (
+        renderItem={(r, index) => (
           <DoctorCatalogMasterListRow
+            first={index === 0}
             active={opts.activeId === r.id}
             onPick={() => opts.onRowSelect(r.id)}
             previewInner={mediaThumbRow(r)}

@@ -256,8 +256,9 @@ function ExercisesContent({
         keyExtractor={(ex) => ex.id}
         containerClassName="h-full min-h-0"
         gridClassName="gap-0 p-0"
-        renderItem={(ex) => (
+        renderItem={(ex, index) => (
           <DoctorCatalogMasterListRow
+            first={index === 0}
             active={opts.activeId === ex.id}
             onPick={() => opts.onRowSelect(ex.id)}
             previewInner={mediaNode(ex)}

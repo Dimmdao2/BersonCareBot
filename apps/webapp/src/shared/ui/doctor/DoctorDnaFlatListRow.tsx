@@ -40,14 +40,14 @@ export function DoctorDnaFlatList({ className, ...props }: ComponentProps<'ul'>)
 export const doctorDnaFlatListInsetClass = 'mx-[var(--doctor-block-padding,18px)]';
 
 /**
- * `justify-start` стоит здесь намеренно и убирать его нельзя. Половина каталогов рендерит строку списка не на
- * `<li>`, а на `<Button>`/`<Link>` внутри него, а базовый класс кнопки несёт `justify-center`
- * (`shared/ui/primitives/button-variants.ts`). Конкурирующей утилиты в классе строки не было, поэтому
- * `justify-center` доживал до экрана: содержимое вставало по центру, миниатюры начинались с разного места в
- * зависимости от длины заголовка, а левый отступ `--doctor-list-inline-padding` переставал читаться как
- * отступ. Так выглядели списки упражнений, рекомендаций и клинических тестов до 11.09.
+ * Раскладку по горизонтали этот класс НЕ задаёт намеренно: половина потребителей ставит `justify-between`
+ * (биллинг, команда, KPI-строки «Сегодня»), и утилита, вписанная сюда, их перебивает — в Tailwind при двух
+ * утилитах одного свойства выигрывает порядок в сгенерированной таблице стилей, а не порядок в атрибуте
+ * `class`. Строка, которая рендерится на `<Button>` и потому наследует `justify-center` из
+ * `shared/ui/primitives/button-variants.ts`, гасит его у себя сама — так сделано в
+ * `DoctorCatalogMasterListRow`.
  */
-export const doctorDnaFlatListRowClass = `relative flex items-center justify-start gap-3 border-x-0 border-b-0 border-t-0 px-[var(--doctor-list-inline-padding,18px)] py-2.5 ${doctorPrimaryListTextClass}`;
+export const doctorDnaFlatListRowClass = `relative flex items-center gap-3 border-x-0 border-b-0 border-t-0 px-[var(--doctor-list-inline-padding,18px)] py-2.5 ${doctorPrimaryListTextClass}`;
 
 /** A non-interactive canonical flat-list row; links and buttons keep their native semantics. */
 export function DoctorDnaFlatListRow({ className, ...props }: ComponentProps<'li'>) {

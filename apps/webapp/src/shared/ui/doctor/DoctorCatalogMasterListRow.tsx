@@ -21,6 +21,14 @@ export type DoctorCatalogMasterListRowProps = {
   meta: ReactNode;
   /** Компактная отметка состояния справа. */
   badge: ReactNode;
+  /**
+   * Первая строка списка — у неё разделителя сверху нет. Разделитель висит именно сверху и именно по
+   * порядковому номеру, потому что список виртуализован: каждая строка живёт в собственной абсолютно
+   * позиционированной обёртке и является в ней единственным ребёнком, поэтому `last:`/`first:` совпадают
+   * ВСЕГДА и молча стирают все разделители до единого. До 11.09 здесь стоял `last:border-b-0`, и списки
+   * комплексов, наборов тестов, шаблонов программ и трёх каталогов шли вообще без линий между строками.
+   */
+  first?: boolean;
 };
 
 /**
@@ -33,9 +41,15 @@ export function DoctorCatalogMasterListRow({
   title,
   meta,
   badge,
+  first = false,
 }: DoctorCatalogMasterListRowProps) {
   return (
-    <div className="border-b border-[var(--doctor-flat-list-divider,#f0efeb)] last:border-b-0">
+    <div
+      className={cn(
+        'border-t border-[var(--doctor-flat-list-divider,#f0efeb)]',
+        first && 'border-t-0',
+      )}
+    >
       <Button
         type="button"
         variant="ghost"
@@ -43,7 +57,9 @@ export function DoctorCatalogMasterListRow({
         className={cn(
           doctorDnaFlatListRowClass,
           doctorDnaFlatListClickableClass,
-          'h-auto min-h-0 w-full rounded-none bg-transparent text-left shadow-none',
+          // `justify-start` гасит `justify-center` из базового класса кнопки: без него содержимое вставало
+          // по центру и миниатюры начинались с разного места в зависимости от длины заголовка.
+          'h-auto min-h-0 w-full justify-start rounded-none bg-transparent text-left shadow-none',
         )}
       >
         {active ? <DoctorDnaFlatListSelectionStrip /> : null}

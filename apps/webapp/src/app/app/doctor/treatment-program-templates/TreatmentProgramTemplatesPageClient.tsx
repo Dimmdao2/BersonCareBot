@@ -289,11 +289,12 @@ function TreatmentProgramTemplatesContent({
         keyExtractor={(t) => t.id}
         containerClassName="h-full min-h-0"
         gridClassName="gap-0 p-0"
-        renderItem={(t) => {
+        renderItem={(t, index) => {
           const active = activeId === t.id;
           const counts = templateListCountsText(t.stageCount, t.itemCount);
           return (
             <DoctorCatalogMasterListRow
+              first={index === 0}
               active={active}
               onPick={() => onPick(t)}
               previewInner={

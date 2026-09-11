@@ -298,8 +298,9 @@ function ClinicalTestsContent({
         keyExtractor={(t) => t.id}
         containerClassName="h-full min-h-0"
         gridClassName="gap-0 p-0"
-        renderItem={(t) => (
+        renderItem={(t, index) => (
           <DoctorCatalogMasterListRow
+            first={index === 0}
             active={opts.activeId === t.id}
             onPick={() => opts.onRowSelect(t.id)}
             previewInner={mediaThumbRow(t)}
