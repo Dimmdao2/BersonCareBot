@@ -8,6 +8,9 @@ import { requireClinicManagementBookingEngine } from '../../_requireClinicManage
 const PatchSchema = z.object({
   fullName: z.string().min(1).max(200).optional(),
   description: z.union([z.string().max(2000), z.null()]).optional(),
+  avatarMediaId: z.union([z.string().uuid(), z.null()]).optional(),
+  fullDescriptionMarkdown: z.union([z.string().max(50_000), z.null()]).optional(),
+  cardIsPublished: z.boolean().optional(),
   isActive: z.boolean().optional(),
   sortOrder: z.number().int().optional(),
 });
@@ -36,8 +39,20 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
         organizationId: existing.organizationId,
         id,
         fullName: parsed.data.fullName ?? existing.fullName,
+        // Каждое НЕназванное поле обязано приехать из уже сохранённой строки: запись идёт целиком,
+        // и пропущенное здесь поле молча обнулилось бы при любой частичной правке — например при
+        // перетаскивании порядка, где приходит один `sortOrder`.
         description:
           parsed.data.description !== undefined ? parsed.data.description : existing.description,
+        avatarMediaId:
+          parsed.data.avatarMediaId !== undefined
+            ? parsed.data.avatarMediaId
+            : existing.avatarMediaId,
+        fullDescriptionMarkdown:
+          parsed.data.fullDescriptionMarkdown !== undefined
+            ? parsed.data.fullDescriptionMarkdown
+            : existing.fullDescriptionMarkdown,
+        cardIsPublished: parsed.data.cardIsPublished ?? existing.cardIsPublished,
         isActive: parsed.data.isActive ?? existing.isActive,
         sortOrder: parsed.data.sortOrder ?? existing.sortOrder,
       }),

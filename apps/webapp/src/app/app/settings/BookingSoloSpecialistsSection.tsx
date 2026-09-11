@@ -17,6 +17,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Checkbox } from '@/shared/ui/doctor/primitives/checkbox';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Label } from '@/shared/ui/doctor/primitives/label';
 import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
@@ -31,8 +32,11 @@ import {
   doctorDnaFlatListPrimaryClass,
 } from '@/shared/ui/doctor/DoctorDnaFlatListRow';
 import { DoctorSortableSettingsRow } from '@/shared/ui/doctor/DoctorSortableSettingsRow';
+import { MarkdownEditor } from '@/shared/ui/doctor/markdown/MarkdownEditor';
+import { MediaPickerShell } from '@/shared/ui/doctor/media/MediaPickerShell';
+import { MediaPickerPanel } from '@/shared/ui/doctor/media/MediaPickerPanel';
+import type { MediaListItem } from '@/shared/ui/doctor/media/MediaPickerList';
 import { apiJson } from '@/app/app/settings/bookingSoloAdminApi';
-import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 const BASE = '/api/admin/booking-engine';
 
@@ -40,9 +44,54 @@ type SpecialistRow = {
   id: string;
   fullName: string;
   description: string | null;
+  avatarMediaId: string | null;
+  fullDescriptionMarkdown: string | null;
+  cardIsPublished: boolean;
   isActive: boolean;
   sortOrder: number;
 };
+
+/**
+ * Что клиника задаёт человеку (#926 §17.H, решение владельца 11.09): «короткое описание это просто
+ * текст, а подробное описание это markdown материал с возможностью вставки медиа», плюс
+ * «аватар-специалист обязательно нужно».
+ */
+type SpecialistDraft = {
+  fullName: string;
+  description: string;
+  avatarMediaId: string | null;
+  fullDescriptionMarkdown: string;
+  cardIsPublished: boolean;
+};
+
+const EMPTY_DRAFT: SpecialistDraft = {
+  fullName: '',
+  description: '',
+  avatarMediaId: null,
+  fullDescriptionMarkdown: '',
+  cardIsPublished: false,
+};
+
+function draftOf(specialist: SpecialistRow): SpecialistDraft {
+  return {
+    fullName: specialist.fullName,
+    description: specialist.description ?? '',
+    avatarMediaId: specialist.avatarMediaId,
+    fullDescriptionMarkdown: specialist.fullDescriptionMarkdown ?? '',
+    cardIsPublished: specialist.cardIsPublished,
+  };
+}
+
+/** Тело запроса на запись. Пустая строка означает «поля нет», а не пустой текст. */
+function draftBody(draft: SpecialistDraft): Record<string, unknown> {
+  return {
+    fullName: draft.fullName.trim(),
+    description: draft.description.trim() || null,
+    avatarMediaId: draft.avatarMediaId,
+    fullDescriptionMarkdown: draft.fullDescriptionMarkdown.trim() || null,
+    cardIsPublished: draft.cardIsPublished,
+  };
+}
 
 /**
  * Owner ruling 2026-09-10: a solo tariff has exactly one specialist, so its own settings tab must
@@ -55,17 +104,14 @@ export function BookingSoloSpecialistsSection({
 }: {
   variant?: 'list' | 'solo-profile';
 } = {}) {
-  const { patientGenitive } = useDoctorPatientTerms();
   const [specialists, setSpecialists] = useState<SpecialistRow[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [createOpen, setCreateOpen] = useState(false);
-  const [fullName, setFullName] = useState('');
-  const [description, setDescription] = useState('');
+  const [createDraft, setCreateDraft] = useState<SpecialistDraft>(EMPTY_DRAFT);
   const [editedSpecialist, setEditedSpecialist] = useState<SpecialistRow | null>(null);
-  const [editFullName, setEditFullName] = useState('');
-  const [editDescription, setEditDescription] = useState('');
+  const [editDraft, setEditDraft] = useState<SpecialistDraft>(EMPTY_DRAFT);
   const dndContextId = useId();
   const dndSensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -103,8 +149,7 @@ export function BookingSoloSpecialistsSection({
     if (variant !== 'solo-profile' || soloSpecialistId === null) return;
     const loaded = specialists.find((specialist) => specialist.id === soloSpecialistId);
     if (!loaded) return;
-    setEditFullName(loaded.fullName);
-    setEditDescription(loaded.description ?? '');
+    setEditDraft(draftOf(loaded));
     // `specialists` is intentionally out of the dependency list: only a changed identity reseeds.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [variant, soloSpecialistId]);
@@ -122,13 +167,8 @@ export function BookingSoloSpecialistsSection({
     });
   }
 
-  function resetCreateForm() {
-    setFullName('');
-    setDescription('');
-  }
-
   function createSpecialist() {
-    if (!fullName.trim()) return;
+    if (!createDraft.fullName.trim()) return;
     run(
       async () => {
         const maxOrder = specialists.reduce(
@@ -138,15 +178,11 @@ export function BookingSoloSpecialistsSection({
         await apiJson(`${BASE}/specialists`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            fullName: fullName.trim(),
-            description: description.trim() || null,
-            sortOrder: maxOrder + 10,
-          }),
+          body: JSON.stringify({ ...draftBody(createDraft), sortOrder: maxOrder + 10 }),
         });
       },
       () => {
-        resetCreateForm();
+        setCreateDraft(EMPTY_DRAFT);
         setCreateOpen(false);
       },
     );
@@ -155,21 +191,17 @@ export function BookingSoloSpecialistsSection({
   function openSpecialist(specialist: SpecialistRow) {
     setActionError(null);
     setEditedSpecialist(specialist);
-    setEditFullName(specialist.fullName);
-    setEditDescription(specialist.description ?? '');
+    setEditDraft(draftOf(specialist));
   }
 
   function saveEditedSpecialist() {
-    if (!editedSpecialist || !editFullName.trim()) return;
+    if (!editedSpecialist || !editDraft.fullName.trim()) return;
     run(
       () =>
         apiJson(`${BASE}/specialists/${editedSpecialist.id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            fullName: editFullName.trim(),
-            description: editDescription.trim() || null,
-          }),
+          body: JSON.stringify(draftBody(editDraft)),
         }),
       () => setEditedSpecialist(null),
     );
@@ -186,24 +218,19 @@ export function BookingSoloSpecialistsSection({
   }
 
   function saveSoloProfile() {
-    const name = editFullName.trim();
-    if (!name) return;
-    const body = JSON.stringify({ fullName: name, description: editDescription.trim() || null });
+    if (!editDraft.fullName.trim()) return;
+    const body = draftBody(editDraft);
     run(() =>
       soloSpecialist
         ? apiJson(`${BASE}/specialists/${soloSpecialist.id}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
-            body,
+            body: JSON.stringify(body),
           })
         : apiJson(`${BASE}/specialists`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              fullName: name,
-              description: editDescription.trim() || null,
-              sortOrder: 10,
-            }),
+            body: JSON.stringify({ ...body, sortOrder: 10 }),
           }),
     );
   }
@@ -250,32 +277,18 @@ export function BookingSoloSpecialistsSection({
         {loadError ? <p className="text-sm text-destructive">{loadError}</p> : null}
         {actionError ? <p className="text-sm text-destructive">{actionError}</p> : null}
 
-        <div className="flex flex-col gap-1">
-          <Label htmlFor="specialist-solo-name">ФИО</Label>
-          <Input
-            id="specialist-solo-name"
-            value={editFullName}
-            onChange={(event) => setEditFullName(event.target.value)}
-          />
-        </div>
-        <div className="flex flex-col gap-1">
-          <Label htmlFor="specialist-solo-description">Описание для {patientGenitive}</Label>
-          <Textarea
-            id="specialist-solo-description"
-            rows={4}
-            className="min-h-24 resize-y"
-            value={editDescription}
-            onChange={(event) => setEditDescription(event.target.value)}
-          />
-          <p className="text-sm text-muted-foreground">
-            Это имя и описание видят при онлайн-записи.
-          </p>
-        </div>
+        <SpecialistProfileFields
+          idPrefix="specialist-solo"
+          draft={editDraft}
+          onChange={(next) => setEditDraft((current) => ({ ...current, ...next }))}
+          disabled={pending}
+          shortDescriptionHint="Это имя и описание видят при онлайн-записи."
+        />
         <div>
           <Button
             type="button"
             size="sm"
-            disabled={pending || !editFullName.trim()}
+            disabled={pending || !editDraft.fullName.trim()}
             onClick={saveSoloProfile}
           >
             Сохранить
@@ -350,11 +363,9 @@ export function BookingSoloSpecialistsSection({
         mode="create"
         open={createOpen}
         pending={pending}
-        fullName={fullName}
-        description={description}
+        draft={createDraft}
         error={actionError}
-        onFullNameChange={setFullName}
-        onDescriptionChange={setDescription}
+        onChange={(next) => setCreateDraft((current) => ({ ...current, ...next }))}
         onClose={() => setCreateOpen(false)}
         onSubmit={createSpecialist}
       />
@@ -363,11 +374,9 @@ export function BookingSoloSpecialistsSection({
         mode="edit"
         open={editedSpecialist !== null}
         pending={pending}
-        fullName={editFullName}
-        description={editDescription}
+        draft={editDraft}
         error={actionError}
-        onFullNameChange={setEditFullName}
-        onDescriptionChange={setEditDescription}
+        onChange={(next) => setEditDraft((current) => ({ ...current, ...next }))}
         onClose={() => setEditedSpecialist(null)}
         onSubmit={saveEditedSpecialist}
       />
@@ -375,30 +384,157 @@ export function BookingSoloSpecialistsSection({
   );
 }
 
+/**
+ * Поля профиля специалиста — ОДИН блок на оба места: модалку списка клиники и профиль соло-тарифа.
+ * Две копии этой формы разошлись бы при первой же правке одной из них.
+ *
+ * Пикер медиа — тот же `MediaPickerShell`/`MediaPickerPanel`, что у визитки клиники (§20), а
+ * подробное описание — тот же `MarkdownEditor`, что стоит в семи местах кабинета: второго
+ * редактора и второго пикера здесь не заводится (§5).
+ */
+function SpecialistProfileFields({
+  idPrefix,
+  draft,
+  onChange,
+  disabled,
+  shortDescriptionHint,
+}: {
+  idPrefix: string;
+  draft: SpecialistDraft;
+  onChange: (next: Partial<SpecialistDraft>) => void;
+  disabled: boolean;
+  shortDescriptionHint?: string;
+}) {
+  const [avatarPickerOpen, setAvatarPickerOpen] = useState(false);
+
+  return (
+    <div className="flex min-h-0 flex-col gap-3">
+      <div className="flex flex-col gap-1">
+        <Label htmlFor={`${idPrefix}-name`}>ФИО</Label>
+        <Input
+          id={`${idPrefix}-name`}
+          value={draft.fullName}
+          disabled={disabled}
+          onChange={(event) => onChange({ fullName: event.target.value })}
+        />
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <Label>Фотография</Label>
+        <div className="flex flex-wrap items-center gap-2">
+          {draft.avatarMediaId ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={`/api/media/${draft.avatarMediaId}`}
+              alt=""
+              className="size-12 rounded-full object-cover"
+            />
+          ) : (
+            <div aria-hidden className="size-12 rounded-full border border-border/60 bg-muted/30" />
+          )}
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={disabled}
+            onClick={() => setAvatarPickerOpen(true)}
+          >
+            Установить
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={disabled || !draft.avatarMediaId}
+            onClick={() => onChange({ avatarMediaId: null })}
+          >
+            Очистить
+          </Button>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <Label htmlFor={`${idPrefix}-description`}>Короткое описание</Label>
+        <Textarea
+          id={`${idPrefix}-description`}
+          rows={3}
+          className="min-h-20 resize-y"
+          value={draft.description}
+          disabled={disabled}
+          onChange={(event) => onChange({ description: event.target.value })}
+        />
+        {shortDescriptionHint ? (
+          <p className="text-sm text-muted-foreground">{shortDescriptionHint}</p>
+        ) : null}
+      </div>
+
+      <div className="flex min-h-0 flex-col gap-1">
+        <MarkdownEditor
+          name={`${idPrefix}-full-description`}
+          label="Подробное описание"
+          helpText={null}
+          value={draft.fullDescriptionMarkdown}
+          disabled={disabled}
+          minHeight={180}
+          onChange={(value) => onChange({ fullDescriptionMarkdown: value })}
+        />
+      </div>
+
+      <label className="flex items-start gap-2 text-sm" htmlFor={`${idPrefix}-published`}>
+        <Checkbox
+          id={`${idPrefix}-published`}
+          checked={draft.cardIsPublished}
+          disabled={disabled}
+          onCheckedChange={(checked) => onChange({ cardIsPublished: checked === true })}
+          className="mt-0.5"
+        />
+        <span>Показывать страницу специалиста</span>
+      </label>
+
+      <MediaPickerShell
+        title="Фотография специалиста"
+        open={avatarPickerOpen}
+        onOpenChange={setAvatarPickerOpen}
+      >
+        <MediaPickerPanel
+          key={avatarPickerOpen ? 'specialist-avatar-open' : 'specialist-avatar-closed'}
+          open={avatarPickerOpen}
+          apiKind="image"
+          kind="image"
+          folderId={undefined}
+          onPick={(item: MediaListItem) => {
+            onChange({ avatarMediaId: item.id });
+            setAvatarPickerOpen(false);
+          }}
+          exercisePicker={false}
+          onPickerFolderIdChange={() => {}}
+          showSort={false}
+          showFolderScope={false}
+        />
+      </MediaPickerShell>
+    </div>
+  );
+}
+
 function SpecialistModal({
   mode,
   open,
   pending,
-  fullName,
-  description,
+  draft,
   error,
-  onFullNameChange,
-  onDescriptionChange,
+  onChange,
   onClose,
   onSubmit,
 }: {
   mode: 'create' | 'edit';
   open: boolean;
   pending: boolean;
-  fullName: string;
-  description: string;
+  draft: SpecialistDraft;
   error: string | null;
-  onFullNameChange: (value: string) => void;
-  onDescriptionChange: (value: string) => void;
+  onChange: (next: Partial<SpecialistDraft>) => void;
   onClose: () => void;
   onSubmit: () => void;
 }) {
-  const { patientGenitive } = useDoctorPatientTerms();
   const prefix = mode === 'create' ? 'specialist-create' : 'specialist-edit';
   return (
     <DoctorModal
@@ -411,33 +547,24 @@ function SpecialistModal({
           <Button type="button" size="sm" variant="outline" onClick={onClose}>
             Отмена
           </Button>
-          <Button type="button" size="sm" disabled={pending || !fullName.trim()} onClick={onSubmit}>
+          <Button
+            type="button"
+            size="sm"
+            disabled={pending || !draft.fullName.trim()}
+            onClick={onSubmit}
+          >
             {mode === 'create' ? 'Создать' : 'Сохранить'}
           </Button>
         </>
       }
     >
-      <div className="flex min-h-0 flex-col gap-3">
-        {error ? <p className="text-sm text-destructive">{error}</p> : null}
-        <div className="flex flex-col gap-1">
-          <Label htmlFor={`${prefix}-name`}>ФИО</Label>
-          <Input
-            id={`${prefix}-name`}
-            value={fullName}
-            onChange={(event) => onFullNameChange(event.target.value)}
-          />
-        </div>
-        <div className="flex min-h-0 flex-1 flex-col gap-1">
-          <Label htmlFor={`${prefix}-description`}>Описание для {patientGenitive}</Label>
-          <Textarea
-            id={`${prefix}-description`}
-            rows={4}
-            className="min-h-24 flex-1 resize-y"
-            value={description}
-            onChange={(event) => onDescriptionChange(event.target.value)}
-          />
-        </div>
-      </div>
+      {error ? <p className="mb-3 text-sm text-destructive">{error}</p> : null}
+      <SpecialistProfileFields
+        idPrefix={prefix}
+        draft={draft}
+        onChange={onChange}
+        disabled={pending}
+      />
     </DoctorModal>
   );
 }

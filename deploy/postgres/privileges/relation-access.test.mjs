@@ -549,9 +549,13 @@ test('clinic topology grants cover the exact columns emitted by Drizzle inserts'
     'public.be_specialist_rooms': [
       'created_at', 'id', 'is_active', 'organization_id', 'room_id', 'specialist_id',
     ],
+    // #926 §17.G/§17.H: аватар, полное описание и выключатель публикации специалиста. Drizzle
+    // называет КАЖДУЮ колонку в INSERT, поэтому отсутствие любой из трёх в гранте отказало бы
+    // создание специалиста целиком (42501), а не только новое поле.
     'public.be_specialists': [
       'appointment_reminder_allowed_preset_ids', 'appointment_reminder_default_preset_id',
-      'created_at', 'description', 'full_name', 'id', 'is_active', 'organization_id', 'sort_order',
+      'avatar_media_id', 'card_is_published', 'created_at', 'description',
+      'full_description_markdown', 'full_name', 'id', 'is_active', 'organization_id', 'sort_order',
       'updated_at',
     ],
     'public.be_specialist_service_availability': [

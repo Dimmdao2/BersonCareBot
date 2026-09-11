@@ -1,5 +1,9 @@
 import { notFound, permanentRedirect } from 'next/navigation';
-import { publicBookPaths, publicClinicCardPath } from '@/shared/publicBook/paths';
+import {
+  publicBookPaths,
+  publicClinicCardPath,
+  publicClinicSpecialistPath,
+} from '@/shared/publicBook/paths';
 import {
   ClinicPublicCardView,
   type ClinicPublicCardViewModel,
@@ -55,6 +59,19 @@ export default async function ClinicPublicCardPage({ params }: Props) {
       .filter((item) => item.role === 'photo')
       .map((item) => clinicCardMediaPath(card.canonicalSlug, item.id)),
     locations: card.locations,
+    // Превью специалиста (решение владельца 11.09): фотография, имя, короткая строка, переход.
+    // Аватар идёт тем же анонимным маршрутом, что логотип: он в наборе, который вернула дверь.
+    specialists: card.specialists.map((specialist) => ({
+      id: specialist.id,
+      fullName: specialist.fullName,
+      shortDescription: specialist.shortDescription,
+      avatarSrc:
+        specialist.avatarMediaId &&
+        card.media.some((item) => item.id === specialist.avatarMediaId)
+          ? clinicCardMediaPath(card.canonicalSlug, specialist.avatarMediaId)
+          : null,
+      href: publicClinicSpecialistPath(card.canonicalSlug, specialist.id),
+    })),
     publicContactPhone: card.publicContactPhone,
     publicContactEmail: card.publicContactEmail,
     publicWebsiteUrl: card.publicWebsiteUrl,

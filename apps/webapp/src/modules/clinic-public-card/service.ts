@@ -5,8 +5,15 @@ import {
   type ClinicPublicCardPort,
   type ClinicPublicCardIdentity,
   type ClinicPublicCardSettings,
+  type ClinicPublicCardSpecialist,
   type SaveClinicPublicCardInput,
 } from './ports';
+
+/** Страница специалиста всегда показывается ВМЕСТЕ с тем, чьей клиники она часть. */
+export type ClinicPublicSpecialistPage = {
+  card: ClinicPublicCard;
+  specialist: ClinicPublicCardSpecialist;
+};
 
 export type ClinicPublicCardService = {
   readPublicCard(slug: string): Promise<ClinicPublicCard | null>;
@@ -17,6 +24,17 @@ export type ClinicPublicCardService = {
    * untouched (plan §3.5).
    */
   resolvePublicCardMedia(slug: string, mediaId: string): Promise<ClinicPublicCardMedia | null>;
+  /**
+   * Один опубликованный специалист опубликованной клиники.
+   *
+   * `null` значит «здесь никого нет» сразу по всем причинам: клиники нет, её страница выключена,
+   * человека не существует, он неактивен или клиника его не публикует. Различать их наружу нельзя —
+   * иначе по форме ответа перебираются и клиники, и люди (план §3.3).
+   */
+  readPublicSpecialist(
+    slug: string,
+    specialistId: string,
+  ): Promise<ClinicPublicSpecialistPage | null>;
   readCardSettings(organizationId: string): Promise<ClinicPublicCardSettings | null>;
   readCardIdentity(organizationId: string): Promise<ClinicPublicCardIdentity | null>;
   saveCard(input: SaveClinicPublicCardInput): Promise<SaveClinicPublicCardResult>;
@@ -79,6 +97,17 @@ export function createClinicPublicCardService(
       const card = await readPublicCard(slug);
       if (!card) return null;
       return card.media.find((item) => item.id.toLowerCase() === mediaId.toLowerCase()) ?? null;
+    },
+
+    async readPublicSpecialist(slug, specialistId) {
+      if (!UUID_PATTERN.test(specialistId)) return null;
+      const card = await readPublicCard(slug);
+      if (!card) return null;
+      const specialist =
+        card.specialists.find(
+          (person) => person.id.toLowerCase() === specialistId.toLowerCase(),
+        ) ?? null;
+      return specialist ? { card, specialist } : null;
     },
 
     async readCardSettings(organizationId) {

@@ -5,8 +5,10 @@ import type {
   ClinicPublicCard,
   ClinicPublicCardLocation,
   ClinicPublicCardMedia,
+  ClinicPublicCardMediaRole,
   ClinicPublicCardPort,
   ClinicPublicCardSettings,
+  ClinicPublicCardSpecialist,
 } from '@/modules/clinic-public-card/ports';
 import { clinicPublicDirectoryEntries } from '../../../db/schema';
 
@@ -20,6 +22,7 @@ type CardRow = {
   publicContactEmail?: unknown;
   publicWebsiteUrl?: unknown;
   locations?: unknown;
+  specialists?: unknown;
   media?: unknown;
 };
 
@@ -38,6 +41,17 @@ function mapLocations(value: unknown): ClinicPublicCardLocation[] {
   });
 }
 
+const MEDIA_ROLES: readonly ClinicPublicCardMediaRole[] = [
+  'logo',
+  'photo',
+  'specialistAvatar',
+  'specialistDescription',
+];
+
+function mediaRole(value: unknown): ClinicPublicCardMediaRole | null {
+  return MEDIA_ROLES.find((role) => role === value) ?? null;
+}
+
 function mapMedia(value: unknown): ClinicPublicCardMedia[] {
   if (!Array.isArray(value)) return [];
   return value.flatMap((item) => {
@@ -45,9 +59,29 @@ function mapMedia(value: unknown): ClinicPublicCardMedia[] {
     const row = item as Record<string, unknown>;
     const id = text(row.id);
     const mimeType = text(row.mimeType);
-    const role = row.role === 'logo' ? 'logo' : row.role === 'photo' ? 'photo' : null;
+    const role = mediaRole(row.role);
     if (!id || !mimeType || !role) return [];
     return [{ id, role, mimeType, s3Key: text(row.s3Key), storedPath: text(row.storedPath) }];
+  });
+}
+
+function mapSpecialists(value: unknown): ClinicPublicCardSpecialist[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    if (typeof item !== 'object' || item === null) return [];
+    const row = item as Record<string, unknown>;
+    const id = text(row.id);
+    const fullName = text(row.fullName);
+    if (!id || !fullName) return [];
+    return [
+      {
+        id,
+        fullName,
+        shortDescription: text(row.shortDescription),
+        fullDescriptionMarkdown: text(row.fullDescriptionMarkdown),
+        avatarMediaId: text(row.avatarMediaId),
+      },
+    ];
   });
 }
 
@@ -87,6 +121,7 @@ export function createPgClinicPublicCardPort(): ClinicPublicCardPort {
         publicContactEmail: text(card.publicContactEmail),
         publicWebsiteUrl: text(card.publicWebsiteUrl),
         locations: mapLocations(card.locations),
+        specialists: mapSpecialists(card.specialists),
         media: mapMedia(card.media),
       };
     },
