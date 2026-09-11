@@ -53,7 +53,6 @@ function buildCatalogService() {
     listSpecialistServiceAvailability: vi.fn(),
     deactivateSpecialistServiceAvailability: vi.fn(),
     listServiceDoerIntersections: vi.fn(async () => []),
-    ensureSoloServiceCoverage: vi.fn(async () => 0),
     getAppointment: vi.fn(),
     listAppointmentsByChainId: vi.fn(),
     getStatusBeforePackageCharge: vi.fn(),

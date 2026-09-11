@@ -28,22 +28,13 @@ function byCodeUnit(left: string, right: string): number {
 }
 
 /**
- * Почему строка не уйдёт на публичную страницу; `null` — уйдёт. Это ПОМЕТКА для клиники, а не
- * отбор: строка показывается в любом случае.
+ * Подписей «выключено — наружу не идёт» здесь НЕТ: владелец 11.09 их снял дословно — «Нахуя нам
+ * подпись про то, что она не показывается на публичной странице?.. Она выключена, всё». Состояние
+ * видно по самому выключателю рядом, вторая его запись строкой — шум.
  */
-export type CabinetPreviewHiddenNote = string | null;
+export type ClinicPublicCardLocationPreview = ClinicPublicCardLocation;
 
-/**
- * Кабинетные типы РАСШИРЯЮТ публичные проекции, а не правят их: `hiddenNote` — кабинетное поле, и
- * в публичный ответ двери оно не попадает никогда (§3.2).
- */
-export type ClinicPublicCardLocationPreview = ClinicPublicCardLocation & {
-  hiddenNote: CabinetPreviewHiddenNote;
-};
-
-export type ClinicPublicCardServicePreview = ClinicPublicCardServiceItem & {
-  hiddenNote: CabinetPreviewHiddenNote;
-};
+export type ClinicPublicCardServicePreview = ClinicPublicCardServiceItem;
 
 /** Ровно то, что показывает превью специалиста на визитке: фотография, имя, короткая строка. */
 export type ClinicPublicCardSpecialistPreview = {
@@ -51,7 +42,6 @@ export type ClinicPublicCardSpecialistPreview = {
   fullName: string;
   shortDescription: string | null;
   avatarMediaId: string | null;
-  hiddenNote: CabinetPreviewHiddenNote;
 };
 
 /** Строка специалиста, как её отдаёт кабинетный каталог (`bookingEngine.catalog.listSpecialists`). */
@@ -86,7 +76,7 @@ export type PreviewBranchRow = {
   sortOrder: number;
 };
 
-/** Все специалисты клиники, порядком двери. Невыходящие наружу помечены, но показаны. */
+/** Все специалисты клиники, порядком двери. Кабинет показывает все, ничего не пряча. */
 export function listCardSpecialistsForPreview(
   rows: readonly PreviewSpecialistRow[],
 ): ClinicPublicCardSpecialistPreview[] {
@@ -97,15 +87,10 @@ export function listCardSpecialistsForPreview(
       fullName: row.fullName,
       shortDescription: row.description,
       avatarMediaId: row.avatarMediaId,
-      hiddenNote: !row.isActive
-        ? 'выключен — на публичной странице не показывается'
-        : !row.cardIsPublished
-          ? 'визитка выключена — на публичной странице не показывается'
-          : null,
     }));
 }
 
-/** Все услуги клиники, порядком двери. Невыходящие наружу помечены, но показаны. */
+/** Все услуги клиники, порядком двери. Кабинет показывает все, ничего не пряча. */
 export function listCardServicesForPreview(
   rows: readonly PreviewServiceRow[],
 ): ClinicPublicCardServicePreview[] {
@@ -116,17 +101,10 @@ export function listCardServicesForPreview(
       description: row.description,
       durationMinutes: row.durationMinutes,
       priceMinor: row.priceMinor,
-      hiddenNote: !row.isActive
-        ? 'выключена — на публичной странице не показывается'
-        : row.adminManualOnly
-          ? 'только для администратора — на публичной странице не показывается'
-          : !row.publicWidgetVisible
-            ? 'скрыта из публичной записи — на публичной странице не показывается'
-            : null,
     }));
 }
 
-/** Все филиалы клиники, порядком двери. Невыходящие наружу помечены, но показаны. */
+/** Все филиалы клиники, порядком двери. Кабинет показывает все, ничего не пряча. */
 export function listCardLocationsForPreview(
   rows: readonly PreviewBranchRow[],
 ): ClinicPublicCardLocationPreview[] {
@@ -136,6 +114,5 @@ export function listCardLocationsForPreview(
       title: row.title,
       cityCode: row.cityCode,
       address: row.address,
-      hiddenNote: row.isActive ? null : 'выключен — на публичной странице не показывается',
     }));
 }

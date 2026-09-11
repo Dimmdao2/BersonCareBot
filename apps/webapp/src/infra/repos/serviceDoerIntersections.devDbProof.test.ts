@@ -1,25 +1,24 @@
 /**
- * Живое доказательство против НАСТОЯЩЕЙ базы, opt-in (в CI не идёт). #1102, S-01/S-03/S-05.
+ * Живое доказательство против НАСТОЯЩЕЙ базы, opt-in (в CI не идёт). #1102 §2.1.
  *
  * Оракул — слова владельца 11.09 из плана
  * `docs/_TODO/SERVICE_IS_ENABLED_ONLY_WHEN_SOMEBODY_DOES_IT_2026-09-11.md`, НЕ реализация:
- *  §1.1 «Если он добавил услугу, значит, она его… Ему вообще нигде себя выбирать не надо» —
- *       услуга обязана оказаться привязанной сама, во ВСЕХ активных филиалах;
- *  §2 «Услугу мы можем включить галочкой или выключить… не меняя её настроек и привязок» —
- *       автоматика не имеет права отменять то, что клиника сняла руками;
- *  §2.1 «пока она не назначена специалисту и не подключена к филиалу, в котором этот специалист
- *       работает» — выключенный специалист и выключенный филиал пересечения не дают.
+ * §2.1 «пока она не назначена специалисту и не подключена к филиалу, в котором этот специалист
+ * работает» — выключенный специалист и выключенный филиал пересечения не дают.
  *
- * Почему именно живая база, а не unit с поддельным репозиторием: все три поломки выражаются
- * ПРЕДИКАТОМ SQL-запроса (какие строки попали в «уже есть», какие join-ы отбирают пересечение).
- * Подделка базы воспроизвела бы предикат из самой реализации и зеленела бы вместе с ней.
+ * ⚠️ Проверки автоматического покрытия («созданная услуга привязывается сама во всех филиалах»)
+ * СНЯТЫ вместе с самой автоматикой: владелец 11.09 отменил её дословно — «Кто просил автоматически
+ * проставлять галки?.. Назначение услуги филиалу это осознанное действие. Если я создаю услугу, и
+ * она сразу появляется в том филиале, в котором её нету, и кто-то в этот момент запишется, это
+ * будет косяк».
  *
- * Дорогие молчаливые отказы, ради которых это написано:
- *  1. клиника сняла услугу в филиале, а следующее действие подняло галку обратно — клиника об
- *     этом не узнаёт и продолжает принимать записи туда, где услугу не делает;
- *  2. услуга создана, но не привязана — кабинет показывает её включённой, а записаться нельзя;
- *  3. кабинет считает исполнителем выключенного специалиста или выключенный филиал — кабинет и
- *     мастер записи начинают говорить о одной услуге разное.
+ * Почему именно живая база, а не unit с поддельным репозиторием: поломка выражается ПРЕДИКАТОМ
+ * SQL-запроса (какие join-ы отбирают пересечение). Подделка базы воспроизвела бы предикат из самой
+ * реализации и зеленела бы вместе с ней.
+ *
+ * Дорогой молчаливый отказ, ради которого это написано: кабинет считает исполнителем выключенного
+ * специалиста или выключенный филиал — кабинет и мастер записи начинают говорить об одной услуге
+ * разное.
  *
  * Следов не оставляет: фикстура заведена под уникальным префиксом `AUDIT1102` и снимается в
  * `afterAll`; остаток проверяется отдельным утверждением.
@@ -27,7 +26,7 @@
  * Запуск из `apps/webapp` с загруженным DEV-env:
  *   set -a && source /home/dev/dev-projects/BersonCareBot/apps/webapp/.env.dev && set +a
  *   USE_REAL_DATABASE=1 RUN_SOLO_SERVICE_COVERAGE_DB=1 \
- *     pnpm exec vitest run --project unit src/infra/repos/soloServiceCoverage.devDbProof.test.ts
+ *     pnpm exec vitest run --project unit src/infra/repos/serviceDoerIntersections.devDbProof.test.ts
  */
 import { execFileSync } from 'node:child_process';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -65,31 +64,9 @@ function devStaff(): Staff {
   return { platformUserId, organizationId };
 }
 
-/** Активные филиалы организации ГЛАЗАМИ базы — ожидание не строится из кода автоматики. */
-function activeBranchIds(organizationId: string): string[] {
-  return psql(
-    `SELECT id FROM public.be_branches
-      WHERE organization_id = '${organizationId}'::uuid AND is_active ORDER BY id;`,
-  )
-    .split('\n')
-    .filter(Boolean);
-}
 
-function coverageRows(): { branchId: string; isActive: boolean }[] {
-  const out = psql(
-    `SELECT branch_id || '|' || is_active FROM public.be_specialist_service_availability
-      WHERE service_id = '${SERVICE_ID}'::uuid ORDER BY branch_id;`,
-  );
-  return out
-    .split('\n')
-    .filter(Boolean)
-    .map((line) => {
-      const [branchId, active] = line.split('|');
-      return { branchId: branchId!, isActive: active === 't' };
-    });
-}
 
-describe.skipIf(!enabled)('соло-автоматика и отбор «услугу кто-то делает» на живой DEV', () => {
+describe.skipIf(!enabled)('отбор «услугу кто-то делает» на живой DEV', () => {
   let staff: Staff;
   let port: ReturnType<typeof import('./pgBookingEngine').createPgBookingEnginePort>;
   let runWithDbStaffPrincipal: typeof import('@bersoncare/db-principal').runWithDbStaffPrincipal;
@@ -111,6 +88,9 @@ describe.skipIf(!enabled)('соло-автоматика и отбор «усл�
       INSERT INTO public.be_clinic_services
         (id, organization_id, title, duration_minutes, price_minor, is_active, public_widget_visible, admin_manual_only, sort_order)
         VALUES ('${SERVICE_ID}'::uuid, '${staff.organizationId}'::uuid, 'AUDIT1102 услуга', 30, 100000, true, true, false, 0);
+      INSERT INTO public.be_specialist_service_availability
+        (organization_id, specialist_id, service_id, branch_id, is_active, sort_order)
+        VALUES ('${staff.organizationId}'::uuid, '${SPECIALIST_ID}'::uuid, '${SERVICE_ID}'::uuid, '${BRANCH_ON}'::uuid, true, 0);
     `);
   });
 
@@ -130,52 +110,6 @@ describe.skipIf(!enabled)('соло-автоматика и отбор «усл�
            + (SELECT count(*) FROM public.be_branches WHERE id IN ('${BRANCH_ON}'::uuid, '${BRANCH_OFF}'::uuid));
     `);
     expect(residue, 'фикстура AUDIT1102 обязана быть снята с DEV полностью').toBe('0');
-  });
-
-  it('созданная услуга привязывается сама во всех активных филиалах и ни в одном выключенном', async () => {
-    await runWithDbStaffPrincipal(
-      { organizationId: staff.organizationId, platformUserId: staff.platformUserId, source: 'audit-1102' },
-      () =>
-        port.ensureSoloServiceCoverage({
-          organizationId: staff.organizationId,
-          specialistId: SPECIALIST_ID,
-          serviceId: SERVICE_ID,
-        }),
-    );
-
-    const covered = coverageRows().map((row) => row.branchId).sort();
-    // Ожидание взято из базы, а не из кода автоматики: «все его активные филиалы» (§1.1).
-    expect(covered).toEqual(activeBranchIds(staff.organizationId));
-    // Названо отдельно: филиал, который клиника закрыла, обещал бы запись туда, где не принимают.
-    expect(covered, 'выключенный филиал не покрывается').not.toContain(BRANCH_OFF);
-  });
-
-  it('снятую руками галку повторный проход автоматики НЕ воскрешает и не дублирует строкой', async () => {
-    psql(`UPDATE public.be_specialist_service_availability SET is_active = false
-           WHERE service_id = '${SERVICE_ID}'::uuid AND branch_id = '${BRANCH_ON}'::uuid;`);
-    const before = coverageRows();
-
-    await runWithDbStaffPrincipal(
-      { organizationId: staff.organizationId, platformUserId: staff.platformUserId, source: 'audit-1102' },
-      () =>
-        port.ensureSoloServiceCoverage({
-          organizationId: staff.organizationId,
-          specialistId: SPECIALIST_ID,
-          serviceId: SERVICE_ID,
-        }),
-    );
-
-    const after = coverageRows();
-    // Воскресшая галка — самая дорогая поломка этапа: клиника снимает услугу в филиале, а
-    // следующее её действие возвращает услугу обратно, и клиника об этом не узнаёт.
-    expect(
-      after.find((row) => row.branchId === BRANCH_ON)?.isActive,
-      'снятая клиникой пара обязана остаться снятой',
-    ).toBe(false);
-    // Вторая форма того же воскрешения: не поднять старую строку, а положить рядом новую живую.
-    expect(after.length, 'дубль пары вернул бы услугу в филиал мимо снятой галки').toBe(
-      before.length,
-    );
   });
 
   it('исполнителем считается только живая пара с активным специалистом и активным филиалом', async () => {

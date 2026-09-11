@@ -277,7 +277,6 @@ export function ClinicPublicCardSection({
                         ? `/api/media/${specialist.avatarMediaId}`
                         : null,
                       href: null,
-                      hiddenNote: specialist.hiddenNote,
                     })),
                     publicContactPhone: settings.publicContactPhone,
                     publicContactEmail: settings.publicContactEmail,

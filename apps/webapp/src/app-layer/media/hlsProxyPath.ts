@@ -43,3 +43,17 @@ export function inferHlsArtifactKind(segments: string[]): 'master' | 'variant' |
   if (joined.toLowerCase().endsWith('.m3u8')) return 'variant';
   return 'segment';
 }
+
+/**
+ * Quality read from the segment path, not a database lookup (VIDEO_DELIVERY_COST_AND_METERING
+ * 11.09.2026). The worker lays out every rendition under `hls/<rung.label>/…`
+ * (`processTranscodeJob.ts`, e.g. `hls/576p/seg_003.m4s`) and the top-level master playlist
+ * directly under `hls/master.m3u8` with no rung directory — there is no per-quality meaning for it,
+ * so it gets the `master` sentinel instead of a rung label.
+ */
+export const HLS_MASTER_PLAYLIST_QUALITY_SENTINEL = 'master';
+
+export function hlsArtifactQualityFromPath(segments: string[]): string {
+  if (segments.length < 2) return HLS_MASTER_PLAYLIST_QUALITY_SENTINEL;
+  return segments[0]!;
+}

@@ -3,10 +3,6 @@ import { z } from 'zod';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
 import { requireClinicManagementBookingEngine } from '../_requireClinicManagementBookingEngine';
-import {
-  ensureSoloServiceCoverage,
-  isSoloWorkspace,
-} from '@/app-layer/booking/soloServiceCoverage';
 
 const PostSchema = z.object({
   title: z.string().min(1).max(200),
@@ -50,7 +46,6 @@ export async function POST(request: Request) {
   const parsed = PostSchema.safeParse(body);
   if (!parsed.success)
     return NextResponse.json({ ok: false, error: 'invalid_input' }, { status: 400 });
-  const solo = await isSoloWorkspace(gate.ctx);
   const service = await withDoctorWorkspacePrincipal(
     gate.ctx,
     'admin.booking-engine.services.upsert',
@@ -70,8 +65,6 @@ export async function POST(request: Request) {
         adminManualOnly: parsed.data.adminManualOnly,
         sortOrder: parsed.data.sortOrder,
       });
-      // «Если он добавил услугу, значит, она его» — соло не выбирает себя нигде (#1102 §1.1).
-      if (solo) await ensureSoloServiceCoverage(gate.ctx, { serviceId: created.id });
       return created;
     },
   );

@@ -211,21 +211,6 @@ export type ServiceAvailabilityPort = {
    * строку (#1102 §2.1, §2.4).
    */
   listServiceDoerIntersections(organizationId: string): Promise<BeServiceDoerIntersection[]>;
-  /**
-   * Соло: услуга привязана к соло-специалисту во всех его активных филиалах без единого клика
-   * (#1102 §1.1, дословно владелец: «Ему вообще нигде себя выбирать не надо»). Дописывает только
-   * НЕДОСТАЮЩИЕ пары и никогда не трогает существующие строки — экран «Доступность услуг по
-   * филиалам» остаётся для того, кто хочет сузить вручную, и его выключенная галка не воскресает.
-   *
-   * `serviceId` / `branchId` сужают пересчёт до только что появившейся услуги или локации; без
-   * них покрывается вся организация. Возвращает число созданных строк.
-   */
-  ensureSoloServiceCoverage(input: {
-    organizationId: string;
-    specialistId: string;
-    serviceId?: string;
-    branchId?: string;
-  }): Promise<number>;
 };
 
 export type BookingEnginePort = {

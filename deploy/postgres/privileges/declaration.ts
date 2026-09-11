@@ -16103,6 +16103,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "preview_status",
           "s3_key",
           "size_bytes",
+          "source_bitrate_bps",
           "source_height",
           "source_width",
           "standard_rendition_at",
@@ -22835,7 +22836,10 @@ const legacyCensusRoles: Record<string, RoleDecl> = {
     isNew: true, // в живом каталоге её нет (evidence/13 §1.2 — 45 ролей, этой среди них нет)
     why: 'РЕШЕНИЕ D8: прунер/ретеншен журналов через ВНУТРЕННИЙ эндпоинт порта webapp, никогда арендной ролью '
       + '(сегодня тот же шов ставит SET ROLE app_staff — C12). DELETE выдаётся ровно на перечисленные журналы, '
-      + 'а app.context_nonce_ledger чистится через definer app.prune_context_nonce_ledger.',
+      + 'а app.context_nonce_ledger чистится через definer app.prune_context_nonce_ledger. 11.09: тот же '
+      + 'внутренний эндпоинт-принцип расширен на INSERT/UPDATE ровно одной таблицы — batch-сброс in-memory '
+      + 'счётчика байт HLS-прокси в media_playback_delivery_daily (VIDEO_DELIVERY_COST_AND_METERING), тем же '
+      + 'механизмом SET ROLE app_staff → app_operational_maintenance, никогда per-request записью.',
   },
 
   // ── capability-роли ──
@@ -23560,6 +23564,10 @@ const TABLE_ROWS: TableRow[] = [
   { t: 'public.media_playback_client_events', cls: 'T', org: true, wall: 'platform-role', why: 'Клиентские события '
     + 'плеера — понять, почему у пациента не грузится видео', wallWhy: W_PLATFORM_TELEMETRY, pol: 'I7: тот же '
     + 'несогласованный набор (awd без r).', defect: ['I7-privilege-mismatch'] },
+  { t: 'public.media_playback_delivery_daily', cls: 'T', org: true, wall: 'platform-role', why: 'Суточная '
+    + 'агрегация отданных HLS-байт по (сутки, организация, пациент, видео, качество) — себестоимость выдачи и '
+    + 'разрез по видео/качеству (владелец 11.09.2026, VIDEO_DELIVERY_COST_AND_METERING); только обслуживающий '
+    + 'job пишет батчем, никогда одна строка на сегмент', wallWhy: W_PLATFORM_TELEMETRY },
   { t: 'public.media_playback_resolution_events', cls: 'T', org: true, wall: 'platform-role', why: 'Как отдавалось '
     + 'видео — оценка минут просмотра в отчётах', wallWhy: W_PLATFORM_TELEMETRY },
   { t: 'public.media_playback_stats_hourly', cls: 'T', org: true, wall: 'platform-role', why: 'Почасовой агрегат '
@@ -25146,6 +25154,7 @@ const WEBAPP_MEDIA_SOURCES = [
 const WEBAPP_MAINTENANCE_SOURCES = [
   'api/internal/media-hls-proxy-errors/retention:POST',
   'api/internal/media-playback-stats/retention:POST',
+  'api/internal/media-delivery-bytes/flush:POST',
   'api/internal/product-analytics/retention:POST',
   // Track D final cutover (#987), audit F1: this source was already a locked-infra cron source
   // (packages/db-principal/webappLockedInfraCronSources.ts) but had no declared relation-capability,
@@ -29854,7 +29863,7 @@ const REV10_CONTEXT = {
           columns: ['id', 'organization_id', 'mime_type', 's3_key', 'video_processing_status',
             'video_processing_error', 'available_qualities_json',
             'hls_master_playlist_s3_key', 'hls_artifact_prefix', 'poster_s3_key',
-            'video_duration_seconds'],
+            'video_duration_seconds', 'source_bitrate_bps'],
           operations: ['SELECT' as const, 'UPDATE' as const],
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
@@ -31192,6 +31201,13 @@ const REV10_LOCKED_POLICIES = new Map<string, LockedPolicyEntry>(
   Object.entries(REV10_LOCKED_POLICY_DATA),
 );
 
+const REV10_PLATFORM_LFK_READ_RELATIONS = new Set([
+  'public.lfk_exercise_load_types',
+  'public.lfk_exercise_media',
+  'public.lfk_exercise_regions',
+  'public.lfk_exercises',
+]);
+
 type DirectAccessSeed = Omit<Extract<RelationAccess, { kind: 'direct' }>, 'seams'>;
 
 const REV10_PATIENT_NAMED_WRITE_OPERATIONS: Readonly<Record<string, readonly Privilege[]>> = {
@@ -31716,6 +31732,21 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     ],
     grants: [
       { role: 'app_operational_maintenance', operations: ['SELECT', 'DELETE'], columns: 'table' },
+    ],
+  },
+  'public.media_playback_delivery_daily': {
+    kind: 'direct',
+    purpose: 'the accepted maintenance worker batches the HLS proxy in-memory byte counter and deletes expired daily rollups; no per-request writer exists',
+    codePaths: [
+      'apps/webapp/src/app-layer/media/hlsDeliveryByteMeterFlush.ts',
+      'apps/webapp/src/app-layer/media/playbackHourlyRetention.ts',
+    ],
+    grants: [
+      {
+        role: 'app_operational_maintenance',
+        operations: ['SELECT', 'INSERT', 'UPDATE', 'DELETE'],
+        columns: 'table',
+      },
     ],
   },
   'public.media_playback_user_video_first_resolve': {
@@ -32558,6 +32589,22 @@ function revision10PlaybackTelemetryPolicies(
   }];
 }
 
+/**
+ * `media_playback_delivery_daily` has no per-request writer at all (design constraint: the HLS proxy
+ * only mutates an in-memory buffer, never the table) — unlike the sibling telemetry tables above,
+ * nothing here needs an `app_patient`/`app_staff` branch. The maintenance worker is the sole reader,
+ * writer, and deleter, same `current_user` wall as `revision10PlaybackTelemetryPolicies`.
+ */
+function revision10MediaPlaybackDeliveryDailyPolicies(index: number): PolicyDecl[] {
+  const maintenance = "current_user = 'app_operational_maintenance'::name";
+  return [{
+    name: `rev10_media_playback_delivery_daily_maintenance_${index + 1}`,
+    as: 'PERMISSIVE', cmd: 'ALL', to: ['app_operational_maintenance'],
+    using: `(${maintenance})`, withCheck: `(${maintenance})`,
+    note: 'accepted maintenance worker batches HLS delivery byte rollups and deletes expired rows across clinics',
+  }];
+}
+
 function revision10MaterialRatingsPolicies(index: number): PolicyDecl[] {
   const staffOrg = "current_user = 'app_staff'::name AND organization_id = (SELECT app.current_org_id())";
   const patientOrg = "current_user = 'app_patient'::name AND organization_id = (SELECT app.current_org_id())";
@@ -32749,6 +32796,19 @@ function revision10SeamOwnerPolicy(tableKey: string, index: number, access: Rela
     using: `(${predicate})`, withCheck: `(${predicate})`, note: `only declared narrow owners may reach ${tableKey}` }];
 }
 
+function revision10PlatformLfkReadPolicy(tableKey: string, index: number): PolicyDecl[] {
+  if (!REV10_PLATFORM_LFK_READ_RELATIONS.has(tableKey)) return [];
+  return [{
+    name: `rev10_platform_lfk_read_${index + 1}`,
+    as: 'PERMISSIVE',
+    cmd: 'SELECT',
+    to: ['app_staff'],
+    using: `(current_user = 'app_staff'::name AND app.current_org_id() IS NOT NULL`
+      + ` AND "owner_kind" = 'platform' AND "organization_id" IS NULL)`,
+    note: `staff may read, but not mutate, platform-owned LFK catalog rows in ${tableKey}`,
+  }];
+}
+
 function revision10Database(name: Revision10DatabaseName): DatabaseDecl {
   // Раньше здесь стоял двусторонний тернарник `name === 'bersoncarebot_test' ? 'test' : 'dev'`:
   // ЛЮБОЕ незнакомое имя базы молча получало логины среды dev, то есть чужой среде выдавались
@@ -32835,6 +32895,8 @@ function revision10Database(name: Revision10DatabaseName): DatabaseDecl {
           || key === 'public.media_playback_resolution_events'
           || key === 'public.media_playback_user_video_first_resolve') && access?.kind === 'direct'
         ? revision10PlaybackTelemetryPolicies(key, index)
+      : key === 'public.media_playback_delivery_daily' && access?.kind === 'direct'
+        ? revision10MediaPlaybackDeliveryDailyPolicies(index)
       : key === 'public.material_ratings' && access?.kind === 'direct'
         ? revision10MaterialRatingsPolicies(index)
       : key === 'public.patient_content_rating_feedback' && access?.kind === 'direct'
@@ -32855,7 +32917,10 @@ function revision10Database(name: Revision10DatabaseName): DatabaseDecl {
       : access?.kind === 'direct' ? directBusiness
       : [{ name: `rev10_fail_closed_${index + 1}`, as: 'PERMISSIVE', cmd: 'ALL', to: [...REV10_RUNTIME],
           using: 'false', withCheck: 'false', note: `no direct runtime relation surface for ${key}` }];
-    const runtimeBusinessBase = runtimeBusinessBaseRaw.map((policy) => ({
+    const runtimeBusinessBase = [
+      ...runtimeBusinessBaseRaw,
+      ...revision10PlatformLfkReadPolicy(key, index),
+    ].map((policy) => ({
       ...policy,
       ...(policy.using ? { using: classSafe(policy.using, policy.to) } : {}),
       ...(policy.withCheck ? { withCheck: classSafe(policy.withCheck, policy.to) } : {}),
