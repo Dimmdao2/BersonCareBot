@@ -25,11 +25,10 @@ describe('deriveEligibleHlsRungs', () => {
     expect(rungs.some((r) => r.width * r.height > 854 * 480)).toBe(false);
   });
 
-  it('a 1080p source gets the full 850/900/1600/2800 advertised ladder', () => {
+  it('a 1080p source gets all four rungs of the ladder', () => {
     const rungs = deriveEligibleHlsRungs(1920, 1080);
 
     expect(rungs.map((r) => r.label)).toEqual(['360p', '480p', '576p', '720p']);
-    expect(rungs.map((r) => r.bandwidth)).toEqual([850_000, 900_000, 1_600_000, 2_800_000]);
   });
 
   it('a source at exactly the 720p rung height includes 720p (fits, not exceeds)', () => {
@@ -204,6 +203,14 @@ describe('rungBitrateCeilingBps', () => {
         rung.bandwidth,
         `ступень ${rung.label}: объявлено ${rung.bandwidth}, пик ${peak}`,
       ).toBeGreaterThanOrEqual(peak);
+      // И верхняя граница того же отношения. Завышенная полоса — молчаливый дорогой отказ: плеер
+      // откажется от ступени, которую вытянул бы. Аудит vid-encoding-audit-02 показал, что
+      // литеральный список ожиданий этого не ловит (таблицу и expected правят одним коммитом),
+      // а отношение двух полей одной строки — ловит.
+      expect(
+        rung.bandwidth,
+        `ступень ${rung.label}: объявлено ${rung.bandwidth} при пике ${peak} — завышено`,
+      ).toBeLessThanOrEqual(Math.round(peak * 1.15));
     }
   });
 });
