@@ -377,6 +377,25 @@ CAUSE:  Missing declared webapp port capability: tenant_service
 - [ ] S9.4 Живая проверка на DEV: на неоплаченной записи экран показывает сумму и срок, а не
       «Не удалось проверить статус оплаты».
 
+**Состояние на 12.09, 03:0x — кандидат есть, галочки не ставятся до аудита.** Воркер
+`gpt-5.6-sol high` написал корень `app.read_current_patient_booking_payment_status(uuid)` класса
+`patient` и перевёл на него маршрут, но **коммита не оставил: у провайдера кончилась квота аккаунта**
+(`You've hit your usage limit … try again at Sep 15th, 2026 4:22 AM`). Это блокер на все Codex-роли —
+и воркеров, и аудиторов — до 15.09; вынесен владельцу вопросом в карточке #1105.
+
+Ведущий проверил работу сам и закоммитил её как `648df0030` в `wt/prepayment-s9-payment-door`:
+rollback-only DEV proof зелёный, обе независимые поломки красные (`deny_execute` — дверь падает,
+`omit_identity_filter` — читается чужая строка); `generate-cli.mjs --all` +
+`check:db-privileges-generated` — побайтно; `shared-contracts build` и webapp `typecheck` — rc 0;
+webapp `lint` целиком — rc 0; оба затронутых route-теста зелёные. Независимый аудит запущен
+**на Claude** (`ORCH_PROVIDER=claude`, `claude-opus-5 high`, run `prepayment-s9-audit`) — не потому,
+что так лучше, а потому что Codex недоступен; Opus не слабее автора-Sol.
+
+**Побочное следствие для карточки #1106:** ответ `/api/booking/payment-status` сузился — полей
+`booking` и `summary` в нём больше нет, вместо них `amountMinor`, `currency`, `intentStatus`,
+`checkoutUrl`. Неприземлённый кандидат карточки `6acf89b00` читает старую форму, и его придётся
+подправить под новую до перезапуска аудита карточки.
+
 ## Найдено аудитом, но НЕ входит в этот план (вопрос владельцу, не задача)
 
 - **Мультислотовая бронь, оплаченная одним платежом, шлёт пациенту по сообщению на каждый слот.**
