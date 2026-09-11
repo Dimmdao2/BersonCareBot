@@ -18,6 +18,10 @@ import { isReservedOnlineLocationIdentity, setBuiltInOnlineLocationState } from 
 import { UserFacingError } from '@/shared/errors/userFacingError';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Отказ включить услугу, которую никто не оказывает (#1102 §1.2, S-02). */
+export const SERVICE_HAS_NO_DOER_MESSAGE =
+  'Услугу пока некому оказывать. Назначьте специалиста и филиал, в котором он принимает.';
 const ONLINE_SLOT_MINUTE_MS = 60_000;
 const MAX_ONLINE_CHAIN_MINUTES = 8 * 60;
 
@@ -291,6 +295,13 @@ function createCatalogFacade(
       assertUuid(id);
       return port.getBranch(id);
     },
+    resolvePublicBookableSpecialist: (
+      input: Parameters<OrganizationCatalogPort['resolvePublicBookableSpecialist']>[0],
+    ) => {
+      assertUuid(input.organizationId);
+      assertUuid(input.specialistId);
+      return port.resolvePublicBookableSpecialist(input);
+    },
     async upsertBranch(input: Parameters<OrganizationCatalogPort['upsertBranch']>[0]) {
       if (!isReservedOnlineLocationIdentity(input)) {
         assertBranchesWriteClearance();
@@ -356,6 +367,32 @@ function createCatalogFacade(
   };
 }
 
+/**
+ * Услугу нельзя ВКЛЮЧИТЬ, пока её никто не делает. Решение владельца 11.09 (#1102 §1.2), дословно:
+ * «Услуга не включена, то есть она может создаться, но она не может включиться. Если у неё не
+ * назначен, соответственно, специалист.»
+ *
+ * Проверяется ровно ПЕРЕХОД «выключена → включена», и только он. Три причины:
+ *  1. выключатель — это «быстрое отображение», он не трогает привязки (§2 и S-03), поэтому
+ *     выключить можно всегда, а редактирование названия уже включённой услуги не должно упираться
+ *     в потерянное пересечение;
+ *  2. когда пересечения кончились у уже включённой услуги, она не выключается сама — она
+ *     становится блеклой с подсказкой (§2.4), и вернувшийся специалист сразу оживляет её;
+ *  3. третьего флага «услуга активна» не заводится: «кто-то делает» вычисляется из живых строк
+ *     `be_specialist_service_availability` тем же отбором, что у публичной двери.
+ */
+async function assertServiceMayBeSwitchedOn(
+  port: ServiceAvailabilityPort,
+  input: Parameters<ServiceAvailabilityPort['upsertService']>[0],
+): Promise<void> {
+  if (!input.isActive || !input.id) return;
+  const previous = await port.getService(input.id);
+  if (!previous || previous.isActive) return;
+  const doers = await port.listServiceDoerIntersections(input.organizationId);
+  if (doers.some((doer) => doer.serviceId === input.id)) return;
+  throw new UserFacingError(SERVICE_HAS_NO_DOER_MESSAGE);
+}
+
 function createServiceAvailabilityFacade(
   port: ServiceAvailabilityPort,
   dependencies: BookingEngineServiceDependencies,
@@ -369,6 +406,7 @@ function createServiceAvailabilityFacade(
     getService: port.getService.bind(port),
     async upsertService(input: Parameters<ServiceAvailabilityPort['upsertService']>[0]) {
       assertBookingWriteClearance();
+      await assertServiceMayBeSwitchedOn(port, input);
       return port.upsertService(input);
     },
     async deactivateService(id: string) {
@@ -387,18 +425,12 @@ function createServiceAvailabilityFacade(
       assertBookingWriteClearance();
       return port.deactivateSpecialistServiceAvailability(id);
     },
-    async upsertServiceLocationAvailability(
-      input: Parameters<ServiceAvailabilityPort['upsertServiceLocationAvailability']>[0],
+    listServiceDoerIntersections: port.listServiceDoerIntersections.bind(port),
+    async ensureSoloServiceCoverage(
+      input: Parameters<ServiceAvailabilityPort['ensureSoloServiceCoverage']>[0],
     ) {
       assertBookingWriteClearance();
-      return port.upsertServiceLocationAvailability(input);
+      return port.ensureSoloServiceCoverage(input);
     },
-    async setSoloServiceLocationAvailability(
-      input: Parameters<ServiceAvailabilityPort['setSoloServiceLocationAvailability']>[0],
-    ) {
-      assertBookingWriteClearance();
-      return port.setSoloServiceLocationAvailability(input);
-    },
-    listServiceLocationAvailability: port.listServiceLocationAvailability.bind(port),
   };
 }

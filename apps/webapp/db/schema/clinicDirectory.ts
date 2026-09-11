@@ -55,7 +55,6 @@ export const clinicPublicDirectoryEntries = pgTable(
      * `address` only. Internal ids, timezone, colour and sort order stay out of the projection —
      * the address is what the clinic already hangs on its door, the rest is tenant internals.
      */
-    locationsJson: jsonb('locations_json').default([]).notNull(),
     /** Media ids are stored; readiness and delivery facts are resolved at read time. */
     logoMediaId: uuid('logo_media_id'),
     photoMediaIds: uuid('photo_media_ids').array().default([]).notNull(),

@@ -11,7 +11,6 @@ type OverviewSlice = {
     serviceId: string;
     branchId: string | null;
   }[];
-  locationAvailability: { id: string; serviceId: string; branchId: string }[];
   specialistRooms: { id: string; specialistId: string; roomId: string }[];
 };
 
@@ -29,14 +28,6 @@ export function BookingAvailabilityMatrixTable({ data }: { data: OverviewSlice }
     kind: 'Специалист × услуга',
   }));
 
-  const locRows = data.locationAvailability.map((row) => ({
-    id: row.id,
-    specialist: '—',
-    service: svcById.get(row.serviceId) ?? row.serviceId,
-    branch: branchById.get(row.branchId) ?? row.branchId,
-    kind: 'Услуга × филиал',
-  }));
-
   const roomRows = data.specialistRooms.map((row) => ({
     id: row.id,
     specialist: specById.get(row.specialistId) ?? row.specialistId,
@@ -45,7 +36,7 @@ export function BookingAvailabilityMatrixTable({ data }: { data: OverviewSlice }
     kind: 'Специалист × кабинет',
   }));
 
-  const rows = [...specServiceRows, ...locRows, ...roomRows];
+  const rows = [...specServiceRows, ...roomRows];
 
   if (rows.length === 0) {
     return <p className="text-sm text-muted-foreground">Связей пока нет.</p>;

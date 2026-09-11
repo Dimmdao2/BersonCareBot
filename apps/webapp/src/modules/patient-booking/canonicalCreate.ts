@@ -516,6 +516,8 @@ export async function createBookingOnCanonicalEngine(
         currency: financialSnapshot.priceCurrency,
         idempotencyKey: `appointment_prepay:${appointment.id}`,
         returnUrl: returnPath,
+        // Один и тот же момент времени закрывает бронь у нас и счёт у провайдера.
+        expiresAt: financialSnapshot.paymentDeadlineAt,
       });
     } catch (err) {
       await rollbackChain('payment_intent_create_failed');

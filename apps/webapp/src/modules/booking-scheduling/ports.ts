@@ -142,10 +142,6 @@ export type BookingSchedulingPort = {
     branchId: string;
     serviceId: string;
   }): Promise<CanonicalBookingContext | null>;
-  listServicesByCityCode(
-    organizationId: string,
-    cityCode: string,
-  ): Promise<{ serviceId: string; branchId: string }[]>;
   getSlots(context: SchedulingContext): Promise<BookingSlotsByDate[]>;
   listBusyIntervals(input: {
     organizationId: string;

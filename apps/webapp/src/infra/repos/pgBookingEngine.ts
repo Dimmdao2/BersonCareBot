@@ -37,7 +37,6 @@ import {
   orgEnrollments,
   bePatientTimelineEvents,
   beRooms,
-  beServiceLocationAvailability,
   beSpecialistLocations,
   beSpecialistRooms,
   beSpecialistServiceAvailability,
@@ -64,7 +63,6 @@ import type {
   BeClinicService,
   BeOrganization,
   BeRoom,
-  BeServiceLocationAvailability,
   BeSpecialist,
   BeSpecialistServiceAvailability,
   CreateAppointmentInput,
@@ -295,11 +293,23 @@ const publicBookingServiceSchema = z.object({
   isActive: z.boolean(),
 });
 
+/**
+ * Личность специалиста из ссылки. `null` — одинаковый отказ по всем трём причинам сразу
+ * (нет такого, чужой, неактивен), см. §3.3.
+ */
+const publicBookingSpecialistSchema = z.object({
+  id: z.string().uuid(),
+  fullName: z.string(),
+  branchIds: z.array(z.string().uuid()),
+  cardIsReadable: z.boolean(),
+});
+
 const publicBookingCatalogSchema = z.object({
   branches: z.array(publicBookingBranchSchema),
   branch: publicBookingBranchSchema.nullable(),
   services: z.array(publicBookingServiceSchema),
   service: publicBookingServiceSchema.nullable(),
+  specialist: publicBookingSpecialistSchema.nullable(),
 });
 
 type PublicBookingCatalog = z.infer<typeof publicBookingCatalogSchema>;
@@ -309,6 +319,7 @@ const EMPTY_PUBLIC_BOOKING_CATALOG: PublicBookingCatalog = {
   branch: null,
   services: [],
   service: null,
+  specialist: null,
 };
 
 /**
@@ -317,18 +328,24 @@ const EMPTY_PUBLIC_BOOKING_CATALOG: PublicBookingCatalog = {
  * филиал просто не находится. Неопубликованная клиника отдаёт `NULL`, и здесь это превращается в
  * ПУСТОЙ каталог, а не в исключение: снаружи такой клиники не существует, и различать «нет» и
  * «нельзя» вызывающему нечем по построению.
+ *
+ * `specialistId` — третий вопрос той же двери (#926 §17.C): сужение выдачи до одного специалиста
+ * и его публичная личность. Неразрешённый специалист возвращается как пустой каталог с
+ * `specialist: null` — тем же ответом на все три причины отказа.
  */
 async function readPublicBookingCatalog(
   branchId: string | null,
   serviceId: string | null,
+  specialistId: string | null = null,
 ): Promise<PublicBookingCatalog> {
   const result = await runWebappNamedRoot<{ catalog: unknown }>(
     getWebappSqlDb(),
-    'app.read_public_booking_catalog(uuid,uuid)',
-    [branchId, serviceId],
+    'app.read_public_booking_catalog(uuid,uuid,uuid)',
+    [branchId, serviceId, specialistId],
     sql`SELECT app.read_public_booking_catalog(
       ${branchId}::uuid,
-      ${serviceId}::uuid
+      ${serviceId}::uuid,
+      ${specialistId}::uuid
     ) AS catalog`,
   );
   const catalog = result.rows[0]?.catalog;
@@ -425,8 +442,7 @@ async function insertAppointmentInTransaction(
       .limit(1);
   }
   const deliveryFormat =
-    input.deliveryFormat ??
-    (branch && isBuiltInOnlineLocation(branch) ? 'online' : 'in_person');
+    input.deliveryFormat ?? (branch && isBuiltInOnlineLocation(branch) ? 'online' : 'in_person');
   const inserted = await tx
     .insert(beAppointments)
     .values({
@@ -821,6 +837,30 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
         .where(eq(beBranches.organizationId, organizationId))
         .orderBy(asc(beBranches.sortOrder), asc(beBranches.title));
       return rows.map(mapBranch);
+    },
+
+    async resolvePublicBookableSpecialist({ organizationId, specialistId }) {
+      if (!isCurrentPublicBookingPrincipal()) {
+        throw new Error('public_booking_principal_required');
+      }
+      // Кабинетный `listSpecialists` здесь не подходит по построению: это `db.select()` по
+      // `be_specialists`, а у анонимного класса `tenant_service` на неё нет грантов вовсе (42501).
+      // Отбор «активен» и ответ «читается ли его карточка» тоже не повторяются здесь — оба живут
+      // в теле двери (§17.Q).
+      const catalog = await readPublicBookingCatalog(null, null, specialistId);
+      const specialist = catalog.specialist;
+      if (!specialist) return null;
+      // Организация у двери берётся из принятого контекста, а не из аргумента; равенство ниже —
+      // та же страховка, что стоит на филиале рядом, а не вторая стена вместо неё.
+      const branchIds = catalog.branches
+        .filter((branch) => branch.organizationId === organizationId)
+        .map((branch) => branch.id);
+      return {
+        id: specialist.id,
+        fullName: specialist.fullName,
+        branchIds: specialist.branchIds.filter((branchId) => branchIds.includes(branchId)),
+        cardIsReadable: specialist.cardIsReadable,
+      };
     },
 
     async getBranch(id) {
@@ -1250,10 +1290,14 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
           scopeConds.push(isNull(beSpecialistServiceAvailability.branchId));
         }
 
+        // Берём ВЕСЬ набор строк области, а не только активные: room_id/city_code обнуляемые, и
+        // уникальный ключ пропускает исторические дубли. Если оставить их как есть, выключенная
+        // владельцем галка продолжает светиться публично через забытый активный дубль, поэтому
+        // набор сначала сводится к одному состоянию, и лишь потом пишется запрошенное.
         const existingRows = await tx
           .select()
           .from(beSpecialistServiceAvailability)
-          .where(and(...scopeConds, eq(beSpecialistServiceAvailability.isActive, true)));
+          .where(and(...scopeConds));
 
         const targetId = pickPreferredSsaId(
           existingRows.map((r) => ({
@@ -1264,6 +1308,17 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
         );
 
         if (targetId) {
+          if (existingRows.length > 1) {
+            await tx
+              .update(beSpecialistServiceAvailability)
+              .set({ isActive: false, updatedAt: now })
+              .where(
+                inArray(
+                  beSpecialistServiceAvailability.id,
+                  existingRows.map((r) => r.id),
+                ),
+              );
+          }
           const updated = await tx
             .update(beSpecialistServiceAvailability)
             .set({
@@ -1326,11 +1381,11 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
       };
     },
 
-    async listPublicBookableServicesForBranch({ organizationId, branchId }) {
+    async listPublicBookableServicesForBranch({ organizationId, branchId, specialistId }) {
       if (!isCurrentPublicBookingPrincipal()) {
         throw new Error('public_booking_principal_required');
       }
-      const catalog = await readPublicBookingCatalog(branchId, null);
+      const catalog = await readPublicBookingCatalog(branchId, null, specialistId ?? null);
       if (!catalog.branch || catalog.branch.organizationId !== organizationId) return [];
       return catalog.services
         .filter((service) => service.organizationId === organizationId)
@@ -1367,192 +1422,117 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
       return (res.rowCount ?? 0) > 0;
     },
 
-    async upsertServiceLocationAvailability(input) {
-      const inserted = await runWebappTransaction((tx) =>
-        tx
-          .insert(beServiceLocationAvailability)
-          .values({
-            organizationId: input.organizationId,
-            serviceId: input.serviceId,
-            branchId: input.branchId,
-            isActive: input.isActive,
-          })
-          .onConflictDoUpdate({
-            target: [
-              beServiceLocationAvailability.serviceId,
-              beServiceLocationAvailability.branchId,
-            ],
-            set: { isActive: input.isActive },
-          })
-          .returning(),
-      );
-      const row = inserted[0]!;
-      return {
-        id: row.id,
-        organizationId: row.organizationId,
-        serviceId: row.serviceId,
-        branchId: row.branchId,
-        isActive: row.isActive,
-      };
-    },
-
-    async setSoloServiceLocationAvailability(input) {
-      return runWebappTransaction(async (tx) => {
-        const serviceRows = await tx
-          .select({ id: beClinicServices.id })
-          .from(beClinicServices)
-          .where(
-            and(
-              eq(beClinicServices.id, input.serviceId),
-              eq(beClinicServices.organizationId, input.organizationId),
-            ),
-          )
-          .limit(1);
-        if (!serviceRows[0]) throw new Error('service_not_found');
-
-        const branchRows = await tx
-          .select({ id: beBranches.id })
-          .from(beBranches)
-          .where(
-            and(
-              eq(beBranches.id, input.branchId),
-              eq(beBranches.organizationId, input.organizationId),
-            ),
-          )
-          .limit(1);
-        if (!branchRows[0]) throw new Error('branch_not_found');
-
-        const specialistRows = await tx
-          .select({ id: beSpecialists.id })
-          .from(beSpecialists)
-          .where(
-            and(
-              eq(beSpecialists.id, input.specialistId),
-              eq(beSpecialists.organizationId, input.organizationId),
-            ),
-          )
-          .limit(1);
-        if (!specialistRows[0]) throw new Error('specialist_not_found');
-
-        const locationRows = await tx
-          .insert(beServiceLocationAvailability)
-          .values({
-            organizationId: input.organizationId,
-            serviceId: input.serviceId,
-            branchId: input.branchId,
-            isActive: input.isActive,
-          })
-          .onConflictDoUpdate({
-            target: [
-              beServiceLocationAvailability.serviceId,
-              beServiceLocationAvailability.branchId,
-            ],
-            set: { isActive: input.isActive },
-          })
-          .returning();
-        const locationRow = locationRows[0]!;
-
-        const exactSpecialistRows = await tx
-          .select()
-          .from(beSpecialistServiceAvailability)
-          .where(
-            and(
-              eq(beSpecialistServiceAvailability.organizationId, input.organizationId),
-              eq(beSpecialistServiceAvailability.specialistId, input.specialistId),
-              eq(beSpecialistServiceAvailability.serviceId, input.serviceId),
-              eq(beSpecialistServiceAvailability.branchId, input.branchId),
-              isNull(beSpecialistServiceAvailability.roomId),
-              isNull(beSpecialistServiceAvailability.cityCode),
-            ),
-          );
-        const preferredSpecialistRowId = pickPreferredSsaId(
-          exactSpecialistRows.map((row) => ({
-            id: row.id,
-            createdAt: row.createdAt,
-            isActive: row.isActive,
-          })),
-        );
-        const now = new Date().toISOString();
-        const specialistAvailabilityRows = preferredSpecialistRowId
-          ? await (async () => {
-              // Exact historical duplicates are possible because room/city are nullable.
-              // Converge the whole exact set first so an inactive duplicate cannot keep
-              // the public OR-availability visible after the owner switches it off.
-              await tx
-                .update(beSpecialistServiceAvailability)
-                .set({ isActive: false, updatedAt: now })
-                .where(
-                  inArray(
-                    beSpecialistServiceAvailability.id,
-                    exactSpecialistRows.map((row) => row.id),
-                  ),
-                );
-              return tx
-                .update(beSpecialistServiceAvailability)
-                .set({
-                  priceMinorOverride: null,
-                  isActive: input.isActive,
-                  sortOrder: 0,
-                  updatedAt: now,
-                })
-                .where(eq(beSpecialistServiceAvailability.id, preferredSpecialistRowId))
-                .returning();
-            })()
-          : await tx
-              .insert(beSpecialistServiceAvailability)
-              .values({
-                organizationId: input.organizationId,
-                specialistId: input.specialistId,
-                serviceId: input.serviceId,
-                branchId: input.branchId,
-                roomId: null,
-                cityCode: null,
-                priceMinorOverride: null,
-                isActive: input.isActive,
-                sortOrder: 0,
-                createdAt: now,
-                updatedAt: now,
-              })
-              .returning();
-        const specialistRow = specialistAvailabilityRows[0]!;
-
-        return {
-          locationAvailability: {
-            id: locationRow.id,
-            organizationId: locationRow.organizationId,
-            serviceId: locationRow.serviceId,
-            branchId: locationRow.branchId,
-            isActive: locationRow.isActive,
-          },
-          specialistAvailability: {
-            id: specialistRow.id,
-            organizationId: specialistRow.organizationId,
-            specialistId: specialistRow.specialistId,
-            serviceId: specialistRow.serviceId,
-            branchId: specialistRow.branchId ?? null,
-            roomId: specialistRow.roomId ?? null,
-            cityCode: specialistRow.cityCode ?? null,
-            priceMinorOverride: specialistRow.priceMinorOverride ?? null,
-            isActive: specialistRow.isActive,
-            sortOrder: specialistRow.sortOrder,
-          },
-        };
-      });
-    },
-
-    async listServiceLocationAvailability(organizationId) {
+    async listServiceDoerIntersections(organizationId) {
       const db = getDrizzle();
+      // Отбор ДОСЛОВНО повторяет публичную дверь `app.read_public_booking_catalog`: активная строка
+      // `be_specialist_service_availability` с филиалом + активный специалист + активный филиал.
+      // Ни одного условия сверх двери здесь быть не может — иначе кабинет начнёт гасить услуги,
+      // которые посетитель по-прежнему видит, и у одного правила появятся две расходящиеся копии.
       const rows = await db
-        .select()
-        .from(beServiceLocationAvailability)
-        .where(eq(beServiceLocationAvailability.organizationId, organizationId));
-      return rows.map((row) => ({
-        id: row.id,
-        organizationId: row.organizationId,
-        serviceId: row.serviceId,
-        branchId: row.branchId,
-        isActive: row.isActive,
-      }));
+        .select({
+          serviceId: beSpecialistServiceAvailability.serviceId,
+          specialistId: beSpecialistServiceAvailability.specialistId,
+          branchId: beSpecialistServiceAvailability.branchId,
+        })
+        .from(beSpecialistServiceAvailability)
+        .innerJoin(
+          beSpecialists,
+          and(
+            eq(beSpecialists.id, beSpecialistServiceAvailability.specialistId),
+            eq(beSpecialists.organizationId, beSpecialistServiceAvailability.organizationId),
+            eq(beSpecialists.isActive, true),
+          ),
+        )
+        .innerJoin(
+          beBranches,
+          and(
+            eq(beBranches.id, beSpecialistServiceAvailability.branchId),
+            eq(beBranches.organizationId, beSpecialistServiceAvailability.organizationId),
+            eq(beBranches.isActive, true),
+          ),
+        )
+        .where(
+          and(
+            eq(beSpecialistServiceAvailability.organizationId, organizationId),
+            eq(beSpecialistServiceAvailability.isActive, true),
+          ),
+        );
+      return rows.flatMap((row) =>
+        row.branchId
+          ? [{ serviceId: row.serviceId, specialistId: row.specialistId, branchId: row.branchId }]
+          : [],
+      );
+    },
+
+    async ensureSoloServiceCoverage(input) {
+      return runWebappTransaction(async (tx) => {
+        const serviceConds = [eq(beClinicServices.organizationId, input.organizationId)];
+        if (input.serviceId) serviceConds.push(eq(beClinicServices.id, input.serviceId));
+        const branchConds = [
+          eq(beBranches.organizationId, input.organizationId),
+          eq(beBranches.isActive, true),
+        ];
+        if (input.branchId) branchConds.push(eq(beBranches.id, input.branchId));
+
+        const [services, branches, existing] = await Promise.all([
+          tx
+            .select({ id: beClinicServices.id })
+            .from(beClinicServices)
+            .where(and(...serviceConds)),
+          tx
+            .select({ id: beBranches.id })
+            .from(beBranches)
+            .where(and(...branchConds)),
+          tx
+            .select({
+              serviceId: beSpecialistServiceAvailability.serviceId,
+              branchId: beSpecialistServiceAvailability.branchId,
+            })
+            .from(beSpecialistServiceAvailability)
+            .where(
+              and(
+                eq(beSpecialistServiceAvailability.organizationId, input.organizationId),
+                eq(beSpecialistServiceAvailability.specialistId, input.specialistId),
+              ),
+            ),
+        ]);
+        // Существующая пара не трогается ни при каких условиях — в том числе выключенная: соло мог
+        // сузить её руками на экране «Доступность услуг по филиалам», и автоматика не имеет права
+        // воскрешать снятую галку (#1102 S-01).
+        const taken = new Set(existing.map((row) => `${row.serviceId}:${row.branchId ?? ''}`));
+        const now = new Date().toISOString();
+        const missing = services.flatMap((service) =>
+          branches
+            .filter((branch) => !taken.has(`${service.id}:${branch.id}`))
+            .map((branch) => ({
+              organizationId: input.organizationId,
+              specialistId: input.specialistId,
+              serviceId: service.id,
+              branchId: branch.id,
+              roomId: null,
+              cityCode: null,
+              priceMinorOverride: null,
+              isActive: true,
+              sortOrder: 0,
+              createdAt: now,
+              updatedAt: now,
+            })),
+        );
+        if (missing.length === 0) return 0;
+        await tx
+          .insert(beSpecialistServiceAvailability)
+          .values(missing)
+          .onConflictDoNothing({
+            target: [
+              beSpecialistServiceAvailability.specialistId,
+              beSpecialistServiceAvailability.serviceId,
+              beSpecialistServiceAvailability.branchId,
+              beSpecialistServiceAvailability.roomId,
+              beSpecialistServiceAvailability.cityCode,
+            ],
+          });
+        return missing.length;
+      });
     },
 
     async getSpecialistAppointmentReminderSettings({ organizationId, specialistId }) {

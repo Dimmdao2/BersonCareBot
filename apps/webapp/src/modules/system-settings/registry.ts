@@ -369,6 +369,17 @@ export const SYSTEM_SETTING_REGISTRY = {
   patient_booking_url: runtime('admin', 'per_org', 'authenticated_client', 'url', ''),
   /** Branded clinic root normally renders the public card; an organization may opt into /app. */
   clinic_root_skip_public_card: runtime('admin', 'per_org', 'server', 'boolean', 'false'),
+  /**
+   * #926 §17.Q, решение владельца 11.09: «Просто галочка есть показывать? Показываем, нет галочки,
+   * не показываем». Включена — из модуля записи открывается карточка специалиста с его описанием;
+   * выключена — в модуле записи остаётся только сам специалист, без перехода к описанию.
+   *
+   * Дефолт `true` — умышленно НЕ как у соседних булевых ключей. Клиника публикует визитку каждого
+   * специалиста отдельной галкой в его карточке; молчаливое `false` здесь означало бы, что платформа
+   * игнорирует уже сделанный клиникой выбор и не говорит ей об этом. Ровно этот класс дефекта
+   * (`card_is_published DEFAULT false` против конструктора ссылки) и открыл §17.Q.
+   */
+  clinic_booking_show_specialist_cards: runtime('admin', 'per_org', 'server', 'boolean', 'true'),
   booking_default_organization_id: restricted('admin', 'global', 'uuid'),
   booking_calendar_show_working_hours: runtime(
     'admin',

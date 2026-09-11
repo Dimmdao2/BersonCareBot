@@ -101,12 +101,21 @@ export type BeSpecialistServiceAvailability = {
   sortOrder: number;
 };
 
-export type BeServiceLocationAvailability = {
-  id: string;
-  organizationId: string;
+/**
+ * Живое пересечение «специалист × филиал», в котором услуга ДЕЙСТВИТЕЛЬНО делается. Решение
+ * владельца 11.09 (#1102 §2.1), дословно: «пока она не назначена специалисту и не подключена к
+ * филиалу, в котором этот специалист работает, то, как бы, она показана как заблокированная».
+ *
+ * Условие пересечения ЗДЕСЬ НЕ ЖИВЁТ и жить не может: единственная его запись — тело публичной
+ * двери `app.read_public_booking_catalog` (активная строка `be_specialist_service_availability`
+ * с филиалом + активный специалист + активный филиал). Кабинет только читает то же самое через
+ * `listServiceDoerIntersections`, чтобы показать ровно то, что увидит посетитель. Вторая копия
+ * отбора в TypeScript разошлась бы с дверью молча.
+ */
+export type BeServiceDoerIntersection = {
   serviceId: string;
+  specialistId: string;
   branchId: string;
-  isActive: boolean;
 };
 
 export type BeAppointment = {

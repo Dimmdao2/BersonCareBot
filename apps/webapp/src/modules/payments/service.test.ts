@@ -334,6 +334,75 @@ describe('payments tariff mechanic', () => {
       }),
     );
   });
+
+  // S2.3: пока бронь держит слот, счёт у провайдера обязан умереть в ту же секунду, что и у нас.
+  // Молчаливая поломка здесь стоит дорого и невидима: провайдер принимает деньги за время, которое
+  // мы уже освободили и отдали другому пациенту, а возврат разбирают вручную.
+  function buildExpiringService(adapterOverride?: { supportsInvoice?: boolean }) {
+    if (adapterOverride) Object.assign(providerAdapter, adapterOverride);
+    providerAdapter.createIntent.mockResolvedValue({
+      providerIntentRef: 'yk-created-2',
+      checkoutUrl: 'https://yookassa.ru/checkout/created-2',
+    });
+    return createPaymentsService({
+      port: {
+        findIntentByIdempotency: vi.fn(async () => null),
+        createPaymentIntent: vi.fn(async () => intent),
+        appendHistoryEvent: vi.fn(async () => undefined),
+      } as unknown as PaymentsPort,
+      config: {
+        getBookingPaymentSettings: async () => ({
+          enabled: true,
+          defaultProviderId: 'yookassa',
+          fiscalVatCode: '1',
+          providers: [
+            { id: 'yookassa', label: 'YooKassa', enabled: true, apiKey: 'api-key', shopId: 'shop-1' },
+          ],
+        }),
+      },
+      captureUnitOfWork: {
+        run: async (_organizationId, fn) => fn(),
+        runSerializedPostCommit: async (_organizationId, _key, fn) => fn(),
+      },
+      bookingEngine: null,
+      canCreatePaymentIntent: async () => true,
+      resolvePayerEmail: async () => 'patient@example.test',
+    });
+  }
+
+  const expiringInput = {
+    organizationId: 'org-1',
+    appointmentId: 'appointment-1',
+    platformUserId: 'user-1',
+    amountMinor: 10_000,
+    currency: 'RUB',
+    idempotencyKey: 'appointment-1:prepayment',
+    returnUrl: 'https://app.example.test/return',
+  };
+
+  it('hands the appointment payment deadline to the provider as the invoice expiry', async () => {
+    const payments = buildExpiringService({ supportsInvoice: true });
+    await payments.createAppointmentPaymentIntent({
+      ...expiringInput,
+      expiresAt: '2026-09-11T21:40:00.000Z',
+    });
+    expect(providerAdapter.createIntent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        invoice: expect.objectContaining({ expiresAt: '2026-09-11T21:40:00.000Z' }),
+      }),
+    );
+  });
+
+  it('refuses a deadline the provider cannot enforce instead of silently dropping it', async () => {
+    const payments = buildExpiringService({ supportsInvoice: false });
+    await expect(
+      payments.createAppointmentPaymentIntent({
+        ...expiringInput,
+        expiresAt: '2026-09-11T21:40:00.000Z',
+      }),
+    ).rejects.toThrow('payment_provider_cannot_expire_invoice');
+    expect(providerAdapter.createIntent).not.toHaveBeenCalled();
+  });
 });
 
 describe('appointment-bound payment summary', () => {
