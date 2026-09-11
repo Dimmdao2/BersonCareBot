@@ -43,7 +43,7 @@ import {
 } from './ffmpeg/hlsPlaylistDuration.js';
 
 /**
- * 730 / 900 / 1600 / 2800 kbps ladder (owner decision 2026-09-11, `VIDEO_DELIVERY_COST_AND_METERING`
+ * 730 / 800 / 1400 / 2500 kbps ceilings (advertised 850 / 900 / 1600 / 2800) (owner decision 2026-09-11, `VIDEO_DELIVERY_COST_AND_METERING`
  * items 2 and 5a): ~1.2-1.75x steps between rungs. `bandwidth` is the value advertised in the HLS
  * master playlist. `videoBitrate` is now a CEILING (`-maxrate`, capped further by the source bitrate
  * when known — §«потолок ступени никогда не выше битрейта исходника»), not a `-b:v` ABR target; CRF
@@ -56,7 +56,8 @@ import {
  * and clips that DO hit it (busy scene, poor light) get a materially more legible picture. Owner
  * 11.09.2026: "верхняя ступень остаётся 720p — выше нам не нужно" (the other three rungs are
  * untouched: their existing `bandwidth` already exceeds their `videoBitrate` ceiling by the same
- * audio+overhead margin it always did, so they stay honest without a change).
+ * audio+overhead margin it always did, so they stay honest without a change; the bottom rung's
+ * advertised `bandwidth` had to move with its ceiling, see the comment on the rung itself).
  */
 export type HlsLadderRung = {
   /** Directory name under `hls/`, and the label shown to the player. */
@@ -83,7 +84,11 @@ export type HlsLadderRung = {
 export type PlannedHlsRung = HlsLadderRung & { width: number; height: number };
 
 export const HLS_RUNG_LADDER: readonly HlsLadderRung[] = [
-  { label: '360p', pixelBudget: 640 * 360, videoBitrate: '730k', audioBitrate: '64k', bandwidth: 730_000 },
+  // BANDWIDTH — ПИКОВАЯ полоса варианта (видео + звук + контейнер), поэтому 850k, а не 730k: потолок
+  // видео 730k плюс 64k звука уже 794k, и плеер, которому объявили 730k, выбрал бы ступень, которую не
+  // может выдержать. Остальные три ступени тот же запас несли и раньше (800+96→900, 1400+128→1600,
+  // 2500+128→2800) — их не трогаем. Потолок КОДИРОВАНИЯ нижней ступени ровно 730k, как решил владелец.
+  { label: '360p', pixelBudget: 640 * 360, videoBitrate: '730k', audioBitrate: '64k', bandwidth: 850_000 },
   { label: '480p', pixelBudget: 854 * 480, videoBitrate: '800k', audioBitrate: '96k', bandwidth: 900_000 },
   { label: '576p', pixelBudget: 1024 * 576, videoBitrate: '1400k', audioBitrate: '128k', bandwidth: 1_600_000 },
   { label: '720p', pixelBudget: 1280 * 720, videoBitrate: '2500k', audioBitrate: '128k', bandwidth: 2_800_000 },

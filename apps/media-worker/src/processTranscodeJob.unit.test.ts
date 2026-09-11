@@ -23,11 +23,11 @@ describe('deriveEligibleHlsRungs', () => {
     expect(rungs.some((r) => r.width * r.height > 854 * 480)).toBe(false);
   });
 
-  it('a 1080p source gets the full 730/900/1600/2800 ladder', () => {
+  it('a 1080p source gets the full 850/900/1600/2800 advertised ladder', () => {
     const rungs = deriveEligibleHlsRungs(1920, 1080);
 
     expect(rungs.map((r) => r.label)).toEqual(['360p', '480p', '576p', '720p']);
-    expect(rungs.map((r) => r.bandwidth)).toEqual([730_000, 900_000, 1_600_000, 2_800_000]);
+    expect(rungs.map((r) => r.bandwidth)).toEqual([850_000, 900_000, 1_600_000, 2_800_000]);
   });
 
   it('a source at exactly the 720p rung height includes 720p (fits, not exceeds)', () => {
@@ -166,10 +166,18 @@ describe('rungBitrateCeilingBps', () => {
     expect(rungBitrateCeilingBps('800k', 10_000_000)).toBe(800_000);
   });
 
-  it('the bottom rung\'s bandwidth (peak advertised in the master playlist) matches its own ceiling', () => {
-    const bottom = HLS_RUNG_LADDER[0]!;
-    expect(bottom.label).toBe('360p');
-    expect(rungBitrateCeilingBps(bottom.videoBitrate, null)).toBe(bottom.bandwidth);
+  it('every rung advertises a BANDWIDTH at or above its own video ceiling PLUS its audio', () => {
+    // BANDWIDTH в мастер-плейлисте — пиковая полоса варианта целиком. Объявить меньше, чем ступень
+    // способна выдать (потолок видео + звук), значит подсунуть плееру ступень, которую он не
+    // вытянет: он выбирает по этому числу. Заниженное число не «экономит», а ломает выбор.
+    for (const rung of HLS_RUNG_LADDER) {
+      const peak =
+        parseFfmpegBitrateTokenBps(rung.videoBitrate) + parseFfmpegBitrateTokenBps(rung.audioBitrate);
+      expect(
+        rung.bandwidth,
+        `ступень ${rung.label}: объявлено ${rung.bandwidth}, пик ${peak}`,
+      ).toBeGreaterThanOrEqual(peak);
+    }
   });
 });
 
