@@ -14,7 +14,12 @@ function formatPatientMessageDateTime(iso: string, timeZone: string): string {
 }
 
 export function buildPatientCreatedMessageText(
-  input: { slotStart: string; bookingType: 'in_person' | 'online'; city?: string | null; cityCodeSnapshot?: string | null },
+  input: {
+    slotStart: string;
+    bookingType: 'in_person' | 'online';
+    city?: string | null;
+    cityCodeSnapshot?: string | null;
+  },
   timeZone: string,
 ): string {
   const dateLabel = formatPatientMessageDateTime(input.slotStart, timeZone);
@@ -45,9 +50,32 @@ export function buildPatientRescheduledMessageText(
 }
 
 export function buildPatientPaymentCapturedMessageText(
-  input: { slotStart: string },
+  input:
+    | { slotStart: string }
+    | { appointments: readonly { slotStart: string; serviceTitle: string | null }[] },
   timeZone: string,
 ): string {
-  const dateLabel = formatPatientMessageDateTime(input.slotStart, timeZone);
-  return `Оплата записи подтверждена. ${dateLabel}`;
+  const appointments =
+    'appointments' in input
+      ? input.appointments
+      : [{ slotStart: input.slotStart, serviceTitle: null }];
+  if (appointments.length === 1) {
+    const appointment = appointments[0]!;
+    return `Оплата записи подтверждена. ${formatPatientMessageDateTime(appointment.slotStart, timeZone)}`;
+  }
+  return `Оплата записи подтверждена. Вы записаны на приём:\n${appointments
+    .map((appointment) => {
+      const serviceTitle = appointment.serviceTitle?.trim() || 'Приём';
+      return `• ${formatPatientMessageDateTime(appointment.slotStart, timeZone)} — ${serviceTitle}`;
+    })
+    .join('\n')}`;
+}
+
+/** Сообщение сразу после самозаписи с предоплатой: до оплаты запись ещё не подтверждена. */
+export function buildPatientAwaitingPaymentMessageText(
+  input: { checkoutUrl: string; paymentDeadlineAt: string },
+  timeZone: string,
+): string {
+  const deadlineLabel = formatPatientMessageDateTime(input.paymentDeadlineAt, timeZone);
+  return `Для подтверждения записи оплатите до ${deadlineLabel}:\n${input.checkoutUrl}`;
 }

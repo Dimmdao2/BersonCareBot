@@ -507,8 +507,9 @@ export async function createBookingOnCanonicalEngine(
       createInput.bookingChannel === 'public_widget'
         ? `${publicBookPaths.pay}?bookingId=${encodeURIComponent(pending.id)}`
         : `/app/patient/booking/pay?bookingId=${encodeURIComponent(pending.id)}`;
+    let paymentIntent: Awaited<ReturnType<PaymentsService['createAppointmentPaymentIntent']>>;
     try {
-      await deps.payments.createAppointmentPaymentIntent({
+      paymentIntent = await deps.payments.createAppointmentPaymentIntent({
         organizationId: orgId,
         appointmentId: appointment.id,
         platformUserId: createInput.userId,
@@ -537,6 +538,54 @@ export async function createBookingOnCanonicalEngine(
     if (awaitingRows.some((row) => !row)) {
       await rollbackChain('booking_awaiting_payment_sync_failed');
       throw new Error('booking_confirm_failed');
+    }
+    const checkoutUrl = paymentIntent.checkoutUrl?.trim();
+    const paymentDeadlineAt = financialSnapshot.paymentDeadlineAt;
+    if (checkoutUrl && paymentDeadlineAt && deps.bookingCreatedEffects) {
+      // F1 (аудит 11.09): бронь к этому моменту уже создана и УЖЕ занимает слот. Любой отказ
+      // уведомления — чтение настроек, резолвер каналов, очередь — обязан остаться отказом
+      // уведомления. Раньше он всплывал наружу как провал создания: пациент видел ошибку, повторял
+      // попытку и упирался в собственную невидимую бронь.
+      try {
+        const createNotify = resolveBookingNotifyTargets(
+          'booking.created',
+          { notifyPatient: true, notifyStaff: true },
+          (await deps.getBookingLifecycleNotificationSettings?.()) ?? null,
+        );
+        // F2 (аудит 11.09): дедлайн — это деньги, и назван он должен быть в том времени, в котором
+        // человек живёт, то есть в поясе филиала. Глобальный пояс приложения здесь врал на разницу
+        // часовых поясов при верном моменте времени — самый тихий класс ошибки.
+        const createTimeZone =
+          inPersonCtx?.branchTimezone ??
+          (await deps.getAppDisplayTimeZone?.()) ??
+          DEFAULT_APP_DISPLAY_TIMEZONE;
+        const row = awaitingRows[0] ?? pending;
+        await deps.bookingCreatedEffects.apply({
+          organizationId: appointment.organizationId,
+          bookingId: row.id,
+          canonicalAppointmentId: appointment.id,
+          platformUserId: createInput.userId,
+          contactName: row.contactName,
+          contactPhone: row.contactPhone,
+          slotStart: row.slotStart,
+          slotEnd: row.slotEnd,
+          bookingType: row.bookingType,
+          city: row.city,
+          cityCodeSnapshot: row.cityCodeSnapshot,
+          notifyPatient: createNotify.notifyPatient,
+          timeZone: createTimeZone,
+          awaitingPayment: {
+            checkoutUrl,
+            paymentDeadlineAt,
+          },
+        });
+      } catch (cause) {
+        console.error('[booking] awaiting-payment notification failed', {
+          bookingId: pending.id,
+          appointmentId: appointment.id,
+          cause: cause instanceof Error ? cause.message : String(cause),
+        });
+      }
     }
     await persistBookingFormContacts(deps, createInput);
     return awaitingRows[0] ?? pending;

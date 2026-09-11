@@ -154,7 +154,7 @@ describe('media delivery routes', () => {
     expect(response.status).toBe(307);
     expect(response.headers.get('location')).toBe('https://storage.example/signed');
     expect(response.headers.get('cache-control')).toBe('private, max-age=0, must-revalidate');
-    expect(mocks.presign).toHaveBeenCalledWith('media/file.mp4', 900, 'patient');
+    expect(mocks.presign).toHaveBeenCalledWith('media/file.mp4', 900, 'patient', undefined, undefined);
     expect(mocks.withPatientPrincipal).toHaveBeenCalledWith(
       expect.objectContaining({
         organizationId: '00000000-0000-4000-8000-000000000001',

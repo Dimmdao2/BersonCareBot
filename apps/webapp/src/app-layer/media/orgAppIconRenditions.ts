@@ -1,5 +1,5 @@
 import { logger } from '@/app-layer/logging/logger';
-import { getMediaS3KeyForRedirect } from '@/app-layer/media/s3MediaStorage';
+import { getMediaOriginalObjectForDownload } from '@/app-layer/media/s3MediaStorage';
 import {
   s3GetPrivateObjectBuffer,
   s3HeadObject,
@@ -24,7 +24,13 @@ import {
  * позволяет двери выдачи не спрашивать БД вообще: адрес полностью задаёт ключ.
  *
  * Вызывается из пути сохранения бренда, где принципал — сотрудник СВОЕЙ организации, поэтому
- * исходник читается org-scoped запросом `getMediaS3KeyForRedirect` и подсунуть чужой файл нечем.
+ * исходник читается org-scoped запросом `getMediaOriginalObjectForDownload` и подсунуть чужой файл
+ * нечем. Не `getMediaS3KeyForRedirect` (F-4a, коррекция аудита `raw-bucket-audit-01`): та дверь —
+ * ОБЩАЯ выдача и с М7 намеренно отказывает сырому бакету (F-2), а свежая иконка в момент установки
+ * ещё не имеет своего рендишна (превью-воркер синхронно не дождаться, см. `brandingActions.ts`) —
+ * то есть `getMediaS3KeyForRedirect` вернула бы `null` на КАЖДОЙ установке. Здесь читается сам
+ * исходник, каким бы бакетом он ни владел, — ровно то, что и раньше умел `object.kind`, просто
+ * дальше его теряли.
  */
 
 const RENDITION_MIME = 'image/png';
@@ -65,9 +71,9 @@ export async function writeOrgAppIconRenditions(
       keys: ORG_APP_ICON_VARIANTS.map((variant) => orgAppIconObjectKey(mediaId, variant)),
     };
   }
-  const object = await getMediaS3KeyForRedirect(mediaId);
+  const object = await getMediaOriginalObjectForDownload(mediaId);
   if (!object) return { ok: false, reason: 'source_unavailable' };
-  const source = await s3GetPrivateObjectBuffer(object.key, object.target);
+  const source = await s3GetPrivateObjectBuffer(object.key, object.target, object.kind);
   if (!source.ok) return { ok: false, reason: 'source_unavailable' };
 
   let renditions;

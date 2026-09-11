@@ -66,6 +66,12 @@ const MEDIA_COPY_KEYS = [
   'S3_ACCESS_KEY',
   'S3_SECRET_KEY',
   'S3_PRIVATE_BUCKET',
+  /*
+   * Сырой бакет загрузок (М7, `docs/_TODO/STORAGE_PACKAGES_2026-09-10.md`) — обязателен воркеру так
+   * же, как `S3_PRIVATE_BUCKET`: он читает исходник ТОЛЬКО отсюда. Копируется тем же правилом
+   * «есть у api — есть у воркера».
+   */
+  'S3_RAW_BUCKET',
   'S3_REGION',
   'S3_FORCE_PATH_STYLE',
   /*
@@ -87,6 +93,7 @@ const MEDIA_REQUIRED_KEYS = [
   'S3_ACCESS_KEY',
   'S3_SECRET_KEY',
   'S3_PRIVATE_BUCKET',
+  'S3_RAW_BUCKET',
 ];
 const TEST_PORT_CONTEXT = {
   api: renderPortContextRuntimeEnv(declaration, 'test', 'bersoncarebot_test', 'integrator'),
@@ -662,7 +669,7 @@ function selfTest() {
     const common =
       "DB_PRINCIPAL_CONTEXT_MODE='locked'\nDB_PRINCIPAL_SIGNING_SECRET='test-signing-secret-at-least-32-bytes'\n";
     const s3 =
-      "S3_ENDPOINT='http://s3.test'\nS3_ACCESS_KEY='access'\nS3_SECRET_KEY='secret'\nS3_PRIVATE_BUCKET='private'\n";
+      "S3_ENDPOINT='http://s3.test'\nS3_ACCESS_KEY='access'\nS3_SECRET_KEY='secret'\nS3_PRIVATE_BUCKET='private'\nS3_RAW_BUCKET='raw'\n";
     writeFileSync(
       api,
       "DATABASE_URL='postgresql://base:base-secret@127.0.0.1:5432/bersoncarebot_test'\n" +

@@ -73,6 +73,17 @@ export type PaymentIntentRecord = {
   checkoutUrl: string | null;
 };
 
+/** Anonymous-safe projection for one appointment prepayment intent. */
+export type AppointmentPaymentCheck = {
+  alive: boolean;
+  amountMinor: number | null;
+  currency: string | null;
+  paymentDeadlineAt: string | null;
+  appointmentStatus: string | null;
+  /** Internal continuation. It is present only while `alive` is true. */
+  providerCheckoutUrl: string | null;
+};
+
 export type PaymentRecord = {
   id: string;
   organizationId: string;

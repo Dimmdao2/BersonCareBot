@@ -335,10 +335,22 @@ function compactTranscodeLogErrorCode(message: string): string {
 export type TranscodeContext = {
   control: MediaWorkerControlPort;
   /**
-   * Хранилища, а не одно: наряд называет своё, и всё, что делается по этому наряду — скачивание
-   * исходника, выкладка HLS и постера — происходит внутри него.
+   * Куда ложится ВЫХОД наряда — HLS-дерево, постер, 480p-рендишн. Тот же горячий бакет, что и до
+   * М7 (`docs/_TODO/STORAGE_PACKAGES_2026-09-10.md`). Хранилища два, а не одно: наряд называет
+   * своё для каждого направления, и всё, что делается по этому наряду — скачивание исходника,
+   * выкладка HLS и постера — происходит внутри выбранного.
    */
   storageFor: (target: StorageTarget) => StorageBinding;
+  /**
+   * Откуда читается ИСХОДНИК (`media.s3_key`). У `library` это отдельный сырой бакет
+   * (`S3_RAW_BUCKET`) — М7 — КРОМЕ ещё не перенесённых старых ключей (F-1, коррекция аудита
+   * `raw-bucket-audit-01`): форма ключа (`isLegacyHotMediaSourceKey`) решает, а не только цель,
+   * поэтому ключ обязателен вторым параметром. У `patient` разделения нет, источник и назначение
+   * совпадают, как и раньше. Отдельная функция, а не флаг на `storageFor`, чтобы наряд не мог
+   * случайно перепутать вход с выходом: у HLS-дерева и постера всегда `storageFor`, у скачивания —
+   * всегда это поле.
+   */
+  sourceStorageFor: (target: StorageTarget, key: string) => StorageBinding;
   ffmpegBin: string;
   ffmpegTimeoutMs: number;
   maxAttempts: number;
@@ -346,8 +358,8 @@ export type TranscodeContext = {
   lockId: string;
 };
 
-/** Контекст одного наряда: хранилище уже выбрано и дальше по коду не выбирается заново. */
-export type TranscodeJobContext = TranscodeContext & StorageBinding;
+/** Контекст одного наряда: оба хранилища уже выбраны и дальше по коду не выбираются заново. */
+export type TranscodeJobContext = TranscodeContext & StorageBinding & { source: StorageBinding };
 
 async function permanentFail(
   ctx: TranscodeContext,
@@ -446,9 +458,14 @@ async function processTranscodeJobInner(outer: TranscodeContext, job: ClaimedJob
    * чтобы отметить наряд провалившимся. Если строка ЕСТЬ, хранилище обязано быть названо, иначе
    * `parseStorageTarget` откажет и наряд упадёт громко — вместо тихой работы в чужом бакете.
    */
+  const target = loaded ? parseStorageTarget(loaded.storageTarget) : 'library';
+  /* Ключ решает бакет источника вместе с целью (F-1) — пустая строка для строки без ключа ничего
+     не портит: наряд без `s3_key` уже обречён на `permanentFail` ниже и в S3 не ходит. */
+  const sourceKey = loaded?.s3Key ?? '';
   const ctx: TranscodeJobContext = {
     ...outer,
-    ...outer.storageFor(loaded ? parseStorageTarget(loaded.storageTarget) : 'library'),
+    ...outer.storageFor(target),
+    source: outer.sourceStorageFor(target, sourceKey),
   };
   const media = loaded && {
     id: loaded.id,
@@ -552,7 +569,7 @@ async function processTranscodeJobInner(outer: TranscodeContext, job: ClaimedJob
   try {
     await mkdir(hlsDir, { recursive: true });
     await mkdir(posterDir, { recursive: true });
-    await downloadObjectToFile(ctx.client, ctx.bucket, media.s3_key, src);
+    await downloadObjectToFile(ctx.source.client, ctx.source.bucket, media.s3_key, src);
 
     const sourceProbe = await probeVideoDimensions(ctx.ffmpegBin, src, 60_000);
     if (!sourceProbe) {

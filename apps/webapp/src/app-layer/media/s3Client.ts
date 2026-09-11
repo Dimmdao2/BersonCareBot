@@ -13,9 +13,13 @@ export {
   s3HeadObject,
   s3HeadObjectDetails,
   s3ObjectKey,
+  s3RawObjectKey,
+  s3StandardImageKey,
   s3PutObjectBody,
   s3CreateMultipartUpload,
   storageBucketFor,
+  sourceStorageKindFor,
+  sourceStorageKindForKey,
   isPatientStorageSeparate,
   parseStorageTarget,
 } from '@/infra/s3/client';
@@ -23,4 +27,5 @@ export type {
   S3GetObjectStreamFailureReason,
   S3GetObjectStreamResult,
   StorageTarget,
+  StorageKind,
 } from '@/infra/s3/client';

@@ -27,6 +27,7 @@ vi.mock('../google-calendar/sync.js', () => ({
 }));
 
 import { handleBookingLifecycleEvent } from './bookingLifecycleRoute.js';
+import { parseBookingLifecycleEvent } from './bookingLifecycleSchema.js';
 import { createInMemoryIdempotencyPort } from '../../infra/db/repos/idempotencyKeys.js';
 import type { DispatchPort, WebappEventsPort } from '../../kernel/contracts/index.js';
 
@@ -101,5 +102,38 @@ describe('booking.created: кто получает сообщение от ин�
 
     expect(recipientsOf(dispatchOutgoing)).toContain('123');
     expect(recipientsOf(dispatchOutgoing)).toContain('777');
+  });
+});
+
+describe('booking.payment_captured: подавление fallback-сообщения', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('не шлёт пациенту fallback-текст, когда второй event оплаты помечен suppression', async () => {
+    const dispatchOutgoing = vi.fn(async () => ({}));
+    const parsed = parseBookingLifecycleEvent({
+      eventType: 'booking.payment_captured',
+      idempotencyKey: 'booking.payment_captured:payment-1:appointment-2',
+      payload: {
+        ...basePayload(),
+        bookingId: '11111111-1111-4111-8111-111111111111',
+        suppressPatientNotification: true,
+        doctorNotify: false,
+      },
+    });
+    expect(parsed.success).toBe(true);
+    if (!parsed.success) throw parsed.error;
+
+    await handleBookingLifecycleEvent(
+      parsed.data,
+      { dispatchOutgoing } as unknown as DispatchPort,
+      {
+        idempotencyPort: createInMemoryIdempotencyPort(),
+        webappEventsPort: fakeWebappEventsPort(),
+      },
+    );
+
+    expect(recipientsOf(dispatchOutgoing)).toEqual([]);
   });
 });

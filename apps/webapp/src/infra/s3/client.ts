@@ -15,6 +15,7 @@ import { Readable } from 'node:stream';
 import { env } from '@/config/env';
 import type { StorageTarget } from '@/shared/types/storageTarget';
 import { contentDispositionHeaderValue } from '@/shared/lib/contentDisposition';
+import { isLegacyHotMediaSourceKey } from '@/shared/lib/hlsStorageLayout';
 export { parseStorageTarget } from '@/shared/types/storageTarget';
 
 const PRESIGN_PUT_EXPIRES_SEC = 900;
@@ -39,12 +40,21 @@ type StorageConfig = {
 };
 
 /**
+ * `hot` — бакет выдачи (`S3_PRIVATE_BUCKET` / `PATIENT_S3_BUCKET`): HLS, постеры, стандартные
+ * рендишены картинок, превью — всё, что действительно уходит наружу.
+ * `raw` — бакет сырых загрузок (М7, `S3_RAW_BUCKET`): то, что загрузил человек, и ничего больше.
+ * Существует только для `library`; у `patient` своего сырого бакета в этой ветке нет (владелец
+ * 10.09: «их бакет в этой ветке не меняется») — запрос `raw` для `patient` решается как `hot`.
+ */
+export type StorageKind = 'raw' | 'hot';
+
+/**
  * Конфигурация цели. Для `patient` переменные `PATIENT_S3_*` необязательны: если они не заданы,
  * цель совпадает с основной. Поэтому окружение, где разделение ещё не включено, ведёт себя
  * ровно как до его появления, а включается разделение заданием переменных, а не правкой кода.
  */
-function storageConfigFor(target: StorageTarget): StorageConfig {
-  const library: StorageConfig = {
+function storageConfigFor(target: StorageTarget, kind: StorageKind = 'hot'): StorageConfig {
+  const libraryHot: StorageConfig = {
     endpoint: env.S3_ENDPOINT,
     region: env.S3_REGION,
     accessKey: env.S3_ACCESS_KEY,
@@ -52,21 +62,61 @@ function storageConfigFor(target: StorageTarget): StorageConfig {
     bucket: env.S3_PRIVATE_BUCKET,
     forcePathStyle: env.S3_FORCE_PATH_STYLE,
   };
-  if (target === 'library') return library;
-  if (!env.PATIENT_S3_BUCKET) return library;
+  if (target === 'library') {
+    return kind === 'raw' ? { ...libraryHot, bucket: env.S3_RAW_BUCKET } : libraryHot;
+  }
+  // Пациентское хранилище не разделено на raw/hot в этой ветке — `kind` тут ни на что не влияет,
+  // и дремлющий (без PATIENT_S3_BUCKET) фолбэк ВСЕГДА идёт в библиотечный HOT, никогда не в raw:
+  // иначе запрос `raw` для пациента при выключенном разделении тихо попал бы в бакет сырых
+  // библиотечных загрузок вместо горячего библиотечного бакета.
+  if (!env.PATIENT_S3_BUCKET) return libraryHot;
   return {
-    endpoint: env.PATIENT_S3_ENDPOINT || library.endpoint,
-    region: env.PATIENT_S3_REGION || library.region,
-    accessKey: env.PATIENT_S3_ACCESS_KEY || library.accessKey,
-    secretKey: env.PATIENT_S3_SECRET_KEY || library.secretKey,
+    endpoint: env.PATIENT_S3_ENDPOINT || libraryHot.endpoint,
+    region: env.PATIENT_S3_REGION || libraryHot.region,
+    accessKey: env.PATIENT_S3_ACCESS_KEY || libraryHot.accessKey,
+    secretKey: env.PATIENT_S3_SECRET_KEY || libraryHot.secretKey,
     bucket: env.PATIENT_S3_BUCKET,
     forcePathStyle: env.PATIENT_S3_FORCE_PATH_STYLE,
   };
 }
 
 /** Бакет цели — для мест, которым нужно назвать хранилище (например, ответ двери загрузки). */
-export function storageBucketFor(target: StorageTarget): string {
-  return storageConfigFor(target).bucket;
+export function storageBucketFor(target: StorageTarget, kind: StorageKind = 'hot'): string {
+  return storageConfigFor(target, kind).bucket;
+}
+
+/**
+ * Хранилище, в котором физически лежит объект, адресуемый `media_files.s3_key` (М7): у `library`
+ * это сырой бакет — загрузка пишет туда, и это единственное место, откуда его читают обратно
+ * (никакого фолбэка на горячий). У `patient` бакет один и не разделён — читать его как «raw» или
+ * «hot» означает одно и то же.
+ *
+ * НЕ применяется к ключам, которые уже указывают на вывод нашего энкодера
+ * (`hls_master_playlist_s3_key`, `poster_s3_key`, `preview_sm_key`/`preview_md_key`, ключ
+ * стандартного рендишена картинки `s3StandardImageKey`) — те всегда живут в горячем бакете,
+ * независимо от цели.
+ */
+export function sourceStorageKindFor(target: StorageTarget): StorageKind {
+  return target === 'library' ? 'raw' : 'hot';
+}
+
+/**
+ * Same question as {@link sourceStorageKindFor}, but for an EXISTING row's key rather than a key
+ * about to be created. `sourceStorageKindFor` is correct only at upload time, when there is no key
+ * yet and a fresh `library` upload always goes to `raw` — it says nothing about where a key that
+ * already exists in `media_files.s3_key` physically lives, because `storage_target` never recorded
+ * whether the M7 ops-side relocation of already-uploaded originals has run (plan М7, correction
+ * F-1). Every caller that reads, deletes, or transcodes a PERSISTED key must use this one instead:
+ * it decides the bucket from the key's own shape ({@link isLegacyHotMediaSourceKey}), so a
+ * not-yet-migrated library source (still physically in the hot bucket) stays reachable, and a
+ * post-M7 source (in the raw bucket) is addressed there — never a HEAD probe, never a fallback.
+ *
+ * TEMPORARY seam, same as `isLegacyHotMediaSourceKey`: collapses to `sourceStorageKindFor` once the
+ * last pre-M7 key is gone.
+ */
+export function sourceStorageKindForKey(target: StorageTarget, key: string): StorageKind {
+  if (target !== 'library') return 'hot';
+  return isLegacyHotMediaSourceKey(key) ? 'hot' : 'raw';
 }
 
 /** Отдельно ли живут данные пациентов в этом окружении. */
@@ -91,8 +141,8 @@ const clientCache = new Map<string, S3Client>();
  * Shared SDK client for media buckets. Uses AWS SDK default HTTP timeouts/request handlers unless
  * overridden upstream; classify failures via {@link classifyS3GetObjectFailure} (`upstream_timeout`, etc.).
  */
-export function getS3Client(target: StorageTarget): S3Client {
-  const cfg = storageConfigFor(target);
+export function getS3Client(target: StorageTarget, kind: StorageKind = 'hot'): S3Client {
+  const cfg = storageConfigFor(target, kind);
   const identity = storageConfigIdentity(cfg);
   const cached = clientCache.get(identity);
   if (cached) return cached;
@@ -109,8 +159,8 @@ export function getS3Client(target: StorageTarget): S3Client {
   return client;
 }
 
-function privateBucket(target: StorageTarget): string {
-  return storageConfigFor(target).bucket;
+function privateBucket(target: StorageTarget, kind: StorageKind = 'hot'): string {
+  return storageConfigFor(target, kind).bucket;
 }
 
 /** Sanitize original filename for object key segment. */
@@ -123,6 +173,16 @@ export function sanitizeMediaFilename(name: string): string {
 export function s3ObjectKey(mediaId: string, filename: string): string {
   const safe = sanitizeMediaFilename(filename);
   return `${S3_KEY_PREFIX}/${mediaId}/${safe}`;
+}
+
+/**
+ * Ключ сырого объекта (М7): папка верхнего уровня — организация, чтобы объём читался обходом
+ * бакета по папкам («каждая папка — организация», решение владельца 10.09.2026) как независимая
+ * сверка счётчика в базе. Ровно то, что хранится в `media_files.s3_key` для `library`-целей.
+ */
+export function s3RawObjectKey(organizationId: string, mediaId: string, filename: string): string {
+  const safe = sanitizeMediaFilename(filename);
+  return `${organizationId}/${S3_KEY_PREFIX}/${mediaId}/${safe}`;
 }
 
 /**
@@ -149,15 +209,17 @@ export function s3PublicUrl(key: string): string {
   return `${base}/${bucket}/${key}`;
 }
 
-/** Presigned PUT for CMS / patient uploads into the private bucket. */
+/** Presigned PUT for CMS / patient uploads. `kind` defaults to `hot` for pre-M7 callers; every
+ * fresh upload of a `library`-target object passes `kind: 'raw'` (М7). */
 export async function presignPutUrl(
   key: string,
   mimeType: string,
   target: StorageTarget,
+  kind: StorageKind = 'hot',
 ): Promise<string> {
-  const client = getS3Client(target);
+  const client = getS3Client(target, kind);
   const cmd = new PutObjectCommand({
-    Bucket: privateBucket(target),
+    Bucket: privateBucket(target, kind),
     Key: key,
     ContentType: mimeType,
   });
@@ -209,10 +271,11 @@ export async function presignGetUrl(
   expiresSec: number = PRESIGN_GET_DEFAULT_SEC,
   target: StorageTarget,
   serve?: { mimeType?: string; filename?: string },
+  kind: StorageKind = 'hot',
 ): Promise<string> {
-  const client = getS3Client(target);
+  const client = getS3Client(target, kind);
   const cmd = new GetObjectCommand({
-    Bucket: privateBucket(target),
+    Bucket: privateBucket(target, kind),
     Key: key,
     ...(serve?.mimeType ? { ResponseContentType: serve.mimeType } : {}),
     ...(serve?.mimeType || serve?.filename
@@ -225,8 +288,9 @@ export async function presignGetUrl(
 export async function s3HeadObject(
   key: string,
   target: StorageTarget,
+  kind: StorageKind = 'hot',
 ): Promise<boolean> {
-  const d = await s3HeadObjectDetails(key, target);
+  const d = await s3HeadObjectDetails(key, target, kind);
   return d !== null;
 }
 
@@ -243,12 +307,13 @@ export type S3HeadObjectDetails = {
 export async function s3HeadObjectDetails(
   key: string,
   target: StorageTarget,
+  kind: StorageKind = 'hot',
 ): Promise<S3HeadObjectDetails | null> {
-  const client = getS3Client(target);
+  const client = getS3Client(target, kind);
   try {
     const out = await client.send(
       new HeadObjectCommand({
-        Bucket: privateBucket(target),
+        Bucket: privateBucket(target, kind),
         Key: key,
       }),
     );
@@ -274,12 +339,14 @@ export async function s3CreateMultipartUpload(params: {
   contentType: string;
   metadata: Record<string, string>;
   target: StorageTarget;
+  kind?: StorageKind;
 }): Promise<{ uploadId: string }> {
   const { target } = params;
-  const client = getS3Client(target);
+  const kind = params.kind ?? 'hot';
+  const client = getS3Client(target, kind);
   const out = await client.send(
     new CreateMultipartUploadCommand({
-      Bucket: privateBucket(target),
+      Bucket: privateBucket(target, kind),
       Key: params.key,
       ContentType: params.contentType,
       Metadata: params.metadata,
@@ -296,10 +363,11 @@ export async function presignUploadPartUrl(
   uploadId: string,
   partNumber: number,
   target: StorageTarget,
+  kind: StorageKind = 'hot',
 ): Promise<string> {
-  const client = getS3Client(target);
+  const client = getS3Client(target, kind);
   const cmd = new UploadPartCommand({
-    Bucket: privateBucket(target),
+    Bucket: privateBucket(target, kind),
     Key: key,
     UploadId: uploadId,
     PartNumber: partNumber,
@@ -312,12 +380,13 @@ export async function s3CompleteMultipartUpload(
   uploadId: string,
   parts: { PartNumber: number; ETag: string }[],
   target: StorageTarget,
+  kind: StorageKind = 'hot',
 ): Promise<void> {
-  const client = getS3Client(target);
+  const client = getS3Client(target, kind);
   const sorted = [...parts].sort((a, b) => a.PartNumber - b.PartNumber);
   await client.send(
     new CompleteMultipartUploadCommand({
-      Bucket: privateBucket(target),
+      Bucket: privateBucket(target, kind),
       Key: key,
       UploadId: uploadId,
       MultipartUpload: {
@@ -335,11 +404,12 @@ export async function s3AbortMultipartUpload(
   key: string,
   uploadId: string,
   target: StorageTarget,
+  kind: StorageKind = 'hot',
 ): Promise<void> {
-  const client = getS3Client(target);
+  const client = getS3Client(target, kind);
   await client.send(
     new AbortMultipartUploadCommand({
-      Bucket: privateBucket(target),
+      Bucket: privateBucket(target, kind),
       Key: key,
       UploadId: uploadId,
     }),
@@ -351,11 +421,12 @@ export async function s3PutObjectBody(
   body: Buffer,
   mimeType: string,
   target: StorageTarget,
+  kind: StorageKind = 'hot',
 ): Promise<void> {
-  const client = getS3Client(target);
+  const client = getS3Client(target, kind);
   await client.send(
     new PutObjectCommand({
-      Bucket: privateBucket(target),
+      Bucket: privateBucket(target, kind),
       Key: key,
       Body: body,
       ContentType: mimeType,
@@ -367,12 +438,13 @@ export async function s3PutObjectBody(
 export async function s3GetPrivateObjectBuffer(
   key: string,
   target: StorageTarget,
+  kind: StorageKind = 'hot',
 ): Promise<{ ok: true; buf: Buffer } | { ok: false; reason: S3GetObjectStreamFailureReason }> {
-  const client = getS3Client(target);
+  const client = getS3Client(target, kind);
   try {
     const out = await client.send(
       new GetObjectCommand({
-        Bucket: privateBucket(target),
+        Bucket: privateBucket(target, kind),
         Key: key,
       }),
     );
@@ -391,8 +463,9 @@ export async function s3GetPrivateObjectBuffer(
 export async function s3GetObjectBody(
   key: string,
   target: StorageTarget,
+  kind: StorageKind = 'hot',
 ): Promise<Buffer | null> {
-  const got = await s3GetPrivateObjectBuffer(key, target);
+  const got = await s3GetPrivateObjectBuffer(key, target, kind);
   return got.ok ? got.buf : null;
 }
 
@@ -401,12 +474,13 @@ export async function s3GetObjectPrefix(
   key: string,
   target: StorageTarget,
   maxBytes: number = 512,
+  kind: StorageKind = 'hot',
 ): Promise<Buffer | null> {
-  const client = getS3Client(target);
+  const client = getS3Client(target, kind);
   try {
     const out = await client.send(
       new GetObjectCommand({
-        Bucket: privateBucket(target),
+        Bucket: privateBucket(target, kind),
         Key: key,
         Range: `bytes=0-${Math.max(0, maxBytes - 1)}`,
       }),
@@ -459,13 +533,15 @@ export async function s3GetObjectStream(params: {
   key: string;
   range?: string | null;
   target: StorageTarget;
+  kind?: StorageKind;
 }): Promise<S3GetObjectStreamResult> {
   const { target } = params;
-  const client = getS3Client(target);
+  const kind = params.kind ?? 'hot';
+  const client = getS3Client(target, kind);
   try {
     const out = await client.send(
       new GetObjectCommand({
-        Bucket: privateBucket(target),
+        Bucket: privateBucket(target, kind),
         Key: params.key,
         ...(params.range ? { Range: params.range } : {}),
       }),
@@ -492,14 +568,21 @@ export async function s3GetObjectStream(params: {
   }
 }
 
+/**
+ * `kind` defaults to `hot` for pre-M7 callers, exactly like every other function here — but a
+ * `library` deletion of a PERSISTED key must pass `sourceStorageKindForKey(target, key)` (M7
+ * correction F-3): the default alone deletes nothing (S3 answers success on a missing key in the
+ * wrong bucket) while reporting the purge complete.
+ */
 export async function s3DeleteObject(
   key: string,
   target: StorageTarget,
+  kind: StorageKind = 'hot',
 ): Promise<void> {
-  const client = getS3Client(target);
+  const client = getS3Client(target, kind);
   await client.send(
     new DeleteObjectCommand({
-      Bucket: privateBucket(target),
+      Bucket: privateBucket(target, kind),
       Key: key,
     }),
   );
@@ -541,6 +624,10 @@ export type S3PerKeyDeleteResult =
 
 /**
  * Deletes each key independently; does not short-circuit on first failure (strict purge post-commit).
+ *
+ * Каждый ключ несёт своё хранилище САМ (М7, коррекция F-4): один `target` не значит один бакет —
+ * `library`-ключ может лежать и в сыром, и (для ещё не перенесённых исходников) в горячем, и это
+ * решает форма ключа (`sourceStorageKindForKey`), а не общий для всего списка дефолт.
  */
 export async function deleteS3ObjectsWithPerKeyResults(
   keys: string[],
@@ -549,7 +636,7 @@ export async function deleteS3ObjectsWithPerKeyResults(
   const out: S3PerKeyDeleteResult[] = [];
   for (const key of keys) {
     try {
-      await s3DeleteObject(key, target);
+      await s3DeleteObject(key, target, sourceStorageKindForKey(target, key));
       out.push({ key, ok: true });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);

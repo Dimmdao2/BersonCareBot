@@ -29,6 +29,15 @@ export type BookingCreatedEffectsInput = {
   /** Решение вебаппа по настройкам клиники: уведомлять ли пациента. */
   notifyPatient: boolean;
   timeZone: string;
+  /**
+   * Самозапись с предоплатой ещё не подтверждена, поэтому ей нужен собственный призыв оплатить,
+   * а не обычное «Запись подтверждена». Ссылку передаёт созданное платёжное намерение — это тот
+   * же источник, из которого её читают экраны оплаты.
+   */
+  awaitingPayment?: {
+    checkoutUrl: string;
+    paymentDeadlineAt: string;
+  };
 };
 
 export type BookingCreatedEffectsPort = {

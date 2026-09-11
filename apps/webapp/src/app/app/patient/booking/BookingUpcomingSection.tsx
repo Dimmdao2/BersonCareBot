@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
 import { Badge } from '@/shared/ui/patient/primitives/badge';
 import type { PatientBookingRecord } from '@/modules/patient-booking/types';
 import { formatBookingDateTimeMediumRu } from '@/shared/lib/formatBusinessDateTime';
@@ -72,6 +73,38 @@ function payHref(bookingId: string): string {
   return `/app/patient/booking/pay?bookingId=${encodeURIComponent(bookingId)}`;
 }
 
+function BookingPaymentDeadline({
+  bookingId,
+  appDisplayTimeZone,
+}: {
+  bookingId: string;
+  appDisplayTimeZone: string;
+}) {
+  const [deadlineAt, setDeadlineAt] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    void fetch(`/api/booking/payment-status?bookingId=${encodeURIComponent(bookingId)}`)
+      .then(
+        async (res) => (await res.json()) as { ok?: boolean; paymentDeadlineAt?: string | null },
+      )
+      .then((json) => {
+        if (active && json.ok) setDeadlineAt(json.paymentDeadlineAt ?? null);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [bookingId]);
+
+  if (!deadlineAt) return null;
+  return (
+    <p className={patientCaptionTextClass}>
+      Оплатить до {formatBookingDateTimeMediumRu(deadlineAt, appDisplayTimeZone)}
+    </p>
+  );
+}
+
 export function BookingUpcomingSection({ bookings, appDisplayTimeZone }: Props) {
   if (bookings.length === 0) return null;
 
@@ -97,12 +130,20 @@ export function BookingUpcomingSection({ bookings, appDisplayTimeZone }: Props) 
               <div className="min-w-0 flex-1">
                 <p className={cn('flex items-center gap-1.5', patientActionTextClass)}>
                   <span>{formatBookingDateTimeMediumRu(row.slotStart, displayTimeZone)}</span>
-                  <AppointmentZoneOffsetWarning iso={row.slotStart} branchTimeZone={branchTimeZone} />
+                  <AppointmentZoneOffsetWarning
+                    iso={row.slotStart}
+                    branchTimeZone={branchTimeZone}
+                  />
                 </p>
                 <p className={cn(patientCaptionTextClass, 'truncate')}>
                   {bookingProvenancePrefix(row)}
                   {nativeBookingSubtitle(row)}
                 </p>
+                {row.status === 'awaiting_payment' ? (
+                  /* Зона филиала, а не глобальная зона приложения: дедлайн — это деньги, час
+                     разницы стоит пациенту слота. */
+                  <BookingPaymentDeadline bookingId={row.id} appDisplayTimeZone={displayTimeZone} />
+                ) : null}
               </div>
               <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
                 <Badge variant={statusToBadgeVariant(row.status)}>{statusLabel(row.status)}</Badge>

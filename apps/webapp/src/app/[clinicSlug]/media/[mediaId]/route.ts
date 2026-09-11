@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { env, isS3MediaEnabled } from '@/config/env';
 import { logger } from '@/app-layer/logging/logger';
-import { presignGetUrl } from '@/app-layer/media/s3Client';
+import { presignGetUrl, sourceStorageKindForKey } from '@/app-layer/media/s3Client';
 import { serializePresignFailureForLog } from '@/app-layer/media/presignLogRedaction';
 import { readSaasTestLocalMedia } from '@/app-layer/media/localSaasTestFixtureMedia';
 import { resolveClinicPublicCardMediaRsc } from '../../publicClinicCard';
@@ -37,8 +37,20 @@ export async function GET(
 
   if (media.s3Key) {
     try {
-      /* Карточка клиники — публичный контент организации, не данные пациента. */
-      const signed = await presignGetUrl(media.s3Key, PRESIGN_TTL_SECONDS, 'library');
+      /* Карточка клиники — публичный контент организации, не данные пациента. `s3_key` для
+         `library`-цели живёт в сыром бакете (М7) — КРОМЕ ещё не перенесённых старых исходников
+         (F-1), которых форма ключа выдаёт: без `sourceStorageKindForKey` presign либо бил бы
+         NoSuchKey в горячем (свежий ключ), либо в сыром (старый). `app.read_public_clinic_card`
+         пока не знает о `standard_rendition_at` — рендишн-осведомлённость этой двери следующий этап
+         (та же дыра, что М6-аудит нашёл в трёх старых дверях; вне четырёх блокеров этой коррекции —
+         см. отчёт). */
+      const signed = await presignGetUrl(
+        media.s3Key,
+        PRESIGN_TTL_SECONDS,
+        'library',
+        undefined,
+        sourceStorageKindForKey('library', media.s3Key),
+      );
       const response = NextResponse.redirect(signed, 307);
       response.headers.set('Cache-Control', PUBLIC_CACHE_CONTROL);
       return response;

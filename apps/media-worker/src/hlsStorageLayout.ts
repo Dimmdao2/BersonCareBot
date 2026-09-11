@@ -9,4 +9,5 @@ export {
   normalizeMediaS3Key,
   isTrustedHlsArtifactS3Key,
   isTrustedPosterS3Key,
+  isLegacyHotMediaSourceKey,
 } from '@bersoncare/shared-contracts';

@@ -24,6 +24,7 @@ import type {
   UpsertPrepaymentPolicyInput,
 } from '@/modules/payments/ports';
 import type {
+  AppointmentPaymentCheck,
   PaymentHistoryEventRecord,
   PaymentIntentRecord,
   PaymentRecord,
@@ -101,6 +102,28 @@ function mapIntent(row: typeof bePaymentIntents.$inferSelect): PaymentIntentReco
     purpose: row.purpose,
     providerIntentRef: row.providerIntentRef,
     checkoutUrl: row.checkoutUrl,
+  };
+}
+
+type AppointmentPaymentCheckRow = {
+  is_alive: boolean;
+  amount_minor: number | null;
+  currency: string | null;
+  payment_deadline_at: Date | string | null;
+  appointment_status: string | null;
+  provider_checkout_url: string | null;
+};
+
+function mapAppointmentPaymentCheck(row: AppointmentPaymentCheckRow): AppointmentPaymentCheck {
+  const deadline = row.payment_deadline_at;
+  return {
+    alive: row.is_alive,
+    amountMinor: row.amount_minor,
+    currency: row.currency,
+    paymentDeadlineAt:
+      deadline instanceof Date ? deadline.toISOString() : (deadline?.toString() ?? null),
+    appointmentStatus: row.appointment_status,
+    providerCheckoutUrl: row.provider_checkout_url,
   };
 }
 
@@ -342,6 +365,22 @@ export function createPgPaymentsPort(): PaymentsPort {
       return rows[0] ? mapIntent(rows[0]) : null;
     },
 
+    /**
+     * Public payment-link entry. The named root always returns one row, including for an unknown
+     * UUID, so "not found" is not a cheaper relational path than a real but dead invoice.
+     */
+    async readAppointmentPaymentCheck(intentId) {
+      const result = await runWebappNamedRoot<AppointmentPaymentCheckRow>(
+        getWebappSqlDb(),
+        'app.read_booking_payment_check(uuid)',
+        [intentId],
+        sql`SELECT * FROM app.read_booking_payment_check(${intentId}::uuid)`,
+      );
+      const row = result.rows[0];
+      if (!row) throw new Error('booking_payment_check_projection_missing');
+      return mapAppointmentPaymentCheck(row);
+    },
+
     async lockIntentForCapture(intentId, organizationId) {
       const db = getDrizzleOrMutationTx();
       const rows = await db
@@ -443,6 +482,8 @@ export function createPgPaymentsPort(): PaymentsPort {
       const rows = await db
         .select({
           appointmentId: bePaymentIntents.appointmentId,
+          intentId: bePaymentIntents.id,
+          purpose: bePaymentIntents.purpose,
           checkoutUrl: bePaymentIntents.checkoutUrl,
           createdAt: bePaymentIntents.createdAt,
         })
@@ -456,12 +497,19 @@ export function createPgPaymentsPort(): PaymentsPort {
         .orderBy(desc(bePaymentIntents.createdAt));
       // Свежайшее намерение записи побеждает: строки уже отсортированы, поэтому первая встреченная
       // и есть последняя по времени.
-      const latest = new Map<string, string | null>();
+      const latest = new Map<
+        string,
+        { intentId: string; purpose: string; checkoutUrl: string | null }
+      >();
       for (const row of rows) {
         if (!row.appointmentId || latest.has(row.appointmentId)) continue;
-        latest.set(row.appointmentId, row.checkoutUrl ?? null);
+        latest.set(row.appointmentId, {
+          intentId: row.intentId,
+          purpose: row.purpose,
+          checkoutUrl: row.checkoutUrl ?? null,
+        });
       }
-      return Array.from(latest, ([appointmentId, checkoutUrl]) => ({ appointmentId, checkoutUrl }));
+      return Array.from(latest, ([appointmentId, intent]) => ({ appointmentId, ...intent }));
     },
 
     async findLatestIntentByAppointment(appointmentId) {
