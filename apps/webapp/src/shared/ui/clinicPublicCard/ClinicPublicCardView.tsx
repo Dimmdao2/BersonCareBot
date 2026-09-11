@@ -1,4 +1,5 @@
 import { titleForBookingCityCode } from '@/modules/patient-booking/inPersonServicesCatalog';
+import { PublicMarkdownMaterial, type PublicMarkdownAsset } from './PublicMarkdownMaterial';
 
 /**
  * Готовая к показу визитка клиники. Ровно то, что видит человек, и ничего про то, откуда это взято.
@@ -31,6 +32,18 @@ export type ClinicPublicCardLocationView = {
   address: string | null;
 };
 
+/**
+ * Услуга на визитке — решение владельца 20.07 (карточка #926) и §17.B: посетитель должен увидеть,
+ * что клиника делает, не уходя в мастер записи. Показываем то, что клиника РЕАЛЬНО заполняет:
+ * название обязательно, длительность обязательна по схеме, цена и описание — если есть.
+ */
+export type ClinicPublicCardServiceView = {
+  title: string;
+  description: string | null;
+  durationMinutes: number;
+  priceMinor: number;
+};
+
 export type ClinicPublicCardViewModel = {
   displayName: string;
   description: string | null;
@@ -38,6 +51,11 @@ export type ClinicPublicCardViewModel = {
   photoSrcs: readonly string[];
   locations: readonly ClinicPublicCardLocationView[];
   specialists: readonly ClinicPublicCardSpecialistView[];
+  services: readonly ClinicPublicCardServiceView[];
+  /** Полное описание материалом; `null` — клиника его не заполнила, выдумывать текст нельзя. */
+  fullDescriptionMarkdown: string | null;
+  /** Файлы, которые материал полного описания имеет право показать. */
+  fullDescriptionMedia: readonly PublicMarkdownAsset[];
   publicContactPhone: string | null;
   publicContactEmail: string | null;
   publicWebsiteUrl: string | null;
@@ -84,6 +102,27 @@ export function ClinicPublicCardView({ card }: { card: ClinicPublicCardViewModel
             {card.specialists.map((specialist) => (
               <li key={specialist.id}>
                 <SpecialistPreview specialist={specialist} />
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
+      {card.services.length > 0 ? (
+        <section className="flex flex-col gap-2">
+          <h2 className="text-sm font-semibold">Услуги</h2>
+          <ul className="flex flex-col gap-2 text-sm">
+            {card.services.map((service, index) => (
+              <li key={`${service.title}:${index}`} className="flex flex-col">
+                <span className="flex flex-wrap items-baseline gap-x-2">
+                  <span className="font-medium">{service.title}</span>
+                  <span className="text-muted-foreground">
+                    {formatServiceMeta(service)}
+                  </span>
+                </span>
+                {service.description ? (
+                  <span className="text-muted-foreground">{service.description}</span>
+                ) : null}
               </li>
             ))}
           </ul>
@@ -158,6 +197,15 @@ export function ClinicPublicCardView({ card }: { card: ClinicPublicCardViewModel
         </section>
       ) : null}
 
+      {card.fullDescriptionMarkdown ? (
+        <section>
+          <PublicMarkdownMaterial
+            markdown={card.fullDescriptionMarkdown}
+            media={card.fullDescriptionMedia}
+          />
+        </section>
+      ) : null}
+
       {card.bookingHref ? (
         <a
           href={card.bookingHref}
@@ -172,6 +220,25 @@ export function ClinicPublicCardView({ card }: { card: ClinicPublicCardViewModel
       )}
     </div>
   );
+}
+
+/**
+ * Длительность и цена одной строкой. Цена показывается только когда клиника её задала: нулевой
+ * `price_minor` означает «не заполнено», и подписывать за клинику «бесплатно» или «по запросу»
+ * здесь нечем — это её слова, а не наши.
+ */
+function formatServiceMeta(service: ClinicPublicCardServiceView): string {
+  const parts = [`${service.durationMinutes} мин`];
+  if (service.priceMinor > 0) {
+    parts.push(
+      new Intl.NumberFormat('ru-RU', {
+        style: 'currency',
+        currency: 'RUB',
+        maximumFractionDigits: service.priceMinor % 100 === 0 ? 0 : 2,
+      }).format(service.priceMinor / 100),
+    );
+  }
+  return parts.join(' · ');
 }
 
 /**

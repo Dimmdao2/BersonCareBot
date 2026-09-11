@@ -46,6 +46,7 @@ export type SaveClinicPublicCardResult =
 
 export type ClinicPublicCardValidationCode =
   | 'description_too_long'
+  | 'full_description_too_long'
   | 'phone_too_long'
   | 'email_too_long'
   | 'website_too_long'
@@ -120,12 +121,19 @@ export function createClinicPublicCardService(
 
     async saveCard(input) {
       const description = trimmedOrNull(input.description);
+      const fullDescription = trimmedOrNull(input.fullDescriptionMarkdown);
       const phone = trimmedOrNull(input.publicContactPhone);
       const email = trimmedOrNull(input.publicContactEmail);
       const websiteRaw = trimmedOrNull(input.publicWebsiteUrl);
 
       if (description && description.length > CLINIC_PUBLIC_CARD_LIMITS.descriptionMaxLength) {
         return { ok: false, code: 'description_too_long' };
+      }
+      if (
+        fullDescription &&
+        fullDescription.length > CLINIC_PUBLIC_CARD_LIMITS.fullDescriptionMaxLength
+      ) {
+        return { ok: false, code: 'full_description_too_long' };
       }
       if (phone && phone.length > CLINIC_PUBLIC_CARD_LIMITS.phoneMaxLength) {
         return { ok: false, code: 'phone_too_long' };
@@ -150,6 +158,7 @@ export function createClinicPublicCardService(
       const settings = await port.saveCard({
         organizationId: input.organizationId,
         description,
+        fullDescriptionMarkdown: fullDescription,
         publicContactPhone: phone,
         publicContactEmail: email,
         publicWebsiteUrl: website,

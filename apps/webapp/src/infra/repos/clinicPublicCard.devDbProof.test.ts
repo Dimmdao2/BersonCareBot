@@ -17,7 +17,7 @@ import { createWebappPortContextRuntimeConfig } from '@/infra/db/portContextRunt
 import { getWebappSqlFromPgClient, type WebappSqlExecutor } from '@/infra/db/runWebappSql';
 
 const READ_ROOT = 'app.read_public_clinic_card(text)';
-const SAVE_ROOT = 'app.save_public_clinic_card(uuid,text,text,text,text,uuid,text,boolean)';
+const SAVE_ROOT = 'app.save_public_clinic_card(uuid,text,text,text,text,uuid,text,boolean,text)';
 
 function proofPoolConfig(): PoolConfig | null {
   try {
