@@ -14,7 +14,6 @@ import { DoctorResultCount } from '@/shared/ui/doctor/DoctorResultCount';
 import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
 import {
   DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE,
-  DOCTOR_DESKTOP_ATTACH_TO_PAGE_HEADER_CLASS,
   DOCTOR_MOBILE_SCROLL_END_INSET_CLASS,
 } from '@/shared/ui/doctor/doctorWorkspaceLayout';
 import { Button } from '@/shared/ui/doctor/primitives/button';
@@ -242,7 +241,9 @@ export function DoctorTasksPageClient({
       <DoctorPageHeader title="Задачи" toolbar={taskFilters} toolbarClassName="md:hidden" />
       <DoctorCatalogPageLayout
         mobileEdgeToEdge
-        className={cn(DOCTOR_DESKTOP_ATTACH_TO_PAGE_HEADER_CLASS, 'min-h-0 flex-1 gap-0 md:gap-3')}
+        // Приклеивание к шапке теперь по умолчанию в самом `DoctorCatalogPageLayout` — одно место на все
+        // каталожные страницы, включая задачи.
+        className={cn('min-h-0 flex-1 gap-0 md:gap-3')}
         toolbar={
           <DoctorCatalogFiltersToolbar
             className="hidden md:block"
