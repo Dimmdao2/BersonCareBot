@@ -51,3 +51,12 @@ export function buildPatientPaymentCapturedMessageText(
   const dateLabel = formatPatientMessageDateTime(input.slotStart, timeZone);
   return `Оплата записи подтверждена. ${dateLabel}`;
 }
+
+/** Сообщение сразу после самозаписи с предоплатой: до оплаты запись ещё не подтверждена. */
+export function buildPatientAwaitingPaymentMessageText(
+  input: { checkoutUrl: string; paymentDeadlineAt: string },
+  timeZone: string,
+): string {
+  const deadlineLabel = formatPatientMessageDateTime(input.paymentDeadlineAt, timeZone);
+  return `Для подтверждения записи оплатите до ${deadlineLabel}:\n${input.checkoutUrl}`;
+}

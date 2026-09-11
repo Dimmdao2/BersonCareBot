@@ -27,8 +27,16 @@ import type {
   BookingCreatedEffectsPort,
 } from '@/modules/booking-notifications/bookingCreatedEffectsPort';
 import type { DeliveryTargetsApiResult } from '@/modules/integrator/deliveryTargetsApi';
-import type { OutboundMessageQueuePort } from '@/modules/messaging/outboundMessageQueuePort';
-import { buildPatientCreatedMessageText } from '@/modules/patient-booking/patientMessageText';
+import type {
+  OutboundMessageChannel,
+  OutboundMessageContent,
+  OutboundMessageQueuePort,
+} from '@/modules/messaging/outboundMessageQueuePort';
+import {
+  buildPatientAwaitingPaymentMessageText,
+  buildPatientCreatedMessageText,
+} from '@/modules/patient-booking/patientMessageText';
+import { NOTIFICATION_TOPIC_APPOINTMENT } from '@/modules/patient-notifications/notificationTopicCodes';
 
 /** Тема «пациент ничего не получил». Низкая кардинальность — она входит в ключ дедупа инцидента. */
 export const BOOKING_CREATED_PATIENT_TOPIC = 'booking_created_patient_message';
@@ -43,6 +51,7 @@ export type BookingCreatedEffectsDeps = {
       organizationId: string;
       phone?: string;
       platformUserId?: string;
+      topic?: string;
     }): Promise<DeliveryTargetsApiResult | null>;
   };
 };
@@ -56,6 +65,61 @@ function messengerRecipients(
   const maxId = bindings?.maxId?.trim();
   if (maxId) out.push({ channel: 'max', recipient: maxId });
   return out;
+}
+
+type AwaitingPaymentRecipient = {
+  channel: Extract<OutboundMessageChannel, 'telegram' | 'max' | 'email' | 'web_push'>;
+  recipient: string;
+};
+
+/**
+ * The target snapshot has already gone through `resolvePatientNotificationChannels` for the
+ * appointment topic. Do not infer recipients from contact fields here: a missing selection is a
+ * deliberate outcome (including an unverified email), not a fallback opportunity.
+ */
+function awaitingPaymentRecipients(
+  targets: DeliveryTargetsApiResult | null,
+  platformUserId: string | null,
+): AwaitingPaymentRecipient[] {
+  const selected = new Set(targets?.resolution?.selectedChannels ?? []);
+  const recipients: AwaitingPaymentRecipient[] = [];
+  const telegramId = targets?.channelBindings.telegramId?.trim();
+  if (selected.has('telegram') && telegramId) {
+    recipients.push({ channel: 'telegram', recipient: telegramId });
+  }
+  const maxId = targets?.channelBindings.maxId?.trim();
+  if (selected.has('max') && maxId) {
+    recipients.push({ channel: 'max', recipient: maxId });
+  }
+  const emailRecipient = targets?.emailRecipient?.trim();
+  if (selected.has('email') && emailRecipient) {
+    recipients.push({ channel: 'email', recipient: emailRecipient });
+  }
+  if (selected.has('web_push') && platformUserId) {
+    recipients.push({ channel: 'web_push', recipient: platformUserId });
+  }
+  return recipients;
+}
+
+function awaitingPaymentContent(
+  input: BookingCreatedEffectsInput,
+  channel: AwaitingPaymentRecipient['channel'],
+): OutboundMessageContent {
+  const awaitingPayment = input.awaitingPayment;
+  if (!awaitingPayment) throw new Error('awaiting_payment_message_required');
+  const text = buildPatientAwaitingPaymentMessageText(awaitingPayment, input.timeZone);
+  if (channel === 'email') {
+    return { text, subject: 'Оплата записи', senderScope: 'clinic_if_configured' };
+  }
+  if (channel === 'web_push') {
+    return {
+      text,
+      title: 'Оплатите запись',
+      url: awaitingPayment.checkoutUrl,
+      senderScope: 'clinic_if_configured',
+    };
+  }
+  return { text, senderScope: 'clinic_if_configured' };
 }
 
 export function createBookingCreatedEffects(
@@ -80,6 +144,7 @@ export function createBookingCreatedEffects(
             : input.contactPhone
               ? { phone: input.contactPhone }
               : {}),
+          ...(input.awaitingPayment ? { topic: NOTIFICATION_TOPIC_APPOINTMENT } : {}),
         }),
     );
   }
@@ -89,8 +154,16 @@ export function createBookingCreatedEffects(
       if (!input.notifyPatient) return;
       try {
         const targets = await resolvePatientTargets(input);
-        const recipients = messengerRecipients(targets?.channelBindings);
+        const recipients = input.awaitingPayment
+          ? awaitingPaymentRecipients(targets, input.platformUserId)
+          : messengerRecipients(targets?.channelBindings);
         if (recipients.length === 0) {
+          if (input.awaitingPayment) {
+            // No confirmed and enabled delivery channel is normal for a self-booking. In
+            // particular, a form email is never used as a fallback unless the resolver selected
+            // the verified identity email above.
+            return;
+          }
           // Пустая аудитория никогда не тихий успех: отдельно «не нашли» и «не к кому».
           await reportEmptyAudience({
             topic: BOOKING_CREATED_PATIENT_TOPIC,
@@ -113,13 +186,20 @@ export function createBookingCreatedEffects(
           input.timeZone,
         );
         for (const target of recipients) {
+          const awaitingPayment = input.awaitingPayment;
           await deps.outboundMessageQueue.enqueue({
             organizationId: input.organizationId,
-            purpose: 'booking.created.patient',
-            idempotencyKey: `${input.bookingId}:${target.channel}:${target.recipient}`,
+            purpose: awaitingPayment
+              ? 'booking.awaiting_payment.patient'
+              : 'booking.created.patient',
+            idempotencyKey: awaitingPayment
+              ? `${input.bookingId}:awaiting_payment:${target.channel}:${target.recipient}`
+              : `${input.bookingId}:${target.channel}:${target.recipient}`,
             channel: target.channel,
             recipient: target.recipient,
-            content: { text, senderScope: 'clinic_if_configured' },
+            content: awaitingPayment
+              ? awaitingPaymentContent(input, target.channel)
+              : { text, senderScope: 'clinic_if_configured' },
             maxAttempts: MESSENGER_MAX_ATTEMPTS,
           });
         }

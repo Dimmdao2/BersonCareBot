@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createBookingOnCanonicalEngine, type CanonicalBookingDeps } from './canonicalCreate';
 import type { CreatePatientBookingInput, PatientBookingRecord } from './types';
+import { buildPatientAwaitingPaymentMessageText } from './patientMessageText';
 
 /**
  * D14, часть 4: вебапп при создании записи (`booking.created`) должен прислать интегратору
@@ -170,7 +171,12 @@ describe('UI-06 canonical patient online booking', () => {
    */
   it('persists online as the canonical delivery format for a branchless patient booking', async () => {
     const createOnlineAppointmentsIfAvailable = vi.fn(async () => [
-      { id: 'appt-1', organizationId: 'org-1', startAt: createInput.slotStart, endAt: createInput.slotEnd },
+      {
+        id: 'appt-1',
+        organizationId: 'org-1',
+        startAt: createInput.slotStart,
+        endAt: createInput.slotEnd,
+      },
     ]);
     const deps = buildDeps(async () => undefined, {
       bookingEngine: {
@@ -227,7 +233,7 @@ describe('§5a/2.1c: booking prepayment is patient money, not the clinic tariff 
       currency: 'RUB',
       isActive: true,
     }));
-    const createAppointmentPaymentIntent = vi.fn();
+    const createAppointmentPaymentIntent = vi.fn(async () => ({ checkoutUrl: null }));
     const deps = buildDeps(async () => undefined, {
       payments: {
         getPrepaymentPolicyForBooking,
@@ -239,7 +245,9 @@ describe('§5a/2.1c: booking prepayment is patient money, not the clinic tariff 
     const bookingsPort = deps.bookingsPort as unknown as {
       markAwaitingPayment: ReturnType<typeof vi.fn>;
     };
-    bookingsPort.markAwaitingPayment = vi.fn(async () => fakeRecord({ status: 'awaiting_payment' }));
+    bookingsPort.markAwaitingPayment = vi.fn(async () =>
+      fakeRecord({ status: 'awaiting_payment' }),
+    );
 
     const result = await createBookingOnCanonicalEngine(deps, {
       ...createInput,
@@ -249,6 +257,230 @@ describe('§5a/2.1c: booking prepayment is patient money, not the clinic tariff 
     expect(result.status).toBe('awaiting_payment');
     expect(getPrepaymentPolicyForBooking).toHaveBeenCalledOnce();
     expect(createAppointmentPaymentIntent).toHaveBeenCalledOnce();
+  });
+
+  it('передаёт в общий delivery-effect ссылку и срок, созданные для ожидающей оплаты записи', async () => {
+    const paymentUrl = 'https://checkout.example.test/intent-1';
+    const delivered: Array<Record<string, unknown>> = [];
+    const deps = buildDeps(async () => undefined, {
+      payments: {
+        getPrepaymentPolicyForBooking: vi.fn(async () => ({
+          id: 'policy-1',
+          organizationId: 'org-1',
+          serviceId: null,
+          onlineCategory: null,
+          mode: 'fixed_minor',
+          amountMinor: 5_000,
+          percentBps: null,
+          currency: 'RUB',
+          isActive: true,
+        })),
+        getSettings: vi.fn(async () => ({ enabled: true })),
+        createAppointmentPaymentIntent: vi.fn(async () => ({ checkoutUrl: paymentUrl })),
+      } as unknown as CanonicalBookingDeps['payments'],
+      canAcceptBookingPrepayment: async () => true,
+      bookingCreatedEffects: {
+        apply: async (effectInput) => {
+          delivered.push(effectInput as unknown as Record<string, unknown>);
+        },
+      },
+    });
+    const awaitingPort = deps.bookingsPort as unknown as {
+      markAwaitingPayment: ReturnType<typeof vi.fn>;
+    };
+    awaitingPort.markAwaitingPayment = vi.fn(async () =>
+      fakeRecord({ status: 'awaiting_payment' }),
+    );
+
+    await createBookingOnCanonicalEngine(deps, createInput);
+
+    expect(delivered).toHaveLength(1);
+    expect(delivered[0]?.awaitingPayment).toMatchObject({ checkoutUrl: paymentUrl });
+    const deadline = (delivered[0]?.awaitingPayment as { paymentDeadlineAt: string })
+      .paymentDeadlineAt;
+    expect(new Date(deadline).getTime()).toBeGreaterThan(Date.now());
+  });
+
+  /**
+   * Audit oracle (S5 transaction safety): a delivery/configuration outage after the appointment
+   * reached awaiting_payment must not turn a successful booking into an error response. The user
+   * would otherwise retry a booking which already occupies the slot.
+   */
+  it('возвращает созданную awaiting-payment запись при отказе настройки уведомления', async () => {
+    const deps = buildDeps(async () => undefined, {
+      payments: {
+        getPrepaymentPolicyForBooking: vi.fn(async () => ({
+          id: 'policy-1',
+          organizationId: 'org-1',
+          serviceId: null,
+          onlineCategory: null,
+          mode: 'fixed_minor',
+          amountMinor: 5_000,
+          percentBps: null,
+          currency: 'RUB',
+          isActive: true,
+        })),
+        getSettings: vi.fn(async () => ({ enabled: true })),
+        createAppointmentPaymentIntent: vi.fn(async () => ({
+          checkoutUrl: 'https://checkout.example.test/intent-config-outage',
+        })),
+      } as unknown as CanonicalBookingDeps['payments'],
+      canAcceptBookingPrepayment: async () => true,
+      getBookingLifecycleNotificationSettings: async () => {
+        throw new Error('notification settings unavailable');
+      },
+      bookingCreatedEffects: { apply: vi.fn(async () => undefined) },
+    });
+    const awaitingPort = deps.bookingsPort as unknown as {
+      markAwaitingPayment: ReturnType<typeof vi.fn>;
+    };
+    awaitingPort.markAwaitingPayment = vi.fn(async () =>
+      fakeRecord({ status: 'awaiting_payment' }),
+    );
+
+    const outcome = await createBookingOnCanonicalEngine(deps, createInput).then(
+      (value) => ({ kind: 'created' as const, status: value.status }),
+      (error: unknown) => ({
+        kind: 'error' as const,
+        message: error instanceof Error ? error.message : String(error),
+      }),
+    );
+
+    expect(outcome).toEqual({ kind: 'created', status: 'awaiting_payment' });
+  });
+
+  /**
+   * Audit oracle (PAY-APPT-09): an in-person appointment belongs to its branch timezone. A global
+   * Moscow formatter silently states the wrong payment cutoff for a branch in another zone.
+   */
+  it('показывает дедлайн оплаты в часовом поясе филиала записи', async () => {
+    const branchTimeZone = 'Asia/Yekaterinburg';
+    const appTimeZone = 'Europe/Moscow';
+    let deliveredText = '';
+    let persistedAppointmentDeadline = '';
+    let stored = fakeRecord({
+      bookingType: 'in_person',
+      city: 'ekb',
+      cityCodeSnapshot: 'ekb',
+      priceMinorSnapshot: 5_000,
+    });
+    const deps = buildDeps(async () => undefined, {
+      bookingsPort: {
+        createPending: vi.fn(async () => stored),
+        markAwaitingPayment: vi.fn(async (_bookingId: string, appointmentId: string) => {
+          stored = fakeRecord({
+            bookingType: 'in_person',
+            city: 'ekb',
+            cityCodeSnapshot: 'ekb',
+            priceMinorSnapshot: 5_000,
+            status: 'awaiting_payment',
+            canonicalAppointmentId: appointmentId,
+          });
+          return stored;
+        }),
+        markFailedSync: vi.fn(async () => undefined),
+      } as unknown as CanonicalBookingDeps['bookingsPort'],
+      bookingScheduling: {
+        resolveCanonicalInPersonContext: vi.fn(async () => ({
+          organizationId: 'org-1',
+          branchId: 'branch-1',
+          specialistId: 'specialist-1',
+          serviceId: 'service-1',
+          roomId: null,
+          durationMinutes: 60,
+          bufferAfterMinutes: 0,
+          branchTimezone: branchTimeZone,
+          patientCatalogSnapshot: {
+            branchTitle: 'Филиал Екатеринбург',
+            branchShortTitle: null,
+            branchColor: null,
+            branchCityCode: 'ekb',
+            branchAddress: null,
+            branchSortOrder: 0,
+            serviceTitle: 'Приём',
+            serviceDescription: null,
+            servicePriceMinor: 5_000,
+            servicePrepaymentApplicable: true,
+            serviceUsableInPackages: false,
+            serviceOnlinePaymentApplicable: true,
+            servicePublicWidgetVisible: true,
+            serviceAdminManualOnly: false,
+            serviceSortOrder: 0,
+            specialistReminderAllowedPresetIds: [],
+            specialistReminderDefaultPresetId: null,
+          },
+        })),
+        assertSlotAvailable: vi.fn(async () => undefined),
+        getMaxConsecutiveSlotHours: vi.fn(async () => 8),
+        getPrepaymentWaitMinutes: vi.fn(async () => 20),
+      } as unknown as CanonicalBookingDeps['bookingScheduling'],
+      bookingEngine: {
+        createAppointment: vi.fn(async (appointmentInput: Record<string, unknown>) => {
+          persistedAppointmentDeadline = String(appointmentInput.paymentDeadlineAt ?? '');
+          return {
+            ...appointmentInput,
+            id: 'appt-1',
+            organizationId: 'org-1',
+          };
+        }),
+      } as unknown as CanonicalBookingDeps['bookingEngine'],
+      payments: {
+        getPrepaymentPolicyForBooking: vi.fn(async () => ({
+          id: 'policy-1',
+          organizationId: 'org-1',
+          serviceId: 'service-1',
+          onlineCategory: null,
+          mode: 'fixed_minor',
+          amountMinor: 5_000,
+          percentBps: null,
+          currency: 'RUB',
+          isActive: true,
+        })),
+        getSettings: vi.fn(async () => ({ enabled: true })),
+        createAppointmentPaymentIntent: vi.fn(async () => ({
+          checkoutUrl: 'https://checkout.example.test/intent-branch-zone',
+        })),
+      } as unknown as CanonicalBookingDeps['payments'],
+      canAcceptBookingPrepayment: async () => true,
+      getAppDisplayTimeZone: async () => appTimeZone,
+      bookingCreatedEffects: {
+        apply: async (effectInput) => {
+          deliveredText = buildPatientAwaitingPaymentMessageText(
+            effectInput.awaitingPayment!,
+            effectInput.timeZone,
+          );
+        },
+      },
+    });
+    const inPersonInput: CreatePatientBookingInput = {
+      type: 'in_person',
+      userId: 'user-1',
+      organizationId: 'org-1',
+      branchId: 'branch-1',
+      serviceId: 'service-1',
+      cityCode: 'ekb',
+      slotStart: '2027-03-10T09:00:00.000Z',
+      slotEnd: '2027-03-10T10:00:00.000Z',
+      contactName: 'Пациент',
+      contactPhone: '+79990000000',
+      mailProfile: { kind: 'platform', senderDisplayName: 'Therapygo' },
+    };
+
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2027-03-01T12:00:00.000Z'));
+    try {
+      await createBookingOnCanonicalEngine(deps, inPersonInput);
+    } finally {
+      vi.useRealTimers();
+    }
+
+    const branchDeadline = new Intl.DateTimeFormat('ru-RU', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+      timeZone: branchTimeZone,
+    }).format(new Date(persistedAppointmentDeadline));
+    expect(deliveredText).toContain('https://checkout.example.test/intent-branch-zone');
+    expect(deliveredText).toContain(branchDeadline);
   });
 
   it('confirms the booking without requesting or accepting prepayment when the mechanic is disabled', async () => {
@@ -298,7 +530,12 @@ describe('§5a/2.1c: booking prepayment is patient money, not the clinic tariff 
       isActive: true,
     }));
     const createOnlineAppointmentsIfAvailable = vi.fn(async () => [
-      { id: 'appt-1', organizationId: 'org-1', startAt: createInput.slotStart, endAt: createInput.slotEnd },
+      {
+        id: 'appt-1',
+        organizationId: 'org-1',
+        startAt: createInput.slotStart,
+        endAt: createInput.slotEnd,
+      },
     ]);
     // Клиника ждёт предоплату 45 минут — значение НЕ равно платформенному умолчанию, поэтому
     // хардкод «20 минут» этой проверки не переживёт.
@@ -323,7 +560,9 @@ describe('§5a/2.1c: booking prepayment is patient money, not the clinic tariff 
     const awaitingPort = deps.bookingsPort as unknown as {
       markAwaitingPayment: ReturnType<typeof vi.fn>;
     };
-    awaitingPort.markAwaitingPayment = vi.fn(async () => fakeRecord({ status: 'awaiting_payment' }));
+    awaitingPort.markAwaitingPayment = vi.fn(async () =>
+      fakeRecord({ status: 'awaiting_payment' }),
+    );
 
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2027-03-01T12:00:00.000Z'));
@@ -368,7 +607,12 @@ describe('§5a/2.1c: booking prepayment is patient money, not the clinic tariff 
       isActive: true,
     }));
     const createOnlineAppointmentsIfAvailable = vi.fn(async () => [
-      { id: 'appt-1', organizationId: 'org-1', startAt: createInput.slotStart, endAt: createInput.slotEnd },
+      {
+        id: 'appt-1',
+        organizationId: 'org-1',
+        startAt: createInput.slotStart,
+        endAt: createInput.slotEnd,
+      },
     ]);
     const deps = buildDeps(async () => undefined, {
       payments: {
@@ -385,7 +629,9 @@ describe('§5a/2.1c: booking prepayment is patient money, not the clinic tariff 
     const awaitingPort2 = deps.bookingsPort as unknown as {
       markAwaitingPayment: ReturnType<typeof vi.fn>;
     };
-    awaitingPort2.markAwaitingPayment = vi.fn(async () => fakeRecord({ status: 'awaiting_payment' }));
+    awaitingPort2.markAwaitingPayment = vi.fn(async () =>
+      fakeRecord({ status: 'awaiting_payment' }),
+    );
 
     await createBookingOnCanonicalEngine(deps, {
       ...createInput,
