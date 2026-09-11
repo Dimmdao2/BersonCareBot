@@ -314,7 +314,12 @@ Compatibility-projection `be_organizations.tariff_id` остаётся исто�
 | `exercise_catalog`              | вне scope (store, S4-3)                                                                                                            | —                                 | resolver-only                         | Не трогать в этой работе                                                                                                                |
 | `exercise_packages`             | вне scope (store, S4-3)                                                                                                            | —                                 | resolver-only                         | Не трогать в этой работе                                                                                                                |
 
-> **Owner ruling 05.08 (#1069, замер кода — уже так):** личные/clinic-owned каталоги ЛФК **не режутся**
+> ⛔ **СНЯТО владельцем 11.09 — этот ruling устарел, ниже сохранён только как история.** Новое решение:
+> **вся область ЛФК (упражнения+рекомендации+тесты+шаблоны+программы) — одна тарифная механика с полным
+> рубильником**; выключена в тарифе → у доктора и пациента раздела ЛФК нет вообще, включая собственный контент
+> клиники. Канон — [`EXERCISE_STORE_PLAN.md`](./EXERCISE_STORE_PLAN.md) §2 «Тариф и охват (владелец, 11.09)».
+>
+> ~~**Owner ruling 05.08 (#1069, замер кода — уже так):** личные/clinic-owned каталоги ЛФК **не режутся**
 > `exercise_catalog` / `exercise_packages`. Оба ключа — только visibility/use **платформенной** библиотеки
 > (`requireEntitlementForReadAction` → `includePlatformBase` на list/get; см. `doctor/exercises/page.tsx`,
 > `doctor/lfk-templates/page.tsx`, `pgLfkExercises.ts`, `pgLfkTemplates.ts`). Запись клиники (создание/редактирование/
@@ -323,7 +328,7 @@ Compatibility-projection `be_organizations.tariff_id` остаётся исто�
 > `doctor/exercises/actionsShared.ts`. Evidence: `tariffMechanics.route.test.ts` («keeps clinic-owned exercise
 > creation…»), `protectedActionRegistryCoverage.unit.test.ts` («keeps clinic-owned catalog writes out of
 > platform-library tariff gates»), аудит `AUDIT_EXERCISE_PLATFORM_LIBRARY_2026-08-02.md`. Будущая замена ключей на
-> `platform_base_packs` — только по [`EXERCISE_STORE_PLAN.md`](./EXERCISE_STORE_PLAN.md) §2.5, не в этом проходе.
+> `platform_base_packs` — только по [`EXERCISE_STORE_PLAN.md`](./EXERCISE_STORE_PLAN.md) §2.5, не в этом проходе.~~
 | `patient_app_paid_subscription` | нет поверхности                                                                                                                    | —                                 | resolver-only                         | `declared_no_surface`                                                                                                                   |
 | `branding`                      | `saveOrgBranding` + notification templates                                                                                         | action/route                      | ✅ гейтится                           | На порту; `branding` mechanic + 3.2 door                                                                                                |
 | `custom_domain`                 | PATCH `org_custom_domain_hostname` via `/api/admin/settings`                                                                       | route (settings PATCH)            | ✅ гейтится (05.08)                   | `custom_domain` mechanic + 3.2 door; часть брендинга, отдельный mechanic key                                                            |
@@ -1185,18 +1190,20 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
       src/app-layer/entitlements/mechanicSettingsWriteClearance.mechanicWriteClearance.test.ts
       src/app/api/admin/booking-engine/policies/route.route.test.ts` — 5 файлов / 11 тестов PASS.
       **Ещё открыто (§3.2):** нет — booking tail из census закрыт. Намеренно без двери:
-      `patient_card`, `patient_app`, `patient_diaries`; `exercise_catalog`/`exercise_packages` —
-      owner 05.08: клинические каталоги ЛФК не режутся тарифом, только platform-library visibility;
-      `patient_app_paid_subscription` — store-deferred.
+      `patient_card`, `patient_app`, `patient_diaries`; `patient_app_paid_subscription` — store-deferred.
+      ⛔ **`exercise_catalog`/`exercise_packages` — СНЯТО владельцем 11.09**, строка ниже про «owner 05.08:
+      клинические каталоги ЛФК не режутся тарифом» устарела — см. [`EXERCISE_STORE_PLAN.md`](./EXERCISE_STORE_PLAN.md)
+      §2 «Тариф и охват»: теперь режется, целиком, включая клинический контент.
       **Закрыто 05.08 (#1069):** `custom_domain` — per-org ключ `org_custom_domain_hostname`, PATCH
       `/api/admin/settings` + `assertMechanicWriteClearance('custom_domain')`; снят с `DECLARED_NO_SURFACE`.
 - [x] **3.3** Реестр защищённых точек перестаёт врать: ни одного исключения, прикрывающего реальную запись. Ложное
       исключение хуже отсутствующего — проверка покрытия на нём зеленеет.
       **Перепись 05.08:** `pnpm --dir apps/webapp exec tsx scripts/check-s4-entitlement-coverage.ts` → PASS;
       `protectedActionRegistryCoverage.unit.test.ts` → PASS (checker wired в vitest). **Честные
-      `DECLARED_NO_SURFACE`:** `exercise_catalog`/`exercise_packages` (platform visibility only, owner 05.08),
-      `patient_card`/`patient_diaries`/`patient_app`. **`custom_domain` закрыт 05.08 (#1069):** write =
-      `org_custom_domain_hostname` + mechanic door; UI/TLS binding — отдельный этап.
+      `DECLARED_NO_SURFACE`:** `patient_card`/`patient_diaries`/`patient_app`. **`custom_domain` закрыт 05.08
+      (#1069):** write = `org_custom_domain_hostname` + mechanic door; UI/TLS binding — отдельный этап.
+      ⛔ `exercise_catalog`/`exercise_packages` («platform visibility only, owner 05.08») — **СНЯТО 11.09**, см.
+      [`EXERCISE_STORE_PLAN.md`](./EXERCISE_STORE_PLAN.md) §2: механика теперь режет весь домен ЛФК целиком.
 - [x] **3.4** ✅ **УТОЧНЕНО 08-01 (`wt/tariff-plan-triage`): СДЕЛАНО**, с одной сознательной поправкой к тексту.
       Уже сделанные точки контроля переведены на порт: внешний календарь, дневники, разминки, промо (слайс A) и
       начатые клинические тесты (лежат в stash клона: «слайс B прерван на переделке модели 30.07»).
@@ -1298,9 +1305,11 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
       `pnpm --dir apps/webapp exec vitest run
       src/app-layer/entitlements/mechanicSettingsWriteClearance.mechanicWriteClearance.test.ts` (7 passed).
       `[ ]` TLS/routing binding — ops-only этап, не §4.7.
-      **Вне §4.7 / не store:** `exercise_catalog`/`exercise_packages` — owner 05.08 (#1069): clinic-owned каталоги ЛФК
-      не режутся тарифом; только platform-library visibility — канон [`EXERCISE_STORE_PLAN.md`](./EXERCISE_STORE_PLAN.md).
       `[ ]` **`patient_app_paid_subscription`** — store-deferred (`DECLARED_NO_SURFACE`, ждёт магазин/EXERCISE_STORE).
+      ⛔ ~~**Вне §4.7 / не store:** `exercise_catalog`/`exercise_packages` — owner 05.08 (#1069): clinic-owned каталоги
+      ЛФК не режутся тарифом; только platform-library visibility~~ — **СНЯТО владельцем 11.09.** Механика теперь
+      входит в §4.7 в полном объёме (полный рубильник ЛФК-домена, не только platform-library visibility) — канон
+      [`EXERCISE_STORE_PLAN.md`](./EXERCISE_STORE_PLAN.md) §2 «Тариф и охват».
 ### Переделка настройки механик — требования владельца 03.08
 
 Продиктовано владельцем после живого просмотра экрана. Четыре пункта; первые три — работа, четвёртый разобран

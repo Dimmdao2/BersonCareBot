@@ -35,11 +35,15 @@ import {
 import { resolveWatermarkFontPath } from './watermarkFont.js';
 import { processProgramSubmissionTranscodeJob } from './processProgramSubmissionTranscode.js';
 import { roundVideoDurationSecondsForStorage } from './ffmpeg/probeVideoDurationSeconds.js';
-import { probeVideoDimensions } from './ffmpeg/probeVideoDimensions.js';
+import { probeVideoDimensions, type VideoSourceProbe } from './ffmpeg/probeVideoDimensions.js';
 import {
   firstHlsSegmentName,
+  hlsMapUriFromVariantPlaylist,
   sumHlsExtinfDurationSeconds,
 } from './ffmpeg/hlsPlaylistDuration.js';
+
+/** Filename of the fMP4 init segment (`ftyp`+`moov`), relative to its variant directory. */
+const HLS_FMP4_INIT_SEGMENT_FILENAME = 'init.mp4';
 
 /**
  * 730 / 800 / 1400 / 2500 kbps ceilings (advertised 850 / 900 / 1600 / 2800) (owner decision 2026-09-11, `VIDEO_DELIVERY_COST_AND_METERING`
@@ -177,6 +181,52 @@ function frameForPixelBudget(
 }
 
 /**
+ * Порог, выше которого лестница фиксированных бюджетов режет слишком много пикселей источника
+ * (владелец 11.09.2026, `VIDEO_DELIVERY_COST_AND_METERING` — «верхняя ступень = кадр исходника»):
+ * замер живой библиотеки (151 ролик) нашёл 58 из 89 роликов не выше потолка 720p, теряющих больше
+ * 10% пикселей на самой большой влезающей ступени просто потому, что ступеней четыре и мы берём
+ * самую большую влезающую. 1,05, не 1,00 — иначе на границе бюджета появляется ступень-двойник тех
+ * же почти размеров, что и штатная.
+ */
+const SOURCE_FRAME_TOP_RUNG_THRESHOLD = 1.05;
+
+/** Потолок владельца по площади — верх лестницы, 1280×720 = 921 600 пикселей. Не двигаем. */
+const SOURCE_FRAME_TOP_RUNG_PIXEL_CEILING = HLS_RUNG_LADDER[HLS_RUNG_LADDER.length - 1]!.pixelBudget;
+
+/**
+ * Ступень «кадр исходника как есть» между `lower` (самая большая влезающая ступень лестницы) и
+ * `upper` (следующая ступень лестницы, в бюджет которой источник не укладывается). Потолок
+ * битрейта, звук и `bandwidth` — линейная интерполяция по площади между потолками этих двух
+ * соседей, а не выдуманное число: `t=0` в точности воспроизводит `lower`, `t=1` — `upper`, поэтому
+ * инвариант «bandwidth в диапазоне [потолок+звук, 1.15×(потолок+звук)]», который держит каждая
+ * ступень статической лестницы, у интерполированной по построению — выпуклая комбинация двух троек,
+ * каждая из которых инвариант уже держит.
+ */
+function deriveSourceFrameTopRung(
+  sourceWidth: number,
+  sourceHeight: number,
+  lower: HlsLadderRung,
+  upper: HlsLadderRung,
+): PlannedHlsRung {
+  const sourceArea = sourceWidth * sourceHeight;
+  const t = (sourceArea - lower.pixelBudget) / (upper.pixelBudget - lower.pixelBudget);
+  const lerp = (a: number, b: number): number => Math.round(a + t * (b - a));
+  return {
+    label: `${evenFloor(Math.min(sourceWidth, sourceHeight))}p`,
+    pixelBudget: sourceArea,
+    videoBitrate: String(
+      lerp(parseFfmpegBitrateTokenBps(lower.videoBitrate), parseFfmpegBitrateTokenBps(upper.videoBitrate)),
+    ),
+    audioBitrate: String(
+      lerp(parseFfmpegBitrateTokenBps(lower.audioBitrate), parseFfmpegBitrateTokenBps(upper.audioBitrate)),
+    ),
+    bandwidth: lerp(lower.bandwidth, upper.bandwidth),
+    width: evenFloor(sourceWidth),
+    height: evenFloor(sourceHeight),
+  };
+}
+
+/**
  * Ступени, которые реально кодируются для источника `sourceWidth x sourceHeight`: те, чей бюджет
  * пикселей не превышает площадь источника — то есть ступень всегда уменьшает кадр и никогда не
  * растягивает (владелец: «убрать создание видео выше исходника»).
@@ -188,6 +238,12 @@ function frameForPixelBudget(
  *
  * Источник мельче младшей ступени всё равно даёт ровно одну рабочую ступень — в своём родном чётном
  * размере с профилем битрейта младшей ступени. Ноль ступеней невозможен.
+ *
+ * Верхняя ступень несёт кадр исходника, а не самую большую влезающую фиксированную ступень, когда та
+ * отрезала бы больше 10% пикселей источника (`SOURCE_FRAME_TOP_RUNG_THRESHOLD`) — см.
+ * `deriveSourceFrameTopRung`. Источник ≥ потолка 720p по площади не получает такой ступени: верх
+ * остаётся ровно 720p, как раньше (владелец: «выше нам не нужно»); в этом случае у самой большой
+ * влезающей ступени лестницы (720p) просто нет следующего соседа для интерполяции.
  */
 export function deriveEligibleHlsRungs(sourceWidth: number, sourceHeight: number): PlannedHlsRung[] {
   const sourceArea = sourceWidth * sourceHeight;
@@ -195,7 +251,35 @@ export function deriveEligibleHlsRungs(sourceWidth: number, sourceHeight: number
     ...rung,
     ...frameForPixelBudget(sourceWidth, sourceHeight, rung.pixelBudget),
   }));
-  if (fitting.length > 0) return fitting;
+  if (fitting.length > 0) {
+    const largest = fitting[fitting.length - 1]!;
+    // `largest` — копия (`{...rung, ...frame}`), не тот же объект: ищем соседа лестницы по бюджету,
+    // не по ссылке.
+    const upperLadderRung = HLS_RUNG_LADDER.find((rung) => rung.pixelBudget > largest.pixelBudget);
+    if (
+      upperLadderRung &&
+      sourceArea > largest.pixelBudget * SOURCE_FRAME_TOP_RUNG_THRESHOLD &&
+      // Страховка, а не рабочее условие: соседа по лестнице выше 720p не существует, поэтому при
+      // площади больше потолка ветка и так не берётся (`upperLadderRung` — undefined). Оставлено,
+      // чтобы правило владельца «не выше потолка 720p по площади» читалось в коде буквально, а не
+      // выводилось из формы лестницы (аудит 11.09, F-3).
+      sourceArea <= SOURCE_FRAME_TOP_RUNG_PIXEL_CEILING
+    ) {
+      const topRung = deriveSourceFrameTopRung(sourceWidth, sourceHeight, largest, upperLadderRung);
+      /*
+       * Короткая сторона источника численно совпадает с меткой ступени лестницы (например
+       * 900x480 — короткая сторона 480, как и у фиксированной ступени `480p`, хотя её родной
+       * кадр другой): без различки обе ступени легли бы в один каталог `hls/480p` и в одну
+       * строку `qualitiesJson`, затирая друг друга. Редкий сверхширокий/сверхузкий случай, не
+       * встречавшийся в замере библиотеки, но каталог не должен ломаться, если он случится.
+       */
+      if (fitting.some((rung) => rung.label === topRung.label)) {
+        topRung.label = `${topRung.label}-src`;
+      }
+      fitting.push(topRung);
+    }
+    return fitting;
+  }
   const smallest = HLS_RUNG_LADDER[0]!;
   return [
     {
@@ -205,6 +289,36 @@ export function deriveEligibleHlsRungs(sourceWidth: number, sourceHeight: number
       height: evenFloor(sourceHeight),
     },
   ];
+}
+
+/**
+ * Капкан fMP4 (`VIDEO_DELIVERY_COST_AND_METERING`, «Капкан, проверь его первым»): фрагмент `.m4s`
+ * сам по себе — только `moof`+`mdat`, без `ftyp`+`moov` из init-сегмента, и ffprobe его в одиночку
+ * не декодирует — тихо вернёт `null`, и в манифест уедут номинальные размеры вместо измеренных.
+ * Склеиваем init-сегмент с первым фрагментом в один временный файл — валидный фрагментированный
+ * MP4 — и пробуем ЕГО.
+ */
+export async function probeFmp4VariantFrame(
+  ffmpegBin: string,
+  rungDir: string,
+  initSegmentRelative: string,
+  firstSegmentName: string,
+): Promise<VideoSourceProbe | null> {
+  const probeFile = join(rungDir, '.probe-init-plus-segment.mp4');
+  try {
+    const [initBuf, segBuf] = await Promise.all([
+      readFile(join(rungDir, initSegmentRelative)),
+      readFile(join(rungDir, firstSegmentName)),
+    ]);
+    await writeFile(probeFile, Buffer.concat([initBuf, segBuf]));
+    return await probeVideoDimensions(ffmpegBin, probeFile, 60_000);
+  } catch {
+    return null;
+  } finally {
+    await rm(probeFile, { force: true }).catch(() => {
+      /* best-effort cleanup of the probe scratch file */
+    });
+  }
 }
 
 /** Short token for structured logs (no multi-line FFmpeg stderr / URLs). */
@@ -221,8 +335,13 @@ function compactTranscodeLogErrorCode(message: string): string {
 export type TranscodeContext = {
   control: MediaWorkerControlPort;
   /**
+<<<<<<< HEAD
    * Куда ложится ВЫХОД наряда — HLS-дерево, постер, 480p-рендишн. Тот же горячий бакет, что и до
    * М7 (`docs/_TODO/STORAGE_PACKAGES_2026-09-10.md`).
+=======
+   * Хранилища, а не одно: наряд называет своё, и всё, что делается по этому наряду — скачивание
+   * исходника, выкладка HLS и постера — происходит внутри него.
+>>>>>>> d16b1390a56ae271e50ac8022e02257774008866
    */
   storageFor: (target: StorageTarget) => StorageBinding;
   /**
@@ -324,8 +443,9 @@ async function durationFromExistingMasterPlaylist(
 }
 
 /**
- * End-to-end transcode (FFmpeg + S3). Source MP4 at `s3_key` is deleted after a successful
- * HLS transcode (best-effort; failure to delete is logged but does not fail the job).
+ * End-to-end transcode (FFmpeg + S3). Source MP4 at `s3_key` is kept after a successful HLS
+ * transcode (owner decision 2026-09-11, `VIDEO_DELIVERY_COST_AND_METERING` — cold-bucket relocation
+ * for sources is a separate later step; this branch only stops deleting it).
  */
 export async function processTranscodeJob(ctx: TranscodeContext, job: ClaimedJob): Promise<void> {
   return processTranscodeJobInner(ctx, job);
@@ -377,10 +497,11 @@ async function processTranscodeJobInner(outer: TranscodeContext, job: ClaimedJob
     if (exists) {
       if (media.video_duration_seconds == null || media.video_duration_seconds <= 0) {
         /*
-         * Backfill from the already-produced HLS playlist, never the source: by the time HLS is
-         * `ready`, the source MP4 is normally already deleted (best-effort delete below), so
-         * re-downloading `s3_key` here silently no-ops on almost every row — that is exactly why
-         * duration was only ever recorded for 3 of 192 rows. The variant playlist always exists.
+         * Backfill from the already-produced HLS playlist, never the source: rows transcoded before
+         * the source-retention decision (`VIDEO_DELIVERY_COST_AND_METERING`, 2026-09-11) already had
+         * their source deleted, so re-downloading `s3_key` here silently no-ops on those rows — that
+         * is exactly why duration was only ever recorded for 3 of 192 rows. The variant playlist
+         * always exists once HLS is `ready`, deleted source or not.
          */
         const tmpRoot = await mkdtemp(join(tmpdir(), 'mw-dur-'));
         try {
@@ -489,7 +610,8 @@ async function processTranscodeJobInner(outer: TranscodeContext, job: ClaimedJob
         buildHlsSingleVariantArgs({
           inputFile: src,
           outputM3u8: 'index.m3u8',
-          segmentFilename: 'seg_%03d.ts',
+          segmentFilename: 'seg_%03d.m4s',
+          initSegmentFilename: HLS_FMP4_INIT_SEGMENT_FILENAME,
           videoFilter,
           videoBitrateCeilingBps: rungVideoCeilingFromProbeBps(rung.videoBitrate, sourceProbe),
           audioBitrateBps: rungAudioBitrateBps(rung.audioBitrate, sourceProbe.audioBitrateBps),
@@ -517,9 +639,11 @@ async function processTranscodeJobInner(outer: TranscodeContext, job: ClaimedJob
        * неширокоэкранного ролика.
        */
       const firstSegment = firstHlsSegmentName(variantPlaylistBody);
-      const measured = firstSegment
-        ? await probeVideoDimensions(ctx.ffmpegBin, join(rungDir, firstSegment), 60_000)
-        : null;
+      const initSegmentRelative = hlsMapUriFromVariantPlaylist(variantPlaylistBody);
+      const measured =
+        firstSegment && initSegmentRelative
+          ? await probeFmp4VariantFrame(ctx.ffmpegBin, rungDir, initSegmentRelative, firstSegment)
+          : null;
       producedRungs.push({
         ...rung,
         width: measured?.width ?? rung.width,
@@ -590,8 +714,10 @@ async function processTranscodeJobInner(outer: TranscodeContext, job: ClaimedJob
         bandwidth: rung.bandwidth,
       })),
     );
-    // Duration from the produced playlist (sum of EXTINF), not the source: the source is deleted
-    // below, but the playlist this reads survives. Any produced rung's timeline matches the source.
+    // Duration from the produced playlist (sum of EXTINF), not the source: the source itself is no
+    // longer downloaded once a job's HLS is already `ready` (see the early backfill branch above),
+    // so the produced playlist is the one path guaranteed to exist. Any produced rung's timeline
+    // matches the source.
     const videoDurationSeconds = sumHlsExtinfDurationSeconds(producedRungs[0]!.variantPlaylistBody);
     await ctx.control.doneHls(job, ctx.lockId, {
       masterKey,

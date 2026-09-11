@@ -35,6 +35,12 @@ export function contentTypeForKey(key: string): string {
   const lower = key.toLowerCase();
   if (lower.endsWith('.m3u8')) return 'application/vnd.apple.mpegurl';
   if (lower.endsWith('.ts')) return 'video/mp2t';
+  // fMP4 HLS segments/init (owner decision 2026-09-11, `VIDEO_DELIVERY_COST_AND_METERING`): the
+  // delivery proxy trusts this S3-stored content type over guessing it from the extension
+  // (`hlsDeliveryProxy.ts`'s `contentTypeForArtifact`), so an unmapped extension here would ship as
+  // `application/octet-stream` all the way to the player.
+  if (lower.endsWith('.m4s')) return 'video/iso.segment';
+  if (lower.endsWith('.mp4')) return 'video/mp4';
   if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
   return 'application/octet-stream';
 }
