@@ -177,6 +177,19 @@ const envSchema = z.object({
     .string()
     .optional()
     .transform((v) => (v ?? '').trim()),
+  /**
+   * Отдельный бакет сырых загрузок (М7, `docs/_TODO/STORAGE_PACKAGES_2026-09-10.md`, решение
+   * владельца 10.09.2026 вечер). Тот же endpoint/ключи, что у `S3_PRIVATE_BUCKET` (`library`
+   * target) — отличается только бакет. Загрузка библиотечного контента пишет СЮДА; перекодировщики
+   * читают исходник ОТСЮДА и пишут вывод в `S3_PRIVATE_BUCKET`. Данные пациентов (`PATIENT_S3_*`)
+   * эта переменная не касается — их бакет в этой ветке не меняется. Требуется, когда включено S3
+   * media (см. `isS3MediaEnabled`); фолбэка на `S3_PRIVATE_BUCKET` нет намеренно (владелец 11.09:
+   * «никакого чтения исходника с фолбэком»).
+   */
+  S3_RAW_BUCKET: z
+    .string()
+    .optional()
+    .transform((v) => (v ?? '').trim()),
   S3_REGION: z
     .string()
     .optional()
@@ -329,6 +342,7 @@ const parsed = parseWebappEnv({
   S3_SECRET_KEY: process.env.S3_SECRET_KEY,
   S3_PUBLIC_BUCKET: process.env.S3_PUBLIC_BUCKET,
   S3_PRIVATE_BUCKET: process.env.S3_PRIVATE_BUCKET,
+  S3_RAW_BUCKET: process.env.S3_RAW_BUCKET,
   S3_REGION: process.env.S3_REGION,
   S3_FORCE_PATH_STYLE: process.env.S3_FORCE_PATH_STYLE,
   PATIENT_S3_ENDPOINT: process.env.PATIENT_S3_ENDPOINT,
@@ -357,9 +371,15 @@ assertDevAuthBypassConfiguration({
   allowDevAuthBypass: parsed.ALLOW_DEV_AUTH_BYPASS,
 });
 
-/** CMS media: S3 presign + PutObject when endpoint, keys, and private bucket are set. */
+/**
+ * CMS media: S3 presign + PutObject when endpoint, keys, private bucket AND raw bucket are set.
+ * `S3_RAW_BUCKET` is required alongside `S3_PRIVATE_BUCKET` (М7): with S3 media on, every fresh
+ * library upload must have somewhere to land, and there is no fallback to the hot bucket.
+ */
 export function isS3MediaEnabled(e: EnvParsed): boolean {
-  return Boolean(e.S3_ENDPOINT && e.S3_ACCESS_KEY && e.S3_SECRET_KEY && e.S3_PRIVATE_BUCKET);
+  return Boolean(
+    e.S3_ENDPOINT && e.S3_ACCESS_KEY && e.S3_SECRET_KEY && e.S3_PRIVATE_BUCKET && e.S3_RAW_BUCKET,
+  );
 }
 
 /** Throws if any secret matches repo-known insecure value. No-op when isTest. Used at startup and in tests. */
@@ -403,7 +423,7 @@ if (!isNextBuildPhase) {
     }
     if ((parsed.DATABASE_URL ?? '').trim() && !isS3MediaEnabled(parsed)) {
       throw new Error(
-        'Production with DATABASE_URL requires CMS media in MinIO/S3: set S3_ENDPOINT, S3_ACCESS_KEY, S3_SECRET_KEY, and S3_PRIVATE_BUCKET (see SERVER CONVENTIONS).',
+        'Production with DATABASE_URL requires CMS media in MinIO/S3: set S3_ENDPOINT, S3_ACCESS_KEY, S3_SECRET_KEY, S3_PRIVATE_BUCKET, and S3_RAW_BUCKET (see SERVER CONVENTIONS).',
       );
     }
   } else {

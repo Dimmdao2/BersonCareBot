@@ -10,12 +10,15 @@ import type { UploadPolicyId } from '@/modules/media/uploadValidation';
 const PATIENT_POLICIES: UploadPolicyId[] = ['patient-program-submission', 'patient-file'];
 const LIBRARY_POLICIES: UploadPolicyId[] = ['cms', 'proxy', 'individual-exercise-video'];
 
+const ORG_ID = '00000000-0000-4000-8000-000000000001';
+
 function prepare(policyId: UploadPolicyId, namespace?: 'media' | 'patient-files') {
   const res = prepareMediaUpload({
     filename: 'clip.mp4',
     mimeType: 'video/mp4',
     sizeBytes: 1024,
     policyId,
+    organizationId: ORG_ID,
     ...(namespace ? { namespace } : {}),
   });
   if (!res.ok) throw new Error(`подготовка отклонена: ${res.error}`);

@@ -39,7 +39,12 @@ function contextFor(media: ControlledMedia | null) {
     library: { client: {} as StorageBinding['client'], bucket: 'library-bucket' },
     patient: { client: {} as StorageBinding['client'], bucket: 'patient-bucket' },
   };
+  const rawBindings: Record<string, StorageBinding> = {
+    library: { client: {} as StorageBinding['client'], bucket: 'raw-bucket' },
+    patient: bindings.patient!,
+  };
   const storageFor = vi.fn((target: 'library' | 'patient') => bindings[target]!);
+  const sourceStorageFor = vi.fn((target: 'library' | 'patient') => rawBindings[target]!);
   const control = {
     load: vi.fn(async () => media),
     failed: vi.fn(async () => undefined),
@@ -47,13 +52,14 @@ function contextFor(media: ControlledMedia | null) {
   const ctx = {
     control,
     storageFor,
+    sourceStorageFor,
     ffmpegBin: '/nonexistent/ffmpeg',
     ffmpegTimeoutMs: 1000,
     maxAttempts: 1,
     log: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
     lockId: 'worker-a',
   } as unknown as TranscodeContext;
-  return { ctx, storageFor, control };
+  return { ctx, storageFor, sourceStorageFor, control };
 }
 
 function loadedMedia(overrides: Partial<ControlledMedia> = {}): ControlledMedia {
@@ -73,19 +79,21 @@ function loadedMedia(overrides: Partial<ControlledMedia> = {}): ControlledMedia 
 describe('хранилище наряда на пересборку видео', () => {
   it('видео пациента обрабатывается в его шифрованном хранилище', async () => {
     /* Дальше скачивания дело не пойдёт (клиент — заглушка), но выбор уже сделан. */
-    const { ctx, storageFor } = contextFor(
+    const { ctx, storageFor, sourceStorageFor } = contextFor(
       loadedMedia({ storageTarget: 'patient', usagePurpose: 'program_item_submission' }),
     );
     await processTranscodeJob(ctx, JOB).catch(() => undefined);
     expect(storageFor).toHaveBeenCalledWith('patient');
     expect(storageFor).not.toHaveBeenCalledWith('library');
+    expect(sourceStorageFor).toHaveBeenCalledWith('patient');
   });
 
   it('ролик библиотеки обрабатывается в библиотечном хранилище', async () => {
-    const { ctx, storageFor } = contextFor(loadedMedia());
+    const { ctx, storageFor, sourceStorageFor } = contextFor(loadedMedia());
     await processTranscodeJob(ctx, JOB).catch(() => undefined);
     expect(storageFor).toHaveBeenCalledWith('library');
     expect(storageFor).not.toHaveBeenCalledWith('patient');
+    expect(sourceStorageFor).toHaveBeenCalledWith('library');
   });
 
   it('наряд без строки не уводит воркера в чужой бакет', async () => {
@@ -94,4 +102,6 @@ describe('хранилище наряда на пересборку видео',
     expect(storageFor).toHaveBeenCalledWith('library');
     expect(control.failed).toHaveBeenCalled();
   });
+  // Canary for "raw bucket, not hot, is the source" lives in `processTranscodeJob.unit.test.ts`
+  // (М7), where the full ladder pipeline is already mocked far enough to reach the download call.
 });

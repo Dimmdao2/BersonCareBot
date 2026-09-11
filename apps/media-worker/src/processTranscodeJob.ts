@@ -221,10 +221,17 @@ function compactTranscodeLogErrorCode(message: string): string {
 export type TranscodeContext = {
   control: MediaWorkerControlPort;
   /**
-   * Хранилища, а не одно: наряд называет своё, и всё, что делается по этому наряду — скачивание
-   * исходника, выкладка HLS и постера, удаление исходного MP4 — происходит внутри него.
+   * Куда ложится ВЫХОД наряда — HLS-дерево, постер, 480p-рендишн. Тот же горячий бакет, что и до
+   * М7 (`docs/_TODO/STORAGE_PACKAGES_2026-09-10.md`).
    */
   storageFor: (target: StorageTarget) => StorageBinding;
+  /**
+   * Откуда читается ИСХОДНИК (`media.s3_key`). У `library` это отдельный сырой бакет
+   * (`S3_RAW_BUCKET`) — М7; у `patient` разделения нет, источник и назначение совпадают, как и
+   * раньше. Отдельная функция, а не флаг на `storageFor`, чтобы наряд не мог случайно перепутать
+   * вход с выходом: у HLS-дерева и постера всегда `storageFor`, у скачивания — всегда это поле.
+   */
+  sourceStorageFor: (target: StorageTarget) => StorageBinding;
   ffmpegBin: string;
   ffmpegTimeoutMs: number;
   maxAttempts: number;
@@ -232,8 +239,8 @@ export type TranscodeContext = {
   lockId: string;
 };
 
-/** Контекст одного наряда: хранилище уже выбрано и дальше по коду не выбирается заново. */
-export type TranscodeJobContext = TranscodeContext & StorageBinding;
+/** Контекст одного наряда: оба хранилища уже выбраны и дальше по коду не выбираются заново. */
+export type TranscodeJobContext = TranscodeContext & StorageBinding & { source: StorageBinding };
 
 async function permanentFail(
   ctx: TranscodeContext,
@@ -331,9 +338,11 @@ async function processTranscodeJobInner(outer: TranscodeContext, job: ClaimedJob
    * чтобы отметить наряд провалившимся. Если строка ЕСТЬ, хранилище обязано быть названо, иначе
    * `parseStorageTarget` откажет и наряд упадёт громко — вместо тихой работы в чужом бакете.
    */
+  const target = loaded ? parseStorageTarget(loaded.storageTarget) : 'library';
   const ctx: TranscodeJobContext = {
     ...outer,
-    ...outer.storageFor(loaded ? parseStorageTarget(loaded.storageTarget) : 'library'),
+    ...outer.storageFor(target),
+    source: outer.sourceStorageFor(target),
   };
   const media = loaded && {
     id: loaded.id,
@@ -436,7 +445,7 @@ async function processTranscodeJobInner(outer: TranscodeContext, job: ClaimedJob
   try {
     await mkdir(hlsDir, { recursive: true });
     await mkdir(posterDir, { recursive: true });
-    await downloadObjectToFile(ctx.client, ctx.bucket, media.s3_key, src);
+    await downloadObjectToFile(ctx.source.client, ctx.source.bucket, media.s3_key, src);
 
     const sourceProbe = await probeVideoDimensions(ctx.ffmpegBin, src, 60_000);
     if (!sourceProbe) {

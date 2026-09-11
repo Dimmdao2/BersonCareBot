@@ -50,7 +50,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: 'not found' }, { status: 404 });
     }
 
-    const read = await s3GetObjectStream({ key: object.key, target: object.target });
+    const read = await s3GetObjectStream({ key: object.key, target: object.target, kind: object.kind });
     if (!read.ok) {
       logger.warn(
         { mediaId: id, reason: read.reason },

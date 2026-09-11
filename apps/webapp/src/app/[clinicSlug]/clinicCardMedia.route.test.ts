@@ -29,7 +29,10 @@ const fakes = vi.hoisted(() => ({
 vi.mock('@/app-layer/principal/bootstrapPrincipal', () => ({
   stampBootstrapPrincipal: fakes.stampBootstrapPrincipal,
 }));
-vi.mock('@/app-layer/media/s3Client', () => ({ presignGetUrl: fakes.presignGetUrl }));
+vi.mock('@/app-layer/media/s3Client', () => ({
+  presignGetUrl: fakes.presignGetUrl,
+  sourceStorageKindFor: (target: string) => (target === 'patient' ? 'hot' : 'raw'),
+}));
 vi.mock('@/app-layer/media/localSaasTestFixtureMedia', () => ({
   readSaasTestLocalMedia: fakes.readSaasTestLocalMedia,
 }));

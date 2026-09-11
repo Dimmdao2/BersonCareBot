@@ -154,6 +154,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ use
     sizeBytes,
     policyId: 'patient-file',
     namespace: 'patient-files',
+    organizationId: gate.ctx.organizationId,
   });
   if (!prepared.ok) {
     const rejection = uploadValidationResponse(prepared);

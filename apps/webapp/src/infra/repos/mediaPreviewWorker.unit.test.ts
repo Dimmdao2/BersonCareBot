@@ -130,6 +130,7 @@ vi.mock('@/infra/db/runWebappSql', () => ({
 }));
 vi.mock('@/infra/s3/client', () => ({
   parseStorageTarget: (value: unknown) => (value === 'patient' ? 'patient' : 'library'),
+  sourceStorageKindFor: (target: string) => (target === 'patient' ? 'hot' : 'raw'),
   presignGetUrl: vi.fn(async () => 'https://example.invalid/presigned'),
   s3DeleteObject: vi.fn(async () => {}),
   s3GetObjectBody: vi.fn(async () => Buffer.from('source-bytes')),
@@ -151,7 +152,6 @@ vi.mock('@/modules/media/imageStandardRendition', () => ({
     height: 1080,
     smKey: `previews/sm/${claimedRow.id}.jpg`,
     mdKey: `previews/md/${claimedRow.id}.jpg`,
-    supersededOriginalKey: claimedRow.s3_key,
   })),
 }));
 
@@ -188,14 +188,21 @@ beforeEach(() => {
 });
 
 describe('processMediaPreviewBatch standard rendition fact', () => {
-  it('records standard_rendition_at in the same statement that repoints s3_key', async () => {
+  /*
+   * М7 (`docs/_TODO/STORAGE_PACKAGES_2026-09-10.md`) реверсирует решение 19.08.2026: `s3_key`
+   * оригинала больше НЕ переписывается — оригинал остаётся жить в сыром бакете, а
+   * `standard_rendition_at` теперь единственный факт, что рендишн лежит по детерминированному
+   * ключу `s3StandardImageKey(mediaId)` в горячем бакете.
+   */
+  it('фиксирует standard_rendition_at, не трогая s3_key оригинала', async () => {
     claimThen(claimedRow);
 
     await processMediaPreviewBatch(1);
 
-    const update = issuedSql().find((text) => text.includes('s3_key ='));
+    const update = issuedSql().find((text) => text.includes('standard_rendition_at'));
     expect(update).toBeDefined();
-    expect(update).toContain('standard_rendition_at');
+    expect(update).toContain('preview_sm_key');
+    expect(update).not.toContain('s3_key =');
   });
 
   it('leaves standard_rendition_at unset for an image the size guard skips', async () => {
@@ -222,10 +229,9 @@ describe('processMediaPreviewBatch: обложка ролика по ссылк�
     await processMediaPreviewBatch(1);
 
     expect(resolveHostedVideoThumbnail).toHaveBeenCalledWith(HOSTED_URL);
-    const update = issuedSql().find((text) => text.includes('s3_key ='));
+    const update = issuedSql().find((text) => text.includes('standard_rendition_at'));
     expect(update).toBeDefined();
     expect(update).toContain('preview_sm_key');
-    expect(update).toContain('standard_rendition_at');
   });
 
   it('готовую обложку не качает второй раз', async () => {
@@ -357,8 +363,8 @@ describe('processMediaPreviewBatch: ветки системного FFmpeg', () 
 
     expect(result).toEqual({ processed: 1, errors: 0 });
     expect(runProcess).toHaveBeenCalledTimes(1);
-    const update = issuedSql().find((text) => text.includes('s3_key ='));
+    const update = issuedSql().find((text) => text.includes('standard_rendition_at'));
     expect(update).toBeDefined();
-    expect(update).toContain('standard_rendition_at');
+    expect(update).not.toContain('s3_key =');
   });
 });

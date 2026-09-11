@@ -43,6 +43,12 @@ const schema = z.object({
   S3_ACCESS_KEY: z.string().min(1),
   S3_SECRET_KEY: z.string().min(1),
   S3_PRIVATE_BUCKET: z.string().min(1),
+  /*
+   * Сырой бакет загрузок (М7, `docs/_TODO/STORAGE_PACKAGES_2026-09-10.md`): исходник для транскода
+   * читается ОТСЮДА, а не из `S3_PRIVATE_BUCKET`. Обязателен, как и `S3_PRIVATE_BUCKET`, — никакого
+   * фолбэка на горячий бакет при отсутствии переменной.
+   */
+  S3_RAW_BUCKET: z.string().min(1),
   S3_REGION: z.string().optional().default('us-east-1'),
   S3_FORCE_PATH_STYLE: z
     .string()
@@ -104,6 +110,7 @@ export function loadMediaWorkerEnv(): MediaWorkerEnv {
     S3_ACCESS_KEY: process.env.S3_ACCESS_KEY,
     S3_SECRET_KEY: process.env.S3_SECRET_KEY,
     S3_PRIVATE_BUCKET: process.env.S3_PRIVATE_BUCKET,
+    S3_RAW_BUCKET: process.env.S3_RAW_BUCKET,
     S3_REGION: process.env.S3_REGION,
     S3_FORCE_PATH_STYLE: process.env.S3_FORCE_PATH_STYLE,
     PATIENT_S3_ENDPOINT: process.env.PATIENT_S3_ENDPOINT,

@@ -35,11 +35,14 @@ import {
   s3HeadObject,
   s3ListObjectKeysUnderPrefix,
   s3ObjectKey,
+  s3RawObjectKey,
+  s3StandardImageKey,
   s3PublicUrl,
   s3PutObjectBody,
+  sourceStorageKindFor,
   parseStorageTarget,
 } from '@/infra/s3/client';
-import type { StorageTarget } from '@/infra/s3/client';
+import type { StorageKind, StorageTarget } from '@/infra/s3/client';
 import type { MediaStoragePort } from '@/modules/media/ports';
 import { assertReceivedUpload, type ReceivedUpload } from '@/modules/media/uploadValidation';
 import { MAX_MEDIA_BYTES } from '@/modules/media/uploadAllowedMime';
@@ -136,9 +139,13 @@ export function createS3MediaStoragePort(): MediaStoragePort {
       }
 
       const id = randomUUID();
-      const key = s3ObjectKey(id, params.filename);
       const folderId = params.folderId ?? null;
       const organizationId = currentPrincipalOrganizationId();
+      const kind = sourceStorageKindFor(params.storageTarget);
+      const key =
+        kind === 'raw'
+          ? s3RawObjectKey(organizationId, id, params.filename)
+          : s3ObjectKey(id, params.filename);
       await getWebappSqlDb()
         .insert(mediaFiles)
         .values({
@@ -156,7 +163,7 @@ export function createS3MediaStoragePort(): MediaStoragePort {
         });
 
       const buf = Buffer.from(body);
-      await s3PutObjectBody(key, buf, params.mimeType, params.storageTarget);
+      await s3PutObjectBody(key, buf, params.mimeType, params.storageTarget, kind);
 
       const ready = await getWebappSqlDb()
         .update(mediaFiles)
@@ -1177,8 +1184,31 @@ export async function getMediaRowForPlayback(
 /**
  * Ключ объекта ВМЕСТЕ с его хранилищем: подписывать ссылку в чужом бакете бессмысленно, поэтому
  * дверь получает и то и другое одним ответом и не может подставить хранилище по умолчанию.
+ * `kind` — сырой бакет или горячий (М7); объект и хранилище неразделимы точно так же, как ключ и
+ * `target`, поэтому это третье обязательное поле одного и того же ответа, а не отдельная величина.
  */
-export type MediaObjectLocation = { key: string; target: StorageTarget };
+export type MediaObjectLocation = { key: string; target: StorageTarget; kind: StorageKind };
+
+/**
+ * Что фактически отдавать по этой строке для ОБЫЧНОЙ (не raw_original) выдачи: готовый безопасный
+ * рендишн картинки, если он есть (`standard_rendition_at IS NOT NULL`), — он лежит в горячем
+ * бакете под детерминированным ключом и НЕ хранится в `s3_key` (М7, отменяет решение 19.08:
+ * рендишн больше не затирает исходник). Иначе — сам `s3_key`, а он для `library`-цели живёт в
+ * сыром бакете (загрузка пишет только туда, фолбэка на горячий нет).
+ */
+function resolveDeliverableMediaObject(
+  mediaId: string,
+  row: { s3_key: string; storage_target: StorageTarget; standard_rendition_at: string | Date | null },
+): MediaObjectLocation {
+  if (row.standard_rendition_at != null) {
+    return { key: s3StandardImageKey(mediaId), target: row.storage_target, kind: 'hot' };
+  }
+  return {
+    key: row.s3_key,
+    target: row.storage_target,
+    kind: sourceStorageKindFor(row.storage_target),
+  };
+}
 
 /** For GET /api/media/[id]: S3 key when row may be redirected (presigned GET to private bucket). */
 export async function getMediaS3KeyForRedirect(
@@ -1186,18 +1216,36 @@ export async function getMediaS3KeyForRedirect(
   options: { allowPlatformBase?: boolean } = {},
 ): Promise<MediaObjectLocation | null> {
   const organizationId = currentPrincipalOrganizationId();
-  const res = await runWebappSql<{ s3_key: string | null; storage_target: string | null }>(
+  const res = await runWebappSql<{
+    s3_key: string | null;
+    storage_target: string | null;
+    standard_rendition_at: string | Date | null;
+  }>(
     getWebappSqlDb(),
-    sql`SELECT s3_key, storage_target FROM media_files
+    sql`SELECT s3_key, storage_target, standard_rendition_at FROM media_files
          WHERE id = ${id}::uuid AND s3_key IS NOT NULL
            AND owner_kind = 'organization' AND organization_id = ${organizationId}::uuid
            AND ${mediaReadableStatusPredicate}`,
   );
   const row = res.rows[0];
-  if (row?.s3_key) return { key: row.s3_key, target: parseStorageTarget(row.storage_target) };
+  if (row?.s3_key) {
+    return resolveDeliverableMediaObject(id, {
+      s3_key: row.s3_key,
+      storage_target: parseStorageTarget(row.storage_target),
+      standard_rendition_at: row.standard_rendition_at,
+    });
+  }
   if (options.allowPlatformBase !== true) return null;
   const platformRow = await readPlatformMediaRow(id);
-  return platformRow?.s3_key ? { key: platformRow.s3_key, target: 'library' } : null;
+  return platformRow?.s3_key
+    ? resolveDeliverableMediaObject(id, {
+        s3_key: platformRow.s3_key,
+        storage_target: 'library',
+        /* `app.read_platform_media_row` не отдаёт эту колонку — платформенная библиотека картинок
+           с рендишном сюда не попадает; см. тот же комментарий у `getMediaRowForPlayback`. */
+        standard_rendition_at: null,
+      })
+    : null;
 }
 
 export type MediaOriginalDownloadObject = MediaObjectLocation & {
@@ -1237,9 +1285,14 @@ export async function getMediaOriginalObjectForDownload(
   );
   const row = res.rows[0];
   if (!row?.s3_key) return null;
+  const target = parseStorageTarget(row.storage_target);
   return {
     key: row.s3_key,
-    target: parseStorageTarget(row.storage_target),
+    target,
+    /* М6 отдаёт ИМЕННО загруженный файл, а не безопасный рендишн — раз это "скачать исходник",
+       рендишн (если он есть) тут не подставляется, в отличие от обычной выдачи. `s3_key` для
+       `library`-цели теперь живёт в сыром бакете (М7): читаем оттуда, без фолбэка на горячий. */
+    kind: sourceStorageKindFor(target),
     originalName: row.original_name,
     standardRenditionAt: row.standard_rendition_at,
   };
@@ -1271,7 +1324,9 @@ export async function getMediaPreviewS3KeyForRedirect(
   if (!row || row.preview_status !== 'ready') return null;
   const key = size === 'sm' ? row.preview_sm_key : row.preview_md_key;
   if (!key?.trim()) return null;
-  return { key, target: own ? parseStorageTarget(own.storage_target) : 'library' };
+  /* Превью — всегда вывод нашего энкодера, живёт в горячем бакете независимо от того, где лежит
+     исходник (М7 не трогает это хранилище). */
+  return { key, target: own ? parseStorageTarget(own.storage_target) : 'library', kind: 'hot' };
 }
 
 export type PurgePendingMediaDeleteBatchResult = {

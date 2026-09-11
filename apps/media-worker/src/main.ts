@@ -59,11 +59,21 @@ async function main() {
         return { client: createS3Client(cfg), bucket: cfg.bucket };
       })()
     : library;
+  /*
+   * Сырой бакет загрузок (М7, `docs/_TODO/STORAGE_PACKAGES_2026-09-10.md`): те же эндпоинт и
+   * ключи, что у `library` — отдельным провайдером/учёткой владелец его не заводил, — но свой
+   * бакет `S3_RAW_BUCKET`. Исходник `library`-видео читается только отсюда; `patient` разделения
+   * не получает вовсе (см. `sourceStorageFor` ниже), так что для него источник и назначение —
+   * один и тот же объект `patient`, как и до этого разделения.
+   */
+  const raw: StorageBinding = { client: library.client, bucket: env.S3_RAW_BUCKET };
 
   const ctx = {
     control,
     storageFor: (target: StorageTarget): StorageBinding =>
       target === 'patient' ? patient : library,
+    sourceStorageFor: (target: StorageTarget): StorageBinding =>
+      target === 'patient' ? patient : raw,
     ffmpegBin: env.ffmpegPathResolved,
     ffmpegTimeoutMs: env.FFMPEG_TIMEOUT_MS,
     maxAttempts: env.MAX_TRANSCODE_ATTEMPTS,

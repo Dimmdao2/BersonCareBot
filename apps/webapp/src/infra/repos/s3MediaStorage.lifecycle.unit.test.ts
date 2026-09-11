@@ -50,8 +50,13 @@ vi.mock('@/infra/s3/client', () => ({
   s3HeadObject: fakes.s3HeadObject,
   s3ListObjectKeysUnderPrefix: fakes.s3ListObjectKeysUnderPrefix,
   s3ObjectKey: (id: string, filename: string) => `media/${id}/${filename}`,
+  s3RawObjectKey: (organizationId: string, id: string, filename: string) =>
+    `${organizationId}/media/${id}/${filename}`,
+  s3StandardImageKey: (id: string) => `media/${id}/standard.webp`,
   s3PublicUrl: vi.fn(),
   s3PutObjectBody: fakes.s3PutObjectBody,
+  sourceStorageKindFor: (target: string) => (target === 'patient' ? 'hot' : 'raw'),
+  parseStorageTarget: (value: unknown) => (value === 'patient' ? 'patient' : 'library'),
 }));
 
 import {
