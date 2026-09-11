@@ -223,6 +223,8 @@ export type StaffAppointmentPaymentState = {
   prepaymentRequiredMinor: number;
   /** Уже зачисленная на запись предоплата; растёт только платёжным корнем и кассой. */
   prepaymentPaidMinor: number;
+  /** Срок оплаты записи; `null` — предоплата не требовалась, счёт бессрочный. */
+  paymentDeadlineAt: string | null;
 };
 
 export type StaffAppointmentPaymentAction = 'cash' | 'link';
@@ -262,6 +264,7 @@ export function createStaffAppointmentPaymentsService(deps: StaffAppointmentPaym
         totalMinor === null ? null : Math.max(0, totalMinor - capturedMinor - manualPaidMinor),
       prepaymentRequiredMinor: snapshot?.prepaymentRequiredMinor ?? 0,
       prepaymentPaidMinor: snapshot?.prepaymentPaidMinor ?? 0,
+      paymentDeadlineAt: snapshot?.paymentDeadlineAt ?? null,
     };
   }
 
@@ -316,6 +319,9 @@ export function createStaffAppointmentPaymentsService(deps: StaffAppointmentPaym
       currency: 'RUB',
       idempotencyKey: `staff-appointment-link:${input.appointmentId}:${intentAmountMinor}`,
       returnUrl: input.returnUrl,
+      // Запись держит слот до своего дедлайна — счёт живёт ровно столько же. У записи без
+      // дедлайна (предоплата не требовалась) срок не выдумывается: ронять нечего.
+      expiresAt: state.paymentDeadlineAt,
     });
     if (!intent.checkoutUrl) throw new Error('payment_link_unavailable');
     return {

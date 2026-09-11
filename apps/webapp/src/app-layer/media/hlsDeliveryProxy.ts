@@ -1,14 +1,17 @@
 import { NextResponse } from 'next/server';
+import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import { logger } from '@/app-layer/logging/logger';
 import { buildTrustedPrivateObjectUrlPrefixes } from '@/app-layer/media/hlsTrustedOriginPrefixes';
 import { rewriteM3u8AbsoluteUrls } from '@/app-layer/media/hlsPlaylistRewrite';
 import {
   hlsArtifactObjectKey,
+  hlsArtifactQualityFromPath,
   hlsArtifactSupportsHttpRange,
   inferHlsArtifactKind,
   isHlsPlaylistPath,
   normalizeHlsUrlPathSegments,
 } from '@/app-layer/media/hlsProxyPath';
+import { recordHlsDeliveryBytes } from '@/app-layer/media/hlsDeliveryByteMeter';
 import { parseSingleBytesRangeHeader } from '@/app-layer/media/hlsProxyRange';
 import { getMediaRowForPlayback } from '@/app-layer/media/s3MediaStorage';
 import {
@@ -23,6 +26,40 @@ import {
 import type { HlsProxyArtifactKind, HlsProxyReasonCodeDb } from '@/modules/media/hlsProxyTelemetry';
 import { bindHlsProxyStreamToClientAbort } from '@/app-layer/media/hlsProxyClientAbortStream';
 import { isTrustedHlsArtifactS3Key } from '@/shared/lib/hlsStorageLayout';
+
+/**
+ * Guards the ENTIRE metering call, not just `recordHlsDeliveryBytes`'s own body: the owner's
+ * "запись не имеет права сорвать выдачу" covers argument evaluation too — `getCurrentDbPrincipal-
+ * OrganizationId()` and `hlsArtifactQualityFromPath()` run before `recordHlsDeliveryBytes`'s internal
+ * try/catch even starts, so a throw from either would otherwise still turn a served segment into a
+ * 502 `internal_error` through the outer handler's catch in `handleHlsDeliveryProxyRequest`.
+ */
+function recordHlsDeliveryBytesSafely(build: () => Parameters<typeof recordHlsDeliveryBytes>[0]): void {
+  try {
+    recordHlsDeliveryBytes(build());
+  } catch (e) {
+    logger.error({ err: e }, 'hls_delivery_byte_meter_call_site_failed');
+  }
+}
+
+/**
+ * Segment/variant path only: the counter's non-`bytes` fields (org/user/media/quality) must be
+ * captured NOW, synchronously, while the request's `AsyncLocalStorage`-backed DB principal context
+ * is still live — `bytesSent` is only known once the stream finishes, long after this request handler
+ * has returned the `Response` and that context has unwound. Same "argument evaluation must not be
+ * able to turn a served segment into a 502" guarantee as `recordHlsDeliveryBytesSafely` above, just
+ * evaluated eagerly instead of at the metering call itself.
+ */
+function safeBuildHlsSegmentMeterContext(
+  build: () => Omit<Parameters<typeof recordHlsDeliveryBytes>[0], 'bytes'>,
+): Omit<Parameters<typeof recordHlsDeliveryBytes>[0], 'bytes'> | null {
+  try {
+    return build();
+  } catch (e) {
+    logger.error({ err: e }, 'hls_delivery_byte_meter_call_site_failed');
+    return null;
+  }
+}
 
 function contentTypeForArtifact(segments: string[], fromS3: string | undefined): string {
   if (fromS3 && fromS3.trim()) return fromS3;
@@ -213,6 +250,14 @@ async function runHlsDeliveryProxy(input: {
       });
     }
 
+    recordHlsDeliveryBytesSafely(() => ({
+      organizationId: getCurrentDbPrincipalOrganizationId(),
+      userId,
+      mediaId,
+      quality: hlsArtifactQualityFromPath(segments),
+      bytes: Buffer.byteLength(text, 'utf8'),
+    }));
+
     return new NextResponse(text, {
       status: 200,
       headers: {
@@ -282,7 +327,25 @@ async function runHlsDeliveryProxy(input: {
   if (streamed.contentRange) headers.set('Content-Range', streamed.contentRange);
   if (streamed.eTag) headers.set('ETag', streamed.eTag);
 
-  const body = bindHlsProxyStreamToClientAbort(streamed.stream, input.clientAbortSignal);
+  // `streamed.contentLength` above only sets the *promised* `Content-Length` header — a legitimate
+  // use, since it is what the response header must say if the transfer completes. The byte-metering
+  // table exists to record what actually reached the patient (billing + "does delivery really get
+  // through" signal), so it must NOT reuse this number: a dropped connection would otherwise count a
+  // segment as fully delivered when 0 bytes went out. `meterContext` is captured synchronously (org
+  // lookup needs the request's still-live DB principal context); the byte count itself is filled in
+  // by `bindHlsProxyStreamToClientAbort`'s `onSettled`, once the stream actually stops moving bytes —
+  // on a clean finish, an upstream error, or a client disconnect mid-transfer alike.
+  const meterContext = safeBuildHlsSegmentMeterContext(() => ({
+    organizationId: getCurrentDbPrincipalOrganizationId(),
+    userId,
+    mediaId,
+    quality: hlsArtifactQualityFromPath(segments),
+  }));
+
+  const body = bindHlsProxyStreamToClientAbort(streamed.stream, input.clientAbortSignal, (bytesSent) => {
+    if (!meterContext) return;
+    recordHlsDeliveryBytesSafely(() => ({ ...meterContext, bytes: bytesSent }));
+  });
 
   return new Response(body, {
     status: streamed.httpStatus,

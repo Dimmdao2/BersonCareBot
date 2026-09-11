@@ -14068,7 +14068,6 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "description",
           "display_name",
           "is_published",
-          "locations_json",
           "logo_media_id",
           "organization_id",
           "photo_media_ids",
@@ -16104,6 +16103,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "preview_status",
           "s3_key",
           "size_bytes",
+          "source_bitrate_bps",
           "source_height",
           "source_width",
           "standard_rendition_at",
@@ -22836,7 +22836,10 @@ const legacyCensusRoles: Record<string, RoleDecl> = {
     isNew: true, // в живом каталоге её нет (evidence/13 §1.2 — 45 ролей, этой среди них нет)
     why: 'РЕШЕНИЕ D8: прунер/ретеншен журналов через ВНУТРЕННИЙ эндпоинт порта webapp, никогда арендной ролью '
       + '(сегодня тот же шов ставит SET ROLE app_staff — C12). DELETE выдаётся ровно на перечисленные журналы, '
-      + 'а app.context_nonce_ledger чистится через definer app.prune_context_nonce_ledger.',
+      + 'а app.context_nonce_ledger чистится через definer app.prune_context_nonce_ledger. 11.09: тот же '
+      + 'внутренний эндпоинт-принцип расширен на INSERT/UPDATE ровно одной таблицы — batch-сброс in-memory '
+      + 'счётчика байт HLS-прокси в media_playback_delivery_daily (VIDEO_DELIVERY_COST_AND_METERING), тем же '
+      + 'механизмом SET ROLE app_staff → app_operational_maintenance, никогда per-request записью.',
   },
 
   // ── capability-роли ──
@@ -23561,6 +23564,10 @@ const TABLE_ROWS: TableRow[] = [
   { t: 'public.media_playback_client_events', cls: 'T', org: true, wall: 'platform-role', why: 'Клиентские события '
     + 'плеера — понять, почему у пациента не грузится видео', wallWhy: W_PLATFORM_TELEMETRY, pol: 'I7: тот же '
     + 'несогласованный набор (awd без r).', defect: ['I7-privilege-mismatch'] },
+  { t: 'public.media_playback_delivery_daily', cls: 'T', org: true, wall: 'platform-role', why: 'Суточная '
+    + 'агрегация отданных HLS-байт по (сутки, организация, пациент, видео, качество) — себестоимость выдачи и '
+    + 'разрез по видео/качеству (владелец 11.09.2026, VIDEO_DELIVERY_COST_AND_METERING); только обслуживающий '
+    + 'job пишет батчем, никогда одна строка на сегмент', wallWhy: W_PLATFORM_TELEMETRY },
   { t: 'public.media_playback_resolution_events', cls: 'T', org: true, wall: 'platform-role', why: 'Как отдавалось '
     + 'видео — оценка минут просмотра в отчётах', wallWhy: W_PLATFORM_TELEMETRY },
   { t: 'public.media_playback_stats_hourly', cls: 'T', org: true, wall: 'platform-role', why: 'Почасовой агрегат '
@@ -25147,6 +25154,7 @@ const WEBAPP_MEDIA_SOURCES = [
 const WEBAPP_MAINTENANCE_SOURCES = [
   'api/internal/media-hls-proxy-errors/retention:POST',
   'api/internal/media-playback-stats/retention:POST',
+  'api/internal/media-delivery-bytes/flush:POST',
   'api/internal/product-analytics/retention:POST',
   // Track D final cutover (#987), audit F1: this source was already a locked-infra cron source
   // (packages/db-principal/webappLockedInfraCronSources.ts) but had no declared relation-capability,
@@ -27849,13 +27857,12 @@ const REV10_CONTEXT = {
       relationSurfaces: [
         { relation: 'public.media_files', columns: ['id', 'owner_kind', 'organization_id'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
-        { relation: 'public.be_branches',
-          columns: ['organization_id', 'is_active', 'title', 'city_code', 'address', 'sort_order'],
-          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        // #926 §17.J: снимок адресов снят, и вместе с ним ушла единственная причина двери записи
+        // читать `be_branches`. Адреса на визитке — живые, их джойнит дверь чтения.
         { relation: 'public.clinic_public_directory_entries',
           columns: ['organization_id', 'description', 'full_description_markdown',
             'public_contact_phone', 'public_contact_email', 'public_website_url', 'logo_media_id',
-            'photo_media_ids', 'locations_json', 'card_is_published', 'updated_at'],
+            'photo_media_ids', 'card_is_published', 'updated_at'],
           operations: ['SELECT' as const, 'UPDATE' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
       databases: ALL_DECLARED_DATABASES,
@@ -29856,7 +29863,7 @@ const REV10_CONTEXT = {
           columns: ['id', 'organization_id', 'mime_type', 's3_key', 'video_processing_status',
             'video_processing_error', 'available_qualities_json',
             'hls_master_playlist_s3_key', 'hls_artifact_prefix', 'poster_s3_key',
-            'video_duration_seconds'],
+            'video_duration_seconds', 'source_bitrate_bps'],
           operations: ['SELECT' as const, 'UPDATE' as const],
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
@@ -31720,6 +31727,21 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
       { role: 'app_operational_maintenance', operations: ['SELECT', 'DELETE'], columns: 'table' },
     ],
   },
+  'public.media_playback_delivery_daily': {
+    kind: 'direct',
+    purpose: 'the accepted maintenance worker batches the HLS proxy in-memory byte counter and deletes expired daily rollups; no per-request writer exists',
+    codePaths: [
+      'apps/webapp/src/app-layer/media/hlsDeliveryByteMeterFlush.ts',
+      'apps/webapp/src/app-layer/media/playbackHourlyRetention.ts',
+    ],
+    grants: [
+      {
+        role: 'app_operational_maintenance',
+        operations: ['SELECT', 'INSERT', 'UPDATE', 'DELETE'],
+        columns: 'table',
+      },
+    ],
+  },
   'public.media_playback_user_video_first_resolve': {
     kind: 'direct', purpose: 'patient reads its own marker and records it only through the exact visibility-checked root',
     codePaths: ['apps/webapp/src/infra/repos/pgPlaybackUserVideoFirstResolve.ts'],
@@ -32560,6 +32582,22 @@ function revision10PlaybackTelemetryPolicies(
   }];
 }
 
+/**
+ * `media_playback_delivery_daily` has no per-request writer at all (design constraint: the HLS proxy
+ * only mutates an in-memory buffer, never the table) — unlike the sibling telemetry tables above,
+ * nothing here needs an `app_patient`/`app_staff` branch. The maintenance worker is the sole reader,
+ * writer, and deleter, same `current_user` wall as `revision10PlaybackTelemetryPolicies`.
+ */
+function revision10MediaPlaybackDeliveryDailyPolicies(index: number): PolicyDecl[] {
+  const maintenance = "current_user = 'app_operational_maintenance'::name";
+  return [{
+    name: `rev10_media_playback_delivery_daily_maintenance_${index + 1}`,
+    as: 'PERMISSIVE', cmd: 'ALL', to: ['app_operational_maintenance'],
+    using: `(${maintenance})`, withCheck: `(${maintenance})`,
+    note: 'accepted maintenance worker batches HLS delivery byte rollups and deletes expired rows across clinics',
+  }];
+}
+
 function revision10MaterialRatingsPolicies(index: number): PolicyDecl[] {
   const staffOrg = "current_user = 'app_staff'::name AND organization_id = (SELECT app.current_org_id())";
   const patientOrg = "current_user = 'app_patient'::name AND organization_id = (SELECT app.current_org_id())";
@@ -32837,6 +32875,8 @@ function revision10Database(name: Revision10DatabaseName): DatabaseDecl {
           || key === 'public.media_playback_resolution_events'
           || key === 'public.media_playback_user_video_first_resolve') && access?.kind === 'direct'
         ? revision10PlaybackTelemetryPolicies(key, index)
+      : key === 'public.media_playback_delivery_daily' && access?.kind === 'direct'
+        ? revision10MediaPlaybackDeliveryDailyPolicies(index)
       : key === 'public.material_ratings' && access?.kind === 'direct'
         ? revision10MaterialRatingsPolicies(index)
       : key === 'public.patient_content_rating_feedback' && access?.kind === 'direct'

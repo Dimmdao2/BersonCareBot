@@ -126,6 +126,13 @@ export default [
       'src/app/app/doctor/**/*.ts',
       'src/app/app/settings/**/*.tsx',
       'src/app/app/settings/**/*.ts',
+      // Админка входит в докторскую зону, а не в свою собственную: замер 11.09 по всем 40 файлам
+      // `src/app/app/admin/**` даёт 0 импортов `@/components/ui/**` и `@/shared/ui/patient/**` и 34 файла,
+      // уже живущих на `@/shared/ui/doctor/**`. Отдельная карта примитивов для неё описывала бы
+      // несуществующее расхождение; до 11.09 зона просто не была ничем ограничена, и удержать это
+      // состояние мог только случай.
+      'src/app/app/admin/**/*.tsx',
+      'src/app/app/admin/**/*.ts',
       'src/modules/messaging/components/DoctorChatPanel.tsx',
     ],
     rules: {
