@@ -41,6 +41,7 @@ import {
   minorToRublesInput,
   parseRublesInput,
   rublesToMinor,
+  serviceDoerNote,
   type SoloOverview,
 } from '@/app/app/settings/bookingSoloAdminApi';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
@@ -136,6 +137,7 @@ function formatPrepayment(policy: PrepaymentPolicy | undefined): string {
 
 export function BookingSoloServicesSection() {
   const [services, setServices] = useState<ServiceRow[]>([]);
+  const [serviceDoers, setServiceDoers] = useState<SoloOverview['serviceDoers']>([]);
   const [prepaymentPolicies, setPrepaymentPolicies] = useState<PrepaymentPolicy[]>([]);
   const [prepaymentAvailability, setPrepaymentAvailability] =
     useState<PrepaymentAvailability | null>(null);
@@ -187,6 +189,7 @@ export function BookingSoloServicesSection() {
             left.sortOrder - right.sortOrder || left.title.localeCompare(right.title, 'ru'),
         ),
       );
+      setServiceDoers(data.serviceDoers);
       setPrepaymentPolicies(
         prepaymentJson?.visible === false ? [] : (prepaymentJson?.policies ?? []),
       );
@@ -404,13 +407,24 @@ export function BookingSoloServicesSection() {
                 const policy = prepaymentPolicies.find(
                   (candidate) => candidate.serviceId === service.id,
                 );
+                // Кабинет ничего не прячет — кабинет подписывает (тот же приём, что в превью
+                // визитки). Услуга без единого пересечения остаётся в списке блеклой и говорит,
+                // чего ей не хватает (#1102 §2.4).
+                const noDoerNote = serviceDoerNote(serviceDoers, service.id);
+                // Переключатель показывает СОСТОЯНИЕ, а не колонку: услуга включена тогда, когда
+                // выключатель поднят И её кто-то делает. Владелец 11.09: «кнопка вкл, даже если
+                // стоит, она, как бы, серенькая». Поэтому без пересечений он серый и опущен, а
+                // как только специалист появился — поднимается сам, ничего не нажимая (§2.2).
+                const enabled = service.isActive && noDoerNote === null;
                 return (
                   <DoctorSortableSettingsRow
                     key={service.id}
                     id={service.id}
                     label={service.title}
                     disabled={pending}
-                    active={service.isActive}
+                    active={enabled}
+                    activeToggleDisabled={noDoerNote !== null}
+                    activeToggleHint={noDoerNote ?? undefined}
                     trailing={
                       <span className="text-sm text-foreground">
                         {formatPrice(service.priceMinor)}
@@ -420,13 +434,25 @@ export function BookingSoloServicesSection() {
                     onActiveChange={(checked) => setServiceActive(service, checked)}
                   >
                     <span
-                      className={`${doctorDnaFlatListPrimaryClass} block truncate ${!service.isActive ? 'text-muted-foreground line-through' : ''}`}
+                      className={cn(
+                        doctorDnaFlatListPrimaryClass,
+                        'block truncate',
+                        !enabled && 'text-muted-foreground',
+                        !service.isActive && !noDoerNote && 'line-through',
+                      )}
                     >
                       {service.title}
                     </span>
                     <span className={`${doctorDnaFlatListMetaClass} block truncate`}>
                       {service.durationMinutes} мин, перерыв {service.bufferAfterMinutes} мин
                     </span>
+                    {noDoerNote ? (
+                      <span
+                        className={`${doctorDnaFlatListMetaClass} block truncate italic text-muted-foreground/80`}
+                      >
+                        {noDoerNote}
+                      </span>
+                    ) : null}
                     {policy && policy.mode !== 'disabled' && policy.isActive !== false ? (
                       <span className={`${doctorDnaFlatListMetaClass} block truncate`}>
                         Предоплата {formatPrepayment(policy)}

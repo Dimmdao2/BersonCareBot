@@ -13,6 +13,10 @@ import {
   isBuiltInOnlineLocation,
   isReservedOnlineLocationIdentity,
 } from '@/modules/booking-engine/onlineLocation';
+import {
+  ensureSoloServiceCoverage,
+  isSoloWorkspace,
+} from '@/app-layer/booking/soloServiceCoverage';
 
 const PatchSchema = z.object({
   title: z.string().min(1).max(200).optional(),
@@ -55,12 +59,15 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
   ) {
     return NextResponse.json({ ok: false, error: 'online_location_reserved' }, { status: 409 });
   }
+  // Снова включённая локация — тот же вход в автоматику соло, что и новая (#1102 §1.1).
+  const solo =
+    parsed.data.isActive === true && !existing.isActive && (await isSoloWorkspace(gate.ctx));
   try {
     const branch = await withDoctorWorkspacePrincipal(
       gate.ctx,
       'admin.booking-engine.branches.update',
-      () =>
-        gate.ctx.service.catalog.upsertBranch({
+      async () => {
+        const updated = await gate.ctx.service.catalog.upsertBranch({
           organizationId: existing.organizationId,
           id,
           title: parsed.data.title ?? existing.title,
@@ -71,7 +78,10 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
           timezone: parsed.data.timezone ?? existing.timezone,
           isActive: parsed.data.isActive ?? existing.isActive,
           sortOrder: parsed.data.sortOrder ?? existing.sortOrder,
-        }),
+        });
+        if (solo) await ensureSoloServiceCoverage(gate.ctx, { branchId: updated.id });
+        return updated;
+      },
     );
     return NextResponse.json({ ok: true, branch });
   } catch (error) {
@@ -90,10 +100,7 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
       operation: 'update',
       errorClass: error instanceof Error ? error.name : 'unknown',
     });
-    return NextResponse.json(
-      { ok: false, error: 'branch_write_unavailable' },
-      { status: 503 },
-    );
+    return NextResponse.json({ ok: false, error: 'branch_write_unavailable' }, { status: 503 });
   }
 }
 

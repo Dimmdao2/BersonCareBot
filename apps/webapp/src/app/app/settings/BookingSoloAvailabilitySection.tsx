@@ -12,7 +12,7 @@ import {
   ensureDefaultSpecialist,
   fetchSoloOverview,
   isServiceAvailableAtLocation,
-  setServiceLocationAvailability,
+  setSpecialistServiceAtBranch,
   type SoloOverview,
 } from '@/app/app/settings/bookingSoloAdminApi';
 import { isBuiltInOnlineLocation } from '@/modules/booking-engine/onlineLocation';
@@ -71,7 +71,7 @@ export function BookingSoloAvailabilitySection() {
     startTransition(async () => {
       try {
         const specialistId = await ensureDefaultSpecialist(overview.organization?.title);
-        await setServiceLocationAvailability(serviceId, branchId, enabled, specialistId);
+        await setSpecialistServiceAtBranch(serviceId, branchId, enabled, specialistId);
         await load();
       } catch (e) {
         setActionError(e instanceof Error ? e.message : 'toggle_failed');
@@ -103,6 +103,12 @@ export function BookingSoloAvailabilitySection() {
       <DoctorSectionHeader>
         <DoctorSectionTitle>Доступность услуг по филиалам</DoctorSectionTitle>
       </DoctorSectionHeader>
+      {/* Новая услуга приезжает сюда уже включённой во всех активных филиалах (#1102 §1.1); экран
+          нужен только чтобы СУЗИТЬ — убрать услугу из филиала, где её не делают. */}
+      <p className="text-sm text-muted-foreground">
+        Новые услуги доступны во всех ваших локациях. Снимите переключатель там, где услугу не
+        оказываете.
+      </p>
       {loadError ? <p className="text-sm text-destructive">{loadError}</p> : null}
       {actionError ? <p className="text-sm text-destructive">{actionError}</p> : null}
 

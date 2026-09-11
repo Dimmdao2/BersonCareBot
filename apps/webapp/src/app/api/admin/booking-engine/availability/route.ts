@@ -1,21 +1,17 @@
 import { NextResponse } from 'next/server';
-import { jsonError, mapApiError, type ApiErrorLiteralRules } from '@/shared/http/apiResponse';
 import { z } from 'zod';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
 import { requireClinicManagementBookingEngine } from '../_requireClinicManagementBookingEngine';
 
-const AVAILABILITY_ERROR_RULES: ApiErrorLiteralRules = {
-  service_not_found: { code: 'service_not_found', status: 404 },
-  branch_not_found: { code: 'branch_not_found', status: 404 },
-  specialist_not_found: { code: 'specialist_not_found', status: 404 },
-};
-
-/** Distinct object identity: `mapApiError` returns this exact value when nothing matched. */
-const AVAILABILITY_UNKNOWN = { code: 'availability_write_failed', status: 500 } as const;
-
-
-const SpecialistSchema = z.object({
+/**
+ * Пара «специалист × услуга × филиал» — единственная связь, которой описывается «услугу кто-то
+ * делает» (#1102 §3.1). Прежние `service_location` и `solo_service_location` писали ещё и
+ * `be_service_location_availability` — таблицу без специалиста, снесённую решением владельца
+ * 11.09; оба варианта были параметрами этой же записи, а не отдельными действиями (§5), поэтому
+ * дискриминированного объединения здесь больше нет.
+ */
+const PostSchema = z.object({
   kind: z.literal('specialist_service'),
   specialistId: z.string().uuid(),
   serviceId: z.string().uuid(),
@@ -27,35 +23,13 @@ const SpecialistSchema = z.object({
   sortOrder: z.number().int().optional().default(0),
 });
 
-const LocationSchema = z.object({
-  kind: z.literal('service_location'),
-  serviceId: z.string().uuid(),
-  branchId: z.string().uuid(),
-  isActive: z.boolean().optional().default(true),
-});
-
-const SoloLocationSchema = z.object({
-  kind: z.literal('solo_service_location'),
-  specialistId: z.string().uuid(),
-  serviceId: z.string().uuid(),
-  branchId: z.string().uuid(),
-  isActive: z.boolean().optional().default(true),
-});
-
-const PostSchema = z.discriminatedUnion('kind', [
-  SpecialistSchema,
-  LocationSchema,
-  SoloLocationSchema,
-]);
-
 export async function GET() {
   const gate = await requireClinicManagementBookingEngine();
   if (!gate.ok) return gate.response;
-  const [specialistAvailability, locationAvailability] = await Promise.all([
-    gate.ctx.service.services.listSpecialistServiceAvailability(gate.ctx.organizationId),
-    gate.ctx.service.services.listServiceLocationAvailability(gate.ctx.organizationId),
-  ]);
-  return NextResponse.json({ ok: true, specialistAvailability, locationAvailability });
+  const specialistAvailability = await gate.ctx.service.services.listSpecialistServiceAvailability(
+    gate.ctx.organizationId,
+  );
+  return NextResponse.json({ ok: true, specialistAvailability });
 }
 
 export async function POST(request: Request) {
@@ -67,67 +41,9 @@ export async function POST(request: Request) {
   const parsed = PostSchema.safeParse(body);
   if (!parsed.success)
     return NextResponse.json({ ok: false, error: 'invalid_input' }, { status: 400 });
-  if (parsed.data.kind === 'solo_service_location') {
-    const data = parsed.data;
-    try {
-      const result = await withDoctorWorkspacePrincipal(
-        gate.ctx,
-        'admin.booking-engine.availability.solo-service-location.set',
-        async () => {
-          const [service, branch, specialist] = await Promise.all([
-            gate.ctx.service.services.getService(data.serviceId),
-            gate.ctx.service.catalog.getBranch(data.branchId),
-            gate.ctx.service.catalog.getSpecialist(data.specialistId),
-          ]);
-          if (!service || service.organizationId !== gate.ctx.organizationId) {
-            throw new Error('service_not_found');
-          }
-          if (!branch || branch.organizationId !== gate.ctx.organizationId) {
-            throw new Error('branch_not_found');
-          }
-          if (!specialist || specialist.organizationId !== gate.ctx.organizationId) {
-            throw new Error('specialist_not_found');
-          }
-          return gate.ctx.service.services.setSoloServiceLocationAvailability({
-            organizationId: gate.ctx.organizationId,
-            specialistId: data.specialistId,
-            serviceId: data.serviceId,
-            branchId: data.branchId,
-            isActive: data.isActive,
-          });
-        },
-      );
-      return NextResponse.json({ ok: true, ...result });
-    } catch (error) {
-      // Known codes stay distinct through the shared mapper; anything else keeps re-throwing, so
-      // an unknown failure reaches `onRequestError` instead of describing itself to the browser.
-      const mapped = mapApiError(error, AVAILABILITY_ERROR_RULES, AVAILABILITY_UNKNOWN);
-      if (mapped === AVAILABILITY_UNKNOWN) throw error;
-      return jsonError(mapped.code, {}, { status: mapped.status });
-    }
-  }
   const service = await gate.ctx.service.services.getService(parsed.data.serviceId);
   if (!service || service.organizationId !== gate.ctx.organizationId) {
     return NextResponse.json({ ok: false, error: 'service_not_found' }, { status: 404 });
-  }
-  if (parsed.data.kind === 'service_location') {
-    const data = parsed.data;
-    const branch = await gate.ctx.service.catalog.getBranch(data.branchId);
-    if (!branch || branch.organizationId !== gate.ctx.organizationId) {
-      return NextResponse.json({ ok: false, error: 'branch_not_found' }, { status: 404 });
-    }
-    const row = await withDoctorWorkspacePrincipal(
-      gate.ctx,
-      'admin.booking-engine.availability.service-location.upsert',
-      () =>
-        gate.ctx.service.services.upsertServiceLocationAvailability({
-          organizationId: gate.ctx.organizationId,
-          serviceId: data.serviceId,
-          branchId: data.branchId,
-          isActive: data.isActive,
-        }),
-    );
-    return NextResponse.json({ ok: true, locationAvailability: row });
   }
   const data = parsed.data;
   const [specialist, branch, room] = await Promise.all([
