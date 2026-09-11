@@ -28126,11 +28126,12 @@ const REV10_CONTEXT = {
     // повторно проверяет `awaiting_payment / prepayment_paid_minor = 0 / payment_ref IS NULL`,
     // поэтому оплата, пришедшая ровно на границе срока, из-под истечения выпадает, а не
     // переписывается. Целевой статус — существующий `cancelled_by_specialist`: он выведен из
-    // exclusion-ограничения слота, значит слот освобождается самим переходом.
+    // exclusion-ограничения слота, значит слот освобождается самим переходом. Связанная пациентская
+    // проекция отменяется тем же корнем и несёт тот же `prepayment_expired` source-token.
     'app.expire_due_booking_prepayments(integer)': rev10Function({
       owner: 'app_seam_payment_webhook_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
       execute: ['app_worker'],
-      purpose: 'expire only past-deadline unpaid booking prepayments and release their slots',
+      purpose: 'expire unpaid booking prepayments, release slots, and cancel patient projections',
       typedArgs: ['integer'], volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
@@ -28139,6 +28140,15 @@ const REV10_CONTEXT = {
             'prepayment_paid_minor', 'payment_deadline_at', 'deleted_at', 'updated_at'],
           operations: ['SELECT' as const, 'UPDATE' as const],
           operationColumns: { UPDATE: ['status', 'payment_deadline_at', 'updated_at'] },
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        // `organization_id` читается, но НЕ пишется: он стоит в WHERE как стена арендатора
+        // (F1 независимого аудита — без него тик одной организации менял чужую проекцию).
+        // Запись по-прежнему ровно в четыре колонки.
+        { relation: 'public.patient_bookings',
+          columns: ['canonical_appointment_id', 'organization_id', 'status', 'cancelled_at',
+            'cancel_reason', 'updated_at'],
+          operations: ['SELECT' as const, 'UPDATE' as const],
+          operationColumns: { UPDATE: ['status', 'cancelled_at', 'cancel_reason', 'updated_at'] },
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.be_appointment_history_events',
           columns: ['organization_id', 'appointment_id', 'event_type', 'payload', 'occurred_at'],
