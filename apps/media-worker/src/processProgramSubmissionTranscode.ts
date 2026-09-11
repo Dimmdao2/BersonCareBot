@@ -1,3 +1,4 @@
+import { DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { mkdtemp, mkdir, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, posix } from 'node:path';
@@ -30,9 +31,17 @@ function submission480pKeyFromMediaRoot(mediaRoot: string): string {
 }
 
 /**
- * Program-item submission: single 480p progressive MP4. Исходник НЕ удаляется (решение владельца
- * 11.09.2026 «исходники не удаляем») — 480p здесь единственная ступень, и пересобрать её после
- * стирания оригинала было бы нечем.
+ * Program-item submission: единственный 480p progressive MP4, **исходник после успеха удаляется**.
+ *
+ * Это НЕ то же, что библиотека. Уточнение владельца 11.09.2026: видео, которое пациент прислал из дома,
+ * чтобы специалист его проверил, не скачивает НИКТО — ни пациент обратно, ни специалист; специалист
+ * смотрит его только внутри программы. Поэтому здесь конвертация и есть санитизация: наружу уезжает
+ * наш собственный 480p, а чужие байты с домашнего телефона на сервере не остаются. Лестница и 720p
+ * тут не нужны — владелец: «720 там вообще не надо… просто в один вариант сконвертировали и исходник
+ * удалили».
+ *
+ * Обратное решение (оригинал живёт в холодном бакете) относится к библиотеке и к видео, которые
+ * специалист снял на приёме, — см. `processTranscodeJob.ts` и план `STORAGE_PACKAGES_2026-09-10.md` М7.
  */
 export async function processProgramSubmissionTranscodeJob(
   ctx: TranscodeJobContext,
@@ -125,9 +134,25 @@ export async function processProgramSubmissionTranscodeJob(
       throw new Error('submission_480p_head_missing_after_upload');
     }
 
-    // Исходник присланного пациентом видео тоже НЕ удаляется — то же решение владельца 11.09.2026
-    // («исходники не удаляем»). 480p-рендишен здесь единственная ступень, и при любой смене формата
-    // пересобирать её будет уже нечем, если оригинал стёрт.
+    // Санитизация: присланные пациентом байты стираются, как только наш собственный 480p лёг в
+    // хранилище и подтверждён HEAD-ом выше. Скачивать это видео некому (см. шапку файла), поэтому
+    // хранить чужой файл незачем — это единственный код-путь, где удаление исходника правильно.
+    if (sourceKey !== outputKey) {
+      try {
+        await ctx.client.send(
+          new DeleteObjectCommand({
+            Bucket: ctx.bucket,
+            Key: sourceKey,
+          }),
+        );
+        ctx.log.info({ mediaId: job.mediaId, sourceKey }, 'submission_source_deleted');
+      } catch (e) {
+        ctx.log.warn(
+          { err: e, mediaId: job.mediaId, sourceKey },
+          'submission_source_delete_failed',
+        );
+      }
+    }
 
     const qualitiesJson = JSON.stringify([
       { label: '480p', height: 480, path: '480p.mp4', bandwidth: 900_000 },
