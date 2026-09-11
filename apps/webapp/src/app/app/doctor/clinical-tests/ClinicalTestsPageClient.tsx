@@ -16,6 +16,8 @@ import {
 import { MediaThumb } from '@/shared/ui/doctor/media/MediaThumb';
 import { clinicalTestMediaItemToPreviewUi } from '@/shared/ui/doctor/media/mediaPreviewUiModel';
 import { VirtualizedItemGrid } from '@/shared/ui/doctor/catalog/VirtualizedItemGrid';
+import { DoctorCatalogMasterListRow } from '@/shared/ui/doctor/DoctorCatalogMasterListRow';
+import { DoctorCatalogVisibilityMark } from '@/shared/ui/doctor/DoctorCatalogVisibilityMark';
 import { DoctorCatalogMasterListHeader } from '@/shared/ui/doctor/DoctorCatalogMasterListHeader';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
@@ -47,12 +49,6 @@ import { ClinicalTestForm } from './ClinicalTestForm';
 import { useDoctorCatalogDisplayList } from '@/shared/hooks/useDoctorCatalogDisplayList';
 import { useDoctorCatalogClientFilterMerge } from '@/shared/hooks/useDoctorCatalogClientFilterMerge';
 import { doctorInteractiveSurfaceButtonClass } from '@/shared/ui/doctor/doctorVisual';
-import {
-  DoctorDnaFlatList,
-  DoctorDnaFlatListSelectionStrip,
-  doctorDnaFlatListClickableClass,
-  doctorDnaFlatListRowClass,
-} from '@/shared/ui/doctor/DoctorDnaFlatListRow';
 import { DoctorCatalogMobileToolbar } from '@/shared/ui/doctor/DoctorCatalogMobileToolbar';
 import { DoctorCatalogTitleSortSelect } from '@/shared/ui/doctor/DoctorCatalogTitleSortSelect';
 import { DoctorCatalogArchiveScopeSelect } from '@/shared/ui/doctor/DoctorCatalogArchiveScopeSelect';
@@ -60,11 +56,6 @@ import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
 
 export type ClinicalTestsViewMode = 'tiles' | 'list';
 export type ClinicalTestTitleSort = 'asc' | 'desc';
-
-const LIST_ROW_VISIBILITY_STYLE = {
-  contentVisibility: 'auto',
-  containIntrinsicSize: '52px',
-} as const;
 
 type ClinicalTestsBootstrap = {
   items: ClinicalTest[];
@@ -299,31 +290,26 @@ function ClinicalTestsContent({
     list.length === 0 ? (
       <DoctorEmptyState>Нет тестов по заданным фильтрам.</DoctorEmptyState>
     ) : (
-      <DoctorDnaFlatList className="h-full min-h-0 overflow-y-auto">
-        {list.map((t) => {
-          const active = opts.activeId === t.id;
-          return (
-            <li key={t.id}>
-              <div style={LIST_ROW_VISIBILITY_STYLE}>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => opts.onRowSelect(t.id)}
-                  className={cn(
-                    doctorDnaFlatListRowClass,
-                    doctorDnaFlatListClickableClass,
-                    'h-auto min-h-0 w-full rounded-none bg-transparent text-left shadow-none',
-                  )}
-                >
-                  {active ? <DoctorDnaFlatListSelectionStrip /> : null}
-                  {mediaThumbRow(t)}
-                  <span className="line-clamp-2">{t.title}</span>
-                </Button>
-              </div>
-            </li>
-          );
-        })}
-      </DoctorDnaFlatList>
+      <VirtualizedItemGrid
+        items={list}
+        columns={1}
+        estimatedRowHeight={56}
+        overscan={4}
+        keyExtractor={(t) => t.id}
+        containerClassName="h-full min-h-0"
+        gridClassName="gap-0 p-0"
+        renderItem={(t, index) => (
+          <DoctorCatalogMasterListRow
+            first={index === 0}
+            active={opts.activeId === t.id}
+            onPick={() => opts.onRowSelect(t.id)}
+            previewInner={mediaThumbRow(t)}
+            title={t.title}
+            meta={null}
+            badge={t.isArchived ? <DoctorCatalogVisibilityMark status="archived" /> : null}
+          />
+        )}
+      />
     );
 
   const renderTestTiles = (

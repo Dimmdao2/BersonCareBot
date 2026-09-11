@@ -170,7 +170,7 @@ function TestSetsContent({
         keyExtractor={(s) => s.id}
         containerClassName="h-full min-h-0"
         gridClassName="gap-0 p-0"
-        renderItem={(s) => {
+        renderItem={(s, index) => {
           const active = activeId === s.id;
           const sortedItems = [...s.items].sort((a, b) => a.sortOrder - b.sortOrder);
           const previewItems = sortedItems.filter((it) => Boolean(it.test.previewMedia?.mediaUrl));
@@ -206,6 +206,7 @@ function TestSetsContent({
             );
           return (
             <DoctorCatalogMasterListRow
+              first={index === 0}
               active={active}
               onPick={() => {
                 setCreating(false);

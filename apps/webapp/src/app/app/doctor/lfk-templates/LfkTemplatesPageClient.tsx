@@ -197,7 +197,7 @@ function LfkTemplatesContent({
         keyExtractor={(t) => t.id}
         containerClassName="h-full min-h-0"
         gridClassName="gap-0 p-0"
-        renderItem={(t) => {
+        renderItem={(t, index) => {
           const active = activeId === t.id;
           const rowN = t.exerciseCount ?? t.exercises.length;
           const thumbs = (t.exerciseThumbnails ?? []).map(exerciseMediaToPreviewUi);
@@ -230,6 +230,7 @@ function LfkTemplatesContent({
             );
           return (
             <DoctorCatalogMasterListRow
+              first={index === 0}
               active={active}
               onPick={() => onPick(t)}
               previewInner={previewInner}
