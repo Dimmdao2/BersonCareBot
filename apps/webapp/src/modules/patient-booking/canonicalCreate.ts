@@ -507,8 +507,9 @@ export async function createBookingOnCanonicalEngine(
       createInput.bookingChannel === 'public_widget'
         ? `${publicBookPaths.pay}?bookingId=${encodeURIComponent(pending.id)}`
         : `/app/patient/booking/pay?bookingId=${encodeURIComponent(pending.id)}`;
+    let paymentIntent: Awaited<ReturnType<PaymentsService['createAppointmentPaymentIntent']>>;
     try {
-      await deps.payments.createAppointmentPaymentIntent({
+      paymentIntent = await deps.payments.createAppointmentPaymentIntent({
         organizationId: orgId,
         appointmentId: appointment.id,
         platformUserId: createInput.userId,
@@ -537,6 +538,36 @@ export async function createBookingOnCanonicalEngine(
     if (awaitingRows.some((row) => !row)) {
       await rollbackChain('booking_awaiting_payment_sync_failed');
       throw new Error('booking_confirm_failed');
+    }
+    const checkoutUrl = paymentIntent.checkoutUrl?.trim();
+    const paymentDeadlineAt = financialSnapshot.paymentDeadlineAt;
+    if (checkoutUrl && paymentDeadlineAt && deps.bookingCreatedEffects) {
+      const createNotify = resolveBookingNotifyTargets(
+        'booking.created',
+        { notifyPatient: true, notifyStaff: true },
+        (await deps.getBookingLifecycleNotificationSettings?.()) ?? null,
+      );
+      const createTimeZone = (await deps.getAppDisplayTimeZone?.()) ?? DEFAULT_APP_DISPLAY_TIMEZONE;
+      const row = awaitingRows[0] ?? pending;
+      await deps.bookingCreatedEffects.apply({
+        organizationId: appointment.organizationId,
+        bookingId: row.id,
+        canonicalAppointmentId: appointment.id,
+        platformUserId: createInput.userId,
+        contactName: row.contactName,
+        contactPhone: row.contactPhone,
+        slotStart: row.slotStart,
+        slotEnd: row.slotEnd,
+        bookingType: row.bookingType,
+        city: row.city,
+        cityCodeSnapshot: row.cityCodeSnapshot,
+        notifyPatient: createNotify.notifyPatient,
+        timeZone: createTimeZone,
+        awaitingPayment: {
+          checkoutUrl,
+          paymentDeadlineAt,
+        },
+      });
     }
     await persistBookingFormContacts(deps, createInput);
     return awaitingRows[0] ?? pending;

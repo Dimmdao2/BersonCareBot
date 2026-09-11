@@ -5,6 +5,7 @@ import {
   resetEmptyAudienceReporterForTests,
 } from '@/modules/operator-alerts/emptyAudienceRuntime';
 import type { BookingCreatedEffectsInput } from '@/modules/booking-notifications/bookingCreatedEffectsPort';
+import { NOTIFICATION_TOPIC_APPOINTMENT } from '@/modules/patient-notifications/notificationTopicCodes';
 
 /**
  * Проверяется одно: ПОЛУЧИТ ЛИ ЧЕЛОВЕК сообщение о своей записи и по какому маршруту. Не форма
@@ -149,5 +150,102 @@ describe('пациент узнаёт о созданной записи', () =>
 
     expect(enqueue).not.toHaveBeenCalled();
     expect(getTargets).not.toHaveBeenCalled();
+  });
+
+  it('платёжная ссылка приходит только в каналы, подтверждённые общим резолвером', async () => {
+    const paymentUrl = 'https://checkout.example.test/intent-1';
+    const paymentDeadlineAt = '2027-03-10T10:00:00.000Z';
+    const enqueued: Array<Record<string, unknown>> = [];
+    const targetQueries: Array<Record<string, unknown>> = [];
+    const effects = createBookingCreatedEffects({
+      outboundMessageQueue: {
+        enqueue: async (context) => {
+          enqueued.push(context as unknown as Record<string, unknown>);
+          return true;
+        },
+      },
+      deliveryTargets: {
+        getTargets: async (params) => {
+          targetQueries.push(params);
+          return {
+            platformUserId: 'user-1',
+            channelBindings: { telegramId: '111' },
+            emailRecipient: 'verified@example.test',
+            resolution: {
+              userId: 'user-1',
+              topicCode: NOTIFICATION_TOPIC_APPOINTMENT,
+              selectedChannels: ['web_push', 'telegram', 'email'],
+              skippedChannels: [],
+              availableChannels: ['web_push', 'telegram', 'email'],
+              enabledChannels: ['web_push', 'telegram', 'email'],
+            },
+          };
+        },
+      },
+    });
+
+    await effects.apply(input({ awaitingPayment: { checkoutUrl: paymentUrl, paymentDeadlineAt } }));
+
+    expect(targetQueries[0]?.topic).toBe(NOTIFICATION_TOPIC_APPOINTMENT);
+    expect(enqueued.map((row) => row.channel)).toEqual(['telegram', 'email', 'web_push']);
+    expect(enqueued.map((row) => row.recipient)).toEqual([
+      '111',
+      'verified@example.test',
+      'user-1',
+    ]);
+    const expectedDeadline = new Intl.DateTimeFormat('ru-RU', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+      timeZone: 'Europe/Moscow',
+    }).format(new Date(paymentDeadlineAt));
+    for (const row of enqueued) {
+      const content = row.content as { text: string };
+      expect(content.text).toContain(paymentUrl);
+      expect(content.text).toContain(expectedDeadline);
+    }
+  });
+
+  it('не отправляет на неподтверждённый email и не создаёт инцидент при пустой аудитории', async () => {
+    const enqueued: Array<Record<string, unknown>> = [];
+    const reported: string[] = [];
+    registerEmptyAudienceReporter(async (event) => {
+      reported.push(event.topic);
+    });
+    const effects = createBookingCreatedEffects({
+      outboundMessageQueue: {
+        enqueue: async (context) => {
+          enqueued.push(context as unknown as Record<string, unknown>);
+          return true;
+        },
+      },
+      deliveryTargets: {
+        getTargets: async () => ({
+          platformUserId: 'user-1',
+          channelBindings: {},
+          // This value must not become a delivery fallback: the resolver did not select email.
+          emailRecipient: 'unverified@example.test',
+          resolution: {
+            userId: 'user-1',
+            topicCode: NOTIFICATION_TOPIC_APPOINTMENT,
+            selectedChannels: [],
+            skippedChannels: [{ channel: 'email', reason: 'email_not_verified' }],
+            availableChannels: [],
+            enabledChannels: [],
+          },
+        }),
+      },
+    });
+
+    await effects.apply(
+      input({
+        awaitingPayment: {
+          checkoutUrl: 'https://checkout.example.test/intent-unverified',
+          paymentDeadlineAt: '2027-03-10T10:00:00.000Z',
+        },
+      }),
+    );
+
+    expect(enqueued).toEqual([]);
+    expect(reported).toEqual([]);
   });
 });
