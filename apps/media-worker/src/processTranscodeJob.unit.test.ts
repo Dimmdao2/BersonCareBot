@@ -482,8 +482,24 @@ describe('processTranscodeJob — table-driven rung ladder end to end', () => {
       log: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
       lockId: 'worker-a',
     };
-    return { ctx, control, doneHls };
+    return { ctx, control, doneHls, bindings };
   }
+
+  it('исходник НЕ удаляется после успешного транскода: ни одного прямого S3-вызова', async () => {
+    // ОРАКУЛ — решение владельца 11.09.2026: «исходники в холодный бакет», то есть оригинал после
+    // сборки лестницы остаётся жить. Раньше здесь стоял `DeleteObjectCommand`, и на Selectel он
+    // реально исполнялся: три упражнения от 29.08.2026 лишились оригиналов безвозвратно.
+    // Все легальные записи идут через `putObjectWithRetry`, поэтому ЛЮБОЙ прямой `client.send`
+    // из этого наряда — возвращённое удаление.
+    fakes.probeVideoDimensions.mockResolvedValue({ width: 1920, height: 1080 });
+    const { ctx, doneHls, bindings } = contextFor();
+
+    await processTranscodeJob(ctx as never, JOB);
+
+    expect(doneHls).toHaveBeenCalledTimes(1);
+    expect(bindings.library!.client.send).not.toHaveBeenCalled();
+    expect(bindings.patient!.client.send).not.toHaveBeenCalled();
+  });
 
   it('a 480p source produces only 360p/480p — no upscaled 720p, no 576p', async () => {
     fakes.probeVideoDimensions.mockResolvedValue({ width: 854, height: 480 });

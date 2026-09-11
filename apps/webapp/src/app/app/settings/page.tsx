@@ -46,6 +46,11 @@ import { ClinicStaffSecuritySection } from './ClinicStaffSecuritySection';
 import { SettingsTabsNav } from './SettingsTabsNav';
 import type { SettingsTabId } from './settingsTabs';
 import { TeamSection } from './TeamSection';
+import {
+  listCardLocationsForPreview,
+  listCardServicesForPreview,
+  listCardSpecialistsForPreview,
+} from '@/modules/clinic-public-card/cabinetPreviewSelection';
 import { BookingSoloSpecialistsSection } from './BookingSoloSpecialistsSection';
 import { ManagementBookingSections } from '../manage/ManagementBookingSections';
 import { PATIENT_DEFAULT_SURFACE } from '@/config/productSurfaces';
@@ -257,47 +262,25 @@ export default async function SettingsPage({
         : Promise.resolve(null),
       workspace.canManageOrganization && deps.bookingEngine
         ? withDoctorWorkspacePrincipal(workspace, 'app.settings.booking-link.read', async () => {
-            const [branches, specialists] = await Promise.all([
+            const [branches, specialists, services] = await Promise.all([
               deps.bookingEngine!.catalog.listBranches(workspace.organizationId),
               deps.bookingEngine!.catalog.listSpecialists(workspace.organizationId),
+              deps.bookingEngine!.services.listServices(workspace.organizationId),
             ]);
-            const activeBranches = branches.filter((branch) => branch.isActive);
             return {
-              branches: activeBranches.map((branch) => ({ id: branch.id, title: branch.title })),
-              // Адреса для предпросмотра визитки берутся отсюда же, а не из снимка
-              // `locations_json`: у визитки единственный источник филиалов — живая таблица
-              // (план §17.A), и порядок обязан совпадать с тем, что отдаёт публичная дверь
-              // (`ORDER BY sort_order, title`), иначе предпросмотр врёт на ровном месте.
-              cardLocations: [...activeBranches]
-                .sort(
-                  (left, right) =>
-                    left.sortOrder - right.sortOrder || left.title.localeCompare(right.title),
-                )
-                .map((branch) => ({
-                  title: branch.title,
-                  cityCode: branch.cityCode,
-                  address: branch.address,
-                })),
+              branches: branches
+                .filter((branch) => branch.isActive)
+                .map((branch) => ({ id: branch.id, title: branch.title })),
               specialists: specialists
                 .filter((specialist) => specialist.isActive)
                 .map((specialist) => ({ id: specialist.id, title: specialist.fullName })),
-              // Превью специалистов для предпросмотра визитки: тот же отбор и тот же порядок, что
-              // у публичной двери (активен И опубликован, `ORDER BY sort_order, full_name`).
-              // Разойтись этим двум спискам нельзя — иначе клиника правит одну страницу, а
-              // посетитель видит другую, и расхождение молчит (находка K9 этапа 1).
-              cardSpecialists: [...specialists]
-                .filter((specialist) => specialist.isActive && specialist.cardIsPublished)
-                .sort(
-                  (left, right) =>
-                    left.sortOrder - right.sortOrder ||
-                    left.fullName.localeCompare(right.fullName),
-                )
-                .map((specialist) => ({
-                  id: specialist.id,
-                  fullName: specialist.fullName,
-                  shortDescription: specialist.description,
-                  avatarMediaId: specialist.avatarMediaId,
-                })),
+              // В предпросмотр кабинета идёт ВСЁ, что у клиники есть, — решение владельца 11.09:
+              // «В кабинете она вообще не фильтруется». Отбора здесь нет и быть не должно; модуль
+              // `cabinetPreviewSelection` только выстраивает порядок двери и подписывает строки,
+              // которые наружу сегодня не выходят.
+              cardLocations: listCardLocationsForPreview(branches),
+              cardSpecialists: listCardSpecialistsForPreview(specialists),
+              cardServices: listCardServicesForPreview(services),
             };
           })
         : Promise.resolve(null),
@@ -552,6 +535,7 @@ export default async function SettingsPage({
             identity={cardIdentity}
             locations={bookingLinkOptions?.cardLocations ?? []}
             specialists={bookingLinkOptions?.cardSpecialists ?? []}
+            services={bookingLinkOptions?.cardServices ?? []}
             patientOrigin={PATIENT_DEFAULT_SURFACE.origin}
           />
         ) : null}

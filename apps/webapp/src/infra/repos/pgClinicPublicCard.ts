@@ -7,6 +7,7 @@ import type {
   ClinicPublicCardMedia,
   ClinicPublicCardMediaRole,
   ClinicPublicCardPort,
+  ClinicPublicCardServiceItem,
   ClinicPublicCardSettings,
   ClinicPublicCardSpecialist,
 } from '@/modules/clinic-public-card/ports';
@@ -18,11 +19,13 @@ type CardRow = {
   disposition?: unknown;
   displayName?: unknown;
   description?: unknown;
+  fullDescriptionMarkdown?: unknown;
   publicContactPhone?: unknown;
   publicContactEmail?: unknown;
   publicWebsiteUrl?: unknown;
   locations?: unknown;
   specialists?: unknown;
+  services?: unknown;
   media?: unknown;
 };
 
@@ -46,6 +49,7 @@ const MEDIA_ROLES: readonly ClinicPublicCardMediaRole[] = [
   'photo',
   'specialistAvatar',
   'specialistDescription',
+  'clinicDescription',
 ];
 
 function mediaRole(value: unknown): ClinicPublicCardMediaRole | null {
@@ -62,6 +66,29 @@ function mapMedia(value: unknown): ClinicPublicCardMedia[] {
     const role = mediaRole(row.role);
     if (!id || !mimeType || !role) return [];
     return [{ id, role, mimeType, s3Key: text(row.s3Key), storedPath: text(row.storedPath) }];
+  });
+}
+
+/** Целое неотрицательное или 0: строка без числа не превращается в выдуманную цену/длительность. */
+function wholeNumber(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? Math.trunc(value) : 0;
+}
+
+function mapServices(value: unknown): ClinicPublicCardServiceItem[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    if (typeof item !== 'object' || item === null) return [];
+    const row = item as Record<string, unknown>;
+    const title = text(row.title);
+    if (!title) return [];
+    return [
+      {
+        title,
+        description: text(row.description),
+        durationMinutes: wholeNumber(row.durationMinutes),
+        priceMinor: wholeNumber(row.priceMinor),
+      },
+    ];
   });
 }
 
@@ -117,11 +144,13 @@ export function createPgClinicPublicCardPort(): ClinicPublicCardPort {
         disposition: card.disposition === 'redirect' ? 'redirect' : 'current',
         displayName,
         description: text(card.description),
+        fullDescriptionMarkdown: text(card.fullDescriptionMarkdown),
         publicContactPhone: text(card.publicContactPhone),
         publicContactEmail: text(card.publicContactEmail),
         publicWebsiteUrl: text(card.publicWebsiteUrl),
         locations: mapLocations(card.locations),
         specialists: mapSpecialists(card.specialists),
+        services: mapServices(card.services),
         media: mapMedia(card.media),
       };
     },
@@ -130,6 +159,7 @@ export function createPgClinicPublicCardPort(): ClinicPublicCardPort {
       const [row] = await getDrizzle()
         .select({
           description: clinicPublicDirectoryEntries.description,
+          fullDescriptionMarkdown: clinicPublicDirectoryEntries.fullDescriptionMarkdown,
           publicContactPhone: clinicPublicDirectoryEntries.publicContactPhone,
           publicContactEmail: clinicPublicDirectoryEntries.publicContactEmail,
           publicWebsiteUrl: clinicPublicDirectoryEntries.publicWebsiteUrl,
@@ -143,6 +173,7 @@ export function createPgClinicPublicCardPort(): ClinicPublicCardPort {
       if (!row) return null;
       return {
         description: row.description ?? null,
+        fullDescriptionMarkdown: row.fullDescriptionMarkdown ?? null,
         publicContactPhone: row.publicContactPhone ?? null,
         publicContactEmail: row.publicContactEmail ?? null,
         publicWebsiteUrl: row.publicWebsiteUrl ?? null,
@@ -171,7 +202,7 @@ export function createPgClinicPublicCardPort(): ClinicPublicCardPort {
       const photosJson = JSON.stringify(input.photoMediaIds);
       await runWebappNamedRoot<{ saved: unknown }>(
         getWebappSqlDb(),
-        'app.save_public_clinic_card(uuid,text,text,text,text,uuid,text,boolean)',
+        'app.save_public_clinic_card(uuid,text,text,text,text,uuid,text,boolean,text)',
         [
           input.organizationId,
           input.description,
@@ -181,6 +212,7 @@ export function createPgClinicPublicCardPort(): ClinicPublicCardPort {
           input.logoMediaId,
           photosJson,
           input.cardIsPublished,
+          input.fullDescriptionMarkdown,
         ],
         sql`SELECT app.save_public_clinic_card(
           ${input.organizationId}::uuid,
@@ -190,11 +222,13 @@ export function createPgClinicPublicCardPort(): ClinicPublicCardPort {
           ${input.publicWebsiteUrl}::text,
           ${input.logoMediaId}::uuid,
           ${photosJson}::text,
-          ${input.cardIsPublished}::boolean
+          ${input.cardIsPublished}::boolean,
+          ${input.fullDescriptionMarkdown}::text
         ) AS saved`,
       );
       return {
         description: input.description,
+        fullDescriptionMarkdown: input.fullDescriptionMarkdown,
         publicContactPhone: input.publicContactPhone,
         publicContactEmail: input.publicContactEmail,
         publicWebsiteUrl: input.publicWebsiteUrl,
