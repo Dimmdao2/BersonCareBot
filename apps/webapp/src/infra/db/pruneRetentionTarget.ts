@@ -25,6 +25,13 @@ export const RETENTION_SWEEP_TARGETS = [
   // only) and §E1 (doctor→patient message journal).
   'reminder_occurrence_history_terminal',
   'message_log',
+  // #1088: три окна, у которых число было вопросом владельцу, стали записанными. `completed` у
+  // сессий загрузки — только он: прочие терминальные состояния держат личность незавершённой
+  // загрузки в S3 и уходят каскадом со своей `media_files`, а не по возрасту. У телеметрии
+  // изоляции возраст считается от `resolved_at`, и неразобранный случай не удаляется никогда.
+  'media_upload_sessions_completed',
+  'saas_isolation_events_resolved',
+  'saas_isolation_coverage_runs',
 ] as const;
 
 export type RetentionSweepTarget = (typeof RETENTION_SWEEP_TARGETS)[number];

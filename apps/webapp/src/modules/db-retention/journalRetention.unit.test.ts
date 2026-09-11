@@ -15,6 +15,13 @@ import { createPgJournalRetentionPort } from '@/infra/repos/pgJournalRetention';
 
 const port = createPgJournalRetentionPort();
 
+function windowOf(target: string): number | undefined {
+  const call = fakes.runWebappNamedRoot.mock.calls.find(
+    (c) => (c[2] as unknown[])[0] === target,
+  );
+  return call ? ((call[2] as unknown[])[1] as number) : undefined;
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
 });
@@ -33,65 +40,48 @@ it('sweeps every still-live Track D journal target in one tick, through the exis
     { target: 'outgoing_delivery_queue_dead', deleted: 2 },
     { target: 'notification_delivery_attempts', deleted: 2 },
     { target: 'message_log', deleted: 2 },
-    // Registered, reported, and deliberately not run — see OQ-REMINDER-HISTORY-WINDOW.
-    { target: 'reminder_occurrence_history_terminal', deleted: 0, skipped: 'owner_decision_pending' },
+    { target: 'reminder_occurrence_history_terminal', deleted: 2 },
+    { target: 'media_upload_sessions_completed', deleted: 2 },
+    { target: 'saas_isolation_events_resolved', deleted: 2 },
+    { target: 'saas_isolation_coverage_runs', deleted: 2 },
   ]);
 
   const rootsCalled = fakes.runWebappNamedRoot.mock.calls.map((call) => call[1]);
   expect(rootsCalled).toEqual([
     'app.prune_context_nonce_ledger(integer,integer,boolean)',
-    'app.prune_retention_target(text,integer,boolean)',
-    'app.prune_retention_target(text,integer,boolean)',
-    'app.prune_retention_target(text,integer,boolean)',
-    'app.prune_retention_target(text,integer,boolean)',
-    'app.prune_retention_target(text,integer,boolean)',
-    'app.prune_retention_target(text,integer,boolean)',
+    ...Array.from({ length: 10 }, () => 'app.prune_retention_target(text,integer,boolean)'),
   ]);
 });
 
-it('gives message_log the 90-day window its recorded policy class already defines', async () => {
+/**
+ * Всё, что удаляет строки по возрасту, обязано делать это по ЗАПИСАННОМУ числу. Молчаливый дрейф
+ * окна — самый дорогой и самый тихий отказ этого механизма: никто не заметит, что журнал стали
+ * подметать втрое раньше, пока не понадобится старая строка. Числа взяты из решения владельца
+ * 12.09 (#1088) и из уже принятых в репозитории классов; основание каждого записано у константы.
+ */
+it('runs every recorded window on the number its basis names', async () => {
   fakes.runWebappNamedRoot.mockResolvedValue({ rows: [{ affected_count: '0' }] });
 
   await runDbJournalRetention(port);
 
-  const messageLogCall = fakes.runWebappNamedRoot.mock.calls.find(
-    (call) => (call[2] as unknown[])[0] === 'message_log',
-  );
-  expect(messageLogCall).toBeDefined();
-  expect((messageLogCall![2] as unknown[])[1]).toBe(90);
+  expect(windowOf('message_log')).toBe(90);
+  expect(windowOf('reminder_occurrence_history_terminal')).toBe(90);
+  expect(windowOf('media_upload_sessions_completed')).toBe(365);
+  expect(windowOf('saas_isolation_events_resolved')).toBe(365);
+  expect(windowOf('saas_isolation_coverage_runs')).toBe(365);
 });
 
-it('never deletes reminder history on an invented window, but runs on an explicit owner number', async () => {
+it('lets an operator override one window without moving the others', async () => {
   fakes.runWebappNamedRoot.mockResolvedValue({ rows: [{ affected_count: '5' }] });
 
-  const withoutOwnerWindow = await runDbJournalRetention(port);
-  expect(
-    fakes.runWebappNamedRoot.mock.calls.some(
-      (call) => (call[2] as unknown[])[0] === 'reminder_occurrence_history_terminal',
-    ),
-  ).toBe(false);
-  expect(
-    withoutOwnerWindow.results.find(
-      (r) => r.target === 'reminder_occurrence_history_terminal',
-    ),
-  ).toEqual({
-    target: 'reminder_occurrence_history_terminal',
-    deleted: 0,
-    skipped: 'owner_decision_pending',
-  });
-
-  vi.clearAllMocks();
-  fakes.runWebappNamedRoot.mockResolvedValue({ rows: [{ affected_count: '5' }] });
-  const withOwnerWindow = await runDbJournalRetention(port, {
+  const result = await runDbJournalRetention(port, {
     reminderOccurrenceHistoryRetentionDays: 365,
   });
-  const call = fakes.runWebappNamedRoot.mock.calls.find(
-    (c) => (c[2] as unknown[])[0] === 'reminder_occurrence_history_terminal',
-  );
-  expect(call).toBeDefined();
-  expect((call![2] as unknown[])[1]).toBe(365);
+
+  expect(windowOf('reminder_occurrence_history_terminal')).toBe(365);
+  expect(windowOf('message_log')).toBe(90);
   expect(
-    withOwnerWindow.results.find((r) => r.target === 'reminder_occurrence_history_terminal'),
+    result.results.find((r) => r.target === 'reminder_occurrence_history_terminal'),
   ).toEqual({ target: 'reminder_occurrence_history_terminal', deleted: 5 });
 });
 
@@ -118,7 +108,6 @@ it('keeps every target independent: one failing target does not stop the others,
   });
 
   await expect(runDbJournalRetention(port)).rejects.toThrow(/integrator_idempotency_keys.*boom/);
-  // every RUNNABLE target was attempted even though the third one failed; the reminder-history
-  // target is skipped by owner decision, not by the failure.
-  expect(fakes.runWebappNamedRoot).toHaveBeenCalledTimes(7);
+  // every target was attempted even though the third one failed.
+  expect(fakes.runWebappNamedRoot).toHaveBeenCalledTimes(11);
 });
