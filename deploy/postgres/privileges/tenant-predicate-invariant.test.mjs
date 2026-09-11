@@ -14,6 +14,8 @@
  * проверяет ровно это обещание, а не то, как оно сегодня записано.
  */
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 
 import { declaration } from './declaration.ts';
@@ -21,6 +23,7 @@ import { generatePrivilegesSql } from './generate.mjs';
 import { assertPatientCallsiteDoors, relationsWithPatientDoor } from './access-census.mjs';
 import { describeTenantPredicateViolation, tenantPredicateViolations } from './tenant-wall.mjs';
 
+const WEBAPP_ROOT = fileURLToPath(new URL('../../../apps/webapp/', import.meta.url));
 const DATABASES = Object.keys(declaration.databases);
 const GRANTS = 'public.content_access_grants_webapp';
 
@@ -128,6 +131,118 @@ test('a patient-only callsite may not reach a relation without a patient door', 
       () => assertPatientCallsiteDoors(injured, database),
       /patient-only callsite reaches a relation with no app_patient door public\.content_access_grants_webapp/u,
       database,
+    );
+  }
+});
+
+/**
+ * A1 держится на флаге `org: true`: инвариант выше просто ПРОПУСКАЕТ таблицу, у которой флага нет.
+ * Независимый аудит S0б показал, чем это кончается: `org: true` у `public.tests` можно было снять
+ * обратно, и ни один гейт не краснел — стена переставала сторожить каталог клинических тестов
+ * молча. Флаг объявлен как «измеренный переписью факт наличия колонки», поэтому здесь он и
+ * сверяется с переписью: колонки берутся у самой drizzle-схемы, а не переписываются руками.
+ *
+ * BASELINE — это ЗАМОРОЗКА, а не разрешение. На 12.09.2026 в репозитории 30 живых таблиц несут
+ * `organization_id` и при этом не объявлены `org: true`, то есть инвариант арендной стены их не
+ * проверяет. Это НЕ находка этого этапа и не его работа: список вынесен владельцу отдельным
+ * вопросом (`EXERCISE_STORE_PLAN.md`, §7). Гейт держит храповик — в этот список нельзя добавить
+ * ничего нового, а вышедшее из него обратно не вернётся.
+ */
+const ORG_FLAG_CENSUS_BASELINE = new Set([
+  'public.be_appointment_cancellations',
+  'public.be_appointment_history_events',
+  'public.be_appointment_no_shows',
+  'public.be_appointment_reschedules',
+  'public.be_appointment_staff_comments',
+  'public.be_booking_form_submissions',
+  'public.be_package_history_events',
+  'public.be_package_usages',
+  'public.be_patient_booking_profiles',
+  'public.be_patient_packages',
+  'public.be_patient_timeline_events',
+  'public.be_payment_history_events',
+  'public.be_payment_intents',
+  'public.be_payments',
+  'public.be_refunds',
+  'public.specialist_tasks',
+  'public.support_conversation_messages',
+  'public.support_conversations',
+  'public.support_question_messages',
+  'public.support_questions',
+  'public.symptom_entries',
+  'public.symptom_trackings',
+  'public.system_settings',
+  'public.test_set_items',
+  'public.test_sets',
+  'public.treatment_program_template_stage_groups',
+  'public.treatment_program_template_stage_items',
+  'public.treatment_program_template_stages',
+  'public.treatment_program_templates',
+  'public.user_phone_history',
+]);
+
+/** Имя таблицы → её колонки, снятые с самой drizzle-схемы одним вызовом. */
+function drizzleTableColumns() {
+  const expression = [
+    "import * as schema from './db/schema/index.ts'",
+    "import { getTableConfig } from 'drizzle-orm/pg-core'",
+    'const out = {}',
+    `for (const value of Object.values(schema)) {
+      try {
+        const config = getTableConfig(value);
+        if (config?.name) out[config.name] = config.columns.map((column) => column.name);
+      } catch { /* не таблица — пропускаем */ }
+    }`,
+    'process.stdout.write(JSON.stringify(out))',
+  ].join(';');
+  return JSON.parse(execFileSync('node_modules/.bin/tsx', ['-e', expression], {
+    cwd: WEBAPP_ROOT,
+    encoding: 'utf8',
+    maxBuffer: 32 * 1024 * 1024,
+  }));
+}
+
+function orgFlagCensusGaps(declared, columnsByTable) {
+  const gaps = [];
+  for (const [relation, table] of Object.entries(declared.tables)) {
+    if (!relation.startsWith('public.') || table.disposition !== 'ACTIVE') continue;
+    const columns = columnsByTable[relation.slice('public.'.length)];
+    if (!columns) continue;
+    if (columns.includes('organization_id') && table.org !== true) gaps.push(relation);
+  }
+  return gaps.sort();
+}
+
+test('org-флаг стены сверяется с переписью колонок, а не с доброй волей автора', () => {
+  const columnsByTable = drizzleTableColumns();
+  assert.ok(
+    Object.keys(columnsByTable).length > 100,
+    'перепись колонок пуста — дальше проверять нечего',
+  );
+
+  for (const database of DATABASES) {
+    const gaps = orgFlagCensusGaps(declaration.databases[database], columnsByTable);
+    const unexpected = gaps.filter((relation) => !ORG_FLAG_CENSUS_BASELINE.has(relation));
+    assert.deepEqual(
+      unexpected,
+      [],
+      `${database}: таблица несёт organization_id, но не объявлена org: true — инвариант арендной`
+        + ` стены её пропускает: ${unexpected.join(', ')}`,
+    );
+  }
+
+  // Храповик: то, что уже вышло из заморозки, обратно не возвращается.
+  const catalogRelations = [
+    'public.tests',
+    'public.recommendations',
+    'public.clinical_test_regions',
+    'public.recommendation_regions',
+    'public.lfk_exercises',
+  ];
+  for (const relation of catalogRelations) {
+    assert.ok(
+      !ORG_FLAG_CENSUS_BASELINE.has(relation),
+      `${relation} не должна возвращаться в заморозку`,
     );
   }
 });

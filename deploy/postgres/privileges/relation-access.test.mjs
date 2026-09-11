@@ -719,10 +719,13 @@ test('doctor CRUD grants cover every column emitted by the production Drizzle in
   for (const [relation, columns] of Object.entries(expected)) {
     exactColumns(relation, 'app_staff', 'INSERT', columns);
   }
+  // S0б магазина упражнений: `owner_kind` объявлен с DEFAULT, поэтому Drizzle НАЗЫВАЕТ его в каждом
+  // INSERT врача, даже когда порт значения не передаёт. Без гранта создание клинического теста
+  // умирало живым `42501` — см. `staff-drizzle-insert-grant-coverage.test.mjs`.
   exactRepeatedColumns('public.tests', 'app_staff', 'INSERT', [
     'assessment_kind', 'body_region_id', 'created_at', 'created_by', 'description', 'id',
-    'is_archived', 'media', 'organization_id', 'raw_text', 'scoring', 'tags', 'test_type', 'title',
-    'updated_at',
+    'is_archived', 'media', 'organization_id', 'owner_kind', 'raw_text', 'scoring', 'tags',
+    'test_type', 'title', 'updated_at',
   ]);
   exactColumns('public.lfk_exercises', 'app_staff', 'UPDATE', [
     'contraindications', 'created_by', 'description', 'difficulty_1_10', 'is_archived', 'load_type',

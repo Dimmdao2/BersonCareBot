@@ -351,76 +351,51 @@ test('staff cannot create, update, or delete platform rows in any of the four re
     for (const [label, statement] of operations) assertNoPlatformWrite(label, statement);
   });
 
-// Первая редакция этого теста выводила колонки через `db.insert(table).values({}).toSQL()`. С ПУСТЫМ
-// объектом значений drizzle перечисляет все колонки, включая те, у которых есть default, поэтому
-// `owner_kind` попадал в список, а обычная запись врача краснела на `42501` — и выглядело это как дефект
-// кандидата. Продуктовые порты значение владения не передают вовсе (`pgClinicalTests.ts:490`,
-// `pgRecommendations.ts` — в `.values()` нет `ownerKind`), значит drizzle колонку в INSERT не называет и
-// прав на неё не просит. Ниже проверяется ровно то, что уходит в базу сегодня.
-test('организационная запись врача проходит той же дверью, что и до S0б', { skip: !ENABLED }, () => {
-  const ctx = preparedContext();
-  const attempts = [
-    ['tests', `INSERT INTO public.tests(id, organization_id, title)
-        VALUES ('${ids.invalidWrite}', '${ctx.organizationId}', 'allowed own test')`],
-    ['recommendations', `INSERT INTO public.recommendations
-        (id, organization_id, title, body_md)
-        VALUES ('${ids.invalidWrite}', '${ctx.organizationId}', 'allowed own rec', 'proof')`],
-  ];
-  const failures = [];
-  for (const [label, statement] of attempts) {
-    const result = psql(`
-BEGIN;
-${fixtureSql(ctx)}
-${installPoliciesSql()}
-${installStaffContext(ctx)}
-${statement};
-ROLLBACK;`, { expectFailure: null });
-    if (result.failed) failures.push(`${label}:${sqlState(result) ?? 'unknown'}`);
-  }
-  assert.deepEqual(
-    failures,
-    [],
-    `ordinary organization-owned writes were refused: ${failures.join(', ')}`,
-  );
-});
-
-// Обратная сторона того же решения: расширяется ТОЛЬКО чтение. `owner_kind` намеренно не выдан
-// `app_staff` на запись ни в одном из четырёх отношений, поэтому даже попытка НАЗВАТЬ колонку в INSERT
-// отбивается на уровне прав, не доходя до RLS. Если грант когда-нибудь выдадут «за компанию» с колонкой,
-// этот тест покраснеет и заставит объяснить зачем.
-test('врач не получает права писать колонку владения', { skip: !ENABLED }, () => {
-  const ctx = preparedContext();
-  const attempts = [
-    ['tests', `INSERT INTO public.tests(id, owner_kind, organization_id, title)
-        VALUES ('${ids.invalidWrite}', DEFAULT, '${ctx.organizationId}', 'named owner_kind')`],
-    ['clinical_test_regions', `INSERT INTO public.clinical_test_regions
+// Форма запроса здесь не выдумана: drizzle перечисляет в INSERT ВСЕ колонки таблицы и подставляет
+// `default` тем, которых нет в `.values(...)`. `owner_kind` объявлен с `.default('organization')`, значит
+// он попадает в список колонок КАЖДОЙ обычной записи врача, хотя порты владение не передают
+// (`pgClinicalTests.ts:490`, `pgRecommendations.ts`). Поэтому `app_staff` обязан иметь `INSERT(owner_kind)`
+// по всем четырём отношениям — без гранта создание теста и рекомендации падает с `42501`, и это уже
+// ловилось живым HTTP 500 в приложении. Порядок значений владения при этом никуда не расширяется: что
+// именно можно записать, решают CHECK и `WITH CHECK` действующей `FOR ALL`-политики — за этим следит
+// соседний тест «staff cannot create, update, or delete platform rows».
+test('обычная организационная запись врача проходит той же дверью, что и до S0б',
+  { skip: !ENABLED }, () => {
+    const ctx = preparedContext();
+    const attempts = [
+      ['tests', `INSERT INTO public.tests(id, owner_kind, organization_id, title)
+        VALUES ('${ids.invalidWrite}', DEFAULT, '${ctx.organizationId}', 'allowed own test')`],
+      ['clinical_test_regions', `INSERT INTO public.clinical_test_regions
         (owner_kind, organization_id, clinical_test_id, body_region_id)
         VALUES (DEFAULT, '${ctx.organizationId}', '${ids.ownTest}', '${ctx.regionId}')`],
-    ['recommendations', `INSERT INTO public.recommendations
+      ['recommendations', `INSERT INTO public.recommendations
         (id, owner_kind, organization_id, title, body_md)
-        VALUES ('${ids.invalidWrite}', DEFAULT, '${ctx.organizationId}', 'named owner_kind', 'proof')`],
-    ['recommendation_regions', `INSERT INTO public.recommendation_regions
+        VALUES ('${ids.invalidWrite}', DEFAULT, '${ctx.organizationId}', 'allowed own rec', 'proof')`],
+      ['recommendation_regions', `INSERT INTO public.recommendation_regions
         (owner_kind, organization_id, recommendation_id, body_region_id)
         VALUES (DEFAULT, '${ctx.organizationId}', '${ids.ownRecommendation}', '${ctx.regionId}')`],
-  ];
-  const states = [];
-  for (const [label, statement] of attempts) {
-    const result = psql(`
+    ];
+    const failures = [];
+    for (const [label, statement] of attempts) {
+      const result = psql(`
 BEGIN;
 ${fixtureSql(ctx)}
 ${installPoliciesSql()}
 ${installStaffContext(ctx)}
+DELETE FROM public.clinical_test_regions
+ WHERE clinical_test_id = '${ids.ownTest}' AND body_region_id = '${ctx.regionId}';
+DELETE FROM public.recommendation_regions
+ WHERE recommendation_id = '${ids.ownRecommendation}' AND body_region_id = '${ctx.regionId}';
 ${statement};
 ROLLBACK;`, { expectFailure: null });
-    states.push(`${label}:${result.failed ? sqlState(result) ?? 'unknown' : 'accepted'}`);
-  }
-  assert.deepEqual(states, [
-    'tests:42501',
-    'clinical_test_regions:42501',
-    'recommendations:42501',
-    'recommendation_regions:42501',
-  ]);
-});
+      if (result.failed) failures.push(`${label}:${sqlState(result) ?? 'unknown'}`);
+    }
+    assert.deepEqual(
+      failures,
+      [],
+      `ordinary organization-owned writes were refused: ${failures.join(', ')}`,
+    );
+  });
 
 test('organization_id IS NULL remains part of the platform read boundary', { skip: !ENABLED }, () => {
   const ctx = preparedContext();

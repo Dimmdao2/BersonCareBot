@@ -14517,7 +14517,8 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         "columns": [
           "body_region_id",
           "clinical_test_id",
-          "organization_id"
+          "organization_id",
+          "owner_kind"
         ]
       },
       {
@@ -18720,6 +18721,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         "columns": [
           "body_region_id",
           "organization_id",
+          "owner_kind",
           "recommendation_id"
         ]
       },
@@ -18834,6 +18836,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "is_archived",
           "media",
           "organization_id",
+          "owner_kind",
           "quantity_text",
           "tags",
           "title",
@@ -21133,6 +21136,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "is_archived",
           "media",
           "organization_id",
+          "owner_kind",
           "raw_text",
           "scoring",
           "tags",
@@ -21183,6 +21187,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "is_archived",
           "media",
           "organization_id",
+          "owner_kind",
           "raw_text",
           "scoring",
           "tags",
