@@ -32,10 +32,18 @@ export async function isSoloWorkspace(ctx: AdminBookingEngineContext): Promise<b
  * услугу, значит, она его, значит, он к ней подключен автоматически. Ему вообще нигде себя
  * выбирать не надо.»
  *
- * Специалист соло СОЗДАЁТСЯ здесь, если его ещё нет. До этой правки его заводил браузер
- * (`ensureDefaultSpecialist`) перед созданием локации, а перед созданием услуги — не заводил
- * никто; ровно поэтому автоматика была сделана наполовину и услугу приходилось привязывать к
- * филиалу галкой руками.
+ * Специалиста здесь НЕ создаём. Владелец 11.09, дословно: «Специалистов создает, блядь, либо тот
+ * факт, что это сам по себе специалист зарегистрировался, и это первый момент создания его
+ * кабинета, либо его создает администратор, приглашая, кто еще может, где создавать
+ * специалистов». Регистрация это и делает — `app.provision_specialist_owner` заводит строку
+ * `be_specialists` и прописывает её в членство. Прежняя редакция этого файла (и вызов
+ * `ensureDefaultSpecialist` из браузера перед созданием филиала) заводила специалиста «на всякий
+ * случай»: замер 11.09 показал 0 организаций без специалиста и на DEV, и на TEST — ветка не
+ * срабатывала никогда, зато при двойном клике давала ВТОРОГО специалиста
+ * (`upsertSpecialist` без `id` — обычный INSERT без проверки на повтор).
+ *
+ * Нет специалиста — покрывать нечего, выходим молча: организация в этом состоянии сломана, и
+ * подмена её починки новой строкой прячет поломку.
  *
  * Дописываются только НЕДОСТАЮЩИЕ пары: снятая вручную галка на экране «Доступность услуг по
  * филиалам» не воскресает (#1102 S-01, S-03).
@@ -49,28 +57,13 @@ export async function ensureSoloServiceCoverage(
 ): Promise<void> {
   const specialists = await ctx.service.catalog.listSpecialists(ctx.organizationId);
   // Выключенный специалист тоже годится: привязки к нему остаются живыми строками и оживают
-  // вместе с ним. Завести второго вместо выключенного означало бы развести соло на двоих.
-  const existing = specialists.find((s) => s.isActive) ?? specialists[0] ?? null;
-  const specialistId =
-    existing?.id ??
-    (
-      await ctx.service.catalog.upsertSpecialist({
-        organizationId: ctx.organizationId,
-        fullName:
-          (await ctx.service.organization.getOrganization(ctx.organizationId))?.title?.trim() ||
-          'Специалист',
-        description: null,
-        avatarMediaId: null,
-        fullDescriptionMarkdown: null,
-        cardIsPublished: false,
-        isActive: true,
-        sortOrder: 0,
-      })
-    ).id;
+  // вместе с ним.
+  const specialist = specialists.find((s) => s.isActive) ?? specialists[0] ?? null;
+  if (!specialist) return;
 
   await ctx.service.services.ensureSoloServiceCoverage({
     organizationId: ctx.organizationId,
-    specialistId,
+    specialistId: specialist.id,
     ...scope,
   });
 }

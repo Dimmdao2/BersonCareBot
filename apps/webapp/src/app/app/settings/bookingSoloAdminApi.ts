@@ -140,19 +140,6 @@ export function pickDefaultSpecialist(
   return active[0] ?? specialists[0] ?? null;
 }
 
-export async function ensureDefaultSpecialist(orgTitle: string | undefined): Promise<string> {
-  const overview = await fetchSoloOverview();
-  if (!overview) throw new Error('booking_engine_unavailable');
-  const existing = pickDefaultSpecialist(overview.specialists);
-  if (existing) return existing.id;
-  const res = await apiJson<{ ok: boolean; specialist: { id: string } }>(`${BASE}/specialists`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ fullName: orgTitle?.trim() || 'Специалист' }),
-  });
-  return res.specialist.id;
-}
-
 /**
  * Состояние ОДНОЙ галки на экране «Доступность услуг по филиалам»: делает ли соло-специалист эту
  * услугу в этом филиале. Это ровно та строка, которую пишет сам переключатель, — не вычисленное

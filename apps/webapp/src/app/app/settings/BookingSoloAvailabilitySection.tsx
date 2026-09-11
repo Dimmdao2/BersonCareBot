@@ -9,7 +9,7 @@ import {
 } from '@/shared/ui/doctor/DoctorSection';
 import {
   SOLO_BOOKING_UNAVAILABLE_MESSAGE,
-  ensureDefaultSpecialist,
+  pickDefaultSpecialist,
   fetchSoloOverview,
   isServiceAvailableAtLocation,
   setSpecialistServiceAtBranch,
@@ -70,8 +70,15 @@ export function BookingSoloAvailabilitySection() {
     setActionError(null);
     startTransition(async () => {
       try {
-        const specialistId = await ensureDefaultSpecialist(overview.organization?.title);
-        await setSpecialistServiceAtBranch(serviceId, branchId, enabled, specialistId);
+        // Специалиста заводит регистрация (`app.provision_specialist_owner`) или приглашение
+        // администратором — больше нигде и никогда. Галка только пишет строку на уже
+        // существующего; нет его — организация сломана, и молча лепить нового нельзя.
+        const specialist = pickDefaultSpecialist(overview.specialists);
+        if (!specialist) {
+          setActionError('specialist_missing');
+          return;
+        }
+        await setSpecialistServiceAtBranch(serviceId, branchId, enabled, specialist.id);
         await load();
       } catch (e) {
         setActionError(e instanceof Error ? e.message : 'toggle_failed');

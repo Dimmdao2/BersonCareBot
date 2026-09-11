@@ -36,7 +36,6 @@ import { DoctorSortableSettingsRow } from '@/shared/ui/doctor/DoctorSortableSett
 import {
   SOLO_BOOKING_UNAVAILABLE_MESSAGE,
   apiJson,
-  ensureDefaultSpecialist,
   fetchSoloOverview,
   setOnlineLocationEnabled,
   slugCityCode,
@@ -73,7 +72,6 @@ function BranchMeta({ branch }: { branch: BranchRow }) {
 
 export function BookingSoloLocationsSection() {
   const [branches, setBranches] = useState<BranchRow[]>([]);
-  const [orgTitle, setOrgTitle] = useState('');
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [unavailable, setUnavailable] = useState(false);
@@ -105,7 +103,6 @@ export function BookingSoloLocationsSection() {
         return;
       }
       setBranches(data.branches);
-      setOrgTitle(data.organization?.title ?? '');
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : 'load_failed');
     }
@@ -141,7 +138,6 @@ export function BookingSoloLocationsSection() {
     if (!title.trim()) return;
     run(
       async () => {
-        await ensureDefaultSpecialist(orgTitle);
         const maxOrder = branches.reduce(
           (current, branch) => Math.max(current, branch.sortOrder),
           0,
