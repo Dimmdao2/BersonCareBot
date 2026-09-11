@@ -1,5 +1,6 @@
 import type {
   AppointmentPaymentSummary,
+  AppointmentPaymentCheck,
   BookingPaymentSettings,
   PaymentHistoryEventRecord,
   PaymentIntentRecord,
@@ -62,6 +63,8 @@ export type PaymentsPort = {
   ): Promise<PaymentIntentRecord | null>;
   findLatestIntentByAppointment(appointmentId: string): Promise<PaymentIntentRecord | null>;
   findIntentById(id: string): Promise<PaymentIntentRecord | null>;
+  /** Public pre-session door. It returns one anonymous-safe projection and no tenant/PII fields. */
+  readAppointmentPaymentCheck(intentId: string): Promise<AppointmentPaymentCheck>;
   /** Locks the intent row inside the active capture UoW and returns current committed state. */
   lockIntentForCapture(
     intentId: string,
@@ -103,7 +106,14 @@ export type PaymentsPort = {
   listAppointmentCheckoutUrls(
     organizationId: string,
     appointmentIds: string[],
-  ): Promise<{ appointmentId: string; checkoutUrl: string | null }[]>;
+  ): Promise<
+    {
+      appointmentId: string;
+      intentId: string;
+      purpose: string;
+      checkoutUrl: string | null;
+    }[]
+  >;
   createPaymentFromIntent(intent: PaymentIntentRecord): Promise<PaymentRecord>;
   updatePaymentStatus(paymentId: string, status: string, organizationId: string): Promise<void>;
   getSucceededRefundedAmount(paymentId: string, organizationId: string): Promise<number>;

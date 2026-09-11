@@ -18,6 +18,11 @@
 3. Cancel с retain/refund → `applyCancelPaymentOutcome` (из lifecycle этапа 4).
 4. Reschedule → `recordReschedulePaymentCarryOver` → history event.
 
+Ссылка на предоплату, которую получает человек, всегда строится как `/book/pay/{intentId}` через
+`buildAppointmentPaymentCheckUrl`. Provider checkout URL хранится только внутри intent. Публичный маршрут
+без сессии читает `app.read_booking_payment_check(uuid)`: живой счёт получает `307` к провайдеру, а истёкший
+или отменённый — экран отказа без provider URL.
+
 Публичный provider webhook до установки tenant-principal определяет организацию только через
 `app.resolve_payment_webhook_organization(provider_id, idempotency_key, event_type)`. Это узкий
 `SECURITY DEFINER`-контракт: наружу возвращается только `organization_id`; payload, суммы и прямое

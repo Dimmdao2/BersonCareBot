@@ -7,6 +7,7 @@ import type { PaymentCaptureUnitOfWork, PaymentsConfigReader, PaymentsPort } fro
 import type {
   AppointmentPaymentSummary,
   BookingPaymentSettings,
+  PaymentIntentRecord,
   PrepaymentPolicyRecord,
   PrepaymentQuote,
 } from './types';
@@ -17,6 +18,7 @@ import { env } from '@/config/env';
 import { routePaths } from '@/app-layer/routes/paths';
 import { buildBookingPaymentReceipt } from './fiscalReceipt';
 import { resolvePaymentProviderWebhookSecret } from './providerPort';
+import { buildAppointmentPaymentCheckUrl } from './appointmentPaymentCheckUrl';
 
 /**
  * The caller always computes a screen-specific return address; this is only the safety net for
@@ -84,6 +86,18 @@ export function createPaymentsService(deps: {
 }) {
   async function loadSettings(organizationId?: string): Promise<BookingPaymentSettings> {
     return deps.config.getBookingPaymentSettings(organizationId);
+  }
+
+  async function exposeIntentCheckoutUrl(
+    intent: PaymentIntentRecord,
+  ): Promise<PaymentIntentRecord> {
+    if (intent.purpose !== 'appointment_prepayment' || !intent.checkoutUrl) return intent;
+    if (!deps.resolvePatientPublicOrigin) return { ...intent, checkoutUrl: null };
+    const patientOrigin = await deps.resolvePatientPublicOrigin(intent.organizationId);
+    return {
+      ...intent,
+      checkoutUrl: buildAppointmentPaymentCheckUrl(patientOrigin, intent.id),
+    };
   }
 
   async function resolveAppointmentPayment(
@@ -324,7 +338,18 @@ export function createPaymentsService(deps: {
 
     /** PAY-APPT-06: сохранённые ссылки оплаты набора записей, без создания новых намерений. */
     async listAppointmentCheckoutUrls(organizationId: string, appointmentIds: string[]) {
-      return deps.port.listAppointmentCheckoutUrls(organizationId, appointmentIds);
+      const rows = await deps.port.listAppointmentCheckoutUrls(organizationId, appointmentIds);
+      if (!deps.resolvePatientPublicOrigin) {
+        return rows.map(({ appointmentId }) => ({ appointmentId, checkoutUrl: null }));
+      }
+      const patientOrigin = await deps.resolvePatientPublicOrigin(organizationId);
+      return rows.map(({ appointmentId, intentId, purpose, checkoutUrl }) => ({
+        appointmentId,
+        checkoutUrl:
+          checkoutUrl && purpose === 'appointment_prepayment'
+            ? buildAppointmentPaymentCheckUrl(patientOrigin, intentId)
+            : checkoutUrl,
+      }));
     },
 
     async upsertPrepaymentPolicy(input: Parameters<PaymentsPort['upsertPrepaymentPolicy']>[0]) {
@@ -368,11 +393,6 @@ export function createPaymentsService(deps: {
 
     async listPaymentHistoryForUser(platformUserId: string, organizationId: string) {
       return deps.port.listHistoryForUser(platformUserId, organizationId);
-    },
-
-    async resolveIntentOrganizationId(intentId: string) {
-      const intent = await deps.port.findIntentById(intentId);
-      return intent?.organizationId ?? null;
     },
 
     /** Org-scoped: never returns another organization's intent, even for a valid id. */
@@ -422,7 +442,7 @@ export function createPaymentsService(deps: {
         input.organizationId,
         input.idempotencyKey,
       );
-      if (existing) return existing;
+      if (existing) return exposeIntentCheckoutUrl(existing);
       if (!((await deps.canCreatePaymentIntent?.(input.organizationId)) ?? true)) {
         throw new Error('payments_disabled');
       }
@@ -479,7 +499,7 @@ export function createPaymentsService(deps: {
         purpose: intent.purpose,
       });
 
-      return intent;
+      return exposeIntentCheckoutUrl(intent);
     },
 
     async createPackagePaymentIntent(input: {
@@ -776,9 +796,10 @@ export function createPaymentsService(deps: {
               ...payment,
               amountMinor: await resolveAppointmentAmountMinor(organizationId, payment),
             };
-      const intent =
+      const storedIntent =
         (payment ? await deps.port.findIntentById(payment.paymentIntentId) : null) ??
         (await deps.port.findLatestIntentByAppointment(appointmentId));
+      const intent = storedIntent ? await exposeIntentCheckoutUrl(storedIntent) : null;
       const history = await deps.port.listHistoryForAppointment(appointmentId, organizationId);
 
       return {
@@ -789,6 +810,10 @@ export function createPaymentsService(deps: {
         payment: appointmentPayment,
         history,
       };
+    },
+
+    async readAppointmentPaymentCheck(intentId: string) {
+      return deps.port.readAppointmentPaymentCheck(intentId);
     },
   };
 }
