@@ -35,7 +35,6 @@ WITH declared(schema_name, table_name) AS (VALUES
   ('public', 'be_rooms'),
   ('public', 'be_schedule_blocks'),
   ('public', 'be_schedule_templates'),
-  ('public', 'be_service_location_availability'),
   ('public', 'be_specialist_locations'),
   ('public', 'be_specialist_rooms'),
   ('public', 'be_specialist_service_availability'),

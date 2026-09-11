@@ -48,7 +48,6 @@ type Overview = {
     serviceId: string;
     branchId: string | null;
   }[];
-  locationAvailability: { id: string; serviceId: string; branchId: string }[];
   specialistRooms: { id: string; specialistId: string; roomId: string; isActive: boolean }[];
 };
 
@@ -612,8 +611,7 @@ export function BookingEngineSection({ mode = 'catalog' }: { mode?: BookingEngin
                     </Button>
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    Связей: {data.specialistAvailability.length} специалист×услуга,{' '}
-                    {data.locationAvailability.length} услуга×филиал
+                    Связей: {data.specialistAvailability.length} специалист×услуга
                   </p>
                 </div>
                 <BookingAvailabilityMatrixTable data={data} />

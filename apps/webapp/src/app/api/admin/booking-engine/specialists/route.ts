@@ -3,6 +3,10 @@ import { z } from 'zod';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
 import { requireClinicManagementBookingEngine } from '../_requireClinicManagementBookingEngine';
+import {
+  ensureSoloServiceCoverage,
+  isSoloWorkspace,
+} from '@/app-layer/booking/soloServiceCoverage';
 
 const PostSchema = z.object({
   fullName: z.string().min(1).max(200),
@@ -38,6 +42,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: 'branch_not_found' }, { status: 404 });
     }
   }
+  const solo = await isSoloWorkspace(gate.ctx);
   const specialist = await withDoctorWorkspacePrincipal(
     gate.ctx,
     'admin.booking-engine.specialists.upsert',
@@ -60,6 +65,9 @@ export async function POST(request: Request) {
           isActive: true,
         });
       }
+      // Соло мог завести локации и услуги раньше самого себя: тогда пересечений нет ни у одной
+      // услуги, и без этого прохода они остались бы блеклыми навсегда (#1102 §1.1).
+      if (solo) await ensureSoloServiceCoverage(gate.ctx);
       return row;
     },
   );

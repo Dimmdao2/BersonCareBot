@@ -506,38 +506,6 @@ export const beSpecialistServiceAvailability = pgTable(
   ],
 );
 
-export const beServiceLocationAvailability = pgTable(
-  'be_service_location_availability',
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    organizationId: uuid('organization_id').notNull(),
-    serviceId: uuid('service_id').notNull(),
-    branchId: uuid('branch_id').notNull(),
-    isActive: boolean('is_active').default(true).notNull(),
-    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
-      .defaultNow()
-      .notNull(),
-  },
-  (table) => [
-    foreignKey({
-      columns: [table.organizationId],
-      foreignColumns: [beOrganizations.id],
-      name: 'be_sla_organization_id_fkey',
-    }).onDelete('cascade'),
-    foreignKey({
-      columns: [table.serviceId],
-      foreignColumns: [beClinicServices.id],
-      name: 'be_sla_service_id_fkey',
-    }).onDelete('cascade'),
-    foreignKey({
-      columns: [table.branchId],
-      foreignColumns: [beBranches.id],
-      name: 'be_sla_branch_id_fkey',
-    }).onDelete('cascade'),
-    unique('uq_be_sla_service_branch').on(table.serviceId, table.branchId),
-  ],
-);
-
 export const beAppointments = pgTable(
   'be_appointments',
   {
@@ -672,10 +640,7 @@ export const beAppointments = pgTable(
     ),
     /** PAY-APPT-11: горячий путь тика истечения — только ожидающие оплаты записи с дедлайном. */
     index('idx_be_appointments_payment_deadline')
-      .using(
-        'btree',
-        table.paymentDeadlineAt.asc().nullsLast().op('timestamptz_ops'),
-      )
+      .using('btree', table.paymentDeadlineAt.asc().nullsLast().op('timestamptz_ops'))
       .where(sql`status = 'awaiting_payment' AND payment_deadline_at IS NOT NULL`),
     check('be_appointments_status_check', appointmentStatusCheckSql),
     check('be_appointments_prepayment_mode_check', appointmentPrepaymentModeCheckSql),

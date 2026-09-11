@@ -540,9 +540,6 @@ test('clinic topology grants cover the exact columns emitted by Drizzle inserts'
       'branch_id', 'created_at', 'id', 'is_active', 'organization_id', 'sort_order', 'title',
       'updated_at',
     ],
-    'public.be_service_location_availability': [
-      'branch_id', 'created_at', 'id', 'is_active', 'organization_id', 'service_id',
-    ],
     'public.be_specialist_locations': [
       'branch_id', 'created_at', 'id', 'is_active', 'organization_id', 'specialist_id',
     ],

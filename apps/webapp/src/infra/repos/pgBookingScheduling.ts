@@ -14,7 +14,6 @@ import {
   beAppointments,
   beBranches,
   beClinicServices,
-  beServiceLocationAvailability,
   beSpecialists,
   beSpecialistServiceAvailability,
 } from '../../../db/schema/bookingEngine';
@@ -420,26 +419,6 @@ export function createPgBookingSchedulingPort(
       );
       if (!availabilityId) return null;
       return resolveCanonicalAvailabilityContext(availabilityId);
-    },
-
-    async listServicesByCityCode(organizationId, cityCode) {
-      const db = getDrizzle();
-      const rows = await db
-        .select({
-          serviceId: beServiceLocationAvailability.serviceId,
-          branchId: beServiceLocationAvailability.branchId,
-        })
-        .from(beServiceLocationAvailability)
-        .innerJoin(beBranches, eq(beBranches.id, beServiceLocationAvailability.branchId))
-        .where(
-          and(
-            eq(beServiceLocationAvailability.organizationId, organizationId),
-            eq(beServiceLocationAvailability.isActive, true),
-            eq(beBranches.cityCode, cityCode),
-            eq(beBranches.isActive, true),
-          ),
-        );
-      return rows;
     },
 
     async getSlots(context) {
