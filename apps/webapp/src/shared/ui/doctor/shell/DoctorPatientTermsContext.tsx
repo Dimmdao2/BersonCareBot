@@ -1,11 +1,13 @@
 'use client';
 
 /**
- * Терминология пациента/клиента кабинета для клиентских компонентов doctor-зоны.
+ * Терминология кабинета для клиентских компонентов doctor-зоны: слово о человеке и слово о событии
+ * записи.
  *
- * Источник — та же настройка `patient_label` (scope=doctor), что уже питает меню и заголовки страниц:
- * `loadDoctorWorkspaceShell()` → `DoctorWorkspaceShell` → этот провайдер. Второй настройки терминологии
- * не заводим: резолвер один — `resolvePatientTerms` из `modules/system-settings/patientTerms`.
+ * Источник — те же настройки `patient_label` и `appointment_label` (scope=doctor), что уже питают
+ * меню и заголовки страниц: `loadDoctorWorkspaceShell()` → `DoctorWorkspaceShell` → этот провайдер.
+ * Второго контекста и второго резолвера не заводим: резолвер один — `resolvePatientTerms` из
+ * `modules/system-settings/patientTerms`.
  */
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
 import { resolvePatientTerms, type PatientTerms } from '@/modules/system-settings/patientTerms';
@@ -15,15 +17,17 @@ const DoctorPatientTermsContext = createContext<PatientTerms>(resolvePatientTerm
 export function DoctorPatientTermsProvider({
   patientLabel,
   supportGroupLabel,
+  appointmentLabel,
   children,
 }: {
   patientLabel?: string;
   supportGroupLabel?: string;
+  appointmentLabel?: string;
   children: ReactNode;
 }) {
   const value = useMemo(
-    () => resolvePatientTerms(patientLabel, supportGroupLabel),
-    [patientLabel, supportGroupLabel],
+    () => resolvePatientTerms(patientLabel, supportGroupLabel, appointmentLabel),
+    [patientLabel, supportGroupLabel, appointmentLabel],
   );
   return (
     <DoctorPatientTermsContext.Provider value={value}>

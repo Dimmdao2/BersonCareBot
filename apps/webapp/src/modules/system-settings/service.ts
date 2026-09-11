@@ -42,6 +42,8 @@ import {
 } from './doctorWorkspaceComposition';
 import { RuntimeSettingUnavailableError } from './runtimeSettingUnavailable';
 import {
+  APPOINTMENT_LABEL_KEY,
+  normalizeAppointmentLabel,
   normalizePatientLabel,
   normalizeSupportGroupLabel,
   SUPPORT_GROUP_LABEL_KEY,
@@ -237,6 +239,11 @@ export function createSystemSettingsService(
     }
     if (key === SUPPORT_GROUP_LABEL_KEY) {
       const normalized = normalizeSupportGroupLabel(normalizedEnvelope.value);
+      if (normalized === null) throw new Error(`invalid_setting_value: ${key}`);
+      return { value: normalized };
+    }
+    if (key === APPOINTMENT_LABEL_KEY) {
+      const normalized = normalizeAppointmentLabel(normalizedEnvelope.value);
       if (normalized === null) throw new Error(`invalid_setting_value: ${key}`);
       return { value: normalized };
     }

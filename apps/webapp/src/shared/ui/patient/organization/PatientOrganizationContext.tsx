@@ -81,6 +81,7 @@ export function PatientOrganizationContextProvider({
   rememberOrganizationOnMount = false,
   workspaceModules = null,
   patientLabel,
+  appointmentLabel,
   brandedOrganizationSurface = false,
   checkContextChangeReceipt = true,
   navigate = replacePatientLocation,
@@ -91,6 +92,7 @@ export function PatientOrganizationContextProvider({
   rememberOrganizationOnMount?: boolean;
   workspaceModules?: WorkspaceModuleEffective | null;
   patientLabel?: unknown;
+  appointmentLabel?: unknown;
   brandedOrganizationSurface?: boolean;
   checkContextChangeReceipt?: boolean;
   navigate?: PatientOrganizationNavigate;
@@ -140,7 +142,7 @@ export function PatientOrganizationContextProvider({
       switching,
       contextChangeNotice,
       workspaceModules,
-      patientTerms: resolvePatientTerms(patientLabel),
+      patientTerms: resolvePatientTerms(patientLabel, undefined, appointmentLabel),
       brandedOrganizationSurface,
       async switchOrganization(organizationId) {
         if (switchingRef.current || organizationId === organization.organizationId) return;
@@ -162,6 +164,7 @@ export function PatientOrganizationContextProvider({
       },
     }),
     [
+      appointmentLabel,
       brandedOrganizationSurface,
       contextChangeNotice,
       navigate,

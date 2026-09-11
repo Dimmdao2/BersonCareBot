@@ -42,6 +42,7 @@ export default async function DoctorSectionLayout({ children }: { children: Reac
       userDisplayName={session.user.displayName}
       patientLabel={shell.patientLabel}
       supportGroupLabel={shell.supportGroupLabel}
+      appointmentLabel={shell.appointmentLabel}
       workspaceContext={shell.workspaceContext}
       workspaceComposition={shell.workspaceComposition}
       coursesEnabled={shell.coursesEnabled}

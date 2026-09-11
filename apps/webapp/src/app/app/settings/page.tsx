@@ -69,6 +69,7 @@ import {
   type WorkspaceModuleAvailability,
 } from '@/modules/system-settings/doctorWorkspaceComposition';
 import {
+  APPOINTMENT_LABEL_KEY,
   normalizeSupportGroupLabel,
   SUPPORT_GROUP_LABEL_KEY,
 } from '@/modules/system-settings/patientTerms';
@@ -314,6 +315,10 @@ export default async function SettingsPage({
       doctorSettings.find((setting) => setting.key === 'patient_label')?.valueJson,
       'пациент',
     );
+    const appointmentLabel = valueOf(
+      doctorSettings.find((setting) => setting.key === APPOINTMENT_LABEL_KEY)?.valueJson,
+      'приём',
+    );
     const supportGroupLabel =
       normalizeSupportGroupLabel(
         valueOf(
@@ -556,6 +561,7 @@ export default async function SettingsPage({
         ) : null}
         <SettingsForm
           patientLabel={String(patientLabel)}
+          appointmentLabel={String(appointmentLabel)}
           smsFallbackEnabled={false}
           supportCommentsWithoutSupportDefault={false}
           supportMediaWithoutSupportDefault={false}
@@ -572,6 +578,7 @@ export default async function SettingsPage({
         <DoctorPatientTermsProvider
           patientLabel={String(patientLabel)}
           supportGroupLabel={supportGroupLabel}
+          appointmentLabel={String(appointmentLabel)}
         >
           <DoctorTodayPreferencesSection
             initialPreferences={todayPreferences}

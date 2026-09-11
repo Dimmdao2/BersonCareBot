@@ -51,6 +51,7 @@ export type DoctorWorkspaceShellData = {
   };
   patientLabel: string;
   supportGroupLabel: string;
+  appointmentLabel: string;
   coursesEnabled: boolean;
   promoEnabled: boolean;
   cmsEnabled: boolean;
@@ -191,6 +192,10 @@ const loadDoctorShell = cache(async (allowCabinetRecovery = false) => {
     doctorSettings.find((x) => x.key === 'support_group_label')?.valueJson,
     'on_support',
   );
+  const appointmentLabel = getValueJson(
+    doctorSettings.find((x) => x.key === 'appointment_label')?.valueJson,
+    'приём',
+  );
 
   const workspaceModules = await resolveDoctorWorkspaceModules(
     deps,
@@ -220,6 +225,7 @@ const loadDoctorShell = cache(async (allowCabinetRecovery = false) => {
     shellBrand,
     patientLabel: String(patientLabel),
     supportGroupLabel: String(supportGroupLabel),
+    appointmentLabel: String(appointmentLabel),
     coursesEnabled: coursesVisibility.specialistNavigation,
     promoEnabled: promoVisibility.specialistNavigation,
     cmsEnabled: cmsVisibility.specialistNavigation,

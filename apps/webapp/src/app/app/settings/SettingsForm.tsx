@@ -36,10 +36,14 @@ import {
   type WorkspaceModuleKey,
 } from '@/modules/system-settings/doctorWorkspaceComposition';
 import {
+  APPOINTMENT_LABEL_KEY,
+  APPOINTMENT_LABEL_VALUES,
+  normalizeAppointmentLabel,
   normalizePatientLabel,
   normalizeSupportGroupLabel,
   resolvePatientTerms,
   SUPPORT_GROUP_LABEL_KEY,
+  type AppointmentLabelValue,
   type PatientLabelValue,
   type SupportGroupLabelValue,
 } from '@/modules/system-settings/patientTerms';
@@ -68,11 +72,14 @@ const WORKSPACE_SETTINGS_BATCH_KEYS = [
   DOCTOR_WORKSPACE_COMPOSITION_KEY,
   DOCTOR_WORKSPACE_CLIENT_DEFAULTS_KEY,
   'patient_label',
+  APPOINTMENT_LABEL_KEY,
   SUPPORT_GROUP_LABEL_KEY,
 ] as const;
 
 type SettingsFormProps = {
   patientLabel: string;
+  /** Как организация называет событие записи; не распознано — «приём», сегодняшнее поведение. */
+  appointmentLabel?: string;
   smsFallbackEnabled: boolean;
   supportCommentsWithoutSupportDefault: boolean;
   supportMediaWithoutSupportDefault: boolean;
@@ -88,6 +95,7 @@ type SettingsFormProps = {
 
 export function SettingsForm({
   patientLabel,
+  appointmentLabel,
   smsFallbackEnabled,
   supportCommentsWithoutSupportDefault,
   supportMediaWithoutSupportDefault,
@@ -103,6 +111,9 @@ export function SettingsForm({
   const { patientGenitive, patientPluralLabel } = useDoctorPatientTerms();
   const [label, setLabel] = useState<PatientLabelValue>(
     normalizePatientLabel(patientLabel) ?? 'пациент',
+  );
+  const [appointmentWord, setAppointmentWord] = useState<AppointmentLabelValue>(
+    normalizeAppointmentLabel(appointmentLabel) ?? 'приём',
   );
   const [supportLabel, setSupportLabel] = useState<SupportGroupLabelValue>(supportGroupLabel);
   const [smsFallback, setSmsFallback] = useState(smsFallbackEnabled);
@@ -131,7 +142,8 @@ export function SettingsForm({
     availability,
   );
   const effectiveModules = resolveWorkspaceModuleEffective(composition, availability);
-  const supportGroupDisplayLabel = resolvePatientTerms(label, supportLabel).supportGroupLabel;
+  const formTerms = resolvePatientTerms(label, supportLabel, appointmentWord);
+  const supportGroupDisplayLabel = formTerms.supportGroupLabel;
   const defaultModeOptions: ReadonlyArray<{
     value: WorkspaceClientDefaultMode;
     label: string;
@@ -154,6 +166,7 @@ export function SettingsForm({
                 { key: DOCTOR_WORKSPACE_COMPOSITION_KEY, value: { value: composition } },
                 { key: DOCTOR_WORKSPACE_CLIENT_DEFAULTS_KEY, value: { value: clientDefaults } },
                 { key: 'patient_label', value: { value: label } },
+                { key: APPOINTMENT_LABEL_KEY, value: { value: appointmentWord } },
                 { key: SUPPORT_GROUP_LABEL_KEY, value: { value: supportLabel } },
               ],
             }),
@@ -373,6 +386,39 @@ export function SettingsForm({
                     <SelectItem value="пациент" label="Пациенты">
                       Пациенты
                     </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="appointment-label-select">{formTerms.appointmentPluralLabel}</Label>
+                <Select
+                  value={appointmentWord}
+                  onValueChange={(value) => {
+                    const normalized = normalizeAppointmentLabel(value);
+                    if (normalized) setAppointmentWord(normalized);
+                  }}
+                  disabled={isPending}
+                >
+                  <SelectTrigger
+                    id="appointment-label-select"
+                    displayLabel={formTerms.appointmentSingularLabel}
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {APPOINTMENT_LABEL_VALUES.map((value) => {
+                      const optionLabel = resolvePatientTerms(
+                        label,
+                        supportLabel,
+                        value,
+                      ).appointmentSingularLabel;
+                      return (
+                        <SelectItem key={value} value={value} label={optionLabel}>
+                          {optionLabel}
+                        </SelectItem>
+                      );
+                    })}
                   </SelectContent>
                 </Select>
               </div>

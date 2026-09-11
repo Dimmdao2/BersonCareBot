@@ -22,6 +22,7 @@ export function PatientClientLayout({
   organizationContext,
   workspaceModules,
   patientLabel,
+  appointmentLabel,
   rememberOrganizationOnMount = false,
   brandedOrganizationSurface = false,
   authChannelPolicy,
@@ -34,6 +35,7 @@ export function PatientClientLayout({
   } | null;
   workspaceModules?: WorkspaceModuleEffective;
   patientLabel?: unknown;
+  appointmentLabel?: unknown;
   rememberOrganizationOnMount?: boolean;
   /** Вход с брендированного адреса своей организации — выбор организации пациенту не показываем. */
   brandedOrganizationSurface?: boolean;
@@ -46,6 +48,7 @@ export function PatientClientLayout({
       organizations={organizationContext.organizations}
       workspaceModules={workspaceModules}
       patientLabel={patientLabel}
+      appointmentLabel={appointmentLabel}
       rememberOrganizationOnMount={rememberOrganizationOnMount}
       brandedOrganizationSurface={brandedOrganizationSurface}
     >
