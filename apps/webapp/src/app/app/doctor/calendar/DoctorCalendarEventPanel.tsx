@@ -1157,6 +1157,7 @@ function DoctorCalendarEventPanelInner({
             patientUserId={selected.platformUserId}
             patientName={patientName}
             appointmentWhen={formatEventAtWords(selected.startAt, timeZone)}
+            timeZone={timeZone}
             onPaymentChange={(payment) => {
               onUpdated?.({ ...selected, payment });
             }}

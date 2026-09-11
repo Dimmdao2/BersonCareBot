@@ -223,6 +223,8 @@ export type StaffAppointmentPaymentState = {
   prepaymentRequiredMinor: number;
   /** Уже зачисленная на запись предоплата; растёт только платёжным корнем и кассой. */
   prepaymentPaidMinor: number;
+  /** Срок оплаты записи; `null` — предоплата не требовалась, счёт бессрочный. */
+  paymentDeadlineAt: string | null;
 };
 
 export type StaffAppointmentPaymentAction = 'cash' | 'link';
