@@ -4,40 +4,39 @@ import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipa
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { readPatientInviteContinuationCookie } from '@/modules/patient-invites/continuationCookie';
 import { getOptionalResolvedSurface } from '@/shared/lib/surface/requestSurface.server';
-import { PATIENT_DEFAULT_SURFACE } from '@/config/productSurfaces';
 import { JoinPatientClient, type JoinBrand } from './JoinPatientClient';
 
 type PageProps = { params: Promise<{ continuation: string }> };
 
 /**
- * Бренд на экране приглашения — только тот, чьё это приглашение.
+ * Чей бренд стоит над приглашением.
  *
- * Владелец 10.09: «он видит логотип терапии, логотип клиники». Бренд клиники уже приезжает в
- * запрос: поверхность резолвится по хосту (`<slug>.<пациентский хост>` либо брендированный домен) и
- * несёт `effectivePatientBrand`. Брать его на веру нельзя — continuation можно открыть на хосте
- * ЧУЖОЙ клиники, и тогда приглашение одной клиники показалось бы под логотипом другой. Поэтому
- * логотип берётся ТОЛЬКО когда организация хоста совпала с организацией самого приглашения; иначе
- * остаётся имя клиники текстом, которое пришло вместе с приглашением.
+ * Владелец 10.09: «он видит логотип терапии, логотип клиники», и 11.09 уточнил, чем эти два случая
+ * различаются: «нет логотипа клиники, потому что небрендированная. Логотип терапии как раз есть».
+ * То есть шапка показывает бренд ТОЙ ПОВЕРХНОСТИ, на которой человек стоит, ровно как это уже
+ * сделано на пациентском входе (`TherapyGoLoginShell` против брендированного `PatientAppShell`):
  *
- * Идентификатор организации в браузер не уходит: сравнение целиком здесь, наружу отдаётся только
- * готовая пара «логотип + имя приложения».
+ * 1. Общий пациентский вход — бренд здесь наш собственный, значит логотип платформенного
+ *    приложения. Именно сюда уводит редирект с чужого хоста, безымянным этот экран быть не должен.
+ * 2. Брендированный хост клиники — её логотип, и наш тут не появляется: бренд клиники их. Про
+ *    платформу человек всё равно узнаёт из соглашения в подвале (владелец 11.09: «нам же всё равно
+ *    надо показывать соглашение о пользовании, всё равно надо давать информацию про нашу
+ *    платформу»).
+ *
+ * Логотип клиники берётся ТОЛЬКО когда организация хоста совпала с организацией самого приглашения:
+ * continuation можно открыть на хосте ЧУЖОЙ клиники, и тогда приглашение одной клиники показалось
+ * бы под логотипом другой. Не совпало или приглашение неизвестно — шапки нет вовсе; имя клиники в
+ * карточке всё равно стоит, оно приходит с самим приглашением.
+ *
+ * Идентификатор организации в браузер не уходит: сравнение целиком здесь.
  */
 async function brandForInvite(inviteOrganizationId: string | null): Promise<JoinBrand> {
   const surface = await getOptionalResolvedSurface().catch(() => null);
   const brand = surface?.effectivePatientBrand;
-  // Имя приложения есть всегда — это и есть «логотип терапии». Без клиничного бренда (общий
-  // пациентский вход) остаётся имя платформенного приложения: экран не должен быть безымянным,
-  // именно на него уводит редирект с чужого хоста.
-  const patientAppName = brand?.patientAppName ?? PATIENT_DEFAULT_SURFACE.name;
-  if (!brand) return { patientAppName };
-  // Организация приглашения неизвестна (кука не совпала, ссылка протухла) — значит и утверждать,
-  // чьё это приглашение, нечем: остаётся имя приложения, то есть клиника без логотипа.
+  if (!brand) return { platformLockup: true };
   const sameClinic =
     inviteOrganizationId !== null && surface.organizationId === inviteOrganizationId;
-  return {
-    patientAppName,
-    ...(sameClinic && brand.logoUrl ? { clinicLogoUrl: brand.logoUrl } : {}),
-  };
+  return sameClinic && brand.logoUrl ? { clinicLogoUrl: brand.logoUrl } : {};
 }
 
 export default async function JoinContinuationPage({ params }: PageProps) {

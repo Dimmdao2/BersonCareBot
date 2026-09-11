@@ -1,7 +1,10 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
+import { LegalFooterLinks } from '@/shared/ui/patient/LegalFooterLinks';
+import { PATIENT_DEFAULT_SURFACE } from '@/config/productSurfaces';
 import { Button } from '@/shared/ui/patient/primitives/button';
 import { Input } from '@/shared/ui/patient/primitives/input';
 import type {
@@ -91,31 +94,39 @@ function terminalCopy(code: PatientInviteLifecycleCode | null): { title: string;
 }
 
 /**
- * Что показывать над приглашением. `patientAppName` — имя пациентского приложения этой поверхности
- * (TherapyGo или имя брендированной клиники), `clinicLogoUrl` появляется ТОЛЬКО когда страница уже
- * убедилась, что хост принадлежит той же клинике, что и приглашение (см. `page.tsx`).
+ * Что стоит над приглашением. Ровно один из двух: логотип платформенного приложения (общий
+ * пациентский вход) или логотип клиники (её брендированный хост, и только для ЕЁ приглашения).
+ * Решение принимает серверный компонент — см. `page.tsx`.
  */
-export type JoinBrand = { patientAppName?: string; clinicLogoUrl?: string };
+export type JoinBrand = { platformLockup?: boolean; clinicLogoUrl?: string };
 
 function JoinBrandHeader({ brand, clinicTitle }: { brand: JoinBrand; clinicTitle: string | null }) {
-  if (!brand.patientAppName && !brand.clinicLogoUrl) return null;
-  return (
-    <div className="flex flex-col items-center gap-2">
-      {brand.clinicLogoUrl ? (
-        // Логотип клиники приходит с медиа-хоста арендатора и меняется по её публикации:
-        // next/image потребовал бы заранее объявленного списка хостов.
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={brand.clinicLogoUrl}
-          alt={clinicTitle ?? ''}
-          className="h-14 w-auto max-w-[12rem] object-contain"
+  if (brand.platformLockup) {
+    return (
+      <div className="flex justify-center">
+        <Image
+          src="/brand/therapygo-lockup-horizontal.png"
+          alt={PATIENT_DEFAULT_SURFACE.name}
+          width={1086}
+          height={362}
+          sizes="220px"
+          className="h-auto w-[13.75rem] max-w-full"
+          priority
         />
-      ) : null}
-      {brand.patientAppName ? (
-        <span className="text-xs uppercase tracking-wide text-muted-foreground">
-          {brand.patientAppName}
-        </span>
-      ) : null}
+      </div>
+    );
+  }
+  if (!brand.clinicLogoUrl) return null;
+  return (
+    <div className="flex justify-center">
+      {/* Логотип клиники приходит с медиа-хоста арендатора и меняется по её публикации:
+          next/image потребовал бы заранее объявленного списка хостов. */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={brand.clinicLogoUrl}
+        alt={clinicTitle ?? ''}
+        className="h-14 w-auto max-w-[12rem] object-contain"
+      />
     </div>
   );
 }
@@ -140,10 +151,13 @@ export function JoinPatientClient({
     const copy = terminalCopy(failureCode);
     return (
       <main className="mx-auto flex min-h-screen w-full max-w-md items-center px-4 py-8">
-        <div className="flex w-full flex-col gap-3 rounded-xl border border-border bg-card p-5 text-center">
-          <JoinBrandHeader brand={brand} clinicTitle={null} />
-          <h1 className="text-lg font-semibold text-foreground">{copy.title}</h1>
-          <p className="mt-2 text-sm text-muted-foreground">{copy.detail}</p>
+        <div className="flex w-full flex-col gap-3">
+          <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-5 text-center">
+            <JoinBrandHeader brand={brand} clinicTitle={null} />
+            <h1 className="text-lg font-semibold text-foreground">{copy.title}</h1>
+            <p className="mt-2 text-sm text-muted-foreground">{copy.detail}</p>
+          </div>
+          <LegalFooterLinks />
         </div>
       </main>
     );
@@ -184,7 +198,7 @@ export function JoinPatientClient({
   }
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-md items-center px-4 py-8">
+    <main className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center gap-3 px-4 py-8">
       <div className="flex w-full flex-col gap-4 rounded-xl border border-border bg-card p-5">
         <JoinBrandHeader brand={brand} clinicTitle={preview.organizationTitle} />
         <div>
@@ -245,6 +259,10 @@ export function JoinPatientClient({
         )}
         {error ? <p className="text-sm text-[var(--patient-color-danger)]">{error}</p> : null}
       </div>
+      {/* Соглашение и политика обязаны быть на экране до входа: владелец 11.09 — «нам же всё равно
+          надо показывать соглашение о пользовании». На брендированном хосте это ещё и единственное
+          место, где названа платформа, — логотип там клиники. */}
+      <LegalFooterLinks />
     </main>
   );
 }

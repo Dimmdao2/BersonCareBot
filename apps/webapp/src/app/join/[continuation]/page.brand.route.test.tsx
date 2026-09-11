@@ -1,13 +1,16 @@
 /**
  * Чей логотип стоит над приглашением.
  *
- * Владелец 10.09: «он видит логотип терапии, логотип клиники». Бренд клиники приезжает в запрос от
- * ХОСТА, а приглашение принадлежит КОНКРЕТНОЙ клинике, и это не одно и то же: continuation можно
- * открыть на хосте чужой клиники. Без сверки человек увидел бы приглашение клиники A под логотипом
- * клиники B — ровно та подмена, ради которой брендированные хосты и заводились.
+ * Владелец 10.09: «он видит логотип терапии, логотип клиники»; 11.09 уточнил, чем случаи
+ * различаются: «нет логотипа клиники, потому что небрендированная. Логотип терапии как раз есть».
+ * Шапка показывает бренд ТОЙ ПОВЕРХНОСТИ, на которой человек стоит, — так же, как пациентский вход
+ * (`TherapyGoLoginShell` против брендированного `PatientAppShell`).
  *
- * ЧТО ЛОМАЕТСЯ БЕЗ ЭТОГО ФАЙЛА: чужой логотип над чужим приглашением; и обратная крайность — если
- * убрать бренд совсем, экран перестаёт быть узнаваемым, а владелец просил именно узнаваемость.
+ * ЧТО ЛОМАЕТСЯ БЕЗ ЭТОГО ФАЙЛА: (1) чужой логотип над чужим приглашением — continuation можно
+ * открыть на хосте другой клиники, и это ровно та подмена, ради которой брендированные хосты и
+ * заводились; (2) безымянный экран на общем пациентском входе, куда уводит редирект с чужого
+ * хоста; (3) исчезнувшее соглашение о пользовании — на брендированном хосте это единственное
+ * место, где вообще названа платформа.
  */
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -44,6 +47,7 @@ const CONTINUATION = 'c'.repeat(43);
 const INVITE_ORGANIZATION = '00000000-0000-4000-8000-0000000000a1';
 const OTHER_ORGANIZATION = '00000000-0000-4000-8000-0000000000a2';
 const CLINIC_LOGO = 'https://media.example.test/org-logo/berson.png';
+const PLATFORM_LOCKUP = 'therapygo-lockup-horizontal';
 
 function surfaceOf(organizationId: string) {
   return {
@@ -87,40 +91,40 @@ describe('экран приглашения — бренд', () => {
     });
   });
 
-  it('на хосте своей клиники показывает её логотип и имя приложения', async () => {
+  it('на хосте своей клиники показывает ЕЁ логотип, а не наш', async () => {
     fakes.resolvedSurface.mockResolvedValue(surfaceOf(INVITE_ORGANIZATION));
 
     const html = await render();
 
     expect(html).toContain(CLINIC_LOGO);
-    expect(html).toContain('TherapyGo');
+    expect(html).not.toContain(PLATFORM_LOCKUP);
     expect(html).toContain('Точка Здоровья');
   });
 
-  it('на хосте ЧУЖОЙ клиники логотип не показывается — имя клиники остаётся из приглашения', async () => {
+  it('на хосте ЧУЖОЙ клиники логотипа нет вовсе — имя клиники остаётся из приглашения', async () => {
     fakes.resolvedSurface.mockResolvedValue(surfaceOf(OTHER_ORGANIZATION));
 
     const html = await render();
 
     expect(html).not.toContain(CLINIC_LOGO);
+    expect(html).not.toContain(PLATFORM_LOCKUP);
     expect(html).toContain('Точка Здоровья');
   });
 
-  it('когда приглашение неизвестно, остаётся имя приложения — но не логотип клиники', async () => {
+  it('когда приглашение неизвестно, логотип клиники не ставится даже на её хосте', async () => {
     // Кука продолжения не совпала (ссылку открыли в другом браузере или она протухла). Чьё это
-    // приглашение, сказать нечем, поэтому логотип клиники хоста был бы утверждением на пустом
-    // месте; имя приложения — это «логотип терапии», он про нас, а не про клинику.
+    // приглашение, сказать нечем, поэтому логотип хоста был бы утверждением на пустом месте.
     fakes.readCookie.mockResolvedValue('d'.repeat(43));
     fakes.resolvedSurface.mockResolvedValue(surfaceOf(INVITE_ORGANIZATION));
 
     const html = await render();
 
     expect(html).not.toContain(CLINIC_LOGO);
-    expect(html).toContain('TherapyGo');
     expect(html).toContain('Ссылка недействительна');
+    expect(html).toContain('/legal/terms');
   });
 
-  it('на общем пациентском входе остаётся имя платформенного приложения', async () => {
+  it('на общем пациентском входе стоит логотип платформенного приложения', async () => {
     // Клиничного бренда тут нет по устройству поверхности, а безымянным экран быть не должен:
     // именно сюда уводит редирект с чужого хоста (`proxy.ts`).
     fakes.resolvedSurface.mockResolvedValue({
@@ -131,7 +135,17 @@ describe('экран приглашения — бренд', () => {
     const html = await render();
 
     expect(html).not.toContain(CLINIC_LOGO);
+    expect(html).toContain(PLATFORM_LOCKUP);
     expect(html).toContain(PATIENT_DEFAULT_SURFACE.name);
+  });
+
+  it('соглашение и политика стоят на экране до входа — на любой поверхности', async () => {
+    fakes.resolvedSurface.mockResolvedValue(surfaceOf(INVITE_ORGANIZATION));
+
+    const html = await render();
+
+    expect(html).toContain('/legal/terms');
+    expect(html).toContain('/legal/privacy');
   });
 
   it('без резолва поверхности экран остаётся рабочим, просто без клиничного бренда', async () => {
