@@ -43,4 +43,23 @@ export type JournalRetentionPort = {
     days: number,
     options?: JournalRetentionPurgeOptions,
   ): Promise<{ deleted: number }>;
+  /**
+   * COMPLETED transfer bookkeeping only. A terminal `aborted`/`expired`/`failed` session is the only
+   * holder of the S3 retry identity of an upload whose abort may not be confirmed yet — it dies by
+   * cascade with its `media_files` row, never by age. No file is deleted here.
+   */
+  pruneMediaUploadSessionsCompleted(
+    days: number,
+    options?: JournalRetentionPurgeOptions,
+  ): Promise<{ deleted: number }>;
+  /** RESOLVED isolation cases only — an unresolved case is never aged out, however old. */
+  pruneSaasIsolationEventsResolved(
+    days: number,
+    options?: JournalRetentionPurgeOptions,
+  ): Promise<{ deleted: number }>;
+  /** FINISHED coverage runs only — an unfinished run is an operator finding, not age-eligible waste. */
+  pruneSaasIsolationCoverageRuns(
+    days: number,
+    options?: JournalRetentionPurgeOptions,
+  ): Promise<{ deleted: number }>;
 };

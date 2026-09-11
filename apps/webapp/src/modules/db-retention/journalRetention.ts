@@ -22,24 +22,50 @@ export const NOTIFICATION_DELIVERY_ATTEMPTS_RETENTION_DAYS_DEFAULT = 180;
 export const MESSAGE_LOG_RETENTION_DAYS_DEFAULT = 90;
 
 /**
- * OWNER QUESTION `OQ-REMINDER-HISTORY-WINDOW` — no accepted data policy names a window for the
- * consolidated reminder occurrence history. evidence/16 "Правила хранения" predates the Track D
- * consolidation and does not list the table; the formal retention matrix (PR-03) is still an open
- * owner checkbox. The prune branch, the bounded batch, the named root, the declared surface and this
- * scheduler/health seam all exist — only the NUMBER is missing, and an agent-invented number would
- * silently delete patient adherence history. Until the owner answers, the target is registered and
- * reported as `skipped: 'owner_decision_pending'` instead of running with a made-up window. An
- * explicit `reminderOccurrenceHistoryRetentionDays` override (operator, one-off) still runs it.
+ * #1088. Окно истории напоминаний было открытым вопросом владельцу (`OQ-REMINDER-HISTORY-WINDOW`):
+ * механика, ветка, ограниченный батч и объявленная поверхность стояли готовыми, не было числа.
+ * Владелец 12.09 закрыл вопрос, не называя его сам: «История напоминаний, ну, посмотри, как это
+ * делают другие… ну, не знаю, но месяц, блядь, ну, сколько хранить?» и следом «Надо решить, блядь,
+ * сколько это хранят, просто. Нормальная, ребята, ну, как бы, взрослые систем, блядь, так и
+ * настроить, так и сделать».
+ *
+ * 90 дней — не новое правило, а уже принятый в этом файле класс: журнал, несущий то, что было
+ * ОТПРАВЛЕНО ЧЕЛОВЕКУ (`message_log`, `integrator.delivery_attempt_logs`,
+ * `public.support_delivery_events`). Строка занятия напоминания — ровно это: что и когда человеку
+ * показали. Верхняя граница названного владельцем диапазона («месяц… три»), не выше.
+ *
+ * Удаляются ТОЛЬКО терминальные занятия (`sent`/`failed`/`skipped`); `planned`/`queued` — незаконченная
+ * работа, её возраст не трогает.
  */
-export const REMINDER_OCCURRENCE_HISTORY_RETENTION_DAYS_OWNER_DECISION: number | null = null;
+export const REMINDER_OCCURRENCE_HISTORY_RETENTION_DAYS_DEFAULT = 90;
 
-export type JournalRetentionSkipReason = 'owner_decision_pending';
+/**
+ * #1088 (`OQ-TERMINAL-UPLOAD-SESSION-WINDOW`). Владелец 12.09, дословно: «Завершенные загрузки
+ * файлов, блядь, что значит сроки хранения? Мы уже решили, что файлы мы не удаляем… Не трогаем
+ * файлы… у нас же есть отметка о том, чей это файл, кто его загрузил… Ну, давай год хранить».
+ *
+ * Здесь не удаляется ни один файл: строка `media_upload_sessions` — бухгалтерия ПЕРЕДАЧИ
+ * (`s3_key` + `upload_id`), а отметка «кто загрузил» живёт в `media_files.uploaded_by` и не
+ * стареет никогда. Подметается только `completed`: у остальных терминальных состояний строка —
+ * единственный держатель личности незавершённой загрузки в S3, и она уходит каскадом со своей
+ * `media_files`, когда отмена подтверждена.
+ */
+export const MEDIA_UPLOAD_SESSIONS_COMPLETED_RETENTION_DAYS_DEFAULT = 365;
+
+/**
+ * #1088 (`OQ-SAAS-ISOLATION-EVENTS-WINDOW`). Телеметрия нарушения изоляции арендаторов — журнал
+ * БЕЗОПАСНОСТИ: общепринятый нижний порог для такого журнала — год (PCI DSS 10.7 требует года, из
+ * которого квартал должен быть немедленно доступен; того же года просят киберстраховщики).
+ *
+ * Возраст считается от `resolved_at`, и НЕРАЗОБРАННОЕ не удаляется никогда: строка здесь
+ * дедуплицирована по `fingerprint` и живёт как открытый случай, а не как сырое событие. Почасовая
+ * свёртка уходит каскадом. Тем же окном подметается журнал прогонов проверки покрытия.
+ */
+export const SAAS_ISOLATION_EVENTS_RETENTION_DAYS_DEFAULT = 365;
 
 export type JournalRetentionTargetResult = {
   target: string;
   deleted: number;
-  /** Present only when the target was deliberately not run; `deleted` is 0 in that case. */
-  skipped?: JournalRetentionSkipReason;
 };
 
 export type JournalRetentionRunResult = {
@@ -56,8 +82,9 @@ export type JournalRetentionOverrides = {
   outgoingDeliveryQueueDeadRetentionDays?: number;
   notificationDeliveryAttemptsRetentionDays?: number;
   messageLogRetentionDays?: number;
-  /** Only a caller-supplied number runs the reminder-history target — see the OWNER QUESTION above. */
   reminderOccurrenceHistoryRetentionDays?: number;
+  mediaUploadSessionsCompletedRetentionDays?: number;
+  saasIsolationEventsRetentionDays?: number;
 };
 
 function clampContextNonceLedgerGraceSec(graceSec: number): number {
@@ -106,14 +133,21 @@ export async function runDbJournalRetention(
   const messageLogDays = clampRetentionDays(
     overrides.messageLogRetentionDays ?? MESSAGE_LOG_RETENTION_DAYS_DEFAULT,
   );
-  const reminderHistoryDaysRaw =
+  const reminderHistoryDays = clampRetentionDays(
     overrides.reminderOccurrenceHistoryRetentionDays ??
-    REMINDER_OCCURRENCE_HISTORY_RETENTION_DAYS_OWNER_DECISION;
+      REMINDER_OCCURRENCE_HISTORY_RETENTION_DAYS_DEFAULT,
+  );
+  const uploadSessionDays = clampRetentionDays(
+    overrides.mediaUploadSessionsCompletedRetentionDays ??
+      MEDIA_UPLOAD_SESSIONS_COMPLETED_RETENTION_DAYS_DEFAULT,
+  );
+  const isolationDays = clampRetentionDays(
+    overrides.saasIsolationEventsRetentionDays ?? SAAS_ISOLATION_EVENTS_RETENTION_DAYS_DEFAULT,
+  );
 
   const steps: Array<{
     target: string;
     run: () => Promise<{ deleted: number }>;
-    skipped?: JournalRetentionSkipReason;
   }> = [
     {
       target: 'app.context_nonce_ledger',
@@ -143,29 +177,27 @@ export async function runDbJournalRetention(
       target: 'message_log',
       run: () => port.pruneMessageLog(messageLogDays, { dryRun }),
     },
-    reminderHistoryDaysRaw === null
-      ? {
-          target: 'reminder_occurrence_history_terminal',
-          skipped: 'owner_decision_pending' as const,
-          run: () => Promise.resolve({ deleted: 0 }),
-        }
-      : {
-          target: 'reminder_occurrence_history_terminal',
-          run: () =>
-            port.pruneReminderOccurrenceHistoryTerminal(
-              clampRetentionDays(reminderHistoryDaysRaw),
-              { dryRun },
-            ),
-        },
+    {
+      target: 'reminder_occurrence_history_terminal',
+      run: () => port.pruneReminderOccurrenceHistoryTerminal(reminderHistoryDays, { dryRun }),
+    },
+    {
+      target: 'media_upload_sessions_completed',
+      run: () => port.pruneMediaUploadSessionsCompleted(uploadSessionDays, { dryRun }),
+    },
+    {
+      target: 'saas_isolation_events_resolved',
+      run: () => port.pruneSaasIsolationEventsResolved(isolationDays, { dryRun }),
+    },
+    {
+      target: 'saas_isolation_coverage_runs',
+      run: () => port.pruneSaasIsolationCoverageRuns(isolationDays, { dryRun }),
+    },
   ];
 
   const results: JournalRetentionTargetResult[] = [];
   const errors: Array<{ target: string; error: unknown }> = [];
   for (const step of steps) {
-    if (step.skipped) {
-      results.push({ target: step.target, deleted: 0, skipped: step.skipped });
-      continue;
-    }
     try {
       const { deleted } = await step.run();
       results.push({ target: step.target, deleted });
