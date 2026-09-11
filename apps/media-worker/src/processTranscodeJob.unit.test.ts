@@ -1,11 +1,13 @@
-import { writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClaimedJob, ControlledMedia, MediaWorkerControlPort } from './control.js';
 import {
   deriveEligibleHlsRungs,
   HLS_RUNG_LADDER,
   parseFfmpegBitrateTokenBps,
+  probeFmp4VariantFrame,
   rungAudioBitrateBps,
   rungBitrateCeilingBps,
   rungVideoCeilingFromProbeBps,
@@ -121,11 +123,13 @@ describe('deriveEligibleHlsRungs', () => {
     }
   });
 
-  it('4:3 источник 640x480 берёт 480-ю ступень в родном размере, а не 854x640', () => {
+  it('4:3 источник 640x480 теряет больше 10% пикселей на 360-й ступени — получает верхнюю ступень кадром источника', () => {
     const rungs = deriveEligibleHlsRungs(640, 480);
 
-    expect(rungs.map((r) => r.label)).toEqual(['360p']);
-    expect([rungs.at(-1)!.width, rungs.at(-1)!.height]).toEqual([554, 414]);
+    // Ступень 360p как раньше (уменьшена до своего бюджета), плюс верхняя ступень — кадр источника.
+    expect(rungs.map((r) => r.label)).toEqual(['360p', '480p']);
+    expect([rungs[0]!.width, rungs[0]!.height]).toEqual([554, 414]);
+    expect([rungs.at(-1)!.width, rungs.at(-1)!.height]).toEqual([640, 480]);
   });
 
   it('портретный 360x480 не получает ни одной растянутой ступени', () => {
@@ -135,16 +139,107 @@ describe('deriveEligibleHlsRungs', () => {
     expect([rungs[0]!.width, rungs[0]!.height]).toEqual([360, 480]);
   });
 
-  it('почти квадратный 848x656 останавливается на 576-й ступени и уменьшает кадр', () => {
+  /**
+   * ORACLE: `VIDEO_DELIVERY_COST_AND_METERING_2026-09-11.md` требование 1, пример для проверки:
+   * «848×656 = 556 288 пикселей, между 480p (409 920 → 800k) и 576p (589 824 → 1400k), t = 0,813 →
+   * 1288 кбит/с» (owner, 11.09.2026). Метка — по короткой стороне: `656p`, не `576p`.
+   */
+  it('почти квадратный 848x656 получает верхнюю ступень кадром источника с интерполированным потолком', () => {
     const rungs = deriveEligibleHlsRungs(848, 656);
 
-    expect(rungs.map((r) => r.label)).toEqual(['360p', '480p']);
-    expect([rungs.at(-1)!.width, rungs.at(-1)!.height]).toEqual([726, 562]);
+    expect(rungs.map((r) => r.label)).toEqual(['360p', '480p', '656p']);
+    const top = rungs.at(-1)!;
+    expect([top.width, top.height]).toEqual([848, 656]);
+    // t = (556288 - 409920) / (589824 - 409920) = 0.813589... → 800000 + t*600000 = 1 288 154.
+    expect(Number(top.videoBitrate)).toBe(1_288_154);
   });
 
   it('на 16:9 и 9:16 бюджет даёт привычные 1280x720 и 720x1280', () => {
     expect(deriveEligibleHlsRungs(1920, 1080).at(-1)!.height).toBe(720);
     expect(deriveEligibleHlsRungs(1080, 1920).at(-1)!.width).toBe(720);
+  });
+});
+
+/**
+ * ORACLE: `VIDEO_DELIVERY_COST_AND_METERING_2026-09-11.md` требование 1 (owner, 11.09.2026):
+ * «верхняя ступень = кадр исходника, но не выше твоего потолка 720p по площади — согласен».
+ */
+describe('deriveEligibleHlsRungs — верхняя ступень кадром исходника', () => {
+  it('не добавляет ступень, когда исходник ровно на бюджете самой большой влезающей ступени', () => {
+    // 854x480 — ровно бюджет 480p (409 920 пикселей); 1.0x бюджета, ниже порога 1.05.
+    const rungs = deriveEligibleHlsRungs(854, 480);
+
+    expect(rungs.map((r) => r.label)).toEqual(['360p', '480p']);
+    expect(rungs.at(-1)!.width * rungs.at(-1)!.height).toBe(854 * 480);
+  });
+
+  it('не добавляет ступень чуть выше бюджета, пока запас меньше 1.05x (не появляется ступень-двойник)', () => {
+    // Короткая сторона 460 (не совпадает ни с одной меткой лестницы, чтобы не задеть отдельный тест
+    // на различку меток). 409920 * 1.04 округлённо — заведомо ниже порога 1.05.
+    const height = 460;
+    const width = Math.round((409_920 * 1.04) / height);
+    const rungs = deriveEligibleHlsRungs(width, height);
+
+    expect(rungs.map((r) => r.label)).toEqual(['360p', '480p']);
+  });
+
+  it('добавляет ступень строго выше порога 1.05x, кадром исходника, без апскейла', () => {
+    const height = 460;
+    const width = Math.round((409_920 * 1.06) / height);
+    const rungs = deriveEligibleHlsRungs(width, height);
+
+    expect(rungs.map((r) => r.label)).toEqual(['360p', '480p', `${height}p`]);
+    const top = rungs.at(-1)!;
+    // Ширина округляется до чётного пикселя (libx264), как везде — не апскейл, а округление вниз.
+    expect(top.width).toBeLessThanOrEqual(width);
+    expect(width - top.width).toBeLessThanOrEqual(1);
+    expect(top.height).toBe(height);
+  });
+
+  it('источник ровно на потолке 921 600 пикселей не получает лишней ступени — верх остаётся 720p', () => {
+    const rungs = deriveEligibleHlsRungs(1280, 720);
+
+    expect(rungs.map((r) => r.label)).toEqual(['360p', '480p', '576p', '720p']);
+  });
+
+  it('источник выше потолка 921 600 пикселей тоже не получает лишней ступени — верх остаётся 720p', () => {
+    // 2000x1200 = 2 400 000 пикселей, больше чем на 1.05x выше бюджета 720p, но потолок владельца не двигаем.
+    const rungs = deriveEligibleHlsRungs(2000, 1200);
+
+    expect(rungs.map((r) => r.label)).toEqual(['360p', '480p', '576p', '720p']);
+    expect(rungs.at(-1)!.width * rungs.at(-1)!.height).toBeLessThanOrEqual(921_600);
+  });
+
+  it('звук новой ступени тоже интерполирован по площади, не переписан вверх фиксированным планом', () => {
+    const rungs = deriveEligibleHlsRungs(848, 656);
+    const top = rungs.at(-1)!;
+    // t = 0.813589..., audio = 96000 + t*(128000-96000) = 122 035.
+    expect(Number(top.audioBitrate)).toBe(122_035);
+  });
+
+  it('bandwidth новой ступени держит тот же инвариант, что статическая лестница: [потолок+звук, 1.15×]', () => {
+    for (const [w, h] of [
+      [848, 656],
+      [464, 848],
+      [910, 642],
+    ] as const) {
+      const top = deriveEligibleHlsRungs(w, h).at(-1)!;
+      const peak = Number(top.videoBitrate) + Number(top.audioBitrate);
+      expect(top.bandwidth).toBeGreaterThanOrEqual(peak);
+      expect(top.bandwidth).toBeLessThanOrEqual(Math.round(peak * 1.15));
+    }
+  });
+
+  it('различает метку, когда короткая сторона источника совпадает с меткой уже влезающей ступени лестницы', () => {
+    // 1000x480: 480p (409 920) влезает как largest, а короткая сторона источника — тоже 480 —
+    // без различки обе ступени легли бы в один каталог `hls/480p`.
+    const rungs = deriveEligibleHlsRungs(1000, 480);
+
+    const labels = rungs.map((r) => r.label);
+    expect(labels.filter((l) => l === '480p')).toHaveLength(1);
+    expect(labels).toContain('480p-src');
+    const top = rungs.at(-1)!;
+    expect([top.width, top.height]).toEqual([1000, 480]);
   });
 });
 
@@ -276,14 +371,70 @@ function loadedMedia(overrides: Partial<ControlledMedia> = {}): ControlledMedia 
   };
 }
 
-/** Fake variant playlist with a fixed, known EXTINF total (12.0s) so duration is asserted exactly. */
+/**
+ * ORACLE: `VIDEO_DELIVERY_COST_AND_METERING_2026-09-11.md`, «⚠️ Капкан, проверь его первым» (owner,
+ * 11.09.2026). Изолированный, без ffmpeg/S3: реальные файлы на диске, мок только у
+ * `probeVideoDimensions`.
+ */
+describe('probeFmp4VariantFrame', () => {
+  let dir: string;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    dir = await mkdtemp(join(tmpdir(), 'mw-fmp4-probe-'));
+  });
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it('склеивает init-сегмент и первый фрагмент в один файл и пробует именно его', async () => {
+    await writeFile(join(dir, 'init.mp4'), Buffer.from('INIT-BYTES'));
+    await writeFile(join(dir, 'seg_000.m4s'), Buffer.from('FRAGMENT-BYTES'));
+    fakes.probeVideoDimensions.mockImplementation(async (_bin: string, path: string) => ({
+      width: 640,
+      height: 360,
+      bitrateBps: null,
+      videoBitrateBps: null,
+      audioBitrateBps: null,
+      __probedContent: (await readFile(path)).toString('utf8'),
+    }));
+
+    const result = (await probeFmp4VariantFrame(
+      '/usr/bin/ffmpeg',
+      dir,
+      'init.mp4',
+      'seg_000.m4s',
+    )) as unknown as { width: number; height: number; __probedContent: string };
+
+    expect(result.__probedContent).toBe('INIT-BYTESFRAGMENT-BYTES');
+    expect(result.width).toBe(640);
+    expect(result.height).toBe(360);
+  });
+
+  it('возвращает null, а не бросает, когда init-сегмент отсутствует на диске', async () => {
+    await writeFile(join(dir, 'seg_000.m4s'), Buffer.from('FRAGMENT-BYTES'));
+
+    const result = await probeFmp4VariantFrame('/usr/bin/ffmpeg', dir, 'init.mp4', 'seg_000.m4s');
+
+    expect(result).toBeNull();
+    expect(fakes.probeVideoDimensions).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * fMP4 fake variant playlist (Требование 2, `VIDEO_DELIVERY_COST_AND_METERING`): `#EXT-X-MAP` init
+ * segment + `.m4s` fragments, not `.ts`. Fixed, known EXTINF total (12.0s) so duration is asserted
+ * exactly.
+ */
 const FAKE_VARIANT_PLAYLIST = [
   '#EXTM3U',
-  '#EXT-X-VERSION:3',
+  '#EXT-X-VERSION:7',
+  '#EXT-X-MAP:URI="init.mp4"',
   '#EXTINF:6.000000,',
-  'seg_000.ts',
+  'seg_000.m4s',
   '#EXTINF:6.000000,',
-  'seg_001.ts',
+  'seg_001.m4s',
   '#EXT-X-ENDLIST',
   '',
 ].join('\n');
@@ -297,8 +448,13 @@ describe('processTranscodeJob — table-driven rung ladder end to end', () => {
     fakes.extractPosterWithFallback.mockImplementation(async (params: { outputJpg: string }) => {
       await writeFile(params.outputJpg, Buffer.from('jpeg'));
     });
+    // Real fMP4 layout in each variant dir: init segment + fragments alongside the playlist, so the
+    // капкан-fix (`probeFmp4VariantFrame`) has real files to read, same as ffmpeg would produce.
     fakes.runFfmpeg.mockImplementation(async (_bin: string, _args: string[], opts: { cwd: string }) => {
       await writeFile(join(opts.cwd, 'index.m3u8'), FAKE_VARIANT_PLAYLIST, 'utf8');
+      await writeFile(join(opts.cwd, 'init.mp4'), Buffer.from('fake-init'));
+      await writeFile(join(opts.cwd, 'seg_000.m4s'), Buffer.from('fake-fragment-0'));
+      await writeFile(join(opts.cwd, 'seg_001.m4s'), Buffer.from('fake-fragment-1'));
       return { code: 0, stderrTail: '' };
     });
   });
@@ -444,5 +600,90 @@ describe('processTranscodeJob — table-driven rung ladder end to end', () => {
 
     const values = doneHls.mock.calls[0]![2] as { sourceBitrateBps: number | null };
     expect(values.sourceBitrateBps).toBeNull();
+  });
+
+  /**
+   * ORACLE: `VIDEO_DELIVERY_COST_AND_METERING_2026-09-11.md` требование 2 (owner, 11.09.2026):
+   * «надо переходить» на fMP4 вместо MPEG-TS.
+   */
+  it('каждая ступень кодируется fMP4-сегментами, ни одна — MPEG-TS', async () => {
+    fakes.probeVideoDimensions.mockResolvedValue({
+      width: 1920,
+      height: 1080,
+      bitrateBps: null,
+      videoBitrateBps: null,
+      audioBitrateBps: null,
+    });
+    const { ctx } = contextFor();
+
+    await processTranscodeJob(ctx as never, JOB);
+
+    expect(fakes.runFfmpeg.mock.calls).toHaveLength(4);
+    for (const call of fakes.runFfmpeg.mock.calls) {
+      const args = call[1] as string[];
+      expect(args).toEqual(
+        expect.arrayContaining(['-hls_segment_type', 'fmp4', '-hls_fmp4_init_filename', 'init.mp4']),
+      );
+      const segArg = args[args.indexOf('-hls_segment_filename') + 1] as string;
+      expect(segArg.endsWith('.m4s')).toBe(true);
+      expect(segArg.endsWith('.ts')).toBe(false);
+    }
+  });
+
+  /**
+   * ORACLE: `VIDEO_DELIVERY_COST_AND_METERING_2026-09-11.md`, «⚠️ Капкан, проверь его первым»
+   * (owner, 11.09.2026): фрагмент `.m4s` без init-сегмента не декодируется — проба должна читать
+   * init+первый фрагмент ВМЕСТЕ, а не голый фрагмент, иначе в манифест уедут номинальные размеры.
+   */
+  it('измеряет кадр по init-сегменту + первому фрагменту вместе, а не по голому .m4s', async () => {
+    const probedContents: string[] = [];
+    fakes.probeVideoDimensions.mockImplementation(async (_bin: string, path: string) => {
+      if (path.endsWith('source.bin')) {
+        return { width: 1920, height: 1080, bitrateBps: null, videoBitrateBps: null, audioBitrateBps: null };
+      }
+      // Это и есть капкан: если бы код пробовал голый `seg_000.m4s`, здесь читалось бы содержимое
+      // одного фрагмента, а не склейки init+фрагмент.
+      probedContents.push((await readFile(path)).toString('utf8'));
+      return { width: 640, height: 360, bitrateBps: null, videoBitrateBps: null, audioBitrateBps: null };
+    });
+    const { ctx } = contextFor();
+
+    await processTranscodeJob(ctx as never, JOB);
+
+    expect(probedContents.length).toBeGreaterThan(0);
+    for (const content of probedContents) {
+      expect(content).toBe('fake-initfake-fragment-0');
+    }
+    // Измеренный (640x360), не номинальный ладдер-размер, уехал в мастер-плейлист.
+    const masterCall = fakes.putObjectWithRetry.mock.calls.find((call) =>
+      (call[2] as string).endsWith('master.m3u8'),
+    );
+    expect(masterCall).toBeDefined();
+    const masterBody = (masterCall![3] as Buffer).toString('utf8');
+    expect(masterBody).toContain('RESOLUTION=640x360');
+  });
+
+  /**
+   * ORACLE: `VIDEO_DELIVERY_COST_AND_METERING_2026-09-11.md` требование 3 (owner, 11.09.2026):
+   * «холодный бакет для исходников + отключить удаление исходника» — здесь только отключение.
+   */
+  it('исходный объект НЕ удаляется после успешного транскода', async () => {
+    fakes.probeVideoDimensions.mockResolvedValue({
+      width: 1920,
+      height: 1080,
+      bitrateBps: null,
+      videoBitrateBps: null,
+      audioBitrateBps: null,
+    });
+    const { ctx, doneHls } = contextFor();
+
+    await processTranscodeJob(ctx as never, JOB);
+
+    expect(doneHls).toHaveBeenCalledTimes(1);
+    // `client.send` в этом наряде раньше дёргал ровно один прямой S3-вызов — `DeleteObjectCommand`
+    // по исходнику; download/upload/head идут через отдельные мокнутые хелперы. Значит нуль вызовов
+    // `send` доказывает отсутствие удаления, а не просто «не нашли конкретную команду».
+    const librarySend = ctx.storageFor('library').client.send as ReturnType<typeof vi.fn>;
+    expect(librarySend).not.toHaveBeenCalled();
   });
 });
