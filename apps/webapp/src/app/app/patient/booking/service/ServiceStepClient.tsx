@@ -104,7 +104,13 @@ export function ServiceStepClient({
                 variant="ghost"
                 className={cn(
                   bookingChoiceRowClass,
-                  'min-h-0 flex-col items-stretch justify-start gap-1 py-3 text-left',
+                  // `h-auto` и `whitespace-normal` — не косметика, а починка обрезанной карточки:
+                  // базовый класс кнопки несёт ФИКСИРОВАННУЮ высоту `h-9` и `whitespace-nowrap`,
+                  // поэтому услуга с описанием или длинным названием не помещалась в 36 px, а
+                  // `overflow-hidden` секции выбора срезал остаток — владелец 11.09 видел это как
+                  // «маленький квадратик, в который услуги не влезают». Соседний шаг (выбор филиала)
+                  // строит ряды ссылкой `<Link>`, у которой этой высоты нет, — потому и выглядел цел.
+                  'h-auto flex-col items-stretch justify-start gap-1 py-3 text-left whitespace-normal',
                 )}
                 onClick={() =>
                   router.push(
