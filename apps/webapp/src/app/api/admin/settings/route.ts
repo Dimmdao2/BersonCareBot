@@ -162,6 +162,7 @@ const ADMIN_SCOPE_KEYS = [
   'booking_calendar_show_working_hours',
   'booking_min_notice_hours',
   'booking_availability_horizon_days',
+  'booking_prepayment_wait_minutes',
   'booking_payment_enabled',
   'booking_payment_providers',
   'saas_billing_payment_provider',
@@ -897,7 +898,9 @@ export async function PATCH(request: Request) {
       ? SERVER_RUNTIME_INTEGER_DEFINITIONS.booking_min_notice_hours
       : parsed.data.key === 'booking_availability_horizon_days'
         ? SERVER_RUNTIME_INTEGER_DEFINITIONS.booking_availability_horizon_days
-        : null;
+        : parsed.data.key === 'booking_prepayment_wait_minutes'
+          ? SERVER_RUNTIME_INTEGER_DEFINITIONS.booking_prepayment_wait_minutes
+          : null;
   if (bookingIntegerDefinition) {
     const inner = normalizedValue.value;
     const n =
