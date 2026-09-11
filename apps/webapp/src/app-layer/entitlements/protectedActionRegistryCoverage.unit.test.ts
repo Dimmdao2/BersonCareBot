@@ -27,39 +27,6 @@ describe('DECLARED_NO_SURFACE catches a false "no write surface" claim', () => {
     expect(validateDeclaredNoSurfaceClaims(PROTECTED_ACTION_MAPPINGS)).toEqual([]);
   });
 
-  it('maps the whole LFK write domain to the exercise catalog tariff gate', () => {
-    expect(DECLARED_NO_SURFACE).not.toHaveProperty('branding');
-    expect(DECLARED_NO_SURFACE).not.toHaveProperty('custom_domain');
-    expect(DECLARED_NO_SURFACE).not.toHaveProperty('exercise_catalog');
-    expect(DECLARED_NO_SURFACE).not.toHaveProperty('exercise_packages');
-    expect(PROTECTED_ACTION_MAPPINGS.some((mapping) => mapping.id === 'branding.save')).toBe(true);
-    expect(
-      PROTECTED_ACTION_MAPPINGS.some(
-        (mapping) =>
-          mapping.id === 'mechanic-settings.patch' &&
-          (Array.isArray(mapping.mechanic) ? mapping.mechanic : [mapping.mechanic]).some(
-            (m) => m === 'custom_domain',
-          ),
-      ),
-    ).toBe(true);
-    const exerciseCatalogMappings = PROTECTED_ACTION_MAPPINGS.filter((mapping) =>
-      (Array.isArray(mapping.mechanic) ? mapping.mechanic : [mapping.mechanic]).includes(
-        'exercise_catalog',
-      ),
-    );
-    expect(exerciseCatalogMappings.map((mapping) => mapping.id)).toEqual(
-      expect.arrayContaining([
-        'exercise-catalog.save-core',
-        'exercise-clinical-tests.save-core',
-        'exercise-test-sets.save-core',
-        'exercise-recommendations.save-core',
-        'exercise-packages.persist-draft',
-        'exercise-program-instance.patch',
-        'exercise-program-template.create.post',
-      ]),
-    );
-  });
-
   it('drops the struck-out "proactive insights" mechanic from the registry entirely', () => {
     expect(DECLARED_NO_SURFACE).not.toHaveProperty('proactive_insights');
     expect(

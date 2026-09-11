@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
+import type { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { createInMemoryOrgEntitlementsPort } from '@/infra/repos/inMemoryOrgEntitlements';
 import { createInMemorySystemSettingsPort } from '@/infra/repos/inMemorySystemSettings';
 import {
   DOCTOR_WORKSPACE_COMPOSITION_KEY,
@@ -7,9 +9,52 @@ import {
 } from '@/modules/system-settings/doctorWorkspaceComposition';
 import { createSystemSettingsService } from '@/modules/system-settings/service';
 import {
+  requirePatientWorkspaceModuleForApi,
+  resolveDoctorWorkspaceModules,
   resolveOrganizationWorkspaceModules,
   workspaceModuleForApiPath,
 } from './workspaceModuleAccess';
+
+const ORGANIZATION_A_ID = '11111111-1111-4111-8111-111111111111';
+const ORGANIZATION_B_ID = '22222222-2222-4222-8222-222222222222';
+const PATIENT_A_ID = '33333333-3333-4333-8333-333333333333';
+const PATIENT_B_ID = '44444444-4444-4444-8444-444444444444';
+
+function patientTariffGateDeps() {
+  const systemSettings = createSystemSettingsService(createInMemorySystemSettingsPort());
+  const orgEntitlements = createInMemoryOrgEntitlementsPort();
+  orgEntitlements.resolveMechanicAccess = async (organizationId, mechanic) => ({
+    mechanic,
+    state: organizationId === ORGANIZATION_A_ID ? 'disabled' : 'full_access',
+    policySource: 'system',
+    warning: null,
+  });
+  const patientOrganization = {
+    resolveActiveOrganizationForPatient: async (patientUserId: string) => ({
+      ok: true as const,
+      organizationId: patientUserId === PATIENT_A_ID ? ORGANIZATION_A_ID : ORGANIZATION_B_ID,
+    }),
+  } as unknown as NonNullable<
+    Parameters<typeof requirePatientWorkspaceModuleForApi>[0]['patientOrganization']
+  >;
+  const doctorClients = {
+    getClientChannelPolicy: async () => ({
+      portalAllowed: true,
+      directChatAllowed: true,
+      commentsAllowed: true,
+      mediaAllowed: true,
+    }),
+  } as unknown as Parameters<typeof requirePatientWorkspaceModuleForApi>[0]['doctorClients'];
+  return {
+    patientOrganization,
+    systemSettings,
+    doctorClients,
+    orgEntitlements,
+  } satisfies Pick<
+    ReturnType<typeof buildAppDeps>,
+    'patientOrganization' | 'systemSettings' | 'doctorClients' | 'orgEntitlements'
+  >;
+}
 
 describe('C3M-08 rehabilitation API closure', () => {
   it.each([
@@ -127,5 +172,45 @@ describe('C3M-08 rehabilitation API closure', () => {
       program_comments: true,
       program_media: true,
     });
+  });
+
+  it('refuses the patient rehabilitation API when the organization exercise catalog is disabled', async () => {
+    const gate = await requirePatientWorkspaceModuleForApi(
+      patientTariffGateDeps(),
+      PATIENT_A_ID,
+      'rehabilitation',
+    );
+
+    expect(gate.ok).toBe(false);
+    if (!gate.ok) expect(gate.response.status).toBe(403);
+  });
+
+  it('does not leak organization A exercise-catalog override into organization B', async () => {
+    const orgEntitlements = createInMemoryOrgEntitlementsPort();
+    orgEntitlements.resolveMechanicAccess = async (organizationId, mechanic) => ({
+      mechanic,
+      state:
+        mechanic === 'exercise_catalog' && organizationId === ORGANIZATION_A_ID
+          ? 'disabled'
+          : 'full_access',
+      policySource: 'system',
+      warning: null,
+    });
+    const deps = {
+      orgEntitlements,
+      systemSettings: createSystemSettingsService(createInMemorySystemSettingsPort()),
+    };
+    const workspace = (organizationId: string) =>
+      ({ organizationId, canAccessClinicalWorkspace: true }) as Parameters<
+        typeof resolveDoctorWorkspaceModules
+      >[1];
+
+    const organizationA = await resolveDoctorWorkspaceModules(deps, workspace(ORGANIZATION_A_ID));
+    const organizationB = await resolveDoctorWorkspaceModules(deps, workspace(ORGANIZATION_B_ID));
+
+    expect({
+      organizationA: organizationA.rehabilitation,
+      organizationB: organizationB.rehabilitation,
+    }).toEqual({ organizationA: false, organizationB: true });
   });
 });
