@@ -73,9 +73,11 @@ const alreadyProcessed: ProviderWebhookSettlement = {
   confirmedAppointmentIds: [],
 };
 
-function buildService(settlements: ProviderWebhookSettlement[]) {
+function buildService(
+  settlements: ProviderWebhookSettlement[],
+  onAppointmentPaymentConfirmed = vi.fn(async () => {}),
+) {
   const settleProviderWebhookEvent = vi.fn(async () => settlements.shift() ?? alreadyProcessed);
-  const onAppointmentPaymentConfirmed = vi.fn(async () => {});
   const onPackagePaymentCaptured = vi.fn(async () => {});
   const service = createPaymentsService({
     port: { settleProviderWebhookEvent } as unknown as PaymentsPort,
@@ -157,6 +159,26 @@ describe('booking payment provider webhook capture', () => {
     // ЮKassa delivered this notification three times against the live incident; the payer owes one
     // payment and one confirmation regardless of how many deliveries arrive.
     expect(onAppointmentPaymentConfirmed).toHaveBeenCalledTimes(1);
+  });
+
+  it('retries the payment-confirmed delivery when settlement committed but batch delivery failed', async () => {
+    const onAppointmentPaymentConfirmed = vi
+      .fn(async () => {})
+      .mockRejectedValueOnce(new Error('booking_event_delivery_failed'));
+    const { service } = buildService(
+      [multiSlotCaptured, alreadyProcessed],
+      onAppointmentPaymentConfirmed,
+    );
+
+    await expect(deliver(service)).rejects.toThrow('booking_event_delivery_failed');
+    await expect(deliver(service)).resolves.toEqual({ ok: true, duplicate: true });
+
+    expect(onAppointmentPaymentConfirmed).toHaveBeenCalledTimes(2);
+    expect(onAppointmentPaymentConfirmed).toHaveBeenLastCalledWith({
+      appointmentIds: multiSlotCaptured.confirmedAppointmentIds,
+      paymentId: PAYMENT_ID,
+      platformUserId: PATIENT_ID,
+    });
   });
 
   it('does not re-notify on a retry that still names the settled payment', async () => {

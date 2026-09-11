@@ -168,4 +168,94 @@ describe('S8: одна оплата подтверждает все записи
     expect(captured[1]!.payload.suppressPatientNotification).toBe(true);
     expect(captured[1]!.payload.doctorNotify).toBe(false);
   });
+
+  it('не отправляет неполный batch, если проекция одного оплаченного слота не подтвердилась', async () => {
+    const captured: Array<{ payload: Record<string, unknown> }> = [];
+    const first = { ...fakeRecord(), serviceTitleSnapshot: 'Первичный приём' };
+    const second = {
+      ...fakeRecord(),
+      id: 'booking-2',
+      canonicalAppointmentId: 'appt-2',
+      status: 'awaiting_payment' as const,
+      slotStart: '2027-03-11T09:00:00.000Z',
+      serviceTitleSnapshot: 'Повторный приём',
+    };
+    const records = new Map([
+      ['appt-1', first],
+      ['appt-2', second],
+    ]);
+    const handler = createAppointmentPaymentConfirmedHandler({
+      patientBookings: {
+        markConfirmedByCanonicalAppointment: vi.fn(
+          async (appointmentId) => records.get(appointmentId) ?? null,
+        ),
+        getByCanonicalAppointmentId: vi.fn(
+          async (appointmentId) => records.get(appointmentId) ?? null,
+        ),
+      },
+      bookingEngine: {
+        getAppointment: vi.fn(async () => ({ organizationId: 'org-1' }) as never),
+      },
+      loadNotificationSettings: vi.fn(async () => null as never),
+      bookingSync: {
+        emitBookingEvent: vi.fn(async (event) => {
+          captured.push(event as { payload: Record<string, unknown> });
+        }),
+      },
+    });
+
+    await handler({
+      appointmentIds: ['appt-1', 'appt-2'],
+      paymentId: 'pay-1',
+      platformUserId: 'user-1',
+    });
+
+    expect(captured).toHaveLength(2);
+  });
+
+  it('не начинает доставку, если метаданные второго слота загрузить не удалось', async () => {
+    const captured: Array<Record<string, unknown>> = [];
+    const first = fakeRecord();
+    const second = {
+      ...fakeRecord(),
+      id: 'booking-2',
+      canonicalAppointmentId: 'appt-2',
+      slotStart: '2027-03-11T09:00:00.000Z',
+    };
+    const records = new Map([
+      ['appt-1', first],
+      ['appt-2', second],
+    ]);
+    const handler = createAppointmentPaymentConfirmedHandler({
+      patientBookings: {
+        markConfirmedByCanonicalAppointment: vi.fn(
+          async (appointmentId) => records.get(appointmentId) ?? null,
+        ),
+        getByCanonicalAppointmentId: vi.fn(
+          async (appointmentId) => records.get(appointmentId) ?? null,
+        ),
+      },
+      bookingEngine: {
+        getAppointment: vi.fn(async (appointmentId) => {
+          if (appointmentId === 'appt-2') throw new Error('appointment_lookup_failed');
+          return { organizationId: 'org-1' } as never;
+        }),
+      },
+      loadNotificationSettings: vi.fn(async () => null as never),
+      bookingSync: {
+        emitBookingEvent: vi.fn(async (event) => {
+          captured.push(event as Record<string, unknown>);
+        }),
+      },
+    });
+
+    await expect(
+      handler({
+        appointmentIds: ['appt-1', 'appt-2'],
+        paymentId: 'pay-1',
+        platformUserId: 'user-1',
+      }),
+    ).rejects.toThrow('appointment_lookup_failed');
+    expect(captured).toEqual([]);
+  });
 });

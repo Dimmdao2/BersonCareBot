@@ -356,7 +356,13 @@ describe('payments tariff mechanic', () => {
           defaultProviderId: 'yookassa',
           fiscalVatCode: '1',
           providers: [
-            { id: 'yookassa', label: 'YooKassa', enabled: true, apiKey: 'api-key', shopId: 'shop-1' },
+            {
+              id: 'yookassa',
+              label: 'YooKassa',
+              enabled: true,
+              apiKey: 'api-key',
+              shopId: 'shop-1',
+            },
           ],
         }),
       },
@@ -456,5 +462,67 @@ describe('appointment-bound payment summary', () => {
 
     expect(summary?.payment?.amountMinor).toBe(10_000);
     expect(port.countAppointmentsByPaymentRef).toHaveBeenCalledWith('payment-shared', 'org-1');
+  });
+});
+
+describe('S8: direct capture batches a multi-slot chain', () => {
+  it('hands every confirmed appointment to the notification boundary once', async () => {
+    const succeededIntent = {
+      ...intent,
+      appointmentId: 'appointment-1',
+      status: 'succeeded',
+    };
+    const payment: PaymentRecord = {
+      id: 'payment-1',
+      organizationId: 'org-1',
+      paymentIntentId: intent.id,
+      appointmentId: 'appointment-1',
+      amountMinor: 10_000,
+      currency: 'RUB',
+      status: 'succeeded',
+      providerId: 'yookassa',
+      purpose: 'appointment_prepayment',
+    };
+    const appointments = [
+      { id: 'appointment-1', organizationId: 'org-1', chainId: 'chain-1', status: 'confirmed' },
+      { id: 'appointment-2', organizationId: 'org-1', chainId: 'chain-1', status: 'confirmed' },
+    ] as unknown as BeAppointment[];
+    const onAppointmentPaymentConfirmed = vi.fn(async () => {});
+    const payments = createPaymentsService({
+      port: {
+        lockIntentForCapture: vi.fn(async () => succeededIntent),
+        findPaymentByIntent: vi.fn(async () => payment),
+        hasCapturedHistoryEvent: vi.fn(async () => true),
+        setAppointmentPaymentRef: vi.fn(async () => undefined),
+      } as unknown as PaymentsPort,
+      config: {
+        getBookingPaymentSettings: async () => ({
+          enabled: true,
+          defaultProviderId: 'yookassa',
+          providers: [],
+        }),
+      },
+      captureUnitOfWork: {
+        run: async (_organizationId, fn) => fn(),
+        runSerializedPostCommit: async (_organizationId, _key, fn) => fn(),
+      },
+      bookingEngine: {
+        getAppointment: vi.fn(async () => appointments[0]!),
+        listAppointmentsByChainId: vi.fn(async () => appointments),
+        transitionAppointmentStatus: vi.fn(async ({ appointmentId }) => {
+          return appointments.find((appointment) => appointment.id === appointmentId)!;
+        }),
+      },
+      onAppointmentPaymentConfirmed,
+    });
+
+    await payments.captureIntentSuccess(intent.id, 'org-1');
+
+    expect(onAppointmentPaymentConfirmed).toHaveBeenCalledTimes(1);
+    expect(onAppointmentPaymentConfirmed).toHaveBeenCalledWith({
+      appointmentIds: ['appointment-1', 'appointment-2'],
+      paymentId: 'payment-1',
+      platformUserId: 'user-1',
+    });
   });
 });
