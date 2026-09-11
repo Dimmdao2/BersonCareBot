@@ -120,6 +120,36 @@ export function rungBitrateCeilingBps(
   return Math.min(planned, sourceBitrateBps);
 }
 
+/**
+ * Потолок ВИДЕО берётся от видеопотока, а не от контейнера. Контейнер несёт ещё звук и накладные:
+ * по замеру живой библиотеки владельца 11.09.2026 (151 ролик) он больше видеопотока в среднем на
+ * 110 кбит/с, а на слабом источнике это разница в разы — аудит `vid-encoding-audit-01` показал
+ * источник, где контейнер 70 675 бит/с при видеопотоке 31 864. Контейнер остаётся резервом: он
+ * всё-таки ближе к правде, чем плановый потолок ступени.
+ */
+export function rungVideoCeilingFromProbeBps(
+  rungVideoBitrate: string,
+  probe: { videoBitrateBps: number | null; bitrateBps: number | null },
+): number {
+  const source = probe.videoBitrateBps ?? probe.bitrateBps;
+  return rungBitrateCeilingBps(rungVideoBitrate, source);
+}
+
+/**
+ * Звук НИКОГДА не переписывается вверх. План ступени (64/96/128k) — тоже потолок, а не цель: в
+ * библиотеке владельца медиана звука 105 кбит/с и 139 роликов из 148 тише 128k, то есть на двух
+ * верхних ступенях мы систематически раздували дорожку и съедали часть экономии по видео.
+ * Источник без звука или без сообщённого битрейта ведёт себя как раньше — план не трогаем.
+ */
+export function rungAudioBitrateBps(
+  rungAudioBitrate: string,
+  sourceAudioBitrateBps: number | null,
+): number {
+  const planned = parseFfmpegBitrateTokenBps(rungAudioBitrate);
+  if (sourceAudioBitrateBps == null || sourceAudioBitrateBps <= 0) return planned;
+  return Math.min(planned, sourceAudioBitrateBps);
+}
+
 /** libx264 requires even dimensions; round a native source size down to the nearest even pixel. */
 function evenFloor(n: number): number {
   const v = Math.floor(n);
@@ -453,8 +483,8 @@ async function processTranscodeJobInner(outer: TranscodeContext, job: ClaimedJob
           outputM3u8: 'index.m3u8',
           segmentFilename: 'seg_%03d.ts',
           videoFilter,
-          videoBitrateCeilingBps: rungBitrateCeilingBps(rung.videoBitrate, sourceBitrateBps),
-          audioBitrate: rung.audioBitrate,
+          videoBitrateCeilingBps: rungVideoCeilingFromProbeBps(rung.videoBitrate, sourceProbe),
+          audioBitrateBps: rungAudioBitrateBps(rung.audioBitrate, sourceProbe.audioBitrateBps),
         }),
         {
           cwd: rungDir,

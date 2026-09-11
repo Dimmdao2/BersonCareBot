@@ -3,13 +3,25 @@ import { ffprobePathFromFfmpeg, runProbe } from './runProbe.js';
 export type VideoDimensions = { width: number; height: number };
 
 /**
- * Dimensions plus best-effort overall source bitrate. `bitrateBps` is the whole-container bitrate
- * (ffprobe `format.bit_rate` — includes audio and container overhead, not a pure video-stream figure)
- * because that is what both ffprobe and the `ffmpeg -i` banner reliably report across containers; the
- * video-only stream `bit_rate` is frequently absent for `.mov`/`.mp4` sources (most of the library —
- * see `VIDEO_DELIVERY_COST_AND_METERING`). `null` when the container doesn't report it — never invented.
+ * Dimensions plus best-effort source bitrates. Three separate facts, because a rung's ceiling and a
+ * rung's audio are two different decisions:
+ *
+ * - `bitrateBps` — whole container (`format.bit_rate`): what gets stored as «битрейт исходника».
+ * - `videoBitrateBps` — the video stream alone: the only honest ceiling for `-maxrate`. Замер живой
+ *   библиотеки владельца 11.09.2026 (151 ролик, ffprobe по каждому): битрейт видеопотока отдают 148
+ *   из 151, а контейнер больше видеопотока в среднем на 110 кбит/с — то есть контейнерное число
+ *   завышало бы потолок ровно на звук и накладные.
+ * - `audioBitrateBps` — the source audio stream: без него звук переписывается ВВЕРХ. В той же
+ *   библиотеке медиана звука 105 кбит/с, и 139 роликов из 148 тише плановых 128k двух верхних
+ *   ступеней — то есть «экономия» на видео частично съедалась раздутым звуком.
+ *
+ * `null` в любом поле значит «источник не сообщил» — число не выдумываем, поведение не меняем.
  */
-export type VideoSourceProbe = VideoDimensions & { bitrateBps: number | null };
+export type VideoSourceProbe = VideoDimensions & {
+  bitrateBps: number | null;
+  videoBitrateBps: number | null;
+  audioBitrateBps: number | null;
+};
 
 function parsePositiveDimensions(rawWidth: unknown, rawHeight: unknown): VideoDimensions | null {
   const width = Number(rawWidth);
@@ -25,10 +37,11 @@ function parsePositiveBitrateBps(raw: unknown): number | null {
 }
 
 /**
- * Pure parse of ffprobe's combined JSON output — one call asking for `stream=width,height` (video
- * stream) AND `format=bit_rate` (whole-file bitrate) at once, e.g.:
- * `{"streams":[{"width":1920,"height":1080}],"format":{"bit_rate":"10739200"}}`.
- * One call, one parse, both facts — no second pass over the file for the bitrate.
+ * Pure parse of ffprobe's combined JSON output — ОДИН вызов на все факты:
+ * `{"streams":[{"codec_type":"video","width":1920,"height":1080,"bit_rate":"10600000"},
+ *   {"codec_type":"audio","bit_rate":"64860"}],"format":{"bit_rate":"10739200"}}`.
+ * Первый видеопоток даёт кадр и потолок, первый звуковой — потолок звука, контейнер — то, что
+ * хранится в БД. Второго прохода по файлу нет.
  */
 export function parseFfprobeSourceProbeJson(raw: string): VideoSourceProbe | null {
   let data: unknown;
@@ -39,20 +52,35 @@ export function parseFfprobeSourceProbeJson(raw: string): VideoSourceProbe | nul
   }
   if (typeof data !== 'object' || data === null) return null;
   const streams = (data as { streams?: unknown }).streams;
-  const stream = Array.isArray(streams) ? (streams[0] as Record<string, unknown> | undefined) : undefined;
-  if (!stream) return null;
-  const dims = parsePositiveDimensions(stream.width, stream.height);
+  const list: Record<string, unknown>[] = Array.isArray(streams)
+    ? (streams.filter((s) => typeof s === 'object' && s !== null) as Record<string, unknown>[])
+    : [];
+  // Видеопоток узнаём по `codec_type`, а при его отсутствии в выводе — по наличию размеров кадра:
+  // прежний вызов ограничивался `-select_streams v:0` и отдавал поток без `codec_type`.
+  const video =
+    list.find((s) => s.codec_type === 'video') ??
+    list.find((s) => s.width !== undefined && s.height !== undefined);
+  if (!video) return null;
+  const dims = parsePositiveDimensions(video.width, video.height);
   if (!dims) return null;
+  const audio = list.find((s) => s.codec_type === 'audio');
   const format = (data as { format?: unknown }).format;
-  const bitRate =
+  const containerBitRate =
     typeof format === 'object' && format !== null
       ? (format as Record<string, unknown>).bit_rate
       : undefined;
-  return { ...dims, bitrateBps: parsePositiveBitrateBps(bitRate) };
+  return {
+    ...dims,
+    bitrateBps: parsePositiveBitrateBps(containerBitRate),
+    videoBitrateBps: parsePositiveBitrateBps(video.bit_rate),
+    audioBitrateBps: audio ? parsePositiveBitrateBps(audio.bit_rate) : null,
+  };
 }
 
 const FFMPEG_STDERR_DIMENSIONS_RE = /Video:.*?[, ](\d{2,5})x(\d{2,5})(?:[, ]|$)/;
 const FFMPEG_STDERR_BITRATE_RE = /bitrate:\s*(\d+(?:\.\d+)?)\s*kb\/s/i;
+const FFMPEG_STDERR_VIDEO_BITRATE_RE = /Video:[^\n]*?,\s*(\d+(?:\.\d+)?)\s*kb\/s/i;
+const FFMPEG_STDERR_AUDIO_BITRATE_RE = /Audio:[^\n]*?,\s*(\d+(?:\.\d+)?)\s*kb\/s/i;
 
 /**
  * Pure parse of the `ffmpeg -i` stderr banner fallback — resolution off the `Stream … Video:` line,
@@ -64,11 +92,16 @@ export function parseFfmpegStderrSourceProbe(stderr: string): VideoSourceProbe |
   if (!dimsMatch) return null;
   const dims = parsePositiveDimensions(dimsMatch[1], dimsMatch[2]);
   if (!dims) return null;
-  const bitrateMatch = FFMPEG_STDERR_BITRATE_RE.exec(stderr);
-  const bitrateBps = bitrateMatch
-    ? parsePositiveBitrateBps(Number.parseFloat(bitrateMatch[1]!) * 1000)
-    : null;
-  return { ...dims, bitrateBps };
+  const kbps = (re: RegExp): number | null => {
+    const m = re.exec(stderr);
+    return m ? parsePositiveBitrateBps(Number.parseFloat(m[1]!) * 1000) : null;
+  };
+  return {
+    ...dims,
+    bitrateBps: kbps(FFMPEG_STDERR_BITRATE_RE),
+    videoBitrateBps: kbps(FFMPEG_STDERR_VIDEO_BITRATE_RE),
+    audioBitrateBps: kbps(FFMPEG_STDERR_AUDIO_BITRATE_RE),
+  };
 }
 
 /**
@@ -90,10 +123,8 @@ export async function probeVideoDimensions(
       [
         '-v',
         'error',
-        '-select_streams',
-        'v:0',
         '-show_entries',
-        'stream=width,height:format=bit_rate',
+        'stream=codec_type,width,height,bit_rate:format=bit_rate',
         '-of',
         'json',
         inputPath,

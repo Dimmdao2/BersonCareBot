@@ -15,7 +15,7 @@ describe('buildHlsSingleVariantArgs', () => {
       segmentFilename: 'seg_%03d.ts',
       videoFilter: 'scale=640:-2',
       videoBitrateCeilingBps: 730_000,
-      audioBitrate: '64k',
+      audioBitrateBps: 64_000,
     });
 
     expect(args).not.toContain('-b:v');
@@ -31,7 +31,7 @@ describe('buildHlsSingleVariantArgs', () => {
       segmentFilename: 'seg_%03d.ts',
       videoFilter: 'scale=1280:-2',
       videoBitrateCeilingBps: 2_500_000,
-      audioBitrate: '128k',
+      audioBitrateBps: 128_000,
     });
 
     const maxrateIdx = args.indexOf('-maxrate');
@@ -46,10 +46,10 @@ describe('buildHlsSingleVariantArgs', () => {
       segmentFilename: 'seg_%03d.ts',
       videoFilter: 'scale=640:-2',
       videoBitrateCeilingBps: 400_000,
-      audioBitrate: '96k',
+      audioBitrateBps: 96_000,
     });
 
-    expect(args).toEqual(expect.arrayContaining(['-c:a', 'aac', '-b:a', '96k']));
+    expect(args).toEqual(expect.arrayContaining(['-c:a', 'aac', '-b:a', '96000']));
     expect(args).toEqual(expect.arrayContaining(['-hls_playlist_type', 'vod']));
   });
 });

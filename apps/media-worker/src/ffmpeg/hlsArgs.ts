@@ -14,7 +14,8 @@ export function buildHlsSingleVariantArgs(params: {
   videoFilter: string;
   /** Ceiling in bits/sec — becomes `-maxrate`; `-bufsize` is 2× this. Never the CRF target itself. */
   videoBitrateCeilingBps: number;
-  audioBitrate: string;
+  /** Audio rate in bits/sec — already capped at the source's own audio rate by the caller. */
+  audioBitrateBps: number;
 }): string[] {
   return [
     '-y',
@@ -35,7 +36,7 @@ export function buildHlsSingleVariantArgs(params: {
     '-c:a',
     'aac',
     '-b:a',
-    params.audioBitrate,
+    String(params.audioBitrateBps),
     '-f',
     'hls',
     '-hls_time',

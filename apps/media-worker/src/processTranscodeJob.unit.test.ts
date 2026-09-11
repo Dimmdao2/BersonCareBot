@@ -6,7 +6,9 @@ import {
   deriveEligibleHlsRungs,
   HLS_RUNG_LADDER,
   parseFfmpegBitrateTokenBps,
+  rungAudioBitrateBps,
   rungBitrateCeilingBps,
+  rungVideoCeilingFromProbeBps,
 } from './processTranscodeJob.js';
 import type { StorageBinding } from './s3.js';
 
@@ -164,6 +166,31 @@ describe('rungBitrateCeilingBps', () => {
 
   it('the ceiling is NOT raised above the rung\'s plan when the source is higher', () => {
     expect(rungBitrateCeilingBps('800k', 10_000_000)).toBe(800_000);
+  });
+
+  it('потолок берётся от ВИДЕОПОТОКА, а не от контейнера: контейнер несёт ещё звук', () => {
+    // Аудит vid-encoding-audit-01 привёл живой источник: контейнер 70 675 бит/с при видеопотоке
+    // 31 864. Потолок по контейнеру разрешал ступени вдвое тяжелее самого видео исходника.
+    expect(
+      rungVideoCeilingFromProbeBps('730k', { videoBitrateBps: 31_864, bitrateBps: 70_675 }),
+    ).toBe(31_864);
+  });
+
+  it('контейнер остаётся резервом, когда видеопоток свой битрейт не сообщил', () => {
+    expect(
+      rungVideoCeilingFromProbeBps('730k', { videoBitrateBps: null, bitrateBps: 400_000 }),
+    ).toBe(400_000);
+    expect(rungVideoCeilingFromProbeBps('730k', { videoBitrateBps: null, bitrateBps: null })).toBe(
+      730_000,
+    );
+  });
+
+  it('звук НИКОГДА не переписывается вверх: план ступени — тоже потолок', () => {
+    // В библиотеке владельца медиана звука 105 кбит/с, 139 роликов из 148 тише плановых 128k
+    // двух верхних ступеней — переписывание вверх съедало часть экономии по видео.
+    expect(rungAudioBitrateBps('128k', 64_860)).toBe(64_860);
+    expect(rungAudioBitrateBps('64k', 128_000)).toBe(64_000);
+    expect(rungAudioBitrateBps('128k', null)).toBe(128_000);
   });
 
   it('every rung advertises a BANDWIDTH at or above its own video ceiling PLUS its audio', () => {
@@ -347,9 +374,16 @@ describe('processTranscodeJob — table-driven rung ladder end to end', () => {
   });
 
   it('a low-bitrate source caps every rung\'s -maxrate at the source bitrate, and reports it via doneHls', async () => {
-    // 1080p source, but a measured 300 kbps container bitrate — well under even the 360p ceiling
-    // (730k): no produced rung should be encoded with a -maxrate above the source's own bitrate.
-    fakes.probeVideoDimensions.mockResolvedValue({ width: 1920, height: 1080, bitrateBps: 300_000 });
+    // 1080p source, but a measured 280 kbps VIDEO stream inside a 300 kbps container — well under
+    // even the 360p ceiling (730k): no produced rung may be encoded above the source's own VIDEO
+    // bitrate, and the container number (which also carries audio) must not raise that ceiling.
+    fakes.probeVideoDimensions.mockResolvedValue({
+      width: 1920,
+      height: 1080,
+      bitrateBps: 300_000,
+      videoBitrateBps: 280_000,
+      audioBitrateBps: 20_000,
+    });
     const { ctx, doneHls } = contextFor();
 
     await processTranscodeJob(ctx as never, JOB);
@@ -358,12 +392,35 @@ describe('processTranscodeJob — table-driven rung ladder end to end', () => {
       const args = call[1] as string[];
       const maxrateIdx = args.indexOf('-maxrate');
       expect(maxrateIdx).toBeGreaterThanOrEqual(0);
-      expect(Number(args[maxrateIdx + 1])).toBe(300_000);
+      expect(Number(args[maxrateIdx + 1])).toBe(280_000);
       expect(args).not.toContain('-b:v');
+      // Звук тоже не выше источника: иначе на слабом ролике дорожка съедала бы больше самого видео.
+      expect(Number(args[args.indexOf('-b:a') + 1])).toBe(20_000);
     }
 
+    // В БД уезжает битрейт ФАЙЛА (контейнер) — то, что владелец видит как «битрейт исходника».
     const values = doneHls.mock.calls[0]![2] as { sourceBitrateBps: number | null };
     expect(values.sourceBitrateBps).toBe(300_000);
+  });
+
+  it('тихий звук не переписывается вверх ни на одной ступени, даже когда видео потолок не урезан', async () => {
+    fakes.probeVideoDimensions.mockResolvedValue({
+      width: 1920,
+      height: 1080,
+      bitrateBps: 10_739_200,
+      videoBitrateBps: 10_600_000,
+      audioBitrateBps: 64_860,
+    });
+    const { ctx } = contextFor();
+
+    await processTranscodeJob(ctx as never, JOB);
+
+    const audioRates = fakes.runFfmpeg.mock.calls.map((call) => {
+      const args = call[1] as string[];
+      return Number(args[args.indexOf('-b:a') + 1]);
+    });
+    // Планы ступеней 64/96/128/128k, звук источника 64 860 — вверх не идём нигде.
+    expect(audioRates).toEqual([64_000, 64_860, 64_860, 64_860]);
   });
 
   it('an unmeasured source bitrate leaves each rung at its planned ceiling, not capped', async () => {
