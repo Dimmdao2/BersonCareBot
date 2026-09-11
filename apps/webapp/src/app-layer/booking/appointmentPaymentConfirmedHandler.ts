@@ -10,6 +10,7 @@ import { buildDoctorPaymentCapturedMessageText } from '@/modules/patient-booking
 import { resolveBookingCalendarSyncFields } from '@/modules/patient-booking/bookingCalendarSyncFields';
 import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
 import type { PatientBookingRecord } from '@/modules/patient-booking/types';
+import { bookingServiceTitleForMessage } from '@/modules/patient-booking/bookingCategoryLabels';
 
 type AppointmentPaymentConfirmedInput = {
   appointmentIds: readonly string[];
@@ -64,7 +65,10 @@ export function createAppointmentPaymentConfirmedHandler(deps: {
       .sort((left, right) => Date.parse(left.row.slotStart) - Date.parse(right.row.slotStart))
       .map(({ row }) => ({
         slotStart: row.slotStart,
-        serviceTitle: row.serviceTitleSnapshot ?? row.category,
+        // F3 независимого аудита: здесь стоял `?? row.category`, и в письмо уезжал внутренний
+        // ключ — пациент читал «rehab_lfk» вместо «Реабилитация (ЛФК)». У онлайн-записи снимка
+        // услуги нет по построению (`canonicalCreate.ts` кладёт null), так что это не редкий край.
+        serviceTitle: bookingServiceTitleForMessage(row),
       }));
     const patientMessageText = buildPatientPaymentCapturedMessageText(
       { appointments: messageAppointments },

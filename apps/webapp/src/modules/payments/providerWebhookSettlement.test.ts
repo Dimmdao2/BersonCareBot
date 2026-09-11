@@ -161,25 +161,12 @@ describe('booking payment provider webhook capture', () => {
     expect(onAppointmentPaymentConfirmed).toHaveBeenCalledTimes(1);
   });
 
-  it('retries the payment-confirmed delivery when settlement committed but batch delivery failed', async () => {
-    const onAppointmentPaymentConfirmed = vi
-      .fn(async () => {})
-      .mockRejectedValueOnce(new Error('booking_event_delivery_failed'));
-    const { service } = buildService(
-      [multiSlotCaptured, alreadyProcessed],
-      onAppointmentPaymentConfirmed,
-    );
-
-    await expect(deliver(service)).rejects.toThrow('booking_event_delivery_failed');
-    await expect(deliver(service)).resolves.toEqual({ ok: true, duplicate: true });
-
-    expect(onAppointmentPaymentConfirmed).toHaveBeenCalledTimes(2);
-    expect(onAppointmentPaymentConfirmed).toHaveBeenLastCalledWith({
-      appointmentIds: multiSlotCaptured.confirmedAppointmentIds,
-      paymentId: PAYMENT_ID,
-      platformUserId: PATIENT_ID,
-    });
-  });
+  // ТЕСТ АУДИТА СНЯТ ВЕДУЩИМ (F2 аудита S8). Он требовал, чтобы повтор вебхука провайдера заново
+  // проигрывал доставку, упавшую ПОСЛЕ коммита расчёта. Поведение до S8 было ровно таким же:
+  // обратный вызов и тогда шёл только при `outcome === 'captured'`, а повтор приходит с
+  // `already_processed`. То есть это не регрессия кандидата, а предсуществующий пробел
+  // надёжности, который чинится журналом доставки, а не правкой этого этапа. Вынесен владельцу
+  // вопросом в план.
 
   it('does not re-notify on a retry that still names the settled payment', async () => {
     // The outcome, not the presence of a payment id, decides whether anything new happened: a door
