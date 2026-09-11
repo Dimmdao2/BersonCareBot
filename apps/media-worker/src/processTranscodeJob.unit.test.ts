@@ -15,7 +15,7 @@ describe('deriveEligibleHlsRungs', () => {
     const rungs = deriveEligibleHlsRungs(854, 480);
 
     expect(rungs.map((r) => r.label)).toEqual(['360p', '480p']);
-    expect(rungs.some((r) => r.height > 480)).toBe(false);
+    expect(rungs.some((r) => r.width * r.height > 854 * 480)).toBe(false);
   });
 
   it('a 1080p source gets the full 450/900/1600/2800 ladder', () => {
@@ -92,11 +92,34 @@ describe('deriveEligibleHlsRungs', () => {
     expect([top.width, top.height]).toEqual([720, 1280]);
   });
 
+  it('сверхширокий 2560x1080 попадает в бюджет пикселей, а не раздувает кадр', () => {
+    const top = deriveEligibleHlsRungs(2560, 1080).at(-1)!;
+
+    expect(top.label).toBe('720p');
+    // По короткой стороне вышло бы 1707x720 = 1,23 млн пикселей при бюджете 921 600.
+    expect(top.width * top.height).toBeLessThanOrEqual(921_600);
+    expect(Math.abs(top.width / top.height - 2560 / 1080)).toBeLessThan(0.02);
+  });
+
+  it('каждая ступень укладывается в свой бюджет пикселей на любой пропорции', () => {
+    for (const [w, h] of [
+      [1080, 1920],
+      [2560, 1080],
+      [848, 656],
+      [720, 960],
+      [1920, 1080],
+    ] as const) {
+      for (const rung of deriveEligibleHlsRungs(w, h)) {
+        expect(rung.width * rung.height).toBeLessThanOrEqual(rung.pixelBudget);
+      }
+    }
+  });
+
   it('4:3 источник 640x480 берёт 480-ю ступень в родном размере, а не 854x640', () => {
     const rungs = deriveEligibleHlsRungs(640, 480);
 
-    expect(rungs.map((r) => r.label)).toEqual(['360p', '480p']);
-    expect([rungs.at(-1)!.width, rungs.at(-1)!.height]).toEqual([640, 480]);
+    expect(rungs.map((r) => r.label)).toEqual(['360p']);
+    expect([rungs.at(-1)!.width, rungs.at(-1)!.height]).toEqual([554, 414]);
   });
 
   it('портретный 360x480 не получает ни одной растянутой ступени', () => {
@@ -109,11 +132,11 @@ describe('deriveEligibleHlsRungs', () => {
   it('почти квадратный 848x656 останавливается на 576-й ступени и уменьшает кадр', () => {
     const rungs = deriveEligibleHlsRungs(848, 656);
 
-    expect(rungs.map((r) => r.label)).toEqual(['360p', '480p', '576p']);
-    expect([rungs.at(-1)!.width, rungs.at(-1)!.height]).toEqual([744, 576]);
+    expect(rungs.map((r) => r.label)).toEqual(['360p', '480p']);
+    expect([rungs.at(-1)!.width, rungs.at(-1)!.height]).toEqual([726, 562]);
   });
 
-  it('короткая сторона ступени достигается точно, когда источник её превышает', () => {
+  it('на 16:9 и 9:16 бюджет даёт привычные 1280x720 и 720x1280', () => {
     expect(deriveEligibleHlsRungs(1920, 1080).at(-1)!.height).toBe(720);
     expect(deriveEligibleHlsRungs(1080, 1920).at(-1)!.width).toBe(720);
   });
