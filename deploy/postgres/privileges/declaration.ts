@@ -28141,9 +28141,12 @@ const REV10_CONTEXT = {
           operations: ['SELECT' as const, 'UPDATE' as const],
           operationColumns: { UPDATE: ['status', 'payment_deadline_at', 'updated_at'] },
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        // `organization_id` читается, но НЕ пишется: он стоит в WHERE как стена арендатора
+        // (F1 независимого аудита — без него тик одной организации менял чужую проекцию).
+        // Запись по-прежнему ровно в четыре колонки.
         { relation: 'public.patient_bookings',
-          columns: ['canonical_appointment_id', 'status', 'cancelled_at', 'cancel_reason',
-            'updated_at'],
+          columns: ['canonical_appointment_id', 'organization_id', 'status', 'cancelled_at',
+            'cancel_reason', 'updated_at'],
           operations: ['SELECT' as const, 'UPDATE' as const],
           operationColumns: { UPDATE: ['status', 'cancelled_at', 'cancel_reason', 'updated_at'] },
           evidence: 'pg16-function-body-lexical-upper-bound' as const },

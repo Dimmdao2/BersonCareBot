@@ -1,7 +1,7 @@
 -- BCB-MIGRATION-OWNER: app_seam_payment_webhook_owner
 -- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
--- BCB-MIGRATION-VERIFY: SELECT pg_catalog.pg_get_functiondef('app.expire_due_booking_prepayments(integer)'::regprocedure) LIKE '%UPDATE public.patient_bookings AS booking%' AND pg_catalog.pg_get_functiondef('app.expire_due_booking_prepayments(integer)'::regprocedure) LIKE '%booking.cancel_reason = ''prepayment_expired''%'
+-- BCB-MIGRATION-VERIFY: SELECT pg_catalog.pg_get_functiondef('app.expire_due_booking_prepayments(integer)'::regprocedure) LIKE '%UPDATE public.patient_bookings AS booking%' AND pg_catalog.pg_get_functiondef('app.expire_due_booking_prepayments(integer)'::regprocedure) LIKE '%cancel_reason = ''prepayment_expired''%' AND pg_catalog.pg_get_functiondef('app.expire_due_booking_prepayments(integer)'::regprocedure) LIKE '%booking.organization_id = v_organization_id%'
 --
 -- S7.1/S7.2: expiry already changes the canonical appointment and records the canonical
 -- `prepayment_expired` history source. The linked patient projection must change in this same
@@ -61,7 +61,14 @@ BEGIN
            cancelled_at = v_now,
            cancel_reason = 'prepayment_expired',
            updated_at = v_now
-     WHERE booking.canonical_appointment_id = v_appointment_id;
+     WHERE booking.canonical_appointment_id = v_appointment_id
+       -- F1 независимого аудита: `patient_bookings_canonical_appointment_id_fkey` ссылается только
+       -- на `be_appointments(id)` — составного ключа с organization_id нет, и схема ПРИНИМАЕТ строку
+       -- организации B, указывающую на запись организации A. Без этого фильтра тик организации A
+       -- менял чужую проекцию (доказано на rollback-фикстуре). Ноль рассогласований на сегодняшней
+       -- базе — это не ограничение, а совпадение. Все соседние записи в цикле уже фильтруются по
+       -- organization_id; эта была единственной, кто выпадал из общего правила.
+       AND booking.organization_id = v_organization_id;
 
     INSERT INTO public.be_appointment_history_events (
       organization_id, appointment_id, event_type, payload, occurred_at

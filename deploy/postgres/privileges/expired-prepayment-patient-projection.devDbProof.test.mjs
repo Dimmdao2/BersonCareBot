@@ -9,10 +9,12 @@
  * Run:
  *   RUN_EXPIRED_PREPAYMENT_PATIENT_PROJECTION_DB=1 node --test \
  *     deploy/postgres/privileges/expired-prepayment-patient-projection.devDbProof.test.mjs
- * Fault injection (must fail):
+ * Fault injection (each must fail):
  *   RUN_EXPIRED_PREPAYMENT_PATIENT_PROJECTION_DB=1 \
  *   EXPIRED_PREPAYMENT_PATIENT_PROJECTION_FAULT=omit_projection node --test \
  *     deploy/postgres/privileges/expired-prepayment-patient-projection.devDbProof.test.mjs
+ *   EXPIRED_PREPAYMENT_PATIENT_PROJECTION_FAULT=omit_tenant_filter — то же, но снимает фильтр
+ *   организации: проекция чужого арендатора обязана уцелеть.
  */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
@@ -28,7 +30,7 @@ const DATABASE = process.env.PORT_CONTEXT_PROOF_DB ?? 'bcb_webapp_dev';
 if (!/^[A-Za-z_][A-Za-z0-9_]*$/u.test(DATABASE)) {
   throw new Error(`unsafe database identifier '${DATABASE}'`);
 }
-if (!['', 'omit_projection'].includes(FAULT)) {
+if (!['', 'omit_projection', 'omit_tenant_filter'].includes(FAULT)) {
   throw new Error(`unknown EXPIRED_PREPAYMENT_PATIENT_PROJECTION_FAULT '${FAULT}'`);
 }
 
@@ -43,19 +45,41 @@ const privilegesPath = path.join(
   'deploy/postgres/generated/privileges.bcb_webapp_dev.sql',
 );
 
-const projectionUpdate = `    UPDATE public.patient_bookings AS booking
-       SET status = 'cancelled',
-           cancelled_at = v_now,
-           cancel_reason = 'prepayment_expired',
-           updated_at = v_now
-     WHERE booking.canonical_appointment_id = v_appointment_id;
+/**
+ * F3 независимого аудита: прежняя версия сверяла исходник миграции с точной многострочной строкой,
+ * то есть краснела от переноса строки и от комментария внутри запроса. Тест должен проверять,
+ * работает ли код, а не как он написан. Здесь запрос находится по телу, и единственное его
+ * назначение — ВНЕСЕНИЕ ПОЛОМКИ, которой доказывается, что проверка не декоративная.
+ *
+ * Привязка идёт к `UPDATE` + перевод строки + `SET`, а не к имени таблицы: то же имя стоит одной
+ * строкой в заголовке `BCB-MIGRATION-VERIFY`, и поломка, зацепившая заголовок вместо запроса,
+ * оставляла канарейку зелёной — то есть тихо выключала доказательство.
+ */
+const PROJECTION_UPDATE_RE =
+  /[ \t]*UPDATE\s+public\.patient_bookings\s+AS\s+booking\s*\n\s*SET[\s\S]*?;\s*\n/;
 
-`;
+/**
+ * Ровно тот фильтр арендатора, чьё отсутствие было дырой F1. Точка с запятой забирается вместе с
+ * ним и возвращается отдельной строкой: перед фильтром стоит комментарий, и осиротевший `;` уехал
+ * бы внутрь него — тогда поломка дала бы синтаксическую ошибку вместо того поведения, которое
+ * проверяется.
+ */
+const TENANT_FILTER_RE = /\n[ \t]*AND\s+booking\.organization_id\s*=\s*v_organization_id\s*;/;
 
 function candidateFunction() {
   const source = fs.readFileSync(migrationPath, 'utf8');
-  assert.ok(source.includes(projectionUpdate), 'candidate projection update is missing');
-  return FAULT === 'omit_projection' ? source.replace(projectionUpdate, '') : source;
+  if (FAULT === 'omit_projection') {
+    assert.ok(
+      PROJECTION_UPDATE_RE.test(source),
+      'нечего ломать: запрос к patient_bookings в миграции не найден',
+    );
+    return source.replace(PROJECTION_UPDATE_RE, '');
+  }
+  if (FAULT === 'omit_tenant_filter') {
+    assert.ok(TENANT_FILTER_RE.test(source), 'нечего ломать: фильтр арендатора в миграции не найден');
+    return source.replace(TENANT_FILTER_RE, '\n       ;');
+  }
+  return source;
 }
 
 function candidatePrivileges() {
@@ -135,6 +159,45 @@ UPDATE public.patient_bookings
 SET status = 'awaiting_payment', cancelled_at = NULL, cancel_reason = NULL
 WHERE id = (SELECT booking_id FROM s7_probe);
 
+-- Стена арендатора (F1 независимого аудита). Внешний ключ проекции ссылается ТОЛЬКО на
+-- be_appointments(id) — составного ключа с organization_id нет, и схема ПРИНИМАЕТ строку чужой
+-- организации, указывающую на эту же запись. Кладём ровно такую строку и требуем, чтобы тик её не
+-- тронул. Ноль таких строк на сегодняшней базе — совпадение, а не ограничение.
+--
+-- Вторая организация создаётся здесь же, а не ищется в базе: на named DEV организация ровно одна,
+-- и проверка, которая молча отключается на однотенантной базе, — не проверка. Клон живёт внутри
+-- той же откатываемой транзакции.
+CREATE TEMP TABLE s7_org AS
+SELECT * FROM public.be_organizations WHERE id = (
+  SELECT booking.organization_id
+  FROM public.patient_bookings booking
+  WHERE booking.id = (SELECT booking_id FROM s7_probe)
+);
+UPDATE s7_org SET id = '00000000-0000-4000-8000-0000000000f9'::uuid;
+INSERT INTO public.be_organizations SELECT * FROM s7_org;
+
+CREATE TEMP TABLE s7_clone AS
+SELECT * FROM public.patient_bookings WHERE id = (SELECT booking_id FROM s7_probe);
+
+UPDATE s7_clone
+SET id = '00000000-0000-4000-8000-0000000000f8'::uuid,
+    organization_id = '00000000-0000-4000-8000-0000000000f9'::uuid,
+    status = 'awaiting_payment',
+    cancelled_at = NULL,
+    cancel_reason = NULL;
+
+DO $foreign$
+BEGIN
+  IF (SELECT organization_id FROM s7_clone)
+     = (SELECT organization_id FROM public.patient_bookings
+        WHERE id = (SELECT booking_id FROM s7_probe)) THEN
+    RAISE EXCEPTION 'tenant wall fixture is a no-op: both rows share one organization';
+  END IF;
+END
+$foreign$;
+
+INSERT INTO public.patient_bookings SELECT * FROM s7_clone;
+
 INSERT INTO app_ext.port_context_capabilities (
   capability_id, port, session_login, target_role, context_class, purpose, function_identity
 )
@@ -170,7 +233,12 @@ SELECT pg_catalog.jsonb_build_object(
   'appointmentStatus', appointment.status,
   'patientBookingStatus', booking.status,
   'patientCancelReason', booking.cancel_reason,
-  'historySource', history.payload->>'source'
+  'historySource', history.payload->>'source',
+  'foreignTenantBookingStatus', (
+    SELECT foreign_booking.status
+    FROM public.patient_bookings foreign_booking
+    WHERE foreign_booking.id = '00000000-0000-4000-8000-0000000000f8'::uuid
+  )
 )::text
 FROM s7_probe probe
 JOIN public.be_appointments appointment ON appointment.id = probe.appointment_id
@@ -194,6 +262,8 @@ ROLLBACK;`);
       patientBookingStatus: 'cancelled',
       patientCancelReason: 'prepayment_expired',
       historySource: 'prepayment_expired',
+      // Чужая организация не тронута: тик отменил только свою проекцию.
+      foreignTenantBookingStatus: 'awaiting_payment',
     });
     console.log('S7 live result:', result);
   },
