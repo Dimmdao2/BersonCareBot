@@ -182,6 +182,8 @@ export type PatientBookingService = {
         booking: PatientBookingRecord;
         summary: import('@/modules/payments/types').AppointmentPaymentSummary | null;
         intentId: string | null;
+        paymentDeadlineAt: string | null;
+        appointmentStatus: import('@/modules/booking-engine/types').AppointmentStatus;
       }
     | { ok: false; error: 'not_found' }
   >;

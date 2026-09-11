@@ -81,14 +81,14 @@ async function loadBookingPaymentStatus(
   if (!row?.canonicalAppointmentId || !input.bookingEngine || !input.payments) {
     return { ok: false as const, error: 'not_found' as const };
   }
-  const orgId = await resolveCanonicalAppointmentOrganizationId(
+  const appointment = await loadCanonicalAppointment(
     input.bookingEngine,
     row.canonicalAppointmentId,
   ).catch(() => null);
-  if (!orgId) return { ok: false as const, error: 'not_found' as const };
+  if (!appointment) return { ok: false as const, error: 'not_found' as const };
   const summary = await input.payments.getAppointmentPaymentSummary(
     row.canonicalAppointmentId,
-    orgId,
+    appointment.organizationId,
     undefined,
     prepaymentContextFromBooking(row),
   );
@@ -97,6 +97,8 @@ async function loadBookingPaymentStatus(
     booking: row,
     summary,
     intentId: summary?.intent?.id ?? null,
+    paymentDeadlineAt: appointment.paymentDeadlineAt,
+    appointmentStatus: appointment.status,
   };
 }
 
@@ -516,10 +518,7 @@ export function createPatientBookingService(input: {
           }
           return { ok: false, error: err };
         }
-        if (
-          err === 'not_found' ||
-          err === 'not_allowed'
-        ) {
+        if (err === 'not_found' || err === 'not_allowed') {
           return { ok: false, error: err };
         }
         return { ok: false, error: 'not_found' };

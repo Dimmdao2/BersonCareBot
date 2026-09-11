@@ -15,18 +15,33 @@ import {
   patientSurfaceWarningClass,
 } from '@/shared/ui/patient/patientVisual';
 import { classifyPaymentIntentStatus } from '@/shared/lib/paymentStatusView';
+import { formatBookingDateTimeMediumRu } from '@/shared/lib/formatBusinessDateTime';
+import { PaymentLinkQrCode } from '@/shared/ui/patient/PaymentLinkQrCode';
 import toast from 'react-hot-toast';
 
 const POLL_MS = 4000;
 
-type Props = { bookingId: string };
+type Props = { bookingId: string; appDisplayTimeZone: string };
 
-export function PatientBookingPayClient({ bookingId }: Props) {
+function formatRemaining(msLeft: number): string {
+  const minutes = Math.ceil(msLeft / 60_000);
+  if (minutes >= 60) {
+    const hours = Math.floor(minutes / 60);
+    const rest = minutes % 60;
+    return rest ? `${hours} ч ${rest} мин` : `${hours} ч`;
+  }
+  return `${Math.max(1, minutes)} мин`;
+}
+
+export function PatientBookingPayClient({ bookingId, appDisplayTimeZone }: Props) {
   const router = useRouter();
   const [intentId, setIntentId] = useState<string | null>(null);
   const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
   const [intentStatus, setIntentStatus] = useState<string | null>(null);
   const [amountMinor, setAmountMinor] = useState<number | null>(null);
+  const [paymentDeadlineAt, setPaymentDeadlineAt] = useState<string | null>(null);
+  const [appointmentStatus, setAppointmentStatus] = useState<string | null>(null);
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -37,6 +52,8 @@ export function PatientBookingPayClient({ bookingId }: Props) {
     const json = (await res.json()) as {
       ok?: boolean;
       intentId?: string | null;
+      paymentDeadlineAt?: string | null;
+      appointmentStatus?: string;
       summary?: {
         intent?: { amountMinor: number; status: string; checkoutUrl: string | null } | null;
       };
@@ -50,6 +67,8 @@ export function PatientBookingPayClient({ bookingId }: Props) {
     setAmountMinor(json.summary?.intent?.amountMinor ?? null);
     setIntentStatus(json.summary?.intent?.status ?? null);
     setCheckoutUrl(json.summary?.intent?.checkoutUrl ?? null);
+    setPaymentDeadlineAt(json.paymentDeadlineAt ?? null);
+    setAppointmentStatus(json.appointmentStatus ?? null);
   }, [bookingId]);
 
   useEffect(() => {
@@ -59,14 +78,33 @@ export function PatientBookingPayClient({ bookingId }: Props) {
   }, [load, startTransition]);
 
   const view = classifyPaymentIntentStatus(intentStatus);
+  const deadlineMs = paymentDeadlineAt ? Date.parse(paymentDeadlineAt) : Number.NaN;
+  const hasDeadline = Number.isFinite(deadlineMs);
+  const deadlinePassed = hasDeadline && deadlineMs <= nowMs;
+  const paymentStillExpected =
+    appointmentStatus === null || appointmentStatus === 'awaiting_payment';
+  const expired = view === 'pending' && (!paymentStillExpected || deadlinePassed);
 
   useEffect(() => {
-    if (view !== 'pending') return;
+    if (view !== 'pending' || !hasDeadline || expired) return;
+    const untilDeadline = window.setTimeout(
+      () => setNowMs(Date.now()),
+      Math.max(0, deadlineMs - Date.now()),
+    );
+    const tick = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => {
+      window.clearTimeout(untilDeadline);
+      window.clearInterval(tick);
+    };
+  }, [deadlineMs, expired, hasDeadline, view]);
+
+  useEffect(() => {
+    if (view !== 'pending' || expired) return;
     const id = window.setInterval(() => {
       void load();
     }, POLL_MS);
     return () => window.clearInterval(id);
-  }, [view, load]);
+  }, [view, expired, load]);
 
   useEffect(() => {
     if (view === 'succeeded') {
@@ -90,11 +128,17 @@ export function PatientBookingPayClient({ bookingId }: Props) {
       <div className={patientCardClass}>
         <p className={patientActionTextClass}>Оплата записи</p>
         {amountRub ? <p className={`mt-2 ${patientBodyTextClass}`}>К оплате: {amountRub}</p> : null}
-        {error ? <p className={`mt-2 patient-text-danger ${patientBodyTextClass}`}>{error}</p> : null}
+        {error ? (
+          <p className={`mt-2 patient-text-danger ${patientBodyTextClass}`}>{error}</p>
+        ) : null}
       </div>
       {view === 'succeeded' ? (
         <div className={patientSurfaceSuccessClass}>
           <p className={patientActionTextClass}>Оплата прошла</p>
+        </div>
+      ) : expired ? (
+        <div className={patientSurfaceDangerClass}>
+          <p className={patientActionTextClass}>Оплата не поступила, бронирование отменено</p>
         </div>
       ) : view === 'failed' ? (
         <div className={patientSurfaceDangerClass}>
@@ -106,6 +150,21 @@ export function PatientBookingPayClient({ bookingId }: Props) {
         </div>
       ) : (
         <>
+          {hasDeadline ? (
+            <div className={patientCardClass}>
+              <p className="text-lg font-semibold">
+                Оплатить до {formatBookingDateTimeMediumRu(paymentDeadlineAt!, appDisplayTimeZone)}
+              </p>
+              <p className={`mt-1 ${patientBodyTextClass}`}>
+                Осталось {formatRemaining(Math.max(0, deadlineMs - nowMs))}
+              </p>
+            </div>
+          ) : null}
+          {checkoutUrl ? (
+            <a className={`${patientMutedTextClass} break-all underline`} href={checkoutUrl}>
+              {checkoutUrl}
+            </a>
+          ) : null}
           <Button
             type="button"
             className={patientButtonPrimaryClass}
@@ -114,8 +173,15 @@ export function PatientBookingPayClient({ bookingId }: Props) {
           >
             Оплатить
           </Button>
+          {checkoutUrl ? (
+            <div className="hidden md:block">
+              <PaymentLinkQrCode url={checkoutUrl} />
+            </div>
+          ) : null}
           {intentId ? (
-            <p className={patientMutedTextClass}>Ожидаем подтверждение оплаты от платёжной системы…</p>
+            <p className={patientMutedTextClass}>
+              Ожидаем подтверждение оплаты от платёжной системы…
+            </p>
           ) : null}
         </>
       )}
