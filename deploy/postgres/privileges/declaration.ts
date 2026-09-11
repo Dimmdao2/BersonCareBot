@@ -27845,11 +27845,17 @@ const REV10_CONTEXT = {
         { relation: 'public.organization_slug_claims', columns: ['organization_id', 'kind', 'slug'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.clinic_public_directory_entries',
-          columns: ['organization_id', 'is_published', 'card_is_published', 'display_name',
+          columns: ['organization_id', 'is_published', 'card_is_published',
             'description', 'full_description_markdown', 'public_contact_phone',
             'public_contact_email', 'public_website_url', 'logo_media_id', 'photo_media_ids'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
-        { relation: 'public.be_organizations', columns: ['id', 'is_active'],
+        // #926 §17.R: имя клиники читается живым — каноническое `be_organizations.title` с
+        // переопределением опубликованного бренда поверх. Копия `display_name` в строке каталога
+        // с пути чтения ушла, поэтому и из грантов этой двери она уходит.
+        { relation: 'public.be_organizations', columns: ['id', 'is_active', 'title'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.org_brand_revisions',
+          columns: ['organization_id', 'status', 'display_name'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         // #926 §17.A: адреса читаются вживую, а не из снимка `locations_json`. Ровно те колонки,
         // что попадают на визитку, — ни одной лишней.
