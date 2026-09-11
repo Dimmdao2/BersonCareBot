@@ -72,6 +72,7 @@ WITH declared(schema_name, table_name) AS (VALUES
   ('public', 'lfk_complex_template_exercises'),
   ('public', 'lfk_complex_templates'),
   ('public', 'lfk_complexes'),
+  ('public', 'lfk_exercise_load_types'),
   ('public', 'lfk_exercise_media'),
   ('public', 'lfk_exercise_regions'),
   ('public', 'lfk_exercises'),

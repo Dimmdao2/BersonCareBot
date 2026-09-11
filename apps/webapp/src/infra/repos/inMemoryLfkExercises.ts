@@ -11,7 +11,7 @@ import type {
   UpdateExerciseInput,
 } from '@/modules/lfk-exercises/types';
 import { EMPTY_EXERCISE_USAGE_SNAPSHOT } from '@/modules/lfk-exercises/types';
-import { mergeExerciseRegionRefIds } from '@/modules/lfk-exercises/types';
+import { mergeExerciseLoadTypes, mergeExerciseRegionRefIds } from '@/modules/lfk-exercises/types';
 
 const exercises = new Map<string, Exercise>();
 const usageByExerciseId = new Map<string, ExerciseUsageSnapshot>();
@@ -45,7 +45,7 @@ function matchesFilter(ex: Exercise, f: ExerciseFilter): boolean {
   if (f.regionRefId) {
     if (!ex.regionRefIds.includes(f.regionRefId)) return false;
   }
-  if (f.loadType && ex.loadType !== f.loadType) return false;
+  if (f.loadType && !ex.loadTypes.includes(f.loadType)) return false;
   if (f.difficultyMin != null && (ex.difficulty1_10 == null || ex.difficulty1_10 < f.difficultyMin))
     return false;
   if (f.difficultyMax != null && (ex.difficulty1_10 == null || ex.difficulty1_10 > f.difficultyMax))
@@ -109,6 +109,7 @@ export const inMemoryLfkExercisesPort: LfkExercisesPort = {
       createdAt: now,
     }));
     const regionRefIds = mergeExerciseRegionRefIds(input.regionRefId, input.regionRefIds ?? null);
+    const loadTypes = mergeExerciseLoadTypes(input.loadType, input.loadTypes ?? null);
     const ex: Exercise = {
       id,
       ownerKind: 'organization',
@@ -117,7 +118,8 @@ export const inMemoryLfkExercisesPort: LfkExercisesPort = {
       description: input.description ?? null,
       regionRefId: regionRefIds[0] ?? null,
       regionRefIds,
-      loadType: input.loadType ?? null,
+      loadType: loadTypes[0] ?? null,
+      loadTypes,
       difficulty1_10: input.difficulty1_10 ?? null,
       contraindications: input.contraindications ?? null,
       tags: input.tags ?? null,
@@ -152,6 +154,12 @@ export const inMemoryLfkExercisesPort: LfkExercisesPort = {
           ? mergeExerciseRegionRefIds(null, input.regionRefIds)
           : mergeExerciseRegionRefIds(input.regionRefId, [])
         : null;
+    const loadTypePatch =
+      input.loadTypes !== undefined || input.loadType !== undefined
+        ? input.loadTypes !== undefined
+          ? mergeExerciseLoadTypes(null, input.loadTypes)
+          : mergeExerciseLoadTypes(input.loadType, [])
+        : null;
     const next: Exercise = {
       ...cur,
       title: input.title ?? cur.title,
@@ -159,7 +167,9 @@ export const inMemoryLfkExercisesPort: LfkExercisesPort = {
       ...(regionPatch !== null
         ? { regionRefId: regionPatch[0] ?? null, regionRefIds: regionPatch }
         : {}),
-      loadType: input.loadType !== undefined ? input.loadType : cur.loadType,
+      ...(loadTypePatch !== null
+        ? { loadType: loadTypePatch[0] ?? null, loadTypes: loadTypePatch }
+        : {}),
       difficulty1_10:
         input.difficulty1_10 !== undefined ? input.difficulty1_10 : cur.difficulty1_10,
       contraindications:

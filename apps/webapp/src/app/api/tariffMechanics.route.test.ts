@@ -1376,6 +1376,7 @@ describe('tariff and platform mutation gates', () => {
       regionRefId: null,
       regionRefIds: [],
       loadType: null,
+      loadTypes: [],
       difficulty1_10: null,
       contraindications: null,
       tags: null,

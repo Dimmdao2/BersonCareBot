@@ -1654,6 +1654,40 @@ export const lfkExerciseRegions = pgTable(
   ],
 );
 
+/** M2M: упражнение ↔ тип нагрузки (`reference_items`, категория `load_type`, код в текстовой колонке — как в `lfk_exercises.load_type`, без FK). Legacy: `lfk_exercises.load_type` (dual-write, первый выбранный) — мультиполе, зеркалирует [[lfkExerciseRegions]]. */
+export const lfkExerciseLoadTypes = pgTable(
+  'lfk_exercise_load_types',
+  {
+    ownerKind: text('owner_kind').default('organization').notNull(),
+    organizationId: uuid('organization_id'),
+    exerciseId: uuid('exercise_id').notNull(),
+    loadType: text('load_type').notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.exerciseId, table.loadType],
+      name: 'lfk_exercise_load_types_pkey',
+    }),
+    index('idx_lfk_exercise_load_types_organization_id').using(
+      'btree',
+      table.organizationId.asc().nullsLast().op('uuid_ops'),
+    ),
+    foreignKey({
+      columns: [table.exerciseId],
+      foreignColumns: [lfkExercises.id],
+      name: 'lfk_exercise_load_types_exercise_id_fkey',
+    }).onDelete('cascade'),
+    index('idx_lfk_exercise_load_types_load_type').using(
+      'btree',
+      table.loadType.asc().nullsLast().op('text_ops'),
+    ),
+    check(
+      'lfk_exercise_load_types_owner_check',
+      sql`(owner_kind = 'organization' AND organization_id IS NOT NULL) OR (owner_kind = 'platform' AND organization_id IS NULL)`,
+    ),
+  ],
+);
+
 export const lfkComplexTemplateExercises = pgTable(
   'lfk_complex_template_exercises',
   {

@@ -11,7 +11,11 @@ export type ReferenceMultiSelectProps = {
   categoryCode: string;
   /** Server-loaded items; when provided, the client request is skipped. */
   prefetchedItems?: ReferenceItemDto[];
-  /** Selected `reference_items.id` values. */
+  /** How `value` entries match an item (default: id). */
+  valueMatch?: 'id' | 'code';
+  /** What each hidden input carries when the form submits (default: id). */
+  submitField?: 'id' | 'code';
+  /** Selected values, per `valueMatch` (default: `reference_items.id`). */
   value: readonly string[];
   onChange: (next: string[]) => void;
   disabled?: boolean;
@@ -30,6 +34,8 @@ export type ReferenceMultiSelectProps = {
 export function ReferenceMultiSelect({
   categoryCode,
   prefetchedItems,
+  valueMatch = 'id',
+  submitField = 'id',
   value,
   onChange,
   disabled = false,
@@ -77,17 +83,36 @@ export function ReferenceMultiSelect({
 
   const items = prefetchedItems ?? remoteItems;
 
+  const keyOf = useCallback((it: ReferenceItemDto) => (valueMatch === 'code' ? it.code : it.id), [
+    valueMatch,
+  ]);
+
   const selectedSet = useMemo(() => new Set(value), [value]);
+
+  const itemByKey = useMemo(() => {
+    const m = new Map<string, ReferenceItemDto>();
+    for (const it of items) m.set(keyOf(it), it);
+    return m;
+  }, [items, keyOf]);
 
   const titleById = useMemo(() => {
     const m = new Map<string, string>();
-    for (const it of items) m.set(it.id, it.title);
+    for (const [key, it] of itemByKey) m.set(key, it.title);
     return m;
-  }, [items]);
+  }, [itemByKey]);
+
+  const submitValueFor = useCallback(
+    (rid: string): string => {
+      if (submitField === valueMatch) return rid;
+      const it = itemByKey.get(rid);
+      return it ? (submitField === 'code' ? it.code : it.id) : '';
+    },
+    [submitField, valueMatch, itemByKey],
+  );
 
   const availableToPick = useMemo(
-    () => items.filter((i) => !selectedSet.has(i.id)),
-    [items, selectedSet],
+    () => items.filter((i) => !selectedSet.has(keyOf(i))),
+    [items, selectedSet, keyOf],
   );
 
   const filteredAvailableToPick = useMemo(() => {
@@ -132,13 +157,14 @@ export function ReferenceMultiSelect({
   );
 
   const add = useCallback(
-    (rid: string) => {
+    (item: ReferenceItemDto) => {
+      const rid = keyOf(item);
       if (selectedSet.has(rid)) return;
       onChange([...value, rid]);
       setQuery('');
       setOpen(false);
     },
-    [onChange, selectedSet, value],
+    [onChange, selectedSet, value, keyOf],
   );
 
   useEffect(() => {
@@ -154,7 +180,11 @@ export function ReferenceMultiSelect({
 
   return (
     <div ref={rootRef} className={cn('flex flex-col gap-2', className)}>
-      {name ? value.map((rid) => <input key={rid} type="hidden" name={name} value={rid} />) : null}
+      {name
+        ? value.map((rid) => (
+            <input key={rid} type="hidden" name={name} value={submitValueFor(rid)} />
+          ))
+        : null}
       <div className="flex flex-wrap gap-1.5">
         {value.length === 0
           ? null
@@ -249,7 +279,7 @@ export function ReferenceMultiSelect({
                       className="h-auto w-full justify-start rounded-none px-3 py-2 text-left text-sm font-normal"
                       onMouseDown={(e) => {
                         e.preventDefault();
-                        add(i.id);
+                        add(i);
                       }}
                     >
                       {i.title}

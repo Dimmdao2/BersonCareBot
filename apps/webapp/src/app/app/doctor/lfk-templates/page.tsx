@@ -76,10 +76,10 @@ export default async function DoctorLfkTemplatesPage({ searchParams }: PageProps
     .then((exercises) => {
       const exerciseMetaById: Record<
         string,
-        { regionRefIds: readonly string[]; loadType: ExerciseLoadType | null }
+        { regionRefIds: readonly string[]; loadTypes: readonly ExerciseLoadType[] }
       > = {};
       for (const e of exercises) {
-        exerciseMetaById[e.id] = { regionRefIds: e.regionRefIds, loadType: e.loadType };
+        exerciseMetaById[e.id] = { regionRefIds: e.regionRefIds, loadTypes: e.loadTypes };
       }
       const exerciseCatalog = exercises.map((e) => ({
         id: e.id,

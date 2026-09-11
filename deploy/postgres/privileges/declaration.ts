@@ -15676,6 +15676,42 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
       }
     ]
   },
+  "public.lfk_exercise_load_types": {
+    "kind": "direct",
+    "purpose": "Упражнение ↔ тип нагрузки — мультиполе, фильтр упражнений по типу нагрузки",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgLfkExercises.ts",
+      "apps/webapp/src/modules/lfk-exercises/types.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "exercise_id",
+          "load_type",
+          "organization_id",
+          "owner_kind"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "DELETE"
+        ],
+        "columns": "table"
+      }
+    ]
+  },
   "public.lfk_exercise_media": {
     "kind": "direct",
     "purpose": "Видео/картинки упражнения — пациент не видит показ упражнения",
@@ -23526,6 +23562,8 @@ const TABLE_ROWS: TableRow[] = [
     + 'получает назначенных упражнений', pol: 'I12: пациентская ветка смотрит только на platform_user_id, а колонок '
     + 'две (есть legacy user_id text) — строка с NULL пациенту невидима (подкласс D27: стена прячет данные)',
     defect: ['I12-two-patient-keys'] },
+  { t: 'public.lfk_exercise_load_types', cls: 'C', org: true, wall: 'reference-org-copy', why: 'Упражнение ↔ тип '
+    + 'нагрузки — мультиполе, фильтр упражнений по типу нагрузки', wallWhy: W_REF_COPY },
   { t: 'public.lfk_exercise_media', cls: 'C', org: true, wall: 'reference-org-copy', why: 'Видео/картинки упражнения '
     + '— пациент не видит показ упражнения', wallWhy: W_REF_COPY },
   { t: 'public.lfk_exercise_regions', cls: 'C', org: true, wall: 'reference-org-copy', why: 'Упражнение ↔ регион '
@@ -30761,6 +30799,11 @@ export const REV10_LOCKED_POLICY_DATA: Readonly<Record<string, LockedPolicyEntry
     policyName: "saas_org_dormant_p0_8_3",
     strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"platform_user_id\" = app.current_patient_user_id()))",
     dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"platform_user_id\" = app.current_patient_user_id())))",
+  },
+  "public.lfk_exercise_load_types": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "(app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())))",
   },
   "public.lfk_exercise_media": {
     policyName: "saas_org_dormant_p0_8_4",
