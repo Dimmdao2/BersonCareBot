@@ -50,11 +50,22 @@ export function createAppointmentPaymentConfirmedHandler(deps: {
       { notifyPatient: true, notifyStaff: true },
       notificationSettings,
     );
+    // Правка ведущего: этот выход стоял здесь до S8 и остаётся. Отключённые уведомления гасили
+    // событие целиком — вместе с напоминаниями и календарной синхронизацией, которые оно везёт.
+    // Это отдельный дефект, и он вынесен владельцу вопросом, а не чинится заодно: S8 обязан
+    // изменить ТОЛЬКО количество сообщений, иначе клиника с выключенными уведомлениями внезапно
+    // начнёт рассылать напоминания.
+    if (!paymentNotify.notifyPatient && !paymentNotify.notifyStaff) return;
+
     const timeZone = await getAppDisplayTimeZone();
-    const messageAppointments = appointments.map(({ row }) => ({
-      slotStart: row.slotStart,
-      serviceTitle: row.serviceTitleSnapshot ?? row.category,
-    }));
+    // Слоты перечисляются в сообщении по времени приёма, а не в порядке, в котором их вернула
+    // цепочка: человек читает «вы записаны на …» как расписание.
+    const messageAppointments = [...appointments]
+      .sort((left, right) => Date.parse(left.row.slotStart) - Date.parse(right.row.slotStart))
+      .map(({ row }) => ({
+        slotStart: row.slotStart,
+        serviceTitle: row.serviceTitleSnapshot ?? row.category,
+      }));
     const patientMessageText = buildPatientPaymentCapturedMessageText(
       { appointments: messageAppointments },
       timeZone,
