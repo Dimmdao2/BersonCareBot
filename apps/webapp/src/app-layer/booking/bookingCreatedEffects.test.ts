@@ -6,6 +6,7 @@ import {
 } from '@/modules/operator-alerts/emptyAudienceRuntime';
 import type { BookingCreatedEffectsInput } from '@/modules/booking-notifications/bookingCreatedEffectsPort';
 import { NOTIFICATION_TOPIC_APPOINTMENT } from '@/modules/patient-notifications/notificationTopicCodes';
+import { getDeliveryTargetsForIntegrator } from '@/modules/integrator/deliveryTargetsApi';
 
 /**
  * Проверяется одно: ПОЛУЧИТ ЛИ ЧЕЛОВЕК сообщение о своей записи и по какому маршруту. Не форма
@@ -91,6 +92,41 @@ describe('пациент узнаёт о созданной записи', () =>
 
     expect(keys).toHaveLength(2);
     expect(keys[0]).toBe(keys[1]);
+  });
+
+  it('повтор awaiting-payment события сохраняет один ключ очереди', async () => {
+    const keys: string[] = [];
+    const effects = createBookingCreatedEffects({
+      outboundMessageQueue: {
+        enqueue: async (context) => {
+          keys.push(`${context.purpose}:${context.idempotencyKey}`);
+          return true;
+        },
+      },
+      deliveryTargets: {
+        getTargets: async () => ({
+          platformUserId: 'user-1',
+          channelBindings: { telegramId: '111' },
+          resolution: {
+            userId: 'user-1',
+            topicCode: NOTIFICATION_TOPIC_APPOINTMENT,
+            selectedChannels: ['telegram'],
+            skippedChannels: [],
+            availableChannels: ['telegram'],
+            enabledChannels: ['telegram'],
+          },
+        }),
+      },
+    });
+    const awaitingPayment = {
+      checkoutUrl: 'https://checkout.example.test/intent-retry',
+      paymentDeadlineAt: '2027-03-10T10:00:00.000Z',
+    };
+
+    await effects.apply(input({ awaitingPayment }));
+    await effects.apply(input({ awaitingPayment }));
+
+    expect(new Set(keys).size).toBe(1);
   });
 
   it('нет ни одного привязанного канала — это инцидент, а не тихий успех', async () => {
@@ -247,5 +283,58 @@ describe('пациент узнаёт о созданной записи', () =>
 
     expect(enqueued).toEqual([]);
     expect(reported).toEqual([]);
+  });
+
+  /**
+   * PAY-APPT-09 / owner 11.09: a form-entered or otherwise unconfirmed email must never receive
+   * a payment link. Unlike the neighbouring fixture, this runs the real channel resolver before
+   * the real delivery effect, so a regression in either half reaches the observable queue.
+   */
+  it('не ставит платёжную ссылку на email, который реальный резолвер считает неподтверждённым', async () => {
+    const resolved = await getDeliveryTargetsForIntegrator(
+      {
+        organizationId: 'org-1',
+        platformUserId: 'user-1',
+        topic: NOTIFICATION_TOPIC_APPOINTMENT,
+      },
+      {
+        integratorDeliveryTargets: {
+          readSnapshot: async () => ({
+            ok: true,
+            platformUserId: 'user-1',
+            channelPreferences: [],
+            topicChannelRows: [],
+            emailRecipient: 'booking-form@example.test',
+            emailVerified: false,
+            muted: false,
+            topicMasterEnabled: true,
+            hasWebPushSubscription: false,
+            vapidConfigured: true,
+            smtpConfigured: true,
+          }),
+        },
+      },
+    );
+    const enqueued: Array<Record<string, unknown>> = [];
+    const effects = createBookingCreatedEffects({
+      outboundMessageQueue: {
+        enqueue: async (context) => {
+          enqueued.push(context as unknown as Record<string, unknown>);
+          return true;
+        },
+      },
+      deliveryTargets: { getTargets: async () => resolved },
+    });
+
+    await effects.apply(
+      input({
+        awaitingPayment: {
+          checkoutUrl: 'https://checkout.example.test/intent-unverified-resolved',
+          paymentDeadlineAt: '2027-03-10T10:00:00.000Z',
+        },
+      }),
+    );
+
+    expect(enqueued).toEqual([]);
   });
 });
