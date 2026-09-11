@@ -1,5 +1,5 @@
 import { notFound, permanentRedirect } from 'next/navigation';
-import { CABINET_ENTRY_PATH } from '@/config/surfaceRoutes';
+import { routePaths } from '@/app-layer/routes/paths';
 import { PLATFORM_NAME } from '@/config/productSurfaces';
 import {
   publicBookPaths,
@@ -70,12 +70,14 @@ export default async function ClinicPublicCardPage({ params }: Props) {
       .map((item) => clinicCardMediaPath(card.canonicalSlug, item.id))[0] ?? null;
 
   if (!card.cardIsPublished) {
-    // Дверь при выключенном показе отдала только имя и логотип — всё остальное здесь пусто по
-    // построению, а не потому, что эта страница решила его не рисовать.
+    // Вырожденный корень — уточнение владельца 11.09: галка решает только ВИД этого экрана
+    // («можно отобразить расширенный шаблон, а можно отобразить просто форму входа. Вот и всё»).
+    // Дверь при этом отдаёт всё как обычно и ничего не закрывает: фотографии, материалы и страницы
+    // специалистов этой клиники продолжают открываться по своим адресам.
     const entry: ClinicRootEntryViewModel = {
       displayName: card.displayName,
       logoSrc,
-      cabinetHref: CABINET_ENTRY_PATH,
+      cabinetHref: routePaths.root,
       platformName: PLATFORM_NAME,
     };
     return (

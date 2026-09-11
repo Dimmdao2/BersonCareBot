@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { Building2 } from 'lucide-react';
-import { publicBookPaths } from '@/shared/publicBook/paths';
+import { publicBookPaths, publicClinicSpecialistPath } from '@/shared/publicBook/paths';
 import {
   bookingChoiceRowClass,
   bookingChoiceRowIconClass,
@@ -10,7 +10,7 @@ import {
 } from '@/app/app/patient/booking/bookingChoiceStyles';
 import { patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
 import { cn } from '@/lib/utils';
-import type { BookingEntryScreen } from './loadBookingEntry';
+import type { BookingEntryScreen, BookingEntrySpecialist } from './loadBookingEntry';
 
 type Props = { screen: BookingEntryScreen; orgSlug: string; specialistId: string | null };
 
@@ -39,6 +39,29 @@ function serviceHref(
  * филиал того же города был недостижим. Город здесь — подпись у филиала, а не отдельный шаг.
  */
 export function BookingEntryClient({ screen, orgSlug, specialistId }: Props) {
+  /**
+   * Специалист из ссылки. Клиника разрешила показывать визитки в модуле записи — имя ведёт на его
+   * карточку, где лежит описание (#926 §17.Q). Не разрешила — остаётся имя, и перейти некуда:
+   * «Просто галочка есть показывать? Показываем, нет галочки, не показываем».
+   */
+  const specialistLine = (specialist: BookingEntrySpecialist | null) => {
+    if (!specialist) return null;
+    if (!specialist.cardIsReadable) {
+      return <p className={cn(patientMutedTextClass, 'text-xs')}>{specialist.fullName}</p>;
+    }
+    return (
+      <p className={cn(patientMutedTextClass, 'text-xs')}>
+        <Link
+          href={publicClinicSpecialistPath(orgSlug, specialist.id)}
+          prefetch={false}
+          className="underline underline-offset-2"
+        >
+          {specialist.fullName}
+        </Link>
+      </p>
+    );
+  };
+
   if (screen.kind === 'unavailable') {
     return (
       <p role="alert" className="text-sm text-destructive">
@@ -50,10 +73,8 @@ export function BookingEntryClient({ screen, orgSlug, specialistId }: Props) {
   if (screen.kind === 'services') {
     return (
       <div className={bookingChoiceSectionClass}>
-        <p className={cn(patientMutedTextClass, 'text-xs')}>
-          {screen.branch.title}
-          {screen.specialistName ? ` · ${screen.specialistName}` : ''}
-        </p>
+        <p className={cn(patientMutedTextClass, 'text-xs')}>{screen.branch.title}</p>
+        {specialistLine(screen.specialist)}
         {screen.emptyUnderConditions ? (
           <div className="flex flex-col gap-2">
             <p className="text-sm">Под выбранные условия сейчас нет доступных услуг.</p>
@@ -108,9 +129,7 @@ export function BookingEntryClient({ screen, orgSlug, specialistId }: Props) {
   return (
     <div className={bookingChoiceSectionClass}>
       {staleMessage ? <p className="text-sm">{staleMessage}</p> : null}
-      {screen.kind === 'branches' && screen.specialistName ? (
-        <p className={cn(patientMutedTextClass, 'text-xs')}>{screen.specialistName}</p>
-      ) : null}
+      {screen.kind === 'branches' ? specialistLine(screen.specialist) : null}
       <div className="flex flex-col gap-2">
         <p className={cn(patientMutedTextClass, 'text-xs font-medium uppercase tracking-wide')}>
           Филиал

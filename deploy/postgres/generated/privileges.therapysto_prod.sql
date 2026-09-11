@@ -3768,6 +3768,7 @@ INSERT INTO bcb_function_relation_surfaces(signature,relation_name,columns,opera
   ('app.read_public_booking_catalog(uuid,uuid,uuid)', 'public.be_specialist_service_availability', ARRAY['organization_id', 'service_id', 'branch_id', 'specialist_id', 'is_active']::text[], ARRAY['SELECT']::text[]),
   ('app.read_public_booking_catalog(uuid,uuid,uuid)', 'public.be_specialists', ARRAY['id', 'organization_id', 'full_name', 'is_active', 'card_is_published']::text[], ARRAY['SELECT']::text[]),
   ('app.read_public_booking_catalog(uuid,uuid,uuid)', 'public.clinic_public_directory_entries', ARRAY['organization_id', 'is_published']::text[], ARRAY['SELECT']::text[]),
+  ('app.read_public_booking_catalog(uuid,uuid,uuid)', 'public.system_settings', ARRAY['key', 'scope', 'organization_id', 'value_json']::text[], ARRAY['SELECT']::text[]),
   ('app.read_public_booking_slot_snapshot(uuid,uuid,text,text)', 'public.system_settings', ARRAY['key', 'scope', 'organization_id', 'value_json']::text[], ARRAY['SELECT']::text[]),
   ('app.read_public_booking_slot_snapshot(uuid,uuid,text,text)', 'public.be_appointments', ARRAY['organization_id', 'specialist_id', 'service_id', 'status', 'start_at', 'end_at', 'deleted_at']::text[], ARRAY['SELECT']::text[]),
   ('app.read_public_booking_slot_snapshot(uuid,uuid,text,text)', 'public.be_availability_rules', ARRAY['organization_id', 'specialist_id', 'rule_type', 'config', 'is_active', 'updated_at']::text[], ARRAY['SELECT']::text[]),
@@ -4175,7 +4176,7 @@ BEGIN
   END LOOP;
   SELECT pg_catalog.string_agg(message, E'\n' ORDER BY message) INTO gap_list FROM bcb_function_surface_gaps;
   IF gap_list IS NOT NULL THEN RAISE EXCEPTION 'function body surface gaps (%):\n%', (SELECT count(*) FROM bcb_function_surface_gaps), gap_list; END IF;
-  RAISE NOTICE 'BCB_FUNCTION_BODY_SURFACES_VERIFIED functions=441 rows=1038 special_contracts=8 trigger_sources=1';
+  RAISE NOTICE 'BCB_FUNCTION_BODY_SURFACES_VERIFIED functions=441 rows=1039 special_contracts=8 trigger_sources=1';
 END
 $bcb$;
 

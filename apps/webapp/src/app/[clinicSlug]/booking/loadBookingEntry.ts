@@ -11,6 +11,19 @@ import {
 } from '@/modules/patient-booking/inPersonServicesCatalog';
 
 /**
+ * Специалист, названный ссылкой, в том виде, в каком его показывает модуль записи (#926 §17.C).
+ *
+ * `cardIsReadable` — ответ галки организации «показывать визитки специалистов в модуле записи»
+ * (§17.Q, решение владельца 11.09), уже сведённый дверью с собственной публикацией человека.
+ * Экран по нему решает ровно одно: даёт ли он перейти к описанию или показывает только имя.
+ */
+export type BookingEntrySpecialist = {
+  id: string;
+  fullName: string;
+  cardIsReadable: boolean;
+};
+
+/**
  * Первый экран записи КАК ФУНКЦИЯ ПАРАМЕТРОВ ссылки (план §6.2).
  *
  * `branches`    — ссылка не назвала филиал: человек выбирает его сам. Если назван специалист,
@@ -25,15 +38,15 @@ export type BookingEntryScreen =
       branches: BookableBranchOption[];
       onlineLocation: OnlineBookingLocationOption | null;
       /**
-       * Имя специалиста из ссылки, если он в ней назван (#926 §17.C). Тогда список филиалов —
-       * уже только те, где он принимает (план §6.2), и человек обязан видеть, к кому он идёт.
+       * Специалист из ссылки, если он в ней назван (#926 §17.C). Тогда список филиалов — уже
+       * только те, где он принимает (план §6.2), и человек обязан видеть, к кому он идёт.
        */
-      specialistName: string | null;
+      specialist: BookingEntrySpecialist | null;
     }
   | {
       kind: 'services';
       branch: { id: string; title: string; cityCode: string };
-      specialistName: string | null;
+      specialist: BookingEntrySpecialist | null;
       services: InPersonServiceListItem[];
       /** Пара (филиал, специалист) действующая, но услуг под неё сейчас нет. */
       emptyUnderConditions: boolean;
@@ -93,9 +106,10 @@ export async function loadBookingEntryScreenRsc(input: {
             narrowToSpecialistId,
           );
 
-        // `null` у специалиста — одинаковый отказ на все четыре причины (нет такого, чужой,
-        // неактивен, клиника его не публикует): различать их наружу значит дать перебирать людей
-        // по форме ответа (§3.3). Экран у них поэтому тоже один — §6.3, `specialist_gone`.
+        // `null` у специалиста — одинаковый отказ на все три причины (нет такого, чужой,
+        // неактивен): различать их наружу значит дать перебирать людей по форме ответа (§3.3).
+        // Экран у них поэтому тоже один — §6.3, `specialist_gone`. Публичность его карточки в
+        // этот отбор больше не входит (§17.Q): она решает только читаемость описания.
         //
         // Идентификатор из ссылки НИКОГДА не выбирает организацию: она уже разрешена из slug и
         // установлена принципалом, а дверь берёт её из принятого контекста. Чужой идентификатор
@@ -141,12 +155,27 @@ export async function loadBookingEntryScreenRsc(input: {
           return specialistGone();
         }
 
+        const entrySpecialist: BookingEntrySpecialist | null = specialist
+          ? {
+              id: specialist.id,
+              fullName: specialist.fullName,
+              cardIsReadable: specialist.cardIsReadable,
+            }
+          : null;
+
+        // План §6.2 обещает первым экраном со специалистом «услуги этого специалиста, с
+        // филиалом(ами), где он принимает». Здесь первым экраном остаются ФИЛИАЛЫ — сужённые до
+        // тех, где он действительно принимает, — и это не расхождение, а его единственное честное
+        // прочтение: услуга записывается в КОНКРЕТНЫЙ филиал, и до выбора филиала списка услуг не
+        // существует. У специалиста филиалов может быть несколько, а адрес — это то, ради чего
+        // человек и смотрит на экран: показать услуги, не сказав, куда идти, значит спросить его
+        // об этом позже и без повода.
         if (!branchId) {
           return {
             kind: 'branches',
             branches: reachableBranches,
             onlineLocation,
-            specialistName: specialist?.fullName ?? null,
+            specialist: entrySpecialist,
           };
         }
 
@@ -162,7 +191,7 @@ export async function loadBookingEntryScreenRsc(input: {
         return {
           kind: 'services',
           branch: listed.branch,
-          specialistName: specialist?.fullName ?? null,
+          specialist: entrySpecialist,
           services: listed.services,
           emptyUnderConditions: listed.services.length === 0,
         };

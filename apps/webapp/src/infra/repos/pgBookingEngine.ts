@@ -296,13 +296,14 @@ const publicBookingServiceSchema = z.object({
 });
 
 /**
- * Личность специалиста из ссылки. `null` — одинаковый отказ по всем четырём причинам сразу
- * (нет такого, чужой, неактивен, клиника его не публикует), см. §3.3.
+ * Личность специалиста из ссылки. `null` — одинаковый отказ по всем трём причинам сразу
+ * (нет такого, чужой, неактивен), см. §3.3.
  */
 const publicBookingSpecialistSchema = z.object({
   id: z.string().uuid(),
   fullName: z.string(),
   branchIds: z.array(z.string().uuid()),
+  cardIsReadable: z.boolean(),
 });
 
 const publicBookingCatalogSchema = z.object({
@@ -332,7 +333,7 @@ const EMPTY_PUBLIC_BOOKING_CATALOG: PublicBookingCatalog = {
  *
  * `specialistId` — третий вопрос той же двери (#926 §17.C): сужение выдачи до одного специалиста
  * и его публичная личность. Неразрешённый специалист возвращается как пустой каталог с
- * `specialist: null` — тем же ответом на все четыре причины отказа.
+ * `specialist: null` — тем же ответом на все три причины отказа.
  */
 async function readPublicBookingCatalog(
   branchId: string | null,
@@ -847,7 +848,8 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
       }
       // Кабинетный `listSpecialists` здесь не подходит по построению: это `db.select()` по
       // `be_specialists`, а у анонимного класса `tenant_service` на неё нет грантов вовсе (42501).
-      // Отбор «активен и опубликован» тоже не повторяется здесь — он живёт в теле двери.
+      // Отбор «активен» и ответ «читается ли его карточка» тоже не повторяются здесь — оба живут
+      // в теле двери (§17.Q).
       const catalog = await readPublicBookingCatalog(null, null, specialistId);
       const specialist = catalog.specialist;
       if (!specialist) return null;
@@ -860,6 +862,7 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
         id: specialist.id,
         fullName: specialist.fullName,
         branchIds: specialist.branchIds.filter((branchId) => branchIds.includes(branchId)),
+        cardIsReadable: specialist.cardIsReadable,
       };
     },
 

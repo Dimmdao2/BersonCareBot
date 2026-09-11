@@ -27693,14 +27693,20 @@ const REV10_CONTEXT = {
         { relation: 'public.be_specialist_service_availability', columns: ['organization_id', 'service_id',
           'branch_id', 'specialist_id', 'is_active'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
-        // #926 §17.C: ссылка `?specialist=<id>` сужает каталог, поэтому дверь читает ещё имя и
-        // публичный флаг специалиста — тот же отбор, что на визитке (`is_active AND
-        // card_is_published`). Ни одной колонки сверх этого: наружу выходит только имя.
+        // #926 §17.C: ссылка `?specialist=<id>` сужает каталог, поэтому дверь читает ещё имя
+        // специалиста. Отбор для записи — только `is_active` (§17.Q: `card_is_published` из
+        // мастера записи выведен); сама колонка остаётся читаемой ради ответа `cardIsReadable`,
+        // то есть «можно ли открыть его карточку из модуля записи».
         { relation: 'public.be_specialists', columns: ['id', 'organization_id', 'full_name', 'is_active',
           'card_is_published'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.clinic_public_directory_entries', columns: ['organization_id', 'is_published'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        // #926 §17.Q: галка организации «показывать визитки специалистов в модуле записи» живёт в
+        // том же реестре `system-settings`, что и соседняя `clinic_root_skip_public_card`. Те же
+        // четыре колонки, что уже читает соседняя дверь этого шва.
+        { relation: 'public.system_settings', columns: ['key', 'scope', 'organization_id',
+          'value_json'], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
     // Публичный близнец `app.read_current_patient_booking_slot_snapshot(...)`: тот же ОДИН снимок

@@ -136,11 +136,12 @@ function catalogDoor(branches: ReturnType<typeof branchRow>[]) {
     const branchId = args[0] as string | null;
     const specialistId = args[2] as string | null;
     const branch = branchId ? (branches.find((item) => item.id === branchId) ?? null) : null;
-    // Неопубликованный, неактивный, чужой и несуществующий человек дают ОДИН ответ (§3.3): двери
-    // известен ровно один специалист, всё остальное — тот же отказ без причины.
+    // Неактивный, чужой и несуществующий человек дают ОДИН ответ (§3.3): двери известен ровно один
+    // специалист, всё остальное — тот же отказ без причины. `cardIsReadable` — готовый ответ двери
+    // на галку организации «показывать визитки специалистов в модуле записи» (#926 §17.Q).
     const specialist =
       specialistId === SPECIALIST
-        ? { id: SPECIALIST, fullName: 'Анна', branchIds: [BRANCH_A] }
+        ? { id: SPECIALIST, fullName: 'Анна', branchIds: [BRANCH_A], cardIsReadable: true }
         : null;
     if (specialistId && !specialist) {
       return {
@@ -246,7 +247,7 @@ describe('первый экран записи клиники — публичн
     // Без сужения здесь два филиала — второй Анна не ведёт, и предлагать его значит отправить
     // человека туда, где под ссылку нет ни одной услуги (план §6.2).
     expect(first.branches.map((branch) => branch.id)).toEqual([BRANCH_A]);
-    expect(first.specialistName).toBe('Анна');
+    expect(first.specialist?.fullName).toBe('Анна');
 
     const listed = await loadBookingEntryScreenRsc({
       organizationId: ORG,
@@ -256,14 +257,14 @@ describe('первый экран записи клиники — публичн
     expect(listed.kind).toBe('services');
     if (listed.kind !== 'services') return;
     expect(listed.services).toEqual([]);
-    expect(listed.specialistName).toBe('Анна');
+    expect(listed.specialist?.fullName).toBe('Анна');
   });
 
   /**
    * §6.3: протухший параметр даёт НАЗВАННЫЙ экран и живые филиалы, а не пустой список. Пустой
    * экран — молчаливый отказ: человек уходит, клиника теряет запись и не узнаёт об этом.
    */
-  it('специалист, которого клиника не публикует, — экран «больше не принимает», а не пустота', async () => {
+  it('специалист, которого у клиники нет, — экран «больше не принимает», а не пустота', async () => {
     fakes.runWebappNamedRoot.mockImplementation(catalogDoor(ownBranches()));
 
     const screen = await loadBookingEntryScreenRsc({
