@@ -261,10 +261,23 @@ export default async function SettingsPage({
               deps.bookingEngine!.catalog.listBranches(workspace.organizationId),
               deps.bookingEngine!.catalog.listSpecialists(workspace.organizationId),
             ]);
+            const activeBranches = branches.filter((branch) => branch.isActive);
             return {
-              branches: branches
-                .filter((branch) => branch.isActive)
-                .map((branch) => ({ id: branch.id, title: branch.title })),
+              branches: activeBranches.map((branch) => ({ id: branch.id, title: branch.title })),
+              // Адреса для предпросмотра визитки берутся отсюда же, а не из снимка
+              // `locations_json`: у визитки единственный источник филиалов — живая таблица
+              // (план §17.A), и порядок обязан совпадать с тем, что отдаёт публичная дверь
+              // (`ORDER BY sort_order, title`), иначе предпросмотр врёт на ровном месте.
+              cardLocations: [...activeBranches]
+                .sort(
+                  (left, right) =>
+                    left.sortOrder - right.sortOrder || left.title.localeCompare(right.title),
+                )
+                .map((branch) => ({
+                  title: branch.title,
+                  cityCode: branch.cityCode,
+                  address: branch.address,
+                })),
               specialists: specialists
                 .filter((specialist) => specialist.isActive)
                 .map((specialist) => ({ id: specialist.id, title: specialist.fullName })),
@@ -520,6 +533,7 @@ export default async function SettingsPage({
             initialSettings={cardSettings}
             skipPublicCardAtRoot={skipPublicCardAtRoot}
             identity={cardIdentity}
+            locations={bookingLinkOptions?.cardLocations ?? []}
             patientOrigin={PATIENT_DEFAULT_SURFACE.origin}
           />
         ) : null}

@@ -11,6 +11,14 @@
  * 200 с текстом «временно недоступна» нельзя: это ровно ложная запись о готовности — мониторинг
  * и поисковик считают страницу здоровой. 503 против 500 — расхождение с планом, названное вслух,
  * а не молча смягчённое требование.
+ *
+ * Перепроверено 11.09.2026 против `next@16.3.3` (установленной, `apps/webapp/node_modules/next/
+ * dist/docs`): статус по-прежнему не назначается. `notFound()` даёт 404, экспериментальные
+ * `forbidden()`/`unauthorized()` (флаг `authInterrupts`) — 403/401, generic-функции или
+ * `unstable_httpStatus` для 5xx в каталоге функций нет; необработанное исключение по-прежнему
+ * уходит в границу ошибки с фиксированным 500 (`docs/01-app/01-getting-started/10-error-handling.
+ * md`: «Uncaught exceptions ... caught by error boundaries», без параметра статуса). Следующему
+ * агенту это же место проверять заново не нужно, пока major-версия Next не сменилась.
  */
 export class ClinicCardUnavailableError extends Error {
   constructor(readonly slug: string) {
