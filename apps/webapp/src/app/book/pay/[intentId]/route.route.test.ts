@@ -30,6 +30,46 @@ function request(id = intentId) {
 }
 
 describe('anonymous appointment payment check route', () => {
+  it('does not reveal whether a dead invoice UUID exists', async () => {
+    fakes.readAppointmentPaymentCheck.mockImplementation(async (id: string) =>
+      id === intentId
+        ? {
+            alive: false,
+            amountMinor: 12_500,
+            currency: 'RUB',
+            paymentDeadlineAt: '2026-09-12T08:00:00.000Z',
+            appointmentStatus: 'cancelled_by_specialist',
+            providerCheckoutUrl: null,
+          }
+        : {
+            alive: false,
+            amountMinor: null,
+            currency: null,
+            paymentDeadlineAt: null,
+            appointmentStatus: null,
+            providerCheckoutUrl: null,
+          },
+    );
+
+    async function snapshot(id: string) {
+      const response = await request(id);
+      return {
+        status: response.status,
+        cacheControl: response.headers.get('cache-control'),
+        contentType: response.headers.get('content-type'),
+        location: response.headers.get('location'),
+        body: await response.text(),
+      };
+    }
+
+    const dead = await snapshot(intentId);
+    const unknown = await snapshot('0a1d74ef-98e8-4cf3-924c-8d1baea7ba24');
+    const malformed = await snapshot('not-a-uuid');
+
+    expect(unknown).toEqual(dead);
+    expect(malformed).toEqual(dead);
+  });
+
   it('redirects a live invoice to its internal provider continuation', async () => {
     fakes.readAppointmentPaymentCheck.mockResolvedValue({
       alive: true,
@@ -63,6 +103,7 @@ describe('anonymous appointment payment check route', () => {
     const body = await response.text();
 
     expect(response.status).toBe(410);
+    expect(response.headers.get('cache-control')).toBe('no-store');
     expect(response.headers.get('location')).toBeNull();
     expect(body).not.toContain(providerUrl);
     expect(body).not.toContain('PRIVATE PATIENT SENTINEL');
@@ -77,9 +118,8 @@ describe('anonymous appointment payment check route', () => {
     fakes.readAppointmentPaymentCheck.mockRejectedValue(new Error('db is down'));
 
     const response = await request();
-    const body = await response.text();
 
-    expect(response.status).not.toBe(410);
-    expect(body).not.toContain('бронирование отменено');
+    expect(response.status).toBe(503);
+    expect(response.headers.get('cache-control')).toBe('no-store');
   });
 });
