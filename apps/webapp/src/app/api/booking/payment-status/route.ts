@@ -32,5 +32,7 @@ export async function GET(request: Request) {
     booking: result.booking,
     summary: result.summary,
     intentId: result.intentId,
+    paymentDeadlineAt: result.paymentDeadlineAt,
+    appointmentStatus: result.appointmentStatus,
   });
 }
