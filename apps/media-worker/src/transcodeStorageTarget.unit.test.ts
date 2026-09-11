@@ -44,7 +44,7 @@ function contextFor(media: ControlledMedia | null) {
     patient: bindings.patient!,
   };
   const storageFor = vi.fn((target: 'library' | 'patient') => bindings[target]!);
-  const sourceStorageFor = vi.fn((target: 'library' | 'patient') => rawBindings[target]!);
+  const sourceStorageFor = vi.fn((target: 'library' | 'patient', _key: string) => rawBindings[target]!);
   const control = {
     load: vi.fn(async () => media),
     failed: vi.fn(async () => undefined),
@@ -85,7 +85,7 @@ describe('хранилище наряда на пересборку видео',
     await processTranscodeJob(ctx, JOB).catch(() => undefined);
     expect(storageFor).toHaveBeenCalledWith('patient');
     expect(storageFor).not.toHaveBeenCalledWith('library');
-    expect(sourceStorageFor).toHaveBeenCalledWith('patient');
+    expect(sourceStorageFor).toHaveBeenCalledWith('patient', `media/${JOB.mediaId}/source.mp4`);
   });
 
   it('ролик библиотеки обрабатывается в библиотечном хранилище', async () => {
@@ -93,7 +93,7 @@ describe('хранилище наряда на пересборку видео',
     await processTranscodeJob(ctx, JOB).catch(() => undefined);
     expect(storageFor).toHaveBeenCalledWith('library');
     expect(storageFor).not.toHaveBeenCalledWith('patient');
-    expect(sourceStorageFor).toHaveBeenCalledWith('library');
+    expect(sourceStorageFor).toHaveBeenCalledWith('library', `media/${JOB.mediaId}/source.mp4`);
   });
 
   it('наряд без строки не уводит воркера в чужой бакет', async () => {

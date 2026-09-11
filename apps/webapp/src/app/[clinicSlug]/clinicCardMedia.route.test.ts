@@ -32,6 +32,8 @@ vi.mock('@/app-layer/principal/bootstrapPrincipal', () => ({
 vi.mock('@/app-layer/media/s3Client', () => ({
   presignGetUrl: fakes.presignGetUrl,
   sourceStorageKindFor: (target: string) => (target === 'patient' ? 'hot' : 'raw'),
+  sourceStorageKindForKey: (target: string, key: string) =>
+    target === 'patient' ? 'hot' : key.startsWith('media/') ? 'hot' : 'raw',
 }));
 vi.mock('@/app-layer/media/localSaasTestFixtureMedia', () => ({
   readSaasTestLocalMedia: fakes.readSaasTestLocalMedia,

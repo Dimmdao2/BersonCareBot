@@ -335,22 +335,22 @@ function compactTranscodeLogErrorCode(message: string): string {
 export type TranscodeContext = {
   control: MediaWorkerControlPort;
   /**
-<<<<<<< HEAD
    * Куда ложится ВЫХОД наряда — HLS-дерево, постер, 480p-рендишн. Тот же горячий бакет, что и до
-   * М7 (`docs/_TODO/STORAGE_PACKAGES_2026-09-10.md`).
-=======
-   * Хранилища, а не одно: наряд называет своё, и всё, что делается по этому наряду — скачивание
-   * исходника, выкладка HLS и постера — происходит внутри него.
->>>>>>> d16b1390a56ae271e50ac8022e02257774008866
+   * М7 (`docs/_TODO/STORAGE_PACKAGES_2026-09-10.md`). Хранилища два, а не одно: наряд называет
+   * своё для каждого направления, и всё, что делается по этому наряду — скачивание исходника,
+   * выкладка HLS и постера — происходит внутри выбранного.
    */
   storageFor: (target: StorageTarget) => StorageBinding;
   /**
    * Откуда читается ИСХОДНИК (`media.s3_key`). У `library` это отдельный сырой бакет
-   * (`S3_RAW_BUCKET`) — М7; у `patient` разделения нет, источник и назначение совпадают, как и
-   * раньше. Отдельная функция, а не флаг на `storageFor`, чтобы наряд не мог случайно перепутать
-   * вход с выходом: у HLS-дерева и постера всегда `storageFor`, у скачивания — всегда это поле.
+   * (`S3_RAW_BUCKET`) — М7 — КРОМЕ ещё не перенесённых старых ключей (F-1, коррекция аудита
+   * `raw-bucket-audit-01`): форма ключа (`isLegacyHotMediaSourceKey`) решает, а не только цель,
+   * поэтому ключ обязателен вторым параметром. У `patient` разделения нет, источник и назначение
+   * совпадают, как и раньше. Отдельная функция, а не флаг на `storageFor`, чтобы наряд не мог
+   * случайно перепутать вход с выходом: у HLS-дерева и постера всегда `storageFor`, у скачивания —
+   * всегда это поле.
    */
-  sourceStorageFor: (target: StorageTarget) => StorageBinding;
+  sourceStorageFor: (target: StorageTarget, key: string) => StorageBinding;
   ffmpegBin: string;
   ffmpegTimeoutMs: number;
   maxAttempts: number;
@@ -459,10 +459,13 @@ async function processTranscodeJobInner(outer: TranscodeContext, job: ClaimedJob
    * `parseStorageTarget` откажет и наряд упадёт громко — вместо тихой работы в чужом бакете.
    */
   const target = loaded ? parseStorageTarget(loaded.storageTarget) : 'library';
+  /* Ключ решает бакет источника вместе с целью (F-1) — пустая строка для строки без ключа ничего
+     не портит: наряд без `s3_key` уже обречён на `permanentFail` ниже и в S3 не ходит. */
+  const sourceKey = loaded?.s3Key ?? '';
   const ctx: TranscodeJobContext = {
     ...outer,
     ...outer.storageFor(target),
-    source: outer.sourceStorageFor(target),
+    source: outer.sourceStorageFor(target, sourceKey),
   };
   const media = loaded && {
     id: loaded.id,

@@ -131,6 +131,8 @@ vi.mock('@/infra/db/runWebappSql', () => ({
 vi.mock('@/infra/s3/client', () => ({
   parseStorageTarget: (value: unknown) => (value === 'patient' ? 'patient' : 'library'),
   sourceStorageKindFor: (target: string) => (target === 'patient' ? 'hot' : 'raw'),
+  sourceStorageKindForKey: (target: string, key: string) =>
+    target === 'patient' ? 'hot' : key.startsWith('media/') ? 'hot' : 'raw',
   presignGetUrl: vi.fn(async () => 'https://example.invalid/presigned'),
   s3DeleteObject: vi.fn(async () => {}),
   s3GetObjectBody: vi.fn(async () => Buffer.from('source-bytes')),

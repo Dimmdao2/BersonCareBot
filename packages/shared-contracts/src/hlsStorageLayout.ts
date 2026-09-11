@@ -1,5 +1,26 @@
 import { posix } from 'node:path';
 
+/**
+ * TEMPORARY (М7 migration seam, `docs/_TODO/STORAGE_PACKAGES_2026-09-10.md`; correction-stage
+ * finding F-1, audit `raw-bucket-audit-01`). Dies with the last pre-M7 key — that is its ONLY
+ * reason to exist.
+ *
+ * Which physical bucket an EXISTING `library`-target source key lives in cannot be read from
+ * `storage_target`: that column is a database enum, not a record of whether the ops-side object
+ * relocation has run. The key's own shape already carries that fact and is the single source of
+ * truth for it — a fresh (post-M7) key starts with the owning organization's id
+ * (`<orgId>/media/<mediaId>/…`, written by `s3RawObjectKey`); a not-yet-migrated key starts
+ * literally with `media/` (pre-M7 shape, `s3ObjectKey`) and still physically sits in the hot
+ * bucket. One key's shape decides exactly one bucket — never a HEAD probe, never "try raw, fall
+ * back to hot".
+ *
+ * Callers gate this on `target === 'library'` themselves (a `patient` key is never raw regardless
+ * of shape — patient storage is not split by M7).
+ */
+export function isLegacyHotMediaSourceKey(key: string): boolean {
+  return key.trim().startsWith('media/');
+}
+
 /** Canonical private-bucket layout for source media, HLS artifacts, and poster assets. */
 export function mediaRootFromSourceS3Key(s3Key: string): string {
   return posix.dirname(s3Key.replace(/\/+$/, ''));

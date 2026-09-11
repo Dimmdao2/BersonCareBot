@@ -31,7 +31,8 @@ vi.mock('@/config/env', () => ({
   },
 }));
 
-const { s3RawObjectKey, sourceStorageKindFor, storageBucketFor } = await import('./client');
+const { s3RawObjectKey, sourceStorageKindFor, sourceStorageKindForKey, storageBucketFor } =
+  await import('./client');
 
 const ORG_ID = '00000000-0000-4000-8000-000000000001';
 const MEDIA_ID = '11111111-1111-4111-8111-111111111111';
@@ -56,5 +57,28 @@ describe('сырой бакет загрузок (М7)', () => {
 
   it('patient-цель разделения не получает: raw и hot — один и тот же бакет', () => {
     expect(storageBucketFor('patient', 'raw')).toBe(storageBucketFor('patient', 'hot'));
+  });
+});
+
+/**
+ * F-1 (correction stage, аудит `raw-bucket-audit-01`): `sourceStorageKindFor` решает бакет только по
+ * ЦЕЛИ и годится исключительно для СВЕЖЕГО ключа, которого ещё нет. Для УЖЕ ЛЕЖАЩЕГО ключа это
+ * делает `sourceStorageKindForKey`, форма ключа решает всё: старый (`media/<id>/...`, до М7) —
+ * горячий, новый (`<orgId>/media/<id>/...`, после М7) — сырой. Без этого различия КАЖДЫЙ ещё не
+ * перенесённый исходник библиотеки становится недостижимым в момент деплоя (DEV — 224 файла, прод —
+ * ~19,24 ГиБ, живой замер аудита).
+ */
+describe('sourceStorageKindForKey — форма ключа решает бакет (F-1)', () => {
+  it('старый (pre-M7) ключ библиотеки остаётся горячим', () => {
+    expect(sourceStorageKindForKey('library', `media/${MEDIA_ID}/clip.mp4`)).toBe('hot');
+  });
+
+  it('новый (post-M7) org-prefixed ключ библиотеки — сырой', () => {
+    expect(sourceStorageKindForKey('library', `${ORG_ID}/media/${MEDIA_ID}/clip.mp4`)).toBe('raw');
+  });
+
+  it('patient-цель всегда горячая, форма ключа не имеет значения', () => {
+    expect(sourceStorageKindForKey('patient', `media/${MEDIA_ID}/clip.mp4`)).toBe('hot');
+    expect(sourceStorageKindForKey('patient', `${ORG_ID}/media/${MEDIA_ID}/clip.mp4`)).toBe('hot');
   });
 });

@@ -486,7 +486,7 @@ describe('processTranscodeJob — table-driven rung ladder end to end', () => {
     const ctx = {
       control,
       storageFor: (target: 'library' | 'patient') => bindings[target]!,
-      sourceStorageFor: (target: 'library' | 'patient') => rawBindings[target]!,
+      sourceStorageFor: (target: 'library' | 'patient', _key: string) => rawBindings[target]!,
       ffmpegBin: '/usr/bin/ffmpeg',
       ffmpegTimeoutMs: 60_000,
       maxAttempts: 3,

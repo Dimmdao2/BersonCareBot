@@ -19,6 +19,7 @@ export {
   s3CreateMultipartUpload,
   storageBucketFor,
   sourceStorageKindFor,
+  sourceStorageKindForKey,
   isPatientStorageSeparate,
   parseStorageTarget,
 } from '@/infra/s3/client';

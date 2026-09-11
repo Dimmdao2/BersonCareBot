@@ -15,6 +15,7 @@ import { Readable } from 'node:stream';
 import { env } from '@/config/env';
 import type { StorageTarget } from '@/shared/types/storageTarget';
 import { contentDispositionHeaderValue } from '@/shared/lib/contentDisposition';
+import { isLegacyHotMediaSourceKey } from '@/shared/lib/hlsStorageLayout';
 export { parseStorageTarget } from '@/shared/types/storageTarget';
 
 const PRESIGN_PUT_EXPIRES_SEC = 900;
@@ -97,6 +98,25 @@ export function storageBucketFor(target: StorageTarget, kind: StorageKind = 'hot
  */
 export function sourceStorageKindFor(target: StorageTarget): StorageKind {
   return target === 'library' ? 'raw' : 'hot';
+}
+
+/**
+ * Same question as {@link sourceStorageKindFor}, but for an EXISTING row's key rather than a key
+ * about to be created. `sourceStorageKindFor` is correct only at upload time, when there is no key
+ * yet and a fresh `library` upload always goes to `raw` — it says nothing about where a key that
+ * already exists in `media_files.s3_key` physically lives, because `storage_target` never recorded
+ * whether the M7 ops-side relocation of already-uploaded originals has run (plan М7, correction
+ * F-1). Every caller that reads, deletes, or transcodes a PERSISTED key must use this one instead:
+ * it decides the bucket from the key's own shape ({@link isLegacyHotMediaSourceKey}), so a
+ * not-yet-migrated library source (still physically in the hot bucket) stays reachable, and a
+ * post-M7 source (in the raw bucket) is addressed there — never a HEAD probe, never a fallback.
+ *
+ * TEMPORARY seam, same as `isLegacyHotMediaSourceKey`: collapses to `sourceStorageKindFor` once the
+ * last pre-M7 key is gone.
+ */
+export function sourceStorageKindForKey(target: StorageTarget, key: string): StorageKind {
+  if (target !== 'library') return 'hot';
+  return isLegacyHotMediaSourceKey(key) ? 'hot' : 'raw';
 }
 
 /** Отдельно ли живут данные пациентов в этом окружении. */
@@ -548,14 +568,21 @@ export async function s3GetObjectStream(params: {
   }
 }
 
+/**
+ * `kind` defaults to `hot` for pre-M7 callers, exactly like every other function here — but a
+ * `library` deletion of a PERSISTED key must pass `sourceStorageKindForKey(target, key)` (M7
+ * correction F-3): the default alone deletes nothing (S3 answers success on a missing key in the
+ * wrong bucket) while reporting the purge complete.
+ */
 export async function s3DeleteObject(
   key: string,
   target: StorageTarget,
+  kind: StorageKind = 'hot',
 ): Promise<void> {
-  const client = getS3Client(target);
+  const client = getS3Client(target, kind);
   await client.send(
     new DeleteObjectCommand({
-      Bucket: privateBucket(target),
+      Bucket: privateBucket(target, kind),
       Key: key,
     }),
   );
@@ -597,6 +624,10 @@ export type S3PerKeyDeleteResult =
 
 /**
  * Deletes each key independently; does not short-circuit on first failure (strict purge post-commit).
+ *
+ * Каждый ключ несёт своё хранилище САМ (М7, коррекция F-4): один `target` не значит один бакет —
+ * `library`-ключ может лежать и в сыром, и (для ещё не перенесённых исходников) в горячем, и это
+ * решает форма ключа (`sourceStorageKindForKey`), а не общий для всего списка дефолт.
  */
 export async function deleteS3ObjectsWithPerKeyResults(
   keys: string[],
@@ -605,7 +636,7 @@ export async function deleteS3ObjectsWithPerKeyResults(
   const out: S3PerKeyDeleteResult[] = [];
   for (const key of keys) {
     try {
-      await s3DeleteObject(key, target);
+      await s3DeleteObject(key, target, sourceStorageKindForKey(target, key));
       out.push({ key, ok: true });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);

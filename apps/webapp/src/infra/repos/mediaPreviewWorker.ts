@@ -21,7 +21,7 @@ import {
   s3PreviewKey,
   s3PutObjectBody,
   s3StandardImageKey,
-  sourceStorageKindFor,
+  sourceStorageKindForKey,
 } from '@/infra/s3/client';
 import type { StorageKind } from '@/infra/s3/client';
 import type { StorageTarget } from '@/shared/types/storageTarget';
@@ -417,8 +417,10 @@ export async function processMediaPreviewBatch(
       /* Превью и стандартный рендер ложатся туда же, где лежит исходник, — иначе строка укажет
          на объект в другом бакете, и дверь доставки его не найдёт. */
       const storageTarget = parseStorageTarget(row.storage_target);
-      /* Раскладка исходника М7: `library` лежит в сыром бакете, читаем оттуда, пишем рендишн в горячий. */
-      const rawKind: StorageKind = sourceStorageKindFor(storageTarget);
+      /* Раскладка исходника М7: `library` лежит в сыром бакете, читаем оттуда, пишем рендишн в
+         горячий — КРОМЕ ещё не перенесённых старых исходников (F-1), которые форма ключа относит
+         к горячему; `sourceStorageKindForKey` решает по ключу, а не только по цели. */
+      const rawKind: StorageKind = sourceStorageKindForKey(storageTarget, storedKey);
       const hostedSourceUrl =
         row.usage_purpose === 'hosted_video_preview' &&
         !row.s3_key?.trim() &&
