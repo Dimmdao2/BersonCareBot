@@ -29,6 +29,7 @@ export const OPERATOR_MEDIA_MULTIPART_CLEANUP_JOB_KEY = 'media.multipart.cleanup
 export const OPERATOR_MEDIA_PREVIEW_PROCESS_JOB_KEY = 'media.preview.process';
 export const OPERATOR_MEDIA_PLAYBACK_STATS_RETENTION_JOB_KEY = 'media.playback_stats.retention';
 export const OPERATOR_MEDIA_HLS_PROXY_ERRORS_RETENTION_JOB_KEY = 'media.hls_proxy_errors.retention';
+export const OPERATOR_MEDIA_DELIVERY_BYTES_FLUSH_JOB_KEY = 'media.delivery_bytes.flush';
 
 export const OPERATOR_ANALYTICS_JOB_FAMILY = 'analytics';
 export const OPERATOR_PRODUCT_ANALYTICS_RETENTION_JOB_KEY = 'analytics.product_analytics.retention';
@@ -313,6 +314,27 @@ const BACKGROUND_JOB_MANIFEST_SOURCE = [
     required: true,
     why: 'C5 (W5, IMPLEMENTATION_PLAN.md): резолвится ли домен клиники туда, куда должен, и сколько дней ' +
       'осталось до истечения сертификата — тот же класс молчаливого отказа, что и email/SMS.',
+  },
+  {
+    id: 'media_delivery_bytes_flush',
+    jobFamily: OPERATOR_MEDIA_JOB_FAMILY,
+    jobKey: OPERATOR_MEDIA_DELIVERY_BYTES_FLUSH_JOB_KEY,
+    label: 'HLS delivery bytes flush',
+    kind: 'internal_http',
+    scheduleOwner: 'host_cron',
+    scheduleHint: 'каждые 5 мин',
+    cron: '*/5 * * * *',
+    artifactSlug: 'media-delivery-bytes-flush',
+    environments: ['prod', 'test'],
+    route: { method: 'POST', path: '/api/internal/media-delivery-bytes/flush' },
+    principal: 'internal_job_bearer',
+    surfaceIdentity: 'app_public_origin',
+    timeoutSec: 50,
+    staleAfterSec: 20 * 60,
+    required: true,
+    why: 'Единственный писатель media_playback_delivery_daily: сброс in-memory счётчика байт HLS-прокси ' +
+      '(VIDEO_DELIVERY_COST_AND_METERING 11.09.2026). Без тика посчитанные в памяти байты копятся и никогда ' +
+      'не попадают в таблицу.',
   },
   {
     id: 'playback_retention',
