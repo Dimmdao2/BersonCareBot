@@ -128,7 +128,7 @@ export default async function BookingNewFormatPage({ searchParams }: PageProps) 
             Адрес кабинета
           </Link>
         )}
-        <PatientBookingPaymentHistorySection />
+        <PatientBookingPaymentHistorySection appDisplayTimeZone={appDisplayTimeZone} />
         <PatientMembershipsSection
           visible
           subscriptionsMutationsAllowed={membershipMutation.available}

@@ -29,6 +29,14 @@ description = "BersonCareBot baseline allowlist — narrowly scoped and document
 # in committed example/fixture files (memory: demo-test-fixtures-on-test-db).
 regexes = [
     '''(?i)(changeme|change-me|example|placeholder|dummy|your[-_]?(?:token|key|secret|password)|<[^>]+>|x{6,})''',
+    # Ссылка на переменную окружения — это КОД, а не значение. `secretKey: env.PATIENT_S3_SECRET_KEY`
+    # ловится общим правилом `generic-api-key` как «ключ рядом с присваиванием», и каждая такая
+    # строка при переезде между файлами давала новый отпечаток в `.gitleaksignore`. Решение
+    # владельца 12.09, дословно: «надо сделать, чтобы он их так не познавал… нас там этих исключений
+    # накопится, я чувствую, миллион». Правило структурное и узкое: имя обязано быть ВЕРХНИМ
+    # регистром с подчёркиваниями после `env.`/`process.env.` и ничем больше — настоящий ключ
+    # такой формы не имеет, а значит эта строчка не может спрятать литерал.
+    '''^(?:process\.)?env\.[A-Z][A-Z0-9_]{2,}$''',
 ]
 
 # --- Stopwords ------------------------------------------------------------------------------

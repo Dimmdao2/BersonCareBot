@@ -28535,6 +28535,18 @@ const REV10_CONTEXT = {
         { relation: 'public.message_log', columns: ['sent_at', 'id'],
           operations: ['SELECT' as const, 'DELETE' as const],
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        // #1088: четыре ветки, у которых окно было «вопросом владельцу», получили числа и вместе с
+        // ними — поверхность. Отбор каждой ветки читает своё состояние рядом с колонкой возраста и
+        // первичный ключ для ограниченной batch_limit выборки жертв.
+        { relation: 'public.media_upload_sessions', columns: ['status', 'updated_at', 'id'],
+          operations: ['SELECT' as const, 'DELETE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.saas_isolation_events', columns: ['lifecycle_status', 'resolved_at', 'id'],
+          operations: ['SELECT' as const, 'DELETE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.saas_isolation_coverage_runs', columns: ['finished_at', 'id'],
+          operations: ['SELECT' as const, 'DELETE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
     // Track D final cutover (#987), §C: app.context_nonce_ledger cannot join prune_retention_target

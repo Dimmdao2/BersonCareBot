@@ -12,6 +12,7 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
   prepayment_retained: 'Предоплата удержана',
   prepayment_refunded: 'Предоплата возвращена',
   prepayment_carried_on_reschedule: 'Предоплата перенесена',
+  intent_created: 'Счёт выставлен',
   package_intent_created: 'Счёт на абонемент',
   package_assigned: 'Абонемент назначен',
   package_purchased: 'Абонемент куплен',

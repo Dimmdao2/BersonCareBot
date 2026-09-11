@@ -118,6 +118,13 @@ services:
     environment:
       # См. пояснение у webapp: каталог порт-контекста выводится из коммита и едет переменной.
       INTEGRATOR_PORT_CONTEXT_CAPABILITIES_JSON: ${INTEGRATOR_PORT_CONTEXT_CAPABILITIES_JSON:?INTEGRATOR_PORT_CONTEXT_CAPABILITIES_JSON is required}
+      # Вызовы интегратора в вебапп идут по ЭТОМУ адресу, а не по публичному из env-файла. Внутри
+      # сети публичное имя — алиас самого контейнера вебаппа (см. `aliases` выше), TLS заканчивается
+      # на nginx и до контейнера не доходит: замер 12.09.2026 на проде — из контейнера
+      # `https://<имя>/api/health` даёт `ECONNREFUSED …:443`, `http://<имя>/api/health` — `200`.
+      # Схема `http` и то же имя: `Host` совпадает с публичным, и резолвер поверхностей его узнаёт.
+      # Публичные ссылки (письма, вебхуки провайдеров) по-прежнему строятся из `APP_BASE_URL`.
+      WEBAPP_INTERNAL_BASE_URL: "http://${THERAPYSTO_SURFACE_HOST}"
       PORT: "3200"
     ports:
       - "127.0.0.1:${THERAPYSTO_API_PORT:?THERAPYSTO_API_PORT is required}:3200"
@@ -143,6 +150,13 @@ services:
       # Планировщик — тот же код integrator, и каталог ему нужен ровно так же. Раньше он доставался
       # ему строкой из api.prod; теперь — переменной, как и всем остальным.
       INTEGRATOR_PORT_CONTEXT_CAPABILITIES_JSON: ${INTEGRATOR_PORT_CONTEXT_CAPABILITIES_JSON:?INTEGRATOR_PORT_CONTEXT_CAPABILITIES_JSON is required}
+      # Вызовы интегратора в вебапп идут по ЭТОМУ адресу, а не по публичному из env-файла. Внутри
+      # сети публичное имя — алиас самого контейнера вебаппа (см. `aliases` выше), TLS заканчивается
+      # на nginx и до контейнера не доходит: замер 12.09.2026 на проде — из контейнера
+      # `https://<имя>/api/health` даёт `ECONNREFUSED …:443`, `http://<имя>/api/health` — `200`.
+      # Схема `http` и то же имя: `Host` совпадает с публичным, и резолвер поверхностей его узнаёт.
+      # Публичные ссылки (письма, вебхуки провайдеров) по-прежнему строятся из `APP_BASE_URL`.
+      WEBAPP_INTERNAL_BASE_URL: "http://${THERAPYSTO_SURFACE_HOST}"
 
   media-worker:
     <<: *app

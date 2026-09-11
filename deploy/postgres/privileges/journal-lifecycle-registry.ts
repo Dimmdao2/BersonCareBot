@@ -122,7 +122,6 @@ const PRODUCT_ANALYTICS_RETENTION_JOB = 'analytics.product_analytics.retention';
 const MEDIA_HLS_PROXY_ERRORS_RETENTION_JOB = 'media.hls_proxy_errors.retention';
 const MEDIA_PLAYBACK_STATS_RETENTION_JOB = 'media.playback_stats.retention';
 const MEDIA_PENDING_DELETE_PURGE_JOB = 'media.pending_delete.purge';
-const MEDIA_MULTIPART_CLEANUP_JOB = 'media.multipart.cleanup';
 
 const EVIDENCE_16 = 'evidence/16-journal-retention.md "Правила хранения"';
 
@@ -234,12 +233,15 @@ export const JOURNAL_LIFECYCLE_REGISTRY: readonly JournalLifecycleEntry[] = [
     orgPurge: { kind: 'organization_id' },
     terminalStates: ['sent', 'failed', 'skipped'],
     retention: {
-      kind: 'owner-question',
-      id: 'OQ-REMINDER-HISTORY-WINDOW',
+      kind: 'window',
+      days: 90,
+      pruneTarget: 'reminder_occurrence_history_terminal',
       basis:
-        'No accepted policy names a window: evidence/16 predates the consolidation and PR-03 retention '
-        + 'matrix is still an open owner checkbox. Branch, bounded batch, named root, declared surface '
-        + 'and scheduler seam are in place; only the number is missing.',
+        'OQ-REMINDER-HISTORY-WINDOW closed by the owner 2026-09-12 («Надо решить, блядь, сколько это '
+        + 'хранят, просто. Нормальная… взрослые систем… так и настроить, так и сделать», after naming a '
+        + '«месяц… три» range). 90d is not a new policy: it is the class this registry already defines — '
+        + 'a journal carrying what was SENT TO A PERSON (message_log, integrator.delivery_attempt_logs, '
+        + 'public.support_delivery_events). Terminal occurrences only.',
     },
     sweptBy: DB_JOURNAL_RETENTION_JOB,
   },
@@ -367,14 +369,19 @@ export const JOURNAL_LIFECYCLE_REGISTRY: readonly JournalLifecycleEntry[] = [
     orgPurge: { kind: 'organization_id' },
     terminalStates: ['completed', 'aborted', 'expired', 'failed'],
     retention: {
-      kind: 'owner-question',
-      id: 'OQ-TERMINAL-UPLOAD-SESSION-WINDOW',
+      kind: 'window',
+      days: 365,
+      pruneTarget: 'media_upload_sessions_completed',
       basis:
-        'Audit §E2: terminal sessions currently disappear only with their media_id. Whether they get '
-        + 'their own window is an explicit owner question — adding them to a purge before the answer '
-        + 'would delete the retry identity of an upload whose S3 abort has not been confirmed.',
+        'OQ-TERMINAL-UPLOAD-SESSION-WINDOW closed by the owner 2026-09-12: «Завершенные загрузки '
+        + 'файлов… мы уже решили, что файлы мы не удаляем… не трогаем файлы… у нас же есть отметка о '
+        + 'том, чей это файл, кто его загрузил… ну, давай год хранить». No file is deleted: the row is '
+        + 'transfer bookkeeping, and media_files.uploaded_by keeps who uploaded it forever. ONLY '
+        + '`completed` is swept — the other terminal states still hold the S3 retry identity of an '
+        + 'upload whose abort may be unconfirmed (audit §E2/§D1) and die by cascade with their '
+        + 'media_files row, never by age. The multipart cleanup tick keeps owning that lifecycle.',
     },
-    sweptBy: MEDIA_MULTIPART_CLEANUP_JOB,
+    sweptBy: DB_JOURNAL_RETENTION_JOB,
   },
   {
     table: 'public.media_files',
@@ -624,13 +631,22 @@ export const JOURNAL_LIFECYCLE_REGISTRY: readonly JournalLifecycleEntry[] = [
     orgPurge: { kind: 'not-org-scoped' },
     terminalStates: [],
     retention: {
-      kind: 'owner-question',
-      id: 'OQ-WEBHOOK-ERROR-EVENTS-WINDOW',
+      kind: 'window',
+      // 48 HOURS. `days` is the only unit this registry has; the live number is
+      // `WEBHOOK_ERROR_EVENTS_RETENTION_HOURS = 48` in webhookBurst.ts, and it is what actually runs.
+      days: 2,
+      // #1088 measurement 2026-09-12: OQ-WEBHOOK-ERROR-EVENTS-WINDOW was never open — the entry was
+      // stale. The table has had its own declared prune root and a job calling it all along:
+      // `runOperatorHealthMaintenanceTick` → `purgeIntegrationWebhookErrorEventsOlderThanHours` →
+      // `app.prune_integration_webhook_error_events(integer)`. Routing it through
+      // `app.prune_retention_target` as well would have given one table two doors for one rule.
+      pruneTarget: 'app.prune_integration_webhook_error_events',
       basis:
-        'Only read inside a minutes-wide burst window (listWebhookBurstSignals), so nothing needs the '
-        + 'old rows — but no accepted policy names the number, and evidence/16 never listed the table.',
+        'webhookBurst.ts WEBHOOK_ERROR_EVENTS_RETENTION_HOURS = 48, applied every maintenance tick. '
+        + 'The rows are only read inside a 15-minute burst window (WEBHOOK_BURST_WINDOW_MINUTES), so '
+        + 'two days is already far beyond anything that reads them.',
     },
-    sweptBy: null,
+    sweptBy: 'health.operator_health_critical.tick',
   },
   {
     table: 'public.saas_isolation_events',
@@ -640,13 +656,17 @@ export const JOURNAL_LIFECYCLE_REGISTRY: readonly JournalLifecycleEntry[] = [
     orgPurge: { kind: 'not-org-scoped' },
     terminalStates: [],
     retention: {
-      kind: 'owner-question',
-      id: 'OQ-SAAS-ISOLATION-EVENTS-WINDOW',
+      kind: 'window',
+      days: 365,
+      pruneTarget: 'saas_isolation_events_resolved',
       basis:
-        'Rolled up into saas_isolation_event_hourly; the raw table has no declared window and no sweep. '
-        + 'Not in evidence/16 (it did not exist yet).',
+        'OQ-SAAS-ISOLATION-EVENTS-WINDOW closed 2026-09-12. Tenant-isolation telemetry is a SECURITY '
+        + 'journal, and one year is the common floor for one (PCI DSS 10.7 requires a year with the '
+        + 'last quarter immediately available; cyber insurers ask for the same). Age is measured from '
+        + '`resolved_at` and an UNRESOLVED case is never deleted, however old: the row is deduplicated '
+        + 'by fingerprint and lives as an open case, not as a raw event.',
     },
-    sweptBy: null,
+    sweptBy: DB_JOURNAL_RETENTION_JOB,
   },
   {
     table: 'public.saas_isolation_event_hourly',
@@ -656,9 +676,10 @@ export const JOURNAL_LIFECYCLE_REGISTRY: readonly JournalLifecycleEntry[] = [
     orgPurge: { kind: 'not-org-scoped' },
     terminalStates: [],
     retention: {
-      kind: 'owner-question',
-      id: 'OQ-SAAS-ISOLATION-EVENTS-WINDOW',
-      basis: 'same open question as the raw event table it rolls up',
+      kind: 'bounded-by-parent',
+      basis:
+        'saas_isolation_event_hourly.event_id references saas_isolation_events(id) ON DELETE CASCADE: '
+        + 'the rollup cannot outlive the case it summarises, so it needs no window of its own.',
     },
     sweptBy: null,
   },
@@ -669,11 +690,15 @@ export const JOURNAL_LIFECYCLE_REGISTRY: readonly JournalLifecycleEntry[] = [
     orgPurge: { kind: 'not-org-scoped' },
     terminalStates: ['completed'],
     retention: {
-      kind: 'owner-question',
-      id: 'OQ-SAAS-ISOLATION-EVENTS-WINDOW',
-      basis: 'same open question as the isolation telemetry it summarises',
+      kind: 'window',
+      days: 365,
+      pruneTarget: 'saas_isolation_coverage_runs',
+      basis:
+        'Same security class and same one-year window as the isolation telemetry it summarises. Only '
+        + 'FINISHED runs are eligible (`finished_at IS NOT NULL`): an unfinished run is either still '
+        + 'going or was cut off, and both are an operator finding rather than waste.',
     },
-    sweptBy: null,
+    sweptBy: DB_JOURNAL_RETENTION_JOB,
   },
 
   // ── audit trails: deliberately never aged out ───────────────────────────────────────────────────
