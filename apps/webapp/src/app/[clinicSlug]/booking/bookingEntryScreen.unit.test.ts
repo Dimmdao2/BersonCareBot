@@ -73,7 +73,7 @@ import { loadBookingEntryScreenRsc } from './loadBookingEntry';
 
 fakes.deps.value = { bookingEngine: createBookingEngineService(createPgBookingEnginePort()) };
 
-const CATALOG_ROOT = 'app.read_public_booking_catalog(uuid,uuid)';
+const CATALOG_ROOT = 'app.read_public_booking_catalog(uuid,uuid,uuid)';
 
 const ORG = '44444444-4444-4444-8444-444444444444';
 const OTHER_ORG = '55555555-5555-4555-8555-555555555555';
@@ -81,6 +81,8 @@ const BRANCH_A = '11111111-1111-4111-8111-111111111111';
 const BRANCH_B = '22222222-2222-4222-8222-222222222222';
 const FOREIGN_BRANCH = '33333333-3333-4333-8333-333333333333';
 const SERVICE = '88888888-8888-4888-8888-888888888888';
+const SPECIALIST = '99999999-9999-4999-8999-999999999999';
+const GONE_SPECIALIST = '77777777-7777-4777-8777-777777777777';
 
 function branchRow(id: string, title: string, sortOrder: number, organizationId = ORG) {
   return {
@@ -116,8 +118,15 @@ function serviceRow(organizationId = ORG) {
 
 /**
  * Дверь публичного каталога, как она отвечает в SQL: организацию аргументом не принимает (берёт из
- * принятого контекста), по `branchId` отдаёт один филиал и его публично записываемые услуги.
+ * принятого контекста), по `branchId` отдаёт один филиал и его публично записываемые услуги, по
+ * `specialistId` — публичную личность специалиста и услуги, суженные до него (#926 §17.C).
  * Неизвестная идентичность корня роняет тест, а не молчит.
+ *
+ * Третий аргумент здесь ОТРАБАТЫВАЕТСЯ, а не игнорируется, и это не оформление: пока приёмный
+ * экран не доносил параметр до двери, весь набор ниже зеленел бы на продукте, который показывает
+ * человеку весь филиал вместо услуг названного специалиста. Контракт взят из миграции
+ * `20260911T220000_the_booking_link_narrows_to_its_specialist.sql`, а живьём он доказан отдельно —
+ * `deploy/postgres/privileges/public-booking-specialist-link.devDbProof.test.mjs`.
  */
 function catalogDoor(branches: ReturnType<typeof branchRow>[]) {
   return async (_db: unknown, functionIdentity: string, args: readonly unknown[]) => {
@@ -125,18 +134,27 @@ function catalogDoor(branches: ReturnType<typeof branchRow>[]) {
       throw new Error(`unexpected named root: ${functionIdentity}`);
     }
     const branchId = args[0] as string | null;
+    const specialistId = args[2] as string | null;
     const branch = branchId ? (branches.find((item) => item.id === branchId) ?? null) : null;
+    // Неактивный, чужой и несуществующий человек дают ОДИН ответ (§3.3): двери известен ровно один
+    // специалист, всё остальное — тот же отказ без причины. `cardIsReadable` — готовый ответ двери
+    // на галку организации «показывать визитки специалистов в модуле записи» (#926 §17.Q).
+    const specialist =
+      specialistId === SPECIALIST
+        ? { id: SPECIALIST, fullName: 'Анна', branchIds: [BRANCH_A], cardIsReadable: true }
+        : null;
+    if (specialistId && !specialist) {
+      return {
+        rows: [{ catalog: { branches, branch: null, services: [], service: null, specialist: null } }],
+      };
+    }
+    const services = branch
+      ? [serviceRow(branch.organizationId)].filter(
+          () => !specialist || specialist.branchIds.includes(branch.id),
+        )
+      : [];
     return {
-      rows: [
-        {
-          catalog: {
-            branches,
-            branch,
-            services: branch ? [serviceRow(branch.organizationId)] : [],
-            service: null,
-          },
-        },
-      ],
+      rows: [{ catalog: { branches, branch, services, service: null, specialist } }],
     };
   };
 }
@@ -206,6 +224,58 @@ describe('первый экран записи клиники — публичн
     if (screen.kind !== 'stale') return;
     expect(screen.reason).toBe('branch_gone');
     // И вместо пустого списка — действующие филиалы ЭТОЙ клиники, без чужого.
+    expect(screen.branches.map((branch) => branch.id)).toEqual([BRANCH_A, BRANCH_B]);
+  });
+
+  /**
+   * #926 §17.C, поломка случившаяся: кабинет выдавал клинике ссылку `?specialist=<id>`, приёмный
+   * экран параметр терял (`console.warn`) и показывал ВЕСЬ филиал. Человек по ссылке «к Анне»
+   * записывался к кому угодно, и на экране это выглядело исправно — ошибка всплывала уже в
+   * кабинете врача. Здесь умирает именно доставка параметра до двери: потеряй её снова, и филиал
+   * отдаст услугу второго филиала, где Анна не принимает.
+   */
+  it('специалист из ссылки доезжает до двери: филиалы сужены до его, услуги — его', async () => {
+    fakes.runWebappNamedRoot.mockImplementation(catalogDoor(ownBranches()));
+
+    const first = await loadBookingEntryScreenRsc({
+      organizationId: ORG,
+      branchId: null,
+      specialistId: SPECIALIST,
+    });
+    expect(first.kind).toBe('branches');
+    if (first.kind !== 'branches') return;
+    // Без сужения здесь два филиала — второй Анна не ведёт, и предлагать его значит отправить
+    // человека туда, где под ссылку нет ни одной услуги (план §6.2).
+    expect(first.branches.map((branch) => branch.id)).toEqual([BRANCH_A]);
+    expect(first.specialist?.fullName).toBe('Анна');
+
+    const listed = await loadBookingEntryScreenRsc({
+      organizationId: ORG,
+      branchId: BRANCH_B,
+      specialistId: SPECIALIST,
+    });
+    expect(listed.kind).toBe('services');
+    if (listed.kind !== 'services') return;
+    expect(listed.services).toEqual([]);
+    expect(listed.specialist?.fullName).toBe('Анна');
+  });
+
+  /**
+   * §6.3: протухший параметр даёт НАЗВАННЫЙ экран и живые филиалы, а не пустой список. Пустой
+   * экран — молчаливый отказ: человек уходит, клиника теряет запись и не узнаёт об этом.
+   */
+  it('специалист, которого у клиники нет, — экран «больше не принимает», а не пустота', async () => {
+    fakes.runWebappNamedRoot.mockImplementation(catalogDoor(ownBranches()));
+
+    const screen = await loadBookingEntryScreenRsc({
+      organizationId: ORG,
+      branchId: null,
+      specialistId: GONE_SPECIALIST,
+    });
+
+    expect(screen.kind).toBe('stale');
+    if (screen.kind !== 'stale') return;
+    expect(screen.reason).toBe('specialist_gone');
     expect(screen.branches.map((branch) => branch.id)).toEqual([BRANCH_A, BRANCH_B]);
   });
 

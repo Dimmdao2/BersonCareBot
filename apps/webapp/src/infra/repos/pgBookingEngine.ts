@@ -293,11 +293,23 @@ const publicBookingServiceSchema = z.object({
   isActive: z.boolean(),
 });
 
+/**
+ * Личность специалиста из ссылки. `null` — одинаковый отказ по всем трём причинам сразу
+ * (нет такого, чужой, неактивен), см. §3.3.
+ */
+const publicBookingSpecialistSchema = z.object({
+  id: z.string().uuid(),
+  fullName: z.string(),
+  branchIds: z.array(z.string().uuid()),
+  cardIsReadable: z.boolean(),
+});
+
 const publicBookingCatalogSchema = z.object({
   branches: z.array(publicBookingBranchSchema),
   branch: publicBookingBranchSchema.nullable(),
   services: z.array(publicBookingServiceSchema),
   service: publicBookingServiceSchema.nullable(),
+  specialist: publicBookingSpecialistSchema.nullable(),
 });
 
 type PublicBookingCatalog = z.infer<typeof publicBookingCatalogSchema>;
@@ -307,6 +319,7 @@ const EMPTY_PUBLIC_BOOKING_CATALOG: PublicBookingCatalog = {
   branch: null,
   services: [],
   service: null,
+  specialist: null,
 };
 
 /**
@@ -315,18 +328,24 @@ const EMPTY_PUBLIC_BOOKING_CATALOG: PublicBookingCatalog = {
  * филиал просто не находится. Неопубликованная клиника отдаёт `NULL`, и здесь это превращается в
  * ПУСТОЙ каталог, а не в исключение: снаружи такой клиники не существует, и различать «нет» и
  * «нельзя» вызывающему нечем по построению.
+ *
+ * `specialistId` — третий вопрос той же двери (#926 §17.C): сужение выдачи до одного специалиста
+ * и его публичная личность. Неразрешённый специалист возвращается как пустой каталог с
+ * `specialist: null` — тем же ответом на все три причины отказа.
  */
 async function readPublicBookingCatalog(
   branchId: string | null,
   serviceId: string | null,
+  specialistId: string | null = null,
 ): Promise<PublicBookingCatalog> {
   const result = await runWebappNamedRoot<{ catalog: unknown }>(
     getWebappSqlDb(),
-    'app.read_public_booking_catalog(uuid,uuid)',
-    [branchId, serviceId],
+    'app.read_public_booking_catalog(uuid,uuid,uuid)',
+    [branchId, serviceId, specialistId],
     sql`SELECT app.read_public_booking_catalog(
       ${branchId}::uuid,
-      ${serviceId}::uuid
+      ${serviceId}::uuid,
+      ${specialistId}::uuid
     ) AS catalog`,
   );
   const catalog = result.rows[0]?.catalog;
@@ -818,6 +837,30 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
         .where(eq(beBranches.organizationId, organizationId))
         .orderBy(asc(beBranches.sortOrder), asc(beBranches.title));
       return rows.map(mapBranch);
+    },
+
+    async resolvePublicBookableSpecialist({ organizationId, specialistId }) {
+      if (!isCurrentPublicBookingPrincipal()) {
+        throw new Error('public_booking_principal_required');
+      }
+      // Кабинетный `listSpecialists` здесь не подходит по построению: это `db.select()` по
+      // `be_specialists`, а у анонимного класса `tenant_service` на неё нет грантов вовсе (42501).
+      // Отбор «активен» и ответ «читается ли его карточка» тоже не повторяются здесь — оба живут
+      // в теле двери (§17.Q).
+      const catalog = await readPublicBookingCatalog(null, null, specialistId);
+      const specialist = catalog.specialist;
+      if (!specialist) return null;
+      // Организация у двери берётся из принятого контекста, а не из аргумента; равенство ниже —
+      // та же страховка, что стоит на филиале рядом, а не вторая стена вместо неё.
+      const branchIds = catalog.branches
+        .filter((branch) => branch.organizationId === organizationId)
+        .map((branch) => branch.id);
+      return {
+        id: specialist.id,
+        fullName: specialist.fullName,
+        branchIds: specialist.branchIds.filter((branchId) => branchIds.includes(branchId)),
+        cardIsReadable: specialist.cardIsReadable,
+      };
     },
 
     async getBranch(id) {
@@ -1338,11 +1381,11 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
       };
     },
 
-    async listPublicBookableServicesForBranch({ organizationId, branchId }) {
+    async listPublicBookableServicesForBranch({ organizationId, branchId, specialistId }) {
       if (!isCurrentPublicBookingPrincipal()) {
         throw new Error('public_booking_principal_required');
       }
-      const catalog = await readPublicBookingCatalog(branchId, null);
+      const catalog = await readPublicBookingCatalog(branchId, null, specialistId ?? null);
       if (!catalog.branch || catalog.branch.organizationId !== organizationId) return [];
       return catalog.services
         .filter((service) => service.organizationId === organizationId)

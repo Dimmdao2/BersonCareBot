@@ -295,6 +295,13 @@ function createCatalogFacade(
       assertUuid(id);
       return port.getBranch(id);
     },
+    resolvePublicBookableSpecialist: (
+      input: Parameters<OrganizationCatalogPort['resolvePublicBookableSpecialist']>[0],
+    ) => {
+      assertUuid(input.organizationId);
+      assertUuid(input.specialistId);
+      return port.resolvePublicBookableSpecialist(input);
+    },
     async upsertBranch(input: Parameters<OrganizationCatalogPort['upsertBranch']>[0]) {
       if (!isReservedOnlineLocationIdentity(input)) {
         assertBranchesWriteClearance();
