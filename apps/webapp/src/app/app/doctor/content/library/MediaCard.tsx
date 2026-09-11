@@ -3,7 +3,7 @@
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { MediaCardActionsMenu } from './MediaCardActionsMenu';
 import { canRenderInlineImage } from './mediaPreview';
-import type { MediaPreviewStatus } from '@/modules/media/types';
+import type { MediaPreviewStatus, VideoProcessingStatus } from '@/modules/media/types';
 import { MediaThumb } from '@/shared/ui/doctor/media/MediaThumb';
 import { libraryMediaRowToPreviewUi } from '@/shared/ui/doctor/media/mediaPreviewUiModel';
 import { doctorInteractiveSurfaceButtonClass } from '@/shared/ui/doctor/doctorVisual';
@@ -23,6 +23,9 @@ type MediaItem = {
   previewSmUrl?: string | null;
   previewMdUrl?: string | null;
   previewStatus?: MediaPreviewStatus;
+  standardRendition?: boolean;
+  videoProcessingStatus?: VideoProcessingStatus | null;
+  hlsMasterPlaylistS3Key?: string | null;
 };
 
 type Props = {

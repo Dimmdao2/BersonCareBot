@@ -6,7 +6,11 @@ import {
   type MediaObjectLocation,
 } from '@/app-layer/media/s3MediaStorage';
 import { getVideoPresignTtlSeconds } from '@/app-layer/media/videoPresignTtl';
-import { presignGetUrl, s3GetObjectBody, s3HeadObjectDetails } from '@/app-layer/media/s3Client';
+import {
+  deliveryGetObjectBody,
+  deliveryHeadObjectDetails,
+  presignDeliveryGetUrl,
+} from '@/app-layer/media/s3DeliveryClient';
 import { getCurrentSession } from '@/modules/auth/service';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import {
@@ -29,7 +33,7 @@ function redirectCacheControl(ttlSec: number): string {
 async function redirectPresignedPreview(object: MediaObjectLocation): Promise<Response> {
   try {
     const ttlSec = await getVideoPresignTtlSeconds();
-    const signed = await presignGetUrl(object.key, ttlSec, object.target);
+    const signed = await presignDeliveryGetUrl(object.key, ttlSec, object.target);
     const res = NextResponse.redirect(signed, 307);
     // Redirect cache must never outlive presigned URL TTL.
     res.headers.set('Cache-Control', redirectCacheControl(ttlSec));
@@ -89,7 +93,7 @@ export async function GET(
 
     const ifNoneMatch = request.headers.get('if-none-match');
     const ifModifiedSinceRaw = request.headers.get('if-modified-since');
-    const head = await s3HeadObjectDetails(preview.key, preview.target);
+    const head = await deliveryHeadObjectDetails(preview.key, preview.target);
     let etag = head?.eTag?.trim() || null;
     const validatorSource: 's3' | 'sha256' = etag ? 's3' : 'sha256';
     const lastModifiedFromHead = head?.lastModified ?? null;
@@ -131,7 +135,7 @@ export async function GET(
       });
     }
 
-    const body = await s3GetObjectBody(preview.key, preview.target);
+    const body = await deliveryGetObjectBody(preview.key, preview.target);
     if (!body?.length) {
       logger.error({ mediaId: id, size }, '[preview GET] s3 read failed');
       logger.warn({ mediaId: id, size }, '[preview GET] fallback redirect used');

@@ -18,7 +18,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
-import { Camera, FilePlus, Image as ImageIcon } from 'lucide-react';
+import { Camera, FilePlus, Image as ImageIcon, Loader2 } from 'lucide-react';
 import type { PatientCardHeader } from '@/modules/doctor-clients/ports';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 import type { PatientFileCategory } from '@/modules/patient-files/ports';
@@ -507,7 +507,6 @@ function FilePreviewModal({
   encountersEnabled: boolean;
 }) {
   const isImage = file?.mimeType.startsWith('image/') ?? false;
-  const isPdf = file?.mimeType === 'application/pdf';
   const isVideo = file?.mimeType.startsWith('video/') ?? false;
 
   return (
@@ -522,27 +521,25 @@ function FilePreviewModal({
                 alt={file.fileName}
                 className="max-h-[50vh] w-full object-contain"
               />
-            ) : file.previewUrl && isPdf ? (
-              <iframe
-                src={file.previewUrl}
-                title={file.fileName}
-                className="h-[50vh] w-full border-0"
-              />
-            ) : isVideo && file.mediaFileId ? (
+            ) : file.previewUrl && isVideo && file.mediaFileId ? (
               <DoctorMediaPlaybackVideo
                 mediaId={file.mediaFileId}
                 title={file.fileName}
                 initialPlayback={null}
                 shellClassName="h-[50vh] w-full"
               />
+            ) : isImage || isVideo ? (
+              <div
+                className="flex flex-col items-center gap-2 px-6 py-10 text-center text-xs text-muted-foreground"
+                role="status"
+              >
+                <Loader2 className="size-8 animate-spin opacity-60" aria-hidden />
+                <span>{isVideo ? 'Видео готовится' : 'Картинка готовится'}</span>
+              </div>
             ) : (
               <div className="flex flex-col items-center gap-2 px-6 py-10 text-center">
                 <span className="text-4xl">{fileIcon(file.mimeType)}</span>
-                <span className="text-xs text-muted-foreground">
-                  {file.previewUrl
-                    ? 'Предпросмотр недоступен для этого типа файла'
-                    : 'Предпросмотр появится после загрузки файла'}
-                </span>
+                <span className="text-xs text-muted-foreground">Встроенный просмотр недоступен</span>
               </div>
             )}
           </div>
@@ -568,40 +565,18 @@ function FilePreviewModal({
              * `download` на чужом origin браузер игнорирует, а `Content-Disposition` там inline.
              * Поэтому для видео вместо неё стоит выдача исходника вложением (М6).
              */}
-            {isVideo && file.mediaFileId ? (
-              file.canDownloadSource ? (
-                <a
-                  href={`/api/media/${file.mediaFileId}/original`}
-                  className="text-sm text-primary hover:underline"
-                >
-                  Скачать исходник
-                </a>
-              ) : (
-                <span className="text-sm text-muted-foreground">
-                  Исходник скачивает специалист, который его загрузил
-                </span>
-              )
-            ) : (
-              file.previewUrl && (
-                <>
-                  <a
-                    href={file.previewUrl}
-                    download={file.fileName}
-                    className="text-sm text-primary hover:underline"
-                  >
-                    Скачать
-                  </a>
-                  <a
-                    href={file.previewUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm text-primary hover:underline"
-                  >
-                    Открыть
-                  </a>
-                </>
-              )
-            )}
+            {file.mediaFileId && file.canDownloadSource ? (
+              <a
+                href={`/api/media/${file.mediaFileId}/original`}
+                className="text-sm text-primary hover:underline"
+              >
+                {isVideo ? 'Скачать исходник' : 'Скачать файл'}
+              </a>
+            ) : file.mediaFileId ? (
+              <span className="text-sm text-muted-foreground">
+                Файл скачивает специалист, который его загрузил
+              </span>
+            ) : null}
             <Button
               type="button"
               variant="destructive"

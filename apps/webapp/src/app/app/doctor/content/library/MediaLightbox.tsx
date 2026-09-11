@@ -2,11 +2,12 @@
 
 import { ImageOff, Loader2 } from 'lucide-react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
-import { NoContextMenuVideo } from '@/shared/ui/doctor/media/NoContextMenuVideo';
+import { DoctorMediaPlaybackVideo } from '@/shared/ui/doctor/media/DoctorMediaPlaybackVideo';
 import { Dialog, DialogContent, DialogTitle } from '@/shared/ui/doctor/primitives/dialog';
 import { cn } from '@/lib/utils';
 import { canRenderInlineImage } from './mediaPreview';
-import type { MediaPreviewStatus } from '@/modules/media/types';
+import type { MediaPreviewStatus, VideoProcessingStatus } from '@/modules/media/types';
+import { isHlsAssetReady } from '@/modules/media/playbackResolveDelivery';
 
 type MediaItem = {
   id: string;
@@ -22,6 +23,8 @@ type MediaItem = {
   previewStatus?: MediaPreviewStatus;
   /** `media_files.standard_rendition_at IS NOT NULL` — the stored object is our own re-encode. */
   standardRendition?: boolean;
+  videoProcessingStatus?: VideoProcessingStatus | null;
+  hlsMasterPlaylistS3Key?: string | null;
 };
 
 type Props = {
@@ -52,6 +55,12 @@ export function MediaLightbox({ open, item, onOpenChange, onPrev, onNext }: Prop
     item.previewStatus !== 'skipped'
       ? item.url.trim() || null
       : null);
+  const videoReady =
+    item?.kind === 'video' &&
+    isHlsAssetReady(
+      item.videoProcessingStatus ?? null,
+      item.hlsMasterPlaylistS3Key ?? null,
+    );
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] w-[95vw] max-w-5xl overflow-auto">
@@ -95,30 +104,26 @@ export function MediaLightbox({ open, item, onOpenChange, onPrev, onNext }: Prop
                 </div>
               )
             ) : item.kind === 'video' ? (
-              <div className="flex w-full min-w-0 justify-center rounded-md bg-muted/40">
-                <NoContextMenuVideo
-                  className="max-h-[70vh] max-w-full object-contain"
-                  controls
-                  preload="metadata"
-                  autoPlay
-                  playsInline
+              videoReady ? (
+                <DoctorMediaPlaybackVideo
+                  mediaId={item.id}
+                  title={title}
+                  initialPlayback={null}
+                  shellClassName="min-h-[50vh] w-full"
+                />
+              ) : (
+                <div
+                  className="flex h-[50vh] max-h-[70vh] w-full flex-col items-center justify-center gap-2 rounded-md bg-muted/30 p-4 text-sm text-muted-foreground"
+                  role="status"
                 >
-                  <source src={item.url} />
-                </NoContextMenuVideo>
-              </div>
-            ) : item.kind === 'audio' ? (
-              <audio controls preload="metadata" className="w-full">
-                <source src={item.url} />
-              </audio>
+                  <Loader2 className="h-12 w-12 animate-spin opacity-60" aria-hidden />
+                  <span>Видео готовится</span>
+                </div>
+              )
             ) : (
-              <a
-                className="text-primary underline"
-                href={item.url}
-                target="_blank"
-                rel="noreferrer"
-              >
-                Открыть файл в новой вкладке
-              </a>
+              <div className="flex min-h-40 items-center justify-center rounded-md bg-muted/20 text-sm text-muted-foreground">
+                Встроенный просмотр недоступен
+              </div>
             )}
             <div className="flex items-center justify-between gap-2">
               <Button type="button" variant="outline" onClick={onPrev} disabled={!onPrev}>

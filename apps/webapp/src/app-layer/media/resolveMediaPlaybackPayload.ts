@@ -1,7 +1,7 @@
 import { env, webappRuntimeDatabaseIsConfigured } from '@/config/env';
 import { logger } from '@/app-layer/logging/logger';
 import { serializePresignFailureForLog } from '@/app-layer/media/presignLogRedaction';
-import { presignGetUrl } from '@/app-layer/media/s3Client';
+import { presignDeliveryGetUrl } from '@/app-layer/media/s3DeliveryClient';
 import { getMediaRowForPlayback } from '@/app-layer/media/s3MediaStorage';
 import type { MediaPlaybackPayload } from '@/modules/media/playbackPayloadTypes';
 import { isHlsAssetReady } from '@/modules/media/playbackResolveDelivery';
@@ -31,10 +31,10 @@ export type ResolveMediaPlaybackSuccess = { ok: true; data: MediaPlaybackPayload
 
 /**
  * Shared by GET /api/media/[id]/playback and RSC (patient content).
- * Master — same-origin HLS proxy; presign — постер и прогрессивный объект, не сегменты HLS.
- *
- * Маршрут задаёт само медиа: не видео → progressive `file`; видео с готовым HLS → только HLS;
- * видео без готового HLS (в т.ч. `usage_purpose=program_item_submission`) → progressive MP4.
+ * Master — same-origin HLS proxy; presign — только постер из горячего бакета.
+ * Изображение получает `/api/media/:id` лишь после стандартного рендишна. Видео получает только
+ * HLS; исходный MP4 больше не является временным playback fallback. Документы и аудио, для которых
+ * наш энкодер не строит вывод, встроенного просмотра не получают.
  */
 export async function resolveMediaPlaybackPayload(input: {
   id: string;
@@ -108,6 +108,12 @@ export async function resolveMediaPlaybackPayload(input: {
   const progressivePath = `/api/media/${id}`;
 
   if (!isVideo) {
+    if (!mimeType.toLowerCase().startsWith('image/')) {
+      return { ok: false, status: 404, error: 'inline_preview_unavailable' };
+    }
+    if (row.standard_rendition_at == null) {
+      return { ok: false, status: 409, error: 'media_processing' };
+    }
     logger.info(
       {
         mediaId: id,
@@ -143,14 +149,18 @@ export async function resolveMediaPlaybackPayload(input: {
 
   const hlsReady = isHlsAssetReady(videoProcessingStatus, trustedMaster);
 
-  const delivery: 'hls' | 'mp4' = hlsReady ? 'hls' : 'mp4';
-  const masterUrl = hlsReady ? `/api/media/${id}/hls/master.m3u8` : null;
+  if (!hlsReady) {
+    return { ok: false, status: 409, error: 'media_processing' };
+  }
+
+  const delivery = 'hls' as const;
+  const masterUrl = `/api/media/${id}/hls/master.m3u8`;
   let posterUrl: string | null = null;
 
   const rawPoster = row.poster_s3_key?.trim() ?? '';
   if (rawPoster && isTrustedPosterS3Key(id, rawPoster)) {
     try {
-      posterUrl = await presignGetUrl(rawPoster, presignExpiresSec, row.storage_target);
+      posterUrl = await presignDeliveryGetUrl(rawPoster, presignExpiresSec, row.storage_target);
     } catch (e) {
       logger.error(
         { err: serializePresignFailureForLog(e), mediaId: id, presignTarget: 'poster' },
@@ -185,8 +195,8 @@ export async function resolveMediaPlaybackPayload(input: {
       durationSeconds: row.video_duration_seconds,
       posterUrl,
       preview,
-      hls: masterUrl ? { masterUrl, qualities: qualities ?? undefined } : null,
-      progressive: masterUrl ? null : { url: progressivePath },
+      hls: { masterUrl, qualities: qualities ?? undefined },
+      progressive: null,
       expiresInSeconds: presignExpiresSec,
     },
   };

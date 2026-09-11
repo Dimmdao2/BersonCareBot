@@ -15,6 +15,8 @@ import {
 } from '@/shared/ui/doctor/primitives/dropdown-menu';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 import { isRawOriginalUploader } from '@/modules/media/rawOriginalDownloadRule';
+import { isHlsAssetReady } from '@/modules/media/playbackResolveDelivery';
+import type { VideoProcessingStatus } from '@/modules/media/types';
 
 export type MediaItemForMenu = {
   id: string;
@@ -26,6 +28,9 @@ export type MediaItemForMenu = {
   uploadedByName?: string | null;
   createdAt: string;
   url: string;
+  standardRendition?: boolean;
+  videoProcessingStatus?: VideoProcessingStatus | null;
+  hlsMasterPlaylistS3Key?: string | null;
 };
 
 type Props = {
@@ -73,10 +78,14 @@ export function MediaCardActionsMenu({
     uploadedBy: item.userId,
     requesterUserId: currentUserId,
   });
-  /*
-   * У картинки объекта-исходника уже нет: `mediaPreviewWorker` заменяет его своим стандартным
-   * рендишном (SECURITY_CANON §5). Поэтому «исходником» скачиваемое называется только у видео.
-   */
+  const canCopyDeliverableUrl =
+    (item.kind === 'image' && item.standardRendition === true) ||
+    (item.kind === 'video' &&
+      isHlsAssetReady(
+        item.videoProcessingStatus ?? null,
+        item.hlsMasterPlaylistS3Key ?? null,
+      ));
+  /* Оригинал картинки после М7 сохранён, но пользовательский термин «исходник» оставляем видео. */
   const downloadSourceLabel = item.kind === 'video' ? 'Скачать исходник' : 'Скачать файл';
   const [menuOpen, setMenuOpen] = useState(false);
   const [usageLines, setUsageLines] = useState<string[] | null>(null);
@@ -135,20 +144,13 @@ export function MediaCardActionsMenu({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-[14rem]">
         <DropdownMenuGroup>
-          <DropdownMenuItem onClick={onCopyUrl}>
-            {copied ? 'URL скопирован' : 'Скопировать URL'}
-          </DropdownMenuItem>
+          {canCopyDeliverableUrl ? (
+            <DropdownMenuItem onClick={onCopyUrl}>
+              {copied ? 'URL скопирован' : 'Скопировать URL'}
+            </DropdownMenuItem>
+          ) : null}
           {onOpenPreview ? (
             <DropdownMenuItem onClick={onOpenPreview}>{previewLabel}</DropdownMenuItem>
-          ) : null}
-          {item.kind === 'file' ? (
-            <DropdownMenuItem
-              onClick={() => {
-                window.open(item.url, '_blank', 'noopener,noreferrer');
-              }}
-            >
-              Открыть в новой вкладке
-            </DropdownMenuItem>
           ) : null}
           {canDownloadSource ? (
             /*

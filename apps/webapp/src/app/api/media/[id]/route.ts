@@ -7,7 +7,7 @@ import {
   type MediaObjectLocation,
 } from '@/app-layer/media/s3MediaStorage';
 import { serializePresignFailureForLog } from '@/app-layer/media/presignLogRedaction';
-import { presignGetUrl } from '@/app-layer/media/s3Client';
+import { presignDeliveryGetUrl } from '@/app-layer/media/s3DeliveryClient';
 import { getVideoPresignTtlSeconds } from '@/app-layer/media/videoPresignTtl';
 import { getCurrentSession } from '@/modules/auth/service';
 import { readSaasTestLocalMedia } from '@/app-layer/media/localSaasTestFixtureMedia';
@@ -22,13 +22,14 @@ import { authorizeMediaDelivery } from '@/app-layer/media/authorizeMediaDelivery
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { resolvePatientOrganizationRequestContext } from '@/app-layer/patient-organization/requestContext';
 import { withPatientOrganizationPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
+import { resolveMediaPlaybackPayload } from '@/app-layer/media/resolveMediaPlaybackPayload';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 async function redirectPresignedOr503(object: MediaObjectLocation): Promise<Response> {
   try {
     const ttlSec = await getVideoPresignTtlSeconds();
-    const signed = await presignGetUrl(object.key, ttlSec, object.target, undefined, object.kind);
+    const signed = await presignDeliveryGetUrl(object.key, ttlSec, object.target);
     /** 307 so clients (esp. Safari/WebKit video) re-issue GET+Range to the presigned URL; 302 often drops Range after redirect. */
     const res = NextResponse.redirect(signed, 307);
     res.headers.set('Cache-Control', 'private, max-age=0, must-revalidate');
@@ -39,7 +40,7 @@ async function redirectPresignedOr503(object: MediaObjectLocation): Promise<Resp
   }
 }
 
-export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!id) {
     return NextResponse.json({ error: 'missing id' }, { status: 400 });
@@ -67,6 +68,19 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
         allowPlatformBase: access.allowPlatformBase,
       });
       if (object) return redirectPresignedOr503(object);
+      if (access.row.mime_type.toLowerCase().startsWith('video/')) {
+        const playback = await resolveMediaPlaybackPayload({
+          id,
+          session,
+          allowPlatformBase: access.allowPlatformBase,
+        });
+        const masterUrl = playback.ok ? playback.data.hls?.masterUrl : null;
+        if (masterUrl) {
+          const response = NextResponse.redirect(new URL(masterUrl, request.url), 307);
+          response.headers.set('Cache-Control', 'private, max-age=0, must-revalidate');
+          return response;
+        }
+      }
       const localBody = await readSaasTestLocalMedia({
         databaseUrl: legacyDatabaseUrl,
         storedPath: access.row.stored_path,

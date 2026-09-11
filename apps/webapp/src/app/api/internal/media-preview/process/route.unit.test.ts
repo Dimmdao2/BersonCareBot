@@ -32,6 +32,16 @@ function request(): Request {
   });
 }
 
+function reconcileRequest(): Request {
+  return new Request(
+    'http://localhost/api/internal/media-preview/process?mode=reconcile-images&limit=7',
+    {
+      method: 'POST',
+      headers: { Authorization: 'Bearer test-secret' },
+    },
+  );
+}
+
 describe('media preview tick', () => {
   it('records success only when every selected row was processed without error', async () => {
     vi.clearAllMocks();
@@ -57,5 +67,23 @@ describe('media preview tick', () => {
     expect(mocks.recordTick).toHaveBeenCalledWith(
       expect.objectContaining({ success: false, metaJson: { processed: 1, errors: 2 } }),
     );
+  });
+
+  it('passes bounded image reconciliation through the existing preview mechanism', async () => {
+    vi.clearAllMocks();
+    mocks.processBatch.mockResolvedValueOnce({ processed: 1, errors: 0, requeued: 1 });
+
+    const response = await POST(reconcileRequest());
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      ok: true,
+      processed: 1,
+      errors: 0,
+      requeued: 1,
+    });
+    expect(mocks.processBatch).toHaveBeenCalledWith(7, {
+      reconcileMissingImageRenditions: true,
+    });
   });
 });
