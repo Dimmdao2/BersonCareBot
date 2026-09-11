@@ -171,11 +171,14 @@ reconcile её снесёт).
 `payload.source = 'prepayment_expired'` (`pgBookingCalendar.ts:396`, `pgDoctorClients.ts:842`) и
 показывается бейджем «Отменена из-за неоплаты» (`DoctorAppointmentIndicators.tsx:34-41`).
 
-- [ ] S7.1 Истечение предоплаты доводится до проекции пациента: бронь становится отменённой в том же
+- [x] S7.1 Истечение предоплаты доводится до проекции пациента: бронь становится отменённой в том же
       корне и в той же транзакции, что и сама запись, — иначе пациент видит живое «Ожидает оплаты» над
       мёртвым счётом.
-- [ ] S7.2 Пациенту показывается причина «Предоплата не внесена», а не отмена клиникой. Признак берётся
+      — доказательство: `20260912T002000_expired_prepayment_cancels_patient_booking.sql:59-64`;
+      rollback-only DEV proof `RUN_EXPIRED_PREPAYMENT_PATIENT_PROJECTION_DB=1 node --test deploy/postgres/privileges/expired-prepayment-patient-projection.devDbProof.test.mjs` вернул `appointmentStatus=cancelled_by_specialist`, `patientBookingStatus=cancelled` в одной транзакции.
+- [x] S7.2 Пациенту показывается причина «Предоплата не внесена», а не отмена клиникой. Признак берётся
       из того же источника, что и у врача (`source = 'prepayment_expired'`), второго правила не заводим.
+      — доказательство: тот же DEV proof вернул `historySource=prepayment_expired` и `patientCancelReason=prepayment_expired`; отображение — `BookingPastHistorySection.tsx:31-38`.
 
 ---
 
@@ -186,7 +189,6 @@ reconcile её снесёт).
   срок и кнопка), живой обратный отсчёт. Не начат.
 - **S5** — код готов воркером в `wt/prepayment-s5-notify` (`ff9213d7e`), **идёт независимый аудит**, в `feat`
   не приземлён. Галочки не ставятся до вердикта.
-- **S7** — причина отмены пациенту. Не начат.
 - **Живая проверка S2 и S6** не делалась: на DEV нет записи в статусе «ожидает оплаты» с настроенным
   платёжным провайдером, поэтому ни срок жизни счёта у провайдера, ни новые состояния модалки врача
   глазами не проверены. Код готов, галочки S2/S6 стоят по коду и внесённой поломке, не по живому прогону.
