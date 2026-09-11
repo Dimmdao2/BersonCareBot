@@ -11,7 +11,6 @@ import {
   DialogTitle,
 } from '@/shared/ui/doctor/primitives/dialog';
 import { Input } from '@/shared/ui/doctor/primitives/input';
-import { Label } from '@/shared/ui/doctor/primitives/label';
 import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
 import {
   Select,
@@ -32,6 +31,7 @@ import { cn } from '@/lib/utils';
 import { MediaLibraryPickerDialog } from '@/app/app/doctor/content/MediaLibraryPickerDialog';
 import { ReferenceSelect } from '@/shared/ui/doctor/ReferenceSelect';
 import { ReferenceMultiSelect } from '@/shared/ui/doctor/ReferenceMultiSelect';
+import { DoctorField } from '@/shared/ui/doctor/DoctorField';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 import {
   archiveClinicalTest,
@@ -443,8 +443,7 @@ export function ClinicalTestForm({
         <fieldset disabled={isArchived} className="m-0 min-w-0 border-0 p-0">
           <legend className="sr-only">Поля клинического теста</legend>
           <div className="flex flex-col gap-4">
-            <div className="flex flex-col gap-3">
-              <Label htmlFor="ct-title">Название</Label>
+            <DoctorField label="Название" htmlFor="ct-title" width="full">
               <Input
                 id="ct-title"
                 name="title"
@@ -452,10 +451,9 @@ export function ClinicalTestForm({
                 value={values.title}
                 onChange={(e) => setValues((v) => ({ ...v, title: e.target.value }))}
               />
-            </div>
+            </DoctorField>
 
-            <div className="flex flex-col gap-3">
-              <span className="text-sm font-medium">Медиа</span>
+            <DoctorField label="Медиа" width="full">
               <MediaLibraryPickerDialog
                 kind="image_or_video"
                 value={values.mediaUrl}
@@ -473,10 +471,9 @@ export function ClinicalTestForm({
                   });
                 }}
               />
-            </div>
+            </DoctorField>
 
-            <div className="flex flex-col gap-3">
-              <Label htmlFor="ct-desc">Описание</Label>
+            <DoctorField label="Описание" htmlFor="ct-desc" width="full">
               <Textarea
                 id="ct-desc"
                 name="description"
@@ -484,10 +481,9 @@ export function ClinicalTestForm({
                 value={values.description}
                 onChange={(e) => setValues((v) => ({ ...v, description: e.target.value }))}
               />
-            </div>
+            </DoctorField>
 
-            <div className="flex flex-col gap-3">
-              <Label htmlFor="ct-type">Тип теста (произвольная метка)</Label>
+            <DoctorField label="Тип теста (произвольная метка)" htmlFor="ct-type" width="full">
               <Input
                 id="ct-type"
                 name="testType"
@@ -495,10 +491,18 @@ export function ClinicalTestForm({
                 onChange={(e) => setValues((v) => ({ ...v, testType: e.target.value }))}
                 placeholder="например screening"
               />
-            </div>
+            </DoctorField>
 
-            <div className="flex flex-col gap-3">
-              <Label htmlFor="ct-asm">Вид оценки</Label>
+            <DoctorField
+              label="Вид оценки"
+              htmlFor="ct-asm"
+              width="full"
+              hint={
+                assessmentKindSelectOptions.some((item) => item.title.includes('(не в справочнике)'))
+                  ? 'Код вида оценки не найден в справочнике. Можно сохранить остальные поля без смены этого значения; чтобы записать другой вид — выберите код из списка.'
+                  : undefined
+              }
+            >
               <Select
                 value={values.assessmentKind}
                 onValueChange={(v) => setValues((prev) => ({ ...prev, assessmentKind: v ?? '' }))}
@@ -516,16 +520,9 @@ export function ClinicalTestForm({
                   ))}
                 </SelectContent>
               </Select>
-              {assessmentKindSelectOptions.some((o) => o.title.includes('(не в справочнике)')) ? (
-                <p className="text-xs text-muted-foreground">
-                  Код вида оценки не найден в справочнике. Можно сохранить остальные поля без смены
-                  этого значения; чтобы записать другой вид — выберите код из списка.
-                </p>
-              ) : null}
-            </div>
+            </DoctorField>
 
-            <div className="flex flex-col gap-3">
-              <Label htmlFor="ct-region">Регион тела</Label>
+            <DoctorField label="Регион тела" htmlFor="ct-region" width="full">
               <ReferenceMultiSelect
                 id="ct-region"
                 name="bodyRegionIds"
@@ -535,13 +532,23 @@ export function ClinicalTestForm({
                 placeholder="Добавить регион…"
                 disabled={isArchived}
               />
-            </div>
+            </DoctorField>
 
-            <div className="flex flex-col gap-3 rounded-md border border-border/50 p-3">
-              <span className="text-sm font-medium">Оценка</span>
+            <DoctorField
+              label="Оценка"
+              width="full"
+              className="rounded-md border border-border/50 p-3"
+            >
               <div className="space-y-4">
-                <div className="flex flex-col gap-2">
-                  <Label>Тип шкалы</Label>
+                <DoctorField
+                  label="Тип шкалы"
+                  width="full"
+                  hint={
+                    values.schemaType === 'numeric'
+                      ? `${patientSingularLabel} вводит одно число между min и max ниже. Примеры: боль 0–10, угол в градусах 0–180, процент выполнения 0–100.`
+                      : undefined
+                  }
+                >
                   <Select
                     value={values.schemaType}
                     onValueChange={(v) =>
@@ -565,84 +572,71 @@ export function ClinicalTestForm({
                       <SelectItem value="qualitative">Свободный ввод</SelectItem>
                     </SelectContent>
                   </Select>
-                  {values.schemaType === 'numeric' ? (
-                    <p className="text-xs text-muted-foreground leading-snug">
-                      {patientSingularLabel} вводит одно число между min и max ниже. Примеры: боль
-                      0–10, угол в градусах 0–180, процент выполнения 0–100.
-                    </p>
-                  ) : null}
-                </div>
+                </DoctorField>
 
                 {values.schemaType === 'numeric' ? (
                   <div className="grid gap-2 sm:grid-cols-3">
-                    <div className="flex flex-col gap-1">
-                      <Label className="text-xs">Min</Label>
+                    <DoctorField label="Min" width="full">
                       <Input
                         value={values.numericMin}
                         onChange={(e) => setValues((v) => ({ ...v, numericMin: e.target.value }))}
                         inputMode="decimal"
                       />
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      <Label className="text-xs">Max</Label>
+                    </DoctorField>
+                    <DoctorField label="Max" width="full">
                       <Input
                         value={values.numericMax}
                         onChange={(e) => setValues((v) => ({ ...v, numericMax: e.target.value }))}
                         inputMode="decimal"
                       />
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      <Label className="text-xs">Шаг</Label>
+                    </DoctorField>
+                    <DoctorField label="Шаг" width="full">
                       <Input
                         value={values.step}
                         onChange={(e) => setValues((v) => ({ ...v, step: e.target.value }))}
                         inputMode="decimal"
                       />
-                    </div>
+                    </DoctorField>
                   </div>
                 ) : null}
 
                 {values.schemaType === 'likert' ? (
                   <div className="grid gap-2 sm:grid-cols-2">
-                    <div className="flex flex-col gap-1">
-                      <Label className="text-xs">Минимум шкалы</Label>
+                    <DoctorField label="Минимум шкалы" width="full">
                       <Input
                         value={values.likertMin}
                         onChange={(e) => setValues((v) => ({ ...v, likertMin: e.target.value }))}
                         inputMode="numeric"
                       />
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      <Label className="text-xs">Максимум шкалы</Label>
+                    </DoctorField>
+                    <DoctorField label="Максимум шкалы" width="full">
                       <Input
                         value={values.likertMax}
                         onChange={(e) => setValues((v) => ({ ...v, likertMax: e.target.value }))}
                         inputMode="numeric"
                       />
-                    </div>
+                    </DoctorField>
                   </div>
                 ) : null}
 
                 {values.schemaType === 'binary' ? (
                   <div className="grid gap-2 sm:grid-cols-2">
-                    <div className="flex flex-col gap-1">
-                      <Label className="text-xs">Подпись «да»</Label>
+                    <DoctorField label="Подпись «да»" width="full">
                       <Input
                         value={values.positiveLabel}
                         onChange={(e) =>
                           setValues((v) => ({ ...v, positiveLabel: e.target.value }))
                         }
                       />
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      <Label className="text-xs">Подпись «нет»</Label>
+                    </DoctorField>
+                    <DoctorField label="Подпись «нет»" width="full">
                       <Input
                         value={values.negativeLabel}
                         onChange={(e) =>
                           setValues((v) => ({ ...v, negativeLabel: e.target.value }))
                         }
                       />
-                    </div>
+                    </DoctorField>
                   </div>
                 ) : null}
 
@@ -657,8 +651,7 @@ export function ClinicalTestForm({
                   }
                 />
 
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="ct-raw">Свободный текст / fallback</Label>
+                <DoctorField label="Свободный текст / fallback" htmlFor="ct-raw" width="full">
                   <Textarea
                     id="ct-raw"
                     name="rawText"
@@ -667,19 +660,18 @@ export function ClinicalTestForm({
                     onChange={(e) => setValues((v) => ({ ...v, rawText: e.target.value }))}
                     placeholder="Заметки, legacy-данные, что не вошло в структуру"
                   />
-                </div>
+                </DoctorField>
 
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="ct-tags">Теги (через запятую)</Label>
+                <DoctorField label="Теги (через запятую)" htmlFor="ct-tags" width="full">
                   <Input
                     id="ct-tags"
                     name="tags"
                     value={values.tags}
                     onChange={(e) => setValues((v) => ({ ...v, tags: e.target.value }))}
                   />
-                </div>
+                </DoctorField>
               </div>
-            </div>
+            </DoctorField>
 
             <div className={cn('flex flex-wrap gap-2', modalFooter && 'hidden')}>
               <Button type="submit" disabled={savePending}>

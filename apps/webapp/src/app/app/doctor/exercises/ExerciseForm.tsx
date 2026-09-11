@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useActionState, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ReferenceMultiSelect } from '@/shared/ui/doctor/ReferenceMultiSelect';
+import { DoctorField } from '@/shared/ui/doctor/DoctorField';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import {
   Dialog,
@@ -12,7 +13,6 @@ import {
   DialogTitle,
 } from '@/shared/ui/doctor/primitives/dialog';
 import { Input } from '@/shared/ui/doctor/primitives/input';
-import { Label } from '@/shared/ui/doctor/primitives/label';
 import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
 import { EXERCISE_LOAD_TYPE_CATEGORY_CODE } from '@/modules/lfk-exercises/exerciseLoadTypeReference';
 import type {
@@ -327,8 +327,7 @@ export function ExerciseForm({
         <fieldset disabled={isArchived || isReadOnly} className="m-0 min-w-0 border-0 p-0">
           <legend className="sr-only">Поля упражнения</legend>
           <div className="flex flex-col gap-4">
-            <div className="flex flex-col gap-3">
-              <Label htmlFor="ex-title">Название</Label>
+            <DoctorField label="Название" htmlFor="ex-title" width="full">
               <Input
                 id="ex-title"
                 name="title"
@@ -337,10 +336,9 @@ export function ExerciseForm({
                 onChange={(e) => setValues((v) => ({ ...v, title: e.target.value }))}
                 placeholder="Например, разгибание колена сидя"
               />
-            </div>
+            </DoctorField>
 
-            <div className="flex flex-col gap-3">
-              <span className="text-sm font-medium">Медиа</span>
+            <DoctorField label="Медиа" width="full">
               {isHostedMedia ? null : (
                 <MediaLibraryPickerDialog
                   kind="image_or_video"
@@ -370,10 +368,11 @@ export function ExerciseForm({
                 которая выбрана, и даём вернуться к другой.
               */}
               {values.mediaUrl && !isHostedMedia ? null : (
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="ex-hosted-url">
-                    Ссылка на видео ({HOSTED_VIDEO_ALLOWED_HOSTS_RU})
-                  </Label>
+                <DoctorField
+                  label={`Ссылка на видео (${HOSTED_VIDEO_ALLOWED_HOSTS_RU})`}
+                  htmlFor="ex-hosted-url"
+                  width="full"
+                >
                   <Input
                     id="ex-hosted-url"
                     inputMode="url"
@@ -391,7 +390,7 @@ export function ExerciseForm({
                       {hostedError}
                     </p>
                   ) : null}
-                </div>
+                </DoctorField>
               )}
 
               {isHostedMedia && values.mediaUrl ? (
@@ -416,10 +415,9 @@ export function ExerciseForm({
                   </div>
                 </div>
               ) : null}
-            </div>
+            </DoctorField>
 
-            <div className="flex flex-col gap-3">
-              <Label htmlFor="ex-tags">Теги (через запятую)</Label>
+            <DoctorField label="Теги (через запятую)" htmlFor="ex-tags" width="full">
               <Input
                 id="ex-tags"
                 name="tags"
@@ -427,10 +425,9 @@ export function ExerciseForm({
                 onChange={(e) => setValues((v) => ({ ...v, tags: e.target.value }))}
                 placeholder="колено, дома"
               />
-            </div>
+            </DoctorField>
 
-            <div className="flex flex-col gap-3">
-              <span className="text-sm font-medium">Регион</span>
+            <DoctorField label="Регион" width="full">
               <ReferenceMultiSelect
                 categoryCode="body_region"
                 prefetchedItems={bodyRegionItems}
@@ -439,10 +436,9 @@ export function ExerciseForm({
                 onChange={(ids) => setValues((v) => ({ ...v, regionRefIds: ids }))}
                 placeholder="Добавить регион…"
               />
-            </div>
+            </DoctorField>
 
-            <div className="flex flex-col gap-3">
-              <span className="text-sm font-medium">Тип нагрузки</span>
+            <DoctorField label="Тип нагрузки" width="full">
               <ReferenceMultiSelect
                 categoryCode={EXERCISE_LOAD_TYPE_CATEGORY_CODE}
                 prefetchedItems={loadTypeItems}
@@ -455,10 +451,9 @@ export function ExerciseForm({
                 }
                 placeholder="Добавить тип нагрузки…"
               />
-            </div>
+            </DoctorField>
 
-            <div className="flex flex-col gap-3">
-              <Label htmlFor="ex-desc">Описание</Label>
+            <DoctorField label="Описание" htmlFor="ex-desc" width="full">
               <Textarea
                 id="ex-desc"
                 name="description"
@@ -467,10 +462,9 @@ export function ExerciseForm({
                 onChange={(e) => setValues((v) => ({ ...v, description: e.target.value }))}
                 placeholder="Краткая техника выполнения"
               />
-            </div>
+            </DoctorField>
 
-            <div className="flex flex-col gap-3">
-              <Label htmlFor="ex-contra">Противопоказания</Label>
+            <DoctorField label="Противопоказания" htmlFor="ex-contra" width="full">
               <Textarea
                 id="ex-contra"
                 name="contraindications"
@@ -478,7 +472,7 @@ export function ExerciseForm({
                 value={values.contraindications}
                 onChange={(e) => setValues((v) => ({ ...v, contraindications: e.target.value }))}
               />
-            </div>
+            </DoctorField>
 
             {!isReadOnly && !modalFooter ? (
               <div className="flex flex-wrap gap-2">

@@ -6,6 +6,7 @@ const widthClasses = {
   sm: 'w-full max-w-[var(--doctor-field-sm,12rem)]',
   md: 'w-full max-w-[var(--doctor-field-md,24rem)]',
   lg: 'w-full max-w-[var(--doctor-field-lg,40rem)]',
+  full: 'w-full',
 } as const;
 
 type DoctorFieldProps = Omit<ComponentPropsWithoutRef<'div'>, 'children'> & {

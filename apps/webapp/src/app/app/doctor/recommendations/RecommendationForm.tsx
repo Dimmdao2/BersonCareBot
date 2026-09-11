@@ -11,7 +11,6 @@ import {
   DialogTitle,
 } from '@/shared/ui/doctor/primitives/dialog';
 import { Input } from '@/shared/ui/doctor/primitives/input';
-import { Label } from '@/shared/ui/doctor/primitives/label';
 import { MarkdownEditor } from '@/shared/ui/doctor/markdown/MarkdownEditor';
 import {
   buildRecommendationDomainSelectOptions,
@@ -22,6 +21,7 @@ import type { Recommendation, RecommendationUsageSnapshot } from '@/modules/reco
 import type { RecommendationListFilterScope } from '@/shared/lib/doctorCatalogListStatus';
 import { ReferenceSelect } from '@/shared/ui/doctor/ReferenceSelect';
 import { ReferenceMultiSelect } from '@/shared/ui/doctor/ReferenceMultiSelect';
+import { DoctorField } from '@/shared/ui/doctor/DoctorField';
 import { cn } from '@/lib/utils';
 import { MediaLibraryPickerDialog } from '@/app/app/doctor/content/MediaLibraryPickerDialog';
 import {
@@ -317,8 +317,7 @@ export function RecommendationForm({
         <fieldset disabled={isArchived} className="m-0 min-w-0 border-0 p-0">
           <legend className="sr-only">Поля рекомендации</legend>
           <div className="flex flex-col gap-4">
-            <div className="flex flex-col gap-3">
-              <Label htmlFor="rec-title">Название</Label>
+            <DoctorField label="Название" htmlFor="rec-title" width="full">
               <Input
                 id="rec-title"
                 name="title"
@@ -326,12 +325,18 @@ export function RecommendationForm({
                 value={values.title}
                 onChange={(e) => setValues((v) => ({ ...v, title: e.target.value }))}
               />
-            </div>
+            </DoctorField>
 
-            <div className="flex flex-col gap-3">
-              <Label className="text-sm font-medium text-foreground" htmlFor="rec-form-domain">
-                Тип
-              </Label>
+            <DoctorField
+              label="Тип"
+              htmlFor="rec-form-domain"
+              width="full"
+              hint={
+                domainPrefetchedItems.some((item) => item.title.includes('(не в справочнике)'))
+                  ? 'Код типа не найден в справочнике. Можно сохранить остальные поля без смены значения; чтобы записать другой тип — выберите код из списка.'
+                  : undefined
+              }
+            >
               <ReferenceSelect
                 id="rec-form-domain"
                 name="domain"
@@ -347,18 +352,9 @@ export function RecommendationForm({
                 showAllOnFocus
                 searchable={false}
               />
-              {domainPrefetchedItems.some((i) => i.title.includes('(не в справочнике)')) ? (
-                <p className="text-xs text-muted-foreground">
-                  Код типа не найден в справочнике. Можно сохранить остальные поля без смены
-                  значения; чтобы записать другой тип — выберите код из списка.
-                </p>
-              ) : null}
-            </div>
+            </DoctorField>
 
-            <div className="flex flex-col gap-3">
-              <Label className="text-sm font-medium text-foreground" htmlFor="rec-form-body-region">
-                Регион тела
-              </Label>
+            <DoctorField label="Регион тела" htmlFor="rec-form-body-region" width="full">
               <ReferenceMultiSelect
                 id="rec-form-body-region"
                 name="bodyRegionIds"
@@ -367,11 +363,10 @@ export function RecommendationForm({
                 onChange={(ids) => setValues((v) => ({ ...v, bodyRegionIds: ids }))}
                 placeholder="Добавить регион…"
               />
-            </div>
+            </DoctorField>
 
             <div className="grid gap-3 sm:grid-cols-3">
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="rec-quantity">Количество</Label>
+              <DoctorField label="Количество" htmlFor="rec-quantity" width="full">
                 <Input
                   id="rec-quantity"
                   name="quantityText"
@@ -380,9 +375,8 @@ export function RecommendationForm({
                   placeholder="Напр. 2×10"
                   maxLength={2000}
                 />
-              </div>
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="rec-frequency">Частота</Label>
+              </DoctorField>
+              <DoctorField label="Частота" htmlFor="rec-frequency" width="full">
                 <Input
                   id="rec-frequency"
                   name="frequencyText"
@@ -391,9 +385,8 @@ export function RecommendationForm({
                   placeholder="Напр. ежедневно"
                   maxLength={2000}
                 />
-              </div>
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="rec-duration">Длительность</Label>
+              </DoctorField>
+              <DoctorField label="Длительность" htmlFor="rec-duration" width="full">
                 <Input
                   id="rec-duration"
                   name="durationText"
@@ -402,11 +395,10 @@ export function RecommendationForm({
                   placeholder="Напр. 2 недели"
                   maxLength={2000}
                 />
-              </div>
+              </DoctorField>
             </div>
 
-            <div className="flex flex-col gap-3">
-              <span className="text-sm font-medium">Медиа</span>
+            <DoctorField label="Медиа" width="full">
               <MediaLibraryPickerDialog
                 kind="image_or_video"
                 value={values.mediaUrl}
@@ -424,28 +416,27 @@ export function RecommendationForm({
                   });
                 }}
               />
-            </div>
+            </DoctorField>
 
-            <div className="flex flex-col gap-3">
+            <DoctorField label="Описание" width="full">
               <MarkdownEditor
                 key={`rec-body-${recordKey}`}
                 name="bodyMd"
                 defaultValue={values.bodyMd}
-                label={<span className="text-sm font-medium text-foreground">Описание</span>}
+                label={null}
                 helpText={null}
                 onChange={(md) => setValues((v) => ({ ...v, bodyMd: md }))}
               />
-            </div>
+            </DoctorField>
 
-            <div className="flex flex-col gap-3">
-              <Label htmlFor="rec-tags">Теги (через запятую)</Label>
+            <DoctorField label="Теги (через запятую)" htmlFor="rec-tags" width="full">
               <Input
                 id="rec-tags"
                 name="tags"
                 value={values.tags}
                 onChange={(e) => setValues((v) => ({ ...v, tags: e.target.value }))}
               />
-            </div>
+            </DoctorField>
 
             <div className={cn('flex flex-wrap gap-2', modalFooter && 'hidden')}>
               <Button type="submit" disabled={pending}>
