@@ -3991,8 +3991,7 @@ INSERT INTO bcb_function_relation_surfaces(signature,relation_name,columns,opera
   ('app.save_custom_domain_binding_intent(text,uuid,text,text)', 'public.org_custom_domain_bindings', ARRAY['id', 'organization_id', 'base_domain', 'placement', 'subdomain_label', 'hostname', 'status', 'status_reason', 'created_by_platform_user_id', 'activated_at', 'created_at', 'updated_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
   ('app.save_pending_staff_totp(text)', 'public.staff_security_profiles', ARRAY['user_id', 'pending_totp_secret_ciphertext', 'failed_attempts', 'locked_until', 'updated_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
   ('app.save_public_clinic_card(uuid,text,text,text,text,uuid,text,boolean,text)', 'public.media_files', ARRAY['id', 'owner_kind', 'organization_id']::text[], ARRAY['SELECT']::text[]),
-  ('app.save_public_clinic_card(uuid,text,text,text,text,uuid,text,boolean,text)', 'public.be_branches', ARRAY['organization_id', 'is_active', 'title', 'city_code', 'address', 'sort_order']::text[], ARRAY['SELECT']::text[]),
-  ('app.save_public_clinic_card(uuid,text,text,text,text,uuid,text,boolean,text)', 'public.clinic_public_directory_entries', ARRAY['organization_id', 'description', 'full_description_markdown', 'public_contact_phone', 'public_contact_email', 'public_website_url', 'logo_media_id', 'photo_media_ids', 'locations_json', 'card_is_published', 'updated_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
+  ('app.save_public_clinic_card(uuid,text,text,text,text,uuid,text,boolean,text)', 'public.clinic_public_directory_entries', ARRAY['organization_id', 'description', 'full_description_markdown', 'public_contact_phone', 'public_contact_email', 'public_website_url', 'logo_media_id', 'photo_media_ids', 'card_is_published', 'updated_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
   ('app.seed_reference_catalog_snapshot(uuid)', 'public.reference_catalog_baselines', ARRAY['version', 'definition_json']::text[], ARRAY['SELECT']::text[]),
   ('app.seed_reference_catalog_snapshot(uuid)', 'public.reference_catalog_snapshot_receipts', ARRAY['organization_id', 'baseline_version']::text[], ARRAY['SELECT', 'INSERT']::text[]),
   ('app.seed_reference_catalog_snapshot(uuid)', 'public.reference_categories', ARRAY['id', 'code', 'title', 'is_user_extensible', 'organization_id']::text[], ARRAY['SELECT', 'INSERT']::text[]),
@@ -4177,7 +4176,7 @@ BEGIN
   END LOOP;
   SELECT pg_catalog.string_agg(message, E'\n' ORDER BY message) INTO gap_list FROM bcb_function_surface_gaps;
   IF gap_list IS NOT NULL THEN RAISE EXCEPTION 'function body surface gaps (%):\n%', (SELECT count(*) FROM bcb_function_surface_gaps), gap_list; END IF;
-  RAISE NOTICE 'BCB_FUNCTION_BODY_SURFACES_VERIFIED functions=441 rows=1040 special_contracts=8 trigger_sources=1';
+  RAISE NOTICE 'BCB_FUNCTION_BODY_SURFACES_VERIFIED functions=441 rows=1039 special_contracts=8 trigger_sources=1';
 END
 $bcb$;
 
@@ -13063,13 +13062,13 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."clinic_public_directory_entries" FROM "
 GRANT SELECT ("is_published", "organization_id", "slug") ON TABLE "public"."clinic_public_directory_entries" TO "app_seam_custom_domain_owner";
 GRANT SELECT ("is_published", "organization_id") ON TABLE "public"."clinic_public_directory_entries" TO "app_seam_public_booking_owner";
 GRANT SELECT ("card_is_published", "description", "full_description_markdown", "is_published", "logo_media_id", "organization_id", "photo_media_ids", "public_contact_email", "public_contact_phone", "public_website_url") ON TABLE "public"."clinic_public_directory_entries" TO "app_seam_public_clinic_card_owner";
-GRANT SELECT ("card_is_published", "description", "full_description_markdown", "locations_json", "logo_media_id", "organization_id", "photo_media_ids", "public_contact_email", "public_contact_phone", "public_website_url", "updated_at") ON TABLE "public"."clinic_public_directory_entries" TO "app_seam_public_clinic_card_owner";
-GRANT UPDATE ("card_is_published", "description", "full_description_markdown", "locations_json", "logo_media_id", "organization_id", "photo_media_ids", "public_contact_email", "public_contact_phone", "public_website_url", "updated_at") ON TABLE "public"."clinic_public_directory_entries" TO "app_seam_public_clinic_card_owner";
+GRANT SELECT ("card_is_published", "description", "full_description_markdown", "logo_media_id", "organization_id", "photo_media_ids", "public_contact_email", "public_contact_phone", "public_website_url", "updated_at") ON TABLE "public"."clinic_public_directory_entries" TO "app_seam_public_clinic_card_owner";
+GRANT UPDATE ("card_is_published", "description", "full_description_markdown", "logo_media_id", "organization_id", "photo_media_ids", "public_contact_email", "public_contact_phone", "public_website_url", "updated_at") ON TABLE "public"."clinic_public_directory_entries" TO "app_seam_public_clinic_card_owner";
 GRANT SELECT ("organization_id", "slug") ON TABLE "public"."clinic_public_directory_entries" TO "app_seam_public_slug_owner";
 GRANT SELECT ("is_published", "organization_id", "slug") ON TABLE "public"."clinic_public_directory_entries" TO "app_seam_public_slug_owner";
 GRANT INSERT ("created_at", "display_name", "is_published", "organization_id", "published_at", "slug", "updated_at") ON TABLE "public"."clinic_public_directory_entries" TO "app_seam_specialist_provision_owner";
 GRANT SELECT ON TABLE "public"."clinic_public_directory_entries" TO "app_staff";
-GRANT INSERT ("card_is_published", "created_at", "description", "display_name", "is_published", "locations_json", "logo_media_id", "organization_id", "photo_media_ids", "public_contact_email", "public_contact_phone", "public_website_url", "published_at", "slug", "updated_at") ON TABLE "public"."clinic_public_directory_entries" TO "app_staff";
+GRANT INSERT ("card_is_published", "created_at", "description", "display_name", "is_published", "logo_media_id", "organization_id", "photo_media_ids", "public_contact_email", "public_contact_phone", "public_website_url", "published_at", "slug", "updated_at") ON TABLE "public"."clinic_public_directory_entries" TO "app_staff";
 GRANT UPDATE ("slug", "updated_at") ON TABLE "public"."clinic_public_directory_entries" TO "app_staff";
 -- последовательности public.clinic_public_directory_entries: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$

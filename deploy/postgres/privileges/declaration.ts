@@ -14068,7 +14068,6 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "description",
           "display_name",
           "is_published",
-          "locations_json",
           "logo_media_id",
           "organization_id",
           "photo_media_ids",
@@ -27849,13 +27848,12 @@ const REV10_CONTEXT = {
       relationSurfaces: [
         { relation: 'public.media_files', columns: ['id', 'owner_kind', 'organization_id'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
-        { relation: 'public.be_branches',
-          columns: ['organization_id', 'is_active', 'title', 'city_code', 'address', 'sort_order'],
-          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        // #926 §17.J: снимок адресов снят, и вместе с ним ушла единственная причина двери записи
+        // читать `be_branches`. Адреса на визитке — живые, их джойнит дверь чтения.
         { relation: 'public.clinic_public_directory_entries',
           columns: ['organization_id', 'description', 'full_description_markdown',
             'public_contact_phone', 'public_contact_email', 'public_website_url', 'logo_media_id',
-            'photo_media_ids', 'locations_json', 'card_is_published', 'updated_at'],
+            'photo_media_ids', 'card_is_published', 'updated_at'],
           operations: ['SELECT' as const, 'UPDATE' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
       databases: ALL_DECLARED_DATABASES,
