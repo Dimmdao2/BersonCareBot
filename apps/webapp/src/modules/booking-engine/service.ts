@@ -426,11 +426,5 @@ function createServiceAvailabilityFacade(
       return port.deactivateSpecialistServiceAvailability(id);
     },
     listServiceDoerIntersections: port.listServiceDoerIntersections.bind(port),
-    async ensureSoloServiceCoverage(
-      input: Parameters<ServiceAvailabilityPort['ensureSoloServiceCoverage']>[0],
-    ) {
-      assertBookingWriteClearance();
-      return port.ensureSoloServiceCoverage(input);
-    },
   };
 }
