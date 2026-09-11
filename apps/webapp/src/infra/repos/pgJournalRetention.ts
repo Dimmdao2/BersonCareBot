@@ -60,5 +60,23 @@ export function createPgJournalRetentionPort(): JournalRetentionPort {
       });
       return { deleted };
     },
+    async pruneMediaUploadSessionsCompleted(days, options?: JournalRetentionPurgeOptions) {
+      const deleted = await pruneRetentionTarget('media_upload_sessions_completed', days, {
+        dryRun: options?.dryRun === true,
+      });
+      return { deleted };
+    },
+    async pruneSaasIsolationEventsResolved(days, options?: JournalRetentionPurgeOptions) {
+      const deleted = await pruneRetentionTarget('saas_isolation_events_resolved', days, {
+        dryRun: options?.dryRun === true,
+      });
+      return { deleted };
+    },
+    async pruneSaasIsolationCoverageRuns(days, options?: JournalRetentionPurgeOptions) {
+      const deleted = await pruneRetentionTarget('saas_isolation_coverage_runs', days, {
+        dryRun: options?.dryRun === true,
+      });
+      return { deleted };
+    },
   };
 }

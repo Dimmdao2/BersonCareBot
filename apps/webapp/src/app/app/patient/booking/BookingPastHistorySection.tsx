@@ -28,16 +28,24 @@ type Props = {
   appDisplayTimeZone: string;
 };
 
-function nativePastStatusRight(status: PatientBookingRecord['status']): ReactNode {
+function nativePastStatusRight(
+  status: PatientBookingRecord['status'],
+  cancelReason: string | null,
+): ReactNode {
   if (status === 'confirmed') return null;
   if (status === 'cancelled') {
-    return <span className={cn('shrink-0 patient-text-danger', patientActionTextClass)}>Отменена</span>;
+    const label =
+      cancelReason === 'prepayment_expired' ? 'Предоплата не внесена' : 'Отменена';
+    return (
+      <span className={cn('shrink-0 patient-text-danger', patientActionTextClass)}>{label}</span>
+    );
   }
   if (status === 'completed') return <Badge variant="outline">Завершена</Badge>;
   if (status === 'rescheduled') return <Badge variant="outline">Перенесена</Badge>;
   if (status === 'no_show') return <Badge variant="outline">Неявка</Badge>;
   if (status === 'failed_sync') return <Badge variant="destructive">Ошибка</Badge>;
-  if (status === 'cancel_failed') return <Badge variant="destructive">Не удалось отменить</Badge>;
+  if (status === 'cancel_failed')
+    return <Badge variant="destructive">Не удалось отменить</Badge>;
   if (status === 'cancelling') return <Badge variant="secondary">Отмена…</Badge>;
   if (status === 'creating') return <Badge variant="secondary">Создается</Badge>;
   return null;
@@ -70,7 +78,7 @@ function PastList({ items, appDisplayTimeZone }: Props) {
                 {nativeBookingSubtitle(booking)}
               </p>
             </div>
-            {nativePastStatusRight(booking.status)}
+            {nativePastStatusRight(booking.status, booking.cancelReason)}
           </li>
         );
       })}
