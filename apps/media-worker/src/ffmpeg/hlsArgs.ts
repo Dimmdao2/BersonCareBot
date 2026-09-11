@@ -1,10 +1,19 @@
+/**
+ * CRF value for every rung (owner decision 2026-09-11, `VIDEO_DELIVERY_COST_AND_METERING` — "то, что
+ * делает Netflix, не будем... фиксированный битрейт меняем на CRF с потолком"). A ceiling, not a
+ * target: simple content (static camera, one person, flat wall) settles below it on its own; complex
+ * content is capped by `-maxrate` instead of dragged up to it the way plain `-b:v` ABR would.
+ */
+export const HLS_ENCODE_CRF = 23;
+
 /** Single-rendition VOD HLS; run with `cwd` = variant directory (e.g. `…/hls/720p`). */
 export function buildHlsSingleVariantArgs(params: {
   inputFile: string;
   outputM3u8: string;
   segmentFilename: string;
   videoFilter: string;
-  videoBitrate: string;
+  /** Ceiling in bits/sec — becomes `-maxrate`; `-bufsize` is 2× this. Never the CRF target itself. */
+  videoBitrateCeilingBps: number;
   audioBitrate: string;
 }): string[] {
   return [
@@ -17,8 +26,12 @@ export function buildHlsSingleVariantArgs(params: {
     'libx264',
     '-preset',
     'veryfast',
-    '-b:v',
-    params.videoBitrate,
+    '-crf',
+    String(HLS_ENCODE_CRF),
+    '-maxrate',
+    String(params.videoBitrateCeilingBps),
+    '-bufsize',
+    String(params.videoBitrateCeilingBps * 2),
     '-c:a',
     'aac',
     '-b:a',

@@ -37,6 +37,8 @@ export type MediaWorkerControlPort = {
       posterKey?: string;
       qualitiesJson?: string;
       durationSeconds?: number | null;
+      /** Measured source container bitrate (bits/sec) — travels alongside duration, same probe. */
+      sourceBitrateBps?: number | null;
     },
   ): Promise<void>;
   doneProgram(
