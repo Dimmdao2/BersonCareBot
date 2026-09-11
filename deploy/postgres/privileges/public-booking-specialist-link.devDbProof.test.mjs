@@ -21,6 +21,19 @@
  *      (§17.Q): «?specialist= работает для любого активного специалиста; card_is_published
  *      перестаёт участвовать в мастере записи вовсе».
  *
+ *   3. **Галка организации «показывать визитки специалистов в модуле записи» ничего не решает.**
+ *      Решение владельца 11.09 целиком: «Просто галочка есть показывать? Показываем, нет галочки,
+ *      не показываем». Зачем она — его же словами про соло: «У него там на сайте про него всё
+ *      написано… Ему не надо показывать описание себя, то есть свою визитку. Взял да выключил вот
+ *      этот режим». Поломка дорогая и молчаливая с ОБЕИХ сторон: перестань дверь смотреть на
+ *      настройку — и платформа показывает описание человека, который прямо велел его не
+ *      показывать, ничего ему об этом не сказав; начни дверь читать настройку СОСЕДНЕЙ клиники или
+ *      глобальную строку — и одна клиника гасит визитки у другой. Снаружи в обоих случаях экран
+ *      выглядит нормальным.
+ *
+ *      Тот же признак сторожит и обратную сторону: галка про ОПИСАНИЕ, а не про запись. Уйди
+ *      `card_is_published` или настройка обратно в ОТБОР специалиста — вернётся дефект пункта 1.
+ *
  *   2. **Сужение каталога молча потерялось.** Ровно этим 17.C и открыт: кабинет выдавал ссылку
  *      «к Анне», а приёмный экран показывал весь филиал. Отказ дорогой (человек записывается не к
  *      тому специалисту и узнаёт об этом в кабинете врача) и абсолютно молчаливый — список услуг
@@ -132,6 +145,11 @@ INSERT INTO public.be_specialist_service_availability
   ('${ORG}'::uuid, '${SPECIALIST.inactive}'::uuid, '926c4444-0000-4000-8000-000000000002'::uuid, '${BRANCH}'::uuid, true),
   ('${FOREIGN_ORG}'::uuid, '${SPECIALIST.foreign}'::uuid, '926c4444-0000-4000-8000-00000000000f'::uuid, '${FOREIGN_BRANCH}'::uuid, true);
 
+-- Настройка СОСЕДНЕЙ клиники стоит в фикстуре с самого начала и не снимается никогда: своя
+-- организация обязана не замечать её ни в одном случае, где своей строки нет.
+INSERT INTO public.system_settings (key, scope, organization_id, value_json) VALUES
+  ('clinic_booking_show_specialist_cards', 'admin', '${FOREIGN_ORG}'::uuid, '{"value": false}'::jsonb);
+
 INSERT INTO app_ext.port_context_capabilities
   (capability_id, port, session_login, target_role, context_class, purpose, function_identity)
 SELECT '${CAPABILITY}'::uuid, c.port, session_user,
@@ -142,11 +160,22 @@ SELECT '${CAPABILITY}'::uuid, c.port, session_user,
  LIMIT 1;
 `;
 
+/** Строка настройки СВОЕЙ организации перед вызовом: ровно то, что пишет галка кабинета. */
+function ownSetting(value) {
+  return `
+DELETE FROM public.system_settings
+ WHERE key = 'clinic_booking_show_specialist_cards' AND scope = 'admin'
+   AND organization_id = '${ORG}'::uuid;
+INSERT INTO public.system_settings (key, scope, organization_id, value_json)
+VALUES ('clinic_booking_show_specialist_cards', 'admin', '${ORG}'::uuid, '{"value": ${value}}'::jsonb);`;
+}
+
 /** Один вызов двери: принятый контекст под ровно те аргументы, с которыми она будет позвана. */
-function call({ label, branch, specialist }) {
+function call({ label, branch, specialist, setup }) {
   const branchArg = branch ? `'${branch}'::uuid` : 'NULL::uuid';
   const specialistArg = specialist ? `'${specialist}'::uuid` : 'NULL::uuid';
   return `
+${setup ?? ''}
 DELETE FROM app_ext.accepted_port_contexts
  WHERE database_oid = (SELECT oid FROM pg_database WHERE datname = current_database())
    AND backend_pid = pg_backend_pid() AND transaction_id = pg_current_xact_id();
@@ -178,6 +207,10 @@ const CASES = [
   { label: 'missing', branch: BRANCH, specialist: SPECIALIST.missing },
   { label: 'foreignBranch', branch: FOREIGN_BRANCH, specialist: SPECIALIST.published },
   { label: 'firstScreen', branch: null, specialist: SPECIALIST.published },
+  // Галка организации: своей строки нет → включено (случай `published` выше); поставили `false`;
+  // поставили обратно `true`. Порядок важен — каждый случай меняет ОДНУ строку своей организации.
+  { label: 'cardsOff', branch: BRANCH, specialist: SPECIALIST.published, setup: ownSetting(false) },
+  { label: 'cardsOn', branch: BRANCH, specialist: SPECIALIST.published, setup: ownSetting(true) },
 ];
 
 let cached = null;
@@ -198,7 +231,13 @@ SELECT 'seam' || E'\\t' || (
   || '/' ||
   (SELECT count(*)::text FROM public.be_specialist_service_availability
     WHERE specialist_id IN ('${SPECIALIST.unpublished}'::uuid, '${SPECIALIST.inactive}'::uuid, '${SPECIALIST.foreign}'::uuid)
-      AND is_active));
+      AND is_active)
+  || '/' ||
+  -- Строка настройки СОСЕДНЕЙ клиники в момент вызовов двери: без неё «чужая настройка не
+  -- подействовала» доказывалось бы её отсутствием, а не сужением чтения по организации.
+  (SELECT count(*)::text FROM public.system_settings
+    WHERE key = 'clinic_booking_show_specialist_cards' AND scope = 'admin'
+      AND organization_id = '${FOREIGN_ORG}'::uuid AND value_json = '{"value": false}'::jsonb));
 RESET ROLE;
 ROLLBACK;`);
 
@@ -209,8 +248,8 @@ ROLLBACK;`);
   }
   assert.equal(
     byLabel.get('seam'),
-    '3/3',
-    'самотест: владелец шва обязан видеть и скрытого, и неактивного, и чужого — иначе проверять нечего',
+    '3/3/1',
+    'самотест: владелец шва обязан видеть скрытого, неактивного, чужого и живую строку настройки соседа — иначе проверять нечего',
   );
   cached = byLabel;
   return cached;
@@ -315,5 +354,74 @@ test('чужая клиника не выходит наружу ни специ
     foreignSpecialist.specialist,
     null,
     'специалист ЧУЖОЙ клиники опознан по ссылке — это перебор людей через границу арендатора',
+  );
+});
+
+/**
+ * #926 §17.Q, решение владельца 11.09 целиком: «Просто галочка есть показывать? Показываем, нет
+ * галочки, не показываем». Проверяются обе стороны и граница арендатора между ними, потому что
+ * дефект здесь виден только на живой двери: настройка читается SQL-ом внутри SECURITY DEFINER, и ни
+ * типы, ни сборка, ни тест с подставной дверью о ней ничего не знают.
+ */
+test('галка организации решает, читается ли описание специалиста в модуле записи', { skip: !ENABLED }, () => {
+  // Своей строки нет — ВКЛЮЧЕНО. Дефолт умышленно не как у соседних булевых ключей: клиника уже
+  // опубликовала визитку этого человека отдельной галкой, и молчаливое «не показываем» отменило бы
+  // её выбор, ничего ей не сказав.
+  assert.equal(
+    parse('published').specialist?.cardIsReadable,
+    true,
+    'без строки настройки карточка перестала открываться — платформа молча отменила уже сделанный клиникой выбор',
+  );
+
+  assert.equal(
+    parse('cardsOff').specialist?.cardIsReadable,
+    false,
+    'клиника сняла галку, а модуль записи всё равно предлагает открыть карточку — «нет галочки, не показываем» не исполнено',
+  );
+
+  // Галка про ОПИСАНИЕ, а не про запись: выключенная не смеет ни спрятать человека, ни расширить
+  // каталог обратно на весь филиал. Уйди она в отбор — вернётся дефект §17.Q с другой стороны.
+  const off = parse('cardsOff');
+  assert.equal(
+    off.specialist?.id,
+    SPECIALIST.published,
+    'выключенная галка спрятала самого специалиста — человек по ссылке читает «больше не принимает» о том, кто принимает',
+  );
+  assert.deepEqual(
+    titles(off),
+    [SERVICE_OF_PUBLISHED],
+    'выключенная галка сломала сужение каталога по специалисту',
+  );
+
+  assert.equal(
+    parse('cardsOn').specialist?.cardIsReadable,
+    true,
+    'клиника вернула галку, а карточка так и не открывается',
+  );
+});
+
+/**
+ * Стена арендатора проходит и по настройке. В фикстуре у СОСЕДНЕЙ клиники строка стоит в `false` с
+ * самого начала и не снимается: прочитай дверь настройку не той организации (или глобальную строку
+ * вместо арендаторской), и одна клиника гасила бы визитки специалистов у другой — молча и без
+ * единого следа в её собственном кабинете.
+ */
+test('настройка соседней клиники не гасит визитки в этой', { skip: !ENABLED }, () => {
+  // Самотест живёт в общем шве (`3/3/1`): последняя цифра — строка соседа, лежавшая в базе именно
+  // в момент вызовов двери. Без неё «чужая настройка не подействовала» доказывалось бы её
+  // отсутствием, а не сужением чтения по организации.
+  readDoor();
+  // И та же строка не остаётся на DEV: транзакция откатывается целиком.
+  assert.equal(
+    psql(`SELECT count(*) FROM public.system_settings
+           WHERE key = 'clinic_booking_show_specialist_cards' AND scope = 'admin'
+             AND organization_id = '${FOREIGN_ORG}'::uuid;`),
+    '0',
+    'фикстура не откатилась: строка настройки соседа осталась на DEV',
+  );
+  assert.equal(
+    parse('published').specialist?.cardIsReadable,
+    true,
+    'настройка чужой организации погасила визитки в этой — дверь читает настройку не по своему арендатору',
   );
 });
