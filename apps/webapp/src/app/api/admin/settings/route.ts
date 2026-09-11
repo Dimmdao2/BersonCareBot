@@ -408,6 +408,18 @@ const PROMO_ENTITLEMENT_SETTING_KEYS = new Set([
   'patient_default_promo_treatment_program_template_id',
 ]);
 
+/**
+ * Ключи правил записи объявлены в mechanicSettingsWriteClearance как требующие механику `booking`,
+ * но решения по ней здесь не было ни для одного из них — и запись падала 500 на clearance-гейте,
+ * то есть писателя у этих трёх настроек не существовало вовсе. Блок ниже выдаёт clearance так же,
+ * как соседние механики.
+ */
+const BOOKING_ENTITLEMENT_SETTING_KEYS = new Set<string>([
+  'booking_min_notice_hours',
+  'booking_max_consecutive_slot_hours',
+  'booking_prepayment_wait_minutes',
+]);
+
 const CUSTOM_DOMAIN_ENTITLEMENT_SETTING_KEYS = new Set<string>([ORG_CUSTOM_DOMAIN_HOSTNAME_KEY]);
 const PLATFORM_PATIENT_HOSTNAME = 'therapygo.ru';
 
@@ -776,6 +788,12 @@ export async function PATCH(request: Request) {
     const entitlement = await requireEntitlementForMutation(gate.ctx.workspace, 'warmups');
     if (!entitlement.ok) {
       return entitlementMutationRefusalResponse('warmups', 'изменить настройки разминок');
+    }
+  }
+  if (BOOKING_ENTITLEMENT_SETTING_KEYS.has(parsed.data.key) && gate.ctx.kind === 'clinic') {
+    const entitlement = await requireEntitlementForMutation(gate.ctx.workspace, 'booking');
+    if (!entitlement.ok) {
+      return entitlementMutationRefusalResponse('booking', 'изменить правила записи');
     }
   }
   if (PROMO_ENTITLEMENT_SETTING_KEYS.has(parsed.data.key) && gate.ctx.kind === 'clinic') {
