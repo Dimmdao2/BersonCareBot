@@ -2,7 +2,10 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
-import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
+import {
+  requireEntitlementForMutation,
+  requireEntitlementForReadAction,
+} from '@/app-layer/guards/requireEntitlement';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import {
   RECOMMENDATION_TYPE_CATEGORY_CODE,
@@ -54,6 +57,7 @@ const listQuerySchema = z.object({
 export async function GET(request: Request) {
   const auth = await requireDoctorWorkspaceApiContext();
   if (!auth.ok) return auth.response;
+  const { ctx: workspace } = auth;
 
   const { searchParams } = new URL(request.url);
   const parsed = listQuerySchema.safeParse(Object.fromEntries(searchParams));
@@ -71,6 +75,8 @@ export async function GET(request: Request) {
   const regionRefId = rawRegion || null;
 
   const deps = buildAppDeps();
+  const includePlatformBase = (await requireEntitlementForReadAction(workspace, 'exercise_catalog'))
+    .ok;
   const domainRefItems = await deps.references.listActiveItemsByCategoryCode(
     RECOMMENDATION_TYPE_CATEGORY_CODE,
   );
@@ -89,6 +95,7 @@ export async function GET(request: Request) {
     includeArchived: parsed.data.includeArchived ?? false,
     regionRefId,
     domain,
+    includePlatformBase,
   });
   return NextResponse.json({ ok: true, items });
 }

@@ -14505,7 +14505,8 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         "columns": [
           "organization_id",
           "clinical_test_id",
-          "body_region_id"
+          "body_region_id",
+          "owner_kind"
         ]
       },
       {
@@ -23868,7 +23869,7 @@ const TABLE_ROWS: TableRow[] = [
     + '— только через test_attempts, привязанную к элементу его программы (см. test_attempts).', code: ['C14'] },
   { t: 'public.test_set_items', cls: 'C', why: 'состав набора — наполнение набора' },
   { t: 'public.test_sets', cls: 'C', why: 'наборы тестов — пакетное назначение тестов' },
-  { t: 'public.tests', cls: 'C', why: 'каталог клинических тестов клиники — без него врач не назначит тест' },
+  { t: 'public.tests', cls: 'C', org: true, why: 'каталог клинических тестов клиники — без него врач не назначит тест' },
   { t: 'public.treatment_program_events', cls: 'P', org: true, why: 'журнал изменений программы — аудит «кто что менял в '
     + 'лечении»' },
   { t: 'public.treatment_program_instance_stage_groups', cls: 'P', org: true, why: 'группы внутри этапа — группировка заданий' },
@@ -31202,10 +31203,14 @@ const REV10_LOCKED_POLICIES = new Map<string, LockedPolicyEntry>(
 );
 
 const REV10_PLATFORM_LFK_READ_RELATIONS = new Set([
+  'public.clinical_test_regions',
   'public.lfk_exercise_load_types',
   'public.lfk_exercise_media',
   'public.lfk_exercise_regions',
   'public.lfk_exercises',
+  'public.recommendation_regions',
+  'public.recommendations',
+  'public.tests',
 ]);
 
 type DirectAccessSeed = Omit<Extract<RelationAccess, { kind: 'direct' }>, 'seams'>;

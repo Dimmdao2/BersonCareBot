@@ -91,6 +91,7 @@ export const inMemoryRecommendationsPort: RecommendationsPort = {
     const merged = mergeCatalogBodyRegionIds(input.bodyRegionId, input.bodyRegionIds ?? null);
     const row: Recommendation = {
       id,
+      ownerKind: 'organization',
       title: input.title,
       bodyMd: input.bodyMd,
       media: normalizeMedia(input.media ?? []),

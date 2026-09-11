@@ -29,8 +29,8 @@ export async function loadTreatmentProgramLibrary(): Promise<TreatmentProgramLib
       includePlatformBase,
     }),
     deps.testSets.listTestSets({ archiveScope: 'active', publicationScope: 'published' }),
-    deps.clinicalTests.listClinicalTests({ archiveScope: 'active' }),
-    deps.recommendations.listRecommendations({ includeArchived: false }),
+    deps.clinicalTests.listClinicalTests({ archiveScope: 'active', includePlatformBase }),
+    deps.recommendations.listRecommendations({ includeArchived: false, includePlatformBase }),
     deps.contentPages.listAll(),
     deps.references.listActiveItemsByCategoryCode('body_region'),
   ]);

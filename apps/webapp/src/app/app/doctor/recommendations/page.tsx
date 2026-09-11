@@ -1,4 +1,7 @@
-import { requireEntitlementForPage } from '@/app-layer/guards/requireEntitlement';
+import {
+  requireEntitlementForPage,
+  requireEntitlementForReadAction,
+} from '@/app-layer/guards/requireEntitlement';
 import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
 import type { Recommendation, RecommendationUsageSnapshot } from '@/modules/recommendations/types';
 import { parseRecommendationCatalogSsrQuery } from '@/modules/recommendations/recommendationCatalogSsrQuery';
@@ -44,6 +47,8 @@ export default async function DoctorRecommendationsPage({ searchParams }: PagePr
   const session = workspace.session;
   const { buildAppDeps } = await import('@/app-layer/di/buildAppDeps');
   const deps = buildAppDeps();
+  const includePlatformBase = (await requireEntitlementForReadAction(workspace, 'exercise_catalog'))
+    .ok;
   const sp = (await searchParams) ?? {};
   const q = typeof sp.q === 'string' ? sp.q : '';
   const [recommendationTypeRefItems, bodyRegionItems] = await Promise.all([
@@ -81,6 +86,7 @@ export default async function DoctorRecommendationsPage({ searchParams }: PagePr
       search: null,
       archiveScope,
       regionRefId: regionRefIdForList,
+      includePlatformBase,
     })
     .then(async (items) => {
       const initialSelectedId =

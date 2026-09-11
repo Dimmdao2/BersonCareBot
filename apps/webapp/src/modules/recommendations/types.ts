@@ -1,6 +1,8 @@
 import type { MediaPreviewStatus } from '@/modules/media/types';
 import type { RecommendationDomain } from './recommendationDomain';
 
+export type RecommendationOwnerKind = 'organization' | 'platform';
+
 export type RecommendationMediaItem = {
   mediaUrl: string;
   /** `hosted_video` — ссылка на внешний хостинг вместо файла медиатеки (см. `ExerciseMediaType`). */
@@ -20,6 +22,7 @@ export type RecommendationMediaItem = {
 
 export type Recommendation = {
   id: string;
+  ownerKind: RecommendationOwnerKind;
   title: string;
   bodyMd: string;
   media: RecommendationMediaItem[];
@@ -52,6 +55,13 @@ export type RecommendationFilter = {
   loadType?: import('@/modules/lfk-exercises/types').ExerciseLoadType | null;
   /** Фильтр по типу (`domain` в БД). */
   domain?: RecommendationDomain | null;
+  /** Trusted server-side entitlement decision; never derive from a request query/body. */
+  includePlatformBase?: boolean;
+};
+
+export type RecommendationAccessOptions = {
+  /** Trusted server-side entitlement decision; defaults to own organization only. */
+  includePlatformBase?: boolean;
 };
 
 export type CreateRecommendationInput = {

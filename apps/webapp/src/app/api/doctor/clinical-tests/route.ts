@@ -2,7 +2,10 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
-import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
+import {
+  requireEntitlementForMutation,
+  requireEntitlementForReadAction,
+} from '@/app-layer/guards/requireEntitlement';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import {
   CLINICAL_ASSESSMENT_KIND_CATEGORY_CODE,
@@ -39,6 +42,7 @@ const listQuerySchema = z.object({
 export async function GET(request: Request) {
   const auth = await requireDoctorWorkspaceApiContext();
   if (!auth.ok) return auth.response;
+  const { ctx: workspace } = auth;
 
   const { searchParams } = new URL(request.url);
   const parsed = listQuerySchema.safeParse(Object.fromEntries(searchParams));
@@ -47,6 +51,8 @@ export async function GET(request: Request) {
   }
 
   const deps = buildAppDeps();
+  const includePlatformBase = (await requireEntitlementForReadAction(workspace, 'exercise_catalog'))
+    .ok;
   const regionTrim = parsed.data.region?.trim() ?? '';
   if (regionTrim && !z.string().uuid().safeParse(regionTrim).success) {
     return NextResponse.json(
@@ -72,6 +78,7 @@ export async function GET(request: Request) {
     includeArchived: parsed.data.includeArchived ?? false,
     regionRefId: regionTrim || null,
     assessmentKind: assessmentTrim || null,
+    includePlatformBase,
   });
   return NextResponse.json({ ok: true, items });
 }

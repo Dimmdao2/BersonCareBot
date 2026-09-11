@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
-import { requireDoctorAccess } from '@/app-layer/guards/requireRole';
+import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
+import { requireEntitlementForReadAction } from '@/app-layer/guards/requireEntitlement';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
 import { TestSetForm } from '../TestSetForm';
@@ -12,14 +13,18 @@ import { clinicalTestLibraryRows } from '../clinicalTestLibraryRows';
 type PageProps = { params: Promise<{ id: string }> };
 
 export default async function EditTestSetPage({ params }: PageProps) {
-  const session = await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
+  const session = workspace.session;
   const { id } = await params;
   const deps = buildAppDeps();
+  const includePlatformBase = (await requireEntitlementForReadAction(workspace, 'exercise_catalog'))
+    .ok;
   const testSet = await deps.testSets.getTestSet(id);
   if (!testSet) notFound();
   const usage = await deps.testSets.getTestSetUsage(testSet.id);
   const clinicalTestsForPicker = await deps.clinicalTests.listClinicalTests({
     archiveScope: 'active',
+    includePlatformBase,
   });
   const clinicalTestsLibrary = clinicalTestLibraryRows(clinicalTestsForPicker);
 

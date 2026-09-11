@@ -1,4 +1,4 @@
-import { and, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm';
+import { and, desc, eq, ilike, inArray, isNull, or, sql } from 'drizzle-orm';
 import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import { getPool } from '@/infra/db/client';
@@ -14,6 +14,7 @@ import type {
   Recommendation,
   RecommendationFilter,
   CreateRecommendationInput,
+  RecommendationAccessOptions,
   UpdateRecommendationInput,
   RecommendationMediaItem,
   RecommendationUsageRef,
@@ -53,6 +54,7 @@ function mapRow(
   const merged = mergeCatalogBodyRegionIds(row.bodyRegionId, m2mBodyRegionIds);
   return {
     id: row.id,
+    ownerKind: row.ownerKind === 'platform' ? 'platform' : 'organization',
     title: row.title,
     bodyMd: row.bodyMd,
     media: normalizeMedia(row.media),
@@ -313,7 +315,17 @@ export function createPgRecommendationsPort(): RecommendationsPort {
     async list(filter: RecommendationFilter): Promise<Recommendation[]> {
       const db = getDrizzle();
       const organizationId = currentPrincipalOrganizationId();
-      const conds = [eq(recommendationsTable.organizationId, organizationId)];
+      const conds = [
+        filter.includePlatformBase === true
+          ? or(
+              eq(recommendationsTable.organizationId, organizationId),
+              and(
+                eq(recommendationsTable.ownerKind, 'platform'),
+                isNull(recommendationsTable.organizationId),
+              ),
+            )!
+          : eq(recommendationsTable.organizationId, organizationId),
+      ];
       const scope = filter.archiveScope ?? (filter.includeArchived ? 'all' : 'active');
       if (scope === 'active') {
         conds.push(eq(recommendationsTable.isArchived, false));
@@ -353,7 +365,15 @@ export function createPgRecommendationsPort(): RecommendationsPort {
         .where(
           and(
             inArray(recommendationRegions.recommendationId, ids),
-            eq(recommendationRegions.organizationId, organizationId),
+            filter.includePlatformBase === true
+              ? or(
+                  eq(recommendationRegions.organizationId, organizationId),
+                  and(
+                    eq(recommendationRegions.ownerKind, 'platform'),
+                    isNull(recommendationRegions.organizationId),
+                  ),
+                )!
+              : eq(recommendationRegions.organizationId, organizationId),
           ),
         );
       const byRec = new Map<string, string[]>();
@@ -365,7 +385,10 @@ export function createPgRecommendationsPort(): RecommendationsPort {
       return enrichRecommendationsMediaRendition(rows.map((r) => mapRow(r, byRec.get(r.id) ?? [])));
     },
 
-    async getById(id: string): Promise<Recommendation | null> {
+    async getById(
+      id: string,
+      options: RecommendationAccessOptions = {},
+    ): Promise<Recommendation | null> {
       const db = getDrizzle();
       const organizationId = currentPrincipalOrganizationId();
       const rows = await db
@@ -374,7 +397,15 @@ export function createPgRecommendationsPort(): RecommendationsPort {
         .where(
           and(
             eq(recommendationsTable.id, id),
-            eq(recommendationsTable.organizationId, organizationId),
+            options.includePlatformBase === true
+              ? or(
+                  eq(recommendationsTable.organizationId, organizationId),
+                  and(
+                    eq(recommendationsTable.ownerKind, 'platform'),
+                    isNull(recommendationsTable.organizationId),
+                  ),
+                )!
+              : eq(recommendationsTable.organizationId, organizationId),
           ),
         )
         .limit(1);
@@ -386,7 +417,15 @@ export function createPgRecommendationsPort(): RecommendationsPort {
         .where(
           and(
             eq(recommendationRegions.recommendationId, id),
-            eq(recommendationRegions.organizationId, organizationId),
+            options.includePlatformBase === true
+              ? or(
+                  eq(recommendationRegions.organizationId, organizationId),
+                  and(
+                    eq(recommendationRegions.ownerKind, 'platform'),
+                    isNull(recommendationRegions.organizationId),
+                  ),
+                )!
+              : eq(recommendationRegions.organizationId, organizationId),
           ),
         );
       const [enriched] = await enrichRecommendationsMediaRendition([

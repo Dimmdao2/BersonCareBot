@@ -20,6 +20,7 @@ export const clinicalTests = pgTable(
   'tests',
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
+    ownerKind: text('owner_kind').default('organization').notNull(),
     organizationId: uuid('organization_id'),
     title: text().notNull(),
     description: text(),
@@ -51,6 +52,13 @@ export const clinicalTests = pgTable(
       'btree',
       table.organizationId.asc().nullsLast().op('uuid_ops'),
     ),
+    index('idx_tests_catalog_owner').using(
+      'btree',
+      table.ownerKind.asc().nullsLast().op('text_ops'),
+      table.organizationId.asc().nullsLast().op('uuid_ops'),
+      table.isArchived.asc().nullsLast().op('bool_ops'),
+      table.updatedAt.desc().nullsFirst().op('timestamptz_ops'),
+    ),
     index('idx_tests_archived').using('btree', table.isArchived.asc().nullsLast().op('bool_ops')),
     index('idx_tests_title_search').using('btree', table.title.asc().nullsLast().op('text_ops')),
     index('idx_tests_body_region').using(
@@ -76,6 +84,10 @@ export const clinicalTests = pgTable(
       foreignColumns: [referenceItems.id],
       name: 'tests_body_region_id_fkey',
     }).onDelete('set null'),
+    check(
+      'tests_owner_check',
+      sql`(owner_kind = 'organization' AND organization_id IS NOT NULL) OR (owner_kind = 'platform' AND organization_id IS NULL)`,
+    ),
   ],
 );
 
@@ -83,6 +95,7 @@ export const clinicalTests = pgTable(
 export const clinicalTestRegions = pgTable(
   'clinical_test_regions',
   {
+    ownerKind: text('owner_kind').default('organization').notNull(),
     organizationId: uuid('organization_id'),
     clinicalTestId: uuid('clinical_test_id').notNull(),
     bodyRegionId: uuid('body_region_id').notNull(),
@@ -114,6 +127,10 @@ export const clinicalTestRegions = pgTable(
     index('idx_clinical_test_regions_body_region').using(
       'btree',
       table.bodyRegionId.asc().nullsLast().op('uuid_ops'),
+    ),
+    check(
+      'clinical_test_regions_owner_check',
+      sql`(owner_kind = 'organization' AND organization_id IS NOT NULL) OR (owner_kind = 'platform' AND organization_id IS NULL)`,
     ),
   ],
 );

@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
-import { requireDoctorAccess } from '@/app-layer/guards/requireRole';
+import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
+import { requireEntitlementForReadAction } from '@/app-layer/guards/requireEntitlement';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
 import { ClinicalTestForm } from '../ClinicalTestForm';
@@ -12,10 +13,13 @@ import {
 type PageProps = { params: Promise<{ id: string }> };
 
 export default async function EditClinicalTestPage({ params }: PageProps) {
-  const session = await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
+  const session = workspace.session;
   const { id } = await params;
   const deps = buildAppDeps();
-  const test = await deps.clinicalTests.getClinicalTest(id);
+  const includePlatformBase = (await requireEntitlementForReadAction(workspace, 'exercise_catalog'))
+    .ok;
+  const test = await deps.clinicalTests.getClinicalTest(id, { includePlatformBase });
   if (!test) notFound();
   const usage = await deps.clinicalTests.getClinicalTestUsage(test.id);
   const assessmentRefItems = await deps.references.listActiveItemsByCategoryCode(
