@@ -66,6 +66,43 @@ export function PublicMarkdownMaterial({ markdown, media }: Props) {
     }
 
     return {
+      // Типографика материала. Preflight снимает вид у заголовков, списков и цитат, поэтому без
+      // этих правил лендинг специалиста рисуется сплошным текстом: заголовок неотличим от абзаца,
+      // у списка нет маркеров, цитата не выделена. Найдено живым взглядом после приземления этапа
+      // 2a — ни один тест такого не видит. Классы держим здесь, а не в таблице стилей зоны: файл
+      // намеренно зоно-нейтральный и не должен зависеть от пациентского или докторского CSS.
+      h1: ({ children }) => (
+        <h2 className="mt-4 mb-1 text-lg leading-snug font-semibold first:mt-0">{children}</h2>
+      ),
+      h2: ({ children }) => (
+        <h2 className="mt-4 mb-1 text-base leading-snug font-semibold first:mt-0">{children}</h2>
+      ),
+      h3: ({ children }) => (
+        <h3 className="mt-3 mb-1 text-sm leading-snug font-semibold first:mt-0">{children}</h3>
+      ),
+      h4: ({ children }) => <h4 className="mt-3 mb-1 text-sm font-semibold">{children}</h4>,
+      p: ({ children }) => <p className="my-0">{children}</p>,
+      ul: ({ children }) => <ul className="my-1 list-disc space-y-1 pl-5">{children}</ul>,
+      ol: ({ children }) => <ol className="my-1 list-decimal space-y-1 pl-5">{children}</ol>,
+      li: ({ children }) => <li className="pl-0.5">{children}</li>,
+      blockquote: ({ children }) => (
+        <blockquote className="border-border text-muted-foreground my-2 border-l-2 pl-3 italic">
+          {children}
+        </blockquote>
+      ),
+      hr: () => <hr className="border-border my-4" />,
+      code: ({ children }) => (
+        <code className="bg-muted rounded px-1 py-0.5 font-mono text-[0.9em]">{children}</code>
+      ),
+      table: ({ children }) => (
+        <div className="my-2 w-full overflow-x-auto">
+          <table className="w-full border-collapse text-[0.95em]">{children}</table>
+        </div>
+      ),
+      th: ({ children }) => (
+        <th className="border-border border px-2 py-1 text-left font-semibold">{children}</th>
+      ),
+      td: ({ children }) => <td className="border-border border px-2 py-1">{children}</td>,
       img({ src, alt, className }) {
         const href = typeof src === 'string' ? src : undefined;
         const asset = assetForHref(href);
