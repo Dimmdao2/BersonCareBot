@@ -41,6 +41,12 @@ export const clinicPublicDirectoryEntries = pgTable(
      * (`SAAS_S6_CLINIC_DIRECTORY_AND_ORG_BOUNDARY.md` §5).
      */
     description: text(),
+    /**
+     * Полное описание клиники материалом: GFM-markdown со ссылками на медиабиблиотеку организации
+     * (решение владельца 11.09: «подробное описание это markdown материал с возможностью вставки
+     * медиа»). Короткое описание обычным текстом остаётся в `description`.
+     */
+    fullDescriptionMarkdown: text('full_description_markdown'),
     publicContactPhone: text('public_contact_phone'),
     publicContactEmail: text('public_contact_email'),
     publicWebsiteUrl: text('public_website_url'),
@@ -88,7 +94,8 @@ export const clinicPublicDirectoryEntries = pgTable(
       sql`(${table.description} IS NULL OR length(${table.description}) <= 4000)
         AND (${table.publicContactPhone} IS NULL OR length(${table.publicContactPhone}) <= 64)
         AND (${table.publicContactEmail} IS NULL OR length(${table.publicContactEmail}) <= 320)
-        AND (${table.publicWebsiteUrl} IS NULL OR length(${table.publicWebsiteUrl}) <= 512)`,
+        AND (${table.publicWebsiteUrl} IS NULL OR length(${table.publicWebsiteUrl}) <= 512)
+        AND (${table.fullDescriptionMarkdown} IS NULL OR length(${table.fullDescriptionMarkdown}) <= 50000)`,
     ),
     check(
       'clinic_public_directory_entries_photo_media_ids_bound_check',

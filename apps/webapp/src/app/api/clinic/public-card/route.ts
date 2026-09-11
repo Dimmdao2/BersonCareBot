@@ -7,6 +7,10 @@ import { CLINIC_PUBLIC_CARD_LIMITS } from '@/modules/clinic-public-card/ports';
 const bodySchema = z
   .object({
     description: z.string().max(CLINIC_PUBLIC_CARD_LIMITS.descriptionMaxLength).nullable(),
+    fullDescriptionMarkdown: z
+      .string()
+      .max(CLINIC_PUBLIC_CARD_LIMITS.fullDescriptionMaxLength)
+      .nullable(),
     publicContactPhone: z.string().max(CLINIC_PUBLIC_CARD_LIMITS.phoneMaxLength).nullable(),
     publicContactEmail: z.string().max(CLINIC_PUBLIC_CARD_LIMITS.emailMaxLength).nullable(),
     publicWebsiteUrl: z.string().max(CLINIC_PUBLIC_CARD_LIMITS.websiteMaxLength).nullable(),

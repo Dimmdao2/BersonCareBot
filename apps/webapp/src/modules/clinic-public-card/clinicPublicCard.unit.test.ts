@@ -27,6 +27,7 @@ function serviceWithSpy() {
 const base = {
   organizationId: ORG,
   description: null,
+  fullDescriptionMarkdown: null,
   publicContactPhone: null,
   publicContactEmail: null,
   publicWebsiteUrl: null,

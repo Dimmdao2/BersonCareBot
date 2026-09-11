@@ -11,14 +11,16 @@
 /**
  * Зачем у файла роль. Набор медиа карточки — ЕДИНСТВЕННОЕ, что авторизует анонимную отдачу файла
  * (`/{clinic}/media/{uuid}`), поэтому в нём лежит всё публичное этой клиники сразу: логотип,
- * фотографии, аватары опубликованных специалистов и файлы их полных описаний. Роль говорит, ГДЕ
- * файл показывается; правом на отдачу является само присутствие в наборе.
+ * фотографии, аватары опубликованных специалистов, файлы их полных описаний и файлы полного
+ * описания самой клиники. Роль говорит, ГДЕ файл показывается; правом на отдачу является само
+ * присутствие в наборе.
  */
 export type ClinicPublicCardMediaRole =
   | 'logo'
   | 'photo'
   | 'specialistAvatar'
-  | 'specialistDescription';
+  | 'specialistDescription'
+  | 'clinicDescription';
 
 /** One ready file of the card. Delivery facts never reach the browser — only the id does. */
 export type ClinicPublicCardMedia = {
@@ -50,24 +52,46 @@ export type ClinicPublicCardLocation = {
   address: string | null;
 };
 
+/**
+ * Услуга клиники на визитке (#926 §17.B): посетитель должен узнать, что клиника делает, не уходя в
+ * мастер записи.
+ *
+ * Идентификатора здесь НЕТ намеренно (§3.2): на визитке по услуге нет действия, которому он был бы
+ * нужен, а внутренние идентификаторы в публичную разметку не попадают. Что показывать, решает
+ * клиника — тем же признаком публичности, которым она уже управляет записью: неактивная, снятая с
+ * публичного виджета и «только для администратора» услуга наружу не выходит.
+ */
+export type ClinicPublicCardServiceItem = {
+  title: string;
+  description: string | null;
+  durationMinutes: number;
+  /** Копейки. Ноль — цена не заполнена; выдумывать «по запросу» за клинику нельзя. */
+  priceMinor: number;
+};
+
 export type ClinicPublicCard = {
   requestedSlug: string;
   canonicalSlug: string;
   /** `redirect` when the visitor arrived through a retired slug that stays valid forever. */
   disposition: 'current' | 'redirect';
   displayName: string;
+  /** Короткое описание — обычный текст, идёт строкой сверху. */
   description: string | null;
+  /** Полное описание — markdown-материал; его медиа лежат в том же наборе `media`. */
+  fullDescriptionMarkdown: string | null;
   publicContactPhone: string | null;
   publicContactEmail: string | null;
   publicWebsiteUrl: string | null;
   locations: ClinicPublicCardLocation[];
   specialists: ClinicPublicCardSpecialist[];
+  services: ClinicPublicCardServiceItem[];
   media: ClinicPublicCardMedia[];
 };
 
 /** Clinic-admin editing state. Read directly under the staff principal (org-scoped by RLS). */
 export type ClinicPublicCardSettings = {
   description: string | null;
+  fullDescriptionMarkdown: string | null;
   publicContactPhone: string | null;
   publicContactEmail: string | null;
   publicWebsiteUrl: string | null;
@@ -113,6 +137,8 @@ export type ClinicPublicCardPort = {
 
 export const CLINIC_PUBLIC_CARD_LIMITS = {
   descriptionMaxLength: 4000,
+  /** Тот же потолок, что у полного описания специалиста, — одно правило на оба материала. */
+  fullDescriptionMaxLength: 50_000,
   phoneMaxLength: 64,
   emailMaxLength: 320,
   websiteMaxLength: 512,

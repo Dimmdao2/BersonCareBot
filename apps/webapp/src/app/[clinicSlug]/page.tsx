@@ -59,6 +59,17 @@ export default async function ClinicPublicCardPage({ params }: Props) {
       .filter((item) => item.role === 'photo')
       .map((item) => clinicCardMediaPath(card.canonicalSlug, item.id)),
     locations: card.locations,
+    services: card.services,
+    // Полное описание клиники материалом (решение владельца 11.09, §17.H). Медиа берутся из ТОГО
+    // ЖЕ набора двери, что логотип и аватары: он и есть право на анонимную отдачу файла, поэтому
+    // подписанный `/api/media/{uuid}` на этой странице не участвует вовсе. Ссылке на файл вне
+    // набора не соответствует ничего — показывать по ней нечего.
+    fullDescriptionMarkdown: card.fullDescriptionMarkdown,
+    fullDescriptionMedia: card.media.map((item) => ({
+      id: item.id,
+      mimeType: item.mimeType,
+      src: clinicCardMediaPath(card.canonicalSlug, item.id),
+    })),
     // Превью специалиста (решение владельца 11.09): фотография, имя, короткая строка, переход.
     // Аватар идёт тем же анонимным маршрутом, что логотип: он в наборе, который вернула дверь.
     specialists: card.specialists.map((specialist) => ({

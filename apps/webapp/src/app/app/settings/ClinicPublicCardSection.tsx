@@ -6,9 +6,12 @@ import {
   CLINIC_PUBLIC_CARD_LIMITS,
   type ClinicPublicCardIdentity,
   type ClinicPublicCardLocation,
+  type ClinicPublicCardServiceItem,
   type ClinicPublicCardSettings,
 } from '@/modules/clinic-public-card/ports';
+import type { ClinicPublicCardSpecialistPreview } from '@/modules/clinic-public-card/cabinetPreviewSelection';
 import { ClinicPublicCardView } from '@/shared/ui/clinicPublicCard/ClinicPublicCardView';
+import { MarkdownEditor } from '@/shared/ui/doctor/markdown/MarkdownEditor';
 import {
   DoctorSection,
   DoctorSectionHeader,
@@ -42,17 +45,32 @@ type Props = {
    * «Специалисты», и второго места для этого не заводится.
    */
   specialists: ClinicPublicCardSpecialistPreview[];
+  /**
+   * Услуги ДЛЯ ПРЕДПРОСМОТРА — тот же отбор и порядок, каким их отдаёт публичная дверь. Формой
+   * визитки они не правятся: услуги заводит раздел публичной записи, и второго места для них не
+   * заводится. Отбор общий с дверью и сцеплен проверкой §17.M.
+   */
+  services: ClinicPublicCardServiceItem[];
   /** Общий пациентский origin — из него строятся оба возможных адреса страницы. */
   patientOrigin: string;
 };
 
-/** Ровно то, что показывает превью: фотография, имя, короткая строка. */
-export type ClinicPublicCardSpecialistPreview = {
-  id: string;
-  fullName: string;
-  shortDescription: string | null;
-  avatarMediaId: string | null;
-};
+/**
+ * Идентификаторы медиа из markdown-материала. В предпросмотре файл берётся сессионной дверью
+ * `/api/media/{uuid}` — ровно как логотип и фотографии выше: публичный адрес у выключенной
+ * страницы ещё не работает. Тип файла здесь неизвестен и НЕ угадывается: картинка нарисуется
+ * картинкой, всё прочее останется ссылкой, а не превратится в выдуманный плеер.
+ */
+function previewMarkdownAssets(markdown: string | null): { id: string; mimeType: string; src: string }[] {
+  if (!markdown) return [];
+  const ids = new Set<string>();
+  for (const match of markdown.matchAll(
+    /\/api\/media\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/gi,
+  )) {
+    ids.add(match[1]!.toLowerCase());
+  }
+  return [...ids].map((id) => ({ id, mimeType: '', src: `/api/media/${id}` }));
+}
 
 /**
  * Адрес, по которому страница РЕАЛЬНО открывается.
@@ -75,6 +93,8 @@ export function clinicPublicCardErrorMessage(code: string): string {
   switch (code) {
     case 'description_too_long':
       return `Описание длиннее ${CLINIC_PUBLIC_CARD_LIMITS.descriptionMaxLength} символов.`;
+    case 'full_description_too_long':
+      return `Подробное описание длиннее ${CLINIC_PUBLIC_CARD_LIMITS.fullDescriptionMaxLength} символов.`;
     case 'phone_too_long':
       return 'Телефон слишком длинный.';
     case 'email_too_long':
@@ -109,6 +129,7 @@ export function ClinicPublicCardSection({
   identity,
   locations,
   specialists,
+  services,
   patientOrigin,
 }: Props) {
   const descriptionId = useId();
@@ -213,6 +234,9 @@ export function ClinicPublicCardSection({
                     logoSrc: settings.logoMediaId ? `/api/media/${settings.logoMediaId}` : null,
                     photoSrcs: settings.photoMediaIds.map((id) => `/api/media/${id}`),
                     locations,
+                    services,
+                    fullDescriptionMarkdown: settings.fullDescriptionMarkdown,
+                    fullDescriptionMedia: previewMarkdownAssets(settings.fullDescriptionMarkdown),
                     // Адреса картинок — общий `/api/media` под сессией сотрудника, как у логотипа:
                     // публичный медиа-адрес у выключенной страницы ещё не работает. Ссылки на
                     // страницу специалиста в предпросмотре нет по той же причине.
@@ -254,6 +278,19 @@ export function ClinicPublicCardSection({
             disabled={pending}
           />
         </DoctorField>
+
+        {/* Полное описание материалом — ТОТ ЖЕ `MarkdownEditor`, что стоит у специалиста и ещё в
+            семи местах кабинета, и тот же пикер медиа внутри него (§5, §20). Второго редактора и
+            второго пикера здесь не заводится. */}
+        <MarkdownEditor
+          name="clinic-card-full-description"
+          label="Подробное описание"
+          helpText="Материал с фотографиями и видео. Его увидит посетитель страницы организации."
+          value={settings.fullDescriptionMarkdown ?? ''}
+          disabled={pending}
+          minHeight={220}
+          onChange={(value) => patch({ fullDescriptionMarkdown: value })}
+        />
 
         <DoctorField label="Телефон" htmlFor={phoneId}>
           <Input
