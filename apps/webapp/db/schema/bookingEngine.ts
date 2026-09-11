@@ -195,7 +195,14 @@ export const beSpecialists = pgTable(
     id: uuid().defaultRandom().primaryKey().notNull(),
     organizationId: uuid('organization_id').notNull(),
     fullName: text('full_name').notNull(),
+    /** Короткое описание обычным текстом: строка превью на визитке и на странице специалиста. */
     description: text(),
+    /** Аватар специалиста (владелец 11.09: «аватар-специалист обязательно нужно»). */
+    avatarMediaId: uuid('avatar_media_id'),
+    /** Полное описание материалом: GFM-markdown со ссылками на медиабиблиотеку. */
+    fullDescriptionMarkdown: text('full_description_markdown'),
+    /** Публикует клиника, а не платформа: выключено — специалиста снаружи не существует. */
+    cardIsPublished: boolean('card_is_published').default(false).notNull(),
     appointmentReminderAllowedPresetIds: jsonb('appointment_reminder_allowed_preset_ids')
       .$type<string[]>()
       .notNull()

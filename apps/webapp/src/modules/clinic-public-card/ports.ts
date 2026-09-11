@@ -8,13 +8,40 @@
  * holds no privilege on that table at all. No tenant table is on the anonymous path.
  */
 
-/** One ready image of the card. Delivery facts never reach the browser — only the id does. */
+/**
+ * Зачем у файла роль. Набор медиа карточки — ЕДИНСТВЕННОЕ, что авторизует анонимную отдачу файла
+ * (`/{clinic}/media/{uuid}`), поэтому в нём лежит всё публичное этой клиники сразу: логотип,
+ * фотографии, аватары опубликованных специалистов и файлы их полных описаний. Роль говорит, ГДЕ
+ * файл показывается; правом на отдачу является само присутствие в наборе.
+ */
+export type ClinicPublicCardMediaRole =
+  | 'logo'
+  | 'photo'
+  | 'specialistAvatar'
+  | 'specialistDescription';
+
+/** One ready file of the card. Delivery facts never reach the browser — only the id does. */
 export type ClinicPublicCardMedia = {
   id: string;
-  role: 'logo' | 'photo';
+  role: ClinicPublicCardMediaRole;
   mimeType: string;
   s3Key: string | null;
   storedPath: string | null;
+};
+
+/**
+ * Опубликованный специалист клиники (#926 §17.G, решение владельца 11.09).
+ *
+ * Короткое описание — обычный текст, он же строка превью на визитке. Полное — markdown-материал,
+ * который рисует только страница специалиста. Неопубликованный, неактивный и несуществующий
+ * человек сюда не попадает одинаково, поэтому по форме ответа перебрать людей нельзя.
+ */
+export type ClinicPublicCardSpecialist = {
+  id: string;
+  fullName: string;
+  shortDescription: string | null;
+  fullDescriptionMarkdown: string | null;
+  avatarMediaId: string | null;
 };
 
 export type ClinicPublicCardLocation = {
@@ -34,6 +61,7 @@ export type ClinicPublicCard = {
   publicContactEmail: string | null;
   publicWebsiteUrl: string | null;
   locations: ClinicPublicCardLocation[];
+  specialists: ClinicPublicCardSpecialist[];
   media: ClinicPublicCardMedia[];
 };
 

@@ -36,8 +36,22 @@ type Props = {
    * одно, а посетитель другое, и расхождение молчит.
    */
   locations: ClinicPublicCardLocation[];
+  /**
+   * Опубликованные специалисты ДЛЯ ПРЕДПРОСМОТРА — тот же живой список и тот же отбор, каким их
+   * отдаёт публичная дверь. Формой визитки они не правятся: человека заводит и публикует раздел
+   * «Специалисты», и второго места для этого не заводится.
+   */
+  specialists: ClinicPublicCardSpecialistPreview[];
   /** Общий пациентский origin — из него строятся оба возможных адреса страницы. */
   patientOrigin: string;
+};
+
+/** Ровно то, что показывает превью: фотография, имя, короткая строка. */
+export type ClinicPublicCardSpecialistPreview = {
+  id: string;
+  fullName: string;
+  shortDescription: string | null;
+  avatarMediaId: string | null;
 };
 
 /**
@@ -84,15 +98,17 @@ export function clinicPublicCardErrorMessage(code: string): string {
  * Clinic-admin editing surface of the public card (plan §4).
  *
  * What is deliberately NOT here: a page builder, blocks, section order, HTML/markdown, themes,
- * colours, specialist names. The owner asked for a card, not a page editor. Branch addresses are
- * not a form field either — they are snapshotted from the branches the clinic already maintains,
- * so an address never gets a second home that drifts from the first.
+ * colours. The owner asked for a card, not a page editor. Branch addresses are not a form field
+ * either — they come from the branches the clinic already maintains, so an address never gets a
+ * second home that drifts from the first. Специалисты с 11.09 на визитке ЕСТЬ (§17.B), но правятся
+ * тоже не здесь: их заводит и публикует раздел «Специалисты», а сюда приходит только превью.
  */
 export function ClinicPublicCardSection({
   initialSettings,
   skipPublicCardAtRoot: initialSkipPublicCardAtRoot,
   identity,
   locations,
+  specialists,
   patientOrigin,
 }: Props) {
   const descriptionId = useId();
@@ -197,6 +213,18 @@ export function ClinicPublicCardSection({
                     logoSrc: settings.logoMediaId ? `/api/media/${settings.logoMediaId}` : null,
                     photoSrcs: settings.photoMediaIds.map((id) => `/api/media/${id}`),
                     locations,
+                    // Адреса картинок — общий `/api/media` под сессией сотрудника, как у логотипа:
+                    // публичный медиа-адрес у выключенной страницы ещё не работает. Ссылки на
+                    // страницу специалиста в предпросмотре нет по той же причине.
+                    specialists: specialists.map((specialist) => ({
+                      id: specialist.id,
+                      fullName: specialist.fullName,
+                      shortDescription: specialist.shortDescription,
+                      avatarSrc: specialist.avatarMediaId
+                        ? `/api/media/${specialist.avatarMediaId}`
+                        : null,
+                      href: null,
+                    })),
                     publicContactPhone: settings.publicContactPhone,
                     publicContactEmail: settings.publicContactEmail,
                     publicWebsiteUrl: settings.publicWebsiteUrl,

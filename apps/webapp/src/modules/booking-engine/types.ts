@@ -57,7 +57,14 @@ export type BeSpecialist = {
   id: string;
   organizationId: string;
   fullName: string;
+  /** Короткое описание обычным текстом: превью на визитке и строка в мастере записи. */
   description: string | null;
+  /** Аватар специалиста (#926 §17.H, владелец 11.09: «аватар-специалист обязательно нужно»). */
+  avatarMediaId: string | null;
+  /** Полное описание материалом: GFM-markdown, рисует его только публичная страница. */
+  fullDescriptionMarkdown: string | null;
+  /** Клиника решает, показывать ли человека снаружи. Выключено — снаружи его нет вовсе. */
+  cardIsPublished: boolean;
   appointmentReminderAllowedPresetIds: AppointmentReminderPresetId[];
   appointmentReminderDefaultPresetId: AppointmentReminderPresetId | null;
   isActive: boolean;
