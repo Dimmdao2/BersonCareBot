@@ -7,7 +7,7 @@ import { join } from 'path';
 import type { FastifyInstance } from 'fastify';
 import { getAppRoot } from '../config/appRoot.js';
 import { appSettings } from '../config/appSettings.js';
-import { env, integratorWebhookSecret } from '../config/env.js';
+import { env, integratorWebhookSecret, webappCallBaseUrl } from '../config/env.js';
 import { createDbPort, healthCheckDb } from '../infra/db/client.js';
 import { createDbReadPort } from '../infra/db/readPort.js';
 import { createDbWritePort } from '../infra/db/writePort.js';
@@ -164,11 +164,17 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
       ...(remindersReadsPort !== undefined ? { remindersReadsPort } : {}),
       ...(appointmentsReadsPort !== undefined ? { appointmentsReadsPort } : {}),
     });
+  // Вызовы СЕРВЕР-СЕРВЕР идут по внутреннему адресу, если он задан: публичное имя внутри
+  // docker-сети прода указывает на сам контейнер вебаппа, где TLS не терминируется (см. комментарий
+  // у `WEBAPP_INTERNAL_BASE_URL` в `config/env.ts`). Ссылки для человека этим не затрагиваются —
+  // они по-прежнему строятся из `APP_BASE_URL`.
+  const webappCallBase = webappCallBaseUrl();
+  const getWebappCallBaseUrl = async () => webappCallBase;
   const webappEventsPort = createWebappEventsPort({
-    getAppBaseUrl: async () => env.APP_BASE_URL,
+    getAppBaseUrl: getWebappCallBaseUrl,
   });
   const webPushAccessPort = createWebPushAccessPort({
-    getAppBaseUrl: async () => env.APP_BASE_URL,
+    getAppBaseUrl: getWebappCallBaseUrl,
   });
   const dispatchPortRef: { current?: DispatchPort } = {};
   const dbWritePort =
@@ -188,7 +194,7 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
   const contentPort = createContentPort({ rootDir: join(getAppRoot(), 'src', 'content') });
   const contentCatalogPort = createContentCatalogPort();
   const deliveryTargetsPort = createDeliveryTargetsPort({
-    getAppBaseUrl: async () => env.APP_BASE_URL,
+    getAppBaseUrl: getWebappCallBaseUrl,
   });
   const contextQueryPort = createContextQueryPort({
     readPort: dbReadPort,
