@@ -30,7 +30,9 @@ function submission480pKeyFromMediaRoot(mediaRoot: string): string {
 }
 
 /**
- * Program-item submission: single 480p progressive MP4, delete original source after success.
+ * Program-item submission: single 480p progressive MP4. Исходник НЕ удаляется (решение владельца
+ * 11.09.2026 «исходники не удаляем») — 480p здесь единственная ступень, и пересобрать её после
+ * стирания оригинала было бы нечем.
  */
 export async function processProgramSubmissionTranscodeJob(
   ctx: TranscodeJobContext,
