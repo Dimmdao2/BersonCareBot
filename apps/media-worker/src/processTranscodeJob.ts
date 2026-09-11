@@ -14,7 +14,10 @@ import { backoffMsAfterFailure } from './jobs/backoff.js';
 import type { ClaimedJob, MediaWorkerControlPort } from './control.js';
 import type { Logger } from './logger.js';
 import { parseStorageTarget, type StorageTarget } from './storageTarget.js';
-import { buildVodMasterPlaylistBody } from './hlsMasterPlaylist.js';
+import {
+  buildVodMasterPlaylistBody,
+  parseMasterPlaylistVariantRelativeUris,
+} from './hlsMasterPlaylist.js';
 import {
   hlsTreePrefixFromMediaRoot,
   isCanonicalMediaRootForId,
@@ -32,15 +35,67 @@ import {
 } from './s3.js';
 import { resolveWatermarkFontPath } from './watermarkFont.js';
 import { processProgramSubmissionTranscodeJob } from './processProgramSubmissionTranscode.js';
-import {
-  probeVideoDurationSeconds,
-  roundVideoDurationSecondsForStorage,
-} from './ffmpeg/probeVideoDurationSeconds.js';
+import { roundVideoDurationSecondsForStorage } from './ffmpeg/probeVideoDurationSeconds.js';
+import { probeVideoDimensions } from './ffmpeg/probeVideoDimensions.js';
+import { sumHlsExtinfDurationSeconds } from './ffmpeg/hlsPlaylistDuration.js';
+
+/**
+ * 450 / 900 / 1600 / 2800 kbps ladder (owner decision 2026-09-11, `VIDEO_DELIVERY_COST_AND_METERING`
+ * items 2 and 5a): ~1.75-2.0x steps between rungs. `bandwidth` is the value advertised in the HLS
+ * master playlist (encode bitrate + audio + container overhead), not the raw `-b:v`.
+ */
+export type HlsLadderRung = {
+  /** Directory name under `hls/`, and the label shown to the player. */
+  label: string;
+  height: number;
+  width: number;
+  videoBitrate: string;
+  audioBitrate: string;
+  bandwidth: number;
+};
+
+export const HLS_RUNG_LADDER: readonly HlsLadderRung[] = [
+  { label: '360p', height: 360, width: 640, videoBitrate: '400k', audioBitrate: '64k', bandwidth: 450_000 },
+  { label: '480p', height: 480, width: 854, videoBitrate: '800k', audioBitrate: '96k', bandwidth: 900_000 },
+  { label: '576p', height: 576, width: 1024, videoBitrate: '1400k', audioBitrate: '128k', bandwidth: 1_600_000 },
+  { label: '720p', height: 720, width: 1280, videoBitrate: '2500k', audioBitrate: '128k', bandwidth: 2_800_000 },
+];
+
+/** libx264 requires even dimensions; round a native source size down to the nearest even pixel. */
+function evenFloor(n: number): number {
+  const v = Math.floor(n);
+  return v % 2 === 0 ? Math.max(2, v) : Math.max(2, v - 1);
+}
+
+/**
+ * Rungs to actually encode for a `sourceWidth x sourceHeight` source: every ladder rung whose
+ * height fits inside the source — never a rung taller than the source (owner: "720 плодятся из
+ * 480? Такое надо чистить"). A source smaller than the smallest rung still yields exactly one rung,
+ * at its own native (even) size with the smallest rung's bitrate profile — never upscaled, and
+ * never a job with zero rungs.
+ */
+export function deriveEligibleHlsRungs(sourceWidth: number, sourceHeight: number): HlsLadderRung[] {
+  const fitting = HLS_RUNG_LADDER.filter((rung) => rung.height <= sourceHeight);
+  if (fitting.length > 0) return fitting;
+  const smallest = HLS_RUNG_LADDER[0]!;
+  const height = evenFloor(sourceHeight);
+  const width = evenFloor(sourceWidth);
+  return [
+    {
+      label: `${height}p`,
+      height,
+      width,
+      videoBitrate: smallest.videoBitrate,
+      audioBitrate: smallest.audioBitrate,
+      bandwidth: smallest.bandwidth,
+    },
+  ];
+}
 
 /** Short token for structured logs (no multi-line FFmpeg stderr / URLs). */
 function compactTranscodeLogErrorCode(message: string): string {
   const oneLine = message.trim().replace(/\s+/g, ' ');
-  const ffmpegExit = /^ffmpeg_(720p|480p|360p|poster)_exit_\d+/.exec(oneLine);
+  const ffmpegExit = /^ffmpeg_(\d+p|poster)_exit_\d+/.exec(oneLine);
   if (ffmpegExit) return ffmpegExit[0];
   if (oneLine.startsWith('master_head_missing')) return 'master_head_missing_after_upload';
   const colon = oneLine.indexOf(':');
@@ -128,6 +183,24 @@ async function uploadDirRecursive(
   }
 }
 
+/** Read `#EXTINF` total from the first variant referenced by an already-uploaded master playlist. */
+async function durationFromExistingMasterPlaylist(
+  ctx: TranscodeJobContext,
+  masterKey: string,
+  tmpRoot: string,
+): Promise<number | null> {
+  const masterLocal = join(tmpRoot, 'master.m3u8');
+  await downloadObjectToFile(ctx.client, ctx.bucket, masterKey, masterLocal);
+  const masterBody = await readFile(masterLocal, 'utf8');
+  const firstVariantUri = parseMasterPlaylistVariantRelativeUris(masterBody)[0];
+  if (!firstVariantUri) return null;
+  const variantKey = posix.join(posix.dirname(masterKey), firstVariantUri);
+  const variantLocal = join(tmpRoot, 'variant.m3u8');
+  await downloadObjectToFile(ctx.client, ctx.bucket, variantKey, variantLocal);
+  const variantBody = await readFile(variantLocal, 'utf8');
+  return sumHlsExtinfDurationSeconds(variantBody);
+}
+
 /**
  * End-to-end transcode (FFmpeg + S3). Source MP4 at `s3_key` is deleted after a successful
  * HLS transcode (best-effort; failure to delete is logged but does not fail the job).
@@ -178,19 +251,16 @@ async function processTranscodeJobInner(outer: TranscodeContext, job: ClaimedJob
   if (masterKeyExisting && media.video_processing_status === 'ready') {
     const exists = await headObjectExists(ctx.client, ctx.bucket, masterKeyExisting);
     if (exists) {
-      if (
-        (media.video_duration_seconds == null || media.video_duration_seconds <= 0) &&
-        media.s3_key?.trim()
-      ) {
+      if (media.video_duration_seconds == null || media.video_duration_seconds <= 0) {
+        /*
+         * Backfill from the already-produced HLS playlist, never the source: by the time HLS is
+         * `ready`, the source MP4 is normally already deleted (best-effort delete below), so
+         * re-downloading `s3_key` here silently no-ops on almost every row — that is exactly why
+         * duration was only ever recorded for 3 of 192 rows. The variant playlist always exists.
+         */
         const tmpRoot = await mkdtemp(join(tmpdir(), 'mw-dur-'));
-        const src = join(tmpRoot, 'source.bin');
         try {
-          await downloadObjectToFile(ctx.client, ctx.bucket, media.s3_key.trim(), src);
-          const durationSeconds = await probeVideoDurationSeconds(
-            ctx.ffmpegBin,
-            src,
-            Math.min(ctx.ffmpegTimeoutMs, 120_000),
-          );
+          const durationSeconds = await durationFromExistingMasterPlaylist(ctx, masterKeyExisting, tmpRoot);
           if (durationSeconds != null) {
             await ctx.control.doneHls(job, ctx.lockId, {
               durationSeconds: roundVideoDurationSecondsForStorage(durationSeconds),
@@ -245,19 +315,20 @@ async function processTranscodeJobInner(outer: TranscodeContext, job: ClaimedJob
   const tmpRoot = await mkdtemp(join(tmpdir(), 'mw-hls-'));
   const src = join(tmpRoot, 'source.bin');
   const hlsDir = join(tmpRoot, 'hls');
-  const dir720 = join(hlsDir, '720p');
-  const dir480 = join(hlsDir, '480p');
-  const dir360 = join(hlsDir, '360p');
   const posterDir = join(tmpRoot, 'poster');
   const posterLocal = join(posterDir, 'poster.jpg');
 
   try {
-    await mkdir(dir720, { recursive: true });
-    await mkdir(dir480, { recursive: true });
-    await mkdir(dir360, { recursive: true });
+    await mkdir(hlsDir, { recursive: true });
     await mkdir(posterDir, { recursive: true });
     await downloadObjectToFile(ctx.client, ctx.bucket, media.s3_key, src);
-    const videoDurationSeconds = await probeVideoDurationSeconds(ctx.ffmpegBin, src, 60_000);
+
+    const sourceDimensions = await probeVideoDimensions(ctx.ffmpegBin, src, 60_000);
+    if (!sourceDimensions) {
+      await retryableFail(ctx, job, ctx.maxAttempts, 'ffprobe_source_dimensions_failed');
+      return;
+    }
+    const rungs = deriveEligibleHlsRungs(sourceDimensions.width, sourceDimensions.height);
 
     let wmDrawtext: WatermarkDrawtextParams | null = null;
     if (watermarkEnabled && fontPath) {
@@ -269,101 +340,68 @@ async function processTranscodeJobInner(outer: TranscodeContext, job: ClaimedJob
       };
     }
 
-    const vf720 = composeHlsVideoFilter('scale=1280:-2,format=yuv420p', wmDrawtext);
-    const vf480 = composeHlsVideoFilter('scale=854:-2,format=yuv420p', wmDrawtext);
-    const vf360 = composeHlsVideoFilter('scale=640:-2,format=yuv420p', wmDrawtext);
-
-    const run720 = await runFfmpeg(
-      ctx.ffmpegBin,
-      buildHlsSingleVariantArgs({
-        inputFile: src,
-        outputM3u8: 'index.m3u8',
-        segmentFilename: 'seg_%03d.ts',
-        videoFilter: vf720,
-        videoBitrate: '2500k',
-        audioBitrate: '128k',
-      }),
-      {
-        cwd: dir720,
-        timeoutMs: transcodeTimeoutMs,
-        collectStderrMaxBytes: 32768,
-      },
-    );
-    if (run720.code !== 0) {
-      await retryableFail(
-        ctx,
-        job,
-        ctx.maxAttempts,
-        `ffmpeg_720p_exit_${run720.code}: ${run720.stderrTail}`,
+    /*
+     * One parameterized pass over the rung table (AGENTS.md §5 "Один общий проход"): the three
+     * encode invocations used to be near-identical copies differing only in scale/bitrate/dir —
+     * that is exactly the "same operation, different parameters" case the rule asks to fold into
+     * one point rather than leaving as copies that can drift.
+     */
+    const producedRungs: Array<HlsLadderRung & { variantPlaylistBody: string }> = [];
+    for (const rung of rungs) {
+      const rungDir = join(hlsDir, rung.label);
+      await mkdir(rungDir, { recursive: true });
+      const videoFilter = composeHlsVideoFilter(`scale=${rung.width}:-2,format=yuv420p`, wmDrawtext);
+      const run = await runFfmpeg(
+        ctx.ffmpegBin,
+        buildHlsSingleVariantArgs({
+          inputFile: src,
+          outputM3u8: 'index.m3u8',
+          segmentFilename: 'seg_%03d.ts',
+          videoFilter,
+          videoBitrate: rung.videoBitrate,
+          audioBitrate: rung.audioBitrate,
+        }),
+        {
+          cwd: rungDir,
+          timeoutMs: transcodeTimeoutMs,
+          collectStderrMaxBytes: 32768,
+        },
       );
-      return;
+      if (run.code !== 0) {
+        await retryableFail(
+          ctx,
+          job,
+          ctx.maxAttempts,
+          `ffmpeg_${rung.label}_exit_${run.code}: ${run.stderrTail}`,
+        );
+        return;
+      }
+      const variantPlaylistBody = await readFile(join(rungDir, 'index.m3u8'), 'utf8');
+      producedRungs.push({ ...rung, variantPlaylistBody });
     }
 
-    const run480 = await runFfmpeg(
-      ctx.ffmpegBin,
-      buildHlsSingleVariantArgs({
-        inputFile: src,
-        outputM3u8: 'index.m3u8',
-        segmentFilename: 'seg_%03d.ts',
-        videoFilter: vf480,
-        videoBitrate: '800k',
-        audioBitrate: '96k',
-      }),
-      {
-        cwd: dir480,
-        timeoutMs: transcodeTimeoutMs,
-        collectStderrMaxBytes: 32768,
-      },
+    const masterBody = buildVodMasterPlaylistBody(
+      producedRungs.map((rung) => ({
+        uri: `${rung.label}/index.m3u8`,
+        bandwidth: rung.bandwidth,
+        width: rung.width,
+        height: rung.height,
+      })),
     );
-    if (run480.code !== 0) {
-      await retryableFail(
-        ctx,
-        job,
-        ctx.maxAttempts,
-        `ffmpeg_480p_exit_${run480.code}: ${run480.stderrTail}`,
-      );
-      return;
-    }
-
-    const run360 = await runFfmpeg(
-      ctx.ffmpegBin,
-      buildHlsSingleVariantArgs({
-        inputFile: src,
-        outputM3u8: 'index.m3u8',
-        segmentFilename: 'seg_%03d.ts',
-        videoFilter: vf360,
-        videoBitrate: '400k',
-        audioBitrate: '64k',
-      }),
-      {
-        cwd: dir360,
-        timeoutMs: transcodeTimeoutMs,
-        collectStderrMaxBytes: 32768,
-      },
-    );
-    if (run360.code !== 0) {
-      await retryableFail(
-        ctx,
-        job,
-        ctx.maxAttempts,
-        `ffmpeg_360p_exit_${run360.code}: ${run360.stderrTail}`,
-      );
-      return;
-    }
-
-    const masterBody = buildVodMasterPlaylistBody([
-      { uri: '720p/index.m3u8', bandwidth: 2_800_000, width: 1280, height: 720 },
-      { uri: '480p/index.m3u8', bandwidth: 900_000, width: 854, height: 480 },
-      { uri: '360p/index.m3u8', bandwidth: 450_000, width: 640, height: 360 },
-    ]);
     await writeFile(join(hlsDir, 'master.m3u8'), masterBody, 'utf8');
+
+    // Highest rung actually produced — same one the poster used before this rung was source-dependent.
+    const bestProducedRung = producedRungs[producedRungs.length - 1]!;
+    const posterVideoFilter = wmDrawtext
+      ? composeHlsVideoFilter(`scale=${bestProducedRung.width}:-2,format=yuv420p`, wmDrawtext)
+      : undefined;
 
     try {
       await extractPosterWithFallback({
         ffmpegBin: ctx.ffmpegBin,
         inputFile: src,
         outputJpg: posterLocal,
-        videoFilter: wmDrawtext ? vf720 : undefined,
+        videoFilter: posterVideoFilter,
         cwd: tmpRoot,
         timeoutMs: transcodeTimeoutMs,
       });
@@ -394,11 +432,19 @@ async function processTranscodeJobInner(outer: TranscodeContext, job: ClaimedJob
       return;
     }
 
-    const qualitiesJson = JSON.stringify([
-      { label: '720p', height: 720, path: '720p/index.m3u8', bandwidth: 2_800_000 },
-      { label: '480p', height: 480, path: '480p/index.m3u8', bandwidth: 900_000 },
-      { label: '360p', height: 360, path: '360p/index.m3u8', bandwidth: 450_000 },
-    ]);
+    // Quality list mirrors exactly the rungs that were produced above — never an advertised rung
+    // that wasn't built, never a produced rung left off the list.
+    const qualitiesJson = JSON.stringify(
+      producedRungs.map((rung) => ({
+        label: rung.label,
+        height: rung.height,
+        path: `${rung.label}/index.m3u8`,
+        bandwidth: rung.bandwidth,
+      })),
+    );
+    // Duration from the produced playlist (sum of EXTINF), not the source: the source is deleted
+    // below, but the playlist this reads survives. Any produced rung's timeline matches the source.
+    const videoDurationSeconds = sumHlsExtinfDurationSeconds(producedRungs[0]!.variantPlaylistBody);
     await ctx.control.doneHls(job, ctx.lockId, {
       masterKey,
       artifactPrefix: hlsBaseKeyPrefix,
