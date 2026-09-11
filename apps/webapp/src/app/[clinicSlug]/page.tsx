@@ -1,4 +1,6 @@
 import { notFound, permanentRedirect } from 'next/navigation';
+import { CABINET_ENTRY_PATH } from '@/config/surfaceRoutes';
+import { PLATFORM_NAME } from '@/config/productSurfaces';
 import {
   publicBookPaths,
   publicClinicCardPath,
@@ -8,6 +10,10 @@ import {
   ClinicPublicCardView,
   type ClinicPublicCardViewModel,
 } from '@/shared/ui/clinicPublicCard/ClinicPublicCardView';
+import {
+  ClinicRootEntryView,
+  type ClinicRootEntryViewModel,
+} from '@/shared/ui/clinicPublicCard/ClinicRootEntryView';
 import { ClinicCardUnavailableError } from './clinicCardUnavailable';
 import { clinicCardMediaPath, loadClinicPublicCardRsc } from './publicClinicCard';
 
@@ -19,11 +25,21 @@ type Props = { params: Promise<{ clinicSlug: string }> };
  * Public clinic card `/{clinic}` — owner ruling 19.08 («просто их визитку с описанием»).
  *
  * Three refusals, deliberately different (plan §3.3):
- *   • unknown / unpublished / inactive / page switched off → the SAME 404, so an anonymous
- *     visitor cannot enumerate clinics by the shape of the answer;
+ *   • unknown slug / clinic missing from the public directory / inactive organization → the SAME
+ *     404, so an anonymous visitor cannot enumerate clinics by the shape of the answer;
  *   • the projection could not be read → an error status with a human sentence, never a blank
  *     card and never a 200 (see `clinicCardUnavailable.ts` on why 500 and not 503);
  *   • published with nothing written → the name and the booking button, no invented text.
+ *
+ * Клиника, которая ВЫКЛЮЧИЛА показ страницы, из этого перечня выведена решением владельца 11.09
+ * (#926 §17.F): «корень клиники должен стать входом в кабинет. Не должно быть исчезнувшего
+ * адреса». Она не 404, а вырожденный корень — имя, вход в кабинет, отметка платформы.
+ *
+ * Граница §3.3 при этом сдвинулась ровно на один шаг и не дальше: вырожденный корень получает
+ * только клиника, которая УЖЕ публична — с `is_published` каталога, по адресу которой в это же
+ * время отвечает `200` её запись (`/{clinic}/booking`). Её существование поэтому не новость.
+ * Клиника без строки в каталоге и несуществующий слаг отдают ТОТ ЖЕ 404, что и раньше: дверь для
+ * них по-прежнему не возвращает ничего, и перебирать по форме ответа нечего.
  *
  * Everything on this page comes from one row of the public projection. No tenant table is read,
  * no internal identifier (organization, branch, tariff) reaches the markup, and nothing here
@@ -48,13 +64,31 @@ export default async function ClinicPublicCardPage({ params }: Props) {
     permanentRedirect(publicClinicCardPath(card.canonicalSlug));
   }
 
+  const logoSrc =
+    card.media
+      .filter((item) => item.role === 'logo')
+      .map((item) => clinicCardMediaPath(card.canonicalSlug, item.id))[0] ?? null;
+
+  if (!card.cardIsPublished) {
+    // Дверь при выключенном показе отдала только имя и логотип — всё остальное здесь пусто по
+    // построению, а не потому, что эта страница решила его не рисовать.
+    const entry: ClinicRootEntryViewModel = {
+      displayName: card.displayName,
+      logoSrc,
+      cabinetHref: CABINET_ENTRY_PATH,
+      platformName: PLATFORM_NAME,
+    };
+    return (
+      <main className="mx-auto flex max-w-2xl flex-col gap-6 px-4 py-8">
+        <ClinicRootEntryView entry={entry} />
+      </main>
+    );
+  }
+
   const view: ClinicPublicCardViewModel = {
     displayName: card.displayName,
     description: card.description,
-    logoSrc:
-      card.media
-        .filter((item) => item.role === 'logo')
-        .map((item) => clinicCardMediaPath(card.canonicalSlug, item.id))[0] ?? null,
+    logoSrc,
     photoSrcs: card.media
       .filter((item) => item.role === 'photo')
       .map((item) => clinicCardMediaPath(card.canonicalSlug, item.id)),

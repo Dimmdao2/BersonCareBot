@@ -26302,7 +26302,7 @@ const REV10_CONTEXT = {
     read_public_booking_catalog: { port: 'webapp', sessionRole: 'app_staff',
       targetRole: 'app_tenant_service', contextClass: 'tenant_service',
       purpose: 'booking.public-catalog.read',
-      functionIdentity: 'app.read_public_booking_catalog(uuid,uuid)' },
+      functionIdentity: 'app.read_public_booking_catalog(uuid,uuid,uuid)' },
     read_public_booking_slot_snapshot: { port: 'webapp', sessionRole: 'app_staff',
       targetRole: 'app_tenant_service', contextClass: 'tenant_service',
       purpose: 'booking.public-slot-snapshot.read',
@@ -27675,11 +27675,11 @@ const REV10_CONTEXT = {
     }),
     // Одна дверь на четыре формы одного вопроса «что из каталога ЭТОЙ опубликованной клиники видно
     // снаружи»: организация берётся не из аргумента, а из принятого контекста.
-    'app.read_public_booking_catalog(uuid,uuid)': rev10Function({
+    'app.read_public_booking_catalog(uuid,uuid,uuid)': rev10Function({
       owner: 'app_seam_public_booking_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
       execute: ['app_tenant_service'],
       purpose: 'return only the publicly bookable catalog of the published accepted organization',
-      typedArgs: ['uuid', 'uuid'], volatility: 'STABLE', parallel: 'UNSAFE',
+      typedArgs: ['uuid', 'uuid', 'uuid'], volatility: 'STABLE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
         { relation: 'public.be_branches', columns: ['id', 'organization_id', 'title', 'short_title', 'color',
@@ -27693,7 +27693,11 @@ const REV10_CONTEXT = {
         { relation: 'public.be_specialist_service_availability', columns: ['organization_id', 'service_id',
           'branch_id', 'specialist_id', 'is_active'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
-        { relation: 'public.be_specialists', columns: ['id', 'organization_id', 'is_active'],
+        // #926 §17.C: ссылка `?specialist=<id>` сужает каталог, поэтому дверь читает ещё имя и
+        // публичный флаг специалиста — тот же отбор, что на визитке (`is_active AND
+        // card_is_published`). Ни одной колонки сверх этого: наружу выходит только имя.
+        { relation: 'public.be_specialists', columns: ['id', 'organization_id', 'full_name', 'is_active',
+          'card_is_published'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.clinic_public_directory_entries', columns: ['organization_id', 'is_published'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },

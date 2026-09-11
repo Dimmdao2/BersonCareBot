@@ -96,9 +96,21 @@ export function BookingEntryClient({ screen, orgSlug, specialistId }: Props) {
         : 'Этот специалист больше не принимает записи в этой клинике.'
       : null;
 
+  // Специалиста несёт дальше только ЖИВАЯ ссылка. На экране протухшего параметра его уносить
+  // некуда: там человек уже вернулся к обычному выбору филиала (план §6.3).
+  const carriedSpecialistId = screen.kind === 'stale' ? null : specialistId;
+  const branchHref = (branchId: string): string => {
+    const query = new URLSearchParams({ branch: branchId });
+    if (carriedSpecialistId) query.set('specialist', carriedSpecialistId);
+    return `${publicBookPaths.forSlug(orgSlug)}?${query.toString()}`;
+  };
+
   return (
     <div className={bookingChoiceSectionClass}>
       {staleMessage ? <p className="text-sm">{staleMessage}</p> : null}
+      {screen.kind === 'branches' && screen.specialistName ? (
+        <p className={cn(patientMutedTextClass, 'text-xs')}>{screen.specialistName}</p>
+      ) : null}
       <div className="flex flex-col gap-2">
         <p className={cn(patientMutedTextClass, 'text-xs font-medium uppercase tracking-wide')}>
           Филиал
@@ -109,7 +121,7 @@ export function BookingEntryClient({ screen, orgSlug, specialistId }: Props) {
           screen.branches.map((branch) => (
             <Link
               key={branch.id}
-              href={`${publicBookPaths.forSlug(orgSlug)}?branch=${encodeURIComponent(branch.id)}`}
+              href={branchHref(branch.id)}
               prefetch={false}
               className={bookingChoiceRowClass}
             >
@@ -134,7 +146,7 @@ export function BookingEntryClient({ screen, orgSlug, specialistId }: Props) {
               screen.onlineLocation.id,
               screen.onlineLocation.cityCode,
               screen.onlineLocation.title,
-              specialistId,
+              carriedSpecialistId,
             )}
             prefetch={false}
             className={bookingChoiceRowClass}

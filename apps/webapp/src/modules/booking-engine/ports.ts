@@ -32,9 +32,35 @@ export type OrganizationPort = {
   }): Promise<BeOrganization>;
 };
 
+/**
+ * Публичная личность специалиста, названного в ссылке `/{clinic}/booking?specialist=<id>`
+ * (#926 §17.C).
+ *
+ * Наружу выходит ровно имя: остальное про человека публикует визитка, а не мастер записи. Филиалы
+ * здесь потому, что первый экран сужается до тех, где он ДЕЙСТВИТЕЛЬНО принимает (план §6.2), —
+ * без этого ссылка «к Анне» уводит в филиал, где под неё нет ни одной услуги.
+ */
+export type PublicBookableSpecialist = {
+  id: string;
+  fullName: string;
+  branchIds: string[];
+};
+
 export type OrganizationCatalogPort = {
   listBranches(organizationId: string): Promise<BeBranch[]>;
   getBranch(id: string): Promise<BeBranch | null>;
+  /**
+   * Кто стоит за `?specialist=<id>` — под принципалом ПУБЛИЧНОЙ записи, а не кабинета.
+   *
+   * `null` одинаково значит «несуществующий», «чужой», «неактивный» и «клиника его не публикует»
+   * (§3.3): различать эти причины наружу нельзя, иначе по форме ответа перебираются люди. Отбор —
+   * тот же `is_active AND card_is_published`, что уже действует на визитке, и второй его записи в
+   * приложении нет: решает дверь каталога в SQL. Вне принципала публичной записи метод отказывает.
+   */
+  resolvePublicBookableSpecialist(input: {
+    organizationId: string;
+    specialistId: string;
+  }): Promise<PublicBookableSpecialist | null>;
   upsertBranch(input: {
     organizationId: string;
     id?: string;
@@ -117,10 +143,16 @@ export type ServiceAvailabilityPort = {
    * публичном виджете», «не только для администратора», «назначена активному специалисту в этом
    * филиале») делает дверь публичного каталога в SQL — здесь его повторять нельзя, иначе появятся
    * две реализации одного правила. Вне принципала публичной записи метод отказывает.
+   *
+   * `specialistId` — та же дверь с тем же вопросом, только суженным до одного специалиста
+   * (#926 §17.C): «что здесь можно записать» и «что здесь можно записать к нему» — один вход с
+   * параметром, а не два (§5 «Один общий проход»). Неопубликованный или чужой специалист даёт
+   * пустой список, а не полный каталог.
    */
   listPublicBookableServicesForBranch(input: {
     organizationId: string;
     branchId: string;
+    specialistId?: string | null;
   }): Promise<BeClinicService[]>;
   upsertService(input: {
     organizationId: string;

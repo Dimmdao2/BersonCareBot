@@ -74,6 +74,16 @@ export type ClinicPublicCard = {
   canonicalSlug: string;
   /** `redirect` when the visitor arrived through a retired slug that stays valid forever. */
   disposition: 'current' | 'redirect';
+  /**
+   * Выключила ли клиника показ своей страницы (#926 §17.F, решение владельца 11.09: «корень
+   * клиники должен стать входом в кабинет… не должно быть исчезнувшего адреса»).
+   *
+   * `false` — дверь отдала ТОЛЬКО имя клиники и её логотип: всё остальное здесь пусто, потому что
+   * клиника сняла это с публики. Страница в этом случае рисует вход в кабинет вместо визитки и
+   * НИКОГДА не 404: клиника с `is_published` каталога уже публична — по её адресу в это же время
+   * работает запись.
+   */
+  cardIsPublished: boolean;
   displayName: string;
   /** Короткое описание — обычный текст, идёт строкой сверху. */
   description: string | null;

@@ -73,7 +73,7 @@ import { loadBookingEntryScreenRsc } from './loadBookingEntry';
 
 fakes.deps.value = { bookingEngine: createBookingEngineService(createPgBookingEnginePort()) };
 
-const CATALOG_ROOT = 'app.read_public_booking_catalog(uuid,uuid)';
+const CATALOG_ROOT = 'app.read_public_booking_catalog(uuid,uuid,uuid)';
 
 const ORG = '44444444-4444-4444-8444-444444444444';
 const OTHER_ORG = '55555555-5555-4555-8555-555555555555';
@@ -116,7 +116,9 @@ function serviceRow(organizationId = ORG) {
 
 /**
  * Дверь публичного каталога, как она отвечает в SQL: организацию аргументом не принимает (берёт из
- * принятого контекста), по `branchId` отдаёт один филиал и его публично записываемые услуги.
+ * принятого контекста), по `branchId` отдаёт один филиал и его публично записываемые услуги, по
+ * `specialistId` — публичную личность специалиста (#926 §17.C). Здесь его нет ни в одном сценарии,
+ * поэтому ключ всегда `null` — ровно то, что дверь отдаёт без третьего аргумента.
  * Неизвестная идентичность корня роняет тест, а не молчит.
  */
 function catalogDoor(branches: ReturnType<typeof branchRow>[]) {
@@ -134,6 +136,7 @@ function catalogDoor(branches: ReturnType<typeof branchRow>[]) {
             branch,
             services: branch ? [serviceRow(branch.organizationId)] : [],
             service: null,
+            specialist: null,
           },
         },
       ],

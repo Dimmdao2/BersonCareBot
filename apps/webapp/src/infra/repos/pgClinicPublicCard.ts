@@ -17,6 +17,7 @@ type CardRow = {
   requestedSlug?: unknown;
   canonicalSlug?: unknown;
   disposition?: unknown;
+  cardIsPublished?: unknown;
   displayName?: unknown;
   description?: unknown;
   fullDescriptionMarkdown?: unknown;
@@ -142,6 +143,9 @@ export function createPgClinicPublicCardPort(): ClinicPublicCardPort {
         requestedSlug: text(card.requestedSlug) ?? slug,
         canonicalSlug,
         disposition: card.disposition === 'redirect' ? 'redirect' : 'current',
+        // Строго `true`: любое другое значение читается как «страница выключена», то есть в
+        // сторону меньшего показа. Ошибка чтения признака не должна раскрывать визитку.
+        cardIsPublished: card.cardIsPublished === true,
         displayName,
         description: text(card.description),
         fullDescriptionMarkdown: text(card.fullDescriptionMarkdown),

@@ -15,6 +15,14 @@ import { publicBookPaths, publicClinicCardPath } from '@/shared/publicBook/paths
  */
 export type SurfaceRouteAudience = 'shared' | 'staff' | 'patient';
 
+/**
+ * Общий вход в кабинет. Его брендирует Host, а не путь, поэтому адрес один и тот же и на общем
+ * пациентском хосте, и на брендированном адресе клиники. Константа существует, чтобы у «входа в
+ * кабинет» было ОДНО написание: корень поддомена с настройкой «сразу открывать вход», корень
+ * общего пациентского хоста и вырожденный корень клиники (#926 §17.F) обязаны вести в одно место.
+ */
+export const CABINET_ENTRY_PATH = '/app';
+
 type SurfaceRouteMatch =
   | { readonly kind: 'exact' | 'prefix'; readonly path: string }
   | { readonly kind: 'pattern'; readonly pattern: RegExp };
@@ -194,13 +202,15 @@ export function canSurfaceEnterRoute(surface: RequestSurface, pathname: string):
 export function patientTreeRewritePath(resolved: ResolvedSurface, pathname: string): string | null {
   const path = normalizePathname(pathname);
   if (resolved.surface === 'patient_default') {
-    return path === '/' ? '/app' : null;
+    return path === '/' ? CABINET_ENTRY_PATH : null;
   }
   if (resolved.surface !== 'patient_branded' || !resolved.clinicSlug) return null;
   // This is the sole root projection for both branded-root choices. The flag arrives only in the
   // already-resolved tenant context, so no second Host/settings lookup can drift from B5's seam.
   if (path === '/') {
-    return resolved.skipPublicCardAtRoot ? '/app' : publicClinicCardPath(resolved.clinicSlug);
+    return resolved.skipPublicCardAtRoot
+      ? CABINET_ENTRY_PATH
+      : publicClinicCardPath(resolved.clinicSlug);
   }
   if (path === '/booking') return publicBookPaths.forSlug(resolved.clinicSlug);
   return null;

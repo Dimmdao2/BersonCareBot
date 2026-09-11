@@ -1,5 +1,6 @@
 import type {
   OrganizationCatalogPort,
+  PublicBookableSpecialist,
   ServiceAvailabilityPort,
 } from '@/modules/booking-engine/ports';
 import type { BookingCity } from '@/modules/booking-catalog/types';
@@ -10,7 +11,10 @@ import {
 
 export type InPersonServicesCatalogDeps = {
   bookingEngine: {
-    catalog: Pick<OrganizationCatalogPort, 'listBranches' | 'getBranch' | 'listSpecialists'>;
+    catalog: Pick<
+      OrganizationCatalogPort,
+      'listBranches' | 'getBranch' | 'listSpecialists' | 'resolvePublicBookableSpecialist'
+    >;
     services: Pick<
       ServiceAvailabilityPort,
       'listServices' | 'listSpecialistServiceAvailability' | 'listPublicBookableServicesForBranch'
@@ -28,6 +32,7 @@ export type BranchServicesLister = (
   deps: InPersonServicesCatalogDeps,
   organizationId: string,
   branchId: string,
+  specialistId?: string | null,
 ) => Promise<BranchServicesListing | null>;
 
 export type InPersonServiceListItem = {
@@ -89,14 +94,37 @@ export async function resolveBookableOnlineLocationForOrganization(
   deps: InPersonServicesCatalogDeps,
   organizationId: string,
   listServicesForBranch: BranchServicesLister = listInPersonServicesForBranch,
+  specialistId: string | null = null,
 ): Promise<OnlineBookingLocationOption | null> {
   if (!deps.bookingEngine) return null;
   const branches = await deps.bookingEngine.catalog.listBranches(organizationId);
   const branch = findBuiltInOnlineLocation(branches, organizationId);
   if (!branch?.isActive) return null;
-  const catalog = await listServicesForBranch(deps, organizationId, branch.id);
+  // Со специалистом в ссылке вопрос тот же и сужается тем же параметром: «есть ли у ЭТОГО
+  // специалиста что записать онлайн». Иначе онлайн-приём предлагался бы там, где он не ведёт.
+  const catalog = await listServicesForBranch(deps, organizationId, branch.id, specialistId);
   if (!catalog || catalog.services.length === 0) return null;
   return { id: branch.id, cityCode: branch.cityCode, title: branch.title };
+}
+
+/**
+ * Кто стоит за `?specialist=<id>` в ссылке на публичную запись (#926 §17.C).
+ *
+ * Отбора здесь нет: «активен и опубликован клиникой» решает дверь каталога в SQL, и второй копии
+ * этого правила в приложении быть не должно. `null` — одинаковый отказ на все четыре причины
+ * (нет такого, чужой, неактивен, не опубликован), из которого экран делает «этот специалист
+ * больше не принимает записи» (план §6.3).
+ */
+export async function resolvePublicBookableSpecialistForOrganization(
+  deps: InPersonServicesCatalogDeps,
+  organizationId: string,
+  specialistId: string,
+): Promise<PublicBookableSpecialist | null> {
+  if (!deps.bookingEngine) return null;
+  return deps.bookingEngine.catalog.resolvePublicBookableSpecialist({
+    organizationId,
+    specialistId,
+  });
 }
 
 export type BookableBranchOption = {
@@ -180,6 +208,7 @@ export async function listPublicBookableServicesForBranch(
   deps: InPersonServicesCatalogDeps,
   organizationId: string,
   branchId: string,
+  specialistId: string | null = null,
 ): Promise<BranchServicesListing | null> {
   if (!deps.bookingEngine) return null;
   const branch = await deps.bookingEngine.catalog.getBranch(branchId);
@@ -187,6 +216,7 @@ export async function listPublicBookableServicesForBranch(
   const services = await deps.bookingEngine.services.listPublicBookableServicesForBranch({
     organizationId,
     branchId,
+    specialistId,
   });
   return {
     branch: { id: branch.id, title: branch.title, cityCode: branch.cityCode },
