@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
 
@@ -12,6 +13,8 @@ const postBodySchema = z.object({
 export async function POST(request: Request, ctx: { params: Promise<{ stageId: string }> }) {
   const auth = await requireDoctorWorkspaceApiContext();
   if (!auth.ok) return auth.response;
+  const entitlement = await requireEntitlementForMutation(auth.ctx, 'exercise_catalog');
+  if (!entitlement.ok) return entitlement.response;
   const { ctx: workspace } = auth;
 
   const { stageId } = await ctx.params;

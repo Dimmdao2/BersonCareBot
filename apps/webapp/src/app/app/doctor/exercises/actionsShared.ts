@@ -1,5 +1,9 @@
 import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import {
+  entitlementMutationRefusalMessage,
+  requireEntitlementForMutationAction,
+} from '@/app-layer/guards/requireEntitlement';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { webappReposAreInMemory } from '@/config/env';
 import { logger } from '@/infra/logging/logger';
@@ -17,10 +21,7 @@ import {
 } from '@/modules/lfk-exercises/exerciseLoadTypeReference';
 import { parseMediaFileIdFromAppUrl } from '@/shared/lib/mediaPreviewUrls';
 import { API_MEDIA_URL_RE } from '@/shared/lib/mediaUrlPolicy';
-import {
-  hostedVideoLinkRejectionRu,
-  parseHostedVideoLink,
-} from '@/shared/lib/hostingEmbedUrls';
+import { hostedVideoLinkRejectionRu, parseHostedVideoLink } from '@/shared/lib/hostingEmbedUrls';
 import { z } from 'zod';
 
 import { EXERCISES_PATH } from './exercisesPaths';
@@ -62,8 +63,7 @@ export type ArchiveDoctorExerciseCoreResult =
   | { kind: 'invalid'; error: string };
 
 export type UnarchiveDoctorExerciseCoreResult =
-  | { kind: 'unarchived'; id: string }
-  | { kind: 'invalid'; error: string };
+  { kind: 'unarchived'; id: string } | { kind: 'invalid'; error: string };
 
 export type UnarchiveDoctorExerciseState = { ok: true } | { ok: false; error: string };
 
@@ -75,8 +75,7 @@ function parseAcknowledgeUsageWarning(fd: FormData): boolean {
 export { EXERCISES_PATH };
 
 type SaveExerciseResult =
-  | { ok: true; exerciseId: string; wasUpdate: boolean }
-  | { ok: false; error: string };
+  { ok: true; exerciseId: string; wasUpdate: boolean } | { ok: false; error: string };
 
 function parseTags(raw: FormDataEntryValue | null): string[] | null {
   if (typeof raw !== 'string' || !raw.trim()) return null;
@@ -98,7 +97,9 @@ function parseTags(raw: FormDataEntryValue | null): string[] | null {
 function normalizeExerciseMedia(
   mediaUrl: string | null,
   mediaType: ExerciseMediaType | null,
-): { ok: true; mediaUrl: string | null; mediaType: ExerciseMediaType | null } | { ok: false; error: string } {
+):
+  | { ok: true; mediaUrl: string | null; mediaType: ExerciseMediaType | null }
+  | { ok: false; error: string } {
   if (mediaType && !mediaUrl) {
     return { ok: false, error: 'Некорректные данные медиа: очистите медиа и выберите файл снова.' };
   }
@@ -166,6 +167,13 @@ export async function bulkCreateExercisesFromMediaCore(
   items: BulkCreateExercisesFromMediaItem[],
 ): Promise<BulkCreateExercisesFromMediaResult> {
   const workspace = await requireDoctorWorkspaceContext({ workspaceModule: 'rehabilitation' });
+  const entitlement = await requireEntitlementForMutationAction(workspace, 'exercise_catalog');
+  if (!entitlement.ok) {
+    return {
+      ok: false,
+      error: entitlementMutationRefusalMessage('создать упражнения', entitlement.reason),
+    };
+  }
   const userId = workspace.session.user.userId;
 
   const deduped: BulkCreateExercisesFromMediaItem[] = [];
@@ -299,6 +307,13 @@ export async function bulkCreateExercisesFromMediaCore(
 
 export async function saveDoctorExerciseCore(formData: FormData): Promise<SaveExerciseResult> {
   const workspace = await requireDoctorWorkspaceContext({ workspaceModule: 'rehabilitation' });
+  const entitlement = await requireEntitlementForMutationAction(workspace, 'exercise_catalog');
+  if (!entitlement.ok) {
+    return {
+      ok: false,
+      error: entitlementMutationRefusalMessage('сохранить упражнение', entitlement.reason),
+    };
+  }
   const deps = buildAppDeps();
   const loadRefItems = await deps.references.listActiveItemsByCategoryCode(
     EXERCISE_LOAD_TYPE_CATEGORY_CODE,
@@ -340,7 +355,10 @@ export async function saveDoctorExerciseCore(formData: FormData): Promise<SaveEx
       ? mediaTypeRaw
       : null;
 
-  const normalized = normalizeExerciseMedia(mediaUrlRaw.length ? mediaUrlRaw : null, mediaTypeParsed);
+  const normalized = normalizeExerciseMedia(
+    mediaUrlRaw.length ? mediaUrlRaw : null,
+    mediaTypeParsed,
+  );
   if (!normalized.ok) {
     return { ok: false, error: normalized.error };
   }
@@ -403,6 +421,13 @@ export async function archiveDoctorExerciseCore(
   formData: FormData,
 ): Promise<ArchiveDoctorExerciseCoreResult> {
   const workspace = await requireDoctorWorkspaceContext({ workspaceModule: 'rehabilitation' });
+  const entitlement = await requireEntitlementForMutationAction(workspace, 'exercise_catalog');
+  if (!entitlement.ok) {
+    return {
+      kind: 'invalid',
+      error: entitlementMutationRefusalMessage('архивировать упражнение', entitlement.reason),
+    };
+  }
   const idRaw = formData.get('id');
   const id = typeof idRaw === 'string' ? idRaw.trim() : '';
   if (!id) return { kind: 'invalid', error: 'Не указано упражнение' };
@@ -441,6 +466,13 @@ export async function unarchiveDoctorExerciseCore(
   formData: FormData,
 ): Promise<UnarchiveDoctorExerciseCoreResult> {
   const workspace = await requireDoctorWorkspaceContext({ workspaceModule: 'rehabilitation' });
+  const entitlement = await requireEntitlementForMutationAction(workspace, 'exercise_catalog');
+  if (!entitlement.ok) {
+    return {
+      kind: 'invalid',
+      error: entitlementMutationRefusalMessage('вернуть упражнение из архива', entitlement.reason),
+    };
+  }
   const idRaw = formData.get('id');
   const id = typeof idRaw === 'string' ? idRaw.trim() : '';
   if (!id) return { kind: 'invalid', error: 'Не указано упражнение' };

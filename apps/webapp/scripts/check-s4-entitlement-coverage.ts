@@ -5,6 +5,7 @@ import {
   DECLARED_NO_SURFACE,
   PROTECTED_ACTION_EXEMPTIONS,
   PROTECTED_ACTION_FAMILIES,
+  PROTECTED_ACTION_MECHANIC_ALIASES,
   PROTECTED_ACTION_MAPPINGS,
   type ProtectedActionExemption,
   type ProtectedActionFamily,
@@ -47,6 +48,9 @@ export function validateProtectedActionMappings(
   sourceFor: SourceFor,
   mechanics: readonly OrgMechanic[] = Object.keys(MECHANIC_REGISTRY) as OrgMechanic[],
   declaredNoSurface: Readonly<Record<string, string>> = DECLARED_NO_SURFACE,
+  mechanicAliases: Readonly<
+    Partial<Record<OrgMechanic, OrgMechanic>>
+  > = PROTECTED_ACTION_MECHANIC_ALIASES,
 ): Finding[] {
   const findings: Finding[] = [];
   const seenIds = new Set<string>();
@@ -71,10 +75,11 @@ export function validateProtectedActionMappings(
     if (count > 1) findings.push({ id: key, message: 'duplicate mapping for file/export' });
   }
   for (const mechanic of mechanics) {
+    const protectedMechanic = mechanicAliases[mechanic] ?? mechanic;
     if (
       !mappings.some((mapping) =>
         (Array.isArray(mapping.mechanic) ? mapping.mechanic : [mapping.mechanic]).includes(
-          mechanic,
+          protectedMechanic,
         ),
       ) &&
       !(mechanic in declaredNoSurface)

@@ -219,15 +219,26 @@ export async function resolveWorkspaceModulesForApi(
 
 /**
  * Patient/service projection after the existing enrollment/target authorization established the
- * organization. Those prior boundaries remain authoritative; this resolver only applies the
- * stored workspace preference and its frozen parent dependencies.
+ * organization. Those prior boundaries remain authoritative; this resolver applies the stored
+ * workspace preference, its frozen parent dependencies and the tariff mechanics that own a module.
  */
 export async function resolveOrganizationWorkspaceModules(
-  deps: Pick<AppDeps, 'systemSettings'>,
+  deps: Pick<AppDeps, 'systemSettings' | 'orgEntitlements'>,
   organizationId: string,
 ): Promise<WorkspaceModuleEffective> {
-  const composition = await deps.systemSettings.getDoctorWorkspaceComposition({ organizationId });
-  return resolveWorkspaceModuleEffective(composition, ALL_WORKSPACE_MODULES_AVAILABLE);
+  // Владелец 11.09 (EXERCISE_STORE_PLAN §2 п.22): «у доктора и у его пациентов раздела ЛФК нет вообще».
+  // Пациентская проекция тариф не спрашивала совсем (ALL_WORKSPACE_MODULES_AVAILABLE), поэтому при
+  // выключенной механике пациентский API реабилитации продолжал отвечать — дыра, найденная слепым
+  // аудитом 11.09. Сужение берёт тот же `resolveMechanicAccess`, что и врачебный резолвер выше, а не
+  // вторую формулу доступности.
+  const [composition, exerciseCatalog] = await Promise.all([
+    deps.systemSettings.getDoctorWorkspaceComposition({ organizationId }),
+    resolveMechanicAccess(deps.orgEntitlements, organizationId, 'exercise_catalog'),
+  ]);
+  return resolveWorkspaceModuleEffective(composition, {
+    ...ALL_WORKSPACE_MODULES_AVAILABLE,
+    rehabilitation: mechanicIsVisible(exerciseCatalog),
+  });
 }
 
 /** Client policy is a final narrowing projection; it never recreates an unavailable parent. */
@@ -262,7 +273,7 @@ export async function requireDoctorWorkspaceModuleForApi(
 }
 
 export async function requireOrganizationWorkspaceModuleForApi(
-  deps: Pick<AppDeps, 'systemSettings'>,
+  deps: Pick<AppDeps, 'systemSettings' | 'orgEntitlements'>,
   organizationId: string,
   module: WorkspaceModuleKey,
 ): Promise<
@@ -275,7 +286,10 @@ export async function requireOrganizationWorkspaceModuleForApi(
 }
 
 export async function requirePatientWorkspaceModuleForApi(
-  deps: Pick<AppDeps, 'patientOrganization' | 'systemSettings' | 'doctorClients'>,
+  deps: Pick<
+    AppDeps,
+    'patientOrganization' | 'systemSettings' | 'doctorClients' | 'orgEntitlements'
+  >,
   patientUserId: string,
   module: WorkspaceModuleKey,
 ): Promise<
@@ -342,7 +356,10 @@ export async function requireDoctorWorkspaceModuleForAction(
 }
 
 export async function requirePatientWorkspaceModuleForAction(
-  deps: Pick<AppDeps, 'patientOrganization' | 'systemSettings' | 'doctorClients'>,
+  deps: Pick<
+    AppDeps,
+    'patientOrganization' | 'systemSettings' | 'doctorClients' | 'orgEntitlements'
+  >,
   patientUserId: string,
   module: WorkspaceModuleKey,
 ): Promise<WorkspaceModuleEffective> {

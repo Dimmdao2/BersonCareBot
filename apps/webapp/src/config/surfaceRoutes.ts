@@ -1,3 +1,4 @@
+import { routePaths } from '@/app-layer/routes/paths';
 import {
   arePlatformSurfaceHostsDistinct,
   type RequestSurface,
@@ -194,13 +195,15 @@ export function canSurfaceEnterRoute(surface: RequestSurface, pathname: string):
 export function patientTreeRewritePath(resolved: ResolvedSurface, pathname: string): string | null {
   const path = normalizePathname(pathname);
   if (resolved.surface === 'patient_default') {
-    return path === '/' ? '/app' : null;
+    return path === '/' ? routePaths.root : null;
   }
   if (resolved.surface !== 'patient_branded' || !resolved.clinicSlug) return null;
   // This is the sole root projection for both branded-root choices. The flag arrives only in the
   // already-resolved tenant context, so no second Host/settings lookup can drift from B5's seam.
   if (path === '/') {
-    return resolved.skipPublicCardAtRoot ? '/app' : publicClinicCardPath(resolved.clinicSlug);
+    return resolved.skipPublicCardAtRoot
+      ? routePaths.root
+      : publicClinicCardPath(resolved.clinicSlug);
   }
   if (path === '/booking') return publicBookPaths.forSlug(resolved.clinicSlug);
   return null;

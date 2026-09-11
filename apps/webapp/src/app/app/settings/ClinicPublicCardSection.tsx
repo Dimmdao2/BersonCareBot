@@ -32,6 +32,11 @@ import { patchAdminSettingWithResult } from './patchAdminSetting';
 type Props = {
   initialSettings: ClinicPublicCardSettings;
   skipPublicCardAtRoot: boolean;
+  /**
+   * #926 §17.Q: «показывать визитки специалистов в модуле записи». Одна галка на ОРГАНИЗАЦИЮ, не на
+   * человека — настройку «читать про конкретного специалиста» владелец 11.09 назвал и отложил.
+   */
+  showSpecialistCardsInBooking: boolean;
   /** Имя и адрес визитки; `null`, пока у клиники нет адреса в каталоге. */
   identity: ClinicPublicCardIdentity | null;
   /**
@@ -128,6 +133,7 @@ export function clinicPublicCardErrorMessage(code: string): string {
 export function ClinicPublicCardSection({
   initialSettings,
   skipPublicCardAtRoot: initialSkipPublicCardAtRoot,
+  showSpecialistCardsInBooking: initialShowSpecialistCardsInBooking,
   identity,
   locations,
   specialists,
@@ -140,11 +146,16 @@ export function ClinicPublicCardSection({
   const websiteId = useId();
   const publishId = useId();
   const rootEntryId = useId();
+  const specialistCardsId = useId();
 
   const [settings, setSettings] = useState(initialSettings);
   const [pending, setPending] = useState(false);
   const [skipPublicCardAtRoot, setSkipPublicCardAtRoot] = useState(initialSkipPublicCardAtRoot);
   const [savingRootEntry, setSavingRootEntry] = useState(false);
+  const [showSpecialistCardsInBooking, setShowSpecialistCardsInBooking] = useState(
+    initialShowSpecialistCardsInBooking,
+  );
+  const [savingSpecialistCards, setSavingSpecialistCards] = useState(false);
   const [logoPickerOpen, setLogoPickerOpen] = useState(false);
   const [photoPickerOpen, setPhotoPickerOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -191,6 +202,22 @@ export function ClinicPublicCardSection({
     setSavingRootEntry(false);
   }
 
+  /**
+   * #926 §17.Q. Тот же порт настроек организации, что у галки входа выше, — второго механизма
+   * настроек не заводится: ключ живёт в реестре `system-settings`, как `clinic_root_skip_public_card`.
+   */
+  async function saveSpecialistCards(next: boolean) {
+    const previous = showSpecialistCardsInBooking;
+    setShowSpecialistCardsInBooking(next);
+    setSavingSpecialistCards(true);
+    const result = await patchAdminSettingWithResult('clinic_booking_show_specialist_cards', next);
+    if (!result.ok) {
+      setShowSpecialistCardsInBooking(previous);
+      toast.error('Не удалось сохранить настройку визиток специалистов. Повторите попытку.');
+    }
+    setSavingSpecialistCards(false);
+  }
+
   const photosFull = settings.photoMediaIds.length >= CLINIC_PUBLIC_CARD_LIMITS.maxPhotos;
 
   return (
@@ -212,8 +239,8 @@ export function ClinicPublicCardSection({
             </a>
             {!settings.cardIsPublished ? (
               <p className="text-sm text-muted-foreground">
-                Страница выключена: по этому адресу посетитель увидит «страница не найдена».
-                Посмотрите её здесь и включите галкой ниже.
+                Страница выключена: по этому адресу посетитель увидит название организации и вход в
+                кабинет, без визитки. Посмотрите её здесь и включите галкой ниже.
               </p>
             ) : null}
             <Button
@@ -398,6 +425,17 @@ export function ClinicPublicCardSection({
             className="mt-0.5"
           />
           <span>Сразу открывать вход на брендированном адресе</span>
+        </label>
+
+        <label className="flex items-start gap-2 text-sm" htmlFor={specialistCardsId}>
+          <Checkbox
+            id={specialistCardsId}
+            checked={showSpecialistCardsInBooking}
+            onCheckedChange={(checked) => void saveSpecialistCards(checked === true)}
+            disabled={pending || savingSpecialistCards}
+            className="mt-0.5"
+          />
+          <span>Показывать визитки специалистов в модуле записи</span>
         </label>
 
 

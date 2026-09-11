@@ -327,6 +327,61 @@ describe('org entitlement mechanic classes', () => {
     expect(entitlementsFromSnapshot(worstCaseSnapshot).patient_diaries).toBe(true);
   });
 
+  it('resolves exercise_packages from the one canonical exercise_catalog tariff switch', () => {
+    const catalogEnabled = entitlementsFromSnapshot({
+      tariff: {
+        mechanics: { exercise_catalog: true, exercise_packages: false },
+        quotas: {},
+        includedSeats: null,
+        ...unconfiguredPolicies,
+      },
+      overrides: [],
+      access: activeAccess,
+    });
+    const catalogDisabledForOrganization = entitlementsFromSnapshot({
+      tariff: {
+        mechanics: { exercise_catalog: true, exercise_packages: true },
+        quotas: {},
+        includedSeats: null,
+        ...unconfiguredPolicies,
+      },
+      overrides: [
+        {
+          mechanic: 'exercise_catalog',
+          enabled: false,
+          quota: null,
+          expiresAt: null,
+          seatLimitOverride: null,
+        },
+        {
+          mechanic: 'exercise_packages',
+          enabled: true,
+          quota: null,
+          expiresAt: null,
+          seatLimitOverride: null,
+        },
+      ],
+      access: activeAccess,
+    });
+
+    expect({
+      catalogEnabled: {
+        exercise_catalog: catalogEnabled.exercise_catalog,
+        exercise_packages: catalogEnabled.exercise_packages,
+      },
+      catalogDisabledForOrganization: {
+        exercise_catalog: catalogDisabledForOrganization.exercise_catalog,
+        exercise_packages: catalogDisabledForOrganization.exercise_packages,
+      },
+    }).toEqual({
+      catalogEnabled: { exercise_catalog: true, exercise_packages: true },
+      catalogDisabledForOrganization: {
+        exercise_catalog: false,
+        exercise_packages: false,
+      },
+    });
+  });
+
   it('keeps numeric mechanics enabled and resolves their configured limits from a new tariff', async () => {
     let storedTariff: Tariff | null = null;
     const platformPort: PlatformEntitlementsPort = {

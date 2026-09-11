@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import {
   isTestSetArchiveAlreadyArchivedError,
@@ -29,6 +30,8 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
   const auth = await requireDoctorWorkspaceApiContext();
   if (!auth.ok) return auth.response;
   const { ctx: workspace } = auth;
+  const entitlement = await requireEntitlementForMutation(workspace, 'exercise_catalog');
+  if (!entitlement.ok) return entitlement.response;
 
   const { id } = await ctx.params;
   const raw = (await request.json().catch(() => null)) as unknown;
@@ -54,6 +57,8 @@ export async function DELETE(request: Request, ctx: { params: Promise<{ id: stri
   const auth = await requireDoctorWorkspaceApiContext();
   if (!auth.ok) return auth.response;
   const { ctx: workspace } = auth;
+  const entitlement = await requireEntitlementForMutation(workspace, 'exercise_catalog');
+  if (!entitlement.ok) return entitlement.response;
 
   const { id } = await ctx.params;
   const url = new URL(request.url);

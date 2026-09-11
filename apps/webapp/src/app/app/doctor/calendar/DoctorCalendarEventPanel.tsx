@@ -1244,7 +1244,7 @@ function DoctorCalendarEventPanelInner({
               render={<Link href={appointmentActionHref} />}
               nativeButton={false}
             >
-              {selected.deliveryFormat === 'online' ? 'Начать видеозвонок' : 'Начать приём'}
+              {selected.deliveryFormat === 'online' ? 'Видеозвонок' : 'Начать приём'}
               {selected.deliveryFormat === 'online' ? (
                 <Video className="size-4 shrink-0" aria-hidden />
               ) : null}

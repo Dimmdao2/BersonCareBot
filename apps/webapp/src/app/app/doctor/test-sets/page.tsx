@@ -1,4 +1,5 @@
-import { requireDoctorAccess } from '@/app-layer/guards/requireRole';
+import { requireEntitlementForPage } from '@/app-layer/guards/requireEntitlement';
+import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
 import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
 import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
 import {
@@ -8,7 +9,10 @@ import {
 import { parseDoctorCatalogRegionQueryParam } from '@/shared/lib/doctorCatalogRegionQuery';
 import { doctorCatalogClientFilterUrlHints } from '@/shared/lib/doctorCatalogClientUrlSync';
 import type { TestSet, TestSetUsageSnapshot } from '@/modules/tests/types';
-import { clinicalTestLibraryRows, type ClinicalTestLibraryPickRow } from './clinicalTestLibraryRows';
+import {
+  clinicalTestLibraryRows,
+  type ClinicalTestLibraryPickRow,
+} from './clinicalTestLibraryRows';
 import { TestSetsPageClient } from './TestSetsPageClient';
 
 type PageProps = {
@@ -31,7 +35,9 @@ type TestSetsBootstrap = {
 };
 
 export default async function DoctorTestSetsPage({ searchParams }: PageProps) {
-  const session = await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
+  await requireEntitlementForPage(workspace, 'exercise_catalog');
+  const session = workspace.session;
   const { buildAppDeps } = await import('@/app-layer/di/buildAppDeps');
   const deps = buildAppDeps();
 

@@ -9,8 +9,7 @@ import { DECLARED_NO_SURFACE, PROTECTED_ACTION_MAPPINGS } from './protectedActio
 
 describe('DECLARED_NO_SURFACE catches a false "no write surface" claim', () => {
   it('fails when a mechanic is marked no-surface while a write mapping is registered for it', () => {
-    // Branding owns tariff-gated writes; platform catalog mechanics only control visibility,
-    // so clinic-owned catalog writes intentionally have no registry mapping.
+    // Branding owns tariff-gated writes and therefore cannot also claim that no surface exists.
     const falselyDeclared = { ...DECLARED_NO_SURFACE, branding: 'поверхности записи нет' };
 
     const findings = validateDeclaredNoSurfaceClaims(PROTECTED_ACTION_MAPPINGS, falselyDeclared);
@@ -28,26 +27,6 @@ describe('DECLARED_NO_SURFACE catches a false "no write surface" claim', () => {
     expect(validateDeclaredNoSurfaceClaims(PROTECTED_ACTION_MAPPINGS)).toEqual([]);
   });
 
-  it('keeps clinic-owned catalog writes out of platform-library tariff gates', () => {
-    expect(DECLARED_NO_SURFACE).not.toHaveProperty('branding');
-    expect(DECLARED_NO_SURFACE).not.toHaveProperty('custom_domain');
-    expect(DECLARED_NO_SURFACE).toHaveProperty('exercise_catalog');
-    expect(DECLARED_NO_SURFACE).toHaveProperty('exercise_packages');
-    expect(PROTECTED_ACTION_MAPPINGS.some((mapping) => mapping.id === 'branding.save')).toBe(true);
-    expect(
-      PROTECTED_ACTION_MAPPINGS.some(
-        (mapping) =>
-          mapping.id === 'mechanic-settings.patch' &&
-          (Array.isArray(mapping.mechanic) ? mapping.mechanic : [mapping.mechanic]).some(
-            (m) => m === 'custom_domain',
-          ),
-      ),
-    ).toBe(true);
-    expect(PROTECTED_ACTION_MAPPINGS.map((mapping) => mapping.id)).not.toContain(
-      'exercise-catalog.save',
-    );
-  });
-
   it('drops the struck-out "proactive insights" mechanic from the registry entirely', () => {
     expect(DECLARED_NO_SURFACE).not.toHaveProperty('proactive_insights');
     expect(
@@ -62,7 +41,7 @@ describe('DECLARED_NO_SURFACE catches a false "no write surface" claim', () => {
 });
 
 describe('runS4ProtectedActionCoverageCheck on the real registry', () => {
-  it('does not report a false no-surface finding for branding or platform-library visibility', () => {
+  it('does not report a false no-surface finding for branding or the LFK domain', () => {
     const findings = runS4ProtectedActionCoverageCheck();
     const ids = findings.map((finding) => finding.id);
     expect(ids).not.toContain('branding');
@@ -100,7 +79,7 @@ describe('validateMechanicBearingExports catches an unclassified handler (3.2 fa
   const file = 'src/app/api/doctor/newmechanic/route.ts';
 
   it('is green when every export in a declared file is mapped or exempted', () => {
-    const sourceFor = () => "export async function GET() { return null; }";
+    const sourceFor = () => 'export async function GET() { return null; }';
     const findings = validateMechanicBearingExports(
       [
         {
@@ -126,7 +105,7 @@ describe('validateMechanicBearingExports catches an unclassified handler (3.2 fa
     // handler) that nobody added to PROTECTED_ACTION_MAPPINGS or PROTECTED_ACTION_EXEMPTIONS.
     // This is the exact shape of a real regression: a write path added mimo the registry.
     const sourceFor = () =>
-      "export async function GET() { return null; }\nexport async function POST() { return null; }";
+      'export async function GET() { return null; }\nexport async function POST() { return null; }';
     const findings = validateMechanicBearingExports(
       [
         {

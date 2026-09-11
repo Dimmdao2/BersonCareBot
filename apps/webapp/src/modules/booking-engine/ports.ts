@@ -5,7 +5,7 @@ import type {
   BeClinicService,
   BeOrganization,
   BeRoom,
-  BeServiceLocationAvailability,
+  BeServiceDoerIntersection,
   BeSpecialist,
   BeSpecialistServiceAvailability,
   CreateAppointmentInput,
@@ -32,9 +32,45 @@ export type OrganizationPort = {
   }): Promise<BeOrganization>;
 };
 
+/**
+ * Публичная личность специалиста, названного в ссылке `/{clinic}/booking?specialist=<id>`
+ * (#926 §17.C).
+ *
+ * Наружу выходит ровно имя: остальное про человека публикует визитка, а не мастер записи. Филиалы
+ * здесь потому, что первый экран сужается до тех, где он ДЕЙСТВИТЕЛЬНО принимает (план §6.2), —
+ * без этого ссылка «к Анне» уводит в филиал, где под неё нет ни одной услуги.
+ */
+export type PublicBookableSpecialist = {
+  id: string;
+  fullName: string;
+  branchIds: string[];
+  /**
+   * Можно ли из модуля записи открыть его карточку и прочитать описание (#926 §17.Q, решение
+   * владельца 11.09: «Просто галочка есть показывать? Показываем, нет галочки, не показываем»).
+   *
+   * Готовый ответ двери, а не два флага: в него уже сведены галка организации и собственная
+   * публикация специалиста. Второго её прочтения в приложении нет.
+   */
+  cardIsReadable: boolean;
+};
+
 export type OrganizationCatalogPort = {
   listBranches(organizationId: string): Promise<BeBranch[]>;
   getBranch(id: string): Promise<BeBranch | null>;
+  /**
+   * Кто стоит за `?specialist=<id>` — под принципалом ПУБЛИЧНОЙ записи, а не кабинета.
+   *
+   * `null` одинаково значит «несуществующий», «чужой» и «неактивный» (§3.3): различать эти причины
+   * наружу нельзя, иначе по форме ответа перебираются люди. Отбор — только `is_active`: решение
+   * владельца 11.09 вывело `card_is_published` из мастера записи вовсе (§17.Q), потому что по
+   * свежей ссылке он объявлял «больше не принимает записи» о человеке, который их принимает.
+   * Предикат живёт в теле двери, второй его записи в приложении нет. Вне принципала публичной
+   * записи метод отказывает.
+   */
+  resolvePublicBookableSpecialist(input: {
+    organizationId: string;
+    specialistId: string;
+  }): Promise<PublicBookableSpecialist | null>;
   upsertBranch(input: {
     organizationId: string;
     id?: string;
@@ -117,10 +153,16 @@ export type ServiceAvailabilityPort = {
    * публичном виджете», «не только для администратора», «назначена активному специалисту в этом
    * филиале») делает дверь публичного каталога в SQL — здесь его повторять нельзя, иначе появятся
    * две реализации одного правила. Вне принципала публичной записи метод отказывает.
+   *
+   * `specialistId` — та же дверь с тем же вопросом, только суженным до одного специалиста
+   * (#926 §17.C): «что здесь можно записать» и «что здесь можно записать к нему» — один вход с
+   * параметром, а не два (§5 «Один общий проход»). Неопубликованный или чужой специалист даёт
+   * пустой список, а не полный каталог.
    */
   listPublicBookableServicesForBranch(input: {
     organizationId: string;
     branchId: string;
+    specialistId?: string | null;
   }): Promise<BeClinicService[]>;
   upsertService(input: {
     organizationId: string;
@@ -140,6 +182,12 @@ export type ServiceAvailabilityPort = {
   }): Promise<BeClinicService>;
   deactivateService(id: string): Promise<boolean>;
 
+  /**
+   * Единственная точка записи пары «специалист × услуга × филиал»: и клиника, и соло-экран
+   * сужения пишут сюда (§5 «Один общий проход»). Сводит точные исторические дубли (room/city
+   * обнуляемые) к одной строке — иначе выключенная галка остаётся видна публично через
+   * забытый активный дубль.
+   */
   upsertSpecialistServiceAvailability(input: {
     organizationId: string;
     specialistId: string;
@@ -156,24 +204,28 @@ export type ServiceAvailabilityPort = {
   ): Promise<BeSpecialistServiceAvailability[]>;
   deactivateSpecialistServiceAvailability(id: string): Promise<boolean>;
 
-  upsertServiceLocationAvailability(input: {
-    organizationId: string;
-    serviceId: string;
-    branchId: string;
-    isActive: boolean;
-  }): Promise<BeServiceLocationAvailability>;
-  /** Atomically normalizes the solo UI's location and default-specialist rows. */
-  setSoloServiceLocationAvailability(input: {
+  /**
+   * Пересечения «услуга × специалист × филиал», в которых услуга сегодня действительно делается —
+   * ровно тем отбором, каким её отдаёт публичная дверь записи. Кабинету это нужно, чтобы не
+   * предлагать включить услугу, которую никто не оказывает, и чтобы честно подписать такую
+   * строку (#1102 §2.1, §2.4).
+   */
+  listServiceDoerIntersections(organizationId: string): Promise<BeServiceDoerIntersection[]>;
+  /**
+   * Соло: услуга привязана к соло-специалисту во всех его активных филиалах без единого клика
+   * (#1102 §1.1, дословно владелец: «Ему вообще нигде себя выбирать не надо»). Дописывает только
+   * НЕДОСТАЮЩИЕ пары и никогда не трогает существующие строки — экран «Доступность услуг по
+   * филиалам» остаётся для того, кто хочет сузить вручную, и его выключенная галка не воскресает.
+   *
+   * `serviceId` / `branchId` сужают пересчёт до только что появившейся услуги или локации; без
+   * них покрывается вся организация. Возвращает число созданных строк.
+   */
+  ensureSoloServiceCoverage(input: {
     organizationId: string;
     specialistId: string;
-    serviceId: string;
-    branchId: string;
-    isActive: boolean;
-  }): Promise<{
-    locationAvailability: BeServiceLocationAvailability;
-    specialistAvailability: BeSpecialistServiceAvailability;
-  }>;
-  listServiceLocationAvailability(organizationId: string): Promise<BeServiceLocationAvailability[]>;
+    serviceId?: string;
+    branchId?: string;
+  }): Promise<number>;
 };
 
 export type BookingEnginePort = {

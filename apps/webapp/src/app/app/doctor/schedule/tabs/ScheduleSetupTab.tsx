@@ -101,11 +101,20 @@ function resolveSectionId(
 // ---------------------------------------------------------------------------
 
 type RulesSettingsState =
-  { phase: 'loading' } | { phase: 'error' } | { phase: 'ready'; availabilityHorizonDays: number };
+  | { phase: 'loading' }
+  | { phase: 'error' }
+  | { phase: 'ready'; availabilityHorizonDays: number; prepaymentWaitMinutes: number };
 
 const BOOKING_AVAILABILITY_HORIZON_DEFAULT_DAYS = Number(
   SYSTEM_SETTING_REGISTRY.booking_availability_horizon_days.defaultValue,
 );
+
+const BOOKING_PREPAYMENT_WAIT_DEFAULT_MINUTES = Number(
+  SYSTEM_SETTING_REGISTRY.booking_prepayment_wait_minutes.defaultValue,
+);
+
+/** Граница ХРАНЕНИЯ (год в минутах) — совпадает с SERVER_RUNTIME_INTEGER_DEFINITIONS. */
+const BOOKING_PREPAYMENT_WAIT_MAX_MINUTES = 525_600;
 
 function BookingRulesLoader() {
   const [state, setState] = useState<RulesSettingsState>({ phase: 'loading' });
@@ -146,7 +155,33 @@ function BookingRulesLoader() {
         }
         availabilityHorizonDays = rawValue;
       }
-      setState({ phase: 'ready', availabilityHorizonDays });
+
+      // Тот же контракт, что и у горизонта: нет строки — реестровый дефолт;
+      // строка есть, но значение сломано — громкая ошибка, не тихая подмена.
+      const waitRow = json.settings?.find((s) => s.key === 'booking_prepayment_wait_minutes');
+      let prepaymentWaitMinutes: number;
+      if (!waitRow) {
+        prepaymentWaitMinutes = BOOKING_PREPAYMENT_WAIT_DEFAULT_MINUTES;
+      } else {
+        const rawWait =
+          waitRow.valueJson !== null &&
+          typeof waitRow.valueJson === 'object' &&
+          'value' in waitRow.valueJson
+            ? waitRow.valueJson.value
+            : null;
+        if (
+          typeof rawWait !== 'number' ||
+          !Number.isInteger(rawWait) ||
+          rawWait < 1 ||
+          rawWait > BOOKING_PREPAYMENT_WAIT_MAX_MINUTES
+        ) {
+          setState({ phase: 'error' });
+          return;
+        }
+        prepaymentWaitMinutes = rawWait;
+      }
+
+      setState({ phase: 'ready', availabilityHorizonDays, prepaymentWaitMinutes });
     });
   }, []);
 
@@ -167,7 +202,12 @@ function BookingRulesLoader() {
       </div>
     );
   }
-  return <BookingRulesPageClient availabilityHorizonDays={state.availabilityHorizonDays} />;
+  return (
+    <BookingRulesPageClient
+      availabilityHorizonDays={state.availabilityHorizonDays}
+      prepaymentWaitMinutes={state.prepaymentWaitMinutes}
+    />
+  );
 }
 
 // ---------------------------------------------------------------------------

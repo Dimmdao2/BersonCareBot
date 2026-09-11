@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import {
   isTreatmentProgramTemplateAlreadyArchivedError,
@@ -34,6 +35,8 @@ export async function GET(_request: Request, ctx: { params: Promise<{ id: string
 export async function PATCH(request: Request, ctx: { params: Promise<{ id: string }> }) {
   const auth = await requireDoctorWorkspaceApiContext();
   if (!auth.ok) return auth.response;
+  const entitlement = await requireEntitlementForMutation(auth.ctx, 'exercise_catalog');
+  if (!entitlement.ok) return entitlement.response;
   const { ctx: workspace } = auth;
 
   const { id } = await ctx.params;
@@ -78,6 +81,8 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
 export async function DELETE(request: Request, ctx: { params: Promise<{ id: string }> }) {
   const auth = await requireDoctorWorkspaceApiContext();
   if (!auth.ok) return auth.response;
+  const entitlement = await requireEntitlementForMutation(auth.ctx, 'exercise_catalog');
+  if (!entitlement.ok) return entitlement.response;
   const { ctx: workspace } = auth;
 
   const { id } = await ctx.params;
