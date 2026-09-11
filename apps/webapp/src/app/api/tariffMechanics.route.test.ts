@@ -13,9 +13,7 @@ vi.mock('@/app-layer/guards/requireEntitlement', async () => {
     typeof import('@/shared/http/apiResponse')
   >('@/shared/http/apiResponse');
   const entitlementMutationRefusalMessage = (action: string) =>
-    'Невозможно ' +
-    action +
-    ': этот раздел не входит в ваш тариф.';
+    'Невозможно ' + action + ': этот раздел не входит в ваш тариф.';
   return {
     getMechanicMutationAvailability: vi.fn(),
     requireEntitlementForRead: vi.fn(),
@@ -199,6 +197,7 @@ beforeEach(() => {
   vi.mocked(requireEntitlementForRead).mockResolvedValue(denied);
   vi.mocked(requireEntitlementForMutation).mockResolvedValue(denied);
   vi.mocked(requireEntitlementForRead).mockResolvedValue(denied);
+  vi.mocked(requireEntitlementForMutationAction).mockResolvedValue({ ok: true });
   vi.mocked(getMechanicMutationAvailability).mockResolvedValue({ available: true });
   vi.mocked(resolvePatientEnrollmentOrganizationId).mockResolvedValue({
     ok: true,
@@ -899,8 +898,7 @@ describe('tariff and platform mutation gates', () => {
 
     await expect(saveContentSection(null, form)).resolves.toMatchObject({
       ok: false,
-      error:
-        'Невозможно изменить контент разминок: этот раздел не входит в ваш тариф.',
+      error: 'Невозможно изменить контент разминок: этот раздел не входит в ваш тариф.',
     });
   });
 
@@ -1314,7 +1312,7 @@ describe('tariff and platform mutation gates', () => {
     expect(brandingPort.publishDraft).not.toHaveBeenCalled();
   });
 
-  it('keeps clinic-owned exercise creation, editing, and archiving available while the platform library is disabled', async () => {
+  it('refuses clinic-owned exercise creation, editing, and archiving when the LFK mechanic is disabled', async () => {
     const lfkExercises = {
       createExercise: vi.fn().mockResolvedValue({ id: 'created-exercise' }),
       getExercise: vi.fn().mockResolvedValue({ id: TARGET_ID, isArchived: false }),
@@ -1347,22 +1345,25 @@ describe('tariff and platform mutation gates', () => {
       unarchiveDoctorExerciseCore(archiveForm),
     ]);
 
-    expect(createResult).toMatchObject({
-      ok: true,
-      exerciseId: 'created-exercise',
-      wasUpdate: false,
+    expect(createResult).toEqual({
+      ok: false,
+      error: 'Невозможно сохранить упражнение: этот раздел не входит в ваш тариф.',
     });
-    expect(updateResult).toMatchObject({ ok: true, exerciseId: TARGET_ID, wasUpdate: true });
-    expect(archiveResult).toMatchObject({ kind: 'archived', id: TARGET_ID });
-    expect(unarchiveResult).toMatchObject({ kind: 'unarchived', id: TARGET_ID });
-    expect(lfkExercises.createExercise).toHaveBeenCalledOnce();
-    expect(lfkExercises.updateExercise).toHaveBeenCalledOnce();
-    expect(lfkExercises.archiveExercise).toHaveBeenCalledOnce();
-    expect(lfkExercises.unarchiveExercise).toHaveBeenCalledOnce();
-    expect(requireEntitlementForMutationAction).not.toHaveBeenCalledWith(
-      workspace,
-      'exercise_catalog',
-    );
+    expect(updateResult).toEqual(createResult);
+    expect(archiveResult).toEqual({
+      kind: 'invalid',
+      error: 'Невозможно архивировать упражнение: этот раздел не входит в ваш тариф.',
+    });
+    expect(unarchiveResult).toEqual({
+      kind: 'invalid',
+      error: 'Невозможно вернуть упражнение из архива: этот раздел не входит в ваш тариф.',
+    });
+    expect(lfkExercises.createExercise).not.toHaveBeenCalled();
+    expect(lfkExercises.updateExercise).not.toHaveBeenCalled();
+    expect(lfkExercises.archiveExercise).not.toHaveBeenCalled();
+    expect(lfkExercises.unarchiveExercise).not.toHaveBeenCalled();
+    expect(requireEntitlementForMutationAction).toHaveBeenCalledTimes(4);
+    expect(requireEntitlementForMutationAction).toHaveBeenCalledWith(workspace, 'exercise_catalog');
   });
 
   it('never mutates a platform-owned exercise through the real service, even though the tariff mutation gate no longer runs', async () => {

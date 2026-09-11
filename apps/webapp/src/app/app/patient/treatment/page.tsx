@@ -2,8 +2,10 @@
  * Список назначенных программ лечения (`/app/patient/treatment`).
  * Старый путь `/app/patient/treatment-programs` → редирект в `next.config.ts`.
  */
-import { redirect } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { resolvePatientEnrollmentOrganizationId } from '@/app/api/booking/bookingTenant';
+import { requireEntitlementForPage } from '@/app-layer/guards/requireEntitlement';
 import {
   getOptionalPatientSession,
   patientRscPersonalDataGate,
@@ -48,6 +50,15 @@ export default async function PatientTreatmentProgramsPage() {
   }
 
   const deps = buildAppDeps();
+  const patientOrganization = await resolvePatientEnrollmentOrganizationId(
+    deps,
+    session.user.userId,
+  );
+  if (!patientOrganization.ok) notFound();
+  await requireEntitlementForPage(
+    { organizationId: patientOrganization.organizationId },
+    'exercise_catalog',
+  );
   const entry = await resolvePatientTreatmentProgramEntry(deps, session.user.userId, () =>
     resolvePromoAccessForPatient(
       { patientOrganization: deps.patientOrganization },

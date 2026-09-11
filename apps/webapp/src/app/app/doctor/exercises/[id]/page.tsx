@@ -1,6 +1,9 @@
 import { notFound } from 'next/navigation';
 import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
-import { requireEntitlementForReadAction } from '@/app-layer/guards/requireEntitlement';
+import {
+  requireEntitlementForMutationPage,
+  requireEntitlementForReadAction,
+} from '@/app-layer/guards/requireEntitlement';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
 import { doctorCatalogEditorSectionClass } from '@/shared/ui/doctor/doctorVisual';
@@ -11,6 +14,7 @@ type PageProps = { params: Promise<{ id: string }> };
 
 export default async function DoctorExerciseEditPage({ params }: PageProps) {
   const workspace = await requireDoctorWorkspaceContext();
+  await requireEntitlementForMutationPage(workspace, 'exercise_catalog');
   const session = workspace.session;
   const { id } = await params;
   const deps = buildAppDeps();

@@ -1,5 +1,8 @@
 import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
-import { requireEntitlementForReadAction } from '@/app-layer/guards/requireEntitlement';
+import {
+  requireEntitlementForPage,
+  requireEntitlementForReadAction,
+} from '@/app-layer/guards/requireEntitlement';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import type { ExerciseLoadType } from '@/modules/lfk-exercises/types';
 import {
@@ -33,6 +36,7 @@ type PageProps = {
 
 export default async function DoctorLfkTemplatesPage({ searchParams }: PageProps) {
   const workspace = await requireDoctorWorkspaceContext();
+  await requireEntitlementForPage(workspace, 'exercise_catalog');
   const session = workspace.session;
   const sp = (await searchParams) ?? {};
 

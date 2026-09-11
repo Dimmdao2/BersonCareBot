@@ -15,6 +15,13 @@ type DoctorSortableSettingsRowProps = {
   active: boolean;
   children: ReactNode;
   trailing?: ReactNode;
+  /**
+   * Включатель заблокирован отдельно от строки: выключить можно всегда, а включить — не всегда.
+   * Так выглядит «кнопка вкл, даже если стоит, она серенькая» (#1102 §2.1).
+   */
+  activeToggleDisabled?: boolean;
+  /** Причина, по которой включатель заблокирован — в подсказке нативным `title`. */
+  activeToggleHint?: string;
   onOpen: () => void;
   onActiveChange: (checked: boolean) => void;
 };
@@ -27,6 +34,8 @@ export function DoctorSortableSettingsRow({
   active,
   children,
   trailing,
+  activeToggleDisabled = false,
+  activeToggleHint,
   onOpen,
   onActiveChange,
 }: DoctorSortableSettingsRowProps) {
@@ -87,7 +96,8 @@ export function DoctorSortableSettingsRow({
         <Switch
           className="shrink-0"
           checked={active}
-          disabled={disabled}
+          disabled={disabled || activeToggleDisabled}
+          title={activeToggleDisabled ? activeToggleHint : undefined}
           aria-label={`${label} — включен`}
           onCheckedChange={onActiveChange}
         />

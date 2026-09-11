@@ -1202,11 +1202,6 @@ export const JOURNAL_LIFECYCLE_NON_JOURNAL_DECISIONS: Readonly<Record<string, Jo
     userPurge: { kind: 'not-user-scoped' },
     orgPurge: { kind: 'organization_id' },
   },
-  'public.be_service_location_availability': {
-    reason: 'which branch offers which service — configuration',
-    userPurge: { kind: 'not-user-scoped' },
-    orgPurge: { kind: 'organization_id' },
-  },
   'public.be_specialist_locations': {
     reason: 'specialist ↔ branch configuration',
     userPurge: {

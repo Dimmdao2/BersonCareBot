@@ -27,7 +27,10 @@ import { PatientProgramStageItemPageClient } from '@/app/app/patient/treatment/P
 import type { PatientTestSetPageServerSnapshot } from '@/modules/treatment-program/progress-service';
 import { testTitleFromTestSetSnapshot } from '@/app/app/patient/treatment/stageItemSnapshot';
 import { loadPatientProgramInteractionBundle } from '@/app/app/patient/treatment/loadPatientProgramInteractionBundle';
-import { getMechanicSurfaceVisibility } from '@/app-layer/guards/requireEntitlement';
+import {
+  getMechanicSurfaceVisibility,
+  requireEntitlementForPage,
+} from '@/app-layer/guards/requireEntitlement';
 
 type Props = {
   params: Promise<{ instanceId: string; itemId: string }>;
@@ -86,6 +89,10 @@ export default async function PatientTreatmentProgramItemPage({ params, searchPa
       instanceId,
     );
   if (!targetContext?.ok) notFound();
+  await requireEntitlementForPage(
+    { organizationId: targetContext.organizationId },
+    'exercise_catalog',
+  );
   if (getCurrentDbPrincipalOrganizationId() !== targetContext.organizationId) {
     redirect(
       `/api/patient/organization-context/open?kind=treatment_program_item&instanceId=${encodeURIComponent(instanceId)}&itemId=${encodeURIComponent(itemId)}`,

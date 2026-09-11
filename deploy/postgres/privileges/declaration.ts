@@ -13499,46 +13499,6 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
       }
     ]
   },
-  "public.be_service_location_availability": {
-    "kind": "direct",
-    "purpose": "Где оказывается услуга — без неё запись не знает, в каком филиале доступна услуга",
-    "codePaths": [
-      "apps/webapp/src/infra/repos/pgBookingEngine.ts",
-      "apps/webapp/src/infra/repos/pgBookingScheduling.ts"
-    ],
-    "grants": [
-      {
-        "role": "app_staff",
-        "operations": [
-          "SELECT"
-        ],
-        "columns": "table"
-      },
-      {
-        "role": "app_staff",
-        "operations": [
-          "INSERT"
-        ],
-        "columns": [
-          "branch_id",
-          "created_at",
-          "id",
-          "is_active",
-          "organization_id",
-          "service_id"
-        ]
-      },
-      {
-        "role": "app_staff",
-        "operations": [
-          "UPDATE"
-        ],
-        "columns": [
-          "is_active"
-        ]
-      }
-    ]
-  },
   "public.be_specialist_locations": {
     "kind": "direct",
     "purpose": "Специалист ↔ филиал — без неё специалист не привязан к филиалу — слоты не строятся",
@@ -23423,8 +23383,6 @@ const TABLE_ROWS: TableRow[] = [
     + 'записывают в занятое/нерабочее время' },
   { t: 'public.be_schedule_templates', cls: 'C', org: true, why: 'Шаблоны рабочего дня клиники — без неё нельзя '
     + 'быстро назначить типовой график' },
-  { t: 'public.be_service_location_availability', cls: 'C', org: true, why: 'Где оказывается услуга — без неё запись '
-    + 'не знает, в каком филиале доступна услуга' },
   { t: 'public.be_specialist_locations', cls: 'C', org: true, why: 'Специалист ↔ филиал — без неё специалист не '
     + 'привязан к филиалу — слоты не строятся' },
   { t: 'public.be_specialist_rooms', cls: 'C', org: true, why: 'Специалист ↔ кабинет — распределение по кабинетам '
@@ -30651,11 +30609,6 @@ export const REV10_LOCKED_POLICY_DATA: Readonly<Record<string, LockedPolicyEntry
     dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())))",
   },
   "public.be_schedule_templates": {
-    policyName: "saas_org_dormant_p0_8_3",
-    strictPredicate: "(app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
-    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())))",
-  },
-  "public.be_service_location_availability": {
     policyName: "saas_org_dormant_p0_8_3",
     strictPredicate: "(app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
     dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())))",

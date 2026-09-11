@@ -14,6 +14,10 @@ import type {
 } from '@/modules/recommendations/types';
 import { API_MEDIA_URL_RE, isLegacyAbsoluteUrl } from '@/shared/lib/mediaUrlPolicy';
 import { safeActionErrorText } from '@/app-layer/errors/safeUserError';
+import {
+  entitlementMutationRefusalMessage,
+  requireEntitlementForMutationAction,
+} from '@/app-layer/guards/requireEntitlement';
 
 export type SaveRecommendationState = { ok: boolean; error?: string };
 
@@ -91,6 +95,13 @@ export async function saveRecommendationCore(
   { ok: true; recommendationId: string; wasUpdate: boolean } | { ok: false; error: string }
 > {
   const workspace = await requireDoctorWorkspaceContext({ workspaceModule: 'rehabilitation' });
+  const entitlement = await requireEntitlementForMutationAction(workspace, 'exercise_catalog');
+  if (!entitlement.ok) {
+    return {
+      ok: false,
+      error: entitlementMutationRefusalMessage('сохранить рекомендацию', entitlement.reason),
+    };
+  }
 
   const idRaw = formData.get('id');
   const titleField = formData.get('title');
@@ -201,6 +212,13 @@ export async function archiveRecommendationCore(
   formData: FormData,
 ): Promise<ArchiveRecommendationCoreResult> {
   const workspace = await requireDoctorWorkspaceContext({ workspaceModule: 'rehabilitation' });
+  const entitlement = await requireEntitlementForMutationAction(workspace, 'exercise_catalog');
+  if (!entitlement.ok) {
+    return {
+      kind: 'invalid',
+      error: entitlementMutationRefusalMessage('архивировать рекомендацию', entitlement.reason),
+    };
+  }
   const idRaw = formData.get('id');
   const id = typeof idRaw === 'string' && idRaw.trim() ? idRaw.trim() : '';
   if (!id) return { kind: 'invalid', error: 'Не указана рекомендация' };
@@ -239,6 +257,16 @@ export async function unarchiveRecommendationCore(
   formData: FormData,
 ): Promise<UnarchiveRecommendationCoreResult> {
   const workspace = await requireDoctorWorkspaceContext({ workspaceModule: 'rehabilitation' });
+  const entitlement = await requireEntitlementForMutationAction(workspace, 'exercise_catalog');
+  if (!entitlement.ok) {
+    return {
+      kind: 'invalid',
+      error: entitlementMutationRefusalMessage(
+        'вернуть рекомендацию из архива',
+        entitlement.reason,
+      ),
+    };
+  }
   const idRaw = formData.get('id');
   const id = typeof idRaw === 'string' && idRaw.trim() ? idRaw.trim() : '';
   if (!id) return { kind: 'invalid', error: 'Не указана рекомендация' };

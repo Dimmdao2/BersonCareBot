@@ -80,7 +80,11 @@ export type SoloOverview = {
     branchId: string | null;
     isActive: boolean;
   }[];
-  locationAvailability: { id: string; serviceId: string; branchId: string; isActive: boolean }[];
+  /**
+   * Живые пересечения «услуга × специалист × филиал», посчитанные публичной дверью записи. Кабинет
+   * их не вычисляет сам: правило «услугу кто-то делает» живёт в одном месте (#1102 §2.1).
+   */
+  serviceDoers: { serviceId: string; specialistId: string; branchId: string }[];
 };
 
 export async function fetchSoloOverview(): Promise<SoloOverview | null> {
@@ -136,52 +140,52 @@ export function pickDefaultSpecialist(
   return active[0] ?? specialists[0] ?? null;
 }
 
-export async function ensureDefaultSpecialist(orgTitle: string | undefined): Promise<string> {
-  const overview = await fetchSoloOverview();
-  if (!overview) throw new Error('booking_engine_unavailable');
-  const existing = pickDefaultSpecialist(overview.specialists);
-  if (existing) return existing.id;
-  const res = await apiJson<{ ok: boolean; specialist: { id: string } }>(`${BASE}/specialists`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ fullName: orgTitle?.trim() || 'Специалист' }),
-  });
-  return res.specialist.id;
-}
-
+/**
+ * Состояние ОДНОЙ галки на экране «Доступность услуг по филиалам»: делает ли соло-специалист эту
+ * услугу в этом филиале. Это ровно та строка, которую пишет сам переключатель, — не вычисленное
+ * «услугу кто-то делает» (`serviceDoers`): галка обязана показывать то, чем управляет, иначе
+ * выключенный филиал или специалист гасил бы её и человек не понимал бы, что именно он снял.
+ */
 export function isServiceAvailableAtLocation(
-  overview: Pick<SoloOverview, 'locationAvailability' | 'specialistAvailability' | 'specialists'>,
+  overview: Pick<SoloOverview, 'specialistAvailability' | 'specialists'>,
   serviceId: string,
   branchId: string,
 ): boolean {
   const specialist = pickDefaultSpecialist(overview.specialists);
-  const loc = overview.locationAvailability.find(
-    (r) => r.serviceId === serviceId && r.branchId === branchId && r.isActive,
+  if (!specialist) return false;
+  return overview.specialistAvailability.some(
+    (r) =>
+      r.specialistId === specialist.id &&
+      r.serviceId === serviceId &&
+      r.branchId === branchId &&
+      r.isActive,
   );
-  const spec = specialist
-    ? overview.specialistAvailability.find(
-        (r) =>
-          r.specialistId === specialist.id &&
-          r.serviceId === serviceId &&
-          r.branchId === branchId &&
-          r.isActive,
-      )
-    : null;
-  return Boolean(loc || spec);
 }
 
-/** Число активных услуг без хотя бы одной включённой пары услуга×локация. */
+/** Услугу никто не делает: ни одного живого пересечения «специалист × филиал» (#1102 §2.4). */
+export function serviceHasNoDoer(
+  serviceDoers: SoloOverview['serviceDoers'],
+  serviceId: string,
+): boolean {
+  return !serviceDoers.some((doer) => doer.serviceId === serviceId);
+}
+
+/** Подпись к услуге, которую сегодня никто не делает; `null` — делает. */
+export function serviceDoerNote(
+  serviceDoers: SoloOverview['serviceDoers'],
+  serviceId: string,
+): string | null {
+  return serviceHasNoDoer(serviceDoers, serviceId)
+    ? 'услугу никто не оказывает — назначьте специалиста и филиал'
+    : null;
+}
+
+/** Число активных услуг, которые сегодня никто не делает. */
 export function countServicesWithoutAvailability(
   activeServices: { id: string }[],
-  activeBranchIds: Iterable<string>,
-  overview: Pick<SoloOverview, 'locationAvailability' | 'specialistAvailability' | 'specialists'>,
+  serviceDoers: SoloOverview['serviceDoers'],
 ): number {
-  const branchIds = [...activeBranchIds];
-  if (branchIds.length === 0) return activeServices.length;
-  return activeServices.filter(
-    (service) =>
-      !branchIds.some((branchId) => isServiceAvailableAtLocation(overview, service.id, branchId)),
-  ).length;
+  return activeServices.filter((service) => serviceHasNoDoer(serviceDoers, service.id)).length;
 }
 
 /** Есть ли активные интервалы на weekday хотя бы одного из ближайших daysAhead дней. */
@@ -200,7 +204,8 @@ export function hasScheduleOnUpcomingDays(
   return false;
 }
 
-export async function setServiceLocationAvailability(
+/** Сузить или вернуть услугу в конкретном филиале руками — пишет ту же пару, что и автоматика. */
+export async function setSpecialistServiceAtBranch(
   serviceId: string,
   branchId: string,
   enabled: boolean,
@@ -210,11 +215,15 @@ export async function setServiceLocationAvailability(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      kind: 'solo_service_location',
+      kind: 'specialist_service',
       specialistId,
       serviceId,
       branchId,
+      roomId: null,
+      cityCode: null,
+      priceMinorOverride: null,
       isActive: enabled,
+      sortOrder: 0,
     }),
   });
 }

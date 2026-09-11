@@ -5,7 +5,7 @@ import type {
   BeClinicService,
   BeOrganization,
   BeRoom,
-  BeServiceLocationAvailability,
+  BeServiceDoerIntersection,
   BeSpecialist,
   BeSpecialistServiceAvailability,
   CreateAppointmentInput,
@@ -182,6 +182,12 @@ export type ServiceAvailabilityPort = {
   }): Promise<BeClinicService>;
   deactivateService(id: string): Promise<boolean>;
 
+  /**
+   * Единственная точка записи пары «специалист × услуга × филиал»: и клиника, и соло-экран
+   * сужения пишут сюда (§5 «Один общий проход»). Сводит точные исторические дубли (room/city
+   * обнуляемые) к одной строке — иначе выключенная галка остаётся видна публично через
+   * забытый активный дубль.
+   */
   upsertSpecialistServiceAvailability(input: {
     organizationId: string;
     specialistId: string;
@@ -198,24 +204,28 @@ export type ServiceAvailabilityPort = {
   ): Promise<BeSpecialistServiceAvailability[]>;
   deactivateSpecialistServiceAvailability(id: string): Promise<boolean>;
 
-  upsertServiceLocationAvailability(input: {
-    organizationId: string;
-    serviceId: string;
-    branchId: string;
-    isActive: boolean;
-  }): Promise<BeServiceLocationAvailability>;
-  /** Atomically normalizes the solo UI's location and default-specialist rows. */
-  setSoloServiceLocationAvailability(input: {
+  /**
+   * Пересечения «услуга × специалист × филиал», в которых услуга сегодня действительно делается —
+   * ровно тем отбором, каким её отдаёт публичная дверь записи. Кабинету это нужно, чтобы не
+   * предлагать включить услугу, которую никто не оказывает, и чтобы честно подписать такую
+   * строку (#1102 §2.1, §2.4).
+   */
+  listServiceDoerIntersections(organizationId: string): Promise<BeServiceDoerIntersection[]>;
+  /**
+   * Соло: услуга привязана к соло-специалисту во всех его активных филиалах без единого клика
+   * (#1102 §1.1, дословно владелец: «Ему вообще нигде себя выбирать не надо»). Дописывает только
+   * НЕДОСТАЮЩИЕ пары и никогда не трогает существующие строки — экран «Доступность услуг по
+   * филиалам» остаётся для того, кто хочет сузить вручную, и его выключенная галка не воскресает.
+   *
+   * `serviceId` / `branchId` сужают пересчёт до только что появившейся услуги или локации; без
+   * них покрывается вся организация. Возвращает число созданных строк.
+   */
+  ensureSoloServiceCoverage(input: {
     organizationId: string;
     specialistId: string;
-    serviceId: string;
-    branchId: string;
-    isActive: boolean;
-  }): Promise<{
-    locationAvailability: BeServiceLocationAvailability;
-    specialistAvailability: BeSpecialistServiceAvailability;
-  }>;
-  listServiceLocationAvailability(organizationId: string): Promise<BeServiceLocationAvailability[]>;
+    serviceId?: string;
+    branchId?: string;
+  }): Promise<number>;
 };
 
 export type BookingEnginePort = {
