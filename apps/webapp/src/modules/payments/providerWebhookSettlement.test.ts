@@ -58,6 +58,11 @@ const captured: ProviderWebhookSettlement = {
   confirmedAppointmentIds: [APPOINTMENT_ID],
 };
 
+const multiSlotCaptured: ProviderWebhookSettlement = {
+  ...captured,
+  confirmedAppointmentIds: [APPOINTMENT_ID, '25d66918-3a04-4de4-a76a-f1f1ac9c0ea6'],
+};
+
 /** The same notification arriving again: the door reports it, and nothing further may happen. */
 const alreadyProcessed: ProviderWebhookSettlement = {
   outcome: 'already_processed',
@@ -120,7 +125,20 @@ describe('booking payment provider webhook capture', () => {
     });
     expect(onAppointmentPaymentConfirmed).toHaveBeenCalledTimes(1);
     expect(onAppointmentPaymentConfirmed).toHaveBeenCalledWith({
-      appointmentId: APPOINTMENT_ID,
+      appointmentIds: [APPOINTMENT_ID],
+      paymentId: PAYMENT_ID,
+      platformUserId: PATIENT_ID,
+    });
+  });
+
+  it('batches every confirmed slot into one payment-confirmed handoff', async () => {
+    const { service, onAppointmentPaymentConfirmed } = buildService([multiSlotCaptured]);
+
+    await expect(deliver(service)).resolves.toEqual({ ok: true, duplicate: false });
+
+    expect(onAppointmentPaymentConfirmed).toHaveBeenCalledTimes(1);
+    expect(onAppointmentPaymentConfirmed).toHaveBeenCalledWith({
+      appointmentIds: multiSlotCaptured.confirmedAppointmentIds,
       paymentId: PAYMENT_ID,
       platformUserId: PATIENT_ID,
     });

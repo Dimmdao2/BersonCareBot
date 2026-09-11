@@ -42,10 +42,27 @@ export function buildDoctorRescheduledMessageText(
 }
 
 export function buildDoctorPaymentCapturedMessageText(
-  input: { slotStart: string; contactName?: string | null },
+  input:
+    | { slotStart: string; contactName?: string | null }
+    | {
+        appointments: readonly { slotStart: string; serviceTitle: string | null }[];
+        contactName?: string | null;
+      },
   timeZone: string,
 ): string {
-  const dateLabel = formatDoctorMessageDateTime(input.slotStart, timeZone);
   const name = input.contactName?.trim() || 'пациент';
-  return `Оплата записи: ${name}, ${dateLabel}`;
+  const appointments =
+    'appointments' in input
+      ? input.appointments
+      : [{ slotStart: input.slotStart, serviceTitle: null }];
+  if (appointments.length === 1) {
+    const appointment = appointments[0]!;
+    return `Оплата записи: ${name}, ${formatDoctorMessageDateTime(appointment.slotStart, timeZone)}`;
+  }
+  return `Оплата записи: ${name}\nПодтверждены приёмы:\n${appointments
+    .map((appointment) => {
+      const serviceTitle = appointment.serviceTitle?.trim() || 'Приём';
+      return `• ${formatDoctorMessageDateTime(appointment.slotStart, timeZone)} — ${serviceTitle}`;
+    })
+    .join('\n')}`;
 }
