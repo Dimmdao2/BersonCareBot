@@ -52,6 +52,13 @@ export type SaveClinicPublicCardInput = ClinicPublicCardSettings & {
   organizationId: string;
 };
 
+/** Read-only часть визитки: её пишет не эта форма, а каталог и филиалы. */
+export type ClinicPublicCardIdentity = {
+  slug: string;
+  displayName: string;
+  locations: ClinicPublicCardLocation[];
+};
+
 export type ClinicPublicCardPort = {
   /**
    * Anonymous read. `null` means «no card here» for every reason at once — unknown slug,
@@ -62,6 +69,13 @@ export type ClinicPublicCardPort = {
   readPublicCard(slug: string): Promise<ClinicPublicCard | null>;
   /** Clinic-admin read of its own card. */
   readCardSettings(organizationId: string): Promise<ClinicPublicCardSettings | null>;
+  /**
+   * Те части визитки, которые клиника НЕ правит в этой форме: её публичное имя, адрес страницы и
+   * адреса филиалов. Нужны предпросмотру в кабинете — без них он показывал бы не страницу, а одни
+   * поля формы. Отдельным чтением, а не расширением `readCardSettings`, чтобы форма сохранения не
+   * получила полей, которые она не сохраняет.
+   */
+  readCardIdentity(organizationId: string): Promise<ClinicPublicCardIdentity | null>;
   /** Clinic-admin write through the declared root; the staff role cannot write these columns. */
   saveCard(input: SaveClinicPublicCardInput): Promise<ClinicPublicCardSettings>;
 };

@@ -3,6 +3,7 @@ import {
   type ClinicPublicCard,
   type ClinicPublicCardMedia,
   type ClinicPublicCardPort,
+  type ClinicPublicCardIdentity,
   type ClinicPublicCardSettings,
   type SaveClinicPublicCardInput,
 } from './ports';
@@ -17,6 +18,7 @@ export type ClinicPublicCardService = {
    */
   resolvePublicCardMedia(slug: string, mediaId: string): Promise<ClinicPublicCardMedia | null>;
   readCardSettings(organizationId: string): Promise<ClinicPublicCardSettings | null>;
+  readCardIdentity(organizationId: string): Promise<ClinicPublicCardIdentity | null>;
   saveCard(input: SaveClinicPublicCardInput): Promise<SaveClinicPublicCardResult>;
 };
 
@@ -81,6 +83,10 @@ export function createClinicPublicCardService(
 
     async readCardSettings(organizationId) {
       return port.readCardSettings(organizationId);
+    },
+
+    async readCardIdentity(organizationId) {
+      return port.readCardIdentity(organizationId);
     },
 
     async saveCard(input) {

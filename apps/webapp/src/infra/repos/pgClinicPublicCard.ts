@@ -117,6 +117,24 @@ export function createPgClinicPublicCardPort(): ClinicPublicCardPort {
       };
     },
 
+    async readCardIdentity(organizationId) {
+      const [row] = await getDrizzle()
+        .select({
+          slug: clinicPublicDirectoryEntries.slug,
+          displayName: clinicPublicDirectoryEntries.displayName,
+          locationsJson: clinicPublicDirectoryEntries.locationsJson,
+        })
+        .from(clinicPublicDirectoryEntries)
+        .where(eq(clinicPublicDirectoryEntries.organizationId, organizationId))
+        .limit(1);
+      if (!row) return null;
+      return {
+        slug: row.slug,
+        displayName: row.displayName,
+        locations: mapLocations(row.locationsJson),
+      };
+    },
+
     async saveCard(input): Promise<ClinicPublicCardSettings> {
       // `uuid[]` has no canonical port-argument representation, so the ordered photo list travels
       // as its JSON text — the same shape the analytics root uses for its audience list.

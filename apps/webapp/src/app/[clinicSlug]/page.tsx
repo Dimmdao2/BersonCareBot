@@ -1,12 +1,11 @@
-import Link from 'next/link';
 import { notFound, permanentRedirect } from 'next/navigation';
 import { publicBookPaths, publicClinicCardPath } from '@/shared/publicBook/paths';
-import { titleForBookingCityCode } from '@/modules/patient-booking/inPersonServicesCatalog';
-import { ClinicCardUnavailableError } from './clinicCardUnavailable';
 import {
-  clinicCardMediaPath,
-  loadClinicPublicCardRsc,
-} from './publicClinicCard';
+  ClinicPublicCardView,
+  type ClinicPublicCardViewModel,
+} from '@/shared/ui/clinicPublicCard/ClinicPublicCardView';
+import { ClinicCardUnavailableError } from './clinicCardUnavailable';
+import { clinicCardMediaPath, loadClinicPublicCardRsc } from './publicClinicCard';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,6 +25,10 @@ type Props = { params: Promise<{ clinicSlug: string }> };
  * no internal identifier (organization, branch, tariff) reaches the markup, and nothing here
  * depends on the CMS entitlement — the card keeps working with the CMS switched off by
  * construction, not by a check.
+ *
+ * Саму разметку рисует `ClinicPublicCardView`, общий с предпросмотром в кабинете клиники: клиника
+ * обязана править ровно то, что увидит посетитель. Здесь остаётся только анонимное чтение и выбор
+ * адресов картинок — публичный медиа-роут, где набор карточки и есть авторизация.
  */
 export default async function ClinicPublicCardPage({ params }: Props) {
   const { clinicSlug } = await params;
@@ -41,118 +44,26 @@ export default async function ClinicPublicCardPage({ params }: Props) {
     permanentRedirect(publicClinicCardPath(card.canonicalSlug));
   }
 
-  const logo = card.media.find((item) => item.role === 'logo') ?? null;
-  const photos = card.media.filter((item) => item.role === 'photo');
+  const view: ClinicPublicCardViewModel = {
+    displayName: card.displayName,
+    description: card.description,
+    logoSrc:
+      card.media
+        .filter((item) => item.role === 'logo')
+        .map((item) => clinicCardMediaPath(card.canonicalSlug, item.id))[0] ?? null,
+    photoSrcs: card.media
+      .filter((item) => item.role === 'photo')
+      .map((item) => clinicCardMediaPath(card.canonicalSlug, item.id)),
+    locations: card.locations,
+    publicContactPhone: card.publicContactPhone,
+    publicContactEmail: card.publicContactEmail,
+    publicWebsiteUrl: card.publicWebsiteUrl,
+    bookingHref: publicBookPaths.forSlug(card.canonicalSlug),
+  };
 
   return (
     <main className="mx-auto flex max-w-2xl flex-col gap-6 px-4 py-8">
-      <header className="flex items-center gap-4">
-        {logo ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={clinicCardMediaPath(card.canonicalSlug, logo.id)}
-            alt=""
-            className="size-16 shrink-0 rounded-md object-contain"
-          />
-        ) : (
-          <div
-            aria-hidden
-            className="size-16 shrink-0 rounded-md border border-border/60 bg-muted/30"
-          />
-        )}
-        <h1 className="text-xl font-semibold">{card.displayName}</h1>
-      </header>
-
-      {card.description ? (
-        <section className="flex flex-col gap-2">
-          {card.description.split(/\n{2,}/).map((paragraph, index) => (
-            <p key={index} className="whitespace-pre-line text-sm leading-relaxed">
-              {paragraph}
-            </p>
-          ))}
-        </section>
-      ) : null}
-
-      {photos.length > 0 ? (
-        <section className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          {photos.map((photo) => (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              key={photo.id}
-              src={clinicCardMediaPath(card.canonicalSlug, photo.id)}
-              alt=""
-              className="aspect-[4/3] w-full rounded-md object-cover"
-            />
-          ))}
-        </section>
-      ) : null}
-
-      {card.locations.length > 0 ? (
-        <section className="flex flex-col gap-2">
-          <h2 className="text-sm font-semibold">Адреса</h2>
-          <ul className="flex flex-col gap-1 text-sm">
-            {card.locations.map((location, index) => (
-              <li key={`${location.title}:${index}`}>
-                <span className="font-medium">{location.title}</span>
-                {location.cityCode ? (
-                  <span className="text-muted-foreground">
-                    {' '}
-                    · {titleForBookingCityCode(location.cityCode)}
-                  </span>
-                ) : null}
-                {location.address ? (
-                  <span className="text-muted-foreground"> · {location.address}</span>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
-
-      {card.publicContactPhone || card.publicContactEmail || card.publicWebsiteUrl ? (
-        <section className="flex flex-col gap-2">
-          <h2 className="text-sm font-semibold">Контакты</h2>
-          <ul className="flex flex-col gap-1 text-sm">
-            {card.publicContactPhone ? (
-              <li>
-                <a className="underline underline-offset-2" href={`tel:${card.publicContactPhone}`}>
-                  {card.publicContactPhone}
-                </a>
-              </li>
-            ) : null}
-            {card.publicContactEmail ? (
-              <li>
-                <a
-                  className="underline underline-offset-2"
-                  href={`mailto:${card.publicContactEmail}`}
-                >
-                  {card.publicContactEmail}
-                </a>
-              </li>
-            ) : null}
-            {card.publicWebsiteUrl ? (
-              <li>
-                <a
-                  className="break-all underline underline-offset-2"
-                  href={card.publicWebsiteUrl}
-                  target="_blank"
-                  rel="noopener noreferrer nofollow"
-                >
-                  {card.publicWebsiteUrl}
-                </a>
-              </li>
-            ) : null}
-          </ul>
-        </section>
-      ) : null}
-
-      <Link
-        href={publicBookPaths.forSlug(card.canonicalSlug)}
-        prefetch={false}
-        className="inline-flex w-fit items-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
-      >
-        Записаться
-      </Link>
+      <ClinicPublicCardView card={view} />
     </main>
   );
 }

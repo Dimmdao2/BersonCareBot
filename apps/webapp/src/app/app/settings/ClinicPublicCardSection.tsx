@@ -4,8 +4,10 @@ import { useId, useState } from 'react';
 import toast from 'react-hot-toast';
 import {
   CLINIC_PUBLIC_CARD_LIMITS,
+  type ClinicPublicCardIdentity,
   type ClinicPublicCardSettings,
 } from '@/modules/clinic-public-card/ports';
+import { ClinicPublicCardView } from '@/shared/ui/clinicPublicCard/ClinicPublicCardView';
 import {
   DoctorSection,
   DoctorSectionHeader,
@@ -24,9 +26,28 @@ import { patchAdminSettingWithResult } from './patchAdminSetting';
 type Props = {
   initialSettings: ClinicPublicCardSettings;
   skipPublicCardAtRoot: boolean;
-  /** Live page address, or `null` while the clinic has no slug yet. */
-  publicUrl: string | null;
+  /** Имя, адрес и филиалы визитки; `null`, пока у клиники нет адреса в каталоге. */
+  identity: ClinicPublicCardIdentity | null;
+  /** Общий пациентский origin — из него строятся оба возможных адреса страницы. */
+  patientOrigin: string;
 };
+
+/**
+ * Адрес, по которому страница РЕАЛЬНО открывается.
+ *
+ * У клиники их два, и какой из них работает, решает её же настройка входа на корне: пока корень
+ * поддомена показывает визитку, это `https://<адрес>.<пациентский хост>/`; как только корень
+ * настроен пускать сразу в кабинет, визитка остаётся только на `https://<пациентский хост>/<адрес>`.
+ * Раньше ссылка всегда вела на корень поддомена — то есть у клиники, включившей вход на корне,
+ * «посмотреть» по построению показывало не то, что она правит.
+ */
+function livePageUrl(slug: string, patientOrigin: string, skipPublicCardAtRoot: boolean): string {
+  const origin = new URL(patientOrigin);
+  if (skipPublicCardAtRoot) return new URL(`/${encodeURIComponent(slug)}`, origin).toString();
+  origin.hostname = `${slug}.${origin.hostname}`;
+  origin.pathname = '/';
+  return origin.toString();
+}
 
 export function clinicPublicCardErrorMessage(code: string): string {
   switch (code) {
@@ -62,7 +83,8 @@ export function clinicPublicCardErrorMessage(code: string): string {
 export function ClinicPublicCardSection({
   initialSettings,
   skipPublicCardAtRoot: initialSkipPublicCardAtRoot,
-  publicUrl,
+  identity,
+  patientOrigin,
 }: Props) {
   const descriptionId = useId();
   const phoneId = useId();
@@ -77,6 +99,9 @@ export function ClinicPublicCardSection({
   const [savingRootEntry, setSavingRootEntry] = useState(false);
   const [logoPickerOpen, setLogoPickerOpen] = useState(false);
   const [photoPickerOpen, setPhotoPickerOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+
+  const publicUrl = identity ? livePageUrl(identity.slug, patientOrigin, skipPublicCardAtRoot) : null;
 
   function patch(next: Partial<ClinicPublicCardSettings>) {
     setSettings((current) => ({ ...current, ...next }));
@@ -127,15 +152,51 @@ export function ClinicPublicCardSection({
       </DoctorSectionHeader>
 
       <div className="flex flex-col gap-4">
-        {publicUrl ? (
-          <a
-            href={publicUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="w-fit break-all text-sm text-primary underline underline-offset-2"
-          >
-            {publicUrl}
-          </a>
+        {publicUrl && identity ? (
+          <div className="flex flex-col gap-2">
+            <a
+              href={publicUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-fit break-all text-sm text-primary underline underline-offset-2"
+            >
+              {publicUrl}
+            </a>
+            {!settings.cardIsPublished ? (
+              <p className="text-sm text-muted-foreground">
+                Страница выключена: по этому адресу посетитель увидит «страница не найдена».
+                Посмотрите её здесь и включите галкой ниже.
+              </p>
+            ) : null}
+            <Button
+              type="button"
+              variant="outline"
+              className="w-fit"
+              onClick={() => setPreviewOpen((open) => !open)}
+            >
+              {previewOpen ? 'Скрыть предпросмотр' : 'Предпросмотр'}
+            </Button>
+            {previewOpen ? (
+              // Ровно тот же компонент, что рисует публичную страницу: клиника правит то, что
+              // увидит посетитель, а не похожую копию. Картинки идут через общий `/api/media`,
+              // потому что публичный медиа-адрес у выключенной страницы ещё не работает.
+              <div className="rounded-md border border-border bg-background p-4">
+                <ClinicPublicCardView
+                  card={{
+                    displayName: identity.displayName,
+                    description: settings.description,
+                    logoSrc: settings.logoMediaId ? `/api/media/${settings.logoMediaId}` : null,
+                    photoSrcs: settings.photoMediaIds.map((id) => `/api/media/${id}`),
+                    locations: identity.locations,
+                    publicContactPhone: settings.publicContactPhone,
+                    publicContactEmail: settings.publicContactEmail,
+                    publicWebsiteUrl: settings.publicWebsiteUrl,
+                    bookingHref: null,
+                  }}
+                />
+              </div>
+            ) : null}
+          </div>
         ) : (
           <p className="text-sm text-muted-foreground">
             Сначала задайте адрес организации в разделе «Публичная запись».

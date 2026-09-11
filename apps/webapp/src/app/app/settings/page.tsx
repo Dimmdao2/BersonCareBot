@@ -98,15 +98,6 @@ function parseTab(raw: string | string[] | undefined): LegacySettingsTab | null 
     : 'specialist';
 }
 
-function clinicTechnicalRootUrl(slug: string): string {
-  const patientOrigin = new URL(PATIENT_DEFAULT_SURFACE.origin);
-  patientOrigin.hostname = `${slug}.${patientOrigin.hostname}`;
-  patientOrigin.pathname = '/';
-  patientOrigin.search = '';
-  patientOrigin.hash = '';
-  return patientOrigin.toString();
-}
-
 function clinicBookingUrl(slug: string): string {
   return new URL(`/book/${encodeURIComponent(slug)}`, PATIENT_DEFAULT_SURFACE.origin).toString();
 }
@@ -230,6 +221,7 @@ export default async function SettingsPage({
       brandingState,
       slugState,
       cardSettings,
+      cardIdentity,
       bookingLinkOptions,
       customDomainSurface,
       customDomainMutation,
@@ -256,6 +248,11 @@ export default async function SettingsPage({
       workspace.canManageOrganization && deps.clinicPublicCard
         ? withDoctorWorkspacePrincipal(workspace, 'app.settings.clinic-public-card.read', () =>
             deps.clinicPublicCard!.readCardSettings(workspace.organizationId),
+          )
+        : Promise.resolve(null),
+      workspace.canManageOrganization && deps.clinicPublicCard
+        ? withDoctorWorkspacePrincipal(workspace, 'app.settings.clinic-public-card.read', () =>
+            deps.clinicPublicCard!.readCardIdentity(workspace.organizationId),
           )
         : Promise.resolve(null),
       workspace.canManageOrganization && deps.bookingEngine
@@ -522,9 +519,8 @@ export default async function SettingsPage({
           <ClinicPublicCardSection
             initialSettings={cardSettings}
             skipPublicCardAtRoot={skipPublicCardAtRoot}
-            publicUrl={
-              slugState?.currentSlug ? clinicTechnicalRootUrl(slugState.currentSlug) : null
-            }
+            identity={cardIdentity}
+            patientOrigin={PATIENT_DEFAULT_SURFACE.origin}
           />
         ) : null}
         <SettingsForm
