@@ -404,12 +404,21 @@ export function createPaymentsService(deps: {
       idempotencyKey: string;
       providerId?: string;
       returnUrl: string;
+      /** Срок жизни счёта = дедлайн оплаты записи. Передаётся провайдеру, чтобы тот перестал
+       * принимать деньги в ту же секунду, что и мы: иначе пациент, уже открывший страницу оплаты,
+       * платит за бронь, которую мы уже отменили и освободили. */
+      expiresAt?: string | null;
     }) {
       deps.assertWriteClearance?.('payments');
       const settings = await loadSettings(input.organizationId);
       if (!settings.enabled) throw new Error('payments_disabled');
       const provider = resolveActiveProvider(settings, input.providerId);
       const adapter = getPaymentProviderAdapter(provider.id);
+      // Fail closed: провайдер без счетов не умеет истечь на своей стороне, а тихая подмена на
+      // бессрочный платёж вернула бы ровно тот сценарий, ради которого дедлайн и существует.
+      if (input.expiresAt && !adapter.supportsInvoice) {
+        throw new Error('payment_provider_cannot_expire_invoice');
+      }
       const existing = await deps.port.findIntentByIdempotency(
         input.organizationId,
         input.idempotencyKey,
@@ -438,6 +447,9 @@ export function createPaymentsService(deps: {
           description: 'Предоплата записи',
           amountMinor: input.amountMinor,
         }),
+        ...(input.expiresAt
+          ? { invoice: { description: 'Предоплата записи', expiresAt: input.expiresAt } }
+          : {}),
         metadata: {
           appointmentId: input.appointmentId,
         },
