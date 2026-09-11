@@ -57,7 +57,7 @@ type ExerciseCatalogBundle = {
   exerciseCatalog: Array<{ id: string; title: string; firstMedia: ExerciseMedia | null }>;
   exerciseMetaById: Record<
     string,
-    { regionRefIds: readonly string[]; loadType: ExerciseLoadType | null }
+    { regionRefIds: readonly string[]; loadTypes: readonly ExerciseLoadType[] }
   >;
 };
 
@@ -151,11 +151,11 @@ function LfkTemplatesContent({
     if (lt) {
       if (isDoctorCatalogMissingFilter(lt)) {
         out = out.filter((tpl) =>
-          tpl.exercises.some((row) => !exerciseMetaById[row.exerciseId]?.loadType),
+          tpl.exercises.some((row) => (exerciseMetaById[row.exerciseId]?.loadTypes ?? []).length === 0),
         );
       } else {
         out = out.filter((tpl) =>
-          tpl.exercises.some((row) => exerciseMetaById[row.exerciseId]?.loadType === lt),
+          tpl.exercises.some((row) => (exerciseMetaById[row.exerciseId]?.loadTypes ?? []).includes(lt)),
         );
       }
     }

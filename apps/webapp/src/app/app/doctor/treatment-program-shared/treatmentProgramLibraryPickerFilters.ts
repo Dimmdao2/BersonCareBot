@@ -5,11 +5,16 @@ import { normalizeRuSearchString } from '@/shared/lib/ruSearchNormalize';
 import { isDoctorCatalogMissingFilter } from '@/shared/lib/doctorCatalogEmptyFieldFilter';
 import type { TreatmentProgramLibraryRow } from './treatmentProgramLibraryTypes';
 
+/**
+ * Метаданные упражнения для фильтров подбора. Типы нагрузки — НАБОР, как и регионы: одиночная
+ * legacy-колонка после появления мультитипа хранит алфавитно первый код, а не единственный, поэтому
+ * фильтр по ней молча прятал упражнения с двумя типами.
+ */
 export function buildExerciseMetaById(
   exercises: Exercise[],
-): Record<string, { regionRefIds: readonly string[]; loadType: ExerciseLoadType | null }> {
+): Record<string, { regionRefIds: readonly string[]; loadTypes: readonly ExerciseLoadType[] }> {
   return Object.fromEntries(
-    exercises.map((e) => [e.id, { regionRefIds: e.regionRefIds, loadType: e.loadType }]),
+    exercises.map((e) => [e.id, { regionRefIds: e.regionRefIds, loadTypes: e.loadTypes }]),
   );
 }
 
@@ -27,7 +32,7 @@ export function buildLfkComplexLibraryFilterMeta(
   template: Template,
   exerciseMetaById: Record<
     string,
-    { regionRefIds: readonly string[]; loadType: ExerciseLoadType | null }
+    { regionRefIds: readonly string[]; loadTypes: readonly ExerciseLoadType[] }
   >,
   bodyRegionIdToCode: Record<string, string> | undefined,
 ): Pick<TreatmentProgramLibraryRow, 'regionCodes' | 'loadTypes'> {
@@ -41,7 +46,7 @@ export function buildLfkComplexLibraryFilterMeta(
       const code = bodyRegionIdToCode?.[rid];
       if (code) regionCodes.add(code);
     }
-    if (meta.loadType) loadTypes.add(meta.loadType);
+    for (const lt of meta.loadTypes) loadTypes.add(lt);
   }
 
   return {

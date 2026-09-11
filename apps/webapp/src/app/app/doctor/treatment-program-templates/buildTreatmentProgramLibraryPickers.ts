@@ -85,13 +85,20 @@ export function buildTreatmentProgramLibraryPickers(params: {
       subtitle:
         [
           e.ownerKind === 'platform' ? 'Базовая библиотека' : null,
-          e.loadType ? (LOAD_SUBTITLE[e.loadType] ?? null) : null,
+          e.loadTypes.length > 0
+            ? e.loadTypes
+                .map((lt) => LOAD_SUBTITLE[lt] ?? null)
+                .filter((part): part is string => Boolean(part))
+                .join(', ') || null
+            : null,
         ]
           .filter((part): part is string => Boolean(part))
           .join(' · ') || null,
       thumbUrl: exerciseThumbUrl(e.media[0]),
       regionCodes: mapExerciseRegionCodes(e.regionRefIds, bodyRegionIdToCode),
-      loadType: e.loadType,
+      // Набор, а не одно значение: `rowMatchesLoad` предпочитает `loadTypes`, и без этой строки
+      // фильтр подбора падал на legacy-колонку и терял упражнения с двумя типами нагрузки.
+      loadTypes: e.loadTypes,
     })),
     lfkComplexes: lfkTemplates.map((t) => {
       const desc = t.description?.trim();
