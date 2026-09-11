@@ -49,6 +49,7 @@ const allowedLayerRawSqlFiles = new Set([
   'apps/webapp/src/app-layer/health/adminReminderPipelineMetrics.ts',
   'apps/webapp/src/app-layer/health/adminWebPushHealthMetrics.ts',
   'apps/webapp/src/app-layer/media/adminPlaybackHealthMetrics.ts',
+  'apps/webapp/src/app-layer/media/hlsDeliveryByteMeterFlush.ts',
   'apps/webapp/src/app-layer/media/hlsProxyErrorEvents.ts',
   'apps/webapp/src/app-layer/media/playbackClientEvents.ts',
   'apps/webapp/src/app-layer/media/playbackHourlyRetention.ts',

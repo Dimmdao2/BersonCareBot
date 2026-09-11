@@ -31201,6 +31201,13 @@ const REV10_LOCKED_POLICIES = new Map<string, LockedPolicyEntry>(
   Object.entries(REV10_LOCKED_POLICY_DATA),
 );
 
+const REV10_PLATFORM_LFK_READ_RELATIONS = new Set([
+  'public.lfk_exercise_load_types',
+  'public.lfk_exercise_media',
+  'public.lfk_exercise_regions',
+  'public.lfk_exercises',
+]);
+
 type DirectAccessSeed = Omit<Extract<RelationAccess, { kind: 'direct' }>, 'seams'>;
 
 const REV10_PATIENT_NAMED_WRITE_OPERATIONS: Readonly<Record<string, readonly Privilege[]>> = {
@@ -32789,6 +32796,19 @@ function revision10SeamOwnerPolicy(tableKey: string, index: number, access: Rela
     using: `(${predicate})`, withCheck: `(${predicate})`, note: `only declared narrow owners may reach ${tableKey}` }];
 }
 
+function revision10PlatformLfkReadPolicy(tableKey: string, index: number): PolicyDecl[] {
+  if (!REV10_PLATFORM_LFK_READ_RELATIONS.has(tableKey)) return [];
+  return [{
+    name: `rev10_platform_lfk_read_${index + 1}`,
+    as: 'PERMISSIVE',
+    cmd: 'SELECT',
+    to: ['app_staff'],
+    using: `(current_user = 'app_staff'::name AND app.current_org_id() IS NOT NULL`
+      + ` AND "owner_kind" = 'platform' AND "organization_id" IS NULL)`,
+    note: `staff may read, but not mutate, platform-owned LFK catalog rows in ${tableKey}`,
+  }];
+}
+
 function revision10Database(name: Revision10DatabaseName): DatabaseDecl {
   // Раньше здесь стоял двусторонний тернарник `name === 'bersoncarebot_test' ? 'test' : 'dev'`:
   // ЛЮБОЕ незнакомое имя базы молча получало логины среды dev, то есть чужой среде выдавались
@@ -32897,7 +32917,10 @@ function revision10Database(name: Revision10DatabaseName): DatabaseDecl {
       : access?.kind === 'direct' ? directBusiness
       : [{ name: `rev10_fail_closed_${index + 1}`, as: 'PERMISSIVE', cmd: 'ALL', to: [...REV10_RUNTIME],
           using: 'false', withCheck: 'false', note: `no direct runtime relation surface for ${key}` }];
-    const runtimeBusinessBase = runtimeBusinessBaseRaw.map((policy) => ({
+    const runtimeBusinessBase = [
+      ...runtimeBusinessBaseRaw,
+      ...revision10PlatformLfkReadPolicy(key, index),
+    ].map((policy) => ({
       ...policy,
       ...(policy.using ? { using: classSafe(policy.using, policy.to) } : {}),
       ...(policy.withCheck ? { withCheck: classSafe(policy.withCheck, policy.to) } : {}),

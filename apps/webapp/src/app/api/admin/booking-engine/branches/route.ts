@@ -7,10 +7,6 @@ import {
 } from '@/app-layer/guards/requireEntitlement';
 import { requireClinicManagementBookingEngine } from '../_requireClinicManagementBookingEngine';
 import { isReservedOnlineLocationIdentity } from '@/modules/booking-engine/onlineLocation';
-import {
-  ensureSoloServiceCoverage,
-  isSoloWorkspace,
-} from '@/app-layer/booking/soloServiceCoverage';
 
 /** Thrown by the infra atomic quota port; compared by message, not class, to keep this route free of an infra import. */
 const BRANCHES_QUOTA_REACHED_MESSAGE = 'saas_quota_reached:branches';
@@ -45,7 +41,6 @@ export async function POST(request: Request) {
   if (isReservedOnlineLocationIdentity(parsed.data)) {
     return NextResponse.json({ ok: false, error: 'online_location_reserved' }, { status: 409 });
   }
-  const solo = await isSoloWorkspace(gate.ctx);
   try {
     const branch = await withDoctorWorkspacePrincipal(
       gate.ctx,
@@ -61,11 +56,6 @@ export async function POST(request: Request) {
           isActive: parsed.data.isActive,
           sortOrder: parsed.data.sortOrder,
         });
-        // Новая локация соло не оставляет его услуги позади: иначе автоматика §1.1 снова стала бы
-        // половинчатой — привязано только то, что создано ДО этой локации.
-        if (solo && created.isActive) {
-          await ensureSoloServiceCoverage(gate.ctx, { branchId: created.id });
-        }
         return created;
       },
     );
