@@ -409,6 +409,12 @@ function isMechanicIncludedFromSnapshot(
   snapshot: Pick<OrgEntitlementSnapshot, 'tariff' | 'overrides' | 'access'>,
   mechanic: OrgMechanic,
 ): boolean {
+  // Владелец 11.09 (EXERCISE_STORE_PLAN §2 п.22): весь домен ЛФК — ОДИН тариф-ключ. `exercise_packages`
+  // перестаёт быть самостоятельным переключателем и отвечает ровно тем же, чем `exercise_catalog`.
+  // Проверка стоит ДО поиска override: иначе точечный override на `exercise_packages` оставлял
+  // платформенные комплексы организации с выключенным каталогом — дыра, найденная слепым аудитом 11.09.
+  if (mechanic === 'exercise_packages')
+    return isMechanicIncludedFromSnapshot(snapshot, 'exercise_catalog');
   const mechanicClass = MECHANIC_REGISTRY[mechanic].class;
   if (mechanicClass === 'никогда') return true;
   const override = snapshot.overrides.find(

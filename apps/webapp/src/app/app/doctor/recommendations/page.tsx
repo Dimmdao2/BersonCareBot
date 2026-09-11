@@ -1,4 +1,5 @@
-import { requireDoctorAccess } from '@/app-layer/guards/requireRole';
+import { requireEntitlementForPage } from '@/app-layer/guards/requireEntitlement';
+import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
 import type { Recommendation, RecommendationUsageSnapshot } from '@/modules/recommendations/types';
 import { parseRecommendationCatalogSsrQuery } from '@/modules/recommendations/recommendationCatalogSsrQuery';
 import {
@@ -38,7 +39,9 @@ type RecommendationsBootstrap = {
 };
 
 export default async function DoctorRecommendationsPage({ searchParams }: PageProps) {
-  const session = await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
+  await requireEntitlementForPage(workspace, 'exercise_catalog');
+  const session = workspace.session;
   const { buildAppDeps } = await import('@/app-layer/di/buildAppDeps');
   const deps = buildAppDeps();
   const sp = (await searchParams) ?? {};

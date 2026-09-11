@@ -400,6 +400,20 @@ export default async function SettingsPage({
         false,
       ) === true;
     /**
+     * #926 §17.Q. Дефолт ВКЛЮЧЕНО и здесь, и в двери каталога записи: клиника публикует визитку
+     * каждого специалиста отдельной галкой, и молчаливое «не показываем» означало бы, что платформа
+     * игнорирует уже сделанный ею выбор. Обоснование целиком — в реестре `system-settings`.
+     */
+    const showSpecialistCardsInBooking =
+      valueOf<unknown>(
+        clinicAdminSettings.find(
+          (setting) =>
+            setting.key === 'clinic_booking_show_specialist_cards' &&
+            setting.organizationId === workspace.organizationId,
+        )?.valueJson,
+        true,
+      ) !== false;
+    /**
      * PAY-APPT-21: clinic settings own the acquiring account, so the provider choice and its
      * credentials are read here instead of in the calendar tab.
      *
@@ -532,6 +546,7 @@ export default async function SettingsPage({
           <ClinicPublicCardSection
             initialSettings={cardSettings}
             skipPublicCardAtRoot={skipPublicCardAtRoot}
+            showSpecialistCardsInBooking={showSpecialistCardsInBooking}
             identity={cardIdentity}
             locations={bookingLinkOptions?.cardLocations ?? []}
             specialists={bookingLinkOptions?.cardSpecialists ?? []}

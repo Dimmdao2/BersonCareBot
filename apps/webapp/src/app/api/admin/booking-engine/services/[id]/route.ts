@@ -4,6 +4,7 @@ import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganiza
 import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
 import { jsonIfInvalidUuid } from '../../_uuid';
 import { requireClinicManagementBookingEngine } from '../../_requireClinicManagementBookingEngine';
+import { userFacingMessage } from '@/shared/errors/userFacingError';
 
 const PatchSchema = z.object({
   title: z.string().min(1).max(200).optional(),
@@ -47,30 +48,38 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
   const parsed = PatchSchema.safeParse(body);
   if (!parsed.success)
     return NextResponse.json({ ok: false, error: 'invalid_input' }, { status: 400 });
-  const service = await withDoctorWorkspacePrincipal(
-    gate.ctx,
-    'admin.booking-engine.services.update',
-    () =>
-      gate.ctx.service.services.upsertService({
-        organizationId: existing.organizationId,
-        id,
-        title: parsed.data.title ?? existing.title,
-        description:
-          parsed.data.description !== undefined ? parsed.data.description : existing.description,
-        durationMinutes: parsed.data.durationMinutes ?? existing.durationMinutes,
-        bufferAfterMinutes: parsed.data.bufferAfterMinutes ?? existing.bufferAfterMinutes,
-        priceMinor: parsed.data.priceMinor ?? existing.priceMinor,
-        isActive: parsed.data.isActive ?? existing.isActive,
-        prepaymentApplicable: parsed.data.prepaymentApplicable ?? existing.prepaymentApplicable,
-        usableInPackages: parsed.data.usableInPackages ?? existing.usableInPackages,
-        onlinePaymentApplicable:
-          parsed.data.onlinePaymentApplicable ?? existing.onlinePaymentApplicable,
-        publicWidgetVisible: parsed.data.publicWidgetVisible ?? existing.publicWidgetVisible,
-        adminManualOnly: parsed.data.adminManualOnly ?? existing.adminManualOnly,
-        sortOrder: parsed.data.sortOrder ?? existing.sortOrder,
-      }),
-  );
-  return NextResponse.json({ ok: true, service });
+  try {
+    const service = await withDoctorWorkspacePrincipal(
+      gate.ctx,
+      'admin.booking-engine.services.update',
+      () =>
+        gate.ctx.service.services.upsertService({
+          organizationId: existing.organizationId,
+          id,
+          title: parsed.data.title ?? existing.title,
+          description:
+            parsed.data.description !== undefined ? parsed.data.description : existing.description,
+          durationMinutes: parsed.data.durationMinutes ?? existing.durationMinutes,
+          bufferAfterMinutes: parsed.data.bufferAfterMinutes ?? existing.bufferAfterMinutes,
+          priceMinor: parsed.data.priceMinor ?? existing.priceMinor,
+          isActive: parsed.data.isActive ?? existing.isActive,
+          prepaymentApplicable: parsed.data.prepaymentApplicable ?? existing.prepaymentApplicable,
+          usableInPackages: parsed.data.usableInPackages ?? existing.usableInPackages,
+          onlinePaymentApplicable:
+            parsed.data.onlinePaymentApplicable ?? existing.onlinePaymentApplicable,
+          publicWidgetVisible: parsed.data.publicWidgetVisible ?? existing.publicWidgetVisible,
+          adminManualOnly: parsed.data.adminManualOnly ?? existing.adminManualOnly,
+          sortOrder: parsed.data.sortOrder ?? existing.sortOrder,
+        }),
+    );
+    return NextResponse.json({ ok: true, service });
+  } catch (error) {
+    // Услугу нельзя включить, пока её никто не делает (#1102 §1.2). Отказ обязан объяснить, чего
+    // не хватает, поэтому наружу уходит помеченный владельцем текст, а не код.
+    const message = userFacingMessage(error);
+    if (!message) throw error;
+    return NextResponse.json({ ok: false, error: 'service_has_no_doer', message }, { status: 409 });
+  }
 }
 
 export async function DELETE(_request: Request, ctx: { params: Promise<{ id: string }> }) {

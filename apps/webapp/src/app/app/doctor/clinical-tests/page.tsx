@@ -1,4 +1,5 @@
-import { requireDoctorAccess } from '@/app-layer/guards/requireRole';
+import { requireEntitlementForPage } from '@/app-layer/guards/requireEntitlement';
+import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
 import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
 import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
 import { doctorCatalogViewFromSearchParams } from '@/shared/lib/doctorCatalogViewPreference';
@@ -39,7 +40,9 @@ type ClinicalTestsBootstrap = {
 };
 
 export default async function DoctorClinicalTestsPage({ searchParams }: PageProps) {
-  const session = await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
+  await requireEntitlementForPage(workspace, 'exercise_catalog');
+  const session = workspace.session;
   const { buildAppDeps } = await import('@/app-layer/di/buildAppDeps');
   const deps = buildAppDeps();
   /** Параллельно с запросами данных подтягиваем клиентский чанк каталога. */

@@ -37,40 +37,22 @@ export async function loadBookingAdminOverview(
   const service = deps.bookingEngine;
   if (!service) return { unavailable: true };
 
-  const [
-    branches,
-    services,
-    specialists,
-    specialistAvailability,
-    locationAvailability,
-    usesHoursFallback,
-    workingHoursRows,
-    patientLabel,
-  ] = await Promise.all([
-    service.catalog.listBranches(organizationId),
-    service.services.listServices(organizationId),
-    service.catalog.listSpecialists(organizationId),
-    service.services.listSpecialistServiceAvailability(organizationId),
-    service.services.listServiceLocationAvailability(organizationId),
-    deps.bookingScheduling?.usesWorkingHoursFallback({ organizationId }) ?? Promise.resolve(true),
-    deps.bookingScheduling?.listWorkingHoursAdmin({ organizationId }) ?? Promise.resolve([]),
-    deps.systemSettings.getSetting('patient_label', 'doctor', { organizationId }),
-  ]);
+  const [branches, services, serviceDoers, usesHoursFallback, workingHoursRows, patientLabel] =
+    await Promise.all([
+      service.catalog.listBranches(organizationId),
+      service.services.listServices(organizationId),
+      service.services.listServiceDoerIntersections(organizationId),
+      deps.bookingScheduling?.usesWorkingHoursFallback({ organizationId }) ?? Promise.resolve(true),
+      deps.bookingScheduling?.listWorkingHoursAdmin({ organizationId }) ?? Promise.resolve([]),
+      deps.systemSettings.getSetting('patient_label', 'doctor', { organizationId }),
+    ]);
 
   const activeBranches = branches.filter((b) => b.isActive);
   const activeServices = services.filter((s) => s.isActive);
   const publicServices = activeServices.filter((s) => s.publicWidgetVisible && !s.adminManualOnly);
-  const activeLocationIds = new Set(activeBranches.map((b) => b.id));
-
-  const availabilityOverview = {
-    locationAvailability,
-    specialistAvailability,
-    specialists: specialists.map((s) => ({ id: s.id, fullName: s.fullName, isActive: s.isActive })),
-  };
   const servicesWithoutAvailability = countServicesWithoutAvailability(
     activeServices,
-    activeLocationIds,
-    availabilityOverview,
+    serviceDoers,
   );
 
   const hasCustomSchedule = !usesHoursFallback;
@@ -78,7 +60,7 @@ export async function loadBookingAdminOverview(
 
   const warnings: string[] = [];
   if (activeServices.length > 0 && servicesWithoutAvailability > 0) {
-    warnings.push(`${servicesWithoutAvailability} услуг без доступности в локациях.`);
+    warnings.push(`${servicesWithoutAvailability} услуг никто не оказывает.`);
   }
   if (usesHoursFallback) {
     warnings.push('Расписание не настроено — используется временный режим 09:00–18:00.');
@@ -101,8 +83,9 @@ export async function loadBookingAdminOverview(
     unavailable: false,
     organizationRequired: false,
     stats: {
-      bookingEnabled:
-        activeBranches.length > 0 && activeServices.length > 0 && specialistAvailability.length > 0,
+      // «Запись работает» — это и есть «есть хотя бы одно живое пересечение»: активных строк
+      // связи мало, они должны попадать в активного специалиста и активный филиал (#1102 §2.1).
+      bookingEnabled: serviceDoers.length > 0,
       activeLocations: activeBranches.length,
       activeServices: activeServices.length,
       patientVisibleServices: publicServices.length,

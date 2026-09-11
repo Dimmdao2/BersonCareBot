@@ -21,7 +21,10 @@ import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimez
 import { resolveCalendarDayIanaForPatient } from '@/modules/system-settings/calendarIana';
 import { formatExercisesTodayTrainingStatus } from '@/modules/reminders/summarizeReminderForCalendarDay';
 import { loadPatientProgramInteractionBundle } from '@/app/app/patient/treatment/loadPatientProgramInteractionBundle';
-import { getMechanicSurfaceVisibility } from '@/app-layer/guards/requireEntitlement';
+import {
+  getMechanicSurfaceVisibility,
+  requireEntitlementForPage,
+} from '@/app-layer/guards/requireEntitlement';
 
 type Props = {
   params: Promise<{ instanceId: string }>;
@@ -69,6 +72,10 @@ export default async function PatientTreatmentProgramDetailPage({ params, search
       instanceId,
     );
   if (!targetContext?.ok) notFound();
+  await requireEntitlementForPage(
+    { organizationId: targetContext.organizationId },
+    'exercise_catalog',
+  );
   if (getCurrentDbPrincipalOrganizationId() !== targetContext.organizationId) {
     redirect(
       `/api/patient/organization-context/open?kind=treatment_program&instanceId=${encodeURIComponent(instanceId)}`,

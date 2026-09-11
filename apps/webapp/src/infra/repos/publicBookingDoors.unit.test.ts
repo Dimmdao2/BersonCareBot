@@ -138,7 +138,7 @@ function doorsAnswering(answers: Record<string, unknown>) {
     }
     const value = answers[functionIdentity];
     const column =
-      functionIdentity === 'app.read_public_booking_catalog(uuid,uuid)'
+      functionIdentity === 'app.read_public_booking_catalog(uuid,uuid,uuid)'
         ? 'catalog'
         : functionIdentity === 'app.read_public_booking_slot_snapshot(uuid,uuid,text,text)'
           ? 'snapshot'
@@ -171,11 +171,12 @@ describe('public booking — every read goes through a named root, never through
     vi.setSystemTime(new Date('2026-08-19T05:00:00.000Z'));
     fakes.runWebappNamedRoot.mockImplementation(
       doorsAnswering({
-        'app.read_public_booking_catalog(uuid,uuid)': {
+        'app.read_public_booking_catalog(uuid,uuid,uuid)': {
           branches: [branchPayload()],
           branch: branchPayload(),
           services: [servicePayload()],
           service: servicePayload(),
+          specialist: null,
         },
         'app.read_public_booking_slot_snapshot(uuid,uuid,text,text)': slotSnapshotPayload(),
       }),
@@ -218,7 +219,7 @@ describe('public booking — every read goes through a named root, never through
   it('leaves an unpublished clinic empty instead of reading it as an ordinary one', async () => {
     fakes.runWebappNamedRoot.mockImplementation(
       doorsAnswering({
-        'app.read_public_booking_catalog(uuid,uuid)': null,
+        'app.read_public_booking_catalog(uuid,uuid,uuid)': null,
         'app.read_public_booking_slot_snapshot(uuid,uuid,text,text)': null,
         'app.list_public_booking_form_fields()': null,
         'app.resolve_public_booking_organization(uuid,uuid)': null,
@@ -266,11 +267,12 @@ describe('public booking — every read goes through a named root, never through
   it('refuses a branch and a service that belong to another organization', async () => {
     fakes.runWebappNamedRoot.mockImplementation(
       doorsAnswering({
-        'app.read_public_booking_catalog(uuid,uuid)': {
+        'app.read_public_booking_catalog(uuid,uuid,uuid)': {
           branches: [branchPayload(OTHER_ORG)],
           branch: branchPayload(OTHER_ORG),
           services: [servicePayload(OTHER_ORG)],
           service: servicePayload(OTHER_ORG),
+          specialist: null,
         },
         'app.read_public_booking_slot_snapshot(uuid,uuid,text,text)': {
           ...slotSnapshotPayload(),

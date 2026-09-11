@@ -11,12 +11,17 @@ import type {
   ClinicPublicCardSettings,
   ClinicPublicCardSpecialist,
 } from '@/modules/clinic-public-card/ports';
-import { clinicPublicDirectoryEntries } from '../../../db/schema';
+import {
+  beOrganizations,
+  clinicPublicDirectoryEntries,
+  orgBrandRevisions,
+} from '../../../db/schema';
 
 type CardRow = {
   requestedSlug?: unknown;
   canonicalSlug?: unknown;
   disposition?: unknown;
+  cardIsPublished?: unknown;
   displayName?: unknown;
   description?: unknown;
   fullDescriptionMarkdown?: unknown;
@@ -142,6 +147,9 @@ export function createPgClinicPublicCardPort(): ClinicPublicCardPort {
         requestedSlug: text(card.requestedSlug) ?? slug,
         canonicalSlug,
         disposition: card.disposition === 'redirect' ? 'redirect' : 'current',
+        // Строго `true`: любое другое значение читается как «страница выключена», то есть в
+        // сторону меньшего показа. Ошибка чтения признака не должна раскрывать визитку.
+        cardIsPublished: card.cardIsPublished === true,
         displayName,
         description: text(card.description),
         fullDescriptionMarkdown: text(card.fullDescriptionMarkdown),
@@ -184,16 +192,33 @@ export function createPgClinicPublicCardPort(): ClinicPublicCardPort {
     },
 
     async readCardIdentity(organizationId) {
+      // Имя — то же живое разрешение, что в публичной двери (#926 §17.R): переопределение
+      // опубликованного бренда, иначе каноническое имя организации. Копия `display_name` в строке
+      // каталога не читается ни здесь, ни там — кабинет обязан показывать ровно то, что увидит
+      // посетитель, а не третье значение.
       const [row] = await getDrizzle()
         .select({
           slug: clinicPublicDirectoryEntries.slug,
-          displayName: clinicPublicDirectoryEntries.displayName,
+          brandDisplayName: orgBrandRevisions.displayName,
+          organizationTitle: beOrganizations.title,
         })
         .from(clinicPublicDirectoryEntries)
+        .innerJoin(
+          beOrganizations,
+          eq(beOrganizations.id, clinicPublicDirectoryEntries.organizationId),
+        )
+        .leftJoin(
+          orgBrandRevisions,
+          and(
+            eq(orgBrandRevisions.organizationId, clinicPublicDirectoryEntries.organizationId),
+            eq(orgBrandRevisions.status, 'published'),
+          ),
+        )
         .where(eq(clinicPublicDirectoryEntries.organizationId, organizationId))
         .limit(1);
       if (!row) return null;
-      return { slug: row.slug, displayName: row.displayName };
+      const brandName = row.brandDisplayName?.trim();
+      return { slug: row.slug, displayName: brandName || row.organizationTitle };
     },
 
     async saveCard(input): Promise<ClinicPublicCardSettings> {

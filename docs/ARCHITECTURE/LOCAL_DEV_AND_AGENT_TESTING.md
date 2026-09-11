@@ -292,6 +292,18 @@ bash deploy/host/migrate-dev.sh --execute
 запускает owner-ordered pending migrations и возвращает её к декларативному deny-by-default состоянию без
 reset/restore.
 
+**Из worktree/клона** `--preflight` отказывает с `FATAL: DEV API env path guard failed` — env-файлы DEV лежат
+только в основном чекауте. Санкционированный флаг (preflight-only):
+
+```bash
+bash deploy/host/migrate-dev.sh --preflight --runtime-env-root /home/dev/dev-projects/BersonCareBot
+```
+
+Кандидат берёт обычные DEV-runtime URL из основного чекаута, а источник миграций, парсер и раннеры остаются
+из кандидата — это и есть требуемый §1 owner-aware rollback-only preflight «из точного candidate checkout».
+⚠️ Бриф агента, которому нужна живая DEV-проверка из клона, обязан называть этот флаг: 11.09 воркер S0а без
+него честно упёрся в гейт и отдал этап недоказанным, потратив прогон.
+
 ### 6.6 SaaS diagnostics contour (System Health)
 
 В target port-context отдельного `SAAS_ISOLATION_OPERATOR_DATABASE_URL` нет: защищённый System Health идёт

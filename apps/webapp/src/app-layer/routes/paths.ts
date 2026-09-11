@@ -6,6 +6,13 @@ import { patientWarmupsSectionHref } from '@/modules/patient-home/warmupsSection
 import type { PatientPlanTab } from '@/app/app/patient/treatment/patientPlanTab';
 
 export const routePaths = {
+  /**
+   * Общий вход в кабинет. Его брендирует Host, а не путь, поэтому адрес один и тот же и на общем
+   * пациентском хосте, и на брендированном адресе клиники: корень поддомена с настройкой «сразу
+   * открывать вход», корень общего пациентского хоста и вырожденный корень клиники (#926 §17.F)
+   * обязаны вести в одно место. Второго написания у этого адреса нет — `config/surfaceRoutes.ts`
+   * и страница `/{clinic}` берут его отсюда.
+   */
   root: '/app',
   /** Поддержка с экрана входа (гость, без сессии). */
   loginContactSupport: LOGIN_CONTACT_SUPPORT_PATH,

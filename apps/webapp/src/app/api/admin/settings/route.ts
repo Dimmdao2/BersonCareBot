@@ -101,6 +101,7 @@ const CLINIC_BOT_PATCH_MESSAGES: Readonly<Record<ClinicBotPatchError, string>> =
 /** Single-key PATCH: boolean keys normalized like `video_watermark_enabled`. */
 const ADMIN_BOOLEAN_SETTING_KEYS = new Set<string>([
   'clinic_root_skip_public_card',
+  'clinic_booking_show_specialist_cards',
   'booking_calendar_show_working_hours',
   'booking_payment_enabled',
   'material_ratings_enabled',
@@ -156,10 +157,12 @@ const ADMIN_SCOPE_KEYS = [
   'video_watermark_enabled',
   'patient_booking_url',
   'clinic_root_skip_public_card',
+  'clinic_booking_show_specialist_cards',
   'booking_default_organization_id',
   'booking_calendar_show_working_hours',
   'booking_min_notice_hours',
   'booking_availability_horizon_days',
+  'booking_prepayment_wait_minutes',
   'booking_payment_enabled',
   'booking_payment_providers',
   'saas_billing_payment_provider',
@@ -895,7 +898,9 @@ export async function PATCH(request: Request) {
       ? SERVER_RUNTIME_INTEGER_DEFINITIONS.booking_min_notice_hours
       : parsed.data.key === 'booking_availability_horizon_days'
         ? SERVER_RUNTIME_INTEGER_DEFINITIONS.booking_availability_horizon_days
-        : null;
+        : parsed.data.key === 'booking_prepayment_wait_minutes'
+          ? SERVER_RUNTIME_INTEGER_DEFINITIONS.booking_prepayment_wait_minutes
+          : null;
   if (bookingIntegerDefinition) {
     const inner = normalizedValue.value;
     const n =

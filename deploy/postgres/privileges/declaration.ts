@@ -13499,46 +13499,6 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
       }
     ]
   },
-  "public.be_service_location_availability": {
-    "kind": "direct",
-    "purpose": "Где оказывается услуга — без неё запись не знает, в каком филиале доступна услуга",
-    "codePaths": [
-      "apps/webapp/src/infra/repos/pgBookingEngine.ts",
-      "apps/webapp/src/infra/repos/pgBookingScheduling.ts"
-    ],
-    "grants": [
-      {
-        "role": "app_staff",
-        "operations": [
-          "SELECT"
-        ],
-        "columns": "table"
-      },
-      {
-        "role": "app_staff",
-        "operations": [
-          "INSERT"
-        ],
-        "columns": [
-          "branch_id",
-          "created_at",
-          "id",
-          "is_active",
-          "organization_id",
-          "service_id"
-        ]
-      },
-      {
-        "role": "app_staff",
-        "operations": [
-          "UPDATE"
-        ],
-        "columns": [
-          "is_active"
-        ]
-      }
-    ]
-  },
   "public.be_specialist_locations": {
     "kind": "direct",
     "purpose": "Специалист ↔ филиал — без неё специалист не привязан к филиалу — слоты не строятся",
@@ -23427,8 +23387,6 @@ const TABLE_ROWS: TableRow[] = [
     + 'записывают в занятое/нерабочее время' },
   { t: 'public.be_schedule_templates', cls: 'C', org: true, why: 'Шаблоны рабочего дня клиники — без неё нельзя '
     + 'быстро назначить типовой график' },
-  { t: 'public.be_service_location_availability', cls: 'C', org: true, why: 'Где оказывается услуга — без неё запись '
-    + 'не знает, в каком филиале доступна услуга' },
   { t: 'public.be_specialist_locations', cls: 'C', org: true, why: 'Специалист ↔ филиал — без неё специалист не '
     + 'привязан к филиалу — слоты не строятся' },
   { t: 'public.be_specialist_rooms', cls: 'C', org: true, why: 'Специалист ↔ кабинет — распределение по кабинетам '
@@ -26311,7 +26269,7 @@ const REV10_CONTEXT = {
     read_public_booking_catalog: { port: 'webapp', sessionRole: 'app_staff',
       targetRole: 'app_tenant_service', contextClass: 'tenant_service',
       purpose: 'booking.public-catalog.read',
-      functionIdentity: 'app.read_public_booking_catalog(uuid,uuid)' },
+      functionIdentity: 'app.read_public_booking_catalog(uuid,uuid,uuid)' },
     read_public_booking_slot_snapshot: { port: 'webapp', sessionRole: 'app_staff',
       targetRole: 'app_tenant_service', contextClass: 'tenant_service',
       purpose: 'booking.public-slot-snapshot.read',
@@ -27684,11 +27642,11 @@ const REV10_CONTEXT = {
     }),
     // Одна дверь на четыре формы одного вопроса «что из каталога ЭТОЙ опубликованной клиники видно
     // снаружи»: организация берётся не из аргумента, а из принятого контекста.
-    'app.read_public_booking_catalog(uuid,uuid)': rev10Function({
+    'app.read_public_booking_catalog(uuid,uuid,uuid)': rev10Function({
       owner: 'app_seam_public_booking_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
       execute: ['app_tenant_service'],
       purpose: 'return only the publicly bookable catalog of the published accepted organization',
-      typedArgs: ['uuid', 'uuid'], volatility: 'STABLE', parallel: 'UNSAFE',
+      typedArgs: ['uuid', 'uuid', 'uuid'], volatility: 'STABLE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
         { relation: 'public.be_branches', columns: ['id', 'organization_id', 'title', 'short_title', 'color',
@@ -27702,10 +27660,20 @@ const REV10_CONTEXT = {
         { relation: 'public.be_specialist_service_availability', columns: ['organization_id', 'service_id',
           'branch_id', 'specialist_id', 'is_active'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
-        { relation: 'public.be_specialists', columns: ['id', 'organization_id', 'is_active'],
+        // #926 §17.C: ссылка `?specialist=<id>` сужает каталог, поэтому дверь читает ещё имя
+        // специалиста. Отбор для записи — только `is_active` (§17.Q: `card_is_published` из
+        // мастера записи выведен); сама колонка остаётся читаемой ради ответа `cardIsReadable`,
+        // то есть «можно ли открыть его карточку из модуля записи».
+        { relation: 'public.be_specialists', columns: ['id', 'organization_id', 'full_name', 'is_active',
+          'card_is_published'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.clinic_public_directory_entries', columns: ['organization_id', 'is_published'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        // #926 §17.Q: галка организации «показывать визитки специалистов в модуле записи» живёт в
+        // том же реестре `system-settings`, что и соседняя `clinic_root_skip_public_card`. Те же
+        // четыре колонки, что уже читает соседняя дверь этого шва.
+        { relation: 'public.system_settings', columns: ['key', 'scope', 'organization_id',
+          'value_json'], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
     // Публичный близнец `app.read_current_patient_booking_slot_snapshot(...)`: тот же ОДИН снимок
@@ -27844,11 +27812,17 @@ const REV10_CONTEXT = {
         { relation: 'public.organization_slug_claims', columns: ['organization_id', 'kind', 'slug'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.clinic_public_directory_entries',
-          columns: ['organization_id', 'is_published', 'card_is_published', 'display_name',
+          columns: ['organization_id', 'is_published', 'card_is_published',
             'description', 'full_description_markdown', 'public_contact_phone',
             'public_contact_email', 'public_website_url', 'logo_media_id', 'photo_media_ids'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
-        { relation: 'public.be_organizations', columns: ['id', 'is_active'],
+        // #926 §17.R: имя клиники читается живым — каноническое `be_organizations.title` с
+        // переопределением опубликованного бренда поверх. Копия `display_name` в строке каталога
+        // с пути чтения ушла, поэтому и из грантов этой двери она уходит.
+        { relation: 'public.be_organizations', columns: ['id', 'is_active', 'title'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.org_brand_revisions',
+          columns: ['organization_id', 'status', 'display_name'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         // #926 §17.A: адреса читаются вживую, а не из снимка `locations_json`. Ровно те колонки,
         // что попадают на визитку, — ни одной лишней.
@@ -30644,11 +30618,6 @@ export const REV10_LOCKED_POLICY_DATA: Readonly<Record<string, LockedPolicyEntry
     dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())))",
   },
   "public.be_schedule_templates": {
-    policyName: "saas_org_dormant_p0_8_3",
-    strictPredicate: "(app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
-    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())))",
-  },
-  "public.be_service_location_availability": {
     policyName: "saas_org_dormant_p0_8_3",
     strictPredicate: "(app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
     dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())))",

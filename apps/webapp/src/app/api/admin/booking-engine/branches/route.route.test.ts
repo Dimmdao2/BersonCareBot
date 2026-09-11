@@ -4,6 +4,8 @@ const fakes = vi.hoisted(() => ({
   requireClinicManagementBookingEngine: vi.fn(),
   requireEntitlementForMutation: vi.fn(),
   createPhysicalBranch: vi.fn(),
+  isSoloWorkspace: vi.fn(),
+  ensureSoloServiceCoverage: vi.fn(),
 }));
 
 vi.mock('../_requireClinicManagementBookingEngine', () => ({
@@ -14,6 +16,14 @@ vi.mock('../_requireClinicManagementBookingEngine', () => ({
 vi.mock('@/app-layer/guards/requireEntitlement', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/app-layer/guards/requireEntitlement')>()),
   requireEntitlementForMutation: fakes.requireEntitlementForMutation,
+}));
+// Соло-покрытие услуг (#1102) — отдельная работа с собственными проверками; здесь фейкуется
+// ЦЕЛИКОМ, потому что оракул этого файла — «создание филиала зовёт ровно ту возможность и отдаёт
+// созданный филиал». Настоящая `isSoloWorkspace` читает тариф и места через `buildAppDeps()`, то
+// есть тянет живую БД в маршрутный unit-тест.
+vi.mock('@/app-layer/booking/soloServiceCoverage', () => ({
+  isSoloWorkspace: fakes.isSoloWorkspace,
+  ensureSoloServiceCoverage: fakes.ensureSoloServiceCoverage,
 }));
 vi.mock('@/app-layer/principal/withOrganizationPrincipal', () => ({
   withDoctorWorkspacePrincipal: (
@@ -48,10 +58,16 @@ describe('clinic-owner branch create', () => {
       ok: true,
       ctx: {
         organizationId: ORGANIZATION_ID,
+        // Настоящий `requireClinicManagementBookingEngine` сессию отдаёт всегда, и с #1102 маршрут
+        // её читает: покрытие услуг у соло заводится от владельца места. Фейк без сессии описывал
+        // контекст, которого не существует.
+        session: { user: { userId: 'user-1' } },
         service: { catalog: { createPhysicalBranch: fakes.createPhysicalBranch } },
       },
     });
     fakes.requireEntitlementForMutation.mockResolvedValue({ ok: true });
+    fakes.isSoloWorkspace.mockResolvedValue(false);
+    fakes.ensureSoloServiceCoverage.mockResolvedValue(undefined);
   });
 
   it('uses the exact organization branch capability and returns the created branch', async () => {

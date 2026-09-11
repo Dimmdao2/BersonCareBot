@@ -15,6 +15,10 @@ import {
 } from '@/modules/tests/clinicalTestScoring';
 import { API_MEDIA_URL_RE, isLegacyAbsoluteUrl } from '@/shared/lib/mediaUrlPolicy';
 import { safeActionErrorText } from '@/app-layer/errors/safeUserError';
+import {
+  entitlementMutationRefusalMessage,
+  requireEntitlementForMutationAction,
+} from '@/app-layer/guards/requireEntitlement';
 
 export type SaveClinicalTestState = { ok: boolean; error?: string };
 
@@ -79,6 +83,13 @@ export async function saveClinicalTestCore(
   formData: FormData,
 ): Promise<{ ok: true; testId: string; wasUpdate: boolean } | { ok: false; error: string }> {
   const workspace = await requireDoctorWorkspaceContext({ workspaceModule: 'rehabilitation' });
+  const entitlement = await requireEntitlementForMutationAction(workspace, 'exercise_catalog');
+  if (!entitlement.ok) {
+    return {
+      ok: false,
+      error: entitlementMutationRefusalMessage('сохранить клинический тест', entitlement.reason),
+    };
+  }
 
   const idRaw = formData.get('id');
   const titleField = formData.get('title');
@@ -217,6 +228,13 @@ export async function archiveClinicalTestCore(
   formData: FormData,
 ): Promise<ArchiveClinicalTestCoreResult> {
   const workspace = await requireDoctorWorkspaceContext({ workspaceModule: 'rehabilitation' });
+  const entitlement = await requireEntitlementForMutationAction(workspace, 'exercise_catalog');
+  if (!entitlement.ok) {
+    return {
+      kind: 'invalid',
+      error: entitlementMutationRefusalMessage('архивировать клинический тест', entitlement.reason),
+    };
+  }
   const idRaw = formData.get('id');
   const id = typeof idRaw === 'string' && idRaw.trim() ? idRaw.trim() : '';
   if (!id) return { kind: 'invalid', error: 'Не указан тест' };
@@ -255,6 +273,16 @@ export async function unarchiveClinicalTestCore(
   formData: FormData,
 ): Promise<UnarchiveClinicalTestCoreResult> {
   const workspace = await requireDoctorWorkspaceContext({ workspaceModule: 'rehabilitation' });
+  const entitlement = await requireEntitlementForMutationAction(workspace, 'exercise_catalog');
+  if (!entitlement.ok) {
+    return {
+      kind: 'invalid',
+      error: entitlementMutationRefusalMessage(
+        'вернуть клинический тест из архива',
+        entitlement.reason,
+      ),
+    };
+  }
   const idRaw = formData.get('id');
   const id = typeof idRaw === 'string' && idRaw.trim() ? idRaw.trim() : '';
   if (!id) return { kind: 'invalid', error: 'Не указан тест' };

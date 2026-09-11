@@ -13,7 +13,7 @@ export async function GET() {
     specialists,
     services,
     specialistAvailability,
-    locationAvailability,
+    serviceDoers,
     specialistRooms,
     publicSlug,
   ] = await Promise.all([
@@ -23,10 +23,10 @@ export async function GET() {
     service.catalog.listSpecialists(organizationId),
     service.services.listServices(organizationId),
     service.services.listSpecialistServiceAvailability(organizationId),
-    service.services.listServiceLocationAvailability(organizationId),
+    service.services.listServiceDoerIntersections(organizationId),
     service.catalog.listSpecialistRooms(organizationId),
-    buildAppDeps().clinicDirectory
-      ?.getSlugManagementState(organizationId)
+    buildAppDeps()
+      .clinicDirectory?.getSlugManagementState(organizationId)
       .then((state) => state.currentSlug) ?? Promise.resolve(null),
   ]);
   return NextResponse.json({
@@ -43,7 +43,7 @@ export async function GET() {
     specialists,
     services,
     specialistAvailability,
-    locationAvailability,
+    serviceDoers,
     specialistRooms,
   });
 }

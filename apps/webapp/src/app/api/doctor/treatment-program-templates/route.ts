@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
 
@@ -37,6 +38,8 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const auth = await requireDoctorWorkspaceApiContext();
   if (!auth.ok) return auth.response;
+  const entitlement = await requireEntitlementForMutation(auth.ctx, 'exercise_catalog');
+  if (!entitlement.ok) return entitlement.response;
   const { ctx: workspace } = auth;
 
   const raw = (await request.json().catch(() => null)) as unknown;
