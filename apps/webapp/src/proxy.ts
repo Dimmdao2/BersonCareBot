@@ -37,22 +37,64 @@ import {
 import { productionTenantSurfaceLookup } from '@/app-layer/surface/productionTenantSurfaceLookup';
 import { CUSTOM_DOMAIN_ROUTING_PROBE_PATH } from '@/modules/domain-health/domainCertificateProbe';
 
-/** Страница «здесь такого адреса нет» — одна строка, без подсказок про устройство хостов. */
-const SURFACE_NOT_FOUND_BODY =
-  '<!doctype html><html lang="ru"><head><meta charset="utf-8">' +
-  '<meta name="viewport" content="width=device-width, initial-scale=1">' +
-  '<title>Страница не найдена</title></head>' +
-  '<body style="font:16px/1.5 system-ui,sans-serif;margin:0;padding:2rem;color:#111">' +
-  '<p>Страница не найдена.</p>' +
-  '<p>Возможно, ссылка устарела или открыта не на том сайте — попросите отправить её заново.</p>' +
-  '</body></html>';
+/**
+ * Страница «здесь такого адреса нет» — одна строка, без подсказок про устройство хостов.
+ *
+ * `exitHref` появляется РОВНО в одном случае: имя запроса — поддомен нашего же пациентского домена
+ * (см. {@link platformSubdomainExitHref}). Владелец 11.09.2026 набрал несуществующий поддомен и
+ * получил тупик: «вместо того, чтобы показать, что такой страницы не существует, или просто
+ * редиректнуть, например, на главную страницу входа в терапиго». Текст про «ссылку» ему в этом
+ * случае ещё и врал — никакой ссылки он не открывал, а набрал адрес руками.
+ *
+ * Почему выход СССЫЛКОЙ, а не редиректом, и почему статус остаётся `404`: решение B4a/B5
+ * («неизвестная метка, неактивная организация, дубль хоста и чужое происхождение бренда дают
+ * ОДИН И ТОТ ЖЕ ответ на весь хост») держит четыре разных отказа неразличимыми. Редирект сделал бы
+ * то же самое, но заодно переписал бы аудированное поведение четырёх классов отказа ради одного
+ * промаха в имени — это отдельное решение владельца, а не следствие этой жалобы. Ссылка даёт
+ * человеку выход и не меняет ни статус, ни различимость отказов.
+ */
+function surfaceNotFoundBody(exitHref: string | null): string {
+  const second = exitHref
+    ? `<p>Проверьте имя в адресе. <a href="${exitHref}" style="color:#1a4bd8">Открыть общий вход</a>.</p>`
+    : '<p>Возможно, ссылка устарела или открыта не на том сайте — попросите отправить её заново.</p>';
+  return (
+    '<!doctype html><html lang="ru"><head><meta charset="utf-8">' +
+    '<meta name="viewport" content="width=device-width, initial-scale=1">' +
+    '<title>Страница не найдена</title></head>' +
+    '<body style="font:16px/1.5 system-ui,sans-serif;margin:0;padding:2rem;color:#111">' +
+    '<p>Страница не найдена.</p>' +
+    second +
+    '</body></html>'
+  );
+}
+
+/**
+ * Выход на общий пациентский вход — только для поддомена НАШЕГО пациентского домена.
+ *
+ * Чужой домен целиком ничего дополнительного не получает: там ответ прежний. А принадлежность
+ * `*.therapygo.ru` платформе и так публична — на это имя смотрит наша собственная wildcard-запись
+ * DNS, поэтому ссылка не сообщает ничего, чего нельзя узнать одним запросом к DNS. Про арендаторов
+ * ответ по-прежнему молчит: и существующий-но-неактивный слаг, и выдуманный дают одну страницу.
+ */
+function platformSubdomainExitHref(request: NextRequest): string | null {
+  const host = request.headers.get('host')?.split(':')[0]?.trim().toLowerCase();
+  if (!host) return null;
+  let base: string;
+  try {
+    base = new URL(PATIENT_DEFAULT_SURFACE.origin).hostname.toLowerCase();
+  } catch {
+    return null;
+  }
+  if (!base || host === base || !host.endsWith(`.${base}`)) return null;
+  return new URL('/', PATIENT_DEFAULT_SURFACE.origin).toString();
+}
 
 
 /**
  * Куда отправить человека, открывшего ССЫЛКУ ПРИГЛАШЕНИЯ не на том сайте.
  *
  * Владелец 10.09: «надо не пустой 404, а сообщение, надо перенаправлять или там что?.. либо
- * перенаправлять просто на терапиго». Сообщение уже есть — `SURFACE_NOT_FOUND_BODY`. Здесь вторая
+ * перенаправлять просто на терапиго». Сообщение уже есть — `surfaceNotFoundBody`. Здесь вторая
  * половина, и она сознательно накрывает ТОЛЬКО `/join/**`.
  *
  * Почему только приглашение, а не всякий промах хостом. Жёсткий `404` на чужом и на неопознанном
@@ -146,7 +188,7 @@ export async function proxy(
       redirect.headers.set(BC_CORRELATION_ID_HEADER, correlationId);
       return redirect;
     }
-    const response = new NextResponse(SURFACE_NOT_FOUND_BODY, {
+    const response = new NextResponse(surfaceNotFoundBody(platformSubdomainExitHref(request)), {
       status: 404,
       headers: { 'Content-Type': 'text/html; charset=utf-8' },
     });
