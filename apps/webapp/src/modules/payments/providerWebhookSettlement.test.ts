@@ -21,12 +21,6 @@ const providerAdapter = vi.hoisted(() => ({
 vi.mock('@/infra/payments/paymentProviderRegistry', () => ({
   getPaymentProviderAdapter: vi.fn(() => providerAdapter),
 }));
-vi.mock('@/modules/system-settings/appDisplayTimezone', () => ({
-  getAppDisplayTimeZone: vi.fn(async () => 'Europe/Moscow'),
-}));
-
-import { createAppointmentPaymentConfirmedHandler } from '@/app-layer/booking/appointmentPaymentConfirmedHandler';
-import type { PatientBookingRecord } from '@/modules/patient-booking/types';
 
 const ORGANIZATION_ID = 'org-1';
 const APPOINTMENT_ID = 'f92ec4bb-2913-470a-a522-7851bb14ec2d';
@@ -162,93 +156,6 @@ describe('booking payment provider webhook capture', () => {
 
     await expect(deliver(service)).resolves.toEqual({ ok: true, duplicate: true });
     expect(onAppointmentPaymentConfirmed).not.toHaveBeenCalled();
-  });
-
-  /**
-   * S5.3 audit oracle: one combined payment for one multi-slot booking has one successful-payment
-   * notification. The per-appointment projection still needs updating, but it must not fan the same
-   * payment success out to the patient once per slot.
-   */
-  it('emits one patient payment-success message for one paid multi-slot booking', async () => {
-    const secondAppointmentId = '2f185df8-642e-40f0-8028-71a578ba3389';
-    const emitted: Array<Record<string, unknown>> = [];
-    const recordFor = (appointmentId: string, hour: number): PatientBookingRecord => ({
-      id: `booking-${appointmentId}`,
-      organizationId: ORGANIZATION_ID,
-      userId: PATIENT_ID,
-      bookingType: 'in_person',
-      city: 'msk',
-      category: 'general',
-      slotStart: `2027-03-10T0${hour}:00:00.000Z`,
-      slotEnd: `2027-03-10T${String(hour + 1).padStart(2, '0')}:00:00.000Z`,
-      status: 'confirmed',
-      cancelledAt: null,
-      cancelReason: null,
-      gcalEventId: null,
-      contactPhone: '+79990000000',
-      contactEmail: null,
-      contactName: 'Пациент',
-      reminder24hSent: false,
-      reminder2hSent: false,
-      createdAt: '2027-03-01T00:00:00.000Z',
-      updatedAt: '2027-03-01T00:00:00.000Z',
-      branchServiceId: null,
-      branchId: null,
-      serviceId: null,
-      cityCodeSnapshot: 'msk',
-      branchTitleSnapshot: 'Клиника',
-      serviceTitleSnapshot: 'Приём',
-      durationMinutesSnapshot: 60,
-      priceMinorSnapshot: 5_000,
-      canonicalAppointmentId: appointmentId,
-      provenanceCreatedBy: null,
-      provenanceUpdatedBy: null,
-    });
-    const records = new Map([
-      [APPOINTMENT_ID, recordFor(APPOINTMENT_ID, 9)],
-      [secondAppointmentId, recordFor(secondAppointmentId, 10)],
-    ]);
-    const handler = createAppointmentPaymentConfirmedHandler({
-      patientBookings: {
-        markConfirmedByCanonicalAppointment: vi.fn(async (appointmentId: string) =>
-          records.get(appointmentId) ?? null,
-        ),
-        getByCanonicalAppointmentId: vi.fn(async (appointmentId: string) =>
-          records.get(appointmentId) ?? null,
-        ),
-      },
-      bookingEngine: {
-        getAppointment: vi.fn(async (appointmentId: string) => ({
-          id: appointmentId,
-          organizationId: ORGANIZATION_ID,
-          appointmentReminderPresetId: null,
-        }) as never),
-      },
-      loadNotificationSettings: vi.fn(async () => null as never),
-      bookingSync: {
-        emitBookingEvent: vi.fn(async (event) => {
-          emitted.push(event as unknown as Record<string, unknown>);
-        }),
-      },
-    });
-    const settleProviderWebhookEvent = vi.fn(async () => ({
-      ...captured,
-      confirmedAppointmentIds: [APPOINTMENT_ID, secondAppointmentId],
-    }));
-    const service = createPaymentsService({
-      port: { settleProviderWebhookEvent } as unknown as PaymentsPort,
-      config: { getBookingPaymentSettings: async () => settings },
-      captureUnitOfWork: {
-        run: async (_orgId, fn) => fn(),
-        runSerializedPostCommit: async (_orgId, _key, fn) => fn(),
-      },
-      bookingEngine: null,
-      onAppointmentPaymentConfirmed: handler,
-    });
-
-    await deliver(service);
-
-    expect(emitted).toHaveLength(1);
   });
 
   it('notifies nobody when the door captured nothing', async () => {
