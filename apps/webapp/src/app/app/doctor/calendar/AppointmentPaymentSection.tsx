@@ -4,6 +4,7 @@ import Image from 'next/image';
 import toast from 'react-hot-toast';
 import { CircleCheck } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
+import { DateTime } from 'luxon';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { DoctorModal, DoctorModalFooter } from '@/shared/ui/doctor/DoctorModal';
 import {
@@ -20,6 +21,33 @@ type Response = { ok?: boolean; payment?: CalendarAppointmentPaymentView; error?
 
 const money = (amountMinor: number, currency = 'RUB') =>
   (amountMinor / 100).toLocaleString('ru-RU', { style: 'currency', currency });
+
+/** Сколько осталось до срока, словами: «18 минут», «2 часа 05 минут», «3 дня». */
+function formatRemaining(msLeft: number): string {
+  const totalMinutes = Math.ceil(msLeft / 60_000);
+  if (totalMinutes >= 60 * 24) {
+    const days = Math.ceil(totalMinutes / (60 * 24));
+    const mod100 = days % 100;
+    const mod10 = days % 10;
+    const word =
+      mod100 >= 11 && mod100 <= 14 ? 'дней' : mod10 === 1 ? 'день' : mod10 >= 2 && mod10 <= 4 ? 'дня' : 'дней';
+    return `${days} ${word}`;
+  }
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (hours > 0) return `${hours} ч ${String(minutes).padStart(2, '0')} мин`;
+  const mod100 = minutes % 100;
+  const mod10 = minutes % 10;
+  const word =
+    mod100 >= 11 && mod100 <= 14
+      ? 'минут'
+      : mod10 === 1
+        ? 'минута'
+        : mod10 >= 2 && mod10 <= 4
+          ? 'минуты'
+          : 'минут';
+  return `${minutes} ${word}`;
+}
 
 function errorLabel(error: string, patientSingularLabel: string) {
   if (error === 'payments_disabled') return 'Приём платежей выключен для клиники.';
@@ -40,6 +68,7 @@ export function AppointmentPaymentSection({
   patientUserId,
   patientName,
   appointmentWhen,
+  timeZone,
   onPaymentChange,
 }: {
   apiBase: string;
@@ -53,6 +82,8 @@ export function AppointmentPaymentSection({
   patientUserId?: string | null;
   patientName: string;
   appointmentWhen: string;
+  /** Часовой пояс клиники — срок оплаты показывается в нём, а не в поясе браузера врача. */
+  timeZone: string;
   onPaymentChange?: (payment: CalendarAppointmentPaymentView) => void;
 }) {
   const { patientSingularLabel } = useDoctorPatientTerms();
@@ -188,6 +219,28 @@ export function AppointmentPaymentSection({
         ? `Не оплачено · предоплата ${money(prepaymentDueMinor, current.prepayment?.currency)}`
         : 'Не оплачено';
 
+  // S6.3/S6.4: срок оплаты — не украшение, а то, что делит экран надвое. Пока он не вышел, врач
+  // показывает ссылку и QR; как только вышел, бронь уже отменена фоновым тиком, и показывать
+  // мёртвую ссылку нельзя — по ней пациент заплатит за отданное другому время.
+  const deadlineAt = current.prepayment?.deadlineAt ?? null;
+  const deadlineMs = deadlineAt ? DateTime.fromISO(deadlineAt, { setZone: true }).toMillis() : null;
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    if (!collectOpen || deadlineMs === null || !Number.isFinite(deadlineMs)) return;
+    const timer = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [collectOpen, deadlineMs]);
+
+  const hasDeadline = deadlineMs !== null && Number.isFinite(deadlineMs);
+  const deadlinePassed = hasDeadline && deadlineMs <= nowMs;
+  /** Счёт истёк только пока он не оплачен: оплаченная запись срок уже пережила. */
+  const invoiceExpired = deadlinePassed && !isSettled;
+  const invoiceAlive = Boolean(link) && !invoiceExpired;
+  const deadlineLabel = hasDeadline
+    ? DateTime.fromMillis(deadlineMs).setZone(timeZone).setLocale('ru').toFormat('d MMMM, HH:mm')
+    : null;
+  const canSendLink = invoiceAlive && current.patientChatAvailable && Boolean(patientUserId);
+
   useEffect(() => {
     if (!collectOpen || isSettled) return;
     const refresh = () => {
@@ -250,8 +303,23 @@ export function AppointmentPaymentSection({
                   Счёт на предоплату: {money(prepaymentDueMinor, current.prepayment?.currency)}
                 </p>
               ) : null}
-              {link ? (
+              {invoiceExpired ? (
+                <div className="space-y-1 rounded-lg border border-destructive/40 bg-destructive/5 p-3">
+                  <p className="font-medium text-destructive">Оплата не поступила</p>
+                  <p className={doctorSecondaryListTextClass}>
+                    Бронирование отменено, время освобождено.
+                  </p>
+                </div>
+              ) : invoiceAlive && link ? (
                 <div className="flex flex-col gap-3">
+                  {deadlineLabel ? (
+                    <div className="rounded-lg border border-border bg-muted/20 p-3">
+                      <p className="text-lg font-semibold">Оплатить до {deadlineLabel}</p>
+                      <p className={doctorSecondaryListTextClass}>
+                        Осталось {formatRemaining(Math.max(0, (deadlineMs ?? 0) - nowMs))}
+                      </p>
+                    </div>
+                  ) : null}
                   <button
                     type="button"
                     className="cursor-copy break-all rounded-lg border border-border bg-muted/20 p-3 text-left text-sm text-primary"
@@ -276,17 +344,6 @@ export function AppointmentPaymentSection({
                     className="mx-auto h-auto w-full max-w-72"
                     unoptimized
                   />
-                  {current.patientChatAvailable && patientUserId ? (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      disabled={pending}
-                      onClick={sendLinkToChat}
-                    >
-                      {chatSent ? 'Отправлено в чат' : 'Отправить в чат'}
-                    </Button>
-                  ) : null}
                 </div>
               ) : null}
             </>
@@ -294,7 +351,24 @@ export function AppointmentPaymentSection({
         </div>
         {!isSettled && canCollect ? (
           <DoctorModalFooter>
-            {current.onlinePaymentAvailable ? (
+            {/*
+              S6.1/S6.2: пока счёт жив, выставлять второй незачем — кнопка уходит. На её месте
+              появляется отправка ссылки, но только если у пациента есть подтверждённый канал;
+              иначе врач показывает ссылку и QR с экрана. Истёк счёт — кнопка возвращается.
+            */}
+            {invoiceAlive ? (
+              canSendLink ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={pending}
+                  onClick={sendLinkToChat}
+                >
+                  {chatSent ? 'Ссылка отправлена' : 'Отправить ссылку'}
+                </Button>
+              ) : null
+            ) : current.onlinePaymentAvailable ? (
               <Button
                 type="button"
                 size="sm"
