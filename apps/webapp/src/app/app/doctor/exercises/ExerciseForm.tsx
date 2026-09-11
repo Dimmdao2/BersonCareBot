@@ -2,7 +2,6 @@
 
 import Link from 'next/link';
 import { useActionState, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ReferenceSelect } from '@/shared/ui/doctor/ReferenceSelect';
 import { ReferenceMultiSelect } from '@/shared/ui/doctor/ReferenceMultiSelect';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import {
@@ -93,7 +92,7 @@ export type ExerciseFormValues = {
   tags: string;
   contraindications: string;
   regionRefIds: string[];
-  loadType: ExerciseLoadType | '';
+  loadTypes: ExerciseLoadType[];
   mediaUrl: string;
   mediaType: '' | ExerciseMediaType;
 };
@@ -106,7 +105,7 @@ export function exerciseToFormValues(exercise: Exercise | null | undefined): Exe
     tags: exercise?.tags?.join(', ') ?? '',
     contraindications: exercise?.contraindications ?? '',
     regionRefIds: exercise?.regionRefIds ? [...exercise.regionRefIds] : [],
-    loadType: (exercise?.loadType ?? '') as ExerciseLoadType | '',
+    loadTypes: exercise?.loadTypes ? [...exercise.loadTypes] : [],
     mediaUrl: initialMedia?.mediaUrl ?? '',
     mediaType: (initialMedia?.mediaType ?? '') as ExerciseFormValues['mediaType'],
   };
@@ -443,25 +442,18 @@ export function ExerciseForm({
             </div>
 
             <div className="flex flex-col gap-3">
-              <Label htmlFor="ex-load-type">Тип нагрузки</Label>
-              <ReferenceSelect
-                id="ex-load-type"
-                name="loadType"
+              <span className="text-sm font-medium">Тип нагрузки</span>
+              <ReferenceMultiSelect
                 categoryCode={EXERCISE_LOAD_TYPE_CATEGORY_CODE}
                 prefetchedItems={loadTypeItems}
                 valueMatch="code"
                 submitField="code"
-                value={values.loadType || null}
-                onChange={(code) => {
-                  setValues((prev) => ({
-                    ...prev,
-                    loadType: code ? (code as ExerciseLoadType) : '',
-                  }));
-                }}
-                placeholder="Выберите тип нагрузки"
-                clearOptionLabel="Без типа нагрузки"
-                className="max-w-md"
-                showAllOnFocus
+                name="loadTypes"
+                value={values.loadTypes}
+                onChange={(codes) =>
+                  setValues((v) => ({ ...v, loadTypes: codes as ExerciseLoadType[] }))
+                }
+                placeholder="Добавить тип нагрузки…"
               />
             </div>
 

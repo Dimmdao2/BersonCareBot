@@ -14,7 +14,6 @@ import type { ExerciseMediaType, ExerciseUsageSnapshot } from '@/modules/lfk-exe
 import {
   EXERCISE_LOAD_TYPE_CATEGORY_CODE,
   exerciseLoadTypeWriteAllowSet,
-  parseExerciseLoadFormValue,
 } from '@/modules/lfk-exercises/exerciseLoadTypeReference';
 import { parseMediaFileIdFromAppUrl } from '@/shared/lib/mediaPreviewUrls';
 import { API_MEDIA_URL_RE } from '@/shared/lib/mediaUrlPolicy';
@@ -35,6 +34,17 @@ function parseRegionRefIdsFromFormData(fd: FormData, fieldName: string): string[
     if (typeof x !== 'string') continue;
     const t = x.trim();
     if (UUID_RE.test(t)) out.push(t);
+  }
+  return [...new Set(out)];
+}
+
+function parseLoadTypesFromFormData(fd: FormData, fieldName: string, allow: Set<string>): string[] {
+  const raw = fd.getAll(fieldName);
+  const out: string[] = [];
+  for (const x of raw) {
+    if (typeof x !== 'string') continue;
+    const t = x.trim();
+    if (t && allow.has(t)) out.push(t);
   }
   return [...new Set(out)];
 }
@@ -310,7 +320,7 @@ export async function saveDoctorExerciseCore(formData: FormData): Promise<SaveEx
   }
 
   const description = (formData.get('description') as string)?.trim() || null;
-  const loadType = parseExerciseLoadFormValue(formData.get('loadType'), loadAllow);
+  const loadTypes = parseLoadTypesFromFormData(formData, 'loadTypes', loadAllow);
   const diffRaw = formData.get('difficulty1_10');
   let difficulty1_10: number | null = null;
   if (typeof diffRaw === 'string' && diffRaw.trim()) {
@@ -355,7 +365,7 @@ export async function saveDoctorExerciseCore(formData: FormData): Promise<SaveEx
         title,
         description,
         regionRefIds,
-        loadType,
+        loadTypes,
         difficulty1_10,
         contraindications,
         tags,
@@ -374,7 +384,7 @@ export async function saveDoctorExerciseCore(formData: FormData): Promise<SaveEx
       title,
       description,
       regionRefIds,
-      loadType,
+      loadTypes,
       difficulty1_10,
       contraindications,
       tags,

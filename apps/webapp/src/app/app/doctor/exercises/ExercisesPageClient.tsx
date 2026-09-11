@@ -203,7 +203,7 @@ function ExercisesContent({
       ex.regionRefIds.map((rid) => bodyRegionIdToCode[rid]).filter((c): c is string => Boolean(c)),
     [bodyRegionIdToCode],
   );
-  const getItemLoadType = useCallback((ex: Exercise) => ex.loadType, []);
+  const getItemLoadTypes = useCallback((ex: Exercise) => ex.loadTypes, []);
 
   useEffect(() => {
     if (selection.exercise?.id) setDesktopSelectedId(selection.exercise.id);
@@ -241,7 +241,7 @@ function ExercisesContent({
       regionCode: filters.regionCode,
       loadType: filters.loadType ?? null,
       getItemRegionCodes,
-      getItemLoadType,
+      getItemLoadTypes,
     },
   );
 
