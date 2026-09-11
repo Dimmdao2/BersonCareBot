@@ -1,5 +1,9 @@
 # Аудит S0а: платформенное чтение семейства ЛФК
 
+> **Текущий статус 11.09.2026:** применение на именованной DEV-базе независимо перепроверено и получило
+> **PASS 7/7** — см. раздел «Повторный live-аудит применения после reconcile». Первоначальный BLOCKED ниже
+> сохранён как исторический результат первого аудита, когда политика ещё не была применена.
+
 **Кандидат:** `49fe1c4d8` от `feat/doctor-ui-rebuild@cf16f7845`
 **Authority:** `EXERCISE_STORE_PLAN.md` §5 S0а, И1, И2
 **Роль:** `auditor-live`
@@ -155,3 +159,367 @@ K8 — generated/invariant gates; каждый named class дал красное
 последствие: после landing без интеграционного обновления `app_staff` продолжит получать `0` platform rows.
 Нужен интеграционный rebase/перегенерация декларации на актуальном `feat`, затем штатный reconcile и повтор
 сохранённого live-proof. Это продуктовая/integration-правка вне полномочий аудитора.
+
+---
+
+## Повторный live-аудит применения после reconcile — 11.09.2026
+
+**Проверяемый committed candidate:** `4204dfc8c4c8408b639d8474920b644a730f2833`
+**Authority:** `EXERCISE_STORE_PLAN.md` §5 S0а, И1, И2; brief «Аудит применения S0а на DEV»
+**Роль:** `auditor-live`
+
+### Классификация до проверки
+
+1. Качество разового действия: четыре политики реально существуют в каталоге именованной DEV-БД.
+2. Качество разового действия: фактические policy-поля совпадают с declaration и его generated projection.
+3. Повторяемое поведение: сохранённый PostgreSQL proof проверяет чтение, tenant isolation и write denial.
+4. Качество существующего acceptance-test: временная поломка фактической DEV-policy обязана покрасить proof.
+5. Качество разового действия: generated artifacts побайтно совпадают с declaration.
+6. Повторяемое security-поведение: реальный `app_staff` не пишет в platform layer при сохранённых соседних
+   политиках и ACL.
+7. Качество разового действия: каждый DB-вызов направлен только в `bcb_webapp_dev` через локальный socket.
+
+Новый тест не создавался: сохранённый proof поймал фактическую fault injection на публичной PostgreSQL-границе.
+
+### Периметр — итог 7/7 PASS
+
+#### 1 → PASS → четыре policy реально существуют
+
+Команда после восстановления инъекции:
+
+```bash
+sudo -n -u postgres psql -X -h /var/run/postgresql -p 5432 -d bcb_webapp_dev \
+  -v ON_ERROR_STOP=1 -P pager=off -c "SELECT tablename, policyname, cmd, roles, qual
+  FROM pg_policies
+ WHERE schemaname = 'public'
+   AND tablename IN ('lfk_exercises','lfk_exercise_media','lfk_exercise_regions','lfk_exercise_load_types')
+   AND policyname LIKE 'rev10_platform_lfk_read_%'
+ ORDER BY tablename, policyname;"
+```
+
+Полный вывод запрошенных полей:
+
+```text
+        tablename        |         policyname          |  cmd   |    roles    |                                                                                   qual
+-------------------------+-----------------------------+--------+-------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ lfk_exercise_load_types | rev10_platform_lfk_read_98  | SELECT | {app_staff} | ((CURRENT_USER = 'app_staff'::name) AND (( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (owner_kind = 'platform'::text) AND (organization_id IS NULL))
+ lfk_exercise_media      | rev10_platform_lfk_read_99  | SELECT | {app_staff} | ((CURRENT_USER = 'app_staff'::name) AND (( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (owner_kind = 'platform'::text) AND (organization_id IS NULL))
+ lfk_exercise_regions    | rev10_platform_lfk_read_100 | SELECT | {app_staff} | ((CURRENT_USER = 'app_staff'::name) AND (( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (owner_kind = 'platform'::text) AND (organization_id IS NULL))
+ lfk_exercises           | rev10_platform_lfk_read_101 | SELECT | {app_staff} | ((CURRENT_USER = 'app_staff'::name) AND (( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (owner_kind = 'platform'::text) AND (organization_id IS NULL))
+(4 rows)
+```
+
+#### 2 → PASS → catalog совпадает с declaration
+
+Команда:
+
+```bash
+sed -n '32759,32770p' deploy/postgres/privileges/declaration.ts
+rg -n "rev10_platform_lfk_read" deploy/postgres/generated/privileges.bcb_webapp_dev.sql
+```
+
+Вывод declaration:
+
+```text
+function revision10PlatformLfkReadPolicy(tableKey: string, index: number): PolicyDecl[] {
+  if (!REV10_PLATFORM_LFK_READ_RELATIONS.has(tableKey)) return [];
+  return [{
+    name: `rev10_platform_lfk_read_${index + 1}`,
+    as: 'PERMISSIVE',
+    cmd: 'SELECT',
+    to: ['app_staff'],
+    using: `(current_user = 'app_staff'::name AND app.current_org_id() IS NOT NULL`
+      + ` AND "owner_kind" = 'platform' AND "organization_id" IS NULL)`,
+    note: `staff may read, but not mutate, platform-owned LFK catalog rows in ${tableKey}`,
+  }];
+}
+```
+
+Вывод generated projection:
+
+```text
+14405:CREATE POLICY "rev10_platform_lfk_read_98" ON "public"."lfk_exercise_load_types" AS PERMISSIVE FOR SELECT TO "app_staff" USING ((current_user = 'app_staff'::name AND (SELECT app.current_org_id()) IS NOT NULL AND "owner_kind" = 'platform' AND "organization_id" IS NULL));
+14448:CREATE POLICY "rev10_platform_lfk_read_99" ON "public"."lfk_exercise_media" AS PERMISSIVE FOR SELECT TO "app_staff" USING ((current_user = 'app_staff'::name AND (SELECT app.current_org_id()) IS NOT NULL AND "owner_kind" = 'platform' AND "organization_id" IS NULL));
+14487:CREATE POLICY "rev10_platform_lfk_read_100" ON "public"."lfk_exercise_regions" AS PERMISSIVE FOR SELECT TO "app_staff" USING ((current_user = 'app_staff'::name AND (SELECT app.current_org_id()) IS NOT NULL AND "owner_kind" = 'platform' AND "organization_id" IS NULL));
+14530:CREATE POLICY "rev10_platform_lfk_read_101" ON "public"."lfk_exercises" AS PERMISSIVE FOR SELECT TO "app_staff" USING ((current_user = 'app_staff'::name AND (SELECT app.current_org_id()) IS NOT NULL AND "owner_kind" = 'platform' AND "organization_id" IS NULL));
+```
+
+Сравнение с полным `pg_policies`-выводом пункта 1 даёт те же `name/cmd/roles/qual`; различия только в
+канонической печати PostgreSQL (`CURRENT_USER`, явные casts и alias scalar-subquery). Побайтную связь
+declaration → generated artifact независимо подтверждает пункт 5.
+
+#### 3 → PASS → сохранённый proof зелёный на применённой базе
+
+Команда после финального восстановления policy:
+
+```bash
+RUN_PLATFORM_LFK_READ_DB=1 PLATFORM_LFK_READ_PROOF_DB=bcb_webapp_dev \
+  node --test deploy/postgres/privileges/platform-lfk-read.devDbProof.test.mjs
+```
+
+Вывод:
+
+```text
+TAP version 13
+# Subtest: staff with an organization context reads the complete platform family and no foreign family
+ok 1 - staff with an organization context reads the complete platform family and no foreign family
+# Subtest: staff cannot insert, update, or delete the referential platform layer
+ok 2 - staff cannot insert, update, or delete the referential platform layer
+# Subtest: staff without an organization context cannot see platform rows
+ok 3 - staff without an organization context cannot see platform rows
+# Subtest: the patient role has no ambient read of the platform LFK layer
+ok 4 - the patient role has no ambient read of the platform LFK layer
+# Subtest: the child-owner trigger rejects a child that disagrees with its platform parent
+ok 5 - the child-owner trigger rejects a child that disagrees with its platform parent
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 668.315948
+```
+
+#### 4 → PASS → proof красный на сломанной DEV-policy, затем policy возвращена
+
+Временная поломка и обязательное восстановление выполнялись одной foreground-командой с
+`trap restore_policy EXIT HUP INT TERM`. Существенные команды:
+
+```bash
+sudo -n -u postgres psql -X -h /var/run/postgresql -p 5432 -d bcb_webapp_dev \
+  -v ON_ERROR_STOP=1 -c "ALTER POLICY rev10_platform_lfk_read_101 ON public.lfk_exercises
+  USING ((current_user = 'app_staff'::name));"
+RUN_PLATFORM_LFK_READ_DB=1 PLATFORM_LFK_READ_PROOF_DB=bcb_webapp_dev \
+  node --test deploy/postgres/privileges/platform-lfk-read.devDbProof.test.mjs
+sudo -n -u postgres psql -X -h /var/run/postgresql -p 5432 -d bcb_webapp_dev \
+  -v ON_ERROR_STOP=1 -c "ALTER POLICY rev10_platform_lfk_read_101 ON public.lfk_exercises
+  USING ((current_user = 'app_staff'::name AND (SELECT app.current_org_id()) IS NOT NULL
+    AND owner_kind = 'platform' AND organization_id IS NULL));"
+```
+
+Вывод сломанного состояния и proof:
+
+```text
+ALTER POLICY
+ current_database |         policyname          |  cmd   |    roles    |                qual
+------------------+-----------------------------+--------+-------------+------------------------------------
+ bcb_webapp_dev   | rev10_platform_lfk_read_101 | SELECT | {app_staff} | (CURRENT_USER = 'app_staff'::name)
+(1 row)
+
+not ok 1 - staff with an organization context reads the complete platform family and no foreign family
+error: |-
+  PROOF_FOREIGN_PARENT: the non-empty foreign row must stay hidden
+
+  '1' !== '0'
+expected: '0'
+actual: '1'
+...
+# tests 5
+# pass 4
+# fail 1
+FAULT_PROOF_EXIT=1
+```
+
+Вывод восстановления:
+
+```text
+ALTER POLICY
+ current_database |         policyname          |  cmd   |    roles    |                                                                                   qual
+------------------+-----------------------------+--------+-------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ bcb_webapp_dev   | rev10_platform_lfk_read_101 | SELECT | {app_staff} | ((CURRENT_USER = 'app_staff'::name) AND (( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (owner_kind = 'platform'::text) AND (organization_id IS NULL))
+(1 row)
+```
+
+Затем полный postcheck пункта 1 вернул все четыре исходные policy, а повторный proof пункта 3 снова дал 5/5.
+
+#### 5 → PASS → generated drift-gate зелёный
+
+Команда:
+
+```bash
+pnpm run check:db-privileges-generated
+```
+
+Вывод:
+
+```text
+> berson-care-bot@1.0.0 check:db-privileges-generated
+> node deploy/postgres/privileges/generate-cli.mjs --check && node deploy/postgres/privileges/generate-cli.mjs --all --check --port-context-only
+
+ok bcb_webapp_dev/privileges: deploy/postgres/generated/privileges.bcb_webapp_dev.sql совпадает побайтно
+ok bcb_webapp_dev/allowlist: deploy/postgres/generated/org-allowlist.bcb_webapp_dev.sql совпадает побайтно
+ok bersoncarebot_test/privileges: deploy/postgres/generated/privileges.bersoncarebot_test.sql совпадает побайтно
+ok bersoncarebot_test/allowlist: deploy/postgres/generated/org-allowlist.bersoncarebot_test.sql совпадает побайтно
+ok therapysto_prod/privileges: deploy/postgres/generated/privileges.therapysto_prod.sql совпадает побайтно
+ok therapysto_prod/allowlist: deploy/postgres/generated/org-allowlist.therapysto_prod.sql совпадает побайтно
+--check: артефакты соответствуют декларации побайтно.
+ok bcb_webapp_dev/portContext: deploy/postgres/generated/port-context-capabilities.bcb_webapp_dev.sql совпадает побайтно
+ok bersoncarebot_test/portContext: deploy/postgres/generated/port-context-capabilities.bersoncarebot_test.sql совпадает побайтно
+ok therapysto_prod/portContext: deploy/postgres/generated/port-context-capabilities.therapysto_prod.sql совпадает побайтно
+--check: артефакты соответствуют декларации побайтно.
+```
+
+Это файловый generator-check; он не подключается ни к TEST, ни к PROD.
+
+#### 6 → PASS → прежние стены на месте, platform write реально запрещена
+
+Команда catalog inspection:
+
+```bash
+sudo -n -u postgres psql -X -h /var/run/postgresql -p 5432 -d bcb_webapp_dev \
+  -v ON_ERROR_STOP=1 -P pager=off -c "SELECT tablename, policyname, permissive, cmd, roles,
+  (qual IS NOT NULL) AS has_using, (with_check IS NOT NULL) AS has_with_check
+  FROM pg_policies WHERE schemaname='public'
+  AND tablename IN ('lfk_exercises','lfk_exercise_media','lfk_exercise_regions','lfk_exercise_load_types')
+  ORDER BY tablename, policyname;"
+```
+
+Вывод для обязательных соседних policy:
+
+```text
+lfk_exercise_load_types | rev10_context_gate_98          | RESTRICTIVE | ALL | {app_staff} | t | t
+lfk_exercise_load_types | rev10_saas_org_dormant_p0_8_3  | PERMISSIVE  | ALL | {app_staff} | t | t
+lfk_exercise_media      | rev10_context_gate_99          | RESTRICTIVE | ALL | {app_staff} | t | t
+lfk_exercise_media      | rev10_saas_org_dormant_p0_8_4  | PERMISSIVE  | ALL | {app_staff} | t | t
+lfk_exercise_regions    | rev10_context_gate_100         | RESTRICTIVE | ALL | {app_staff} | t | t
+lfk_exercise_regions    | rev10_saas_org_dormant_p0_8_3  | PERMISSIVE  | ALL | {app_staff} | t | t
+lfk_exercises           | rev10_context_gate_101         | RESTRICTIVE | ALL | {app_staff} | t | t
+lfk_exercises           | rev10_saas_org_dormant_p0_8_3  | PERMISSIVE  | ALL | {app_staff} | t | t
+```
+
+Прямой write-proof использовал уже существующий active staff member и его declaration-owned capability,
+открыл accepted port-context, затем реально исполнил:
+
+```sql
+INSERT INTO public.lfk_exercises (id, owner_kind, organization_id, catalog_scope, title)
+VALUES (gen_random_uuid(), 'platform', NULL, 'catalog', 'S0a forbidden platform write proof');
+```
+
+Команда подключения: `sudo -n -u postgres psql -X -A -t -q -h /var/run/postgresql -p 5432
+-d bcb_webapp_dev -v ON_ERROR_STOP=1`; перед INSERT в той же транзакции выполнены
+`SET LOCAL SESSION AUTHORIZATION <staff-session-login>` и `app.begin_port_context(...)` для `app_staff`.
+Вывод:
+
+```text
+WRITE_CONTEXT|app_staff@bcb_webapp_dev
+ERROR:  42501: new row violates row-level security policy for table "lfk_exercises"
+LOCATION:  ExecWithCheckOptions, execMain.c:2234
+PLATFORM_WRITE_EXIT=3
+```
+
+Тот же inventory сохранил все restrictive context gates, tenant `FOR ALL ... WITH CHECK`, отдельные platform
+`FOR SELECT` и существующие named-seam policy на parent/media. Точные declared write ACL:
+
+```bash
+rg -n '^GRANT .*lfk_(exercise_load_types|exercise_media|exercise_regions|exercises).* TO "app_staff";$' \
+  deploy/postgres/generated/privileges.bcb_webapp_dev.sql
+```
+
+```text
+14376:GRANT SELECT, DELETE ON TABLE "public"."lfk_exercise_load_types" TO "app_staff";
+14377:GRANT INSERT ("exercise_id", "load_type", "organization_id", "owner_kind") ON TABLE "public"."lfk_exercise_load_types" TO "app_staff";
+14418:GRANT SELECT, DELETE ON TABLE "public"."lfk_exercise_media" TO "app_staff";
+14419:GRANT INSERT ("created_at", "exercise_id", "id", "media_type", "media_url", "organization_id", "owner_kind", "sort_order") ON TABLE "public"."lfk_exercise_media" TO "app_staff";
+14458:GRANT SELECT, DELETE ON TABLE "public"."lfk_exercise_regions" TO "app_staff";
+14459:GRANT INSERT ("exercise_id", "organization_id", "owner_kind", "region_ref_id") ON TABLE "public"."lfk_exercise_regions" TO "app_staff";
+14499:GRANT SELECT ON TABLE "public"."lfk_exercises" TO "app_staff";
+14500:GRANT INSERT ("catalog_scope", "contraindications", "created_at", "created_by", "description", "difficulty_1_10", "id", "is_archived", "load_type", "organization_id", "owner_kind", "region_ref_id", "tags", "title", "updated_at") ON TABLE "public"."lfk_exercises" TO "app_staff";
+14501:GRANT UPDATE ("contraindications", "created_by", "description", "difficulty_1_10", "is_archived", "load_type", "region_ref_id", "tags", "title", "updated_at") ON TABLE "public"."lfk_exercises" TO "app_staff";
+```
+
+Фактические table-level grants:
+
+```bash
+sudo -n -u postgres psql -X -h /var/run/postgresql -p 5432 -d bcb_webapp_dev \
+  -v ON_ERROR_STOP=1 -P pager=off -c "SELECT table_name, privilege_type,
+  string_agg(DISTINCT grantee, ',' ORDER BY grantee) AS grantees
+  FROM information_schema.role_table_grants
+  WHERE table_schema='public' AND grantee='app_staff'
+  AND table_name IN ('lfk_exercises','lfk_exercise_media','lfk_exercise_regions','lfk_exercise_load_types')
+  GROUP BY table_name, privilege_type ORDER BY table_name, privilege_type;"
+```
+
+```text
+       table_name        | privilege_type | grantees
+-------------------------+----------------+-----------
+ lfk_exercise_load_types | DELETE         | app_staff
+ lfk_exercise_load_types | SELECT         | app_staff
+ lfk_exercise_media      | DELETE         | app_staff
+ lfk_exercise_media      | SELECT         | app_staff
+ lfk_exercise_regions    | DELETE         | app_staff
+ lfk_exercise_regions    | SELECT         | app_staff
+ lfk_exercises           | SELECT         | app_staff
+(7 rows)
+```
+
+Фактические column-level write grants:
+
+```bash
+sudo -n -u postgres psql -X -h /var/run/postgresql -p 5432 -d bcb_webapp_dev \
+  -v ON_ERROR_STOP=1 -P pager=off -c "SELECT table_name, privilege_type,
+  string_agg(column_name, ', ' ORDER BY column_name) AS columns
+  FROM information_schema.role_column_grants
+  WHERE table_schema='public' AND grantee='app_staff'
+  AND table_name IN ('lfk_exercises','lfk_exercise_media','lfk_exercise_regions','lfk_exercise_load_types')
+  AND privilege_type IN ('INSERT','UPDATE')
+  GROUP BY table_name, privilege_type ORDER BY table_name, privilege_type;"
+```
+
+```text
+       table_name        | privilege_type |                                                                                         columns
+-------------------------+----------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ lfk_exercise_load_types | INSERT         | exercise_id, load_type, organization_id, owner_kind
+ lfk_exercise_media      | INSERT         | created_at, exercise_id, id, media_type, media_url, organization_id, owner_kind, sort_order
+ lfk_exercise_regions    | INSERT         | exercise_id, organization_id, owner_kind, region_ref_id
+ lfk_exercises           | INSERT         | catalog_scope, contraindications, created_at, created_by, description, difficulty_1_10, id, is_archived, load_type, organization_id, owner_kind, region_ref_id, tags, title, updated_at
+ lfk_exercises           | UPDATE         | contraindications, created_by, description, difficulty_1_10, is_archived, load_type, region_ref_id, tags, title, updated_at
+(5 rows)
+```
+
+Наборы колонок совпадают с generated declaration; reconcile не расширил write grants. Исторический table-level
+DELETE на трёх child-таблицах также виден в declared output выше. Несмотря на сохранённые tenant write-grants,
+platform-row закрыта отдельной SELECT-only policy и прежней tenant `FOR ALL ... WITH CHECK`: запрещённый INSERT
+не оставил строку, транзакция была оборвана PostgreSQL на `42501`.
+
+#### 7 → PASS → только локальная DEV-база; TEST/PROD не затронуты
+
+Все DB-команды этого прохода перечислены в пунктах 1, 4 и 6 и содержат одновременно:
+`-h /var/run/postgresql -p 5432 -d bcb_webapp_dev`. Proof дополнительно получил
+`PLATFORM_LFK_READ_PROOF_DB=bcb_webapp_dev` и сам fail-closed отказывает при любом другом имени базы.
+
+Команда target identity:
+
+```bash
+sudo -n -u postgres psql -X -h /var/run/postgresql -p 5432 -d bcb_webapp_dev \
+  -v ON_ERROR_STOP=1 -c "SELECT current_database() AS database,
+  inet_server_addr() AS server_addr, current_setting('port') AS server_port;"
+```
+
+Вывод:
+
+```text
+    database    | server_addr | server_port
+----------------+-------------+-------------
+ bcb_webapp_dev |             | 5432
+(1 row)
+```
+
+Пустой `server_addr` при явно заданном `-h /var/run/postgresql` подтверждает Unix-domain socket, не TCP.
+`reconcile-access.mjs` в этом audit-pass не перезапускался; применённое воркером состояние проверялось
+интроспекцией и поведением. `check:db-privileges-generated` читал файлы всех сред, но ни к одной БД не подключался.
+Команд с `bersoncarebot_test`, `therapysto_prod`, адресами `135.*`, TEST/PROD env или remote host не было.
+
+### Fault-injection tally
+
+**Убито 1 / непойманных 0.** Ослабление фактически применённой policy до staff-only предиката поймано
+на чужом tenant row; после восстановления тот же proof снова зелёный 5/5.
+
+### НЕ ПРОВЕРЕНО
+
+- TEST и оба PROD намеренно не открывались и не инспектировались: это запрещено brief; их runtime-состояние
+  этим DEV-аудитом не утверждается.
+- Owner UI-проход «включить тариф и увидеть постоянное платформенное упражнение» не выполнялся: brief проверяет
+  DB-применение, а proof использует только rollback fixtures. Живая UI-приёмка остаётся отдельным milestone-gate.
+- S0б, S0в, полный CI и application-код не входят в этот audit-pass и не проверялись.
