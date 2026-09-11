@@ -4,7 +4,10 @@ import { useCallback, useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/shared/ui/patient/primitives/button';
 import { publicBookPaths } from '@/shared/publicBook/paths';
-import { classifyPaymentIntentStatus } from '@/shared/lib/paymentStatusView';
+import {
+  classifyPaymentIntentStatus,
+  classifyPrepaymentBookingStatus,
+} from '@/shared/lib/paymentStatusView';
 import { formatBookingDateTimeMediumRu } from '@/shared/lib/formatBusinessDateTime';
 import { PaymentLinkQrCode } from '@/shared/ui/patient/PaymentLinkQrCode';
 import toast from 'react-hot-toast';
@@ -76,12 +79,17 @@ export function PublicBookingPayClient({ bookingId, appDisplayTimeZone }: Props)
   const deadlineMs = paymentDeadlineAt ? Date.parse(paymentDeadlineAt) : Number.NaN;
   const hasDeadline = Number.isFinite(deadlineMs);
   const deadlinePassed = hasDeadline && deadlineMs <= nowMs;
-  const paymentStillExpected =
-    appointmentStatus === null || appointmentStatus === 'awaiting_payment';
-  const expired = view === 'pending' && (!paymentStillExpected || deadlinePassed);
+  const bookingView = classifyPrepaymentBookingStatus(appointmentStatus);
+  // Запись уже закрыта не через этот счёт (чаще всего — наличными у врача): платить не надо, но и
+  // «бронирование отменено» тут говорить нельзя, запись жива.
+  const settledElsewhere = view === 'pending' && bookingView === 'settled';
+  const expired =
+    view === 'pending' &&
+    (bookingView === 'cancelled' || (bookingView === 'awaiting' && deadlinePassed));
+  const payable = view === 'pending' && !expired && !settledElsewhere;
 
   useEffect(() => {
-    if (view !== 'pending' || !hasDeadline || expired) return;
+    if (!payable || !hasDeadline) return;
     const untilDeadline = window.setTimeout(
       () => setNowMs(Date.now()),
       Math.max(0, deadlineMs - Date.now()),
@@ -91,15 +99,15 @@ export function PublicBookingPayClient({ bookingId, appDisplayTimeZone }: Props)
       window.clearTimeout(untilDeadline);
       window.clearInterval(tick);
     };
-  }, [deadlineMs, expired, hasDeadline, view]);
+  }, [deadlineMs, hasDeadline, payable]);
 
   useEffect(() => {
-    if (view !== 'pending' || expired) return;
+    if (!payable) return;
     const id = window.setInterval(() => {
       void load();
     }, POLL_MS);
     return () => window.clearInterval(id);
-  }, [view, expired, load]);
+  }, [payable, load]);
 
   useEffect(() => {
     if (view === 'succeeded') {
@@ -121,10 +129,12 @@ export function PublicBookingPayClient({ bookingId, appDisplayTimeZone }: Props)
   return (
     <div className="mx-auto flex max-w-md flex-col gap-4 p-4">
       <h1 className={patientPageTitleClass}>Оплата записи</h1>
-      {amountRub ? <p className={patientBodyTextClass}>К оплате: {amountRub}</p> : null}
+      {amountRub && payable ? <p className={patientBodyTextClass}>К оплате: {amountRub}</p> : null}
       {error ? <p className={`${patientBodyTextClass} text-destructive`}>{error}</p> : null}
       {view === 'succeeded' ? (
         <p className={patientBodyTextClass}>Оплата прошла</p>
+      ) : settledElsewhere ? (
+        <p className={patientBodyTextClass}>Запись подтверждена, оплачивать не нужно</p>
       ) : expired ? (
         <p className={`${patientBodyTextClass} text-destructive`}>
           Оплата не поступила, бронирование отменено

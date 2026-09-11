@@ -140,10 +140,9 @@ export function BookingUpcomingSection({ bookings, appDisplayTimeZone }: Props) 
                   {nativeBookingSubtitle(row)}
                 </p>
                 {row.status === 'awaiting_payment' ? (
-                  <BookingPaymentDeadline
-                    bookingId={row.id}
-                    appDisplayTimeZone={appDisplayTimeZone}
-                  />
+                  /* Зона филиала, а не глобальная зона приложения: дедлайн — это деньги, час
+                     разницы стоит пациенту слота. */
+                  <BookingPaymentDeadline bookingId={row.id} appDisplayTimeZone={displayTimeZone} />
                 ) : null}
               </div>
               <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
