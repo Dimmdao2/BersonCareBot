@@ -1,6 +1,7 @@
 import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipal';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import type { ClinicPublicCard, ClinicPublicCardMedia } from '@/modules/clinic-public-card/ports';
+import type { ClinicPublicSpecialistPage } from '@/modules/clinic-public-card/service';
 
 export type LoadClinicPublicCardResult =
   /** The clinic exists, is published and its page is on. */
@@ -52,6 +53,32 @@ export async function loadClinicPublicCardRsc(slug: string): Promise<LoadClinicP
     return card ? { status: 'ok', card } : { status: 'absent' };
   } catch (error) {
     reportCardFailure('app/[clinicSlug]:read-public-card', slug, error);
+    return { status: 'unavailable' };
+  }
+}
+
+/**
+ * RSC: страница ОДНОГО опубликованного специалиста.
+ *
+ * Отказ ровно тот же, что у выключенной визитки, и намеренно неразличимый: нет клиники, выключена
+ * её страница, человека не существует, он неактивен или клиника его не публикует — всё это
+ * `absent`, то есть 404. Различать причины публично значило бы дать анониму перебирать и клиники,
+ * и людей по форме ответа (план §3.3).
+ */
+export async function loadPublicSpecialistRsc(
+  slug: string,
+  specialistId: string,
+): Promise<
+  { status: 'ok'; page: ClinicPublicSpecialistPage } | { status: 'absent' } | { status: 'unavailable' }
+> {
+  stampBootstrapPrincipal('app/[clinicSlug]/specialist:read-public-specialist');
+  const deps = buildAppDeps();
+  if (!deps.clinicPublicCard) return { status: 'unavailable' };
+  try {
+    const page = await deps.clinicPublicCard.readPublicSpecialist(slug, specialistId);
+    return page ? { status: 'ok', page } : { status: 'absent' };
+  } catch (error) {
+    reportCardFailure('app/[clinicSlug]/specialist:read-public-specialist', slug, error);
     return { status: 'unavailable' };
   }
 }

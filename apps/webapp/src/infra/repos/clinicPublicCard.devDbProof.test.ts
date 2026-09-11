@@ -98,7 +98,12 @@ describe.skipIf(!enabled)('публичная визитка против нас
     }[];
     expect(rows).toHaveLength(2);
     for (const fn of rows) {
-      expect(fn.owner).toBe('app_seam_public_slug_owner');
+      // Шов визитки — СВОЙ (`app_seam_public_clinic_card_owner`). Перевод обеих дверей на
+      // `app_seam_public_slug_owner` был откачен (`cfa4e45df`: снимал роль из декларации, не снимая
+      // её из кластера, и ронял выкатку TEST), а ожидание здесь осталось от откаченной попытки —
+      // тест был красным с того дня. Источник истины: `declaration.ts` и живой каталог, они
+      // совпадают.
+      expect(fn.owner).toBe('app_seam_public_clinic_card_owner');
       expect(fn.security_definer).toBe(true);
     }
     const read = rows.find((fn) => fn.identity.startsWith('app.read_public_clinic_card'));

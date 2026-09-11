@@ -6,7 +6,11 @@ import { requireClinicManagementBookingEngine } from '../_requireClinicManagemen
 
 const PostSchema = z.object({
   fullName: z.string().min(1).max(200),
+  /** Короткое описание обычным текстом — оно же строка превью на визитке (#926 §17.H). */
   description: z.string().max(2000).nullable().optional(),
+  avatarMediaId: z.string().uuid().nullable().optional(),
+  fullDescriptionMarkdown: z.string().max(50_000).nullable().optional(),
+  cardIsPublished: z.boolean().optional().default(false),
   isActive: z.boolean().optional().default(true),
   sortOrder: z.number().int().optional().default(0),
   branchId: z.string().uuid().optional(),
@@ -42,6 +46,9 @@ export async function POST(request: Request) {
         organizationId: gate.ctx.organizationId,
         fullName: parsed.data.fullName.trim(),
         description: parsed.data.description ?? null,
+        avatarMediaId: parsed.data.avatarMediaId ?? null,
+        fullDescriptionMarkdown: parsed.data.fullDescriptionMarkdown ?? null,
+        cardIsPublished: parsed.data.cardIsPublished,
         isActive: parsed.data.isActive,
         sortOrder: parsed.data.sortOrder,
       });

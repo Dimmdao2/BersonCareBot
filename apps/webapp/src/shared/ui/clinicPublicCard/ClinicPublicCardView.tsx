@@ -11,6 +11,20 @@ import { titleForBookingCityCode } from '@/modules/patient-booking/inPersonServi
  * (набор карточки И ЕСТЬ авторизация), кабинет — через общий `/api/media/{uuid}` под сессией
  * сотрудника. Поэтому сюда приходят уже готовые `src`.
  */
+/**
+ * Специалист на визитке стоит ПРЕВЬЮ — решение владельца 11.09: «привьюшка есть на визитке
+ * клиники, а как бы подробное описание можно будет добавлять на его визитку». Поэтому здесь
+ * фотография, имя, короткая строка и переход, но не полное описание.
+ */
+export type ClinicPublicCardSpecialistView = {
+  id: string;
+  fullName: string;
+  shortDescription: string | null;
+  avatarSrc: string | null;
+  /** `null` в предпросмотре кабинета: публичного адреса страницы там ещё может не быть. */
+  href: string | null;
+};
+
 export type ClinicPublicCardLocationView = {
   title: string;
   cityCode: string | null;
@@ -23,6 +37,7 @@ export type ClinicPublicCardViewModel = {
   logoSrc: string | null;
   photoSrcs: readonly string[];
   locations: readonly ClinicPublicCardLocationView[];
+  specialists: readonly ClinicPublicCardSpecialistView[];
   publicContactPhone: string | null;
   publicContactEmail: string | null;
   publicWebsiteUrl: string | null;
@@ -59,6 +74,19 @@ export function ClinicPublicCardView({ card }: { card: ClinicPublicCardViewModel
               {paragraph}
             </p>
           ))}
+        </section>
+      ) : null}
+
+      {card.specialists.length > 0 ? (
+        <section className="flex flex-col gap-2">
+          <h2 className="text-sm font-semibold">Специалисты</h2>
+          <ul className="flex flex-col gap-2">
+            {card.specialists.map((specialist) => (
+              <li key={specialist.id}>
+                <SpecialistPreview specialist={specialist} />
+              </li>
+            ))}
+          </ul>
         </section>
       ) : null}
 
@@ -143,5 +171,46 @@ export function ClinicPublicCardView({ card }: { card: ClinicPublicCardViewModel
         </span>
       )}
     </div>
+  );
+}
+
+/**
+ * Одна строка превью. Разметка общая для ссылки и для предпросмотра без адреса: расходиться этим
+ * двум видам нельзя — клиника правит ровно то, что увидит посетитель.
+ */
+function SpecialistPreview({ specialist }: { specialist: ClinicPublicCardSpecialistView }) {
+  const body = (
+    <>
+      {specialist.avatarSrc ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={specialist.avatarSrc}
+          alt=""
+          className="size-12 shrink-0 rounded-full object-cover"
+        />
+      ) : (
+        <div
+          aria-hidden
+          className="size-12 shrink-0 rounded-full border border-border/60 bg-muted/30"
+        />
+      )}
+      <span className="flex min-w-0 flex-col">
+        <span className="truncate text-sm font-medium">{specialist.fullName}</span>
+        {specialist.shortDescription ? (
+          <span className="truncate text-sm text-muted-foreground">
+            {specialist.shortDescription}
+          </span>
+        ) : null}
+      </span>
+    </>
+  );
+
+  if (!specialist.href) {
+    return <span className="flex items-center gap-3">{body}</span>;
+  }
+  return (
+    <a href={specialist.href} className="flex items-center gap-3 hover:underline">
+      {body}
+    </a>
   );
 }

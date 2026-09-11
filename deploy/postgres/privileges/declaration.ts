@@ -13698,8 +13698,11 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         "columns": [
           "appointment_reminder_allowed_preset_ids",
           "appointment_reminder_default_preset_id",
+          "avatar_media_id",
+          "card_is_published",
           "created_at",
           "description",
+          "full_description_markdown",
           "full_name",
           "id",
           "is_active",
@@ -13716,7 +13719,10 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         "columns": [
           "appointment_reminder_allowed_preset_ids",
           "appointment_reminder_default_preset_id",
+          "avatar_media_id",
+          "card_is_published",
           "description",
+          "full_description_markdown",
           "full_name",
           "is_active",
           "organization_id",
@@ -27801,6 +27807,12 @@ const REV10_CONTEXT = {
         // что попадают на визитку, — ни одной лишней.
         { relation: 'public.be_branches',
           columns: ['organization_id', 'is_active', 'title', 'city_code', 'address', 'sort_order'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        // #926 §17.G/§17.H: опубликованные специалисты приходят той же дверью — превью на визитке и
+        // страница специалиста читают ОДИН набор, второй двери у публичной поверхности нет.
+        { relation: 'public.be_specialists',
+          columns: ['id', 'organization_id', 'full_name', 'description', 'full_description_markdown',
+            'avatar_media_id', 'is_active', 'card_is_published', 'sort_order'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.media_files',
           columns: ['id', 'owner_kind', 'organization_id', 'status', 'mime_type', 's3_key',

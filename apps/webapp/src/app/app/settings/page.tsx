@@ -281,6 +281,23 @@ export default async function SettingsPage({
               specialists: specialists
                 .filter((specialist) => specialist.isActive)
                 .map((specialist) => ({ id: specialist.id, title: specialist.fullName })),
+              // Превью специалистов для предпросмотра визитки: тот же отбор и тот же порядок, что
+              // у публичной двери (активен И опубликован, `ORDER BY sort_order, full_name`).
+              // Разойтись этим двум спискам нельзя — иначе клиника правит одну страницу, а
+              // посетитель видит другую, и расхождение молчит (находка K9 этапа 1).
+              cardSpecialists: [...specialists]
+                .filter((specialist) => specialist.isActive && specialist.cardIsPublished)
+                .sort(
+                  (left, right) =>
+                    left.sortOrder - right.sortOrder ||
+                    left.fullName.localeCompare(right.fullName),
+                )
+                .map((specialist) => ({
+                  id: specialist.id,
+                  fullName: specialist.fullName,
+                  shortDescription: specialist.description,
+                  avatarMediaId: specialist.avatarMediaId,
+                })),
             };
           })
         : Promise.resolve(null),
@@ -534,6 +551,7 @@ export default async function SettingsPage({
             skipPublicCardAtRoot={skipPublicCardAtRoot}
             identity={cardIdentity}
             locations={bookingLinkOptions?.cardLocations ?? []}
+            specialists={bookingLinkOptions?.cardSpecialists ?? []}
             patientOrigin={PATIENT_DEFAULT_SURFACE.origin}
           />
         ) : null}

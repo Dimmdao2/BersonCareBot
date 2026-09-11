@@ -61,6 +61,7 @@ describe('публичная визитка /{clinic}', () => {
         publicContactEmail: null,
         publicWebsiteUrl: null,
         locations: [],
+        specialists: [],
         media: [],
       },
     });
@@ -80,6 +81,7 @@ describe('публичная визитка /{clinic}', () => {
         publicContactEmail: null,
         publicWebsiteUrl: null,
         locations: [],
+        specialists: [],
         media: [],
       },
     });

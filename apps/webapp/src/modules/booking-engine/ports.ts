@@ -82,6 +82,9 @@ export type OrganizationCatalogPort = {
     id?: string;
     fullName: string;
     description?: string | null;
+    avatarMediaId?: string | null;
+    fullDescriptionMarkdown?: string | null;
+    cardIsPublished?: boolean;
     isActive: boolean;
     sortOrder: number;
   }): Promise<BeSpecialist>;
