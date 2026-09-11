@@ -1,4 +1,5 @@
 import type { PatientBookingRecord } from '@/modules/patient-booking/types';
+import { onlineBookingCategoryLabel } from '@/modules/patient-booking/bookingCategoryLabels';
 import { SCHEDULE_RECORD_PROVENANCE_PREFIX } from '@/shared/lib/scheduleRecordProvenance';
 
 export { SCHEDULE_RECORD_PROVENANCE_PREFIX };
@@ -11,9 +12,8 @@ export function bookingProvenancePrefix(_row: PatientBookingRecord): string {
 /** Subtitle under datetime for native booking cards (active + history). */
 export function nativeBookingSubtitle(row: PatientBookingRecord): string {
   if (row.bookingType === 'online') {
-    if (row.category === 'rehab_lfk') return 'Онлайн - Реабилитация (ЛФК)';
-    if (row.category === 'nutrition') return 'Онлайн - Нутрициология';
-    return 'Онлайн консультация';
+    const label = onlineBookingCategoryLabel(row.category);
+    return label === 'Онлайн консультация' ? label : `Онлайн - ${label}`;
   }
   const canonical = row.canonicalInPersonContext;
   if (canonical) {

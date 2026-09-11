@@ -61,7 +61,7 @@ export function createPaymentsService(deps: {
     'getAppointment' | 'listAppointmentsByChainId' | 'transitionAppointmentStatus'
   > | null;
   onAppointmentPaymentConfirmed?: (input: {
-    appointmentId: string;
+    appointmentIds: readonly string[];
     paymentId: string;
     platformUserId: string | null;
   }) => Promise<void>;
@@ -257,10 +257,13 @@ export function createPaymentsService(deps: {
     const captured = await deps.captureUnitOfWork.run(organizationId, () =>
       captureIntentSuccessInUnitOfWork(intentId, organizationId),
     );
-    if (deps.onAppointmentPaymentConfirmed) {
-      for (const appointment of captured.confirmedAppointments) {
-        await deps.onAppointmentPaymentConfirmed(appointment);
-      }
+    if (deps.onAppointmentPaymentConfirmed && captured.confirmedAppointments.length > 0) {
+      const firstAppointment = captured.confirmedAppointments[0]!;
+      await deps.onAppointmentPaymentConfirmed({
+        appointmentIds: captured.confirmedAppointments.map(({ appointmentId }) => appointmentId),
+        paymentId: firstAppointment.paymentId,
+        platformUserId: firstAppointment.platformUserId,
+      });
     }
     return captured.result;
   }
@@ -661,14 +664,12 @@ export function createPaymentsService(deps: {
       // с `outcome: 'already_processed'` и никого повторно не уведомляет.
       if (settled.outcome === 'captured' && settled.paymentId) {
         const paymentId = settled.paymentId;
-        if (deps.onAppointmentPaymentConfirmed) {
-          for (const appointmentId of settled.confirmedAppointmentIds) {
-            await deps.onAppointmentPaymentConfirmed({
-              appointmentId,
-              paymentId,
-              platformUserId: settled.platformUserId,
-            });
-          }
+        if (deps.onAppointmentPaymentConfirmed && settled.confirmedAppointmentIds.length > 0) {
+          await deps.onAppointmentPaymentConfirmed({
+            appointmentIds: settled.confirmedAppointmentIds,
+            paymentId,
+            platformUserId: settled.platformUserId,
+          });
         }
         const patientPackageId = parsePatientPackageProductRef(settled.productRef);
         if (patientPackageId && deps.onPackagePaymentCaptured) {

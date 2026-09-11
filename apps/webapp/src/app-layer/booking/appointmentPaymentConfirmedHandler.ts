@@ -9,9 +9,11 @@ import { buildPatientPaymentCapturedMessageText } from '@/modules/patient-bookin
 import { buildDoctorPaymentCapturedMessageText } from '@/modules/patient-booking/doctorMessageText';
 import { resolveBookingCalendarSyncFields } from '@/modules/patient-booking/bookingCalendarSyncFields';
 import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
+import type { PatientBookingRecord } from '@/modules/patient-booking/types';
+import { bookingServiceTitleForMessage } from '@/modules/patient-booking/bookingCategoryLabels';
 
 type AppointmentPaymentConfirmedInput = {
-  appointmentId: string;
+  appointmentIds: readonly string[];
   paymentId: string;
   platformUserId: string | null;
 };
@@ -26,15 +28,22 @@ export function createAppointmentPaymentConfirmedHandler(deps: {
   bookingSync: Pick<BookingSyncPort, 'emitBookingEvent'>;
 }) {
   return async (input: AppointmentPaymentConfirmedInput): Promise<void> => {
-    const updated = await deps.patientBookings.markConfirmedByCanonicalAppointment(
-      input.appointmentId,
-    );
-    const row =
-      updated ?? (await deps.patientBookings.getByCanonicalAppointmentId(input.appointmentId));
-    if (!row || row.status !== 'confirmed') return;
+    const confirmed: Array<{ appointmentId: string; row: PatientBookingRecord }> = [];
+    for (const appointmentId of input.appointmentIds) {
+      const updated = await deps.patientBookings.markConfirmedByCanonicalAppointment(appointmentId);
+      const row =
+        updated ?? (await deps.patientBookings.getByCanonicalAppointmentId(appointmentId));
+      if (row?.status === 'confirmed') confirmed.push({ appointmentId, row });
+    }
+    if (confirmed.length === 0) return;
 
-    const appointment = await deps.bookingEngine.getAppointment(input.appointmentId);
-    if (!appointment) throw new Error('booking_payment_appointment_organization_required');
+    const appointments = await Promise.all(
+      confirmed.map(async ({ appointmentId, row }) => {
+        const appointment = await deps.bookingEngine.getAppointment(appointmentId);
+        if (!appointment) throw new Error('booking_payment_appointment_organization_required');
+        return { appointmentId, row, appointment };
+      }),
+    );
 
     const notificationSettings = await deps.loadNotificationSettings();
     const paymentNotify = resolveBookingNotifyTargets(
@@ -42,43 +51,67 @@ export function createAppointmentPaymentConfirmedHandler(deps: {
       { notifyPatient: true, notifyStaff: true },
       notificationSettings,
     );
+    // Правка ведущего: этот выход стоял здесь до S8 и остаётся. Отключённые уведомления гасили
+    // событие целиком — вместе с напоминаниями и календарной синхронизацией, которые оно везёт.
+    // Это отдельный дефект, и он вынесен владельцу вопросом, а не чинится заодно: S8 обязан
+    // изменить ТОЛЬКО количество сообщений, иначе клиника с выключенными уведомлениями внезапно
+    // начнёт рассылать напоминания.
     if (!paymentNotify.notifyPatient && !paymentNotify.notifyStaff) return;
-    const reminderPlan = appointmentReminderPlanForPreset(appointment.appointmentReminderPresetId);
-    const timeZone = await getAppDisplayTimeZone();
 
-    await deps.bookingSync.emitBookingEvent({
-      eventType: 'booking.payment_captured',
-      idempotencyKey: `booking.payment_captured:${input.paymentId}:${input.appointmentId}`,
-      payload: {
-        organizationId: appointment.organizationId,
-        bookingId: row.id,
-        userId: input.platformUserId ?? row.userId ?? row.id,
-        bookingType: row.bookingType,
-        city: row.city ?? undefined,
-        category: row.category,
+    const timeZone = await getAppDisplayTimeZone();
+    // Слоты перечисляются в сообщении по времени приёма, а не в порядке, в котором их вернула
+    // цепочка: человек читает «вы записаны на …» как расписание.
+    const messageAppointments = [...appointments]
+      .sort((left, right) => Date.parse(left.row.slotStart) - Date.parse(right.row.slotStart))
+      .map(({ row }) => ({
         slotStart: row.slotStart,
-        slotEnd: row.slotEnd,
-        contactName: row.contactName,
-        contactPhone: row.contactPhone,
-        contactEmail: row.contactEmail ?? undefined,
-        cityCodeSnapshot: row.cityCodeSnapshot,
-        serviceTitleSnapshot: row.serviceTitleSnapshot,
-        canonicalAppointmentId: input.appointmentId,
-        reminderPlan,
-        patientMessageText: buildPatientPaymentCapturedMessageText(
-          { slotStart: row.slotStart },
-          timeZone,
-        ),
-        doctorNotify: paymentNotify.notifyStaff,
-        doctorMessageText: buildDoctorPaymentCapturedMessageText(
-          { slotStart: row.slotStart, contactName: row.contactName },
-          timeZone,
-        ),
-        ...resolveBookingCalendarSyncFields('booking.payment_captured'),
-      },
-      // Ждём НАМЕРЕННО: бросок отсюда уходит вызывающему вебхука платежей, и повтор вебхука —
-      // единственное, что доигрывает это событие. Отложить его = потерять повтор.
-      waitForDelivery: true,
-    });
+        // F3 независимого аудита: здесь стоял `?? row.category`, и в письмо уезжал внутренний
+        // ключ — пациент читал «rehab_lfk» вместо «Реабилитация (ЛФК)». У онлайн-записи снимка
+        // услуги нет по построению (`canonicalCreate.ts` кладёт null), так что это не редкий край.
+        serviceTitle: bookingServiceTitleForMessage(row),
+      }));
+    const patientMessageText = buildPatientPaymentCapturedMessageText(
+      { appointments: messageAppointments },
+      timeZone,
+    );
+    const doctorMessageText = buildDoctorPaymentCapturedMessageText(
+      { appointments: messageAppointments, contactName: appointments[0]!.row.contactName },
+      timeZone,
+    );
+
+    for (const [index, { appointmentId, row, appointment }] of appointments.entries()) {
+      const carriesPatientMessage = index === 0 && paymentNotify.notifyPatient;
+      const carriesDoctorMessage = index === 0 && paymentNotify.notifyStaff;
+      await deps.bookingSync.emitBookingEvent({
+        eventType: 'booking.payment_captured',
+        idempotencyKey: `booking.payment_captured:${input.paymentId}:${appointmentId}`,
+        payload: {
+          organizationId: appointment.organizationId,
+          bookingId: row.id,
+          userId: input.platformUserId ?? row.userId ?? row.id,
+          bookingType: row.bookingType,
+          city: row.city ?? undefined,
+          category: row.category,
+          slotStart: row.slotStart,
+          slotEnd: row.slotEnd,
+          contactName: row.contactName,
+          contactPhone: row.contactPhone,
+          contactEmail: row.contactEmail ?? undefined,
+          cityCodeSnapshot: row.cityCodeSnapshot,
+          serviceTitleSnapshot: row.serviceTitleSnapshot,
+          canonicalAppointmentId: appointmentId,
+          reminderPlan: appointmentReminderPlanForPreset(appointment.appointmentReminderPresetId),
+          ...(carriesPatientMessage
+            ? { patientMessageText }
+            : { suppressPatientNotification: true }),
+          doctorNotify: carriesDoctorMessage,
+          ...(carriesDoctorMessage ? { doctorMessageText } : {}),
+          ...resolveBookingCalendarSyncFields('booking.payment_captured'),
+        },
+        // Ждём НАМЕРЕННО: бросок отсюда уходит вызывающему вебхука платежей, и повтор вебхука —
+        // единственное, что доигрывает это событие. Отложить его = потерять повтор.
+        waitForDelivery: true,
+      });
+    }
   };
 }

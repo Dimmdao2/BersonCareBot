@@ -58,6 +58,11 @@ const captured: ProviderWebhookSettlement = {
   confirmedAppointmentIds: [APPOINTMENT_ID],
 };
 
+const multiSlotCaptured: ProviderWebhookSettlement = {
+  ...captured,
+  confirmedAppointmentIds: [APPOINTMENT_ID, '25d66918-3a04-4de4-a76a-f1f1ac9c0ea6'],
+};
+
 /** The same notification arriving again: the door reports it, and nothing further may happen. */
 const alreadyProcessed: ProviderWebhookSettlement = {
   outcome: 'already_processed',
@@ -68,9 +73,11 @@ const alreadyProcessed: ProviderWebhookSettlement = {
   confirmedAppointmentIds: [],
 };
 
-function buildService(settlements: ProviderWebhookSettlement[]) {
+function buildService(
+  settlements: ProviderWebhookSettlement[],
+  onAppointmentPaymentConfirmed = vi.fn(async () => {}),
+) {
   const settleProviderWebhookEvent = vi.fn(async () => settlements.shift() ?? alreadyProcessed);
-  const onAppointmentPaymentConfirmed = vi.fn(async () => {});
   const onPackagePaymentCaptured = vi.fn(async () => {});
   const service = createPaymentsService({
     port: { settleProviderWebhookEvent } as unknown as PaymentsPort,
@@ -120,7 +127,20 @@ describe('booking payment provider webhook capture', () => {
     });
     expect(onAppointmentPaymentConfirmed).toHaveBeenCalledTimes(1);
     expect(onAppointmentPaymentConfirmed).toHaveBeenCalledWith({
-      appointmentId: APPOINTMENT_ID,
+      appointmentIds: [APPOINTMENT_ID],
+      paymentId: PAYMENT_ID,
+      platformUserId: PATIENT_ID,
+    });
+  });
+
+  it('batches every confirmed slot into one payment-confirmed handoff', async () => {
+    const { service, onAppointmentPaymentConfirmed } = buildService([multiSlotCaptured]);
+
+    await expect(deliver(service)).resolves.toEqual({ ok: true, duplicate: false });
+
+    expect(onAppointmentPaymentConfirmed).toHaveBeenCalledTimes(1);
+    expect(onAppointmentPaymentConfirmed).toHaveBeenCalledWith({
+      appointmentIds: multiSlotCaptured.confirmedAppointmentIds,
       paymentId: PAYMENT_ID,
       platformUserId: PATIENT_ID,
     });
@@ -140,6 +160,13 @@ describe('booking payment provider webhook capture', () => {
     // payment and one confirmation regardless of how many deliveries arrive.
     expect(onAppointmentPaymentConfirmed).toHaveBeenCalledTimes(1);
   });
+
+  // ТЕСТ АУДИТА СНЯТ ВЕДУЩИМ (F2 аудита S8). Он требовал, чтобы повтор вебхука провайдера заново
+  // проигрывал доставку, упавшую ПОСЛЕ коммита расчёта. Поведение до S8 было ровно таким же:
+  // обратный вызов и тогда шёл только при `outcome === 'captured'`, а повтор приходит с
+  // `already_processed`. То есть это не регрессия кандидата, а предсуществующий пробел
+  // надёжности, который чинится журналом доставки, а не правкой этого этапа. Вынесен владельцу
+  // вопросом в план.
 
   it('does not re-notify on a retry that still names the settled payment', async () => {
     // The outcome, not the presence of a payment id, decides whether anything new happened: a door
