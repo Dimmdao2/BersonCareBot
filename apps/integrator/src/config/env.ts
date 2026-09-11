@@ -39,6 +39,35 @@ const parsed = z
         }
       }, 'APP_BASE_URL must use the http or https protocol')
       .transform((value) => value.replace(/\/$/, '')),
+    /**
+     * Адрес вебаппа для вызовов СЕРВЕР-СЕРВЕР, когда он отличается от публичного.
+     *
+     * Зачем отдельная переменная. `APP_BASE_URL` — это публичный адрес: он уезжает в письма,
+     * ссылки пациенту и регистрацию вебхуков у провайдеров, поэтому там обязан стоять `https`
+     * и настоящее имя. Но внутри docker-сети новго прода это же имя — алиас САМОГО контейнера
+     * вебаппа (`docker-compose.yml`, `aliases`), и слушает он там обычный порт по HTTP: TLS
+     * заканчивается на nginx, до контейнера он не доходит. Замер 12.09.2026 на
+     * `135.106.187.95`: из контейнера `https://therapysto.ru/api/health` → `ECONNREFUSED
+     * 172.30.0.3:443`, `http://therapysto.ru/api/health` → `200`. Из-за этого планировщик 12
+     * часов подряд ронял шаг `operator_health_digest_wake` (8906 раз), а вместе с ним молча
+     * умирал весь шов интегратор→вебапп.
+     *
+     * Пусто — значит берём `APP_BASE_URL`: на DEV, TEST и в тестах адрес один и тот же, и
+     * заводить вторую строку в env ради них незачем.
+     */
+    WEBAPP_INTERNAL_BASE_URL: z
+      .string()
+      .optional()
+      .transform((value) => (value ?? '').trim().replace(/\/$/, ''))
+      .refine((value) => {
+        if (!value) return true;
+        try {
+          const protocol = new URL(value).protocol;
+          return protocol === 'http:' || protocol === 'https:';
+        } catch {
+          return false;
+        }
+      }, 'WEBAPP_INTERNAL_BASE_URL must be a valid http or https URL'),
     DB_PRINCIPAL_CONTEXT_MODE: z
       .enum(['legacy-guc', 'shadow', 'locked', 'port-context'])
       .optional()
@@ -91,3 +120,14 @@ export const integratorWebappEntrySecret = (): string =>
 /** Secret for webhook signing and verification (webapp M2M). */
 export const integratorWebhookSecret = (): string =>
   parsed.INTEGRATOR_WEBHOOK_SECRET ?? parsed.INTEGRATOR_SHARED_SECRET ?? '';
+
+/**
+ * Адрес вебаппа для вызовов СЕРВЕР-СЕРВЕР: внутренний, если задан, иначе публичный.
+ *
+ * Отдельная функция, а не выражение по месту, ровно затем, чтобы правило было одно и проверялось
+ * тестом: три порта интегратора (`webappEventsPort`, `webPushAccessPort`, `deliveryTargetsPort`)
+ * обязаны ходить ОДНИМ адресом, а построение ссылок для человека — другим.
+ */
+export const webappCallBaseUrl = (
+  source: { WEBAPP_INTERNAL_BASE_URL?: string; APP_BASE_URL: string } = parsed,
+): string => (source.WEBAPP_INTERNAL_BASE_URL || '').trim() || source.APP_BASE_URL;
