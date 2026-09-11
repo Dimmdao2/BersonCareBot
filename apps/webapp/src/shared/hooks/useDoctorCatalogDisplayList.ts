@@ -13,6 +13,9 @@ export type DoctorCatalogDisplayListOptions<T> = {
   getItemRegionCodes?: (item: T) => readonly string[];
   /** @deprecated Используйте {@link getItemRegionCodes} для мультирегионов. */
   getItemRegionCode?: (item: T) => string | null;
+  /** Типы нагрузки по элементу; при заданном `loadType` — показ, если код входит в список. */
+  getItemLoadTypes?: (item: T) => readonly string[];
+  /** @deprecated Используйте {@link getItemLoadTypes} для мультитипов. */
   getItemLoadType?: (item: T) => ExerciseLoadType | null;
   /** Доп. фильтр по коду (напр. `domain` у рекомендаций, `assessmentKind` у клин. тестов). */
   tertiaryCode?: string | null;
@@ -35,6 +38,7 @@ export function useDoctorCatalogDisplayList<T extends WithTitle>(
   const tertiaryCode = options?.tertiaryCode?.trim() ?? '';
   const getItemRegionCodes = options?.getItemRegionCodes;
   const getItemRegionCode = options?.getItemRegionCode;
+  const getItemLoadTypes = options?.getItemLoadTypes;
   const getItemLoadType = options?.getItemLoadType;
   const getItemTertiaryCode = options?.getItemTertiaryCode;
 
@@ -59,7 +63,13 @@ export function useDoctorCatalogDisplayList<T extends WithTitle>(
       }
     }
 
-    if (loadType && getItemLoadType) {
+    if (loadType && getItemLoadTypes) {
+      if (isDoctorCatalogMissingFilter(loadType)) {
+        out = out.filter((x) => getItemLoadTypes(x).length === 0);
+      } else {
+        out = out.filter((x) => getItemLoadTypes(x).includes(loadType));
+      }
+    } else if (loadType && getItemLoadType) {
       if (isDoctorCatalogMissingFilter(loadType)) {
         out = out.filter((x) => !getItemLoadType(x));
       } else {
@@ -91,6 +101,7 @@ export function useDoctorCatalogDisplayList<T extends WithTitle>(
     tertiaryCode,
     getItemRegionCodes,
     getItemRegionCode,
+    getItemLoadTypes,
     getItemLoadType,
     getItemTertiaryCode,
   ]);

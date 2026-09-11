@@ -38,7 +38,10 @@ export type Exercise = {
   regionRefId: string | null;
   /** Все регионы (M2M `lfk_exercise_regions` ∪ legacy). */
   regionRefIds: readonly string[];
+  /** Первый тип нагрузки (legacy колонка `load_type`, dual-write с M2M). */
   loadType: ExerciseLoadType | null;
+  /** Все типы нагрузки (M2M `lfk_exercise_load_types` ∪ legacy). */
+  loadTypes: readonly ExerciseLoadType[];
   difficulty1_10: number | null;
   contraindications: string | null;
   tags: string[] | null;
@@ -69,6 +72,8 @@ export type ExerciseAccessOptions = {
 };
 
 export const mergeExerciseRegionRefIds = mergeCatalogBodyRegionIds;
+/** Тот же generic dedup+sort, что и регионы (§5: параметризуем точку, не клонируем). */
+export const mergeExerciseLoadTypes = mergeCatalogBodyRegionIds;
 
 export type ExerciseMediaInput = {
   mediaUrl: string;
@@ -83,6 +88,8 @@ export type CreateExerciseInput = {
   /** Регионы тела (M2M); при сохранении `region_ref_id` = первый id. */
   regionRefIds?: string[] | null;
   loadType?: ExerciseLoadType | null;
+  /** Типы нагрузки (M2M); при сохранении `load_type` = первый код. */
+  loadTypes?: ExerciseLoadType[] | null;
   difficulty1_10?: number | null;
   contraindications?: string | null;
   tags?: string[] | null;
@@ -95,6 +102,7 @@ export type UpdateExerciseInput = {
   regionRefId?: string | null;
   regionRefIds?: string[] | null;
   loadType?: ExerciseLoadType | null;
+  loadTypes?: ExerciseLoadType[] | null;
   difficulty1_10?: number | null;
   contraindications?: string | null;
   tags?: string[] | null;

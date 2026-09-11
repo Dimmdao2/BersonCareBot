@@ -122,17 +122,12 @@ export function createPgClinicPublicCardPort(): ClinicPublicCardPort {
         .select({
           slug: clinicPublicDirectoryEntries.slug,
           displayName: clinicPublicDirectoryEntries.displayName,
-          locationsJson: clinicPublicDirectoryEntries.locationsJson,
         })
         .from(clinicPublicDirectoryEntries)
         .where(eq(clinicPublicDirectoryEntries.organizationId, organizationId))
         .limit(1);
       if (!row) return null;
-      return {
-        slug: row.slug,
-        displayName: row.displayName,
-        locations: mapLocations(row.locationsJson),
-      };
+      return { slug: row.slug, displayName: row.displayName };
     },
 
     async saveCard(input): Promise<ClinicPublicCardSettings> {

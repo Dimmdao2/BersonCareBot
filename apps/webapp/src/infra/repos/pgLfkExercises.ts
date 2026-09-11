@@ -32,6 +32,7 @@ import { type SQL, eq, sql } from 'drizzle-orm';
 import {
   EMPTY_EXERCISE_USAGE_SNAPSHOT,
   EXERCISE_USAGE_DETAIL_LIMIT,
+  mergeExerciseLoadTypes,
   mergeExerciseRegionRefIds,
 } from '@/modules/lfk-exercises/types';
 
@@ -73,6 +74,7 @@ type ExerciseDbRow = {
   region_ref_id: string | null;
   region_m2m_ids?: unknown;
   load_type: string | null;
+  load_type_m2m?: unknown;
   difficulty_1_10: number | null;
   contraindications: string | null;
   tags: string[] | null;
@@ -158,6 +160,11 @@ function mapExerciseRow(row: ExerciseDbRow, media: ExerciseMedia[]): Exercise {
     : [];
   const regionRefIds = mergeExerciseRegionRefIds(row.region_ref_id, m2m);
   const regionRefId = regionRefIds[0] ?? null;
+  const loadTypeM2m = Array.isArray(row.load_type_m2m)
+    ? row.load_type_m2m.map((x) => String(x)).filter((s) => s.length > 0)
+    : [];
+  const loadTypes = mergeExerciseLoadTypes(row.load_type, loadTypeM2m) as ExerciseLoadType[];
+  const loadType = (loadTypes[0] as ExerciseLoadType | undefined) ?? null;
   return {
     id: String(row.id),
     ownerKind: row.owner_kind === 'platform' ? 'platform' : 'organization',
@@ -166,7 +173,8 @@ function mapExerciseRow(row: ExerciseDbRow, media: ExerciseMedia[]): Exercise {
     description: row.description,
     regionRefId,
     regionRefIds,
-    loadType: (row.load_type as ExerciseLoadType | null) ?? null,
+    loadType,
+    loadTypes,
     difficulty1_10: row.difficulty_1_10,
     contraindications: row.contraindications,
     tags: row.tags,
@@ -256,6 +264,28 @@ async function replaceLfkExerciseRegions(
       tx,
       sql`INSERT INTO lfk_exercise_regions (owner_kind, organization_id, exercise_id, region_ref_id)
        VALUES ('organization', ${sql.raw(ORG_ID_EXPR)}, ${exerciseId}, ${t}::uuid)`,
+    );
+  }
+}
+
+async function replaceLfkExerciseLoadTypes(
+  tx: WebappSqlTransactionExecutor,
+  exerciseId: string,
+  loadTypes: readonly string[],
+) {
+  await runWebappSql(
+    tx,
+    sql`DELETE FROM lfk_exercise_load_types
+      WHERE exercise_id = ${exerciseId}
+        AND organization_id = ${sql.raw(ORG_ID_EXPR)}`,
+  );
+  for (const lt of loadTypes) {
+    const t = lt.trim();
+    if (!t) continue;
+    await runWebappSql(
+      tx,
+      sql`INSERT INTO lfk_exercise_load_types (owner_kind, organization_id, exercise_id, load_type)
+       VALUES ('organization', ${sql.raw(ORG_ID_EXPR)}, ${exerciseId}, ${t})`,
     );
   }
 }
@@ -615,7 +645,16 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
         );
       }
       if (filter.loadType) {
-        conds.push(sql`e.load_type = ${filter.loadType}`);
+        const loadType = filter.loadType;
+        conds.push(
+          sql`(EXISTS (
+             SELECT 1 FROM lfk_exercise_load_types lt0
+              WHERE lt0.exercise_id = e.id
+                AND lt0.owner_kind = e.owner_kind
+                AND lt0.organization_id IS NOT DISTINCT FROM e.organization_id
+                AND lt0.load_type = ${loadType}
+           ) OR e.load_type = ${loadType})`,
+        );
       }
       if (filter.difficultyMin != null) {
         conds.push(sql`e.difficulty_1_10 >= ${filter.difficultyMin}`);
@@ -641,6 +680,13 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
                    AND x.owner_kind = e.owner_kind
                    AND x.organization_id IS NOT DISTINCT FROM e.organization_id
                ), ARRAY[]::uuid[]) AS region_m2m_ids,
+               COALESCE((
+                 SELECT array_agg(lt.load_type ORDER BY lt.load_type)
+                 FROM lfk_exercise_load_types lt
+                 WHERE lt.exercise_id = e.id
+                   AND lt.owner_kind = e.owner_kind
+                   AND lt.organization_id IS NOT DISTINCT FROM e.organization_id
+               ), ARRAY[]::text[]) AS load_type_m2m,
                pm.id AS pm_id, pm.media_url AS pm_url, pm.media_type AS pm_type, pm.sort_order AS pm_order,
                pm.created_at AS pm_created
         FROM lfk_exercises e
@@ -725,7 +771,14 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
                   WHERE x.exercise_id = e.id
                     AND x.owner_kind = e.owner_kind
                     AND x.organization_id IS NOT DISTINCT FROM e.organization_id
-                ), ARRAY[]::uuid[]) AS region_m2m_ids
+                ), ARRAY[]::uuid[]) AS region_m2m_ids,
+                COALESCE((
+                  SELECT array_agg(lt.load_type ORDER BY lt.load_type)
+                  FROM lfk_exercise_load_types lt
+                  WHERE lt.exercise_id = e.id
+                    AND lt.owner_kind = e.owner_kind
+                    AND lt.organization_id IS NOT DISTINCT FROM e.organization_id
+                ), ARRAY[]::text[]) AS load_type_m2m
          FROM lfk_exercises e
          WHERE e.id = ${id}
            AND e.catalog_scope = 'catalog'
@@ -743,19 +796,22 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
       requireOrganizationPrincipal();
       const regionIds = mergeExerciseRegionRefIds(input.regionRefId, input.regionRefIds ?? null);
       const legacyRegion = regionIds[0] ?? null;
+      const loadTypes = mergeExerciseLoadTypes(input.loadType, input.loadTypes ?? null);
+      const legacyLoadType = loadTypes[0] ?? null;
       const { row, exId } = await runWebappTransaction(async (tx) => {
         const ins = await runWebappSql<ExerciseDbRow>(
           tx,
           sql`INSERT INTO lfk_exercises (
              owner_kind, organization_id, catalog_scope, title, description, region_ref_id, load_type, difficulty_1_10, contraindications, tags, created_by, updated_at
            )
-           VALUES ('organization', ${sql.raw(ORG_ID_EXPR)}, 'catalog', ${input.title}, ${input.description ?? null}, ${legacyRegion}, ${input.loadType ?? null}, ${input.difficulty1_10 ?? null}, ${input.contraindications ?? null}, ${sql.param(input.tags ?? null)}, ${createdBy}, now())
+           VALUES ('organization', ${sql.raw(ORG_ID_EXPR)}, 'catalog', ${input.title}, ${input.description ?? null}, ${legacyRegion}, ${legacyLoadType}, ${input.difficulty1_10 ?? null}, ${input.contraindications ?? null}, ${sql.param(input.tags ?? null)}, ${createdBy}, now())
            RETURNING id, owner_kind, catalog_scope, title, description, region_ref_id, load_type, difficulty_1_10,
                      contraindications, tags, is_archived, created_by, created_at, updated_at`,
         );
         const insRow = ins.rows[0]!;
         const newExId = insRow.id;
         await replaceLfkExerciseRegions(tx, newExId, regionIds);
+        await replaceLfkExerciseLoadTypes(tx, newExId, loadTypes);
         if (input.media?.length) {
           let order = 0;
           for (const m of input.media) {
@@ -771,7 +827,7 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
         return { row: insRow, exId: newExId };
       });
       const media = await loadAllMediaForExercise(exId);
-      const enriched = { ...row, region_m2m_ids: regionIds };
+      const enriched = { ...row, region_m2m_ids: regionIds, load_type_m2m: loadTypes };
       return mapExerciseRow(enriched, media);
     },
 
@@ -805,7 +861,15 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
         if (regionPatch !== null) {
           add('region_ref_id', regionPatch[0] ?? null);
         }
-        if (input.loadType !== undefined) add('load_type', input.loadType);
+        const loadTypePatch =
+          input.loadTypes !== undefined || input.loadType !== undefined
+            ? input.loadTypes !== undefined
+              ? mergeExerciseLoadTypes(null, input.loadTypes)
+              : mergeExerciseLoadTypes(input.loadType, [])
+            : null;
+        if (loadTypePatch !== null) {
+          add('load_type', loadTypePatch[0] ?? null);
+        }
         if (input.difficulty1_10 !== undefined) add('difficulty_1_10', input.difficulty1_10);
         if (input.contraindications !== undefined)
           add('contraindications', input.contraindications);
@@ -821,6 +885,10 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
 
         if (regionPatch !== null) {
           await replaceLfkExerciseRegions(tx, id, regionPatch);
+        }
+
+        if (loadTypePatch !== null) {
+          await replaceLfkExerciseLoadTypes(tx, id, loadTypePatch);
         }
 
         if (input.media !== undefined && input.media !== null) {
@@ -856,7 +924,14 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
                   WHERE x.exercise_id = e.id
                     AND x.owner_kind = e.owner_kind
                     AND x.organization_id IS NOT DISTINCT FROM e.organization_id
-                ), ARRAY[]::uuid[]) AS region_m2m_ids
+                ), ARRAY[]::uuid[]) AS region_m2m_ids,
+                COALESCE((
+                  SELECT array_agg(lt.load_type ORDER BY lt.load_type)
+                  FROM lfk_exercise_load_types lt
+                  WHERE lt.exercise_id = e.id
+                    AND lt.owner_kind = e.owner_kind
+                    AND lt.organization_id IS NOT DISTINCT FROM e.organization_id
+                ), ARRAY[]::text[]) AS load_type_m2m
          FROM lfk_exercises e
          WHERE e.id = ${id}
            AND e.catalog_scope = 'catalog'

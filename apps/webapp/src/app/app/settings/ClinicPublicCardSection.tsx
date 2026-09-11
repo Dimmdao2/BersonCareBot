@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import {
   CLINIC_PUBLIC_CARD_LIMITS,
   type ClinicPublicCardIdentity,
+  type ClinicPublicCardLocation,
   type ClinicPublicCardSettings,
 } from '@/modules/clinic-public-card/ports';
 import { ClinicPublicCardView } from '@/shared/ui/clinicPublicCard/ClinicPublicCardView';
@@ -26,8 +27,15 @@ import { patchAdminSettingWithResult } from './patchAdminSetting';
 type Props = {
   initialSettings: ClinicPublicCardSettings;
   skipPublicCardAtRoot: boolean;
-  /** Имя, адрес и филиалы визитки; `null`, пока у клиники нет адреса в каталоге. */
+  /** Имя и адрес визитки; `null`, пока у клиники нет адреса в каталоге. */
   identity: ClinicPublicCardIdentity | null;
+  /**
+   * Адреса филиалов ДЛЯ ПРЕДПРОСМОТРА — тот же живой список `be_branches`, из которого их берёт сама
+   * визитка. Формой они не правятся и второго источника не имеют: снимок `locations_json` снят с
+   * пути чтения планом §17.A, и предпросмотр обязан идти за тем же источником, иначе владелец видит
+   * одно, а посетитель другое, и расхождение молчит.
+   */
+  locations: ClinicPublicCardLocation[];
   /** Общий пациентский origin — из него строятся оба возможных адреса страницы. */
   patientOrigin: string;
 };
@@ -84,6 +92,7 @@ export function ClinicPublicCardSection({
   initialSettings,
   skipPublicCardAtRoot: initialSkipPublicCardAtRoot,
   identity,
+  locations,
   patientOrigin,
 }: Props) {
   const descriptionId = useId();
@@ -187,7 +196,7 @@ export function ClinicPublicCardSection({
                     description: settings.description,
                     logoSrc: settings.logoMediaId ? `/api/media/${settings.logoMediaId}` : null,
                     photoSrcs: settings.photoMediaIds.map((id) => `/api/media/${id}`),
-                    locations: identity.locations,
+                    locations,
                     publicContactPhone: settings.publicContactPhone,
                     publicContactEmail: settings.publicContactEmail,
                     publicWebsiteUrl: settings.publicWebsiteUrl,

@@ -53,10 +53,13 @@ export type SaveClinicPublicCardInput = ClinicPublicCardSettings & {
 };
 
 /** Read-only часть визитки: её пишет не эта форма, а каталог и филиалы. */
+/**
+ * Кто эта клиника и по какому адресу открывается её визитка. Адресов филиалов здесь НЕТ намеренно:
+ * их единственный источник — живые `be_branches`, и второго заводить нельзя (план §17.A).
+ */
 export type ClinicPublicCardIdentity = {
   slug: string;
   displayName: string;
-  locations: ClinicPublicCardLocation[];
 };
 
 export type ClinicPublicCardPort = {
