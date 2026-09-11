@@ -25,7 +25,6 @@ import {
   mediaRootFromSourceS3Key,
   posterObjectKeyFromMediaRoot,
 } from './hlsStorageLayout.js';
-import { DeleteObjectCommand } from '@aws-sdk/client-s3';
 import {
   contentTypeForKey,
   downloadObjectToFile,
@@ -605,19 +604,11 @@ async function processTranscodeJobInner(outer: TranscodeContext, job: ClaimedJob
       'transcode completed',
     );
 
-    // Best-effort: delete the original uploaded source file now that HLS renditions are live.
-    const sourceKey = media.s3_key;
-    try {
-      await ctx.client.send(
-        new DeleteObjectCommand({
-          Bucket: ctx.bucket,
-          Key: sourceKey,
-        }),
-      );
-      ctx.log.info({ mediaId: job.mediaId, sourceKey }, 'source_deleted_after_transcode');
-    } catch (e) {
-      ctx.log.warn({ err: e, mediaId: job.mediaId, sourceKey }, 'source_delete_failed_nonfatal');
-    }
+    // Исходник НЕ удаляется (решение владельца 11.09.2026: «исходники в холодный бакет»). Удаление
+    // стояло здесь и на Selectel реально исполнялось — три упражнения от 29.08.2026 потеряли свои
+    // оригиналы, и перекодировать их под новую лестницу больше нечем. Оригинал — единственный вход для
+    // любой будущей смены лестницы, поэтому он остаётся жить; перекладывание в холодный бакет —
+    // следующий шаг того же решения.
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     ctx.log.error({ err: e, jobId: job.id }, 'transcode unexpected error');

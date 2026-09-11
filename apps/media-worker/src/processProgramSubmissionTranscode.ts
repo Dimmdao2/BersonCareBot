@@ -1,7 +1,6 @@
 import { mkdtemp, mkdir, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, posix } from 'node:path';
-import { DeleteObjectCommand } from '@aws-sdk/client-s3';
 import type { ClaimedJob } from './control.js';
 import type { TranscodeJobContext } from './processTranscodeJob.js';
 import { runFfmpeg } from './ffmpeg/runFfmpeg.js';
@@ -124,21 +123,9 @@ export async function processProgramSubmissionTranscodeJob(
       throw new Error('submission_480p_head_missing_after_upload');
     }
 
-    if (sourceKey !== outputKey) {
-      try {
-        await ctx.client.send(
-          new DeleteObjectCommand({
-            Bucket: ctx.bucket,
-            Key: sourceKey,
-          }),
-        );
-      } catch (e) {
-        ctx.log.warn(
-          { err: e, mediaId: job.mediaId, sourceKey },
-          'submission_source_delete_failed',
-        );
-      }
-    }
+    // Исходник присланного пациентом видео тоже НЕ удаляется — то же решение владельца 11.09.2026
+    // («исходники не удаляем»). 480p-рендишен здесь единственная ступень, и при любой смене формата
+    // пересобирать её будет уже нечем, если оригинал стёрт.
 
     const qualitiesJson = JSON.stringify([
       { label: '480p', height: 480, path: '480p.mp4', bandwidth: 900_000 },
