@@ -16,13 +16,14 @@ import { mediaFiles } from '../../../db/schema/schema';
 import {
   parseStorageTarget,
   presignGetUrl,
-  s3DeleteObject,
   s3GetObjectBody,
   s3HeadObject,
   s3PreviewKey,
   s3PutObjectBody,
   s3StandardImageKey,
+  sourceStorageKindForKey,
 } from '@/infra/s3/client';
+import type { StorageKind } from '@/infra/s3/client';
 import type { StorageTarget } from '@/shared/types/storageTarget';
 import {
   buildImageStandardRendition,
@@ -85,13 +86,6 @@ type MediaPreviewIterationOutcome = 'empty' | 'processed' | 'error';
 
 type MediaPreviewIterationResult = {
   outcome: MediaPreviewIterationOutcome;
-  /**
-   * Raw upload superseded by a standard rendition; deleted only after the transaction commits.
-   * Ключ и хранилище — одним объектом: ключ без хранилища удалять некуда, и разнести их в две
-   * необязательные величины значит разрешить именно такой вызов.
-   */
-  supersededOriginal?: { key: string; target: StorageTarget } | null;
-
 };
 
 function backoffMinutesAfterFailure(attemptsAfterIncrement: number): number {
@@ -141,13 +135,17 @@ async function extractVideoPosterJpeg(presignedUrl: string, seekSeconds: number)
   }
 }
 
-async function videoPosterJpegRaw(s3Key: string, target: StorageTarget): Promise<Buffer> {
-  const url1 = await presignGetUrl(s3Key, undefined, target);
+async function videoPosterJpegRaw(
+  s3Key: string,
+  target: StorageTarget,
+  kind: StorageKind,
+): Promise<Buffer> {
+  const url1 = await presignGetUrl(s3Key, undefined, target, undefined, kind);
   try {
     return await extractVideoPosterJpeg(url1, 1);
   } catch (e1) {
     logger.warn({ err: e1 }, '[mediaPreviewWorker] video poster @1s failed, retry @0');
-    const url0 = await presignGetUrl(s3Key, undefined, target);
+    const url0 = await presignGetUrl(s3Key, undefined, target, undefined, kind);
     return await extractVideoPosterJpeg(url0, 0);
   }
 }
@@ -250,9 +248,13 @@ function runMagickConvert(inputPath: string, outPath: string): Promise<void> {
  * deploy host, so decoding stays on the proven ffmpeg path with an ImageMagick fallback
  * (`-auto-orient`); the JPEG it produces is what the standard-rendition encoder re-encodes.
  */
-async function heicFullSizeJpeg(s3Key: string, target: StorageTarget): Promise<Buffer> {
+async function heicFullSizeJpeg(
+  s3Key: string,
+  target: StorageTarget,
+  kind: StorageKind,
+): Promise<Buffer> {
   try {
-    return await videoPosterJpegRaw(s3Key, target);
+    return await videoPosterJpegRaw(s3Key, target, kind);
   } catch (ffmpegErr) {
     logger.warn(
       { err: ffmpegErr },
@@ -265,7 +267,7 @@ async function heicFullSizeJpeg(s3Key: string, target: StorageTarget): Promise<B
     dir = await mkdtemp(join(tmpdir(), 'media-prev-heic-'));
     const inputPath = join(dir, 'input.heic');
     const outputPath = join(dir, 'out.jpg');
-    const url = await presignGetUrl(s3Key, undefined, target);
+    const url = await presignGetUrl(s3Key, undefined, target, undefined, kind);
     await downloadFileToPath(url, inputPath);
     await runMagickConvert(inputPath, outputPath);
     return await readFile(outputPath);
@@ -279,33 +281,33 @@ async function heicFullSizeJpeg(s3Key: string, target: StorageTarget): Promise<B
 type WebappTxSql = Parameters<typeof runWebappSql>[0];
 
 /**
- * Re-encodes an image to the standard rendition, repoints the row at it, and reports the raw
- * upload the caller must delete AFTER this transaction commits.
+ * Re-encodes an image to the standard rendition and stores it ALONGSIDE the raw upload — М7
+ * (`docs/_TODO/STORAGE_PACKAGES_2026-09-10.md`) reverses the 19.08.2026 SECURITY_CANON §5 rule
+ * that the rendition replaces `s3_key` and the original is deleted. The original now lives
+ * forever in the raw bucket (owner 10.09.2026: «оно не исполняется ни при каком варианте, снаружи
+ * к нему доступа тоже нет» — a bucket, not a delete, is the guarantee); the rendition goes to the
+ * hot bucket under the deterministic key `s3StandardImageKey(mediaId)`, never `s3_key` itself.
  *
- * Ordering (owner ruling 19.08.2026, SECURITY_CANON §5) — the original is the only copy until
- * every one of these has succeeded:
- *   encode -> PUT rendition -> HEAD verify -> PUT thumbnails -> UPDATE row -> COMMIT -> delete.
- * A failure at any step throws into the caller's retry/backoff path with the original intact;
- * a rollback after the UPDATE leaves the row pointing at the original and only strands a
- * deterministic `standard.webp` that the next attempt overwrites.
+ * Ordering — the rendition is the only new fact, so a failure at any step before COMMIT just
+ * leaves `preview_status = 'pending'` for the next attempt to redo (the rendition key is
+ * deterministic, so a half-written retry overwrites its own object, never doubles up):
+ *   encode -> PUT rendition (hot) -> HEAD verify -> PUT thumbnails (hot) -> UPDATE row -> COMMIT.
  *
  * `standard_rendition_at` is set by this same UPDATE and by nothing else: it is the row's only
- * fact that the object at `s3_key` is our encoder's output rather than the user's upload. The UI
- * may show a stored file before its thumbnail exists only when this column is set — a key suffix
- * or a `image/webp` mime type would be a naming convention and a user-controlled field, not a fact.
+ * fact that a safe rendition exists at `s3StandardImageKey(mediaId)` in the hot bucket — every
+ * delivery door that might otherwise serve `s3_key` inline reads this column FIRST
+ * (`resolveDeliverableMediaObject` in `s3MediaStorage.ts`) and prefers the rendition when set.
  */
 async function applyStandardImageRendition(
   db: WebappTxSql,
   mediaId: string,
-  originalKey: string,
   source: Buffer,
   smKey: string,
   mdKey: string,
   target: StorageTarget,
-): Promise<string | null> {
+): Promise<void> {
   const outcome = await buildImageStandardRendition(
     {
-      originalKey,
       standardKey: s3StandardImageKey(mediaId),
       smKey,
       mdKey,
@@ -321,9 +323,7 @@ async function applyStandardImageRendition(
   await runWebappSql(
     db,
     sql`UPDATE media_files SET
-           s3_key = ${outcome.standardKey},
            mime_type = ${outcome.mimeType},
-           size_bytes = ${outcome.sizeBytes},
            preview_status = 'ready',
            preview_sm_key = ${outcome.smKey},
            preview_md_key = ${outcome.mdKey},
@@ -344,7 +344,6 @@ async function applyStandardImageRendition(
     },
     '[mediaPreviewWorker] standard rendition stored',
   );
-  return outcome.supersededOriginalKey;
 }
 
 /**
@@ -361,7 +360,6 @@ export async function processMediaPreviewBatch(
 
   for (let i = 0; i < take; i++) {
     const result = await withPoolTransaction<MediaPreviewIterationResult>(pool, async (client) => {
-      let supersededOriginalKey: string | null = null;
       const db = getWebappSqlFromPgClient(client);
       const rows = await db
         .select({
@@ -419,6 +417,10 @@ export async function processMediaPreviewBatch(
       /* Превью и стандартный рендер ложатся туда же, где лежит исходник, — иначе строка укажет
          на объект в другом бакете, и дверь доставки его не найдёт. */
       const storageTarget = parseStorageTarget(row.storage_target);
+      /* Раскладка исходника М7: `library` лежит в сыром бакете, читаем оттуда, пишем рендишн в
+         горячий — КРОМЕ ещё не перенесённых старых исходников (F-1), которые форма ключа относит
+         к горячему; `sourceStorageKindForKey` решает по ключу, а не только по цели. */
+      const rawKind: StorageKind = sourceStorageKindForKey(storageTarget, storedKey);
       const hostedSourceUrl =
         row.usage_purpose === 'hosted_video_preview' &&
         !row.s3_key?.trim() &&
@@ -437,10 +439,9 @@ export async function processMediaPreviewBatch(
           if (outcome.kind === 'retryable') {
             throw new Error(`${HOSTED_PREVIEW_RETRY}: ${outcome.reason}`);
           }
-          supersededOriginalKey = await applyStandardImageRendition(
+          await applyStandardImageRendition(
             db,
             row.id,
-            '',
             outcome.bytes,
             smKey,
             mdKey,
@@ -457,11 +458,10 @@ export async function processMediaPreviewBatch(
               '[processMediaPreviewBatch] heic/heif too large for ffmpeg preview, skipped',
             );
           } else {
-            const decoded = await heicFullSizeJpeg(storedKey, storageTarget);
-            supersededOriginalKey = await applyStandardImageRendition(
+            const decoded = await heicFullSizeJpeg(storedKey, storageTarget, rawKind);
+            await applyStandardImageRendition(
               db,
               row.id,
-              storedKey,
               decoded,
               smKey,
               mdKey,
@@ -487,21 +487,20 @@ export async function processMediaPreviewBatch(
             '[processMediaPreviewBatch] video too large for ffmpeg preview, skipped',
           );
         } else if (mime.startsWith('image/')) {
-          const raw = await s3GetObjectBody(storedKey, storageTarget);
+          const raw = await s3GetObjectBody(storedKey, storageTarget, rawKind);
           if (!raw) {
             throw new Error('s3_get_object_empty');
           }
-          supersededOriginalKey = await applyStandardImageRendition(
+          await applyStandardImageRendition(
             db,
             row.id,
-            storedKey,
             raw,
             smKey,
             mdKey,
             storageTarget,
           );
         } else if (mime.startsWith('video/')) {
-          const presigned = await presignGetUrl(storedKey, undefined, storageTarget);
+          const presigned = await presignGetUrl(storedKey, undefined, storageTarget, undefined, rawKind);
           let sw: number | null = null;
           let sh: number | null = null;
           try {
@@ -516,7 +515,7 @@ export async function processMediaPreviewBatch(
               '[mediaPreviewWorker] video dimension probe failed',
             );
           }
-          const rawPoster = await videoPosterJpegRaw(storedKey, storageTarget);
+          const rawPoster = await videoPosterJpegRaw(storedKey, storageTarget, rawKind);
           const { sm: posterSm, md: posterMd } = await thumbnailsSmMd(rawPoster);
           await s3PutObjectBody(smKey, posterSm, 'image/jpeg', storageTarget);
           await s3PutObjectBody(mdKey, posterMd, 'image/jpeg', storageTarget);
@@ -581,32 +580,10 @@ export async function processMediaPreviewBatch(
         return { outcome: 'error' };
       }
 
-      return {
-        outcome: 'processed',
-        supersededOriginal: supersededOriginalKey
-          ? { key: supersededOriginalKey, target: storageTarget }
-          : null,
-      };
+      return { outcome: 'processed' };
     });
 
-    const { outcome, supersededOriginal } = result;
-
-    // Only now is the rendition durable AND the row committed to point at it, so the raw upload
-    // is no longer the only copy. Best-effort: a failure here leaks bytes, never a patient photo.
-    if (supersededOriginal) {
-      try {
-        await s3DeleteObject(supersededOriginal.key, supersededOriginal.target);
-        logger.info(
-          { sourceKey: supersededOriginal.key },
-          '[mediaPreviewWorker] original deleted after standard rendition',
-        );
-      } catch (e) {
-        logger.warn(
-          { err: e, sourceKey: supersededOriginal.key },
-          '[mediaPreviewWorker] original delete failed, non-fatal',
-        );
-      }
-    }
+    const { outcome } = result;
 
     if (outcome === 'empty') {
       break;

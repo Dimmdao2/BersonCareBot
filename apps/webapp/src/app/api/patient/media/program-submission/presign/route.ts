@@ -98,6 +98,7 @@ export async function POST(request: Request) {
     mimeType: parsed.data.mimeType,
     sizeBytes: parsed.data.size,
     policyId: 'patient-program-submission',
+    organizationId,
   });
   if (!prepared.ok) {
     const rejection = uploadValidationResponse(prepared);

@@ -470,6 +470,10 @@ describe('processTranscodeJob — table-driven rung ladder end to end', () => {
       library: { client: { send: vi.fn() } as unknown as StorageBinding['client'], bucket: 'library-bucket' },
       patient: { client: { send: vi.fn() } as unknown as StorageBinding['client'], bucket: 'patient-bucket' },
     };
+    const rawBindings: Record<string, StorageBinding> = {
+      library: { client: { send: vi.fn() } as unknown as StorageBinding['client'], bucket: 'raw-bucket' },
+      patient: bindings.patient!,
+    };
     const doneHls = vi.fn<MediaWorkerControlPort['doneHls']>(async () => undefined);
     const control = {
       load: vi.fn(async () => loadedMedia()),
@@ -482,13 +486,14 @@ describe('processTranscodeJob — table-driven rung ladder end to end', () => {
     const ctx = {
       control,
       storageFor: (target: 'library' | 'patient') => bindings[target]!,
+      sourceStorageFor: (target: 'library' | 'patient', _key: string) => rawBindings[target]!,
       ffmpegBin: '/usr/bin/ffmpeg',
       ffmpegTimeoutMs: 60_000,
       maxAttempts: 3,
       log: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
       lockId: 'worker-a',
     };
-    return { ctx, control, doneHls, bindings };
+    return { ctx, control, doneHls, bindings, rawBindings };
   }
 
   it('исходник НЕ удаляется после успешного транскода: ни одного прямого S3-вызова', async () => {
@@ -505,6 +510,43 @@ describe('processTranscodeJob — table-driven rung ladder end to end', () => {
     expect(doneHls).toHaveBeenCalledTimes(1);
     expect(bindings.library!.client.send).not.toHaveBeenCalled();
     expect(bindings.patient!.client.send).not.toHaveBeenCalled();
+  });
+
+  /**
+   * М7 (`docs/_TODO/STORAGE_PACKAGES_2026-09-10.md`): исходник библиотечного ролика читается из
+   * СЫРОГО бакета (`sourceStorageFor`), а выход (HLS/постер) идёт в горячий (`storageFor`) — два
+   * разных бакета внутри одного наряда. Перепутать их означало бы либо NoSuchKey на скачивании
+   * (сырой ключ отсутствует в горячем бакете), либо, опаснее, тихий фолбэк на горячий, который
+   * владелец запретил категорически.
+   */
+  it('исходник читается из сырого бакета (sourceStorageFor), а не из горячего (storageFor)', async () => {
+    fakes.probeVideoDimensions.mockResolvedValue({ width: 1920, height: 1080 });
+    const { ctx, bindings } = contextFor();
+
+    await processTranscodeJob(ctx as never, JOB);
+
+    expect(fakes.downloadObjectToFile).toHaveBeenCalledWith(
+      expect.anything(),
+      'raw-bucket',
+      expect.any(String),
+      expect.any(String),
+    );
+    expect(fakes.downloadObjectToFile).not.toHaveBeenCalledWith(
+      expect.anything(),
+      'library-bucket',
+      expect.any(String),
+      expect.any(String),
+    );
+    // Output (HLS tree + poster) still lands in the hot binding, unchanged.
+    expect(fakes.putObjectWithRetry).toHaveBeenCalledWith(
+      expect.anything(),
+      'library-bucket',
+      expect.any(String),
+      expect.anything(),
+      expect.any(String),
+      expect.anything(),
+    );
+    expect(bindings.library!.client.send).not.toHaveBeenCalled();
   });
 
   it('a 480p source produces only 360p/480p — no upscaled 720p, no 576p', async () => {

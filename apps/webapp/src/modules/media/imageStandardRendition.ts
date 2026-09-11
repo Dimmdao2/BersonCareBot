@@ -125,20 +125,17 @@ export type ImageStandardRenditionOutcome = {
   height: number;
   smKey: string;
   mdKey: string;
-  /** Key of the upload that the rendition replaces; the caller deletes it AFTER the row is committed. */
-  supersededOriginalKey: string | null;
 };
 
 /**
- * Writes the standard rendition and its thumbnails, and reports which upload it replaces.
- *
- * Deliberately does NOT delete anything. Ordering is the whole point: the original may only be
- * dropped once the rendition is durably stored AND the row points at it, and the row is committed
- * by the caller's transaction. Every failure below therefore leaves the original untouched.
+ * Writes the standard rendition and its thumbnails ALONGSIDE the raw upload (М7,
+ * `docs/_TODO/STORAGE_PACKAGES_2026-09-10.md`): the original is never touched or deleted here —
+ * it stays in the raw bucket, and this only ever writes to the hot bucket the caller points
+ * `putObject`/`headObject` at. Ordering still matters for the RENDITION's own durability: a
+ * failure below leaves no half-written `standard.webp`/thumbnails claimed as ready.
  */
 export async function buildImageStandardRendition(
   params: {
-    originalKey: string;
     standardKey: string;
     smKey: string;
     mdKey: string;
@@ -163,7 +160,5 @@ export async function buildImageStandardRendition(
     height: rendition.height,
     smKey: params.smKey,
     mdKey: params.mdKey,
-    supersededOriginalKey:
-      params.originalKey && params.originalKey !== params.standardKey ? params.originalKey : null,
   };
 }

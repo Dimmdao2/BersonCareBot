@@ -114,7 +114,6 @@ describe('encodeStandardImageRendition', () => {
 describe('buildImageStandardRendition', () => {
   const source = Buffer.from('source-bytes');
   const params = {
-    originalKey: 'media/id/photo.jpg',
     standardKey: 'media/id/standard.webp',
     smKey: 'previews/sm/id.jpg',
     mdKey: 'previews/md/id.jpg',
@@ -137,7 +136,12 @@ describe('buildImageStandardRendition', () => {
     };
   }
 
-  it('reports the raw upload as superseded only after rendition and thumbnails are stored', async () => {
+  /*
+   * М7 (`docs/_TODO/STORAGE_PACKAGES_2026-09-10.md`): рендишн пишется РЯДОМ с сырым оригиналом,
+   * а не вместо него — оригинал этой функции вовсе неизвестен (нет параметра `originalKey`), и
+   * ничего не удаляется на её стороне.
+   */
+  it('пишет рендишн и оба превью, не зная и не трогая исходный объект', async () => {
     const puts: string[] = [];
     const outcome = await buildImageStandardRendition(params, {
       ...deps(),
@@ -147,14 +151,12 @@ describe('buildImageStandardRendition', () => {
     });
 
     expect(puts).toEqual([params.standardKey, params.smKey, params.mdKey]);
-    expect(outcome.supersededOriginalKey).toBe(params.originalKey);
     expect(outcome.mimeType).toBe('image/webp');
     expect(outcome.sizeBytes).toBe(Buffer.from('webp-bytes').byteLength);
   });
 
-  it('writes nothing and supersedes nothing when the re-encode fails', async () => {
+  it('пишет только то, что успело кодироваться, когда переэнкод падает', async () => {
     const puts: string[] = [];
-    const deleted: string[] = [];
 
     await expect(
       buildImageStandardRendition(params, {
@@ -165,35 +167,15 @@ describe('buildImageStandardRendition', () => {
         putObject: async (key) => {
           puts.push(key);
         },
-      }).then((outcome) => {
-        if (outcome.supersededOriginalKey) deleted.push(outcome.supersededOriginalKey);
       }),
     ).rejects.toThrow('unsupported image format');
 
     expect(puts).toEqual([]);
-    expect(deleted).toEqual([]);
   });
 
-  it('supersedes nothing when the stored rendition cannot be read back', async () => {
-    const deleted: string[] = [];
-
+  it('падает, а не тихо продолжает, когда сохранённый рендишн не читается назад', async () => {
     await expect(
-      buildImageStandardRendition(params, { ...deps(), headObject: async () => false }).then(
-        (outcome) => {
-          if (outcome.supersededOriginalKey) deleted.push(outcome.supersededOriginalKey);
-        },
-      ),
+      buildImageStandardRendition(params, { ...deps(), headObject: async () => false }),
     ).rejects.toThrow('standard_rendition_head_missing_after_upload');
-
-    expect(deleted).toEqual([]);
-  });
-
-  it('never supersedes the rendition itself on a repeated run', async () => {
-    const outcome = await buildImageStandardRendition(
-      { ...params, originalKey: params.standardKey },
-      deps(),
-    );
-
-    expect(outcome.supersededOriginalKey).toBeNull();
   });
 });

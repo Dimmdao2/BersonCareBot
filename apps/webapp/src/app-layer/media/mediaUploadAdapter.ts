@@ -12,9 +12,11 @@ import {
   s3GetObjectPrefix,
   s3HeadObjectDetails,
   s3ObjectKey,
+  s3RawObjectKey,
+  sourceStorageKindFor,
   storageBucketFor,
 } from './s3Client';
-import type { StorageTarget } from './s3Client';
+import type { StorageKind, StorageTarget } from './s3Client';
 import {
   confirmMediaFileReady,
   confirmProgramSubmissionMediaFileReady,
@@ -44,6 +46,11 @@ export type PreparedMediaUpload = Readonly<{
   bucket: string;
   /** В каком физическом хранилище живёт объект — решается здесь и дальше только передаётся. */
   target: StorageTarget;
+  /**
+   * Сырой бакет или горячий (М7). Свежая загрузка `library`-цели всегда `raw` — она ложится в
+   * `S3_RAW_BUCKET`, а не туда, откуда что-либо отдаётся. `patient` не разделён — всегда `hot`.
+   */
+  kind: StorageKind;
   intent: UploadIntent;
 }>;
 
@@ -82,29 +89,39 @@ export function prepareMediaUpload(input: {
   sizeBytes: number;
   policyId: UploadPolicyId;
   namespace?: 'media' | 'patient-files';
+  /**
+   * Обязателен: свежая `library`-загрузка кладётся под `<organizationId>/media/<id>/<file>` в
+   * сыром бакете (М7) — папка верхнего уровня организация, чтобы объём читался обходом бакета.
+   * `patient`/`patient-files` цели ключ игнорируют (их формат и бакет не меняются).
+   */
+  organizationId: string;
 }): UploadValidationResult<PreparedMediaUpload> {
   const validated = validateUploadIntent(input);
   if (!validated.ok) return validated;
   const id = randomUUID();
+  const target = storageTargetFor(input);
+  const kind: StorageKind = sourceStorageKindFor(target);
   const key =
     input.namespace === 'patient-files'
       ? `patient-files/${id}/${sanitizeFilename(validated.value.filename)}`
-      : s3ObjectKey(id, validated.value.filename);
-  const target = storageTargetFor(input);
+      : kind === 'raw'
+        ? s3RawObjectKey(input.organizationId, id, validated.value.filename)
+        : s3ObjectKey(id, validated.value.filename);
   return {
     ok: true,
     value: {
       id,
       key,
-      bucket: storageBucketFor(target),
+      bucket: storageBucketFor(target, kind),
       target,
+      kind,
       intent: validated.value,
     },
   };
 }
 
 export function presignPreparedUpload(upload: PreparedMediaUpload): Promise<string> {
-  return presignPutUrl(upload.key, upload.intent.mimeType, upload.target);
+  return presignPutUrl(upload.key, upload.intent.mimeType, upload.target, upload.kind);
 }
 
 export async function beginPreparedMultipartUpload(
@@ -116,6 +133,7 @@ export async function beginPreparedMultipartUpload(
     contentType: upload.intent.mimeType,
     metadata,
     target: upload.target,
+    kind: upload.kind,
   });
 }
 
@@ -161,22 +179,36 @@ export async function beginAuthorizedMultipartUpload(input: {
     return { mediaId, sessionId, uploadId, partSizeBytes, maxParts, expiresAt };
   } catch (error) {
     if (uploadId) {
-      await abortPreparedMultipartUpload(input.upload.key, uploadId, input.upload.target).catch(
-        () => undefined,
-      );
+      await abortPreparedMultipartUpload(
+        input.upload.key,
+        uploadId,
+        input.upload.target,
+        input.upload.kind,
+      ).catch(() => undefined);
     }
     await input.abortPending(mediaId).catch(() => undefined);
     throw error;
   }
 }
 
+/**
+ * `kind` не персистится в сессии multipart (`media_upload_sessions` хранит только
+ * `storage_target`) — он чистая функция от `target`, поэтому пересчитывается здесь тем же
+ * правилом, что и при создании загрузки (`sourceStorageKindFor`), а не хранится второй раз.
+ */
 export function presignPreparedUploadPart(session: {
   key: string;
   uploadId: string;
   partNumber: number;
   target: StorageTarget;
 }): Promise<string> {
-  return presignUploadPartUrl(session.key, session.uploadId, session.partNumber, session.target);
+  return presignUploadPartUrl(
+    session.key,
+    session.uploadId,
+    session.partNumber,
+    session.target,
+    sourceStorageKindFor(session.target),
+  );
 }
 
 export function completePreparedMultipartUpload(
@@ -185,15 +217,16 @@ export function completePreparedMultipartUpload(
   parts: { PartNumber: number; ETag: string }[],
   target: StorageTarget,
 ): Promise<void> {
-  return s3CompleteMultipartUpload(key, uploadId, parts, target);
+  return s3CompleteMultipartUpload(key, uploadId, parts, target, sourceStorageKindFor(target));
 }
 
 export function abortPreparedMultipartUpload(
   key: string,
   uploadId: string,
   target: StorageTarget,
+  kind: StorageKind = sourceStorageKindFor(target),
 ): Promise<void> {
-  return s3AbortMultipartUpload(key, uploadId, target);
+  return s3AbortMultipartUpload(key, uploadId, target, kind);
 }
 
 /**
@@ -206,9 +239,10 @@ export function abortPreparedMultipartUpload(
 export async function validateReceivedMediaObject(
   upload: Pick<PreparedMediaUpload, 'key' | 'intent' | 'target'>,
 ): Promise<UploadValidationResult<ReceivedUpload>> {
-  const head = await s3HeadObjectDetails(upload.key, upload.target);
+  const kind = sourceStorageKindFor(upload.target);
+  const head = await s3HeadObjectDetails(upload.key, upload.target, kind);
   if (!head) return { ok: false, error: 'file_not_found_in_s3' };
-  const firstBytes = await s3GetObjectPrefix(upload.key, upload.target);
+  const firstBytes = await s3GetObjectPrefix(upload.key, upload.target, undefined, kind);
   if (!firstBytes) return { ok: false, error: 'file_not_found_in_s3' };
   return validateReceivedUpload({
     intent: upload.intent,
@@ -220,7 +254,7 @@ export async function validateReceivedMediaObject(
 
 /** Multipart completion additionally verifies the metadata written at CreateMultipartUpload. */
 export function inspectReceivedMediaObject(key: string, target: StorageTarget) {
-  return s3HeadObjectDetails(key, target);
+  return s3HeadObjectDetails(key, target, sourceStorageKindFor(target));
 }
 
 export function validateBufferedMediaUpload(

@@ -53,6 +53,7 @@ describe('media-worker database door', () => {
       S3_ACCESS_KEY: 'access',
       S3_SECRET_KEY: 'secret',
       S3_PRIVATE_BUCKET: 'private',
+      S3_RAW_BUCKET: 'raw',
       DATABASE_URL: 'postgresql://legacy:secret@127.0.0.1:5432/test',
     });
     try {
@@ -77,6 +78,7 @@ describe('media-worker database door', () => {
       S3_ACCESS_KEY: 'access',
       S3_SECRET_KEY: 'secret',
       S3_PRIVATE_BUCKET: 'private',
+      S3_RAW_BUCKET: 'raw',
     });
     delete process.env.DATABASE_URL;
     try {
@@ -103,6 +105,7 @@ describe('media-worker database door', () => {
       S3_ACCESS_KEY: 'access',
       S3_SECRET_KEY: 'secret',
       S3_PRIVATE_BUCKET: 'private',
+      S3_RAW_BUCKET: 'raw',
     });
     delete process.env.DATABASE_URL;
     try {

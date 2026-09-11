@@ -49,6 +49,7 @@ export async function POST(request: Request) {
     mimeType: parsed.data.mimeType,
     sizeBytes: parsed.data.size,
     policyId: 'cms',
+    organizationId: gate.ctx.organizationId,
   });
   if (!prepared.ok) {
     const rejection = uploadValidationResponse(prepared);
