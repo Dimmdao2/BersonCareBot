@@ -7,7 +7,6 @@ import { Button } from '@/shared/ui/doctor/primitives/button';
 import type { ExerciseLoadType, ExerciseMedia } from '@/modules/lfk-exercises/types';
 import type { Template } from '@/modules/lfk-templates/types';
 import { cn } from '@/lib/utils';
-import { isDoctorCatalogMissingFilter } from '@/shared/lib/doctorCatalogEmptyFieldFilter';
 import { useDoctorCatalogDisplayList } from '@/shared/hooks/useDoctorCatalogDisplayList';
 import { useDoctorCatalogClientFilterMerge } from '@/shared/hooks/useDoctorCatalogClientFilterMerge';
 import { useDoctorCatalogMasterSelectionSync } from '@/shared/hooks/useDoctorCatalogMasterSelectionSync';
@@ -35,6 +34,7 @@ import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 import { LfkTemplatePreviewPanel } from './LfkTemplatePreviewPanel';
 import { buildLfkTemplatesListPreserveQuery } from './lfkTemplatesListPreserveQuery';
+import { filterLfkTemplatesByRegionAndLoad } from './lfkTemplatesRegionLoadFilter';
 import type { DoctorCatalogPubArchQuery } from '@/shared/lib/doctorCatalogListStatus';
 import { DoctorCatalogInvalidPubArchToast } from '@/shared/ui/doctor/DoctorCatalogInvalidPubArchToast';
 import {
@@ -129,44 +129,22 @@ function LfkTemplatesContent({
     mergedFilters.titleSort === null ? 'default' : mergedFilters.titleSort,
   );
 
-  const displayList = useMemo(() => {
-    let out = qSorted;
-    const rc = mergedFilters.regionCode?.trim();
-    const lt = mergedFilters.loadType;
-    if (rc) {
-      if (isDoctorCatalogMissingFilter(rc)) {
-        out = out.filter((tpl) =>
-          tpl.exercises.some((row) => !exerciseMetaById[row.exerciseId]?.regionRefIds?.length),
-        );
-      } else {
-        out = out.filter((tpl) =>
-          tpl.exercises.some((row) => {
-            const m = exerciseMetaById[row.exerciseId];
-            if (!m?.regionRefIds?.length) return false;
-            return m.regionRefIds.some((rid) => (bodyRegionIdToCode[rid] ?? null) === rc);
-          }),
-        );
-      }
-    }
-    if (lt) {
-      if (isDoctorCatalogMissingFilter(lt)) {
-        out = out.filter((tpl) =>
-          tpl.exercises.some((row) => (exerciseMetaById[row.exerciseId]?.loadTypes ?? []).length === 0),
-        );
-      } else {
-        out = out.filter((tpl) =>
-          tpl.exercises.some((row) => (exerciseMetaById[row.exerciseId]?.loadTypes ?? []).includes(lt)),
-        );
-      }
-    }
-    return out;
-  }, [
-    qSorted,
-    mergedFilters.regionCode,
-    mergedFilters.loadType,
-    exerciseMetaById,
-    bodyRegionIdToCode,
-  ]);
+  const displayList = useMemo(
+    () =>
+      filterLfkTemplatesByRegionAndLoad(qSorted, {
+        regionCode: mergedFilters.regionCode,
+        loadType: mergedFilters.loadType,
+        exerciseMetaById,
+        bodyRegionIdToCode,
+      }),
+    [
+      qSorted,
+      mergedFilters.regionCode,
+      mergedFilters.loadType,
+      exerciseMetaById,
+      bodyRegionIdToCode,
+    ],
+  );
 
   useDoctorCatalogMasterSelectionSync({
     displayList,

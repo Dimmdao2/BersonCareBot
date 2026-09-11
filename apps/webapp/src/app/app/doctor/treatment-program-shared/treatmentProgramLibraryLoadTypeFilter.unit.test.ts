@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { Exercise, ExerciseLoadType } from '@/modules/lfk-exercises/types';
 import type { Template } from '@/modules/lfk-templates/types';
+import { buildTreatmentProgramLibraryPickers } from '@/app/app/doctor/treatment-program-templates/buildTreatmentProgramLibraryPickers';
+import { DOCTOR_CATALOG_FILTER_MISSING } from '@/shared/lib/doctorCatalogEmptyFieldFilter';
 import {
   buildExerciseMetaById,
   buildLfkComplexLibraryFilterMeta,
@@ -35,23 +37,27 @@ function exercise(id: string, loadTypes: ExerciseLoadType[]): Exercise {
   } as unknown as Exercise;
 }
 
-function row(id: string, loadTypes: readonly string[]): TreatmentProgramLibraryRow {
-  return {
-    id,
-    kind: 'exercise',
-    title: id,
-    subtitle: null,
-    thumbUrl: null,
-    regionCodes: [],
-    loadTypes,
-  } as unknown as TreatmentProgramLibraryRow;
+/**
+ * Строки подбора собираются ТЕМ ЖЕ кодом, что и в приложении: отображение «упражнение → строка
+ * подбора» (`buildTreatmentProgramLibraryPickers`) и есть то место, где фильтр падал на
+ * legacy-колонку. Литеральная строка этот шов не проверяет.
+ */
+function pickerRows(exercises: Exercise[]): TreatmentProgramLibraryRow[] {
+  return buildTreatmentProgramLibraryPickers({
+    exercises,
+    lfkTemplates: [],
+    testSets: [],
+    clinicalTests: [],
+    recommendations: [],
+    contentPagesAll: [],
+  }).exercises as unknown as TreatmentProgramLibraryRow[];
 }
 
 describe('фильтр подбора по типу нагрузки при мультитипе', () => {
   const both = exercise('strength_and_hold', ['strength', 'static_hold']);
 
   it('упражнение с двумя типами находится по КАЖДОМУ из них, а не только по алфавитно первому', () => {
-    const rows = [row(both.id, both.loadTypes), row('stretch_only', ['stretch'])];
+    const rows = pickerRows([both, exercise('stretch_only', ['stretch'])]);
 
     for (const lt of ['strength', 'static_hold']) {
       const found = filterTreatmentProgramLibraryPickerRows(rows, {
@@ -73,6 +79,17 @@ describe('фильтр подбора по типу нагрузки при му
   it('метаданные упражнения несут набор типов, а не одиночную legacy-колонку', () => {
     const meta = buildExerciseMetaById([both]);
     expect(meta[both.id]!.loadTypes).toEqual(['static_hold', 'strength']);
+  });
+
+  it('упражнение без типов нагрузки попадает в фильтр «не заполнено», а с типами — нет', () => {
+    const rows = pickerRows([both, exercise('no_load', [])]);
+
+    const found = filterTreatmentProgramLibraryPickerRows(rows, {
+      searchQuery: '',
+      loadType: DOCTOR_CATALOG_FILTER_MISSING,
+      applyRegionLoadFilters: true,
+    });
+    expect(found.map((r) => r.id)).toEqual(['no_load']);
   });
 
   it('комплекс ЛФК наследует ВСЕ типы своих упражнений', () => {
