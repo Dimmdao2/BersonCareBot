@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { doctorTreatmentProgramInstanceRouteErrorStatus } from '@/modules/treatment-program/doctorInstanceRouteErrorStatus';
 import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
@@ -13,6 +14,8 @@ const bodySchema = z.object({
 export async function POST(request: Request, context: { params: Promise<{ instanceId: string }> }) {
   const gate = await requireDoctorWorkspaceApiContext();
   if (!gate.ok) return gate.response;
+  const entitlement = await requireEntitlementForMutation(gate.ctx, 'exercise_catalog');
+  if (!entitlement.ok) return entitlement.response;
   const { session } = gate.ctx;
 
   const { instanceId } = await context.params;

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { TREATMENT_PROGRAM_ITEM_TYPES } from '@/modules/treatment-program/types';
 import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
@@ -19,6 +20,8 @@ const patchBodySchema = z.object({
 export async function PATCH(request: Request, ctx: { params: Promise<{ itemId: string }> }) {
   const auth = await requireDoctorWorkspaceApiContext();
   if (!auth.ok) return auth.response;
+  const entitlement = await requireEntitlementForMutation(auth.ctx, 'exercise_catalog');
+  if (!entitlement.ok) return entitlement.response;
   const { ctx: workspace } = auth;
 
   const { itemId } = await ctx.params;
@@ -55,6 +58,8 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ itemId: s
 export async function DELETE(_request: Request, ctx: { params: Promise<{ itemId: string }> }) {
   const auth = await requireDoctorWorkspaceApiContext();
   if (!auth.ok) return auth.response;
+  const entitlement = await requireEntitlementForMutation(auth.ctx, 'exercise_catalog');
+  if (!entitlement.ok) return entitlement.response;
   const { ctx: workspace } = auth;
 
   const { itemId } = await ctx.params;

@@ -19,6 +19,7 @@ const getVideoAttachmentDurationRejection = vi.fn(
 
 vi.mock('@/app-layer/guards/requireRole', () => ({
   requireDoctorWorkspaceContext: async () => ({
+    organizationId: 'organization-1',
     session: { user: { userId: 'doctor-1' } },
   }),
 }));
@@ -37,6 +38,14 @@ vi.mock('@/app-layer/principal/withOrganizationPrincipal', () => ({
 
 vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: () => ({
+    orgEntitlements: {
+      resolveMechanicAccess: async () => ({
+        mechanic: 'exercise_catalog',
+        state: 'full_access',
+        policySource: 'mechanic',
+        warning: null,
+      }),
+    },
     references: { listActiveItemsByCategoryCode: async () => [] },
     lfkExercises: {
       createExercise,
@@ -48,7 +57,8 @@ vi.mock('@/app-layer/di/buildAppDeps', () => ({
   }),
 }));
 
-const { bulkCreateExercisesFromMediaCore, saveDoctorExerciseCore } = await import('./actionsShared');
+const { bulkCreateExercisesFromMediaCore, saveDoctorExerciseCore } =
+  await import('./actionsShared');
 
 function form(fields: Record<string, string>): FormData {
   const fd = new FormData();

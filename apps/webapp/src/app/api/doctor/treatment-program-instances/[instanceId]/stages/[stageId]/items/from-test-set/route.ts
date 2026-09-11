@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
@@ -15,6 +16,8 @@ export async function POST(
 ) {
   const gate = await requireDoctorWorkspaceApiContext();
   if (!gate.ok) return gate.response;
+  const entitlement = await requireEntitlementForMutation(gate.ctx, 'exercise_catalog');
+  if (!entitlement.ok) return entitlement.response;
   const { session } = gate.ctx;
 
   const { instanceId, stageId } = await ctx.params;
