@@ -12,6 +12,8 @@ import {
   DropdownMenuTrigger,
 } from '@/shared/ui/doctor/primitives/dropdown-menu';
 import { DoctorCatalogMasterListHeader } from '@/shared/ui/doctor/DoctorCatalogMasterListHeader';
+import { DoctorCatalogMasterListRow } from '@/shared/ui/doctor/DoctorCatalogMasterListRow';
+import { DoctorCatalogVisibilityMark } from '@/shared/ui/doctor/DoctorCatalogVisibilityMark';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 import type {
   Exercise,
@@ -31,12 +33,6 @@ import {
   DoctorCatalogFiltersToolbar,
   DoctorCatalogToolbarFiltersSlot,
 } from '@/shared/ui/doctor/DoctorCatalogFiltersToolbar';
-import {
-  DoctorDnaFlatList,
-  DoctorDnaFlatListSelectionStrip,
-  doctorDnaFlatListClickableClass,
-  doctorDnaFlatListRowClass,
-} from '@/shared/ui/doctor/DoctorDnaFlatListRow';
 import type { DoctorCatalogToolbarLayout } from '@/shared/ui/doctor/DoctorCatalogFiltersForm';
 import {
   DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_EXPANDED,
@@ -71,11 +67,6 @@ export type ExerciseTitleSort = 'asc' | 'desc';
 const ExerciseForm = dynamic(() => import('./ExerciseForm').then((mod) => mod.ExerciseForm), {
   loading: () => <DoctorPanelLoading className="min-h-48" />,
 });
-
-const LIST_ROW_VISIBILITY_STYLE = {
-  contentVisibility: 'auto',
-  containIntrinsicSize: '52px',
-} as const;
 
 type DoctorExerciseSelection = {
   exercise: Exercise | null;
@@ -257,38 +248,25 @@ function ExercisesContent({
     list.length === 0 ? (
       <DoctorEmptyState>Нет упражнений по заданным фильтрам.</DoctorEmptyState>
     ) : (
-      <DoctorDnaFlatList className="h-full min-h-0 overflow-y-auto">
-        {list.map((ex) => {
-          const active = opts.activeId === ex.id;
-          return (
-            <li key={ex.id}>
-              <div style={LIST_ROW_VISIBILITY_STYLE}>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => opts.onRowSelect(ex.id)}
-                  className={cn(
-                    doctorDnaFlatListRowClass,
-                    doctorDnaFlatListClickableClass,
-                    'h-auto min-h-0 w-full rounded-none bg-transparent text-left shadow-none',
-                  )}
-                >
-                  {active ? <DoctorDnaFlatListSelectionStrip /> : null}
-                  {mediaNode(ex)}
-                  <span className="min-w-0 text-left">
-                    <span className="line-clamp-2">{ex.title}</span>
-                    {ex.ownerKind === 'platform' ? (
-                      <span className="block text-[11px] text-muted-foreground">
-                        Базовая библиотека
-                      </span>
-                    ) : null}
-                  </span>
-                </Button>
-              </div>
-            </li>
-          );
-        })}
-      </DoctorDnaFlatList>
+      <VirtualizedItemGrid
+        items={list}
+        columns={1}
+        estimatedRowHeight={56}
+        overscan={4}
+        keyExtractor={(ex) => ex.id}
+        containerClassName="h-full min-h-0"
+        gridClassName="gap-0 p-0"
+        renderItem={(ex) => (
+          <DoctorCatalogMasterListRow
+            active={opts.activeId === ex.id}
+            onPick={() => opts.onRowSelect(ex.id)}
+            previewInner={mediaNode(ex)}
+            title={ex.title}
+            meta={ex.ownerKind === 'platform' ? 'Базовая библиотека' : null}
+            badge={ex.isArchived ? <DoctorCatalogVisibilityMark status="archived" /> : null}
+          />
+        )}
+      />
     );
 
   const renderExerciseTiles = (
