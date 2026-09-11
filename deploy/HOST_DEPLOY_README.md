@@ -442,6 +442,24 @@ mc cors set myminio/<PRIVATE_BUCKET_NAME> /path/to/cors.json
 
 Опционально **`S3_PUBLIC_BUCKET`**: только если нужны прямые публичные URL или легаси; для него при необходимости отдельно `mc anonymous set download` и CORS.
 
+**Сырой бакет загрузок (`S3_RAW_BUCKET`, М7, `docs/_TODO/STORAGE_PACKAGES_2026-09-10.md`):** свежие загрузки
+`library`-цели (presigned PUT и multipart) пишутся в ОТДЕЛЬНЫЙ бакет, не в `S3_PRIVATE_BUCKET`; наружу из
+него ничего не отдаётся, кроме явного скачивания исходника специалистом (`GET /api/media/[id]/original`).
+Обязателен при включённом S3-медиа так же, как `S3_PRIVATE_BUCKET` — пустое значение не откатывается на
+горячий бакет, а падает громкой ошибкой старта. На DEV/TEST (тот же MinIO `fs.bersonservices.ru`) создаётся
+тем же `mc` теми же ключами:
+
+```bash
+mc mb myminio/bersonservices-raw
+mc cors set myminio/bersonservices-raw /path/to/cors.json
+```
+
+CORS нужен по той же причине, что у приватного бакета — presigned PUT/multipart идёт прямо из браузера. На
+PROD (Selectel) бакет называется `saas-s3-cold` и создаётся **владельцем вручную в панели управления**:
+класс хранения («холодное хранилище») Selectel выставляет только там при создании контейнера и не меняет
+после (замер 11.09.2026, `docs/_TODO/VIDEO_DELIVERY_COST_AND_METERING_2026-09-11.md`) — агент Selectel не
+трогает вовсе.
+
 **Очередь удаления медиа:** после удаления из библиотеки строки помечаются в БД; фоновый воркер — `POST /api/internal/media-pending-delete/purge` с заголовком `Authorization: Bearer <INTERNAL_JOB_SECRET>`. Задайте **`INTERNAL_JOB_SECRET`** в env webapp; расписание объявлено в manifest (`media_purge`, каждую минуту) и приезжает шаблоном `deploy/host/cron.d/bersoncarebot-media-purge.cron.template`. Вызов идёт с того же хоста на loopback, но с публичной surface identity — её строит общий transport, см. «Host scheduled jobs».
 
 **Multipart upload (очистка незавершённых сессий):** отдельный воркер — `POST /api/internal/media-multipart/cleanup` с тем же Bearer. Назначение: истёкшие строки `media_upload_sessions` → `AbortMultipartUpload` в S3 и удаление orphan `pending` в `media_files`. Расписание объявлено в manifest (`media_multipart`, каждые 10 минут), тот же `INTERNAL_JOB_SECRET` и тот же nginx `allow 127.0.0.1` для `/api/internal/`. На стороне MinIO дополнительно задайте lifecycle rule **`AbortIncompleteMultipartUpload`** (например 1–2 суток) для private-бакета как вторую линию защиты от «зависших» multipart.
@@ -486,7 +504,7 @@ location /api/internal/ {
 **Проверка в production (зафиксировано 2026-04-09):**
 
 - webapp сервис активен (`bersoncarebot-webapp-prod.service`) и `GET /api/health` отвечает `{"ok":true,...}`;
-- в `webapp.prod` присутствуют `DATABASE_URL`, `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_PRIVATE_BUCKET`, `INTERNAL_JOB_SECRET`;
+- в `webapp.prod` присутствуют `DATABASE_URL`, `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_PRIVATE_BUCKET`, `S3_RAW_BUCKET`, `INTERNAL_JOB_SECRET`;
 - миграция `060_media_files_status_retry.sql` применена (запись в `webapp_schema_migrations`), колонки/constraint/index присутствуют;
 - ручной вызов purge c Bearer на loopback возвращает `{"ok":true,...}`;
 - cron файл `/etc/cron.d/bersoncarebot-media-purge` установлен (каждую минуту, loopback URL);
@@ -643,7 +661,7 @@ journalctl -u bersoncarebot-api-prod.service -p err --since "14 days ago" --no-p
 - `ADMIN_TELEGRAM_ID=364943522`
 - `TELEGRAM_BOT_TOKEN=...`
 
-**S3 / MinIO и фоновые джобы (webapp):** имена ключей (значения не в документ): `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, **`S3_PRIVATE_BUCKET`** (обязателен для CMS-медиа в private-режиме), опционально `S3_PUBLIC_BUCKET`, `S3_REGION`, `S3_FORCE_PATH_STYLE`; **`INTERNAL_JOB_SECRET`** — Bearer для `POST /api/internal/media-pending-delete/purge`, `POST /api/internal/media-multipart/cleanup`, `POST /api/internal/media-preview/process`, `POST /api/internal/media-playback-stats/retention`, `POST /api/internal/media-hls-proxy-errors/retention`, `POST /api/internal/product-analytics/retention`, `POST /api/internal/media-transcode/reconcile`, `POST /api/internal/saas-billing/renewal/tick`, `POST /api/internal/db-journal-retention/tick`; `FFMPEG_PATH=/usr/bin/ffmpeg` — путь к системному ffmpeg для preview-воркера (на хосте обязателен `apt install ffmpeg`); опционально **`LOG_LEVEL`** — уровень логов pino в webapp (`info`, `warn`, `error`; по умолчанию в приложении `info`). Подробности и CORS: раздел **Nginx → Webapp** выше («CMS медиа и S3», «Очередь удаления медиа»); канон env: `docs/ARCHITECTURE/SERVER CONVENTIONS.md`. **Политика private-бакета (без анонимного чтения):** чеклист в [`docs/REPORTS/S3_PRIVATE_MEDIA_EXECUTION_LOG.md`](../docs/REPORTS/S3_PRIVATE_MEDIA_EXECUTION_LOG.md) § Private bucket policy.
+**S3 / MinIO и фоновые джобы (webapp):** имена ключей (значения не в документ): `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, **`S3_PRIVATE_BUCKET`** (обязателен для CMS-медиа в private-режиме), **`S3_RAW_BUCKET`** (обязателен так же, как `S3_PRIVATE_BUCKET` — сырой бакет загрузок, М7, см. «CMS медиа и S3» выше), опционально `S3_PUBLIC_BUCKET`, `S3_REGION`, `S3_FORCE_PATH_STYLE`; **`INTERNAL_JOB_SECRET`** — Bearer для `POST /api/internal/media-pending-delete/purge`, `POST /api/internal/media-multipart/cleanup`, `POST /api/internal/media-preview/process`, `POST /api/internal/media-playback-stats/retention`, `POST /api/internal/media-hls-proxy-errors/retention`, `POST /api/internal/product-analytics/retention`, `POST /api/internal/media-transcode/reconcile`, `POST /api/internal/saas-billing/renewal/tick`, `POST /api/internal/db-journal-retention/tick`; `FFMPEG_PATH=/usr/bin/ffmpeg` — путь к системному ffmpeg для preview-воркера (на хосте обязателен `apt install ffmpeg`); опционально **`LOG_LEVEL`** — уровень логов pino в webapp (`info`, `warn`, `error`; по умолчанию в приложении `info`). Подробности и CORS: раздел **Nginx → Webapp** выше («CMS медиа и S3», «Очередь удаления медиа»); канон env: `docs/ARCHITECTURE/SERVER CONVENTIONS.md`. **Политика private-бакета (без анонимного чтения):** чеклист в [`docs/REPORTS/S3_PRIVATE_MEDIA_EXECUTION_LOG.md`](../docs/REPORTS/S3_PRIVATE_MEDIA_EXECUTION_LOG.md) § Private bucket policy.
 
 **Auth (webapp):** Yandex OAuth и Telegram Login Widget **не** требуют новых ключей в `webapp.prod` — клиент OAuth и имя бота для виджета задаются в **`system_settings`** (admin scope) в БД webapp; см. `docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md`. Секреты в env-файлы деплоя не добавлять.
 

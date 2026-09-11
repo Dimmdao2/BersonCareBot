@@ -48,6 +48,7 @@ export async function POST(request: Request, context: { params: Promise<{ instan
     mimeType: parsed.data.mimeType,
     sizeBytes: parsed.data.size,
     policyId: 'individual-exercise-video',
+    organizationId: gate.ctx.organizationId,
   });
   if (!prepared.ok) {
     const rejection = uploadValidationResponse(prepared);

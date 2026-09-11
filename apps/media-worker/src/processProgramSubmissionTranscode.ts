@@ -66,7 +66,7 @@ export async function processProgramSubmissionTranscodeJob(
   try {
     await ctx.control.processing(job, ctx.lockId);
 
-    await downloadObjectToFile(ctx.client, ctx.bucket, sourceKey, src);
+    await downloadObjectToFile(ctx.source.client, ctx.source.bucket, sourceKey, src);
     const sourceDurationSeconds = await probeVideoDurationSeconds(ctx.ffmpegBin, src, 60_000);
     if (
       sourceDurationSeconds === null ||

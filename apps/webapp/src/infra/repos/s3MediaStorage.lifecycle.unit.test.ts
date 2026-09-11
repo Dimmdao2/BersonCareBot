@@ -50,13 +50,21 @@ vi.mock('@/infra/s3/client', () => ({
   s3HeadObject: fakes.s3HeadObject,
   s3ListObjectKeysUnderPrefix: fakes.s3ListObjectKeysUnderPrefix,
   s3ObjectKey: (id: string, filename: string) => `media/${id}/${filename}`,
+  s3RawObjectKey: (organizationId: string, id: string, filename: string) =>
+    `${organizationId}/media/${id}/${filename}`,
+  s3StandardImageKey: (id: string) => `media/${id}/standard.webp`,
   s3PublicUrl: vi.fn(),
   s3PutObjectBody: fakes.s3PutObjectBody,
+  sourceStorageKindFor: (target: string) => (target === 'patient' ? 'hot' : 'raw'),
+  sourceStorageKindForKey: (target: string, key: string) =>
+    target === 'patient' ? 'hot' : key.startsWith('media/') ? 'hot' : 'raw',
+  parseStorageTarget: (value: unknown) => (value === 'patient' ? 'patient' : 'library'),
 }));
 
 import {
   collectS3KeysForMediaPurge,
   createS3MediaStoragePort,
+  getMediaS3KeyForRedirect,
   purgePendingMediaDeleteBatch,
   stagePendingMediaAbort,
 } from './s3MediaStorage';
@@ -195,6 +203,10 @@ describe('pending upload abort lifecycle', () => {
 
   const MEDIA_ID = '55555555-5555-4555-8555-555555555555';
   const MEDIA_KEY = 'media/55555555-5555-4555-8555-555555555555/photo.jpg';
+  /* `collectS3KeysForMediaPurge` теперь всегда добавляет детерминированный ключ стандартного
+     рендишна (F-3) — MEDIA_KEY здесь легаси-формы (`media/...`), поэтому по форме ключа оба
+     оседают в горячем ('hot'), как и до М7. */
+  const STANDARD_KEY = `media/${MEDIA_ID}/standard.webp`;
 
   /**
    * Renders the SQL TEXT of a drizzle `sql` template. `String(query.queryChunks)` — used elsewhere in
@@ -253,7 +265,9 @@ describe('pending upload abort lifecycle', () => {
 
     await expect(purgePendingMediaDeleteBatch(1)).resolves.toEqual({ removed: 0, errors: 1 });
 
-    expect(fakes.s3DeleteObject).toHaveBeenCalledWith(MEDIA_KEY, 'library');
+    // Set iteration order puts the deterministic standard-rendition key (F-3) ahead of the row's
+    // own s3_key — the injected failure hits it first and the loop stops there.
+    expect(fakes.s3DeleteObject).toHaveBeenCalledWith(STANDARD_KEY, 'library', 'hot');
     expect(fakes.runNamedRoot).toHaveBeenNthCalledWith(
       3,
       expect.anything(),
@@ -283,7 +297,7 @@ describe('pending upload abort lifecycle', () => {
 
     await expect(purgePendingMediaDeleteBatch(1)).resolves.toEqual({ removed: 0, errors: 1 });
 
-    expect(fakes.s3AbortMultipartUpload).toHaveBeenCalledWith(MEDIA_KEY, 'upload-1', 'library');
+    expect(fakes.s3AbortMultipartUpload).toHaveBeenCalledWith(MEDIA_KEY, 'upload-1', 'library', 'hot');
     // The row (and with it the surviving session that holds the retry identity) is NOT deleted, and
     // no object delete was attempted on an upload that was never aborted.
     expect(fakes.s3DeleteObject).not.toHaveBeenCalled();
@@ -304,8 +318,9 @@ describe('pending upload abort lifecycle', () => {
 
     const result = await purgePendingMediaDeleteBatch(1);
 
-    expect(fakes.s3AbortMultipartUpload).toHaveBeenCalledWith(MEDIA_KEY, 'upload-1', 'library');
-    expect(fakes.s3DeleteObject).toHaveBeenCalledWith(MEDIA_KEY, 'library');
+    expect(fakes.s3AbortMultipartUpload).toHaveBeenCalledWith(MEDIA_KEY, 'upload-1', 'library', 'hot');
+    expect(fakes.s3DeleteObject).toHaveBeenCalledWith(MEDIA_KEY, 'library', 'hot');
+    expect(fakes.s3DeleteObject).toHaveBeenCalledWith(STANDARD_KEY, 'library', 'hot');
     expect(result).toEqual({ removed: 1, errors: 0 });
     expect(fakes.runNamedRoot).toHaveBeenNthCalledWith(
       3,
@@ -353,8 +368,11 @@ describe('pending upload abort lifecycle', () => {
       .mockResolvedValueOnce({ rows: [{ result: { action: 'complete', deleted: true } }] });
 
     await expect(purgePendingMediaDeleteBatch(1)).resolves.toEqual({ removed: 1, errors: 0 });
-    expect(fakes.s3DeleteObject).toHaveBeenCalledTimes(1);
-    expect(fakes.s3DeleteObject).toHaveBeenCalledWith(MEDIA_KEY, 'library');
+    // MEDIA_KEY (the row's own s3_key) plus the deterministic standard-rendition key (F-3) — no
+    // icon variants this time (HEAD reports absent).
+    expect(fakes.s3DeleteObject).toHaveBeenCalledTimes(2);
+    expect(fakes.s3DeleteObject).toHaveBeenCalledWith(MEDIA_KEY, 'library', 'hot');
+    expect(fakes.s3DeleteObject).toHaveBeenCalledWith(STANDARD_KEY, 'library', 'hot');
   });
 
   it('reports an error when the DB does not confirm final row deletion', async () => {
@@ -417,7 +435,7 @@ describe('pending upload abort lifecycle', () => {
       });
 
     await expect(purgePendingMediaDeleteBatch(1)).resolves.toEqual({ removed: 0, errors: 1 });
-    expect(fakes.s3AbortMultipartUpload).toHaveBeenCalledWith(MEDIA_KEY, 'upload-1', 'library');
+    expect(fakes.s3AbortMultipartUpload).toHaveBeenCalledWith(MEDIA_KEY, 'upload-1', 'library', 'hot');
 
     // ── tick 2: the session still says 'expired', so the same upload is aborted a second time. S3
     // has already forgotten it: NoSuchUpload. The retry must still finish the cleanup. ──
@@ -442,7 +460,8 @@ describe('pending upload abort lifecycle', () => {
     // An upload S3 no longer holds IS an aborted upload. The retry must treat it as done and
     // complete the cleanup exactly once, instead of parking the row on the backoff forever.
     expect(retry).toEqual({ removed: 1, errors: 0 });
-    expect(fakes.s3DeleteObject).toHaveBeenCalledWith(MEDIA_KEY, 'library');
+    expect(fakes.s3DeleteObject).toHaveBeenCalledWith(MEDIA_KEY, 'library', 'hot');
+    expect(fakes.s3DeleteObject).toHaveBeenCalledWith(STANDARD_KEY, 'library', 'hot');
   });
 
   /**
@@ -591,7 +610,7 @@ describe('pending upload abort lifecycle', () => {
     await expect(purgePendingMediaDeleteBatch(1)).rejects.toThrow(
       'invalid_media_pending_delete_step_result',
     );
-    expect(fakes.s3DeleteObject).toHaveBeenCalledWith(MEDIA_KEY, 'library');
+    expect(fakes.s3DeleteObject).toHaveBeenCalledWith(MEDIA_KEY, 'library', 'hot');
   });
 });
 
@@ -712,5 +731,90 @@ describe('collectS3KeysForMediaPurge trust boundary (shared hlsStorageLayout)', 
     expect(keys).toEqual(
       expect.arrayContaining([SOURCE_KEY, 'media/x/preview_sm.jpg', 'media/x/preview_md.jpg']),
     );
+  });
+});
+
+/**
+ * Correction stage F-1/F-2 (audit `raw-bucket-audit-01`, plan М7): `getMediaS3KeyForRedirect` feeds
+ * the ONE general delivery door (`GET /api/media/[id]`, HLS-proxy progressive fallback, clinic-card
+ * media). Live repro before this fix: a not-yet-migrated library source 404'd (F-1, sourceStorageKindFor
+ * ignored the key's own shape), and a post-M7 raw source with no rendition yet got a live hour-long
+ * presigned link straight to the raw bucket (F-2, `206`, real bytes, zero cookies).
+ */
+describe('getMediaS3KeyForRedirect — не сломано существующее (F-1), не подписывает сырой бакет (F-2)', () => {
+  const MEDIA_ID = '55555555-5555-4555-8555-555555555555';
+  /* Совпадает с `getCurrentDbPrincipalOrganizationId` в моке `@bersoncare/db-principal` выше. */
+  const ORG_ID = '44444444-4444-4444-8444-444444444444';
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('F-1: ещё не перенесённый (pre-M7) исходник библиотеки остаётся достижимым — горячий бакет, по форме ключа', async () => {
+    fakes.runSql.mockResolvedValueOnce({
+      rows: [
+        {
+          s3_key: `media/${MEDIA_ID}/source.mp4`,
+          storage_target: 'library',
+          standard_rendition_at: null,
+        },
+      ],
+    });
+
+    await expect(getMediaS3KeyForRedirect(MEDIA_ID)).resolves.toEqual({
+      key: `media/${MEDIA_ID}/source.mp4`,
+      target: 'library',
+      kind: 'hot',
+    });
+  });
+
+  it('F-2: свежий (post-M7) сырой исходник без готового рендишна отказывает, а не подписывает сырой бакет', async () => {
+    fakes.runSql.mockResolvedValueOnce({
+      rows: [
+        {
+          s3_key: `${ORG_ID}/media/${MEDIA_ID}/source.mp4`,
+          storage_target: 'library',
+          standard_rendition_at: null,
+        },
+      ],
+    });
+
+    await expect(getMediaS3KeyForRedirect(MEDIA_ID)).resolves.toBeNull();
+  });
+
+  it('готовый стандартный рендишн отдаётся из горячего бакета независимо от формы ключа исходника', async () => {
+    fakes.runSql.mockResolvedValueOnce({
+      rows: [
+        {
+          s3_key: `${ORG_ID}/media/${MEDIA_ID}/source.jpg`,
+          storage_target: 'library',
+          standard_rendition_at: '2026-09-11T00:00:00.000Z',
+        },
+      ],
+    });
+
+    await expect(getMediaS3KeyForRedirect(MEDIA_ID)).resolves.toEqual({
+      key: `media/${MEDIA_ID}/standard.webp`,
+      target: 'library',
+      kind: 'hot',
+    });
+  });
+
+  it('прогрессивный источник пациентской цели всегда горячий — М7 его не трогает', async () => {
+    fakes.runSql.mockResolvedValueOnce({
+      rows: [
+        {
+          s3_key: `media/${MEDIA_ID}/submission.mp4`,
+          storage_target: 'patient',
+          standard_rendition_at: null,
+        },
+      ],
+    });
+
+    await expect(getMediaS3KeyForRedirect(MEDIA_ID)).resolves.toEqual({
+      key: `media/${MEDIA_ID}/submission.mp4`,
+      target: 'patient',
+      kind: 'hot',
+    });
   });
 });

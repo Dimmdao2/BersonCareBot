@@ -11,6 +11,7 @@ export {
   normalizeMediaS3Key,
   isTrustedHlsArtifactS3Key,
   isTrustedPosterS3Key,
+  isLegacyHotMediaSourceKey,
 } from './hlsStorageLayout.js';
 
 export {
