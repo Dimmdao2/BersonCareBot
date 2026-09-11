@@ -1,31 +1,12 @@
 'use client';
 
-import ReactMarkdown from 'react-markdown';
-import rehypeSanitize from 'rehype-sanitize';
-import remarkGfm from 'remark-gfm';
 import type { ReactNode } from 'react';
+import { MarkdownBodyTree as SharedMarkdownBodyTree } from '@/shared/ui/markdown/markdownRenderTree';
 import { MarkdownEmbeddedLink } from './MarkdownEmbeddedLink';
 
-const remarkPlugins = [remarkGfm];
-const rehypePlugins = [rehypeSanitize];
+const components = { a: MarkdownEmbeddedLink };
 
-const markdownComponents = {
-  a: MarkdownEmbeddedLink,
-};
-
-type Props = {
-  children: string;
-};
-
-/** Общие remark/rehype/components для пациентского Markdown и локального превью редактора. */
-export function MarkdownBodyTree({ children }: Props): ReactNode {
-  return (
-    <ReactMarkdown
-      remarkPlugins={remarkPlugins}
-      rehypePlugins={rehypePlugins}
-      components={markdownComponents}
-    >
-      {children}
-    </ReactMarkdown>
-  );
+/** Привязка общего дерева к зоне: дерево одно, ссылка зоны своя (§17). */
+export function MarkdownBodyTree({ children }: { children: string }): ReactNode {
+  return <SharedMarkdownBodyTree components={components}>{children}</SharedMarkdownBodyTree>;
 }

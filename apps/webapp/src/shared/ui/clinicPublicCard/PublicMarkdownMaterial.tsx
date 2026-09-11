@@ -1,8 +1,6 @@
 'use client';
 
-import ReactMarkdown from 'react-markdown';
-import rehypeSanitize from 'rehype-sanitize';
-import remarkGfm from 'remark-gfm';
+import { MarkdownBodyTree } from '@/shared/ui/markdown/markdownRenderTree';
 import type { Components } from 'react-markdown';
 import { useMemo } from 'react';
 import { cn } from '@/lib/utils';
@@ -51,9 +49,6 @@ function mediaIdFromHref(href: string): string | null {
   const path = href.trim().split('#')[0]?.split('?')[0] ?? '';
   return /^(?:https?:\/\/[^/]+)?\/api\/media\/([^/]+)(?:\/playback)?$/i.exec(path)?.[1] ?? null;
 }
-
-const remarkPlugins = [remarkGfm];
-const rehypePlugins = [rehypeSanitize];
 
 export function PublicMarkdownMaterial({ markdown, media }: Props) {
   const components = useMemo<Components>(() => {
@@ -192,13 +187,7 @@ export function PublicMarkdownMaterial({ markdown, media }: Props) {
 
   return (
     <div className="clinic-public-markdown flex flex-col gap-2 text-sm leading-relaxed">
-      <ReactMarkdown
-        remarkPlugins={remarkPlugins}
-        rehypePlugins={rehypePlugins}
-        components={components}
-      >
-        {markdown}
-      </ReactMarkdown>
+      <MarkdownBodyTree components={components}>{markdown}</MarkdownBodyTree>
     </div>
   );
 }
