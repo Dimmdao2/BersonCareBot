@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 
 export async function POST(
@@ -10,6 +11,8 @@ export async function POST(
 ) {
   const gate = await requireDoctorWorkspaceApiContext();
   if (!gate.ok) return gate.response;
+  const entitlement = await requireEntitlementForMutation(gate.ctx, 'exercise_catalog');
+  if (!entitlement.ok) return entitlement.response;
   const { session } = gate.ctx;
 
   const { instanceId, stageItemId } = await context.params;
@@ -26,9 +29,11 @@ export async function POST(
     if (!instance || instance.organizationId !== gate.ctx.organizationId)
       return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
     if (
-      !(await deps.doctorClients.getClientChannelPolicy(instance.patientUserId, {
-        organizationId: gate.ctx.organizationId,
-      })).commentsAllowed
+      !(
+        await deps.doctorClients.getClientChannelPolicy(instance.patientUserId, {
+          organizationId: gate.ctx.organizationId,
+        })
+      ).commentsAllowed
     ) {
       return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
     }

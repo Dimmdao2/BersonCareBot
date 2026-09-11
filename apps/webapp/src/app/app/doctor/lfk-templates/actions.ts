@@ -18,7 +18,12 @@ import type {
 } from '@/modules/lfk-templates/types';
 import { EMPTY_LFK_TEMPLATE_USAGE_SNAPSHOT } from '@/modules/lfk-templates/types';
 import { sanitizeLfkTemplatesListPreserveQuery } from './lfkTemplatesListPreserveQuery';
-import { requireEntitlementForReadAction } from '@/app-layer/guards/requireEntitlement';
+import {
+  entitlementMutationRefusalError,
+  entitlementMutationRefusalMessage,
+  requireEntitlementForMutationAction,
+  requireEntitlementForReadAction,
+} from '@/app-layer/guards/requireEntitlement';
 import { safeActionFailure, type ActionFailureFields } from '@/shared/http/apiResponse';
 
 const BASE = '/app/doctor/lfk-templates';
@@ -43,6 +48,13 @@ async function archiveDoctorLfkTemplateCore(
   | { kind: 'invalid'; error: string }
 > {
   const workspace = await requireDoctorWorkspaceContext({ workspaceModule: 'rehabilitation' });
+  const entitlement = await requireEntitlementForMutationAction(workspace, 'exercise_catalog');
+  if (!entitlement.ok) {
+    return {
+      kind: 'invalid',
+      error: entitlementMutationRefusalMessage('архивировать комплекс', entitlement.reason),
+    };
+  }
   const idRaw = formData.get('id');
   const id = typeof idRaw === 'string' ? idRaw.trim() : '';
   if (!id) return { kind: 'invalid', error: 'Не указан шаблон комплекса' };
@@ -81,6 +93,13 @@ async function unarchiveDoctorLfkTemplateCore(
   formData: FormData,
 ): Promise<{ kind: 'unarchived'; id: string } | { kind: 'invalid'; error: string }> {
   const workspace = await requireDoctorWorkspaceContext({ workspaceModule: 'rehabilitation' });
+  const entitlement = await requireEntitlementForMutationAction(workspace, 'exercise_catalog');
+  if (!entitlement.ok) {
+    return {
+      kind: 'invalid',
+      error: entitlementMutationRefusalMessage('вернуть комплекс из архива', entitlement.reason),
+    };
+  }
   const idRaw = formData.get('id');
   const id = typeof idRaw === 'string' ? idRaw.trim() : '';
   if (!id) return { kind: 'invalid', error: 'Не указан шаблон комплекса' };
@@ -109,6 +128,10 @@ async function unarchiveDoctorLfkTemplateCore(
 
 export async function createLfkTemplateDraft(formData: FormData) {
   const workspace = await requireDoctorWorkspaceContext({ workspaceModule: 'rehabilitation' });
+  const entitlement = await requireEntitlementForMutationAction(workspace, 'exercise_catalog');
+  if (!entitlement.ok) {
+    throw entitlementMutationRefusalError('создать комплекс', entitlement.reason);
+  }
   const titleRaw = formData.get('title');
   const title = typeof titleRaw === 'string' && titleRaw.trim() ? titleRaw.trim() : 'Новый шаблон';
   const deps = buildAppDeps();
@@ -127,6 +150,10 @@ export async function createLfkTemplateDraftFromEditor(payload: {
 }): Promise<{ ok: true; id: string } | ({ ok: false } & ActionFailureFields)> {
   try {
     const workspace = await requireDoctorWorkspaceContext({ workspaceModule: 'rehabilitation' });
+    const entitlement = await requireEntitlementForMutationAction(workspace, 'exercise_catalog');
+    if (!entitlement.ok) {
+      throw entitlementMutationRefusalError('создать комплекс', entitlement.reason);
+    }
     const deps = buildAppDeps();
     const titleRaw = payload.title.trim();
     const title = titleRaw || 'Новый комплекс';
@@ -165,6 +192,10 @@ export async function persistLfkTemplateDraft(payload: {
 }): Promise<{ ok: true } | ({ ok: false } & ActionFailureFields)> {
   try {
     const workspace = await requireDoctorWorkspaceContext({ workspaceModule: 'rehabilitation' });
+    const entitlement = await requireEntitlementForMutationAction(workspace, 'exercise_catalog');
+    if (!entitlement.ok) {
+      throw entitlementMutationRefusalError('сохранить комплекс', entitlement.reason);
+    }
     const deps = buildAppDeps();
     const includePlatformBase = (
       await requireEntitlementForReadAction(workspace, 'exercise_catalog')
@@ -206,6 +237,10 @@ export async function publishLfkTemplateAction(
 ): Promise<{ ok: true } | ({ ok: false } & ActionFailureFields)> {
   try {
     const workspace = await requireDoctorWorkspaceContext({ workspaceModule: 'rehabilitation' });
+    const entitlement = await requireEntitlementForMutationAction(workspace, 'exercise_catalog');
+    if (!entitlement.ok) {
+      throw entitlementMutationRefusalError('опубликовать комплекс', entitlement.reason);
+    }
     const deps = buildAppDeps();
     await deps.lfkTemplates.publishTemplate(templateId, {
       runTemplateWrite: (fn) =>

@@ -33,6 +33,11 @@ export type ProtectedActionFamily = Readonly<{
   filePattern: string;
 }>;
 
+/** Legacy mechanic names whose write surface is protected by the canonical mechanic. */
+export const PROTECTED_ACTION_MECHANIC_ALIASES = {
+  exercise_packages: 'exercise_catalog',
+} as const satisfies Partial<Record<OrgMechanic, OrgMechanic>>;
+
 /**
  * S4-0's method-level inventory. `file` is relative to apps/webapp and the
  * checker proves the named export and the selected guard in that source.
@@ -119,8 +124,251 @@ export const PROTECTED_ACTION_MAPPINGS = [
     serviceBoundary: 'deps.courses.enrollPatient',
   },
   {
+    id: 'exercise-catalog.bulk-create-core',
+    mechanic: 'exercise_catalog',
+    file: 'src/app/app/doctor/exercises/actionsShared.ts',
+    exportName: 'bulkCreateExercisesFromMediaCore',
+    method: 'action',
+    authContext: 'requireDoctorWorkspaceContext',
+    guard: 'requireEntitlementForMutationAction',
+    serviceBoundary: 'deps.lfkExercises.createExercise',
+  },
+  {
+    id: 'exercise-catalog.save-core',
+    mechanic: 'exercise_catalog',
+    file: 'src/app/app/doctor/exercises/actionsShared.ts',
+    exportName: 'saveDoctorExerciseCore',
+    method: 'action',
+    authContext: 'requireDoctorWorkspaceContext',
+    guard: 'requireEntitlementForMutationAction',
+    serviceBoundary: 'deps.lfkExercises.createExercise/updateExercise',
+  },
+  {
+    id: 'exercise-catalog.archive-core',
+    mechanic: 'exercise_catalog',
+    file: 'src/app/app/doctor/exercises/actionsShared.ts',
+    exportName: 'archiveDoctorExerciseCore',
+    method: 'action',
+    authContext: 'requireDoctorWorkspaceContext',
+    guard: 'requireEntitlementForMutationAction',
+    serviceBoundary: 'deps.lfkExercises.archiveExercise',
+  },
+  {
+    id: 'exercise-catalog.unarchive-core',
+    mechanic: 'exercise_catalog',
+    file: 'src/app/app/doctor/exercises/actionsShared.ts',
+    exportName: 'unarchiveDoctorExerciseCore',
+    method: 'action',
+    authContext: 'requireDoctorWorkspaceContext',
+    guard: 'requireEntitlementForMutationAction',
+    serviceBoundary: 'deps.lfkExercises.unarchiveExercise',
+  },
+  ...[
+    ['save', 'saveDoctorExercise'],
+    ['archive', 'archiveDoctorExercise'],
+    ['unarchive', 'unarchiveDoctorExercise'],
+    ['bulk-create', 'bulkCreateExercisesFromMedia'],
+  ].map(([suffix, exportName]) => ({
+    id: `exercise-catalog.${suffix}`,
+    mechanic: 'exercise_catalog' as const,
+    file: 'src/app/app/doctor/exercises/actions.ts',
+    exportName,
+    method: 'action',
+    authContext: 'requireDoctorWorkspaceContext',
+    guard: 'requireEntitlementForMutationAction' as const,
+    serviceBoundary: `${exportName}Core`,
+  })),
+  ...[
+    ['save-inline', 'saveExerciseInline'],
+    ['archive-inline', 'archiveExerciseInline'],
+    ['unarchive-inline', 'unarchiveExerciseInline'],
+  ].map(([suffix, exportName]) => ({
+    id: `exercise-catalog.${suffix}`,
+    mechanic: 'exercise_catalog' as const,
+    file: 'src/app/app/doctor/exercises/actionsInline.ts',
+    exportName,
+    method: 'action',
+    authContext: 'requireDoctorWorkspaceContext',
+    guard: 'requireEntitlementForMutationAction' as const,
+    serviceBoundary: 'actionsShared core',
+  })),
+  ...[
+    ['create-draft', 'createLfkTemplateDraft'],
+    ['create-from-editor', 'createLfkTemplateDraftFromEditor'],
+    ['persist-draft', 'persistLfkTemplateDraft'],
+    ['publish', 'publishLfkTemplateAction'],
+    ['archive', 'archiveDoctorLfkTemplate'],
+    ['unarchive', 'unarchiveDoctorLfkTemplate'],
+  ].map(([suffix, exportName]) => ({
+    id: `exercise-packages.${suffix}`,
+    mechanic: 'exercise_catalog' as const,
+    file: 'src/app/app/doctor/lfk-templates/actions.ts',
+    exportName,
+    method: 'action',
+    authContext: 'requireDoctorWorkspaceContext',
+    guard: 'requireEntitlementForMutationAction' as const,
+    serviceBoundary: 'deps.lfkTemplates mutation',
+  })),
+  ...[
+    ['save-core', 'saveClinicalTestCore'],
+    ['archive-core', 'archiveClinicalTestCore'],
+    ['unarchive-core', 'unarchiveClinicalTestCore'],
+  ].map(([suffix, exportName]) => ({
+    id: `exercise-clinical-tests.${suffix}`,
+    mechanic: 'exercise_catalog' as const,
+    file: 'src/app/app/doctor/clinical-tests/actionsShared.ts',
+    exportName,
+    method: 'action',
+    authContext: 'requireDoctorWorkspaceContext',
+    guard: 'requireEntitlementForMutationAction' as const,
+    serviceBoundary: 'deps.clinicalTests mutation',
+  })),
+  ...[
+    ['save', 'saveClinicalTest'],
+    ['archive', 'archiveClinicalTest'],
+    ['unarchive', 'unarchiveClinicalTest'],
+  ].map(([suffix, exportName]) => ({
+    id: `exercise-clinical-tests.${suffix}`,
+    mechanic: 'exercise_catalog' as const,
+    file: 'src/app/app/doctor/clinical-tests/actions.ts',
+    exportName,
+    method: 'action',
+    authContext: 'requireDoctorWorkspaceContext',
+    guard: 'requireEntitlementForMutationAction' as const,
+    serviceBoundary: 'actionsShared core',
+  })),
+  ...[
+    ['save-inline', 'saveClinicalTestInline'],
+    ['archive-inline', 'archiveClinicalTestInline'],
+    ['unarchive-inline', 'unarchiveClinicalTestInline'],
+  ].map(([suffix, exportName]) => ({
+    id: `exercise-clinical-tests.${suffix}`,
+    mechanic: 'exercise_catalog' as const,
+    file: 'src/app/app/doctor/clinical-tests/actionsInline.ts',
+    exportName,
+    method: 'action',
+    authContext: 'requireDoctorWorkspaceContext',
+    guard: 'requireEntitlementForMutationAction' as const,
+    serviceBoundary: 'actionsShared core',
+  })),
+  ...[
+    ['save-core', 'saveTestSetCore'],
+    ['create-draft-core', 'createTestSetDraftCore'],
+    ['save-items-core', 'saveTestSetItemsCore'],
+    ['archive-core', 'archiveTestSetCore'],
+    ['unarchive-core', 'unarchiveTestSetCore'],
+  ].map(([suffix, exportName]) => ({
+    id: `exercise-test-sets.${suffix}`,
+    mechanic: 'exercise_catalog' as const,
+    file: 'src/app/app/doctor/test-sets/actionsShared.ts',
+    exportName,
+    method: 'action',
+    authContext: 'requireDoctorWorkspaceContext',
+    guard: 'requireEntitlementForMutationAction' as const,
+    serviceBoundary: 'deps.testSets mutation',
+  })),
+  ...[
+    ['save', 'saveDoctorTestSet'],
+    ['save-items', 'saveDoctorTestSetItems'],
+    ['archive', 'archiveDoctorTestSet'],
+    ['unarchive', 'unarchiveDoctorTestSet'],
+  ].map(([suffix, exportName]) => ({
+    id: `exercise-test-sets.${suffix}`,
+    mechanic: 'exercise_catalog' as const,
+    file: 'src/app/app/doctor/test-sets/actions.ts',
+    exportName,
+    method: 'action',
+    authContext: 'requireDoctorWorkspaceContext',
+    guard: 'requireEntitlementForMutationAction' as const,
+    serviceBoundary: 'actionsShared core',
+  })),
+  ...[
+    ['save-inline', 'saveDoctorTestSetInline'],
+    ['create-draft-inline', 'createDoctorTestSetDraftInline'],
+    ['save-items-inline', 'saveDoctorTestSetItemsInline'],
+    ['archive-inline', 'archiveDoctorTestSetInline'],
+    ['unarchive-inline', 'unarchiveDoctorTestSetInline'],
+  ].map(([suffix, exportName]) => ({
+    id: `exercise-test-sets.${suffix}`,
+    mechanic: 'exercise_catalog' as const,
+    file: 'src/app/app/doctor/test-sets/actionsInline.ts',
+    exportName,
+    method: 'action',
+    authContext: 'requireDoctorWorkspaceContext',
+    guard: 'requireEntitlementForMutationAction' as const,
+    serviceBoundary: 'actionsShared core',
+  })),
+  ...[
+    ['save-core', 'saveRecommendationCore'],
+    ['archive-core', 'archiveRecommendationCore'],
+    ['unarchive-core', 'unarchiveRecommendationCore'],
+  ].map(([suffix, exportName]) => ({
+    id: `exercise-recommendations.${suffix}`,
+    mechanic: 'exercise_catalog' as const,
+    file: 'src/app/app/doctor/recommendations/actionsShared.ts',
+    exportName,
+    method: 'action',
+    authContext: 'requireDoctorWorkspaceContext',
+    guard: 'requireEntitlementForMutationAction' as const,
+    serviceBoundary: 'deps.recommendations mutation',
+  })),
+  ...[
+    ['save', 'saveRecommendation'],
+    ['archive', 'archiveRecommendation'],
+    ['unarchive', 'unarchiveRecommendation'],
+  ].map(([suffix, exportName]) => ({
+    id: `exercise-recommendations.${suffix}`,
+    mechanic: 'exercise_catalog' as const,
+    file: 'src/app/app/doctor/recommendations/actions.ts',
+    exportName,
+    method: 'action',
+    authContext: 'requireDoctorWorkspaceContext',
+    guard: 'requireEntitlementForMutationAction' as const,
+    serviceBoundary: 'actionsShared core',
+  })),
+  ...[
+    ['save-inline', 'saveRecommendationInline'],
+    ['archive-inline', 'archiveRecommendationInline'],
+    ['unarchive-inline', 'unarchiveRecommendationInline'],
+  ].map(([suffix, exportName]) => ({
+    id: `exercise-recommendations.${suffix}`,
+    mechanic: 'exercise_catalog' as const,
+    file: 'src/app/app/doctor/recommendations/actionsInline.ts',
+    exportName,
+    method: 'action',
+    authContext: 'requireDoctorWorkspaceContext',
+    guard: 'requireEntitlementForMutationAction' as const,
+    serviceBoundary: 'actionsShared core',
+  })),
+  ...[
+    ['clinical-tests.create', 'src/app/api/doctor/clinical-tests/route.ts', 'POST'],
+    ['clinical-tests.update', 'src/app/api/doctor/clinical-tests/[id]/route.ts', 'PATCH'],
+    ['clinical-tests.archive', 'src/app/api/doctor/clinical-tests/[id]/route.ts', 'DELETE'],
+    ['test-sets.create', 'src/app/api/doctor/test-sets/route.ts', 'POST'],
+    ['test-sets.update', 'src/app/api/doctor/test-sets/[id]/route.ts', 'PATCH'],
+    ['test-sets.archive', 'src/app/api/doctor/test-sets/[id]/route.ts', 'DELETE'],
+    ['test-sets.items', 'src/app/api/doctor/test-sets/[id]/items/route.ts', 'PUT'],
+    ['recommendations.create', 'src/app/api/doctor/recommendations/route.ts', 'POST'],
+  ].map(([suffix, file, exportName]) => ({
+    id: `exercise-api.${suffix}`,
+    mechanic: 'exercise_catalog' as const,
+    file,
+    exportName,
+    method: exportName,
+    authContext: 'requireDoctorWorkspaceApiContext',
+    guard: 'requireEntitlementForMutation' as const,
+    serviceBoundary: 'doctor LFK domain mutation',
+  })),
+  {
     id: 'mailings.execute',
-    mechanic: ['mailings', 'clinic_smtp', 'clinic_sms', 'clinic_telegram_bot', 'clinic_max_bot', 'clinic_vk_community'],
+    mechanic: [
+      'mailings',
+      'clinic_smtp',
+      'clinic_sms',
+      'clinic_telegram_bot',
+      'clinic_max_bot',
+      'clinic_vk_community',
+    ],
     file: 'src/app/app/doctor/broadcasts/actions.ts',
     exportName: 'executeBroadcastAction',
     method: 'action',
@@ -1111,7 +1359,8 @@ export const PROTECTED_ACTION_MAPPINGS = [
     file: 'src/app/api/doctor/clients/[userId]/video-meetings/[meetingId]/route.ts',
     exportName: 'PATCH',
     method: 'PATCH',
-    authContext: 'requireDoctorWorkspaceApiContext + doctor client visibility + current specialist ownership',
+    authContext:
+      'requireDoctorWorkspaceApiContext + doctor client visibility + current specialist ownership',
     guard: 'requireEntitlementForMutation',
     serviceBoundary: 'deps.videoMeetings.rotateInvite/revokeInvite/endMeeting',
   },
@@ -1135,6 +1384,191 @@ export const PROTECTED_ACTION_MAPPINGS = [
     guard: 'requireEntitlementForRead',
     serviceBoundary: 'deps.videoMeetings.joinAuthenticatedPatient',
   },
+  ...(
+    [
+      [
+        'exercise-program-instance.discussion-message',
+        'src/app/api/doctor/treatment-program-instances/[instanceId]/discussion/messages/[messageId]/route.ts',
+        ['DELETE'],
+      ],
+      [
+        'exercise-program-instance.editor-batch',
+        'src/app/api/doctor/treatment-program-instances/[instanceId]/editor-batch/route.ts',
+        ['POST'],
+      ],
+      [
+        'exercise-program-instance.discussion-read',
+        'src/app/api/doctor/treatment-program-instances/[instanceId]/items/[stageItemId]/discussion/read/route.ts',
+        ['POST'],
+      ],
+      [
+        'exercise-program-instance.note-reply',
+        'src/app/api/doctor/treatment-program-instances/[instanceId]/items/[stageItemId]/program-note-reply/route.ts',
+        ['POST'],
+      ],
+      [
+        'exercise-program-instance.media-presign',
+        'src/app/api/doctor/treatment-program-instances/[instanceId]/media-presign/route.ts',
+        ['POST'],
+      ],
+      [
+        'exercise-program-instance',
+        'src/app/api/doctor/treatment-program-instances/[instanceId]/route.ts',
+        ['PATCH'],
+      ],
+      [
+        'exercise-program-instance.group-hide',
+        'src/app/api/doctor/treatment-program-instances/[instanceId]/stage-groups/[groupId]/hide/route.ts',
+        ['POST'],
+      ],
+      [
+        'exercise-program-instance.group',
+        'src/app/api/doctor/treatment-program-instances/[instanceId]/stage-groups/[groupId]/route.ts',
+        ['PATCH', 'DELETE'],
+      ],
+      [
+        'exercise-program-instance.item',
+        'src/app/api/doctor/treatment-program-instances/[instanceId]/stage-items/[itemId]/route.ts',
+        ['PATCH', 'DELETE'],
+      ],
+      [
+        'exercise-program-instance.group-reorder',
+        'src/app/api/doctor/treatment-program-instances/[instanceId]/stages/[stageId]/groups/reorder/route.ts',
+        ['POST'],
+      ],
+      [
+        'exercise-program-instance.group-create',
+        'src/app/api/doctor/treatment-program-instances/[instanceId]/stages/[stageId]/groups/route.ts',
+        ['POST'],
+      ],
+      [
+        'exercise-program-instance.item-from-recommendation',
+        'src/app/api/doctor/treatment-program-instances/[instanceId]/stages/[stageId]/items/from-freeform-recommendation/route.ts',
+        ['POST'],
+      ],
+      [
+        'exercise-program-instance.item-from-lfk',
+        'src/app/api/doctor/treatment-program-instances/[instanceId]/stages/[stageId]/items/from-lfk-complex/route.ts',
+        ['POST'],
+      ],
+      [
+        'exercise-program-instance.item-from-test-set',
+        'src/app/api/doctor/treatment-program-instances/[instanceId]/stages/[stageId]/items/from-test-set/route.ts',
+        ['POST'],
+      ],
+      [
+        'exercise-program-instance.item-reorder',
+        'src/app/api/doctor/treatment-program-instances/[instanceId]/stages/[stageId]/items/reorder/route.ts',
+        ['POST'],
+      ],
+      [
+        'exercise-program-instance.item-create',
+        'src/app/api/doctor/treatment-program-instances/[instanceId]/stages/[stageId]/items/route.ts',
+        ['POST'],
+      ],
+      [
+        'exercise-program-instance.stage',
+        'src/app/api/doctor/treatment-program-instances/[instanceId]/stages/[stageId]/route.ts',
+        ['PATCH', 'DELETE'],
+      ],
+      [
+        'exercise-program-instance.stage-reorder',
+        'src/app/api/doctor/treatment-program-instances/[instanceId]/stages/reorder/route.ts',
+        ['POST'],
+      ],
+      [
+        'exercise-program-instance.stage-create',
+        'src/app/api/doctor/treatment-program-instances/[instanceId]/stages/route.ts',
+        ['POST'],
+      ],
+      [
+        'exercise-program-instance.test-attempt-accept',
+        'src/app/api/doctor/treatment-program-instances/[instanceId]/test-attempts/[attemptId]/accept/route.ts',
+        ['POST'],
+      ],
+      [
+        'exercise-program-instance.test-result',
+        'src/app/api/doctor/treatment-program-instances/[instanceId]/test-results/[resultId]/route.ts',
+        ['PATCH'],
+      ],
+      [
+        'exercise-program-template',
+        'src/app/api/doctor/treatment-program-templates/[id]/route.ts',
+        ['PATCH', 'DELETE'],
+      ],
+      [
+        'exercise-program-template.stage-reorder',
+        'src/app/api/doctor/treatment-program-templates/[id]/stages/reorder/route.ts',
+        ['POST'],
+      ],
+      [
+        'exercise-program-template.stage-create',
+        'src/app/api/doctor/treatment-program-templates/[id]/stages/route.ts',
+        ['POST'],
+      ],
+      [
+        'exercise-program-template.create',
+        'src/app/api/doctor/treatment-program-templates/route.ts',
+        ['POST'],
+      ],
+      [
+        'exercise-program-template.group',
+        'src/app/api/doctor/treatment-program-templates/stage-groups/[groupId]/route.ts',
+        ['PATCH', 'DELETE'],
+      ],
+      [
+        'exercise-program-template.item',
+        'src/app/api/doctor/treatment-program-templates/stage-items/[itemId]/route.ts',
+        ['PATCH', 'DELETE'],
+      ],
+      [
+        'exercise-program-template.group-reorder',
+        'src/app/api/doctor/treatment-program-templates/stages/[stageId]/groups/reorder/route.ts',
+        ['POST'],
+      ],
+      [
+        'exercise-program-template.group-create',
+        'src/app/api/doctor/treatment-program-templates/stages/[stageId]/groups/route.ts',
+        ['POST'],
+      ],
+      [
+        'exercise-program-template.item-from-lfk',
+        'src/app/api/doctor/treatment-program-templates/stages/[stageId]/items/from-lfk-complex/route.ts',
+        ['POST'],
+      ],
+      [
+        'exercise-program-template.item-from-test-set',
+        'src/app/api/doctor/treatment-program-templates/stages/[stageId]/items/from-test-set/route.ts',
+        ['POST'],
+      ],
+      [
+        'exercise-program-template.item-reorder',
+        'src/app/api/doctor/treatment-program-templates/stages/[stageId]/items/reorder/route.ts',
+        ['POST'],
+      ],
+      [
+        'exercise-program-template.item-create',
+        'src/app/api/doctor/treatment-program-templates/stages/[stageId]/items/route.ts',
+        ['POST'],
+      ],
+      [
+        'exercise-program-template.stage',
+        'src/app/api/doctor/treatment-program-templates/stages/[stageId]/route.ts',
+        ['PATCH', 'DELETE'],
+      ],
+    ] as const
+  ).flatMap(([id, file, methods]) =>
+    methods.map((exportName) => ({
+      id: `${id}.${exportName.toLowerCase()}`,
+      mechanic: 'exercise_catalog' as const,
+      file,
+      exportName,
+      method: exportName,
+      authContext: 'requireDoctorWorkspaceApiContext',
+      guard: 'requireEntitlementForMutation' as const,
+      serviceBoundary: 'treatment-program mutation',
+    })),
+  ),
 ] as const satisfies readonly ProtectedActionMapping[];
 
 /**
@@ -1161,6 +1595,24 @@ export const PROTECTED_ACTION_FAMILIES = [
     filePattern: 'actions\\.ts$',
   },
   {
+    id: 'doctor-exercises',
+    root: 'src/app/app/doctor/exercises',
+    recursive: false,
+    filePattern: 'actions(?:Shared|Inline)?\\.ts$',
+  },
+  {
+    id: 'doctor-lfk-templates',
+    root: 'src/app/app/doctor/lfk-templates',
+    recursive: false,
+    filePattern: 'actions\\.ts$',
+  },
+  {
+    id: 'doctor-recommendations',
+    root: 'src/app/app/doctor/recommendations',
+    recursive: false,
+    filePattern: 'actions(?:Shared|Inline)?\\.ts$',
+  },
+  {
     id: 'patient-home-settings',
     root: 'src/app/app/settings/patient-home',
     recursive: false,
@@ -1174,6 +1626,46 @@ export const PROTECTED_ACTION_FAMILIES = [
  * guarantee, not an attempt to infer arbitrary future business semantics.
  */
 export const PROTECTED_ACTION_EXEMPTIONS = [
+  {
+    file: 'src/app/app/doctor/exercises/actions.ts',
+    exportName: 'fetchDoctorExerciseUsageSnapshot',
+    reason: 'read action',
+  },
+  {
+    file: 'src/app/app/doctor/lfk-templates/actions.ts',
+    exportName: 'fetchDoctorLfkTemplateUsageSnapshot',
+    reason: 'read action',
+  },
+  {
+    file: 'src/app/app/doctor/recommendations/actions.ts',
+    exportName: 'fetchDoctorRecommendationUsageSnapshot',
+    reason: 'read action',
+  },
+  {
+    file: 'src/app/app/doctor/test-sets/actions.ts',
+    exportName: 'fetchDoctorTestSetUsageSnapshot',
+    reason: 'read action',
+  },
+  {
+    file: 'src/app/api/doctor/recommendations/route.ts',
+    exportName: 'GET',
+    reason: 'read route; doctor page visibility is tariff-gated',
+  },
+  {
+    file: 'src/app/api/doctor/treatment-program-instances/[instanceId]/route.ts',
+    exportName: 'GET',
+    reason: 'read route; treatment-program page visibility is tariff-gated',
+  },
+  {
+    file: 'src/app/api/doctor/treatment-program-templates/route.ts',
+    exportName: 'GET',
+    reason: 'read route; doctor LFK surfaces are tariff-gated',
+  },
+  {
+    file: 'src/app/api/doctor/treatment-program-templates/[id]/route.ts',
+    exportName: 'GET',
+    reason: 'read route; doctor LFK surfaces are tariff-gated',
+  },
   {
     file: 'src/app/api/clinic/billing/route.ts',
     exportName: 'GET',
@@ -1408,24 +1900,9 @@ export const PROTECTED_ACTION_EXEMPTIONS = [
     reason: 'read route',
   },
   {
-    file: 'src/app/api/doctor/clinical-tests/route.ts',
-    exportName: 'POST',
-    reason: 'clinical-test catalog is built into treatment programs — never tariff-gated',
-  },
-  {
     file: 'src/app/api/doctor/clinical-tests/[id]/route.ts',
     exportName: 'GET',
     reason: 'read route',
-  },
-  {
-    file: 'src/app/api/doctor/clinical-tests/[id]/route.ts',
-    exportName: 'PATCH',
-    reason: 'clinical-test catalog is built into treatment programs — never tariff-gated',
-  },
-  {
-    file: 'src/app/api/doctor/clinical-tests/[id]/route.ts',
-    exportName: 'DELETE',
-    reason: 'clinical-test catalog is built into treatment programs — never tariff-gated',
   },
   {
     file: 'src/app/api/doctor/test-sets/route.ts',
@@ -1433,64 +1910,14 @@ export const PROTECTED_ACTION_EXEMPTIONS = [
     reason: 'read route',
   },
   {
-    file: 'src/app/api/doctor/test-sets/route.ts',
-    exportName: 'POST',
-    reason: 'clinical-test sets are built into treatment programs — never tariff-gated',
-  },
-  {
     file: 'src/app/api/doctor/test-sets/[id]/route.ts',
     exportName: 'GET',
     reason: 'read route',
-  },
-  {
-    file: 'src/app/api/doctor/test-sets/[id]/route.ts',
-    exportName: 'PATCH',
-    reason: 'clinical-test sets are built into treatment programs — never tariff-gated',
-  },
-  {
-    file: 'src/app/api/doctor/test-sets/[id]/route.ts',
-    exportName: 'DELETE',
-    reason: 'clinical-test sets are built into treatment programs — never tariff-gated',
-  },
-  {
-    file: 'src/app/api/doctor/test-sets/[id]/items/route.ts',
-    exportName: 'PUT',
-    reason: 'clinical-test set membership is built into treatment programs — never tariff-gated',
   },
   {
     file: 'src/app/app/doctor/clinical-tests/actions.ts',
     exportName: 'fetchDoctorClinicalTestUsageSnapshot',
     reason: 'read action',
-  },
-  {
-    file: 'src/app/app/doctor/clinical-tests/actions.ts',
-    exportName: 'saveClinicalTest',
-    reason: 'clinical-test catalog is built into treatment programs — never tariff-gated',
-  },
-  {
-    file: 'src/app/app/doctor/clinical-tests/actions.ts',
-    exportName: 'archiveClinicalTest',
-    reason: 'clinical-test catalog is built into treatment programs — never tariff-gated',
-  },
-  {
-    file: 'src/app/app/doctor/clinical-tests/actions.ts',
-    exportName: 'unarchiveClinicalTest',
-    reason: 'clinical-test catalog is built into treatment programs — never tariff-gated',
-  },
-  {
-    file: 'src/app/app/doctor/clinical-tests/actionsInline.ts',
-    exportName: 'saveClinicalTestInline',
-    reason: 'clinical-test catalog is built into treatment programs — never tariff-gated',
-  },
-  {
-    file: 'src/app/app/doctor/clinical-tests/actionsInline.ts',
-    exportName: 'archiveClinicalTestInline',
-    reason: 'clinical-test catalog is built into treatment programs — never tariff-gated',
-  },
-  {
-    file: 'src/app/app/doctor/clinical-tests/actionsInline.ts',
-    exportName: 'unarchiveClinicalTestInline',
-    reason: 'clinical-test catalog is built into treatment programs — never tariff-gated',
   },
   {
     file: 'src/app/api/admin/booking-engine/prepayment-policies/route.ts',
@@ -1537,10 +1964,6 @@ export const PROTECTED_ACTION_EXEMPTIONS = [
 ] as const satisfies readonly ProtectedActionExemption[];
 
 export const DECLARED_NO_SURFACE = {
-  exercise_catalog:
-    'tariff controls platform-library visibility only; clinic-owned exercise writes are never tariff-gated',
-  exercise_packages:
-    'tariff controls platform-library visibility only; clinic-owned template writes are never tariff-gated',
   patient_app: 'code-search: no patient_app_enabled/toggle action',
   patient_app_paid_subscription: 'code-search: no subscription-toggle action',
   // 3.3: class "никогда" mechanics (MECHANIC_REGISTRY) are never tariff-gated by owner decision —

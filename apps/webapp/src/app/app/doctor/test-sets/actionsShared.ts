@@ -11,6 +11,10 @@ import {
 } from '@/modules/tests/errors';
 import type { TestSetItemInput, TestSetUsageSnapshot } from '@/modules/tests/types';
 import { safeActionErrorText } from '@/app-layer/errors/safeUserError';
+import {
+  entitlementMutationRefusalMessage,
+  requireEntitlementForMutationAction,
+} from '@/app-layer/guards/requireEntitlement';
 
 export type SaveTestSetState = { ok: boolean; error?: string };
 
@@ -68,6 +72,13 @@ export async function saveTestSetCore(
   formData: FormData,
 ): Promise<{ ok: true; setId: string; wasUpdate: boolean } | { ok: false; error: string }> {
   const workspace = await requireDoctorWorkspaceContext({ workspaceModule: 'rehabilitation' });
+  const entitlement = await requireEntitlementForMutationAction(workspace, 'exercise_catalog');
+  if (!entitlement.ok) {
+    return {
+      ok: false,
+      error: entitlementMutationRefusalMessage('сохранить набор тестов', entitlement.reason),
+    };
+  }
   const idRaw = formData.get('id');
   const titleField = formData.get('title');
   const title = typeof titleField === 'string' ? titleField.trim() : '';
@@ -172,6 +183,13 @@ export async function createTestSetDraftCore(
   } = {},
 ): Promise<{ ok: true; setId: string } | { ok: false; error: string }> {
   const workspace = await requireDoctorWorkspaceContext({ workspaceModule: 'rehabilitation' });
+  const entitlement = await requireEntitlementForMutationAction(workspace, 'exercise_catalog');
+  if (!entitlement.ok) {
+    return {
+      ok: false,
+      error: entitlementMutationRefusalMessage('создать набор тестов', entitlement.reason),
+    };
+  }
   const title = input.title?.trim() || NEW_TEST_SET_DRAFT_TITLE;
   const description = input.description?.trim() || null;
   const publicationStatus = input.publicationStatus;
@@ -202,6 +220,13 @@ export async function saveTestSetItemsCore(
   formData: FormData,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const workspace = await requireDoctorWorkspaceContext({ workspaceModule: 'rehabilitation' });
+  const entitlement = await requireEntitlementForMutationAction(workspace, 'exercise_catalog');
+  if (!entitlement.ok) {
+    return {
+      ok: false,
+      error: entitlementMutationRefusalMessage('изменить состав набора тестов', entitlement.reason),
+    };
+  }
   const setIdRaw = formData.get('setId');
   const payloadRaw = formData.get('itemsPayload');
   const setId = typeof setIdRaw === 'string' ? setIdRaw.trim() : '';
@@ -244,6 +269,13 @@ export async function saveTestSetItemsCore(
 
 export async function archiveTestSetCore(formData: FormData): Promise<ArchiveTestSetCoreResult> {
   const workspace = await requireDoctorWorkspaceContext({ workspaceModule: 'rehabilitation' });
+  const entitlement = await requireEntitlementForMutationAction(workspace, 'exercise_catalog');
+  if (!entitlement.ok) {
+    return {
+      kind: 'invalid',
+      error: entitlementMutationRefusalMessage('архивировать набор тестов', entitlement.reason),
+    };
+  }
   const idRaw = formData.get('id');
   const id = typeof idRaw === 'string' && idRaw.trim() ? idRaw.trim() : '';
   if (!id) return { kind: 'invalid', error: 'Не указан набор' };
@@ -282,6 +314,16 @@ export async function unarchiveTestSetCore(
   formData: FormData,
 ): Promise<UnarchiveTestSetCoreResult> {
   const workspace = await requireDoctorWorkspaceContext({ workspaceModule: 'rehabilitation' });
+  const entitlement = await requireEntitlementForMutationAction(workspace, 'exercise_catalog');
+  if (!entitlement.ok) {
+    return {
+      kind: 'invalid',
+      error: entitlementMutationRefusalMessage(
+        'вернуть набор тестов из архива',
+        entitlement.reason,
+      ),
+    };
+  }
   const idRaw = formData.get('id');
   const id = typeof idRaw === 'string' && idRaw.trim() ? idRaw.trim() : '';
   if (!id) return { kind: 'invalid', error: 'Не указан набор' };

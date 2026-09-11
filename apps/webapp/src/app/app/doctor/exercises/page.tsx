@@ -1,5 +1,8 @@
 import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
-import { requireEntitlementForReadAction } from '@/app-layer/guards/requireEntitlement';
+import {
+  requireEntitlementForPage,
+  requireEntitlementForReadAction,
+} from '@/app-layer/guards/requireEntitlement';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
 import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
@@ -32,6 +35,7 @@ type PageProps = {
 
 export default async function DoctorExercisesPage({ searchParams }: PageProps) {
   const workspace = await requireDoctorWorkspaceContext();
+  await requireEntitlementForPage(workspace, 'exercise_catalog');
   const session = workspace.session;
   const sp = (await searchParams) ?? {};
   const q = typeof sp.q === 'string' ? sp.q : '';
