@@ -12,6 +12,15 @@ import { PublicMarkdownMaterial, type PublicMarkdownAsset } from './PublicMarkdo
  * (набор карточки И ЕСТЬ авторизация), кабинет — через общий `/api/media/{uuid}` под сессией
  * сотрудника. Поэтому сюда приходят уже готовые `src`.
  */
+
+/**
+ * Пометка «наружу не идёт» — ТОЛЬКО для предпросмотра в кабинете (решение владельца 11.09: «В
+ * кабинете она вообще не фильтруется»). Кабинет показывает всё, что у клиники есть, и подписывает,
+ * что именно она выключила. Публичная страница это поле не заполняет никогда — там строки, которой
+ * не место снаружи, просто нет, и подписывать нечего.
+ */
+export type CabinetHiddenNote = string | null | undefined;
+
 /**
  * Специалист на визитке стоит ПРЕВЬЮ — решение владельца 11.09: «привьюшка есть на визитке
  * клиники, а как бы подробное описание можно будет добавлять на его визитку». Поэтому здесь
@@ -24,12 +33,14 @@ export type ClinicPublicCardSpecialistView = {
   avatarSrc: string | null;
   /** `null` в предпросмотре кабинета: публичного адреса страницы там ещё может не быть. */
   href: string | null;
+  hiddenNote?: CabinetHiddenNote;
 };
 
 export type ClinicPublicCardLocationView = {
   title: string;
   cityCode: string | null;
   address: string | null;
+  hiddenNote?: CabinetHiddenNote;
 };
 
 /**
@@ -42,6 +53,7 @@ export type ClinicPublicCardServiceView = {
   description: string | null;
   durationMinutes: number;
   priceMinor: number;
+  hiddenNote?: CabinetHiddenNote;
 };
 
 export type ClinicPublicCardViewModel = {
@@ -123,6 +135,7 @@ export function ClinicPublicCardView({ card }: { card: ClinicPublicCardViewModel
                 {service.description ? (
                   <span className="text-muted-foreground">{service.description}</span>
                 ) : null}
+                <HiddenNote note={service.hiddenNote} />
               </li>
             ))}
           </ul>
@@ -154,6 +167,7 @@ export function ClinicPublicCardView({ card }: { card: ClinicPublicCardViewModel
                 {location.address ? (
                   <span className="text-muted-foreground"> · {location.address}</span>
                 ) : null}
+                <HiddenNote note={location.hiddenNote} />
               </li>
             ))}
           </ul>
@@ -268,6 +282,7 @@ function SpecialistPreview({ specialist }: { specialist: ClinicPublicCardSpecial
             {specialist.shortDescription}
           </span>
         ) : null}
+        <HiddenNote note={specialist.hiddenNote} />
       </span>
     </>
   );
@@ -279,5 +294,16 @@ function SpecialistPreview({ specialist }: { specialist: ClinicPublicCardSpecial
     <a href={specialist.href} className="flex items-center gap-3 hover:underline">
       {body}
     </a>
+  );
+}
+
+/**
+ * Подпись «эта строка наружу не идёт». В публичной странице не появляется никогда: там `hiddenNote`
+ * не заполняется, и компонент возвращает `null`.
+ */
+function HiddenNote({ note }: { note: CabinetHiddenNote }) {
+  if (!note) return null;
+  return (
+    <span className="text-muted-foreground/80 text-xs italic">{note}</span>
   );
 }

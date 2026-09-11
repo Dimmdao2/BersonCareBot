@@ -47,9 +47,9 @@ import { SettingsTabsNav } from './SettingsTabsNav';
 import type { SettingsTabId } from './settingsTabs';
 import { TeamSection } from './TeamSection';
 import {
-  selectCardLocationsForPreview,
-  selectCardServicesForPreview,
-  selectCardSpecialistsForPreview,
+  listCardLocationsForPreview,
+  listCardServicesForPreview,
+  listCardSpecialistsForPreview,
 } from '@/modules/clinic-public-card/cabinetPreviewSelection';
 import { BookingSoloSpecialistsSection } from './BookingSoloSpecialistsSection';
 import { ManagementBookingSections } from '../manage/ManagementBookingSections';
@@ -274,13 +274,13 @@ export default async function SettingsPage({
               specialists: specialists
                 .filter((specialist) => specialist.isActive)
                 .map((specialist) => ({ id: specialist.id, title: specialist.fullName })),
-              // Всё, что идёт в ПРЕДПРОСМОТР визитки, отбирает и сортирует один модуль
-              // (`cabinetPreviewSelection`), сцепленный с публичной дверью проверкой §17.M:
-              // на одних и тех же данных владелец обязан видеть ровно то же, что посетитель.
-              // Своего отбора у этой страницы больше нет — вторая копия правила и была дефектом.
-              cardLocations: selectCardLocationsForPreview(branches),
-              cardSpecialists: selectCardSpecialistsForPreview(specialists),
-              cardServices: selectCardServicesForPreview(services),
+              // В предпросмотр кабинета идёт ВСЁ, что у клиники есть, — решение владельца 11.09:
+              // «В кабинете она вообще не фильтруется». Отбора здесь нет и быть не должно; модуль
+              // `cabinetPreviewSelection` только выстраивает порядок двери и подписывает строки,
+              // которые наружу сегодня не выходят.
+              cardLocations: listCardLocationsForPreview(branches),
+              cardSpecialists: listCardSpecialistsForPreview(specialists),
+              cardServices: listCardServicesForPreview(services),
             };
           })
         : Promise.resolve(null),

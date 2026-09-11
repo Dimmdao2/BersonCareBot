@@ -5,11 +5,13 @@ import toast from 'react-hot-toast';
 import {
   CLINIC_PUBLIC_CARD_LIMITS,
   type ClinicPublicCardIdentity,
-  type ClinicPublicCardLocation,
-  type ClinicPublicCardServiceItem,
   type ClinicPublicCardSettings,
 } from '@/modules/clinic-public-card/ports';
-import type { ClinicPublicCardSpecialistPreview } from '@/modules/clinic-public-card/cabinetPreviewSelection';
+import type {
+  ClinicPublicCardLocationPreview,
+  ClinicPublicCardServicePreview,
+  ClinicPublicCardSpecialistPreview,
+} from '@/modules/clinic-public-card/cabinetPreviewSelection';
 import { ClinicPublicCardView } from '@/shared/ui/clinicPublicCard/ClinicPublicCardView';
 import { MarkdownEditor } from '@/shared/ui/doctor/markdown/MarkdownEditor';
 import {
@@ -38,19 +40,19 @@ type Props = {
    * пути чтения планом §17.A, и предпросмотр обязан идти за тем же источником, иначе владелец видит
    * одно, а посетитель другое, и расхождение молчит.
    */
-  locations: ClinicPublicCardLocation[];
+  locations: ClinicPublicCardLocationPreview[];
   /**
-   * Опубликованные специалисты ДЛЯ ПРЕДПРОСМОТРА — тот же живой список и тот же отбор, каким их
-   * отдаёт публичная дверь. Формой визитки они не правятся: человека заводит и публикует раздел
-   * «Специалисты», и второго места для этого не заводится.
+   * ВСЕ специалисты клиники ДЛЯ ПРЕДПРОСМОТРА, а не только опубликованные — решение владельца
+   * 11.09: «В кабинете она вообще не фильтруется». Формой визитки они не правятся: человека заводит
+   * и публикует раздел «Специалисты», сюда приходит только превью, и те, кто наружу не выходит,
+   * приходят подписанными.
    */
   specialists: ClinicPublicCardSpecialistPreview[];
   /**
-   * Услуги ДЛЯ ПРЕДПРОСМОТРА — тот же отбор и порядок, каким их отдаёт публичная дверь. Формой
-   * визитки они не правятся: услуги заводит раздел публичной записи, и второго места для них не
-   * заводится. Отбор общий с дверью и сцеплен проверкой §17.M.
+   * ВСЕ услуги клиники ДЛЯ ПРЕДПРОСМОТРА, порядком публичной двери. Формой визитки они не правятся:
+   * услуги заводит раздел публичной записи. Невыходящие наружу подписаны, а не спрятаны.
    */
-  services: ClinicPublicCardServiceItem[];
+  services: ClinicPublicCardServicePreview[];
   /** Общий пациентский origin — из него строятся оба возможных адреса страницы. */
   patientOrigin: string;
 };
@@ -248,6 +250,7 @@ export function ClinicPublicCardSection({
                         ? `/api/media/${specialist.avatarMediaId}`
                         : null,
                       href: null,
+                      hiddenNote: specialist.hiddenNote,
                     })),
                     publicContactPhone: settings.publicContactPhone,
                     publicContactEmail: settings.publicContactEmail,
