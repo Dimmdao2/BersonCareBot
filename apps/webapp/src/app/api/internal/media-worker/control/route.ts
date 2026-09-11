@@ -24,7 +24,7 @@ const commandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('processing'), job: jobSchema, lockedBy: z.string().min(1).max(200) }),
   z.object({ type: z.literal('retry'), job: jobSchema, lockedBy: z.string().min(1).max(200), nextAttemptAt: z.string().datetime(), error: z.string().max(8000) }),
   z.object({ type: z.literal('failed'), job: jobSchema, lockedBy: z.string().min(1).max(200), error: z.string().max(8000) }),
-  z.object({ type: z.literal('done_hls'), job: jobSchema, lockedBy: z.string().min(1).max(200), values: z.object({ masterKey: z.string().max(2000).optional(), artifactPrefix: z.string().max(2000).optional(), posterKey: z.string().max(2000).optional(), qualitiesJson: z.string().max(8000).optional(), durationSeconds: z.number().nonnegative().nullable().optional() }) }),
+  z.object({ type: z.literal('done_hls'), job: jobSchema, lockedBy: z.string().min(1).max(200), values: z.object({ masterKey: z.string().max(2000).optional(), artifactPrefix: z.string().max(2000).optional(), posterKey: z.string().max(2000).optional(), qualitiesJson: z.string().max(8000).optional(), durationSeconds: z.number().nonnegative().nullable().optional(), sourceBitrateBps: z.number().int().nonnegative().max(2_147_483_647).nullable().optional() }) }),
   z.object({ type: z.literal('done_program'), job: jobSchema, lockedBy: z.string().min(1).max(200), values: z.object({ outputKey: z.string().min(1).max(2000), posterKey: z.string().min(1).max(2000), qualitiesJson: z.string().max(8000), durationSeconds: z.number().nonnegative().nullable() }) }),
 ]);
 

@@ -172,6 +172,23 @@ it('исход оборота записывается дверью, кажды�
   expect(fakes.runWebappSql).not.toHaveBeenCalled();
 });
 
+it('doneHls передаёт sourceBitrateBps в payload, когда он измерен, и опускает его при null/отсутствии', async () => {
+  fakes.runWebappNamedRoot.mockResolvedValue({ rows: [{ recorded: true }] });
+
+  await completeMediaWorkerHlsJob(JOB, 'worker-1', {
+    masterKey: 'hls/master.m3u8', durationSeconds: 61, sourceBitrateBps: 10_700_000,
+  });
+  await completeMediaWorkerHlsJob(JOB, 'worker-1', {
+    masterKey: 'hls/master.m3u8', sourceBitrateBps: null,
+  });
+
+  expect(fakes.runWebappNamedRoot.mock.calls.map((call) => call[2])).toEqual([
+    [JOB.id, JOB.mediaId, 'worker-1', 'done_hls',
+      '{"masterKey":"hls/master.m3u8","durationSeconds":61,"sourceBitrateBps":10700000}'],
+    [JOB.id, JOB.mediaId, 'worker-1', 'done_hls', '{"masterKey":"hls/master.m3u8"}'],
+  ]);
+});
+
 it('чужой замок на работе — конфликт, а не молчаливая перезапись', async () => {
   fakes.runWebappNamedRoot.mockResolvedValue({ rows: [{ recorded: false }] });
 

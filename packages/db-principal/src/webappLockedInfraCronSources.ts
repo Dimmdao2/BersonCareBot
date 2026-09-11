@@ -8,6 +8,7 @@ export const WEBAPP_LOCKED_INFRA_CRON_SOURCES = new Set<string>([
   'api/internal/operator-health-critical/tick:POST',
   'api/internal/media-hls-proxy-errors/retention:POST',
   'api/internal/media-playback-stats/retention:POST',
+  'api/internal/media-delivery-bytes/flush:POST',
   'api/internal/media-pending-delete/purge:POST',
   'api/internal/media-multipart/cleanup:POST',
   'api/internal/media-preview/process:POST',

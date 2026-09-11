@@ -1999,6 +1999,12 @@ export const mediaFiles = pgTable(
     hlsArtifactPrefix: text('hls_artifact_prefix'),
     posterS3Key: text('poster_s3_key'),
     videoDurationSeconds: integer('video_duration_seconds'),
+    /**
+     * Измеренный битрейт контейнера исходника (бит/с), один ffprobe-вызов вместе с длительностью
+     * (`wt/encoding-mode`, `probeVideoDimensions` → `sourceBitrateBps` в `MediaWorkerControlPort.doneHls`).
+     * NULL = не измерено (легаси до этой колонки или проба не смогла прочитать битрейт) — норма, не ошибка.
+     */
+    sourceBitrateBps: integer('source_bitrate_bps'),
     availableQualitiesJson: jsonb('available_qualities_json'),
     usagePurpose: text('usage_purpose'),
     /**
@@ -2061,6 +2067,10 @@ export const mediaFiles = pgTable(
     check(
       'media_files_size_bytes_check',
       sql`(size_bytes >= 0) AND (size_bytes <= '3221225472'::bigint)`,
+    ),
+    check(
+      'media_files_source_bitrate_bps_check',
+      sql`(source_bitrate_bps IS NULL) OR (source_bitrate_bps >= 0)`,
     ),
     check(
       'media_files_status_check',
@@ -2168,6 +2178,65 @@ export const mediaPlaybackStatsHourly = pgTable(
       'media_playback_stats_hourly_delivery_check',
       sql`delivery = ANY (ARRAY['hls'::text, 'mp4'::text, 'file'::text])`,
     ),
+  ],
+);
+
+/**
+ * VIDEO_DELIVERY_COST_AND_METERING (11.09.2026): daily HLS delivery byte counter, keyed by
+ * (day, organization, patient, video, quality) — «какое видео отдаётся каким битрейтом» (owner's
+ * words) plus cost accounting. Written by the maintenance job flushing `hlsDeliveryByteMeter.ts`'s
+ * in-memory batch, never one row per segment (design constraint: dozens of segments per view).
+ */
+export const mediaPlaybackDeliveryDaily = pgTable(
+  'media_playback_delivery_daily',
+  {
+    bucketDate: date('bucket_date', { mode: 'string' }).notNull(),
+    organizationId: uuid('organization_id').notNull(),
+    userId: uuid('user_id').notNull(),
+    mediaId: uuid('media_id').notNull(),
+    /** HLS rung label parsed from the segment path (`hlsArtifactQualityFromPath`), e.g. `576p`; `master` for the top-level master playlist. */
+    quality: text().notNull(),
+    requestCount: integer('request_count').default(0).notNull(),
+    bytesTotal: bigint('bytes_total', { mode: 'number' }).default(0).notNull(),
+  },
+  (table) => [
+    uniqueIndex('media_playback_delivery_daily_org_user_media_quality_uidx').on(
+      table.bucketDate,
+      table.organizationId,
+      table.userId,
+      table.mediaId,
+      table.quality,
+    ),
+    index('idx_media_playback_delivery_daily_bucket').using(
+      'btree',
+      table.bucketDate.desc().nullsFirst().op('date_ops'),
+    ),
+    index('idx_media_playback_delivery_daily_media_bucket').using(
+      'btree',
+      table.mediaId.asc().nullsLast().op('uuid_ops'),
+      table.bucketDate.desc().nullsFirst().op('date_ops'),
+    ),
+    index('idx_media_playback_delivery_daily_organization_id').using(
+      'btree',
+      table.organizationId.asc().nullsLast().op('uuid_ops'),
+    ),
+    foreignKey({
+      columns: [table.organizationId],
+      foreignColumns: [beOrganizations.id],
+      name: 'media_playback_delivery_daily_organization_id_fkey',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [table.userId],
+      foreignColumns: [platformUsers.id],
+      name: 'media_playback_delivery_daily_user_id_fkey',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [table.mediaId],
+      foreignColumns: [mediaFiles.id],
+      name: 'media_playback_delivery_daily_media_id_fkey',
+    }).onDelete('cascade'),
+    check('media_playback_delivery_daily_request_count_check', sql`request_count >= 0`),
+    check('media_playback_delivery_daily_bytes_total_check', sql`bytes_total >= 0`),
   ],
 );
 

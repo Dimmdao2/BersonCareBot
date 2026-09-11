@@ -3,6 +3,7 @@ import { getDrizzle } from '@/app-layer/db/drizzle';
 import { logger } from '@/app-layer/logging/logger';
 import {
   mediaPlaybackClientEvents,
+  mediaPlaybackDeliveryDaily,
   mediaPlaybackResolutionEvents,
   mediaPlaybackStatsHourly,
 } from '../../../db/schema';
@@ -12,6 +13,14 @@ export const PLAYBACK_HOURLY_STATS_RETENTION_DAYS = 90;
 
 /** Raw diagnostic events remain available for annual comparisons and incident investigation. */
 export const PLAYBACK_RAW_EVENTS_RETENTION_DAYS = 400;
+
+/**
+ * VIDEO_DELIVERY_COST_AND_METERING (11.09.2026): the daily delivery-byte rollup is itself a cost
+ * record the owner wants to export/compare across a year (`docs/_TODO/VIDEO_DELIVERY_COST_AND_METERING_2026-09-11.md`,
+ * checklist item 4), not a short-lived operational KPI window like `PLAYBACK_HOURLY_STATS_RETENTION_DAYS` —
+ * kept on the same annual horizon as the raw diagnostic events instead.
+ */
+export const MEDIA_PLAYBACK_DELIVERY_DAILY_RETENTION_DAYS = 400;
 
 /**
  * The sweep branches this job REALLY implements — the module half of a prune-root name, the way
@@ -27,6 +36,7 @@ export const MEDIA_PLAYBACK_STATS_RETENTION_BRANCHES = [
   'hourly',
   'events',
   'client_events',
+  'delivery_daily',
 ] as const;
 
 export type PlaybackHourlyPurgeResult = {
@@ -36,20 +46,23 @@ export type PlaybackHourlyPurgeResult = {
     hourly: number;
     resolutionEvents: number;
     clientEvents: number;
+    deliveryDaily: number;
   };
   retentionDays: number;
   rawEventRetentionDays: number;
+  deliveryDailyRetentionDays: number;
   dryRun: boolean;
 };
 
 /**
- * Purges the three bounded playback telemetry stores in one transaction. The dedup table
+ * Purges the four bounded playback telemetry stores in one transaction. The dedup table
  * `media_playback_user_video_first_resolve` is deliberately untouched: it records whether a person
  * ever watched the video and has no TTL.
  */
 export async function purgeStalePlaybackHourlyStats(options?: {
   retentionDays?: number;
   rawEventRetentionDays?: number;
+  deliveryDailyRetentionDays?: number;
   dryRun?: boolean;
   throwErrors?: boolean;
 }): Promise<PlaybackHourlyPurgeResult> {
@@ -61,13 +74,20 @@ export async function purgeStalePlaybackHourlyStats(options?: {
     1,
     Math.floor(options?.rawEventRetentionDays ?? PLAYBACK_RAW_EVENTS_RETENTION_DAYS),
   );
+  const deliveryDailyDays = Math.max(
+    1,
+    Math.floor(
+      options?.deliveryDailyRetentionDays ?? MEDIA_PLAYBACK_DELIVERY_DAILY_RETENTION_DAYS,
+    ),
+  );
   const hourlyCutoffExpr = sql`(now() - (${days}::integer * interval '1 day'))`;
   const rawEventCutoffExpr = sql`(now() - (${rawEventDays}::integer * interval '1 day'))`;
+  const deliveryDailyCutoffExpr = sql`(now() - (${deliveryDailyDays}::integer * interval '1 day'))::date`;
   try {
     const db = getDrizzle();
     const deletedByStore = await db.transaction(async (tx) => {
       if (options?.dryRun) {
-        const [hourly, resolutionEvents, clientEvents] = await Promise.all([
+        const [hourly, resolutionEvents, clientEvents, deliveryDaily] = await Promise.all([
           tx
             .select({ c: sql<string>`COUNT(*)::text`.as('cnt') })
             .from(mediaPlaybackStatsHourly)
@@ -80,11 +100,16 @@ export async function purgeStalePlaybackHourlyStats(options?: {
             .select({ c: sql<string>`COUNT(*)::text`.as('cnt') })
             .from(mediaPlaybackClientEvents)
             .where(lt(mediaPlaybackClientEvents.createdAt, rawEventCutoffExpr)),
+          tx
+            .select({ c: sql<string>`COUNT(*)::text`.as('cnt') })
+            .from(mediaPlaybackDeliveryDaily)
+            .where(lt(mediaPlaybackDeliveryDaily.bucketDate, deliveryDailyCutoffExpr)),
         ]);
         return {
           hourly: Number.parseInt(hourly[0]?.c ?? '0', 10) || 0,
           resolutionEvents: Number.parseInt(resolutionEvents[0]?.c ?? '0', 10) || 0,
           clientEvents: Number.parseInt(clientEvents[0]?.c ?? '0', 10) || 0,
+          deliveryDaily: Number.parseInt(deliveryDaily[0]?.c ?? '0', 10) || 0,
         };
       }
 
@@ -100,29 +125,37 @@ export async function purgeStalePlaybackHourlyStats(options?: {
         .delete(mediaPlaybackClientEvents)
         .where(lt(mediaPlaybackClientEvents.createdAt, rawEventCutoffExpr))
         .returning({ id: mediaPlaybackClientEvents.id });
+      const deliveryDaily = await tx
+        .delete(mediaPlaybackDeliveryDaily)
+        .where(lt(mediaPlaybackDeliveryDaily.bucketDate, deliveryDailyCutoffExpr))
+        .returning({ bucketDate: mediaPlaybackDeliveryDaily.bucketDate });
       return {
         hourly: hourly.length,
         resolutionEvents: resolutionEvents.length,
         clientEvents: clientEvents.length,
+        deliveryDaily: deliveryDaily.length,
       };
     });
     return {
       deleted: deletedByStore.hourly
         + deletedByStore.resolutionEvents
-        + deletedByStore.clientEvents,
+        + deletedByStore.clientEvents
+        + deletedByStore.deliveryDaily,
       deletedByStore,
       retentionDays: days,
       rawEventRetentionDays: rawEventDays,
+      deliveryDailyRetentionDays: deliveryDailyDays,
       dryRun: Boolean(options?.dryRun),
     };
   } catch (e) {
-    logger.error({ err: e, days, rawEventDays }, 'playback_stats_retention_failed');
+    logger.error({ err: e, days, rawEventDays, deliveryDailyDays }, 'playback_stats_retention_failed');
     if (options?.throwErrors) throw e;
     return {
       deleted: 0,
-      deletedByStore: { hourly: 0, resolutionEvents: 0, clientEvents: 0 },
+      deletedByStore: { hourly: 0, resolutionEvents: 0, clientEvents: 0, deliveryDaily: 0 },
       retentionDays: days,
       rawEventRetentionDays: rawEventDays,
+      deliveryDailyRetentionDays: deliveryDailyDays,
       dryRun: Boolean(options?.dryRun),
     };
   }

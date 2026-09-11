@@ -185,6 +185,8 @@ export async function completeMediaWorkerHlsJob(
     posterKey?: string;
     qualitiesJson?: string;
     durationSeconds?: number | null;
+    /** Measured source container bitrate (bits/sec) — same probe as duration; absence is normal. */
+    sourceBitrateBps?: number | null;
   },
 ): Promise<void> {
   await recordMediaWorkerOutcome(job, lockedBy, 'done_hls', {
@@ -195,6 +197,9 @@ export async function completeMediaWorkerHlsJob(
     ...(values.durationSeconds === undefined || values.durationSeconds === null
       ? {}
       : { durationSeconds: values.durationSeconds }),
+    ...(values.sourceBitrateBps === undefined || values.sourceBitrateBps === null
+      ? {}
+      : { sourceBitrateBps: values.sourceBitrateBps }),
   });
 }
 

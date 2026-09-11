@@ -1,14 +1,17 @@
 import { NextResponse } from 'next/server';
+import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import { logger } from '@/app-layer/logging/logger';
 import { buildTrustedPrivateObjectUrlPrefixes } from '@/app-layer/media/hlsTrustedOriginPrefixes';
 import { rewriteM3u8AbsoluteUrls } from '@/app-layer/media/hlsPlaylistRewrite';
 import {
   hlsArtifactObjectKey,
+  hlsArtifactQualityFromPath,
   hlsArtifactSupportsHttpRange,
   inferHlsArtifactKind,
   isHlsPlaylistPath,
   normalizeHlsUrlPathSegments,
 } from '@/app-layer/media/hlsProxyPath';
+import { recordHlsDeliveryBytes } from '@/app-layer/media/hlsDeliveryByteMeter';
 import { parseSingleBytesRangeHeader } from '@/app-layer/media/hlsProxyRange';
 import { getMediaRowForPlayback } from '@/app-layer/media/s3MediaStorage';
 import {
@@ -23,6 +26,21 @@ import {
 import type { HlsProxyArtifactKind, HlsProxyReasonCodeDb } from '@/modules/media/hlsProxyTelemetry';
 import { bindHlsProxyStreamToClientAbort } from '@/app-layer/media/hlsProxyClientAbortStream';
 import { isTrustedHlsArtifactS3Key } from '@/shared/lib/hlsStorageLayout';
+
+/**
+ * Guards the ENTIRE metering call, not just `recordHlsDeliveryBytes`'s own body: the owner's
+ * "запись не имеет права сорвать выдачу" covers argument evaluation too — `getCurrentDbPrincipal-
+ * OrganizationId()` and `hlsArtifactQualityFromPath()` run before `recordHlsDeliveryBytes`'s internal
+ * try/catch even starts, so a throw from either would otherwise still turn a served segment into a
+ * 502 `internal_error` through the outer handler's catch in `handleHlsDeliveryProxyRequest`.
+ */
+function recordHlsDeliveryBytesSafely(build: () => Parameters<typeof recordHlsDeliveryBytes>[0]): void {
+  try {
+    recordHlsDeliveryBytes(build());
+  } catch (e) {
+    logger.error({ err: e }, 'hls_delivery_byte_meter_call_site_failed');
+  }
+}
 
 function contentTypeForArtifact(segments: string[], fromS3: string | undefined): string {
   if (fromS3 && fromS3.trim()) return fromS3;
@@ -213,6 +231,14 @@ async function runHlsDeliveryProxy(input: {
       });
     }
 
+    recordHlsDeliveryBytesSafely(() => ({
+      organizationId: getCurrentDbPrincipalOrganizationId(),
+      userId,
+      mediaId,
+      quality: hlsArtifactQualityFromPath(segments),
+      bytes: Buffer.byteLength(text, 'utf8'),
+    }));
+
     return new NextResponse(text, {
       status: 200,
       headers: {
@@ -281,6 +307,19 @@ async function runHlsDeliveryProxy(input: {
   }
   if (streamed.contentRange) headers.set('Content-Range', streamed.contentRange);
   if (streamed.eTag) headers.set('ETag', streamed.eTag);
+
+  // `streamed.contentLength` is S3's own `ContentLength` for this exact response: the length of the
+  // full object for a plain GET, the length of the returned range for a ranged GET (RFC 7233 — a 206
+  // response's `Content-Length` is the bytes actually sent, not the resource's total size, which
+  // instead lives in `Content-Range`). Counting anything derived from `Content-Range` here would
+  // double the byte count for the many partial re-fetches an HLS player does while seeking.
+  recordHlsDeliveryBytesSafely(() => ({
+    organizationId: getCurrentDbPrincipalOrganizationId(),
+    userId,
+    mediaId,
+    quality: hlsArtifactQualityFromPath(segments),
+    bytes: streamed.contentLength ?? 0,
+  }));
 
   const body = bindHlsProxyStreamToClientAbort(streamed.stream, input.clientAbortSignal);
 

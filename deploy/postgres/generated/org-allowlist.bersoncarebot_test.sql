@@ -83,6 +83,7 @@ WITH declared(schema_name, table_name) AS (VALUES
   ('public', 'media_folders'),
   ('public', 'media_hls_proxy_error_events'),
   ('public', 'media_playback_client_events'),
+  ('public', 'media_playback_delivery_daily'),
   ('public', 'media_playback_resolution_events'),
   ('public', 'media_playback_stats_hourly'),
   ('public', 'media_playback_user_video_first_resolve'),
