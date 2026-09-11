@@ -19,6 +19,7 @@ import {
 import { FIO_LATIN_REJECTED_TEXT, isFioLatinRejection } from '@/shared/lib/fio';
 import { mailProfileForResolvedSurface } from '@/modules/auth/mailProfile';
 import { requireResolvedSurface } from '@/shared/lib/surface/requestSurface';
+import { withPatientIdentityPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 
 const formAnswerSchema = z.object({
   fieldKey: z.string().min(1),
@@ -101,7 +102,8 @@ export async function POST(request: Request) {
   }
 
   const deps = buildAppDeps();
-  const mailProfile = mailProfileForResolvedSurface(requireResolvedSurface(request.headers));
+  const resolvedSurface = requireResolvedSurface(request.headers);
+  const mailProfile = mailProfileForResolvedSurface(resolvedSurface);
   const body = parsed.data;
   try {
     if (body.type === 'online') {
@@ -130,11 +132,15 @@ export async function POST(request: Request) {
     });
     let checkoutUrl: string | null = null;
     if (booking.status === 'awaiting_payment') {
-      const paymentStatus = await deps.patientBooking.getBookingPaymentStatus(
-        booking.id,
-        session.user.userId,
+      const paymentStatus = await withPatientIdentityPrincipal(
+        { platformUserId: session.user.userId, source: 'api/booking/create:POST:payment-status' },
+        () =>
+          deps.patientBooking.getBookingPaymentStatus(
+            booking.id,
+            resolvedSurface.publicOrigin,
+          ),
       );
-      checkoutUrl = paymentStatus.ok ? (paymentStatus.summary?.intent?.checkoutUrl ?? null) : null;
+      checkoutUrl = paymentStatus.ok ? paymentStatus.checkoutUrl : null;
     }
     return jsonOk({ booking, checkoutUrl }, { status: 200 });
   } catch (error) {

@@ -89,7 +89,8 @@ export async function POST(request: Request) {
   }
 
   const deps = buildAppDeps();
-  const mailProfile = mailProfileForResolvedSurface(requireResolvedSurface(request.headers));
+  const resolvedSurface = requireResolvedSurface(request.headers);
+  const mailProfile = mailProfileForResolvedSurface(resolvedSurface);
   const consumed = await consumePublicBookingVerification(
     deps.publicBookingVerification,
     parsed.data.challengeId,
@@ -135,11 +136,18 @@ export async function POST(request: Request) {
     );
     let checkoutUrl: string | null = null;
     if (booking.status === 'awaiting_payment') {
-      const paymentStatus = await deps.patientBooking.getBookingPaymentStatus(
-        booking.id,
-        payer.platformUserId,
+      const paymentStatus = await withPatientIdentityPrincipal(
+        {
+          platformUserId: payer.platformUserId,
+          source: 'api/booking/public/create/confirm:POST:payment-status',
+        },
+        () =>
+          deps.patientBooking.getBookingPaymentStatus(
+            booking.id,
+            resolvedSurface.publicOrigin,
+          ),
       );
-      checkoutUrl = paymentStatus.ok ? (paymentStatus.summary?.intent?.checkoutUrl ?? null) : null;
+      checkoutUrl = paymentStatus.ok ? paymentStatus.checkoutUrl : null;
     }
     return jsonOk({ booking: redactPublicBookingRecord(booking), checkoutUrl }, { status: 200 });
   } catch (error) {

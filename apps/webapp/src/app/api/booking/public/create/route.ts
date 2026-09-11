@@ -33,7 +33,10 @@ import {
   resolveInPersonBookingContext,
   resolveSlugBoundPublicInPersonBookingOrganization,
 } from '@/modules/patient-booking/inPersonBookingResolve';
-import { withExplicitOrganizationPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
+import {
+  withExplicitOrganizationPrincipal,
+  withPatientIdentityPrincipal,
+} from '@/app-layer/principal/withOrganizationPrincipal';
 import { logger } from '@/app-layer/logging/logger';
 import { withAuthDeliveryChannelGate } from '@/modules/auth/authDeliveryGate';
 import { mailProfileForResolvedSurface } from '@/modules/auth/mailProfile';
@@ -100,7 +103,8 @@ export async function POST(request: Request) {
   }
 
   const body = parsed.data;
-  const mailProfile = mailProfileForResolvedSurface(requireResolvedSurface(request.headers));
+  const resolvedSurface = requireResolvedSurface(request.headers);
+  const mailProfile = mailProfileForResolvedSurface(resolvedSurface);
   const deps = buildAppDeps();
 
   try {
@@ -157,13 +161,18 @@ export async function POST(request: Request) {
         );
         let checkoutUrl: string | null = null;
         if (booking.status === 'awaiting_payment') {
-          const paymentStatus = await deps.patientBooking.getBookingPaymentStatus(
-            booking.id,
-            payer.platformUserId,
+          const paymentStatus = await withPatientIdentityPrincipal(
+            {
+              platformUserId: payer.platformUserId,
+              source: 'api/booking/public/create:POST:payment-status',
+            },
+            () =>
+              deps.patientBooking.getBookingPaymentStatus(
+                booking.id,
+                resolvedSurface.publicOrigin,
+              ),
           );
-          checkoutUrl = paymentStatus.ok
-            ? (paymentStatus.summary?.intent?.checkoutUrl ?? null)
-            : null;
+          checkoutUrl = paymentStatus.ok ? paymentStatus.checkoutUrl : null;
         }
         return jsonOk(
           { booking: redactPublicBookingRecord(booking), checkoutUrl },

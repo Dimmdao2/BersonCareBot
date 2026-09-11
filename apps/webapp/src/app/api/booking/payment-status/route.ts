@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requirePatientApiBusinessAccess } from '@/app-layer/guards/requireRole';
-import { withExplicitOrganizationPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
+import { withPatientIdentityPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { routePaths } from '@/app-layer/routes/paths';
+import { requireResolvedSurface } from '@/shared/lib/surface/requestSurface';
 
 export async function GET(request: Request) {
   const gate = await requirePatientApiBusinessAccess({
@@ -16,22 +17,24 @@ export async function GET(request: Request) {
   }
 
   const deps = buildAppDeps();
-  const organizationId = await deps.patientBooking.resolveBookingOrganizationId(bookingId);
-  if (!organizationId) {
-    return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
-  }
-  const result = await withExplicitOrganizationPrincipal(
-    { organizationId, source: 'api/booking/payment-status:GET' },
-    () => deps.patientBooking.getBookingPaymentStatus(bookingId, gate.session.user.userId),
+  const patientOrigin = requireResolvedSurface(request.headers).publicOrigin;
+  const result = await withPatientIdentityPrincipal(
+    {
+      platformUserId: gate.session.user.userId,
+      source: 'api/booking/payment-status:GET',
+    },
+    () => deps.patientBooking.getBookingPaymentStatus(bookingId, patientOrigin),
   );
   if (!result.ok) {
     return NextResponse.json({ ok: false, error: result.error }, { status: 404 });
   }
   return NextResponse.json({
     ok: true,
-    booking: result.booking,
-    summary: result.summary,
     intentId: result.intentId,
+    amountMinor: result.amountMinor,
+    currency: result.currency,
+    intentStatus: result.intentStatus,
+    checkoutUrl: result.checkoutUrl,
     paymentDeadlineAt: result.paymentDeadlineAt,
     appointmentStatus: result.appointmentStatus,
   });

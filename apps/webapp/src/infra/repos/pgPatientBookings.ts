@@ -8,6 +8,7 @@ import { getWebappSqlDb, runWebappNamedRoot, runWebappSql } from '@/infra/db/run
 import type {
   PatientBookingsPort,
   CreatePendingPatientBookingInput,
+  PatientBookingPaymentStatusProjection,
 } from '@/modules/patient-booking/ports';
 import type {
   CanonicalInPersonBookingContext,
@@ -48,6 +49,33 @@ type Row = {
   canonical_appointment_id?: string | null;
   canonical_in_person_context?: CanonicalInPersonBookingContext | null;
 };
+
+type PatientBookingPaymentStatusRow = {
+  intent_id: string | null;
+  amount_minor: number | null;
+  currency: string | null;
+  intent_status: string | null;
+  checkout_intent_id: string | null;
+  payment_deadline_at: Date | string | null;
+  appointment_status: string;
+};
+
+function mapPatientBookingPaymentStatus(
+  row: PatientBookingPaymentStatusRow,
+): PatientBookingPaymentStatusProjection {
+  const deadline = row.payment_deadline_at;
+  return {
+    intentId: row.intent_id,
+    amountMinor: row.amount_minor,
+    currency: row.currency,
+    intentStatus: row.intent_status,
+    checkoutIntentId: row.checkout_intent_id,
+    paymentDeadlineAt:
+      deadline instanceof Date ? deadline.toISOString() : (deadline?.toString() ?? null),
+    appointmentStatus:
+      row.appointment_status as PatientBookingPaymentStatusProjection['appointmentStatus'],
+  };
+}
 
 function isCurrentPatientPrincipal(): boolean {
   return getCurrentDbPrincipal()?.kind === 'patient';
@@ -452,6 +480,17 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
       )
       .limit(1);
     return row ? mapTableRow(row) : null;
+  },
+
+  async readCurrentPatientPaymentStatus(bookingId) {
+    const result = await runWebappNamedRoot<PatientBookingPaymentStatusRow>(
+      getWebappSqlDb(),
+      'app.read_current_patient_booking_payment_status(uuid)',
+      [bookingId],
+      sql`SELECT * FROM app.read_current_patient_booking_payment_status(${bookingId}::uuid)`,
+    );
+    const row = result.rows[0];
+    return row ? mapPatientBookingPaymentStatus(row) : null;
   },
 
   async getById(bookingId) {
