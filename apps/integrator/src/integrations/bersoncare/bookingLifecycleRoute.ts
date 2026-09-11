@@ -870,14 +870,17 @@ function bookingLifecycleSteps(input: {
   }
 
   if (eventType === 'booking.payment_captured') {
-    const steps: BookingLifecycleStep[] = [
-      patientMessageStep(`booking-payment:${bookingId}`, async () =>
-        resolvePatientMessageText(
-          payload,
-          `Оплата записи подтверждена. ${formatBookingRuDateTime(payload.slotStart, await displayTimeZone())}`,
+    const steps: BookingLifecycleStep[] = [];
+    if (payload.suppressPatientNotification !== true) {
+      steps.push(
+        patientMessageStep(`booking-payment:${bookingId}`, async () =>
+          resolvePatientMessageText(
+            payload,
+            `Оплата записи подтверждена. ${formatBookingRuDateTime(payload.slotStart, await displayTimeZone())}`,
+          ),
         ),
-      ),
-    ];
+      );
+    }
     if (shouldNotifyDoctor(payload)) {
       steps.push(
         doctorMessageStep(`booking-payment:${bookingId}`, async () =>

@@ -141,6 +141,43 @@ describe('B1.3 — prepayment provider availability', () => {
 });
 
 describe('payments tariff mechanic', () => {
+  it('keeps stored provider URLs behind the check route in appointment link reads', async () => {
+    const payments = createPaymentsService({
+      port: {
+        listAppointmentCheckoutUrls: vi.fn(async () => [
+          {
+            appointmentId: 'appointment-1',
+            intentId: intent.id,
+            purpose: 'appointment_prepayment',
+            checkoutUrl: intent.checkoutUrl,
+          },
+        ]),
+      } as unknown as PaymentsPort,
+      config: {
+        getBookingPaymentSettings: async () => ({
+          enabled: true,
+          defaultProviderId: 'yookassa',
+          providers: [],
+        }),
+      },
+      captureUnitOfWork: {
+        run: async (_organizationId, fn) => fn(),
+        runSerializedPostCommit: async (_organizationId, _key, fn) => fn(),
+      },
+      bookingEngine: null,
+      resolvePatientPublicOrigin: async () => 'https://clinic.therapygo.test',
+    });
+
+    await expect(payments.listAppointmentCheckoutUrls('org-1', ['appointment-1'])).resolves.toEqual(
+      [
+        {
+          appointmentId: 'appointment-1',
+          checkoutUrl: `https://clinic.therapygo.test/book/pay/${intent.id}`,
+        },
+      ],
+    );
+  });
+
   it('keeps an existing payment intent available after payment acceptance is disabled', async () => {
     const payments = createPaymentsService({
       port: {
@@ -168,6 +205,7 @@ describe('payments tariff mechanic', () => {
       },
       bookingEngine: null,
       canCreatePaymentIntent: async () => false,
+      resolvePatientPublicOrigin: async () => 'https://clinic.therapygo.test',
     });
 
     await expect(
@@ -180,7 +218,10 @@ describe('payments tariff mechanic', () => {
         idempotencyKey: 'key-1',
         returnUrl: 'https://app.example.test/return',
       }),
-    ).resolves.toBe(intent);
+    ).resolves.toMatchObject({
+      id: intent.id,
+      checkoutUrl: `https://clinic.therapygo.test/book/pay/${intent.id}`,
+    });
   });
 
   it('refuses a direct new patient-payment request before the provider can create an intent', async () => {
@@ -306,6 +347,7 @@ describe('payments tariff mechanic', () => {
       bookingEngine: null,
       canCreatePaymentIntent: async () => true,
       resolvePayerEmail: async () => 'patient@example.test',
+      resolvePatientPublicOrigin: async () => 'https://clinic.therapygo.test',
     });
 
     await expect(
@@ -318,7 +360,10 @@ describe('payments tariff mechanic', () => {
         idempotencyKey: 'appointment-1:prepayment',
         returnUrl: 'https://app.example.test/return',
       }),
-    ).resolves.toBe(intent);
+    ).resolves.toMatchObject({
+      id: intent.id,
+      checkoutUrl: `https://clinic.therapygo.test/book/pay/${intent.id}`,
+    });
     expect(providerAdapter.createIntent).toHaveBeenCalledWith(
       expect.objectContaining({
         receipt: expect.objectContaining({
@@ -356,7 +401,13 @@ describe('payments tariff mechanic', () => {
           defaultProviderId: 'yookassa',
           fiscalVatCode: '1',
           providers: [
-            { id: 'yookassa', label: 'YooKassa', enabled: true, apiKey: 'api-key', shopId: 'shop-1' },
+            {
+              id: 'yookassa',
+              label: 'YooKassa',
+              enabled: true,
+              apiKey: 'api-key',
+              shopId: 'shop-1',
+            },
           ],
         }),
       },
@@ -456,5 +507,67 @@ describe('appointment-bound payment summary', () => {
 
     expect(summary?.payment?.amountMinor).toBe(10_000);
     expect(port.countAppointmentsByPaymentRef).toHaveBeenCalledWith('payment-shared', 'org-1');
+  });
+});
+
+describe('S8: direct capture batches a multi-slot chain', () => {
+  it('hands every confirmed appointment to the notification boundary once', async () => {
+    const succeededIntent = {
+      ...intent,
+      appointmentId: 'appointment-1',
+      status: 'succeeded',
+    };
+    const payment: PaymentRecord = {
+      id: 'payment-1',
+      organizationId: 'org-1',
+      paymentIntentId: intent.id,
+      appointmentId: 'appointment-1',
+      amountMinor: 10_000,
+      currency: 'RUB',
+      status: 'succeeded',
+      providerId: 'yookassa',
+      purpose: 'appointment_prepayment',
+    };
+    const appointments = [
+      { id: 'appointment-1', organizationId: 'org-1', chainId: 'chain-1', status: 'confirmed' },
+      { id: 'appointment-2', organizationId: 'org-1', chainId: 'chain-1', status: 'confirmed' },
+    ] as unknown as BeAppointment[];
+    const onAppointmentPaymentConfirmed = vi.fn(async () => {});
+    const payments = createPaymentsService({
+      port: {
+        lockIntentForCapture: vi.fn(async () => succeededIntent),
+        findPaymentByIntent: vi.fn(async () => payment),
+        hasCapturedHistoryEvent: vi.fn(async () => true),
+        setAppointmentPaymentRef: vi.fn(async () => undefined),
+      } as unknown as PaymentsPort,
+      config: {
+        getBookingPaymentSettings: async () => ({
+          enabled: true,
+          defaultProviderId: 'yookassa',
+          providers: [],
+        }),
+      },
+      captureUnitOfWork: {
+        run: async (_organizationId, fn) => fn(),
+        runSerializedPostCommit: async (_organizationId, _key, fn) => fn(),
+      },
+      bookingEngine: {
+        getAppointment: vi.fn(async () => appointments[0]!),
+        listAppointmentsByChainId: vi.fn(async () => appointments),
+        transitionAppointmentStatus: vi.fn(async ({ appointmentId }) => {
+          return appointments.find((appointment) => appointment.id === appointmentId)!;
+        }),
+      },
+      onAppointmentPaymentConfirmed,
+    });
+
+    await payments.captureIntentSuccess(intent.id, 'org-1');
+
+    expect(onAppointmentPaymentConfirmed).toHaveBeenCalledTimes(1);
+    expect(onAppointmentPaymentConfirmed).toHaveBeenCalledWith({
+      appointmentIds: ['appointment-1', 'appointment-2'],
+      paymentId: 'payment-1',
+      platformUserId: 'user-1',
+    });
   });
 });

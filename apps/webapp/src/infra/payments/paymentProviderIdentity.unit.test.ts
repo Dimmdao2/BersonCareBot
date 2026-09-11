@@ -313,6 +313,7 @@ describe('B1.1: required payment-door values reach provider requests', () => {
       type: 'redirect',
       return_url: paymentInput.returnUrl,
     });
+    expect(request.body.expires_at).toBe('2026-08-05T12:00:00.000Z');
     expectIdentity(paymentData.metadata as Record<string, unknown>);
   });
 });
