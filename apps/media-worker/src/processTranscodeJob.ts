@@ -259,6 +259,10 @@ export function deriveEligibleHlsRungs(sourceWidth: number, sourceHeight: number
     if (
       upperLadderRung &&
       sourceArea > largest.pixelBudget * SOURCE_FRAME_TOP_RUNG_THRESHOLD &&
+      // Страховка, а не рабочее условие: соседа по лестнице выше 720p не существует, поэтому при
+      // площади больше потолка ветка и так не берётся (`upperLadderRung` — undefined). Оставлено,
+      // чтобы правило владельца «не выше потолка 720p по площади» читалось в коде буквально, а не
+      // выводилось из формы лестницы (аудит 11.09, F-3).
       sourceArea <= SOURCE_FRAME_TOP_RUNG_PIXEL_CEILING
     ) {
       const topRung = deriveSourceFrameTopRung(sourceWidth, sourceHeight, largest, upperLadderRung);

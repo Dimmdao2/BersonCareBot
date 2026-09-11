@@ -105,6 +105,9 @@ describe('deriveEligibleHlsRungs', () => {
 
     expect(top.label).toBe('720p');
     // По короткой стороне вышло бы 1707x720 = 1,23 млн пикселей при бюджете 921 600.
+    // Потолок площади держится самой лестницей: ступени выше 720p в ней нет, поэтому
+    // проверяем ИТОГ (верх не больше 921 600 px), а не отдельное условие в коде —
+    // явная проверка `sourceArea <= CEILING` там структурно недостижима (аудит 11.09, F-3).
     expect(top.width * top.height).toBeLessThanOrEqual(921_600);
     expect(Math.abs(top.width / top.height - 2560 / 1080)).toBeLessThan(0.02);
   });
@@ -207,6 +210,9 @@ describe('deriveEligibleHlsRungs — верхняя ступень кадром 
     const rungs = deriveEligibleHlsRungs(2000, 1200);
 
     expect(rungs.map((r) => r.label)).toEqual(['360p', '480p', '576p', '720p']);
+    // Потолок площади держится самой лестницей: ступени выше 720p в ней нет, поэтому
+    // проверяем ИТОГ (верх не больше 921 600 px), а не отдельное условие в коде —
+    // явная проверка `sourceArea <= CEILING` там структурно недостижима (аудит 11.09, F-3).
     expect(rungs.at(-1)!.width * rungs.at(-1)!.height).toBeLessThanOrEqual(921_600);
   });
 
