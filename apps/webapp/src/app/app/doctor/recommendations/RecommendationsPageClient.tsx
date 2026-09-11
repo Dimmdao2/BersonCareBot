@@ -461,6 +461,11 @@ function RecommendationsContent({
       mobileEdgeToEdge
       toolbar={
         <DoctorCatalogFiltersToolbar
+          // Тулбар живёт внутри `DoctorCatalogPageLayout`, а тот уже начинается ПОД шапкой страницы.
+          // Без этого флага офсет шапки резервируется второй раз и липкая полоска сползает
+          // на 44px вниз — ровно на шапку master-списка, перехватывая клики по сортировке,
+          // фильтру архива и переключателю список/плитки.
+          withinRemainingHeight
           className="hidden md:block"
           filters={
             <DoctorCatalogToolbarFiltersSlot>

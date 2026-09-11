@@ -1,0 +1,352 @@
+{
+  "runtime": "http://127.0.0.1:5213",
+  "catalogs": {
+    "exercises": {
+      "listMode": true,
+      "asc": {
+        "url": "http://127.0.0.1:5213/app/doctor/exercises?titleSort=asc",
+        "rows": [
+          "Активация абдукторов бедра - Тренделенбург",
+          "Активация лопаток и ГОП лежа на спине",
+          "Базовая библиотека: изометрическое напряжение квадрицепса",
+          "Базовая библиотека: нейродинамика седалищного нерва",
+          "Базовая библиотека: отведение плеча с опорой",
+          "Базовая библиотека: подъём на носки у опоры",
+          "Базовая библиотека: разгибание колена сидя",
+          "Баланс звезда",
+          "Баланс на одной ноге повороты головы",
+          "Баланс обезъяна - ползание на месте",
+          "Баланс обезъяна - только руки",
+          "Боковая планка в динамике"
+        ],
+        "monotonic": true,
+        "trigger": true
+      },
+      "clientOnlyRequests": [],
+      "reload": {
+        "url": "http://127.0.0.1:5213/app/doctor/exercises?titleSort=asc",
+        "titleSort": [
+          "asc"
+        ],
+        "rows": [
+          "Активация абдукторов бедра - Тренделенбург",
+          "Активация лопаток и ГОП лежа на спине",
+          "Базовая библиотека: изометрическое напряжение квадрицепса",
+          "Базовая библиотека: нейродинамика седалищного нерва",
+          "Базовая библиотека: отведение плеча с опорой",
+          "Базовая библиотека: подъём на носки у опоры",
+          "Базовая библиотека: разгибание колена сидя",
+          "Баланс звезда",
+          "Баланс на одной ноге повороты головы",
+          "Баланс обезъяна - ползание на месте",
+          "Баланс обезъяна - только руки",
+          "Боковая планка в динамике"
+        ],
+        "sameOrder": true,
+        "monotonic": true,
+        "trigger": true
+      },
+      "desc": {
+        "url": "http://127.0.0.1:5213/app/doctor/exercises?titleSort=desc",
+        "rows": [
+          "UI save check 1789157843109",
+          "UI DoctorField check 1789157733290",
+          "Ягодичный мост на одной и на двух ногах и с весом",
+          "Ягодичный мост на двух ногах с резиной на голени",
+          "Шея сгибание без подъема головы",
+          "Шея - боковая эксцентрика лежа на боку",
+          "Шаги на месте высокий подъем бедра",
+          "Ходьба на ягодицах",
+          "Тяга к животу с резиной сидя",
+          "Тяга к животу в наклоне стоя",
+          "Тренировка кора при диастазе - комплекс",
+          "Статическое укрепление передних и задних мышц шеи"
+        ],
+        "monotonic": true,
+        "changedFromAsc": true,
+        "trigger": true
+      },
+      "default": {
+        "url": "http://127.0.0.1:5213/app/doctor/exercises",
+        "titleSortAbsent": true,
+        "trigger": true
+      },
+      "allSortClientOnlyRequests": [],
+      "geometry": {
+        "main": {
+          "x": 224,
+          "y": 0,
+          "w": 1216,
+          "h": 882,
+          "right": 1440,
+          "bottom": 882
+        },
+        "header": {
+          "x": 224,
+          "y": 0,
+          "w": 1216,
+          "h": 44,
+          "right": 1440,
+          "bottom": 44
+        },
+        "toolbar": {
+          "x": 224,
+          "y": 44,
+          "w": 1216,
+          "h": 49,
+          "right": 1440,
+          "bottom": 93
+        },
+        "master": {
+          "x": 236,
+          "y": 93,
+          "w": 590,
+          "h": 789,
+          "right": 826,
+          "bottom": 882
+        },
+        "topGap": 0,
+        "leftGap": 0,
+        "rightGap": 0,
+        "masterGap": 0,
+        "overflowX": false
+      }
+    },
+    "recommendations": {
+      "listMode": true,
+      "asc": {
+        "url": "http://127.0.0.1:5213/app/doctor/recommendations?titleSort=asc",
+        "rows": [
+          "Коррекция нагрузки",
+          "Правила выполнения ЛФК",
+          "Принципы выполнения упражнений",
+          "BodyMdProbe1789160272851"
+        ],
+        "monotonic": true,
+        "trigger": true
+      },
+      "clientOnlyRequests": [],
+      "reload": {
+        "url": "http://127.0.0.1:5213/app/doctor/recommendations?titleSort=asc",
+        "titleSort": [
+          "asc"
+        ],
+        "rows": [
+          "Коррекция нагрузки",
+          "Правила выполнения ЛФК",
+          "Принципы выполнения упражнений",
+          "BodyMdProbe1789160272851"
+        ],
+        "sameOrder": true,
+        "monotonic": true,
+        "trigger": true
+      },
+      "desc": {
+        "url": "http://127.0.0.1:5213/app/doctor/recommendations?titleSort=desc",
+        "rows": [
+          "BodyMdProbe1789160272851",
+          "Принципы выполнения упражнений",
+          "Правила выполнения ЛФК",
+          "Коррекция нагрузки"
+        ],
+        "monotonic": true,
+        "changedFromAsc": true,
+        "trigger": true
+      },
+      "default": {
+        "url": "http://127.0.0.1:5213/app/doctor/recommendations",
+        "titleSortAbsent": true,
+        "trigger": true
+      },
+      "allSortClientOnlyRequests": [],
+      "geometry": {
+        "main": {
+          "x": 224,
+          "y": 0,
+          "w": 1216,
+          "h": 882,
+          "right": 1440,
+          "bottom": 882
+        },
+        "header": {
+          "x": 224,
+          "y": 0,
+          "w": 1216,
+          "h": 44,
+          "right": 1440,
+          "bottom": 44
+        },
+        "toolbar": {
+          "x": 224,
+          "y": 44,
+          "w": 1216,
+          "h": 49,
+          "right": 1440,
+          "bottom": 93
+        },
+        "master": {
+          "x": 236,
+          "y": 93,
+          "w": 590,
+          "h": 789,
+          "right": 826,
+          "bottom": 882
+        },
+        "topGap": 0,
+        "leftGap": 0,
+        "rightGap": 0,
+        "masterGap": 0,
+        "overflowX": false
+      }
+    }
+  },
+  "recommendationDataLoss": {
+    "records": [
+      {
+        "title": "Audit recheck A 1789167059400",
+        "body": "Контрольное описание A 1789167059400: не должно исчезнуть при возврате.",
+        "submittedBody": "Контрольное описание A 1789167059400: не должно исчезнуть при возврате.",
+        "id": "63c2f8fd-5972-48ce-9765-e887a0dddc03"
+      },
+      {
+        "title": "Audit recheck B 1789167059400",
+        "body": "Контрольное описание B 1789167059400: другой выбранный элемент.",
+        "submittedBody": "Контрольное описание B 1789167059400: другой выбранный элемент.",
+        "id": "419d7180-3f95-4af4-8184-467c91329c2a"
+      }
+    ],
+    "firstBeforeSwitch": "Контрольное описание A 1789167059400: не должно исчезнуть при возврате.",
+    "secondAfterSwitch": "Контрольное описание B 1789167059400: другой выбранный элемент.",
+    "firstAfterReturn": "Контрольное описание A 1789167059400: не должно исчезнуть при возврате.",
+    "firstAfterUnchangedSaveAndDirectReopen": "Контрольное описание A 1789167059400: не должно исчезнуть при возврате.",
+    "passed": true
+  },
+  "mobile": {
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "geometry": {
+      "main": {
+        "x": 0,
+        "y": 49,
+        "w": 390,
+        "h": 690,
+        "right": 390,
+        "bottom": 739
+      },
+      "header": {
+        "x": 0,
+        "y": 49,
+        "w": 390,
+        "h": 0,
+        "right": 390,
+        "bottom": 49
+      },
+      "toolbar": null,
+      "master": {
+        "x": 0,
+        "y": 61,
+        "w": 390,
+        "h": 678,
+        "right": 390,
+        "bottom": 739
+      },
+      "topGap": null,
+      "leftGap": null,
+      "rightGap": null,
+      "masterGap": null,
+      "overflowX": false
+    },
+    "bottomSheetVisible": true,
+    "selectedBody": "Контрольное описание B 1789167059400: другой выбранный элемент.",
+    "selectedBodyExpected": "Контрольное описание B 1789167059400: другой выбранный элемент.",
+    "overflowX": false
+  },
+  "neighbors": {
+    "tasks": {
+      "url": "http://127.0.0.1:5213/app/doctor/tasks",
+      "h1": "Задачи",
+      "overflowX": false,
+      "geometry": {
+        "main": {
+          "x": 224,
+          "y": 0,
+          "w": 1216,
+          "h": 882,
+          "right": 1440,
+          "bottom": 882
+        },
+        "header": {
+          "x": 224,
+          "y": 0,
+          "w": 1216,
+          "h": 44,
+          "right": 1440,
+          "bottom": 44
+        },
+        "toolbar": {
+          "x": 224,
+          "y": 44,
+          "w": 1216,
+          "h": 53,
+          "right": 1440,
+          "bottom": 97
+        },
+        "master": {
+          "x": 236,
+          "y": 97,
+          "w": 590,
+          "h": 785,
+          "right": 826,
+          "bottom": 882
+        },
+        "topGap": 0,
+        "leftGap": 0,
+        "rightGap": 0,
+        "masterGap": 0,
+        "overflowX": false
+      }
+    },
+    "schedule": {
+      "url": "http://127.0.0.1:5213/app/doctor/schedule",
+      "h1": "Расписание",
+      "overflowX": false,
+      "geometry": null
+    },
+    "courses": {
+      "url": "http://127.0.0.1:5213/app/doctor/courses",
+      "h1": "Курсы",
+      "overflowX": false,
+      "geometry": null
+    },
+    "programItemDialog": {
+      "addButtonFound": false,
+      "dialogVisible": false,
+      "overflowX": false
+    }
+  },
+  "createdRecommendationIds": [
+    "63c2f8fd-5972-48ce-9765-e887a0dddc03",
+    "419d7180-3f95-4af4-8184-467c91329c2a"
+  ],
+  "cleanup": [
+    {
+      "id": "63c2f8fd-5972-48ce-9765-e887a0dddc03",
+      "archived": true
+    },
+    {
+      "id": "419d7180-3f95-4af4-8184-467c91329c2a",
+      "archived": true
+    }
+  ],
+  "errors": [],
+  "login": {
+    "status": 200,
+    "body": {
+      "ok": true,
+      "redirectTo": "/app/doctor",
+      "role": "doctor"
+    }
+  }
+}
