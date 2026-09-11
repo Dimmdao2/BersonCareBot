@@ -137,14 +137,19 @@ describe('C3M-08 rehabilitation API closure', () => {
       { organizationId: 'organization-b' },
     );
 
-    const organizationAOff = await resolveOrganizationWorkspaceModules(
-      { systemSettings },
-      'organization-a',
-    );
-    const organizationB = await resolveOrganizationWorkspaceModules(
-      { systemSettings },
-      'organization-b',
-    );
+    // Тариф здесь ни при чём: случай проверяет хранимые предпочтения композиции, поэтому механика
+    // намеренно включена у обеих организаций — сужение по тарифу проверяют соседние случаи.
+    const orgEntitlements = createInMemoryOrgEntitlementsPort();
+    orgEntitlements.resolveMechanicAccess = async (_organizationId, mechanic) => ({
+      mechanic,
+      state: 'full_access',
+      policySource: 'system',
+      warning: null,
+    });
+    const deps = { systemSettings, orgEntitlements };
+
+    const organizationAOff = await resolveOrganizationWorkspaceModules(deps, 'organization-a');
+    const organizationB = await resolveOrganizationWorkspaceModules(deps, 'organization-b');
 
     expect(organizationAOff).toMatchObject({
       rehabilitation: false,
@@ -166,7 +171,7 @@ describe('C3M-08 rehabilitation API closure', () => {
     );
 
     await expect(
-      resolveOrganizationWorkspaceModules({ systemSettings }, 'organization-a'),
+      resolveOrganizationWorkspaceModules(deps, 'organization-a'),
     ).resolves.toMatchObject({
       rehabilitation: true,
       program_comments: true,
