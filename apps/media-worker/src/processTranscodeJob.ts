@@ -43,9 +43,21 @@ import {
 } from './ffmpeg/hlsPlaylistDuration.js';
 
 /**
- * 450 / 900 / 1600 / 2800 kbps ladder (owner decision 2026-09-11, `VIDEO_DELIVERY_COST_AND_METERING`
- * items 2 and 5a): ~1.75-2.0x steps between rungs. `bandwidth` is the value advertised in the HLS
- * master playlist (encode bitrate + audio + container overhead), not the raw `-b:v`.
+ * 730 / 800 / 1400 / 2500 kbps ceilings (advertised 850 / 900 / 1600 / 2800) (owner decision 2026-09-11, `VIDEO_DELIVERY_COST_AND_METERING`
+ * items 2 and 5a): ~1.2-1.75x steps between rungs. `bandwidth` is the value advertised in the HLS
+ * master playlist. `videoBitrate` is now a CEILING (`-maxrate`, capped further by the source bitrate
+ * when known — §«потолок ступени никогда не выше битрейта исходника»), not a `-b:v` ABR target; CRF
+ * (see `hlsArgs.ts`) decides the actual encode rate below that ceiling.
+ *
+ * The bottom rung's `videoBitrate`/`bandwidth` were raised from 400k/450k to the published Apple HLS
+ * Authoring Specification value for 640×360 (730 kbps): under plain `-b:v` ABR a lower target saved
+ * bytes on every simple clip regardless of content, but under CRF+ceiling the ceiling only matters for
+ * clips complex enough to hit it — so there is no byte cost to raising it back to the published number,
+ * and clips that DO hit it (busy scene, poor light) get a materially more legible picture. Owner
+ * 11.09.2026: "верхняя ступень остаётся 720p — выше нам не нужно" (the other three rungs are
+ * untouched: their existing `bandwidth` already exceeds their `videoBitrate` ceiling by the same
+ * audio+overhead margin it always did, so they stay honest without a change; the bottom rung's
+ * advertised `bandwidth` had to move with its ceiling, see the comment on the rung itself).
  */
 export type HlsLadderRung = {
   /** Directory name under `hls/`, and the label shown to the player. */
@@ -72,11 +84,71 @@ export type HlsLadderRung = {
 export type PlannedHlsRung = HlsLadderRung & { width: number; height: number };
 
 export const HLS_RUNG_LADDER: readonly HlsLadderRung[] = [
-  { label: '360p', pixelBudget: 640 * 360, videoBitrate: '400k', audioBitrate: '64k', bandwidth: 450_000 },
+  // BANDWIDTH — ПИКОВАЯ полоса варианта (видео + звук + контейнер), поэтому 850k, а не 730k: потолок
+  // видео 730k плюс 64k звука уже 794k, и плеер, которому объявили 730k, выбрал бы ступень, которую не
+  // может выдержать. Остальные три ступени тот же запас несли и раньше (800+96→900, 1400+128→1600,
+  // 2500+128→2800) — их не трогаем. Потолок КОДИРОВАНИЯ нижней ступени ровно 730k, как решил владелец.
+  { label: '360p', pixelBudget: 640 * 360, videoBitrate: '730k', audioBitrate: '64k', bandwidth: 850_000 },
   { label: '480p', pixelBudget: 854 * 480, videoBitrate: '800k', audioBitrate: '96k', bandwidth: 900_000 },
   { label: '576p', pixelBudget: 1024 * 576, videoBitrate: '1400k', audioBitrate: '128k', bandwidth: 1_600_000 },
   { label: '720p', pixelBudget: 1280 * 720, videoBitrate: '2500k', audioBitrate: '128k', bandwidth: 2_800_000 },
 ];
+
+/** Parses an ffmpeg bitrate token (`400k`, `2.5M`, `128000`) into bits/sec. */
+export function parseFfmpegBitrateTokenBps(token: string): number {
+  const m = /^(\d+(?:\.\d+)?)([kKmM])?$/.exec(token.trim());
+  if (!m) throw new Error(`unparseable ffmpeg bitrate token: ${token}`);
+  const value = Number.parseFloat(m[1]!);
+  const suffix = m[2]?.toLowerCase();
+  const multiplier = suffix === 'k' ? 1_000 : suffix === 'm' ? 1_000_000 : 1;
+  return Math.round(value * multiplier);
+}
+
+/**
+ * Требование 3 (`VIDEO_DELIVERY_COST_AND_METERING`, «Не кодировать ступень с битрейтом выше битрейта
+ * исходника»): перекодировать 800 кбит/с исходник в ступень с потолком 2500 кбит/с — это больший файл
+ * без единого дополнительного бита информации. Потолок ступени — её плановый `-maxrate`, урезанный до
+ * битрейта исходника, когда тот измерен и ниже. Источник, у которого битрейт измерить не удалось,
+ * ведёт себя как раньше — потолок не урезаем, а не выдумываем число.
+ */
+export function rungBitrateCeilingBps(
+  rungVideoBitrate: string,
+  sourceBitrateBps: number | null,
+): number {
+  const planned = parseFfmpegBitrateTokenBps(rungVideoBitrate);
+  if (sourceBitrateBps == null || sourceBitrateBps <= 0) return planned;
+  return Math.min(planned, sourceBitrateBps);
+}
+
+/**
+ * Потолок ВИДЕО берётся от видеопотока, а не от контейнера. Контейнер несёт ещё звук и накладные:
+ * по замеру живой библиотеки владельца 11.09.2026 (151 ролик) он больше видеопотока в среднем на
+ * 110 кбит/с, а на слабом источнике это разница в разы — аудит `vid-encoding-audit-01` показал
+ * источник, где контейнер 70 675 бит/с при видеопотоке 31 864. Контейнер остаётся резервом: он
+ * всё-таки ближе к правде, чем плановый потолок ступени.
+ */
+export function rungVideoCeilingFromProbeBps(
+  rungVideoBitrate: string,
+  probe: { videoBitrateBps: number | null; bitrateBps: number | null },
+): number {
+  const source = probe.videoBitrateBps ?? probe.bitrateBps;
+  return rungBitrateCeilingBps(rungVideoBitrate, source);
+}
+
+/**
+ * Звук НИКОГДА не переписывается вверх. План ступени (64/96/128k) — тоже потолок, а не цель: в
+ * библиотеке владельца медиана звука 105 кбит/с и 139 роликов из 148 тише 128k, то есть на двух
+ * верхних ступенях мы систематически раздували дорожку и съедали часть экономии по видео.
+ * Источник без звука или без сообщённого битрейта ведёт себя как раньше — план не трогаем.
+ */
+export function rungAudioBitrateBps(
+  rungAudioBitrate: string,
+  sourceAudioBitrateBps: number | null,
+): number {
+  const planned = parseFfmpegBitrateTokenBps(rungAudioBitrate);
+  if (sourceAudioBitrateBps == null || sourceAudioBitrateBps <= 0) return planned;
+  return Math.min(planned, sourceAudioBitrateBps);
+}
 
 /** libx264 requires even dimensions; round a native source size down to the nearest even pixel. */
 function evenFloor(n: number): number {
@@ -367,12 +439,13 @@ async function processTranscodeJobInner(outer: TranscodeContext, job: ClaimedJob
     await mkdir(posterDir, { recursive: true });
     await downloadObjectToFile(ctx.client, ctx.bucket, media.s3_key, src);
 
-    const sourceDimensions = await probeVideoDimensions(ctx.ffmpegBin, src, 60_000);
-    if (!sourceDimensions) {
+    const sourceProbe = await probeVideoDimensions(ctx.ffmpegBin, src, 60_000);
+    if (!sourceProbe) {
       await retryableFail(ctx, job, ctx.maxAttempts, 'ffprobe_source_dimensions_failed');
       return;
     }
-    const rungs = deriveEligibleHlsRungs(sourceDimensions.width, sourceDimensions.height);
+    const rungs = deriveEligibleHlsRungs(sourceProbe.width, sourceProbe.height);
+    const sourceBitrateBps = sourceProbe.bitrateBps;
 
     let wmDrawtext: WatermarkDrawtextParams | null = null;
     if (watermarkEnabled && fontPath) {
@@ -410,8 +483,8 @@ async function processTranscodeJobInner(outer: TranscodeContext, job: ClaimedJob
           outputM3u8: 'index.m3u8',
           segmentFilename: 'seg_%03d.ts',
           videoFilter,
-          videoBitrate: rung.videoBitrate,
-          audioBitrate: rung.audioBitrate,
+          videoBitrateCeilingBps: rungVideoCeilingFromProbeBps(rung.videoBitrate, sourceProbe),
+          audioBitrateBps: rungAudioBitrateBps(rung.audioBitrate, sourceProbe.audioBitrateBps),
         }),
         {
           cwd: rungDir,
@@ -518,6 +591,8 @@ async function processTranscodeJobInner(outer: TranscodeContext, job: ClaimedJob
       posterKey,
       qualitiesJson,
       durationSeconds: roundVideoDurationSecondsForStorage(videoDurationSeconds),
+      // Same probe as the ladder-selection dimensions above, travels out alongside duration.
+      sourceBitrateBps,
     });
     ctx.log.info(
       {
