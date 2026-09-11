@@ -1,14 +1,15 @@
 import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipal';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { logger } from '@/app-layer/logging/logger';
 
 const INVALID_INTENT_SENTINEL = '00000000-0000-4000-8000-000000000000';
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-function failureHtml(input: {
-  amountMinor: number | null;
-  currency: string | null;
-  paymentDeadlineAt: string | null;
-}): string {
+/**
+ * Отдельная самостоятельная страница, а не экран приложения: сюда приходят из мессенджера, без
+ * сессии и часто по плохой связи. Ни оболочки кабинета, ни клиентского кода здесь нет намеренно.
+ */
+function page(input: { state: string; note: string; amountMinor: number | null; currency: string | null }): string {
   const amount =
     input.amountMinor === null
       ? ''
@@ -16,25 +17,23 @@ function failureHtml(input: {
           style: 'currency',
           currency: input.currency ?? 'RUB',
         }).format(input.amountMinor / 100)}</p>`;
-  const deadline = input.paymentDeadlineAt
-    ? `<p class="details">Срок оплаты: <time datetime="${input.paymentDeadlineAt}">${new Intl.DateTimeFormat(
-        'ru-RU',
-        {
-          day: 'numeric',
-          month: 'long',
-          year: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-          timeZone: 'UTC',
-          timeZoneName: 'short',
-        },
-      ).format(new Date(input.paymentDeadlineAt))}</time></p>`
-    : '';
   return `<!doctype html>
 <html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Оплата записи</title><style>
 :root{color-scheme:light}*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;background:#f7f5f2;color:#201b18;font:16px/1.5 system-ui,sans-serif;padding:24px}.card{width:min(100%,520px);background:#fff;border:1px solid #e5ded7;border-radius:20px;padding:32px;box-shadow:0 16px 44px rgba(55,39,29,.08)}h1{font-size:clamp(24px,6vw,34px);line-height:1.15;margin:0 0 12px}.state{color:#a12622;font-weight:650;margin:0}.amount{font-size:28px;font-weight:700;margin:24px 0 0}.details{color:#655b54;margin:8px 0 0}
-</style></head><body><main class="card"><h1>Оплата записи</h1><p class="state">Оплата не поступила, бронирование отменено</p>${amount}${deadline}</main></body></html>`;
+</style></head><body><main class="card"><h1>Оплата записи</h1><p class="state">${input.state}</p>${amount}<p class="details">${input.note}</p></main></body></html>`;
+}
+
+function respond(status: number, body: string): Response {
+  return new Response(body, {
+    status,
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-store',
+      'Referrer-Policy': 'no-referrer',
+      'X-Content-Type-Options': 'nosniff',
+    },
+  });
 }
 
 export async function GET(
@@ -44,7 +43,27 @@ export async function GET(
   stampBootstrapPrincipal('book/pay/[intentId]:GET', request);
   const { intentId: rawIntentId } = await context.params;
   const intentId = UUID_RE.test(rawIntentId) ? rawIntentId : INVALID_INTENT_SENTINEL;
-  const check = await buildAppDeps().payments?.readAppointmentPaymentCheck(intentId);
+
+  let check;
+  try {
+    const payments = buildAppDeps().payments;
+    if (!payments) throw new Error('payments_unavailable');
+    check = await payments.readAppointmentPaymentCheck(intentId);
+  } catch (cause) {
+    // «Не смогли проверить» и «счёт мёртв» — РАЗНЫЕ вещи, и объединять их нельзя: сказать человеку
+    // «бронирование отменено» из-за нашего сбоя значит соврать про его живую бронь и, скорее всего,
+    // потерять её по-настоящему — он перестанет платить.
+    logger.error({ err: cause }, '[book/pay] invoice check failed');
+    return respond(
+      503,
+      page({
+        state: 'Не удалось проверить счёт',
+        note: 'Это сбой на нашей стороне, а не отказ в оплате. Обновите страницу через минуту.',
+        amountMinor: null,
+        currency: null,
+      }),
+    );
+  }
 
   if (check?.alive && check.providerCheckoutUrl) {
     const target = new URL(check.providerCheckoutUrl);
@@ -56,20 +75,15 @@ export async function GET(
     }
   }
 
-  return new Response(
-    failureHtml({
+  // Срок здесь намеренно не печатается: у корня нет часового пояса клиники, а показать дедлайн в
+  // чужом поясе хуже, чем не показать его вовсе — это деньги, и час разницы меняет смысл.
+  return respond(
+    410,
+    page({
+      state: 'Оплата не поступила, бронирование отменено',
+      note: 'Время этой брони вышло. Чтобы записаться заново, откройте запись в кабинете.',
       amountMinor: check?.amountMinor ?? null,
       currency: check?.currency ?? null,
-      paymentDeadlineAt: check?.paymentDeadlineAt ?? null,
     }),
-    {
-      status: 410,
-      headers: {
-        'Content-Type': 'text/html; charset=utf-8',
-        'Cache-Control': 'no-store',
-        'Referrer-Policy': 'no-referrer',
-        'X-Content-Type-Options': 'nosniff',
-      },
-    },
   );
 }

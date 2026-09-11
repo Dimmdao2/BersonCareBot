@@ -67,4 +67,19 @@ describe('anonymous appointment payment check route', () => {
     expect(body).not.toContain(providerUrl);
     expect(body).not.toContain('PRIVATE PATIENT SENTINEL');
   });
+
+  /**
+   * Наш сбой не имеет права объявлять живую бронь отменённой: человек прочитает это как
+   * окончательный ответ, перестанет платить и потеряет слот по-настоящему. Отказ проверки должен
+   * читаться как «попробуйте позже», а не как «всё, поздно».
+   */
+  it('does not call a live booking cancelled when the check itself failed', async () => {
+    fakes.readAppointmentPaymentCheck.mockRejectedValue(new Error('db is down'));
+
+    const response = await request();
+    const body = await response.text();
+
+    expect(response.status).not.toBe(410);
+    expect(body).not.toContain('бронирование отменено');
+  });
 });
