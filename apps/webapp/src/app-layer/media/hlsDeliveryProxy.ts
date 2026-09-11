@@ -42,6 +42,25 @@ function recordHlsDeliveryBytesSafely(build: () => Parameters<typeof recordHlsDe
   }
 }
 
+/**
+ * Segment/variant path only: the counter's non-`bytes` fields (org/user/media/quality) must be
+ * captured NOW, synchronously, while the request's `AsyncLocalStorage`-backed DB principal context
+ * is still live — `bytesSent` is only known once the stream finishes, long after this request handler
+ * has returned the `Response` and that context has unwound. Same "argument evaluation must not be
+ * able to turn a served segment into a 502" guarantee as `recordHlsDeliveryBytesSafely` above, just
+ * evaluated eagerly instead of at the metering call itself.
+ */
+function safeBuildHlsSegmentMeterContext(
+  build: () => Omit<Parameters<typeof recordHlsDeliveryBytes>[0], 'bytes'>,
+): Omit<Parameters<typeof recordHlsDeliveryBytes>[0], 'bytes'> | null {
+  try {
+    return build();
+  } catch (e) {
+    logger.error({ err: e }, 'hls_delivery_byte_meter_call_site_failed');
+    return null;
+  }
+}
+
 function contentTypeForArtifact(segments: string[], fromS3: string | undefined): string {
   if (fromS3 && fromS3.trim()) return fromS3;
   const last = segments[segments.length - 1] ?? '';
@@ -308,20 +327,25 @@ async function runHlsDeliveryProxy(input: {
   if (streamed.contentRange) headers.set('Content-Range', streamed.contentRange);
   if (streamed.eTag) headers.set('ETag', streamed.eTag);
 
-  // `streamed.contentLength` is S3's own `ContentLength` for this exact response: the length of the
-  // full object for a plain GET, the length of the returned range for a ranged GET (RFC 7233 — a 206
-  // response's `Content-Length` is the bytes actually sent, not the resource's total size, which
-  // instead lives in `Content-Range`). Counting anything derived from `Content-Range` here would
-  // double the byte count for the many partial re-fetches an HLS player does while seeking.
-  recordHlsDeliveryBytesSafely(() => ({
+  // `streamed.contentLength` above only sets the *promised* `Content-Length` header — a legitimate
+  // use, since it is what the response header must say if the transfer completes. The byte-metering
+  // table exists to record what actually reached the patient (billing + "does delivery really get
+  // through" signal), so it must NOT reuse this number: a dropped connection would otherwise count a
+  // segment as fully delivered when 0 bytes went out. `meterContext` is captured synchronously (org
+  // lookup needs the request's still-live DB principal context); the byte count itself is filled in
+  // by `bindHlsProxyStreamToClientAbort`'s `onSettled`, once the stream actually stops moving bytes —
+  // on a clean finish, an upstream error, or a client disconnect mid-transfer alike.
+  const meterContext = safeBuildHlsSegmentMeterContext(() => ({
     organizationId: getCurrentDbPrincipalOrganizationId(),
     userId,
     mediaId,
     quality: hlsArtifactQualityFromPath(segments),
-    bytes: streamed.contentLength ?? 0,
   }));
 
-  const body = bindHlsProxyStreamToClientAbort(streamed.stream, input.clientAbortSignal);
+  const body = bindHlsProxyStreamToClientAbort(streamed.stream, input.clientAbortSignal, (bytesSent) => {
+    if (!meterContext) return;
+    recordHlsDeliveryBytesSafely(() => ({ ...meterContext, bytes: bytesSent }));
+  });
 
   return new Response(body, {
     status: streamed.httpStatus,

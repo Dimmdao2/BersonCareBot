@@ -67,6 +67,23 @@ function stubReadableStream(payloadLength: number): ReadableStream<Uint8Array> {
   });
 }
 
+/**
+ * Metering now fires only once the response body actually finishes streaming (the fix for "an
+ * aborted download counted as fully delivered"), so a test asserting on the recorded row must drain
+ * the body first — exactly like a real HTTP client — instead of reading the meter right after the
+ * `Response` object comes back.
+ */
+async function drainBody(response: Response): Promise<void> {
+  const reader = response.body?.getReader();
+  if (!reader) return;
+  for (;;) {
+    const { done } = await reader.read();
+    if (done) break;
+  }
+  // Metering runs in the pipe's `.finally()`, a microtask tick after the reader sees `done`.
+  await new Promise((resolve) => setTimeout(resolve, 0));
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   snapshotAndClearHlsDeliveryByteMeter();
@@ -95,6 +112,7 @@ describe('HLS proxy byte metering', () => {
     });
 
     expect(response.status).toBe(206);
+    await drainBody(response);
     const rows = snapshotAndClearHlsDeliveryByteMeter();
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ mediaId: MEDIA_ID, quality: '576p', bytesTotal: RANGE_BYTES });
@@ -110,15 +128,72 @@ describe('HLS proxy byte metering', () => {
       contentType: 'video/mp2t',
     });
 
-    await handleHlsDeliveryProxyRequest({
+    const response = await handleHlsDeliveryProxyRequest({
       mediaId: MEDIA_ID,
       pathSegments: ['720p', 'segment-00002.ts'],
       rangeHeader: null,
       userId: 'patient-1',
     });
 
+    await drainBody(response);
     const rows = snapshotAndClearHlsDeliveryByteMeter();
     expect(rows[0]).toMatchObject({ quality: '720p', bytesTotal: FULL_SEGMENT_BYTES, requestCount: 1 });
+  });
+
+  it('an aborted mid-stream download counts only the bytes that actually left the proxy', async () => {
+    // The object is 200KB; the simulated client disconnects right after the first 60KB chunk —
+    // exactly the audit's live probe finding ("отдано 0 Б, записано 952784 Б") generalized: the
+    // promised `Content-Length` (200_000) must NOT be what lands in the byte table.
+    const FULL_BYTES = 200_000;
+    const FIRST_CHUNK_BYTES = 60_000;
+    let pullCount = 0;
+    const upstream = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pullCount += 1;
+        if (pullCount === 1) {
+          controller.enqueue(new Uint8Array(FIRST_CHUNK_BYTES));
+          return;
+        }
+        // The rest of the object is still in flight from S3 when the client disconnects — model that
+        // as a pull that never resolves, so these bytes never reach the transform and never get
+        // counted (unlike eagerly enqueuing them, which the default stream queuing strategy would
+        // otherwise let flow through before the test ever gets to call `abort()`).
+        return new Promise<void>(() => {});
+      },
+    });
+    fakes.getStream.mockResolvedValue({
+      ok: true,
+      stream: upstream,
+      httpStatus: 200,
+      contentLength: FULL_BYTES,
+      contentType: 'video/mp2t',
+    });
+
+    const abortController = new AbortController();
+    const response = await handleHlsDeliveryProxyRequest({
+      mediaId: MEDIA_ID,
+      pathSegments: ['576p', 'segment-00005.ts'],
+      rangeHeader: null,
+      userId: 'patient-1',
+      clientAbortSignal: abortController.signal,
+    });
+    expect(response.headers.get('Content-Length')).toBe(String(FULL_BYTES));
+
+    const reader = response.body!.getReader();
+    const first = await reader.read();
+    expect(first.done).toBe(false);
+    expect(first.value?.byteLength).toBe(FIRST_CHUNK_BYTES);
+
+    // Client hangs up right after the first chunk — before the promised length ever arrived.
+    abortController.abort(new Error('client disconnected'));
+    await reader.read().catch(() => {});
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(pullCount).toBe(2); // the second chunk was requested but never arrived before the abort.
+    const rows = snapshotAndClearHlsDeliveryByteMeter();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.bytesTotal).toBe(FIRST_CHUNK_BYTES);
+    expect(rows[0]!.bytesTotal).toBeLessThan(FULL_BYTES);
   });
 
   it('a byte-counter failure never turns a successful segment delivery into an error response', async () => {
