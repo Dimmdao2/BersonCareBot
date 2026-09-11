@@ -4,8 +4,8 @@ Owner plan (the ONLY source of todo and done):
 `docs/_TODO/APPOINTMENT_PREPAYMENT_VISIBILITY_2026-09-11.md`, stage **S4**. Close S4.1, S4.2, S4.3 there and
 nothing else. A finding of yours with no checkbox in that file is a QUESTION for the lead, never work.
 
-Источник оракула: `docs/_TODO/DOCTOR_MOBILE_UI_OWNER_ACCEPTANCE_2026-09-04.md` §K2 `PAY-APPT-08` — «В настройках
-записи врача/клиники задаётся срок ожидания предоплаты… Пациент видит точный дедлайн либо оставшееся время.»
+Источник оракула: `docs/_TODO/DOCTOR_MOBILE_UI_OWNER_ACCEPTANCE_2026-09-04.md` §K2 `PAY-APPT-08` —
+«Пациент видит точный дедлайн либо оставшееся время.»
 Второй источник — диктовка владельца 11.09.2026, дословно: «При выставлении счета писать сколько времени есть
 на оплату (крупно - оплатить до стольки то, осталось n минут)» и «Если счет истек (по времени) - то это qr и
 ссылка не должны отображаться, нужно сообщение „оплата не поступила, бронирование отменено“».
