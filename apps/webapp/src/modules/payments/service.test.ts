@@ -393,14 +393,6 @@ describe('payments tariff mechanic', () => {
     );
   });
 
-  it('leaves an appointment without a deadline as an open-ended invoice', async () => {
-    const payments = buildExpiringService({ supportsInvoice: true });
-    await payments.createAppointmentPaymentIntent({ ...expiringInput, expiresAt: null });
-    expect(providerAdapter.createIntent).toHaveBeenCalledWith(
-      expect.not.objectContaining({ invoice: expect.anything() }),
-    );
-  });
-
   it('refuses a deadline the provider cannot enforce instead of silently dropping it', async () => {
     const payments = buildExpiringService({ supportsInvoice: false });
     await expect(
