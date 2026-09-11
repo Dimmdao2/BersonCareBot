@@ -20,3 +20,17 @@ export function sumHlsExtinfDurationSeconds(variantPlaylistBody: string): number
   if (!found || total <= 0) return null;
   return total;
 }
+
+/**
+ * Первый сегмент варианта — по нему измеряется фактический размер кадра для манифеста. Разбор
+ * плейлиста живёт здесь же, рядом с разбором длительности, чтобы не появилось второго парсера.
+ */
+export function firstHlsSegmentName(variantPlaylistBody: string): string | null {
+  for (const raw of variantPlaylistBody.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line || line.startsWith('#')) continue;
+    if (line.includes('/') || line.includes('\\') || line.includes(':')) continue;
+    return line;
+  }
+  return null;
+}

@@ -45,6 +45,78 @@ describe('deriveEligibleHlsRungs', () => {
     expect(rungs[0]!.width).toBe(426);
     expect(rungs[0]!.height).toBe(240);
   });
+
+  /*
+   * Формы взяты из библиотеки владельца (`media_files.source_width/source_height`, замер 11.09.2026):
+   * 140 роликов из 152 не 16:9, 115 портретные. Отбор по ВЫСОТЕ давал апскейл на 137 из 152 —
+   * ступень проходила отбор по короткой для ландшафта оси и растягивалась по длинной.
+   */
+  const LIBRARY_SHAPES: ReadonlyArray<readonly [number, number, string]> = [
+    [640, 480, '4:3, 6 роликов'],
+    [360, 480, 'портрет 3:4, 1 ролик'],
+    [848, 656, 'почти квадрат'],
+    [910, 642, 'почти квадрат'],
+    [720, 960, 'портрет 3:4, самая частая форма — 19 роликов'],
+    [1080, 1920, 'портрет iPhone'],
+    [464, 824, 'узкий портрет, худший случай прежнего отбора'],
+    [1920, 1080, 'ландшафт 16:9'],
+    [1280, 720, 'ландшафт 16:9'],
+    [426, 240, 'меньше младшей ступени'],
+  ];
+
+  it.each(LIBRARY_SHAPES)(
+    'ни одна ступень не превышает исходник %ix%i (%s)',
+    (sourceWidth, sourceHeight) => {
+      for (const rung of deriveEligibleHlsRungs(sourceWidth, sourceHeight)) {
+        expect(rung.width).toBeLessThanOrEqual(sourceWidth);
+        expect(rung.height).toBeLessThanOrEqual(sourceHeight);
+      }
+    },
+  );
+
+  it.each(LIBRARY_SHAPES)(
+    'пропорция кадра сохраняется для %ix%i (%s)',
+    (sourceWidth, sourceHeight) => {
+      const sourceAspect = sourceWidth / sourceHeight;
+      for (const rung of deriveEligibleHlsRungs(sourceWidth, sourceHeight)) {
+        // Допуск — округление до чётного пикселя на каждой оси.
+        expect(Math.abs(rung.width / rung.height - sourceAspect)).toBeLessThan(0.02);
+      }
+    },
+  );
+
+  it('портретный 1080x1920 получает 720-ю ступень как 720x1280, а не 1280x2276', () => {
+    const top = deriveEligibleHlsRungs(1080, 1920).at(-1)!;
+
+    expect(top.label).toBe('720p');
+    expect([top.width, top.height]).toEqual([720, 1280]);
+  });
+
+  it('4:3 источник 640x480 берёт 480-ю ступень в родном размере, а не 854x640', () => {
+    const rungs = deriveEligibleHlsRungs(640, 480);
+
+    expect(rungs.map((r) => r.label)).toEqual(['360p', '480p']);
+    expect([rungs.at(-1)!.width, rungs.at(-1)!.height]).toEqual([640, 480]);
+  });
+
+  it('портретный 360x480 не получает ни одной растянутой ступени', () => {
+    const rungs = deriveEligibleHlsRungs(360, 480);
+
+    expect(rungs.map((r) => r.label)).toEqual(['360p']);
+    expect([rungs[0]!.width, rungs[0]!.height]).toEqual([360, 480]);
+  });
+
+  it('почти квадратный 848x656 останавливается на 576-й ступени и уменьшает кадр', () => {
+    const rungs = deriveEligibleHlsRungs(848, 656);
+
+    expect(rungs.map((r) => r.label)).toEqual(['360p', '480p', '576p']);
+    expect([rungs.at(-1)!.width, rungs.at(-1)!.height]).toEqual([744, 576]);
+  });
+
+  it('короткая сторона ступени достигается точно, когда источник её превышает', () => {
+    expect(deriveEligibleHlsRungs(1920, 1080).at(-1)!.height).toBe(720);
+    expect(deriveEligibleHlsRungs(1080, 1920).at(-1)!.width).toBe(720);
+  });
 });
 
 const fakes = vi.hoisted(() => ({

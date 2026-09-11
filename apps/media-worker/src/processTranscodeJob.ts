@@ -37,7 +37,10 @@ import { resolveWatermarkFontPath } from './watermarkFont.js';
 import { processProgramSubmissionTranscodeJob } from './processProgramSubmissionTranscode.js';
 import { roundVideoDurationSecondsForStorage } from './ffmpeg/probeVideoDurationSeconds.js';
 import { probeVideoDimensions } from './ffmpeg/probeVideoDimensions.js';
-import { sumHlsExtinfDurationSeconds } from './ffmpeg/hlsPlaylistDuration.js';
+import {
+  firstHlsSegmentName,
+  sumHlsExtinfDurationSeconds,
+} from './ffmpeg/hlsPlaylistDuration.js';
 
 /**
  * 450 / 900 / 1600 / 2800 kbps ladder (owner decision 2026-09-11, `VIDEO_DELIVERY_COST_AND_METERING`
@@ -47,18 +50,29 @@ import { sumHlsExtinfDurationSeconds } from './ffmpeg/hlsPlaylistDuration.js';
 export type HlsLadderRung = {
   /** Directory name under `hls/`, and the label shown to the player. */
   label: string;
-  height: number;
-  width: number;
+  /**
+   * Целевая КОРОТКАЯ сторона кадра, а не высота. Иначе ступень отбирается по одной оси, а кодируется
+   * по другой, и портретный ролик растягивается: замер библиотеки владельца 11.09.2026 — 115 из 152
+   * роликов портретные, 140 из 152 не 16:9, и при отборе по высоте 137 из 152 получали апскейл
+   * (худший случай 464x824 → 1280x2274, 7,6x пикселей исходника).
+   *
+   * Короткая сторона — ещё и то, на что рассчитан битрейт: 720 по короткой стороне даёт ~921k
+   * пикселей и в ландшафте (1280x720), и в портрете (720x1280), поэтому 2500k подходит обоим.
+   */
+  shortSide: number;
   videoBitrate: string;
   audioBitrate: string;
   bandwidth: number;
 };
 
+/** Ступень с фактическим размером кадра, посчитанным под конкретный источник. */
+export type PlannedHlsRung = HlsLadderRung & { width: number; height: number };
+
 export const HLS_RUNG_LADDER: readonly HlsLadderRung[] = [
-  { label: '360p', height: 360, width: 640, videoBitrate: '400k', audioBitrate: '64k', bandwidth: 450_000 },
-  { label: '480p', height: 480, width: 854, videoBitrate: '800k', audioBitrate: '96k', bandwidth: 900_000 },
-  { label: '576p', height: 576, width: 1024, videoBitrate: '1400k', audioBitrate: '128k', bandwidth: 1_600_000 },
-  { label: '720p', height: 720, width: 1280, videoBitrate: '2500k', audioBitrate: '128k', bandwidth: 2_800_000 },
+  { label: '360p', shortSide: 360, videoBitrate: '400k', audioBitrate: '64k', bandwidth: 450_000 },
+  { label: '480p', shortSide: 480, videoBitrate: '800k', audioBitrate: '96k', bandwidth: 900_000 },
+  { label: '576p', shortSide: 576, videoBitrate: '1400k', audioBitrate: '128k', bandwidth: 1_600_000 },
+  { label: '720p', shortSide: 720, videoBitrate: '2500k', audioBitrate: '128k', bandwidth: 2_800_000 },
 ];
 
 /** libx264 requires even dimensions; round a native source size down to the nearest even pixel. */
@@ -67,27 +81,48 @@ function evenFloor(n: number): number {
   return v % 2 === 0 ? Math.max(2, v) : Math.max(2, v - 1);
 }
 
+/** Даунскейл источника так, чтобы короткая сторона стала `shortSide`; обе стороны чётные. */
+function frameForShortSide(
+  sourceWidth: number,
+  sourceHeight: number,
+  shortSide: number,
+): { width: number; height: number } {
+  const sourceShort = Math.min(sourceWidth, sourceHeight);
+  const factor = shortSide / sourceShort;
+  return {
+    width: evenFloor(Math.round(sourceWidth * factor)),
+    height: evenFloor(Math.round(sourceHeight * factor)),
+  };
+}
+
 /**
- * Rungs to actually encode for a `sourceWidth x sourceHeight` source: every ladder rung whose
- * height fits inside the source — never a rung taller than the source (owner: "720 плодятся из
- * 480? Такое надо чистить"). A source smaller than the smallest rung still yields exactly one rung,
- * at its own native (even) size with the smallest rung's bitrate profile — never upscaled, and
- * never a job with zero rungs.
+ * Ступени, которые реально кодируются для источника `sourceWidth x sourceHeight`: те, чья короткая
+ * сторона не больше короткой стороны источника — то есть ступень всегда уменьшает кадр и никогда не
+ * растягивает (владелец: «убрать создание видео выше исходника»).
+ *
+ * Сравнение идёт по короткой стороне, потому что именно она задаётся при кодировании, а вторая
+ * выводится из пропорции. Сравнение по высоте было дефектом: для портретного ролика высота — ДЛИННАЯ
+ * сторона, ступень проходила гейт и растягивалась по ширине.
+ *
+ * Источник короче младшей ступени всё равно даёт ровно одну рабочую ступень — в своём родном чётном
+ * размере с профилем битрейта младшей ступени. Ноль ступеней невозможен.
  */
-export function deriveEligibleHlsRungs(sourceWidth: number, sourceHeight: number): HlsLadderRung[] {
-  const fitting = HLS_RUNG_LADDER.filter((rung) => rung.height <= sourceHeight);
+export function deriveEligibleHlsRungs(sourceWidth: number, sourceHeight: number): PlannedHlsRung[] {
+  const sourceShort = Math.min(sourceWidth, sourceHeight);
+  const fitting = HLS_RUNG_LADDER.filter((rung) => rung.shortSide <= sourceShort).map((rung) => ({
+    ...rung,
+    ...frameForShortSide(sourceWidth, sourceHeight, rung.shortSide),
+  }));
   if (fitting.length > 0) return fitting;
   const smallest = HLS_RUNG_LADDER[0]!;
-  const height = evenFloor(sourceHeight);
-  const width = evenFloor(sourceWidth);
+  const shortSide = evenFloor(sourceShort);
   return [
     {
-      label: `${height}p`,
-      height,
-      width,
-      videoBitrate: smallest.videoBitrate,
-      audioBitrate: smallest.audioBitrate,
-      bandwidth: smallest.bandwidth,
+      ...smallest,
+      label: `${shortSide}p`,
+      shortSide,
+      width: evenFloor(sourceWidth),
+      height: evenFloor(sourceHeight),
     },
   ];
 }
@@ -346,11 +381,20 @@ async function processTranscodeJobInner(outer: TranscodeContext, job: ClaimedJob
      * that is exactly the "same operation, different parameters" case the rule asks to fold into
      * one point rather than leaving as copies that can drift.
      */
-    const producedRungs: Array<HlsLadderRung & { variantPlaylistBody: string }> = [];
+    const producedRungs: Array<PlannedHlsRung & { variantPlaylistBody: string }> = [];
     for (const rung of rungs) {
       const rungDir = join(hlsDir, rung.label);
       await mkdir(rungDir, { recursive: true });
-      const videoFilter = composeHlsVideoFilter(`scale=${rung.width}:-2,format=yuv420p`, wmDrawtext);
+      /*
+       * Короткая сторона источника прижимается к `rung.shortSide`, длинная выводится из пропорции
+       * (`-2` = чётное). `min(...)` внутри выражения делает апскейл невозможным ФИЗИЧЕСКИ, даже если
+       * проба исходника соврала (например, поворот записан в side data, и ffprobe отдал coded-размер,
+       * а ffmpeg автоповоротом декодирует перевёрнутый кадр). Гейт выше и этот min — два независимых
+       * замка на одну и ту же ошибку.
+       */
+      const shortSideExpr = `min(${rung.shortSide}\,min(iw\,ih))`;
+      const scaleExpr = `scale=w='if(gt(iw\,ih)\,-2\,${shortSideExpr})':h='if(gt(iw\,ih)\,${shortSideExpr}\,-2)'`;
+      const videoFilter = composeHlsVideoFilter(`${scaleExpr},format=yuv420p`, wmDrawtext);
       const run = await runFfmpeg(
         ctx.ffmpegBin,
         buildHlsSingleVariantArgs({
@@ -377,7 +421,22 @@ async function processTranscodeJobInner(outer: TranscodeContext, job: ClaimedJob
         return;
       }
       const variantPlaylistBody = await readFile(join(rungDir, 'index.m3u8'), 'utf8');
-      producedRungs.push({ ...rung, variantPlaylistBody });
+      /*
+       * Размер в манифесте — измеренный у собранного сегмента, а не наш расчёт. Плеер и подпись
+       * качества, которую видит пациент, обязаны описывать существующий кадр: раньше `RESOLUTION`
+       * объявлял номинальные 1280x720 там, где кадра такой высоты не производилось ни для одного
+       * неширокоэкранного ролика.
+       */
+      const firstSegment = firstHlsSegmentName(variantPlaylistBody);
+      const measured = firstSegment
+        ? await probeVideoDimensions(ctx.ffmpegBin, join(rungDir, firstSegment), 60_000)
+        : null;
+      producedRungs.push({
+        ...rung,
+        width: measured?.width ?? rung.width,
+        height: measured?.height ?? rung.height,
+        variantPlaylistBody,
+      });
     }
 
     const masterBody = buildVodMasterPlaylistBody(
