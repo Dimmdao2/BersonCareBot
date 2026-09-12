@@ -21,6 +21,16 @@
  * вместе с фикстурами. `S0_COMPLEX_POLICY_FAULT` — инъекция ТОЛЬКО для аудита; в обычном прогоне
  * переменная не ставится.
  *
+ * ДВА РАЗНЫХ ORACLE, и это не одно и то же (замечено независимым аудитом 12.09, здесь исправлено).
+ * Самоустановка проверяет ФОРМУ предиката: пускает ли такая политика ровно то, что должна. Она НЕ может
+ * заметить, что на живой базе политик вообще нет, — аудитор снёс на DEV обе (страница показала 0
+ * платформенных комплексов) и отдельно дочернюю (карточка открылась с ПУСТЫМ составом), а файл остался
+ * 7/7 зелёным: тест сравнивал прогон сам с собой. Поэтому ниже добавлен отдельный случай
+ * «объявленное действительно стоит на базе» — общий для всех таких доказательств
+ * `declaredPolicyConformance.mjs` (там же, почему сверка идёт через пробную политику, а не сравнением
+ * текстов). Этот случай намеренно НЕ реагирует на `S0_COMPLEX_POLICY_FAULT` —
+ * инъекции портят предикат внутри транзакции, а он смотрит на развёрнутое состояние базы.
+ *
  * Запуск:
  *   RUN_PLATFORM_COMPLEX_TEMPLATES_READ_DB=1 node --test \
  *     deploy/postgres/privileges/platform-complex-templates-read.devDbProof.test.mjs
@@ -29,6 +39,8 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import test, { after } from 'node:test';
+
+import { assertDeclaredPoliciesDeployed } from './declaredPolicyConformance.mjs';
 
 const ENABLED = process.env.RUN_PLATFORM_COMPLEX_TEMPLATES_READ_DB === '1';
 const DATABASE = process.env.PLATFORM_COMPLEX_TEMPLATES_READ_PROOF_DB ?? 'bcb_webapp_dev';
@@ -223,6 +235,13 @@ SELECT count(*) FROM pg_policy
  WHERE polname IN ('rev10_platform_lfk_read_95', 'rev10_platform_lfk_read_96');`).stdout, 10);
   return context;
 }
+
+test('объявленные политики действительно развёрнуты на базе, а не только внутри теста',
+  { skip: !ENABLED }, () => {
+    // Сторожит ровно то, чего не видит самоустановка ниже: reconcile из feat уже сносил эти две
+    // политики, и страница теряла платформенный комплекс, пока файл оставался зелёным.
+    assertDeclaredPoliciesDeployed(psql, policyNames);
+  });
 
 test('CHECK владения отбивает обе неверные пары на шаблоне и на его элементе',
   { skip: !ENABLED }, () => {
