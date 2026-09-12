@@ -12,6 +12,7 @@ import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspace
 import { EncounterPageClient } from '../EncounterPageClient';
 import { PatientEncounterPageShell } from '../PatientEncounterPageShell';
 import { loadDoctorWorkspaceShell } from '../../../../loadDoctorWorkspaceShell';
+import { resolvePatientTerms } from '@/modules/system-settings/patientTerms';
 
 type PageProps = {
   params: Promise<{ userId: string; visitId: string }>;
@@ -43,10 +44,18 @@ export default async function EditEncounterPage({ params }: PageProps) {
   const visit = visits.find((v) => v.id === visitId);
   if (!visit) notFound();
 
+  // Третий аргумент передаётся явно: без него экран молча остался бы на «приёме»
+  // у клиники, выбравшей другое слово (R2 аудита T-A).
+  const terms = resolvePatientTerms(
+    shell.patientLabel,
+    shell.supportGroupLabel,
+    shell.appointmentLabel,
+  );
+
   return (
     <PatientEncounterPageShell
       userId={userId}
-      title="Приём"
+      title={terms.appointmentSingularLabel}
       workspaceModules={shell.workspaceModules}
     >
       <EncounterPageClient

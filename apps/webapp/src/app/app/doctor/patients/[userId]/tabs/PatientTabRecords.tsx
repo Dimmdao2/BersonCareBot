@@ -1526,6 +1526,7 @@ function PaymentsPanel({
   /** SSR-provided payments + total. When present, skips the initial client fetch. */
   initialPaymentsSummary?: { payments: PaymentItem[]; totalPaidMinor: number } | null;
 }) {
+  const { appointmentSingularLabel } = useDoctorPatientTerms();
   const [loading, setLoading] = useState(false);
   const [unavailable, setUnavailable] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -1721,7 +1722,7 @@ function PaymentsPanel({
                   <label className="text-[11px] text-muted-foreground">Услуга</label>
                   <Input
                     type="text"
-                    placeholder="Приём · 60 мин"
+                    placeholder={`${appointmentSingularLabel} · 60 мин`}
                     value={cashService}
                     onChange={(e) => setCashService(e.target.value)}
                   />

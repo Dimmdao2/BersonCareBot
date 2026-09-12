@@ -243,3 +243,38 @@ export function resolvePatientTerms(
     supportGroupLabel,
   };
 }
+
+/**
+ * Согласование прилагательного (или причастия) с родом слова о событии записи:
+ * «Очный приём» → «Очная тренировка», «Приём сохранён» → «Тренировка сохранена».
+ *
+ * Падежи здесь не склеиваются — они приходят готовыми из `APPOINTMENT_TERMS_BY_LABEL`. Здесь
+ * решается только выбор между двумя написанными формами определения по `appointmentGender`,
+ * чтобы этот выбор не расползался ветвлением `=== 'feminine'` по компонентам.
+ */
+export function agreeWithAppointment(
+  terms: Pick<AppointmentTerms, 'appointmentGender'>,
+  masculine: string,
+  feminine: string,
+): string {
+  return terms.appointmentGender === 'feminine' ? feminine : masculine;
+}
+
+/**
+ * Формат проведения записи — одна пара надписей на весь продукт: календарь, панель записи,
+ * индикаторы, запуск приёма из карточки. Раньше «Очный приём» / «Онлайн-приём» лежали
+ * литералами в четырёх файлах, и род согласовать было негде.
+ */
+export function appointmentDeliveryFormatLabels(
+  terms: Pick<AppointmentTerms, 'appointmentGender' | 'appointmentSingular'>,
+): { in_person: string; online: string } {
+  return {
+    in_person: `${agreeWithAppointment(terms, 'Очный', 'Очная')} ${terms.appointmentSingular}`,
+    online: `Онлайн-${terms.appointmentSingular}`,
+  };
+}
+
+/** Слово с заглавной буквы в нужном падеже: «Тренировок пока нет», «Приёмов пока нет». */
+export function capitalizeAppointmentForm(form: string): string {
+  return form.charAt(0).toUpperCase() + form.slice(1);
+}

@@ -26,11 +26,11 @@ export function notifTemplateTitle(
 
 /** Подпись переменной для подсказки-чипа. */
 export function notifVariableLabels(
-  terms: Pick<PatientTerms, 'patientGenitive'>,
+  terms: Pick<PatientTerms, 'patientGenitive' | 'appointmentGenitive'>,
 ): Record<string, string> {
   return {
     date: 'дата и время',
-    type: 'тип приёма',
+    type: `тип ${terms.appointmentGenitive}`,
     city: 'город / филиал',
     name: `имя ${terms.patientGenitive}`,
     phone: 'телефон',

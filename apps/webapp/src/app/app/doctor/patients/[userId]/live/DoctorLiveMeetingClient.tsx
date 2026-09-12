@@ -10,6 +10,7 @@ import { VideoMeetingStage } from '@/shared/ui/video/VideoMeetingStage';
 import { useActiveCall } from '@/shared/ui/video/ActiveCallCoordinator';
 import { DoctorNotesPanel } from '@/app/app/doctor/clients/DoctorNotesPanel';
 import { EncounterPageClient } from '../visits/EncounterPageClient';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 type NotificationResult = {
   status: 'queued' | 'partially_queued' | 'skipped' | 'unavailable';
@@ -44,6 +45,7 @@ export function DoctorLiveMeetingClient({
   encountersEnabled: boolean;
   medicalRecordEnabled: boolean;
 }) {
+  const { appointmentSingularLabel } = useDoctorPatientTerms();
   const pathname = usePathname();
   const router = useRouter();
   const activeCall = useActiveCall();
@@ -175,7 +177,7 @@ export function DoctorLiveMeetingClient({
         <Tabs defaultValue="note">
           <TabsList className={`grid w-full ${encountersEnabled ? 'grid-cols-2' : 'grid-cols-1'}`}>
             <TabsTrigger value="note">Заметка</TabsTrigger>
-            {encountersEnabled ? <TabsTrigger value="encounter">Приём</TabsTrigger> : null}
+            {encountersEnabled ? <TabsTrigger value="encounter">{appointmentSingularLabel}</TabsTrigger> : null}
           </TabsList>
           <TabsContent value="note" keepMounted className="mt-3 data-[state=inactive]:hidden">
             <DoctorNotesPanel userId={userId} embedded />

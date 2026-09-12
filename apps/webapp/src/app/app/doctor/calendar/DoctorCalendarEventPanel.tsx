@@ -67,6 +67,7 @@ import {
   type AppointmentCancelDraft,
 } from './DoctorAppointmentCancelModal';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
+import { appointmentDeliveryFormatLabels } from '@/modules/system-settings/patientTerms';
 
 const FORM_START_FORMAT = "yyyy-MM-dd'T'HH:mm";
 
@@ -338,7 +339,9 @@ function DoctorCalendarEventPanelInner({
   onCreateDirtyChange,
   flushChrome = false,
 }: Props) {
-  const { patientSingularLabel } = useDoctorPatientTerms();
+  const terms = useDoctorPatientTerms();
+  const { patientSingularLabel, appointmentAccusative } = terms;
+  const deliveryFormatLabels = appointmentDeliveryFormatLabels(terms);
   // §3.6: если startInCreate=true — сразу в режиме создания, минуя плейсхолдер
   const [mode, setMode] = useState<'view' | 'create' | 'edit'>(
     startInCreate && appointmentsManageOwn ? 'create' : 'view',
@@ -678,7 +681,7 @@ function DoctorCalendarEventPanelInner({
                 })
               }
             >
-              Очный приём
+              {deliveryFormatLabels.in_person}
             </Button>
             <Button
               type="button"
@@ -687,7 +690,7 @@ function DoctorCalendarEventPanelInner({
                 submitCreate({ onCreated: createContinuation.onOnline, deliveryFormat: 'online' })
               }
             >
-              Онлайн-приём
+              {deliveryFormatLabels.online}
             </Button>
           </DoctorModalFooter>
         ) : (
@@ -1095,7 +1098,7 @@ function DoctorCalendarEventPanelInner({
           <div>
             <dt className={doctorSecondaryListTextClass}>Формат</dt>
             <dd className={doctorBodyTextClass}>
-              {selected.deliveryFormat === 'online' ? 'Онлайн-приём' : 'Очный приём'}
+              {deliveryFormatLabels[selected.deliveryFormat === 'online' ? 'online' : 'in_person']}
             </dd>
           </div>
           <div>
@@ -1245,7 +1248,9 @@ function DoctorCalendarEventPanelInner({
               render={<Link href={appointmentActionHref} />}
               nativeButton={false}
             >
-              {selected.deliveryFormat === 'online' ? 'Видеозвонок' : 'Начать приём'}
+              {selected.deliveryFormat === 'online'
+                ? 'Видеозвонок'
+                : `Начать ${appointmentAccusative}`}
               {selected.deliveryFormat === 'online' ? (
                 <Video className="size-4 shrink-0" aria-hidden />
               ) : null}

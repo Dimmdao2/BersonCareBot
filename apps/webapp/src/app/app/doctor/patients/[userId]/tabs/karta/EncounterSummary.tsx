@@ -1,7 +1,8 @@
 'use client';
 
 /**
- * ENCOUNTERS-01/02/03 — «Приёмы: N» summary section on the patient «Карта» tab.
+ * ENCOUNTERS-01/02/03 — «Приёмы: N» summary section on the patient «Карта» tab. The word itself is
+ * the organization's choice (`appointment_label`), «Приёмы» is only its default.
  *
  * N is the count of real clinical visits (`Visit[]`, from `listVisits` / `/clinical`),
  * never calendar appointments. Footer carries the two encounter actions; there is no
@@ -17,6 +18,8 @@ import {
   doctorSectionCardClass,
   doctorSectionTitleClass,
 } from '@/shared/ui/doctor/doctorVisual';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
+import { agreeWithAppointment } from '@/modules/system-settings/patientTerms';
 
 export function EncounterSummary({
   visits,
@@ -34,6 +37,7 @@ export function EncounterSummary({
   onOpenHistory: () => void;
   onOpenVisit: (visitId: string) => void;
 }) {
+  const terms = useDoctorPatientTerms();
   // listVisits() orders newest-first — visits[0] is the previous encounter.
   const previousVisit = visits[0] ?? null;
   const primaryCount = visits.filter((v) => v.type === 'first').length;
@@ -41,11 +45,15 @@ export function EncounterSummary({
 
   return (
     <section className={doctorSectionCardClass}>
-      <h3 className={doctorSectionTitleClass}>Приёмы: {loading ? '…' : visits.length}</h3>
+      <h3 className={doctorSectionTitleClass}>
+        {terms.appointmentPluralLabel}: {loading ? '…' : visits.length}
+      </h3>
 
       {loading ? <DoctorPanelLoading className="py-3" /> : null}
       {!loading && fetchError ? (
-        <p className="text-sm text-destructive">Не удалось загрузить приёмы.</p>
+        <p className="text-sm text-destructive">
+          Не удалось загрузить {terms.appointmentAccusativePlural}.
+        </p>
       ) : null}
       {!loading && !fetchError ? (
         <div className="flex flex-col gap-2">
@@ -63,7 +71,8 @@ export function EncounterSummary({
               onClick={() => onOpenVisit(previousVisit.id)}
               className={`self-start text-sm ${doctorInlineLinkClass}`}
             >
-              Предыдущий приём: {previousVisit.date}
+              {agreeWithAppointment(terms, 'Предыдущий', 'Предыдущая')} {terms.appointmentSingular}:{' '}
+              {previousVisit.date}
             </button>
           ) : null}
         </div>
@@ -71,10 +80,10 @@ export function EncounterSummary({
 
       <div className="grid grid-cols-2 gap-2">
         <Button type="button" variant="outline" size="sm" onClick={onOpenHistory}>
-          История приёмов
+          История {terms.appointmentGenPlural}
         </Button>
         <Link href={newEncounterHref} className={buttonVariants({ size: 'sm' })}>
-          Новый приём
+          {agreeWithAppointment(terms, 'Новый', 'Новая')} {terms.appointmentSingular}
         </Link>
       </div>
     </section>

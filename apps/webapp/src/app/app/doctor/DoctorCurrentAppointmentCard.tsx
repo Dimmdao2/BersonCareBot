@@ -69,12 +69,14 @@ type Props = {
 };
 
 export function DoctorCurrentAppointmentCard({ appointments, nowMinutes }: Props) {
-  const { patientGenitive } = useDoctorPatientTerms();
+  const { patientGenitive, appointmentPrepositional } = useDoctorPatientTerms();
   const { primary, isOngoing, next } = findCurrentOrNext(appointments, nowMinutes);
 
   return (
     <DoctorSection id="doctor-today-current-appt">
-      <DoctorSectionTitle>{isOngoing ? 'Сейчас на приёме' : 'Следующая запись'}</DoctorSectionTitle>
+      <DoctorSectionTitle>
+        {isOngoing ? `Сейчас на ${appointmentPrepositional}` : 'Следующая запись'}
+      </DoctorSectionTitle>
 
       {primary === null ? (
         <DoctorEmptyState>

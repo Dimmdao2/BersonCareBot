@@ -12,6 +12,7 @@ import { requireWorkspaceModuleForPage } from '@/app-layer/guards/workspaceModul
 import { EncounterPageClient } from '../EncounterPageClient';
 import { PatientEncounterPageShell } from '../PatientEncounterPageShell';
 import { loadDoctorWorkspaceShell } from '../../../../loadDoctorWorkspaceShell';
+import { agreeWithAppointment, resolvePatientTerms } from '@/modules/system-settings/patientTerms';
 
 type PageProps = {
   params: Promise<{ userId: string }>;
@@ -34,6 +35,14 @@ export default async function NewEncounterPage({ params, searchParams }: PagePro
   );
   if (!identity) notFound();
 
+  // Третий аргумент передаётся явно: без него экран молча остался бы на «приёме»
+  // у клиники, выбравшей другое слово (R2 аудита T-A).
+  const terms = resolvePatientTerms(
+    shell.patientLabel,
+    shell.supportGroupLabel,
+    shell.appointmentLabel,
+  );
+
   const appointmentIdRaw = typeof sp.appointmentId === 'string' ? sp.appointmentId : undefined;
   const appointmentId =
     appointmentIdRaw && z.string().uuid().safeParse(appointmentIdRaw).success
@@ -43,7 +52,7 @@ export default async function NewEncounterPage({ params, searchParams }: PagePro
   return (
     <PatientEncounterPageShell
       userId={userId}
-      title="Новый приём"
+      title={`${agreeWithAppointment(terms, 'Новый', 'Новая')} ${terms.appointmentSingular}`}
       workspaceModules={shell.workspaceModules}
     >
       <EncounterPageClient

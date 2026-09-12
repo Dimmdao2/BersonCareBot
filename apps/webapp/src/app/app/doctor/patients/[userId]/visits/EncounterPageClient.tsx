@@ -27,6 +27,7 @@ import type {
 } from '@/modules/patient-clinical/ports';
 import type { PatientAppointmentItem } from '@/modules/doctor-clients/ports';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
+import { agreeWithAppointment } from '@/modules/system-settings/patientTerms';
 import { cn } from '@/lib/utils';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
@@ -180,7 +181,8 @@ export function EncounterPageClient({
   embedded = false,
   onComplete,
 }: Props) {
-  const { patientSingularLabel } = useDoctorPatientTerms();
+  const terms = useDoctorPatientTerms();
+  const { patientSingularLabel, appointmentGenitive, appointmentAccusative } = terms;
   const router = useRouter();
 
   // ── Clinical state (симптомы/диагнозы/история визитов) ───────────────────
@@ -365,7 +367,7 @@ export function EncounterPageClient({
       return;
     }
     const missing: string[] = [];
-    if (!location.trim()) missing.push('Место приёма');
+    if (!location.trim()) missing.push(`Место ${appointmentGenitive}`);
     if (!service.trim()) missing.push('Услуга');
     if (missing.length > 0) {
       setSaveError(`Заполните обязательные поля: ${missing.join(', ')}`);
@@ -440,7 +442,13 @@ export function EncounterPageClient({
         const text = await res.text().catch(() => '');
         throw new Error(`status ${res.status}${text ? `: ${text}` : ''}`);
       }
-      toast.success('Приём сохранён');
+      toast.success(
+        agreeWithAppointment(
+          terms,
+          `${terms.appointmentSingularLabel} сохранён`,
+          `${terms.appointmentSingularLabel} сохранена`,
+        ),
+      );
       if (embedded) onComplete?.();
       else {
         router.push(backHref);
@@ -510,7 +518,7 @@ export function EncounterPageClient({
               </dd>
             </div>
             <div>
-              <dt className={hintClass}>Тип приёма</dt>
+              <dt className={hintClass}>Тип {appointmentGenitive}</dt>
               <dd className="text-foreground">
                 {initialVisit.type === 'first' ? 'Первичный' : 'Повторный'}
               </dd>
@@ -716,7 +724,7 @@ export function EncounterPageClient({
       {/* Содержимое приёма — ENCOUNTER-PAGE-02 */}
       <section className={cn(doctorSectionCardClass)}>
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className={doctorSectionTitleClass}>Приём</h2>
+          <h2 className={doctorSectionTitleClass}>{terms.appointmentSingularLabel}</h2>
           {mode === 'create' ? (
             <span className="flex gap-1">
               {(['first', 'repeat'] as const).map((vt) => (
@@ -751,11 +759,11 @@ export function EncounterPageClient({
                 value={time}
                 onChange={setTime}
                 disabled={Boolean(boundAppointment)}
-                ariaLabel="Время приёма"
+                ariaLabel={`Время ${appointmentGenitive}`}
               />
             </div>
             <div className="space-y-1">
-              <label className={fieldLabelClass}>Место приёма *</label>
+              <label className={fieldLabelClass}>Место {appointmentGenitive} *</label>
               <Input value={location} onChange={(e) => setLocation(e.target.value)} />
             </div>
             <div className="space-y-1">
@@ -768,7 +776,7 @@ export function EncounterPageClient({
         {mode === 'edit' ? (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             <div className="space-y-1">
-              <label className={fieldLabelClass}>Место приёма</label>
+              <label className={fieldLabelClass}>Место {appointmentGenitive}</label>
               <Input value={location} onChange={(e) => setLocation(e.target.value)} />
             </div>
             <div className="space-y-1">
@@ -896,9 +904,13 @@ export function EncounterPageClient({
           disabled={saving}
           onClick={() => void (mode === 'create' ? handleCreate() : handleSaveEdit())}
         >
-          {saving ? 'Сохранение…' : 'Сохранить приём'}
+          {saving ? 'Сохранение…' : `Сохранить ${appointmentAccusative}`}
         </Button>
-        <Button type="button" variant="outline" onClick={() => embedded ? onComplete?.() : router.push(backHref)}>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => (embedded ? onComplete?.() : router.push(backHref))}
+        >
           Отмена
         </Button>
       </div>

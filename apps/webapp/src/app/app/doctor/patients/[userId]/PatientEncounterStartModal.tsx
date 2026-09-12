@@ -6,6 +6,11 @@ import { DateTime } from 'luxon';
 import { Check } from 'lucide-react';
 import type { PatientAppointmentItem, PatientCardHeader } from '@/modules/doctor-clients/ports';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
+import {
+  agreeWithAppointment,
+  appointmentDeliveryFormatLabels,
+  type PatientTerms,
+} from '@/modules/system-settings/patientTerms';
 import { formatDoctorFioShort } from '@/shared/lib/fio';
 import { cn } from '@/lib/utils';
 import { Button } from '@/shared/ui/doctor/primitives/button';
@@ -33,11 +38,15 @@ import { useActiveCall } from '@/shared/ui/video/ActiveCallCoordinator';
 
 type StartMode = 'select' | 'create' | 'without';
 
-const MODE_OPTIONS: ReadonlyArray<{ value: StartMode; label: string }> = [
-  { value: 'select', label: 'Выбрать запись на приём' },
-  { value: 'create', label: 'Создать запись на приём' },
-  { value: 'without', label: 'Без записи на приём' },
-];
+function modeOptions(
+  terms: Pick<PatientTerms, 'appointmentAccusative'>,
+): ReadonlyArray<{ value: StartMode; label: string }> {
+  return [
+    { value: 'select', label: `Выбрать запись на ${terms.appointmentAccusative}` },
+    { value: 'create', label: `Создать запись на ${terms.appointmentAccusative}` },
+    { value: 'without', label: `Без записи на ${terms.appointmentAccusative}` },
+  ];
+}
 
 type UnlinkedApiResponse = { ok: boolean; appointments: PatientAppointmentItem[] };
 
@@ -80,7 +89,9 @@ export function PatientEncounterStartModal({
   videoMeetingsEnabled?: boolean;
   onClose: () => void;
 }) {
-  const { patientGenitive } = useDoctorPatientTerms();
+  const terms = useDoctorPatientTerms();
+  const { patientGenitive, appointmentAccusative, appointmentSingular } = terms;
+  const deliveryFormatLabels = appointmentDeliveryFormatLabels(terms);
   const router = useRouter();
   const { activeCall } = useActiveCall();
   const [mode, setMode] = useState<StartMode>('select');
@@ -168,10 +179,11 @@ export function PatientEncounterStartModal({
     phone: header.identity.phone,
     email: header.identity.email,
   };
-  const modeOptions = appointmentsManageOwn
-    ? MODE_OPTIONS
-    : MODE_OPTIONS.filter((option) => option.value !== 'create');
-  const selectedModeLabel = modeOptions.find((option) => option.value === mode)?.label;
+  const allModeOptions = modeOptions(terms);
+  const availableModeOptions = appointmentsManageOwn
+    ? allModeOptions
+    : allModeOptions.filter((option) => option.value !== 'create');
+  const selectedModeLabel = availableModeOptions.find((option) => option.value === mode)?.label;
 
   const openEncounter = (appointmentId?: string) => {
     const params = new URLSearchParams();
@@ -203,7 +215,7 @@ export function PatientEncounterStartModal({
                 openEncounter(mode === 'select' ? (selectedAppointmentId ?? undefined) : undefined)
               }
             >
-              Очный приём
+              {deliveryFormatLabels.in_person}
             </Button>
             <Button
               type="button"
@@ -212,7 +224,7 @@ export function PatientEncounterStartModal({
                 openOnline(mode === 'select' ? (selectedAppointmentId ?? undefined) : undefined)
               }
             >
-              {activeCall ? 'Вернуться к звонку' : 'Онлайн-приём'}
+              {activeCall ? 'Вернуться к звонку' : deliveryFormatLabels.online}
             </Button>
           </>
         ) : (
@@ -227,7 +239,7 @@ export function PatientEncounterStartModal({
                 openEncounter(mode === 'select' ? (selectedAppointmentId ?? undefined) : undefined)
               }
             >
-              Начать приём
+              Начать {appointmentAccusative}
             </Button>
           </>
         )}
@@ -240,7 +252,7 @@ export function PatientEncounterStartModal({
       onClose={onClose}
       title={
         <DoctorModalStackedTitle
-          label="Начать приём"
+          label={`Начать ${appointmentAccusative}`}
           patientName={patientName}
           patientOnSupport={header.support.isOnSupport}
           patientVariant="context"
@@ -256,7 +268,7 @@ export function PatientEncounterStartModal({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {modeOptions.map((option) => (
+              {availableModeOptions.map((option) => (
                 <SelectItem key={option.value} value={option.value}>
                   {option.label}
                 </SelectItem>
@@ -318,7 +330,10 @@ export function PatientEncounterStartModal({
           }
         />
       ) : (
-        <p className="py-4 text-sm text-foreground">Будет создан новый приём без записи.</p>
+        <p className="py-4 text-sm text-foreground">
+          {agreeWithAppointment(terms, 'Будет создан новый', 'Будет создана новая')}{' '}
+          {appointmentSingular} без записи.
+        </p>
       )}
       {footer}
     </DoctorModal>

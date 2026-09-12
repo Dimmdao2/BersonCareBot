@@ -892,7 +892,7 @@ export function ScheduleCalendarTab({
   appointmentsManageOwn = true,
   availabilityManageOwn = true,
 }: ScheduleTabProps) {
-  const { patientSingularLabel } = useDoctorPatientTerms();
+  const { patientSingularLabel, appointmentAccusative } = useDoctorPatientTerms();
   const bootstrap = isScheduleCalendarBootstrap(initialData) ? initialData : null;
   /** While current key equals SSR key, skip client load (survives Strict Mode remount). */
   const ssrLoadKeyRef = useRef(
@@ -2649,7 +2649,7 @@ export function ScheduleCalendarTab({
   const eventPanelOpen = selected !== null || showCreatePanel;
   const eventPanelTitle = selected ? (
     <DoctorModalStackedTitle
-      label="Запись на приём"
+      label={`Запись на ${appointmentAccusative}`}
       patientName={selected.patientName ?? patientSingularLabel}
       patientHref={selected.platformUserId ? patientCardHref(selected.platformUserId) : null}
       patientOnSupport={selected.patientOnSupport === true}
