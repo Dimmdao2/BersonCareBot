@@ -21,7 +21,11 @@ import { DoctorWorkspaceShell } from '@/shared/ui/doctor/shell/DoctorWorkspaceSh
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { platformAdminLayoutMetadata } from '@/shared/lib/surface/surfaceLayoutMetadata';
 
-/** Platform-admin is browser-only: it deliberately does not inherit staff PWA metadata. */
+/**
+ * Platform-admin has its OWN installable identity — its own manifest and icon set (owner 2026-09-12,
+ * reversing the earlier "admins do not install an app" ruling). It deliberately does not inherit the
+ * staff PWA metadata; see {@link platformAdminLayoutMetadata}.
+ */
 export const metadata: Metadata = platformAdminLayoutMetadata;
 
 /** URL-preserving platform branch. It never resolves or renders a tenant workspace. */

@@ -75,28 +75,54 @@ beforeEach(() => {
 });
 
 describe('B1.2 email confirmation', () => {
-  it.each([
-    ['patient', 'client', 'patient'],
-    ['platform admin', 'admin', 'admin'],
-  ] as const)(
-    'uses the explicit %s portal policy before issuing a compatible %s session',
-    async (_label, role, portal) => {
-      fakes.isAuthChannelEnabled.mockImplementation(
-        async (_channel: string, policy: string | undefined) =>
-          policy === (portal === 'admin' ? 'platform_admin' : 'patient'),
-      );
-      fakes.findByUserId.mockResolvedValue({ ...user, role });
+  it('uses the explicit patient portal policy before issuing a compatible client session', async () => {
+    fakes.isAuthChannelEnabled.mockImplementation(
+      async (_channel: string, policy: string | undefined) => policy === 'patient',
+    );
 
-      const response = await POST(request(portal));
+    const response = await POST(request('patient'));
 
-      expect(response.status).toBe(200);
-      expect(fakes.isAuthChannelEnabled).toHaveBeenCalledWith(
-        'email',
-        portal === 'admin' ? 'platform_admin' : 'patient',
-      );
-      expect(fakes.setSessionFromUser).toHaveBeenCalledWith(expect.objectContaining({ role }));
-    },
-  );
+    expect(response.status).toBe(200);
+    expect(fakes.isAuthChannelEnabled).toHaveBeenCalledWith('email', 'patient');
+    expect(fakes.setSessionFromUser).toHaveBeenCalledWith(
+      expect.objectContaining({ role: 'client' }),
+    );
+  });
+
+  /**
+   * Владелец 13.09.2026, `bf1982c8d`. Голая пара «почта + код» доказывает владение почтовым ящиком
+   * и больше ничего, поэтому её НЕ ДОЛЖНО хватать для входа в учётку `doctor`/`admin`: у такой
+   * учётки обязан быть пароль, а у персонала ещё и второй фактор. Раньше портальный гейт срабатывал
+   * только если вызывающий сам прислал `roleLoginPortal`, и достаточно было это поле опустить.
+   *
+   * До этого правила набор здесь утверждал ОБРАТНОЕ — что учётка `admin` по такому запросу получает
+   * сессию с кодом 200. Проверка переписана на закрытую границу; заодно ниже отдельно закреплено
+   * ЕДИНСТВЕННОЕ намеренное исключение, чтобы вместе с дырой не закрыть и его.
+   */
+  it('refuses a bare email+code session for a staff/admin DB role even without an explicit portal', async () => {
+    fakes.findByUserId.mockResolvedValue({ ...user, role: 'admin' });
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({ ok: false, error: 'portal_access_denied' });
+    expect(fakes.setSessionFromUser).not.toHaveBeenCalled();
+  });
+
+  it('keeps the deliberate global-admin-by-policy escalation working from verified email alone', async () => {
+    fakes.isVerifiedEmailGlobalAdminAsync.mockResolvedValue(true);
+    fakes.isAuthChannelEnabled.mockImplementation(
+      async (_channel: string, policy: string | undefined) => policy === 'platform_admin',
+    );
+
+    const response = await POST(request('admin'));
+
+    expect(response.status).toBe(200);
+    expect(fakes.isAuthChannelEnabled).toHaveBeenCalledWith('email', 'platform_admin');
+    expect(fakes.setSessionFromUser).toHaveBeenCalledWith(
+      expect.objectContaining({ role: 'admin' }),
+    );
+  });
 
   it('denies an OTP-confirmed credential on an incompatible explicit portal before session minting', async () => {
     fakes.findByUserId.mockResolvedValue({ ...user, role: 'doctor' });
