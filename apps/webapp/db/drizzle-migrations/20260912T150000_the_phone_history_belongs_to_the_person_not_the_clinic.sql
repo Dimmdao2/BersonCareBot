@@ -590,9 +590,22 @@ $function$;
 -- DEV/TEST это не проявлялось: там reconcile уже догнал эти таблицы отдельными более ранними
 -- прогонами до того, как эта миграция была написана. Сторож теперь проверяет РЕАЛЬНОЕ условие —
 -- «ровно эти три вида, один общий числовой хвост, ничего лишнего» — а не конкретное число.
+-- ПРАВКА 13.09.2026 (найдено живым прогоном `migrate-dev --preflight`: очередь миграций DEV стояла).
+-- У сторожа было ОДНО допустимое состояние — «три политики на колонке», — а их два, и второе он
+-- отвергал именно как неизвестное. На окружении, где reconcile УЖЕ перевёл эти три политики на
+-- членство человека (`platform_user_id`), на колонке не висит ничего: замер на DEV — девять политик
+-- таблицы, `organization_id` это attnum 7, и ни одна на него не ссылается. Это ровно то целевое
+-- состояние, ради которого миграция и написана, и каскаду в нём сносить НЕЧЕГО — самый безопасный
+-- из возможных случаев. Сторож падал на нём с `found {}`.
+--
+-- Поэтому допустимых состояний теперь два, и оба названы явно: либо ровно три известные политики
+-- tenant-service с общим числовым хвостом (каскад снимет их, reconcile поднимет заново), либо ноль
+-- (снимать нечего). Всё остальное — по-прежнему отказ: смысл сторожа в том, что каскад не должен
+-- унести НИЧЕГО неизвестного, и он сохранён целиком.
 DO $guard$
 DECLARE
   found text[];
+  found_count integer;
 BEGIN
   -- DISTINCT обязателен: политика, называющая колонку и в USING, и в WITH CHECK, даёт ДВЕ строки
   -- pg_depend (так и есть у rev10_tenant_update_*), и без него сторож ловил бы сам себя.
@@ -604,13 +617,19 @@ BEGIN
      AND d.refobjsubid = (SELECT a.attnum FROM pg_catalog.pg_attribute a
                            WHERE a.attrelid = 'public.user_phone_history'::regclass
                              AND a.attname = 'organization_id');
-  IF array_length(found, 1) IS DISTINCT FROM 3
-     OR (SELECT count(*) FROM unnest(found) AS p WHERE p ~ '^rev10_tenant_insert_[0-9]+$') <> 1
-     OR (SELECT count(*) FROM unnest(found) AS p WHERE p ~ '^rev10_tenant_select_[0-9]+$') <> 1
-     OR (SELECT count(*) FROM unnest(found) AS p WHERE p ~ '^rev10_tenant_update_[0-9]+$') <> 1
-     OR (SELECT count(DISTINCT substring(p FROM '_([0-9]+)$')) FROM unnest(found) AS p) <> 1
+  found_count := coalesce(array_length(found, 1), 0);
+
+  IF found_count = 0 THEN
+    RAISE NOTICE 'user_phone_history.organization_id: на колонке нет политик — reconcile уже перевёл их на членство, каскад снимет только auto-зависимости';
+  ELSIF found_count = 3
+     AND (SELECT count(*) FROM unnest(found) AS p WHERE p ~ '^rev10_tenant_insert_[0-9]+$') = 1
+     AND (SELECT count(*) FROM unnest(found) AS p WHERE p ~ '^rev10_tenant_select_[0-9]+$') = 1
+     AND (SELECT count(*) FROM unnest(found) AS p WHERE p ~ '^rev10_tenant_update_[0-9]+$') = 1
+     AND (SELECT count(DISTINCT substring(p FROM '_([0-9]+)$')) FROM unnest(found) AS p) = 1
   THEN
-    RAISE EXCEPTION 'user_phone_history.organization_id policy dependencies changed: expected exactly one rev10_tenant_{insert,select,update}_N sharing one N, found %', found;
+    RAISE NOTICE 'user_phone_history.organization_id: ожидаемые три политики tenant-service, каскад снимет их, reconcile поднимет заново';
+  ELSE
+    RAISE EXCEPTION 'user_phone_history.organization_id policy dependencies changed: expected either nothing or exactly one rev10_tenant_{insert,select,update}_N sharing one N, found %', found;
   END IF;
 END
 $guard$;
