@@ -8,17 +8,30 @@ import { posix } from 'node:path';
  * Which physical bucket an EXISTING `library`-target source key lives in cannot be read from
  * `storage_target`: that column is a database enum, not a record of whether the ops-side object
  * relocation has run. The key's own shape already carries that fact and is the single source of
- * truth for it — a fresh (post-M7) key starts with the owning organization's id
- * (`<orgId>/media/<mediaId>/…`, written by `s3RawObjectKey`); a not-yet-migrated key starts
- * literally with `media/` (pre-M7 shape, `s3ObjectKey`) and still physically sits in the hot
- * bucket. One key's shape decides exactly one bucket — never a HEAD probe, never "try raw, fall
- * back to hot".
+ * truth for it — never a HEAD probe, never "try raw, fall back to hot".
+ *
+ * The rule is stated POSITIVELY around the one shape we ourselves mint into the raw bucket, and
+ * everything else is hot: `s3RawObjectKey` writes exactly `<folder>/media/<mediaId>/<file>` (four
+ * segments, `media` second — the folder is the owning organization's id, or the reserved
+ * `platform` folder for platform-owned rows). Anything else is a pre-M7 key and physically sits in
+ * the hot bucket.
+ *
+ * Стало положительным правилом 12.09.2026, и не из любви к симметрии. Перечисление старых форм
+ * («ключ начинается с `media/`») молча ошибается на ТРЕТЬЕЙ форме: на DEV нашлись четыре
+ * `library`-строки с ключом `patient-files/<id>/<файл>` — наследство до разделения целей. Прежний
+ * предикат объявлял их сырыми, объекты же лежат в горячем, и следствие было видно в данных: у всех
+ * четырёх `standard_rendition_at IS NULL`, у трёх `preview_status = 'failed'` — воркер не мог
+ * прочитать исходник, которого в сыром бакете нет и никогда не было. Перечислять старое нельзя:
+ * старых форм столько, сколько их было в истории, и следующую мы снова узнаем по сломанному файлу.
+ * Новую форму мы создаём сами и знаем её точно — поэтому проверяем её, а не её отрицание.
  *
  * Callers gate this on `target === 'library'` themselves (a `patient` key is never raw regardless
  * of shape — patient storage is not split by M7).
  */
 export function isLegacyHotMediaSourceKey(key: string): boolean {
-  return key.trim().startsWith('media/');
+  const segments = key.trim().replace(/^\/+/, '').split('/');
+  const isRawUploadShape = segments.length === 4 && segments[1] === 'media';
+  return !isRawUploadShape;
 }
 
 /** Canonical private-bucket layout for source media, HLS artifacts, and poster assets. */
@@ -53,26 +66,53 @@ export function isCanonicalMediaRootForId(mediaRoot: string, mediaId: string): b
   return dir === 'media' && id === mediaId;
 }
 
-/** Normalized HLS prefix for purge: must live under mediaRoot/hls. */
-export function resolveHlsPurgeListPrefix(params: {
+/**
+ * Hot-bucket roots where THIS media's encoder artifacts (HLS tree, poster) may physically live.
+ *
+ * There are two, and only during the М7 migration seam. The hot tree is derived from the source
+ * key's root at the moment the artifact is produced, and the source key moves: a video uploaded
+ * BEFORE М7 got its HLS/poster under `media/<id>/…` and keeps them there after the ops relocation
+ * moves its source to `<orgId>/media/<id>/…` (the relocation copies the SOURCE only — see
+ * `app-layer/media/rawBucketSourceMigration.ts`), while a video uploaded AFTER М7 has both under
+ * `<orgId>/media/<id>/…`. Deriving the artifact root from the source key alone is therefore
+ * correct for exactly one of those two populations, and wrong — silently, at purge time — for the
+ * other.
+ *
+ * Both roots are scoped to this `mediaId` by {@link isCanonicalMediaRootForId}, so listing both can
+ * only ever reach this media's own artifacts; it can never widen to another media or to a bucket
+ * root. Dies with the last pre-М7 key, exactly like {@link isLegacyHotMediaSourceKey}.
+ */
+function hotArtifactRootsForMedia(mediaId: string, sourceS3Key: string): string[] {
+  const root = mediaRootFromSourceS3Key(sourceS3Key);
+  if (!isCanonicalMediaRootForId(root, mediaId)) return [];
+  const legacyRoot = posix.join('media', mediaId);
+  return root === legacyRoot ? [root] : [root, legacyRoot];
+}
+
+/**
+ * Prefixes to list when purging a media's HLS tree. Empty = nothing safe to list.
+ *
+ * A recorded `hls_artifact_prefix` wins whenever it is a trusted artifact prefix OF THIS media
+ * ({@link isTrustedHlsArtifactS3Key}) — it is the only record of where the tree actually is, and
+ * after the М7 source relocation it is no longer under the source key's root. Requiring it to sit
+ * under that root (the pre-М7 rule) turned every relocated video's segments into permanent hot-bucket
+ * orphans while the purge reported success.
+ */
+export function resolveHlsPurgeListPrefixes(params: {
   mediaId: string;
   sourceS3Key: string;
   hlsArtifactPrefix: string | null;
-}): string | null {
-  const root = mediaRootFromSourceS3Key(params.sourceS3Key);
-  if (!isCanonicalMediaRootForId(root, params.mediaId)) return null;
-  const canonical = hlsTreePrefixFromMediaRoot(root);
+}): string[] {
+  const roots = hotArtifactRootsForMedia(params.mediaId, params.sourceS3Key);
+  if (roots.length === 0) return [];
   const fromDb = params.hlsArtifactPrefix?.trim().replace(/\/+$/, '');
-  if (!fromDb) return canonical;
-  if (fromDb === canonical || fromDb.startsWith(`${canonical}/`)) return fromDb;
-  return canonical;
+  if (fromDb && isTrustedHlsArtifactS3Key(params.mediaId, fromDb)) return [fromDb];
+  return roots.map(hlsTreePrefixFromMediaRoot);
 }
 
-/** Prefix for listing poster objects (poster.jpg or future assets). */
-export function resolvePosterPurgeListPrefix(mediaId: string, sourceS3Key: string): string | null {
-  const root = mediaRootFromSourceS3Key(sourceS3Key);
-  if (!isCanonicalMediaRootForId(root, mediaId)) return null;
-  return posix.join(root, 'poster');
+/** Prefixes for listing poster objects (poster.jpg or future assets); see {@link hotArtifactRootsForMedia}. */
+export function resolvePosterPurgeListPrefixes(mediaId: string, sourceS3Key: string): string[] {
+  return hotArtifactRootsForMedia(mediaId, sourceS3Key).map((root) => posix.join(root, 'poster'));
 }
 
 /** Trim + strip trailing slashes (S3 object keys use `/` as separator). */

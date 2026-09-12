@@ -1,6 +1,7 @@
 import {
   AbortMultipartUploadCommand,
   CompleteMultipartUploadCommand,
+  CopyObjectCommand,
   CreateMultipartUploadCommand,
   DeleteObjectCommand,
   GetObjectCommand,
@@ -601,34 +602,72 @@ export async function s3DeleteObject(
 }
 
 /**
- * Lists object keys under `prefix` in the private bucket (pagination).
- * `prefix` may be `foo` or `foo/` — normalized to a hierarchical prefix for listing.
+ * Server-side object copy WITHIN one endpoint/credential pair, across `kind` (М7 relocation of
+ * already-uploaded originals into the raw bucket, `app-layer/media/rawBucketSourceMigration.ts`).
+ *
+ * Both kinds of a `library` target resolve to the same endpoint, region and credentials — only the
+ * bucket differs ({@link storageConfigFor}) — so `CopySource` is always valid here and the bytes
+ * never travel through this process. A multi-GB source read into a Buffer and re-PUT would be the
+ * same operation with an out-of-memory failure mode.
  */
-export async function s3ListObjectKeysUnderPrefix(
+export async function s3CopyObject(params: {
+  sourceKey: string;
+  sourceKind: StorageKind;
+  destinationKey: string;
+  destinationKind: StorageKind;
+  target: StorageTarget;
+}): Promise<void> {
+  const client = getS3Client(params.target, params.destinationKind);
+  await client.send(
+    new CopyObjectCommand({
+      Bucket: privateBucket(params.target, params.destinationKind),
+      Key: params.destinationKey,
+      CopySource: `/${privateBucket(params.target, params.sourceKind)}/${params.sourceKey}`,
+    }),
+  );
+}
+
+export type S3ListedObject = { key: string; sizeBytes: number };
+
+/**
+ * Lists objects (key + size) under `prefix`, paginating. `prefix` may be `foo` or `foo/` —
+ * normalized to a hierarchical prefix; an EMPTY prefix lists the whole bucket, which is how the
+ * М7 counter check reads «объём по папкам этого бакета» (owner 10.09.2026) without the database.
+ */
+export async function s3ListObjectsUnderPrefix(
   prefix: string,
   target: StorageTarget,
-): Promise<string[]> {
-  const client = getS3Client(target);
+  kind: StorageKind = 'hot',
+): Promise<S3ListedObject[]> {
+  const client = getS3Client(target, kind);
   const p = prefix.replace(/\/+$/, '');
   const listPrefix = p.length > 0 ? `${p}/` : '';
-  const keys: string[] = [];
+  const objects: S3ListedObject[] = [];
   let continuationToken: string | undefined;
   for (;;) {
     const out = await client.send(
       new ListObjectsV2Command({
-        Bucket: privateBucket(target),
+        Bucket: privateBucket(target, kind),
         Prefix: listPrefix,
         ContinuationToken: continuationToken,
       }),
     );
     for (const obj of out.Contents ?? []) {
-      if (obj.Key) keys.push(obj.Key);
+      if (obj.Key) objects.push({ key: obj.Key, sizeBytes: Number(obj.Size ?? 0) });
     }
     if (!out.IsTruncated) break;
     continuationToken = out.NextContinuationToken;
     if (!continuationToken) break;
   }
-  return keys;
+  return objects;
+}
+
+/** Keys only, hot bucket — the purge listing view of {@link s3ListObjectsUnderPrefix}. */
+export async function s3ListObjectKeysUnderPrefix(
+  prefix: string,
+  target: StorageTarget,
+): Promise<string[]> {
+  return (await s3ListObjectsUnderPrefix(prefix, target)).map((o) => o.key);
 }
 
 export type S3PerKeyDeleteResult =
