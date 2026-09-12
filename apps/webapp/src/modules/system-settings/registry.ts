@@ -156,6 +156,8 @@ export const SYSTEM_SETTING_REGISTRY = {
   /** Platform-wide product switch, deliberately not a per-tariff mechanic. */
   material_ratings_enabled: runtime('admin', 'global', 'server', 'boolean', 'true'),
   patient_label: runtime('doctor', 'per_org', 'authenticated_client', 'string', 'Пациенты'),
+  /** Как организация называет событие записи: приём · сеанс · тренировка · сессия. */
+  appointment_label: runtime('doctor', 'per_org', 'authenticated_client', 'string', 'приём'),
   support_group_label: runtime('doctor', 'per_org', 'authenticated_client', 'string', 'on_support'),
   sms_fallback_enabled: restricted(
     'doctor',

@@ -142,6 +142,14 @@ export default async function PatientLayout({ children }: { children: ReactNode 
       },
       () => deps.runtimeConfig.getAuthenticatedString('patient_label', patientOrganizationId),
     );
+    const appointmentLabel = await withPatientOrganizationPrincipal(
+      {
+        organizationId: patientOrganizationId,
+        platformUserId: session.user.userId,
+        source: 'app.patient.layout.appointment-terms',
+      },
+      () => deps.runtimeConfig.getAuthenticatedString('appointment_label', patientOrganizationId),
+    );
     const workspaceModules = await withPatientOrganizationPrincipal(
       {
         organizationId: patientOrganizationId,
@@ -262,6 +270,7 @@ export default async function PatientLayout({ children }: { children: ReactNode 
           organizationContext={patientBrandingContext}
           workspaceModules={workspaceModules}
           patientLabel={patientLabel}
+          appointmentLabel={appointmentLabel}
           brandedOrganizationSurface={brandedOrganizationSurface}
           authChannelPolicy={authChannelPolicy}
           materialRatingsEnabled={materialRatingsEnabled}
@@ -282,6 +291,7 @@ export default async function PatientLayout({ children }: { children: ReactNode 
         organizationContext={patientBrandingContext}
         workspaceModules={workspaceModules}
         patientLabel={patientLabel}
+        appointmentLabel={appointmentLabel}
         rememberOrganizationOnMount={patientContext.selectedBy === 'only_active'}
         brandedOrganizationSurface={brandedOrganizationSurface}
         authChannelPolicy={authChannelPolicy}

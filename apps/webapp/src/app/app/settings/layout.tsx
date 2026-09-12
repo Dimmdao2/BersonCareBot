@@ -30,6 +30,8 @@ export default async function SettingsLayout({ children }: { children: ReactNode
       userRole={session.user.role}
       userDisplayName={session.user.displayName}
       patientLabel={shell.patientLabel}
+      supportGroupLabel={shell.supportGroupLabel}
+      appointmentLabel={shell.appointmentLabel}
       workspaceContext={shell.workspaceContext}
       workspaceComposition={shell.workspaceComposition}
       coursesEnabled={shell.coursesEnabled}

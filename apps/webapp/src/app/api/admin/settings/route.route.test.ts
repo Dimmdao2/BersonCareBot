@@ -427,7 +427,7 @@ describe('clinic-owner atomic settings readback', () => {
     );
   });
 
-  it('commits the canonical four-key workspace form once under the trusted organization', async () => {
+  it('commits the canonical workspace form once under the trusted organization', async () => {
     const composition = {
       version: 1,
       modules: {
@@ -456,6 +456,7 @@ describe('clinic-owner atomic settings readback', () => {
       { key: 'doctor_workspace_composition', value: { value: composition } },
       { key: 'doctor_workspace_client_defaults', value: { value: defaults } },
       { key: 'patient_label', value: { value: 'клиент' } },
+      { key: 'appointment_label', value: { value: 'тренировка' } },
       { key: 'support_group_label', value: { value: 'favorites' } },
     ];
     const saved = items.map((item) => ({
@@ -502,6 +503,7 @@ describe('clinic-owner atomic settings readback', () => {
           },
         },
         { key: 'patient_label', value: { value: 'клиент' } },
+        { key: 'appointment_label', value: { value: 'сеанс' } },
         { key: 'support_group_label', value: { value: 'favorites' } },
       ],
     });
@@ -669,6 +671,7 @@ describe('platform workspace settings refusal', () => {
           },
         },
         { key: 'patient_label', value: { value: 'пациент' } },
+        { key: 'appointment_label', value: { value: 'приём' } },
         { key: 'support_group_label', value: { value: 'on_support' } },
       ],
     });

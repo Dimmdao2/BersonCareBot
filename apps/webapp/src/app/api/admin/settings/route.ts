@@ -84,6 +84,8 @@ import {
   normalizeDoctorWorkspaceComposition,
 } from '@/modules/system-settings/doctorWorkspaceComposition';
 import {
+  APPOINTMENT_LABEL_KEY,
+  normalizeAppointmentLabel,
   normalizePatientLabel,
   normalizeSupportGroupLabel,
   SUPPORT_GROUP_LABEL_KEY,
@@ -235,6 +237,7 @@ const ADMIN_SCOPE_KEYS = [
 
 const DOCTOR_SCOPE_KEYS = [
   'patient_label',
+  APPOINTMENT_LABEL_KEY,
   SUPPORT_GROUP_LABEL_KEY,
   DOCTOR_WORKSPACE_COMPOSITION_KEY,
   DOCTOR_WORKSPACE_CLIENT_DEFAULTS_KEY,
@@ -282,6 +285,7 @@ const WORKSPACE_SETTINGS_BATCH_KEYS = [
   DOCTOR_WORKSPACE_COMPOSITION_KEY,
   DOCTOR_WORKSPACE_CLIENT_DEFAULTS_KEY,
   'patient_label',
+  APPOINTMENT_LABEL_KEY,
   SUPPORT_GROUP_LABEL_KEY,
 ] as const;
 
@@ -584,7 +588,9 @@ export async function PATCH(request: Request) {
                 ? normalizeDoctorWorkspaceClientDefaults(inner)
                 : item.key === 'patient_label'
                   ? normalizePatientLabel(inner)
-                  : normalizeSupportGroupLabel(inner);
+                  : item.key === APPOINTMENT_LABEL_KEY
+                    ? normalizeAppointmentLabel(inner)
+                    : normalizeSupportGroupLabel(inner);
           if (normalized === null) {
             return NextResponse.json(
               { ok: false, error: 'invalid_value', atIndex: i, key: item.key },
@@ -866,6 +872,14 @@ export async function PATCH(request: Request) {
 
   if (parsed.data.key === 'patient_label') {
     const label = normalizePatientLabel(normalizedValue.value);
+    if (label === null) {
+      return NextResponse.json({ ok: false, error: 'invalid_value' }, { status: 400 });
+    }
+    normalizedValue = { value: label };
+  }
+
+  if (parsed.data.key === APPOINTMENT_LABEL_KEY) {
+    const label = normalizeAppointmentLabel(normalizedValue.value);
     if (label === null) {
       return NextResponse.json({ ok: false, error: 'invalid_value' }, { status: 400 });
     }

@@ -28,6 +28,8 @@ type DoctorWorkspaceShellProps = {
   patientLabel?: string;
   /** Chosen display name for the existing `onSupport` group. */
   supportGroupLabel?: string;
+  /** Как организация называет событие записи: «приём» (дефолт), «сеанс», «тренировка», «сессия». */
+  appointmentLabel?: string;
   /** Stable server-resolved org/member context for nested multi-specialist workspace controls. */
   workspaceContext?: DoctorWorkspaceContext;
   /** Server-resolved solo/clinic composition; client chrome never infers it from capabilities. */
@@ -74,6 +76,7 @@ export function DoctorWorkspaceShell({
   userDisplayName,
   patientLabel,
   supportGroupLabel,
+  appointmentLabel,
   workspaceContext,
   workspaceComposition,
   coursesEnabled = false,
@@ -146,6 +149,7 @@ export function DoctorWorkspaceShell({
           <DoctorPatientTermsProvider
             patientLabel={patientLabel}
             supportGroupLabel={supportGroupLabel}
+            appointmentLabel={appointmentLabel}
           >
             <DoctorWorkspaceViewport
               header={{

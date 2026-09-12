@@ -133,6 +133,7 @@ export const AUTHENTICATED_RUNTIME_BOOLEAN_KEYS = [
 
 export const AUTHENTICATED_RUNTIME_STRING_KEYS = [
   'patient_label',
+  'appointment_label',
   'patient_app_maintenance_message',
   'patient_booking_url',
 ] as const;
