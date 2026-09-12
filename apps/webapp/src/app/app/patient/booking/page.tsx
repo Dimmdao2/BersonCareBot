@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { withPatientOrganizationPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import {
   getMechanicMutationAvailability,
   getMechanicSurfaceVisibility,
@@ -14,15 +15,13 @@ import { LegalFooterLinks } from '@/shared/ui/patient/LegalFooterLinks';
 import { cn } from '@/lib/utils';
 import {
   patientInnerPageStackClass,
-  patientInlineLinkClass,
   patientPageTitleClass,
   patientSecondaryActionClass,
-  patientSectionTitleClass,
 } from '@/shared/ui/patient/patientVisual';
 import { loadBookingCitiesForPatientRsc } from './bookingCatalogRsc';
 import { BOOKING_WIZARD_TOTAL_STEPS } from './constants';
 import { BookingPastHistorySection } from './BookingPastHistorySection';
-import { BookingUpcomingSection } from './BookingUpcomingSection';
+import { BookingUpcomingSection, type BookingAppointmentDetails } from './BookingUpcomingSection';
 import { PatientBookingPaymentHistorySection } from './PatientBookingPaymentHistorySection';
 import { PatientMembershipsSection } from './PatientMembershipsSection';
 import { BookingWizardShell } from './BookingWizardShell';
@@ -92,6 +91,22 @@ export default async function BookingNewFormatPage({ searchParams }: PageProps) 
   const helpArticles = await listHelpArticlesForPatient(deps.contentPages);
   const publishedHelpSlugs = new Set(helpArticles.map((a) => a.slug));
   const addressHref = resolvePatientAddressHref(publishedHelpSlugs, bookingCityCode);
+  const appointmentDetails: BookingAppointmentDetails[] = patientOrganization?.ok
+    ? await withPatientOrganizationPrincipal(
+        {
+          organizationId: patientOrganization.organizationId,
+          platformUserId: session.user.userId,
+          source: 'app/patient/booking:appointment-details',
+        },
+        async () =>
+          (await deps.patientMaintenanceHistory.listCurrentPatientHistory()).map((appointment) => ({
+            appointmentId: appointment.id,
+            specialistName: appointment.specialistName,
+            branchTitle: appointment.branchTitle,
+            serviceTitle: appointment.serviceTitle,
+          })),
+      )
+    : [];
 
   const citiesCatalog = await loadBookingCitiesForPatientRsc(session.user.userId);
   const catalogCities = citiesCatalog.ok ? citiesCatalog.cities : [];
@@ -114,26 +129,28 @@ export default async function BookingNewFormatPage({ searchParams }: PageProps) 
       totalSteps={BOOKING_WIZARD_TOTAL_STEPS}
       backHref={routePaths.patient}
       user={session.user}
+      beforeWizard={
+        <div className={patientInnerPageStackClass}>
+          <BookingUpcomingSection
+            bookings={records.upcoming}
+            appointmentDetails={appointmentDetails}
+            addressHref={addressHref}
+            appDisplayTimeZone={appDisplayTimeZone}
+          />
+          <PatientBookingPaymentHistorySection appDisplayTimeZone={appDisplayTimeZone} />
+          <PatientMembershipsSection
+            visible
+            subscriptionsMutationsAllowed={membershipMutation.available}
+            paymentsMutationsAllowed={paymentsMutation.available}
+          />
+          <BookingPastHistorySection
+            items={records.history}
+            appDisplayTimeZone={appDisplayTimeZone}
+          />
+        </div>
+      }
     >
       <div className={patientInnerPageStackClass}>
-        <BookingUpcomingSection
-          bookings={records.upcoming}
-          appDisplayTimeZone={appDisplayTimeZone}
-        />
-        {records.upcoming.length > 0 && (
-          <Link
-            href={addressHref}
-            className={cn(patientInlineLinkClass, 'inline-flex items-center gap-1 underline-offset-4')}
-          >
-            Адрес кабинета
-          </Link>
-        )}
-        <PatientBookingPaymentHistorySection appDisplayTimeZone={appDisplayTimeZone} />
-        <PatientMembershipsSection
-          visible
-          subscriptionsMutationsAllowed={membershipMutation.available}
-          paymentsMutationsAllowed={paymentsMutation.available}
-        />
         <FormatStepClient
           cities={catalogCities}
           onlineLocation={onlineLocation}
@@ -143,18 +160,11 @@ export default async function BookingNewFormatPage({ searchParams }: PageProps) 
           <Link
             href={routePaths.patientMessages}
             prefetch={false}
-            className={cn(
-              patientSecondaryActionClass,
-              'w-auto px-5',
-            )}
+            className={cn(patientSecondaryActionClass, 'w-auto px-5')}
           >
             Задать вопрос в чате
           </Link>
         </div>
-        <BookingPastHistorySection
-          items={records.history}
-          appDisplayTimeZone={appDisplayTimeZone}
-        />
         <LegalFooterLinks className="mt-6 pb-8" />
       </div>
     </BookingWizardShell>

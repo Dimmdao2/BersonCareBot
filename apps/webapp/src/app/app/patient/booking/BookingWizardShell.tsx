@@ -23,6 +23,8 @@ type Props = {
   shellTitleSlot?: ReactNode;
   /** Контент под шапкой (bottom-shell: промо-блок и т.п.). */
   shellAboveTitleSlot?: ReactNode;
+  /** Уже существующие записи и прочие разделы страницы, не относящиеся к шагам мастера. */
+  beforeWizard?: ReactNode;
 };
 
 /** Общая оболочка шагов wizard записи (layout-only). */
@@ -36,6 +38,7 @@ export function BookingWizardShell({
   suppressShellTitle = false,
   shellTitleSlot,
   shellAboveTitleSlot,
+  beforeWizard,
 }: Props) {
   /** На последнем шаге тоже показываем «Назад», если передан `backHref` (например к выбору слота). */
   const showWizardBack = Boolean(backHref && step > 1);
@@ -49,6 +52,7 @@ export function BookingWizardShell({
       patientShellTitleSlot={shellTitleSlot}
       patientShellAboveTitleSlot={shellAboveTitleSlot}
     >
+      {beforeWizard}
       <div
         className={cn(
           'flex min-h-[1.25rem] flex-wrap items-center gap-x-3 gap-y-1',
@@ -56,17 +60,11 @@ export function BookingWizardShell({
         )}
       >
         {showWizardBack && backHref ? (
-          <Link
-            href={backHref}
-            prefetch={false}
-            className={cn('shrink-0', patientInlineLinkClass)}
-          >
+          <Link href={backHref} prefetch={false} className={cn('shrink-0', patientInlineLinkClass)}>
             Назад
           </Link>
         ) : null}
-        <p
-          className={cn(patientCaptionTextClass, !showWizardBack && 'w-full text-center')}
-        >
+        <p className={cn(patientCaptionTextClass, !showWizardBack && 'w-full text-center')}>
           Шаг {step} из {totalSteps}
         </p>
       </div>
