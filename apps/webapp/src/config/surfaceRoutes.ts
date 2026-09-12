@@ -160,7 +160,9 @@ export function canSurfaceEnterRoute(surface: RequestSurface, pathname: string):
   // Role-login paths are browser doors for one product surface each. The path itself never
   // chooses a surface, but accepting another surface's door would present the wrong product
   // before the post-auth role guard has a chance to run.
-  if (pathname === '/app/doctor/login') return surface === 'staff';
+  if (pathname === '/app/doctor/login' || pathname === '/app/doctor/register') {
+    return surface === 'staff';
+  }
   if (pathname === '/app/admin/login') return surface === 'platform_admin';
   if (pathname === '/app/patient/login') {
     return surface === 'patient_default' || surface === 'patient_branded';
@@ -174,6 +176,9 @@ export function canSurfaceEnterRoute(surface: RequestSurface, pathname: string):
   }
   if (pathname === '/manifest-staff.webmanifest') {
     return surface === 'staff';
+  }
+  if (pathname === '/manifest-admin.webmanifest') {
+    return surface === 'platform_admin';
   }
   if (pathname === '/sw.js' || pathname.startsWith('/api/')) return true;
   if (pathname === '/book/embed.js') {

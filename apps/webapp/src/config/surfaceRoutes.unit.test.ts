@@ -23,6 +23,8 @@ describe('surface route audience', () => {
     expect(canSurfaceEnterRoute('patient_default', '/')).toBe(true);
     expect(canSurfaceEnterRoute('patient_branded', '/')).toBe(true);
     expect(canSurfaceEnterRoute('staff', '/app/doctor/login')).toBe(true);
+    expect(canSurfaceEnterRoute('staff', '/app/doctor/register')).toBe(true);
+    expect(canSurfaceEnterRoute('patient_default', '/app/doctor/register')).toBe(false);
     expect(canSurfaceEnterRoute('patient_default', '/specialists')).toBe(false);
     expect(canSurfaceEnterRoute('patient_branded', '/specialists')).toBe(false);
     expect(canSurfaceEnterRoute('patient_default', '/app/doctor/login')).toBe(false);
@@ -30,5 +32,8 @@ describe('surface route audience', () => {
     expect(canSurfaceEnterRoute('staff', '/app/patient/login')).toBe(false);
     expect(canSurfaceEnterRoute('patient_default', '/book/embed.js')).toBe(true);
     expect(canSurfaceEnterRoute('staff', '/book/embed.js')).toBe(false);
+    expect(canSurfaceEnterRoute('platform_admin', '/manifest-admin.webmanifest')).toBe(true);
+    expect(canSurfaceEnterRoute('staff', '/manifest-admin.webmanifest')).toBe(false);
+    expect(canSurfaceEnterRoute('patient_default', '/manifest-admin.webmanifest')).toBe(false);
   });
 });

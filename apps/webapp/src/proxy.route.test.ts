@@ -634,7 +634,7 @@ describe('request-surface host matrix at the proxy choke point', () => {
     expect(middlewareRequestSurface(response)).toMatchObject({ surface: 'platform_admin' });
   });
 
-  it.each(['/app/doctor/login', '/app/patient/login'] as const)(
+  it.each(['/app/doctor/login', '/app/doctor/register', '/app/patient/login'] as const)(
     'hard-404s the alternate login door %s on the platform-admin Host',
     async (pathname) => {
       const runtime = await loadProxyForSurfaceConfiguration(PLATFORM_SURFACE_CONFIGURATIONS[1]);

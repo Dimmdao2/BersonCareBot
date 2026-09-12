@@ -125,7 +125,7 @@ export function LandingAcquisition() {
           <a href="#library">Возможности</a>
           <a href="#price">Цены</a>
         </nav>
-        <Link className="site-login" href="/app">
+        <Link className="site-login" href="/app/doctor/login">
           Войти
         </Link>
       </header>
@@ -164,7 +164,7 @@ export function LandingAcquisition() {
             </div>
           </div>
           <div className="main-hero-actions">
-            <Link className="main-primary" href="/app?intent=specialist">
+            <Link className="main-primary" href="/app/doctor/register">
               Создать кабинет
             </Link>
             <Link className="main-secondary" href="#workspace">
@@ -492,7 +492,7 @@ export function LandingAcquisition() {
         <div className="section-shell final-copy">
           <Image alt="" height={911} src="/brand/therapysto-mark.png" unoptimized width={1006} />
           <h2 id="final-title">Забота не заканчивается после приёма.</h2>
-          <Link className="final-action" href="/app?intent=specialist">
+          <Link className="final-action" href="/app/doctor/register">
             Создать кабинет
           </Link>
           <p className="risk-line risk-line-light">{riskLine}</p>
@@ -506,7 +506,7 @@ export function LandingAcquisition() {
         </Link>
         <p>Кабинет реабилитолога и специалиста по движению.</p>
         <div>
-          <Link href="/app">Войти</Link>
+          <Link href="/app/doctor/login">Войти</Link>
           <a href="https://dmitryberson.ru" target="_blank" rel="noreferrer">
             Автор
           </a>

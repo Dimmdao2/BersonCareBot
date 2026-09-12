@@ -37,10 +37,13 @@ export async function AppEntryRsc({
   searchParams,
   routeBoundMessengerSurface,
   roleLoginPortal = null,
+  roleLoginInitialView = 'login',
 }: {
   searchParams: Promise<AppEntrySearchParams>;
   routeBoundMessengerSurface: MessengerSurfaceHint | null;
   roleLoginPortal?: RoleLoginPortal | null;
+  /** `/app/doctor/register`: its own door, not a same-page toggle off `/app/doctor/login`. */
+  roleLoginInitialView?: 'login' | 'register';
 }) {
   const deps = buildAppDeps();
   const session = await deps.auth.getCurrentSession();
@@ -121,6 +124,7 @@ export async function AppEntryRsc({
       alternateRoleLoginHref={alternateRoleLoginHref}
       surfaceAuthPolicy={surfaceAuthPolicy}
       embeddedInSurfaceShell={therapyGoBrowserEntry}
+      roleLoginInitialView={roleLoginInitialView}
     />
   );
   const unsupportedClientFallback = clientEnvironment ? (

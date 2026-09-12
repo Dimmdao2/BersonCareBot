@@ -38,6 +38,8 @@ type AppEntryLoginContentProps = {
   surfaceAuthPolicy?: SurfaceAuthPolicy;
   /** Surface-owned shell supplies its own header and legal footer; auth mechanics stay shared. */
   embeddedInSurfaceShell?: boolean;
+  /** `/app/doctor/register`: its own door, not a same-page toggle off `/app/doctor/login`. */
+  roleLoginInitialView?: 'login' | 'register';
 };
 
 export function AppEntryLoginContent({
@@ -52,18 +54,24 @@ export function AppEntryLoginContent({
   alternateRoleLoginHref = null,
   surfaceAuthPolicy,
   embeddedInSurfaceShell = false,
+  roleLoginInitialView = 'login',
 }: AppEntryLoginContentProps) {
   return (
-    <div id={CLIENT_BOOT_ACTIVE_CONTENT_ID}>
-      <div id="app-entry-content" className="flex flex-col gap-6">
-        {roleLoginPortal && !embeddedInSurfaceShell ? (
-          <RoleLoginPortalHeader
-            portal={roleLoginPortal}
-            surfaceName={roleLoginSurfaceName ?? ''}
-            alternateHref={alternateRoleLoginHref}
-          />
-        ) : null}
-      </div>
+    // Один flex-столбец на весь блок (шапка портала + форма + footer) вместо двух несвязанных
+    // секций — иначе рёбра между ними определял голый document flow, а не системный gap. `flex-1
+    // justify-center` центрирует группу в доступной высоте `<main>` вместо накопления пустоты
+    // внизу viewport — владелец, «пространство распредели», 12.09.
+    <div
+      id={CLIENT_BOOT_ACTIVE_CONTENT_ID}
+      className="flex flex-1 flex-col justify-center gap-6"
+    >
+      {roleLoginPortal && !embeddedInSurfaceShell ? (
+        <RoleLoginPortalHeader
+          portal={roleLoginPortal}
+          surfaceName={roleLoginSurfaceName ?? ''}
+          alternateHref={alternateRoleLoginHref}
+        />
+      ) : null}
       <Suspense fallback={<AppContentLoading className="py-6" />}>
         <AuthBootstrap
           supportContactHref={supportContactHref}
@@ -75,10 +83,11 @@ export function AppEntryLoginContent({
           roleLoginPortal={roleLoginPortal}
           surfaceAuthPolicy={surfaceAuthPolicy}
           preferEmailEntry={embeddedInSurfaceShell}
+          roleLoginInitialView={roleLoginInitialView}
         />
       </Suspense>
       {embeddedInSurfaceShell ? null : (
-        <LegalFooterLinks className="mt-8" supportHref={supportContactHref} />
+        <LegalFooterLinks className="mt-2" supportHref={supportContactHref} />
       )}
     </div>
   );

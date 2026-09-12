@@ -81,9 +81,21 @@ export function isDoctorPortalPlatformOperationsPath(pathname: string): boolean 
   );
 }
 
+/**
+ * `/app/doctor/register` is its own public door now (owner, 12.09: "две разные страницы" — a
+ * separate registration page, not an in-place toggle off `/app/doctor/login`), so it needs the same
+ * unauthenticated-entry treatment as the login door itself, not the doctor-only pages beneath it.
+ * Every other portal still has exactly one public door.
+ */
+const EXTRA_PUBLIC_PORTAL_PATHS: Readonly<Partial<Record<RoleLoginPortal, readonly string[]>>> = {
+  doctor: ['/app/doctor/register'],
+};
+
 export function isRoleLoginPath(pathname: string): boolean {
   const portal = portalForAppPath(pathname);
-  return portal !== null && pathname === getRoleLoginPath(portal);
+  if (portal === null) return false;
+  if (pathname === getRoleLoginPath(portal)) return true;
+  return (EXTRA_PUBLIC_PORTAL_PATHS[portal] ?? []).includes(pathname);
 }
 
 /** A deep link is accepted only by the portal that issued it, never by the generic entry. */
@@ -100,7 +112,9 @@ export function isSafeRolePortalNext(next: string | null, portal: RoleLoginPorta
   if (parsed.pathname !== portalPath && !parsed.pathname.startsWith(`${portalPath}/`)) {
     return false;
   }
-  if (parsed.pathname === getRoleLoginPath(portal)) return false;
+  // Neither public door is a valid post-login continuation — an authenticated user finishing
+  // sign-in should never be bounced back into the login or registration form.
+  if (isRoleLoginPath(parsed.pathname)) return false;
   // A phone-binding flow is a recovery/onboarding boundary, not a post-login continuation.
   return !(portal === 'patient' && parsed.pathname.startsWith('/app/patient/bind-phone'));
 }

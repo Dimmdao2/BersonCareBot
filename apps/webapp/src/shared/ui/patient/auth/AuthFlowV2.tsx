@@ -6,6 +6,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { Button } from '@/shared/ui/patient/primitives/button';
@@ -44,6 +45,7 @@ import {
   AUTH_LOGIN_FORM_PRIMARY_BUTTON_CLASS,
   AUTH_LOGIN_OUTLINE_BUTTON_CLASS,
   AUTH_LOGIN_PRIMARY_BUTTON_CLASS,
+  AUTH_LOGIN_SHELL_CLASS,
 } from '@/shared/ui/patient/auth/loginChrome';
 import {
   clearAuthFlowPending,
@@ -53,7 +55,6 @@ import {
 } from '@/shared/ui/patient/auth/authFlowPendingStorage';
 import { getBrowserCalendarIanaForAuth } from '@/shared/lib/browserCalendarIana';
 import {
-  patientHeroBookingSectionClass,
   patientCaptionTextClass,
   patientFormLabelClass,
   patientInnerPageStackClass,
@@ -118,7 +119,7 @@ async function fetchJsonSafe<T>(url: string, init: RequestInit): Promise<FetchJs
 }
 
 const authFlowShellClass = cn(
-  patientHeroBookingSectionClass,
+  AUTH_LOGIN_SHELL_CLASS,
   patientInnerPageStackClass,
   'mx-auto w-full max-w-sm',
 );
@@ -1375,11 +1376,17 @@ export function AuthFlowV2({
   }
 
   if (step === 'email_password') {
+    // 'oauth_first' — реальный шаг «выбор входа» только когда есть куда возвращаться
+    // (OAuth/passkey-альтернативы); иначе (напр. doctor-портал — только email+пароль) кнопка
+    // вела в тупик — владелец, скрин входа после разлогина.
+    const canReturnToOauthFirst =
+      emailPasswordReturn === 'oauth_first' && hasWebOauthAlternatives;
+
     const showEmailChromeBack =
       emailSetupPromptEmail != null ||
       pwRecoveryPhase !== 'none' ||
       emailAuthMode === 'verify' ||
-      emailPasswordReturn === 'oauth_first' ||
+      canReturnToOauthFirst ||
       emailPasswordReturn === 'phone';
 
     const topBackLabel =
@@ -1389,7 +1396,7 @@ export function AuthFlowV2({
           ? 'Назад'
           : emailAuthMode === 'verify'
             ? 'Войти другим способом'
-            : emailPasswordReturn === 'oauth_first'
+            : canReturnToOauthFirst
               ? 'К выбору входа'
               : 'Назад';
 
@@ -1533,15 +1540,25 @@ export function AuthFlowV2({
                   </Button>
                 ) : null}
                 {specialistSignupEntryEnabled && specialistSignupEnabled ? (
-                  <Button
-                    type="button"
-                    variant="link"
-                    className={authLinkButtonClass}
-                    disabled={loading}
-                    onClick={openSpecialistSignup}
-                  >
-                    Я специалист
-                  </Button>
+                  // The doctor door has its own registration page now (`/app/doctor/register`,
+                  // owner 12.09: "две разные страницы"), so it navigates there instead of
+                  // toggling this same form's fields in place. Every other entry (generic `/app`,
+                  // messenger miniapp) has no such page yet — keeps the in-place toggle.
+                  roleLoginPortal === 'doctor' ? (
+                    <Link href="/app/doctor/register" className={authLinkButtonClass}>
+                      Зарегистрироваться
+                    </Link>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="link"
+                      className={authLinkButtonClass}
+                      disabled={loading}
+                      onClick={openSpecialistSignup}
+                    >
+                      Я специалист
+                    </Button>
+                  )
                 ) : null}
                 {passwordLoginEnabled ? (
                   <Button
@@ -1652,11 +1669,7 @@ export function AuthFlowV2({
                 className="mt-3 flex w-full flex-col gap-3"
                 onSubmit={(e) => void submitEmailPasswordLogin(e)}
               >
-                <p className={authStepMutedParagraphClass}>
-                  {roleLoginPortal === 'doctor'
-                    ? 'Вход по email и паролю (для сотрудников клиники).'
-                    : 'Вход по email и паролю.'}
-                </p>
+                <p className={authStepMutedParagraphClass}>Вход по email и паролю.</p>
                 <div className="flex flex-col gap-1">
                   <label htmlFor="auth-password-login-email" className={authFormFieldLabelClass}>
                     Email
@@ -1732,6 +1745,13 @@ export function AuthFlowV2({
                   >
                     Войти по коду
                   </Button>
+                ) : null}
+                {roleLoginPortal === 'doctor' && specialistSignupEnabled ? (
+                  // This step has no other path back to "Я специалист"/register — that link lives
+                  // on the OTP-mode form above, which password_login replaces entirely.
+                  <Link href="/app/doctor/register" className={authLinkButtonClass}>
+                    Зарегистрироваться
+                  </Link>
                 ) : null}
               </form>
             ) : null}
@@ -1980,21 +2000,32 @@ export function AuthFlowV2({
                 >
                   Создать кабинет
                 </Button>
-                <Button
-                  type="button"
-                  variant="link"
-                  className={authLinkButtonClass}
-                  disabled={loading}
-                  onClick={() => {
-                    clearAuthFlowPending();
-                    setEmailAuthMode('login');
-                    setEmailVerifyPurpose('registration');
-                    setEmailRegChallengeId(null);
-                    setEmailRegRetrySec(60);
-                  }}
-                >
-                  Войти как пациент
-                </Button>
+                {roleLoginPortal === 'doctor' ? (
+                  // Own registration page (`/app/doctor/register`) navigates back to its own login
+                  // page rather than toggling this form's mode in place — same split as the
+                  // "Зарегистрироваться" link above. The generic-entry fallback below predates that
+                  // split and its "Войти как пациент" label was never right for a specialist here;
+                  // left as-is for the entries that still share this one in-place toggle.
+                  <Link href="/app/doctor/login" className={authLinkButtonClass}>
+                    Уже есть аккаунт — войти
+                  </Link>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="link"
+                    className={authLinkButtonClass}
+                    disabled={loading}
+                    onClick={() => {
+                      clearAuthFlowPending();
+                      setEmailAuthMode('login');
+                      setEmailVerifyPurpose('registration');
+                      setEmailRegChallengeId(null);
+                      setEmailRegRetrySec(60);
+                    }}
+                  >
+                    Войти как пациент
+                  </Button>
+                )}
               </form>
             ) : null}
 

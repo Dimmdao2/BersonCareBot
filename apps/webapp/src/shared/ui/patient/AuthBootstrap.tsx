@@ -91,6 +91,8 @@ type AuthBootstrapProps = {
   surfaceAuthPolicy?: SurfaceAuthPolicy;
   /** Surface presentation may put the email form first without disabling other auth methods. */
   preferEmailEntry?: boolean;
+  /** `/app/doctor/register`: its own door, not a same-page toggle off `/app/doctor/login`. */
+  roleLoginInitialView?: 'login' | 'register';
 };
 
 const TOKEN_FALLBACK_MS = 1100;
@@ -166,6 +168,7 @@ export function AuthBootstrap({
   roleLoginPortal = null,
   surfaceAuthPolicy,
   preferEmailEntry = false,
+  roleLoginInitialView = 'login',
 }: AuthBootstrapProps) {
   const surfaceName = useSurfaceName();
   const router = useRouter();
@@ -175,13 +178,18 @@ export function AuthBootstrap({
   const initialSpecialistSignupView =
     roleLoginPortal !== 'patient' &&
     roleLoginPortal !== 'admin' &&
-    (searchParams.get('intent') === 'specialist' || searchParams.get('devView') === 'registration')
+    (roleLoginInitialView === 'register' ||
+      searchParams.get('intent') === 'specialist' ||
+      searchParams.get('devView') === 'registration')
       ? 'registration'
       : undefined;
+  // `/app/doctor/register`'s own door counts the same as the legacy `?intent=specialist` query:
+  // both mean "show the disabled-signup notice", not a silent fallback to plain login. `devView`
+  // stays out of this — that one's a dev-only bypass convenience, unchanged.
   const specialistSignupRequested =
     roleLoginPortal !== 'patient' &&
     roleLoginPortal !== 'admin' &&
-    searchParams.get('intent') === 'specialist';
+    (roleLoginInitialView === 'register' || searchParams.get('intent') === 'specialist');
   const debug = searchParams.get('debug') === '1';
   const [effectiveEntryClassification, setEffectiveEntryClassification] =
     useState<UnauthenticatedAppEntryClassification>(entryClassification);
