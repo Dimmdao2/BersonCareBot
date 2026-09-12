@@ -100,4 +100,28 @@ describe('sourceStorageKindForKey — форма ключа решает бак�
     expect(sourceStorageKindForKey('patient', `media/${MEDIA_ID}/clip.mp4`)).toBe('hot');
     expect(sourceStorageKindForKey('patient', `${ORG_ID}/media/${MEDIA_ID}/clip.mp4`)).toBe('hot');
   });
+
+  /*
+   * ТРЕТЬЯ форма ключа, найденная на живом DEV: четыре `library`-строки лежат под
+   * `patient-files/<id>/<файл>` — наследство до разделения целей. Правило «сырой, если ключ НЕ
+   * начинается с media/» отправляло их в сырой бакет, где объекта нет; наблюдаемое следствие —
+   * `standard_rendition_at IS NULL` у всех четырёх и `preview_status = 'failed'` у трёх. Сегодня
+   * ни один маршрут такой ключ не создаёт (`storageTargetFor` отдаёт namespace `patient-files`
+   * цель `patient`), поэтому это именно наследство, а не живой путь.
+   */
+  it('третья, наследственная форма ключа библиотеки (patient-files/...) — горячая', () => {
+    expect(sourceStorageKindForKey('library', `patient-files/${MEDIA_ID}/analysis.pdf`)).toBe(
+      'hot',
+    );
+  });
+
+  it('любая незнакомая форма ключа библиотеки — горячая, а не сырая', () => {
+    expect(sourceStorageKindForKey('library', 'legacy-uploads/clip.mp4')).toBe('hot');
+    expect(sourceStorageKindForKey('library', `${ORG_ID}/uploads/${MEDIA_ID}/clip.mp4`)).toBe(
+      'hot',
+    );
+    expect(sourceStorageKindForKey('library', `${ORG_ID}/media/${MEDIA_ID}/deep/clip.mp4`)).toBe(
+      'hot',
+    );
+  });
 });

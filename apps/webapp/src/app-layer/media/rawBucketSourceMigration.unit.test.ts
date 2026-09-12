@@ -103,12 +103,21 @@ describe('М7 raw-bucket relocation — what may move', () => {
     expect(rawMigrationRefusalFor(libraryRow({ status: 'pending_delete' }))).toBe('not_ready');
   });
 
-  it('refuses a key that is not the pre-M7 shape, including one that already moved', () => {
+  it('refuses a key that already moved into the raw bucket', () => {
     expect(rawMigrationRefusalFor(libraryRow({ s3Key: `${ORG_ID}/media/${MEDIA_ID}/clip.mp4` }))).toBe(
       'not_pre_m7_key_shape',
     );
+  });
+
+  /*
+   * Третья, наследственная форма ключа библиотеки. Она ПРЕ-М7 (лежит в горячем — это и решает
+   * `isLegacyHotMediaSourceKey` после правки 12.09), но её корень не `media/<id>`, поэтому
+   * переносчик отказывается по ФОРМЕ, а не по бакету: строить из неё `<org>/media/<id>/…` значит
+   * гадать, чем был её первый сегмент. Отказ, вынесенный в отчёт числом, — правильный исход.
+   */
+  it('refuses the legacy patient-files/ shape of a library row by its root, not by its bucket', () => {
     expect(rawMigrationRefusalFor(libraryRow({ s3Key: 'patient-files/abc/scan.png' }))).toBe(
-      'not_pre_m7_key_shape',
+      'unexpected_key_shape',
     );
   });
 

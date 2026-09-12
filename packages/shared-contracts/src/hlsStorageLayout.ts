@@ -8,17 +8,30 @@ import { posix } from 'node:path';
  * Which physical bucket an EXISTING `library`-target source key lives in cannot be read from
  * `storage_target`: that column is a database enum, not a record of whether the ops-side object
  * relocation has run. The key's own shape already carries that fact and is the single source of
- * truth for it — a fresh (post-M7) key starts with the owning organization's id
- * (`<orgId>/media/<mediaId>/…`, written by `s3RawObjectKey`); a not-yet-migrated key starts
- * literally with `media/` (pre-M7 shape, `s3ObjectKey`) and still physically sits in the hot
- * bucket. One key's shape decides exactly one bucket — never a HEAD probe, never "try raw, fall
- * back to hot".
+ * truth for it — never a HEAD probe, never "try raw, fall back to hot".
+ *
+ * The rule is stated POSITIVELY around the one shape we ourselves mint into the raw bucket, and
+ * everything else is hot: `s3RawObjectKey` writes exactly `<folder>/media/<mediaId>/<file>` (four
+ * segments, `media` second — the folder is the owning organization's id, or the reserved
+ * `platform` folder for platform-owned rows). Anything else is a pre-M7 key and physically sits in
+ * the hot bucket.
+ *
+ * Стало положительным правилом 12.09.2026, и не из любви к симметрии. Перечисление старых форм
+ * («ключ начинается с `media/`») молча ошибается на ТРЕТЬЕЙ форме: на DEV нашлись четыре
+ * `library`-строки с ключом `patient-files/<id>/<файл>` — наследство до разделения целей. Прежний
+ * предикат объявлял их сырыми, объекты же лежат в горячем, и следствие было видно в данных: у всех
+ * четырёх `standard_rendition_at IS NULL`, у трёх `preview_status = 'failed'` — воркер не мог
+ * прочитать исходник, которого в сыром бакете нет и никогда не было. Перечислять старое нельзя:
+ * старых форм столько, сколько их было в истории, и следующую мы снова узнаем по сломанному файлу.
+ * Новую форму мы создаём сами и знаем её точно — поэтому проверяем её, а не её отрицание.
  *
  * Callers gate this on `target === 'library'` themselves (a `patient` key is never raw regardless
  * of shape — patient storage is not split by M7).
  */
 export function isLegacyHotMediaSourceKey(key: string): boolean {
-  return key.trim().startsWith('media/');
+  const segments = key.trim().replace(/^\/+/, '').split('/');
+  const isRawUploadShape = segments.length === 4 && segments[1] === 'media';
+  return !isRawUploadShape;
 }
 
 /** Canonical private-bucket layout for source media, HLS artifacts, and poster assets. */
