@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
-import { PATIENT_DEFAULT_SURFACE, PLATFORM_NAME } from '@/config/productSurfaces';
+import { PATIENT_DEFAULT_SURFACE } from '@/config/productSurfaces';
 import { staffPwaLayoutMetadata } from '@/shared/lib/pwa/staffPwaLayoutMetadata';
+import { adminPwaLayoutMetadata } from '@/shared/lib/pwa/adminPwaLayoutMetadata';
 import {
   PATIENT_DEFAULT_PWA_ICON_SET,
   PATIENT_PWA_MANIFEST_PATH,
@@ -50,16 +51,14 @@ export const patientLayoutMetadata = buildPatientLayoutMetadata(
 );
 
 /**
- * Browser metadata for the platform-admin subtree. The owner ruled that platform admins do not
- * install an app, so this child layout clears the root layout's PWA metadata during Next merge.
+ * Browser metadata for the platform-admin subtree (admin.therapysto.ru).
+ *
+ * Historical note: this used to clear the root layout's PWA metadata entirely (`manifest: null,
+ * icons: null`) under an earlier ruling that platform admins do not install an app. Владелец 12.09
+ * отменил это решение — теперь admin получает свой manifest и свой icon-набор (Т на чёрном,
+ * отдельный от staff/patient) через {@link adminPwaLayoutMetadata}.
  */
-export const platformAdminLayoutMetadata: Metadata = {
-  title: PLATFORM_NAME,
-  description: `Панель платформенного администратора ${PLATFORM_NAME}.`,
-  manifest: null,
-  appleWebApp: null,
-  icons: null,
-};
+export const platformAdminLayoutMetadata: Metadata = adminPwaLayoutMetadata;
 
 /** Метаданные документа для поверхности запроса. */
 export function surfaceLayoutMetadata(resolved: ResolvedSurface): Metadata {
