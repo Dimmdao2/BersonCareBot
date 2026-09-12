@@ -1754,8 +1754,26 @@ test('tenant service has one command-aware D/M/P policy for every exact relation
     }
   }
 
-  assert.equal(expectedEdges.size, 128, 'measured exact tenant operation census changed');
-  assert.equal(tenantRelations.size, 60, 'measured exact tenant relation census changed');
+  // The census is the deepEqual below, and it is derived on BOTH sides: every declared
+  // app_tenant_service operation must have a matching rev10_tenant_* policy and vice versa, named
+  // exactly when it does not. It stays honest however many tenant tables exist.
+  //
+  // The one hole that comparison cannot see is both sides collapsing together: if the declaration
+  // stopped producing tenant grants, expectedEdges and actualEdges would both be empty and equal.
+  // The two lines that used to close it were `assert.equal(expectedEdges.size, N)` — an exact count
+  // that went red whenever one ordinary tenant table was added, naming nothing and repairable only
+  // by retyping N. It was retyped six times (130, 131, 130, 132, 130, 128) without ever catching
+  // anything. So: a FLOOR, not a census. It is deliberately far below the real figure, it moves only
+  // if the tenant wall is gutted wholesale — which is the only thing it is here to catch — and there
+  // is nothing in it to keep in sync.
+  assert.ok(expectedEdges.size >= 64,
+    `tenant operation census collapsed to ${expectedEdges.size} declared edges: `
+    + 'the declaration all but stopped granting app_tenant_service, so the comparison below '
+    + 'would pass against an empty set');
+  assert.ok(tenantRelations.size >= 32,
+    `tenant relation census collapsed to ${tenantRelations.size} relations carrying a rev10_tenant_* `
+    + 'policy: the D/M/P wall all but disappeared, so the comparison below would pass against an '
+    + 'empty set');
   assert.deepEqual(actualEdges, expectedEdges);
 });
 
