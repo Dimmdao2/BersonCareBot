@@ -10,11 +10,15 @@ import {
   CollapsibleTrigger,
 } from '@/shared/ui/patient/primitives/collapsible';
 import type { PatientBookingRecord } from '@/modules/patient-booking/types';
-import { formatBookingDateTimeMediumRu } from '@/shared/lib/formatBusinessDateTime';
+import {
+  formatBookingDateTimeMediumRu,
+  parseBusinessInstant,
+} from '@/shared/lib/formatBusinessDateTime';
 import { resolveAppointmentTimeZone } from '@/shared/lib/appointmentZoneOffset';
 import {
   classifyPaymentIntentStatus,
   classifyPrepaymentBookingStatus,
+  type BookingPaymentStatusOk,
 } from '@/shared/lib/paymentStatusView';
 import { AppointmentZoneOffsetWarning } from '@/shared/ui/patient/AppointmentZoneOffsetWarning';
 import { PatientModal } from '@/shared/ui/patient/PatientModal';
@@ -47,19 +51,12 @@ const bookingReminderSectionSurfaceClass = cn(
   'p-4 md:rounded-[var(--patient-card-radius-desktop)] md:p-[18px]',
 );
 
-type PaymentStatusResponse = {
-  ok?: boolean;
-  paymentDeadlineAt?: string | null;
-  appointmentStatus?: string | null;
-  summary?: {
-    intent?: {
-      amountMinor: number;
-      currency?: string;
-      status: string;
-      checkoutUrl: string | null;
-    } | null;
-  } | null;
-};
+/**
+ * Тело успеха берём ОБЩИМ типом маршрута, а не локальным описанием: аудит S9 показал, во что
+ * обходится своя копия формы — экран молча остаётся без суммы и кнопки, а `typecheck` при этом
+ * зелёный. Здесь `Partial`, потому что это сетевой ответ, а не значение из нашего кода.
+ */
+type PaymentStatusResponse = Partial<BookingPaymentStatusOk> & { ok?: boolean };
 
 type PaymentView = {
   loaded: boolean;
@@ -142,7 +139,7 @@ function formatRemaining(msLeft: number): string {
   return `${totalMinutes} мин`;
 }
 
-function useBookingPayment(bookingId: string, active: boolean) {
+function useBookingPayment(bookingId: string, active: boolean, displayTimeZone: string) {
   const [payment, setPayment] = useState<PaymentView>(EMPTY_PAYMENT_VIEW);
   const [nowMs, setNowMs] = useState(() => Date.now());
 
@@ -154,15 +151,14 @@ function useBookingPayment(bookingId: string, active: boolean) {
         const json = (await response.json()) as PaymentStatusResponse;
         if (!response.ok || !json.ok) throw new Error('payment_status_unavailable');
         if (!current) return;
-        const intent = json.summary?.intent ?? null;
         setPayment({
           loaded: true,
           failedToLoad: false,
-          amountMinor: intent?.amountMinor ?? null,
-          currency: intent?.currency ?? 'RUB',
-          checkoutUrl: intent?.checkoutUrl ?? null,
+          amountMinor: json.amountMinor ?? null,
+          currency: json.currency ?? 'RUB',
+          checkoutUrl: json.checkoutUrl ?? null,
           paymentDeadlineAt: json.paymentDeadlineAt ?? null,
-          intentStatus: intent?.status ?? null,
+          intentStatus: json.intentStatus ?? null,
           appointmentStatus: json.appointmentStatus ?? null,
         });
       })
@@ -176,7 +172,13 @@ function useBookingPayment(bookingId: string, active: boolean) {
 
   const intentView = classifyPaymentIntentStatus(payment.intentStatus);
   const bookingView = classifyPrepaymentBookingStatus(payment.appointmentStatus);
-  const deadlineMs = payment.paymentDeadlineAt ? Date.parse(payment.paymentDeadlineAt) : Number.NaN;
+  // Срок разбираем ТЕМ ЖЕ парсером, которым его рисуем ниже (`formatBookingDateTimeMediumRu`):
+  // Postgres отдаёт `timestamptz` как «2026-09-12 03:59:00.309689+03» — пробел и короткое смещение.
+  // На строгом ISO-разборе это молча даёт NaN, и тогда истёкший счёт остаётся с живой кнопкой
+  // (ровно этот дефект нашли живьём в модалке врача, S6.5).
+  const deadlineMs = payment.paymentDeadlineAt
+    ? parseBusinessInstant(payment.paymentDeadlineAt, displayTimeZone).getTime()
+    : Number.NaN;
   const hasDeadline = Number.isFinite(deadlineMs);
   const deadlinePassed = hasDeadline && deadlineMs <= nowMs;
   const settledElsewhere = payment.loaded && intentView === 'pending' && bookingView === 'settled';
@@ -238,7 +240,11 @@ function BookingCard({
   const hasNativeActions = Boolean(row.canonicalAppointmentId);
   const branchTimeZone = row.canonicalInPersonContext?.timezone;
   const displayTimeZone = resolveAppointmentTimeZone(branchTimeZone, appDisplayTimeZone);
-  const paymentState = useBookingPayment(row.id, row.status === 'awaiting_payment' || panelOpen);
+  const paymentState = useBookingPayment(
+    row.id,
+    row.status === 'awaiting_payment' || panelOpen,
+    displayTimeZone,
+  );
   const { payment } = paymentState;
   const amountLabel =
     payment.amountMinor === null ? null : formatMoney(payment.amountMinor, payment.currency);
