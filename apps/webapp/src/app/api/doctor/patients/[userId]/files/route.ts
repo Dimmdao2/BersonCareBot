@@ -96,6 +96,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ user
             f.mediaFileId,
             f.mimeType,
             FILE_PRESIGN_GET_TTL,
+            f.fileName,
           );
         } catch {
           // Non-fatal: file may not exist in S3 yet.

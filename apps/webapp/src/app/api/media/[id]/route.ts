@@ -22,7 +22,6 @@ import { authorizeMediaDelivery } from '@/app-layer/media/authorizeMediaDelivery
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { resolvePatientOrganizationRequestContext } from '@/app-layer/patient-organization/requestContext';
 import { withPatientOrganizationPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
-import { resolveMediaPlaybackPayload } from '@/app-layer/media/resolveMediaPlaybackPayload';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -40,7 +39,7 @@ async function redirectPresignedOr503(object: MediaObjectLocation): Promise<Resp
   }
 }
 
-export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!id) {
     return NextResponse.json({ error: 'missing id' }, { status: 400 });
@@ -68,19 +67,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         allowPlatformBase: access.allowPlatformBase,
       });
       if (object) return redirectPresignedOr503(object);
-      if (access.row.mime_type.toLowerCase().startsWith('video/')) {
-        const playback = await resolveMediaPlaybackPayload({
-          id,
-          session,
-          allowPlatformBase: access.allowPlatformBase,
-        });
-        const masterUrl = playback.ok ? playback.data.hls?.masterUrl : null;
-        if (masterUrl) {
-          const response = NextResponse.redirect(new URL(masterUrl, request.url), 307);
-          response.headers.set('Cache-Control', 'private, max-age=0, must-revalidate');
-          return response;
-        }
-      }
+      /* Видео этим маршрутом не отдаётся вовсе — его путь один, `/hls/master.m3u8` через свой
+         прокси. Промежуточная редакция кандидата редиректила сюда на плейлист; это добавляло
+         поведение, которого в плане владельца нет, и потребитель, ждущий БАЙТЫ по голой ссылке
+         (нативный `<video src>`, превью мессенджера, мобильный клиент), получал бы файл-плейлист
+         вместо проигрывания. Отказ честнее. */
       const localBody = await readSaasTestLocalMedia({
         databaseUrl: legacyDatabaseUrl,
         storedPath: access.row.stored_path,

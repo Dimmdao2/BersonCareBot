@@ -151,7 +151,14 @@ vi.mock('@/app-layer/media/s3Client', () => ({
   s3ObjectKey: (id: string, filename: string) => `media/${id}/${filename}`,
   s3RawObjectKey: (organizationId: string, id: string, filename: string) =>
     `${organizationId}/media/${id}/${filename}`,
-  sourceStorageKindFor: (target: string) => (target === 'patient' ? 'hot' : 'raw'),
+  sourceStorageKindFor: (target: string, mimeType?: string | null) =>
+    target !== 'library'
+      ? 'hot'
+      : mimeType == null || /^(image|video)\//i.test(mimeType)
+        ? 'raw'
+        : 'hot',
+  sourceStorageKindForKey: (target: string, key: string) =>
+    target !== 'library' ? 'hot' : key.startsWith('media/') ? 'hot' : 'raw',
   storageBucketFor: (target: string) =>
     target === 'patient' ? 'patient-bucket' : 'library-bucket',
 }));

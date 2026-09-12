@@ -69,6 +69,7 @@ export async function GET(
         file.mediaFileId,
         file.mimeType,
         FILE_PRESIGN_GET_TTL,
+        file.fileName,
       );
     } catch {
       // Non-fatal.

@@ -16,6 +16,7 @@ import { env } from '@/config/env';
 import type { StorageTarget } from '@/shared/types/storageTarget';
 import { contentDispositionHeaderValue } from '@/shared/lib/contentDisposition';
 import { isLegacyHotMediaSourceKey } from '@/shared/lib/hlsStorageLayout';
+import { encoderOutputFor } from '@/shared/lib/mediaEncoderOutput';
 export { parseStorageTarget } from '@/shared/types/storageTarget';
 
 const PRESIGN_PUT_EXPIRES_SEC = 900;
@@ -96,8 +97,19 @@ export function storageBucketFor(target: StorageTarget, kind: StorageKind = 'hot
  * стандартного рендишена картинки `s3StandardImageKey`) — те всегда живут в горячем бакете,
  * независимо от цели.
  */
-export function sourceStorageKindFor(target: StorageTarget): StorageKind {
-  return target === 'library' ? 'raw' : 'hot';
+export function sourceStorageKindFor(
+  target: StorageTarget,
+  mimeType?: string | null,
+): StorageKind {
+  if (target !== 'library') return 'hot';
+  /* Сырой бакет существует, чтобы держать подальше от выдачи ИСХОДНИК, у которого есть наша
+     безопасная версия. У документа и аудио её не бывает и не будет: положить их в сырой — значит
+     сделать файл недоступным навсегда, ничего не выиграв, потому что отдавать вместо него нечего.
+     Их место — горячий бакет, как у превью, и ключ они получают той же горячей формы.
+     Умолчание — СТРОГОЕ: не назвали тип — считаем, что у файла есть наша версия, и кладём в сырой.
+     Иначе забытый аргумент тихо выносил бы картинки и видео из-за стены. */
+  if (mimeType == null) return 'raw';
+  return encoderOutputFor(mimeType) === 'none' ? 'hot' : 'raw';
 }
 
 /**

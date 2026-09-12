@@ -508,6 +508,7 @@ function FilePreviewModal({
 }) {
   const isImage = file?.mimeType.startsWith('image/') ?? false;
   const isVideo = file?.mimeType.startsWith('video/') ?? false;
+  const isAudio = file?.mimeType.startsWith('audio/') ?? false;
 
   return (
     <DoctorModal open={file !== null} onClose={onClose} title={file?.fileName ?? 'Файл'} size="lg">
@@ -528,12 +529,20 @@ function FilePreviewModal({
                 initialPlayback={null}
                 shellClassName="h-[50vh] w-full"
               />
+            ) : file.previewUrl && isAudio ? (
+              /* Аудио мы не перекодируем — играет сам загруженный файл, как играл раньше. */
+              <div className="w-full px-6 py-8">
+                <audio controls preload="metadata" className="w-full">
+                  <source src={file.previewUrl} type={file.mimeType} />
+                </audio>
+              </div>
             ) : isImage || isVideo ? (
               <div
                 className="flex flex-col items-center gap-2 px-6 py-10 text-center text-xs text-muted-foreground"
                 role="status"
               >
                 <Loader2 className="size-8 animate-spin opacity-60" aria-hidden />
+                {/* Заглушка только у типов, где наша версия ДЕЙСТВИТЕЛЬНО готовится. */}
                 <span>{isVideo ? 'Видео готовится' : 'Картинка готовится'}</span>
               </div>
             ) : (
@@ -561,21 +570,29 @@ function FilePreviewModal({
 
           <div className="flex flex-wrap items-center gap-3">
             {/*
-             * У видео пресайн-ссылка на хранилище не «скачивает», а проигрывает: атрибут
-             * `download` на чужом origin браузер игнорирует, а `Content-Disposition` там inline.
-             * Поэтому для видео вместо неё стоит выдача исходника вложением (М6).
-             */}
-            {file.mediaFileId && file.canDownloadSource ? (
+              * Две РАЗНЫЕ вещи, и путать их нельзя.
+              * «Исходник» — то, из чего мы сделали свою версию (видео, картинка): его отдаёт
+              * только загрузивший специалист, вложением, по решению владельца 10.09.
+              * Обычный файл — документ или аудио, у которого нашей версии не бывает: его скачивает
+              * каждый, кто и так имеет право видеть карточку пациента. Иначе присланный пациентом
+              * PDF анализов не смог бы открыть никто, включая лечащего врача (аудит 12.09, п.2).
+              */}
+            {file.previewUrl && !isImage && !isVideo ? (
+              <a
+                href={file.previewUrl}
+                download={file.fileName}
+                className="text-sm text-primary hover:underline"
+              >
+                Скачать файл
+              </a>
+            ) : null}
+            {file.mediaFileId && file.canDownloadSource && (isImage || isVideo) ? (
               <a
                 href={`/api/media/${file.mediaFileId}/original`}
                 className="text-sm text-primary hover:underline"
               >
-                {isVideo ? 'Скачать исходник' : 'Скачать файл'}
+                Скачать исходник
               </a>
-            ) : file.mediaFileId ? (
-              <span className="text-sm text-muted-foreground">
-                Файл скачивает специалист, который его загрузил
-              </span>
             ) : null}
             <Button
               type="button"

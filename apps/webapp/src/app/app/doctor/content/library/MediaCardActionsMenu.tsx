@@ -152,6 +152,22 @@ export function MediaCardActionsMenu({
           {onOpenPreview ? (
             <DropdownMenuItem onClick={onOpenPreview}>{previewLabel}</DropdownMenuItem>
           ) : null}
+          {/*
+           * Документ открывается у КАЖДОГО сотрудника организации, а не только у загрузившего:
+           * нашей версии документа не бывает, поэтому «ждать рендишн» нечего, а запрет оставил бы
+           * общий файл клиники доступным ровно одному человеку (аудит 12.09, п.2). Открывается он
+           * всё равно вложением — единый список типов в `infra/s3/client.ts` документы инлайн не
+           * отдаёт, и решение владельца 19.08 «PDF не исполняется в браузере» этим не тронуто.
+           */}
+          {item.kind === 'file' && item.url.trim() ? (
+            <DropdownMenuItem
+              onClick={() => {
+                window.open(item.url, '_blank', 'noopener,noreferrer');
+              }}
+            >
+              Открыть в новой вкладке
+            </DropdownMenuItem>
+          ) : null}
           {canDownloadSource ? (
             /*
              * Обычная ссылка, а не router.push: маршрут отдаёт вложение, а не страницу — навигацией

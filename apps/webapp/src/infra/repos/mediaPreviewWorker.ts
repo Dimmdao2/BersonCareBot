@@ -379,7 +379,13 @@ export async function processMediaPreviewBatch(
                  AND s3_key IS NOT NULL
                  AND length(trim(s3_key)) > 0
                  AND standard_rendition_at IS NULL
-                 AND preview_status IS DISTINCT FROM 'pending'
+                 /* Терминальные исходы исключены намеренно. Строка, у которой исходника уже нет
+                    (старое поведение 19.08) или файл битый, садится в `failed`/`skipped` без
+                    рендишна — и без этого условия КАЖДЫЙ следующий прогон брал бы её первой
+                    (`ORDER BY created_at`), обнулял попытки, повторял тот же путь и занимал бюджет
+                    вместо здоровых строк за ней. Бэкфилл обязан заканчиваться. */
+                 AND (preview_status IS NULL
+                      OR preview_status NOT IN ('pending', 'failed', 'skipped'))
                ORDER BY created_at, id
                FOR UPDATE SKIP LOCKED
                LIMIT ${take}

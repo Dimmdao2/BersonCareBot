@@ -38,6 +38,25 @@ const ORG_ID = '00000000-0000-4000-8000-000000000001';
 const MEDIA_ID = '11111111-1111-4111-8111-111111111111';
 
 describe('сырой бакет загрузок (М7)', () => {
+  /*
+   * Сырой бакет держит ИСХОДНИК, у которого есть наша безопасная версия. У документа и аудио её
+   * не бывает и не будет, поэтому положить их в сырой — значит запереть файл навсегда: выдача
+   * сырой бакет не читает по построению, а отдать вместо него нечего. Регрессия 12.09 (аудит, п.2)
+   * выглядела ровно так, и незаметна она потому, что ЗАГРУЗКА при этом продолжает работать.
+   */
+  it('документ и аудио библиотеки кладутся в ГОРЯЧИЙ бакет, картинка и видео — в сырой', () => {
+    expect(sourceStorageKindFor('library', 'application/pdf')).toBe('hot');
+    expect(sourceStorageKindFor('library', 'audio/mpeg')).toBe('hot');
+    expect(sourceStorageKindFor('library', 'text/csv')).toBe('hot');
+    expect(sourceStorageKindFor('library', 'image/heic')).toBe('raw');
+    expect(sourceStorageKindFor('library', 'video/mp4')).toBe('raw');
+  });
+
+  it('не назвали тип — считаем, что своя версия есть, и кладём в сырой', () => {
+    expect(sourceStorageKindFor('library')).toBe('raw');
+    expect(sourceStorageKindFor('library', null)).toBe('raw');
+  });
+
   it('sourceStorageKindFor направляет library-цель в raw, patient-цель — в hot', () => {
     expect(sourceStorageKindFor('library')).toBe('raw');
     expect(sourceStorageKindFor('patient')).toBe('hot');

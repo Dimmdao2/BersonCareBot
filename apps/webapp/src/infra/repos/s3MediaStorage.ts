@@ -46,6 +46,7 @@ import {
 import type { StorageKind, StorageTarget } from '@/infra/s3/client';
 import type { MediaStoragePort } from '@/modules/media/ports';
 import { assertReceivedUpload, type ReceivedUpload } from '@/modules/media/uploadValidation';
+import { encoderOutputFor } from '@/shared/lib/mediaEncoderOutput';
 import { MAX_MEDIA_BYTES } from '@/modules/media/uploadAllowedMime';
 import type {
   MediaListParams,
@@ -142,7 +143,7 @@ export function createS3MediaStoragePort(): MediaStoragePort {
       const id = randomUUID();
       const folderId = params.folderId ?? null;
       const organizationId = currentPrincipalOrganizationId();
-      const kind = sourceStorageKindFor(params.storageTarget);
+      const kind = sourceStorageKindFor(params.storageTarget, params.mimeType);
       const key =
         kind === 'raw'
           ? s3RawObjectKey(organizationId, id, params.filename)
@@ -1190,10 +1191,23 @@ export async function getMediaRowForPlayback(
 export type MediaObjectLocation = { key: string; target: StorageTarget };
 
 /**
- * Единственный resolver объекта для ОБЫЧНОЙ (не raw_original) выдачи. Отдаваемым объектом бывает
- * только стандартный рендишн изображения, созданный нашим энкодером. Видео идёт через HLS-прокси,
- * а аудио/документы встроенного просмотра не имеют. Форма исходного ключа и его физический бакет
- * здесь намеренно ничего не решают: нет `standard_rendition_at` — нет объекта выдачи.
+ * Единственный resolver объекта для ОБЫЧНОЙ (не raw_original) выдачи.
+ *
+ * Два взаимоисключающих случая, и различает их то, ЧТО наш энкодер производит для этого типа
+ * (`encoderOutputFor`):
+ *
+ * 1. Картинка — отдаём ТОЛЬКО стандартный рендишн и только когда он есть. Нет
+ *    `standard_rendition_at` — нет объекта выдачи; исходник не подставляется никогда (решение
+ *    владельца 11.09: «если рендер ещё не готов… показывает только placeholder»). Видео тем же
+ *    правилом не отдаётся вовсе: его путь — HLS-прокси.
+ * 2. Документ и аудио — нашего вывода для них НЕ БЫВАЕТ, поэтому отдаётся сам загруженный объект.
+ *    Иначе заглушка «готовится» стала бы вечной, а файл — недоступным навсегда: это регрессия
+ *    доступа, а не стена. Условие одно и физическое: объект обязан лежать в ГОРЯЧЕМ бакете
+ *    (`sourceStorageKindForKey` по форме ключа). Сырой бакет выдача не умеет читать по построению,
+ *    и исключения для документов здесь нет — их место в горячем определяет загрузка.
+ *
+ * Дисположение (вложение для документа, инлайн для аудио) решает не этот resolver, а единый список
+ * в `infra/s3/client.ts`: PDF и офис уходят вложением, как и решил владелец 19.08.
  */
 export function resolveDeliverableMediaObject(
   mediaId: string,
@@ -1204,10 +1218,18 @@ export function resolveDeliverableMediaObject(
     standard_rendition_at: string | Date | null;
   },
 ): MediaObjectLocation | null {
-  if (row.mime_type.toLowerCase().startsWith('image/') && row.standard_rendition_at != null) {
-    return { key: s3StandardImageKey(mediaId), target: row.storage_target };
+  const output = encoderOutputFor(row.mime_type);
+  if (output === 'standard_image') {
+    return row.standard_rendition_at != null
+      ? { key: s3StandardImageKey(mediaId), target: row.storage_target }
+      : null;
   }
-  return null;
+  if (output === 'hls_video') return null;
+
+  const key = row.s3_key?.trim() ?? '';
+  if (!key) return null;
+  if (sourceStorageKindForKey(row.storage_target, key) !== 'hot') return null;
+  return { key, target: row.storage_target };
 }
 
 /** For GET /api/media/[id]: S3 key when row may be redirected (presigned GET to private bucket). */

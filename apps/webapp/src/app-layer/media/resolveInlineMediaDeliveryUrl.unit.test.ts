@@ -58,12 +58,44 @@ describe('resolveInlineMediaDeliveryUrl', () => {
     expect(fakes.presign).not.toHaveBeenCalled();
   });
 
-  it('gives documents no inline URL and does not touch storage', async () => {
+  /*
+   * Документ и аудио НЕ ждут нашей версии — её не бывает. Прежняя редакция этого теста закрепляла
+   * обратное, и вместе с ней пациентский PDF переставал открываться у лечащего врача навсегда
+   * (аудит 12.09, п.2). Поэтому здесь проверяется не «отказано», а «отдан правильно»: с тем типом
+   * и именем, которые мы проверили при загрузке, — тогда единый список в `infra/s3/client.ts`
+   * уводит PDF во вложение, а аудио оставляет проигрываемым.
+   */
+  it('gives a document its own object, with the validated type and filename', async () => {
+    fakes.getObject.mockResolvedValue({ key: `media/${MEDIA_ID}/analiz.pdf`, target: 'patient' });
+    fakes.presign.mockResolvedValue('https://storage.example/hot-document');
+
     await expect(
-      resolveInlineMediaDeliveryUrl(MEDIA_ID, 'application/pdf', 300),
+      resolveInlineMediaDeliveryUrl(MEDIA_ID, 'application/pdf', 300, 'analiz.pdf'),
+    ).resolves.toBe('https://storage.example/hot-document');
+    expect(fakes.presign).toHaveBeenCalledWith(`media/${MEDIA_ID}/analiz.pdf`, 300, 'patient', {
+      mimeType: 'application/pdf',
+      filename: 'analiz.pdf',
+    });
+  });
+
+  it('gives audio its own object too — our encoder never produces a version of it', async () => {
+    fakes.getObject.mockResolvedValue({ key: `media/${MEDIA_ID}/note.mp3`, target: 'patient' });
+    fakes.presign.mockResolvedValue('https://storage.example/hot-audio');
+
+    await expect(resolveInlineMediaDeliveryUrl(MEDIA_ID, 'audio/mpeg', 300)).resolves.toBe(
+      'https://storage.example/hot-audio',
+    );
+    expect(fakes.presign).toHaveBeenCalledWith(`media/${MEDIA_ID}/note.mp3`, 300, 'patient', {
+      mimeType: 'audio/mpeg',
+    });
+  });
+
+  it('still refuses a document whose object is refused by the shared resolver (raw bucket)', async () => {
+    fakes.getObject.mockResolvedValue(null);
+
+    await expect(
+      resolveInlineMediaDeliveryUrl(MEDIA_ID, 'application/pdf', 300, 'analiz.pdf'),
     ).resolves.toBeNull();
-    expect(fakes.getObject).not.toHaveBeenCalled();
-    expect(fakes.getRow).not.toHaveBeenCalled();
     expect(fakes.presign).not.toHaveBeenCalled();
   });
 });

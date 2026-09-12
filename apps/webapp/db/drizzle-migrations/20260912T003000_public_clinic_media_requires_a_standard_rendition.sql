@@ -1,25 +1,16 @@
 -- BCB-MIGRATION-OWNER: app_seam_public_clinic_card_owner
--- BCB-MIGRATION-VERIFY: pg_catalog.pg_get_functiondef(pg_catalog.to_regprocedure('app.read_public_clinic_card(text)')) LIKE '%standardRenditionAt%'
+-- BCB-MIGRATION-VERIFY: SELECT pg_catalog.pg_get_functiondef(pg_catalog.to_regprocedure('app.read_public_clinic_card(text)')) LIKE '%standardRenditionAt%';
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 --
--- #926 §17.R. Владелец 11.09, дословно: «он может же написать вместо названия организации свою
--- фамилию имя. Вот и всё.» Сегодня это невозможно: кабинет правит `org_brand_revisions.display_name`
--- («Название организации» в разделе «Бренд организации»), а публичная визитка читала СВОЮ копию в
--- `clinic_public_directory_entries.display_name`, которую после заведения организации не обновляет
--- никто. Замер аудитора 11.09 в транзакции: кабинет «AUDIT2D Берсон Дмитрий», визитка «AUDIT2D ООО
--- Ромашка».
+-- М7/М6: анонимная витрина клиники получает факт стандартного рендишна тем же публичным read-root.
+-- Без него route вынужден угадывать бакет по форме `s3_key` — и, как показал живой замер на проде
+-- 11.09, подписывал ИСХОДНИК: логотип клиники отдавался как снятый телефоном `.heic` прямо из
+-- хранилища. Теперь отсутствие рендишна означает отказ/заглушку, а сырой ключ не является fallback.
 --
--- Починка — снять копию с пути чтения, а не завести ей второго писателя. Владелец 11.09: «все
--- только ссылками на реальные записи». Настоящая запись имени — `be_organizations.title` с
--- переопределением бренда поверх; ровно так его уже разрешает
--- `app.read_anonymous_patient_surface_projection` и так же его читает публичный каталог клиник
--- (`pgClinicDirectory.ts`). Колонка `clinic_public_directory_entries.display_name` остаётся в
--- таблице NOT NULL, но с пути визитки уходит — её судьба разбирается вместе с `locations_json`
--- (§17.J).
---
--- М7/М6: анонимная дверь получает факт стандартного рендишна тем же публичным read-root. Без
--- этого факта route вынужден угадывать бакет по s3_key и может подписать исходник. Теперь отсутствие
--- рендишна означает отказ/placeholder; сырой ключ не является fallback.
+-- Формула `display_name` в теле функции повторена идемпотентно и БЕЗ изменений — она пришла
+-- соседней миграцией `20260911T235500_the_clinic_card_shows_the_name_the_cabinet_edits.sql`
+-- (#926 §17.R). Здесь она присутствует только потому, что `CREATE OR REPLACE` переписывает тело
+-- целиком; поведения имени эта миграция не меняет.
 CREATE OR REPLACE FUNCTION app.read_public_clinic_card(p_slug text)
  RETURNS jsonb
  LANGUAGE plpgsql
