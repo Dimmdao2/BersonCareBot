@@ -5,7 +5,11 @@ import {
   buildPatientPaymentCapturedMessageText,
   buildPatientRescheduledMessageText,
 } from './patientMessageText';
-import { resolvePatientTerms } from '@/modules/system-settings/patientTerms';
+import {
+  APPOINTMENT_LABEL_VALUES,
+  appointmentDeliveryFormatLabels,
+  resolvePatientTerms,
+} from '@/modules/system-settings/patientTerms';
 
 /**
  * D14(3): эти строки обязаны побайтово совпадать с тем, что раньше строил интегратор
@@ -23,9 +27,7 @@ import { resolvePatientTerms } from '@/modules/system-settings/patientTerms';
 const TZ = 'Europe/Moscow';
 const SLOT_START = '2027-03-10T09:00:00.000Z'; // 12:00 MSK
 /** Организация ничего не выбрала: резолвер обязан отдать сегодняшнее поведение. */
-const DEFAULT_TERMS = resolvePatientTerms(undefined, undefined, undefined);
-/** Организация выбрала женское слово — падеж и род обязаны прийти из резолвера, а не из шаблона. */
-const TRAINING_TERMS = resolvePatientTerms(undefined, undefined, 'тренировка');
+const DEFAULT_TERMS = resolvePatientTerms({ appointmentLabel: undefined });
 
 describe('D14(3): вебапп воспроизводит прежние тексты интегратора', () => {
   it('created: очный приём с городом', () => {
@@ -78,39 +80,55 @@ describe('D14(3): вебапп воспроизводит прежние тек�
 });
 
 /**
- * Оракул здесь — не исходник шаблона, а русский язык и набор владельца (решение 12.09.2026:
- * приём · сеанс · тренировка · сессия). «Тренировка» женского рода, поэтому определение обязано
- * согласоваться: «Очная тренировка», а не «Очный тренировка». Склейки падежа в шаблоне нет —
- * формы приходят из резолвера, и этот тест краснеет, если слово перестанет до него доезжать.
+ * T-F, переписано по методологии владельца 12.09 (см. T-G в
+ * `docs/_TODO/MEDICAL_WELLNESS_TERMINOLOGY_MODE_2026-09-02.md`): не пиннить готовую композированную
+ * фразу под один зашитый label (§10a, N1 старого аудита — превзойдено), а гонять шаблон по ВСЕМ
+ * четырём значениям `APPOINTMENT_LABEL_VALUES` и сверять с тем, что для этого же label уже отдаёт
+ * `appointmentDeliveryFormatLabels` — общий помощник, который сам проверен отдельно (и независимо
+ * от шаблона) в `patientTerms.unit.test.ts` против канонической таблицы `APPOINTMENT_TERMS_BY_LABEL`.
+ *
+ * Это ловит именно то, что ловили старые тесты:
+ * - I2 (шаблон игнорирует `terms` и печатает литерал): если `buildPatient*MessageText` хардкодит
+ *   «Очный приём», для label ≠ «приём» ожидание (построенное из РЕАЛЬНОГО `appointmentDeliveryFormatLabels`)
+ *   разойдётся с константным хардкодом — тест покраснеет на 3 из 4 значений;
+ * - I5 (род не согласован): если бы разошёлся род внутри шаблона отдельно от `appointmentDeliveryFormatLabels`
+ *   (два места дублируют выбор формы), несовпадение тоже проявится. Правильность самого согласования
+ *   рода — отдельный, более прямой тест `agreeWithAppointment` в `patientTerms.unit.test.ts`.
  */
-describe('T-F: организация выбрала «тренировка» — шаблон говорит её словом', () => {
-  it('created: очный формат согласован по роду', () => {
-    expect(
-      buildPatientCreatedMessageText(
-        { slotStart: SLOT_START, bookingType: 'in_person', cityCodeSnapshot: 'msk' },
-        TZ,
-        TRAINING_TERMS,
-      ),
-    ).toBe('Запись подтверждена: 10 мар. 2027 г., 12:00\nОчная тренировка (msk)');
-  });
+describe.each(APPOINTMENT_LABEL_VALUES)(
+  'T-F: организация выбрала «%s» — шаблон говорит словом резолвера, не литералом',
+  (appointmentLabel) => {
+    const terms = resolvePatientTerms({ appointmentLabel });
+    const { in_person: inPersonLabel } = appointmentDeliveryFormatLabels(terms);
 
-  it('rescheduled: очный формат согласован по роду', () => {
-    expect(
-      buildPatientRescheduledMessageText(
-        { slotStart: SLOT_START, bookingType: 'in_person' },
-        TZ,
-        TRAINING_TERMS,
-      ),
-    ).toBe('Запись перенесена на 10 мар. 2027 г., 12:00\nОчная тренировка');
-  });
+    it('created: очный формат приходит из резолвера', () => {
+      expect(
+        buildPatientCreatedMessageText(
+          { slotStart: SLOT_START, bookingType: 'in_person', cityCodeSnapshot: 'msk' },
+          TZ,
+          terms,
+        ),
+      ).toBe(`Запись подтверждена: 10 мар. 2027 г., 12:00\n${inPersonLabel} (msk)`);
+    });
 
-  it('онлайн-формат словом организации не называется — надпись «Онлайн» остаётся прежней', () => {
-    expect(
-      buildPatientCreatedMessageText(
-        { slotStart: SLOT_START, bookingType: 'online' },
-        TZ,
-        TRAINING_TERMS,
-      ),
-    ).toBe('Запись подтверждена: 10 мар. 2027 г., 12:00\nОнлайн');
-  });
-});
+    it('rescheduled: очный формат приходит из резолвера', () => {
+      expect(
+        buildPatientRescheduledMessageText(
+          { slotStart: SLOT_START, bookingType: 'in_person' },
+          TZ,
+          terms,
+        ),
+      ).toBe(`Запись перенесена на 10 мар. 2027 г., 12:00\n${inPersonLabel}`);
+    });
+
+    it('онлайн-формат словом организации не называется — надпись «Онлайн» не зависит от terms', () => {
+      expect(
+        buildPatientCreatedMessageText(
+          { slotStart: SLOT_START, bookingType: 'online' },
+          TZ,
+          terms,
+        ),
+      ).toBe('Запись подтверждена: 10 мар. 2027 г., 12:00\nОнлайн');
+    });
+  },
+);
