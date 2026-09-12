@@ -177,16 +177,6 @@ SELECT app.begin_port_context('${capability.id}'::uuid, ROW(
 `;
 }
 
-function clearContext() {
-  return `
-RESET SESSION AUTHORIZATION;
-DELETE FROM app_ext.accepted_port_contexts
- WHERE backend_pid = pg_backend_pid()
-   AND transaction_id = pg_current_xact_id()
-   AND cleared_at IS NULL;
-`;
-}
-
 function fixture() {
   return `
 CREATE TEMP TABLE s9_fixture AS

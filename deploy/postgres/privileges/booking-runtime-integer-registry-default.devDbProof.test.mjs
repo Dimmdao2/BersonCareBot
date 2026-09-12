@@ -76,23 +76,6 @@ SELECT d.oid, pg_backend_pid(), pg_current_xact_id(), c.capability_id, c.session
  LIMIT 1;`;
 }
 
-function callDoor({ context, call }) {
-  return psql(`
-BEGIN;
-${context}
-DO $proof$
-DECLARE v_out text;
-BEGIN
-  SELECT (${call})::text INTO v_out;
-  PERFORM set_config('bcb.door_result', 'ALLOW|' || COALESCE(v_out, '<null>'), false);
-EXCEPTION WHEN OTHERS THEN
-  PERFORM set_config('bcb.door_result', SQLSTATE || '|' || SQLERRM, false);
-END
-$proof$;
-SELECT current_setting('bcb.door_result');
-ROLLBACK;`).trim();
-}
-
 const RUNTIME_INT_PURPOSE = 'booking.patient-runtime-integer.read';
 const RUNTIME_INT_FN = 'app.read_current_patient_booking_runtime_integer(text)';
 const typedArgsForKey = (key) =>
