@@ -16,6 +16,7 @@ const fakes = vi.hoisted(() => ({
   consumePublicBookingVerification: vi.fn(),
   withExplicitOrganizationPrincipal: vi.fn(),
   withPatientIdentityPrincipal: vi.fn(),
+  withPatientOrganizationPrincipal: vi.fn(),
   findByUserId: vi.fn(),
   setSessionFromUser: vi.fn(),
   getBookingPaymentStatus: vi.fn(),
@@ -45,6 +46,7 @@ vi.mock('@/modules/public-booking/publicBookingVerification', () => ({
 vi.mock('@/app-layer/principal/withOrganizationPrincipal', () => ({
   withExplicitOrganizationPrincipal: fakes.withExplicitOrganizationPrincipal,
   withPatientIdentityPrincipal: fakes.withPatientIdentityPrincipal,
+  withPatientOrganizationPrincipal: fakes.withPatientOrganizationPrincipal,
 }));
 vi.mock('@/modules/patient-booking/inPersonBookingResolve', () => ({
   InPersonBookingResolveError: class InPersonBookingResolveError extends Error {},
@@ -82,10 +84,14 @@ beforeEach(() => {
     channel: 'public_booking_phone_otp',
   });
   fakes.findByUserId.mockResolvedValue(payer);
-  fakes.createVerifiedPublicBooking.mockResolvedValue({ id: 'booking-1', status: 'awaiting_payment' });
+  fakes.createVerifiedPublicBooking.mockResolvedValue({
+    id: 'booking-1',
+    status: 'awaiting_payment',
+    organizationId: 'org-1',
+  });
   fakes.getBookingPaymentStatus.mockResolvedValue({
     ok: true,
-    summary: { intent: { checkoutUrl: 'https://pay.example.test/checkout' } },
+    checkoutUrl: 'http://localhost/book/pay/intent-1',
   });
   fakes.buildAppDeps.mockReturnValue({
     auth: { setSessionFromUser: fakes.setSessionFromUser },
@@ -96,6 +102,9 @@ beforeEach(() => {
     (_principal: unknown, callback: () => Promise<unknown>) => callback(),
   );
   fakes.withPatientIdentityPrincipal.mockImplementation(
+    (_principal: unknown, callback: () => Promise<unknown>) => callback(),
+  );
+  fakes.withPatientOrganizationPrincipal.mockImplementation(
     (_principal: unknown, callback: () => Promise<unknown>) => callback(),
   );
 });
@@ -111,7 +120,10 @@ describe('B1.2 SMS booking confirmation', () => {
     );
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ ok: true, checkoutUrl: 'https://pay.example.test/checkout' });
+    expect(await response.json()).toMatchObject({
+      ok: true,
+      checkoutUrl: 'http://localhost/book/pay/intent-1',
+    });
     expect(fakes.setSessionFromUser).toHaveBeenCalledWith(payer);
     // Канал подтверждения доезжает до двери зачисления тем, чем человек РЕАЛЬНО подтвердился на
     // этом шаге, а не константой воронки (`OWNER_PRODUCT_RULES.md` §33).
@@ -122,7 +134,7 @@ describe('B1.2 SMS booking confirmation', () => {
       'public_booking_phone_otp',
       expect.objectContaining({ kind: 'platform' }),
     );
-    expect(fakes.getBookingPaymentStatus).toHaveBeenCalledWith('booking-1', payer.userId);
+    expect(fakes.getBookingPaymentStatus).toHaveBeenCalledWith('booking-1', 'http://localhost');
   });
 
   // Читать личную строку человека под bootstrap-принципалом нельзя: у класса `pre_session` нет
@@ -139,6 +151,12 @@ describe('B1.2 SMS booking confirmation', () => {
 
     expect(fakes.withPatientIdentityPrincipal).toHaveBeenCalledWith(
       expect.objectContaining({ platformUserId: payer.userId }),
+      expect.any(Function),
+    );
+    // Дверь платёжного состояния — именованный корень класса `patient`, и рантайм требует у него
+    // ОРГАНИЗАЦИОННО-привязанный пациентский принципал. Личности мало (живая проверка S9.4).
+    expect(fakes.withPatientOrganizationPrincipal).toHaveBeenCalledWith(
+      expect.objectContaining({ platformUserId: payer.userId, organizationId: 'org-1' }),
       expect.any(Function),
     );
   });

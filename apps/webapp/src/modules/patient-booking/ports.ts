@@ -10,6 +10,17 @@ import type {
 } from './types';
 import type { BeAppointment } from '@/modules/booking-engine/types';
 
+export type PatientBookingPaymentStatusProjection = {
+  intentId: string | null;
+  amountMinor: number | null;
+  currency: string | null;
+  intentStatus: string | null;
+  /** Non-null only when the stored intent has an internal provider continuation. */
+  checkoutIntentId: string | null;
+  paymentDeadlineAt: string | null;
+  appointmentStatus: import('@/modules/booking-engine/types').AppointmentStatus;
+};
+
 /** Patient-facing slots query (cabinet / public booking API). */
 export type BookingSlotsQuery =
   | {
@@ -139,6 +150,9 @@ export type PatientBookingsPort = {
     status?: PatientBookingStatus;
   }): Promise<PatientBookingRecord | null>;
   getByIdForUser(bookingId: string, userId: string): Promise<PatientBookingRecord | null>;
+  readCurrentPatientPaymentStatus(
+    bookingId: string,
+  ): Promise<PatientBookingPaymentStatusProjection | null>;
   getById(bookingId: string): Promise<PatientBookingRecord | null>;
   getByCanonicalAppointmentId(canonicalAppointmentId: string): Promise<PatientBookingRecord | null>;
   /**
@@ -175,13 +189,15 @@ export type PatientBookingService = {
   resolveBookingOrganizationId(bookingId: string): Promise<string | null>;
   getBookingPaymentStatus(
     bookingId: string,
-    userId: string,
+    patientOrigin: string,
   ): Promise<
     | {
         ok: true;
-        booking: PatientBookingRecord;
-        summary: import('@/modules/payments/types').AppointmentPaymentSummary | null;
         intentId: string | null;
+        amountMinor: number | null;
+        currency: string | null;
+        intentStatus: string | null;
+        checkoutUrl: string | null;
         paymentDeadlineAt: string | null;
         appointmentStatus: import('@/modules/booking-engine/types').AppointmentStatus;
       }
@@ -191,8 +207,8 @@ export type PatientBookingService = {
     canonicalAppointmentId: string,
   ): Promise<PatientBookingRecord | null>;
   /**
-   * Same eligibility scope as `getBookingPaymentStatus`/`cancelBooking` (`bookingId` + owning
-   * `userId`), but returns the full record for display-only reads (e.g. the booking-success screen
+   * Same eligibility scope as `cancelBooking` (`bookingId` + owning `userId`), but returns the
+   * full record for display-only reads (e.g. the booking-success screen
    * resolving `canonicalInPersonContext.timezone`) that don't need the payment/lifecycle wrapping.
    */
   getBookingForUser(bookingId: string, userId: string): Promise<PatientBookingRecord | null>;
