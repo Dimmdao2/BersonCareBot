@@ -66,6 +66,97 @@ function assertNoOperation(relation, role, operation) {
   );
 }
 
+// Пациентская ветка политики начинается с проверки аксессора личности. Вся ветка — один
+// сбалансированный скобочный узел; его границы и определяют, что в ветке, а что рядом с ней.
+const PATIENT_BRANCH_MARKER = 'app.current_patient_user_id() IS NOT NULL';
+// Любое сравнение организации: и колонка, и аксессор. Позиция конъюнкта внутри ветки значения
+// не имеет — гасит ветку он откуда угодно.
+const ORGANISATION_REFERENCE = /organization_id|current_org_id/u;
+// Собственность строки: свой ключ человека напрямую либо EXISTS по своему же родителю.
+const OWN_ROW_OWNERSHIP = /=\s*app\.current_patient_user_id\(\)/u;
+
+// Вырезает пациентские ветки предиката ПО СКОБКАМ, а не по порядку конъюнктов: возвращает для
+// каждого вхождения маркера тот скобочный узел, который его непосредственно оборачивает.
+function patientIdentityBranches(predicate) {
+  const found = [];
+  if (typeof predicate !== 'string') return found;
+  for (let from = 0; ; ) {
+    const at = predicate.indexOf(PATIENT_BRANCH_MARKER, from);
+    if (at < 0) return found;
+    from = at + PATIENT_BRANCH_MARKER.length;
+    let open = at - 1;
+    while (open >= 0 && /\s/u.test(predicate[open])) open -= 1;
+    if (open < 0 || predicate[open] !== '(') continue;
+    let depth = 0;
+    let quoted = false;
+    for (let i = open; i < predicate.length; i += 1) {
+      const character = predicate[i];
+      if (quoted) {
+        if (character === "'") quoted = false;
+        continue;
+      }
+      if (character === "'") quoted = true;
+      else if (character === '(') depth += 1;
+      else if (character === ')') {
+        depth -= 1;
+        if (depth === 0) {
+          found.push(predicate.slice(open, i + 1));
+          break;
+        }
+      }
+    }
+  }
+}
+
+// Независимый от разбора счётчик тех же веток: маркер, непосредственно обёрнутый своей скобкой.
+// Сверка с ним ловит случай, когда обход по скобкам молча потерял существующую ветку.
+const WRAPPED_PATIENT_BRANCH = /\(\s*app\.current_patient_user_id\(\) IS NOT NULL/gu;
+
+function countWrappedPatientBranches(predicate) {
+  if (typeof predicate !== 'string') return 0;
+  return (predicate.match(WRAPPED_PATIENT_BRANCH) ?? []).length;
+}
+
+// Стена пациента — «только своё»: ветка спрашивает ЛИЧНОСТЬ и никогда организацию (решение
+// владельца 2026-07-12, записано в `apps/webapp/src/app-layer/principal/withOrganizationPrincipal.ts`
+// и продублировано живьём в теле `app.install_port_context`, которое ПРЯМО разрешает
+// `context_class='patient'` с `organization_id IS NULL` для `purpose='relation'`).
+// Поломка, которую это ловит: конъюнкт `organization_id = app.current_org_id()` внутри пациентской
+// ветки у человека без выбранной клиники даёт NULL, гасит ВСЮ ветку, и человек молча перестаёт
+// видеть ВСЕ свои собственные строки — доступ к своим данным пропадает без единой ошибки.
+// Проверяется НАЛИЧИЕ/ОТСУТСТВИЕ сравнения организации где угодно внутри ветки, а не позиция
+// конъюнкта: предыдущая редакция пиннила порядок («собственность идёт сразу за аксессором») и
+// пропускала ровно тот же конъюнкт, поставленный после проверки собственности.
+// ГРАНИЦА проверки названа честно: она видит ветку, у которой маркер обёрнут собственной скобкой —
+// это форма, которую выдаёт генератор (`classSafe()`), то есть ровно та поверхность, куда конъюнкт
+// и вклинивался. Предикат, написанный в декларации руками так, что маркер не образует своего узла
+// (например `rev10_courses_select_83`), сюда не попадает и этой проверкой НЕ покрыт.
+function assertPatientIdentityOnly(label, predicate) {
+  let seen = 0;
+  for (const branch of patientIdentityBranches(predicate)) {
+    seen += 1;
+    assert.doesNotMatch(
+      branch,
+      ORGANISATION_REFERENCE,
+      `${label}: пациентская ветка сравнивает организацию — человек без выбранной клиники ослепнет `
+        + `на свои собственные строки. Ветка: ${branch}`,
+    );
+    assert.match(
+      branch,
+      OWN_ROW_OWNERSHIP,
+      `${label}: пациентская ветка не проверяет собственность строки. Ветка: ${branch}`,
+    );
+  }
+  // Самопроверка оракула: если обход по скобкам потерял ветку, которая в предикате есть, — это
+  // молчаливое ослепление самой проверки, и оно обязано быть красным, а не зелёным.
+  assert.equal(
+    seen,
+    countWrappedPatientBranches(predicate),
+    `${label}: разбор пациентских веток потерял вхождение маркера — оракул ослеп. Предикат: ${predicate}`,
+  );
+  return seen;
+}
+
 test('direct staff Drizzle inserts name every schema column allowed by their INSERT grant', () => {
   const contracts = [
     {
@@ -1158,6 +1249,23 @@ test('canonical settings and account email use semantic row walls without broad 
   assert.match(staffPatientBlockUpdate?.using ?? '', /role = 'client'/);
 });
 
+test('patient identity branch of every declared policy asks identity and never organisation', () => {
+  let checked = 0;
+  for (const dbName of DECLARED_DATABASES) {
+    const tables = declaration.databases[dbName].tables;
+    for (const [relation, table] of Object.entries(tables)) {
+      for (const policy of table.policies) {
+        checked += assertPatientIdentityOnly(
+          `${dbName} ${relation} ${policy.name} USING`, policy.using);
+        checked += assertPatientIdentityOnly(
+          `${dbName} ${relation} ${policy.name} WITH CHECK`, policy.withCheck);
+      }
+    }
+  }
+  // Ноль веток означал бы, что проверка молча ничего не проверяет.
+  assert.ok(checked > 0, 'пациентских веток в декларации не найдено — проверять нечего');
+});
+
 test('patient page relations have exact self/current-clinic access and published content walls', () => {
   const tables = declaration.databases.bersoncarebot_test.tables;
   const patientReadRelations = [
@@ -1448,20 +1556,15 @@ test('patient page relations have exact self/current-clinic access and published
     assert.deepEqual(patientGrants.flatMap((grant) => grant.operations).sort(), operations, relation);
     const business = tables[relation].policies.find((policy) =>
       policy.to.includes('app_patient') && !policy.name.startsWith('rev10_context_gate_'));
-    // Пациентская ветка гейтится ЛИЧНОСТЬЮ И БОЛЬШЕ НИЧЕМ: сразу за проверкой аксессора стоит
-    // СОБСТВЕННОСТЬ строки — свой ключ человека либо EXISTS по своему же родителю, — и между ними
-    // не вклинивается никакой другой конъюнкт. Организацию пациентская ветка НЕ спрашивает:
-    // стена пациента — «только своё», по личности, НИКОГДА по организации (решение владельца
-    // 2026-07-12, записано в `apps/webapp/src/app-layer/principal/withOrganizationPrincipal.ts`).
-    // Здесь стояло требование ОБРАТНОГО — `IS NOT NULL AND "organization_id" = current_org_id()`, —
-    // заведённое тем же коммитом 0e46d8302, что и сам конъюнкт в генераторе: код вписывал его,
-    // оракул требовал его вписать, и против решения владельца эту пару не сверял никто. У человека
-    // без выбранной клиники `app.current_org_id()` пуст ЗАКОННО (`app.install_port_context` прямо
-    // разрешает `context_class='patient'` с `organization_id IS NULL` для `purpose='relation'`),
-    // поэтому такой конъюнкт даёт NULL и гасит ВСЮ ветку: человек теряет ВСЕ свои строки.
-    assert.match(business?.using ?? '',
-      /app\.current_patient_user_id\(\) IS NOT NULL AND (?:"patient_user_id" = app\.current_patient_user_id\(\)|EXISTS \()/u,
-      relation);
+    // Пациентская ветка гейтится ЛИЧНОСТЬЮ И БОЛЬШЕ НИЧЕМ — разбор ветки по скобкам, не по
+    // порядку конъюнктов (см. `assertPatientIdentityOnly` выше). Здесь стояло требование
+    // ОБРАТНОГО — `IS NOT NULL AND "organization_id" = current_org_id()`, — заведённое тем же
+    // коммитом 0e46d8302, что и сам конъюнкт в генераторе: код вписывал его, оракул требовал его
+    // вписать, и против решения владельца эту пару не сверял никто. Сменившее его позиционное
+    // утверждение («собственность идёт сразу за аксессором») пропускало тот же конъюнкт,
+    // поставленный ПОСЛЕ проверки собственности, — это и нашёл независимый аудит.
+    assert.ok(assertPatientIdentityOnly(`${relation} business USING`, business?.using ?? '') > 0,
+      `${relation}: пациентская политика без ветки по личности`);
   }
 
   for (const relation of Object.keys(patientProgramOperations)) {
