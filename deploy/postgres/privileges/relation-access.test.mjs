@@ -66,6 +66,97 @@ function assertNoOperation(relation, role, operation) {
   );
 }
 
+// Пациентская ветка политики начинается с проверки аксессора личности. Вся ветка — один
+// сбалансированный скобочный узел; его границы и определяют, что в ветке, а что рядом с ней.
+const PATIENT_BRANCH_MARKER = 'app.current_patient_user_id() IS NOT NULL';
+// Любое сравнение организации: и колонка, и аксессор. Позиция конъюнкта внутри ветки значения
+// не имеет — гасит ветку он откуда угодно.
+const ORGANISATION_REFERENCE = /organization_id|current_org_id/u;
+// Собственность строки: свой ключ человека напрямую либо EXISTS по своему же родителю.
+const OWN_ROW_OWNERSHIP = /=\s*app\.current_patient_user_id\(\)/u;
+
+// Вырезает пациентские ветки предиката ПО СКОБКАМ, а не по порядку конъюнктов: возвращает для
+// каждого вхождения маркера тот скобочный узел, который его непосредственно оборачивает.
+function patientIdentityBranches(predicate) {
+  const found = [];
+  if (typeof predicate !== 'string') return found;
+  for (let from = 0; ; ) {
+    const at = predicate.indexOf(PATIENT_BRANCH_MARKER, from);
+    if (at < 0) return found;
+    from = at + PATIENT_BRANCH_MARKER.length;
+    let open = at - 1;
+    while (open >= 0 && /\s/u.test(predicate[open])) open -= 1;
+    if (open < 0 || predicate[open] !== '(') continue;
+    let depth = 0;
+    let quoted = false;
+    for (let i = open; i < predicate.length; i += 1) {
+      const character = predicate[i];
+      if (quoted) {
+        if (character === "'") quoted = false;
+        continue;
+      }
+      if (character === "'") quoted = true;
+      else if (character === '(') depth += 1;
+      else if (character === ')') {
+        depth -= 1;
+        if (depth === 0) {
+          found.push(predicate.slice(open, i + 1));
+          break;
+        }
+      }
+    }
+  }
+}
+
+// Независимый от разбора счётчик тех же веток: маркер, непосредственно обёрнутый своей скобкой.
+// Сверка с ним ловит случай, когда обход по скобкам молча потерял существующую ветку.
+const WRAPPED_PATIENT_BRANCH = /\(\s*app\.current_patient_user_id\(\) IS NOT NULL/gu;
+
+function countWrappedPatientBranches(predicate) {
+  if (typeof predicate !== 'string') return 0;
+  return (predicate.match(WRAPPED_PATIENT_BRANCH) ?? []).length;
+}
+
+// Стена пациента — «только своё»: ветка спрашивает ЛИЧНОСТЬ и никогда организацию (решение
+// владельца 2026-07-12, записано в `apps/webapp/src/app-layer/principal/withOrganizationPrincipal.ts`
+// и продублировано живьём в теле `app.install_port_context`, которое ПРЯМО разрешает
+// `context_class='patient'` с `organization_id IS NULL` для `purpose='relation'`).
+// Поломка, которую это ловит: конъюнкт `organization_id = app.current_org_id()` внутри пациентской
+// ветки у человека без выбранной клиники даёт NULL, гасит ВСЮ ветку, и человек молча перестаёт
+// видеть ВСЕ свои собственные строки — доступ к своим данным пропадает без единой ошибки.
+// Проверяется НАЛИЧИЕ/ОТСУТСТВИЕ сравнения организации где угодно внутри ветки, а не позиция
+// конъюнкта: предыдущая редакция пиннила порядок («собственность идёт сразу за аксессором») и
+// пропускала ровно тот же конъюнкт, поставленный после проверки собственности.
+// ГРАНИЦА проверки названа честно: она видит ветку, у которой маркер обёрнут собственной скобкой —
+// это форма, которую выдаёт генератор (`classSafe()`), то есть ровно та поверхность, куда конъюнкт
+// и вклинивался. Предикат, написанный в декларации руками так, что маркер не образует своего узла
+// (например `rev10_courses_select_83`), сюда не попадает и этой проверкой НЕ покрыт.
+function assertPatientIdentityOnly(label, predicate) {
+  let seen = 0;
+  for (const branch of patientIdentityBranches(predicate)) {
+    seen += 1;
+    assert.doesNotMatch(
+      branch,
+      ORGANISATION_REFERENCE,
+      `${label}: пациентская ветка сравнивает организацию — человек без выбранной клиники ослепнет `
+        + `на свои собственные строки. Ветка: ${branch}`,
+    );
+    assert.match(
+      branch,
+      OWN_ROW_OWNERSHIP,
+      `${label}: пациентская ветка не проверяет собственность строки. Ветка: ${branch}`,
+    );
+  }
+  // Самопроверка оракула: если обход по скобкам потерял ветку, которая в предикате есть, — это
+  // молчаливое ослепление самой проверки, и оно обязано быть красным, а не зелёным.
+  assert.equal(
+    seen,
+    countWrappedPatientBranches(predicate),
+    `${label}: разбор пациентских веток потерял вхождение маркера — оракул ослеп. Предикат: ${predicate}`,
+  );
+  return seen;
+}
+
 test('direct staff Drizzle inserts name every schema column allowed by their INSERT grant', () => {
   const contracts = [
     {
@@ -263,7 +354,7 @@ test('patient reminder cancellation reaches the canonical occurrence only throug
 test('ON CONFLICT seams grant SELECT only on their exact arbiter columns', () => {
   const expected = [
     ['app.choose_organization_first_tariff(uuid,uuid,text)', 'public.saas_organization_trials', ['organization_id']],
-    ['app.claim_unbound_patient_invite_email(text,text,text,bigint,text)', 'public.patient_merge_candidates',
+    ['app.claim_unbound_patient_invite_email(text,text)', 'public.patient_merge_candidates',
       ['organization_id', 'anchor_user_id', 'candidate_user_id', 'status']],
     ['app.ensure_staff_security_profile()', 'public.staff_security_profiles', ['user_id']],
     ['app.capture_current_patient_diary_day_snapshot(text,text,integer,integer,boolean,uuid,text,text)',
@@ -271,6 +362,11 @@ test('ON CONFLICT seams grant SELECT only on their exact arbiter columns', () =>
     ['app.record_current_patient_push_open(timestamp with time zone,text,uuid)',
       'public.product_analytics_events_recent', ['push_tracking_id', 'event_type']],
     ['app.redeem_patient_invite_email(text)', 'public.patient_merge_candidates',
+      ['organization_id', 'anchor_user_id', 'candidate_user_id', 'status']],
+    // Сессионная дверь приёма приглашения (2fc560028) кладёт пару в те же кандидаты слияния тем же
+    // `ON CONFLICT (organization_id, anchor_user_id, candidate_user_id)`; без строки здесь её
+    // арбитражный грант не сторожил бы никто.
+    ['app.redeem_patient_invite_session(text)', 'public.patient_merge_candidates',
       ['organization_id', 'anchor_user_id', 'candidate_user_id', 'status']],
   ];
   for (const [signature, relation, columns] of expected) {
@@ -711,8 +807,11 @@ test('doctor CRUD grants cover every column emitted by the production Drizzle in
       'created_at', 'created_by', 'description', 'id', 'organization_id', 'status', 'title',
       'updated_at',
     ],
+    // Без `organization_id`: история телефонов принадлежит ЧЕЛОВЕКУ, колонки у таблицы больше нет
+    // (решение владельца 12.09.2026, миграция
+    // `20260912T150000_the_phone_history_belongs_to_the_person_not_the_clinic`).
     'public.user_phone_history': [
-      'confirming_channel', 'id', 'organization_id', 'phone_normalized', 'platform_user_id',
+      'confirming_channel', 'id', 'phone_normalized', 'platform_user_id',
       'source', 'valid_from', 'valid_to',
     ],
   };
@@ -778,9 +877,12 @@ test('clinic-owner mutation grants include every default column emitted by Drizz
     'organization_id', 'placeholder', 'sort_order', 'updated_at', 'visible_to_patient',
     'visible_to_staff',
   ]);
+  // `locations_json` снят миграцией 4c5c5052c (17.J, решение владельца 11.09 «все только ссылками
+  // на реальные записи»): колонка-снимок адресов удалена вместе со своим единственным писателем,
+  // в drizzle-схеме её больше нет — значит и в гранте вставки ей места нет.
   exactColumns('public.clinic_public_directory_entries', 'app_staff', 'INSERT', [
     'card_is_published', 'created_at', 'description', 'display_name', 'is_published',
-    'locations_json', 'logo_media_id', 'organization_id', 'photo_media_ids',
+    'logo_media_id', 'organization_id', 'photo_media_ids',
     'public_contact_email', 'public_contact_phone', 'public_website_url', 'published_at', 'slug',
     'updated_at',
   ]);
@@ -840,8 +942,13 @@ test('billing relations use the clinic, platform, and webhook worker roles witho
     'autopay_consent_text', 'autopay_consented_at', 'autopay_revoked_at', 'billing_period_code',
     'cancelled_at', 'created_at', 'current_period_ends_at', 'current_period_starts_at',
     'grace_ends_at', 'id', 'lifecycle_state', 'organization_id', 'paid_additional_seats',
-    'pending_billing_period_code', 'pending_tariff_id', 'provider_id', 'read_only_ends_at',
-    'saas_billing_account_id', 'saved_payment_method_id', 'source', 'status', 'tariff_id',
+    // Пакеты докупки объёма (5cc55fda3, 1c3bd8393): подписка несёт оплаченный и отложенный пакет
+    // — обе колонки живут в drizzle-схеме (`apps/webapp/db/schema/saasBilling.ts`).
+    'paid_storage_package_id',
+    'pending_billing_period_code', 'pending_storage_package_id', 'pending_tariff_id',
+    'provider_id', 'read_only_ends_at',
+    'saas_billing_account_id', 'saved_payment_method_id', 'source', 'status',
+    'storage_package_cancel_at_period_end', 'tariff_id',
     'tariff_snapshot', 'updated_at',
   ];
   for (const role of ['app_clinic_billing', 'app_platform_settings']) {
@@ -879,7 +986,10 @@ test('billing relations use the clinic, platform, and webhook worker roles witho
   assertNoOperation('public.saas_billing_provider_events', 'app_clinic_billing', 'UPDATE');
   assertNoOperation('public.saas_billing_refunds', 'app_clinic_billing', 'SELECT');
   exactColumns('public.saas_billing_subscriptions', 'app_staff', 'SELECT', [
-    'organization_id', 'status', 'current_period_ends_at', 'paid_additional_seats', 'source',
+    // `paid_storage_package_id` — тот же пакет объёма (5cc55fda3): персонал видит, какой пакет
+    // оплачен его клиникой. Колонка org-scoped, чужой клиники через неё не видно.
+    'organization_id', 'status', 'current_period_ends_at', 'paid_additional_seats',
+    'paid_storage_package_id', 'source',
   ]);
   for (const relation of [
     'public.saas_billing_invoices',
@@ -1137,6 +1247,23 @@ test('canonical settings and account email use semantic row walls without broad 
   assert.match(staffPatientBlockUpdate?.using ?? '', /access_patient\.platform_user_id = platform_users\.id/);
   assert.match(staffPatientBlockUpdate?.using ?? '', /access_patient\.status IN \('invited', 'active', 'archived'\)/);
   assert.match(staffPatientBlockUpdate?.using ?? '', /role = 'client'/);
+});
+
+test('patient identity branch of every declared policy asks identity and never organisation', () => {
+  let checked = 0;
+  for (const dbName of DECLARED_DATABASES) {
+    const tables = declaration.databases[dbName].tables;
+    for (const [relation, table] of Object.entries(tables)) {
+      for (const policy of table.policies) {
+        checked += assertPatientIdentityOnly(
+          `${dbName} ${relation} ${policy.name} USING`, policy.using);
+        checked += assertPatientIdentityOnly(
+          `${dbName} ${relation} ${policy.name} WITH CHECK`, policy.withCheck);
+      }
+    }
+  }
+  // Ноль веток означал бы, что проверка молча ничего не проверяет.
+  assert.ok(checked > 0, 'пациентских веток в декларации не найдено — проверять нечего');
 });
 
 test('patient page relations have exact self/current-clinic access and published content walls', () => {
@@ -1429,9 +1556,15 @@ test('patient page relations have exact self/current-clinic access and published
     assert.deepEqual(patientGrants.flatMap((grant) => grant.operations).sort(), operations, relation);
     const business = tables[relation].policies.find((policy) =>
       policy.to.includes('app_patient') && !policy.name.startsWith('rev10_context_gate_'));
-    assert.match(business?.using ?? '',
-      /app\.current_patient_user_id\(\) IS NOT NULL AND "organization_id" = \(SELECT app\.current_org_id\(\)\)/,
-      relation);
+    // Пациентская ветка гейтится ЛИЧНОСТЬЮ И БОЛЬШЕ НИЧЕМ — разбор ветки по скобкам, не по
+    // порядку конъюнктов (см. `assertPatientIdentityOnly` выше). Здесь стояло требование
+    // ОБРАТНОГО — `IS NOT NULL AND "organization_id" = current_org_id()`, — заведённое тем же
+    // коммитом 0e46d8302, что и сам конъюнкт в генераторе: код вписывал его, оракул требовал его
+    // вписать, и против решения владельца эту пару не сверял никто. Сменившее его позиционное
+    // утверждение («собственность идёт сразу за аксессором») пропускало тот же конъюнкт,
+    // поставленный ПОСЛЕ проверки собственности, — это и нашёл независимый аудит.
+    assert.ok(assertPatientIdentityOnly(`${relation} business USING`, business?.using ?? '') > 0,
+      `${relation}: пациентская политика без ветки по личности`);
   }
 
   for (const relation of Object.keys(patientProgramOperations)) {
@@ -1633,8 +1766,11 @@ test('tenant D inserts either carry organization_id or are absent when only non-
     'contact_type', 'created_at', 'organization_id', 'platform_user_id', 'source',
     'updated_at', 'value', 'value_normalized',
   ]);
+  // `public.user_phone_history` здесь БОЛЬШЕ НЕ ПРЕДМЕТ: колонки `organization_id` у неё нет, и
+  // стена арендатора у неё теперь не прямая (D), а по членству человека (M) — проверяется ниже,
+  // в тесте M/P, вместе с остальными таблицами этого вида.
   exactColumns('public.user_phone_history', 'app_tenant_service', 'INSERT', [
-    'organization_id', 'phone_normalized', 'platform_user_id', 'source', 'valid_from', 'valid_to',
+    'phone_normalized', 'platform_user_id', 'source', 'valid_from', 'valid_to',
   ]);
 });
 
@@ -1674,6 +1810,16 @@ test('tenant M and P predicates cover patient enrollment and qualified parent ch
   assert.match(programUpdate, /program_action_log\.instance_id/);
   assert.match(programUpdate, /program_action_log\.instance_stage_item_id/);
   assert.match(programUpdate, /treatment_program_instance_stage_items/);
+
+  // История телефонов принадлежит ЧЕЛОВЕКУ (решение владельца 12.09.2026): колонки
+  // `organization_id` у таблицы нет, поэтому арендная стена спрашивает не её, а членство ЧЕЛОВЕКА
+  // в текущей клинике — ровно то же, что ветка персонала делала и раньше. Утверждается ФОРМА
+  // стены, а не текст: пришли к строке через сотрудника или через записанного пациента.
+  const phoneHistorySelect = policy('public.user_phone_history', 'SELECT').using;
+  assert.match(phoneHistorySelect, /user_phone_history\.platform_user_id/);
+  assert.match(phoneHistorySelect, /be_organization_members/);
+  assert.match(phoneHistorySelect, /org_enrollments/);
+  assert.doesNotMatch(phoneHistorySelect, /user_phone_history\.organization_id/);
 });
 
 test('base port logins retain app schema usage needed to install transaction context', () => {

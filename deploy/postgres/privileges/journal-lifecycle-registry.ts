@@ -795,9 +795,12 @@ export const JOURNAL_LIFECYCLE_REGISTRY: readonly JournalLifecycleEntry[] = [
     table: 'public.user_phone_history',
     why: 'previous phone numbers of one account (merge/rebinding evidence)',
     userPurge: { kind: 'cascade', column: 'platform_user_id' },
-    // Exhaustive census audit 2026-08-28, F3: labelled `not-org-scoped` while the live FK
-    // `user_phone_history_organization_id_fkey` is ON DELETE CASCADE (91 rows on bcb_webapp_dev).
-    orgPurge: { kind: 'organization_id' },
+    // Было `organization_id` (перепись 2026-08-28, F3: живой FK
+    // `user_phone_history_organization_id_fkey` стоял ON DELETE CASCADE). Колонки больше нет:
+    // история телефонов принадлежит ЧЕЛОВЕКУ, а не клинике (решение владельца 12.09.2026), и
+    // уход клиники не должен стирать номера человека — а каскад стирал. Чистка остаётся одна и
+    // та же, по человеку: `userPurge` выше, `platform_user_id`.
+    orgPurge: { kind: 'not-org-scoped' },
     terminalStates: [],
     retention: {
       kind: 'bounded-by-parent',

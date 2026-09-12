@@ -51,3 +51,12 @@ export * from './saasIsolationDiagnostics';
 export * from './relations';
 export * from './videoMeetings';
 export * from './nativePushTargets';
+// Шесть таблиц, живших в кластере мимо схемы webapp: пока их здесь нет, перепись колонок
+// (`tenant-predicate-invariant.test.mjs`) их НЕ ВИДИТ — а значит стену арендатора на них не
+// проверяет никто. `patientComorbidities` свой файл имел, но из этого бочонка не экспортировался.
+export * from './patientComorbidities';
+export * from './broadcastDrafts';
+export * from './clinicDedicatedBotBindings';
+export * from './systemSettingsAudit';
+export * from './bookingCalendarMap';
+export * from './emailOtpLocks';

@@ -185,9 +185,11 @@ export async function resolveOrCreateDoctorClientByPhoneInTransaction(
       await ensureOrganizationRelationship(savepointTx, organizationId, row.id, {
         newClientAlreadyInsertedInTransaction: true,
       });
+      // Клиника здесь не пишется: история телефонов принадлежит ЧЕЛОВЕКУ, а не той клинике, в
+      // которой его завели (решение владельца 12.09.2026) — колонки у таблицы больше нет.
+      // Принадлежность человека этой клинике уже записана выше, `ensureOrganizationRelationship`.
       await savepointTx.insert(userPhoneHistory).values({
         platformUserId: row.id,
-        organizationId,
         phoneNormalized,
         source: 'admin',
       });

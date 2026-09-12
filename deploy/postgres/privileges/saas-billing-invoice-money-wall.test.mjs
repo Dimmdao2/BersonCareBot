@@ -65,6 +65,9 @@ test('сумму черновика переписывает только узк
   assert.deepEqual(Object.keys(surfaces).sort(), [
     'public.saas_billing_invoices',
     'public.saas_billing_subscriptions',
+    // Пакеты докупки объёма (1c3bd8393 «счёт продления несёт пакет объёма»): цена пакета за период
+    // — такая же денежная матрица, как тарифная, и сумма без неё внутри шва не выводится.
+    'public.saas_storage_package_period_prices',
     'public.saas_tariff_period_prices',
     'public.saas_tariffs',
   ]);
@@ -90,6 +93,13 @@ test('сумму черновика переписывает только узк
       `шов не читает матрицу цен по ${column}`,
     );
   }
+  assert.deepEqual(surfaces['public.saas_storage_package_period_prices'].operations, ['SELECT']);
+  for (const column of ['package_id', 'billing_period_code', 'price_minor']) {
+    assert(
+      surfaces['public.saas_storage_package_period_prices'].columns.includes(column),
+      `шов не читает матрицу цен пакетов объёма по ${column}`,
+    );
+  }
   assert.deepEqual(surfaces['public.saas_tariffs'].operations, ['SELECT']);
   for (const column of ['additional_seat_price_minor', 'currency']) {
     assert(surfaces['public.saas_tariffs'].columns.includes(column), `шов не читает тариф по ${column}`);
@@ -98,6 +108,7 @@ test('сумму черновика переписывает только узк
   // счёт меняется этим швом.
   for (const relation of [
     'public.saas_billing_subscriptions',
+    'public.saas_storage_package_period_prices',
     'public.saas_tariff_period_prices',
     'public.saas_tariffs',
   ]) {

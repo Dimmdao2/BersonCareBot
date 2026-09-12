@@ -22455,7 +22455,6 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         "columns": [
           "confirming_channel",
           "id",
-          "organization_id",
           "phone_normalized",
           "platform_user_id",
           "source",
@@ -22492,7 +22491,6 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "INSERT"
         ],
         "columns": [
-          "organization_id",
           "phone_normalized",
           "platform_user_id",
           "source",
@@ -23316,19 +23314,19 @@ const TABLE_ROWS: TableRow[] = [
     + 'входа/отправки кода — снимается защита от перебора OTP и OAuth-стартов', wallWhy: W_AUTH_DEFINER,
     revoke: { app_staff: REV_D1 },
     defect: ['D1-auth-tables', 'I1-definer-plus-force'], code: ['C13'] },
-  { t: 'public.be_appointment_cancellations', cls: 'P', why: 'отмены визитов — ломается политика отмен и возвратов '
+  { t: 'public.be_appointment_cancellations', cls: 'P', org: true, why: 'отмены визитов — ломается политика отмен и возвратов '
     + 'предоплаты' },
   { t: 'public.be_appointment_events', cls: 'P', why: 'системные события записи — пропадает машинная история '
     + 'изменения брони',
     drop: { verdict: 'DUP-DROP', source: 'evidence/18 §3 — 434/434 совпадений с be_appointment_history_events, ноль '
       + 'SELECT во всём репозитории', blockedBy: 'убрать 6 INSERT-блоков: pgBookingEngine.ts:205,1760,1817 и '
       + 'pgBookingAppointmentLifecycle.ts:253,362,496; поправить TRUNCATE в нагрузочном скрипте' } },
-  { t: 'public.be_appointment_history_events', cls: 'P', why: 'человекочитаемая история записи — врач перестаёт '
+  { t: 'public.be_appointment_history_events', cls: 'P', org: true, why: 'человекочитаемая история записи — врач перестаёт '
     + 'видеть «кто и когда менял запись»' },
-  { t: 'public.be_appointment_no_shows', cls: 'P', why: 'неявки — не считается счётчик неявок пациента' },
-  { t: 'public.be_appointment_reschedules', cls: 'P', why: 'переносы — ломается бесплатный/платный перенос и лимит '
+  { t: 'public.be_appointment_no_shows', cls: 'P', org: true, why: 'неявки — не считается счётчик неявок пациента' },
+  { t: 'public.be_appointment_reschedules', cls: 'P', org: true, why: 'переносы — ломается бесплатный/платный перенос и лимит '
     + 'переносов' },
-  { t: 'public.be_appointment_staff_comments', cls: 'P', wall: 'clinic', why: 'внутренние комментарии персонала о '
+  { t: 'public.be_appointment_staff_comments', cls: 'P', org: true, wall: 'clinic', why: 'внутренние комментарии персонала о '
     + 'пациенте — врач теряет заметки по визиту', wallWhy: 'РЕШЕНИЕ D2: пациентская ветка снимается — это внутренние '
     + 'комментарии персонала о нём',
     revoke: { app_patient: 'РЕШЕНИЕ D2 дословно: «он НЕ ВИДИТ внутренние комментарии»; body заполняет '
@@ -23341,7 +23339,7 @@ const TABLE_ROWS: TableRow[] = [
     + 'свободные слоты' },
   { t: 'public.be_booking_form_fields', cls: 'C', org: true, why: 'конструктор полей формы записи — форма записи '
     + 'теряет настраиваемые поля' },
-  { t: 'public.be_booking_form_submissions', cls: 'P', why: 'ответы пациента в форме записи — теряются данные, '
+  { t: 'public.be_booking_form_submissions', cls: 'P', org: true, why: 'ответы пациента в форме записи — теряются данные, '
     + 'введённые пациентом при записи' },
   { t: 'public.be_branches', cls: 'C', org: true, why: 'филиалы клиники — расписание некуда привязать, ломаются '
     + 'часовые пояса' },
@@ -23358,13 +23356,13 @@ const TABLE_ROWS: TableRow[] = [
     pol: 'D16: живьём relrowsecurity=false. На этой таблице стоит определение «кто врач/админ клиники», то есть '
     + 'авторизация кабинета целиком', defect: ['D16-org-members-leak', 'I2-grant-to-login'] },
   { t: 'public.be_organizations', cls: 'C', org: false, why: 'сама клиника — без неё нет арендатора вообще' },
-  { t: 'public.be_package_history_events', cls: 'P', why: 'история абонемента пациента — не видно, кто '
+  { t: 'public.be_package_history_events', cls: 'P', org: true, why: 'история абонемента пациента — не видно, кто '
     + 'продлил/заморозил абонемент' },
   { t: 'public.be_package_items', cls: 'C', org: false, wall: 'parent', why: 'состав абонемента-шаблона — нельзя '
     + 'описать, что входит в абонемент', wallWhy: 'organization_id нет ПО ЗАМЫСЛУ: org выводится EXISTS по родителю '
     + 'be_subscription_packages' },
-  { t: 'public.be_package_usages', cls: 'P', why: 'списания сеансов абонемента — сеансы не списываются с абонемента' },
-  { t: 'public.be_patient_booking_profiles', cls: 'P', wall: 'clinic', why: 'профиль пациента у клиники — нельзя '
+  { t: 'public.be_package_usages', cls: 'P', org: true, why: 'списания сеансов абонемента — сеансы не списываются с абонемента' },
+  { t: 'public.be_patient_booking_profiles', cls: 'P', org: true, wall: 'clinic', why: 'профиль пациента у клиники — нельзя '
     + 'заблокировать самозапись проблемному пациенту', wallWhy: 'РЕШЕНИЕ D2: пациентская ветка снимается — '
     + '«проблемный», блокировка, счётчик неявок',
     revoke: { app_patient: 'РЕШЕНИЕ D2: «пометка проблемный и тд» — служебная оценка клиники (is_problematic, '
@@ -23373,19 +23371,19 @@ const TABLE_ROWS: TableRow[] = [
   { t: 'public.be_patient_package_items', cls: 'P', org: false, wall: 'parent+patient', why: 'состав купленного '
     + 'абонемента — не известно, сколько сеансов какой услуги куплено', wallWhy: 'organization_id нет ПО ЗАМЫСЛУ: '
     + 'org и пациент выводятся EXISTS по be_patient_packages' },
-  { t: 'public.be_patient_packages', cls: 'P', why: 'купленные пациентом абонементы — абонементы перестают '
+  { t: 'public.be_patient_packages', cls: 'P', org: true, why: 'купленные пациентом абонементы — абонементы перестают '
     + 'списываться и показываться' },
-  { t: 'public.be_patient_timeline_events', cls: 'P', why: 'лента событий пациента — пропадает единая хронология по '
+  { t: 'public.be_patient_timeline_events', cls: 'P', org: true, why: 'лента событий пациента — пропадает единая хронология по '
     + 'клиенту' },
-  { t: 'public.be_payment_history_events', cls: 'P', why: 'история платежей пациента — пропадает платёжная '
+  { t: 'public.be_payment_history_events', cls: 'P', org: true, why: 'история платежей пациента — пропадает платёжная '
     + 'хронология в карточке пациента' },
-  { t: 'public.be_payment_intents', cls: 'P', why: 'намерения оплаты — не создаётся ссылка на оплату/предоплату' },
+  { t: 'public.be_payment_intents', cls: 'P', org: true, why: 'намерения оплаты — не создаётся ссылка на оплату/предоплату' },
   { t: 'public.be_payment_provider_events', cls: 'C', org: true, why: 'сырые вебхуки платёжного провайдера — платёж '
     + 'не подтверждается автоматически' },
-  { t: 'public.be_payments', cls: 'P', why: 'платежи пациента — нет учёта оплат визитов' },
+  { t: 'public.be_payments', cls: 'P', org: true, why: 'платежи пациента — нет учёта оплат визитов' },
   { t: 'public.be_prepayment_policies', cls: 'C', org: true, why: 'политика предоплаты по услуге — не берётся '
     + 'предоплата' },
-  { t: 'public.be_refunds', cls: 'P', why: 'возвраты — нельзя вернуть предоплату' },
+  { t: 'public.be_refunds', cls: 'P', org: true, why: 'возвраты — нельзя вернуть предоплату' },
   { t: 'public.be_reschedule_policies', cls: 'C', org: true, why: 'политика переносов — пациент переносит визит без '
     + 'ограничений' },
   { t: 'public.be_rooms', cls: 'C', org: true, why: 'кабинеты филиала — нельзя развести приёмы по кабинетам' },
@@ -23845,23 +23843,23 @@ const TABLE_ROWS: TableRow[] = [
   { t: 'public.specialist_signup_intents', cls: 'S', wall: 'definer-only', why: 'заявка на создание клиники — '
     + 'самостоятельная регистрация специалиста', wallWhy: 'заявка на регистрацию живёт ДО организации — стены '
     + 'клиники нет, вход через definer-шов регистрации', defect: ['I1-definer-plus-force'] },
-  { t: 'public.specialist_tasks', cls: 'P', why: 'задачи врача по пациенту — пропадёт список задач врача и '
+  { t: 'public.specialist_tasks', cls: 'P', org: true, why: 'задачи врача по пациенту — пропадёт список задач врача и '
     + 'напоминания по ним' },
   { t: 'public.staff_security_profiles', cls: 'S', wall: 'definer-only', why: 'второй фактор персонала — 2FA '
     + 'сотрудников', wallWhy: W_AUTH_DEFINER, defect: ['I1-definer-plus-force'] },
-  { t: 'public.support_conversation_messages', cls: 'P', why: 'сообщения диалога — тело переписки' },
-  { t: 'public.support_conversations', cls: 'P', why: 'диалоги поддержки — без неё нет переписки врач↔пациент' },
-  { t: 'public.support_question_messages', cls: 'P', why: 'реплики внутри вопроса — тело вопроса' },
-  { t: 'public.support_questions', cls: 'P', why: 'вопросы пациента из бота — очередь «вопрос из мессенджера → врач»' },
-  { t: 'public.symptom_entries', cls: 'P', why: 'замеры — динамика самочувствия' },
-  { t: 'public.symptom_trackings', cls: 'P', why: 'что пациент отслеживает — дневник симптомов' },
-  { t: 'public.system_settings', cls: 'S', wall: 'platform-role+clinic', why: 'настройки платформы и клиники — без '
+  { t: 'public.support_conversation_messages', cls: 'P', org: true, why: 'сообщения диалога — тело переписки' },
+  { t: 'public.support_conversations', cls: 'P', org: true, why: 'диалоги поддержки — без неё нет переписки врач↔пациент' },
+  { t: 'public.support_question_messages', cls: 'P', org: true, why: 'реплики внутри вопроса — тело вопроса' },
+  { t: 'public.support_questions', cls: 'P', org: true, why: 'вопросы пациента из бота — очередь «вопрос из мессенджера → врач»' },
+  { t: 'public.symptom_entries', cls: 'P', org: true, why: 'замеры — динамика самочувствия' },
+  { t: 'public.symptom_trackings', cls: 'P', org: true, why: 'что пациент отслеживает — дневник симптомов' },
+  { t: 'public.system_settings', cls: 'S', org: true, wall: 'platform-role+clinic', why: 'настройки платформы и клиники — без '
     + 'неё не работает ни один внешний канал', wallWhy: W_PLATFORM_OR_CLINIC,
     revoke: { app_staff: 'D3: 121 из 125 строк глобальные, среди них 17 секретов платформы (telegram_bot_token, '
       + 'smsc_api_key, google_client_secret …) — арендной роли там не место' },
     pol: 'ветка organization_id IS NULL ОБЯЗАНА проверять роль: saas_bootstrap_hybrid_p0_8_6 выдана TO public и её '
     + 'первая ветка безусловна — это и есть механизм дефекта', defect: ['D3-system-settings', 'D4-role-escalation'] },
-  { t: 'public.system_settings_audit', cls: 'S', wall: 'platform-role+clinic', why: 'история изменений настроек — '
+  { t: 'public.system_settings_audit', cls: 'S', org: true, wall: 'platform-role+clinic', why: 'история изменений настроек — '
     + 'доказательство «кто менял секрет»', wallWhy: W_PLATFORM_OR_CLINIC,
     revoke: { app_staff: 'D3: значения секретов лежат в old_value_json/new_value_json (аудит 28.07 нашёл там '
       + 'vk_id_client_secret открытым), а у app_staff полный CRUD по журналу' },
@@ -23873,8 +23871,8 @@ const TABLE_ROWS: TableRow[] = [
     code: ['C14'] },
   { t: 'public.test_results', cls: 'P', org: true, why: 'результат попытки — оценка теста', pol: 'РЕШЕНИЕ D2: пациентская ветка '
     + '— только через test_attempts, привязанную к элементу его программы (см. test_attempts).', code: ['C14'] },
-  { t: 'public.test_set_items', cls: 'C', why: 'состав набора — наполнение набора' },
-  { t: 'public.test_sets', cls: 'C', why: 'наборы тестов — пакетное назначение тестов' },
+  { t: 'public.test_set_items', cls: 'C', org: true, why: 'состав набора — наполнение набора' },
+  { t: 'public.test_sets', cls: 'C', org: true, why: 'наборы тестов — пакетное назначение тестов' },
   { t: 'public.tests', cls: 'C', org: true, why: 'каталог клинических тестов клиники — без него врач не назначит тест' },
   { t: 'public.treatment_program_events', cls: 'P', org: true, why: 'журнал изменений программы — аудит «кто что менял в '
     + 'лечении»' },
@@ -23883,11 +23881,11 @@ const TABLE_ROWS: TableRow[] = [
   { t: 'public.treatment_program_instance_stages', cls: 'P', org: true, why: 'этапы программы — шаги лечения' },
   { t: 'public.treatment_program_instances', cls: 'P', org: true, why: 'назначенная пациенту программа — ядро лечения — без неё '
     + 'нет программы' },
-  { t: 'public.treatment_program_template_stage_groups', cls: 'C', why: 'группы в этапе шаблона — группировка в '
+  { t: 'public.treatment_program_template_stage_groups', cls: 'C', org: true, why: 'группы в этапе шаблона — группировка в '
     + 'шаблоне' },
-  { t: 'public.treatment_program_template_stage_items', cls: 'C', why: 'задания шаблона — содержимое шаблона' },
-  { t: 'public.treatment_program_template_stages', cls: 'C', why: 'этапы шаблона — структура шаблона' },
-  { t: 'public.treatment_program_templates', cls: 'C', why: 'шаблоны программ лечения — без них нечего назначать '
+  { t: 'public.treatment_program_template_stage_items', cls: 'C', org: true, why: 'задания шаблона — содержимое шаблона' },
+  { t: 'public.treatment_program_template_stages', cls: 'C', org: true, why: 'этапы шаблона — структура шаблона' },
+  { t: 'public.treatment_program_templates', cls: 'C', org: true, why: 'шаблоны программ лечения — без них нечего назначать '
     + 'пациенту' },
   { t: 'public.user_channel_bindings', cls: 'P', org: false, why: 'привязка мессенджера — вход через Telegram/MAX и '
     + 'рассылки',
@@ -23942,9 +23940,14 @@ const TABLE_ROWS: TableRow[] = [
     defect: ['D1-auth-tables'], code: ['C13'] },
   { t: 'public.user_phone_history', cls: 'P', why: 'история телефонов — смена номера и поиск по старому номеру',
     revoke: { bcb_test_nonstaff_login: 'I2: табличный грант arw выдан ЛОГИН-роли напрямую, минуя рантайм-роль.' },
-    pol: 'D8: единственная политика несёт ТОЛЬКО org-ветку, а app_patient держит SELECT — пациент видит историю '
-    + 'телефонов всех 92 записей организации. Нужна ветка «свой пациент»',
-    defect: ['D8-user-phone-history', 'I2-grant-to-login'] },
+    pol: 'ИСТОРИЯ ПРИНАДЛЕЖИТ ЧЕЛОВЕКУ (решение владельца 12.09.2026), поэтому колонки organization_id у '
+    + 'таблицы БОЛЬШЕ НЕТ: она обещала стену арендатора, которой никогда не было. Доказано контекст-флипом — '
+    + 'клиника B читала строки человека, помеченные клиникой A, потому что ветка персонала спрашивает НЕ '
+    + 'КОЛОНКУ, а членство человека (EXISTS по be_organization_members/org_enrollments); колонку не проверял '
+    + 'никто. Обе настоящие стены колонки не касались и остались на месте: пациент — своя строка по '
+    + 'app.current_actor_user_id(), персонал и tenant-service — человек состоит в ТЕКУЩЕЙ клинике. Этим же '
+    + 'снят D8: пациентская ветка «своя строка» (rev10_patient_self_managed) стоит, общей org-ветки нет',
+    defect: ['I2-grant-to-login'] },
   { t: 'public.user_pins', cls: 'S', wall: 'pending-removal', rls: 'n/a', disp: 'REMOVED',
     why: 'УДАЛЕНО миграцией 0387: legacy PIN-вход выведен из продукта, активных вызовов и причин хранения нет',
     wallWhy: 'Физически удалённая legacy-таблица остаётся именованной только для двусторонней проверки каталога' },
@@ -24479,6 +24482,14 @@ const CANONICAL_CONTACT_SURFACE_CORRECTIONS: Readonly<Record<string, CanonicalCo
   'app.redeem_patient_invite_email(text)': {
     contacts: ['SELECT', 'UPDATE'], operations: { 'public.platform_users': ['SELECT'] },
   },
+  // Сессионная половина той же двери: тело `public.platform_users` только ЧИТАЕТ (личность уже
+  // доказана сессией) и берёт с неё замок `FOR UPDATE`. Лексическая перепись видит замок как UPDATE
+  // и отдаёт поверхность на всех четырёх колонках; здесь она сужается до чтения, а право класса
+  // UPDATE ради замка доклеивает `ROW_LOCK_SURFACES` ОДНОЙ колонкой — ровно как у почтовой двери
+  // выше. Строки `contacts` тут нет намеренно: `public.user_contacts` это тело не трогает вовсе.
+  'app.redeem_patient_invite_session(text)': {
+    operations: { 'public.platform_users': ['SELECT'] },
+  },
   'app.resolve_public_booking_client_by_phone(text,text,boolean)': { contacts: ['SELECT', 'INSERT'] },
   'app.revalidate_patient_reminder_delivery_materialization(uuid)': { contacts: ['SELECT'] },
   'app.specialist_task_reminder_materialization_fingerprint(uuid)': { contacts: ['SELECT'] },
@@ -24636,25 +24647,17 @@ const TENANT_WALL_CROSSINGS: Readonly<Record<string, Readonly<Record<string, str
     'public.user_channel_bindings': 'та же привязка по паре (канал, внешний id) перед записью — организации на этом шаге ещё нет',
   },
 
-  // Пациентское приглашение: вся цепочка адресуется секретом (`continuation_hash`/`token_hash`), и
-  // до его предъявления человек клиникой не опознан. Организацию тут не проверяют — её ИЗВЛЕКАЮТ
-  // из самой строки приглашения и дальше ведут по ней.
-  'app.claim_unbound_patient_invite_email(text,text)': {
-    'public.patient_invites': 'приглашение находит неугадываемый continuation_hash; предъявитель клинике ещё не принадлежит',
-    'public.be_organizations': 'клиника берётся ИЗ строки приглашения и проверяется на активность — сравнивать её не с чем',
-    'public.org_enrollments': 'зачисление той же строки приглашения (enrollment_id + organization_id приглашения), а не произвольное',
-    'public.platform_users': 'человек приглашения по его patient_user_id из той же строки; конфликт владельца почты — часть ответа двери',
-    'public.user_contacts': 'почта того же человека и проверка, не занята ли она другим — смысл двери именно в этом',
-  },
+  // Почтовая половина пациентского приглашения (claim_unbound_patient_invite_email,
+  // exchange_patient_invite, lookup_patient_invite_continuation, start_patient_invite_email_proof,
+  // verify_patient_invite_email_proof) — пометки сняты по тому же правилу, что и у
+  // app.resolve_payment_webhook_organization ниже: все пять дверей исполняются ТОЛЬКО классом
+  // app_pre_session, арендной роли среди их execute нет, поэтому вопрос «почему у арендного
+  // вызывающего нет организационного предиката» к ним не встаёт — у pre-session организации нет
+  // вовсе. Сессионная и почтовая двери приёма (redeem_patient_invite_*) остаются арендными
+  // (app_patient) и пометки сохраняют — они ниже.
 
   'app.email_otp_public_delete_unverified_registration(uuid)': {
     'public.user_contacts': 'удаляется НЕподтверждённая регистрация: человек ещё не в клинике, подтверждённой почты у него нет',
-  },
-
-  'app.exchange_patient_invite(text,text,timestamp with time zone)': {
-    'public.patient_invites': 'приглашение находит неугадываемый token_hash; обмен идёт до вступления в клинику',
-    'public.org_enrollments': 'зачисление берётся по ключам из самой строки приглашения',
-    'public.be_organizations': 'название клиники приглашения для экрана предъявителя',
   },
 
   // Гостевой видеозвонок адресуется только секретом приглашения. До обмена у гостя нет аккаунта,
@@ -24686,11 +24689,6 @@ const TENANT_WALL_CROSSINGS: Readonly<Record<string, Readonly<Record<string, str
     'public.user_contacts': 'проверка «у кандидата ещё нет телефона» — ключ отбора кандидата, не выборка по клинике',
   },
 
-  'app.lookup_patient_invite_continuation(text)': {
-    'public.patient_invites': 'приглашение находит неугадываемый continuation_hash; предъявитель клинике ещё не принадлежит',
-    'public.org_enrollments': 'зачисление по ключам из строки приглашения',
-    'public.be_organizations': 'название клиники приглашения для экрана предъявителя',
-  },
   'app.lookup_pending_org_invite(text)': {
     'public.organization_member_invites': 'приглашение в персонал находит неугадываемый token_hash до вступления в клинику',
     'public.be_organizations': 'название клиники приглашения; принимающий её сотрудником ещё не является',
@@ -24738,14 +24736,6 @@ const TENANT_WALL_CROSSINGS: Readonly<Record<string, Readonly<Record<string, str
   // не зовёт, поэтому вопрос «почему тут нет организационного предиката для арендатора» больше не
   // встаёт — пометка объясняла отсутствие предиката ИМЕННО арендному вызывающему, которого не стало.
 
-  'app.start_patient_invite_email_proof(text,text,text,timestamp with time zone)': {
-    'public.patient_invites': 'приглашение находит неугадываемый continuation_hash; подтверждение почты идёт до вступления в клинику',
-    'public.be_organizations': 'клиника приглашения проверяется на активность перед отправкой кода',
-  },
-  'app.verify_patient_invite_email_proof(text,text,text)': {
-    'public.patient_invites': 'приглашение находит неугадываемый continuation_hash; сверка кода идёт до вступления в клинику',
-    'public.be_organizations': 'клиника приглашения проверяется на активность перед зачётом кода',
-  },
 };
 
 function applyTenantWallCrossings(
@@ -30432,7 +30422,7 @@ const REV10_CONTEXT = {
           operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const, 'DELETE' as const],
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.user_phone_history',
-          columns: ['platform_user_id', 'phone_normalized', 'valid_from', 'valid_to', 'source', 'organization_id', 'confirming_channel'],
+          columns: ['platform_user_id', 'phone_normalized', 'valid_from', 'valid_to', 'source', 'confirming_channel'],
           operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const, 'DELETE' as const],
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
@@ -30462,7 +30452,7 @@ const REV10_CONTEXT = {
           operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const, 'DELETE' as const],
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.user_phone_history',
-          columns: ['platform_user_id', 'phone_normalized', 'valid_from', 'valid_to', 'source', 'organization_id', 'confirming_channel'],
+          columns: ['platform_user_id', 'phone_normalized', 'valid_from', 'valid_to', 'source', 'confirming_channel'],
           operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const, 'DELETE' as const],
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.user_channel_preferences',
@@ -31273,11 +31263,11 @@ export const REV10_LOCKED_POLICY_DATA: Readonly<Record<string, LockedPolicyEntry
     strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"patient_user_id\" = app.current_patient_user_id()))",
     dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"patient_user_id\" = app.current_patient_user_id())))",
   },
-  "public.user_phone_history": {
-    policyName: "saas_bootstrap_hybrid_p0_8_6",
-    strictPredicate: "((app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()) OR (\"organization_id\" IS NULL AND app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()))",
-    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()) OR (\"organization_id\" IS NULL AND app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff())))",
-  },
+  // `public.user_phone_history` здесь БОЛЬШЕ НЕТ. Её запертая политика `saas_bootstrap_hybrid_p0_8_6`
+  // состояла ЦЕЛИКОМ из `organization_id`, но в артефакт не попадала ни разу: таблицу рисует семья
+  // «самообслуживание по своей учётке» (`rev10_patient_self_managed` / `rev10_staff_member_managed`),
+  // и живая база это подтверждает — политики с таким именем на таблице нет. С удалением колонки
+  // (история принадлежит человеку, решение владельца 12.09.2026) запись стала ещё и неисполнимой.
 } as const;
 
 const REV10_LOCKED_POLICIES = new Map<string, LockedPolicyEntry>(
@@ -32275,7 +32265,6 @@ const REV10_TENANT_DIRECT_ORG = new Set([
   'public.support_questions', 'public.symptom_entries', 'public.symptom_trackings', 'public.test_attempts',
   'public.treatment_program_events', 'public.treatment_program_instance_stage_items',
   'public.treatment_program_instance_stages', 'public.treatment_program_instances',
-  'public.user_phone_history',
 ]);
 
 type TenantMembershipReference = { column: string; type: 'uuid' | 'text' };
@@ -32290,6 +32279,11 @@ const REV10_TENANT_MEMBERSHIP_BASE: Record<string, readonly TenantMembershipRefe
   'public.user_identity': [{ column: 'platform_user_id', type: 'uuid' }],
   'public.user_notification_topic_channels': [{ column: 'user_id', type: 'uuid' }],
   'public.user_notification_topics': [{ column: 'user_id', type: 'uuid' }],
+  // История телефонов принадлежит ЧЕЛОВЕКУ (решение владельца 12.09.2026), колонки organization_id
+  // у таблицы нет — поэтому и стена tenant-service выводится не из колонки, а из членства человека в
+  // ТЕКУЩЕЙ клинике. Это ровно то, что ветка персонала (`rev10_staff_member_managed`) делала и раньше:
+  // колонку не спрашивал никто, она лишь обещала стену, которой не было.
+  'public.user_phone_history': [{ column: 'platform_user_id', type: 'uuid' }],
   'public.user_web_push_subscriptions': [{ column: 'user_id', type: 'uuid' }],
 };
 
@@ -32945,9 +32939,17 @@ function revision10Database(name: Revision10DatabaseName): DatabaseDecl {
       let result = predicate
         .replace(/(?<!\(SELECT )app\.current_org_id\(\)/gu, '(SELECT app.current_org_id())')
         .replaceAll('app.is_staff()', "current_user = 'app_staff'::name");
-      if (table.org === true) result = result.replaceAll(
-        '(app.current_patient_user_id() IS NOT NULL AND ',
-        '(app.current_patient_user_id() IS NOT NULL AND "organization_id" = (SELECT app.current_org_id()) AND ');
+      // Пациентская ветка НЕ сравнивает организацию — и не может: `app.current_org_id()` законно
+      // пуст в настоящем пациентском контексте (`app.install_port_context` прямо разрешает
+      // `context_class='patient'` с `organization_id IS NULL` для `purpose='relation'`), поэтому
+      // конъюнкт `organization_id = app.current_org_id()` даёт NULL и гасит ВСЮ ветку: человек
+      // без выбранной клиники теряет ВСЕ свои собственные строки. Стена пациента — «только своё»
+      // и спрашивает личность, НИКОГДА организацию (решение владельца 2026-07-12, записано в
+      // `apps/webapp/src/app-layer/principal/withOrganizationPrincipal.ts`); мультиклинический
+      // обзор своих строк — то, ради чего это решение и принято. Инвариант A1 того же не требует:
+      // `tenant-wall.mjs` засчитывает пациентскую ветку по собственному ключу человека.
+      // Здесь стояло `if (table.org === true) result = result.replaceAll(...)` — оно и сузило
+      // 19 политик в fbbb234ab; снято независимым аудитом, доказано живьём на DEV (83 → 0 → 83).
       result = result.replaceAll('"b4f_appt"."platform_user_id" = app.current_patient_user_id()',
         '"b4f_appt"."organization_id" = (SELECT app.current_org_id()) AND "b4f_appt"."platform_user_id" = app.current_patient_user_id()');
       const hasPatientAccessor = result.includes('app.current_patient_user_id()');
