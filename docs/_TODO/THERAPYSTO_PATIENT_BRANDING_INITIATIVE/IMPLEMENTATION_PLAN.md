@@ -939,8 +939,22 @@ identity seam, а не набор getters.
   **Закрыт 24.08.2026** (ведущий bersoncarebot-3d, приёмка по закрывающему аудиту): `AUDIT_NIGHT_B5A_2026-08-23.md` — PASS, один org-scoped флаг, дефолт «показывать визитку», `proxy.b5aAudit.route.test.ts` 23 passed.
 - [x] `B6` Оставить cookies host-only и текущий CSRF request-origin seam; добавить только regression tests для
   нескольких Host. Unknown Host и cross-org попытки fail closed.
-- [ ] `B7` Выпустить и продлевать сертификат, который явно содержит `therapygo.ru` и `*.therapygo.ru`;
-  wildcard сам по себе apex не покрывает. Описать rollback.
+- [ ] `B7` Выпускать и продлевать сертификаты на все имена, которые мы обслуживаем. Описать rollback.
+  🔴 **ФОРМУЛИРОВКА ИЗМЕНЕНА ВЛАДЕЛЬЦЕМ 12.09.2026: wildcard СНЯТ С ПЛАНА.** Дословно: «Зачем тебе
+  рег ру апи? Ты охренел? Не будет у тебя их». Wildcard `*.therapygo.ru` Let's Encrypt выдаёт
+  только по DNS-01, то есть по праву писать в зону регистратора, — значит, wildcard недостижим, и
+  пункт закрывается ИНАЧЕ: каждое имя выпускается по себе через HTTP-01, а поддомен клиники
+  проходит тот же on-demand-контроль, что и её собственный домен.
+  Что уже сделано в репозитории (12.09): `deploy/caddy/Caddyfile.template` без DNS-01 и без
+  wildcard-блока, стоковый Caddy без плагинов (`build-caddy-edge.sh`), валидатор ПАДАЕТ при любом
+  DNS-модуле в бинаре, креды REG.RU убраны из `deploy/env/.env.caddy.prod.example`, а дверь
+  разрешения `apps/webapp/src/app-layer/surface/onDemandTlsAuthorization.ts` теперь одобряет и
+  `<slug>.therapygo.ru` — той же меткой, что открывает страницу.
+  **Цена решения, названная прямо:** имя, сертификата к которому мы не выпускали (выдуманный
+  поддомен), рвёт TLS-рукопожатие в браузере ДО выполнения нашего кода. Вежливую страницу там даёт
+  только wildcard. Владельцу это сказано; если он передумает, есть два пути без API: раз в ~60 дней
+  вставить одну TXT-запись руками, либо перевести зону на Cloudflare (регистратор остаётся REG.RU,
+  меняются только NS).
   **Замер на живом проде 12.09.2026 — всё готово, кроме одного действия владельца.**
   * Сертификат сейчас ИМЕННОЙ список без wildcard: `therapysto.ru`, `admin.therapysto.ru`,
     `app.bersoncare.ru`, `berson.therapygo.ru`, `meet.therapysto.ru`, `therapygo.ru`,
@@ -954,15 +968,14 @@ identity seam, а не набор getters.
     `<slug>.therapygo.ru` не заработает, пока имя не попадёт в сертификат вручную.
   * Инструмент под это уже собран и лежит НА ПРОДЕ: `/opt/therapysto/pipeline/` содержит
     `Caddyfile.template`, `build-caddy-edge.sh`, `cutover-edge-to-caddy.sh`,
-    `rollback-edge-to-nginx.sh`, health-таймер и unit-файлы. Caddy берёт wildcard по DNS-01 через
-    модуль REG.RU, а домены клиник — по on-demand с fail-closed `ask`. Ни один шаг не выполнен:
+    `rollback-edge-to-nginx.sh`, health-таймер и unit-файлы. Ни один шаг не выполнен:
     `systemctl is-active caddy` → `inactive`, `/opt/therapysto/env/caddy.prod` отсутствует.
-  * **Единственный вход — действие владельца в личном кабинете REG.RU** (репозиторий этого сделать
-    не может): включить REG.API для аккаунта, добавить `135.106.187.95` в список разрешённых
-    адресов, выпустить логин и пароль API. Дальше `cutover-edge-to-caddy.sh` требует ровно шесть
-    ключей в `/opt/therapysto/env/caddy.prod` (`root:caddy`, `0640`): `CADDY_ACME_EMAIL`,
-    `CADDY_PLATFORM_DOMAINS`, `CADDY_REGRU_USERNAME`, `CADDY_REGRU_PASSWORD`, `CADDY_ASK_URL`,
-    `CADDY_UPSTREAM`.
+    🔴 На прод положена СТАРАЯ, wildcard-версия этих файлов — их обязан обновить деплой ДО cutover,
+    иначе Caddy потребует несуществующие креды REG.RU и не поднимется.
+  * **Что осталось для cutover после снятия wildcard:** четыре ключа в
+    `/opt/therapysto/env/caddy.prod` (`root:caddy`, `0640`): `CADDY_ACME_EMAIL`,
+    `CADDY_PLATFORM_DOMAINS`, `CADDY_ASK_URL`, `CADDY_UPSTREAM`. Никаких учётных данных
+    регистратора. Само действие — на проде, поэтому оно за владельцем: выкатка и запуск края.
   * Расхождение в документации: `docs/_TODO/CUSTOM_DOMAIN_TLS_EDGE_RUNBOOK_2026-09-07.md` и
     `deploy/env/.env.caddy.prod.example` называют путь `/opt/bersoncarebot/env/caddy.prod`, а на
     хосте корень — `/opt/therapysto`, и установленный скрипт читает
@@ -972,9 +985,15 @@ identity seam, а не набор getters.
   «а какого хуя не берсон точка терапиго точка ру? Мы же под домены делали для того, чтобы слаги не
   после были»). Замер: `clinicBookingUrl` в `apps/webapp/src/app/app/settings/page.tsx:106` строит
   `${PATIENT_DEFAULT_SURFACE.origin}/book/<slug>`, то есть ровно ту форму, от которой решение 22.08
-  уходило. Правка — одна функция, но выпускать её можно ТОЛЬКО вместе с `B7`: до wildcard-сертификата
-  ссылка вида `<slug>.therapygo.ru` работает лишь у тех клиник, чьё имя вручную попало в именной
-  сертификат, а у остальных даёт ошибку TLS вместо страницы записи.
+  уходило. Правка — одна функция, но выпускать её можно ТОЛЬКО после того, как край переведён на
+  Caddy (`B7` в новой редакции). Причина не в wildcard, а в том, что сегодня край — это nginx с
+  ИМЕННЫМ списком сертификата: у клиники, чьё имя в этот список не попало вручную, ссылка
+  `<slug>.therapygo.ru` даст ошибку TLS вместо страницы записи. После cutover это исчезает само:
+  дверь `onDemandTlsAuthorization.ts` одобряет поддомен любой активной клиники, и сертификат
+  выпускается при первом обращении.
+  Проверка перед выпуском (не «тест зелёный», а живой замер): открыть `<slug>.therapygo.ru` у
+  клиники, которой ТОЧНО нет в именном сертификате, и получить страницу записи, а не предупреждение
+  браузера.
 - [ ] `B8` **Self-service подключение собственного домена клиники** (§1.2, решение владельца 07.09.2026):
   - кабинет принимает базовый домен и выбор «домен целиком под приложение» / «на домене уже есть сайт»;
   - server-side write path вычисляет exact hostname: `clinic.ru` либо `app.clinic.ru`, не доверяя готовому
