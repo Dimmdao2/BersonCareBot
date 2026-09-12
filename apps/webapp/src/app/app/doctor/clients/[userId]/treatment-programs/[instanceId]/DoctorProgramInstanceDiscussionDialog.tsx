@@ -10,6 +10,7 @@ import { sendDoctorProgramDiscussionReply } from './doctorProgramDiscussionReply
 import { deleteDoctorProgramDiscussionMediaMessage } from './doctorProgramDiscussionDeleteMedia';
 import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
 import { useMessagePolling } from '@/modules/messaging/hooks/useMessagePolling';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 export type DoctorProgramInstanceDiscussionItemOption = {
   id: string;
@@ -216,7 +217,7 @@ export function DoctorProgramInstanceDiscussionDialog(props: {
               await loadPage(null, false, generation);
             } catch {
               if (generation === loadGenerationRef.current) {
-                toast.error('Ответ отправлен, но список не обновился. Откройте обсуждение заново.');
+                toast.error(notificationText.otvetOtpravlenNoSpisok);
               }
             }
             return { ok: true as const };
@@ -233,7 +234,7 @@ export function DoctorProgramInstanceDiscussionDialog(props: {
             } catch {
               if (generation === loadGenerationRef.current) {
                 toast.error(
-                  'Файл удалён из чата, но список не обновился. Откройте обсуждение заново.',
+                  notificationText.faylUdalenIzChata,
                 );
               }
             }

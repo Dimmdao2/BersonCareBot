@@ -15,6 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/shared/ui/doctor/primitives/select';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 type PlatformCredentialKey =
   | 'telegram_bot_token'
@@ -80,7 +81,7 @@ export function PlatformTelegramCredentialsSection() {
         }
       })
       .catch(() => {
-        if (active) toast.error('Не удалось загрузить учётные данные Telegram');
+        if (active) toast.error(notificationText.neUdalosZagruzitUchetnye);
       });
     return () => {
       active = false;
@@ -112,7 +113,7 @@ export function PlatformTelegramCredentialsSection() {
       if (!response.ok || body.ok !== true) throw new Error('save_failed');
     } catch {
       setMode(previous);
-      toast.error('Не удалось сохранить режим Telegram');
+      toast.error(notificationText.neUdalosSohranitRezhim);
     } finally {
       setSavingMode(false);
     }

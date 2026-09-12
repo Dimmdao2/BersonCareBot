@@ -10,6 +10,7 @@ import { patientInlineLinkClass } from '@/shared/ui/patient/patientVisual';
 import { cn } from '@/lib/utils';
 import toast from 'react-hot-toast';
 import { PatientConfirmModal } from '@/shared/ui/patient/PatientConfirmModal';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 const CANCEL_MSG: Record<string, string> = {
   cancel_free: 'Отмена без штрафа',
@@ -134,7 +135,7 @@ export function CabinetBookingActions({ row }: Props) {
               );
               return;
             }
-            toast.success('Запись отменена');
+            toast.success(notificationText.zapisOtmenena);
             setCancelMessage(null);
             router.refresh();
           });

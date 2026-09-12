@@ -19,6 +19,7 @@ import {
   normalizeOperatorAlertFallbackEmail,
   type OperatorAlertFallbackEmailError,
 } from '@/modules/operator-alerts/operatorAlertFallbackEmail';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 export type OperatorHealthAlertsSectionProps = {
   initialConfig: OperatorHealthAlertConfig;
@@ -139,7 +140,7 @@ export function OperatorHealthAlertsSection({
         return;
       }
       setFallbackEmail(checkedFallbackEmail.value);
-      toast.success('Сохранено');
+      toast.success(notificationText.sohraneno);
     });
   }
 

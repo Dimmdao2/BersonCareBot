@@ -23,6 +23,7 @@ import { cn } from '@/lib/utils';
 import { patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
 import { PatientHomeWellbeingWeekStrip } from './PatientHomeWellbeingWeekStrip';
 import { PatientHomeMoodScoreRow } from './PatientHomeMoodScoreRow';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 type Props = {
   personalTierOk: boolean;
@@ -69,7 +70,7 @@ export function PatientHomeMoodCheckin({
     newLast: PatientMoodLastEntry | null,
   ) {
     if (!newLast) {
-      toast.success('Сохранено');
+      toast.success(notificationText.sohraneno);
       return;
     }
     const added = !previousLast || previousLast.id !== newLast.id;
@@ -115,7 +116,7 @@ export function PatientHomeMoodCheckin({
       setSelectedScore(previousSelected);
       setSavedScore(previousSaved);
       setLastEntry(previousLast);
-      toast.error('Не удалось сохранить, попробуйте позже.');
+      toast.error(notificationText.neUdalosSohranitPoprobuytePozzhe);
       return false;
     } finally {
       setSubmittingScore(null);

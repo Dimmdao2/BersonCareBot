@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/pri
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { DoctorField } from '@/shared/ui/doctor/DoctorField';
 import { patchAdminSetting } from './patchAdminSetting';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 export type WebPushVapidSectionProps = {
   initialPublicKey: string;
@@ -48,17 +49,17 @@ export function WebPushVapidSection({
           privateKey: privateKeyInput,
         });
         if (!ok) {
-          toast.error('Не удалось сохранить');
+          toast.error(notificationText.neUdalosSohranit);
           return;
         }
         if (trimmedPriv.length > 0) {
           setHasPrivate(true);
         }
         setPrivateKeyInput('');
-        toast.success('Сохранено');
+        toast.success(notificationText.sohraneno);
         router.refresh();
       } catch {
-        toast.error('Ошибка при сохранении');
+        toast.error(notificationText.oshibkaPriSohranenii);
       }
     });
   }

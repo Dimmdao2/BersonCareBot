@@ -18,6 +18,7 @@ import {
   FAIL_CLOSED_AUTH_CHANNEL_UI_POLICY,
   type AuthChannelUiPolicy,
 } from '@/modules/auth/otpChannelUi';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 const POLL_MS = 4000;
 
@@ -106,7 +107,7 @@ export function PatientBrowserMessengerBindPanel({
           if (data.manualCommand) {
             try {
               await navigator.clipboard.writeText(data.manualCommand);
-              toast.success('Команда скопирована — вставьте её в чат с ботом в Max');
+              toast.success(notificationText.komandaSkopirovanaVstavteEe);
             } catch {
               toast('Скопируйте команду вручную в чат с ботом в Max');
             }

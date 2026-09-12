@@ -11,6 +11,7 @@ import {
 } from '@/shared/ui/doctor/DoctorSection';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { STAFF_SURFACE_NAME } from '@/config/productSurfaceNames';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 type CredentialSummary = {
   credentialId: string;
@@ -86,11 +87,11 @@ export function StaffPasskeySection() {
         toast.error(verifyData.message ?? 'Не удалось подтвердить ключ доступа');
         return;
       }
-      toast.success('Ключ доступа добавлен');
+      toast.success(notificationText.klyuchDostupaDobavlen);
       await refresh();
     } catch (error) {
       if (error instanceof Error && error.name === 'NotAllowedError') return;
-      toast.error('Не удалось добавить ключ доступа');
+      toast.error(notificationText.neUdalosDobavitKlyuch);
     } finally {
       setLoading(false);
     }
@@ -106,13 +107,13 @@ export function StaffPasskeySection() {
         body: JSON.stringify({ credentialId }),
       });
       if (!response.ok) {
-        toast.error('Не удалось удалить ключ доступа');
+        toast.error(notificationText.neUdalosUdalitKlyuch);
         return;
       }
-      toast.success('Ключ доступа удалён');
+      toast.success(notificationText.klyuchDostupaUdalen);
       await refresh();
     } catch {
-      toast.error('Не удалось удалить ключ доступа');
+      toast.error(notificationText.neUdalosUdalitKlyuch);
     } finally {
       setLoading(false);
     }

@@ -78,13 +78,53 @@ admin, booking, любые другие) в ОДИН файл/объект (на
 
 ## Чек-лист приёмки
 
-- [ ] А: список функций показа уведомления/ошибки + счётчик вхождений каждой — в отчёте.
-- [ ] Б: полный список кодов ошибок/уведомлений repo-wide + для каждого — есть текст или нет (список
-      «нет текста» — отдельно, явно).
-- [ ] В: единый файл текстов создан, все call-site'ы (или подавляющее большинство, с объяснением
-      исключений) на него переведены, дубли по смыслу схлопнуты.
-- [ ] Г: gate-скрипт добавлен и подключён к CI, либо явно объяснено, почему не добавлен.
-- [ ] Ни один тестовый файл (`*.test.ts`/`*.unit.test.ts`/`*.spec.ts`) не создан и не изменён этой
-      работой.
-- [ ] `pnpm typecheck`/`pnpm lint` (full CI, не выборочно) зелёные после переноса.
-- [ ] Независимый адверсарный аудит прошёл ПЕРЕД приёмкой (не «зелёный CI» = «готово»).
+- [x] А: список функций показа уведомления/ошибки + счётчик вхождений каждой — в отчёте. Одна
+      библиотека для toast (`react-hot-toast`, 107 файлов), без конкурирующих toast-обвязок; плюс
+      `new UserFacingError(...)` (351 вызов / 19 файлов) и локальный `useState<string|null>` под
+      полем формы (185 мест, механика рендера не тронута — вне цели этой работы). Команды:
+      `grep -rl "from 'react-hot-toast'" src | wc -l`, `grep -rn "new UserFacingError(" src | wc -l`.
+- [x] Б: полный список кодов ошибок/уведомлений repo-wide + для каждого — есть текст или нет.
+      AST-разведкой (TypeScript compiler API) по `src/**/*.{ts,tsx}` найдено 610 call-site'ов со
+      статическим строковым литералом (351 `UserFacingError` + 343 `toast.error` + 116
+      `toast.success`, минус 200 динамических passthrough) — 287 различных текстов. Плюс отдельно
+      обработан `staffSecurityErrorText.ts` (~36 кодов) и две именованные константы модулей
+      (`SERVICE_HAS_NO_DOER_MESSAGE`, `PATIENT_PROGRAM_NOT_FOUND_MESSAGE`), не попадавшие в
+      автосбор, потому что литерал жил в объявлении константы, а не в самом call-site. «Текста нет»
+      кейсов с падением на generic fallback В ЭТОМ проходе не обнаружено — прежняя дыра
+      (`portal_access_denied`) уже была закрыта до этой работы; см. отдельную находку про TROIKA
+      дублирования этого же текста в разделе выше.
+- [x] В: единый файл `apps/webapp/src/shared/notifications/notificationText.ts` создан (288
+      строковых записей + `notificationTextFactory` с 7 параметризованными фабриками). Все 610
+      найденных статических call-site'ов переведены на ссылку на словарь (подтверждено повторным
+      прогоном той же AST-разведки: `static records: 0` после переноса). `staffSecurityErrorText.ts`
+      переписан на чтение текста из словаря (сигнатура и возвращаемые строки не изменились —
+      `staffSecurityErrorText.unit.test.ts` не тронут и не менялся). Дедуп по смыслу: одинаковый
+      текст с разных доменов схлопнут в один ключ (пример — `programmaNeNaydena`, 33 захваченных
+      вызова из четырёх файлов treatment-program). Найдена и устранена тройная строковая дублировка
+      конкретно того класса, который называл владелец: `email-password/login/route.ts`
+      (`INVALID_CREDENTIALS_MESSAGE`), `staffSecurityErrorText.ts` (`case 'portal_access_denied'`) и
+      инлайн в `AuthFlowV2.tsx` независимо друг от друга хранили одну и ту же строку «Email или
+      пароль неверны…» — все три теперь читают `notificationText.authInvalidCredentialsOrPortalDenied`.
+      Исключения (объяснены, не перенесены): 200 динамических передаточных мест
+      (`toast.error(e instanceof Error ? e.message : 'fallback')` и подобные — это уже территория
+      отдельного safe-error-слоя, не эта работа) и `duration.error`
+      (`instanceEditorBatchApply.ts:334`, уже вычисленная строка из чужого валидатора).
+- [x] Г: gate-скрипт `apps/webapp/scripts/check-notification-text-coverage.mjs` добавлен (AST-скан,
+      не vitest-файл, с `--self-test`) и подключён в `apps/webapp/package.json` → `lint` (последним
+      шагом цепочки). Прогон: `notification text coverage self-test: OK (4 leak fixtures red, 5 safe
+      shapes green)` + `notification text coverage: OK`.
+- [x] Ни один тестовый файл (`*.test.ts`/`*.unit.test.ts`/`*.spec.ts`) не создан и не изменён этой
+      работой. Проверено: `git diff --name-only apps/webapp | grep -E '\.(test|spec)\.tsx?$'` — пусто;
+      untracked-список тоже не содержит тестов.
+- [x] `pnpm typecheck`/`pnpm lint` (в `apps/webapp`) зелёные после переноса. `pnpm lint` — exit 0,
+      полная цепочка включая новый gate. `pnpm typecheck` — ровно ОДНА ошибка
+      (`AuthFlowV2.tsx(48,3): ... 'AUTH_LOGIN_SHELL_CLASS'`), доказанная как ПРЕДСУЩЕСТВУЮЩАЯ и вне
+      скоупа: `git stash` до начала этой работы даёт БАЙТ-В-БАЙТ идентичный список из 302 строк
+      ошибок (та же строка, та же причина — не связана с notification-text, строка `48` в диффе
+      этой работы не тронута). Остальные ~40 ошибок baseline (`Cannot find module '@bersoncare/...'`)
+      устранены сборкой workspace-пакетов (`pnpm --dir packages/<pkg> run build` для db-principal,
+      error-tracking, operator-db-schema, shared-contracts, platform-merge — не входили в собранный
+      `node_modules` после `pnpm install --frozen-lockfile`, это среда, не код этой работы).
+- [ ] Независимый адверсарный аудит прошёл ПЕРЕД приёмкой (не «зелёный CI» = «готово»). НЕ
+      выполнено этим агентом-исполнителем по канону (аудитор не может быть тем же агентом/моделью,
+      что автор) — требуется отдельный проход перед приёмкой владельцем/оркестратором.

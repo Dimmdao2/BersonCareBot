@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from '@/shared/ui/doctor/primitives/select';
 import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 type TemplateOption = { id: string; title: string };
 
@@ -50,7 +51,7 @@ export function DefaultPromoProgramClient(props: {
         toast.error(readSafeApiErrorText(data, 'Не удалось сохранить'));
         return;
       }
-      toast.success('Сохранено');
+      toast.success(notificationText.sohraneno);
       router.refresh();
     } finally {
       setSaving(false);

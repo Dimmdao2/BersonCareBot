@@ -13,6 +13,7 @@ import {
 import type { OtpUiChannel } from '@/modules/auth/otpChannelUi';
 import { setPreferredAuthOtpChannelAction } from './actions';
 import { patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 export type AuthOtpOption = { code: OtpUiChannel; label: string };
 
@@ -59,7 +60,7 @@ export function AuthOtpChannelPreference({ options, initialSelection, showBindHi
                 router.refresh();
                 return;
               }
-              toast.success('Настройка сохранена');
+              toast.success(notificationText.nastroykaSohranena);
             });
           }}
           disabled={pending}

@@ -14,6 +14,7 @@ import { useMessagePolling } from '@/modules/messaging/hooks/useMessagePolling';
 import type { SerializedSupportMessage } from '@/modules/messaging/serializeSupportMessage';
 import { reconcileSupportMessages } from '@/modules/messaging/reconcileMessages';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 type DoctorChatPanelProps = {
   conversationId: string;
@@ -174,7 +175,7 @@ export function DoctorChatPanel({
       });
       const data = (await res.json()) as { ok?: boolean };
       if (!res.ok || !data.ok) {
-        toast.error('Не отправлено');
+        toast.error(notificationText.neOtpravleno);
         return;
       }
       pendingSendRef.current = null;
@@ -183,7 +184,7 @@ export function DoctorChatPanel({
       await loadMessages();
       await onSentRef.current?.();
     } catch {
-      toast.error('Ошибка сети');
+      toast.error(notificationText.oshibkaSeti);
     } finally {
       setSending(false);
     }

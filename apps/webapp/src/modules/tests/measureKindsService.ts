@@ -4,6 +4,7 @@ import type {
   MeasureKindOrderLabelUpdate,
 } from './measureKindsPorts';
 import { UserFacingError } from '@/shared/errors/userFacingError';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 export function createClinicalTestMeasureKindsService(port: ClinicalTestMeasureKindsPort) {
   return {
@@ -14,8 +15,8 @@ export function createClinicalTestMeasureKindsService(port: ClinicalTestMeasureK
       label: string,
     ): Promise<{ row: ClinicalTestMeasureKindRow; created: boolean }> {
       const t = label.trim();
-      if (!t) throw new UserFacingError('Подпись вида измерения не может быть пустой');
-      if (t.length > 500) throw new UserFacingError('Слишком длинная подпись');
+      if (!t) throw new UserFacingError(notificationText.podpisVidaIzmereniyaNe);
+      if (t.length > 500) throw new UserFacingError(notificationText.slishkomDlinnayaPodpis);
       return port.upsertMeasureKindByLabel(t);
     },
     async saveMeasureKindsOrderAndLabels(
@@ -23,22 +24,22 @@ export function createClinicalTestMeasureKindsService(port: ClinicalTestMeasureK
     ): Promise<ClinicalTestMeasureKindRow[]> {
       const current = await port.listMeasureKinds();
       if (updates.length !== current.length) {
-        throw new UserFacingError('Список устарел: обновите страницу и попробуйте снова');
+        throw new UserFacingError(notificationText.spisokUstarelObnoviteStranitsu);
       }
       const byId = new Map(current.map((r) => [r.id, r]));
       const incoming = new Set(updates.map((u) => u.id));
       for (const r of current) {
         if (!incoming.has(r.id)) {
-          throw new UserFacingError('Список устарел: обновите страницу и попробуйте снова');
+          throw new UserFacingError(notificationText.spisokUstarelObnoviteStranitsu);
         }
       }
       for (const u of updates) {
         if (!byId.has(u.id)) {
-          throw new UserFacingError('Неизвестный идентификатор вида измерения');
+          throw new UserFacingError(notificationText.neizvestnyyIdentifikatorVidaIzmereniya);
         }
         const t = u.label.trim();
-        if (!t) throw new UserFacingError('Подпись вида измерения не может быть пустой');
-        if (t.length > 500) throw new UserFacingError('Слишком длинная подпись');
+        if (!t) throw new UserFacingError(notificationText.podpisVidaIzmereniyaNe);
+        if (t.length > 500) throw new UserFacingError(notificationText.slishkomDlinnayaPodpis);
       }
       return port.saveMeasureKindsOrderAndLabels(
         updates.map((u) => ({ id: u.id, label: u.label.trim(), sortOrder: u.sortOrder })),

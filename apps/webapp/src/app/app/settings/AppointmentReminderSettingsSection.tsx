@@ -24,6 +24,7 @@ import {
   SelectValue,
 } from '@/shared/ui/doctor/primitives/select';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 export function AppointmentReminderSettingsSection({
   initialSettings,
@@ -42,9 +43,9 @@ export function AppointmentReminderSettingsSection({
           body: JSON.stringify(next),
         })) as { settings: AppointmentReminderSpecialistSettings };
         setSettings(response.settings);
-        toast.success('Сохранено');
+        toast.success(notificationText.sohraneno);
       } catch {
-        toast.error('Не удалось сохранить настройки напоминаний');
+        toast.error(notificationText.neUdalosSohranitNastroykiNapominaniy);
       }
     });
   };

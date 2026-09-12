@@ -16,17 +16,17 @@ import type {
 import { resolveBookingLocationPalette } from './locationPalette';
 import { isReservedOnlineLocationIdentity, setBuiltInOnlineLocationState } from './onlineLocation';
 import { UserFacingError } from '@/shared/errors/userFacingError';
+import { notificationText, notificationTextFactory } from '@/shared/notifications/notificationText';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Отказ включить услугу, которую никто не оказывает (#1102 §1.2, S-02). */
-export const SERVICE_HAS_NO_DOER_MESSAGE =
-  'Услугу пока некому оказывать. Назначьте специалиста и филиал, в котором он принимает.';
+export const SERVICE_HAS_NO_DOER_MESSAGE = notificationText.serviceHasNoDoerMessage;
 const ONLINE_SLOT_MINUTE_MS = 60_000;
 const MAX_ONLINE_CHAIN_MINUTES = 8 * 60;
 
 function assertUuid(id: string, label = 'id'): void {
-  if (!UUID_RE.test(id.trim())) throw new UserFacingError(`Некорректный UUID: ${label}`);
+  if (!UUID_RE.test(id.trim())) throw new UserFacingError(notificationTextFactory.invalidUuid(label));
 }
 
 function assertAppointmentStatus(s: string): asserts s is AppointmentStatus {
@@ -45,7 +45,7 @@ function assertAppointmentStatus(s: string): asserts s is AppointmentStatus {
     'charged_to_package',
     'manual_review_required',
   ];
-  if (!statuses.includes(s)) throw new UserFacingError('Неизвестный статус записи');
+  if (!statuses.includes(s)) throw new UserFacingError(notificationText.neizvestnyyStatusZapisi);
 }
 
 type BookingEngineServiceDependencies = {
@@ -102,12 +102,12 @@ export function createBookingEngineService(
 
     async createAppointment(input: CreateAppointmentInput) {
       assertUuid(input.organizationId, 'organizationId');
-      if (!input.branchId) throw new UserFacingError('Укажите филиал');
+      if (!input.branchId) throw new UserFacingError(notificationText.ukazhiteFilial);
       assertUuid(input.branchId, 'branchId');
       const status = input.status ?? 'created';
       assertAppointmentStatus(status);
       if (new Date(input.endAt).getTime() <= new Date(input.startAt).getTime()) {
-        throw new UserFacingError('Время окончания должно быть позже начала');
+        throw new UserFacingError(notificationText.vremyaOkonchaniyaDolzhnoByt);
       }
       return port.createAppointment({ ...input, status });
     },
@@ -124,7 +124,7 @@ export function createBookingEngineService(
         const startMs = new Date(input.startAt).getTime();
         const endMs = new Date(input.endAt).getTime();
         if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) {
-          throw new UserFacingError('Время окончания должно быть позже начала');
+          throw new UserFacingError(notificationText.vremyaOkonchaniyaDolzhnoByt);
         }
         if (!Number.isInteger(input.durationMinutes) || input.durationMinutes <= 0) {
           throw new Error('invalid_appointment_duration');
@@ -176,14 +176,14 @@ export function createBookingEngineService(
         if (visitedAtMs > Date.now() + 2 * 60_000) throw new Error('visit_in_future');
         return port.createManualPatientVisit(input);
       }
-      if (!input.appointment.branchId) throw new UserFacingError('Укажите филиал');
+      if (!input.appointment.branchId) throw new UserFacingError(notificationText.ukazhiteFilial);
       assertUuid(input.appointment.branchId, 'branchId');
       const status = input.appointment.status ?? 'confirmed';
       assertAppointmentStatus(status);
       if (
         new Date(input.appointment.endAt).getTime() <= new Date(input.appointment.startAt).getTime()
       ) {
-        throw new UserFacingError('Время окончания должно быть позже начала');
+        throw new UserFacingError(notificationText.vremyaOkonchaniyaDolzhnoByt);
       }
       return port.createManualPatientVisit({
         ...input,
@@ -195,12 +195,12 @@ export function createBookingEngineService(
       if (inputs.length < 1) throw new Error('appointment_chain_required');
       for (const input of inputs) {
         assertUuid(input.organizationId, 'organizationId');
-        if (!input.branchId) throw new UserFacingError('Укажите филиал');
+        if (!input.branchId) throw new UserFacingError(notificationText.ukazhiteFilial);
         assertUuid(input.branchId, 'branchId');
         const status = input.status ?? 'created';
         assertAppointmentStatus(status);
         if (new Date(input.endAt).getTime() <= new Date(input.startAt).getTime()) {
-          throw new UserFacingError('Время окончания должно быть позже начала');
+          throw new UserFacingError(notificationText.vremyaOkonchaniyaDolzhnoByt);
         }
       }
       return port.createAppointmentChain(
@@ -212,7 +212,7 @@ export function createBookingEngineService(
       assertUuid(input.appointmentId, 'appointmentId');
       assertAppointmentStatus(input.toStatus);
       const current = await port.getAppointment(input.appointmentId);
-      if (!current) throw new UserFacingError('Запись не найдена');
+      if (!current) throw new UserFacingError(notificationText.zapisNeNaydena);
       assertValidAppointmentStatusTransition(current.status, input.toStatus);
       return port.transitionAppointmentStatus(input);
     },

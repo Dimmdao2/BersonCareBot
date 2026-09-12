@@ -35,6 +35,7 @@ import {
   normalizeClinicalTestScoringOrder,
 } from './clinicalTestScoring';
 import { UserFacingError } from '@/shared/errors/userFacingError';
+import { notificationText, notificationTextFactory } from '@/shared/notifications/notificationText';
 
 export type ClinicalTestWriteOptions = {
   runClinicalTestWrite?: <T>(fn: () => Promise<T>) => Promise<T>;
@@ -84,14 +85,14 @@ async function assertClinicalTestWritePayload(
         );
         const allow = assessmentKindWriteAllowSet(refItems);
         if (!allow.has(t)) {
-          throw new UserFacingError('Некорректный вид оценки');
+          throw new UserFacingError(notificationText.nekorrektnyyVidOtsenki);
         }
       }
     }
   }
   if (input.scoring !== undefined && input.scoring !== null) {
     const p = clinicalTestScoringSchema.safeParse(input.scoring);
-    if (!p.success) throw new UserFacingError('Некорректная структура scoring');
+    if (!p.success) throw new UserFacingError(notificationText.nekorrektnayaStrukturaScoring);
   }
 }
 
@@ -123,7 +124,7 @@ export function createClinicalTestsService(port: ClinicalTestsPort, references: 
       options?: ClinicalTestWriteOptions,
     ) {
       const title = input.title?.trim() ?? '';
-      if (!title) throw new UserFacingError('Название теста обязательно');
+      if (!title) throw new UserFacingError(notificationText.nazvanieTestaObyazatelno);
       const normalized = await normalizeClinicalWritePayload(
         references,
         {
@@ -148,14 +149,14 @@ export function createClinicalTestsService(port: ClinicalTestsPort, references: 
       options?: ClinicalTestWriteOptions,
     ) {
       const existing = await port.getById(id);
-      if (!existing) throw new UserFacingError('Тест не найден');
+      if (!existing) throw new UserFacingError(notificationText.testNeNayden);
       if (existing.isArchived) {
-        throw new UserFacingError('Тест в архиве. Верните из архива, чтобы редактировать.');
+        throw new UserFacingError(notificationText.testVArhiveVernite);
       }
       const patch: UpdateClinicalTestInput = { ...input };
       if (input.title !== undefined) {
         const t = input.title.trim();
-        if (!t) throw new UserFacingError('Название теста обязательно');
+        if (!t) throw new UserFacingError(notificationText.nazvanieTestaObyazatelno);
         patch.title = t;
       }
       if (input.description !== undefined) patch.description = input.description?.trim() || null;
@@ -177,7 +178,7 @@ export function createClinicalTestsService(port: ClinicalTestsPort, references: 
         existingAssessmentKind: existing.assessmentKind,
       });
       const row = await runClinicalTestWrite(options, () => port.update(id, normalized));
-      if (!row) throw new UserFacingError('Тест не найден');
+      if (!row) throw new UserFacingError(notificationText.testNeNayden);
       return row;
     },
 
@@ -230,7 +231,7 @@ export function createTestSetsService(setsPort: TestSetsPort, testsPort: Clinica
       options?: TestSetWriteOptions,
     ) {
       const title = input.title?.trim() ?? '';
-      if (!title) throw new UserFacingError('Название набора обязательно');
+      if (!title) throw new UserFacingError(notificationText.nazvanieNaboraObyazatelno);
       return runTestSetWrite(options, () =>
         setsPort.create(
           {
@@ -245,25 +246,25 @@ export function createTestSetsService(setsPort: TestSetsPort, testsPort: Clinica
 
     async updateTestSet(id: string, input: UpdateTestSetInput, options?: TestSetWriteOptions) {
       const existing = await setsPort.getById(id);
-      if (!existing) throw new UserFacingError('Набор не найден');
+      if (!existing) throw new UserFacingError(notificationText.naborNeNayden);
       if (existing.isArchived) {
-        throw new UserFacingError('Набор в архиве. Верните из архива, чтобы редактировать.');
+        throw new UserFacingError(notificationText.naborVArhiveVerniteIz);
       }
       const patch: UpdateTestSetInput = { ...input };
       if (input.title !== undefined) {
         const t = input.title.trim();
-        if (!t) throw new UserFacingError('Название набора обязательно');
+        if (!t) throw new UserFacingError(notificationText.nazvanieNaboraObyazatelno);
         patch.title = t;
       }
       if (input.description !== undefined) patch.description = input.description?.trim() || null;
       if (input.publicationStatus !== undefined) {
         if (input.publicationStatus !== 'draft' && input.publicationStatus !== 'published') {
-          throw new UserFacingError('Некорректный статус публикации');
+          throw new UserFacingError(notificationText.nekorrektnyyStatusPublikatsii);
         }
         patch.publicationStatus = input.publicationStatus;
       }
       const row = await runTestSetWrite(options, () => setsPort.update(id, patch));
-      if (!row) throw new UserFacingError('Набор не найден');
+      if (!row) throw new UserFacingError(notificationText.naborNeNayden);
       return row;
     },
 
@@ -304,9 +305,9 @@ export function createTestSetsService(setsPort: TestSetsPort, testsPort: Clinica
       options?: TestSetWriteOptions,
     ) {
       const set = await setsPort.getById(testSetId);
-      if (!set) throw new UserFacingError('Набор не найден');
+      if (!set) throw new UserFacingError(notificationText.naborNeNayden);
       if (set.isArchived) {
-        throw new UserFacingError('Набор в архиве. Верните из архива, чтобы менять состав.');
+        throw new UserFacingError(notificationText.naborVArhiveVernite);
       }
 
       const sorted = [...items].sort((a, b) => a.sortOrder - b.sortOrder);
@@ -319,7 +320,7 @@ export function createTestSetsService(setsPort: TestSetsPort, testsPort: Clinica
       const seen = new Set<string>();
       for (const it of normalized) {
         if (seen.has(it.testId)) {
-          throw new UserFacingError('Один и тот же тест не может входить в набор дважды');
+          throw new UserFacingError(notificationText.odinITotZhe);
         }
         seen.add(it.testId);
       }
@@ -328,9 +329,9 @@ export function createTestSetsService(setsPort: TestSetsPort, testsPort: Clinica
         const test = await testsPort.getById(it.testId, {
           includePlatformBase: options?.includePlatformBase === true,
         });
-        if (!test) throw new UserFacingError(`Тест не найден: ${it.testId}`);
+        if (!test) throw new UserFacingError(notificationTextFactory.testNotFoundById(it.testId));
         if (test.isArchived)
-          throw new UserFacingError(`Тест архивирован и не может входить в набор: ${test.title}`);
+          throw new UserFacingError(notificationTextFactory.testArchivedCannotBeInSet(test.title));
       }
 
       await runTestSetWrite(options, () => setsPort.replaceItems(testSetId, normalized));

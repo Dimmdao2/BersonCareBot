@@ -41,6 +41,7 @@ import {
   patientMutedTextClass,
   patientSectionTitleClass,
 } from '@/shared/ui/patient/patientVisual';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 type FormField = {
   fieldKey: string;
@@ -320,7 +321,7 @@ export function ConfirmStepClient({
   /** Shared by the direct create and, for the public widget, the post-code create (A-3). */
   function onBookingCreated(booking: PatientBookingRecord) {
     if (booking.status === 'awaiting_payment') {
-      toast.success('Требуется оплата');
+      toast.success(notificationText.trebuetsyaOplata);
       const payPath = buildAwaitingPaymentHref
         ? buildAwaitingPaymentHref(booking)
         : `/app/patient/booking/pay?bookingId=${encodeURIComponent(booking.id)}`;
@@ -438,7 +439,7 @@ export function ConfirmStepClient({
               })
               .then((result) => {
                 if (!result.ok) return;
-                toast.success('Запись перенесена');
+                toast.success(notificationText.zapisPerenesena);
                 router.push(successRedirectPath);
               });
             return;

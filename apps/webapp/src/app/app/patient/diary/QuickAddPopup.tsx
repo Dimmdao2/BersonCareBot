@@ -26,6 +26,7 @@ import {
   patientCaptionTextClass,
   patientSectionTitleClass,
 } from '@/shared/ui/patient/patientVisual';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 type Props = {
   trackings: { id: string; title: string }[];
@@ -79,7 +80,7 @@ export function QuickAddPopup({ trackings, complexes }: Props) {
     startSymTransition(async () => {
       const result = await addSymptomEntry(formData);
       if (result.ok) {
-        toast.success('Запись сохранена');
+        toast.success(notificationText.zapisSohranena);
         lastSavedRef.current = { trackingId, entryType: 'instant', at: Date.now() };
         notifyDiarySymptomEntrySaved();
         setPendingDuplicate(null);
@@ -126,7 +127,7 @@ export function QuickAddPopup({ trackings, complexes }: Props) {
                   const fd = new FormData(e.currentTarget);
                   const trackingId = String(fd.get('trackingId') ?? '').trim();
                   if (!trackingId || symValue === null) {
-                    toast.error('Выберите симптом и значение');
+                    toast.error(notificationText.vyberiteSimptomIZnachenie);
                     return;
                   }
                   if (shouldConfirmInstantDuplicate(lastSavedRef.current, trackingId, 'instant')) {
@@ -194,7 +195,7 @@ export function QuickAddPopup({ trackings, complexes }: Props) {
                   startLfkTransition(async () => {
                     const result = await markLfkSession(fd);
                     if (result.ok) {
-                      toast.success('Занятие отмечено');
+                      toast.success(notificationText.zanyatieOtmecheno);
                       setOpen(false);
                     } else {
                       toast.error(result.message ?? 'Не удалось отметить занятие');

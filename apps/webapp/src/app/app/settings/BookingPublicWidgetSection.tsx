@@ -11,6 +11,7 @@ import {
   DoctorSectionTitle,
 } from '@/shared/ui/doctor/DoctorSection';
 import { buildPublicBookingWidgetOutputs } from '@/shared/publicBook/adminWidgetUrls';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 const OVERVIEW = '/api/admin/booking-engine/overview';
 
@@ -56,9 +57,9 @@ export function BookingPublicWidgetSection() {
   async function copyText(text: string) {
     try {
       await navigator.clipboard.writeText(text);
-      toast.success('Код скопирован в буфер обмена');
+      toast.success(notificationText.kodSkopirovanVBufer);
     } catch {
-      toast.error('Не удалось скопировать код');
+      toast.error(notificationText.neUdalosSkopirovatKod);
     }
   }
 

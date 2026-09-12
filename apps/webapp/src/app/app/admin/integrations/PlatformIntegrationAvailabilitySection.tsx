@@ -15,6 +15,7 @@ import {
   type PlatformIntegrationAvailability,
   type PlatformIntegrationId,
 } from '@/modules/system-settings/platformIntegrationAvailability';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 const SETTING_KEY = 'platform_integration_availability' as const;
 
@@ -39,7 +40,7 @@ export function PlatformIntegrationAvailabilitySection() {
         setLoaded(true);
       })
       .catch(() => {
-        if (active) toast.error('Не удалось загрузить глобальные рубильники интеграций');
+        if (active) toast.error(notificationText.neUdalosZagruzitGlobalnye);
       });
     return () => {
       active = false;
@@ -65,7 +66,7 @@ export function PlatformIntegrationAvailabilitySection() {
       if (!response.ok || !data.ok) throw new Error('save_failed');
     } catch {
       setAvailability(previous);
-      toast.error('Не удалось сохранить рубильник интеграции');
+      toast.error(notificationText.neUdalosSohranitRubilnik);
     } finally {
       setSaving(null);
     }

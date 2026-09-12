@@ -16,6 +16,7 @@ import {
   DropdownMenuTrigger,
 } from '@/shared/ui/doctor/primitives/dropdown-menu';
 import { cn } from '@/lib/utils';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 type Page = {
   id: string;
@@ -62,7 +63,7 @@ export function ContentLifecycleDropdown({ page }: { page: Page }) {
         }
         router.refresh();
       } catch {
-        toast.error('Не удалось применить действие');
+        toast.error(notificationText.neUdalosPrimenitDeystvie);
       }
     });
   };

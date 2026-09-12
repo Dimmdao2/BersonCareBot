@@ -9,6 +9,7 @@ import { DoctorSectionActions } from '@/shared/ui/doctor/DoctorSection';
 import { DoctorField } from '@/shared/ui/doctor/DoctorField';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Switch } from '@/shared/ui/doctor/primitives/switch';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 type Props = Readonly<{
   initialEnabled: boolean;
@@ -44,9 +45,9 @@ export function ErrorTrackingSettingsSection({ initialEnabled, hasStoredDsn }: P
         }
         setStored(body.config?.hasStoredDsn === true);
         setDsn('');
-        toast.success('Сохранено. Новая конфигурация применяется после перезапуска процессов.');
+        toast.success(notificationText.sohranenoNovayaKonfiguratsiyaPrimenyaetsya);
       } catch {
-        toast.error('Не удалось сохранить');
+        toast.error(notificationText.neUdalosSohranit);
       }
     });
   }

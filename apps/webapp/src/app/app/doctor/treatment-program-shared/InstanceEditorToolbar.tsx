@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import type { TreatmentProgramInstanceStatus } from '@/modules/treatment-program/types';
 import { isProgramInstanceEditLocked } from './programInstanceMutationGuard';
 import { useInstanceEditorDraft } from './InstanceEditorDraftContext';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 function findScrollParent(element: HTMLElement): HTMLElement | null {
   let parent = element.parentElement;
@@ -70,7 +71,7 @@ export function InstanceEditorToolbar(props: {
   const handleSave = () => {
     void saveDraft().then((r) => {
       if (r.ok) {
-        toast.success('Изменения сохранены');
+        toast.success(notificationText.izmeneniyaSohraneny);
       } else if (!r.cancelled && r.error) {
         toast.error(r.error);
       }

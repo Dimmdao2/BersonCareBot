@@ -17,6 +17,7 @@ import {
   resolveBookingLocationPalette,
   type BookingLocationPalette,
 } from '@/modules/booking-engine/locationPalette';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 export function PlatformLocationPaletteSection() {
   const [palette, setPalette] = useState<BookingLocationPalette>(DEFAULT_BOOKING_LOCATION_PALETTE);
@@ -41,7 +42,7 @@ export function PlatformLocationPaletteSection() {
         setLoaded(true);
       })
       .catch(() => {
-        if (active) toast.error('Не удалось загрузить цвета локаций');
+        if (active) toast.error(notificationText.neUdalosZagruzitTsveta);
       });
     return () => {
       active = false;
@@ -92,9 +93,9 @@ export function PlatformLocationPaletteSection() {
       });
       const data = (await response.json().catch(() => ({}))) as { ok?: boolean };
       if (!response.ok || !data.ok) throw new Error('save_failed');
-      toast.success('Цвета локаций сохранены');
+      toast.success(notificationText.tsvetaLokatsiySohraneny);
     } catch {
-      toast.error('Не удалось сохранить цвета локаций');
+      toast.error(notificationText.neUdalosSohranitTsveta);
     } finally {
       setSaving(false);
     }

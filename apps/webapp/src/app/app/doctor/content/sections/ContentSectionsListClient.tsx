@@ -44,6 +44,7 @@ import {
 import { SectionDeleteDialog } from './SectionDeleteDialog';
 import toast from 'react-hot-toast';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 export type SectionListRow = {
   id: string;
@@ -319,7 +320,7 @@ export function ContentSectionsListClient({
           }
         } catch {
           setItems(previous);
-          toast.error('Не удалось изменить порядок разделов');
+          toast.error(notificationText.neUdalosIzmenitPoryadokRazdelov);
         }
       });
       return next;
@@ -336,7 +337,7 @@ export function ContentSectionsListClient({
           toast.error(res.error ?? 'Не удалось изменить видимость раздела');
         }
       } catch {
-        toast.error('Не удалось изменить видимость раздела');
+        toast.error(notificationText.neUdalosIzmenitVidimost);
       }
     });
   }, []);
@@ -351,7 +352,7 @@ export function ContentSectionsListClient({
           toast.error(res.error ?? 'Не удалось изменить доступ к разделу');
         }
       } catch {
-        toast.error('Не удалось изменить доступ к разделу');
+        toast.error(notificationText.neUdalosIzmenitDostupK);
       }
     });
   }, []);

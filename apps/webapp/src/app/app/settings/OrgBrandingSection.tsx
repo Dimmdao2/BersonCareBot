@@ -32,6 +32,7 @@ import {
   ORGANIZATION_NAME_TOO_LONG_CODE,
   ORGANIZATION_NAME_TOO_LONG_MESSAGE,
 } from '@/shared/lib/organizationName';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 type Props = {
   brandingMutationAvailable: boolean;
@@ -241,7 +242,7 @@ function ClinicBotControls({
                       destinationChatId: destinationChatId.trim(),
                     },
                   });
-                  toast.success('Настройки бота сохранены');
+                  toast.success(notificationText.nastroykiBotaSohraneny);
                 } catch (cause) {
                   toast.error(
                     cause instanceof Error && cause.message.trim()
@@ -345,7 +346,7 @@ export function OrgBrandingSection({
     const result = await patchAdminSettingWithResult('clinic_uses_own_patient_app', next);
     if (!result.ok) {
       setUsesOwnPatientApp(previous);
-      toast.error('Не удалось сохранить настройку. Повторите попытку.');
+      toast.error(notificationText.neUdalosSohranitNastroykuPovtorite);
     }
     setSavingOwnApp(false);
   }

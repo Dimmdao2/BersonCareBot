@@ -9,6 +9,7 @@ import {
 } from '@/shared/ui/doctor/DoctorSection';
 import { Label } from '@/shared/ui/doctor/primitives/label';
 import { Switch } from '@/shared/ui/doctor/primitives/switch';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 export function ClinicStaffSecuritySection({ initialRequired }: { initialRequired: boolean }) {
   const [required, setRequired] = useState(initialRequired);
@@ -26,11 +27,11 @@ export function ClinicStaffSecuritySection({ initialRequired }: { initialRequire
       });
       const body = (await response.json().catch(() => null)) as { ok?: boolean } | null;
       if (!response.ok || !body?.ok) {
-        toast.error('Не удалось сохранить настройку безопасности');
+        toast.error(notificationText.neUdalosSohranitNastroykuBezopasnosti);
         return;
       }
       setRequired(next);
-      toast.success('Настройка безопасности сохранена');
+      toast.success(notificationText.nastroykaBezopasnostiSohranena);
     });
   };
 

@@ -24,6 +24,7 @@ import {
   type SurfaceAuthControl,
 } from '@/modules/auth/surfaceAuthSettings';
 import type { SurfaceAuthPolicyName } from '@/shared/lib/surface/requestSurface';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 type PolicyKey = keyof AuthChannelUiPolicy;
 const UNSUPPORTED_CLIENT_FALLBACK_KEY = 'patient_unsupported_client_fallback_enabled' as const;
@@ -157,7 +158,7 @@ export function PlatformAuthChannelPolicySection() {
         setLoaded(true);
       })
       .catch(() => {
-        if (active) toast.error('Не удалось загрузить настройки способов входа');
+        if (active) toast.error(notificationText.neUdalosZagruzitNastroyki);
       });
     return () => {
       active = false;
@@ -189,7 +190,7 @@ export function PlatformAuthChannelPolicySection() {
         ...current,
         [surface]: { ...current[surface], [control]: previous },
       }));
-      toast.error('Не удалось сохранить настройку');
+      toast.error(notificationText.neUdalosSohranitNastroyku);
     } finally {
       setSaving(null);
     }
@@ -209,7 +210,7 @@ export function PlatformAuthChannelPolicySection() {
       if (!response.ok || !data.ok) throw new Error('save_failed');
     } catch {
       setUnsupportedClientFallbackEnabled(previous);
-      toast.error('Не удалось сохранить настройку');
+      toast.error(notificationText.neUdalosSohranitNastroyku);
     } finally {
       setSaving(null);
     }

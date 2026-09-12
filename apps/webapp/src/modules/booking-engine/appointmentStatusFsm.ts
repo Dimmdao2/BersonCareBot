@@ -1,5 +1,6 @@
 import type { AppointmentStatus } from './types';
 import { UserFacingError } from '@/shared/errors/userFacingError';
+import { notificationTextFactory } from '@/shared/notifications/notificationText';
 
 export const TERMINAL_APPOINTMENT_STATUSES: ReadonlySet<AppointmentStatus> = new Set([
   'cancelled_by_patient',
@@ -102,7 +103,7 @@ export function assertValidAppointmentStatusTransition(
   if (from === to) return;
   const allowed = VALID_TRANSITIONS[from];
   if (!allowed.includes(to)) {
-    throw new UserFacingError(`Недопустимый переход статуса: ${from} → ${to}`);
+    throw new UserFacingError(notificationTextFactory.invalidStatusTransition(from, to));
   }
 }
 

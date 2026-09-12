@@ -22,6 +22,7 @@ import {
 } from '@/shared/ui/patient/patientVisual';
 import { PatientChatComposer } from '@/shared/ui/patient/PatientChatComposer';
 import { AppContentLoading } from '@/shared/ui/AppContentLoading';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 /**
  * 1:1 обращение пациента на самостоятельной странице кабинета.
@@ -146,7 +147,7 @@ export function PatientMessagesClient() {
         );
       }
     } catch {
-      toast.error('Ошибка сети');
+      toast.error(notificationText.oshibkaSeti);
     } finally {
       setSending(false);
     }

@@ -38,6 +38,7 @@ import { setContentPageRequiresAuth } from './contentPageAuthActions';
 import { reorderContentPagesInSection } from './reorderContentPages';
 import { SectionDeleteDialog } from './sections/SectionDeleteDialog';
 import toast from 'react-hot-toast';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 export type ContentPageListRow = {
   id: string;
@@ -276,7 +277,7 @@ export function ContentPagesSectionList({
             }
           } catch {
             setItems(previous);
-            toast.error('Не удалось изменить порядок материалов');
+            toast.error(notificationText.neUdalosIzmenitPoryadokMaterialov);
           }
         });
         return next;
@@ -295,7 +296,7 @@ export function ContentPagesSectionList({
           toast.error(res.error ?? 'Не удалось изменить доступ к материалу');
         }
       } catch {
-        toast.error('Не удалось изменить доступ к материалу');
+        toast.error(notificationText.neUdalosIzmenitDostup);
       }
     });
   }, []);

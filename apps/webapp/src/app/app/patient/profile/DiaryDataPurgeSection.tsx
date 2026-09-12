@@ -10,6 +10,7 @@ import { SmsCodeForm } from '@/shared/ui/patient/auth/SmsCodeForm';
 import { cn } from '@/lib/utils';
 import { patientFormLabelClass, patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
 import { usePatientTerms } from '@/shared/ui/patient/organization/PatientOrganizationContext';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 type Props = {
   phoneMasked: string | null;
@@ -51,7 +52,7 @@ export function DiaryDataPurgeSection({ phoneMasked }: Props) {
           setStep('intro');
         }
       } catch {
-        toast.error('Сеть недоступна');
+        toast.error(notificationText.setNedostupna);
         setStep('intro');
       } finally {
         setOtpLoading(false);
@@ -133,7 +134,7 @@ export function DiaryDataPurgeSection({ phoneMasked }: Props) {
                     code: data.error,
                   };
                 }
-                toast.success('Данные дневников удалены');
+                toast.success(notificationText.dannyeDnevnikovUdaleny);
                 router.refresh();
                 setStep('intro');
                 setAccepted(false);

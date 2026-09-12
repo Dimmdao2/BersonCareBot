@@ -38,6 +38,7 @@ import {
   patientMutedTextClass,
 } from '@/shared/ui/patient/patientVisual';
 import { PatientConfirmModal } from '@/shared/ui/patient/PatientConfirmModal';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 function pad2(n: number) {
   return String(n).padStart(2, '0');
@@ -211,7 +212,7 @@ export function SymptomsJournalClient(props: {
                 const fd = new FormData(form);
                 const local = fd.get('recordedAtLocal');
                 if (typeof local !== 'string' || !local) {
-                  toast.error('Укажите дату и время');
+                  toast.error(notificationText.ukazhiteDatuIVremya);
                   return;
                 }
                 fd.set('recordedAt', new Date(local).toISOString());
@@ -219,7 +220,7 @@ export function SymptomsJournalClient(props: {
                 startTransition(async () => {
                   const res = await updateSymptomJournalEntry(fd);
                   if (res.ok) {
-                    toast.success('Сохранено');
+                    toast.success(notificationText.sohraneno);
                     setEditEntry(null);
                     router.refresh();
                   } else {
@@ -288,7 +289,7 @@ export function SymptomsJournalClient(props: {
             fd.set('entryId', entryId);
             const res = await deleteSymptomJournalEntry(fd);
             if (res.ok) {
-              toast.success('Запись удалена');
+              toast.success(notificationText.zapisUdalena);
               setDeleteEntry(null);
               router.refresh();
             } else {

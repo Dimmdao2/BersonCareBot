@@ -13,6 +13,7 @@ import {
 } from '@/modules/patient-home/patientHomeDailyWarmupRotationSettings';
 import { doctorSectionCardClass, doctorSectionTitleClass } from '@/shared/ui/doctor/doctorVisual';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 type Props = {
   initialEnabled: boolean;
@@ -67,7 +68,7 @@ export function PatientHomeDailyWarmupRotationPanel(props: Props) {
         toast.error(actionFailureLine(result));
         return;
       }
-      toast.success('Сохранено');
+      toast.success(notificationText.sohraneno);
     } finally {
       setPending(false);
     }

@@ -1,6 +1,7 @@
 'use client';
 
 import toast from 'react-hot-toast';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 /**
  * Share `/app/patient` URL: Web Share API when available, otherwise clipboard + toast.
@@ -17,8 +18,8 @@ export async function shareCabinetLink(): Promise<void> {
   }
   try {
     await navigator.clipboard.writeText(url);
-    toast.success('Ссылка скопирована');
+    toast.success(notificationText.ssylkaSkopirovana);
   } catch {
-    toast.error('Не удалось скопировать ссылку');
+    toast.error(notificationText.neUdalosSkopirovatSsylku);
   }
 }

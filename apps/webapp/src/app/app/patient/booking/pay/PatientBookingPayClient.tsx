@@ -22,6 +22,7 @@ import {
 import { formatBookingDateTimeMediumRu } from '@/shared/lib/formatBusinessDateTime';
 import { PaymentLinkQrCode } from '@/shared/ui/patient/PaymentLinkQrCode';
 import toast from 'react-hot-toast';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 const POLL_MS = 4000;
 
@@ -115,7 +116,7 @@ export function PatientBookingPayClient({ bookingId, appDisplayTimeZone }: Props
 
   useEffect(() => {
     if (view === 'succeeded') {
-      toast.success('Оплата прошла');
+      toast.success(notificationText.oplataProshla);
       router.push(routePaths.patientBooking);
     }
   }, [view, router]);

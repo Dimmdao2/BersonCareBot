@@ -23,6 +23,7 @@ import { DoctorClientMembershipsPanel } from '@/app/app/doctor/clients/DoctorCli
 import type { PatientAppointmentItem } from '@/modules/doctor-clients/ports';
 import { acquiringErrorMessage } from '@/modules/patient-payments/acquiringErrorMessage';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -288,10 +289,10 @@ export function PatientTabFinances({
       setCashAmount('');
       setCashService('');
       setCashComment('');
-      toast.success('Платёж записан');
+      toast.success(notificationText.platezhZapisan);
       await fetchTimeline();
     } catch {
-      toast.error('Ошибка сети');
+      toast.error(notificationText.oshibkaSeti);
     } finally {
       setCashSubmitting(false);
     }

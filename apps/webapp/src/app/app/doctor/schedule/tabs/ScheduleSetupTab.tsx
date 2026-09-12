@@ -46,6 +46,7 @@ import {
   type DoctorSoldMembership,
 } from '@/shared/ui/doctor/DoctorSoldMembershipsModal';
 import { cn } from '@/lib/utils';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 // ---------------------------------------------------------------------------
 // Sub-nav section definition
@@ -375,11 +376,11 @@ function SectionPackages({ readOnly }: { readOnly: boolean }) {
     const priceMinor = Math.round(Number.parseFloat(priceRub.replace(',', '.')) * 100);
     const days = validityDays ? Number.parseInt(validityDays, 10) : null;
     if (!title.trim() || !Number.isFinite(priceMinor) || priceMinor < 0 || formItems.length === 0) {
-      toast.error('Заполните название, цену и добавьте хотя бы одну позицию');
+      toast.error(notificationText.zapolniteNazvanieTsenuI);
       return;
     }
     if (days !== null && (!Number.isFinite(days) || days < 1)) {
-      toast.error('Срок действия должен быть целым числом ≥ 1');
+      toast.error(notificationText.srokDeystviyaDolzhenByt);
       return;
     }
     startFormTransition(async () => {
@@ -425,7 +426,7 @@ function SectionPackages({ readOnly }: { readOnly: boolean }) {
         setSelectedCatalogPackage(null);
         load();
       } catch {
-        toast.error('Не удалось обновить абонемент');
+        toast.error(notificationText.neUdalosObnovitAbonement);
       }
     });
   }

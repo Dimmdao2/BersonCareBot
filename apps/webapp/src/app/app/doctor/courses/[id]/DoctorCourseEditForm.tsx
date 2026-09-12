@@ -39,6 +39,7 @@ import {
 import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 type TemplateOption = { id: string; title: string; status: string };
 
@@ -259,7 +260,7 @@ export function DoctorCourseEditForm({
         toast.error(readSafeApiErrorText(first, 'Не удалось сохранить'));
         return;
       }
-      toast.success('Сохранено');
+      toast.success(notificationText.sohraneno);
       router.refresh();
       if (externalUsageSnapshot === undefined) {
         void fetch(`/api/doctor/courses/${encodeURIComponent(courseId)}/usage`)
@@ -270,7 +271,7 @@ export function DoctorCourseEditForm({
           .catch(() => {});
       }
     } catch {
-      toast.error('Сеть недоступна. Попробуйте ещё раз.');
+      toast.error(notificationText.setNedostupnaPoprobuyteEsche);
     } finally {
       setPending(false);
     }
@@ -286,7 +287,7 @@ export function DoctorCourseEditForm({
       }
       setWarnOpen(false);
       setWarnUsage(null);
-      toast.success('Сохранено');
+      toast.success(notificationText.sohraneno);
       router.refresh();
       if (externalUsageSnapshot === undefined) {
         void fetch(`/api/doctor/courses/${encodeURIComponent(courseId)}/usage`)
@@ -297,7 +298,7 @@ export function DoctorCourseEditForm({
           .catch(() => {});
       }
     } catch {
-      toast.error('Сеть недоступна. Попробуйте ещё раз.');
+      toast.error(notificationText.setNedostupnaPoprobuyteEsche);
     } finally {
       setPending(false);
     }

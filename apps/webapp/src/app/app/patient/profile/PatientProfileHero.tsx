@@ -22,6 +22,7 @@ import {
   normalizeFioPart,
   type StructuredFio,
 } from '@/shared/lib/fio';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 type Props = {
   displayName: string;
@@ -61,7 +62,7 @@ export function PatientProfileHero({
     const firstName = normalizeFioPart(fioDraft.firstName);
     const patronymic = normalizeFioPart(fioDraft.patronymic);
     if (!lastName || !firstName) {
-      toast.error('Укажите фамилию и имя');
+      toast.error(notificationText.ukazhiteFamiliyuIImya);
       return;
     }
     if (
@@ -90,7 +91,7 @@ export function PatientProfileHero({
       setFioDraft(result.fio);
       setEditingFio(false);
     } catch {
-      toast.error('Не удалось сохранить');
+      toast.error(notificationText.neUdalosSohranit);
     } finally {
       setSavingFio(false);
     }

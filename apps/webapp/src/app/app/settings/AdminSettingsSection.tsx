@@ -9,6 +9,7 @@ import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
 import { LabeledSwitch } from '@/shared/ui/doctor/primitives/labeled-switch';
 import { DoctorField } from '@/shared/ui/doctor/DoctorField';
 import { patchAdminSettingsBatch } from './patchAdminSetting';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 export type AdminSettingsSectionProps = {
   importantFallbackDelayMinutes: number;
@@ -109,9 +110,9 @@ export function AdminSettingsSection({
           );
           return;
         }
-        toast.success('Сохранено');
+        toast.success(notificationText.sohraneno);
       } catch {
-        toast.error('Ошибка при сохранении');
+        toast.error(notificationText.oshibkaPriSohranenii);
       }
     });
   }

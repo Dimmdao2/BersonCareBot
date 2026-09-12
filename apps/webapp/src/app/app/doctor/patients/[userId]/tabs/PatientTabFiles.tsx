@@ -61,6 +61,7 @@ import {
   type DeviceMediaSelection,
 } from '@/shared/lib/deviceMedia';
 import { deviceMediaMultipartUploadToDestination } from '@/shared/lib/media/deviceMediaMultipartUpload';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 // ---------------------------------------------------------------------------
 // Types — match API response
@@ -788,7 +789,7 @@ export function PatientTabFiles({
       setFilePendingDelete(null);
       setDeleteUsageCount(0);
       setPreviewFileId((current) => (current === file.id ? null : current));
-      toast.success('Файл удалён. Место в хранилище освобождено.');
+      toast.success(notificationText.faylUdalenMestoV);
     } catch {
       setDeleteError('Сетевая ошибка. Файл не удалён.');
     } finally {

@@ -1,5 +1,6 @@
 import type { LfkAssignmentsPort } from './ports';
 import { UserFacingError } from '@/shared/errors/userFacingError';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 export function createLfkAssignmentsService(port: LfkAssignmentsPort) {
   return {
@@ -11,7 +12,7 @@ export function createLfkAssignmentsService(port: LfkAssignmentsPort) {
       const tid = params.templateId?.trim();
       const pid = params.patientUserId?.trim();
       if (!tid || !pid) {
-        throw new UserFacingError('Некорректные идентификаторы');
+        throw new UserFacingError(notificationText.nekorrektnyeIdentifikatory);
       }
       return port.assignPublishedTemplateToPatient({
         templateId: tid,

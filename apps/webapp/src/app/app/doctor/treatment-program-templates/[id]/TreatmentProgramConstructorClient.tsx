@@ -87,6 +87,7 @@ import type {
 import { TreatmentProgramLibraryPickerToolbar } from '@/app/app/doctor/treatment-program-shared/TreatmentProgramLibraryPickerToolbar';
 import { useTreatmentProgramLibraryPickerList } from '@/app/app/doctor/treatment-program-shared/useTreatmentProgramLibraryPickerList';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 const ITEM_TYPE_LABEL: Record<TreatmentProgramLibraryPickType, string> = {
   exercise: 'Упражнение ЛФК',
@@ -400,7 +401,7 @@ function TemplateStageItemCommentBlock({
                 return;
               }
               await onReload();
-              toast.success('Сохранено');
+              toast.success(notificationText.sohraneno);
             } finally {
               setSaving(false);
             }
@@ -567,7 +568,7 @@ export function TreatmentProgramConstructorClient({
     if (isArchived || templateBasicsBusy) return;
     const t = titleDraft.trim();
     if (!t) {
-      toast.error('Укажите название шаблона');
+      toast.error(notificationText.ukazhiteNazvanieShablona);
       setTitleDraft(detail.title);
       return;
     }
@@ -955,7 +956,7 @@ export function TreatmentProgramConstructorClient({
     const overId = pipeline[j]!.id;
     const ordered = computeOrderedStageIdsAfterPipelineMove(detail.stages, stageId, overId);
     if (!ordered) {
-      toast.error('Не удалось изменить порядок этапов');
+      toast.error(notificationText.neUdalosIzmenitPoryadokEtapov);
       return;
     }
     setBusy(true);
@@ -971,7 +972,7 @@ export function TreatmentProgramConstructorClient({
   async function handlePipelineStageDnd(activeId: string, overId: string) {
     const ordered = computeOrderedStageIdsAfterPipelineMove(detail.stages, activeId, overId);
     if (!ordered) {
-      toast.error('Не удалось изменить порядок этапов');
+      toast.error(notificationText.neUdalosIzmenitPoryadokEtapov);
       return;
     }
     setBusy(true);
@@ -990,9 +991,9 @@ export function TreatmentProgramConstructorClient({
     const plan = planStageItemDndReorder(stage.items, activeId, overId, canParticipate);
     if (!plan.ok) {
       if (plan.error === 'ungrouped_type') {
-        toast.error('Без группы допустимы только рекомендации и клинические тесты');
+        toast.error(notificationText.bezGruppyDopustimyTolko);
       } else {
-        toast.error('Не удалось изменить порядок элементов');
+        toast.error(notificationText.neUdalosIzmenitPoryadok);
       }
       return;
     }
@@ -1001,7 +1002,7 @@ export function TreatmentProgramConstructorClient({
       if (plan.needsGroupPatch) {
         const okGroup = await patchItemGroupId(activeId, plan.nextGroupId);
         if (!okGroup) {
-          toast.error('Не удалось сменить группу элемента');
+          toast.error(notificationText.neUdalosSmenitGruppu);
           return;
         }
       }
@@ -1025,7 +1026,7 @@ export function TreatmentProgramConstructorClient({
       });
       const json = (await res.json()) as { ok?: boolean };
       if (!res.ok || !json.ok) {
-        toast.error('Не удалось удалить этап');
+        toast.error(notificationText.neUdalosUdalitEtap);
         return false;
       }
       if (stageSettingsStageId === stageId) setStageSettingsStageId(null);
@@ -1155,7 +1156,7 @@ export function TreatmentProgramConstructorClient({
   async function handleDeleteGroup(groupId: string) {
     const found = detail.stages.flatMap((st) => st.groups).find((g) => g.id === groupId);
     if (found && isTreatmentProgramTemplateSystemStageGroup(found)) {
-      toast.error('Системную группу нельзя удалить');
+      toast.error(notificationText.sistemnuyuGruppuNelzyaUdalit);
       return;
     }
     if (!globalThis.confirm('Удалить группу? Элементы останутся вне группы.')) return;
@@ -1166,7 +1167,7 @@ export function TreatmentProgramConstructorClient({
       });
       const json = (await res.json()) as { ok?: boolean };
       if (!res.ok || !json.ok) {
-        toast.error('Не удалось удалить группу');
+        toast.error(notificationText.neUdalosUdalitGruppu);
         return;
       }
       await reload();
@@ -1262,19 +1263,19 @@ export function TreatmentProgramConstructorClient({
       } else {
         const rg = st.groups.find((g) => g.systemKind === 'recommendations');
         if (!rg) {
-          toast.error('Не найдена системная группа «Рекомендации» для этапа');
+          toast.error(notificationText.neNaydenaSistemnayaGruppa);
           return;
         }
         gid = rg.id;
       }
     } else if (itemType === 'clinical_test') {
       if (st.sortOrder === 0) {
-        toast.error('Клинические тесты нельзя добавлять на этап «Общие рекомендации»');
+        toast.error(notificationText.klinicheskieTestyNelzyaDobavlyat);
         return;
       }
       const tg = st.groups.find((g) => g.systemKind === 'tests');
       if (!tg) {
-        toast.error('Не найдена системная группа «Тестирование» для этапа');
+        toast.error(notificationText.neNaydenaSistemnayaGruppaTestirovanie);
         return;
       }
       gid = tg.id;
@@ -1327,7 +1328,7 @@ export function TreatmentProgramConstructorClient({
     const st = detail.stages.find((s) => s.id === itemDialogStageId);
     if (!st) return;
     if (st.sortOrder === 0) {
-      toast.error('Наборы тестов нельзя добавлять на этап «Общие рекомендации»');
+      toast.error(notificationText.naboryTestovNelzyaDobavlyat);
       return;
     }
 
@@ -1365,7 +1366,7 @@ export function TreatmentProgramConstructorClient({
     const st = detail.stages.find((s) => s.id === itemDialogStageId);
     if (!st) return;
     if (st.sortOrder === 0) {
-      toast.error('На этапе «Общие рекомендации» нельзя разворачивать комплекс ЛФК');
+      toast.error(notificationText.naEtapeObschieRekomendatsiiNelzya);
       return;
     }
 
@@ -1387,7 +1388,7 @@ export function TreatmentProgramConstructorClient({
         existingGroupId: rawGid,
       };
     } else {
-      toast.error('Выберите группу из списка');
+      toast.error(notificationText.vyberiteGruppuIzSpiska);
       return;
     }
 
@@ -1426,7 +1427,7 @@ export function TreatmentProgramConstructorClient({
       });
       const json = (await res.json()) as { ok?: boolean };
       if (!res.ok || !json.ok) {
-        toast.error('Не удалось удалить');
+        toast.error(notificationText.neUdalosUdalit);
         return;
       }
       if (itemSettingsItemId === itemId) setItemSettingsItemId(null);
@@ -2071,14 +2072,14 @@ export function TreatmentProgramConstructorClient({
                           itemSettingsContext.item.itemType !== 'clinical_test'
                         ) {
                           toast.error(
-                            'Без группы допустимы только рекомендации и клинические тесты',
+                            notificationText.bezGruppyDopustimyTolko,
                           );
                           return;
                         }
                         setBusy(true);
                         try {
                           const ok = await patchItemGroupId(itemSettingsContext.item.id, next);
-                          if (!ok) toast.error('Не удалось изменить группу');
+                          if (!ok) toast.error(notificationText.neUdalosIzmenitGruppu);
                           else await reload();
                         } finally {
                           setBusy(false);

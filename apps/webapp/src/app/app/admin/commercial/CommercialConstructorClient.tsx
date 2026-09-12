@@ -51,6 +51,7 @@ import {
 } from '@/shared/ui/doctor/primitives/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/doctor/primitives/tabs';
 import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 /** §T3 preview — sample values so an admin sees a rendered letter, not raw `{{тариф}}` tokens. */
 const MAILING_PREVIEW_VARIABLES: Record<string, string> = {
@@ -1960,7 +1961,7 @@ export function CommercialConstructorClient() {
             onSubmit={(event) => {
               event.preventDefault();
               if (!postTrialBehavior) {
-                toast.error('Выберите действие после триала');
+                toast.error(notificationText.vyberiteDeystviePosleTriala);
                 return;
               }
               void mutate(
@@ -2109,7 +2110,7 @@ export function CommercialConstructorClient() {
             onSubmit={(event) => {
               event.preventDefault();
               if (!postPaidPeriodBehavior) {
-                toast.error('Выберите действие после оплаченного периода');
+                toast.error(notificationText.vyberiteDeystviePosleOplachennogo);
                 return;
               }
               void mutate(

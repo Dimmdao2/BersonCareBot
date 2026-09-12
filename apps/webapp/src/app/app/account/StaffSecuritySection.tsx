@@ -18,6 +18,7 @@ import {
   staffSecurityNetworkErrorText,
 } from '@/shared/ui/auth/staffSecurityErrorText';
 import { PasswordAltchaChallenge } from '@/shared/ui/auth/PasswordAltchaChallenge';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 type SecurityStatus = {
   enrolled: boolean;
@@ -157,7 +158,7 @@ export function StaffSecuritySection(props: Props) {
         '/api/account/security/sessions/revoke',
       );
       if (!result.ok) return toast.error(staffSecurityErrorText(result.error, 'revoke_sessions'));
-      toast.success('Другие сеансы завершены');
+      toast.success(notificationText.drugieSeansyZaversheny);
     } catch {
       toast.error(staffSecurityNetworkErrorText('revoke_sessions'));
     }
@@ -197,7 +198,7 @@ export function StaffSecuritySection(props: Props) {
       setNewPassword('');
       setPasswordAltchaRequired(false);
       setPasswordAltchaPayload(null);
-      toast.success('Пароль изменён');
+      toast.success(notificationText.parolIzmenen);
     } catch {
       toast.error(staffSecurityNetworkErrorText('change_password'));
     } finally {

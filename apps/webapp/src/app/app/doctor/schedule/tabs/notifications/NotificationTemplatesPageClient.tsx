@@ -24,6 +24,7 @@ import {
 } from '@/modules/notif-templates/managedNotifTemplate';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 import { notifTemplateTitle, notifVariableLabels } from './notifTemplateLabels';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 type Props = Readonly<{
   endpoint: '/api/doctor/notification-templates' | '/api/admin/notification-templates';
@@ -182,7 +183,7 @@ export function NotificationTemplatesPageClient({
           metadata: { ...current.metadata, writeToken: response.template.metadata.writeToken },
         }));
       }
-      toast.success('Шаблон сохранён');
+      toast.success(notificationText.shablonSohranen);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Не удалось сохранить шаблон');
     } finally {
@@ -251,7 +252,7 @@ export function NotificationTemplatesPageClient({
             : entry,
         ),
       );
-      toast.success('Оформление сохранено');
+      toast.success(notificationText.oformlenieSohraneno);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Не удалось сохранить оформление');
     } finally {

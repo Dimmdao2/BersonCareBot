@@ -10,6 +10,7 @@ import { isMessengerMiniAppHost } from '@/shared/lib/messengerMiniApp';
 import { routePaths } from '@/app-layer/routes/paths';
 import { cn } from '@/lib/utils';
 import { patientCaptionTextClass, patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 const MAX_LEN = 4000;
 
@@ -32,11 +33,11 @@ export function PatientSupportForm({
     const em = email.trim();
     const msg = message.trim();
     if (!em) {
-      toast.error('Укажите email');
+      toast.error(notificationText.ukazhiteEmail);
       return;
     }
     if (!msg) {
-      toast.error('Введите текст сообщения');
+      toast.error(notificationText.vvediteTekstSoobscheniya);
       return;
     }
     if (msg.length > MAX_LEN) {
@@ -61,7 +62,7 @@ export function PatientSupportForm({
         message?: string;
       };
       if (res.status === 429 || data.error === 'rate_limited') {
-        toast.error('Подождите минуту перед повторной отправкой.');
+        toast.error(notificationText.podozhditeMinutuPeredPovtornoy);
         return;
       }
       if (!res.ok || !data.ok) {
@@ -71,7 +72,7 @@ export function PatientSupportForm({
       toast.success(data.message ?? 'Сообщение отправлено');
       setMessage('');
     } catch {
-      toast.error('Нет соединения с сервером. Проверьте сеть.');
+      toast.error(notificationText.netSoedineniyaSServerom);
     } finally {
       setLoading(false);
     }

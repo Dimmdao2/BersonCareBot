@@ -14,6 +14,7 @@ import {
 import { setSectionVisibility } from './sections/sectionVisibilityActions';
 import toast from 'react-hot-toast';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 // ---------------------------------------------------------------------------
 // Pane key types
@@ -197,7 +198,7 @@ export function ContentNav({
         }
       } catch {
         setVisibilityOverrides((prev) => ({ ...prev, [slug]: !nextIsVisible }));
-        toast.error('Не удалось изменить видимость раздела');
+        toast.error(notificationText.neUdalosIzmenitVidimost);
       }
     });
   }, []);

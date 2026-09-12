@@ -20,6 +20,7 @@ import { markLfkSession } from './actions';
 import { cn } from '@/lib/utils';
 import { patientCaptionTextClass, patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
 import { PatientDatePicker } from '@/shared/ui/patient/PatientDatePicker';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 type Complex = { id: string; title: string };
 
@@ -94,7 +95,7 @@ export function LfkSessionForm({ complexes }: { complexes: Complex[] }) {
       action={async (fd) => {
         const result = await markLfkSession(fd);
         if (result.ok) {
-          toast.success('Запись добавлена');
+          toast.success(notificationText.zapisDobavlena);
         } else {
           toast.error(result.message ?? 'Не удалось добавить запись');
         }

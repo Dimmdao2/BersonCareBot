@@ -27,6 +27,7 @@ import {
   SelectValue,
 } from '@/shared/ui/doctor/primitives/select';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 const EMPTY_VALUE = '__unset__';
 
@@ -169,7 +170,7 @@ export function SaasBillingProviderSettings() {
         }),
       });
       if (json.ok) applySetting(json.setting.valueJson);
-      toast.success('Сохранено');
+      toast.success(notificationText.sohraneno);
     } catch (cause) {
       toast.error(
         `Настройки не сохранены (${cause instanceof Error ? cause.message : 'network'}).`,

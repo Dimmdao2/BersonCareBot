@@ -24,6 +24,7 @@ import {
   patientSimpleCompleteDoneButtonToneClass,
   patientSurfaceSuccessClass,
 } from '@/shared/ui/patient/patientVisual';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 type Props = {
   contentPageId: string;
@@ -79,7 +80,7 @@ export function PatientContentPracticeComplete({
       };
       if (res.status === 401) {
         warmupPostGuardRef.current = false;
-        toast.error('Войдите, чтобы сохранить выполнение.');
+        toast.error(notificationText.voyditeChtobySohranitVypolnenie);
         return;
       }
       if (res.status === 403 && data.error === 'patient_activation_required') {
@@ -96,7 +97,7 @@ export function PatientContentPracticeComplete({
       setDialogOpen(true);
     } catch {
       warmupPostGuardRef.current = false;
-      toast.error('Не удалось сохранить. Попробуйте позже.');
+      toast.error(notificationText.neUdalosSohranitPoprobuyte);
     } finally {
       setPostingWarmup(false);
     }
@@ -118,7 +119,7 @@ export function PatientContentPracticeComplete({
       };
       if (res.status === 401) {
         setPickedMoodScore(null);
-        toast.error('Войдите, чтобы сохранить выполнение.');
+        toast.error(notificationText.voyditeChtobySohranitVypolnenie);
         return;
       }
       if (!res.ok || !data.ok) {
@@ -129,11 +130,11 @@ export function PatientContentPracticeComplete({
       warmupSubmittedRef.current = true;
       setDialogOpen(false);
       setSaved(true);
-      toast.success('Записано.');
+      toast.success(notificationText.zapisano);
       router.refresh();
     } catch {
       setPickedMoodScore(null);
-      toast.error('Не удалось сохранить. Попробуйте позже.');
+      toast.error(notificationText.neUdalosSohranitPoprobuyte);
     } finally {
       setSubmitting(false);
     }
@@ -158,7 +159,7 @@ export function PatientContentPracticeComplete({
       };
       if (res.status === 401) {
         setPickedMoodScore(null);
-        toast.error('Войдите, чтобы сохранить выполнение.');
+        toast.error(notificationText.voyditeChtobySohranitVypolnenie);
         return;
       }
       if (res.status === 403 && data.error === 'patient_activation_required') {
@@ -173,11 +174,11 @@ export function PatientContentPracticeComplete({
       }
       setSaved(true);
       setDialogOpen(false);
-      toast.success('Записано.');
+      toast.success(notificationText.zapisano);
       router.refresh();
     } catch {
       setPickedMoodScore(null);
-      toast.error('Не удалось сохранить. Попробуйте позже.');
+      toast.error(notificationText.neUdalosSohranitPoprobuyte);
     } finally {
       setSubmitting(false);
     }

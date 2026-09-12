@@ -21,6 +21,7 @@ import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
 import { DoctorModal, DoctorModalStackedTitle } from '@/shared/ui/doctor/DoctorModal';
 import { DoctorModalSummaryBar } from '@/shared/ui/doctor/DoctorModalSummaryBar';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 export type DoctorSoldMembership = PatientPackageListItem & { patientDisplayName: string };
 
@@ -250,7 +251,7 @@ export function DoctorSoldMembershipsModal({
                 mutationsAllowed={!readOnly}
                 nestedModals
                 onChanged={() => void load()}
-                onError={() => toast.error('Не удалось обновить абонемент')}
+                onError={() => toast.error(notificationText.neUdalosObnovitAbonement)}
               />
             </div>
           </div>

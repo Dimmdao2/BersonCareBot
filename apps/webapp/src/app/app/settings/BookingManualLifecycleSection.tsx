@@ -15,6 +15,7 @@ import {
 } from '@/shared/ui/doctor/primitives/select';
 import { BookingStaffPaymentPanel } from './BookingStaffPaymentPanel';
 import { apiJson } from '@/shared/lib/apiJson';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 const CANCEL_TYPES = [
   { value: 'free', label: 'Бесплатная' },
@@ -163,7 +164,7 @@ export function BookingManualLifecycleSection({
                         body: JSON.stringify({ decisionType: cancelType }),
                       },
                     );
-                    toast.success('Отмена применена');
+                    toast.success(notificationText.otmenaPrimenena);
                   } catch (e) {
                     toast.error(e instanceof Error ? e.message : 'error');
                   }
@@ -217,7 +218,7 @@ export function BookingManualLifecycleSection({
                         }),
                       },
                     );
-                    toast.success('Перенос применён');
+                    toast.success(notificationText.perenosPrimenen);
                   } catch (e) {
                     toast.error(e instanceof Error ? e.message : 'error');
                   }

@@ -15,6 +15,7 @@ import type {
 } from './types';
 import { lfkTemplateArchiveRequiresAcknowledgement } from './types';
 import { UserFacingError } from '@/shared/errors/userFacingError';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 export type LfkTemplateWriteOptions = {
   runTemplateWrite?: <T>(fn: () => Promise<T>) => Promise<T>;
@@ -45,7 +46,7 @@ export function createLfkTemplatesService(port: LfkTemplatesPort) {
       options?: LfkTemplateWriteOptions,
     ) {
       const title = input.title?.trim() ?? '';
-      if (!title) throw new UserFacingError('Название шаблона обязательно');
+      if (!title) throw new UserFacingError(notificationText.nazvanieShablonaObyazatelno);
       return runTemplateWrite(options, () =>
         port.create({ ...input, title, description: input.description?.trim() || null }, createdBy),
       );
@@ -57,21 +58,21 @@ export function createLfkTemplatesService(port: LfkTemplatesPort) {
       options?: LfkTemplateWriteOptions,
     ) {
       const existing = await port.getById(id);
-      if (!existing) throw new UserFacingError('Шаблон не найден');
+      if (!existing) throw new UserFacingError(notificationText.shablonNeNayden);
       if (existing.status === 'archived') {
-        throw new UserFacingError('Комплекс в архиве. Верните из архива, чтобы редактировать.');
+        throw new UserFacingError(notificationText.kompleksVArhiveVernite);
       }
       const patch: UpdateTemplateInput = { ...input };
       if (input.title !== undefined) {
         const t = input.title.trim();
-        if (!t) throw new UserFacingError('Название шаблона обязательно');
+        if (!t) throw new UserFacingError(notificationText.nazvanieShablonaObyazatelno);
         patch.title = t;
       }
       if (input.description !== undefined) {
         patch.description = input.description?.trim() || null;
       }
       const row = await runTemplateWrite(options, () => port.update(id, patch));
-      if (!row) throw new UserFacingError('Шаблон не найден');
+      if (!row) throw new UserFacingError(notificationText.shablonNeNayden);
       return row;
     },
 
@@ -81,12 +82,12 @@ export function createLfkTemplatesService(port: LfkTemplatesPort) {
       options?: LfkTemplateWriteOptions,
     ) {
       const t = await port.getById(templateId);
-      if (!t) throw new UserFacingError('Шаблон не найден');
+      if (!t) throw new UserFacingError(notificationText.shablonNeNayden);
       if (t.status === 'archived') {
-        throw new UserFacingError('Комплекс в архиве. Верните из архива, чтобы редактировать.');
+        throw new UserFacingError(notificationText.kompleksVArhiveVernite);
       }
       if (t.status === 'published' && exercises.length === 0) {
-        throw new UserFacingError('Нельзя удалить все упражнения из опубликованного шаблона');
+        throw new UserFacingError(notificationText.nelzyaUdalitVseUprazhneniya);
       }
       const normalized = exercises.map((e, idx) => ({
         ...e,
@@ -101,17 +102,17 @@ export function createLfkTemplatesService(port: LfkTemplatesPort) {
 
     async publishTemplate(id: string, options?: LfkTemplateWriteOptions) {
       const t = await port.getById(id);
-      if (!t) throw new UserFacingError('Шаблон не найден');
+      if (!t) throw new UserFacingError(notificationText.shablonNeNayden);
       if (t.status !== 'draft') {
-        throw new UserFacingError('Опубликовать можно только черновик');
+        throw new UserFacingError(notificationText.opublikovatMozhnoTolkoChernovik);
       }
       const titleOk = t.title.trim().length > 0;
-      if (!titleOk) throw new UserFacingError('Нужно название шаблона');
+      if (!titleOk) throw new UserFacingError(notificationText.nuzhnoNazvanieShablona);
       if (t.exercises.length < 1) {
-        throw new UserFacingError('Добавьте хотя бы одно упражнение');
+        throw new UserFacingError(notificationText.dobavteHotyaByOdno);
       }
       const next = await runTemplateWrite(options, () => port.setStatus(id, 'published'));
-      if (!next) throw new UserFacingError('Шаблон не найден');
+      if (!next) throw new UserFacingError(notificationText.shablonNeNayden);
       return next;
     },
 

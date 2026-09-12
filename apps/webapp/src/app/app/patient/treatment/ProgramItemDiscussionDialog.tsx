@@ -32,6 +32,7 @@ import {
   patientChatBubbleRowClass,
 } from '@/shared/ui/patient/patientChatVisual';
 import { usePatientOrganizationContext } from '@/shared/ui/patient/organization/PatientOrganizationContext';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 type DiscussionPageResponse = {
   ok?: boolean;
@@ -216,7 +217,7 @@ export function ProgramItemDiscussionDialog(props: {
       }
       void onRead?.();
     } catch {
-      toast.error('Ошибка сети');
+      toast.error(notificationText.oshibkaSeti);
     } finally {
       setSending(false);
     }

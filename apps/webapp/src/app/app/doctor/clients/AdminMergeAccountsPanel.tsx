@@ -33,6 +33,7 @@ import {
 } from './adminMergeAccountsLogic';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 type CandidateRow = {
   id: string;
@@ -427,7 +428,7 @@ export function AdminMergeAccountsPanel({
     );
     if (typed === null) return;
     if (!mergeDuplicatePrefixConfirmed(typed, preview.duplicateId)) {
-      toast.error('Первые 4 символа не совпали с UUID дубликата — merge отменён.');
+      toast.error(notificationText.pervye4SimvolaNe);
       return;
     }
 
@@ -458,7 +459,7 @@ export function AdminMergeAccountsPanel({
         toast.error(hint);
         return;
       }
-      toast.success('Объединение выполнено.');
+      toast.success(notificationText.obedinenieVypolneno);
       setSecondUserId('');
       setMergeSearchQ('');
       setMergeSearchResults([]);
