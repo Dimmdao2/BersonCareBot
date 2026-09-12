@@ -91,3 +91,14 @@ the write still fails, that is a real FAIL.
 - Commit your report before the turn ends, to
   `docs/_TODO/SAAS_FOUNDATION/EXERCISE_STORE_S0B_CONFIRMATION_AUDIT.md`, and end it with an explicit
   **«НЕ ПРОВЕРЕНО»** section (empty is allowed, absent is not) and a tally «убито N / непойманных M».
+
+## Provider substitution — read this, it changes how hard you must push
+
+The first launch of this audit died in 2.5 s with `quota_exhausted`: the codex account is spent until
+2026-09-15 04:22, so `gpt-5.6-sol` is unavailable. The lead decided EXPLICITLY (not by silent failover) to
+run this audit on the Claude provider instead, because waiting three days for a verification of an already
+live-broken-and-fixed privilege wall is worse than a same-family audit. The consequence you must compensate
+for: **the author of the fix under audit is also Claude**, so the usual cross-provider independence is
+absent. Behave accordingly — trust nothing in the candidate's commit messages, reproduce every claim with
+your own command and your own output, and prefer the live database and the live HTTP route over reading code
+that looks correct.
