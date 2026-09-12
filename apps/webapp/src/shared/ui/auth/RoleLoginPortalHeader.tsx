@@ -1,8 +1,9 @@
+import Image from 'next/image';
 import type { RoleLoginPortal } from '@/modules/auth/roleLogin';
 import { cn } from '@/lib/utils';
 
 const portalCopy: Record<
-  RoleLoginPortal,
+  Exclude<RoleLoginPortal, 'doctor' | 'admin'>,
   {
     title: string;
     description: string;
@@ -10,22 +11,11 @@ const portalCopy: Record<
     className: string;
   }
 > = {
-  doctor: {
-    title: 'Кабинет специалистов и команды клиники',
-    description: 'Войдите с рабочей учётной записью. Доступ определяется вашей ролью и организацией.',
-    alternateLabel: 'Открыть вход для пациентов',
-    className: 'border-sky-200 bg-sky-50/70',
-  },
   patient: {
     title: 'Войти в личный кабинет',
     description: 'Продолжите в приложении выбранной клиники.',
     alternateLabel: 'Открыть кабинет специалистов',
     className: 'border-emerald-200 bg-emerald-50/70',
-  },
-  admin: {
-    title: 'Управление платформой',
-    description: 'Вход только для операторов платформы Therapysto. Сотрудники клиник входят на Therapysto.',
-    className: 'border-violet-200 bg-violet-50/70',
   },
 };
 
@@ -38,6 +28,44 @@ export function RoleLoginPortalHeader({
   surfaceName: string;
   alternateHref: string | null;
 }) {
+  // Doctor-портал (вход после разлогина) — без описательного блока и без ссылки на пациентский
+  // вход: только вертикальный лого-лок-ап Therapysto (иконка + подпись уже в самом файле).
+  // Родитель (AppEntryLoginContent) центрирует всю группу по высоте — этому блоку своя
+  // вертикальная поправка не нужна — владелец, 12.09.
+  if (portal === 'doctor') {
+    return (
+      <div className="flex flex-col items-center">
+        <Image
+          src="/brand/therapysto-lockup-vertical.png"
+          alt="Therapysto"
+          width={132}
+          height={130}
+          priority
+          unoptimized
+        />
+      </div>
+    );
+  }
+
+  // Admin-портал — глобал-админ платформы, один вход без выбора режима: только сама форма, без
+  // описания и без ссылки на другой логин (владелец, 12.09: «только форма входа без всяких ссылок
+  // на другие режимы входа и лишних пояснений»). Свой mark пространства вместо общего Therapysto —
+  // тот же admin-mark-transparent-source.png, из которого уже собран admin PWA-манифест/иконки.
+  if (portal === 'admin') {
+    return (
+      <div className="flex flex-col items-center">
+        <Image
+          src="/brand/admin-mark-transparent-source.png"
+          alt="Therapysto Admin"
+          width={112}
+          height={98}
+          priority
+          unoptimized
+        />
+      </div>
+    );
+  }
+
   const copy = portalCopy[portal];
   return (
     <div className={cn('mt-2 flex flex-col gap-2 rounded-xl border p-5', copy.className)}>

@@ -28,6 +28,8 @@ import { getUnsupportedClientFallbackEnabled } from '@/modules/auth/unsupportedC
 import { parseSupportedClientEnvironment } from '@/modules/auth/supportedClientMatrix';
 import { authPolicyNameForRoleLoginPortal, type RoleLoginPortal } from '@/modules/auth/roleLogin';
 import { TherapyGoLoginShell } from '@/shared/ui/patient/auth/TherapyGoLoginShell';
+import { AdminLoginShell } from '@/shared/ui/auth/AdminLoginShell';
+import { StaffLoginShell } from '@/shared/ui/auth/StaffLoginShell';
 
 export type AppEntrySearchParams = { next?: string; t?: string; token?: string; switch?: string };
 
@@ -141,6 +143,29 @@ export async function AppEntryRsc({
         </TherapyGoLoginShell>
         {unsupportedClientFallback}
       </>
+    );
+  }
+
+  // Admin and staff each get their own shell (own file, own CSS scope) instead of sharing this
+  // generic branch by prop flags — that shared branch was exactly the "one screen, three modes"
+  // the owner named 12.09. The generic PatientAppShell below remains the fallback for the one case
+  // that is deliberately untouched right now: non-browser patient miniapp entries (owner, 12.09:
+  // "детально пациента разберём позже — оставь то, что уже видно на терапиго").
+  if (effectiveRoleLoginPortal === 'admin') {
+    return (
+      <AdminLoginShell title={shellTitle}>
+        {loginContent}
+        {unsupportedClientFallback}
+      </AdminLoginShell>
+    );
+  }
+
+  if (effectiveRoleLoginPortal === 'doctor') {
+    return (
+      <StaffLoginShell title={shellTitle}>
+        {loginContent}
+        {unsupportedClientFallback}
+      </StaffLoginShell>
     );
   }
 

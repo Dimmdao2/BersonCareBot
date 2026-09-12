@@ -1,0 +1,10 @@
+/*
+ * Admin space's own CSS scope. `display: contents` so this wrapper adds no layout box of its own
+ * (custom properties still cascade through it to PatientAppShell's children) — it exists purely as
+ * the hook for the admin palette. Structure-only pass, 12.09: no overrides yet, owner tunes colors
+ * and iconography here directly later, same mechanism TherapyGoLoginShell already uses for the
+ * patient space (local `--patient-color-primary*` overrides), without touching today's look.
+ */
+.space {
+  display: contents;
+}

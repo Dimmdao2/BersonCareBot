@@ -1,0 +1,8 @@
+/*
+ * Staff (doctor/clinic) space's own CSS scope. `display: contents` — no layout box, custom
+ * properties still cascade through. Structure-only pass, 12.09: no overrides yet; owner tunes
+ * colors/iconography here directly later, same mechanism as [[AdminLoginShell]].
+ */
+.space {
+  display: contents;
+}
