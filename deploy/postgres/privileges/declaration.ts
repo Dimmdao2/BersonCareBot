@@ -32932,9 +32932,17 @@ function revision10Database(name: Revision10DatabaseName): DatabaseDecl {
       let result = predicate
         .replace(/(?<!\(SELECT )app\.current_org_id\(\)/gu, '(SELECT app.current_org_id())')
         .replaceAll('app.is_staff()', "current_user = 'app_staff'::name");
-      if (table.org === true) result = result.replaceAll(
-        '(app.current_patient_user_id() IS NOT NULL AND ',
-        '(app.current_patient_user_id() IS NOT NULL AND "organization_id" = (SELECT app.current_org_id()) AND ');
+      // Пациентская ветка НЕ сравнивает организацию — и не может: `app.current_org_id()` законно
+      // пуст в настоящем пациентском контексте (`app.install_port_context` прямо разрешает
+      // `context_class='patient'` с `organization_id IS NULL` для `purpose='relation'`), поэтому
+      // конъюнкт `organization_id = app.current_org_id()` даёт NULL и гасит ВСЮ ветку: человек
+      // без выбранной клиники теряет ВСЕ свои собственные строки. Стена пациента — «только своё»
+      // и спрашивает личность, НИКОГДА организацию (решение владельца 2026-07-12, записано в
+      // `apps/webapp/src/app-layer/principal/withOrganizationPrincipal.ts`); мультиклинический
+      // обзор своих строк — то, ради чего это решение и принято. Инвариант A1 того же не требует:
+      // `tenant-wall.mjs` засчитывает пациентскую ветку по собственному ключу человека.
+      // Здесь стояло `if (table.org === true) result = result.replaceAll(...)` — оно и сузило
+      // 19 политик в fbbb234ab; снято независимым аудитом, доказано живьём на DEV (83 → 0 → 83).
       result = result.replaceAll('"b4f_appt"."platform_user_id" = app.current_patient_user_id()',
         '"b4f_appt"."organization_id" = (SELECT app.current_org_id()) AND "b4f_appt"."platform_user_id" = app.current_patient_user_id()');
       const hasPatientAccessor = result.includes('app.current_patient_user_id()');

@@ -1445,8 +1445,19 @@ test('patient page relations have exact self/current-clinic access and published
     assert.deepEqual(patientGrants.flatMap((grant) => grant.operations).sort(), operations, relation);
     const business = tables[relation].policies.find((policy) =>
       policy.to.includes('app_patient') && !policy.name.startsWith('rev10_context_gate_'));
+    // Пациентская ветка гейтится ЛИЧНОСТЬЮ И БОЛЬШЕ НИЧЕМ: сразу за проверкой аксессора стоит
+    // СОБСТВЕННОСТЬ строки — свой ключ человека либо EXISTS по своему же родителю, — и между ними
+    // не вклинивается никакой другой конъюнкт. Организацию пациентская ветка НЕ спрашивает:
+    // стена пациента — «только своё», по личности, НИКОГДА по организации (решение владельца
+    // 2026-07-12, записано в `apps/webapp/src/app-layer/principal/withOrganizationPrincipal.ts`).
+    // Здесь стояло требование ОБРАТНОГО — `IS NOT NULL AND "organization_id" = current_org_id()`, —
+    // заведённое тем же коммитом 0e46d8302, что и сам конъюнкт в генераторе: код вписывал его,
+    // оракул требовал его вписать, и против решения владельца эту пару не сверял никто. У человека
+    // без выбранной клиники `app.current_org_id()` пуст ЗАКОННО (`app.install_port_context` прямо
+    // разрешает `context_class='patient'` с `organization_id IS NULL` для `purpose='relation'`),
+    // поэтому такой конъюнкт даёт NULL и гасит ВСЮ ветку: человек теряет ВСЕ свои строки.
     assert.match(business?.using ?? '',
-      /app\.current_patient_user_id\(\) IS NOT NULL AND "organization_id" = \(SELECT app\.current_org_id\(\)\)/,
+      /app\.current_patient_user_id\(\) IS NOT NULL AND (?:"patient_user_id" = app\.current_patient_user_id\(\)|EXISTS \()/u,
       relation);
   }
 
