@@ -410,15 +410,20 @@ Q1 §7 держит все четыре типа с первой версии). 
   докторская (`api/media/presign/route.ts:30` — `requireDoctorWorkspaceApiContext`), вставка строки берёт
   организацию из принципала и полагается на дефолт `owner_kind='organization'`
   (`s3MediaStorage.ts:632-646`), а воркер перекодирования типизирован ненулевой организацией
-  (`apps/media-worker/src/control.ts:5`). **Уточнение 12.09 (замер на DEV, прежняя строка устарела):**
-  платформенного доступа к медиа СЕГОДНЯ НЕТ ВОВСЕ. Политика `c4d_platform_library_read` из миграции
-  `0250_c4d_platform_library_read_staff_scope.sql` в кластере не существует — `SELECT count(*) FROM
-  pg_policies WHERE policyname LIKE 'c4d_%'` даёт 0; её место занял `rev10_media_files_staff_106`
-  с предикатом `organization_id = app.current_org_id()`, то есть строка с `organization_id IS NULL`
-  специалисту не видна ни в каком виде. Живьём это пока ничего не ломает (платформенных строк в
-  `media_files` ноль, писать их некому), но комментарий `s3MediaStorage.ts:866-868` ссылается на ту же
-  исчезнувшую политику как на живой факт — поправить вместе с этим этапом. Практический вывод для S0в:
-  платформенному медиа нужна СВОЯ политика чтения, унаследовать нечего.
+  (`apps/media-worker/src/control.ts:5`). **Уточнение 12.09 (замер на DEV; правлю в том числе
+  собственную запись часом ранее — она была неточной).** Политики `c4d_platform_library_read` из миграции
+  `0250_c4d_platform_library_read_staff_scope.sql` в кластере нет: `SELECT count(*) FROM pg_policies WHERE
+  policyname LIKE 'c4d_%'` даёт 0, её место занял `rev10_media_files_staff_106` с предикатом
+  `organization_id = app.current_org_id()`. То есть **ambient-RLS не показывает платформенную строку
+  `media_files` НИ ОДНОЙ рантайм-роли**, включая `app_staff`, — но это не значит «доступа нет вовсе»:
+  чтение платформенного медиа идёт через SECURITY DEFINER-шов `app.read_platform_media_row` (владелец
+  `app_seam_patient_lfk_media_owner`), который сам аттестует роль вызывающего
+  (`app.require_attested_context_for_roles(..., ARRAY['app_patient','app_staff'])`) и прибивает
+  `owner_kind = 'platform' AND organization_id IS NULL`. Путь рабочий и для врача, и для пациента.
+  Практический вывод для S0в: **чтение медиа уже решено швом, новой политики не нужно**; работа этапа —
+  ЗАПИСЬ платформенного медиа (дверь загрузки докторская, `owner_kind` берётся дефолтом, воркер
+  типизирован ненулевой организацией). Комментарий `s3MediaStorage.ts` ссылался на исчезнувшую политику
+  как на живой факт — поправлен, причина заменена на измеренную (`fd216febd`).
 - **В админке нет ни одного экрана, который правит доменный контент**, только настройки и наблюдаемость;
   единственный прецедент переиспользования — `ScheduleNotificationsSection` с параметром `endpoint`
   (`admin/notification-templates/page.tsx:12`), и скин там тот же, не другой.
