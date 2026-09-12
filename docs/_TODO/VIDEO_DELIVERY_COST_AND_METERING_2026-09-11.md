@@ -479,9 +479,14 @@
 3. **CRF с потолком вместо жёсткого битрейта.** ✅ сделано, `wt/encoding-mode`.
 4. **Битрейт исходника хранится, и потолок ступени никогда не выше него.** Проба и потолок сделаны,
    `wt/encoding-mode`; хранение в БД — следующий этап.
-   - [ ] Колонка `source_bitrate_bps` в `media_files`: миграция + `schema.ts` + 3–7 мест в
+   - [x] Колонка `source_bitrate_bps` в `media_files`: миграция + `schema.ts` + 3–7 мест в
          `deploy/postgres/privileges/declaration.ts` + регенерация артефактов прав. **Вне скоупа
          `wt/encoding-mode`** (`apps/media-worker/src` было границей) — следующий этап.
+         Закрыто: миграция
+         `apps/webapp/db/drizzle-migrations/20260911T200000_daily_delivery_byte_metering_and_source_bitrate_column.sql`,
+         колонка `sourceBitrateBps` в `apps/webapp/db/schema/schema.ts`, права объявлены в
+         `deploy/postgres/privileges/declaration.ts` (колонка названа в двух местах — в списке колонок
+         `media_files` и в наборе колонок обновления рантайм-роли).
    - [x] Проба исходника отдаёт ширину, высоту и битрейт одним вызовом (сейчас мерит только размер кадра),
          значение уезжает в `doneHls` вместе с длительностью. Сделано: `probeVideoDimensions` (ffprobe
          `-of json` с `stream=width,height:format=bit_rate`, один вызов; `ffmpeg -i` stderr fallback тоже
