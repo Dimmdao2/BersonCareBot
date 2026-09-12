@@ -35,7 +35,6 @@ INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (750
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (697, '5a2c9214a434af91cf39734334f75796431aa396659ba37d29b11302694bdd8b', 1800000096000, '20260822T110000_the_email_verify_root_demotes_the_previous_primary');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (819, 'd53aec1b19f0d698a9758b6d14bbb54adede893e64dc245ef408e3f9b9de6c53', 1800000127000, '20260823T043206_deliver_c4_mail_profile_tenant_binding');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1448, '540e95c913e92dd5fc849b6711890e53d0b3847bb48c3145ad54430b468692de', 1800000166000, '20260827T183500_journal_retention_covers_reminder_history_and_message_log');
-INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1449, 'f1a9a4e396dfaf319122a9f4596bf4be0dc254308faab01c0b60a3935dcf8bc2', 1800000167000, '20260827T184500_delivery_health_reads_success_from_canonical_queue');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1450, '3f34a52bb8e991494c1d08a19c71bf015aea560c017bfc417b2a1f935f1c1a53', 1800000168000, '20260827T185000_operator_delivery_queue_health_exposes_confirmed_by_channel');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1451, '7099d5b83596a461107efa10a13f21b7623d5af4ad667968f8ee9831d45aff30', 1800000169000, '20260827T205400_hosted_video_covers_live_in_our_storage');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1452, '66c3de317745686e0af0d2141266b970a95ee9d3dd92605f11fd309bad694b4b', 1800000170000, '20260828T000247_close_operator_push_and_media_capability_gaps');
@@ -139,6 +138,90 @@ INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (100
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1465, '2baf6e2d603cd3e5da5904ec084e884088025dcb7c584d795ad2c03b7ba88509', 1800000179000, '20260828T222317_operator_health_digest_reads_one_bounded_window');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1471, 'cc53b0c200bf2d2d16bfd08dbde628442919584791ac8916bcdda8b7f4bdcf18', 1800000180000, '20260829T010431_operator_health_digest_names_incident_direction');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1472, 'b33391e86230d4c3c2f25755206cb555a59078d9bf858c9df14b195c7af8e168', 1800000181000, '20260829T031736_resolve_provider_incidents_after_delivery');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1673, 'bd5a7b73eb44810db38b87ef96091a23e807599afbbc27209e713aef001c1dda', 1800000225000, '20260908T120000_appointment_delivery_format');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1680, '511c6a2a0463e342bf594afbe18e143271e141b2a85092b3c729f3bf2d0adbb7', 1800000227000, '20260908T135314_video_guest_reads_organization_access');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1847, '68e039901c6454be2ac352c7ab97c38c1419a875ef11d19623576635fc711a2d', 1800000271000, '20260912T110000_the_catalog_child_gets_the_same_owner_guard_as_lfk');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1492, '3f49556f7a38aa29b972bb62c2f85daa63783e5bec0836acb92068876913ad8d', 1800000186000, '20260904T020601_a_staff_membership_sale_is_one_idempotent_money_event');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1848, '9d4dc284a5dd04ed4a192e24b830b2f42de9374246e46e65cdd9f1370721bca1', 1800000272000, '20260912T150000_the_phone_history_belongs_to_the_person_not_the_clinic');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1494, '9b80a89026962c1d972918d9799f9857fb864a4919ab8389da649e0b46de7949', 1800000187000, '20260904T123504_specialist_task_date_only_deadline');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1849, '523c7a9283099214c6ce4ba61cac381b6b0e0017363572baa40a8f36ec8cd425', 1800000273000, '20260913T090000_the_branded_address_always_opens_the_app');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1850, 'a6c7577abd32ae26c6651d6c7bf5ab853758237033df0f23a77c5ebd9c68aa81', 1800000274000, '20260913T091500_the_branded_clinic_leaves_the_shared_list');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1498, '5258baee25bbac74097135f80e276a6db2da8f7c902c19b736521b12b7263041', 1800000188000, '20260904T230000_the_acquiring_callback_settles_under_its_own_tenant');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1592, '954ede20dc4d90a620ee6aa7ecdec7697fbb03c35853657c646200b14136db0d', 1800000200000, '20260906T190000_a_stored_file_carries_the_store_it_lives_in');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1501, '500f230490c0b7ded13660a4cc0c8456a7a4aea2ee116d136ad0a51b64829620', 1800000189000, '20260904T170000_delivery_is_the_media_not_a_setting');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1593, '637b1edc243b78802a125c6a10d956bf49718d0e84b59d4e5e1d22f76404029a', 1800000201000, '20260906T191500_a_patient_submission_is_stored_encrypted');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1595, 'aebe43770556adb3c72b272e5a3286dc6ed510c1450f5ea725e882551cb35ad7', 1800000203000, '20260906T194500_a_transcode_job_names_the_store');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1675, '17b50eff963368871eef6f443eda7f80ccf89cf92b61dd47f0a82b9f8d866216', 1800000226000, '20260908T132630_video_guest_exchange_accepts_named_context');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1510, '01cc2b8b1cdcd37748bcfc9b40f4b861576c3d5db45740e96a809899962e2795', 1800000190000, '20260905T194500_the_booking_payment_webhook_settles_under_its_own_tenant');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1787, 'a8f44faa9d3ea3310a534581072efe6b8c5e70cba9585aa03a9ac534c62b3559', 1800000253000, '20260911T220000_the_booking_link_narrows_to_its_specialist');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1788, 'e7c89556bed62a106abf2fbdd1dae18987c7b5e4602bf096992608eb7b50b75d', 1800000254000, '20260911T221000_the_clinic_root_stays_an_entry_when_the_card_is_off');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1513, '2195542b39432572232d742b2fbe95423ca0389aea03a3f85d0f71d9e38d2714', 1800000191000, '20260905T120000_one_global_billing_period_price_matrix');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1597, '63176279ef437972924112740f635f199434408baf8168ab4d1e572f2b578837', 1800000204000, '20260906T213827_booking_form_uses_one_active_flag');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1517, '87dfeac35d62f2f2996fc39ded998f3381abef46f17e939dc65e7694e10541dd', 1800000192000, '20260905T233449_clinical_entries_can_be_recorded_outside_visits');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1747, '798c4570503a08b24f0f6a317a75d409e4d4078d92d0be17392f55a7ed2ac2b6', 1800000228000, '20260909T120000_native_push_targets');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1748, '20295993d4a7c4d0757862ff9b7494b651970809f0a80e73ffc874871694c270', 1800000229000, '20260909T190000_platform_delivery_audience_credentials');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1749, '9dade5000e5e47966f2d685f3529274423bfb9b91c268fc8f9dc75215fb2d767', 1800000230000, '20260909T200000_custom_domain_staff_intent_door');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1750, '5d92a8e44b2a05f4a03565dbae371a4559fa2f1dae36b57ffbad9f1fda180b11', 1800000231000, '20260910T010740_operator_health_mail_settings_capabilities');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1751, '30aefbd1f48d0d4fc10e872012dcdea879bea5c8252511824ebea5151daf2c57', 1800000232000, '20260910T023451_allow_same_org_custom_domain_reclaim');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1752, 'd4f5d1e934bc448773299f81169737c4e1fa3b1c910cfa97cdef30bbd0a10c4d', 1800000233000, '20260910T044122_fix_custom_domain_root_entry_scope');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1753, '857947ce5ccf3ee332f26f9db460570e3f86a6aea1cf6a9ff2a5fc534c13837f', 1800000234000, '20260910T100000_platform_organization_brand_domain_projection');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1543, 'd7dad40c9533eac70e33f2a7d9b1be025b611af53ddcbc58ace342b4cb491916', 1800000194000, '20260906T025405_the_disease_anamnesis_is_one_replaced_text');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1544, 'f2018931ba0505ac6dc0291b107d6dc8e23858aed12481b6347c16cae96abe0b', 1800000195000, '20260906T101500_cash_settles_an_appointment_prepayment');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1755, '57032c3d3590ae03b68d1fd7ef0811fff587dca3938f63e258a97accbb4a068e', 1800000235000, '20260910T103638_patient_home_block_icons_live_in_the_repo');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1757, '509dcff8bc1ae92b0136a2e742e4ebc125579c80bcb6ecf1ac1ef1ce6564525d', 1800000236000, '20260910T113500_clinic_app_icon_is_a_brand_field');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1758, '016b8f60a72b19bc11254deff31bd0c103d1f296607297ca0b2242ceffccf78d', 1800000237000, '20260910T142000_the_cabinet_mode_is_a_tariff_property_not_a_seat_count');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1759, 'b377ccfb7e12576ffdbc6b3777e827bb71505f65ac8b1db5d60b2d27867997ed', 1800000238000, '20260910T160500_storage_usage_counts_everything_the_account_uploaded');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1760, '8d4b366133246bb59ddfc27e77cb80b1be90461b90bd605cc23a531e43b0f097', 1800000239000, '20260910T173000_storage_packages_are_a_platform_catalog');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1551, 'ae3d7031ca8bd8de691fa5c9cc299dc9a00a6172cf9d82e8709080d37d550c65', 1800000196000, '20260906T030953_add_booking_availability_horizon');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1761, 'dff0ed184b9e17b9a1fa31e12566402bb05c66c43613199502a0c59da9da25a6', 1800000240000, '20260910T193000_a_purchased_storage_package_lives_on_the_subscription');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1762, '106522f0bbb7365643ca2cb3fe4a94f4c402ff9568a93d639926caad46338167', 1800000241000, '20260910T210000_a_storage_package_invoice_is_a_prorated_purchase');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1763, '717c32f45b9a266bbe8cc3181d40ffaa3306502626782ee5483a9fb82ee0c259', 1800000242000, '20260910T223000_the_renewal_invoice_carries_the_storage_package');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1666, 'b01f66a1b6a3d4a5dc91b4165d00ba32c53de51e43c69f26d912969abd807fbd', 1800000221000, '20260827T184500_delivery_health_reads_success_from_canonical_queue');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1667, '93a3ca11a90a1577504696f2a71c96380c163df6b2673ed31e036cd2a04f725d', 1800000222000, '20260905T233000_an_appointment_owns_its_price_and_prepayment');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1668, 'ae8561f58c0121c84918e7e50c87fd98706f9a10c00ef7f1eb49dfd45426bcb6', 1800000223000, '20260906T193000_a_delete_lease_names_the_store');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1556, '9783282fcce23ef9493258a849dc0b2af34d7a3061c844f07d37f113e5a20593', 1800000197000, '20260906T110000_an_overlap_stands_only_where_a_specialist_confirmed_that_slot');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1561, 'c97679382b48d362a1a9fefb1b629dd77486d24820228d9f2cd5cd435fc76f6f', 1800000198000, '20260906T140000_patient_booking_rows_carry_branch_timezone');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1562, 'e9c50da42fd1f1f002f0d5625f754c269a13a02f0268d8b9aad99f48e647e831', 1800000199000, '20260906T153947_staff_can_read_booking_prepayment_wait');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1611, 'bec242e8c38f3c51a87b69b4d4b6d77a62c036f332a65ca5ff14f9198f19b24a', 1800000205000, '20260907T021938_doctor_patient_support_is_organization_scoped');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1612, '36296ade77c1355cd80e37486eb2d4ffcc27f08ea70784e675dcf803abb6c2af', 1800000206000, '20260907T113850_patient_reads_workspace_composition');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1798, '37c8cf6da889cdfa1eabc2cfb7c6b0cc13949f58fd3f2bff94d73a3406524e7f', 1800000258000, '20260912T000500_the_database_knows_every_reserved_public_root');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1799, 'a7e1ccdc42aa32df0adfbc7369afaef1c11a75466ce73e47fcfff9b0e971038a', 1800000259000, '20260912T001500_the_address_snapshot_leaves_the_clinic_card');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1621, '95c9a637c1aefa1b37c28f33b34463c77927134502ec77b29eb0649c57448c34', 1800000207000, '20260907T090000_org_custom_domain_binding_core');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1625, '6988d1539162cd66f9f8181aaa7f943917bfe5c5aaa3955a78514102b192a60b', 1800000208000, '20260907T120000_doctor_patient_support_direct_chat_override');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1626, '22e16de4ef567ce743113f49330570fcce512feed5ab38c94c473d74f7dc9ebe', 1800000209000, '20260907T150000_patient_reads_workspace_client_defaults');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1628, 'e4c496e7c5608a1841ea8eb2e0eea54b4c1f6558d1d6f21d4524dc73a430aab0', 1800000210000, '20260907T180000_c3m_portal_policy_and_patient_symptom_tracking');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1630, 'fd3dc13ce4c33004c3f653df07892e7ec48eaf29c4db51d7e5a7c6e96b08ab93', 1800000211000, '20260907T141500_clinic_membership_clinical_permissions');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1648, '72b24800a9953dadac37530408da2d4d5849b2b36e6e2b89aac24f417ed2a9f3', 1800000215000, '20260907T185502_reminder_callback_returns_organization');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1649, '3e8d2703ec2b4ea2da9ed21f45a7b5a141554199a852459cf0fa1e2fe08183b5', 1800000216000, '20260907T214444_disable_staff_passwordless_channel_defaults');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1650, 'b62ab4339e91013e1c44384f432c8a58d03609d54fa646d108c6a4a8300fd7e3', 1800000217000, '20260908T011055_patient_reads_patient_label');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1810, 'fc1c0f0c8febf04e9354c2234460d18b3fce09002f5eb8cff783589ca8066910', 1800000262000, '20260911T211321_tests_recommendations_platform_ownership');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1663, '695ad3ff1ad249e23e8ff2982650ec611692059ed8adc624793e4df729dd7ce1', 1800000218000, '20260908T033000_video_meeting_core');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1664, '54953b07fbaf14aaf93292ec7ab493eaeb2bb7bad6ccd9fb1357cc728bfadd90', 1800000219000, '20260908T033001_daily_doctor_notes');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1665, '993320e406fcbaee2229a4ff36f5ea444527bd1814805173905bc91adbaf9e2a', 1800000220000, '20260908T104500_clinical_complaint_links_patient_symptom_tracking');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1670, 'f698fc2c8114f72a97d4d2b642b3a8e4376be4b807039d8a8923855aae3f5eea', 1800000224000, '20260908T074414_expose_jitsi_provider_settings_to_runtime');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1816, 'ce371d4ed6a3c28217ab8642926c911a03ea075c33e0ea4aafb08736d36d2c07', 1800000263000, '20260912T010000_the_open_retention_windows_get_their_numbers');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1819, '61cd940d96c67df509cc9898209102ef7756d913a01aef197608da4aa904fe0d', 1800000265000, '20260912T002000_expired_prepayment_cancels_patient_booking');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1823, 'a47b0b53a80ca16a21789633cc904cd92e177a539b6bcd9517fa56f5f41c5f3c', 1800000266000, '20260911T233000_patient_reads_own_booking_payment_status');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1790, '72e3f577f53c84dbf20d70d54ee1058751fde5afde87010f75392c26aa2aa247', 1800000255000, '20260911T230000_a_service_is_enabled_only_when_somebody_does_it');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1765, '06676d348900972b8e8c47f0ab647372f995ae909da17ff049c3c27163e97cea', 1800000243000, '20260910T223000_a_claimed_preview_row_says_so');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1792, 'dda7939158347db53b9c0b3215607ab803f8fc0dce6f67d003e9fd36a6cb88c2', 1800000256000, '20260911T234500_the_card_switch_stops_closing_things');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1767, '7f8e015047803d345e9e35211207c30ec951e18eea5fac6db1c21c71121f3c3d', 1800000244000, '20260910T233000_an_invite_opened_by_its_own_patient_needs_no_second_proof');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1797, '34f496e999e17bf9bbeb40ff6ce7fe3decb9ddc4ee4c7867972f43af671d9769', 1800000257000, '20260911T235500_the_clinic_card_shows_the_name_the_cabinet_edits');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1808, '3d9b0401de7c9108845a0f0be88aa207e0c2fa9763ef054477c1219e6b9f5bcc', 1800000260000, '20260911T200000_daily_delivery_byte_metering_and_source_bitrate_column');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1770, 'd6fb9d7b037e473198a72411e7770ad512d5fe9b30dc1b6e80fc8b43881acd70', 1800000245000, '20260911T003000_the_invite_doors_are_pre_session_not_patient');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1771, '24c7e9018b6618f601c4e64d6fef05cddac5613cbd3effc9189939a2d53c71dc', 1800000246000, '20260911T010000_the_redeem_doors_read_only_their_granted_columns');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1772, '70afdb737a6fdfc0d9795e6cc4c27af5c108e0c26fdb4b6261796e442363376e', 1800000247000, '20260911T020000_invite_proof_doors_stop_re_signing_what_the_port_binds');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1773, '5fa8d10623178a20d58a8a565b7a671b0618e10d83255a4f1657361114f9e075', 1800000248000, '20260911T030000_the_invite_screen_learns_whose_clinic_it_shows');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1809, '7819ae17c8ca85bd19dd59518dd35ada2754146bddafc68b9a7b21279a1205f9', 1800000261000, '20260911T211513_a_payment_link_checks_its_invoice_before_opening_provider');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1776, '3cd8d9c61542f5a5fe084dfa0fdb6bd630cbc2873009c5f0d01c68c3a90a4c14', 1800000249000, '20260911T140000_public_clinic_card_reads_live_branches');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1818, '6af8b82946a5ffc5577eb2f236f05e9c84f0145eb314a8c8f64d0956bd2577f0', 1800000264000, '20260912T012000_the_organization_names_the_appointment_word');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1827, '9c0d4a5a173eb52bbe609862163fa84b77dbda80d763d9848f9881b015080caa', 1800000267000, '20260912T003000_public_clinic_media_requires_a_standard_rendition');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1780, 'e3ca33f23cea2ebb1562ed508b615dad57905e98653ca1bd9f7a9d695ed99a54', 1800000250000, '20260911T160000_specialist_public_card');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1828, '896b9e5e95c3f2da1941b0e10e5744ec24b1e4953644534448cda5db75e2ee77', 1800000268000, '20260912T003100_platform_media_exposes_standard_rendition_state');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1829, 'd1a79ac5bdf3b5f56c60a04465006c65bc09e82dc3cad087ad649e012733bf3b', 1800000269000, '20260912T094500_booking_runtime_integer_falls_back_to_registry_default');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1783, '3d5ea2b543dcb20e9eda648a37886f4de0e9ecb60c4d1cb248f33e55ec2bd8e9', 1800000251000, '20260911T080000_exercise_load_type_becomes_a_multi_select');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1784, '57e89c13ce32ed23e21f45af5ce3d6bd0fea166e5bf06cffaa53f4c16138168e', 1800000252000, '20260911T190000_the_clinic_card_shows_services_and_its_full_description');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1831, '2d4756cd291db875792504b6cd5bb8c99f102ff0115159ae9c403d8c1e7dcd16', 1800000270000, '20260912T095500_booking_slot_snapshot_falls_back_to_registry_default');
 
 
 --
@@ -174,7 +257,7 @@ INSERT INTO public.saas_tariffs (id, name, description, price_minor, currency, m
 Возможность настроить частичную или полную предоплату
 Информационные и рекламные рассылки в пуш и на email', 150000, 'RUB', '{"promo": false, "booking": true, "courses": false, "warmups": false, "branding": false, "mailings": true, "payments": true, "cms_pages": false, "custom_domain": false, "online_intake": false, "subscriptions": true, "clinical_tests": false, "exercise_catalog": true, "specialist_tasks": false, "doctor_statistics": false, "exercise_packages": false, "external_calendar": false, "booking_prepayment": false, "patient_home_today": false, "patient_app_paid_subscription": false}', true, '2026-07-26 02:20:55.016818+03', '2026-08-01 16:05:56.944+03', 1, 'month', '{}', '{"graceDays": 21, "readOnlyDays": 7, "notifications": [], "terminalState": "read_only"}', '{}', '{}', NULL, NULL, '[]');
 INSERT INTO public.saas_tariffs (id, name, description, price_minor, currency, mechanics, is_active, created_at, updated_at, included_seats, billing_period, quotas, system_access_policy, mechanic_access_policies, downgrade_policies, additional_seat_price_minor, discounted_price_minor, mailing_templates) VALUES ('e07db366-f471-40a5-bc9b-499908636acd', 'СТАРТ', 'Все необходимое для старта. Полноценное сопровождение клиентов, назначение индивидуальных программ, защищенный чат, публичная страница и удобная запись на прием по цене меньше чем сервисы для онлайн-записи.', 80000, 'RUB', '{"promo": false, "booking": true, "courses": false, "warmups": false, "branding": false, "mailings": false, "payments": false, "cms_pages": false, "clinic_sms": false, "clinic_smtp": false, "custom_domain": false, "subscriptions": false, "clinic_max_bot": false, "exercise_catalog": true, "specialist_tasks": false, "doctor_statistics": false, "exercise_packages": true, "external_calendar": false, "booking_prepayment": false, "patient_home_today": false, "clinic_telegram_bot": false, "patient_app_paid_subscription": false}', true, '2026-07-26 02:16:33.324227+03', '2026-08-17 02:41:32.968+03', 1, 'month', '{}', NULL, '{}', '{}', NULL, NULL, '[]');
-INSERT INTO public.saas_tariffs (id, name, description, price_minor, currency, mechanics, is_active, created_at, updated_at, included_seats, billing_period, quotas, system_access_policy, mechanic_access_policies, downgrade_policies, additional_seat_price_minor, discounted_price_minor, mailing_templates) VALUES ('d1156dc6-e71e-4225-ad94-93c9d423c9e1', 'ПОЛНЫЙ ДОСТУП - РАЗРАБОТЧИК', '', 0, 'RUB', '{"promo": true, "booking": true, "courses": true, "warmups": true, "branding": true, "mailings": true, "payments": true, "cms_pages": true, "clinic_sms": true, "clinic_smtp": true, "custom_domain": true, "subscriptions": true, "clinic_max_bot": true, "exercise_catalog": true, "specialist_tasks": true, "doctor_statistics": true, "exercise_packages": true, "external_calendar": true, "booking_prepayment": true, "patient_home_today": true, "clinic_telegram_bot": true, "patient_app_paid_subscription": true, "video_meetings": true}', true, '2026-07-25 20:15:14.807477+03', '2026-08-20 01:56:09.420579+03', 1000, 'year', '{"files": {"kind": "unlimited", "unit": "bytes", "limit": null, "warningAtPercent": null}, "branches": {"kind": "unlimited", "unit": "items", "limit": null}}', NULL, '{}', '{}', NULL, NULL, '[]');
+INSERT INTO public.saas_tariffs (id, name, description, price_minor, currency, mechanics, is_active, created_at, updated_at, included_seats, billing_period, quotas, system_access_policy, mechanic_access_policies, downgrade_policies, additional_seat_price_minor, discounted_price_minor, mailing_templates) VALUES ('d1156dc6-e71e-4225-ad94-93c9d423c9e1', 'ПОЛНЫЙ ДОСТУП - РАЗРАБОТЧИК', '', 0, 'RUB', '{"promo": true, "booking": true, "courses": true, "warmups": true, "branding": true, "mailings": true, "payments": true, "cms_pages": true, "clinic_sms": true, "clinic_smtp": true, "clinic_team": false, "custom_domain": true, "subscriptions": true, "clinic_max_bot": true, "video_meetings": true, "exercise_catalog": true, "specialist_tasks": true, "doctor_statistics": true, "exercise_packages": true, "external_calendar": true, "booking_prepayment": true, "patient_home_today": true, "clinic_telegram_bot": true, "clinic_vk_community": true, "patient_app_paid_subscription": true}', true, '2026-07-25 20:15:14.807477+03', '2026-09-10 15:54:02.857+03', 1, 'year', '{"files": {"kind": "numeric", "unit": "bytes", "limit": 26843545600, "warningAtPercent": 80}, "branches": {"kind": "unlimited", "unit": "items", "limit": null}}', NULL, '{}', '{}', NULL, NULL, '[]');
 
 
 --
@@ -202,7 +285,7 @@ INSERT INTO public.saas_trial_policy (key, duration_days, start_event, post_tria
 -- Name: __drizzle_migrations_id_seq; Type: SEQUENCE SET; Schema: drizzle; Owner: -
 --
 
-SELECT pg_catalog.setval('drizzle.__drizzle_migrations_id_seq', 1484, true);
+SELECT pg_catalog.setval('drizzle.__drizzle_migrations_id_seq', 1850, true);
 
 
 --
@@ -256,7 +339,7 @@ FROM (VALUES
   ('auth_surface_platform_admin_passkey_enabled', 'admin', NULL, '{"value":true}'::jsonb, statement_timestamp(), NULL),
   ('auth_surface_platform_admin_sms_enabled', 'admin', NULL, '{"value":false}'::jsonb, statement_timestamp(), NULL),
   ('auth_surface_platform_admin_telegram_enabled', 'admin', NULL, '{"value":false}'::jsonb, statement_timestamp(), NULL),
-  ('auth_surface_staff_email_enabled', 'admin', NULL, '{"value":true}'::jsonb, statement_timestamp(), NULL),
+  ('auth_surface_staff_email_enabled', 'admin', NULL, '{"value":false}'::jsonb, statement_timestamp(), NULL),
   ('auth_surface_staff_max_enabled', 'admin', NULL, '{"value":false}'::jsonb, statement_timestamp(), NULL),
   ('auth_surface_staff_oauth_apple_enabled', 'admin', NULL, '{"value":false}'::jsonb, statement_timestamp(), NULL),
   ('auth_surface_staff_oauth_google_enabled', 'admin', NULL, '{"value":false}'::jsonb, statement_timestamp(), NULL),
@@ -278,6 +361,11 @@ FROM (VALUES
   ('google_oauth_login_redirect_uri', 'admin', NULL, '{"value":""}'::jsonb, statement_timestamp(), NULL),
   ('google_redirect_uri', 'admin', NULL, '{"value":""}'::jsonb, statement_timestamp(), NULL),
   ('important_fallback_delay_minutes', 'admin', NULL, '{"value":60}'::jsonb, statement_timestamp(), NULL),
+  ('jitsi_jwt_application_id', 'admin', NULL, '{"value":""}'::jsonb, statement_timestamp(), NULL),
+  ('jitsi_jwt_issuer', 'admin', NULL, '{"value":""}'::jsonb, statement_timestamp(), NULL),
+  ('jitsi_jwt_signing_secret', 'admin', NULL, '{"value":null}'::jsonb, statement_timestamp(), NULL),
+  ('jitsi_public_url', 'admin', NULL, '{"value":""}'::jsonb, statement_timestamp(), NULL),
+  ('jitsi_xmpp_domain', 'admin', NULL, '{"value":""}'::jsonb, statement_timestamp(), NULL),
   ('material_ratings_enabled', 'admin', NULL, '{"value":true}'::jsonb, statement_timestamp(), NULL),
   ('max_api_base_url', 'admin', NULL, '{"value":""}'::jsonb, statement_timestamp(), NULL),
   ('max_bot_api_key', 'admin', NULL, '{"value":null}'::jsonb, statement_timestamp(), NULL),
@@ -296,6 +384,8 @@ FROM (VALUES
   ('patient_program_discussion_ui_enabled', 'admin', NULL, '{"value":false}'::jsonb, statement_timestamp(), NULL),
   ('patient_unsupported_client_fallback_enabled', 'admin', NULL, '{"value":false}'::jsonb, statement_timestamp(), NULL),
   ('platform_integration_availability', 'admin', NULL, '{"value":{"version":1,"integrations":{"telegram":true,"max":true,"vk":false,"email":true,"smsc":true,"web_push":true,"google_calendar":true,"yandex_calendar":false}}}'::jsonb, statement_timestamp(), NULL),
+  ('rustore_universal_push_therapygo', 'admin', NULL, '{"value":null}'::jsonb, statement_timestamp(), NULL),
+  ('rustore_universal_push_therapysto', 'admin', NULL, '{"value":null}'::jsonb, statement_timestamp(), NULL),
   ('saas_billing_payment_provider', 'admin', NULL, '{"value":"yookassa"}'::jsonb, statement_timestamp(), NULL),
   ('smsc_api_key', 'admin', NULL, '{"value":null}'::jsonb, statement_timestamp(), NULL),
   ('smsc_base_url', 'admin', NULL, '{"value":""}'::jsonb, statement_timestamp(), NULL),
@@ -308,7 +398,18 @@ FROM (VALUES
   ('telegram_mode', 'admin', NULL, '{"value":"long_polling"}'::jsonb, statement_timestamp(), NULL),
   ('telegram_send_menu_on_button_press', 'admin', NULL, '{"value":false}'::jsonb, statement_timestamp(), NULL),
   ('telegram_webhook_secret', 'admin', NULL, '{"value":null}'::jsonb, statement_timestamp(), NULL),
-  ('video_default_delivery', 'admin', NULL, '{"value":"auto"}'::jsonb, statement_timestamp(), NULL),
+  ('therapygo_max_bot_api_key', 'admin', NULL, '{"value":null}'::jsonb, statement_timestamp(), NULL),
+  ('therapygo_max_webhook_secret', 'admin', NULL, '{"value":null}'::jsonb, statement_timestamp(), NULL),
+  ('therapygo_smtp_outbound', 'admin', NULL, '{"value":null}'::jsonb, statement_timestamp(), NULL),
+  ('therapygo_telegram_bot_token', 'admin', NULL, '{"value":null}'::jsonb, statement_timestamp(), NULL),
+  ('therapygo_telegram_mode', 'admin', NULL, '{"value":"long_polling"}'::jsonb, statement_timestamp(), NULL),
+  ('therapygo_telegram_webhook_secret', 'admin', NULL, '{"value":null}'::jsonb, statement_timestamp(), NULL),
+  ('therapysto_max_bot_api_key', 'admin', NULL, '{"value":null}'::jsonb, statement_timestamp(), NULL),
+  ('therapysto_max_webhook_secret', 'admin', NULL, '{"value":null}'::jsonb, statement_timestamp(), NULL),
+  ('therapysto_smtp_outbound', 'admin', NULL, '{"value":null}'::jsonb, statement_timestamp(), NULL),
+  ('therapysto_telegram_bot_token', 'admin', NULL, '{"value":null}'::jsonb, statement_timestamp(), NULL),
+  ('therapysto_telegram_mode', 'admin', NULL, '{"value":"long_polling"}'::jsonb, statement_timestamp(), NULL),
+  ('therapysto_telegram_webhook_secret', 'admin', NULL, '{"value":null}'::jsonb, statement_timestamp(), NULL),
   ('video_hls_new_uploads_auto_transcode', 'admin', NULL, '{"value":false}'::jsonb, statement_timestamp(), NULL),
   ('video_hls_pipeline_enabled', 'admin', NULL, '{"value":false}'::jsonb, statement_timestamp(), NULL),
   ('video_hls_reconcile_enabled', 'admin', NULL, '{"value":false}'::jsonb, statement_timestamp(), NULL),
@@ -404,6 +505,11 @@ BEGIN
     ('google_oauth_login_redirect_uri', 'admin'),
     ('google_redirect_uri', 'admin'),
     ('important_fallback_delay_minutes', 'admin'),
+    ('jitsi_jwt_application_id', 'admin'),
+    ('jitsi_jwt_issuer', 'admin'),
+    ('jitsi_jwt_signing_secret', 'admin'),
+    ('jitsi_public_url', 'admin'),
+    ('jitsi_xmpp_domain', 'admin'),
     ('material_ratings_enabled', 'admin'),
     ('max_api_base_url', 'admin'),
     ('max_bot_api_key', 'admin'),
@@ -422,6 +528,8 @@ BEGIN
     ('patient_program_discussion_ui_enabled', 'admin'),
     ('patient_unsupported_client_fallback_enabled', 'admin'),
     ('platform_integration_availability', 'admin'),
+    ('rustore_universal_push_therapygo', 'admin'),
+    ('rustore_universal_push_therapysto', 'admin'),
     ('saas_billing_payment_provider', 'admin'),
     ('smsc_api_key', 'admin'),
     ('smsc_base_url', 'admin'),
@@ -434,7 +542,18 @@ BEGIN
     ('telegram_mode', 'admin'),
     ('telegram_send_menu_on_button_press', 'admin'),
     ('telegram_webhook_secret', 'admin'),
-    ('video_default_delivery', 'admin'),
+    ('therapygo_max_bot_api_key', 'admin'),
+    ('therapygo_max_webhook_secret', 'admin'),
+    ('therapygo_smtp_outbound', 'admin'),
+    ('therapygo_telegram_bot_token', 'admin'),
+    ('therapygo_telegram_mode', 'admin'),
+    ('therapygo_telegram_webhook_secret', 'admin'),
+    ('therapysto_max_bot_api_key', 'admin'),
+    ('therapysto_max_webhook_secret', 'admin'),
+    ('therapysto_smtp_outbound', 'admin'),
+    ('therapysto_telegram_bot_token', 'admin'),
+    ('therapysto_telegram_mode', 'admin'),
+    ('therapysto_telegram_webhook_secret', 'admin'),
     ('video_hls_new_uploads_auto_transcode', 'admin'),
     ('video_hls_pipeline_enabled', 'admin'),
     ('video_hls_reconcile_enabled', 'admin'),

@@ -250,7 +250,7 @@ BEGIN
   SELECT COALESCE(
     (SELECT eo.enabled FROM public.saas_org_entitlement_overrides AS eo
      WHERE eo.organization_id = v_invite.organization_id AND eo.mechanic = 'clinic_team'),
-    (SELECT t.included_seats IS NOT NULL
+    (SELECT COALESCE((t.mechanics ->> 'clinic_team')::boolean, false)
      FROM public.be_organizations AS o
      JOIN public.saas_tariffs AS t ON t.id = o.tariff_id
      WHERE o.id = v_invite.organization_id),
@@ -774,6 +774,7 @@ DECLARE
   v_current public.be_appointments%ROWTYPE;
   v_updated public.be_appointments%ROWTYPE;
   v_original_start timestamptz;
+  v_to_status text;
   v_payload jsonb;
 BEGIN
   PERFORM app.require_accepted_context('app_seam_patient_booking_owner'::name, 'app_patient'::name, 'patient'::app.port_context_class, 'booking.patient-reschedule.apply', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg]), 'app.apply_current_patient_booking_reschedule(text)'::regprocedure);
@@ -805,6 +806,15 @@ BEGIN
     RAISE EXCEPTION 'patient reschedule catalog change denied' USING ERRCODE = '42501';
   END IF;
 
+  -- PAY-APPT-12: перенос денег не двигает, поэтому и подтверждать неоплаченное не вправе.
+  v_to_status := CASE
+    WHEN v_current.status = 'awaiting_payment'
+         AND v_current.payment_ref IS NULL
+         AND COALESCE(v_current.prepayment_paid_minor, 0) < COALESCE(v_current.prepayment_required_minor, 0)
+    THEN 'awaiting_payment'
+    ELSE 'confirmed'
+  END;
+
   v_original_start := COALESCE(v_current.original_start_at, v_current.start_at);
   UPDATE public.be_appointments
   SET start_at = v_start,
@@ -812,7 +822,7 @@ BEGIN
       duration_minutes = v_duration,
       original_start_at = v_original_start,
       reschedule_count = v_current.reschedule_count + 1,
-      status = 'confirmed',
+      status = v_to_status,
       updated_at = now()
   WHERE id = v_id
   RETURNING * INTO v_updated;
@@ -837,7 +847,7 @@ BEGIN
     FALSE, now()
   );
   v_payload := jsonb_build_object(
-    'fromStatus', v_current.status, 'toStatus', 'confirmed',
+    'fromStatus', v_current.status, 'toStatus', v_to_status,
     'fromStartAt', v_current.start_at, 'toStartAt', v_start, 'manualOverride', FALSE
   );
   INSERT INTO public.be_appointment_history_events (
@@ -1867,10 +1877,13 @@ $$;
 --
 
 CREATE FUNCTION app.cancel_patient_invite_email_proof(p_continuation_hash text, p_code_hash text) RETURNS boolean
-    LANGUAGE sql SECURITY DEFINER
+    LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog'
-    AS $$SELECT app.require_attested_context_for_roles('app_seam_patient_invite_owner'::name, ARRAY['app_patient'::name]::name[]);
-UPDATE public.patient_invites AS invite
+    AS $_$
+BEGIN
+  PERFORM app.require_accepted_context('app_seam_patient_invite_owner'::name, 'app_pre_session'::name, 'pre_session'::app.port_context_class, 'patient-invite.email-proof.cancel', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($2))::app.port_typed_arg]), 'app.cancel_patient_invite_email_proof(text,text)'::regprocedure);
+
+  UPDATE public.patient_invites AS invite
   SET proof_email_normalized = NULL,
       proof_code_hash = NULL,
       proof_started_at = NULL,
@@ -1881,9 +1894,10 @@ UPDATE public.patient_invites AS invite
   WHERE invite.continuation_hash = p_continuation_hash
     AND invite.status = 'pending'
     AND invite.proof_code_hash = p_code_hash
-    AND invite.proof_verified_at IS NULL
-  RETURNING true
-$$;
+    AND invite.proof_verified_at IS NULL;
+  RETURN FOUND;
+END
+$_$;
 
 
 --
@@ -1973,10 +1987,10 @@ $_$;
 
 
 --
--- Name: choose_organization_first_tariff(uuid, uuid); Type: FUNCTION; Schema: app; Owner: -
+-- Name: choose_organization_first_tariff(uuid, uuid, text); Type: FUNCTION; Schema: app; Owner: -
 --
 
-CREATE FUNCTION app.choose_organization_first_tariff(p_tariff_id uuid, p_actor_id uuid) RETURNS jsonb
+CREATE FUNCTION app.choose_organization_first_tariff(p_tariff_id uuid, p_actor_id uuid, p_billing_period_code text) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $$
@@ -2014,6 +2028,20 @@ BEGIN
     RAISE EXCEPTION 'tariff_not_found';
   END IF;
 
+  -- #1069 owner decision 2026-09-05 (period grid) — the pair itself must be an ACTUALLY priced
+  -- one. Whether it is currently globally selectable was already decided by the one canonical
+  -- eligibility door upstream (`scheduleOwnTariffChange` / `listActiveTariffChoices`, F-5); this
+  -- is defense in depth against a stale/forged pair reaching this seam directly, never a second
+  -- place re-deciding selectability.
+  IF NOT EXISTS (
+    SELECT 1
+    FROM public.saas_tariff_period_prices AS price
+    WHERE price.tariff_id = p_tariff_id
+      AND price.billing_period_code = p_billing_period_code
+  ) THEN
+    RAISE EXCEPTION 'saas_billing_period_not_priced_for_tariff';
+  END IF;
+
   SELECT EXISTS (
     SELECT 1
     FROM public.saas_organization_trials AS trial
@@ -2034,6 +2062,7 @@ BEGIN
     organization_id,
     saas_billing_account_id,
     tariff_id,
+    billing_period_code,
     source,
     status,
     lifecycle_state
@@ -2042,18 +2071,21 @@ BEGIN
     v_organization_id,
     v_account_id,
     p_tariff_id,
+    p_billing_period_code,
     'paid_subscription',
     'pending_payment',
     'active'
   )
   ON CONFLICT (organization_id, source) DO UPDATE
   SET tariff_id = EXCLUDED.tariff_id,
+      billing_period_code = EXCLUDED.billing_period_code,
       status = 'pending_payment',
       lifecycle_state = 'active',
       updated_at = now(),
       current_period_starts_at = NULL,
       current_period_ends_at = NULL,
       pending_tariff_id = NULL,
+      pending_billing_period_code = NULL,
       tariff_snapshot = NULL;
 
   -- Пробный период даётся организации один раз и тарифом не управляется: его длительность, точка
@@ -2107,7 +2139,7 @@ BEGIN
       jsonb_build_object(
         'reason', 'clinic first tariff choice awaits payment',
         'before', NULL,
-        'after', jsonb_build_object('tariffId', p_tariff_id)
+        'after', jsonb_build_object('tariffId', p_tariff_id, 'billingPeriodCode', p_billing_period_code)
       ),
       'ok'
     );
@@ -2132,7 +2164,7 @@ BEGIN
     jsonb_build_object(
       'reason', 'clinic first tariff choice trial',
       'before', NULL,
-      'after', jsonb_build_object('tariffId', p_tariff_id)
+      'after', jsonb_build_object('tariffId', p_tariff_id, 'billingPeriodCode', p_billing_period_code)
     ),
     'ok'
   );
@@ -2149,6 +2181,7 @@ BEGIN
       'before', NULL,
       'after', jsonb_build_object(
         'tariffId', p_tariff_id,
+        'billingPeriodCode', p_billing_period_code,
         'durationDays', v_policy.duration_days,
         'discountWindowDays', v_policy.discount_window_days,
         'startEvent', v_policy.start_event,
@@ -2273,10 +2306,10 @@ $_$;
 
 
 --
--- Name: claim_unbound_patient_invite_email(text, text, text, bigint, text); Type: FUNCTION; Schema: app; Owner: -
+-- Name: claim_unbound_patient_invite_email(text, text); Type: FUNCTION; Schema: app; Owner: -
 --
 
-CREATE FUNCTION app.claim_unbound_patient_invite_email(p_continuation_hash text, p_email_normalized text, p_authorization_nonce text, p_authorization_expires_epoch bigint, p_authorization_signature text) RETURNS TABLE(ok boolean, code text, organization_id uuid, patient_user_id uuid)
+CREATE FUNCTION app.claim_unbound_patient_invite_email(p_continuation_hash text, p_email_normalized text) RETURNS TABLE(ok boolean, code text, organization_id uuid, patient_user_id uuid)
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $_$
@@ -2289,37 +2322,28 @@ DECLARE
   v_enrollment_status text;
   v_portal_activated_at timestamptz;
   v_portal_activated_via text;
-  v_reopen boolean := false;
-  v_email text := lower(btrim(p_email_normalized));
-  v_secret text;
-  v_expected text;
-  v_now_epoch bigint := floor(extract(epoch FROM clock_timestamp()))::bigint;
+  v_reopen boolean;
+  v_email text;
 BEGIN
-  PERFORM app.require_attested_context_for_roles('app_seam_patient_invite_owner'::name, ARRAY['app_patient'::name]::name[]);
+  PERFORM app.require_accepted_context('app_seam_patient_invite_owner'::name, 'app_pre_session'::name, 'pre_session'::app.port_context_class, 'patient-invite.unbound-email.claim', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($2))::app.port_typed_arg]), 'app.claim_unbound_patient_invite_email(text,text)'::regprocedure);
+  v_reopen := false;
+  v_email := lower(btrim(p_email_normalized));
 
-  IF v_email = '' OR position('@' IN v_email) <= 1
-     OR p_authorization_nonce IS NULL OR p_authorization_nonce !~ '^[a-zA-Z0-9_.:-]{8,160}$'
-     OR p_authorization_expires_epoch <= v_now_epoch
-     OR p_authorization_expires_epoch > v_now_epoch + 60
-     OR p_authorization_signature IS NULL OR p_authorization_signature !~ '^[0-9a-fA-F]{64}$' THEN
-    RETURN QUERY SELECT false, 'invalid_invite'::text, NULL::uuid, NULL::uuid;
-    RETURN;
-  END IF;
-  SELECT secret INTO v_secret FROM app.context_signing_secrets WHERE id = true;
-  IF NOT FOUND THEN
-    RETURN QUERY SELECT false, 'invalid_invite'::text, NULL::uuid, NULL::uuid;
-    RETURN;
-  END IF;
-  v_expected := encode(app_ext.hmac(concat_ws(
-    '|', 'patient-invite-proof', 'v1', 'claim', p_authorization_nonce,
-    p_authorization_expires_epoch::text, p_continuation_hash, v_email, '', ''
-  ), v_secret, 'sha256'), 'hex');
-  IF lower(p_authorization_signature) IS DISTINCT FROM v_expected THEN
+  IF v_email = '' OR position('@' IN v_email) <= 1 THEN
     RETURN QUERY SELECT false, 'invalid_invite'::text, NULL::uuid, NULL::uuid;
     RETURN;
   END IF;
 
-  SELECT invite.* INTO v_invite
+  SELECT invite.id, invite.organization_id, invite.patient_user_id, invite.enrollment_id,
+        invite.status, invite.invited_email_normalized, invite.expires_at,
+        invite.continuation_expires_at, invite.accepted_by_platform_user_id, invite.accepted_via,
+        invite.proof_code_hash, invite.proof_email_normalized, invite.proof_expires_at,
+        invite.proof_verified_at, invite.recipient_binding
+  INTO v_invite.id, v_invite.organization_id, v_invite.patient_user_id, v_invite.enrollment_id,
+      v_invite.status, v_invite.invited_email_normalized, v_invite.expires_at,
+      v_invite.continuation_expires_at, v_invite.accepted_by_platform_user_id,
+      v_invite.accepted_via, v_invite.proof_code_hash, v_invite.proof_email_normalized,
+      v_invite.proof_expires_at, v_invite.proof_verified_at, v_invite.recipient_binding
   FROM public.patient_invites AS invite
   WHERE invite.continuation_hash = p_continuation_hash
   LIMIT 1
@@ -2374,7 +2398,8 @@ BEGIN
     RETURN QUERY SELECT false, 'organization_unavailable'::text, NULL::uuid, NULL::uuid;
     RETURN;
   END IF;
-  SELECT patient.* INTO v_patient
+  SELECT patient.id, patient.role, patient.merged_into_id
+  INTO v_patient.id, v_patient.role, v_patient.merged_into_id
   FROM public.platform_users AS patient
   WHERE patient.id = v_invite.patient_user_id
   LIMIT 1
@@ -3200,6 +3225,13 @@ DECLARE
   v_room uuid;
   v_specialist uuid;
   v_service uuid;
+  v_price_minor integer;
+  v_prepayment_mode text;
+  v_prepayment_percent_bps integer;
+  v_prepayment_amount_minor integer;
+  v_prepayment_required_minor integer;
+  v_payment_deadline_at timestamptz;
+  v_delivery_format text;
 BEGIN
   PERFORM app.require_accepted_context('app_seam_patient_booking_owner'::name, 'app_patient'::name, 'patient'::app.port_context_class, 'booking.patient-appointments.create', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg]), 'app.create_current_patient_booking_appointments(text)'::regprocedure);
   IF v_org IS NULL OR v_patient IS NULL OR jsonb_typeof(p_inputs) <> 'array'
@@ -3223,6 +3255,12 @@ BEGIN
     v_room := NULLIF(v_input ->> 'roomId', '')::uuid;
     v_specialist := NULLIF(v_input ->> 'specialistId', '')::uuid;
     v_service := NULLIF(v_input ->> 'serviceId', '')::uuid;
+    v_delivery_format := COALESCE(NULLIF(v_input ->> 'deliveryFormat', ''), 'in_person');
+    v_prepayment_mode := COALESCE(NULLIF(v_input ->> 'prepaymentMode', ''), 'disabled');
+    v_prepayment_percent_bps := NULLIF(v_input ->> 'prepaymentPercentBps', '')::integer;
+    v_prepayment_amount_minor := NULLIF(v_input ->> 'prepaymentAmountMinor', '')::integer;
+    v_prepayment_required_minor := COALESCE(NULLIF(v_input ->> 'prepaymentRequiredMinor', '')::integer, 0);
+    v_payment_deadline_at := NULLIF(v_input ->> 'paymentDeadlineAt', '')::timestamptz;
     IF NULLIF(v_input ->> 'organizationId', '')::uuid IS DISTINCT FROM v_org
        OR NULLIF(v_input ->> 'platformUserId', '')::uuid IS DISTINCT FROM v_patient
        OR v_input ->> 'source' NOT IN ('native', 'public_widget')
@@ -3230,26 +3268,24 @@ BEGIN
        OR v_start IS NULL OR v_end IS NULL OR v_end <= v_start
        OR v_duration IS NULL OR v_duration < 1
        OR extract(epoch FROM (v_end - v_start))::integer <> v_duration * 60
-       OR v_branch IS NULL OR v_specialist IS NULL OR v_service IS NULL THEN
+       OR (v_delivery_format = 'in_person' AND (v_branch IS NULL OR v_specialist IS NULL OR v_service IS NULL))
+       OR v_delivery_format NOT IN ('in_person', 'online')
+       OR v_prepayment_mode NOT IN ('disabled', 'fixed_minor', 'percent', 'full_price')
+       OR v_prepayment_required_minor < 0
+       OR (v_prepayment_percent_bps IS NOT NULL AND (v_prepayment_percent_bps < 0 OR v_prepayment_percent_bps > 10000))
+       OR (v_prepayment_amount_minor IS NOT NULL AND v_prepayment_amount_minor < 0) THEN
       RAISE EXCEPTION 'invalid current patient appointment payload' USING ERRCODE = '22023';
     END IF;
-    IF NOT EXISTS (
+    IF v_status = 'awaiting_payment'
+       AND (v_prepayment_required_minor <= 0 OR v_payment_deadline_at IS NULL) THEN
+      RAISE EXCEPTION 'invalid current patient appointment payload' USING ERRCODE = '22023';
+    END IF;
+    IF v_delivery_format = 'in_person' AND NOT EXISTS (
       SELECT 1
       FROM public.be_specialist_service_availability availability
-      JOIN public.be_specialists specialist
-        ON specialist.id = availability.specialist_id
-       AND specialist.organization_id = availability.organization_id
-       AND specialist.is_active = TRUE
-      JOIN public.be_branches branch
-        ON branch.id = availability.branch_id
-       AND branch.organization_id = availability.organization_id
-       AND branch.is_active = TRUE
-      JOIN public.be_clinic_services service
-        ON service.id = availability.service_id
-       AND service.organization_id = availability.organization_id
-       AND service.is_active = TRUE
-       AND service.public_widget_visible = TRUE
-       AND service.admin_manual_only = FALSE
+      JOIN public.be_specialists specialist ON specialist.id = availability.specialist_id AND specialist.organization_id = availability.organization_id AND specialist.is_active = TRUE
+      JOIN public.be_branches branch ON branch.id = availability.branch_id AND branch.organization_id = availability.organization_id AND branch.is_active = TRUE
+      JOIN public.be_clinic_services service ON service.id = availability.service_id AND service.organization_id = availability.organization_id AND service.is_active = TRUE AND service.public_widget_visible = TRUE AND service.admin_manual_only = FALSE
       WHERE availability.organization_id = v_org
         AND availability.branch_id = v_branch
         AND availability.specialist_id = v_specialist
@@ -3259,40 +3295,38 @@ BEGIN
     ) THEN
       RAISE EXCEPTION 'patient appointment catalog mismatch' USING ERRCODE = '42501';
     END IF;
-
-    INSERT INTO public.patient_specialist_links (
-      organization_id, patient_user_id, specialist_id, status, created_via
-    ) VALUES (v_org, v_patient, v_specialist, 'active', 'first_appointment')
-    ON CONFLICT DO NOTHING;
-
+    SELECT service.price_minor INTO v_price_minor
+      FROM public.be_clinic_services service
+     WHERE service.id = v_service AND service.organization_id = v_org;
+    IF v_price_minor IS NOT NULL AND v_prepayment_required_minor > v_price_minor THEN
+      RAISE EXCEPTION 'invalid current patient appointment payload' USING ERRCODE = '22023';
+    END IF;
+    IF v_specialist IS NOT NULL THEN
+      INSERT INTO public.patient_specialist_links (organization_id, patient_user_id, specialist_id, status, created_via)
+      VALUES (v_org, v_patient, v_specialist, 'active', 'first_appointment') ON CONFLICT DO NOTHING;
+    END IF;
     INSERT INTO public.be_appointments (
       organization_id, branch_id, room_id, specialist_id, service_id, platform_user_id,
-      start_at, end_at, duration_minutes, chain_id, chain_position, source, status,
+      start_at, end_at, duration_minutes, chain_id, chain_position, source, status, delivery_format,
       original_start_at, reschedule_count, phone_normalized, attribution_json,
-      appointment_reminder_allowed_preset_ids, appointment_reminder_preset_id,
-      appointment_reminder_selection_source, created_at, updated_at
+      appointment_reminder_allowed_preset_ids, appointment_reminder_preset_id, appointment_reminder_selection_source,
+      price_minor, price_currency, prepayment_mode, prepayment_percent_bps, prepayment_amount_minor,
+      prepayment_required_minor, prepayment_paid_minor, payment_deadline_at, created_at, updated_at
     ) VALUES (
       v_org, v_branch, v_room, v_specialist, v_service, v_patient,
       v_start, v_end, v_duration, NULLIF(v_input ->> 'chainId', '')::uuid,
-      NULLIF(v_input ->> 'chainPosition', '')::integer, v_input ->> 'source', v_status,
-      v_start, 0, NULLIF(v_input ->> 'phoneNormalized', ''),
-      COALESCE(v_input -> 'attributionJson', '{}'::jsonb),
-      COALESCE(v_input -> 'appointmentReminderAllowedPresetIds', '[]'::jsonb),
-      NULLIF(v_input ->> 'appointmentReminderPresetId', ''),
+      NULLIF(v_input ->> 'chainPosition', '')::integer, v_input ->> 'source', v_status, v_delivery_format,
+      v_start, 0, NULLIF(v_input ->> 'phoneNormalized', ''), COALESCE(v_input -> 'attributionJson', '{}'::jsonb),
+      COALESCE(v_input -> 'appointmentReminderAllowedPresetIds', '[]'::jsonb), NULLIF(v_input ->> 'appointmentReminderPresetId', ''),
       COALESCE(NULLIF(v_input ->> 'appointmentReminderSelectionSource', ''), 'specialist_default'),
-      now(), now()
+      v_price_minor, COALESCE(NULLIF(v_input ->> 'priceCurrency', ''), 'RUB'), v_prepayment_mode,
+      v_prepayment_percent_bps, v_prepayment_amount_minor, v_prepayment_required_minor, 0,
+      v_payment_deadline_at, now(), now()
     ) RETURNING * INTO v_row;
-
-    INSERT INTO public.be_appointment_history_events (
-      organization_id, appointment_id, event_type, actor_id, payload, occurred_at
-    ) VALUES (v_org, v_row.id, 'created', v_patient, jsonb_build_object('status', v_status), now());
-    INSERT INTO public.be_patient_timeline_events (
-      organization_id, platform_user_id, domain, event_type, linked_object_type,
-      linked_object_id, payload, occurred_at
-    ) VALUES (
-      v_org, v_patient, 'appointment', 'appointment_created', 'appointment', v_row.id::text,
-      jsonb_build_object('status', v_status), now()
-    );
+    INSERT INTO public.be_appointment_history_events (organization_id, appointment_id, event_type, actor_id, payload, occurred_at)
+    VALUES (v_org, v_row.id, 'created', v_patient, jsonb_build_object('status', v_status), now());
+    INSERT INTO public.be_patient_timeline_events (organization_id, platform_user_id, domain, event_type, linked_object_type, linked_object_id, payload, occurred_at)
+    VALUES (v_org, v_patient, 'appointment', 'appointment_created', 'appointment', v_row.id::text, jsonb_build_object('status', v_status), now());
     v_results := v_results || jsonb_build_array(to_jsonb(v_row));
   END LOOP;
   RETURN v_results;
@@ -3546,12 +3580,11 @@ BEGIN
 
   INSERT INTO public.media_files (
     id, owner_kind, organization_id, original_name, stored_path, mime_type, size_bytes,
-    uploaded_by, s3_key, status, folder_id, usage_purpose, video_delivery_override
+    uploaded_by, s3_key, status, folder_id, usage_purpose, storage_target
   ) VALUES (
     p_media_id, 'organization', v_organization_id, p_filename, p_key, lower(btrim(p_mime_type)),
     p_size_bytes, v_patient_user_id, p_key, 'pending', v_folder_id,
-    'program_item_submission',
-    CASE WHEN lower(btrim(p_mime_type)) LIKE 'video/%' THEN 'mp4' ELSE NULL END
+    'program_item_submission', 'patient'
   );
   RETURN true;
 END
@@ -3957,6 +3990,88 @@ $$;
 
 
 --
+-- Name: custom_domain_apply_transition(text, text, text); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.custom_domain_apply_transition(p_hostname text, p_transition text, p_reason text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $_$
+DECLARE
+  v_current text;
+  v_eligible boolean;
+BEGIN
+  PERFORM app.require_accepted_context('app_seam_custom_domain_owner'::name, 'app_worker'::name, 'service'::app.port_context_class, 'branding.custom-domain.transition', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($2))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($3))::app.port_typed_arg]), 'app.custom_domain_apply_transition(text,text,text)'::regprocedure);
+  SELECT binding.status,
+    organization.is_active AND EXISTS (
+      SELECT 1 FROM public.org_brand_revisions AS brand
+      WHERE brand.organization_id = binding.organization_id
+        AND brand.status = 'published'
+    )
+  INTO v_current, v_eligible
+  FROM public.org_custom_domain_bindings AS binding
+  INNER JOIN public.be_organizations AS organization ON organization.id = binding.organization_id
+  WHERE binding.hostname = lower(btrim(p_hostname))
+  FOR UPDATE OF binding;
+
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('ok', false, 'code', 'not_found');
+  END IF;
+
+  IF (p_transition IN ('mark_dns_ready', 'mark_active') AND NOT v_eligible)
+    OR NOT (
+    (p_transition = 'mark_dns_ready' AND v_current IN ('pending', 'failed', 'suspended', 'dns_ready'))
+    OR (p_transition = 'mark_active' AND v_current IN ('dns_ready', 'active'))
+    OR (p_transition = 'mark_failed' AND v_current <> 'quarantine')
+    OR (p_transition = 'mark_suspended' AND v_current <> 'quarantine')
+  ) THEN
+    RETURN jsonb_build_object('ok', false, 'code', 'invalid_transition');
+  END IF;
+
+  UPDATE public.org_custom_domain_bindings
+  SET status = CASE p_transition
+      WHEN 'mark_dns_ready' THEN 'dns_ready'
+      WHEN 'mark_active' THEN 'active'
+      WHEN 'mark_failed' THEN 'failed'
+      WHEN 'mark_suspended' THEN 'suspended'
+    END,
+    status_reason = p_reason,
+    activated_at = CASE WHEN p_transition = 'mark_active' THEN now() ELSE activated_at END,
+    updated_at = now()
+  WHERE hostname = lower(btrim(p_hostname));
+
+  RETURN jsonb_build_object('ok', true);
+END;
+$_$;
+
+
+--
+-- Name: custom_domain_ask_is_authorized(text); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.custom_domain_ask_is_authorized(p_hostname text) RETURNS boolean
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $_$
+BEGIN
+  PERFORM app.require_accepted_context('app_seam_custom_domain_owner'::name, 'app_worker'::name, 'service'::app.port_context_class, 'branding.custom-domain.ask', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg]), 'app.custom_domain_ask_is_authorized(text)'::regprocedure);
+  RETURN EXISTS (
+    SELECT 1
+    FROM public.org_custom_domain_bindings AS binding
+    INNER JOIN public.be_organizations AS organization
+      ON organization.id = binding.organization_id
+      AND organization.is_active = true
+    INNER JOIN public.org_brand_revisions AS brand
+      ON brand.organization_id = binding.organization_id
+      AND brand.status = 'published'
+    WHERE binding.hostname = lower(btrim(p_hostname))
+      AND binding.status IN ('pending', 'dns_ready', 'active', 'failed', 'suspended')
+  );
+END
+$_$;
+
+
+--
 -- Name: delete_current_patient_program_actions_in_window(uuid, uuid, timestamp with time zone, timestamp with time zone, boolean); Type: FUNCTION; Schema: app; Owner: -
 --
 
@@ -4025,13 +4140,9 @@ CREATE FUNCTION app.delete_current_patient_symptom_entry(p_entry_id uuid) RETURN
 BEGIN
   PERFORM app.require_accepted_context('app_seam_patient_self_actions_owner'::name, 'app_patient'::name, 'patient'::app.port_context_class, 'patient.symptom-entry.delete', app.hash_port_typed_args(ARRAY[ROW('uuid@1', pg_catalog.uuid_send($1))::app.port_typed_arg]), 'app.delete_current_patient_symptom_entry(uuid)'::regprocedure);
   DELETE FROM public.symptom_entries e USING public.symptom_trackings t
-  WHERE e.id = p_entry_id AND e.tracking_id = t.id
-    AND e.organization_id = app.current_org_id()
-    AND e.platform_user_id = app.current_patient_user_id()
-    AND t.organization_id = app.current_org_id()
-    AND t.platform_user_id = app.current_patient_user_id()
-    AND t.deleted_at IS NULL AND t.symptom_key IS DISTINCT FROM 'general_wellbeing'
-    AND e.recorded_at >= statement_timestamp() - interval '24 hours';
+  WHERE e.id = p_entry_id AND e.tracking_id = t.id AND e.organization_id = app.current_org_id() AND e.platform_user_id = app.current_patient_user_id()
+    AND t.organization_id = app.current_org_id() AND t.platform_user_id = app.current_patient_user_id() AND t.deleted_at IS NULL AND t.patient_tracking_enabled = true
+    AND t.symptom_key IS DISTINCT FROM 'general_wellbeing' AND e.recorded_at >= statement_timestamp() - interval '24 hours';
   RETURN FOUND;
 END
 $_$;
@@ -5139,11 +5250,21 @@ DECLARE
   media_org uuid;
   media_id uuid;
 BEGIN
-  IF TG_TABLE_NAME IN ('lfk_exercise_regions', 'lfk_exercise_media') THEN
+  IF TG_TABLE_NAME IN ('lfk_exercise_regions', 'lfk_exercise_media', 'lfk_exercise_load_types') THEN
     SELECT owner_kind, organization_id
       INTO parent_kind, parent_org
       FROM public.lfk_exercises
      WHERE id = NEW.exercise_id;
+  ELSIF TG_TABLE_NAME = 'clinical_test_regions' THEN
+    SELECT owner_kind, organization_id
+      INTO parent_kind, parent_org
+      FROM public.tests
+     WHERE id = NEW.clinical_test_id;
+  ELSIF TG_TABLE_NAME = 'recommendation_regions' THEN
+    SELECT owner_kind, organization_id
+      INTO parent_kind, parent_org
+      FROM public.recommendations
+     WHERE id = NEW.recommendation_id;
   ELSE
     SELECT owner_kind, organization_id
       INTO parent_kind, parent_org
@@ -5154,6 +5275,9 @@ BEGIN
   IF parent_kind IS NULL
      OR parent_kind IS DISTINCT FROM NEW.owner_kind
      OR parent_org IS DISTINCT FROM NEW.organization_id THEN
+    IF TG_TABLE_NAME IN ('clinical_test_regions', 'recommendation_regions') THEN
+      RAISE EXCEPTION 'catalog_child_owner_mismatch' USING ERRCODE = '23514';
+    END IF;
     RAISE EXCEPTION 'lfk_child_owner_mismatch' USING ERRCODE = '23514';
   END IF;
 
@@ -5859,7 +5983,7 @@ $$;
 CREATE FUNCTION app.exchange_patient_invite(p_token_hash text, p_continuation_hash text, p_continuation_expires_at timestamp with time zone) RETURNS TABLE(ok boolean, code text, organization_title text, recipient_hint text, invite_expires_at timestamp with time zone)
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog'
-    AS $$
+    AS $_$
 #variable_conflict use_column
 DECLARE
   v_invite public.patient_invites%ROWTYPE;
@@ -5868,7 +5992,7 @@ DECLARE
   v_portal_activated_at timestamptz;
   v_hint text;
 BEGIN
-  PERFORM app.require_attested_context_for_roles('app_seam_patient_invite_owner'::name, ARRAY['app_patient'::name]::name[]);
+  PERFORM app.require_accepted_context('app_seam_patient_invite_owner'::name, 'app_pre_session'::name, 'pre_session'::app.port_context_class, 'patient-invite.bearer.exchange', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($2))::app.port_typed_arg, ROW('timestamptz@1', pg_catalog.timestamptz_send($3))::app.port_typed_arg]), 'app.exchange_patient_invite(text,text,timestamp with time zone)'::regprocedure);
 
   IF p_token_hash IS NULL OR p_token_hash = ''
      OR p_continuation_hash IS NULL OR p_continuation_hash = ''
@@ -5877,7 +6001,12 @@ BEGIN
     RETURN;
   END IF;
 
-  SELECT invite.* INTO v_invite
+  SELECT invite.id, invite.organization_id, invite.patient_user_id, invite.enrollment_id,
+        invite.status, invite.invited_email_normalized, invite.expires_at,
+        invite.bearer_exchanged_at, invite.recipient_binding
+  INTO v_invite.id, v_invite.organization_id, v_invite.patient_user_id, v_invite.enrollment_id,
+      v_invite.status, v_invite.invited_email_normalized, v_invite.expires_at,
+      v_invite.bearer_exchanged_at, v_invite.recipient_binding
   FROM public.patient_invites AS invite
   WHERE invite.token_hash = p_token_hash
   LIMIT 1
@@ -5963,7 +6092,117 @@ BEGIN
 
   RETURN QUERY SELECT true, NULL::text, v_organization_title, v_hint, v_invite.expires_at;
 END
-$$;
+$_$;
+
+
+--
+-- Name: exchange_video_meeting_invite(text); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.exchange_video_meeting_invite(p_secret_hash text) RETURNS TABLE(id uuid, organization_id uuid, patient_user_id uuid, specialist_id uuid, provider_room_ref text, status text, expires_at timestamp with time zone)
+    LANGUAGE plpgsql STABLE SECURITY DEFINER PARALLEL RESTRICTED
+    SET search_path TO 'pg_catalog'
+    AS $_$
+BEGIN
+  PERFORM app.require_accepted_context('app_seam_patient_invite_owner'::name, 'app_patient'::name, 'pre_session'::app.port_context_class, 'video-meeting.guest.exchange', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg]), 'app.exchange_video_meeting_invite(text)'::regprocedure);
+
+  RETURN QUERY
+  SELECT meeting.id, meeting.organization_id, meeting.patient_user_id, meeting.specialist_id,
+         meeting.provider_room_ref, meeting.status, meeting.expires_at
+  FROM public.video_meeting_invites AS invite
+  JOIN public.video_meetings AS meeting ON meeting.id = invite.meeting_id
+  WHERE invite.secret_hash = p_secret_hash
+    AND invite.status = 'active'
+    AND invite.expires_at > now()
+    AND meeting.status = 'active'
+    AND meeting.expires_at > now()
+  LIMIT 1;
+END
+$_$;
+
+
+--
+-- Name: expire_due_booking_prepayments(integer); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.expire_due_booking_prepayments(p_limit integer) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $_$
+DECLARE
+  v_now timestamptz := pg_catalog.clock_timestamp();
+  v_limit integer := least(greatest(COALESCE(p_limit, 50), 1), 500);
+  v_expired text[] := ARRAY[]::text[];
+  v_appointment_id uuid;
+  v_organization_id uuid;
+  v_platform_user_id uuid;
+BEGIN
+  PERFORM app.require_accepted_context('app_seam_payment_webhook_owner'::name, 'app_worker'::name, 'service'::app.port_context_class, 'booking-payment.prepayment.expire', app.hash_port_typed_args(ARRAY[ROW('integer@1', pg_catalog.int4send($1))::app.port_typed_arg]), 'app.expire_due_booking_prepayments(integer)'::regprocedure);
+
+  FOR v_appointment_id, v_organization_id, v_platform_user_id IN
+    UPDATE public.be_appointments AS appointment
+       SET status = 'cancelled_by_specialist',
+           payment_deadline_at = NULL,
+           updated_at = v_now
+     WHERE appointment.id IN (
+       SELECT candidate.id
+         FROM public.be_appointments AS candidate
+        WHERE candidate.status = 'awaiting_payment'
+          AND candidate.payment_deadline_at IS NOT NULL
+          AND candidate.payment_deadline_at <= v_now
+          AND candidate.deleted_at IS NULL
+        ORDER BY candidate.payment_deadline_at
+        LIMIT v_limit
+        FOR UPDATE SKIP LOCKED
+     )
+       AND appointment.status = 'awaiting_payment'
+       AND appointment.prepayment_paid_minor = 0
+       AND appointment.payment_ref IS NULL
+    RETURNING appointment.id, appointment.organization_id, appointment.platform_user_id
+  LOOP
+    UPDATE public.patient_bookings AS booking
+       SET status = 'cancelled',
+           cancelled_at = v_now,
+           cancel_reason = 'prepayment_expired',
+           updated_at = v_now
+     WHERE booking.canonical_appointment_id = v_appointment_id
+       -- F1 независимого аудита: `patient_bookings_canonical_appointment_id_fkey` ссылается только
+       -- на `be_appointments(id)` — составного ключа с organization_id нет, и схема ПРИНИМАЕТ строку
+       -- организации B, указывающую на запись организации A. Без этого фильтра тик организации A
+       -- менял чужую проекцию (доказано на rollback-фикстуре). Ноль рассогласований на сегодняшней
+       -- базе — это не ограничение, а совпадение. Все соседние записи в цикле уже фильтруются по
+       -- organization_id; эта была единственной, кто выпадал из общего правила.
+       AND booking.organization_id = v_organization_id;
+
+    INSERT INTO public.be_appointment_history_events (
+      organization_id, appointment_id, event_type, payload, occurred_at
+    )
+    VALUES (v_organization_id, v_appointment_id, 'status_changed',
+            pg_catalog.jsonb_build_object('fromStatus', 'awaiting_payment',
+                                          'toStatus', 'cancelled_by_specialist',
+                                          'source', 'prepayment_expired'),
+            v_now);
+    IF v_platform_user_id IS NOT NULL THEN
+      INSERT INTO public.be_patient_timeline_events (
+        organization_id, platform_user_id, domain, event_type,
+        linked_object_type, linked_object_id, payload, occurred_at
+      )
+      VALUES (v_organization_id, v_platform_user_id, 'appointment', 'appointment_status_changed',
+              'appointment', v_appointment_id::text,
+              pg_catalog.jsonb_build_object('fromStatus', 'awaiting_payment',
+                                            'toStatus', 'cancelled_by_specialist',
+                                            'source', 'prepayment_expired'),
+              v_now);
+    END IF;
+    v_expired := v_expired || v_appointment_id::text;
+  END LOOP;
+
+  RETURN pg_catalog.jsonb_build_object(
+    'expired', pg_catalog.cardinality(v_expired),
+    'appointmentIds', pg_catalog.to_jsonb(v_expired)
+  );
+END
+$_$;
 
 
 --
@@ -6064,6 +6303,28 @@ SELECT
   ORDER BY intent.created_at DESC
   LIMIT 1
 $$;
+
+
+--
+-- Name: get_native_push_project_id(text); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.get_native_push_project_id(requested_app_id text) RETURNS text
+    LANGUAGE sql STABLE SECURITY DEFINER PARALLEL RESTRICTED
+    SET search_path TO 'pg_catalog'
+    AS $_$SELECT app.require_accepted_context('app_seam_settings_preauth_owner'::name, 'app_patient'::name, 'patient'::app.port_context_class, 'native-push.client-project-id.read', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg]), 'app.get_native_push_project_id(text)'::regprocedure);
+
+  SELECT NULLIF(btrim(s.value_json #>> '{value,projectId}'), '')
+  FROM public.system_settings AS s
+  WHERE s.key = CASE requested_app_id
+    WHEN 'therapygo' THEN 'rustore_universal_push_therapygo'
+    WHEN 'therapysto' THEN 'rustore_universal_push_therapysto'
+    ELSE NULL
+  END
+    AND s.scope = 'admin'
+    AND s.organization_id IS NULL
+  LIMIT 1
+$_$;
 
 
 --
@@ -6292,21 +6553,22 @@ BEGIN
       RAISE EXCEPTION 'org_brand_revision_must_be_created_as_draft';
     END IF;
   ELSE
-    -- FK-DRIVEN LOGO DEGRADATION (audit HIGH 2, 2026-07-25). `logo_media_id … ON DELETE SET NULL`
-    -- makes PostgreSQL issue `UPDATE ONLY public.org_brand_revisions SET logo_media_id = NULL` when a
-    -- referenced public.media_files row is deleted, and that UPDATE fires this trigger. Without this
-    -- branch it raised P0001 on every published/archived row, which broke the media purge worker
+    -- FK-DRIVEN BRAND-MEDIA DEGRADATION (audit HIGH 2, 2026-07-25; app icon added 2026-09-10).
+    -- `logo_media_id`/`app_icon_media_id … ON DELETE SET NULL` make PostgreSQL issue
+    -- `UPDATE ONLY public.org_brand_revisions SET <column> = NULL` when a referenced
+    -- public.media_files row is deleted, and that UPDATE fires this trigger. Without this branch it
+    -- raised P0001 on every published/archived row, which broke the media purge worker
     -- (s3MediaStorage.purgePendingMediaDeleteBatch tolerates only SQLSTATE class 23 and had already
     -- deleted the S3 objects) and made the documented §10 degradation "brand invalid asset ->
     -- platform fallback + safe org text" unreachable.
-    -- The tolerance is DELIBERATELY the narrowest possible: the ONLY accepted change is
-    -- logo_media_id going non-NULL -> NULL. `to_jsonb(NEW) - 'logo_media_id'` vs
-    -- `to_jsonb(OLD) - 'logo_media_id'` compares EVERY OTHER column (including status, display_name,
-    -- the actor trail, published_at/archived_at and updated_at) whole-row, so it stays correct when a
-    -- column is added later. Consequences kept intact: setting a NEW logo on a published/archived row
-    -- is still rejected (NEW.logo_media_id would not be NULL), clearing the logo together with any
-    -- other edit is still rejected, and updated_at is intentionally NOT re-stamped so exactly one
-    -- column of an immutable row ever changes.
+    -- The tolerance is DELIBERATELY the narrowest possible: the ONLY accepted change is a brand-media
+    -- column going non-NULL -> NULL. `to_jsonb(NEW) - 'logo_media_id' - 'app_icon_media_id'` vs the
+    -- same subtraction on OLD compares EVERY OTHER column (including status, display_name, the actor
+    -- trail, published_at/archived_at and updated_at) whole-row, so it stays correct when a column is
+    -- added later; the two per-column tests below keep each media column itself narrow, so clearing
+    -- one may not smuggle in a new value for the other. Consequences kept intact: setting a NEW asset
+    -- on a published/archived row is still rejected, clearing an asset together with any other edit is
+    -- still rejected, and updated_at is intentionally NOT re-stamped so only cleared columns change.
     -- `pg_trigger_depth() > 1` restricts the tolerance to a CASCADED write: the referential-action
     -- UPDATE runs inside the RI trigger of the public.media_files DELETE, so it always sees depth >= 2,
     -- while a statement issued directly by app_staff sees depth = 1. Without it the branch was a direct
@@ -6318,9 +6580,14 @@ BEGIN
     IF TG_OP = 'UPDATE'
        AND pg_trigger_depth() > 1
        AND OLD.status IN ('published', 'archived')
-       AND OLD.logo_media_id IS NOT NULL
-       AND NEW.logo_media_id IS NULL
-       AND to_jsonb(NEW) - 'logo_media_id' = to_jsonb(OLD) - 'logo_media_id' THEN
+       AND (OLD.logo_media_id IS NOT NULL AND NEW.logo_media_id IS NULL
+            OR OLD.app_icon_media_id IS NOT NULL AND NEW.app_icon_media_id IS NULL)
+       AND (NEW.logo_media_id IS NOT DISTINCT FROM OLD.logo_media_id
+            OR OLD.logo_media_id IS NOT NULL AND NEW.logo_media_id IS NULL)
+       AND (NEW.app_icon_media_id IS NOT DISTINCT FROM OLD.app_icon_media_id
+            OR OLD.app_icon_media_id IS NOT NULL AND NEW.app_icon_media_id IS NULL)
+       AND to_jsonb(NEW) - 'logo_media_id' - 'app_icon_media_id'
+           = to_jsonb(OLD) - 'logo_media_id' - 'app_icon_media_id' THEN
       RETURN NEW;
     END IF;
 
@@ -6339,6 +6606,7 @@ BEGIN
       END IF;
       IF NEW.display_name IS DISTINCT FROM OLD.display_name
          OR NEW.logo_media_id IS DISTINCT FROM OLD.logo_media_id
+         OR NEW.app_icon_media_id IS DISTINCT FROM OLD.app_icon_media_id
          OR NEW.published_at IS DISTINCT FROM OLD.published_at
          OR NEW.published_by_platform_user_id IS DISTINCT FROM OLD.published_by_platform_user_id THEN
         RAISE EXCEPTION 'org_brand_revision_published_content_is_immutable';
@@ -6356,6 +6624,17 @@ BEGIN
       AND logo.organization_id = NEW.organization_id;
     IF NOT FOUND THEN
       RAISE EXCEPTION 'org_brand_logo_media_must_be_owned_by_organization';
+    END IF;
+  END IF;
+
+  IF NEW.app_icon_media_id IS NOT NULL THEN
+    PERFORM 1
+    FROM public.media_files AS app_icon
+    WHERE app_icon.id = NEW.app_icon_media_id
+      AND app_icon.owner_kind = 'organization'
+      AND app_icon.organization_id = NEW.organization_id;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'org_brand_app_icon_media_must_be_owned_by_organization';
     END IF;
   END IF;
 
@@ -6494,10 +6773,10 @@ END $_$;
 
 
 --
--- Name: increment_media_playback_resolution_stat(uuid, uuid, text, boolean); Type: FUNCTION; Schema: app; Owner: -
+-- Name: increment_media_playback_resolution_stat(uuid, uuid, text); Type: FUNCTION; Schema: app; Owner: -
 --
 
-CREATE FUNCTION app.increment_media_playback_resolution_stat(p_user_id uuid, p_media_id uuid, p_delivery text, p_fallback_used boolean) RETURNS void
+CREATE FUNCTION app.increment_media_playback_resolution_stat(p_user_id uuid, p_media_id uuid, p_delivery text) RETURNS void
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $$
@@ -6523,18 +6802,15 @@ BEGIN
   END IF;
 
   INSERT INTO public.media_playback_stats_hourly (
-    organization_id, bucket_hour, delivery, resolved_count, fallback_count
+    organization_id, bucket_hour, delivery, resolved_count
   ) VALUES (
     v_organization_id,
     date_trunc('hour', clock_timestamp()),
     p_delivery,
-    1,
-    CASE WHEN p_fallback_used THEN 1 ELSE 0 END
+    1
   )
   ON CONFLICT (organization_id, bucket_hour, delivery) DO UPDATE
-    SET resolved_count = public.media_playback_stats_hourly.resolved_count + 1,
-        fallback_count = public.media_playback_stats_hourly.fallback_count
-          + CASE WHEN EXCLUDED.fallback_count > 0 THEN 1 ELSE 0 END;
+    SET resolved_count = public.media_playback_stats_hourly.resolved_count + 1;
 END
 $$;
 
@@ -6579,6 +6855,12 @@ BEGIN
           OR (
             cap.purpose = 'booking.public-client.enroll'
             AND cap.function_identity = pg_catalog.to_regprocedure('app.enroll_current_patient_in_public_booking_clinic(uuid,text)')
+          )
+          -- Payment status is patient-global too: the root proves ownership from the accepted
+          -- subject identity and must not require the caller to claim a clinic first.
+          OR (
+            cap.purpose = 'booking.patient-payment-status.read'
+            AND cap.function_identity = pg_catalog.to_regprocedure('app.read_current_patient_booking_payment_status(uuid)')
           )
         )
       ))
@@ -7492,26 +7774,34 @@ CREATE FUNCTION app.list_configured_custom_domain_hostnames() RETURNS jsonb
     SET search_path TO 'pg_catalog'
     AS $$
 DECLARE
-  hostnames jsonb;
+  targets jsonb;
 BEGIN
   PERFORM app.require_accepted_context('app_seam_settings_runtime_owner'::name, 'app_worker'::name, 'service'::app.port_context_class, 'health.custom-domain.list', app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]), 'app.list_configured_custom_domain_hostnames()'::regprocedure);
 
   SELECT COALESCE(
     jsonb_agg(
-      lower(btrim(setting.value_json ->> 'value'))
-      ORDER BY lower(btrim(setting.value_json ->> 'value'))
+      jsonb_build_object(
+        'organizationId', binding.organization_id::text,
+        'baseDomain', binding.base_domain,
+        'placement', binding.placement,
+        'hostname', binding.hostname,
+        'status', binding.status,
+        'organizationActive', COALESCE(organization.is_active, false),
+        'hasPublishedBrand', EXISTS (
+          SELECT 1 FROM public.org_brand_revisions AS brand
+          WHERE brand.organization_id = binding.organization_id
+            AND brand.status = 'published'
+        )
+      ) ORDER BY binding.hostname
     ),
     '[]'::jsonb
-  )
-  INTO hostnames
-  FROM public.system_settings AS setting
-  WHERE setting.key = 'org_custom_domain_hostname'
-    AND setting.scope = 'admin'
-    AND setting.organization_id IS NOT NULL
-    AND jsonb_typeof(setting.value_json -> 'value') = 'string'
-    AND btrim(setting.value_json ->> 'value') <> '';
+  ) INTO targets
+  FROM public.org_custom_domain_bindings AS binding
+  LEFT JOIN public.be_organizations AS organization ON organization.id = binding.organization_id
+  WHERE binding.organization_id IS NOT NULL
+    AND binding.status <> 'quarantine';
 
-  RETURN hostnames;
+  RETURN targets;
 END
 $$;
 
@@ -7691,29 +7981,55 @@ $_$;
 
 
 --
+-- Name: list_platform_organization_brand_domain_status(); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.list_platform_organization_brand_domain_status() RETURNS TABLE(organization_id uuid, has_published_brand boolean, custom_domain_hostname text, custom_domain_status text, custom_domain_status_reason text)
+    LANGUAGE sql STABLE SECURITY DEFINER PARALLEL RESTRICTED
+    SET search_path TO 'pg_catalog'
+    AS $$
+SELECT app.require_accepted_context('app_seam_custom_domain_owner'::name, 'app_platform_settings'::name, 'platform'::app.port_context_class, 'platform.organization.brand-domain-status.read', app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]), 'app.list_platform_organization_brand_domain_status()'::regprocedure);
+
+SELECT organization.id,
+  EXISTS (
+    SELECT 1
+    FROM public.org_brand_revisions AS revision
+    WHERE revision.organization_id = organization.id
+      AND revision.status = 'published'
+  ),
+  domain.hostname,
+  domain.status,
+  domain.status_reason
+FROM public.be_organizations AS organization
+LEFT JOIN LATERAL (
+  SELECT binding.hostname, binding.status, binding.status_reason
+  FROM public.org_custom_domain_bindings AS binding
+  WHERE binding.organization_id = organization.id
+    AND binding.status <> 'quarantine'
+  ORDER BY binding.updated_at DESC
+  LIMIT 1
+) AS domain ON true
+ORDER BY organization.id;
+$$;
+
+
+--
 -- Name: list_platform_organization_members(uuid); Type: FUNCTION; Schema: app; Owner: -
 --
 
-CREATE FUNCTION app.list_platform_organization_members(p_organization_id uuid) RETURNS TABLE(membership_id uuid, organization_id uuid, platform_user_id uuid, membership_role text, specialist_id uuid, membership_status text, doctor_screens_disabled boolean, created_at timestamp with time zone, updated_at timestamp with time zone, display_name text)
+CREATE FUNCTION app.list_platform_organization_members(p_organization_id uuid) RETURNS TABLE(membership_id uuid, organization_id uuid, platform_user_id uuid, membership_role text, specialist_id uuid, membership_status text, doctor_screens_disabled boolean, appointments_manage_own boolean, availability_manage_own boolean, created_at timestamp with time zone, updated_at timestamp with time zone, display_name text)
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'pg_catalog'
-    AS $$SELECT app.require_attested_context_for_roles('app_seam_org_directory_owner'::name, ARRAY['app_platform_settings'::name]::name[]);
-SELECT
-    membership.id,
-    membership.organization_id,
-    membership.platform_user_id,
-    membership.role,
-    membership.specialist_id,
-    membership.status,
-    membership.doctor_screens_disabled,
-    membership.created_at,
-    membership.updated_at,
-    NULLIF(btrim(platform_user.display_name), '')
-  FROM public.be_organization_members AS membership
-  INNER JOIN public.platform_users AS platform_user
-    ON platform_user.id = membership.platform_user_id
-  WHERE membership.organization_id = p_organization_id
-  ORDER BY membership.created_at, membership.platform_user_id
+    AS $$
+SELECT app.require_attested_context_for_roles('app_seam_org_directory_owner'::name, ARRAY['app_platform_settings'::name]::name[]);
+SELECT membership.id, membership.organization_id, membership.platform_user_id, membership.role,
+  membership.specialist_id, membership.status, membership.doctor_screens_disabled,
+  membership.appointments_manage_own, membership.availability_manage_own,
+  membership.created_at, membership.updated_at, NULLIF(btrim(platform_user.display_name), '')
+FROM public.be_organization_members AS membership
+INNER JOIN public.platform_users AS platform_user ON platform_user.id = membership.platform_user_id
+WHERE membership.organization_id = p_organization_id
+ORDER BY membership.created_at, membership.platform_user_id
 $$;
 
 
@@ -7801,16 +8117,16 @@ BEGIN
     'label', field.label,
     'placeholder', field.placeholder,
     'isRequired', field.is_required,
-    'visibleToPatient', field.visible_to_patient,
-    'visibleToStaff', field.visible_to_staff,
+    'visibleToPatient', field.is_active,
+    'visibleToStaff', field.is_active,
     'sortOrder', field.sort_order,
-    'isActive', field.is_active
+    'isActive', field.is_active,
+    'archivedAt', NULL
   ) ORDER BY field.sort_order, field.field_key), '[]'::jsonb)
   INTO v_fields
   FROM public.be_booking_form_fields field
   WHERE field.organization_id = v_org
-    AND field.is_active = true
-    AND field.visible_to_patient = true;
+    AND field.archived_at IS NULL;
 
   RETURN v_fields;
 END;
@@ -7884,7 +8200,14 @@ BEGIN
            'savedPaymentMethodId', due.saved_payment_method_id,
            'autopayConsentedAt', due.autopay_consented_at,
            'autopayRevokedAt', due.autopay_revoked_at,
-           'billingPeriod', due.billing_period
+           'billingPeriod', due.billing_period,
+           'billingPeriodMonths', period.months,
+           'billingPeriodPriceMinor', price.price_minor,
+           -- Пакет объёма следующего периода и его цена за ЭТОТ период. `NULL` в обоих полях —
+           -- «пакета нет»; пакет без цены за период — дыра в каталоге, и разбор на стороне
+           -- приложения такую строку отбрасывает, а не выставляет счёт без объёма.
+           'storagePackageId', due.next_storage_package_id,
+           'storagePackagePriceMinor', storage_price.price_minor
          ) ORDER BY due.current_period_ends_at), '[]'::jsonb)
     INTO v_result
     FROM (
@@ -7896,17 +8219,27 @@ BEGIN
              subscription.saved_payment_method_id AS saved_payment_method_id,
              subscription.autopay_consented_at AS autopay_consented_at,
              subscription.autopay_revoked_at AS autopay_revoked_at,
-             tariff.billing_period AS billing_period
+             COALESCE(subscription.pending_billing_period_code, subscription.billing_period_code) AS billing_period,
+             COALESCE(
+               subscription.pending_storage_package_id,
+               CASE WHEN subscription.storage_package_cancel_at_period_end THEN NULL
+                    ELSE subscription.paid_storage_package_id END
+             ) AS next_storage_package_id
         FROM public.saas_billing_subscriptions AS subscription
-        JOIN public.saas_tariffs AS tariff
-          ON tariff.id = COALESCE(subscription.pending_tariff_id, subscription.tariff_id)
        WHERE subscription.source = 'paid_subscription'
          AND subscription.status = 'active'
+         AND subscription.cancelled_at IS NULL
          AND subscription.current_period_ends_at IS NOT NULL
          AND subscription.current_period_ends_at <= p_as_of
        ORDER BY subscription.current_period_ends_at
        LIMIT p_limit
-    ) AS due;
+    ) AS due
+    LEFT JOIN public.saas_billing_periods AS period ON period.code = due.billing_period
+    LEFT JOIN public.saas_tariff_period_prices AS price
+      ON price.tariff_id = due.purchased_tariff_id AND price.billing_period_code = due.billing_period
+    LEFT JOIN public.saas_storage_package_period_prices AS storage_price
+      ON storage_price.package_id = due.next_storage_package_id
+     AND storage_price.billing_period_code = due.billing_period;
 
   RETURN v_result;
 END
@@ -7971,10 +8304,10 @@ $$;
 -- Name: lookup_patient_invite_continuation(text); Type: FUNCTION; Schema: app; Owner: -
 --
 
-CREATE FUNCTION app.lookup_patient_invite_continuation(p_continuation_hash text) RETURNS TABLE(ok boolean, code text, organization_title text, recipient_hint text, invite_expires_at timestamp with time zone)
+CREATE FUNCTION app.lookup_patient_invite_continuation(p_continuation_hash text) RETURNS TABLE(ok boolean, code text, organization_title text, recipient_hint text, invite_expires_at timestamp with time zone, organization_id uuid)
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog'
-    AS $$
+    AS $_$
 #variable_conflict use_column
 DECLARE
   v_invite public.patient_invites%ROWTYPE;
@@ -7983,16 +8316,26 @@ DECLARE
   v_portal_activated_at timestamptz;
   v_portal_activated_via text;
   v_hint text;
-  v_reopen boolean := false;
+  v_reopen boolean;
 BEGIN
-  PERFORM app.require_attested_context_for_roles('app_seam_patient_invite_owner'::name, ARRAY['app_patient'::name]::name[]);
+  PERFORM app.require_accepted_context('app_seam_patient_invite_owner'::name, 'app_pre_session'::name, 'pre_session'::app.port_context_class, 'patient-invite.continuation.lookup', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg]), 'app.lookup_patient_invite_continuation(text)'::regprocedure);
+  v_reopen := false;
 
-  SELECT invite.* INTO v_invite
+  SELECT invite.id, invite.organization_id, invite.patient_user_id, invite.enrollment_id,
+        invite.status, invite.invited_email_normalized, invite.expires_at,
+        invite.continuation_expires_at, invite.accepted_by_platform_user_id, invite.accepted_via,
+        invite.proof_code_hash, invite.proof_expires_at, invite.proof_verified_at,
+        invite.recipient_binding
+  INTO v_invite.id, v_invite.organization_id, v_invite.patient_user_id, v_invite.enrollment_id,
+      v_invite.status, v_invite.invited_email_normalized, v_invite.expires_at,
+      v_invite.continuation_expires_at, v_invite.accepted_by_platform_user_id,
+      v_invite.accepted_via, v_invite.proof_code_hash, v_invite.proof_expires_at,
+      v_invite.proof_verified_at, v_invite.recipient_binding
   FROM public.patient_invites AS invite
   WHERE invite.continuation_hash = p_continuation_hash
   LIMIT 1;
   IF NOT FOUND THEN
-    RETURN QUERY SELECT false, 'invalid_continuation'::text, NULL::text, NULL::text, NULL::timestamptz;
+    RETURN QUERY SELECT false, 'invalid_continuation'::text, NULL::text, NULL::text, NULL::timestamptz, NULL::uuid;
     RETURN;
   END IF;
   IF v_invite.status = 'accepted' THEN
@@ -8006,14 +8349,14 @@ BEGIN
        AND v_invite.proof_expires_at > now() THEN
       v_reopen := true;
     ELSE
-      RETURN QUERY SELECT false, 'already_linked'::text, NULL::text, NULL::text, NULL::timestamptz;
+      RETURN QUERY SELECT false, 'already_linked'::text, NULL::text, NULL::text, NULL::timestamptz, NULL::uuid;
       RETURN;
     END IF;
   ELSIF v_invite.status = 'revoked' THEN
-    RETURN QUERY SELECT false, 'revoked_token'::text, NULL::text, NULL::text, NULL::timestamptz;
+    RETURN QUERY SELECT false, 'revoked_token'::text, NULL::text, NULL::text, NULL::timestamptz, NULL::uuid;
     RETURN;
   ELSIF v_invite.status = 'superseded' THEN
-    RETURN QUERY SELECT false, 'superseded_token'::text, NULL::text, NULL::text, NULL::timestamptz;
+    RETURN QUERY SELECT false, 'superseded_token'::text, NULL::text, NULL::text, NULL::timestamptz, NULL::uuid;
     RETURN;
   ELSIF v_invite.status = 'expired'
      OR v_invite.expires_at <= now()
@@ -8022,7 +8365,7 @@ BEGIN
     IF v_invite.status = 'pending' AND v_invite.expires_at <= now() THEN
       UPDATE public.patient_invites SET status = 'expired', updated_at = now() WHERE id = v_invite.id;
     END IF;
-    RETURN QUERY SELECT false, 'expired_token'::text, NULL::text, NULL::text, NULL::timestamptz;
+    RETURN QUERY SELECT false, 'expired_token'::text, NULL::text, NULL::text, NULL::timestamptz, NULL::uuid;
     RETURN;
   END IF;
 
@@ -8037,14 +8380,14 @@ BEGIN
     IF v_enrollment_status <> 'active'
        OR v_portal_activated_at IS NULL
        OR v_portal_activated_via <> 'patient_invite_email_otp' THEN
-      RETURN QUERY SELECT false, 'inactive_relationship'::text, NULL::text, NULL::text, NULL::timestamptz;
+      RETURN QUERY SELECT false, 'inactive_relationship'::text, NULL::text, NULL::text, NULL::timestamptz, NULL::uuid;
       RETURN;
     END IF;
   ELSIF v_portal_activated_at IS NOT NULL THEN
-    RETURN QUERY SELECT false, 'already_linked'::text, NULL::text, NULL::text, NULL::timestamptz;
+    RETURN QUERY SELECT false, 'already_linked'::text, NULL::text, NULL::text, NULL::timestamptz, NULL::uuid;
     RETURN;
   ELSIF v_enrollment_status NOT IN ('invited', 'active') OR v_enrollment_status IS NULL THEN
-    RETURN QUERY SELECT false, 'inactive_relationship'::text, NULL::text, NULL::text, NULL::timestamptz;
+    RETURN QUERY SELECT false, 'inactive_relationship'::text, NULL::text, NULL::text, NULL::timestamptz, NULL::uuid;
     RETURN;
   END IF;
 
@@ -8053,7 +8396,7 @@ BEGIN
   WHERE organization.id = v_invite.organization_id
     AND organization.is_active = true;
   IF NOT FOUND THEN
-    RETURN QUERY SELECT false, 'organization_unavailable'::text, NULL::text, NULL::text, NULL::timestamptz;
+    RETURN QUERY SELECT false, 'organization_unavailable'::text, NULL::text, NULL::text, NULL::timestamptz, NULL::uuid;
     RETURN;
   END IF;
   v_hint := CASE
@@ -8064,9 +8407,10 @@ BEGIN
         || '***@' || split_part(v_invite.invited_email_normalized, '@', 2)
     ELSE NULL
   END;
-  RETURN QUERY SELECT true, NULL::text, v_organization_title, v_hint, v_invite.expires_at;
+  RETURN QUERY SELECT true, NULL::text, v_organization_title, v_hint, v_invite.expires_at,
+    v_invite.organization_id;
 END
-$$;
+$_$;
 
 
 --
@@ -9699,7 +10043,7 @@ $$;
 -- Name: patient_disable_reminder_messenger_topic(uuid, text, text); Type: FUNCTION; Schema: app; Owner: -
 --
 
-CREATE FUNCTION app.patient_disable_reminder_messenger_topic(p_platform_user_id uuid, p_integrator_occurrence_id text, p_messenger_channel text) RETURNS TABLE(persisted boolean, paragraphs jsonb)
+CREATE FUNCTION app.patient_disable_reminder_messenger_topic(p_platform_user_id uuid, p_integrator_occurrence_id text, p_messenger_channel text) RETURNS TABLE(persisted boolean, paragraphs jsonb, organization_id uuid)
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $_$
@@ -9715,10 +10059,10 @@ BEGIN
   WHERE h.integrator_occurrence_id=p_integrator_occurrence_id AND h.platform_user_id=v_actor AND h.organization_id=v_org AND r.organization_id=v_org FOR UPDATE OF h;
   IF NOT FOUND THEN RETURN; END IF;
   v_label:=CASE p_messenger_channel WHEN 'telegram' THEN 'Telegram' ELSE 'MAX' END;
-  IF v_topic IS NULL THEN persisted:=false; paragraphs:=jsonb_build_array(format('Для этого типа напоминаний канал %s не настраивается через темы.',v_label)); RETURN NEXT; RETURN; END IF;
+  IF v_topic IS NULL THEN persisted:=false; paragraphs:=jsonb_build_array(format('Для этого типа напоминаний канал %s не настраивается через темы.',v_label)); organization_id:=v_org; RETURN NEXT; RETURN; END IF;
   INSERT INTO public.user_notification_topic_channels AS preference(user_id,topic_code,channel_code,is_enabled,updated_at)
   VALUES(v_actor,v_topic,p_messenger_channel,false,statement_timestamp()) ON CONFLICT(user_id,topic_code,channel_code) DO UPDATE SET is_enabled=false,updated_at=EXCLUDED.updated_at;
-  persisted:=true; paragraphs:=jsonb_build_array(format('Хорошо, отключаю напоминания в боте (%s).',v_label),'Другие разрешённые каналы остаются активными.'); RETURN NEXT;
+  persisted:=true; paragraphs:=jsonb_build_array(format('Хорошо, отключаю напоминания в боте (%s).',v_label),'Другие разрешённые каналы остаются активными.'); organization_id:=v_org; RETURN NEXT;
 END
 $_$;
 
@@ -9798,7 +10142,7 @@ $$;
 -- Name: patient_reminder_notification_settings(uuid, text, text); Type: FUNCTION; Schema: app; Owner: -
 --
 
-CREATE FUNCTION app.patient_reminder_notification_settings(p_platform_user_id uuid, p_messenger_channel text, p_toggle_topic_code text) RETURNS TABLE(topics jsonb, new_state boolean)
+CREATE FUNCTION app.patient_reminder_notification_settings(p_platform_user_id uuid, p_messenger_channel text, p_toggle_topic_code text) RETURNS TABLE(topics jsonb, new_state boolean, organization_id uuid)
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $_$
@@ -9817,6 +10161,7 @@ BEGIN
   SELECT jsonb_agg(jsonb_build_object('code',d.code,'title',d.title,'isEnabled',COALESCE(p.is_enabled,true)) ORDER BY d.position) INTO topics
   FROM (VALUES(1,'warmup_reminders'::text,'Напоминания о разминках'::text),(2,'training_reminders','Напоминания о тренировках'),(3,'appointment_reminders','Напоминания о записях'),(4,'patient_news','Новости и уведомления'),(5,'specialist_messages','Сообщения специалиста'),(6,'support_messages','Сообщения поддержки'),(7,'important_broadcasts','Важные рассылки')) d(position,code,title)
   LEFT JOIN public.user_notification_topic_channels p ON p.user_id=v_actor AND p.topic_code=d.code AND p.channel_code=p_messenger_channel;
+  organization_id:=v_org;
   RETURN NEXT;
 END
 $_$;
@@ -10843,8 +11188,8 @@ BEGIN
     WHERE platform_user_id = v_user_id AND valid_to IS NULL;
 
     INSERT INTO public.user_phone_history (
-      platform_user_id, phone_normalized, valid_from, valid_to, source, organization_id, confirming_channel
-    ) VALUES (v_user_id, p_phone_normalized, now(), NULL, 'messenger', NULL, p_confirming_channel);
+      platform_user_id, phone_normalized, valid_from, valid_to, source, confirming_channel
+    ) VALUES (v_user_id, p_phone_normalized, now(), NULL, 'messenger', p_confirming_channel);
   END IF;
 
   -- `mutateCanonicalUserContacts`'s 'upsert' mutation, inlined verbatim (single kind='phone' call,
@@ -11078,8 +11423,8 @@ BEGIN
     WHERE platform_user_id = v_user_id AND valid_to IS NULL;
 
     INSERT INTO public.user_phone_history (
-      platform_user_id, phone_normalized, valid_from, valid_to, source, organization_id, confirming_channel
-    ) VALUES (v_user_id, p_phone_normalized, now(), NULL, 'otp', NULL, p_confirming_channel);
+      platform_user_id, phone_normalized, valid_from, valid_to, source, confirming_channel
+    ) VALUES (v_user_id, p_phone_normalized, now(), NULL, 'otp', p_confirming_channel);
   END IF;
 
   -- `mutateCanonicalUserContacts`'s 'upsert' mutation, inlined verbatim (single kind='phone' call,
@@ -11400,7 +11745,7 @@ BEGIN
       RETURNING media.id, media.s3_key, media.preview_sm_key, media.preview_md_key,
                 media.hls_artifact_prefix, media.poster_s3_key,
                 media.hls_master_playlist_s3_key, media.delete_attempts,
-                media.delete_claim_token, media.next_attempt_at
+                media.delete_claim_token, media.next_attempt_at, media.storage_target
     )
     SELECT pg_catalog.jsonb_build_object(
              'id', leased.id,
@@ -11410,6 +11755,7 @@ BEGIN
              'hlsArtifactPrefix', leased.hls_artifact_prefix,
              'posterS3Key', leased.poster_s3_key,
              'hlsMasterPlaylistS3Key', leased.hls_master_playlist_s3_key,
+             'storageTarget', leased.storage_target,
              'deleteAttempts', leased.delete_attempts,
              'claimToken', leased.delete_claim_token,
              'claimUntil', leased.next_attempt_at,
@@ -11441,9 +11787,9 @@ BEGIN
          SET status = 'pending_delete',
              delete_attempts = media.delete_attempts + 1,
              next_attempt_at = pg_catalog.clock_timestamp()
-               + (pg_catalog.least(1440, pg_catalog.power(
+               + (least(1440, pg_catalog.power(
                     2::numeric,
-                    pg_catalog.least(media.delete_attempts + 1, 20)
+                    least(media.delete_attempts + 1, 20)
                   )) * interval '1 minute'),
              delete_claim_token = NULL
        WHERE media.id = p_media_id
@@ -11570,9 +11916,6 @@ BEGIN
       RETURN;
     END IF;
 
-    -- Already provisioned: re-running stays idempotent. A pre-fix intent can still carry a NULL
-    -- provisioned_specialist_id (the exact dead-workspace defect this function now closes) --
-    -- fall through to the shared specialist-backfill block below instead of returning it bare.
     v_organization_id := v_intent.provisioned_organization_id;
     v_membership_id := v_intent.provisioned_membership_id;
     v_specialist_id := v_intent.provisioned_specialist_id;
@@ -11598,15 +11941,11 @@ BEGIN
       RETURN;
     END IF;
 
-    -- Pre-cutover intents can still carry no slug. Keep the established recovery code so confirm
-    -- asks for the address without consuming the still-valid e-mail challenge.
     IF v_intent.organization_slug IS NULL THEN
       RETURN QUERY SELECT false, 'specialist_signup_slug_reservation_not_found'::text, NULL::uuid, NULL::uuid, NULL::uuid;
       RETURN;
     END IF;
 
-    -- Lock the canonical identity before checking memberships so concurrent self-provision attempts
-    -- cannot both observe an empty membership set and create two owner organizations.
     PERFORM 1
     FROM public.be_organization_members AS m
     WHERE m.platform_user_id = v_user.id
@@ -11627,9 +11966,6 @@ BEGIN
 
     v_organization_id := gen_random_uuid();
 
-    -- The global UNIQUE(slug) index is the only ownership arbiter. The organization insert and its
-    -- current claim share a subtransaction: if another registration commits this slug first, the
-    -- losing provisional organization is rolled back before returning the stable public error.
     BEGIN
       INSERT INTO public.be_organizations (
         id,
@@ -11693,6 +12029,23 @@ BEGIN
       now()
     );
 
+    INSERT INTO public.system_settings (
+      key,
+      scope,
+      organization_id,
+      value_json,
+      updated_at,
+      updated_by
+    )
+    VALUES (
+      'booking_availability_horizon_days',
+      'admin',
+      v_organization_id,
+      pg_catalog.jsonb_build_object('value', 30),
+      pg_catalog.now(),
+      v_user.id
+    );
+
     INSERT INTO public.be_organization_members (
       organization_id,
       platform_user_id,
@@ -11713,22 +12066,10 @@ BEGIN
     )
     RETURNING id INTO v_membership_id;
 
-    -- Narrow platform-owned capability derives this exact organization from the signed principal
-    -- and fresh owner membership. It updates commercial state and creates the trial in this same
-    -- transaction; any failure rolls the complete provisioning command back.
     PERFORM app.start_provisioned_organization_trial();
-
-    -- Same SECURITY DEFINER transaction: the new organization is not observable without its own
-    -- independent catalog snapshot. The helper only inserts the current repo-managed baseline.
     PERFORM app.seed_reference_catalog_snapshot(v_organization_id);
   END IF;
 
-  -- Bind the registering person's own bookable specialist in the SAME transaction as the
-  -- organization/membership: a membership left with specialist_id NULL makes
-  -- resolveLaunchCapabilities() withhold clinical.workspace forever (owner-reported dead
-  -- workspace). Column set mirrors ensureOwnBookableSpecialist()'s identical invited-staff
-  -- backfill (pgOrganizationProvisioning.ts). Guarded on v_specialist_id IS NULL so re-running
-  -- provisioning for an already-provisioned intent never creates a second specialist.
   IF v_specialist_id IS NULL THEN
     INSERT INTO public.be_specialists (
       organization_id,
@@ -12154,12 +12495,149 @@ BEGIN
         SELECT count(*) INTO affected_count FROM deleted;
       END IF;
 
+    -- #1088. Завершённая передача файла. Владелец 12.09 дословно: «Завершенные загрузки файлов…
+    -- мы уже решили, что файлы мы не удаляем… не трогаем файлы… у нас же есть отметка о том, чей
+    -- это файл, кто его загрузил… ну, давай год хранить». Здесь удаляется НЕ файл: строка сессии —
+    -- бухгалтерия передачи (`s3_key` + `upload_id`), а отметка «кто загрузил» живёт в
+    -- `media_files.uploaded_by` и не стареет никогда.
+    --
+    -- Только `completed`. У завершённой загрузки multipart уже собран в объект — отменять нечего,
+    -- и личность повтора ничего не стоит. `aborted`/`expired`/`failed` наоборот: строка сессии —
+    -- ЕДИНСТВЕННЫЙ держатель `s3_key` + `upload_id` незавершённой загрузки, и умирает она каскадом
+    -- от своей `media_files` ровно тогда, когда отмена в S3 подтверждена (см. §D1 в
+    -- mediaUploadSessionsRepo.stageExpiredMultipartSessionForPurgeTx). Возраст не должен обгонять
+    -- эту отмену, иначе куски останутся в бакете, и назвать их будет нечем.
+    WHEN 'media_upload_sessions_completed' THEN
+      IF p_dry_run THEN
+        SELECT count(*) INTO affected_count
+          FROM (
+            SELECT 1 FROM public.media_upload_sessions AS expiring
+             WHERE expiring.status = 'completed'
+               AND expiring.updated_at < cutoff_at
+             LIMIT batch_limit
+          ) AS capped;
+      ELSE
+        WITH victims AS (
+          SELECT expiring.id
+            FROM public.media_upload_sessions AS expiring
+           WHERE expiring.status = 'completed'
+             AND expiring.updated_at < cutoff_at
+           LIMIT batch_limit
+        ),
+        deleted AS (
+          DELETE FROM public.media_upload_sessions AS target
+           USING victims
+           WHERE target.id = victims.id
+          RETURNING 1
+        )
+        SELECT count(*) INTO affected_count FROM deleted;
+      END IF;
+
+    -- #1088. Телеметрия нарушения изоляции арендаторов — это журнал БЕЗОПАСНОСТИ, и год для него
+    -- не выдумка: год держат и PCI DSS 10.7 (из них квартал — «немедленно доступными»), и типовые
+    -- требования киберстраховщиков. Поэтому окно 365 дней.
+    --
+    -- Условие возраста считается от `resolved_at`, и НЕРАЗОБРАННОЕ не удаляется никогда, каким бы
+    -- старым оно ни было: строка здесь дедуплицирована по `fingerprint` и живёт как открытый
+    -- случай (`lifecycle_status`, `occurrence_count`, `first_seen_at`…), а не как сырое событие.
+    -- Тикающий год не должен закрывать случай за людей. Почасовая свёртка уходит каскадом:
+    -- `saas_isolation_event_hourly.event_id` ссылается сюда с ON DELETE CASCADE.
+    WHEN 'saas_isolation_events_resolved' THEN
+      IF p_dry_run THEN
+        SELECT count(*) INTO affected_count
+          FROM (
+            SELECT 1 FROM public.saas_isolation_events AS expiring
+             WHERE expiring.lifecycle_status = 'resolved'
+               AND expiring.resolved_at IS NOT NULL
+               AND expiring.resolved_at < cutoff_at
+             LIMIT batch_limit
+          ) AS capped;
+      ELSE
+        WITH victims AS (
+          SELECT expiring.id
+            FROM public.saas_isolation_events AS expiring
+           WHERE expiring.lifecycle_status = 'resolved'
+             AND expiring.resolved_at IS NOT NULL
+             AND expiring.resolved_at < cutoff_at
+           LIMIT batch_limit
+        ),
+        deleted AS (
+          DELETE FROM public.saas_isolation_events AS target
+           USING victims
+           WHERE target.id = victims.id
+          RETURNING 1
+        )
+        SELECT count(*) INTO affected_count FROM deleted;
+      END IF;
+
+    -- #1088. Прогон проверки покрытия изоляции — тот же класс безопасности и то же окно 365 дней.
+    -- Незавершённый прогон (`finished_at IS NULL`) не трогается: он либо ещё идёт, либо оборвался,
+    -- и в обоих случаях это находка для оператора, а не мусор по возрасту.
+    WHEN 'saas_isolation_coverage_runs' THEN
+      IF p_dry_run THEN
+        SELECT count(*) INTO affected_count
+          FROM (
+            SELECT 1 FROM public.saas_isolation_coverage_runs AS expiring
+             WHERE expiring.finished_at IS NOT NULL
+               AND expiring.finished_at < cutoff_at
+             LIMIT batch_limit
+          ) AS capped;
+      ELSE
+        WITH victims AS (
+          SELECT expiring.id
+            FROM public.saas_isolation_coverage_runs AS expiring
+           WHERE expiring.finished_at IS NOT NULL
+             AND expiring.finished_at < cutoff_at
+           LIMIT batch_limit
+        ),
+        deleted AS (
+          DELETE FROM public.saas_isolation_coverage_runs AS target
+           USING victims
+           WHERE target.id = victims.id
+          RETURNING 1
+        )
+        SELECT count(*) INTO affected_count FROM deleted;
+      END IF;
+
     ELSE
       RAISE EXCEPTION 'unknown retention target %', p_target
         USING ERRCODE = '22023';
   END CASE;
 
   RETURN affected_count;
+END
+$_$;
+
+
+--
+-- Name: read_acquiring_webhook_booking_payment_setting(text); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.read_acquiring_webhook_booking_payment_setting(p_key text) RETURNS jsonb
+    LANGUAGE plpgsql STABLE SECURITY DEFINER PARALLEL RESTRICTED
+    SET search_path TO 'pg_catalog'
+    AS $_$
+DECLARE
+  v_org uuid := app.current_org_id();
+  v_value jsonb;
+BEGIN
+  PERFORM app.require_accepted_context('app_seam_settings_runtime_owner'::name, 'app_tenant_service'::name, 'tenant_service'::app.port_context_class, 'patient-payment.webhook.booking-payment-config.read', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg]), 'app.read_acquiring_webhook_booking_payment_setting(text)'::regprocedure);
+
+  IF v_org IS NULL
+     OR p_key IS NULL
+     OR p_key NOT IN ('booking_payment_enabled', 'booking_payment_providers') THEN
+    RETURN NULL;
+  END IF;
+
+  SELECT setting.value_json
+  INTO v_value
+  FROM public.system_settings AS setting
+  WHERE setting.key = p_key
+    AND setting.scope = 'admin'
+    AND (setting.organization_id = v_org OR setting.organization_id IS NULL)
+  ORDER BY setting.organization_id IS NULL ASC
+  LIMIT 1;
+  RETURN v_value;
 END
 $_$;
 
@@ -12231,6 +12709,74 @@ $$;
 
 
 --
+-- Name: read_anonymous_patient_surface_projection(uuid); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.read_anonymous_patient_surface_projection(p_organization_id uuid) RETURNS TABLE(clinic_slug text, effective_display_name text, patient_app_name text, accent_token text, logo_url text, app_icon_media_id uuid, active_custom_domain_hostname text, clinic_messenger_bots jsonb)
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $_$
+BEGIN
+  PERFORM app.require_accepted_context('app_seam_custom_domain_owner'::name, 'app_pre_session'::name, 'pre_session'::app.port_context_class, 'branding.anonymous-surface.read', app.hash_port_typed_args(ARRAY[ROW('uuid@1', pg_catalog.uuid_send($1))::app.port_typed_arg]), 'app.read_anonymous_patient_surface_projection(uuid)'::regprocedure);
+  RETURN QUERY SELECT
+    directory.slug,
+    COALESCE(brand.display_name, organization.title),
+    COALESCE(brand.patient_app_name, brand.display_name, organization.title),
+    COALESCE(brand.accent_token, '#284da0'),
+    CASE WHEN logo.id IS NOT NULL THEN '/api/media/' || brand.logo_media_id::text ELSE NULL END,
+    app_icon.id,
+    active_binding.hostname,
+    jsonb_strip_nulls(jsonb_build_object(
+      'telegram', CASE WHEN telegram_bot.key IS NULL THEN NULL
+        WHEN telegram_bot.value_json #>> '{deliveryReadiness,status}' = 'enabled'
+          AND telegram_bot.value_json ->> 'botPublicId' ~ '^[A-Za-z0-9_]{3,64}$'
+        THEN jsonb_build_object('status', 'ready', 'publicId', telegram_bot.value_json ->> 'botPublicId')
+        ELSE jsonb_build_object('status', 'declared_invalid') END,
+      'max', CASE WHEN max_bot.key IS NULL THEN NULL
+        WHEN max_bot.value_json #>> '{deliveryReadiness,status}' = 'enabled'
+          AND max_bot.value_json ->> 'botPublicId' ~ '^[A-Za-z0-9_]{3,64}$'
+        THEN jsonb_build_object('status', 'ready', 'publicId', max_bot.value_json ->> 'botPublicId')
+        ELSE jsonb_build_object('status', 'declared_invalid') END
+    ))
+  FROM public.be_organizations AS organization
+  INNER JOIN public.clinic_public_directory_entries AS directory
+    ON directory.organization_id = organization.id
+    AND directory.is_published = true
+  LEFT JOIN public.org_brand_revisions AS brand
+    ON brand.organization_id = organization.id
+    AND brand.status = 'published'
+  LEFT JOIN public.media_files AS logo
+    ON logo.id = brand.logo_media_id
+    AND logo.owner_kind = 'organization'
+    AND logo.organization_id = organization.id
+    AND logo.status = 'ready'
+    AND logo.mime_type LIKE 'image/%'
+  LEFT JOIN public.media_files AS app_icon
+    ON app_icon.id = brand.app_icon_media_id
+    AND app_icon.owner_kind = 'organization'
+    AND app_icon.organization_id = organization.id
+    AND app_icon.status = 'ready'
+    AND app_icon.mime_type LIKE 'image/%'
+  LEFT JOIN public.org_custom_domain_bindings AS active_binding
+    ON active_binding.organization_id = organization.id
+    AND active_binding.status = 'active'
+    AND brand.id IS NOT NULL
+  LEFT JOIN public.system_settings AS telegram_bot
+    ON telegram_bot.key = 'clinic_telegram_bot_token'
+    AND telegram_bot.scope = 'admin'
+    AND telegram_bot.organization_id = organization.id
+  LEFT JOIN public.system_settings AS max_bot
+    ON max_bot.key = 'clinic_max_bot_api_key'
+    AND max_bot.scope = 'admin'
+    AND max_bot.organization_id = organization.id
+  WHERE organization.id = p_organization_id
+    AND organization.is_active = true
+  LIMIT 1;
+END
+$_$;
+
+
+--
 -- Name: read_authenticated_runtime_setting(text, text, uuid, boolean); Type: FUNCTION; Schema: app; Owner: -
 --
 
@@ -12246,6 +12792,7 @@ BEGIN
      OR NOT (
        p_key IN (
          'patient_label',
+         'appointment_label',
          'doctor_patient_support_comments_without_support_default_enabled',
          'doctor_patient_support_media_without_support_default_enabled',
          'patient_home_daily_practice_target', 'patient_default_promo_treatment_program_template_id',
@@ -12258,6 +12805,7 @@ BEGIN
          'booking_calendar_show_working_hours', 'booking_calendar_default_window',
          'booking_calendar_default_branch_id', 'booking_calendar_default_service_id',
          'booking_calendar_default_specialist_id', 'booking_payment_enabled',
+         'booking_prepayment_wait_minutes',
          'patient_home_daily_warmup_repeat_cooldown_minutes',
          'patient_treatment_plan_item_done_repeat_cooldown_minutes', 'notifications_topics',
          'auth_email_enabled', 'auth_sms_enabled', 'auth_telegram_enabled', 'auth_max_enabled',
@@ -12275,23 +12823,28 @@ BEGIN
 
   RETURN QUERY
   SELECT setting.key, setting.scope, setting.organization_id,
-         CASE WHEN p_key IN (
-           'patient_label',
-           'doctor_patient_support_comments_without_support_default_enabled',
-           'doctor_patient_support_media_without_support_default_enabled',
-           'patient_home_daily_practice_target', 'patient_default_promo_treatment_program_template_id',
-           'patient_home_daily_warmup_rotation_enabled', 'patient_home_daily_warmup_rotation_times',
-           'patient_app_maintenance_enabled', 'patient_app_maintenance_message',
-           'patient_program_discussion_doctor_reply_from_log_enabled',
-           'patient_program_discussion_ui_enabled',
-           'patient_program_discussion_media_submission_enabled',
-           'video_playback_api_enabled', 'video_default_delivery', 'patient_booking_url',
-           'booking_calendar_show_working_hours', 'booking_calendar_default_window',
-           'booking_calendar_default_branch_id', 'booking_calendar_default_service_id',
-           'booking_calendar_default_specialist_id', 'booking_payment_enabled',
-           'patient_home_daily_warmup_repeat_cooldown_minutes',
-           'patient_treatment_plan_item_done_repeat_cooldown_minutes', 'notifications_topics'
-         ) THEN 'authenticated_client'::text ELSE 'public'::text END,
+         CASE
+           WHEN p_key = 'booking_prepayment_wait_minutes' THEN 'server'::text
+           WHEN p_key IN (
+             'patient_label',
+             'appointment_label',
+             'doctor_patient_support_comments_without_support_default_enabled',
+             'doctor_patient_support_media_without_support_default_enabled',
+             'patient_home_daily_practice_target', 'patient_default_promo_treatment_program_template_id',
+             'patient_home_daily_warmup_rotation_enabled', 'patient_home_daily_warmup_rotation_times',
+             'patient_app_maintenance_enabled', 'patient_app_maintenance_message',
+             'patient_program_discussion_doctor_reply_from_log_enabled',
+             'patient_program_discussion_ui_enabled',
+             'patient_program_discussion_media_submission_enabled',
+             'video_playback_api_enabled', 'video_default_delivery', 'patient_booking_url',
+             'booking_calendar_show_working_hours', 'booking_calendar_default_window',
+             'booking_calendar_default_branch_id', 'booking_calendar_default_service_id',
+             'booking_calendar_default_specialist_id', 'booking_payment_enabled',
+             'patient_home_daily_warmup_repeat_cooldown_minutes',
+             'patient_treatment_plan_item_done_repeat_cooldown_minutes', 'notifications_topics'
+           ) THEN 'authenticated_client'::text
+           ELSE 'public'::text
+         END,
          setting.value_json
   FROM public.system_settings setting
   WHERE setting.key = p_key
@@ -12344,6 +12897,53 @@ BEGIN
     JOIN public.be_patient_booking_profiles p
       ON p.organization_id = a.organization_id AND p.platform_user_id = a.platform_user_id
    WHERE a.id = p_appointment_id AND a.organization_id = app.current_org_id();
+END
+$_$;
+
+
+--
+-- Name: read_booking_payment_check(uuid); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.read_booking_payment_check(p_intent_id uuid) RETURNS TABLE(is_alive boolean, amount_minor integer, currency text, payment_deadline_at timestamp with time zone, appointment_status text, provider_checkout_url text)
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $_$
+BEGIN
+  PERFORM app.require_accepted_context('app_seam_payment_webhook_owner'::name, 'app_pre_session'::name, 'pre_session'::app.port_context_class, 'booking-payment.check.read', app.hash_port_typed_args(ARRAY[ROW('uuid@1', pg_catalog.uuid_send($1))::app.port_typed_arg]), 'app.read_booking_payment_check(uuid)'::regprocedure);
+
+  RETURN QUERY
+  SELECT
+    COALESCE(
+      intent.status IN ('pending', 'processing')
+      AND appointment.status = 'awaiting_payment'
+      AND appointment.deleted_at IS NULL
+      AND appointment.payment_ref IS NULL
+      AND appointment.prepayment_paid_minor < appointment.prepayment_required_minor
+      AND appointment.payment_deadline_at > pg_catalog.clock_timestamp()
+      AND NULLIF(pg_catalog.btrim(intent.checkout_url), '') IS NOT NULL,
+      false
+    ) AS is_alive,
+    intent.amount_minor,
+    intent.currency,
+    appointment.payment_deadline_at,
+    appointment.status,
+    CASE
+      WHEN intent.status IN ('pending', 'processing')
+       AND appointment.status = 'awaiting_payment'
+       AND appointment.deleted_at IS NULL
+       AND appointment.payment_ref IS NULL
+       AND appointment.prepayment_paid_minor < appointment.prepayment_required_minor
+       AND appointment.payment_deadline_at > pg_catalog.clock_timestamp()
+      THEN NULLIF(pg_catalog.btrim(intent.checkout_url), '')
+      ELSE NULL
+    END AS provider_checkout_url
+  FROM (VALUES (true)) AS one_row(always_one)
+  LEFT JOIN public.be_payment_intents AS intent
+    ON intent.id = p_intent_id
+   AND intent.purpose = 'appointment_prepayment'
+  LEFT JOIN public.be_appointments AS appointment
+    ON appointment.id = intent.appointment_id;
 END
 $_$;
 
@@ -12477,11 +13077,7 @@ WITH windows(hours) AS (VALUES (24), (1)),
 event_totals AS (
   SELECT
     windows.hours,
-    count(events.*) AS total,
-    count(events.*) FILTER (WHERE events.delivery = 'hls') AS hls,
-    count(events.*) FILTER (WHERE events.delivery = 'mp4') AS mp4,
-    count(events.*) FILTER (WHERE events.delivery = 'file') AS file,
-    count(events.*) FILTER (WHERE events.fallback_used) AS fallback
+    count(events.*) AS total
   FROM windows
   LEFT JOIN public.media_playback_resolution_events AS events
     ON events.resolved_at >= now() - windows.hours * interval '1 hour'
@@ -12490,11 +13086,7 @@ event_totals AS (
 hourly_totals AS (
   SELECT
     windows.hours,
-    COALESCE(sum(stats.resolved_count), 0) AS total,
-    COALESCE(sum(stats.resolved_count) FILTER (WHERE stats.delivery = 'hls'), 0) AS hls,
-    COALESCE(sum(stats.resolved_count) FILTER (WHERE stats.delivery = 'mp4'), 0) AS mp4,
-    COALESCE(sum(stats.resolved_count) FILTER (WHERE stats.delivery = 'file'), 0) AS file,
-    COALESCE(sum(stats.fallback_count), 0) AS fallback
+    COALESCE(sum(stats.resolved_count), 0) AS total
   FROM windows
   LEFT JOIN public.media_playback_stats_hourly AS stats
     ON stats.bucket_hour >= now() - windows.hours * interval '1 hour'
@@ -12510,12 +13102,6 @@ unique_totals AS (
 SELECT jsonb_object_agg(
   event_totals.hours::text,
   jsonb_build_object(
-    'byDelivery', jsonb_build_object(
-      'hls', CASE WHEN event_totals.total > 0 THEN event_totals.hls ELSE hourly_totals.hls END,
-      'mp4', CASE WHEN event_totals.total > 0 THEN event_totals.mp4 ELSE hourly_totals.mp4 END,
-      'file', CASE WHEN event_totals.total > 0 THEN event_totals.file ELSE hourly_totals.file END
-    ),
-    'fallbackTotal', CASE WHEN event_totals.total > 0 THEN event_totals.fallback ELSE hourly_totals.fallback END,
     'totalResolutions', CASE WHEN event_totals.total > 0 THEN event_totals.total ELSE hourly_totals.total END,
     'uniquePlaybackPairsFirstSeenInWindow', unique_totals.unique_pairs
   )
@@ -12838,8 +13424,6 @@ safe_jobs AS MATERIALIZED (
             'consecutiveFailRuns', CASE
               WHEN COALESCE(meta_json->>'consecutiveFailRuns', '') ~ '^[0-9]{1,9}$'
               THEN (meta_json->>'consecutiveFailRuns')::integer ELSE 0 END,
-            'rubitime', CASE WHEN meta_json->>'rubitime' IN ('ok','fail','skipped_not_configured')
-              THEN meta_json->>'rubitime' ELSE 'no_data' END,
             'telegram', CASE WHEN meta_json->>'telegram' IN ('ok','fail','skipped_not_configured')
               THEN meta_json->>'telegram' ELSE 'no_data' END,
             'max', CASE WHEN meta_json->>'max' IN ('ok','fail','skipped_not_configured')
@@ -13002,7 +13586,7 @@ webhook_status AS MATERIALIZED (
     'httpStatusReturned', http_status_returned
   ) ORDER BY source), '[]'::jsonb) AS value
   FROM public.integration_webhook_last_status
-  WHERE source IN ('rubitime','telegram','max')
+  WHERE source IN ('telegram','max')
 ),
 digest AS MATERIALIZED (
   SELECT max(sent_at) FILTER (WHERE dedup_key LIKE 'digest:%') AS last_sent_at
@@ -13068,7 +13652,7 @@ SELECT
 -- Name: read_current_patient_active_organizations(); Type: FUNCTION; Schema: app; Owner: -
 --
 
-CREATE FUNCTION app.read_current_patient_active_organizations() RETURNS TABLE(organization_id uuid, organization_title text, platform_user_id uuid, enrollment_created_at timestamp with time zone)
+CREATE FUNCTION app.read_current_patient_active_organizations() RETURNS TABLE(organization_id uuid, organization_title text, platform_user_id uuid, enrollment_created_at timestamp with time zone, uses_own_patient_app boolean)
     LANGUAGE plpgsql STABLE SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $$
@@ -13083,11 +13667,20 @@ BEGIN
   END IF;
 
   RETURN QUERY
-  SELECT organization.id, organization.title, v_patient_user_id, enrollment.created_at
+  SELECT
+    organization.id,
+    organization.title,
+    v_patient_user_id,
+    enrollment.created_at,
+    COALESCE((own_app.value_json ->> 'value')::boolean, false)
   FROM public.org_enrollments AS enrollment
   INNER JOIN public.be_organizations AS organization
     ON organization.id = enrollment.organization_id
    AND organization.is_active = true
+  LEFT JOIN public.system_settings AS own_app
+    ON own_app.key = 'clinic_uses_own_patient_app'
+   AND own_app.scope = 'admin'
+   AND own_app.organization_id = organization.id
   WHERE enrollment.platform_user_id = v_patient_user_id
     AND enrollment.status = 'active'
   ORDER BY enrollment.created_at, organization.id;
@@ -13387,14 +13980,13 @@ BEGIN
   END IF;
   RETURN QUERY
   SELECT field.id, field.organization_id, field.field_key, field.field_type, field.label,
-         field.placeholder, field.is_required, field.visible_to_patient, field.visible_to_staff,
+         field.placeholder, field.is_required, field.is_active, field.is_active,
          field.sort_order, field.is_active
   FROM public.be_booking_form_fields field
   WHERE field.organization_id = v_org
-    AND field.is_active = TRUE
-    AND field.visible_to_patient = TRUE
+    AND field.archived_at IS NULL
   ORDER BY field.sort_order, field.label;
-END
+END;
 $$;
 
 
@@ -13572,6 +14164,66 @@ $_$;
 
 
 --
+-- Name: read_current_patient_booking_payment_status(uuid); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.read_current_patient_booking_payment_status(p_booking_id uuid) RETURNS TABLE(intent_id uuid, amount_minor integer, currency text, intent_status text, checkout_intent_id uuid, payment_deadline_at timestamp with time zone, appointment_status text)
+    LANGUAGE plpgsql STABLE SECURITY DEFINER PARALLEL RESTRICTED
+    SET search_path TO 'pg_catalog'
+    AS $_$
+DECLARE
+  v_patient uuid := app.current_patient_user_id();
+BEGIN
+  PERFORM app.require_accepted_context('app_seam_patient_booking_owner'::name, 'app_patient'::name, 'patient'::app.port_context_class, 'booking.patient-payment-status.read', app.hash_port_typed_args(ARRAY[ROW('uuid@1', pg_catalog.uuid_send($1))::app.port_typed_arg]), 'app.read_current_patient_booking_payment_status(uuid)'::regprocedure);
+
+  IF v_patient IS NULL THEN
+    RETURN;
+  END IF;
+
+  RETURN QUERY
+  SELECT
+    intent.id,
+    intent.amount_minor,
+    intent.currency,
+    intent.status,
+    CASE
+      WHEN intent.purpose = 'appointment_prepayment'
+       AND NULLIF(pg_catalog.btrim(intent.checkout_url), '') IS NOT NULL
+      THEN intent.id
+      ELSE NULL
+    END,
+    appointment.payment_deadline_at,
+    appointment.status
+  FROM public.patient_bookings AS booking
+  JOIN public.be_appointments AS appointment
+    ON appointment.id = booking.canonical_appointment_id
+   AND appointment.organization_id = booking.organization_id
+   AND appointment.platform_user_id = booking.platform_user_id
+  LEFT JOIN public.be_payments AS payment
+    ON payment.id::text = appointment.payment_ref
+   AND payment.organization_id = appointment.organization_id
+  LEFT JOIN LATERAL (
+    SELECT candidate.id, candidate.amount_minor, candidate.currency, candidate.status,
+           candidate.purpose, candidate.checkout_url
+    FROM public.be_payment_intents AS candidate
+    WHERE candidate.organization_id = appointment.organization_id
+      AND (
+        candidate.id = payment.payment_intent_id
+        OR candidate.appointment_id = appointment.id
+      )
+    ORDER BY
+      CASE WHEN candidate.id = payment.payment_intent_id THEN 0 ELSE 1 END,
+      candidate.created_at DESC
+    LIMIT 1
+  ) AS intent ON true
+  WHERE booking.id = p_booking_id
+    AND booking.platform_user_id = v_patient
+  LIMIT 1;
+END
+$_$;
+
+
+--
 -- Name: read_current_patient_booking_policies(text); Type: FUNCTION; Schema: app; Owner: -
 --
 
@@ -13688,13 +14340,15 @@ CREATE FUNCTION app.read_current_patient_booking_row(p_id uuid, p_kind text) RET
 DECLARE
   v_org uuid := app.current_org_id();
   v_patient uuid := app.current_patient_user_id();
-  v_result jsonb;
+  v_booking public.patient_bookings%ROWTYPE;
+  v_context jsonb;
 BEGIN
   PERFORM app.require_accepted_context('app_seam_patient_booking_owner'::name, 'app_patient'::name, 'patient'::app.port_context_class, 'booking.patient-row.read', app.hash_port_typed_args(ARRAY[ROW('uuid@1', pg_catalog.uuid_send($1))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($2))::app.port_typed_arg]), 'app.read_current_patient_booking_row(uuid,text)'::regprocedure);
   IF p_kind NOT IN ('booking', 'appointment') THEN
     RAISE EXCEPTION 'unsupported patient booking row kind' USING ERRCODE = '22023';
   END IF;
-  SELECT to_jsonb(booking) INTO v_result
+
+  SELECT booking.* INTO v_booking
   FROM public.patient_bookings booking
   WHERE booking.organization_id = v_org
     AND booking.platform_user_id = v_patient
@@ -13707,7 +14361,58 @@ BEGIN
         AND enrollment.status = 'active'
     )
   LIMIT 1;
-  RETURN v_result;
+
+  IF NOT FOUND THEN
+    RETURN NULL;
+  END IF;
+
+  SELECT
+    CASE
+      WHEN v_booking.booking_type = 'in_person'
+        AND appointment.id IS NOT NULL
+        AND branch.id IS NOT NULL
+        AND service.id IS NOT NULL
+        AND branch.is_active = TRUE
+        AND service.is_active = TRUE
+        AND service.public_widget_visible = TRUE
+        AND service.admin_manual_only = FALSE
+        AND EXISTS (
+          SELECT 1
+          FROM public.be_specialist_service_availability availability
+          JOIN public.be_specialists specialist
+            ON specialist.id = availability.specialist_id
+           AND specialist.organization_id = availability.organization_id
+           AND specialist.is_active = TRUE
+          WHERE availability.organization_id = appointment.organization_id
+            AND availability.specialist_id = appointment.specialist_id
+            AND availability.branch_id = appointment.branch_id
+            AND availability.service_id = appointment.service_id
+            AND availability.is_active = TRUE
+        )
+      THEN jsonb_build_object(
+        'branchId', appointment.branch_id,
+        'serviceId', appointment.service_id,
+        'cityCode', branch.city_code,
+        'branchTitle', branch.title,
+        'serviceTitle', service.title,
+        'durationMinutes', appointment.duration_minutes,
+        'priceMinor', service.price_minor,
+        'timezone', branch.timezone
+      )
+      ELSE NULL
+    END
+  INTO v_context
+  FROM public.be_appointments appointment
+  LEFT JOIN public.be_branches branch
+    ON branch.id = appointment.branch_id
+   AND branch.organization_id = appointment.organization_id
+  LEFT JOIN public.be_clinic_services service
+    ON service.id = appointment.service_id
+   AND service.organization_id = appointment.organization_id
+  WHERE appointment.id = v_booking.canonical_appointment_id
+    AND appointment.organization_id = v_org;
+
+  RETURN to_jsonb(v_booking) || jsonb_build_object('canonical_in_person_context', v_context);
 END
 $_$;
 
@@ -13813,7 +14518,8 @@ BEGIN
           'branchTitle', branch.title,
           'serviceTitle', service.title,
           'durationMinutes', appointment.duration_minutes,
-          'priceMinor', service.price_minor
+          'priceMinor', service.price_minor,
+          'timezone', branch.timezone
         )
         ELSE NULL
       END AS canonical_in_person_context
@@ -13871,7 +14577,12 @@ BEGIN
   IF v_org IS NULL OR v_patient IS NULL THEN
     RETURN NULL;
   END IF;
-  IF p_key NOT IN ('booking_min_notice_hours', 'booking_max_consecutive_slot_hours') THEN
+  IF p_key NOT IN (
+    'booking_min_notice_hours',
+    'booking_availability_horizon_days',
+    'booking_max_consecutive_slot_hours',
+    'booking_prepayment_wait_minutes'
+  ) THEN
     RAISE EXCEPTION 'unsupported patient booking runtime integer: %', p_key
       USING ERRCODE = '22023';
   END IF;
@@ -13894,13 +14605,32 @@ BEGIN
   ORDER BY setting.organization_id IS NULL ASC
   LIMIT 1;
 
+  IF v_value IS NULL AND p_key = 'booking_prepayment_wait_minutes' THEN
+    RETURN 20;
+  END IF;
+  -- BAH-01/F2: клиника без per-org строки получает реестровый дефолт; сломанное сохранённое
+  -- значение по-прежнему падает громко (ERRCODE 22023) ниже.
+  IF v_value IS NULL AND p_key = 'booking_availability_horizon_days' THEN
+    RETURN 30;
+  END IF;
+  -- Живой аудит 12.09: тот же класс BAH-01/F2 для двух оставшихся ключей — реестровые
+  -- дефолты из registry.ts (booking_max_consecutive_slot_hours='3', booking_min_notice_hours='0'),
+  -- иначе клиника без per-org строки получала громкий 22023 вместо шага записи.
+  IF v_value IS NULL AND p_key = 'booking_max_consecutive_slot_hours' THEN
+    RETURN 3;
+  END IF;
+  IF v_value IS NULL AND p_key = 'booking_min_notice_hours' THEN
+    RETURN 0;
+  END IF;
   IF v_value IS NULL OR v_value !~ '^\d+$' THEN
     RAISE EXCEPTION 'patient booking runtime integer is unavailable: %', p_key
       USING ERRCODE = '22023';
   END IF;
   v_result := v_value::integer;
   IF (p_key = 'booking_min_notice_hours' AND (v_result < 0 OR v_result > 168))
-     OR (p_key = 'booking_max_consecutive_slot_hours' AND (v_result < 1 OR v_result > 24)) THEN
+     OR (p_key = 'booking_availability_horizon_days' AND (v_result < 1 OR v_result > 92))
+     OR (p_key = 'booking_max_consecutive_slot_hours' AND (v_result < 1 OR v_result > 24))
+     OR (p_key = 'booking_prepayment_wait_minutes' AND (v_result < 1 OR v_result > 525600)) THEN
     RAISE EXCEPTION 'patient booking runtime integer is out of range: %', p_key
       USING ERRCODE = '22023';
   END IF;
@@ -14112,13 +14842,19 @@ BEGIN
   ORDER BY setting.organization_id IS NULL ASC
   LIMIT 1;
 
-  IF v_min_notice_text IS NULL OR v_min_notice_text !~ '^\d+$'
-     OR v_max_consecutive_slot_text IS NULL OR v_max_consecutive_slot_text !~ '^\d+$' THEN
+  IF v_min_notice_text IS NOT NULL AND v_min_notice_text !~ '^\d+$' THEN
     RAISE EXCEPTION 'patient booking runtime settings are unavailable'
       USING ERRCODE = '22023';
   END IF;
-  v_min_notice_hours := v_min_notice_text::integer;
-  v_max_consecutive_slot_hours := v_max_consecutive_slot_text::integer;
+  IF v_max_consecutive_slot_text IS NOT NULL AND v_max_consecutive_slot_text !~ '^\d+$' THEN
+    RAISE EXCEPTION 'patient booking runtime settings are unavailable'
+      USING ERRCODE = '22023';
+  END IF;
+  -- Живой аудит 12.09: клиника без per-org строки получает реестровый дефолт (registry.ts:
+  -- booking_min_notice_hours='0', booking_max_consecutive_slot_hours='3') — тот же класс BAH-01/F2.
+  -- Сохранённое, но сломанное значение по-прежнему падает громко выше.
+  v_min_notice_hours := COALESCE(v_min_notice_text::integer, 0);
+  v_max_consecutive_slot_hours := COALESCE(v_max_consecutive_slot_text::integer, 3);
   IF v_min_notice_hours < 0 OR v_min_notice_hours > 168
      OR v_max_consecutive_slot_hours < 1 OR v_max_consecutive_slot_hours > 24 THEN
     RAISE EXCEPTION 'patient booking runtime settings are out of range'
@@ -14528,18 +15264,33 @@ BEGIN
 
   v_organization_id := app.current_org_id();
   v_patient_user_id := app.current_patient_user_id();
-  IF v_patient_user_id IS NULL OR p_scope <> 'admin' THEN
+  IF v_patient_user_id IS NULL THEN
     RETURN;
   END IF;
-  IF p_key NOT IN (
-    'patient_home_mood_icons',
-    'patient_home_daily_warmup_repeat_cooldown_minutes',
-    'patient_home_daily_warmup_rotation_enabled',
-    'patient_home_daily_warmup_rotation_times',
-    'patient_home_daily_practice_target',
-    'notifications_topics',
-    'patient_default_promo_treatment_program_template_id',
-    'booking_lifecycle_notifications'
+  IF NOT (
+    (
+      p_scope = 'admin'
+      AND p_key IN (
+        'patient_home_mood_icons',
+        'patient_home_daily_warmup_repeat_cooldown_minutes',
+        'patient_home_daily_warmup_rotation_enabled',
+        'patient_home_daily_warmup_rotation_times',
+        'patient_home_daily_practice_target',
+        'notifications_topics',
+        'patient_default_promo_treatment_program_template_id',
+        'booking_lifecycle_notifications'
+      )
+    )
+    OR (
+      p_scope = 'doctor'
+      AND p_key IN (
+        'doctor_workspace_composition',
+        'doctor_workspace_client_defaults',
+        'doctor_patient_support_comments_without_support_default_enabled',
+        'doctor_patient_support_media_without_support_default_enabled',
+        'patient_label'
+      )
+    )
   ) THEN
     RETURN;
   END IF;
@@ -14554,8 +15305,12 @@ BEGIN
   END IF;
 
   RETURN QUERY
-  SELECT setting.key, setting.scope, setting.organization_id, setting.value_json,
-         setting.updated_at, setting.updated_by
+  SELECT setting.key,
+         setting.scope,
+         setting.organization_id,
+         setting.value_json,
+         setting.updated_at,
+         setting.updated_by
   FROM public.system_settings AS setting
   WHERE setting.key = p_key
     AND setting.scope = p_scope
@@ -14565,6 +15320,46 @@ BEGIN
     )
   ORDER BY setting.organization_id IS NULL ASC
   LIMIT 1;
+END
+$$;
+
+
+--
+-- Name: read_current_staff_login_second_factor_required(uuid); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.read_current_staff_login_second_factor_required(p_organization_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql STABLE SECURITY DEFINER PARALLEL RESTRICTED
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+  v_platform_user_id uuid;
+BEGIN
+  PERFORM app.require_attested_context_for_roles('app_seam_settings_runtime_owner'::name, ARRAY['app_patient'::name]::name[]);
+
+  v_platform_user_id := app.current_patient_user_id();
+  IF v_platform_user_id IS NULL OR NOT EXISTS (
+    SELECT 1
+    FROM public.be_organization_members AS membership
+    WHERE membership.organization_id = p_organization_id
+      AND membership.platform_user_id = v_platform_user_id
+      AND membership.status = 'active'
+  ) THEN
+    RETURN NULL;
+  END IF;
+
+  RETURN (
+    SELECT setting.value_json
+    FROM public.system_settings AS setting
+    WHERE setting.key = 'doctor_staff_second_factor_required'
+      AND setting.scope = 'doctor'
+      AND (
+        setting.organization_id = p_organization_id
+        OR setting.organization_id IS NULL
+      )
+    ORDER BY setting.organization_id IS NULL ASC
+    LIMIT 1
+  );
 END
 $$;
 
@@ -14746,16 +15541,23 @@ BEGIN
   PERFORM app.require_accepted_context('app_seam_settings_integrator_owner'::name, 'app_service'::name, 'service'::app.port_context_class, 'config.integrator-provider.read', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg]), 'app.read_integrator_provider_runtime_setting(text)'::regprocedure);
   SELECT setting.value_json INTO value_json
   FROM public.system_settings AS setting
-  WHERE p_key IN ('telegram_bot_token','telegram_webhook_secret','telegram_send_menu_on_button_press',
-                  'max_bot_api_key','max_webhook_secret','max_api_base_url',
-                  'vk_community_access_token','vk_callback_secret','vk_callback_confirmation_token',
-                  'smsc_enabled','smsc_api_key','smsc_base_url')
+  WHERE p_key IN (
+      'telegram_bot_token', 'therapygo_telegram_bot_token', 'therapysto_telegram_bot_token',
+      'telegram_webhook_secret', 'therapygo_telegram_webhook_secret', 'therapysto_telegram_webhook_secret',
+      'therapygo_telegram_mode', 'therapysto_telegram_mode', 'telegram_send_menu_on_button_press',
+      'max_bot_api_key', 'therapygo_max_bot_api_key', 'therapysto_max_bot_api_key',
+      'max_webhook_secret', 'therapygo_max_webhook_secret', 'therapysto_max_webhook_secret', 'max_api_base_url',
+      'therapygo_smtp_outbound', 'therapysto_smtp_outbound',
+      'vk_community_access_token', 'vk_callback_secret', 'vk_callback_confirmation_token',
+      'smsc_enabled', 'smsc_api_key', 'smsc_base_url'
+    )
     AND setting.key = p_key
     AND setting.scope = 'admin'
     AND setting.organization_id IS NULL
   LIMIT 1;
   RETURN value_json;
-END $_$;
+END
+$_$;
 
 
 --
@@ -14935,7 +15737,8 @@ BEGIN
            'hlsMasterPlaylistS3Key', media.hls_master_playlist_s3_key,
            'videoProcessingStatus', media.video_processing_status,
            'videoDurationSeconds', media.video_duration_seconds,
-           'usagePurpose', media.usage_purpose
+           'usagePurpose', media.usage_purpose,
+           'storageTarget', media.storage_target
          )
     INTO v_result
     FROM public.media_transcode_jobs AS job
@@ -15168,6 +15971,25 @@ $_$;
 
 
 --
+-- Name: read_operator_health_imap_setting(); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.read_operator_health_imap_setting() RETURNS jsonb
+    LANGUAGE sql STABLE SECURITY DEFINER PARALLEL RESTRICTED
+    SET search_path TO 'pg_catalog'
+    AS $$
+  SELECT app.require_attested_context_for_roles('app_seam_settings_integrator_owner'::name, ARRAY['app_operational_scheduler'::name]::name[]);
+
+  SELECT setting.value_json
+  FROM public.system_settings AS setting
+  WHERE setting.key = 'operator_health_imap'
+    AND setting.scope = 'admin'
+    AND setting.organization_id IS NULL
+  LIMIT 1
+$$;
+
+
+--
 -- Name: read_operator_health_probe_config(); Type: FUNCTION; Schema: app; Owner: -
 --
 
@@ -15178,6 +16000,29 @@ CREATE FUNCTION app.read_operator_health_probe_config() RETURNS jsonb
 SELECT setting.value_json
   FROM public.system_settings AS setting
   WHERE setting.key = 'operator_health_probe_config'
+    AND setting.scope = 'admin'
+    AND setting.organization_id IS NULL
+  LIMIT 1
+$$;
+
+
+--
+-- Name: read_operator_health_smtp_outbound_setting(text); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.read_operator_health_smtp_outbound_setting(p_audience text) RETURNS jsonb
+    LANGUAGE sql STABLE SECURITY DEFINER PARALLEL RESTRICTED
+    SET search_path TO 'pg_catalog'
+    AS $$
+  SELECT app.require_attested_context_for_roles('app_seam_settings_integrator_owner'::name, ARRAY['app_operational_scheduler'::name]::name[]);
+
+  SELECT setting.value_json
+  FROM public.system_settings AS setting
+  WHERE p_audience IN ('patient', 'staff')
+    AND setting.key = CASE p_audience
+      WHEN 'patient' THEN 'therapygo_smtp_outbound'
+      WHEN 'staff' THEN 'therapysto_smtp_outbound'
+    END
     AND setting.scope = 'admin'
     AND setting.organization_id IS NULL
   LIMIT 1
@@ -15253,13 +16098,57 @@ SELECT
         (SELECT count(*) FROM public.org_enrollments AS enrollment
          WHERE enrollment.organization_id = p_organization_id
            AND enrollment.status IN ('invited', 'active'))::integer AS patient_count_used,
-        COALESCE(
-          (SELECT sum(file.size_bytes) FROM public.patient_files AS file
-           WHERE file.organization_id = p_organization_id),
-          0
+        (
+          -- Владелец 10.09.2026: одно число на весь аккаунт, без разделения по видам
+          -- загруженного. `media_files` — журнал всего загруженного организацией;
+          -- `patient_files` добавляется только там, где своей строки в журнале нет.
+          COALESCE(
+            (SELECT sum(uploaded.size_bytes) FROM public.media_files AS uploaded
+             WHERE uploaded.organization_id = p_organization_id
+               AND uploaded.status = 'ready'),
+            0
+          )
+          +
+          COALESCE(
+            (SELECT sum(file.size_bytes) FROM public.patient_files AS file
+             WHERE file.organization_id = p_organization_id
+               AND file.media_file_id IS NULL),
+            0
+          )
         )::bigint AS files_used
       WHERE p_organization_id IS NOT NULL
     $$;
+
+
+--
+-- Name: read_organization_doctor_workspace_composition(); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.read_organization_doctor_workspace_composition() RETURNS jsonb
+    LANGUAGE plpgsql STABLE SECURITY DEFINER PARALLEL RESTRICTED
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+  v_org uuid := app.current_org_id();
+  v_value jsonb;
+BEGIN
+  PERFORM app.require_accepted_context('app_seam_settings_runtime_owner'::name, 'app_tenant_service'::name, 'tenant_service'::app.port_context_class, 'workspace.organization-composition.read', app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]), 'app.read_organization_doctor_workspace_composition()'::regprocedure);
+
+  IF v_org IS NULL THEN
+    RETURN NULL;
+  END IF;
+
+  SELECT setting.value_json
+  INTO v_value
+  FROM public.system_settings AS setting
+  WHERE setting.key = 'doctor_workspace_composition'
+    AND setting.scope = 'doctor'
+    AND (setting.organization_id = v_org OR setting.organization_id IS NULL)
+  ORDER BY setting.organization_id IS NULL ASC
+  LIMIT 1;
+  RETURN v_value;
+END
+$$;
 
 
 --
@@ -15953,7 +16842,7 @@ BEGIN
                  AND l.created_at >= p_start AND l.created_at < p_end_exclusive) AS x) AS mark_days
   ),
   playback_events AS (
-    SELECT r.user_id AS user_id, r.media_id AS media_id, r.delivery AS delivery,
+    SELECT r.user_id AS user_id, r.media_id AS media_id,
            (timezone(p_iana, r.resolved_at))::date::text AS d
       FROM public.media_playback_resolution_events AS r
      WHERE r.resolved_at >= p_start AND r.resolved_at < p_end_exclusive
@@ -15963,9 +16852,7 @@ BEGIN
     -- `count(DISTINCT (user_id, media_id))` вместо склейки в текст: при `user_id IS NULL` склейка
     -- давала NULL, и анонимный просмотр входил во «всего», но исчезал из «уникальных».
     SELECT count(*) AS views_total,
-           count(DISTINCT (user_id, media_id)) AS views_unique,
-           count(*) FILTER (WHERE delivery = 'hls') AS hls_resolves,
-           count(*) FILTER (WHERE delivery = 'mp4') AS mp4_resolves
+           count(DISTINCT (user_id, media_id)) AS views_unique
       FROM playback_events
   ),
   playback_by_day AS (
@@ -16010,8 +16897,6 @@ BEGIN
       'markDaysSum', program_activity.mark_days),
     'playback', jsonb_build_object('viewsTotal', playback.views_total,
                                    'viewsUnique', playback.views_unique,
-                                   'hlsResolves', playback.hls_resolves,
-                                   'mp4Resolves', playback.mp4_resolves,
                                    'playbackErrors', playback_errors.n,
                                    'byDay', playback_by_day.m)
   ) INTO snapshot
@@ -16081,7 +16966,7 @@ $$;
 -- Name: read_platform_media_row(uuid); Type: FUNCTION; Schema: app; Owner: -
 --
 
-CREATE FUNCTION app.read_platform_media_row(p_media_id uuid) RETURNS TABLE(id text, mime_type text, s3_key text, stored_path text, status text, usage_purpose text, uploaded_by text, video_processing_status text, hls_master_playlist_s3_key text, poster_s3_key text, video_duration_seconds integer, available_qualities_json jsonb, video_delivery_override text, preview_sm_key text, preview_md_key text, preview_status text)
+CREATE FUNCTION app.read_platform_media_row(p_media_id uuid) RETURNS TABLE(id text, mime_type text, s3_key text, stored_path text, status text, usage_purpose text, uploaded_by text, video_processing_status text, hls_master_playlist_s3_key text, poster_s3_key text, video_duration_seconds integer, available_qualities_json jsonb, preview_sm_key text, preview_md_key text, preview_status text, standard_rendition_at timestamp with time zone)
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $$SELECT app.require_attested_context_for_roles('app_seam_patient_lfk_media_owner'::name, ARRAY['app_patient'::name, 'app_staff'::name]::name[]);
@@ -16098,10 +16983,10 @@ SELECT
     poster_s3_key,
     video_duration_seconds,
     available_qualities_json,
-    video_delivery_override,
     preview_sm_key,
     preview_md_key,
-    preview_status
+    preview_status,
+    standard_rendition_at
   FROM public.media_files
   WHERE id = p_media_id
     AND owner_kind = 'platform'
@@ -16482,10 +17367,10 @@ $_$;
 
 
 --
--- Name: read_public_booking_catalog(uuid, uuid); Type: FUNCTION; Schema: app; Owner: -
+-- Name: read_public_booking_catalog(uuid, uuid, uuid); Type: FUNCTION; Schema: app; Owner: -
 --
 
-CREATE FUNCTION app.read_public_booking_catalog(p_branch_id uuid, p_service_id uuid) RETURNS jsonb
+CREATE FUNCTION app.read_public_booking_catalog(p_branch_id uuid, p_service_id uuid, p_specialist_id uuid) RETURNS jsonb
     LANGUAGE plpgsql STABLE SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $_$
@@ -16495,11 +17380,13 @@ DECLARE
   v_branch jsonb;
   v_services jsonb;
   v_service jsonb;
+  v_specialist jsonb;
+  v_show_specialist_cards boolean;
 BEGIN
-  PERFORM app.require_accepted_context('app_seam_public_booking_owner'::name, 'app_tenant_service'::name, 'tenant_service'::app.port_context_class, 'booking.public-catalog.read', app.hash_port_typed_args(ARRAY[ROW('uuid@1', pg_catalog.uuid_send($1))::app.port_typed_arg, ROW('uuid@1', pg_catalog.uuid_send($2))::app.port_typed_arg]), 'app.read_public_booking_catalog(uuid,uuid)'::regprocedure);
+  PERFORM app.require_accepted_context('app_seam_public_booking_owner'::name, 'app_tenant_service'::name, 'tenant_service'::app.port_context_class, 'booking.public-catalog.read', app.hash_port_typed_args(ARRAY[ROW('uuid@1', pg_catalog.uuid_send($1))::app.port_typed_arg, ROW('uuid@1', pg_catalog.uuid_send($2))::app.port_typed_arg, ROW('uuid@1', pg_catalog.uuid_send($3))::app.port_typed_arg]), 'app.read_public_booking_catalog(uuid,uuid,uuid)'::regprocedure);
 
   -- Неопубликованная клиника снаружи не существует. Это ЕДИНСТВЕННОЕ место, где проверка стоит
-  -- для каталога: маршрут `/book/{slug}` резолвит слаг отдельным корнем, но принципал ставится
+  -- для каталога: маршрут `/{slug}/booking` резолвит слаг отдельным корнем, но принципал ставится
   -- кодом приложения, и дверь не обязана верить коду приложения.
   IF v_org IS NULL OR NOT EXISTS (
     SELECT 1 FROM public.clinic_public_directory_entries directory
@@ -16525,6 +17412,57 @@ BEGIN
   FROM public.be_branches branch
   WHERE branch.organization_id = v_org
     AND branch.is_active = true;
+
+  IF p_specialist_id IS NOT NULL THEN
+    -- Галка организации «показывать визитки специалистов в модуле записи» (§17.Q). Строки нет —
+    -- настройка не тронута, значит ВКЛЮЧЕНО: обоснование дефолта в шапке блока.
+    SELECT COALESCE((setting.value_json ->> 'value')::boolean, true)
+      INTO v_show_specialist_cards
+      FROM public.system_settings setting
+     WHERE setting.key = 'clinic_booking_show_specialist_cards'
+       AND setting.scope = 'admin'
+       AND setting.organization_id = v_org
+     LIMIT 1;
+    v_show_specialist_cards := COALESCE(v_show_specialist_cards, true);
+
+    -- Личность специалиста по ссылке. Отбор — только его активность: публичность его карточки
+    -- решает, ЧИТАЕТСЯ ли про него описание, а не принимает ли он записи (§17.Q).
+    SELECT jsonb_build_object(
+      'id', specialist.id,
+      'fullName', specialist.full_name,
+      -- Филиалы, где он ДЕЙСТВИТЕЛЬНО принимает: первый экран сужается до них (план §6.2), иначе
+      -- ссылка «к Анне» отправляет человека в филиал, где под неё нет ни одной услуги.
+      'branchIds', COALESCE(practice.branch_ids, '[]'::jsonb),
+      -- Можно ли из модуля записи открыть его карточку и прочитать описание. Галка организации И
+      -- его собственная публикация: предложить открыть невыпущенную карточку — это ссылка в 404.
+      'cardIsReadable', (v_show_specialist_cards AND specialist.card_is_published)
+    )
+    INTO v_specialist
+    FROM public.be_specialists specialist
+    LEFT JOIN LATERAL (
+      SELECT jsonb_agg(DISTINCT availability.branch_id) AS branch_ids
+        FROM public.be_specialist_service_availability availability
+       WHERE availability.organization_id = v_org
+         AND availability.specialist_id = specialist.id
+         AND availability.is_active = true
+         AND availability.branch_id IS NOT NULL
+    ) AS practice ON true
+    WHERE specialist.organization_id = v_org
+      AND specialist.id = p_specialist_id
+      AND specialist.is_active = true;
+
+    IF v_specialist IS NULL THEN
+      -- Один и тот же ответ на все три причины отказа (§3.3). Список филиалов остаётся: экран
+      -- «больше не принимает» обязан тут же предложить действующие филиалы, а не пустоту (§6.3).
+      RETURN jsonb_build_object(
+        'branches', v_branches,
+        'branch', NULL,
+        'services', '[]'::jsonb,
+        'service', NULL,
+        'specialist', NULL
+      );
+    END IF;
+  END IF;
 
   IF p_branch_id IS NOT NULL THEN
     SELECT jsonb_build_object(
@@ -16570,6 +17508,9 @@ BEGIN
          AND availability.service_id = service.id
          AND availability.branch_id = p_branch_id
          AND availability.is_active = true
+         -- Сужение по специалисту из ссылки. Здесь мы уже знаем, что он активен: неразрешённый
+         -- вернулся выше одинаковым отказом.
+         AND (p_specialist_id IS NULL OR availability.specialist_id = p_specialist_id)
         INNER JOIN public.be_specialists specialist
           ON specialist.id = availability.specialist_id
          AND specialist.organization_id = availability.organization_id
@@ -16615,6 +17556,7 @@ BEGIN
           AND availability.service_id = service.id
           AND availability.is_active = true
           AND (p_branch_id IS NULL OR availability.branch_id = p_branch_id)
+          AND (p_specialist_id IS NULL OR availability.specialist_id = p_specialist_id)
       );
   END IF;
 
@@ -16622,7 +17564,8 @@ BEGIN
     'branches', v_branches,
     'branch', v_branch,
     'services', COALESCE(v_services, '[]'::jsonb),
-    'service', v_service
+    'service', v_service,
+    'specialist', v_specialist
   );
 END;
 $_$;
@@ -16644,6 +17587,8 @@ DECLARE
   v_busy jsonb;
   v_buffer_minutes integer;
   v_min_notice_hours integer;
+  v_availability_horizon_text text;
+  v_availability_horizon_days integer;
   v_max_consecutive_slot_hours integer;
   v_date_from date;
   v_date_to date;
@@ -16805,6 +17750,30 @@ BEGIN
   ORDER BY setting.organization_id IS NULL ASC
   LIMIT 1;
 
+  SELECT setting.value_json ->> 'value'
+  INTO v_availability_horizon_text
+  FROM public.system_settings setting
+  WHERE setting.key = 'booking_availability_horizon_days'
+    AND setting.scope = 'admin'
+    AND (setting.organization_id = v_org OR setting.organization_id IS NULL)
+  ORDER BY setting.organization_id IS NULL ASC
+  LIMIT 1;
+
+  -- BAH-01/F2: отсутствие per-org строки (NULL) деградирует к реестровому дефолту.
+  -- Сохранённое, но сломанное значение остаётся loud (ERRCODE 22023).
+  IF v_availability_horizon_text IS NULL THEN
+    v_availability_horizon_days := 30;
+  ELSIF v_availability_horizon_text !~ '^\d+$' THEN
+    RAISE EXCEPTION 'booking availability horizon is unavailable'
+      USING ERRCODE = '22023';
+  ELSE
+    v_availability_horizon_days := v_availability_horizon_text::integer;
+    IF v_availability_horizon_days < 1 OR v_availability_horizon_days > 92 THEN
+      RAISE EXCEPTION 'booking availability horizon is out of range'
+        USING ERRCODE = '22023';
+    END IF;
+  END IF;
+
   SELECT GREATEST(1, LEAST(24, COALESCE((setting.value_json ->> 'value')::integer, 1)))
   INTO v_max_consecutive_slot_hours
   FROM public.system_settings setting
@@ -16830,6 +17799,7 @@ BEGIN
     'busy', v_busy,
     'bufferMinutes', v_buffer_minutes,
     'minNoticeHours', COALESCE(v_min_notice_hours, 0),
+    'availabilityHorizonDays', v_availability_horizon_days,
     'maxConsecutiveSlotHours', COALESCE(v_max_consecutive_slot_hours, 1)
   );
 END;
@@ -16853,12 +17823,23 @@ BEGIN
     'requestedSlug', requested.slug,
     'canonicalSlug', current_claim.slug,
     'disposition', CASE WHEN requested.kind = 'alias' THEN 'redirect' ELSE 'current' END,
-    'displayName', entry.display_name,
+    -- ЕДИНСТВЕННОЕ назначение этого признака: страница `/{clinic}` выбирает по нему экран —
+    -- визитку или вырожденный вход в кабинет. Содержимое ответа он не режет.
+    'cardIsPublished', entry.card_is_published,
+    -- Имя клиники берётся ЖИВЫМ из того места, которое правит кабинет, а не из копии в строке
+    -- каталога: копию не обновлял никто, и «своя фамилия вместо названия организации» (владелец
+    -- 11.09) на визитку не доезжала. Формула — та же, что уже стоит в
+    -- `app.read_anonymous_patient_surface_projection`: переопределение бренда, иначе каноническое
+    -- имя организации. Второй записи этого правила заводить нельзя.
+    'displayName', COALESCE(NULLIF(pg_catalog.btrim(brand.display_name), ''), organization.title),
     'description', entry.description,
+    'fullDescriptionMarkdown', entry.full_description_markdown,
     'publicContactPhone', entry.public_contact_phone,
     'publicContactEmail', entry.public_contact_email,
     'publicWebsiteUrl', entry.public_website_url,
-    'locations', entry.locations_json,
+    'locations', branches.locations,
+    'specialists', specialists.people,
+    'services', services.items,
     'media', media.assets
   )
   INTO v_card
@@ -16869,10 +17850,83 @@ BEGIN
   INNER JOIN public.clinic_public_directory_entries AS entry
     ON entry.organization_id = requested.organization_id
    AND entry.is_published = true
-   AND entry.card_is_published = true
   INNER JOIN public.be_organizations AS organization
     ON organization.id = requested.organization_id
    AND organization.is_active = true
+  LEFT JOIN LATERAL (
+    SELECT revision.display_name
+      FROM public.org_brand_revisions AS revision
+     WHERE revision.organization_id = requested.organization_id
+       AND revision.status = 'published'
+     LIMIT 1
+  ) AS brand ON true
+  LEFT JOIN LATERAL (
+    -- Живые филиалы клиники в момент самого чтения, не снимок из прошлого сохранения формы.
+    SELECT COALESCE(
+      jsonb_agg(
+        jsonb_build_object('title', branch.title, 'cityCode', branch.city_code, 'address', branch.address)
+        ORDER BY branch.sort_order, branch.title
+      ),
+      '[]'::jsonb
+    ) AS locations
+    FROM public.be_branches AS branch
+    WHERE branch.organization_id = entry.organization_id
+      AND branch.is_active = true
+  ) AS branches ON true
+  LEFT JOIN LATERAL (
+    -- Опубликованные специалисты клиники. Владелец 11.09: «если специалист включён, не надо
+    -- выключать его визитку, в принципе». Поэтому здесь ТОЛЬКО его собственные признаки —
+    -- активен и опубликован им же, — а галка визитки клиники этот список не трогает: страница
+    -- специалиста живёт независимо от вида корневого экрана. Неактивный, непубликуемый и
+    -- несуществующий по-прежнему не попадают сюда ОДИНАКОВО, поэтому перебрать людей по форме
+    -- ответа нельзя (§3.3).
+    SELECT COALESCE(
+      jsonb_agg(
+        jsonb_build_object(
+          'id', specialist.id,
+          'fullName', specialist.full_name,
+          'shortDescription', specialist.description,
+          'fullDescriptionMarkdown', specialist.full_description_markdown,
+          'avatarMediaId', avatar.id
+        )
+        ORDER BY specialist.sort_order, specialist.full_name
+      ),
+      '[]'::jsonb
+    ) AS people
+    FROM public.be_specialists AS specialist
+    LEFT JOIN public.media_files AS avatar
+      ON avatar.id = specialist.avatar_media_id
+     AND avatar.owner_kind = 'organization'
+     AND avatar.organization_id = entry.organization_id
+     AND avatar.status = 'ready'
+     AND avatar.mime_type LIKE 'image/%'
+    WHERE specialist.organization_id = entry.organization_id
+      AND specialist.is_active = true
+      AND specialist.card_is_published = true
+  ) AS specialists ON true
+  LEFT JOIN LATERAL (
+    -- Услуги, которые клиника показывает анониму. Предикат тот же, которым анонимную выдачу
+    -- отбирает дверь публичного каталога записи: неактивная, снятая с публичного виджета и
+    -- «только для администратора» наружу не выходят. Стена между арендаторами — равенство по
+    -- организации, как у филиалов и специалистов.
+    SELECT COALESCE(
+      jsonb_agg(
+        jsonb_build_object(
+          'title', service.title,
+          'description', service.description,
+          'durationMinutes', service.duration_minutes,
+          'priceMinor', service.price_minor
+        )
+        ORDER BY service.sort_order, service.title
+      ),
+      '[]'::jsonb
+    ) AS items
+    FROM public.be_clinic_services AS service
+    WHERE service.organization_id = entry.organization_id
+      AND service.is_active = true
+      AND service.public_widget_visible = true
+      AND service.admin_manual_only = false
+  ) AS services ON true
   LEFT JOIN LATERAL (
     -- Тот же предикат готовности, что у логотипа бренда организации: файл принадлежит организации,
     -- ИМЕННО этой, загрузка завершена, это картинка. Не прошедший файл просто не попадает в набор —
@@ -16884,15 +17938,16 @@ BEGIN
           'role', asset.role,
           'mimeType', asset.mime_type,
           's3Key', asset.s3_key,
-          'storedPath', asset.stored_path
+          'storedPath', asset.stored_path,
+          'standardRenditionAt', asset.standard_rendition_at
         )
-        ORDER BY asset.position
+        ORDER BY asset.position, asset.media_id
       ),
       '[]'::jsonb
     ) AS assets
     FROM (
       SELECT logo.id AS media_id, 'logo'::text AS role, 0::bigint AS position,
-             logo.mime_type, logo.s3_key, logo.stored_path
+             logo.mime_type, logo.s3_key, logo.stored_path, logo.standard_rendition_at
         FROM public.media_files AS logo
        WHERE logo.id = entry.logo_media_id
          AND logo.owner_kind = 'organization'
@@ -16901,7 +17956,7 @@ BEGIN
          AND logo.mime_type LIKE 'image/%'
       UNION ALL
       SELECT photo.id, 'photo'::text, requested_photo.position,
-             photo.mime_type, photo.s3_key, photo.stored_path
+             photo.mime_type, photo.s3_key, photo.stored_path, photo.standard_rendition_at
         FROM unnest(entry.photo_media_ids) WITH ORDINALITY AS requested_photo(media_id, position)
         INNER JOIN public.media_files AS photo
           ON photo.id = requested_photo.media_id
@@ -16909,6 +17964,57 @@ BEGIN
          AND photo.organization_id = entry.organization_id
          AND photo.status = 'ready'
          AND photo.mime_type LIKE 'image/%'
+      UNION ALL
+      -- Аватары опубликованных специалистов: та же проверка готовности, что у логотипа.
+      SELECT DISTINCT avatar.id, 'specialistAvatar'::text, 1000000::bigint,
+             avatar.mime_type, avatar.s3_key, avatar.stored_path, avatar.standard_rendition_at
+        FROM public.be_specialists AS specialist
+        INNER JOIN public.media_files AS avatar
+          ON avatar.id = specialist.avatar_media_id
+         AND avatar.owner_kind = 'organization'
+         AND avatar.organization_id = entry.organization_id
+         AND avatar.status = 'ready'
+         AND avatar.mime_type LIKE 'image/%'
+       WHERE specialist.organization_id = entry.organization_id
+         AND specialist.is_active = true
+         AND specialist.card_is_published = true
+      UNION ALL
+      -- Файлы, на которые ссылается опубликованное полное описание. Картиночного предиката здесь
+      -- нет намеренно: владелец просил «markdown с возможностью загрузки туда фото и даже видео».
+      -- Принадлежность организации и готовность проверяются ровно так же.
+      SELECT DISTINCT embedded.id, 'specialistDescription'::text, 2000000::bigint,
+             embedded.mime_type, embedded.s3_key, embedded.stored_path, embedded.standard_rendition_at
+        FROM public.be_specialists AS specialist
+        CROSS JOIN LATERAL regexp_matches(
+          COALESCE(specialist.full_description_markdown, ''),
+          '/api/media/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})',
+          'gi'
+        ) AS reference(captured)
+        INNER JOIN public.media_files AS embedded
+          ON embedded.id = (reference.captured)[1]::uuid
+         AND embedded.owner_kind = 'organization'
+         AND embedded.organization_id = entry.organization_id
+         AND embedded.status = 'ready'
+       WHERE specialist.organization_id = entry.organization_id
+         AND specialist.is_active = true
+         AND specialist.card_is_published = true
+      UNION ALL
+      -- Файлы полного описания САМОЙ клиники. В ТОТ ЖЕ набор и по тем же правилам: иначе картинка
+      -- внутри описания не откроется анониму либо под медиа появится вторая дверь (§17.H, граница
+      -- 1). Ссылки вычисляются из текста в момент чтения, а не хранятся снимком рядом с ним:
+      -- снимок пришлось бы держать в согласии с текстом, и он расходился бы молча.
+      SELECT DISTINCT clinic_embedded.id, 'clinicDescription'::text, 3000000::bigint,
+             clinic_embedded.mime_type, clinic_embedded.s3_key, clinic_embedded.stored_path, clinic_embedded.standard_rendition_at
+        FROM regexp_matches(
+          COALESCE(entry.full_description_markdown, ''),
+          '/api/media/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})',
+          'gi'
+        ) AS clinic_reference(captured)
+        INNER JOIN public.media_files AS clinic_embedded
+          ON clinic_embedded.id = (clinic_reference.captured)[1]::uuid
+         AND clinic_embedded.owner_kind = 'organization'
+         AND clinic_embedded.organization_id = entry.organization_id
+         AND clinic_embedded.status = 'ready'
     ) AS asset
   ) AS media ON true
   WHERE requested.slug = lower(btrim(p_slug))
@@ -17209,7 +18315,9 @@ BEGIN
       'apple_oauth_key_id', 'apple_oauth_private_key',
       'vk_id_application_id', 'vk_id_client_secret', 'vk_id_redirect_uri',
       'telegram_bot_token',
-      'test_account_identifiers'
+      'test_account_identifiers',
+      'jitsi_public_url', 'jitsi_jwt_issuer', 'jitsi_jwt_application_id',
+      'jitsi_jwt_signing_secret', 'jitsi_xmpp_domain'
     )
      AND setting.key = p_key
      AND setting.scope = 'admin'
@@ -18095,26 +19203,15 @@ CREATE FUNCTION app.record_current_patient_symptom_entry(p_tracking_id uuid, p_v
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $_$
-DECLARE
-  v_org uuid := app.current_org_id();
-  v_patient uuid := app.current_patient_user_id();
-  v_row public.symptom_entries%ROWTYPE;
+DECLARE v_org uuid := app.current_org_id(); v_patient uuid := app.current_patient_user_id(); v_row public.symptom_entries%ROWTYPE;
 BEGIN
   PERFORM app.require_accepted_context('app_seam_patient_self_actions_owner'::name, 'app_patient'::name, 'patient'::app.port_context_class, 'patient.symptom-entry.record', app.hash_port_typed_args(ARRAY[ROW('uuid@1', pg_catalog.uuid_send($1))::app.port_typed_arg, ROW('integer@1', pg_catalog.int4send($2))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($3))::app.port_typed_arg, ROW('timestamptz@1', pg_catalog.timestamptz_send($4))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($5))::app.port_typed_arg]), 'app.record_current_patient_symptom_entry(uuid,integer,text,timestamp with time zone,text)'::regprocedure);
-  IF p_value < 0 OR p_value > 10 OR p_entry_type NOT IN ('instant', 'daily')
-     OR p_recorded_at > statement_timestamp() + interval '1 minute'
-     OR NOT EXISTS (SELECT 1 FROM public.symptom_trackings t
-                    WHERE t.id = p_tracking_id AND t.organization_id = v_org
-                      AND t.platform_user_id = v_patient AND t.deleted_at IS NULL AND t.is_active) THEN
+  IF p_value < 0 OR p_value > 10 OR p_entry_type NOT IN ('instant', 'daily') OR p_recorded_at > statement_timestamp() + interval '1 minute'
+     OR NOT EXISTS (SELECT 1 FROM public.symptom_trackings t WHERE t.id = p_tracking_id AND t.organization_id = v_org AND t.platform_user_id = v_patient AND t.deleted_at IS NULL AND t.is_active AND t.patient_tracking_enabled = true) THEN
     RAISE EXCEPTION 'current_patient_symptom_entry_rejected' USING ERRCODE = 'P0001';
   END IF;
-  INSERT INTO public.symptom_entries (
-    organization_id, user_id, platform_user_id, tracking_id, value_0_10,
-    entry_type, recorded_at, source, notes
-  ) VALUES (
-    v_org, v_patient::text, v_patient, p_tracking_id, p_value,
-    p_entry_type, p_recorded_at, 'webapp', left(p_notes, 2000)
-  ) RETURNING * INTO v_row;
+  INSERT INTO public.symptom_entries (organization_id, user_id, platform_user_id, tracking_id, value_0_10, entry_type, recorded_at, source, notes)
+  VALUES (v_org, v_patient::text, v_patient, p_tracking_id, p_value, p_entry_type, p_recorded_at, 'webapp', left(p_notes, 2000)) RETURNING * INTO v_row;
   RETURN to_jsonb(v_row);
 END
 $_$;
@@ -18205,10 +19302,10 @@ $_$;
 
 
 --
--- Name: record_media_playback_resolution_event(uuid, uuid, text, boolean); Type: FUNCTION; Schema: app; Owner: -
+-- Name: record_media_playback_resolution_event(uuid, uuid, text); Type: FUNCTION; Schema: app; Owner: -
 --
 
-CREATE FUNCTION app.record_media_playback_resolution_event(p_user_id uuid, p_media_id uuid, p_delivery text, p_fallback_used boolean) RETURNS void
+CREATE FUNCTION app.record_media_playback_resolution_event(p_user_id uuid, p_media_id uuid, p_delivery text) RETURNS void
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $$
@@ -18236,9 +19333,9 @@ BEGIN
   END IF;
 
   INSERT INTO public.media_playback_resolution_events
-    (organization_id, user_id, media_id, delivery, fallback_used)
+    (organization_id, user_id, media_id, delivery)
   VALUES
-    (v_organization_id, p_user_id, p_media_id, p_delivery, p_fallback_used);
+    (v_organization_id, p_user_id, p_media_id, p_delivery);
 END
 $$;
 
@@ -18339,7 +19436,10 @@ BEGIN
                (v_payload ->> 'qualitiesJson')::jsonb, media.available_qualities_json),
              video_duration_seconds = COALESCE(
                (v_payload ->> 'durationSeconds')::double precision::integer,
-               media.video_duration_seconds)
+               media.video_duration_seconds),
+             source_bitrate_bps = COALESCE(
+               (v_payload ->> 'sourceBitrateBps')::double precision::integer,
+               media.source_bitrate_bps)
        WHERE media.id = p_media_id;
       UPDATE public.media_transcode_jobs AS job
          SET status = 'done',
@@ -18362,7 +19462,6 @@ BEGIN
              mime_type = 'video/mp4',
              video_processing_status = 'ready',
              video_processing_error = NULL,
-             video_delivery_override = 'mp4',
              available_qualities_json = v_qualities,
              hls_master_playlist_s3_key = NULL,
              hls_artifact_prefix = NULL,
@@ -18699,7 +19798,14 @@ BEGIN
     RETURN QUERY SELECT false, 'unproved_identity'::text, NULL::uuid;
     RETURN;
   END IF;
-  SELECT invite.* INTO v_invite
+  SELECT invite.id, invite.organization_id, invite.patient_user_id, invite.enrollment_id,
+         invite.status, invite.invited_email_normalized, invite.expires_at,
+         invite.continuation_expires_at, invite.proof_email_normalized, invite.proof_verified_at,
+         invite.recipient_binding
+  INTO v_invite.id, v_invite.organization_id, v_invite.patient_user_id, v_invite.enrollment_id,
+       v_invite.status, v_invite.invited_email_normalized, v_invite.expires_at,
+       v_invite.continuation_expires_at, v_invite.proof_email_normalized,
+       v_invite.proof_verified_at, v_invite.recipient_binding
   FROM public.patient_invites AS invite
   WHERE invite.continuation_hash = p_continuation_hash
   LIMIT 1
@@ -18748,7 +19854,8 @@ BEGIN
     RETURN;
   END IF;
 
-  SELECT patient.* INTO v_patient
+  SELECT patient.id, patient.role, patient.merged_into_id
+  INTO v_patient.id, v_patient.role, v_patient.merged_into_id
   FROM public.platform_users AS patient
   WHERE patient.id = v_authenticated_platform_user_id
   LIMIT 1
@@ -18824,21 +19931,160 @@ $$;
 
 
 --
--- Name: refresh_saas_billing_invoice_purchased_tariff(uuid, uuid, uuid); Type: FUNCTION; Schema: app; Owner: -
+-- Name: redeem_patient_invite_session(text); Type: FUNCTION; Schema: app; Owner: -
 --
 
-CREATE FUNCTION app.refresh_saas_billing_invoice_purchased_tariff(p_saas_billing_invoice_id uuid, p_organization_id uuid, p_tariff_id uuid) RETURNS boolean
+CREATE FUNCTION app.redeem_patient_invite_session(p_continuation_hash text) RETURNS TABLE(ok boolean, code text, organization_id uuid)
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+#variable_conflict use_column
+DECLARE
+  v_invite public.patient_invites%ROWTYPE;
+  v_patient public.platform_users%ROWTYPE;
+  v_authenticated_platform_user_id uuid;
+  v_enrollment_status text;
+  v_portal_activated_at timestamptz;
+BEGIN
+  PERFORM app.require_attested_context_for_roles('app_seam_patient_invite_owner'::name, ARRAY['app_patient'::name]::name[]);
+
+  v_authenticated_platform_user_id := app.current_patient_user_id();
+  IF v_authenticated_platform_user_id IS NULL THEN
+    RETURN QUERY SELECT false, 'unproved_identity'::text, NULL::uuid;
+    RETURN;
+  END IF;
+
+  SELECT invite.id, invite.organization_id, invite.patient_user_id, invite.enrollment_id,
+         invite.status, invite.expires_at, invite.continuation_expires_at
+  INTO v_invite.id, v_invite.organization_id, v_invite.patient_user_id, v_invite.enrollment_id,
+       v_invite.status, v_invite.expires_at, v_invite.continuation_expires_at
+  FROM public.patient_invites AS invite
+  WHERE invite.continuation_hash = p_continuation_hash
+  LIMIT 1
+  FOR UPDATE;
+  IF NOT FOUND THEN
+    RETURN QUERY SELECT false, 'invalid_continuation'::text, NULL::uuid;
+    RETURN;
+  END IF;
+
+  PERFORM 1 FROM public.be_organizations AS organization
+  WHERE organization.id = v_invite.organization_id AND organization.is_active = true
+  FOR UPDATE;
+  IF NOT FOUND THEN
+    RETURN QUERY SELECT false, 'organization_unavailable'::text, NULL::uuid;
+    RETURN;
+  END IF;
+
+  IF v_invite.status = 'accepted' THEN
+    RETURN QUERY SELECT false, 'already_linked'::text, NULL::uuid;
+    RETURN;
+  ELSIF v_invite.status = 'revoked' THEN
+    RETURN QUERY SELECT false, 'revoked_token'::text, NULL::uuid;
+    RETURN;
+  ELSIF v_invite.status = 'superseded' THEN
+    RETURN QUERY SELECT false, 'superseded_token'::text, NULL::uuid;
+    RETURN;
+  ELSIF v_invite.status <> 'pending' THEN
+    RETURN QUERY SELECT false, 'expired_token'::text, NULL::uuid;
+    RETURN;
+  END IF;
+
+  IF v_invite.expires_at <= now()
+     OR v_invite.continuation_expires_at IS NULL
+     OR v_invite.continuation_expires_at <= now() THEN
+    UPDATE public.patient_invites SET status = 'expired', updated_at = now()
+    WHERE id = v_invite.id AND expires_at <= now();
+    RETURN QUERY SELECT false, 'expired_token'::text, NULL::uuid;
+    RETURN;
+  END IF;
+
+  -- Вошёл не тот человек. Не отказ в доступе, а отсутствие доказательства ИМЕННО ЭТОГО
+  -- приглашения: вызывающий показывает почтовый экран, где личность доказывается заново.
+  IF v_authenticated_platform_user_id <> v_invite.patient_user_id THEN
+    INSERT INTO public.patient_merge_candidates (
+      organization_id, anchor_user_id, candidate_user_id, reason, status, payload
+    ) VALUES (
+      v_invite.organization_id, v_invite.patient_user_id, v_authenticated_platform_user_id,
+      'invite_redeem_identity_conflict', 'pending', '{}'::jsonb
+    ) ON CONFLICT (organization_id, anchor_user_id, candidate_user_id)
+      WHERE status = 'pending' DO NOTHING;
+    RETURN QUERY SELECT false, 'unproved_identity'::text, NULL::uuid;
+    RETURN;
+  END IF;
+
+  SELECT patient.id, patient.role, patient.merged_into_id
+  INTO v_patient.id, v_patient.role, v_patient.merged_into_id
+  FROM public.platform_users AS patient
+  WHERE patient.id = v_authenticated_platform_user_id
+  LIMIT 1
+  FOR UPDATE;
+  IF NOT FOUND OR v_patient.role <> 'client' OR v_patient.merged_into_id IS NOT NULL THEN
+    RETURN QUERY SELECT false, 'conflicting_identity'::text, NULL::uuid;
+    RETURN;
+  END IF;
+
+  SELECT enrollment.status, enrollment.portal_activated_at
+  INTO v_enrollment_status, v_portal_activated_at
+  FROM public.org_enrollments AS enrollment
+  WHERE enrollment.id = v_invite.enrollment_id
+    AND enrollment.organization_id = v_invite.organization_id
+    AND enrollment.platform_user_id = v_invite.patient_user_id
+  LIMIT 1
+  FOR UPDATE;
+  IF v_portal_activated_at IS NOT NULL THEN
+    RETURN QUERY SELECT false, 'already_linked'::text, NULL::uuid;
+    RETURN;
+  ELSIF v_enrollment_status NOT IN ('invited', 'active') OR v_enrollment_status IS NULL THEN
+    RETURN QUERY SELECT false, 'inactive_relationship'::text, NULL::uuid;
+    RETURN;
+  END IF;
+
+  UPDATE public.org_enrollments AS enrollment
+  SET status = 'active', portal_activated_at = now(),
+      portal_activated_via = 'patient_invite_session'
+  WHERE enrollment.id = v_invite.enrollment_id
+    AND enrollment.organization_id = v_invite.organization_id
+    AND enrollment.platform_user_id = v_invite.patient_user_id
+    AND enrollment.portal_activated_at IS NULL;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'patient_invite_portal_activation_failed';
+  END IF;
+
+  UPDATE public.patient_invites AS invite
+  SET status = 'accepted', accepted_by_platform_user_id = v_invite.patient_user_id,
+      accepted_via = 'session', accepted_at = now(), updated_at = now(),
+      proof_code_hash = NULL, proof_expires_at = NULL
+  WHERE invite.id = v_invite.id AND invite.status = 'pending';
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'patient_invite_accept_failed';
+  END IF;
+
+  RETURN QUERY SELECT true, NULL::text, v_invite.organization_id;
+END
+$$;
+
+
+--
+-- Name: refresh_saas_billing_invoice_purchased_tariff(uuid, uuid, uuid, text); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.refresh_saas_billing_invoice_purchased_tariff(p_saas_billing_invoice_id uuid, p_organization_id uuid, p_tariff_id uuid, p_billing_period_code text) RETURNS boolean
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $$
 DECLARE
   v_saas_billing_subscription_id uuid;
   v_subscription_tariff_id uuid;
+  v_subscription_billing_period_code text;
   v_subscription_pending_tariff_id uuid;
+  v_subscription_pending_billing_period_code text;
   v_paid_additional_seats integer;
   v_carried_debt_minor integer;
   v_tariff public.saas_tariffs%ROWTYPE;
+  v_price_minor integer;
   v_amount_minor integer;
+  v_storage_package_id uuid;
+  v_storage_price_minor integer;
 BEGIN
   PERFORM app.require_attested_context_for_roles('app_seam_org_commerce_owner'::name, ARRAY['app_clinic_billing'::name]::name[]);
 
@@ -18864,8 +20110,17 @@ BEGIN
     RETURN false;
   END IF;
 
-  SELECT subscription.tariff_id, subscription.pending_tariff_id, subscription.paid_additional_seats
-  INTO v_subscription_tariff_id, v_subscription_pending_tariff_id, v_paid_additional_seats
+  SELECT subscription.tariff_id, subscription.billing_period_code,
+         subscription.pending_tariff_id, subscription.pending_billing_period_code,
+         subscription.paid_additional_seats,
+         COALESCE(
+           subscription.pending_storage_package_id,
+           CASE WHEN subscription.storage_package_cancel_at_period_end THEN NULL
+                ELSE subscription.paid_storage_package_id END
+         )
+  INTO v_subscription_tariff_id, v_subscription_billing_period_code,
+       v_subscription_pending_tariff_id, v_subscription_pending_billing_period_code,
+       v_paid_additional_seats, v_storage_package_id
   FROM public.saas_billing_subscriptions AS subscription
   WHERE subscription.id = v_saas_billing_subscription_id
     AND subscription.organization_id = p_organization_id;
@@ -18874,14 +20129,19 @@ BEGIN
     RETURN false;
   END IF;
 
-  IF p_tariff_id IS DISTINCT FROM v_subscription_tariff_id
-     AND p_tariff_id IS DISTINCT FROM v_subscription_pending_tariff_id THEN
+  -- #1069 owner decision 2026-09-05 (period grid) — the PAIR (not the tariff alone) must match
+  -- either the subscription's current pair or its scheduled pending one; anything else is refused.
+  IF (p_tariff_id, p_billing_period_code)
+       IS DISTINCT FROM (v_subscription_tariff_id, v_subscription_billing_period_code)
+     AND (p_tariff_id, p_billing_period_code)
+       IS DISTINCT FROM (v_subscription_pending_tariff_id, v_subscription_pending_billing_period_code)
+  THEN
     RETURN false;
   END IF;
 
   SELECT * INTO v_tariff FROM public.saas_tariffs AS tariff WHERE tariff.id = p_tariff_id;
 
-  IF NOT FOUND OR v_tariff.price_minor IS NULL OR v_tariff.currency IS NULL THEN
+  IF NOT FOUND OR v_tariff.currency IS NULL THEN
     RETURN false;
   END IF;
 
@@ -18889,9 +20149,35 @@ BEGIN
     RETURN false;
   END IF;
 
+  -- #1069 owner decision 2026-09-05 (period grid) — the amount comes from the money matrix for
+  -- THIS (tariff, period) pair, never the tariff's frozen legacy `price_minor`.
+  SELECT price.price_minor INTO v_price_minor
+  FROM public.saas_tariff_period_prices AS price
+  WHERE price.tariff_id = p_tariff_id
+    AND price.billing_period_code = p_billing_period_code;
+
+  IF NOT FOUND THEN
+    RETURN false;
+  END IF;
+
+  -- Пакет без цены за этот период — дыра в каталоге. Отказ, а не ноль: ноль означал бы, что объём
+  -- клинике выдан даром, и увидеть это было бы уже не по чему.
+  v_storage_price_minor := 0;
+  IF v_storage_package_id IS NOT NULL THEN
+    SELECT storage_price.price_minor INTO v_storage_price_minor
+    FROM public.saas_storage_package_period_prices AS storage_price
+    WHERE storage_price.package_id = v_storage_package_id
+      AND storage_price.billing_period_code = p_billing_period_code;
+
+    IF NOT FOUND THEN
+      RETURN false;
+    END IF;
+  END IF;
+
   v_amount_minor :=
-    v_tariff.price_minor
+    v_price_minor
     + v_paid_additional_seats * coalesce(v_tariff.additional_seat_price_minor, 0)
+    + coalesce(v_storage_price_minor, 0)
     + coalesce(v_carried_debt_minor, 0);
 
   UPDATE public.saas_billing_invoices AS invoice
@@ -18899,8 +20185,9 @@ BEGIN
       tariff_name = v_tariff.name,
       amount_minor = v_amount_minor,
       currency = v_tariff.currency,
-      tariff_billing_period = v_tariff.billing_period,
+      tariff_billing_period = p_billing_period_code,
       additional_seat_quantity = v_paid_additional_seats,
+      storage_package_id = v_storage_package_id,
       tariff_snapshot = to_jsonb(v_tariff),
       updated_at = now()
   WHERE invoice.id = p_saas_billing_invoice_id
@@ -19741,6 +21028,33 @@ $_$;
 
 
 --
+-- Name: resolve_active_organization_by_custom_domain(text); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.resolve_active_organization_by_custom_domain(p_hostname text) RETURNS uuid
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $_$
+BEGIN
+  PERFORM app.require_accepted_context('app_seam_custom_domain_owner'::name, 'app_pre_session'::name, 'pre_session'::app.port_context_class, 'branding.custom-domain.resolve', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg]), 'app.resolve_active_organization_by_custom_domain(text)'::regprocedure);
+  RETURN (
+    SELECT binding.organization_id
+    FROM public.org_custom_domain_bindings AS binding
+    INNER JOIN public.be_organizations AS organization
+      ON organization.id = binding.organization_id
+      AND organization.is_active = true
+    INNER JOIN public.org_brand_revisions AS brand
+      ON brand.organization_id = binding.organization_id
+      AND brand.status = 'published'
+    WHERE binding.hostname = lower(btrim(p_hostname))
+      AND binding.status = 'active'
+    LIMIT 1
+  );
+END
+$_$;
+
+
+--
 -- Name: resolve_active_organization_for_channel_binding(text, text); Type: FUNCTION; Schema: app; Owner: -
 --
 
@@ -19839,6 +21153,27 @@ SELECT binding.organization_id
     AND binding.credential_fingerprint = p_credential_fingerprint
     AND binding.is_active = true
   LIMIT 1
+$_$;
+
+
+--
+-- Name: resolve_current_organization_mechanic_access(text); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.resolve_current_organization_mechanic_access(p_mechanic text) RETURNS TABLE(mechanic text, state text, policy_source text, warning jsonb, mutation_allowed boolean)
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $_$
+DECLARE
+  v_org uuid;
+BEGIN
+  PERFORM app.require_accepted_context('app_seam_org_commerce_owner'::name, 'app_tenant_service'::name, 'tenant_service'::app.port_context_class, 'entitlement.organization-mechanic-access.read', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg]), 'app.resolve_current_organization_mechanic_access(text)'::regprocedure);
+
+  v_org := app.current_org_id();
+  RETURN QUERY
+  SELECT access.mechanic, access.state, access.policy_source, access.warning, access.mutation_allowed
+  FROM app.resolve_organization_mechanic_access(v_org, p_mechanic) AS access;
+END
 $_$;
 
 
@@ -20408,7 +21743,12 @@ BEGIN
         -- #1069 §2.13 (owner 01.08): «нет активного тарифа и нет триала → доступа нет» — no
         -- compatibility carve-out survives for an organization with no resolved tariff at all.
         WHEN resolved_tariff_id IS NULL THEN false
-        WHEN p_mechanic = 'clinic_team' THEN included_seats IS NOT NULL
+        -- Owner ruling 2026-09-10: the cabinet mode is an explicit tariff property, never a
+        -- headcount. «Число мест - не показатель, админ клиники может начинать с одного
+        -- себя и приглашать других - у соло механика приглашений отключена в принципе».
+        -- A tariff that did not switch «Режим кабинета» on has no clinic team at all, and
+        -- its `included_seats` says only how many seats the clinic mode would sell.
+        WHEN p_mechanic = 'clinic_team' THEN COALESCE((mechanics ->> 'clinic_team')::boolean, false)
         -- Owner 18.08 (L-1): «ТАМ НЕ НАДО ВООБЩЕ СТАВИТЬ ВАРИАНТ ВЫКЛЮЧЕН — ЛИБО ЛИМИТ ЛИБО БЕЗ
         -- ЛИМИТА для всех таких механик с лимитом». A limit-bearing mechanic has no OFF state:
         -- its quota answers «сколько», never «есть ли», so a tariff that named no number states
@@ -20679,11 +22019,11 @@ $_$;
 CREATE FUNCTION app.resolve_payment_webhook_organization(p_provider_id text, p_idempotency_key text, p_event_type text) RETURNS uuid
     LANGUAGE plpgsql STABLE SECURITY DEFINER
     SET search_path TO 'pg_catalog'
-    AS $$
+    AS $_$
 DECLARE
   v_organization_ids uuid[];
 BEGIN
-  PERFORM app.require_attested_context_for_roles('app_seam_payment_webhook_owner'::name, ARRAY['app_patient'::name]::name[]);
+  PERFORM app.require_accepted_context('app_seam_payment_webhook_owner'::name, 'app_pre_session'::name, 'pre_session'::app.port_context_class, 'booking-payment.webhook.resolve', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($2))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($3))::app.port_typed_arg]), 'app.resolve_payment_webhook_organization(text,text,text)'::regprocedure);
 
   IF p_provider_id IS NULL
      OR p_idempotency_key IS NULL
@@ -20719,7 +22059,7 @@ BEGIN
   END IF;
   RETURN NULL;
 END;
-$$;
+$_$;
 
 
 --
@@ -21013,7 +22353,7 @@ $_$;
 -- Name: resolve_staff_workspace_memberships(uuid); Type: FUNCTION; Schema: app; Owner: -
 --
 
-CREATE FUNCTION app.resolve_staff_workspace_memberships(p_platform_user_id uuid) RETURNS TABLE(id uuid, organization_id uuid, platform_user_id uuid, role text, specialist_id uuid, status text, doctor_screens_disabled boolean, created_at text, updated_at text)
+CREATE FUNCTION app.resolve_staff_workspace_memberships(p_platform_user_id uuid) RETURNS TABLE(id uuid, organization_id uuid, platform_user_id uuid, role text, specialist_id uuid, status text, doctor_screens_disabled boolean, appointments_manage_own boolean, availability_manage_own boolean, created_at text, updated_at text)
     LANGUAGE plpgsql STABLE SECURITY DEFINER PARALLEL RESTRICTED
     SET search_path TO 'pg_catalog', 'app', 'public', 'pg_temp'
     AS $$
@@ -21021,40 +22361,25 @@ DECLARE v_staff_context boolean;
 BEGIN
   PERFORM app.require_accepted_context(
     'app_seam_org_directory_owner',
-    CASE WHEN pg_has_role(session_user, 'app_staff', 'MEMBER')
-         THEN 'app_staff'::name ELSE 'app_pre_session'::name END,
-    CASE WHEN pg_has_role(session_user, 'app_staff', 'MEMBER')
-         THEN 'staff'::app.port_context_class
-         ELSE 'pre_session'::app.port_context_class END,
+    CASE WHEN pg_has_role(session_user, 'app_staff', 'MEMBER') THEN 'app_staff'::name ELSE 'app_pre_session'::name END,
+    CASE WHEN pg_has_role(session_user, 'app_staff', 'MEMBER') THEN 'staff'::app.port_context_class ELSE 'pre_session'::app.port_context_class END,
     'auth.staff-workspace.resolve',
-    app.hash_port_typed_args(ARRAY[
-      ROW('uuid@1', uuid_send(p_platform_user_id))::app.port_typed_arg
-    ]), 'app.resolve_staff_workspace_memberships(uuid)'::regprocedure
+    app.hash_port_typed_args(ARRAY[ROW('uuid@1', uuid_send(p_platform_user_id))::app.port_typed_arg]),
+    'app.resolve_staff_workspace_memberships(uuid)'::regprocedure
   );
-
   v_staff_context := pg_has_role(session_user, 'app_staff', 'MEMBER');
-  IF p_platform_user_id IS NULL THEN
-    RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'platform user id required';
-  END IF;
+  IF p_platform_user_id IS NULL THEN RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'platform user id required'; END IF;
   IF v_staff_context AND p_platform_user_id <> app.current_actor_user_id() THEN
     RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'staff workspace self-resolution required';
   END IF;
-  RETURN QUERY
-  SELECT membership.id,
-         membership.organization_id,
-         membership.platform_user_id,
-         membership.role,
-         membership.specialist_id,
-         membership.status,
-         membership.doctor_screens_disabled,
-         membership.created_at::text,
-         membership.updated_at::text
-    FROM public.be_organization_members membership
-   WHERE membership.platform_user_id = p_platform_user_id
-     AND membership.status = 'active'
-   ORDER BY membership.created_at, membership.organization_id;
-END
-$$;
+  RETURN QUERY SELECT membership.id, membership.organization_id, membership.platform_user_id,
+    membership.role, membership.specialist_id, membership.status, membership.doctor_screens_disabled,
+    membership.appointments_manage_own, membership.availability_manage_own,
+    membership.created_at::text, membership.updated_at::text
+  FROM public.be_organization_members membership
+  WHERE membership.platform_user_id = p_platform_user_id AND membership.status = 'active'
+  ORDER BY membership.created_at, membership.organization_id;
+END $$;
 
 
 --
@@ -21610,7 +22935,7 @@ BEGIN
     ON field.organization_id = v_org
    AND field.field_key = answer.field_key
    AND field.is_active = TRUE
-   AND field.visible_to_patient = TRUE
+   AND field.archived_at IS NULL
   WHERE answer.value_text IS NOT NULL
   ON CONFLICT (appointment_id, field_id)
   DO UPDATE SET value_text = EXCLUDED.value_text;
@@ -21799,6 +23124,154 @@ $_$;
 
 
 --
+-- Name: save_custom_domain_binding_intent(text, uuid, text, text); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.save_custom_domain_binding_intent(p_action text, p_organization_id uuid, p_base_domain text, p_placement text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $_$
+DECLARE
+  v_organization_id uuid;
+  v_base_domain text;
+  v_placement text;
+  v_subdomain_label text;
+  v_hostname text;
+  v_existing public.org_custom_domain_bindings%ROWTYPE;
+  v_reclaim public.org_custom_domain_bindings%ROWTYPE;
+  v_result public.org_custom_domain_bindings%ROWTYPE;
+  v_has_existing boolean := false;
+  v_has_reclaim boolean := false;
+BEGIN
+  PERFORM app.require_accepted_context('app_seam_custom_domain_owner'::name, 'app_staff'::name, 'staff'::app.port_context_class, 'branding.custom-domain.intent.save', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg, ROW('uuid@1', pg_catalog.uuid_send($2))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($3))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($4))::app.port_typed_arg]), 'app.save_custom_domain_binding_intent(text,uuid,text,text)'::regprocedure);
+
+  v_organization_id := app.current_org_id();
+  IF p_organization_id IS NULL OR p_organization_id IS DISTINCT FROM v_organization_id THEN
+    RAISE EXCEPTION 'custom_domain_binding_organization_mismatch' USING ERRCODE = '42501';
+  END IF;
+
+  PERFORM pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended('org_custom_domain_bindings:' || v_organization_id::text, 0)
+  );
+
+  SELECT * INTO v_existing
+  FROM public.org_custom_domain_bindings AS binding
+  WHERE binding.organization_id = v_organization_id
+    AND binding.status <> 'quarantine'
+  FOR UPDATE;
+  v_has_existing := FOUND;
+
+  IF p_action = 'clear' THEN
+    IF NOT v_has_existing THEN
+      RETURN jsonb_build_object('ok', false, 'code', 'nothing_to_clear');
+    END IF;
+
+    UPDATE public.org_custom_domain_bindings
+       SET status = 'quarantine', updated_at = pg_catalog.now()
+     WHERE id = v_existing.id;
+    RETURN jsonb_build_object('ok', true, 'state', NULL);
+  END IF;
+
+  IF p_action <> 'set' THEN
+    RAISE EXCEPTION 'custom_domain_binding_unknown_action' USING ERRCODE = '22023';
+  END IF;
+
+  v_base_domain := lower(btrim(p_base_domain));
+  v_placement := lower(btrim(p_placement));
+  IF v_base_domain IS NULL
+    OR v_placement IS NULL
+    OR v_base_domain !~ '^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$'
+    OR length(v_base_domain) > 253
+    OR v_placement NOT IN ('apex', 'subdomain') THEN
+    RAISE EXCEPTION 'custom_domain_binding_invalid_intent' USING ERRCODE = '22023';
+  END IF;
+
+  -- `app.` is a product placement, not caller-controlled state. The exact hostname is derived
+  -- here from normalized input; neither a hostname nor lifecycle fields enter this door.
+  v_subdomain_label := CASE WHEN v_placement = 'subdomain' THEN 'app' ELSE NULL END;
+  v_hostname := CASE WHEN v_placement = 'apex' THEN v_base_domain
+    ELSE v_subdomain_label || '.' || v_base_domain END;
+
+  IF v_has_existing AND v_existing.hostname = v_hostname THEN
+    IF v_existing.status = 'failed' THEN
+      UPDATE public.org_custom_domain_bindings
+         SET status = 'pending', status_reason = NULL, updated_at = pg_catalog.now()
+       WHERE id = v_existing.id
+      RETURNING * INTO v_result;
+    ELSE
+      v_result := v_existing;
+    END IF;
+  ELSE
+    -- Lock the globally unique target before touching the current live binding. A foreign or
+    -- deleted-owner tombstone remains unavailable; only the immutable original owner can revive
+    -- its own quarantined row. The per-organization advisory lock serializes two supersedes by
+    -- this organization, and the unique hostname index arbitrates concurrent organizations.
+    SELECT * INTO v_reclaim
+    FROM public.org_custom_domain_bindings AS binding
+    WHERE lower(binding.hostname) = v_hostname
+    FOR UPDATE;
+    v_has_reclaim := FOUND;
+
+    IF v_has_reclaim AND (
+      v_reclaim.organization_id IS DISTINCT FROM v_organization_id
+      OR v_reclaim.status <> 'quarantine'
+    ) THEN
+      RETURN jsonb_build_object('ok', false, 'code', 'hostname_taken');
+    END IF;
+
+    -- Superseding back to an owned tombstone is one transaction: retire the current live row,
+    -- then make the immutable owned row the sole live pending binding and discard stale readiness.
+    IF v_has_existing THEN
+      UPDATE public.org_custom_domain_bindings
+         SET status = 'quarantine', updated_at = pg_catalog.now()
+       WHERE id = v_existing.id;
+    END IF;
+
+    IF v_has_reclaim THEN
+      UPDATE public.org_custom_domain_bindings
+         SET base_domain = v_base_domain,
+             placement = v_placement,
+             subdomain_label = v_subdomain_label,
+             hostname = v_hostname,
+             status = 'pending',
+             status_reason = NULL,
+             activated_at = NULL,
+             updated_at = pg_catalog.now()
+       WHERE id = v_reclaim.id
+      RETURNING * INTO v_result;
+    ELSE
+      INSERT INTO public.org_custom_domain_bindings (
+        organization_id, base_domain, placement, subdomain_label, hostname, status,
+        created_by_platform_user_id
+      ) VALUES (
+        v_organization_id, v_base_domain, v_placement, v_subdomain_label, v_hostname, 'pending',
+        app.current_actor_user_id()
+      )
+      RETURNING * INTO v_result;
+    END IF;
+  END IF;
+
+  RETURN jsonb_build_object(
+    'ok', true,
+    'state', jsonb_build_object(
+      'organizationId', v_result.organization_id,
+      'baseDomain', v_result.base_domain,
+      'placement', v_result.placement,
+      'subdomainLabel', v_result.subdomain_label,
+      'hostname', v_result.hostname,
+      'status', v_result.status,
+      'statusReason', v_result.status_reason,
+      'activatedAt', v_result.activated_at
+    )
+  );
+EXCEPTION
+  WHEN unique_violation THEN
+    RETURN jsonb_build_object('ok', false, 'code', 'hostname_taken');
+END
+$_$;
+
+
+--
 -- Name: save_pending_staff_totp(text); Type: FUNCTION; Schema: app; Owner: -
 --
 
@@ -21817,19 +23290,18 @@ $$;
 
 
 --
--- Name: save_public_clinic_card(uuid, text, text, text, text, uuid, text, boolean); Type: FUNCTION; Schema: app; Owner: -
+-- Name: save_public_clinic_card(uuid, text, text, text, text, uuid, text, boolean, text); Type: FUNCTION; Schema: app; Owner: -
 --
 
-CREATE FUNCTION app.save_public_clinic_card(p_organization_id uuid, p_description text, p_public_contact_phone text, p_public_contact_email text, p_public_website_url text, p_logo_media_id uuid, p_photo_media_ids_json text, p_card_is_published boolean) RETURNS jsonb
+CREATE FUNCTION app.save_public_clinic_card(p_organization_id uuid, p_description text, p_public_contact_phone text, p_public_contact_email text, p_public_website_url text, p_logo_media_id uuid, p_photo_media_ids_json text, p_card_is_published boolean, p_full_description_markdown text) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $_$
 DECLARE
   v_photo_ids uuid[];
-  v_locations jsonb;
   v_updated boolean;
 BEGIN
-  PERFORM app.require_accepted_context('app_seam_public_clinic_card_owner'::name, 'app_staff'::name, 'staff'::app.port_context_class, 'clinic.public-card.save', app.hash_port_typed_args(ARRAY[ROW('uuid@1', pg_catalog.uuid_send($1))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($2))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($3))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($4))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($5))::app.port_typed_arg, ROW('uuid@1', pg_catalog.uuid_send($6))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($7))::app.port_typed_arg, ROW('boolean@1', pg_catalog.boolsend($8))::app.port_typed_arg]), 'app.save_public_clinic_card(uuid,text,text,text,text,uuid,text,boolean)'::regprocedure);
+  PERFORM app.require_accepted_context('app_seam_public_clinic_card_owner'::name, 'app_staff'::name, 'staff'::app.port_context_class, 'clinic.public-card.save', app.hash_port_typed_args(ARRAY[ROW('uuid@1', pg_catalog.uuid_send($1))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($2))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($3))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($4))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($5))::app.port_typed_arg, ROW('uuid@1', pg_catalog.uuid_send($6))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($7))::app.port_typed_arg, ROW('boolean@1', pg_catalog.boolsend($8))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($9))::app.port_typed_arg]), 'app.save_public_clinic_card(uuid,text,text,text,text,uuid,text,boolean,text)'::regprocedure);
 
   -- Организация принципала — единственная организация, которую эта дверь умеет менять. Совпадение
   -- с параметром требуется явно: расхождение означает, что аргумент пришёл не из сессии.
@@ -21839,6 +23311,9 @@ BEGIN
 
   IF p_description IS NOT NULL AND length(p_description) > 4000 THEN
     RAISE EXCEPTION 'clinic_public_card_description_too_long' USING ERRCODE = '22023';
+  END IF;
+  IF p_full_description_markdown IS NOT NULL AND length(p_full_description_markdown) > 50000 THEN
+    RAISE EXCEPTION 'clinic_public_card_full_description_too_long' USING ERRCODE = '22023';
   END IF;
   IF p_public_contact_phone IS NOT NULL AND length(p_public_contact_phone) > 64 THEN
     RAISE EXCEPTION 'clinic_public_card_phone_too_long' USING ERRCODE = '22023';
@@ -21877,27 +23352,15 @@ BEGIN
     RAISE EXCEPTION 'clinic_public_card_media_not_owned' USING ERRCODE = '22023';
   END IF;
 
-  SELECT COALESCE(
-    jsonb_agg(
-      jsonb_build_object('title', branch.title, 'cityCode', branch.city_code,
-                         'address', branch.address)
-      ORDER BY branch.sort_order, branch.title
-    ),
-    '[]'::jsonb
-  )
-  INTO v_locations
-  FROM public.be_branches AS branch
-  WHERE branch.organization_id = p_organization_id
-    AND branch.is_active = true;
 
   UPDATE public.clinic_public_directory_entries AS entry
      SET description = p_description,
+         full_description_markdown = p_full_description_markdown,
          public_contact_phone = p_public_contact_phone,
          public_contact_email = p_public_contact_email,
          public_website_url = p_public_website_url,
          logo_media_id = p_logo_media_id,
          photo_media_ids = v_photo_ids,
-         locations_json = v_locations,
          card_is_published = COALESCE(p_card_is_published, false),
          updated_at = pg_catalog.now()
    WHERE entry.organization_id = p_organization_id
@@ -21909,12 +23372,12 @@ BEGIN
 
   RETURN jsonb_build_object(
     'description', p_description,
+    'fullDescriptionMarkdown', p_full_description_markdown,
     'publicContactPhone', p_public_contact_phone,
     'publicContactEmail', p_public_contact_email,
     'publicWebsiteUrl', p_public_website_url,
     'logoMediaId', p_logo_media_id,
     'photoMediaIds', to_jsonb(v_photo_ids),
-    'locations', v_locations,
     'cardIsPublished', COALESCE(p_card_is_published, false)
   );
 END
@@ -22336,6 +23799,509 @@ $$;
 
 
 --
+-- Name: settle_appointment_cash_prepayment(text); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.settle_appointment_cash_prepayment(p_input_json text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $_$
+DECLARE
+  v_org uuid := app.current_org_id();
+  v_now timestamptz := pg_catalog.clock_timestamp();
+  p_input jsonb;
+  v_appointment_id uuid;
+  v_patient_user_id uuid;
+  v_amount_minor integer;
+  v_currency text;
+  v_idempotency_key text;
+  v_created_by uuid;
+  v_payment public.patient_payment%ROWTYPE;
+  v_inserted boolean := false;
+  v_appointment public.be_appointments%ROWTYPE;
+  v_paid_minor integer;
+  v_to_status text;
+BEGIN
+  PERFORM app.require_accepted_context('app_seam_payment_webhook_owner'::name, 'app_staff'::name, 'staff'::app.port_context_class, 'booking-payment.prepayment.cash-settle', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg]), 'app.settle_appointment_cash_prepayment(text)'::regprocedure);
+
+  -- Клиника — только принятый контекст. Аргументом её не назвать: молчаливый NULL провёл бы
+  -- наличные мимо арендатора.
+  IF v_org IS NULL THEN
+    RAISE EXCEPTION 'appointment_cash_settle_principal_required' USING ERRCODE = '42501';
+  END IF;
+
+  p_input := p_input_json::jsonb;
+  v_appointment_id := NULLIF(p_input ->> 'appointmentId', '')::uuid;
+  v_patient_user_id := NULLIF(p_input ->> 'patientUserId', '')::uuid;
+  v_amount_minor := NULLIF(p_input ->> 'amountMinor', '')::integer;
+  v_currency := COALESCE(NULLIF(pg_catalog.btrim(COALESCE(p_input ->> 'currency', '')), ''), 'RUB');
+  v_idempotency_key := NULLIF(pg_catalog.btrim(COALESCE(p_input ->> 'idempotencyKey', '')), '');
+  v_created_by := NULLIF(p_input ->> 'createdBy', '')::uuid;
+
+  IF NULLIF(p_input ->> 'organizationId', '')::uuid IS DISTINCT FROM v_org
+     OR v_appointment_id IS NULL
+     OR v_patient_user_id IS NULL
+     OR v_created_by IS NULL
+     OR v_idempotency_key IS NULL
+     OR v_amount_minor IS NULL
+     OR v_amount_minor <= 0 THEN
+    RAISE EXCEPTION 'appointment_cash_settle_payload_invalid' USING ERRCODE = '22023';
+  END IF;
+
+  -- Блокируем запись ДО журнала: зачисление и статус решаются на одной версии строки, а
+  -- параллельный тик истечения ждёт этой блокировки вместо гонки за неё.
+  SELECT appointment.* INTO v_appointment
+    FROM public.be_appointments AS appointment
+   WHERE appointment.id = v_appointment_id
+     AND appointment.organization_id = v_org
+     AND appointment.platform_user_id = v_patient_user_id
+     AND appointment.deleted_at IS NULL
+   FOR UPDATE;
+  IF v_appointment.id IS NULL THEN
+    RAISE EXCEPTION 'appointment_cash_settle_appointment_not_found' USING ERRCODE = '42501';
+  END IF;
+
+  INSERT INTO public.patient_payment (
+    organization_id, patient_user_id, amount_minor, currency, kind, status,
+    comment, service, visit_id, appointment_id, patient_package_id,
+    idempotency_key, provider, provider_payment_id, created_by
+  )
+  VALUES (
+    v_org, v_patient_user_id, v_amount_minor, v_currency, 'cash', 'paid',
+    NULLIF(p_input ->> 'comment', ''), NULLIF(p_input ->> 'service', ''), NULL,
+    v_appointment_id, NULL, v_idempotency_key, NULL, NULL, v_created_by
+  )
+  ON CONFLICT DO NOTHING
+  RETURNING * INTO v_payment;
+
+  IF v_payment.id IS NOT NULL THEN
+    v_inserted := true;
+  ELSE
+    SELECT payment.* INTO v_payment
+      FROM public.patient_payment AS payment
+     WHERE payment.organization_id = v_org
+       AND payment.appointment_id = v_appointment_id
+       AND payment.idempotency_key = v_idempotency_key;
+    IF v_payment.id IS NULL THEN
+      RAISE EXCEPTION 'appointment_cash_settle_idempotency_lookup_failed' USING ERRCODE = 'P0001';
+    END IF;
+  END IF;
+
+  v_paid_minor := COALESCE(v_appointment.prepayment_paid_minor, 0);
+  IF v_inserted THEN
+    -- Зачисление ровно один раз на вставленную строку журнала: повтор нажатия ничего не прибавит.
+    v_paid_minor := v_paid_minor + v_amount_minor;
+    UPDATE public.be_appointments AS appointment
+       SET prepayment_paid_minor = v_paid_minor,
+           updated_at = v_now
+     WHERE appointment.id = v_appointment_id
+       AND appointment.organization_id = v_org;
+  END IF;
+
+  v_to_status := v_appointment.status;
+  IF v_appointment.status = 'awaiting_payment'
+     AND v_paid_minor >= COALESCE(v_appointment.prepayment_required_minor, 0) THEN
+    -- Тот же выход из ожидания, что и у вебхука, с теми же событиями истории и ленты. Срок оплаты
+    -- при этом НЕ переписывается: он часть финансового снимка, а снимок пишет только врачебная
+    -- правка. Истечению он больше не страшен — тик отбирает строки по `status` и по нулю денег.
+    UPDATE public.be_appointments AS appointment
+       SET status = 'confirmed',
+           updated_at = v_now
+     WHERE appointment.id = v_appointment_id
+       AND appointment.organization_id = v_org;
+    v_to_status := 'confirmed';
+    INSERT INTO public.be_appointment_history_events (
+      organization_id, appointment_id, event_type, actor_id, payload, occurred_at
+    )
+    VALUES (v_org, v_appointment_id, 'status_changed', v_created_by,
+            pg_catalog.jsonb_build_object('fromStatus', 'awaiting_payment', 'toStatus', 'confirmed',
+                                          'source', 'cash_prepayment_settled',
+                                          'paymentId', v_payment.id::text),
+            v_now);
+    INSERT INTO public.be_patient_timeline_events (
+      organization_id, platform_user_id, domain, event_type,
+      linked_object_type, linked_object_id, payload, occurred_at
+    )
+    VALUES (v_org, v_patient_user_id, 'appointment', 'appointment_status_changed',
+            'appointment', v_appointment_id::text,
+            pg_catalog.jsonb_build_object('fromStatus', 'awaiting_payment', 'toStatus', 'confirmed',
+                                          'source', 'cash_prepayment_settled',
+                                          'paymentId', v_payment.id::text),
+            v_now);
+  END IF;
+
+  RETURN pg_catalog.jsonb_build_object(
+    'payment', pg_catalog.to_jsonb(v_payment),
+    'credited', v_inserted,
+    'prepaymentPaidMinor', v_paid_minor,
+    'appointmentStatus', v_to_status
+  );
+END
+$_$;
+
+
+--
+-- Name: settle_booking_payment_webhook_event(text, text, text, text, text); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.settle_booking_payment_webhook_event(p_provider_id text, p_idempotency_key text, p_event_type text, p_intent_ref text, p_payload_json text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $_$
+DECLARE
+  v_org uuid := app.current_org_id();
+  v_now timestamptz := pg_catalog.clock_timestamp();
+  v_payload jsonb;
+  v_intent_ref text;
+  v_event_id uuid;
+  v_event_processed_at timestamptz;
+  v_inserted boolean := false;
+  v_payload_intent text;
+  v_intent_id uuid;
+  v_intent_appointment_id uuid;
+  v_intent_platform_user_id uuid;
+  v_intent_provider_id text;
+  v_intent_amount_minor integer;
+  v_intent_currency text;
+  v_intent_purpose text;
+  v_intent_product_ref text;
+  v_payment_id uuid;
+  v_chain_id uuid;
+  v_appointment_id uuid;
+  v_appointment_status text;
+  v_appointment_user_id uuid;
+  v_appointment_count integer;
+  v_share_minor integer;
+  v_confirmed text[] := ARRAY[]::text[];
+BEGIN
+  PERFORM app.require_accepted_context('app_seam_payment_webhook_owner'::name, 'app_tenant_service'::name, 'tenant_service'::app.port_context_class, 'booking-payment.webhook.settle', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($2))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($3))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($4))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($5))::app.port_typed_arg]), 'app.settle_booking_payment_webhook_event(text,text,text,text,text)'::regprocedure);
+
+  -- The tenant is the accepted context, never an argument: without one there is no clinic to settle
+  -- inside, and a silent NULL scope would settle across every clinic at once.
+  IF v_org IS NULL THEN
+    RAISE EXCEPTION 'booking_payment_webhook_settle_principal_required' USING ERRCODE = '42501';
+  END IF;
+
+  IF p_provider_id IS NULL
+     OR p_idempotency_key IS NULL
+     OR p_event_type IS NULL
+     OR pg_catalog.btrim(p_provider_id) = ''
+     OR pg_catalog.btrim(p_idempotency_key) = ''
+     OR pg_catalog.btrim(p_event_type) = '' THEN
+    RAISE EXCEPTION 'booking_payment_webhook_event_incomplete' USING ERRCODE = '22023';
+  END IF;
+
+  v_payload := COALESCE(p_payload_json::jsonb, '{}'::jsonb);
+  IF pg_catalog.jsonb_typeof(v_payload) <> 'object' THEN
+    v_payload := '{}'::jsonb;
+  END IF;
+  v_intent_ref := NULLIF(pg_catalog.btrim(COALESCE(p_intent_ref, '')), '');
+
+  -- The provider event row IS the idempotency record: its unique key is (provider, key, type), so a
+  -- retry of the same notification cannot insert a second one.
+  INSERT INTO public.be_payment_provider_events AS event (
+    organization_id, provider_id, idempotency_key, event_type, intent_ref, payload_json
+  )
+  VALUES (v_org, p_provider_id, p_idempotency_key, p_event_type, v_intent_ref, v_payload)
+  ON CONFLICT (provider_id, idempotency_key, event_type) DO NOTHING
+  RETURNING event.id INTO v_event_id;
+
+  IF v_event_id IS NOT NULL THEN
+    v_inserted := true;
+  ELSE
+    SELECT event.id, event.processed_at
+      INTO v_event_id, v_event_processed_at
+      FROM public.be_payment_provider_events AS event
+     WHERE event.provider_id = p_provider_id
+       AND event.idempotency_key = p_idempotency_key
+       AND event.event_type = p_event_type
+       AND event.organization_id = v_org;
+
+    -- The lifecycle key is global, the settlement is not: an event already recorded for ANOTHER
+    -- clinic is not this callback's to settle, and must not be reported as handled here.
+    IF v_event_id IS NULL THEN
+      RETURN pg_catalog.jsonb_build_object('outcome', 'not_found', 'duplicate', true);
+    END IF;
+    IF v_event_processed_at IS NOT NULL THEN
+      RETURN pg_catalog.jsonb_build_object('outcome', 'already_processed', 'duplicate', true);
+    END IF;
+  END IF;
+
+  -- Only a confirmed success moves money in our journal. Anything else is recorded and acknowledged
+  -- so the provider stops retrying, exactly as the previous code did.
+  IF p_event_type <> 'payment.succeeded' THEN
+    UPDATE public.be_payment_provider_events AS event
+       SET processed_at = v_now
+     WHERE event.id = v_event_id
+       AND event.organization_id = v_org
+       AND event.processed_at IS NULL;
+    RETURN pg_catalog.jsonb_build_object('outcome', 'recorded', 'duplicate', NOT v_inserted);
+  END IF;
+
+  v_payload_intent := NULLIF(pg_catalog.btrim(COALESCE(v_payload ->> 'intentId', '')), '');
+  IF v_payload_intent IS NOT NULL
+     AND v_payload_intent ~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$' THEN
+    SELECT intent.id, intent.appointment_id, intent.platform_user_id, intent.provider_id,
+           intent.amount_minor, intent.currency, intent.purpose, intent.product_ref
+      INTO v_intent_id, v_intent_appointment_id, v_intent_platform_user_id, v_intent_provider_id,
+           v_intent_amount_minor, v_intent_currency, v_intent_purpose, v_intent_product_ref
+      FROM public.be_payment_intents AS intent
+     WHERE intent.id = v_payload_intent::uuid
+       AND intent.organization_id = v_org;
+  END IF;
+
+  IF v_intent_id IS NULL AND v_intent_ref IS NOT NULL THEN
+    SELECT intent.id, intent.appointment_id, intent.platform_user_id, intent.provider_id,
+           intent.amount_minor, intent.currency, intent.purpose, intent.product_ref
+      INTO v_intent_id, v_intent_appointment_id, v_intent_platform_user_id, v_intent_provider_id,
+           v_intent_amount_minor, v_intent_currency, v_intent_purpose, v_intent_product_ref
+      FROM public.be_payment_intents AS intent
+     WHERE intent.organization_id = v_org
+       AND intent.provider_intent_ref = v_intent_ref
+     ORDER BY intent.created_at DESC, intent.id DESC
+     LIMIT 1;
+  END IF;
+
+  IF v_intent_id IS NULL THEN
+    UPDATE public.be_payment_provider_events AS event
+       SET processed_at = v_now
+     WHERE event.id = v_event_id
+       AND event.organization_id = v_org
+       AND event.processed_at IS NULL;
+    RETURN pg_catalog.jsonb_build_object('outcome', 'intent_not_found', 'duplicate', NOT v_inserted);
+  END IF;
+
+  -- Compare-and-set, not read-then-write: two copies of the same notification both reach this
+  -- statement and only the one that finds the intent unsettled writes.
+  UPDATE public.be_payment_intents AS intent
+     SET status = 'succeeded', updated_at = v_now
+   WHERE intent.id = v_intent_id
+     AND intent.organization_id = v_org
+     AND intent.status <> 'succeeded';
+
+  INSERT INTO public.be_payments AS payment (
+    organization_id, payment_intent_id, appointment_id, platform_user_id, provider_id,
+    amount_minor, currency, status, purpose, captured_at, created_at
+  )
+  VALUES (v_org, v_intent_id, v_intent_appointment_id, v_intent_platform_user_id, v_intent_provider_id,
+          v_intent_amount_minor, v_intent_currency, 'captured', v_intent_purpose, v_now, v_now)
+  ON CONFLICT (payment_intent_id) DO NOTHING
+  RETURNING payment.id INTO v_payment_id;
+
+  IF v_payment_id IS NULL THEN
+    SELECT payment.id
+      INTO v_payment_id
+      FROM public.be_payments AS payment
+     WHERE payment.payment_intent_id = v_intent_id
+       AND payment.organization_id = v_org;
+  END IF;
+  IF v_payment_id IS NULL THEN
+    RAISE EXCEPTION 'booking_payment_webhook_payment_persist_failed' USING ERRCODE = '55000';
+  END IF;
+
+  INSERT INTO public.be_payment_history_events (
+    organization_id, appointment_id, platform_user_id, payment_id, event_type,
+    amount_minor, currency, provider_id, status, purpose
+  )
+  VALUES (v_org, v_intent_appointment_id, v_intent_platform_user_id, v_payment_id, 'payment_captured',
+          v_intent_amount_minor, v_intent_currency, v_intent_provider_id, 'captured', v_intent_purpose)
+  ON CONFLICT DO NOTHING;
+
+  IF v_intent_appointment_id IS NOT NULL THEN
+    SELECT appointment.chain_id
+      INTO v_chain_id
+      FROM public.be_appointments AS appointment
+     WHERE appointment.id = v_intent_appointment_id
+       AND appointment.organization_id = v_org;
+
+    -- Доля одной записи в платеже, покрывающем цепочку слотов, — то же правило, что и у
+    -- читателей карточки (`splitAppointmentPaymentAmountMinor`): делим только нацело. Неделимую
+    -- сумму зачисляем целиком на запись намерения, чтобы не выдумывать копейки.
+    SELECT pg_catalog.count(*)::integer
+      INTO v_appointment_count
+      FROM public.be_appointments AS appointment
+     WHERE appointment.organization_id = v_org
+       AND (appointment.id = v_intent_appointment_id
+            OR (v_chain_id IS NOT NULL AND appointment.chain_id = v_chain_id));
+    IF v_appointment_count IS NOT NULL AND v_appointment_count > 0
+       AND v_intent_amount_minor % v_appointment_count = 0 THEN
+      v_share_minor := v_intent_amount_minor / v_appointment_count;
+    ELSE
+      v_share_minor := NULL;
+    END IF;
+
+    -- A patient can book several consecutive slots under one chain and pay for them once; the
+    -- payment reference belongs to every slot of that chain, as it did before.
+    FOR v_appointment_id, v_appointment_status, v_appointment_user_id IN
+      SELECT appointment.id, appointment.status, appointment.platform_user_id
+        FROM public.be_appointments AS appointment
+       WHERE appointment.organization_id = v_org
+         AND (appointment.id = v_intent_appointment_id
+              OR (v_chain_id IS NOT NULL AND appointment.chain_id = v_chain_id))
+       ORDER BY appointment.id
+    LOOP
+      UPDATE public.be_appointments AS appointment
+         SET payment_ref = v_payment_id::text,
+             prepayment_paid_minor = appointment.prepayment_paid_minor
+               + CASE
+                   WHEN appointment.payment_ref IS DISTINCT FROM v_payment_id::text
+                        AND v_intent_purpose = 'appointment_prepayment'
+                   THEN COALESCE(
+                          v_share_minor,
+                          CASE WHEN appointment.id = v_intent_appointment_id
+                               THEN v_intent_amount_minor ELSE 0 END)
+                   ELSE 0
+                 END,
+             updated_at = v_now
+       WHERE appointment.id = v_appointment_id
+         AND appointment.organization_id = v_org;
+
+      IF v_appointment_status = 'awaiting_payment' THEN
+        UPDATE public.be_appointments AS appointment
+           SET status = 'paid', updated_at = v_now
+         WHERE appointment.id = v_appointment_id
+           AND appointment.organization_id = v_org;
+        INSERT INTO public.be_appointment_history_events (
+          organization_id, appointment_id, event_type, payload, occurred_at
+        )
+        VALUES (v_org, v_appointment_id, 'status_changed',
+                pg_catalog.jsonb_build_object('fromStatus', 'awaiting_payment', 'toStatus', 'paid',
+                                              'source', 'payment_capture', 'paymentId', v_payment_id::text),
+                v_now);
+        IF v_appointment_user_id IS NOT NULL THEN
+          INSERT INTO public.be_patient_timeline_events (
+            organization_id, platform_user_id, domain, event_type,
+            linked_object_type, linked_object_id, payload, occurred_at
+          )
+          VALUES (v_org, v_appointment_user_id, 'appointment', 'appointment_status_changed',
+                  'appointment', v_appointment_id::text,
+                  pg_catalog.jsonb_build_object('fromStatus', 'awaiting_payment', 'toStatus', 'paid',
+                                                'source', 'payment_capture', 'paymentId', v_payment_id::text),
+                  v_now);
+        END IF;
+        v_appointment_status := 'paid';
+      END IF;
+
+      IF v_appointment_status = 'paid' THEN
+        UPDATE public.be_appointments AS appointment
+           SET status = 'confirmed', updated_at = v_now
+         WHERE appointment.id = v_appointment_id
+           AND appointment.organization_id = v_org;
+        INSERT INTO public.be_appointment_history_events (
+          organization_id, appointment_id, event_type, payload, occurred_at
+        )
+        VALUES (v_org, v_appointment_id, 'status_changed',
+                pg_catalog.jsonb_build_object('fromStatus', 'paid', 'toStatus', 'confirmed',
+                                              'source', 'payment_confirmed', 'paymentId', v_payment_id::text),
+                v_now);
+        IF v_appointment_user_id IS NOT NULL THEN
+          INSERT INTO public.be_patient_timeline_events (
+            organization_id, platform_user_id, domain, event_type,
+            linked_object_type, linked_object_id, payload, occurred_at
+          )
+          VALUES (v_org, v_appointment_user_id, 'appointment', 'appointment_status_changed',
+                  'appointment', v_appointment_id::text,
+                  pg_catalog.jsonb_build_object('fromStatus', 'paid', 'toStatus', 'confirmed',
+                                                'source', 'payment_confirmed', 'paymentId', v_payment_id::text),
+                  v_now);
+        END IF;
+      END IF;
+
+      v_confirmed := v_confirmed || v_appointment_id::text;
+    END LOOP;
+  END IF;
+
+  UPDATE public.be_payment_provider_events AS event
+     SET processed_at = v_now
+   WHERE event.id = v_event_id
+     AND event.organization_id = v_org
+     AND event.processed_at IS NULL;
+
+  RETURN pg_catalog.jsonb_build_object(
+    'outcome', 'captured',
+    'duplicate', NOT v_inserted,
+    'paymentId', v_payment_id::text,
+    'platformUserId', v_intent_platform_user_id::text,
+    'productRef', v_intent_product_ref,
+    'confirmedAppointmentIds', pg_catalog.to_jsonb(v_confirmed)
+  );
+END
+$_$;
+
+
+--
+-- Name: settle_patient_acquiring_webhook_payment(text, text, text); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.settle_patient_acquiring_webhook_payment(p_provider_id text, p_provider_payment_id text, p_status text) RETURNS text
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $_$
+DECLARE
+  v_org uuid := app.current_org_id();
+  v_ids uuid[];
+  v_statuses text[];
+  v_updated integer;
+BEGIN
+  PERFORM app.require_accepted_context('app_seam_payment_webhook_owner'::name, 'app_tenant_service'::name, 'tenant_service'::app.port_context_class, 'patient-payment.webhook.settle', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($2))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($3))::app.port_typed_arg]), 'app.settle_patient_acquiring_webhook_payment(text,text,text)'::regprocedure);
+
+  -- The tenant is the accepted context, never an argument: without one there is no clinic to settle
+  -- inside, and a silent NULL scope would settle across every clinic at once.
+  IF v_org IS NULL THEN
+    RAISE EXCEPTION 'patient_acquiring_webhook_settle_principal_required' USING ERRCODE = '42501';
+  END IF;
+
+  -- Only the two terminal states an acquiring callback can produce. `refunded` is a different
+  -- lifecycle event with a different door, and `pending` would be a transition to nowhere.
+  IF p_status IS NULL OR p_status NOT IN ('paid', 'failed') THEN
+    RAISE EXCEPTION 'patient_acquiring_webhook_settle_status_unsupported' USING ERRCODE = '22023';
+  END IF;
+
+  IF p_provider_id IS NULL
+     OR p_provider_payment_id IS NULL
+     OR pg_catalog.btrim(p_provider_id) = ''
+     OR pg_catalog.btrim(p_provider_payment_id) = '' THEN
+    RETURN 'not_found';
+  END IF;
+
+  -- Same fail-closed identity rule as the bootstrap resolver: exactly one row, or nothing happens.
+  -- An ambiguous provider reference must never pick a winner.
+  SELECT array_agg(payment.id ORDER BY payment.id),
+         array_agg(payment.status ORDER BY payment.id)
+  INTO v_ids, v_statuses
+  FROM public.patient_payment AS payment
+  WHERE payment.kind = 'acquiring'
+    AND payment.provider = p_provider_id
+    AND payment.provider_payment_id = p_provider_payment_id
+    AND payment.organization_id = v_org;
+
+  IF v_ids IS NULL OR cardinality(v_ids) <> 1 THEN
+    RETURN 'not_found';
+  END IF;
+
+  IF v_statuses[1] IN ('paid', 'failed', 'refunded') THEN
+    RETURN 'already_processed';
+  END IF;
+
+  -- Compare-and-set, not read-then-write: two copies of the same callback arriving at once both
+  -- reach this statement, and only the one that finds the row still `pending` writes. The loser
+  -- reports the retry as already handled instead of overwriting a settled ledger row.
+  UPDATE public.patient_payment AS payment
+  SET status = p_status
+  WHERE payment.id = v_ids[1]
+    AND payment.organization_id = v_org
+    AND payment.status = 'pending';
+  GET DIAGNOSTICS v_updated = ROW_COUNT;
+
+  IF v_updated = 1 THEN
+    RETURN 'settled';
+  END IF;
+  RETURN 'already_processed';
+END
+$_$;
+
+
+--
 -- Name: specialist_task_reminder_materialization_fingerprint(uuid); Type: FUNCTION; Schema: app; Owner: -
 --
 
@@ -22489,45 +24455,27 @@ $_$;
 
 
 --
--- Name: start_patient_invite_email_proof(text, text, text, timestamp with time zone, text, bigint, text); Type: FUNCTION; Schema: app; Owner: -
+-- Name: start_patient_invite_email_proof(text, text, text, timestamp with time zone); Type: FUNCTION; Schema: app; Owner: -
 --
 
-CREATE FUNCTION app.start_patient_invite_email_proof(p_continuation_hash text, p_email_normalized text, p_code_hash text, p_proof_expires_at timestamp with time zone, p_authorization_nonce text, p_authorization_expires_epoch bigint, p_authorization_signature text) RETURNS TABLE(ok boolean, code text)
+CREATE FUNCTION app.start_patient_invite_email_proof(p_continuation_hash text, p_email_normalized text, p_code_hash text, p_proof_expires_at timestamp with time zone) RETURNS TABLE(ok boolean, code text)
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $_$
 #variable_conflict use_column
 DECLARE
   v_invite public.patient_invites%ROWTYPE;
-  v_email text := lower(btrim(p_email_normalized));
-  v_secret text;
-  v_expected text;
-  v_now_epoch bigint := floor(extract(epoch FROM clock_timestamp()))::bigint;
+  v_email text;
 BEGIN
-  PERFORM app.require_attested_context_for_roles('app_seam_patient_invite_owner'::name, ARRAY['app_patient'::name]::name[]);
+  PERFORM app.require_accepted_context('app_seam_patient_invite_owner'::name, 'app_pre_session'::name, 'pre_session'::app.port_context_class, 'patient-invite.email-proof.start', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($2))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($3))::app.port_typed_arg, ROW('timestamptz@1', pg_catalog.timestamptz_send($4))::app.port_typed_arg]), 'app.start_patient_invite_email_proof(text,text,text,timestamp with time zone)'::regprocedure);
+  v_email := lower(btrim(p_email_normalized));
 
-  IF p_authorization_nonce IS NULL OR p_authorization_nonce !~ '^[a-zA-Z0-9_.:-]{8,160}$'
-     OR p_authorization_expires_epoch <= v_now_epoch
-     OR p_authorization_expires_epoch > v_now_epoch + 60
-     OR p_authorization_signature IS NULL OR p_authorization_signature !~ '^[0-9a-fA-F]{64}$' THEN
-    RETURN QUERY SELECT false, 'invalid_invite'::text;
-    RETURN;
-  END IF;
-  SELECT secret INTO v_secret FROM app.context_signing_secrets WHERE id = true;
-  IF NOT FOUND THEN
-    RETURN QUERY SELECT false, 'invalid_invite'::text;
-    RETURN;
-  END IF;
-  v_expected := encode(app_ext.hmac(concat_ws(
-    '|', 'patient-invite-proof', 'v1', 'start', p_authorization_nonce,
-    p_authorization_expires_epoch::text, p_continuation_hash, v_email, p_code_hash,
-    COALESCE(floor(extract(epoch FROM p_proof_expires_at))::bigint::text, '')
-  ), v_secret, 'sha256'), 'hex');
-  IF lower(p_authorization_signature) IS DISTINCT FROM v_expected THEN
-    RETURN QUERY SELECT false, 'invalid_invite'::text;
-    RETURN;
-  END IF;
-  SELECT invite.* INTO v_invite
+  SELECT invite.id, invite.organization_id, invite.status, invite.invited_email_normalized,
+        invite.expires_at, invite.continuation_expires_at, invite.proof_started_at,
+        invite.recipient_binding
+  INTO v_invite.id, v_invite.organization_id, v_invite.status, v_invite.invited_email_normalized,
+      v_invite.expires_at, v_invite.continuation_expires_at, v_invite.proof_started_at,
+      v_invite.recipient_binding
   FROM public.patient_invites AS invite
   WHERE invite.continuation_hash = p_continuation_hash
   LIMIT 1
@@ -23115,23 +25063,13 @@ CREATE FUNCTION app.update_current_patient_symptom_entry(p_entry_id uuid, p_valu
 DECLARE v_row public.symptom_entries%ROWTYPE;
 BEGIN
   PERFORM app.require_accepted_context('app_seam_patient_self_actions_owner'::name, 'app_patient'::name, 'patient'::app.port_context_class, 'patient.symptom-entry.update', app.hash_port_typed_args(ARRAY[ROW('uuid@1', pg_catalog.uuid_send($1))::app.port_typed_arg, ROW('integer@1', pg_catalog.int4send($2))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($3))::app.port_typed_arg, ROW('timestamptz@1', pg_catalog.timestamptz_send($4))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($5))::app.port_typed_arg]), 'app.update_current_patient_symptom_entry(uuid,integer,text,timestamp with time zone,text)'::regprocedure);
-  IF p_value < 0 OR p_value > 10 OR p_entry_type NOT IN ('instant', 'daily') THEN
-    RAISE EXCEPTION 'current_patient_symptom_entry_rejected' USING ERRCODE = 'P0001';
-  END IF;
-  UPDATE public.symptom_entries e SET value_0_10 = p_value, entry_type = p_entry_type,
-    recorded_at = p_recorded_at, notes = left(p_notes, 2000)
+  IF p_value < 0 OR p_value > 10 OR p_entry_type NOT IN ('instant', 'daily') THEN RAISE EXCEPTION 'current_patient_symptom_entry_rejected' USING ERRCODE = 'P0001'; END IF;
+  UPDATE public.symptom_entries e SET value_0_10 = p_value, entry_type = p_entry_type, recorded_at = p_recorded_at, notes = left(p_notes, 2000)
   FROM public.symptom_trackings t
-  WHERE e.id = p_entry_id AND e.tracking_id = t.id
-    AND e.organization_id = app.current_org_id()
-    AND e.platform_user_id = app.current_patient_user_id()
-    AND t.organization_id = app.current_org_id()
-    AND t.platform_user_id = app.current_patient_user_id()
-    AND t.deleted_at IS NULL
-    AND e.recorded_at >= statement_timestamp() - interval '24 hours'
-  RETURNING e.* INTO v_row;
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'current_patient_symptom_entry_not_editable' USING ERRCODE = 'P0001';
-  END IF;
+  WHERE e.id = p_entry_id AND e.tracking_id = t.id AND e.organization_id = app.current_org_id() AND e.platform_user_id = app.current_patient_user_id()
+    AND t.organization_id = app.current_org_id() AND t.platform_user_id = app.current_patient_user_id() AND t.deleted_at IS NULL AND t.patient_tracking_enabled = true
+    AND e.recorded_at >= statement_timestamp() - interval '24 hours' RETURNING e.* INTO v_row;
+  IF NOT FOUND THEN RAISE EXCEPTION 'current_patient_symptom_entry_not_editable' USING ERRCODE = 'P0001'; END IF;
   RETURN to_jsonb(v_row);
 END
 $_$;
@@ -23341,44 +25279,31 @@ $$;
 
 
 --
--- Name: verify_patient_invite_email_proof(text, text, text, text, bigint, text); Type: FUNCTION; Schema: app; Owner: -
+-- Name: verify_patient_invite_email_proof(text, text, text); Type: FUNCTION; Schema: app; Owner: -
 --
 
-CREATE FUNCTION app.verify_patient_invite_email_proof(p_continuation_hash text, p_email_normalized text, p_code_hash text, p_authorization_nonce text, p_authorization_expires_epoch bigint, p_authorization_signature text) RETURNS TABLE(ok boolean, code text)
+CREATE FUNCTION app.verify_patient_invite_email_proof(p_continuation_hash text, p_email_normalized text, p_code_hash text) RETURNS TABLE(ok boolean, code text)
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $_$
 #variable_conflict use_column
 DECLARE
   v_invite public.patient_invites%ROWTYPE;
-  v_email text := lower(btrim(p_email_normalized));
-  v_secret text;
-  v_expected text;
-  v_now_epoch bigint := floor(extract(epoch FROM clock_timestamp()))::bigint;
+  v_email text;
 BEGIN
-  PERFORM app.require_attested_context_for_roles('app_seam_patient_invite_owner'::name, ARRAY['app_patient'::name]::name[]);
+  PERFORM app.require_accepted_context('app_seam_patient_invite_owner'::name, 'app_pre_session'::name, 'pre_session'::app.port_context_class, 'patient-invite.email-proof.verify', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($2))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($3))::app.port_typed_arg]), 'app.verify_patient_invite_email_proof(text,text,text)'::regprocedure);
+  v_email := lower(btrim(p_email_normalized));
 
-  IF p_authorization_nonce IS NULL OR p_authorization_nonce !~ '^[a-zA-Z0-9_.:-]{8,160}$'
-     OR p_authorization_expires_epoch <= v_now_epoch
-     OR p_authorization_expires_epoch > v_now_epoch + 60
-     OR p_authorization_signature IS NULL OR p_authorization_signature !~ '^[0-9a-fA-F]{64}$' THEN
-    RETURN QUERY SELECT false, 'invalid_code'::text;
-    RETURN;
-  END IF;
-  SELECT secret INTO v_secret FROM app.context_signing_secrets WHERE id = true;
-  IF NOT FOUND THEN
-    RETURN QUERY SELECT false, 'invalid_code'::text;
-    RETURN;
-  END IF;
-  v_expected := encode(app_ext.hmac(concat_ws(
-    '|', 'patient-invite-proof', 'v1', 'verify', p_authorization_nonce,
-    p_authorization_expires_epoch::text, p_continuation_hash, v_email, p_code_hash, ''
-  ), v_secret, 'sha256'), 'hex');
-  IF lower(p_authorization_signature) IS DISTINCT FROM v_expected THEN
-    RETURN QUERY SELECT false, 'invalid_code'::text;
-    RETURN;
-  END IF;
-  SELECT invite.* INTO v_invite
+  SELECT invite.id, invite.organization_id, invite.patient_user_id, invite.status,
+        invite.invited_email_normalized, invite.expires_at, invite.continuation_expires_at,
+        invite.accepted_by_platform_user_id, invite.accepted_via, invite.proof_attempts,
+        invite.proof_code_hash, invite.proof_email_normalized, invite.proof_expires_at,
+        invite.proof_verified_at, invite.recipient_binding
+  INTO v_invite.id, v_invite.organization_id, v_invite.patient_user_id, v_invite.status,
+      v_invite.invited_email_normalized, v_invite.expires_at, v_invite.continuation_expires_at,
+      v_invite.accepted_by_platform_user_id, v_invite.accepted_via, v_invite.proof_attempts,
+      v_invite.proof_code_hash, v_invite.proof_email_normalized, v_invite.proof_expires_at,
+      v_invite.proof_verified_at, v_invite.recipient_binding
   FROM public.patient_invites AS invite
   WHERE invite.continuation_hash = p_continuation_hash
   LIMIT 1
@@ -23837,6 +25762,72 @@ BEGIN
   IF physical_id IS NULL THEN RAISE EXCEPTION USING ERRCODE='42501', MESSAGE='accepted opaque identity context required'; END IF;
   RETURN physical_id;
 END $$;
+
+
+--
+-- Name: enforce_be_appointments_confirmed_overlap_occupancy(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.enforce_be_appointments_confirmed_overlap_occupancy() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog', 'public', 'pg_temp'
+    AS $$
+BEGIN
+  IF NEW.specialist_id IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  PERFORM pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended(
+      'be-appointments-specialist:' || NEW.specialist_id::text,
+      0
+    )
+  );
+
+  IF NEW.deleted_at IS NOT NULL
+     OR NEW.status = ANY (ARRAY[
+       'cancelled_by_patient'::text,
+       'cancelled_by_specialist'::text,
+       'late_cancellation'::text,
+       'no_show'::text,
+       'completed'::text,
+       'visit_confirmed'::text
+     ])
+     OR (
+       NEW.overlap_confirmed_start_at IS NOT DISTINCT FROM NEW.start_at
+       AND NEW.overlap_confirmed_end_at IS NOT DISTINCT FROM NEW.end_at
+     ) THEN
+    RETURN NEW;
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+      FROM public.be_appointments AS existing
+     WHERE existing.id IS DISTINCT FROM NEW.id
+       AND existing.organization_id = NEW.organization_id
+       AND existing.specialist_id = NEW.specialist_id
+       AND existing.deleted_at IS NULL
+       AND existing.status <> ALL (ARRAY[
+         'cancelled_by_patient'::text,
+         'cancelled_by_specialist'::text,
+         'late_cancellation'::text,
+         'no_show'::text,
+         'completed'::text,
+         'visit_confirmed'::text
+       ])
+       AND existing.overlap_confirmed_start_at IS NOT DISTINCT FROM existing.start_at
+       AND existing.overlap_confirmed_end_at IS NOT DISTINCT FROM existing.end_at
+       AND pg_catalog.tstzrange(existing.start_at, existing.end_at, '[)')
+           && pg_catalog.tstzrange(NEW.start_at, NEW.end_at, '[)')
+  ) THEN
+    RAISE EXCEPTION 'be_appointments_specialist_no_overlap'
+      USING ERRCODE = '23P01',
+            CONSTRAINT = 'be_appointments_specialist_no_overlap';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
 
 
 --
@@ -24341,6 +26332,19 @@ CREATE TABLE public.be_appointments (
     appointment_reminder_allowed_preset_ids jsonb DEFAULT '[]'::jsonb NOT NULL,
     appointment_reminder_preset_id text,
     appointment_reminder_selection_source text DEFAULT 'specialist_default'::text NOT NULL,
+    price_minor integer,
+    price_currency text DEFAULT 'RUB'::text NOT NULL,
+    prepayment_mode text DEFAULT 'disabled'::text NOT NULL,
+    prepayment_percent_bps integer,
+    prepayment_amount_minor integer,
+    prepayment_required_minor integer DEFAULT 0 NOT NULL,
+    prepayment_paid_minor integer DEFAULT 0 NOT NULL,
+    payment_deadline_at timestamp with time zone,
+    overlap_confirmed_start_at timestamp with time zone,
+    overlap_confirmed_end_at timestamp with time zone,
+    delivery_format text DEFAULT 'in_person'::text NOT NULL,
+    CONSTRAINT be_appointments_money_nonnegative_check CHECK ((((price_minor IS NULL) OR (price_minor >= 0)) AND ((prepayment_amount_minor IS NULL) OR (prepayment_amount_minor >= 0)) AND ((prepayment_percent_bps IS NULL) OR ((prepayment_percent_bps >= 0) AND (prepayment_percent_bps <= 10000))) AND (prepayment_required_minor >= 0) AND (prepayment_paid_minor >= 0))),
+    CONSTRAINT be_appointments_prepayment_mode_check CHECK ((prepayment_mode = ANY (ARRAY['disabled'::text, 'fixed_minor'::text, 'percent'::text, 'full_price'::text]))),
     CONSTRAINT be_appointments_reminder_selection_source_check CHECK ((appointment_reminder_selection_source = ANY (ARRAY['specialist_default'::text, 'patient'::text]))),
     CONSTRAINT be_appointments_source_check CHECK ((source = ANY (ARRAY['native'::text, 'imported'::text, 'admin_manual'::text, 'public_widget'::text]))),
     CONSTRAINT be_appointments_status_check CHECK ((status = ANY (ARRAY['created'::text, 'awaiting_payment'::text, 'paid'::text, 'confirmed'::text, 'rescheduled'::text, 'cancelled_by_patient'::text, 'cancelled_by_specialist'::text, 'late_cancellation'::text, 'no_show'::text, 'completed'::text, 'visit_confirmed'::text, 'charged_to_package'::text, 'manual_review_required'::text]))),
@@ -24388,6 +26392,7 @@ CREATE TABLE public.be_booking_form_fields (
     is_active boolean DEFAULT true NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    archived_at timestamp with time zone,
     CONSTRAINT be_booking_form_fields_type_check CHECK ((field_type = ANY (ARRAY['first_name'::text, 'last_name'::text, 'phone'::text, 'email'::text, 'comment'::text, 'problem_description'::text, 'complaint'::text, 'free_text'::text, 'custom'::text])))
 );
 
@@ -24505,6 +26510,8 @@ CREATE TABLE public.be_organization_members (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     doctor_screens_disabled boolean DEFAULT false NOT NULL,
+    appointments_manage_own boolean DEFAULT true NOT NULL,
+    availability_manage_own boolean DEFAULT true NOT NULL,
     CONSTRAINT be_organization_members_role_check CHECK ((role = ANY (ARRAY['owner'::text, 'admin'::text, 'doctor'::text, 'assistant'::text]))),
     CONSTRAINT be_organization_members_status_check CHECK ((status = ANY (ARRAY['active'::text, 'invited'::text, 'disabled'::text])))
 );
@@ -24649,6 +26656,8 @@ CREATE TABLE public.be_patient_packages (
     paid_amount_minor integer,
     paid_currency text,
     display_number integer NOT NULL,
+    sale_idempotency_key text,
+    checkout_url text,
     CONSTRAINT be_patient_packages_deduction_mode_check CHECK ((deduction_mode = ANY (ARRAY['auto_on_visit_confirmed'::text, 'manual'::text]))),
     CONSTRAINT be_patient_packages_display_number_check CHECK ((display_number > 0)),
     CONSTRAINT be_patient_packages_price_check CHECK ((price_minor >= 0)),
@@ -24931,22 +26940,6 @@ ALTER TABLE ONLY public.be_schedule_templates FORCE ROW LEVEL SECURITY;
 
 
 --
--- Name: be_service_location_availability; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.be_service_location_availability (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    organization_id uuid NOT NULL,
-    service_id uuid NOT NULL,
-    branch_id uuid NOT NULL,
-    is_active boolean DEFAULT true NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-ALTER TABLE ONLY public.be_service_location_availability FORCE ROW LEVEL SECURITY;
-
-
---
 -- Name: be_specialist_locations; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -25014,7 +27007,10 @@ CREATE TABLE public.be_specialists (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     appointment_reminder_allowed_preset_ids jsonb DEFAULT '[]'::jsonb NOT NULL,
-    appointment_reminder_default_preset_id text
+    appointment_reminder_default_preset_id text,
+    avatar_media_id uuid,
+    full_description_markdown text,
+    card_is_published boolean DEFAULT false NOT NULL
 );
 
 ALTER TABLE ONLY public.be_specialists FORCE ROW LEVEL SECURITY;
@@ -25252,11 +27248,11 @@ CREATE TABLE public.clinic_public_directory_entries (
     public_contact_phone text,
     public_contact_email text,
     public_website_url text,
-    locations_json jsonb DEFAULT '[]'::jsonb NOT NULL,
     logo_media_id uuid,
     photo_media_ids uuid[] DEFAULT '{}'::uuid[] NOT NULL,
     card_is_published boolean DEFAULT false NOT NULL,
-    CONSTRAINT clinic_public_directory_entries_card_text_limits_check CHECK ((((description IS NULL) OR (length(description) <= 4000)) AND ((public_contact_phone IS NULL) OR (length(public_contact_phone) <= 64)) AND ((public_contact_email IS NULL) OR (length(public_contact_email) <= 320)) AND ((public_website_url IS NULL) OR (length(public_website_url) <= 512)))),
+    full_description_markdown text,
+    CONSTRAINT clinic_public_directory_entries_card_text_limits_check CHECK ((((description IS NULL) OR (length(description) <= 4000)) AND ((public_contact_phone IS NULL) OR (length(public_contact_phone) <= 64)) AND ((public_contact_email IS NULL) OR (length(public_contact_email) <= 320)) AND ((public_website_url IS NULL) OR (length(public_website_url) <= 512)) AND ((full_description_markdown IS NULL) OR (length(full_description_markdown) <= 50000)))),
     CONSTRAINT clinic_public_directory_entries_photo_media_ids_bound_check CHECK (((array_length(photo_media_ids, 1) IS NULL) OR (array_length(photo_media_ids, 1) <= 12))),
     CONSTRAINT clinic_public_directory_entries_slug_lower_check CHECK ((slug = lower(slug))),
     CONSTRAINT clinic_public_directory_entries_slug_not_blank_check CHECK ((length(btrim(slug)) > 0))
@@ -25329,11 +27325,12 @@ CREATE TABLE public.clinical_complaint (
     text text NOT NULL,
     priority boolean DEFAULT false NOT NULL,
     status text DEFAULT 'active'::text NOT NULL,
-    source_visit_id uuid NOT NULL,
+    source_visit_id uuid,
     resolved_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     description text,
     organization_id uuid,
+    symptom_tracking_id uuid,
     CONSTRAINT clinical_complaint_status_check CHECK ((status = ANY (ARRAY['active'::text, 'resolved'::text])))
 );
 
@@ -25347,7 +27344,7 @@ ALTER TABLE ONLY public.clinical_complaint FORCE ROW LEVEL SECURITY;
 CREATE TABLE public.clinical_complaint_update (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     complaint_id uuid NOT NULL,
-    visit_id uuid NOT NULL,
+    visit_id uuid,
     note text,
     severity integer NOT NULL,
     resolved boolean DEFAULT false NOT NULL,
@@ -25370,7 +27367,7 @@ CREATE TABLE public.clinical_diagnosis (
     text text NOT NULL,
     priority boolean DEFAULT false NOT NULL,
     status text DEFAULT 'active'::text NOT NULL,
-    source_visit_id uuid NOT NULL,
+    source_visit_id uuid,
     resolved_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     clinical_status text DEFAULT 'предварительный'::text NOT NULL,
@@ -25437,13 +27434,31 @@ ALTER TABLE ONLY public.clinical_diagnosis_update FORCE ROW LEVEL SECURITY;
 
 
 --
+-- Name: clinical_disease_anamnesis; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.clinical_disease_anamnesis (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    organization_id uuid,
+    patient_user_id uuid NOT NULL,
+    text text DEFAULT ''::text NOT NULL,
+    created_by uuid NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+ALTER TABLE ONLY public.clinical_disease_anamnesis FORCE ROW LEVEL SECURITY;
+
+
+--
 -- Name: clinical_test_regions; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.clinical_test_regions (
     clinical_test_id uuid NOT NULL,
     body_region_id uuid NOT NULL,
-    organization_id uuid
+    organization_id uuid,
+    owner_kind text DEFAULT 'organization'::text NOT NULL,
+    CONSTRAINT clinical_test_regions_owner_check CHECK ((((owner_kind = 'organization'::text) AND (organization_id IS NOT NULL)) OR ((owner_kind = 'platform'::text) AND (organization_id IS NULL))))
 );
 
 ALTER TABLE ONLY public.clinical_test_regions FORCE ROW LEVEL SECURITY;
@@ -25625,7 +27640,9 @@ CREATE TABLE public.doctor_notes (
     text text NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    organization_id uuid
+    organization_id uuid,
+    note_date date NOT NULL,
+    revision integer DEFAULT 0 NOT NULL
 );
 
 ALTER TABLE ONLY public.doctor_notes FORCE ROW LEVEL SECURITY;
@@ -25644,11 +27661,13 @@ CREATE TABLE public.doctor_patient_support (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_by uuid,
     support_started_at timestamp with time zone,
-    organization_id uuid,
+    organization_id uuid NOT NULL,
     height_cm integer,
     weight_kg integer,
     gender text,
     birth_date date,
+    direct_chat_enabled boolean,
+    portal_enabled boolean,
     CONSTRAINT doctor_patient_support_gender_check CHECK (((gender IS NULL) OR (gender = ANY (ARRAY['male'::text, 'female'::text]))))
 );
 
@@ -25844,6 +27863,21 @@ ALTER TABLE ONLY public.lfk_complexes FORCE ROW LEVEL SECURITY;
 
 
 --
+-- Name: lfk_exercise_load_types; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.lfk_exercise_load_types (
+    exercise_id uuid NOT NULL,
+    load_type text NOT NULL,
+    organization_id uuid,
+    owner_kind text DEFAULT 'organization'::text NOT NULL,
+    CONSTRAINT lfk_exercise_load_types_owner_check CHECK ((((owner_kind = 'organization'::text) AND (organization_id IS NOT NULL)) OR ((owner_kind = 'platform'::text) AND (organization_id IS NULL))))
+);
+
+ALTER TABLE ONLY public.lfk_exercise_load_types FORCE ROW LEVEL SECURITY;
+
+
+--
 -- Name: lfk_exercise_media; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -26021,20 +28055,22 @@ CREATE TABLE public.media_files (
     poster_s3_key text,
     video_duration_seconds integer,
     available_qualities_json jsonb,
-    video_delivery_override text,
     usage_purpose text,
     organization_id uuid,
     owner_kind text DEFAULT 'organization'::text NOT NULL,
     standard_rendition_at timestamp with time zone,
     hosted_video_source_url text,
     delete_claim_token uuid,
+    storage_target text NOT NULL,
+    source_bitrate_bps integer,
     CONSTRAINT media_files_hosted_video_preview_check CHECK ((((usage_purpose = 'hosted_video_preview'::text) AND (hosted_video_source_url IS NOT NULL) AND (owner_kind = 'organization'::text) AND (organization_id IS NOT NULL)) OR ((usage_purpose IS DISTINCT FROM 'hosted_video_preview'::text) AND (hosted_video_source_url IS NULL)))),
     CONSTRAINT media_files_owner_check CHECK ((((owner_kind = 'organization'::text) AND (organization_id IS NOT NULL)) OR ((owner_kind = 'platform'::text) AND (organization_id IS NULL)))),
-    CONSTRAINT media_files_preview_status_check CHECK ((preview_status = ANY (ARRAY['pending'::text, 'ready'::text, 'failed'::text, 'skipped'::text]))),
+    CONSTRAINT media_files_preview_status_check CHECK ((preview_status = ANY (ARRAY['pending'::text, 'processing'::text, 'ready'::text, 'failed'::text, 'skipped'::text]))),
     CONSTRAINT media_files_size_bytes_check CHECK (((size_bytes >= 0) AND (size_bytes <= '3221225472'::bigint))),
+    CONSTRAINT media_files_source_bitrate_bps_check CHECK (((source_bitrate_bps IS NULL) OR (source_bitrate_bps >= 0))),
     CONSTRAINT media_files_status_check CHECK ((status = ANY (ARRAY['ready'::text, 'pending'::text, 'deleting'::text, 'pending_delete'::text]))),
+    CONSTRAINT media_files_storage_target_check CHECK ((storage_target = ANY (ARRAY['library'::text, 'patient'::text]))),
     CONSTRAINT media_files_usage_purpose_check CHECK (((usage_purpose IS NULL) OR (usage_purpose = ANY (ARRAY['program_item_submission'::text, 'hosted_video_preview'::text])))),
-    CONSTRAINT media_files_video_delivery_override_check CHECK (((video_delivery_override IS NULL) OR (video_delivery_override = ANY (ARRAY['mp4'::text, 'hls'::text, 'auto'::text])))),
     CONSTRAINT media_files_video_processing_status_check CHECK (((video_processing_status IS NULL) OR (video_processing_status = ANY (ARRAY['none'::text, 'pending'::text, 'processing'::text, 'ready'::text, 'failed'::text]))))
 );
 
@@ -26107,6 +28143,25 @@ ALTER TABLE ONLY public.media_playback_client_events FORCE ROW LEVEL SECURITY;
 
 
 --
+-- Name: media_playback_delivery_daily; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.media_playback_delivery_daily (
+    bucket_date date NOT NULL,
+    organization_id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    media_id uuid NOT NULL,
+    quality text NOT NULL,
+    request_count integer DEFAULT 0 NOT NULL,
+    bytes_total bigint DEFAULT 0 NOT NULL,
+    CONSTRAINT media_playback_delivery_daily_bytes_total_check CHECK ((bytes_total >= 0)),
+    CONSTRAINT media_playback_delivery_daily_request_count_check CHECK ((request_count >= 0))
+);
+
+ALTER TABLE ONLY public.media_playback_delivery_daily FORCE ROW LEVEL SECURITY;
+
+
+--
 -- Name: media_playback_resolution_events; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -26115,7 +28170,6 @@ CREATE TABLE public.media_playback_resolution_events (
     user_id uuid NOT NULL,
     media_id uuid NOT NULL,
     delivery text NOT NULL,
-    fallback_used boolean DEFAULT false NOT NULL,
     resolved_at timestamp with time zone DEFAULT now() NOT NULL,
     organization_id uuid,
     CONSTRAINT media_playback_resolution_events_delivery_check CHECK ((delivery = ANY (ARRAY['hls'::text, 'mp4'::text, 'file'::text])))
@@ -26132,7 +28186,6 @@ CREATE TABLE public.media_playback_stats_hourly (
     bucket_hour timestamp with time zone NOT NULL,
     delivery text NOT NULL,
     resolved_count integer DEFAULT 0 NOT NULL,
-    fallback_count integer DEFAULT 0 NOT NULL,
     organization_id uuid,
     CONSTRAINT media_playback_stats_hourly_delivery_check CHECK ((delivery = ANY (ARRAY['hls'::text, 'mp4'::text, 'file'::text])))
 );
@@ -26245,6 +28298,29 @@ CREATE TABLE public.motivational_quotes (
 );
 
 ALTER TABLE ONLY public.motivational_quotes FORCE ROW LEVEL SECURITY;
+
+
+--
+-- Name: native_push_targets; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.native_push_targets (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id uuid NOT NULL,
+    app_id text NOT NULL,
+    provider text NOT NULL,
+    installation_id_hash text NOT NULL,
+    token_hash text NOT NULL,
+    token_ciphertext text NOT NULL,
+    token_key_id text NOT NULL,
+    deactivated_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT native_push_targets_app_id_check CHECK ((app_id = ANY (ARRAY['therapygo'::text, 'therapysto'::text]))),
+    CONSTRAINT native_push_targets_provider_check CHECK ((provider = ANY (ARRAY['rustore'::text, 'fcm'::text, 'hms'::text])))
+);
+
+ALTER TABLE ONLY public.native_push_targets FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -26452,6 +28528,7 @@ CREATE TABLE public.org_brand_revisions (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     patient_app_name text,
     accent_token text,
+    app_icon_media_id uuid,
     CONSTRAINT org_brand_revisions_accent_token_check CHECK (((accent_token IS NULL) OR (accent_token ~ '^#[0-9a-f]{6}$'::text))),
     CONSTRAINT org_brand_revisions_display_name_check CHECK (((display_name IS NULL) OR ((btrim(display_name) <> ''::text) AND (length(display_name) <= 120)))),
     CONSTRAINT org_brand_revisions_patient_app_name_check CHECK (((patient_app_name IS NULL) OR ((btrim(patient_app_name) <> ''::text) AND (length(patient_app_name) <= 120)))),
@@ -26460,6 +28537,39 @@ CREATE TABLE public.org_brand_revisions (
 );
 
 ALTER TABLE ONLY public.org_brand_revisions FORCE ROW LEVEL SECURITY;
+
+
+--
+-- Name: org_custom_domain_bindings; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.org_custom_domain_bindings (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    organization_id uuid,
+    base_domain text NOT NULL,
+    placement text DEFAULT 'apex'::text NOT NULL,
+    subdomain_label text,
+    hostname text NOT NULL,
+    status text DEFAULT 'pending'::text NOT NULL,
+    status_reason text,
+    created_by_platform_user_id uuid,
+    activated_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT org_custom_domain_bindings_base_domain_format_check CHECK (((base_domain ~ '^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$'::text) AND (length(base_domain) <= 253))),
+    CONSTRAINT org_custom_domain_bindings_hostname_matches_placement_check CHECK ((hostname =
+CASE
+    WHEN (placement = 'apex'::text) THEN base_domain
+    ELSE ((subdomain_label || '.'::text) || base_domain)
+END)),
+    CONSTRAINT org_custom_domain_bindings_lower_check CHECK (((base_domain = lower(base_domain)) AND (hostname = lower(hostname)) AND ((subdomain_label IS NULL) OR (subdomain_label = lower(subdomain_label))))),
+    CONSTRAINT org_custom_domain_bindings_placement_check CHECK ((placement = ANY (ARRAY['apex'::text, 'subdomain'::text]))),
+    CONSTRAINT org_custom_domain_bindings_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'dns_ready'::text, 'active'::text, 'failed'::text, 'suspended'::text, 'quarantine'::text]))),
+    CONSTRAINT org_custom_domain_bindings_subdomain_label_format_check CHECK (((subdomain_label IS NULL) OR (subdomain_label ~ '^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$'::text))),
+    CONSTRAINT org_custom_domain_bindings_subdomain_label_presence_check CHECK ((((placement = 'apex'::text) AND (subdomain_label IS NULL)) OR ((placement = 'subdomain'::text) AND (subdomain_label IS NOT NULL))))
+);
+
+ALTER TABLE ONLY public.org_custom_domain_bindings FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -26474,7 +28584,7 @@ CREATE TABLE public.org_enrollments (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     portal_activated_at timestamp with time zone,
     portal_activated_via text,
-    CONSTRAINT org_enrollments_portal_activation_check CHECK ((((portal_activated_at IS NULL) AND (portal_activated_via IS NULL)) OR ((portal_activated_at IS NOT NULL) AND (portal_activated_via = ANY (ARRAY['patient_invite_email_otp'::text, 'public_booking_phone_otp'::text, 'public_booking_verified_email'::text, 'public_booking_session'::text]))))),
+    CONSTRAINT org_enrollments_portal_activation_check CHECK ((((portal_activated_at IS NULL) AND (portal_activated_via IS NULL)) OR ((portal_activated_at IS NOT NULL) AND (portal_activated_via = ANY (ARRAY['patient_invite_email_otp'::text, 'patient_invite_session'::text, 'public_booking_phone_otp'::text, 'public_booking_verified_email'::text, 'public_booking_session'::text]))))),
     CONSTRAINT org_enrollments_status_check CHECK ((status = ANY (ARRAY['active'::text, 'invited'::text, 'discharged'::text, 'archived'::text])))
 );
 
@@ -26521,7 +28631,7 @@ CREATE TABLE public.organization_slug_claims (
     CONSTRAINT organization_slug_claims_slug_format_check CHECK (((slug ~ '^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$'::text) AND (slug !~~ '%--%'::text))),
     CONSTRAINT organization_slug_claims_slug_length_check CHECK (((char_length(slug) >= 3) AND (char_length(slug) <= 30))),
     CONSTRAINT organization_slug_claims_slug_numeric_check CHECK ((slug !~ '^[0-9]+$'::text)),
-    CONSTRAINT organization_slug_claims_slug_reserved_check CHECK ((lower(slug) <> ALL (ARRAY['_next'::text, 'api'::text, 'app'::text, 'book'::text, 'favicon'::text, 'fonts'::text, 'health'::text, 'icons'::text, 'images'::text, 'join'::text, 'landing'::text, 'legal'::text, 'manifest'::text, 'patient'::text, 'robots'::text, 'sitemap'::text, 'test-fixtures'::text, 'account'::text, 'admin'::text, 'auth'::text, 'billing'::text, 'booking'::text, 'catalog'::text, 'clinic'::text, 'clinics'::text, 'dashboard'::text, 'doctor'::text, 'embed'::text, 'help'::text, 'login'::text, 'logout'::text, 'manage'::text, 'messages'::text, 'new'::text, 'notifications'::text, 'profile'::text, 'register'::text, 'search'::text, 'settings'::text, 'sign-in'::text, 'sign-out'::text, 'sign-up'::text, 'signup'::text, 'specialist'::text, 'specialists'::text, 'widget'::text, 'administrator'::text, 'calendar'::text, 'chat'::text, 'cms'::text, 'config'::text, 'developer'::text, 'developers'::text, 'documentation'::text, 'domain'::text, 'email'::text, 'graphql'::text, 'oauth'::text, 'oauth2'::text, 'password'::text, 'session'::text, 'sessions'::text, 'setup'::text, 'signin'::text, 'user'::text, 'users'::text, 'verify'::text, 'about'::text, 'abuse'::text, 'blog'::text, 'careers'::text, 'checkout'::text, 'contact'::text, 'docs'::text, 'invoice'::text, 'invoices'::text, 'legal-notice'::text, 'news'::text, 'pay'::text, 'payment'::text, 'payments'::text, 'press'::text, 'pricing'::text, 'privacy'::text, 'security'::text, 'shop'::text, 'status'::text, 'store'::text, 'support'::text, 'terms'::text, 'hostmaster'::text, 'info'::text, 'marketing'::text, 'noc'::text, 'mailer-daemon'::text, 'mailerdaemon'::text, 'no-reply'::text, 'noreply'::text, 'postmaster'::text, 'root'::text, 'sales'::text, 'usenet'::text, 'uucp'::text, 'webmaster'::text, 'assets'::text, 'autoconfig'::text, 'autodiscover'::text, 'cache'::text, 'cdn'::text, 'dkim'::text, 'dmarc'::text, 'dns'::text, 'domainkey'::text, 'download'::text, 'downloads'::text, 'edge'::text, 'file'::text, 'files'::text, 'ftp'::text, 'gateway'::text, 'git'::text, 'imap'::text, 'img'::text, '_domainkey'::text, 'mail'::text, 'mail0'::text, 'mail1'::text, 'mail2'::text, 'mail3'::text, 'mail4'::text, 'mail5'::text, 'mail6'::text, 'mail7'::text, 'mail8'::text, 'mail9'::text, 'media'::text, 'mobile'::text, 'm'::text, 'mx'::text, 'mx1'::text, 'ns'::text, 'ns0'::text, 'ns4'::text, 'ns5'::text, 'ns6'::text, 'ns7'::text, 'ns8'::text, 'ns9'::text, 'ns1'::text, 'ns2'::text, 'ns3'::text, 'owa'::text, 'origin'::text, 'postfix'::text, 'pop'::text, 'pop3'::text, 'proxy'::text, 'secure'::text, 'smtp'::text, 'ssh'::text, 'ssl'::text, 'ssladmin'::text, 'sslwebmaster'::text, 'spf'::text, 'static'::text, 'styles'::text, 'wpad'::text, 'upload'::text, 'uploads'::text, 'vpn'::text, 'well-known'::text, 'www-data'::text, 'www1'::text, 'www2'::text, 'www3'::text, 'www4'::text, 'webmail'::text, 'www'::text, 'broadcasthost'::text, 'cp'::text, 'cpanel'::text, 'dns0'::text, 'dns1'::text, 'dns2'::text, 'dns3'::text, 'dns4'::text, 'host'::text, 'hosting'::text, 'http'::text, 'httpd'::text, 'https'::text, 'isatap'::text, 'localdomain'::text, 'portal'::text, 'alpha'::text, 'beta'::text, 'demo'::text, 'dev'::text, 'error'::text, 'internal'::text, 'local'::text, 'localhost'::text, 'maintenance'::text, 'platform'::text, 'preview'::text, 'private'::text, 'prod'::text, 'production'::text, 'public'::text, 'sandbox'::text, 'service'::text, 'stage'::text, 'staging'::text, 'system'::text, 'test'::text, 'default'::text, 'false'::text, 'nan'::text, 'nil'::text, 'none'::text, 'null'::text, 'true'::text, 'undefined'::text, 'unknown'::text, 'void'::text])))
+    CONSTRAINT organization_slug_claims_slug_reserved_check CHECK ((lower(slug) <> ALL (ARRAY['_next'::text, 'api'::text, 'app'::text, 'brand'::text, 'book'::text, 'favicon'::text, 'fonts'::text, 'health'::text, 'icons'::text, 'images'::text, 'join'::text, 'landing'::text, 'legal'::text, 'live'::text, 'manifest'::text, 'patient'::text, 'product'::text, 'robots'::text, 'sitemap'::text, 'test-fixtures'::text, 'account'::text, 'admin'::text, 'auth'::text, 'billing'::text, 'booking'::text, 'catalog'::text, 'clinic'::text, 'clinics'::text, 'dashboard'::text, 'doctor'::text, 'embed'::text, 'help'::text, 'login'::text, 'logout'::text, 'manage'::text, 'messages'::text, 'new'::text, 'notifications'::text, 'profile'::text, 'register'::text, 'search'::text, 'settings'::text, 'sign-in'::text, 'sign-out'::text, 'sign-up'::text, 'signup'::text, 'specialist'::text, 'specialists'::text, 'widget'::text, 'administrator'::text, 'calendar'::text, 'chat'::text, 'cms'::text, 'config'::text, 'developer'::text, 'developers'::text, 'documentation'::text, 'domain'::text, 'email'::text, 'graphql'::text, 'oauth'::text, 'oauth2'::text, 'password'::text, 'session'::text, 'sessions'::text, 'setup'::text, 'signin'::text, 'user'::text, 'users'::text, 'verify'::text, 'about'::text, 'abuse'::text, 'blog'::text, 'careers'::text, 'checkout'::text, 'contact'::text, 'docs'::text, 'invoice'::text, 'invoices'::text, 'legal-notice'::text, 'news'::text, 'pay'::text, 'payment'::text, 'payments'::text, 'press'::text, 'pricing'::text, 'privacy'::text, 'security'::text, 'shop'::text, 'status'::text, 'store'::text, 'support'::text, 'terms'::text, 'hostmaster'::text, 'info'::text, 'marketing'::text, 'noc'::text, 'mailer-daemon'::text, 'mailerdaemon'::text, 'no-reply'::text, 'noreply'::text, 'postmaster'::text, 'root'::text, 'sales'::text, 'usenet'::text, 'uucp'::text, 'webmaster'::text, 'assets'::text, 'autoconfig'::text, 'autodiscover'::text, 'cache'::text, 'cdn'::text, 'dkim'::text, 'dmarc'::text, 'dns'::text, 'domainkey'::text, 'download'::text, 'downloads'::text, 'edge'::text, 'file'::text, 'files'::text, 'ftp'::text, 'gateway'::text, 'git'::text, 'imap'::text, 'img'::text, '_domainkey'::text, 'mail'::text, 'mail0'::text, 'mail1'::text, 'mail2'::text, 'mail3'::text, 'mail4'::text, 'mail5'::text, 'mail6'::text, 'mail7'::text, 'mail8'::text, 'mail9'::text, 'media'::text, 'mobile'::text, 'm'::text, 'mx'::text, 'mx1'::text, 'ns'::text, 'ns0'::text, 'ns4'::text, 'ns5'::text, 'ns6'::text, 'ns7'::text, 'ns8'::text, 'ns9'::text, 'ns1'::text, 'ns2'::text, 'ns3'::text, 'owa'::text, 'origin'::text, 'postfix'::text, 'pop'::text, 'pop3'::text, 'proxy'::text, 'secure'::text, 'smtp'::text, 'ssh'::text, 'ssl'::text, 'ssladmin'::text, 'sslwebmaster'::text, 'spf'::text, 'static'::text, 'styles'::text, 'wpad'::text, 'upload'::text, 'uploads'::text, 'vpn'::text, 'well-known'::text, 'www-data'::text, 'www1'::text, 'www2'::text, 'www3'::text, 'www4'::text, 'webmail'::text, 'www'::text, 'broadcasthost'::text, 'cp'::text, 'cpanel'::text, 'dns0'::text, 'dns1'::text, 'dns2'::text, 'dns3'::text, 'dns4'::text, 'host'::text, 'hosting'::text, 'http'::text, 'httpd'::text, 'https'::text, 'isatap'::text, 'localdomain'::text, 'portal'::text, 'alpha'::text, 'beta'::text, 'demo'::text, 'dev'::text, 'error'::text, 'internal'::text, 'local'::text, 'localhost'::text, 'maintenance'::text, 'platform'::text, 'preview'::text, 'private'::text, 'prod'::text, 'production'::text, 'public'::text, 'sandbox'::text, 'service'::text, 'stage'::text, 'staging'::text, 'system'::text, 'test'::text, 'default'::text, 'false'::text, 'nan'::text, 'nil'::text, 'none'::text, 'null'::text, 'true'::text, 'undefined'::text, 'unknown'::text, 'void'::text])))
 );
 
 ALTER TABLE ONLY public.organization_slug_claims FORCE ROW LEVEL SECURITY;
@@ -26776,7 +28886,9 @@ CREATE TABLE public.patient_files (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     media_file_id uuid,
     organization_id uuid,
-    CONSTRAINT patient_files_category_check CHECK ((category = ANY (ARRAY['выписка'::text, 'снимок'::text, 'анализ'::text, 'фото_теста'::text, 'прочее'::text])))
+    storage_target text NOT NULL,
+    CONSTRAINT patient_files_category_check CHECK ((category = ANY (ARRAY['выписка'::text, 'снимок'::text, 'анализ'::text, 'фото_теста'::text, 'прочее'::text]))),
+    CONSTRAINT patient_files_storage_target_check CHECK ((storage_target = ANY (ARRAY['library'::text, 'patient'::text])))
 );
 
 ALTER TABLE ONLY public.patient_files FORCE ROW LEVEL SECURITY;
@@ -26819,7 +28931,6 @@ CREATE TABLE public.patient_home_blocks (
     sort_order integer DEFAULT 0 NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    icon_image_url text,
     organization_id uuid
 );
 
@@ -26860,7 +28971,7 @@ CREATE TABLE public.patient_invites (
     revoked_by_platform_user_id uuid,
     recipient_binding text DEFAULT 'bound_email'::text NOT NULL,
     CONSTRAINT patient_invites_accepted_subject_check CHECK (((accepted_by_platform_user_id IS NULL) OR (accepted_by_platform_user_id = patient_user_id))),
-    CONSTRAINT patient_invites_accepted_via_check CHECK (((accepted_via IS NULL) OR (accepted_via = 'email_otp'::text))),
+    CONSTRAINT patient_invites_accepted_via_check CHECK (((accepted_via IS NULL) OR (accepted_via = ANY (ARRAY['email_otp'::text, 'session'::text])))),
     CONSTRAINT patient_invites_proof_attempts_check CHECK (((proof_attempts >= 0) AND (proof_attempts <= 5))),
     CONSTRAINT patient_invites_recipient_binding_check CHECK ((((recipient_binding = 'bound_email'::text) AND (invited_email_normalized IS NOT NULL)) OR ((recipient_binding = 'unbound_email_claim'::text) AND (invited_email_normalized IS NULL)))),
     CONSTRAINT patient_invites_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'accepted'::text, 'expired'::text, 'revoked'::text, 'superseded'::text])))
@@ -26931,6 +29042,7 @@ CREATE TABLE public.patient_payment (
     organization_id uuid,
     appointment_id uuid,
     idempotency_key text,
+    patient_package_id uuid,
     CONSTRAINT patient_payment_amount_minor_positive CHECK ((amount_minor > 0)),
     CONSTRAINT patient_payment_kind_check CHECK ((kind = ANY (ARRAY['cash'::text, 'acquiring'::text]))),
     CONSTRAINT patient_payment_status_check CHECK ((status = ANY (ARRAY['paid'::text, 'pending'::text, 'refunded'::text, 'failed'::text])))
@@ -27242,7 +29354,9 @@ ALTER TABLE ONLY public.program_item_discussion_reads FORCE ROW LEVEL SECURITY;
 CREATE TABLE public.recommendation_regions (
     recommendation_id uuid NOT NULL,
     body_region_id uuid NOT NULL,
-    organization_id uuid
+    organization_id uuid,
+    owner_kind text DEFAULT 'organization'::text NOT NULL,
+    CONSTRAINT recommendation_regions_owner_check CHECK ((((owner_kind = 'organization'::text) AND (organization_id IS NOT NULL)) OR ((owner_kind = 'platform'::text) AND (organization_id IS NULL))))
 );
 
 ALTER TABLE ONLY public.recommendation_regions FORCE ROW LEVEL SECURITY;
@@ -27267,7 +29381,9 @@ CREATE TABLE public.recommendations (
     frequency_text text,
     duration_text text,
     domain text,
-    organization_id uuid
+    organization_id uuid,
+    owner_kind text DEFAULT 'organization'::text NOT NULL,
+    CONSTRAINT recommendations_owner_check CHECK ((((owner_kind = 'organization'::text) AND (organization_id IS NOT NULL)) OR ((owner_kind = 'platform'::text) AND (organization_id IS NULL))))
 );
 
 ALTER TABLE ONLY public.recommendations FORCE ROW LEVEL SECURITY;
@@ -27468,14 +29584,16 @@ CREATE TABLE public.saas_billing_invoices (
     additional_seat_quantity integer DEFAULT 0 NOT NULL,
     carried_debt_minor integer DEFAULT 0 NOT NULL,
     superseded_by_invoice_id uuid,
+    storage_package_id uuid,
     CONSTRAINT saas_billing_invoices_additional_seat_quantity_check CHECK (((additional_seat_quantity >= 0) AND ((invoice_kind <> 'seat_overage'::text) OR (additional_seat_quantity > 0)))),
     CONSTRAINT saas_billing_invoices_amount_check CHECK ((amount_minor >= 0)),
     CONSTRAINT saas_billing_invoices_carried_debt_check CHECK (((carried_debt_minor >= 0) AND (carried_debt_minor <= amount_minor))),
     CONSTRAINT saas_billing_invoices_currency_check CHECK ((currency ~ '^[A-Z]{3}$'::text)),
-    CONSTRAINT saas_billing_invoices_kind_check CHECK ((invoice_kind = ANY (ARRAY['tariff_period'::text, 'seat_overage'::text]))),
+    CONSTRAINT saas_billing_invoices_kind_check CHECK ((invoice_kind = ANY (ARRAY['tariff_period'::text, 'seat_overage'::text, 'storage_package'::text]))),
     CONSTRAINT saas_billing_invoices_period_check CHECK ((service_period_starts_at < service_period_ends_at)),
-    CONSTRAINT saas_billing_invoices_seat_void_has_successor_check CHECK (((invoice_kind <> 'seat_overage'::text) OR (status <> 'void'::text) OR (superseded_by_invoice_id IS NOT NULL))),
+    CONSTRAINT saas_billing_invoices_prorated_void_has_successor_check CHECK (((invoice_kind <> ALL (ARRAY['seat_overage'::text, 'storage_package'::text])) OR (status <> 'void'::text) OR (superseded_by_invoice_id IS NOT NULL))),
     CONSTRAINT saas_billing_invoices_status_check CHECK ((status = ANY (ARRAY['draft'::text, 'pending'::text, 'paid'::text, 'failed'::text, 'void'::text]))),
+    CONSTRAINT saas_billing_invoices_storage_package_check CHECK (((invoice_kind <> 'storage_package'::text) OR (storage_package_id IS NOT NULL))),
     CONSTRAINT saas_billing_invoices_superseded_is_void_check CHECK (((superseded_by_invoice_id IS NULL) OR (status = 'void'::text)))
 );
 
@@ -27572,13 +29690,20 @@ CREATE TABLE public.saas_billing_subscriptions (
     tariff_snapshot jsonb,
     pending_tariff_id uuid,
     paid_additional_seats integer DEFAULT 0 NOT NULL,
+    billing_period_code text,
+    pending_billing_period_code text,
+    paid_storage_package_id uuid,
+    pending_storage_package_id uuid,
+    storage_package_cancel_at_period_end boolean DEFAULT false NOT NULL,
     CONSTRAINT saas_billing_subscriptions_autopay_consent_check CHECK (((autopay_consented_at IS NULL) = (autopay_consent_text IS NULL))),
     CONSTRAINT saas_billing_subscriptions_lifecycle_check CHECK ((lifecycle_state = ANY (ARRAY['active'::text, 'grace'::text, 'read_only'::text, 'blocked'::text]))),
     CONSTRAINT saas_billing_subscriptions_lifecycle_dates_check CHECK ((((grace_ends_at IS NULL) OR (current_period_ends_at IS NULL) OR (grace_ends_at >= current_period_ends_at)) AND ((read_only_ends_at IS NULL) OR (grace_ends_at IS NULL) OR (read_only_ends_at >= grace_ends_at)))),
     CONSTRAINT saas_billing_subscriptions_paid_additional_seats_check CHECK ((paid_additional_seats >= 0)),
+    CONSTRAINT saas_billing_subscriptions_pending_period_pair_check CHECK (((pending_tariff_id IS NULL) = (pending_billing_period_code IS NULL))),
     CONSTRAINT saas_billing_subscriptions_period_check CHECK ((((current_period_starts_at IS NULL) AND (current_period_ends_at IS NULL)) OR ((current_period_starts_at IS NOT NULL) AND (current_period_ends_at IS NOT NULL) AND (current_period_starts_at < current_period_ends_at)))),
     CONSTRAINT saas_billing_subscriptions_source_check CHECK ((source = ANY (ARRAY['manual'::text, 'paid_subscription'::text]))),
-    CONSTRAINT saas_billing_subscriptions_status_check CHECK ((status = ANY (ARRAY['pending_payment'::text, 'active'::text, 'expired'::text, 'cancelled'::text])))
+    CONSTRAINT saas_billing_subscriptions_status_check CHECK ((status = ANY (ARRAY['pending_payment'::text, 'active'::text, 'expired'::text, 'cancelled'::text]))),
+    CONSTRAINT saas_billing_subscriptions_storage_package_change_check CHECK ((((pending_storage_package_id IS NULL) OR (NOT storage_package_cancel_at_period_end)) AND ((paid_storage_package_id IS NOT NULL) OR ((pending_storage_package_id IS NULL) AND (NOT storage_package_cancel_at_period_end)))))
 );
 
 ALTER TABLE ONLY public.saas_billing_subscriptions FORCE ROW LEVEL SECURITY;
@@ -27643,7 +29768,7 @@ CREATE TABLE public.saas_isolation_events (
     CONSTRAINT saas_isolation_events_explanation_status_check CHECK ((explanation_status = ANY (ARRAY['explained'::text, 'unexplained'::text]))),
     CONSTRAINT saas_isolation_events_lifecycle_status_check CHECK ((lifecycle_status = ANY (ARRAY['active'::text, 'resolved'::text]))),
     CONSTRAINT saas_isolation_events_occurrence_count_check CHECK ((occurrence_count > 0)),
-    CONSTRAINT saas_isolation_events_source_operation_check CHECK ((((((((((((((((((((((((((((((source_service = 'webapp'::text) AND (source_operation = 'webapp_db_request'::text)) OR ((source_service = 'webapp'::text) AND (source_operation = 'webapp_admin_system_health'::text))) OR ((source_service = 'webapp'::text) AND (source_operation = 'public_auth_config'::text))) OR ((source_service = 'webapp'::text) AND (source_operation = 'auth_role_config'::text))) OR ((source_service = 'webapp'::text) AND (source_operation = 'patient_runtime_config'::text))) OR ((source_service = 'webapp'::text) AND (source_operation = 'public_booking_config'::text))) OR ((source_service = 'webapp'::text) AND (source_operation = 'patient_identity_exception_check'::text))) OR ((source_service = 'webapp'::text) AND (source_operation = 'patient_booking_history'::text))) OR ((source_service = 'webapp'::text) AND (source_operation = 'patient_product_analytics'::text))) OR ((source_service = 'webapp'::text) AND (source_operation = 'patient_ui_config'::text))) OR ((source_service = 'webapp'::text) AND (source_operation = 'patient_calendar_timezone'::text))) OR ((source_service = 'webapp'::text) AND (source_operation = 'patient_content_catalog'::text))) OR ((source_service = 'webapp'::text) AND (source_operation = 'patient_diary'::text))) OR ((source_service = 'integrator'::text) AND (source_operation = 'integrator_http_request'::text))) OR ((source_service = 'integrator'::text) AND (source_operation = 'integrator_projection'::text))) OR ((source_service = 'worker'::text) AND (source_operation = 'worker_queue_drain'::text))) OR ((source_service = 'worker'::text) AND (source_operation = 'worker_projection_delivery'::text))) OR ((source_service = 'worker'::text) AND (source_operation = 'worker_outgoing_delivery'::text))) OR ((source_service = 'scheduler'::text) AND (source_operation = 'scheduler_lock'::text))) OR ((source_service = 'scheduler'::text) AND (source_operation = 'scheduler_dispatch_tick'::text))) OR ((source_service = 'media_worker'::text) AND (source_operation = 'media_transcode_tick'::text))) OR ((source_service = 'cron'::text) AND (source_operation = 'cron_health'::text))) OR ((source_service = 'cron'::text) AND (source_operation = 'cron_media'::text))) OR ((source_service = 'cron'::text) AND (source_operation = 'cron_analytics'::text))) OR ((source_service = 'cron'::text) AND (source_operation = 'cron_maintenance'::text))) OR ((source_service = 'cron'::text) AND (source_operation = 'cron_saas_billing'::text))) OR ((source_service = 'cron'::text) AND (source_operation = 'cron_reminders'::text))) OR ((source_service = 'cron'::text) AND (source_operation = 'cron_specialist_tasks'::text)))),
+    CONSTRAINT saas_isolation_events_source_operation_check CHECK ((((source_service = 'webapp'::text) AND (source_operation = 'webapp_db_request'::text)) OR ((source_service = 'webapp'::text) AND (source_operation = 'webapp_admin_system_health'::text)) OR ((source_service = 'webapp'::text) AND (source_operation = 'public_auth_config'::text)) OR ((source_service = 'webapp'::text) AND (source_operation = 'auth_role_config'::text)) OR ((source_service = 'webapp'::text) AND (source_operation = 'patient_runtime_config'::text)) OR ((source_service = 'webapp'::text) AND (source_operation = 'public_booking_config'::text)) OR ((source_service = 'webapp'::text) AND (source_operation = 'patient_identity_exception_check'::text)) OR ((source_service = 'webapp'::text) AND (source_operation = 'patient_booking_history'::text)) OR ((source_service = 'webapp'::text) AND (source_operation = 'patient_product_analytics'::text)) OR ((source_service = 'webapp'::text) AND (source_operation = 'patient_ui_config'::text)) OR ((source_service = 'webapp'::text) AND (source_operation = 'patient_calendar_timezone'::text)) OR ((source_service = 'webapp'::text) AND (source_operation = 'patient_content_catalog'::text)) OR ((source_service = 'webapp'::text) AND (source_operation = 'patient_diary'::text)) OR ((source_service = 'integrator'::text) AND (source_operation = 'integrator_http_request'::text)) OR ((source_service = 'integrator'::text) AND (source_operation = 'integrator_projection'::text)) OR ((source_service = 'worker'::text) AND (source_operation = 'worker_queue_drain'::text)) OR ((source_service = 'worker'::text) AND (source_operation = 'worker_projection_delivery'::text)) OR ((source_service = 'worker'::text) AND (source_operation = 'worker_outgoing_delivery'::text)) OR ((source_service = 'scheduler'::text) AND (source_operation = 'scheduler_lock'::text)) OR ((source_service = 'scheduler'::text) AND (source_operation = 'scheduler_dispatch_tick'::text)) OR ((source_service = 'media_worker'::text) AND (source_operation = 'media_transcode_tick'::text)) OR ((source_service = 'cron'::text) AND (source_operation = 'cron_health'::text)) OR ((source_service = 'cron'::text) AND (source_operation = 'cron_media'::text)) OR ((source_service = 'cron'::text) AND (source_operation = 'cron_analytics'::text)) OR ((source_service = 'cron'::text) AND (source_operation = 'cron_maintenance'::text)) OR ((source_service = 'cron'::text) AND (source_operation = 'cron_saas_billing'::text)) OR ((source_service = 'cron'::text) AND (source_operation = 'cron_reminders'::text)) OR ((source_service = 'cron'::text) AND (source_operation = 'cron_specialist_tasks'::text)))),
     CONSTRAINT saas_isolation_events_source_service_check CHECK ((source_service = ANY (ARRAY['webapp'::text, 'integrator'::text, 'worker'::text, 'scheduler'::text, 'media_worker'::text, 'cron'::text])))
 );
 
@@ -27733,6 +29858,59 @@ ALTER TABLE ONLY public.saas_registration_tariff_policy FORCE ROW LEVEL SECURITY
 
 
 --
+-- Name: saas_storage_package_period_prices; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.saas_storage_package_period_prices (
+    package_id uuid NOT NULL,
+    billing_period_code text NOT NULL,
+    price_minor integer NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT saas_storage_package_period_prices_price_check CHECK ((price_minor >= 0))
+);
+
+ALTER TABLE ONLY public.saas_storage_package_period_prices FORCE ROW LEVEL SECURITY;
+
+
+--
+-- Name: saas_storage_packages; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.saas_storage_packages (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    name text NOT NULL,
+    bytes bigint NOT NULL,
+    currency text,
+    is_active boolean DEFAULT true NOT NULL,
+    sort_order integer DEFAULT 0 NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT saas_storage_packages_bytes_check CHECK ((bytes > 0))
+);
+
+ALTER TABLE ONLY public.saas_storage_packages FORCE ROW LEVEL SECURITY;
+
+
+--
+-- Name: saas_tariff_period_prices; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.saas_tariff_period_prices (
+    tariff_id uuid NOT NULL,
+    billing_period_code text NOT NULL,
+    price_minor integer NOT NULL,
+    discounted_price_minor integer,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT saas_tariff_period_prices_discounted_price_nonnegative_check CHECK (((discounted_price_minor IS NULL) OR (discounted_price_minor >= 0))),
+    CONSTRAINT saas_tariff_period_prices_price_nonnegative_check CHECK ((price_minor >= 0))
+);
+
+ALTER TABLE ONLY public.saas_tariff_period_prices FORCE ROW LEVEL SECURITY;
+
+
+--
 -- Name: saas_trial_policy; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -27800,7 +29978,8 @@ CREATE TABLE public.specialist_tasks (
     reminder_sent_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    organization_id uuid
+    organization_id uuid,
+    due_has_time boolean DEFAULT true NOT NULL
 );
 
 ALTER TABLE ONLY public.specialist_tasks FORCE ROW LEVEL SECURITY;
@@ -27967,6 +30146,7 @@ CREATE TABLE public.symptom_trackings (
     deleted_at timestamp with time zone,
     platform_user_id uuid NOT NULL,
     organization_id uuid,
+    patient_tracking_enabled boolean DEFAULT true NOT NULL,
     CONSTRAINT symptom_trackings_side_check CHECK (((side IS NULL) OR (side = ANY (ARRAY['left'::text, 'right'::text, 'both'::text]))))
 );
 
@@ -28101,7 +30281,9 @@ CREATE TABLE public.tests (
     raw_text text,
     assessment_kind text,
     body_region_id uuid,
-    organization_id uuid
+    organization_id uuid,
+    owner_kind text DEFAULT 'organization'::text NOT NULL,
+    CONSTRAINT tests_owner_check CHECK ((((owner_kind = 'organization'::text) AND (organization_id IS NOT NULL)) OR ((owner_kind = 'platform'::text) AND (organization_id IS NULL))))
 );
 
 ALTER TABLE ONLY public.tests FORCE ROW LEVEL SECURITY;
@@ -28520,7 +30702,6 @@ CREATE TABLE public.user_phone_history (
     valid_from timestamp with time zone DEFAULT now() NOT NULL,
     valid_to timestamp with time zone,
     source text NOT NULL,
-    organization_id uuid,
     confirming_channel text,
     CONSTRAINT user_phone_history_confirming_channel_check CHECK (((confirming_channel IS NULL) OR (confirming_channel = ANY (ARRAY['telegram'::text, 'max'::text, 'email'::text, 'sms'::text])))),
     CONSTRAINT user_phone_history_source_check CHECK ((source = ANY (ARRAY['otp'::text, 'messenger'::text, 'merge'::text, 'admin'::text, 'projection'::text, 'oauth'::text])))
@@ -28545,6 +30726,51 @@ CREATE TABLE public.user_web_push_subscriptions (
 );
 
 ALTER TABLE ONLY public.user_web_push_subscriptions FORCE ROW LEVEL SECURITY;
+
+
+--
+-- Name: video_meeting_invites; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.video_meeting_invites (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    meeting_id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    secret_hash text NOT NULL,
+    status text DEFAULT 'active'::text NOT NULL,
+    expires_at timestamp with time zone NOT NULL,
+    revoked_at timestamp with time zone,
+    revoked_by_platform_user_id uuid,
+    superseded_by_invite_id uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT video_meeting_invites_status_check CHECK ((status = ANY (ARRAY['active'::text, 'revoked'::text, 'superseded'::text])))
+);
+
+ALTER TABLE ONLY public.video_meeting_invites FORCE ROW LEVEL SECURITY;
+
+
+--
+-- Name: video_meetings; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.video_meetings (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    organization_id uuid NOT NULL,
+    patient_user_id uuid NOT NULL,
+    specialist_id uuid NOT NULL,
+    appointment_id uuid,
+    provider_room_ref text NOT NULL,
+    status text DEFAULT 'active'::text NOT NULL,
+    expires_at timestamp with time zone NOT NULL,
+    ended_at timestamp with time zone,
+    revoked_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT video_meetings_status_check CHECK ((status = ANY (ARRAY['active'::text, 'ended'::text, 'revoked'::text])))
+);
+
+ALTER TABLE ONLY public.video_meetings FORCE ROW LEVEL SECURITY;
 
 
 --

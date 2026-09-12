@@ -193,7 +193,7 @@ ALTER TABLE ONLY public.be_appointments
 --
 
 ALTER TABLE ONLY public.be_appointments
-    ADD CONSTRAINT be_appointments_specialist_no_overlap EXCLUDE USING gist (specialist_id WITH =, tstzrange(start_at, end_at, '[)'::text) WITH &&) WHERE (((specialist_id IS NOT NULL) AND (deleted_at IS NULL) AND (status <> ALL (ARRAY['cancelled_by_patient'::text, 'cancelled_by_specialist'::text, 'late_cancellation'::text, 'no_show'::text, 'completed'::text, 'visit_confirmed'::text]))));
+    ADD CONSTRAINT be_appointments_specialist_no_overlap EXCLUDE USING gist (specialist_id WITH =, tstzrange(start_at, end_at, '[)'::text) WITH &&) WHERE (((specialist_id IS NOT NULL) AND (deleted_at IS NULL) AND (status <> ALL (ARRAY['cancelled_by_patient'::text, 'cancelled_by_specialist'::text, 'late_cancellation'::text, 'no_show'::text, 'completed'::text, 'visit_confirmed'::text])) AND ((overlap_confirmed_start_at IS DISTINCT FROM start_at) OR (overlap_confirmed_end_at IS DISTINCT FROM end_at))));
 
 
 --
@@ -394,14 +394,6 @@ ALTER TABLE ONLY public.be_schedule_blocks
 
 ALTER TABLE ONLY public.be_schedule_templates
     ADD CONSTRAINT be_schedule_templates_pkey PRIMARY KEY (id);
-
-
---
--- Name: be_service_location_availability be_service_location_availability_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.be_service_location_availability
-    ADD CONSTRAINT be_service_location_availability_pkey PRIMARY KEY (id);
 
 
 --
@@ -629,6 +621,14 @@ ALTER TABLE ONLY public.clinical_diagnosis_update
 
 
 --
+-- Name: clinical_disease_anamnesis clinical_disease_anamnesis_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.clinical_disease_anamnesis
+    ADD CONSTRAINT clinical_disease_anamnesis_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: clinical_test_regions clinical_test_regions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -829,6 +829,14 @@ ALTER TABLE ONLY public.lfk_complexes
 
 
 --
+-- Name: lfk_exercise_load_types lfk_exercise_load_types_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.lfk_exercise_load_types
+    ADD CONSTRAINT lfk_exercise_load_types_pkey PRIMARY KEY (exercise_id, load_type);
+
+
+--
 -- Name: lfk_exercise_media lfk_exercise_media_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -981,6 +989,14 @@ ALTER TABLE ONLY public.motivational_quotes
 
 
 --
+-- Name: native_push_targets native_push_targets_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.native_push_targets
+    ADD CONSTRAINT native_push_targets_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: notification_delivery_attempts notification_delivery_attempts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1066,6 +1082,14 @@ ALTER TABLE ONLY public.operator_job_status
 
 ALTER TABLE ONLY public.org_brand_revisions
     ADD CONSTRAINT org_brand_revisions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: org_custom_domain_bindings org_custom_domain_bindings_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.org_custom_domain_bindings
+    ADD CONSTRAINT org_custom_domain_bindings_pkey PRIMARY KEY (id);
 
 
 --
@@ -1629,6 +1653,30 @@ ALTER TABLE ONLY public.saas_registration_tariff_policy
 
 
 --
+-- Name: saas_storage_package_period_prices saas_storage_package_period_prices_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.saas_storage_package_period_prices
+    ADD CONSTRAINT saas_storage_package_period_prices_pkey PRIMARY KEY (package_id, billing_period_code);
+
+
+--
+-- Name: saas_storage_packages saas_storage_packages_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.saas_storage_packages
+    ADD CONSTRAINT saas_storage_packages_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: saas_tariff_period_prices saas_tariff_period_prices_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.saas_tariff_period_prices
+    ADD CONSTRAINT saas_tariff_period_prices_pkey PRIMARY KEY (tariff_id, billing_period_code);
+
+
+--
 -- Name: saas_tariffs saas_tariffs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1925,14 +1973,6 @@ ALTER TABLE ONLY public.be_rooms
 
 
 --
--- Name: be_service_location_availability uq_be_sla_service_branch; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.be_service_location_availability
-    ADD CONSTRAINT uq_be_sla_service_branch UNIQUE (service_id, branch_id);
-
-
---
 -- Name: be_specialist_locations uq_be_specialist_locations; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1954,6 +1994,22 @@ ALTER TABLE ONLY public.be_specialist_rooms
 
 ALTER TABLE ONLY public.be_specialist_service_availability
     ADD CONSTRAINT uq_be_ssa_specialist_service_scope UNIQUE (specialist_id, service_id, branch_id, room_id, city_code);
+
+
+--
+-- Name: native_push_targets uq_native_push_targets_installation; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.native_push_targets
+    ADD CONSTRAINT uq_native_push_targets_installation UNIQUE (app_id, provider, installation_id_hash);
+
+
+--
+-- Name: native_push_targets uq_native_push_targets_user_token; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.native_push_targets
+    ADD CONSTRAINT uq_native_push_targets_user_token UNIQUE (user_id, app_id, provider, token_hash);
 
 
 --
@@ -2090,6 +2146,22 @@ ALTER TABLE ONLY public.user_phone_history
 
 ALTER TABLE ONLY public.user_web_push_subscriptions
     ADD CONSTRAINT user_web_push_subscriptions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: video_meeting_invites video_meeting_invites_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.video_meeting_invites
+    ADD CONSTRAINT video_meeting_invites_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: video_meetings video_meetings_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.video_meetings
+    ADD CONSTRAINT video_meetings_pkey PRIMARY KEY (id);
 
 
 --
@@ -2268,6 +2340,13 @@ CREATE INDEX idx_be_appointments_patient ON public.be_appointments USING btree (
 
 
 --
+-- Name: idx_be_appointments_payment_deadline; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_be_appointments_payment_deadline ON public.be_appointments USING btree (payment_deadline_at) WHERE ((status = 'awaiting_payment'::text) AND (payment_deadline_at IS NOT NULL));
+
+
+--
 -- Name: idx_be_appointments_status; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -2349,6 +2428,13 @@ CREATE INDEX idx_be_cancel_policies_org ON public.be_cancellation_policies USING
 --
 
 CREATE INDEX idx_be_clinic_services_org ON public.be_clinic_services USING btree (organization_id);
+
+
+--
+-- Name: idx_be_clinic_services_org_public_card; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_be_clinic_services_org_public_card ON public.be_clinic_services USING btree (organization_id, sort_order) WHERE (is_active AND public_widget_visible AND (NOT admin_manual_only));
 
 
 --
@@ -2534,10 +2620,31 @@ CREATE INDEX idx_be_schedule_templates_org ON public.be_schedule_templates USING
 
 
 --
+-- Name: idx_be_specialists_avatar_media; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_be_specialists_avatar_media ON public.be_specialists USING btree (avatar_media_id) WHERE (avatar_media_id IS NOT NULL);
+
+
+--
 -- Name: idx_be_specialists_org; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_be_specialists_org ON public.be_specialists USING btree (organization_id);
+
+
+--
+-- Name: idx_be_specialists_org_public_card; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_be_specialists_org_public_card ON public.be_specialists USING btree (organization_id, sort_order) WHERE (is_active AND card_is_published);
+
+
+--
+-- Name: idx_be_ssa_org_service_live; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_be_ssa_org_service_live ON public.be_specialist_service_availability USING btree (organization_id, service_id) WHERE (is_active AND (branch_id IS NOT NULL));
 
 
 --
@@ -2779,6 +2886,13 @@ CREATE INDEX idx_clinical_diagnosis_update_visit_id ON public.clinical_diagnosis
 
 
 --
+-- Name: idx_clinical_disease_anamnesis_organization_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_clinical_disease_anamnesis_organization_id ON public.clinical_disease_anamnesis USING btree (organization_id);
+
+
+--
 -- Name: idx_clinical_test_regions_body_region; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -2961,17 +3075,17 @@ CREATE INDEX idx_doctor_notes_user_created ON public.doctor_notes USING btree (u
 
 
 --
--- Name: idx_doctor_patient_support_on_support; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_doctor_patient_support_on_support ON public.doctor_patient_support USING btree (on_support);
-
-
---
 -- Name: idx_doctor_patient_support_organization_id; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_doctor_patient_support_organization_id ON public.doctor_patient_support USING btree (organization_id);
+
+
+--
+-- Name: idx_doctor_patient_support_organization_on_support; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_doctor_patient_support_organization_on_support ON public.doctor_patient_support USING btree (organization_id, on_support);
 
 
 --
@@ -3070,6 +3184,20 @@ CREATE INDEX idx_lfk_complexes_platform_user_id ON public.lfk_complexes USING bt
 --
 
 CREATE INDEX idx_lfk_complexes_user_active ON public.lfk_complexes USING btree (user_id, is_active);
+
+
+--
+-- Name: idx_lfk_exercise_load_types_load_type; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_lfk_exercise_load_types_load_type ON public.lfk_exercise_load_types USING btree (load_type);
+
+
+--
+-- Name: idx_lfk_exercise_load_types_organization_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_lfk_exercise_load_types_organization_id ON public.lfk_exercise_load_types USING btree (organization_id);
 
 
 --
@@ -3318,6 +3446,27 @@ CREATE INDEX idx_media_playback_client_events_organization_id ON public.media_pl
 
 
 --
+-- Name: idx_media_playback_delivery_daily_bucket; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_media_playback_delivery_daily_bucket ON public.media_playback_delivery_daily USING btree (bucket_date DESC);
+
+
+--
+-- Name: idx_media_playback_delivery_daily_media_bucket; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_media_playback_delivery_daily_media_bucket ON public.media_playback_delivery_daily USING btree (media_id, bucket_date DESC);
+
+
+--
+-- Name: idx_media_playback_delivery_daily_organization_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_media_playback_delivery_daily_organization_id ON public.media_playback_delivery_daily USING btree (organization_id);
+
+
+--
 -- Name: idx_media_playback_resolution_events_organization_id; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -3448,6 +3597,13 @@ CREATE INDEX idx_motivational_quotes_active ON public.motivational_quotes USING 
 --
 
 CREATE INDEX idx_motivational_quotes_organization_id ON public.motivational_quotes USING btree (organization_id);
+
+
+--
+-- Name: idx_native_push_targets_active_user; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_native_push_targets_active_user ON public.native_push_targets USING btree (user_id, app_id, provider, deactivated_at);
 
 
 --
@@ -3661,6 +3817,13 @@ CREATE INDEX idx_operator_job_status_last_finished ON public.operator_job_status
 
 
 --
+-- Name: idx_org_brand_revisions_app_icon_media; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_org_brand_revisions_app_icon_media ON public.org_brand_revisions USING btree (app_icon_media_id) WHERE (app_icon_media_id IS NOT NULL);
+
+
+--
 -- Name: idx_org_brand_revisions_logo_media; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -3672,6 +3835,13 @@ CREATE INDEX idx_org_brand_revisions_logo_media ON public.org_brand_revisions US
 --
 
 CREATE INDEX idx_org_brand_revisions_org_status ON public.org_brand_revisions USING btree (organization_id, status);
+
+
+--
+-- Name: idx_org_custom_domain_bindings_status; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_org_custom_domain_bindings_status ON public.org_custom_domain_bindings USING btree (status);
 
 
 --
@@ -4025,6 +4195,13 @@ CREATE INDEX idx_patient_payment_organization_id ON public.patient_payment USING
 
 
 --
+-- Name: idx_patient_payment_patient_package_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_patient_payment_patient_package_id ON public.patient_payment USING btree (patient_package_id, created_at DESC);
+
+
+--
 -- Name: idx_patient_payment_patient_user_id; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -4333,6 +4510,13 @@ CREATE INDEX idx_recommendations_body_region ON public.recommendations USING btr
 
 
 --
+-- Name: idx_recommendations_catalog_owner; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_recommendations_catalog_owner ON public.recommendations USING btree (owner_kind, organization_id, is_archived, updated_at DESC);
+
+
+--
 -- Name: idx_recommendations_domain; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -4487,10 +4671,10 @@ CREATE INDEX idx_saas_billing_invoices_org_created ON public.saas_billing_invoic
 
 
 --
--- Name: idx_saas_billing_invoices_seat_debt; Type: INDEX; Schema: public; Owner: -
+-- Name: idx_saas_billing_invoices_prorated_debt; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_saas_billing_invoices_seat_debt ON public.saas_billing_invoices USING btree (saas_billing_subscription_id, service_period_ends_at) WHERE ((invoice_kind = 'seat_overage'::text) AND (status = ANY (ARRAY['draft'::text, 'pending'::text])));
+CREATE INDEX idx_saas_billing_invoices_prorated_debt ON public.saas_billing_invoices USING btree (saas_billing_subscription_id, service_period_ends_at) WHERE ((invoice_kind = ANY (ARRAY['seat_overage'::text, 'storage_package'::text])) AND (status = ANY (ARRAY['draft'::text, 'pending'::text])));
 
 
 --
@@ -4550,6 +4734,13 @@ CREATE INDEX idx_saas_billing_subscriptions_org_status ON public.saas_billing_su
 
 
 --
+-- Name: idx_saas_billing_subscriptions_paid_storage_package; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_saas_billing_subscriptions_paid_storage_package ON public.saas_billing_subscriptions USING btree (paid_storage_package_id) WHERE (paid_storage_package_id IS NOT NULL);
+
+
+--
 -- Name: idx_saas_billing_subscriptions_pending_tariff; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -4582,6 +4773,27 @@ CREATE INDEX idx_saas_organization_trials_lifecycle ON public.saas_organization_
 --
 
 CREATE INDEX idx_saas_organization_trials_org_updated ON public.saas_organization_trials USING btree (organization_id, updated_at DESC);
+
+
+--
+-- Name: idx_saas_storage_package_period_prices_period; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_saas_storage_package_period_prices_period ON public.saas_storage_package_period_prices USING btree (billing_period_code, package_id);
+
+
+--
+-- Name: idx_saas_storage_packages_active_sort; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_saas_storage_packages_active_sort ON public.saas_storage_packages USING btree (is_active, sort_order);
+
+
+--
+-- Name: idx_saas_tariff_period_prices_period_tariff; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_saas_tariff_period_prices_period_tariff ON public.saas_tariff_period_prices USING btree (billing_period_code, tariff_id);
 
 
 --
@@ -4781,6 +4993,13 @@ CREATE INDEX idx_symptom_trackings_organization_id ON public.symptom_trackings U
 
 
 --
+-- Name: idx_symptom_trackings_patient_visible; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_symptom_trackings_patient_visible ON public.symptom_trackings USING btree (platform_user_id, updated_at DESC) WHERE ((deleted_at IS NULL) AND (is_active = true) AND (patient_tracking_enabled = true));
+
+
+--
 -- Name: idx_symptom_trackings_platform_user_id; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -4925,6 +5144,13 @@ CREATE INDEX idx_tests_assessment_kind ON public.tests USING btree (assessment_k
 --
 
 CREATE INDEX idx_tests_body_region ON public.tests USING btree (body_region_id);
+
+
+--
+-- Name: idx_tests_catalog_owner; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_tests_catalog_owner ON public.tests USING btree (owner_kind, organization_id, is_archived, updated_at DESC);
 
 
 --
@@ -5173,13 +5399,6 @@ CREATE INDEX idx_user_password_credentials_verification_lease_until ON public.us
 
 
 --
--- Name: idx_user_phone_history_organization_id; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_user_phone_history_organization_id ON public.user_phone_history USING btree (organization_id);
-
-
---
 -- Name: idx_user_phone_history_phone; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -5198,6 +5417,34 @@ CREATE INDEX idx_user_phone_history_user ON public.user_phone_history USING btre
 --
 
 CREATE INDEX idx_user_web_push_subscriptions_user ON public.user_web_push_subscriptions USING btree (user_id);
+
+
+--
+-- Name: idx_video_meeting_invites_org_status_expires; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_video_meeting_invites_org_status_expires ON public.video_meeting_invites USING btree (organization_id, status, expires_at);
+
+
+--
+-- Name: idx_video_meetings_org_patient_created; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_video_meetings_org_patient_created ON public.video_meetings USING btree (organization_id, patient_user_id, created_at);
+
+
+--
+-- Name: idx_video_meetings_org_specialist_created; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_video_meetings_org_specialist_created ON public.video_meetings USING btree (organization_id, specialist_id, created_at);
+
+
+--
+-- Name: media_playback_delivery_daily_org_user_media_quality_uidx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX media_playback_delivery_daily_org_user_media_quality_uidx ON public.media_playback_delivery_daily USING btree (bucket_date, organization_id, user_id, media_id, quality);
 
 
 --
@@ -5327,13 +5574,6 @@ CREATE UNIQUE INDEX system_settings_global_key_scope_uidx ON public.system_setti
 
 
 --
--- Name: system_settings_org_custom_domain_hostname_uidx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX system_settings_org_custom_domain_hostname_uidx ON public.system_settings USING btree (lower(btrim((value_json ->> 'value'::text)))) WHERE ((key = 'org_custom_domain_hostname'::text) AND (organization_id IS NOT NULL) AND (jsonb_typeof((value_json -> 'value'::text)) = 'string'::text) AND (btrim((value_json ->> 'value'::text)) <> ''::text));
-
-
---
 -- Name: system_settings_org_key_scope_uidx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -5390,6 +5630,13 @@ CREATE UNIQUE INDEX uq_be_patient_booking_profiles_org_user ON public.be_patient
 
 
 --
+-- Name: uq_be_patient_packages_sale_idempotency; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_be_patient_packages_sale_idempotency ON public.be_patient_packages USING btree (organization_id, sale_idempotency_key) WHERE (sale_idempotency_key IS NOT NULL);
+
+
+--
 -- Name: uq_be_reschedule_policies_scope; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -5411,10 +5658,31 @@ CREATE UNIQUE INDEX uq_clinic_public_directory_entries_slug ON public.clinic_pub
 
 
 --
--- Name: uq_doctor_patient_support_patient; Type: INDEX; Schema: public; Owner: -
+-- Name: uq_clinical_complaint_symptom_tracking_id; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX uq_doctor_patient_support_patient ON public.doctor_patient_support USING btree (patient_user_id);
+CREATE UNIQUE INDEX uq_clinical_complaint_symptom_tracking_id ON public.clinical_complaint USING btree (symptom_tracking_id) WHERE (symptom_tracking_id IS NOT NULL);
+
+
+--
+-- Name: uq_clinical_disease_anamnesis_patient_org; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_clinical_disease_anamnesis_patient_org ON public.clinical_disease_anamnesis USING btree (patient_user_id, organization_id);
+
+
+--
+-- Name: uq_doctor_notes_daily_author; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_doctor_notes_daily_author ON public.doctor_notes USING btree (organization_id, user_id, author_id, note_date) NULLS NOT DISTINCT;
+
+
+--
+-- Name: uq_doctor_patient_support_organization_patient; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_doctor_patient_support_organization_patient ON public.doctor_patient_support USING btree (organization_id, patient_user_id);
 
 
 --
@@ -5495,6 +5763,20 @@ CREATE UNIQUE INDEX uq_org_brand_revisions_published ON public.org_brand_revisio
 
 
 --
+-- Name: uq_org_custom_domain_bindings_hostname; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_org_custom_domain_bindings_hostname ON public.org_custom_domain_bindings USING btree (lower(hostname));
+
+
+--
+-- Name: uq_org_custom_domain_bindings_live_org; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_org_custom_domain_bindings_live_org ON public.org_custom_domain_bindings USING btree (organization_id) WHERE ((organization_id IS NOT NULL) AND (status <> 'quarantine'::text));
+
+
+--
 -- Name: uq_organization_member_invites_org_email_pending; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -5548,6 +5830,13 @@ CREATE UNIQUE INDEX uq_patient_merge_candidates_org_pending_pair ON public.patie
 --
 
 CREATE UNIQUE INDEX uq_patient_payment_appointment_idempotency ON public.patient_payment USING btree (organization_id, appointment_id, idempotency_key) WHERE (idempotency_key IS NOT NULL);
+
+
+--
+-- Name: uq_patient_payment_package_idempotency; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_patient_payment_package_idempotency ON public.patient_payment USING btree (organization_id, patient_package_id, idempotency_key) WHERE ((patient_package_id IS NOT NULL) AND (idempotency_key IS NOT NULL));
 
 
 --
@@ -5670,10 +5959,45 @@ CREATE UNIQUE INDEX uq_user_web_push_subscriptions_endpoint ON public.user_web_p
 
 
 --
+-- Name: uq_video_meeting_invites_active_meeting; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_video_meeting_invites_active_meeting ON public.video_meeting_invites USING btree (meeting_id) WHERE (status = 'active'::text);
+
+
+--
+-- Name: uq_video_meeting_invites_secret_hash; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_video_meeting_invites_secret_hash ON public.video_meeting_invites USING btree (secret_hash);
+
+
+--
+-- Name: uq_video_meetings_active_participants; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_video_meetings_active_participants ON public.video_meetings USING btree (organization_id, patient_user_id, specialist_id) WHERE (status = 'active'::text);
+
+
+--
+-- Name: uq_video_meetings_provider_room_ref; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_video_meetings_provider_room_ref ON public.video_meetings USING btree (provider_room_ref);
+
+
+--
 -- Name: accepted_port_contexts accepted_port_contexts_expire_at_commit; Type: TRIGGER; Schema: app_ext; Owner: -
 --
 
 CREATE CONSTRAINT TRIGGER accepted_port_contexts_expire_at_commit AFTER INSERT ON app_ext.accepted_port_contexts DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION app_ext.expire_accepted_port_context();
+
+
+--
+-- Name: be_appointments be_appointments_confirmed_overlap_occupancy_guard; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER be_appointments_confirmed_overlap_occupancy_guard BEFORE INSERT OR UPDATE OF specialist_id, start_at, end_at, status, deleted_at, overlap_confirmed_start_at, overlap_confirmed_end_at ON public.be_appointments FOR EACH ROW EXECUTE FUNCTION public.enforce_be_appointments_confirmed_overlap_occupancy();
 
 
 --
@@ -5698,10 +6022,24 @@ CREATE TRIGGER clinic_public_directory_current_slug_guard BEFORE INSERT OR UPDAT
 
 
 --
+-- Name: clinical_test_regions clinical_test_regions_owner_guard; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER clinical_test_regions_owner_guard BEFORE INSERT OR UPDATE OF owner_kind, organization_id, clinical_test_id ON public.clinical_test_regions FOR EACH ROW EXECUTE FUNCTION app.enforce_lfk_child_owner();
+
+
+--
 -- Name: lfk_complex_template_exercises lfk_complex_template_exercises_owner_guard; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER lfk_complex_template_exercises_owner_guard BEFORE INSERT OR UPDATE OF owner_kind, organization_id, template_id, exercise_id ON public.lfk_complex_template_exercises FOR EACH ROW EXECUTE FUNCTION app.enforce_lfk_child_owner();
+
+
+--
+-- Name: lfk_exercise_load_types lfk_exercise_load_types_owner_guard; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER lfk_exercise_load_types_owner_guard BEFORE INSERT OR UPDATE OF owner_kind, organization_id, exercise_id ON public.lfk_exercise_load_types FOR EACH ROW EXECUTE FUNCTION app.enforce_lfk_child_owner();
 
 
 --
@@ -5754,17 +6092,17 @@ CREATE TRIGGER organization_slug_rename_events_immutable_guard BEFORE DELETE OR 
 
 
 --
+-- Name: recommendation_regions recommendation_regions_owner_guard; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER recommendation_regions_owner_guard BEFORE INSERT OR UPDATE OF owner_kind, organization_id, recommendation_id ON public.recommendation_regions FOR EACH ROW EXECUTE FUNCTION app.enforce_lfk_child_owner();
+
+
+--
 -- Name: system_settings system_settings_sync_clinic_dedicated_bot_binding; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER system_settings_sync_clinic_dedicated_bot_binding AFTER INSERT OR DELETE OR UPDATE ON public.system_settings FOR EACH ROW EXECUTE FUNCTION app.sync_clinic_dedicated_bot_binding();
-
-
---
--- Name: system_settings system_settings_test_lock; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER system_settings_test_lock BEFORE UPDATE ON public.system_settings FOR EACH ROW EXECUTE FUNCTION public.system_settings_test_lock_guard();
 
 
 --
@@ -6484,30 +6822,6 @@ ALTER TABLE ONLY public.be_schedule_templates
 
 
 --
--- Name: be_service_location_availability be_sla_branch_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.be_service_location_availability
-    ADD CONSTRAINT be_sla_branch_id_fkey FOREIGN KEY (branch_id) REFERENCES public.be_branches(id) ON DELETE CASCADE;
-
-
---
--- Name: be_service_location_availability be_sla_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.be_service_location_availability
-    ADD CONSTRAINT be_sla_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.be_organizations(id) ON DELETE CASCADE;
-
-
---
--- Name: be_service_location_availability be_sla_service_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.be_service_location_availability
-    ADD CONSTRAINT be_sla_service_id_fkey FOREIGN KEY (service_id) REFERENCES public.be_clinic_services(id) ON DELETE CASCADE;
-
-
---
 -- Name: be_specialist_locations be_specialist_locations_branch_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -6553,6 +6867,14 @@ ALTER TABLE ONLY public.be_specialist_rooms
 
 ALTER TABLE ONLY public.be_specialist_rooms
     ADD CONSTRAINT be_specialist_rooms_specialist_id_fkey FOREIGN KEY (specialist_id) REFERENCES public.be_specialists(id) ON DELETE CASCADE;
+
+
+--
+-- Name: be_specialists be_specialists_avatar_media_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.be_specialists
+    ADD CONSTRAINT be_specialists_avatar_media_id_fkey FOREIGN KEY (avatar_media_id) REFERENCES public.media_files(id) ON DELETE SET NULL;
 
 
 --
@@ -6836,6 +7158,14 @@ ALTER TABLE ONLY public.clinical_complaint
 
 
 --
+-- Name: clinical_complaint clinical_complaint_symptom_tracking_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.clinical_complaint
+    ADD CONSTRAINT clinical_complaint_symptom_tracking_id_fkey FOREIGN KEY (symptom_tracking_id) REFERENCES public.symptom_trackings(id) ON DELETE SET NULL;
+
+
+--
 -- Name: clinical_complaint_update clinical_complaint_update_complaint_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -6953,6 +7283,30 @@ ALTER TABLE ONLY public.clinical_diagnosis_update
 
 ALTER TABLE ONLY public.clinical_diagnosis_update
     ADD CONSTRAINT clinical_diagnosis_update_visit_id_fkey FOREIGN KEY (visit_id) REFERENCES public.clinical_visit(id) ON DELETE CASCADE;
+
+
+--
+-- Name: clinical_disease_anamnesis clinical_disease_anamnesis_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.clinical_disease_anamnesis
+    ADD CONSTRAINT clinical_disease_anamnesis_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.platform_users(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: clinical_disease_anamnesis clinical_disease_anamnesis_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.clinical_disease_anamnesis
+    ADD CONSTRAINT clinical_disease_anamnesis_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.be_organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: clinical_disease_anamnesis clinical_disease_anamnesis_patient_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.clinical_disease_anamnesis
+    ADD CONSTRAINT clinical_disease_anamnesis_patient_fkey FOREIGN KEY (patient_user_id) REFERENCES public.platform_users(id) ON DELETE CASCADE;
 
 
 --
@@ -7268,6 +7622,22 @@ ALTER TABLE ONLY public.lfk_complexes
 
 
 --
+-- Name: lfk_exercise_load_types lfk_exercise_load_types_exercise_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.lfk_exercise_load_types
+    ADD CONSTRAINT lfk_exercise_load_types_exercise_id_fkey FOREIGN KEY (exercise_id) REFERENCES public.lfk_exercises(id) ON DELETE CASCADE;
+
+
+--
+-- Name: lfk_exercise_load_types lfk_exercise_load_types_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.lfk_exercise_load_types
+    ADD CONSTRAINT lfk_exercise_load_types_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.be_organizations(id) ON DELETE CASCADE;
+
+
+--
 -- Name: lfk_exercise_media lfk_exercise_media_exercise_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7492,6 +7862,30 @@ ALTER TABLE ONLY public.media_playback_client_events
 
 
 --
+-- Name: media_playback_delivery_daily media_playback_delivery_daily_media_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.media_playback_delivery_daily
+    ADD CONSTRAINT media_playback_delivery_daily_media_id_fkey FOREIGN KEY (media_id) REFERENCES public.media_files(id) ON DELETE CASCADE;
+
+
+--
+-- Name: media_playback_delivery_daily media_playback_delivery_daily_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.media_playback_delivery_daily
+    ADD CONSTRAINT media_playback_delivery_daily_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.be_organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: media_playback_delivery_daily media_playback_delivery_daily_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.media_playback_delivery_daily
+    ADD CONSTRAINT media_playback_delivery_daily_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.platform_users(id) ON DELETE CASCADE;
+
+
+--
 -- Name: media_playback_resolution_events media_playback_resolution_events_media_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7612,6 +8006,14 @@ ALTER TABLE ONLY public.motivational_quotes
 
 
 --
+-- Name: native_push_targets native_push_targets_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.native_push_targets
+    ADD CONSTRAINT native_push_targets_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.platform_users(id) ON DELETE CASCADE;
+
+
+--
 -- Name: notification_delivery_attempts notification_delivery_attempts_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7700,6 +8102,14 @@ ALTER TABLE ONLY public.operator_health_failure_archive
 
 
 --
+-- Name: org_brand_revisions org_brand_revisions_app_icon_media_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.org_brand_revisions
+    ADD CONSTRAINT org_brand_revisions_app_icon_media_id_fkey FOREIGN KEY (app_icon_media_id) REFERENCES public.media_files(id) ON DELETE SET NULL;
+
+
+--
 -- Name: org_brand_revisions org_brand_revisions_archived_by_platform_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7737,6 +8147,22 @@ ALTER TABLE ONLY public.org_brand_revisions
 
 ALTER TABLE ONLY public.org_brand_revisions
     ADD CONSTRAINT org_brand_revisions_published_by_platform_user_id_fkey FOREIGN KEY (published_by_platform_user_id) REFERENCES public.platform_users(id);
+
+
+--
+-- Name: org_custom_domain_bindings org_custom_domain_bindings_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.org_custom_domain_bindings
+    ADD CONSTRAINT org_custom_domain_bindings_created_by_fkey FOREIGN KEY (created_by_platform_user_id) REFERENCES public.platform_users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: org_custom_domain_bindings org_custom_domain_bindings_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.org_custom_domain_bindings
+    ADD CONSTRAINT org_custom_domain_bindings_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.be_organizations(id) ON DELETE SET NULL;
 
 
 --
@@ -8180,6 +8606,14 @@ ALTER TABLE ONLY public.patient_payment
 
 
 --
+-- Name: patient_payment patient_payment_patient_package_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.patient_payment
+    ADD CONSTRAINT patient_payment_patient_package_id_fkey FOREIGN KEY (patient_package_id) REFERENCES public.be_patient_packages(id) ON DELETE SET NULL;
+
+
+--
 -- Name: patient_payment patient_payment_patient_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -8588,6 +9022,14 @@ ALTER TABLE ONLY public.saas_billing_invoices
 
 
 --
+-- Name: saas_billing_invoices saas_billing_invoices_storage_package_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.saas_billing_invoices
+    ADD CONSTRAINT saas_billing_invoices_storage_package_id_fkey FOREIGN KEY (storage_package_id) REFERENCES public.saas_storage_packages(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: saas_billing_invoices saas_billing_invoices_superseded_by_org_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -8660,6 +9102,22 @@ ALTER TABLE ONLY public.saas_billing_subscriptions
 
 
 --
+-- Name: saas_billing_subscriptions saas_billing_subscriptions_paid_storage_package_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.saas_billing_subscriptions
+    ADD CONSTRAINT saas_billing_subscriptions_paid_storage_package_id_fkey FOREIGN KEY (paid_storage_package_id) REFERENCES public.saas_storage_packages(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: saas_billing_subscriptions saas_billing_subscriptions_pending_storage_package_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.saas_billing_subscriptions
+    ADD CONSTRAINT saas_billing_subscriptions_pending_storage_package_id_fkey FOREIGN KEY (pending_storage_package_id) REFERENCES public.saas_storage_packages(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: saas_billing_subscriptions saas_billing_subscriptions_pending_tariff_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -8668,11 +9126,27 @@ ALTER TABLE ONLY public.saas_billing_subscriptions
 
 
 --
+-- Name: saas_billing_subscriptions saas_billing_subscriptions_pending_tariff_period_price_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.saas_billing_subscriptions
+    ADD CONSTRAINT saas_billing_subscriptions_pending_tariff_period_price_fkey FOREIGN KEY (pending_tariff_id, pending_billing_period_code) REFERENCES public.saas_tariff_period_prices(tariff_id, billing_period_code) ON DELETE RESTRICT;
+
+
+--
 -- Name: saas_billing_subscriptions saas_billing_subscriptions_tariff_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.saas_billing_subscriptions
     ADD CONSTRAINT saas_billing_subscriptions_tariff_id_fkey FOREIGN KEY (tariff_id) REFERENCES public.saas_tariffs(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: saas_billing_subscriptions saas_billing_subscriptions_tariff_period_price_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.saas_billing_subscriptions
+    ADD CONSTRAINT saas_billing_subscriptions_tariff_period_price_fkey FOREIGN KEY (tariff_id, billing_period_code) REFERENCES public.saas_tariff_period_prices(tariff_id, billing_period_code) ON DELETE RESTRICT;
 
 
 --
@@ -8729,6 +9203,38 @@ ALTER TABLE ONLY public.saas_paid_period_policy
 
 ALTER TABLE ONLY public.saas_registration_tariff_policy
     ADD CONSTRAINT saas_registration_tariff_policy_tariff_id_fkey FOREIGN KEY (tariff_id) REFERENCES public.saas_tariffs(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: saas_storage_package_period_prices saas_storage_package_period_prices_billing_period_code_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.saas_storage_package_period_prices
+    ADD CONSTRAINT saas_storage_package_period_prices_billing_period_code_fkey FOREIGN KEY (billing_period_code) REFERENCES public.saas_billing_periods(code) ON DELETE RESTRICT;
+
+
+--
+-- Name: saas_storage_package_period_prices saas_storage_package_period_prices_package_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.saas_storage_package_period_prices
+    ADD CONSTRAINT saas_storage_package_period_prices_package_id_fkey FOREIGN KEY (package_id) REFERENCES public.saas_storage_packages(id) ON DELETE CASCADE;
+
+
+--
+-- Name: saas_tariff_period_prices saas_tariff_period_prices_billing_period_code_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.saas_tariff_period_prices
+    ADD CONSTRAINT saas_tariff_period_prices_billing_period_code_fkey FOREIGN KEY (billing_period_code) REFERENCES public.saas_billing_periods(code) ON DELETE RESTRICT;
+
+
+--
+-- Name: saas_tariff_period_prices saas_tariff_period_prices_tariff_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.saas_tariff_period_prices
+    ADD CONSTRAINT saas_tariff_period_prices_tariff_id_fkey FOREIGN KEY (tariff_id) REFERENCES public.saas_tariffs(id) ON DELETE CASCADE;
 
 
 --
@@ -9396,14 +9902,6 @@ ALTER TABLE ONLY public.user_password_credentials
 
 
 --
--- Name: user_phone_history user_phone_history_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.user_phone_history
-    ADD CONSTRAINT user_phone_history_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.be_organizations(id) ON DELETE CASCADE;
-
-
---
 -- Name: user_phone_history user_phone_history_platform_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -9417,6 +9915,70 @@ ALTER TABLE ONLY public.user_phone_history
 
 ALTER TABLE ONLY public.user_web_push_subscriptions
     ADD CONSTRAINT user_web_push_subscriptions_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.platform_users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: video_meeting_invites video_meeting_invites_meeting_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.video_meeting_invites
+    ADD CONSTRAINT video_meeting_invites_meeting_id_fkey FOREIGN KEY (meeting_id) REFERENCES public.video_meetings(id) ON DELETE CASCADE;
+
+
+--
+-- Name: video_meeting_invites video_meeting_invites_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.video_meeting_invites
+    ADD CONSTRAINT video_meeting_invites_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.be_organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: video_meeting_invites video_meeting_invites_revoked_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.video_meeting_invites
+    ADD CONSTRAINT video_meeting_invites_revoked_by_fkey FOREIGN KEY (revoked_by_platform_user_id) REFERENCES public.platform_users(id);
+
+
+--
+-- Name: video_meeting_invites video_meeting_invites_superseded_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.video_meeting_invites
+    ADD CONSTRAINT video_meeting_invites_superseded_by_fkey FOREIGN KEY (superseded_by_invite_id) REFERENCES public.video_meeting_invites(id) ON DELETE SET NULL;
+
+
+--
+-- Name: video_meetings video_meetings_appointment_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.video_meetings
+    ADD CONSTRAINT video_meetings_appointment_id_fkey FOREIGN KEY (appointment_id) REFERENCES public.be_appointments(id) ON DELETE SET NULL;
+
+
+--
+-- Name: video_meetings video_meetings_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.video_meetings
+    ADD CONSTRAINT video_meetings_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.be_organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: video_meetings video_meetings_patient_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.video_meetings
+    ADD CONSTRAINT video_meetings_patient_user_id_fkey FOREIGN KEY (patient_user_id) REFERENCES public.platform_users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: video_meetings video_meetings_specialist_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.video_meetings
+    ADD CONSTRAINT video_meetings_specialist_id_fkey FOREIGN KEY (specialist_id) REFERENCES public.be_specialists(id) ON DELETE CASCADE;
 
 
 --
@@ -9436,6 +9998,31 @@ ALTER TABLE app.context_signing_secrets ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE app.principal_context ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: context_signing_secrets rev10_context_gate_2; Type: POLICY; Schema: app; Owner: -
+--
+
+CREATE POLICY rev10_context_gate_2 ON app.context_signing_secrets AS RESTRICTIVE TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+        CASE
+            WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
+            WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_tenant_service'::name, 'app_tenant_service'::name])) THEN 'tenant_service'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+            ELSE 'staff'::app.port_context_class
+        END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure) AS require_accepted_context)) WITH CHECK (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+        CASE
+            WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
+            WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_tenant_service'::name, 'app_tenant_service'::name])) THEN 'tenant_service'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+            ELSE 'staff'::app.port_context_class
+        END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure) AS require_accepted_context));
+
 
 --
 -- Name: principal_context rev10_context_gate_3; Type: POLICY; Schema: app; Owner: -
@@ -9491,24 +10078,10 @@ CREATE POLICY rev10_named_root_owner_gate_1 ON app.context_nonce_ledger AS RESTR
 
 
 --
--- Name: context_signing_secrets rev10_named_root_owner_gate_2; Type: POLICY; Schema: app; Owner: -
---
-
-CREATE POLICY rev10_named_root_owner_gate_2 ON app.context_signing_secrets AS RESTRICTIVE TO app_seam_patient_invite_owner USING ((CURRENT_USER = 'app_seam_patient_invite_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_invite_owner'::name));
-
-
---
 -- Name: context_nonce_ledger rev10_seam_business_1; Type: POLICY; Schema: app; Owner: -
 --
 
 CREATE POLICY rev10_seam_business_1 ON app.context_nonce_ledger TO app_object_owner USING ((CURRENT_USER = 'app_object_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_object_owner'::name));
-
-
---
--- Name: context_signing_secrets rev10_seam_business_2; Type: POLICY; Schema: app; Owner: -
---
-
-CREATE POLICY rev10_seam_business_2 ON app.context_signing_secrets TO app_seam_patient_invite_owner USING ((CURRENT_USER = 'app_seam_patient_invite_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_invite_owner'::name));
 
 
 --
@@ -9894,12 +10467,6 @@ ALTER TABLE public.be_schedule_blocks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.be_schedule_templates ENABLE ROW LEVEL SECURITY;
 
 --
--- Name: be_service_location_availability; Type: ROW SECURITY; Schema: public; Owner: -
---
-
-ALTER TABLE public.be_service_location_availability ENABLE ROW LEVEL SECURITY;
-
---
 -- Name: be_specialist_locations; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -10044,6 +10611,12 @@ ALTER TABLE public.clinical_diagnosis_status_history ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.clinical_diagnosis_update ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: clinical_disease_anamnesis; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.clinical_disease_anamnesis ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: clinical_test_regions; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -10164,6 +10737,12 @@ ALTER TABLE public.lfk_complex_templates ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.lfk_complexes ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: lfk_exercise_load_types; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.lfk_exercise_load_types ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: lfk_exercise_media; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -10230,6 +10809,12 @@ ALTER TABLE public.media_hls_proxy_error_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.media_playback_client_events ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: media_playback_delivery_daily; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.media_playback_delivery_daily ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: media_playback_resolution_events; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -10270,6 +10855,12 @@ ALTER TABLE public.message_log ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.motivational_quotes ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: native_push_targets; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.native_push_targets ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: notification_delivery_attempts; Type: ROW SECURITY; Schema: public; Owner: -
@@ -10330,6 +10921,12 @@ ALTER TABLE public.operator_job_status ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.org_brand_revisions ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: org_custom_domain_bindings; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.org_custom_domain_bindings ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: org_enrollments; Type: ROW SECURITY; Schema: public; Owner: -
@@ -10605,10 +11202,10 @@ CREATE POLICY rev10_admin_audit_platform_select_16 ON public.admin_audit_log FOR
 
 
 --
--- Name: manual_patient_commands rev10_context_gate_101; Type: POLICY; Schema: public; Owner: -
+-- Name: lfk_exercise_regions rev10_context_gate_100; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_101 ON public.manual_patient_commands AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_100 ON public.lfk_exercise_regions AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -10630,10 +11227,10 @@ CREATE POLICY rev10_context_gate_101 ON public.manual_patient_commands AS RESTRI
 
 
 --
--- Name: material_ratings rev10_context_gate_102; Type: POLICY; Schema: public; Owner: -
+-- Name: lfk_exercises rev10_context_gate_101; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_102 ON public.material_ratings AS RESTRICTIVE TO app_patient, app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_101 ON public.lfk_exercises AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -10655,10 +11252,10 @@ CREATE POLICY rev10_context_gate_102 ON public.material_ratings AS RESTRICTIVE T
 
 
 --
--- Name: media_files rev10_context_gate_103; Type: POLICY; Schema: public; Owner: -
+-- Name: lfk_sessions rev10_context_gate_102; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_103 ON public.media_files AS RESTRICTIVE TO app_operational_media_worker, app_patient, app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_102 ON public.lfk_sessions AS RESTRICTIVE TO app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -10680,10 +11277,10 @@ CREATE POLICY rev10_context_gate_103 ON public.media_files AS RESTRICTIVE TO app
 
 
 --
--- Name: media_folders rev10_context_gate_104; Type: POLICY; Schema: public; Owner: -
+-- Name: manual_patient_commands rev10_context_gate_104; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_104 ON public.media_folders AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_104 ON public.manual_patient_commands AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -10705,10 +11302,10 @@ CREATE POLICY rev10_context_gate_104 ON public.media_folders AS RESTRICTIVE TO a
 
 
 --
--- Name: media_playback_client_events rev10_context_gate_106; Type: POLICY; Schema: public; Owner: -
+-- Name: material_ratings rev10_context_gate_105; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_106 ON public.media_playback_client_events AS RESTRICTIVE TO app_operational_maintenance USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_105 ON public.material_ratings AS RESTRICTIVE TO app_patient, app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -10730,10 +11327,10 @@ CREATE POLICY rev10_context_gate_106 ON public.media_playback_client_events AS R
 
 
 --
--- Name: media_playback_resolution_events rev10_context_gate_107; Type: POLICY; Schema: public; Owner: -
+-- Name: media_files rev10_context_gate_106; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_107 ON public.media_playback_resolution_events AS RESTRICTIVE TO app_operational_maintenance USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_106 ON public.media_files AS RESTRICTIVE TO app_operational_media_worker, app_patient, app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -10755,10 +11352,10 @@ CREATE POLICY rev10_context_gate_107 ON public.media_playback_resolution_events 
 
 
 --
--- Name: media_playback_stats_hourly rev10_context_gate_108; Type: POLICY; Schema: public; Owner: -
+-- Name: media_folders rev10_context_gate_107; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_108 ON public.media_playback_stats_hourly AS RESTRICTIVE TO app_operational_maintenance USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_107 ON public.media_folders AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -10780,10 +11377,10 @@ CREATE POLICY rev10_context_gate_108 ON public.media_playback_stats_hourly AS RE
 
 
 --
--- Name: media_playback_user_video_first_resolve rev10_context_gate_109; Type: POLICY; Schema: public; Owner: -
+-- Name: media_playback_client_events rev10_context_gate_109; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_109 ON public.media_playback_user_video_first_resolve AS RESTRICTIVE TO app_patient, app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_109 ON public.media_playback_client_events AS RESTRICTIVE TO app_operational_maintenance USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -10805,10 +11402,10 @@ CREATE POLICY rev10_context_gate_109 ON public.media_playback_user_video_first_r
 
 
 --
--- Name: media_upload_sessions rev10_context_gate_111; Type: POLICY; Schema: public; Owner: -
+-- Name: media_playback_delivery_daily rev10_context_gate_110; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_111 ON public.media_upload_sessions AS RESTRICTIVE TO app_operational_media_worker, app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_110 ON public.media_playback_delivery_daily AS RESTRICTIVE TO app_operational_maintenance USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -10830,10 +11427,10 @@ CREATE POLICY rev10_context_gate_111 ON public.media_upload_sessions AS RESTRICT
 
 
 --
--- Name: message_log rev10_context_gate_112; Type: POLICY; Schema: public; Owner: -
+-- Name: media_playback_resolution_events rev10_context_gate_111; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_112 ON public.message_log AS RESTRICTIVE TO app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_111 ON public.media_playback_resolution_events AS RESTRICTIVE TO app_operational_maintenance USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -10855,10 +11452,10 @@ CREATE POLICY rev10_context_gate_112 ON public.message_log AS RESTRICTIVE TO app
 
 
 --
--- Name: motivational_quotes rev10_context_gate_113; Type: POLICY; Schema: public; Owner: -
+-- Name: media_playback_stats_hourly rev10_context_gate_112; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_113 ON public.motivational_quotes AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_112 ON public.media_playback_stats_hourly AS RESTRICTIVE TO app_operational_maintenance USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -10880,10 +11477,10 @@ CREATE POLICY rev10_context_gate_113 ON public.motivational_quotes AS RESTRICTIV
 
 
 --
--- Name: notification_delivery_attempts rev10_context_gate_114; Type: POLICY; Schema: public; Owner: -
+-- Name: media_playback_user_video_first_resolve rev10_context_gate_113; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_114 ON public.notification_delivery_attempts AS RESTRICTIVE TO app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_113 ON public.media_playback_user_video_first_resolve AS RESTRICTIVE TO app_patient, app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -10905,10 +11502,10 @@ CREATE POLICY rev10_context_gate_114 ON public.notification_delivery_attempts AS
 
 
 --
--- Name: online_intake_answers rev10_context_gate_115; Type: POLICY; Schema: public; Owner: -
+-- Name: media_upload_sessions rev10_context_gate_115; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_115 ON public.online_intake_answers AS RESTRICTIVE TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_115 ON public.media_upload_sessions AS RESTRICTIVE TO app_operational_media_worker, app_patient, app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -10930,10 +11527,10 @@ CREATE POLICY rev10_context_gate_115 ON public.online_intake_answers AS RESTRICT
 
 
 --
--- Name: online_intake_attachments rev10_context_gate_116; Type: POLICY; Schema: public; Owner: -
+-- Name: message_log rev10_context_gate_116; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_116 ON public.online_intake_attachments AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_116 ON public.message_log AS RESTRICTIVE TO app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -10955,10 +11552,10 @@ CREATE POLICY rev10_context_gate_116 ON public.online_intake_attachments AS REST
 
 
 --
--- Name: online_intake_requests rev10_context_gate_117; Type: POLICY; Schema: public; Owner: -
+-- Name: motivational_quotes rev10_context_gate_117; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_117 ON public.online_intake_requests AS RESTRICTIVE TO app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_117 ON public.motivational_quotes AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -10980,10 +11577,10 @@ CREATE POLICY rev10_context_gate_117 ON public.online_intake_requests AS RESTRIC
 
 
 --
--- Name: online_intake_status_history rev10_context_gate_118; Type: POLICY; Schema: public; Owner: -
+-- Name: notification_delivery_attempts rev10_context_gate_118; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_118 ON public.online_intake_status_history AS RESTRICTIVE TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_118 ON public.notification_delivery_attempts AS RESTRICTIVE TO app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -11005,10 +11602,10 @@ CREATE POLICY rev10_context_gate_118 ON public.online_intake_status_history AS R
 
 
 --
--- Name: operator_health_failure_archive rev10_context_gate_120; Type: POLICY; Schema: public; Owner: -
+-- Name: online_intake_answers rev10_context_gate_119; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_120 ON public.operator_health_failure_archive AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_119 ON public.online_intake_answers AS RESTRICTIVE TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -11030,10 +11627,10 @@ CREATE POLICY rev10_context_gate_120 ON public.operator_health_failure_archive A
 
 
 --
--- Name: operator_incidents rev10_context_gate_121; Type: POLICY; Schema: public; Owner: -
+-- Name: online_intake_attachments rev10_context_gate_120; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_121 ON public.operator_incidents AS RESTRICTIVE TO app_worker USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_120 ON public.online_intake_attachments AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -11055,10 +11652,10 @@ CREATE POLICY rev10_context_gate_121 ON public.operator_incidents AS RESTRICTIVE
 
 
 --
--- Name: operator_job_status rev10_context_gate_122; Type: POLICY; Schema: public; Owner: -
+-- Name: online_intake_requests rev10_context_gate_121; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_122 ON public.operator_job_status AS RESTRICTIVE TO app_worker USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_121 ON public.online_intake_requests AS RESTRICTIVE TO app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -11080,10 +11677,10 @@ CREATE POLICY rev10_context_gate_122 ON public.operator_job_status AS RESTRICTIV
 
 
 --
--- Name: org_brand_revisions rev10_context_gate_123; Type: POLICY; Schema: public; Owner: -
+-- Name: online_intake_status_history rev10_context_gate_122; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_123 ON public.org_brand_revisions AS RESTRICTIVE TO app_patient, app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_122 ON public.online_intake_status_history AS RESTRICTIVE TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -11105,10 +11702,10 @@ CREATE POLICY rev10_context_gate_123 ON public.org_brand_revisions AS RESTRICTIV
 
 
 --
--- Name: org_enrollments rev10_context_gate_124; Type: POLICY; Schema: public; Owner: -
+-- Name: operator_health_failure_archive rev10_context_gate_124; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_124 ON public.org_enrollments AS RESTRICTIVE TO app_integrator_tenant_service, app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_124 ON public.operator_health_failure_archive AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -11130,10 +11727,10 @@ CREATE POLICY rev10_context_gate_124 ON public.org_enrollments AS RESTRICTIVE TO
 
 
 --
--- Name: organization_member_invites rev10_context_gate_125; Type: POLICY; Schema: public; Owner: -
+-- Name: operator_incidents rev10_context_gate_125; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_125 ON public.organization_member_invites AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_125 ON public.operator_incidents AS RESTRICTIVE TO app_worker USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -11155,10 +11752,10 @@ CREATE POLICY rev10_context_gate_125 ON public.organization_member_invites AS RE
 
 
 --
--- Name: organization_slug_claims rev10_context_gate_126; Type: POLICY; Schema: public; Owner: -
+-- Name: operator_job_status rev10_context_gate_126; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_126 ON public.organization_slug_claims AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_126 ON public.operator_job_status AS RESTRICTIVE TO app_worker USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -11180,10 +11777,10 @@ CREATE POLICY rev10_context_gate_126 ON public.organization_slug_claims AS RESTR
 
 
 --
--- Name: organization_slug_rename_events rev10_context_gate_127; Type: POLICY; Schema: public; Owner: -
+-- Name: org_brand_revisions rev10_context_gate_127; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_127 ON public.organization_slug_rename_events AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_127 ON public.org_brand_revisions AS RESTRICTIVE TO app_patient, app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -11205,10 +11802,10 @@ CREATE POLICY rev10_context_gate_127 ON public.organization_slug_rename_events A
 
 
 --
--- Name: outgoing_delivery_queue rev10_context_gate_128; Type: POLICY; Schema: public; Owner: -
+-- Name: org_enrollments rev10_context_gate_128; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_128 ON public.outgoing_delivery_queue AS RESTRICTIVE TO app_operational_delivery_worker USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_128 ON public.org_enrollments AS RESTRICTIVE TO app_integrator_tenant_service, app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -11230,10 +11827,10 @@ CREATE POLICY rev10_context_gate_128 ON public.outgoing_delivery_queue AS RESTRI
 
 
 --
--- Name: patient_bookings rev10_context_gate_131; Type: POLICY; Schema: public; Owner: -
+-- Name: organization_member_invites rev10_context_gate_129; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_131 ON public.patient_bookings AS RESTRICTIVE TO app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_129 ON public.organization_member_invites AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -11255,10 +11852,10 @@ CREATE POLICY rev10_context_gate_131 ON public.patient_bookings AS RESTRICTIVE T
 
 
 --
--- Name: patient_comorbidity rev10_context_gate_132; Type: POLICY; Schema: public; Owner: -
+-- Name: organization_slug_claims rev10_context_gate_130; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_132 ON public.patient_comorbidity AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_130 ON public.organization_slug_claims AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -11280,10 +11877,10 @@ CREATE POLICY rev10_context_gate_132 ON public.patient_comorbidity AS RESTRICTIV
 
 
 --
--- Name: patient_content_rating_feedback rev10_context_gate_133; Type: POLICY; Schema: public; Owner: -
+-- Name: organization_slug_rename_events rev10_context_gate_131; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_133 ON public.patient_content_rating_feedback AS RESTRICTIVE TO app_patient, app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_131 ON public.organization_slug_rename_events AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -11305,10 +11902,10 @@ CREATE POLICY rev10_context_gate_133 ON public.patient_content_rating_feedback A
 
 
 --
--- Name: patient_daily_warmup_presentations rev10_context_gate_134; Type: POLICY; Schema: public; Owner: -
+-- Name: org_custom_domain_bindings rev10_context_gate_132; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_134 ON public.patient_daily_warmup_presentations AS RESTRICTIVE TO app_patient, app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_132 ON public.org_custom_domain_bindings AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -11330,10 +11927,10 @@ CREATE POLICY rev10_context_gate_134 ON public.patient_daily_warmup_presentation
 
 
 --
--- Name: patient_daily_warmup_video_views rev10_context_gate_135; Type: POLICY; Schema: public; Owner: -
+-- Name: outgoing_delivery_queue rev10_context_gate_133; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_135 ON public.patient_daily_warmup_video_views AS RESTRICTIVE TO app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_133 ON public.outgoing_delivery_queue AS RESTRICTIVE TO app_operational_delivery_worker USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -11355,10 +11952,10 @@ CREATE POLICY rev10_context_gate_135 ON public.patient_daily_warmup_video_views 
 
 
 --
--- Name: patient_diary_day_snapshots rev10_context_gate_136; Type: POLICY; Schema: public; Owner: -
+-- Name: patient_bookings rev10_context_gate_136; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_136 ON public.patient_diary_day_snapshots AS RESTRICTIVE TO app_patient, app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_136 ON public.patient_bookings AS RESTRICTIVE TO app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -11380,10 +11977,10 @@ CREATE POLICY rev10_context_gate_136 ON public.patient_diary_day_snapshots AS RE
 
 
 --
--- Name: patient_files rev10_context_gate_137; Type: POLICY; Schema: public; Owner: -
+-- Name: patient_comorbidity rev10_context_gate_137; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_137 ON public.patient_files AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_137 ON public.patient_comorbidity AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -11405,10 +12002,10 @@ CREATE POLICY rev10_context_gate_137 ON public.patient_files AS RESTRICTIVE TO a
 
 
 --
--- Name: patient_home_block_items rev10_context_gate_138; Type: POLICY; Schema: public; Owner: -
+-- Name: patient_content_rating_feedback rev10_context_gate_138; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_138 ON public.patient_home_block_items AS RESTRICTIVE TO app_patient, app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_138 ON public.patient_content_rating_feedback AS RESTRICTIVE TO app_patient, app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -11430,10 +12027,10 @@ CREATE POLICY rev10_context_gate_138 ON public.patient_home_block_items AS RESTR
 
 
 --
--- Name: patient_home_blocks rev10_context_gate_139; Type: POLICY; Schema: public; Owner: -
+-- Name: patient_daily_warmup_presentations rev10_context_gate_139; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_139 ON public.patient_home_blocks AS RESTRICTIVE TO app_patient, app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_139 ON public.patient_daily_warmup_presentations AS RESTRICTIVE TO app_patient, app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -11455,10 +12052,10 @@ CREATE POLICY rev10_context_gate_139 ON public.patient_home_blocks AS RESTRICTIV
 
 
 --
--- Name: patient_invites rev10_context_gate_140; Type: POLICY; Schema: public; Owner: -
+-- Name: patient_daily_warmup_video_views rev10_context_gate_140; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_140 ON public.patient_invites AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_140 ON public.patient_daily_warmup_video_views AS RESTRICTIVE TO app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -11480,10 +12077,10 @@ CREATE POLICY rev10_context_gate_140 ON public.patient_invites AS RESTRICTIVE TO
 
 
 --
--- Name: patient_lfk_assignments rev10_context_gate_141; Type: POLICY; Schema: public; Owner: -
+-- Name: patient_diary_day_snapshots rev10_context_gate_141; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_141 ON public.patient_lfk_assignments AS RESTRICTIVE TO app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_141 ON public.patient_diary_day_snapshots AS RESTRICTIVE TO app_patient, app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -11505,10 +12102,10 @@ CREATE POLICY rev10_context_gate_141 ON public.patient_lfk_assignments AS RESTRI
 
 
 --
--- Name: patient_merge_candidates rev10_context_gate_142; Type: POLICY; Schema: public; Owner: -
+-- Name: patient_files rev10_context_gate_142; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_142 ON public.patient_merge_candidates AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_142 ON public.patient_files AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -11530,10 +12127,10 @@ CREATE POLICY rev10_context_gate_142 ON public.patient_merge_candidates AS RESTR
 
 
 --
--- Name: patient_payment rev10_context_gate_143; Type: POLICY; Schema: public; Owner: -
+-- Name: patient_home_block_items rev10_context_gate_143; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_143 ON public.patient_payment AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_143 ON public.patient_home_block_items AS RESTRICTIVE TO app_patient, app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -11555,10 +12152,10 @@ CREATE POLICY rev10_context_gate_143 ON public.patient_payment AS RESTRICTIVE TO
 
 
 --
--- Name: patient_practice_completions rev10_context_gate_144; Type: POLICY; Schema: public; Owner: -
+-- Name: patient_home_blocks rev10_context_gate_144; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_144 ON public.patient_practice_completions AS RESTRICTIVE TO app_patient, app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_144 ON public.patient_home_blocks AS RESTRICTIVE TO app_patient, app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -11580,10 +12177,10 @@ CREATE POLICY rev10_context_gate_144 ON public.patient_practice_completions AS R
 
 
 --
--- Name: patient_specialist_links rev10_context_gate_145; Type: POLICY; Schema: public; Owner: -
+-- Name: patient_invites rev10_context_gate_145; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_145 ON public.patient_specialist_links AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_145 ON public.patient_invites AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -11605,10 +12202,10 @@ CREATE POLICY rev10_context_gate_145 ON public.patient_specialist_links AS RESTR
 
 
 --
--- Name: platform_user_contacts rev10_context_gate_149; Type: POLICY; Schema: public; Owner: -
+-- Name: patient_lfk_assignments rev10_context_gate_146; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_149 ON public.platform_user_contacts AS RESTRICTIVE TO app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_146 ON public.patient_lfk_assignments AS RESTRICTIVE TO app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -11630,10 +12227,10 @@ CREATE POLICY rev10_context_gate_149 ON public.platform_user_contacts AS RESTRIC
 
 
 --
--- Name: platform_users rev10_context_gate_150; Type: POLICY; Schema: public; Owner: -
+-- Name: patient_merge_candidates rev10_context_gate_147; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_150 ON public.platform_users AS RESTRICTIVE TO app_integrator_tenant_service, app_patient, app_platform_settings, app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_147 ON public.patient_merge_candidates AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -11655,10 +12252,10 @@ CREATE POLICY rev10_context_gate_150 ON public.platform_users AS RESTRICTIVE TO 
 
 
 --
--- Name: product_analytics_events_recent rev10_context_gate_151; Type: POLICY; Schema: public; Owner: -
+-- Name: patient_payment rev10_context_gate_148; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_151 ON public.product_analytics_events_recent AS RESTRICTIVE TO app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_148 ON public.patient_payment AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -11680,10 +12277,10 @@ CREATE POLICY rev10_context_gate_151 ON public.product_analytics_events_recent A
 
 
 --
--- Name: product_analytics_hourly rev10_context_gate_152; Type: POLICY; Schema: public; Owner: -
+-- Name: patient_practice_completions rev10_context_gate_149; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_152 ON public.product_analytics_hourly AS RESTRICTIVE TO app_operational_maintenance, app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_149 ON public.patient_practice_completions AS RESTRICTIVE TO app_patient, app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -11705,10 +12302,10 @@ CREATE POLICY rev10_context_gate_152 ON public.product_analytics_hourly AS RESTR
 
 
 --
--- Name: product_analytics_user_hourly rev10_context_gate_153; Type: POLICY; Schema: public; Owner: -
+-- Name: patient_specialist_links rev10_context_gate_150; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_153 ON public.product_analytics_user_hourly AS RESTRICTIVE TO app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_150 ON public.patient_specialist_links AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -11730,10 +12327,10 @@ CREATE POLICY rev10_context_gate_153 ON public.product_analytics_user_hourly AS 
 
 
 --
--- Name: product_push_notifications rev10_context_gate_154; Type: POLICY; Schema: public; Owner: -
+-- Name: platform_user_contacts rev10_context_gate_154; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_154 ON public.product_push_notifications AS RESTRICTIVE TO app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_154 ON public.platform_user_contacts AS RESTRICTIVE TO app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -11755,10 +12352,10 @@ CREATE POLICY rev10_context_gate_154 ON public.product_push_notifications AS RES
 
 
 --
--- Name: program_action_log rev10_context_gate_155; Type: POLICY; Schema: public; Owner: -
+-- Name: platform_users rev10_context_gate_155; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_155 ON public.program_action_log AS RESTRICTIVE TO app_patient, app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_155 ON public.platform_users AS RESTRICTIVE TO app_integrator_tenant_service, app_patient, app_platform_settings, app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -11780,10 +12377,10 @@ CREATE POLICY rev10_context_gate_155 ON public.program_action_log AS RESTRICTIVE
 
 
 --
--- Name: program_item_discussion_messages rev10_context_gate_156; Type: POLICY; Schema: public; Owner: -
+-- Name: product_analytics_events_recent rev10_context_gate_156; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_156 ON public.program_item_discussion_messages AS RESTRICTIVE TO app_patient, app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_156 ON public.product_analytics_events_recent AS RESTRICTIVE TO app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -11805,10 +12402,10 @@ CREATE POLICY rev10_context_gate_156 ON public.program_item_discussion_messages 
 
 
 --
--- Name: program_item_discussion_reads rev10_context_gate_157; Type: POLICY; Schema: public; Owner: -
+-- Name: product_analytics_hourly rev10_context_gate_157; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_157 ON public.program_item_discussion_reads AS RESTRICTIVE TO app_patient, app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_157 ON public.product_analytics_hourly AS RESTRICTIVE TO app_operational_maintenance, app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -11830,10 +12427,10 @@ CREATE POLICY rev10_context_gate_157 ON public.program_item_discussion_reads AS 
 
 
 --
--- Name: recommendation_regions rev10_context_gate_158; Type: POLICY; Schema: public; Owner: -
+-- Name: product_analytics_user_hourly rev10_context_gate_158; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_158 ON public.recommendation_regions AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_158 ON public.product_analytics_user_hourly AS RESTRICTIVE TO app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -11855,10 +12452,10 @@ CREATE POLICY rev10_context_gate_158 ON public.recommendation_regions AS RESTRIC
 
 
 --
--- Name: recommendations rev10_context_gate_159; Type: POLICY; Schema: public; Owner: -
+-- Name: product_push_notifications rev10_context_gate_159; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_159 ON public.recommendations AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_159 ON public.product_push_notifications AS RESTRICTIVE TO app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -11905,10 +12502,10 @@ CREATE POLICY rev10_context_gate_16 ON public.admin_audit_log AS RESTRICTIVE TO 
 
 
 --
--- Name: reference_categories rev10_context_gate_162; Type: POLICY; Schema: public; Owner: -
+-- Name: program_action_log rev10_context_gate_160; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_162 ON public.reference_categories AS RESTRICTIVE TO app_patient, app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_160 ON public.program_action_log AS RESTRICTIVE TO app_patient, app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -11930,10 +12527,10 @@ CREATE POLICY rev10_context_gate_162 ON public.reference_categories AS RESTRICTI
 
 
 --
--- Name: reference_items rev10_context_gate_163; Type: POLICY; Schema: public; Owner: -
+-- Name: program_item_discussion_messages rev10_context_gate_161; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_163 ON public.reference_items AS RESTRICTIVE TO app_patient, app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_161 ON public.program_item_discussion_messages AS RESTRICTIVE TO app_patient, app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -11955,10 +12552,10 @@ CREATE POLICY rev10_context_gate_163 ON public.reference_items AS RESTRICTIVE TO
 
 
 --
--- Name: reminder_occurrence_history rev10_context_gate_164; Type: POLICY; Schema: public; Owner: -
+-- Name: program_item_discussion_reads rev10_context_gate_162; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_164 ON public.reminder_occurrence_history AS RESTRICTIVE TO app_integrator_request, app_integrator_tenant_service, app_patient, app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_162 ON public.program_item_discussion_reads AS RESTRICTIVE TO app_patient, app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -11980,10 +12577,10 @@ CREATE POLICY rev10_context_gate_164 ON public.reminder_occurrence_history AS RE
 
 
 --
--- Name: reminder_rules rev10_context_gate_165; Type: POLICY; Schema: public; Owner: -
+-- Name: recommendation_regions rev10_context_gate_163; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_165 ON public.reminder_rules AS RESTRICTIVE TO app_integrator_tenant_service, app_patient, app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_163 ON public.recommendation_regions AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -12005,10 +12602,10 @@ CREATE POLICY rev10_context_gate_165 ON public.reminder_rules AS RESTRICTIVE TO 
 
 
 --
--- Name: saas_billing_accounts rev10_context_gate_166; Type: POLICY; Schema: public; Owner: -
+-- Name: recommendations rev10_context_gate_164; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_166 ON public.saas_billing_accounts AS RESTRICTIVE TO app_clinic_billing, app_platform_settings USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_164 ON public.recommendations AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -12030,10 +12627,10 @@ CREATE POLICY rev10_context_gate_166 ON public.saas_billing_accounts AS RESTRICT
 
 
 --
--- Name: saas_billing_invoices rev10_context_gate_167; Type: POLICY; Schema: public; Owner: -
+-- Name: reference_categories rev10_context_gate_167; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_167 ON public.saas_billing_invoices AS RESTRICTIVE TO app_clinic_billing, app_platform_settings, app_worker USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_167 ON public.reference_categories AS RESTRICTIVE TO app_patient, app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -12055,10 +12652,10 @@ CREATE POLICY rev10_context_gate_167 ON public.saas_billing_invoices AS RESTRICT
 
 
 --
--- Name: saas_billing_periods rev10_context_gate_168; Type: POLICY; Schema: public; Owner: -
+-- Name: reference_items rev10_context_gate_168; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_168 ON public.saas_billing_periods AS RESTRICTIVE TO app_platform_settings, app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_168 ON public.reference_items AS RESTRICTIVE TO app_patient, app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -12080,10 +12677,10 @@ CREATE POLICY rev10_context_gate_168 ON public.saas_billing_periods AS RESTRICTI
 
 
 --
--- Name: saas_billing_provider_events rev10_context_gate_169; Type: POLICY; Schema: public; Owner: -
+-- Name: reminder_occurrence_history rev10_context_gate_169; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_169 ON public.saas_billing_provider_events AS RESTRICTIVE TO app_clinic_billing, app_platform_settings, app_worker USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_169 ON public.reminder_occurrence_history AS RESTRICTIVE TO app_integrator_request, app_integrator_tenant_service, app_patient, app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -12105,10 +12702,10 @@ CREATE POLICY rev10_context_gate_169 ON public.saas_billing_provider_events AS R
 
 
 --
--- Name: saas_billing_refunds rev10_context_gate_170; Type: POLICY; Schema: public; Owner: -
+-- Name: reminder_rules rev10_context_gate_170; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_170 ON public.saas_billing_refunds AS RESTRICTIVE TO app_platform_settings, app_worker USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_170 ON public.reminder_rules AS RESTRICTIVE TO app_integrator_tenant_service, app_patient, app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -12130,10 +12727,10 @@ CREATE POLICY rev10_context_gate_170 ON public.saas_billing_refunds AS RESTRICTI
 
 
 --
--- Name: saas_billing_subscriptions rev10_context_gate_171; Type: POLICY; Schema: public; Owner: -
+-- Name: saas_billing_accounts rev10_context_gate_171; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_171 ON public.saas_billing_subscriptions AS RESTRICTIVE TO app_clinic_billing, app_platform_settings, app_staff, app_worker USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_171 ON public.saas_billing_accounts AS RESTRICTIVE TO app_clinic_billing, app_platform_settings USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -12155,10 +12752,10 @@ CREATE POLICY rev10_context_gate_171 ON public.saas_billing_subscriptions AS RES
 
 
 --
--- Name: saas_org_entitlement_overrides rev10_context_gate_175; Type: POLICY; Schema: public; Owner: -
+-- Name: saas_billing_invoices rev10_context_gate_172; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_175 ON public.saas_org_entitlement_overrides AS RESTRICTIVE TO app_clinic_billing, app_platform_settings, app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_172 ON public.saas_billing_invoices AS RESTRICTIVE TO app_clinic_billing, app_platform_settings, app_worker USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -12180,10 +12777,10 @@ CREATE POLICY rev10_context_gate_175 ON public.saas_org_entitlement_overrides AS
 
 
 --
--- Name: saas_organization_trials rev10_context_gate_176; Type: POLICY; Schema: public; Owner: -
+-- Name: saas_billing_periods rev10_context_gate_173; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_176 ON public.saas_organization_trials AS RESTRICTIVE TO app_clinic_billing, app_platform_settings, app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_173 ON public.saas_billing_periods AS RESTRICTIVE TO app_platform_settings, app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -12205,10 +12802,10 @@ CREATE POLICY rev10_context_gate_176 ON public.saas_organization_trials AS RESTR
 
 
 --
--- Name: saas_paid_period_policy rev10_context_gate_177; Type: POLICY; Schema: public; Owner: -
+-- Name: saas_tariff_period_prices rev10_context_gate_174; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_177 ON public.saas_paid_period_policy AS RESTRICTIVE TO app_clinic_billing, app_platform_settings, app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_174 ON public.saas_tariff_period_prices AS RESTRICTIVE TO app_clinic_billing, app_platform_settings, app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -12230,10 +12827,10 @@ CREATE POLICY rev10_context_gate_177 ON public.saas_paid_period_policy AS RESTRI
 
 
 --
--- Name: saas_registration_tariff_policy rev10_context_gate_178; Type: POLICY; Schema: public; Owner: -
+-- Name: saas_storage_packages rev10_context_gate_175; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_178 ON public.saas_registration_tariff_policy AS RESTRICTIVE TO app_platform_settings USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_175 ON public.saas_storage_packages AS RESTRICTIVE TO app_clinic_billing, app_platform_settings, app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -12255,10 +12852,85 @@ CREATE POLICY rev10_context_gate_178 ON public.saas_registration_tariff_policy A
 
 
 --
--- Name: saas_tariffs rev10_context_gate_179; Type: POLICY; Schema: public; Owner: -
+-- Name: saas_storage_package_period_prices rev10_context_gate_176; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_179 ON public.saas_tariffs AS RESTRICTIVE TO app_clinic_billing, app_platform_settings, app_worker USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_176 ON public.saas_storage_package_period_prices AS RESTRICTIVE TO app_clinic_billing, app_platform_settings, app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+        CASE
+            WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
+            WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_tenant_service'::name, 'app_tenant_service'::name])) THEN 'tenant_service'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+            ELSE 'staff'::app.port_context_class
+        END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure) AS require_accepted_context)) WITH CHECK (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+        CASE
+            WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
+            WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_tenant_service'::name, 'app_tenant_service'::name])) THEN 'tenant_service'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+            ELSE 'staff'::app.port_context_class
+        END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure) AS require_accepted_context));
+
+
+--
+-- Name: saas_billing_provider_events rev10_context_gate_177; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_context_gate_177 ON public.saas_billing_provider_events AS RESTRICTIVE TO app_clinic_billing, app_platform_settings, app_worker USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+        CASE
+            WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
+            WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_tenant_service'::name, 'app_tenant_service'::name])) THEN 'tenant_service'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+            ELSE 'staff'::app.port_context_class
+        END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure) AS require_accepted_context)) WITH CHECK (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+        CASE
+            WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
+            WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_tenant_service'::name, 'app_tenant_service'::name])) THEN 'tenant_service'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+            ELSE 'staff'::app.port_context_class
+        END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure) AS require_accepted_context));
+
+
+--
+-- Name: saas_billing_refunds rev10_context_gate_178; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_context_gate_178 ON public.saas_billing_refunds AS RESTRICTIVE TO app_platform_settings, app_worker USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+        CASE
+            WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
+            WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_tenant_service'::name, 'app_tenant_service'::name])) THEN 'tenant_service'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+            ELSE 'staff'::app.port_context_class
+        END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure) AS require_accepted_context)) WITH CHECK (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+        CASE
+            WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
+            WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_tenant_service'::name, 'app_tenant_service'::name])) THEN 'tenant_service'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+            ELSE 'staff'::app.port_context_class
+        END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure) AS require_accepted_context));
+
+
+--
+-- Name: saas_billing_subscriptions rev10_context_gate_179; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_context_gate_179 ON public.saas_billing_subscriptions AS RESTRICTIVE TO app_clinic_billing, app_platform_settings, app_staff, app_worker USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -12305,10 +12977,10 @@ CREATE POLICY rev10_context_gate_18 ON public.be_appointment_cancellations AS RE
 
 
 --
--- Name: saas_trial_policy rev10_context_gate_180; Type: POLICY; Schema: public; Owner: -
+-- Name: saas_org_entitlement_overrides rev10_context_gate_183; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_180 ON public.saas_trial_policy AS RESTRICTIVE TO app_platform_settings USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_183 ON public.saas_org_entitlement_overrides AS RESTRICTIVE TO app_clinic_billing, app_platform_settings, app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -12330,10 +13002,10 @@ CREATE POLICY rev10_context_gate_180 ON public.saas_trial_policy AS RESTRICTIVE 
 
 
 --
--- Name: specialist_tasks rev10_context_gate_183; Type: POLICY; Schema: public; Owner: -
+-- Name: saas_organization_trials rev10_context_gate_184; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_183 ON public.specialist_tasks AS RESTRICTIVE TO app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_184 ON public.saas_organization_trials AS RESTRICTIVE TO app_clinic_billing, app_platform_settings, app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -12355,10 +13027,10 @@ CREATE POLICY rev10_context_gate_183 ON public.specialist_tasks AS RESTRICTIVE T
 
 
 --
--- Name: support_conversation_messages rev10_context_gate_185; Type: POLICY; Schema: public; Owner: -
+-- Name: saas_paid_period_policy rev10_context_gate_185; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_185 ON public.support_conversation_messages AS RESTRICTIVE TO app_patient, app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_185 ON public.saas_paid_period_policy AS RESTRICTIVE TO app_clinic_billing, app_platform_settings, app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -12380,10 +13052,10 @@ CREATE POLICY rev10_context_gate_185 ON public.support_conversation_messages AS 
 
 
 --
--- Name: support_conversations rev10_context_gate_186; Type: POLICY; Schema: public; Owner: -
+-- Name: saas_registration_tariff_policy rev10_context_gate_186; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_186 ON public.support_conversations AS RESTRICTIVE TO app_patient, app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_186 ON public.saas_registration_tariff_policy AS RESTRICTIVE TO app_platform_settings USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -12405,10 +13077,10 @@ CREATE POLICY rev10_context_gate_186 ON public.support_conversations AS RESTRICT
 
 
 --
--- Name: support_question_messages rev10_context_gate_187; Type: POLICY; Schema: public; Owner: -
+-- Name: saas_tariffs rev10_context_gate_187; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_187 ON public.support_question_messages AS RESTRICTIVE TO app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_187 ON public.saas_tariffs AS RESTRICTIVE TO app_clinic_billing, app_platform_settings, app_worker USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -12430,10 +13102,10 @@ CREATE POLICY rev10_context_gate_187 ON public.support_question_messages AS REST
 
 
 --
--- Name: support_questions rev10_context_gate_188; Type: POLICY; Schema: public; Owner: -
+-- Name: saas_trial_policy rev10_context_gate_188; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_188 ON public.support_questions AS RESTRICTIVE TO app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_188 ON public.saas_trial_policy AS RESTRICTIVE TO app_platform_settings USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -12455,10 +13127,10 @@ CREATE POLICY rev10_context_gate_188 ON public.support_questions AS RESTRICTIVE 
 
 
 --
--- Name: symptom_entries rev10_context_gate_189; Type: POLICY; Schema: public; Owner: -
+-- Name: specialist_tasks rev10_context_gate_191; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_189 ON public.symptom_entries AS RESTRICTIVE TO app_patient, app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_191 ON public.specialist_tasks AS RESTRICTIVE TO app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -12480,10 +13152,10 @@ CREATE POLICY rev10_context_gate_189 ON public.symptom_entries AS RESTRICTIVE TO
 
 
 --
--- Name: symptom_trackings rev10_context_gate_190; Type: POLICY; Schema: public; Owner: -
+-- Name: support_conversation_messages rev10_context_gate_193; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_190 ON public.symptom_trackings AS RESTRICTIVE TO app_patient, app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_193 ON public.support_conversation_messages AS RESTRICTIVE TO app_patient, app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -12505,10 +13177,10 @@ CREATE POLICY rev10_context_gate_190 ON public.symptom_trackings AS RESTRICTIVE 
 
 
 --
--- Name: system_settings rev10_context_gate_191; Type: POLICY; Schema: public; Owner: -
+-- Name: support_conversations rev10_context_gate_194; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_191 ON public.system_settings AS RESTRICTIVE TO app_platform_settings, app_staff, app_worker USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_194 ON public.support_conversations AS RESTRICTIVE TO app_patient, app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -12530,10 +13202,10 @@ CREATE POLICY rev10_context_gate_191 ON public.system_settings AS RESTRICTIVE TO
 
 
 --
--- Name: system_settings_audit rev10_context_gate_192; Type: POLICY; Schema: public; Owner: -
+-- Name: support_question_messages rev10_context_gate_195; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_192 ON public.system_settings_audit AS RESTRICTIVE TO app_platform_settings, app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_195 ON public.support_question_messages AS RESTRICTIVE TO app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -12555,10 +13227,10 @@ CREATE POLICY rev10_context_gate_192 ON public.system_settings_audit AS RESTRICT
 
 
 --
--- Name: test_attempts rev10_context_gate_193; Type: POLICY; Schema: public; Owner: -
+-- Name: support_questions rev10_context_gate_196; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_193 ON public.test_attempts AS RESTRICTIVE TO app_patient, app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_196 ON public.support_questions AS RESTRICTIVE TO app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -12580,10 +13252,10 @@ CREATE POLICY rev10_context_gate_193 ON public.test_attempts AS RESTRICTIVE TO a
 
 
 --
--- Name: test_results rev10_context_gate_194; Type: POLICY; Schema: public; Owner: -
+-- Name: symptom_entries rev10_context_gate_197; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_194 ON public.test_results AS RESTRICTIVE TO app_patient, app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_197 ON public.symptom_entries AS RESTRICTIVE TO app_patient, app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -12605,10 +13277,10 @@ CREATE POLICY rev10_context_gate_194 ON public.test_results AS RESTRICTIVE TO ap
 
 
 --
--- Name: test_set_items rev10_context_gate_195; Type: POLICY; Schema: public; Owner: -
+-- Name: symptom_trackings rev10_context_gate_198; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_195 ON public.test_set_items AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_198 ON public.symptom_trackings AS RESTRICTIVE TO app_patient, app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -12630,85 +13302,10 @@ CREATE POLICY rev10_context_gate_195 ON public.test_set_items AS RESTRICTIVE TO 
 
 
 --
--- Name: test_sets rev10_context_gate_196; Type: POLICY; Schema: public; Owner: -
+-- Name: system_settings rev10_context_gate_199; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_196 ON public.test_sets AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
-        CASE
-            WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
-            WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
-            WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
-            WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_tenant_service'::name, 'app_tenant_service'::name])) THEN 'tenant_service'::app.port_context_class
-            WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-            WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
-            ELSE 'staff'::app.port_context_class
-        END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure) AS require_accepted_context)) WITH CHECK (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
-        CASE
-            WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
-            WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
-            WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
-            WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_tenant_service'::name, 'app_tenant_service'::name])) THEN 'tenant_service'::app.port_context_class
-            WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-            WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
-            ELSE 'staff'::app.port_context_class
-        END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure) AS require_accepted_context));
-
-
---
--- Name: tests rev10_context_gate_197; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_context_gate_197 ON public.tests AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
-        CASE
-            WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
-            WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
-            WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
-            WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_tenant_service'::name, 'app_tenant_service'::name])) THEN 'tenant_service'::app.port_context_class
-            WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-            WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
-            ELSE 'staff'::app.port_context_class
-        END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure) AS require_accepted_context)) WITH CHECK (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
-        CASE
-            WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
-            WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
-            WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
-            WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_tenant_service'::name, 'app_tenant_service'::name])) THEN 'tenant_service'::app.port_context_class
-            WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-            WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
-            ELSE 'staff'::app.port_context_class
-        END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure) AS require_accepted_context));
-
-
---
--- Name: treatment_program_events rev10_context_gate_198; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_context_gate_198 ON public.treatment_program_events AS RESTRICTIVE TO app_patient, app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
-        CASE
-            WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
-            WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
-            WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
-            WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_tenant_service'::name, 'app_tenant_service'::name])) THEN 'tenant_service'::app.port_context_class
-            WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-            WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
-            ELSE 'staff'::app.port_context_class
-        END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure) AS require_accepted_context)) WITH CHECK (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
-        CASE
-            WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
-            WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
-            WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
-            WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_tenant_service'::name, 'app_tenant_service'::name])) THEN 'tenant_service'::app.port_context_class
-            WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
-            WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
-            ELSE 'staff'::app.port_context_class
-        END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure) AS require_accepted_context));
-
-
---
--- Name: treatment_program_instance_stage_groups rev10_context_gate_199; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_context_gate_199 ON public.treatment_program_instance_stage_groups AS RESTRICTIVE TO app_patient, app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_199 ON public.system_settings AS RESTRICTIVE TO app_platform_settings, app_staff, app_worker USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -12755,10 +13352,10 @@ CREATE POLICY rev10_context_gate_20 ON public.be_appointment_history_events AS R
 
 
 --
--- Name: treatment_program_instance_stage_items rev10_context_gate_200; Type: POLICY; Schema: public; Owner: -
+-- Name: system_settings_audit rev10_context_gate_200; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_200 ON public.treatment_program_instance_stage_items AS RESTRICTIVE TO app_patient, app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_200 ON public.system_settings_audit AS RESTRICTIVE TO app_platform_settings, app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -12780,10 +13377,10 @@ CREATE POLICY rev10_context_gate_200 ON public.treatment_program_instance_stage_
 
 
 --
--- Name: treatment_program_instance_stages rev10_context_gate_201; Type: POLICY; Schema: public; Owner: -
+-- Name: test_attempts rev10_context_gate_201; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_201 ON public.treatment_program_instance_stages AS RESTRICTIVE TO app_patient, app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_201 ON public.test_attempts AS RESTRICTIVE TO app_patient, app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -12805,10 +13402,10 @@ CREATE POLICY rev10_context_gate_201 ON public.treatment_program_instance_stages
 
 
 --
--- Name: treatment_program_instances rev10_context_gate_202; Type: POLICY; Schema: public; Owner: -
+-- Name: test_results rev10_context_gate_202; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_202 ON public.treatment_program_instances AS RESTRICTIVE TO app_patient, app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_202 ON public.test_results AS RESTRICTIVE TO app_patient, app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -12830,10 +13427,10 @@ CREATE POLICY rev10_context_gate_202 ON public.treatment_program_instances AS RE
 
 
 --
--- Name: treatment_program_template_stage_groups rev10_context_gate_203; Type: POLICY; Schema: public; Owner: -
+-- Name: test_set_items rev10_context_gate_203; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_203 ON public.treatment_program_template_stage_groups AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_203 ON public.test_set_items AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -12855,10 +13452,10 @@ CREATE POLICY rev10_context_gate_203 ON public.treatment_program_template_stage_
 
 
 --
--- Name: treatment_program_template_stage_items rev10_context_gate_204; Type: POLICY; Schema: public; Owner: -
+-- Name: test_sets rev10_context_gate_204; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_204 ON public.treatment_program_template_stage_items AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_204 ON public.test_sets AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -12880,10 +13477,10 @@ CREATE POLICY rev10_context_gate_204 ON public.treatment_program_template_stage_
 
 
 --
--- Name: treatment_program_template_stages rev10_context_gate_205; Type: POLICY; Schema: public; Owner: -
+-- Name: tests rev10_context_gate_205; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_205 ON public.treatment_program_template_stages AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_205 ON public.tests AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -12905,10 +13502,10 @@ CREATE POLICY rev10_context_gate_205 ON public.treatment_program_template_stages
 
 
 --
--- Name: treatment_program_templates rev10_context_gate_206; Type: POLICY; Schema: public; Owner: -
+-- Name: treatment_program_events rev10_context_gate_206; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_206 ON public.treatment_program_templates AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_206 ON public.treatment_program_events AS RESTRICTIVE TO app_patient, app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -12930,10 +13527,10 @@ CREATE POLICY rev10_context_gate_206 ON public.treatment_program_templates AS RE
 
 
 --
--- Name: user_channel_bindings rev10_context_gate_207; Type: POLICY; Schema: public; Owner: -
+-- Name: treatment_program_instance_stage_groups rev10_context_gate_207; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_207 ON public.user_channel_bindings AS RESTRICTIVE TO app_integrator_tenant_service, app_patient, app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_207 ON public.treatment_program_instance_stage_groups AS RESTRICTIVE TO app_patient, app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -12955,10 +13552,10 @@ CREATE POLICY rev10_context_gate_207 ON public.user_channel_bindings AS RESTRICT
 
 
 --
--- Name: user_channel_preferences rev10_context_gate_208; Type: POLICY; Schema: public; Owner: -
+-- Name: treatment_program_instance_stage_items rev10_context_gate_208; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_208 ON public.user_channel_preferences AS RESTRICTIVE TO app_patient, app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_208 ON public.treatment_program_instance_stage_items AS RESTRICTIVE TO app_patient, app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -12980,10 +13577,10 @@ CREATE POLICY rev10_context_gate_208 ON public.user_channel_preferences AS RESTR
 
 
 --
--- Name: user_contacts rev10_context_gate_209; Type: POLICY; Schema: public; Owner: -
+-- Name: treatment_program_instance_stages rev10_context_gate_209; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_209 ON public.user_contacts AS RESTRICTIVE TO app_integrator_tenant_service, app_patient, app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_209 ON public.treatment_program_instance_stages AS RESTRICTIVE TO app_patient, app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -13030,10 +13627,10 @@ CREATE POLICY rev10_context_gate_21 ON public.be_appointment_no_shows AS RESTRIC
 
 
 --
--- Name: user_identity rev10_context_gate_210; Type: POLICY; Schema: public; Owner: -
+-- Name: treatment_program_instances rev10_context_gate_210; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_210 ON public.user_identity AS RESTRICTIVE TO app_patient, app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_210 ON public.treatment_program_instances AS RESTRICTIVE TO app_patient, app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -13055,10 +13652,10 @@ CREATE POLICY rev10_context_gate_210 ON public.user_identity AS RESTRICTIVE TO a
 
 
 --
--- Name: user_notification_topic_channels rev10_context_gate_211; Type: POLICY; Schema: public; Owner: -
+-- Name: treatment_program_template_stage_groups rev10_context_gate_211; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_211 ON public.user_notification_topic_channels AS RESTRICTIVE TO app_patient, app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_211 ON public.treatment_program_template_stage_groups AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -13080,10 +13677,10 @@ CREATE POLICY rev10_context_gate_211 ON public.user_notification_topic_channels 
 
 
 --
--- Name: user_notification_topics rev10_context_gate_212; Type: POLICY; Schema: public; Owner: -
+-- Name: treatment_program_template_stage_items rev10_context_gate_212; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_212 ON public.user_notification_topics AS RESTRICTIVE TO app_patient, app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_212 ON public.treatment_program_template_stage_items AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -13105,10 +13702,160 @@ CREATE POLICY rev10_context_gate_212 ON public.user_notification_topics AS RESTR
 
 
 --
--- Name: user_phone_history rev10_context_gate_218; Type: POLICY; Schema: public; Owner: -
+-- Name: treatment_program_template_stages rev10_context_gate_213; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_218 ON public.user_phone_history AS RESTRICTIVE TO app_patient, app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_213 ON public.treatment_program_template_stages AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+        CASE
+            WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
+            WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_tenant_service'::name, 'app_tenant_service'::name])) THEN 'tenant_service'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+            ELSE 'staff'::app.port_context_class
+        END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure) AS require_accepted_context)) WITH CHECK (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+        CASE
+            WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
+            WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_tenant_service'::name, 'app_tenant_service'::name])) THEN 'tenant_service'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+            ELSE 'staff'::app.port_context_class
+        END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure) AS require_accepted_context));
+
+
+--
+-- Name: treatment_program_templates rev10_context_gate_214; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_context_gate_214 ON public.treatment_program_templates AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+        CASE
+            WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
+            WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_tenant_service'::name, 'app_tenant_service'::name])) THEN 'tenant_service'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+            ELSE 'staff'::app.port_context_class
+        END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure) AS require_accepted_context)) WITH CHECK (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+        CASE
+            WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
+            WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_tenant_service'::name, 'app_tenant_service'::name])) THEN 'tenant_service'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+            ELSE 'staff'::app.port_context_class
+        END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure) AS require_accepted_context));
+
+
+--
+-- Name: user_channel_bindings rev10_context_gate_215; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_context_gate_215 ON public.user_channel_bindings AS RESTRICTIVE TO app_integrator_tenant_service, app_patient, app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+        CASE
+            WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
+            WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_tenant_service'::name, 'app_tenant_service'::name])) THEN 'tenant_service'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+            ELSE 'staff'::app.port_context_class
+        END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure) AS require_accepted_context)) WITH CHECK (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+        CASE
+            WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
+            WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_tenant_service'::name, 'app_tenant_service'::name])) THEN 'tenant_service'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+            ELSE 'staff'::app.port_context_class
+        END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure) AS require_accepted_context));
+
+
+--
+-- Name: user_channel_preferences rev10_context_gate_216; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_context_gate_216 ON public.user_channel_preferences AS RESTRICTIVE TO app_patient, app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+        CASE
+            WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
+            WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_tenant_service'::name, 'app_tenant_service'::name])) THEN 'tenant_service'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+            ELSE 'staff'::app.port_context_class
+        END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure) AS require_accepted_context)) WITH CHECK (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+        CASE
+            WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
+            WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_tenant_service'::name, 'app_tenant_service'::name])) THEN 'tenant_service'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+            ELSE 'staff'::app.port_context_class
+        END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure) AS require_accepted_context));
+
+
+--
+-- Name: user_contacts rev10_context_gate_217; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_context_gate_217 ON public.user_contacts AS RESTRICTIVE TO app_integrator_tenant_service, app_patient, app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+        CASE
+            WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
+            WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_tenant_service'::name, 'app_tenant_service'::name])) THEN 'tenant_service'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+            ELSE 'staff'::app.port_context_class
+        END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure) AS require_accepted_context)) WITH CHECK (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+        CASE
+            WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
+            WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_tenant_service'::name, 'app_tenant_service'::name])) THEN 'tenant_service'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+            ELSE 'staff'::app.port_context_class
+        END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure) AS require_accepted_context));
+
+
+--
+-- Name: user_identity rev10_context_gate_218; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_context_gate_218 ON public.user_identity AS RESTRICTIVE TO app_patient, app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+        CASE
+            WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
+            WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_tenant_service'::name, 'app_tenant_service'::name])) THEN 'tenant_service'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+            ELSE 'staff'::app.port_context_class
+        END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure) AS require_accepted_context)) WITH CHECK (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+        CASE
+            WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
+            WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_tenant_service'::name, 'app_tenant_service'::name])) THEN 'tenant_service'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+            ELSE 'staff'::app.port_context_class
+        END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure) AS require_accepted_context));
+
+
+--
+-- Name: user_notification_topic_channels rev10_context_gate_219; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_context_gate_219 ON public.user_notification_topic_channels AS RESTRICTIVE TO app_patient, app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -13155,10 +13902,85 @@ CREATE POLICY rev10_context_gate_22 ON public.be_appointment_reschedules AS REST
 
 
 --
--- Name: user_web_push_subscriptions rev10_context_gate_220; Type: POLICY; Schema: public; Owner: -
+-- Name: user_notification_topics rev10_context_gate_220; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_220 ON public.user_web_push_subscriptions AS RESTRICTIVE TO app_patient, app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_220 ON public.user_notification_topics AS RESTRICTIVE TO app_patient, app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+        CASE
+            WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
+            WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_tenant_service'::name, 'app_tenant_service'::name])) THEN 'tenant_service'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+            ELSE 'staff'::app.port_context_class
+        END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure) AS require_accepted_context)) WITH CHECK (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+        CASE
+            WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
+            WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_tenant_service'::name, 'app_tenant_service'::name])) THEN 'tenant_service'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+            ELSE 'staff'::app.port_context_class
+        END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure) AS require_accepted_context));
+
+
+--
+-- Name: user_phone_history rev10_context_gate_226; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_context_gate_226 ON public.user_phone_history AS RESTRICTIVE TO app_patient, app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+        CASE
+            WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
+            WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_tenant_service'::name, 'app_tenant_service'::name])) THEN 'tenant_service'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+            ELSE 'staff'::app.port_context_class
+        END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure) AS require_accepted_context)) WITH CHECK (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+        CASE
+            WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
+            WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_tenant_service'::name, 'app_tenant_service'::name])) THEN 'tenant_service'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+            ELSE 'staff'::app.port_context_class
+        END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure) AS require_accepted_context));
+
+
+--
+-- Name: user_web_push_subscriptions rev10_context_gate_228; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_context_gate_228 ON public.user_web_push_subscriptions AS RESTRICTIVE TO app_patient, app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+        CASE
+            WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
+            WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_tenant_service'::name, 'app_tenant_service'::name])) THEN 'tenant_service'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+            ELSE 'staff'::app.port_context_class
+        END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure) AS require_accepted_context)) WITH CHECK (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+        CASE
+            WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
+            WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_request'::name, 'app_integrator_resolver'::name])) THEN 'integrator'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_integrator_tenant_service'::name, 'app_tenant_service'::name])) THEN 'tenant_service'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_platform_settings'::name, 'app_platform_admin'::name, 'saas_telemetry_operator'::name])) THEN 'platform'::app.port_context_class
+            WHEN (CURRENT_USER = ANY (ARRAY['app_worker'::name, 'app_operational_media_worker'::name, 'app_operational_maintenance'::name, 'app_operational_delivery_worker'::name, 'app_operational_scheduler'::name, 'app_service'::name])) THEN 'service'::app.port_context_class
+            ELSE 'staff'::app.port_context_class
+        END, 'relation'::text, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a'::text, 'hex'::text), NULL::regprocedure) AS require_accepted_context));
+
+
+--
+-- Name: native_push_targets rev10_context_gate_229; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_context_gate_229 ON public.native_push_targets AS RESTRICTIVE TO app_patient, app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -13408,7 +14230,7 @@ CREATE POLICY rev10_context_gate_31 ON public.be_organization_members AS RESTRIC
 -- Name: be_organizations rev10_context_gate_32; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_32 ON public.be_organizations AS RESTRICTIVE TO app_clinic_billing, app_platform_settings, app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_32 ON public.be_organizations AS RESTRICTIVE TO app_clinic_billing, app_integrator_tenant_service, app_platform_settings, app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -13855,10 +14677,10 @@ CREATE POLICY rev10_context_gate_49 ON public.be_schedule_templates AS RESTRICTI
 
 
 --
--- Name: be_service_location_availability rev10_context_gate_50; Type: POLICY; Schema: public; Owner: -
+-- Name: be_specialist_locations rev10_context_gate_50; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_50 ON public.be_service_location_availability AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_50 ON public.be_specialist_locations AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -13880,10 +14702,10 @@ CREATE POLICY rev10_context_gate_50 ON public.be_service_location_availability A
 
 
 --
--- Name: be_specialist_locations rev10_context_gate_51; Type: POLICY; Schema: public; Owner: -
+-- Name: be_specialist_rooms rev10_context_gate_51; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_51 ON public.be_specialist_locations AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_51 ON public.be_specialist_rooms AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -13905,10 +14727,10 @@ CREATE POLICY rev10_context_gate_51 ON public.be_specialist_locations AS RESTRIC
 
 
 --
--- Name: be_specialist_rooms rev10_context_gate_52; Type: POLICY; Schema: public; Owner: -
+-- Name: be_specialist_service_availability rev10_context_gate_52; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_52 ON public.be_specialist_rooms AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_52 ON public.be_specialist_service_availability AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -13930,10 +14752,10 @@ CREATE POLICY rev10_context_gate_52 ON public.be_specialist_rooms AS RESTRICTIVE
 
 
 --
--- Name: be_specialist_service_availability rev10_context_gate_53; Type: POLICY; Schema: public; Owner: -
+-- Name: be_specialists rev10_context_gate_53; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_53 ON public.be_specialist_service_availability AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_53 ON public.be_specialists AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -13955,10 +14777,10 @@ CREATE POLICY rev10_context_gate_53 ON public.be_specialist_service_availability
 
 
 --
--- Name: be_specialists rev10_context_gate_54; Type: POLICY; Schema: public; Owner: -
+-- Name: be_subscription_packages rev10_context_gate_54; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_54 ON public.be_specialists AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_54 ON public.be_subscription_packages AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -13980,10 +14802,10 @@ CREATE POLICY rev10_context_gate_54 ON public.be_specialists AS RESTRICTIVE TO a
 
 
 --
--- Name: be_subscription_packages rev10_context_gate_55; Type: POLICY; Schema: public; Owner: -
+-- Name: be_working_days rev10_context_gate_55; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_55 ON public.be_subscription_packages AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_55 ON public.be_working_days AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -14005,10 +14827,10 @@ CREATE POLICY rev10_context_gate_55 ON public.be_subscription_packages AS RESTRI
 
 
 --
--- Name: be_working_days rev10_context_gate_56; Type: POLICY; Schema: public; Owner: -
+-- Name: be_working_hours rev10_context_gate_56; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_56 ON public.be_working_days AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_56 ON public.be_working_hours AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -14030,10 +14852,10 @@ CREATE POLICY rev10_context_gate_56 ON public.be_working_days AS RESTRICTIVE TO 
 
 
 --
--- Name: be_working_hours rev10_context_gate_57; Type: POLICY; Schema: public; Owner: -
+-- Name: broadcast_audit rev10_context_gate_59; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_57 ON public.be_working_hours AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_59 ON public.broadcast_audit AS RESTRICTIVE TO app_integrator_tenant_service, app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -14055,10 +14877,10 @@ CREATE POLICY rev10_context_gate_57 ON public.be_working_hours AS RESTRICTIVE TO
 
 
 --
--- Name: broadcast_audit rev10_context_gate_60; Type: POLICY; Schema: public; Owner: -
+-- Name: broadcast_audit_recipients rev10_context_gate_60; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_60 ON public.broadcast_audit AS RESTRICTIVE TO app_integrator_tenant_service, app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_60 ON public.broadcast_audit_recipients AS RESTRICTIVE TO app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -14080,10 +14902,10 @@ CREATE POLICY rev10_context_gate_60 ON public.broadcast_audit AS RESTRICTIVE TO 
 
 
 --
--- Name: broadcast_audit_recipients rev10_context_gate_61; Type: POLICY; Schema: public; Owner: -
+-- Name: broadcast_drafts rev10_context_gate_61; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_61 ON public.broadcast_audit_recipients AS RESTRICTIVE TO app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_61 ON public.broadcast_drafts AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -14105,10 +14927,10 @@ CREATE POLICY rev10_context_gate_61 ON public.broadcast_audit_recipients AS REST
 
 
 --
--- Name: broadcast_drafts rev10_context_gate_62; Type: POLICY; Schema: public; Owner: -
+-- Name: clinic_public_directory_entries rev10_context_gate_64; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_62 ON public.broadcast_drafts AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_64 ON public.clinic_public_directory_entries AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -14130,10 +14952,10 @@ CREATE POLICY rev10_context_gate_62 ON public.broadcast_drafts AS RESTRICTIVE TO
 
 
 --
--- Name: clinic_public_directory_entries rev10_context_gate_65; Type: POLICY; Schema: public; Owner: -
+-- Name: clinical_anamnesis_illness rev10_context_gate_65; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_65 ON public.clinic_public_directory_entries AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_65 ON public.clinical_anamnesis_illness AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -14155,10 +14977,10 @@ CREATE POLICY rev10_context_gate_65 ON public.clinic_public_directory_entries AS
 
 
 --
--- Name: clinical_anamnesis_illness rev10_context_gate_66; Type: POLICY; Schema: public; Owner: -
+-- Name: clinical_anamnesis_lifestyle rev10_context_gate_66; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_66 ON public.clinical_anamnesis_illness AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_66 ON public.clinical_anamnesis_lifestyle AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -14180,10 +15002,10 @@ CREATE POLICY rev10_context_gate_66 ON public.clinical_anamnesis_illness AS REST
 
 
 --
--- Name: clinical_anamnesis_lifestyle rev10_context_gate_67; Type: POLICY; Schema: public; Owner: -
+-- Name: clinical_anamnesis_trauma rev10_context_gate_67; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_67 ON public.clinical_anamnesis_lifestyle AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_67 ON public.clinical_anamnesis_trauma AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -14205,10 +15027,10 @@ CREATE POLICY rev10_context_gate_67 ON public.clinical_anamnesis_lifestyle AS RE
 
 
 --
--- Name: clinical_anamnesis_trauma rev10_context_gate_68; Type: POLICY; Schema: public; Owner: -
+-- Name: clinical_complaint rev10_context_gate_68; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_68 ON public.clinical_anamnesis_trauma AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_68 ON public.clinical_complaint AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -14230,10 +15052,10 @@ CREATE POLICY rev10_context_gate_68 ON public.clinical_anamnesis_trauma AS RESTR
 
 
 --
--- Name: clinical_complaint rev10_context_gate_69; Type: POLICY; Schema: public; Owner: -
+-- Name: clinical_complaint_update rev10_context_gate_69; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_69 ON public.clinical_complaint AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_69 ON public.clinical_complaint_update AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -14255,10 +15077,10 @@ CREATE POLICY rev10_context_gate_69 ON public.clinical_complaint AS RESTRICTIVE 
 
 
 --
--- Name: clinical_complaint_update rev10_context_gate_70; Type: POLICY; Schema: public; Owner: -
+-- Name: clinical_diagnosis rev10_context_gate_70; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_70 ON public.clinical_complaint_update AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_70 ON public.clinical_diagnosis AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -14280,10 +15102,10 @@ CREATE POLICY rev10_context_gate_70 ON public.clinical_complaint_update AS RESTR
 
 
 --
--- Name: clinical_diagnosis rev10_context_gate_71; Type: POLICY; Schema: public; Owner: -
+-- Name: clinical_diagnosis_catalog rev10_context_gate_71; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_71 ON public.clinical_diagnosis AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_71 ON public.clinical_diagnosis_catalog AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -14305,10 +15127,10 @@ CREATE POLICY rev10_context_gate_71 ON public.clinical_diagnosis AS RESTRICTIVE 
 
 
 --
--- Name: clinical_diagnosis_catalog rev10_context_gate_72; Type: POLICY; Schema: public; Owner: -
+-- Name: clinical_diagnosis_status_history rev10_context_gate_72; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_72 ON public.clinical_diagnosis_catalog AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_72 ON public.clinical_diagnosis_status_history AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -14330,10 +15152,10 @@ CREATE POLICY rev10_context_gate_72 ON public.clinical_diagnosis_catalog AS REST
 
 
 --
--- Name: clinical_diagnosis_status_history rev10_context_gate_73; Type: POLICY; Schema: public; Owner: -
+-- Name: clinical_diagnosis_update rev10_context_gate_73; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_73 ON public.clinical_diagnosis_status_history AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_73 ON public.clinical_diagnosis_update AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -14355,10 +15177,10 @@ CREATE POLICY rev10_context_gate_73 ON public.clinical_diagnosis_status_history 
 
 
 --
--- Name: clinical_diagnosis_update rev10_context_gate_74; Type: POLICY; Schema: public; Owner: -
+-- Name: clinical_disease_anamnesis rev10_context_gate_74; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_74 ON public.clinical_diagnosis_update AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_74 ON public.clinical_disease_anamnesis AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -14580,10 +15402,10 @@ CREATE POLICY rev10_context_gate_83 ON public.courses AS RESTRICTIVE TO app_pati
 
 
 --
--- Name: doctor_notes rev10_context_gate_84; Type: POLICY; Schema: public; Owner: -
+-- Name: video_meetings rev10_context_gate_84; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_84 ON public.doctor_notes AS RESTRICTIVE TO app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_84 ON public.video_meetings AS RESTRICTIVE TO app_patient, app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -14605,10 +15427,10 @@ CREATE POLICY rev10_context_gate_84 ON public.doctor_notes AS RESTRICTIVE TO app
 
 
 --
--- Name: doctor_patient_support rev10_context_gate_85; Type: POLICY; Schema: public; Owner: -
+-- Name: video_meeting_invites rev10_context_gate_85; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_85 ON public.doctor_patient_support AS RESTRICTIVE TO app_patient, app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_85 ON public.video_meeting_invites AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -14630,10 +15452,10 @@ CREATE POLICY rev10_context_gate_85 ON public.doctor_patient_support AS RESTRICT
 
 
 --
--- Name: lfk_complex_exercises rev10_context_gate_92; Type: POLICY; Schema: public; Owner: -
+-- Name: doctor_notes rev10_context_gate_86; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_92 ON public.lfk_complex_exercises AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_86 ON public.doctor_notes AS RESTRICTIVE TO app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -14655,10 +15477,10 @@ CREATE POLICY rev10_context_gate_92 ON public.lfk_complex_exercises AS RESTRICTI
 
 
 --
--- Name: lfk_complex_template_exercises rev10_context_gate_93; Type: POLICY; Schema: public; Owner: -
+-- Name: doctor_patient_support rev10_context_gate_87; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_93 ON public.lfk_complex_template_exercises AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_87 ON public.doctor_patient_support AS RESTRICTIVE TO app_patient, app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -14680,10 +15502,10 @@ CREATE POLICY rev10_context_gate_93 ON public.lfk_complex_template_exercises AS 
 
 
 --
--- Name: lfk_complex_templates rev10_context_gate_94; Type: POLICY; Schema: public; Owner: -
+-- Name: lfk_complex_exercises rev10_context_gate_94; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_94 ON public.lfk_complex_templates AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_94 ON public.lfk_complex_exercises AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -14705,10 +15527,10 @@ CREATE POLICY rev10_context_gate_94 ON public.lfk_complex_templates AS RESTRICTI
 
 
 --
--- Name: lfk_complexes rev10_context_gate_95; Type: POLICY; Schema: public; Owner: -
+-- Name: lfk_complex_template_exercises rev10_context_gate_95; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_95 ON public.lfk_complexes AS RESTRICTIVE TO app_patient, app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_95 ON public.lfk_complex_template_exercises AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -14730,10 +15552,10 @@ CREATE POLICY rev10_context_gate_95 ON public.lfk_complexes AS RESTRICTIVE TO ap
 
 
 --
--- Name: lfk_exercise_media rev10_context_gate_96; Type: POLICY; Schema: public; Owner: -
+-- Name: lfk_complex_templates rev10_context_gate_96; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_96 ON public.lfk_exercise_media AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_96 ON public.lfk_complex_templates AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -14755,10 +15577,10 @@ CREATE POLICY rev10_context_gate_96 ON public.lfk_exercise_media AS RESTRICTIVE 
 
 
 --
--- Name: lfk_exercise_regions rev10_context_gate_97; Type: POLICY; Schema: public; Owner: -
+-- Name: lfk_complexes rev10_context_gate_97; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_97 ON public.lfk_exercise_regions AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_97 ON public.lfk_complexes AS RESTRICTIVE TO app_patient, app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -14780,10 +15602,10 @@ CREATE POLICY rev10_context_gate_97 ON public.lfk_exercise_regions AS RESTRICTIV
 
 
 --
--- Name: lfk_exercises rev10_context_gate_98; Type: POLICY; Schema: public; Owner: -
+-- Name: lfk_exercise_load_types rev10_context_gate_98; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_98 ON public.lfk_exercises AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_98 ON public.lfk_exercise_load_types AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -14805,10 +15627,10 @@ CREATE POLICY rev10_context_gate_98 ON public.lfk_exercises AS RESTRICTIVE TO ap
 
 
 --
--- Name: lfk_sessions rev10_context_gate_99; Type: POLICY; Schema: public; Owner: -
+-- Name: lfk_exercise_media rev10_context_gate_99; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_context_gate_99 ON public.lfk_sessions AS RESTRICTIVE TO app_staff, app_tenant_service USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
+CREATE POLICY rev10_context_gate_99 ON public.lfk_exercise_media AS RESTRICTIVE TO app_staff USING (( SELECT app.require_accepted_context(CURRENT_USER, CURRENT_USER,
         CASE
             WHEN (CURRENT_USER = 'app_pre_session'::name) THEN 'pre_session'::app.port_context_class
             WHEN (CURRENT_USER = 'app_patient'::name) THEN 'patient'::app.port_context_class
@@ -14853,87 +15675,87 @@ CREATE POLICY rev10_courses_staff_write_83 ON public.courses TO app_staff USING 
 
 
 --
--- Name: manual_patient_commands rev10_direct_business_101; Type: POLICY; Schema: public; Owner: -
+-- Name: manual_patient_commands rev10_direct_business_104; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_direct_business_101 ON public.manual_patient_commands TO app_staff USING (((CURRENT_USER = 'app_staff'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) WITH CHECK (((CURRENT_USER = 'app_staff'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id))));
-
-
---
--- Name: media_playback_stats_hourly rev10_direct_business_108; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_direct_business_108 ON public.media_playback_stats_hourly TO app_operational_maintenance USING ((CURRENT_USER = 'app_operational_maintenance'::name)) WITH CHECK ((CURRENT_USER = 'app_operational_maintenance'::name));
+CREATE POLICY rev10_direct_business_104 ON public.manual_patient_commands TO app_staff USING (((CURRENT_USER = 'app_staff'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) WITH CHECK (((CURRENT_USER = 'app_staff'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id))));
 
 
 --
--- Name: operator_incidents rev10_direct_business_121; Type: POLICY; Schema: public; Owner: -
+-- Name: media_playback_stats_hourly rev10_direct_business_112; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_direct_business_121 ON public.operator_incidents TO app_worker USING ((CURRENT_USER = 'app_worker'::name)) WITH CHECK ((CURRENT_USER = 'app_worker'::name));
-
-
---
--- Name: operator_job_status rev10_direct_business_122; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_direct_business_122 ON public.operator_job_status TO app_worker USING ((CURRENT_USER = 'app_worker'::name)) WITH CHECK ((CURRENT_USER = 'app_worker'::name));
+CREATE POLICY rev10_direct_business_112 ON public.media_playback_stats_hourly TO app_operational_maintenance USING ((CURRENT_USER = 'app_operational_maintenance'::name)) WITH CHECK ((CURRENT_USER = 'app_operational_maintenance'::name));
 
 
 --
--- Name: organization_slug_claims rev10_direct_business_126; Type: POLICY; Schema: public; Owner: -
+-- Name: operator_incidents rev10_direct_business_125; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_direct_business_126 ON public.organization_slug_claims TO app_staff USING (((CURRENT_USER = 'app_staff'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) WITH CHECK (((CURRENT_USER = 'app_staff'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id))));
-
-
---
--- Name: organization_slug_rename_events rev10_direct_business_127; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_direct_business_127 ON public.organization_slug_rename_events TO app_staff USING (((CURRENT_USER = 'app_staff'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) WITH CHECK (((CURRENT_USER = 'app_staff'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id))));
+CREATE POLICY rev10_direct_business_125 ON public.operator_incidents TO app_worker USING ((CURRENT_USER = 'app_worker'::name)) WITH CHECK ((CURRENT_USER = 'app_worker'::name));
 
 
 --
--- Name: outgoing_delivery_queue rev10_direct_business_128; Type: POLICY; Schema: public; Owner: -
+-- Name: operator_job_status rev10_direct_business_126; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_direct_business_128 ON public.outgoing_delivery_queue TO app_operational_delivery_worker USING ((CURRENT_USER = 'app_operational_delivery_worker'::name)) WITH CHECK ((CURRENT_USER = 'app_operational_delivery_worker'::name));
-
-
---
--- Name: patient_bookings rev10_direct_business_131; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_direct_business_131 ON public.patient_bookings TO app_staff USING (((CURRENT_USER = 'app_staff'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) WITH CHECK (((CURRENT_USER = 'app_staff'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id))));
+CREATE POLICY rev10_direct_business_126 ON public.operator_job_status TO app_worker USING ((CURRENT_USER = 'app_worker'::name)) WITH CHECK ((CURRENT_USER = 'app_worker'::name));
 
 
 --
--- Name: product_analytics_hourly rev10_direct_business_152; Type: POLICY; Schema: public; Owner: -
+-- Name: organization_slug_claims rev10_direct_business_130; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_direct_business_152 ON public.product_analytics_hourly TO app_operational_maintenance, app_staff USING ((((CURRENT_USER = 'app_operational_maintenance'::name) OR (CURRENT_USER = 'app_staff'::name)) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) WITH CHECK ((((CURRENT_USER = 'app_operational_maintenance'::name) OR (CURRENT_USER = 'app_staff'::name)) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id))));
-
-
---
--- Name: reference_categories rev10_direct_business_162; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_direct_business_162 ON public.reference_categories TO app_patient, app_staff USING (((CURRENT_USER = ANY (ARRAY['app_staff'::name, 'app_patient'::name])) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) WITH CHECK (((CURRENT_USER = ANY (ARRAY['app_staff'::name, 'app_patient'::name])) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id))));
+CREATE POLICY rev10_direct_business_130 ON public.organization_slug_claims TO app_staff USING (((CURRENT_USER = 'app_staff'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) WITH CHECK (((CURRENT_USER = 'app_staff'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id))));
 
 
 --
--- Name: reference_items rev10_direct_business_163; Type: POLICY; Schema: public; Owner: -
+-- Name: organization_slug_rename_events rev10_direct_business_131; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_direct_business_163 ON public.reference_items TO app_patient, app_staff USING (((CURRENT_USER = ANY (ARRAY['app_staff'::name, 'app_patient'::name])) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) WITH CHECK (((CURRENT_USER = ANY (ARRAY['app_staff'::name, 'app_patient'::name])) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id))));
+CREATE POLICY rev10_direct_business_131 ON public.organization_slug_rename_events TO app_staff USING (((CURRENT_USER = 'app_staff'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) WITH CHECK (((CURRENT_USER = 'app_staff'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id))));
 
 
 --
--- Name: reminder_occurrence_history rev10_direct_business_164; Type: POLICY; Schema: public; Owner: -
+-- Name: outgoing_delivery_queue rev10_direct_business_133; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_direct_business_164 ON public.reminder_occurrence_history TO app_integrator_request, app_patient, app_staff USING (
+CREATE POLICY rev10_direct_business_133 ON public.outgoing_delivery_queue TO app_operational_delivery_worker USING ((CURRENT_USER = 'app_operational_delivery_worker'::name)) WITH CHECK ((CURRENT_USER = 'app_operational_delivery_worker'::name));
+
+
+--
+-- Name: patient_bookings rev10_direct_business_136; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_direct_business_136 ON public.patient_bookings TO app_staff USING (((CURRENT_USER = 'app_staff'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) WITH CHECK (((CURRENT_USER = 'app_staff'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id))));
+
+
+--
+-- Name: product_analytics_hourly rev10_direct_business_157; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_direct_business_157 ON public.product_analytics_hourly TO app_operational_maintenance, app_staff USING ((((CURRENT_USER = 'app_operational_maintenance'::name) OR (CURRENT_USER = 'app_staff'::name)) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) WITH CHECK ((((CURRENT_USER = 'app_operational_maintenance'::name) OR (CURRENT_USER = 'app_staff'::name)) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id))));
+
+
+--
+-- Name: reference_categories rev10_direct_business_167; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_direct_business_167 ON public.reference_categories TO app_patient, app_staff USING (((CURRENT_USER = ANY (ARRAY['app_staff'::name, 'app_patient'::name])) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) WITH CHECK (((CURRENT_USER = ANY (ARRAY['app_staff'::name, 'app_patient'::name])) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id))));
+
+
+--
+-- Name: reference_items rev10_direct_business_168; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_direct_business_168 ON public.reference_items TO app_patient, app_staff USING (((CURRENT_USER = ANY (ARRAY['app_staff'::name, 'app_patient'::name])) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) WITH CHECK (((CURRENT_USER = ANY (ARRAY['app_staff'::name, 'app_patient'::name])) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id))));
+
+
+--
+-- Name: reminder_occurrence_history rev10_direct_business_169; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_direct_business_169 ON public.reminder_occurrence_history TO app_integrator_request, app_patient, app_staff USING (
 CASE
     WHEN (CURRENT_USER = 'app_staff'::name) THEN (organization_id = ( SELECT app.current_org_id() AS current_org_id))
     WHEN (CURRENT_USER = 'app_patient'::name) THEN (platform_user_id = app.current_patient_user_id())
@@ -14947,10 +15769,10 @@ END);
 
 
 --
--- Name: saas_billing_accounts rev10_direct_business_166; Type: POLICY; Schema: public; Owner: -
+-- Name: saas_billing_accounts rev10_direct_business_171; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_direct_business_166 ON public.saas_billing_accounts TO app_clinic_billing, app_platform_settings USING (
+CREATE POLICY rev10_direct_business_171 ON public.saas_billing_accounts TO app_clinic_billing, app_platform_settings USING (
 CASE
     WHEN (CURRENT_USER = 'app_platform_settings'::name) THEN true
     WHEN (CURRENT_USER = 'app_clinic_billing'::name) THEN (organization_id = ( SELECT app.current_org_id() AS current_org_id))
@@ -14964,10 +15786,10 @@ END);
 
 
 --
--- Name: saas_billing_invoices rev10_direct_business_167; Type: POLICY; Schema: public; Owner: -
+-- Name: saas_billing_invoices rev10_direct_business_172; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_direct_business_167 ON public.saas_billing_invoices TO app_clinic_billing, app_platform_settings, app_worker USING (
+CREATE POLICY rev10_direct_business_172 ON public.saas_billing_invoices TO app_clinic_billing, app_platform_settings, app_worker USING (
 CASE
     WHEN (CURRENT_USER = 'app_platform_settings'::name) THEN true
     WHEN (CURRENT_USER = ANY (ARRAY['app_clinic_billing'::name, 'app_worker'::name])) THEN (organization_id = ( SELECT app.current_org_id() AS current_org_id))
@@ -14981,17 +15803,38 @@ END);
 
 
 --
--- Name: saas_billing_periods rev10_direct_business_168; Type: POLICY; Schema: public; Owner: -
+-- Name: saas_billing_periods rev10_direct_business_173; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_direct_business_168 ON public.saas_billing_periods TO app_platform_settings, app_staff USING (((CURRENT_USER = 'app_platform_settings'::name) OR (CURRENT_USER = 'app_staff'::name))) WITH CHECK (((CURRENT_USER = 'app_platform_settings'::name) OR (CURRENT_USER = 'app_staff'::name)));
+CREATE POLICY rev10_direct_business_173 ON public.saas_billing_periods TO app_platform_settings, app_staff USING (((CURRENT_USER = 'app_platform_settings'::name) OR (CURRENT_USER = 'app_staff'::name))) WITH CHECK (((CURRENT_USER = 'app_platform_settings'::name) OR (CURRENT_USER = 'app_staff'::name)));
 
 
 --
--- Name: saas_billing_provider_events rev10_direct_business_169; Type: POLICY; Schema: public; Owner: -
+-- Name: saas_tariff_period_prices rev10_direct_business_174; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_direct_business_169 ON public.saas_billing_provider_events TO app_clinic_billing, app_platform_settings, app_worker USING (
+CREATE POLICY rev10_direct_business_174 ON public.saas_tariff_period_prices TO app_clinic_billing, app_platform_settings, app_staff USING (((CURRENT_USER = 'app_clinic_billing'::name) OR (CURRENT_USER = 'app_platform_settings'::name) OR (CURRENT_USER = 'app_staff'::name))) WITH CHECK (((CURRENT_USER = 'app_clinic_billing'::name) OR (CURRENT_USER = 'app_platform_settings'::name) OR (CURRENT_USER = 'app_staff'::name)));
+
+
+--
+-- Name: saas_storage_packages rev10_direct_business_175; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_direct_business_175 ON public.saas_storage_packages TO app_clinic_billing, app_platform_settings, app_staff USING (((CURRENT_USER = 'app_clinic_billing'::name) OR (CURRENT_USER = 'app_platform_settings'::name) OR (CURRENT_USER = 'app_staff'::name))) WITH CHECK (((CURRENT_USER = 'app_clinic_billing'::name) OR (CURRENT_USER = 'app_platform_settings'::name) OR (CURRENT_USER = 'app_staff'::name)));
+
+
+--
+-- Name: saas_storage_package_period_prices rev10_direct_business_176; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_direct_business_176 ON public.saas_storage_package_period_prices TO app_clinic_billing, app_platform_settings, app_staff USING (((CURRENT_USER = 'app_clinic_billing'::name) OR (CURRENT_USER = 'app_platform_settings'::name) OR (CURRENT_USER = 'app_staff'::name))) WITH CHECK (((CURRENT_USER = 'app_clinic_billing'::name) OR (CURRENT_USER = 'app_platform_settings'::name) OR (CURRENT_USER = 'app_staff'::name)));
+
+
+--
+-- Name: saas_billing_provider_events rev10_direct_business_177; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_direct_business_177 ON public.saas_billing_provider_events TO app_clinic_billing, app_platform_settings, app_worker USING (
 CASE
     WHEN (CURRENT_USER = 'app_platform_settings'::name) THEN true
     WHEN (CURRENT_USER = ANY (ARRAY['app_clinic_billing'::name, 'app_worker'::name])) THEN (organization_id = ( SELECT app.current_org_id() AS current_org_id))
@@ -15005,10 +15848,10 @@ END);
 
 
 --
--- Name: saas_billing_refunds rev10_direct_business_170; Type: POLICY; Schema: public; Owner: -
+-- Name: saas_billing_refunds rev10_direct_business_178; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_direct_business_170 ON public.saas_billing_refunds TO app_platform_settings, app_worker USING (
+CREATE POLICY rev10_direct_business_178 ON public.saas_billing_refunds TO app_platform_settings, app_worker USING (
 CASE
     WHEN (CURRENT_USER = 'app_platform_settings'::name) THEN true
     WHEN (CURRENT_USER = 'app_worker'::name) THEN (organization_id = ( SELECT app.current_org_id() AS current_org_id))
@@ -15022,10 +15865,10 @@ END);
 
 
 --
--- Name: saas_billing_subscriptions rev10_direct_business_171; Type: POLICY; Schema: public; Owner: -
+-- Name: saas_billing_subscriptions rev10_direct_business_179; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_direct_business_171 ON public.saas_billing_subscriptions TO app_clinic_billing, app_platform_settings, app_staff, app_worker USING (
+CREATE POLICY rev10_direct_business_179 ON public.saas_billing_subscriptions TO app_clinic_billing, app_platform_settings, app_staff, app_worker USING (
 CASE
     WHEN (CURRENT_USER = 'app_platform_settings'::name) THEN true
     WHEN (CURRENT_USER = ANY (ARRAY['app_clinic_billing'::name, 'app_staff'::name, 'app_worker'::name])) THEN (organization_id = ( SELECT app.current_org_id() AS current_org_id))
@@ -15039,10 +15882,10 @@ END);
 
 
 --
--- Name: saas_org_entitlement_overrides rev10_direct_business_175; Type: POLICY; Schema: public; Owner: -
+-- Name: saas_org_entitlement_overrides rev10_direct_business_183; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_direct_business_175 ON public.saas_org_entitlement_overrides TO app_clinic_billing, app_platform_settings, app_staff USING (
+CREATE POLICY rev10_direct_business_183 ON public.saas_org_entitlement_overrides TO app_clinic_billing, app_platform_settings, app_staff USING (
 CASE
     WHEN (CURRENT_USER = 'app_platform_settings'::name) THEN true
     WHEN (CURRENT_USER = ANY (ARRAY['app_clinic_billing'::name, 'app_staff'::name])) THEN (organization_id = ( SELECT app.current_org_id() AS current_org_id))
@@ -15056,10 +15899,10 @@ END);
 
 
 --
--- Name: saas_organization_trials rev10_direct_business_176; Type: POLICY; Schema: public; Owner: -
+-- Name: saas_organization_trials rev10_direct_business_184; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_direct_business_176 ON public.saas_organization_trials TO app_clinic_billing, app_platform_settings, app_staff USING (
+CREATE POLICY rev10_direct_business_184 ON public.saas_organization_trials TO app_clinic_billing, app_platform_settings, app_staff USING (
 CASE
     WHEN (CURRENT_USER = 'app_platform_settings'::name) THEN true
     WHEN (CURRENT_USER = ANY (ARRAY['app_clinic_billing'::name, 'app_staff'::name])) THEN (organization_id = ( SELECT app.current_org_id() AS current_org_id))
@@ -15073,38 +15916,38 @@ END);
 
 
 --
--- Name: saas_paid_period_policy rev10_direct_business_177; Type: POLICY; Schema: public; Owner: -
+-- Name: saas_paid_period_policy rev10_direct_business_185; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_direct_business_177 ON public.saas_paid_period_policy TO app_clinic_billing, app_platform_settings, app_staff USING (((CURRENT_USER = 'app_clinic_billing'::name) OR (CURRENT_USER = 'app_platform_settings'::name) OR (CURRENT_USER = 'app_staff'::name))) WITH CHECK (((CURRENT_USER = 'app_clinic_billing'::name) OR (CURRENT_USER = 'app_platform_settings'::name) OR (CURRENT_USER = 'app_staff'::name)));
-
-
---
--- Name: saas_registration_tariff_policy rev10_direct_business_178; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_direct_business_178 ON public.saas_registration_tariff_policy TO app_platform_settings USING ((CURRENT_USER = 'app_platform_settings'::name)) WITH CHECK ((CURRENT_USER = 'app_platform_settings'::name));
+CREATE POLICY rev10_direct_business_185 ON public.saas_paid_period_policy TO app_clinic_billing, app_platform_settings, app_staff USING (((CURRENT_USER = 'app_clinic_billing'::name) OR (CURRENT_USER = 'app_platform_settings'::name) OR (CURRENT_USER = 'app_staff'::name))) WITH CHECK (((CURRENT_USER = 'app_clinic_billing'::name) OR (CURRENT_USER = 'app_platform_settings'::name) OR (CURRENT_USER = 'app_staff'::name)));
 
 
 --
--- Name: saas_tariffs rev10_direct_business_179; Type: POLICY; Schema: public; Owner: -
+-- Name: saas_registration_tariff_policy rev10_direct_business_186; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_direct_business_179 ON public.saas_tariffs TO app_clinic_billing, app_platform_settings, app_worker USING (((CURRENT_USER = 'app_clinic_billing'::name) OR (CURRENT_USER = 'app_platform_settings'::name) OR (CURRENT_USER = 'app_worker'::name))) WITH CHECK (((CURRENT_USER = 'app_clinic_billing'::name) OR (CURRENT_USER = 'app_platform_settings'::name) OR (CURRENT_USER = 'app_worker'::name)));
-
-
---
--- Name: saas_trial_policy rev10_direct_business_180; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_direct_business_180 ON public.saas_trial_policy TO app_platform_settings USING ((CURRENT_USER = 'app_platform_settings'::name)) WITH CHECK ((CURRENT_USER = 'app_platform_settings'::name));
+CREATE POLICY rev10_direct_business_186 ON public.saas_registration_tariff_policy TO app_platform_settings USING ((CURRENT_USER = 'app_platform_settings'::name)) WITH CHECK ((CURRENT_USER = 'app_platform_settings'::name));
 
 
 --
--- Name: support_conversations rev10_direct_business_186; Type: POLICY; Schema: public; Owner: -
+-- Name: saas_tariffs rev10_direct_business_187; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_direct_business_186 ON public.support_conversations TO app_patient, app_staff USING (
+CREATE POLICY rev10_direct_business_187 ON public.saas_tariffs TO app_clinic_billing, app_platform_settings, app_worker USING (((CURRENT_USER = 'app_clinic_billing'::name) OR (CURRENT_USER = 'app_platform_settings'::name) OR (CURRENT_USER = 'app_worker'::name))) WITH CHECK (((CURRENT_USER = 'app_clinic_billing'::name) OR (CURRENT_USER = 'app_platform_settings'::name) OR (CURRENT_USER = 'app_worker'::name)));
+
+
+--
+-- Name: saas_trial_policy rev10_direct_business_188; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_direct_business_188 ON public.saas_trial_policy TO app_platform_settings USING ((CURRENT_USER = 'app_platform_settings'::name)) WITH CHECK ((CURRENT_USER = 'app_platform_settings'::name));
+
+
+--
+-- Name: support_conversations rev10_direct_business_194; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_direct_business_194 ON public.support_conversations TO app_patient, app_staff USING (
 CASE
     WHEN (CURRENT_USER = 'app_staff'::name) THEN (organization_id = ( SELECT app.current_org_id() AS current_org_id))
     WHEN (CURRENT_USER = 'app_patient'::name) THEN ((platform_user_id = app.current_patient_user_id()) AND ((organization_id IS NULL) OR (organization_id = ( SELECT app.current_org_id() AS current_org_id))))
@@ -15233,94 +16076,94 @@ END);
 
 
 --
--- Name: login_tokens rev10_fail_closed_100; Type: POLICY; Schema: public; Owner: -
+-- Name: login_tokens rev10_fail_closed_103; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_fail_closed_100 ON public.login_tokens TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
-
-
---
--- Name: media_hls_proxy_error_events rev10_fail_closed_105; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_fail_closed_105 ON public.media_hls_proxy_error_events TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+CREATE POLICY rev10_fail_closed_103 ON public.login_tokens TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
 
 
 --
--- Name: media_transcode_jobs rev10_fail_closed_110; Type: POLICY; Schema: public; Owner: -
+-- Name: media_hls_proxy_error_events rev10_fail_closed_108; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_fail_closed_110 ON public.media_transcode_jobs TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
-
-
---
--- Name: online_intake_answers rev10_fail_closed_115; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_fail_closed_115 ON public.online_intake_answers TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+CREATE POLICY rev10_fail_closed_108 ON public.media_hls_proxy_error_events TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
 
 
 --
--- Name: online_intake_status_history rev10_fail_closed_118; Type: POLICY; Schema: public; Owner: -
+-- Name: media_transcode_jobs rev10_fail_closed_114; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_fail_closed_118 ON public.online_intake_status_history TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
-
-
---
--- Name: operator_health_alert_sent rev10_fail_closed_119; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_fail_closed_119 ON public.operator_health_alert_sent TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+CREATE POLICY rev10_fail_closed_114 ON public.media_transcode_jobs TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
 
 
 --
--- Name: password_altcha_challenges rev10_fail_closed_129; Type: POLICY; Schema: public; Owner: -
+-- Name: online_intake_answers rev10_fail_closed_119; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_fail_closed_129 ON public.password_altcha_challenges TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
-
-
---
--- Name: password_login_identifier_protection rev10_fail_closed_130; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_fail_closed_130 ON public.password_login_identifier_protection TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+CREATE POLICY rev10_fail_closed_119 ON public.online_intake_answers TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
 
 
 --
--- Name: phone_challenges rev10_fail_closed_146; Type: POLICY; Schema: public; Owner: -
+-- Name: online_intake_status_history rev10_fail_closed_122; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_fail_closed_146 ON public.phone_challenges TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
-
-
---
--- Name: phone_messenger_bind_secrets rev10_fail_closed_147; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_fail_closed_147 ON public.phone_messenger_bind_secrets TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+CREATE POLICY rev10_fail_closed_122 ON public.online_intake_status_history TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
 
 
 --
--- Name: phone_otp_locks rev10_fail_closed_148; Type: POLICY; Schema: public; Owner: -
+-- Name: operator_health_alert_sent rev10_fail_closed_123; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_fail_closed_148 ON public.phone_otp_locks TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
-
-
---
--- Name: reference_catalog_baselines rev10_fail_closed_160; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_fail_closed_160 ON public.reference_catalog_baselines TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+CREATE POLICY rev10_fail_closed_123 ON public.operator_health_alert_sent TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
 
 
 --
--- Name: reference_catalog_snapshot_receipts rev10_fail_closed_161; Type: POLICY; Schema: public; Owner: -
+-- Name: password_altcha_challenges rev10_fail_closed_134; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_fail_closed_161 ON public.reference_catalog_snapshot_receipts TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+CREATE POLICY rev10_fail_closed_134 ON public.password_altcha_challenges TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+
+
+--
+-- Name: password_login_identifier_protection rev10_fail_closed_135; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_fail_closed_135 ON public.password_login_identifier_protection TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+
+
+--
+-- Name: phone_challenges rev10_fail_closed_151; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_fail_closed_151 ON public.phone_challenges TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+
+
+--
+-- Name: phone_messenger_bind_secrets rev10_fail_closed_152; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_fail_closed_152 ON public.phone_messenger_bind_secrets TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+
+
+--
+-- Name: phone_otp_locks rev10_fail_closed_153; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_fail_closed_153 ON public.phone_otp_locks TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+
+
+--
+-- Name: reference_catalog_baselines rev10_fail_closed_165; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_fail_closed_165 ON public.reference_catalog_baselines TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+
+
+--
+-- Name: reference_catalog_snapshot_receipts rev10_fail_closed_166; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_fail_closed_166 ON public.reference_catalog_snapshot_receipts TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
 
 
 --
@@ -15331,157 +16174,157 @@ CREATE POLICY rev10_fail_closed_17 ON public.auth_rate_limit_events TO app_clini
 
 
 --
--- Name: saas_isolation_coverage_runs rev10_fail_closed_172; Type: POLICY; Schema: public; Owner: -
+-- Name: saas_isolation_coverage_runs rev10_fail_closed_180; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_fail_closed_172 ON public.saas_isolation_coverage_runs TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
-
-
---
--- Name: saas_isolation_event_hourly rev10_fail_closed_173; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_fail_closed_173 ON public.saas_isolation_event_hourly TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+CREATE POLICY rev10_fail_closed_180 ON public.saas_isolation_coverage_runs TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
 
 
 --
--- Name: saas_isolation_events rev10_fail_closed_174; Type: POLICY; Schema: public; Owner: -
+-- Name: saas_isolation_event_hourly rev10_fail_closed_181; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_fail_closed_174 ON public.saas_isolation_events TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
-
-
---
--- Name: specialist_signup_intents rev10_fail_closed_182; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_fail_closed_182 ON public.specialist_signup_intents TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+CREATE POLICY rev10_fail_closed_181 ON public.saas_isolation_event_hourly TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
 
 
 --
--- Name: staff_security_profiles rev10_fail_closed_184; Type: POLICY; Schema: public; Owner: -
+-- Name: saas_isolation_events rev10_fail_closed_182; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_fail_closed_184 ON public.staff_security_profiles TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
-
-
---
--- Name: user_oauth_bindings rev10_fail_closed_213; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_fail_closed_213 ON public.user_oauth_bindings TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+CREATE POLICY rev10_fail_closed_182 ON public.saas_isolation_events TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
 
 
 --
--- Name: user_passkey_accounts rev10_fail_closed_214; Type: POLICY; Schema: public; Owner: -
+-- Name: specialist_signup_intents rev10_fail_closed_190; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_fail_closed_214 ON public.user_passkey_accounts TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
-
-
---
--- Name: user_passkey_challenges rev10_fail_closed_215; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_fail_closed_215 ON public.user_passkey_challenges TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+CREATE POLICY rev10_fail_closed_190 ON public.specialist_signup_intents TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
 
 
 --
--- Name: user_passkey_credentials rev10_fail_closed_216; Type: POLICY; Schema: public; Owner: -
+-- Name: staff_security_profiles rev10_fail_closed_192; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_fail_closed_216 ON public.user_passkey_credentials TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
-
-
---
--- Name: user_password_credentials rev10_fail_closed_217; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_fail_closed_217 ON public.user_password_credentials TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+CREATE POLICY rev10_fail_closed_192 ON public.staff_security_profiles TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
 
 
 --
--- Name: booking_calendar_map rev10_fail_closed_58; Type: POLICY; Schema: public; Owner: -
+-- Name: user_oauth_bindings rev10_fail_closed_221; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_fail_closed_58 ON public.booking_calendar_map TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
-
-
---
--- Name: booking_cities rev10_fail_closed_59; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_fail_closed_59 ON public.booking_cities TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+CREATE POLICY rev10_fail_closed_221 ON public.user_oauth_bindings TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
 
 
 --
--- Name: channel_link_secrets rev10_fail_closed_63; Type: POLICY; Schema: public; Owner: -
+-- Name: user_passkey_accounts rev10_fail_closed_222; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_fail_closed_63 ON public.channel_link_secrets TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
-
-
---
--- Name: clinic_dedicated_bot_bindings rev10_fail_closed_64; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_fail_closed_64 ON public.clinic_dedicated_bot_bindings TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+CREATE POLICY rev10_fail_closed_222 ON public.user_passkey_accounts TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
 
 
 --
--- Name: email_challenges rev10_fail_closed_86; Type: POLICY; Schema: public; Owner: -
+-- Name: user_passkey_challenges rev10_fail_closed_223; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_fail_closed_86 ON public.email_challenges TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
-
-
---
--- Name: email_otp_locks rev10_fail_closed_87; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_fail_closed_87 ON public.email_otp_locks TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+CREATE POLICY rev10_fail_closed_223 ON public.user_passkey_challenges TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
 
 
 --
--- Name: email_send_cooldowns rev10_fail_closed_88; Type: POLICY; Schema: public; Owner: -
+-- Name: user_passkey_credentials rev10_fail_closed_224; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_fail_closed_88 ON public.email_send_cooldowns TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
-
-
---
--- Name: idempotency_keys rev10_fail_closed_89; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_fail_closed_89 ON public.idempotency_keys TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+CREATE POLICY rev10_fail_closed_224 ON public.user_passkey_credentials TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
 
 
 --
--- Name: integration_webhook_error_events rev10_fail_closed_90; Type: POLICY; Schema: public; Owner: -
+-- Name: user_password_credentials rev10_fail_closed_225; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_fail_closed_90 ON public.integration_webhook_error_events TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
-
-
---
--- Name: integration_webhook_last_status rev10_fail_closed_91; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_fail_closed_91 ON public.integration_webhook_last_status TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+CREATE POLICY rev10_fail_closed_225 ON public.user_password_credentials TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
 
 
 --
--- Name: material_ratings rev10_material_ratings_delete_102; Type: POLICY; Schema: public; Owner: -
+-- Name: booking_calendar_map rev10_fail_closed_57; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_material_ratings_delete_102 ON public.material_ratings FOR DELETE TO app_staff USING (((CURRENT_USER = 'app_staff'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id))));
+CREATE POLICY rev10_fail_closed_57 ON public.booking_calendar_map TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
 
 
 --
--- Name: material_ratings rev10_material_ratings_insert_102; Type: POLICY; Schema: public; Owner: -
+-- Name: booking_cities rev10_fail_closed_58; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_material_ratings_insert_102 ON public.material_ratings FOR INSERT TO app_patient, app_staff WITH CHECK (
+CREATE POLICY rev10_fail_closed_58 ON public.booking_cities TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+
+
+--
+-- Name: channel_link_secrets rev10_fail_closed_62; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_fail_closed_62 ON public.channel_link_secrets TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+
+
+--
+-- Name: clinic_dedicated_bot_bindings rev10_fail_closed_63; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_fail_closed_63 ON public.clinic_dedicated_bot_bindings TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+
+
+--
+-- Name: email_challenges rev10_fail_closed_88; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_fail_closed_88 ON public.email_challenges TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+
+
+--
+-- Name: email_otp_locks rev10_fail_closed_89; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_fail_closed_89 ON public.email_otp_locks TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+
+
+--
+-- Name: email_send_cooldowns rev10_fail_closed_90; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_fail_closed_90 ON public.email_send_cooldowns TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+
+
+--
+-- Name: idempotency_keys rev10_fail_closed_91; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_fail_closed_91 ON public.idempotency_keys TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+
+
+--
+-- Name: integration_webhook_error_events rev10_fail_closed_92; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_fail_closed_92 ON public.integration_webhook_error_events TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+
+
+--
+-- Name: integration_webhook_last_status rev10_fail_closed_93; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_fail_closed_93 ON public.integration_webhook_last_status TO app_clinic_billing, app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_operational_delivery_worker, app_operational_maintenance, app_operational_media_worker, app_operational_scheduler, app_patient, app_platform_admin, app_platform_settings, app_pre_session, app_service, app_staff, app_tenant_service, app_worker, saas_telemetry_operator USING (false) WITH CHECK (false);
+
+
+--
+-- Name: material_ratings rev10_material_ratings_delete_105; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_material_ratings_delete_105 ON public.material_ratings FOR DELETE TO app_staff USING (((CURRENT_USER = 'app_staff'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id))));
+
+
+--
+-- Name: material_ratings rev10_material_ratings_insert_105; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_material_ratings_insert_105 ON public.material_ratings FOR INSERT TO app_patient, app_staff WITH CHECK (
 CASE
     WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id))) OR ((CURRENT_USER = 'app_patient'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (user_id = NULL::uuid)))
     WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id))) OR ((CURRENT_USER = 'app_patient'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (user_id = app.current_patient_user_id())))
@@ -15490,10 +16333,10 @@ END);
 
 
 --
--- Name: material_ratings rev10_material_ratings_select_102; Type: POLICY; Schema: public; Owner: -
+-- Name: material_ratings rev10_material_ratings_select_105; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_material_ratings_select_102 ON public.material_ratings FOR SELECT TO app_patient, app_staff USING (
+CREATE POLICY rev10_material_ratings_select_105 ON public.material_ratings FOR SELECT TO app_patient, app_staff USING (
 CASE
     WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id))) OR ((CURRENT_USER = 'app_patient'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (user_id = NULL::uuid)))
     WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id))) OR ((CURRENT_USER = 'app_patient'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (user_id = app.current_patient_user_id())))
@@ -15502,10 +16345,10 @@ END);
 
 
 --
--- Name: material_ratings rev10_material_ratings_update_102; Type: POLICY; Schema: public; Owner: -
+-- Name: material_ratings rev10_material_ratings_update_105; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_material_ratings_update_102 ON public.material_ratings FOR UPDATE TO app_patient, app_staff USING (
+CREATE POLICY rev10_material_ratings_update_105 ON public.material_ratings FOR UPDATE TO app_patient, app_staff USING (
 CASE
     WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id))) OR ((CURRENT_USER = 'app_patient'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (user_id = NULL::uuid)))
     WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id))) OR ((CURRENT_USER = 'app_patient'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (user_id = app.current_patient_user_id())))
@@ -15519,374 +16362,388 @@ END);
 
 
 --
--- Name: media_files rev10_media_files_patient_read_103; Type: POLICY; Schema: public; Owner: -
+-- Name: media_files rev10_media_files_patient_read_106; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_media_files_patient_read_103 ON public.media_files FOR SELECT TO app_patient USING (((CURRENT_USER = 'app_patient'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (owner_kind = 'organization'::text) AND ((usage_purpose IS DISTINCT FROM 'program_item_submission'::text) OR (uploaded_by = app.current_patient_user_id()))));
+CREATE POLICY rev10_media_files_patient_read_106 ON public.media_files FOR SELECT TO app_patient USING (((CURRENT_USER = 'app_patient'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (owner_kind = 'organization'::text) AND ((usage_purpose IS DISTINCT FROM 'program_item_submission'::text) OR (uploaded_by = app.current_patient_user_id()))));
 
 
 --
--- Name: media_files rev10_media_files_staff_103; Type: POLICY; Schema: public; Owner: -
+-- Name: media_files rev10_media_files_staff_106; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_media_files_staff_103 ON public.media_files TO app_staff USING (((CURRENT_USER = 'app_staff'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) WITH CHECK (((CURRENT_USER = 'app_staff'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id))));
+CREATE POLICY rev10_media_files_staff_106 ON public.media_files TO app_staff USING (((CURRENT_USER = 'app_staff'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) WITH CHECK (((CURRENT_USER = 'app_staff'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id))));
 
 
 --
--- Name: media_files rev10_media_files_staff_worker_columns_103; Type: POLICY; Schema: public; Owner: -
+-- Name: media_files rev10_media_files_staff_worker_columns_106; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_media_files_staff_worker_columns_103 ON public.media_files AS RESTRICTIVE FOR INSERT TO app_staff WITH CHECK (((CURRENT_USER <> 'app_staff'::name) OR ((owner_kind = 'organization'::text) AND (hls_master_playlist_s3_key IS NULL) AND (hls_artifact_prefix IS NULL) AND (poster_s3_key IS NULL) AND (video_duration_seconds IS NULL) AND (available_qualities_json IS NULL) AND (standard_rendition_at IS NULL))));
+CREATE POLICY rev10_media_files_staff_worker_columns_106 ON public.media_files AS RESTRICTIVE FOR INSERT TO app_staff WITH CHECK (((CURRENT_USER <> 'app_staff'::name) OR ((owner_kind = 'organization'::text) AND (hls_master_playlist_s3_key IS NULL) AND (hls_artifact_prefix IS NULL) AND (poster_s3_key IS NULL) AND (video_duration_seconds IS NULL) AND (available_qualities_json IS NULL) AND (standard_rendition_at IS NULL))));
 
 
 --
--- Name: media_files rev10_media_files_worker_103; Type: POLICY; Schema: public; Owner: -
+-- Name: media_files rev10_media_files_worker_106; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_media_files_worker_103 ON public.media_files TO app_operational_media_worker USING ((CURRENT_USER = 'app_operational_media_worker'::name)) WITH CHECK ((CURRENT_USER = 'app_operational_media_worker'::name));
+CREATE POLICY rev10_media_files_worker_106 ON public.media_files TO app_operational_media_worker USING ((CURRENT_USER = 'app_operational_media_worker'::name)) WITH CHECK ((CURRENT_USER = 'app_operational_media_worker'::name));
 
 
 --
--- Name: login_tokens rev10_named_root_owner_gate_100; Type: POLICY; Schema: public; Owner: -
+-- Name: media_playback_delivery_daily rev10_media_playback_delivery_daily_maintenance_110; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_100 ON public.login_tokens AS RESTRICTIVE TO app_seam_login_token_owner USING ((CURRENT_USER = 'app_seam_login_token_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_login_token_owner'::name));
+CREATE POLICY rev10_media_playback_delivery_daily_maintenance_110 ON public.media_playback_delivery_daily TO app_operational_maintenance USING ((CURRENT_USER = 'app_operational_maintenance'::name)) WITH CHECK ((CURRENT_USER = 'app_operational_maintenance'::name));
 
 
 --
--- Name: material_ratings rev10_named_root_owner_gate_102; Type: POLICY; Schema: public; Owner: -
+-- Name: lfk_exercises rev10_named_root_owner_gate_101; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_102 ON public.material_ratings AS RESTRICTIVE TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
+CREATE POLICY rev10_named_root_owner_gate_101 ON public.lfk_exercises AS RESTRICTIVE TO app_seam_patient_lfk_media_owner, app_seam_platform_analytics_owner USING (((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name)));
 
 
 --
--- Name: media_files rev10_named_root_owner_gate_103; Type: POLICY; Schema: public; Owner: -
+-- Name: lfk_sessions rev10_named_root_owner_gate_102; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_103 ON public.media_files AS RESTRICTIVE TO app_seam_patient_lfk_media_owner, app_seam_patient_self_actions_owner, app_seam_platform_analytics_owner, app_seam_public_clinic_card_owner, app_seam_telemetry_media_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_public_clinic_card_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_media_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_public_clinic_card_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_media_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
+CREATE POLICY rev10_named_root_owner_gate_102 ON public.lfk_sessions AS RESTRICTIVE TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
 
 
 --
--- Name: media_folders rev10_named_root_owner_gate_104; Type: POLICY; Schema: public; Owner: -
+-- Name: login_tokens rev10_named_root_owner_gate_103; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_104 ON public.media_folders AS RESTRICTIVE TO app_seam_patient_lfk_media_owner USING ((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name));
+CREATE POLICY rev10_named_root_owner_gate_103 ON public.login_tokens AS RESTRICTIVE TO app_seam_login_token_owner USING ((CURRENT_USER = 'app_seam_login_token_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_login_token_owner'::name));
 
 
 --
--- Name: media_hls_proxy_error_events rev10_named_root_owner_gate_105; Type: POLICY; Schema: public; Owner: -
+-- Name: material_ratings rev10_named_root_owner_gate_105; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_105 ON public.media_hls_proxy_error_events AS RESTRICTIVE TO app_seam_platform_analytics_owner, app_seam_retention_sweep_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
+CREATE POLICY rev10_named_root_owner_gate_105 ON public.material_ratings AS RESTRICTIVE TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
 
 
 --
--- Name: media_playback_client_events rev10_named_root_owner_gate_106; Type: POLICY; Schema: public; Owner: -
+-- Name: media_files rev10_named_root_owner_gate_106; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_106 ON public.media_playback_client_events AS RESTRICTIVE TO app_seam_patient_self_actions_owner, app_seam_platform_analytics_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
+CREATE POLICY rev10_named_root_owner_gate_106 ON public.media_files AS RESTRICTIVE TO app_seam_custom_domain_owner, app_seam_org_commerce_owner, app_seam_patient_lfk_media_owner, app_seam_patient_self_actions_owner, app_seam_platform_analytics_owner, app_seam_public_clinic_card_owner, app_seam_telemetry_media_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_custom_domain_owner'::name) OR (CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_public_clinic_card_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_media_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_custom_domain_owner'::name) OR (CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_public_clinic_card_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_media_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
 
 
 --
--- Name: media_playback_resolution_events rev10_named_root_owner_gate_107; Type: POLICY; Schema: public; Owner: -
+-- Name: media_folders rev10_named_root_owner_gate_107; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_107 ON public.media_playback_resolution_events AS RESTRICTIVE TO app_seam_platform_analytics_owner, app_seam_telemetry_media_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_media_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_media_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
+CREATE POLICY rev10_named_root_owner_gate_107 ON public.media_folders AS RESTRICTIVE TO app_seam_patient_lfk_media_owner USING ((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name));
 
 
 --
--- Name: media_playback_stats_hourly rev10_named_root_owner_gate_108; Type: POLICY; Schema: public; Owner: -
+-- Name: media_hls_proxy_error_events rev10_named_root_owner_gate_108; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_108 ON public.media_playback_stats_hourly AS RESTRICTIVE TO app_seam_telemetry_media_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_telemetry_media_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_telemetry_media_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
+CREATE POLICY rev10_named_root_owner_gate_108 ON public.media_hls_proxy_error_events AS RESTRICTIVE TO app_seam_platform_analytics_owner, app_seam_retention_sweep_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
 
 
 --
--- Name: media_playback_user_video_first_resolve rev10_named_root_owner_gate_109; Type: POLICY; Schema: public; Owner: -
+-- Name: media_playback_client_events rev10_named_root_owner_gate_109; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_109 ON public.media_playback_user_video_first_resolve AS RESTRICTIVE TO app_seam_patient_self_actions_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
+CREATE POLICY rev10_named_root_owner_gate_109 ON public.media_playback_client_events AS RESTRICTIVE TO app_seam_patient_self_actions_owner, app_seam_platform_analytics_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
 
 
 --
--- Name: media_transcode_jobs rev10_named_root_owner_gate_110; Type: POLICY; Schema: public; Owner: -
+-- Name: media_playback_resolution_events rev10_named_root_owner_gate_111; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_110 ON public.media_transcode_jobs AS RESTRICTIVE TO app_seam_patient_lfk_media_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
+CREATE POLICY rev10_named_root_owner_gate_111 ON public.media_playback_resolution_events AS RESTRICTIVE TO app_seam_platform_analytics_owner, app_seam_telemetry_media_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_media_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_media_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
 
 
 --
--- Name: media_upload_sessions rev10_named_root_owner_gate_111; Type: POLICY; Schema: public; Owner: -
+-- Name: media_playback_stats_hourly rev10_named_root_owner_gate_112; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_111 ON public.media_upload_sessions AS RESTRICTIVE TO app_seam_patient_lfk_media_owner USING ((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name));
+CREATE POLICY rev10_named_root_owner_gate_112 ON public.media_playback_stats_hourly AS RESTRICTIVE TO app_seam_telemetry_media_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_telemetry_media_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_telemetry_media_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
 
 
 --
--- Name: message_log rev10_named_root_owner_gate_112; Type: POLICY; Schema: public; Owner: -
+-- Name: media_playback_user_video_first_resolve rev10_named_root_owner_gate_113; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_112 ON public.message_log AS RESTRICTIVE TO app_seam_retention_sweep_owner USING ((CURRENT_USER = 'app_seam_retention_sweep_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_retention_sweep_owner'::name));
+CREATE POLICY rev10_named_root_owner_gate_113 ON public.media_playback_user_video_first_resolve AS RESTRICTIVE TO app_seam_patient_self_actions_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
 
 
 --
--- Name: notification_delivery_attempts rev10_named_root_owner_gate_114; Type: POLICY; Schema: public; Owner: -
+-- Name: media_transcode_jobs rev10_named_root_owner_gate_114; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_114 ON public.notification_delivery_attempts AS RESTRICTIVE TO app_seam_delivery_scope_owner, app_seam_retention_sweep_owner, app_seam_telemetry_operator_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
+CREATE POLICY rev10_named_root_owner_gate_114 ON public.media_transcode_jobs AS RESTRICTIVE TO app_seam_patient_lfk_media_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
 
 
 --
--- Name: operator_health_alert_sent rev10_named_root_owner_gate_119; Type: POLICY; Schema: public; Owner: -
+-- Name: media_upload_sessions rev10_named_root_owner_gate_115; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_119 ON public.operator_health_alert_sent AS RESTRICTIVE TO saas_system_health_owner USING ((CURRENT_USER = 'saas_system_health_owner'::name)) WITH CHECK ((CURRENT_USER = 'saas_system_health_owner'::name));
+CREATE POLICY rev10_named_root_owner_gate_115 ON public.media_upload_sessions AS RESTRICTIVE TO app_seam_patient_lfk_media_owner, app_seam_retention_sweep_owner USING (((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name)));
 
 
 --
--- Name: operator_health_failure_archive rev10_named_root_owner_gate_120; Type: POLICY; Schema: public; Owner: -
+-- Name: message_log rev10_named_root_owner_gate_116; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_120 ON public.operator_health_failure_archive AS RESTRICTIVE TO app_seam_telemetry_operator_owner USING ((CURRENT_USER = 'app_seam_telemetry_operator_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_telemetry_operator_owner'::name));
+CREATE POLICY rev10_named_root_owner_gate_116 ON public.message_log AS RESTRICTIVE TO app_seam_retention_sweep_owner USING ((CURRENT_USER = 'app_seam_retention_sweep_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_retention_sweep_owner'::name));
 
 
 --
--- Name: operator_incidents rev10_named_root_owner_gate_121; Type: POLICY; Schema: public; Owner: -
+-- Name: notification_delivery_attempts rev10_named_root_owner_gate_118; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_121 ON public.operator_incidents AS RESTRICTIVE TO app_seam_delivery_scope_owner, app_seam_telemetry_operator_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
+CREATE POLICY rev10_named_root_owner_gate_118 ON public.notification_delivery_attempts AS RESTRICTIVE TO app_seam_delivery_scope_owner, app_seam_retention_sweep_owner, app_seam_telemetry_operator_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
 
 
 --
--- Name: operator_job_status rev10_named_root_owner_gate_122; Type: POLICY; Schema: public; Owner: -
+-- Name: operator_health_alert_sent rev10_named_root_owner_gate_123; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_122 ON public.operator_job_status AS RESTRICTIVE TO app_seam_telemetry_operator_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
+CREATE POLICY rev10_named_root_owner_gate_123 ON public.operator_health_alert_sent AS RESTRICTIVE TO saas_system_health_owner USING ((CURRENT_USER = 'saas_system_health_owner'::name)) WITH CHECK ((CURRENT_USER = 'saas_system_health_owner'::name));
 
 
 --
--- Name: org_enrollments rev10_named_root_owner_gate_124; Type: POLICY; Schema: public; Owner: -
+-- Name: operator_health_failure_archive rev10_named_root_owner_gate_124; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_124 ON public.org_enrollments AS RESTRICTIVE TO app_seam_delivery_scope_owner, app_seam_identity_lookup_owner, app_seam_org_commerce_owner, app_seam_patient_booking_owner, app_seam_patient_invite_owner, app_seam_patient_lfk_media_owner, app_seam_patient_org_projection_owner, app_seam_patient_program_resolver_owner, app_seam_patient_self_actions_owner, app_seam_public_booking_owner, app_seam_reminder_materialization_owner, app_seam_reminder_patient_owner, app_seam_reminder_specialist_owner, app_seam_settings_runtime_owner, app_seam_telemetry_exclusion_owner, app_seam_telemetry_patient_owner USING (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_patient_invite_owner'::name) OR (CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_patient_org_projection_owner'::name) OR (CURRENT_USER = 'app_seam_patient_program_resolver_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_patient_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_settings_runtime_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_exclusion_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_patient_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_patient_invite_owner'::name) OR (CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_patient_org_projection_owner'::name) OR (CURRENT_USER = 'app_seam_patient_program_resolver_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_patient_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_settings_runtime_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_exclusion_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_patient_owner'::name)));
+CREATE POLICY rev10_named_root_owner_gate_124 ON public.operator_health_failure_archive AS RESTRICTIVE TO app_seam_telemetry_operator_owner USING ((CURRENT_USER = 'app_seam_telemetry_operator_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_telemetry_operator_owner'::name));
 
 
 --
--- Name: organization_member_invites rev10_named_root_owner_gate_125; Type: POLICY; Schema: public; Owner: -
+-- Name: operator_incidents rev10_named_root_owner_gate_125; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_125 ON public.organization_member_invites AS RESTRICTIVE TO app_seam_org_commerce_owner, app_seam_org_invite_owner USING (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_org_invite_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_org_invite_owner'::name)));
+CREATE POLICY rev10_named_root_owner_gate_125 ON public.operator_incidents AS RESTRICTIVE TO app_seam_delivery_scope_owner, app_seam_telemetry_operator_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
 
 
 --
--- Name: organization_slug_claims rev10_named_root_owner_gate_126; Type: POLICY; Schema: public; Owner: -
+-- Name: operator_job_status rev10_named_root_owner_gate_126; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_126 ON public.organization_slug_claims AS RESTRICTIVE TO app_seam_public_clinic_card_owner, app_seam_public_slug_owner, app_seam_specialist_provision_owner USING (((CURRENT_USER = 'app_seam_public_clinic_card_owner'::name) OR (CURRENT_USER = 'app_seam_public_slug_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_public_clinic_card_owner'::name) OR (CURRENT_USER = 'app_seam_public_slug_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name)));
+CREATE POLICY rev10_named_root_owner_gate_126 ON public.operator_job_status AS RESTRICTIVE TO app_seam_telemetry_operator_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
 
 
 --
--- Name: organization_slug_rename_events rev10_named_root_owner_gate_127; Type: POLICY; Schema: public; Owner: -
+-- Name: org_brand_revisions rev10_named_root_owner_gate_127; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_127 ON public.organization_slug_rename_events AS RESTRICTIVE TO app_seam_public_slug_owner USING ((CURRENT_USER = 'app_seam_public_slug_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_public_slug_owner'::name));
+CREATE POLICY rev10_named_root_owner_gate_127 ON public.org_brand_revisions AS RESTRICTIVE TO app_seam_custom_domain_owner, app_seam_public_clinic_card_owner, app_seam_settings_runtime_owner USING (((CURRENT_USER = 'app_seam_custom_domain_owner'::name) OR (CURRENT_USER = 'app_seam_public_clinic_card_owner'::name) OR (CURRENT_USER = 'app_seam_settings_runtime_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_custom_domain_owner'::name) OR (CURRENT_USER = 'app_seam_public_clinic_card_owner'::name) OR (CURRENT_USER = 'app_seam_settings_runtime_owner'::name)));
 
 
 --
--- Name: outgoing_delivery_queue rev10_named_root_owner_gate_128; Type: POLICY; Schema: public; Owner: -
+-- Name: org_enrollments rev10_named_root_owner_gate_128; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_128 ON public.outgoing_delivery_queue AS RESTRICTIVE TO app_seam_delivery_scope_owner, app_seam_email_otp_owner, app_seam_reminder_appointment_owner, app_seam_reminder_materialization_owner, app_seam_reminder_specialist_owner, app_seam_retention_sweep_owner, app_seam_telemetry_operator_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_email_otp_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_appointment_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_email_otp_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_appointment_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
+CREATE POLICY rev10_named_root_owner_gate_128 ON public.org_enrollments AS RESTRICTIVE TO app_seam_delivery_scope_owner, app_seam_identity_lookup_owner, app_seam_org_commerce_owner, app_seam_patient_booking_owner, app_seam_patient_invite_owner, app_seam_patient_lfk_media_owner, app_seam_patient_org_projection_owner, app_seam_patient_program_resolver_owner, app_seam_patient_self_actions_owner, app_seam_public_booking_owner, app_seam_reminder_materialization_owner, app_seam_reminder_patient_owner, app_seam_reminder_specialist_owner, app_seam_settings_runtime_owner, app_seam_telemetry_exclusion_owner, app_seam_telemetry_patient_owner USING (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_patient_invite_owner'::name) OR (CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_patient_org_projection_owner'::name) OR (CURRENT_USER = 'app_seam_patient_program_resolver_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_patient_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_settings_runtime_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_exclusion_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_patient_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_patient_invite_owner'::name) OR (CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_patient_org_projection_owner'::name) OR (CURRENT_USER = 'app_seam_patient_program_resolver_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_patient_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_settings_runtime_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_exclusion_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_patient_owner'::name)));
 
 
 --
--- Name: password_altcha_challenges rev10_named_root_owner_gate_129; Type: POLICY; Schema: public; Owner: -
+-- Name: organization_member_invites rev10_named_root_owner_gate_129; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_129 ON public.password_altcha_challenges AS RESTRICTIVE TO app_seam_password_auth_owner USING ((CURRENT_USER = 'app_seam_password_auth_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_password_auth_owner'::name));
+CREATE POLICY rev10_named_root_owner_gate_129 ON public.organization_member_invites AS RESTRICTIVE TO app_seam_org_commerce_owner, app_seam_org_invite_owner USING (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_org_invite_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_org_invite_owner'::name)));
 
 
 --
--- Name: password_login_identifier_protection rev10_named_root_owner_gate_130; Type: POLICY; Schema: public; Owner: -
+-- Name: organization_slug_claims rev10_named_root_owner_gate_130; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_130 ON public.password_login_identifier_protection AS RESTRICTIVE TO app_seam_password_auth_owner USING ((CURRENT_USER = 'app_seam_password_auth_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_password_auth_owner'::name));
+CREATE POLICY rev10_named_root_owner_gate_130 ON public.organization_slug_claims AS RESTRICTIVE TO app_seam_public_clinic_card_owner, app_seam_public_slug_owner, app_seam_specialist_provision_owner USING (((CURRENT_USER = 'app_seam_public_clinic_card_owner'::name) OR (CURRENT_USER = 'app_seam_public_slug_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_public_clinic_card_owner'::name) OR (CURRENT_USER = 'app_seam_public_slug_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name)));
 
 
 --
--- Name: patient_bookings rev10_named_root_owner_gate_131; Type: POLICY; Schema: public; Owner: -
+-- Name: organization_slug_rename_events rev10_named_root_owner_gate_131; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_131 ON public.patient_bookings AS RESTRICTIVE TO app_seam_patient_booking_owner USING ((CURRENT_USER = 'app_seam_patient_booking_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_booking_owner'::name));
+CREATE POLICY rev10_named_root_owner_gate_131 ON public.organization_slug_rename_events AS RESTRICTIVE TO app_seam_public_slug_owner USING ((CURRENT_USER = 'app_seam_public_slug_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_public_slug_owner'::name));
 
 
 --
--- Name: patient_content_rating_feedback rev10_named_root_owner_gate_133; Type: POLICY; Schema: public; Owner: -
+-- Name: org_custom_domain_bindings rev10_named_root_owner_gate_132; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_133 ON public.patient_content_rating_feedback AS RESTRICTIVE TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
+CREATE POLICY rev10_named_root_owner_gate_132 ON public.org_custom_domain_bindings AS RESTRICTIVE TO app_seam_custom_domain_owner, app_seam_settings_runtime_owner USING (((CURRENT_USER = 'app_seam_custom_domain_owner'::name) OR (CURRENT_USER = 'app_seam_settings_runtime_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_custom_domain_owner'::name) OR (CURRENT_USER = 'app_seam_settings_runtime_owner'::name)));
 
 
 --
--- Name: patient_daily_warmup_presentations rev10_named_root_owner_gate_134; Type: POLICY; Schema: public; Owner: -
+-- Name: outgoing_delivery_queue rev10_named_root_owner_gate_133; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_134 ON public.patient_daily_warmup_presentations AS RESTRICTIVE TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
+CREATE POLICY rev10_named_root_owner_gate_133 ON public.outgoing_delivery_queue AS RESTRICTIVE TO app_seam_delivery_scope_owner, app_seam_email_otp_owner, app_seam_reminder_appointment_owner, app_seam_reminder_materialization_owner, app_seam_reminder_specialist_owner, app_seam_retention_sweep_owner, app_seam_telemetry_operator_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_email_otp_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_appointment_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_email_otp_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_appointment_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
 
 
 --
--- Name: patient_daily_warmup_video_views rev10_named_root_owner_gate_135; Type: POLICY; Schema: public; Owner: -
+-- Name: password_altcha_challenges rev10_named_root_owner_gate_134; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_135 ON public.patient_daily_warmup_video_views AS RESTRICTIVE TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
+CREATE POLICY rev10_named_root_owner_gate_134 ON public.password_altcha_challenges AS RESTRICTIVE TO app_seam_password_auth_owner USING ((CURRENT_USER = 'app_seam_password_auth_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_password_auth_owner'::name));
 
 
 --
--- Name: patient_diary_day_snapshots rev10_named_root_owner_gate_136; Type: POLICY; Schema: public; Owner: -
+-- Name: password_login_identifier_protection rev10_named_root_owner_gate_135; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_136 ON public.patient_diary_day_snapshots AS RESTRICTIVE TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
+CREATE POLICY rev10_named_root_owner_gate_135 ON public.password_login_identifier_protection AS RESTRICTIVE TO app_seam_password_auth_owner USING ((CURRENT_USER = 'app_seam_password_auth_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_password_auth_owner'::name));
 
 
 --
--- Name: patient_files rev10_named_root_owner_gate_137; Type: POLICY; Schema: public; Owner: -
+-- Name: patient_bookings rev10_named_root_owner_gate_136; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_137 ON public.patient_files AS RESTRICTIVE TO app_seam_org_commerce_owner, app_seam_patient_lfk_media_owner USING (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name)));
+CREATE POLICY rev10_named_root_owner_gate_136 ON public.patient_bookings AS RESTRICTIVE TO app_seam_patient_booking_owner, app_seam_payment_webhook_owner USING (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_payment_webhook_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_payment_webhook_owner'::name)));
 
 
 --
--- Name: patient_home_block_items rev10_named_root_owner_gate_138; Type: POLICY; Schema: public; Owner: -
+-- Name: patient_content_rating_feedback rev10_named_root_owner_gate_138; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_138 ON public.patient_home_block_items AS RESTRICTIVE TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
+CREATE POLICY rev10_named_root_owner_gate_138 ON public.patient_content_rating_feedback AS RESTRICTIVE TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
 
 
 --
--- Name: patient_home_blocks rev10_named_root_owner_gate_139; Type: POLICY; Schema: public; Owner: -
+-- Name: patient_daily_warmup_presentations rev10_named_root_owner_gate_139; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_139 ON public.patient_home_blocks AS RESTRICTIVE TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
+CREATE POLICY rev10_named_root_owner_gate_139 ON public.patient_daily_warmup_presentations AS RESTRICTIVE TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
 
 
 --
--- Name: patient_invites rev10_named_root_owner_gate_140; Type: POLICY; Schema: public; Owner: -
+-- Name: patient_daily_warmup_video_views rev10_named_root_owner_gate_140; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_140 ON public.patient_invites AS RESTRICTIVE TO app_seam_patient_invite_owner USING ((CURRENT_USER = 'app_seam_patient_invite_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_invite_owner'::name));
+CREATE POLICY rev10_named_root_owner_gate_140 ON public.patient_daily_warmup_video_views AS RESTRICTIVE TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
 
 
 --
--- Name: patient_merge_candidates rev10_named_root_owner_gate_142; Type: POLICY; Schema: public; Owner: -
+-- Name: patient_diary_day_snapshots rev10_named_root_owner_gate_141; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_142 ON public.patient_merge_candidates AS RESTRICTIVE TO app_seam_patient_booking_owner, app_seam_patient_invite_owner USING (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_patient_invite_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_patient_invite_owner'::name)));
+CREATE POLICY rev10_named_root_owner_gate_141 ON public.patient_diary_day_snapshots AS RESTRICTIVE TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
 
 
 --
--- Name: patient_payment rev10_named_root_owner_gate_143; Type: POLICY; Schema: public; Owner: -
+-- Name: patient_files rev10_named_root_owner_gate_142; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_143 ON public.patient_payment AS RESTRICTIVE TO app_seam_payment_webhook_owner USING ((CURRENT_USER = 'app_seam_payment_webhook_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_payment_webhook_owner'::name));
+CREATE POLICY rev10_named_root_owner_gate_142 ON public.patient_files AS RESTRICTIVE TO app_seam_org_commerce_owner, app_seam_patient_lfk_media_owner USING (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name)));
 
 
 --
--- Name: patient_practice_completions rev10_named_root_owner_gate_144; Type: POLICY; Schema: public; Owner: -
+-- Name: patient_home_block_items rev10_named_root_owner_gate_143; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_144 ON public.patient_practice_completions AS RESTRICTIVE TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
+CREATE POLICY rev10_named_root_owner_gate_143 ON public.patient_home_block_items AS RESTRICTIVE TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
 
 
 --
--- Name: patient_specialist_links rev10_named_root_owner_gate_145; Type: POLICY; Schema: public; Owner: -
+-- Name: patient_home_blocks rev10_named_root_owner_gate_144; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_145 ON public.patient_specialist_links AS RESTRICTIVE TO app_seam_patient_booking_owner USING ((CURRENT_USER = 'app_seam_patient_booking_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_booking_owner'::name));
+CREATE POLICY rev10_named_root_owner_gate_144 ON public.patient_home_blocks AS RESTRICTIVE TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
 
 
 --
--- Name: phone_challenges rev10_named_root_owner_gate_146; Type: POLICY; Schema: public; Owner: -
+-- Name: patient_invites rev10_named_root_owner_gate_145; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_146 ON public.phone_challenges AS RESTRICTIVE TO app_seam_phone_otp_owner USING ((CURRENT_USER = 'app_seam_phone_otp_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_phone_otp_owner'::name));
+CREATE POLICY rev10_named_root_owner_gate_145 ON public.patient_invites AS RESTRICTIVE TO app_seam_patient_invite_owner USING ((CURRENT_USER = 'app_seam_patient_invite_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_invite_owner'::name));
 
 
 --
--- Name: phone_messenger_bind_secrets rev10_named_root_owner_gate_147; Type: POLICY; Schema: public; Owner: -
+-- Name: patient_merge_candidates rev10_named_root_owner_gate_147; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_147 ON public.phone_messenger_bind_secrets AS RESTRICTIVE TO app_seam_phone_binding_owner USING ((CURRENT_USER = 'app_seam_phone_binding_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_phone_binding_owner'::name));
+CREATE POLICY rev10_named_root_owner_gate_147 ON public.patient_merge_candidates AS RESTRICTIVE TO app_seam_patient_booking_owner, app_seam_patient_invite_owner USING (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_patient_invite_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_patient_invite_owner'::name)));
 
 
 --
--- Name: phone_otp_locks rev10_named_root_owner_gate_148; Type: POLICY; Schema: public; Owner: -
+-- Name: patient_payment rev10_named_root_owner_gate_148; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_148 ON public.phone_otp_locks AS RESTRICTIVE TO app_seam_phone_otp_owner USING ((CURRENT_USER = 'app_seam_phone_otp_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_phone_otp_owner'::name));
+CREATE POLICY rev10_named_root_owner_gate_148 ON public.patient_payment AS RESTRICTIVE TO app_seam_payment_webhook_owner USING ((CURRENT_USER = 'app_seam_payment_webhook_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_payment_webhook_owner'::name));
 
 
 --
--- Name: platform_user_contacts rev10_named_root_owner_gate_149; Type: POLICY; Schema: public; Owner: -
+-- Name: patient_practice_completions rev10_named_root_owner_gate_149; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_149 ON public.platform_user_contacts AS RESTRICTIVE TO app_seam_patient_booking_owner USING ((CURRENT_USER = 'app_seam_patient_booking_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_booking_owner'::name));
+CREATE POLICY rev10_named_root_owner_gate_149 ON public.patient_practice_completions AS RESTRICTIVE TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
 
 
 --
--- Name: platform_users rev10_named_root_owner_gate_150; Type: POLICY; Schema: public; Owner: -
+-- Name: patient_specialist_links rev10_named_root_owner_gate_150; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_150 ON public.platform_users AS RESTRICTIVE TO app_seam_delivery_scope_owner, app_seam_email_otp_owner, app_seam_identity_lookup_owner, app_seam_org_directory_owner, app_seam_org_invite_owner, app_seam_password_auth_owner, app_seam_patient_booking_owner, app_seam_patient_invite_owner, app_seam_patient_self_actions_owner, app_seam_phone_binding_owner, app_seam_platform_analytics_owner, app_seam_public_booking_owner, app_seam_reminder_appointment_owner, app_seam_reminder_materialization_owner, app_seam_reminder_patient_owner, app_seam_reminder_specialist_owner, app_seam_self_security_owner, app_seam_specialist_provision_owner, app_seam_telemetry_exclusion_owner, app_seam_telemetry_operator_owner USING (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_email_otp_owner'::name) OR (CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_org_directory_owner'::name) OR (CURRENT_USER = 'app_seam_org_invite_owner'::name) OR (CURRENT_USER = 'app_seam_password_auth_owner'::name) OR (CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_patient_invite_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_phone_binding_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_appointment_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_patient_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_self_security_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_exclusion_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_email_otp_owner'::name) OR (CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_org_directory_owner'::name) OR (CURRENT_USER = 'app_seam_org_invite_owner'::name) OR (CURRENT_USER = 'app_seam_password_auth_owner'::name) OR (CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_patient_invite_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_phone_binding_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_appointment_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_patient_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_self_security_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_exclusion_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name)));
+CREATE POLICY rev10_named_root_owner_gate_150 ON public.patient_specialist_links AS RESTRICTIVE TO app_seam_patient_booking_owner USING ((CURRENT_USER = 'app_seam_patient_booking_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_booking_owner'::name));
 
 
 --
--- Name: product_analytics_events_recent rev10_named_root_owner_gate_151; Type: POLICY; Schema: public; Owner: -
+-- Name: phone_challenges rev10_named_root_owner_gate_151; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_151 ON public.product_analytics_events_recent AS RESTRICTIVE TO app_seam_platform_analytics_owner, app_seam_retention_sweep_owner, app_seam_telemetry_exclusion_owner, app_seam_telemetry_patient_owner USING (((CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_exclusion_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_patient_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_exclusion_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_patient_owner'::name)));
+CREATE POLICY rev10_named_root_owner_gate_151 ON public.phone_challenges AS RESTRICTIVE TO app_seam_phone_otp_owner USING ((CURRENT_USER = 'app_seam_phone_otp_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_phone_otp_owner'::name));
 
 
 --
--- Name: product_analytics_hourly rev10_named_root_owner_gate_152; Type: POLICY; Schema: public; Owner: -
+-- Name: phone_messenger_bind_secrets rev10_named_root_owner_gate_152; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_152 ON public.product_analytics_hourly AS RESTRICTIVE TO app_seam_telemetry_patient_owner USING ((CURRENT_USER = 'app_seam_telemetry_patient_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_telemetry_patient_owner'::name));
+CREATE POLICY rev10_named_root_owner_gate_152 ON public.phone_messenger_bind_secrets AS RESTRICTIVE TO app_seam_phone_binding_owner USING ((CURRENT_USER = 'app_seam_phone_binding_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_phone_binding_owner'::name));
 
 
 --
--- Name: product_analytics_user_hourly rev10_named_root_owner_gate_153; Type: POLICY; Schema: public; Owner: -
+-- Name: phone_otp_locks rev10_named_root_owner_gate_153; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_153 ON public.product_analytics_user_hourly AS RESTRICTIVE TO app_seam_platform_analytics_owner, app_seam_retention_sweep_owner, app_seam_telemetry_patient_owner USING (((CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_patient_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_patient_owner'::name)));
+CREATE POLICY rev10_named_root_owner_gate_153 ON public.phone_otp_locks AS RESTRICTIVE TO app_seam_phone_otp_owner USING ((CURRENT_USER = 'app_seam_phone_otp_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_phone_otp_owner'::name));
 
 
 --
--- Name: product_push_notifications rev10_named_root_owner_gate_154; Type: POLICY; Schema: public; Owner: -
+-- Name: platform_user_contacts rev10_named_root_owner_gate_154; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_154 ON public.product_push_notifications AS RESTRICTIVE TO app_seam_platform_analytics_owner, app_seam_retention_sweep_owner, app_seam_telemetry_patient_owner USING (((CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_patient_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_patient_owner'::name)));
+CREATE POLICY rev10_named_root_owner_gate_154 ON public.platform_user_contacts AS RESTRICTIVE TO app_seam_patient_booking_owner USING ((CURRENT_USER = 'app_seam_patient_booking_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_booking_owner'::name));
 
 
 --
--- Name: program_action_log rev10_named_root_owner_gate_155; Type: POLICY; Schema: public; Owner: -
+-- Name: platform_users rev10_named_root_owner_gate_155; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_155 ON public.program_action_log AS RESTRICTIVE TO app_seam_patient_self_actions_owner, app_seam_platform_analytics_owner USING (((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name)));
+CREATE POLICY rev10_named_root_owner_gate_155 ON public.platform_users AS RESTRICTIVE TO app_seam_delivery_scope_owner, app_seam_email_otp_owner, app_seam_identity_lookup_owner, app_seam_org_directory_owner, app_seam_org_invite_owner, app_seam_password_auth_owner, app_seam_patient_booking_owner, app_seam_patient_invite_owner, app_seam_patient_self_actions_owner, app_seam_phone_binding_owner, app_seam_platform_analytics_owner, app_seam_public_booking_owner, app_seam_reminder_appointment_owner, app_seam_reminder_materialization_owner, app_seam_reminder_patient_owner, app_seam_reminder_specialist_owner, app_seam_self_security_owner, app_seam_specialist_provision_owner, app_seam_telemetry_exclusion_owner, app_seam_telemetry_operator_owner USING (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_email_otp_owner'::name) OR (CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_org_directory_owner'::name) OR (CURRENT_USER = 'app_seam_org_invite_owner'::name) OR (CURRENT_USER = 'app_seam_password_auth_owner'::name) OR (CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_patient_invite_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_phone_binding_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_appointment_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_patient_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_self_security_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_exclusion_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_email_otp_owner'::name) OR (CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_org_directory_owner'::name) OR (CURRENT_USER = 'app_seam_org_invite_owner'::name) OR (CURRENT_USER = 'app_seam_password_auth_owner'::name) OR (CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_patient_invite_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_phone_binding_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_appointment_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_patient_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_self_security_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_exclusion_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name)));
 
 
 --
--- Name: program_item_discussion_messages rev10_named_root_owner_gate_156; Type: POLICY; Schema: public; Owner: -
+-- Name: product_analytics_events_recent rev10_named_root_owner_gate_156; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_156 ON public.program_item_discussion_messages AS RESTRICTIVE TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
+CREATE POLICY rev10_named_root_owner_gate_156 ON public.product_analytics_events_recent AS RESTRICTIVE TO app_seam_platform_analytics_owner, app_seam_retention_sweep_owner, app_seam_telemetry_exclusion_owner, app_seam_telemetry_patient_owner USING (((CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_exclusion_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_patient_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_exclusion_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_patient_owner'::name)));
 
 
 --
--- Name: program_item_discussion_reads rev10_named_root_owner_gate_157; Type: POLICY; Schema: public; Owner: -
+-- Name: product_analytics_hourly rev10_named_root_owner_gate_157; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_157 ON public.program_item_discussion_reads AS RESTRICTIVE TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
+CREATE POLICY rev10_named_root_owner_gate_157 ON public.product_analytics_hourly AS RESTRICTIVE TO app_seam_telemetry_patient_owner USING ((CURRENT_USER = 'app_seam_telemetry_patient_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_telemetry_patient_owner'::name));
+
+
+--
+-- Name: product_analytics_user_hourly rev10_named_root_owner_gate_158; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_named_root_owner_gate_158 ON public.product_analytics_user_hourly AS RESTRICTIVE TO app_seam_platform_analytics_owner, app_seam_retention_sweep_owner, app_seam_telemetry_patient_owner USING (((CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_patient_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_patient_owner'::name)));
+
+
+--
+-- Name: product_push_notifications rev10_named_root_owner_gate_159; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_named_root_owner_gate_159 ON public.product_push_notifications AS RESTRICTIVE TO app_seam_platform_analytics_owner, app_seam_retention_sweep_owner, app_seam_telemetry_patient_owner USING (((CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_patient_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_patient_owner'::name)));
 
 
 --
@@ -15897,66 +16754,59 @@ CREATE POLICY rev10_named_root_owner_gate_16 ON public.admin_audit_log AS RESTRI
 
 
 --
--- Name: reference_catalog_baselines rev10_named_root_owner_gate_160; Type: POLICY; Schema: public; Owner: -
+-- Name: program_action_log rev10_named_root_owner_gate_160; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_160 ON public.reference_catalog_baselines AS RESTRICTIVE TO app_seam_catalog_public_owner, app_seam_specialist_provision_owner USING (((CURRENT_USER = 'app_seam_catalog_public_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_catalog_public_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name)));
-
-
---
--- Name: reference_catalog_snapshot_receipts rev10_named_root_owner_gate_161; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_named_root_owner_gate_161 ON public.reference_catalog_snapshot_receipts AS RESTRICTIVE TO app_seam_specialist_provision_owner USING ((CURRENT_USER = 'app_seam_specialist_provision_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_specialist_provision_owner'::name));
+CREATE POLICY rev10_named_root_owner_gate_160 ON public.program_action_log AS RESTRICTIVE TO app_seam_patient_self_actions_owner, app_seam_platform_analytics_owner USING (((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name)));
 
 
 --
--- Name: reference_categories rev10_named_root_owner_gate_162; Type: POLICY; Schema: public; Owner: -
+-- Name: program_item_discussion_messages rev10_named_root_owner_gate_161; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_162 ON public.reference_categories AS RESTRICTIVE TO app_seam_patient_self_actions_owner, app_seam_specialist_provision_owner USING (((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name)));
-
-
---
--- Name: reference_items rev10_named_root_owner_gate_163; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_named_root_owner_gate_163 ON public.reference_items AS RESTRICTIVE TO app_seam_patient_self_actions_owner, app_seam_specialist_provision_owner USING (((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name)));
+CREATE POLICY rev10_named_root_owner_gate_161 ON public.program_item_discussion_messages AS RESTRICTIVE TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
 
 
 --
--- Name: reminder_occurrence_history rev10_named_root_owner_gate_164; Type: POLICY; Schema: public; Owner: -
+-- Name: program_item_discussion_reads rev10_named_root_owner_gate_162; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_164 ON public.reminder_occurrence_history AS RESTRICTIVE TO app_seam_delivery_scope_owner, app_seam_patient_self_actions_owner, app_seam_reminder_materialization_owner, app_seam_reminder_patient_owner, app_seam_retention_sweep_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_patient_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_patient_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
-
-
---
--- Name: reminder_rules rev10_named_root_owner_gate_165; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_named_root_owner_gate_165 ON public.reminder_rules AS RESTRICTIVE TO app_seam_delivery_scope_owner, app_seam_patient_self_actions_owner, app_seam_reminder_materialization_owner, app_seam_reminder_patient_owner USING (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_patient_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_patient_owner'::name)));
+CREATE POLICY rev10_named_root_owner_gate_162 ON public.program_item_discussion_reads AS RESTRICTIVE TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
 
 
 --
--- Name: saas_billing_accounts rev10_named_root_owner_gate_166; Type: POLICY; Schema: public; Owner: -
+-- Name: reference_catalog_baselines rev10_named_root_owner_gate_165; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_166 ON public.saas_billing_accounts AS RESTRICTIVE TO app_seam_specialist_provision_owner USING ((CURRENT_USER = 'app_seam_specialist_provision_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_specialist_provision_owner'::name));
-
-
---
--- Name: saas_billing_invoices rev10_named_root_owner_gate_167; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_named_root_owner_gate_167 ON public.saas_billing_invoices AS RESTRICTIVE TO app_seam_org_commerce_owner, app_seam_payment_webhook_owner USING (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_payment_webhook_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_payment_webhook_owner'::name)));
+CREATE POLICY rev10_named_root_owner_gate_165 ON public.reference_catalog_baselines AS RESTRICTIVE TO app_seam_catalog_public_owner, app_seam_specialist_provision_owner USING (((CURRENT_USER = 'app_seam_catalog_public_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_catalog_public_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name)));
 
 
 --
--- Name: saas_billing_periods rev10_named_root_owner_gate_168; Type: POLICY; Schema: public; Owner: -
+-- Name: reference_catalog_snapshot_receipts rev10_named_root_owner_gate_166; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_168 ON public.saas_billing_periods AS RESTRICTIVE TO app_seam_payment_webhook_owner USING ((CURRENT_USER = 'app_seam_payment_webhook_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_payment_webhook_owner'::name));
+CREATE POLICY rev10_named_root_owner_gate_166 ON public.reference_catalog_snapshot_receipts AS RESTRICTIVE TO app_seam_specialist_provision_owner USING ((CURRENT_USER = 'app_seam_specialist_provision_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_specialist_provision_owner'::name));
+
+
+--
+-- Name: reference_categories rev10_named_root_owner_gate_167; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_named_root_owner_gate_167 ON public.reference_categories AS RESTRICTIVE TO app_seam_patient_self_actions_owner, app_seam_specialist_provision_owner USING (((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name)));
+
+
+--
+-- Name: reference_items rev10_named_root_owner_gate_168; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_named_root_owner_gate_168 ON public.reference_items AS RESTRICTIVE TO app_seam_patient_self_actions_owner, app_seam_specialist_provision_owner USING (((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name)));
+
+
+--
+-- Name: reminder_occurrence_history rev10_named_root_owner_gate_169; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_named_root_owner_gate_169 ON public.reminder_occurrence_history AS RESTRICTIVE TO app_seam_delivery_scope_owner, app_seam_patient_self_actions_owner, app_seam_reminder_materialization_owner, app_seam_reminder_patient_owner, app_seam_retention_sweep_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_patient_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_patient_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
 
 
 --
@@ -15967,73 +16817,59 @@ CREATE POLICY rev10_named_root_owner_gate_17 ON public.auth_rate_limit_events AS
 
 
 --
--- Name: saas_billing_refunds rev10_named_root_owner_gate_170; Type: POLICY; Schema: public; Owner: -
+-- Name: reminder_rules rev10_named_root_owner_gate_170; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_170 ON public.saas_billing_refunds AS RESTRICTIVE TO app_seam_payment_webhook_owner USING ((CURRENT_USER = 'app_seam_payment_webhook_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_payment_webhook_owner'::name));
-
-
---
--- Name: saas_billing_subscriptions rev10_named_root_owner_gate_171; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_named_root_owner_gate_171 ON public.saas_billing_subscriptions AS RESTRICTIVE TO app_seam_org_commerce_owner, app_seam_org_invite_owner, app_seam_patient_org_projection_owner, app_seam_specialist_provision_owner USING (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_org_invite_owner'::name) OR (CURRENT_USER = 'app_seam_patient_org_projection_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_org_invite_owner'::name) OR (CURRENT_USER = 'app_seam_patient_org_projection_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name)));
+CREATE POLICY rev10_named_root_owner_gate_170 ON public.reminder_rules AS RESTRICTIVE TO app_seam_delivery_scope_owner, app_seam_patient_self_actions_owner, app_seam_reminder_materialization_owner, app_seam_reminder_patient_owner USING (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_patient_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_patient_owner'::name)));
 
 
 --
--- Name: saas_isolation_coverage_runs rev10_named_root_owner_gate_172; Type: POLICY; Schema: public; Owner: -
+-- Name: saas_billing_accounts rev10_named_root_owner_gate_171; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_172 ON public.saas_isolation_coverage_runs AS RESTRICTIVE TO saas_telemetry_owner USING ((CURRENT_USER = 'saas_telemetry_owner'::name)) WITH CHECK ((CURRENT_USER = 'saas_telemetry_owner'::name));
-
-
---
--- Name: saas_isolation_event_hourly rev10_named_root_owner_gate_173; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_named_root_owner_gate_173 ON public.saas_isolation_event_hourly AS RESTRICTIVE TO saas_telemetry_owner USING ((CURRENT_USER = 'saas_telemetry_owner'::name)) WITH CHECK ((CURRENT_USER = 'saas_telemetry_owner'::name));
+CREATE POLICY rev10_named_root_owner_gate_171 ON public.saas_billing_accounts AS RESTRICTIVE TO app_seam_specialist_provision_owner USING ((CURRENT_USER = 'app_seam_specialist_provision_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_specialist_provision_owner'::name));
 
 
 --
--- Name: saas_isolation_events rev10_named_root_owner_gate_174; Type: POLICY; Schema: public; Owner: -
+-- Name: saas_billing_invoices rev10_named_root_owner_gate_172; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_174 ON public.saas_isolation_events AS RESTRICTIVE TO saas_telemetry_owner USING ((CURRENT_USER = 'saas_telemetry_owner'::name)) WITH CHECK ((CURRENT_USER = 'saas_telemetry_owner'::name));
-
-
---
--- Name: saas_org_entitlement_overrides rev10_named_root_owner_gate_175; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_named_root_owner_gate_175 ON public.saas_org_entitlement_overrides AS RESTRICTIVE TO app_seam_org_commerce_owner, app_seam_org_invite_owner, app_seam_patient_org_projection_owner USING (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_org_invite_owner'::name) OR (CURRENT_USER = 'app_seam_patient_org_projection_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_org_invite_owner'::name) OR (CURRENT_USER = 'app_seam_patient_org_projection_owner'::name)));
+CREATE POLICY rev10_named_root_owner_gate_172 ON public.saas_billing_invoices AS RESTRICTIVE TO app_seam_org_commerce_owner, app_seam_payment_webhook_owner USING (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_payment_webhook_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_payment_webhook_owner'::name)));
 
 
 --
--- Name: saas_organization_trials rev10_named_root_owner_gate_176; Type: POLICY; Schema: public; Owner: -
+-- Name: saas_billing_periods rev10_named_root_owner_gate_173; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_176 ON public.saas_organization_trials AS RESTRICTIVE TO app_seam_org_commerce_owner, app_seam_patient_org_projection_owner, app_seam_specialist_provision_owner USING (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_patient_org_projection_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_patient_org_projection_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name)));
-
-
---
--- Name: saas_paid_period_policy rev10_named_root_owner_gate_177; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_named_root_owner_gate_177 ON public.saas_paid_period_policy AS RESTRICTIVE TO app_seam_org_commerce_owner, app_seam_patient_org_projection_owner USING (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_patient_org_projection_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_patient_org_projection_owner'::name)));
+CREATE POLICY rev10_named_root_owner_gate_173 ON public.saas_billing_periods AS RESTRICTIVE TO app_seam_org_commerce_owner, app_seam_payment_webhook_owner USING (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_payment_webhook_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_payment_webhook_owner'::name)));
 
 
 --
--- Name: saas_registration_tariff_policy rev10_named_root_owner_gate_178; Type: POLICY; Schema: public; Owner: -
+-- Name: saas_tariff_period_prices rev10_named_root_owner_gate_174; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_178 ON public.saas_registration_tariff_policy AS RESTRICTIVE TO app_seam_specialist_provision_owner USING ((CURRENT_USER = 'app_seam_specialist_provision_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_specialist_provision_owner'::name));
+CREATE POLICY rev10_named_root_owner_gate_174 ON public.saas_tariff_period_prices AS RESTRICTIVE TO app_seam_org_commerce_owner, app_seam_specialist_provision_owner USING (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name)));
 
 
 --
--- Name: saas_tariffs rev10_named_root_owner_gate_179; Type: POLICY; Schema: public; Owner: -
+-- Name: saas_storage_package_period_prices rev10_named_root_owner_gate_176; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_179 ON public.saas_tariffs AS RESTRICTIVE TO app_seam_org_commerce_owner, app_seam_org_invite_owner, app_seam_specialist_provision_owner USING (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_org_invite_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_org_invite_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name)));
+CREATE POLICY rev10_named_root_owner_gate_176 ON public.saas_storage_package_period_prices AS RESTRICTIVE TO app_seam_org_commerce_owner USING ((CURRENT_USER = 'app_seam_org_commerce_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_org_commerce_owner'::name));
+
+
+--
+-- Name: saas_billing_refunds rev10_named_root_owner_gate_178; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_named_root_owner_gate_178 ON public.saas_billing_refunds AS RESTRICTIVE TO app_seam_payment_webhook_owner USING ((CURRENT_USER = 'app_seam_payment_webhook_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_payment_webhook_owner'::name));
+
+
+--
+-- Name: saas_billing_subscriptions rev10_named_root_owner_gate_179; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_named_root_owner_gate_179 ON public.saas_billing_subscriptions AS RESTRICTIVE TO app_seam_org_commerce_owner, app_seam_org_invite_owner, app_seam_patient_org_projection_owner, app_seam_specialist_provision_owner USING (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_org_invite_owner'::name) OR (CURRENT_USER = 'app_seam_patient_org_projection_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_org_invite_owner'::name) OR (CURRENT_USER = 'app_seam_patient_org_projection_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name)));
 
 
 --
@@ -16044,206 +16880,213 @@ CREATE POLICY rev10_named_root_owner_gate_18 ON public.be_appointment_cancellati
 
 
 --
--- Name: saas_trial_policy rev10_named_root_owner_gate_180; Type: POLICY; Schema: public; Owner: -
+-- Name: saas_isolation_coverage_runs rev10_named_root_owner_gate_180; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_180 ON public.saas_trial_policy AS RESTRICTIVE TO app_seam_specialist_provision_owner USING ((CURRENT_USER = 'app_seam_specialist_provision_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_specialist_provision_owner'::name));
-
-
---
--- Name: specialist_signup_intents rev10_named_root_owner_gate_182; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_named_root_owner_gate_182 ON public.specialist_signup_intents AS RESTRICTIVE TO app_seam_specialist_provision_owner USING ((CURRENT_USER = 'app_seam_specialist_provision_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_specialist_provision_owner'::name));
+CREATE POLICY rev10_named_root_owner_gate_180 ON public.saas_isolation_coverage_runs AS RESTRICTIVE TO app_seam_retention_sweep_owner, saas_telemetry_owner USING (((CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'saas_telemetry_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'saas_telemetry_owner'::name)));
 
 
 --
--- Name: specialist_tasks rev10_named_root_owner_gate_183; Type: POLICY; Schema: public; Owner: -
+-- Name: saas_isolation_event_hourly rev10_named_root_owner_gate_181; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_183 ON public.specialist_tasks AS RESTRICTIVE TO app_seam_reminder_specialist_owner USING ((CURRENT_USER = 'app_seam_reminder_specialist_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_reminder_specialist_owner'::name));
-
-
---
--- Name: staff_security_profiles rev10_named_root_owner_gate_184; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_named_root_owner_gate_184 ON public.staff_security_profiles AS RESTRICTIVE TO app_seam_staff_security_owner USING ((CURRENT_USER = 'app_seam_staff_security_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_staff_security_owner'::name));
+CREATE POLICY rev10_named_root_owner_gate_181 ON public.saas_isolation_event_hourly AS RESTRICTIVE TO saas_telemetry_owner USING ((CURRENT_USER = 'saas_telemetry_owner'::name)) WITH CHECK ((CURRENT_USER = 'saas_telemetry_owner'::name));
 
 
 --
--- Name: support_conversation_messages rev10_named_root_owner_gate_185; Type: POLICY; Schema: public; Owner: -
+-- Name: saas_isolation_events rev10_named_root_owner_gate_182; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_185 ON public.support_conversation_messages AS RESTRICTIVE TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
-
-
---
--- Name: support_conversations rev10_named_root_owner_gate_186; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_named_root_owner_gate_186 ON public.support_conversations AS RESTRICTIVE TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
+CREATE POLICY rev10_named_root_owner_gate_182 ON public.saas_isolation_events AS RESTRICTIVE TO app_seam_retention_sweep_owner, saas_telemetry_owner USING (((CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'saas_telemetry_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'saas_telemetry_owner'::name)));
 
 
 --
--- Name: symptom_entries rev10_named_root_owner_gate_189; Type: POLICY; Schema: public; Owner: -
+-- Name: saas_org_entitlement_overrides rev10_named_root_owner_gate_183; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_189 ON public.symptom_entries AS RESTRICTIVE TO app_seam_patient_self_actions_owner, app_seam_platform_analytics_owner USING (((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name)));
-
-
---
--- Name: symptom_trackings rev10_named_root_owner_gate_190; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_named_root_owner_gate_190 ON public.symptom_trackings AS RESTRICTIVE TO app_seam_patient_self_actions_owner, app_seam_platform_analytics_owner USING (((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name)));
+CREATE POLICY rev10_named_root_owner_gate_183 ON public.saas_org_entitlement_overrides AS RESTRICTIVE TO app_seam_org_commerce_owner, app_seam_org_invite_owner, app_seam_patient_org_projection_owner USING (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_org_invite_owner'::name) OR (CURRENT_USER = 'app_seam_patient_org_projection_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_org_invite_owner'::name) OR (CURRENT_USER = 'app_seam_patient_org_projection_owner'::name)));
 
 
 --
--- Name: system_settings rev10_named_root_owner_gate_191; Type: POLICY; Schema: public; Owner: -
+-- Name: saas_organization_trials rev10_named_root_owner_gate_184; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_191 ON public.system_settings AS RESTRICTIVE TO app_seam_delivery_scope_owner, app_seam_password_auth_owner, app_seam_patient_booking_owner, app_seam_patient_self_actions_owner, app_seam_payment_webhook_owner, app_seam_public_booking_owner, app_seam_reminder_materialization_owner, app_seam_reminder_patient_owner, app_seam_reminder_specialist_owner, app_seam_settings_integrator_owner, app_seam_settings_preauth_owner, app_seam_settings_runtime_owner, app_seam_telemetry_exclusion_owner, app_seam_telemetry_operator_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_password_auth_owner'::name) OR (CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_payment_webhook_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_patient_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_settings_integrator_owner'::name) OR (CURRENT_USER = 'app_seam_settings_preauth_owner'::name) OR (CURRENT_USER = 'app_seam_settings_runtime_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_exclusion_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_password_auth_owner'::name) OR (CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_payment_webhook_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_patient_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_settings_integrator_owner'::name) OR (CURRENT_USER = 'app_seam_settings_preauth_owner'::name) OR (CURRENT_USER = 'app_seam_settings_runtime_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_exclusion_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
-
-
---
--- Name: test_attempts rev10_named_root_owner_gate_193; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_named_root_owner_gate_193 ON public.test_attempts AS RESTRICTIVE TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
+CREATE POLICY rev10_named_root_owner_gate_184 ON public.saas_organization_trials AS RESTRICTIVE TO app_seam_org_commerce_owner, app_seam_patient_org_projection_owner, app_seam_specialist_provision_owner USING (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_patient_org_projection_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_patient_org_projection_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name)));
 
 
 --
--- Name: test_results rev10_named_root_owner_gate_194; Type: POLICY; Schema: public; Owner: -
+-- Name: saas_paid_period_policy rev10_named_root_owner_gate_185; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_194 ON public.test_results AS RESTRICTIVE TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
+CREATE POLICY rev10_named_root_owner_gate_185 ON public.saas_paid_period_policy AS RESTRICTIVE TO app_seam_org_commerce_owner, app_seam_patient_org_projection_owner USING (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_patient_org_projection_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_patient_org_projection_owner'::name)));
 
 
 --
--- Name: treatment_program_events rev10_named_root_owner_gate_198; Type: POLICY; Schema: public; Owner: -
+-- Name: saas_registration_tariff_policy rev10_named_root_owner_gate_186; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_198 ON public.treatment_program_events AS RESTRICTIVE TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
+CREATE POLICY rev10_named_root_owner_gate_186 ON public.saas_registration_tariff_policy AS RESTRICTIVE TO app_seam_specialist_provision_owner USING ((CURRENT_USER = 'app_seam_specialist_provision_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_specialist_provision_owner'::name));
+
+
+--
+-- Name: saas_tariffs rev10_named_root_owner_gate_187; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_named_root_owner_gate_187 ON public.saas_tariffs AS RESTRICTIVE TO app_seam_org_commerce_owner, app_seam_org_invite_owner, app_seam_specialist_provision_owner USING (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_org_invite_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_org_invite_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name)));
+
+
+--
+-- Name: saas_trial_policy rev10_named_root_owner_gate_188; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_named_root_owner_gate_188 ON public.saas_trial_policy AS RESTRICTIVE TO app_seam_specialist_provision_owner USING ((CURRENT_USER = 'app_seam_specialist_provision_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_specialist_provision_owner'::name));
+
+
+--
+-- Name: specialist_signup_intents rev10_named_root_owner_gate_190; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_named_root_owner_gate_190 ON public.specialist_signup_intents AS RESTRICTIVE TO app_seam_specialist_provision_owner USING ((CURRENT_USER = 'app_seam_specialist_provision_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_specialist_provision_owner'::name));
+
+
+--
+-- Name: specialist_tasks rev10_named_root_owner_gate_191; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_named_root_owner_gate_191 ON public.specialist_tasks AS RESTRICTIVE TO app_seam_reminder_specialist_owner USING ((CURRENT_USER = 'app_seam_reminder_specialist_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_reminder_specialist_owner'::name));
+
+
+--
+-- Name: staff_security_profiles rev10_named_root_owner_gate_192; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_named_root_owner_gate_192 ON public.staff_security_profiles AS RESTRICTIVE TO app_seam_staff_security_owner USING ((CURRENT_USER = 'app_seam_staff_security_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_staff_security_owner'::name));
+
+
+--
+-- Name: support_conversation_messages rev10_named_root_owner_gate_193; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_named_root_owner_gate_193 ON public.support_conversation_messages AS RESTRICTIVE TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
+
+
+--
+-- Name: support_conversations rev10_named_root_owner_gate_194; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_named_root_owner_gate_194 ON public.support_conversations AS RESTRICTIVE TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
+
+
+--
+-- Name: symptom_entries rev10_named_root_owner_gate_197; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_named_root_owner_gate_197 ON public.symptom_entries AS RESTRICTIVE TO app_seam_patient_self_actions_owner, app_seam_platform_analytics_owner USING (((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name)));
+
+
+--
+-- Name: symptom_trackings rev10_named_root_owner_gate_198; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_named_root_owner_gate_198 ON public.symptom_trackings AS RESTRICTIVE TO app_seam_patient_self_actions_owner, app_seam_platform_analytics_owner USING (((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name)));
+
+
+--
+-- Name: system_settings rev10_named_root_owner_gate_199; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_named_root_owner_gate_199 ON public.system_settings AS RESTRICTIVE TO app_seam_custom_domain_owner, app_seam_delivery_scope_owner, app_seam_password_auth_owner, app_seam_patient_booking_owner, app_seam_patient_org_projection_owner, app_seam_patient_self_actions_owner, app_seam_payment_webhook_owner, app_seam_public_booking_owner, app_seam_reminder_materialization_owner, app_seam_reminder_patient_owner, app_seam_reminder_specialist_owner, app_seam_settings_integrator_owner, app_seam_settings_preauth_owner, app_seam_settings_runtime_owner, app_seam_specialist_provision_owner, app_seam_telemetry_exclusion_owner, app_seam_telemetry_operator_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_custom_domain_owner'::name) OR (CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_password_auth_owner'::name) OR (CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_patient_org_projection_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_payment_webhook_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_patient_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_settings_integrator_owner'::name) OR (CURRENT_USER = 'app_seam_settings_preauth_owner'::name) OR (CURRENT_USER = 'app_seam_settings_runtime_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_exclusion_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_custom_domain_owner'::name) OR (CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_password_auth_owner'::name) OR (CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_patient_org_projection_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_payment_webhook_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_patient_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_settings_integrator_owner'::name) OR (CURRENT_USER = 'app_seam_settings_preauth_owner'::name) OR (CURRENT_USER = 'app_seam_settings_runtime_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_exclusion_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
 
 
 --
 -- Name: be_appointment_history_events rev10_named_root_owner_gate_20; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_20 ON public.be_appointment_history_events AS RESTRICTIVE TO app_seam_patient_booking_owner USING ((CURRENT_USER = 'app_seam_patient_booking_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_booking_owner'::name));
+CREATE POLICY rev10_named_root_owner_gate_20 ON public.be_appointment_history_events AS RESTRICTIVE TO app_seam_patient_booking_owner, app_seam_payment_webhook_owner USING (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_payment_webhook_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_payment_webhook_owner'::name)));
 
 
 --
--- Name: treatment_program_instance_stage_items rev10_named_root_owner_gate_200; Type: POLICY; Schema: public; Owner: -
+-- Name: test_attempts rev10_named_root_owner_gate_201; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_200 ON public.treatment_program_instance_stage_items AS RESTRICTIVE TO app_seam_patient_lfk_media_owner, app_seam_patient_self_actions_owner USING (((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)));
-
-
---
--- Name: treatment_program_instance_stages rev10_named_root_owner_gate_201; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_named_root_owner_gate_201 ON public.treatment_program_instance_stages AS RESTRICTIVE TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
+CREATE POLICY rev10_named_root_owner_gate_201 ON public.test_attempts AS RESTRICTIVE TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
 
 
 --
--- Name: treatment_program_instances rev10_named_root_owner_gate_202; Type: POLICY; Schema: public; Owner: -
+-- Name: test_results rev10_named_root_owner_gate_202; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_202 ON public.treatment_program_instances AS RESTRICTIVE TO app_seam_patient_program_resolver_owner, app_seam_patient_self_actions_owner, app_seam_platform_analytics_owner USING (((CURRENT_USER = 'app_seam_patient_program_resolver_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_program_resolver_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name)));
-
-
---
--- Name: treatment_program_templates rev10_named_root_owner_gate_206; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_named_root_owner_gate_206 ON public.treatment_program_templates AS RESTRICTIVE TO app_seam_patient_program_resolver_owner USING ((CURRENT_USER = 'app_seam_patient_program_resolver_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_program_resolver_owner'::name));
+CREATE POLICY rev10_named_root_owner_gate_202 ON public.test_results AS RESTRICTIVE TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
 
 
 --
--- Name: user_channel_bindings rev10_named_root_owner_gate_207; Type: POLICY; Schema: public; Owner: -
+-- Name: treatment_program_events rev10_named_root_owner_gate_206; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_207 ON public.user_channel_bindings AS RESTRICTIVE TO app_seam_delivery_scope_owner, app_seam_identity_lookup_owner, app_seam_patient_self_actions_owner, app_seam_phone_binding_owner, app_seam_platform_analytics_owner, app_seam_reminder_appointment_owner, app_seam_reminder_materialization_owner, app_seam_reminder_specialist_owner, app_seam_telemetry_exclusion_owner, app_seam_telemetry_operator_owner USING (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_phone_binding_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_appointment_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_exclusion_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_phone_binding_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_appointment_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_exclusion_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name)));
-
-
---
--- Name: user_channel_preferences rev10_named_root_owner_gate_208; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_named_root_owner_gate_208 ON public.user_channel_preferences AS RESTRICTIVE TO app_seam_delivery_scope_owner, app_seam_identity_lookup_owner, app_seam_patient_self_actions_owner, app_seam_reminder_appointment_owner, app_seam_reminder_materialization_owner, app_seam_reminder_specialist_owner, app_seam_telemetry_operator_owner USING (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_appointment_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_appointment_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name)));
+CREATE POLICY rev10_named_root_owner_gate_206 ON public.treatment_program_events AS RESTRICTIVE TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
 
 
 --
--- Name: user_contacts rev10_named_root_owner_gate_209; Type: POLICY; Schema: public; Owner: -
+-- Name: treatment_program_instance_stage_items rev10_named_root_owner_gate_208; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_209 ON public.user_contacts AS RESTRICTIVE TO app_seam_delivery_scope_owner, app_seam_email_otp_owner, app_seam_identity_lookup_owner, app_seam_org_invite_owner, app_seam_password_auth_owner, app_seam_patient_booking_owner, app_seam_patient_invite_owner, app_seam_patient_self_actions_owner, app_seam_phone_binding_owner, app_seam_platform_analytics_owner, app_seam_public_booking_owner, app_seam_reminder_materialization_owner, app_seam_reminder_specialist_owner, app_seam_specialist_provision_owner, app_seam_telemetry_exclusion_owner, app_seam_telemetry_operator_owner USING (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_email_otp_owner'::name) OR (CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_org_invite_owner'::name) OR (CURRENT_USER = 'app_seam_password_auth_owner'::name) OR (CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_patient_invite_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_phone_binding_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_exclusion_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_email_otp_owner'::name) OR (CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_org_invite_owner'::name) OR (CURRENT_USER = 'app_seam_password_auth_owner'::name) OR (CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_patient_invite_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_phone_binding_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_exclusion_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name)));
-
-
---
--- Name: user_identity rev10_named_root_owner_gate_210; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_named_root_owner_gate_210 ON public.user_identity AS RESTRICTIVE TO app_seam_identity_lookup_owner, app_seam_patient_booking_owner, app_seam_patient_lfk_media_owner, app_seam_patient_self_actions_owner, app_seam_public_booking_owner USING (((CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name)));
+CREATE POLICY rev10_named_root_owner_gate_208 ON public.treatment_program_instance_stage_items AS RESTRICTIVE TO app_seam_patient_lfk_media_owner, app_seam_patient_self_actions_owner USING (((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)));
 
 
 --
--- Name: user_notification_topic_channels rev10_named_root_owner_gate_211; Type: POLICY; Schema: public; Owner: -
+-- Name: treatment_program_instance_stages rev10_named_root_owner_gate_209; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_211 ON public.user_notification_topic_channels AS RESTRICTIVE TO app_seam_delivery_scope_owner, app_seam_patient_self_actions_owner, app_seam_reminder_appointment_owner, app_seam_reminder_materialization_owner, app_seam_reminder_patient_owner, app_seam_reminder_specialist_owner USING (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_appointment_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_patient_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_appointment_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_patient_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name)));
-
-
---
--- Name: user_notification_topics rev10_named_root_owner_gate_212; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_named_root_owner_gate_212 ON public.user_notification_topics AS RESTRICTIVE TO app_seam_delivery_scope_owner, app_seam_patient_self_actions_owner, app_seam_reminder_appointment_owner, app_seam_reminder_materialization_owner USING (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_appointment_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_appointment_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name)));
+CREATE POLICY rev10_named_root_owner_gate_209 ON public.treatment_program_instance_stages AS RESTRICTIVE TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
 
 
 --
--- Name: user_oauth_bindings rev10_named_root_owner_gate_213; Type: POLICY; Schema: public; Owner: -
+-- Name: treatment_program_instances rev10_named_root_owner_gate_210; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_213 ON public.user_oauth_bindings AS RESTRICTIVE TO app_seam_oauth_owner USING ((CURRENT_USER = 'app_seam_oauth_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_oauth_owner'::name));
-
-
---
--- Name: user_passkey_accounts rev10_named_root_owner_gate_214; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_named_root_owner_gate_214 ON public.user_passkey_accounts AS RESTRICTIVE TO app_seam_passkey_owner USING ((CURRENT_USER = 'app_seam_passkey_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_passkey_owner'::name));
+CREATE POLICY rev10_named_root_owner_gate_210 ON public.treatment_program_instances AS RESTRICTIVE TO app_seam_patient_program_resolver_owner, app_seam_patient_self_actions_owner, app_seam_platform_analytics_owner USING (((CURRENT_USER = 'app_seam_patient_program_resolver_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_program_resolver_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name)));
 
 
 --
--- Name: user_passkey_challenges rev10_named_root_owner_gate_215; Type: POLICY; Schema: public; Owner: -
+-- Name: treatment_program_templates rev10_named_root_owner_gate_214; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_215 ON public.user_passkey_challenges AS RESTRICTIVE TO app_seam_passkey_owner USING ((CURRENT_USER = 'app_seam_passkey_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_passkey_owner'::name));
-
-
---
--- Name: user_passkey_credentials rev10_named_root_owner_gate_216; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_named_root_owner_gate_216 ON public.user_passkey_credentials AS RESTRICTIVE TO app_seam_passkey_owner USING ((CURRENT_USER = 'app_seam_passkey_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_passkey_owner'::name));
+CREATE POLICY rev10_named_root_owner_gate_214 ON public.treatment_program_templates AS RESTRICTIVE TO app_seam_patient_program_resolver_owner USING ((CURRENT_USER = 'app_seam_patient_program_resolver_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_program_resolver_owner'::name));
 
 
 --
--- Name: user_password_credentials rev10_named_root_owner_gate_217; Type: POLICY; Schema: public; Owner: -
+-- Name: user_channel_bindings rev10_named_root_owner_gate_215; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_217 ON public.user_password_credentials AS RESTRICTIVE TO app_seam_password_auth_owner USING ((CURRENT_USER = 'app_seam_password_auth_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_password_auth_owner'::name));
+CREATE POLICY rev10_named_root_owner_gate_215 ON public.user_channel_bindings AS RESTRICTIVE TO app_seam_delivery_scope_owner, app_seam_identity_lookup_owner, app_seam_patient_self_actions_owner, app_seam_phone_binding_owner, app_seam_platform_analytics_owner, app_seam_reminder_appointment_owner, app_seam_reminder_materialization_owner, app_seam_reminder_specialist_owner, app_seam_telemetry_exclusion_owner, app_seam_telemetry_operator_owner USING (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_phone_binding_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_appointment_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_exclusion_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_phone_binding_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_appointment_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_exclusion_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name)));
 
 
 --
--- Name: user_phone_history rev10_named_root_owner_gate_218; Type: POLICY; Schema: public; Owner: -
+-- Name: user_channel_preferences rev10_named_root_owner_gate_216; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_218 ON public.user_phone_history AS RESTRICTIVE TO app_seam_identity_lookup_owner, app_seam_phone_binding_owner USING (((CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_phone_binding_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_phone_binding_owner'::name)));
+CREATE POLICY rev10_named_root_owner_gate_216 ON public.user_channel_preferences AS RESTRICTIVE TO app_seam_delivery_scope_owner, app_seam_identity_lookup_owner, app_seam_patient_self_actions_owner, app_seam_reminder_appointment_owner, app_seam_reminder_materialization_owner, app_seam_reminder_specialist_owner, app_seam_telemetry_operator_owner USING (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_appointment_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_appointment_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name)));
+
+
+--
+-- Name: user_contacts rev10_named_root_owner_gate_217; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_named_root_owner_gate_217 ON public.user_contacts AS RESTRICTIVE TO app_seam_delivery_scope_owner, app_seam_email_otp_owner, app_seam_identity_lookup_owner, app_seam_org_invite_owner, app_seam_password_auth_owner, app_seam_patient_booking_owner, app_seam_patient_invite_owner, app_seam_patient_self_actions_owner, app_seam_phone_binding_owner, app_seam_platform_analytics_owner, app_seam_public_booking_owner, app_seam_reminder_materialization_owner, app_seam_reminder_specialist_owner, app_seam_specialist_provision_owner, app_seam_telemetry_exclusion_owner, app_seam_telemetry_operator_owner USING (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_email_otp_owner'::name) OR (CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_org_invite_owner'::name) OR (CURRENT_USER = 'app_seam_password_auth_owner'::name) OR (CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_patient_invite_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_phone_binding_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_exclusion_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_email_otp_owner'::name) OR (CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_org_invite_owner'::name) OR (CURRENT_USER = 'app_seam_password_auth_owner'::name) OR (CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_patient_invite_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_phone_binding_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_exclusion_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name)));
+
+
+--
+-- Name: user_identity rev10_named_root_owner_gate_218; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_named_root_owner_gate_218 ON public.user_identity AS RESTRICTIVE TO app_seam_identity_lookup_owner, app_seam_patient_booking_owner, app_seam_patient_lfk_media_owner, app_seam_patient_self_actions_owner, app_seam_public_booking_owner USING (((CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name)));
+
+
+--
+-- Name: user_notification_topic_channels rev10_named_root_owner_gate_219; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_named_root_owner_gate_219 ON public.user_notification_topic_channels AS RESTRICTIVE TO app_seam_delivery_scope_owner, app_seam_patient_self_actions_owner, app_seam_reminder_appointment_owner, app_seam_reminder_materialization_owner, app_seam_reminder_patient_owner, app_seam_reminder_specialist_owner USING (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_appointment_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_patient_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_appointment_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_patient_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name)));
 
 
 --
@@ -16254,10 +17097,59 @@ CREATE POLICY rev10_named_root_owner_gate_22 ON public.be_appointment_reschedule
 
 
 --
--- Name: user_web_push_subscriptions rev10_named_root_owner_gate_220; Type: POLICY; Schema: public; Owner: -
+-- Name: user_notification_topics rev10_named_root_owner_gate_220; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_220 ON public.user_web_push_subscriptions AS RESTRICTIVE TO app_seam_delivery_scope_owner, app_seam_patient_self_actions_owner, app_seam_reminder_appointment_owner, app_seam_reminder_materialization_owner, app_seam_reminder_specialist_owner, app_seam_telemetry_operator_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_appointment_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_appointment_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
+CREATE POLICY rev10_named_root_owner_gate_220 ON public.user_notification_topics AS RESTRICTIVE TO app_seam_delivery_scope_owner, app_seam_patient_self_actions_owner, app_seam_reminder_appointment_owner, app_seam_reminder_materialization_owner USING (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_appointment_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_appointment_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name)));
+
+
+--
+-- Name: user_oauth_bindings rev10_named_root_owner_gate_221; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_named_root_owner_gate_221 ON public.user_oauth_bindings AS RESTRICTIVE TO app_seam_oauth_owner USING ((CURRENT_USER = 'app_seam_oauth_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_oauth_owner'::name));
+
+
+--
+-- Name: user_passkey_accounts rev10_named_root_owner_gate_222; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_named_root_owner_gate_222 ON public.user_passkey_accounts AS RESTRICTIVE TO app_seam_passkey_owner USING ((CURRENT_USER = 'app_seam_passkey_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_passkey_owner'::name));
+
+
+--
+-- Name: user_passkey_challenges rev10_named_root_owner_gate_223; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_named_root_owner_gate_223 ON public.user_passkey_challenges AS RESTRICTIVE TO app_seam_passkey_owner USING ((CURRENT_USER = 'app_seam_passkey_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_passkey_owner'::name));
+
+
+--
+-- Name: user_passkey_credentials rev10_named_root_owner_gate_224; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_named_root_owner_gate_224 ON public.user_passkey_credentials AS RESTRICTIVE TO app_seam_passkey_owner USING ((CURRENT_USER = 'app_seam_passkey_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_passkey_owner'::name));
+
+
+--
+-- Name: user_password_credentials rev10_named_root_owner_gate_225; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_named_root_owner_gate_225 ON public.user_password_credentials AS RESTRICTIVE TO app_seam_password_auth_owner USING ((CURRENT_USER = 'app_seam_password_auth_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_password_auth_owner'::name));
+
+
+--
+-- Name: user_phone_history rev10_named_root_owner_gate_226; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_named_root_owner_gate_226 ON public.user_phone_history AS RESTRICTIVE TO app_seam_identity_lookup_owner, app_seam_phone_binding_owner USING (((CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_phone_binding_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_phone_binding_owner'::name)));
+
+
+--
+-- Name: user_web_push_subscriptions rev10_named_root_owner_gate_228; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_named_root_owner_gate_228 ON public.user_web_push_subscriptions AS RESTRICTIVE TO app_seam_delivery_scope_owner, app_seam_patient_self_actions_owner, app_seam_reminder_appointment_owner, app_seam_reminder_materialization_owner, app_seam_reminder_specialist_owner, app_seam_telemetry_operator_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_appointment_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_appointment_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
 
 
 --
@@ -16271,7 +17163,7 @@ CREATE POLICY rev10_named_root_owner_gate_23 ON public.be_appointment_staff_comm
 -- Name: be_appointments rev10_named_root_owner_gate_24; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_24 ON public.be_appointments AS RESTRICTIVE TO app_seam_patient_booking_owner, app_seam_platform_analytics_owner, app_seam_public_booking_owner, app_seam_reminder_appointment_owner, app_seam_reminder_materialization_owner USING (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_appointment_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_appointment_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name)));
+CREATE POLICY rev10_named_root_owner_gate_24 ON public.be_appointments AS RESTRICTIVE TO app_seam_patient_booking_owner, app_seam_payment_webhook_owner, app_seam_platform_analytics_owner, app_seam_public_booking_owner, app_seam_reminder_appointment_owner, app_seam_reminder_materialization_owner USING (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_payment_webhook_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_appointment_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_payment_webhook_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_appointment_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name)));
 
 
 --
@@ -16313,21 +17205,21 @@ CREATE POLICY rev10_named_root_owner_gate_29 ON public.be_cancellation_policies 
 -- Name: be_clinic_services rev10_named_root_owner_gate_30; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_30 ON public.be_clinic_services AS RESTRICTIVE TO app_seam_patient_booking_owner, app_seam_public_booking_owner USING (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name)));
+CREATE POLICY rev10_named_root_owner_gate_30 ON public.be_clinic_services AS RESTRICTIVE TO app_seam_patient_booking_owner, app_seam_public_booking_owner, app_seam_public_clinic_card_owner USING (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name) OR (CURRENT_USER = 'app_seam_public_clinic_card_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name) OR (CURRENT_USER = 'app_seam_public_clinic_card_owner'::name)));
 
 
 --
 -- Name: be_organization_members rev10_named_root_owner_gate_31; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_31 ON public.be_organization_members AS RESTRICTIVE TO app_seam_delivery_scope_owner, app_seam_identity_lookup_owner, app_seam_org_commerce_owner, app_seam_org_directory_owner, app_seam_org_invite_owner, app_seam_reminder_specialist_owner, app_seam_specialist_provision_owner, app_seam_telemetry_operator_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_org_directory_owner'::name) OR (CURRENT_USER = 'app_seam_org_invite_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_org_directory_owner'::name) OR (CURRENT_USER = 'app_seam_org_invite_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
+CREATE POLICY rev10_named_root_owner_gate_31 ON public.be_organization_members AS RESTRICTIVE TO app_seam_delivery_scope_owner, app_seam_identity_lookup_owner, app_seam_org_commerce_owner, app_seam_org_directory_owner, app_seam_org_invite_owner, app_seam_reminder_specialist_owner, app_seam_settings_runtime_owner, app_seam_specialist_provision_owner, app_seam_telemetry_operator_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_org_directory_owner'::name) OR (CURRENT_USER = 'app_seam_org_invite_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_settings_runtime_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_org_directory_owner'::name) OR (CURRENT_USER = 'app_seam_org_invite_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_settings_runtime_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
 
 
 --
 -- Name: be_organizations rev10_named_root_owner_gate_32; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_32 ON public.be_organizations AS RESTRICTIVE TO app_seam_org_commerce_owner, app_seam_org_directory_owner, app_seam_org_invite_owner, app_seam_patient_invite_owner, app_seam_patient_org_projection_owner, app_seam_patient_program_resolver_owner, app_seam_platform_analytics_owner, app_seam_public_clinic_card_owner, app_seam_public_slug_owner, app_seam_specialist_provision_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_org_directory_owner'::name) OR (CURRENT_USER = 'app_seam_org_invite_owner'::name) OR (CURRENT_USER = 'app_seam_patient_invite_owner'::name) OR (CURRENT_USER = 'app_seam_patient_org_projection_owner'::name) OR (CURRENT_USER = 'app_seam_patient_program_resolver_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_public_clinic_card_owner'::name) OR (CURRENT_USER = 'app_seam_public_slug_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_org_directory_owner'::name) OR (CURRENT_USER = 'app_seam_org_invite_owner'::name) OR (CURRENT_USER = 'app_seam_patient_invite_owner'::name) OR (CURRENT_USER = 'app_seam_patient_org_projection_owner'::name) OR (CURRENT_USER = 'app_seam_patient_program_resolver_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_public_clinic_card_owner'::name) OR (CURRENT_USER = 'app_seam_public_slug_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
+CREATE POLICY rev10_named_root_owner_gate_32 ON public.be_organizations AS RESTRICTIVE TO app_seam_custom_domain_owner, app_seam_org_commerce_owner, app_seam_org_directory_owner, app_seam_org_invite_owner, app_seam_patient_invite_owner, app_seam_patient_org_projection_owner, app_seam_patient_program_resolver_owner, app_seam_platform_analytics_owner, app_seam_public_clinic_card_owner, app_seam_public_slug_owner, app_seam_settings_runtime_owner, app_seam_specialist_provision_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_custom_domain_owner'::name) OR (CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_org_directory_owner'::name) OR (CURRENT_USER = 'app_seam_org_invite_owner'::name) OR (CURRENT_USER = 'app_seam_patient_invite_owner'::name) OR (CURRENT_USER = 'app_seam_patient_org_projection_owner'::name) OR (CURRENT_USER = 'app_seam_patient_program_resolver_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_public_clinic_card_owner'::name) OR (CURRENT_USER = 'app_seam_public_slug_owner'::name) OR (CURRENT_USER = 'app_seam_settings_runtime_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_custom_domain_owner'::name) OR (CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_org_directory_owner'::name) OR (CURRENT_USER = 'app_seam_org_invite_owner'::name) OR (CURRENT_USER = 'app_seam_patient_invite_owner'::name) OR (CURRENT_USER = 'app_seam_patient_org_projection_owner'::name) OR (CURRENT_USER = 'app_seam_patient_program_resolver_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_public_clinic_card_owner'::name) OR (CURRENT_USER = 'app_seam_public_slug_owner'::name) OR (CURRENT_USER = 'app_seam_settings_runtime_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
 
 
 --
@@ -16369,14 +17261,21 @@ CREATE POLICY rev10_named_root_owner_gate_38 ON public.be_patient_packages AS RE
 -- Name: be_patient_timeline_events rev10_named_root_owner_gate_39; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_39 ON public.be_patient_timeline_events AS RESTRICTIVE TO app_seam_patient_booking_owner USING ((CURRENT_USER = 'app_seam_patient_booking_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_booking_owner'::name));
+CREATE POLICY rev10_named_root_owner_gate_39 ON public.be_patient_timeline_events AS RESTRICTIVE TO app_seam_patient_booking_owner, app_seam_payment_webhook_owner USING (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_payment_webhook_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_payment_webhook_owner'::name)));
+
+
+--
+-- Name: be_payment_history_events rev10_named_root_owner_gate_40; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_named_root_owner_gate_40 ON public.be_payment_history_events AS RESTRICTIVE TO app_seam_payment_webhook_owner USING ((CURRENT_USER = 'app_seam_payment_webhook_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_payment_webhook_owner'::name));
 
 
 --
 -- Name: be_payment_intents rev10_named_root_owner_gate_41; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_41 ON public.be_payment_intents AS RESTRICTIVE TO app_seam_payment_webhook_owner USING ((CURRENT_USER = 'app_seam_payment_webhook_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_payment_webhook_owner'::name));
+CREATE POLICY rev10_named_root_owner_gate_41 ON public.be_payment_intents AS RESTRICTIVE TO app_seam_patient_booking_owner, app_seam_payment_webhook_owner USING (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_payment_webhook_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_payment_webhook_owner'::name)));
 
 
 --
@@ -16384,6 +17283,13 @@ CREATE POLICY rev10_named_root_owner_gate_41 ON public.be_payment_intents AS RES
 --
 
 CREATE POLICY rev10_named_root_owner_gate_42 ON public.be_payment_provider_events AS RESTRICTIVE TO app_seam_payment_webhook_owner USING ((CURRENT_USER = 'app_seam_payment_webhook_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_payment_webhook_owner'::name));
+
+
+--
+-- Name: be_payments rev10_named_root_owner_gate_43; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_named_root_owner_gate_43 ON public.be_payments AS RESTRICTIVE TO app_seam_patient_booking_owner, app_seam_payment_webhook_owner USING (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_payment_webhook_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_payment_webhook_owner'::name)));
 
 
 --
@@ -16415,73 +17321,73 @@ CREATE POLICY rev10_named_root_owner_gate_48 ON public.be_schedule_blocks AS RES
 
 
 --
--- Name: be_specialist_service_availability rev10_named_root_owner_gate_53; Type: POLICY; Schema: public; Owner: -
+-- Name: be_specialist_service_availability rev10_named_root_owner_gate_52; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_53 ON public.be_specialist_service_availability AS RESTRICTIVE TO app_seam_patient_booking_owner, app_seam_public_booking_owner USING (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name)));
-
-
---
--- Name: be_specialists rev10_named_root_owner_gate_54; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_named_root_owner_gate_54 ON public.be_specialists AS RESTRICTIVE TO app_seam_patient_booking_owner, app_seam_platform_analytics_owner, app_seam_public_booking_owner, app_seam_specialist_provision_owner USING (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name)));
+CREATE POLICY rev10_named_root_owner_gate_52 ON public.be_specialist_service_availability AS RESTRICTIVE TO app_seam_patient_booking_owner, app_seam_public_booking_owner USING (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name)));
 
 
 --
--- Name: be_working_days rev10_named_root_owner_gate_56; Type: POLICY; Schema: public; Owner: -
+-- Name: be_specialists rev10_named_root_owner_gate_53; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_56 ON public.be_working_days AS RESTRICTIVE TO app_seam_patient_booking_owner, app_seam_public_booking_owner USING (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name)));
-
-
---
--- Name: be_working_hours rev10_named_root_owner_gate_57; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_named_root_owner_gate_57 ON public.be_working_hours AS RESTRICTIVE TO app_seam_patient_booking_owner, app_seam_public_booking_owner USING (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name)));
+CREATE POLICY rev10_named_root_owner_gate_53 ON public.be_specialists AS RESTRICTIVE TO app_seam_patient_booking_owner, app_seam_platform_analytics_owner, app_seam_public_booking_owner, app_seam_public_clinic_card_owner, app_seam_specialist_provision_owner USING (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name) OR (CURRENT_USER = 'app_seam_public_clinic_card_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name) OR (CURRENT_USER = 'app_seam_public_clinic_card_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name)));
 
 
 --
--- Name: booking_calendar_map rev10_named_root_owner_gate_58; Type: POLICY; Schema: public; Owner: -
+-- Name: be_working_days rev10_named_root_owner_gate_55; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_58 ON public.booking_calendar_map AS RESTRICTIVE TO app_seam_patient_booking_owner USING ((CURRENT_USER = 'app_seam_patient_booking_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_booking_owner'::name));
-
-
---
--- Name: booking_cities rev10_named_root_owner_gate_59; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_named_root_owner_gate_59 ON public.booking_cities AS RESTRICTIVE TO app_seam_catalog_public_owner USING ((CURRENT_USER = 'app_seam_catalog_public_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_catalog_public_owner'::name));
+CREATE POLICY rev10_named_root_owner_gate_55 ON public.be_working_days AS RESTRICTIVE TO app_seam_patient_booking_owner, app_seam_public_booking_owner USING (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name)));
 
 
 --
--- Name: broadcast_audit rev10_named_root_owner_gate_60; Type: POLICY; Schema: public; Owner: -
+-- Name: be_working_hours rev10_named_root_owner_gate_56; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_60 ON public.broadcast_audit AS RESTRICTIVE TO app_seam_delivery_scope_owner, app_seam_telemetry_operator_owner USING (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name)));
-
-
---
--- Name: channel_link_secrets rev10_named_root_owner_gate_63; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_named_root_owner_gate_63 ON public.channel_link_secrets AS RESTRICTIVE TO app_seam_phone_binding_owner USING ((CURRENT_USER = 'app_seam_phone_binding_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_phone_binding_owner'::name));
+CREATE POLICY rev10_named_root_owner_gate_56 ON public.be_working_hours AS RESTRICTIVE TO app_seam_patient_booking_owner, app_seam_public_booking_owner USING (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name)));
 
 
 --
--- Name: clinic_dedicated_bot_bindings rev10_named_root_owner_gate_64; Type: POLICY; Schema: public; Owner: -
+-- Name: booking_calendar_map rev10_named_root_owner_gate_57; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_64 ON public.clinic_dedicated_bot_bindings AS RESTRICTIVE TO app_seam_dedicated_bot_owner USING ((CURRENT_USER = 'app_seam_dedicated_bot_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_dedicated_bot_owner'::name));
+CREATE POLICY rev10_named_root_owner_gate_57 ON public.booking_calendar_map AS RESTRICTIVE TO app_seam_patient_booking_owner USING ((CURRENT_USER = 'app_seam_patient_booking_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_booking_owner'::name));
 
 
 --
--- Name: clinic_public_directory_entries rev10_named_root_owner_gate_65; Type: POLICY; Schema: public; Owner: -
+-- Name: booking_cities rev10_named_root_owner_gate_58; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_65 ON public.clinic_public_directory_entries AS RESTRICTIVE TO app_seam_public_booking_owner, app_seam_public_clinic_card_owner, app_seam_public_slug_owner, app_seam_specialist_provision_owner USING (((CURRENT_USER = 'app_seam_public_booking_owner'::name) OR (CURRENT_USER = 'app_seam_public_clinic_card_owner'::name) OR (CURRENT_USER = 'app_seam_public_slug_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_public_booking_owner'::name) OR (CURRENT_USER = 'app_seam_public_clinic_card_owner'::name) OR (CURRENT_USER = 'app_seam_public_slug_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name)));
+CREATE POLICY rev10_named_root_owner_gate_58 ON public.booking_cities AS RESTRICTIVE TO app_seam_catalog_public_owner USING ((CURRENT_USER = 'app_seam_catalog_public_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_catalog_public_owner'::name));
+
+
+--
+-- Name: broadcast_audit rev10_named_root_owner_gate_59; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_named_root_owner_gate_59 ON public.broadcast_audit AS RESTRICTIVE TO app_seam_delivery_scope_owner, app_seam_telemetry_operator_owner USING (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name)));
+
+
+--
+-- Name: channel_link_secrets rev10_named_root_owner_gate_62; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_named_root_owner_gate_62 ON public.channel_link_secrets AS RESTRICTIVE TO app_seam_phone_binding_owner USING ((CURRENT_USER = 'app_seam_phone_binding_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_phone_binding_owner'::name));
+
+
+--
+-- Name: clinic_dedicated_bot_bindings rev10_named_root_owner_gate_63; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_named_root_owner_gate_63 ON public.clinic_dedicated_bot_bindings AS RESTRICTIVE TO app_seam_dedicated_bot_owner USING ((CURRENT_USER = 'app_seam_dedicated_bot_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_dedicated_bot_owner'::name));
+
+
+--
+-- Name: clinic_public_directory_entries rev10_named_root_owner_gate_64; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_named_root_owner_gate_64 ON public.clinic_public_directory_entries AS RESTRICTIVE TO app_seam_custom_domain_owner, app_seam_public_booking_owner, app_seam_public_clinic_card_owner, app_seam_public_slug_owner, app_seam_specialist_provision_owner USING (((CURRENT_USER = 'app_seam_custom_domain_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name) OR (CURRENT_USER = 'app_seam_public_clinic_card_owner'::name) OR (CURRENT_USER = 'app_seam_public_slug_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_custom_domain_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name) OR (CURRENT_USER = 'app_seam_public_clinic_card_owner'::name) OR (CURRENT_USER = 'app_seam_public_slug_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name)));
 
 
 --
@@ -16506,131 +17412,131 @@ CREATE POLICY rev10_named_root_owner_gate_82 ON public.content_sections AS RESTR
 
 
 --
--- Name: email_challenges rev10_named_root_owner_gate_86; Type: POLICY; Schema: public; Owner: -
+-- Name: video_meetings rev10_named_root_owner_gate_84; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_86 ON public.email_challenges AS RESTRICTIVE TO app_seam_email_otp_owner, app_seam_password_auth_owner USING (((CURRENT_USER = 'app_seam_email_otp_owner'::name) OR (CURRENT_USER = 'app_seam_password_auth_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_email_otp_owner'::name) OR (CURRENT_USER = 'app_seam_password_auth_owner'::name)));
-
-
---
--- Name: email_otp_locks rev10_named_root_owner_gate_87; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_named_root_owner_gate_87 ON public.email_otp_locks AS RESTRICTIVE TO app_seam_email_otp_owner USING ((CURRENT_USER = 'app_seam_email_otp_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_email_otp_owner'::name));
+CREATE POLICY rev10_named_root_owner_gate_84 ON public.video_meetings AS RESTRICTIVE TO app_seam_patient_invite_owner USING ((CURRENT_USER = 'app_seam_patient_invite_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_invite_owner'::name));
 
 
 --
--- Name: email_send_cooldowns rev10_named_root_owner_gate_88; Type: POLICY; Schema: public; Owner: -
+-- Name: video_meeting_invites rev10_named_root_owner_gate_85; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_88 ON public.email_send_cooldowns AS RESTRICTIVE TO app_seam_email_otp_owner, app_seam_reminder_email_cooldown_owner USING (((CURRENT_USER = 'app_seam_email_otp_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_email_cooldown_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_email_otp_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_email_cooldown_owner'::name)));
-
-
---
--- Name: idempotency_keys rev10_named_root_owner_gate_89; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_named_root_owner_gate_89 ON public.idempotency_keys AS RESTRICTIVE TO app_seam_delivery_scope_owner, app_seam_retention_sweep_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
+CREATE POLICY rev10_named_root_owner_gate_85 ON public.video_meeting_invites AS RESTRICTIVE TO app_seam_patient_invite_owner USING ((CURRENT_USER = 'app_seam_patient_invite_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_invite_owner'::name));
 
 
 --
--- Name: integration_webhook_error_events rev10_named_root_owner_gate_90; Type: POLICY; Schema: public; Owner: -
+-- Name: email_challenges rev10_named_root_owner_gate_88; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_90 ON public.integration_webhook_error_events AS RESTRICTIVE TO app_seam_telemetry_operator_owner USING ((CURRENT_USER = 'app_seam_telemetry_operator_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_telemetry_operator_owner'::name));
-
-
---
--- Name: integration_webhook_last_status rev10_named_root_owner_gate_91; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_named_root_owner_gate_91 ON public.integration_webhook_last_status AS RESTRICTIVE TO app_seam_telemetry_operator_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
+CREATE POLICY rev10_named_root_owner_gate_88 ON public.email_challenges AS RESTRICTIVE TO app_seam_email_otp_owner, app_seam_password_auth_owner USING (((CURRENT_USER = 'app_seam_email_otp_owner'::name) OR (CURRENT_USER = 'app_seam_password_auth_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_email_otp_owner'::name) OR (CURRENT_USER = 'app_seam_password_auth_owner'::name)));
 
 
 --
--- Name: lfk_complex_exercises rev10_named_root_owner_gate_92; Type: POLICY; Schema: public; Owner: -
+-- Name: email_otp_locks rev10_named_root_owner_gate_89; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_92 ON public.lfk_complex_exercises AS RESTRICTIVE TO app_seam_patient_lfk_media_owner USING ((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name));
-
-
---
--- Name: lfk_complex_template_exercises rev10_named_root_owner_gate_93; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_named_root_owner_gate_93 ON public.lfk_complex_template_exercises AS RESTRICTIVE TO app_seam_patient_lfk_media_owner USING ((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name));
+CREATE POLICY rev10_named_root_owner_gate_89 ON public.email_otp_locks AS RESTRICTIVE TO app_seam_email_otp_owner USING ((CURRENT_USER = 'app_seam_email_otp_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_email_otp_owner'::name));
 
 
 --
--- Name: lfk_complex_templates rev10_named_root_owner_gate_94; Type: POLICY; Schema: public; Owner: -
+-- Name: email_send_cooldowns rev10_named_root_owner_gate_90; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_94 ON public.lfk_complex_templates AS RESTRICTIVE TO app_seam_patient_lfk_media_owner USING ((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name));
-
-
---
--- Name: lfk_complexes rev10_named_root_owner_gate_95; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_named_root_owner_gate_95 ON public.lfk_complexes AS RESTRICTIVE TO app_seam_patient_lfk_media_owner, app_seam_patient_self_actions_owner USING (((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)));
+CREATE POLICY rev10_named_root_owner_gate_90 ON public.email_send_cooldowns AS RESTRICTIVE TO app_seam_email_otp_owner, app_seam_reminder_email_cooldown_owner USING (((CURRENT_USER = 'app_seam_email_otp_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_email_cooldown_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_email_otp_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_email_cooldown_owner'::name)));
 
 
 --
--- Name: lfk_exercise_media rev10_named_root_owner_gate_96; Type: POLICY; Schema: public; Owner: -
+-- Name: idempotency_keys rev10_named_root_owner_gate_91; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_96 ON public.lfk_exercise_media AS RESTRICTIVE TO app_seam_patient_lfk_media_owner, app_seam_platform_analytics_owner USING (((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name)));
-
-
---
--- Name: lfk_exercises rev10_named_root_owner_gate_98; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_named_root_owner_gate_98 ON public.lfk_exercises AS RESTRICTIVE TO app_seam_patient_lfk_media_owner, app_seam_platform_analytics_owner USING (((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name)));
+CREATE POLICY rev10_named_root_owner_gate_91 ON public.idempotency_keys AS RESTRICTIVE TO app_seam_delivery_scope_owner, app_seam_retention_sweep_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
 
 
 --
--- Name: lfk_sessions rev10_named_root_owner_gate_99; Type: POLICY; Schema: public; Owner: -
+-- Name: integration_webhook_error_events rev10_named_root_owner_gate_92; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_named_root_owner_gate_99 ON public.lfk_sessions AS RESTRICTIVE TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
-
-
---
--- Name: org_brand_revisions rev10_org_brand_revision_select_123; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_org_brand_revision_select_123 ON public.org_brand_revisions FOR SELECT TO app_patient, app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id))) OR ((CURRENT_USER = 'app_patient'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (status = 'published'::text) AND app.current_patient_has_active_org_enrollment(organization_id))));
+CREATE POLICY rev10_named_root_owner_gate_92 ON public.integration_webhook_error_events AS RESTRICTIVE TO app_seam_telemetry_operator_owner USING ((CURRENT_USER = 'app_seam_telemetry_operator_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_telemetry_operator_owner'::name));
 
 
 --
--- Name: org_brand_revisions rev10_org_brand_revision_staff_write_123; Type: POLICY; Schema: public; Owner: -
+-- Name: integration_webhook_last_status rev10_named_root_owner_gate_93; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_org_brand_revision_staff_write_123 ON public.org_brand_revisions TO app_staff USING (((CURRENT_USER = 'app_staff'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) WITH CHECK (((CURRENT_USER = 'app_staff'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id))));
+CREATE POLICY rev10_named_root_owner_gate_93 ON public.integration_webhook_last_status AS RESTRICTIVE TO app_seam_telemetry_operator_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
 
 
 --
--- Name: patient_home_block_items rev10_patient_home_catalog_138; Type: POLICY; Schema: public; Owner: -
+-- Name: lfk_complex_exercises rev10_named_root_owner_gate_94; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_patient_home_catalog_138 ON public.patient_home_block_items TO app_patient, app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id))) OR ((CURRENT_USER = 'app_patient'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (is_visible = true) AND (EXISTS ( SELECT 1
+CREATE POLICY rev10_named_root_owner_gate_94 ON public.lfk_complex_exercises AS RESTRICTIVE TO app_seam_patient_lfk_media_owner USING ((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name));
+
+
+--
+-- Name: lfk_complex_template_exercises rev10_named_root_owner_gate_95; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_named_root_owner_gate_95 ON public.lfk_complex_template_exercises AS RESTRICTIVE TO app_seam_patient_lfk_media_owner USING ((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name));
+
+
+--
+-- Name: lfk_complex_templates rev10_named_root_owner_gate_96; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_named_root_owner_gate_96 ON public.lfk_complex_templates AS RESTRICTIVE TO app_seam_patient_lfk_media_owner USING ((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name));
+
+
+--
+-- Name: lfk_complexes rev10_named_root_owner_gate_97; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_named_root_owner_gate_97 ON public.lfk_complexes AS RESTRICTIVE TO app_seam_patient_lfk_media_owner, app_seam_patient_self_actions_owner USING (((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)));
+
+
+--
+-- Name: lfk_exercise_media rev10_named_root_owner_gate_99; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_named_root_owner_gate_99 ON public.lfk_exercise_media AS RESTRICTIVE TO app_seam_patient_lfk_media_owner, app_seam_platform_analytics_owner USING (((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name)));
+
+
+--
+-- Name: org_brand_revisions rev10_org_brand_revision_select_127; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_org_brand_revision_select_127 ON public.org_brand_revisions FOR SELECT TO app_patient, app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id))) OR ((CURRENT_USER = 'app_patient'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (status = 'published'::text) AND app.current_patient_has_active_org_enrollment(organization_id))));
+
+
+--
+-- Name: org_brand_revisions rev10_org_brand_revision_staff_write_127; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_org_brand_revision_staff_write_127 ON public.org_brand_revisions TO app_staff USING (((CURRENT_USER = 'app_staff'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) WITH CHECK (((CURRENT_USER = 'app_staff'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id))));
+
+
+--
+-- Name: patient_home_block_items rev10_patient_home_catalog_143; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_patient_home_catalog_143 ON public.patient_home_block_items TO app_patient, app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id))) OR ((CURRENT_USER = 'app_patient'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (is_visible = true) AND (EXISTS ( SELECT 1
    FROM public.patient_home_blocks parent_block
   WHERE ((parent_block.code = patient_home_block_items.block_code) AND (parent_block.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (parent_block.is_visible = true))))))) WITH CHECK (((CURRENT_USER = 'app_staff'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id))));
 
 
 --
--- Name: patient_home_blocks rev10_patient_home_catalog_139; Type: POLICY; Schema: public; Owner: -
+-- Name: patient_home_blocks rev10_patient_home_catalog_144; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_patient_home_catalog_139 ON public.patient_home_blocks TO app_patient, app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id))) OR ((CURRENT_USER = 'app_patient'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (is_visible = true)))) WITH CHECK (((CURRENT_USER = 'app_staff'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id))));
+CREATE POLICY rev10_patient_home_catalog_144 ON public.patient_home_blocks TO app_patient, app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id))) OR ((CURRENT_USER = 'app_patient'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (is_visible = true)))) WITH CHECK (((CURRENT_USER = 'app_staff'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id))));
 
 
 --
--- Name: patient_content_rating_feedback rev10_patient_rating_feedback_insert_133; Type: POLICY; Schema: public; Owner: -
+-- Name: patient_content_rating_feedback rev10_patient_rating_feedback_insert_138; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_patient_rating_feedback_insert_133 ON public.patient_content_rating_feedback FOR INSERT TO app_patient, app_staff WITH CHECK (
+CREATE POLICY rev10_patient_rating_feedback_insert_138 ON public.patient_content_rating_feedback FOR INSERT TO app_patient, app_staff WITH CHECK (
 CASE
     WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id))) OR ((CURRENT_USER = 'app_patient'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (user_id = NULL::uuid)))
     WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id))) OR ((CURRENT_USER = 'app_patient'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (user_id = app.current_patient_user_id())))
@@ -16639,10 +17545,10 @@ END);
 
 
 --
--- Name: patient_content_rating_feedback rev10_patient_rating_feedback_select_133; Type: POLICY; Schema: public; Owner: -
+-- Name: patient_content_rating_feedback rev10_patient_rating_feedback_select_138; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_patient_rating_feedback_select_133 ON public.patient_content_rating_feedback FOR SELECT TO app_patient, app_staff USING (
+CREATE POLICY rev10_patient_rating_feedback_select_138 ON public.patient_content_rating_feedback FOR SELECT TO app_patient, app_staff USING (
 CASE
     WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id))) OR ((CURRENT_USER = 'app_patient'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (user_id = NULL::uuid)))
     WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id))) OR ((CURRENT_USER = 'app_patient'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (user_id = app.current_patient_user_id())))
@@ -16651,94 +17557,171 @@ END);
 
 
 --
--- Name: user_channel_bindings rev10_patient_self_managed_207; Type: POLICY; Schema: public; Owner: -
+-- Name: user_channel_bindings rev10_patient_self_managed_215; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_patient_self_managed_207 ON public.user_channel_bindings TO app_patient USING ((user_id = app.current_actor_user_id())) WITH CHECK ((user_id = app.current_actor_user_id()));
-
-
---
--- Name: user_channel_preferences rev10_patient_self_managed_208; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_patient_self_managed_208 ON public.user_channel_preferences TO app_patient USING ((platform_user_id = app.current_actor_user_id())) WITH CHECK ((platform_user_id = app.current_actor_user_id()));
+CREATE POLICY rev10_patient_self_managed_215 ON public.user_channel_bindings TO app_patient USING ((user_id = app.current_actor_user_id())) WITH CHECK ((user_id = app.current_actor_user_id()));
 
 
 --
--- Name: user_contacts rev10_patient_self_managed_209; Type: POLICY; Schema: public; Owner: -
+-- Name: user_channel_preferences rev10_patient_self_managed_216; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_patient_self_managed_209 ON public.user_contacts TO app_patient USING ((platform_user_id = app.current_actor_user_id())) WITH CHECK ((platform_user_id = app.current_actor_user_id()));
-
-
---
--- Name: user_identity rev10_patient_self_managed_210; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_patient_self_managed_210 ON public.user_identity TO app_patient USING ((platform_user_id = app.current_actor_user_id())) WITH CHECK ((platform_user_id = app.current_actor_user_id()));
+CREATE POLICY rev10_patient_self_managed_216 ON public.user_channel_preferences TO app_patient USING ((platform_user_id = app.current_actor_user_id())) WITH CHECK ((platform_user_id = app.current_actor_user_id()));
 
 
 --
--- Name: user_notification_topic_channels rev10_patient_self_managed_211; Type: POLICY; Schema: public; Owner: -
+-- Name: user_contacts rev10_patient_self_managed_217; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_patient_self_managed_211 ON public.user_notification_topic_channels TO app_patient USING ((user_id = app.current_actor_user_id())) WITH CHECK ((user_id = app.current_actor_user_id()));
-
-
---
--- Name: user_notification_topics rev10_patient_self_managed_212; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_patient_self_managed_212 ON public.user_notification_topics TO app_patient USING ((user_id = app.current_actor_user_id())) WITH CHECK ((user_id = app.current_actor_user_id()));
+CREATE POLICY rev10_patient_self_managed_217 ON public.user_contacts TO app_patient USING ((platform_user_id = app.current_actor_user_id())) WITH CHECK ((platform_user_id = app.current_actor_user_id()));
 
 
 --
--- Name: user_phone_history rev10_patient_self_managed_218; Type: POLICY; Schema: public; Owner: -
+-- Name: user_identity rev10_patient_self_managed_218; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_patient_self_managed_218 ON public.user_phone_history TO app_patient USING ((platform_user_id = app.current_actor_user_id())) WITH CHECK ((platform_user_id = app.current_actor_user_id()));
-
-
---
--- Name: user_web_push_subscriptions rev10_patient_self_managed_220; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_patient_self_managed_220 ON public.user_web_push_subscriptions TO app_patient USING ((user_id = app.current_actor_user_id())) WITH CHECK ((user_id = app.current_actor_user_id()));
+CREATE POLICY rev10_patient_self_managed_218 ON public.user_identity TO app_patient USING ((platform_user_id = app.current_actor_user_id())) WITH CHECK ((platform_user_id = app.current_actor_user_id()));
 
 
 --
--- Name: platform_users rev10_platform_users_account_timezone_update_150; Type: POLICY; Schema: public; Owner: -
+-- Name: user_notification_topic_channels rev10_patient_self_managed_219; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_platform_users_account_timezone_update_150 ON public.platform_users FOR UPDATE TO app_patient, app_platform_settings, app_staff USING ((id = app.current_actor_user_id())) WITH CHECK ((id = app.current_actor_user_id()));
-
-
---
--- Name: platform_users rev10_platform_users_patient_select_150; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_platform_users_patient_select_150 ON public.platform_users FOR SELECT TO app_patient USING ((id = app.current_actor_user_id()));
+CREATE POLICY rev10_patient_self_managed_219 ON public.user_notification_topic_channels TO app_patient USING ((user_id = app.current_actor_user_id())) WITH CHECK ((user_id = app.current_actor_user_id()));
 
 
 --
--- Name: platform_users rev10_platform_users_platform_select_150; Type: POLICY; Schema: public; Owner: -
+-- Name: user_notification_topics rev10_patient_self_managed_220; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_platform_users_platform_select_150 ON public.platform_users FOR SELECT TO app_platform_settings USING ((CURRENT_USER = 'app_platform_settings'::name));
-
-
---
--- Name: platform_users rev10_platform_users_staff_insert_150; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_platform_users_staff_insert_150 ON public.platform_users FOR INSERT TO app_staff WITH CHECK (((CURRENT_USER = 'app_staff'::name) AND (role = 'client'::text) AND (merged_into_id IS NULL) AND (is_archived = false) AND (is_blocked = false)));
+CREATE POLICY rev10_patient_self_managed_220 ON public.user_notification_topics TO app_patient USING ((user_id = app.current_actor_user_id())) WITH CHECK ((user_id = app.current_actor_user_id()));
 
 
 --
--- Name: platform_users rev10_platform_users_staff_patient_block_update_150; Type: POLICY; Schema: public; Owner: -
+-- Name: user_phone_history rev10_patient_self_managed_226; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_platform_users_staff_patient_block_update_150 ON public.platform_users FOR UPDATE TO app_staff USING ((((EXISTS ( SELECT 1
+CREATE POLICY rev10_patient_self_managed_226 ON public.user_phone_history TO app_patient USING ((platform_user_id = app.current_actor_user_id())) WITH CHECK ((platform_user_id = app.current_actor_user_id()));
+
+
+--
+-- Name: user_web_push_subscriptions rev10_patient_self_managed_228; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_patient_self_managed_228 ON public.user_web_push_subscriptions TO app_patient USING ((user_id = app.current_actor_user_id())) WITH CHECK ((user_id = app.current_actor_user_id()));
+
+
+--
+-- Name: native_push_targets rev10_patient_self_managed_229; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_patient_self_managed_229 ON public.native_push_targets TO app_patient USING ((user_id = app.current_actor_user_id())) WITH CHECK ((user_id = app.current_actor_user_id()));
+
+
+--
+-- Name: lfk_exercise_regions rev10_platform_lfk_read_100; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_platform_lfk_read_100 ON public.lfk_exercise_regions FOR SELECT TO app_staff USING (((CURRENT_USER = 'app_staff'::name) AND (( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (owner_kind = 'platform'::text) AND (organization_id IS NULL)));
+
+
+--
+-- Name: lfk_exercises rev10_platform_lfk_read_101; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_platform_lfk_read_101 ON public.lfk_exercises FOR SELECT TO app_staff USING (((CURRENT_USER = 'app_staff'::name) AND (( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (owner_kind = 'platform'::text) AND (organization_id IS NULL)));
+
+
+--
+-- Name: recommendation_regions rev10_platform_lfk_read_163; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_platform_lfk_read_163 ON public.recommendation_regions FOR SELECT TO app_staff USING (((CURRENT_USER = 'app_staff'::name) AND (( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (owner_kind = 'platform'::text) AND (organization_id IS NULL)));
+
+
+--
+-- Name: recommendations rev10_platform_lfk_read_164; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_platform_lfk_read_164 ON public.recommendations FOR SELECT TO app_staff USING (((CURRENT_USER = 'app_staff'::name) AND (( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (owner_kind = 'platform'::text) AND (organization_id IS NULL)));
+
+
+--
+-- Name: tests rev10_platform_lfk_read_205; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_platform_lfk_read_205 ON public.tests FOR SELECT TO app_staff USING (((CURRENT_USER = 'app_staff'::name) AND (( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (owner_kind = 'platform'::text) AND (organization_id IS NULL)));
+
+
+--
+-- Name: clinical_test_regions rev10_platform_lfk_read_76; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_platform_lfk_read_76 ON public.clinical_test_regions FOR SELECT TO app_staff USING (((CURRENT_USER = 'app_staff'::name) AND (( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (owner_kind = 'platform'::text) AND (organization_id IS NULL)));
+
+
+--
+-- Name: lfk_complex_template_exercises rev10_platform_lfk_read_95; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_platform_lfk_read_95 ON public.lfk_complex_template_exercises FOR SELECT TO app_staff USING (((CURRENT_USER = 'app_staff'::name) AND (( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (owner_kind = 'platform'::text) AND (organization_id IS NULL)));
+
+
+--
+-- Name: lfk_complex_templates rev10_platform_lfk_read_96; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_platform_lfk_read_96 ON public.lfk_complex_templates FOR SELECT TO app_staff USING (((CURRENT_USER = 'app_staff'::name) AND (( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (owner_kind = 'platform'::text) AND (organization_id IS NULL)));
+
+
+--
+-- Name: lfk_exercise_load_types rev10_platform_lfk_read_98; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_platform_lfk_read_98 ON public.lfk_exercise_load_types FOR SELECT TO app_staff USING (((CURRENT_USER = 'app_staff'::name) AND (( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (owner_kind = 'platform'::text) AND (organization_id IS NULL)));
+
+
+--
+-- Name: lfk_exercise_media rev10_platform_lfk_read_99; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_platform_lfk_read_99 ON public.lfk_exercise_media FOR SELECT TO app_staff USING (((CURRENT_USER = 'app_staff'::name) AND (( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (owner_kind = 'platform'::text) AND (organization_id IS NULL)));
+
+
+--
+-- Name: platform_users rev10_platform_users_account_timezone_update_155; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_platform_users_account_timezone_update_155 ON public.platform_users FOR UPDATE TO app_patient, app_platform_settings, app_staff USING ((id = app.current_actor_user_id())) WITH CHECK ((id = app.current_actor_user_id()));
+
+
+--
+-- Name: platform_users rev10_platform_users_patient_select_155; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_platform_users_patient_select_155 ON public.platform_users FOR SELECT TO app_patient USING ((id = app.current_actor_user_id()));
+
+
+--
+-- Name: platform_users rev10_platform_users_platform_select_155; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_platform_users_platform_select_155 ON public.platform_users FOR SELECT TO app_platform_settings USING ((CURRENT_USER = 'app_platform_settings'::name));
+
+
+--
+-- Name: platform_users rev10_platform_users_staff_insert_155; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_platform_users_staff_insert_155 ON public.platform_users FOR INSERT TO app_staff WITH CHECK (((CURRENT_USER = 'app_staff'::name) AND (role = 'client'::text) AND (merged_into_id IS NULL) AND (is_archived = false) AND (is_blocked = false)));
+
+
+--
+-- Name: platform_users rev10_platform_users_staff_patient_block_update_155; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_platform_users_staff_patient_block_update_155 ON public.platform_users FOR UPDATE TO app_staff USING ((((EXISTS ( SELECT 1
    FROM public.be_organization_members access_member
   WHERE ((access_member.platform_user_id = platform_users.id) AND (access_member.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (access_member.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments access_patient
@@ -16750,10 +17733,10 @@ CREATE POLICY rev10_platform_users_staff_patient_block_update_150 ON public.plat
 
 
 --
--- Name: platform_users rev10_platform_users_staff_select_150; Type: POLICY; Schema: public; Owner: -
+-- Name: platform_users rev10_platform_users_staff_select_155; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_platform_users_staff_select_150 ON public.platform_users FOR SELECT TO app_staff USING (((EXISTS ( SELECT 1
+CREATE POLICY rev10_platform_users_staff_select_155 ON public.platform_users FOR SELECT TO app_staff USING (((EXISTS ( SELECT 1
    FROM public.be_organization_members access_member
   WHERE ((access_member.platform_user_id = platform_users.id) AND (access_member.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (access_member.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments access_patient
@@ -16761,31 +17744,31 @@ CREATE POLICY rev10_platform_users_staff_select_150 ON public.platform_users FOR
 
 
 --
--- Name: media_playback_client_events rev10_playback_client_event_maintenance_delete_106; Type: POLICY; Schema: public; Owner: -
+-- Name: media_playback_client_events rev10_playback_client_event_maintenance_delete_109; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_playback_client_event_maintenance_delete_106 ON public.media_playback_client_events FOR DELETE TO app_operational_maintenance USING ((CURRENT_USER = 'app_operational_maintenance'::name));
-
-
---
--- Name: media_playback_client_events rev10_playback_client_event_maintenance_select_106; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_playback_client_event_maintenance_select_106 ON public.media_playback_client_events FOR SELECT TO app_operational_maintenance USING ((CURRENT_USER = 'app_operational_maintenance'::name));
+CREATE POLICY rev10_playback_client_event_maintenance_delete_109 ON public.media_playback_client_events FOR DELETE TO app_operational_maintenance USING ((CURRENT_USER = 'app_operational_maintenance'::name));
 
 
 --
--- Name: media_playback_client_events rev10_playback_client_event_patient_insert_106; Type: POLICY; Schema: public; Owner: -
+-- Name: media_playback_client_events rev10_playback_client_event_maintenance_select_109; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_playback_client_event_patient_insert_106 ON public.media_playback_client_events FOR INSERT TO app_patient WITH CHECK (((CURRENT_USER = 'app_patient'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (user_id = app.current_patient_user_id())));
+CREATE POLICY rev10_playback_client_event_maintenance_select_109 ON public.media_playback_client_events FOR SELECT TO app_operational_maintenance USING ((CURRENT_USER = 'app_operational_maintenance'::name));
 
 
 --
--- Name: media_playback_user_video_first_resolve rev10_playback_first_resolve_self_109; Type: POLICY; Schema: public; Owner: -
+-- Name: media_playback_client_events rev10_playback_client_event_patient_insert_109; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_playback_first_resolve_self_109 ON public.media_playback_user_video_first_resolve TO app_patient, app_staff USING (
+CREATE POLICY rev10_playback_client_event_patient_insert_109 ON public.media_playback_client_events FOR INSERT TO app_patient WITH CHECK (((CURRENT_USER = 'app_patient'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (user_id = app.current_patient_user_id())));
+
+
+--
+-- Name: media_playback_user_video_first_resolve rev10_playback_first_resolve_self_113; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_playback_first_resolve_self_113 ON public.media_playback_user_video_first_resolve TO app_patient, app_staff USING (
 CASE
     WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id))) OR ((CURRENT_USER = 'app_patient'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (user_id = NULL::uuid)))
     WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id))) OR ((CURRENT_USER = 'app_patient'::name) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (user_id = app.current_patient_user_id())))
@@ -16799,17 +17782,17 @@ END);
 
 
 --
--- Name: media_playback_resolution_events rev10_playback_resolution_event_maintenance_delete_107; Type: POLICY; Schema: public; Owner: -
+-- Name: media_playback_resolution_events rev10_playback_resolution_event_maintenance_delete_111; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_playback_resolution_event_maintenance_delete_107 ON public.media_playback_resolution_events FOR DELETE TO app_operational_maintenance USING ((CURRENT_USER = 'app_operational_maintenance'::name));
+CREATE POLICY rev10_playback_resolution_event_maintenance_delete_111 ON public.media_playback_resolution_events FOR DELETE TO app_operational_maintenance USING ((CURRENT_USER = 'app_operational_maintenance'::name));
 
 
 --
--- Name: media_playback_resolution_events rev10_playback_resolution_event_maintenance_select_107; Type: POLICY; Schema: public; Owner: -
+-- Name: media_playback_resolution_events rev10_playback_resolution_event_maintenance_select_111; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_playback_resolution_event_maintenance_select_107 ON public.media_playback_resolution_events FOR SELECT TO app_operational_maintenance USING ((CURRENT_USER = 'app_operational_maintenance'::name));
+CREATE POLICY rev10_playback_resolution_event_maintenance_select_111 ON public.media_playback_resolution_events FOR SELECT TO app_operational_maintenance USING ((CURRENT_USER = 'app_operational_maintenance'::name));
 
 
 --
@@ -16874,7 +17857,7 @@ CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.be_appointment_reschedules
 -- Name: be_appointments rev10_saas_org_dormant_p0_8_3; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.be_appointments TO app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (platform_user_id = NULL::uuid)))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (platform_user_id = NULL::uuid))));
+CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.be_appointments TO app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (platform_user_id = NULL::uuid)))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (platform_user_id = NULL::uuid))));
 
 
 --
@@ -17092,13 +18075,6 @@ CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.be_schedule_templates TO a
 
 
 --
--- Name: be_service_location_availability rev10_saas_org_dormant_p0_8_3; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.be_service_location_availability TO app_staff USING (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id))))) WITH CHECK (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))));
-
-
---
 -- Name: be_specialist_locations rev10_saas_org_dormant_p0_8_3; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -17172,35 +18148,35 @@ CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.clinic_public_directory_en
 -- Name: clinical_anamnesis_illness rev10_saas_org_dormant_p0_8_3; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.clinical_anamnesis_illness TO app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (patient_user_id = NULL::uuid)))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (patient_user_id = NULL::uuid))));
+CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.clinical_anamnesis_illness TO app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (patient_user_id = NULL::uuid)))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (patient_user_id = NULL::uuid))));
 
 
 --
 -- Name: clinical_anamnesis_lifestyle rev10_saas_org_dormant_p0_8_3; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.clinical_anamnesis_lifestyle TO app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (patient_user_id = NULL::uuid)))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (patient_user_id = NULL::uuid))));
+CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.clinical_anamnesis_lifestyle TO app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (patient_user_id = NULL::uuid)))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (patient_user_id = NULL::uuid))));
 
 
 --
 -- Name: clinical_anamnesis_trauma rev10_saas_org_dormant_p0_8_3; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.clinical_anamnesis_trauma TO app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (patient_user_id = NULL::uuid)))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (patient_user_id = NULL::uuid))));
+CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.clinical_anamnesis_trauma TO app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (patient_user_id = NULL::uuid)))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (patient_user_id = NULL::uuid))));
 
 
 --
 -- Name: clinical_complaint rev10_saas_org_dormant_p0_8_3; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.clinical_complaint TO app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (patient_user_id = NULL::uuid)))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (patient_user_id = NULL::uuid))));
+CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.clinical_complaint TO app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (patient_user_id = NULL::uuid)))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (patient_user_id = NULL::uuid))));
 
 
 --
 -- Name: clinical_diagnosis rev10_saas_org_dormant_p0_8_3; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.clinical_diagnosis TO app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (patient_user_id = NULL::uuid)))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (patient_user_id = NULL::uuid))));
+CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.clinical_diagnosis TO app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (patient_user_id = NULL::uuid)))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (patient_user_id = NULL::uuid))));
 
 
 --
@@ -17211,17 +18187,24 @@ CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.clinical_diagnosis_catalog
 
 
 --
+-- Name: clinical_disease_anamnesis rev10_saas_org_dormant_p0_8_3; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.clinical_disease_anamnesis TO app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (patient_user_id = NULL::uuid)))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (patient_user_id = NULL::uuid))));
+
+
+--
 -- Name: clinical_visit rev10_saas_org_dormant_p0_8_3; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.clinical_visit TO app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (patient_user_id = NULL::uuid)))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (patient_user_id = NULL::uuid))));
+CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.clinical_visit TO app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (patient_user_id = NULL::uuid)))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (patient_user_id = NULL::uuid))));
 
 
 --
 -- Name: doctor_notes rev10_saas_org_dormant_p0_8_3; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.doctor_notes TO app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (user_id = NULL::uuid)))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (user_id = NULL::uuid))));
+CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.doctor_notes TO app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (user_id = NULL::uuid)))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (user_id = NULL::uuid))));
 
 
 --
@@ -17230,13 +18213,13 @@ CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.doctor_notes TO app_staff 
 
 CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.doctor_patient_support TO app_patient, app_staff USING (
 CASE
-    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (patient_user_id = NULL::uuid)))
-    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (patient_user_id = app.current_patient_user_id())))
+    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (patient_user_id = NULL::uuid)))
+    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (patient_user_id = app.current_patient_user_id())))
     ELSE false
 END) WITH CHECK (
 CASE
-    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (patient_user_id = NULL::uuid)))
-    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (patient_user_id = app.current_patient_user_id())))
+    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (patient_user_id = NULL::uuid)))
+    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (patient_user_id = app.current_patient_user_id())))
     ELSE false
 END);
 
@@ -17254,15 +18237,22 @@ CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.lfk_complex_templates TO a
 
 CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.lfk_complexes TO app_patient, app_staff USING (
 CASE
-    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (platform_user_id = NULL::uuid)))
-    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (platform_user_id = app.current_patient_user_id())))
+    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (platform_user_id = NULL::uuid)))
+    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (platform_user_id = app.current_patient_user_id())))
     ELSE false
 END) WITH CHECK (
 CASE
-    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (platform_user_id = NULL::uuid)))
-    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (platform_user_id = app.current_patient_user_id())))
+    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (platform_user_id = NULL::uuid)))
+    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (platform_user_id = app.current_patient_user_id())))
     ELSE false
 END);
+
+
+--
+-- Name: lfk_exercise_load_types rev10_saas_org_dormant_p0_8_3; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.lfk_exercise_load_types TO app_staff USING (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id))))) WITH CHECK (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))));
 
 
 --
@@ -17283,28 +18273,38 @@ CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.lfk_exercises TO app_staff
 -- Name: lfk_sessions rev10_saas_org_dormant_p0_8_3; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.lfk_sessions TO app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (user_id = NULL::uuid)))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (user_id = NULL::uuid))));
+CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.lfk_sessions TO app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (user_id = NULL::uuid)))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (user_id = NULL::uuid))));
 
 
 --
 -- Name: media_folders rev10_saas_org_dormant_p0_8_3; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.media_folders TO app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR (((patient_user_id IS NULL) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (patient_user_id = NULL::uuid))))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR (((patient_user_id IS NULL) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (patient_user_id = NULL::uuid)))));
+CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.media_folders TO app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR (((patient_user_id IS NULL) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (patient_user_id = NULL::uuid))))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR (((patient_user_id IS NULL) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (patient_user_id = NULL::uuid)))));
 
 
 --
 -- Name: media_upload_sessions rev10_saas_org_dormant_p0_8_3; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.media_upload_sessions TO app_operational_media_worker, app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (owner_user_id = NULL::uuid)))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (owner_user_id = NULL::uuid))));
+CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.media_upload_sessions TO app_operational_media_worker, app_patient, app_staff USING (
+CASE
+    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (owner_user_id = NULL::uuid)))
+    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (owner_user_id = app.current_patient_user_id())))
+    ELSE false
+END) WITH CHECK (
+CASE
+    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (owner_user_id = NULL::uuid)))
+    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (owner_user_id = app.current_patient_user_id())))
+    ELSE false
+END);
 
 
 --
 -- Name: message_log rev10_saas_org_dormant_p0_8_3; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.message_log TO app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (platform_user_id = NULL::uuid)))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (platform_user_id = NULL::uuid))));
+CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.message_log TO app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (platform_user_id = NULL::uuid)))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (platform_user_id = NULL::uuid))));
 
 
 --
@@ -17318,7 +18318,7 @@ CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.motivational_quotes TO app
 -- Name: online_intake_requests rev10_saas_org_dormant_p0_8_3; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.online_intake_requests TO app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (user_id = NULL::uuid)))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (user_id = NULL::uuid))));
+CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.online_intake_requests TO app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (user_id = NULL::uuid)))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (user_id = NULL::uuid))));
 
 
 --
@@ -17329,10 +18329,17 @@ CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.operator_health_failure_ar
 
 
 --
+-- Name: org_custom_domain_bindings rev10_saas_org_dormant_p0_8_3; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.org_custom_domain_bindings TO app_staff USING (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id))))) WITH CHECK (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))));
+
+
+--
 -- Name: org_enrollments rev10_saas_org_dormant_p0_8_3; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.org_enrollments TO app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (platform_user_id = NULL::uuid)))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (platform_user_id = NULL::uuid))));
+CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.org_enrollments TO app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (platform_user_id = NULL::uuid)))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (platform_user_id = NULL::uuid))));
 
 
 --
@@ -17346,7 +18353,7 @@ CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.organization_member_invite
 -- Name: patient_comorbidity rev10_saas_org_dormant_p0_8_3; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.patient_comorbidity TO app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (patient_user_id = NULL::uuid)))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (patient_user_id = NULL::uuid))));
+CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.patient_comorbidity TO app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (patient_user_id = NULL::uuid)))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (patient_user_id = NULL::uuid))));
 
 
 --
@@ -17355,13 +18362,13 @@ CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.patient_comorbidity TO app
 
 CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.patient_daily_warmup_presentations TO app_patient, app_staff USING (
 CASE
-    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (user_id = NULL::uuid)))
-    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (user_id = app.current_patient_user_id())))
+    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (user_id = NULL::uuid)))
+    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (user_id = app.current_patient_user_id())))
     ELSE false
 END) WITH CHECK (
 CASE
-    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (user_id = NULL::uuid)))
-    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (user_id = app.current_patient_user_id())))
+    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (user_id = NULL::uuid)))
+    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (user_id = app.current_patient_user_id())))
     ELSE false
 END);
 
@@ -17372,13 +18379,13 @@ END);
 
 CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.patient_diary_day_snapshots TO app_patient, app_staff USING (
 CASE
-    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (platform_user_id = NULL::uuid)))
-    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (platform_user_id = app.current_patient_user_id())))
+    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (platform_user_id = NULL::uuid)))
+    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (platform_user_id = app.current_patient_user_id())))
     ELSE false
 END) WITH CHECK (
 CASE
-    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (platform_user_id = NULL::uuid)))
-    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (platform_user_id = app.current_patient_user_id())))
+    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (platform_user_id = NULL::uuid)))
+    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (platform_user_id = app.current_patient_user_id())))
     ELSE false
 END);
 
@@ -17387,7 +18394,7 @@ END);
 -- Name: patient_files rev10_saas_org_dormant_p0_8_3; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.patient_files TO app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (patient_user_id = NULL::uuid)))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (patient_user_id = NULL::uuid))));
+CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.patient_files TO app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (patient_user_id = NULL::uuid)))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (patient_user_id = NULL::uuid))));
 
 
 --
@@ -17401,7 +18408,7 @@ CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.patient_invites TO app_sta
 -- Name: patient_lfk_assignments rev10_saas_org_dormant_p0_8_3; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.patient_lfk_assignments TO app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (patient_user_id = NULL::uuid)))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (patient_user_id = NULL::uuid))));
+CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.patient_lfk_assignments TO app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (patient_user_id = NULL::uuid)))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (patient_user_id = NULL::uuid))));
 
 
 --
@@ -17415,7 +18422,7 @@ CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.patient_merge_candidates T
 -- Name: patient_payment rev10_saas_org_dormant_p0_8_3; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.patient_payment TO app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (patient_user_id = NULL::uuid)))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (patient_user_id = NULL::uuid))));
+CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.patient_payment TO app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (patient_user_id = NULL::uuid)))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (patient_user_id = NULL::uuid))));
 
 
 --
@@ -17424,13 +18431,13 @@ CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.patient_payment TO app_sta
 
 CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.patient_practice_completions TO app_patient, app_staff USING (
 CASE
-    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (user_id = NULL::uuid)))
-    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (user_id = app.current_patient_user_id())))
+    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (user_id = NULL::uuid)))
+    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (user_id = app.current_patient_user_id())))
     ELSE false
 END) WITH CHECK (
 CASE
-    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (user_id = NULL::uuid)))
-    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (user_id = app.current_patient_user_id())))
+    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (user_id = NULL::uuid)))
+    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (user_id = app.current_patient_user_id())))
     ELSE false
 END);
 
@@ -17446,21 +18453,21 @@ CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.patient_specialist_links T
 -- Name: product_analytics_events_recent rev10_saas_org_dormant_p0_8_3; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.product_analytics_events_recent TO app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (user_id = NULL::uuid)))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (user_id = NULL::uuid))));
+CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.product_analytics_events_recent TO app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (user_id = NULL::uuid)))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (user_id = NULL::uuid))));
 
 
 --
 -- Name: product_analytics_user_hourly rev10_saas_org_dormant_p0_8_3; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.product_analytics_user_hourly TO app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (user_id = NULL::uuid)))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (user_id = NULL::uuid))));
+CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.product_analytics_user_hourly TO app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (user_id = NULL::uuid)))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (user_id = NULL::uuid))));
 
 
 --
 -- Name: product_push_notifications rev10_saas_org_dormant_p0_8_3; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.product_push_notifications TO app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (user_id = NULL::uuid)))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (user_id = NULL::uuid))));
+CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.product_push_notifications TO app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (user_id = NULL::uuid)))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (user_id = NULL::uuid))));
 
 
 --
@@ -17483,13 +18490,13 @@ CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.recommendations TO app_sta
 
 CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.reminder_rules TO app_patient, app_staff USING (
 CASE
-    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (platform_user_id = NULL::uuid)))
-    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (platform_user_id = app.current_patient_user_id())))
+    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (platform_user_id = NULL::uuid)))
+    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (platform_user_id = app.current_patient_user_id())))
     ELSE false
 END) WITH CHECK (
 CASE
-    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (platform_user_id = NULL::uuid)))
-    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (platform_user_id = app.current_patient_user_id())))
+    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (platform_user_id = NULL::uuid)))
+    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (platform_user_id = app.current_patient_user_id())))
     ELSE false
 END);
 
@@ -17535,13 +18542,13 @@ END);
 
 CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.test_attempts TO app_patient, app_staff USING (
 CASE
-    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (patient_user_id = NULL::uuid)))
-    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (patient_user_id = app.current_patient_user_id())))
+    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (patient_user_id = NULL::uuid)))
+    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (patient_user_id = app.current_patient_user_id())))
     ELSE false
 END) WITH CHECK (
 CASE
-    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (patient_user_id = NULL::uuid)))
-    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (patient_user_id = app.current_patient_user_id())))
+    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (patient_user_id = NULL::uuid)))
+    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (patient_user_id = app.current_patient_user_id())))
     ELSE false
 END);
 
@@ -17566,13 +18573,13 @@ CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.tests TO app_staff USING (
 
 CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.treatment_program_instances TO app_patient, app_staff USING (
 CASE
-    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (patient_user_id = NULL::uuid)))
-    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (patient_user_id = app.current_patient_user_id())))
+    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (patient_user_id = NULL::uuid)))
+    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (patient_user_id = app.current_patient_user_id())))
     ELSE false
 END) WITH CHECK (
 CASE
-    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (patient_user_id = NULL::uuid)))
-    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (patient_user_id = app.current_patient_user_id())))
+    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (patient_user_id = NULL::uuid)))
+    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (patient_user_id = app.current_patient_user_id())))
     ELSE false
 END);
 
@@ -17582,6 +18589,30 @@ END);
 --
 
 CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.treatment_program_templates TO app_staff USING (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id))))) WITH CHECK (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))));
+
+
+--
+-- Name: video_meeting_invites rev10_saas_org_dormant_p0_8_3; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.video_meeting_invites TO app_staff USING (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id))))) WITH CHECK (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))));
+
+
+--
+-- Name: video_meetings rev10_saas_org_dormant_p0_8_3; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_saas_org_dormant_p0_8_3 ON public.video_meetings TO app_patient, app_staff USING (
+CASE
+    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (patient_user_id = NULL::uuid)))
+    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (patient_user_id = app.current_patient_user_id())))
+    ELSE false
+END) WITH CHECK (
+CASE
+    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (patient_user_id = NULL::uuid)))
+    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (patient_user_id = app.current_patient_user_id())))
+    ELSE false
+END);
 
 
 --
@@ -17644,16 +18675,16 @@ END);
 -- Name: broadcast_audit_recipients rev10_saas_org_dormant_p0_8_4; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_saas_org_dormant_p0_8_4 ON public.broadcast_audit_recipients TO app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (platform_user_id = NULL::uuid)))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (platform_user_id = NULL::uuid))));
+CREATE POLICY rev10_saas_org_dormant_p0_8_4 ON public.broadcast_audit_recipients TO app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (platform_user_id = NULL::uuid)))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (platform_user_id = NULL::uuid))));
 
 
 --
 -- Name: clinical_complaint_update rev10_saas_org_dormant_p0_8_4; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_saas_org_dormant_p0_8_4 ON public.clinical_complaint_update TO app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (EXISTS ( SELECT 1
+CREATE POLICY rev10_saas_org_dormant_p0_8_4 ON public.clinical_complaint_update TO app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (EXISTS ( SELECT 1
    FROM public.clinical_complaint b4f_complaint
-  WHERE ((b4f_complaint.id = clinical_complaint_update.complaint_id) AND (b4f_complaint.patient_user_id = NULL::uuid))))))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (EXISTS ( SELECT 1
+  WHERE ((b4f_complaint.id = clinical_complaint_update.complaint_id) AND (b4f_complaint.patient_user_id = NULL::uuid))))))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (EXISTS ( SELECT 1
    FROM public.clinical_complaint b4f_complaint
   WHERE ((b4f_complaint.id = clinical_complaint_update.complaint_id) AND (b4f_complaint.patient_user_id = NULL::uuid)))))));
 
@@ -17662,9 +18693,9 @@ CREATE POLICY rev10_saas_org_dormant_p0_8_4 ON public.clinical_complaint_update 
 -- Name: clinical_diagnosis_status_history rev10_saas_org_dormant_p0_8_4; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_saas_org_dormant_p0_8_4 ON public.clinical_diagnosis_status_history TO app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (EXISTS ( SELECT 1
+CREATE POLICY rev10_saas_org_dormant_p0_8_4 ON public.clinical_diagnosis_status_history TO app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (EXISTS ( SELECT 1
    FROM public.clinical_diagnosis b4f_diagnosis
-  WHERE ((b4f_diagnosis.id = clinical_diagnosis_status_history.diagnosis_id) AND (b4f_diagnosis.patient_user_id = NULL::uuid))))))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (EXISTS ( SELECT 1
+  WHERE ((b4f_diagnosis.id = clinical_diagnosis_status_history.diagnosis_id) AND (b4f_diagnosis.patient_user_id = NULL::uuid))))))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (EXISTS ( SELECT 1
    FROM public.clinical_diagnosis b4f_diagnosis
   WHERE ((b4f_diagnosis.id = clinical_diagnosis_status_history.diagnosis_id) AND (b4f_diagnosis.patient_user_id = NULL::uuid)))))));
 
@@ -17673,9 +18704,9 @@ CREATE POLICY rev10_saas_org_dormant_p0_8_4 ON public.clinical_diagnosis_status_
 -- Name: clinical_diagnosis_update rev10_saas_org_dormant_p0_8_4; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_saas_org_dormant_p0_8_4 ON public.clinical_diagnosis_update TO app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (EXISTS ( SELECT 1
+CREATE POLICY rev10_saas_org_dormant_p0_8_4 ON public.clinical_diagnosis_update TO app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (EXISTS ( SELECT 1
    FROM public.clinical_diagnosis b4f_diagnosis
-  WHERE ((b4f_diagnosis.id = clinical_diagnosis_update.diagnosis_id) AND (b4f_diagnosis.patient_user_id = NULL::uuid))))))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (EXISTS ( SELECT 1
+  WHERE ((b4f_diagnosis.id = clinical_diagnosis_update.diagnosis_id) AND (b4f_diagnosis.patient_user_id = NULL::uuid))))))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (EXISTS ( SELECT 1
    FROM public.clinical_diagnosis b4f_diagnosis
   WHERE ((b4f_diagnosis.id = clinical_diagnosis_update.diagnosis_id) AND (b4f_diagnosis.patient_user_id = NULL::uuid)))))));
 
@@ -17684,25 +18715,25 @@ CREATE POLICY rev10_saas_org_dormant_p0_8_4 ON public.clinical_diagnosis_update 
 -- Name: comments rev10_saas_org_dormant_p0_8_4; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_saas_org_dormant_p0_8_4 ON public.comments TO app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR (((target_type = ANY (ARRAY['exercise'::text, 'test'::text, 'test_set'::text, 'recommendation'::text, 'lesson'::text])) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((target_type = 'program_instance'::text) AND ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (EXISTS ( SELECT 1
+CREATE POLICY rev10_saas_org_dormant_p0_8_4 ON public.comments TO app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR (((target_type = ANY (ARRAY['exercise'::text, 'test'::text, 'test_set'::text, 'recommendation'::text, 'lesson'::text])) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((target_type = 'program_instance'::text) AND ((NULL::uuid IS NOT NULL) AND (EXISTS ( SELECT 1
    FROM public.treatment_program_instances b4c4_comment_program
-  WHERE ((b4c4_comment_program.id = comments.target_id) AND (b4c4_comment_program.patient_user_id = NULL::uuid)))))) OR ((target_type = 'lfk_complex'::text) AND ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (EXISTS ( SELECT 1
+  WHERE ((b4c4_comment_program.id = comments.target_id) AND (b4c4_comment_program.patient_user_id = NULL::uuid)))))) OR ((target_type = 'lfk_complex'::text) AND ((NULL::uuid IS NOT NULL) AND (EXISTS ( SELECT 1
    FROM public.lfk_complexes b4c4_comment_complex
-  WHERE ((b4c4_comment_complex.id = comments.target_id) AND (b4c4_comment_complex.platform_user_id = NULL::uuid)))))) OR ((target_type = 'stage_instance'::text) AND ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (EXISTS ( SELECT 1
+  WHERE ((b4c4_comment_complex.id = comments.target_id) AND (b4c4_comment_complex.platform_user_id = NULL::uuid)))))) OR ((target_type = 'stage_instance'::text) AND ((NULL::uuid IS NOT NULL) AND (EXISTS ( SELECT 1
    FROM (public.treatment_program_instance_stages b4c4_comment_stage
      JOIN public.treatment_program_instances b4c4_comment_stage_program ON ((b4c4_comment_stage_program.id = b4c4_comment_stage.instance_id)))
-  WHERE ((b4c4_comment_stage.id = comments.target_id) AND (b4c4_comment_stage_program.patient_user_id = NULL::uuid)))))) OR ((target_type = 'stage_item_instance'::text) AND ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (EXISTS ( SELECT 1
+  WHERE ((b4c4_comment_stage.id = comments.target_id) AND (b4c4_comment_stage_program.patient_user_id = NULL::uuid)))))) OR ((target_type = 'stage_item_instance'::text) AND ((NULL::uuid IS NOT NULL) AND (EXISTS ( SELECT 1
    FROM ((public.treatment_program_instance_stage_items b4c4_comment_stage_item
      JOIN public.treatment_program_instance_stages b4c4_comment_item_stage ON ((b4c4_comment_item_stage.id = b4c4_comment_stage_item.stage_id)))
      JOIN public.treatment_program_instances b4c4_comment_item_program ON ((b4c4_comment_item_program.id = b4c4_comment_item_stage.instance_id)))
-  WHERE ((b4c4_comment_stage_item.id = comments.target_id) AND (b4c4_comment_item_program.patient_user_id = NULL::uuid))))))))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR (((target_type = ANY (ARRAY['exercise'::text, 'test'::text, 'test_set'::text, 'recommendation'::text, 'lesson'::text])) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((target_type = 'program_instance'::text) AND ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (EXISTS ( SELECT 1
+  WHERE ((b4c4_comment_stage_item.id = comments.target_id) AND (b4c4_comment_item_program.patient_user_id = NULL::uuid))))))))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR (((target_type = ANY (ARRAY['exercise'::text, 'test'::text, 'test_set'::text, 'recommendation'::text, 'lesson'::text])) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((target_type = 'program_instance'::text) AND ((NULL::uuid IS NOT NULL) AND (EXISTS ( SELECT 1
    FROM public.treatment_program_instances b4c4_comment_program
-  WHERE ((b4c4_comment_program.id = comments.target_id) AND (b4c4_comment_program.patient_user_id = NULL::uuid)))))) OR ((target_type = 'lfk_complex'::text) AND ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (EXISTS ( SELECT 1
+  WHERE ((b4c4_comment_program.id = comments.target_id) AND (b4c4_comment_program.patient_user_id = NULL::uuid)))))) OR ((target_type = 'lfk_complex'::text) AND ((NULL::uuid IS NOT NULL) AND (EXISTS ( SELECT 1
    FROM public.lfk_complexes b4c4_comment_complex
-  WHERE ((b4c4_comment_complex.id = comments.target_id) AND (b4c4_comment_complex.platform_user_id = NULL::uuid)))))) OR ((target_type = 'stage_instance'::text) AND ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (EXISTS ( SELECT 1
+  WHERE ((b4c4_comment_complex.id = comments.target_id) AND (b4c4_comment_complex.platform_user_id = NULL::uuid)))))) OR ((target_type = 'stage_instance'::text) AND ((NULL::uuid IS NOT NULL) AND (EXISTS ( SELECT 1
    FROM (public.treatment_program_instance_stages b4c4_comment_stage
      JOIN public.treatment_program_instances b4c4_comment_stage_program ON ((b4c4_comment_stage_program.id = b4c4_comment_stage.instance_id)))
-  WHERE ((b4c4_comment_stage.id = comments.target_id) AND (b4c4_comment_stage_program.patient_user_id = NULL::uuid)))))) OR ((target_type = 'stage_item_instance'::text) AND ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (EXISTS ( SELECT 1
+  WHERE ((b4c4_comment_stage.id = comments.target_id) AND (b4c4_comment_stage_program.patient_user_id = NULL::uuid)))))) OR ((target_type = 'stage_item_instance'::text) AND ((NULL::uuid IS NOT NULL) AND (EXISTS ( SELECT 1
    FROM ((public.treatment_program_instance_stage_items b4c4_comment_stage_item
      JOIN public.treatment_program_instance_stages b4c4_comment_item_stage ON ((b4c4_comment_item_stage.id = b4c4_comment_stage_item.stage_id)))
      JOIN public.treatment_program_instances b4c4_comment_item_program ON ((b4c4_comment_item_program.id = b4c4_comment_item_stage.instance_id)))
@@ -17713,9 +18744,9 @@ CREATE POLICY rev10_saas_org_dormant_p0_8_4 ON public.comments TO app_staff USIN
 -- Name: lfk_complex_exercises rev10_saas_org_dormant_p0_8_4; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_saas_org_dormant_p0_8_4 ON public.lfk_complex_exercises TO app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (EXISTS ( SELECT 1
+CREATE POLICY rev10_saas_org_dormant_p0_8_4 ON public.lfk_complex_exercises TO app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (EXISTS ( SELECT 1
    FROM public.lfk_complexes b4f_complex
-  WHERE ((b4f_complex.id = lfk_complex_exercises.complex_id) AND (b4f_complex.platform_user_id = NULL::uuid))))))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (EXISTS ( SELECT 1
+  WHERE ((b4f_complex.id = lfk_complex_exercises.complex_id) AND (b4f_complex.platform_user_id = NULL::uuid))))))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (EXISTS ( SELECT 1
    FROM public.lfk_complexes b4f_complex
   WHERE ((b4f_complex.id = lfk_complex_exercises.complex_id) AND (b4f_complex.platform_user_id = NULL::uuid)))))));
 
@@ -17738,16 +18769,16 @@ CREATE POLICY rev10_saas_org_dormant_p0_8_4 ON public.lfk_exercise_media TO app_
 -- Name: notification_delivery_attempts rev10_saas_org_dormant_p0_8_4; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_saas_org_dormant_p0_8_4 ON public.notification_delivery_attempts TO app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (user_id = NULL::uuid)))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (user_id = NULL::uuid))));
+CREATE POLICY rev10_saas_org_dormant_p0_8_4 ON public.notification_delivery_attempts TO app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (user_id = NULL::uuid)))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (user_id = NULL::uuid))));
 
 
 --
 -- Name: online_intake_attachments rev10_saas_org_dormant_p0_8_4; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_saas_org_dormant_p0_8_4 ON public.online_intake_attachments TO app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (EXISTS ( SELECT 1
+CREATE POLICY rev10_saas_org_dormant_p0_8_4 ON public.online_intake_attachments TO app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (EXISTS ( SELECT 1
    FROM public.online_intake_requests b4f_intake_request
-  WHERE ((b4f_intake_request.id = online_intake_attachments.request_id) AND (b4f_intake_request.user_id = NULL::uuid))))))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (EXISTS ( SELECT 1
+  WHERE ((b4f_intake_request.id = online_intake_attachments.request_id) AND (b4f_intake_request.user_id = NULL::uuid))))))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (EXISTS ( SELECT 1
    FROM public.online_intake_requests b4f_intake_request
   WHERE ((b4f_intake_request.id = online_intake_attachments.request_id) AND (b4f_intake_request.user_id = NULL::uuid)))))));
 
@@ -17756,7 +18787,7 @@ CREATE POLICY rev10_saas_org_dormant_p0_8_4 ON public.online_intake_attachments 
 -- Name: patient_daily_warmup_video_views rev10_saas_org_dormant_p0_8_4; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_saas_org_dormant_p0_8_4 ON public.patient_daily_warmup_video_views TO app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (user_id = NULL::uuid)))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (user_id = NULL::uuid))));
+CREATE POLICY rev10_saas_org_dormant_p0_8_4 ON public.patient_daily_warmup_video_views TO app_staff USING ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (user_id = NULL::uuid)))) WITH CHECK ((((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (user_id = NULL::uuid))));
 
 
 --
@@ -17765,13 +18796,13 @@ CREATE POLICY rev10_saas_org_dormant_p0_8_4 ON public.patient_daily_warmup_video
 
 CREATE POLICY rev10_saas_org_dormant_p0_8_4 ON public.program_action_log TO app_patient, app_staff USING (
 CASE
-    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (patient_user_id = NULL::uuid)))
-    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (patient_user_id = app.current_patient_user_id())))
+    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (patient_user_id = NULL::uuid)))
+    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (patient_user_id = app.current_patient_user_id())))
     ELSE false
 END) WITH CHECK (
 CASE
-    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (patient_user_id = NULL::uuid)))
-    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (patient_user_id = app.current_patient_user_id())))
+    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (patient_user_id = NULL::uuid)))
+    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (patient_user_id = app.current_patient_user_id())))
     ELSE false
 END);
 
@@ -17782,13 +18813,13 @@ END);
 
 CREATE POLICY rev10_saas_org_dormant_p0_8_4 ON public.program_item_discussion_messages TO app_patient, app_staff USING (
 CASE
-    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (patient_user_id = NULL::uuid)))
-    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (patient_user_id = app.current_patient_user_id())))
+    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (patient_user_id = NULL::uuid)))
+    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (patient_user_id = app.current_patient_user_id())))
     ELSE false
 END) WITH CHECK (
 CASE
-    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (patient_user_id = NULL::uuid)))
-    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (patient_user_id = app.current_patient_user_id())))
+    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (patient_user_id = NULL::uuid)))
+    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (patient_user_id = app.current_patient_user_id())))
     ELSE false
 END);
 
@@ -17799,13 +18830,13 @@ END);
 
 CREATE POLICY rev10_saas_org_dormant_p0_8_4 ON public.program_item_discussion_reads TO app_patient, app_staff USING (
 CASE
-    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (patient_user_id = NULL::uuid)))
-    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (patient_user_id = app.current_patient_user_id())))
+    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (patient_user_id = NULL::uuid)))
+    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (patient_user_id = app.current_patient_user_id())))
     ELSE false
 END) WITH CHECK (
 CASE
-    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (patient_user_id = NULL::uuid)))
-    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (patient_user_id = app.current_patient_user_id())))
+    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (patient_user_id = NULL::uuid)))
+    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (patient_user_id = app.current_patient_user_id())))
     ELSE false
 END);
 
@@ -17871,19 +18902,19 @@ END);
 
 CREATE POLICY rev10_saas_org_dormant_p0_8_4 ON public.test_results TO app_patient, app_staff USING (
 CASE
-    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (EXISTS ( SELECT 1
+    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (EXISTS ( SELECT 1
        FROM public.test_attempts b4f_attempt
       WHERE ((b4f_attempt.id = test_results.attempt_id) AND (b4f_attempt.patient_user_id = NULL::uuid))))))
-    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (EXISTS ( SELECT 1
+    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (EXISTS ( SELECT 1
        FROM public.test_attempts b4f_attempt
       WHERE ((b4f_attempt.id = test_results.attempt_id) AND (b4f_attempt.patient_user_id = app.current_patient_user_id()))))))
     ELSE false
 END) WITH CHECK (
 CASE
-    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (EXISTS ( SELECT 1
+    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (EXISTS ( SELECT 1
        FROM public.test_attempts b4f_attempt
       WHERE ((b4f_attempt.id = test_results.attempt_id) AND (b4f_attempt.patient_user_id = NULL::uuid))))))
-    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (EXISTS ( SELECT 1
+    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (EXISTS ( SELECT 1
        FROM public.test_attempts b4f_attempt
       WHERE ((b4f_attempt.id = test_results.attempt_id) AND (b4f_attempt.patient_user_id = app.current_patient_user_id()))))))
     ELSE false
@@ -17903,19 +18934,19 @@ CREATE POLICY rev10_saas_org_dormant_p0_8_4 ON public.test_set_items TO app_staf
 
 CREATE POLICY rev10_saas_org_dormant_p0_8_4 ON public.treatment_program_events TO app_patient, app_staff USING (
 CASE
-    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (EXISTS ( SELECT 1
+    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (EXISTS ( SELECT 1
        FROM public.treatment_program_instances b4f_instance
       WHERE ((b4f_instance.id = treatment_program_events.instance_id) AND (b4f_instance.patient_user_id = NULL::uuid))))))
-    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (EXISTS ( SELECT 1
+    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (EXISTS ( SELECT 1
        FROM public.treatment_program_instances b4f_instance
       WHERE ((b4f_instance.id = treatment_program_events.instance_id) AND (b4f_instance.patient_user_id = app.current_patient_user_id()))))))
     ELSE false
 END) WITH CHECK (
 CASE
-    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (EXISTS ( SELECT 1
+    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (EXISTS ( SELECT 1
        FROM public.treatment_program_instances b4f_instance
       WHERE ((b4f_instance.id = treatment_program_events.instance_id) AND (b4f_instance.patient_user_id = NULL::uuid))))))
-    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (EXISTS ( SELECT 1
+    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (EXISTS ( SELECT 1
        FROM public.treatment_program_instances b4f_instance
       WHERE ((b4f_instance.id = treatment_program_events.instance_id) AND (b4f_instance.patient_user_id = app.current_patient_user_id()))))))
     ELSE false
@@ -17928,22 +18959,22 @@ END);
 
 CREATE POLICY rev10_saas_org_dormant_p0_8_4 ON public.treatment_program_instance_stage_groups TO app_patient, app_staff USING (
 CASE
-    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (EXISTS ( SELECT 1
+    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (EXISTS ( SELECT 1
        FROM (public.treatment_program_instance_stages b4f_stage
          JOIN public.treatment_program_instances b4f_instance ON ((b4f_instance.id = b4f_stage.instance_id)))
       WHERE ((b4f_stage.id = treatment_program_instance_stage_groups.stage_id) AND (b4f_instance.patient_user_id = NULL::uuid))))))
-    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (EXISTS ( SELECT 1
+    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (EXISTS ( SELECT 1
        FROM (public.treatment_program_instance_stages b4f_stage
          JOIN public.treatment_program_instances b4f_instance ON ((b4f_instance.id = b4f_stage.instance_id)))
       WHERE ((b4f_stage.id = treatment_program_instance_stage_groups.stage_id) AND (b4f_instance.patient_user_id = app.current_patient_user_id()))))))
     ELSE false
 END) WITH CHECK (
 CASE
-    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (EXISTS ( SELECT 1
+    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (EXISTS ( SELECT 1
        FROM (public.treatment_program_instance_stages b4f_stage
          JOIN public.treatment_program_instances b4f_instance ON ((b4f_instance.id = b4f_stage.instance_id)))
       WHERE ((b4f_stage.id = treatment_program_instance_stage_groups.stage_id) AND (b4f_instance.patient_user_id = NULL::uuid))))))
-    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (EXISTS ( SELECT 1
+    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (EXISTS ( SELECT 1
        FROM (public.treatment_program_instance_stages b4f_stage
          JOIN public.treatment_program_instances b4f_instance ON ((b4f_instance.id = b4f_stage.instance_id)))
       WHERE ((b4f_stage.id = treatment_program_instance_stage_groups.stage_id) AND (b4f_instance.patient_user_id = app.current_patient_user_id()))))))
@@ -17957,22 +18988,22 @@ END);
 
 CREATE POLICY rev10_saas_org_dormant_p0_8_4 ON public.treatment_program_instance_stage_items TO app_patient, app_staff USING (
 CASE
-    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (EXISTS ( SELECT 1
+    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (EXISTS ( SELECT 1
        FROM (public.treatment_program_instance_stages b4f_stage
          JOIN public.treatment_program_instances b4f_instance ON ((b4f_instance.id = b4f_stage.instance_id)))
       WHERE ((b4f_stage.id = treatment_program_instance_stage_items.stage_id) AND (b4f_instance.patient_user_id = NULL::uuid))))))
-    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (EXISTS ( SELECT 1
+    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (EXISTS ( SELECT 1
        FROM (public.treatment_program_instance_stages b4f_stage
          JOIN public.treatment_program_instances b4f_instance ON ((b4f_instance.id = b4f_stage.instance_id)))
       WHERE ((b4f_stage.id = treatment_program_instance_stage_items.stage_id) AND (b4f_instance.patient_user_id = app.current_patient_user_id()))))))
     ELSE false
 END) WITH CHECK (
 CASE
-    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (EXISTS ( SELECT 1
+    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (EXISTS ( SELECT 1
        FROM (public.treatment_program_instance_stages b4f_stage
          JOIN public.treatment_program_instances b4f_instance ON ((b4f_instance.id = b4f_stage.instance_id)))
       WHERE ((b4f_stage.id = treatment_program_instance_stage_items.stage_id) AND (b4f_instance.patient_user_id = NULL::uuid))))))
-    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (EXISTS ( SELECT 1
+    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (EXISTS ( SELECT 1
        FROM (public.treatment_program_instance_stages b4f_stage
          JOIN public.treatment_program_instances b4f_instance ON ((b4f_instance.id = b4f_stage.instance_id)))
       WHERE ((b4f_stage.id = treatment_program_instance_stage_items.stage_id) AND (b4f_instance.patient_user_id = app.current_patient_user_id()))))))
@@ -17986,19 +19017,19 @@ END);
 
 CREATE POLICY rev10_saas_org_dormant_p0_8_4 ON public.treatment_program_instance_stages TO app_patient, app_staff USING (
 CASE
-    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (EXISTS ( SELECT 1
+    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (EXISTS ( SELECT 1
        FROM public.treatment_program_instances b4f_instance
       WHERE ((b4f_instance.id = treatment_program_instance_stages.instance_id) AND (b4f_instance.patient_user_id = NULL::uuid))))))
-    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (EXISTS ( SELECT 1
+    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (EXISTS ( SELECT 1
        FROM public.treatment_program_instances b4f_instance
       WHERE ((b4f_instance.id = treatment_program_instance_stages.instance_id) AND (b4f_instance.patient_user_id = app.current_patient_user_id()))))))
     ELSE false
 END) WITH CHECK (
 CASE
-    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (EXISTS ( SELECT 1
+    WHEN (CURRENT_USER = 'app_staff'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((NULL::uuid IS NOT NULL) AND (EXISTS ( SELECT 1
        FROM public.treatment_program_instances b4f_instance
       WHERE ((b4f_instance.id = treatment_program_instance_stages.instance_id) AND (b4f_instance.patient_user_id = NULL::uuid))))))
-    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (EXISTS ( SELECT 1
+    WHEN (CURRENT_USER = 'app_patient'::name) THEN (((CURRENT_USER = 'app_staff'::name) AND ((( SELECT app.current_org_id() AS current_org_id) IS NOT NULL) AND (organization_id = ( SELECT app.current_org_id() AS current_org_id)))) OR ((app.current_patient_user_id() IS NOT NULL) AND (EXISTS ( SELECT 1
        FROM public.treatment_program_instances b4f_instance
       WHERE ((b4f_instance.id = treatment_program_instance_stages.instance_id) AND (b4f_instance.patient_user_id = app.current_patient_user_id()))))))
     ELSE false
@@ -18027,346 +19058,353 @@ CREATE POLICY rev10_saas_org_dormant_p0_8_4 ON public.treatment_program_template
 
 
 --
--- Name: login_tokens rev10_seam_business_100; Type: POLICY; Schema: public; Owner: -
+-- Name: lfk_exercises rev10_seam_business_101; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_100 ON public.login_tokens TO app_seam_login_token_owner USING ((CURRENT_USER = 'app_seam_login_token_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_login_token_owner'::name));
+CREATE POLICY rev10_seam_business_101 ON public.lfk_exercises TO app_seam_patient_lfk_media_owner, app_seam_platform_analytics_owner USING (((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name)));
 
 
 --
--- Name: material_ratings rev10_seam_business_102; Type: POLICY; Schema: public; Owner: -
+-- Name: lfk_sessions rev10_seam_business_102; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_102 ON public.material_ratings TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
+CREATE POLICY rev10_seam_business_102 ON public.lfk_sessions TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
 
 
 --
--- Name: media_files rev10_seam_business_103; Type: POLICY; Schema: public; Owner: -
+-- Name: login_tokens rev10_seam_business_103; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_103 ON public.media_files TO app_seam_patient_lfk_media_owner, app_seam_patient_self_actions_owner, app_seam_platform_analytics_owner, app_seam_public_clinic_card_owner, app_seam_telemetry_media_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_public_clinic_card_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_media_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_public_clinic_card_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_media_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
+CREATE POLICY rev10_seam_business_103 ON public.login_tokens TO app_seam_login_token_owner USING ((CURRENT_USER = 'app_seam_login_token_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_login_token_owner'::name));
 
 
 --
--- Name: media_folders rev10_seam_business_104; Type: POLICY; Schema: public; Owner: -
+-- Name: material_ratings rev10_seam_business_105; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_104 ON public.media_folders TO app_seam_patient_lfk_media_owner USING ((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name));
+CREATE POLICY rev10_seam_business_105 ON public.material_ratings TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
 
 
 --
--- Name: media_hls_proxy_error_events rev10_seam_business_105; Type: POLICY; Schema: public; Owner: -
+-- Name: media_files rev10_seam_business_106; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_105 ON public.media_hls_proxy_error_events TO app_seam_platform_analytics_owner, app_seam_retention_sweep_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
+CREATE POLICY rev10_seam_business_106 ON public.media_files TO app_seam_custom_domain_owner, app_seam_org_commerce_owner, app_seam_patient_lfk_media_owner, app_seam_patient_self_actions_owner, app_seam_platform_analytics_owner, app_seam_public_clinic_card_owner, app_seam_telemetry_media_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_custom_domain_owner'::name) OR (CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_public_clinic_card_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_media_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_custom_domain_owner'::name) OR (CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_public_clinic_card_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_media_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
 
 
 --
--- Name: media_playback_client_events rev10_seam_business_106; Type: POLICY; Schema: public; Owner: -
+-- Name: media_folders rev10_seam_business_107; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_106 ON public.media_playback_client_events TO app_seam_patient_self_actions_owner, app_seam_platform_analytics_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
+CREATE POLICY rev10_seam_business_107 ON public.media_folders TO app_seam_patient_lfk_media_owner USING ((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name));
 
 
 --
--- Name: media_playback_resolution_events rev10_seam_business_107; Type: POLICY; Schema: public; Owner: -
+-- Name: media_hls_proxy_error_events rev10_seam_business_108; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_107 ON public.media_playback_resolution_events TO app_seam_platform_analytics_owner, app_seam_telemetry_media_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_media_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_media_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
+CREATE POLICY rev10_seam_business_108 ON public.media_hls_proxy_error_events TO app_seam_platform_analytics_owner, app_seam_retention_sweep_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
 
 
 --
--- Name: media_playback_stats_hourly rev10_seam_business_108; Type: POLICY; Schema: public; Owner: -
+-- Name: media_playback_client_events rev10_seam_business_109; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_108 ON public.media_playback_stats_hourly TO app_seam_telemetry_media_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_telemetry_media_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_telemetry_media_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
+CREATE POLICY rev10_seam_business_109 ON public.media_playback_client_events TO app_seam_patient_self_actions_owner, app_seam_platform_analytics_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
 
 
 --
--- Name: media_playback_user_video_first_resolve rev10_seam_business_109; Type: POLICY; Schema: public; Owner: -
+-- Name: media_playback_resolution_events rev10_seam_business_111; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_109 ON public.media_playback_user_video_first_resolve TO app_seam_patient_self_actions_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
+CREATE POLICY rev10_seam_business_111 ON public.media_playback_resolution_events TO app_seam_platform_analytics_owner, app_seam_telemetry_media_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_media_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_media_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
 
 
 --
--- Name: media_transcode_jobs rev10_seam_business_110; Type: POLICY; Schema: public; Owner: -
+-- Name: media_playback_stats_hourly rev10_seam_business_112; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_110 ON public.media_transcode_jobs TO app_seam_patient_lfk_media_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
+CREATE POLICY rev10_seam_business_112 ON public.media_playback_stats_hourly TO app_seam_telemetry_media_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_telemetry_media_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_telemetry_media_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
 
 
 --
--- Name: media_upload_sessions rev10_seam_business_111; Type: POLICY; Schema: public; Owner: -
+-- Name: media_playback_user_video_first_resolve rev10_seam_business_113; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_111 ON public.media_upload_sessions TO app_seam_patient_lfk_media_owner USING ((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name));
+CREATE POLICY rev10_seam_business_113 ON public.media_playback_user_video_first_resolve TO app_seam_patient_self_actions_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
 
 
 --
--- Name: message_log rev10_seam_business_112; Type: POLICY; Schema: public; Owner: -
+-- Name: media_transcode_jobs rev10_seam_business_114; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_112 ON public.message_log TO app_seam_retention_sweep_owner USING ((CURRENT_USER = 'app_seam_retention_sweep_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_retention_sweep_owner'::name));
+CREATE POLICY rev10_seam_business_114 ON public.media_transcode_jobs TO app_seam_patient_lfk_media_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
 
 
 --
--- Name: notification_delivery_attempts rev10_seam_business_114; Type: POLICY; Schema: public; Owner: -
+-- Name: media_upload_sessions rev10_seam_business_115; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_114 ON public.notification_delivery_attempts TO app_seam_delivery_scope_owner, app_seam_retention_sweep_owner, app_seam_telemetry_operator_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
+CREATE POLICY rev10_seam_business_115 ON public.media_upload_sessions TO app_seam_patient_lfk_media_owner, app_seam_retention_sweep_owner USING (((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name)));
 
 
 --
--- Name: operator_health_alert_sent rev10_seam_business_119; Type: POLICY; Schema: public; Owner: -
+-- Name: message_log rev10_seam_business_116; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_119 ON public.operator_health_alert_sent TO saas_system_health_owner USING ((CURRENT_USER = 'saas_system_health_owner'::name)) WITH CHECK ((CURRENT_USER = 'saas_system_health_owner'::name));
+CREATE POLICY rev10_seam_business_116 ON public.message_log TO app_seam_retention_sweep_owner USING ((CURRENT_USER = 'app_seam_retention_sweep_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_retention_sweep_owner'::name));
 
 
 --
--- Name: operator_health_failure_archive rev10_seam_business_120; Type: POLICY; Schema: public; Owner: -
+-- Name: notification_delivery_attempts rev10_seam_business_118; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_120 ON public.operator_health_failure_archive TO app_seam_telemetry_operator_owner USING ((CURRENT_USER = 'app_seam_telemetry_operator_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_telemetry_operator_owner'::name));
+CREATE POLICY rev10_seam_business_118 ON public.notification_delivery_attempts TO app_seam_delivery_scope_owner, app_seam_retention_sweep_owner, app_seam_telemetry_operator_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
 
 
 --
--- Name: operator_incidents rev10_seam_business_121; Type: POLICY; Schema: public; Owner: -
+-- Name: operator_health_alert_sent rev10_seam_business_123; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_121 ON public.operator_incidents TO app_seam_delivery_scope_owner, app_seam_telemetry_operator_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
+CREATE POLICY rev10_seam_business_123 ON public.operator_health_alert_sent TO saas_system_health_owner USING ((CURRENT_USER = 'saas_system_health_owner'::name)) WITH CHECK ((CURRENT_USER = 'saas_system_health_owner'::name));
 
 
 --
--- Name: operator_job_status rev10_seam_business_122; Type: POLICY; Schema: public; Owner: -
+-- Name: operator_health_failure_archive rev10_seam_business_124; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_122 ON public.operator_job_status TO app_seam_telemetry_operator_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
+CREATE POLICY rev10_seam_business_124 ON public.operator_health_failure_archive TO app_seam_telemetry_operator_owner USING ((CURRENT_USER = 'app_seam_telemetry_operator_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_telemetry_operator_owner'::name));
 
 
 --
--- Name: org_enrollments rev10_seam_business_124; Type: POLICY; Schema: public; Owner: -
+-- Name: operator_incidents rev10_seam_business_125; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_124 ON public.org_enrollments TO app_seam_delivery_scope_owner, app_seam_identity_lookup_owner, app_seam_org_commerce_owner, app_seam_patient_booking_owner, app_seam_patient_invite_owner, app_seam_patient_lfk_media_owner, app_seam_patient_org_projection_owner, app_seam_patient_program_resolver_owner, app_seam_patient_self_actions_owner, app_seam_public_booking_owner, app_seam_reminder_materialization_owner, app_seam_reminder_patient_owner, app_seam_reminder_specialist_owner, app_seam_settings_runtime_owner, app_seam_telemetry_exclusion_owner, app_seam_telemetry_patient_owner USING (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_patient_invite_owner'::name) OR (CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_patient_org_projection_owner'::name) OR (CURRENT_USER = 'app_seam_patient_program_resolver_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_patient_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_settings_runtime_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_exclusion_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_patient_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_patient_invite_owner'::name) OR (CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_patient_org_projection_owner'::name) OR (CURRENT_USER = 'app_seam_patient_program_resolver_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_patient_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_settings_runtime_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_exclusion_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_patient_owner'::name)));
+CREATE POLICY rev10_seam_business_125 ON public.operator_incidents TO app_seam_delivery_scope_owner, app_seam_telemetry_operator_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
 
 
 --
--- Name: organization_member_invites rev10_seam_business_125; Type: POLICY; Schema: public; Owner: -
+-- Name: operator_job_status rev10_seam_business_126; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_125 ON public.organization_member_invites TO app_seam_org_commerce_owner, app_seam_org_invite_owner USING (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_org_invite_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_org_invite_owner'::name)));
+CREATE POLICY rev10_seam_business_126 ON public.operator_job_status TO app_seam_telemetry_operator_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
 
 
 --
--- Name: organization_slug_claims rev10_seam_business_126; Type: POLICY; Schema: public; Owner: -
+-- Name: org_brand_revisions rev10_seam_business_127; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_126 ON public.organization_slug_claims TO app_seam_public_clinic_card_owner, app_seam_public_slug_owner, app_seam_specialist_provision_owner USING (((CURRENT_USER = 'app_seam_public_clinic_card_owner'::name) OR (CURRENT_USER = 'app_seam_public_slug_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_public_clinic_card_owner'::name) OR (CURRENT_USER = 'app_seam_public_slug_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name)));
+CREATE POLICY rev10_seam_business_127 ON public.org_brand_revisions TO app_seam_custom_domain_owner, app_seam_public_clinic_card_owner, app_seam_settings_runtime_owner USING (((CURRENT_USER = 'app_seam_custom_domain_owner'::name) OR (CURRENT_USER = 'app_seam_public_clinic_card_owner'::name) OR (CURRENT_USER = 'app_seam_settings_runtime_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_custom_domain_owner'::name) OR (CURRENT_USER = 'app_seam_public_clinic_card_owner'::name) OR (CURRENT_USER = 'app_seam_settings_runtime_owner'::name)));
 
 
 --
--- Name: organization_slug_rename_events rev10_seam_business_127; Type: POLICY; Schema: public; Owner: -
+-- Name: org_enrollments rev10_seam_business_128; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_127 ON public.organization_slug_rename_events TO app_seam_public_slug_owner USING ((CURRENT_USER = 'app_seam_public_slug_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_public_slug_owner'::name));
+CREATE POLICY rev10_seam_business_128 ON public.org_enrollments TO app_seam_delivery_scope_owner, app_seam_identity_lookup_owner, app_seam_org_commerce_owner, app_seam_patient_booking_owner, app_seam_patient_invite_owner, app_seam_patient_lfk_media_owner, app_seam_patient_org_projection_owner, app_seam_patient_program_resolver_owner, app_seam_patient_self_actions_owner, app_seam_public_booking_owner, app_seam_reminder_materialization_owner, app_seam_reminder_patient_owner, app_seam_reminder_specialist_owner, app_seam_settings_runtime_owner, app_seam_telemetry_exclusion_owner, app_seam_telemetry_patient_owner USING (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_patient_invite_owner'::name) OR (CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_patient_org_projection_owner'::name) OR (CURRENT_USER = 'app_seam_patient_program_resolver_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_patient_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_settings_runtime_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_exclusion_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_patient_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_patient_invite_owner'::name) OR (CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_patient_org_projection_owner'::name) OR (CURRENT_USER = 'app_seam_patient_program_resolver_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_patient_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_settings_runtime_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_exclusion_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_patient_owner'::name)));
 
 
 --
--- Name: outgoing_delivery_queue rev10_seam_business_128; Type: POLICY; Schema: public; Owner: -
+-- Name: organization_member_invites rev10_seam_business_129; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_128 ON public.outgoing_delivery_queue TO app_seam_delivery_scope_owner, app_seam_email_otp_owner, app_seam_reminder_appointment_owner, app_seam_reminder_materialization_owner, app_seam_reminder_specialist_owner, app_seam_retention_sweep_owner, app_seam_telemetry_operator_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_email_otp_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_appointment_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_email_otp_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_appointment_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
+CREATE POLICY rev10_seam_business_129 ON public.organization_member_invites TO app_seam_org_commerce_owner, app_seam_org_invite_owner USING (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_org_invite_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_org_invite_owner'::name)));
 
 
 --
--- Name: password_altcha_challenges rev10_seam_business_129; Type: POLICY; Schema: public; Owner: -
+-- Name: organization_slug_claims rev10_seam_business_130; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_129 ON public.password_altcha_challenges TO app_seam_password_auth_owner USING ((CURRENT_USER = 'app_seam_password_auth_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_password_auth_owner'::name));
+CREATE POLICY rev10_seam_business_130 ON public.organization_slug_claims TO app_seam_public_clinic_card_owner, app_seam_public_slug_owner, app_seam_specialist_provision_owner USING (((CURRENT_USER = 'app_seam_public_clinic_card_owner'::name) OR (CURRENT_USER = 'app_seam_public_slug_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_public_clinic_card_owner'::name) OR (CURRENT_USER = 'app_seam_public_slug_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name)));
 
 
 --
--- Name: password_login_identifier_protection rev10_seam_business_130; Type: POLICY; Schema: public; Owner: -
+-- Name: organization_slug_rename_events rev10_seam_business_131; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_130 ON public.password_login_identifier_protection TO app_seam_password_auth_owner USING ((CURRENT_USER = 'app_seam_password_auth_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_password_auth_owner'::name));
+CREATE POLICY rev10_seam_business_131 ON public.organization_slug_rename_events TO app_seam_public_slug_owner USING ((CURRENT_USER = 'app_seam_public_slug_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_public_slug_owner'::name));
 
 
 --
--- Name: patient_bookings rev10_seam_business_131; Type: POLICY; Schema: public; Owner: -
+-- Name: org_custom_domain_bindings rev10_seam_business_132; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_131 ON public.patient_bookings TO app_seam_patient_booking_owner USING ((CURRENT_USER = 'app_seam_patient_booking_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_booking_owner'::name));
+CREATE POLICY rev10_seam_business_132 ON public.org_custom_domain_bindings TO app_seam_custom_domain_owner, app_seam_settings_runtime_owner USING (((CURRENT_USER = 'app_seam_custom_domain_owner'::name) OR (CURRENT_USER = 'app_seam_settings_runtime_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_custom_domain_owner'::name) OR (CURRENT_USER = 'app_seam_settings_runtime_owner'::name)));
 
 
 --
--- Name: patient_content_rating_feedback rev10_seam_business_133; Type: POLICY; Schema: public; Owner: -
+-- Name: outgoing_delivery_queue rev10_seam_business_133; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_133 ON public.patient_content_rating_feedback TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
+CREATE POLICY rev10_seam_business_133 ON public.outgoing_delivery_queue TO app_seam_delivery_scope_owner, app_seam_email_otp_owner, app_seam_reminder_appointment_owner, app_seam_reminder_materialization_owner, app_seam_reminder_specialist_owner, app_seam_retention_sweep_owner, app_seam_telemetry_operator_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_email_otp_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_appointment_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_email_otp_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_appointment_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
 
 
 --
--- Name: patient_daily_warmup_presentations rev10_seam_business_134; Type: POLICY; Schema: public; Owner: -
+-- Name: password_altcha_challenges rev10_seam_business_134; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_134 ON public.patient_daily_warmup_presentations TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
+CREATE POLICY rev10_seam_business_134 ON public.password_altcha_challenges TO app_seam_password_auth_owner USING ((CURRENT_USER = 'app_seam_password_auth_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_password_auth_owner'::name));
 
 
 --
--- Name: patient_daily_warmup_video_views rev10_seam_business_135; Type: POLICY; Schema: public; Owner: -
+-- Name: password_login_identifier_protection rev10_seam_business_135; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_135 ON public.patient_daily_warmup_video_views TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
+CREATE POLICY rev10_seam_business_135 ON public.password_login_identifier_protection TO app_seam_password_auth_owner USING ((CURRENT_USER = 'app_seam_password_auth_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_password_auth_owner'::name));
 
 
 --
--- Name: patient_diary_day_snapshots rev10_seam_business_136; Type: POLICY; Schema: public; Owner: -
+-- Name: patient_bookings rev10_seam_business_136; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_136 ON public.patient_diary_day_snapshots TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
+CREATE POLICY rev10_seam_business_136 ON public.patient_bookings TO app_seam_patient_booking_owner, app_seam_payment_webhook_owner USING (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_payment_webhook_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_payment_webhook_owner'::name)));
 
 
 --
--- Name: patient_files rev10_seam_business_137; Type: POLICY; Schema: public; Owner: -
+-- Name: patient_content_rating_feedback rev10_seam_business_138; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_137 ON public.patient_files TO app_seam_org_commerce_owner, app_seam_patient_lfk_media_owner USING (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name)));
+CREATE POLICY rev10_seam_business_138 ON public.patient_content_rating_feedback TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
 
 
 --
--- Name: patient_home_block_items rev10_seam_business_138; Type: POLICY; Schema: public; Owner: -
+-- Name: patient_daily_warmup_presentations rev10_seam_business_139; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_138 ON public.patient_home_block_items TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
+CREATE POLICY rev10_seam_business_139 ON public.patient_daily_warmup_presentations TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
 
 
 --
--- Name: patient_home_blocks rev10_seam_business_139; Type: POLICY; Schema: public; Owner: -
+-- Name: patient_daily_warmup_video_views rev10_seam_business_140; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_139 ON public.patient_home_blocks TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
+CREATE POLICY rev10_seam_business_140 ON public.patient_daily_warmup_video_views TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
 
 
 --
--- Name: patient_invites rev10_seam_business_140; Type: POLICY; Schema: public; Owner: -
+-- Name: patient_diary_day_snapshots rev10_seam_business_141; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_140 ON public.patient_invites TO app_seam_patient_invite_owner USING ((CURRENT_USER = 'app_seam_patient_invite_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_invite_owner'::name));
+CREATE POLICY rev10_seam_business_141 ON public.patient_diary_day_snapshots TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
 
 
 --
--- Name: patient_merge_candidates rev10_seam_business_142; Type: POLICY; Schema: public; Owner: -
+-- Name: patient_files rev10_seam_business_142; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_142 ON public.patient_merge_candidates TO app_seam_patient_booking_owner, app_seam_patient_invite_owner USING (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_patient_invite_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_patient_invite_owner'::name)));
+CREATE POLICY rev10_seam_business_142 ON public.patient_files TO app_seam_org_commerce_owner, app_seam_patient_lfk_media_owner USING (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name)));
 
 
 --
--- Name: patient_payment rev10_seam_business_143; Type: POLICY; Schema: public; Owner: -
+-- Name: patient_home_block_items rev10_seam_business_143; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_143 ON public.patient_payment TO app_seam_payment_webhook_owner USING ((CURRENT_USER = 'app_seam_payment_webhook_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_payment_webhook_owner'::name));
+CREATE POLICY rev10_seam_business_143 ON public.patient_home_block_items TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
 
 
 --
--- Name: patient_practice_completions rev10_seam_business_144; Type: POLICY; Schema: public; Owner: -
+-- Name: patient_home_blocks rev10_seam_business_144; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_144 ON public.patient_practice_completions TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
+CREATE POLICY rev10_seam_business_144 ON public.patient_home_blocks TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
 
 
 --
--- Name: patient_specialist_links rev10_seam_business_145; Type: POLICY; Schema: public; Owner: -
+-- Name: patient_invites rev10_seam_business_145; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_145 ON public.patient_specialist_links TO app_seam_patient_booking_owner USING ((CURRENT_USER = 'app_seam_patient_booking_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_booking_owner'::name));
+CREATE POLICY rev10_seam_business_145 ON public.patient_invites TO app_seam_patient_invite_owner USING ((CURRENT_USER = 'app_seam_patient_invite_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_invite_owner'::name));
 
 
 --
--- Name: phone_challenges rev10_seam_business_146; Type: POLICY; Schema: public; Owner: -
+-- Name: patient_merge_candidates rev10_seam_business_147; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_146 ON public.phone_challenges TO app_seam_phone_otp_owner USING ((CURRENT_USER = 'app_seam_phone_otp_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_phone_otp_owner'::name));
+CREATE POLICY rev10_seam_business_147 ON public.patient_merge_candidates TO app_seam_patient_booking_owner, app_seam_patient_invite_owner USING (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_patient_invite_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_patient_invite_owner'::name)));
 
 
 --
--- Name: phone_messenger_bind_secrets rev10_seam_business_147; Type: POLICY; Schema: public; Owner: -
+-- Name: patient_payment rev10_seam_business_148; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_147 ON public.phone_messenger_bind_secrets TO app_seam_phone_binding_owner USING ((CURRENT_USER = 'app_seam_phone_binding_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_phone_binding_owner'::name));
+CREATE POLICY rev10_seam_business_148 ON public.patient_payment TO app_seam_payment_webhook_owner USING ((CURRENT_USER = 'app_seam_payment_webhook_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_payment_webhook_owner'::name));
 
 
 --
--- Name: phone_otp_locks rev10_seam_business_148; Type: POLICY; Schema: public; Owner: -
+-- Name: patient_practice_completions rev10_seam_business_149; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_148 ON public.phone_otp_locks TO app_seam_phone_otp_owner USING ((CURRENT_USER = 'app_seam_phone_otp_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_phone_otp_owner'::name));
+CREATE POLICY rev10_seam_business_149 ON public.patient_practice_completions TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
 
 
 --
--- Name: platform_user_contacts rev10_seam_business_149; Type: POLICY; Schema: public; Owner: -
+-- Name: patient_specialist_links rev10_seam_business_150; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_149 ON public.platform_user_contacts TO app_seam_patient_booking_owner USING ((CURRENT_USER = 'app_seam_patient_booking_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_booking_owner'::name));
+CREATE POLICY rev10_seam_business_150 ON public.patient_specialist_links TO app_seam_patient_booking_owner USING ((CURRENT_USER = 'app_seam_patient_booking_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_booking_owner'::name));
 
 
 --
--- Name: platform_users rev10_seam_business_150; Type: POLICY; Schema: public; Owner: -
+-- Name: phone_challenges rev10_seam_business_151; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_150 ON public.platform_users TO app_seam_delivery_scope_owner, app_seam_email_otp_owner, app_seam_identity_lookup_owner, app_seam_org_directory_owner, app_seam_org_invite_owner, app_seam_password_auth_owner, app_seam_patient_booking_owner, app_seam_patient_invite_owner, app_seam_patient_self_actions_owner, app_seam_phone_binding_owner, app_seam_platform_analytics_owner, app_seam_public_booking_owner, app_seam_reminder_appointment_owner, app_seam_reminder_materialization_owner, app_seam_reminder_patient_owner, app_seam_reminder_specialist_owner, app_seam_self_security_owner, app_seam_specialist_provision_owner, app_seam_telemetry_exclusion_owner, app_seam_telemetry_operator_owner USING (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_email_otp_owner'::name) OR (CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_org_directory_owner'::name) OR (CURRENT_USER = 'app_seam_org_invite_owner'::name) OR (CURRENT_USER = 'app_seam_password_auth_owner'::name) OR (CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_patient_invite_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_phone_binding_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_appointment_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_patient_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_self_security_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_exclusion_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_email_otp_owner'::name) OR (CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_org_directory_owner'::name) OR (CURRENT_USER = 'app_seam_org_invite_owner'::name) OR (CURRENT_USER = 'app_seam_password_auth_owner'::name) OR (CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_patient_invite_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_phone_binding_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_appointment_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_patient_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_self_security_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_exclusion_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name)));
+CREATE POLICY rev10_seam_business_151 ON public.phone_challenges TO app_seam_phone_otp_owner USING ((CURRENT_USER = 'app_seam_phone_otp_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_phone_otp_owner'::name));
 
 
 --
--- Name: product_analytics_events_recent rev10_seam_business_151; Type: POLICY; Schema: public; Owner: -
+-- Name: phone_messenger_bind_secrets rev10_seam_business_152; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_151 ON public.product_analytics_events_recent TO app_seam_platform_analytics_owner, app_seam_retention_sweep_owner, app_seam_telemetry_exclusion_owner, app_seam_telemetry_patient_owner USING (((CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_exclusion_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_patient_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_exclusion_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_patient_owner'::name)));
+CREATE POLICY rev10_seam_business_152 ON public.phone_messenger_bind_secrets TO app_seam_phone_binding_owner USING ((CURRENT_USER = 'app_seam_phone_binding_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_phone_binding_owner'::name));
 
 
 --
--- Name: product_analytics_hourly rev10_seam_business_152; Type: POLICY; Schema: public; Owner: -
+-- Name: phone_otp_locks rev10_seam_business_153; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_152 ON public.product_analytics_hourly TO app_seam_telemetry_patient_owner USING ((CURRENT_USER = 'app_seam_telemetry_patient_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_telemetry_patient_owner'::name));
+CREATE POLICY rev10_seam_business_153 ON public.phone_otp_locks TO app_seam_phone_otp_owner USING ((CURRENT_USER = 'app_seam_phone_otp_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_phone_otp_owner'::name));
 
 
 --
--- Name: product_analytics_user_hourly rev10_seam_business_153; Type: POLICY; Schema: public; Owner: -
+-- Name: platform_user_contacts rev10_seam_business_154; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_153 ON public.product_analytics_user_hourly TO app_seam_platform_analytics_owner, app_seam_retention_sweep_owner, app_seam_telemetry_patient_owner USING (((CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_patient_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_patient_owner'::name)));
+CREATE POLICY rev10_seam_business_154 ON public.platform_user_contacts TO app_seam_patient_booking_owner USING ((CURRENT_USER = 'app_seam_patient_booking_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_booking_owner'::name));
 
 
 --
--- Name: product_push_notifications rev10_seam_business_154; Type: POLICY; Schema: public; Owner: -
+-- Name: platform_users rev10_seam_business_155; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_154 ON public.product_push_notifications TO app_seam_platform_analytics_owner, app_seam_retention_sweep_owner, app_seam_telemetry_patient_owner USING (((CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_patient_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_patient_owner'::name)));
+CREATE POLICY rev10_seam_business_155 ON public.platform_users TO app_seam_delivery_scope_owner, app_seam_email_otp_owner, app_seam_identity_lookup_owner, app_seam_org_directory_owner, app_seam_org_invite_owner, app_seam_password_auth_owner, app_seam_patient_booking_owner, app_seam_patient_invite_owner, app_seam_patient_self_actions_owner, app_seam_phone_binding_owner, app_seam_platform_analytics_owner, app_seam_public_booking_owner, app_seam_reminder_appointment_owner, app_seam_reminder_materialization_owner, app_seam_reminder_patient_owner, app_seam_reminder_specialist_owner, app_seam_self_security_owner, app_seam_specialist_provision_owner, app_seam_telemetry_exclusion_owner, app_seam_telemetry_operator_owner USING (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_email_otp_owner'::name) OR (CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_org_directory_owner'::name) OR (CURRENT_USER = 'app_seam_org_invite_owner'::name) OR (CURRENT_USER = 'app_seam_password_auth_owner'::name) OR (CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_patient_invite_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_phone_binding_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_appointment_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_patient_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_self_security_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_exclusion_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_email_otp_owner'::name) OR (CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_org_directory_owner'::name) OR (CURRENT_USER = 'app_seam_org_invite_owner'::name) OR (CURRENT_USER = 'app_seam_password_auth_owner'::name) OR (CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_patient_invite_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_phone_binding_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_appointment_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_patient_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_self_security_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_exclusion_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name)));
 
 
 --
--- Name: program_action_log rev10_seam_business_155; Type: POLICY; Schema: public; Owner: -
+-- Name: product_analytics_events_recent rev10_seam_business_156; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_155 ON public.program_action_log TO app_seam_patient_self_actions_owner, app_seam_platform_analytics_owner USING (((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name)));
+CREATE POLICY rev10_seam_business_156 ON public.product_analytics_events_recent TO app_seam_platform_analytics_owner, app_seam_retention_sweep_owner, app_seam_telemetry_exclusion_owner, app_seam_telemetry_patient_owner USING (((CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_exclusion_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_patient_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_exclusion_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_patient_owner'::name)));
 
 
 --
--- Name: program_item_discussion_messages rev10_seam_business_156; Type: POLICY; Schema: public; Owner: -
+-- Name: product_analytics_hourly rev10_seam_business_157; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_156 ON public.program_item_discussion_messages TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
+CREATE POLICY rev10_seam_business_157 ON public.product_analytics_hourly TO app_seam_telemetry_patient_owner USING ((CURRENT_USER = 'app_seam_telemetry_patient_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_telemetry_patient_owner'::name));
 
 
 --
--- Name: program_item_discussion_reads rev10_seam_business_157; Type: POLICY; Schema: public; Owner: -
+-- Name: product_analytics_user_hourly rev10_seam_business_158; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_157 ON public.program_item_discussion_reads TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
+CREATE POLICY rev10_seam_business_158 ON public.product_analytics_user_hourly TO app_seam_platform_analytics_owner, app_seam_retention_sweep_owner, app_seam_telemetry_patient_owner USING (((CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_patient_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_patient_owner'::name)));
+
+
+--
+-- Name: product_push_notifications rev10_seam_business_159; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_seam_business_159 ON public.product_push_notifications TO app_seam_platform_analytics_owner, app_seam_retention_sweep_owner, app_seam_telemetry_patient_owner USING (((CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_patient_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_patient_owner'::name)));
 
 
 --
@@ -18377,66 +19415,59 @@ CREATE POLICY rev10_seam_business_16 ON public.admin_audit_log TO app_seam_ident
 
 
 --
--- Name: reference_catalog_baselines rev10_seam_business_160; Type: POLICY; Schema: public; Owner: -
+-- Name: program_action_log rev10_seam_business_160; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_160 ON public.reference_catalog_baselines TO app_seam_catalog_public_owner, app_seam_specialist_provision_owner USING (((CURRENT_USER = 'app_seam_catalog_public_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_catalog_public_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name)));
-
-
---
--- Name: reference_catalog_snapshot_receipts rev10_seam_business_161; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_seam_business_161 ON public.reference_catalog_snapshot_receipts TO app_seam_specialist_provision_owner USING ((CURRENT_USER = 'app_seam_specialist_provision_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_specialist_provision_owner'::name));
+CREATE POLICY rev10_seam_business_160 ON public.program_action_log TO app_seam_patient_self_actions_owner, app_seam_platform_analytics_owner USING (((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name)));
 
 
 --
--- Name: reference_categories rev10_seam_business_162; Type: POLICY; Schema: public; Owner: -
+-- Name: program_item_discussion_messages rev10_seam_business_161; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_162 ON public.reference_categories TO app_seam_patient_self_actions_owner, app_seam_specialist_provision_owner USING (((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name)));
-
-
---
--- Name: reference_items rev10_seam_business_163; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_seam_business_163 ON public.reference_items TO app_seam_patient_self_actions_owner, app_seam_specialist_provision_owner USING (((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name)));
+CREATE POLICY rev10_seam_business_161 ON public.program_item_discussion_messages TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
 
 
 --
--- Name: reminder_occurrence_history rev10_seam_business_164; Type: POLICY; Schema: public; Owner: -
+-- Name: program_item_discussion_reads rev10_seam_business_162; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_164 ON public.reminder_occurrence_history TO app_seam_delivery_scope_owner, app_seam_patient_self_actions_owner, app_seam_reminder_materialization_owner, app_seam_reminder_patient_owner, app_seam_retention_sweep_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_patient_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_patient_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
-
-
---
--- Name: reminder_rules rev10_seam_business_165; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_seam_business_165 ON public.reminder_rules TO app_seam_delivery_scope_owner, app_seam_patient_self_actions_owner, app_seam_reminder_materialization_owner, app_seam_reminder_patient_owner USING (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_patient_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_patient_owner'::name)));
+CREATE POLICY rev10_seam_business_162 ON public.program_item_discussion_reads TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
 
 
 --
--- Name: saas_billing_accounts rev10_seam_business_166; Type: POLICY; Schema: public; Owner: -
+-- Name: reference_catalog_baselines rev10_seam_business_165; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_166 ON public.saas_billing_accounts TO app_seam_specialist_provision_owner USING ((CURRENT_USER = 'app_seam_specialist_provision_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_specialist_provision_owner'::name));
-
-
---
--- Name: saas_billing_invoices rev10_seam_business_167; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_seam_business_167 ON public.saas_billing_invoices TO app_seam_org_commerce_owner, app_seam_payment_webhook_owner USING (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_payment_webhook_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_payment_webhook_owner'::name)));
+CREATE POLICY rev10_seam_business_165 ON public.reference_catalog_baselines TO app_seam_catalog_public_owner, app_seam_specialist_provision_owner USING (((CURRENT_USER = 'app_seam_catalog_public_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_catalog_public_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name)));
 
 
 --
--- Name: saas_billing_periods rev10_seam_business_168; Type: POLICY; Schema: public; Owner: -
+-- Name: reference_catalog_snapshot_receipts rev10_seam_business_166; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_168 ON public.saas_billing_periods TO app_seam_payment_webhook_owner USING ((CURRENT_USER = 'app_seam_payment_webhook_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_payment_webhook_owner'::name));
+CREATE POLICY rev10_seam_business_166 ON public.reference_catalog_snapshot_receipts TO app_seam_specialist_provision_owner USING ((CURRENT_USER = 'app_seam_specialist_provision_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_specialist_provision_owner'::name));
+
+
+--
+-- Name: reference_categories rev10_seam_business_167; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_seam_business_167 ON public.reference_categories TO app_seam_patient_self_actions_owner, app_seam_specialist_provision_owner USING (((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name)));
+
+
+--
+-- Name: reference_items rev10_seam_business_168; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_seam_business_168 ON public.reference_items TO app_seam_patient_self_actions_owner, app_seam_specialist_provision_owner USING (((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name)));
+
+
+--
+-- Name: reminder_occurrence_history rev10_seam_business_169; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_seam_business_169 ON public.reminder_occurrence_history TO app_seam_delivery_scope_owner, app_seam_patient_self_actions_owner, app_seam_reminder_materialization_owner, app_seam_reminder_patient_owner, app_seam_retention_sweep_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_patient_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_patient_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
 
 
 --
@@ -18447,73 +19478,59 @@ CREATE POLICY rev10_seam_business_17 ON public.auth_rate_limit_events TO app_sea
 
 
 --
--- Name: saas_billing_refunds rev10_seam_business_170; Type: POLICY; Schema: public; Owner: -
+-- Name: reminder_rules rev10_seam_business_170; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_170 ON public.saas_billing_refunds TO app_seam_payment_webhook_owner USING ((CURRENT_USER = 'app_seam_payment_webhook_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_payment_webhook_owner'::name));
-
-
---
--- Name: saas_billing_subscriptions rev10_seam_business_171; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_seam_business_171 ON public.saas_billing_subscriptions TO app_seam_org_commerce_owner, app_seam_org_invite_owner, app_seam_patient_org_projection_owner, app_seam_specialist_provision_owner USING (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_org_invite_owner'::name) OR (CURRENT_USER = 'app_seam_patient_org_projection_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_org_invite_owner'::name) OR (CURRENT_USER = 'app_seam_patient_org_projection_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name)));
+CREATE POLICY rev10_seam_business_170 ON public.reminder_rules TO app_seam_delivery_scope_owner, app_seam_patient_self_actions_owner, app_seam_reminder_materialization_owner, app_seam_reminder_patient_owner USING (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_patient_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_patient_owner'::name)));
 
 
 --
--- Name: saas_isolation_coverage_runs rev10_seam_business_172; Type: POLICY; Schema: public; Owner: -
+-- Name: saas_billing_accounts rev10_seam_business_171; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_172 ON public.saas_isolation_coverage_runs TO saas_telemetry_owner USING ((CURRENT_USER = 'saas_telemetry_owner'::name)) WITH CHECK ((CURRENT_USER = 'saas_telemetry_owner'::name));
-
-
---
--- Name: saas_isolation_event_hourly rev10_seam_business_173; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_seam_business_173 ON public.saas_isolation_event_hourly TO saas_telemetry_owner USING ((CURRENT_USER = 'saas_telemetry_owner'::name)) WITH CHECK ((CURRENT_USER = 'saas_telemetry_owner'::name));
+CREATE POLICY rev10_seam_business_171 ON public.saas_billing_accounts TO app_seam_specialist_provision_owner USING ((CURRENT_USER = 'app_seam_specialist_provision_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_specialist_provision_owner'::name));
 
 
 --
--- Name: saas_isolation_events rev10_seam_business_174; Type: POLICY; Schema: public; Owner: -
+-- Name: saas_billing_invoices rev10_seam_business_172; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_174 ON public.saas_isolation_events TO saas_telemetry_owner USING ((CURRENT_USER = 'saas_telemetry_owner'::name)) WITH CHECK ((CURRENT_USER = 'saas_telemetry_owner'::name));
-
-
---
--- Name: saas_org_entitlement_overrides rev10_seam_business_175; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_seam_business_175 ON public.saas_org_entitlement_overrides TO app_seam_org_commerce_owner, app_seam_org_invite_owner, app_seam_patient_org_projection_owner USING (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_org_invite_owner'::name) OR (CURRENT_USER = 'app_seam_patient_org_projection_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_org_invite_owner'::name) OR (CURRENT_USER = 'app_seam_patient_org_projection_owner'::name)));
+CREATE POLICY rev10_seam_business_172 ON public.saas_billing_invoices TO app_seam_org_commerce_owner, app_seam_payment_webhook_owner USING (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_payment_webhook_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_payment_webhook_owner'::name)));
 
 
 --
--- Name: saas_organization_trials rev10_seam_business_176; Type: POLICY; Schema: public; Owner: -
+-- Name: saas_billing_periods rev10_seam_business_173; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_176 ON public.saas_organization_trials TO app_seam_org_commerce_owner, app_seam_patient_org_projection_owner, app_seam_specialist_provision_owner USING (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_patient_org_projection_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_patient_org_projection_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name)));
-
-
---
--- Name: saas_paid_period_policy rev10_seam_business_177; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_seam_business_177 ON public.saas_paid_period_policy TO app_seam_org_commerce_owner, app_seam_patient_org_projection_owner USING (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_patient_org_projection_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_patient_org_projection_owner'::name)));
+CREATE POLICY rev10_seam_business_173 ON public.saas_billing_periods TO app_seam_org_commerce_owner, app_seam_payment_webhook_owner USING (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_payment_webhook_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_payment_webhook_owner'::name)));
 
 
 --
--- Name: saas_registration_tariff_policy rev10_seam_business_178; Type: POLICY; Schema: public; Owner: -
+-- Name: saas_tariff_period_prices rev10_seam_business_174; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_178 ON public.saas_registration_tariff_policy TO app_seam_specialist_provision_owner USING ((CURRENT_USER = 'app_seam_specialist_provision_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_specialist_provision_owner'::name));
+CREATE POLICY rev10_seam_business_174 ON public.saas_tariff_period_prices TO app_seam_org_commerce_owner, app_seam_specialist_provision_owner USING (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name)));
 
 
 --
--- Name: saas_tariffs rev10_seam_business_179; Type: POLICY; Schema: public; Owner: -
+-- Name: saas_storage_package_period_prices rev10_seam_business_176; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_179 ON public.saas_tariffs TO app_seam_org_commerce_owner, app_seam_org_invite_owner, app_seam_specialist_provision_owner USING (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_org_invite_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_org_invite_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name)));
+CREATE POLICY rev10_seam_business_176 ON public.saas_storage_package_period_prices TO app_seam_org_commerce_owner USING ((CURRENT_USER = 'app_seam_org_commerce_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_org_commerce_owner'::name));
+
+
+--
+-- Name: saas_billing_refunds rev10_seam_business_178; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_seam_business_178 ON public.saas_billing_refunds TO app_seam_payment_webhook_owner USING ((CURRENT_USER = 'app_seam_payment_webhook_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_payment_webhook_owner'::name));
+
+
+--
+-- Name: saas_billing_subscriptions rev10_seam_business_179; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_seam_business_179 ON public.saas_billing_subscriptions TO app_seam_org_commerce_owner, app_seam_org_invite_owner, app_seam_patient_org_projection_owner, app_seam_specialist_provision_owner USING (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_org_invite_owner'::name) OR (CURRENT_USER = 'app_seam_patient_org_projection_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_org_invite_owner'::name) OR (CURRENT_USER = 'app_seam_patient_org_projection_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name)));
 
 
 --
@@ -18524,206 +19541,213 @@ CREATE POLICY rev10_seam_business_18 ON public.be_appointment_cancellations TO a
 
 
 --
--- Name: saas_trial_policy rev10_seam_business_180; Type: POLICY; Schema: public; Owner: -
+-- Name: saas_isolation_coverage_runs rev10_seam_business_180; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_180 ON public.saas_trial_policy TO app_seam_specialist_provision_owner USING ((CURRENT_USER = 'app_seam_specialist_provision_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_specialist_provision_owner'::name));
-
-
---
--- Name: specialist_signup_intents rev10_seam_business_182; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_seam_business_182 ON public.specialist_signup_intents TO app_seam_specialist_provision_owner USING ((CURRENT_USER = 'app_seam_specialist_provision_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_specialist_provision_owner'::name));
+CREATE POLICY rev10_seam_business_180 ON public.saas_isolation_coverage_runs TO app_seam_retention_sweep_owner, saas_telemetry_owner USING (((CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'saas_telemetry_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'saas_telemetry_owner'::name)));
 
 
 --
--- Name: specialist_tasks rev10_seam_business_183; Type: POLICY; Schema: public; Owner: -
+-- Name: saas_isolation_event_hourly rev10_seam_business_181; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_183 ON public.specialist_tasks TO app_seam_reminder_specialist_owner USING ((CURRENT_USER = 'app_seam_reminder_specialist_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_reminder_specialist_owner'::name));
-
-
---
--- Name: staff_security_profiles rev10_seam_business_184; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_seam_business_184 ON public.staff_security_profiles TO app_seam_staff_security_owner USING ((CURRENT_USER = 'app_seam_staff_security_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_staff_security_owner'::name));
+CREATE POLICY rev10_seam_business_181 ON public.saas_isolation_event_hourly TO saas_telemetry_owner USING ((CURRENT_USER = 'saas_telemetry_owner'::name)) WITH CHECK ((CURRENT_USER = 'saas_telemetry_owner'::name));
 
 
 --
--- Name: support_conversation_messages rev10_seam_business_185; Type: POLICY; Schema: public; Owner: -
+-- Name: saas_isolation_events rev10_seam_business_182; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_185 ON public.support_conversation_messages TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
-
-
---
--- Name: support_conversations rev10_seam_business_186; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_seam_business_186 ON public.support_conversations TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
+CREATE POLICY rev10_seam_business_182 ON public.saas_isolation_events TO app_seam_retention_sweep_owner, saas_telemetry_owner USING (((CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'saas_telemetry_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'saas_telemetry_owner'::name)));
 
 
 --
--- Name: symptom_entries rev10_seam_business_189; Type: POLICY; Schema: public; Owner: -
+-- Name: saas_org_entitlement_overrides rev10_seam_business_183; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_189 ON public.symptom_entries TO app_seam_patient_self_actions_owner, app_seam_platform_analytics_owner USING (((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name)));
-
-
---
--- Name: symptom_trackings rev10_seam_business_190; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_seam_business_190 ON public.symptom_trackings TO app_seam_patient_self_actions_owner, app_seam_platform_analytics_owner USING (((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name)));
+CREATE POLICY rev10_seam_business_183 ON public.saas_org_entitlement_overrides TO app_seam_org_commerce_owner, app_seam_org_invite_owner, app_seam_patient_org_projection_owner USING (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_org_invite_owner'::name) OR (CURRENT_USER = 'app_seam_patient_org_projection_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_org_invite_owner'::name) OR (CURRENT_USER = 'app_seam_patient_org_projection_owner'::name)));
 
 
 --
--- Name: system_settings rev10_seam_business_191; Type: POLICY; Schema: public; Owner: -
+-- Name: saas_organization_trials rev10_seam_business_184; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_191 ON public.system_settings TO app_seam_delivery_scope_owner, app_seam_password_auth_owner, app_seam_patient_booking_owner, app_seam_patient_self_actions_owner, app_seam_payment_webhook_owner, app_seam_public_booking_owner, app_seam_reminder_materialization_owner, app_seam_reminder_patient_owner, app_seam_reminder_specialist_owner, app_seam_settings_integrator_owner, app_seam_settings_preauth_owner, app_seam_settings_runtime_owner, app_seam_telemetry_exclusion_owner, app_seam_telemetry_operator_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_password_auth_owner'::name) OR (CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_payment_webhook_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_patient_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_settings_integrator_owner'::name) OR (CURRENT_USER = 'app_seam_settings_preauth_owner'::name) OR (CURRENT_USER = 'app_seam_settings_runtime_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_exclusion_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_password_auth_owner'::name) OR (CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_payment_webhook_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_patient_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_settings_integrator_owner'::name) OR (CURRENT_USER = 'app_seam_settings_preauth_owner'::name) OR (CURRENT_USER = 'app_seam_settings_runtime_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_exclusion_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
-
-
---
--- Name: test_attempts rev10_seam_business_193; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_seam_business_193 ON public.test_attempts TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
+CREATE POLICY rev10_seam_business_184 ON public.saas_organization_trials TO app_seam_org_commerce_owner, app_seam_patient_org_projection_owner, app_seam_specialist_provision_owner USING (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_patient_org_projection_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_patient_org_projection_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name)));
 
 
 --
--- Name: test_results rev10_seam_business_194; Type: POLICY; Schema: public; Owner: -
+-- Name: saas_paid_period_policy rev10_seam_business_185; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_194 ON public.test_results TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
+CREATE POLICY rev10_seam_business_185 ON public.saas_paid_period_policy TO app_seam_org_commerce_owner, app_seam_patient_org_projection_owner USING (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_patient_org_projection_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_patient_org_projection_owner'::name)));
 
 
 --
--- Name: treatment_program_events rev10_seam_business_198; Type: POLICY; Schema: public; Owner: -
+-- Name: saas_registration_tariff_policy rev10_seam_business_186; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_198 ON public.treatment_program_events TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
+CREATE POLICY rev10_seam_business_186 ON public.saas_registration_tariff_policy TO app_seam_specialist_provision_owner USING ((CURRENT_USER = 'app_seam_specialist_provision_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_specialist_provision_owner'::name));
+
+
+--
+-- Name: saas_tariffs rev10_seam_business_187; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_seam_business_187 ON public.saas_tariffs TO app_seam_org_commerce_owner, app_seam_org_invite_owner, app_seam_specialist_provision_owner USING (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_org_invite_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_org_invite_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name)));
+
+
+--
+-- Name: saas_trial_policy rev10_seam_business_188; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_seam_business_188 ON public.saas_trial_policy TO app_seam_specialist_provision_owner USING ((CURRENT_USER = 'app_seam_specialist_provision_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_specialist_provision_owner'::name));
+
+
+--
+-- Name: specialist_signup_intents rev10_seam_business_190; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_seam_business_190 ON public.specialist_signup_intents TO app_seam_specialist_provision_owner USING ((CURRENT_USER = 'app_seam_specialist_provision_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_specialist_provision_owner'::name));
+
+
+--
+-- Name: specialist_tasks rev10_seam_business_191; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_seam_business_191 ON public.specialist_tasks TO app_seam_reminder_specialist_owner USING ((CURRENT_USER = 'app_seam_reminder_specialist_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_reminder_specialist_owner'::name));
+
+
+--
+-- Name: staff_security_profiles rev10_seam_business_192; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_seam_business_192 ON public.staff_security_profiles TO app_seam_staff_security_owner USING ((CURRENT_USER = 'app_seam_staff_security_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_staff_security_owner'::name));
+
+
+--
+-- Name: support_conversation_messages rev10_seam_business_193; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_seam_business_193 ON public.support_conversation_messages TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
+
+
+--
+-- Name: support_conversations rev10_seam_business_194; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_seam_business_194 ON public.support_conversations TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
+
+
+--
+-- Name: symptom_entries rev10_seam_business_197; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_seam_business_197 ON public.symptom_entries TO app_seam_patient_self_actions_owner, app_seam_platform_analytics_owner USING (((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name)));
+
+
+--
+-- Name: symptom_trackings rev10_seam_business_198; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_seam_business_198 ON public.symptom_trackings TO app_seam_patient_self_actions_owner, app_seam_platform_analytics_owner USING (((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name)));
+
+
+--
+-- Name: system_settings rev10_seam_business_199; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_seam_business_199 ON public.system_settings TO app_seam_custom_domain_owner, app_seam_delivery_scope_owner, app_seam_password_auth_owner, app_seam_patient_booking_owner, app_seam_patient_org_projection_owner, app_seam_patient_self_actions_owner, app_seam_payment_webhook_owner, app_seam_public_booking_owner, app_seam_reminder_materialization_owner, app_seam_reminder_patient_owner, app_seam_reminder_specialist_owner, app_seam_settings_integrator_owner, app_seam_settings_preauth_owner, app_seam_settings_runtime_owner, app_seam_specialist_provision_owner, app_seam_telemetry_exclusion_owner, app_seam_telemetry_operator_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_custom_domain_owner'::name) OR (CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_password_auth_owner'::name) OR (CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_patient_org_projection_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_payment_webhook_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_patient_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_settings_integrator_owner'::name) OR (CURRENT_USER = 'app_seam_settings_preauth_owner'::name) OR (CURRENT_USER = 'app_seam_settings_runtime_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_exclusion_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_custom_domain_owner'::name) OR (CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_password_auth_owner'::name) OR (CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_patient_org_projection_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_payment_webhook_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_patient_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_settings_integrator_owner'::name) OR (CURRENT_USER = 'app_seam_settings_preauth_owner'::name) OR (CURRENT_USER = 'app_seam_settings_runtime_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_exclusion_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
 
 
 --
 -- Name: be_appointment_history_events rev10_seam_business_20; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_20 ON public.be_appointment_history_events TO app_seam_patient_booking_owner USING ((CURRENT_USER = 'app_seam_patient_booking_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_booking_owner'::name));
+CREATE POLICY rev10_seam_business_20 ON public.be_appointment_history_events TO app_seam_patient_booking_owner, app_seam_payment_webhook_owner USING (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_payment_webhook_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_payment_webhook_owner'::name)));
 
 
 --
--- Name: treatment_program_instance_stage_items rev10_seam_business_200; Type: POLICY; Schema: public; Owner: -
+-- Name: test_attempts rev10_seam_business_201; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_200 ON public.treatment_program_instance_stage_items TO app_seam_patient_lfk_media_owner, app_seam_patient_self_actions_owner USING (((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)));
-
-
---
--- Name: treatment_program_instance_stages rev10_seam_business_201; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_seam_business_201 ON public.treatment_program_instance_stages TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
+CREATE POLICY rev10_seam_business_201 ON public.test_attempts TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
 
 
 --
--- Name: treatment_program_instances rev10_seam_business_202; Type: POLICY; Schema: public; Owner: -
+-- Name: test_results rev10_seam_business_202; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_202 ON public.treatment_program_instances TO app_seam_patient_program_resolver_owner, app_seam_patient_self_actions_owner, app_seam_platform_analytics_owner USING (((CURRENT_USER = 'app_seam_patient_program_resolver_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_program_resolver_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name)));
-
-
---
--- Name: treatment_program_templates rev10_seam_business_206; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_seam_business_206 ON public.treatment_program_templates TO app_seam_patient_program_resolver_owner USING ((CURRENT_USER = 'app_seam_patient_program_resolver_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_program_resolver_owner'::name));
+CREATE POLICY rev10_seam_business_202 ON public.test_results TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
 
 
 --
--- Name: user_channel_bindings rev10_seam_business_207; Type: POLICY; Schema: public; Owner: -
+-- Name: treatment_program_events rev10_seam_business_206; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_207 ON public.user_channel_bindings TO app_seam_delivery_scope_owner, app_seam_identity_lookup_owner, app_seam_patient_self_actions_owner, app_seam_phone_binding_owner, app_seam_platform_analytics_owner, app_seam_reminder_appointment_owner, app_seam_reminder_materialization_owner, app_seam_reminder_specialist_owner, app_seam_telemetry_exclusion_owner, app_seam_telemetry_operator_owner USING (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_phone_binding_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_appointment_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_exclusion_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_phone_binding_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_appointment_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_exclusion_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name)));
-
-
---
--- Name: user_channel_preferences rev10_seam_business_208; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_seam_business_208 ON public.user_channel_preferences TO app_seam_delivery_scope_owner, app_seam_identity_lookup_owner, app_seam_patient_self_actions_owner, app_seam_reminder_appointment_owner, app_seam_reminder_materialization_owner, app_seam_reminder_specialist_owner, app_seam_telemetry_operator_owner USING (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_appointment_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_appointment_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name)));
+CREATE POLICY rev10_seam_business_206 ON public.treatment_program_events TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
 
 
 --
--- Name: user_contacts rev10_seam_business_209; Type: POLICY; Schema: public; Owner: -
+-- Name: treatment_program_instance_stage_items rev10_seam_business_208; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_209 ON public.user_contacts TO app_seam_delivery_scope_owner, app_seam_email_otp_owner, app_seam_identity_lookup_owner, app_seam_org_invite_owner, app_seam_password_auth_owner, app_seam_patient_booking_owner, app_seam_patient_invite_owner, app_seam_patient_self_actions_owner, app_seam_phone_binding_owner, app_seam_platform_analytics_owner, app_seam_public_booking_owner, app_seam_reminder_materialization_owner, app_seam_reminder_specialist_owner, app_seam_specialist_provision_owner, app_seam_telemetry_exclusion_owner, app_seam_telemetry_operator_owner USING (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_email_otp_owner'::name) OR (CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_org_invite_owner'::name) OR (CURRENT_USER = 'app_seam_password_auth_owner'::name) OR (CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_patient_invite_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_phone_binding_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_exclusion_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_email_otp_owner'::name) OR (CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_org_invite_owner'::name) OR (CURRENT_USER = 'app_seam_password_auth_owner'::name) OR (CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_patient_invite_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_phone_binding_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_exclusion_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name)));
-
-
---
--- Name: user_identity rev10_seam_business_210; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_seam_business_210 ON public.user_identity TO app_seam_identity_lookup_owner, app_seam_patient_booking_owner, app_seam_patient_lfk_media_owner, app_seam_patient_self_actions_owner, app_seam_public_booking_owner USING (((CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name)));
+CREATE POLICY rev10_seam_business_208 ON public.treatment_program_instance_stage_items TO app_seam_patient_lfk_media_owner, app_seam_patient_self_actions_owner USING (((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)));
 
 
 --
--- Name: user_notification_topic_channels rev10_seam_business_211; Type: POLICY; Schema: public; Owner: -
+-- Name: treatment_program_instance_stages rev10_seam_business_209; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_211 ON public.user_notification_topic_channels TO app_seam_delivery_scope_owner, app_seam_patient_self_actions_owner, app_seam_reminder_appointment_owner, app_seam_reminder_materialization_owner, app_seam_reminder_patient_owner, app_seam_reminder_specialist_owner USING (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_appointment_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_patient_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_appointment_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_patient_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name)));
-
-
---
--- Name: user_notification_topics rev10_seam_business_212; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_seam_business_212 ON public.user_notification_topics TO app_seam_delivery_scope_owner, app_seam_patient_self_actions_owner, app_seam_reminder_appointment_owner, app_seam_reminder_materialization_owner USING (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_appointment_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_appointment_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name)));
+CREATE POLICY rev10_seam_business_209 ON public.treatment_program_instance_stages TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
 
 
 --
--- Name: user_oauth_bindings rev10_seam_business_213; Type: POLICY; Schema: public; Owner: -
+-- Name: treatment_program_instances rev10_seam_business_210; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_213 ON public.user_oauth_bindings TO app_seam_oauth_owner USING ((CURRENT_USER = 'app_seam_oauth_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_oauth_owner'::name));
-
-
---
--- Name: user_passkey_accounts rev10_seam_business_214; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_seam_business_214 ON public.user_passkey_accounts TO app_seam_passkey_owner USING ((CURRENT_USER = 'app_seam_passkey_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_passkey_owner'::name));
+CREATE POLICY rev10_seam_business_210 ON public.treatment_program_instances TO app_seam_patient_program_resolver_owner, app_seam_patient_self_actions_owner, app_seam_platform_analytics_owner USING (((CURRENT_USER = 'app_seam_patient_program_resolver_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_program_resolver_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name)));
 
 
 --
--- Name: user_passkey_challenges rev10_seam_business_215; Type: POLICY; Schema: public; Owner: -
+-- Name: treatment_program_templates rev10_seam_business_214; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_215 ON public.user_passkey_challenges TO app_seam_passkey_owner USING ((CURRENT_USER = 'app_seam_passkey_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_passkey_owner'::name));
-
-
---
--- Name: user_passkey_credentials rev10_seam_business_216; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_seam_business_216 ON public.user_passkey_credentials TO app_seam_passkey_owner USING ((CURRENT_USER = 'app_seam_passkey_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_passkey_owner'::name));
+CREATE POLICY rev10_seam_business_214 ON public.treatment_program_templates TO app_seam_patient_program_resolver_owner USING ((CURRENT_USER = 'app_seam_patient_program_resolver_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_program_resolver_owner'::name));
 
 
 --
--- Name: user_password_credentials rev10_seam_business_217; Type: POLICY; Schema: public; Owner: -
+-- Name: user_channel_bindings rev10_seam_business_215; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_217 ON public.user_password_credentials TO app_seam_password_auth_owner USING ((CURRENT_USER = 'app_seam_password_auth_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_password_auth_owner'::name));
+CREATE POLICY rev10_seam_business_215 ON public.user_channel_bindings TO app_seam_delivery_scope_owner, app_seam_identity_lookup_owner, app_seam_patient_self_actions_owner, app_seam_phone_binding_owner, app_seam_platform_analytics_owner, app_seam_reminder_appointment_owner, app_seam_reminder_materialization_owner, app_seam_reminder_specialist_owner, app_seam_telemetry_exclusion_owner, app_seam_telemetry_operator_owner USING (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_phone_binding_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_appointment_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_exclusion_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_phone_binding_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_appointment_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_exclusion_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name)));
 
 
 --
--- Name: user_phone_history rev10_seam_business_218; Type: POLICY; Schema: public; Owner: -
+-- Name: user_channel_preferences rev10_seam_business_216; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_218 ON public.user_phone_history TO app_seam_identity_lookup_owner, app_seam_phone_binding_owner USING (((CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_phone_binding_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_phone_binding_owner'::name)));
+CREATE POLICY rev10_seam_business_216 ON public.user_channel_preferences TO app_seam_delivery_scope_owner, app_seam_identity_lookup_owner, app_seam_patient_self_actions_owner, app_seam_reminder_appointment_owner, app_seam_reminder_materialization_owner, app_seam_reminder_specialist_owner, app_seam_telemetry_operator_owner USING (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_appointment_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_appointment_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name)));
+
+
+--
+-- Name: user_contacts rev10_seam_business_217; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_seam_business_217 ON public.user_contacts TO app_seam_delivery_scope_owner, app_seam_email_otp_owner, app_seam_identity_lookup_owner, app_seam_org_invite_owner, app_seam_password_auth_owner, app_seam_patient_booking_owner, app_seam_patient_invite_owner, app_seam_patient_self_actions_owner, app_seam_phone_binding_owner, app_seam_platform_analytics_owner, app_seam_public_booking_owner, app_seam_reminder_materialization_owner, app_seam_reminder_specialist_owner, app_seam_specialist_provision_owner, app_seam_telemetry_exclusion_owner, app_seam_telemetry_operator_owner USING (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_email_otp_owner'::name) OR (CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_org_invite_owner'::name) OR (CURRENT_USER = 'app_seam_password_auth_owner'::name) OR (CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_patient_invite_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_phone_binding_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_exclusion_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_email_otp_owner'::name) OR (CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_org_invite_owner'::name) OR (CURRENT_USER = 'app_seam_password_auth_owner'::name) OR (CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_patient_invite_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_phone_binding_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_exclusion_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name)));
+
+
+--
+-- Name: user_identity rev10_seam_business_218; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_seam_business_218 ON public.user_identity TO app_seam_identity_lookup_owner, app_seam_patient_booking_owner, app_seam_patient_lfk_media_owner, app_seam_patient_self_actions_owner, app_seam_public_booking_owner USING (((CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name)));
+
+
+--
+-- Name: user_notification_topic_channels rev10_seam_business_219; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_seam_business_219 ON public.user_notification_topic_channels TO app_seam_delivery_scope_owner, app_seam_patient_self_actions_owner, app_seam_reminder_appointment_owner, app_seam_reminder_materialization_owner, app_seam_reminder_patient_owner, app_seam_reminder_specialist_owner USING (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_appointment_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_patient_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_appointment_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_patient_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name)));
 
 
 --
@@ -18734,10 +19758,59 @@ CREATE POLICY rev10_seam_business_22 ON public.be_appointment_reschedules TO app
 
 
 --
--- Name: user_web_push_subscriptions rev10_seam_business_220; Type: POLICY; Schema: public; Owner: -
+-- Name: user_notification_topics rev10_seam_business_220; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_220 ON public.user_web_push_subscriptions TO app_seam_delivery_scope_owner, app_seam_patient_self_actions_owner, app_seam_reminder_appointment_owner, app_seam_reminder_materialization_owner, app_seam_reminder_specialist_owner, app_seam_telemetry_operator_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_appointment_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_appointment_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
+CREATE POLICY rev10_seam_business_220 ON public.user_notification_topics TO app_seam_delivery_scope_owner, app_seam_patient_self_actions_owner, app_seam_reminder_appointment_owner, app_seam_reminder_materialization_owner USING (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_appointment_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_appointment_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name)));
+
+
+--
+-- Name: user_oauth_bindings rev10_seam_business_221; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_seam_business_221 ON public.user_oauth_bindings TO app_seam_oauth_owner USING ((CURRENT_USER = 'app_seam_oauth_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_oauth_owner'::name));
+
+
+--
+-- Name: user_passkey_accounts rev10_seam_business_222; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_seam_business_222 ON public.user_passkey_accounts TO app_seam_passkey_owner USING ((CURRENT_USER = 'app_seam_passkey_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_passkey_owner'::name));
+
+
+--
+-- Name: user_passkey_challenges rev10_seam_business_223; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_seam_business_223 ON public.user_passkey_challenges TO app_seam_passkey_owner USING ((CURRENT_USER = 'app_seam_passkey_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_passkey_owner'::name));
+
+
+--
+-- Name: user_passkey_credentials rev10_seam_business_224; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_seam_business_224 ON public.user_passkey_credentials TO app_seam_passkey_owner USING ((CURRENT_USER = 'app_seam_passkey_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_passkey_owner'::name));
+
+
+--
+-- Name: user_password_credentials rev10_seam_business_225; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_seam_business_225 ON public.user_password_credentials TO app_seam_password_auth_owner USING ((CURRENT_USER = 'app_seam_password_auth_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_password_auth_owner'::name));
+
+
+--
+-- Name: user_phone_history rev10_seam_business_226; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_seam_business_226 ON public.user_phone_history TO app_seam_identity_lookup_owner, app_seam_phone_binding_owner USING (((CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_phone_binding_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_phone_binding_owner'::name)));
+
+
+--
+-- Name: user_web_push_subscriptions rev10_seam_business_228; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_seam_business_228 ON public.user_web_push_subscriptions TO app_seam_delivery_scope_owner, app_seam_patient_self_actions_owner, app_seam_reminder_appointment_owner, app_seam_reminder_materialization_owner, app_seam_reminder_specialist_owner, app_seam_telemetry_operator_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_appointment_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_appointment_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
 
 
 --
@@ -18751,7 +19824,7 @@ CREATE POLICY rev10_seam_business_23 ON public.be_appointment_staff_comments TO 
 -- Name: be_appointments rev10_seam_business_24; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_24 ON public.be_appointments TO app_seam_patient_booking_owner, app_seam_platform_analytics_owner, app_seam_public_booking_owner, app_seam_reminder_appointment_owner, app_seam_reminder_materialization_owner USING (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_appointment_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_appointment_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name)));
+CREATE POLICY rev10_seam_business_24 ON public.be_appointments TO app_seam_patient_booking_owner, app_seam_payment_webhook_owner, app_seam_platform_analytics_owner, app_seam_public_booking_owner, app_seam_reminder_appointment_owner, app_seam_reminder_materialization_owner USING (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_payment_webhook_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_appointment_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_payment_webhook_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_appointment_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_materialization_owner'::name)));
 
 
 --
@@ -18793,21 +19866,21 @@ CREATE POLICY rev10_seam_business_29 ON public.be_cancellation_policies TO app_s
 -- Name: be_clinic_services rev10_seam_business_30; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_30 ON public.be_clinic_services TO app_seam_patient_booking_owner, app_seam_public_booking_owner USING (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name)));
+CREATE POLICY rev10_seam_business_30 ON public.be_clinic_services TO app_seam_patient_booking_owner, app_seam_public_booking_owner, app_seam_public_clinic_card_owner USING (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name) OR (CURRENT_USER = 'app_seam_public_clinic_card_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name) OR (CURRENT_USER = 'app_seam_public_clinic_card_owner'::name)));
 
 
 --
 -- Name: be_organization_members rev10_seam_business_31; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_31 ON public.be_organization_members TO app_seam_delivery_scope_owner, app_seam_identity_lookup_owner, app_seam_org_commerce_owner, app_seam_org_directory_owner, app_seam_org_invite_owner, app_seam_reminder_specialist_owner, app_seam_specialist_provision_owner, app_seam_telemetry_operator_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_org_directory_owner'::name) OR (CURRENT_USER = 'app_seam_org_invite_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_org_directory_owner'::name) OR (CURRENT_USER = 'app_seam_org_invite_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
+CREATE POLICY rev10_seam_business_31 ON public.be_organization_members TO app_seam_delivery_scope_owner, app_seam_identity_lookup_owner, app_seam_org_commerce_owner, app_seam_org_directory_owner, app_seam_org_invite_owner, app_seam_reminder_specialist_owner, app_seam_settings_runtime_owner, app_seam_specialist_provision_owner, app_seam_telemetry_operator_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_org_directory_owner'::name) OR (CURRENT_USER = 'app_seam_org_invite_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_settings_runtime_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_identity_lookup_owner'::name) OR (CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_org_directory_owner'::name) OR (CURRENT_USER = 'app_seam_org_invite_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_specialist_owner'::name) OR (CURRENT_USER = 'app_seam_settings_runtime_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
 
 
 --
 -- Name: be_organizations rev10_seam_business_32; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_32 ON public.be_organizations TO app_seam_org_commerce_owner, app_seam_org_directory_owner, app_seam_org_invite_owner, app_seam_patient_invite_owner, app_seam_patient_org_projection_owner, app_seam_patient_program_resolver_owner, app_seam_platform_analytics_owner, app_seam_public_clinic_card_owner, app_seam_public_slug_owner, app_seam_specialist_provision_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_org_directory_owner'::name) OR (CURRENT_USER = 'app_seam_org_invite_owner'::name) OR (CURRENT_USER = 'app_seam_patient_invite_owner'::name) OR (CURRENT_USER = 'app_seam_patient_org_projection_owner'::name) OR (CURRENT_USER = 'app_seam_patient_program_resolver_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_public_clinic_card_owner'::name) OR (CURRENT_USER = 'app_seam_public_slug_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_org_directory_owner'::name) OR (CURRENT_USER = 'app_seam_org_invite_owner'::name) OR (CURRENT_USER = 'app_seam_patient_invite_owner'::name) OR (CURRENT_USER = 'app_seam_patient_org_projection_owner'::name) OR (CURRENT_USER = 'app_seam_patient_program_resolver_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_public_clinic_card_owner'::name) OR (CURRENT_USER = 'app_seam_public_slug_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
+CREATE POLICY rev10_seam_business_32 ON public.be_organizations TO app_seam_custom_domain_owner, app_seam_org_commerce_owner, app_seam_org_directory_owner, app_seam_org_invite_owner, app_seam_patient_invite_owner, app_seam_patient_org_projection_owner, app_seam_patient_program_resolver_owner, app_seam_platform_analytics_owner, app_seam_public_clinic_card_owner, app_seam_public_slug_owner, app_seam_settings_runtime_owner, app_seam_specialist_provision_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_custom_domain_owner'::name) OR (CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_org_directory_owner'::name) OR (CURRENT_USER = 'app_seam_org_invite_owner'::name) OR (CURRENT_USER = 'app_seam_patient_invite_owner'::name) OR (CURRENT_USER = 'app_seam_patient_org_projection_owner'::name) OR (CURRENT_USER = 'app_seam_patient_program_resolver_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_public_clinic_card_owner'::name) OR (CURRENT_USER = 'app_seam_public_slug_owner'::name) OR (CURRENT_USER = 'app_seam_settings_runtime_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_custom_domain_owner'::name) OR (CURRENT_USER = 'app_seam_org_commerce_owner'::name) OR (CURRENT_USER = 'app_seam_org_directory_owner'::name) OR (CURRENT_USER = 'app_seam_org_invite_owner'::name) OR (CURRENT_USER = 'app_seam_patient_invite_owner'::name) OR (CURRENT_USER = 'app_seam_patient_org_projection_owner'::name) OR (CURRENT_USER = 'app_seam_patient_program_resolver_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_public_clinic_card_owner'::name) OR (CURRENT_USER = 'app_seam_public_slug_owner'::name) OR (CURRENT_USER = 'app_seam_settings_runtime_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
 
 
 --
@@ -18849,14 +19922,21 @@ CREATE POLICY rev10_seam_business_38 ON public.be_patient_packages TO app_seam_p
 -- Name: be_patient_timeline_events rev10_seam_business_39; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_39 ON public.be_patient_timeline_events TO app_seam_patient_booking_owner USING ((CURRENT_USER = 'app_seam_patient_booking_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_booking_owner'::name));
+CREATE POLICY rev10_seam_business_39 ON public.be_patient_timeline_events TO app_seam_patient_booking_owner, app_seam_payment_webhook_owner USING (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_payment_webhook_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_payment_webhook_owner'::name)));
+
+
+--
+-- Name: be_payment_history_events rev10_seam_business_40; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_seam_business_40 ON public.be_payment_history_events TO app_seam_payment_webhook_owner USING ((CURRENT_USER = 'app_seam_payment_webhook_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_payment_webhook_owner'::name));
 
 
 --
 -- Name: be_payment_intents rev10_seam_business_41; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_41 ON public.be_payment_intents TO app_seam_payment_webhook_owner USING ((CURRENT_USER = 'app_seam_payment_webhook_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_payment_webhook_owner'::name));
+CREATE POLICY rev10_seam_business_41 ON public.be_payment_intents TO app_seam_patient_booking_owner, app_seam_payment_webhook_owner USING (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_payment_webhook_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_payment_webhook_owner'::name)));
 
 
 --
@@ -18864,6 +19944,13 @@ CREATE POLICY rev10_seam_business_41 ON public.be_payment_intents TO app_seam_pa
 --
 
 CREATE POLICY rev10_seam_business_42 ON public.be_payment_provider_events TO app_seam_payment_webhook_owner USING ((CURRENT_USER = 'app_seam_payment_webhook_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_payment_webhook_owner'::name));
+
+
+--
+-- Name: be_payments rev10_seam_business_43; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_seam_business_43 ON public.be_payments TO app_seam_patient_booking_owner, app_seam_payment_webhook_owner USING (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_payment_webhook_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_payment_webhook_owner'::name)));
 
 
 --
@@ -18895,73 +19982,73 @@ CREATE POLICY rev10_seam_business_48 ON public.be_schedule_blocks TO app_seam_pa
 
 
 --
--- Name: be_specialist_service_availability rev10_seam_business_53; Type: POLICY; Schema: public; Owner: -
+-- Name: be_specialist_service_availability rev10_seam_business_52; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_53 ON public.be_specialist_service_availability TO app_seam_patient_booking_owner, app_seam_public_booking_owner USING (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name)));
-
-
---
--- Name: be_specialists rev10_seam_business_54; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_seam_business_54 ON public.be_specialists TO app_seam_patient_booking_owner, app_seam_platform_analytics_owner, app_seam_public_booking_owner, app_seam_specialist_provision_owner USING (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name)));
+CREATE POLICY rev10_seam_business_52 ON public.be_specialist_service_availability TO app_seam_patient_booking_owner, app_seam_public_booking_owner USING (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name)));
 
 
 --
--- Name: be_working_days rev10_seam_business_56; Type: POLICY; Schema: public; Owner: -
+-- Name: be_specialists rev10_seam_business_53; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_56 ON public.be_working_days TO app_seam_patient_booking_owner, app_seam_public_booking_owner USING (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name)));
-
-
---
--- Name: be_working_hours rev10_seam_business_57; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_seam_business_57 ON public.be_working_hours TO app_seam_patient_booking_owner, app_seam_public_booking_owner USING (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name)));
+CREATE POLICY rev10_seam_business_53 ON public.be_specialists TO app_seam_patient_booking_owner, app_seam_platform_analytics_owner, app_seam_public_booking_owner, app_seam_public_clinic_card_owner, app_seam_specialist_provision_owner USING (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name) OR (CURRENT_USER = 'app_seam_public_clinic_card_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name) OR (CURRENT_USER = 'app_seam_public_clinic_card_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name)));
 
 
 --
--- Name: booking_calendar_map rev10_seam_business_58; Type: POLICY; Schema: public; Owner: -
+-- Name: be_working_days rev10_seam_business_55; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_58 ON public.booking_calendar_map TO app_seam_patient_booking_owner USING ((CURRENT_USER = 'app_seam_patient_booking_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_booking_owner'::name));
-
-
---
--- Name: booking_cities rev10_seam_business_59; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_seam_business_59 ON public.booking_cities TO app_seam_catalog_public_owner USING ((CURRENT_USER = 'app_seam_catalog_public_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_catalog_public_owner'::name));
+CREATE POLICY rev10_seam_business_55 ON public.be_working_days TO app_seam_patient_booking_owner, app_seam_public_booking_owner USING (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name)));
 
 
 --
--- Name: broadcast_audit rev10_seam_business_60; Type: POLICY; Schema: public; Owner: -
+-- Name: be_working_hours rev10_seam_business_56; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_60 ON public.broadcast_audit TO app_seam_delivery_scope_owner, app_seam_telemetry_operator_owner USING (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name)));
-
-
---
--- Name: channel_link_secrets rev10_seam_business_63; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_seam_business_63 ON public.channel_link_secrets TO app_seam_phone_binding_owner USING ((CURRENT_USER = 'app_seam_phone_binding_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_phone_binding_owner'::name));
+CREATE POLICY rev10_seam_business_56 ON public.be_working_hours TO app_seam_patient_booking_owner, app_seam_public_booking_owner USING (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_booking_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name)));
 
 
 --
--- Name: clinic_dedicated_bot_bindings rev10_seam_business_64; Type: POLICY; Schema: public; Owner: -
+-- Name: booking_calendar_map rev10_seam_business_57; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_64 ON public.clinic_dedicated_bot_bindings TO app_seam_dedicated_bot_owner USING ((CURRENT_USER = 'app_seam_dedicated_bot_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_dedicated_bot_owner'::name));
+CREATE POLICY rev10_seam_business_57 ON public.booking_calendar_map TO app_seam_patient_booking_owner USING ((CURRENT_USER = 'app_seam_patient_booking_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_booking_owner'::name));
 
 
 --
--- Name: clinic_public_directory_entries rev10_seam_business_65; Type: POLICY; Schema: public; Owner: -
+-- Name: booking_cities rev10_seam_business_58; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_65 ON public.clinic_public_directory_entries TO app_seam_public_booking_owner, app_seam_public_clinic_card_owner, app_seam_public_slug_owner, app_seam_specialist_provision_owner USING (((CURRENT_USER = 'app_seam_public_booking_owner'::name) OR (CURRENT_USER = 'app_seam_public_clinic_card_owner'::name) OR (CURRENT_USER = 'app_seam_public_slug_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_public_booking_owner'::name) OR (CURRENT_USER = 'app_seam_public_clinic_card_owner'::name) OR (CURRENT_USER = 'app_seam_public_slug_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name)));
+CREATE POLICY rev10_seam_business_58 ON public.booking_cities TO app_seam_catalog_public_owner USING ((CURRENT_USER = 'app_seam_catalog_public_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_catalog_public_owner'::name));
+
+
+--
+-- Name: broadcast_audit rev10_seam_business_59; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_seam_business_59 ON public.broadcast_audit TO app_seam_delivery_scope_owner, app_seam_telemetry_operator_owner USING (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_telemetry_operator_owner'::name)));
+
+
+--
+-- Name: channel_link_secrets rev10_seam_business_62; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_seam_business_62 ON public.channel_link_secrets TO app_seam_phone_binding_owner USING ((CURRENT_USER = 'app_seam_phone_binding_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_phone_binding_owner'::name));
+
+
+--
+-- Name: clinic_dedicated_bot_bindings rev10_seam_business_63; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_seam_business_63 ON public.clinic_dedicated_bot_bindings TO app_seam_dedicated_bot_owner USING ((CURRENT_USER = 'app_seam_dedicated_bot_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_dedicated_bot_owner'::name));
+
+
+--
+-- Name: clinic_public_directory_entries rev10_seam_business_64; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_seam_business_64 ON public.clinic_public_directory_entries TO app_seam_custom_domain_owner, app_seam_public_booking_owner, app_seam_public_clinic_card_owner, app_seam_public_slug_owner, app_seam_specialist_provision_owner USING (((CURRENT_USER = 'app_seam_custom_domain_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name) OR (CURRENT_USER = 'app_seam_public_clinic_card_owner'::name) OR (CURRENT_USER = 'app_seam_public_slug_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_custom_domain_owner'::name) OR (CURRENT_USER = 'app_seam_public_booking_owner'::name) OR (CURRENT_USER = 'app_seam_public_clinic_card_owner'::name) OR (CURRENT_USER = 'app_seam_public_slug_owner'::name) OR (CURRENT_USER = 'app_seam_specialist_provision_owner'::name)));
 
 
 --
@@ -18986,173 +20073,182 @@ CREATE POLICY rev10_seam_business_82 ON public.content_sections TO app_seam_plat
 
 
 --
--- Name: email_challenges rev10_seam_business_86; Type: POLICY; Schema: public; Owner: -
+-- Name: video_meetings rev10_seam_business_84; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_86 ON public.email_challenges TO app_seam_email_otp_owner, app_seam_password_auth_owner USING (((CURRENT_USER = 'app_seam_email_otp_owner'::name) OR (CURRENT_USER = 'app_seam_password_auth_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_email_otp_owner'::name) OR (CURRENT_USER = 'app_seam_password_auth_owner'::name)));
-
-
---
--- Name: email_otp_locks rev10_seam_business_87; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_seam_business_87 ON public.email_otp_locks TO app_seam_email_otp_owner USING ((CURRENT_USER = 'app_seam_email_otp_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_email_otp_owner'::name));
+CREATE POLICY rev10_seam_business_84 ON public.video_meetings TO app_seam_patient_invite_owner USING ((CURRENT_USER = 'app_seam_patient_invite_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_invite_owner'::name));
 
 
 --
--- Name: email_send_cooldowns rev10_seam_business_88; Type: POLICY; Schema: public; Owner: -
+-- Name: video_meeting_invites rev10_seam_business_85; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_88 ON public.email_send_cooldowns TO app_seam_email_otp_owner, app_seam_reminder_email_cooldown_owner USING (((CURRENT_USER = 'app_seam_email_otp_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_email_cooldown_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_email_otp_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_email_cooldown_owner'::name)));
-
-
---
--- Name: idempotency_keys rev10_seam_business_89; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_seam_business_89 ON public.idempotency_keys TO app_seam_delivery_scope_owner, app_seam_retention_sweep_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
+CREATE POLICY rev10_seam_business_85 ON public.video_meeting_invites TO app_seam_patient_invite_owner USING ((CURRENT_USER = 'app_seam_patient_invite_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_invite_owner'::name));
 
 
 --
--- Name: integration_webhook_error_events rev10_seam_business_90; Type: POLICY; Schema: public; Owner: -
+-- Name: email_challenges rev10_seam_business_88; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_90 ON public.integration_webhook_error_events TO app_seam_telemetry_operator_owner USING ((CURRENT_USER = 'app_seam_telemetry_operator_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_telemetry_operator_owner'::name));
-
-
---
--- Name: integration_webhook_last_status rev10_seam_business_91; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_seam_business_91 ON public.integration_webhook_last_status TO app_seam_telemetry_operator_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
+CREATE POLICY rev10_seam_business_88 ON public.email_challenges TO app_seam_email_otp_owner, app_seam_password_auth_owner USING (((CURRENT_USER = 'app_seam_email_otp_owner'::name) OR (CURRENT_USER = 'app_seam_password_auth_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_email_otp_owner'::name) OR (CURRENT_USER = 'app_seam_password_auth_owner'::name)));
 
 
 --
--- Name: lfk_complex_exercises rev10_seam_business_92; Type: POLICY; Schema: public; Owner: -
+-- Name: email_otp_locks rev10_seam_business_89; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_92 ON public.lfk_complex_exercises TO app_seam_patient_lfk_media_owner USING ((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name));
-
-
---
--- Name: lfk_complex_template_exercises rev10_seam_business_93; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_seam_business_93 ON public.lfk_complex_template_exercises TO app_seam_patient_lfk_media_owner USING ((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name));
+CREATE POLICY rev10_seam_business_89 ON public.email_otp_locks TO app_seam_email_otp_owner USING ((CURRENT_USER = 'app_seam_email_otp_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_email_otp_owner'::name));
 
 
 --
--- Name: lfk_complex_templates rev10_seam_business_94; Type: POLICY; Schema: public; Owner: -
+-- Name: email_send_cooldowns rev10_seam_business_90; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_94 ON public.lfk_complex_templates TO app_seam_patient_lfk_media_owner USING ((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name));
-
-
---
--- Name: lfk_complexes rev10_seam_business_95; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_seam_business_95 ON public.lfk_complexes TO app_seam_patient_lfk_media_owner, app_seam_patient_self_actions_owner USING (((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)));
+CREATE POLICY rev10_seam_business_90 ON public.email_send_cooldowns TO app_seam_email_otp_owner, app_seam_reminder_email_cooldown_owner USING (((CURRENT_USER = 'app_seam_email_otp_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_email_cooldown_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_email_otp_owner'::name) OR (CURRENT_USER = 'app_seam_reminder_email_cooldown_owner'::name)));
 
 
 --
--- Name: lfk_exercise_media rev10_seam_business_96; Type: POLICY; Schema: public; Owner: -
+-- Name: idempotency_keys rev10_seam_business_91; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_96 ON public.lfk_exercise_media TO app_seam_patient_lfk_media_owner, app_seam_platform_analytics_owner USING (((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name)));
-
-
---
--- Name: lfk_exercises rev10_seam_business_98; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_seam_business_98 ON public.lfk_exercises TO app_seam_patient_lfk_media_owner, app_seam_platform_analytics_owner USING (((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name)));
+CREATE POLICY rev10_seam_business_91 ON public.idempotency_keys TO app_seam_delivery_scope_owner, app_seam_retention_sweep_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_delivery_scope_owner'::name) OR (CURRENT_USER = 'app_seam_retention_sweep_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
 
 
 --
--- Name: lfk_sessions rev10_seam_business_99; Type: POLICY; Schema: public; Owner: -
+-- Name: integration_webhook_error_events rev10_seam_business_92; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_seam_business_99 ON public.lfk_sessions TO app_seam_patient_self_actions_owner USING ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_self_actions_owner'::name));
+CREATE POLICY rev10_seam_business_92 ON public.integration_webhook_error_events TO app_seam_telemetry_operator_owner USING ((CURRENT_USER = 'app_seam_telemetry_operator_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_telemetry_operator_owner'::name));
 
 
 --
--- Name: user_channel_bindings rev10_staff_archived_patient_read_207; Type: POLICY; Schema: public; Owner: -
+-- Name: integration_webhook_last_status rev10_seam_business_93; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_staff_archived_patient_read_207 ON public.user_channel_bindings FOR SELECT TO app_staff USING ((EXISTS ( SELECT 1
+CREATE POLICY rev10_seam_business_93 ON public.integration_webhook_last_status TO app_seam_telemetry_operator_owner, saas_system_health_owner USING (((CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_telemetry_operator_owner'::name) OR (CURRENT_USER = 'saas_system_health_owner'::name)));
+
+
+--
+-- Name: lfk_complex_exercises rev10_seam_business_94; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_seam_business_94 ON public.lfk_complex_exercises TO app_seam_patient_lfk_media_owner USING ((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name));
+
+
+--
+-- Name: lfk_complex_template_exercises rev10_seam_business_95; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_seam_business_95 ON public.lfk_complex_template_exercises TO app_seam_patient_lfk_media_owner USING ((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name));
+
+
+--
+-- Name: lfk_complex_templates rev10_seam_business_96; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_seam_business_96 ON public.lfk_complex_templates TO app_seam_patient_lfk_media_owner USING ((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name)) WITH CHECK ((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name));
+
+
+--
+-- Name: lfk_complexes rev10_seam_business_97; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_seam_business_97 ON public.lfk_complexes TO app_seam_patient_lfk_media_owner, app_seam_patient_self_actions_owner USING (((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_patient_self_actions_owner'::name)));
+
+
+--
+-- Name: lfk_exercise_media rev10_seam_business_99; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_seam_business_99 ON public.lfk_exercise_media TO app_seam_patient_lfk_media_owner, app_seam_platform_analytics_owner USING (((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name))) WITH CHECK (((CURRENT_USER = 'app_seam_patient_lfk_media_owner'::name) OR (CURRENT_USER = 'app_seam_platform_analytics_owner'::name)));
+
+
+--
+-- Name: user_channel_bindings rev10_staff_archived_patient_read_215; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_staff_archived_patient_read_215 ON public.user_channel_bindings FOR SELECT TO app_staff USING ((EXISTS ( SELECT 1
    FROM public.org_enrollments archived_patient
   WHERE ((archived_patient.platform_user_id = user_channel_bindings.user_id) AND (archived_patient.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (archived_patient.status = 'archived'::text)))));
 
 
 --
--- Name: user_channel_preferences rev10_staff_archived_patient_read_208; Type: POLICY; Schema: public; Owner: -
+-- Name: user_channel_preferences rev10_staff_archived_patient_read_216; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_staff_archived_patient_read_208 ON public.user_channel_preferences FOR SELECT TO app_staff USING ((EXISTS ( SELECT 1
+CREATE POLICY rev10_staff_archived_patient_read_216 ON public.user_channel_preferences FOR SELECT TO app_staff USING ((EXISTS ( SELECT 1
    FROM public.org_enrollments archived_patient
   WHERE ((archived_patient.platform_user_id = user_channel_preferences.platform_user_id) AND (archived_patient.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (archived_patient.status = 'archived'::text)))));
 
 
 --
--- Name: user_contacts rev10_staff_archived_patient_read_209; Type: POLICY; Schema: public; Owner: -
+-- Name: user_contacts rev10_staff_archived_patient_read_217; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_staff_archived_patient_read_209 ON public.user_contacts FOR SELECT TO app_staff USING ((EXISTS ( SELECT 1
+CREATE POLICY rev10_staff_archived_patient_read_217 ON public.user_contacts FOR SELECT TO app_staff USING ((EXISTS ( SELECT 1
    FROM public.org_enrollments archived_patient
   WHERE ((archived_patient.platform_user_id = user_contacts.platform_user_id) AND (archived_patient.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (archived_patient.status = 'archived'::text)))));
 
 
 --
--- Name: user_identity rev10_staff_archived_patient_read_210; Type: POLICY; Schema: public; Owner: -
+-- Name: user_identity rev10_staff_archived_patient_read_218; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_staff_archived_patient_read_210 ON public.user_identity FOR SELECT TO app_staff USING ((EXISTS ( SELECT 1
+CREATE POLICY rev10_staff_archived_patient_read_218 ON public.user_identity FOR SELECT TO app_staff USING ((EXISTS ( SELECT 1
    FROM public.org_enrollments archived_patient
   WHERE ((archived_patient.platform_user_id = user_identity.platform_user_id) AND (archived_patient.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (archived_patient.status = 'archived'::text)))));
 
 
 --
--- Name: user_notification_topic_channels rev10_staff_archived_patient_read_211; Type: POLICY; Schema: public; Owner: -
+-- Name: user_notification_topic_channels rev10_staff_archived_patient_read_219; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_staff_archived_patient_read_211 ON public.user_notification_topic_channels FOR SELECT TO app_staff USING ((EXISTS ( SELECT 1
+CREATE POLICY rev10_staff_archived_patient_read_219 ON public.user_notification_topic_channels FOR SELECT TO app_staff USING ((EXISTS ( SELECT 1
    FROM public.org_enrollments archived_patient
   WHERE ((archived_patient.platform_user_id = user_notification_topic_channels.user_id) AND (archived_patient.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (archived_patient.status = 'archived'::text)))));
 
 
 --
--- Name: user_notification_topics rev10_staff_archived_patient_read_212; Type: POLICY; Schema: public; Owner: -
+-- Name: user_notification_topics rev10_staff_archived_patient_read_220; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_staff_archived_patient_read_212 ON public.user_notification_topics FOR SELECT TO app_staff USING ((EXISTS ( SELECT 1
+CREATE POLICY rev10_staff_archived_patient_read_220 ON public.user_notification_topics FOR SELECT TO app_staff USING ((EXISTS ( SELECT 1
    FROM public.org_enrollments archived_patient
   WHERE ((archived_patient.platform_user_id = user_notification_topics.user_id) AND (archived_patient.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (archived_patient.status = 'archived'::text)))));
 
 
 --
--- Name: user_phone_history rev10_staff_archived_patient_read_218; Type: POLICY; Schema: public; Owner: -
+-- Name: user_phone_history rev10_staff_archived_patient_read_226; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_staff_archived_patient_read_218 ON public.user_phone_history FOR SELECT TO app_staff USING ((EXISTS ( SELECT 1
+CREATE POLICY rev10_staff_archived_patient_read_226 ON public.user_phone_history FOR SELECT TO app_staff USING ((EXISTS ( SELECT 1
    FROM public.org_enrollments archived_patient
   WHERE ((archived_patient.platform_user_id = user_phone_history.platform_user_id) AND (archived_patient.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (archived_patient.status = 'archived'::text)))));
 
 
 --
--- Name: user_web_push_subscriptions rev10_staff_archived_patient_read_220; Type: POLICY; Schema: public; Owner: -
+-- Name: user_web_push_subscriptions rev10_staff_archived_patient_read_228; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_staff_archived_patient_read_220 ON public.user_web_push_subscriptions FOR SELECT TO app_staff USING ((EXISTS ( SELECT 1
+CREATE POLICY rev10_staff_archived_patient_read_228 ON public.user_web_push_subscriptions FOR SELECT TO app_staff USING ((EXISTS ( SELECT 1
    FROM public.org_enrollments archived_patient
   WHERE ((archived_patient.platform_user_id = user_web_push_subscriptions.user_id) AND (archived_patient.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (archived_patient.status = 'archived'::text)))));
 
 
 --
--- Name: user_channel_bindings rev10_staff_member_managed_207; Type: POLICY; Schema: public; Owner: -
+-- Name: native_push_targets rev10_staff_archived_patient_read_229; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_staff_member_managed_207 ON public.user_channel_bindings TO app_staff USING (((EXISTS ( SELECT 1
+CREATE POLICY rev10_staff_archived_patient_read_229 ON public.native_push_targets FOR SELECT TO app_staff USING ((EXISTS ( SELECT 1
+   FROM public.org_enrollments archived_patient
+  WHERE ((archived_patient.platform_user_id = native_push_targets.user_id) AND (archived_patient.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (archived_patient.status = 'archived'::text)))));
+
+
+--
+-- Name: user_channel_bindings rev10_staff_member_managed_215; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_staff_member_managed_215 ON public.user_channel_bindings TO app_staff USING (((EXISTS ( SELECT 1
    FROM public.be_organization_members access_member
   WHERE ((access_member.platform_user_id = user_channel_bindings.user_id) AND (access_member.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (access_member.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments access_patient
@@ -19164,10 +20260,10 @@ CREATE POLICY rev10_staff_member_managed_207 ON public.user_channel_bindings TO 
 
 
 --
--- Name: user_channel_preferences rev10_staff_member_managed_208; Type: POLICY; Schema: public; Owner: -
+-- Name: user_channel_preferences rev10_staff_member_managed_216; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_staff_member_managed_208 ON public.user_channel_preferences TO app_staff USING (((EXISTS ( SELECT 1
+CREATE POLICY rev10_staff_member_managed_216 ON public.user_channel_preferences TO app_staff USING (((EXISTS ( SELECT 1
    FROM public.be_organization_members access_member
   WHERE ((access_member.platform_user_id = user_channel_preferences.platform_user_id) AND (access_member.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (access_member.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments access_patient
@@ -19179,10 +20275,10 @@ CREATE POLICY rev10_staff_member_managed_208 ON public.user_channel_preferences 
 
 
 --
--- Name: user_contacts rev10_staff_member_managed_209; Type: POLICY; Schema: public; Owner: -
+-- Name: user_contacts rev10_staff_member_managed_217; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_staff_member_managed_209 ON public.user_contacts TO app_staff USING (((EXISTS ( SELECT 1
+CREATE POLICY rev10_staff_member_managed_217 ON public.user_contacts TO app_staff USING (((EXISTS ( SELECT 1
    FROM public.be_organization_members access_member
   WHERE ((access_member.platform_user_id = user_contacts.platform_user_id) AND (access_member.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (access_member.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments access_patient
@@ -19194,10 +20290,10 @@ CREATE POLICY rev10_staff_member_managed_209 ON public.user_contacts TO app_staf
 
 
 --
--- Name: user_identity rev10_staff_member_managed_210; Type: POLICY; Schema: public; Owner: -
+-- Name: user_identity rev10_staff_member_managed_218; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_staff_member_managed_210 ON public.user_identity TO app_staff USING (((EXISTS ( SELECT 1
+CREATE POLICY rev10_staff_member_managed_218 ON public.user_identity TO app_staff USING (((EXISTS ( SELECT 1
    FROM public.be_organization_members access_member
   WHERE ((access_member.platform_user_id = user_identity.platform_user_id) AND (access_member.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (access_member.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments access_patient
@@ -19209,10 +20305,10 @@ CREATE POLICY rev10_staff_member_managed_210 ON public.user_identity TO app_staf
 
 
 --
--- Name: user_notification_topic_channels rev10_staff_member_managed_211; Type: POLICY; Schema: public; Owner: -
+-- Name: user_notification_topic_channels rev10_staff_member_managed_219; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_staff_member_managed_211 ON public.user_notification_topic_channels TO app_staff USING (((EXISTS ( SELECT 1
+CREATE POLICY rev10_staff_member_managed_219 ON public.user_notification_topic_channels TO app_staff USING (((EXISTS ( SELECT 1
    FROM public.be_organization_members access_member
   WHERE ((access_member.platform_user_id = user_notification_topic_channels.user_id) AND (access_member.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (access_member.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments access_patient
@@ -19224,10 +20320,10 @@ CREATE POLICY rev10_staff_member_managed_211 ON public.user_notification_topic_c
 
 
 --
--- Name: user_notification_topics rev10_staff_member_managed_212; Type: POLICY; Schema: public; Owner: -
+-- Name: user_notification_topics rev10_staff_member_managed_220; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_staff_member_managed_212 ON public.user_notification_topics TO app_staff USING (((EXISTS ( SELECT 1
+CREATE POLICY rev10_staff_member_managed_220 ON public.user_notification_topics TO app_staff USING (((EXISTS ( SELECT 1
    FROM public.be_organization_members access_member
   WHERE ((access_member.platform_user_id = user_notification_topics.user_id) AND (access_member.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (access_member.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments access_patient
@@ -19239,10 +20335,10 @@ CREATE POLICY rev10_staff_member_managed_212 ON public.user_notification_topics 
 
 
 --
--- Name: user_phone_history rev10_staff_member_managed_218; Type: POLICY; Schema: public; Owner: -
+-- Name: user_phone_history rev10_staff_member_managed_226; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_staff_member_managed_218 ON public.user_phone_history TO app_staff USING (((EXISTS ( SELECT 1
+CREATE POLICY rev10_staff_member_managed_226 ON public.user_phone_history TO app_staff USING (((EXISTS ( SELECT 1
    FROM public.be_organization_members access_member
   WHERE ((access_member.platform_user_id = user_phone_history.platform_user_id) AND (access_member.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (access_member.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments access_patient
@@ -19254,10 +20350,10 @@ CREATE POLICY rev10_staff_member_managed_218 ON public.user_phone_history TO app
 
 
 --
--- Name: user_web_push_subscriptions rev10_staff_member_managed_220; Type: POLICY; Schema: public; Owner: -
+-- Name: user_web_push_subscriptions rev10_staff_member_managed_228; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_staff_member_managed_220 ON public.user_web_push_subscriptions TO app_staff USING (((EXISTS ( SELECT 1
+CREATE POLICY rev10_staff_member_managed_228 ON public.user_web_push_subscriptions TO app_staff USING (((EXISTS ( SELECT 1
    FROM public.be_organization_members access_member
   WHERE ((access_member.platform_user_id = user_web_push_subscriptions.user_id) AND (access_member.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (access_member.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments access_patient
@@ -19269,10 +20365,25 @@ CREATE POLICY rev10_staff_member_managed_220 ON public.user_web_push_subscriptio
 
 
 --
--- Name: system_settings rev10_system_settings_delete_191; Type: POLICY; Schema: public; Owner: -
+-- Name: native_push_targets rev10_staff_member_managed_229; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_system_settings_delete_191 ON public.system_settings FOR DELETE TO app_platform_settings, app_staff USING (
+CREATE POLICY rev10_staff_member_managed_229 ON public.native_push_targets TO app_staff USING (((EXISTS ( SELECT 1
+   FROM public.be_organization_members access_member
+  WHERE ((access_member.platform_user_id = native_push_targets.user_id) AND (access_member.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (access_member.status = 'active'::text)))) OR (EXISTS ( SELECT 1
+   FROM public.org_enrollments access_patient
+  WHERE ((access_patient.platform_user_id = native_push_targets.user_id) AND (access_patient.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (access_patient.status = ANY (ARRAY['invited'::text, 'active'::text]))))))) WITH CHECK (((EXISTS ( SELECT 1
+   FROM public.be_organization_members access_member
+  WHERE ((access_member.platform_user_id = native_push_targets.user_id) AND (access_member.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (access_member.status = 'active'::text)))) OR (EXISTS ( SELECT 1
+   FROM public.org_enrollments access_patient
+  WHERE ((access_patient.platform_user_id = native_push_targets.user_id) AND (access_patient.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (access_patient.status = ANY (ARRAY['invited'::text, 'active'::text])))))));
+
+
+--
+-- Name: system_settings rev10_system_settings_delete_199; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_system_settings_delete_199 ON public.system_settings FOR DELETE TO app_platform_settings, app_staff USING (
 CASE
     WHEN (CURRENT_USER = 'app_staff'::name) THEN (organization_id = ( SELECT app.current_org_id() AS current_org_id))
     WHEN (CURRENT_USER = 'app_platform_settings'::name) THEN (organization_id IS NULL)
@@ -19281,10 +20392,10 @@ END);
 
 
 --
--- Name: system_settings rev10_system_settings_insert_191; Type: POLICY; Schema: public; Owner: -
+-- Name: system_settings rev10_system_settings_insert_199; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_system_settings_insert_191 ON public.system_settings FOR INSERT TO app_platform_settings, app_staff WITH CHECK (
+CREATE POLICY rev10_system_settings_insert_199 ON public.system_settings FOR INSERT TO app_platform_settings, app_staff WITH CHECK (
 CASE
     WHEN (CURRENT_USER = 'app_staff'::name) THEN (organization_id = ( SELECT app.current_org_id() AS current_org_id))
     WHEN (CURRENT_USER = 'app_platform_settings'::name) THEN (organization_id IS NULL)
@@ -19293,23 +20404,23 @@ END);
 
 
 --
--- Name: system_settings rev10_system_settings_select_191; Type: POLICY; Schema: public; Owner: -
+-- Name: system_settings rev10_system_settings_select_199; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_system_settings_select_191 ON public.system_settings FOR SELECT TO app_platform_settings, app_staff, app_worker USING (
+CREATE POLICY rev10_system_settings_select_199 ON public.system_settings FOR SELECT TO app_platform_settings, app_staff, app_worker USING (
 CASE
     WHEN (CURRENT_USER = 'app_staff'::name) THEN ((organization_id = ( SELECT app.current_org_id() AS current_org_id)) OR ((organization_id IS NULL) AND (scope = 'doctor'::text)))
     WHEN (CURRENT_USER = 'app_platform_settings'::name) THEN (organization_id IS NULL)
-    WHEN (CURRENT_USER = 'app_worker'::name) THEN ((organization_id IS NULL) AND (scope = 'admin'::text) AND (key = ANY (ARRAY['operator_health_alert_config'::text, 'admin_incident_alert_config'::text, 'operator_health_projection_thresholds'::text, 'operator_heartbeat_config'::text])))
+    WHEN (CURRENT_USER = 'app_worker'::name) THEN ((organization_id IS NULL) AND (scope = 'admin'::text) AND (key = ANY (ARRAY['operator_health_alert_config'::text, 'admin_incident_alert_config'::text, 'operator_heartbeat_config'::text])))
     ELSE false
 END);
 
 
 --
--- Name: system_settings rev10_system_settings_update_191; Type: POLICY; Schema: public; Owner: -
+-- Name: system_settings rev10_system_settings_update_199; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_system_settings_update_191 ON public.system_settings FOR UPDATE TO app_platform_settings, app_staff USING (
+CREATE POLICY rev10_system_settings_update_199 ON public.system_settings FOR UPDATE TO app_platform_settings, app_staff USING (
 CASE
     WHEN (CURRENT_USER = 'app_staff'::name) THEN (organization_id = ( SELECT app.current_org_id() AS current_org_id))
     WHEN (CURRENT_USER = 'app_platform_settings'::name) THEN (organization_id IS NULL)
@@ -19323,87 +20434,87 @@ END);
 
 
 --
--- Name: material_ratings rev10_tenant_delete_102; Type: POLICY; Schema: public; Owner: -
+-- Name: material_ratings rev10_tenant_delete_105; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_delete_102 ON public.material_ratings FOR DELETE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
-
-
---
--- Name: notification_delivery_attempts rev10_tenant_delete_114; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_tenant_delete_114 ON public.notification_delivery_attempts FOR DELETE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
+CREATE POLICY rev10_tenant_delete_105 ON public.material_ratings FOR DELETE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
 
 
 --
--- Name: patient_daily_warmup_presentations rev10_tenant_delete_134; Type: POLICY; Schema: public; Owner: -
+-- Name: notification_delivery_attempts rev10_tenant_delete_118; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_delete_134 ON public.patient_daily_warmup_presentations FOR DELETE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
-
-
---
--- Name: patient_diary_day_snapshots rev10_tenant_delete_136; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_tenant_delete_136 ON public.patient_diary_day_snapshots FOR DELETE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
+CREATE POLICY rev10_tenant_delete_118 ON public.notification_delivery_attempts FOR DELETE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
 
 
 --
--- Name: platform_user_contacts rev10_tenant_delete_149; Type: POLICY; Schema: public; Owner: -
+-- Name: patient_daily_warmup_presentations rev10_tenant_delete_139; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_delete_149 ON public.platform_user_contacts FOR DELETE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
-
-
---
--- Name: product_analytics_user_hourly rev10_tenant_delete_153; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_tenant_delete_153 ON public.product_analytics_user_hourly FOR DELETE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
+CREATE POLICY rev10_tenant_delete_139 ON public.patient_daily_warmup_presentations FOR DELETE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
 
 
 --
--- Name: reminder_occurrence_history rev10_tenant_delete_164; Type: POLICY; Schema: public; Owner: -
+-- Name: patient_diary_day_snapshots rev10_tenant_delete_141; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_delete_164 ON public.reminder_occurrence_history FOR DELETE TO app_integrator_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
-
-
---
--- Name: reminder_rules rev10_tenant_delete_165; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_tenant_delete_165 ON public.reminder_rules FOR DELETE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
+CREATE POLICY rev10_tenant_delete_141 ON public.patient_diary_day_snapshots FOR DELETE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
 
 
 --
--- Name: support_conversations rev10_tenant_delete_186; Type: POLICY; Schema: public; Owner: -
+-- Name: platform_user_contacts rev10_tenant_delete_154; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_delete_186 ON public.support_conversations FOR DELETE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
-
-
---
--- Name: symptom_entries rev10_tenant_delete_189; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_tenant_delete_189 ON public.symptom_entries FOR DELETE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
+CREATE POLICY rev10_tenant_delete_154 ON public.platform_user_contacts FOR DELETE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
 
 
 --
--- Name: symptom_trackings rev10_tenant_delete_190; Type: POLICY; Schema: public; Owner: -
+-- Name: product_analytics_user_hourly rev10_tenant_delete_158; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_delete_190 ON public.symptom_trackings FOR DELETE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
+CREATE POLICY rev10_tenant_delete_158 ON public.product_analytics_user_hourly FOR DELETE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
 
 
 --
--- Name: user_channel_bindings rev10_tenant_delete_207; Type: POLICY; Schema: public; Owner: -
+-- Name: reminder_occurrence_history rev10_tenant_delete_169; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_delete_207 ON public.user_channel_bindings FOR DELETE TO app_tenant_service USING (((user_id IS NOT NULL) AND ((user_id IS NULL) OR ((EXISTS ( SELECT 1
+CREATE POLICY rev10_tenant_delete_169 ON public.reminder_occurrence_history FOR DELETE TO app_integrator_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
+
+
+--
+-- Name: reminder_rules rev10_tenant_delete_170; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_tenant_delete_170 ON public.reminder_rules FOR DELETE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
+
+
+--
+-- Name: support_conversations rev10_tenant_delete_194; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_tenant_delete_194 ON public.support_conversations FOR DELETE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
+
+
+--
+-- Name: symptom_entries rev10_tenant_delete_197; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_tenant_delete_197 ON public.symptom_entries FOR DELETE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
+
+
+--
+-- Name: symptom_trackings rev10_tenant_delete_198; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_tenant_delete_198 ON public.symptom_trackings FOR DELETE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
+
+
+--
+-- Name: user_channel_bindings rev10_tenant_delete_215; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_tenant_delete_215 ON public.user_channel_bindings FOR DELETE TO app_tenant_service USING (((user_id IS NOT NULL) AND ((user_id IS NULL) OR ((EXISTS ( SELECT 1
    FROM public.be_organization_members tenant_staff
   WHERE ((tenant_staff.platform_user_id = user_channel_bindings.user_id) AND (tenant_staff.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_staff.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments tenant_patient
@@ -19411,10 +20522,10 @@ CREATE POLICY rev10_tenant_delete_207 ON public.user_channel_bindings FOR DELETE
 
 
 --
--- Name: user_channel_preferences rev10_tenant_delete_208; Type: POLICY; Schema: public; Owner: -
+-- Name: user_channel_preferences rev10_tenant_delete_216; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_delete_208 ON public.user_channel_preferences FOR DELETE TO app_tenant_service USING ((((user_id IS NOT NULL) OR (platform_user_id IS NOT NULL)) AND ((user_id IS NULL) OR ((EXISTS ( SELECT 1
+CREATE POLICY rev10_tenant_delete_216 ON public.user_channel_preferences FOR DELETE TO app_tenant_service USING ((((user_id IS NOT NULL) OR (platform_user_id IS NOT NULL)) AND ((user_id IS NULL) OR ((EXISTS ( SELECT 1
    FROM public.be_organization_members tenant_staff
   WHERE (((tenant_staff.platform_user_id)::text = user_channel_preferences.user_id) AND (tenant_staff.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_staff.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments tenant_patient
@@ -19426,10 +20537,10 @@ CREATE POLICY rev10_tenant_delete_208 ON public.user_channel_preferences FOR DEL
 
 
 --
--- Name: user_contacts rev10_tenant_delete_209; Type: POLICY; Schema: public; Owner: -
+-- Name: user_contacts rev10_tenant_delete_217; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_delete_209 ON public.user_contacts FOR DELETE TO app_tenant_service USING (((platform_user_id IS NOT NULL) AND ((platform_user_id IS NULL) OR ((EXISTS ( SELECT 1
+CREATE POLICY rev10_tenant_delete_217 ON public.user_contacts FOR DELETE TO app_tenant_service USING (((platform_user_id IS NOT NULL) AND ((platform_user_id IS NULL) OR ((EXISTS ( SELECT 1
    FROM public.be_organization_members tenant_staff
   WHERE ((tenant_staff.platform_user_id = user_contacts.platform_user_id) AND (tenant_staff.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_staff.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments tenant_patient
@@ -19437,10 +20548,10 @@ CREATE POLICY rev10_tenant_delete_209 ON public.user_contacts FOR DELETE TO app_
 
 
 --
--- Name: user_notification_topic_channels rev10_tenant_delete_211; Type: POLICY; Schema: public; Owner: -
+-- Name: user_notification_topic_channels rev10_tenant_delete_219; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_delete_211 ON public.user_notification_topic_channels FOR DELETE TO app_tenant_service USING (((user_id IS NOT NULL) AND ((user_id IS NULL) OR ((EXISTS ( SELECT 1
+CREATE POLICY rev10_tenant_delete_219 ON public.user_notification_topic_channels FOR DELETE TO app_tenant_service USING (((user_id IS NOT NULL) AND ((user_id IS NULL) OR ((EXISTS ( SELECT 1
    FROM public.be_organization_members tenant_staff
   WHERE ((tenant_staff.platform_user_id = user_notification_topic_channels.user_id) AND (tenant_staff.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_staff.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments tenant_patient
@@ -19448,10 +20559,10 @@ CREATE POLICY rev10_tenant_delete_211 ON public.user_notification_topic_channels
 
 
 --
--- Name: user_notification_topics rev10_tenant_delete_212; Type: POLICY; Schema: public; Owner: -
+-- Name: user_notification_topics rev10_tenant_delete_220; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_delete_212 ON public.user_notification_topics FOR DELETE TO app_tenant_service USING (((user_id IS NOT NULL) AND ((user_id IS NULL) OR ((EXISTS ( SELECT 1
+CREATE POLICY rev10_tenant_delete_220 ON public.user_notification_topics FOR DELETE TO app_tenant_service USING (((user_id IS NOT NULL) AND ((user_id IS NULL) OR ((EXISTS ( SELECT 1
    FROM public.be_organization_members tenant_staff
   WHERE ((tenant_staff.platform_user_id = user_notification_topics.user_id) AND (tenant_staff.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_staff.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments tenant_patient
@@ -19459,10 +20570,10 @@ CREATE POLICY rev10_tenant_delete_212 ON public.user_notification_topics FOR DEL
 
 
 --
--- Name: user_web_push_subscriptions rev10_tenant_delete_220; Type: POLICY; Schema: public; Owner: -
+-- Name: user_web_push_subscriptions rev10_tenant_delete_228; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_delete_220 ON public.user_web_push_subscriptions FOR DELETE TO app_tenant_service USING (((user_id IS NOT NULL) AND ((user_id IS NULL) OR ((EXISTS ( SELECT 1
+CREATE POLICY rev10_tenant_delete_228 ON public.user_web_push_subscriptions FOR DELETE TO app_tenant_service USING (((user_id IS NOT NULL) AND ((user_id IS NULL) OR ((EXISTS ( SELECT 1
    FROM public.be_organization_members tenant_staff
   WHERE ((tenant_staff.platform_user_id = user_web_push_subscriptions.user_id) AND (tenant_staff.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_staff.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments tenant_patient
@@ -19477,17 +20588,17 @@ CREATE POLICY rev10_tenant_delete_36 ON public.be_patient_booking_profiles FOR D
 
 
 --
--- Name: broadcast_audit_recipients rev10_tenant_delete_61; Type: POLICY; Schema: public; Owner: -
+-- Name: broadcast_audit_recipients rev10_tenant_delete_60; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_delete_61 ON public.broadcast_audit_recipients FOR DELETE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
+CREATE POLICY rev10_tenant_delete_60 ON public.broadcast_audit_recipients FOR DELETE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
 
 
 --
--- Name: notification_delivery_attempts rev10_tenant_insert_114; Type: POLICY; Schema: public; Owner: -
+-- Name: notification_delivery_attempts rev10_tenant_insert_118; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_insert_114 ON public.notification_delivery_attempts FOR INSERT TO app_tenant_service WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND ((user_id IS NULL) OR ((EXISTS ( SELECT 1
+CREATE POLICY rev10_tenant_insert_118 ON public.notification_delivery_attempts FOR INSERT TO app_tenant_service WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND ((user_id IS NULL) OR ((EXISTS ( SELECT 1
    FROM public.be_organization_members tenant_staff
   WHERE ((tenant_staff.platform_user_id = notification_delivery_attempts.user_id) AND (tenant_staff.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_staff.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments tenant_patient
@@ -19495,17 +20606,17 @@ CREATE POLICY rev10_tenant_insert_114 ON public.notification_delivery_attempts F
 
 
 --
--- Name: platform_user_contacts rev10_tenant_insert_149; Type: POLICY; Schema: public; Owner: -
+-- Name: platform_user_contacts rev10_tenant_insert_154; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_insert_149 ON public.platform_user_contacts FOR INSERT TO app_tenant_service WITH CHECK ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
+CREATE POLICY rev10_tenant_insert_154 ON public.platform_user_contacts FOR INSERT TO app_tenant_service WITH CHECK ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
 
 
 --
--- Name: platform_users rev10_tenant_insert_150; Type: POLICY; Schema: public; Owner: -
+-- Name: platform_users rev10_tenant_insert_155; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_insert_150 ON public.platform_users FOR INSERT TO app_tenant_service WITH CHECK (((id IS NOT NULL) AND ((id IS NULL) OR ((EXISTS ( SELECT 1
+CREATE POLICY rev10_tenant_insert_155 ON public.platform_users FOR INSERT TO app_tenant_service WITH CHECK (((id IS NOT NULL) AND ((id IS NULL) OR ((EXISTS ( SELECT 1
    FROM public.be_organization_members tenant_staff
   WHERE ((tenant_staff.platform_user_id = platform_users.id) AND (tenant_staff.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_staff.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments tenant_patient
@@ -19513,10 +20624,10 @@ CREATE POLICY rev10_tenant_insert_150 ON public.platform_users FOR INSERT TO app
 
 
 --
--- Name: product_analytics_user_hourly rev10_tenant_insert_153; Type: POLICY; Schema: public; Owner: -
+-- Name: product_analytics_user_hourly rev10_tenant_insert_158; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_insert_153 ON public.product_analytics_user_hourly FOR INSERT TO app_tenant_service WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND ((user_id IS NULL) OR ((EXISTS ( SELECT 1
+CREATE POLICY rev10_tenant_insert_158 ON public.product_analytics_user_hourly FOR INSERT TO app_tenant_service WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND ((user_id IS NULL) OR ((EXISTS ( SELECT 1
    FROM public.be_organization_members tenant_staff
   WHERE ((tenant_staff.platform_user_id = product_analytics_user_hourly.user_id) AND (tenant_staff.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_staff.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments tenant_patient
@@ -19524,10 +20635,10 @@ CREATE POLICY rev10_tenant_insert_153 ON public.product_analytics_user_hourly FO
 
 
 --
--- Name: reminder_rules rev10_tenant_insert_165; Type: POLICY; Schema: public; Owner: -
+-- Name: reminder_rules rev10_tenant_insert_170; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_insert_165 ON public.reminder_rules FOR INSERT TO app_tenant_service WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND ((platform_user_id IS NULL) OR ((EXISTS ( SELECT 1
+CREATE POLICY rev10_tenant_insert_170 ON public.reminder_rules FOR INSERT TO app_tenant_service WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND ((platform_user_id IS NULL) OR ((EXISTS ( SELECT 1
    FROM public.be_organization_members tenant_staff
   WHERE ((tenant_staff.platform_user_id = reminder_rules.platform_user_id) AND (tenant_staff.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_staff.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments tenant_patient
@@ -19535,10 +20646,10 @@ CREATE POLICY rev10_tenant_insert_165 ON public.reminder_rules FOR INSERT TO app
 
 
 --
--- Name: specialist_tasks rev10_tenant_insert_183; Type: POLICY; Schema: public; Owner: -
+-- Name: specialist_tasks rev10_tenant_insert_191; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_insert_183 ON public.specialist_tasks FOR INSERT TO app_tenant_service WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND ((owner_user_id IS NULL) OR ((EXISTS ( SELECT 1
+CREATE POLICY rev10_tenant_insert_191 ON public.specialist_tasks FOR INSERT TO app_tenant_service WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND ((owner_user_id IS NULL) OR ((EXISTS ( SELECT 1
    FROM public.be_organization_members tenant_staff
   WHERE ((tenant_staff.platform_user_id = specialist_tasks.owner_user_id) AND (tenant_staff.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_staff.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments tenant_patient
@@ -19546,19 +20657,19 @@ CREATE POLICY rev10_tenant_insert_183 ON public.specialist_tasks FOR INSERT TO a
 
 
 --
--- Name: support_conversation_messages rev10_tenant_insert_185; Type: POLICY; Schema: public; Owner: -
+-- Name: support_conversation_messages rev10_tenant_insert_193; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_insert_185 ON public.support_conversation_messages FOR INSERT TO app_tenant_service WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (EXISTS ( SELECT 1
+CREATE POLICY rev10_tenant_insert_193 ON public.support_conversation_messages FOR INSERT TO app_tenant_service WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (EXISTS ( SELECT 1
    FROM public.support_conversations tenant_conversation
   WHERE ((tenant_conversation.id = support_conversation_messages.conversation_id) AND (tenant_conversation.organization_id = ( SELECT app.current_org_id() AS current_org_id)))))));
 
 
 --
--- Name: support_conversations rev10_tenant_insert_186; Type: POLICY; Schema: public; Owner: -
+-- Name: support_conversations rev10_tenant_insert_194; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_insert_186 ON public.support_conversations FOR INSERT TO app_tenant_service WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND ((platform_user_id IS NULL) OR ((EXISTS ( SELECT 1
+CREATE POLICY rev10_tenant_insert_194 ON public.support_conversations FOR INSERT TO app_tenant_service WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND ((platform_user_id IS NULL) OR ((EXISTS ( SELECT 1
    FROM public.be_organization_members tenant_staff
   WHERE ((tenant_staff.platform_user_id = support_conversations.platform_user_id) AND (tenant_staff.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_staff.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments tenant_patient
@@ -19566,29 +20677,29 @@ CREATE POLICY rev10_tenant_insert_186 ON public.support_conversations FOR INSERT
 
 
 --
--- Name: support_question_messages rev10_tenant_insert_187; Type: POLICY; Schema: public; Owner: -
+-- Name: support_question_messages rev10_tenant_insert_195; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_insert_187 ON public.support_question_messages FOR INSERT TO app_tenant_service WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (EXISTS ( SELECT 1
+CREATE POLICY rev10_tenant_insert_195 ON public.support_question_messages FOR INSERT TO app_tenant_service WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (EXISTS ( SELECT 1
    FROM (public.support_questions tenant_question
      JOIN public.support_conversations tenant_conversation ON ((tenant_conversation.id = tenant_question.conversation_id)))
   WHERE ((tenant_question.id = support_question_messages.question_id) AND (tenant_conversation.organization_id = ( SELECT app.current_org_id() AS current_org_id)))))));
 
 
 --
--- Name: support_questions rev10_tenant_insert_188; Type: POLICY; Schema: public; Owner: -
+-- Name: support_questions rev10_tenant_insert_196; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_insert_188 ON public.support_questions FOR INSERT TO app_tenant_service WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND ((conversation_id IS NULL) OR (EXISTS ( SELECT 1
+CREATE POLICY rev10_tenant_insert_196 ON public.support_questions FOR INSERT TO app_tenant_service WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND ((conversation_id IS NULL) OR (EXISTS ( SELECT 1
    FROM public.support_conversations tenant_conversation
   WHERE ((tenant_conversation.id = support_questions.conversation_id) AND (tenant_conversation.organization_id = ( SELECT app.current_org_id() AS current_org_id))))))));
 
 
 --
--- Name: treatment_program_events rev10_tenant_insert_198; Type: POLICY; Schema: public; Owner: -
+-- Name: treatment_program_events rev10_tenant_insert_206; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_insert_198 ON public.treatment_program_events FOR INSERT TO app_tenant_service WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND ((actor_id IS NULL) OR ((EXISTS ( SELECT 1
+CREATE POLICY rev10_tenant_insert_206 ON public.treatment_program_events FOR INSERT TO app_tenant_service WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND ((actor_id IS NULL) OR ((EXISTS ( SELECT 1
    FROM public.be_organization_members tenant_staff
   WHERE ((tenant_staff.platform_user_id = treatment_program_events.actor_id) AND (tenant_staff.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_staff.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments tenant_patient
@@ -19598,10 +20709,10 @@ CREATE POLICY rev10_tenant_insert_198 ON public.treatment_program_events FOR INS
 
 
 --
--- Name: user_channel_bindings rev10_tenant_insert_207; Type: POLICY; Schema: public; Owner: -
+-- Name: user_channel_bindings rev10_tenant_insert_215; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_insert_207 ON public.user_channel_bindings FOR INSERT TO app_tenant_service WITH CHECK (((user_id IS NOT NULL) AND ((user_id IS NULL) OR ((EXISTS ( SELECT 1
+CREATE POLICY rev10_tenant_insert_215 ON public.user_channel_bindings FOR INSERT TO app_tenant_service WITH CHECK (((user_id IS NOT NULL) AND ((user_id IS NULL) OR ((EXISTS ( SELECT 1
    FROM public.be_organization_members tenant_staff
   WHERE ((tenant_staff.platform_user_id = user_channel_bindings.user_id) AND (tenant_staff.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_staff.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments tenant_patient
@@ -19609,10 +20720,10 @@ CREATE POLICY rev10_tenant_insert_207 ON public.user_channel_bindings FOR INSERT
 
 
 --
--- Name: user_channel_preferences rev10_tenant_insert_208; Type: POLICY; Schema: public; Owner: -
+-- Name: user_channel_preferences rev10_tenant_insert_216; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_insert_208 ON public.user_channel_preferences FOR INSERT TO app_tenant_service WITH CHECK ((((user_id IS NOT NULL) OR (platform_user_id IS NOT NULL)) AND ((user_id IS NULL) OR ((EXISTS ( SELECT 1
+CREATE POLICY rev10_tenant_insert_216 ON public.user_channel_preferences FOR INSERT TO app_tenant_service WITH CHECK ((((user_id IS NOT NULL) OR (platform_user_id IS NOT NULL)) AND ((user_id IS NULL) OR ((EXISTS ( SELECT 1
    FROM public.be_organization_members tenant_staff
   WHERE (((tenant_staff.platform_user_id)::text = user_channel_preferences.user_id) AND (tenant_staff.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_staff.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments tenant_patient
@@ -19624,10 +20735,10 @@ CREATE POLICY rev10_tenant_insert_208 ON public.user_channel_preferences FOR INS
 
 
 --
--- Name: user_contacts rev10_tenant_insert_209; Type: POLICY; Schema: public; Owner: -
+-- Name: user_contacts rev10_tenant_insert_217; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_insert_209 ON public.user_contacts FOR INSERT TO app_tenant_service WITH CHECK (((platform_user_id IS NOT NULL) AND ((platform_user_id IS NULL) OR ((EXISTS ( SELECT 1
+CREATE POLICY rev10_tenant_insert_217 ON public.user_contacts FOR INSERT TO app_tenant_service WITH CHECK (((platform_user_id IS NOT NULL) AND ((platform_user_id IS NULL) OR ((EXISTS ( SELECT 1
    FROM public.be_organization_members tenant_staff
   WHERE ((tenant_staff.platform_user_id = user_contacts.platform_user_id) AND (tenant_staff.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_staff.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments tenant_patient
@@ -19635,10 +20746,10 @@ CREATE POLICY rev10_tenant_insert_209 ON public.user_contacts FOR INSERT TO app_
 
 
 --
--- Name: user_identity rev10_tenant_insert_210; Type: POLICY; Schema: public; Owner: -
+-- Name: user_identity rev10_tenant_insert_218; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_insert_210 ON public.user_identity FOR INSERT TO app_tenant_service WITH CHECK (((platform_user_id IS NOT NULL) AND ((platform_user_id IS NULL) OR ((EXISTS ( SELECT 1
+CREATE POLICY rev10_tenant_insert_218 ON public.user_identity FOR INSERT TO app_tenant_service WITH CHECK (((platform_user_id IS NOT NULL) AND ((platform_user_id IS NULL) OR ((EXISTS ( SELECT 1
    FROM public.be_organization_members tenant_staff
   WHERE ((tenant_staff.platform_user_id = user_identity.platform_user_id) AND (tenant_staff.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_staff.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments tenant_patient
@@ -19646,10 +20757,10 @@ CREATE POLICY rev10_tenant_insert_210 ON public.user_identity FOR INSERT TO app_
 
 
 --
--- Name: user_notification_topic_channels rev10_tenant_insert_211; Type: POLICY; Schema: public; Owner: -
+-- Name: user_notification_topic_channels rev10_tenant_insert_219; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_insert_211 ON public.user_notification_topic_channels FOR INSERT TO app_tenant_service WITH CHECK (((user_id IS NOT NULL) AND ((user_id IS NULL) OR ((EXISTS ( SELECT 1
+CREATE POLICY rev10_tenant_insert_219 ON public.user_notification_topic_channels FOR INSERT TO app_tenant_service WITH CHECK (((user_id IS NOT NULL) AND ((user_id IS NULL) OR ((EXISTS ( SELECT 1
    FROM public.be_organization_members tenant_staff
   WHERE ((tenant_staff.platform_user_id = user_notification_topic_channels.user_id) AND (tenant_staff.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_staff.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments tenant_patient
@@ -19657,10 +20768,10 @@ CREATE POLICY rev10_tenant_insert_211 ON public.user_notification_topic_channels
 
 
 --
--- Name: user_notification_topics rev10_tenant_insert_212; Type: POLICY; Schema: public; Owner: -
+-- Name: user_notification_topics rev10_tenant_insert_220; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_insert_212 ON public.user_notification_topics FOR INSERT TO app_tenant_service WITH CHECK (((user_id IS NOT NULL) AND ((user_id IS NULL) OR ((EXISTS ( SELECT 1
+CREATE POLICY rev10_tenant_insert_220 ON public.user_notification_topics FOR INSERT TO app_tenant_service WITH CHECK (((user_id IS NOT NULL) AND ((user_id IS NULL) OR ((EXISTS ( SELECT 1
    FROM public.be_organization_members tenant_staff
   WHERE ((tenant_staff.platform_user_id = user_notification_topics.user_id) AND (tenant_staff.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_staff.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments tenant_patient
@@ -19668,10 +20779,14 @@ CREATE POLICY rev10_tenant_insert_212 ON public.user_notification_topics FOR INS
 
 
 --
--- Name: user_phone_history rev10_tenant_insert_218; Type: POLICY; Schema: public; Owner: -
+-- Name: user_phone_history rev10_tenant_insert_226; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_insert_218 ON public.user_phone_history FOR INSERT TO app_tenant_service WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND ((platform_user_id IS NULL) OR ((EXISTS ( SELECT 1
+CREATE POLICY rev10_tenant_insert_226 ON public.user_phone_history FOR INSERT TO app_tenant_service WITH CHECK (((platform_user_id IS NOT NULL) AND ((platform_user_id IS NULL) OR ((EXISTS ( SELECT 1
+   FROM public.be_organization_members tenant_staff
+  WHERE ((tenant_staff.platform_user_id = user_phone_history.platform_user_id) AND (tenant_staff.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_staff.status = 'active'::text)))) OR (EXISTS ( SELECT 1
+   FROM public.org_enrollments tenant_patient
+  WHERE ((tenant_patient.platform_user_id = user_phone_history.platform_user_id) AND (tenant_patient.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_patient.status = 'active'::text)))))) AND ((platform_user_id IS NULL) OR ((EXISTS ( SELECT 1
    FROM public.be_organization_members tenant_staff
   WHERE ((tenant_staff.platform_user_id = user_phone_history.platform_user_id) AND (tenant_staff.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_staff.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments tenant_patient
@@ -19694,73 +20809,73 @@ CREATE POLICY rev10_tenant_insert_36 ON public.be_patient_booking_profiles FOR I
 
 
 --
--- Name: material_ratings rev10_tenant_select_102; Type: POLICY; Schema: public; Owner: -
+-- Name: material_ratings rev10_tenant_select_105; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_select_102 ON public.material_ratings FOR SELECT TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
-
-
---
--- Name: notification_delivery_attempts rev10_tenant_select_114; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_tenant_select_114 ON public.notification_delivery_attempts FOR SELECT TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
+CREATE POLICY rev10_tenant_select_105 ON public.material_ratings FOR SELECT TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
 
 
 --
--- Name: online_intake_requests rev10_tenant_select_117; Type: POLICY; Schema: public; Owner: -
+-- Name: notification_delivery_attempts rev10_tenant_select_118; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_select_117 ON public.online_intake_requests FOR SELECT TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
-
-
---
--- Name: org_enrollments rev10_tenant_select_124; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_tenant_select_124 ON public.org_enrollments FOR SELECT TO app_integrator_tenant_service, app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
+CREATE POLICY rev10_tenant_select_118 ON public.notification_delivery_attempts FOR SELECT TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
 
 
 --
--- Name: patient_bookings rev10_tenant_select_131; Type: POLICY; Schema: public; Owner: -
+-- Name: online_intake_requests rev10_tenant_select_121; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_select_131 ON public.patient_bookings FOR SELECT TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
-
-
---
--- Name: patient_daily_warmup_presentations rev10_tenant_select_134; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_tenant_select_134 ON public.patient_daily_warmup_presentations FOR SELECT TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
+CREATE POLICY rev10_tenant_select_121 ON public.online_intake_requests FOR SELECT TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
 
 
 --
--- Name: patient_diary_day_snapshots rev10_tenant_select_136; Type: POLICY; Schema: public; Owner: -
+-- Name: org_enrollments rev10_tenant_select_128; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_select_136 ON public.patient_diary_day_snapshots FOR SELECT TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
-
-
---
--- Name: patient_lfk_assignments rev10_tenant_select_141; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_tenant_select_141 ON public.patient_lfk_assignments FOR SELECT TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
+CREATE POLICY rev10_tenant_select_128 ON public.org_enrollments FOR SELECT TO app_integrator_tenant_service, app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
 
 
 --
--- Name: platform_user_contacts rev10_tenant_select_149; Type: POLICY; Schema: public; Owner: -
+-- Name: patient_bookings rev10_tenant_select_136; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_select_149 ON public.platform_user_contacts FOR SELECT TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
+CREATE POLICY rev10_tenant_select_136 ON public.patient_bookings FOR SELECT TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
 
 
 --
--- Name: platform_users rev10_tenant_select_150; Type: POLICY; Schema: public; Owner: -
+-- Name: patient_daily_warmup_presentations rev10_tenant_select_139; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_select_150 ON public.platform_users FOR SELECT TO app_integrator_tenant_service, app_tenant_service USING (((id IS NOT NULL) AND ((id IS NULL) OR ((EXISTS ( SELECT 1
+CREATE POLICY rev10_tenant_select_139 ON public.patient_daily_warmup_presentations FOR SELECT TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
+
+
+--
+-- Name: patient_diary_day_snapshots rev10_tenant_select_141; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_tenant_select_141 ON public.patient_diary_day_snapshots FOR SELECT TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
+
+
+--
+-- Name: patient_lfk_assignments rev10_tenant_select_146; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_tenant_select_146 ON public.patient_lfk_assignments FOR SELECT TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
+
+
+--
+-- Name: platform_user_contacts rev10_tenant_select_154; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_tenant_select_154 ON public.platform_user_contacts FOR SELECT TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
+
+
+--
+-- Name: platform_users rev10_tenant_select_155; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_tenant_select_155 ON public.platform_users FOR SELECT TO app_integrator_tenant_service, app_tenant_service USING (((id IS NOT NULL) AND ((id IS NULL) OR ((EXISTS ( SELECT 1
    FROM public.be_organization_members tenant_staff
   WHERE ((tenant_staff.platform_user_id = platform_users.id) AND (tenant_staff.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_staff.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments tenant_patient
@@ -19768,101 +20883,101 @@ CREATE POLICY rev10_tenant_select_150 ON public.platform_users FOR SELECT TO app
 
 
 --
--- Name: product_analytics_user_hourly rev10_tenant_select_153; Type: POLICY; Schema: public; Owner: -
+-- Name: product_analytics_user_hourly rev10_tenant_select_158; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_select_153 ON public.product_analytics_user_hourly FOR SELECT TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
-
-
---
--- Name: reminder_occurrence_history rev10_tenant_select_164; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_tenant_select_164 ON public.reminder_occurrence_history FOR SELECT TO app_integrator_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
+CREATE POLICY rev10_tenant_select_158 ON public.product_analytics_user_hourly FOR SELECT TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
 
 
 --
--- Name: reminder_rules rev10_tenant_select_165; Type: POLICY; Schema: public; Owner: -
+-- Name: reminder_occurrence_history rev10_tenant_select_169; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_select_165 ON public.reminder_rules FOR SELECT TO app_integrator_tenant_service, app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
-
-
---
--- Name: specialist_tasks rev10_tenant_select_183; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_tenant_select_183 ON public.specialist_tasks FOR SELECT TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
+CREATE POLICY rev10_tenant_select_169 ON public.reminder_occurrence_history FOR SELECT TO app_integrator_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
 
 
 --
--- Name: support_conversation_messages rev10_tenant_select_185; Type: POLICY; Schema: public; Owner: -
+-- Name: reminder_rules rev10_tenant_select_170; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_select_185 ON public.support_conversation_messages FOR SELECT TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
-
-
---
--- Name: support_conversations rev10_tenant_select_186; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_tenant_select_186 ON public.support_conversations FOR SELECT TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
+CREATE POLICY rev10_tenant_select_170 ON public.reminder_rules FOR SELECT TO app_integrator_tenant_service, app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
 
 
 --
--- Name: support_question_messages rev10_tenant_select_187; Type: POLICY; Schema: public; Owner: -
+-- Name: specialist_tasks rev10_tenant_select_191; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_select_187 ON public.support_question_messages FOR SELECT TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
-
-
---
--- Name: support_questions rev10_tenant_select_188; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_tenant_select_188 ON public.support_questions FOR SELECT TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
+CREATE POLICY rev10_tenant_select_191 ON public.specialist_tasks FOR SELECT TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
 
 
 --
--- Name: symptom_trackings rev10_tenant_select_190; Type: POLICY; Schema: public; Owner: -
+-- Name: support_conversation_messages rev10_tenant_select_193; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_select_190 ON public.symptom_trackings FOR SELECT TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
-
-
---
--- Name: test_attempts rev10_tenant_select_193; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_tenant_select_193 ON public.test_attempts FOR SELECT TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
+CREATE POLICY rev10_tenant_select_193 ON public.support_conversation_messages FOR SELECT TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
 
 
 --
--- Name: treatment_program_instance_stage_items rev10_tenant_select_200; Type: POLICY; Schema: public; Owner: -
+-- Name: support_conversations rev10_tenant_select_194; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_select_200 ON public.treatment_program_instance_stage_items FOR SELECT TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
-
-
---
--- Name: treatment_program_instance_stages rev10_tenant_select_201; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_tenant_select_201 ON public.treatment_program_instance_stages FOR SELECT TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
+CREATE POLICY rev10_tenant_select_194 ON public.support_conversations FOR SELECT TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
 
 
 --
--- Name: treatment_program_instances rev10_tenant_select_202; Type: POLICY; Schema: public; Owner: -
+-- Name: support_question_messages rev10_tenant_select_195; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_select_202 ON public.treatment_program_instances FOR SELECT TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
+CREATE POLICY rev10_tenant_select_195 ON public.support_question_messages FOR SELECT TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
 
 
 --
--- Name: user_channel_bindings rev10_tenant_select_207; Type: POLICY; Schema: public; Owner: -
+-- Name: support_questions rev10_tenant_select_196; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_select_207 ON public.user_channel_bindings FOR SELECT TO app_integrator_tenant_service, app_tenant_service USING (((user_id IS NOT NULL) AND ((user_id IS NULL) OR ((EXISTS ( SELECT 1
+CREATE POLICY rev10_tenant_select_196 ON public.support_questions FOR SELECT TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
+
+
+--
+-- Name: symptom_trackings rev10_tenant_select_198; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_tenant_select_198 ON public.symptom_trackings FOR SELECT TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
+
+
+--
+-- Name: test_attempts rev10_tenant_select_201; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_tenant_select_201 ON public.test_attempts FOR SELECT TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
+
+
+--
+-- Name: treatment_program_instance_stage_items rev10_tenant_select_208; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_tenant_select_208 ON public.treatment_program_instance_stage_items FOR SELECT TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
+
+
+--
+-- Name: treatment_program_instance_stages rev10_tenant_select_209; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_tenant_select_209 ON public.treatment_program_instance_stages FOR SELECT TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
+
+
+--
+-- Name: treatment_program_instances rev10_tenant_select_210; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_tenant_select_210 ON public.treatment_program_instances FOR SELECT TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
+
+
+--
+-- Name: user_channel_bindings rev10_tenant_select_215; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_tenant_select_215 ON public.user_channel_bindings FOR SELECT TO app_integrator_tenant_service, app_tenant_service USING (((user_id IS NOT NULL) AND ((user_id IS NULL) OR ((EXISTS ( SELECT 1
    FROM public.be_organization_members tenant_staff
   WHERE ((tenant_staff.platform_user_id = user_channel_bindings.user_id) AND (tenant_staff.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_staff.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments tenant_patient
@@ -19870,10 +20985,10 @@ CREATE POLICY rev10_tenant_select_207 ON public.user_channel_bindings FOR SELECT
 
 
 --
--- Name: user_channel_preferences rev10_tenant_select_208; Type: POLICY; Schema: public; Owner: -
+-- Name: user_channel_preferences rev10_tenant_select_216; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_select_208 ON public.user_channel_preferences FOR SELECT TO app_tenant_service USING ((((user_id IS NOT NULL) OR (platform_user_id IS NOT NULL)) AND ((user_id IS NULL) OR ((EXISTS ( SELECT 1
+CREATE POLICY rev10_tenant_select_216 ON public.user_channel_preferences FOR SELECT TO app_tenant_service USING ((((user_id IS NOT NULL) OR (platform_user_id IS NOT NULL)) AND ((user_id IS NULL) OR ((EXISTS ( SELECT 1
    FROM public.be_organization_members tenant_staff
   WHERE (((tenant_staff.platform_user_id)::text = user_channel_preferences.user_id) AND (tenant_staff.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_staff.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments tenant_patient
@@ -19885,10 +21000,10 @@ CREATE POLICY rev10_tenant_select_208 ON public.user_channel_preferences FOR SEL
 
 
 --
--- Name: user_contacts rev10_tenant_select_209; Type: POLICY; Schema: public; Owner: -
+-- Name: user_contacts rev10_tenant_select_217; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_select_209 ON public.user_contacts FOR SELECT TO app_integrator_tenant_service, app_tenant_service USING (((platform_user_id IS NOT NULL) AND ((platform_user_id IS NULL) OR ((EXISTS ( SELECT 1
+CREATE POLICY rev10_tenant_select_217 ON public.user_contacts FOR SELECT TO app_integrator_tenant_service, app_tenant_service USING (((platform_user_id IS NOT NULL) AND ((platform_user_id IS NULL) OR ((EXISTS ( SELECT 1
    FROM public.be_organization_members tenant_staff
   WHERE ((tenant_staff.platform_user_id = user_contacts.platform_user_id) AND (tenant_staff.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_staff.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments tenant_patient
@@ -19896,10 +21011,10 @@ CREATE POLICY rev10_tenant_select_209 ON public.user_contacts FOR SELECT TO app_
 
 
 --
--- Name: user_identity rev10_tenant_select_210; Type: POLICY; Schema: public; Owner: -
+-- Name: user_identity rev10_tenant_select_218; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_select_210 ON public.user_identity FOR SELECT TO app_tenant_service USING (((platform_user_id IS NOT NULL) AND ((platform_user_id IS NULL) OR ((EXISTS ( SELECT 1
+CREATE POLICY rev10_tenant_select_218 ON public.user_identity FOR SELECT TO app_tenant_service USING (((platform_user_id IS NOT NULL) AND ((platform_user_id IS NULL) OR ((EXISTS ( SELECT 1
    FROM public.be_organization_members tenant_staff
   WHERE ((tenant_staff.platform_user_id = user_identity.platform_user_id) AND (tenant_staff.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_staff.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments tenant_patient
@@ -19907,10 +21022,10 @@ CREATE POLICY rev10_tenant_select_210 ON public.user_identity FOR SELECT TO app_
 
 
 --
--- Name: user_notification_topic_channels rev10_tenant_select_211; Type: POLICY; Schema: public; Owner: -
+-- Name: user_notification_topic_channels rev10_tenant_select_219; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_select_211 ON public.user_notification_topic_channels FOR SELECT TO app_tenant_service USING (((user_id IS NOT NULL) AND ((user_id IS NULL) OR ((EXISTS ( SELECT 1
+CREATE POLICY rev10_tenant_select_219 ON public.user_notification_topic_channels FOR SELECT TO app_tenant_service USING (((user_id IS NOT NULL) AND ((user_id IS NULL) OR ((EXISTS ( SELECT 1
    FROM public.be_organization_members tenant_staff
   WHERE ((tenant_staff.platform_user_id = user_notification_topic_channels.user_id) AND (tenant_staff.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_staff.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments tenant_patient
@@ -19918,10 +21033,10 @@ CREATE POLICY rev10_tenant_select_211 ON public.user_notification_topic_channels
 
 
 --
--- Name: user_notification_topics rev10_tenant_select_212; Type: POLICY; Schema: public; Owner: -
+-- Name: user_notification_topics rev10_tenant_select_220; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_select_212 ON public.user_notification_topics FOR SELECT TO app_tenant_service USING (((user_id IS NOT NULL) AND ((user_id IS NULL) OR ((EXISTS ( SELECT 1
+CREATE POLICY rev10_tenant_select_220 ON public.user_notification_topics FOR SELECT TO app_tenant_service USING (((user_id IS NOT NULL) AND ((user_id IS NULL) OR ((EXISTS ( SELECT 1
    FROM public.be_organization_members tenant_staff
   WHERE ((tenant_staff.platform_user_id = user_notification_topics.user_id) AND (tenant_staff.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_staff.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments tenant_patient
@@ -19929,17 +21044,21 @@ CREATE POLICY rev10_tenant_select_212 ON public.user_notification_topics FOR SEL
 
 
 --
--- Name: user_phone_history rev10_tenant_select_218; Type: POLICY; Schema: public; Owner: -
+-- Name: user_phone_history rev10_tenant_select_226; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_select_218 ON public.user_phone_history FOR SELECT TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
+CREATE POLICY rev10_tenant_select_226 ON public.user_phone_history FOR SELECT TO app_tenant_service USING (((platform_user_id IS NOT NULL) AND ((platform_user_id IS NULL) OR ((EXISTS ( SELECT 1
+   FROM public.be_organization_members tenant_staff
+  WHERE ((tenant_staff.platform_user_id = user_phone_history.platform_user_id) AND (tenant_staff.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_staff.status = 'active'::text)))) OR (EXISTS ( SELECT 1
+   FROM public.org_enrollments tenant_patient
+  WHERE ((tenant_patient.platform_user_id = user_phone_history.platform_user_id) AND (tenant_patient.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_patient.status = 'active'::text))))))));
 
 
 --
--- Name: user_web_push_subscriptions rev10_tenant_select_220; Type: POLICY; Schema: public; Owner: -
+-- Name: user_web_push_subscriptions rev10_tenant_select_228; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_select_220 ON public.user_web_push_subscriptions FOR SELECT TO app_tenant_service USING (((user_id IS NOT NULL) AND ((user_id IS NULL) OR ((EXISTS ( SELECT 1
+CREATE POLICY rev10_tenant_select_228 ON public.user_web_push_subscriptions FOR SELECT TO app_tenant_service USING (((user_id IS NOT NULL) AND ((user_id IS NULL) OR ((EXISTS ( SELECT 1
    FROM public.be_organization_members tenant_staff
   WHERE ((tenant_staff.platform_user_id = user_web_push_subscriptions.user_id) AND (tenant_staff.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_staff.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments tenant_patient
@@ -19964,7 +21083,7 @@ CREATE POLICY rev10_tenant_select_31 ON public.be_organization_members FOR SELEC
 -- Name: be_organizations rev10_tenant_select_32; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_select_32 ON public.be_organizations FOR SELECT TO app_tenant_service USING ((id = ( SELECT app.current_org_id() AS current_org_id)));
+CREATE POLICY rev10_tenant_select_32 ON public.be_organizations FOR SELECT TO app_integrator_tenant_service, app_tenant_service USING ((id = ( SELECT app.current_org_id() AS current_org_id)));
 
 
 --
@@ -19993,52 +21112,63 @@ CREATE POLICY rev10_tenant_select_38 ON public.be_patient_packages FOR SELECT TO
 
 
 --
--- Name: broadcast_audit rev10_tenant_select_60; Type: POLICY; Schema: public; Owner: -
+-- Name: broadcast_audit rev10_tenant_select_59; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_select_60 ON public.broadcast_audit FOR SELECT TO app_integrator_tenant_service, app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
-
-
---
--- Name: broadcast_audit_recipients rev10_tenant_select_61; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_tenant_select_61 ON public.broadcast_audit_recipients FOR SELECT TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
+CREATE POLICY rev10_tenant_select_59 ON public.broadcast_audit FOR SELECT TO app_integrator_tenant_service, app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
 
 
 --
--- Name: doctor_notes rev10_tenant_select_84; Type: POLICY; Schema: public; Owner: -
+-- Name: broadcast_audit_recipients rev10_tenant_select_60; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_select_84 ON public.doctor_notes FOR SELECT TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
-
-
---
--- Name: doctor_patient_support rev10_tenant_select_85; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_tenant_select_85 ON public.doctor_patient_support FOR SELECT TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
+CREATE POLICY rev10_tenant_select_60 ON public.broadcast_audit_recipients FOR SELECT TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
 
 
 --
--- Name: lfk_complexes rev10_tenant_select_95; Type: POLICY; Schema: public; Owner: -
+-- Name: doctor_notes rev10_tenant_select_86; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_select_95 ON public.lfk_complexes FOR SELECT TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
-
-
---
--- Name: material_ratings rev10_tenant_update_102; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_tenant_update_102 ON public.material_ratings FOR UPDATE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
+CREATE POLICY rev10_tenant_select_86 ON public.doctor_notes FOR SELECT TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
 
 
 --
--- Name: media_files rev10_tenant_update_103; Type: POLICY; Schema: public; Owner: -
+-- Name: doctor_patient_support rev10_tenant_select_87; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_update_103 ON public.media_files FOR UPDATE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND ((uploaded_by IS NULL) OR ((EXISTS ( SELECT 1
+CREATE POLICY rev10_tenant_select_87 ON public.doctor_patient_support FOR SELECT TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
+
+
+--
+-- Name: lfk_complexes rev10_tenant_select_97; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_tenant_select_97 ON public.lfk_complexes FOR SELECT TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
+
+
+--
+-- Name: lfk_sessions rev10_tenant_update_102; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_tenant_update_102 ON public.lfk_sessions FOR UPDATE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND ((user_id IS NULL) OR ((EXISTS ( SELECT 1
+   FROM public.be_organization_members tenant_staff
+  WHERE ((tenant_staff.platform_user_id = lfk_sessions.user_id) AND (tenant_staff.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_staff.status = 'active'::text)))) OR (EXISTS ( SELECT 1
+   FROM public.org_enrollments tenant_patient
+  WHERE ((tenant_patient.platform_user_id = lfk_sessions.user_id) AND (tenant_patient.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_patient.status = 'active'::text))))))));
+
+
+--
+-- Name: material_ratings rev10_tenant_update_105; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_tenant_update_105 ON public.material_ratings FOR UPDATE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
+
+
+--
+-- Name: media_files rev10_tenant_update_106; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_tenant_update_106 ON public.media_files FOR UPDATE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND ((uploaded_by IS NULL) OR ((EXISTS ( SELECT 1
    FROM public.be_organization_members tenant_staff
   WHERE ((tenant_staff.platform_user_id = media_files.uploaded_by) AND (tenant_staff.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_staff.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments tenant_patient
@@ -20046,10 +21176,10 @@ CREATE POLICY rev10_tenant_update_103 ON public.media_files FOR UPDATE TO app_te
 
 
 --
--- Name: media_upload_sessions rev10_tenant_update_111; Type: POLICY; Schema: public; Owner: -
+-- Name: media_upload_sessions rev10_tenant_update_115; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_update_111 ON public.media_upload_sessions FOR UPDATE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND ((owner_user_id IS NULL) OR ((EXISTS ( SELECT 1
+CREATE POLICY rev10_tenant_update_115 ON public.media_upload_sessions FOR UPDATE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND ((owner_user_id IS NULL) OR ((EXISTS ( SELECT 1
    FROM public.be_organization_members tenant_staff
   WHERE ((tenant_staff.platform_user_id = media_upload_sessions.owner_user_id) AND (tenant_staff.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_staff.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments tenant_patient
@@ -20057,10 +21187,10 @@ CREATE POLICY rev10_tenant_update_111 ON public.media_upload_sessions FOR UPDATE
 
 
 --
--- Name: message_log rev10_tenant_update_112; Type: POLICY; Schema: public; Owner: -
+-- Name: message_log rev10_tenant_update_116; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_update_112 ON public.message_log FOR UPDATE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (((user_id IS NULL) OR ((EXISTS ( SELECT 1
+CREATE POLICY rev10_tenant_update_116 ON public.message_log FOR UPDATE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (((user_id IS NULL) OR ((EXISTS ( SELECT 1
    FROM public.be_organization_members tenant_staff
   WHERE (((tenant_staff.platform_user_id)::text = message_log.user_id) AND (tenant_staff.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_staff.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments tenant_patient
@@ -20072,10 +21202,10 @@ CREATE POLICY rev10_tenant_update_112 ON public.message_log FOR UPDATE TO app_te
 
 
 --
--- Name: online_intake_requests rev10_tenant_update_117; Type: POLICY; Schema: public; Owner: -
+-- Name: online_intake_requests rev10_tenant_update_121; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_update_117 ON public.online_intake_requests FOR UPDATE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND ((user_id IS NULL) OR ((EXISTS ( SELECT 1
+CREATE POLICY rev10_tenant_update_121 ON public.online_intake_requests FOR UPDATE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND ((user_id IS NULL) OR ((EXISTS ( SELECT 1
    FROM public.be_organization_members tenant_staff
   WHERE ((tenant_staff.platform_user_id = online_intake_requests.user_id) AND (tenant_staff.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_staff.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments tenant_patient
@@ -20083,10 +21213,10 @@ CREATE POLICY rev10_tenant_update_117 ON public.online_intake_requests FOR UPDAT
 
 
 --
--- Name: patient_bookings rev10_tenant_update_131; Type: POLICY; Schema: public; Owner: -
+-- Name: patient_bookings rev10_tenant_update_136; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_update_131 ON public.patient_bookings FOR UPDATE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND ((platform_user_id IS NULL) OR ((EXISTS ( SELECT 1
+CREATE POLICY rev10_tenant_update_136 ON public.patient_bookings FOR UPDATE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND ((platform_user_id IS NULL) OR ((EXISTS ( SELECT 1
    FROM public.be_organization_members tenant_staff
   WHERE ((tenant_staff.platform_user_id = patient_bookings.platform_user_id) AND (tenant_staff.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_staff.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments tenant_patient
@@ -20094,10 +21224,10 @@ CREATE POLICY rev10_tenant_update_131 ON public.patient_bookings FOR UPDATE TO a
 
 
 --
--- Name: patient_content_rating_feedback rev10_tenant_update_133; Type: POLICY; Schema: public; Owner: -
+-- Name: patient_content_rating_feedback rev10_tenant_update_138; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_update_133 ON public.patient_content_rating_feedback FOR UPDATE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND ((user_id IS NULL) OR ((EXISTS ( SELECT 1
+CREATE POLICY rev10_tenant_update_138 ON public.patient_content_rating_feedback FOR UPDATE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND ((user_id IS NULL) OR ((EXISTS ( SELECT 1
    FROM public.be_organization_members tenant_staff
   WHERE ((tenant_staff.platform_user_id = patient_content_rating_feedback.user_id) AND (tenant_staff.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_staff.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments tenant_patient
@@ -20105,17 +21235,17 @@ CREATE POLICY rev10_tenant_update_133 ON public.patient_content_rating_feedback 
 
 
 --
--- Name: patient_daily_warmup_presentations rev10_tenant_update_134; Type: POLICY; Schema: public; Owner: -
+-- Name: patient_daily_warmup_presentations rev10_tenant_update_139; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_update_134 ON public.patient_daily_warmup_presentations FOR UPDATE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
+CREATE POLICY rev10_tenant_update_139 ON public.patient_daily_warmup_presentations FOR UPDATE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
 
 
 --
--- Name: patient_daily_warmup_video_views rev10_tenant_update_135; Type: POLICY; Schema: public; Owner: -
+-- Name: patient_daily_warmup_video_views rev10_tenant_update_140; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_update_135 ON public.patient_daily_warmup_video_views FOR UPDATE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND ((user_id IS NULL) OR ((EXISTS ( SELECT 1
+CREATE POLICY rev10_tenant_update_140 ON public.patient_daily_warmup_video_views FOR UPDATE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND ((user_id IS NULL) OR ((EXISTS ( SELECT 1
    FROM public.be_organization_members tenant_staff
   WHERE ((tenant_staff.platform_user_id = patient_daily_warmup_video_views.user_id) AND (tenant_staff.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_staff.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments tenant_patient
@@ -20123,10 +21253,10 @@ CREATE POLICY rev10_tenant_update_135 ON public.patient_daily_warmup_video_views
 
 
 --
--- Name: patient_diary_day_snapshots rev10_tenant_update_136; Type: POLICY; Schema: public; Owner: -
+-- Name: patient_diary_day_snapshots rev10_tenant_update_141; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_update_136 ON public.patient_diary_day_snapshots FOR UPDATE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND ((platform_user_id IS NULL) OR ((EXISTS ( SELECT 1
+CREATE POLICY rev10_tenant_update_141 ON public.patient_diary_day_snapshots FOR UPDATE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND ((platform_user_id IS NULL) OR ((EXISTS ( SELECT 1
    FROM public.be_organization_members tenant_staff
   WHERE ((tenant_staff.platform_user_id = patient_diary_day_snapshots.platform_user_id) AND (tenant_staff.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_staff.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments tenant_patient
@@ -20134,10 +21264,10 @@ CREATE POLICY rev10_tenant_update_136 ON public.patient_diary_day_snapshots FOR 
 
 
 --
--- Name: patient_lfk_assignments rev10_tenant_update_141; Type: POLICY; Schema: public; Owner: -
+-- Name: patient_lfk_assignments rev10_tenant_update_146; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_update_141 ON public.patient_lfk_assignments FOR UPDATE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND ((patient_user_id IS NULL) OR ((EXISTS ( SELECT 1
+CREATE POLICY rev10_tenant_update_146 ON public.patient_lfk_assignments FOR UPDATE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND ((patient_user_id IS NULL) OR ((EXISTS ( SELECT 1
    FROM public.be_organization_members tenant_staff
   WHERE ((tenant_staff.platform_user_id = patient_lfk_assignments.patient_user_id) AND (tenant_staff.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_staff.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments tenant_patient
@@ -20145,10 +21275,10 @@ CREATE POLICY rev10_tenant_update_141 ON public.patient_lfk_assignments FOR UPDA
 
 
 --
--- Name: patient_practice_completions rev10_tenant_update_144; Type: POLICY; Schema: public; Owner: -
+-- Name: patient_practice_completions rev10_tenant_update_149; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_update_144 ON public.patient_practice_completions FOR UPDATE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND ((user_id IS NULL) OR ((EXISTS ( SELECT 1
+CREATE POLICY rev10_tenant_update_149 ON public.patient_practice_completions FOR UPDATE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND ((user_id IS NULL) OR ((EXISTS ( SELECT 1
    FROM public.be_organization_members tenant_staff
   WHERE ((tenant_staff.platform_user_id = patient_practice_completions.user_id) AND (tenant_staff.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_staff.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments tenant_patient
@@ -20156,17 +21286,17 @@ CREATE POLICY rev10_tenant_update_144 ON public.patient_practice_completions FOR
 
 
 --
--- Name: platform_user_contacts rev10_tenant_update_149; Type: POLICY; Schema: public; Owner: -
+-- Name: platform_user_contacts rev10_tenant_update_154; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_update_149 ON public.platform_user_contacts FOR UPDATE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
+CREATE POLICY rev10_tenant_update_154 ON public.platform_user_contacts FOR UPDATE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
 
 
 --
--- Name: platform_users rev10_tenant_update_150; Type: POLICY; Schema: public; Owner: -
+-- Name: platform_users rev10_tenant_update_155; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_update_150 ON public.platform_users FOR UPDATE TO app_tenant_service USING (((id IS NOT NULL) AND ((id IS NULL) OR ((EXISTS ( SELECT 1
+CREATE POLICY rev10_tenant_update_155 ON public.platform_users FOR UPDATE TO app_tenant_service USING (((id IS NOT NULL) AND ((id IS NULL) OR ((EXISTS ( SELECT 1
    FROM public.be_organization_members tenant_staff
   WHERE ((tenant_staff.platform_user_id = platform_users.id) AND (tenant_staff.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_staff.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments tenant_patient
@@ -20178,10 +21308,10 @@ CREATE POLICY rev10_tenant_update_150 ON public.platform_users FOR UPDATE TO app
 
 
 --
--- Name: product_analytics_events_recent rev10_tenant_update_151; Type: POLICY; Schema: public; Owner: -
+-- Name: product_analytics_events_recent rev10_tenant_update_156; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_update_151 ON public.product_analytics_events_recent FOR UPDATE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND ((user_id IS NULL) OR ((EXISTS ( SELECT 1
+CREATE POLICY rev10_tenant_update_156 ON public.product_analytics_events_recent FOR UPDATE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND ((user_id IS NULL) OR ((EXISTS ( SELECT 1
    FROM public.be_organization_members tenant_staff
   WHERE ((tenant_staff.platform_user_id = product_analytics_events_recent.user_id) AND (tenant_staff.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_staff.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments tenant_patient
@@ -20189,17 +21319,17 @@ CREATE POLICY rev10_tenant_update_151 ON public.product_analytics_events_recent 
 
 
 --
--- Name: product_analytics_user_hourly rev10_tenant_update_153; Type: POLICY; Schema: public; Owner: -
+-- Name: product_analytics_user_hourly rev10_tenant_update_158; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_update_153 ON public.product_analytics_user_hourly FOR UPDATE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
+CREATE POLICY rev10_tenant_update_158 ON public.product_analytics_user_hourly FOR UPDATE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
 
 
 --
--- Name: product_push_notifications rev10_tenant_update_154; Type: POLICY; Schema: public; Owner: -
+-- Name: product_push_notifications rev10_tenant_update_159; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_update_154 ON public.product_push_notifications FOR UPDATE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND ((user_id IS NULL) OR ((EXISTS ( SELECT 1
+CREATE POLICY rev10_tenant_update_159 ON public.product_push_notifications FOR UPDATE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND ((user_id IS NULL) OR ((EXISTS ( SELECT 1
    FROM public.be_organization_members tenant_staff
   WHERE ((tenant_staff.platform_user_id = product_push_notifications.user_id) AND (tenant_staff.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_staff.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments tenant_patient
@@ -20207,10 +21337,10 @@ CREATE POLICY rev10_tenant_update_154 ON public.product_push_notifications FOR U
 
 
 --
--- Name: program_action_log rev10_tenant_update_155; Type: POLICY; Schema: public; Owner: -
+-- Name: program_action_log rev10_tenant_update_160; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_update_155 ON public.program_action_log FOR UPDATE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND ((patient_user_id IS NULL) OR ((EXISTS ( SELECT 1
+CREATE POLICY rev10_tenant_update_160 ON public.program_action_log FOR UPDATE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND ((patient_user_id IS NULL) OR ((EXISTS ( SELECT 1
    FROM public.be_organization_members tenant_staff
   WHERE ((tenant_staff.platform_user_id = program_action_log.patient_user_id) AND (tenant_staff.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_staff.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments tenant_patient
@@ -20222,17 +21352,17 @@ CREATE POLICY rev10_tenant_update_155 ON public.program_action_log FOR UPDATE TO
 
 
 --
--- Name: reminder_occurrence_history rev10_tenant_update_164; Type: POLICY; Schema: public; Owner: -
+-- Name: reminder_occurrence_history rev10_tenant_update_169; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_update_164 ON public.reminder_occurrence_history FOR UPDATE TO app_integrator_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
+CREATE POLICY rev10_tenant_update_169 ON public.reminder_occurrence_history FOR UPDATE TO app_integrator_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
 
 
 --
--- Name: reminder_rules rev10_tenant_update_165; Type: POLICY; Schema: public; Owner: -
+-- Name: reminder_rules rev10_tenant_update_170; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_update_165 ON public.reminder_rules FOR UPDATE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND ((platform_user_id IS NULL) OR ((EXISTS ( SELECT 1
+CREATE POLICY rev10_tenant_update_170 ON public.reminder_rules FOR UPDATE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND ((platform_user_id IS NULL) OR ((EXISTS ( SELECT 1
    FROM public.be_organization_members tenant_staff
   WHERE ((tenant_staff.platform_user_id = reminder_rules.platform_user_id) AND (tenant_staff.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_staff.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments tenant_patient
@@ -20240,26 +21370,26 @@ CREATE POLICY rev10_tenant_update_165 ON public.reminder_rules FOR UPDATE TO app
 
 
 --
--- Name: specialist_tasks rev10_tenant_update_183; Type: POLICY; Schema: public; Owner: -
+-- Name: specialist_tasks rev10_tenant_update_191; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_update_183 ON public.specialist_tasks FOR UPDATE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
+CREATE POLICY rev10_tenant_update_191 ON public.specialist_tasks FOR UPDATE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
 
 
 --
--- Name: support_conversation_messages rev10_tenant_update_185; Type: POLICY; Schema: public; Owner: -
+-- Name: support_conversation_messages rev10_tenant_update_193; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_update_185 ON public.support_conversation_messages FOR UPDATE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (EXISTS ( SELECT 1
+CREATE POLICY rev10_tenant_update_193 ON public.support_conversation_messages FOR UPDATE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (EXISTS ( SELECT 1
    FROM public.support_conversations tenant_conversation
   WHERE ((tenant_conversation.id = support_conversation_messages.conversation_id) AND (tenant_conversation.organization_id = ( SELECT app.current_org_id() AS current_org_id)))))));
 
 
 --
--- Name: support_conversations rev10_tenant_update_186; Type: POLICY; Schema: public; Owner: -
+-- Name: support_conversations rev10_tenant_update_194; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_update_186 ON public.support_conversations FOR UPDATE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND ((platform_user_id IS NULL) OR ((EXISTS ( SELECT 1
+CREATE POLICY rev10_tenant_update_194 ON public.support_conversations FOR UPDATE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND ((platform_user_id IS NULL) OR ((EXISTS ( SELECT 1
    FROM public.be_organization_members tenant_staff
   WHERE ((tenant_staff.platform_user_id = support_conversations.platform_user_id) AND (tenant_staff.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_staff.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments tenant_patient
@@ -20267,19 +21397,19 @@ CREATE POLICY rev10_tenant_update_186 ON public.support_conversations FOR UPDATE
 
 
 --
--- Name: support_questions rev10_tenant_update_188; Type: POLICY; Schema: public; Owner: -
+-- Name: support_questions rev10_tenant_update_196; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_update_188 ON public.support_questions FOR UPDATE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND ((conversation_id IS NULL) OR (EXISTS ( SELECT 1
+CREATE POLICY rev10_tenant_update_196 ON public.support_questions FOR UPDATE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND ((conversation_id IS NULL) OR (EXISTS ( SELECT 1
    FROM public.support_conversations tenant_conversation
   WHERE ((tenant_conversation.id = support_questions.conversation_id) AND (tenant_conversation.organization_id = ( SELECT app.current_org_id() AS current_org_id))))))));
 
 
 --
--- Name: symptom_entries rev10_tenant_update_189; Type: POLICY; Schema: public; Owner: -
+-- Name: symptom_entries rev10_tenant_update_197; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_update_189 ON public.symptom_entries FOR UPDATE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (((user_id IS NULL) OR ((EXISTS ( SELECT 1
+CREATE POLICY rev10_tenant_update_197 ON public.symptom_entries FOR UPDATE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (((user_id IS NULL) OR ((EXISTS ( SELECT 1
    FROM public.be_organization_members tenant_staff
   WHERE (((tenant_staff.platform_user_id)::text = symptom_entries.user_id) AND (tenant_staff.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_staff.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments tenant_patient
@@ -20293,10 +21423,10 @@ CREATE POLICY rev10_tenant_update_189 ON public.symptom_entries FOR UPDATE TO ap
 
 
 --
--- Name: symptom_trackings rev10_tenant_update_190; Type: POLICY; Schema: public; Owner: -
+-- Name: symptom_trackings rev10_tenant_update_198; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_update_190 ON public.symptom_trackings FOR UPDATE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (((user_id IS NULL) OR ((EXISTS ( SELECT 1
+CREATE POLICY rev10_tenant_update_198 ON public.symptom_trackings FOR UPDATE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (((user_id IS NULL) OR ((EXISTS ( SELECT 1
    FROM public.be_organization_members tenant_staff
   WHERE (((tenant_staff.platform_user_id)::text = symptom_trackings.user_id) AND (tenant_staff.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_staff.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments tenant_patient
@@ -20308,10 +21438,10 @@ CREATE POLICY rev10_tenant_update_190 ON public.symptom_trackings FOR UPDATE TO 
 
 
 --
--- Name: test_attempts rev10_tenant_update_193; Type: POLICY; Schema: public; Owner: -
+-- Name: test_attempts rev10_tenant_update_201; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_update_193 ON public.test_attempts FOR UPDATE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND ((patient_user_id IS NULL) OR ((EXISTS ( SELECT 1
+CREATE POLICY rev10_tenant_update_201 ON public.test_attempts FOR UPDATE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND ((patient_user_id IS NULL) OR ((EXISTS ( SELECT 1
    FROM public.be_organization_members tenant_staff
   WHERE ((tenant_staff.platform_user_id = test_attempts.patient_user_id) AND (tenant_staff.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_staff.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments tenant_patient
@@ -20319,24 +21449,24 @@ CREATE POLICY rev10_tenant_update_193 ON public.test_attempts FOR UPDATE TO app_
 
 
 --
--- Name: treatment_program_instance_stage_items rev10_tenant_update_200; Type: POLICY; Schema: public; Owner: -
+-- Name: treatment_program_instance_stage_items rev10_tenant_update_208; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_update_200 ON public.treatment_program_instance_stage_items FOR UPDATE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
-
-
---
--- Name: treatment_program_instance_stages rev10_tenant_update_201; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_tenant_update_201 ON public.treatment_program_instance_stages FOR UPDATE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
+CREATE POLICY rev10_tenant_update_208 ON public.treatment_program_instance_stage_items FOR UPDATE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
 
 
 --
--- Name: treatment_program_instances rev10_tenant_update_202; Type: POLICY; Schema: public; Owner: -
+-- Name: treatment_program_instance_stages rev10_tenant_update_209; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_update_202 ON public.treatment_program_instances FOR UPDATE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND ((patient_user_id IS NULL) OR ((EXISTS ( SELECT 1
+CREATE POLICY rev10_tenant_update_209 ON public.treatment_program_instance_stages FOR UPDATE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
+
+
+--
+-- Name: treatment_program_instances rev10_tenant_update_210; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rev10_tenant_update_210 ON public.treatment_program_instances FOR UPDATE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND ((patient_user_id IS NULL) OR ((EXISTS ( SELECT 1
    FROM public.be_organization_members tenant_staff
   WHERE ((tenant_staff.platform_user_id = treatment_program_instances.patient_user_id) AND (tenant_staff.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_staff.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments tenant_patient
@@ -20344,10 +21474,10 @@ CREATE POLICY rev10_tenant_update_202 ON public.treatment_program_instances FOR 
 
 
 --
--- Name: user_channel_bindings rev10_tenant_update_207; Type: POLICY; Schema: public; Owner: -
+-- Name: user_channel_bindings rev10_tenant_update_215; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_update_207 ON public.user_channel_bindings FOR UPDATE TO app_tenant_service USING (((user_id IS NOT NULL) AND ((user_id IS NULL) OR ((EXISTS ( SELECT 1
+CREATE POLICY rev10_tenant_update_215 ON public.user_channel_bindings FOR UPDATE TO app_tenant_service USING (((user_id IS NOT NULL) AND ((user_id IS NULL) OR ((EXISTS ( SELECT 1
    FROM public.be_organization_members tenant_staff
   WHERE ((tenant_staff.platform_user_id = user_channel_bindings.user_id) AND (tenant_staff.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_staff.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments tenant_patient
@@ -20359,10 +21489,10 @@ CREATE POLICY rev10_tenant_update_207 ON public.user_channel_bindings FOR UPDATE
 
 
 --
--- Name: user_channel_preferences rev10_tenant_update_208; Type: POLICY; Schema: public; Owner: -
+-- Name: user_channel_preferences rev10_tenant_update_216; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_update_208 ON public.user_channel_preferences FOR UPDATE TO app_tenant_service USING ((((user_id IS NOT NULL) OR (platform_user_id IS NOT NULL)) AND ((user_id IS NULL) OR ((EXISTS ( SELECT 1
+CREATE POLICY rev10_tenant_update_216 ON public.user_channel_preferences FOR UPDATE TO app_tenant_service USING ((((user_id IS NOT NULL) OR (platform_user_id IS NOT NULL)) AND ((user_id IS NULL) OR ((EXISTS ( SELECT 1
    FROM public.be_organization_members tenant_staff
   WHERE (((tenant_staff.platform_user_id)::text = user_channel_preferences.user_id) AND (tenant_staff.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_staff.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments tenant_patient
@@ -20382,10 +21512,10 @@ CREATE POLICY rev10_tenant_update_208 ON public.user_channel_preferences FOR UPD
 
 
 --
--- Name: user_identity rev10_tenant_update_210; Type: POLICY; Schema: public; Owner: -
+-- Name: user_identity rev10_tenant_update_218; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_update_210 ON public.user_identity FOR UPDATE TO app_tenant_service USING (((platform_user_id IS NOT NULL) AND ((platform_user_id IS NULL) OR ((EXISTS ( SELECT 1
+CREATE POLICY rev10_tenant_update_218 ON public.user_identity FOR UPDATE TO app_tenant_service USING (((platform_user_id IS NOT NULL) AND ((platform_user_id IS NULL) OR ((EXISTS ( SELECT 1
    FROM public.be_organization_members tenant_staff
   WHERE ((tenant_staff.platform_user_id = user_identity.platform_user_id) AND (tenant_staff.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_staff.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments tenant_patient
@@ -20397,10 +21527,10 @@ CREATE POLICY rev10_tenant_update_210 ON public.user_identity FOR UPDATE TO app_
 
 
 --
--- Name: user_notification_topic_channels rev10_tenant_update_211; Type: POLICY; Schema: public; Owner: -
+-- Name: user_notification_topic_channels rev10_tenant_update_219; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_update_211 ON public.user_notification_topic_channels FOR UPDATE TO app_tenant_service USING (((user_id IS NOT NULL) AND ((user_id IS NULL) OR ((EXISTS ( SELECT 1
+CREATE POLICY rev10_tenant_update_219 ON public.user_notification_topic_channels FOR UPDATE TO app_tenant_service USING (((user_id IS NOT NULL) AND ((user_id IS NULL) OR ((EXISTS ( SELECT 1
    FROM public.be_organization_members tenant_staff
   WHERE ((tenant_staff.platform_user_id = user_notification_topic_channels.user_id) AND (tenant_staff.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_staff.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments tenant_patient
@@ -20412,10 +21542,10 @@ CREATE POLICY rev10_tenant_update_211 ON public.user_notification_topic_channels
 
 
 --
--- Name: user_notification_topics rev10_tenant_update_212; Type: POLICY; Schema: public; Owner: -
+-- Name: user_notification_topics rev10_tenant_update_220; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_update_212 ON public.user_notification_topics FOR UPDATE TO app_tenant_service USING (((user_id IS NOT NULL) AND ((user_id IS NULL) OR ((EXISTS ( SELECT 1
+CREATE POLICY rev10_tenant_update_220 ON public.user_notification_topics FOR UPDATE TO app_tenant_service USING (((user_id IS NOT NULL) AND ((user_id IS NULL) OR ((EXISTS ( SELECT 1
    FROM public.be_organization_members tenant_staff
   WHERE ((tenant_staff.platform_user_id = user_notification_topics.user_id) AND (tenant_staff.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_staff.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments tenant_patient
@@ -20427,10 +21557,18 @@ CREATE POLICY rev10_tenant_update_212 ON public.user_notification_topics FOR UPD
 
 
 --
--- Name: user_phone_history rev10_tenant_update_218; Type: POLICY; Schema: public; Owner: -
+-- Name: user_phone_history rev10_tenant_update_226; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_update_218 ON public.user_phone_history FOR UPDATE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND ((platform_user_id IS NULL) OR ((EXISTS ( SELECT 1
+CREATE POLICY rev10_tenant_update_226 ON public.user_phone_history FOR UPDATE TO app_tenant_service USING (((platform_user_id IS NOT NULL) AND ((platform_user_id IS NULL) OR ((EXISTS ( SELECT 1
+   FROM public.be_organization_members tenant_staff
+  WHERE ((tenant_staff.platform_user_id = user_phone_history.platform_user_id) AND (tenant_staff.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_staff.status = 'active'::text)))) OR (EXISTS ( SELECT 1
+   FROM public.org_enrollments tenant_patient
+  WHERE ((tenant_patient.platform_user_id = user_phone_history.platform_user_id) AND (tenant_patient.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_patient.status = 'active'::text)))))))) WITH CHECK (((platform_user_id IS NOT NULL) AND ((platform_user_id IS NULL) OR ((EXISTS ( SELECT 1
+   FROM public.be_organization_members tenant_staff
+  WHERE ((tenant_staff.platform_user_id = user_phone_history.platform_user_id) AND (tenant_staff.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_staff.status = 'active'::text)))) OR (EXISTS ( SELECT 1
+   FROM public.org_enrollments tenant_patient
+  WHERE ((tenant_patient.platform_user_id = user_phone_history.platform_user_id) AND (tenant_patient.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_patient.status = 'active'::text)))))) AND ((platform_user_id IS NULL) OR ((EXISTS ( SELECT 1
    FROM public.be_organization_members tenant_staff
   WHERE ((tenant_staff.platform_user_id = user_phone_history.platform_user_id) AND (tenant_staff.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_staff.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments tenant_patient
@@ -20438,10 +21576,10 @@ CREATE POLICY rev10_tenant_update_218 ON public.user_phone_history FOR UPDATE TO
 
 
 --
--- Name: user_web_push_subscriptions rev10_tenant_update_220; Type: POLICY; Schema: public; Owner: -
+-- Name: user_web_push_subscriptions rev10_tenant_update_228; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_update_220 ON public.user_web_push_subscriptions FOR UPDATE TO app_tenant_service USING (((user_id IS NOT NULL) AND ((user_id IS NULL) OR ((EXISTS ( SELECT 1
+CREATE POLICY rev10_tenant_update_228 ON public.user_web_push_subscriptions FOR UPDATE TO app_tenant_service USING (((user_id IS NOT NULL) AND ((user_id IS NULL) OR ((EXISTS ( SELECT 1
    FROM public.be_organization_members tenant_staff
   WHERE ((tenant_staff.platform_user_id = user_web_push_subscriptions.user_id) AND (tenant_staff.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_staff.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments tenant_patient
@@ -20541,17 +21679,17 @@ CREATE POLICY rev10_tenant_update_43 ON public.be_payments FOR UPDATE TO app_ten
 
 
 --
--- Name: broadcast_audit rev10_tenant_update_60; Type: POLICY; Schema: public; Owner: -
+-- Name: broadcast_audit rev10_tenant_update_59; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_update_60 ON public.broadcast_audit FOR UPDATE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
+CREATE POLICY rev10_tenant_update_59 ON public.broadcast_audit FOR UPDATE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK ((organization_id = ( SELECT app.current_org_id() AS current_org_id)));
 
 
 --
--- Name: broadcast_audit_recipients rev10_tenant_update_61; Type: POLICY; Schema: public; Owner: -
+-- Name: broadcast_audit_recipients rev10_tenant_update_60; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_update_61 ON public.broadcast_audit_recipients FOR UPDATE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND ((platform_user_id IS NULL) OR ((EXISTS ( SELECT 1
+CREATE POLICY rev10_tenant_update_60 ON public.broadcast_audit_recipients FOR UPDATE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND ((platform_user_id IS NULL) OR ((EXISTS ( SELECT 1
    FROM public.be_organization_members tenant_staff
   WHERE ((tenant_staff.platform_user_id = broadcast_audit_recipients.platform_user_id) AND (tenant_staff.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_staff.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments tenant_patient
@@ -20570,10 +21708,10 @@ CREATE POLICY rev10_tenant_update_79 ON public.content_access_grants_webapp FOR 
 
 
 --
--- Name: doctor_notes rev10_tenant_update_84; Type: POLICY; Schema: public; Owner: -
+-- Name: doctor_notes rev10_tenant_update_86; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_update_84 ON public.doctor_notes FOR UPDATE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND ((user_id IS NULL) OR ((EXISTS ( SELECT 1
+CREATE POLICY rev10_tenant_update_86 ON public.doctor_notes FOR UPDATE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND ((user_id IS NULL) OR ((EXISTS ( SELECT 1
    FROM public.be_organization_members tenant_staff
   WHERE ((tenant_staff.platform_user_id = doctor_notes.user_id) AND (tenant_staff.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_staff.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments tenant_patient
@@ -20581,10 +21719,10 @@ CREATE POLICY rev10_tenant_update_84 ON public.doctor_notes FOR UPDATE TO app_te
 
 
 --
--- Name: lfk_complexes rev10_tenant_update_95; Type: POLICY; Schema: public; Owner: -
+-- Name: lfk_complexes rev10_tenant_update_97; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rev10_tenant_update_95 ON public.lfk_complexes FOR UPDATE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (((user_id IS NULL) OR ((EXISTS ( SELECT 1
+CREATE POLICY rev10_tenant_update_97 ON public.lfk_complexes FOR UPDATE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (((user_id IS NULL) OR ((EXISTS ( SELECT 1
    FROM public.be_organization_members tenant_staff
   WHERE (((tenant_staff.platform_user_id)::text = lfk_complexes.user_id) AND (tenant_staff.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_staff.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments tenant_patient
@@ -20593,17 +21731,6 @@ CREATE POLICY rev10_tenant_update_95 ON public.lfk_complexes FOR UPDATE TO app_t
   WHERE ((tenant_staff.platform_user_id = lfk_complexes.platform_user_id) AND (tenant_staff.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_staff.status = 'active'::text)))) OR (EXISTS ( SELECT 1
    FROM public.org_enrollments tenant_patient
   WHERE ((tenant_patient.platform_user_id = lfk_complexes.platform_user_id) AND (tenant_patient.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_patient.status = 'active'::text)))))))));
-
-
---
--- Name: lfk_sessions rev10_tenant_update_99; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY rev10_tenant_update_99 ON public.lfk_sessions FOR UPDATE TO app_tenant_service USING ((organization_id = ( SELECT app.current_org_id() AS current_org_id))) WITH CHECK (((organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND ((user_id IS NULL) OR ((EXISTS ( SELECT 1
-   FROM public.be_organization_members tenant_staff
-  WHERE ((tenant_staff.platform_user_id = lfk_sessions.user_id) AND (tenant_staff.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_staff.status = 'active'::text)))) OR (EXISTS ( SELECT 1
-   FROM public.org_enrollments tenant_patient
-  WHERE ((tenant_patient.platform_user_id = lfk_sessions.user_id) AND (tenant_patient.organization_id = ( SELECT app.current_org_id() AS current_org_id)) AND (tenant_patient.status = 'active'::text))))))));
 
 
 --
@@ -20683,6 +21810,24 @@ ALTER TABLE public.saas_paid_period_policy ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.saas_registration_tariff_policy ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: saas_storage_package_period_prices; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.saas_storage_package_period_prices ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: saas_storage_packages; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.saas_storage_packages ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: saas_tariff_period_prices; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.saas_tariff_period_prices ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: saas_tariffs; Type: ROW SECURITY; Schema: public; Owner: -
@@ -20923,6 +22068,18 @@ ALTER TABLE public.user_phone_history ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.user_web_push_subscriptions ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: video_meeting_invites; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.video_meeting_invites ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: video_meetings; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.video_meetings ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: bcb_relation_birth_wall; Type: EVENT TRIGGER; Schema: -; Owner: -
