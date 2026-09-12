@@ -20,6 +20,7 @@ import {
   isLegacyHotMediaSourceKey,
   mediaRootFromSourceS3Key,
 } from '@/shared/lib/hlsStorageLayout';
+import { encoderOutputFor } from '@/shared/lib/mediaEncoderOutput';
 import type { StorageTarget } from '@/shared/types/storageTarget';
 
 /**
@@ -38,6 +39,7 @@ export type RawMigrationCandidateRow = {
   sizeBytes: number;
   storageTarget: string;
   status: string;
+  mimeType: string;
 };
 
 export type RawMigrationJournalRow = {
@@ -81,7 +83,8 @@ export type RawMigrationRefusal =
   | 'not_library_target'
   | 'not_ready'
   | 'not_pre_m7_key_shape'
-  | 'unexpected_key_shape';
+  | 'unexpected_key_shape'
+  | 'no_encoder_output_to_serve_from_raw';
 
 export type RawMigrationRowOutcome =
   | 'migrated'
@@ -109,12 +112,21 @@ export type RawMigrationRowResult = {
  * either already moved or was never a `media/<id>/…` original at all. Relocating any of those would
  * point the journal at a bucket the object is not in — the exact failure this whole seam exists to
  * prevent.
+ *
+ * Interim guard (raw-migration-audit-01, 2026-09-12 FAIL): a type `encoderOutputFor` says our
+ * encoder never produces anything for (`'none'` — documents, audio, everything but image/video)
+ * has no re-encoded fallback yet, and `resolveDeliverableMediaObject` serves that type ONLY when
+ * the object is still physically in the HOT bucket. Relocating such a row here would 404 it for
+ * everyone, permanently — the raw copy would exist, but nothing serves it. Left alone in hot until
+ * a real re-encoding pipeline for those types lands (owner, 12.09: build it for every uploadable
+ * type that can execute — PDF/audio/doc-docx/xls-xlsx — same as images/video already have).
  */
 export function rawMigrationRefusalFor(row: {
   id: string;
   s3Key: string;
   storageTarget: string;
   status: string;
+  mimeType: string;
 }): RawMigrationRefusal | null {
   if (row.storageTarget !== 'library') return 'not_library_target';
   if (row.status !== 'ready') return 'not_ready';
@@ -123,6 +135,7 @@ export function rawMigrationRefusalFor(row: {
   if (!isCanonicalMediaRootForId(mediaRootFromSourceS3Key(key), row.id)) {
     return 'unexpected_key_shape';
   }
+  if (encoderOutputFor(row.mimeType) === 'none') return 'no_encoder_output_to_serve_from_raw';
   return null;
 }
 

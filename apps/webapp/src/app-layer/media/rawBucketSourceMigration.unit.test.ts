@@ -87,6 +87,7 @@ function libraryRow(overrides: Partial<RawMigrationCandidateRow> = {}): RawMigra
     sizeBytes: 1024,
     storageTarget: 'library',
     status: 'ready',
+    mimeType: 'video/mp4',
     ...overrides,
   };
 }
@@ -125,6 +126,30 @@ describe('М7 raw-bucket relocation — what may move', () => {
     expect(
       rawMigrationRefusalFor(libraryRow({ s3Key: 'media/33333333-3333-4333-8333-333333333333/x.mp4' })),
     ).toBe('unexpected_key_shape');
+  });
+
+  /*
+   * raw-migration-audit-01 FAIL (2026-09-12): documents and audio have no re-encoded fallback yet,
+   * and the delivery route serves them only while they sit in the HOT bucket. Relocating one to raw
+   * would 404 it for everyone, permanently. Left in hot until a real re-encoding pipeline for these
+   * types exists (owner, 12.09).
+   */
+  it('refuses a document/audio row — no encoder output exists to serve it from raw yet', () => {
+    expect(
+      rawMigrationRefusalFor(
+        libraryRow({ s3Key: `media/${MEDIA_ID}/report.pdf`, mimeType: 'application/pdf' }),
+      ),
+    ).toBe('no_encoder_output_to_serve_from_raw');
+    expect(
+      rawMigrationRefusalFor(libraryRow({ s3Key: `media/${MEDIA_ID}/note.mp3`, mimeType: 'audio/mpeg' })),
+    ).toBe('no_encoder_output_to_serve_from_raw');
+  });
+
+  it('still allows image and video rows to move — they have a re-encoded fallback', () => {
+    expect(
+      rawMigrationRefusalFor(libraryRow({ s3Key: `media/${MEDIA_ID}/photo.jpg`, mimeType: 'image/jpeg' })),
+    ).toBeNull();
+    expect(rawMigrationRefusalFor(libraryRow({ mimeType: 'video/mp4' }))).toBeNull();
   });
 
   it('puts a row with no organization under the reserved platform folder, never under a tenant', () => {

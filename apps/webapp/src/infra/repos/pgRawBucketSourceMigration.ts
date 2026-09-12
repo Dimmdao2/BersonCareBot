@@ -36,6 +36,7 @@ export function createPgRawBucketSourceMigrationRepo(options: {
           sizeBytes: mediaFiles.sizeBytes,
           storageTarget: mediaFiles.storageTarget,
           status: mediaFiles.status,
+          mimeType: mediaFiles.mimeType,
         })
         .from(mediaFiles)
         .where(
@@ -55,6 +56,7 @@ export function createPgRawBucketSourceMigrationRepo(options: {
         sizeBytes: Number(row.sizeBytes ?? 0),
         storageTarget: row.storageTarget,
         status: row.status,
+        mimeType: row.mimeType,
       })) satisfies RawMigrationCandidateRow[];
     },
 
