@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
+import { requireEntitlementForReadAction } from '@/app-layer/guards/requireEntitlement';
 import {
   isRecommendationArchiveAlreadyArchivedError,
   isRecommendationArchiveNotFoundError,
@@ -32,10 +33,13 @@ const patchBodySchema = z.object({
 export async function GET(_request: Request, ctx: { params: Promise<{ id: string }> }) {
   const auth = await requireDoctorWorkspaceApiContext();
   if (!auth.ok) return auth.response;
+  const { ctx: workspace } = auth;
 
   const { id } = await ctx.params;
   const deps = buildAppDeps();
-  const item = await deps.recommendations.getRecommendation(id);
+  const includePlatformBase = (await requireEntitlementForReadAction(workspace, 'exercise_catalog'))
+    .ok;
+  const item = await deps.recommendations.getRecommendation(id, { includePlatformBase });
   if (!item) return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   return NextResponse.json({ ok: true, item });
 }

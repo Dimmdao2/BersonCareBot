@@ -145,6 +145,11 @@ function ClinicalTestTileCard({
           <p className="line-clamp-2 text-center text-xs leading-snug text-foreground">
             {test.title}
           </p>
+          {test.ownerKind === 'platform' ? (
+            <p className="text-center text-[10px] leading-tight text-muted-foreground">
+              Базовая библиотека
+            </p>
+          ) : null}
           {test.testType ? (
             <p className="line-clamp-1 text-center text-[10px] text-muted-foreground">
               {test.testType}
@@ -305,7 +310,7 @@ function ClinicalTestsContent({
             onPick={() => opts.onRowSelect(t.id)}
             previewInner={mediaThumbRow(t)}
             title={t.title}
-            meta={null}
+            meta={t.ownerKind === 'platform' ? 'Базовая библиотека' : null}
             badge={t.isArchived ? <DoctorCatalogVisibilityMark status="archived" /> : null}
           />
         )}

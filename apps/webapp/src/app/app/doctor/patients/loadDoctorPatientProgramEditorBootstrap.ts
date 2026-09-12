@@ -96,8 +96,11 @@ export async function loadDoctorPatientProgramEditorBootstrap(
         includePlatformBase,
       }),
       deps.testSets.listTestSets({ includeArchived: false }),
-      deps.clinicalTests.listClinicalTests({ archiveScope: 'active' }),
-      deps.recommendations.listRecommendations({ includeArchived: false }),
+      deps.clinicalTests.listClinicalTests({ archiveScope: 'active', includePlatformBase }),
+      deps.recommendations.listRecommendations({
+        includeArchived: false,
+        includePlatformBase,
+      }),
       deps.contentPages.listAll(),
       deps.references.listActiveItemsByCategoryCode('body_region'),
     ]),

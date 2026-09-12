@@ -142,6 +142,7 @@ WITH declared(schema_name, table_name) AS (VALUES
   ('public', 'saas_organization_trials'),
   ('public', 'test_attempts'),
   ('public', 'test_results'),
+  ('public', 'tests'),
   ('public', 'treatment_program_events'),
   ('public', 'treatment_program_instance_stage_groups'),
   ('public', 'treatment_program_instance_stage_items'),

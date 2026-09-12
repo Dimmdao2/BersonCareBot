@@ -397,6 +397,11 @@ export function ClinicalTestForm({
     unarchiveState?.ok === false && 'error' in unarchiveState ? unarchiveState.error : null;
 
   const isArchived = !!test?.isArchived;
+  // Платформенную строку врач видит (S0б открыл чтение), но изменить её не может: сервер отвечает
+  // на такую запись `not_found_or_invalid`, а стена арендатора отбивает её и на уровне БД. Без
+  // этого флага доктор правил бы поля и получал отказ на сохранении. Тот же приём уже стоит у
+  // упражнений (`ExerciseForm.tsx`) — это он, а не новый.
+  const isReadOnly = test?.ownerKind === 'platform';
   const formId = `doctor-clinical-test-form-${recordKey}`;
 
   const clinicalStructuredJson = useMemo(() => {
@@ -409,6 +414,14 @@ export function ClinicalTestForm({
 
   return (
     <div className="flex max-w-2xl flex-col gap-4">
+      {isReadOnly ? (
+        <div className="rounded-md border border-primary/25 bg-primary/5 p-3 text-sm">
+          <p className="font-medium text-foreground">Базовая библиотека платформы</p>
+          <p className="mt-1 text-muted-foreground">
+            Материал доступен для назначения, но изменяется только администратором платформы.
+          </p>
+        </div>
+      ) : null}
       <form id={formId} action={formAction} className="flex flex-col gap-4">
         {localError ? (
           <p role="alert" className="text-sm text-destructive">
@@ -440,7 +453,7 @@ export function ClinicalTestForm({
         <input type="hidden" name="mediaUrl" value={values.mediaUrl} />
         <input type="hidden" name="mediaType" value={values.mediaType} />
 
-        <fieldset disabled={isArchived} className="m-0 min-w-0 border-0 p-0">
+        <fieldset disabled={isArchived || isReadOnly} className="m-0 min-w-0 border-0 p-0">
           <legend className="sr-only">Поля клинического теста</legend>
           <div className="flex flex-col gap-4">
             <DoctorField label="Название" htmlFor="ct-title" width="full">
@@ -674,9 +687,11 @@ export function ClinicalTestForm({
             </DoctorField>
 
             <div className={cn('flex flex-wrap gap-2', modalFooter && 'hidden')}>
-              <Button type="submit" disabled={savePending}>
-                {savePending ? 'Сохранение…' : test ? 'Сохранить' : 'Создать тест'}
-              </Button>
+              {isReadOnly ? null : (
+                <Button type="submit" disabled={savePending}>
+                  {savePending ? 'Сохранение…' : test ? 'Сохранить' : 'Создать тест'}
+                </Button>
+              )}
               <Link href={backHref} className={cn(buttonVariants({ variant: 'outline' }))}>
                 К списку
               </Link>
@@ -685,7 +700,7 @@ export function ClinicalTestForm({
         </fieldset>
       </form>
 
-      {modalFooter ? (
+      {modalFooter && !isReadOnly ? (
         <DoctorModalFooter>
           <Button type="submit" form={formId} disabled={savePending}>
             {savePending ? 'Сохранение…' : test ? 'Сохранить' : 'Создать тест'}
@@ -708,7 +723,7 @@ export function ClinicalTestForm({
             )}
           </div>
 
-          {isArchived ? (
+          {isReadOnly ? null : isArchived ? (
             <div className="rounded-md border border-border/60 bg-muted/30 p-3 text-sm">
               <p className="font-medium text-foreground">Тест в архиве</p>
               <p className="mt-1 text-muted-foreground">

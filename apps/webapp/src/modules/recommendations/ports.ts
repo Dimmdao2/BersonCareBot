@@ -1,5 +1,6 @@
 import type {
   Recommendation,
+  RecommendationAccessOptions,
   RecommendationFilter,
   CreateRecommendationInput,
   UpdateRecommendationInput,
@@ -8,7 +9,7 @@ import type {
 
 export type RecommendationsPort = {
   list(filter: RecommendationFilter): Promise<Recommendation[]>;
-  getById(id: string): Promise<Recommendation | null>;
+  getById(id: string, options?: RecommendationAccessOptions): Promise<Recommendation | null>;
   create(input: CreateRecommendationInput, createdBy: string | null): Promise<Recommendation>;
   update(id: string, input: UpdateRecommendationInput): Promise<Recommendation | null>;
   archive(id: string): Promise<boolean>;

@@ -1,5 +1,7 @@
 import type { ClinicalTestScoring } from './clinicalTestScoring';
 
+export type ClinicalTestOwnerKind = 'organization' | 'platform';
+
 export type ClinicalTestMediaItem = {
   mediaUrl: string;
   mediaType: 'image' | 'video' | 'gif';
@@ -8,6 +10,7 @@ export type ClinicalTestMediaItem = {
 
 export type ClinicalTest = {
   id: string;
+  ownerKind: ClinicalTestOwnerKind;
   title: string;
   description: string | null;
   testType: string | null;
@@ -38,6 +41,13 @@ export type ClinicalTestFilter = {
   regionRefId?: string | null;
   /** Фильтр по виду оценки (`tests.assessment_kind`), код из справочника `clinical_assessment_kind`. */
   assessmentKind?: string | null;
+  /** Trusted server-side entitlement decision; never derive from a request query/body. */
+  includePlatformBase?: boolean;
+};
+
+export type ClinicalTestAccessOptions = {
+  /** Trusted server-side entitlement decision; defaults to own organization only. */
+  includePlatformBase?: boolean;
 };
 
 export type CreateClinicalTestInput = {

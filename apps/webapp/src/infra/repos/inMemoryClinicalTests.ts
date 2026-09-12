@@ -89,6 +89,7 @@ export const inMemoryClinicalTestsPort: ClinicalTestsPort = {
     );
     const row: ClinicalTest = {
       id,
+      ownerKind: 'organization',
       title: input.title,
       description: input.description ?? null,
       testType: input.testType ?? null,

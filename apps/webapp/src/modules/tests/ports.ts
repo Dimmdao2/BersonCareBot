@@ -1,5 +1,6 @@
 import type {
   ClinicalTest,
+  ClinicalTestAccessOptions,
   ClinicalTestFilter,
   ClinicalTestUsageSnapshot,
   CreateClinicalTestInput,
@@ -14,7 +15,7 @@ import type {
 
 export type ClinicalTestsPort = {
   list(filter: ClinicalTestFilter): Promise<ClinicalTest[]>;
-  getById(id: string): Promise<ClinicalTest | null>;
+  getById(id: string, options?: ClinicalTestAccessOptions): Promise<ClinicalTest | null>;
   create(input: CreateClinicalTestInput, createdBy: string | null): Promise<ClinicalTest>;
   update(id: string, input: UpdateClinicalTestInput): Promise<ClinicalTest | null>;
   archive(id: string): Promise<boolean>;

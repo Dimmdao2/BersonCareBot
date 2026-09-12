@@ -9,6 +9,7 @@ import {
   index,
   foreignKey,
   primaryKey,
+  check,
 } from 'drizzle-orm/pg-core';
 import { beOrganizations } from './bookingEngine';
 import { platformUsers, referenceItems } from './schema';
@@ -17,6 +18,7 @@ export const recommendations = pgTable(
   'recommendations',
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
+    ownerKind: text('owner_kind').default('organization').notNull(),
     organizationId: uuid('organization_id'),
     title: text().notNull(),
     bodyMd: text('body_md').notNull(),
@@ -46,6 +48,13 @@ export const recommendations = pgTable(
       'btree',
       table.organizationId.asc().nullsLast().op('uuid_ops'),
     ),
+    index('idx_recommendations_catalog_owner').using(
+      'btree',
+      table.ownerKind.asc().nullsLast().op('text_ops'),
+      table.organizationId.asc().nullsLast().op('uuid_ops'),
+      table.isArchived.asc().nullsLast().op('bool_ops'),
+      table.updatedAt.desc().nullsFirst().op('timestamptz_ops'),
+    ),
     index('idx_recommendations_archived').using(
       'btree',
       table.isArchived.asc().nullsLast().op('bool_ops'),
@@ -73,6 +82,10 @@ export const recommendations = pgTable(
       foreignColumns: [referenceItems.id],
       name: 'recommendations_body_region_id_fkey',
     }).onDelete('set null'),
+    check(
+      'recommendations_owner_check',
+      sql`(owner_kind = 'organization' AND organization_id IS NOT NULL) OR (owner_kind = 'platform' AND organization_id IS NULL)`,
+    ),
   ],
 );
 
@@ -80,6 +93,7 @@ export const recommendations = pgTable(
 export const recommendationRegions = pgTable(
   'recommendation_regions',
   {
+    ownerKind: text('owner_kind').default('organization').notNull(),
     organizationId: uuid('organization_id'),
     recommendationId: uuid('recommendation_id').notNull(),
     bodyRegionId: uuid('body_region_id').notNull(),
@@ -111,6 +125,10 @@ export const recommendationRegions = pgTable(
     index('idx_recommendation_regions_body_region').using(
       'btree',
       table.bodyRegionId.asc().nullsLast().op('uuid_ops'),
+    ),
+    check(
+      'recommendation_regions_owner_check',
+      sql`(owner_kind = 'organization' AND organization_id IS NOT NULL) OR (owner_kind = 'platform' AND organization_id IS NULL)`,
     ),
   ],
 );

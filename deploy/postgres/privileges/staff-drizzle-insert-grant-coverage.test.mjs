@@ -56,6 +56,35 @@ const STAFF_INSERT_PATHS = [
     schemaModule: './db/schema/bookingEngine.ts',
     door: 'pgBookingEngine.insertAppointmentInTransaction',
   },
+  // S0б магазина упражнений (`EXERCISE_STORE_PLAN.md` §5): у четырёх отношений каталога появилась
+  // колонка владения `owner_kind` с DEFAULT. Ни один порт её не передаёт, но Drizzle всё равно
+  // НАЗЫВАЕТ её в каждом INSERT — и без гранта создание клинического теста и рекомендации умирало
+  // живым HTTP 500 (`42501`), хотя миграция, регенерация и дрейф-гейт были зелёными. Этот список —
+  // то место, где такой класс обязан краснеть ДО живого прогона.
+  {
+    relation: 'public.tests',
+    schemaExport: 'clinicalTests',
+    schemaModule: './db/schema/clinicalTests.ts',
+    door: 'pgClinicalTests.create',
+  },
+  {
+    relation: 'public.clinical_test_regions',
+    schemaExport: 'clinicalTestRegions',
+    schemaModule: './db/schema/clinicalTests.ts',
+    door: 'pgClinicalTests.create / update (регионы переписываются заново)',
+  },
+  {
+    relation: 'public.recommendations',
+    schemaExport: 'recommendations',
+    schemaModule: './db/schema/recommendations.ts',
+    door: 'pgRecommendations.create',
+  },
+  {
+    relation: 'public.recommendation_regions',
+    schemaExport: 'recommendationRegions',
+    schemaModule: './db/schema/recommendations.ts',
+    door: 'pgRecommendations.create / update (регионы переписываются заново)',
+  },
 ];
 
 /**
@@ -84,9 +113,14 @@ function staffInsertGrantColumns(relation) {
   const matches = access.grants.filter(
     (grant) => grant.role === 'app_staff' && grant.operations.includes('INSERT'),
   );
-  assert.equal(matches.length, 1, `${relation} app_staff INSERT`);
-  assert.notEqual(matches[0].columns, 'table', `${relation} app_staff INSERT must be column-scoped`);
-  return matches[0].columns;
+  assert.ok(matches.length >= 1, `${relation} app_staff INSERT`);
+  // Права складываются, а не выбираются: у `public.tests` в декларации две записи INSERT для
+  // `app_staff`, и реальное право роли — их объединение. Раньше здесь стояло «ровно одна», из-за
+  // чего отношение с дублем нельзя было внести в этот список вообще.
+  for (const grant of matches) {
+    assert.notEqual(grant.columns, 'table', `${relation} app_staff INSERT must be column-scoped`);
+  }
+  return matches.flatMap((grant) => grant.columns);
 }
 
 test('every column a staff Drizzle INSERT names is granted to app_staff', () => {

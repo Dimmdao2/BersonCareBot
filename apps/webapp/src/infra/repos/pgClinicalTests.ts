@@ -1,4 +1,4 @@
-import { and, eq, desc, ilike, inArray, or, sql } from 'drizzle-orm';
+import { and, eq, desc, ilike, inArray, isNull, or, sql } from 'drizzle-orm';
 import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import { getPool } from '@/infra/db/client';
@@ -15,6 +15,7 @@ import {
 } from '@/modules/tests/clinicalTestScoring';
 import type {
   ClinicalTest,
+  ClinicalTestAccessOptions,
   ClinicalTestFilter,
   ClinicalTestMediaItem,
   ClinicalTestUsageRef,
@@ -67,6 +68,7 @@ function mapRow(
   const merged = mergeCatalogBodyRegionIds(row.bodyRegionId, m2mBodyRegionIds);
   return {
     id: row.id,
+    ownerKind: row.ownerKind === 'platform' ? 'platform' : 'organization',
     title: row.title,
     description: row.description,
     testType: row.testType,
@@ -354,7 +356,17 @@ export function createPgClinicalTestsPort(): ClinicalTestsPort {
     async list(filter: ClinicalTestFilter): Promise<ClinicalTest[]> {
       const db = getDrizzle();
       const organizationId = currentPrincipalOrganizationId();
-      const conds = [eq(clinicalTestsTable.organizationId, organizationId)];
+      const conds = [
+        filter.includePlatformBase === true
+          ? or(
+              eq(clinicalTestsTable.organizationId, organizationId),
+              and(
+                eq(clinicalTestsTable.ownerKind, 'platform'),
+                isNull(clinicalTestsTable.organizationId),
+              ),
+            )!
+          : eq(clinicalTestsTable.organizationId, organizationId),
+      ];
       const scope = filter.archiveScope ?? (filter.includeArchived ? 'all' : 'active');
       if (scope === 'active') {
         conds.push(eq(clinicalTestsTable.isArchived, false));
@@ -397,7 +409,15 @@ export function createPgClinicalTestsPort(): ClinicalTestsPort {
         .where(
           and(
             inArray(clinicalTestRegions.clinicalTestId, ids),
-            eq(clinicalTestRegions.organizationId, organizationId),
+            filter.includePlatformBase === true
+              ? or(
+                  eq(clinicalTestRegions.organizationId, organizationId),
+                  and(
+                    eq(clinicalTestRegions.ownerKind, 'platform'),
+                    isNull(clinicalTestRegions.organizationId),
+                  ),
+                )!
+              : eq(clinicalTestRegions.organizationId, organizationId),
           ),
         );
       const byTest = new Map<string, string[]>();
@@ -409,14 +429,28 @@ export function createPgClinicalTestsPort(): ClinicalTestsPort {
       return rows.map((r) => mapRow(r, byTest.get(r.id) ?? []));
     },
 
-    async getById(id: string): Promise<ClinicalTest | null> {
+    async getById(
+      id: string,
+      options: ClinicalTestAccessOptions = {},
+    ): Promise<ClinicalTest | null> {
       const db = getDrizzle();
       const organizationId = currentPrincipalOrganizationId();
       const rows = await db
         .select()
         .from(clinicalTestsTable)
         .where(
-          and(eq(clinicalTestsTable.id, id), eq(clinicalTestsTable.organizationId, organizationId)),
+          and(
+            eq(clinicalTestsTable.id, id),
+            options.includePlatformBase === true
+              ? or(
+                  eq(clinicalTestsTable.organizationId, organizationId),
+                  and(
+                    eq(clinicalTestsTable.ownerKind, 'platform'),
+                    isNull(clinicalTestsTable.organizationId),
+                  ),
+                )!
+              : eq(clinicalTestsTable.organizationId, organizationId),
+          ),
         )
         .limit(1);
       const r0 = rows[0];
@@ -427,7 +461,15 @@ export function createPgClinicalTestsPort(): ClinicalTestsPort {
         .where(
           and(
             eq(clinicalTestRegions.clinicalTestId, id),
-            eq(clinicalTestRegions.organizationId, organizationId),
+            options.includePlatformBase === true
+              ? or(
+                  eq(clinicalTestRegions.organizationId, organizationId),
+                  and(
+                    eq(clinicalTestRegions.ownerKind, 'platform'),
+                    isNull(clinicalTestRegions.organizationId),
+                  ),
+                )!
+              : eq(clinicalTestRegions.organizationId, organizationId),
           ),
         );
       return mapRow(

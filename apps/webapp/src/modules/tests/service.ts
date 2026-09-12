@@ -12,6 +12,7 @@ import type { ReferencesPort } from '@/modules/references/ports';
 import type { ClinicalTestsPort, TestSetsPort } from './ports';
 import type {
   ArchiveClinicalTestOptions,
+  ClinicalTestAccessOptions,
   ArchiveTestSetOptions,
   CreateClinicalTestInput,
   CreateTestSetInput,
@@ -105,8 +106,8 @@ export function createClinicalTestsService(port: ClinicalTestsPort, references: 
       return port.list(filter);
     },
 
-    async getClinicalTest(id: string) {
-      return port.getById(id);
+    async getClinicalTest(id: string, options?: ClinicalTestAccessOptions) {
+      return port.getById(id, options);
     },
 
     async createClinicalTest(

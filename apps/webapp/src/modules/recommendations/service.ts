@@ -14,6 +14,7 @@ import {
 import type {
   ArchiveRecommendationOptions,
   CreateRecommendationInput,
+  RecommendationAccessOptions,
   RecommendationFilter,
   UpdateRecommendationInput,
 } from './types';
@@ -69,8 +70,8 @@ export function createRecommendationsService(
       return port.list(filter);
     },
 
-    async getRecommendation(id: string) {
-      return port.getById(id);
+    async getRecommendation(id: string, options?: RecommendationAccessOptions) {
+      return port.getById(id, options);
     },
 
     async createRecommendation(

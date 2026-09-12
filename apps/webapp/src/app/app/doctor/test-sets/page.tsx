@@ -1,4 +1,7 @@
-import { requireEntitlementForPage } from '@/app-layer/guards/requireEntitlement';
+import {
+  requireEntitlementForPage,
+  requireEntitlementForReadAction,
+} from '@/app-layer/guards/requireEntitlement';
 import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
 import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
 import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
@@ -40,6 +43,8 @@ export default async function DoctorTestSetsPage({ searchParams }: PageProps) {
   const session = workspace.session;
   const { buildAppDeps } = await import('@/app-layer/di/buildAppDeps');
   const deps = buildAppDeps();
+  const includePlatformBase = (await requireEntitlementForReadAction(workspace, 'exercise_catalog'))
+    .ok;
 
   const sp = (await searchParams) ?? {};
   const q = typeof sp.q === 'string' ? sp.q : '';
@@ -52,7 +57,7 @@ export default async function DoctorTestSetsPage({ searchParams }: PageProps) {
 
   const listPromise: Promise<TestSetsBootstrap> = Promise.all([
     deps.testSets.listTestSets(testSetListFilterFromPubArch(listPubArch)),
-    deps.clinicalTests.listClinicalTests({ archiveScope: 'active' }),
+    deps.clinicalTests.listClinicalTests({ archiveScope: 'active', includePlatformBase }),
   ]).then(async ([items, clinicalTestsForPicker]) => {
     const clinicalTestsLibrary = clinicalTestLibraryRows(clinicalTestsForPicker);
     const initialSelectedId = raw && items.some((s) => s.id === raw) ? raw : null;

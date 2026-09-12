@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
-import { requireDoctorAccess } from '@/app-layer/guards/requireRole';
+import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
+import { requireEntitlementForReadAction } from '@/app-layer/guards/requireEntitlement';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
 import { parseRecommendationCatalogSsrQuery } from '@/modules/recommendations/recommendationCatalogSsrQuery';
@@ -15,10 +16,13 @@ type PageProps = {
 };
 
 export default async function EditRecommendationPage({ params, searchParams }: PageProps) {
-  const session = await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
+  const session = workspace.session;
   const { id } = await params;
   const deps = buildAppDeps();
-  const rec = await deps.recommendations.getRecommendation(id);
+  const includePlatformBase = (await requireEntitlementForReadAction(workspace, 'exercise_catalog'))
+    .ok;
+  const rec = await deps.recommendations.getRecommendation(id, { includePlatformBase });
   if (!rec) notFound();
   const usageSnapshot = await deps.recommendations.getRecommendationUsage(rec.id);
   const domainCatalogItems = await deps.references.listActiveItemsByCategoryCode(

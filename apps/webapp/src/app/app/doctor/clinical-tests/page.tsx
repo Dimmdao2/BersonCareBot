@@ -1,4 +1,7 @@
-import { requireEntitlementForPage } from '@/app-layer/guards/requireEntitlement';
+import {
+  requireEntitlementForPage,
+  requireEntitlementForReadAction,
+} from '@/app-layer/guards/requireEntitlement';
 import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
 import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
 import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
@@ -45,6 +48,8 @@ export default async function DoctorClinicalTestsPage({ searchParams }: PageProp
   const session = workspace.session;
   const { buildAppDeps } = await import('@/app-layer/di/buildAppDeps');
   const deps = buildAppDeps();
+  const includePlatformBase = (await requireEntitlementForReadAction(workspace, 'exercise_catalog'))
+    .ok;
   /** Параллельно с запросами данных подтягиваем клиентский чанк каталога. */
   const clinicalTestsClientPromise = import('./ClinicalTestsPageClient');
   const sp = (await searchParams) ?? {};
@@ -85,6 +90,7 @@ export default async function DoctorClinicalTestsPage({ searchParams }: PageProp
       search: null,
       archiveScope,
       regionRefId: regionRefIdForList,
+      includePlatformBase,
     })
     .then(async (items) => {
       const initialSelectedId =
