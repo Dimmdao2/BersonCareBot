@@ -31283,8 +31283,24 @@ const REV10_LOCKED_POLICIES = new Map<string, LockedPolicyEntry>(
   Object.entries(REV10_LOCKED_POLICY_DATA),
 );
 
+/**
+ * Отношения каталога, у которых специалист ЧИТАЕТ платформенный слой (и только читает: политика —
+ * отдельная `FOR SELECT`, запись остаётся внутри своей организации).
+ *
+ * Критерий членства: таблица несёт `owner_kind` + `organization_id` с CHECK владения И читается
+ * специалистом как каталог. Назначенные пациенту экземпляры (`lfk_complexes`,
+ * `lfk_complex_exercises`) владения не несут и здесь не место.
+ *
+ * `lfk_complex_templates` и `lfk_complex_template_exercises` внесены 12.09.2026: SQL в
+ * `pgLfkTemplates.ts` платформенную ветку строил с S0а, а политики на эти два отношения не было —
+ * платформенный шаблон комплекса не отдавался RLS ни странице, ни двери даже с включённым тарифом
+ * (замерено независимым аудитом на живой `bcb_webapp_dev`). Список S0а называл только семью
+ * `lfk_exercise*`, поэтому дыра между кодом и правами никакой галочкой не ловилась.
+ */
 const REV10_PLATFORM_LFK_READ_RELATIONS = new Set([
   'public.clinical_test_regions',
+  'public.lfk_complex_template_exercises',
+  'public.lfk_complex_templates',
   'public.lfk_exercise_load_types',
   'public.lfk_exercise_media',
   'public.lfk_exercise_regions',
