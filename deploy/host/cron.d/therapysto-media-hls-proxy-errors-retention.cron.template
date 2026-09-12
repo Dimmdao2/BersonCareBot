@@ -6,6 +6,6 @@
 # Окно хранения media_hls_proxy_error_events; реестр, права и API были, будильника не было (B2).
 # id=hls_proxy_retention tick=media/media.hls_proxy_errors.retention POST /api/internal/media-hls-proxy-errors/retention
 # principal=internal_job_bearer surface=app_public_origin timeout=600s stale_after=691200s
-# Host/Origin/X-Forwarded-Proto и env-файл (/opt/env/bersoncarebot/webapp.prod) строит общий transport
+# Host/Origin/X-Forwarded-Proto и env-файл (/etc/therapysto/env/webapp.prod) строит общий transport
 # deploy/host/run-internal-job.sh — cron-строка их не копирует и не знает про branding proxy.
-20 4 * * 1 root /opt/projects/bersoncarebot/deploy/host/run-internal-job.sh prod hls_proxy_retention
+20 4 * * 1 root /opt/therapysto/src/deploy/host/run-internal-job.sh prod hls_proxy_retention

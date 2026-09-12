@@ -6,6 +6,6 @@
 # Сторож наблюдаемого scheduler: должен пережить его смерть, поэтому остаётся внешним host-cron.
 # id=operator_health_critical tick=health/health.operator_health_critical.tick POST /api/internal/operator-health-critical/tick
 # principal=internal_job_bearer surface=app_public_origin timeout=120s stale_after=720s
-# Host/Origin/X-Forwarded-Proto и env-файл (/opt/env/bersoncarebot/webapp.prod) строит общий transport
+# Host/Origin/X-Forwarded-Proto и env-файл (/etc/therapysto/env/webapp.prod) строит общий transport
 # deploy/host/run-internal-job.sh — cron-строка их не копирует и не знает про branding proxy.
-*/5 * * * * root /opt/projects/bersoncarebot/deploy/host/run-internal-job.sh prod operator_health_critical
+*/5 * * * * root /opt/therapysto/src/deploy/host/run-internal-job.sh prod operator_health_critical

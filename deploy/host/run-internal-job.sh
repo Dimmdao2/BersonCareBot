@@ -1,7 +1,8 @@
 #!/bin/bash
 # run-internal-job.sh — ЕДИНСТВЕННЫЙ transport фоновых loopback-заданий вебаппа.
 #
-#   /opt/projects/bersoncarebot/deploy/host/run-internal-job.sh <prod|test> <job-id>
+#   <environment.projectRoot>/deploy/host/run-internal-job.sh <prod|test> <job-id>
+#   (a per-environment checkout root, see BACKGROUND_JOB_ENVIRONMENTS in the manifest below)
 #
 # Зачем он один. Продуктовая маршрутизация поверхностей отказывает закрыто на неизвестном `Host`:
 # запрос с голым `Host: 127.0.0.1:6200` отсекается в `apps/webapp/src/proxy.ts` ДО API-маршрута и
@@ -74,23 +75,42 @@ surface_env="$("${NODE_BIN}" "${REPO_ROOT}/deploy/host/webapp-health-host.mjs" -
 eval "${surface_env}"
 
 loopback_host="${HOST:-127.0.0.1}"
-[ -n "${PORT:-}" ] || loud_fail "PORT is not set in ${BCB_JOB_ENV_FILE}"
 
-url="http://${loopback_host}:${PORT}${BCB_JOB_PATH}"
-if [ -n "${BCB_JOB_QUERY}" ]; then
-  url="${url}?${BCB_JOB_QUERY}"
+if [ "${BCB_JOB_LOOPBACK_MODE:-app_port}" = nginx_tls ]; then
+  # Blue/green (therapysto prod): which colour answers the app's own fixed port changes on every
+  # deploy/rollback, but nginx's upstream is the one thing the switch always repoints
+  # (switch_nginx_to). Go through nginx's real TLS vhost instead of the app port directly — real
+  # cert, real Host from the URL itself — `--resolve` only pins the TCP connection to loopback.
+  url="https://${BCB_SURFACE_HOST}${BCB_JOB_PATH}"
+  if [ -n "${BCB_JOB_QUERY}" ]; then
+    url="${url}?${BCB_JOB_QUERY}"
+  fi
+  resolve_host="${BCB_SURFACE_HOST%%:*}"
+  curl_args=(
+    --silent --show-error
+    --max-time "${BCB_JOB_TIMEOUT}"
+    --request "${BCB_JOB_METHOD}"
+    --resolve "${resolve_host}:443:${loopback_host}"
+    --header "Authorization: Bearer ${INTERNAL_JOB_SECRET}"
+    --write-out '\n%{http_code}'
+  )
+else
+  [ -n "${PORT:-}" ] || loud_fail "PORT is not set in ${BCB_JOB_ENV_FILE}"
+  url="http://${loopback_host}:${PORT}${BCB_JOB_PATH}"
+  if [ -n "${BCB_JOB_QUERY}" ]; then
+    url="${url}?${BCB_JOB_QUERY}"
+  fi
+  curl_args=(
+    --silent --show-error
+    --max-time "${BCB_JOB_TIMEOUT}"
+    --request "${BCB_JOB_METHOD}"
+    --header "Host: ${BCB_SURFACE_HOST}"
+    --header "Origin: ${BCB_SURFACE_ORIGIN}"
+    --header "X-Forwarded-Proto: ${BCB_SURFACE_SCHEME}"
+    --header "Authorization: Bearer ${INTERNAL_JOB_SECRET}"
+    --write-out '\n%{http_code}'
+  )
 fi
-
-curl_args=(
-  --silent --show-error
-  --max-time "${BCB_JOB_TIMEOUT}"
-  --request "${BCB_JOB_METHOD}"
-  --header "Host: ${BCB_SURFACE_HOST}"
-  --header "Origin: ${BCB_SURFACE_ORIGIN}"
-  --header "X-Forwarded-Proto: ${BCB_SURFACE_SCHEME}"
-  --header "Authorization: Bearer ${INTERNAL_JOB_SECRET}"
-  --write-out '\n%{http_code}'
-)
 if [ -n "${BCB_JOB_BODY}" ]; then
   curl_args+=(--header 'Content-Type: application/json' --data "${BCB_JOB_BODY}")
 fi

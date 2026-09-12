@@ -69,14 +69,36 @@ export type BackgroundJobEnvironment = {
   readonly projectRoot: string;
   /** Префикс имени файла в `/etc/cron.d` и в `deploy/host/cron.d/`. */
   readonly cronFilePrefix: string;
+  /**
+   * Как общий transport (`run-internal-job.sh`) достаёт вебапп по loopback.
+   *
+   * `app_port` (по умолчанию) — прямиком в `PORT` из `envFile`: верно для одноэкземплярного хоста,
+   * где этот порт не меняется никогда.
+   *
+   * `nginx_tls` — вместо этого идти в собственный TLS-vhost nginx на loopback (443), с `--resolve`
+   * под реальный Host из `APP_BASE_URL`. Нужно блю/грин-хостам (therapysto prod, `deploy/host/prod/
+   * therapysto-bluegreen-lib.sh`): какой цвет отвечает на СВОЙ фиксированный порт приложения, меняет
+   * каждый деплой/rollback, а cron-строка ставится один раз и порт за переключениями не следит. nginx
+   * — единственный адрес, который переключение всегда переписывает (`switch_nginx_to`), поэтому это
+   * единственная стабильная точка для loopback-вызова на хосте, где цвет может смениться под тем же
+   * портом сервиса. Найдено 12.09.2026: домен клиники завис в `pending`, потому что тик здоровья
+   * домена был не установлен вовсе (см. ниже), а после установки статичный `PORT` бил бы мимо
+   * активного цвета в лучшем случае через раз.
+   */
+  readonly loopbackMode?: 'app_port' | 'nginx_tls';
 };
 
 export const BACKGROUND_JOB_ENVIRONMENTS = {
   prod: {
     id: 'prod',
-    envFile: '/opt/env/bersoncarebot/webapp.prod',
-    projectRoot: '/opt/projects/bersoncarebot',
-    cronFilePrefix: 'bersoncarebot-',
+    // therapysto prod (135.106.187.95, переименован 10.09.2026 — 8e5c2dc00 и далее). Старые пути
+    // /opt/env/bersoncarebot и /opt/projects/bersoncarebot остались от прежнего bersoncare-прода и на
+    // новом хосте не существуют вовсе — из-за этого с 10.09 по 12.09 ни одно host-cron задание,
+    // включая суточный тик здоровья домена, на новом проде не стояло НИ ОДНО.
+    envFile: '/etc/therapysto/env/webapp.prod',
+    projectRoot: '/opt/therapysto/src',
+    cronFilePrefix: 'therapysto-',
+    loopbackMode: 'nginx_tls',
   },
   test: {
     id: 'test',

@@ -76,4 +76,18 @@ if [ -x "$SRC/deploy/host/prod/install-video-package.sh" ] && getent passwd ther
   bash "$SRC/deploy/host/prod/install-video-package.sh"
 fi
 
+# Обязательные host-cron задания (единственный source of truth — typed manifest
+# apps/webapp/src/modules/operator-health/backgroundJobManifest.ts, artifacts — deploy/host/cron.d/).
+# У cron нет промежуточного «разложено, но не включено» состояния, как у systemd-юнитов выше: файл
+# либо лежит буквально в /etc/cron.d, либо задания не существует. Раньше этого шага не было вовсе —
+# ни один из 13 обязательных заданий therapysto-прода, включая суточный тик здоровья домена клиники,
+# не стоял с самого переименования 10.09.2026 (найдено 12.09.2026 через застрявший в pending
+# app.bersoncare.ru). Ставим на каждом деплое, а не только при первой установке: новое обязательное
+# задание в manifest обязано появиться в /etc/cron.d без отдельного ручного шага.
+echo "==> устанавливаю обязательные host-cron задания"
+for f in "$SRC"/deploy/host/cron.d/therapysto-*.cron.template; do
+  [ -f "$f" ] || continue
+  install -m 0644 -o root -g root "$f" "/etc/cron.d/$(basename "$f" .cron.template)"
+done
+
 echo "конвейер разложен из $COMMIT"

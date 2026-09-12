@@ -142,7 +142,7 @@ export function findInstalledScheduleProblems({ plan, envId, installed, runnerEx
 
   for (const [name, text] of installed) {
     if (knownArtifactNames.has(name)) continue;
-    if (!name.startsWith('bersoncarebot-')) continue;
+    if (!name.startsWith('bersoncarebot-') && !name.startsWith('therapysto-')) continue;
     if (!/\/api\/internal\/|run-internal-job\.sh/.test(text)) continue;
     problems.push(
       `установлено фоновое задание ${name}, у которого нет записи в manifest (${MANIFEST_RELATIVE})`,
@@ -187,6 +187,7 @@ export function describeJobAssignments(manifest, envId, jobId) {
     BCB_JOB_PRINCIPAL: entry.principal,
     BCB_JOB_SURFACE: entry.surfaceIdentity,
     BCB_JOB_TICK: `${entry.jobFamily}/${entry.jobKey}`,
+    BCB_JOB_LOOPBACK_MODE: environment.loopbackMode ?? 'app_port',
   };
 
   for (const [key, value] of Object.entries(values)) {

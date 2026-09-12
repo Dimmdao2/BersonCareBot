@@ -177,7 +177,7 @@ test('описание задания для transport несёт маршрут
   const assignments = describeJobAssignments(manifest, 'prod', 'media_purge');
   assert.ok(assignments.includes("BCB_JOB_PATH='/api/internal/media-pending-delete/purge'"));
   assert.ok(assignments.includes("BCB_JOB_QUERY='limit=25'"));
-  assert.ok(assignments.includes("BCB_JOB_ENV_FILE='/opt/env/bersoncarebot/webapp.prod'"));
+  assert.ok(assignments.includes("BCB_JOB_ENV_FILE='/etc/therapysto/env/webapp.prod'"));
   assert.ok(assignments.some((line) => /^BCB_JOB_TIMEOUT='\d+'$/.test(line)));
   assert.ok(assignments.includes("BCB_JOB_ACCEPT_STATUSES='200'"));
 
