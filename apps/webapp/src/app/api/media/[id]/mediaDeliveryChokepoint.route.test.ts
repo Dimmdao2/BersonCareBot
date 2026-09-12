@@ -164,7 +164,10 @@ describe('media delivery routes', () => {
     );
   });
 
-  it('redirects a ready video to the same-origin HLS proxy, never to its source object', async () => {
+  it('never redirects video here — this route has no deliverable video object, only /hls/master.m3u8 does', async () => {
+    // fix(media) a94e16508, 2026-09-12: video has no version this route can serve (no progressive
+    // object, no redirect to the HLS proxy either — a byte-expecting consumer would get m3u8
+    // instead of video). The player must call the HLS proxy directly; this route answers 404.
     mocks.getS3Key.mockResolvedValueOnce(null);
     mocks.resolvePlayback.mockResolvedValueOnce({
       ok: true,
@@ -178,10 +181,7 @@ describe('media delivery routes', () => {
       params: Promise.resolve({ id: mediaId }),
     });
 
-    expect(response.status).toBe(307);
-    expect(response.headers.get('location')).toBe(
-      `https://app.test/api/media/${mediaId}/hls/master.m3u8`,
-    );
+    expect(response.status).toBe(404);
     expect(mocks.presign).not.toHaveBeenCalled();
   });
 

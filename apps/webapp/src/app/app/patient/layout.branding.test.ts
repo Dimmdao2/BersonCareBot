@@ -69,6 +69,7 @@ beforeEach(() => {
     },
     orgEntitlements: {
       resolveCabinetAccess: vi.fn(async () => ({ state: 'full_access' })),
+      resolveMechanicAccess: vi.fn(async () => ({ state: 'full_access' })),
     },
     orgBranding: {
       resolveEffectiveOrgBranding: vi.fn(async () => ({
