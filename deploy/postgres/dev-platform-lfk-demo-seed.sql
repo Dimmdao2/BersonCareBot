@@ -59,7 +59,11 @@ CROSS JOIN LATERAL (
   LIMIT 1
 ) AS region;
 
-SELECT count(*) = 5 AS lfk_platform_demo_regions_resolved
+-- The expected number is DERIVED from the seed list, never typed: `lfk_platform_demo_resolved` is
+-- one row per seed row, so the invariant is "every seed row resolved a region", not "five did".
+-- A literal 5 here was a duplicate of the VALUES list length above and went red the moment an
+-- exercise was added to it, naming nothing. The second guard in this file already does it this way.
+SELECT count(*) = (SELECT count(*) FROM lfk_platform_demo_seed) AS lfk_platform_demo_regions_resolved
 FROM lfk_platform_demo_resolved
 \gset
 

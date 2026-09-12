@@ -545,7 +545,23 @@ test('per-DB function SQL is deterministic and contains the bilateral metadata c
     assert.equal(Number(verifiedFunctions), verifiedSignatures.length,
       `${database}: generated verifier declares functions=${verifiedFunctions} but seeds `
       + `${verifiedSignatures.length} function bodies into its own check`);
-    assert.ok(surfaceVerifier.includes('special_contracts=8'));
+    // `special_contracts` — это ИСКЛЮЧЕНИЯ: тела, которым разрешено трогать отношение без
+    // объявленной поверхности. Такой список — долг, и он обязан только УМЕНЬШАТЬСЯ. Проверка
+    // `includes('special_contracts=8')` краснела в обе стороны: погасить долг до 7 она объявляла
+    // поломкой ровно так же, как завести девятое исключение. Здесь нужен ПОТОЛОК, а не равенство.
+    const specialContracts = Number(
+      /BCB_FUNCTION_BODY_SURFACES_VERIFIED [^']*special_contracts=(\d+)/u.exec(surfaceVerifier)?.[1],
+    );
+    const exemptedSignatures = [...surfaceVerifier
+      .slice(surfaceVerifier.indexOf('INSERT INTO bcb_function_surface_special_contracts(signature,contract) VALUES'))
+      .matchAll(/^ {2}\('([^']+)', '[^']+'\),?$/gmu)].map(([, signature]) => signature);
+    assert.equal(specialContracts, exemptedSignatures.length,
+      `${database}: verifier declares special_contracts=${specialContracts} but seeds `
+      + `${exemptedSignatures.length} exemptions into its own check`);
+    assert.ok(specialContracts <= 8,
+      `${database}: ${specialContracts} bodies are exempt from the relation-surface check, ceiling is 8. `
+      + 'This ledger may only shrink — a new exemption is a body whose relation access nobody verifies. '
+      + `Exempt now: ${exemptedSignatures.join(', ')}. When one is genuinely paid off, lower the ceiling.`);
     assert.match(surfaceVerifier, /CREATE TEMP TABLE bcb_function_surface_special_contracts/);
     assert.ok(surfaceVerifier.includes("('app_control.enforce_relation_birth_wall()', 'relation-birth-wall')"));
     assert.ok(surfaceVerifier.includes("('app.install_port_context(uuid,app.port_context_claims)', 'port-context')"));
