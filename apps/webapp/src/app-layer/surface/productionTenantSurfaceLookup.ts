@@ -28,7 +28,7 @@ import type {
  * non-empty. A custom domain is by definition NOT a suffix of our own patient host, so this also
  * doubles as "is this even a candidate for the slug path at all".
  */
-function extractPatientSubdomainLabel(normalizedHost: string): string | null {
+export function extractPatientSubdomainLabel(normalizedHost: string): string | null {
   let patientBaseHost: string;
   try {
     patientBaseHost = new URL(PATIENT_DEFAULT_SURFACE.origin).hostname.toLowerCase();
