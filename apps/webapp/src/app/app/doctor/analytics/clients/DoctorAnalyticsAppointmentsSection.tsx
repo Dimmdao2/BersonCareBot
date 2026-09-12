@@ -15,6 +15,7 @@ import { buildAdminStatsQuery, type AnalyticsPeriodValue } from './analyticsPeri
 import { AppointmentsDynamicsChart } from './AppointmentsDynamicsChart';
 import { DoctorStatCard } from './DoctorStatCard';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 type Props = {
   period: AnalyticsPeriodValue;
@@ -37,6 +38,7 @@ export function DoctorAnalyticsAppointmentsSection({
   onMetricClick,
   patientGenPlural = 'клиентов',
 }: Props) {
+  const { appointmentSingularLabel } = useDoctorPatientTerms();
   const [stats, setStats] = useState<AppointmentStats | null>(null);
   const [daySeries, setDaySeries] = useState<AppointmentDayPoint[]>([]);
   const [branchSeries, setBranchSeries] = useState<AppointmentBranchPoint[]>([]);
@@ -79,7 +81,7 @@ export function DoctorAnalyticsAppointmentsSection({
 
   return (
     <DoctorSection id="doctor-stats-appointments-section">
-      <DoctorSectionTitle>Приём</DoctorSectionTitle>
+      <DoctorSectionTitle>{appointmentSingularLabel}</DoctorSectionTitle>
       <p className="text-muted-foreground text-sm">
         Визиты — прошедшие слоты без отмены; «записались» — по дате создания записи; отмены и
         переносы — по факту действия в выбранном периоде.

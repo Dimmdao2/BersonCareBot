@@ -122,6 +122,9 @@ const SEGMENTS: SegmentDef[] = [
     key: 'visited_month',
     title: 'Недавние',
     titleMeta: '1 мес.',
+    // Отрисовывается не эта строка, а форма из терминологии организации (см. `tooltip` карточки
+    // ниже): `SEGMENTS` — модульная константа, контекста тут нет. Литерал остаётся запасным
+    // значением типа и держит тот же смысл.
     tooltip: 'Были на приёме в текущем месяце.',
   },
   {
@@ -455,7 +458,7 @@ function PatientsContent({
   onSearchInput,
   onMobileFiltersOpenChange,
 }: PatientsContentProps) {
-  const { patientGenPlural } = useDoctorPatientTerms();
+  const { patientGenPlural, appointmentPrepositional } = useDoctorPatientTerms();
   const router = useRouter();
   const allClients = use(listPromise);
   const metrics = use(metricsPromise);
@@ -617,7 +620,9 @@ function PatientsContent({
                       ? `Все ${patientPluralLabelLower} этой организации.`
                       : seg.key === 'on_support'
                         ? `Сейчас в группе «${supportGroupLabel}».`
-                        : seg.tooltip
+                        : seg.key === 'visited_month'
+                          ? `Были на ${appointmentPrepositional} в текущем месяце.`
+                          : seg.tooltip
                   }
                   selected={
                     seg.key === 'all'

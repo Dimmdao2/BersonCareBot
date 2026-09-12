@@ -17,7 +17,7 @@ type Props = {
 };
 
 export function SubscriberBlockPanel({ userId, initiallyBlocked, blockedReason }: Props) {
-  const { patientSingularLabel } = useDoctorPatientTerms();
+  const { patientSingularLabel, appointmentAccusative } = useDoctorPatientTerms();
   const [blocked, setBlocked] = useState(initiallyBlocked);
   const [reason, setReason] = useState(blockedReason ?? '');
   const [pending, setPending] = useState(false);
@@ -53,7 +53,8 @@ export function SubscriberBlockPanel({ userId, initiallyBlocked, blockedReason }
         Блокировка учётной записи
       </h2>
       <p className="text-muted-foreground text-sm">
-        {patientSingularLabel} не сможет войти в приложение и записаться на приём.
+        {patientSingularLabel} не сможет войти в приложение и записаться на{' '}
+        {appointmentAccusative}.
       </p>
       {blocked ? (
         <p className="text-sm">
