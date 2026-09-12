@@ -187,6 +187,11 @@ function RecommendationTileCard({
             </div>
           ) : null}
           <p className="line-clamp-2 text-center text-xs leading-snug text-foreground">{r.title}</p>
+          {r.ownerKind === 'platform' ? (
+            <p className="text-center text-[10px] leading-tight text-muted-foreground">
+              Базовая библиотека
+            </p>
+          ) : null}
           {r.isArchived ? (
             <p className="line-clamp-1 text-center text-[10px] text-muted-foreground">В архиве</p>
           ) : null}
@@ -349,7 +354,7 @@ function RecommendationsContent({
             onPick={() => opts.onRowSelect(r.id)}
             previewInner={mediaThumbRow(r)}
             title={r.title}
-            meta={null}
+            meta={r.ownerKind === 'platform' ? 'Базовая библиотека' : null}
             badge={r.isArchived ? <DoctorCatalogVisibilityMark status="archived" /> : null}
           />
         )}
