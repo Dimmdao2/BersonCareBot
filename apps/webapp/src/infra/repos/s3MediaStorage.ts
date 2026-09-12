@@ -63,8 +63,8 @@ import { ORG_APP_ICON_VARIANTS, orgAppIconObjectKey } from '@/shared/lib/brand/o
 import {
   isTrustedHlsArtifactS3Key,
   isTrustedPosterS3Key,
-  resolveHlsPurgeListPrefix,
-  resolvePosterPurgeListPrefix,
+  resolveHlsPurgeListPrefixes,
+  resolvePosterPurgeListPrefixes,
 } from '@/shared/lib/hlsStorageLayout';
 import { pgRuSubstringSearchPattern } from '@/shared/lib/ruSearchNormalize';
 import { mediaFiles, mediaUploadSessions } from '../../../db/schema/schema';
@@ -1437,14 +1437,16 @@ export async function collectS3KeysForMediaPurge(
    */
   keysToDeleteSet.add(s3StandardImageKey(row.id));
 
-  const hlsListPrefix = resolveHlsPurgeListPrefix({
+  const hlsListPrefixes = resolveHlsPurgeListPrefixes({
     mediaId: row.id,
     sourceS3Key: row.s3_key,
     hlsArtifactPrefix: row.hls_artifact_prefix,
   });
-  if (hlsListPrefix) {
-    const hlsKeys = await s3ListObjectKeysUnderPrefix(hlsListPrefix, target);
-    for (const k of hlsKeys) keysToDeleteSet.add(k);
+  if (hlsListPrefixes.length > 0) {
+    for (const prefix of hlsListPrefixes) {
+      const hlsKeys = await s3ListObjectKeysUnderPrefix(prefix, target);
+      for (const k of hlsKeys) keysToDeleteSet.add(k);
+    }
   } else if (row.hls_master_playlist_s3_key?.trim()) {
     const mk = row.hls_master_playlist_s3_key.trim();
     if (isTrustedHlsArtifactS3Key(row.id, mk)) {
@@ -1457,6 +1459,13 @@ export async function collectS3KeysForMediaPurge(
     }
   }
 
+  const addPosterKeysFromCanonicalPrefixes = async (): Promise<void> => {
+    for (const prefix of resolvePosterPurgeListPrefixes(row.id, row.s3_key)) {
+      const posterKeys = await s3ListObjectKeysUnderPrefix(prefix, target);
+      for (const k of posterKeys) keysToDeleteSet.add(k);
+    }
+  };
+
   const posterExplicit = row.poster_s3_key?.trim();
   if (posterExplicit) {
     if (isTrustedPosterS3Key(row.id, posterExplicit)) {
@@ -1466,18 +1475,10 @@ export async function collectS3KeysForMediaPurge(
         { mediaId: row.id, key: posterExplicit },
         '[collectS3KeysForMediaPurge] skipped untrusted poster_s3_key; trying canonical poster prefix list',
       );
-      const posterListPrefix = resolvePosterPurgeListPrefix(row.id, row.s3_key);
-      if (posterListPrefix) {
-        const posterKeys = await s3ListObjectKeysUnderPrefix(posterListPrefix, target);
-        for (const k of posterKeys) keysToDeleteSet.add(k);
-      }
+      await addPosterKeysFromCanonicalPrefixes();
     }
   } else {
-    const posterListPrefix = resolvePosterPurgeListPrefix(row.id, row.s3_key);
-    if (posterListPrefix) {
-      const posterKeys = await s3ListObjectKeysUnderPrefix(posterListPrefix, target);
-      for (const k of posterKeys) keysToDeleteSet.add(k);
-    }
+    await addPosterKeysFromCanonicalPrefixes();
   }
 
   if (row.s3_key?.trim()) keysToDeleteSet.add(row.s3_key.trim());

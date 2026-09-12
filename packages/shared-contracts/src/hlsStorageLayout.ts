@@ -53,26 +53,53 @@ export function isCanonicalMediaRootForId(mediaRoot: string, mediaId: string): b
   return dir === 'media' && id === mediaId;
 }
 
-/** Normalized HLS prefix for purge: must live under mediaRoot/hls. */
-export function resolveHlsPurgeListPrefix(params: {
+/**
+ * Hot-bucket roots where THIS media's encoder artifacts (HLS tree, poster) may physically live.
+ *
+ * There are two, and only during the М7 migration seam. The hot tree is derived from the source
+ * key's root at the moment the artifact is produced, and the source key moves: a video uploaded
+ * BEFORE М7 got its HLS/poster under `media/<id>/…` and keeps them there after the ops relocation
+ * moves its source to `<orgId>/media/<id>/…` (the relocation copies the SOURCE only — see
+ * `app-layer/media/rawBucketSourceMigration.ts`), while a video uploaded AFTER М7 has both under
+ * `<orgId>/media/<id>/…`. Deriving the artifact root from the source key alone is therefore
+ * correct for exactly one of those two populations, and wrong — silently, at purge time — for the
+ * other.
+ *
+ * Both roots are scoped to this `mediaId` by {@link isCanonicalMediaRootForId}, so listing both can
+ * only ever reach this media's own artifacts; it can never widen to another media or to a bucket
+ * root. Dies with the last pre-М7 key, exactly like {@link isLegacyHotMediaSourceKey}.
+ */
+function hotArtifactRootsForMedia(mediaId: string, sourceS3Key: string): string[] {
+  const root = mediaRootFromSourceS3Key(sourceS3Key);
+  if (!isCanonicalMediaRootForId(root, mediaId)) return [];
+  const legacyRoot = posix.join('media', mediaId);
+  return root === legacyRoot ? [root] : [root, legacyRoot];
+}
+
+/**
+ * Prefixes to list when purging a media's HLS tree. Empty = nothing safe to list.
+ *
+ * A recorded `hls_artifact_prefix` wins whenever it is a trusted artifact prefix OF THIS media
+ * ({@link isTrustedHlsArtifactS3Key}) — it is the only record of where the tree actually is, and
+ * after the М7 source relocation it is no longer under the source key's root. Requiring it to sit
+ * under that root (the pre-М7 rule) turned every relocated video's segments into permanent hot-bucket
+ * orphans while the purge reported success.
+ */
+export function resolveHlsPurgeListPrefixes(params: {
   mediaId: string;
   sourceS3Key: string;
   hlsArtifactPrefix: string | null;
-}): string | null {
-  const root = mediaRootFromSourceS3Key(params.sourceS3Key);
-  if (!isCanonicalMediaRootForId(root, params.mediaId)) return null;
-  const canonical = hlsTreePrefixFromMediaRoot(root);
+}): string[] {
+  const roots = hotArtifactRootsForMedia(params.mediaId, params.sourceS3Key);
+  if (roots.length === 0) return [];
   const fromDb = params.hlsArtifactPrefix?.trim().replace(/\/+$/, '');
-  if (!fromDb) return canonical;
-  if (fromDb === canonical || fromDb.startsWith(`${canonical}/`)) return fromDb;
-  return canonical;
+  if (fromDb && isTrustedHlsArtifactS3Key(params.mediaId, fromDb)) return [fromDb];
+  return roots.map(hlsTreePrefixFromMediaRoot);
 }
 
-/** Prefix for listing poster objects (poster.jpg or future assets). */
-export function resolvePosterPurgeListPrefix(mediaId: string, sourceS3Key: string): string | null {
-  const root = mediaRootFromSourceS3Key(sourceS3Key);
-  if (!isCanonicalMediaRootForId(root, mediaId)) return null;
-  return posix.join(root, 'poster');
+/** Prefixes for listing poster objects (poster.jpg or future assets); see {@link hotArtifactRootsForMedia}. */
+export function resolvePosterPurgeListPrefixes(mediaId: string, sourceS3Key: string): string[] {
+  return hotArtifactRootsForMedia(mediaId, sourceS3Key).map((root) => posix.join(root, 'poster'));
 }
 
 /** Trim + strip trailing slashes (S3 object keys use `/` as separator). */

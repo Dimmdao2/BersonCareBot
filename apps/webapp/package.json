@@ -27,6 +27,7 @@
     "purge-placeholder-bookings": "tsx scripts/purge-placeholder-bookings.ts",
     "purge-placeholder-bookings:test": "vitest run --config scripts/purge-placeholder-bookings.vitest.config.ts",
     "media-preview:tick": "tsx scripts/media-preview-process-tick.ts",
+    "media-raw-bucket:migrate": "tsx scripts/media-raw-bucket-migrate.ts",
     "video-hls-backfill-legacy": "tsx scripts/video-hls-backfill-legacy.ts",
     "backfill-treatment-program-editor-draft-snapshots": "tsx scripts/backfill-treatment-program-editor-draft-snapshots.ts",
     "backfill-patient-specialist-links": "tsx scripts/backfill-patient-specialist-links.ts",

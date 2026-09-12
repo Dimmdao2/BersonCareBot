@@ -717,6 +717,81 @@ describe('collectS3KeysForMediaPurge trust boundary (shared hlsStorageLayout)', 
     expect(keys).toContain(`media/${MEDIA_ID}/poster/poster.jpg`);
   });
 
+  /**
+   * М7 relocation seam. The ops step moves the SOURCE into the raw bucket and rewrites `s3_key` to
+   * `<orgId>/media/<id>/…`; the HLS tree it was transcoded into stays in the hot bucket under
+   * `media/<id>/hls`. Deriving the purge prefix from the new source root alone lists a prefix that
+   * holds nothing, so deleting the file silently leaves EVERY segment behind forever while
+   * reporting success — the bytes stay, and nobody is billed or alerted for them.
+   */
+  it('purges the recorded hls tree of a relocated source whose artifacts stayed under the pre-M7 root', async () => {
+    const ORG_ID = '66666666-6666-4666-8666-666666666666';
+    const relocatedSource = `${ORG_ID}/media/${MEDIA_ID}/source.mp4`;
+    const legacyHlsPrefix = `media/${MEDIA_ID}/hls`;
+    fakes.s3ListObjectKeysUnderPrefix.mockImplementation(async (prefix: string) =>
+      prefix === legacyHlsPrefix
+        ? [`${legacyHlsPrefix}/master.m3u8`, `${legacyHlsPrefix}/480p/seg_000.ts`]
+        : [],
+    );
+
+    const keys = await collectS3KeysForMediaPurge({
+      id: MEDIA_ID,
+      s3_key: relocatedSource,
+      preview_sm_key: null,
+      preview_md_key: null,
+      hls_artifact_prefix: legacyHlsPrefix,
+      poster_s3_key: null,
+      hls_master_playlist_s3_key: `${legacyHlsPrefix}/master.m3u8`,
+    });
+
+    expect(keys).toEqual(
+      expect.arrayContaining([
+        `${legacyHlsPrefix}/master.m3u8`,
+        `${legacyHlsPrefix}/480p/seg_000.ts`,
+        relocatedSource,
+      ]),
+    );
+  });
+
+  /** Same seam, poster side: nothing records where it is when `poster_s3_key` was never written. */
+  it('purges a pre-M7 poster of a relocated source that has no poster_s3_key recorded', async () => {
+    const ORG_ID = '66666666-6666-4666-8666-666666666666';
+    const relocatedSource = `${ORG_ID}/media/${MEDIA_ID}/source.mp4`;
+    fakes.s3ListObjectKeysUnderPrefix.mockImplementation(async (prefix: string) =>
+      prefix === `media/${MEDIA_ID}/poster` ? [`media/${MEDIA_ID}/poster/poster.jpg`] : [],
+    );
+
+    const keys = await collectS3KeysForMediaPurge({
+      id: MEDIA_ID,
+      s3_key: relocatedSource,
+      preview_sm_key: null,
+      preview_md_key: null,
+      hls_artifact_prefix: null,
+      poster_s3_key: null,
+      hls_master_playlist_s3_key: null,
+    });
+
+    expect(keys).toContain(`media/${MEDIA_ID}/poster/poster.jpg`);
+  });
+
+  /** The widened lookup must stay scoped to this media: another id's tree is still never listed. */
+  it('never lists another media id even when the recorded prefix escapes the source root', async () => {
+    const ORG_ID = '66666666-6666-4666-8666-666666666666';
+    await collectS3KeysForMediaPurge({
+      id: MEDIA_ID,
+      s3_key: `${ORG_ID}/media/${MEDIA_ID}/source.mp4`,
+      preview_sm_key: null,
+      preview_md_key: null,
+      hls_artifact_prefix: 'media/99999999-9999-4999-8999-999999999999/hls',
+      poster_s3_key: null,
+      hls_master_playlist_s3_key: null,
+    });
+
+    for (const call of fakes.s3ListObjectKeysUnderPrefix.mock.calls) {
+      expect(String(call[0])).toContain(MEDIA_ID);
+    }
+  });
+
   it('always includes the row source s3_key regardless of hls/poster trust outcomes', async () => {
     const keys = await collectS3KeysForMediaPurge({
       id: MEDIA_ID,
