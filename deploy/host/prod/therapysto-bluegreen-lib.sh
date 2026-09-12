@@ -27,7 +27,11 @@ THERAPYSTO_ACTIVE_FILE="$THERAPYSTO_STATE/active-colour"
 THERAPYSTO_RELEASES_LOG="$THERAPYSTO_STATE/releases.log"
 THERAPYSTO_UPSTREAM_CONF=/etc/nginx/conf.d/20-therapysto-upstream.conf
 THERAPYSTO_IMAGE_REPO=therapysto-app
-THERAPYSTO_KEEP_IMAGES="${THERAPYSTO_KEEP_IMAGES:-5}"
+# Владелец 12.09.2026: «не должны копиться вообще старые образы, только блю/грин, то есть прошлая
+# сборка» — держим ровно 2 (текущий активный цвет + предыдущий, на который смотрит rollback-prod).
+# Раньше было 5 — на 69 ГБ томе это давало ~30 ГБ мёртвого веса при образах по 6+ ГБ каждый и было
+# частью причины, по которой миграция деплоя однажды упёрлась в "No space left on device".
+THERAPYSTO_KEEP_IMAGES="${THERAPYSTO_KEEP_IMAGES:-2}"
 
 # Имя базы и окружение — из общего источника, того же, которым пользуется связывание видео.
 # shellcheck source=deploy/host/prod/runtime-database.sh
@@ -289,5 +293,15 @@ prune_old_images() {
     [ -n "$img" ] || continue
     docker rmi "$img" >/dev/null 2>&1 && info "removed old image $img"
   done
+  return 0
+}
+
+# Buildkit cache is not what rollback runs on — unlike prune_old_images above, nothing needs it kept.
+# It grew to 5.2GB of dangling layers in about a week of deploys with nothing ever clearing it (found
+# 12.09.2026 alongside the THERAPYSTO_KEEP_IMAGES=5 overhang, together the direct cause of a deploy
+# migration failing on "No space left on device" on a 69GB volume). --keep-storage self-bounds it
+# regardless of deploy frequency, so it never needs revisiting as a cron/schedule question.
+prune_build_cache() {
+  docker builder prune -f --keep-storage 2GB >/dev/null 2>&1
   return 0
 }

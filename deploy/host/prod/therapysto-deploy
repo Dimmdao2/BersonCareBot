@@ -108,6 +108,7 @@ move_singletons_to "$TARGET" "$ACTIVE" "$IMAGE"
 retire_colour "$ACTIVE"
 record_release "$TARGET" "$IMAGE" "$COMMIT" "deploy"
 prune_old_images
+prune_build_cache
 
 say "done — $COMMIT is live on $TARGET"
 info "if it misbehaves: rollback-prod"
