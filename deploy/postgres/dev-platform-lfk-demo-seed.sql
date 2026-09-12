@@ -387,4 +387,48 @@ SELECT
     WHERE seeded.body_region_id IS NOT NULL
       AND (item.id IS NULL OR organization.id IS NULL)) AS dead_region_references;
 
+-- ---------------------------------------------------------------------------
+-- S0 (дополнение 12.09): платформенный ШАБЛОН КОМПЛЕКСА и его элементы.
+--
+-- Зачем: независимый аудит нашёл, что платформенного чтения у `lfk_complex_templates` и
+-- `lfk_complex_template_exercises` не было вовсе — SQL ветку строил, RLS строку не отдавала.
+-- Политики объявлены, но проверить их живьём нечем: платформенных шаблонов на DEV ноль, а создаёт
+-- их только S0в. Поэтому шаблон сеется здесь, ровно как тесты и рекомендации выше.
+--
+-- Элементы шаблона обязаны ссылаться на ПЛАТФОРМЕННЫЕ упражнения: триггер
+-- app.enforce_lfk_child_owner() отбивает платформенный элемент, указывающий на упражнение
+-- организации (lfk_template_exercise_owner_mismatch). Берём платформенные упражнения этого же
+-- сеятеля — они посеяны блоком S0а выше.
+
+CREATE TEMP TABLE platform_complex_demo_seed (title text PRIMARY KEY, description text)
+  ON COMMIT DROP;
+INSERT INTO platform_complex_demo_seed (title, description) VALUES
+  ('Базовая библиотека: комплекс на колено',
+   'Демонстрационный платформенный комплекс: разгибание и изометрия квадрицепса.');
+
+INSERT INTO public.lfk_complex_templates (owner_kind, organization_id, title, description, status)
+SELECT 'platform', NULL, seed.title, seed.description, 'published'
+  FROM platform_complex_demo_seed AS seed
+ WHERE NOT EXISTS (
+   SELECT 1 FROM public.lfk_complex_templates AS existing
+    WHERE existing.owner_kind = 'platform' AND existing.organization_id IS NULL
+      AND existing.title = seed.title);
+
+-- Состав: все платформенные упражнения этого сеятеля, по порядку названия. Идемпотентно —
+-- пара (template_id, exercise_id) уникальна, поэтому повторный прогон ничего не добавляет.
+INSERT INTO public.lfk_complex_template_exercises
+  (owner_kind, organization_id, template_id, exercise_id, sort_order)
+SELECT 'platform', NULL, template.id, exercise.id,
+       (row_number() OVER (ORDER BY exercise.title) - 1)::int
+  FROM public.lfk_complex_templates AS template
+  JOIN platform_complex_demo_seed AS seed ON seed.title = template.title
+  JOIN public.lfk_exercises AS exercise
+    ON exercise.owner_kind = 'platform' AND exercise.organization_id IS NULL
+   AND exercise.catalog_scope = 'catalog' AND exercise.is_archived = false
+   AND exercise.title IN (SELECT title FROM lfk_platform_demo_seed)
+ WHERE template.owner_kind = 'platform' AND template.organization_id IS NULL
+   AND NOT EXISTS (
+     SELECT 1 FROM public.lfk_complex_template_exercises AS existing
+      WHERE existing.template_id = template.id AND existing.exercise_id = exercise.id);
+
 COMMIT;
