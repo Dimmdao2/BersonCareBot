@@ -81,7 +81,7 @@ export function PlatformTelegramCredentialsSection() {
         }
       })
       .catch(() => {
-        if (active) toast.error(notificationText.neUdalosZagruzitUchetnye);
+        if (active) toast.error(notificationText.adminTelegramCredentialsLoadFailed);
       });
     return () => {
       active = false;
@@ -113,7 +113,7 @@ export function PlatformTelegramCredentialsSection() {
       if (!response.ok || body.ok !== true) throw new Error('save_failed');
     } catch {
       setMode(previous);
-      toast.error(notificationText.neUdalosSohranitRezhim);
+      toast.error(notificationText.adminTelegramModeSaveFailed);
     } finally {
       setSavingMode(false);
     }

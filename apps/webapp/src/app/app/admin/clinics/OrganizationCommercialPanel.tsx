@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { PlatformOrganizationSummary } from '@/modules/org-entitlements/ports';
 import type { Tariff, TrialPolicy } from '@/modules/org-entitlements/types';
+import { notificationText } from '@/shared/notifications/notificationText';
 import {
   COMMERCIAL_ORG_LIFECYCLE_LABELS,
   COMMERCIAL_TRIAL_STATUS_LABELS,
@@ -102,7 +103,7 @@ export function OrganizationCommercialPanel({
         if (refreshed) toast.success(successMessage);
         else toast.error(`${successMessage}. Список не обновился — обновите страницу.`);
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : 'Операция не выполнена');
+        toast.error(error instanceof Error ? error.message : notificationText.adminOperationFailed);
       } finally {
         setBusy(false);
       }

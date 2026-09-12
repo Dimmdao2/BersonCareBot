@@ -95,9 +95,9 @@ export function LfkSessionForm({ complexes }: { complexes: Complex[] }) {
       action={async (fd) => {
         const result = await markLfkSession(fd);
         if (result.ok) {
-          toast.success(notificationText.zapisDobavlena);
+          toast.success(notificationText.patientEntryAdded);
         } else {
-          toast.error(result.message ?? 'Не удалось добавить запись');
+          toast.error(result.message ?? notificationText.exerciseSessionEntryAddFailed);
         }
       }}
     >

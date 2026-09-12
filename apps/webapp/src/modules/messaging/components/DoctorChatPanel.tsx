@@ -175,7 +175,7 @@ export function DoctorChatPanel({
       });
       const data = (await res.json()) as { ok?: boolean };
       if (!res.ok || !data.ok) {
-        toast.error(notificationText.neOtpravleno);
+        toast.error(notificationText.messagingNotSent);
         return;
       }
       pendingSendRef.current = null;
@@ -184,7 +184,7 @@ export function DoctorChatPanel({
       await loadMessages();
       await onSentRef.current?.();
     } catch {
-      toast.error(notificationText.oshibkaSeti);
+      toast.error(notificationText.commonNetworkError);
     } finally {
       setSending(false);
     }

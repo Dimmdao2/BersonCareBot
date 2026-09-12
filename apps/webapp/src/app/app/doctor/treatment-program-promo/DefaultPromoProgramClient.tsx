@@ -51,7 +51,7 @@ export function DefaultPromoProgramClient(props: {
         toast.error(readSafeApiErrorText(data, 'Не удалось сохранить'));
         return;
       }
-      toast.success(notificationText.sohraneno);
+      toast.success(notificationText.commonSaved);
       router.refresh();
     } finally {
       setSaving(false);
@@ -73,7 +73,7 @@ export function DefaultPromoProgramClient(props: {
         return;
       }
       const count = data.refreshedCount ?? 0;
-      toast.success(count > 0 ? `Обновлено: ${count} программ` : 'Активных промо-программ нет');
+      toast.success(count > 0 ? `Обновлено: ${count} программ` : notificationText.treatmentProgramNoActivePromoPrograms);
       router.refresh();
     } finally {
       setRefreshing(false);

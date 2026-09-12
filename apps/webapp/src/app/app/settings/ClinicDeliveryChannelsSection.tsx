@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import toast from 'react-hot-toast';
 import { apiJson } from '@/shared/lib/apiJson';
+import { notificationText } from '@/shared/notifications/notificationText';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/primitives/card';
 import { Input } from '@/shared/ui/doctor/primitives/input';
@@ -206,7 +207,7 @@ export function ClinicDeliveryChannelsSection({
                         toast.error(
                           cause instanceof Error && cause.message.trim()
                             ? cause.message
-                            : 'Сервер не смог сохранить SMTP. Повторите позже.',
+                            : notificationText.settingsSmtpSaveFailedRetry,
                         );
                       }
                     })

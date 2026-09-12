@@ -6,6 +6,7 @@ import { useState, useTransition } from 'react';
 import { Activity, Dumbbell, FileText, Flame, Sparkles, Trash2 } from 'lucide-react';
 import { reminderRuleToPatientJson } from '@/app/api/patient/reminders/reminderPatientJson';
 import { routePaths } from '@/app-layer/routes/paths';
+import { notificationText } from '@/shared/notifications/notificationText';
 import { Badge } from '@/shared/ui/patient/primitives/badge';
 import { Button, buttonVariants } from '@/shared/ui/patient/primitives/button';
 import { cn } from '@/lib/utils';
@@ -370,7 +371,7 @@ export function ReminderRulesClient({
         body: JSON.stringify({ enabled: checked }),
       });
       const data = (await res.json()) as { ok?: boolean; message?: string };
-      if (!res.ok || !data.ok) toast.error(data.message ?? 'Не удалось обновить');
+      if (!res.ok || !data.ok) toast.error(data.message ?? notificationText.patientReminderUpdateFailed);
       else refresh();
     });
   };
@@ -384,7 +385,7 @@ export function ReminderRulesClient({
       });
       const data = (await res.json()) as { ok?: boolean; message?: string };
       if (!res.ok || !data.ok) {
-        toast.error(data.message ?? 'Не удалось удалить');
+        toast.error(data.message ?? notificationText.commonDeleteFailed);
         return;
       }
       setBlockDeleteTarget(null);

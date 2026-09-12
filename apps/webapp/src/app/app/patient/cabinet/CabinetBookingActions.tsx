@@ -130,12 +130,12 @@ export function CabinetBookingActions({ row }: Props) {
             if (!res.ok || !json.ok) {
               toast.error(
                 json.error === 'staff_confirmation_required'
-                  ? 'Нужно согласование'
-                  : 'Не удалось отменить',
+                  ? notificationText.bookingStaffConfirmationRequired
+                  : notificationText.bookingCancelFailed,
               );
               return;
             }
-            toast.success(notificationText.zapisOtmenena);
+            toast.success(notificationText.bookingAppointmentCancelled);
             setCancelMessage(null);
             router.refresh();
           });

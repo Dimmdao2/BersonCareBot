@@ -38,16 +38,16 @@ export function ErrorTrackingSettingsSection({ initialEnabled, hasStoredDsn }: P
         if (!response.ok || body.ok !== true) {
           toast.error(
             body.error === 'invalid_dsn'
-              ? 'Укажите корректный HTTP(S) DSN'
-              : 'Не удалось сохранить',
+              ? notificationText.settingsInvalidDsn
+              : notificationText.commonSaveFailed,
           );
           return;
         }
         setStored(body.config?.hasStoredDsn === true);
         setDsn('');
-        toast.success(notificationText.sohranenoNovayaKonfiguratsiyaPrimenyaetsya);
+        toast.success(notificationText.settingsSavedConfigAppliesAfterRestart);
       } catch {
-        toast.error(notificationText.neUdalosSohranit);
+        toast.error(notificationText.commonSaveFailed);
       }
     });
   }

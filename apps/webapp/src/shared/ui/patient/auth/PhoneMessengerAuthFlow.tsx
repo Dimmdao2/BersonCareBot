@@ -160,7 +160,7 @@ export function PhoneMessengerAuthFlow({
         if (purpose === 'profile_bind') {
           onProfileComplete?.();
         } else {
-          toast.error(notificationText.kodUzheIspolzovanNachnite);
+          toast.error(notificationText.authCodeAlreadyUsed);
           resetBindAttempt();
         }
         return;
@@ -179,12 +179,12 @@ export function PhoneMessengerAuthFlow({
       }
       if (statusData.status === 'failed') {
         clearPoll();
-        toast.error(notificationText.neUdalosPodtverditNomer);
+        toast.error(notificationText.messagingPhoneVerifyFailed);
         resetBindAttempt();
       }
       if (statusData.status === 'expired') {
         clearPoll();
-        toast.error(notificationText.vremyaPrivyazkiIstekloNachnite);
+        toast.error(notificationText.authBindingExpired);
         resetBindAttempt();
       }
     },
@@ -231,7 +231,7 @@ export function PhoneMessengerAuthFlow({
         message?: string;
       };
       if (!res.ok || !data.ok || !data.challengeId) {
-        toast.error(data.message ?? 'Не удалось запросить код');
+        toast.error(data.message ?? notificationText.messagingCodeRequestFailed);
         return false;
       }
       setPhone(normalized);
@@ -285,12 +285,12 @@ export function PhoneMessengerAuthFlow({
           data.message ??
             (data.retryAfterSeconds != null
               ? `Повторите через ${Math.ceil(data.retryAfterSeconds / 60)} мин.`
-              : 'Слишком много запросов. Попробуйте позже.'),
+              : notificationText.authTooManyRequestsRetryLater),
         );
         return;
       }
       if (!res.ok || !data.ok || !data.setupToken || !data.url) {
-        toast.error(data.message ?? 'Не удалось начать привязку');
+        toast.error(data.message ?? notificationText.messagingBindingStartFailed);
         return;
       }
       const bindToken = data.setupToken;
@@ -307,7 +307,7 @@ export function PhoneMessengerAuthFlow({
       if (channelCode === 'max' && data.manualCommand) {
         try {
           await navigator.clipboard.writeText(data.manualCommand);
-          toast.success(notificationText.komandaSkopirovanaVstavteEe);
+          toast.success(notificationText.messagingBotCommandCopied);
         } catch {
           toast('Скопируйте команду вручную в чат с ботом в Max');
         }

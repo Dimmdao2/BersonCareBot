@@ -44,13 +44,13 @@ export function PatientRemindersMuteBar({
         });
         const data = (await res.json()) as { ok?: boolean };
         if (!res.ok || !data.ok) {
-          toast.error(notificationText.neUdalosIzmenitPauzu);
+          toast.error(notificationText.patientReminderPauseUpdateFailed);
           return;
         }
-        toast.success(notificationText.gotovo2);
+        toast.success(notificationText.patientRemindersMuteToggleDone);
         refresh();
       } catch {
-        toast.error(notificationText.setNedostupna2);
+        toast.error(notificationText.patientRemindersMuteToggleNetworkUnavailable);
       }
     });
   };

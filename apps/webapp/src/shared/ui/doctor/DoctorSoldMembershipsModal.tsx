@@ -251,7 +251,7 @@ export function DoctorSoldMembershipsModal({
                 mutationsAllowed={!readOnly}
                 nestedModals
                 onChanged={() => void load()}
-                onError={() => toast.error(notificationText.neUdalosObnovitAbonement)}
+                onError={() => toast.error(notificationText.doctorSubscriptionUpdateFailed)}
               />
             </div>
           </div>

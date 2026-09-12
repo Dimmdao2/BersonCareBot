@@ -29,9 +29,9 @@ export function PatientHomePracticeTargetPanel(props: { initialTarget: number })
         toast.error(actionFailureLine(res));
         return;
       }
-      toast.success(notificationText.sohraneno);
+      toast.success(notificationText.commonSaved);
     } catch {
-      toast.error(notificationText.neUdalosSohranit2);
+      toast.error(notificationText.settingsPatientHomeSaveFailed);
     } finally {
       setPending(false);
     }

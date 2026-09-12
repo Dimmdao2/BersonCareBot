@@ -8,18 +8,18 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 export function assertUuid(id: string): void {
   const t = id.trim();
-  if (!UUID_RE.test(t)) throw new UserFacingError(notificationText.nekorrektnyyUuid);
+  if (!UUID_RE.test(t)) throw new UserFacingError(notificationText.commonInvalidUuid);
 }
 
 function assertTargetType(t: string): asserts t is (typeof COMMENT_TARGET_TYPES)[number] {
   if (!COMMENT_TARGET_TYPES.includes(t as (typeof COMMENT_TARGET_TYPES)[number])) {
-    throw new UserFacingError(notificationText.neizvestnyyTargetTypeKommentariya);
+    throw new UserFacingError(notificationText.commentUnknownTargetType);
   }
 }
 
 function assertCommentType(t: string): asserts t is (typeof COMMENT_TYPES)[number] {
   if (!COMMENT_TYPES.includes(t as (typeof COMMENT_TYPES)[number])) {
-    throw new UserFacingError(notificationText.neizvestnyyCommentType);
+    throw new UserFacingError(notificationText.commentUnknownType);
   }
 }
 
@@ -34,7 +34,7 @@ export function createCommentsService(port: CommentsPort) {
     async getById(id: string) {
       assertUuid(id);
       const row = await port.getById(id.trim());
-      if (!row) throw new UserFacingError(notificationText.kommentariyNeNayden);
+      if (!row) throw new UserFacingError(notificationText.commentNotFound);
       return row;
     },
 
@@ -44,7 +44,7 @@ export function createCommentsService(port: CommentsPort) {
       assertUuid(authorId);
       assertCommentType(input.commentType);
       const body = input.body?.trim() ?? '';
-      if (!body) throw new UserFacingError(notificationText.tekstKommentariyaObyazatelen);
+      if (!body) throw new UserFacingError(notificationText.commentTextRequired);
       return port.create(
         {
           ...input,
@@ -64,18 +64,18 @@ export function createCommentsService(port: CommentsPort) {
       }
       if (input.body !== undefined) {
         const b = input.body.trim();
-        if (!b) throw new UserFacingError(notificationText.tekstKommentariyaNeMozhet);
+        if (!b) throw new UserFacingError(notificationText.commentTextEmpty);
         patch.body = b;
       }
       const row = await port.update(id.trim(), patch);
-      if (!row) throw new UserFacingError(notificationText.kommentariyNeNayden);
+      if (!row) throw new UserFacingError(notificationText.commentNotFound);
       return row;
     },
 
     async delete(id: string) {
       assertUuid(id);
       const ok = await port.delete(id.trim());
-      if (!ok) throw new UserFacingError(notificationText.kommentariyNeNayden);
+      if (!ok) throw new UserFacingError(notificationText.commentNotFound);
     },
   };
 }

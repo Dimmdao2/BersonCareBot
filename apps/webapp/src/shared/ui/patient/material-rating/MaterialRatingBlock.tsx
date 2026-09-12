@@ -204,7 +204,7 @@ function EnabledMaterialRatingBlock({
             };
             if (!res.ok || !data.ok) {
               setError(null);
-              toast.error(notificationText.neUdalosSohranit);
+              toast.error(notificationText.commonSaveFailed);
               await load();
               return;
             }
@@ -217,13 +217,13 @@ function EnabledMaterialRatingBlock({
             });
             setValue(my ?? 0);
             setEditRatingPicker(false);
-            toast.success(notificationText.spasiboZaOtsenku);
+            toast.success(notificationText.patientRatingThanks);
             if (my != null && my >= 1 && my <= 3) {
               onLowRatingSaved?.(my);
             }
           } catch {
             setError(null);
-            toast.error(notificationText.neUdalosSohranit);
+            toast.error(notificationText.commonSaveFailed);
             await load();
           }
         })();

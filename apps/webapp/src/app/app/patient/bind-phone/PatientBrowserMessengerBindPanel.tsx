@@ -75,7 +75,7 @@ export function PatientBrowserMessengerBindPanel({
           } catch {
             /* ignore */
           }
-          toast.error(data.message ?? 'Слишком много запросов. Попробуйте позже.');
+          toast.error(data.message ?? notificationText.authTooManyRequestsRetryLater);
           return;
         }
         if (!res.ok || !data.ok || !data.url) {
@@ -84,7 +84,7 @@ export function PatientBrowserMessengerBindPanel({
           } catch {
             /* ignore */
           }
-          toast.error(data.message ?? data.error ?? 'Не удалось получить ссылку');
+          toast.error(data.message ?? data.error ?? notificationText.messagingLinkFetchFailed);
           return;
         }
         if (channelCode === 'telegram') {
@@ -107,7 +107,7 @@ export function PatientBrowserMessengerBindPanel({
           if (data.manualCommand) {
             try {
               await navigator.clipboard.writeText(data.manualCommand);
-              toast.success(notificationText.komandaSkopirovanaVstavteEe);
+              toast.success(notificationText.messagingBotCommandCopied);
             } catch {
               toast('Скопируйте команду вручную в чат с ботом в Max');
             }

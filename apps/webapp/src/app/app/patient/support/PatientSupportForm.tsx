@@ -33,11 +33,11 @@ export function PatientSupportForm({
     const em = email.trim();
     const msg = message.trim();
     if (!em) {
-      toast.error(notificationText.ukazhiteEmail);
+      toast.error(notificationText.commonSpecifyEmail);
       return;
     }
     if (!msg) {
-      toast.error(notificationText.vvediteTekstSoobscheniya);
+      toast.error(notificationText.messagingEnterText);
       return;
     }
     if (msg.length > MAX_LEN) {
@@ -62,17 +62,17 @@ export function PatientSupportForm({
         message?: string;
       };
       if (res.status === 429 || data.error === 'rate_limited') {
-        toast.error(notificationText.podozhditeMinutuPeredPovtornoy);
+        toast.error(notificationText.authResendCooldown);
         return;
       }
       if (!res.ok || !data.ok) {
-        toast.error(data.message ?? data.error ?? 'Не удалось отправить');
+        toast.error(data.message ?? data.error ?? notificationText.commonSendFailed);
         return;
       }
-      toast.success(data.message ?? 'Сообщение отправлено');
+      toast.success(data.message ?? notificationText.messagingMessageSent);
       setMessage('');
     } catch {
-      toast.error(notificationText.netSoedineniyaSServerom);
+      toast.error(notificationText.commonNoServerConnection);
     } finally {
       setLoading(false);
     }

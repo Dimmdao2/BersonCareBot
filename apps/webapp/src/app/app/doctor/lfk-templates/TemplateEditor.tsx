@@ -493,7 +493,7 @@ export function TemplateEditor({
   const persist = useCallback(() => {
     const t = title.trim();
     if (!t) {
-      toast.error(notificationText.ukazhiteNazvanieShablona);
+      toast.error(notificationText.doctorTemplateNameRequired);
       return;
     }
     startTransition(async () => {
@@ -505,7 +505,7 @@ export function TemplateEditor({
         });
         if (!res.ok) toast.error(actionFailureLine(res));
         else {
-          toast.success(notificationText.chernovikSohranen);
+          toast.success(notificationText.doctorDraftSaved);
           onCreated?.(res.id);
           router.refresh();
         }
@@ -520,7 +520,7 @@ export function TemplateEditor({
       if (!res.ok) toast.error(actionFailureLine(res));
       else {
         toast.success(
-          template.status === 'published' ? 'Изменения сохранены' : 'Черновик сохранён',
+          template.status === 'published' ? notificationText.doctorChangesSaved : notificationText.doctorDraftSaved,
         );
         router.refresh();
       }
@@ -543,7 +543,7 @@ export function TemplateEditor({
       const res = await publishLfkTemplateAction(template.id);
       if (!res.ok) toast.error(actionFailureLine(res));
       else {
-        toast.success(notificationText.shablonOpublikovan);
+        toast.success(notificationText.doctorTemplatePublished);
         router.refresh();
       }
     });

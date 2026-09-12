@@ -40,7 +40,7 @@ export function DoctorClientLifecycleActions({ userId, isArchived }: Props) {
       });
       const data = (await res.json()) as { ok?: boolean; error?: string };
       if (!res.ok || !data.ok) {
-        toast.error(notificationText.neUdalosArhivirovatPoprobuyte);
+        toast.error(notificationText.doctorArchiveFailed);
         return;
       }
       router.refresh();
@@ -60,7 +60,7 @@ export function DoctorClientLifecycleActions({ userId, isArchived }: Props) {
       });
       const data = (await res.json()) as { ok?: boolean };
       if (!res.ok || !data.ok) {
-        toast.error(notificationText.neUdalosSnyatArhiv);
+        toast.error(notificationText.doctorUnarchiveFailed);
         return;
       }
       router.refresh();

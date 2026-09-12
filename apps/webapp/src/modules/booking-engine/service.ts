@@ -45,7 +45,7 @@ function assertAppointmentStatus(s: string): asserts s is AppointmentStatus {
     'charged_to_package',
     'manual_review_required',
   ];
-  if (!statuses.includes(s)) throw new UserFacingError(notificationText.neizvestnyyStatusZapisi);
+  if (!statuses.includes(s)) throw new UserFacingError(notificationText.bookingUnknownStatus);
 }
 
 type BookingEngineServiceDependencies = {
@@ -102,12 +102,12 @@ export function createBookingEngineService(
 
     async createAppointment(input: CreateAppointmentInput) {
       assertUuid(input.organizationId, 'organizationId');
-      if (!input.branchId) throw new UserFacingError(notificationText.ukazhiteFilial);
+      if (!input.branchId) throw new UserFacingError(notificationText.bookingSpecifyBranch);
       assertUuid(input.branchId, 'branchId');
       const status = input.status ?? 'created';
       assertAppointmentStatus(status);
       if (new Date(input.endAt).getTime() <= new Date(input.startAt).getTime()) {
-        throw new UserFacingError(notificationText.vremyaOkonchaniyaDolzhnoByt);
+        throw new UserFacingError(notificationText.bookingEndTimeMustBeAfterStart);
       }
       return port.createAppointment({ ...input, status });
     },
@@ -124,7 +124,7 @@ export function createBookingEngineService(
         const startMs = new Date(input.startAt).getTime();
         const endMs = new Date(input.endAt).getTime();
         if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) {
-          throw new UserFacingError(notificationText.vremyaOkonchaniyaDolzhnoByt);
+          throw new UserFacingError(notificationText.bookingEndTimeMustBeAfterStart);
         }
         if (!Number.isInteger(input.durationMinutes) || input.durationMinutes <= 0) {
           throw new Error('invalid_appointment_duration');
@@ -176,14 +176,14 @@ export function createBookingEngineService(
         if (visitedAtMs > Date.now() + 2 * 60_000) throw new Error('visit_in_future');
         return port.createManualPatientVisit(input);
       }
-      if (!input.appointment.branchId) throw new UserFacingError(notificationText.ukazhiteFilial);
+      if (!input.appointment.branchId) throw new UserFacingError(notificationText.bookingSpecifyBranch);
       assertUuid(input.appointment.branchId, 'branchId');
       const status = input.appointment.status ?? 'confirmed';
       assertAppointmentStatus(status);
       if (
         new Date(input.appointment.endAt).getTime() <= new Date(input.appointment.startAt).getTime()
       ) {
-        throw new UserFacingError(notificationText.vremyaOkonchaniyaDolzhnoByt);
+        throw new UserFacingError(notificationText.bookingEndTimeMustBeAfterStart);
       }
       return port.createManualPatientVisit({
         ...input,
@@ -195,12 +195,12 @@ export function createBookingEngineService(
       if (inputs.length < 1) throw new Error('appointment_chain_required');
       for (const input of inputs) {
         assertUuid(input.organizationId, 'organizationId');
-        if (!input.branchId) throw new UserFacingError(notificationText.ukazhiteFilial);
+        if (!input.branchId) throw new UserFacingError(notificationText.bookingSpecifyBranch);
         assertUuid(input.branchId, 'branchId');
         const status = input.status ?? 'created';
         assertAppointmentStatus(status);
         if (new Date(input.endAt).getTime() <= new Date(input.startAt).getTime()) {
-          throw new UserFacingError(notificationText.vremyaOkonchaniyaDolzhnoByt);
+          throw new UserFacingError(notificationText.bookingEndTimeMustBeAfterStart);
         }
       }
       return port.createAppointmentChain(
@@ -212,7 +212,7 @@ export function createBookingEngineService(
       assertUuid(input.appointmentId, 'appointmentId');
       assertAppointmentStatus(input.toStatus);
       const current = await port.getAppointment(input.appointmentId);
-      if (!current) throw new UserFacingError(notificationText.zapisNeNaydena);
+      if (!current) throw new UserFacingError(notificationText.bookingAppointmentNotFound);
       assertValidAppointmentStatusTransition(current.status, input.toStatus);
       return port.transitionAppointmentStatus(input);
     },

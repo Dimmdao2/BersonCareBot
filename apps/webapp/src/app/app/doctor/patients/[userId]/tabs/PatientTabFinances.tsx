@@ -283,16 +283,16 @@ export function PatientTabFinances({
       });
       if (!res.ok) {
         const json: { error?: string } = await res.json().catch(() => ({}));
-        toast.error(json.error ?? 'Ошибка сохранения');
+        toast.error(json.error ?? notificationText.doctorFinanceSaveError);
         return;
       }
       setCashAmount('');
       setCashService('');
       setCashComment('');
-      toast.success(notificationText.platezhZapisan);
+      toast.success(notificationText.paymentRecorded);
       await fetchTimeline();
     } catch {
-      toast.error(notificationText.oshibkaSeti);
+      toast.error(notificationText.commonNetworkError);
     } finally {
       setCashSubmitting(false);
     }

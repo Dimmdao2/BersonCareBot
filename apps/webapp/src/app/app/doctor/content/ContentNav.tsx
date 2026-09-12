@@ -194,11 +194,11 @@ export function ContentNav({
         const result = await setSectionVisibility(slug, nextIsVisible);
         if (!result.ok) {
           setVisibilityOverrides((prev) => ({ ...prev, [slug]: !nextIsVisible }));
-          toast.error(result.error ?? 'Не удалось изменить видимость раздела');
+          toast.error(result.error ?? notificationText.doctorSectionVisibilityUpdateFailed);
         }
       } catch {
         setVisibilityOverrides((prev) => ({ ...prev, [slug]: !nextIsVisible }));
-        toast.error(notificationText.neUdalosIzmenitVidimost);
+        toast.error(notificationText.doctorSectionVisibilityUpdateFailed);
       }
     });
   }, []);

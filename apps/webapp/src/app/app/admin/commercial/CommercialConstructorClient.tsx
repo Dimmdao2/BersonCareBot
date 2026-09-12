@@ -1207,7 +1207,7 @@ export function CommercialConstructorClient() {
       await loadState();
       toast.success(typeof success === 'function' ? success(payload.result) : success);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Операция не выполнена');
+      toast.error(error instanceof Error ? error.message : notificationText.adminOperationFailed);
     } finally {
       setBusy(false);
     }
@@ -1239,7 +1239,7 @@ export function CommercialConstructorClient() {
     try {
       systemAccessPolicy = accessPolicyFromDraft(tariff.systemAccessPolicy);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Проверьте лестницу доступа');
+      toast.error(error instanceof Error ? error.message : notificationText.adminCheckAccessLadder);
       return;
     }
     const input = {
@@ -1961,7 +1961,7 @@ export function CommercialConstructorClient() {
             onSubmit={(event) => {
               event.preventDefault();
               if (!postTrialBehavior) {
-                toast.error(notificationText.vyberiteDeystviePosleTriala);
+                toast.error(notificationText.adminSelectActionAfterTrial);
                 return;
               }
               void mutate(
@@ -2110,7 +2110,7 @@ export function CommercialConstructorClient() {
             onSubmit={(event) => {
               event.preventDefault();
               if (!postPaidPeriodBehavior) {
-                toast.error(notificationText.vyberiteDeystviePosleOplachennogo);
+                toast.error(notificationText.adminSelectActionAfterPaidPeriod);
                 return;
               }
               void mutate(

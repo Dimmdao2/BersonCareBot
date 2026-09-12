@@ -40,7 +40,7 @@ export function PlatformIntegrationAvailabilitySection() {
         setLoaded(true);
       })
       .catch(() => {
-        if (active) toast.error(notificationText.neUdalosZagruzitGlobalnye);
+        if (active) toast.error(notificationText.adminGlobalIntegrationTogglesLoadFailed);
       });
     return () => {
       active = false;
@@ -66,7 +66,7 @@ export function PlatformIntegrationAvailabilitySection() {
       if (!response.ok || !data.ok) throw new Error('save_failed');
     } catch {
       setAvailability(previous);
-      toast.error(notificationText.neUdalosSohranitRubilnik);
+      toast.error(notificationText.adminIntegrationToggleSaveFailed);
     } finally {
       setSaving(null);
     }

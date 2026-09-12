@@ -118,10 +118,10 @@ export function DoctorClientWarmupSchedulePanel({ userId }: Props) {
       });
       const data = (await res.json()) as { ok?: boolean; error?: string; message?: string };
       if (!res.ok || !data.ok) {
-        toast.error(data.message ?? 'Не удалось сохранить расписание');
+        toast.error(data.message ?? notificationText.doctorWarmupScheduleSaveFailed);
         return;
       }
-      toast.success(notificationText.sohraneno);
+      toast.success(notificationText.commonSaved);
       await load();
     } finally {
       setSaving(false);

@@ -116,7 +116,7 @@ export function PatientBookingPayClient({ bookingId, appDisplayTimeZone }: Props
 
   useEffect(() => {
     if (view === 'succeeded') {
-      toast.success(notificationText.oplataProshla);
+      toast.success(notificationText.paymentSucceeded);
       router.push(routePaths.patientBooking);
     }
   }, [view, router]);

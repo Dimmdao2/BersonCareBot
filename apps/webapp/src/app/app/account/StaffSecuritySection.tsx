@@ -158,7 +158,7 @@ export function StaffSecuritySection(props: Props) {
         '/api/account/security/sessions/revoke',
       );
       if (!result.ok) return toast.error(staffSecurityErrorText(result.error, 'revoke_sessions'));
-      toast.success(notificationText.drugieSeansyZaversheny);
+      toast.success(notificationText.authOtherSessionsEnded);
     } catch {
       toast.error(staffSecurityNetworkErrorText('revoke_sessions'));
     }
@@ -198,7 +198,7 @@ export function StaffSecuritySection(props: Props) {
       setNewPassword('');
       setPasswordAltchaRequired(false);
       setPasswordAltchaPayload(null);
-      toast.success(notificationText.parolIzmenen);
+      toast.success(notificationText.authPasswordChanged);
     } catch {
       toast.error(staffSecurityNetworkErrorText('change_password'));
     } finally {

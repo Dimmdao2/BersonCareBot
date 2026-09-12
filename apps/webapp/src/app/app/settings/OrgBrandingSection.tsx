@@ -242,12 +242,12 @@ function ClinicBotControls({
                       destinationChatId: destinationChatId.trim(),
                     },
                   });
-                  toast.success(notificationText.nastroykiBotaSohraneny);
+                  toast.success(notificationText.settingsBotSaved);
                 } catch (cause) {
                   toast.error(
                     cause instanceof Error && cause.message.trim()
                       ? cause.message
-                      : 'Не удалось сохранить настройки бота.',
+                      : notificationText.settingsBotSaveFailed,
                   );
                 }
               })
@@ -346,7 +346,7 @@ export function OrgBrandingSection({
     const result = await patchAdminSettingWithResult('clinic_uses_own_patient_app', next);
     if (!result.ok) {
       setUsesOwnPatientApp(previous);
-      toast.error(notificationText.neUdalosSohranitNastroykuPovtorite);
+      toast.error(notificationText.settingsSaveFailedRetry);
     }
     setSavingOwnApp(false);
   }

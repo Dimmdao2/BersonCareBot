@@ -48,11 +48,11 @@ export function DiaryDataPurgeSection({ phoneMasked }: Props) {
           setChallengeId(data.challengeId);
           setRetryAfterSeconds(data.retryAfterSeconds ?? 60);
         } else {
-          toast.error(data.message ?? 'Не удалось отправить код');
+          toast.error(data.message ?? notificationText.authCodeSendFailed);
           setStep('intro');
         }
       } catch {
-        toast.error(notificationText.setNedostupna);
+        toast.error(notificationText.commonNetworkUnavailable);
         setStep('intro');
       } finally {
         setOtpLoading(false);
@@ -134,7 +134,7 @@ export function DiaryDataPurgeSection({ phoneMasked }: Props) {
                     code: data.error,
                   };
                 }
-                toast.success(notificationText.dannyeDnevnikovUdaleny);
+                toast.success(notificationText.patientDiaryDataPurged);
                 router.refresh();
                 setStep('intro');
                 setAccepted(false);

@@ -170,7 +170,7 @@ export function SaasBillingProviderSettings() {
         }),
       });
       if (json.ok) applySetting(json.setting.valueJson);
-      toast.success(notificationText.sohraneno);
+      toast.success(notificationText.commonSaved);
     } catch (cause) {
       toast.error(
         `Настройки не сохранены (${cause instanceof Error ? cause.message : 'network'}).`,

@@ -254,8 +254,8 @@ function PatientContactActions({
             <DropdownMenuItem
               onClick={() => {
                 void navigator.clipboard.writeText(identity.phone!).then(
-                  () => toast.success(notificationText.telefonSkopirovan),
-                  () => toast.error(notificationText.neUdalosSkopirovatTelefon),
+                  () => toast.success(notificationText.doctorPhoneCopied),
+                  () => toast.error(notificationText.doctorPhoneCopyFailed),
                 );
               }}
             >

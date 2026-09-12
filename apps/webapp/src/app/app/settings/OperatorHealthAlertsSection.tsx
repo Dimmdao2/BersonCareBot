@@ -128,7 +128,7 @@ export function OperatorHealthAlertsSection({
         digestTime: normalizedDigestTime,
       });
       if (!alertsResult.ok) {
-        toast.error(alertsResult.error ?? 'Не удалось сохранить настройки операторских алертов.');
+        toast.error(alertsResult.error ?? notificationText.settingsOperatorAlertsSaveFailed);
         return;
       }
       const fallbackResult = await patchAdminSettingWithResult(
@@ -136,11 +136,11 @@ export function OperatorHealthAlertsSection({
         checkedFallbackEmail.value,
       );
       if (!fallbackResult.ok) {
-        toast.error(fallbackResult.error ?? 'Не удалось сохранить резервный e-mail.');
+        toast.error(fallbackResult.error ?? notificationText.settingsOperatorAlertsFallbackEmailSaveFailed);
         return;
       }
       setFallbackEmail(checkedFallbackEmail.value);
-      toast.success(notificationText.sohraneno);
+      toast.success(notificationText.commonSaved);
     });
   }
 

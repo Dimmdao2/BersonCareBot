@@ -62,7 +62,7 @@ export function PatientProfileHero({
     const firstName = normalizeFioPart(fioDraft.firstName);
     const patronymic = normalizeFioPart(fioDraft.patronymic);
     if (!lastName || !firstName) {
-      toast.error(notificationText.ukazhiteFamiliyuIImya);
+      toast.error(notificationText.patientSpecifyNameSurname);
       return;
     }
     if (
@@ -84,14 +84,14 @@ export function PatientProfileHero({
         | { ok?: boolean; fio?: StructuredFio; error?: string }
         | null;
       if (!response.ok || !result?.ok || !result.fio) {
-        toast.error(result?.error ?? 'Не удалось сохранить');
+        toast.error(result?.error ?? notificationText.commonSaveFailed);
         return;
       }
       setPersistedFio(result.fio);
       setFioDraft(result.fio);
       setEditingFio(false);
     } catch {
-      toast.error(notificationText.neUdalosSohranit);
+      toast.error(notificationText.commonSaveFailed);
     } finally {
       setSavingFio(false);
     }

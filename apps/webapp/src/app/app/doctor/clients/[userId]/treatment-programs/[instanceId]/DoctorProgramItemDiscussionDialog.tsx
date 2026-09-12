@@ -292,7 +292,7 @@ export function DoctorProgramItemDiscussionDialog(props: {
             await loadPage(null, false, generation);
           } catch {
             if (generation === loadGenerationRef.current) {
-              toast.error(notificationText.otvetOtpravlenNoSpisok);
+              toast.error(notificationText.doctorReplySentListStale);
             }
           }
           return { ok: true as const };
@@ -309,7 +309,7 @@ export function DoctorProgramItemDiscussionDialog(props: {
           } catch {
             if (generation === loadGenerationRef.current) {
               toast.error(
-                notificationText.faylUdalenIzChata,
+                notificationText.doctorFileDeletedListStale,
               );
             }
           }

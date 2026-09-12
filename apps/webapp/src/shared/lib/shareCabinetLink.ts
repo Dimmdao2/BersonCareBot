@@ -18,8 +18,8 @@ export async function shareCabinetLink(): Promise<void> {
   }
   try {
     await navigator.clipboard.writeText(url);
-    toast.success(notificationText.ssylkaSkopirovana);
+    toast.success(notificationText.commonLinkCopied);
   } catch {
-    toast.error(notificationText.neUdalosSkopirovatSsylku);
+    toast.error(notificationText.commonLinkCopyFailed);
   }
 }

@@ -432,7 +432,7 @@ export function DoctorClientMembershipsPanel({
         showError(json.error ?? 'create_failed');
         return;
       }
-      toast.success(notificationText.abonementSozdan);
+      toast.success(notificationText.doctorSubscriptionCreated);
       setManualSaleKey(null);
       setPriceRub('');
       setSoldDate('');
@@ -476,7 +476,7 @@ export function DoctorClientMembershipsPanel({
         showError(json.error ?? 'create_failed');
         return;
       }
-      toast.success(notificationText.abonementSozdan);
+      toast.success(notificationText.doctorSubscriptionCreated);
       setCatalogSaleKey(null);
       setCatalogId('');
       setCatalogSoldDate('');
@@ -525,7 +525,7 @@ export function DoctorClientMembershipsPanel({
       });
       const json = (await res.json()) as { ok?: boolean; summary?: RecalcSummary; error?: string };
       if (!json.ok) {
-        toast.error(notificationText.neUdalosPereschitatAbonement);
+        toast.error(notificationText.doctorSubscriptionRecalcFailed);
         return;
       }
       const debitedCount = json.summary?.debited.length ?? 0;
@@ -538,7 +538,7 @@ export function DoctorClientMembershipsPanel({
       router.refresh();
       notifyPackagesChanged();
     } catch {
-      toast.error(notificationText.oshibkaSetiPriPereschete);
+      toast.error(notificationText.doctorSubscriptionRecalcNetworkError);
     }
   }
 

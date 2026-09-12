@@ -86,7 +86,7 @@ export function PatientSharePhoneViaBotPanel({
                 try {
                   await onProvideContact();
                 } catch {
-                  toast.error(notificationText.neUdalosOtpravitZapros);
+                  toast.error(notificationText.commonRequestSendFailed);
                 } finally {
                   setBusy(false);
                 }

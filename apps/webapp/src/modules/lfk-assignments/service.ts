@@ -12,7 +12,7 @@ export function createLfkAssignmentsService(port: LfkAssignmentsPort) {
       const tid = params.templateId?.trim();
       const pid = params.patientUserId?.trim();
       if (!tid || !pid) {
-        throw new UserFacingError(notificationText.nekorrektnyeIdentifikatory);
+        throw new UserFacingError(notificationText.exerciseAssignmentInvalidIdentifiers);
       }
       return port.assignPublishedTemplateToPatient({
         templateId: tid,

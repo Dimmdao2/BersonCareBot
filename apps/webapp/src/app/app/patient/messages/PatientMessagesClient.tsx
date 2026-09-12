@@ -135,7 +135,7 @@ export function PatientMessagesClient() {
           setReadOnly(true);
           return;
         }
-        toast.error(data.error ?? 'Не отправлено');
+        toast.error(data.error ?? notificationText.messagingNotSent);
         return;
       }
       setDraft('');
@@ -147,7 +147,7 @@ export function PatientMessagesClient() {
         );
       }
     } catch {
-      toast.error(notificationText.oshibkaSeti);
+      toast.error(notificationText.commonNetworkError);
     } finally {
       setSending(false);
     }

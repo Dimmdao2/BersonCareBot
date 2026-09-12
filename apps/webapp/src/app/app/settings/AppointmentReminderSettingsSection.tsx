@@ -43,9 +43,9 @@ export function AppointmentReminderSettingsSection({
           body: JSON.stringify(next),
         })) as { settings: AppointmentReminderSpecialistSettings };
         setSettings(response.settings);
-        toast.success(notificationText.sohraneno);
+        toast.success(notificationText.commonSaved);
       } catch {
-        toast.error(notificationText.neUdalosSohranitNastroykiNapominaniy);
+        toast.error(notificationText.settingsReminderSettingsSaveFailed);
       }
     });
   };

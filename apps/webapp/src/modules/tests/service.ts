@@ -85,14 +85,14 @@ async function assertClinicalTestWritePayload(
         );
         const allow = assessmentKindWriteAllowSet(refItems);
         if (!allow.has(t)) {
-          throw new UserFacingError(notificationText.nekorrektnyyVidOtsenki);
+          throw new UserFacingError(notificationText.testInvalidScoreKind);
         }
       }
     }
   }
   if (input.scoring !== undefined && input.scoring !== null) {
     const p = clinicalTestScoringSchema.safeParse(input.scoring);
-    if (!p.success) throw new UserFacingError(notificationText.nekorrektnayaStrukturaScoring);
+    if (!p.success) throw new UserFacingError(notificationText.testInvalidScoringStructure);
   }
 }
 
@@ -124,7 +124,7 @@ export function createClinicalTestsService(port: ClinicalTestsPort, references: 
       options?: ClinicalTestWriteOptions,
     ) {
       const title = input.title?.trim() ?? '';
-      if (!title) throw new UserFacingError(notificationText.nazvanieTestaObyazatelno);
+      if (!title) throw new UserFacingError(notificationText.testNameRequired);
       const normalized = await normalizeClinicalWritePayload(
         references,
         {
@@ -149,14 +149,14 @@ export function createClinicalTestsService(port: ClinicalTestsPort, references: 
       options?: ClinicalTestWriteOptions,
     ) {
       const existing = await port.getById(id);
-      if (!existing) throw new UserFacingError(notificationText.testNeNayden);
+      if (!existing) throw new UserFacingError(notificationText.testNotFound);
       if (existing.isArchived) {
-        throw new UserFacingError(notificationText.testVArhiveVernite);
+        throw new UserFacingError(notificationText.testArchivedRestoreToEdit);
       }
       const patch: UpdateClinicalTestInput = { ...input };
       if (input.title !== undefined) {
         const t = input.title.trim();
-        if (!t) throw new UserFacingError(notificationText.nazvanieTestaObyazatelno);
+        if (!t) throw new UserFacingError(notificationText.testNameRequired);
         patch.title = t;
       }
       if (input.description !== undefined) patch.description = input.description?.trim() || null;
@@ -178,7 +178,7 @@ export function createClinicalTestsService(port: ClinicalTestsPort, references: 
         existingAssessmentKind: existing.assessmentKind,
       });
       const row = await runClinicalTestWrite(options, () => port.update(id, normalized));
-      if (!row) throw new UserFacingError(notificationText.testNeNayden);
+      if (!row) throw new UserFacingError(notificationText.testNotFound);
       return row;
     },
 
@@ -231,7 +231,7 @@ export function createTestSetsService(setsPort: TestSetsPort, testsPort: Clinica
       options?: TestSetWriteOptions,
     ) {
       const title = input.title?.trim() ?? '';
-      if (!title) throw new UserFacingError(notificationText.nazvanieNaboraObyazatelno);
+      if (!title) throw new UserFacingError(notificationText.testSetNameRequired);
       return runTestSetWrite(options, () =>
         setsPort.create(
           {
@@ -246,25 +246,25 @@ export function createTestSetsService(setsPort: TestSetsPort, testsPort: Clinica
 
     async updateTestSet(id: string, input: UpdateTestSetInput, options?: TestSetWriteOptions) {
       const existing = await setsPort.getById(id);
-      if (!existing) throw new UserFacingError(notificationText.naborNeNayden);
+      if (!existing) throw new UserFacingError(notificationText.testSetNotFound);
       if (existing.isArchived) {
-        throw new UserFacingError(notificationText.naborVArhiveVerniteIz);
+        throw new UserFacingError(notificationText.testSetArchivedRestoreToEdit);
       }
       const patch: UpdateTestSetInput = { ...input };
       if (input.title !== undefined) {
         const t = input.title.trim();
-        if (!t) throw new UserFacingError(notificationText.nazvanieNaboraObyazatelno);
+        if (!t) throw new UserFacingError(notificationText.testSetNameRequired);
         patch.title = t;
       }
       if (input.description !== undefined) patch.description = input.description?.trim() || null;
       if (input.publicationStatus !== undefined) {
         if (input.publicationStatus !== 'draft' && input.publicationStatus !== 'published') {
-          throw new UserFacingError(notificationText.nekorrektnyyStatusPublikatsii);
+          throw new UserFacingError(notificationText.testInvalidPublicationStatus);
         }
         patch.publicationStatus = input.publicationStatus;
       }
       const row = await runTestSetWrite(options, () => setsPort.update(id, patch));
-      if (!row) throw new UserFacingError(notificationText.naborNeNayden);
+      if (!row) throw new UserFacingError(notificationText.testSetNotFound);
       return row;
     },
 
@@ -305,9 +305,9 @@ export function createTestSetsService(setsPort: TestSetsPort, testsPort: Clinica
       options?: TestSetWriteOptions,
     ) {
       const set = await setsPort.getById(testSetId);
-      if (!set) throw new UserFacingError(notificationText.naborNeNayden);
+      if (!set) throw new UserFacingError(notificationText.testSetNotFound);
       if (set.isArchived) {
-        throw new UserFacingError(notificationText.naborVArhiveVernite);
+        throw new UserFacingError(notificationText.testSetArchivedRestoreToChangeComposition);
       }
 
       const sorted = [...items].sort((a, b) => a.sortOrder - b.sortOrder);
@@ -320,7 +320,7 @@ export function createTestSetsService(setsPort: TestSetsPort, testsPort: Clinica
       const seen = new Set<string>();
       for (const it of normalized) {
         if (seen.has(it.testId)) {
-          throw new UserFacingError(notificationText.odinITotZhe);
+          throw new UserFacingError(notificationText.testDuplicateInSet);
         }
         seen.add(it.testId);
       }

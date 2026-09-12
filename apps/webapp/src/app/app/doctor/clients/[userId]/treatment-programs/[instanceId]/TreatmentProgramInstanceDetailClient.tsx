@@ -863,7 +863,7 @@ function TreatmentProgramInstanceDetailClientBody(props: {
     try {
       await refreshBaseline();
     } catch {
-      toast.error(notificationText.neUdalosObnovitDannye);
+      toast.error(notificationText.doctorDataUpdateFailed);
     }
   }, [refreshBaseline]);
 
@@ -1287,9 +1287,9 @@ function InstanceStageGroupsPanel(props: {
     const plan = planStageItemDndReorder(displayStage.items, activeId, overId, canParticipate);
     if (!plan.ok) {
       if (plan.error === 'ungrouped_type') {
-        toast.error(notificationText.bezGruppyDopustimyTolko);
+        toast.error(notificationText.treatmentProgramNoGroupRestrictedElements);
       } else {
-        toast.error(notificationText.neUdalosIzmenitPoryadok);
+        toast.error(notificationText.doctorOrderUpdateFailed);
       }
       return;
     }
@@ -1330,7 +1330,7 @@ function InstanceStageGroupsPanel(props: {
     if (!isSysGroup) {
       const t = groupEdit.title.trim();
       if (!t) {
-        toast.error(notificationText.nazvanieGruppyNeMozhet);
+        toast.error(notificationText.treatmentProgramGroupNameEmpty);
         return;
       }
     }
@@ -2022,7 +2022,7 @@ function StageDoctorControls(props: {
               return;
             }
             await onPatched();
-            toast.success(notificationText.sohraneno);
+            toast.success(notificationText.commonSaved);
           } finally {
             setSaving(false);
           }
@@ -2062,7 +2062,7 @@ function StageDoctorControls(props: {
             await onPatched();
             setSkipDialogOpen(false);
             setSkipReasonDraft('');
-            toast.success(notificationText.sohraneno);
+            toast.success(notificationText.commonSaved);
           } finally {
             setSaving(false);
           }

@@ -624,12 +624,12 @@ function DoctorCalendarEventPanelInner({
           ? await savePrimaryComment(newId, commentBody)
           : false;
       if (!commentSaved) {
-        toast.error(notificationText.zapisSozdanaKommentariyNe);
+        toast.error(notificationText.doctorEntryCreatedCommentNotSaved);
         setPendingRefresh(true);
         return;
       }
       createManualRequestIdRef.current = crypto.randomUUID();
-      toast.success(notificationText.sozdano);
+      toast.success(notificationText.commonCreated);
       setMode('view');
       if (newId) (options?.onCreated ?? onCreated)?.(newId);
       onChanged();
@@ -929,7 +929,7 @@ function DoctorCalendarEventPanelInner({
       // Комментарий идёт последним и через тот же контракт, что и очистка: пока он не сохранён,
       // объявлять запись сохранённой нельзя — иначе набранный текст пропадает молча.
       if (commentChanged && !(await savePrimaryComment(selected.id, draft.comment.trim()))) {
-        toast.error(notificationText.kommentariyNeSohranen);
+        toast.error(notificationText.doctorCommentNotSaved);
         return;
       }
       const nextStartAt = start.toUTC().toISO() ?? selected.startAt;
@@ -958,7 +958,7 @@ function DoctorCalendarEventPanelInner({
       setPrimaryComment(draft.comment.trim());
       setPendingRefresh(false);
       if (startChanged) setLifecycleRefreshToken((current) => current + 1);
-      toast.success(notificationText.izmeneniyaSohraneny);
+      toast.success(notificationText.doctorChangesSaved);
       setMode('view');
       if (onUpdated) onUpdated(updatedAppointment);
       else onChanged();
@@ -995,7 +995,7 @@ function DoctorCalendarEventPanelInner({
         toast.error(panelErrorLabel(json.error));
         return;
       }
-      toast.success(notificationText.otmeneno);
+      toast.success(notificationText.commonCancelled);
       setCancelOpen(false);
       onChanged();
     });
@@ -1020,7 +1020,7 @@ function DoctorCalendarEventPanelInner({
         toast.error(panelErrorLabel(json.error));
         return;
       }
-      toast.success(notificationText.udaleno);
+      toast.success(notificationText.commonDeleted);
       onChanged();
     });
   };

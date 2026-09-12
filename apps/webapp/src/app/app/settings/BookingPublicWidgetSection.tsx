@@ -57,9 +57,9 @@ export function BookingPublicWidgetSection() {
   async function copyText(text: string) {
     try {
       await navigator.clipboard.writeText(text);
-      toast.success(notificationText.kodSkopirovanVBufer);
+      toast.success(notificationText.settingsCodeCopied);
     } catch {
-      toast.error(notificationText.neUdalosSkopirovatKod);
+      toast.error(notificationText.settingsCodeCopyFailed);
     }
   }
 

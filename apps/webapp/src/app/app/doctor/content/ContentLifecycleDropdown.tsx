@@ -58,12 +58,12 @@ export function ContentLifecycleDropdown({ page }: { page: Page }) {
       try {
         const result = await applyContentLifecycle(null, formData);
         if (!result.ok) {
-          toast.error(result.error ?? 'Не удалось применить действие');
+          toast.error(result.error ?? notificationText.doctorActionApplyFailed);
           return;
         }
         router.refresh();
       } catch {
-        toast.error(notificationText.neUdalosPrimenitDeystvie);
+        toast.error(notificationText.doctorActionApplyFailed);
       }
     });
   };

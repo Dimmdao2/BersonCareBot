@@ -217,7 +217,7 @@ export function ProgramItemDiscussionDialog(props: {
       }
       void onRead?.();
     } catch {
-      toast.error(notificationText.oshibkaSeti);
+      toast.error(notificationText.commonNetworkError);
     } finally {
       setSending(false);
     }
@@ -378,8 +378,8 @@ export function ProgramItemDiscussionDialog(props: {
                 onError={(message) =>
                   toast.error(
                     message === 'video_too_short'
-                      ? 'Видео должно быть не короче 10 секунд'
-                      : 'Не удалось загрузить файл',
+                      ? notificationText.mediaVideoTooShort
+                      : notificationText.mediaUploadFailed,
                   )
                 }
               />

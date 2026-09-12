@@ -71,11 +71,11 @@ export function NotificationsTopicsSection({ initialRows }: NotificationsTopicsS
       const ok = await patchAdminSetting('notifications_topics', payload);
       if (!ok) {
         toast.error(
-          notificationText.neUdalosSohranitProverte,
+          notificationText.settingsSaveFailedValidationHint,
         );
         return;
       }
-      toast.success(notificationText.sohraneno);
+      toast.success(notificationText.commonSaved);
     });
   }
 

@@ -321,7 +321,7 @@ export function ConfirmStepClient({
   /** Shared by the direct create and, for the public widget, the post-code create (A-3). */
   function onBookingCreated(booking: PatientBookingRecord) {
     if (booking.status === 'awaiting_payment') {
-      toast.success(notificationText.trebuetsyaOplata);
+      toast.success(notificationText.paymentRequired);
       const payPath = buildAwaitingPaymentHref
         ? buildAwaitingPaymentHref(booking)
         : `/app/patient/booking/pay?bookingId=${encodeURIComponent(booking.id)}`;
@@ -439,7 +439,7 @@ export function ConfirmStepClient({
               })
               .then((result) => {
                 if (!result.ok) return;
-                toast.success(notificationText.zapisPerenesena);
+                toast.success(notificationText.bookingAppointmentRescheduled);
                 router.push(successRedirectPath);
               });
             return;

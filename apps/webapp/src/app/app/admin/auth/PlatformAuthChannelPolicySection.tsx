@@ -158,7 +158,7 @@ export function PlatformAuthChannelPolicySection() {
         setLoaded(true);
       })
       .catch(() => {
-        if (active) toast.error(notificationText.neUdalosZagruzitNastroyki);
+        if (active) toast.error(notificationText.adminLoginSettingsLoadFailed);
       });
     return () => {
       active = false;
@@ -190,7 +190,7 @@ export function PlatformAuthChannelPolicySection() {
         ...current,
         [surface]: { ...current[surface], [control]: previous },
       }));
-      toast.error(notificationText.neUdalosSohranitNastroyku);
+      toast.error(notificationText.adminSettingSaveFailed);
     } finally {
       setSaving(null);
     }
@@ -210,7 +210,7 @@ export function PlatformAuthChannelPolicySection() {
       if (!response.ok || !data.ok) throw new Error('save_failed');
     } catch {
       setUnsupportedClientFallbackEnabled(previous);
-      toast.error(notificationText.neUdalosSohranitNastroyku);
+      toast.error(notificationText.adminSettingSaveFailed);
     } finally {
       setSaving(null);
     }

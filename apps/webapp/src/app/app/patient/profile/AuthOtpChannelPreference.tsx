@@ -56,11 +56,11 @@ export function AuthOtpChannelPreference({ options, initialSelection, showBindHi
             startTransition(async () => {
               const res = await setPreferredAuthOtpChannelAction(value);
               if (!res.ok) {
-                toast.error(res.message ?? 'Не удалось сохранить');
+                toast.error(res.message ?? notificationText.commonSaveFailed);
                 router.refresh();
                 return;
               }
-              toast.success(notificationText.nastroykaSohranena);
+              toast.success(notificationText.settingsSaved);
             });
           }}
           disabled={pending}

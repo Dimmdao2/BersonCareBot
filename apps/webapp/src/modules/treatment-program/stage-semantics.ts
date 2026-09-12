@@ -28,10 +28,10 @@ export function assertTreatmentProgramStageItemFitsSystemGroup(
 ): void {
   if (!group?.systemKind) return;
   if (group.systemKind === 'recommendations' && itemType !== 'recommendation') {
-    throw new UserFacingError(notificationText.vGruppuRekomendatsiiMozhno);
+    throw new UserFacingError(notificationText.treatmentProgramRecommendationsGroupOnlyRecommendations);
   }
   if (group.systemKind === 'tests' && itemType !== 'clinical_test') {
-    throw new UserFacingError(notificationText.vGruppuTestirovanieMozhno);
+    throw new UserFacingError(notificationText.treatmentProgramTestingGroupOnlyClinicalTests);
   }
 }
 

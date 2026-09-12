@@ -789,7 +789,7 @@ export function PatientTabFiles({
       setFilePendingDelete(null);
       setDeleteUsageCount(0);
       setPreviewFileId((current) => (current === file.id ? null : current));
-      toast.success(notificationText.faylUdalenMestoV);
+      toast.success(notificationText.doctorFileDeletedStorageFreed);
     } catch {
       setDeleteError('Сетевая ошибка. Файл не удалён.');
     } finally {

@@ -66,7 +66,7 @@ export function SecretSettingInput<T extends string>({
                 setSaved(true);
                 onSaved?.();
               } catch {
-                toast.error(notificationText.neUdalosSohranitCredential);
+                toast.error(notificationText.settingsCredentialSaveFailed);
               }
             })
           }

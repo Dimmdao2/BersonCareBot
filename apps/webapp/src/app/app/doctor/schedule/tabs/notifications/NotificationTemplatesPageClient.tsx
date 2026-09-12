@@ -183,9 +183,9 @@ export function NotificationTemplatesPageClient({
           metadata: { ...current.metadata, writeToken: response.template.metadata.writeToken },
         }));
       }
-      toast.success(notificationText.shablonSohranen);
+      toast.success(notificationText.doctorTemplateSaved);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Не удалось сохранить шаблон');
+      toast.error(error instanceof Error ? error.message : notificationText.doctorTemplateSaveFailed);
     } finally {
       setSavingKey(null);
     }
@@ -214,7 +214,7 @@ export function NotificationTemplatesPageClient({
       );
       setPreviewByKey((previous) => ({ ...previous, [key]: response.rendered }));
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Не удалось построить предпросмотр');
+      toast.error(error instanceof Error ? error.message : notificationText.doctorTemplatePreviewFailed);
     }
   }
 
@@ -252,9 +252,9 @@ export function NotificationTemplatesPageClient({
             : entry,
         ),
       );
-      toast.success(notificationText.oformlenieSohraneno);
+      toast.success(notificationText.doctorDesignSaved);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Не удалось сохранить оформление');
+      toast.error(error instanceof Error ? error.message : notificationText.doctorDesignSaveFailed);
     } finally {
       setSavingKey(null);
     }

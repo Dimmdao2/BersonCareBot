@@ -212,7 +212,7 @@ export function SymptomsJournalClient(props: {
                 const fd = new FormData(form);
                 const local = fd.get('recordedAtLocal');
                 if (typeof local !== 'string' || !local) {
-                  toast.error(notificationText.ukazhiteDatuIVremya);
+                  toast.error(notificationText.exerciseSpecifyDateTime);
                   return;
                 }
                 fd.set('recordedAt', new Date(local).toISOString());
@@ -220,11 +220,11 @@ export function SymptomsJournalClient(props: {
                 startTransition(async () => {
                   const res = await updateSymptomJournalEntry(fd);
                   if (res.ok) {
-                    toast.success(notificationText.sohraneno);
+                    toast.success(notificationText.commonSaved);
                     setEditEntry(null);
                     router.refresh();
                   } else {
-                    toast.error(res.message ?? 'Не удалось сохранить');
+                    toast.error(res.message ?? notificationText.commonSaveFailed);
                   }
                 });
               }}
@@ -289,11 +289,11 @@ export function SymptomsJournalClient(props: {
             fd.set('entryId', entryId);
             const res = await deleteSymptomJournalEntry(fd);
             if (res.ok) {
-              toast.success(notificationText.zapisUdalena);
+              toast.success(notificationText.patientDiaryEntryDeleted);
               setDeleteEntry(null);
               router.refresh();
             } else {
-              toast.error(res.message ?? 'Не удалось удалить');
+              toast.error(res.message ?? notificationText.commonDeleteFailed);
             }
           });
         }}

@@ -34,15 +34,15 @@ export function SymptomTrackingRow({ id, title }: { id: string; title: string })
     startTransition(async () => {
       const result = await addSymptomEntry(formData);
       if (result.ok) {
-        toast.success(notificationText.zapisSohranena);
+        toast.success(notificationText.patientDiaryEntrySaved);
         lastSavedRef.current = { trackingId: id, entryType: 'instant', at: Date.now() };
         setDuplicateValue(null);
         setSelectedValue(null);
         notifyDiarySymptomEntrySaved();
       } else if (result.reason === 'duplicate_instant') {
-        toast.error(notificationText.pohozhayaZapisVMomente);
+        toast.error(notificationText.patientDiaryDuplicateEntry);
       } else {
-        toast.error(result.message ?? 'Не удалось сохранить');
+        toast.error(result.message ?? notificationText.commonSaveFailed);
       }
     });
   };
@@ -79,7 +79,7 @@ export function SymptomTrackingRow({ id, title }: { id: string; title: string })
               onSubmit={(event) => {
                 event.preventDefault();
                 if (selectedValue === null) {
-                  toast.error(notificationText.vyberiteIntensivnost);
+                  toast.error(notificationText.exerciseSelectIntensity);
                   return;
                 }
                 if (shouldConfirmInstantDuplicate(lastSavedRef.current, id, 'instant')) {

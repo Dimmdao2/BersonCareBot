@@ -217,7 +217,7 @@ export function DoctorProgramInstanceDiscussionDialog(props: {
               await loadPage(null, false, generation);
             } catch {
               if (generation === loadGenerationRef.current) {
-                toast.error(notificationText.otvetOtpravlenNoSpisok);
+                toast.error(notificationText.doctorReplySentListStale);
               }
             }
             return { ok: true as const };
@@ -234,7 +234,7 @@ export function DoctorProgramInstanceDiscussionDialog(props: {
             } catch {
               if (generation === loadGenerationRef.current) {
                 toast.error(
-                  notificationText.faylUdalenIzChata,
+                  notificationText.doctorFileDeletedListStale,
                 );
               }
             }

@@ -48,7 +48,7 @@ export function createLfkExercisesService(port: LfkExercisesPort) {
     ) {
       const title = input.title?.trim() ?? '';
       if (!title) {
-        throw new UserFacingError(notificationText.nazvanieUprazhneniyaObyazatelno);
+        throw new UserFacingError(notificationText.exerciseNameRequired);
       }
       return runExerciseWrite(options, () =>
         port.create(
@@ -69,14 +69,14 @@ export function createLfkExercisesService(port: LfkExercisesPort) {
       options?: LfkExerciseWriteOptions,
     ) {
       const existing = await port.getById(id);
-      if (!existing) throw new UserFacingError(notificationText.uprazhnenieNeNaydeno);
+      if (!existing) throw new UserFacingError(notificationText.exerciseNotFound);
       if (existing.isArchived) {
-        throw new UserFacingError(notificationText.uprazhnenieVArhiveVernite);
+        throw new UserFacingError(notificationText.exerciseArchivedRestoreToEdit);
       }
       const patch: UpdateExerciseInput = { ...input };
       if (input.title !== undefined) {
         const t = input.title.trim();
-        if (!t) throw new UserFacingError(notificationText.nazvanieUprazhneniyaObyazatelno);
+        if (!t) throw new UserFacingError(notificationText.exerciseNameRequired);
         patch.title = t;
       }
       if (input.description !== undefined) {
@@ -86,7 +86,7 @@ export function createLfkExercisesService(port: LfkExercisesPort) {
         patch.contraindications = input.contraindications?.trim() || null;
       }
       const row = await runExerciseWrite(options, () => port.update(id, patch));
-      if (!row) throw new UserFacingError(notificationText.uprazhnenieNeNaydeno);
+      if (!row) throw new UserFacingError(notificationText.exerciseNotFound);
       return row;
     },
 

@@ -21,12 +21,12 @@ export function WebPushOptInControls() {
       try {
         const result = await enableNativePushSubscription(runtime.kind);
         if (result.ok) {
-          toast.success(notificationText.gotovo);
+          toast.success(notificationText.commonDone);
           return;
         }
         toast.error(webPushSubscribeFailureMessage(result.reason));
       } catch {
-        toast.error(notificationText.oshibka);
+        toast.error(notificationText.commonGenericError);
       } finally {
         setBusy(false);
       }
@@ -34,23 +34,23 @@ export function WebPushOptInControls() {
     }
 
     if (!(await probePushSupported()) && !isStandalonePwa()) {
-      toast.error(notificationText.snachalaOtkroytePrilozhenieS);
+      toast.error(notificationText.patientPwaOpenFromHomeScreenFirst);
       return;
     }
     if (!(await probePushSupported())) {
-      toast.error(notificationText.uvedomleniyaNePodderzhivayutsya);
+      toast.error(notificationText.commonPushNotSupported);
       return;
     }
     setBusy(true);
     try {
       const result = await subscribePatientWebPush();
       if (result.ok) {
-        toast.success(notificationText.gotovo);
+        toast.success(notificationText.commonDone);
         return;
       }
       toast.error(webPushSubscribeFailureMessage(result.reason));
     } catch {
-      toast.error(notificationText.oshibka);
+      toast.error(notificationText.commonGenericError);
     } finally {
       setBusy(false);
     }

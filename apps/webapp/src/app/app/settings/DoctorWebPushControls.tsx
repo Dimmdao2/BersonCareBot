@@ -63,19 +63,19 @@ export function DoctorWebPushControls({ initialHasSubscription, initialGlobalEna
         if (result.ok) {
           await refreshStatus();
           router.refresh();
-          toast.success(notificationText.pushVklyuchen);
+          toast.success(notificationText.settingsPushEnabled);
           return;
         }
         toast.error(webPushSubscribeFailureMessage(result.reason));
       } catch {
-        toast.error(notificationText.oshibka);
+        toast.error(notificationText.commonGenericError);
       } finally {
         setBusy(false);
       }
       return;
     }
     if (!(await probePushSupported())) {
-      toast.error(notificationText.uvedomleniyaNePodderzhivayutsya);
+      toast.error(notificationText.commonPushNotSupported);
       return;
     }
     setBusy(true);
@@ -84,12 +84,12 @@ export function DoctorWebPushControls({ initialHasSubscription, initialGlobalEna
       if (result.ok) {
         await refreshStatus();
         router.refresh();
-        toast.success(notificationText.pushVklyuchen);
+        toast.success(notificationText.settingsPushEnabled);
         return;
       }
       toast.error(webPushSubscribeFailureMessage(result.reason));
     } catch {
-      toast.error(notificationText.oshibka);
+      toast.error(notificationText.commonGenericError);
     } finally {
       setBusy(false);
     }
@@ -106,7 +106,7 @@ export function DoctorWebPushControls({ initialHasSubscription, initialGlobalEna
       if (result.ok) {
         await refreshStatus();
         router.refresh();
-        toast.success(notificationText.podpiskaVosstanovlena);
+        toast.success(notificationText.settingsSubscriptionRestored);
         return;
       }
       toast.error(webPushSubscribeFailureMessage(result.reason));
@@ -124,7 +124,7 @@ export function DoctorWebPushControls({ initialHasSubscription, initialGlobalEna
       if (ok) {
         await refreshStatus();
         router.refresh();
-        toast.success(notificationText.pushOtklyuchen);
+        toast.success(notificationText.settingsPushDisabled);
       }
     } finally {
       setBusy(false);

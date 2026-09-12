@@ -32,7 +32,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 export function assertUuid(id: string): void {
   const t = id.trim();
-  if (!UUID_RE.test(t)) throw new UserFacingError(notificationText.nekorrektnyyUuid);
+  if (!UUID_RE.test(t)) throw new UserFacingError(notificationText.commonInvalidUuid);
 }
 
 export type TreatmentProgramTemplateWriteOptions = {
@@ -48,7 +48,7 @@ function runTemplateWrite<T>(
 
 function assertItemType(t: string): asserts t is TreatmentProgramItemType {
   if (!TREATMENT_PROGRAM_ITEM_TYPES.includes(t as TreatmentProgramItemType)) {
-    throw new UserFacingError(notificationText.neizvestnyyTipElementaProgrammy);
+    throw new UserFacingError(notificationText.treatmentProgramUnknownElementType);
   }
 }
 
@@ -64,7 +64,7 @@ export function createTreatmentProgramService(
     async getTemplate(id: string) {
       assertUuid(id);
       const row = await port.getTemplateById(id);
-      if (!row) throw new UserFacingError(notificationText.shablonProgrammyNeNayden);
+      if (!row) throw new UserFacingError(notificationText.treatmentProgramTemplateNotFound);
       return row;
     },
 
@@ -74,7 +74,7 @@ export function createTreatmentProgramService(
       options?: TreatmentProgramTemplateWriteOptions,
     ) {
       const title = input.title?.trim() ?? '';
-      if (!title) throw new UserFacingError(notificationText.nazvanieShablonaObyazatelno);
+      if (!title) throw new UserFacingError(notificationText.exerciseTemplateNameRequired);
       return runTemplateWrite(options, () =>
         port.createTemplate(
           {
@@ -97,7 +97,7 @@ export function createTreatmentProgramService(
       const patch: UpdateTreatmentProgramTemplateInput = { ...input };
       if (input.title !== undefined) {
         const t = input.title.trim();
-        if (!t) throw new UserFacingError(notificationText.nazvanieShablonaObyazatelno);
+        if (!t) throw new UserFacingError(notificationText.exerciseTemplateNameRequired);
         patch.title = t;
       }
       if (input.description !== undefined) {
@@ -119,7 +119,7 @@ export function createTreatmentProgramService(
       }
 
       const row = await runTemplateWrite(writeOptions, () => port.updateTemplate(id, patch));
-      if (!row) throw new UserFacingError(notificationText.shablonProgrammyNeNayden);
+      if (!row) throw new UserFacingError(notificationText.treatmentProgramTemplateNotFound);
       return row;
     },
 
@@ -157,7 +157,7 @@ export function createTreatmentProgramService(
     ) {
       assertUuid(templateId);
       const title = input.title?.trim() ?? '';
-      if (!title) throw new UserFacingError(notificationText.nazvanieEtapaObyazatelno);
+      if (!title) throw new UserFacingError(notificationText.treatmentProgramStageNameRequired);
       const goals =
         input.goals === undefined
           ? undefined
@@ -179,7 +179,7 @@ export function createTreatmentProgramService(
       if (input.expectedDurationDays !== undefined && input.expectedDurationDays !== null) {
         if (!Number.isInteger(input.expectedDurationDays) || input.expectedDurationDays < 0) {
           throw new UserFacingError(
-            notificationText.ozhidaemyySrokVDnyah,
+            notificationText.treatmentProgramExpectedDaysInvalid,
           );
         }
       }
@@ -205,7 +205,7 @@ export function createTreatmentProgramService(
       const patch: UpdateTreatmentProgramStageInput = { ...input };
       if (input.title !== undefined) {
         const t = input.title.trim();
-        if (!t) throw new UserFacingError(notificationText.nazvanieEtapaObyazatelno);
+        if (!t) throw new UserFacingError(notificationText.treatmentProgramStageNameRequired);
         patch.title = t;
       }
       if (input.description !== undefined) {
@@ -224,19 +224,19 @@ export function createTreatmentProgramService(
       if (input.expectedDurationDays !== undefined && input.expectedDurationDays !== null) {
         if (!Number.isInteger(input.expectedDurationDays) || input.expectedDurationDays < 0) {
           throw new UserFacingError(
-            notificationText.ozhidaemyySrokVDnyah,
+            notificationText.treatmentProgramExpectedDaysInvalid,
           );
         }
       }
       const row = await runTemplateWrite(options, () => port.updateStage(stageId, patch));
-      if (!row) throw new UserFacingError(notificationText.etapNeNayden);
+      if (!row) throw new UserFacingError(notificationText.treatmentProgramStageNotFound);
       return row;
     },
 
     async deleteStage(stageId: string, options?: TreatmentProgramTemplateWriteOptions) {
       assertUuid(stageId);
       const ok = await runTemplateWrite(options, () => port.deleteStage(stageId));
-      if (!ok) throw new UserFacingError(notificationText.etapNeNayden);
+      if (!ok) throw new UserFacingError(notificationText.treatmentProgramStageNotFound);
     },
 
     async addStageItem(
@@ -249,25 +249,25 @@ export function createTreatmentProgramService(
       assertUuid(input.itemRefId);
       if (input.groupId) assertUuid(input.groupId);
       const ctx = await port.getTemplateStageValidationContext(stageId);
-      if (!ctx) throw new UserFacingError(notificationText.etapNeNayden);
+      if (!ctx) throw new UserFacingError(notificationText.treatmentProgramStageNotFound);
       if (ctx.sortOrder === 0) {
         if (input.groupId) {
           throw new UserFacingError(
-            notificationText.naEtapeObschieRekomendatsiiElementy,
+            notificationText.treatmentProgramGeneralStageNoGroupBinding,
           );
         }
         if (input.itemType !== 'recommendation') {
-          throw new UserFacingError(notificationText.naEtapeObschieRekomendatsii);
+          throw new UserFacingError(notificationText.treatmentProgramGeneralStageRecommendationsOnly);
         }
       } else if (input.groupId) {
         const g = ctx.groups.find((x) => x.id === input.groupId);
-        if (!g) throw new UserFacingError(notificationText.gruppaNeNaydenaIli);
+        if (!g) throw new UserFacingError(notificationText.treatmentProgramGroupNotFoundOrWrongStage);
         assertTreatmentProgramStageItemFitsSystemGroup(g, input.itemType);
       }
       const hasGroup = Boolean(input.groupId);
       if (!hasGroup && input.itemType !== 'recommendation' && input.itemType !== 'clinical_test') {
         throw new UserFacingError(
-          notificationText.bezGruppyMozhnoDobavit,
+          notificationText.treatmentProgramNoGroupAddRestriction,
         );
       }
       await itemRefs.assertItemRefExists(input.itemType, input.itemRefId.trim());
@@ -303,7 +303,7 @@ export function createTreatmentProgramService(
       }
 
       const currentRow = await port.getStageItemById(itemId);
-      if (!currentRow) throw new UserFacingError(notificationText.elementEtapaNeNayden);
+      if (!currentRow) throw new UserFacingError(notificationText.treatmentProgramStageElementNotFound);
 
       if (patch.itemRefId !== undefined || patch.itemType !== undefined) {
         const nextType = patch.itemType ?? currentRow.itemType;
@@ -312,40 +312,40 @@ export function createTreatmentProgramService(
       }
 
       const ctx = await port.getTemplateStageValidationContext(currentRow.stageId);
-      if (!ctx) throw new UserFacingError(notificationText.etapNeNayden);
+      if (!ctx) throw new UserFacingError(notificationText.treatmentProgramStageNotFound);
       const nextGroupId = patch.groupId !== undefined ? patch.groupId : currentRow.groupId;
       const nextType = patch.itemType ?? currentRow.itemType;
       if (ctx.sortOrder === 0) {
         if (nextType !== 'recommendation') {
-          throw new UserFacingError(notificationText.naEtapeObschieRekomendatsii);
+          throw new UserFacingError(notificationText.treatmentProgramGeneralStageRecommendationsOnly);
         }
         if (nextGroupId != null) {
           throw new UserFacingError(
-            notificationText.naEtapeObschieRekomendatsiiElementy,
+            notificationText.treatmentProgramGeneralStageNoGroupBinding,
           );
         }
       } else {
         if (nextGroupId) {
           const g = ctx.groups.find((x) => x.id === nextGroupId);
-          if (!g) throw new UserFacingError(notificationText.gruppaNeNaydenaIli);
+          if (!g) throw new UserFacingError(notificationText.treatmentProgramGroupNotFoundOrWrongStage);
           assertTreatmentProgramStageItemFitsSystemGroup(g, nextType);
         }
         if (!nextGroupId && nextType !== 'recommendation' && nextType !== 'clinical_test') {
           throw new UserFacingError(
-            notificationText.bezGruppyMozhnoOstavit,
+            notificationText.treatmentProgramNoGroupKeepRestriction,
           );
         }
       }
 
       const row = await runTemplateWrite(options, () => port.updateStageItem(itemId, patch));
-      if (!row) throw new UserFacingError(notificationText.elementEtapaNeNayden);
+      if (!row) throw new UserFacingError(notificationText.treatmentProgramStageElementNotFound);
       return row;
     },
 
     async deleteStageItem(itemId: string, options?: TreatmentProgramTemplateWriteOptions) {
       assertUuid(itemId);
       const ok = await runTemplateWrite(options, () => port.deleteStageItem(itemId));
-      if (!ok) throw new UserFacingError(notificationText.elementEtapaNeNayden);
+      if (!ok) throw new UserFacingError(notificationText.treatmentProgramStageElementNotFound);
     },
 
     async createTemplateStageGroup(
@@ -355,7 +355,7 @@ export function createTreatmentProgramService(
     ) {
       assertUuid(stageId);
       const title = input.title?.trim() ?? '';
-      if (!title) throw new UserFacingError(notificationText.nazvanieGruppyObyazatelno);
+      if (!title) throw new UserFacingError(notificationText.treatmentProgramGroupNameRequired);
       return runTemplateWrite(options, () =>
         port.createTemplateStageGroup(stageId, {
           ...input,
@@ -385,7 +385,7 @@ export function createTreatmentProgramService(
       const row = await runTemplateWrite(options, () =>
         port.updateTemplateStageGroup(groupId, patch),
       );
-      if (!row) throw new UserFacingError(notificationText.gruppaEtapaNeNaydena);
+      if (!row) throw new UserFacingError(notificationText.treatmentProgramStageGroupNotFound);
       return row;
     },
 
@@ -395,7 +395,7 @@ export function createTreatmentProgramService(
     ) {
       assertUuid(groupId);
       const ok = await runTemplateWrite(options, () => port.deleteTemplateStageGroup(groupId));
-      if (!ok) throw new UserFacingError(notificationText.gruppaEtapaNeNaydena);
+      if (!ok) throw new UserFacingError(notificationText.treatmentProgramStageGroupNotFound);
     },
 
     async reorderTemplateStageGroups(
@@ -408,7 +408,7 @@ export function createTreatmentProgramService(
       const ok = await runTemplateWrite(options, () =>
         port.reorderTemplateStageGroups(stageId, orderedGroupIds),
       );
-      if (!ok) throw new UserFacingError(notificationText.nekorrektnyyPoryadokGruppEtapa);
+      if (!ok) throw new UserFacingError(notificationText.treatmentProgramInvalidStageGroupOrder);
     },
 
     async reorderTemplateStages(
@@ -419,16 +419,16 @@ export function createTreatmentProgramService(
       assertUuid(templateId);
       for (const id of orderedStageIds) assertUuid(id);
       const tpl = await port.getTemplateById(templateId);
-      if (!tpl) throw new UserFacingError(notificationText.shablonProgrammyNeNayden);
+      if (!tpl) throw new UserFacingError(notificationText.treatmentProgramTemplateNotFound);
       if (tpl.status === 'archived') throw new TreatmentProgramTemplateAlreadyArchivedError();
       const stageZero = tpl.stages.find((s) => s.sortOrder === 0);
       if (stageZero && orderedStageIds[0] !== stageZero.id) {
-        throw new UserFacingError(notificationText.etapObschieRekomendatsiiDolzhen);
+        throw new UserFacingError(notificationText.treatmentProgramGeneralStageMustStayFirst);
       }
       const ok = await runTemplateWrite(options, () =>
         port.reorderTemplateStages(templateId, orderedStageIds),
       );
-      if (!ok) throw new UserFacingError(notificationText.nekorrektnyyPoryadokEtapov);
+      if (!ok) throw new UserFacingError(notificationText.treatmentProgramInvalidStageOrder);
     },
 
     async reorderTemplateStageItems(
@@ -439,14 +439,14 @@ export function createTreatmentProgramService(
       assertUuid(stageId);
       for (const id of orderedItemIds) assertUuid(id);
       const ctx = await port.getTemplateStageValidationContext(stageId);
-      if (!ctx) throw new UserFacingError(notificationText.etapNeNayden);
+      if (!ctx) throw new UserFacingError(notificationText.treatmentProgramStageNotFound);
       const tpl = await port.getTemplateById(ctx.templateId);
-      if (!tpl) throw new UserFacingError(notificationText.shablonProgrammyNeNayden);
+      if (!tpl) throw new UserFacingError(notificationText.treatmentProgramTemplateNotFound);
       if (tpl.status === 'archived') throw new TreatmentProgramTemplateAlreadyArchivedError();
       const ok = await runTemplateWrite(options, () =>
         port.reorderTemplateStageItems(stageId, orderedItemIds),
       );
-      if (!ok) throw new UserFacingError(notificationText.nekorrektnyyPoryadokElementovEtapa);
+      if (!ok) throw new UserFacingError(notificationText.treatmentProgramInvalidStageElementOrder);
     },
 
     async expandLfkComplexIntoTemplateStageItems(
@@ -468,7 +468,7 @@ export function createTreatmentProgramService(
 
       if (body.mode === 'new_group') {
         const title = body.newGroupTitle.trim();
-        if (!title) throw new UserFacingError(notificationText.nazvanieGruppyObyazatelno);
+        if (!title) throw new UserFacingError(notificationText.treatmentProgramGroupNameRequired);
       }
       if (body.mode === 'existing_group') {
         assertUuid(body.existingGroupId);
@@ -485,7 +485,7 @@ export function createTreatmentProgramService(
       const preview = await port.getLfkComplexExpandPreview(body.complexTemplateId.trim());
       if (!preview)
         throw new TreatmentProgramExpandNotFoundError('Комплекс ЛФК не найден или в архиве');
-      if (preview.exerciseIds.length === 0) throw new UserFacingError(notificationText.vKomplekseNetUprazhneniy);
+      if (preview.exerciseIds.length === 0) throw new UserFacingError(notificationText.exerciseComplexEmpty);
 
       for (const id of preview.exerciseIds) {
         await itemRefs.assertItemRefExists('exercise', id);

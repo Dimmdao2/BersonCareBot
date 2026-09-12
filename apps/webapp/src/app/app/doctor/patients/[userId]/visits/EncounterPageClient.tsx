@@ -486,7 +486,7 @@ export function EncounterPageClient({
         const text = await res.text().catch(() => '');
         throw new Error(`status ${res.status}${text ? `: ${text}` : ''}`);
       }
-      toast.success(notificationText.izmeneniyaSohraneny);
+      toast.success(notificationText.doctorChangesSaved);
       if (embedded) onComplete?.();
       else {
         router.push(backHref);

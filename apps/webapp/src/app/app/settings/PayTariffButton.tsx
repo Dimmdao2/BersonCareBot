@@ -119,13 +119,13 @@ export function PayTariffButton({
         | { ok: true; billingEmail: string }
         | { ok: false; error?: string }
         | null;
-      if (!body?.ok) toast.error(notificationText.proverteEmailDlyaCheka);
+      if (!body?.ok) toast.error(notificationText.settingsCheckReceiptEmail);
       else {
         setBillingEmail(body.billingEmail);
         setSavedBillingEmail(body.billingEmail);
       }
     } catch {
-      toast.error(notificationText.neUdalosSohranitEmail);
+      toast.error(notificationText.settingsReceiptEmailSaveFailed);
     } finally {
       setPending(false);
     }

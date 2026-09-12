@@ -109,7 +109,7 @@ export function PublicBookingPayClient({ bookingId, appDisplayTimeZone }: Props)
 
   useEffect(() => {
     if (view === 'succeeded') {
-      toast.success(notificationText.oplataProshla);
+      toast.success(notificationText.paymentSucceeded);
       router.push(publicBookPaths.done);
     }
   }, [view, router]);

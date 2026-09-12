@@ -81,7 +81,7 @@ export function createRecommendationsService(
       options?: RecommendationWriteOptions,
     ) {
       const title = input.title?.trim() ?? '';
-      if (!title) throw new UserFacingError(notificationText.nazvanieRekomendatsiiObyazatelno);
+      if (!title) throw new UserFacingError(notificationText.recommendationNameRequired);
       const bodyMd = input.bodyMd?.trim() ?? '';
       const domainForCreate =
         input.domain === undefined
@@ -119,14 +119,14 @@ export function createRecommendationsService(
       options?: RecommendationWriteOptions,
     ) {
       const existing = await port.getById(id);
-      if (!existing) throw new UserFacingError(notificationText.rekomendatsiyaNeNaydena);
+      if (!existing) throw new UserFacingError(notificationText.recommendationNotFound);
       if (existing.isArchived) {
-        throw new UserFacingError(notificationText.rekomendatsiyaVArhiveVernite);
+        throw new UserFacingError(notificationText.recommendationArchivedRestoreToEdit);
       }
       const patch: UpdateRecommendationInput = { ...input };
       if (input.title !== undefined) {
         const t = input.title.trim();
-        if (!t) throw new UserFacingError(notificationText.nazvanieRekomendatsiiObyazatelno);
+        if (!t) throw new UserFacingError(notificationText.recommendationNameRequired);
         patch.title = t;
       }
       if (input.bodyMd !== undefined) {
@@ -155,7 +155,7 @@ export function createRecommendationsService(
         existingDomain: existing.domain,
       });
       const row = await runRecommendationWrite(options, () => port.update(id, patch));
-      if (!row) throw new UserFacingError(notificationText.rekomendatsiyaNeNaydena);
+      if (!row) throw new UserFacingError(notificationText.recommendationNotFound);
       return row;
     },
 

@@ -25,7 +25,7 @@ export function DoctorCatalogInvalidPubArchToast() {
     if (toastedKey.current === key) return;
     toastedKey.current = key;
     toast.error(
-      notificationText.parametryArhivIliPublikatsiya,
+      notificationText.doctorArchivePublishParamsInvalid,
     );
   }, [arch, pub]);
 

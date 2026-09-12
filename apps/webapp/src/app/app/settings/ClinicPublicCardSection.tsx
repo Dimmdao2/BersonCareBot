@@ -174,9 +174,9 @@ export function ClinicPublicCardSection({
         return;
       }
       setSettings(body.settings);
-      toast.success(notificationText.sohraneno);
+      toast.success(notificationText.commonSaved);
     } catch {
-      toast.error(notificationText.neUdalosSohranitStranitsu);
+      toast.error(notificationText.settingsPageSaveFailedRetry);
     } finally {
       setPending(false);
     }
@@ -193,7 +193,7 @@ export function ClinicPublicCardSection({
     const result = await patchAdminSettingWithResult('clinic_booking_show_specialist_cards', next);
     if (!result.ok) {
       setShowSpecialistCardsInBooking(previous);
-      toast.error(notificationText.neUdalosSohranitNastroykuVizitok);
+      toast.error(notificationText.settingsSpecialistCardsSaveFailed);
     }
     setSavingSpecialistCards(false);
   }

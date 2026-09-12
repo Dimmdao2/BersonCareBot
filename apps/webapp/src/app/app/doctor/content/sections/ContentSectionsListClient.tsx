@@ -316,11 +316,11 @@ export function ContentSectionsListClient({
           const res = await reorderContentSections(orderedSlugs);
           if (!res.ok) {
             setItems(previous);
-            toast.error(res.error ?? 'Не удалось изменить порядок разделов');
+            toast.error(res.error ?? notificationText.doctorSectionOrderUpdateFailed);
           }
         } catch {
           setItems(previous);
-          toast.error(notificationText.neUdalosIzmenitPoryadokRazdelov);
+          toast.error(notificationText.doctorSectionOrderUpdateFailed);
         }
       });
       return next;
@@ -334,10 +334,10 @@ export function ContentSectionsListClient({
         if (res.ok) {
           setItems((prev) => prev.map((r) => (r.slug === slug ? { ...r, isVisible: next } : r)));
         } else {
-          toast.error(res.error ?? 'Не удалось изменить видимость раздела');
+          toast.error(res.error ?? notificationText.doctorSectionVisibilityUpdateFailed);
         }
       } catch {
-        toast.error(notificationText.neUdalosIzmenitVidimost);
+        toast.error(notificationText.doctorSectionVisibilityUpdateFailed);
       }
     });
   }, []);
@@ -349,10 +349,10 @@ export function ContentSectionsListClient({
         if (res.ok) {
           setItems((prev) => prev.map((r) => (r.slug === slug ? { ...r, requiresAuth: next } : r)));
         } else {
-          toast.error(res.error ?? 'Не удалось изменить доступ к разделу');
+          toast.error(res.error ?? notificationText.doctorSectionAccessUpdateFailed);
         }
       } catch {
-        toast.error(notificationText.neUdalosIzmenitDostupK);
+        toast.error(notificationText.doctorSectionAccessUpdateFailed);
       }
     });
   }, []);

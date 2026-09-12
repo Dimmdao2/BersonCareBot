@@ -99,20 +99,20 @@ export function AdminSettingsSection({
               : '';
           toast.error(
             batchResult.error === 'duplicate_key_in_batch'
-              ? 'В запросе повторяется один и тот же ключ настроек'
+              ? notificationText.adminDuplicateSettingsKeyInBatch
               : batchResult.error === 'ambiguous_body'
-                ? 'Некорректное тело запроса (лишние поля)'
+                ? notificationText.adminInvalidRequestBodyExtraFields
                 : batchResult.error === 'empty_batch'
-                  ? 'Пустой список настроек'
+                  ? notificationText.adminEmptySettingsList
                   : batchResult.error === 'invalid_value'
                     ? `Некорректное значение${suffix}`
-                    : 'Не удалось сохранить настройки',
+                    : notificationText.settingsSaveFailed,
           );
           return;
         }
-        toast.success(notificationText.sohraneno);
+        toast.success(notificationText.commonSaved);
       } catch {
-        toast.error(notificationText.oshibkaPriSohranenii);
+        toast.error(notificationText.commonSaveError);
       }
     });
   }

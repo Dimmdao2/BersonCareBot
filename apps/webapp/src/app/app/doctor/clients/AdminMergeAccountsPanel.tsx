@@ -428,7 +428,7 @@ export function AdminMergeAccountsPanel({
     );
     if (typed === null) return;
     if (!mergeDuplicatePrefixConfirmed(typed, preview.duplicateId)) {
-      toast.error(notificationText.pervye4SimvolaNe);
+      toast.error(notificationText.doctorMergeUuidMismatch);
       return;
     }
 
@@ -446,7 +446,7 @@ export function AdminMergeAccountsPanel({
       } catch {
         toast.error(
           res.status === 403
-            ? 'Доступ запрещён: нужны роль admin и режим администратора.'
+            ? notificationText.doctorMergeAccessDenied
             : `Ответ сервера без JSON (HTTP ${res.status}).`,
         );
         return;
@@ -454,12 +454,12 @@ export function AdminMergeAccountsPanel({
       if (!res.ok || !data.ok) {
         const hint =
           res.status === 403
-            ? 'Доступ запрещён: нужны роль admin и режим администратора.'
+            ? notificationText.doctorMergeAccessDenied
             : (data.message ?? data.error ?? `merge_failed (HTTP ${res.status})`);
         toast.error(hint);
         return;
       }
-      toast.success(notificationText.obedinenieVypolneno);
+      toast.success(notificationText.doctorMergeCompleted);
       setSecondUserId('');
       setMergeSearchQ('');
       setMergeSearchResults([]);

@@ -27,11 +27,11 @@ export function ClinicStaffSecuritySection({ initialRequired }: { initialRequire
       });
       const body = (await response.json().catch(() => null)) as { ok?: boolean } | null;
       if (!response.ok || !body?.ok) {
-        toast.error(notificationText.neUdalosSohranitNastroykuBezopasnosti);
+        toast.error(notificationText.settingsSecuritySaveFailed);
         return;
       }
       setRequired(next);
-      toast.success(notificationText.nastroykaBezopasnostiSohranena);
+      toast.success(notificationText.settingsSecuritySaved);
     });
   };
 

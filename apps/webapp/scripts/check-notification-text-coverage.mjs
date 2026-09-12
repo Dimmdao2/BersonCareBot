@@ -12,18 +12,27 @@
  * more `toast.error('Не удалось сохранить')` slipping back in; a structural scan cannot.
  *
  * What is a violation: a `new UserFacingError(...)` or `toast.error(...)`/`toast.success(...)`
- * call whose first argument is a plain string literal or a no-substitution template literal
- * (`` `text` `` with no `${...}`) — i.e. a string the author typed at the call site instead of
- * referencing the dictionary.
+ * call whose first argument CONTAINS a plain string literal or a no-substitution template literal
+ * (`` `text` `` with no `${...}`) in a user-visible position — i.e. a string the author typed at
+ * the call site instead of referencing the dictionary. This is not limited to the literal sitting
+ * directly as the argument: it also catches one reached through `??` (`data.message ?? 'text'`),
+ * a ternary (`cond ? 'a' : 'b'`, `err ? err.message : 'text'`), or any nesting of those
+ * (parenthesised, chained `?? (cond ? 'a' : 'b')`, etc.) — every branch of the expression that
+ * COULD end up shown to the user is walked, and a literal found on ANY such branch is a finding.
+ * (2026-09 verification pass: the original version only inspected the argument itself, so
+ * `toast.error(data.message ?? 'Провайдер недоступен')` passed clean while showing an
+ * un-dictionaried string whenever the server didn't supply its own `message` — this is what the
+ * expression walk below closes.)
  *
  * What is not a violation:
- *  - a reference to the dictionary (`notificationText.someKey`, `notificationTextFactory.fn(...)`);
+ *  - a reference to the dictionary (`notificationText.someKey`, `notificationTextFactory.fn(...)`),
+ *    on its own or as a branch of `??`/a ternary;
  *  - a template literal WITH interpolation (`` `${label}: ...` ``) — parameterized text belongs in
  *    `notificationTextFactory` by convention, but the AST can't force that split, so this gate only
  *    catches the fully-static literal case it can act on mechanically;
- *  - any other dynamic expression (a caught exception's `.message`, a variable, a ternary) — those
- *    are either already governed by the separate safe-user-error-text door or are a deliberate
- *    pass-through of a runtime value, not a duplicable known-code text;
+ *  - a branch that is some OTHER dynamic expression with no literal in it (a caught exception's
+ *    bare `.message`, a variable, a function call) — those are either already governed by the
+ *    separate safe-user-error-text door or are a deliberate pass-through of a runtime value;
  *  - the dictionary file itself and test files (not part of the shown-text surface).
  */
 import { readdirSync, readFileSync } from 'node:fs';
@@ -54,9 +63,9 @@ function collectFiles(dir, out = []) {
   return out;
 }
 
-/** Does `call` look like `new UserFacingError(...)` or `toast.error/success(...)`? */
-function literalTextArgument(node) {
-  let argument;
+/** Does `node` look like `new UserFacingError(...)` or `toast.error/success(...)`? Returns its
+ * first (message) argument expression, or undefined if `node` isn't one of these calls. */
+function textArgumentOf(node) {
   if (
     ts.isNewExpression(node) &&
     ts.isIdentifier(node.expression) &&
@@ -64,8 +73,9 @@ function literalTextArgument(node) {
     node.arguments &&
     node.arguments.length >= 1
   ) {
-    argument = node.arguments[0];
-  } else if (
+    return node.arguments[0];
+  }
+  if (
     ts.isCallExpression(node) &&
     ts.isPropertyAccessExpression(node.expression) &&
     ts.isIdentifier(node.expression.expression) &&
@@ -73,12 +83,41 @@ function literalTextArgument(node) {
     (node.expression.name.text === 'error' || node.expression.name.text === 'success') &&
     node.arguments.length >= 1
   ) {
-    argument = node.arguments[0];
-  } else {
-    return undefined;
+    return node.arguments[0];
   }
-  if (ts.isStringLiteral(argument) || ts.isNoSubstitutionTemplateLiteral(argument)) return argument;
   return undefined;
+}
+
+/**
+ * Walks an argument expression through the shapes that can carry a runtime value to the USER
+ * while a plain string literal rides along one of the branches — `??` fallbacks, ternaries, and
+ * parenthesised nesting of those — and collects every string-literal / no-substitution
+ * template-literal leaf found. A leaf reached only through some OTHER dynamic expression (a bare
+ * identifier, a property access, a call) is not a literal and contributes nothing; walking simply
+ * does not go past it (there is nothing further to inspect on that branch).
+ */
+function collectLiteralLeaves(expr, out = []) {
+  if (ts.isParenthesizedExpression(expr)) {
+    collectLiteralLeaves(expr.expression, out);
+    return out;
+  }
+  if (ts.isStringLiteral(expr) || ts.isNoSubstitutionTemplateLiteral(expr)) {
+    out.push(expr);
+    return out;
+  }
+  if (ts.isBinaryExpression(expr) && expr.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken) {
+    collectLiteralLeaves(expr.left, out);
+    collectLiteralLeaves(expr.right, out);
+    return out;
+  }
+  if (ts.isConditionalExpression(expr)) {
+    collectLiteralLeaves(expr.whenTrue, out);
+    collectLiteralLeaves(expr.whenFalse, out);
+    return out;
+  }
+  // Any other expression shape (identifier, property access, call, `||`, `+`, template with
+  // interpolation, …) is dynamic or out of the walked shape set — nothing to collect past it.
+  return out;
 }
 
 function checkSource(relativePath, text) {
@@ -92,13 +131,15 @@ function checkSource(relativePath, text) {
   );
 
   const visit = (node) => {
-    const literal = literalTextArgument(node);
-    if (literal) {
-      const { line } = sf.getLineAndCharacterOfPosition(literal.getStart(sf));
-      findings.push(
-        `${relativePath}:${line + 1}: string literal passed directly — add it to ` +
-          `notificationText.ts and reference the key instead (${JSON.stringify(literal.text).slice(0, 60)})`,
-      );
+    const argument = textArgumentOf(node);
+    if (argument) {
+      for (const literal of collectLiteralLeaves(argument)) {
+        const { line } = sf.getLineAndCharacterOfPosition(literal.getStart(sf));
+        findings.push(
+          `${relativePath}:${line + 1}: string literal reachable in a shown-text argument — add it ` +
+            `to notificationText.ts and reference the key instead (${JSON.stringify(literal.text).slice(0, 60)})`,
+        );
+      }
     }
     ts.forEachChild(node, visit);
   };
@@ -122,12 +163,23 @@ function selfTest() {
     ['toast.error literal', "toast.error('Не удалось сохранить');"],
     ['toast.success literal', "toast.success('Готово');"],
     ['template literal, no interpolation', 'toast.error(`Готово`);'],
+    ['literal in ?? fallback', "toast.error(data.message ?? 'Не удалось сохранить');"],
+    ['literal in chained ?? fallback', "toast.error(data.message ?? data.error ?? 'Не удалось сохранить');"],
+    ['literal in ternary else-branch (dynamic passthrough with a static fallback)',
+      "toast.error(error instanceof Error ? error.message : 'fallback');"],
+    ['literal in ternary then-branch', "toast.error(ok ? 'Готово' : status);"],
+    ['literal on both ternary branches', "toast.success(added ? 'Запись добавлена' : 'Запись обновлена');"],
+    ['literal nested under ?? through a parenthesised ternary',
+      "toast.error(data.message ?? (ok ? 'Готово' : 'Не удалось сохранить'));"],
   ];
   const safe = [
     ['dictionary reference', 'toast.error(notificationText.someKey);'],
     ['factory call', 'throw new UserFacingError(notificationTextFactory.invalidUuid(label));'],
     ['template literal with interpolation', 'throw new UserFacingError(`Некорректный UUID: ${label}`);'],
-    ['dynamic passthrough', "toast.error(error instanceof Error ? error.message : 'fallback');"],
+    ['dictionary reference as ?? fallback', 'toast.error(data.message ?? notificationText.someKey);'],
+    ['dictionary references on both ternary branches',
+      'toast.success(added ? notificationText.entryAdded : notificationText.entryUpdated);'],
+    ['dynamic passthrough with no literal anywhere', 'toast.error(error instanceof Error ? error.message : fallbackVar);'],
     ['bare variable', 'toast.error(message);'],
   ];
 

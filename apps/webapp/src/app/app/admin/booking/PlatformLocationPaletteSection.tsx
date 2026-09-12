@@ -42,7 +42,7 @@ export function PlatformLocationPaletteSection() {
         setLoaded(true);
       })
       .catch(() => {
-        if (active) toast.error(notificationText.neUdalosZagruzitTsveta);
+        if (active) toast.error(notificationText.adminLocationColorsLoadFailed);
       });
     return () => {
       active = false;
@@ -93,9 +93,9 @@ export function PlatformLocationPaletteSection() {
       });
       const data = (await response.json().catch(() => ({}))) as { ok?: boolean };
       if (!response.ok || !data.ok) throw new Error('save_failed');
-      toast.success(notificationText.tsvetaLokatsiySohraneny);
+      toast.success(notificationText.adminLocationColorsSaved);
     } catch {
-      toast.error(notificationText.neUdalosSohranitTsveta);
+      toast.error(notificationText.adminLocationColorsSaveFailed);
     } finally {
       setSaving(false);
     }

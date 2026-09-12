@@ -68,7 +68,7 @@ export function PatientHomeDailyWarmupRotationPanel(props: Props) {
         toast.error(actionFailureLine(result));
         return;
       }
-      toast.success(notificationText.sohraneno);
+      toast.success(notificationText.commonSaved);
     } finally {
       setPending(false);
     }

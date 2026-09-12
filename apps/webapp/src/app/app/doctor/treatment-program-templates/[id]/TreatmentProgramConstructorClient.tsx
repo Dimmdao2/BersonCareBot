@@ -401,7 +401,7 @@ function TemplateStageItemCommentBlock({
                 return;
               }
               await onReload();
-              toast.success(notificationText.sohraneno);
+              toast.success(notificationText.commonSaved);
             } finally {
               setSaving(false);
             }
@@ -568,7 +568,7 @@ export function TreatmentProgramConstructorClient({
     if (isArchived || templateBasicsBusy) return;
     const t = titleDraft.trim();
     if (!t) {
-      toast.error(notificationText.ukazhiteNazvanieShablona);
+      toast.error(notificationText.doctorTemplateNameRequired);
       setTitleDraft(detail.title);
       return;
     }
@@ -956,7 +956,7 @@ export function TreatmentProgramConstructorClient({
     const overId = pipeline[j]!.id;
     const ordered = computeOrderedStageIdsAfterPipelineMove(detail.stages, stageId, overId);
     if (!ordered) {
-      toast.error(notificationText.neUdalosIzmenitPoryadokEtapov);
+      toast.error(notificationText.treatmentProgramStageOrderUpdateFailed);
       return;
     }
     setBusy(true);
@@ -972,7 +972,7 @@ export function TreatmentProgramConstructorClient({
   async function handlePipelineStageDnd(activeId: string, overId: string) {
     const ordered = computeOrderedStageIdsAfterPipelineMove(detail.stages, activeId, overId);
     if (!ordered) {
-      toast.error(notificationText.neUdalosIzmenitPoryadokEtapov);
+      toast.error(notificationText.treatmentProgramStageOrderUpdateFailed);
       return;
     }
     setBusy(true);
@@ -991,9 +991,9 @@ export function TreatmentProgramConstructorClient({
     const plan = planStageItemDndReorder(stage.items, activeId, overId, canParticipate);
     if (!plan.ok) {
       if (plan.error === 'ungrouped_type') {
-        toast.error(notificationText.bezGruppyDopustimyTolko);
+        toast.error(notificationText.treatmentProgramNoGroupRestrictedElements);
       } else {
-        toast.error(notificationText.neUdalosIzmenitPoryadok);
+        toast.error(notificationText.doctorOrderUpdateFailed);
       }
       return;
     }
@@ -1002,7 +1002,7 @@ export function TreatmentProgramConstructorClient({
       if (plan.needsGroupPatch) {
         const okGroup = await patchItemGroupId(activeId, plan.nextGroupId);
         if (!okGroup) {
-          toast.error(notificationText.neUdalosSmenitGruppu);
+          toast.error(notificationText.treatmentProgramElementGroupChangeFailed);
           return;
         }
       }
@@ -1026,7 +1026,7 @@ export function TreatmentProgramConstructorClient({
       });
       const json = (await res.json()) as { ok?: boolean };
       if (!res.ok || !json.ok) {
-        toast.error(notificationText.neUdalosUdalitEtap);
+        toast.error(notificationText.treatmentProgramStageDeleteFailed);
         return false;
       }
       if (stageSettingsStageId === stageId) setStageSettingsStageId(null);
@@ -1156,7 +1156,7 @@ export function TreatmentProgramConstructorClient({
   async function handleDeleteGroup(groupId: string) {
     const found = detail.stages.flatMap((st) => st.groups).find((g) => g.id === groupId);
     if (found && isTreatmentProgramTemplateSystemStageGroup(found)) {
-      toast.error(notificationText.sistemnuyuGruppuNelzyaUdalit);
+      toast.error(notificationText.treatmentProgramSystemGroupDeleteForbidden);
       return;
     }
     if (!globalThis.confirm('Удалить группу? Элементы останутся вне группы.')) return;
@@ -1167,7 +1167,7 @@ export function TreatmentProgramConstructorClient({
       });
       const json = (await res.json()) as { ok?: boolean };
       if (!res.ok || !json.ok) {
-        toast.error(notificationText.neUdalosUdalitGruppu);
+        toast.error(notificationText.treatmentProgramGroupDeleteFailed);
         return;
       }
       await reload();
@@ -1263,19 +1263,19 @@ export function TreatmentProgramConstructorClient({
       } else {
         const rg = st.groups.find((g) => g.systemKind === 'recommendations');
         if (!rg) {
-          toast.error(notificationText.neNaydenaSistemnayaGruppa);
+          toast.error(notificationText.treatmentProgramRecommendationsGroupNotFound);
           return;
         }
         gid = rg.id;
       }
     } else if (itemType === 'clinical_test') {
       if (st.sortOrder === 0) {
-        toast.error(notificationText.klinicheskieTestyNelzyaDobavlyat);
+        toast.error(notificationText.treatmentProgramClinicalTestsNotAllowedOnGeneralStage);
         return;
       }
       const tg = st.groups.find((g) => g.systemKind === 'tests');
       if (!tg) {
-        toast.error(notificationText.neNaydenaSistemnayaGruppaTestirovanie);
+        toast.error(notificationText.treatmentProgramTestingGroupNotFound);
         return;
       }
       gid = tg.id;
@@ -1328,7 +1328,7 @@ export function TreatmentProgramConstructorClient({
     const st = detail.stages.find((s) => s.id === itemDialogStageId);
     if (!st) return;
     if (st.sortOrder === 0) {
-      toast.error(notificationText.naboryTestovNelzyaDobavlyat);
+      toast.error(notificationText.treatmentProgramTestSetsNotAllowedOnGeneralStage);
       return;
     }
 
@@ -1366,7 +1366,7 @@ export function TreatmentProgramConstructorClient({
     const st = detail.stages.find((s) => s.id === itemDialogStageId);
     if (!st) return;
     if (st.sortOrder === 0) {
-      toast.error(notificationText.naEtapeObschieRekomendatsiiNelzya);
+      toast.error(notificationText.treatmentProgramLfkComplexNotAllowedOnGeneralStage);
       return;
     }
 
@@ -1388,7 +1388,7 @@ export function TreatmentProgramConstructorClient({
         existingGroupId: rawGid,
       };
     } else {
-      toast.error(notificationText.vyberiteGruppuIzSpiska);
+      toast.error(notificationText.treatmentProgramSelectGroupFromList);
       return;
     }
 
@@ -1427,7 +1427,7 @@ export function TreatmentProgramConstructorClient({
       });
       const json = (await res.json()) as { ok?: boolean };
       if (!res.ok || !json.ok) {
-        toast.error(notificationText.neUdalosUdalit);
+        toast.error(notificationText.commonDeleteFailed);
         return;
       }
       if (itemSettingsItemId === itemId) setItemSettingsItemId(null);
@@ -2072,14 +2072,14 @@ export function TreatmentProgramConstructorClient({
                           itemSettingsContext.item.itemType !== 'clinical_test'
                         ) {
                           toast.error(
-                            notificationText.bezGruppyDopustimyTolko,
+                            notificationText.treatmentProgramNoGroupRestrictedElements,
                           );
                           return;
                         }
                         setBusy(true);
                         try {
                           const ok = await patchItemGroupId(itemSettingsContext.item.id, next);
-                          if (!ok) toast.error(notificationText.neUdalosIzmenitGruppu);
+                          if (!ok) toast.error(notificationText.doctorGroupUpdateFailed);
                           else await reload();
                         } finally {
                           setBusy(false);

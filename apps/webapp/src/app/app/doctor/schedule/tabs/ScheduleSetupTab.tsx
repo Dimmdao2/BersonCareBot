@@ -376,11 +376,11 @@ function SectionPackages({ readOnly }: { readOnly: boolean }) {
     const priceMinor = Math.round(Number.parseFloat(priceRub.replace(',', '.')) * 100);
     const days = validityDays ? Number.parseInt(validityDays, 10) : null;
     if (!title.trim() || !Number.isFinite(priceMinor) || priceMinor < 0 || formItems.length === 0) {
-      toast.error(notificationText.zapolniteNazvanieTsenuI);
+      toast.error(notificationText.doctorFillNamePriceAndItem);
       return;
     }
     if (days !== null && (!Number.isFinite(days) || days < 1)) {
-      toast.error(notificationText.srokDeystviyaDolzhenByt);
+      toast.error(notificationText.doctorSubscriptionDurationInvalid);
       return;
     }
     startFormTransition(async () => {
@@ -402,13 +402,13 @@ function SectionPackages({ readOnly }: { readOnly: boolean }) {
             }),
           },
         );
-        toast.success(editingPackage ? 'Абонемент изменён' : 'Абонемент добавлен');
+        toast.success(editingPackage ? notificationText.doctorSubscriptionPackageUpdated : notificationText.doctorSubscriptionPackageAdded);
         if (editingPackage) setSelectedCatalogPackage(json.package);
         closePackageForm();
         load();
       } catch {
         toast.error(
-          editingPackage ? 'Не удалось изменить абонемент' : 'Не удалось добавить абонемент',
+          editingPackage ? notificationText.doctorSubscriptionPackageUpdateFailed : notificationText.doctorSubscriptionPackageAddFailed,
         );
       }
     });
@@ -422,11 +422,11 @@ function SectionPackages({ readOnly }: { readOnly: boolean }) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ isActive: !pkg.isActive }),
         });
-        toast.success(pkg.isActive ? 'Абонемент отправлен в архив' : 'Абонемент восстановлен');
+        toast.success(pkg.isActive ? notificationText.doctorSubscriptionPackageArchived : notificationText.doctorSubscriptionPackageRestored);
         setSelectedCatalogPackage(null);
         load();
       } catch {
-        toast.error(notificationText.neUdalosObnovitAbonement);
+        toast.error(notificationText.doctorSubscriptionUpdateFailed);
       }
     });
   }

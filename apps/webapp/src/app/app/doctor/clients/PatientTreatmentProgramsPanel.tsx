@@ -116,7 +116,7 @@ export function PatientTreatmentProgramsPanel(props: {
         setAssignError(readSafeApiErrorText(data, 'Ошибка назначения'));
         return;
       }
-      toast.success(notificationText.programmaLecheniyaNaznachena);
+      toast.success(notificationText.treatmentProgramAssigned);
       closeModal();
       await load();
     } catch {
@@ -149,7 +149,7 @@ export function PatientTreatmentProgramsPanel(props: {
         setAssignError(readSafeApiErrorText(data, 'Ошибка назначения'));
         return;
       }
-      toast.success(notificationText.programmaLecheniyaNaznachena);
+      toast.success(notificationText.treatmentProgramAssigned);
       closeModal();
       await load();
     } catch {

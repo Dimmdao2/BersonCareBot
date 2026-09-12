@@ -202,7 +202,7 @@ export function OperatorHealthProbeSettingsSection() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ key: 'operator_health_probe_config', value: { value: config } }),
       });
-      toast.success(notificationText.nastroykiProbSohraneny);
+      toast.success(notificationText.adminProbeSettingsSaved);
     } catch (e) {
       toast.error(
         `Настройки проб не сохранены: ${e instanceof Error ? e.message : 'проверьте значения и повторите'}`,
@@ -224,7 +224,7 @@ export function OperatorHealthProbeSettingsSection() {
       setConfig(defaults);
       setQuietAmount(String(OPERATOR_HEALTH_PROBE_QUIET_WINDOW_DEFAULT_DURATION_MS / 3_600_000));
       setResetConfirmOpen(false);
-      toast.success(notificationText.sbroshenoSnovaDeystvuyutZnacheniya);
+      toast.success(notificationText.adminResetToCodeDefaults);
     } catch (e) {
       toast.error(`Не удалось сбросить настройки: ${e instanceof Error ? e.message : 'повторите'}`);
     } finally {
@@ -268,7 +268,7 @@ export function OperatorHealthProbeSettingsSection() {
         port,
         hasStoredPassword: value.hasStoredPassword || password.trim().length > 0,
       }));
-      toast.success(notificationText.parametrySluzhebnogoImapYaschika);
+      toast.success(notificationText.adminImapSettingsSaved);
     } catch (e) {
       toast.error(
         `IMAP-настройки не сохранены: ${e instanceof Error ? e.message : 'проверьте поля и повторите'}`,

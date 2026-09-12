@@ -62,13 +62,13 @@ export function EmailSmtpSection({
           from,
         });
         if (!ok) {
-          toast.error(notificationText.neUdalosSohranit);
+          toast.error(notificationText.commonSaveFailed);
           return;
         }
         setPassword('');
-        toast.success(notificationText.sohraneno);
+        toast.success(notificationText.commonSaved);
       } catch {
-        toast.error(notificationText.oshibkaPriSohranenii);
+        toast.error(notificationText.commonSaveError);
       }
     });
   }
@@ -81,19 +81,19 @@ export function EmailSmtpSection({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ to: testTo.trim() }),
         });
-        toast.success(notificationText.testovoePismoOtpravleno);
+        toast.success(notificationText.settingsTestEmailSent);
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Не удалось отправить';
         if (msg === 'smtp_not_configured') {
-          toast.error(notificationText.snachalaSohranitePolnyySmtp);
+          toast.error(notificationText.settingsSmtpFullConfigRequired);
           return;
         }
         if (msg === 'smtp_password_missing') {
-          toast.error(notificationText.vNastroykahNetParolya);
+          toast.error(notificationText.settingsSmtpPasswordMissing);
           return;
         }
         if (msg === 'invalid_body') {
-          toast.error(notificationText.ukazhiteKorrektnyyEmailPoluchatelya);
+          toast.error(notificationText.settingsInvalidRecipientEmail);
           return;
         }
         toast.error(msg);

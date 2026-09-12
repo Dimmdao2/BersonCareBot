@@ -49,17 +49,17 @@ export function WebPushVapidSection({
           privateKey: privateKeyInput,
         });
         if (!ok) {
-          toast.error(notificationText.neUdalosSohranit);
+          toast.error(notificationText.commonSaveFailed);
           return;
         }
         if (trimmedPriv.length > 0) {
           setHasPrivate(true);
         }
         setPrivateKeyInput('');
-        toast.success(notificationText.sohraneno);
+        toast.success(notificationText.commonSaved);
         router.refresh();
       } catch {
-        toast.error(notificationText.oshibkaPriSohranenii);
+        toast.error(notificationText.commonSaveError);
       }
     });
   }

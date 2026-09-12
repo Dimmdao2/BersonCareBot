@@ -46,12 +46,12 @@ export function AppParametersSection({
           patchAdminSetting('app_display_timezone', tzRaw),
         ]);
         if (results.some((r) => !r)) {
-          toast.error(notificationText.neUdalosSohranitChast);
+          toast.error(notificationText.settingsPartialSaveFailed);
           return;
         }
-        toast.success(notificationText.sohraneno);
+        toast.success(notificationText.commonSaved);
       } catch {
-        toast.error(notificationText.oshibkaPriSohranenii);
+        toast.error(notificationText.commonSaveError);
       }
     });
   }

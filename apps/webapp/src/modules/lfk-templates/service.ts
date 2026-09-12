@@ -46,7 +46,7 @@ export function createLfkTemplatesService(port: LfkTemplatesPort) {
       options?: LfkTemplateWriteOptions,
     ) {
       const title = input.title?.trim() ?? '';
-      if (!title) throw new UserFacingError(notificationText.nazvanieShablonaObyazatelno);
+      if (!title) throw new UserFacingError(notificationText.exerciseTemplateNameRequired);
       return runTemplateWrite(options, () =>
         port.create({ ...input, title, description: input.description?.trim() || null }, createdBy),
       );
@@ -58,21 +58,21 @@ export function createLfkTemplatesService(port: LfkTemplatesPort) {
       options?: LfkTemplateWriteOptions,
     ) {
       const existing = await port.getById(id);
-      if (!existing) throw new UserFacingError(notificationText.shablonNeNayden);
+      if (!existing) throw new UserFacingError(notificationText.exerciseTemplateNotFound);
       if (existing.status === 'archived') {
-        throw new UserFacingError(notificationText.kompleksVArhiveVernite);
+        throw new UserFacingError(notificationText.exerciseComplexArchivedRestoreToEdit);
       }
       const patch: UpdateTemplateInput = { ...input };
       if (input.title !== undefined) {
         const t = input.title.trim();
-        if (!t) throw new UserFacingError(notificationText.nazvanieShablonaObyazatelno);
+        if (!t) throw new UserFacingError(notificationText.exerciseTemplateNameRequired);
         patch.title = t;
       }
       if (input.description !== undefined) {
         patch.description = input.description?.trim() || null;
       }
       const row = await runTemplateWrite(options, () => port.update(id, patch));
-      if (!row) throw new UserFacingError(notificationText.shablonNeNayden);
+      if (!row) throw new UserFacingError(notificationText.exerciseTemplateNotFound);
       return row;
     },
 
@@ -82,12 +82,12 @@ export function createLfkTemplatesService(port: LfkTemplatesPort) {
       options?: LfkTemplateWriteOptions,
     ) {
       const t = await port.getById(templateId);
-      if (!t) throw new UserFacingError(notificationText.shablonNeNayden);
+      if (!t) throw new UserFacingError(notificationText.exerciseTemplateNotFound);
       if (t.status === 'archived') {
-        throw new UserFacingError(notificationText.kompleksVArhiveVernite);
+        throw new UserFacingError(notificationText.exerciseComplexArchivedRestoreToEdit);
       }
       if (t.status === 'published' && exercises.length === 0) {
-        throw new UserFacingError(notificationText.nelzyaUdalitVseUprazhneniya);
+        throw new UserFacingError(notificationText.exerciseTemplatePublishedCannotRemoveAll);
       }
       const normalized = exercises.map((e, idx) => ({
         ...e,
@@ -102,17 +102,17 @@ export function createLfkTemplatesService(port: LfkTemplatesPort) {
 
     async publishTemplate(id: string, options?: LfkTemplateWriteOptions) {
       const t = await port.getById(id);
-      if (!t) throw new UserFacingError(notificationText.shablonNeNayden);
+      if (!t) throw new UserFacingError(notificationText.exerciseTemplateNotFound);
       if (t.status !== 'draft') {
-        throw new UserFacingError(notificationText.opublikovatMozhnoTolkoChernovik);
+        throw new UserFacingError(notificationText.exerciseTemplatePublishDraftOnly);
       }
       const titleOk = t.title.trim().length > 0;
-      if (!titleOk) throw new UserFacingError(notificationText.nuzhnoNazvanieShablona);
+      if (!titleOk) throw new UserFacingError(notificationText.exerciseTemplateNameNeeded);
       if (t.exercises.length < 1) {
-        throw new UserFacingError(notificationText.dobavteHotyaByOdno);
+        throw new UserFacingError(notificationText.exerciseTemplateAddAtLeastOne);
       }
       const next = await runTemplateWrite(options, () => port.setStatus(id, 'published'));
-      if (!next) throw new UserFacingError(notificationText.shablonNeNayden);
+      if (!next) throw new UserFacingError(notificationText.exerciseTemplateNotFound);
       return next;
     },
 

@@ -70,11 +70,11 @@ export function PatientHomeMoodCheckin({
     newLast: PatientMoodLastEntry | null,
   ) {
     if (!newLast) {
-      toast.success(notificationText.sohraneno);
+      toast.success(notificationText.commonSaved);
       return;
     }
     const added = !previousLast || previousLast.id !== newLast.id;
-    toast.success(added ? 'Запись добавлена' : 'Запись обновлена');
+    toast.success(added ? notificationText.patientEntryAdded : notificationText.patientEntryUpdated);
   }
 
   async function postMood(score: number, intent: PatientMoodIntent): Promise<boolean> {
@@ -100,7 +100,7 @@ export function PatientHomeMoodCheckin({
         setSelectedScore(previousSelected);
         setSavedScore(previousSaved);
         setLastEntry(previousLast);
-        toast.error(data.message ?? 'Не удалось сохранить, попробуйте позже.');
+        toast.error(data.message ?? notificationText.commonSaveFailedRetryLaterAlt);
         return false;
       }
       setSelectedScore(data.mood.score);
@@ -116,7 +116,7 @@ export function PatientHomeMoodCheckin({
       setSelectedScore(previousSelected);
       setSavedScore(previousSaved);
       setLastEntry(previousLast);
-      toast.error(notificationText.neUdalosSohranitPoprobuytePozzhe);
+      toast.error(notificationText.commonSaveFailedRetryLaterAlt);
       return false;
     } finally {
       setSubmittingScore(null);

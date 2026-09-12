@@ -164,9 +164,9 @@ export function BookingManualLifecycleSection({
                         body: JSON.stringify({ decisionType: cancelType }),
                       },
                     );
-                    toast.success(notificationText.otmenaPrimenena);
+                    toast.success(notificationText.settingsCancellationApplied);
                   } catch (e) {
-                    toast.error(e instanceof Error ? e.message : 'error');
+                    toast.error(e instanceof Error ? e.message : notificationText.commonUnknownError);
                   }
                 });
               }}
@@ -218,9 +218,9 @@ export function BookingManualLifecycleSection({
                         }),
                       },
                     );
-                    toast.success(notificationText.perenosPrimenen);
+                    toast.success(notificationText.settingsRescheduleApplied);
                   } catch (e) {
-                    toast.error(e instanceof Error ? e.message : 'error');
+                    toast.error(e instanceof Error ? e.message : notificationText.commonUnknownError);
                   }
                 });
               }}

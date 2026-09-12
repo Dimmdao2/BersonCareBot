@@ -523,10 +523,10 @@ export function AuthFlowV2({
         return;
       }
       if (res.status === 429 || data.error === 'rate_limited') {
-        toast.error(data.message ?? 'Слишком много попыток. Попробуйте позже.');
+        toast.error(data.message ?? notificationText.authTooManyAttemptsRetryLater);
         return;
       }
-      toast.error(data.message ?? 'Провайдер недоступен');
+      toast.error(data.message ?? notificationText.authProviderUnavailable);
     } finally {
       setLoading(false);
     }
@@ -652,7 +652,7 @@ export function AuthFlowV2({
     engageInteractive();
     const email = emailLoginEmail.trim();
     if (!email) {
-      toast.error(notificationText.vvediteEmail);
+      toast.error(notificationText.authEnterEmail);
       return;
     }
     setLoading(true);
@@ -677,7 +677,7 @@ export function AuthFlowV2({
       }
       const { data } = result;
       if (!data.ok) {
-        toast.error(data.message ?? 'Не удалось отправить код');
+        toast.error(data.message ?? notificationText.authCodeSendFailed);
         return;
       }
       setEmailRegChallengeId(data.challengeId ?? null);
@@ -710,7 +710,7 @@ export function AuthFlowV2({
     const firstName = emailRegFirstName.trim();
     const patronymic = emailRegPatronymic.trim();
     if (!email || !lastName || !firstName) {
-      toast.error(notificationText.ukazhiteEmailFamiliyuI);
+      toast.error(notificationText.authSpecifyEmailNameSurname);
       return;
     }
     setLoading(true);
@@ -745,10 +745,10 @@ export function AuthFlowV2({
         return;
       }
       if (response.status === 409 || data.error === 'duplicate_email') {
-        toast.error(notificationText.akkauntSEtoyPochtoy);
+        toast.error(notificationText.authEmailAlreadyRegistered);
         return;
       }
-      toast.error(data.message ?? 'Не удалось начать регистрацию');
+      toast.error(data.message ?? notificationText.authSignupStartFailed);
     } finally {
       setLoading(false);
     }
@@ -775,7 +775,7 @@ export function AuthFlowV2({
   const submitForgotPassword = async () => {
     const email = emailLoginEmail.trim();
     if (!email) {
-      toast.error(notificationText.vvediteEmail);
+      toast.error(notificationText.authEnterEmail);
       return;
     }
     engageInteractive();
@@ -798,7 +798,7 @@ export function AuthFlowV2({
       }
       const { response: res, data } = result;
       if (res.status === 503 || data.error === 'auth_channel_disabled') {
-        toast.error(notificationText.vosstanovlenieParolyaPoEmail);
+        toast.error(notificationText.authPasswordRecoveryUnavailable);
         return;
       }
       setEmailLoginPassword('');
@@ -809,7 +809,7 @@ export function AuthFlowV2({
       setPwNewPassword('');
       setPwRecoveryPhase('reset_code');
       // Neutral wording on purpose: the endpoint never confirms or denies account existence.
-      toast.success(notificationText.esliAkkauntSEtoy);
+      toast.success(notificationText.authEmailCodeSentIfExists);
     } finally {
       setLoading(false);
     }
@@ -842,7 +842,7 @@ export function AuthFlowV2({
         !optionsResult.data.options
       ) {
         if (optionsResult.ok && optionsResult.data.error === 'auth_method_disabled') {
-          toast.error(notificationText.vhodPoKlyuchuDostupa);
+          toast.error(notificationText.authPasskeyLoginDisabled);
         } else {
           toast.error(
             optionsResult.ok
@@ -882,10 +882,10 @@ export function AuthFlowV2({
         redirectOk(verifyResult.data.redirectTo);
         return;
       }
-      toast.error(verifyResult.data.message ?? 'Не удалось подтвердить ключ доступа');
+      toast.error(verifyResult.data.message ?? notificationText.authPasskeyVerifyFailed);
     } catch (error) {
       if (error instanceof Error && error.name === 'NotAllowedError') return;
-      toast.error(notificationText.neUdalosIspolzovatKlyuch);
+      toast.error(notificationText.authPasskeyUseFailed);
     } finally {
       setLoading(false);
     }
@@ -897,7 +897,7 @@ export function AuthFlowV2({
     const email = emailLoginEmail.trim();
     const password = emailLoginPassword;
     if (!email || !password) {
-      toast.error(notificationText.vvediteEmailIParol);
+      toast.error(notificationText.authEnterEmailAndPassword);
       return;
     }
     setLoading(true);
@@ -937,7 +937,7 @@ export function AuthFlowV2({
         return;
       }
       if (res.status === 409 || data.error === 'email_not_verified') {
-        toast.error(data.message ?? 'Email не подтверждён. Подтвердите адрес и повторите вход.');
+        toast.error(data.message ?? notificationText.authEmailNotVerifiedRetryLogin);
         return;
       }
       if (data.error === 'invalid_credentials') {
@@ -963,7 +963,7 @@ export function AuthFlowV2({
   const submitStaffFactor = async (e: FormEvent) => {
     e.preventDefault();
     const value = staffFactorCode.trim();
-    if (!value) return toast.error(notificationText.vvediteKod);
+    if (!value) return toast.error(notificationText.authEnterCode);
     setLoading(true);
     try {
       const result = await fetchJsonSafe<{
@@ -990,7 +990,7 @@ export function AuthFlowV2({
 
   const openSpecialistSignup = () => {
     if (!specialistSignupEnabled) {
-      toast.error(notificationText.registratsiyaKabinetaSpetsialistaPoka);
+      toast.error(notificationText.doctorSignupUnavailable);
       return;
     }
     engageInteractive();
@@ -1071,11 +1071,11 @@ export function AuthFlowV2({
       !organizationTitle ||
       !specialistSignupOrganizationSlug.trim()
     ) {
-      toast.error(notificationText.zapolniteVsePolya);
+      toast.error(notificationText.commonFillAllFields);
       return;
     }
     if (password.length < 8) {
-      toast.error(notificationText.parolNeMenee8);
+      toast.error(notificationText.authSignupPasswordTooShort);
       return;
     }
     if (organizationTitle.length > ORGANIZATION_NAME_MAX_LENGTH) {
@@ -1134,7 +1134,7 @@ export function AuthFlowV2({
         return;
       }
       if (data.error === 'duplicate_email') {
-        toast.error(notificationText.akkauntSEtoyPochtoy);
+        toast.error(notificationText.authEmailAlreadyRegistered);
         return;
       }
       if (data.error === ORGANIZATION_NAME_TOO_LONG_CODE) {
@@ -1149,10 +1149,10 @@ export function AuthFlowV2({
         return;
       }
       if (res.status === 429 || data.error === 'rate_limited') {
-        toast.error(data.message ?? 'Слишком много попыток. Попробуйте позже.');
+        toast.error(data.message ?? notificationText.authTooManyAttemptsRetryLater);
         return;
       }
-      toast.error(data.message ?? 'Не удалось начать регистрацию');
+      toast.error(data.message ?? notificationText.authSignupStartFailed);
     } finally {
       setLoading(false);
     }
@@ -1189,15 +1189,15 @@ export function AuthFlowV2({
         setEmailRegRetrySec(result.retryAfterSeconds);
         setEmailVerifyPurpose('setup');
         setEmailAuthMode('verify');
-        toast.success(notificationText.otpraviliKodNaPochtu);
+        toast.success(notificationText.authEmailCodeSent);
         return;
       }
       if (result.kind === 'rate_limited') {
         setEmailRegRetrySec(result.retryAfterSeconds);
-        toast.error(notificationText.kodUzheOtpravlenProverte);
+        toast.error(notificationText.authCodeAlreadySentCheckEmail);
         return;
       }
-      toast.error(notificationText.neUdalosOtpravitPismo);
+      toast.error(notificationText.commonEmailSendFailed);
     } finally {
       setLoading(false);
     }
@@ -1208,7 +1208,7 @@ export function AuthFlowV2({
     engageInteractive();
     const email = pwResetEmail.trim();
     if (!email || !pwResetCode.trim() || pwNewPassword.length < 8) {
-      toast.error(notificationText.vvediteKodINovyy);
+      toast.error(notificationText.authEnterCodeAndNewPassword);
       return;
     }
     setLoading(true);
@@ -1255,21 +1255,21 @@ export function AuthFlowV2({
         setPwResetCode('');
         setPwNewPassword('');
         toast.success(
-          pwRecoveryPurpose === 'setup' ? 'Доступ настроен.' : 'Пароль обновлён. Войдите.',
+          pwRecoveryPurpose === 'setup' ? notificationText.authAccessConfigured : notificationText.authPasswordUpdatedPleaseLogin,
         );
         setEmailLoginEmail(email);
         setEmailAuthMode('login');
         return;
       }
       if (res.status === 429 || data.error === 'too_many_attempts') {
-        toast.error(data.message ?? 'Слишком частые попытки');
+        toast.error(data.message ?? notificationText.authAttemptsTooFrequent);
         return;
       }
       if (data.error === 'expired_code') {
-        toast.error(notificationText.kodIstekZaprositeNovyy);
+        toast.error(notificationText.authCodeExpired);
         return;
       }
-      toast.error(data.message ?? 'Неверный или просроченный код');
+      toast.error(data.message ?? notificationText.authCodeInvalidOrExpired);
     } finally {
       setLoading(false);
     }
@@ -1346,7 +1346,7 @@ export function AuthFlowV2({
       }
       const { response: res, data } = checkPhoneResult;
       if (!res.ok || !data.ok || !data.methods) {
-        toast.error(notificationText.neUdalosProveritNomer);
+        toast.error(notificationText.messagingPhoneCheckFailed);
         return;
       }
       setPhone(normalized);
@@ -2135,8 +2135,7 @@ export function AuthFlowV2({
                         setEmailVerifyPurpose('registration');
                         setEmailAuthMode('login');
                         toast.error(
-                          data.message ??
-                            'Войдите с паролем ещё раз, чтобы продолжить защищённую настройку.',
+                          data.message ?? notificationText.authReenterPasswordToContinueSetup,
                         );
                         return { ok: false as const, message: data.message ?? 'Повторите вход.' };
                       }

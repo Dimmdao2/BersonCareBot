@@ -273,11 +273,11 @@ export function ContentPagesSectionList({
             const res = await reorderContentPagesInSection(sectionSlug, orderedIds);
             if (!res.ok) {
               setItems(previous);
-              toast.error(res.error ?? 'Не удалось изменить порядок материалов');
+              toast.error(res.error ?? notificationText.doctorContentOrderUpdateFailed);
             }
           } catch {
             setItems(previous);
-            toast.error(notificationText.neUdalosIzmenitPoryadokMaterialov);
+            toast.error(notificationText.doctorContentOrderUpdateFailed);
           }
         });
         return next;
@@ -293,10 +293,10 @@ export function ContentPagesSectionList({
         if (res.ok) {
           setItems((prev) => prev.map((p) => (p.id === id ? { ...p, requiresAuth: next } : p)));
         } else {
-          toast.error(res.error ?? 'Не удалось изменить доступ к материалу');
+          toast.error(res.error ?? notificationText.doctorContentAccessUpdateFailed);
         }
       } catch {
-        toast.error(notificationText.neUdalosIzmenitDostup);
+        toast.error(notificationText.doctorContentAccessUpdateFailed);
       }
     });
   }, []);

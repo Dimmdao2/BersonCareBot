@@ -71,16 +71,16 @@ function PlatformBotForm({ platform }: { platform: PlatformBotSettings }) {
         }
         if (patches.length === 0) return;
         if ((await Promise.all(patches)).some((saved) => !saved)) {
-          toast.error(notificationText.neUdalosSohranitChast);
+          toast.error(notificationText.settingsPartialSaveFailed);
           return;
         }
         setTelegramToken('');
         setTelegramWebhookSecret('');
         setMaxKey('');
         setMaxWebhookSecret('');
-        toast.success(notificationText.sohraneno);
+        toast.success(notificationText.commonSaved);
       } catch {
-        toast.error(notificationText.oshibkaPriSohranenii);
+        toast.error(notificationText.commonSaveError);
       }
     });
   return (

@@ -43,19 +43,19 @@ export function assertValidIntroLessonPage(
   row: IntroLessonPageRecord | null,
 ): asserts row is IntroLessonPageRecord {
   if (!row) {
-    throw new UserFacingError(notificationText.stranitsaVstupitelnogoUrokaNe);
+    throw new UserFacingError(notificationText.courseIntroLessonNotFound);
   }
   if (!isCourseLessonSection(row.section)) {
-    throw new UserFacingError(notificationText.vstupitelnymUrokomMozhetByt);
+    throw new UserFacingError(notificationText.courseIntroLessonMustBeFromLessonsSection);
   }
   if (!row.requiresAuth) {
     throw new UserFacingError(
-      notificationText.stranitsaVstupitelnogoUrokaDolzhnaByt,
+      notificationText.courseIntroLessonMustBeLoggedInOnly,
     );
   }
   if (!row.isPublished || row.archivedAt || row.deletedAt) {
     throw new UserFacingError(
-      notificationText.stranitsaVstupitelnogoUrokaDolzhna,
+      notificationText.courseIntroLessonMustBePublishedNotArchived,
     );
   }
 }
@@ -136,14 +136,14 @@ export function createCoursesService(deps: {
     async getCourseUsage(courseId: string) {
       assertUuid(courseId);
       const snap = await courses.getCourseUsageSummary(courseId.trim());
-      if (!snap) throw new UserFacingError(notificationText.kursNeNayden);
+      if (!snap) throw new UserFacingError(notificationText.courseNotFound);
       return snap;
     },
 
     async createCourse(input: CreateCourseInput, options?: CourseWriteOptions) {
       assertWriteClearance('courses');
       const title = input.title?.trim() ?? '';
-      if (!title) throw new UserFacingError(notificationText.nazvanieKursaObyazatelno);
+      if (!title) throw new UserFacingError(notificationText.courseNameRequired);
       assertUuid(input.programTemplateId);
       if (input.introLessonPageId) {
         assertUuid(input.introLessonPageId);
@@ -172,7 +172,7 @@ export function createCoursesService(deps: {
       const patch: UpdateCourseInput = { ...input };
       if (input.title !== undefined) {
         const t = input.title.trim();
-        if (!t) throw new UserFacingError(notificationText.nazvanieKursaObyazatelno);
+        if (!t) throw new UserFacingError(notificationText.courseNameRequired);
         patch.title = t;
       }
       if (input.programTemplateId !== undefined) {
@@ -212,13 +212,13 @@ export function createCoursesService(deps: {
       assertUuid(patientUserId);
       const course = await courses.getById(courseId);
       if (!course) {
-        throw new UserFacingError(notificationText.kursNeNayden);
+        throw new UserFacingError(notificationText.courseNotFound);
       }
       if (course.status !== 'published') {
-        throw new UserFacingError(notificationText.dostupnaTolkoZapisNa);
+        throw new UserFacingError(notificationText.courseEnrollOnlyPublished);
       }
       if (!enrollmentOpen(course.accessSettings)) {
-        throw new UserFacingError(notificationText.zapisNaKursZakryta);
+        throw new UserFacingError(notificationText.courseEnrollmentClosed);
       }
       return assignTemplateToPatient({
         templateId: course.programTemplateId,

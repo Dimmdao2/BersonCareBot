@@ -198,7 +198,7 @@ export function LfkJournalClient(props: {
               const fd = new FormData(form);
               const local = fd.get('completedAtLocal');
               if (typeof local !== 'string' || !local) {
-                toast.error(notificationText.ukazhiteDatuIVremya);
+                toast.error(notificationText.exerciseSpecifyDateTime);
                 return;
               }
               fd.set('completedAt', new Date(local).toISOString());
@@ -206,11 +206,11 @@ export function LfkJournalClient(props: {
               startTransition(async () => {
                 const res = await updateLfkJournalSession(fd);
                 if (res.ok) {
-                  toast.success(notificationText.sohraneno);
+                  toast.success(notificationText.commonSaved);
                   setEditSession(null);
                   router.refresh();
                 } else {
-                  toast.error(res.message ?? 'Не удалось сохранить');
+                  toast.error(res.message ?? notificationText.commonSaveFailed);
                 }
               });
             }}
@@ -300,11 +300,11 @@ export function LfkJournalClient(props: {
             fd.set('sessionId', sessionId);
             const res = await deleteLfkJournalSession(fd);
             if (res.ok) {
-              toast.success(notificationText.zapisUdalena);
+              toast.success(notificationText.patientDiaryEntryDeleted);
               setDeleteSession(null);
               router.refresh();
             } else {
-              toast.error(res.message ?? 'Не удалось удалить');
+              toast.error(res.message ?? notificationText.commonDeleteFailed);
             }
           });
         }}

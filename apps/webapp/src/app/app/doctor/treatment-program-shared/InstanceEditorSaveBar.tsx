@@ -36,7 +36,7 @@ export function InstanceEditorSaveBar() {
           onClick={() => {
             void saveDraft().then((r) => {
               if (r.ok) {
-                toast.success(notificationText.izmeneniyaSohraneny);
+                toast.success(notificationText.doctorChangesSaved);
               } else if (!r.cancelled && r.error) {
                 toast.error(r.error);
               }

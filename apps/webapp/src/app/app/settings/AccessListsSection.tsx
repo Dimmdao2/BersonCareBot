@@ -63,12 +63,12 @@ export function AccessListsSection({
           patchAdminSetting('doctor_max_ids', parseIdTokens(vals.doctorMaxIds)),
         ]);
         if (results.some((r) => !r)) {
-          toast.error(notificationText.neUdalosSohranitChast);
+          toast.error(notificationText.settingsPartialSaveFailed);
           return;
         }
-        toast.success(notificationText.sohraneno);
+        toast.success(notificationText.commonSaved);
       } catch {
-        toast.error(notificationText.oshibkaPriSohranenii);
+        toast.error(notificationText.commonSaveError);
       }
     });
   }

@@ -212,14 +212,14 @@ export function SettingsForm({
           settings?: Array<{ key: string; valueJson: unknown }>;
         } | null;
         if (!response.ok || !body?.ok) {
-          toast.error(notificationText.neUdalosSohranitNastroyki);
+          toast.error(notificationText.settingsSaveFailed);
           return;
         }
         const savedSettings = body.settings ?? (body.setting ? [body.setting] : []);
         if (workspaceMode) {
           const savedKeys = new Set(savedSettings.map((setting) => setting.key));
           if (WORKSPACE_SETTINGS_BATCH_KEYS.some((key) => !savedKeys.has(key))) {
-            toast.error(notificationText.neUdalosPodtverditSohranennye);
+            toast.error(notificationText.settingsConfirmSavedFailed);
             return;
           }
         } else if (showSupportDefaults) {
@@ -236,13 +236,13 @@ export function SettingsForm({
             valueFor('doctor_patient_support_media_without_support_default_enabled') !==
               supportMediaDefault
           ) {
-            toast.error(notificationText.neUdalosPodtverditSohranennye);
+            toast.error(notificationText.settingsConfirmSavedFailed);
             return;
           }
         }
-        toast.success(notificationText.sohraneno);
+        toast.success(notificationText.commonSaved);
       } catch {
-        toast.error(notificationText.oshibkaPriSohranenii);
+        toast.error(notificationText.commonSaveError);
       }
     });
   }

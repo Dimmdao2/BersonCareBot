@@ -70,10 +70,10 @@ export function PatientHomeRepeatCooldownPanel(props: Props) {
         toast.error(actionFailureLine(result));
         return;
       }
-      toast.success(notificationText.sohraneno);
+      toast.success(notificationText.commonSaved);
       router.refresh();
     } catch {
-      toast.error(notificationText.neUdalosSohranit2);
+      toast.error(notificationText.settingsPatientHomeSaveFailed);
     } finally {
       setPending(false);
     }

@@ -260,7 +260,7 @@ export function DoctorCourseEditForm({
         toast.error(readSafeApiErrorText(first, 'Не удалось сохранить'));
         return;
       }
-      toast.success(notificationText.sohraneno);
+      toast.success(notificationText.commonSaved);
       router.refresh();
       if (externalUsageSnapshot === undefined) {
         void fetch(`/api/doctor/courses/${encodeURIComponent(courseId)}/usage`)
@@ -271,7 +271,7 @@ export function DoctorCourseEditForm({
           .catch(() => {});
       }
     } catch {
-      toast.error(notificationText.setNedostupnaPoprobuyteEsche);
+      toast.error(notificationText.commonNetworkUnavailableRetry);
     } finally {
       setPending(false);
     }
@@ -287,7 +287,7 @@ export function DoctorCourseEditForm({
       }
       setWarnOpen(false);
       setWarnUsage(null);
-      toast.success(notificationText.sohraneno);
+      toast.success(notificationText.commonSaved);
       router.refresh();
       if (externalUsageSnapshot === undefined) {
         void fetch(`/api/doctor/courses/${encodeURIComponent(courseId)}/usage`)
@@ -298,7 +298,7 @@ export function DoctorCourseEditForm({
           .catch(() => {});
       }
     } catch {
-      toast.error(notificationText.setNedostupnaPoprobuyteEsche);
+      toast.error(notificationText.commonNetworkUnavailableRetry);
     } finally {
       setPending(false);
     }
