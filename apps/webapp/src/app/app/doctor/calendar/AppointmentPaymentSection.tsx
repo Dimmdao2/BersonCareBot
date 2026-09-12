@@ -15,6 +15,7 @@ import {
 import type { CalendarAppointmentPaymentView } from '@/modules/booking-calendar/types';
 import { sendPaymentLinkToPatientChat } from '../sendPaymentLinkToPatientChat';
 import { localQrCodeDataUri } from './localQrCode';
+import { parseBusinessInstant } from '@/shared/lib/formatBusinessDateTime';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 type Response = { ok?: boolean; payment?: CalendarAppointmentPaymentView; error?: string };
@@ -223,7 +224,15 @@ export function AppointmentPaymentSection({
   // показывает ссылку и QR; как только вышел, бронь уже отменена фоновым тиком, и показывать
   // мёртвую ссылку нельзя — по ней пациент заплатит за отданное другому время.
   const deadlineAt = current.prepayment?.deadlineAt ?? null;
-  const deadlineMs = deadlineAt ? DateTime.fromISO(deadlineAt, { setZone: true }).toMillis() : null;
+  // Разбор — общим `parseBusinessInstant`, а НЕ `DateTime.fromISO`. Срок приезжает из
+  // `be_appointments.payment_deadline_at`, колонка объявлена `mode: 'string'`, и наружу уходит
+  // постгресовая форма с пробелом и коротким смещением: «2026-09-12 03:59:00.309689+03».
+  // `fromISO` на ней даёт Invalid DateTime, `toMillis()` — NaN, и весь блок срока молча исчезал:
+  // живая проверка S6.5 показала модалку врача со ссылкой и QR, но БЕЗ «Оплатить до» и отсчёта,
+  // а вместе с ним не мог наступить и `invoiceExpired` — истёкший счёт продолжал бы показывать
+  // ссылку. Аудит S6 этого не поймал, потому что читал код, а не экран.
+  const deadlineMsRaw = deadlineAt ? parseBusinessInstant(deadlineAt, timeZone).getTime() : null;
+  const deadlineMs = deadlineMsRaw !== null && Number.isFinite(deadlineMsRaw) ? deadlineMsRaw : null;
   const [nowMs, setNowMs] = useState(() => Date.now());
   useEffect(() => {
     if (!collectOpen || deadlineMs === null || !Number.isFinite(deadlineMs)) return;

@@ -25896,6 +25896,13 @@ const REV10_CONTEXT = {
       targetRole: 'app_pre_session', contextClass: 'pre_session',
       purpose: 'booking-payment.webhook.resolve',
       functionIdentity: 'app.resolve_payment_webhook_organization(text,text,text)' },
+    // S3: the messenger/QR bearer knows only an intent UUID. The pre-session role gets one named
+    // projection, never relation access; the provider continuation is emitted only for a live
+    // appointment invoice by the function body itself.
+    booking_payment_check_read: { port: 'webapp', sessionRole: 'app_patient',
+      targetRole: 'app_pre_session', contextClass: 'pre_session',
+      purpose: 'booking-payment.check.read',
+      functionIdentity: 'app.read_booking_payment_check(uuid)' },
     booking_payment_webhook_settle: { port: 'webapp', sessionRole: 'app_staff',
       targetRole: 'app_tenant_service', contextClass: 'tenant_service',
       purpose: 'booking-payment.webhook.settle',
@@ -26413,6 +26420,11 @@ const REV10_CONTEXT = {
       runtimeName: 'read_current_patient_booking_row', sessionRole: 'app_patient',
       targetRole: 'app_patient', contextClass: 'patient', purpose: 'booking.patient-row.read',
       functionIdentity: 'app.read_current_patient_booking_row(uuid,text)' },
+    read_current_patient_booking_payment_status: { port: 'webapp',
+      runtimeName: 'read_current_patient_booking_payment_status', sessionRole: 'app_patient',
+      targetRole: 'app_patient', contextClass: 'patient',
+      purpose: 'booking.patient-payment-status.read',
+      functionIdentity: 'app.read_current_patient_booking_payment_status(uuid)' },
     read_current_patient_booking_policies: { port: 'webapp',
       runtimeName: 'read_current_patient_booking_policies', sessionRole: 'app_patient',
       targetRole: 'app_patient', contextClass: 'patient', purpose: 'booking.patient-policies.read',
@@ -28025,6 +28037,25 @@ const REV10_CONTEXT = {
       purpose: 'booking-payment.webhook.resolve', typedArgs: ['text', 'text', 'text'],
       volatility: 'STABLE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
     }),
+    'app.read_booking_payment_check(uuid)': rev10Function({
+      owner: 'app_seam_payment_webhook_owner', security: 'DEFINER', returns: 'record',
+      returnsSet: true, execute: ['app_pre_session'],
+      purpose: 'return only one anonymous-safe appointment invoice check projection',
+      typedArgs: ['uuid'], volatility: 'STABLE', parallel: 'UNSAFE', language: 'plpgsql',
+      proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.be_payment_intents',
+          columns: ['id', 'appointment_id', 'amount_minor', 'currency', 'status', 'purpose',
+            'checkout_url'],
+          operations: ['SELECT' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_appointments',
+          columns: ['id', 'status', 'payment_ref', 'prepayment_required_minor',
+            'prepayment_paid_minor', 'payment_deadline_at', 'deleted_at'],
+          operations: ['SELECT' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
     // Вторая половина того же callback'а: ВСЁ проведение оплаченной брони внутри уже принятой
     // клиники, одним statement-атомарным корнем. Десять реляционных обращений прежнего пути не могли
     // разделить транзакцию под этим классом в принципе (именованный корень отказывается стартовать
@@ -29164,6 +29195,29 @@ const REV10_CONTEXT = {
         { relation: 'public.be_specialists', columns: [
           'id', 'organization_id', 'is_active',
         ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.read_current_patient_booking_payment_status(uuid)': rev10Function({
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'record',
+      returnsSet: true, execute: ['app_patient'],
+      purpose: 'return only the current patient own booking payment screen projection',
+      typedArgs: ['uuid'], volatility: 'STABLE', parallel: 'RESTRICTED', language: 'plpgsql',
+      proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.patient_bookings',
+          columns: ['id', 'organization_id', 'platform_user_id', 'canonical_appointment_id'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_appointments',
+          columns: ['id', 'organization_id', 'platform_user_id', 'payment_ref',
+            'payment_deadline_at', 'status'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_payments',
+          columns: ['id', 'organization_id', 'payment_intent_id'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_payment_intents',
+          columns: ['id', 'organization_id', 'appointment_id', 'amount_minor', 'currency', 'status',
+            'purpose', 'checkout_url', 'created_at'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
     'app.read_current_patient_booking_policies(text)': rev10Function({

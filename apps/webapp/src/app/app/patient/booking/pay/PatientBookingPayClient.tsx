@@ -17,6 +17,7 @@ import {
 import {
   classifyPaymentIntentStatus,
   classifyPrepaymentBookingStatus,
+  type BookingPaymentStatusOk,
 } from '@/shared/lib/paymentStatusView';
 import { formatBookingDateTimeMediumRu } from '@/shared/lib/formatBusinessDateTime';
 import { PaymentLinkQrCode } from '@/shared/ui/patient/PaymentLinkQrCode';
@@ -42,6 +43,7 @@ export function PatientBookingPayClient({ bookingId, appDisplayTimeZone }: Props
   const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
   const [intentStatus, setIntentStatus] = useState<string | null>(null);
   const [amountMinor, setAmountMinor] = useState<number | null>(null);
+  const [currency, setCurrency] = useState<string | null>(null);
   const [paymentDeadlineAt, setPaymentDeadlineAt] = useState<string | null>(null);
   const [appointmentStatus, setAppointmentStatus] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
@@ -52,14 +54,10 @@ export function PatientBookingPayClient({ bookingId, appDisplayTimeZone }: Props
     const res = await fetch(
       `/api/booking/payment-status?bookingId=${encodeURIComponent(bookingId)}`,
     );
-    const json = (await res.json()) as {
+    // Тело ответа описано ОДНИМ типом на маршрут и оба экрана оплаты; `Partial` здесь — потому что
+    // по сети может прийти ошибка, а не потому, что на сервере поля необязательны.
+    const json = (await res.json()) as Partial<BookingPaymentStatusOk> & {
       ok?: boolean;
-      intentId?: string | null;
-      paymentDeadlineAt?: string | null;
-      appointmentStatus?: string;
-      summary?: {
-        intent?: { amountMinor: number; status: string; checkoutUrl: string | null } | null;
-      };
       error?: string;
     };
     if (!json.ok) {
@@ -67,9 +65,10 @@ export function PatientBookingPayClient({ bookingId, appDisplayTimeZone }: Props
       return;
     }
     setIntentId(json.intentId ?? null);
-    setAmountMinor(json.summary?.intent?.amountMinor ?? null);
-    setIntentStatus(json.summary?.intent?.status ?? null);
-    setCheckoutUrl(json.summary?.intent?.checkoutUrl ?? null);
+    setAmountMinor(json.amountMinor ?? null);
+    setCurrency(json.currency ?? null);
+    setIntentStatus(json.intentStatus ?? null);
+    setCheckoutUrl(json.checkoutUrl ?? null);
     setPaymentDeadlineAt(json.paymentDeadlineAt ?? null);
     setAppointmentStatus(json.appointmentStatus ?? null);
   }, [bookingId]);
@@ -127,8 +126,8 @@ export function PatientBookingPayClient({ bookingId, appDisplayTimeZone }: Props
   }
 
   const amountRub =
-    amountMinor != null
-      ? (amountMinor / 100).toLocaleString('ru-RU', { style: 'currency', currency: 'RUB' })
+    amountMinor != null && currency
+      ? (amountMinor / 100).toLocaleString('ru-RU', { style: 'currency', currency })
       : null;
 
   return (

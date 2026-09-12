@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requirePatientApiBusinessAccess } from '@/app-layer/guards/requireRole';
-import { withExplicitOrganizationPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { routePaths } from '@/app-layer/routes/paths';
+import { requireResolvedSurface } from '@/shared/lib/surface/requestSurface';
+import type { BookingPaymentStatusOk } from '@/shared/lib/paymentStatusView';
 
 export async function GET(request: Request) {
   const gate = await requirePatientApiBusinessAccess({
@@ -16,23 +17,27 @@ export async function GET(request: Request) {
   }
 
   const deps = buildAppDeps();
-  const organizationId = await deps.patientBooking.resolveBookingOrganizationId(bookingId);
-  if (!organizationId) {
-    return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
-  }
-  const result = await withExplicitOrganizationPrincipal(
-    { organizationId, source: 'api/booking/payment-status:GET' },
-    () => deps.patientBooking.getBookingPaymentStatus(bookingId, gate.session.user.userId),
-  );
+  const patientOrigin = requireResolvedSurface(request.headers).publicOrigin;
+  // Принципал здесь НЕ переустанавливается: сессия пациента уже стоит в контексте, и она
+  // организационно-привязанная. Обёртка `withPatientIdentityPrincipal` (личность без организации)
+  // была бы шагом назад: рантайм-правило `portContextRuntime.ts` пускает пациентский контекст без
+  // организации только для корней отношения и трёх корней из явного списка, а этот корень читает
+  // данные ВНУТРИ клиники. Живая проверка на DEV это и показала: «Patient port context requires an
+  // organization-scoped patient principal».
+  const result = await deps.patientBooking.getBookingPaymentStatus(bookingId, patientOrigin);
   if (!result.ok) {
     return NextResponse.json({ ok: false, error: result.error }, { status: 404 });
   }
-  return NextResponse.json({
-    ok: true,
-    booking: result.booking,
-    summary: result.summary,
+  // Форма ответа объявлена ОДИН раз и читается обоими экранами оплаты: сужение этого тела обязано
+  // быть ошибкой компиляции у потребителей, а не молчаливым «провайдер не настроен» (аудит S9, F1).
+  const body: BookingPaymentStatusOk = {
     intentId: result.intentId,
+    amountMinor: result.amountMinor,
+    currency: result.currency,
+    intentStatus: result.intentStatus,
+    checkoutUrl: result.checkoutUrl,
     paymentDeadlineAt: result.paymentDeadlineAt,
     appointmentStatus: result.appointmentStatus,
-  });
+  };
+  return NextResponse.json({ ok: true, ...body });
 }

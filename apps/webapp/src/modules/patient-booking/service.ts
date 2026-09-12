@@ -14,6 +14,7 @@ import type { MembershipsService } from '@/modules/memberships/service';
 import type { ClientHistoryService } from '@/modules/client-history/service';
 import type { PlatformUserContactsService } from '@/modules/platform-user-contacts/service';
 import type { IdentityContactFields } from '@/modules/platform-user-contacts/identityContactMatch';
+import { buildAppointmentPaymentCheckUrl } from '@/modules/payments/appointmentPaymentCheckUrl';
 
 type BookingEngineService = ReturnType<typeof createBookingEngineService>;
 type BookingSchedulingService = ReturnType<typeof createBookingSchedulingService>;
@@ -31,7 +32,6 @@ import {
   type BookingLifecycleNotificationsSettings,
 } from './bookingLifecycleNotifications';
 import type { PatientBookingRecord } from './types';
-import { prepaymentContextFromBooking } from '@/modules/payments/prepaymentContextFromBooking';
 import type { BeAppointment } from '@/modules/booking-engine/types';
 import { appointmentReminderPlanForPreset } from '@/modules/booking-notifications/appointmentReminderPresets';
 import {
@@ -69,37 +69,6 @@ async function loadCanonicalAppointment(
   const appointment = await bookingEngine.getAppointment(appointmentId);
   if (!appointment) throw new Error('canonical_appointment_not_found');
   return appointment;
-}
-
-async function loadBookingPaymentStatus(
-  row: PatientBookingRecord | null,
-  input: {
-    bookingEngine: BookingEngineService | null | undefined;
-    payments: PaymentsService | null | undefined;
-  },
-) {
-  if (!row?.canonicalAppointmentId || !input.bookingEngine || !input.payments) {
-    return { ok: false as const, error: 'not_found' as const };
-  }
-  const appointment = await loadCanonicalAppointment(
-    input.bookingEngine,
-    row.canonicalAppointmentId,
-  ).catch(() => null);
-  if (!appointment) return { ok: false as const, error: 'not_found' as const };
-  const summary = await input.payments.getAppointmentPaymentSummary(
-    row.canonicalAppointmentId,
-    appointment.organizationId,
-    undefined,
-    prepaymentContextFromBooking(row),
-  );
-  return {
-    ok: true as const,
-    booking: row,
-    summary,
-    intentId: summary?.intent?.id ?? null,
-    paymentDeadlineAt: appointment.paymentDeadlineAt,
-    appointmentStatus: appointment.status,
-  };
 }
 
 function cacheKey(query: BookingSlotsQuery): string {
@@ -257,12 +226,17 @@ export function createPatientBookingService(input: {
       ).catch(() => null);
     },
 
-    async getBookingPaymentStatus(bookingId: string, userId: string) {
-      const row = await input.bookingsPort.getByIdForUser(bookingId, userId);
-      return loadBookingPaymentStatus(row, {
-        bookingEngine: input.bookingEngine ?? null,
-        payments: input.payments ?? null,
-      });
+    async getBookingPaymentStatus(bookingId: string, patientOrigin: string) {
+      const projection = await input.bookingsPort.readCurrentPatientPaymentStatus(bookingId);
+      if (!projection) return { ok: false as const, error: 'not_found' as const };
+      const { checkoutIntentId, ...screen } = projection;
+      return {
+        ok: true as const,
+        ...screen,
+        checkoutUrl: checkoutIntentId
+          ? buildAppointmentPaymentCheckUrl(patientOrigin, checkoutIntentId)
+          : null,
+      };
     },
 
     async getBookingByCanonicalAppointment(canonicalAppointmentId: string) {
