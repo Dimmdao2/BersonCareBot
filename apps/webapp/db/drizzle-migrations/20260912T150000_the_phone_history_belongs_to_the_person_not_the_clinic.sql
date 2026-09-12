@@ -578,13 +578,24 @@ $function$;
 -- перегенерированного артефакта — уже по членству человека, а не по колонке. Индекс
 -- `idx_user_phone_history_organization_id` и внешний ключ `user_phone_history_organization_id_fkey`
 -- к сторожу не относятся: они auto-зависимости и уходят с колонкой сами.
+--
+-- ПРАВКА 12.09.2026 (найдено живым прогоном на новом проде, первый деплой через backlog миграций).
+-- Числовой хвост `_NNN` в имени — позиция таблицы в массиве деклараций `declaration.ts`, а не
+-- содержательная часть контракта: она сдвигается, когда где-то раньше по алфавиту добавляется новая
+-- org-таблица. Миграции+reconcile применяются раздельными фазами (сперва ВСЕ миграции, reconcile —
+-- один раз в конце), поэтому на окружении, которое догоняет большой бэклог миграций ЗА ОДИН заход
+-- (как новый прод сегодня), сторож видит хвост, ещё не подросший от таблиц, созданных РАНЕЕ в ТОМ ЖЕ
+-- заходе (`lfk_exercise_load_types`, `media_playback_delivery_daily` — обе добавлены 11.09), и падает
+-- на живом, содержательно верном состоянии (`_225` вместо `_226`, те же три политики персонала). На
+-- DEV/TEST это не проявлялось: там reconcile уже догнал эти таблицы отдельными более ранними
+-- прогонами до того, как эта миграция была написана. Сторож теперь проверяет РЕАЛЬНОЕ условие —
+-- «ровно эти три вида, один общий числовой хвост, ничего лишнего» — а не конкретное число.
 DO $guard$
 DECLARE
-  expected constant text[] := ARRAY['rev10_tenant_insert_226', 'rev10_tenant_select_226', 'rev10_tenant_update_226'];
   found text[];
 BEGIN
   -- DISTINCT обязателен: политика, называющая колонку и в USING, и в WITH CHECK, даёт ДВЕ строки
-  -- pg_depend (так и есть у rev10_tenant_update_226), и без него сторож ловил бы сам себя.
+  -- pg_depend (так и есть у rev10_tenant_update_*), и без него сторож ловил бы сам себя.
   SELECT coalesce(array_agg(DISTINCT p.polname::text ORDER BY p.polname::text), ARRAY[]::text[]) INTO found
     FROM pg_catalog.pg_depend d
     JOIN pg_catalog.pg_policy p ON p.oid = d.objid
@@ -593,8 +604,13 @@ BEGIN
      AND d.refobjsubid = (SELECT a.attnum FROM pg_catalog.pg_attribute a
                            WHERE a.attrelid = 'public.user_phone_history'::regclass
                              AND a.attname = 'organization_id');
-  IF found <> (SELECT array_agg(e ORDER BY e) FROM unnest(expected) AS e) THEN
-    RAISE EXCEPTION 'user_phone_history.organization_id policy dependencies changed: expected %, found %', expected, found;
+  IF array_length(found, 1) IS DISTINCT FROM 3
+     OR (SELECT count(*) FROM unnest(found) AS p WHERE p ~ '^rev10_tenant_insert_[0-9]+$') <> 1
+     OR (SELECT count(*) FROM unnest(found) AS p WHERE p ~ '^rev10_tenant_select_[0-9]+$') <> 1
+     OR (SELECT count(*) FROM unnest(found) AS p WHERE p ~ '^rev10_tenant_update_[0-9]+$') <> 1
+     OR (SELECT count(DISTINCT substring(p FROM '_([0-9]+)$')) FROM unnest(found) AS p) <> 1
+  THEN
+    RAISE EXCEPTION 'user_phone_history.organization_id policy dependencies changed: expected exactly one rev10_tenant_{insert,select,update}_N sharing one N, found %', found;
   END IF;
 END
 $guard$;
