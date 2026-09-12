@@ -172,7 +172,7 @@ export function PatientHomeBlockItemsDialog({
   refDisplayTitles: PatientHomeRefDisplayTitles;
   onSaved(): void;
 }) {
-  const { patientDativePlural } = useDoctorPatientTerms();
+  const { patientDativePlural, appointmentAccusative } = useDoctorPatientTerms();
   const sortItems = (rows: PatientHomeBlockItem[]) =>
     [...rows].sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id));
 
@@ -201,8 +201,11 @@ export function PatientHomeBlockItemsDialog({
   const ids = useMemo(() => items.map((item) => item.id), [items]);
 
   const blockEditorMeta = useMemo(
-    () => (isPatientHomeBlockCode(blockCode) ? getPatientHomeBlockEditorMetadata(blockCode) : null),
-    [blockCode],
+    () =>
+      isPatientHomeBlockCode(blockCode)
+        ? getPatientHomeBlockEditorMetadata(blockCode, { appointmentAccusative })
+        : null,
+    [blockCode, appointmentAccusative],
   );
 
   const onDragEnd = (event: DragEndEvent) => {

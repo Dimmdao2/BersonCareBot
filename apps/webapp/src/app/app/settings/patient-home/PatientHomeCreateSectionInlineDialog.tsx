@@ -34,8 +34,8 @@ export function PatientHomeCreateSectionInlineDialog({
   blockCode: PatientHomeBlockCode;
   onSaved(): void;
 }) {
-  const { patientDativePlural, patientGenitive } = useDoctorPatientTerms();
-  const meta = getPatientHomeBlockEditorMetadata(blockCode);
+  const { patientDativePlural, patientGenitive, appointmentAccusative } = useDoctorPatientTerms();
+  const meta = getPatientHomeBlockEditorMetadata(blockCode, { appointmentAccusative });
   const [title, setTitle] = useState('');
   const [slug, setSlug] = useState('');
   const slugManualRef = useRef(false);

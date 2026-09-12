@@ -1,5 +1,6 @@
 import type { PatientHomeBlockCode, PatientHomeBlockItemTargetType } from './ports';
 import { allowedTargetTypesForBlock, canManageItemsForBlock } from './blocks';
+import type { AppointmentTerms } from '@/modules/system-settings/patientTerms';
 
 /**
  * Централизованный admin-copy и правила редактора блоков главной пациента.
@@ -147,9 +148,15 @@ const METADATA_BY_CODE: Record<PatientHomeBlockCode, PatientHomeBlockEditorMetad
     'Подключается уже созданный курс; порядок и видимость настраиваются отдельно.',
     'Если в блоке нет опубликованных и видимых курсов, ряд курсов на главной пациента не показывается.',
   ),
+  /**
+   * `displayTitle` здесь НЕ используется никогда: `getPatientHomeBlockEditorMetadata` ниже всегда
+   * переопределяет его для `booking` словом организации (`appointmentAccusative`). Раньше на этом
+   * месте лежал литерал «Запись на приём», хардкодивший терминологию в обход резолвера (T-F/N3) —
+   * намеренно нейтральная заглушка вместо него, чтобы такой обход не мог тихо вернуться.
+   */
   booking: nonCmsBlock(
     'booking',
-    'Запись на приём',
+    '(переопределяется getPatientHomeBlockEditorMetadata)',
     'Запись к специалисту по правилам приложения и интеграции записи.',
     'Пациент видит блок записи по правилам приложения и интеграции записи.',
   ),
@@ -179,8 +186,18 @@ const METADATA_BY_CODE: Record<PatientHomeBlockCode, PatientHomeBlockEditorMetad
   ),
 };
 
+/**
+ * `appointmentTerms` обязателен намеренно (T-F/N3): раньше `booking.displayTitle` был литералом
+ * «Запись на приём», хардкодившим слово организации в обход `resolvePatientTerms`. Необязательный
+ * аргумент оставил бы этот же обход компилируемым для следующего вызывающего.
+ */
 export function getPatientHomeBlockEditorMetadata(
   code: PatientHomeBlockCode,
+  appointmentTerms: Pick<AppointmentTerms, 'appointmentAccusative'>,
 ): PatientHomeBlockEditorMetadata {
-  return METADATA_BY_CODE[code];
+  const base = METADATA_BY_CODE[code];
+  if (code === 'booking') {
+    return { ...base, displayTitle: `Запись на ${appointmentTerms.appointmentAccusative}` };
+  }
+  return base;
 }
