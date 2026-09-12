@@ -17,26 +17,13 @@ import { SaasBillingOverview as SaasBillingOverviewSection } from '@/shared/ui/d
 import { PayTariffButton, type ClinicTariffChangeState } from './PayTariffButton';
 import { AutopayToggleButton } from './AutopayToggleButton';
 import { CancelSubscriptionButton } from './CancelSubscriptionButton';
+import { StorageSpaceBlock, type ClinicStorageOffers } from './StorageSpaceBlock';
+import { formatQuotaValue, QUOTA_THRESHOLD_LABEL } from './billingQuotaFormat';
 
 export type BillingMechanicRow = {
   mechanic: OrgMechanic;
   label: string;
   enabled: boolean;
-};
-
-/** §5a stage 6.1 — bytes are the only non-count unit today; everything else is a plain number. */
-function formatQuotaValue(value: number, unit: OrgQuotaProjection['quota']['unit']): string {
-  if (unit !== 'bytes') return String(value);
-  if (value < 1024) return `${value} Б`;
-  if (value < 1024 * 1024) return `${Math.round(value / 1024)} КБ`;
-  if (value < 1024 * 1024 * 1024) return `${(value / (1024 * 1024)).toFixed(1)} МБ`;
-  return `${(value / (1024 * 1024 * 1024)).toFixed(1)} ГБ`;
-}
-
-const THRESHOLD_LABEL: Record<OrgQuotaProjection['threshold'], string> = {
-  below_warning: '',
-  warning: 'Приближается к пределу',
-  reached: 'Предел достигнут',
 };
 
 type Props = {
@@ -55,6 +42,11 @@ type Props = {
   /** Real rows from `saas_billing_*`; empty arrays mean no billing data, never synthetic zeroes. */
   billing: SaasBillingOverview;
   tariffChange: ClinicTariffChangeState;
+  /**
+   * Витрина докупки объёма — тот же состав, что отдаёт `GET /api/clinic/billing`, включая
+   * котировку у каждой продаваемой цены. Цены без подписи здесь нет по построению.
+   */
+  storage: ClinicStorageOffers;
 };
 
 /**
@@ -69,7 +61,15 @@ export function BillingSection({
   quotaUsage,
   billing,
   tariffChange,
+  storage,
 }: Props) {
+  // Объём файлов уезжает из общего списка чисел в свой блок ниже: там у него полоса заполнения,
+  // купленный пакет и обе кнопки. Оставить строку и здесь означало бы показать одно и то же число
+  // дважды на одной вкладке — и однажды разойтись с самим собой.
+  const storageFill = quotaUsage.find((row) => row.mechanic === 'files') ?? null;
+  const otherQuotaUsage = quotaUsage.filter((row) => row.mechanic !== 'files');
+  const paidSubscription =
+    billing.subscriptions.find((row) => row.source === 'paid_subscription') ?? null;
   // Решение владельца 18.08 (L-11): выбранный, но не оплаченный тариф не действует, поэтому
   // `tariffName` (действующий тариф из снимка прав) здесь пуст. Имя показываем из самого выбора —
   // иначе клиника не видит, что именно она выбрала и за что ей платить.
@@ -105,24 +105,16 @@ export function BillingSection({
         <PayTariffButton tariffChange={tariffChange} billingEmail={billing.billingEmail} />
         {tariffName !== null && (
           <>
-            <AutopayToggleButton
-              subscription={
-                billing.subscriptions.find((row) => row.source === 'paid_subscription') ?? null
-              }
-            />
-            <CancelSubscriptionButton
-              subscription={
-                billing.subscriptions.find((row) => row.source === 'paid_subscription') ?? null
-              }
-            />
+            <AutopayToggleButton subscription={paidSubscription} />
+            <CancelSubscriptionButton subscription={paidSubscription} />
           </>
         )}
 
-        {quotaUsage.length > 0 && (
+        {otherQuotaUsage.length > 0 && (
           <div className="space-y-1.5">
             <p className="text-sm font-medium text-foreground">Использовано из включённого</p>
             <ul aria-label="Числа тарифа" className={doctorDnaFlatListClass}>
-              {quotaUsage.map((row) => (
+              {otherQuotaUsage.map((row) => (
                 <li
                   key={row.mechanic}
                   className={`${doctorDnaFlatListRowClass} justify-between gap-2`}
@@ -131,12 +123,12 @@ export function BillingSection({
                   <span className={doctorDnaFlatListMetaClass}>
                     {formatQuotaValue(row.usage, row.quota.unit)} из{' '}
                     {formatQuotaValue(row.quota.limit, row.quota.unit)}
-                    {THRESHOLD_LABEL[row.threshold] && (
+                    {QUOTA_THRESHOLD_LABEL[row.threshold] && (
                       <Badge
                         variant={row.threshold === 'reached' ? 'destructive' : 'outline'}
                         className="ml-2"
                       >
-                        {THRESHOLD_LABEL[row.threshold]}
+                        {QUOTA_THRESHOLD_LABEL[row.threshold]}
                       </Badge>
                     )}
                   </span>
@@ -145,6 +137,14 @@ export function BillingSection({
             </ul>
           </div>
         )}
+
+        {/* Владелец 10.09: докупка места «должна быть у всех» — блок не различает композиции и
+            рендерится всегда, в отличие от строк про места специалистов. */}
+        <StorageSpaceBlock
+          fill={storageFill}
+          offers={storage}
+          releaseScheduled={paidSubscription?.storagePackageCancelAtPeriodEnd ?? false}
+        />
 
         <div className="space-y-1.5">
           <p className="text-sm font-medium text-foreground">Что доступно организации</p>

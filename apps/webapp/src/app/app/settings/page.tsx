@@ -31,6 +31,7 @@ import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
 import { ADMIN_TAB_REDIRECTS, parseHealthArchiveProbeParam } from './adminSettingsData';
 import { AppointmentReminderSettingsSection } from './AppointmentReminderSettingsSection';
 import { GoogleCalendarSection } from './GoogleCalendarSection';
+import { storagePackageOffersBody } from '@/app/api/clinic/billing/storagePackagePurchase';
 import { BillingSection, type BillingMechanicRow } from './BillingSection';
 import { describeCommercialAccessState } from './billingCommercialState';
 import { DoctorTodayPreferencesSection } from './DoctorTodayPreferencesSection';
@@ -678,6 +679,19 @@ export default async function SettingsPage({
     },
     () => deps.saasBilling.getOwnTariffChangeState(workspace.organizationId),
   );
+  // Витрина докупки объёма — через ту же функцию, что отдаёт её маршруту `GET /api/clinic/billing`:
+  // второго расчёта цены (и второго места, где выписывается котировка) не существует.
+  const storage = storagePackageOffersBody(
+    workspace.organizationId,
+    await runWithDbClinicBillingPrincipal(
+      {
+        organizationId: workspace.organizationId,
+        platformUserId: workspace.session.user.userId,
+        source: 'clinic-billing-settings-read',
+      },
+      () => deps.saasBilling.listStoragePackageOffers(workspace.organizationId),
+    ),
+  );
   const entitlements = entitlementsFromSnapshot(snapshot);
   // Owner ruling 2026-09-10: a solo cabinet never mentions team capacity — neither the seat count
   // nor a «Режим клиники» row, which would read as a mode marker. The clinic mode owns those rows.
@@ -708,6 +722,7 @@ export default async function SettingsPage({
         quotaUsage={quotaUsage}
         billing={billing}
         tariffChange={tariffChange}
+        storage={storage}
       />
     </DoctorAppShell>
   );
