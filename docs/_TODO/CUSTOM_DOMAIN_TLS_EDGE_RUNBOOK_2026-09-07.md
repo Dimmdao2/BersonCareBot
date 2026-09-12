@@ -16,40 +16,52 @@ The only supported binary is reproducibly built with these pins:
 
 | Component | Pin |
 | --- | --- |
-| Caddy | `v2.11.2` |
-| REG.RU DNS module | `github.com/heinwol/caddy-dns-regru@v0.1.10` |
+| Caddy | `v2.11.2`, без плагинов |
 | xcaddy | `v0.4.5` |
 | temporary Go toolchain | `1.27.1`, SHA-256 recorded in `deploy/caddy/build-caddy-edge.sh` |
 
-`deploy/caddy/validate-caddy-edge-config.sh` builds that exact binary under `mktemp -d`, checks that
-the REG.RU module is present, and runs `caddy validate` with placeholders only. It installs no
-binary or Go toolchain. The cutover builds the same binary at `/usr/local/bin/bcb-caddy`; stock apt
-Caddy is not used because it lacks the required DNS module.
+`deploy/caddy/validate-caddy-edge-config.sh` builds that exact binary under `mktemp -d`, FAILS if
+the binary carries any DNS provider module at all, and runs `caddy validate` with placeholders only.
+It installs no binary or Go toolchain. The cutover builds the same binary at
+`/usr/local/bin/bcb-caddy`.
 
 ## TLS policy
 
-- **B7:** one DNS-01 certificate covers exactly `therapygo.ru` and `*.therapygo.ru`. The Caddy site
-  block carries both names and uses the REG.RU DNS provider; it is not a collection of per-slug
-  HTTP-01 certificates.
-- **Platform hosts other than Therapygo's pair:** ordinary automatic HTTP-01/TLS-ALPN certificates.
-- **Every clinic custom hostname, including `app.bersoncare.ru`:** the one address-only on-demand
-  block. Before issuance Caddy calls
+🔴 **РЕДАКЦИЯ 12.09.2026: WILDCARD СНЯТ ВЛАДЕЛЬЦЕМ.** Дословно: «Зачем тебе рег ру апи? Ты охренел?
+Не будет у тебя их». Wildcard Let's Encrypt выдаёт только по DNS-01, то есть по праву писать в зону
+регистратора, — поэтому DNS-01, модуль REG.RU и wildcard-блок убраны из репозитория целиком.
+Цена, названная прямо: имя, сертификата к которому мы не выпускали (выдуманный поддомен), рвёт
+TLS-рукопожатие в браузере ДО выполнения нашего кода; вежливую страницу там даёт только wildcard.
+
+- **B7 (новая редакция):** апекс `therapygo.ru` — обычный HTTP-01 отдельным блоком. Отдельным
+  потому, что на нём живёт сам endpoint разрешения, и он не имеет права зависеть от вызова,
+  который сначала должен до него достучаться.
+- **Platform hosts other than the apex:** ordinary automatic HTTP-01/TLS-ALPN certificates.
+- **Каждое имя клиники — и её собственный домен, и `<slug>.therapygo.ru`:** одна и та же
+  on-demand-дверь. Before issuance Caddy calls
   `GET https://therapygo.ru/api/public/domains/ask?domain=<host>` using built-in
   `on_demand_tls { permission http <endpoint> }`. A timeout, unavailable endpoint, redirect, or
   non-2xx response denies issuance. The stable Therapygo origin makes this permission check
   independent of the candidate hostname's not-yet-issued certificate.
 
-There is no per-clinic nginx edit, Certbot work, reload, or static Caddy hostname registration.
-Clinic domains stay on approved on-demand HTTP-01/TLS-ALPN; DNS-01 is reserved for the Therapygo
-wildcard certificate.
+There is no per-clinic nginx edit, Certbot work, reload, or static Caddy hostname registration, and
+no DNS-01 anywhere. Правило, по которому дверь одобряет имя, одно и лежит в
+`apps/webapp/src/app-layer/surface/onDemandTlsAuthorization.ts`: апекс — да; `<label>.therapygo.ru`
+— да ровно тогда, когда метка разрешается в активную опубликованную организацию ТЕМ ЖЕ резолвером,
+что открывает страницу; всё остальное — существующая проверка привязки собственного домена.
 
-## Required one-time owner/operator prerequisite
+## Prerequisite
 
-The authoritative DNS provider for `therapygo.ru` is REG.RU. Before an owner-authorized cutover,
-the owner/operator must enable REG.API, allow-list the edge public IP `135.106.187.95`, and create
-the REG.RU API credentials. This repository cannot perform those account-level actions. Put the
-resulting credentials only in `/opt/bersoncarebot/env/caddy.prod`, owned `root:caddy` mode `0640`;
-do not print them or place them in repository files.
+Учётных данных регистратора больше не требуется — их нет ни в одном файле. Перед cutover нужен
+только root-owned `/opt/therapysto/env/caddy.prod` (`root:caddy`, `0640`) с четырьмя ключами:
+`CADDY_ACME_EMAIL`, `CADDY_PLATFORM_DOMAINS`, `CADDY_ASK_URL`, `CADDY_UPSTREAM`.
+
+🔴 Путь именно `/opt/therapysto/env/caddy.prod`. Прежняя редакция этого документа (и пример
+`deploy/env/.env.caddy.prod.example`) называла `/opt/bersoncarebot/env/caddy.prod`, а установленный
+на хосте скрипт читает первый — по старому адресу cutover падает с `missing …/caddy.prod`.
+
+🔴 На проде сейчас лежит СТАРАЯ, wildcard-версия файлов края. Её обязан обновить деплой ДО cutover,
+иначе Caddy потребует несуществующие креды REG.RU и не поднимется.
 
 ## DNS instructions source
 
@@ -94,7 +106,8 @@ is available on the validation host. This only proves template syntax; it is not
 
 ## Remaining live gates
 
-With explicit owner authorization on `135.106.187.95`: install the root-owned env after the REG.RU
-prerequisite, execute cutover, verify the installed timer, issue the B7 certificate, prove one
-approved custom hostname through DNS → trusted TLS → exact application routing, run rollback once,
-and observe renewal. No such live gate is claimed complete by this repository correction.
+With explicit owner authorization on `135.106.187.95`: обновить файлы края деплоем, положить
+root-owned env, выполнить cutover, проверить таймер, выпустить сертификат апекса, доказать
+ОБА on-demand случая — собственный домен клиники И поддомен `<slug>.therapygo.ru` той клиники,
+которой заведомо нет в текущем именном сертификате, — через DNS → доверенный TLS → точный роутинг,
+один раз прогнать rollback и увидеть продление. No such live gate is claimed complete by this repository correction.
