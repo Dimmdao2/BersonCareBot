@@ -93,7 +93,6 @@ export function createPgCustomDomainBindingPort(): CustomDomainBindingPort {
     async readAnonymousPatientSurfaceProjection(organizationId) {
       const result = await runWebappNamedRoot<{
         clinic_slug: string;
-        skip_public_card_at_root: boolean;
         effective_display_name: string;
         patient_app_name: string;
         accent_token: string;
@@ -111,7 +110,6 @@ export function createPgCustomDomainBindingPort(): CustomDomainBindingPort {
       if (!row) return null;
       const projection: AnonymousPatientSurfaceProjection = {
         clinicSlug: row.clinic_slug,
-        skipPublicCardAtRoot: row.skip_public_card_at_root === true,
         effectiveDisplayName: row.effective_display_name,
         patientAppName: row.patient_app_name,
         accentToken: row.accent_token,

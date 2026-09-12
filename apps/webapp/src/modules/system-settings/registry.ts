@@ -369,8 +369,6 @@ export const SYSTEM_SETTING_REGISTRY = {
   video_presign_ttl_seconds: runtime('admin', 'global', 'server', 'integer', '3600'),
   video_watermark_enabled: runtime('admin', 'global', 'server', 'boolean', 'false'),
   patient_booking_url: runtime('admin', 'per_org', 'authenticated_client', 'url', ''),
-  /** Branded clinic root normally renders the public card; an organization may opt into /app. */
-  clinic_root_skip_public_card: runtime('admin', 'per_org', 'server', 'boolean', 'false'),
   /**
    * #926 §17.Q, решение владельца 11.09: «Просто галочка есть показывать? Показываем, нет галочки,
    * не показываем». Включена — из модуля записи открывается карточка специалиста с его описанием;

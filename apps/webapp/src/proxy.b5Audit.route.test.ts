@@ -56,16 +56,11 @@ afterEach(() => {
   vi.resetModules();
 });
 
-function tenantFor(
-  slug: string,
-  organizationId: string,
-  skipPublicCardAtRoot = false,
-): TenantSurfaceLookup {
+function tenantFor(slug: string, organizationId: string): TenantSurfaceLookup {
   return async () => ({
     status: 'active',
     organizationId,
     clinicSlug: slug,
-    skipPublicCardAtRoot,
     effectivePatientBrandOrganizationId: organizationId,
     effectivePatientBrand: {
       effectiveDisplayName: `Клиника ${slug}`,
@@ -77,7 +72,12 @@ function tenantFor(
 
 const TENANT_ONE = tenantFor(CLINIC_ONE, ORG_ONE);
 const TENANT_TWO = tenantFor(CLINIC_TWO, ORG_TWO);
-const TENANT_ONE_DIRECT_LOGIN = tenantFor(CLINIC_ONE, ORG_ONE, true);
+/** Собственный домен клиники ONE: её корень открывает приложение, а не визитку. */
+const OWN_DOMAIN_ONE = `app.${CLINIC_ONE}.example`;
+const TENANT_ONE_OWN_DOMAIN: TenantSurfaceLookup = async () => ({
+  ...(await TENANT_ONE('')),
+  activeCustomDomainHostname: OWN_DOMAIN_ONE,
+});
 
 function brandedHost(slug: string): string {
   return `${slug}.${new URL(PATIENT_ORIGIN).hostname}`;
@@ -207,26 +207,24 @@ describe('B5 · визитка на корне — та же реализаци�
  * Ловит: новый org-scoped флаг либо меняет дефолт для клиник, которые его не задавали, либо
  * применяется к чужому branded host. Последствие — пациент видит не ту стартовую поверхность.
  */
-describe('B5a · один org-scoped выбор корня брендированного адреса', () => {
-  it('отсутствующий или выключенный флаг сохраняет визитку, а включённый ведёт на общий вход', async () => {
+describe('B5a · корень брендированного адреса выбирает сам адрес', () => {
+  it('поддомен платформы отдаёт визитку, собственный домен клиники — вход', async () => {
     const runtime = await loadRuntime();
-    const [unset, disabled, enabled, patientDefault] = await Promise.all([
-      runtime.proxy(requestFor(brandedHost(CLINIC_ONE), '/'), tenantFor(CLINIC_ONE, ORG_ONE)),
+    const [platform, ownDomain, patientDefault] = await Promise.all([
       runtime.proxy(requestFor(brandedHost(CLINIC_ONE), '/'), TENANT_ONE),
-      runtime.proxy(requestFor(brandedHost(CLINIC_ONE), '/'), TENANT_ONE_DIRECT_LOGIN),
+      runtime.proxy(requestFor(OWN_DOMAIN_ONE, '/'), TENANT_ONE_OWN_DOMAIN),
       runtime.proxy(requestFor(new URL(PATIENT_ORIGIN).host, '/')),
     ]);
 
-    expect(routedPath(unset, '/')).toBe(runtime.publicClinicCardPath(CLINIC_ONE));
-    expect(routedPath(disabled, '/')).toBe(runtime.publicClinicCardPath(CLINIC_ONE));
-    expect(routedPath(enabled, '/')).toBe('/app');
+    expect(routedPath(platform, '/')).toBe(runtime.publicClinicCardPath(CLINIC_ONE));
+    expect(routedPath(ownDomain, '/')).toBe('/app');
     expect(routedPath(patientDefault, '/')).toBe('/app');
   });
 
-  it('флаг одной организации не перенаправляет корень другой', async () => {
+  it('собственный домен одной организации не перенаправляет корень другой', async () => {
     const runtime = await loadRuntime();
     const [first, second] = await Promise.all([
-      runtime.proxy(requestFor(brandedHost(CLINIC_ONE), '/'), TENANT_ONE_DIRECT_LOGIN),
+      runtime.proxy(requestFor(OWN_DOMAIN_ONE, '/'), TENANT_ONE_OWN_DOMAIN),
       runtime.proxy(requestFor(brandedHost(CLINIC_TWO), '/'), TENANT_TWO),
     ]);
 

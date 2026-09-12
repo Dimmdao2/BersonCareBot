@@ -27678,8 +27678,8 @@ const REV10_CONTEXT = {
         { relation: 'public.clinic_public_directory_entries', columns: ['organization_id', 'is_published'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         // #926 §17.Q: галка организации «показывать визитки специалистов в модуле записи» живёт в
-        // том же реестре `system-settings`, что и соседняя `clinic_root_skip_public_card`. Те же
-        // четыре колонки, что уже читает соседняя дверь этого шва.
+        // общем реестре `system-settings`. Те же четыре колонки, что уже читают соседние двери
+        // этого шва, — второго набора под галку не заводится.
         { relation: 'public.system_settings', columns: ['key', 'scope', 'organization_id',
           'value_json'], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],

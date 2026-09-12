@@ -58,7 +58,6 @@ export type CustomDomainIntentResult =
 /** The anonymous-visible projection `app.read_anonymous_patient_surface_projection` returns. */
 export type AnonymousPatientSurfaceProjection = Readonly<{
   clinicSlug: string;
-  skipPublicCardAtRoot: boolean;
   effectiveDisplayName: string;
   patientAppName: string;
   accentToken: string;

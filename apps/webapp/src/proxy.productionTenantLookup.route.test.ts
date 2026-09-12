@@ -43,7 +43,6 @@ async function loadRuntime() {
 function projection(activeCustomDomainHostname?: string) {
   return {
     clinicSlug: 'known-clinic',
-    skipPublicCardAtRoot: false,
     effectiveDisplayName: 'Known Clinic',
     patientAppName: 'Known Clinic',
     accentToken: '#284da0',

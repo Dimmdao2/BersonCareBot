@@ -31,7 +31,6 @@ import { patchAdminSettingWithResult } from './patchAdminSetting';
 
 type Props = {
   initialSettings: ClinicPublicCardSettings;
-  skipPublicCardAtRoot: boolean;
   /**
    * #926 §17.Q: «показывать визитки специалистов в модуле записи». Одна галка на ОРГАНИЗАЦИЮ, не на
    * человека — настройку «читать про конкретного специалиста» владелец 11.09 назвал и отложил.
@@ -80,20 +79,16 @@ function previewMarkdownAssets(markdown: string | null): { id: string; mimeType:
 }
 
 /**
- * Адрес, по которому страница РЕАЛЬНО открывается.
+ * Адрес, по которому страница РЕАЛЬНО открывается — канонический `<пациентский хост>/<метка>`.
  *
- * У клиники их два, и какой из них работает, решает её же настройка входа на корне: пока корень
- * поддомена показывает визитку, это `https://<адрес>.<пациентский хост>/`; как только корень
- * настроен пускать сразу в кабинет, визитка остаётся только на `https://<пациентский хост>/<адрес>`.
- * Раньше ссылка всегда вела на корень поддомена — то есть у клиники, включившей вход на корне,
- * «посмотреть» по построению показывало не то, что она правит.
+ * Второй адрес у визитки есть (корень поддомена `<метка>.<пациентский хост>`), но он работает НЕ у
+ * всех: как только у клиники поднят собственный домен, поддомен отдаёт 308 на него, а собственный
+ * домен с 12.09.2026 всегда открывает вход в приложение, а не визитку. Канонический адрес работает
+ * у всех и всегда, поэтому «посмотреть» ведёт именно туда — иначе у части клиник ссылка по
+ * построению показывала бы не то, что они здесь правят.
  */
-function livePageUrl(slug: string, patientOrigin: string, skipPublicCardAtRoot: boolean): string {
-  const origin = new URL(patientOrigin);
-  if (skipPublicCardAtRoot) return new URL(`/${encodeURIComponent(slug)}`, origin).toString();
-  origin.hostname = `${slug}.${origin.hostname}`;
-  origin.pathname = '/';
-  return origin.toString();
+function livePageUrl(slug: string, patientOrigin: string): string {
+  return new URL(`/${encodeURIComponent(slug)}`, new URL(patientOrigin)).toString();
 }
 
 export function clinicPublicCardErrorMessage(code: string): string {
@@ -132,7 +127,6 @@ export function clinicPublicCardErrorMessage(code: string): string {
  */
 export function ClinicPublicCardSection({
   initialSettings,
-  skipPublicCardAtRoot: initialSkipPublicCardAtRoot,
   showSpecialistCardsInBooking: initialShowSpecialistCardsInBooking,
   identity,
   locations,
@@ -145,13 +139,10 @@ export function ClinicPublicCardSection({
   const emailId = useId();
   const websiteId = useId();
   const publishId = useId();
-  const rootEntryId = useId();
   const specialistCardsId = useId();
 
   const [settings, setSettings] = useState(initialSettings);
   const [pending, setPending] = useState(false);
-  const [skipPublicCardAtRoot, setSkipPublicCardAtRoot] = useState(initialSkipPublicCardAtRoot);
-  const [savingRootEntry, setSavingRootEntry] = useState(false);
   const [showSpecialistCardsInBooking, setShowSpecialistCardsInBooking] = useState(
     initialShowSpecialistCardsInBooking,
   );
@@ -160,7 +151,7 @@ export function ClinicPublicCardSection({
   const [photoPickerOpen, setPhotoPickerOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
 
-  const publicUrl = identity ? livePageUrl(identity.slug, patientOrigin, skipPublicCardAtRoot) : null;
+  const publicUrl = identity ? livePageUrl(identity.slug, patientOrigin) : null;
 
   function patch(next: Partial<ClinicPublicCardSettings>) {
     setSettings((current) => ({ ...current, ...next }));
@@ -190,21 +181,9 @@ export function ClinicPublicCardSection({
     }
   }
 
-  async function saveRootEntry(next: boolean) {
-    const previous = skipPublicCardAtRoot;
-    setSkipPublicCardAtRoot(next);
-    setSavingRootEntry(true);
-    const result = await patchAdminSettingWithResult('clinic_root_skip_public_card', next);
-    if (!result.ok) {
-      setSkipPublicCardAtRoot(previous);
-      toast.error('Не удалось сохранить настройку входа. Повторите попытку.');
-    }
-    setSavingRootEntry(false);
-  }
-
   /**
-   * #926 §17.Q. Тот же порт настроек организации, что у галки входа выше, — второго механизма
-   * настроек не заводится: ключ живёт в реестре `system-settings`, как `clinic_root_skip_public_card`.
+   * #926 §17.Q. Тот же порт настроек организации: ключ живёт в общем реестре `system-settings`,
+   * второго механизма настроек под галку не заводится.
    */
   async function saveSpecialistCards(next: boolean) {
     const previous = showSpecialistCardsInBooking;
@@ -413,17 +392,6 @@ export function ClinicPublicCardSection({
             className="mt-0.5"
           />
           <span>Показывать страницу организации</span>
-        </label>
-
-        <label className="flex items-start gap-2 text-sm" htmlFor={rootEntryId}>
-          <Checkbox
-            id={rootEntryId}
-            checked={skipPublicCardAtRoot}
-            onCheckedChange={(checked) => void saveRootEntry(checked === true)}
-            disabled={pending || savingRootEntry}
-            className="mt-0.5"
-          />
-          <span>Сразу открывать вход на брендированном адресе</span>
         </label>
 
         <label className="flex items-start gap-2 text-sm" htmlFor={specialistCardsId}>

@@ -1,14 +1,17 @@
 /**
- * Независимый аудит пункта `B5a` (org-scoped флаг «сразу вход, визитку не показывать») плана
- * `docs/_TODO/THERAPYSTO_PATIENT_BRANDING_INITIATIVE/IMPLEMENTATION_PLAN.md`.
+ * Корень брендированной поверхности: что показывает `/`, решает АДРЕС, с которого пришли.
  *
- * Значения намеренно свои, отличные и от авторских, и от файла аудита `B5`: другой пациентский
- * домен, другие метки клиник, другие идентификаторы организаций. Ловимая поломка названа в
- * заголовке каждого `describe`.
+ * До 12.09.2026 это решала настройка организации `clinic_root_skip_public_card`, и этот файл был
+ * её независимым аудитом (пункт `B5a` плана
+ * `docs/_TODO/THERAPYSTO_PATIENT_BRANDING_INITIATIVE/IMPLEMENTATION_PLAN.md`). Владелец снял и
+ * настройку, и поведение, дословно: «app clinic ru не должен вести на публичную карточку клиники.
+ * Он должен в любом случае открывать логин всегда. Публичная карточка клиники как была, так и
+ * остаётся на поддомене therapygo.ru» и «Однозначно убирать поведение, которое сейчас есть. Да и
+ * checkbox тоже однозначно убирать».
  *
- * Ключевое отличие от авторского набора: здесь «не задано» — это ОТСУТСТВИЕ поля в результате
- * шва арендатора, а не `false`. Это разные случаи: первый описывает клинику, которая настройки
- * никогда не касалась, второй — ту, что её осознанно выключила.
+ * Поэтому набор проверяет новый инвариант на том же месте: собственный домен клиники — её
+ * приложение, платформенный поддомен — её визитка, и выбор между ними ничем снаружи не двигается.
+ * Значения намеренно свои, отличные от авторских и от файла аудита `B5`.
  */
 import { NextRequest } from 'next/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -25,10 +28,11 @@ vi.mock('@/app-layer/surface/productionTenantSurfaceLookup', () => ({
 
 const STAFF_ORIGIN = 'https://kabinet.b5a-audit.test';
 const PATIENT_ORIGIN = 'https://priem.b5a-audit.test';
-const CLINIC_KEEPS_CARD = 'ozero-clinic';
-const CLINIC_SKIPS_CARD = 'sosnovy-bor';
-const ORG_KEEPS_CARD = 'cccccccc-3333-4333-8333-cccccccccccc';
-const ORG_SKIPS_CARD = 'dddddddd-4444-4444-8444-dddddddddddd';
+const CLINIC_ON_PLATFORM = 'ozero-clinic';
+const CLINIC_ON_OWN_DOMAIN = 'sosnovy-bor';
+const ORG_ON_PLATFORM = 'cccccccc-3333-4333-8333-cccccccccccc';
+const ORG_ON_OWN_DOMAIN = 'dddddddd-4444-4444-8444-dddddddddddd';
+const OWN_DOMAIN = 'app.sosnovy-bor.example';
 
 async function loadRuntime() {
   vi.resetModules();
@@ -61,21 +65,19 @@ afterEach(() => {
 });
 
 /**
- * `rootChoice` не имеет значения по умолчанию НАМЕРЕННО: `omit` строит результат без ключа
- * вообще — ровно то, что вернёт шов для клиники, у которой строки настройки нет.
+ * `ownDomain` НЕ имеет значения по умолчанию: отсутствие ключа — это клиника без собственного
+ * домена, и именно так отвечает шов арендатора, а не `undefined`-полем.
  */
 function tenantFor(
   slug: string,
   organizationId: string,
-  rootChoice: { readonly kind: 'omit' } | { readonly kind: 'value'; readonly value: unknown },
+  ownDomain?: string,
 ): TenantSurfaceLookup {
   return async () => ({
     status: 'active',
     organizationId,
     clinicSlug: slug,
-    ...(rootChoice.kind === 'omit'
-      ? {}
-      : { skipPublicCardAtRoot: rootChoice.value as boolean | undefined }),
+    ...(ownDomain ? { activeCustomDomainHostname: ownDomain } : {}),
     effectivePatientBrandOrganizationId: organizationId,
     effectivePatientBrand: {
       effectiveDisplayName: `Клиника ${slug}`,
@@ -85,11 +87,7 @@ function tenantFor(
   });
 }
 
-const UNSET = { kind: 'omit' } as const;
-const OFF = { kind: 'value', value: false } as const;
-const ON = { kind: 'value', value: true } as const;
-
-function brandedHost(slug: string): string {
+function platformHost(slug: string): string {
   return `${slug}.${new URL(PATIENT_ORIGIN).hostname}`;
 }
 
@@ -105,39 +103,55 @@ function routedPath(response: Response, requested: string): string {
 }
 
 /**
- * Ловит: клиника, которая настройку НИКОГДА не задавала, после правки перестаёт получать визитку
- * на корне своего брендированного адреса. Последствие — молчаливая смена стартовой страницы у
- * всех арендаторов разом при первом же деплое.
+ * Ловит: собственный домен клиники снова открывает визитку вместо входа — ровно то поведение,
+ * которое владелец приказал убрать. Обратная поломка тоже ловится: платформенный поддомен клиники
+ * без своего домена перестаёт показывать визитку и молча уводит всех её посетителей во вход.
  */
-describe('B5a · дефолт: не задано ведёт себя ровно как раньше', () => {
-  it.each([
-    ['поле отсутствует в результате шва', UNSET],
-    ['поле явно выключено', OFF],
-    ['поле undefined', { kind: 'value', value: undefined } as const],
-    ['поле null', { kind: 'value', value: null } as const],
-    ['строка "true" вместо булева', { kind: 'value', value: 'true' } as const],
-    ['единица вместо булева', { kind: 'value', value: 1 } as const],
-  ])('%s -> визитка клиники', async (_name, choice) => {
+describe('корень брендированной поверхности выбирает адрес, а не настройка', () => {
+  it('собственный домен клиники открывает вход в приложение', async () => {
     const runtime = await loadRuntime();
     const response = await runtime.proxy(
-      requestFor(brandedHost(CLINIC_KEEPS_CARD), '/'),
-      tenantFor(CLINIC_KEEPS_CARD, ORG_KEEPS_CARD, choice),
-    );
-    expect(response.status).toBe(200);
-    expect(routedPath(response, '/')).toBe(runtime.publicClinicCardPath(CLINIC_KEEPS_CARD));
-  });
-
-  it('включённый флаг ведёт корень на общий вход', async () => {
-    const runtime = await loadRuntime();
-    const response = await runtime.proxy(
-      requestFor(brandedHost(CLINIC_SKIPS_CARD), '/'),
-      tenantFor(CLINIC_SKIPS_CARD, ORG_SKIPS_CARD, ON),
+      requestFor(OWN_DOMAIN, '/'),
+      tenantFor(CLINIC_ON_OWN_DOMAIN, ORG_ON_OWN_DOMAIN, OWN_DOMAIN),
     );
     expect(response.status).toBe(200);
     expect(routedPath(response, '/')).toBe('/app');
   });
 
-  it('корень непациентского адреса флаг не трогает', async () => {
+  it('платформенный поддомен клиники без своего домена открывает визитку', async () => {
+    const runtime = await loadRuntime();
+    const response = await runtime.proxy(
+      requestFor(platformHost(CLINIC_ON_PLATFORM), '/'),
+      tenantFor(CLINIC_ON_PLATFORM, ORG_ON_PLATFORM),
+    );
+    expect(response.status).toBe(200);
+    expect(routedPath(response, '/')).toBe(runtime.publicClinicCardPath(CLINIC_ON_PLATFORM));
+  });
+
+  it('признак собственного домена ставится только при совпадении хоста запроса', async () => {
+    const runtime = await loadRuntime();
+    const own = await runtime.proxy(
+      requestFor(OWN_DOMAIN, '/'),
+      tenantFor(CLINIC_ON_OWN_DOMAIN, ORG_ON_OWN_DOMAIN, OWN_DOMAIN),
+    );
+    expect(
+      runtime.readResolvedSurface({
+        get: (name) => own.headers.get(`x-middleware-request-${name}`),
+      }),
+    ).toMatchObject({ surface: 'patient_branded', brandedHostIsOwnDomain: true });
+
+    const platform = await runtime.proxy(
+      requestFor(platformHost(CLINIC_ON_PLATFORM), '/'),
+      tenantFor(CLINIC_ON_PLATFORM, ORG_ON_PLATFORM),
+    );
+    const resolvedPlatform = runtime.readResolvedSurface({
+      get: (name) => platform.headers.get(`x-middleware-request-${name}`),
+    });
+    expect(resolvedPlatform?.surface).toBe('patient_branded');
+    expect(resolvedPlatform?.brandedHostIsOwnDomain).toBeUndefined();
+  });
+
+  it('корень непациентского адреса этим решением не затронут', async () => {
     const runtime = await loadRuntime();
     const staff = await runtime.proxy(requestFor(new URL(STAFF_ORIGIN).host, '/'));
     expect(staff.status).toBe(200);
@@ -148,100 +162,86 @@ describe('B5a · дефолт: не задано ведёт себя ровно 
 });
 
 /**
- * Ловит: включённый флаг одного арендатора меняет корень другого — стена арендатора протекает
- * через новую настройку, и пациент чужой клиники попадает не на ту стартовую поверхность.
+ * Ловит: собственный домен одного арендатора меняет корень другого — стена арендатора протекает
+ * через решение о корне, и пациент чужой клиники попадает не на ту стартовую поверхность.
  */
-describe('B5a · изоляция арендаторов', () => {
-  it('включённый флаг клиники A не меняет корень клиники B ни в каком порядке запросов', async () => {
+describe('изоляция арендаторов на корне', () => {
+  it('свой домен клиники A не меняет корень клиники B ни в каком порядке запросов', async () => {
     const runtime = await loadRuntime();
-    const withCard = tenantFor(CLINIC_KEEPS_CARD, ORG_KEEPS_CARD, UNSET);
-    const withoutCard = tenantFor(CLINIC_SKIPS_CARD, ORG_SKIPS_CARD, ON);
+    const platform = tenantFor(CLINIC_ON_PLATFORM, ORG_ON_PLATFORM);
+    const branded = tenantFor(CLINIC_ON_OWN_DOMAIN, ORG_ON_OWN_DOMAIN, OWN_DOMAIN);
 
-    const skipFirst = await runtime.proxy(requestFor(brandedHost(CLINIC_SKIPS_CARD), '/'), withoutCard);
-    const cardAfter = await runtime.proxy(requestFor(brandedHost(CLINIC_KEEPS_CARD), '/'), withCard);
-    const cardFirst = await runtime.proxy(requestFor(brandedHost(CLINIC_KEEPS_CARD), '/'), withCard);
-    const skipAfter = await runtime.proxy(requestFor(brandedHost(CLINIC_SKIPS_CARD), '/'), withoutCard);
-
-    expect(routedPath(skipFirst, '/')).toBe('/app');
-    expect(routedPath(skipAfter, '/')).toBe('/app');
-    expect(routedPath(cardAfter, '/')).toBe(runtime.publicClinicCardPath(CLINIC_KEEPS_CARD));
-    expect(routedPath(cardFirst, '/')).toBe(runtime.publicClinicCardPath(CLINIC_KEEPS_CARD));
-  });
-
-  it('решение корня берётся из своего арендатора, а не из соседнего хоста', async () => {
-    const runtime = await loadRuntime();
-    // Шов отвечает по нормализованному имени хоста: подмена ответа на чужой хост здесь
-    // невозможна, но результат обязан относиться к запрошенной метке.
-    const response = await runtime.proxy(
-      requestFor(brandedHost(CLINIC_KEEPS_CARD), '/'),
-      tenantFor(CLINIC_KEEPS_CARD, ORG_KEEPS_CARD, ON),
+    const brandedFirst = await runtime.proxy(requestFor(OWN_DOMAIN, '/'), branded);
+    const platformAfter = await runtime.proxy(
+      requestFor(platformHost(CLINIC_ON_PLATFORM), '/'),
+      platform,
     );
-    expect(routedPath(response, '/')).toBe('/app');
-    const resolved = runtime.readResolvedSurface({
-      get: (name) => response.headers.get(`x-middleware-request-${name}`),
-    });
-    expect(resolved).toMatchObject({
-      surface: 'patient_branded',
-      clinicSlug: CLINIC_KEEPS_CARD,
-      organizationId: ORG_KEEPS_CARD,
-      skipPublicCardAtRoot: true,
-    });
+    const platformFirst = await runtime.proxy(
+      requestFor(platformHost(CLINIC_ON_PLATFORM), '/'),
+      platform,
+    );
+    const brandedAfter = await runtime.proxy(requestFor(OWN_DOMAIN, '/'), branded);
+
+    expect(routedPath(brandedFirst, '/')).toBe('/app');
+    expect(routedPath(brandedAfter, '/')).toBe('/app');
+    const card = runtime.publicClinicCardPath(CLINIC_ON_PLATFORM);
+    expect(routedPath(platformAfter, '/')).toBe(card);
+    expect(routedPath(platformFirst, '/')).toBe(card);
   });
 });
 
 /**
- * Ловит: флаг расползся за корень — включив его, клиника теряет визитку по канонической метке,
- * короткую запись `/booking` или вход пациента. Пункт разрешает менять только корень.
+ * Ловит: решение о корне расползлось за корень — у клиники на своём домене пропала короткая
+ * запись `/booking` или вход пациента, либо наоборот.
  */
-describe('B5a · флаг меняет только корень', () => {
+describe('решение касается только корня', () => {
   it.each([
-    ['каноническая визитка', `/${CLINIC_SKIPS_CARD}`],
-    ['короткая запись', '/booking'],
+    ['каноническая визитка', `/${CLINIC_ON_OWN_DOMAIN}`],
     ['вход пациента', '/app/patient/login'],
     ['общая оболочка входа', '/app'],
     ['поддержка', '/app/contact-support'],
-  ])('%s не зависит от флага', async (_name, path) => {
+  ])('%s не зависит от того, чей это адрес', async (_name, path) => {
     const runtime = await loadRuntime();
-    const [on, off] = await Promise.all([
+    const [own, platform] = await Promise.all([
       runtime.proxy(
-        requestFor(brandedHost(CLINIC_SKIPS_CARD), path),
-        tenantFor(CLINIC_SKIPS_CARD, ORG_SKIPS_CARD, ON),
+        requestFor(OWN_DOMAIN, path),
+        tenantFor(CLINIC_ON_OWN_DOMAIN, ORG_ON_OWN_DOMAIN, OWN_DOMAIN),
       ),
       runtime.proxy(
-        requestFor(brandedHost(CLINIC_SKIPS_CARD), path),
-        tenantFor(CLINIC_SKIPS_CARD, ORG_SKIPS_CARD, UNSET),
+        requestFor(platformHost(CLINIC_ON_OWN_DOMAIN), path),
+        tenantFor(CLINIC_ON_OWN_DOMAIN, ORG_ON_OWN_DOMAIN),
       ),
     ]);
-    expect(on.status).toBe(off.status);
-    expect(routedPath(on, path)).toBe(routedPath(off, path));
-    expect(on.status).toBe(200);
+    expect(own.status).toBe(platform.status);
+    expect(routedPath(own, path)).toBe(routedPath(platform, path));
+    expect(own.status).toBe(200);
   });
 
-  it('включённый флаг оставляет короткую запись на записи своей клиники', async () => {
+  it('на своём домене короткая запись остаётся записью своей клиники', async () => {
     const runtime = await loadRuntime();
     const response = await runtime.proxy(
-      requestFor(brandedHost(CLINIC_SKIPS_CARD), '/booking'),
-      tenantFor(CLINIC_SKIPS_CARD, ORG_SKIPS_CARD, ON),
+      requestFor(OWN_DOMAIN, '/booking'),
+      tenantFor(CLINIC_ON_OWN_DOMAIN, ORG_ON_OWN_DOMAIN, OWN_DOMAIN),
     );
     expect(routedPath(response, '/booking')).toBe(
-      runtime.publicBookPaths.forSlug(CLINIC_SKIPS_CARD),
+      runtime.publicBookPaths.forSlug(CLINIC_ON_OWN_DOMAIN),
     );
   });
 });
 
 /**
- * Ловит: значение флага можно принести снаружи заголовком внутреннего контекста и увести чужой
- * корень на вход, минуя шов арендатора.
+ * Ловит: признак «это собственный домен» можно принести снаружи заголовком внутреннего контекста
+ * и увести чужой корень во вход, минуя шов арендатора.
  */
-describe('B5a · значение флага нельзя принести запросом', () => {
+describe('признак собственного домена нельзя принести запросом', () => {
   it('подделанный x-bc-resolved-surface не меняет корень клиники', async () => {
     const runtime = await loadRuntime();
     const forged = runtime.serializeResolvedSurface({
       surface: 'patient_branded',
-      publicOrigin: `https://${brandedHost(CLINIC_KEEPS_CARD)}`,
-      organizationId: ORG_KEEPS_CARD,
-      clinicSlug: CLINIC_KEEPS_CARD,
-      skipPublicCardAtRoot: true,
+      publicOrigin: `https://${platformHost(CLINIC_ON_PLATFORM)}`,
+      organizationId: ORG_ON_PLATFORM,
+      clinicSlug: CLINIC_ON_PLATFORM,
+      brandedHostIsOwnDomain: true,
       effectivePatientBrand: {
         effectiveDisplayName: 'Подделка',
         patientAppName: 'Подделка',
@@ -250,25 +250,25 @@ describe('B5a · значение флага нельзя принести за�
       authPolicy: { availableMethods: ['email_code'], enabledMethods: ['email_code'] },
     });
     const response = await runtime.proxy(
-      requestFor(brandedHost(CLINIC_KEEPS_CARD), '/', {
+      requestFor(platformHost(CLINIC_ON_PLATFORM), '/', {
         [runtime.RESOLVED_SURFACE_HEADER]: forged,
       }),
-      tenantFor(CLINIC_KEEPS_CARD, ORG_KEEPS_CARD, UNSET),
+      tenantFor(CLINIC_ON_PLATFORM, ORG_ON_PLATFORM),
     );
-    expect(routedPath(response, '/')).toBe(runtime.publicClinicCardPath(CLINIC_KEEPS_CARD));
+    expect(routedPath(response, '/')).toBe(runtime.publicClinicCardPath(CLINIC_ON_PLATFORM));
     const resolved = runtime.readResolvedSurface({
       get: (name) => response.headers.get(`x-middleware-request-${name}`),
     });
-    expect(resolved).toMatchObject({ skipPublicCardAtRoot: false });
+    expect(resolved?.brandedHostIsOwnDomain).toBeUndefined();
   });
 
-  it('флаг на непациентской поверхности отвергает разбор целиком', async () => {
+  it('признак на непациентской поверхности отвергает разбор целиком', async () => {
     const runtime = await loadRuntime();
     const value = encodeURIComponent(
       JSON.stringify({
         surface: 'patient_default',
         publicOrigin: PATIENT_ORIGIN,
-        skipPublicCardAtRoot: true,
+        brandedHostIsOwnDomain: true,
         authPolicy: { availableMethods: ['email_code'], enabledMethods: ['email_code'] },
       }),
     );
@@ -277,10 +277,10 @@ describe('B5a · значение флага нельзя принести за�
 });
 
 /**
- * Ловит: `B5a` уронил `B4a`/`B5` — живой корень клиники без купленного бренда снова 404,
- * либо неизвестный/погашенный/дублирующий хост перестал отдавать 404.
+ * Ловит: правка уронила `B4a`/`B5` — живой корень клиники без купленного бренда снова 404, либо
+ * неизвестный/погашенный/дублирующий хост перестал отдавать 404.
  */
-describe('B5a · B4a и B5 целы', () => {
+describe('B4a и B5 целы', () => {
   it.each([
     ['неизвестная метка', { status: 'unknown' as const }],
     ['неактивная организация', { status: 'inactive' as const }],
@@ -288,23 +288,23 @@ describe('B5a · B4a и B5 целы', () => {
   ])('%s -> 404 на весь хост', async (_name, result) => {
     const runtime = await loadRuntime();
     const response = await runtime.proxy(
-      requestFor(brandedHost(CLINIC_KEEPS_CARD), '/'),
+      requestFor(platformHost(CLINIC_ON_PLATFORM), '/'),
       async () => result,
     );
     expect(response.status).toBe(404);
     expect(response.headers.get('cache-control')).toBe('no-store');
   });
 
-  it('чужое происхождение бренда -> 404 даже при включённом флаге', async () => {
+  it('чужое происхождение бренда -> 404 и на собственном домене', async () => {
     const runtime = await loadRuntime();
     const response = await runtime.proxy(
-      requestFor(brandedHost(CLINIC_KEEPS_CARD), '/'),
+      requestFor(OWN_DOMAIN, '/'),
       async () => ({
         status: 'active',
-        organizationId: ORG_KEEPS_CARD,
-        clinicSlug: CLINIC_KEEPS_CARD,
-        skipPublicCardAtRoot: true,
-        effectivePatientBrandOrganizationId: ORG_SKIPS_CARD,
+        organizationId: ORG_ON_OWN_DOMAIN,
+        clinicSlug: CLINIC_ON_OWN_DOMAIN,
+        activeCustomDomainHostname: OWN_DOMAIN,
+        effectivePatientBrandOrganizationId: ORG_ON_PLATFORM,
         effectivePatientBrand: {
           effectiveDisplayName: 'Чужая клиника',
           patientAppName: 'Чужая клиника',
@@ -315,12 +315,12 @@ describe('B5a · B4a и B5 целы', () => {
     expect(response.status).toBe(404);
   });
 
-  it('каталог специалистов и лендинг остаются недостижимы при включённом флаге', async () => {
+  it('каталог специалистов и лендинг остаются недостижимы с собственного домена', async () => {
     const runtime = await loadRuntime();
     for (const path of ['/specialists', '/specialist']) {
       const response = await runtime.proxy(
-        requestFor(brandedHost(CLINIC_SKIPS_CARD), path),
-        tenantFor(CLINIC_SKIPS_CARD, ORG_SKIPS_CARD, ON),
+        requestFor(OWN_DOMAIN, path),
+        tenantFor(CLINIC_ON_OWN_DOMAIN, ORG_ON_OWN_DOMAIN, OWN_DOMAIN),
       );
       expect(`${path} -> ${response.status}`).toBe(`${path} -> 404`);
     }

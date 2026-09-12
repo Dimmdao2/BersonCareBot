@@ -62,7 +62,7 @@ const platformSession = {
 };
 
 const CLINIC_ORGANIZATION_ID = '11111111-1111-4111-8111-111111111111';
-const CLINIC_ROOT_SKIP_PUBLIC_CARD_KEY = 'clinic_root_skip_public_card';
+const CLINIC_PER_ORG_BOOLEAN_KEY = 'clinic_booking_show_specialist_cards';
 
 function patch(body: unknown) {
   return PATCH(
@@ -323,7 +323,7 @@ describe('global-admin settings HTTP boundary', () => {
       ctx: { session: doctorSession, organizationId, membershipRole: 'owner' },
     });
     fakes.updateSetting.mockResolvedValue({
-      key: CLINIC_ROOT_SKIP_PUBLIC_CARD_KEY,
+      key: CLINIC_PER_ORG_BOOLEAN_KEY,
       scope: 'admin',
       organizationId,
       valueJson: { value: true },
@@ -331,11 +331,11 @@ describe('global-admin settings HTTP boundary', () => {
       updatedBy: doctorSession.user.userId,
     });
 
-    const response = await patch({ key: CLINIC_ROOT_SKIP_PUBLIC_CARD_KEY, value: true });
+    const response = await patch({ key: CLINIC_PER_ORG_BOOLEAN_KEY, value: true });
 
     expect(response.status).toBe(200);
     expect(fakes.updateSetting).toHaveBeenCalledWith(
-      CLINIC_ROOT_SKIP_PUBLIC_CARD_KEY,
+      CLINIC_PER_ORG_BOOLEAN_KEY,
       'admin',
       { value: true },
       doctorSession.user.userId,

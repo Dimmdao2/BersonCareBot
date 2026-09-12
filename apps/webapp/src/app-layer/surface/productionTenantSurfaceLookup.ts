@@ -87,7 +87,6 @@ export const productionTenantSurfaceLookup: TenantSurfaceLookup = async (
     status: 'active',
     organizationId,
     clinicSlug: projection.clinicSlug,
-    skipPublicCardAtRoot: projection.skipPublicCardAtRoot,
     effectivePatientBrandOrganizationId: organizationId,
     effectivePatientBrand: {
       effectiveDisplayName: projection.effectiveDisplayName,

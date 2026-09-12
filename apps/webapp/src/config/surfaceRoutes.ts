@@ -203,12 +203,13 @@ export function patientTreeRewritePath(resolved: ResolvedSurface, pathname: stri
     return path === '/' ? routePaths.root : null;
   }
   if (resolved.surface !== 'patient_branded' || !resolved.clinicSlug) return null;
-  // This is the sole root projection for both branded-root choices. The flag arrives only in the
-  // already-resolved tenant context, so no second Host/settings lookup can drift from B5's seam.
+  // Владелец 12.09.2026, дословно: «app clinic ru не должен вести на публичную карточку клиники.
+  // Он должен в любом случае открывать логин всегда. Публичная карточка клиники как была, так и
+  // остаётся на поддомене therapygo.ru». Корень решает не настройка, а АДРЕС, с которого пришли:
+  // собственный домен клиники — её приложение, платформенный поддомен — её витрина. Снятый ключ,
+  // которым это выбиралось раньше, — `clinic_root_skip_public_card`.
   if (path === '/') {
-    return resolved.skipPublicCardAtRoot
-      ? routePaths.root
-      : publicClinicCardPath(resolved.clinicSlug);
+    return resolved.brandedHostIsOwnDomain ? routePaths.root : publicClinicCardPath(resolved.clinicSlug);
   }
   if (path === '/booking') return publicBookPaths.forSlug(resolved.clinicSlug);
   return null;

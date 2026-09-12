@@ -45,7 +45,6 @@ function entitledPort(): CustomDomainBindingPort {
     async readAnonymousPatientSurfaceProjection() {
       return {
         clinicSlug: 'northstar',
-        skipPublicCardAtRoot: false,
         effectiveDisplayName: 'Northstar Clinic',
         patientAppName: 'Northstar Care',
         accentToken: 'teal',
@@ -107,7 +106,6 @@ describe('custom-domain intent', () => {
       service.readAnonymousPatientSurfaceProjection('11111111-1111-4111-8111-111111111111'),
     ).resolves.toEqual({
       clinicSlug: 'northstar',
-      skipPublicCardAtRoot: false,
       effectiveDisplayName: 'Northstar Clinic',
       patientAppName: 'Northstar Care',
       accentToken: 'teal',

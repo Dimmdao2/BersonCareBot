@@ -52,8 +52,15 @@ export type ResolvedSurface = Readonly<{
   publicOrigin: string;
   organizationId?: string;
   clinicSlug?: string;
-  /** One org setting decides whether its branded root opens the common patient entry immediately. */
-  skipPublicCardAtRoot?: boolean;
+  /**
+   * Брендированная поверхность приходит с ДВУХ разных адресов, и это разные продукты:
+   * `<slug>.<пациентский хост>` — витрина платформы, её корень показывает визитку клиники;
+   * собственный домен клиники (`app.clinic.ru`) — её приложение, корень всегда открывает вход.
+   * Признак ставится ровно тогда, когда запрос пришёл НА активный собственный домен организации
+   * (владелец 12.09.2026: «Публичная карточка клиники как была, так и остаётся на поддомене
+   * therapygo.ru»). Пустой — это платформенный поддомен.
+   */
+  brandedHostIsOwnDomain?: true;
   effectivePatientBrand?: EffectivePatientBrand;
   /** Branded surface only: the clinic's own bot identity per platform (see the type doc). */
   clinicMessengerBots?: ClinicMessengerBots;
@@ -73,8 +80,6 @@ export type TenantSurfaceLookupResult =
       status: 'active';
       organizationId: string;
       clinicSlug: string;
-      /** Derived from `clinic_root_skip_public_card`; absence stays on the public-card default. */
-      skipPublicCardAtRoot?: boolean;
       /** Trusted organization provenance of the projected brand before its id is stripped. */
       effectivePatientBrandOrganizationId: string;
       effectivePatientBrand: EffectivePatientBrand;
@@ -362,16 +367,21 @@ export const resolveRequestSurface: RequestSurfaceResolver = async ({
   }
 
   const clinicMessengerBots = sanitizeClinicMessengerBots(tenant.clinicMessengerBots);
+  const requestHostname = requestOrigin.hostname.toLowerCase();
   const redirectToHostname = sanitizeRedirectToHostname(
     tenant.activeCustomDomainHostname,
-    requestOrigin.hostname.toLowerCase(),
+    requestHostname,
   );
+  // Прямое сравнение, а не «редиректа нет»: санитайзер выше молчит и на кривом имени, и тогда
+  // «редиректа нет» означало бы «посетитель на своём домене» для организации без рабочего домена.
+  const ownDomain = tenant.activeCustomDomainHostname?.trim().toLowerCase();
+  const brandedHostIsOwnDomain = Boolean(ownDomain) && ownDomain === requestHostname;
   return {
     surface: 'patient_branded',
     publicOrigin,
     organizationId: tenant.organizationId,
     clinicSlug: clinicSlug.slug,
-    skipPublicCardAtRoot: tenant.skipPublicCardAtRoot === true,
+    ...(brandedHostIsOwnDomain ? { brandedHostIsOwnDomain: true as const } : {}),
     effectivePatientBrand,
     ...(clinicMessengerBots ? { clinicMessengerBots } : {}),
     ...(redirectToHostname ? { redirectToHostname } : {}),
@@ -457,14 +467,16 @@ export function readResolvedSurface(headers: Pick<Headers, 'get'>): ResolvedSurf
         ...withoutBots,
         authPolicy,
         clinicSlug: clinicSlug.slug,
-        skipPublicCardAtRoot: candidate.skipPublicCardAtRoot === true,
+        // Только `true` или отсутствие: любое другое значение из заголовка становится отсутствием,
+        // то есть платформенным поддоменом — деградация в сторону общей платформы, не в сторону бренда.
+        ...(candidate.brandedHostIsOwnDomain === true ? { brandedHostIsOwnDomain: true as const } : {}),
         effectivePatientBrand,
         ...(clinicMessengerBots ? { clinicMessengerBots } : {}),
       } as ResolvedSurface;
     } else if (
       candidate.organizationId ||
       candidate.clinicSlug ||
-      candidate.skipPublicCardAtRoot !== undefined ||
+      candidate.brandedHostIsOwnDomain !== undefined ||
       candidate.effectivePatientBrand ||
       candidate.clinicMessengerBots ||
       candidate.redirectToHostname ||

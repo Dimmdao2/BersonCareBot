@@ -396,15 +396,6 @@ export default async function SettingsPage({
         false,
       ),
     );
-    const skipPublicCardAtRoot =
-      valueOf<unknown>(
-        clinicAdminSettings.find(
-          (setting) =>
-            setting.key === 'clinic_root_skip_public_card' &&
-            setting.organizationId === workspace.organizationId,
-        )?.valueJson,
-        false,
-      ) === true;
     /**
      * #926 §17.Q. Дефолт ВКЛЮЧЕНО и здесь, и в двери каталога записи: клиника публикует визитку
      * каждого специалиста отдельной галкой, и молчаливое «не показываем» означало бы, что платформа
@@ -551,7 +542,6 @@ export default async function SettingsPage({
         {cardSettings ? (
           <ClinicPublicCardSection
             initialSettings={cardSettings}
-            skipPublicCardAtRoot={skipPublicCardAtRoot}
             showSpecialistCardsInBooking={showSpecialistCardsInBooking}
             identity={cardIdentity}
             locations={bookingLinkOptions?.cardLocations ?? []}
