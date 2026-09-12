@@ -940,8 +940,20 @@ for retired_relation in \
 done
 OLD_SOURCE="$(sudo -u postgres psql -d "$DB" -X -tAc "SELECT count(*) FROM public.be_appointments WHERE source='rubitime_projection';")"
 [ "${OLD_SOURCE:-1}" = "0" ] || { echo "FATAL: $OLD_SOURCE appointments still carry retired rubitime_projection source" >&2; exit 1; }
-ACTIVE="$(sudo -u postgres psql -d "$DB" -tAc "SELECT count(*) FROM be_specialists WHERE is_active=true;")"
-[ "${ACTIVE:-0}" = "1" ] || { echo "FATAL: expected exactly 1 active specialist, got ${ACTIVE:-0}"; exit 1; }
+# Владелец 12.09.2026: сторож, которому надо перепечатать цифру, чтобы перенести нормальную рабочую
+# базу, — вредный, и такие удаляются. Здесь стояло `= 1`: счёт активных специалистов ПО ВСЕЙ БАЗЕ,
+# без привязки к организации, написанный 20.08, когда прод был клиникой с одним врачом. Замер
+# 13.09 на живом старом проде: активных специалистов ДВА, оба в канонической организации. То есть
+# сторож упал бы на первом же переносе, и «починкой» была бы перепечатка двойки — до следующего
+# врача. Добавление специалиста — обычное продуктовое действие (pgOrganizationProvisioning,
+# pgBookingEngine), и на многоарендной платформе счёт по всей базе ломался бы ещё и от чужой клиники.
+#
+# Проверяется то, ради чего проверка и стоит: канонический специалист владельца жив и активен в
+# своей организации (без него следующая же строка про осиротевшие записи ничего не значит).
+# Количество печатается фактом, а не сравнивается с константой.
+ACTIVE="$(sudo -u postgres psql -d "$DB" -tAc "SELECT count(*) FROM be_specialists WHERE is_active=true AND organization_id='$ORG_ID';")"
+CANON_LIVE="$(sudo -u postgres psql -d "$DB" -tAc "SELECT EXISTS(SELECT 1 FROM be_specialists WHERE id='$CANONICAL_SPECIALIST' AND organization_id='$ORG_ID' AND is_active);")"
+[ "$CANON_LIVE" = "t" ] || { echo "FATAL: canonical specialist $CANONICAL_SPECIALIST is missing or inactive in organization $ORG_ID"; exit 1; }
 ORPHAN="$(sudo -u postgres psql -d "$DB" -tAc "SELECT count(*) FROM be_appointments WHERE deleted_at IS NULL AND (specialist_id IS NULL OR specialist_id IN (SELECT id FROM be_specialists WHERE is_active=false));")"
 [ "${ORPHAN:-1}" = "0" ] || { echo "FATAL: ${ORPHAN} appointments left on NULL/inactive specialist (data not fully consolidated)"; exit 1; }
 DROLE="$(sudo -u postgres psql -d "$DB" -tAc "SELECT person.role FROM platform_users person JOIN user_contacts contact ON contact.platform_user_id = person.id WHERE contact.contact_kind='phone' AND contact.value_normalized='+79643805480' AND person.merged_into_id IS NULL;")"
@@ -950,7 +962,7 @@ APADMIN="$(sudo -u postgres psql -d "$DB" -tAc "SELECT value_json->>'value' FROM
 [ "$APADMIN" = "[]" ] || { echo "FATAL: admin_phones is '$APADMIN', expected [] (owner phone must be doctor, not admin)"; exit 1; }
 APPTS="$(sudo -u postgres psql -d "$DB" -tAc "SELECT count(*) FROM be_appointments WHERE specialist_id='$CANONICAL_SPECIALIST';")"
 FUT="$(sudo -u postgres psql -d "$DB" -tAc "SELECT count(*) FROM be_appointments WHERE specialist_id='$CANONICAL_SPECIALIST' AND start_at>=now();")"
-echo "   OK: 1 active specialist · $APPTS appointments on canonical ($FUT future) · doctor role held · admin_phones=[]"
+echo "   OK: canonical specialist active (${ACTIVE} active in org) · $APPTS appointments on canonical ($FUT future) · doctor role held · admin_phones=[]"
 [ "${FUT:-0}" -gt 0 ] || echo "   ⚠ WARNING: 0 future appointments — dump may be stale (live prod should have upcoming bookings)"
 log "B1 doctor/admin identity assertion"
 run_b1_doctor_admin_identity_assertion

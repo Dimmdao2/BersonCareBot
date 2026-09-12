@@ -41,20 +41,22 @@ BEGIN
     RAISE EXCEPTION 'pre-cutover data assertion: retired specialist remains';
   END IF;
 
-  SELECT count(*) INTO violation_count
-  FROM public.be_specialists
-  WHERE organization_id = canonical_organization AND is_active;
-  IF violation_count <> 1 THEN
-    RAISE EXCEPTION 'pre-cutover data assertion: active specialist count is %, expected 1', violation_count;
-  END IF;
-
+  -- Здесь стояло «активных специалистов в канонической организации должно быть РОВНО ОДИН».
+  -- Это снимок 20.08.2026, когда прод был клиникой с одним врачом; замер 13.09 на живом старом
+  -- проде даёт ДВА активных в той же организации, то есть предперенос падал бы на нормальной
+  -- рабочей базе, и чинился бы перепечатыванием двойки — до следующего врача. Добавить врача —
+  -- обычное продуктовое действие, а не авария данных.
+  --
+  -- Инвариант, который здесь действительно нужен и который единственный использует перенос ниже:
+  -- канонический специалист владельца существует и активен в своей организации.
   IF NOT EXISTS (
     SELECT 1 FROM public.be_specialists
     WHERE id = canonical_specialist
       AND organization_id = canonical_organization
       AND is_active
   ) THEN
-    RAISE EXCEPTION 'pre-cutover data assertion: canonical specialist is not the one active specialist';
+    RAISE EXCEPTION 'pre-cutover data assertion: canonical specialist % is missing or inactive in organization %',
+      canonical_specialist, canonical_organization;
   END IF;
 
   SELECT count(*) INTO violation_count
