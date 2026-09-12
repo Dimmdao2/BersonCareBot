@@ -12,6 +12,7 @@ export {
   getProgramSubmissionMediaStatusRow,
   isProgramSubmissionMediaAttachReady,
   getMediaS3KeyForRedirect,
+  resolveDeliverableMediaObject,
   getMediaOriginalObjectForDownload,
   insertPendingMediaFileTx,
   createPendingProgramSubmissionMediaFile,

@@ -11,6 +11,14 @@ const appRoot = path.resolve(import.meta.dirname, '..');
 const sourceRoot = path.join(appRoot, 'src');
 const adapterPath = path.join(sourceRoot, 'app-layer', 'media', 'mediaUploadAdapter.ts');
 const storageAdapterPath = path.join(sourceRoot, 'app-layer', 'media', 's3Client.ts');
+/*
+ * Второй и последний app-layer порт над `infra/s3` — УЗКИЙ (М7): он отдаёт наружу только
+ * hot-чтение и физически не принимает тип бакета, поэтому выдача, импортирующая его, не может
+ * добраться до сырого. Исключение намеренно уже общего: разрешена ровно эта пара «файл ↔ модуль»,
+ * а не любой реэкспорт из `infra/s3` в этом файле.
+ */
+const deliveryAdapterPath = path.join(sourceRoot, 'app-layer', 'media', 's3DeliveryClient.ts');
+const deliveryAdapterModule = '@/infra/s3/deliveryClient';
 const repoRoot = path.join(sourceRoot, 'infra', 'repos');
 const infraStorageRoot = path.join(sourceRoot, 'infra', 's3');
 
@@ -173,8 +181,15 @@ function checkSource(filename, text) {
       current.moduleSpecifier &&
       ts.isStringLiteral(current.moduleSpecifier)
     ) {
-      if (isRawStorageSpecifier(current.moduleSpecifier.text) && filename !== storageAdapterPath) {
-        findings.push(`${filename}: re-exports raw storage module ${current.moduleSpecifier.text}`);
+      const reExported = current.moduleSpecifier.text;
+      const allowedDeliveryReExport =
+        filename === deliveryAdapterPath && reExported === deliveryAdapterModule;
+      if (
+        isRawStorageSpecifier(reExported) &&
+        filename !== storageAdapterPath &&
+        !allowedDeliveryReExport
+      ) {
+        findings.push(`${filename}: re-exports raw storage module ${reExported}`);
       }
     }
 
@@ -330,6 +345,12 @@ function selfTest() {
       'acceptance without receipt',
       'virtual/app/api/new/route.ts',
       "import { acceptReceivedMedia } from '@/app-layer/media/mediaUploadAdapter'; void acceptReceivedMedia('id', {});",
+    ],
+    [
+      /* Исключение узкое по построению: тот же файл, но полный клиент вместо hot-only — красный. */
+      'delivery adapter re-exports the kind-capable client',
+      deliveryAdapterPath,
+      "export * from '@/infra/s3/client';",
     ],
     [
       'comment-only marker',

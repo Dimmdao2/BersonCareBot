@@ -15,10 +15,10 @@ import { recordHlsDeliveryBytes } from '@/app-layer/media/hlsDeliveryByteMeter';
 import { parseSingleBytesRangeHeader } from '@/app-layer/media/hlsProxyRange';
 import { getMediaRowForPlayback } from '@/app-layer/media/s3MediaStorage';
 import {
-  s3GetObjectStream,
-  s3GetPrivateObjectBuffer,
+  deliveryGetObjectStream,
+  deliveryGetPrivateObjectBuffer,
   type S3GetObjectStreamFailureReason,
-} from '@/app-layer/media/s3Client';
+} from '@/app-layer/media/s3DeliveryClient';
 import {
   recordMediaHlsProxyErrorEventIfNeeded,
   shouldRecordMediaHlsProxyError,
@@ -231,7 +231,7 @@ async function runHlsDeliveryProxy(input: {
       });
     }
 
-    const bufResult = await s3GetPrivateObjectBuffer(objectKey, row.storage_target);
+    const bufResult = await deliveryGetPrivateObjectBuffer(objectKey, row.storage_target);
     if (!bufResult.ok) {
       const reason = mapS3FailureToReason(bufResult.reason, 'playlist');
       return finishError({ mediaId, userId, reason, artifactKind, objectKey });
@@ -294,7 +294,7 @@ async function runHlsDeliveryProxy(input: {
     }
   }
 
-  const streamed = await s3GetObjectStream({
+  const streamed = await deliveryGetObjectStream({
     key: objectKey,
     range: awsRange,
     target: row.storage_target,

@@ -18,7 +18,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
-import { Camera, FilePlus, Image as ImageIcon } from 'lucide-react';
+import { Camera, FilePlus, Image as ImageIcon, Loader2 } from 'lucide-react';
 import type { PatientCardHeader } from '@/modules/doctor-clients/ports';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 import type { PatientFileCategory } from '@/modules/patient-files/ports';
@@ -507,8 +507,8 @@ function FilePreviewModal({
   encountersEnabled: boolean;
 }) {
   const isImage = file?.mimeType.startsWith('image/') ?? false;
-  const isPdf = file?.mimeType === 'application/pdf';
   const isVideo = file?.mimeType.startsWith('video/') ?? false;
+  const isAudio = file?.mimeType.startsWith('audio/') ?? false;
 
   return (
     <DoctorModal open={file !== null} onClose={onClose} title={file?.fileName ?? 'Файл'} size="lg">
@@ -522,27 +522,33 @@ function FilePreviewModal({
                 alt={file.fileName}
                 className="max-h-[50vh] w-full object-contain"
               />
-            ) : file.previewUrl && isPdf ? (
-              <iframe
-                src={file.previewUrl}
-                title={file.fileName}
-                className="h-[50vh] w-full border-0"
-              />
-            ) : isVideo && file.mediaFileId ? (
+            ) : file.previewUrl && isVideo && file.mediaFileId ? (
               <DoctorMediaPlaybackVideo
                 mediaId={file.mediaFileId}
                 title={file.fileName}
                 initialPlayback={null}
                 shellClassName="h-[50vh] w-full"
               />
+            ) : file.previewUrl && isAudio ? (
+              /* Аудио мы не перекодируем — играет сам загруженный файл, как играл раньше. */
+              <div className="w-full px-6 py-8">
+                <audio controls preload="metadata" className="w-full">
+                  <source src={file.previewUrl} type={file.mimeType} />
+                </audio>
+              </div>
+            ) : isImage || isVideo ? (
+              <div
+                className="flex flex-col items-center gap-2 px-6 py-10 text-center text-xs text-muted-foreground"
+                role="status"
+              >
+                <Loader2 className="size-8 animate-spin opacity-60" aria-hidden />
+                {/* Заглушка только у типов, где наша версия ДЕЙСТВИТЕЛЬНО готовится. */}
+                <span>{isVideo ? 'Видео готовится' : 'Картинка готовится'}</span>
+              </div>
             ) : (
               <div className="flex flex-col items-center gap-2 px-6 py-10 text-center">
                 <span className="text-4xl">{fileIcon(file.mimeType)}</span>
-                <span className="text-xs text-muted-foreground">
-                  {file.previewUrl
-                    ? 'Предпросмотр недоступен для этого типа файла'
-                    : 'Предпросмотр появится после загрузки файла'}
-                </span>
+                <span className="text-xs text-muted-foreground">Встроенный просмотр недоступен</span>
               </div>
             )}
           </div>
@@ -564,44 +570,30 @@ function FilePreviewModal({
 
           <div className="flex flex-wrap items-center gap-3">
             {/*
-             * У видео пресайн-ссылка на хранилище не «скачивает», а проигрывает: атрибут
-             * `download` на чужом origin браузер игнорирует, а `Content-Disposition` там inline.
-             * Поэтому для видео вместо неё стоит выдача исходника вложением (М6).
-             */}
-            {isVideo && file.mediaFileId ? (
-              file.canDownloadSource ? (
-                <a
-                  href={`/api/media/${file.mediaFileId}/original`}
-                  className="text-sm text-primary hover:underline"
-                >
-                  Скачать исходник
-                </a>
-              ) : (
-                <span className="text-sm text-muted-foreground">
-                  Исходник скачивает специалист, который его загрузил
-                </span>
-              )
-            ) : (
-              file.previewUrl && (
-                <>
-                  <a
-                    href={file.previewUrl}
-                    download={file.fileName}
-                    className="text-sm text-primary hover:underline"
-                  >
-                    Скачать
-                  </a>
-                  <a
-                    href={file.previewUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm text-primary hover:underline"
-                  >
-                    Открыть
-                  </a>
-                </>
-              )
-            )}
+              * Две РАЗНЫЕ вещи, и путать их нельзя.
+              * «Исходник» — то, из чего мы сделали свою версию (видео, картинка): его отдаёт
+              * только загрузивший специалист, вложением, по решению владельца 10.09.
+              * Обычный файл — документ или аудио, у которого нашей версии не бывает: его скачивает
+              * каждый, кто и так имеет право видеть карточку пациента. Иначе присланный пациентом
+              * PDF анализов не смог бы открыть никто, включая лечащего врача (аудит 12.09, п.2).
+              */}
+            {file.previewUrl && !isImage && !isVideo ? (
+              <a
+                href={file.previewUrl}
+                download={file.fileName}
+                className="text-sm text-primary hover:underline"
+              >
+                Скачать файл
+              </a>
+            ) : null}
+            {file.mediaFileId && file.canDownloadSource && (isImage || isVideo) ? (
+              <a
+                href={`/api/media/${file.mediaFileId}/original`}
+                className="text-sm text-primary hover:underline"
+              >
+                Скачать исходник
+              </a>
+            ) : null}
             <Button
               type="button"
               variant="destructive"

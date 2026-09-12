@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 const repoRoot = fileURLToPath(new URL('..', import.meta.url));
 const appSourceRoot = 'apps/webapp/src';
+const appRouteRoot = `${appSourceRoot}/app`;
 const routeRoot = `${appSourceRoot}/app/api`;
 const moduleRoot = `${appSourceRoot}/modules`;
 const deliveryRouteRoot = `${routeRoot}/media/[id]/`;
@@ -13,6 +14,8 @@ const mediaModuleRoot = `${moduleRoot}/media/`;
 const authorizationDoor = `${appSourceRoot}/app-layer/media/authorizeMediaDelivery.ts`;
 const mediaStoragePort = `${appSourceRoot}/app-layer/media/s3MediaStorage.ts`;
 const storagePort = `${appSourceRoot}/app-layer/media/s3Client.ts`;
+const deliveryStoragePort = `${appSourceRoot}/infra/s3/deliveryClient.ts`;
+const originalDownloadRoute = `${deliveryRouteRoot}original/route.ts`;
 const infraS3Client = `${appSourceRoot}/infra/s3/client`;
 const aclImports = new Set([
   'getMediaAccessRow',
@@ -79,6 +82,10 @@ function isInfraS3Client(path) {
   return path === infraS3Client || path === `${infraS3Client}.ts` || path === `${infraS3Client}.tsx`;
 }
 
+function isStoragePort(path) {
+  return path === storagePort || path === storagePort.replace(/\.tsx?$/, '');
+}
+
 function usesAclPrimitive(source, entries) {
   for (const entry of entries) {
     if ([...entry.bindings.keys()].some((name) => aclImports.has(name))) return true;
@@ -103,7 +110,7 @@ function isDeliveryRoute(rel) {
 }
 
 function isHttpRoute(rel) {
-  return rel.startsWith(`${routeRoot}/`) && rel.endsWith('/route.ts');
+  return rel.startsWith(`${appRouteRoot}/`) && rel.endsWith('/route.ts');
 }
 
 function isModuleSource(rel) {
@@ -133,13 +140,21 @@ function inspectNode(rel, source, sources, violations) {
     if (
       isInfraS3Client(resolved) &&
       rel !== storagePort &&
-      (isDeliveryRoute(rel) || isModuleSource(rel) || rel.startsWith(`${appSourceRoot}/app-layer/`))
+      (isHttpRoute(rel) || isModuleSource(rel) || rel.startsWith(`${appSourceRoot}/app-layer/`))
     ) {
       violations.add(`${rel}: imports infra S3 client outside the media storage port`);
     }
     if (
+      isHttpRoute(rel) &&
+      rel !== originalDownloadRoute &&
+      /export\s+(?:(?:async\s+)?function|const)\s+GET\b/.test(source) &&
+      isStoragePort(resolved)
+    ) {
+      violations.add(`${rel}: HTTP delivery route imports the storage-kind-capable S3 port`);
+    }
+    if (
       rawS3Packages.has(entry.module) &&
-      (isDeliveryRoute(rel) || isModuleSource(rel) || rel.startsWith(`${appSourceRoot}/app-layer/`))
+      (isHttpRoute(rel) || isModuleSource(rel) || rel.startsWith(`${appSourceRoot}/app-layer/`))
     ) {
       violations.add(`${rel}: imports raw AWS S3 SDK delivery primitives`);
     }
@@ -172,6 +187,15 @@ function inspectSources(sourceFiles) {
   const violations = new Set();
 
   for (const [rel, source] of sources) {
+    if (
+      rel === deliveryStoragePort &&
+      (source.includes('S3_RAW_BUCKET') ||
+        /(?:presignGetUrl|s3GetObjectStream|s3GetPrivateObjectBuffer|s3GetObjectBody|s3HeadObjectDetails)\s*\([\s\S]{0,320}?['"]raw['"]\s*[,)]/m.test(
+          source,
+        ))
+    ) {
+      violations.add(`${rel}: hot-only delivery capability references raw storage`);
+    }
     const entries = importEntries(source);
     if (isDeliveryRoute(rel) && !authorizerIsCalled(source, entries)) {
       violations.add(`${rel}: media delivery route does not call authorizeMediaDelivery`);
@@ -214,6 +238,32 @@ function runSelfTest() {
     },
   ];
   const bypasses = [
+    [
+      'raw bucket wired into the hot-only delivery capability',
+      [
+        ...green,
+        {
+          rel: deliveryStoragePort,
+          source:
+            "import { env } from '@/config/env';\nexport const deliveryBucket = env.S3_RAW_BUCKET;\n",
+        },
+      ],
+    ],
+    [
+      'non-api HTTP route imports the storage-kind-capable S3 port',
+      [
+        ...green,
+        {
+          rel: `${appRouteRoot}/[clinicSlug]/media/[mediaId]/route.ts`,
+          source:
+            "import { presignGetUrl } from '@/app-layer/media/s3Client';\nexport function GET() { return presignGetUrl('key', 60, 'library', undefined, 'raw'); }\n",
+        },
+        {
+          rel: storagePort,
+          source: "export function presignGetUrl() { return 'signed'; }\n",
+        },
+      ],
+    ],
     [
       'dynamic ACL import',
       [

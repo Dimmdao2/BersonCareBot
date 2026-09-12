@@ -46,6 +46,7 @@ import {
 import type { StorageKind, StorageTarget } from '@/infra/s3/client';
 import type { MediaStoragePort } from '@/modules/media/ports';
 import { assertReceivedUpload, type ReceivedUpload } from '@/modules/media/uploadValidation';
+import { encoderOutputFor } from '@/shared/lib/mediaEncoderOutput';
 import { MAX_MEDIA_BYTES } from '@/modules/media/uploadAllowedMime';
 import type {
   MediaListParams,
@@ -142,7 +143,7 @@ export function createS3MediaStoragePort(): MediaStoragePort {
       const id = randomUUID();
       const folderId = params.folderId ?? null;
       const organizationId = currentPrincipalOrganizationId();
-      const kind = sourceStorageKindFor(params.storageTarget);
+      const kind = sourceStorageKindFor(params.storageTarget, params.mimeType);
       const key =
         kind === 'raw'
           ? s3RawObjectKey(organizationId, id, params.filename)
@@ -892,6 +893,7 @@ type PlatformMediaRow = {
   preview_sm_key: string | null;
   preview_md_key: string | null;
   preview_status: string | null;
+  standard_rendition_at: string | Date | null;
 };
 
 async function readPlatformMediaRow(id: string): Promise<PlatformMediaRow | null> {
@@ -1176,8 +1178,7 @@ export async function getMediaRowForPlayback(
     preview_sm_key: platformRow.preview_sm_key,
     preview_md_key: platformRow.preview_md_key,
     preview_status: platformRow.preview_status,
-    /* `app.read_platform_media_row` has no such column; unknown stays "not converted". */
-    standard_rendition_at: null,
+    standard_rendition_at: platformRow.standard_rendition_at,
     video_duration_seconds: platformRow.video_duration_seconds,
     available_qualities_json: platformRow.available_qualities_json,
     usage_purpose: platformRow.usage_purpose,
@@ -1190,34 +1191,50 @@ export async function getMediaRowForPlayback(
 /**
  * Ключ объекта ВМЕСТЕ с его хранилищем: подписывать ссылку в чужом бакете бессмысленно, поэтому
  * дверь получает и то и другое одним ответом и не может подставить хранилище по умолчанию.
- * `kind` — сырой бакет или горячий (М7); объект и хранилище неразделимы точно так же, как ключ и
- * `target`, поэтому это третье обязательное поле одного и того же ответа, а не отдельная величина.
+ * Тип бакета здесь отсутствует намеренно: browser-facing клиент умеет читать только hot.
  */
-export type MediaObjectLocation = { key: string; target: StorageTarget; kind: StorageKind };
+export type MediaObjectLocation = { key: string; target: StorageTarget };
 
 /**
- * Что фактически отдавать по этой строке для ОБЫЧНОЙ (не raw_original) выдачи: готовый безопасный
- * рендишн картинки, если он есть (`standard_rendition_at IS NOT NULL`), — он лежит в горячем
- * бакете под детерминированным ключом и НЕ хранится в `s3_key` (М7, отменяет решение 19.08:
- * рендишн больше не затирает исходник). Иначе — сам `s3_key`, если его физическое хранилище
- * (по форме ключа, `sourceStorageKindForKey`) — горячий бакет: это либо `patient`-цель, либо ещё
- * не перенесённый библиотечный исходник (F-1).
+ * Единственный resolver объекта для ОБЫЧНОЙ (не raw_original) выдачи.
  *
- * `null`, когда физическое хранилище ключа — сырой бакет (F-2, коррекция аудита
- * `raw-bucket-audit-01`): дверь выдачи не должна и не умеет подписывать сырой бакет ни при каких
- * условиях — план М7 отдаёт его только скачиванию исходника (М6,
- * `getMediaOriginalObjectForDownload`). Отказ, а не подпись на оригинал.
+ * Два взаимоисключающих случая, и различает их то, ЧТО наш энкодер производит для этого типа
+ * (`encoderOutputFor`):
+ *
+ * 1. Картинка — отдаём ТОЛЬКО стандартный рендишн и только когда он есть. Нет
+ *    `standard_rendition_at` — нет объекта выдачи; исходник не подставляется никогда (решение
+ *    владельца 11.09: «если рендер ещё не готов… показывает только placeholder»). Видео тем же
+ *    правилом не отдаётся вовсе: его путь — HLS-прокси.
+ * 2. Документ и аудио — нашего вывода для них НЕ БЫВАЕТ, поэтому отдаётся сам загруженный объект.
+ *    Иначе заглушка «готовится» стала бы вечной, а файл — недоступным навсегда: это регрессия
+ *    доступа, а не стена. Условие одно и физическое: объект обязан лежать в ГОРЯЧЕМ бакете
+ *    (`sourceStorageKindForKey` по форме ключа). Сырой бакет выдача не умеет читать по построению,
+ *    и исключения для документов здесь нет — их место в горячем определяет загрузка.
+ *
+ * Дисположение (вложение для документа, инлайн для аудио) решает не этот resolver, а единый список
+ * в `infra/s3/client.ts`: PDF и офис уходят вложением, как и решил владелец 19.08.
  */
-function resolveDeliverableMediaObject(
+export function resolveDeliverableMediaObject(
   mediaId: string,
-  row: { s3_key: string; storage_target: StorageTarget; standard_rendition_at: string | Date | null },
+  row: {
+    mime_type: string;
+    s3_key: string | null;
+    storage_target: StorageTarget;
+    standard_rendition_at: string | Date | null;
+  },
 ): MediaObjectLocation | null {
-  if (row.standard_rendition_at != null) {
-    return { key: s3StandardImageKey(mediaId), target: row.storage_target, kind: 'hot' };
+  const output = encoderOutputFor(row.mime_type);
+  if (output === 'standard_image') {
+    return row.standard_rendition_at != null
+      ? { key: s3StandardImageKey(mediaId), target: row.storage_target }
+      : null;
   }
-  const kind = sourceStorageKindForKey(row.storage_target, row.s3_key);
-  if (kind === 'raw') return null;
-  return { key: row.s3_key, target: row.storage_target, kind };
+  if (output === 'hls_video') return null;
+
+  const key = row.s3_key?.trim() ?? '';
+  if (!key) return null;
+  if (sourceStorageKindForKey(row.storage_target, key) !== 'hot') return null;
+  return { key, target: row.storage_target };
 }
 
 /** For GET /api/media/[id]: S3 key when row may be redirected (presigned GET to private bucket). */
@@ -1228,11 +1245,12 @@ export async function getMediaS3KeyForRedirect(
   const organizationId = currentPrincipalOrganizationId();
   const res = await runWebappSql<{
     s3_key: string | null;
+    mime_type: string;
     storage_target: string | null;
     standard_rendition_at: string | Date | null;
   }>(
     getWebappSqlDb(),
-    sql`SELECT s3_key, storage_target, standard_rendition_at FROM media_files
+    sql`SELECT s3_key, mime_type, storage_target, standard_rendition_at FROM media_files
          WHERE id = ${id}::uuid AND s3_key IS NOT NULL
            AND owner_kind = 'organization' AND organization_id = ${organizationId}::uuid
            AND ${mediaReadableStatusPredicate}`,
@@ -1241,6 +1259,7 @@ export async function getMediaS3KeyForRedirect(
   if (row?.s3_key) {
     return resolveDeliverableMediaObject(id, {
       s3_key: row.s3_key,
+      mime_type: row.mime_type,
       storage_target: parseStorageTarget(row.storage_target),
       standard_rendition_at: row.standard_rendition_at,
     });
@@ -1250,15 +1269,16 @@ export async function getMediaS3KeyForRedirect(
   return platformRow?.s3_key
     ? resolveDeliverableMediaObject(id, {
         s3_key: platformRow.s3_key,
+        mime_type: platformRow.mime_type,
         storage_target: 'library',
-        /* `app.read_platform_media_row` не отдаёт эту колонку — платформенная библиотека картинок
-           с рендишном сюда не попадает; см. тот же комментарий у `getMediaRowForPlayback`. */
-        standard_rendition_at: null,
+        standard_rendition_at: platformRow.standard_rendition_at,
       })
     : null;
 }
 
 export type MediaOriginalDownloadObject = MediaObjectLocation & {
+  /** Only the explicit original-download route receives raw/hot source placement. */
+  kind: StorageKind;
   /** Имя файла, под которым его загрузили: уходит в `Content-Disposition` скачивания. */
   originalName: string;
   /**
@@ -1337,7 +1357,7 @@ export async function getMediaPreviewS3KeyForRedirect(
   if (!key?.trim()) return null;
   /* Превью — всегда вывод нашего энкодера, живёт в горячем бакете независимо от того, где лежит
      исходник (М7 не трогает это хранилище). */
-  return { key, target: own ? parseStorageTarget(own.storage_target) : 'library', kind: 'hot' };
+  return { key, target: own ? parseStorageTarget(own.storage_target) : 'library' };
 }
 
 export type PurgePendingMediaDeleteBatchResult = {

@@ -7,7 +7,7 @@ import {
   type MediaObjectLocation,
 } from '@/app-layer/media/s3MediaStorage';
 import { serializePresignFailureForLog } from '@/app-layer/media/presignLogRedaction';
-import { presignGetUrl } from '@/app-layer/media/s3Client';
+import { presignDeliveryGetUrl } from '@/app-layer/media/s3DeliveryClient';
 import { getVideoPresignTtlSeconds } from '@/app-layer/media/videoPresignTtl';
 import { getCurrentSession } from '@/modules/auth/service';
 import { readSaasTestLocalMedia } from '@/app-layer/media/localSaasTestFixtureMedia';
@@ -28,7 +28,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-
 async function redirectPresignedOr503(object: MediaObjectLocation): Promise<Response> {
   try {
     const ttlSec = await getVideoPresignTtlSeconds();
-    const signed = await presignGetUrl(object.key, ttlSec, object.target, undefined, object.kind);
+    const signed = await presignDeliveryGetUrl(object.key, ttlSec, object.target);
     /** 307 so clients (esp. Safari/WebKit video) re-issue GET+Range to the presigned URL; 302 often drops Range after redirect. */
     const res = NextResponse.redirect(signed, 307);
     res.headers.set('Cache-Control', 'private, max-age=0, must-revalidate');
@@ -67,6 +67,11 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
         allowPlatformBase: access.allowPlatformBase,
       });
       if (object) return redirectPresignedOr503(object);
+      /* Видео этим маршрутом не отдаётся вовсе — его путь один, `/hls/master.m3u8` через свой
+         прокси. Промежуточная редакция кандидата редиректила сюда на плейлист; это добавляло
+         поведение, которого в плане владельца нет, и потребитель, ждущий БАЙТЫ по голой ссылке
+         (нативный `<video src>`, превью мессенджера, мобильный клиент), получал бы файл-плейлист
+         вместо проигрывания. Отказ честнее. */
       const localBody = await readSaasTestLocalMedia({
         databaseUrl: legacyDatabaseUrl,
         storedPath: access.row.stored_path,

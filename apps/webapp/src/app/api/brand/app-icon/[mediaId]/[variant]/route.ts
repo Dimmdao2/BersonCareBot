@@ -1,4 +1,4 @@
-import { s3GetPrivateObjectBuffer } from '@/app-layer/media/s3Client';
+import { deliveryGetPrivateObjectBuffer } from '@/app-layer/media/s3DeliveryClient';
 import {
   isOrgAppIconMediaId,
   orgAppIconObjectKey,
@@ -31,7 +31,7 @@ export async function GET(
     return new Response(null, { status: 404, headers: { 'Cache-Control': 'no-store' } });
   }
 
-  const object = await s3GetPrivateObjectBuffer(
+  const object = await deliveryGetPrivateObjectBuffer(
     orgAppIconObjectKey(normalizedMediaId, parsedVariant),
     'library',
   );

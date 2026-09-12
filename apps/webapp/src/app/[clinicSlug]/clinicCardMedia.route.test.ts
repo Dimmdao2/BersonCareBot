@@ -29,11 +29,17 @@ const fakes = vi.hoisted(() => ({
 vi.mock('@/app-layer/principal/bootstrapPrincipal', () => ({
   stampBootstrapPrincipal: fakes.stampBootstrapPrincipal,
 }));
-vi.mock('@/app-layer/media/s3Client', () => ({
-  presignGetUrl: fakes.presignGetUrl,
-  sourceStorageKindFor: (target: string) => (target === 'patient' ? 'hot' : 'raw'),
-  sourceStorageKindForKey: (target: string, key: string) =>
-    target === 'patient' ? 'hot' : key.startsWith('media/') ? 'hot' : 'raw',
+vi.mock('@/app-layer/media/s3DeliveryClient', () => ({
+  presignDeliveryGetUrl: fakes.presignGetUrl,
+}));
+vi.mock('@/app-layer/media/s3MediaStorage', () => ({
+  resolveDeliverableMediaObject: (
+    id: string,
+    row: { standard_rendition_at: string | null },
+  ) =>
+    row.standard_rendition_at
+      ? { key: `media/${id}/standard.webp`, target: 'library', kind: 'hot' }
+      : null,
 }));
 vi.mock('@/app-layer/media/localSaasTestFixtureMedia', () => ({
   readSaasTestLocalMedia: fakes.readSaasTestLocalMedia,
@@ -84,6 +90,7 @@ describe('GET /{clinic}/media/{uuid}', () => {
           mimeType: 'image/png',
           s3Key: 'org/logo.png',
           storedPath: null,
+          standardRenditionAt: '2026-09-12T00:00:00.000Z',
         },
       ],
     });
@@ -93,6 +100,17 @@ describe('GET /{clinic}/media/{uuid}', () => {
     const response = await request(CARD_LOGO_ID);
     expect(response.status).toBe(307);
     expect(response.headers.get('location')).toBe('https://storage.example/signed');
+  });
+
+  it('без рендишна отдаёт 404 и не выпускает подпись на исходник', async () => {
+    const card = await fakes.readPublicCard();
+    fakes.readPublicCard.mockResolvedValue({
+      ...card,
+      media: [{ ...card.media[0], standardRenditionAt: null }],
+    });
+    const response = await request(CARD_LOGO_ID);
+    expect(response.status).toBe(404);
+    expect(fakes.presignGetUrl).not.toHaveBeenCalled();
   });
 
   it('файл той же клиники, которого нет в карточке, не отдаётся', async () => {

@@ -19,10 +19,12 @@ export async function POST(request: Request) {
   enterWithDbInfraPrincipal({ source: 'api/internal/media-preview/process:POST' });
 
   let limit = 10;
+  let reconcileMissingImageRenditions = false;
   try {
     const url = new URL(request.url);
     const q = url.searchParams.get('limit');
     if (q) limit = Number.parseInt(q, 10);
+    reconcileMissingImageRenditions = url.searchParams.get('mode') === 'reconcile-images';
   } catch {
     /* ignore */
   }
@@ -32,9 +34,10 @@ export async function POST(request: Request) {
 
   try {
     const { processMediaPreviewBatch } = await import('@/app-layer/media/mediaPreviewWorker');
-    const { processed, errors } = await processMediaPreviewBatch(
-      Number.isFinite(limit) ? limit : 10,
-    );
+    const result = await processMediaPreviewBatch(Number.isFinite(limit) ? limit : 10, {
+      reconcileMissingImageRenditions,
+    });
+    const { processed, errors, requeued } = result;
     const success = errors === 0;
     await recordOperatorCronJobTickBestEffort({
       jobFamily: OPERATOR_MEDIA_JOB_FAMILY,
@@ -42,12 +45,15 @@ export async function POST(request: Request) {
       startedAtIso,
       durationMs: Date.now() - startedAt,
       success,
-      metaJson: { processed, errors },
+      metaJson: { processed, errors, ...(requeued == null ? {} : { requeued }) },
     });
     if (!success) {
-      return NextResponse.json({ ok: false, processed, errors }, { status: 500 });
+      return NextResponse.json(
+        { ok: false, processed, errors, ...(requeued == null ? {} : { requeued }) },
+        { status: 500 },
+      );
     }
-    return NextResponse.json({ ok: true, processed, errors });
+    return NextResponse.json({ ok: true, processed, errors, ...(requeued == null ? {} : { requeued }) });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     await recordOperatorCronJobTickBestEffort({
