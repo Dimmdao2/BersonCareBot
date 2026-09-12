@@ -36,6 +36,9 @@ export async function PUT(request: Request, ctx: { params: Promise<{ id: string 
     await deps.testSets.setTestSetItems(id, parsed.data.items, {
       runTestSetWrite: (fn) =>
         withDoctorWorkspacePrincipal(workspace, 'doctor.test-sets.items.update', fn),
+      // Тариф проверен гейтом `requireEntitlementForMutation` выше — сюда доходит только
+      // организация с включённым `exercise_catalog`, которой платформенный слой и виден.
+      includePlatformBase: true,
     });
     const item = await deps.testSets.getTestSet(id);
     return NextResponse.json({ ok: true, item });

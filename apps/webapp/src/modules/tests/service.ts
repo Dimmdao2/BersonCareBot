@@ -42,6 +42,13 @@ export type ClinicalTestWriteOptions = {
 
 export type TestSetWriteOptions = {
   runTestSetWrite?: <T>(fn: () => Promise<T>) => Promise<T>;
+  /**
+   * Trusted server-side entitlement decision — ровно как у чтения каталога: решение о платформенном
+   * слое принимает вызывающая сторона по тарифу, а не сервис. Нужен именно на ЗАПИСИ состава набора,
+   * потому что состав проверяется ЧТЕНИЕМ теста: без флага платформенный тест не находится, и врач
+   * получает «Тест не найден: <uuid>» на тест, который ему только что предложили в выборе.
+   */
+  includePlatformBase?: boolean;
 };
 
 function runClinicalTestWrite<T>(
@@ -318,7 +325,9 @@ export function createTestSetsService(setsPort: TestSetsPort, testsPort: Clinica
       }
 
       for (const it of normalized) {
-        const test = await testsPort.getById(it.testId);
+        const test = await testsPort.getById(it.testId, {
+          includePlatformBase: options?.includePlatformBase === true,
+        });
         if (!test) throw new UserFacingError(`Тест не найден: ${it.testId}`);
         if (test.isArchived)
           throw new UserFacingError(`Тест архивирован и не может входить в набор: ${test.title}`);
