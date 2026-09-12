@@ -72,7 +72,9 @@ export function usePatientOrganizationContext(): PatientOrganizationClientContex
 
 /** Terms for the exact active organization; tenantless patient surfaces retain the medical default. */
 export function usePatientTerms(): PatientTerms {
-  return usePatientOrganizationContext()?.patientTerms ?? resolvePatientTerms();
+  return (
+    usePatientOrganizationContext()?.patientTerms ?? resolvePatientTerms({ appointmentLabel: undefined })
+  );
 }
 
 export function PatientOrganizationContextProvider({
@@ -142,7 +144,7 @@ export function PatientOrganizationContextProvider({
       switching,
       contextChangeNotice,
       workspaceModules,
-      patientTerms: resolvePatientTerms(patientLabel, undefined, appointmentLabel),
+      patientTerms: resolvePatientTerms({ patientLabel, appointmentLabel }),
       brandedOrganizationSurface,
       async switchOrganization(organizationId) {
         if (switchingRef.current || organizationId === organization.organizationId) return;

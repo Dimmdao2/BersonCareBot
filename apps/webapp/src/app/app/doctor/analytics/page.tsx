@@ -28,7 +28,10 @@ export default async function DoctorAnalyticsPage({ searchParams }: PageProps) {
   const calendarTodayYmd =
     DateTime.now().setZone(displayIana).toISODate() ?? DateTime.now().toUTC().toISODate() ?? '';
 
-  const { patientGenPlural } = resolvePatientTerms(shell.patientLabel);
+  const { patientGenPlural } = resolvePatientTerms({
+    patientLabel: shell.patientLabel,
+    appointmentLabel: shell.appointmentLabel,
+  });
 
   return (
     <DoctorAnalyticsShell

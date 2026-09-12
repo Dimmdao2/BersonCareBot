@@ -211,13 +211,12 @@ async function renderPatientHomeToday({
         },
       )
     : { patient: undefined, appointment: undefined };
-  // Третий аргумент передан ЯВНО: необязательный, он молча оставил бы экран на «приёме» при
-  // зелёных tsc, eslint и тестах (закрывающий гейт T-G плана терминологии).
-  const { patientGenitive, appointmentAccusative } = resolvePatientTerms(
-    homeLabels.patient,
-    undefined,
-    homeLabels.appointment,
-  );
+  // Именованный объект и обязательное поле appointmentLabel — закрывающий гейт T-G плана
+  // терминологии: пропуск слова записи больше не компилируется.
+  const { patientGenitive, appointmentAccusative } = resolvePatientTerms({
+    patientLabel: homeLabels.patient,
+    appointmentLabel: homeLabels.appointment,
+  });
   const rehabilitationEnabled = session
     ? await withPatientOrganizationPrincipal(
         {

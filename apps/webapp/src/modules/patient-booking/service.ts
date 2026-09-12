@@ -44,6 +44,7 @@ import {
 } from './doctorMessageText';
 import { resolveBookingCalendarSyncFields } from './bookingCalendarSyncFields';
 import { DEFAULT_APP_DISPLAY_TIMEZONE } from '@/modules/system-settings/calendarIana';
+import type { AppointmentMessageTerms } from '@/modules/system-settings/patientTerms';
 
 function isPostgresExclusionViolation(err: unknown): boolean {
   return (
@@ -105,6 +106,12 @@ export function createPatientBookingService(input: {
   getBookingLifecycleNotificationSettings?: () => Promise<BookingLifecycleNotificationsSettings | null>;
   /** D14(3): часовой пояс организации для текста пациентского сообщения. Отсутствие — DEFAULT_APP_DISPLAY_TIMEZONE. */
   getAppDisplayTimeZone?: () => Promise<string>;
+  /**
+   * T-F: слово организации о событии записи для текстов пациентских сообщений. Обязательна и
+   * умолчания не имеет — необязательная зависимость оставила бы сообщение о переносе на «приёме»
+   * при зелёном `tsc` (тот же гейт, что закрывает `patientBookingLabels.ts` в кабинете клиента).
+   */
+  getAppointmentTerms: (organizationId: string) => Promise<AppointmentMessageTerms>;
   /** Порт постановки исходящего сообщения в очередь доставки. Внедряется из `buildAppDeps`. */
   outboundMessageQueue: OutboundMessageQueuePort;
   resolvePatientPublicOrigin?: (organizationId: string) => Promise<string>;
@@ -145,6 +152,7 @@ export function createPatientBookingService(input: {
           getBookingLifecycleNotificationSettings:
             input.getBookingLifecycleNotificationSettings ?? (async () => null),
           getAppDisplayTimeZone: input.getAppDisplayTimeZone,
+          getAppointmentTerms: input.getAppointmentTerms,
           outboundMessageQueue: input.outboundMessageQueue,
           resolvePatientPublicOrigin: input.resolvePatientPublicOrigin,
           bookingCreatedEffects: input.bookingCreatedEffects ?? null,
@@ -554,6 +562,7 @@ export function createPatientBookingService(input: {
           appointment.appointmentReminderPresetId,
         );
         const timeZone = (await input.getAppDisplayTimeZone?.()) ?? DEFAULT_APP_DISPLAY_TIMEZONE;
+        const terms = await input.getAppointmentTerms(orgId);
         await input.syncPort.emitBookingEvent({
           eventType: 'booking.rescheduled',
           idempotencyKey,
@@ -578,6 +587,7 @@ export function createPatientBookingService(input: {
             patientMessageText: buildPatientRescheduledMessageText(
               { slotStart: rescheduleInput.slotStart, bookingType: row.bookingType },
               timeZone,
+              terms,
             ),
             doctorNotify: rescheduleNotify.notifyStaff,
             doctorMessageText: buildDoctorRescheduledMessageText(

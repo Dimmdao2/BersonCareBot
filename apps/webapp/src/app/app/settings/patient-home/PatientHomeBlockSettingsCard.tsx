@@ -51,7 +51,7 @@ export function PatientHomeBlockSettingsCard({
   runtimeStatus: PatientHomeBlockRuntimeStatus;
   onChanged(): void;
 }) {
-  const { patientDativePlural, patientGenitive } = useDoctorPatientTerms();
+  const { patientDativePlural, patientGenitive, appointmentAccusative } = useDoctorPatientTerms();
   const [isPending, startTransition] = useTransition();
   const [addOpen, setAddOpen] = useState(false);
   const [createSectionOpen, setCreateSectionOpen] = useState(false);
@@ -69,7 +69,7 @@ export function PatientHomeBlockSettingsCard({
   );
   const repairOnlyHiddenBroken =
     canManageItems && visibleUnresolved.length === 0 && hiddenUnresolved.length > 0;
-  const blockMeta = getPatientHomeBlockEditorMetadata(block.code);
+  const blockMeta = getPatientHomeBlockEditorMetadata(block.code, { appointmentAccusative });
   const canInlineCreateSection =
     blockMeta.inlineCreate.contentSection && Boolean(blockMeta.inlineCreate.sectionMenuLabel);
 

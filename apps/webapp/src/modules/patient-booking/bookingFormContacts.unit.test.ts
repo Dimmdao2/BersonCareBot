@@ -3,6 +3,7 @@ import { createBookingOnCanonicalEngine, type CanonicalBookingDeps } from './can
 import { createPlatformUserContactsService } from '@/modules/platform-user-contacts/service';
 import { createInMemoryPlatformUserContactsPort } from '@/infra/repos/inMemoryPlatformUserContacts';
 import type { CreatePatientBookingInput, PatientBookingRecord } from './types';
+import { resolvePatientTerms } from '@/modules/system-settings/patientTerms';
 
 /**
  * Ловимая поломка: человек набрал телефон и почту в форме записи, запись создалась, а контакты
@@ -44,6 +45,7 @@ function buildDeps(overrides: Partial<CanonicalBookingDeps> = {}): CanonicalBook
   const record = fakeRecord();
   return {
     outboundMessageQueue: { enqueue: async () => true },
+    getAppointmentTerms: async () => resolvePatientTerms({ appointmentLabel: undefined }),
     bookingsPort: {
       createPending: vi.fn(async () => record),
       markConfirmed: vi.fn(async () => record),

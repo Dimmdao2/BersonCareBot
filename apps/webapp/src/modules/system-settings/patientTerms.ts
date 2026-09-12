@@ -50,6 +50,16 @@ export type AppointmentTerms = {
   appointmentPrepositionalPlural: string;
 };
 
+/**
+ * Формы, которых достаточно, чтобы назвать формат события записи: род (для согласования
+ * определения) и само слово. Объявлено здесь, в доме терминологии, чтобы и текст сообщения, и
+ * карточка кабинета требовали ОДИН и тот же аргумент, не импортируя его друг у друга.
+ */
+export type AppointmentMessageTerms = Pick<
+  AppointmentTerms,
+  'appointmentGender' | 'appointmentSingular'
+>;
+
 export type PatientTerms = AppointmentTerms & {
   /** Именительный падеж мн.ч.: «Пациенты» или «Клиенты». */
   patientPluralLabel: string;
@@ -89,7 +99,13 @@ const APPOINTMENT_LABEL_BY_YO_FREE_FORM: Readonly<Record<string, AppointmentLabe
   сессия: 'сессия',
 };
 
-const APPOINTMENT_TERMS_BY_LABEL: Readonly<Record<AppointmentLabelValue, AppointmentTerms>> = {
+/**
+ * Канонический источник форм — единственное место, где падежи и род ЗАДАНЫ (не выведены).
+ * Экспортирован для `patientTerms.unit.test.ts`: тест сверяет `resolvePatientTerms`/
+ * `agreeWithAppointment`/`appointmentDeliveryFormatLabels` именно с этой таблицей, а не с копией,
+ * набранной в тесте вручную — так проверяется wiring, а не переизобретается тот же текст.
+ */
+export const APPOINTMENT_TERMS_BY_LABEL: Readonly<Record<AppointmentLabelValue, AppointmentTerms>> = {
   приём: {
     appointmentGender: 'masculine',
     appointmentSingularLabel: 'Приём',
@@ -195,23 +211,32 @@ function unwrapSettingEnvelope(value: unknown): unknown {
 /**
  * Резолвит формы слова о человеке и слова о событии записи из значений настроек организации.
  *
- * @param value — `patient_label`; не передано или не распознано → дефолт «пациент».
- * @param supportGroupValue — `support_group_label`; не распознано → «На сопровождении».
- * @param appointmentValue — `appointment_label`; не распознано → «приём» (сегодняшнее поведение).
+ * T-G (закрывающий гейт плана, `docs/_TODO/MEDICAL_WELLNESS_TERMINOLOGY_MODE_2026-09-02.md`): один
+ * именованный объект вместо трёх позиционных аргументов, и `appointmentLabel` в нём ОБЯЗАТЕЛЬНОЕ
+ * поле (значение может быть `undefined` — само поле пропустить нельзя). Аудит T-D нашёл, что
+ * перестановка позиционных аргументов резолвера тихо проходила мимо `tsc`, eslint и всех тестов —
+ * объект с обязательным ключом делает и пропуск, и перестановку невозможными для компиляции, а не
+ * оставляет их на совести следующего вызывающего.
+ *
+ * @param input.patientLabel — `patient_label`; не передано или не распознано → дефолт «пациент».
+ * @param input.supportGroupLabel — `support_group_label`; не распознано → «На сопровождении».
+ * @param input.appointmentLabel — `appointment_label`; не передано (`undefined`) или не распознано →
+ *   «приём» (сегодняшнее поведение). Поле обязательно, чтобы вызывающий явно решил, что значения нет,
+ *   а не забыл его передать.
  */
-export function resolvePatientTerms(
-  value?: unknown,
-  supportGroupValue?: unknown,
-  appointmentValue?: unknown,
-): PatientTerms {
-  const singular = unwrapSettingEnvelope(value);
+export function resolvePatientTerms(input: {
+  patientLabel?: unknown;
+  supportGroupLabel?: unknown;
+  appointmentLabel: unknown;
+}): PatientTerms {
+  const singular = unwrapSettingEnvelope(input.patientLabel);
   const normalized = normalizePatientLabel(singular);
   const appointment =
     APPOINTMENT_TERMS_BY_LABEL[
-      normalizeAppointmentLabel(unwrapSettingEnvelope(appointmentValue)) ?? 'приём'
+      normalizeAppointmentLabel(unwrapSettingEnvelope(input.appointmentLabel)) ?? 'приём'
     ];
   const supportGroupLabel =
-    normalizeSupportGroupLabel(supportGroupValue) === 'favorites'
+    normalizeSupportGroupLabel(input.supportGroupLabel) === 'favorites'
       ? 'Избранные'
       : 'На сопровождении';
   if (normalized === 'клиент') {

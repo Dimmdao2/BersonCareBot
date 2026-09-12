@@ -3,6 +3,7 @@ import type { BeAppointment, BeBranch, BeClinicService } from '@/modules/booking
 import type { CreatePendingPatientBookingInput, PatientBookingsPort } from './ports';
 import { createPatientBookingService } from './service';
 import type { PatientBookingRecord } from './types';
+import { resolvePatientTerms } from '@/modules/system-settings/patientTerms';
 
 function projectionRecord(
   input: CreatePendingPatientBookingInput,
@@ -132,6 +133,7 @@ describe('staff booking payment projection', () => {
         services: { getService: async () => service },
       } as unknown as Parameters<typeof createPatientBookingService>[0]['bookingEngine'],
       outboundMessageQueue: { enqueue: async () => true },
+      getAppointmentTerms: async () => resolvePatientTerms({ appointmentLabel: undefined }),
     });
 
     const result = await patientBooking.ensureStaffBookingProjection({
@@ -212,6 +214,7 @@ describe('staff booking payment projection', () => {
         },
       } as unknown as Parameters<typeof createPatientBookingService>[0]['bookingEngine'],
       outboundMessageQueue: { enqueue: async () => true },
+      getAppointmentTerms: async () => resolvePatientTerms({ appointmentLabel: undefined }),
     });
     const appointment = {
       id: 'appointment-1',
@@ -306,6 +309,7 @@ describe('staff booking payment projection', () => {
         },
       } as unknown as Parameters<typeof createPatientBookingService>[0]['bookingEngine'],
       outboundMessageQueue: { enqueue: async () => true },
+      getAppointmentTerms: async () => resolvePatientTerms({ appointmentLabel: undefined }),
     });
 
     const result = await patientBooking.ensureStaffBookingProjection({

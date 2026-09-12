@@ -56,7 +56,7 @@ export function buildPatientMessagesOpenUrl(appBaseUrl: string): string {
 export function buildPersonalChatNotificationText(
   senderDisplayName: string | null | undefined,
   senderRole: 'specialist' | 'patient',
-  patientTerms: PatientTerms = resolvePatientTerms(),
+  patientTerms: PatientTerms = resolvePatientTerms({ appointmentLabel: undefined }),
 ): string {
   const candidate = senderDisplayName?.replace(/\s+/g, ' ').trim() ?? '';
   const isName = /^[\p{L}\p{M}](?:[\p{L}\p{M}'’ -]*[\p{L}\p{M}])?$/u.test(candidate);

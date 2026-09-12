@@ -4,6 +4,18 @@ vi.mock('@/modules/system-settings/appDisplayTimezone', () => ({
   getAppDisplayTimeZone: vi.fn(async () => 'Europe/Moscow'),
 }));
 
+// Дверь к настройке в юнит-прогоне не открыта (базы нет), поэтому подменяется ЧТЕНИЕ. Слово при
+// этом приходит НАСТОЯЩИМ резолвером, а не литералом: подмена дефолта `resolvePatientTerms`
+// («приём» → «сеанс») красит тексты ниже, как и в продукте.
+vi.mock('@/modules/system-settings/organizationAppointmentTerms', async () => {
+  const { resolvePatientTerms } = await import('@/modules/system-settings/patientTerms');
+  return {
+    readOrganizationAppointmentTerms: vi.fn(async () =>
+      resolvePatientTerms({ appointmentLabel: undefined }),
+    ),
+  };
+});
+
 import { applyStaffRescheduleSideEffects } from './staffAppointmentLifecycleEffects';
 import type { BeAppointment } from '@/modules/booking-engine/types';
 import type { BookingSyncPort } from '@/modules/patient-booking/ports';

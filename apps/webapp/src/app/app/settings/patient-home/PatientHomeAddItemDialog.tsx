@@ -32,6 +32,7 @@ import {
 } from '@/modules/patient-home/patientHomeCmsReturnUrls';
 import { addPatientHomeItem, listPatientHomeCandidates } from './actions';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 type Candidate = {
   targetType: string;
@@ -52,6 +53,7 @@ export function PatientHomeAddItemDialog({
   blockCode: string;
   onSaved(): void;
 }) {
+  const { appointmentAccusative } = useDoctorPatientTerms();
   const [items, setItems] = useState<Candidate[]>([]);
   const [query, setQuery] = useState('');
   const [error, setError] = useState<ActionFailureFields | null>(null);
@@ -109,7 +111,7 @@ export function PatientHomeAddItemDialog({
 
   const pickMeta =
     isPatientHomeBlockCode(blockCode) && canManageItemsForBlock(blockCode)
-      ? getPatientHomeBlockEditorMetadata(blockCode)
+      ? getPatientHomeBlockEditorMetadata(blockCode, { appointmentAccusative })
       : null;
   const dialogTitle = pickMeta?.pickExistingLabel ?? 'Добавить из CMS';
   const dialogDescription =

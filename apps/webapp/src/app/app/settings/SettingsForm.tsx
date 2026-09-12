@@ -142,7 +142,11 @@ export function SettingsForm({
     availability,
   );
   const effectiveModules = resolveWorkspaceModuleEffective(composition, availability);
-  const formTerms = resolvePatientTerms(label, supportLabel, appointmentWord);
+  const formTerms = resolvePatientTerms({
+    patientLabel: label,
+    supportGroupLabel: supportLabel,
+    appointmentLabel: appointmentWord,
+  });
   const supportGroupDisplayLabel = formTerms.supportGroupLabel;
   const defaultModeOptions: ReadonlyArray<{
     value: WorkspaceClientDefaultMode;
@@ -408,11 +412,11 @@ export function SettingsForm({
                   </SelectTrigger>
                   <SelectContent>
                     {APPOINTMENT_LABEL_VALUES.map((value) => {
-                      const optionLabel = resolvePatientTerms(
-                        label,
-                        supportLabel,
-                        value,
-                      ).appointmentSingularLabel;
+                      const optionLabel = resolvePatientTerms({
+                        patientLabel: label,
+                        supportGroupLabel: supportLabel,
+                        appointmentLabel: value,
+                      }).appointmentSingularLabel;
                       return (
                         <SelectItem key={value} value={value} label={optionLabel}>
                           {optionLabel}

@@ -26,7 +26,7 @@ export type TreatmentProgramTemplateUsageSection = {
 
 export function treatmentProgramTemplateUsageSections(
   u: TreatmentProgramTemplateUsageSnapshot,
-  patientGenPlural = resolvePatientTerms().patientGenPlural,
+  patientGenPlural = resolvePatientTerms({ appointmentLabel: undefined }).patientGenPlural,
 ): TreatmentProgramTemplateUsageSection[] {
   const sections: TreatmentProgramTemplateUsageSection[] = [];
   if (u.activeTreatmentProgramInstanceCount > 0) {

@@ -12,7 +12,9 @@
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
 import { resolvePatientTerms, type PatientTerms } from '@/modules/system-settings/patientTerms';
 
-const DoctorPatientTermsContext = createContext<PatientTerms>(resolvePatientTerms());
+const DoctorPatientTermsContext = createContext<PatientTerms>(
+  resolvePatientTerms({ appointmentLabel: undefined }),
+);
 
 export function DoctorPatientTermsProvider({
   patientLabel,
@@ -26,7 +28,7 @@ export function DoctorPatientTermsProvider({
   children: ReactNode;
 }) {
   const value = useMemo(
-    () => resolvePatientTerms(patientLabel, supportGroupLabel, appointmentLabel),
+    () => resolvePatientTerms({ patientLabel, supportGroupLabel, appointmentLabel }),
     [patientLabel, supportGroupLabel, appointmentLabel],
   );
   return (

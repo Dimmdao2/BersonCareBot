@@ -13,6 +13,8 @@
  * `@/app-layer/booking/bookingCreatedEffects`.
  */
 
+import type { AppointmentMessageTerms } from '@/modules/system-settings/patientTerms';
+
 export type BookingCreatedEffectsInput = {
   organizationId: string;
   /** Идентификатор строки записи (или канонического назначения для путей персонала). */
@@ -29,6 +31,12 @@ export type BookingCreatedEffectsInput = {
   /** Решение вебаппа по настройкам клиники: уведомлять ли пациента. */
   notifyPatient: boolean;
   timeZone: string;
+  /**
+   * T-F: слово организации о событии записи. Приходит ГОТОВЫМ, как и `timeZone` рядом: читает его
+   * тот, у кого организация уже в руках (`canonicalCreate`), а не этот порт. Поле обязательное —
+   * необязательное оставило бы сообщение о подтверждении записи на «приёме» при зелёном `tsc`.
+   */
+  appointmentTerms: AppointmentMessageTerms;
   /**
    * Самозапись с предоплатой ещё не подтверждена, поэтому ей нужен собственный призыв оплатить,
    * а не обычное «Запись подтверждена». Ссылку передаёт созданное платёжное намерение — это тот

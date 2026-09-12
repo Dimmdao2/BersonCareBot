@@ -16,8 +16,9 @@ function buildTooltip(
   status: PatientHomeBlockRuntimeStatus,
   patientPluralLabel: string,
   patientGenitive: string,
+  appointmentAccusative: string,
 ): string {
-  const meta = getPatientHomeBlockEditorMetadata(status.blockCode);
+  const meta = getPatientHomeBlockEditorMetadata(status.blockCode, { appointmentAccusative });
   const base = `В конфигурации видимых элементов: ${status.visibleConfiguredItems}. Дают карточку на главной при текущем CMS: ${status.visibleResolvedItems}. Неразрешённых ссылок (slug/id не в списках): ${status.unresolvedConfiguredItems}.`;
   if (status.kind === 'hidden') {
     return `${base} Блок скрыт — ${patientPluralLabel.toLowerCase()} его не увидят.`;
@@ -33,7 +34,7 @@ export function PatientHomeBlockRuntimeStatusBadge({
 }: {
   status: PatientHomeBlockRuntimeStatus;
 }) {
-  const { patientGenitive, patientPluralLabel } = useDoctorPatientTerms();
+  const { patientGenitive, patientPluralLabel, appointmentAccusative } = useDoctorPatientTerms();
   const variant =
     status.kind === 'ready' ? 'secondary' : status.kind === 'empty' ? 'destructive' : 'outline';
 
@@ -44,7 +45,7 @@ export function PatientHomeBlockRuntimeStatusBadge({
         status.kind === 'ready' &&
           'border-emerald-600/35 bg-emerald-50 text-emerald-950 dark:border-emerald-800/60 dark:bg-emerald-950/35 dark:text-emerald-50',
       )}
-      title={buildTooltip(status, patientPluralLabel, patientGenitive)}
+      title={buildTooltip(status, patientPluralLabel, patientGenitive, appointmentAccusative)}
       data-testid="patient-home-runtime-status-badge"
       data-runtime-kind={status.kind}
     >

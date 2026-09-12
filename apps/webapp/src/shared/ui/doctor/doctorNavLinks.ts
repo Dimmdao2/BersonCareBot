@@ -217,7 +217,9 @@ const RAW_DOCTOR_MENU_ITEMS: DoctorMenuLinkItem[] = [
  */
 export function getDoctorMenuItems(
   access: DoctorMenuAccess,
-  terms: Pick<PatientTerms, 'patientPluralLabel'> = resolvePatientTerms(),
+  terms: Pick<PatientTerms, 'patientPluralLabel'> = resolvePatientTerms({
+    appointmentLabel: undefined,
+  }),
 ): DoctorMenuLinkItem[] {
   const { patientPluralLabel } = terms;
   return RAW_DOCTOR_MENU_ITEMS.filter((item) => isDoctorMenuLinkVisible(item, access))

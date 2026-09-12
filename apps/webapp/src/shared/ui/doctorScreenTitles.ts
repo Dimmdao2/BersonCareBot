@@ -14,7 +14,7 @@ export function getDoctorScreenTitle(
   terms: Pick<
     PatientTerms,
     'patientPluralLabel' | 'patientSingularLabel' | 'patientSingularLower' | 'patientDativePlural'
-  > = resolvePatientTerms(),
+  > = resolvePatientTerms({ appointmentLabel: undefined }),
 ): string {
   const { patientPluralLabel, patientSingularLabel, patientSingularLower, patientDativePlural } =
     terms;

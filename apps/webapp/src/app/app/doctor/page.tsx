@@ -127,7 +127,11 @@ export default async function DoctorPage() {
   const workspace = await requireOrganizationWorkspaceContext();
   const session = workspace.session;
   const shell = await loadDoctorWorkspaceShell();
-  const terms = resolvePatientTerms(shell.patientLabel, shell.supportGroupLabel);
+  const terms = resolvePatientTerms({
+    patientLabel: shell.patientLabel,
+    supportGroupLabel: shell.supportGroupLabel,
+    appointmentLabel: shell.appointmentLabel,
+  });
   if (!workspace.canAccessClinicalWorkspace) {
     return (
       <DoctorAppShell title="Первый запуск" user={session.user}>

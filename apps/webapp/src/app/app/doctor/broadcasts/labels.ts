@@ -76,7 +76,7 @@ const APPROXIMATE_AUDIENCE_SUFFIX = ' (оценка, фильтр в разра�
 /** Подпись опции в селекте аудитории (с пометкой для неполных сегментов). */
 export function getAudienceOptionLabel(
   filter: BroadcastAudienceFilter,
-  patientPluralLabel = resolvePatientTerms().patientPluralLabel,
+  patientPluralLabel = resolvePatientTerms({ appointmentLabel: undefined }).patientPluralLabel,
 ): string {
   const base = formatAudienceLabel(filter, patientPluralLabel);
   return isAudienceEstimateApproximate(filter) ? `${base}${APPROXIMATE_AUDIENCE_SUFFIX}` : base;
@@ -84,7 +84,7 @@ export function getAudienceOptionLabel(
 
 export function formatAudienceLabel(
   filter: BroadcastAudienceFilter,
-  patientPluralLabel = resolvePatientTerms().patientPluralLabel,
+  patientPluralLabel = resolvePatientTerms({ appointmentLabel: undefined }).patientPluralLabel,
 ): string {
   if (filter === 'all') return `Все ${patientPluralLabel}`;
   if (filter === 'active_clients') return `Активные ${patientPluralLabel.toLowerCase()}`;

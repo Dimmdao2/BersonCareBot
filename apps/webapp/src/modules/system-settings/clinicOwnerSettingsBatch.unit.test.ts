@@ -190,6 +190,6 @@ describe('clinic-owner settings atomic batch', () => {
    * Oracle — решение владельца 12.09.2026: «приём» есть сегодняшнее поведение, а не наша таблица форм.
    */
   it('keeps the platform default appointment word at «приём»', () => {
-    expect(resolvePatientTerms().appointmentSingular).toBe('приём');
+    expect(resolvePatientTerms({ appointmentLabel: undefined }).appointmentSingular).toBe('приём');
   });
 });
