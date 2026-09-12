@@ -6,6 +6,7 @@ import type { MembershipsPort } from '@/modules/memberships/ports';
 import { createMembershipsService } from '@/modules/memberships/service';
 import type { PackageUsageRecord, PatientPackageRecord } from '@/modules/memberships/types';
 import type { PaymentsService } from '@/modules/payments/service';
+import { resolvePatientTerms } from '@/modules/system-settings/patientTerms';
 
 const ORGANIZATION_ID = '00000000-0000-4000-8000-000000000001';
 const BRANCH_ID = '00000000-0000-4000-8000-000000000002';
@@ -59,6 +60,7 @@ function bookingDeps(): CanonicalBookingDeps {
     // Постановка письма в очередь: в этих тестах доставка не проверяется, но порт обязателен —
     // запись без пути доставки подтверждения неполна, поэтому он не необязательный.
     outboundMessageQueue: { enqueue: async () => true },
+    getAppointmentTerms: async () => resolvePatientTerms(undefined, undefined, undefined),
     bookingsPort: {
       async createPending() {
         return stored;

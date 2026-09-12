@@ -14,6 +14,7 @@ import {
 } from '@/modules/patient-booking/doctorMessageText';
 import { resolveBookingCalendarSyncFields } from '@/modules/patient-booking/bookingCalendarSyncFields';
 import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
+import { readOrganizationAppointmentTerms } from '@/modules/system-settings/organizationAppointmentTerms';
 
 type StaffBookingEventType = 'booking.created' | 'booking.cancelled' | 'booking.rescheduled';
 
@@ -74,12 +75,21 @@ export async function emitStaffCanonicalBookingEvent(opts: {
   const cityCodeSnapshot = bookingRow?.cityCodeSnapshot ?? null;
   const slotStart = opts.appointment.startAt;
   const timeZone = await getAppDisplayTimeZone();
+  // T-F: слово организации читается ЗДЕСЬ, а не в шаблоне. Путь персонала идёт под staff-принципалом
+  // (`/api/doctor/**` за `requireOrganizationWorkspaceContext`), и эта дверь ему открыта — замерено
+  // живьём на DEV 12.09.2026. Соседний `getAppDisplayTimeZone()` читает настройку на том же месте
+  // тем же порядком, второй двери не заводится.
+  const terms = await readOrganizationAppointmentTerms(opts.appointment.organizationId);
   const patientMessageText =
     opts.eventType === 'booking.created'
-      ? buildPatientCreatedMessageText({ slotStart, bookingType, city, cityCodeSnapshot }, timeZone)
+      ? buildPatientCreatedMessageText(
+          { slotStart, bookingType, city, cityCodeSnapshot },
+          timeZone,
+          terms,
+        )
       : opts.eventType === 'booking.cancelled'
         ? buildPatientCancelledMessageText({ slotStart }, timeZone)
-        : buildPatientRescheduledMessageText({ slotStart, bookingType }, timeZone);
+        : buildPatientRescheduledMessageText({ slotStart, bookingType }, timeZone, terms);
   const doctorMessageText =
     opts.eventType === 'booking.created'
       ? buildDoctorCreatedMessageText({ slotStart, contactName, contactPhone }, timeZone)

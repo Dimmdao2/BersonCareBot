@@ -7,6 +7,7 @@ import {
 import type { BookingCreatedEffectsInput } from '@/modules/booking-notifications/bookingCreatedEffectsPort';
 import { NOTIFICATION_TOPIC_APPOINTMENT } from '@/modules/patient-notifications/notificationTopicCodes';
 import { getDeliveryTargetsForIntegrator } from '@/modules/integrator/deliveryTargetsApi';
+import { resolvePatientTerms } from '@/modules/system-settings/patientTerms';
 
 /**
  * Проверяется одно: ПОЛУЧИТ ЛИ ЧЕЛОВЕК сообщение о своей записи и по какому маршруту. Не форма
@@ -32,6 +33,8 @@ function input(overrides: Partial<BookingCreatedEffectsInput> = {}): BookingCrea
     cityCodeSnapshot: null,
     notifyPatient: true,
     timeZone: 'Europe/Moscow',
+    // Слово организации приходит тем же путём, что в продукте — через резолвер, а не литералом.
+    appointmentTerms: resolvePatientTerms(undefined, undefined, undefined),
     ...overrides,
   };
 }

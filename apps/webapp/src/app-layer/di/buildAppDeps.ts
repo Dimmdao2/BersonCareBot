@@ -137,6 +137,7 @@ import {
 } from '@/modules/appointments/service';
 import { appointmentRowLabel } from '@/modules/appointments/appointmentLabels';
 import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
+import { readOrganizationAppointmentTerms } from '@/modules/system-settings/organizationAppointmentTerms';
 import {
   getPatientCalendarTimezoneIana,
   syncCalendarTimezoneFromDevice,
@@ -1490,6 +1491,10 @@ patientBookingService = createPatientBookingService({
     return parseBookingLifecycleNotificationsSettings(row?.valueJson ?? null);
   },
   getAppDisplayTimeZone,
+  // T-F: слово организации о событии записи для текстов пациентских сообщений. Та же дверь, что у
+  // кабинета (`app.read_authenticated_runtime_setting`); вызывается под пациентским принципалом
+  // маршрута записи, которому она открыта — замерено живьём на DEV 12.09.2026.
+  getAppointmentTerms: readOrganizationAppointmentTerms,
   resolvePatientPublicOrigin,
 });
 

@@ -43,6 +43,7 @@ import type { BookingCreatedEffectsPort } from '@/modules/booking-notifications/
 import { buildDoctorCreatedMessageText } from './doctorMessageText';
 import { resolveBookingCalendarSyncFields } from './bookingCalendarSyncFields';
 import { DEFAULT_APP_DISPLAY_TIMEZONE } from '@/modules/system-settings/calendarIana';
+import type { AppointmentMessageTerms } from '@/modules/system-settings/patientTerms';
 import { publicBookPaths } from '@/shared/publicBook/paths';
 
 function isPostgresExclusionViolation(err: unknown): boolean {
@@ -100,6 +101,12 @@ export type CanonicalBookingDeps = {
   getBookingLifecycleNotificationSettings?: () => Promise<BookingLifecycleNotificationsSettings | null>;
   /** D14(3): часовой пояс организации для текста пациентского сообщения. Отсутствие — DEFAULT_APP_DISPLAY_TIMEZONE. */
   getAppDisplayTimeZone?: () => Promise<string>;
+  /**
+   * T-F: слово организации о событии записи для текста пациентского сообщения. В отличие от соседа
+   * выше зависимость ОБЯЗАТЕЛЬНА и значения по умолчанию не имеет: необязательная оставила бы
+   * сообщение о подтверждении записи на «приёме» при зелёных `tsc`, eslint и тестах.
+   */
+  getAppointmentTerms: (organizationId: string) => Promise<AppointmentMessageTerms>;
   /** Порт постановки исходящего сообщения в очередь доставки (письмо-подтверждение записи). */
   outboundMessageQueue: OutboundMessageQueuePort;
   resolvePatientPublicOrigin?: (organizationId: string) => Promise<string>;
@@ -573,6 +580,9 @@ export async function createBookingOnCanonicalEngine(
           city: row.city,
           cityCodeSnapshot: row.cityCodeSnapshot,
           notifyPatient: createNotify.notifyPatient,
+          // Текст этой ветки — «оплатите до …», слова о событии записи в нём нет. Поле всё равно
+          // обязательное: порт один, и дыры «здесь можно без слова» в нём быть не должно.
+          appointmentTerms: await deps.getAppointmentTerms(appointment.organizationId),
           timeZone: createTimeZone,
           awaitingPayment: {
             checkoutUrl,
@@ -662,6 +672,10 @@ export async function createBookingOnCanonicalEngine(
     (await deps.getBookingLifecycleNotificationSettings?.()) ?? null,
   );
   const createTimeZone = (await deps.getAppDisplayTimeZone?.()) ?? DEFAULT_APP_DISPLAY_TIMEZONE;
+  // T-F: слово читается под тем же пациентским принципалом, под которым идёт вся эта функция
+  // (кабинетная запись — сессия пациента, публичная — `withPatientOrganizationPrincipal` внутри
+  // `createVerifiedPublicBooking`), и с той же организацией, что и остальные per-org чтения выше.
+  const createAppointmentTerms = await deps.getAppointmentTerms(orgId);
 
   // Пациентское уведомление (владелец 19.08: «Запись делает вебапп»). Получателя и текст определяет
   // вебапп по своей базе, сообщение уходит строкой очереди доставки — отправит воркер интегратора.
@@ -684,6 +698,7 @@ export async function createBookingOnCanonicalEngine(
           cityCodeSnapshot: row.cityCodeSnapshot,
           notifyPatient: createNotify.notifyPatient,
           timeZone: createTimeZone,
+          appointmentTerms: createAppointmentTerms,
         });
       }),
     );
