@@ -50,6 +50,8 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 
+import { declaredPolicyName } from './declaredPolicyConformance.mjs';
+
 const ENABLED = process.env.RUN_SPECIALIST_OWNER_PROVISIONING_DB === '1';
 const DATABASE = process.env.PORT_CONTEXT_PROOF_DB ?? 'bcb_webapp_dev';
 
@@ -94,13 +96,21 @@ function seamGrantsFromArtifact() {
   return `${grants.join('\n')}\n`;
 }
 
-/** Candidate seam RLS policies from the artifact, added under probe-only names inside rollback. */
+/**
+ * Candidate seam RLS policies from the artifact, added under probe-only names inside rollback.
+ *
+ * Addressed by relation + name PREFIX, never by the full name. The trailing number is the table's
+ * INDEX IN `APP_TABLES`, not its identity: `public.system_settings` has been _198, _199 and _200,
+ * and every table inserted earlier in the ordering renumbers it again. This list said `_193` and had
+ * been dead for that long, unnoticed because the file only runs with
+ * `RUN_SPECIALIST_OWNER_PROVISIONING_DB=1`. See `declaredPolicyConformance.mjs`.
+ */
 function systemSettingsSeamPoliciesFromArtifact() {
-  const policyNames = ['rev10_named_root_owner_gate_193', 'rev10_seam_business_193'];
-  const lines = readFileSync(ARTIFACT, 'utf8').split('\n');
-  return policyNames.map((policyName) => {
-    const prefix = `CREATE POLICY "${policyName}" ON "public"."system_settings"`;
-    const line = lines.find((candidate) => candidate.startsWith(prefix));
+  const policyPrefixes = ['rev10_named_root_owner_gate_', 'rev10_seam_business_'];
+  return policyPrefixes.map((policyPrefix) => {
+    const policyName = declaredPolicyName('system_settings', policyPrefix, ARTIFACT);
+    const head = `CREATE POLICY "${policyName}" ON "public"."system_settings"`;
+    const line = readFileSync(ARTIFACT, 'utf8').split('\n').find((candidate) => candidate.startsWith(head));
     if (!line || !line.includes(`"${SEAM_OWNER}"`)) {
       throw new Error(`${policyName} does not include ${SEAM_OWNER} in ${ARTIFACT}`);
     }

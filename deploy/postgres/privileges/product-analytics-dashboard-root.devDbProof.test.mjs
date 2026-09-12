@@ -31,6 +31,8 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
+import { declaredPolicyName } from './declaredPolicyConformance.mjs';
+
 const ENABLED = process.env.RUN_PRODUCT_ANALYTICS_ROOT_DB === '1';
 const DATABASE = process.env.PRODUCT_ANALYTICS_PROOF_DB ?? 'bcb_webapp_dev';
 
@@ -119,16 +121,26 @@ function fixture({ withExecuteGrant = true, withSeamPolicies = true } = {}) {
   ].map(([needle, what]) => generatedLine(PRIVILEGES, needle, what));
   // Двух таблиц у этого шва раньше не было вовсе — без пересозданной restrictive-политики
   // владелец не прочитает их даже с колоночным грантом.
+  //
+  // Политика адресуется отношением и ПРЕФИКСОМ имени: хвостовой номер — позиция таблицы в
+  // `APP_TABLES`, и любая новая таблица выше по алфавиту его сдвигает. Список говорил _157/_160 при
+  // живых _156/_159 и был мёртв, незаметно, потому что файл идёт только под
+  // `RUN_PRODUCT_ANALYTICS_ROOT_DB=1`; вдобавок `DROP POLICY IF EXISTS` на неверном имени молча
+  // ничего не делает, так что фикстура строила состояние СЛАБЕЕ задуманного. Разбор — в
+  // `declaredPolicyConformance.mjs`.
   const seamPolicies = [
-    ['rev10_named_root_owner_gate_157', 'product_analytics_events_recent'],
-    ['rev10_seam_business_157', 'product_analytics_events_recent'],
-    ['rev10_named_root_owner_gate_160', 'product_push_notifications'],
-    ['rev10_seam_business_160', 'product_push_notifications'],
-  ].flatMap(([policy, relation]) => [
-    `DROP POLICY IF EXISTS "${policy}" ON "public"."${relation}";`,
-    generatedLine(PRIVILEGES, `CREATE POLICY "${policy}" ON "public"."${relation}"`,
-      `политики ${policy}`),
-  ]);
+    ['product_analytics_events_recent', 'rev10_named_root_owner_gate_'],
+    ['product_analytics_events_recent', 'rev10_seam_business_'],
+    ['product_push_notifications', 'rev10_named_root_owner_gate_'],
+    ['product_push_notifications', 'rev10_seam_business_'],
+  ].flatMap(([relation, policyPrefix]) => {
+    const policy = declaredPolicyName(relation, policyPrefix, PRIVILEGES);
+    return [
+      `DROP POLICY IF EXISTS "${policy}" ON "public"."${relation}";`,
+      generatedLine(PRIVILEGES, `CREATE POLICY "${policy}" ON "public"."${relation}"`,
+        `политики ${policy}`),
+    ];
+  });
   const capabilityValues = generatedLine(CAPABILITIES, 'read_product_analytics_dashboard',
     'строки каталога возможностей').replace(/,$/, '');
 

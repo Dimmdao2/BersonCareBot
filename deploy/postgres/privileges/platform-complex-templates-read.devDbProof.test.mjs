@@ -40,7 +40,7 @@ import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import test, { after } from 'node:test';
 
-import { assertDeclaredPoliciesDeployed } from './declaredPolicyConformance.mjs';
+import { assertDeclaredPoliciesDeployed, declaredPolicyName } from './declaredPolicyConformance.mjs';
 
 const ENABLED = process.env.RUN_PLATFORM_COMPLEX_TEMPLATES_READ_DB === '1';
 const DATABASE = process.env.PLATFORM_COMPLEX_TEMPLATES_READ_PROOF_DB ?? 'bcb_webapp_dev';
@@ -169,10 +169,15 @@ const ids = {
   corruptPlatformTemplate: randomUUID(),
 };
 
-const policyNames = [
-  ['lfk_complex_template_exercises', 'rev10_platform_lfk_read_95'],
-  ['lfk_complex_templates', 'rev10_platform_lfk_read_96'],
+// Адресуем политику отношением и префиксом: хвостовой номер — позиция таблицы в `APP_TABLES`, его
+// сдвигает любая новая таблица выше по алфавиту. Подробности — в `declaredPolicyConformance.mjs`.
+const policySelectors = [
+  ['lfk_complex_template_exercises', 'rev10_platform_lfk_read_'],
+  ['lfk_complex_templates', 'rev10_platform_lfk_read_'],
 ];
+const policyNames = policySelectors.map(([table, prefix]) => [table, declaredPolicyName(table, prefix)]);
+const policyNameList = policyNames.map(([, name]) => `'${name}'`).join(', ');
+const templatesContextGate = declaredPolicyName('lfk_complex_templates', 'rev10_context_gate_');
 
 /** Предикат повторяет объявленный в `declaration.ts` дословно; инъекции портят только родителя. */
 function platformPredicate(table) {
@@ -231,8 +236,7 @@ let initialPolicyCount;
 function preparedContext() {
   context ??= runtimeContext();
   initialPolicyCount ??= Number.parseInt(psql(`
-SELECT count(*) FROM pg_policy
- WHERE polname IN ('rev10_platform_lfk_read_95', 'rev10_platform_lfk_read_96');`).stdout, 10);
+SELECT count(*) FROM pg_policy WHERE polname IN (${policyNameList});`).stdout, 10);
   return context;
 }
 
@@ -240,7 +244,7 @@ test('объявленные политики действительно раз�
   { skip: !ENABLED }, () => {
     // Сторожит ровно то, чего не видит самоустановка ниже: reconcile из feat уже сносил эти две
     // политики, и страница теряла платформенный комплекс, пока файл оставался зелёным.
-    assertDeclaredPoliciesDeployed(psql, policyNames);
+    assertDeclaredPoliciesDeployed(psql, policySelectors);
   });
 
 test('CHECK владения отбивает обе неверные пары на шаблоне и на его элементе',
@@ -406,7 +410,7 @@ VALUES ('${ids.temporaryCapability}', '${ctx.port}'::app.port_name, '${temporary
 INSERT INTO public.lfk_complex_templates (id, owner_kind, organization_id, title)
 VALUES ('${ids.platformTemplate}', 'platform', NULL, 'S0 current-user rollback row');
 ${installPoliciesSql()}
-DROP POLICY rev10_context_gate_96 ON public.lfk_complex_templates;
+DROP POLICY ${templatesContextGate} ON public.lfk_complex_templates;
 SET LOCAL SESSION AUTHORIZATION ${temporaryRole};
 SELECT app.begin_port_context(
   '${ids.temporaryCapability}'::uuid,
@@ -436,12 +440,11 @@ SELECT 'PROOF_RESIDUE|' || (
       '${ids.foreignTemplate}'))
   + (SELECT count(*) FROM pg_roles WHERE rolname = 'audit_s0_complex_current_user')
 );
-SELECT 'PROOF_POLICY_RESTORE|' || count(*) FROM pg_policy
- WHERE polname IN ('rev10_platform_lfk_read_95', 'rev10_platform_lfk_read_96');
+SELECT 'PROOF_POLICY_RESTORE|' || count(*) FROM pg_policy WHERE polname IN (${policyNameList});
 SELECT 'PROOF_CONSTRAINT_RESTORE|' || count(*) FROM pg_constraint
  WHERE conname = 'lfk_complex_templates_owner_check';
 SELECT 'PROOF_CONTEXT_POLICY_RESTORE|' || count(*) FROM pg_policy
- WHERE polname = 'rev10_context_gate_96'
+ WHERE polname = '${templatesContextGate}'
    AND polrelid = 'public.lfk_complex_templates'::regclass;`);
   const seen = markers(result.stdout);
   assert.equal(seen.get('PROOF_RESIDUE'), '0', 'откатные фикстуры оставили следы');

@@ -22,7 +22,7 @@ import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import test, { after } from 'node:test';
 
-import { assertDeclaredPoliciesDeployed } from './declaredPolicyConformance.mjs';
+import { assertDeclaredPoliciesDeployed, declaredPolicyName } from './declaredPolicyConformance.mjs';
 
 const ENABLED = process.env.RUN_PLATFORM_TESTS_RECOMMENDATIONS_READ_DB === '1';
 const DATABASE = process.env.PLATFORM_TESTS_RECOMMENDATIONS_READ_PROOF_DB ?? 'bcb_webapp_dev';
@@ -140,12 +140,17 @@ const ids = {
   temporaryCapability: randomUUID(),
 };
 
-const policyNames = [
-  ['clinical_test_regions', 'rev10_platform_lfk_read_76'],
-  ['recommendation_regions', 'rev10_platform_lfk_read_163'],
-  ['recommendations', 'rev10_platform_lfk_read_164'],
-  ['tests', 'rev10_platform_lfk_read_205'],
+// Адресуем политику отношением и префиксом: хвостовой номер — позиция таблицы в `APP_TABLES`, его
+// сдвигает любая новая таблица выше по алфавиту. Подробности — в `declaredPolicyConformance.mjs`.
+const policySelectors = [
+  ['clinical_test_regions', 'rev10_platform_lfk_read_'],
+  ['recommendation_regions', 'rev10_platform_lfk_read_'],
+  ['recommendations', 'rev10_platform_lfk_read_'],
+  ['tests', 'rev10_platform_lfk_read_'],
 ];
+const policyNames = policySelectors.map(([table, prefix]) => [table, declaredPolicyName(table, prefix)]);
+const policyNameList = policyNames.map(([, name]) => `'${name}'`).join(', ');
+const testsContextGate = declaredPolicyName('tests', 'rev10_context_gate_');
 
 function platformPredicate(table) {
   if (table !== 'tests') {
@@ -218,9 +223,7 @@ let initialPolicyCount;
 function preparedContext() {
   context ??= runtimeContext();
   initialPolicyCount ??= Number.parseInt(psql(`
-SELECT count(*) FROM pg_policy
- WHERE polname IN ('rev10_platform_lfk_read_76', 'rev10_platform_lfk_read_163',
-                   'rev10_platform_lfk_read_164', 'rev10_platform_lfk_read_205');`).stdout, 10);
+SELECT count(*) FROM pg_policy WHERE polname IN (${policyNameList});`).stdout, 10);
   return context;
 }
 
@@ -229,7 +232,7 @@ test('declared policies are actually deployed, not only created inside this test
     // Добавлено 12.09.2026 после находки аудита на родственном доказательстве комплексов: самоустановка
     // политик внутри транзакции проверяет форму предиката и НЕ видит, что на базе политик нет вовсе —
     // тест сравнивает прогон сам с собой и остаётся зелёным, пока интерфейс теряет платформенный слой.
-    assertDeclaredPoliciesDeployed(psql, policyNames);
+    assertDeclaredPoliciesDeployed(psql, policySelectors);
   });
 
 test('owner CHECK rejects both invalid ownership pairs on all four relations', { skip: !ENABLED }, () => {
@@ -443,7 +446,7 @@ VALUES ('${ids.temporaryCapability}', '${ctx.port}'::app.port_name, '${temporary
 INSERT INTO public.tests(id, owner_kind, organization_id, title)
 VALUES ('${ids.platformTest}', 'platform', NULL, 'S0б current-user rollback row');
 ${installPoliciesSql()}
-DROP POLICY rev10_context_gate_205 ON public.tests;
+DROP POLICY ${testsContextGate} ON public.tests;
 SET LOCAL SESSION AUTHORIZATION ${temporaryRole};
 SELECT app.begin_port_context(
   '${ids.temporaryCapability}'::uuid,
@@ -478,14 +481,12 @@ SELECT 'PROOF_RESIDUE|' || (
       '${ids.ownRecommendation}', '${ids.foreignRecommendation}'))
   + (SELECT count(*) FROM pg_roles WHERE rolname = 'audit_s0b_current_user')
 );
-SELECT 'PROOF_POLICY_RESTORE|' || count(*) FROM pg_policy
- WHERE polname IN ('rev10_platform_lfk_read_76', 'rev10_platform_lfk_read_163',
-                   'rev10_platform_lfk_read_164', 'rev10_platform_lfk_read_205');
+SELECT 'PROOF_POLICY_RESTORE|' || count(*) FROM pg_policy WHERE polname IN (${policyNameList});
 SELECT 'PROOF_CONSTRAINT_RESTORE|' || count(*) FROM pg_constraint
  WHERE conname IN ('tests_owner_check', 'recommendations_owner_check',
                    'clinical_test_regions_owner_check', 'recommendation_regions_owner_check');
 SELECT 'PROOF_CONTEXT_POLICY_RESTORE|' || count(*) FROM pg_policy
- WHERE polname = 'rev10_context_gate_205' AND polrelid = 'public.tests'::regclass;`);
+ WHERE polname = '${testsContextGate}' AND polrelid = 'public.tests'::regclass;`);
   const seen = markers(result.stdout);
   assert.equal(markers(result.stdout).get('PROOF_RESIDUE'), '0',
     'rollback-only S0б fixtures or role left residue');
