@@ -135,6 +135,10 @@ export async function saveTestSetCore(
           await deps.testSets.setTestSetItems(id, items, {
             runTestSetWrite: (fn) =>
               withDoctorWorkspacePrincipal(workspace, 'doctor.test-sets.items.update', fn),
+            // Тарифное решение уже принято гейтом `requireEntitlementForMutationAction` выше:
+            // до этой строки доходит только организация с включённым `exercise_catalog`, а значит
+            // платформенный тест ей и предлагается в выборе, и обязан проходить проверку состава.
+            includePlatformBase: true,
           });
         } catch (e) {
           if (e instanceof z.ZodError)
@@ -164,6 +168,7 @@ export async function saveTestSetCore(
       await deps.testSets.setTestSetItems(row.id, initialItems, {
         runTestSetWrite: (fn) =>
           withDoctorWorkspacePrincipal(workspace, 'doctor.test-sets.items.update', fn),
+        includePlatformBase: true,
       });
     }
     return { ok: true, setId: row.id, wasUpdate: false };
@@ -257,6 +262,7 @@ export async function saveTestSetItemsCore(
     await deps.testSets.setTestSetItems(setId, items, {
       runTestSetWrite: (fn) =>
         withDoctorWorkspacePrincipal(workspace, 'doctor.test-sets.items.update', fn),
+      includePlatformBase: true,
     });
     return { ok: true };
   } catch (e) {
