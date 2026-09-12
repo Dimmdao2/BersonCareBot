@@ -214,8 +214,16 @@ VALUES
   ('Базовая библиотека: правила нагрузки на колено', 'Увеличивайте нагрузку не более чем на 10% в неделю; боль выше 4 из 10 — сигнал отката.', 'knee', 'exercise_technique'),
   ('Базовая библиотека: режим дня при боли в плече', 'Избегайте длительных статических положений руки выше головы; делайте паузы каждые 40 минут.', 'shoulder', NULL);
 
--- Регион берётся тем же способом, что и у упражнений: активный справочный элемент, который
--- каталог реально использует. Захардкоженный UUID пережил бы не всякое обновление DEV.
+-- Регион берётся ровно тем же способом, что и у упражнений выше, и якорь `EXISTS` здесь —
+-- не украшение. Справочник `reference_items` живёт ТОЛЬКО в разрезе организации
+-- (`organization_id NOT NULL`, платформенных элементов в нём нет), поэтому «просто активный
+-- элемент с таким кодом» — это элемент ПРОИЗВОЛЬНОЙ клиники, в том числе давно удалённой.
+-- Первая редакция этого блока так и промахнулась: два платформенных элемента из четырёх
+-- получили регион несуществующей организации, и врач видел на карточке «Значение недоступно»,
+-- а фильтр `?region=shoulder` их не находил (независимый аудит 12.09, Ф1). Якорь «элемент,
+-- которым реально пользуется живой каталог» привязывает выбор к клинике, у которой этот
+-- каталог есть; проверка существования организации оставлена явной, чтобы промах не вернулся
+-- молча, если каталог когда-нибудь опустеет.
 CREATE TEMP TABLE platform_catalog_demo_regions ON COMMIT DROP AS
 SELECT DISTINCT ON (seed.region_code)
        seed.region_code,
@@ -231,6 +239,14 @@ JOIN public.reference_items AS item
  AND item.code = seed.region_code
  AND item.is_active = true
  AND item.deleted_at IS NULL
+JOIN public.be_organizations AS organization
+  ON organization.id = item.organization_id
+ AND organization.is_active = true
+WHERE EXISTS (
+  SELECT 1
+  FROM public.lfk_exercises AS existing
+  WHERE existing.region_ref_id = item.id
+)
 ORDER BY seed.region_code, item.id;
 
 SELECT count(*) = (
@@ -258,6 +274,30 @@ WHERE NOT EXISTS (
   WHERE existing.owner_kind = 'platform' AND existing.organization_id IS NULL AND existing.title = seed.title
 );
 
+-- Починка уже посеянных строк, а не только вставка новых. Родитель узнаётся по названию, поэтому
+-- повторный прогон его НЕ вставляет — и без этих двух шагов строка, посеянная промахнувшейся
+-- редакцией выбора региона, осталась бы с мёртвой ссылкой навсегда, а прогон печатал бы «всё сошлось».
+UPDATE public.tests AS target
+   SET body_region_id = region.region_ref_id,
+       updated_at = now()
+  FROM platform_test_demo_seed AS seed
+  JOIN platform_catalog_demo_regions AS region ON region.region_code = seed.region_code
+ WHERE target.owner_kind = 'platform'
+   AND target.organization_id IS NULL
+   AND target.title = seed.title
+   AND target.body_region_id IS DISTINCT FROM region.region_ref_id;
+
+DELETE FROM public.clinical_test_regions AS child
+ USING public.tests AS parent,
+       platform_test_demo_seed AS seed,
+       platform_catalog_demo_regions AS region
+ WHERE child.clinical_test_id = parent.id
+   AND parent.owner_kind = 'platform'
+   AND parent.organization_id IS NULL
+   AND parent.title = seed.title
+   AND region.region_code = seed.region_code
+   AND child.body_region_id <> region.region_ref_id;
+
 INSERT INTO public.clinical_test_regions (owner_kind, organization_id, clinical_test_id, body_region_id)
 SELECT 'platform', NULL, test.id, region.region_ref_id
 FROM platform_test_demo_seed AS seed
@@ -277,6 +317,27 @@ WHERE NOT EXISTS (
   SELECT 1 FROM public.recommendations AS existing
   WHERE existing.owner_kind = 'platform' AND existing.organization_id IS NULL AND existing.title = seed.title
 );
+
+UPDATE public.recommendations AS target
+   SET body_region_id = region.region_ref_id,
+       updated_at = now()
+  FROM platform_recommendation_demo_seed AS seed
+  JOIN platform_catalog_demo_regions AS region ON region.region_code = seed.region_code
+ WHERE target.owner_kind = 'platform'
+   AND target.organization_id IS NULL
+   AND target.title = seed.title
+   AND target.body_region_id IS DISTINCT FROM region.region_ref_id;
+
+DELETE FROM public.recommendation_regions AS child
+ USING public.recommendations AS parent,
+       platform_recommendation_demo_seed AS seed,
+       platform_catalog_demo_regions AS region
+ WHERE child.recommendation_id = parent.id
+   AND parent.owner_kind = 'platform'
+   AND parent.organization_id IS NULL
+   AND parent.title = seed.title
+   AND region.region_code = seed.region_code
+   AND child.body_region_id <> region.region_ref_id;
 
 INSERT INTO public.recommendation_regions (owner_kind, organization_id, recommendation_id, body_region_id)
 SELECT 'platform', NULL, recommendation.id, region.region_ref_id
@@ -307,6 +368,23 @@ SELECT
      JOIN public.recommendations AS parent ON parent.id = child.recommendation_id
     WHERE parent.title IN (SELECT title FROM platform_recommendation_demo_seed)
       AND (child.owner_kind IS DISTINCT FROM parent.owner_kind
-        OR child.organization_id IS DISTINCT FROM parent.organization_id)) AS recommendation_region_owner_mismatches;
+        OR child.organization_id IS DISTINCT FROM parent.organization_id)) AS recommendation_region_owner_mismatches,
+  -- Мёртвая ссылка на справочник — это и есть дефект, ради которого появились UPDATE и DELETE выше:
+  -- элемент существует в `reference_items`, но его организации в `be_organizations` уже нет, и врач
+  -- видит на карточке «Значение недоступно». Число обязано быть нулём.
+  (SELECT count(*)
+     FROM (
+       SELECT body_region_id FROM public.tests
+        WHERE owner_kind = 'platform' AND organization_id IS NULL
+          AND title IN (SELECT title FROM platform_test_demo_seed)
+       UNION ALL
+       SELECT body_region_id FROM public.recommendations
+        WHERE owner_kind = 'platform' AND organization_id IS NULL
+          AND title IN (SELECT title FROM platform_recommendation_demo_seed)
+     ) AS seeded
+     LEFT JOIN public.reference_items AS item ON item.id = seeded.body_region_id
+     LEFT JOIN public.be_organizations AS organization ON organization.id = item.organization_id
+    WHERE seeded.body_region_id IS NOT NULL
+      AND (item.id IS NULL OR organization.id IS NULL)) AS dead_region_references;
 
 COMMIT;
