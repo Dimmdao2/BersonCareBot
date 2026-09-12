@@ -46,3 +46,18 @@ export const AUTH_LOGIN_FORM_SECONDARY_BUTTON_CLASS = cn(
   'inline-flex h-9 w-auto shrink-0 items-center justify-center px-3',
   AUTH_LOGIN_BUTTON_FACE_CLASS,
 );
+
+/**
+ * Оболочка карточки email/password-входа (AuthFlowV2): тот же силуэт (радиус/тень/паддинг), что у
+ * `patientHeroBookingSectionClass`, но рамка и градиент — из brand-blue токенов входа
+ * (`--patient-color-primary-*`), а не из patient-hero (`--patient-stage-goals-border`, violet)
+ * — форма входа не должна читаться «сиреневой» (владелец, вход после разлогина).
+ */
+export const AUTH_LOGIN_SHELL_CLASS = cn(
+  'overflow-hidden border border-[var(--patient-color-primary-border)]',
+  'rounded-[var(--patient-hero-radius-mobile)] md:rounded-[var(--patient-hero-radius-desktop)]',
+  'bg-[linear-gradient(205deg,#f1ecf1_10%,var(--patient-color-primary-soft)_52%,#fafaf5_80%)]',
+  'text-[var(--patient-text-primary)]',
+  'shadow-[var(--patient-shadow-card-mobile)] md:shadow-[var(--patient-shadow-card-desktop)]',
+  'flex flex-col gap-4 p-4 md:p-[18px]',
+);
