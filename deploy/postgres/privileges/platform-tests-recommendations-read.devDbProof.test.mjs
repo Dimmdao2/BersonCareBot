@@ -22,6 +22,8 @@ import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import test, { after } from 'node:test';
 
+import { assertDeclaredPoliciesDeployed } from './declaredPolicyConformance.mjs';
+
 const ENABLED = process.env.RUN_PLATFORM_TESTS_RECOMMENDATIONS_READ_DB === '1';
 const DATABASE = process.env.PLATFORM_TESTS_RECOMMENDATIONS_READ_PROOF_DB ?? 'bcb_webapp_dev';
 const FAULT = process.env.S0B_PLATFORM_POLICY_FAULT ?? 'none';
@@ -221,6 +223,14 @@ SELECT count(*) FROM pg_policy
                    'rev10_platform_lfk_read_164', 'rev10_platform_lfk_read_205');`).stdout, 10);
   return context;
 }
+
+test('declared policies are actually deployed, not only created inside this test',
+  { skip: !ENABLED }, () => {
+    // Добавлено 12.09.2026 после находки аудита на родственном доказательстве комплексов: самоустановка
+    // политик внутри транзакции проверяет форму предиката и НЕ видит, что на базе политик нет вовсе —
+    // тест сравнивает прогон сам с собой и остаётся зелёным, пока интерфейс теряет платформенный слой.
+    assertDeclaredPoliciesDeployed(psql, policyNames);
+  });
 
 test('owner CHECK rejects both invalid ownership pairs on all four relations', { skip: !ENABLED }, () => {
   const ctx = preparedContext();
