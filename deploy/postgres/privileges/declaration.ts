@@ -24479,6 +24479,14 @@ const CANONICAL_CONTACT_SURFACE_CORRECTIONS: Readonly<Record<string, CanonicalCo
   'app.redeem_patient_invite_email(text)': {
     contacts: ['SELECT', 'UPDATE'], operations: { 'public.platform_users': ['SELECT'] },
   },
+  // Сессионная половина той же двери: тело `public.platform_users` только ЧИТАЕТ (личность уже
+  // доказана сессией) и берёт с неё замок `FOR UPDATE`. Лексическая перепись видит замок как UPDATE
+  // и отдаёт поверхность на всех четырёх колонках; здесь она сужается до чтения, а право класса
+  // UPDATE ради замка доклеивает `ROW_LOCK_SURFACES` ОДНОЙ колонкой — ровно как у почтовой двери
+  // выше. Строки `contacts` тут нет намеренно: `public.user_contacts` это тело не трогает вовсе.
+  'app.redeem_patient_invite_session(text)': {
+    operations: { 'public.platform_users': ['SELECT'] },
+  },
   'app.resolve_public_booking_client_by_phone(text,text,boolean)': { contacts: ['SELECT', 'INSERT'] },
   'app.revalidate_patient_reminder_delivery_materialization(uuid)': { contacts: ['SELECT'] },
   'app.specialist_task_reminder_materialization_fingerprint(uuid)': { contacts: ['SELECT'] },
@@ -24636,25 +24644,17 @@ const TENANT_WALL_CROSSINGS: Readonly<Record<string, Readonly<Record<string, str
     'public.user_channel_bindings': 'та же привязка по паре (канал, внешний id) перед записью — организации на этом шаге ещё нет',
   },
 
-  // Пациентское приглашение: вся цепочка адресуется секретом (`continuation_hash`/`token_hash`), и
-  // до его предъявления человек клиникой не опознан. Организацию тут не проверяют — её ИЗВЛЕКАЮТ
-  // из самой строки приглашения и дальше ведут по ней.
-  'app.claim_unbound_patient_invite_email(text,text)': {
-    'public.patient_invites': 'приглашение находит неугадываемый continuation_hash; предъявитель клинике ещё не принадлежит',
-    'public.be_organizations': 'клиника берётся ИЗ строки приглашения и проверяется на активность — сравнивать её не с чем',
-    'public.org_enrollments': 'зачисление той же строки приглашения (enrollment_id + organization_id приглашения), а не произвольное',
-    'public.platform_users': 'человек приглашения по его patient_user_id из той же строки; конфликт владельца почты — часть ответа двери',
-    'public.user_contacts': 'почта того же человека и проверка, не занята ли она другим — смысл двери именно в этом',
-  },
+  // Почтовая половина пациентского приглашения (claim_unbound_patient_invite_email,
+  // exchange_patient_invite, lookup_patient_invite_continuation, start_patient_invite_email_proof,
+  // verify_patient_invite_email_proof) — пометки сняты по тому же правилу, что и у
+  // app.resolve_payment_webhook_organization ниже: все пять дверей исполняются ТОЛЬКО классом
+  // app_pre_session, арендной роли среди их execute нет, поэтому вопрос «почему у арендного
+  // вызывающего нет организационного предиката» к ним не встаёт — у pre-session организации нет
+  // вовсе. Сессионная и почтовая двери приёма (redeem_patient_invite_*) остаются арендными
+  // (app_patient) и пометки сохраняют — они ниже.
 
   'app.email_otp_public_delete_unverified_registration(uuid)': {
     'public.user_contacts': 'удаляется НЕподтверждённая регистрация: человек ещё не в клинике, подтверждённой почты у него нет',
-  },
-
-  'app.exchange_patient_invite(text,text,timestamp with time zone)': {
-    'public.patient_invites': 'приглашение находит неугадываемый token_hash; обмен идёт до вступления в клинику',
-    'public.org_enrollments': 'зачисление берётся по ключам из самой строки приглашения',
-    'public.be_organizations': 'название клиники приглашения для экрана предъявителя',
   },
 
   // Гостевой видеозвонок адресуется только секретом приглашения. До обмена у гостя нет аккаунта,
@@ -24686,11 +24686,6 @@ const TENANT_WALL_CROSSINGS: Readonly<Record<string, Readonly<Record<string, str
     'public.user_contacts': 'проверка «у кандидата ещё нет телефона» — ключ отбора кандидата, не выборка по клинике',
   },
 
-  'app.lookup_patient_invite_continuation(text)': {
-    'public.patient_invites': 'приглашение находит неугадываемый continuation_hash; предъявитель клинике ещё не принадлежит',
-    'public.org_enrollments': 'зачисление по ключам из строки приглашения',
-    'public.be_organizations': 'название клиники приглашения для экрана предъявителя',
-  },
   'app.lookup_pending_org_invite(text)': {
     'public.organization_member_invites': 'приглашение в персонал находит неугадываемый token_hash до вступления в клинику',
     'public.be_organizations': 'название клиники приглашения; принимающий её сотрудником ещё не является',
@@ -24738,14 +24733,6 @@ const TENANT_WALL_CROSSINGS: Readonly<Record<string, Readonly<Record<string, str
   // не зовёт, поэтому вопрос «почему тут нет организационного предиката для арендатора» больше не
   // встаёт — пометка объясняла отсутствие предиката ИМЕННО арендному вызывающему, которого не стало.
 
-  'app.start_patient_invite_email_proof(text,text,text,timestamp with time zone)': {
-    'public.patient_invites': 'приглашение находит неугадываемый continuation_hash; подтверждение почты идёт до вступления в клинику',
-    'public.be_organizations': 'клиника приглашения проверяется на активность перед отправкой кода',
-  },
-  'app.verify_patient_invite_email_proof(text,text,text)': {
-    'public.patient_invites': 'приглашение находит неугадываемый continuation_hash; сверка кода идёт до вступления в клинику',
-    'public.be_organizations': 'клиника приглашения проверяется на активность перед зачётом кода',
-  },
 };
 
 function applyTenantWallCrossings(

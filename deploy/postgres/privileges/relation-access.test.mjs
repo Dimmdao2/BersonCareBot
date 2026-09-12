@@ -263,7 +263,7 @@ test('patient reminder cancellation reaches the canonical occurrence only throug
 test('ON CONFLICT seams grant SELECT only on their exact arbiter columns', () => {
   const expected = [
     ['app.choose_organization_first_tariff(uuid,uuid,text)', 'public.saas_organization_trials', ['organization_id']],
-    ['app.claim_unbound_patient_invite_email(text,text,text,bigint,text)', 'public.patient_merge_candidates',
+    ['app.claim_unbound_patient_invite_email(text,text)', 'public.patient_merge_candidates',
       ['organization_id', 'anchor_user_id', 'candidate_user_id', 'status']],
     ['app.ensure_staff_security_profile()', 'public.staff_security_profiles', ['user_id']],
     ['app.capture_current_patient_diary_day_snapshot(text,text,integer,integer,boolean,uuid,text,text)',
@@ -271,6 +271,11 @@ test('ON CONFLICT seams grant SELECT only on their exact arbiter columns', () =>
     ['app.record_current_patient_push_open(timestamp with time zone,text,uuid)',
       'public.product_analytics_events_recent', ['push_tracking_id', 'event_type']],
     ['app.redeem_patient_invite_email(text)', 'public.patient_merge_candidates',
+      ['organization_id', 'anchor_user_id', 'candidate_user_id', 'status']],
+    // Сессионная дверь приёма приглашения (2fc560028) кладёт пару в те же кандидаты слияния тем же
+    // `ON CONFLICT (organization_id, anchor_user_id, candidate_user_id)`; без строки здесь её
+    // арбитражный грант не сторожил бы никто.
+    ['app.redeem_patient_invite_session(text)', 'public.patient_merge_candidates',
       ['organization_id', 'anchor_user_id', 'candidate_user_id', 'status']],
   ];
   for (const [signature, relation, columns] of expected) {
@@ -778,9 +783,12 @@ test('clinic-owner mutation grants include every default column emitted by Drizz
     'organization_id', 'placeholder', 'sort_order', 'updated_at', 'visible_to_patient',
     'visible_to_staff',
   ]);
+  // `locations_json` снят миграцией 4c5c5052c (17.J, решение владельца 11.09 «все только ссылками
+  // на реальные записи»): колонка-снимок адресов удалена вместе со своим единственным писателем,
+  // в drizzle-схеме её больше нет — значит и в гранте вставки ей места нет.
   exactColumns('public.clinic_public_directory_entries', 'app_staff', 'INSERT', [
     'card_is_published', 'created_at', 'description', 'display_name', 'is_published',
-    'locations_json', 'logo_media_id', 'organization_id', 'photo_media_ids',
+    'logo_media_id', 'organization_id', 'photo_media_ids',
     'public_contact_email', 'public_contact_phone', 'public_website_url', 'published_at', 'slug',
     'updated_at',
   ]);
@@ -840,8 +848,13 @@ test('billing relations use the clinic, platform, and webhook worker roles witho
     'autopay_consent_text', 'autopay_consented_at', 'autopay_revoked_at', 'billing_period_code',
     'cancelled_at', 'created_at', 'current_period_ends_at', 'current_period_starts_at',
     'grace_ends_at', 'id', 'lifecycle_state', 'organization_id', 'paid_additional_seats',
-    'pending_billing_period_code', 'pending_tariff_id', 'provider_id', 'read_only_ends_at',
-    'saas_billing_account_id', 'saved_payment_method_id', 'source', 'status', 'tariff_id',
+    // Пакеты докупки объёма (5cc55fda3, 1c3bd8393): подписка несёт оплаченный и отложенный пакет
+    // — обе колонки живут в drizzle-схеме (`apps/webapp/db/schema/saasBilling.ts`).
+    'paid_storage_package_id',
+    'pending_billing_period_code', 'pending_storage_package_id', 'pending_tariff_id',
+    'provider_id', 'read_only_ends_at',
+    'saas_billing_account_id', 'saved_payment_method_id', 'source', 'status',
+    'storage_package_cancel_at_period_end', 'tariff_id',
     'tariff_snapshot', 'updated_at',
   ];
   for (const role of ['app_clinic_billing', 'app_platform_settings']) {
@@ -879,7 +892,10 @@ test('billing relations use the clinic, platform, and webhook worker roles witho
   assertNoOperation('public.saas_billing_provider_events', 'app_clinic_billing', 'UPDATE');
   assertNoOperation('public.saas_billing_refunds', 'app_clinic_billing', 'SELECT');
   exactColumns('public.saas_billing_subscriptions', 'app_staff', 'SELECT', [
-    'organization_id', 'status', 'current_period_ends_at', 'paid_additional_seats', 'source',
+    // `paid_storage_package_id` — тот же пакет объёма (5cc55fda3): персонал видит, какой пакет
+    // оплачен его клиникой. Колонка org-scoped, чужой клиники через неё не видно.
+    'organization_id', 'status', 'current_period_ends_at', 'paid_additional_seats',
+    'paid_storage_package_id', 'source',
   ]);
   for (const relation of [
     'public.saas_billing_invoices',

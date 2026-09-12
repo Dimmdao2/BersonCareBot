@@ -17124,7 +17124,6 @@ GRANT SELECT ("id", "merged_into_id") ON TABLE "public"."platform_users" TO "app
 GRANT SELECT ("id", "merged_into_id", "role") ON TABLE "public"."platform_users" TO "app_seam_patient_booking_owner";
 GRANT SELECT ("id", "merged_into_id", "role", "updated_at") ON TABLE "public"."platform_users" TO "app_seam_patient_invite_owner";
 GRANT UPDATE ("updated_at") ON TABLE "public"."platform_users" TO "app_seam_patient_invite_owner";
-GRANT UPDATE ("id", "merged_into_id", "role", "updated_at") ON TABLE "public"."platform_users" TO "app_seam_patient_invite_owner";
 GRANT SELECT ("calendar_timezone", "id") ON TABLE "public"."platform_users" TO "app_seam_patient_self_actions_owner";
 GRANT SELECT ("id", "merged_into_id", "role") ON TABLE "public"."platform_users" TO "app_seam_patient_self_actions_owner";
 GRANT SELECT ("calendar_timezone", "id", "merged_into_id", "role", "updated_at") ON TABLE "public"."platform_users" TO "app_seam_patient_self_actions_owner";
