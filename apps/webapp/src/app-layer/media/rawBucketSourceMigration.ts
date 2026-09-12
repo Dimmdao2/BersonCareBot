@@ -158,7 +158,7 @@ export async function migrateOneSourceToRawBucket(
   const toKey = deps.storage.rawObjectKey(rawFolderForRow(row), row.id, posix.basename(fromKey));
 
   /* The physical object decides, not `size_bytes`: a journal row whose object is gone must never
-     turn into an UPDATE pointing at a raw key that holds nothing. */
+   * turn into an UPDATE pointing at a raw key that holds nothing. */
   const source = await deps.storage.headObject(fromKey, 'hot');
   if (!source) {
     return {
