@@ -22455,7 +22455,6 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         "columns": [
           "confirming_channel",
           "id",
-          "organization_id",
           "phone_normalized",
           "platform_user_id",
           "source",
@@ -22492,7 +22491,6 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "INSERT"
         ],
         "columns": [
-          "organization_id",
           "phone_normalized",
           "platform_user_id",
           "source",
@@ -23940,11 +23938,16 @@ const TABLE_ROWS: TableRow[] = [
     wallWhy: W_AUTH_DEFINER,
     revoke: { app_staff: REV_D1 },
     defect: ['D1-auth-tables'], code: ['C13'] },
-  { t: 'public.user_phone_history', cls: 'P', org: true, why: 'история телефонов — смена номера и поиск по старому номеру',
+  { t: 'public.user_phone_history', cls: 'P', why: 'история телефонов — смена номера и поиск по старому номеру',
     revoke: { bcb_test_nonstaff_login: 'I2: табличный грант arw выдан ЛОГИН-роли напрямую, минуя рантайм-роль.' },
-    pol: 'D8: единственная политика несёт ТОЛЬКО org-ветку, а app_patient держит SELECT — пациент видит историю '
-    + 'телефонов всех 92 записей организации. Нужна ветка «свой пациент»',
-    defect: ['D8-user-phone-history', 'I2-grant-to-login'] },
+    pol: 'ИСТОРИЯ ПРИНАДЛЕЖИТ ЧЕЛОВЕКУ (решение владельца 12.09.2026), поэтому колонки organization_id у '
+    + 'таблицы БОЛЬШЕ НЕТ: она обещала стену арендатора, которой никогда не было. Доказано контекст-флипом — '
+    + 'клиника B читала строки человека, помеченные клиникой A, потому что ветка персонала спрашивает НЕ '
+    + 'КОЛОНКУ, а членство человека (EXISTS по be_organization_members/org_enrollments); колонку не проверял '
+    + 'никто. Обе настоящие стены колонки не касались и остались на месте: пациент — своя строка по '
+    + 'app.current_actor_user_id(), персонал и tenant-service — человек состоит в ТЕКУЩЕЙ клинике. Этим же '
+    + 'снят D8: пациентская ветка «своя строка» (rev10_patient_self_managed) стоит, общей org-ветки нет',
+    defect: ['I2-grant-to-login'] },
   { t: 'public.user_pins', cls: 'S', wall: 'pending-removal', rls: 'n/a', disp: 'REMOVED',
     why: 'УДАЛЕНО миграцией 0387: legacy PIN-вход выведен из продукта, активных вызовов и причин хранения нет',
     wallWhy: 'Физически удалённая legacy-таблица остаётся именованной только для двусторонней проверки каталога' },
@@ -30419,7 +30422,7 @@ const REV10_CONTEXT = {
           operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const, 'DELETE' as const],
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.user_phone_history',
-          columns: ['platform_user_id', 'phone_normalized', 'valid_from', 'valid_to', 'source', 'organization_id', 'confirming_channel'],
+          columns: ['platform_user_id', 'phone_normalized', 'valid_from', 'valid_to', 'source', 'confirming_channel'],
           operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const, 'DELETE' as const],
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
@@ -30449,7 +30452,7 @@ const REV10_CONTEXT = {
           operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const, 'DELETE' as const],
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.user_phone_history',
-          columns: ['platform_user_id', 'phone_normalized', 'valid_from', 'valid_to', 'source', 'organization_id', 'confirming_channel'],
+          columns: ['platform_user_id', 'phone_normalized', 'valid_from', 'valid_to', 'source', 'confirming_channel'],
           operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const, 'DELETE' as const],
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.user_channel_preferences',
@@ -31260,11 +31263,11 @@ export const REV10_LOCKED_POLICY_DATA: Readonly<Record<string, LockedPolicyEntry
     strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"patient_user_id\" = app.current_patient_user_id()))",
     dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"patient_user_id\" = app.current_patient_user_id())))",
   },
-  "public.user_phone_history": {
-    policyName: "saas_bootstrap_hybrid_p0_8_6",
-    strictPredicate: "((app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()) OR (\"organization_id\" IS NULL AND app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()))",
-    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()) OR (\"organization_id\" IS NULL AND app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff())))",
-  },
+  // `public.user_phone_history` здесь БОЛЬШЕ НЕТ. Её запертая политика `saas_bootstrap_hybrid_p0_8_6`
+  // состояла ЦЕЛИКОМ из `organization_id`, но в артефакт не попадала ни разу: таблицу рисует семья
+  // «самообслуживание по своей учётке» (`rev10_patient_self_managed` / `rev10_staff_member_managed`),
+  // и живая база это подтверждает — политики с таким именем на таблице нет. С удалением колонки
+  // (история принадлежит человеку, решение владельца 12.09.2026) запись стала ещё и неисполнимой.
 } as const;
 
 const REV10_LOCKED_POLICIES = new Map<string, LockedPolicyEntry>(
@@ -32262,7 +32265,6 @@ const REV10_TENANT_DIRECT_ORG = new Set([
   'public.support_questions', 'public.symptom_entries', 'public.symptom_trackings', 'public.test_attempts',
   'public.treatment_program_events', 'public.treatment_program_instance_stage_items',
   'public.treatment_program_instance_stages', 'public.treatment_program_instances',
-  'public.user_phone_history',
 ]);
 
 type TenantMembershipReference = { column: string; type: 'uuid' | 'text' };
@@ -32277,6 +32279,11 @@ const REV10_TENANT_MEMBERSHIP_BASE: Record<string, readonly TenantMembershipRefe
   'public.user_identity': [{ column: 'platform_user_id', type: 'uuid' }],
   'public.user_notification_topic_channels': [{ column: 'user_id', type: 'uuid' }],
   'public.user_notification_topics': [{ column: 'user_id', type: 'uuid' }],
+  // История телефонов принадлежит ЧЕЛОВЕКУ (решение владельца 12.09.2026), колонки organization_id
+  // у таблицы нет — поэтому и стена tenant-service выводится не из колонки, а из членства человека в
+  // ТЕКУЩЕЙ клинике. Это ровно то, что ветка персонала (`rev10_staff_member_managed`) делала и раньше:
+  // колонку не спрашивал никто, она лишь обещала стену, которой не было.
+  'public.user_phone_history': [{ column: 'platform_user_id', type: 'uuid' }],
   'public.user_web_push_subscriptions': [{ column: 'user_id', type: 'uuid' }],
 };
 

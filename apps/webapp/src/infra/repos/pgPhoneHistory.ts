@@ -1,6 +1,5 @@
 import { sql } from 'drizzle-orm';
 /** TX-scoped SQL on the caller's `PoolClient`. */
-import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import type { Pool, PoolClient } from 'pg';
 import { getWebappSqlFromPgClient, runWebappSql } from '@/infra/db/runWebappSql';
 import { mutateCanonicalUserContactsWebapp } from '@/infra/repos/userContactsSql';
@@ -42,13 +41,16 @@ export async function applyPlatformUserPhoneHistoryTransition(
 
   const p = opts.newPhoneNormalized?.trim();
   if (p) {
-    const organizationId = getCurrentDbPrincipalOrganizationId() ?? null;
+    // Клинику здесь не пишем: история телефонов принадлежит ЧЕЛОВЕКУ, а не клинике, в которой он
+    // оказался в момент смены номера (решение владельца 12.09.2026) — колонки organization_id у
+    // таблицы больше нет. Стена строки и так никогда не выводилась из неё: пациент видит свою
+    // строку по `app.current_actor_user_id()`, персонал — по членству человека в текущей клинике.
     await runWebappSql(
       db,
       sql`INSERT INTO user_phone_history (
-         platform_user_id, phone_normalized, valid_from, valid_to, source, organization_id, confirming_channel
+         platform_user_id, phone_normalized, valid_from, valid_to, source, confirming_channel
        )
-       VALUES (${opts.platformUserId}::uuid, ${p}::text, now(), NULL, ${opts.source}::text, ${sql.param(organizationId)}::uuid, ${opts.confirmingChannel ?? null}::text)`,
+       VALUES (${opts.platformUserId}::uuid, ${p}::text, now(), NULL, ${opts.source}::text, ${opts.confirmingChannel ?? null}::text)`,
     );
   }
   await mutateCanonicalUserContactsWebapp(

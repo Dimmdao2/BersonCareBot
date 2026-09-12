@@ -356,7 +356,6 @@ export const userPhoneHistory = pgTable(
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
     platformUserId: uuid('platform_user_id').notNull(),
-    organizationId: uuid('organization_id'),
     phoneNormalized: text('phone_normalized').notNull(),
     validFrom: timestamp('valid_from', { withTimezone: true, mode: 'string' })
       .defaultNow()
@@ -372,10 +371,6 @@ export const userPhoneHistory = pgTable(
     confirmingChannel: text('confirming_channel'),
   },
   (table) => [
-    index('idx_user_phone_history_organization_id').using(
-      'btree',
-      table.organizationId.asc().nullsLast().op('uuid_ops'),
-    ),
     index('idx_user_phone_history_phone').using(
       'btree',
       table.phoneNormalized.asc().nullsLast().op('text_ops'),
@@ -388,11 +383,6 @@ export const userPhoneHistory = pgTable(
       columns: [table.platformUserId],
       foreignColumns: [platformUsers.id],
       name: 'user_phone_history_platform_user_id_fkey',
-    }).onDelete('cascade'),
-    foreignKey({
-      columns: [table.organizationId],
-      foreignColumns: [beOrganizations.id],
-      name: 'user_phone_history_organization_id_fkey',
     }).onDelete('cascade'),
     uniqueIndex('uq_user_phone_history_phone_active')
       .using('btree', table.phoneNormalized.asc().nullsLast().op('text_ops'))

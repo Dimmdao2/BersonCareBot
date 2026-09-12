@@ -178,7 +178,6 @@ WITH declared(schema_name, table_name) AS (VALUES
   ('public', 'treatment_program_template_stage_items'),
   ('public', 'treatment_program_template_stages'),
   ('public', 'treatment_program_templates'),
-  ('public', 'user_phone_history'),
   ('public', 'video_meeting_invites'),
   ('public', 'video_meetings')
 ),

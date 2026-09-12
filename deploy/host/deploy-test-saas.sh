@@ -897,7 +897,9 @@ CNT="$(sudo -u postgres psql -d "$DB" -tAc "SELECT count(*) FROM drizzle.__drizz
 # and fails closed, so TEST code released onto a database without it 401s every session including
 # fresh logins. Same column is asserted by deploy/host/webapp-post-migrate-schema-check.sh on prod
 # and by the webapp at boot (apps/webapp/src/instrumentation.ts).
-for col in "system_settings.organization_id" "user_phone_history.organization_id" "platform_users.session_epoch"; do
+# `user_phone_history.organization_id` из этого списка УБРАНА вместе с самой колонкой: история
+# телефонов принадлежит человеку, а не клинике (решение владельца 12.09.2026).
+for col in "system_settings.organization_id" "platform_users.session_epoch"; do
   t="${col%.*}"; c="${col#*.}"
   ok="$(sudo -u postgres psql -d "$DB" -tAc "SELECT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='$t' AND column_name='$c');")"
   [ "$ok" = "t" ] || { echo "FATAL: missing column $col after migrate"; exit 1; }

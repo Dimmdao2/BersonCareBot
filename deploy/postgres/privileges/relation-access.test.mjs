@@ -716,8 +716,11 @@ test('doctor CRUD grants cover every column emitted by the production Drizzle in
       'created_at', 'created_by', 'description', 'id', 'organization_id', 'status', 'title',
       'updated_at',
     ],
+    // Без `organization_id`: история телефонов принадлежит ЧЕЛОВЕКУ, колонки у таблицы больше нет
+    // (решение владельца 12.09.2026, миграция
+    // `20260912T150000_the_phone_history_belongs_to_the_person_not_the_clinic`).
     'public.user_phone_history': [
-      'confirming_channel', 'id', 'organization_id', 'phone_normalized', 'platform_user_id',
+      'confirming_channel', 'id', 'phone_normalized', 'platform_user_id',
       'source', 'valid_from', 'valid_to',
     ],
   };
@@ -1660,8 +1663,11 @@ test('tenant D inserts either carry organization_id or are absent when only non-
     'contact_type', 'created_at', 'organization_id', 'platform_user_id', 'source',
     'updated_at', 'value', 'value_normalized',
   ]);
+  // `public.user_phone_history` здесь БОЛЬШЕ НЕ ПРЕДМЕТ: колонки `organization_id` у неё нет, и
+  // стена арендатора у неё теперь не прямая (D), а по членству человека (M) — проверяется ниже,
+  // в тесте M/P, вместе с остальными таблицами этого вида.
   exactColumns('public.user_phone_history', 'app_tenant_service', 'INSERT', [
-    'organization_id', 'phone_normalized', 'platform_user_id', 'source', 'valid_from', 'valid_to',
+    'phone_normalized', 'platform_user_id', 'source', 'valid_from', 'valid_to',
   ]);
 });
 
@@ -1701,6 +1707,16 @@ test('tenant M and P predicates cover patient enrollment and qualified parent ch
   assert.match(programUpdate, /program_action_log\.instance_id/);
   assert.match(programUpdate, /program_action_log\.instance_stage_item_id/);
   assert.match(programUpdate, /treatment_program_instance_stage_items/);
+
+  // История телефонов принадлежит ЧЕЛОВЕКУ (решение владельца 12.09.2026): колонки
+  // `organization_id` у таблицы нет, поэтому арендная стена спрашивает не её, а членство ЧЕЛОВЕКА
+  // в текущей клинике — ровно то же, что ветка персонала делала и раньше. Утверждается ФОРМА
+  // стены, а не текст: пришли к строке через сотрудника или через записанного пациента.
+  const phoneHistorySelect = policy('public.user_phone_history', 'SELECT').using;
+  assert.match(phoneHistorySelect, /user_phone_history\.platform_user_id/);
+  assert.match(phoneHistorySelect, /be_organization_members/);
+  assert.match(phoneHistorySelect, /org_enrollments/);
+  assert.doesNotMatch(phoneHistorySelect, /user_phone_history\.organization_id/);
 });
 
 test('base port logins retain app schema usage needed to install transaction context', () => {
