@@ -18,6 +18,7 @@ import type { MaterialRatingTargetKind } from '@/modules/material-rating/types';
 import { requireEntitlementForReadAction } from '@/app-layer/guards/requireEntitlement';
 import { resolveDoctorWorkspaceModules } from '@/app-layer/guards/workspaceModuleAccess';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
+import { loadMaterialRatingTitles } from './materialRatingTitles';
 
 const KIND_LABEL: Record<MaterialRatingTargetKind, string> = {
   content_page: 'Страница CMS',
@@ -56,29 +57,14 @@ export default async function DoctorMaterialRatingsPage({ searchParams }: Props)
   const hasNext = rowsPlus.length > PAGE_SIZE;
   const rows = rowsPlus.slice(0, PAGE_SIZE);
 
-  const contentIds = [
-    ...new Set(rows.filter((r) => r.targetKind === 'content_page').map((r) => r.targetId)),
-  ];
-  const contentMetas = await deps.contentPages.listMetaByIds(contentIds);
-  const contentById = new Map(contentMetas.map((m) => [m.id, m]));
-
-  const templateIds = [
-    ...new Set(rows.filter((r) => r.targetKind === 'lfk_complex').map((r) => r.targetId)),
-  ];
-  const templateTitleById = new Map<string, string | null>();
-  await Promise.all(
-    templateIds.map(async (id) => {
-      const t = await deps.lfkTemplates.getTemplate(id, { includePlatformBase });
-      templateTitleById.set(id, t?.title?.trim() ? t.title : null);
-    }),
+  // Названия читаются тем же общим чтением, что и в API-сводке (`materialRatingTitles.ts`):
+  // расхождение страницы и двери по платформенному слою было настоящим дефектом.
+  const { contentMetas, exerciseTitleById, templateTitleById } = await loadMaterialRatingTitles(
+    deps,
+    rows,
+    { includePlatformBase },
   );
-
-  const exerciseIds = [
-    ...new Set(rows.filter((r) => r.targetKind === 'lfk_exercise').map((r) => r.targetId)),
-  ];
-  const exerciseTitleById = await deps.lfkExercises.listExerciseTitlesByIds(exerciseIds, {
-    includePlatformBase,
-  });
+  const contentById = new Map(contentMetas.map((m) => [m.id, m]));
 
   const grouped: Record<MaterialRatingTargetKind, typeof rows> = {
     content_page: [],

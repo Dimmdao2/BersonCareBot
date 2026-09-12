@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import { requireEntitlementForReadAction } from '@/app-layer/guards/requireEntitlement';
+import {
+  loadMaterialRatingTitles,
+  materialRatingLabel,
+} from '@/app/app/doctor/material-ratings/materialRatingTitles';
 import { loadDoctorAnalyticsAudience } from '@/app-layer/analytics/loadAnalyticsAudience';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 
@@ -32,36 +37,13 @@ export async function GET(request: Request) {
     excludedUserIds: audience.excludedUserIds,
   });
 
-  const contentIds = rows
-    .filter((row) => row.targetKind === 'content_page')
-    .map((row) => row.targetId);
-  const exerciseIds = rows
-    .filter((row) => row.targetKind === 'lfk_exercise')
-    .map((row) => row.targetId);
-  const templateIds = rows
-    .filter((row) => row.targetKind === 'lfk_complex')
-    .map((row) => row.targetId);
-  const [contentMetas, exerciseTitles, templateTitles] = await Promise.all([
-    deps.contentPages.listMetaByIds(contentIds),
-    deps.lfkExercises.listExerciseTitlesByIds(exerciseIds, { includePlatformBase: false }),
-    Promise.all(
-      templateIds.map(async (id) => {
-        const template = await deps.lfkTemplates.getTemplate(id, { includePlatformBase: false });
-        return [id, template?.title ?? null] as const;
-      }),
-    ),
-  ]);
-  const contentTitles = new Map(contentMetas.map((meta) => [meta.id, meta.title]));
-  const templateTitleMap = new Map(templateTitles);
-  const enriched = rows.map((row) => ({
-    ...row,
-    label:
-      row.targetKind === 'content_page'
-        ? (contentTitles.get(row.targetId) ?? null)
-        : row.targetKind === 'lfk_exercise'
-          ? (exerciseTitles.get(row.targetId) ?? null)
-          : (templateTitleMap.get(row.targetId) ?? null),
-  }));
+  // Флаг платформенного слоя считается ровно так же, как на странице оценок: список строк у двери и
+  // у страницы один и тот же, и название материала не может зависеть от того, каким путём врач до
+  // него дошёл. Названия читаются общим `loadMaterialRatingTitles` — разойтись им больше негде.
+  const includePlatformBase = (await requireEntitlementForReadAction(auth.ctx, 'exercise_catalog'))
+    .ok;
+  const titles = await loadMaterialRatingTitles(deps, rows, { includePlatformBase });
+  const enriched = rows.map((row) => ({ ...row, label: materialRatingLabel(titles, row) }));
 
   return NextResponse.json({ ok: true, rows: enriched });
 }
