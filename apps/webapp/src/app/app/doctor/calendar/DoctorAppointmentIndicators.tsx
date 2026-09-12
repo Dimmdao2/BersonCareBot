@@ -1,3 +1,5 @@
+'use client';
+
 import {
   BadgeCheck,
   CreditCardCheck,
@@ -9,6 +11,8 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { AppointmentDeliveryFormat } from '@/modules/booking-engine/types';
+import { appointmentDeliveryFormatLabels } from '@/modules/system-settings/patientTerms';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 type Props = {
   deliveryFormat?: AppointmentDeliveryFormat | null;
@@ -97,12 +101,13 @@ function IndicatorSlot({ indicator }: { indicator: Indicator | null }) {
 
 /** Fixed-width appointment facts: format, membership and payment never shift between rows. */
 export function DoctorAppointmentIndicators(props: Props) {
+  const onlineLabel = appointmentDeliveryFormatLabels(useDoctorPatientTerms()).online;
   return (
     <span className={cn('grid shrink-0 grid-cols-3 gap-1.5', props.className)}>
       <IndicatorSlot
         indicator={
           props.deliveryFormat === 'online'
-            ? { icon: Video, label: 'Онлайн-приём', className: 'text-primary' }
+            ? { icon: Video, label: onlineLabel, className: 'text-primary' }
             : null
         }
       />

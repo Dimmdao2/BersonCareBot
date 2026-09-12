@@ -25,6 +25,8 @@ import {
   type CalendarPatientOption,
 } from './DoctorCalendarPatientSearch';
 import { DoctorCalendarCreateFormField } from './DoctorCalendarCreateFormField';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
+import { appointmentDeliveryFormatLabels } from '@/modules/system-settings/patientTerms';
 
 /**
  * PAY-APPT-03: условие оплаты ЭТОЙ записи. Режим — тот же общесистемный словарь, что и у политики
@@ -73,11 +75,6 @@ const OVERRIDABLE_PREPAYMENT_MODES: PrepaymentMode[] = [
   'percent',
   'full_price',
 ];
-const DELIVERY_FORMAT_LABELS: Record<AppointmentDeliveryFormat, string> = {
-  in_person: 'Очный приём',
-  online: 'Онлайн-приём',
-};
-
 export function prepaymentPercentFromBps(percentBps: number | null): string {
   if (percentBps == null) return '';
   return String(percentBps / 100);
@@ -122,6 +119,9 @@ export function DoctorAppointmentForm({
   pending,
   message,
 }: Props) {
+  // Слово о событии записи выбирает организация; род согласуется в самом резолвере.
+  const deliveryFormatLabels: Record<AppointmentDeliveryFormat, string> =
+    appointmentDeliveryFormatLabels(useDoctorPatientTerms());
   const specialistMode = resolveCalendarCreateFieldMode(
     filterMeta.specialists,
     activeFilters.specialistId,
@@ -167,7 +167,9 @@ export function DoctorAppointmentForm({
               ? {
                   mode: service.prepaymentDefault.mode,
                   percent: prepaymentPercentFromBps(service.prepaymentDefault.percentBps),
-                  amountRubles: servicePriceRublesInput(service.prepaymentDefault.amountMinor ?? null),
+                  amountRubles: servicePriceRublesInput(
+                    service.prepaymentDefault.amountMinor ?? null,
+                  ),
                 }
               : null,
           }),
@@ -254,9 +256,7 @@ export function DoctorAppointmentForm({
                   prepayment: nextService?.prepaymentDefault
                     ? {
                         mode: nextService.prepaymentDefault.mode,
-                        percent: prepaymentPercentFromBps(
-                          nextService.prepaymentDefault.percentBps,
-                        ),
+                        percent: prepaymentPercentFromBps(nextService.prepaymentDefault.percentBps),
                         amountRubles: servicePriceRublesInput(
                           nextService.prepaymentDefault.amountMinor ?? null,
                         ),
@@ -287,7 +287,7 @@ export function DoctorAppointmentForm({
         {selectedBranchIsOnline || !serviceSupportsOnline(draft.serviceId) ? (
           <Input
             readOnly
-            value={DELIVERY_FORMAT_LABELS[selectedBranchIsOnline ? 'online' : 'in_person']}
+            value={deliveryFormatLabels[selectedBranchIsOnline ? 'online' : 'in_person']}
             aria-label="Формат"
           />
         ) : (
@@ -300,11 +300,11 @@ export function DoctorAppointmentForm({
           >
             <SelectTrigger
               aria-label="Формат"
-              displayLabel={DELIVERY_FORMAT_LABELS[draft.deliveryFormat]}
+              displayLabel={deliveryFormatLabels[draft.deliveryFormat]}
             />
             <SelectContent>
-              <SelectItem value="in_person">Очный приём</SelectItem>
-              <SelectItem value="online">Онлайн-приём</SelectItem>
+              <SelectItem value="in_person">{deliveryFormatLabels.in_person}</SelectItem>
+              <SelectItem value="online">{deliveryFormatLabels.online}</SelectItem>
             </SelectContent>
           </Select>
         )}

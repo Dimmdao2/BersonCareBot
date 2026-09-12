@@ -12,6 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/shared/ui/doctor/primitives/dialog';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 /**
  * R34: подтверждение переноса/ресайза ПЕРЕД применением.
@@ -65,6 +66,7 @@ export function DoctorCalendarRescheduleDialog({
   onConfirm,
   onCancel,
 }: Props) {
+  const { appointmentGenitive } = useDoctorPatientTerms();
   const open = pending !== null;
   return (
     <Dialog
@@ -79,7 +81,7 @@ export function DoctorCalendarRescheduleDialog({
           <DialogTitle>
             Изменить запись{pending?.patientName ? ` · ${pending.patientName}` : ''}?
           </DialogTitle>
-          <DialogDescription>Подтвердите новое время приёма.</DialogDescription>
+          <DialogDescription>Подтвердите новое время {appointmentGenitive}.</DialogDescription>
         </DialogHeader>
         {pending ? (
           <div className="space-y-3 text-sm">

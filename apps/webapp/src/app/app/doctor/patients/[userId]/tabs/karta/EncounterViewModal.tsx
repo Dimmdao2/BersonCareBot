@@ -17,6 +17,7 @@ import { DoctorModal, DoctorModalStackedTitle } from '@/shared/ui/doctor/DoctorM
 import { Badge } from '@/shared/ui/doctor/primitives/badge';
 import { buttonVariants } from '@/shared/ui/doctor/primitives/button';
 import { doctorSectionSubtitleClass } from '@/shared/ui/doctor/doctorVisual';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 export function EncounterViewModal({
   visit,
@@ -33,6 +34,7 @@ export function EncounterViewModal({
   patientOnSupport: boolean;
   onClose: () => void;
 }) {
+  const { appointmentSingularLabel } = useDoctorPatientTerms();
   const durationLabel = visit?.duration
     ? /\D/.test(visit.duration)
       ? visit.duration
@@ -48,7 +50,7 @@ export function EncounterViewModal({
       bodyClassName="space-y-4"
       title={
         <DoctorModalStackedTitle
-          label="Приём"
+          label={appointmentSingularLabel}
           entity={visit?.date}
           patientName={patientName}
           patientOnSupport={patientOnSupport}
@@ -135,9 +137,7 @@ export function EncounterViewModal({
                   <span>{f.name}</span>
                 </span>
               ))}
-              <span className={doctorSectionSubtitleClass}>
-                — файлы, прикреплённые к визиту
-              </span>
+              <span className={doctorSectionSubtitleClass}>— файлы, прикреплённые к визиту</span>
             </div>
           ) : null}
         </>

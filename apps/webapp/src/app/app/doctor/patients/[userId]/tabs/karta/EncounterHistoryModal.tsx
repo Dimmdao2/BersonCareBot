@@ -16,6 +16,8 @@ import {
   doctorDnaFlatListRowClass,
 } from '@/shared/ui/doctor/DoctorDnaFlatListRow';
 import { doctorSectionSubtitleClass } from '@/shared/ui/doctor/doctorVisual';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
+import { capitalizeAppointmentForm } from '@/modules/system-settings/patientTerms';
 
 export function EncounterHistoryModal({
   open,
@@ -32,13 +34,14 @@ export function EncounterHistoryModal({
   patientOnSupport: boolean;
   onOpenVisit: (visitId: string) => void;
 }) {
+  const { appointmentGenPlural } = useDoctorPatientTerms();
   return (
     <DoctorModal
       open={open}
       onClose={onClose}
       title={
         <DoctorModalStackedTitle
-          label="История приёмов"
+          label={`История ${appointmentGenPlural}`}
           patientName={patientName}
           patientOnSupport={patientOnSupport}
           patientVariant="context"
@@ -54,7 +57,7 @@ export function EncounterHistoryModal({
             'px-[var(--doctor-list-inline-padding,18px)] py-4',
           )}
         >
-          Приёмов пока нет.
+          {capitalizeAppointmentForm(appointmentGenPlural)} пока нет.
         </p>
       ) : (
         <DoctorDnaFlatList>

@@ -16,6 +16,8 @@ import { Button } from '@/shared/ui/doctor/primitives/button';
 import { formatDoctorFioShortLabel } from '@/shared/lib/fio';
 import { DoctorPatientName } from '@/shared/ui/doctor/DoctorSupportStar';
 import { useActiveCall } from '@/shared/ui/video/ActiveCallCoordinator';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
+import { agreeWithAppointment } from '@/modules/system-settings/patientTerms';
 
 type Props = {
   appointment: TodayNextAppointmentItem | null;
@@ -23,8 +25,15 @@ type Props = {
   videoMeetingsEnabled?: boolean;
 };
 
-export function DoctorTodayNextAppointment({ appointment, displayIana, videoMeetingsEnabled = false }: Props) {
+export function DoctorTodayNextAppointment({
+  appointment,
+  displayIana,
+  videoMeetingsEnabled = false,
+}: Props) {
   const router = useRouter();
+  const terms = useDoctorPatientTerms();
+  // «Следующий приём» / «Следующая тренировка» — определение согласуется с родом слова.
+  const nextAppointmentTitle = `${agreeWithAppointment(terms, 'Следующий', 'Следующая')} ${terms.appointmentSingular}`;
   const { activeCall } = useActiveCall();
   const [detailsOpen, setDetailsOpen] = useState(false);
 
@@ -52,7 +61,9 @@ export function DoctorTodayNextAppointment({ appointment, displayIana, videoMeet
           <div className="flex min-w-0 flex-col">
             <div className="flex min-w-0 items-baseline justify-between gap-2">
               <DoctorSectionTitle>
-                {appointment.isCurrent ? 'Сейчас на приеме' : 'Следующий прием'}
+                {appointment.isCurrent
+                  ? `Сейчас на ${terms.appointmentPrepositional}`
+                  : nextAppointmentTitle}
               </DoctorSectionTitle>
               <DoctorPatientName
                 isOnSupport={appointment.patientOnSupport}
@@ -115,18 +126,18 @@ export function DoctorTodayNextAppointment({ appointment, displayIana, videoMeet
                 render={<Link href={createVisitHref} />}
                 nativeButton={false}
               >
-                Начать приём
+                Начать {terms.appointmentAccusative}
               </Button>
             ) : (
               <Button size="sm" className="min-w-0 flex-1" disabled>
-                Начать приём
+                Начать {terms.appointmentAccusative}
               </Button>
             )}
           </div>
         </div>
       ) : (
         <DoctorSectionHeader>
-          <DoctorSectionTitle>Следующий прием: нет записей</DoctorSectionTitle>
+          <DoctorSectionTitle>{nextAppointmentTitle}: нет записей</DoctorSectionTitle>
         </DoctorSectionHeader>
       )}
 

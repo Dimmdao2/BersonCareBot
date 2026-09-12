@@ -367,7 +367,8 @@ export function PatientCardClient({
 }: Props) {
   const router = useRouter();
   const { activeCall } = useActiveCall();
-  const { patientGenitive, patientSingularLabel, supportGroupLabel } = useDoctorPatientTerms();
+  const { patientGenitive, patientSingularLabel, supportGroupLabel, appointmentAccusative } =
+    useDoctorPatientTerms();
   const header = shellMeta.cardHeader;
   const availableTabs = useMemo(
     () => getEffectivePatientCardTabs(workspaceModules),
@@ -609,7 +610,7 @@ export function PatientCardClient({
                         История
                       </Button>
                       <Button type="button" size="sm" onClick={() => openEncounterStart()}>
-                        Начать приём
+                        Начать {appointmentAccusative}
                       </Button>
                     </>
                   ) : null}

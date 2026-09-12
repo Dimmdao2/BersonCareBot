@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { patientCardHref } from './patients/patientCardHref';
 import { DoctorModal, DoctorModalStackedTitle } from '@/shared/ui/doctor/DoctorModal';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 import { DoctorCalendarEventPanel } from './calendar/DoctorCalendarEventPanel';
 import type {
   CalendarAppointmentEvent,
@@ -57,6 +58,7 @@ export function TodayAppointmentFullModal({
   onChanged,
   patientVariant = 'link',
 }: Props) {
+  const { appointmentAccusative } = useDoctorPatientTerms();
   const [event, setEvent] = useState<CalendarAppointmentEvent | null>(null);
   const [filterMeta, setFilterMeta] = useState<CalendarFilterMeta>(EMPTY_FILTER_META);
   const [ownSpecialistId, setOwnSpecialistId] = useState<string | null>(null);
@@ -115,7 +117,7 @@ export function TodayAppointmentFullModal({
       onClose={onClose}
       title={
         <DoctorModalStackedTitle
-          label="Запись на приём"
+          label={`Запись на ${appointmentAccusative}`}
           patientName={event?.patientName ?? undefined}
           patientHref={event?.platformUserId ? patientCardHref(event.platformUserId) : null}
           patientOnSupport={event?.patientOnSupport === true}

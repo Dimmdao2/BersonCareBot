@@ -21,6 +21,7 @@ import type {
 import { isCancelledAppointmentStatus } from '@/modules/booking-calendar/appointmentStatusLabels';
 import { cn } from '@/lib/utils';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 const API_BASE = '/api/doctor/booking-engine';
 
@@ -144,6 +145,7 @@ export function TodayMiniCalendarWithModal({
   fillHeight = false,
   flushChrome = false,
 }: Props) {
+  const { appointmentAccusative } = useDoctorPatientTerms();
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[] | undefined>(undefined);
   const [filterMeta, setFilterMeta] = useState<CalendarFilterMeta>(EMPTY_FILTER_META);
   const [ownSpecialistId, setOwnSpecialistId] = useState<string | null>(null);
@@ -252,7 +254,7 @@ export function TodayMiniCalendarWithModal({
         onClose={() => setSelected(null)}
         title={
           <DoctorModalStackedTitle
-            label="Запись на приём"
+            label={`Запись на ${appointmentAccusative}`}
             patientName={selected?.patientName ?? undefined}
             patientHref={selected?.platformUserId ? patientCardHref(selected.platformUserId) : null}
             patientOnSupport={selected?.patientOnSupport === true}
