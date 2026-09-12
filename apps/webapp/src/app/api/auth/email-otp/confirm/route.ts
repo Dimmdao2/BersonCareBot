@@ -118,8 +118,19 @@ export async function POST(request: Request) {
   // On policy removal/outage, use the freshly loaded DB role rather than retaining
   // an earlier email-derived session role. The B1c migration removes the only
   // historical persisted owner-email artifact.
-  const role = (await isVerifiedEmailGlobalAdminAsync(email)) ? 'admin' : user.role;
+  const isGlobalAdminByPolicy = await isVerifiedEmailGlobalAdminAsync(email);
+  const role = isGlobalAdminByPolicy ? 'admin' : user.role;
   const sessionUser = role === user.role ? user : { ...user, role };
+  // Bare email+code proves control of an inbox, nothing else — it must never be sufficient to
+  // authenticate a `doctor`/`admin` DB account, which is required to hold a password (+ optional
+  // staff 2FA). The one deliberate exception is the global-admin-by-policy escalation above: that
+  // path is *designed* to be session-derived from verified email control alone. Everyone else who
+  // isn't `client` (the only role with no password at all) is turned away here, unconditionally —
+  // previously this only ran when the caller happened to send `roleLoginPortal`, so omitting that
+  // field logged a doctor/admin straight in with zero password check.
+  if (sessionUser.role !== 'client' && !isGlobalAdminByPolicy) {
+    return NextResponse.json({ ok: false, error: 'portal_access_denied' }, { status: 403 });
+  }
   if (
     parsed.data.roleLoginPortal &&
     !roleCanUsePortal(sessionUser.role, parsed.data.roleLoginPortal)

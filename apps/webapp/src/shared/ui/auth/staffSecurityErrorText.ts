@@ -47,6 +47,11 @@ export function staffSecurityErrorText(error: string | undefined, action: Securi
       return 'Резервный код неверный или уже использован. Введите другой резервный код.';
     case 'invalid_credentials':
       return 'Не удалось подтвердить вход. Войдите снова и запросите новый код.';
+    // Role/portal mismatch (roleCanUsePortal, pre-session) reads to the browser as wrong
+    // credentials on purpose: revealing "this account exists but has no access to this door"
+    // would leak role information to anyone probing the wrong login form with guessed creds.
+    case 'portal_access_denied':
+      return 'Email или пароль неверны. Проверьте данные или восстановите пароль.';
     case 'invalid_body':
       return 'Данные введены неверно. Проверьте их и повторите действие.';
     case 'enrollment_not_started':
