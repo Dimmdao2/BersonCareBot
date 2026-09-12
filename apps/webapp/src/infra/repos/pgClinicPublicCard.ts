@@ -70,7 +70,16 @@ function mapMedia(value: unknown): ClinicPublicCardMedia[] {
     const mimeType = text(row.mimeType);
     const role = mediaRole(row.role);
     if (!id || !mimeType || !role) return [];
-    return [{ id, role, mimeType, s3Key: text(row.s3Key), storedPath: text(row.storedPath) }];
+    return [
+      {
+        id,
+        role,
+        mimeType,
+        s3Key: text(row.s3Key),
+        storedPath: text(row.storedPath),
+        standardRenditionAt: text(row.standardRenditionAt),
+      },
+    ];
   });
 }
 

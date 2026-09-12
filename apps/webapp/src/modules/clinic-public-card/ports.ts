@@ -29,6 +29,8 @@ export type ClinicPublicCardMedia = {
   mimeType: string;
   s3Key: string | null;
   storedPath: string | null;
+  /** Null until our standard image rendition exists; raw bytes are never a public fallback. */
+  standardRenditionAt: string | null;
 };
 
 /**

@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { env, isS3MediaEnabled } from '@/config/env';
 import { logger } from '@/app-layer/logging/logger';
-import { presignGetUrl, sourceStorageKindForKey } from '@/app-layer/media/s3Client';
+import { presignDeliveryGetUrl } from '@/app-layer/media/s3DeliveryClient';
+import { resolveDeliverableMediaObject } from '@/app-layer/media/s3MediaStorage';
 import { serializePresignFailureForLog } from '@/app-layer/media/presignLogRedaction';
 import { readSaasTestLocalMedia } from '@/app-layer/media/localSaasTestFixtureMedia';
 import { resolveClinicPublicCardMediaRsc } from '../../publicClinicCard';
@@ -35,22 +36,18 @@ export async function GET(
 
   const { media } = resolved;
 
-  if (media.s3Key) {
+  const object = resolveDeliverableMediaObject(media.id, {
+    mime_type: media.mimeType,
+    s3_key: media.s3Key,
+    storage_target: 'library',
+    standard_rendition_at: media.standardRenditionAt,
+  });
+
+  if (object) {
     try {
-      /* Карточка клиники — публичный контент организации, не данные пациента. `s3_key` для
-         `library`-цели живёт в сыром бакете (М7) — КРОМЕ ещё не перенесённых старых исходников
-         (F-1), которых форма ключа выдаёт: без `sourceStorageKindForKey` presign либо бил бы
-         NoSuchKey в горячем (свежий ключ), либо в сыром (старый). `app.read_public_clinic_card`
-         пока не знает о `standard_rendition_at` — рендишн-осведомлённость этой двери следующий этап
-         (та же дыра, что М6-аудит нашёл в трёх старых дверях; вне четырёх блокеров этой коррекции —
-         см. отчёт). */
-      const signed = await presignGetUrl(
-        media.s3Key,
-        PRESIGN_TTL_SECONDS,
-        'library',
-        undefined,
-        sourceStorageKindForKey('library', media.s3Key),
-      );
+      const signed = await presignDeliveryGetUrl(object.key, PRESIGN_TTL_SECONDS, object.target, {
+        mimeType: 'image/webp',
+      });
       const response = NextResponse.redirect(signed, 307);
       response.headers.set('Cache-Control', PUBLIC_CACHE_CONTROL);
       return response;

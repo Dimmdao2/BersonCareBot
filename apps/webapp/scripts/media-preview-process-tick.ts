@@ -3,9 +3,11 @@
  * Intended for host cron with the same env as webapp (`webapp.prod`): `DATABASE_URL`, S3 keys/bucket,
  * optional `FFMPEG_PATH`, optional `MAGICK_PATH`.
  *
- * CLI: `--limit N` or `--limit=N`. If unset, uses env `MEDIA_PREVIEW_LIMIT` or default `10`.
+ * CLI: `--limit N` or `--limit=N`; add `--reconcile-images` for the bounded old-image backfill.
+ * If unset, limit uses env `MEDIA_PREVIEW_LIMIT` or default `10`.
  */
 import { processMediaPreviewBatch } from '../src/infra/repos/mediaPreviewWorker';
+import { enterWithDbInfraPrincipal } from '@bersoncare/db-principal';
 
 function parseLimit(argv: string[]): number {
   const args = argv.filter((t) => t !== '--');
@@ -26,10 +28,16 @@ function parseLimit(argv: string[]): number {
 }
 
 async function main(): Promise<void> {
-  const raw = parseLimit(process.argv.slice(2));
+  /* Same operation/capability as the HTTP entrypoint; this CLI is only its direct host runner. */
+  enterWithDbInfraPrincipal({ source: 'api/internal/media-preview/process:POST' });
+  const args = process.argv.slice(2);
+  const raw = parseLimit(args);
   const limit = Number.isFinite(raw) && raw > 0 ? raw : 10;
-  const { processed, errors } = await processMediaPreviewBatch(limit);
-  console.log(JSON.stringify({ ok: true, processed, errors }));
+  const result = await processMediaPreviewBatch(limit, {
+    reconcileMissingImageRenditions: args.includes('--reconcile-images'),
+  });
+  console.log(JSON.stringify({ ok: result.errors === 0, ...result }));
+  if (result.errors > 0) process.exitCode = 1;
 }
 
 main().catch((e) => {

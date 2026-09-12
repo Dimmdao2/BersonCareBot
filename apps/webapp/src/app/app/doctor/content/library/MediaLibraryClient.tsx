@@ -56,7 +56,7 @@ import { MediaCard } from './MediaCard';
 import { MediaCardActionsMenu } from './MediaCardActionsMenu';
 import { MediaLightbox } from './MediaLightbox';
 import { canRenderInlineImage } from './mediaPreview';
-import type { MediaPreviewStatus } from '@/modules/media/types';
+import type { MediaPreviewStatus, VideoProcessingStatus } from '@/modules/media/types';
 import { MediaThumb } from '@/shared/ui/doctor/media/MediaThumb';
 import { buildCrumbsForMediaFolder } from '@/shared/ui/doctor/media/mediaFolderScopeUtils';
 import { useFlatMediaFolders } from '@/shared/ui/doctor/media/useFlatMediaFolders';
@@ -91,6 +91,8 @@ type MediaItem = {
   previewStatus?: MediaPreviewStatus;
   /** `media_files.standard_rendition_at IS NOT NULL` — the stored object is our own re-encode. */
   standardRendition?: boolean;
+  videoProcessingStatus?: VideoProcessingStatus | null;
+  hlsMasterPlaylistS3Key?: string | null;
   sourceWidth?: number | null;
   sourceHeight?: number | null;
 };

@@ -17,7 +17,7 @@ import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspace
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { resolveFileStorageLimit } from '@/modules/org-entitlements/service';
 import { env, isS3MediaEnabled } from '@/config/env';
-import { presignGetUrl } from '@/app-layer/media/s3Client';
+import { resolveInlineMediaDeliveryUrl } from '@/app-layer/media/resolveInlineMediaDeliveryUrl';
 import {
   abortPendingMediaUpload,
   beginAuthorizedMultipartUpload,
@@ -92,12 +92,12 @@ export async function GET(request: Request, { params }: { params: Promise<{ user
       let previewUrl: string | null = null;
       if (s3Available) {
         try {
-          // The type and name we validated at upload time travel with the URL, so the storage host cannot
-          // decide for itself how the browser treats a patient's file.
-          previewUrl = await presignGetUrl(f.s3Key, FILE_PRESIGN_GET_TTL, f.storageTarget, {
-            mimeType: f.mimeType,
-            filename: f.fileName,
-          });
+          previewUrl = await resolveInlineMediaDeliveryUrl(
+            f.mediaFileId,
+            f.mimeType,
+            FILE_PRESIGN_GET_TTL,
+            f.fileName,
+          );
         } catch {
           // Non-fatal: file may not exist in S3 yet.
         }

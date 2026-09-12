@@ -38,6 +38,31 @@ describe('media delivery chokepoint structural gate', () => {
   it('rejects syntax-equivalent and renamed HTTP delivery bypasses', () => {
     const cases: Array<{ name: string; files: FixtureFile[] }> = [
       {
+        name: 'raw bucket in delivery capability',
+        files: [
+          {
+            path: routePath,
+            source:
+              "import { authorizeMediaDelivery } from '@/app-layer/media/authorizeMediaDelivery';\nexport async function GET() { return authorizeMediaDelivery('id', {}); }\n",
+          },
+          {
+            path: 'apps/webapp/src/infra/s3/deliveryClient.ts',
+            source:
+              "import { env } from '@/config/env';\nexport const deliveryBucket = env.S3_RAW_BUCKET;\n",
+          },
+        ],
+      },
+      {
+        name: 'non-api route uses storage-kind-capable S3 port',
+        files: [
+          {
+            path: 'apps/webapp/src/app/[clinicSlug]/media/[mediaId]/route.ts',
+            source:
+              "import { presignGetUrl } from '@/app-layer/media/s3Client';\nexport async function GET() { return Response.redirect(await presignGetUrl('key', 60, 'library', undefined, 'raw')); }\n",
+          },
+        ],
+      },
+      {
         name: 'aliased ACL import',
         files: [
           {

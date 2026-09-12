@@ -53,10 +53,10 @@ vi.mock('@/app-layer/media/s3MediaStorage', () => ({
   getMediaS3KeyForRedirect: mocks.getS3Key,
   getMediaPreviewS3KeyForRedirect: mocks.getPreviewKey,
 }));
-vi.mock('@/app-layer/media/s3Client', () => ({
-  presignGetUrl: mocks.presign,
-  s3GetObjectBody: mocks.getPreviewBody,
-  s3HeadObjectDetails: mocks.getPreviewHead,
+vi.mock('@/app-layer/media/s3DeliveryClient', () => ({
+  presignDeliveryGetUrl: mocks.presign,
+  deliveryGetObjectBody: mocks.getPreviewBody,
+  deliveryHeadObjectDetails: mocks.getPreviewHead,
 }));
 vi.mock('@/app-layer/media/videoPresignTtl', () => ({ getVideoPresignTtlSeconds: mocks.ttl }));
 vi.mock('@/app-layer/media/localSaasTestFixtureMedia', () => ({ readSaasTestLocalMedia: vi.fn() }));
@@ -146,7 +146,7 @@ describe('media delivery routes', () => {
     expect(mocks.presign).not.toHaveBeenCalled();
   });
 
-  it('keeps progressive MP4 as a private 307 and applies the dynamic presign TTL', async () => {
+  it('redirects a deliverable hot object privately and applies the dynamic presign TTL', async () => {
     const response = await getMedia(new Request(`https://app.test/api/media/${mediaId}`), {
       params: Promise.resolve({ id: mediaId }),
     });
@@ -154,7 +154,7 @@ describe('media delivery routes', () => {
     expect(response.status).toBe(307);
     expect(response.headers.get('location')).toBe('https://storage.example/signed');
     expect(response.headers.get('cache-control')).toBe('private, max-age=0, must-revalidate');
-    expect(mocks.presign).toHaveBeenCalledWith('media/file.mp4', 900, 'patient', undefined, undefined);
+    expect(mocks.presign).toHaveBeenCalledWith('media/file.mp4', 900, 'patient');
     expect(mocks.withPatientPrincipal).toHaveBeenCalledWith(
       expect.objectContaining({
         organizationId: '00000000-0000-4000-8000-000000000001',
@@ -162,6 +162,27 @@ describe('media delivery routes', () => {
       }),
       expect.any(Function),
     );
+  });
+
+  it('redirects a ready video to the same-origin HLS proxy, never to its source object', async () => {
+    mocks.getS3Key.mockResolvedValueOnce(null);
+    mocks.resolvePlayback.mockResolvedValueOnce({
+      ok: true,
+      data: {
+        hls: { masterUrl: `/api/media/${mediaId}/hls/master.m3u8` },
+        progressive: null,
+      },
+    });
+
+    const response = await getMedia(new Request(`https://app.test/api/media/${mediaId}`), {
+      params: Promise.resolve({ id: mediaId }),
+    });
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get('location')).toBe(
+      `https://app.test/api/media/${mediaId}/hls/master.m3u8`,
+    );
+    expect(mocks.presign).not.toHaveBeenCalled();
   });
 
   it('stops playback and preview before their delivery consumers when the shared door refuses', async () => {

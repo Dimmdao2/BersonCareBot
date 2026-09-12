@@ -14,7 +14,7 @@ import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitle
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { env, isS3MediaEnabled } from '@/config/env';
-import { presignGetUrl } from '@/app-layer/media/s3Client';
+import { resolveInlineMediaDeliveryUrl } from '@/app-layer/media/resolveInlineMediaDeliveryUrl';
 import { runWithMechanicWriteClearance } from '@/app-layer/entitlements/mechanicWriteClearance';
 
 const FILE_PRESIGN_GET_TTL = 3600;
@@ -65,10 +65,12 @@ export async function GET(
   let previewUrl: string | null = null;
   if (isS3MediaEnabled(env)) {
     try {
-      previewUrl = await presignGetUrl(file.s3Key, FILE_PRESIGN_GET_TTL, file.storageTarget, {
-        mimeType: file.mimeType,
-        filename: file.fileName,
-      });
+      previewUrl = await resolveInlineMediaDeliveryUrl(
+        file.mediaFileId,
+        file.mimeType,
+        FILE_PRESIGN_GET_TTL,
+        file.fileName,
+      );
     } catch {
       // Non-fatal.
     }

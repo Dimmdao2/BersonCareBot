@@ -14,6 +14,7 @@ import {
   s3ObjectKey,
   s3RawObjectKey,
   sourceStorageKindFor,
+  sourceStorageKindForKey,
   storageBucketFor,
 } from './s3Client';
 import type { StorageKind, StorageTarget } from './s3Client';
@@ -100,7 +101,7 @@ export function prepareMediaUpload(input: {
   if (!validated.ok) return validated;
   const id = randomUUID();
   const target = storageTargetFor(input);
-  const kind: StorageKind = sourceStorageKindFor(target);
+  const kind: StorageKind = sourceStorageKindFor(target, validated.value.mimeType);
   const key =
     input.namespace === 'patient-files'
       ? `patient-files/${id}/${sanitizeFilename(validated.value.filename)}`
@@ -193,8 +194,11 @@ export async function beginAuthorizedMultipartUpload(input: {
 
 /**
  * `kind` не персистится в сессии multipart (`media_upload_sessions` хранит только
- * `storage_target`) — он чистая функция от `target`, поэтому пересчитывается здесь тем же
- * правилом, что и при создании загрузки (`sourceStorageKindFor`), а не хранится второй раз.
+ * `storage_target`) и НЕ является функцией одного лишь `target`: с тех пор как документы и аудио
+ * кладутся в горячий бакет, у библиотечной цели бывают оба. Поэтому он восстанавливается из формы
+ * УЖЕ ВЫДАННОГО ключа (`sourceStorageKindForKey`) — той самой, которую выбрала дверь подготовки.
+ * Пересчитать его заново по типу здесь нельзя: продолжение загрузки обязано попасть ровно в тот
+ * бакет, где лежит начатый объект, а не туда, куда сегодня положили бы такой файл.
  */
 export function presignPreparedUploadPart(session: {
   key: string;
@@ -207,7 +211,7 @@ export function presignPreparedUploadPart(session: {
     session.uploadId,
     session.partNumber,
     session.target,
-    sourceStorageKindFor(session.target),
+    sourceStorageKindForKey(session.target, session.key),
   );
 }
 
@@ -217,14 +221,14 @@ export function completePreparedMultipartUpload(
   parts: { PartNumber: number; ETag: string }[],
   target: StorageTarget,
 ): Promise<void> {
-  return s3CompleteMultipartUpload(key, uploadId, parts, target, sourceStorageKindFor(target));
+  return s3CompleteMultipartUpload(key, uploadId, parts, target, sourceStorageKindForKey(target, key));
 }
 
 export function abortPreparedMultipartUpload(
   key: string,
   uploadId: string,
   target: StorageTarget,
-  kind: StorageKind = sourceStorageKindFor(target),
+  kind: StorageKind = sourceStorageKindForKey(target, key),
 ): Promise<void> {
   return s3AbortMultipartUpload(key, uploadId, target, kind);
 }
@@ -239,7 +243,7 @@ export function abortPreparedMultipartUpload(
 export async function validateReceivedMediaObject(
   upload: Pick<PreparedMediaUpload, 'key' | 'intent' | 'target'>,
 ): Promise<UploadValidationResult<ReceivedUpload>> {
-  const kind = sourceStorageKindFor(upload.target);
+  const kind = sourceStorageKindForKey(upload.target, upload.key);
   const head = await s3HeadObjectDetails(upload.key, upload.target, kind);
   if (!head) return { ok: false, error: 'file_not_found_in_s3' };
   const firstBytes = await s3GetObjectPrefix(upload.key, upload.target, undefined, kind);
@@ -254,7 +258,7 @@ export async function validateReceivedMediaObject(
 
 /** Multipart completion additionally verifies the metadata written at CreateMultipartUpload. */
 export function inspectReceivedMediaObject(key: string, target: StorageTarget) {
-  return s3HeadObjectDetails(key, target, sourceStorageKindFor(target));
+  return s3HeadObjectDetails(key, target, sourceStorageKindForKey(target, key));
 }
 
 export function validateBufferedMediaUpload(

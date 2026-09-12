@@ -23,7 +23,9 @@ vi.mock('@/modules/system-settings/configAdapter', () => ({
   getPatientRuntimeBool: mocks.playbackEnabled,
 }));
 vi.mock('@/app-layer/media/videoPresignTtl', () => ({ getVideoPresignTtlSeconds: mocks.ttl }));
-vi.mock('@/app-layer/media/s3Client', () => ({ presignGetUrl: mocks.presign }));
+vi.mock('@/app-layer/media/s3DeliveryClient', () => ({
+  presignDeliveryGetUrl: mocks.presign,
+}));
 vi.mock('@/app-layer/media/playbackStatsHourly', () => ({
   recordPlaybackResolutionStat: mocks.recordStat,
 }));
@@ -104,7 +106,7 @@ describe('resolveMediaPlaybackPayload', () => {
     });
   });
 
-  it('reports the conversion fact from the column, never from the key or the mime type', async () => {
+  it('refuses an image whose conversion fact is absent, even when its key looks like a rendition', async () => {
     mocks.getRow.mockResolvedValue({
       mime_type: 'image/webp',
       s3_key: `media/${mediaId}/standard.webp`,
@@ -124,19 +126,13 @@ describe('resolveMediaPlaybackPayload', () => {
 
     await expect(
       resolveMediaPlaybackPayload({ id: mediaId, session }),
-    ).resolves.toMatchObject({
-      ok: true,
-      data: { preview: { standardRendition: false } },
-    });
+    ).resolves.toEqual({ ok: false, status: 409, error: 'media_processing' });
   });
 
-  it('serves the protected progressive route without reaching S3 for an untrusted HLS artifact key', async () => {
+  it('refuses playback without a trusted HLS ladder instead of exposing the source MP4', async () => {
     const result = await resolveMediaPlaybackPayload({ id: mediaId, session });
 
-    expect(result).toMatchObject({
-      ok: true,
-      data: { delivery: 'mp4', hls: null, progressive: { url: `/api/media/${mediaId}` } },
-    });
+    expect(result).toEqual({ ok: false, status: 409, error: 'media_processing' });
     expect(mocks.presign).not.toHaveBeenCalled();
   });
 
@@ -162,7 +158,7 @@ describe('resolveMediaPlaybackPayload', () => {
     );
   });
 
-  it('serves the progressive route for a patient submission, whose transcode leaves no HLS master', async () => {
+  it('does not expose a patient-submission source when no HLS output exists', async () => {
     mocks.getRow.mockResolvedValue({
       mime_type: 'video/mp4',
       s3_key: `media/${mediaId}/submission.mp4`,
@@ -182,13 +178,10 @@ describe('resolveMediaPlaybackPayload', () => {
 
     await expect(
       resolveMediaPlaybackPayload({ id: mediaId, session }),
-    ).resolves.toMatchObject({
-      ok: true,
-      data: { delivery: 'mp4', hls: null, progressive: { url: `/api/media/${mediaId}` } },
-    });
+    ).resolves.toEqual({ ok: false, status: 409, error: 'media_processing' });
   });
 
-  it('publishes no progressive route once HLS is ready: the source object is gone by then', async () => {
+  it('publishes no progressive route once HLS is ready: source bytes are never playback output', async () => {
     mocks.getRow.mockResolvedValue({
       mime_type: 'video/mp4',
       s3_key: `media/${mediaId}/source.mp4`,

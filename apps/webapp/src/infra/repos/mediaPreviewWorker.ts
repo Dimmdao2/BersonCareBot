@@ -80,6 +80,13 @@ const PERMANENT_ERROR_PATTERNS = [
 export type ProcessMediaPreviewBatchResult = {
   processed: number;
   errors: number;
+  /** Present only in reconciliation mode. */
+  requeued?: number;
+};
+
+export type ProcessMediaPreviewBatchOptions = {
+  /** Requeue at most this batch's old ready images that still have no standard rendition. */
+  reconcileMissingImageRenditions?: boolean;
 };
 
 type MediaPreviewIterationOutcome = 'empty' | 'processed' | 'error';
@@ -352,11 +359,48 @@ async function applyStandardImageRendition(
  */
 export async function processMediaPreviewBatch(
   limit: number = 10,
+  options: ProcessMediaPreviewBatchOptions = {},
 ): Promise<ProcessMediaPreviewBatchResult> {
   const pool = getPool();
   const take = Math.max(1, Math.min(50, limit));
+  let requeued = 0;
   let processed = 0;
   let errors = 0;
+
+  if (options.reconcileMissingImageRenditions === true) {
+    requeued = await withPoolTransaction<number>(pool, async (client) => {
+      const result = await runWebappSql<{ id: string }>(
+        getWebappSqlFromPgClient(client),
+        sql`WITH candidates AS (
+              SELECT id
+                FROM media_files
+               WHERE status = 'ready'
+                 AND mime_type LIKE 'image/%'
+                 AND s3_key IS NOT NULL
+                 AND length(trim(s3_key)) > 0
+                 AND standard_rendition_at IS NULL
+                 /* Терминальные исходы исключены намеренно. Строка, у которой исходника уже нет
+                    (старое поведение 19.08) или файл битый, садится в failed/skipped без
+                    рендишна — и без этого условия КАЖДЫЙ следующий прогон брал бы её первой
+                    (сортировка по created_at), обнулял попытки, повторял тот же путь и занимал
+                    бюджет вместо здоровых строк за ней. Бэкфилл обязан заканчиваться. */
+                 AND (preview_status IS NULL
+                      OR preview_status NOT IN ('pending', 'failed', 'skipped'))
+               ORDER BY created_at, id
+               FOR UPDATE SKIP LOCKED
+               LIMIT ${take}
+            )
+            UPDATE media_files AS media
+               SET preview_status = 'pending',
+                   preview_attempts = 0,
+                   preview_next_attempt_at = NULL
+              FROM candidates
+             WHERE media.id = candidates.id
+          RETURNING media.id::text`,
+      );
+      return result.rows.length;
+    });
+  }
 
   for (let i = 0; i < take; i++) {
     const result = await withPoolTransaction<MediaPreviewIterationResult>(pool, async (client) => {
@@ -597,5 +641,7 @@ export async function processMediaPreviewBatch(
     }
   }
 
-  return { processed, errors };
+  return options.reconcileMissingImageRenditions === true
+    ? { processed, errors, requeued }
+    : { processed, errors };
 }

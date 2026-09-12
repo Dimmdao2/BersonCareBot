@@ -741,7 +741,7 @@ describe('collectS3KeysForMediaPurge trust boundary (shared hlsStorageLayout)', 
  * ignored the key's own shape), and a post-M7 raw source with no rendition yet got a live hour-long
  * presigned link straight to the raw bucket (F-2, `206`, real bytes, zero cookies).
  */
-describe('getMediaS3KeyForRedirect — не сломано существующее (F-1), не подписывает сырой бакет (F-2)', () => {
+describe('getMediaS3KeyForRedirect — только стандартный рендишн изображения', () => {
   const MEDIA_ID = '55555555-5555-4555-8555-555555555555';
   /* Совпадает с `getCurrentDbPrincipalOrganizationId` в моке `@bersoncare/db-principal` выше. */
   const ORG_ID = '44444444-4444-4444-8444-444444444444';
@@ -750,22 +750,19 @@ describe('getMediaS3KeyForRedirect — не сломано существующ�
     vi.clearAllMocks();
   });
 
-  it('F-1: ещё не перенесённый (pre-M7) исходник библиотеки остаётся достижимым — горячий бакет, по форме ключа', async () => {
+  it('не выдаёт pre-M7 исходник даже из горячего бакета', async () => {
     fakes.runSql.mockResolvedValueOnce({
       rows: [
         {
           s3_key: `media/${MEDIA_ID}/source.mp4`,
+          mime_type: 'video/mp4',
           storage_target: 'library',
           standard_rendition_at: null,
         },
       ],
     });
 
-    await expect(getMediaS3KeyForRedirect(MEDIA_ID)).resolves.toEqual({
-      key: `media/${MEDIA_ID}/source.mp4`,
-      target: 'library',
-      kind: 'hot',
-    });
+    await expect(getMediaS3KeyForRedirect(MEDIA_ID)).resolves.toBeNull();
   });
 
   it('F-2: свежий (post-M7) сырой исходник без готового рендишна отказывает, а не подписывает сырой бакет', async () => {
@@ -773,6 +770,7 @@ describe('getMediaS3KeyForRedirect — не сломано существующ�
       rows: [
         {
           s3_key: `${ORG_ID}/media/${MEDIA_ID}/source.mp4`,
+          mime_type: 'video/mp4',
           storage_target: 'library',
           standard_rendition_at: null,
         },
@@ -787,6 +785,7 @@ describe('getMediaS3KeyForRedirect — не сломано существующ�
       rows: [
         {
           s3_key: `${ORG_ID}/media/${MEDIA_ID}/source.jpg`,
+          mime_type: 'image/jpeg',
           storage_target: 'library',
           standard_rendition_at: '2026-09-11T00:00:00.000Z',
         },
@@ -796,25 +795,44 @@ describe('getMediaS3KeyForRedirect — не сломано существующ�
     await expect(getMediaS3KeyForRedirect(MEDIA_ID)).resolves.toEqual({
       key: `media/${MEDIA_ID}/standard.webp`,
       target: 'library',
-      kind: 'hot',
     });
   });
 
-  it('прогрессивный источник пациентской цели всегда горячий — М7 его не трогает', async () => {
+  it('готовый платформенный рендишн проходит через узкий platform-порт', async () => {
+    fakes.runSql
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: MEDIA_ID,
+            s3_key: `media/${MEDIA_ID}/source.jpg`,
+            mime_type: 'image/jpeg',
+            storage_target: 'library',
+            standard_rendition_at: '2026-09-11T00:00:00.000Z',
+          },
+        ],
+      });
+
+    await expect(
+      getMediaS3KeyForRedirect(MEDIA_ID, { allowPlatformBase: true }),
+    ).resolves.toEqual({
+      key: `media/${MEDIA_ID}/standard.webp`,
+      target: 'library',
+    });
+  });
+
+  it('не выдаёт прогрессивный источник пациентской цели: видео ждёт HLS', async () => {
     fakes.runSql.mockResolvedValueOnce({
       rows: [
         {
           s3_key: `media/${MEDIA_ID}/submission.mp4`,
+          mime_type: 'video/mp4',
           storage_target: 'patient',
           standard_rendition_at: null,
         },
       ],
     });
 
-    await expect(getMediaS3KeyForRedirect(MEDIA_ID)).resolves.toEqual({
-      key: `media/${MEDIA_ID}/submission.mp4`,
-      target: 'patient',
-      kind: 'hot',
-    });
+    await expect(getMediaS3KeyForRedirect(MEDIA_ID)).resolves.toBeNull();
   });
 });

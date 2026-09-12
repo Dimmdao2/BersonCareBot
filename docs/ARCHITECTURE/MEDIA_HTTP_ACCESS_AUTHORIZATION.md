@@ -7,11 +7,13 @@ organization isolation). Описывает текущее поведение we
 
 | Маршрут                               | Минимальная проверка                                                                                             | Дополнительно                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | ------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /api/media/[id]`                 | Валидная doctor workspace либо активная patient organization + `assertMediaPlaybackAccess` с `getMediaAccessRow` | Любое медиа сначала ограничено точным совпадением `media_files.organization_id`; для `usage_purpose=program_item_submission` затем действует дополнительный uploader/doctor/admin ACL внутри той же организации ([`programSubmissionPlaybackAccess.ts`](../../apps/webapp/src/modules/media/programSubmissionPlaybackAccess.ts)).                                                                                                                                          |
-| `GET /api/media/[id]/playback`        | `assertMediaPlaybackAccess` + access row                                                                         | Флаг `video_playback_api_enabled`; для submission — progressive MP4 only (без HLS). Stats skip для submission.                                                                                                                                                                                                                                                                                                                                                             |
+| `GET /api/media/[id]`                 | Валидная doctor workspace либо активная patient organization + `assertMediaPlaybackAccess` с `getMediaAccessRow` | Любое медиа сначала ограничено точным совпадением `media_files.organization_id`; картинка редиректит только на стандартный WebP-рендишн, видео — только на same-origin HLS master. Исходный `s3_key` эта дверь не подписывает. Для `usage_purpose=program_item_submission` дополнительно действует uploader/doctor/admin ACL внутри той же организации ([`programSubmissionPlaybackAccess.ts`](../../apps/webapp/src/modules/media/programSubmissionPlaybackAccess.ts)). |
+| `GET /api/media/[id]/playback`        | `assertMediaPlaybackAccess` + access row                                                                         | Флаг `video_playback_api_enabled`; видео возвращает только готовую HLS-лестницу, картинка — только стандартный рендишн. Пока вывода нет — `409 media_processing`; PDF, аудио и документы получают `404 inline_preview_unavailable`, без presigned URL. Stats skip для submission.                                                                                                                                    |
 | `GET /api/media/[id]/hls/[[...path]]` | Сессия + `assertMediaPlaybackAccess` + access row + `video_playback_api_enabled`                                 | Потоковая отдача master/variant/сегментов из private bucket через webapp; `getMediaRowForPlayback` + `isTrustedHlsArtifactS3Key`. Сегменты с **`Range`** (206). Ошибки ответов прокси — в `media_hls_proxy_error_events` (не на каждый успешный байт). Без сессии — **401** + structured **`warn`** `hls_proxy_error` (`reasonCode: session_unauthorized`); без включённого playback API — **503** — эти два случая в таблицу телеметрии **не** пишутся (политика объёма). |
-| `GET /api/media/[id]/preview/[size]`  | Валидная doctor workspace либо активная patient organization                                                     | Превью использует тот же organization/submission access row; при отсутствии превью — редирект на `GET /api/media/[id]`.                                                                                                                                                                                                                                                                                                                                                    |
+| `GET /api/media/[id]/preview/[size]`  | Валидная doctor workspace либо активная patient organization                                                     | Превью использует тот же organization/submission access row; при отсутствии превью — редирект на `GET /api/media/[id]`, который сырой объект не отдаёт.                                                                                                                                                                                                                                                                                                                     |
 | `GET /api/media/[id]/original`        | Валидная doctor workspace + `authorizeMediaDelivery` с `intent: 'raw_original'`                                  | Скачивание загруженного файла (М6). Поверх организационной стены — совпадение с `media_files.uploaded_by` (`modules/media/rawOriginalDownloadRule.ts`); платформенная библиотека и пациентская сессия сюда не заходят. Байты идут **через вебапп**, presigned URL не выпускается: `Content-Disposition: attachment` + `Content-Type: application/octet-stream` + `X-Content-Type-Options: nosniff` + `Cache-Control: no-store`, `Accept-Ranges: none`.                       |
+| `GET /api/doctor/patients/[userId]/files[/fileId]` | Валидная doctor workspace + patient-files organization scope                                      | Поля `previewUrl` строятся единым `resolveInlineMediaDeliveryUrl`: стандартный WebP либо same-origin HLS; для неготовых медиа и документов — `null`. Скачивание идёт только через `/api/media/[id]/original`.                                                                                                                                                                                                       |
+| `GET /[clinicSlug]/media/[mediaId]`   | Анонимная публичная карточка клиники                                                                             | Порт карточки несёт `standardRenditionAt`; маршрут применяет общий `resolveDeliverableMediaObject` и может подписать только стандартный WebP в hot-бакете. Пока рендишна нет — `404`, сырого fallback нет.                                                                                                                                                                                                         |
 | `POST /api/media/presign`             | Валидная doctor workspace                                                                                        | Создание pending-записи сразу штампует `organization_id`; это не потоковое чтение.                                                                                                                                                                                                                                                                                                                                                                                         |
 
 `/api/media/*` **не** входит в `patientRouteApiPolicy` / `PATIENT_BUSINESS_API_PREFIXES`: это общие маршруты Next, не поверхность `/api/patient/*`.
@@ -34,7 +36,8 @@ organization isolation). Описывает текущее поведение we
   [`canAccessProgramSubmissionMedia`](../../apps/webapp/src/modules/media/programSubmissionPlaybackAccess.ts)
   разрешает **uploader** (patient) либо **doctor/admin** этой организации; другая организация не получает строку,
   чужой patient session внутри организации → **401**.
-- Transcode: 480p progressive MP4, poster.jpg, без HLS; исходник удаляется после успеха.
+- Текущий transcode строит 480p progressive MP4 и poster.jpg, но не HLS; поэтому после М7 встроенный
+  просмотр такого видео не включается, пока отдельный этап не переведёт его на общую HLS-лестницу.
 - Не учитывается в `recordPlaybackResolutionStat` / material-ratings.
 - Инициатива: [`docs/archive/2026-05-initiatives/PROGRAM_ITEM_DISCUSSION_INITIATIVE/README.md`](../archive/2026-05-initiatives/PROGRAM_ITEM_DISCUSSION_INITIATIVE/README.md).
 
@@ -54,7 +57,12 @@ organization isolation). Описывает текущее поведение we
 - **Markdown тела страницы (`body_md`):** на клиенте для ссылок на `/api/media/{uuid}` выполняется тот же **`GET /api/media/{id}/playback`** с cookie-сессией; без сессии или при ошибке пользователь видит обычную ссылку, а не встроенный плеер ([`MarkdownEmbeddedLink.tsx`](../../apps/webapp/src/shared/ui/markdown/MarkdownEmbeddedLink.tsx)).
 - **Программа лечения (пациент):** загрузка данных через `getInstanceForPatient(userId, instanceId)` — пациент не получает чужой инстанс в UI; видимость пунктов этапа — `stage-semantics` и `docs/ARCHITECTURE/PATIENT_TREATMENT_PROGRAM_STAGE_SURFACES.md`. Плеер в модалке (`PatientProgramStageItemModal`) использует тот же `/api/media/...`, если UUID утечёл вне этого контекста.
 
-## Скачивание исходника: почему не редирект на presigned URL
+## Граница hot/raw и скачивание исходника
+
+Browser-facing код получает S3 только через `infra/s3/deliveryClient.ts`. Этот capability не принимает
+`StorageKind` и всегда выбирает `hot`; имени сырого бакета в его интерфейсе нет. HLS, превью, постеры,
+стандартные картинки, карточка клиники и ссылки файлов пациента используют только его. Доступ к `raw`
+остаётся у загрузки/энкодеров и у единственной двери `GET /api/media/[id]/original`.
 
 Владелец 10.09.2026: «исходник отдаём… только тому специалисту, который это загрузил, и только как
 вложение… неисполняемый в браузере, несмотря на то, что это видео».
@@ -65,20 +73,13 @@ organization isolation). Описывает текущее поведение we
 потоком через вебапп: все три заголовка стоят на нашем ответе, ЭТИМ маршрутом presigned URL не
 выпускается, и каждое скачивание заново предъявляет сессию.
 
-🔴 **Это утверждение верно про маршрут и НЕВЕРНО про объект** (независимый аудит 10.09.2026,
-`docs/REPORTS/AUDIT_MEDIA_RAW_ORIGINAL_DOWNLOAD_2026-09-10.md`). К тем же байтам ведут более старые
-двери, каждая из которых выпускает часовую пересылаемую подпись на тот же `s3_key`, без
-`attachment` и с настоящим mime, — то есть браузер её проигрывает: строка `GET /api/media/[id]`
-таблицы выше (307 на подпись; туда же смотрит `progressive.url` плеера и пункт меню «Скопировать
-URL» медиатеки), список файлов пациента (`api/doctor/patients/[userId]/files/route.ts`, подпись с
-`response-content-disposition=inline` каждому врачу организации) и одиночный маршрут файла. Пока они
-живы, «исходник только загрузившему» держится на ОДНОЙ из четырёх дверей. Закрывается это этапом М7
-плана `docs/_TODO/STORAGE_PACKAGES_2026-09-10.md` (выдача физически не умеет ходить в бакет сырых
-загрузок) плюс снятием пресайна исходника с путей проигрывания.
+Аудит 10.09.2026 (`docs/REPORTS/AUDIT_MEDIA_RAW_ORIGINAL_DOWNLOAD_2026-09-10.md`) находил три старые
+двери с presigned URL на `s3_key`. Они закрыты: общая выдача, `progressive.url`, список и одиночный
+файл пациента больше не подписывают исходник; пункт «Скопировать URL» виден только для готового
+рендишна/HLS. Поэтому правило относится к объекту целиком, а не только к `/original`.
 
-У картинок отдаётся стандартный рендишн, а не исходник: `mediaPreviewWorker` заменяет объект по
-`s3_key` своим выводом и ставит `standard_rendition_at` (SECURITY_CANON §5). Поэтому в интерфейсе
-слово «исходник» стоит только у видео, у остальных типов — «Скачать файл».
+После М7 оригинал картинки сохраняется в raw-бакете и скачивается тем же маршрутом, но кнопка у
+невидео называется «Скачать файл». В браузере картинка показывается только как стандартный WebP.
 
 ## Исключение по смыслу «владение файлом» (не поток каталога)
 

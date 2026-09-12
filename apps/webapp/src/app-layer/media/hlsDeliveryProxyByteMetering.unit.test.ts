@@ -31,9 +31,9 @@ vi.mock('@/app-layer/media/hlsTrustedOriginPrefixes', () => ({
 vi.mock('@/app-layer/media/s3MediaStorage', () => ({
   getMediaRowForPlayback: fakes.getRow,
 }));
-vi.mock('@/app-layer/media/s3Client', () => ({
-  s3GetPrivateObjectBuffer: fakes.getBuffer,
-  s3GetObjectStream: fakes.getStream,
+vi.mock('@/app-layer/media/s3DeliveryClient', () => ({
+  deliveryGetPrivateObjectBuffer: fakes.getBuffer,
+  deliveryGetObjectStream: fakes.getStream,
 }));
 vi.mock('@/app-layer/media/hlsProxyErrorEvents', () => ({
   recordMediaHlsProxyErrorEventIfNeeded: vi.fn(),
