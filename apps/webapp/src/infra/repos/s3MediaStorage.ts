@@ -862,14 +862,19 @@ export type MediaAccessRow = {
 };
 
 /**
- * Platform exercise-library media bridge (deploy/postgres migration
- * 0250_c4d_platform_library_read_staff_scope.sql). app_patient (and therefore the anonymous
- * bootstrap connection) has no ambient RLS visibility into owner_kind = 'platform' rows on
- * media_files any more -- `c4d_platform_library_read` is scoped `TO app_staff`. This is the one
- * legitimate non-staff read path (a doctor or patient viewing a platform exercise's media once
- * apps/webapp/src/app-layer/media/resolvePlatformLfkMediaAccess.ts has already confirmed
- * entitlement), so it goes through the narrow SECURITY DEFINER accessor instead of an ambient
- * SELECT. Callers MUST have already confirmed entitlement -- this function does not check it.
+ * Platform exercise-library media bridge. NO runtime role has ambient RLS visibility into
+ * owner_kind = 'platform' rows on media_files -- measured on DEV 12.09.2026: app_staff sees
+ * `organization_id = app.current_org_id()` only (`rev10_media_files_staff_106`) and app_patient
+ * reads through its own patient-scoped policy. (The comment here used to cite migration
+ * 0250_c4d_platform_library_read_staff_scope.sql and its `c4d_platform_library_read` policy as the
+ * living rule; the rev10 reconcile replaced it -- `SELECT count(*) FROM pg_policies WHERE policyname
+ * LIKE 'c4d_%'` is 0. The conclusion below did not change, only its reason.)
+ *
+ * So this is the one legitimate platform read path, for staff and patient alike (viewing a platform
+ * exercise's media once apps/webapp/src/app-layer/media/resolvePlatformLfkMediaAccess.ts has already
+ * confirmed entitlement): the narrow SECURITY DEFINER accessor `app.read_platform_media_row`, which
+ * attests the caller's role itself and pins `owner_kind = 'platform' AND organization_id IS NULL`.
+ * Callers MUST have already confirmed entitlement -- this function does not check it.
  */
 type PlatformMediaRow = {
   id: string;
