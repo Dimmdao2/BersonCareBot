@@ -1,7 +1,6 @@
 -- BCB-MIGRATION-OWNER: app_seam_custom_domain_owner
 -- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
--- BCB-MIGRATION-REHOME-FUNCTION: app.read_anonymous_patient_surface_projection(uuid)
 -- BCB-MIGRATION-VERIFY: SELECT pg_catalog.pg_get_function_result('app.read_anonymous_patient_surface_projection(uuid)'::pg_catalog.regprocedure) NOT LIKE '%skip_public_card_at_root%' AND NOT EXISTS (SELECT 1 FROM public.system_settings WHERE key = 'clinic_root_skip_public_card')
 --
 -- Владелец 12.09.2026, дословно: «app clinic ru не должен вести на публичную карточку клиники. Он

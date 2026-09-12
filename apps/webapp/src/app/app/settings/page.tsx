@@ -397,6 +397,19 @@ export default async function SettingsPage({
       ),
     );
     /**
+     * Владелец 12.09.2026: «Галочку включили — из общего списка пропали». Дефолт ВЫКЛЮЧЕНО —
+     * организация остаётся на общей платформе, пока сама не решит иначе.
+     */
+    const usesOwnPatientApp =
+      valueOf<unknown>(
+        clinicAdminSettings.find(
+          (setting) =>
+            setting.key === 'clinic_uses_own_patient_app' &&
+            setting.organizationId === workspace.organizationId,
+        )?.valueJson,
+        false,
+      ) === true;
+    /**
      * #926 §17.Q. Дефолт ВКЛЮЧЕНО и здесь, и в двери каталога записи: клиника публикует визитку
      * каждого специалиста отдельной галкой, и молчаливое «не показываем» означало бы, что платформа
      * игнорирует уже сделанный ею выбор. Обоснование целиком — в реестре `system-settings`.
@@ -515,6 +528,7 @@ export default async function SettingsPage({
             publishedLogoUrl={publishedLogoUrl}
             publishedAppIconMediaId={publishedBrand?.appIconMediaId ?? null}
             publishedAppIconUrl={publishedAppIconUrl}
+            usesOwnPatientApp={usesOwnPatientApp}
             clinicBots={clinicBots}
           />
         ) : null}

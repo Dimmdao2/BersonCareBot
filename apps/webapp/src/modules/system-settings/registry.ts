@@ -380,6 +380,18 @@ export const SYSTEM_SETTING_REGISTRY = {
    * (`card_is_published DEFAULT false` против конструктора ссылки) и открыл §17.Q.
    */
   clinic_booking_show_specialist_cards: runtime('admin', 'per_org', 'server', 'boolean', 'true'),
+  /**
+   * «Своё приложение вместо общей платформы» — решение владельца 12.09.2026, дословно: «Галочку
+   * включили — из общего списка пропали. Всё, вы на бренде».
+   *
+   * Включённый признак убирает организацию из списка клиник пациента на общей платформе СРАЗУ,
+   * не дожидаясь настроенного или проверенного домена: «когда организация там поставит свой
+   * домен, когда она его не поставит, будет она это делать или нет? Нас это не касается».
+   *
+   * От галки визитки (`card_is_published`) не зависит и на неё не влияет — владелец назвал их
+   * двумя НЕЗАВИСИМЫМИ переключателями.
+   */
+  clinic_uses_own_patient_app: runtime('admin', 'per_org', 'server', 'boolean', 'false'),
   booking_default_organization_id: restricted('admin', 'global', 'uuid'),
   booking_calendar_show_working_hours: runtime(
     'admin',

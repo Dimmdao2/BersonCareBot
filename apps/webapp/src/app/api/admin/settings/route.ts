@@ -103,6 +103,7 @@ const CLINIC_BOT_PATCH_MESSAGES: Readonly<Record<ClinicBotPatchError, string>> =
 /** Single-key PATCH: boolean keys normalized like `video_watermark_enabled`. */
 const ADMIN_BOOLEAN_SETTING_KEYS = new Set<string>([
   'clinic_booking_show_specialist_cards',
+  'clinic_uses_own_patient_app',
   'booking_calendar_show_working_hours',
   'booking_payment_enabled',
   'material_ratings_enabled',
@@ -158,6 +159,7 @@ const ADMIN_SCOPE_KEYS = [
   'video_watermark_enabled',
   'patient_booking_url',
   'clinic_booking_show_specialist_cards',
+  'clinic_uses_own_patient_app',
   'booking_default_organization_id',
   'booking_calendar_show_working_hours',
   'booking_min_notice_hours',

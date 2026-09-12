@@ -1563,7 +1563,13 @@ const integratorSupportBridge = createIntegratorSupportBridge({
     if (!patientOrganizationService) return { ok: false, error: 'organization_not_resolved' };
     const result = await patientOrganizationService.resolveActiveOrganizationForPatient(
       platformUserId,
-      verifiedOrganizationId ? { verifiedTargetOrganizationId: verifiedOrganizationId } : {},
+      {
+        ...(verifiedOrganizationId ? { verifiedTargetOrganizationId: verifiedOrganizationId } : {}),
+        // Мост интегратора — не общий список платформы: у него нет хоста запроса, и сюда приходит
+        // бот самой клиники за своим же пациентом. Скрытие брендированных клиник тут означало бы,
+        // что клиника, ушедшая в своё приложение, теряет собственного бота.
+        includeOwnAppOrganizations: true,
+      },
     );
     return result.ok
       ? { ok: true, organizationId: result.organizationId }

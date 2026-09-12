@@ -26,11 +26,23 @@ export type PatientOrganizationResolution =
 export type ResolvePatientOrganizationOptions = {
   rememberedOrganizationId?: string | null;
   verifiedTargetOrganizationId?: string | null;
+  /**
+   * Показывать ли клиники, ушедшие в своё приложение (`usesOwnPatientApp`). По умолчанию НЕТ —
+   * владелец 12.09.2026: «Галочку включили — из общего списка пропали. Всё, вы на бренде».
+   *
+   * Умолчание закрытое намеренно: новый вызывающий, который про признак не знает, получает общую
+   * платформу без брендированных клиник, а не наоборот. Открывают его ровно два случая, и оба
+   * называют себя явно: собственный адрес клиники (через `verifiedTargetOrganizationId` — своя
+   * организация видна на своём хосте всегда, иначе её же пациент не вошёл бы в её же кабинет) и
+   * небраузерные вызовы без хоста, которым общий список платформы вообще не показывают.
+   */
+  includeOwnAppOrganizations?: boolean;
 };
 
 function toOrganizationSummaries(
   rows: Awaited<ReturnType<PatientOrganizationPort['listActiveEnrollmentsByPlatformUser']>>,
   platformUserId: string,
+  visibility: { includeOwnApp: boolean; alwaysVisibleOrganizationId: string | null },
 ): PatientOrganizationSummary[] {
   const byId = new Map<string, PatientOrganizationSummary>();
   for (const row of rows) {
@@ -39,6 +51,12 @@ function toOrganizationSummaries(
       row.status !== 'active' ||
       !row.organizationIsActive ||
       byId.has(row.organizationId)
+    )
+      continue;
+    if (
+      row.usesOwnPatientApp &&
+      !visibility.includeOwnApp &&
+      row.organizationId !== visibility.alwaysVisibleOrganizationId
     )
       continue;
     byId.set(row.organizationId, {
@@ -55,12 +73,15 @@ export function createPatientOrganizationService(deps: { port: PatientOrganizati
     options: ResolvePatientOrganizationOptions = {},
   ): Promise<PatientOrganizationResolution> {
     const rows = await deps.port.listActiveEnrollmentsByPlatformUser(platformUserId);
-    const organizations = toOrganizationSummaries(rows, platformUserId);
+    const verifiedTarget = options.verifiedTargetOrganizationId?.trim() || null;
+    const organizations = toOrganizationSummaries(rows, platformUserId, {
+      includeOwnApp: options.includeOwnAppOrganizations === true,
+      alwaysVisibleOrganizationId: verifiedTarget,
+    });
     if (organizations.length === 0) {
       return { ok: false, reason: 'no_active_enrollment' };
     }
 
-    const verifiedTarget = options.verifiedTargetOrganizationId?.trim() || null;
     if (verifiedTarget) {
       const organization = organizations.find((row) => row.organizationId === verifiedTarget);
       if (!organization) return { ok: false, reason: 'organization_target_not_authorized' };

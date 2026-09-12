@@ -39,6 +39,7 @@ type ActiveOrganizationRow = {
   organization_title: string;
   platform_user_id: string;
   enrollment_created_at: Date | string;
+  uses_own_patient_app: boolean;
 };
 
 type PgErrorLike = {
@@ -53,6 +54,7 @@ function mapOrgEnrollment(row: ActiveOrganizationRow): PatientOrganizationEnroll
     platformUserId: row.platform_user_id,
     status: 'active',
     organizationIsActive: true,
+    usesOwnPatientApp: row.uses_own_patient_app === true,
     createdAt: toIsoStringSafe(row.enrollment_created_at),
   };
 }

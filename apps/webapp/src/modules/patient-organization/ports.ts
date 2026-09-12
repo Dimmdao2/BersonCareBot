@@ -4,6 +4,13 @@ export type PatientOrganizationEnrollment = {
   platformUserId: string;
   status: 'active' | 'invited' | 'discharged' | 'archived';
   organizationIsActive: boolean;
+  /**
+   * Клиника работает в СВОЁМ приложении на своём адресе, а не в общей платформе (признак
+   * организации `clinic_uses_own_patient_app`, владелец 12.09.2026). Денормализован сюда рядом с
+   * `organizationIsActive` тем же способом и по той же причине: список организаций пациента — он
+   * же ответ на «пускать ли сюда», и второй источник этого признака разошёлся бы с первым.
+   */
+  usesOwnPatientApp: boolean;
   createdAt: string;
 };
 

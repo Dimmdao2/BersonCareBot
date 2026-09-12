@@ -6717,6 +6717,23 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
           "SELECT"
         ],
         "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      // Владелец 12.09.2026: «Галочку включили — из общего списка пропали». Признак организации
+      // `clinic_uses_own_patient_app` живёт в общем реестре `system-settings`, и дверь проецирует
+      // его рядом со списком, а не вторым запросом: иначе фильтр списка читал бы одну картину, а
+      // проверка «можно ли сюда войти» — другую. Те же четыре колонки, что читают соседние двери.
+      {
+        "relation": "public.system_settings",
+        "columns": [
+          "key",
+          "scope",
+          "organization_id",
+          "value_json"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
       }
     ],
     "invocation": "runtime"

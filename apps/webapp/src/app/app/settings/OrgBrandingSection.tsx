@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useId, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { Button } from '@/shared/ui/doctor/primitives/button';
@@ -13,7 +13,9 @@ import {
 } from '@/shared/ui/doctor/DoctorSection';
 import type { ActionFailureFields } from '@/shared/http/apiResponse';
 import { ActionFailureText } from '@/shared/ui/doctor/ActionFailureText';
+import { Checkbox } from '@/shared/ui/doctor/primitives/checkbox';
 import { OrgBrandLogoControl, type OrgBrandLogoChange } from './OrgBrandLogoControl';
+import { patchAdminSettingWithResult } from './patchAdminSetting';
 import { SecretSettingInput } from './SecretSettingInput';
 import { saveOrgBranding } from './brandingActions';
 import { apiJson } from '@/shared/lib/apiJson';
@@ -44,6 +46,11 @@ type Props = {
   /** Опубликованная иконка приложения и её URL предпросмотра; `null` — иконка не поставлена. */
   publishedAppIconMediaId: string | null;
   publishedAppIconUrl: string | null;
+  /**
+   * «Своё приложение вместо общей платформы» (`clinic_uses_own_patient_app`). Не зависит от галки
+   * визитки и не влияет на неё — владелец 12.09.2026 назвал их двумя независимыми переключателями.
+   */
+  usesOwnPatientApp: boolean;
   clinicBots?: {
     telegram: ClinicBotSettings;
     max: ClinicBotSettings;
@@ -268,6 +275,7 @@ export function OrgBrandingSection({
   publishedLogoUrl,
   publishedAppIconMediaId,
   publishedAppIconUrl,
+  usesOwnPatientApp: initialUsesOwnPatientApp,
   clinicBots,
 }: Props) {
   const router = useRouter();
@@ -277,6 +285,9 @@ export function OrgBrandingSection({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<ActionFailureFields | null>(null);
   const [justSaved, setJustSaved] = useState(false);
+  const ownAppId = useId();
+  const [usesOwnPatientApp, setUsesOwnPatientApp] = useState(initialUsesOwnPatientApp);
+  const [savingOwnApp, setSavingOwnApp] = useState(false);
 
   const baselineName = (publishedDisplayName ?? coreDisplayName).trim();
   const dirty =
@@ -320,6 +331,23 @@ export function OrgBrandingSection({
     } finally {
       setSaving(false);
     }
+  }
+
+  /**
+   * Отдельная галка со своим сохранением — намеренно не часть кнопки «Сохранить» выше: та
+   * публикует РЕВИЗИЮ бренда (имя, логотип, иконка), а это признак организации в общем реестре
+   * настроек. Складывать их в одно действие значило бы, что снятая галка ждёт публикации ревизии.
+   */
+  async function saveOwnPatientApp(next: boolean) {
+    const previous = usesOwnPatientApp;
+    setUsesOwnPatientApp(next);
+    setSavingOwnApp(true);
+    const result = await patchAdminSettingWithResult('clinic_uses_own_patient_app', next);
+    if (!result.ok) {
+      setUsesOwnPatientApp(previous);
+      toast.error('Не удалось сохранить настройку. Повторите попытку.');
+    }
+    setSavingOwnApp(false);
   }
 
   return (
@@ -377,6 +405,24 @@ export function OrgBrandingSection({
             sourceGate={appIconSourceGate}
           />
         </div>
+
+        <label className="flex items-start gap-2 text-sm" htmlFor={ownAppId}>
+          <Checkbox
+            id={ownAppId}
+            checked={usesOwnPatientApp}
+            onCheckedChange={(checked) => void saveOwnPatientApp(checked === true)}
+            disabled={!brandingMutationAvailable || savingOwnApp}
+            className="mt-0.5"
+          />
+          <span>
+            Своё приложение для пациентов вместо общей платформы
+            <span className="mt-0.5 block text-xs text-muted-foreground">
+              Пациенты попадают в кабинет только с вашего адреса. Организация сразу перестаёт
+              показываться в списке клиник на общей платформе — независимо от того, настроен ли уже
+              свой домен.
+            </span>
+          </span>
+        </label>
 
         <ActionFailureText failure={error} />
         {justSaved && !dirty ? <p className="text-sm text-muted-foreground">Сохранено.</p> : null}
