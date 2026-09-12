@@ -50,6 +50,16 @@ export type AppointmentTerms = {
   appointmentPrepositionalPlural: string;
 };
 
+/**
+ * Формы, которых достаточно, чтобы назвать формат события записи: род (для согласования
+ * определения) и само слово. Объявлено здесь, в доме терминологии, чтобы и текст сообщения, и
+ * карточка кабинета требовали ОДИН и тот же аргумент, не импортируя его друг у друга.
+ */
+export type AppointmentMessageTerms = Pick<
+  AppointmentTerms,
+  'appointmentGender' | 'appointmentSingular'
+>;
+
 export type PatientTerms = AppointmentTerms & {
   /** Именительный падеж мн.ч.: «Пациенты» или «Клиенты». */
   patientPluralLabel: string;

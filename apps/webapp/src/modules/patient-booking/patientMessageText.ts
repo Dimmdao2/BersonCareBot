@@ -5,7 +5,17 @@
  * (`apps/integrator/src/integrations/bersoncare/bookingLifecycleRoute.ts`), это перенос поведения,
  * а не новый текст. Формат даты специально не переиспользует `shared/lib/formatBusinessDateTime.ts`
  * (там иная нормализация пробелов для UI) — здесь важно побайтово повторить прежний вывод интегратора.
+ *
+ * T-F (терминология, решение владельца 12.09.2026): слово организации о событии записи приходит
+ * сюда ОБЯЗАТЕЛЬНЫМ аргументом `terms`. Этот слой — текст: он не ходит в базу и настроек не читает,
+ * значение читает вызывающий там, где организация уже известна. Аргумент обязателен намеренно:
+ * необязательный оставил бы шаблон на «приёме» при зелёном `tsc` — ровно тот молчащий обход, что
+ * закрывает `patientBookingLabels.ts` в кабинете клиента.
  */
+import {
+  appointmentDeliveryFormatLabels,
+  type AppointmentMessageTerms,
+} from '@/modules/system-settings/patientTerms';
 
 function formatPatientMessageDateTime(iso: string, timeZone: string): string {
   const date = new Date(iso);
@@ -21,9 +31,11 @@ export function buildPatientCreatedMessageText(
     cityCodeSnapshot?: string | null;
   },
   timeZone: string,
+  terms: AppointmentMessageTerms,
 ): string {
   const dateLabel = formatPatientMessageDateTime(input.slotStart, timeZone);
-  const typeLabel = input.bookingType === 'online' ? 'Онлайн' : 'Очный приём';
+  const typeLabel =
+    input.bookingType === 'online' ? 'Онлайн' : appointmentDeliveryFormatLabels(terms).in_person;
   const city = input.cityCodeSnapshot?.trim() || input.city?.trim();
   const citySuffix = city ? ` (${city})` : '';
   return `Запись подтверждена: ${dateLabel}\n${typeLabel}${citySuffix}`;
@@ -43,12 +55,21 @@ export function buildPatientCancelledMessageText(
 export function buildPatientRescheduledMessageText(
   input: { slotStart: string; bookingType: 'in_person' | 'online' },
   timeZone: string,
+  terms: AppointmentMessageTerms,
 ): string {
   const dateLabel = formatPatientMessageDateTime(input.slotStart, timeZone);
-  const typeLabel = input.bookingType === 'online' ? 'Онлайн' : 'Очный приём';
+  const typeLabel =
+    input.bookingType === 'online' ? 'Онлайн' : appointmentDeliveryFormatLabels(terms).in_person;
   return `Запись перенесена на ${dateLabel}\n${typeLabel}`;
 }
 
+/**
+ * ⛔ Слово организации сюда НЕ приходит, и это не пропуск. Единственный вызывающий —
+ * `app-layer/booking/appointmentPaymentConfirmedHandler.ts`, а он работает под ОРГАНИЗАЦИОННЫМ
+ * принципалом вебхука эквайринга, которому дверь к `appointment_label` физически закрыта
+ * (`readOrganizationAppointmentTerms`, замер на DEV 12.09.2026). Открывать новую дверь ради текста —
+ * решение владельца, а не механическая правка; путь остаётся на платформенном «приёме».
+ */
 export function buildPatientPaymentCapturedMessageText(
   input:
     | { slotStart: string }

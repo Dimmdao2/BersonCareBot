@@ -184,6 +184,7 @@ export function createBookingCreatedEffects(
             cityCodeSnapshot: input.cityCodeSnapshot,
           },
           input.timeZone,
+          input.appointmentTerms,
         );
         for (const target of recipients) {
           const awaitingPayment = input.awaitingPayment;
