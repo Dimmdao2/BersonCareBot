@@ -7,7 +7,7 @@ import {
   DOCTOR_WORKSPACE_COMPOSITION_KEY,
 } from './doctorWorkspaceComposition';
 import { SystemSettingsOrgContextRequiredError } from './orgScopedKeys';
-import { APPOINTMENT_LABEL_KEY } from './patientTerms';
+import { APPOINTMENT_LABEL_KEY, resolvePatientTerms } from './patientTerms';
 import type { SystemSettingKey, SystemSettingScope } from './registry';
 import { createSystemSettingsService } from './service';
 
@@ -179,5 +179,17 @@ describe('clinic-owner settings atomic batch', () => {
     await expect(
       service.getSetting(APPOINTMENT_LABEL_KEY, 'doctor', { organizationId: ORGANIZATION_ID }),
     ).resolves.toMatchObject({ valueJson: { value: 'тренировка' } });
+  });
+
+  /**
+   * Отказ, который этот тест ловит: клиника ничего не выбирала, а дефолт резолвера уехал с «приёма»
+   * на другое слово — и все уже работающие клиники разом заговорили иначе, без единой правки в их
+   * настройках и без единого красного теста (проверено инъекцией: подмена дефолта на «сеанс»
+   * оставляла прогон зелёным).
+   *
+   * Oracle — решение владельца 12.09.2026: «приём» есть сегодняшнее поведение, а не наша таблица форм.
+   */
+  it('keeps the platform default appointment word at «приём»', () => {
+    expect(resolvePatientTerms().appointmentSingular).toBe('приём');
   });
 });
