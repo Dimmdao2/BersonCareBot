@@ -34,7 +34,7 @@ function input(overrides: Partial<BookingCreatedEffectsInput> = {}): BookingCrea
     notifyPatient: true,
     timeZone: 'Europe/Moscow',
     // Слово организации приходит тем же путём, что в продукте — через резолвер, а не литералом.
-    appointmentTerms: resolvePatientTerms(undefined, undefined, undefined),
+    appointmentTerms: resolvePatientTerms({ appointmentLabel: undefined }),
     ...overrides,
   };
 }

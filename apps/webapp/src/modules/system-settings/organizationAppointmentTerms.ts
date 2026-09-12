@@ -1,3 +1,4 @@
+import { cache } from 'react';
 import { getPatientRuntimeValue } from './configAdapter';
 import { resolvePatientTerms, type AppointmentTerms } from './patientTerms';
 
@@ -24,13 +25,15 @@ import { resolvePatientTerms, type AppointmentTerms } from './patientTerms';
  *     Ему объявлены только именованные корни класса `tenant_service`, а этот seam требует
  *     аттестованную роль `app_patient`/`app_staff`. Звать отсюда под ним нельзя: такой путь
  *     остаётся на платформенном «приёме», как публичная запись в T-E.
+ *
+ * N2 (аудит T-F): `react.cache` живёт ровно один серверный запрос, как у соседнего
+ * `getAppDisplayTimeZone()`. Без него один запрос спрашивал базу на КАЖДОЕ событие записи, включая
+ * `booking.cancelled` (где слово в текст не попадает), и дважды в ветке предоплаты `canonicalCreate`.
  */
-export async function readOrganizationAppointmentTerms(
-  organizationId: string,
-): Promise<AppointmentTerms> {
-  return resolvePatientTerms(
-    undefined,
-    undefined,
-    await getPatientRuntimeValue('appointment_label', organizationId),
-  );
-}
+export const readOrganizationAppointmentTerms = cache(
+  async (organizationId: string): Promise<AppointmentTerms> => {
+    return resolvePatientTerms({
+      appointmentLabel: await getPatientRuntimeValue('appointment_label', organizationId),
+    });
+  },
+);

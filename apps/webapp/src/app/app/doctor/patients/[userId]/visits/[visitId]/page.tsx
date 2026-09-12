@@ -44,13 +44,12 @@ export default async function EditEncounterPage({ params }: PageProps) {
   const visit = visits.find((v) => v.id === visitId);
   if (!visit) notFound();
 
-  // Третий аргумент передаётся явно: без него экран молча остался бы на «приёме»
-  // у клиники, выбравшей другое слово (R2 аудита T-A).
-  const terms = resolvePatientTerms(
-    shell.patientLabel,
-    shell.supportGroupLabel,
-    shell.appointmentLabel,
-  );
+  // Именованный объект (T-G): appointmentLabel — обязательное поле, пропуск не компилируется.
+  const terms = resolvePatientTerms({
+    patientLabel: shell.patientLabel,
+    supportGroupLabel: shell.supportGroupLabel,
+    appointmentLabel: shell.appointmentLabel,
+  });
 
   return (
     <PatientEncounterPageShell

@@ -57,7 +57,7 @@ async function readOrganizationTermsUnderPrincipal(
     deps.runtimeConfig.getAuthenticatedString('patient_label', organizationId),
     deps.runtimeConfig.getAuthenticatedString('appointment_label', organizationId),
   ]);
-  return resolvePatientTerms(patientLabel, undefined, appointmentLabel);
+  return resolvePatientTerms({ patientLabel, appointmentLabel });
 }
 
 export type LoadInPersonSlotContextResult =

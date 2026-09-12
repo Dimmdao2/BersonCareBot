@@ -45,7 +45,7 @@ function buildDeps(overrides: Partial<CanonicalBookingDeps> = {}): CanonicalBook
   const record = fakeRecord();
   return {
     outboundMessageQueue: { enqueue: async () => true },
-    getAppointmentTerms: async () => resolvePatientTerms(undefined, undefined, undefined),
+    getAppointmentTerms: async () => resolvePatientTerms({ appointmentLabel: undefined }),
     bookingsPort: {
       createPending: vi.fn(async () => record),
       markConfirmed: vi.fn(async () => record),

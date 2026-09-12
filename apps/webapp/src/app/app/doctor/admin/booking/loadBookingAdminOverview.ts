@@ -68,11 +68,13 @@ export async function loadBookingAdminOverview(
     warnings.push('На ближайшие 7 дней нет рабочих интервалов в расписании.');
   }
   if (publicServices.length === 0 && activeServices.length > 0) {
-    const terms = resolvePatientTerms(
-      typeof patientLabel?.valueJson === 'object' && patientLabel.valueJson !== null
-        ? (patientLabel.valueJson as { value?: string }).value
-        : undefined,
-    );
+    const terms = resolvePatientTerms({
+      patientLabel:
+        typeof patientLabel?.valueJson === 'object' && patientLabel.valueJson !== null
+          ? (patientLabel.valueJson as { value?: string }).value
+          : undefined,
+      appointmentLabel: undefined,
+    });
     warnings.push(`Нет услуг, доступных ${terms.patientDativePlural} для самостоятельной записи.`);
   }
   if (activeBranches.length === 0) {

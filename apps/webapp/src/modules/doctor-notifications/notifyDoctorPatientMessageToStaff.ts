@@ -84,7 +84,7 @@ export async function notifyDoctorPatientMessageToStaff(
   const notificationText = buildPersonalChatNotificationText(
     input.senderDisplayName,
     'patient',
-    resolvePatientTerms(patientLabelSetting?.valueJson),
+    resolvePatientTerms({ patientLabel: patientLabelSetting?.valueJson, appointmentLabel: undefined }),
   );
   const messengerText = `${notificationText}\n\n${input.notificationUrl}`;
 

@@ -30,7 +30,10 @@ import { resolvePatientTerms } from '@/modules/system-settings/patientTerms';
 export default async function DoctorPatientHomeSettingsPage() {
   const workspace = await requireDoctorWorkspaceContext();
   const shell = await loadDoctorWorkspaceShell();
-  const { patientGenitive } = resolvePatientTerms(shell.patientLabel);
+  const { patientGenitive } = resolvePatientTerms({
+    patientLabel: shell.patientLabel,
+    appointmentLabel: undefined,
+  });
   const todayEntitlement = await requireEntitlementForReadAction(workspace, 'patient_home_today');
   if (!todayEntitlement.ok) notFound();
   const session = workspace.session;

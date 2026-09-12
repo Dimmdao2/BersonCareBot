@@ -11,7 +11,7 @@ vi.mock('@/modules/system-settings/organizationAppointmentTerms', async () => {
   const { resolvePatientTerms } = await import('@/modules/system-settings/patientTerms');
   return {
     readOrganizationAppointmentTerms: vi.fn(async () =>
-      resolvePatientTerms(undefined, undefined, undefined),
+      resolvePatientTerms({ appointmentLabel: undefined }),
     ),
   };
 });

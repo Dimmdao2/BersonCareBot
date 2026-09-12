@@ -60,7 +60,7 @@ function bookingDeps(): CanonicalBookingDeps {
     // Постановка письма в очередь: в этих тестах доставка не проверяется, но порт обязателен —
     // запись без пути доставки подтверждения неполна, поэтому он не необязательный.
     outboundMessageQueue: { enqueue: async () => true },
-    getAppointmentTerms: async () => resolvePatientTerms(undefined, undefined, undefined),
+    getAppointmentTerms: async () => resolvePatientTerms({ appointmentLabel: undefined }),
     bookingsPort: {
       async createPending() {
         return stored;

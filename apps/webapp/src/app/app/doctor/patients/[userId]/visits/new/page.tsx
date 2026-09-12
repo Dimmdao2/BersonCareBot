@@ -35,13 +35,12 @@ export default async function NewEncounterPage({ params, searchParams }: PagePro
   );
   if (!identity) notFound();
 
-  // Третий аргумент передаётся явно: без него экран молча остался бы на «приёме»
-  // у клиники, выбравшей другое слово (R2 аудита T-A).
-  const terms = resolvePatientTerms(
-    shell.patientLabel,
-    shell.supportGroupLabel,
-    shell.appointmentLabel,
-  );
+  // Именованный объект (T-G): appointmentLabel — обязательное поле, пропуск не компилируется.
+  const terms = resolvePatientTerms({
+    patientLabel: shell.patientLabel,
+    supportGroupLabel: shell.supportGroupLabel,
+    appointmentLabel: shell.appointmentLabel,
+  });
 
   const appointmentIdRaw = typeof sp.appointmentId === 'string' ? sp.appointmentId : undefined;
   const appointmentId =

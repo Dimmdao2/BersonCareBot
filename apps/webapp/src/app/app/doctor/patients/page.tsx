@@ -38,7 +38,10 @@ export default async function DoctorPatientsPage({ searchParams }: PageProps) {
     doctorSettings.find((x) => x.key === 'patient_label')?.valueJson,
     'пациент',
   );
-  const { patientPluralLabel, patientSingularLabel } = resolvePatientTerms(String(patientSingular));
+  const { patientPluralLabel, patientSingularLabel } = resolvePatientTerms({
+    patientLabel: String(patientSingular),
+    appointmentLabel: undefined,
+  });
 
   const listPromise = deps.doctorClients.listClients({
     // PAT-10: search is done client-side — do not pass q to DB
