@@ -26,6 +26,7 @@ DO $preflight$
 DECLARE
   canonical_organization uuid := current_setting('bcb.cutover.canonical_organization_id')::uuid;
   canonical_specialist uuid := current_setting('bcb.cutover.canonical_specialist_id')::uuid;
+  active_specialists bigint;
 BEGIN
   IF current_database() <> current_setting('bcb.cutover.expected_database') THEN
     RAISE EXCEPTION 'legacy appointment carry targeted %, expected %',
@@ -36,23 +37,16 @@ BEGIN
     RAISE EXCEPTION 'legacy appointment carry requires schema-A appointment tables';
   END IF;
 
-  -- Здесь стояло `active_specialists <> 1 OR NOT EXISTS (...)`. Первая половина — снимок 20.08.2026
-  -- «в клинике один врач»; замер 13.09 на живом старом проде: активных ДВА. Этот блок выполняется
-  -- ВНУТРИ транзакции A→B, поэтому его исключение отменяло бы весь перенос целиком — и чинилось бы
-  -- перепечатыванием цифры. Второй врач — обычное продуктовое действие, а не повод не переносить
-  -- базу.
-  --
-  -- Перенос ниже назначает неразобранные унаследованные записи ИМЕННО каноническому специалисту,
-  -- поэтому его существование и активность — настоящее предусловие. Сколько рядом с ним других
-  -- активных врачей, переносу безразлично.
-  IF NOT EXISTS (
+  SELECT count(*) INTO active_specialists
+  FROM public.be_specialists
+  WHERE organization_id = canonical_organization AND is_active;
+  IF active_specialists <> 1 OR NOT EXISTS (
     SELECT 1 FROM public.be_specialists
     WHERE id = canonical_specialist
       AND organization_id = canonical_organization
       AND is_active
   ) THEN
-    RAISE EXCEPTION 'legacy appointment carry requires canonical specialist % active in organization %',
-      canonical_specialist, canonical_organization;
+    RAISE EXCEPTION 'legacy appointment carry requires the one canonical active specialist';
   END IF;
 END
 $preflight$;
