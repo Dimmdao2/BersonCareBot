@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
-# Build the only supported edge binary: Caddy v2.11.2 + REG.RU DNS module v0.1.10.
+# Build the only supported edge binary: stock Caddy v2.11.2, no plugins.
 # The Go toolchain and all caches live in a temporary directory; only --output persists.
+#
+# The REG.RU DNS module was dropped 12.09.2026 together with the wildcard certificate
+# (owner: «Не будет у тебя их» про API регистратора). Every certificate is now issued
+# per-name over HTTP-01/TLS-ALPN, which needs no DNS provider module at all — so the
+# edge no longer carries third-party Go code, and its binary is reproducible from the
+# upstream release alone.
 set -euo pipefail
 
 readonly CADDY_VERSION=v2.11.2
-readonly REGRU_MODULE=github.com/heinwol/caddy-dns-regru
-readonly REGRU_VERSION=v0.1.10
 readonly XCADDY_VERSION=v0.4.5
 readonly GO_VERSION=1.27.1
 readonly GO_SHA256=63d339f0da5ab53635a56f2490a7984dfe12dfcff22ad749f63edaf590168445
@@ -44,4 +48,4 @@ export GOCACHE="$work_dir/gocache"
 mkdir -p "$(dirname "$output")"
 
 go run "github.com/caddyserver/xcaddy/cmd/xcaddy@${XCADDY_VERSION}" build "$CADDY_VERSION" \
-  --output "$output" --with "${REGRU_MODULE}@${REGRU_VERSION}"
+  --output "$output"

@@ -1,9 +1,20 @@
-# Common Caddy edge for automatic custom-domain HTTPS (B7/B8/C5a).
+# Common Caddy edge for automatic HTTPS on every name we serve (B7/B8/C5a).
 #
-# This file is validated and run only with the reproducible custom binary built by
-# deploy/caddy/build-caddy-edge.sh: Caddy v2.11.2 plus
-# github.com/heinwol/caddy-dns-regru v0.1.10. A stock apt Caddy does not contain
-# the REG.RU DNS module and is deliberately not a supported runtime.
+# NO REGISTRAR API, BY OWNER DECISION 12.09.2026 (дословно: «Зачем тебе рег ру
+# апи? Ты охренел? Не будет у тебя их»). A wildcard certificate for
+# *.therapygo.ru is the ONLY thing Let's Encrypt gates behind a DNS-01 challenge,
+# i.e. behind write access to the zone REG.RU holds — so the wildcard is gone and
+# with it the DNS module. Every name is now issued per-name over HTTP-01/TLS-ALPN,
+# which needs nothing but port 80 reaching this process.
+#
+# What this costs, stated plainly: a name we never issued a certificate for — an
+# invented `выдуманное.therapygo.ru` — fails the TLS handshake in the browser
+# before a single line of our code runs. No configuration can turn that into a
+# friendly page; only a wildcard certificate can, and we chose not to have one.
+# A REAL clinic subdomain is unaffected: the `ask` endpoint below approves it and
+# Caddy issues its certificate at the first request.
+#
+# The binary is stock Caddy v2.11.2 (deploy/caddy/build-caddy-edge.sh), no plugins.
 #
 # Caddy is the only public listener on 80/443. Nginx remains a loopback-only,
 # trusted downstream for the existing blue/green therapysto_webapp upstream switch.
@@ -53,27 +64,26 @@
 	}
 }
 
-# Literal B7: this single automatic DNS-01 certificate contains both the apex
-# and wildcard SAN. REG.RU credentials stay only in root-owned caddy.prod.
-therapygo.ru, *.therapygo.ru {
-	tls {
-		dns regru {
-			username {$CADDY_REGRU_USERNAME}
-			password {$CADDY_REGRU_PASSWORD}
-		}
-	}
+# The platform apex. Ordinary managed HTTP-01 certificate, requested at first
+# start. It is listed separately from the on-demand route on purpose: the `ask`
+# endpoint lives ON this host, so the apex must never depend on an approval call
+# that would have to reach it first.
+therapygo.ru {
 	import edge_common
 }
 
-# Other platform names use normal automatic HTTP-01/TLS-ALPN. Do not add a
-# clinic hostname here: app.bersoncare.ru and every clinic domain use the
-# approved on-demand route below.
+# Other fixed platform names use the same ordinary HTTP-01/TLS-ALPN path. Do not
+# add a clinic hostname here: app.bersoncare.ru, every clinic's own domain AND
+# every `<slug>.therapygo.ru` go through the approved on-demand route below.
 {$CADDY_PLATFORM_DOMAINS} {
 	import edge_common
 }
 
-# Arbitrary clinic domains only. The headerless public ask endpoint permits only
-# an exact eligible binding; every unavailable/error response denies issuance.
+# Clinic names — their own domains and their `<slug>.therapygo.ru` subdomains.
+# The headerless public ask endpoint approves only a hostname we actually serve:
+# an eligible custom-domain binding, or a subdomain label that resolves to an
+# active published organization. Every unavailable/error response denies
+# issuance, so an invented label never even starts an ACME order.
 :443 {
 	tls {
 		on_demand
