@@ -119,6 +119,7 @@ SCOPED|public.lfk_complex_exercises
 SCOPED|public.lfk_complex_template_exercises
 SCOPED|public.lfk_complex_templates
 SCOPED|public.lfk_complexes
+SCOPED|public.lfk_exercise_load_types
 SCOPED|public.lfk_exercise_media
 SCOPED|public.lfk_exercise_regions
 SCOPED|public.lfk_exercises
@@ -194,6 +195,7 @@ SCOPED|public.treatment_program_template_stages
 SCOPED|public.treatment_program_templates
 SCOPED|public.video_meeting_invites
 SCOPED|public.video_meetings
+TELEMETRY|public.media_playback_delivery_daily
 TELEMETRY|public.media_playback_stats_hourly
 TELEMETRY|public.product_analytics_hourly
 TELEMETRY|public.saas_isolation_coverage_runs

@@ -158,6 +158,7 @@ VALUES
   ('public', 'lfk_complex_template_exercises', 'SCOPED'),
   ('public', 'lfk_complex_templates', 'SCOPED'),
   ('public', 'lfk_complexes', 'SCOPED'),
+  ('public', 'lfk_exercise_load_types', 'SCOPED'),
   ('public', 'lfk_exercise_media', 'SCOPED'),
   ('public', 'lfk_exercise_regions', 'SCOPED'),
   ('public', 'lfk_exercises', 'SCOPED'),

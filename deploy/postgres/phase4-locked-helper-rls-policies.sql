@@ -296,15 +296,6 @@ CREATE POLICY "saas_org_dormant_p0_8_3" ON "public"."be_schedule_templates" FOR 
 CREATE POLICY "saas_org_dormant_p0_8_3" ON "public"."be_schedule_templates" FOR ALL USING (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())))) WITH CHECK (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id()))));
 \endif
 
--- public.be_service_location_availability (saas_org_dormant_p0_8_3)
-ALTER TABLE "public"."be_service_location_availability" ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "saas_org_dormant_p0_8_3" ON "public"."be_service_location_availability";
-\if :phase4_enforce_locked_context
-CREATE POLICY "saas_org_dormant_p0_8_3" ON "public"."be_service_location_availability" FOR ALL USING ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id()))) WITH CHECK ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())));
-\else
-CREATE POLICY "saas_org_dormant_p0_8_3" ON "public"."be_service_location_availability" FOR ALL USING (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())))) WITH CHECK (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id()))));
-\endif
-
 -- public.be_specialist_locations (saas_org_dormant_p0_8_3)
 ALTER TABLE "public"."be_specialist_locations" ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "saas_org_dormant_p0_8_3" ON "public"."be_specialist_locations";
@@ -618,6 +609,15 @@ DROP POLICY IF EXISTS "saas_org_dormant_p0_8_3" ON "public"."lfk_complexes";
 CREATE POLICY "saas_org_dormant_p0_8_3" ON "public"."lfk_complexes" FOR ALL USING (((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND "platform_user_id" = app.current_patient_user_id()))) WITH CHECK (((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND "platform_user_id" = app.current_patient_user_id())));
 \else
 CREATE POLICY "saas_org_dormant_p0_8_3" ON "public"."lfk_complexes" FOR ALL USING (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND "platform_user_id" = app.current_patient_user_id())))) WITH CHECK (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND "platform_user_id" = app.current_patient_user_id()))));
+\endif
+
+-- public.lfk_exercise_load_types (saas_org_dormant_p0_8_3)
+ALTER TABLE "public"."lfk_exercise_load_types" ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "saas_org_dormant_p0_8_3" ON "public"."lfk_exercise_load_types";
+\if :phase4_enforce_locked_context
+CREATE POLICY "saas_org_dormant_p0_8_3" ON "public"."lfk_exercise_load_types" FOR ALL USING ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id()))) WITH CHECK ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())));
+\else
+CREATE POLICY "saas_org_dormant_p0_8_3" ON "public"."lfk_exercise_load_types" FOR ALL USING (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())))) WITH CHECK (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id()))));
 \endif
 
 -- public.lfk_exercise_media (saas_org_dormant_p0_8_4)
@@ -1302,15 +1302,6 @@ DROP POLICY IF EXISTS "saas_org_dormant_p0_8_3" ON "public"."treatment_program_t
 CREATE POLICY "saas_org_dormant_p0_8_3" ON "public"."treatment_program_templates" FOR ALL USING ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id()))) WITH CHECK ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())));
 \else
 CREATE POLICY "saas_org_dormant_p0_8_3" ON "public"."treatment_program_templates" FOR ALL USING (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())))) WITH CHECK (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id()))));
-\endif
-
--- public.user_phone_history (saas_bootstrap_hybrid_p0_8_6)
-ALTER TABLE "public"."user_phone_history" ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "saas_bootstrap_hybrid_p0_8_6" ON "public"."user_phone_history";
-\if :phase4_enforce_locked_context
-CREATE POLICY "saas_bootstrap_hybrid_p0_8_6" ON "public"."user_phone_history" FOR ALL USING (((app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id()) OR ("organization_id" IS NULL AND app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()))) WITH CHECK (((app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id()) OR ("organization_id" IS NULL AND app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff())));
-\else
-CREATE POLICY "saas_bootstrap_hybrid_p0_8_6" ON "public"."user_phone_history" FOR ALL USING (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id()) OR ("organization_id" IS NULL AND app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff())))) WITH CHECK (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id()) OR ("organization_id" IS NULL AND app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()))));
 \endif
 
 -- public.video_meeting_invites (saas_org_dormant_p0_8_3)

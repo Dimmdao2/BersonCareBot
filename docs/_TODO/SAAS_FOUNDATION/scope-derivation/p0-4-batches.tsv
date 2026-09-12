@@ -26,6 +26,7 @@ P0.4.P3	public.lfk_complex_exercises	parent_denorm_copy	copy organization_id fro
 P0.4.P3	public.lfk_complex_template_exercises	parent_denorm_copy	copy organization_id from public.lfk_complex_templates; quarantine orphan child rows
 P0.4.P3	public.lfk_complex_templates	catalog_org	add nullable organization_id; current clinic-owned template rows single-org backfill
 P0.4.P3	public.lfk_complexes	patient_or_catalog_org	add nullable organization_id; backfill from assignment/session patient path where present, otherwise current single org with count check
+P0.4.P3	public.lfk_exercise_load_types	catalog_org	add nullable organization_id; current LFK catalog rows single-org backfill
 P0.4.P3	public.lfk_exercise_media	parent_denorm_copy	copy organization_id from public.lfk_exercises; quarantine orphan child rows
 P0.4.P3	public.lfk_exercise_regions	catalog_org	add nullable organization_id; current LFK catalog rows single-org backfill
 P0.4.P3	public.lfk_exercises	catalog_org	add nullable organization_id; current LFK catalog rows single-org backfill
