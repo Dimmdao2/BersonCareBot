@@ -242,6 +242,10 @@ export const inMemoryPatientBookingsPort: PatientBookingsPort = {
     return row?.userId === userId ? row : null;
   },
 
+  async readCurrentPatientPaymentStatus() {
+    return null;
+  },
+
   async listUpcomingByUser(userId, nowIso) {
     const nowMs = new Date(nowIso).getTime();
     return [...byId.values()]

@@ -392,6 +392,12 @@ BEGIN
             cap.purpose = 'booking.public-client.enroll'
             AND cap.function_identity = pg_catalog.to_regprocedure('app.enroll_current_patient_in_public_booking_clinic(uuid,text)')
           )
+          -- Payment status is patient-global too: the root proves ownership from the accepted
+          -- subject identity and must not require the caller to claim a clinic first.
+          OR (
+            cap.purpose = 'booking.patient-payment-status.read'
+            AND cap.function_identity = pg_catalog.to_regprocedure('app.read_current_patient_booking_payment_status(uuid)')
+          )
         )
       ))
     ))
