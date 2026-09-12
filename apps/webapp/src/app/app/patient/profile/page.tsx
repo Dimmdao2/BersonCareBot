@@ -22,6 +22,7 @@ import { AuthOtpChannelPreference, type AuthOtpOption } from './AuthOtpChannelPr
 import type { OtpUiChannel } from '@/modules/auth/otpChannelUi';
 import { getPendingEmailChallenge } from '@/modules/auth/emailAuth';
 import { DiaryDataPurgeSection } from './DiaryDataPurgeSection';
+import { getResolvedSurface } from '@/shared/lib/surface/requestSurface.server';
 
 const AUTH_OTP_CHANNEL_ORDER: readonly OtpUiChannel[] = ['telegram', 'max', 'email', 'sms'];
 const AUTH_OTP_CHANNEL_LABEL: Record<OtpUiChannel, string> = {
@@ -35,6 +36,11 @@ const AUTH_OTP_CHANNEL_LABEL: Record<OtpUiChannel, string> = {
 export default async function PatientProfilePage() {
   const session = await requirePatientAccess(routePaths.profile);
   const deps = buildAppDeps();
+  // Брендированный адрес клиники сам называет организацию — выбор другой здесь показывать нечего,
+  // тот же инвариант, что прячет плашку-переключатель (PatientOrganizationContext.tsx). До этой
+  // правки (владелец, 12.09) ссылка стояла безусловно — единственный обходной путь на брендированном
+  // домене к списку всех организаций пациента, помимо самой /app/patient/organizations.
+  const brandedOrganizationSurface = (await getResolvedSurface()).surface === 'patient_branded';
   const [
     supportContactHref,
     emailFields,
@@ -97,19 +103,21 @@ export default async function PatientProfilePage() {
           pendingEmailChange={pendingEmailChange}
         />
 
-        <section className={patientSectionSurfaceClass}>
-          <h2 className={patientSectionTitleClass}>Организации</h2>
-          <p className={patientMutedTextClass}>
-            Здесь можно посмотреть доступные организации и выбрать, чьи данные открывать в
-            приложении.
-          </p>
-          <Link
-            href={routePaths.patientOrganizations}
-            className={`${patientInlineLinkClass} mt-2 inline-flex shrink-0 underline-offset-4`}
-          >
-            Мои организации
-          </Link>
-        </section>
+        {brandedOrganizationSurface ? null : (
+          <section className={patientSectionSurfaceClass}>
+            <h2 className={patientSectionTitleClass}>Организации</h2>
+            <p className={patientMutedTextClass}>
+              Здесь можно посмотреть доступные организации и выбрать, чьи данные открывать в
+              приложении.
+            </p>
+            <Link
+              href={routePaths.patientOrganizations}
+              className={`${patientInlineLinkClass} mt-2 inline-flex shrink-0 underline-offset-4`}
+            >
+              Мои организации
+            </Link>
+          </section>
+        )}
 
         <section className={patientSectionSurfaceClass}>
           <h2 className={patientSectionTitleClass}>Мессенджеры</h2>

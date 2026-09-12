@@ -94,9 +94,26 @@ export default async function PatientLayout({ children }: { children: ReactNode 
   }
 
   if (session.user.role === 'client') {
+    // A branded Host already named its organization — the generic remembered-cookie/multi-org
+    // picker below must never override or bypass that, or a patient with several enrollments could
+    // land on this clinic's own domain and see a chooser listing every other organization they
+    // belong to (found live 12.09.2026: this call carried no verified target at all, so the branded
+    // Host had no more say in org selection than the platform's own generic multi-org entry).
+    const brandedOrganizationTarget =
+      resolvedSurface.surface === 'patient_branded' ? resolvedSurface.organizationId : null;
+    // The Host already named the one organization; a page whose entire job is choosing between
+    // organizations is exactly the "возможность выбрать другие клиники" the owner (12.09) said a
+    // branded cabinet must never expose — not just its own switcher bar (owner's 10.09 fix, which
+    // stopped there — PatientOrganizationContext.tsx's brandedOrganizationSurface check).
+    if (brandedOrganizationTarget && pathname === routePaths.patientOrganizations) {
+      redirect(routePaths.patient);
+    }
     const patientContext = await resolvePatientOrganizationRequestContext(
       deps.patientOrganization,
       session.user.userId,
+      brandedOrganizationTarget
+        ? { verifiedTargetOrganizationId: brandedOrganizationTarget }
+        : {},
     );
     if (!patientContext.ok) {
       if (patientPathAllowsGlobalAccountWithoutCareContext(pathname)) {
