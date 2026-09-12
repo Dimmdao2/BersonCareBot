@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import toast from 'react-hot-toast';
 import { Button } from '@/shared/ui/patient/primitives/button';
 import { finishChannelLinkNavigation } from '@/shared/lib/telegramChannelLinkOpen';
@@ -22,7 +22,7 @@ import {
 const POLL_MS = 4000;
 
 type Props = {
-  hint?: string;
+  hint?: ReactNode;
   supportContactHref?: string;
   /** По умолчанию — копирай под подтверждение номера на bind-phone. В профиле — только уведомления/связь. */
   variant?: 'bind_phone' | 'notifications';

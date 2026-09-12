@@ -5,8 +5,8 @@ import { cn } from '@/lib/utils';
 
 export type GuestPlaceholderProps = {
   title: string;
-  description: string;
-  actionLabel: string;
+  description: ReactNode;
+  actionLabel: ReactNode;
   actionHref: string;
   secondaryLabel?: string;
   secondaryHref?: string;

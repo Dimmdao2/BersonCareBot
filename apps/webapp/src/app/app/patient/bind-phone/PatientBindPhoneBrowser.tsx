@@ -1,5 +1,6 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { routePaths } from '@/app-layer/routes/paths';
 import { PhoneMessengerAuthFlow } from '@/shared/ui/patient/auth/PhoneMessengerAuthFlow';
@@ -9,7 +10,7 @@ import type { AuthChannelUiPolicy } from '@/modules/auth/otpChannelUi';
 type Props = {
   supportContactHref: string;
   nextPath?: string | null;
-  hint?: string;
+  hint?: ReactNode;
   channelPolicy: AuthChannelUiPolicy;
 };
 

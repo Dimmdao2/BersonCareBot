@@ -7,6 +7,8 @@ import { Button } from '@/shared/ui/patient/primitives/button';
 import { routePaths } from '@/app-layer/routes/paths';
 import type { BookingCity } from '@/modules/booking-catalog/types';
 import type { OnlineBookingLocationOption } from '@/modules/patient-booking/inPersonServicesCatalog';
+import { appointmentDeliveryFormatLabels } from '@/modules/system-settings/patientTerms';
+import { usePatientTerms } from '@/shared/ui/patient/organization/PatientOrganizationContext';
 import { patientCaptionTextClass, patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
 import { cn } from '@/lib/utils';
 import {
@@ -30,13 +32,15 @@ export type FormatStepClientProps = {
 
 export function FormatStepClient({ cities, onlineLocation, catalogError }: FormatStepClientProps) {
   const router = useRouter();
+  const terms = usePatientTerms();
+  const formatLabels = appointmentDeliveryFormatLabels(terms);
   const sortedCities = sortCitiesForDisplay(cities);
 
   return (
     <div id="patient-booking-format-options" className={bookingChoiceSectionClass}>
       <div className="flex flex-col gap-2">
         <p className={cn(patientCaptionTextClass, 'uppercase tracking-wide')}>
-          Очный приём
+          {formatLabels.in_person}
         </p>
         {catalogError ? (
           <div className="flex flex-col gap-2">
@@ -74,7 +78,7 @@ export function FormatStepClient({ cities, onlineLocation, catalogError }: Forma
             className={bookingChoiceRowClass}
           >
             <Building2 className={bookingChoiceRowIconClass} aria-hidden />
-            Онлайн-приём
+            {formatLabels.online}
           </Link>
         ) : null}
       </div>

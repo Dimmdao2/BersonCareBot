@@ -24,6 +24,7 @@ import {
 } from '@/shared/lib/formatBusinessDateTime';
 import { resolveAppointmentTimeZone } from '@/shared/lib/appointmentZoneOffset';
 import { AppointmentZoneOffsetWarning } from '@/shared/ui/patient/AppointmentZoneOffsetWarning';
+import { appointmentDeliveryFormatLabels } from '@/modules/system-settings/patientTerms';
 import { usePatientTerms } from '@/shared/ui/patient/organization/PatientOrganizationContext';
 import { formatDoctorFio, type StructuredFio } from '@/shared/lib/fio';
 import { isBuiltInOnlineLocationCityCode } from '@/modules/booking-engine/onlineLocation';
@@ -139,7 +140,8 @@ export function ConfirmStepClient({
   useRescheduleBookingHook = useRescheduleBooking,
   rescheduleBookingId,
 }: Props & { rescheduleBookingId?: string }) {
-  const { patientSingularLabel } = usePatientTerms();
+  const terms = usePatientTerms();
+  const { patientSingularLabel } = terms;
   const router = useRouter();
   const [lastName, setLastName] = useState(defaultFio.lastName ?? '');
   const [firstName, setFirstName] = useState(defaultFio.firstName ?? '');
@@ -253,7 +255,7 @@ export function ConfirmStepClient({
     type === 'in_person'
       ? isOnlineLocation
         ? `Онлайн · ${serviceTitle ?? ''}`
-        : `Очный приём · ${cityTitle ?? ''} · ${serviceTitle ?? ''}`
+        : `${appointmentDeliveryFormatLabels(terms).in_person} · ${cityTitle ?? ''} · ${serviceTitle ?? ''}`
       : category === 'rehab_lfk'
         ? 'Онлайн — Реабилитация (ЛФК)'
         : category === 'nutrition'

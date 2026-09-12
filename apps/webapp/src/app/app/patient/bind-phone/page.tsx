@@ -13,6 +13,7 @@ import { resolvePlatformAccessContext } from '@/app-layer/platform-access';
 import { resolveSkipBindPhoneSurface } from './resolveSkipBindPhoneSurface';
 import Link from 'next/link';
 import { PatientAppShell } from '@/shared/ui/patient/PatientAppShell';
+import { PatientAppointmentWord } from '@/shared/ui/patient/organization/PatientAppointmentWord';
 import { buttonVariants } from '@/shared/ui/patient/primitives/button-variants';
 import { cn } from '@/lib/utils';
 import { getSupportContactUrl } from '@/modules/system-settings/supportContactUrl';
@@ -68,9 +69,12 @@ export default async function BindPhonePage({ searchParams }: Props) {
   const isBotMiniApp = platformEntry === 'bot';
 
   const hint =
-    reason === 'oauth_phone_required'
-      ? 'Номер необходим для записи на приём. Для входа в кабинет он не обязателен.'
-      : undefined;
+    reason === 'oauth_phone_required' ? (
+      <>
+        Номер необходим для записи на <PatientAppointmentWord form="appointmentAccusative" />. Для
+        входа в кабинет он не обязателен.
+      </>
+    ) : undefined;
 
   return (
     <PatientAppShell

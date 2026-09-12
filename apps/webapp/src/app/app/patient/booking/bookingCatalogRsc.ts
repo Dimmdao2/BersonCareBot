@@ -2,6 +2,7 @@ import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { withPatientOrganizationPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import type { BookingCity } from '@/modules/booking-catalog/types';
 import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
+import { resolvePatientTerms, type PatientTerms } from '@/modules/system-settings/patientTerms';
 import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import {
   titleForBookingCityCode,
@@ -34,8 +35,30 @@ export type LoadInPersonServicesResult =
   | { ok: false; error: 'catalog_unavailable' | 'city_not_found'; services: [] };
 
 export type LoadPatientBookingDisplaySettingsResult =
-  | { ok: true; organizationId: string; appDisplayTimeZone: string }
+  | { ok: true; organizationId: string; appDisplayTimeZone: string; terms: PatientTerms }
   | { ok: false; error: 'catalog_unavailable' };
+
+/**
+ * Терминология организации для СЕРВЕРНОЙ разметки мастера записи (заголовок шага переноса).
+ *
+ * Дверь — ТА ЖЕ, что у кабинета клиента: seam `app.read_authenticated_runtime_setting` через
+ * `runtimeConfig`, в allowlist которого `appointment_label` и заведён (миграция T-A). Второй
+ * пациентской двери настроек (`app.read_current_patient_ui_setting`) этот ключ не известен, и
+ * чтение через неё молча вернуло бы «приём» либо упёрлось в отсутствующий грант.
+ *
+ * Вызывается ВНУТРИ `withPatientOrganizationPrincipal`: seam сверяет запрошенную организацию с
+ * принятой принципалом, поэтому чужое слово через него не приходит.
+ */
+async function readOrganizationTermsUnderPrincipal(
+  deps: ReturnType<typeof buildAppDeps>,
+  organizationId: string,
+): Promise<PatientTerms> {
+  const [patientLabel, appointmentLabel] = await Promise.all([
+    deps.runtimeConfig.getAuthenticatedString('patient_label', organizationId),
+    deps.runtimeConfig.getAuthenticatedString('appointment_label', organizationId),
+  ]);
+  return resolvePatientTerms(patientLabel, undefined, appointmentLabel);
+}
 
 export type LoadInPersonSlotContextResult =
   | {
@@ -50,6 +73,8 @@ export type LoadInPersonSlotContextResult =
       priceMinor: number;
       maxConsecutiveSlotHours: number;
       appDisplayTimeZone: string;
+      /** Слово организации о событии записи: заголовок шага переноса произносит его сервером. */
+      terms: PatientTerms;
       /** Canonical IANA timezone of the branch (`be_branches.timezone`); `null` — not resolvable. */
       branchTimeZone: string | null;
     }
@@ -141,15 +166,18 @@ export async function loadPatientBookingDisplaySettingsRsc(
   const organizationId = await resolvePatientOrganizationIdForRsc(deps, platformUserId);
   if (!organizationId) return { ok: false, error: 'catalog_unavailable' };
   try {
-    const appDisplayTimeZone = await withPatientOrganizationPrincipal(
+    const settings = await withPatientOrganizationPrincipal(
       {
         organizationId,
         platformUserId,
         source: 'app/patient/booking:load-display-settings',
       },
-      () => getAppDisplayTimeZone(),
+      async () => ({
+        appDisplayTimeZone: await getAppDisplayTimeZone(),
+        terms: await readOrganizationTermsUnderPrincipal(deps, organizationId),
+      }),
     );
-    return { ok: true, organizationId, appDisplayTimeZone };
+    return { ok: true, organizationId, ...settings };
   } catch {
     return { ok: false, error: 'catalog_unavailable' };
   }
@@ -193,13 +221,19 @@ export async function loadInPersonSlotContextForPatientRsc(input: {
           return { ok: false, error: 'invalid_selection' } as const;
         }
 
-        const [maxConsecutiveSlotHours, appDisplayTimeZone, canonicalContext] = await Promise.all([
-          bookingScheduling.getMaxConsecutiveSlotHours(organizationId),
-          getAppDisplayTimeZone(),
-          // Same canonical scheduling read the create/slots API routes already use to resolve the
-          // branch — this only borrows its `branchTimezone` for display, not a new lookup.
-          bookingScheduling.resolveCanonicalInPersonContext({ organizationId, branchId, serviceId }),
-        ]);
+        const [maxConsecutiveSlotHours, appDisplayTimeZone, canonicalContext, terms] =
+          await Promise.all([
+            bookingScheduling.getMaxConsecutiveSlotHours(organizationId),
+            getAppDisplayTimeZone(),
+            // Same canonical scheduling read the create/slots API routes already use to resolve
+            // the branch — this only borrows its `branchTimezone` for display, not a new lookup.
+            bookingScheduling.resolveCanonicalInPersonContext({
+              organizationId,
+              branchId,
+              serviceId,
+            }),
+            readOrganizationTermsUnderPrincipal(deps, organizationId),
+          ]);
 
         return {
           ok: true,
@@ -214,6 +248,7 @@ export async function loadInPersonSlotContextForPatientRsc(input: {
           maxConsecutiveSlotHours,
           appDisplayTimeZone,
           branchTimeZone: canonicalContext?.branchTimezone ?? null,
+          terms,
         } as const;
       },
     );

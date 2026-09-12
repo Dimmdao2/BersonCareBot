@@ -13,6 +13,7 @@ import {
   patientSurfaceWarningClass,
 } from '@/shared/ui/patient/patientVisual';
 import { routePaths } from '@/app-layer/routes/paths';
+import { usePatientTerms } from '@/shared/ui/patient/organization/PatientOrganizationContext';
 import { ruDaysWordN } from '@/app/app/patient/treatment/program-detail/patientPlanDetailFormatters';
 
 export function PatientProgramControlCard(props: {
@@ -27,6 +28,7 @@ export function PatientProgramControlCard(props: {
   testsHref?: string | null;
 }) {
   const { dateLine, remainderDays, fallbackMessage, currentStageId, testsHref } = props;
+  const terms = usePatientTerms();
   /** Нет пунктов `clinical_test` у текущего этапа — самостоятельное прохождение недоступно. */
   const noSelfServiceTests = Boolean(currentStageId && !testsHref);
 
@@ -102,7 +104,7 @@ export function PatientProgramControlCard(props: {
               'w-auto min-h-8 shrink-0 px-2.5 py-1.5 sm:min-h-8',
             )}
           >
-            Запись на приём
+            Запись на {terms.appointmentAccusative}
           </Link>
         </div>
       </div>

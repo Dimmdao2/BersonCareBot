@@ -12,6 +12,7 @@ import {
   patientListItemClass,
   patientMutedTextClass,
 } from '@/shared/ui/patient/patientVisual';
+import { usePatientTerms } from '@/shared/ui/patient/organization/PatientOrganizationContext';
 import { AppointmentStatusBadge } from './AppointmentStatusBadge';
 
 type Props = {
@@ -20,8 +21,9 @@ type Props = {
 
 /** Единый TooltipProvider для списка бейджей (без N вложенных провайдеров). */
 export function CabinetUpcomingAppointments({ appointments }: Props) {
+  const terms = usePatientTerms();
   if (appointments.length === 0) {
-    return <p className={patientMutedTextClass}>Нет предстоящих приёмов.</p>;
+    return <p className={patientMutedTextClass}>Нет предстоящих {terms.appointmentGenPlural}.</p>;
   }
 
   return (

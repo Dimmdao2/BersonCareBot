@@ -24,6 +24,8 @@ import { PatientModal } from '@/shared/ui/patient/PatientModal';
 import { PatientConfirmModal } from '@/shared/ui/patient/PatientConfirmModal';
 import { ReminderCreateDialog } from '@/modules/reminders/components/ReminderCreateDialog';
 import type { ReminderRule, ReminderCategory } from '@/modules/reminders/types';
+import type { AppointmentTerms } from '@/modules/system-settings/patientTerms';
+import { usePatientTerms } from '@/shared/ui/patient/organization/PatientOrganizationContext';
 import { clampIntervalMinutes } from '@/modules/reminders/reminderIntervalBounds';
 import { formatReminderMinuteOfDayToHhMm } from '@/modules/reminders/reminderScheduleFormat';
 import { summarizeReminderForCalendarDay } from '@/modules/reminders/summarizeReminderForCalendarDay';
@@ -33,13 +35,22 @@ import { LegacyReminderScheduleDialog } from './LegacyReminderScheduleDialog';
 import { ReminderExerciseDeliveryChannels } from './ReminderExerciseDeliveryChannels';
 import { isPatientRehabProgramPromoPlaceholder } from '@/modules/reminders/rehabProgramLinkedObject';
 
-const CATEGORY_LABELS: Record<ReminderCategory, string> = {
-  appointment: 'Запись на приём',
-  lfk: 'Уведомления по занятиям',
-  chat: 'Чат',
-  important: 'Важные сообщения',
-  broadcast: 'Рассылки по темам',
-};
+/**
+ * Подписи категорий напоминаний. Слово о событии записи приходит терминологией организации в
+ * момент отрисовки: константа модульная, контекста у неё нет, а категория обязана называться так
+ * же, как остальной кабинет клиента.
+ */
+function categoryLabels(
+  terms: Pick<AppointmentTerms, 'appointmentAccusative'>,
+): Record<ReminderCategory, string> {
+  return {
+    appointment: `Запись на ${terms.appointmentAccusative}`,
+    lfk: 'Уведомления по занятиям',
+    chat: 'Чат',
+    important: 'Важные сообщения',
+    broadcast: 'Рассылки по темам',
+  };
+}
 
 export type PersonalReminderIconKind = 'lfk' | 'rehab' | 'warmup' | 'page' | 'custom'; // `custom` — legacy; строки с custom не попадают в personalRowsMain
 
@@ -86,6 +97,7 @@ function TypeIcon({ kind }: { kind: PersonalReminderIconKind }) {
 }
 
 function LegacyCategoryRuleCard({ rule }: { rule: ReminderRule }) {
+  const labels = categoryLabels(usePatientTerms());
   const router = useRouter();
   const refresh = () => router.refresh();
   const [isPending, startTransition] = useTransition();
@@ -105,13 +117,13 @@ function LegacyCategoryRuleCard({ rule }: { rule: ReminderRule }) {
       <CardHeader className="px-4 pb-2 pt-4">
         <div className="flex items-center justify-between gap-3">
           <CardTitle className={patientSectionTitleNormalClass}>
-            {CATEGORY_LABELS[rule.category] ?? rule.category}
+            {labels[rule.category] ?? rule.category}
           </CardTitle>
           <Switch
             checked={rule.enabled}
             onCheckedChange={handleToggle}
             disabled={isPending}
-            aria-label={`Включить напоминания: ${CATEGORY_LABELS[rule.category]}`}
+            aria-label={`Включить напоминания: ${labels[rule.category]}`}
           />
         </div>
       </CardHeader>
@@ -133,7 +145,7 @@ function LegacyCategoryRuleCard({ rule }: { rule: ReminderRule }) {
 
           <LegacyReminderScheduleDialog
             rule={rule}
-            categoryLabel={CATEGORY_LABELS[rule.category] ?? rule.category}
+            categoryLabel={labels[rule.category] ?? rule.category}
             open={scheduleOpen}
             onOpenChange={setScheduleOpen}
             onSaved={() => {

@@ -21,6 +21,7 @@ import {
   type BookingPaymentStatusOk,
 } from '@/shared/lib/paymentStatusView';
 import { AppointmentZoneOffsetWarning } from '@/shared/ui/patient/AppointmentZoneOffsetWarning';
+import { usePatientTerms } from '@/shared/ui/patient/organization/PatientOrganizationContext';
 import { PatientModal } from '@/shared/ui/patient/PatientModal';
 import { PaymentLinkQrCode } from '@/shared/ui/patient/PaymentLinkQrCode';
 import { CabinetBookingActions } from '@/app/app/patient/cabinet/CabinetBookingActions';
@@ -236,6 +237,7 @@ function BookingCard({
   appDisplayTimeZone: string;
 }) {
   const [panelOpen, setPanelOpen] = useState(false);
+  const terms = usePatientTerms();
   const cardButtonRef = useRef<HTMLButtonElement>(null);
   const hasNativeActions = Boolean(row.canonicalAppointmentId);
   const branchTimeZone = row.canonicalInPersonContext?.timezone;
@@ -252,7 +254,7 @@ function BookingCard({
     details?.serviceTitle ??
     row.canonicalInPersonContext?.serviceTitle ??
     row.serviceTitleSnapshot ??
-    nativeBookingSubtitle(row);
+    nativeBookingSubtitle(row, terms);
   const branchTitle =
     details?.branchTitle ??
     row.canonicalInPersonContext?.branchTitle ??
@@ -322,7 +324,7 @@ function BookingCard({
           </p>
           <p className={cn(patientCaptionTextClass, 'truncate')}>
             {bookingProvenancePrefix(row)}
-            {nativeBookingSubtitle(row)}
+            {nativeBookingSubtitle(row, terms)}
           </p>
           {paymentSummary ? <div className="mt-2">{paymentSummary}</div> : null}
         </div>
