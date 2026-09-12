@@ -567,9 +567,35 @@ $function$;
 
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_object_owner
--- Три политики tenant-service, ссылающиеся на колонку, и сама колонка. Политики поднимет обратно
--- reconcile из перегенерированного артефакта — уже по членству человека, а не по колонке.
-DROP POLICY IF EXISTS "rev10_tenant_insert_226" ON "public"."user_phone_history";
-DROP POLICY IF EXISTS "rev10_tenant_select_226" ON "public"."user_phone_history";
-DROP POLICY IF EXISTS "rev10_tenant_update_226" ON "public"."user_phone_history";
-ALTER TABLE "public"."user_phone_history" DROP COLUMN "organization_id";
+-- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
+-- СТОРОЖ ПЕРЕД КАСКАДОМ. Удаление колонки снимает и политики, которые на неё ссылаются, — иначе
+-- Postgres откажет. Снять их ПОИМЁННО нельзя: `DROP POLICY` в миграции запрещён (AGENTS.md §1,
+-- гейт `scripts/check-migration-privileges.mjs`), и запрещён по делу — два источника прав расходятся
+-- молча, а последний писатель побеждает. Поэтому каскад; но каскад тем и плох, что снимает молча,
+-- поэтому здесь стоит сторож: на колонке ОБЯЗАНЫ висеть ровно три известные политики
+-- tenant-service, и ничего сверх. Появилась четвёртая зависимость — миграция ПАДАЕТ и её
+-- разбирает человек, а не каскад проглатывает. Все три политики заново поднимет reconcile из
+-- перегенерированного артефакта — уже по членству человека, а не по колонке. Индекс
+-- `idx_user_phone_history_organization_id` и внешний ключ `user_phone_history_organization_id_fkey`
+-- к сторожу не относятся: они auto-зависимости и уходят с колонкой сами.
+DO $guard$
+DECLARE
+  expected constant text[] := ARRAY['rev10_tenant_insert_226', 'rev10_tenant_select_226', 'rev10_tenant_update_226'];
+  found text[];
+BEGIN
+  -- DISTINCT обязателен: политика, называющая колонку и в USING, и в WITH CHECK, даёт ДВЕ строки
+  -- pg_depend (так и есть у rev10_tenant_update_226), и без него сторож ловил бы сам себя.
+  SELECT coalesce(array_agg(DISTINCT p.polname::text ORDER BY p.polname::text), ARRAY[]::text[]) INTO found
+    FROM pg_catalog.pg_depend d
+    JOIN pg_catalog.pg_policy p ON p.oid = d.objid
+   WHERE d.classid = 'pg_catalog.pg_policy'::regclass
+     AND d.refobjid = 'public.user_phone_history'::regclass
+     AND d.refobjsubid = (SELECT a.attnum FROM pg_catalog.pg_attribute a
+                           WHERE a.attrelid = 'public.user_phone_history'::regclass
+                             AND a.attname = 'organization_id');
+  IF found <> (SELECT array_agg(e ORDER BY e) FROM unnest(expected) AS e) THEN
+    RAISE EXCEPTION 'user_phone_history.organization_id policy dependencies changed: expected %, found %', expected, found;
+  END IF;
+END
+$guard$;
+ALTER TABLE "public"."user_phone_history" DROP COLUMN "organization_id" CASCADE;
