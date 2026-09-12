@@ -410,8 +410,15 @@ Q1 §7 держит все четыре типа с первой версии). 
   докторская (`api/media/presign/route.ts:30` — `requireDoctorWorkspaceApiContext`), вставка строки берёт
   организацию из принципала и полагается на дефолт `owner_kind='organization'`
   (`s3MediaStorage.ts:632-646`), а воркер перекодирования типизирован ненулевой организацией
-  (`apps/media-worker/src/control.ts:5`). Существующий платформенный доступ к медиа —
-  только чтение и только `app_staff` (`c4d_platform_library_read`).
+  (`apps/media-worker/src/control.ts:5`). **Уточнение 12.09 (замер на DEV, прежняя строка устарела):**
+  платформенного доступа к медиа СЕГОДНЯ НЕТ ВОВСЕ. Политика `c4d_platform_library_read` из миграции
+  `0250_c4d_platform_library_read_staff_scope.sql` в кластере не существует — `SELECT count(*) FROM
+  pg_policies WHERE policyname LIKE 'c4d_%'` даёт 0; её место занял `rev10_media_files_staff_106`
+  с предикатом `organization_id = app.current_org_id()`, то есть строка с `organization_id IS NULL`
+  специалисту не видна ни в каком виде. Живьём это пока ничего не ломает (платформенных строк в
+  `media_files` ноль, писать их некому), но комментарий `s3MediaStorage.ts:866-868` ссылается на ту же
+  исчезнувшую политику как на живой факт — поправить вместе с этим этапом. Практический вывод для S0в:
+  платформенному медиа нужна СВОЯ политика чтения, унаследовать нечего.
 - **В админке нет ни одного экрана, который правит доменный контент**, только настройки и наблюдаемость;
   единственный прецедент переиспользования — `ScheduleNotificationsSection` с параметром `endpoint`
   (`admin/notification-templates/page.tsx:12`), и скин там тот же, не другой.
