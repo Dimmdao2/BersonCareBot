@@ -18,6 +18,8 @@ import {
   parseRublesInput,
   rublesToMinor,
 } from '@/app/app/settings/bookingSoloAdminApi';
+import { agreeWithAppointment } from '@/modules/system-settings/patientTerms';
+import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 const POLICY_API = '/api/admin/booking-engine/prepayment-policies';
 const SERVICES_API = '/api/admin/booking-engine/services';
@@ -65,6 +67,7 @@ const AVAILABILITY_MESSAGES: Record<Exclude<PrepaymentAvailability['reason'], nu
 };
 
 export function BookingPrepaymentSection() {
+  const terms = useDoctorPatientTerms();
   const [scope, setScope] = useState<'service' | 'online'>('service');
   const [services, setServices] = useState<ServiceRow[]>([]);
   const [policies, setPolicies] = useState<PolicyRow[]>([]);
@@ -224,7 +227,9 @@ export function BookingPrepaymentSection() {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="service">Очный приём (услуга)</SelectItem>
+            <SelectItem value="service">
+              {agreeWithAppointment(terms, 'Очный', 'Очная')} {terms.appointmentSingular} (услуга)
+            </SelectItem>
             <SelectItem value="online">Онлайн</SelectItem>
           </SelectContent>
         </Select>
