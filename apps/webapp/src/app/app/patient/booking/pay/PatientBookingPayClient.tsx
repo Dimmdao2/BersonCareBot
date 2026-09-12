@@ -17,6 +17,7 @@ import {
 import {
   classifyPaymentIntentStatus,
   classifyPrepaymentBookingStatus,
+  type BookingPaymentStatusOk,
 } from '@/shared/lib/paymentStatusView';
 import { formatBookingDateTimeMediumRu } from '@/shared/lib/formatBusinessDateTime';
 import { PaymentLinkQrCode } from '@/shared/ui/patient/PaymentLinkQrCode';
@@ -53,15 +54,10 @@ export function PatientBookingPayClient({ bookingId, appDisplayTimeZone }: Props
     const res = await fetch(
       `/api/booking/payment-status?bookingId=${encodeURIComponent(bookingId)}`,
     );
-    const json = (await res.json()) as {
+    // Тело ответа описано ОДНИМ типом на маршрут и оба экрана оплаты; `Partial` здесь — потому что
+    // по сети может прийти ошибка, а не потому, что на сервере поля необязательны.
+    const json = (await res.json()) as Partial<BookingPaymentStatusOk> & {
       ok?: boolean;
-      intentId?: string | null;
-      amountMinor?: number | null;
-      currency?: string | null;
-      intentStatus?: string | null;
-      checkoutUrl?: string | null;
-      paymentDeadlineAt?: string | null;
-      appointmentStatus?: string;
       error?: string;
     };
     if (!json.ok) {

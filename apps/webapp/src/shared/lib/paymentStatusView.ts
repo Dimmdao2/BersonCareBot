@@ -1,3 +1,26 @@
+/**
+ * Успешное тело ответа `/api/booking/payment-status` — ровно то, что рисуют экраны оплаты.
+ *
+ * Живёт здесь, рядом с классификаторами, потому что экранов оплаты ДВА: кабинетный
+ * (`app/app/patient/booking/pay`) и публичный (`app/book/pay`, он же адрес возврата от провайдера).
+ * Независимый аудит S9 поймал, во что обходится их разъезд: маршрут сузил ответ, кабинетный экран
+ * перевели, а публичный остался читать `summary.intent.*` — и молча показывал «Платёжный провайдер
+ * не настроен» вместо суммы и кнопки, а успешную оплату не распознавал вовсе. `typecheck` при этом
+ * молчал, потому что КАЖДЫЙ экран описывал тело ответа своим локальным приведением. Один тип на
+ * маршрут и оба экрана делает следующее такое сужение ошибкой компиляции, а не молчаливой потерей
+ * денег.
+ */
+export type BookingPaymentStatusOk = {
+  intentId: string | null;
+  amountMinor: number | null;
+  currency: string | null;
+  intentStatus: string | null;
+  /** Всегда НАШ адрес проверки счёта (`/book/pay/{intentId}`), никогда домен провайдера. */
+  checkoutUrl: string | null;
+  paymentDeadlineAt: string | null;
+  appointmentStatus: string;
+};
+
 /** Mirrors `PAYMENT_INTENT_STATUSES` (apps/webapp/db/schema/bookingPayments.ts): 'pending' |
  * 'processing' | 'succeeded' | 'failed' | 'cancelled'. Payment screens only ever need to tell
  * these three apart to pick which of the three return-screen states to render. */

@@ -86,7 +86,11 @@ describe('B1.2 booking payment status ownership', () => {
     expect(fakes.getBookingPaymentStatus).toHaveBeenCalledWith(bookingId, patientOrigin);
   });
 
-  it('denies a foreign booking even though the requester has a normal patient session', async () => {
+  // Имя раньше обещало проверку СТЕНЫ («чужую бронь не видно»), а поймать её этот файл не может:
+  // сервис здесь замокан, SQL не участвует. Настоящая стена живёт в корне и проверена живой
+  // поломкой `omit_identity_filter` в `patient-booking-payment-status.devDbProof.test.mjs`.
+  // Здесь остаётся ровно то, что тут действительно ловится: отказ корня не превращается в 200.
+  it('turns a refused read into 404 and leaks nothing beyond the error code', async () => {
     fakes.getBookingPaymentStatus.mockResolvedValue({ ok: false, error: 'not_found' });
 
     const response = await GET(request());
