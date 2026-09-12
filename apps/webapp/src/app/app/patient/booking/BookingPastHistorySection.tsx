@@ -10,6 +10,7 @@ import type { PatientBookingRecord } from '@/modules/patient-booking/types';
 import { formatBookingDateTimeMediumRu } from '@/shared/lib/formatBusinessDateTime';
 import { resolveAppointmentTimeZone } from '@/shared/lib/appointmentZoneOffset';
 import { AppointmentZoneOffsetWarning } from '@/shared/ui/patient/AppointmentZoneOffsetWarning';
+import { usePatientTerms } from '@/shared/ui/patient/organization/PatientOrganizationContext';
 import {
   patientListItemClass,
   patientActionTextClass,
@@ -52,6 +53,7 @@ function nativePastStatusRight(
 }
 
 function PastList({ items, appDisplayTimeZone }: Props) {
+  const terms = usePatientTerms();
   if (items.length === 0) {
     return <p className={patientMutedTextClass}>Пока пусто.</p>;
   }
@@ -75,7 +77,7 @@ function PastList({ items, appDisplayTimeZone }: Props) {
               </p>
               <p className={cn(patientCaptionTextClass, 'truncate')}>
                 {bookingProvenancePrefix(booking)}
-                {nativeBookingSubtitle(booking)}
+                {nativeBookingSubtitle(booking, terms)}
               </p>
             </div>
             {nativePastStatusRight(booking.status, booking.cancelReason)}

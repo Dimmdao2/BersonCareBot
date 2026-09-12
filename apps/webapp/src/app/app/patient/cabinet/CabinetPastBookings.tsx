@@ -14,6 +14,7 @@ import type { PatientBookingRecord } from '@/modules/patient-booking/types';
 import { formatBookingDateTimeMediumRu } from '@/shared/lib/formatBusinessDateTime';
 import { resolveAppointmentTimeZone } from '@/shared/lib/appointmentZoneOffset';
 import { AppointmentZoneOffsetWarning } from '@/shared/ui/patient/AppointmentZoneOffsetWarning';
+import { usePatientTerms } from '@/shared/ui/patient/organization/PatientOrganizationContext';
 import {
   patientBodyTextClass,
   patientCaptionTextClass,
@@ -27,7 +28,7 @@ type Props = {
   appDisplayTimeZone: string;
 };
 
-/** В журнале прошлых приёмов не показываем нейтральное «подтверждена»; «отменена» — красным. */
+/** В журнале прошлых записей не показываем нейтральное «подтверждена»; «отменена» — красным. */
 function nativePastStatusRight(status: PatientBookingRecord['status']): ReactNode {
   if (status === 'confirmed') return null;
   if (status === 'cancelled') {
@@ -44,12 +45,13 @@ function nativePastStatusRight(status: PatientBookingRecord['status']): ReactNod
 }
 
 export function CabinetPastBookings({ items, appDisplayTimeZone }: Props) {
+  const terms = usePatientTerms();
   return (
     <Card>
       <Collapsible defaultOpen={items.length > 0}>
         <CardHeader className="pb-2">
           <CollapsibleTrigger className="group flex w-full items-center justify-between gap-2 text-left">
-          <CardTitle>Журнал прошедших приёмов</CardTitle>
+          <CardTitle>Журнал прошедших {terms.appointmentGenPlural}</CardTitle>
             <ChevronDown
               className={cn(
                 'size-4 shrink-0 patient-text-secondary transition-transform',
@@ -87,7 +89,7 @@ export function CabinetPastBookings({ items, appDisplayTimeZone }: Props) {
                     </p>
                     <p className={cn(patientCaptionTextClass, 'truncate')}>
                       {bookingProvenancePrefix(booking)}
-                      {nativeBookingSubtitle(booking)}
+                      {nativeBookingSubtitle(booking, terms)}
                     </p>
                   </div>
                   {nativePastStatusRight(booking.status)}

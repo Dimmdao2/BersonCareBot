@@ -56,7 +56,11 @@ export default async function BookingNewSlotPage({ searchParams }: Props) {
 
     return (
       <BookingWizardShell
-        title={rescheduleBookingId ? 'Новое время приёма' : 'Выберите дату и время'}
+        title={
+          rescheduleBookingId
+            ? `Новое время ${slotContext.terms.appointmentGenitive}`
+            : 'Выберите дату и время'
+        }
         step={3}
         totalSteps={BOOKING_WIZARD_TOTAL_STEPS}
         backHref={backHref}
@@ -93,7 +97,11 @@ export default async function BookingNewSlotPage({ searchParams }: Props) {
 
   return (
     <BookingWizardShell
-      title={rescheduleBookingId ? 'Новое время приёма' : 'Выберите дату и время'}
+      title={
+        rescheduleBookingId
+          ? `Новое время ${displaySettings.terms.appointmentGenitive}`
+          : 'Выберите дату и время'
+      }
       step={3}
       totalSteps={BOOKING_WIZARD_TOTAL_STEPS}
       backHref={routePaths.bookingNew}

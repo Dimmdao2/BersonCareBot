@@ -23,6 +23,8 @@ export type PatientMaintenanceScreenProps = {
   bookings: PatientMaintenanceBooking[];
   appDisplayTimeZone: string;
   patientSingularLabel: string;
+  /** Винительный падеж слова организации о событии записи: «Записаться на приём/тренировку». */
+  appointmentAccusative: string;
 };
 
 export type PatientMaintenanceBooking = {
@@ -69,6 +71,7 @@ export function PatientMaintenanceScreen({
   bookings,
   appDisplayTimeZone,
   patientSingularLabel,
+  appointmentAccusative,
 }: PatientMaintenanceScreenProps) {
   const safeExternal = bookingUrl && isSafeExternalHref(bookingUrl) ? bookingUrl : null;
 
@@ -100,7 +103,7 @@ export function PatientMaintenanceScreen({
                 'w-full text-center',
               )}
             >
-              Записаться на приём
+              Записаться на {appointmentAccusative}
             </Link>
             <p className={cn(patientCaptionTextClass, 'text-center')}>
               Внешняя страница записи откроется в новой вкладке.

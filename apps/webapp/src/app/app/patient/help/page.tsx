@@ -5,6 +5,7 @@ import { requirePatientAccess } from '@/app-layer/guards/requireRole';
 import { listHelpArticlesForPatient } from '@/modules/help-content/listHelpArticles';
 import { getSupportContactUrl } from '@/modules/system-settings/supportContactUrl';
 import { PatientAppShell } from '@/shared/ui/patient/PatientAppShell';
+import { PatientAppointmentWord } from '@/shared/ui/patient/organization/PatientAppointmentWord';
 import { cn } from '@/lib/utils';
 import {
   patientInlineLinkClass,
@@ -50,7 +51,7 @@ export default async function PatientHelpPage() {
             </li>
             <li>
               <Link href={routePaths.bookingNew} className={patientInlineLinkClass}>
-                Запись на приём
+                Запись на <PatientAppointmentWord form="appointmentAccusative" />
               </Link>
             </li>
           </ul>

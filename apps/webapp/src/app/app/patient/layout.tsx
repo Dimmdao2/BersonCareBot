@@ -264,6 +264,10 @@ export default async function PatientLayout({ children }: { children: ReactNode 
       }
 
       const appDisplayTimeZone = await getAppDisplayTimeZone();
+      // Экран техработ — серверный и стоит ВНЕ контекста организации, поэтому слова приходят к
+      // нему пропами. Оба значения слой уже прочитал: третий аргумент передаётся явно, иначе
+      // экран молча остался бы на «приёме» при зелёных tsc и тестах.
+      const maintenanceTerms = resolvePatientTerms(patientLabel, undefined, appointmentLabel);
 
       return (
         <PatientClientLayout
@@ -281,7 +285,8 @@ export default async function PatientLayout({ children }: { children: ReactNode 
             bookingUrl={maintenance.bookingUrl}
             bookings={upcoming}
             appDisplayTimeZone={appDisplayTimeZone}
-            patientSingularLabel={resolvePatientTerms(patientLabel).patientSingularLabel}
+            patientSingularLabel={maintenanceTerms.patientSingularLabel}
+            appointmentAccusative={maintenanceTerms.appointmentAccusative}
           />
         </PatientClientLayout>
       );

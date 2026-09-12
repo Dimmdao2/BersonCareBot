@@ -24,12 +24,15 @@ type Props = {
   anonymousGuest: boolean;
   /** CMS media URL for card leading icon; Lucide fallback when null/empty. */
   blockIconImageUrl?: string | null;
+  /** Винительный падеж слова организации о событии записи; резолвит серверный `PatientHomeToday`. */
+  appointmentAccusative: string;
 };
 
 export function PatientHomeBookingCard({
   personalTierOk,
   anonymousGuest,
   blockIconImageUrl,
+  appointmentAccusative,
 }: Props) {
   const bookingHref = anonymousGuest
     ? appLoginWithNextHref(routePaths.bookingNew)
@@ -81,7 +84,7 @@ export function PatientHomeBookingCard({
                 Нужна консультация?
               </h3>
               <p className={patientHomeBookingCopyClampClass}>
-                Запишитесь на приём к специалисту очно или онлайн.
+                Запишитесь на {appointmentAccusative} к специалисту очно или онлайн.
               </p>
             </div>
           </div>

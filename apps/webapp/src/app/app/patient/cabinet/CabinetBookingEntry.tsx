@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/patient/pr
 import { cn } from '@/lib/utils';
 import { routePaths } from '@/app-layer/routes/paths';
 import { patientPrimaryActionClass, patientSectionTitleClass } from '@/shared/ui/patient/patientVisual';
+import { PatientAppointmentWord } from '@/shared/ui/patient/organization/PatientAppointmentWord';
 
 export function CabinetBookingEntry() {
   return (
@@ -16,7 +17,7 @@ export function CabinetBookingEntry() {
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         <Link href={routePaths.bookingNew} className={cn(patientPrimaryActionClass, 'w-full')}>
-          Записаться на приём
+          Записаться на <PatientAppointmentWord form="appointmentAccusative" />
         </Link>
       </CardContent>
     </Card>

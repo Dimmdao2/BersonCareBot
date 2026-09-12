@@ -2,6 +2,8 @@
 
 import { Badge } from '@/shared/ui/patient/primitives/badge';
 import { Button } from '@/shared/ui/patient/primitives/button';
+import { appointmentDeliveryFormatLabels } from '@/modules/system-settings/patientTerms';
+import { usePatientTerms } from '@/shared/ui/patient/organization/PatientOrganizationContext';
 import { patientSectionTitleClass } from '@/shared/ui/patient/patientVisual';
 import type { BookingSelection } from './useBookingSelection';
 
@@ -18,11 +20,12 @@ export function BookingFormatGrid({
   onStartInPerson,
   onSelectOnline,
 }: Props) {
+  const terms = usePatientTerms();
   const inPersonChosen = inPersonMode || selection?.type === 'in_person';
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center gap-2">
-        <h3 className={patientSectionTitleClass}>Формат приёма</h3>
+        <h3 className={patientSectionTitleClass}>Формат {terms.appointmentGenitive}</h3>
         <Badge variant="outline">Шаг 1</Badge>
       </div>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -32,7 +35,7 @@ export function BookingFormatGrid({
           className="h-auto min-h-14 justify-start text-left"
           onClick={() => onStartInPerson()}
         >
-          Очный приём
+          {appointmentDeliveryFormatLabels(terms).in_person}
         </Button>
         <Button
           type="button"

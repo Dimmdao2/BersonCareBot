@@ -3,6 +3,7 @@ import { PATIENT_DIARY_UI_LABEL } from '@/app-layer/routes/navigation';
 import { patientSessionSnapshotHasPhone } from '@/modules/platform-access';
 import type { AppSession } from '@/shared/types/session';
 import { GuestPlaceholder } from '@/shared/ui/patient/GuestPlaceholder';
+import { PatientAppointmentWord } from '@/shared/ui/patient/organization/PatientAppointmentWord';
 
 /** Блок для страницы записи без сессии или без телефона (EXEC I.10). Без inline-формы телефона. */
 export function CabinetGuestAccess({ session }: { session: AppSession | null }) {
@@ -10,8 +11,19 @@ export function CabinetGuestAccess({ session }: { session: AppSession | null }) 
     return (
       <GuestPlaceholder
         title="Запись"
-        description="Здесь отображаются ваши записи на приём и их история. Записаться можно без регистрации; чтобы видеть свои записи в списке — войдите и подтвердите номер телефона."
-        actionLabel="Запись на приём"
+        description={
+          <>
+            Здесь отображаются ваши записи на{' '}
+            <PatientAppointmentWord form="appointmentAccusative" /> и их история. Записаться можно
+            без регистрации; чтобы видеть свои записи в списке — войдите и подтвердите номер
+            телефона.
+          </>
+        }
+        actionLabel={
+          <>
+            Запись на <PatientAppointmentWord form="appointmentAccusative" />
+          </>
+        }
         actionHref={routePaths.bookingNew}
         secondaryLabel="Войти"
         secondaryHref={`${routePaths.root}?next=${encodeURIComponent(routePaths.bookingNew)}`}
@@ -21,8 +33,17 @@ export function CabinetGuestAccess({ session }: { session: AppSession | null }) 
   return (
     <GuestPlaceholder
       title="Запись"
-      description="Здесь отображаются ваши записи на приём и их история. Чтобы видеть список, подтвердите номер телефона в профиле."
-      actionLabel="Запись на приём"
+      description={
+        <>
+          Здесь отображаются ваши записи на <PatientAppointmentWord form="appointmentAccusative" />{' '}
+          и их история. Чтобы видеть список, подтвердите номер телефона в профиле.
+        </>
+      }
+      actionLabel={
+        <>
+          Запись на <PatientAppointmentWord form="appointmentAccusative" />
+        </>
+      }
       actionHref={routePaths.bookingNew}
       secondaryLabel="Подтвердить номер"
       secondaryHref={`${routePaths.bindPhone}?next=${encodeURIComponent(routePaths.bookingNew)}`}

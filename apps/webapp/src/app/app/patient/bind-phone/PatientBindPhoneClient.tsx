@@ -1,6 +1,6 @@
 'use client';
 
-import { startTransition, useCallback, useEffect, useRef, useState } from 'react';
+import { startTransition, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { usePatientPhonePromptChrome } from '@/shared/ui/patient/PatientPhonePromptChromeContext';
 import {
   getPatientMessengerContactGateDetail,
@@ -29,7 +29,7 @@ type Props = {
   telegramId: string;
   maxId: string;
   supportContactHref?: string;
-  hint?: string;
+  hint?: ReactNode;
   channelPolicy?: AuthChannelUiPolicy;
 };
 

@@ -8,6 +8,7 @@ import { formatBookingDateTimeMediumRu } from '@/shared/lib/formatBusinessDateTi
 import { resolveAppointmentTimeZone } from '@/shared/lib/appointmentZoneOffset';
 import { AppointmentZoneOffsetWarning } from '@/shared/ui/patient/AppointmentZoneOffsetWarning';
 import { useSurfaceName } from '@/shared/ui/PlatformProvider';
+import { usePatientTerms } from '@/shared/ui/patient/organization/PatientOrganizationContext';
 import { bookingProvenancePrefix, nativeBookingSubtitle } from './patientBookingLabels';
 import { CabinetBookingActions } from './CabinetBookingActions';
 import { cn } from '@/lib/utils';
@@ -104,6 +105,7 @@ function downloadIcs(booking: PatientBookingRecord, appName: string): void {
 
 export function CabinetActiveBookings({ bookings, appDisplayTimeZone }: Props) {
   const surfaceName = useSurfaceName();
+  const terms = usePatientTerms();
   if (bookings.length === 0) {
     return (
       <Card>
@@ -141,7 +143,7 @@ export function CabinetActiveBookings({ bookings, appDisplayTimeZone }: Props) {
                 </p>
                 <p className={cn(patientCaptionTextClass, 'truncate')}>
                   {bookingProvenancePrefix(row)}
-                  {nativeBookingSubtitle(row)}
+                  {nativeBookingSubtitle(row, terms)}
                 </p>
               </div>
               <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">

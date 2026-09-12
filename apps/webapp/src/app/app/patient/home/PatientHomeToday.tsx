@@ -185,24 +185,39 @@ async function renderPatientHomeToday({
 }: Props) {
   const deps = buildAppDeps();
   const anonymousGuest = session === null;
-  // Server-resolved terms for `PatientHomeDailyWarmupCard` (a server component): the client hook
-  // `usePatientTerms()` cannot be called here (TEST acceptance 2026-09-08, item 4 — "Attempted to
-  // call usePatientTerms() from the server"). Same registry key, same `resolvePatientTerms`
-  // resolver the patient layout and doctor screens already use — no duplicated label logic.
-  const patientGenitive = session
-    ? resolvePatientTerms(
-        (
-          await withPatientOrganizationPrincipal(
-            {
-              organizationId,
-              platformUserId: session.user.userId,
-              source: 'app.patient.home.patient-terms',
-            },
-            () => deps.systemSettings.getSetting('patient_label', 'doctor', { organizationId }),
-          )
-        )?.valueJson,
-      ).patientGenitive
-    : resolvePatientTerms().patientGenitive;
+  // Server-resolved terms for `PatientHomeDailyWarmupCard` and `PatientHomeBookingCard` (server
+  // components): the client hook `usePatientTerms()` cannot be called here (TEST acceptance
+  // 2026-09-08, item 4 — "Attempted to call usePatientTerms() from the server"). Same registry
+  // keys, same `resolvePatientTerms` resolver the patient layout and doctor screens already use —
+  // no duplicated label logic.
+  //
+  // Дверь — та же, через которую слой кабинета читает оба слова: seam
+  // `app.read_authenticated_runtime_setting` (`runtimeConfig`). Вторая пациентская дверь настроек
+  // (`app.read_current_patient_ui_setting`) знает только `patient_label`, и слово о событии записи
+  // через неё не приходит вовсе — экран молча остался бы на «приёме».
+  const homeLabels = session
+    ? await withPatientOrganizationPrincipal(
+        {
+          organizationId,
+          platformUserId: session.user.userId,
+          source: 'app.patient.home.patient-terms',
+        },
+        async () => {
+          const [patient, appointment] = await Promise.all([
+            deps.runtimeConfig.getAuthenticatedString('patient_label', organizationId),
+            deps.runtimeConfig.getAuthenticatedString('appointment_label', organizationId),
+          ]);
+          return { patient, appointment };
+        },
+      )
+    : { patient: undefined, appointment: undefined };
+  // Третий аргумент передан ЯВНО: необязательный, он молча оставил бы экран на «приёме» при
+  // зелёных tsc, eslint и тестах (закрывающий гейт T-G плана терминологии).
+  const { patientGenitive, appointmentAccusative } = resolvePatientTerms(
+    homeLabels.patient,
+    undefined,
+    homeLabels.appointment,
+  );
   const rehabilitationEnabled = session
     ? await withPatientOrganizationPrincipal(
         {
@@ -497,6 +512,7 @@ async function renderPatientHomeToday({
             personalTierOk={personalTierOk}
             anonymousGuest={anonymousGuest}
             blockIconImageUrl={blockLeadingIconFor('booking')}
+            appointmentAccusative={appointmentAccusative}
           />
         );
       case 'situations':

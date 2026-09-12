@@ -192,6 +192,69 @@ landing (AGENTS.md §1a и `LOCAL_DEV_AND_AGENT_TESTING.md` §3b: второй N
 5. **Для живой приёмки:** «Сейчас на приёме» и «Следующий приём» смотреть в
    `DoctorTodayNextAppointment`, а не в мёртвом двойнике из п. 3.
 
+**T-D — кабинет клиента переведён; T-E — публичная запись НЕ переводится, дверь не пускает.**
+20 файлов (19 изменённых + один новый). Слово берётся из ЕДИНСТВЕННОГО контекста кабинета
+`PatientOrganizationContext` там, где компонент клиентский, и приходит пропом от того, кто уже
+прочитал настройку, там, где он серверный. Второго резолвера, контекста и хранилища не заведено.
+
+Клиентские экраны (хук `usePatientTerms`): шаги формата и подтверждения мастера записи
+(`booking/FormatStepClient`, `booking/confirm/ConfirmStepClient`), предстоящие записи и история
+посещений (`booking/BookingUpcomingSection`, `booking/BookingPastHistorySection`), карточки записи
+кабинета (`cabinet/CabinetActiveBookings`, `cabinet/CabinetPastBookings`,
+`cabinet/CabinetUpcomingAppointments`, `cabinet/BookingFormatGrid`), категория напоминаний
+(`reminders/ReminderRulesClient`) и кнопка записи в программе
+(`treatment/program-detail/PatientProgramControlCard`). Общий `cabinet/patientBookingLabels.ts`
+получил ОБЯЗАТЕЛЬНЫЙ второй аргумент `terms` — необязательный оставил бы карточку на «приёме» при
+зелёном `tsc`, то есть ровно тот обход, который закрывает T-G.
+
+Серверные экраны — слово приходит туда, где организация уже прочитана, без новой двери:
+экран техработ и главная (`layout.tsx` → `PatientMaintenanceScreen`, `home/PatientHomeToday` →
+`home/PatientHomeBookingCard`) получают его пропом, заголовок шага переноса — из проекции
+`bookingCatalogRsc`, которую страница слота уже читает. Для трёх серверных мест без своего
+загрузчика (`help/page.tsx`, `bind-phone/page.tsx`, `shared/ui/patient/guestAccess.tsx`) заведён
+один клиентский лист `shared/ui/patient/organization/PatientAppointmentWord.tsx`: он берёт готовую
+форму из того же контекста, падеж — его параметр. Новых запросов к базе он не делает.
+
+**Найдено и исправлено по дороге:** на главной и в загрузчике мастера первым вариантом стояло
+чтение через `deps.systemSettings.getSetting`. Под пациентским принципалом этот путь уходит во
+ВТОРУЮ пациентскую дверь настроек `app.read_current_patient_ui_setting`, allowlist которой знает
+`patient_label`, но НЕ знает `appointment_label`: слово не пришло бы вовсе, а на раскрытом пути —
+упёрлось бы в отсутствующий грант (SQLSTATE 42501). Оба места переведены на ту дверь, которую
+открыл T-A, — `runtimeConfig.getAuthenticatedString` → `app.read_authenticated_runtime_setting`.
+Заодно чтение `patient_label` на главной перестало быть вторым путём к тому же значению.
+
+**T-E не сделан, и это не пропуск, а закрытая дверь.** Публичная запись анонимна: `/book/**` и
+`/{clinic}/booking` работают под принципалом организации (`withExplicitOrganizationPrincipal`), а
+`appointment_label` объявлен `authenticated_client` (`registry.ts`) и читается seam-функцией
+`app.read_authenticated_runtime_setting`, которая требует аттестованную роль `app_patient` или
+`app_staff`. Публичное чтение настроек (`app.read_public_runtime_setting`) организацию вообще не
+принимает — оно глобальное по построению. Проекция, которую публичная страница уже читает
+(`loadBookingEntryScreenRsc`), настройки не содержит. Значит слово там взять НЕОТКУДА без новой
+двери или смены audience ключа, а это решение владельца, не механическая правка. Поэтому
+`app/book/PublicFormatStepClient.tsx` (2 надписи) и `app/[clinicSlug]/booking/BookingEntryClient.tsx`
+(«Онлайн-приём», живой первый экран публичной записи) остались на «приёме».
+
+**Вопрос владельцу (не работа):** должно ли слово организации звучать на публичной записи? «Да»
+означает отдельный проход: либо публичный per-org seam для этого ключа, либо перевод
+`appointment_label` в audience, доступную анонимной воронке. «Нет» закрывает T-E как есть.
+
+**За границей прохода намеренно:** «запись», «визит», «посещение» и «занятие» не переименовываются
+(владелец сузил скоуп до двух слов) — поэтому «История посещений», «Активные записи», «Ближайшие
+записи» и статусы «Отменена/Завершена/Перенесена» (они согласуются с «записью», а не с событием)
+остались как были. Строка «Вы записаны на приём» физически живёт в
+`modules/patient-booking/patientMessageText.ts` и `modules/web-push/pushNotificationCopy.ts` — это
+T-F, в этот проход не входит. «Онлайн консультация» в `patientBookingLabels.ts` — имя категории из
+каталога, а не слово о событии записи.
+
+При дефолте «приём» ВСЕ тронутые надписи побайтно прежние — сверено построчно прогоном резолвера
+на всех четырёх значениях (`npx tsx`), расхождений нет ни одного. `tsc --noEmit` зелёный, eslint по
+изменённым файлам чистый, целевые тесты `src/app/app/patient`, `src/app/book`,
+`src/app/[clinicSlug]`, `src/modules/system-settings`, `src/modules/patient-booking` — 40/41 файлов
+зелёные. Единственный красный — `src/app/app/patient/layout.branding.test.ts`
+(`port.resolveMechanicAccess is not a function`): падает ТАК ЖЕ на HEAD без этих правок, к проходу
+отношения не имеет. **Живая приёмка на общем `:5200` не выполнена и остаётся обязательной** — она
+идёт после landing (AGENTS.md §1a).
+
 ## Этапы
 
 - [x] **MWT-01 — Инвентарь.** Найти все видимые пользователю медицинские термины и фразы во всех поверхностях приложения, включая тексты из БД/CMS, письма, уведомления, ботов, экспорт и печатные материалы; отделить доменные идентификаторы и юридически обязательные формулировки, которые нельзя механически переименовывать. — [`MEDICAL_WELLNESS_TERMINOLOGY_INVENTORY_2026-09-02.md`](MEDICAL_WELLNESS_TERMINOLOGY_INVENTORY_2026-09-02.md) §1-§3: 13 поверхностей, DB/CMS и четыре исполняемых кодовых baseline/fallback-источника; два audit-pass добавили doctor «Осмотр»/«Травмы и операции», `/book/**`, legal, TG/MAX, категории файлов, platform reminder «бады и лекарства» и реальную многоточечную синхронизацию справочников. Три класса разведены по фактическому владельцу строки. Lead correction N1-N2 принят по тому же kill-set.
