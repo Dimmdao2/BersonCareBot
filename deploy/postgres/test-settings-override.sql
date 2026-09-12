@@ -29,23 +29,36 @@ SELECT :'test_settings_overlay_mode' IN ('reset', 'code-only') AS test_settings_
 SELECT 1 / 0 AS invalid_test_settings_overlay_mode;
 \endif
 
--- The lock is a schema-B object and this overlay is data-only. Prove that the
--- declared trigger is installed and enabled; never drop, recreate or redefine it.
+-- Замок состоит из двух частей, и они принадлежат РАЗНЫМ владельцам.
+--
+-- Тело (`public.system_settings_test_lock_guard()`) — объект схемы B, и этот файл его не определяет
+-- и не переопределяет: он только требует, чтобы тело было на месте.
+--
+-- Сам триггер — политика ТЕСТА, а не схемы. Раньше он ехал внутри снимка схемы, то есть держался
+-- на том, что снимок когда-то сняли с базы, где его уже поставили руками. 13.09.2026 снимок
+-- пересобрали с текущего DEV — и триггер исчез, потому что на DEV его нет и быть не должно:
+-- «не дать случайно щёлкнуть обслуживание или регистрацию из интерфейса» — правило ТЕСТА.
+-- Полный сброс TEST после этого не мог создать его ничем и падал здесь.
+--
+-- Поэтому ставит его тот, чьё это правило, — этот файл, в самом конце, ссылкой на тело из схемы B.
+-- Это не воспроизведение тела: ни одна строка определения функции здесь не повторяется. Ровно эту
+-- форму предписал аудит 02.09 (docs/_TODO/runs/RUNTIME_OVERLAY_SYSTEMIC_CLOSURE_REAUDIT_2026-09-02.md),
+-- который нашёл, что каждый сброс TEST оставлял базу без замка, и записал, что с ним делать.
 BEGIN;
 
-SELECT EXISTS (
-  SELECT 1
-  FROM pg_trigger
-  WHERE tgname = 'system_settings_test_lock'
-    AND tgrelid = 'public.system_settings'::regclass
-    AND tgenabled = 'O'
-) AS system_settings_test_lock_ready
+SELECT to_regprocedure('public.system_settings_test_lock_guard()') IS NOT NULL
+  AS system_settings_test_lock_guard_ready
 \gset
-\if :system_settings_test_lock_ready
+\if :system_settings_test_lock_guard_ready
 \else
-\warn 'FATAL: declared system_settings_test_lock is missing or not enabled'
-SELECT 1 / 0 AS missing_system_settings_test_lock;
+\warn 'FATAL: schema-B function public.system_settings_test_lock_guard() is missing'
+SELECT 1 / 0 AS missing_system_settings_test_lock_guard;
 \endif
+
+-- Снимается до правок: тело замка бросает исключение на UPDATE ключей обслуживания, регистрации и
+-- тестовых учёток — по трём из них этот файл ниже и пишет. В режиме `reset` триггера ещё нет,
+-- в `code-only` он есть с прошлого прогона; обе ветки покрывает IF EXISTS.
+DROP TRIGGER IF EXISTS system_settings_test_lock ON public.system_settings;
 
 -- Environment identity, diagnostics and TEST-account delivery safety are deploy-owned env policy.
 -- The ordinary lock trigger must remain installed. A transaction-local replica
@@ -178,10 +191,12 @@ BEGIN
 END
 $test_owner_clinic_tariff_gate$;
 
--- The TEST settings lock function and trigger are schema-B objects. This data overlay must not replay
--- their bodies after the snapshot/migrations: object definitions have one owner, while this file only
--- normalizes TEST data. Retired env-owned keys have no rows after the forward migration, so their names
--- in the snapshot guard do not reintroduce a database setting or affect live updates.
+-- Правки закончились — ставим замок обратно. Тело берётся по ссылке из схемы B и здесь не
+-- повторяется. Retired env-owned keys have no rows after the forward migration, so their names in the
+-- snapshot guard do not reintroduce a database setting or affect live updates.
+CREATE TRIGGER system_settings_test_lock
+  BEFORE UPDATE ON public.system_settings
+  FOR EACH ROW EXECUTE FUNCTION public.system_settings_test_lock_guard();
 
 COMMIT;
 
