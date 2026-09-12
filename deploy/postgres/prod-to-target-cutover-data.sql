@@ -17,6 +17,9 @@ DECLARE
   copied_rows bigint := 0;
   copied_relations bigint := 0;
   organization_injected_relations bigint := 0;
+  backfill record;
+  source_row_count bigint;
+  unfilled text[];
 BEGIN
   FOR relation IN
     SELECT namespace.nspname AS schema_name, class.relname AS table_name
@@ -106,6 +109,63 @@ BEGIN
         ', %L::uuid',
         current_setting('bcb.cutover.canonical_organization_id')
       );
+    END IF;
+
+    -- Колонки, которые целевая схема требует (NOT NULL, без DEFAULT), а в схеме старого прода их
+    -- ещё нет. Значение здесь — НЕ выдумка: это ровно то, что прямая миграция проставила уже
+    -- существовавшим строкам, и путь A→B обязан давать тот же результат, что и цепочка миграций.
+    --
+    -- `storage_target`: 20260906T190000_a_stored_file_carries_the_store_it_lives_in.sql добавляет
+    -- колонку как `NOT NULL DEFAULT 'library'` и тут же снимает DEFAULT — чтобы каждый НОВЫЙ файл
+    -- был обязан назвать своё хранилище явно. Вернуть DEFAULT ради копирования нельзя: это сломало
+    -- бы задуманное и собственный VERIFY той миграции, проверяющий `NOT atthasdef`. Уже лежавшим
+    -- строкам она дала 'library' — здесь им даётся то же самое.
+    FOR backfill IN
+      SELECT * FROM (VALUES
+        ('media_files',   'storage_target', 'library'),
+        ('patient_files', 'storage_target', 'library')
+      ) AS declared(table_name, column_name, value)
+    LOOP
+      CONTINUE WHEN backfill.table_name <> relation.table_name OR relation.schema_name <> 'public';
+      CONTINUE WHEN EXISTS (
+        SELECT 1 FROM pg_attribute
+        WHERE attrelid = format('%I.%I', source_schema, relation.table_name)::regclass
+          AND attname = backfill.column_name AND attnum > 0 AND NOT attisdropped
+      );
+      target_columns_sql := target_columns_sql || ', ' || quote_ident(backfill.column_name);
+      select_columns_sql := select_columns_sql || format(', %L', backfill.value);
+    END LOOP;
+
+    -- Назвать проблему ДО копирования. Без этой проверки недостающая обязательная колонка
+    -- всплывает как нарушение NOT NULL в середине переноса, вместе с целой строкой чужих данных
+    -- в тексте ошибки, и только по одной колонке за прогон. Здесь называются сразу все и по именам.
+    -- Пустая таблица-источник переносу не мешает и его не останавливает.
+    EXECUTE format('SELECT count(*) FROM %I.%I', source_schema, relation.table_name)
+      INTO source_row_count;
+    SELECT array_agg(target_attribute.attname ORDER BY target_attribute.attnum)
+    INTO unfilled
+    FROM pg_attribute target_attribute
+    WHERE target_attribute.attrelid = format('%I.%I', relation.schema_name, relation.table_name)::regclass
+      AND target_attribute.attnum > 0
+      AND NOT target_attribute.attisdropped
+      AND target_attribute.attgenerated = ''
+      AND target_attribute.attnotnull
+      AND NOT target_attribute.atthasdef
+      AND target_attribute.attidentity = ''
+      AND NOT (', ' || target_columns_sql || ', ') LIKE ('%, ' || quote_ident(target_attribute.attname) || ', %')
+      AND NOT EXISTS (
+        SELECT 1 FROM pg_attribute source_attribute
+        WHERE source_attribute.attrelid = format('%I.%I', source_schema, relation.table_name)::regclass
+          AND source_attribute.attname = target_attribute.attname
+          AND source_attribute.attnum > 0 AND NOT source_attribute.attisdropped
+      );
+    IF unfilled IS NOT NULL THEN
+      IF source_row_count > 0 THEN
+        RAISE EXCEPTION 'cutover copy cannot fill required column(s) %.% %: % source rows would violate NOT NULL. Declare the value the forward migration gave existing rows in required_backfills.',
+          relation.schema_name, relation.table_name, unfilled, source_row_count;
+      END IF;
+      RAISE NOTICE 'cutover copy: %.% gained required column(s) % that the source lacks; source is empty, so nothing is copied — the first real row will need a declared backfill',
+        relation.schema_name, relation.table_name, unfilled;
     END IF;
 
     EXECUTE format(
