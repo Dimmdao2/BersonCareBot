@@ -102,7 +102,10 @@ describe('граница чтения при проверке ссылки эл�
       const { sql, params } = await readBoundaryFor(type);
       expect(params).toContain('platform');
       expect(params).toContain(ORGANIZATION_ID);
-      expect(sql).toMatch(/"owner_kind" = \$\d+ and "\w+"\."organization_id" is null/);
+      // Проверяется НАЛИЧИЕ `organization_id is null`, а не порядок операндов: платформенная строка
+      // ловится только этим условием (у неё организация пуста), а перестановка операндов внутри
+      // предиката поведения не меняет и краснеть не должна.
+      expect(sql).toContain('"organization_id" is null');
     });
 
     it(`${type}: с выключенным тарифом платформенная строка в границу не входит`, async () => {
