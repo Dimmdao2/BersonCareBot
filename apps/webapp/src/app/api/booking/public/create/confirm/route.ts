@@ -21,7 +21,10 @@ import {
   resolvePublicBookingRateLimitClientKey,
 } from '@/modules/public-booking/publicBookingRateLimit';
 import { consumePublicBookingVerification } from '@/modules/public-booking/publicBookingVerification';
-import { withPatientIdentityPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
+import {
+  withPatientIdentityPrincipal,
+  withPatientOrganizationPrincipal,
+} from '@/app-layer/principal/withOrganizationPrincipal';
 import { logger } from '@/app-layer/logging/logger';
 import { redactPublicBookingRecord } from '@/modules/public-booking/publicBookingResponse';
 import { InPersonBookingResolveError } from '@/modules/patient-booking/inPersonBookingResolve';
@@ -136,18 +139,21 @@ export async function POST(request: Request) {
     );
     let checkoutUrl: string | null = null;
     if (booking.status === 'awaiting_payment') {
-      const paymentStatus = await withPatientIdentityPrincipal(
-        {
-          platformUserId: payer.platformUserId,
-          source: 'api/booking/public/create/confirm:POST:payment-status',
-        },
-        () =>
-          deps.patientBooking.getBookingPaymentStatus(
-            booking.id,
-            resolvedSurface.publicOrigin,
-          ),
-      );
-      checkoutUrl = paymentStatus.ok ? paymentStatus.checkoutUrl : null;
+      // Принципал пациента здесь ОРГАНИЗАЦИОННО-привязанный, а не «только личность»: состояние
+      // оплаты читается именованным корнем класса `patient`, а рантайм пускает пациентский контекст
+      // без организации только для корней отношения (`portContextRuntime.ts`). Поймано живой
+      // проверкой S9.4, а не типами.
+      const paymentStatus = booking.organizationId
+        ? await withPatientOrganizationPrincipal(
+            {
+              organizationId: booking.organizationId,
+              platformUserId: payer.platformUserId,
+              source: 'api/booking/public/create/confirm:POST:payment-status',
+            },
+            () => deps.patientBooking.getBookingPaymentStatus(booking.id, resolvedSurface.publicOrigin),
+          )
+        : null;
+      checkoutUrl = paymentStatus?.ok ? paymentStatus.checkoutUrl : null;
     }
     return jsonOk({ booking: redactPublicBookingRecord(booking), checkoutUrl }, { status: 200 });
   } catch (error) {

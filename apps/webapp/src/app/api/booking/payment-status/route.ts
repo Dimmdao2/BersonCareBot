@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requirePatientApiBusinessAccess } from '@/app-layer/guards/requireRole';
-import { withPatientIdentityPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { routePaths } from '@/app-layer/routes/paths';
 import { requireResolvedSurface } from '@/shared/lib/surface/requestSurface';
 import type { BookingPaymentStatusOk } from '@/shared/lib/paymentStatusView';
@@ -19,13 +18,13 @@ export async function GET(request: Request) {
 
   const deps = buildAppDeps();
   const patientOrigin = requireResolvedSurface(request.headers).publicOrigin;
-  const result = await withPatientIdentityPrincipal(
-    {
-      platformUserId: gate.session.user.userId,
-      source: 'api/booking/payment-status:GET',
-    },
-    () => deps.patientBooking.getBookingPaymentStatus(bookingId, patientOrigin),
-  );
+  // Принципал здесь НЕ переустанавливается: сессия пациента уже стоит в контексте, и она
+  // организационно-привязанная. Обёртка `withPatientIdentityPrincipal` (личность без организации)
+  // была бы шагом назад: рантайм-правило `portContextRuntime.ts` пускает пациентский контекст без
+  // организации только для корней отношения и трёх корней из явного списка, а этот корень читает
+  // данные ВНУТРИ клиники. Живая проверка на DEV это и показала: «Patient port context requires an
+  // organization-scoped patient principal».
+  const result = await deps.patientBooking.getBookingPaymentStatus(bookingId, patientOrigin);
   if (!result.ok) {
     return NextResponse.json({ ok: false, error: result.error }, { status: 404 });
   }

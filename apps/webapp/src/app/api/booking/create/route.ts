@@ -19,7 +19,7 @@ import {
 import { FIO_LATIN_REJECTED_TEXT, isFioLatinRejection } from '@/shared/lib/fio';
 import { mailProfileForResolvedSurface } from '@/modules/auth/mailProfile';
 import { requireResolvedSurface } from '@/shared/lib/surface/requestSurface';
-import { withPatientIdentityPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
+import { withPatientOrganizationPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 
 const formAnswerSchema = z.object({
   fieldKey: z.string().min(1),
@@ -132,15 +132,21 @@ export async function POST(request: Request) {
     });
     let checkoutUrl: string | null = null;
     if (booking.status === 'awaiting_payment') {
-      const paymentStatus = await withPatientIdentityPrincipal(
-        { platformUserId: session.user.userId, source: 'api/booking/create:POST:payment-status' },
-        () =>
-          deps.patientBooking.getBookingPaymentStatus(
-            booking.id,
-            resolvedSurface.publicOrigin,
-          ),
-      );
-      checkoutUrl = paymentStatus.ok ? paymentStatus.checkoutUrl : null;
+      // Принципал пациента здесь ОРГАНИЗАЦИОННО-привязанный, а не «только личность»: состояние
+      // оплаты читается именованным корнем класса `patient`, а рантайм пускает пациентский контекст
+      // без организации только для корней отношения (`portContextRuntime.ts`). Поймано живой
+      // проверкой S9.4, а не типами.
+      const paymentStatus = booking.organizationId
+        ? await withPatientOrganizationPrincipal(
+            {
+              organizationId: booking.organizationId,
+              platformUserId: session.user.userId,
+              source: 'api/booking/create:POST:payment-status',
+            },
+            () => deps.patientBooking.getBookingPaymentStatus(booking.id, resolvedSurface.publicOrigin),
+          )
+        : null;
+      checkoutUrl = paymentStatus?.ok ? paymentStatus.checkoutUrl : null;
     }
     return jsonOk({ booking, checkoutUrl }, { status: 200 });
   } catch (error) {

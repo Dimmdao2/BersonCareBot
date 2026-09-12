@@ -8,16 +8,12 @@ import {
 const fakes = vi.hoisted(() => ({
   buildAppDeps: vi.fn(),
   requirePatientApiBusinessAccess: vi.fn(),
-  withPatientIdentityPrincipal: vi.fn(),
   getBookingPaymentStatus: vi.fn(),
 }));
 
 vi.mock('@/app-layer/di/buildAppDeps', () => ({ buildAppDeps: fakes.buildAppDeps }));
 vi.mock('@/app-layer/guards/requireRole', () => ({
   requirePatientApiBusinessAccess: fakes.requirePatientApiBusinessAccess,
-}));
-vi.mock('@/app-layer/principal/withOrganizationPrincipal', () => ({
-  withPatientIdentityPrincipal: fakes.withPatientIdentityPrincipal,
 }));
 
 import { GET } from './route';
@@ -48,9 +44,6 @@ beforeEach(() => {
       getBookingPaymentStatus: fakes.getBookingPaymentStatus,
     },
   });
-  fakes.withPatientIdentityPrincipal.mockImplementation(
-    (_principal: unknown, callback: () => Promise<unknown>) => callback(),
-  );
 });
 
 describe('B1.2 booking payment status ownership', () => {
@@ -79,10 +72,8 @@ describe('B1.2 booking payment status ownership', () => {
       paymentDeadlineAt: '2026-09-12T09:30:00.000Z',
       appointmentStatus: 'awaiting_payment',
     });
-    expect(fakes.withPatientIdentityPrincipal).toHaveBeenCalledWith(
-      expect.objectContaining({ platformUserId: 'owner-user' }),
-      expect.any(Function),
-    );
+    // Маршрут НЕ переустанавливает принципал: сессия пациента уже организационно-привязанная, а
+    // рантайм не пускает пациентский контекст без организации к этому корню (живая проверка S9.4).
     expect(fakes.getBookingPaymentStatus).toHaveBeenCalledWith(bookingId, patientOrigin);
   });
 
