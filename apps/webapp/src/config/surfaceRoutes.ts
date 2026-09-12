@@ -208,3 +208,17 @@ export function patientTreeRewritePath(resolved: ResolvedSurface, pathname: stri
   if (path === '/booking') return publicBookPaths.forSlug(resolved.clinicSlug);
   return null;
 }
+
+/**
+ * The one platform-admin root projection. `/` is deliberately `shared` in `SURFACE_ROUTE_RULES`
+ * above — it does not choose between staff, patient or admin — so without this, `platform_admin`
+ * fell through to the exact same staff marketing landing as `therapysto.ru` itself (C16 gap,
+ * `SURFACE_AND_DOMAIN_MAP_2026-08-22.md`: "Host isolation/redirect отсутствуют"; found live
+ * 12.09.2026 — `admin.therapysto.ru` showed the specialist landing, not a login form). The admin
+ * Host has exactly one door (`canSurfaceEnterRoute` already hard-404s every other role-login path
+ * on it), so root goes straight there — no landing, no portal choice to make.
+ */
+export function platformAdminRewritePath(resolved: ResolvedSurface, pathname: string): string | null {
+  if (resolved.surface !== 'platform_admin') return null;
+  return normalizePathname(pathname) === '/' ? '/app/admin/login' : null;
+}

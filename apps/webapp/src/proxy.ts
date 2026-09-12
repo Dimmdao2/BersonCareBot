@@ -26,7 +26,11 @@ import {
   handlePlatformContextRequest,
 } from '@/middleware/platformContext';
 import { decideCsrfOrigin } from '@/middleware/csrfOrigin';
-import { canSurfaceEnterRoute, patientTreeRewritePath } from '@/config/surfaceRoutes';
+import {
+  canSurfaceEnterRoute,
+  patientTreeRewritePath,
+  platformAdminRewritePath,
+} from '@/config/surfaceRoutes';
 import { PATIENT_DEFAULT_SURFACE } from '@/config/productSurfaces';
 import {
   arePlatformSurfaceHostsDistinct,
@@ -169,7 +173,12 @@ export async function proxy(
     resolvedSurface && surfaceHostsAreDistinct
       ? patientTreeRewritePath(resolvedSurface, pathname)
       : null;
-  const routedPathname = patientRewritePath ?? pathname;
+  // Unlike the patient tree above, this does not depend on staff/patient host distinctness: the
+  // admin Host (`admin.<staff host>`) is always its own host regardless of that flag.
+  const surfaceRewritePath =
+    patientRewritePath ??
+    (resolvedSurface ? platformAdminRewritePath(resolvedSurface, pathname) : null);
+  const routedPathname = surfaceRewritePath ?? pathname;
   if (
     !resolvedSurface ||
     (surfaceHostsAreDistinct && !canSurfaceEnterRoute(resolvedSurface.surface, routedPathname))
@@ -308,9 +317,9 @@ export async function proxy(
   // longer resolve product surface, but must still overwrite caller values with the real URL.
   requestHeaders.set('x-bc-pathname', pathname);
   requestHeaders.set('x-bc-search', request.nextUrl.search);
-  const response = patientRewritePath
+  const response = surfaceRewritePath
     ? NextResponse.rewrite(
-        new URL(`${patientRewritePath}${request.nextUrl.search}`, resolvedSurface.publicOrigin),
+        new URL(`${surfaceRewritePath}${request.nextUrl.search}`, resolvedSurface.publicOrigin),
         { request: { headers: requestHeaders } },
       )
     : NextResponse.next({

@@ -623,6 +623,17 @@ describe('request-surface host matrix at the proxy choke point', () => {
     },
   );
 
+  it('rewrites platform-admin root straight to the admin login door, no landing', async () => {
+    const runtime = await loadProxyForSurfaceConfiguration(PLATFORM_SURFACE_CONFIGURATIONS[1]);
+    const platformAdminOrigin = new URL(`https://admin.${runtime.staffOrigin.hostname}`);
+
+    const response = await runtime.proxy(requestFor(platformAdminOrigin, '/'));
+
+    expect(response.status).toBe(200);
+    expect(middlewareRoutedPath(response, '/')).toBe('/app/admin/login');
+    expect(middlewareRequestSurface(response)).toMatchObject({ surface: 'platform_admin' });
+  });
+
   it.each(['/app/doctor/login', '/app/patient/login'] as const)(
     'hard-404s the alternate login door %s on the platform-admin Host',
     async (pathname) => {
