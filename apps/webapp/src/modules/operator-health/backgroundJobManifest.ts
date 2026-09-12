@@ -227,19 +227,28 @@ const BACKGROUND_JOB_MANIFEST_SOURCE = [
     jobFamily: OPERATOR_MEDIA_JOB_FAMILY,
     jobKey: OPERATOR_MEDIA_PREVIEW_PROCESS_JOB_KEY,
     label: 'Превью медиа',
-    kind: 'internal_http',
-    scheduleOwner: 'host_cron',
-    scheduleHint: 'каждую минуту',
-    cron: '* * * * *',
-    artifactSlug: 'media-preview',
+    /*
+     * М7 (10.09.2026, `docs/_TODO/STORAGE_PACKAGES_2026-09-10.md`): разбор картинок, HEIC и
+     * постеров уехал из процесса вебаппа в `apps/media-worker`. Дверь `/api/internal/media-preview/
+     * process` и её cron-шаблон сняты вместе с обработчиком — будить в вебаппе больше нечего.
+     *
+     * Строка осталась и стала честнее: отметку пишет тот, кто делает работу. Резидентный воркер
+     * шлёт её через тот же контрольный шов (`preview_tick`) не реже раза в минуту, в том числе в
+     * простое. Пустая строка теперь означает «воркер не работает», а не «cron не сработал».
+     *
+     * Своей двери у строки нет: `POST /api/internal/media-worker/control` — общий шов воркера, он
+     * уже объявлен в `INTERNAL_JOB_BEARER_NON_MANIFEST_PATHS`. Продублировать его здесь значило бы
+     * стереть границу «manifest ⇄ не-manifest», по которой считается CSRF-исключение.
+     */
+    kind: 'resident_scheduler',
+    scheduleOwner: 'resident_scheduler',
+    scheduleHint: 'резидентный media-worker, отметка не реже раза в минуту',
     environments: ['prod', 'test'],
-    route: { method: 'POST', path: '/api/internal/media-preview/process', query: 'limit=10' },
     principal: 'internal_job_bearer',
     surfaceIdentity: 'app_public_origin',
-    timeoutSec: 50,
     staleAfterSec: 3 * 60,
     required: true,
-    why: 'Только HTTP-дверь пишет tick media.preview.process; `media-preview:tick` оставляет строку «нет данных».',
+    why: 'Очередь превью ведёт media-worker: без его отметки превью не создаются вовсе.',
   },
   {
     id: 'media_transcode_reconcile',

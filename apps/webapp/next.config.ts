@@ -25,22 +25,14 @@ const nextConfig: NextConfig = {
   allowedDevOrigins,
   output: 'standalone',
   outputFileTracingRoot,
-  outputFileTracingIncludes: {
-    '/api/internal/media-preview/process': [
-      '../../node_modules/.pnpm/@img+sharp-linux-x64@0.35.3/node_modules/@img/sharp-linux-x64/**/*',
-      '../../node_modules/.pnpm/@img+sharp-libvips-linux-x64@1.3.2/node_modules/@img/sharp-libvips-linux-x64/**/*',
-    ],
-  },
-  outputFileTracingExcludes: {
-    '/api/internal/media-preview/process': [
-      './src/**/*',
-      './e2e/**/*',
-      './scripts/**/*',
-      './next.config.ts',
-      './vitest*.ts',
-      './tsconfig*.json',
-    ],
-  },
+  /*
+   * Оба списка описывали маршрут `/api/internal/media-preview/process`, снятый 10.09.2026 вместе с
+   * обработчиком (М7, `docs/_TODO/STORAGE_PACKAGES_2026-09-10.md`): разбор картинок уехал в
+   * `apps/media-worker`. Они и были обходным путём именно для него — тот маршрут подтягивал `sharp`
+   * ДИНАМИЧЕСКИМ `import()`, которого трассировка не видит, и заодно тянул за собой исходники из-за
+   * временных путей. Оставшийся в вебаппе потребитель `sharp` (иконки клиники) импортирует его
+   * статически, поэтому трассировка находит нативный бинарь сама, без ручного списка.
+   */
   async headers() {
     const frameAncestors = [
       "'self'",

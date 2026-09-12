@@ -1,6 +1,7 @@
 # Media library — background preview pipeline
 
-**Статус:** работает для загруженных файлов и hosted-video; актуализировано 2026-08-28.
+**Статус:** работает для загруженных файлов и hosted-video; актуализировано 2026-09-10 — разбор байт
+переехал из процесса вебаппа в `apps/media-worker` (М7, `docs/_TODO/STORAGE_PACKAGES_2026-09-10.md`).
 
 ## Назначение
 
@@ -12,7 +13,7 @@
 
 | Колонка                                       | Смысл                                                                                                                                    |
 | --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `preview_status`                              | `pending` \| `ready` \| `failed` \| `skipped`                                                                                            |
+| `preview_status`                              | `pending` \| `processing` (занято воркером) \| `ready` \| `failed` \| `skipped`                                                          |
 | `preview_sm_key`                              | Ключ объекта в private S3 (миниатюра ~160px)                                                                                             |
 | `preview_md_key`                              | Ключ среднего превью (~400px) для **image**, **video** и **HEIC/HEIF** (воркер пишет sm + md)                                            |
 | `preview_attempts`, `preview_next_attempt_at` | Повторы при ошибке (экспоненциальная задержка)                                                                                           |
@@ -22,27 +23,48 @@
 
 ## Воркер
 
-- **Канонический host tick:** typed manifest
-  [`backgroundJobManifest.ts`](../apps/webapp/src/modules/operator-health/backgroundJobManifest.ts) →
-  сгенерированный `/etc/cron.d` artifact → единый
-  [`run-internal-job.sh`](../deploy/host/run-internal-job.sh). Он раз в минуту вызывает
-  `POST /api/internal/media-preview/process?limit=10` с правильными Host/Origin и Bearer. Прямой
-  `media-preview:tick` оставлен только для диагностики: он не пишет операторский health tick.
-- **Результат HTTP:** batch с `errors=0` возвращает `200` и зелёный tick; хотя бы одна retryable/failed строка
-  возвращает `500` и красный tick. Terminal `skipped` — обработанный исход, а не авария задания.
-- **Логика:** `processMediaPreviewBatch` в [`apps/webapp/src/infra/repos/mediaPreviewWorker.ts`](../apps/webapp/src/infra/repos/mediaPreviewWorker.ts): выбор строк `preview_status = 'pending'` с `FOR UPDATE SKIP LOCKED`, чтение оригинала из S3, для **image** — `sharp` (sm + md) + `source_width`/`source_height` из `metadata()`, для **video** — `ffmpeg` кадр (~1 с, fallback 0 с) + `sharp` до **sm и md**, размеры источника через `ffprobe`, для **HEIC** — декод в JPEG, затем `sharp` для sm/md. Для `hosted_video_preview` сервер получает обложку YouTube/VK, тем же энкодером нормализует её и кладёт в private S3; браузер пациента к провайдеру картинки не обращается. Временный отказ получает bounded retry, private/deleted/unsupported — terminal `skipped`.
-- **Cron / установка:** см. [`deploy/HOST_DEPLOY_README.md`](../deploy/HOST_DEPLOY_README.md); manifest,
-  artifact и реально установленное расписание сверяются перед переключением релиза.
+**Кто это делает.** Байты разбирает отдельный процесс [`apps/media-worker`](../apps/media-worker/) — тот же,
+что режет видео в HLS. Учётных данных БД у него нет вовсе (`src/env.ts` падает, если они появятся), HTTP-порта
+нет, к базе он ходит только через контрольный шов вебаппа. До 10.09.2026 всё это крутилось ВНУТРИ процесса
+Next.js — рядом с пулами к базе, `SESSION_COOKIE_SECRET` и живыми запросами врачей и пациентов; дефект памяти
+в libvips, ImageMagick или ffmpeg приземлялся прямо на данные пациентов.
+
+**Кто что решает.** Решения остались в вебаппе, у воркера — только разбор:
+
+- что делать со строкой — [`modules/media/mediaPreviewPlan.ts`](../apps/webapp/src/modules/media/mediaPreviewPlan.ts)
+  (чистая функция: ветка по mime и размеру, потолки, классификация ошибки, backoff);
+- очередь, аренда и запись исхода — [`infra/repos/pgMediaPreviewControl.ts`](../apps/webapp/src/infra/repos/pgMediaPreviewControl.ts);
+- разбор байт — [`apps/media-worker/src/processPreviewJob.ts`](../apps/media-worker/src/processPreviewJob.ts).
+
+**Шов.** `POST /api/internal/media-worker/control` (Bearer `INTERNAL_JOB_SECRET`), команды:
+`preview_claim` (занять наряд), `preview_hosted_bytes` (байты чужой обложки — наружу за ней ходит вебапп),
+`preview_done_image`, `preview_done_poster`, `preview_failed`, `preview_tick` (отметка живости).
+**Ни один ключ объекта в отчёте не передаётся:** и ключи вывода, и вытесненный исходник вебапп считает сам от
+`media_id` и от текущей строки — иначе у процесса, разбирающего враждебные байты, появился бы примитив
+«перенаправь строку на произвольный объект» и «удали произвольный объект».
+
+**Замок.** Занятая строка стоит в `preview_status = 'processing'`, её `preview_next_attempt_at` — срок аренды
+(`MEDIA_WORKER_PREVIEW_LEASE_MINUTES`, по умолчанию 15 мин). Истёкшая аренда возвращает строку в оборот сама.
+
+**Порядок записи** (решение владельца 19.08.2026, SECURITY_CANON §5) не изменился, только распался на два
+процесса: воркер делает encode → PUT рендишна → HEAD → PUT эскизов, и лишь затем отчитывается; вебапп по
+отчёту перенаправляет строку, коммитит и ТОЛЬКО ПОСЛЕ этого удаляет вытесненный исходник. Отказ на любом шаге
+не доходит до отчёта — исходник остаётся единственной копией, и следующая попытка начинает с него же.
+
+**Расписание.** Host-cron у превью больше нет: очередь ведёт резидентный воркер собственным опросом. Строка
+«Превью медиа» в «Здоровье системы» осталась и стала честнее — отметку пишет тот, кто делает работу, поэтому
+пустая строка означает «воркер не работает», а не «cron не сработал». В typed manifest
+[`backgroundJobManifest.ts`](../apps/webapp/src/modules/operator-health/backgroundJobManifest.ts) задание
+`media_preview` объявлено как `resident_scheduler`, шаблоны `/etc/cron.d` для него не генерируются.
 
 ### Лимиты и устойчивость (post-audit)
 
-- **Изображения:** если `size_bytes` > **50 MiB**, воркер выставляет `preview_status = 'skipped'` (не грузит весь файл в Node — защита от OOM). Константа: `MAX_IMAGE_PREVIEW_BYTES` в `mediaPreviewWorker.ts`.
+- **Изображения:** если `size_bytes` > **50 MiB**, воркер выставляет `preview_status = 'skipped'` (не грузит весь файл в Node — защита от OOM). Константа: `MAX_IMAGE_PREVIEW_BYTES` в `mediaPreviewPlan.ts`.
 - **Видео:** лимит источника для превью выровнен с лимитом загрузки CMS (**3 GiB**). Если размер выше — `preview_status = 'skipped'`.
 - **HEIC/HEIF:** сначала пытаемся получить `sm`-превью через `ffmpeg`; если декодер не справился, запускается fallback через `ImageMagick` (`magick`/`convert`) с конвертацией в JPEG, затем resize через `sharp`.
-- **HEIC download:** перед `ImageMagick` исходник скачивается во временный файл с HTTP timeout **120 с** (`AbortController`); timeout считается ретрабельной ошибкой (backoff), а не permanent skip.
-- **ffmpeg:** таймаут извлечения кадра **120 с** (`SIGKILL` на команде); очистка временного каталога в `tmpdir` при любом исходе (в т.ч. ошибка `readFile` после успешного кодирования).
+- **Локальный вход ffmpeg:** исходник скачивается из S3 во временный файл, и ffmpeg получает путь, а не подписанный HTTPS-URL, с `-protocol_whitelist file` — ссылку наружу, спрятанную внутри контейнера, он не пойдёт разрешать.
+- **ffmpeg:** таймаут одного разбора — `MEDIA_WORKER_PREVIEW_TIMEOUT_MS` (по умолчанию **120 с**, `SIGKILL` на команде); очистка временного каталога в `tmpdir` при любом исходе.
 - **Permanent errors:** сообщения вида `SIGSEGV`, `compression format has not been built in`, `Input buffer contains unsupported image format`, `Invalid data found when processing input` считаются неретрабельными и переводят запись в `skipped`.
-- **SQL «readable» статуса:** воркер импортирует `MEDIA_READABLE_STATUS_SQL` из [`s3MediaStorage.ts`](../apps/webapp/src/infra/repos/s3MediaStorage.ts), без дублирования литерала.
 
 ## Матрица форматов
 
@@ -81,7 +103,8 @@ organization/submission access row, что playback. Знание UUID файл�
 
 | Место                  | Событие                                                                                                                                 |
 | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `mediaPreviewWorker`   | `source dimensions stored` при записи `source_width`/`source_height`; `backfill: source dimensions NULL before processing` (debug)      |
+| `media-worker`         | `preview_order_done` / `preview_order_failed` (короткий код ошибки, без stderr и без имён объектов)                                     |
+| `mediaPreviewControl`  | `standard rendition stored`; `original deleted after standard rendition`; `preview failed`                                              |
 | `preview/[size]/route` | успешная отдача тела / 304 — **debug** (`served body`, `not modified`); `not found` / `s3 read failed` / предупреждения — без понижения |
 
 ## Удаление
@@ -90,13 +113,16 @@ organization/submission access row, что playback. Знание UUID файл�
 
 ## Зависимости
 
-В `apps/webapp`: `sharp` и системный `ffmpeg`/`ffprobe`. Для HEIC fallback в production нужен установленный `ImageMagick` (`magick` или `convert` в `PATH`, либо `MAGICK_PATH` в env).
+В `apps/media-worker`: `sharp`, `ffmpeg` (bundled `@ffmpeg-installer/ffmpeg` либо системный через `FFMPEG_PATH`)
+и, для запасного разбора HEIC, `ImageMagick` (`magick`/`convert` в `PATH` либо `MAGICK_PATH`). В `apps/webapp`
+`sharp` остался только для иконок клиники (`modules/media/orgAppIconRenditions.ts`) — это отдельная поверхность,
+которая в этот переезд не входила.
 
-Node-обёртка `fluent-ffmpeg` снята (upstream deprecated, без релизов): движок остался тем же системным FFmpeg, воркер запускает его напрямую через [`apps/webapp/src/infra/media/ffmpegPreview.ts`](../apps/webapp/src/infra/media/ffmpegPreview.ts) — argv массивом без `shell`, SIGKILL по таймауту 120 c, ограниченный хвост `stderr`, временный каталог убирается всегда. Тексты ошибок (`ffmpeg exited with code N: …`, `ffmpeg was killed with signal …`) сохранены дословно: по ним воркер отличает постоянную ошибку файла (`skipped`) от временной (retry/backoff).
+FFmpeg запускается argv-массивом без `shell` ([`ffmpeg/runFfmpeg.ts`](../apps/media-worker/src/ffmpeg/runFfmpeg.ts)), с SIGKILL по таймауту и ограниченным хвостом `stderr`; временный каталог убирается всегда. Тексты ошибок (`ffmpeg exited with code N: …`, `ffmpeg was killed with signal …`) сохранены дословно: по ним ВЕБАПП отличает постоянную ошибку файла (`skipped`) от временной (retry/backoff) — классификация принадлежит ему, а не процессу, который разбирал байты.
 
 Воркер сначала читает `FFMPEG_PATH` из env (на сервере канонично `/usr/bin/ffmpeg`), иначе разрешает `ffmpeg` через `PATH`. Для `ffprobe` (размеры источника) порядок прежний: `FFPROBE_PATH` из env → `ffprobe` из `PATH` → сосед указанного `ffmpeg`. Для HEIC fallback можно задать `MAGICK_PATH` (например `/usr/bin/magick`).
 
-**Next.js production build:** в [`apps/webapp/next.config.ts`](../apps/webapp/next.config.ts) нативный `sharp` остаётся в `serverExternalPackages` (`fluent-ffmpeg` оттуда убран вместе с пакетом). Для preview-route исключены исходники и test/config-файлы, которые NFT ошибочно захватывал из-за динамических временных путей. Платформенный `@ffmpeg-installer` из webapp удалён отдельно: сервер использует системный ffmpeg, а bundled-бинарь уже давал `SIGSEGV` на хосте.
+**Next.js production build:** в [`apps/webapp/next.config.ts`](../apps/webapp/next.config.ts) нативный `sharp` остаётся в `serverExternalPackages` — он всё ещё нужен вебаппу для иконок клиники. Preview-маршрут `/api/internal/media-preview/process` снят вместе с обработчиком, поэтому его исключения из NFT больше ни на что не влияют.
 
 ## Миграции
 
@@ -107,7 +133,7 @@ runner; legacy replay вручную не запускать.
 
 ## Troubleshooting: ffmpeg SIGSEGV
 
-- Симптом: в логах webapp есть `ffmpeg was killed with signal SIGSEGV`.
-- Причина: исторически это давал bundled-бинарь; после его удаления проверить системный `ffmpeg`, значение `FFMPEG_PATH` и конкретный входной файл.
-- Исправление: установить системный ffmpeg (`apt install ffmpeg`), задать `FFMPEG_PATH=/usr/bin/ffmpeg` в `/opt/env/bersoncarebot/webapp.prod`, затем перезапустить `bersoncarebot-webapp-prod.service`.
+- Симптом: в логах **media-worker** есть `ffmpeg was killed with signal SIGSEGV`.
+- Причина: исторически это давал bundled-бинарь; проверить системный `ffmpeg`, значение `FFMPEG_PATH` и конкретный входной файл.
+- Исправление: установить системный ffmpeg (`apt install ffmpeg`), задать `FFMPEG_PATH=/usr/bin/ffmpeg` в `/opt/env/bersoncarebot/media-worker.prod`, затем перезапустить службу media-worker.
 - После фикса рантайма применить миграцию [`076_requeue_skipped_mov_heic.sql`](../apps/webapp/migrations/076_requeue_skipped_mov_heic.sql), чтобы повторно поставить старые `skipped` MOV/HEIC в очередь воркера.

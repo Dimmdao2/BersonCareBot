@@ -11,6 +11,12 @@ import sharp from 'sharp';
  *    instead of trying to recognise it.
  *
  * Approved parameters: 1080 px on the SHORT side, WebP.
+ *
+ * Этот файл переехал сюда из `apps/webapp/src/modules/media/imageStandardRendition.ts`
+ * 10.09.2026 (М7 плана `docs/_TODO/STORAGE_PACKAGES_2026-09-10.md`). Причина переезда — не
+ * архитектурная опрятность: sharp/libvips разбирает присланные снаружи байты, и делал он это
+ * внутри процесса, который держит пулы к базе, сессионный секрет и отвечает пациентам. Копии в
+ * вебаппе НЕ остаётся: два энкодера с одними и теми же параметрами разъехались бы молча.
  */
 export const STANDARD_IMAGE_SHORT_SIDE = 1080;
 export const STANDARD_IMAGE_MIME = 'image/webp';
@@ -110,55 +116,27 @@ export async function encodeStandardImageRendition(source: Buffer): Promise<Stan
   };
 }
 
-export type ImageStandardRenditionDeps = {
-  encode: (source: Buffer) => Promise<StandardImageRendition>;
-  putObject: (key: string, body: Buffer, mimeType: string) => Promise<void>;
-  headObject: (key: string) => Promise<boolean>;
-  thumbnails: (source: Buffer) => Promise<{ sm: Buffer; md: Buffer }>;
-};
+/** Thumbnails are derived from our own re-encoded output, never from the raw upload. */
+export async function thumbnailsSmMd(raw: Buffer): Promise<{ sm: Buffer; md: Buffer }> {
+  const sm = await sharp(raw)
+    .rotate()
+    .resize(160, 160, { fit: 'inside' })
+    .jpeg({ quality: 82 })
+    .toBuffer();
+  const md = await sharp(raw)
+    .rotate()
+    .resize(400, 400, { fit: 'inside' })
+    .jpeg({ quality: 85 })
+    .toBuffer();
+  return { sm, md };
+}
 
-export type ImageStandardRenditionOutcome = {
-  standardKey: string;
-  mimeType: string;
-  sizeBytes: number;
-  width: number;
-  height: number;
-  smKey: string;
-  mdKey: string;
-};
-
-/**
- * Writes the standard rendition and its thumbnails ALONGSIDE the raw upload (М7,
- * `docs/_TODO/STORAGE_PACKAGES_2026-09-10.md`): the original is never touched or deleted here —
- * it stays in the raw bucket, and this only ever writes to the hot bucket the caller points
- * `putObject`/`headObject` at. Ordering still matters for the RENDITION's own durability: a
- * failure below leaves no half-written `standard.webp`/thumbnails claimed as ready.
- */
-export async function buildImageStandardRendition(
-  params: {
-    standardKey: string;
-    smKey: string;
-    mdKey: string;
-    source: Buffer;
-  },
-  deps: ImageStandardRenditionDeps,
-): Promise<ImageStandardRenditionOutcome> {
-  const rendition = await deps.encode(params.source);
-  await deps.putObject(params.standardKey, rendition.buffer, rendition.mimeType);
-  const stored = await deps.headObject(params.standardKey);
-  if (!stored) {
-    throw new Error('standard_rendition_head_missing_after_upload');
-  }
-  const { sm, md } = await deps.thumbnails(rendition.buffer);
-  await deps.putObject(params.smKey, sm, 'image/jpeg');
-  await deps.putObject(params.mdKey, md, 'image/jpeg');
-  return {
-    standardKey: params.standardKey,
-    mimeType: rendition.mimeType,
-    sizeBytes: rendition.buffer.byteLength,
-    width: rendition.width,
-    height: rendition.height,
-    smKey: params.smKey,
-    mdKey: params.mdKey,
-  };
+/** Размеры кадра, снятого ffmpeg: постер полноразмерный, поэтому это и есть размер видео. */
+export async function imageDimensions(
+  buffer: Buffer,
+): Promise<{ width: number; height: number } | null> {
+  const meta = await sharp(buffer).metadata();
+  const displayed = meta.autoOrient ?? { width: meta.width ?? 0, height: meta.height ?? 0 };
+  if (!displayed.width || !displayed.height) return null;
+  return { width: displayed.width, height: displayed.height };
 }
