@@ -263,6 +263,7 @@ INSERT INTO cutover_source_relation_disposition VALUES
   ('public.be_product_pay_links', 'intentionally_retire', 'retired empty product engine'),
   ('public.be_product_purchases', 'intentionally_retire', 'retired empty product engine'),
   ('public.be_products', 'intentionally_retire', 'retired empty product engine'),
+  ('public.be_service_location_availability', 'intentionally_retire', 'shadow of be_specialist_service_availability; production recount 13.09: 0 active pairs exist only here'),
   ('public.booking_branch_services', 'intentionally_retire', 'canonical be_* booking catalog already copied'),
   ('public.booking_branches', 'intentionally_retire', 'canonical be_* booking catalog already copied'),
   ('public.booking_services', 'intentionally_retire', 'canonical be_* booking catalog already copied'),
