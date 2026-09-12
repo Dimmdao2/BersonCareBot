@@ -23316,19 +23316,19 @@ const TABLE_ROWS: TableRow[] = [
     + 'входа/отправки кода — снимается защита от перебора OTP и OAuth-стартов', wallWhy: W_AUTH_DEFINER,
     revoke: { app_staff: REV_D1 },
     defect: ['D1-auth-tables', 'I1-definer-plus-force'], code: ['C13'] },
-  { t: 'public.be_appointment_cancellations', cls: 'P', why: 'отмены визитов — ломается политика отмен и возвратов '
+  { t: 'public.be_appointment_cancellations', cls: 'P', org: true, why: 'отмены визитов — ломается политика отмен и возвратов '
     + 'предоплаты' },
   { t: 'public.be_appointment_events', cls: 'P', why: 'системные события записи — пропадает машинная история '
     + 'изменения брони',
     drop: { verdict: 'DUP-DROP', source: 'evidence/18 §3 — 434/434 совпадений с be_appointment_history_events, ноль '
       + 'SELECT во всём репозитории', blockedBy: 'убрать 6 INSERT-блоков: pgBookingEngine.ts:205,1760,1817 и '
       + 'pgBookingAppointmentLifecycle.ts:253,362,496; поправить TRUNCATE в нагрузочном скрипте' } },
-  { t: 'public.be_appointment_history_events', cls: 'P', why: 'человекочитаемая история записи — врач перестаёт '
+  { t: 'public.be_appointment_history_events', cls: 'P', org: true, why: 'человекочитаемая история записи — врач перестаёт '
     + 'видеть «кто и когда менял запись»' },
-  { t: 'public.be_appointment_no_shows', cls: 'P', why: 'неявки — не считается счётчик неявок пациента' },
-  { t: 'public.be_appointment_reschedules', cls: 'P', why: 'переносы — ломается бесплатный/платный перенос и лимит '
+  { t: 'public.be_appointment_no_shows', cls: 'P', org: true, why: 'неявки — не считается счётчик неявок пациента' },
+  { t: 'public.be_appointment_reschedules', cls: 'P', org: true, why: 'переносы — ломается бесплатный/платный перенос и лимит '
     + 'переносов' },
-  { t: 'public.be_appointment_staff_comments', cls: 'P', wall: 'clinic', why: 'внутренние комментарии персонала о '
+  { t: 'public.be_appointment_staff_comments', cls: 'P', org: true, wall: 'clinic', why: 'внутренние комментарии персонала о '
     + 'пациенте — врач теряет заметки по визиту', wallWhy: 'РЕШЕНИЕ D2: пациентская ветка снимается — это внутренние '
     + 'комментарии персонала о нём',
     revoke: { app_patient: 'РЕШЕНИЕ D2 дословно: «он НЕ ВИДИТ внутренние комментарии»; body заполняет '
@@ -23341,7 +23341,7 @@ const TABLE_ROWS: TableRow[] = [
     + 'свободные слоты' },
   { t: 'public.be_booking_form_fields', cls: 'C', org: true, why: 'конструктор полей формы записи — форма записи '
     + 'теряет настраиваемые поля' },
-  { t: 'public.be_booking_form_submissions', cls: 'P', why: 'ответы пациента в форме записи — теряются данные, '
+  { t: 'public.be_booking_form_submissions', cls: 'P', org: true, why: 'ответы пациента в форме записи — теряются данные, '
     + 'введённые пациентом при записи' },
   { t: 'public.be_branches', cls: 'C', org: true, why: 'филиалы клиники — расписание некуда привязать, ломаются '
     + 'часовые пояса' },
@@ -23358,13 +23358,13 @@ const TABLE_ROWS: TableRow[] = [
     pol: 'D16: живьём relrowsecurity=false. На этой таблице стоит определение «кто врач/админ клиники», то есть '
     + 'авторизация кабинета целиком', defect: ['D16-org-members-leak', 'I2-grant-to-login'] },
   { t: 'public.be_organizations', cls: 'C', org: false, why: 'сама клиника — без неё нет арендатора вообще' },
-  { t: 'public.be_package_history_events', cls: 'P', why: 'история абонемента пациента — не видно, кто '
+  { t: 'public.be_package_history_events', cls: 'P', org: true, why: 'история абонемента пациента — не видно, кто '
     + 'продлил/заморозил абонемент' },
   { t: 'public.be_package_items', cls: 'C', org: false, wall: 'parent', why: 'состав абонемента-шаблона — нельзя '
     + 'описать, что входит в абонемент', wallWhy: 'organization_id нет ПО ЗАМЫСЛУ: org выводится EXISTS по родителю '
     + 'be_subscription_packages' },
-  { t: 'public.be_package_usages', cls: 'P', why: 'списания сеансов абонемента — сеансы не списываются с абонемента' },
-  { t: 'public.be_patient_booking_profiles', cls: 'P', wall: 'clinic', why: 'профиль пациента у клиники — нельзя '
+  { t: 'public.be_package_usages', cls: 'P', org: true, why: 'списания сеансов абонемента — сеансы не списываются с абонемента' },
+  { t: 'public.be_patient_booking_profiles', cls: 'P', org: true, wall: 'clinic', why: 'профиль пациента у клиники — нельзя '
     + 'заблокировать самозапись проблемному пациенту', wallWhy: 'РЕШЕНИЕ D2: пациентская ветка снимается — '
     + '«проблемный», блокировка, счётчик неявок',
     revoke: { app_patient: 'РЕШЕНИЕ D2: «пометка проблемный и тд» — служебная оценка клиники (is_problematic, '
@@ -23373,19 +23373,19 @@ const TABLE_ROWS: TableRow[] = [
   { t: 'public.be_patient_package_items', cls: 'P', org: false, wall: 'parent+patient', why: 'состав купленного '
     + 'абонемента — не известно, сколько сеансов какой услуги куплено', wallWhy: 'organization_id нет ПО ЗАМЫСЛУ: '
     + 'org и пациент выводятся EXISTS по be_patient_packages' },
-  { t: 'public.be_patient_packages', cls: 'P', why: 'купленные пациентом абонементы — абонементы перестают '
+  { t: 'public.be_patient_packages', cls: 'P', org: true, why: 'купленные пациентом абонементы — абонементы перестают '
     + 'списываться и показываться' },
-  { t: 'public.be_patient_timeline_events', cls: 'P', why: 'лента событий пациента — пропадает единая хронология по '
+  { t: 'public.be_patient_timeline_events', cls: 'P', org: true, why: 'лента событий пациента — пропадает единая хронология по '
     + 'клиенту' },
-  { t: 'public.be_payment_history_events', cls: 'P', why: 'история платежей пациента — пропадает платёжная '
+  { t: 'public.be_payment_history_events', cls: 'P', org: true, why: 'история платежей пациента — пропадает платёжная '
     + 'хронология в карточке пациента' },
-  { t: 'public.be_payment_intents', cls: 'P', why: 'намерения оплаты — не создаётся ссылка на оплату/предоплату' },
+  { t: 'public.be_payment_intents', cls: 'P', org: true, why: 'намерения оплаты — не создаётся ссылка на оплату/предоплату' },
   { t: 'public.be_payment_provider_events', cls: 'C', org: true, why: 'сырые вебхуки платёжного провайдера — платёж '
     + 'не подтверждается автоматически' },
-  { t: 'public.be_payments', cls: 'P', why: 'платежи пациента — нет учёта оплат визитов' },
+  { t: 'public.be_payments', cls: 'P', org: true, why: 'платежи пациента — нет учёта оплат визитов' },
   { t: 'public.be_prepayment_policies', cls: 'C', org: true, why: 'политика предоплаты по услуге — не берётся '
     + 'предоплата' },
-  { t: 'public.be_refunds', cls: 'P', why: 'возвраты — нельзя вернуть предоплату' },
+  { t: 'public.be_refunds', cls: 'P', org: true, why: 'возвраты — нельзя вернуть предоплату' },
   { t: 'public.be_reschedule_policies', cls: 'C', org: true, why: 'политика переносов — пациент переносит визит без '
     + 'ограничений' },
   { t: 'public.be_rooms', cls: 'C', org: true, why: 'кабинеты филиала — нельзя развести приёмы по кабинетам' },
@@ -23845,23 +23845,23 @@ const TABLE_ROWS: TableRow[] = [
   { t: 'public.specialist_signup_intents', cls: 'S', wall: 'definer-only', why: 'заявка на создание клиники — '
     + 'самостоятельная регистрация специалиста', wallWhy: 'заявка на регистрацию живёт ДО организации — стены '
     + 'клиники нет, вход через definer-шов регистрации', defect: ['I1-definer-plus-force'] },
-  { t: 'public.specialist_tasks', cls: 'P', why: 'задачи врача по пациенту — пропадёт список задач врача и '
+  { t: 'public.specialist_tasks', cls: 'P', org: true, why: 'задачи врача по пациенту — пропадёт список задач врача и '
     + 'напоминания по ним' },
   { t: 'public.staff_security_profiles', cls: 'S', wall: 'definer-only', why: 'второй фактор персонала — 2FA '
     + 'сотрудников', wallWhy: W_AUTH_DEFINER, defect: ['I1-definer-plus-force'] },
-  { t: 'public.support_conversation_messages', cls: 'P', why: 'сообщения диалога — тело переписки' },
-  { t: 'public.support_conversations', cls: 'P', why: 'диалоги поддержки — без неё нет переписки врач↔пациент' },
-  { t: 'public.support_question_messages', cls: 'P', why: 'реплики внутри вопроса — тело вопроса' },
-  { t: 'public.support_questions', cls: 'P', why: 'вопросы пациента из бота — очередь «вопрос из мессенджера → врач»' },
-  { t: 'public.symptom_entries', cls: 'P', why: 'замеры — динамика самочувствия' },
-  { t: 'public.symptom_trackings', cls: 'P', why: 'что пациент отслеживает — дневник симптомов' },
-  { t: 'public.system_settings', cls: 'S', wall: 'platform-role+clinic', why: 'настройки платформы и клиники — без '
+  { t: 'public.support_conversation_messages', cls: 'P', org: true, why: 'сообщения диалога — тело переписки' },
+  { t: 'public.support_conversations', cls: 'P', org: true, why: 'диалоги поддержки — без неё нет переписки врач↔пациент' },
+  { t: 'public.support_question_messages', cls: 'P', org: true, why: 'реплики внутри вопроса — тело вопроса' },
+  { t: 'public.support_questions', cls: 'P', org: true, why: 'вопросы пациента из бота — очередь «вопрос из мессенджера → врач»' },
+  { t: 'public.symptom_entries', cls: 'P', org: true, why: 'замеры — динамика самочувствия' },
+  { t: 'public.symptom_trackings', cls: 'P', org: true, why: 'что пациент отслеживает — дневник симптомов' },
+  { t: 'public.system_settings', cls: 'S', org: true, wall: 'platform-role+clinic', why: 'настройки платформы и клиники — без '
     + 'неё не работает ни один внешний канал', wallWhy: W_PLATFORM_OR_CLINIC,
     revoke: { app_staff: 'D3: 121 из 125 строк глобальные, среди них 17 секретов платформы (telegram_bot_token, '
       + 'smsc_api_key, google_client_secret …) — арендной роли там не место' },
     pol: 'ветка organization_id IS NULL ОБЯЗАНА проверять роль: saas_bootstrap_hybrid_p0_8_6 выдана TO public и её '
     + 'первая ветка безусловна — это и есть механизм дефекта', defect: ['D3-system-settings', 'D4-role-escalation'] },
-  { t: 'public.system_settings_audit', cls: 'S', wall: 'platform-role+clinic', why: 'история изменений настроек — '
+  { t: 'public.system_settings_audit', cls: 'S', org: true, wall: 'platform-role+clinic', why: 'история изменений настроек — '
     + 'доказательство «кто менял секрет»', wallWhy: W_PLATFORM_OR_CLINIC,
     revoke: { app_staff: 'D3: значения секретов лежат в old_value_json/new_value_json (аудит 28.07 нашёл там '
       + 'vk_id_client_secret открытым), а у app_staff полный CRUD по журналу' },
@@ -23873,8 +23873,8 @@ const TABLE_ROWS: TableRow[] = [
     code: ['C14'] },
   { t: 'public.test_results', cls: 'P', org: true, why: 'результат попытки — оценка теста', pol: 'РЕШЕНИЕ D2: пациентская ветка '
     + '— только через test_attempts, привязанную к элементу его программы (см. test_attempts).', code: ['C14'] },
-  { t: 'public.test_set_items', cls: 'C', why: 'состав набора — наполнение набора' },
-  { t: 'public.test_sets', cls: 'C', why: 'наборы тестов — пакетное назначение тестов' },
+  { t: 'public.test_set_items', cls: 'C', org: true, why: 'состав набора — наполнение набора' },
+  { t: 'public.test_sets', cls: 'C', org: true, why: 'наборы тестов — пакетное назначение тестов' },
   { t: 'public.tests', cls: 'C', org: true, why: 'каталог клинических тестов клиники — без него врач не назначит тест' },
   { t: 'public.treatment_program_events', cls: 'P', org: true, why: 'журнал изменений программы — аудит «кто что менял в '
     + 'лечении»' },
@@ -23883,11 +23883,11 @@ const TABLE_ROWS: TableRow[] = [
   { t: 'public.treatment_program_instance_stages', cls: 'P', org: true, why: 'этапы программы — шаги лечения' },
   { t: 'public.treatment_program_instances', cls: 'P', org: true, why: 'назначенная пациенту программа — ядро лечения — без неё '
     + 'нет программы' },
-  { t: 'public.treatment_program_template_stage_groups', cls: 'C', why: 'группы в этапе шаблона — группировка в '
+  { t: 'public.treatment_program_template_stage_groups', cls: 'C', org: true, why: 'группы в этапе шаблона — группировка в '
     + 'шаблоне' },
-  { t: 'public.treatment_program_template_stage_items', cls: 'C', why: 'задания шаблона — содержимое шаблона' },
-  { t: 'public.treatment_program_template_stages', cls: 'C', why: 'этапы шаблона — структура шаблона' },
-  { t: 'public.treatment_program_templates', cls: 'C', why: 'шаблоны программ лечения — без них нечего назначать '
+  { t: 'public.treatment_program_template_stage_items', cls: 'C', org: true, why: 'задания шаблона — содержимое шаблона' },
+  { t: 'public.treatment_program_template_stages', cls: 'C', org: true, why: 'этапы шаблона — структура шаблона' },
+  { t: 'public.treatment_program_templates', cls: 'C', org: true, why: 'шаблоны программ лечения — без них нечего назначать '
     + 'пациенту' },
   { t: 'public.user_channel_bindings', cls: 'P', org: false, why: 'привязка мессенджера — вход через Telegram/MAX и '
     + 'рассылки',
@@ -23940,7 +23940,7 @@ const TABLE_ROWS: TableRow[] = [
     wallWhy: W_AUTH_DEFINER,
     revoke: { app_staff: REV_D1 },
     defect: ['D1-auth-tables'], code: ['C13'] },
-  { t: 'public.user_phone_history', cls: 'P', why: 'история телефонов — смена номера и поиск по старому номеру',
+  { t: 'public.user_phone_history', cls: 'P', org: true, why: 'история телефонов — смена номера и поиск по старому номеру',
     revoke: { bcb_test_nonstaff_login: 'I2: табличный грант arw выдан ЛОГИН-роли напрямую, минуя рантайм-роль.' },
     pol: 'D8: единственная политика несёт ТОЛЬКО org-ветку, а app_patient держит SELECT — пациент видит историю '
     + 'телефонов всех 92 записей организации. Нужна ветка «свой пациент»',

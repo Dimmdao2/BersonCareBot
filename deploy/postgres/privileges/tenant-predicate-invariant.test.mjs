@@ -142,44 +142,19 @@ test('a patient-only callsite may not reach a relation without a patient door', 
  * молча. Флаг объявлен как «измеренный переписью факт наличия колонки», поэтому здесь он и
  * сверяется с переписью: колонки берутся у самой drizzle-схемы, а не переписываются руками.
  *
- * BASELINE — это ЗАМОРОЗКА, а не разрешение. На 12.09.2026 в репозитории 30 живых таблиц несут
- * `organization_id` и при этом не объявлены `org: true`, то есть инвариант арендной стены их не
- * проверяет. Это НЕ находка этого этапа и не его работа: список вынесен владельцу отдельным
- * вопросом (`EXERCISE_STORE_PLAN.md`, §7). Гейт держит храповик — в этот список нельзя добавить
- * ничего нового, а вышедшее из него обратно не вернётся.
+ * СПИСКА ИСКЛЮЧЕНИЙ ЗДЕСЬ НЕТ И БЫТЬ НЕ ДОЛЖНО (решение владельца 12.09.2026, дословно: «список
+ * исключений просто убрать, у нас не должно быть никаких исключений… надо просто их правильно
+ * оформить, и проверки, и схему»). До 12.09 здесь стояла «заморозка» на 30 таблиц, и она читалась
+ * как разрешение: таблица в списке несла `organization_id`, не была объявлена `org: true`, и
+ * инвариант арендной стены её не проверял вовсе. Все 30 разобраны по факту и объявлены
+ * (`docs/_TODO/TENANT_WALL_DEBT_2026-09-12.md`, пункт А), поэтому `gaps` обязан быть пуст САМ ПО
+ * СЕБЕ, без вычитания какого бы то ни было базового множества.
+ *
+ * Вторая половина того же решения (пункт Б) — перепись не видит того, чего нет в drizzle-схеме:
+ * шесть таблиц жили в кластере мимо неё и потому не проверялись ничем. Они заведены в схему и
+ * экспортированы из `db/schema/index.ts`; проверка ниже сверяет, что перепись знает КАЖДУЮ живую
+ * таблицу кластера, иначе «ноль расхождений» опять означал бы «ноль там, куда мы смотрим».
  */
-const ORG_FLAG_CENSUS_BASELINE = new Set([
-  'public.be_appointment_cancellations',
-  'public.be_appointment_history_events',
-  'public.be_appointment_no_shows',
-  'public.be_appointment_reschedules',
-  'public.be_appointment_staff_comments',
-  'public.be_booking_form_submissions',
-  'public.be_package_history_events',
-  'public.be_package_usages',
-  'public.be_patient_booking_profiles',
-  'public.be_patient_packages',
-  'public.be_patient_timeline_events',
-  'public.be_payment_history_events',
-  'public.be_payment_intents',
-  'public.be_payments',
-  'public.be_refunds',
-  'public.specialist_tasks',
-  'public.support_conversation_messages',
-  'public.support_conversations',
-  'public.support_question_messages',
-  'public.support_questions',
-  'public.symptom_entries',
-  'public.symptom_trackings',
-  'public.system_settings',
-  'public.test_set_items',
-  'public.test_sets',
-  'public.treatment_program_template_stage_groups',
-  'public.treatment_program_template_stage_items',
-  'public.treatment_program_template_stages',
-  'public.treatment_program_templates',
-  'public.user_phone_history',
-]);
 
 /** Имя таблицы → её колонки, снятые с самой drizzle-схемы одним вызовом. */
 function drizzleTableColumns() {
@@ -213,6 +188,23 @@ function orgFlagCensusGaps(declared, columnsByTable) {
   return gaps.sort();
 }
 
+/**
+ * Живая таблица, объявленная в декларации, но НЕ экспортированная drizzle-схемой: перепись
+ * колонок её не видит, `orgFlagCensusGaps` молча пропускает (`if (!columns) continue`), и «ноль
+ * расхождений» выше означает «ноль там, куда мы смотрим». Ровно так шесть таблиц
+ * (`broadcast_drafts`, `system_settings_audit`, `patient_comorbidity`, `clinic_dedicated_bot_bindings`,
+ * `booking_calendar_map`, `email_otp_locks`) прожили вне арендной проверки: одна имела файл схемы,
+ * но не экспортировалась из `db/schema/index.ts`, пяти не было вовсе.
+ */
+function relationsInvisibleToCensus(declared, columnsByTable) {
+  const invisible = [];
+  for (const [relation, table] of Object.entries(declared.tables)) {
+    if (!relation.startsWith('public.') || table.disposition !== 'ACTIVE') continue;
+    if (!columnsByTable[relation.slice('public.'.length)]) invisible.push(relation);
+  }
+  return invisible.sort();
+}
+
 test('org-флаг стены сверяется с переписью колонок, а не с доброй волей автора', () => {
   const columnsByTable = drizzleTableColumns();
   assert.ok(
@@ -221,17 +213,27 @@ test('org-флаг стены сверяется с переписью коло�
   );
 
   for (const database of DATABASES) {
-    const gaps = orgFlagCensusGaps(declaration.databases[database], columnsByTable);
-    const unexpected = gaps.filter((relation) => !ORG_FLAG_CENSUS_BASELINE.has(relation));
+    // Сначала — ВИДИТ ли перепись каждую живую таблицу. Иначе пустой `gaps` ниже ничего не значит.
+    const invisible = relationsInvisibleToCensus(declaration.databases[database], columnsByTable);
     assert.deepEqual(
-      unexpected,
+      invisible,
+      [],
+      `${database}: таблица объявлена живой, но drizzle-схема её не экспортирует — перепись её не`
+        + ` видит, и арендную стену на ней не проверяет никто: ${invisible.join(', ')}`,
+    );
+
+    const gaps = orgFlagCensusGaps(declaration.databases[database], columnsByTable);
+    assert.deepEqual(
+      gaps,
       [],
       `${database}: таблица несёт organization_id, но не объявлена org: true — инвариант арендной`
-        + ` стены её пропускает: ${unexpected.join(', ')}`,
+        + ` стены её пропускает: ${gaps.join(', ')}`,
     );
   }
 
-  // Храповик: то, что уже вышло из заморозки, обратно не возвращается.
+  // Прежний храповик держал список исключений; списка больше нет, но СВОЙСТВО, которое он
+  // сторожил, осталось: снятый с каталога `org: true` не должен пройти молча. Теперь оно
+  // проверяется прямо на декларации, а не через отсутствие имени в множестве-заглушке.
   const catalogRelations = [
     'public.tests',
     'public.recommendations',
@@ -239,10 +241,13 @@ test('org-флаг стены сверяется с переписью коло�
     'public.recommendation_regions',
     'public.lfk_exercises',
   ];
-  for (const relation of catalogRelations) {
-    assert.ok(
-      !ORG_FLAG_CENSUS_BASELINE.has(relation),
-      `${relation} не должна возвращаться в заморозку`,
-    );
+  for (const database of DATABASES) {
+    for (const relation of catalogRelations) {
+      assert.equal(
+        declaration.databases[database].tables[relation]?.org,
+        true,
+        `${database}: ${relation} обязана нести org: true — иначе стена перестаёт сторожить каталог`,
+      );
+    }
   }
 });
