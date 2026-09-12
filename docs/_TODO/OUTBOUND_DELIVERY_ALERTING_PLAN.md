@@ -79,8 +79,22 @@ Execution authority/status: subordinate artifact of
       DEV is an explicit no-op. Static evidence: `pnpm --dir apps/integrator typecheck`, `lint`, `build`,
       `bash -n deploy/host/assert-c4-operational-runtime-ready.sh`, and `git diff --check` passed; no provider or
       mailbox was contacted. Independent audit `SMTP_ROUND_TRIP_P5_AUDIT_2026-09-09.md` found three reachable
-      blockers; this checkbox remains open pending their closure and the owner-authorized TEST live gate for the
-      dedicated owner mailbox.
+      blockers. **Сверка 12.09.2026: все три закрыты коммитом `9bb538430`, проверено чтением кода,
+      а не по сообщению коммита.** P5-02 (утечка IMAP-соединения по таймауту): `client.close()` стоит
+      теперь во внешнем `finally` безусловно, а `logout()` под таймаутом — во внутреннем. P5-03 (чистка
+      могла удалить чужое письмо): владение доказывается не заголовками, а HMAC-подписью
+      (`createProbeOwnershipMarker` над версией, аудиторией, run-id, темой и обоими адресами; ключ —
+      пароль SMTP-профиля, сравнение `timingSafeEqual`), подделать её отправитель не может. P5-01
+      (инцидент не открывался и не закрывался): `app.open_or_touch_operator_probe_incident` в
+      `deploy/postgres/c4-operational-runtime.sql` для `email` пишет ключ и направление
+      `outbound_delivery_provider:email:email_<аудитория>_round_trip_failed` — ровно то, что ищет
+      `resolveOpenOperatorOutboundProbeIncidents`.
+      **Живьём этой редакции пока нет нигде:** и на DEV, и на TEST функция в базе старая и отвечает
+      `23514` на пару `('email','email_*_round_trip_failed')`, то есть отказ пробы там сегодня
+      превратился бы в `operator_health_probe_report_failure_failed` без инцидента. C4 кладётся
+      деплоем (`deploy-test-saas.sh`), поэтому правка доедет на TEST только следующей выкаткой.
+      Checkbox остаётся открытым ровно по двум причинам: эта выкатка и owner-authorized TEST live gate
+      для выделенного почтового ящика владельца.
 
 ## Риски / принципы
 
