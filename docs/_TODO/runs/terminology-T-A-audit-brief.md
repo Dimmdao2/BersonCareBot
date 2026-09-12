@@ -16,7 +16,7 @@
 (`/home/dev/dev-projects/bcb-wt-terminology-word`). Один коммит, 19 файлов.
 
 Бриф исполнителя: [`terminology-appointment-word-T-A-brief.md`](terminology-appointment-word-T-A-brief.md).
-План и решение владельца: [`MEDICAL_WELLNESS_TERMINOLOGY_MODE_2026-09-02.md`](../MEDICAL_WELLNESS_TERMINOLOGY_MODE_2026-09-02.md),
+План и решение владельца: `docs/_TODO/MEDICAL_WELLNESS_TERMINOLOGY_MODE_2026-09-02.md`,
 раздел «Решение владельца 12.09.2026» и строка блока T-A. План владельца — единственный оракул;
 находка, которой в нём нет соответствия, это вопрос ведущему, а не работа (§24.6).
 
