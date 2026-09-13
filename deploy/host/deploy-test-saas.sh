@@ -240,6 +240,26 @@ snapshot_test_smtp_outbound(){
     return 1
   }
 
+  # Второй законный вид повторной попытки. Выше уже описан один: прогон упал до A→B, схема A, строки
+  # нет вовсе. Но прогон может упасть и ПОСЛЕ надстройки, которая ставит безопасную пустышку
+  # `{"value": null}`, и ДО возврата снимка — тогда строка есть, а настройки в ней нет. Прежде здесь
+  # валидатор называл это «в снимке нет обязательных полей», и повтор был невозможен: чтобы
+  # запустить сброс, пришлось бы руками вписать в базу почтовую конфигурацию.
+  #
+  # Сохранять тут нечего, и пустышка — самый безопасный из возможных исходов: с TEST не уходит
+  # ничего. Снимок не берётся, `restore_test_smtp_outbound` остаётся холостым, надстройка снова
+  # поставит ту же пустышку. Любое ДРУГОЕ негодное значение по-прежнему останавливает сброс: это
+  # уже не след неудачной попытки, а испорченная настройка, и разбирать её должен человек.
+  local placeholder_only
+  placeholder_only="$(sudo -u postgres psql -X -d "$DB" -v ON_ERROR_STOP=1 -tAc \
+    "SELECT value_json = '{\"value\": null}'::jsonb
+       FROM public.system_settings
+      WHERE $smtp_where;")"
+  if [ "$placeholder_only" = "t" ]; then
+    echo "   TEST SMTP: prior run left the safe null value, nothing to preserve; overlay will set it again"
+    return 0
+  fi
+
   TEST_SMTP_SNAPSHOT="$(sudo -u postgres mktemp /tmp/bcb-test-smtp-outbound.XXXXXX.json)"
   sudo -u postgres psql -X -d "$DB" -v ON_ERROR_STOP=1 -At \
     -o "$TEST_SMTP_SNAPSHOT" \
