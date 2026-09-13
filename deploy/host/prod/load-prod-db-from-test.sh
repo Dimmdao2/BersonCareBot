@@ -264,11 +264,15 @@ verify_custom_archive() {
 
 assert_archive_carries_product_data() {
   # Пустой или чужой архив не должен доезжать до разрушающей фазы. Проверяются ровно те отношения,
-  # ради которых делается переезд: люди, их записи и их программы.
-  local archive="$1" relation missing=""
+  # ради которых делается переезд: люди, их записи и их программы. Оглавление читается ОДИН раз в
+  # файл, а не по конвейеру на каждое отношение: `grep -q` закрывает конвейер на первом совпадении,
+  # pg_restore получает SIGPIPE, и под `pipefail` успешная проверка выглядела бы провалом.
+  local archive="$1" relation missing="" toc
+  toc="$KEYS_DIR/archive-toc.txt"
+  as_postgres pg_restore --list "$archive" >"$toc" ||
+    fatal 'не читается оглавление архива TEST'
   for relation in platform_users be_appointments treatment_program_instances; do
-    as_postgres pg_restore --list "$archive" |
-      grep -Eq "TABLE DATA public $relation( |$)" || missing="$missing $relation"
+    grep -Eq "TABLE DATA public $relation( |\$)" "$toc" || missing="$missing $relation"
   done
   [[ -z "$missing" ]] ||
     fatal "в архиве TEST нет данных отношений:$missing — это не проверенная база TEST"
