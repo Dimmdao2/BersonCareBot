@@ -56,7 +56,14 @@ export function createIntegratorEmailAdapter(deps: IntegratorEmailAdapterDeps) {
       return { ok: false, error: 'network_error' };
     }
     if (!res.ok) {
-      return { ok: false, error: `http_${res.status}` };
+      // Служба доставки НАЗЫВАЕТ причину отказа в теле ответа, и выбрасывать её, оставив голый код
+      // состояния, значит превращать разбираемый отказ в неразбираемый: «503» одинаково выглядит и
+      // когда не настроен почтовый профиль, и когда не задан общий секрет — а чинятся они в разных
+      // местах. Поймано живым прогоном на TEST: письмо о входе с нового устройства не уходило, и по
+      // логу webapp нельзя было сказать почему.
+      const failure = (await res.json().catch(() => null)) as { error?: unknown } | null;
+      const reason = typeof failure?.error === 'string' ? failure.error.trim() : '';
+      return { ok: false, error: reason ? `http_${res.status}:${reason}` : `http_${res.status}` };
     }
     const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
     if (!data.ok) {
