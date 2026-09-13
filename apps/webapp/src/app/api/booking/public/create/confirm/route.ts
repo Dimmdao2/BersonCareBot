@@ -36,6 +36,7 @@ import {
   mapApiError,
   type ApiErrorLiteralRules,
 } from '@/shared/http/apiResponse';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 const bodySchema = z.object({
   challengeId: z.string().min(1).max(200),
@@ -74,7 +75,7 @@ export async function POST(request: Request) {
   if (!rateKey.ok) {
     return jsonError(
       'proxy_configuration',
-      { message: 'Запрос должен проходить через reverse proxy с заголовком X-Real-IP.' },
+      { message: notificationText.bookingServiceTemporarilyUnavailable },
       { status: 503 },
     );
   }

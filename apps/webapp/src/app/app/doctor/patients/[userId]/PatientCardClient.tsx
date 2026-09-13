@@ -73,6 +73,7 @@ import { EncounterHistoryModal } from './tabs/karta/EncounterHistoryModal';
 import { EncounterViewModal } from './tabs/karta/EncounterViewModal';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 import { useActiveCall } from '@/shared/ui/video/ActiveCallCoordinator';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 function formatSupportStartedAt(value: string): string {
   const date = new Date(value);
@@ -253,8 +254,8 @@ function PatientContactActions({
             <DropdownMenuItem
               onClick={() => {
                 void navigator.clipboard.writeText(identity.phone!).then(
-                  () => toast.success('Телефон скопирован'),
-                  () => toast.error('Не удалось скопировать телефон'),
+                  () => toast.success(notificationText.doctorPhoneCopied),
+                  () => toast.error(notificationText.doctorPhoneCopyFailed),
                 );
               }}
             >

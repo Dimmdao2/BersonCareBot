@@ -21,6 +21,7 @@ import {
   mapApiError,
   type ApiErrorLiteralRules,
 } from '@/shared/http/apiResponse';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 const bodySchema = z.object({
   challengeId: z.string().uuid(),
@@ -28,8 +29,7 @@ const bodySchema = z.object({
   organizationSlug: z.string().max(512).optional(),
 });
 
-const ORGANIZATION_SLUG_REQUIRED_MESSAGE =
-  'Выберите публичный адрес клиники и повторите подтверждение. Код ещё действует.';
+const ORGANIZATION_SLUG_REQUIRED_MESSAGE = notificationText.authOrganizationSlugRequired;
 
 const PROVISIONING_ERROR_RULES = {
   specialist_signup_intent_not_found: { status: 400, code: 'signup_intent_not_found' },
@@ -169,10 +169,7 @@ export async function POST(request: Request) {
     } catch {
       return jsonError(
         'security_setup_pending',
-        {
-          message:
-            'Почта подтверждена. Войдите с паролем ещё раз, чтобы продолжить защищённую настройку.',
-        },
+        { message: notificationText.authEmailVerifiedReenterPasswordToContinueSetup },
         { status: 503 },
       );
     }
@@ -196,7 +193,7 @@ export async function POST(request: Request) {
       return jsonError(
         'security_setup_pending',
         {
-          message: 'Не удалось подготовить защищённый вход. Повторите попытку позже.',
+          message: notificationText.authSecuritySetupPending,
         },
         { status: 503 },
       );

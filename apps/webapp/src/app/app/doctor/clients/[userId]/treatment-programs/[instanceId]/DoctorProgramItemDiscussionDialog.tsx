@@ -20,6 +20,7 @@ import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
 import { patientCardHref } from '@/app/app/doctor/patients/patientCardHref';
 import { useMessagePolling } from '@/modules/messaging/hooks/useMessagePolling';
 import { notifyDoctorExerciseCommentsChanged } from '@/shared/ui/doctor/shell/doctorShellBadgeEvents';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 type DiscussionPageResponse = {
   ok?: boolean;
@@ -135,7 +136,7 @@ export function DoctorProgramItemDiscussionDialog(props: {
       const data = (await res.json().catch(() => null)) as DiscussionPageResponse | null;
       if (generation !== loadGenerationRef.current) return null;
       if (!res.ok || !data?.ok || !Array.isArray(data.messages)) {
-        throw new Error(readSafeApiErrorText(data, 'Не удалось загрузить обсуждение'));
+        throw new Error(readSafeApiErrorText(data, notificationText.doctorProgramItemDiscussionLoadFailed));
       }
       const loaded = data.messages;
       setMessages((current) => reconcileMessages(current, loaded, appendOlder));
@@ -291,7 +292,7 @@ export function DoctorProgramItemDiscussionDialog(props: {
             await loadPage(null, false, generation);
           } catch {
             if (generation === loadGenerationRef.current) {
-              toast.error('Ответ отправлен, но список не обновился. Откройте обсуждение заново.');
+              toast.error(notificationText.doctorReplySentListStale);
             }
           }
           return { ok: true as const };
@@ -308,7 +309,7 @@ export function DoctorProgramItemDiscussionDialog(props: {
           } catch {
             if (generation === loadGenerationRef.current) {
               toast.error(
-                'Файл удалён из чата, но список не обновился. Откройте обсуждение заново.',
+                notificationText.doctorFileDeletedListStale,
               );
             }
           }

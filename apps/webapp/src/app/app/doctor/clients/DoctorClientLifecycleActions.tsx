@@ -10,6 +10,7 @@ import {
   doctorClientSectionTitleClass,
 } from './doctorClientCardChrome';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 type Props = {
   userId: string;
@@ -39,7 +40,7 @@ export function DoctorClientLifecycleActions({ userId, isArchived }: Props) {
       });
       const data = (await res.json()) as { ok?: boolean; error?: string };
       if (!res.ok || !data.ok) {
-        toast.error('Не удалось архивировать. Попробуйте снова или обратитесь к администратору.');
+        toast.error(notificationText.doctorArchiveFailed);
         return;
       }
       router.refresh();
@@ -59,7 +60,7 @@ export function DoctorClientLifecycleActions({ userId, isArchived }: Props) {
       });
       const data = (await res.json()) as { ok?: boolean };
       if (!res.ok || !data.ok) {
-        toast.error('Не удалось снять архив.');
+        toast.error(notificationText.doctorUnarchiveFailed);
         return;
       }
       router.refresh();

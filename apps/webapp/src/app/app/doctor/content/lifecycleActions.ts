@@ -10,6 +10,7 @@ import {
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { contentMechanicForSection } from '@/app-layer/content/warmupsContentMutationGuard';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 export type LifecycleState = { ok: boolean; error?: string };
 
@@ -20,7 +21,7 @@ export async function applyContentLifecycle(
   const workspace = await requireDoctorWorkspaceContext();
   const id = (formData.get('id') as string)?.trim();
   const op = (formData.get('op') as string)?.trim();
-  if (!id || !op) return { ok: false, error: 'Некорректные данные' };
+  if (!id || !op) return { ok: false, error: notificationText.doctorContentLifecycleMissingData };
 
   const deps = buildAppDeps();
   const page = await deps.contentPages.getById(id);
@@ -53,13 +54,13 @@ export async function applyContentLifecycle(
                 : op === 'restore'
                   ? { deletedAt: null }
                   : null;
-    if (!patch) return { ok: false, error: 'Неизвестное действие' };
+    if (!patch) return { ok: false, error: notificationText.doctorContentLifecycleUnknownAction };
     await withDoctorWorkspacePrincipal(workspace, 'doctor.content.page.lifecycle', () =>
       deps.contentPages.updateLifecycle(id, patch),
     );
   } catch (e) {
     console.error('applyContentLifecycle', e);
-    return { ok: false, error: 'Не удалось применить действие' };
+    return { ok: false, error: notificationText.doctorActionApplyFailed };
   }
 
   revalidatePath('/app/doctor/content');

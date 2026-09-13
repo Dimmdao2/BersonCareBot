@@ -18,6 +18,8 @@ import {
   FAIL_CLOSED_AUTH_CHANNEL_UI_POLICY,
   type AuthChannelUiPolicy,
 } from '@/modules/auth/otpChannelUi';
+import { notificationText } from '@/shared/notifications/notificationText';
+import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
 
 const POLL_MS = 4000;
 
@@ -74,7 +76,7 @@ export function PatientBrowserMessengerBindPanel({
           } catch {
             /* ignore */
           }
-          toast.error(data.message ?? 'Слишком много запросов. Попробуйте позже.');
+          toast.error(data.message ?? notificationText.authTooManyRequestsRetryLater);
           return;
         }
         if (!res.ok || !data.ok || !data.url) {
@@ -83,7 +85,8 @@ export function PatientBrowserMessengerBindPanel({
           } catch {
             /* ignore */
           }
-          toast.error(data.message ?? data.error ?? 'Не удалось получить ссылку');
+          // G3 (safety audit): `data.error` is a machine code, never product copy.
+          toast.error(readSafeApiErrorText(data, notificationText.messagingLinkFetchFailed));
           return;
         }
         if (channelCode === 'telegram') {
@@ -106,7 +109,7 @@ export function PatientBrowserMessengerBindPanel({
           if (data.manualCommand) {
             try {
               await navigator.clipboard.writeText(data.manualCommand);
-              toast.success('Команда скопирована — вставьте её в чат с ботом в Max');
+              toast.success(notificationText.messagingBotCommandCopied);
             } catch {
               toast('Скопируйте команду вручную в чат с ботом в Max');
             }

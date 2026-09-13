@@ -20,6 +20,7 @@ import type {
 } from './types';
 import { recommendationArchiveRequiresAcknowledgement } from './types';
 import { UserFacingError } from '@/shared/errors/userFacingError';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 export type RecommendationWriteOptions = {
   runRecommendationWrite?: <T>(fn: () => Promise<T>) => Promise<T>;
@@ -80,7 +81,7 @@ export function createRecommendationsService(
       options?: RecommendationWriteOptions,
     ) {
       const title = input.title?.trim() ?? '';
-      if (!title) throw new UserFacingError('Название рекомендации обязательно');
+      if (!title) throw new UserFacingError(notificationText.recommendationNameRequired);
       const bodyMd = input.bodyMd?.trim() ?? '';
       const domainForCreate =
         input.domain === undefined
@@ -118,14 +119,14 @@ export function createRecommendationsService(
       options?: RecommendationWriteOptions,
     ) {
       const existing = await port.getById(id);
-      if (!existing) throw new UserFacingError('Рекомендация не найдена');
+      if (!existing) throw new UserFacingError(notificationText.recommendationNotFound);
       if (existing.isArchived) {
-        throw new UserFacingError('Рекомендация в архиве. Верните из архива, чтобы редактировать.');
+        throw new UserFacingError(notificationText.recommendationArchivedRestoreToEdit);
       }
       const patch: UpdateRecommendationInput = { ...input };
       if (input.title !== undefined) {
         const t = input.title.trim();
-        if (!t) throw new UserFacingError('Название рекомендации обязательно');
+        if (!t) throw new UserFacingError(notificationText.recommendationNameRequired);
         patch.title = t;
       }
       if (input.bodyMd !== undefined) {
@@ -154,7 +155,7 @@ export function createRecommendationsService(
         existingDomain: existing.domain,
       });
       const row = await runRecommendationWrite(options, () => port.update(id, patch));
-      if (!row) throw new UserFacingError('Рекомендация не найдена');
+      if (!row) throw new UserFacingError(notificationText.recommendationNotFound);
       return row;
     },
 

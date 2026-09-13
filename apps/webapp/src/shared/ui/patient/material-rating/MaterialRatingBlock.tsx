@@ -16,6 +16,7 @@ import type { MaterialRatingTargetKind } from '@/modules/material-rating/types';
 import { MaterialRatingNativeStars } from './MaterialRatingNativeStars';
 import { usePatientRuntimeFeatures } from '@/shared/ui/patient/PatientRuntimeFeaturesContext';
 import { PatientConfirmModal } from '@/shared/ui/patient/PatientConfirmModal';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 export type MaterialRatingBlockProps = {
   targetKind: MaterialRatingTargetKind;
@@ -203,7 +204,7 @@ function EnabledMaterialRatingBlock({
             };
             if (!res.ok || !data.ok) {
               setError(null);
-              toast.error('Не удалось сохранить');
+              toast.error(notificationText.commonSaveFailed);
               await load();
               return;
             }
@@ -216,13 +217,13 @@ function EnabledMaterialRatingBlock({
             });
             setValue(my ?? 0);
             setEditRatingPicker(false);
-            toast.success('Спасибо за оценку!');
+            toast.success(notificationText.patientRatingThanks);
             if (my != null && my >= 1 && my <= 3) {
               onLowRatingSaved?.(my);
             }
           } catch {
             setError(null);
-            toast.error('Не удалось сохранить');
+            toast.error(notificationText.commonSaveFailed);
             await load();
           }
         })();

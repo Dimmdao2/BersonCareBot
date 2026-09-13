@@ -14,7 +14,29 @@ import {
   SelectValue,
 } from '@/shared/ui/doctor/primitives/select';
 import { BookingStaffPaymentPanel } from './BookingStaffPaymentPanel';
-import { apiJson } from '@/shared/lib/apiJson';
+import { apiJson, ApiRequestError } from '@/shared/lib/apiJson';
+import { notificationText } from '@/shared/notifications/notificationText';
+
+/**
+ * G5 (safety audit): `commonUnknownError` used to be the bare English word `'error'` and was
+ * this section's entire failure experience, because `safeUserMessage` only recognises
+ * `UserFacingError` — `apiJson` throws `ApiRequestError` instead, so the fallback ALWAYS fired and
+ * the digest `apiJson.ts` preserves on the thrown error was silently discarded. These routes never
+ * send a `message` field (pure machine codes — `not_found`, `slot_overlap`, …), so
+ * `ApiRequestError.message` itself is the raw code when no server text exists; only show it when
+ * it differs from the code (i.e. the server DID send real text), otherwise fall back to real
+ * dictionary text — and append the sanctioned "Код для поддержки: <digest>" suffix either way.
+ */
+function bookingManualLifecycleErrorText(error: unknown): string {
+  if (error instanceof ApiRequestError) {
+    const base =
+      error.message !== error.code
+        ? error.message
+        : notificationText.bookingManualLifecycleActionFailed;
+    return error.digest ? `${base} Код для поддержки: ${error.digest}` : base;
+  }
+  return notificationText.bookingManualLifecycleActionFailed;
+}
 
 const CANCEL_TYPES = [
   { value: 'free', label: 'Бесплатная' },
@@ -163,9 +185,9 @@ export function BookingManualLifecycleSection({
                         body: JSON.stringify({ decisionType: cancelType }),
                       },
                     );
-                    toast.success('Отмена применена');
+                    toast.success(notificationText.settingsCancellationApplied);
                   } catch (e) {
-                    toast.error(e instanceof Error ? e.message : 'error');
+                    toast.error(bookingManualLifecycleErrorText(e));
                   }
                 });
               }}
@@ -217,9 +239,9 @@ export function BookingManualLifecycleSection({
                         }),
                       },
                     );
-                    toast.success('Перенос применён');
+                    toast.success(notificationText.settingsRescheduleApplied);
                   } catch (e) {
-                    toast.error(e instanceof Error ? e.message : 'error');
+                    toast.error(bookingManualLifecycleErrorText(e));
                   }
                 });
               }}

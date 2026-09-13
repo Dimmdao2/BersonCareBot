@@ -3,6 +3,9 @@ import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requirePlatformOperationsApiContext } from '@/app-layer/guards/requireRole';
 import { mechanicWriteClearanceRefusalResponse } from '@/app-layer/guards/requireEntitlement';
+import { notificationText } from '@/shared/notifications/notificationText';
+import { logServerRuntimeError } from '@/infra/logging/serverRuntimeLog';
+import { MechanicWriteClearanceRequiredError } from '@/app-layer/entitlements/mechanicWriteClearance';
 import {
   NOTIF_TEMPLATE_AUDIENCES,
   NOTIF_TEMPLATE_EVENTS,
@@ -121,11 +124,21 @@ export async function PUT(request: Request) {
       return NextResponse.json({ ok: false, error: 'template_conflict' }, { status: 409 });
     }
     if (isInvalidTemplateError(error)) return invalidTemplateResponse();
-    const clearanceRefusal = mechanicWriteClearanceRefusalResponse(
-      error,
-      'Сохранение платформенного шаблона недоступно: запрос попал в тарифную дверь клиники.',
-    );
-    if (clearanceRefusal) return clearanceRefusal;
+    // C1 (copy audit): this is the PLATFORM template save (`owner: 'platform'`) — it should never
+    // be subject to a per-clinic tariff door at all, so hitting one here means the write got routed
+    // through the wrong entitlement check, i.e. a bug, not an expected/explainable refusal like the
+    // doctor-cabinet variant. Attach the sanctioned "Код для поддержки: <digest>" support-id shape
+    // (the same shape `safeActionErrorText`/`ActionFailureText.tsx` use) so it is traceable in logs.
+    if (error instanceof MechanicWriteClearanceRequiredError) {
+      const { digest } = logServerRuntimeError('api/admin/notification-templates', error, {
+        mechanic: error.mechanic,
+      });
+      const clearanceRefusal = mechanicWriteClearanceRefusalResponse(
+        error,
+        `${notificationText.adminNotificationTemplatePlatformSaveClearanceDenied} Код для поддержки: ${digest}`,
+      );
+      if (clearanceRefusal) return clearanceRefusal;
+    }
     throw error;
   }
 }

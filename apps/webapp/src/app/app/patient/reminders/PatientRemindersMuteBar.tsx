@@ -12,6 +12,7 @@ import {
   PatientShimmerLine,
   patientSurfaceWarningClass,
 } from '@/shared/ui/patient/patientVisual';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 function tomorrowMorningIso(hour = 8): string {
   const d = new Date();
@@ -43,13 +44,13 @@ export function PatientRemindersMuteBar({
         });
         const data = (await res.json()) as { ok?: boolean };
         if (!res.ok || !data.ok) {
-          toast.error('Не удалось изменить паузу уведомлений.');
+          toast.error(notificationText.patientReminderPauseUpdateFailed);
           return;
         }
-        toast.success('Готово.');
+        toast.success(notificationText.commonDone);
         refresh();
       } catch {
-        toast.error('Сеть недоступна.');
+        toast.error(notificationText.commonNetworkUnavailable);
       }
     });
   };

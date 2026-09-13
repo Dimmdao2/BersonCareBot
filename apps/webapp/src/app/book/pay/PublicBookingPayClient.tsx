@@ -17,6 +17,7 @@ import {
   patientMutedTextClass,
   patientPageTitleClass,
 } from '@/shared/ui/patient/patientVisual';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 const POLL_MS = 4000;
 
@@ -108,7 +109,7 @@ export function PublicBookingPayClient({ bookingId, appDisplayTimeZone }: Props)
 
   useEffect(() => {
     if (view === 'succeeded') {
-      toast.success('Оплата прошла');
+      toast.success(notificationText.paymentSucceeded);
       router.push(publicBookPaths.done);
     }
   }, [view, router]);

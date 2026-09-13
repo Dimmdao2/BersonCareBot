@@ -23,6 +23,8 @@ import { DoctorClientMembershipsPanel } from '@/app/app/doctor/clients/DoctorCli
 import type { PatientAppointmentItem } from '@/modules/doctor-clients/ports';
 import { acquiringErrorMessage } from '@/modules/patient-payments/acquiringErrorMessage';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
+import { notificationText } from '@/shared/notifications/notificationText';
+import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -281,17 +283,19 @@ export function PatientTabFinances({
         }),
       });
       if (!res.ok) {
-        const json: { error?: string } = await res.json().catch(() => ({}));
-        toast.error(json.error ?? 'Ошибка сохранения');
+        const json: unknown = await res.json().catch(() => ({}));
+        // G3 (safety audit, extended repo-wide sweep): `json.error` is a machine code
+        // (invalid_user_id/not_found/invalid_json/invalid_body), never product copy.
+        toast.error(readSafeApiErrorText(json, notificationText.commonSaveFailed));
         return;
       }
       setCashAmount('');
       setCashService('');
       setCashComment('');
-      toast.success('Платёж записан');
+      toast.success(notificationText.paymentRecorded);
       await fetchTimeline();
     } catch {
-      toast.error('Ошибка сети');
+      toast.error(notificationText.commonNetworkUnavailable);
     } finally {
       setCashSubmitting(false);
     }

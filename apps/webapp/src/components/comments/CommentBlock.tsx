@@ -13,6 +13,7 @@ import {
 import type { CommentTargetType, CommentType, EntityComment } from '@/modules/comments/types';
 import { COMMENT_TYPES } from '@/modules/comments/types';
 import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
+import { notificationText } from '@/shared/notifications/notificationText';
 import { AppContentLoading } from '@/shared/ui/AppContentLoading';
 
 const COMMENT_TYPE_LABEL: Record<CommentType, string> = {
@@ -118,7 +119,7 @@ export function CommentBlock({
       });
       const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
       if (!res.ok || !data.ok) {
-        setError(readSafeApiErrorText(data, 'Ошибка сохранения'));
+        setError(readSafeApiErrorText(data, notificationText.commonSaveFailed));
         return;
       }
       setNewBody('');
@@ -140,7 +141,7 @@ export function CommentBlock({
     });
     const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
     if (!res.ok || !data.ok) {
-      setError(readSafeApiErrorText(data, 'Ошибка обновления'));
+      setError(readSafeApiErrorText(data, notificationText.commentUpdateError));
       return;
     }
     setEditingId(null);
@@ -152,7 +153,7 @@ export function CommentBlock({
     const res = await fetch(`/api/doctor/comments/${encodeURIComponent(id)}`, { method: 'DELETE' });
     const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
     if (!res.ok || !data.ok) {
-      setError(readSafeApiErrorText(data, 'Ошибка удаления'));
+      setError(readSafeApiErrorText(data, notificationText.commonDeleteFailed));
       return;
     }
     await load();

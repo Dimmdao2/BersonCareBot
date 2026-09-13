@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from '@/shared/ui/doctor/primitives/select';
 import { SAAS_BILLING_TARIFF_NOT_PAYABLE } from '@/modules/saas-billing/payableTariff';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 /**
  * Решение владельца 18.08.2026: «Считать бесплатный тариф неоплачиваемым». Одна фраза и на экране
@@ -118,13 +119,13 @@ export function PayTariffButton({
         | { ok: true; billingEmail: string }
         | { ok: false; error?: string }
         | null;
-      if (!body?.ok) toast.error('Проверьте email для чека.');
+      if (!body?.ok) toast.error(notificationText.settingsCheckReceiptEmail);
       else {
         setBillingEmail(body.billingEmail);
         setSavedBillingEmail(body.billingEmail);
       }
     } catch {
-      toast.error('Не удалось сохранить email для чека.');
+      toast.error(notificationText.settingsReceiptEmailSaveFailed);
     } finally {
       setPending(false);
     }

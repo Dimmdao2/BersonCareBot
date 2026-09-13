@@ -9,6 +9,7 @@ import {
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { contentMechanicForSection } from '@/app-layer/content/warmupsContentMutationGuard';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 export type ReorderContentSectionsState = { ok: boolean; error?: string };
 
@@ -17,10 +18,11 @@ export async function reorderContentSections(
 ): Promise<ReorderContentSectionsState> {
   const workspace = await requireDoctorWorkspaceContext();
   if (!Array.isArray(orderedSlugs) || orderedSlugs.length === 0) {
-    return { ok: false, error: 'Пустой порядок' };
+    return { ok: false, error: notificationText.commonEmptyOrder };
   }
   const slugs = orderedSlugs.map((s) => String(s).trim()).filter(Boolean);
-  if (slugs.length !== orderedSlugs.length) return { ok: false, error: 'Некорректные slug' };
+  if (slugs.length !== orderedSlugs.length)
+    return { ok: false, error: notificationText.doctorContentSectionsInvalidSlugs };
 
   const deps = buildAppDeps();
   const sections = await deps.contentSections.listAll();
@@ -48,7 +50,7 @@ export async function reorderContentSections(
     );
   } catch (e) {
     console.error('reorderContentSections', e);
-    return { ok: false, error: 'Не удалось сохранить порядок' };
+    return { ok: false, error: notificationText.commonOrderSaveFailed };
   }
 
   revalidatePath('/app/doctor/content/sections');

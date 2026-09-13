@@ -32,6 +32,7 @@ import {
   patientChatBubbleRowClass,
 } from '@/shared/ui/patient/patientChatVisual';
 import { usePatientOrganizationContext } from '@/shared/ui/patient/organization/PatientOrganizationContext';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 type DiscussionPageResponse = {
   ok?: boolean;
@@ -128,7 +129,7 @@ export function ProgramItemDiscussionDialog(props: {
       const res = await fetch(url.toString());
       const data = (await res.json().catch(() => null)) as DiscussionPageResponse | null;
       if (!res.ok || !data?.ok || !Array.isArray(data.messages)) {
-        throw new Error(readSafeApiErrorText(data, 'Не удалось загрузить комментарии'));
+        throw new Error(readSafeApiErrorText(data, notificationText.patientProgramItemDiscussionLoadFailed));
       }
       const loaded = data.messages;
       setMessages((current) => {
@@ -203,7 +204,7 @@ export function ProgramItemDiscussionDialog(props: {
         message?: ProgramItemDiscussionMessage | null;
       } | null;
       if (!res.ok || !data?.ok) {
-        toast.error(readSafeApiErrorText(data, 'Не удалось отправить комментарий'));
+        toast.error(readSafeApiErrorText(data, notificationText.patientProgramItemCommentSendFailed));
         return;
       }
       setDraft('');
@@ -216,7 +217,7 @@ export function ProgramItemDiscussionDialog(props: {
       }
       void onRead?.();
     } catch {
-      toast.error('Ошибка сети');
+      toast.error(notificationText.commonNetworkUnavailable);
     } finally {
       setSending(false);
     }
@@ -377,8 +378,8 @@ export function ProgramItemDiscussionDialog(props: {
                 onError={(message) =>
                   toast.error(
                     message === 'video_too_short'
-                      ? 'Видео должно быть не короче 10 секунд'
-                      : 'Не удалось загрузить файл',
+                      ? notificationText.mediaVideoTooShort
+                      : notificationText.mediaUploadFailed,
                   )
                 }
               />

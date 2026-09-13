@@ -39,6 +39,7 @@ import {
 import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 type TemplateOption = { id: string; title: string; status: string };
 
@@ -256,10 +257,10 @@ export function DoctorCourseEditForm({
         return;
       }
       if (!first.ok) {
-        toast.error(readSafeApiErrorText(first, 'Не удалось сохранить'));
+        toast.error(readSafeApiErrorText(first, notificationText.commonSaveFailed));
         return;
       }
-      toast.success('Сохранено');
+      toast.success(notificationText.commonSaved);
       router.refresh();
       if (externalUsageSnapshot === undefined) {
         void fetch(`/api/doctor/courses/${encodeURIComponent(courseId)}/usage`)
@@ -270,7 +271,7 @@ export function DoctorCourseEditForm({
           .catch(() => {});
       }
     } catch {
-      toast.error('Сеть недоступна. Попробуйте ещё раз.');
+      toast.error(notificationText.commonNetworkUnavailable);
     } finally {
       setPending(false);
     }
@@ -281,12 +282,12 @@ export function DoctorCourseEditForm({
     try {
       const r = await persistToServer(true);
       if (!r.ok) {
-        toast.error(readSafeApiErrorText(r, 'Не удалось отправить курс в архив'));
+        toast.error(readSafeApiErrorText(r, notificationText.doctorCourseArchiveFailed));
         return;
       }
       setWarnOpen(false);
       setWarnUsage(null);
-      toast.success('Сохранено');
+      toast.success(notificationText.commonSaved);
       router.refresh();
       if (externalUsageSnapshot === undefined) {
         void fetch(`/api/doctor/courses/${encodeURIComponent(courseId)}/usage`)
@@ -297,7 +298,7 @@ export function DoctorCourseEditForm({
           .catch(() => {});
       }
     } catch {
-      toast.error('Сеть недоступна. Попробуйте ещё раз.');
+      toast.error(notificationText.commonNetworkUnavailable);
     } finally {
       setPending(false);
     }

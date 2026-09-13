@@ -43,6 +43,7 @@ import { DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE } from '@/shared/ui/doctor/doc
 import { TreatmentProgramTemplateStatusBadge } from './TreatmentProgramTemplateStatusBadge';
 import { loadTreatmentProgramLibrary } from './loadTreatmentProgramLibrary';
 import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
+import { notificationText } from '@/shared/notifications/notificationText';
 import { useViewportMinWidth } from '@/shared/hooks/useViewportMinWidth';
 import { DoctorCatalogMobileToolbar } from '@/shared/ui/doctor/DoctorCatalogMobileToolbar';
 import { CatalogStatusFilters } from '@/shared/ui/doctor/CatalogStatusFilters';
@@ -256,7 +257,7 @@ function TreatmentProgramTemplatesContent({
           setDetail(json.item);
         } else {
           setDetail(null);
-          setDetailError(readSafeApiErrorText(json, 'Не удалось загрузить шаблон'));
+          setDetailError(readSafeApiErrorText(json, notificationText.treatmentProgramTemplateLoadFailed));
         }
       })
       .catch((err: unknown) => {

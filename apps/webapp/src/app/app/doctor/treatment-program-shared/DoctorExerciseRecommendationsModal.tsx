@@ -20,6 +20,7 @@ import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Label } from '@/shared/ui/doctor/primitives/label';
 import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
 import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
+import { notificationText } from '@/shared/notifications/notificationText';
 import { patientCardHref } from '@/app/app/doctor/patients/patientCardHref';
 
 export type DoctorExerciseRecommendationsValue = {
@@ -66,7 +67,7 @@ async function patchStageItem(
   );
   const payload = (await response.json().catch(() => null)) as PatchStageItemResponse | null;
   if (!response.ok || !payload?.ok || !payload.item) {
-    throw new Error(readSafeApiErrorText(payload, 'Не удалось сохранить рекомендации'));
+    throw new Error(readSafeApiErrorText(payload, notificationText.doctorExerciseRecommendationsSaveFailed));
   }
   return toViewItem(payload.item);
 }

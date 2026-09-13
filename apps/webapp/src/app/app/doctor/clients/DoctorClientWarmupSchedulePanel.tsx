@@ -18,6 +18,7 @@ import {
 } from './doctorClientCardChrome';
 import type { ReminderDayFilter } from '@/modules/reminders/scheduleSlots';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 const WEEKDAY_LABELS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'] as const;
 const DEFAULT_DAYS_MASK = '1111100'; // Mon–Fri
@@ -117,10 +118,10 @@ export function DoctorClientWarmupSchedulePanel({ userId }: Props) {
       });
       const data = (await res.json()) as { ok?: boolean; error?: string; message?: string };
       if (!res.ok || !data.ok) {
-        toast.error(data.message ?? 'Не удалось сохранить расписание');
+        toast.error(data.message ?? notificationText.doctorWarmupScheduleSaveFailed);
         return;
       }
-      toast.success('Сохранено');
+      toast.success(notificationText.commonSaved);
       await load();
     } finally {
       setSaving(false);

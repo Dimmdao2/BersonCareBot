@@ -16,6 +16,7 @@ import {
 } from '@/shared/ui/patient/patientVisual';
 import { classifyPaymentIntentStatus } from '@/shared/lib/paymentStatusView';
 import toast from 'react-hot-toast';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 const POLL_MS = 4000;
 
@@ -69,7 +70,7 @@ export function PatientPackagePayClient({ patientPackageId }: Props) {
 
   useEffect(() => {
     if (view === 'succeeded') {
-      toast.success('Оплата прошла');
+      toast.success(notificationText.paymentSucceeded);
       router.push(routePaths.patientBooking);
     }
   }, [view, router]);

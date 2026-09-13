@@ -14,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/shared/ui/doctor/primitives/select';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 type PlatformBotSettings = {
   telegramKey: 'therapygo_telegram_bot_token' | 'therapysto_telegram_bot_token';
@@ -70,16 +71,16 @@ function PlatformBotForm({ platform }: { platform: PlatformBotSettings }) {
         }
         if (patches.length === 0) return;
         if ((await Promise.all(patches)).some((saved) => !saved)) {
-          toast.error('Не удалось сохранить часть настроек');
+          toast.error(notificationText.settingsPartialSaveFailed);
           return;
         }
         setTelegramToken('');
         setTelegramWebhookSecret('');
         setMaxKey('');
         setMaxWebhookSecret('');
-        toast.success('Сохранено');
+        toast.success(notificationText.commonSaved);
       } catch {
-        toast.error('Ошибка при сохранении');
+        toast.error(notificationText.commonSaveFailed);
       }
     });
   return (

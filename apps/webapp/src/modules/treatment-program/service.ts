@@ -26,12 +26,13 @@ import {
   treatmentProgramTemplateArchiveRequiresAcknowledgement,
 } from './types';
 import { UserFacingError } from '@/shared/errors/userFacingError';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function assertUuid(id: string): void {
   const t = id.trim();
-  if (!UUID_RE.test(t)) throw new UserFacingError('Некорректный UUID');
+  if (!UUID_RE.test(t)) throw new UserFacingError(notificationText.commonInvalidUuid);
 }
 
 export type TreatmentProgramTemplateWriteOptions = {
@@ -47,7 +48,7 @@ function runTemplateWrite<T>(
 
 function assertItemType(t: string): asserts t is TreatmentProgramItemType {
   if (!TREATMENT_PROGRAM_ITEM_TYPES.includes(t as TreatmentProgramItemType)) {
-    throw new UserFacingError('Неизвестный тип элемента программы');
+    throw new UserFacingError(notificationText.treatmentProgramUnknownElementType);
   }
 }
 
@@ -63,7 +64,7 @@ export function createTreatmentProgramService(
     async getTemplate(id: string) {
       assertUuid(id);
       const row = await port.getTemplateById(id);
-      if (!row) throw new UserFacingError('Шаблон программы не найден');
+      if (!row) throw new UserFacingError(notificationText.treatmentProgramTemplateNotFound);
       return row;
     },
 
@@ -73,7 +74,7 @@ export function createTreatmentProgramService(
       options?: TreatmentProgramTemplateWriteOptions,
     ) {
       const title = input.title?.trim() ?? '';
-      if (!title) throw new UserFacingError('Название шаблона обязательно');
+      if (!title) throw new UserFacingError(notificationText.exerciseTemplateNameRequired);
       return runTemplateWrite(options, () =>
         port.createTemplate(
           {
@@ -96,7 +97,7 @@ export function createTreatmentProgramService(
       const patch: UpdateTreatmentProgramTemplateInput = { ...input };
       if (input.title !== undefined) {
         const t = input.title.trim();
-        if (!t) throw new UserFacingError('Название шаблона обязательно');
+        if (!t) throw new UserFacingError(notificationText.exerciseTemplateNameRequired);
         patch.title = t;
       }
       if (input.description !== undefined) {
@@ -118,7 +119,7 @@ export function createTreatmentProgramService(
       }
 
       const row = await runTemplateWrite(writeOptions, () => port.updateTemplate(id, patch));
-      if (!row) throw new UserFacingError('Шаблон программы не найден');
+      if (!row) throw new UserFacingError(notificationText.treatmentProgramTemplateNotFound);
       return row;
     },
 
@@ -156,7 +157,7 @@ export function createTreatmentProgramService(
     ) {
       assertUuid(templateId);
       const title = input.title?.trim() ?? '';
-      if (!title) throw new UserFacingError('Название этапа обязательно');
+      if (!title) throw new UserFacingError(notificationText.treatmentProgramStageNameRequired);
       const goals =
         input.goals === undefined
           ? undefined
@@ -178,7 +179,7 @@ export function createTreatmentProgramService(
       if (input.expectedDurationDays !== undefined && input.expectedDurationDays !== null) {
         if (!Number.isInteger(input.expectedDurationDays) || input.expectedDurationDays < 0) {
           throw new UserFacingError(
-            'Ожидаемый срок в днях должен быть неотрицательным целым числом',
+            notificationText.treatmentProgramExpectedDaysInvalid,
           );
         }
       }
@@ -204,7 +205,7 @@ export function createTreatmentProgramService(
       const patch: UpdateTreatmentProgramStageInput = { ...input };
       if (input.title !== undefined) {
         const t = input.title.trim();
-        if (!t) throw new UserFacingError('Название этапа обязательно');
+        if (!t) throw new UserFacingError(notificationText.treatmentProgramStageNameRequired);
         patch.title = t;
       }
       if (input.description !== undefined) {
@@ -223,19 +224,19 @@ export function createTreatmentProgramService(
       if (input.expectedDurationDays !== undefined && input.expectedDurationDays !== null) {
         if (!Number.isInteger(input.expectedDurationDays) || input.expectedDurationDays < 0) {
           throw new UserFacingError(
-            'Ожидаемый срок в днях должен быть неотрицательным целым числом',
+            notificationText.treatmentProgramExpectedDaysInvalid,
           );
         }
       }
       const row = await runTemplateWrite(options, () => port.updateStage(stageId, patch));
-      if (!row) throw new UserFacingError('Этап не найден');
+      if (!row) throw new UserFacingError(notificationText.treatmentProgramStageNotFound);
       return row;
     },
 
     async deleteStage(stageId: string, options?: TreatmentProgramTemplateWriteOptions) {
       assertUuid(stageId);
       const ok = await runTemplateWrite(options, () => port.deleteStage(stageId));
-      if (!ok) throw new UserFacingError('Этап не найден');
+      if (!ok) throw new UserFacingError(notificationText.treatmentProgramStageNotFound);
     },
 
     async addStageItem(
@@ -248,25 +249,25 @@ export function createTreatmentProgramService(
       assertUuid(input.itemRefId);
       if (input.groupId) assertUuid(input.groupId);
       const ctx = await port.getTemplateStageValidationContext(stageId);
-      if (!ctx) throw new UserFacingError('Этап не найден');
+      if (!ctx) throw new UserFacingError(notificationText.treatmentProgramStageNotFound);
       if (ctx.sortOrder === 0) {
         if (input.groupId) {
           throw new UserFacingError(
-            'На этапе «Общие рекомендации» элементы не привязываются к группам',
+            notificationText.treatmentProgramGeneralStageNoGroupBinding,
           );
         }
         if (input.itemType !== 'recommendation') {
-          throw new UserFacingError('На этапе «Общие рекомендации» разрешены только рекомендации');
+          throw new UserFacingError(notificationText.treatmentProgramGeneralStageRecommendationsOnly);
         }
       } else if (input.groupId) {
         const g = ctx.groups.find((x) => x.id === input.groupId);
-        if (!g) throw new UserFacingError('Группа не найдена или не принадлежит этапу');
+        if (!g) throw new UserFacingError(notificationText.treatmentProgramGroupNotFoundOrWrongStage);
         assertTreatmentProgramStageItemFitsSystemGroup(g, input.itemType);
       }
       const hasGroup = Boolean(input.groupId);
       if (!hasGroup && input.itemType !== 'recommendation' && input.itemType !== 'clinical_test') {
         throw new UserFacingError(
-          'Без группы можно добавить только рекомендацию или клинический тест',
+          notificationText.treatmentProgramNoGroupAddRestriction,
         );
       }
       await itemRefs.assertItemRefExists(input.itemType, input.itemRefId.trim());
@@ -302,7 +303,7 @@ export function createTreatmentProgramService(
       }
 
       const currentRow = await port.getStageItemById(itemId);
-      if (!currentRow) throw new UserFacingError('Элемент этапа не найден');
+      if (!currentRow) throw new UserFacingError(notificationText.treatmentProgramStageElementNotFound);
 
       if (patch.itemRefId !== undefined || patch.itemType !== undefined) {
         const nextType = patch.itemType ?? currentRow.itemType;
@@ -311,40 +312,40 @@ export function createTreatmentProgramService(
       }
 
       const ctx = await port.getTemplateStageValidationContext(currentRow.stageId);
-      if (!ctx) throw new UserFacingError('Этап не найден');
+      if (!ctx) throw new UserFacingError(notificationText.treatmentProgramStageNotFound);
       const nextGroupId = patch.groupId !== undefined ? patch.groupId : currentRow.groupId;
       const nextType = patch.itemType ?? currentRow.itemType;
       if (ctx.sortOrder === 0) {
         if (nextType !== 'recommendation') {
-          throw new UserFacingError('На этапе «Общие рекомендации» разрешены только рекомендации');
+          throw new UserFacingError(notificationText.treatmentProgramGeneralStageRecommendationsOnly);
         }
         if (nextGroupId != null) {
           throw new UserFacingError(
-            'На этапе «Общие рекомендации» элементы не привязываются к группам',
+            notificationText.treatmentProgramGeneralStageNoGroupBinding,
           );
         }
       } else {
         if (nextGroupId) {
           const g = ctx.groups.find((x) => x.id === nextGroupId);
-          if (!g) throw new UserFacingError('Группа не найдена или не принадлежит этапу');
+          if (!g) throw new UserFacingError(notificationText.treatmentProgramGroupNotFoundOrWrongStage);
           assertTreatmentProgramStageItemFitsSystemGroup(g, nextType);
         }
         if (!nextGroupId && nextType !== 'recommendation' && nextType !== 'clinical_test') {
           throw new UserFacingError(
-            'Без группы можно оставить только рекомендацию или клинический тест',
+            notificationText.treatmentProgramNoGroupKeepRestriction,
           );
         }
       }
 
       const row = await runTemplateWrite(options, () => port.updateStageItem(itemId, patch));
-      if (!row) throw new UserFacingError('Элемент этапа не найден');
+      if (!row) throw new UserFacingError(notificationText.treatmentProgramStageElementNotFound);
       return row;
     },
 
     async deleteStageItem(itemId: string, options?: TreatmentProgramTemplateWriteOptions) {
       assertUuid(itemId);
       const ok = await runTemplateWrite(options, () => port.deleteStageItem(itemId));
-      if (!ok) throw new UserFacingError('Элемент этапа не найден');
+      if (!ok) throw new UserFacingError(notificationText.treatmentProgramStageElementNotFound);
     },
 
     async createTemplateStageGroup(
@@ -354,7 +355,7 @@ export function createTreatmentProgramService(
     ) {
       assertUuid(stageId);
       const title = input.title?.trim() ?? '';
-      if (!title) throw new UserFacingError('Название группы обязательно');
+      if (!title) throw new UserFacingError(notificationText.treatmentProgramGroupNameRequired);
       return runTemplateWrite(options, () =>
         port.createTemplateStageGroup(stageId, {
           ...input,
@@ -384,7 +385,7 @@ export function createTreatmentProgramService(
       const row = await runTemplateWrite(options, () =>
         port.updateTemplateStageGroup(groupId, patch),
       );
-      if (!row) throw new UserFacingError('Группа этапа не найдена');
+      if (!row) throw new UserFacingError(notificationText.treatmentProgramStageGroupNotFound);
       return row;
     },
 
@@ -394,7 +395,7 @@ export function createTreatmentProgramService(
     ) {
       assertUuid(groupId);
       const ok = await runTemplateWrite(options, () => port.deleteTemplateStageGroup(groupId));
-      if (!ok) throw new UserFacingError('Группа этапа не найдена');
+      if (!ok) throw new UserFacingError(notificationText.treatmentProgramStageGroupNotFound);
     },
 
     async reorderTemplateStageGroups(
@@ -407,7 +408,7 @@ export function createTreatmentProgramService(
       const ok = await runTemplateWrite(options, () =>
         port.reorderTemplateStageGroups(stageId, orderedGroupIds),
       );
-      if (!ok) throw new UserFacingError('Некорректный порядок групп этапа');
+      if (!ok) throw new UserFacingError(notificationText.treatmentProgramInvalidStageGroupOrder);
     },
 
     async reorderTemplateStages(
@@ -418,16 +419,16 @@ export function createTreatmentProgramService(
       assertUuid(templateId);
       for (const id of orderedStageIds) assertUuid(id);
       const tpl = await port.getTemplateById(templateId);
-      if (!tpl) throw new UserFacingError('Шаблон программы не найден');
+      if (!tpl) throw new UserFacingError(notificationText.treatmentProgramTemplateNotFound);
       if (tpl.status === 'archived') throw new TreatmentProgramTemplateAlreadyArchivedError();
       const stageZero = tpl.stages.find((s) => s.sortOrder === 0);
       if (stageZero && orderedStageIds[0] !== stageZero.id) {
-        throw new UserFacingError('Этап «Общие рекомендации» должен оставаться первым');
+        throw new UserFacingError(notificationText.treatmentProgramGeneralStageMustStayFirst);
       }
       const ok = await runTemplateWrite(options, () =>
         port.reorderTemplateStages(templateId, orderedStageIds),
       );
-      if (!ok) throw new UserFacingError('Некорректный порядок этапов');
+      if (!ok) throw new UserFacingError(notificationText.treatmentProgramInvalidStageOrder);
     },
 
     async reorderTemplateStageItems(
@@ -438,14 +439,14 @@ export function createTreatmentProgramService(
       assertUuid(stageId);
       for (const id of orderedItemIds) assertUuid(id);
       const ctx = await port.getTemplateStageValidationContext(stageId);
-      if (!ctx) throw new UserFacingError('Этап не найден');
+      if (!ctx) throw new UserFacingError(notificationText.treatmentProgramStageNotFound);
       const tpl = await port.getTemplateById(ctx.templateId);
-      if (!tpl) throw new UserFacingError('Шаблон программы не найден');
+      if (!tpl) throw new UserFacingError(notificationText.treatmentProgramTemplateNotFound);
       if (tpl.status === 'archived') throw new TreatmentProgramTemplateAlreadyArchivedError();
       const ok = await runTemplateWrite(options, () =>
         port.reorderTemplateStageItems(stageId, orderedItemIds),
       );
-      if (!ok) throw new UserFacingError('Некорректный порядок элементов этапа');
+      if (!ok) throw new UserFacingError(notificationText.treatmentProgramInvalidStageElementOrder);
     },
 
     async expandLfkComplexIntoTemplateStageItems(
@@ -467,7 +468,7 @@ export function createTreatmentProgramService(
 
       if (body.mode === 'new_group') {
         const title = body.newGroupTitle.trim();
-        if (!title) throw new UserFacingError('Название группы обязательно');
+        if (!title) throw new UserFacingError(notificationText.treatmentProgramGroupNameRequired);
       }
       if (body.mode === 'existing_group') {
         assertUuid(body.existingGroupId);
@@ -484,7 +485,7 @@ export function createTreatmentProgramService(
       const preview = await port.getLfkComplexExpandPreview(body.complexTemplateId.trim());
       if (!preview)
         throw new TreatmentProgramExpandNotFoundError('Комплекс ЛФК не найден или в архиве');
-      if (preview.exerciseIds.length === 0) throw new UserFacingError('В комплексе нет упражнений');
+      if (preview.exerciseIds.length === 0) throw new UserFacingError(notificationText.exerciseComplexEmpty);
 
       for (const id of preview.exerciseIds) {
         await itemRefs.assertItemRefExists('exercise', id);

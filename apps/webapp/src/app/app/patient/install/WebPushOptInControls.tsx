@@ -9,6 +9,7 @@ import { isStandalonePwa } from '@/shared/lib/webPush/pwaDisplay';
 import { subscribePatientWebPush } from '@/shared/lib/webPush/subscribePatientWebPush';
 import { webPushSubscribeFailureMessage } from '@/shared/lib/webPush/webPushSubscribeFeedback';
 import { enableNativePushSubscription } from '@/shared/lib/nativePush/nativePushClient';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 export function WebPushOptInControls() {
   const runtime = useNativeRuntime();
@@ -20,12 +21,12 @@ export function WebPushOptInControls() {
       try {
         const result = await enableNativePushSubscription(runtime.kind);
         if (result.ok) {
-          toast.success('Готово');
+          toast.success(notificationText.commonDone);
           return;
         }
         toast.error(webPushSubscribeFailureMessage(result.reason));
       } catch {
-        toast.error('Ошибка');
+        toast.error(notificationText.commonGenericError);
       } finally {
         setBusy(false);
       }
@@ -33,23 +34,23 @@ export function WebPushOptInControls() {
     }
 
     if (!(await probePushSupported()) && !isStandalonePwa()) {
-      toast.error('Сначала откройте приложение с иконки на главном экране');
+      toast.error(notificationText.patientPwaOpenFromHomeScreenFirst);
       return;
     }
     if (!(await probePushSupported())) {
-      toast.error('Уведомления не поддерживаются');
+      toast.error(notificationText.commonPushNotSupported);
       return;
     }
     setBusy(true);
     try {
       const result = await subscribePatientWebPush();
       if (result.ok) {
-        toast.success('Готово');
+        toast.success(notificationText.commonDone);
         return;
       }
       toast.error(webPushSubscribeFailureMessage(result.reason));
     } catch {
-      toast.error('Ошибка');
+      toast.error(notificationText.commonGenericError);
     } finally {
       setBusy(false);
     }

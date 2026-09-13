@@ -20,6 +20,7 @@ import { sendPaymentLinkToPatientChat } from '@/app/app/doctor/sendPaymentLinkTo
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 import { DateTime } from 'luxon';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 type AppointmentOption = { id: string; label: string };
 
@@ -431,7 +432,7 @@ export function DoctorClientMembershipsPanel({
         showError(json.error ?? 'create_failed');
         return;
       }
-      toast.success('Абонемент создан');
+      toast.success(notificationText.doctorSubscriptionCreated);
       setManualSaleKey(null);
       setPriceRub('');
       setSoldDate('');
@@ -475,7 +476,7 @@ export function DoctorClientMembershipsPanel({
         showError(json.error ?? 'create_failed');
         return;
       }
-      toast.success('Абонемент создан');
+      toast.success(notificationText.doctorSubscriptionCreated);
       setCatalogSaleKey(null);
       setCatalogId('');
       setCatalogSoldDate('');
@@ -524,7 +525,7 @@ export function DoctorClientMembershipsPanel({
       });
       const json = (await res.json()) as { ok?: boolean; summary?: RecalcSummary; error?: string };
       if (!json.ok) {
-        toast.error('Не удалось пересчитать абонемент');
+        toast.error(notificationText.doctorSubscriptionRecalcFailed);
         return;
       }
       const debitedCount = json.summary?.debited.length ?? 0;
@@ -537,7 +538,7 @@ export function DoctorClientMembershipsPanel({
       router.refresh();
       notifyPackagesChanged();
     } catch {
-      toast.error('Ошибка сети при пересчёте');
+      toast.error(notificationText.doctorSubscriptionRecalcNetworkError);
     }
   }
 

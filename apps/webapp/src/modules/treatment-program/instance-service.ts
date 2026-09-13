@@ -40,6 +40,7 @@ import {
   type InstanceEditorBatchDraft,
 } from './instanceEditorBatchSchema';
 import { UserFacingError } from '@/shared/errors/userFacingError';
+import { notificationText, notificationTextFactory } from '@/shared/notifications/notificationText';
 
 /** Второй экземпляр со `status: active` для того же пациента запрещён (POST назначения). */
 export const SECOND_ACTIVE_TREATMENT_PROGRAM_MESSAGE =
@@ -88,12 +89,12 @@ export function createTreatmentProgramInstanceService(deps: {
   ): Promise<void> {
     if (item.completedAt) {
       throw new UserFacingError(
-        'Нельзя удалить или заменить элемент с отметкой выполнения или историей теста',
+        notificationText.treatmentProgramElementDeleteReplaceLocked,
       );
     }
     if (testAttempts && (await testAttempts.hasAnyAttemptForStageItem(item.id))) {
       throw new UserFacingError(
-        'Нельзя удалить или заменить элемент с отметкой выполнения или историей теста',
+        notificationText.treatmentProgramElementDeleteReplaceLocked,
       );
     }
   }
@@ -116,7 +117,7 @@ export function createTreatmentProgramInstanceService(deps: {
 
       if (deps.snapshotDiaryDaysBeforePromoRefresh) {
         if (!row.organizationId) {
-          throw new UserFacingError('Не определена организация промо-программы');
+          throw new UserFacingError(notificationText.treatmentProgramPromoOrgUndefined);
         }
         await deps.snapshotDiaryDaysBeforePromoRefresh({
           patientUserId: row.patientUserId,
@@ -180,7 +181,7 @@ export function createTreatmentProgramInstanceService(deps: {
 
       const tpl = await templates.getTemplate(input.templateId);
       if (tpl.status !== 'published') {
-        throw new UserFacingError('Назначать можно только опубликованный шаблон');
+        throw new UserFacingError(notificationText.treatmentProgramAssignPublishedOnly);
       }
 
       const stagesSorted = [...tpl.stages].sort(
@@ -341,11 +342,11 @@ export function createTreatmentProgramInstanceService(deps: {
       assertUuid(input.patientUserId);
       const getId = deps.getDefaultPromoTemplateId;
       if (!getId) {
-        throw new UserFacingError('Промо-программа не настроена');
+        throw new UserFacingError(notificationText.treatmentProgramPromoNotConfigured);
       }
       const templateId = (await getId())?.trim() ?? '';
       if (!templateId) {
-        throw new UserFacingError('Промо-программа не настроена');
+        throw new UserFacingError(notificationText.treatmentProgramPromoNotConfigured);
       }
       return this.assignTemplateToPatient({
         templateId,
@@ -362,16 +363,16 @@ export function createTreatmentProgramInstanceService(deps: {
       deps.assertWriteClearance?.('promo');
       const getId = deps.getDefaultPromoTemplateId;
       if (!getId) {
-        throw new UserFacingError('Промо-программа не настроена');
+        throw new UserFacingError(notificationText.treatmentProgramPromoNotConfigured);
       }
       const templateId = (await getId({ organizationId: input.organizationId }))?.trim() ?? '';
       if (!templateId) {
-        throw new UserFacingError('Промо-программа не настроена');
+        throw new UserFacingError(notificationText.treatmentProgramPromoNotConfigured);
       }
 
       const tpl = await templates.getTemplate(templateId);
       if (!tpl || tpl.status !== 'published') {
-        throw new UserFacingError('Назначать можно только опубликованный шаблон');
+        throw new UserFacingError(notificationText.treatmentProgramAssignPublishedOnly);
       }
 
       const activePromo = await instances.listInstancesWhere({
@@ -487,14 +488,14 @@ export function createTreatmentProgramInstanceService(deps: {
       assertUuid(patientUserId);
       assertUuid(instanceId);
       const row = await instances.getInstanceForPatient(patientUserId.trim(), instanceId);
-      if (!row) throw new UserFacingError('Программа не найдена');
+      if (!row) throw new UserFacingError(notificationText.treatmentProgramNotFound);
       return row;
     },
 
     async getInstanceById(instanceId: string) {
       assertUuid(instanceId);
       const row = await instances.getInstanceById(instanceId);
-      if (!row) throw new UserFacingError('Программа не найдена');
+      if (!row) throw new UserFacingError(notificationText.treatmentProgramNotFound);
       return row;
     },
 
@@ -553,7 +554,7 @@ export function createTreatmentProgramInstanceService(deps: {
         input.stageItemId,
         input.localComment,
       );
-      if (!row) throw new UserFacingError('Элемент программы не найден');
+      if (!row) throw new UserFacingError(notificationText.treatmentProgramElementNotFoundInProgram);
       const afterEffective = effectiveInstanceStageItemComment(row);
       if (beforeEffective !== afterEffective) {
         await appendEvent({
@@ -579,14 +580,14 @@ export function createTreatmentProgramInstanceService(deps: {
       if (input.actorId) assertUuid(input.actorId);
 
       const detail = await instances.getInstanceById(input.instanceId);
-      if (!detail) throw new UserFacingError('Программа не найдена');
+      if (!detail) throw new UserFacingError(notificationText.treatmentProgramNotFound);
       if (!detail.stages.some((s) => s.id === input.stageId))
-        throw new UserFacingError('Этап не найден');
+        throw new UserFacingError(notificationText.treatmentProgramStageNotFound);
 
       const norm: UpdateTreatmentProgramInstanceStageMetadataInput = {};
       if (input.patch.title !== undefined) {
         const t = input.patch.title.trim();
-        if (!t) throw new UserFacingError('Название этапа не может быть пустым');
+        if (!t) throw new UserFacingError(notificationText.treatmentProgramStageNameEmpty);
         norm.title = t;
       }
       if (input.patch.description !== undefined) {
@@ -610,7 +611,7 @@ export function createTreatmentProgramInstanceService(deps: {
         const d = input.patch.expectedDurationDays;
         if (d !== null && (!Number.isInteger(d) || d < 0)) {
           throw new UserFacingError(
-            'Ожидаемый срок в днях должен быть неотрицательным целым числом',
+            notificationText.treatmentProgramExpectedDaysInvalid,
           );
         }
         norm.expectedDurationDays = d;
@@ -618,7 +619,7 @@ export function createTreatmentProgramInstanceService(deps: {
 
       if (Object.keys(norm).length === 0) {
         const unchanged = await instances.getInstanceById(input.instanceId);
-        if (!unchanged) throw new UserFacingError('Программа не найдена');
+        if (!unchanged) throw new UserFacingError(notificationText.treatmentProgramNotFound);
         return unchanged;
       }
 
@@ -627,9 +628,9 @@ export function createTreatmentProgramInstanceService(deps: {
         input.stageId,
         norm,
       );
-      if (!updated) throw new UserFacingError('Этап не найден');
+      if (!updated) throw new UserFacingError(notificationText.treatmentProgramStageNotFound);
       const out = await instances.getInstanceById(input.instanceId);
-      if (!out) throw new UserFacingError('Программа не найдена');
+      if (!out) throw new UserFacingError(notificationText.treatmentProgramNotFound);
       return out;
     },
 
@@ -643,17 +644,17 @@ export function createTreatmentProgramInstanceService(deps: {
       if (input.actorId) assertUuid(input.actorId);
       if (input.title !== undefined) {
         const t = input.title.trim();
-        if (!t) throw new UserFacingError('Название не может быть пустым');
+        if (!t) throw new UserFacingError(notificationText.treatmentProgramNameEmpty);
       }
       const prev = await instances.getInstanceById(input.instanceId);
-      if (!prev) throw new UserFacingError('Программа не найдена');
+      if (!prev) throw new UserFacingError(notificationText.treatmentProgramNotFound);
       const beforeStatus = prev.status;
 
       const row = await instances.updateInstanceMeta(input.instanceId, {
         title: input.title?.trim(),
         status: input.status,
       });
-      if (!row) throw new UserFacingError('Программа не найдена');
+      if (!row) throw new UserFacingError(notificationText.treatmentProgramNotFound);
 
       if (input.status !== undefined && input.status !== beforeStatus) {
         await appendEvent({
@@ -699,9 +700,9 @@ export function createTreatmentProgramInstanceService(deps: {
       assertUuid(input.instanceId);
       if (input.actorId) assertUuid(input.actorId);
       const t = input.title.trim();
-      if (!t) throw new UserFacingError('Название этапа не может быть пустым');
+      if (!t) throw new UserFacingError(notificationText.treatmentProgramStageNameEmpty);
       const detail = await instances.getInstanceById(input.instanceId);
-      if (!detail) throw new UserFacingError('Программа не найдена');
+      if (!detail) throw new UserFacingError(notificationText.treatmentProgramNotFound);
       const maxOrder = detail.stages.reduce((m, s) => Math.max(m, s.sortOrder), -1);
       const sortOrder = input.sortOrder ?? maxOrder + 1;
       const stage = await instances.addInstanceStage(input.instanceId, {
@@ -711,7 +712,7 @@ export function createTreatmentProgramInstanceService(deps: {
         status: input.status ?? 'locked',
         sourceStageId: null,
       });
-      if (!stage) throw new UserFacingError('Не удалось добавить этап');
+      if (!stage) throw new UserFacingError(notificationText.treatmentProgramStageAddFailed);
       await appendEvent({
         instanceId: input.instanceId,
         actorId: input.actorId,
@@ -734,12 +735,12 @@ export function createTreatmentProgramInstanceService(deps: {
       const st = (await instances.getInstanceById(input.instanceId))?.stages.find(
         (s) => s.id === input.stageId,
       );
-      if (!st) throw new UserFacingError('Этап не найден');
+      if (!st) throw new UserFacingError(notificationText.treatmentProgramStageNotFound);
       for (const it of st.items) {
         await assertStageItemAllowsStructuralChange(it);
       }
       const ok = await instances.removeInstanceStage(input.instanceId, input.stageId);
-      if (!ok) throw new UserFacingError('Этап не найден');
+      if (!ok) throw new UserFacingError(notificationText.treatmentProgramStageNotFound);
       await appendEvent({
         instanceId: input.instanceId,
         actorId: input.actorId,
@@ -768,33 +769,33 @@ export function createTreatmentProgramInstanceService(deps: {
       if (input.groupId) assertUuid(input.groupId);
       if ((input.itemType as string) === 'lfk_complex') {
         throw new UserFacingError(
-          'Для комплекса ЛФК используйте разворот комплекса (from-lfk-complex)',
+          notificationText.treatmentProgramUseComplexExpand,
         );
       }
       await itemRefs.assertItemRefExists(input.itemType, input.itemRefId);
       const snapshot = await snapshots.buildSnapshot(input.itemType, input.itemRefId);
       const detail = await instances.getInstanceById(input.instanceId);
-      if (!detail) throw new UserFacingError('Программа не найдена');
+      if (!detail) throw new UserFacingError(notificationText.treatmentProgramNotFound);
       const stage = detail.stages.find((s) => s.id === input.stageId);
-      if (!stage) throw new UserFacingError('Этап не найден');
+      if (!stage) throw new UserFacingError(notificationText.treatmentProgramStageNotFound);
       let resolvedGroupId = input.groupId ?? null;
       if (isStageZero(stage)) {
         if (input.itemType !== 'recommendation') {
-          throw new UserFacingError('На этапе «Общие рекомендации» разрешены только рекомендации');
+          throw new UserFacingError(notificationText.treatmentProgramGeneralStageRecommendationsOnly);
         }
         if (resolvedGroupId) {
           throw new UserFacingError(
-            'На этапе «Общие рекомендации» элементы не привязываются к группам',
+            notificationText.treatmentProgramGeneralStageNoGroupBinding,
           );
         }
       } else if (!resolvedGroupId) {
         if (input.itemType === 'recommendation' || input.itemType === 'clinical_test') {
           const want = input.itemType === 'recommendation' ? 'recommendations' : 'tests';
           const sg = stage.groups.find((g) => g.systemKind === want);
-          if (!sg) throw new UserFacingError('Системная группа этапа не найдена');
+          if (!sg) throw new UserFacingError(notificationText.treatmentProgramStageSystemGroupNotFound);
           resolvedGroupId = sg.id;
         } else {
-          throw new UserFacingError('Выберите группу для этого типа элемента');
+          throw new UserFacingError(notificationText.treatmentProgramSelectGroupForElementType);
         }
       } else {
         const g = stage.groups.find((gr) => gr.id === resolvedGroupId);
@@ -813,7 +814,7 @@ export function createTreatmentProgramInstanceService(deps: {
         status: 'active',
         groupId: resolvedGroupId,
       });
-      if (!row) throw new UserFacingError('Не удалось добавить элемент');
+      if (!row) throw new UserFacingError(notificationText.treatmentProgramElementAddFailed);
       await appendEvent({
         instanceId: input.instanceId,
         actorId: input.actorId,
@@ -842,15 +843,15 @@ export function createTreatmentProgramInstanceService(deps: {
       if (input.actorId) assertUuid(input.actorId);
 
       const title = input.title.trim();
-      if (!title) throw new UserFacingError('Название рекомендации обязательно');
+      if (!title) throw new UserFacingError(notificationText.recommendationNameRequired);
 
       const detail = await instances.getInstanceById(input.instanceId);
-      if (!detail) throw new UserFacingError('Программа не найдена');
+      if (!detail) throw new UserFacingError(notificationText.treatmentProgramNotFound);
       const stage = detail.stages.find((s) => s.id === input.stageId);
-      if (!stage) throw new UserFacingError('Этап не найден');
+      if (!stage) throw new UserFacingError(notificationText.treatmentProgramStageNotFound);
       if (!isStageZero(stage)) {
         throw new UserFacingError(
-          'Свободный текст можно добавить только на этап «Общие рекомендации»',
+          notificationText.treatmentProgramFreeTextGeneralStageOnly,
         );
       }
 
@@ -863,7 +864,7 @@ export function createTreatmentProgramInstanceService(deps: {
         bodyMd,
         createdBy: input.actorId,
       });
-      if (!result) throw new UserFacingError('Не удалось добавить рекомендацию');
+      if (!result) throw new UserFacingError(notificationText.treatmentProgramRecommendationAddFailed);
 
       await appendEvent({
         instanceId: input.instanceId,
@@ -898,7 +899,7 @@ export function createTreatmentProgramInstanceService(deps: {
         stageId: input.stageId,
         testSetId: input.testSetId.trim(),
       });
-      if (!out) throw new UserFacingError('Этап не найден');
+      if (!out) throw new UserFacingError(notificationText.treatmentProgramStageNotFound);
       for (const row of out.items) {
         await appendEvent({
           instanceId: input.instanceId,
@@ -932,8 +933,8 @@ export function createTreatmentProgramInstanceService(deps: {
       if (input.actorId) assertUuid(input.actorId);
 
       const preview = await templates.getLfkComplexExpandPreview(input.complexTemplateId.trim());
-      if (!preview) throw new UserFacingError('Комплекс ЛФК не найден или в архиве');
-      if (preview.exerciseIds.length === 0) throw new UserFacingError('В комплексе нет упражнений');
+      if (!preview) throw new UserFacingError(notificationText.treatmentProgramLfkComplexNotFoundOrArchived);
+      if (preview.exerciseIds.length === 0) throw new UserFacingError(notificationText.exerciseComplexEmpty);
 
       for (const id of preview.exerciseIds) {
         await itemRefs.assertItemRefExists('exercise', id);
@@ -946,7 +947,7 @@ export function createTreatmentProgramInstanceService(deps: {
         groupId: input.groupId,
         expectedExerciseIds: preview.exerciseIds,
       });
-      if (!out) throw new UserFacingError('Этап не найден');
+      if (!out) throw new UserFacingError(notificationText.treatmentProgramStageNotFound);
       for (const row of out.items) {
         await appendEvent({
           instanceId: input.instanceId,
@@ -977,7 +978,7 @@ export function createTreatmentProgramInstanceService(deps: {
       if (input.actorId) assertUuid(input.actorId);
       const detail = await instances.getInstanceById(input.instanceId);
       const item = detail?.stages.flatMap((s) => s.items).find((i) => i.id === input.itemId);
-      if (!item) throw new UserFacingError('Элемент не найден');
+      if (!item) throw new UserFacingError(notificationText.treatmentProgramElementNotFound);
       if (item.status === 'disabled') return item;
       if (events) {
         const row = await instances.patchInstanceStageItemWithEvent(
@@ -993,13 +994,13 @@ export function createTreatmentProgramInstanceService(deps: {
             payload: { stageId: item.stageId, itemType: item.itemType, itemRefId: item.itemRefId },
           }),
         );
-        if (!row) throw new UserFacingError('Элемент не найден');
+        if (!row) throw new UserFacingError(notificationText.treatmentProgramElementNotFound);
         return row;
       }
       const row = await instances.patchInstanceStageItem(input.instanceId, input.itemId, {
         status: 'disabled',
       });
-      if (!row) throw new UserFacingError('Элемент не найден');
+      if (!row) throw new UserFacingError(notificationText.treatmentProgramElementNotFound);
       return row;
     },
 
@@ -1013,7 +1014,7 @@ export function createTreatmentProgramInstanceService(deps: {
       if (input.actorId) assertUuid(input.actorId);
       const detail = await instances.getInstanceById(input.instanceId);
       const item = detail?.stages.flatMap((s) => s.items).find((i) => i.id === input.itemId);
-      if (!item) throw new UserFacingError('Элемент не найден');
+      if (!item) throw new UserFacingError(notificationText.treatmentProgramElementNotFound);
       if (item.status === 'active') return item;
       if (events) {
         const row = await instances.patchInstanceStageItemWithEvent(
@@ -1029,13 +1030,13 @@ export function createTreatmentProgramInstanceService(deps: {
             payload: { stageId: item.stageId, itemType: item.itemType, itemRefId: item.itemRefId },
           }),
         );
-        if (!row) throw new UserFacingError('Элемент не найден');
+        if (!row) throw new UserFacingError(notificationText.treatmentProgramElementNotFound);
         return row;
       }
       const row = await instances.patchInstanceStageItem(input.instanceId, input.itemId, {
         status: 'active',
       });
-      if (!row) throw new UserFacingError('Элемент не найден');
+      if (!row) throw new UserFacingError(notificationText.treatmentProgramElementNotFound);
       return row;
     },
 
@@ -1050,14 +1051,14 @@ export function createTreatmentProgramInstanceService(deps: {
       if (input.actorId) assertUuid(input.actorId);
       const detail = await instances.getInstanceById(input.instanceId);
       const item = detail?.stages.flatMap((s) => s.items).find((i) => i.id === input.itemId);
-      if (!item) throw new UserFacingError('Элемент не найден');
+      if (!item) throw new UserFacingError(notificationText.treatmentProgramElementNotFound);
       if (item.itemType !== 'recommendation') {
-        throw new UserFacingError('Режим выполнения задаётся только для рекомендаций');
+        throw new UserFacingError(notificationText.treatmentProgramExecutionModeRecommendationsOnly);
       }
       const row = await instances.patchInstanceStageItem(input.instanceId, input.itemId, {
         isActionable: input.isActionable,
       });
-      if (!row) throw new UserFacingError('Элемент не найден');
+      if (!row) throw new UserFacingError(notificationText.treatmentProgramElementNotFound);
       await appendEvent({
         instanceId: input.instanceId,
         actorId: input.actorId,
@@ -1085,10 +1086,10 @@ export function createTreatmentProgramInstanceService(deps: {
       if (input.actorId) assertUuid(input.actorId);
       const detail = await instances.getInstanceById(input.instanceId);
       const item = detail?.stages.flatMap((s) => s.items).find((i) => i.id === input.itemId);
-      if (!item) throw new UserFacingError('Элемент не найден');
+      if (!item) throw new UserFacingError(notificationText.treatmentProgramElementNotFound);
       await assertStageItemAllowsStructuralChange(item);
       const ok = await instances.deleteInstanceStageItem(input.instanceId, input.itemId);
-      if (!ok) throw new UserFacingError('Элемент не найден');
+      if (!ok) throw new UserFacingError(notificationText.treatmentProgramElementNotFound);
       const reasonTrim = input.reason?.trim();
       const reason =
         reasonTrim && reasonTrim.length > 0 ? reasonTrim : 'Удаление врачом из программы пациента';
@@ -1121,7 +1122,7 @@ export function createTreatmentProgramInstanceService(deps: {
       const detail = await instances.getInstanceById(input.instanceId);
       const prev = detail?.stages.flatMap((s) => s.items).find((i) => i.id === input.itemId) as
         TreatmentProgramInstanceStageItemRow | undefined;
-      if (!prev) throw new UserFacingError('Элемент не найден');
+      if (!prev) throw new UserFacingError(notificationText.treatmentProgramElementNotFound);
       await assertStageItemAllowsStructuralChange(prev);
       await itemRefs.assertItemRefExists(input.itemType, input.itemRefId);
       const snapshot = await snapshots.buildSnapshot(input.itemType, input.itemRefId);
@@ -1130,7 +1131,7 @@ export function createTreatmentProgramInstanceService(deps: {
         itemRefId: input.itemRefId,
         snapshot,
       });
-      if (!row) throw new UserFacingError('Не удалось заменить элемент');
+      if (!row) throw new UserFacingError(notificationText.treatmentProgramElementReplaceFailed);
       await appendEvent({
         instanceId: input.instanceId,
         actorId: input.actorId,
@@ -1154,14 +1155,14 @@ export function createTreatmentProgramInstanceService(deps: {
       assertUuid(input.instanceId);
       if (input.actorId) assertUuid(input.actorId);
       const detail = await instances.getInstanceById(input.instanceId);
-      if (!detail) throw new UserFacingError('Программа не найдена');
+      if (!detail) throw new UserFacingError(notificationText.treatmentProgramNotFound);
       for (const id of input.orderedStageIds) assertUuid(id);
       const stageZero = detail.stages.find((s) => s.sortOrder === 0);
       if (stageZero && input.orderedStageIds[0] !== stageZero.id) {
-        throw new UserFacingError('Этап «Общие рекомендации» должен оставаться первым');
+        throw new UserFacingError(notificationText.treatmentProgramGeneralStageMustStayFirst);
       }
       const ok = await instances.reorderInstanceStages(input.instanceId, input.orderedStageIds);
-      if (!ok) throw new UserFacingError('Некорректный порядок этапов');
+      if (!ok) throw new UserFacingError(notificationText.treatmentProgramInvalidStageOrder);
       await appendEvent({
         instanceId: input.instanceId,
         actorId: input.actorId,
@@ -1182,16 +1183,16 @@ export function createTreatmentProgramInstanceService(deps: {
       assertUuid(input.stageId);
       if (input.actorId) assertUuid(input.actorId);
       const detail = await instances.getInstanceById(input.instanceId);
-      if (!detail) throw new UserFacingError('Программа не найдена');
+      if (!detail) throw new UserFacingError(notificationText.treatmentProgramNotFound);
       if (!detail.stages.some((s) => s.id === input.stageId))
-        throw new UserFacingError('Этап не найден');
+        throw new UserFacingError(notificationText.treatmentProgramStageNotFound);
       for (const id of input.orderedItemIds) assertUuid(id);
       const ok = await instances.reorderInstanceStageItems(
         input.instanceId,
         input.stageId,
         input.orderedItemIds,
       );
-      if (!ok) throw new UserFacingError('Некорректный порядок элементов этапа');
+      if (!ok) throw new UserFacingError(notificationText.treatmentProgramInvalidStageElementOrder);
       await appendEvent({
         instanceId: input.instanceId,
         actorId: input.actorId,
@@ -1215,11 +1216,11 @@ export function createTreatmentProgramInstanceService(deps: {
       assertUuid(input.stageId);
       if (input.actorId) assertUuid(input.actorId);
       const title = input.title.trim();
-      if (!title) throw new UserFacingError('Название группы не может быть пустым');
+      if (!title) throw new UserFacingError(notificationText.treatmentProgramGroupNameEmpty);
       const detail = await instances.getInstanceById(input.instanceId);
-      if (!detail) throw new UserFacingError('Программа не найдена');
+      if (!detail) throw new UserFacingError(notificationText.treatmentProgramNotFound);
       if (!detail.stages.some((s) => s.id === input.stageId))
-        throw new UserFacingError('Этап не найден');
+        throw new UserFacingError(notificationText.treatmentProgramStageNotFound);
       const payload: CreateTreatmentProgramInstanceStageGroupInput = {
         title,
         description:
@@ -1233,7 +1234,7 @@ export function createTreatmentProgramInstanceService(deps: {
         input.stageId,
         payload,
       );
-      if (!row) throw new UserFacingError('Не удалось добавить группу');
+      if (!row) throw new UserFacingError(notificationText.treatmentProgramGroupAddFailed);
       await appendEvent({
         instanceId: input.instanceId,
         actorId: input.actorId,
@@ -1261,15 +1262,15 @@ export function createTreatmentProgramInstanceService(deps: {
       const isSystemGroup =
         grpGuard?.systemKind === 'recommendations' || grpGuard?.systemKind === 'tests';
       if (isSystemGroup && input.patch.title !== undefined) {
-        throw new UserFacingError('Нельзя менять название системной группы');
+        throw new UserFacingError(notificationText.treatmentProgramSystemGroupNameLocked);
       }
       if (isSystemGroup && input.patch.sortOrder !== undefined) {
-        throw new UserFacingError('Нельзя менять порядок системной группы');
+        throw new UserFacingError(notificationText.treatmentProgramSystemGroupOrderLocked);
       }
       const norm: UpdateTreatmentProgramInstanceStageGroupInput = {};
       if (input.patch.title !== undefined && !isSystemGroup) {
         const t = input.patch.title.trim();
-        if (!t) throw new UserFacingError('Название группы не может быть пустым');
+        if (!t) throw new UserFacingError(notificationText.treatmentProgramGroupNameEmpty);
         norm.title = t;
       }
       if (input.patch.description !== undefined && !isSystemGroup) {
@@ -1285,11 +1286,11 @@ export function createTreatmentProgramInstanceService(deps: {
       if (Object.keys(norm).length === 0) {
         const d = await instances.getInstanceById(input.instanceId);
         const g = d?.stages.flatMap((s) => s.groups).find((gr) => gr.id === input.groupId);
-        if (!g) throw new UserFacingError('Группа не найдена');
+        if (!g) throw new UserFacingError(notificationText.treatmentProgramGroupNotFound);
         return g;
       }
       const row = await instances.updateInstanceStageGroup(input.instanceId, input.groupId, norm);
-      if (!row) throw new UserFacingError('Группа не найдена');
+      if (!row) throw new UserFacingError(notificationText.treatmentProgramGroupNotFound);
       await appendEvent({
         instanceId: input.instanceId,
         actorId: input.actorId,
@@ -1311,12 +1312,12 @@ export function createTreatmentProgramInstanceService(deps: {
       if (input.actorId) assertUuid(input.actorId);
       const detail = await instances.getInstanceById(input.instanceId);
       const gr = detail?.stages.flatMap((s) => s.groups).find((g) => g.id === input.groupId);
-      if (!gr) throw new UserFacingError('Группа не найдена');
+      if (!gr) throw new UserFacingError(notificationText.treatmentProgramGroupNotFound);
       if (gr.systemKind === 'recommendations' || gr.systemKind === 'tests') {
-        throw new UserFacingError('Системную группу нельзя удалить');
+        throw new UserFacingError(notificationText.treatmentProgramSystemGroupDeleteForbidden);
       }
       const ok = await instances.deleteInstanceStageGroup(input.instanceId, input.groupId);
-      if (!ok) throw new UserFacingError('Группа не найдена');
+      if (!ok) throw new UserFacingError(notificationText.treatmentProgramGroupNotFound);
       await appendEvent({
         instanceId: input.instanceId,
         actorId: input.actorId,
@@ -1347,9 +1348,9 @@ export function createTreatmentProgramInstanceService(deps: {
       if (input.actorId) assertUuid(input.actorId);
       const detail = await instances.getInstanceById(input.instanceId);
       const gr = detail?.stages.flatMap((s) => s.groups).find((g) => g.id === input.groupId);
-      if (!gr) throw new UserFacingError('Группа не найдена');
+      if (!gr) throw new UserFacingError(notificationText.treatmentProgramGroupNotFound);
       if (gr.systemKind === 'recommendations' || gr.systemKind === 'tests') {
-        throw new UserFacingError('Системную группу нельзя скрыть');
+        throw new UserFacingError(notificationText.treatmentProgramSystemGroupHideForbidden);
       }
       const itemsInGroup = detail!.stages
         .flatMap((s) => s.items)
@@ -1380,16 +1381,16 @@ export function createTreatmentProgramInstanceService(deps: {
       assertUuid(input.stageId);
       if (input.actorId) assertUuid(input.actorId);
       const detail = await instances.getInstanceById(input.instanceId);
-      if (!detail) throw new UserFacingError('Программа не найдена');
+      if (!detail) throw new UserFacingError(notificationText.treatmentProgramNotFound);
       if (!detail.stages.some((s) => s.id === input.stageId))
-        throw new UserFacingError('Этап не найден');
+        throw new UserFacingError(notificationText.treatmentProgramStageNotFound);
       for (const id of input.orderedGroupIds) assertUuid(id);
       const ok = await instances.reorderInstanceStageGroups(
         input.instanceId,
         input.stageId,
         input.orderedGroupIds,
       );
-      if (!ok) throw new UserFacingError('Некорректный порядок групп этапа');
+      if (!ok) throw new UserFacingError(notificationText.treatmentProgramInvalidStageGroupOrder);
       await appendEvent({
         instanceId: input.instanceId,
         actorId: input.actorId,
@@ -1412,17 +1413,17 @@ export function createTreatmentProgramInstanceService(deps: {
       if (input.groupId) assertUuid(input.groupId);
       const detail = await instances.getInstanceById(input.instanceId);
       const item = detail?.stages.flatMap((s) => s.items).find((i) => i.id === input.itemId);
-      if (!item) throw new UserFacingError('Элемент не найден');
+      if (!item) throw new UserFacingError(notificationText.treatmentProgramElementNotFound);
       const stage = detail!.stages.find((s) => s.id === item.stageId);
-      if (!stage) throw new UserFacingError('Этап не найден');
+      if (!stage) throw new UserFacingError(notificationText.treatmentProgramStageNotFound);
       let nextGroupId: string | null = input.groupId ?? null;
       if (isStageZero(stage)) {
         if (item.itemType !== 'recommendation') {
-          throw new UserFacingError('На этапе «Общие рекомендации» разрешены только рекомендации');
+          throw new UserFacingError(notificationText.treatmentProgramGeneralStageRecommendationsOnly);
         }
         if (input.groupId != null) {
           throw new UserFacingError(
-            'На этапе «Общие рекомендации» элементы не привязываются к группам',
+            notificationText.treatmentProgramGeneralStageNoGroupBinding,
           );
         }
         nextGroupId = null;
@@ -1430,10 +1431,10 @@ export function createTreatmentProgramInstanceService(deps: {
         if (item.itemType === 'recommendation' || item.itemType === 'clinical_test') {
           const want = item.itemType === 'recommendation' ? 'recommendations' : 'tests';
           const sg = stage.groups.find((g) => g.systemKind === want);
-          if (!sg) throw new UserFacingError('Системная группа этапа не найдена');
+          if (!sg) throw new UserFacingError(notificationText.treatmentProgramStageSystemGroupNotFound);
           nextGroupId = sg.id;
         } else {
-          throw new UserFacingError('Выберите группу для этого типа элемента');
+          throw new UserFacingError(notificationText.treatmentProgramSelectGroupForElementType);
         }
       } else {
         const g = stage.groups.find((gr) => gr.id === nextGroupId);
@@ -1442,7 +1443,7 @@ export function createTreatmentProgramInstanceService(deps: {
       const row = await instances.patchInstanceStageItem(input.instanceId, input.itemId, {
         groupId: nextGroupId,
       });
-      if (!row) throw new UserFacingError('Элемент не найден');
+      if (!row) throw new UserFacingError(notificationText.treatmentProgramElementNotFound);
       await appendEvent({
         instanceId: input.instanceId,
         actorId: input.actorId,
@@ -1476,13 +1477,13 @@ export function createTreatmentProgramInstanceService(deps: {
         input.sets !== undefined ||
         input.maxPain !== undefined ||
         input.weightKg !== undefined;
-      if (!hasAny) throw new UserFacingError('Пустой запрос настроек нагрузки');
+      if (!hasAny) throw new UserFacingError(notificationText.treatmentProgramEmptyLoadSettingsRequest);
 
       const detail = await instances.getInstanceById(input.instanceId);
       const item = detail?.stages.flatMap((s) => s.items).find((i) => i.id === input.itemId);
-      if (!item) throw new UserFacingError('Элемент не найден');
+      if (!item) throw new UserFacingError(notificationText.treatmentProgramElementNotFound);
       if (item.itemType !== 'exercise') {
-        throw new UserFacingError('Нагрузку можно менять только для упражнений');
+        throw new UserFacingError(notificationText.treatmentProgramLoadChangeExerciseOnly);
       }
 
       const prevRaw = item.settings;
@@ -1505,7 +1506,7 @@ export function createTreatmentProgramInstanceService(deps: {
         }
         const n = Math.round(incoming);
         if (!Number.isFinite(n) || n < min || n > max) {
-          throw new UserFacingError(`${label}: целое число от ${min} до ${max}`);
+          throw new UserFacingError(notificationTextFactory.integerRangeRequired(label, min, max));
         }
         prev[key] = n;
       };
@@ -1518,7 +1519,7 @@ export function createTreatmentProgramInstanceService(deps: {
         if (input.weightKg === null) {
           delete prev.weightKg;
         } else if (!Number.isFinite(input.weightKg) || input.weightKg < 0 || input.weightKg > 500) {
-          throw new UserFacingError('Вес: число от 0 до 500');
+          throw new UserFacingError(notificationText.treatmentProgramLoadWeightOutOfRange);
         } else {
           prev.weightKg = Math.round(input.weightKg * 100) / 100;
         }
@@ -1530,7 +1531,7 @@ export function createTreatmentProgramInstanceService(deps: {
       const row = await instances.patchInstanceStageItem(input.instanceId, input.itemId, {
         settings: nextSettings,
       });
-      if (!row) throw new UserFacingError('Элемент не найден');
+      if (!row) throw new UserFacingError(notificationText.treatmentProgramElementNotFound);
       await appendEvent({
         instanceId: input.instanceId,
         actorId: input.actorId,
@@ -1554,7 +1555,7 @@ export function createTreatmentProgramInstanceService(deps: {
       assertUuid(input.patientUserId);
       assertUuid(input.instanceId);
       const d = await instances.getInstanceForPatient(input.patientUserId, input.instanceId);
-      if (!d) throw new UserFacingError('Программа не найдена');
+      if (!d) throw new UserFacingError(notificationText.treatmentProgramNotFound);
       if (d.status !== 'active') return { recorded: false };
       await instances.touchPatientPlanLastOpenedAt(input.patientUserId, input.instanceId);
       return { recorded: true };
@@ -1569,9 +1570,9 @@ export function createTreatmentProgramInstanceService(deps: {
       assertUuid(input.instanceId);
       assertUuid(input.stageItemId);
       const d = await instances.getInstanceForPatient(input.patientUserId, input.instanceId);
-      if (!d) throw new UserFacingError('Программа не найдена');
+      if (!d) throw new UserFacingError(notificationText.treatmentProgramNotFound);
       const hit = d.stages.flatMap((s) => s.items).find((i) => i.id === input.stageItemId);
-      if (!hit) throw new UserFacingError('Элемент не найден');
+      if (!hit) throw new UserFacingError(notificationText.treatmentProgramElementNotFound);
       if (hit.status !== 'active') return { updated: false };
       return instances.markStageItemViewedIfNever(
         input.patientUserId,

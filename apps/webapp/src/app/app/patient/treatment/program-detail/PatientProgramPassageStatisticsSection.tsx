@@ -13,6 +13,7 @@ import { PatientProgramBlockHeading } from '@/app/app/patient/treatment/program-
 import { TrendingUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 export function PatientProgramPassageStatisticsSection(props: {
   instanceId: string;
@@ -71,7 +72,7 @@ export function PatientProgramPassageStatisticsSection(props: {
       if (!res.ok || !data.ok || !data.stats) {
         setStats(null);
         setShowCollectingCopyFromApi(null);
-        setStatsError(readSafeApiErrorText(data, 'Не удалось загрузить статистику'));
+        setStatsError(readSafeApiErrorText(data, notificationText.patientProgramStatisticsLoadFailed));
         return;
       }
       setStats(data.stats);

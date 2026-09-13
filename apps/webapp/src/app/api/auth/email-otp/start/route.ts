@@ -21,6 +21,7 @@ import { mailProfileForResolvedSurface } from '@/modules/auth/mailProfile';
 import { requireResolvedSurface } from '@/shared/lib/surface/requestSurface';
 import { authPolicyNameForRequestSurface } from '@/modules/auth/surfaceAuthSettings';
 import { authPolicyNameForRoleLoginPortal } from '@/modules/auth/roleLogin';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 const bodySchema = z.object({
   email: z.string().min(1),
@@ -66,7 +67,7 @@ export async function POST(request: Request) {
       {
         ok: false,
         error: 'proxy_configuration',
-        message: 'Запрос должен проходить через reverse proxy с заголовком X-Real-IP.',
+        message: notificationText.authProxyConfiguration,
       },
       { status: 503 },
     );
@@ -85,7 +86,7 @@ export async function POST(request: Request) {
 
   if (!parsed.success) {
     return NextResponse.json(
-      { ok: false, error: 'invalid_email', message: 'Неверный формат email' },
+      { ok: false, error: 'invalid_email', message: notificationText.authInvalidEmailFormat },
       { status: 400 },
     );
   }
@@ -137,7 +138,7 @@ export async function POST(request: Request) {
     switch (result.code) {
       case 'invalid_email':
         return NextResponse.json(
-          { ok: false, error: 'invalid_email', message: 'Неверный формат email' },
+          { ok: false, error: 'invalid_email', message: notificationText.authInvalidEmailFormat },
           { status: 400 },
         );
 
@@ -149,7 +150,7 @@ export async function POST(request: Request) {
 
       default:
         return NextResponse.json(
-          { ok: false, error: 'error', message: 'Не удалось отправить код. Попробуйте позже.' },
+          { ok: false, error: 'error', message: notificationText.authCodeSendFailed },
           { status: 500 },
         );
     }

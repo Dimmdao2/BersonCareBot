@@ -21,6 +21,7 @@ import {
   isCyrillicFioInputOrEmpty,
   isFioLatinRejection,
 } from '@/shared/lib/fio';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 const bodySchema = z.object({
   email: z.string().min(1),
@@ -67,7 +68,9 @@ export async function POST(request: Request) {
       {
         ok: false,
         error: 'proxy_configuration',
-        message: 'Запрос должен проходить через reverse proxy с заголовком X-Real-IP.',
+        // G4 (extended while touching this file's other literals): was leaking an internal infra
+        // detail (the reverse-proxy header name) straight to the client.
+        message: notificationText.authProxyConfiguration,
       },
       { status: 503 },
     );
@@ -90,7 +93,9 @@ export async function POST(request: Request) {
       {
         ok: false,
         error: 'invalid_fio',
-        message: isFioLatinRejection(parsed) ? FIO_LATIN_REJECTED_TEXT : 'Укажите фамилию и имя',
+        message: isFioLatinRejection(parsed)
+          ? FIO_LATIN_REJECTED_TEXT
+          : notificationText.commonSpecifyNameSurname,
       },
       { status: 400 },
     );
@@ -109,20 +114,22 @@ export async function POST(request: Request) {
     });
   }
   if (result.code === 'duplicate_email') {
+    // G4 (safety audit): exact duplicate of `authEmailAlreadyRegistered` typed inline — pointed at
+    // the dictionary, wording of the key itself untouched (out of scope, see plan doc).
     return NextResponse.json(
-      { ok: false, error: 'duplicate_email', message: 'Аккаунт с этой почтой уже существует.' },
+      { ok: false, error: 'duplicate_email', message: notificationText.authEmailAlreadyRegistered },
       { status: 409 },
     );
   }
   if (result.code === 'invalid_fio') {
     return NextResponse.json(
-      { ok: false, error: 'invalid_fio', message: 'Укажите фамилию и имя' },
+      { ok: false, error: 'invalid_fio', message: notificationText.commonSpecifyNameSurname },
       { status: 400 },
     );
   }
   if (result.code === 'invalid_email') {
     return NextResponse.json(
-      { ok: false, error: 'invalid_email', message: 'Неверный формат email' },
+      { ok: false, error: 'invalid_email', message: notificationText.authInvalidEmailFormat },
       { status: 400 },
     );
   }
@@ -142,7 +149,7 @@ export async function POST(request: Request) {
     {
       ok: false,
       error: 'email_send_failed',
-      message: 'Не удалось отправить код. Попробуйте позже.',
+      message: notificationText.authEmailFactorSendFailed,
     },
     { status: 503 },
   );

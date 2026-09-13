@@ -18,6 +18,7 @@ import {
   disableNativePushSubscription,
   enableNativePushSubscription,
 } from '@/shared/lib/nativePush/nativePushClient';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 type Props = {
   initialHasSubscription: boolean;
@@ -62,19 +63,19 @@ export function DoctorWebPushControls({ initialHasSubscription, initialGlobalEna
         if (result.ok) {
           await refreshStatus();
           router.refresh();
-          toast.success('Push включён');
+          toast.success(notificationText.settingsPushEnabled);
           return;
         }
         toast.error(webPushSubscribeFailureMessage(result.reason));
       } catch {
-        toast.error('Ошибка');
+        toast.error(notificationText.commonGenericError);
       } finally {
         setBusy(false);
       }
       return;
     }
     if (!(await probePushSupported())) {
-      toast.error('Уведомления не поддерживаются');
+      toast.error(notificationText.commonPushNotSupported);
       return;
     }
     setBusy(true);
@@ -83,12 +84,12 @@ export function DoctorWebPushControls({ initialHasSubscription, initialGlobalEna
       if (result.ok) {
         await refreshStatus();
         router.refresh();
-        toast.success('Push включён');
+        toast.success(notificationText.settingsPushEnabled);
         return;
       }
       toast.error(webPushSubscribeFailureMessage(result.reason));
     } catch {
-      toast.error('Ошибка');
+      toast.error(notificationText.commonGenericError);
     } finally {
       setBusy(false);
     }
@@ -105,7 +106,7 @@ export function DoctorWebPushControls({ initialHasSubscription, initialGlobalEna
       if (result.ok) {
         await refreshStatus();
         router.refresh();
-        toast.success('Подписка восстановлена');
+        toast.success(notificationText.settingsSubscriptionRestored);
         return;
       }
       toast.error(webPushSubscribeFailureMessage(result.reason));
@@ -123,7 +124,7 @@ export function DoctorWebPushControls({ initialHasSubscription, initialGlobalEna
       if (ok) {
         await refreshStatus();
         router.refresh();
-        toast.success('Push отключён');
+        toast.success(notificationText.settingsPushDisabled);
       }
     } finally {
       setBusy(false);

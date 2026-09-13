@@ -24,6 +24,8 @@ import {
 } from '@/modules/notif-templates/managedNotifTemplate';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 import { notifTemplateTitle, notifVariableLabels } from './notifTemplateLabels';
+import { notificationText } from '@/shared/notifications/notificationText';
+import { safeUserMessage } from '@/shared/errors/userFacingError';
 
 type Props = Readonly<{
   endpoint: '/api/doctor/notification-templates' | '/api/admin/notification-templates';
@@ -182,9 +184,9 @@ export function NotificationTemplatesPageClient({
           metadata: { ...current.metadata, writeToken: response.template.metadata.writeToken },
         }));
       }
-      toast.success('Шаблон сохранён');
+      toast.success(notificationText.doctorTemplateSaved);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Не удалось сохранить шаблон');
+      toast.error(safeUserMessage(error, notificationText.doctorTemplateSaveFailed));
     } finally {
       setSavingKey(null);
     }
@@ -213,7 +215,7 @@ export function NotificationTemplatesPageClient({
       );
       setPreviewByKey((previous) => ({ ...previous, [key]: response.rendered }));
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Не удалось построить предпросмотр');
+      toast.error(safeUserMessage(error, notificationText.doctorTemplatePreviewFailed));
     }
   }
 
@@ -251,9 +253,9 @@ export function NotificationTemplatesPageClient({
             : entry,
         ),
       );
-      toast.success('Оформление сохранено');
+      toast.success(notificationText.doctorDesignSaved);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Не удалось сохранить оформление');
+      toast.error(safeUserMessage(error, notificationText.doctorDesignSaveFailed));
     } finally {
       setSavingKey(null);
     }

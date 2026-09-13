@@ -24,6 +24,7 @@ import {
   patientSimpleCompleteDoneButtonToneClass,
   patientSurfaceSuccessClass,
 } from '@/shared/ui/patient/patientVisual';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 type Props = {
   contentPageId: string;
@@ -79,7 +80,7 @@ export function PatientContentPracticeComplete({
       };
       if (res.status === 401) {
         warmupPostGuardRef.current = false;
-        toast.error('Войдите, чтобы сохранить выполнение.');
+        toast.error(notificationText.authLoginRequiredToSaveProgress);
         return;
       }
       if (res.status === 403 && data.error === 'patient_activation_required') {
@@ -89,14 +90,14 @@ export function PatientContentPracticeComplete({
       }
       if (!res.ok || !data.ok || !data.id) {
         warmupPostGuardRef.current = false;
-        toast.error(data.message ?? 'Не удалось сохранить. Попробуйте позже.');
+        toast.error(data.message ?? notificationText.commonSaveFailedRetryLater);
         return;
       }
       setWarmupCompletionId(data.id);
       setDialogOpen(true);
     } catch {
       warmupPostGuardRef.current = false;
-      toast.error('Не удалось сохранить. Попробуйте позже.');
+      toast.error(notificationText.commonSaveFailedRetryLater);
     } finally {
       setPostingWarmup(false);
     }
@@ -118,22 +119,22 @@ export function PatientContentPracticeComplete({
       };
       if (res.status === 401) {
         setPickedMoodScore(null);
-        toast.error('Войдите, чтобы сохранить выполнение.');
+        toast.error(notificationText.authLoginRequiredToSaveProgress);
         return;
       }
       if (!res.ok || !data.ok) {
         setPickedMoodScore(null);
-        toast.error(data.message ?? 'Не удалось сохранить. Попробуйте позже.');
+        toast.error(data.message ?? notificationText.commonSaveFailedRetryLater);
         return;
       }
       warmupSubmittedRef.current = true;
       setDialogOpen(false);
       setSaved(true);
-      toast.success('Записано.');
+      toast.success(notificationText.exercisePracticeRecorded);
       router.refresh();
     } catch {
       setPickedMoodScore(null);
-      toast.error('Не удалось сохранить. Попробуйте позже.');
+      toast.error(notificationText.commonSaveFailedRetryLater);
     } finally {
       setSubmitting(false);
     }
@@ -158,7 +159,7 @@ export function PatientContentPracticeComplete({
       };
       if (res.status === 401) {
         setPickedMoodScore(null);
-        toast.error('Войдите, чтобы сохранить выполнение.');
+        toast.error(notificationText.authLoginRequiredToSaveProgress);
         return;
       }
       if (res.status === 403 && data.error === 'patient_activation_required') {
@@ -168,16 +169,16 @@ export function PatientContentPracticeComplete({
       }
       if (!res.ok || !data.ok) {
         setPickedMoodScore(null);
-        toast.error(data.message ?? 'Не удалось сохранить. Попробуйте позже.');
+        toast.error(data.message ?? notificationText.commonSaveFailedRetryLater);
         return;
       }
       setSaved(true);
       setDialogOpen(false);
-      toast.success('Записано.');
+      toast.success(notificationText.exercisePracticeRecorded);
       router.refresh();
     } catch {
       setPickedMoodScore(null);
-      toast.error('Не удалось сохранить. Попробуйте позже.');
+      toast.error(notificationText.commonSaveFailedRetryLater);
     } finally {
       setSubmitting(false);
     }

@@ -10,6 +10,8 @@ import { isMessengerMiniAppHost } from '@/shared/lib/messengerMiniApp';
 import { routePaths } from '@/app-layer/routes/paths';
 import { cn } from '@/lib/utils';
 import { patientCaptionTextClass, patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
+import { notificationText } from '@/shared/notifications/notificationText';
+import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
 
 const MAX_LEN = 4000;
 
@@ -32,11 +34,11 @@ export function PatientSupportForm({
     const em = email.trim();
     const msg = message.trim();
     if (!em) {
-      toast.error('Укажите email');
+      toast.error(notificationText.commonSpecifyEmail);
       return;
     }
     if (!msg) {
-      toast.error('Введите текст сообщения');
+      toast.error(notificationText.messagingEnterText);
       return;
     }
     if (msg.length > MAX_LEN) {
@@ -61,17 +63,18 @@ export function PatientSupportForm({
         message?: string;
       };
       if (res.status === 429 || data.error === 'rate_limited') {
-        toast.error('Подождите минуту перед повторной отправкой.');
+        toast.error(notificationText.authResendCooldown);
         return;
       }
       if (!res.ok || !data.ok) {
-        toast.error(data.message ?? data.error ?? 'Не удалось отправить');
+        // G3 (safety audit): `data.error` is a machine code, never product copy.
+        toast.error(readSafeApiErrorText(data, notificationText.commonSendFailed));
         return;
       }
-      toast.success(data.message ?? 'Сообщение отправлено');
+      toast.success(data.message ?? notificationText.messagingMessageSent);
       setMessage('');
     } catch {
-      toast.error('Нет соединения с сервером. Проверьте сеть.');
+      toast.error(notificationText.commonNoServerConnection);
     } finally {
       setLoading(false);
     }

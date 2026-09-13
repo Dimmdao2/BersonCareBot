@@ -39,6 +39,7 @@ import { isOAuthProviderEnabled } from '@/modules/auth/authChannelPolicy';
 import { isSafeRolePortalNext } from '@/modules/auth/roleLogin';
 import { getResolvedSurface } from '@/shared/lib/surface/requestSurface.server';
 import { resolveYandexOAuthConfig } from '@/modules/auth/yandexOAuthConfig';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 const OAUTH_STATE_TTL_SECONDS = 600;
 
@@ -116,7 +117,7 @@ export async function POST(request: Request) {
     return jsonError(
       'proxy_configuration',
       {
-        message: 'Запрос должен проходить через reverse proxy с заголовком X-Real-IP.',
+        message: notificationText.authProxyConfiguration,
       },
       { status: 503 },
     );
@@ -125,7 +126,7 @@ export async function POST(request: Request) {
     await logOAuthStartFailure(null, 'rate_limited');
     return jsonError(
       'rate_limited',
-      { message: 'Слишком много попыток. Попробуйте позже.' },
+      { message: notificationText.authTooManyAttemptsRetryLater },
       { status: 429 },
     );
   }
@@ -134,7 +135,7 @@ export async function POST(request: Request) {
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {
     await logOAuthStartFailure(null, 'invalid_body');
-    return jsonError('invalid_body', { message: 'Укажите провайдера' }, { status: 400 });
+    return jsonError('invalid_body', { message: notificationText.authOauthProviderRequired }, { status: 400 });
   }
 
   const { provider, browserCalendarIana, next, roleLoginPortal } = parsed.data;
@@ -155,7 +156,7 @@ export async function POST(request: Request) {
       // credentials happen to be present (owner ruling 2026-07-24, R2 fail-closed).
       if (!config) {
         await logOAuthStartFailure(provider, 'oauth_disabled');
-        return jsonError('oauth_disabled', { message: 'OAuth не настроен' }, { status: 501 });
+        return jsonError('oauth_disabled', { message: notificationText.authProviderUnavailable }, { status: 501 });
       }
       const state = createSignedOAuthState('yandex', OAUTH_STATE_TTL_SECONDS, {
         ...tzOpt,
@@ -184,7 +185,7 @@ export async function POST(request: Request) {
         await logOAuthStartFailure(provider, 'oauth_disabled');
         return jsonError(
           'oauth_disabled',
-          { message: 'Google OAuth для входа не настроен' },
+          { message: notificationText.authProviderUnavailable },
           { status: 501 },
         );
       }
@@ -210,7 +211,7 @@ export async function POST(request: Request) {
       ]);
       if (!vkOAuthEnabled || !clientId || !redirectUri || !secret) {
         await logOAuthStartFailure(provider, 'oauth_disabled');
-        return jsonError('oauth_disabled', { message: 'VK ID не настроен' }, { status: 501 });
+        return jsonError('oauth_disabled', { message: notificationText.authProviderUnavailable }, { status: 501 });
       }
       const { state, codeChallenge } = createVkSignedOAuthState(OAUTH_STATE_TTL_SECONDS, tzOpt);
       await logOAuthStartAttempt(provider, state);
@@ -239,7 +240,7 @@ export async function POST(request: Request) {
       await logOAuthStartFailure(provider, 'oauth_disabled');
       return jsonError(
         'oauth_disabled',
-        { message: 'Sign in with Apple не настроен' },
+        { message: notificationText.authProviderUnavailable },
         { status: 501 },
       );
     }
@@ -259,7 +260,7 @@ export async function POST(request: Request) {
     logger.error({ error, provider }, '[auth/oauth/start] unhandled failure');
     return jsonError(
       'server_error',
-      { message: 'Не удалось начать вход из-за сбоя на нашей стороне. Повторите попытку позже.' },
+      { message: notificationText.authOauthStartFailed },
       { status: 500 },
     );
   }

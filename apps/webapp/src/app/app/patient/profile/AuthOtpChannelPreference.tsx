@@ -13,6 +13,7 @@ import {
 import type { OtpUiChannel } from '@/modules/auth/otpChannelUi';
 import { setPreferredAuthOtpChannelAction } from './actions';
 import { patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 export type AuthOtpOption = { code: OtpUiChannel; label: string };
 
@@ -55,11 +56,11 @@ export function AuthOtpChannelPreference({ options, initialSelection, showBindHi
             startTransition(async () => {
               const res = await setPreferredAuthOtpChannelAction(value);
               if (!res.ok) {
-                toast.error(res.message ?? 'Не удалось сохранить');
+                toast.error(res.message ?? notificationText.commonSaveFailed);
                 router.refresh();
                 return;
               }
-              toast.success('Настройка сохранена');
+              toast.success(notificationText.settingsSaved);
             });
           }}
           disabled={pending}

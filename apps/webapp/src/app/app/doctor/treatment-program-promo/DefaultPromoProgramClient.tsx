@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from '@/shared/ui/doctor/primitives/select';
 import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 type TemplateOption = { id: string; title: string };
 
@@ -47,10 +48,10 @@ export function DefaultPromoProgramClient(props: {
         message?: string;
       } | null;
       if (!res.ok || !data?.ok) {
-        toast.error(readSafeApiErrorText(data, 'Не удалось сохранить'));
+        toast.error(readSafeApiErrorText(data, notificationText.commonSaveFailed));
         return;
       }
-      toast.success('Сохранено');
+      toast.success(notificationText.commonSaved);
       router.refresh();
     } finally {
       setSaving(false);
@@ -68,11 +69,11 @@ export function DefaultPromoProgramClient(props: {
         message?: string;
       };
       if (!res.ok || !data.ok) {
-        toast.error(readSafeApiErrorText(data, 'Не удалось обновить'));
+        toast.error(readSafeApiErrorText(data, notificationText.treatmentProgramPromoRefreshFailed));
         return;
       }
       const count = data.refreshedCount ?? 0;
-      toast.success(count > 0 ? `Обновлено: ${count} программ` : 'Активных промо-программ нет');
+      toast.success(count > 0 ? `Обновлено: ${count} программ` : notificationText.treatmentProgramNoActivePromoPrograms);
       router.refresh();
     } finally {
       setRefreshing(false);

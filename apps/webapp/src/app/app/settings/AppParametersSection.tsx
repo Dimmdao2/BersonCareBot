@@ -10,6 +10,7 @@ import { isValidSupportContactSetting } from '@/lib/url/isValidSupportContactSet
 import { isValidIanaTimeZoneId } from '@/shared/timezone/ianaTimezonesForAdminUi';
 import { patchAdminSetting } from './patchAdminSetting';
 import { DoctorTimezoneSelect } from '@/shared/ui/doctor/DoctorTimezoneSelect';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 export type AppParametersSectionProps = {
   supportContactUrl: string;
@@ -45,12 +46,12 @@ export function AppParametersSection({
           patchAdminSetting('app_display_timezone', tzRaw),
         ]);
         if (results.some((r) => !r)) {
-          toast.error('Не удалось сохранить часть настроек');
+          toast.error(notificationText.settingsPartialSaveFailed);
           return;
         }
-        toast.success('Сохранено');
+        toast.success(notificationText.commonSaved);
       } catch {
-        toast.error('Ошибка при сохранении');
+        toast.error(notificationText.commonSaveFailed);
       }
     });
   }

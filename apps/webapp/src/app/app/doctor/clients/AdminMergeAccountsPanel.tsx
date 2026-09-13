@@ -33,6 +33,8 @@ import {
 } from './adminMergeAccountsLogic';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
+import { notificationText } from '@/shared/notifications/notificationText';
+import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
 
 type CandidateRow = {
   id: string;
@@ -427,7 +429,7 @@ export function AdminMergeAccountsPanel({
     );
     if (typed === null) return;
     if (!mergeDuplicatePrefixConfirmed(typed, preview.duplicateId)) {
-      toast.error('Первые 4 символа не совпали с UUID дубликата — merge отменён.');
+      toast.error(notificationText.doctorMergeUuidMismatch);
       return;
     }
 
@@ -443,22 +445,25 @@ export function AdminMergeAccountsPanel({
       try {
         data = (await res.json()) as { ok?: boolean; error?: string; message?: string };
       } catch {
+        // G3 (safety audit): dropped the raw HTTP status from the toast text — a technical
+        // detail, not product copy.
         toast.error(
           res.status === 403
-            ? 'Доступ запрещён: нужны роль admin и режим администратора.'
-            : `Ответ сервера без JSON (HTTP ${res.status}).`,
+            ? notificationText.doctorMergeAccessDenied
+            : notificationText.doctorMergeResponseInvalid,
         );
         return;
       }
       if (!res.ok || !data.ok) {
+        // G3: `data.error` is a machine code, never product copy.
         const hint =
           res.status === 403
-            ? 'Доступ запрещён: нужны роль admin и режим администратора.'
-            : (data.message ?? data.error ?? `merge_failed (HTTP ${res.status})`);
+            ? notificationText.doctorMergeAccessDenied
+            : readSafeApiErrorText(data, notificationText.doctorMergeFailed);
         toast.error(hint);
         return;
       }
-      toast.success('Объединение выполнено.');
+      toast.success(notificationText.doctorMergeCompleted);
       setSecondUserId('');
       setMergeSearchQ('');
       setMergeSearchResults([]);

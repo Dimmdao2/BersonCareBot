@@ -6,6 +6,7 @@ import toast from 'react-hot-toast';
 import { Button, buttonVariants } from '@/shared/ui/patient/primitives/button';
 import { cn } from '@/lib/utils';
 import { SupportContactLink } from '@/shared/ui/patient/SupportContactLink';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 export type PatientSharePhonePanelMode =
   | 'blocked'
@@ -85,7 +86,7 @@ export function PatientSharePhoneViaBotPanel({
                 try {
                   await onProvideContact();
                 } catch {
-                  toast.error('Не удалось отправить запрос. Попробуйте снова.');
+                  toast.error(notificationText.commonRequestSendFailed);
                 } finally {
                   setBusy(false);
                 }

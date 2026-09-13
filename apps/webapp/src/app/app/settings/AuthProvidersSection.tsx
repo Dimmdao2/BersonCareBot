@@ -10,6 +10,7 @@ import { DoctorField } from '@/shared/ui/doctor/DoctorField';
 import { isSafeExternalHref } from '@/lib/url/isSafeExternalHref';
 import { parseIdTokens } from '@/shared/parsers/parseIdTokens';
 import { patchAdminSetting } from './patchAdminSetting';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 export type AuthProvidersSectionProps = {
   telegramLoginBotUsername: string;
@@ -166,13 +167,13 @@ export function AuthProvidersSection({
         }
         const results = await Promise.all(patches);
         if (results.some((r) => !r)) {
-          toast.error('Не удалось сохранить часть настроек');
+          toast.error(notificationText.settingsPartialSaveFailed);
           return;
         }
         setVkIdClientSecret('');
-        toast.success('Сохранено');
+        toast.success(notificationText.commonSaved);
       } catch {
-        toast.error('Ошибка при сохранении');
+        toast.error(notificationText.commonSaveFailed);
       }
     });
   }

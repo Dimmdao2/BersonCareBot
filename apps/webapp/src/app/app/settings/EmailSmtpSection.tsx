@@ -9,6 +9,7 @@ import { Input } from '@/shared/ui/doctor/primitives/input';
 import { LabeledSwitch } from '@/shared/ui/doctor/primitives/labeled-switch';
 import { DoctorField } from '@/shared/ui/doctor/DoctorField';
 import { patchAdminSetting } from './patchAdminSetting';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 export type EmailSmtpSectionProps = {
   settingKey: 'smtp_outbound' | 'therapygo_smtp_outbound' | 'therapysto_smtp_outbound';
@@ -61,13 +62,13 @@ export function EmailSmtpSection({
           from,
         });
         if (!ok) {
-          toast.error('Не удалось сохранить');
+          toast.error(notificationText.commonSaveFailed);
           return;
         }
         setPassword('');
-        toast.success('Сохранено');
+        toast.success(notificationText.commonSaved);
       } catch {
-        toast.error('Ошибка при сохранении');
+        toast.error(notificationText.commonSaveFailed);
       }
     });
   }
@@ -80,19 +81,19 @@ export function EmailSmtpSection({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ to: testTo.trim() }),
         });
-        toast.success('Тестовое письмо отправлено');
+        toast.success(notificationText.settingsTestEmailSent);
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Не удалось отправить';
         if (msg === 'smtp_not_configured') {
-          toast.error('Сначала сохраните полный SMTP в БД');
+          toast.error(notificationText.settingsSmtpFullConfigRequired);
           return;
         }
         if (msg === 'smtp_password_missing') {
-          toast.error('В настройках нет пароля SMTP');
+          toast.error(notificationText.settingsSmtpPasswordMissing);
           return;
         }
         if (msg === 'invalid_body') {
-          toast.error('Укажите корректный email получателя');
+          toast.error(notificationText.settingsInvalidRecipientEmail);
           return;
         }
         toast.error(msg);

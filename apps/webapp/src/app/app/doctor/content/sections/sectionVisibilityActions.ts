@@ -9,6 +9,7 @@ import {
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { contentMechanicForSection } from '@/app-layer/content/warmupsContentMutationGuard';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 export type SectionVisibilityState = { ok: boolean; error?: string };
 
@@ -18,7 +19,7 @@ export async function setSectionRequiresAuth(
 ): Promise<SectionVisibilityState> {
   const workspace = await requireDoctorWorkspaceContext();
   const s = slug?.trim();
-  if (!s) return { ok: false, error: 'Нет slug' };
+  if (!s) return { ok: false, error: notificationText.commonMissingIdentifier };
 
   const deps = buildAppDeps();
   const section = await deps.contentSections.getBySlug(s);
@@ -39,7 +40,7 @@ export async function setSectionRequiresAuth(
     );
   } catch (e) {
     console.error('setSectionRequiresAuth', e);
-    return { ok: false, error: 'Не удалось обновить доступ' };
+    return { ok: false, error: notificationText.doctorSectionAccessUpdateFailed };
   }
 
   revalidatePath('/app/doctor/content/sections');
@@ -56,7 +57,7 @@ export async function setSectionVisibility(
 ): Promise<SectionVisibilityState> {
   const workspace = await requireDoctorWorkspaceContext();
   const s = slug?.trim();
-  if (!s) return { ok: false, error: 'Нет slug' };
+  if (!s) return { ok: false, error: notificationText.commonMissingIdentifier };
 
   const deps = buildAppDeps();
   const section = await deps.contentSections.getBySlug(s);
@@ -77,7 +78,7 @@ export async function setSectionVisibility(
     );
   } catch (e) {
     console.error('setSectionVisibility', e);
-    return { ok: false, error: 'Не удалось обновить видимость' };
+    return { ok: false, error: notificationText.doctorSectionVisibilityUpdateFailed };
   }
 
   revalidatePath('/app/doctor/content/sections');

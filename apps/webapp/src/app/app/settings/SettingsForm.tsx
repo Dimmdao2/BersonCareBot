@@ -48,6 +48,7 @@ import {
   type SupportGroupLabelValue,
 } from '@/modules/system-settings/patientTerms';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 const WORKSPACE_MODULE_LABELS: Readonly<Record<WorkspaceModuleKey, string>> = {
   medical_record: 'Медкарта',
@@ -211,14 +212,14 @@ export function SettingsForm({
           settings?: Array<{ key: string; valueJson: unknown }>;
         } | null;
         if (!response.ok || !body?.ok) {
-          toast.error('Не удалось сохранить настройки');
+          toast.error(notificationText.settingsSaveFailed);
           return;
         }
         const savedSettings = body.settings ?? (body.setting ? [body.setting] : []);
         if (workspaceMode) {
           const savedKeys = new Set(savedSettings.map((setting) => setting.key));
           if (WORKSPACE_SETTINGS_BATCH_KEYS.some((key) => !savedKeys.has(key))) {
-            toast.error('Не удалось подтвердить сохранённые настройки');
+            toast.error(notificationText.settingsConfirmSavedFailed);
             return;
           }
         } else if (showSupportDefaults) {
@@ -235,13 +236,13 @@ export function SettingsForm({
             valueFor('doctor_patient_support_media_without_support_default_enabled') !==
               supportMediaDefault
           ) {
-            toast.error('Не удалось подтвердить сохранённые настройки');
+            toast.error(notificationText.settingsConfirmSavedFailed);
             return;
           }
         }
-        toast.success('Сохранено');
+        toast.success(notificationText.commonSaved);
       } catch {
-        toast.error('Ошибка при сохранении');
+        toast.error(notificationText.commonSaveFailed);
       }
     });
   }

@@ -13,6 +13,7 @@ import {
   DialogTitle,
 } from '@/shared/ui/doctor/primitives/dialog';
 import type { PatientPortalStatus } from '@/modules/patient-invites/ports';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 type PortalState = {
   status: PatientPortalStatus;
@@ -93,7 +94,7 @@ export function PatientPortalInviteControls({
         typeof json.url !== 'string' ||
         typeof json.qrDataUri !== 'string'
       ) {
-        toast.error('Не удалось создать приглашение');
+        toast.error(notificationText.doctorInviteCreateFailed);
         return;
       }
       // Абсолютную ссылку собирает сервер: у клиники со своим доменом она обязана вести на её
@@ -104,9 +105,9 @@ export function PatientPortalInviteControls({
       setCopyStatus('idle');
       // Живое приглашение сервер возвращает как есть — специалисту важно понимать, что человеку
       // уже отправленная ссылка от нажатия не погасла.
-      toast.success(reused ? 'Ссылка приглашения ещё действует' : 'Ссылка приглашения создана');
+      toast.success(reused ? notificationText.doctorInviteLinkStillActive : notificationText.doctorInviteLinkCreated);
     } catch {
-      toast.error('Не удалось создать приглашение');
+      toast.error(notificationText.doctorInviteCreateFailed);
     } finally {
       setPending(false);
     }
@@ -128,15 +129,15 @@ export function PatientPortalInviteControls({
         body: JSON.stringify({ inviteId: state.inviteId }),
       });
       if (!response.ok) {
-        toast.error('Не удалось отозвать приглашение.');
+        toast.error(notificationText.doctorInviteRevokeFailed);
         return;
       }
       setState({ status: 'not_activated', inviteId: null, expiresAt: null });
       setLink(null);
       setQrOpen(false);
-      toast.success('Приглашение отозвано.');
+      toast.success(notificationText.doctorInviteRevoked);
     } catch {
-      toast.error('Не удалось отозвать приглашение.');
+      toast.error(notificationText.doctorInviteRevokeFailed);
     } finally {
       setPending(false);
     }

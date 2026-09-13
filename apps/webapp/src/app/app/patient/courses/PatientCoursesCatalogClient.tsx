@@ -18,6 +18,7 @@ import {
   patientSecondaryActionClass,
 } from '@/shared/ui/patient/patientVisual';
 import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 function formatPrice(minor: number, currency: string): string {
   const major = minor / 100;
@@ -54,7 +55,7 @@ export function PatientCoursesCatalogClient(props: {
         instance?: { id?: string };
       };
       if (!res.ok || !data.ok || !data.instance?.id) {
-        setError(readSafeApiErrorText(data, 'Не удалось записаться'));
+        setError(readSafeApiErrorText(data, notificationText.patientCourseEnrollFailed));
         return;
       }
       router.push(routePaths.patientTreatmentProgram(data.instance.id));

@@ -22,6 +22,8 @@ import {
 } from '@/shared/ui/patient/patientVisual';
 import { PatientChatComposer } from '@/shared/ui/patient/PatientChatComposer';
 import { AppContentLoading } from '@/shared/ui/AppContentLoading';
+import { notificationText } from '@/shared/notifications/notificationText';
+import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
 
 /**
  * 1:1 обращение пациента на самостоятельной странице кабинета.
@@ -134,7 +136,10 @@ export function PatientMessagesClient() {
           setReadOnly(true);
           return;
         }
-        toast.error(data.error ?? 'Не отправлено');
+        // G3 (safety audit): `data.error` here is a machine code (invalid_body/blocked/not_found),
+        // never product copy — showing it raw meant the patient could read the literal string
+        // "invalid_body". Route through the dictionary-backed reader instead.
+        toast.error(readSafeApiErrorText(data, notificationText.messagingNotSent));
         return;
       }
       setDraft('');
@@ -146,7 +151,7 @@ export function PatientMessagesClient() {
         );
       }
     } catch {
-      toast.error('Ошибка сети');
+      toast.error(notificationText.commonNetworkUnavailable);
     } finally {
       setSending(false);
     }

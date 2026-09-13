@@ -51,6 +51,8 @@ import {
 } from '@/shared/ui/doctor/primitives/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/doctor/primitives/tabs';
 import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
+import { notificationText } from '@/shared/notifications/notificationText';
+import { safeUserMessage, UserFacingError } from '@/shared/errors/userFacingError';
 
 /** §T3 preview — sample values so an admin sees a rendered letter, not raw `{{тариф}}` tokens. */
 const MAILING_PREVIEW_VARIABLES: Record<string, string> = {
@@ -248,12 +250,15 @@ function accessPolicyFromDraft(draft: AccessPolicyDraft | null): AccessLifecycle
   const graceDays = nullableNonnegativeInteger(draft.graceDays);
   const readOnlyDays = nullableNonnegativeInteger(draft.readOnlyDays);
   if (graceDays === null || readOnlyDays === null || draft.terminalState === null) {
-    throw new Error('Заполните все поля лестницы доступа');
+    // C1 (copy audit): was a plain `Error` — `safeUserMessage` only recognises `UserFacingError`,
+    // so this specific, actually-useful validation text was silently discarded in favour of the
+    // generic `adminCheckAccessLadder` fallback every time. `UserFacingError` makes it surface.
+    throw new UserFacingError(notificationText.adminAccessLadderFieldsRequired);
   }
   const notifications = draft.notifications.map((rule) => {
     const offsetDays = Number(rule.offsetDays);
     if (!rule.offsetDays.trim() || !Number.isSafeInteger(offsetDays)) {
-      throw new Error('В каждом уведомлении заполните срок');
+      throw new UserFacingError(notificationText.adminAccessLadderNotificationOffsetRequired);
     }
     return {
       offsetDays,
@@ -1206,7 +1211,7 @@ export function CommercialConstructorClient() {
       await loadState();
       toast.success(typeof success === 'function' ? success(payload.result) : success);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Операция не выполнена');
+      toast.error(safeUserMessage(error, notificationText.adminOperationFailed));
     } finally {
       setBusy(false);
     }
@@ -1238,7 +1243,7 @@ export function CommercialConstructorClient() {
     try {
       systemAccessPolicy = accessPolicyFromDraft(tariff.systemAccessPolicy);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Проверьте лестницу доступа');
+      toast.error(safeUserMessage(error, notificationText.adminCheckAccessLadder));
       return;
     }
     const input = {
@@ -1960,7 +1965,7 @@ export function CommercialConstructorClient() {
             onSubmit={(event) => {
               event.preventDefault();
               if (!postTrialBehavior) {
-                toast.error('Выберите действие после триала');
+                toast.error(notificationText.adminSelectActionAfterTrial);
                 return;
               }
               void mutate(
@@ -2109,7 +2114,7 @@ export function CommercialConstructorClient() {
             onSubmit={(event) => {
               event.preventDefault();
               if (!postPaidPeriodBehavior) {
-                toast.error('Выберите действие после оплаченного периода');
+                toast.error(notificationText.adminSelectActionAfterPaidPeriod);
                 return;
               }
               void mutate(

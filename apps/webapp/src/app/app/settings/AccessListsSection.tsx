@@ -7,6 +7,7 @@ import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
 import { parseIdTokens } from '@/shared/parsers/parseIdTokens';
 import { patchAdminSetting } from './patchAdminSetting';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 type AccessListsValues = {
   allowedTelegramIds: string;
@@ -62,12 +63,12 @@ export function AccessListsSection({
           patchAdminSetting('doctor_max_ids', parseIdTokens(vals.doctorMaxIds)),
         ]);
         if (results.some((r) => !r)) {
-          toast.error('Не удалось сохранить часть настроек');
+          toast.error(notificationText.settingsPartialSaveFailed);
           return;
         }
-        toast.success('Сохранено');
+        toast.success(notificationText.commonSaved);
       } catch {
-        toast.error('Ошибка при сохранении');
+        toast.error(notificationText.commonSaveFailed);
       }
     });
   }

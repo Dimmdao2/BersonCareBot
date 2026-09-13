@@ -13,6 +13,7 @@ import {
   isValidNotificationTopicTitle,
 } from '@/modules/patient-notifications/notificationsTopics';
 import { patchAdminSetting } from './patchAdminSetting';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 export type NotificationsTopicsSectionProps = {
   initialRows: Array<{ id: string; title: string }>;
@@ -70,11 +71,11 @@ export function NotificationsTopicsSection({ initialRows }: NotificationsTopicsS
       const ok = await patchAdminSetting('notifications_topics', payload);
       if (!ok) {
         toast.error(
-          'Не удалось сохранить. Проверьте: код темы (латиница, цифры, _), длину подписи, уникальность кодов; при заполненной проекции рассылок код должен существовать в справочнике тем.',
+          notificationText.settingsSaveFailedValidationHint,
         );
         return;
       }
-      toast.success('Сохранено');
+      toast.success(notificationText.commonSaved);
     });
   }
 

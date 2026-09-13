@@ -16,6 +16,7 @@ import {
 import { PatientModal, PatientModalFooter } from '@/shared/ui/patient/PatientModal';
 import { SymptomChart } from '@/modules/diaries/components/SymptomChart';
 import { PatientConfirmModal } from '@/shared/ui/patient/PatientConfirmModal';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 export function SymptomTrackingRow({ id, title }: { id: string; title: string }) {
   const [isPending, startTransition] = useTransition();
@@ -33,15 +34,15 @@ export function SymptomTrackingRow({ id, title }: { id: string; title: string })
     startTransition(async () => {
       const result = await addSymptomEntry(formData);
       if (result.ok) {
-        toast.success('Запись сохранена');
+        toast.success(notificationText.patientDiaryEntrySaved);
         lastSavedRef.current = { trackingId: id, entryType: 'instant', at: Date.now() };
         setDuplicateValue(null);
         setSelectedValue(null);
         notifyDiarySymptomEntrySaved();
       } else if (result.reason === 'duplicate_instant') {
-        toast.error('Похожая запись в моменте уже сохранена только что');
+        toast.error(notificationText.patientDiaryDuplicateEntry);
       } else {
-        toast.error(result.message ?? 'Не удалось сохранить');
+        toast.error(result.message ?? notificationText.commonSaveFailed);
       }
     });
   };
@@ -78,7 +79,7 @@ export function SymptomTrackingRow({ id, title }: { id: string; title: string })
               onSubmit={(event) => {
                 event.preventDefault();
                 if (selectedValue === null) {
-                  toast.error('Выберите интенсивность');
+                  toast.error(notificationText.exerciseSelectIntensity);
                   return;
                 }
                 if (shouldConfirmInstantDuplicate(lastSavedRef.current, id, 'instant')) {

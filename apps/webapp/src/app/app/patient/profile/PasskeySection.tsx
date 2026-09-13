@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 import { Button } from '@/shared/ui/patient/primitives/button';
 import { patientBodyTextClass, patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
 import { useSurfaceName } from '@/shared/ui/PlatformProvider';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 type CredentialSummary = {
   credentialId: string;
@@ -64,7 +65,7 @@ export function PasskeySection() {
         !optionsData.challengeId ||
         !optionsData.options
       ) {
-        toast.error(optionsData.message ?? 'Не удалось начать добавление ключа доступа');
+        toast.error(optionsData.message ?? notificationText.authPasskeyEnrollStartFailed);
         return;
       }
 
@@ -80,14 +81,14 @@ export function PasskeySection() {
         message?: string;
       };
       if (!verifyResponse.ok || !verifyData.ok) {
-        toast.error(verifyData.message ?? 'Не удалось подтвердить ключ доступа');
+        toast.error(verifyData.message ?? notificationText.authPasskeyVerifyFailed);
         return;
       }
-      toast.success('Ключ доступа добавлен');
+      toast.success(notificationText.authPasskeyAdded);
       await refresh();
     } catch (error) {
       if (error instanceof Error && error.name === 'NotAllowedError') return;
-      toast.error('Не удалось добавить ключ доступа');
+      toast.error(notificationText.authPasskeyAddFailed);
     } finally {
       setLoading(false);
     }
@@ -103,13 +104,13 @@ export function PasskeySection() {
         body: JSON.stringify({ credentialId }),
       });
       if (!response.ok) {
-        toast.error('Не удалось удалить ключ доступа');
+        toast.error(notificationText.authPasskeyRemoveFailed);
         return;
       }
-      toast.success('Ключ доступа удалён');
+      toast.success(notificationText.authPasskeyRemoved);
       await refresh();
     } catch {
-      toast.error('Не удалось удалить ключ доступа');
+      toast.error(notificationText.authPasskeyRemoveFailed);
     } finally {
       setLoading(false);
     }

@@ -11,6 +11,7 @@ import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganiza
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { isHelpSectionSlug } from '@/modules/content-sections/types';
 import { contentMechanicForSection } from '@/app-layer/content/warmupsContentMutationGuard';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 export type ReorderContentPagesState = { ok: boolean; error?: string };
 
@@ -20,12 +21,12 @@ export async function reorderContentPagesInSection(
 ): Promise<ReorderContentPagesState> {
   const workspace = await requireDoctorWorkspaceContext();
   const sec = section?.trim();
-  if (!sec) return { ok: false, error: 'Не указан раздел' };
+  if (!sec) return { ok: false, error: notificationText.doctorContentSectionMissing };
   if (!Array.isArray(orderedIds) || orderedIds.length === 0) {
-    return { ok: false, error: 'Пустой порядок' };
+    return { ok: false, error: notificationText.commonEmptyOrder };
   }
   const ids = orderedIds.map((id) => String(id).trim()).filter(Boolean);
-  if (ids.length !== orderedIds.length) return { ok: false, error: 'Некорректные id' };
+  if (ids.length !== orderedIds.length) return { ok: false, error: notificationText.doctorContentPagesInvalidIds };
 
   const deps = buildAppDeps();
   const sectionRow = await deps.contentSections.getBySlug(sec);
@@ -46,7 +47,7 @@ export async function reorderContentPagesInSection(
     );
   } catch (e) {
     console.error('reorderContentPagesInSection', e);
-    return { ok: false, error: 'Не удалось сохранить порядок' };
+    return { ok: false, error: notificationText.commonOrderSaveFailed };
   }
 
   revalidatePath('/app/doctor/content');

@@ -32,6 +32,8 @@ import {
   OPERATOR_HEALTH_PROBE_DEFAULT_VALUE,
   OPERATOR_HEALTH_PROBE_QUIET_WINDOW_DEFAULT_DURATION_MS,
 } from '@/modules/system-settings/operatorHealthProbeConfig';
+import { notificationText } from '@/shared/notifications/notificationText';
+import { safeUserMessage } from '@/shared/errors/userFacingError';
 
 type ProbeName = 'max' | 'telegram' | 'google_calendar';
 type ProbeConfig = {
@@ -201,11 +203,9 @@ export function OperatorHealthProbeSettingsSection() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ key: 'operator_health_probe_config', value: { value: config } }),
       });
-      toast.success('Настройки проб сохранены.');
+      toast.success(notificationText.adminProbeSettingsSaved);
     } catch (e) {
-      toast.error(
-        `Настройки проб не сохранены: ${e instanceof Error ? e.message : 'проверьте значения и повторите'}`,
-      );
+      toast.error(safeUserMessage(e, notificationText.adminProbeSettingsSaveFailed));
     } finally {
       setBusy(false);
     }
@@ -223,9 +223,9 @@ export function OperatorHealthProbeSettingsSection() {
       setConfig(defaults);
       setQuietAmount(String(OPERATOR_HEALTH_PROBE_QUIET_WINDOW_DEFAULT_DURATION_MS / 3_600_000));
       setResetConfirmOpen(false);
-      toast.success('Сброшено: снова действуют значения по умолчанию из кода.');
+      toast.success(notificationText.adminResetToCodeDefaults);
     } catch (e) {
-      toast.error(`Не удалось сбросить настройки: ${e instanceof Error ? e.message : 'повторите'}`);
+      toast.error(safeUserMessage(e, notificationText.adminOperatorHealthProbeResetFailed));
     } finally {
       setBusy(false);
     }
@@ -267,11 +267,9 @@ export function OperatorHealthProbeSettingsSection() {
         port,
         hasStoredPassword: value.hasStoredPassword || password.trim().length > 0,
       }));
-      toast.success('Параметры служебного IMAP-ящика сохранены.');
+      toast.success(notificationText.adminImapSettingsSaved);
     } catch (e) {
-      toast.error(
-        `IMAP-настройки не сохранены: ${e instanceof Error ? e.message : 'проверьте поля и повторите'}`,
-      );
+      toast.error(safeUserMessage(e, notificationText.adminImapSettingsSaveFailed));
     } finally {
       setBusy(false);
     }

@@ -11,6 +11,7 @@ import type {
 } from './types';
 import { COURSE_LESSON_SECTIONS, courseArchiveRequiresAcknowledgement } from './types';
 import { UserFacingError } from '@/shared/errors/userFacingError';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 type AssignTemplate = (input: {
   templateId: string;
@@ -42,19 +43,19 @@ export function assertValidIntroLessonPage(
   row: IntroLessonPageRecord | null,
 ): asserts row is IntroLessonPageRecord {
   if (!row) {
-    throw new UserFacingError('Страница вступительного урока не найдена');
+    throw new UserFacingError(notificationText.courseIntroLessonNotFound);
   }
   if (!isCourseLessonSection(row.section)) {
-    throw new UserFacingError('Вступительным уроком может быть только страница из раздела «Уроки»');
+    throw new UserFacingError(notificationText.courseIntroLessonMustBeFromLessonsSection);
   }
   if (!row.requiresAuth) {
     throw new UserFacingError(
-      'Страница вступительного урока должна быть отмечена «Только для залогиненных»',
+      notificationText.courseIntroLessonMustBeLoggedInOnly,
     );
   }
   if (!row.isPublished || row.archivedAt || row.deletedAt) {
     throw new UserFacingError(
-      'Страница вступительного урока должна быть опубликована и не в архиве',
+      notificationText.courseIntroLessonMustBePublishedNotArchived,
     );
   }
 }
@@ -135,14 +136,14 @@ export function createCoursesService(deps: {
     async getCourseUsage(courseId: string) {
       assertUuid(courseId);
       const snap = await courses.getCourseUsageSummary(courseId.trim());
-      if (!snap) throw new UserFacingError('Курс не найден');
+      if (!snap) throw new UserFacingError(notificationText.courseNotFound);
       return snap;
     },
 
     async createCourse(input: CreateCourseInput, options?: CourseWriteOptions) {
       assertWriteClearance('courses');
       const title = input.title?.trim() ?? '';
-      if (!title) throw new UserFacingError('Название курса обязательно');
+      if (!title) throw new UserFacingError(notificationText.courseNameRequired);
       assertUuid(input.programTemplateId);
       if (input.introLessonPageId) {
         assertUuid(input.introLessonPageId);
@@ -171,7 +172,7 @@ export function createCoursesService(deps: {
       const patch: UpdateCourseInput = { ...input };
       if (input.title !== undefined) {
         const t = input.title.trim();
-        if (!t) throw new UserFacingError('Название курса обязательно');
+        if (!t) throw new UserFacingError(notificationText.courseNameRequired);
         patch.title = t;
       }
       if (input.programTemplateId !== undefined) {
@@ -211,13 +212,13 @@ export function createCoursesService(deps: {
       assertUuid(patientUserId);
       const course = await courses.getById(courseId);
       if (!course) {
-        throw new UserFacingError('Курс не найден');
+        throw new UserFacingError(notificationText.courseNotFound);
       }
       if (course.status !== 'published') {
-        throw new UserFacingError('Доступна только запись на опубликованный курс');
+        throw new UserFacingError(notificationText.courseEnrollOnlyPublished);
       }
       if (!enrollmentOpen(course.accessSettings)) {
-        throw new UserFacingError('Запись на курс закрыта');
+        throw new UserFacingError(notificationText.courseEnrollmentClosed);
       }
       return assignTemplateToPatient({
         templateId: course.programTemplateId,

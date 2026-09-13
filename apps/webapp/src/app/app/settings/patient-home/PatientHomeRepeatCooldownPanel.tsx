@@ -19,6 +19,7 @@ import {
   clampRepeatCooldownMinutes,
 } from '@/modules/patient-home/patientHomeRepeatCooldownSettings';
 import { doctorSectionCardClass, doctorSectionTitleClass } from '@/shared/ui/doctor/doctorVisual';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 const MINUTE_OPTIONS: number[] = Array.from(
   { length: (PATIENT_REPEAT_COOLDOWN_MINUTES_MAX - PATIENT_REPEAT_COOLDOWN_MINUTES_MIN) / 5 + 1 },
@@ -69,10 +70,10 @@ export function PatientHomeRepeatCooldownPanel(props: Props) {
         toast.error(actionFailureLine(result));
         return;
       }
-      toast.success('Сохранено');
+      toast.success(notificationText.commonSaved);
       router.refresh();
     } catch {
-      toast.error('Не удалось сохранить.');
+      toast.error(notificationText.commonSaveFailed);
     } finally {
       setPending(false);
     }

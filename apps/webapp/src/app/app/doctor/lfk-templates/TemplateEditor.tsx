@@ -83,6 +83,7 @@ import { PickerSearchField } from '@/shared/ui/doctor/PickerSearchField';
 import { LfkTemplateStatusBadge } from './LfkTemplateStatusBadge';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 type ExerciseOption = { id: string; title: string; firstMedia: ExerciseMedia | null };
 
@@ -492,7 +493,7 @@ export function TemplateEditor({
   const persist = useCallback(() => {
     const t = title.trim();
     if (!t) {
-      toast.error('Укажите название шаблона');
+      toast.error(notificationText.doctorTemplateNameRequired);
       return;
     }
     startTransition(async () => {
@@ -504,7 +505,7 @@ export function TemplateEditor({
         });
         if (!res.ok) toast.error(actionFailureLine(res));
         else {
-          toast.success('Черновик сохранён');
+          toast.success(notificationText.doctorDraftSaved);
           onCreated?.(res.id);
           router.refresh();
         }
@@ -519,7 +520,7 @@ export function TemplateEditor({
       if (!res.ok) toast.error(actionFailureLine(res));
       else {
         toast.success(
-          template.status === 'published' ? 'Изменения сохранены' : 'Черновик сохранён',
+          template.status === 'published' ? notificationText.doctorChangesSaved : notificationText.doctorDraftSaved,
         );
         router.refresh();
       }
@@ -542,7 +543,7 @@ export function TemplateEditor({
       const res = await publishLfkTemplateAction(template.id);
       if (!res.ok) toast.error(actionFailureLine(res));
       else {
-        toast.success('Шаблон опубликован');
+        toast.success(notificationText.doctorTemplatePublished);
         router.refresh();
       }
     });

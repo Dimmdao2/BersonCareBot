@@ -44,6 +44,8 @@ import {
 import { SectionDeleteDialog } from './SectionDeleteDialog';
 import toast from 'react-hot-toast';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
+import { notificationText } from '@/shared/notifications/notificationText';
+import { readSafeActionErrorText } from '@/shared/http/apiErrorCode';
 
 export type SectionListRow = {
   id: string;
@@ -315,11 +317,11 @@ export function ContentSectionsListClient({
           const res = await reorderContentSections(orderedSlugs);
           if (!res.ok) {
             setItems(previous);
-            toast.error(res.error ?? 'Не удалось изменить порядок разделов');
+            toast.error(readSafeActionErrorText(res, notificationText.doctorSectionOrderUpdateFailed));
           }
         } catch {
           setItems(previous);
-          toast.error('Не удалось изменить порядок разделов');
+          toast.error(notificationText.doctorSectionOrderUpdateFailed);
         }
       });
       return next;
@@ -333,10 +335,10 @@ export function ContentSectionsListClient({
         if (res.ok) {
           setItems((prev) => prev.map((r) => (r.slug === slug ? { ...r, isVisible: next } : r)));
         } else {
-          toast.error(res.error ?? 'Не удалось изменить видимость раздела');
+          toast.error(readSafeActionErrorText(res, notificationText.doctorSectionVisibilityUpdateFailed));
         }
       } catch {
-        toast.error('Не удалось изменить видимость раздела');
+        toast.error(notificationText.doctorSectionVisibilityUpdateFailed);
       }
     });
   }, []);
@@ -348,10 +350,10 @@ export function ContentSectionsListClient({
         if (res.ok) {
           setItems((prev) => prev.map((r) => (r.slug === slug ? { ...r, requiresAuth: next } : r)));
         } else {
-          toast.error(res.error ?? 'Не удалось изменить доступ к разделу');
+          toast.error(readSafeActionErrorText(res, notificationText.doctorSectionAccessUpdateFailed));
         }
       } catch {
-        toast.error('Не удалось изменить доступ к разделу');
+        toast.error(notificationText.doctorSectionAccessUpdateFailed);
       }
     });
   }, []);

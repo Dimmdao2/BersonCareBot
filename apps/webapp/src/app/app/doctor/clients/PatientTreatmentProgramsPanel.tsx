@@ -15,6 +15,7 @@ import {
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 type TemplateOption = { id: string; title: string };
 
@@ -112,10 +113,10 @@ export function PatientTreatmentProgramsPanel(props: {
       );
       const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
       if (!res.ok || !data.ok) {
-        setAssignError(readSafeApiErrorText(data, 'Ошибка назначения'));
+        setAssignError(readSafeApiErrorText(data, notificationText.treatmentProgramAssignError));
         return;
       }
-      toast.success('Программа лечения назначена');
+      toast.success(notificationText.treatmentProgramAssigned);
       closeModal();
       await load();
     } catch {
@@ -145,10 +146,10 @@ export function PatientTreatmentProgramsPanel(props: {
       );
       const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
       if (!res.ok || !data.ok) {
-        setAssignError(readSafeApiErrorText(data, 'Ошибка назначения'));
+        setAssignError(readSafeApiErrorText(data, notificationText.treatmentProgramAssignError));
         return;
       }
-      toast.success('Программа лечения назначена');
+      toast.success(notificationText.treatmentProgramAssigned);
       closeModal();
       await load();
     } catch {

@@ -9,6 +9,7 @@ import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
 import type { LfkComplexExerciseLine } from '@/modules/diaries/types';
 import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 function ExerciseRowEditor({
   patientUserId,
@@ -72,10 +73,10 @@ function ExerciseRowEditor({
                   error?: string;
                 };
                 if (!res.ok || !data.ok) {
-                  toast.error(readSafeApiErrorText(data, 'Не удалось сохранить'));
+                  toast.error(readSafeApiErrorText(data, notificationText.commonSaveFailed));
                   return;
                 }
-                toast.success('Сохранено');
+                toast.success(notificationText.commonSaved);
                 onSaved();
               });
             }}
@@ -103,10 +104,10 @@ function ExerciseRowEditor({
                   error?: string;
                 };
                 if (!res.ok || !data.ok) {
-                  toast.error(readSafeApiErrorText(data, 'Не удалось сбросить'));
+                  toast.error(readSafeApiErrorText(data, notificationText.doctorLfkOverridesResetFailed));
                   return;
                 }
-                toast.success('Сброшено');
+                toast.success(notificationText.commonReset);
                 onSaved();
               });
             }}

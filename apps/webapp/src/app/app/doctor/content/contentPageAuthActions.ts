@@ -10,6 +10,7 @@ import {
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { contentMechanicForSection } from '@/app-layer/content/warmupsContentMutationGuard';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 export type ContentPageAuthState = { ok: boolean; error?: string };
 
@@ -19,7 +20,7 @@ export async function setContentPageRequiresAuth(
 ): Promise<ContentPageAuthState> {
   const workspace = await requireDoctorWorkspaceContext();
   const pageId = id?.trim();
-  if (!pageId) return { ok: false, error: 'Нет id' };
+  if (!pageId) return { ok: false, error: notificationText.commonMissingIdentifier };
 
   const deps = buildAppDeps();
   const page = await withDoctorWorkspacePrincipal(
@@ -45,7 +46,7 @@ export async function setContentPageRequiresAuth(
     );
   } catch (e) {
     console.error('setContentPageRequiresAuth', e);
-    return { ok: false, error: 'Не удалось обновить доступ' };
+    return { ok: false, error: notificationText.doctorContentAccessUpdateFailed };
   }
 
   revalidatePath('/app/doctor/content');

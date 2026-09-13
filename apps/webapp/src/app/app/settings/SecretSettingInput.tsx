@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react';
 import toast from 'react-hot-toast';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 type SecretSettingInputProps<T extends string> = Readonly<{
   title: string;
@@ -65,7 +66,7 @@ export function SecretSettingInput<T extends string>({
                 setSaved(true);
                 onSaved?.();
               } catch {
-                toast.error('Не удалось сохранить credential');
+                toast.error(notificationText.settingsCredentialSaveFailed);
               }
             })
           }

@@ -9,9 +9,10 @@ import {
   BOOKING_FORM_FIELD_KEY_PATTERN,
   BOOKING_FORM_FIELD_TYPES,
 } from '@/modules/booking-form/fieldTypes';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 /** A rejected body reaches the screen as this sentence, never as the machine code. */
-const INVALID_BODY_MESSAGE = 'Данные поля заполнены неверно. Проверьте их и повторите действие.';
+const INVALID_BODY_MESSAGE = notificationText.authFormFieldInvalidBody;
 
 const upsertBody = z
   .object({

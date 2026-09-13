@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { explicitDoctorCatalogPubArchParamsInvalid } from '@/shared/lib/doctorCatalogListStatus';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 /**
  * B1 UX: при заведомо невалидных `arch` / `pub` в URL — одноразовый toast (тихий fallback парсера сохраняется).
@@ -24,7 +25,7 @@ export function DoctorCatalogInvalidPubArchToast() {
     if (toastedKey.current === key) return;
     toastedKey.current = key;
     toast.error(
-      'Параметры «Архив» или «Публикация» в адресе недопустимы — применены значения по умолчанию.',
+      notificationText.doctorArchivePublishParamsInvalid,
     );
   }, [arch, pub]);
 

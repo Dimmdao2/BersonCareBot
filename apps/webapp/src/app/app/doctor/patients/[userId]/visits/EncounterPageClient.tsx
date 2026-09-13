@@ -45,6 +45,7 @@ import {
   FormTextarea,
   type FormDiagnosisEntry,
 } from './EncounterFormFields';
+import { notificationText } from '@/shared/notifications/notificationText';
 const fieldLabelClass = 'text-sm font-semibold text-foreground';
 const hintClass = 'text-xs text-muted-foreground';
 
@@ -485,7 +486,7 @@ export function EncounterPageClient({
         const text = await res.text().catch(() => '');
         throw new Error(`status ${res.status}${text ? `: ${text}` : ''}`);
       }
-      toast.success('Изменения сохранены');
+      toast.success(notificationText.doctorChangesSaved);
       if (embedded) onComplete?.();
       else {
         router.push(backHref);

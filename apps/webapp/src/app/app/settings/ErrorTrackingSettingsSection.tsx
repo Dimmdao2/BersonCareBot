@@ -9,6 +9,7 @@ import { DoctorSectionActions } from '@/shared/ui/doctor/DoctorSection';
 import { DoctorField } from '@/shared/ui/doctor/DoctorField';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Switch } from '@/shared/ui/doctor/primitives/switch';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 type Props = Readonly<{
   initialEnabled: boolean;
@@ -37,16 +38,16 @@ export function ErrorTrackingSettingsSection({ initialEnabled, hasStoredDsn }: P
         if (!response.ok || body.ok !== true) {
           toast.error(
             body.error === 'invalid_dsn'
-              ? 'Укажите корректный HTTP(S) DSN'
-              : 'Не удалось сохранить',
+              ? notificationText.settingsInvalidDsn
+              : notificationText.commonSaveFailed,
           );
           return;
         }
         setStored(body.config?.hasStoredDsn === true);
         setDsn('');
-        toast.success('Сохранено. Новая конфигурация применяется после перезапуска процессов.');
+        toast.success(notificationText.settingsSavedConfigAppliesAfterRestart);
       } catch {
-        toast.error('Не удалось сохранить');
+        toast.error(notificationText.commonSaveFailed);
       }
     });
   }

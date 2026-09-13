@@ -44,6 +44,7 @@ import {
 } from '@/shared/ui/doctor/DoctorDnaFlatListRow';
 import { doctorSectionCardClass, doctorSectionTitleClass } from '@/shared/ui/doctor/doctorVisual';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 export type PatientClinicalComorbidity = {
   id: string;
@@ -197,7 +198,7 @@ function SymptomPatientTrackingSwitch({
       }
       setEnabled(next);
     } catch {
-      toast.error('Не удалось изменить настройки симптома');
+      toast.error(notificationText.doctorSymptomSettingsUpdateFailed);
     } finally {
       setPending(false);
     }
@@ -668,7 +669,7 @@ export function PatientClinicalSections({
       return true;
     } catch {
       setSaveError(true);
-      toast.error('Не удалось сохранить');
+      toast.error(notificationText.commonSaveFailed);
       return false;
     } finally {
       setSaving(false);
@@ -691,7 +692,7 @@ export function PatientClinicalSections({
     );
     if (!ok) return;
     setComplaintEditOpen(false);
-    toast.success('Изменения сохранены');
+    toast.success(notificationText.doctorChangesSaved);
     onClinicalRefresh();
   };
 
@@ -709,7 +710,7 @@ export function PatientClinicalSections({
     );
     if (!ok) return;
     setUpdateNote('');
-    toast.success(resolved ? 'Симптом закрыт' : 'Значение добавлено');
+    toast.success(resolved ? notificationText.doctorSymptomClosed : notificationText.doctorClinicalValueAdded);
     onClinicalRefresh();
     if (resolved) setSelectedComplaint(null);
   };
@@ -730,7 +731,7 @@ export function PatientClinicalSections({
     );
     if (!ok) return;
     setDiagnosisEditOpen(false);
-    toast.success('Изменения сохранены');
+    toast.success(notificationText.doctorChangesSaved);
     onClinicalRefresh();
   };
 
@@ -742,7 +743,7 @@ export function PatientClinicalSections({
       { status },
     );
     if (!ok) return;
-    toast.success(status === 'закрытый' ? 'Диагноз закрыт' : 'Статус изменён');
+    toast.success(status === 'закрытый' ? notificationText.doctorDiagnosisClosed : notificationText.doctorDiagnosisStatusChanged);
     onClinicalRefresh();
     if (status === 'закрытый') setSelectedDiagnosis(null);
   };
@@ -1109,12 +1110,12 @@ export function PatientClinicalCreateModal({
         },
       );
       if (!response.ok) throw new Error(`status ${response.status}`);
-      toast.success(complaint ? 'Симптом добавлен' : 'Диагноз добавлен');
+      toast.success(complaint ? notificationText.doctorSymptomAdded : notificationText.doctorDiagnosisAdded);
       onSaved();
       onClose();
     } catch {
       setSaveError(true);
-      toast.error('Не удалось сохранить');
+      toast.error(notificationText.commonSaveFailed);
     } finally {
       setSaving(false);
     }
@@ -1375,11 +1376,11 @@ function DiseaseAnamnesisSection({
       });
       if (!response.ok) throw new Error();
       setOpen(false);
-      toast.success('Сохранено');
+      toast.success(notificationText.commonSaved);
       onRefresh();
     } catch {
       setSaveError(true);
-      toast.error('Не удалось сохранить');
+      toast.error(notificationText.commonSaveFailed);
     } finally {
       setSaving(false);
     }
@@ -1620,9 +1621,9 @@ function LifeAnamnesisSection({
         onRefresh();
       }
       setEditor(null);
-      toast.success('Сохранено');
+      toast.success(notificationText.commonSaved);
     } catch {
-      toast.error('Не удалось сохранить');
+      toast.error(notificationText.commonSaveFailed);
     } finally {
       setSaving(false);
     }
@@ -1639,9 +1640,9 @@ function LifeAnamnesisSection({
       if (!response.ok) throw new Error();
       setEditor(null);
       loadComorbidities(comorbiditiesIncludeHistory);
-      toast.success('Заболевание перенесено в историю');
+      toast.success(notificationText.doctorConditionMovedToHistory);
     } catch {
-      toast.error('Не удалось сохранить');
+      toast.error(notificationText.commonSaveFailed);
     } finally {
       setSaving(false);
     }
@@ -1660,9 +1661,9 @@ function LifeAnamnesisSection({
       if (!response.ok) throw new Error();
       setEditor(null);
       loadComorbidities(true);
-      toast.success('Заболевание возвращено');
+      toast.success(notificationText.doctorConditionRestored);
     } catch {
-      toast.error('Не удалось сохранить');
+      toast.error(notificationText.commonSaveFailed);
     } finally {
       setSaving(false);
     }

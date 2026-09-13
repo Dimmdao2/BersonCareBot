@@ -68,6 +68,7 @@ import {
 } from './DoctorAppointmentCancelModal';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 import { appointmentDeliveryFormatLabels } from '@/modules/system-settings/patientTerms';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 const FORM_START_FORMAT = "yyyy-MM-dd'T'HH:mm";
 
@@ -623,12 +624,12 @@ function DoctorCalendarEventPanelInner({
           ? await savePrimaryComment(newId, commentBody)
           : false;
       if (!commentSaved) {
-        toast.error('Запись создана, комментарий не сохранён.');
+        toast.error(notificationText.doctorEntryCreatedCommentNotSaved);
         setPendingRefresh(true);
         return;
       }
       createManualRequestIdRef.current = crypto.randomUUID();
-      toast.success('Создано');
+      toast.success(notificationText.commonCreated);
       setMode('view');
       if (newId) (options?.onCreated ?? onCreated)?.(newId);
       onChanged();
@@ -928,7 +929,7 @@ function DoctorCalendarEventPanelInner({
       // Комментарий идёт последним и через тот же контракт, что и очистка: пока он не сохранён,
       // объявлять запись сохранённой нельзя — иначе набранный текст пропадает молча.
       if (commentChanged && !(await savePrimaryComment(selected.id, draft.comment.trim()))) {
-        toast.error('Комментарий не сохранён.');
+        toast.error(notificationText.doctorCommentNotSaved);
         return;
       }
       const nextStartAt = start.toUTC().toISO() ?? selected.startAt;
@@ -957,7 +958,7 @@ function DoctorCalendarEventPanelInner({
       setPrimaryComment(draft.comment.trim());
       setPendingRefresh(false);
       if (startChanged) setLifecycleRefreshToken((current) => current + 1);
-      toast.success('Изменения сохранены');
+      toast.success(notificationText.doctorChangesSaved);
       setMode('view');
       if (onUpdated) onUpdated(updatedAppointment);
       else onChanged();
@@ -994,7 +995,7 @@ function DoctorCalendarEventPanelInner({
         toast.error(panelErrorLabel(json.error));
         return;
       }
-      toast.success('Отменено');
+      toast.success(notificationText.commonCancelled);
       setCancelOpen(false);
       onChanged();
     });
@@ -1019,7 +1020,7 @@ function DoctorCalendarEventPanelInner({
         toast.error(panelErrorLabel(json.error));
         return;
       }
-      toast.success('Удалено');
+      toast.success(notificationText.commonDeleted);
       onChanged();
     });
   };

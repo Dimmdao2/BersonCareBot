@@ -19,6 +19,7 @@ import {
   normalizeOperatorAlertFallbackEmail,
   type OperatorAlertFallbackEmailError,
 } from '@/modules/operator-alerts/operatorAlertFallbackEmail';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 export type OperatorHealthAlertsSectionProps = {
   initialConfig: OperatorHealthAlertConfig;
@@ -127,7 +128,10 @@ export function OperatorHealthAlertsSection({
         digestTime: normalizedDigestTime,
       });
       if (!alertsResult.ok) {
-        toast.error(alertsResult.error ?? 'Не удалось сохранить настройки операторских алертов.');
+        // G3 (safety audit, extended repo-wide sweep): `alertsResult.error` may carry either a
+        // safe machine code (`ApiRequestError.code`) or a bare caught-exception `.message` — never
+        // product copy. Always show the dictionary text instead of trusting it.
+        toast.error(notificationText.settingsOperatorAlertsSaveFailed);
         return;
       }
       const fallbackResult = await patchAdminSettingWithResult(
@@ -135,11 +139,11 @@ export function OperatorHealthAlertsSection({
         checkedFallbackEmail.value,
       );
       if (!fallbackResult.ok) {
-        toast.error(fallbackResult.error ?? 'Не удалось сохранить резервный e-mail.');
+        toast.error(notificationText.settingsOperatorAlertsFallbackEmailSaveFailed);
         return;
       }
       setFallbackEmail(checkedFallbackEmail.value);
-      toast.success('Сохранено');
+      toast.success(notificationText.commonSaved);
     });
   }
 

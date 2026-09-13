@@ -24,6 +24,7 @@ import {
   FAIL_CLOSED_AUTH_CHANNEL_UI_POLICY,
   type AuthChannelUiPolicy,
 } from '@/modules/auth/otpChannelUi';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 type Props = {
   telegramId: string;
@@ -145,16 +146,16 @@ export function PatientBindPhoneClient({
       if (!r.ok) {
         toast.error(
           r.error === 'contact_channel_required'
-            ? 'Выберите мессенджер.'
+            ? notificationText.messagingSelectChannel
             : r.error === 'no_messenger_binding'
-              ? 'Нет привязки к мессенджеру.'
+              ? notificationText.messagingNoBinding
               : r.error === 'rate_limited'
-                ? 'Подождите минуту перед повторной отправкой.'
-                : 'Не удалось запросить контакт.',
+                ? notificationText.authResendCooldown
+                : notificationText.messagingContactRequestFailed,
         );
         return;
       }
-      toast.success('Откройте чат с ботом и отправьте контакт по кнопке.');
+      toast.success(notificationText.messagingOpenBotChat);
     },
     [channelPolicy],
   );
@@ -170,10 +171,10 @@ export function PatientBindPhoneClient({
         }
         toast.error(
           r.error === 'no_messenger_binding'
-            ? 'Нет привязки к мессенджеру.'
+            ? notificationText.messagingNoBinding
             : r.error === 'rate_limited'
-              ? 'Подождите минуту перед повторной отправкой.'
-              : 'Не удалось запросить контакт.',
+              ? notificationText.authResendCooldown
+              : notificationText.messagingContactRequestFailed,
         );
         return;
       }
@@ -185,7 +186,7 @@ export function PatientBindPhoneClient({
       inferred ??
       (tg && !mx ? 'telegram' : mx && !tg ? 'max' : tg ? 'telegram' : mx ? 'max' : null);
     if (!channel) {
-      toast.error('Не удалось определить мессенджер.');
+      toast.error(notificationText.messagingDetectAppFailed);
       return;
     }
     await requestContactBrowser(channel);

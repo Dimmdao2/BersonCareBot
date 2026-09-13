@@ -11,6 +11,7 @@ import {
 } from '@/modules/tests/errors';
 import type { TestSetItemInput, TestSetUsageSnapshot } from '@/modules/tests/types';
 import { safeActionErrorText } from '@/app-layer/errors/safeUserError';
+import { notificationText } from '@/shared/notifications/notificationText';
 import {
   entitlementMutationRefusalMessage,
   requireEntitlementForMutationAction,
@@ -102,7 +103,7 @@ export async function saveTestSetCore(
         return { ok: false, error: 'Некорректный формат состава набора' };
       return {
         ok: false,
-        error: safeActionErrorText('app/doctor/test-sets', e, 'Ошибка разбора состава'),
+        error: safeActionErrorText('app/doctor/test-sets', e, notificationText.testSetCompositionParseError),
       };
     }
   }
@@ -145,7 +146,7 @@ export async function saveTestSetCore(
             return { ok: false, error: 'Некорректный формат состава набора' };
           return {
             ok: false,
-            error: safeActionErrorText('app/doctor/test-sets', e, 'Ошибка разбора состава'),
+            error: safeActionErrorText('app/doctor/test-sets', e, notificationText.testSetCompositionParseError),
           };
         }
       }
@@ -175,7 +176,7 @@ export async function saveTestSetCore(
   } catch (e) {
     return {
       ok: false,
-      error: safeActionErrorText('app/doctor/test-sets', e, 'Ошибка сохранения'),
+      error: safeActionErrorText('app/doctor/test-sets', e, notificationText.commonSaveFailed),
     };
   }
 }
@@ -216,7 +217,7 @@ export async function createTestSetDraftCore(
   } catch (e) {
     return {
       ok: false,
-      error: safeActionErrorText('app/doctor/test-sets', e, 'Не удалось создать черновик набора'),
+      error: safeActionErrorText('app/doctor/test-sets', e, notificationText.testSetDraftCreateFailed),
     };
   }
 }
@@ -248,7 +249,7 @@ export async function saveTestSetItemsCore(
     }
     return {
       ok: false,
-      error: safeActionErrorText('app/doctor/test-sets', e, 'Ошибка разбора состава'),
+      error: safeActionErrorText('app/doctor/test-sets', e, notificationText.testSetCompositionParseError),
     };
   }
 
@@ -268,7 +269,7 @@ export async function saveTestSetItemsCore(
   } catch (e) {
     return {
       ok: false,
-      error: safeActionErrorText('app/doctor/test-sets', e, 'Ошибка сохранения состава'),
+      error: safeActionErrorText('app/doctor/test-sets', e, notificationText.testSetCompositionSaveError),
     };
   }
 }

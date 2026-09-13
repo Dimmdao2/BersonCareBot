@@ -27,6 +27,8 @@ import {
   SelectValue,
 } from '@/shared/ui/doctor/primitives/select';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
+import { notificationText } from '@/shared/notifications/notificationText';
+import { safeUserMessage } from '@/shared/errors/userFacingError';
 
 const EMPTY_VALUE = '__unset__';
 
@@ -169,11 +171,9 @@ export function SaasBillingProviderSettings() {
         }),
       });
       if (json.ok) applySetting(json.setting.valueJson);
-      toast.success('Сохранено');
+      toast.success(notificationText.commonSaved);
     } catch (cause) {
-      toast.error(
-        `Настройки не сохранены (${cause instanceof Error ? cause.message : 'network'}).`,
-      );
+      toast.error(safeUserMessage(cause, notificationText.adminBillingProviderSettingsSaveFailed));
     } finally {
       setSaving(false);
     }

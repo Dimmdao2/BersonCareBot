@@ -30,6 +30,7 @@ import {
   patientMutedTextClass,
   patientSectionTitleClass,
 } from '@/shared/ui/patient/patientVisual';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 const WEB_CHAT_ID_KEY = 'bersoncare_web_chat_id';
 const POLL_MS = 2500;
@@ -159,7 +160,7 @@ export function PhoneMessengerAuthFlow({
         if (purpose === 'profile_bind') {
           onProfileComplete?.();
         } else {
-          toast.error('Код уже использован. Начните вход снова.');
+          toast.error(notificationText.authCodeAlreadyUsed);
           resetBindAttempt();
         }
         return;
@@ -178,12 +179,12 @@ export function PhoneMessengerAuthFlow({
       }
       if (statusData.status === 'failed') {
         clearPoll();
-        toast.error('Не удалось подтвердить номер в мессенджере');
+        toast.error(notificationText.messagingPhoneVerifyFailed);
         resetBindAttempt();
       }
       if (statusData.status === 'expired') {
         clearPoll();
-        toast.error('Время привязки истекло. Начните снова.');
+        toast.error(notificationText.authBindingExpired);
         resetBindAttempt();
       }
     },
@@ -230,7 +231,7 @@ export function PhoneMessengerAuthFlow({
         message?: string;
       };
       if (!res.ok || !data.ok || !data.challengeId) {
-        toast.error(data.message ?? 'Не удалось запросить код');
+        toast.error(data.message ?? notificationText.messagingCodeRequestFailed);
         return false;
       }
       setPhone(normalized);
@@ -284,12 +285,12 @@ export function PhoneMessengerAuthFlow({
           data.message ??
             (data.retryAfterSeconds != null
               ? `Повторите через ${Math.ceil(data.retryAfterSeconds / 60)} мин.`
-              : 'Слишком много запросов. Попробуйте позже.'),
+              : notificationText.authTooManyRequestsRetryLater),
         );
         return;
       }
       if (!res.ok || !data.ok || !data.setupToken || !data.url) {
-        toast.error(data.message ?? 'Не удалось начать привязку');
+        toast.error(data.message ?? notificationText.messagingBindingStartFailed);
         return;
       }
       const bindToken = data.setupToken;
@@ -306,7 +307,7 @@ export function PhoneMessengerAuthFlow({
       if (channelCode === 'max' && data.manualCommand) {
         try {
           await navigator.clipboard.writeText(data.manualCommand);
-          toast.success('Команда скопирована — вставьте её в чат с ботом в Max');
+          toast.success(notificationText.messagingBotCommandCopied);
         } catch {
           toast('Скопируйте команду вручную в чат с ботом в Max');
         }

@@ -28,6 +28,7 @@ import { MediaPickerShell } from '@/shared/ui/doctor/media/MediaPickerShell';
 import { MediaPickerPanel } from '@/shared/ui/doctor/media/MediaPickerPanel';
 import type { MediaListItem } from '@/shared/ui/doctor/media/MediaPickerList';
 import { patchAdminSettingWithResult } from './patchAdminSetting';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 type Props = {
   initialSettings: ClinicPublicCardSettings;
@@ -173,9 +174,9 @@ export function ClinicPublicCardSection({
         return;
       }
       setSettings(body.settings);
-      toast.success('Сохранено');
+      toast.success(notificationText.commonSaved);
     } catch {
-      toast.error('Не удалось сохранить страницу. Повторите попытку.');
+      toast.error(notificationText.settingsPageSaveFailedRetry);
     } finally {
       setPending(false);
     }
@@ -192,7 +193,7 @@ export function ClinicPublicCardSection({
     const result = await patchAdminSettingWithResult('clinic_booking_show_specialist_cards', next);
     if (!result.ok) {
       setShowSpecialistCardsInBooking(previous);
-      toast.error('Не удалось сохранить настройку визиток специалистов. Повторите попытку.');
+      toast.error(notificationText.settingsSpecialistCardsSaveFailed);
     }
     setSavingSpecialistCards(false);
   }

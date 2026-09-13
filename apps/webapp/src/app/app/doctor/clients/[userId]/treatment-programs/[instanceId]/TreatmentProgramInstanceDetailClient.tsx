@@ -113,6 +113,7 @@ import {
 } from '@/app/app/patient/treatment/stageItemSnapshot';
 import { DoctorSection, DoctorSectionTitle } from '@/shared/ui/doctor/DoctorSection';
 import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 function itemTitleById(detail: TreatmentProgramInstanceDetail): Map<string, string> {
   const m = new Map<string, string>();
@@ -539,7 +540,7 @@ function ProgramInstanceCompleteControl(props: {
       );
       const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
       if (!res.ok || !data.ok) {
-        toast.error(readSafeApiErrorText(data, 'Ошибка'));
+        toast.error(readSafeApiErrorText(data, notificationText.commonGenericError));
         return;
       }
       setOpen(false);
@@ -862,7 +863,7 @@ function TreatmentProgramInstanceDetailClientBody(props: {
     try {
       await refreshBaseline();
     } catch {
-      toast.error('Не удалось обновить данные');
+      toast.error(notificationText.doctorDataUpdateFailed);
     }
   }, [refreshBaseline]);
 
@@ -1286,9 +1287,9 @@ function InstanceStageGroupsPanel(props: {
     const plan = planStageItemDndReorder(displayStage.items, activeId, overId, canParticipate);
     if (!plan.ok) {
       if (plan.error === 'ungrouped_type') {
-        toast.error('Без группы допустимы только рекомендации и клинические тесты');
+        toast.error(notificationText.treatmentProgramNoGroupRestrictedElements);
       } else {
-        toast.error('Не удалось изменить порядок элементов');
+        toast.error(notificationText.doctorOrderUpdateFailed);
       }
       return;
     }
@@ -1329,7 +1330,7 @@ function InstanceStageGroupsPanel(props: {
     if (!isSysGroup) {
       const t = groupEdit.title.trim();
       if (!t) {
-        toast.error('Название группы не может быть пустым');
+        toast.error(notificationText.treatmentProgramGroupNameEmpty);
         return;
       }
     }
@@ -2017,11 +2018,11 @@ function StageDoctorControls(props: {
             );
             const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
             if (!res.ok || !data.ok) {
-              toast.error(readSafeApiErrorText(data, 'Ошибка'));
+              toast.error(readSafeApiErrorText(data, notificationText.commonGenericError));
               return;
             }
             await onPatched();
-            toast.success('Сохранено');
+            toast.success(notificationText.commonSaved);
           } finally {
             setSaving(false);
           }
@@ -2055,13 +2056,13 @@ function StageDoctorControls(props: {
             );
             const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
             if (!res.ok || !data.ok) {
-              toast.error(readSafeApiErrorText(data, 'Ошибка'));
+              toast.error(readSafeApiErrorText(data, notificationText.commonGenericError));
               return;
             }
             await onPatched();
             setSkipDialogOpen(false);
             setSkipReasonDraft('');
-            toast.success('Сохранено');
+            toast.success(notificationText.commonSaved);
           } finally {
             setSaving(false);
           }
