@@ -21,7 +21,7 @@ const ERROR_CODE_TEXT: Record<string, string> = {
   invalid_body: notificationText.authInvalidBody,
   invalid_json: notificationText.authInvalidBody,
   not_found: notificationText.bookingAppointmentNotFound,
-  forbidden: notificationText.commonNoAccessToAction,
+  forbidden: notificationText.authForbidden,
   unauthorized: notificationText.commonLoginRequired,
   server_error: notificationText.commonGenericError,
   rate_limited: notificationText.authTooManyAttempts,

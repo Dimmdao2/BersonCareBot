@@ -169,11 +169,13 @@ function quotaLabel(quota: TariffQuota): string {
   if (quota.unit === 'bytes') {
     return `лимит ${formatBytesAsMb(quota.limit ?? 0)}`;
   }
+  // Единица, которой нет в словаре подписей, раньше печаталась как есть — человек читал
+  // «лимит 5 seats». Поймано ужесточённым правилом гейта после четвёртого аудита.
   const unit =
     quota.unit in QUOTA_UNIT_LABELS
-      ? QUOTA_UNIT_LABELS[quota.unit as keyof typeof QUOTA_UNIT_LABELS].toLocaleLowerCase('ru-RU')
-      : quota.unit;
-  return `лимит ${quota.limit} ${unit}`;
+      ? ` ${QUOTA_UNIT_LABELS[quota.unit as keyof typeof QUOTA_UNIT_LABELS].toLocaleLowerCase('ru-RU')}`
+      : '';
+  return `лимит ${quota.limit}${unit}`;
 }
 
 function formatQuotaUsageValue(value: number, unit: OrgQuotaProjection['quota']['unit']): string {

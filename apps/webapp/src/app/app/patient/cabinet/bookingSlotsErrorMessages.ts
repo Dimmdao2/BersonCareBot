@@ -8,7 +8,7 @@ export function mapBookingSlotsErrorCodeToRu(code: string | undefined): string {
     return 'Каталог записи временно недоступен. Попробуйте позже.';
   }
   if (code === 'branch_service_not_found') {
-    return 'Услуга или специалист недоступны.';
+    return 'Услуга или специалист недоступны. Вернитесь назад и выберите услугу снова.';
   }
   if (code === 'invalid_query') {
     return 'Не удалось загрузить расписание. Обновите страницу.';

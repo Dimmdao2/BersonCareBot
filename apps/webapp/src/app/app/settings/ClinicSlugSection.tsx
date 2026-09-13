@@ -121,7 +121,7 @@ export function ClinicSlugSection({ initialState, patientOrigin }: ClinicSlugSec
 
   const slugField = (
     <DoctorField
-      label="Slug организации"
+      label="Публичный адрес"
       htmlFor={fieldId}
       hint="Латинские буквы, цифры и дефисы, от 3 до 63 символов."
     >
@@ -147,7 +147,7 @@ export function ClinicSlugSection({ initialState, patientOrigin }: ClinicSlugSec
       {state.currentSlug && publicUrl ? (
         <div className="flex flex-col gap-3">
           <p className="text-sm">
-            Slug: <code className="font-mono">{state.currentSlug}</code>
+            Адрес: <code className="font-mono">{state.currentSlug}</code>
           </p>
           <div className="flex flex-wrap items-center gap-2">
             <a

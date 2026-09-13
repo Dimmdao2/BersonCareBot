@@ -120,12 +120,12 @@ function mapUploadErrorByCode(code: string | undefined): string {
     file_too_large: 'Файл слишком большой.',
     empty_file: 'Пустой файл.',
     missing_file: 'Файл не передан.',
-    invalid_folder_id: 'Некорректный идентификатор папки.',
+    invalid_folder_id: 'Папка выбрана неверно. Обновите страницу и выберите папку снова.',
     folder_not_found: 'Папка не найдена.',
     forbidden: 'Нет прав на загрузку.',
     upload_failed: 'Загрузка не удалась.',
-    expected_multipart: 'Неверный формат запроса.',
-    invalid_body: notificationText.authInvalidBody,
+    expected_multipart: notificationText.mediaUploadFailed,
+    invalid_body: notificationText.mediaUploadFailed,
   };
   if (code && m[code]) return m[code];
   // Раньше сюда подставлялся сам код отказа — человек видел машинное слово вроде

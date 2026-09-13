@@ -190,6 +190,11 @@ export function AuthBootstrap({
     roleLoginPortal !== 'patient' &&
     roleLoginPortal !== 'admin' &&
     (roleLoginInitialView === 'register' || searchParams.get('intent') === 'specialist');
+  // Дверь восстановления пароля по прямой ссылке. Письмо «кто-то пытается зарегистрироваться на
+  // ваш email» обещает ссылку для восстановления, а без этого параметра она вела бы на форму
+  // ВХОДА вообще — или, как было до правки, на форму регистрации, то есть на ту самую дверь,
+  // которая человеку только что отказала (блокирующая находка четвёртого аудита).
+  const passwordRecoveryRequested = searchParams.get('recover') === '1';
   const debug = searchParams.get('debug') === '1';
   const [effectiveEntryClassification, setEffectiveEntryClassification] =
     useState<UnauthenticatedAppEntryClassification>(entryClassification);
@@ -1158,6 +1163,7 @@ export function AuthBootstrap({
           onStepChange={onAuthStepChange}
           prefetchedAuthConfig={prefetchedAuth}
           initialDevView={initialSpecialistSignupView}
+          openPasswordRecovery={passwordRecoveryRequested}
           onInteractiveLoginEngaged={handleInteractiveEngaged}
           roleLoginPortal={roleLoginPortal}
           surfaceAuthPolicy={surfaceAuthPolicy}

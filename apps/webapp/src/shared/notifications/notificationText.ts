@@ -90,7 +90,8 @@ export const notificationText = {
    * карточке. Ключ отдельный намеренно — на входе он значит «подтвердить не удалось», а при смене
    * почты и заведении карточки «этот адрес занят», и одной фразой это не описывается.
    */
-  authEmailBelongsToAnotherAccount: 'Этот email уже используется другим аккаунтом.',
+  authEmailBelongsToAnotherAccount:
+    'Этот email уже используется другим аккаунтом. Укажите другой.',
   authInvalidCredentialsSessionExpired:
     'Не удалось подтвердить вход. Войдите снова и запросите новый код.',
   authInvalidBody: 'Данные введены неверно. Проверьте их и повторите действие.',
@@ -182,7 +183,6 @@ export const notificationText = {
   commonSpecifyValidEmail: 'Укажите корректный email',
   authConfirmEmailInProfileFirst: 'Сначала подтвердите email в профиле.',
   commonLoginRequired: 'Войдите, чтобы продолжить.',
-  commonNoAccessToAction: 'Для этого действия нет доступа.',
   authLoginNotAllowed: 'Вход для этого аккаунта не разрешён.',
   authLoginFailedRetry: 'Не удалось войти. Повторите попытку.',
   doctorAdminOnlyChangePatientEmail: 'Менять email пациента может только администратор.',
@@ -430,7 +430,6 @@ export const notificationText = {
   bookingPaymentSaveFailed: 'Не удалось сохранить оплату. Повторите попытку.',
   bookingRescheduleFailed: 'Не удалось перенести запись. Повторите попытку.',
   bookingAlreadyProcessing: 'Запись уже обрабатывается. Обновите страницу и повторите попытку.',
-  bookingEmailTakenByAnotherPatient: 'Этот email уже занят другим пациентом. Укажите другой.',
   bookingFeatureNotInTariff: 'Эта возможность не входит в текущий тариф.',
   bookingSlotTaken: 'Время уже занято. Выберите другое.',
   bookingCancelFirst: 'Сначала отмените запись.',
@@ -696,7 +695,7 @@ export const notificationText = {
   // text instead of engineer-speak ("тарифная механика").
   adminNotificationTemplatePlatformSaveClearanceDenied: 'Не удалось сохранить шаблон из-за ошибки на нашей стороне. Обратитесь в поддержку.',
   doctorNotificationTemplateSaveClearanceDenied:
-    'Сохранить шаблон нельзя: эта возможность не входит в текущий тариф.',
+    'Сохранить шаблон нельзя: эта возможность не входит в текущий тариф. Обратитесь к владельцу или в поддержку.',
   // Defect 4 (2026-09-13 second verification pass): a raw `Error.message` from a failed settings
   // reset was interpolated straight into a toast — a DB driver message can carry table/column/bound
   // parameter values. Routed through `safeUserMessage` instead; these are its dictionary-backed

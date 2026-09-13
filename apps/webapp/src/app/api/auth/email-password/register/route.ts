@@ -16,6 +16,7 @@ import {
 import { normalizeEmail, startEmailChallenge } from '@/modules/auth/emailAuth';
 import { hashPin } from '@/modules/auth/pinHash';
 import { OTP_RESEND_COOLDOWN_SEC } from '@/modules/auth/otpConstants';
+import { isSignupStartRateLimitedByEmail } from '@/modules/auth/authRateLimits';
 import { platformMailProfileForRecipientRole } from '@/modules/auth/mailProfile';
 import {
   isPasswordEligibleRole,
@@ -139,6 +140,17 @@ export async function POST(request: Request) {
     stage: 'start',
     contactValue: emailNorm,
   });
+
+  // Один старт на адрес в минуту — ДО ветки «есть ли такой аккаунт». Без этого двойная отправка
+  // внутри минуты отвечала по-разному: свободный адрес получал 429 от кулдауна письма, занятый —
+  // нейтральный 200, потому что по нему кода не создаётся и кулдаун не тратится. Сама разница и
+  // сообщала, есть ли аккаунт (блокирующая находка четвёртого адверсарного аудита).
+  if (await isSignupStartRateLimitedByEmail(emailNorm)) {
+    return NextResponse.json(
+      { ok: false, error: 'rate_limited', retryAfterSeconds: OTP_RESEND_COOLDOWN_SEC },
+      { status: 429 },
+    );
+  }
 
   const deps = buildAppDeps();
   const passwordHash = await hashPin(parsed.data.password);

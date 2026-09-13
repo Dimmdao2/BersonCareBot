@@ -149,10 +149,11 @@ describe('public OAuth provider boundary', () => {
     );
 
     expect(startResponse.status).toBe(500);
-    await expect(startResponse.json()).resolves.toEqual({
+    // Формулировка не проверяется (владелец 13.09: тестов на тексты быть не должно);
+    // проверяется контракт ответа — отказ и машинный код.
+    await expect(startResponse.json()).resolves.toMatchObject({
       ok: false,
       error: 'server_error',
-      message: 'Не удалось войти из-за сбоя на нашей стороне. Повторите попытку позже.',
     });
   });
 });

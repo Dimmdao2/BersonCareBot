@@ -81,14 +81,21 @@
  *
  *    ЧЕСТНЫЕ ОГРАНИЧЕНИЯ правил G5/G6 (названы адверсарным аудитом 13.09, находка Б2 — до неё
  *    у этих правил не было объявлено ни одного ограничения, что само по себе было неправдой):
- *      4. Строка вида `Ошибка: ${код}` — код, вклеенный в шаблон, — НЕ ловится. Отличить его от
- *         законной вставки имени или числа структурно нельзя.
+ *      4. Свободная строка вида `Ошибка: ${код}` БЕЗ чтения по словарю рядом — НЕ ловится:
+ *         отличить её от законной вставки имени или числа структурно нельзя. Если словарь читается
+ *         той же строкой (`СЛОВАРЬ[код] ?? …`), шаблон и склейка через `+` ловятся с 13.09.
  *      5. `message: код`, где значение — переменная (не константа модуля), НЕ ловится.
  *      6. `String(data.error)` и чтение сырого `.code` (а не `.error`) внутри показа НЕ ловятся.
  *      7. Сырое `.error` проверяется только в аргументе `toast.*`; то же значение, положенное в
  *         `setError(...)`/`showError(...)`, правило G3 не видит.
  *      8. G5 не видит стрелочную функцию с неявным возвратом тернарника, `return String(param)`
  *         и `` return `Ошибка: ${param}` `` — названо вторым аудитом, не закрыто.
+ *      9. Чтение по словарю, поднятое СТРОКОЙ ВЫШЕ, разрывает связь ключа и запасного варианта:
+ *         `const label = СЛОВАРЬ[код];` + `setError(label ?? `… ${код}`)` НЕ ловится. Правило
+ *         сопоставляет выражения, а не значения, и через присваивание не ходит.
+ *     10. Ключ, к которому применили метод (`код.toUpperCase()`) или который прочитали под другим
+ *         именем (`const r = data.error;` … `${data.error}`), в запасном варианте НЕ ловится.
+ *    Пункты 9-10 названы четвёртым адверсарным аудитом 13.09 собственными обходами и НЕ закрыты.
  *    Ни одно из этих ограничений не «когда-нибудь»: это то, что сторож пропустит СЕГОДНЯ.
  */
 import { readdirSync, readFileSync } from 'node:fs';
@@ -535,15 +542,52 @@ function dictionaryFallbackToKeyLeaks(node, sf) {
   collectReads(node.left);
   if (readKeys.length === 0) return undefined;
 
-  const fallback = nameOf(node.right);
-  if (fallback && readKeys.includes(fallback)) return node;
+  // Запасной вариант выдаёт ключ: сам по себе, в шаблонной строке или склеенный через `+`.
+  // Человеку от обёртки не легче — в скобках он читает машинное слово. Дыра была живой: так были
+  // написаны три подписи в платёжной панели платформы.
+  return leaksKeyValue(node.right, readKeys, sf) ? node : undefined;
+}
 
-  // `СЛОВАРЬ[код] ?? `Счёт не выставлен (${код}).`` — тот же дефект, просто код обёрнут в текст.
-  // Человеку от этого не легче: в скобках он читает машинное слово. Дыра была живой: так были
-  // написаны три подписи в платёжной панели платформы, и гейт их не видел, потому что запасным
-  // вариантом была не переменная, а шаблонная строка.
-  if (templateInterpolates(unwrap(node.right), readKeys, sf)) return node;
-  return undefined;
+/**
+ * Утекает ли ключ в этом выражении: сам по себе, в шаблонной строке или склеенный через `+`.
+ *
+ * Четвёртый адверсарный аудит показал, что расширение на шаблонную строку закрыло ровно одно
+ * написание из десятка: `'Счёт не выставлен (' + code + ').'` проходил мимо, хотя это ровно тот
+ * же экран и то же машинное слово в скобках.
+ */
+function leaksKeyValue(expr, names, sf) {
+  if (!expr) return false;
+  const x = unwrapValue(expr);
+  const name = ts.isIdentifier(x)
+    ? x.text
+    : ts.isPropertyAccessExpression(x) || ts.isPropertyAccessChain(x)
+      ? x.getText(sf)
+      : undefined;
+  if (name !== undefined && names.includes(name)) return true;
+  if (templateInterpolates(x, names, sf)) return true;
+  // Склейка через `+`: достаточно, чтобы ключ был ХОТЬ ОДНИМ слагаемым.
+  if (ts.isBinaryExpression(x) && x.operatorToken.kind === ts.SyntaxKind.PlusToken) {
+    return leaksKeyValue(x.left, names, sf) || leaksKeyValue(x.right, names, sf);
+  }
+  return false;
+}
+
+/** Снятие обёрток, не меняющих значения: скобки, касты, `String(...)`. */
+function unwrapValue(e) {
+  let x = e;
+  for (;;) {
+    if (ts.isParenthesizedExpression(x)) x = x.expression;
+    else if (ts.isAsExpression(x) || ts.isTypeAssertionExpression(x) || ts.isNonNullExpression(x)) {
+      x = x.expression;
+    } else if (
+      ts.isCallExpression(x) &&
+      ts.isIdentifier(x.expression) &&
+      x.expression.text === 'String' &&
+      x.arguments.length === 1
+    ) {
+      x = x.arguments[0];
+    } else return x;
+  }
 }
 
 /** Шаблонная строка, в которую подставлено одно из перечисленных имён. */
@@ -578,25 +622,54 @@ function templateInterpolates(expr, names, sf) {
  */
 function dictionaryTernaryToKeyLeaks(node, sf) {
   if (!ts.isConditionalExpression(node)) return undefined;
-  const cond = node.condition;
-  if (
-    !ts.isBinaryExpression(cond) ||
-    cond.operatorToken.kind !== ts.SyntaxKind.InKeyword ||
-    !ts.isIdentifier(cond.left)
-  ) {
-    return undefined;
+  const cond = unwrapValue(node.condition);
+
+  // Ключи, по которым условие спрашивает словарь. Четвёртый аудит показал, что форма `in` —
+  // лишь одно из написаний одной мысли «есть ли подпись для этого кода»; живые варианты:
+  //   `код in СЛОВАРЬ ? … : код`
+  //   `СЛОВАРЬ[код] !== undefined ? СЛОВАРЬ[код] : …`
+  //   `СЛОВАРЬ[код] ? СЛОВАРЬ[код] : …`
+  const keys = [];
+  if (ts.isBinaryExpression(cond) && cond.operatorToken.kind === ts.SyntaxKind.InKeyword) {
+    const left = unwrapValue(cond.left);
+    if (ts.isIdentifier(left)) keys.push(left.text);
+    else if (ts.isPropertyAccessExpression(left)) keys.push(left.getText(sf));
+  } else {
+    const tested =
+      ts.isBinaryExpression(cond) &&
+      (cond.operatorToken.kind === ts.SyntaxKind.ExclamationEqualsEqualsToken ||
+        cond.operatorToken.kind === ts.SyntaxKind.ExclamationEqualsToken ||
+        cond.operatorToken.kind === ts.SyntaxKind.EqualsEqualsEqualsToken ||
+        cond.operatorToken.kind === ts.SyntaxKind.EqualsEqualsToken)
+        ? unwrapValue(cond.left)
+        : cond;
+    const key = dictionaryReadKey(tested, sf);
+    if (key) keys.push(key);
   }
-  const key = cond.left.text;
-  const whenFalse = node.whenFalse;
-  const bare =
-    (ts.isIdentifier(whenFalse) && whenFalse.text === key) ||
-    (ts.isCallExpression(whenFalse) &&
-      ts.isIdentifier(whenFalse.expression) &&
-      whenFalse.expression.text === 'String' &&
-      whenFalse.arguments.length === 1 &&
-      ts.isIdentifier(whenFalse.arguments[0]) &&
-      whenFalse.arguments[0].text === key);
-  return bare ? node : undefined;
+  if (keys.length === 0) return undefined;
+
+  return leaksKeyValue(node.whenFalse, keys, sf) ? node : undefined;
+}
+
+/** Имя ключа, если выражение — чтение по словарю: `M[k]`, `M?.[k]`, `map.get(k)`. */
+function dictionaryReadKey(expr, sf) {
+  const x = unwrapValue(expr);
+  const nameOf = (e) => {
+    const y = unwrapValue(e);
+    if (ts.isIdentifier(y)) return y.text;
+    if (ts.isPropertyAccessExpression(y) || ts.isPropertyAccessChain(y)) return y.getText(sf);
+    return undefined;
+  };
+  if (ts.isElementAccessExpression(x)) return nameOf(x.argumentExpression);
+  if (
+    ts.isCallExpression(x) &&
+    (ts.isPropertyAccessExpression(x.expression) || ts.isPropertyAccessChain(x.expression)) &&
+    x.expression.name.text === 'get' &&
+    x.arguments.length === 1
+  ) {
+    return nameOf(x.arguments[0]);
+  }
+  return undefined;
 }
 
 
@@ -808,6 +881,18 @@ function selfTest() {
       "setError(ERROR_LABELS[code] ?? `Счёт не выставлен (${code}).`);"],
     ['шаблонная строка с кодом через String()',
       "setError(ERROR_LABELS[code] ?? `Отказ: ${String(code)}`);"],
+    // Четвёртый адверсарный аудит: правило закрывало ровно одно написание из десятка. Ниже —
+    // формы, которые аудитор написал сам и которые гейт пропускал.
+    ['код склеен через + вместо шаблона',
+      "setError(ERROR_LABELS[code] ?? 'Счёт не выставлен (' + code + ').');"],
+    ['тернарник на !== undefined вместо in',
+      "setError(ERROR_LABELS[code] !== undefined ? ERROR_LABELS[code] : `Отказ (${code}).`);"],
+    ['тернарник на истинность значения',
+      "setError(ERROR_LABELS[code] ? ERROR_LABELS[code] : `Ошибка (${code})`);"],
+    ['ключ — свойство объекта, тернарник на in',
+      "const unit = quota.unit in UNIT_LABELS ? UNIT_LABELS[quota.unit] : quota.unit;"],
+    ['голый код в whenFalse при проверке значения',
+      "setError(LABELS[code] !== undefined ? LABELS[code] : code);"],
     ['маркер БЕЗ причины не освобождает',
       "// notification-text-gate: не подпись для человека —\nsetError(ERROR_LABELS[code] ?? code);"],
     ['маркер через строку (не вплотную) не освобождает',

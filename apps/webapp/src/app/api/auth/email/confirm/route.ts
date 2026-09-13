@@ -102,7 +102,7 @@ function errMsg(code: string): string {
     case 'rate_limited':
       return notificationText.authTooManyAttempts;
     case 'email_conflict':
-      return 'Этот email уже используется другим аккаунтом';
+      return notificationText.authEmailBelongsToAnotherAccount;
     default:
       return notificationText.authConfirmationFailed;
   }

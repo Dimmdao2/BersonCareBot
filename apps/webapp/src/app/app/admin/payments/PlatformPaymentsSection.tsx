@@ -899,7 +899,7 @@ export function PlatformPaymentsSection({ displayTimeZone }: { displayTimeZone: 
           <div>
             <CardTitle className="text-base">Платежи</CardTitle>
             <CardDescription>
-              Счета организаций за тариф из нашего журнала (`saas_billing_invoices`).
+              Счета организаций за тариф — из нашего журнала, а не из ответа провайдера.
             </CardDescription>
           </div>
           <CardAction>

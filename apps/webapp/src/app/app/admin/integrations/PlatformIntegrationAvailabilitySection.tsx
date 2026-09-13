@@ -75,7 +75,7 @@ export function PlatformIntegrationAvailabilitySection() {
   return (
     <DoctorSection id="platform-integration-availability">
       <DoctorSectionHeader>
-        <DoctorSectionTitle>Доступность интеграций для организик</DoctorSectionTitle>
+        <DoctorSectionTitle>Доступность интеграций для организаций</DoctorSectionTitle>
       </DoctorSectionHeader>
       <p className="text-sm text-muted-foreground">
         Глобальный рубильник определяет, существует ли интеграция вообще. Выключенная интеграция не

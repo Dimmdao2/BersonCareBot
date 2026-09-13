@@ -12,7 +12,7 @@ export function mapBookingCreateErrorCodeToRu(code: string | undefined): string 
     return 'Не удалось подтвердить запись. Попробуйте еще раз.';
   }
   if (code === 'branch_service_not_found') {
-    return 'Услуга или специалист недоступны.';
+    return 'Услуга или специалист недоступны. Вернитесь назад и выберите услугу снова.';
   }
   if (code === 'city_mismatch') {
     return 'Город не совпадает с выбранной услугой.';

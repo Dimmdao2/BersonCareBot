@@ -129,6 +129,24 @@ export const isPublicBookingConfirmRateLimited = createSlidingWindowRateLimit({
 });
 
 /**
+ * Общий на ВСЕ двери регистрации потолок «один старт на адрес в минуту» (ключ — сам адрес).
+ *
+ * Стоит в самом начале маршрута, ДО любой проверки, есть ли такой аккаунт. Без него оставался
+ * оракул перечисления, который нашёл четвёртый адверсарный аудит: свободный адрес на втором
+ * отправлении внутри минуты получал 429 от кулдауна `startEmailChallenge`, а занятый — ровно тот
+ * же нейтральный 200, потому что по нему кода никто не создаёт и кулдаун не тратится. Разница
+ * ответов на двойной отправке и есть ответ на вопрос «есть ли тут аккаунт». Теперь на второй
+ * отправке оба адреса получают один и тот же 429.
+ */
+export const isSignupStartRateLimitedByEmail = createSlidingWindowRateLimit({
+  scope: 'auth.signup_start',
+  windowMs: 60 * 1000,
+  maxPerWindow: 1,
+  db: authRateLimitDb,
+  scopePrune: { retentionMs: 60 * 60 * 1000, intervalMs: 5 * 60 * 1000, batchSize: 500 },
+});
+
+/**
  * Потолок на письмо «кто-то пытается зарегистрироваться на ваш email» (ключ — сам адрес).
  * Форма регистрации специалиста отвечает успехом всегда, поэтому отправку может дёргать кто
  * угодно; без этого потолка чужой ящик можно было бы завалить письмами через нашу форму.
@@ -138,6 +156,8 @@ export const isSpecialistSignupDuplicateNoticeRateLimitedByKey = createSlidingWi
   windowMs: 24 * 60 * 60 * 1000,
   maxPerWindow: 3,
   db: authRateLimitDb,
+  // Окно суточное — без подчистки строки копятся сутками (замечание аудита N13).
+  scopePrune: { retentionMs: 24 * 60 * 60 * 1000, intervalMs: 60 * 60 * 1000, batchSize: 500 },
 });
 
 export const isPatientInviteExchangeRateLimitedByKey = createSlidingWindowRateLimit({

@@ -252,6 +252,8 @@ type AuthFlowV2Props = {
   /** Пользователь начал интерактивный вход (OAuth / телефон / код) — не перехватывать UI поздним initData. */
   onInteractiveLoginEngaged?: () => void;
   roleLoginPortal?: RoleLoginPortal | null;
+  /** Прямая ссылка на восстановление пароля (`?recover=1`) — открывает экран email+пароль. */
+  openPasswordRecovery?: boolean;
   /** Proxy-resolved surface capabilities; absent only for isolated legacy callers. */
   surfaceAuthPolicy?: SurfaceAuthPolicy;
   /** Opens email directly while retaining OAuth/passkey as available alternatives. */
@@ -266,6 +268,7 @@ export function AuthFlowV2({
   initialDevView,
   onInteractiveLoginEngaged,
   roleLoginPortal = null,
+  openPasswordRecovery = false,
   surfaceAuthPolicy,
   preferEmailEntry = false,
 }: AuthFlowV2Props) {
@@ -381,6 +384,14 @@ export function AuthFlowV2({
     setOauthProviders(oauth);
     const oauthOn = hasAnyOAuthProvider(oauth) || passkeyEnabled;
     if (!emailOtpEnabled && passwordLoginEnabled) setEmailAuthMode('password_login');
+    // `?recover=1` — человек пришёл по ссылке из письма «кто-то пытается зарегистрироваться на
+    // ваш email». Ему нужен экран email+пароль, где стоит «Забыли пароль?»; сам код мы не
+    // запрашиваем — отправку кода человек начинает сам, нажав кнопку.
+    if (openPasswordRecovery && passwordLoginEnabled) {
+      setEmailAuthMode('password_login');
+      setStep('email_password');
+      return;
+    }
     setStep(
       preferEmailEntry && (emailOtpEnabled || passwordLoginEnabled)
         ? 'email_password'
@@ -392,6 +403,7 @@ export function AuthFlowV2({
     prefetchedAuthConfig,
     emailOtpEnabled,
     messengerPhoneEnabled,
+    openPasswordRecovery,
     passkeyEnabled,
     passwordLoginEnabled,
     preferEmailEntry,

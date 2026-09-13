@@ -104,9 +104,9 @@ describe('clinic-owner booking form field mutation', () => {
     const body = (await response.json()) as { error?: string; message?: string };
 
     expect(response.status).toBe(400);
-    expect(body.message).toBe(
-      'Данные введены неверно. Проверьте их и повторите действие.',
-    );
+    // Формулировка не проверяется: тестов на тексты в этом репозитории быть не должно
+    // (владелец 13.09). Проверяется контракт — маршрут отказал и назвал машинный код.
+    expect(body.error).toBe('invalid_body');
   });
 
   it('redacts a missing insert capability as a specific safe service error', async () => {

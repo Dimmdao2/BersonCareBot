@@ -26,8 +26,16 @@ export function specialistSignupDuplicateNoticeText(recoveryUrl: string): string
   ].join('\n\n');
 }
 
+/**
+ * Дверь ВОССТАНОВЛЕНИЯ пароля, а не регистрации.
+ *
+ * Четвёртый адверсарный аудит поймал здесь прямую ложь: ссылка вела на `?intent=specialist`, то
+ * есть на форму регистрации — ровно ту, которая человеку только что отказала, — при том что в
+ * письме написано «восстановите пароль по ссылке». `?recover=1` открывает вход email+пароль, где
+ * стоит кнопка «Забыли пароль?»; код человек запрашивает сам.
+ */
 export function specialistSignupRecoveryUrl(baseUrl: string): string {
-  return `${baseUrl.replace(/\/$/, '')}/app?intent=specialist`;
+  return `${baseUrl.replace(/\/$/, '')}/app/doctor/login?recover=1`;
 }
 
 type SendResult = { ok: true } | { ok: false; error: string };
