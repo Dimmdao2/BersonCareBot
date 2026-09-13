@@ -639,6 +639,7 @@ note 'execute: capturing DEV-owned environment state'
 # the same way migrate-dev.sh and reconcile-access.mjs already do it.
 run_tracked sudo -n -u postgres psql -X -h "$ADMIN_SOCKET" -p "$ADMIN_PORT" -d "$TARGET_DB" \
   -v ON_ERROR_STOP=1 \
+  -v target_database="$TARGET_DB" \
   -v dev_owned_key_file="$DEV_OWNED_KEY_FILE" \
   -v registry_key_file="$REGISTRY_KEY_FILE" \
   -v settings_out="$DEV_SETTINGS" \
@@ -676,6 +677,7 @@ restore_target_from_archive "$TEST_TRANSPORT" --no-owner --no-acl
 note 'execute: returning DEV-owned environment state'
 run_tracked sudo -n -u postgres psql -X -h "$ADMIN_SOCKET" -p "$ADMIN_PORT" -d "$TARGET_DB" \
   -v ON_ERROR_STOP=1 \
+  -v target_database="$TARGET_DB" \
   -v dev_owned_key_file="$DEV_OWNED_KEY_FILE" \
   -v registry_key_file="$REGISTRY_KEY_FILE" \
   -v settings_in="$DEV_SETTINGS" \

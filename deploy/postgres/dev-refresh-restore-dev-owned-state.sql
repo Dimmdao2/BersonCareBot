@@ -22,11 +22,22 @@
 -- organization does not exist in the accepted TEST data. See the policy note at step 2 -- it is a
 -- named, counted, asserted decision, not an accident, and the count leaves through :absent_org_out.
 --
+-- The same primitive serves the owner-gated TEST -> PROD load
+-- (deploy/host/prod/load-prod-db-from-test.sh) — see the note in the capture file it pairs with.
+-- The target is named by the caller in :target_database; the in-transaction guard below still
+-- refuses any other database.
+--
 -- Required psql variables:
---   dev_owned_key_file, registry_key_file, settings_in, signing_secret_in, dev_had_signing_secret,
---   absent_org_out
+--   target_database, dev_owned_key_file, registry_key_file, settings_in, signing_secret_in,
+--   dev_had_signing_secret, absent_org_out
 -- =============================================================================
 \set ON_ERROR_STOP on
+
+\if :{?target_database}
+\else
+\warn 'FATAL: target_database is required'
+SELECT 1 / 0 AS missing_target_database;
+\endif
 
 \if :{?dev_owned_key_file}
 \else
@@ -69,7 +80,7 @@ SELECT 1 / 0 AS invalid_dev_had_signing_secret;
 
 BEGIN;
 
-SELECT 1 / (current_database() = 'bcb_webapp_dev')::int AS restore_target_is_dev;
+SELECT 1 / (current_database() = :'target_database')::int AS restore_target_is_the_named_target;
 
 -- 1. Active TEST environment lock trigger.
 DROP TRIGGER IF EXISTS system_settings_test_lock ON public.system_settings;

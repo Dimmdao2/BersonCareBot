@@ -16,10 +16,24 @@
 -- A row is DEV-owned when its key is in the first list, or when its key is absent from the second
 -- (a key the registry does not classify is not product state, so DEV keeps its own row).
 --
+-- The same primitive serves the owner-gated TEST -> PROD load
+-- (deploy/host/prod/load-prod-db-from-test.sh): the question it answers — "which rows of this
+-- database are environment-owned and must survive a swap of product data" — is the same question on
+-- either target, and a second copy of this file for prod would be the next place to drift. The
+-- target is therefore named by the caller in :target_database instead of being a constant here, and
+-- the guard below still refuses to write a byte if the open connection is any other database.
+--
 -- Required psql variables:
---   dev_owned_key_file, registry_key_file, settings_out, signing_secret_out, has_signing_secret_out
+--   target_database, dev_owned_key_file, registry_key_file, settings_out, signing_secret_out,
+--   has_signing_secret_out
 -- =============================================================================
 \set ON_ERROR_STOP on
+
+\if :{?target_database}
+\else
+\warn 'FATAL: target_database is required'
+SELECT 1 / 0 AS missing_target_database;
+\endif
 
 \if :{?dev_owned_key_file}
 \else
@@ -47,8 +61,8 @@ SELECT 1 / 0 AS missing_signing_secret_out;
 SELECT 1 / 0 AS missing_has_signing_secret_out;
 \endif
 
--- Fail before writing anything if this is not the exact DEV target.
-SELECT 1 / (current_database() = 'bcb_webapp_dev')::int AS capture_target_is_dev;
+-- Fail before writing anything if this is not the exact target the caller named.
+SELECT 1 / (current_database() = :'target_database')::int AS capture_target_is_the_named_target;
 
 CREATE TEMP TABLE dev_owned_static_key (key text PRIMARY KEY);
 COPY dev_owned_static_key FROM :'dev_owned_key_file';
