@@ -111,12 +111,17 @@ describe('GET /api/admin/notification-templates', () => {
     );
 
     expect(response.status).toBe(403);
-    await expect(response.json()).resolves.toEqual({
+    const body = await response.json();
+    expect(body).toMatchObject({
       ok: false,
       error: 'mechanic_write_clearance_required',
       mechanic: 'branding',
-      message:
-        'Сохранение платформенного шаблона недоступно: запрос попал в тарифную дверь клиники.',
     });
+    // Платформенный шаблон не должен был попасть в тарифную дверь клиники — это дефект, поэтому
+    // человек получает объяснение и код для поддержки. Текст закреплён целиком, свободен только
+    // сам код: он вычисляется из ошибки и в каждом прогоне свой.
+    expect(body.message).toMatch(
+      /^Не удалось сохранить платформенный шаблон: запрос ошибочно попал в проверку тарифа клиники\. Код для поддержки: [0-9a-f]{6,}$/u,
+    );
   });
 });

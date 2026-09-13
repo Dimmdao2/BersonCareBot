@@ -71,7 +71,7 @@ describe('postProgramItemComplete', () => {
 
     await expect(postProgramItemComplete({ base: '/items', itemId: 'item-id' })).resolves.toEqual({
       ok: false,
-      error: 'Не удалось отметить выполнение',
+      error: 'Не удалось отметить выполнение. Повторите попытку.',
     });
   });
 
@@ -80,6 +80,6 @@ describe('postProgramItemComplete', () => {
 
     await expect(patchProgramItemCompletionMetrics({
       base: '/items', itemId: 'item-id', completionId: 'completion-id', payload: {},
-    })).resolves.toEqual({ ok: false, error: 'Не удалось сохранить параметры' });
+    })).resolves.toEqual({ ok: false, error: 'Не удалось сохранить параметры. Повторите попытку.' });
   });
 });
