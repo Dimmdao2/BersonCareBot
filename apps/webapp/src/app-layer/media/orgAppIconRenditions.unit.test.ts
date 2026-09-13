@@ -26,7 +26,7 @@ vi.mock('@/app-layer/media/s3Client', () => ({
   s3HeadObject: mocks.head,
   s3PutObjectBody: mocks.put,
 }));
-vi.mock('@/infra/s3/deliveryClient', () => ({
+vi.mock('@/app-layer/media/s3DeliveryClient', () => ({
   deliveryGetPrivateObjectBuffer: mocks.read,
 }));
 vi.mock('@/modules/media/orgAppIconRenditions', async () => {

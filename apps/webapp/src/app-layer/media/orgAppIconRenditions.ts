@@ -1,7 +1,7 @@
 import { logger } from '@/app-layer/logging/logger';
 import { getOrgAppIconRenditionSource } from '@/app-layer/media/s3MediaStorage';
 import { s3HeadObject, s3PutObjectBody } from '@/app-layer/media/s3Client';
-import { deliveryGetPrivateObjectBuffer } from '@/infra/s3/deliveryClient';
+import { deliveryGetPrivateObjectBuffer } from '@/app-layer/media/s3DeliveryClient';
 import {
   encodeOrgAppIconRenditions,
   OrgAppIconSourceRejected,
@@ -23,8 +23,10 @@ import {
  * ВХОД — НАШ СОБСТВЕННЫЙ ВЫВОД, НЕ ЗАГРУЖЕННЫЙ ФАЙЛ (коррекция 14.09.2026 по правилу владельца:
  * «сырой исходник мы не трогаем в бою вообще… нет конвертации — ждём и видим, что файл
  * готовится»). Размеры режутся из `media/<id>/standard.webp`, который сделал изолированный
- * медиа-воркер, и читаются hot-only способностью `deliveryGetPrivateObjectBuffer`: сырой бакет из
- * этого модуля недостижим по построению, `StorageKind` через её сигнатуру не передать.
+ * медиа-воркер, и читаются hot-only способностью `deliveryGetPrivateObjectBuffer` через её
+ * app-layer порт `s3DeliveryClient` (второй и последний порт над `infra/s3`, гейт
+ * `check-media-upload-door.mjs` держит это в одном файле): сырой бакет из этого модуля недостижим
+ * по построению — `StorageKind` через сигнатуру способности не передать.
  *
  * До 14.09.2026 здесь стояло обратное: `getMediaOriginalObjectForDownload` тянул сырые байты из
  * холодного бакета в память процесса вебаппа и отдавал их `sharp`. Так чинили «у свежей иконки
