@@ -1,6 +1,12 @@
 /**
- * GET /api/doctor/clients/:userId/merge-candidates — canonical clients that may duplicate the anchor
- * (shared phone, email, or messenger binding). Admin + admin mode only.
+ * GET /api/admin/account-merge/:userId/candidates — канонические клиенты, которые могут быть дублями
+ * якоря: общий телефон, email или привязка мессенджера. Только сессия админа платформы.
+ *
+ * Переехал 13.09 из `api/doctor/clients/[userId]/merge-candidates` (#1110): инструмент админа
+ * платформы не должен лежать в пространстве маршрутов врача.
+ *
+ * Дверь узкая по построению — она не ищет по всей базе, а отвечает только теми, кто УЖЕ делит с якорем
+ * сильный идентификатор. Нужна, когда в строке журнала конфликтов кандидатов больше двух.
  */
 import { NextResponse } from 'next/server';
 import { z } from 'zod';

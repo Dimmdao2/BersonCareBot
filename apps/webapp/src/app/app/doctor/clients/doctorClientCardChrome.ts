@@ -2,9 +2,6 @@
 
 // -- Entity card shell (§9) ----------------------------------------------------
 
-/** Outer article shell for ClientProfileCard. */
-export const doctorClientProfileCardClass = 'rounded-lg border border-border bg-card shadow-sm';
-
 /** Sticky wrapper for care bar + optional action strip. */
 export const doctorClientProfileStickyShellClass =
   'md:sticky md:top-[var(--doctor-sticky-offset,0px)] md:z-10';

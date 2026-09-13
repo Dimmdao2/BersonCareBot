@@ -1,8 +1,12 @@
 /**
- * Pure helpers for admin manual merge UI — aligned with merge-preview JSON and ManualMergeResolution.
+ * Чистые помощники экрана объединения учётных записей в консоли платформы: разбор ответа
+ * `GET /api/admin/account-merge/preview` и сборка `ManualMergeResolution` для
+ * `POST /api/admin/account-merge/apply`.
+ *
+ * Переехали 13.09 из `app/app/doctor/clients/adminMergeAccountsLogic.ts` (#1110). Здесь нет ни поиска
+ * людей, ни терминологии кабинета врача — только разбор ОДНОЙ пары, которую назвал журнал конфликтов.
  */
 import type { ManualMergeResolution } from '@/infra/repos/manualMergeResolution';
-import type { PatientTerms } from '@/modules/system-settings/patientTerms';
 
 export type MergePreviewApiProfile = {
   id: string;
@@ -238,58 +242,57 @@ export function canSubmitManualMerge(
   return isOauthResolutionComplete(preview, resolution);
 }
 
+/**
+ * Причины, по которым пару нельзя объединить, человеческими словами.
+ *
+ * Переписано 13.09 при переезде в консоль платформы: прежние подписи печатали имена таблиц и функций
+ * (`merged_into_id`, `patient_bookings`, `patient_lfk_assignments`, `treatment_program_instances`,
+ * `test_attempts`, `assertSharedPhoneGuard`, «cooperator snapshot», «merge guard»). Человек, который
+ * это читает, устройства базы не знает; ему нужно понять, что мешает и что с этим делать.
+ */
 const BLOCKER_RU: Record<string, { title: string; detail: string }> = {
   target_is_alias: {
-    title: 'Целевая запись — уже алиас merge',
+    title: 'Основная карточка уже объединена с другой',
     detail:
-      'У выбранной «канонической» стороны уже заполнен merged_into_id. Сначала разрешите цепочку merge или выберите другую пару.',
+      'Её данные уже перенесены в третью карточку. Сначала разберитесь с той цепочкой или выберите другую пару.',
   },
   duplicate_is_alias: {
-    title: 'Вторая запись — уже алиас merge',
+    title: 'Вторая карточка уже объединена с другой',
     detail:
-      'У дубликата уже заполнен merged_into_id. Объединять можно только две канонические строки (merged_into_id IS NULL).',
+      'Её данные уже перенесены в третью карточку. Объединять можно только две самостоятельные карточки.',
   },
   active_bookings_time_overlap: {
-    title: 'Пересечение активных записей по времени',
+    title: 'Записи на приём пересекаются по времени',
     detail:
-      'У пары есть пересекающиеся по времени активные patient_bookings с тем же правилом cooperator snapshot, что и в merge guard. Разрулите записи вручную или снимите конфликт расписания.',
+      'У этих двух карточек есть активные записи, попадающие на одно и то же время. Перенесите или отмените одну из них, потом возвращайтесь.',
   },
   active_lfk_template_conflict: {
-    title: 'Конфликт активных назначений ЛФК',
+    title: 'Один и тот же комплекс ЛФК назначен дважды',
     detail:
-      'На обоих пользователях есть активные patient_lfk_assignments с одним и тем же template_id.',
+      'Обеим карточкам активно назначен один комплекс. Снимите назначение с одной из них, потом возвращайтесь.',
   },
   active_treatment_program_conflict: {
-    title: 'Конфликт активных программ лечения',
+    title: 'Две активные программы лечения',
     detail:
-      'На обоих пользователях есть активная treatment_program_instances (допускается только одна active на пациента).',
+      'Активная программа лечения есть у обеих карточек, а у человека она может быть только одна. Завершите или отмените одну из них.',
   },
   open_test_attempt_conflict: {
-    title: 'Конфликт открытых попыток тестирования',
+    title: 'Незавершённое прохождение теста с обеих сторон',
     detail:
-      'На обоих пользователях есть незавершённая test_attempts по одному и тому же пункту программы.',
+      'Один и тот же пункт программы начат и не закончен в обеих карточках. Дождитесь завершения или отмените одно прохождение.',
   },
   shared_phone_both_have_meaningful_data: {
-    title: 'Один телефон, у обоих есть значимые данные',
+    title: 'Один телефон, и данные есть у обеих карточек',
     detail:
-      'Одинаковый нормализованный телефон и на обоих счётчики meaningful data > 0 (как в assertSharedPhoneGuard). Merge заблокирован.',
+      'Телефон совпадает, но и там и там уже накоплены данные — автоматически решить, что чьё, нельзя. Такую пару разбирают вручную.',
   },
 };
 
-export function hardBlockerUi(
-  code: string,
-  terms: Pick<PatientTerms, 'patientGenitive'>,
-): { title: string; detail: string } {
-  if (code === 'active_treatment_program_conflict') {
-    return {
-      title: 'Конфликт активных программ лечения',
-      detail: `На обоих пользователях есть активная treatment_program_instances (допускается только одна active на ${terms.patientGenitive}).`,
-    };
-  }
+export function hardBlockerUi(code: string): { title: string; detail: string } {
   return (
     BLOCKER_RU[code] ?? {
-      title: code,
-      detail: 'Операция merge недоступна для этой пары до снятия блокировки.',
+      title: 'Объединение недоступно',
+      detail: 'Для этой пары есть препятствие, которое нужно снять до объединения.',
     }
   );
 }
