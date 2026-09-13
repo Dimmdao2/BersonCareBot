@@ -1754,8 +1754,33 @@ test('tenant service has one command-aware D/M/P policy for every exact relation
     }
   }
 
-  assert.equal(expectedEdges.size, 128, 'measured exact tenant operation census changed');
-  assert.equal(tenantRelations.size, 60, 'measured exact tenant relation census changed');
+  // The deepEqual below compares every declared app_tenant_service operation against the
+  // rev10_tenant_* policy that must exist for it. It cannot see both sides collapsing together, and
+  // — this is the part an earlier revision of this comment got wrong — it is NOT "derived on both
+  // sides": declaration.ts builds the rev10_tenant_* policies from REV10_CLINICAL_ACCESS, the very
+  // object these expectations are read from. One source printed twice. Delete a tenant grant and
+  // both sets lose the same edge, so the comparison stays green by construction. The size assertions
+  // are the only independent anchor there is.
+  //
+  // They are a RATCHET pinned to the real figure, not a floor at half of it. An independent audit
+  // (13.09) proved the difference: removing ONE app_tenant_service DELETE grant left the whole
+  // 380-test suite green under a floor of 64/32, and removing forty grants — 46.7% of the tenant
+  // wall — still passed. The same audit re-read the history the previous revision cited as "retyped
+  // six times without ever catching anything": five of those seven edits moved the number DOWN.
+  // Every one of them was this guard firing on a shrinking wall, answered by retyping the number
+  // instead of asking why the wall shrank. The guard worked; the reaction to it did not.
+  //
+  // Adding an ordinary tenant table raises the real figure and cannot make this red — that was the
+  // whole complaint, and a ratchet answers it. A number that has to come DOWN means tenant grants
+  // disappeared: find out which and why before touching this line.
+  assert.ok(expectedEdges.size >= 128,
+    `tenant operation census collapsed to ${expectedEdges.size} declared edges: `
+    + 'app_tenant_service grants disappeared from the declaration, and the comparison below cannot '
+    + 'see it because both of its sides come from the same object');
+  assert.ok(tenantRelations.size >= 60,
+    `tenant relation census collapsed to ${tenantRelations.size} relations carrying a rev10_tenant_* `
+    + 'policy: relations dropped out of the D/M/P wall, and the comparison below cannot see it '
+    + 'because both of its sides come from the same object');
   assert.deepEqual(actualEdges, expectedEdges);
 });
 

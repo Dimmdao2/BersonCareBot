@@ -11,7 +11,15 @@ const standaloneSharp = path.join(standaloneRoot, 'node_modules/.pnpm/node_modul
 const require = createRequire(import.meta.url);
 const sharp = require(standaloneSharp);
 
-assert.equal(sharp.versions.sharp, '0.35.3');
+/**
+ * No version equality here on purpose.
+ *
+ * What this script exists to prove is that the copy of sharp bundled into `.next/standalone`
+ * actually decodes and re-encodes images at runtime — that the native binding resolved. A pinned
+ * `assert.equal(sharp.versions.sharp, '0.35.3')` proves nothing about that and goes red on every
+ * routine bump (the repo has since moved to 0.35.4 via the root `pnpm.overrides`), repairable only
+ * by retyping the number. The encode/rotate/resize probe below fails for the real reason instead.
+ */
 
 const original = await sharp({
   create: {

@@ -154,11 +154,13 @@ const CLASS_DEFAULT_WALL: ClassDefaultWallMap = {
  * Executable function census restored from evidence/25 + evidence/30 and independently
  * reconciled with the PostgreSQL 16 TEST/DEV catalogs on 2026-08-11.
  *
- * The evidence census had 244 SECURITY DEFINER functions. Three obsolete context roots
+ * The evidence census had 244 SECURITY DEFINER functions — a fixed historical figure, not a claim
+ * about what this file holds now. Of those, three obsolete context roots
  * (install_signed_context/release_principal_context/reset_principal_context) are intentionally
- * absent. The three surviving scalar accessors are supplied by REV10_CONTEXT; the four legacy
- * rate-limit components are replaced by one atomic root, leaving 235
- * business/trigger roots here. Relation surfaces are lexical upper bounds and are not grants.
+ * absent, the three surviving scalar accessors are supplied by REV10_CONTEXT, and the four legacy
+ * rate-limit components were replaced by one atomic root. What this census holds TODAY is computed,
+ * never typed: `BUSINESS_SEAM_STATS.functions`. Relation surfaces are lexical upper bounds and are
+ * not grants.
  *
  * `app.read_integrator_auth_channel_setting(text)` was retired (identity cleanup 2026-08-26,
  * together with `user.phone.link`/`app.integrator_bind_bootstrap_channel_phone` — its only
@@ -171,12 +173,12 @@ const CLASS_DEFAULT_WALL: ClassDefaultWallMap = {
  * `patient_reminder_notification_settings(text,text)`, `patient_set_reminder_mute(integer,boolean)`
  * and `patient_set_reminder_muted_until(timestamp with time zone)`. Their canonical successors take
  * `platform_users.id` and are declared in `declaration.ts`; the dropped column is gone from every
- * surviving surface here. Entry count is measured, not narrated:
- * `node -e "import('./deploy/postgres/privileges/function-census.ts').then(m=>console.log(Object.keys(m.BUSINESS_SEAM_FUNCTIONS).length))"`
- * → 221.
+ * surviving surface here. The entry count is MEASURED, never written down: read
+ * `BUSINESS_SEAM_STATS.functions` (it is `Object.keys(BUSINESS_SEAM_FUNCTIONS).length`). This
+ * sentence used to end "→ 221", which no gate verified and which had drifted to 227 unnoticed —
+ * a number narrated in prose is a number that rots silently.
  */
 
-export const LEGACY_DEFINER_CENSUS_COUNT = 244 as const;
 export const OBSOLETE_CONTEXT_SIGNATURES = [
   'app.install_signed_context(text,integer,bigint,uuid,uuid,bigint,text)',
   'app.release_principal_context()',
