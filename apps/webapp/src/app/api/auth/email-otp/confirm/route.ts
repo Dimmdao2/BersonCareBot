@@ -139,7 +139,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: 'portal_access_denied' }, { status: 403 });
   }
 
-  await setSessionFromUser(sessionUser);
+  await setSessionFromUser(sessionUser, 'email_code');
 
   const tz = parsed.data.browserCalendarIana?.trim();
   if (tz) {

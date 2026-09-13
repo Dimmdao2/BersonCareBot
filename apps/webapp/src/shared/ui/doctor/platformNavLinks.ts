@@ -114,6 +114,15 @@ const RAW_PLATFORM_MENU_ITEMS: DoctorMenuLinkItem[] = [
     badgeKey: 'registrationSystemFailures',
     accessTier: 'global_admin',
   },
+  // #1112. Своя безопасность, а не чужая: устройства, с которых входили в ЭТУ учётную запись, и
+  // выход со всех устройств. Чужие входы разбираются на экране входов, и вход туда — из журнала
+  // операций и из карточки учётной записи; пунктом меню он намеренно не является.
+  {
+    id: 'security',
+    label: 'Безопасность',
+    href: '/app/admin/security',
+    accessTier: 'global_admin',
+  },
 ];
 
 /** Flat list of platform destinations, filtered by capability. Never returns nested `.items`. */

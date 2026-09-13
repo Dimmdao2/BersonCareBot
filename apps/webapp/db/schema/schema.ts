@@ -16,6 +16,7 @@ import {
   bigserial,
   primaryKey,
   date,
+  inet,
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { beOrganizations } from './bookingEngine';
@@ -3104,6 +3105,60 @@ export const adminAuditLog = pgTable(
       'admin_audit_log_status_check',
       sql`status = ANY (ARRAY['ok'::text, 'partial_failure'::text, 'error'::text])`,
     ),
+  ],
+);
+
+export const userLoginEvents = pgTable(
+  'user_login_events',
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    userId: uuid('user_id').notNull(),
+    occurredAt: timestamp('occurred_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+    outcome: text().notNull(),
+    failureReason: text('failure_reason'),
+    method: text().notNull(),
+    role: text().notNull(),
+    ip: inet(),
+    userAgent: text('user_agent'),
+    deviceKind: text('device_kind'),
+    os: text(),
+    browser: text(),
+    host: text(),
+    sessionRef: text('session_ref'),
+    deviceId: text('device_id'),
+    country: text(),
+  },
+  (table) => [
+    index('idx_user_login_events_user_occurred').using(
+      'btree',
+      table.userId.asc().nullsLast().op('uuid_ops'),
+      table.occurredAt.desc().nullsFirst().op('timestamptz_ops'),
+    ),
+    index('idx_user_login_events_occurred').using(
+      'btree',
+      table.occurredAt.desc().nullsFirst().op('timestamptz_ops'),
+    ),
+    index('idx_user_login_events_ip_occurred')
+      .using(
+        'btree',
+        table.ip.asc().nullsLast().op('inet_ops'),
+        table.occurredAt.desc().nullsFirst().op('timestamptz_ops'),
+      )
+      .where(sql`(ip IS NOT NULL)`),
+    index('idx_user_login_events_device_occurred')
+      .using(
+        'btree',
+        table.deviceId.asc().nullsLast().op('text_ops'),
+        table.occurredAt.desc().nullsFirst().op('timestamptz_ops'),
+      )
+      .where(sql`(device_id IS NOT NULL)`),
+    foreignKey({
+      columns: [table.userId],
+      foreignColumns: [platformUsers.id],
+      name: 'user_login_events_user_id_fkey',
+    }).onDelete('cascade'),
   ],
 );
 

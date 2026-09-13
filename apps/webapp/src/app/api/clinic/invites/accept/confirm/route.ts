@@ -94,7 +94,7 @@ export async function POST(request: Request) {
   // The current platform role model still promotes a staff invitee to `doctor` in
   // the accept transaction. Clinic authority is deliberately determined from the
   // membership role below, never from this coarse session role.
-  await setSessionFromUser(user);
+  await setSessionFromUser(user, 'invitation');
 
   return jsonOk({
     redirectTo: getRedirectPathForRole('doctor'),

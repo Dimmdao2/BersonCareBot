@@ -99,7 +99,7 @@ export async function POST(request: Request) {
     return response({ ok: false, error: 'server_error' }, 500);
   }
 
-  await setSessionFromUser(user);
+  await setSessionFromUser(user, 'invitation_email');
   (await cookies()).set(PATIENT_ORGANIZATION_PREFERENCE_COOKIE, organizationId, {
     httpOnly: true,
     sameSite: 'lax',

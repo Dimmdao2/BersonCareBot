@@ -96,7 +96,7 @@ export async function POST(request: Request) {
     ? { staffSecurity: { assurance: 'factor_verified', verifiedAt: Math.floor(Date.now() / 1000) } }
     : {};
 
-  await setSessionFromUser(user, sessionOptions);
+  await setSessionFromUser(user, 'passkey', sessionOptions);
   await recordAuthLogin({
     userId,
     entryChannel: 'browser',

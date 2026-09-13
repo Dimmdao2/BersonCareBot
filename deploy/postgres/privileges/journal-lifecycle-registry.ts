@@ -128,6 +128,22 @@ const EVIDENCE_16 = 'evidence/16-journal-retention.md "Правила хране
 export const JOURNAL_LIFECYCLE_REGISTRY: readonly JournalLifecycleEntry[] = [
   // ── swept today by the one db_journal_retention tick ────────────────────────────────────────────
   {
+    table: 'public.user_login_events',
+    why: 'account-compromise investigation: who signed in, from which address and device',
+    userPurge: { kind: 'cascade', column: 'user_id' },
+    orgPurge: { kind: 'not-org-scoped' },
+    terminalStates: [],
+    retention: {
+      kind: 'window',
+      days: 395,
+      pruneTarget: 'user_login_events',
+      basis:
+        '13 months: FSTEC Order No. 21 RSB.3 (3-month floor), PCI DSS 4.0 10.5.1 (12 months), ' +
+        'NIST SP 800-92r1 (13 months), ISO/IEC 27001 A.8.15 (12-month audit practice)',
+    },
+    sweptBy: DB_JOURNAL_RETENTION_JOB,
+  },
+  {
     table: 'app.context_nonce_ledger',
     why: 'replay protection for a signed principal context',
     userPurge: { kind: 'not-user-scoped' },

@@ -1,12 +1,22 @@
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import type { NextRequest, NextResponse } from 'next/server';
 import { env, isProduction } from '@/config/env';
 import type { AppSession, SessionUser } from '@/shared/types/session';
 import { decodeBase64Url, encodeBase64Url } from '@/shared/utils/base64url';
-import { FRESH_LOGIN_COOKIE_NAME, SESSION_COOKIE_NAME } from '@/modules/auth/sessionCookieNames';
+import {
+  DEVICE_MARKER_COOKIE_NAME,
+  FRESH_LOGIN_COOKIE_NAME,
+  SESSION_COOKIE_NAME,
+} from '@/modules/auth/sessionCookieNames';
 
-export { FRESH_LOGIN_COOKIE_NAME, SESSION_COOKIE_NAME } from '@/modules/auth/sessionCookieNames';
+export {
+  DEVICE_MARKER_COOKIE_NAME,
+  FRESH_LOGIN_COOKIE_NAME,
+  SESSION_COOKIE_NAME,
+} from '@/modules/auth/sessionCookieNames';
 const FRESH_LOGIN_COOKIE_MAX_AGE_SEC = 120;
+/** Год: срок жизни метки устройства. Журнал входов всё равно чистится на 395-й день (#1112). */
+const DEVICE_MARKER_COOKIE_MAX_AGE_SEC = 60 * 60 * 24 * 365;
 
 /**
  * Owner ruling (D1, stability plan §Phase 2, 2026-07-24): staff (doctor) and global-admin sessions
@@ -205,9 +215,26 @@ export function buildFreshLoginMarkerCookieOptions() {
   };
 }
 
+/**
+ * Метка устройства живёт дольше любой сессии СОЗНАТЕЛЬНО: человек выходит и входит заново, а
+ * устройство остаётся тем же, и именно это мы хотим показать ему на экране «Безопасность».
+ * `httpOnly` — чтобы её не читал и не подменял скрипт на странице; она не даёт никаких прав, но
+ * подменённая метка врала бы в журнале безопасности, а это хуже, чем её отсутствие.
+ */
+export function buildDeviceMarkerCookieOptions() {
+  return {
+    httpOnly: true as const,
+    sameSite: 'lax' as const,
+    secure: isProduction,
+    path: '/',
+    maxAge: DEVICE_MARKER_COOKIE_MAX_AGE_SEC,
+  };
+}
+
 type CookieWriterOptions =
   | ReturnType<typeof buildSessionCookieOptions>
-  | ReturnType<typeof buildFreshLoginMarkerCookieOptions>;
+  | ReturnType<typeof buildFreshLoginMarkerCookieOptions>
+  | ReturnType<typeof buildDeviceMarkerCookieOptions>;
 
 type CookieWriter = {
   set: (name: string, value: string, options: CookieWriterOptions) => void;
@@ -215,6 +242,26 @@ type CookieWriter = {
 
 export function writeFreshLoginMarkerCookie(cookieStore: CookieWriter): void {
   cookieStore.set(FRESH_LOGIN_COOKIE_NAME, '1', buildFreshLoginMarkerCookieOptions());
+}
+
+/** Метка устройства — 32 знака шестнадцатеричного алфавита; ту же форму проверяет дверь журнала. */
+export function isWellFormedDeviceMarker(value: string | null | undefined): value is string {
+  return typeof value === 'string' && /^[0-9a-f]{32}$/.test(value);
+}
+
+/**
+ * Возвращает метку устройства, при необходимости заведя новую и продлив срок жизни существующей.
+ *
+ * Продление на каждом входе намеренное: у устройства, которым пользуются, метка не истекает, а у
+ * заброшенного она сама уходит через год — держать её вечно незачем.
+ */
+export function ensureDeviceMarkerCookie(
+  cookieStore: CookieWriter & { get: (name: string) => { value: string } | undefined },
+): string {
+  const existing = cookieStore.get(DEVICE_MARKER_COOKIE_NAME)?.value?.trim();
+  const marker = isWellFormedDeviceMarker(existing) ? existing : randomBytes(16).toString('hex');
+  cookieStore.set(DEVICE_MARKER_COOKIE_NAME, marker, buildDeviceMarkerCookieOptions());
+  return marker;
 }
 
 export function clearFreshLoginMarkerCookie(cookieStore: CookieWriter): void {

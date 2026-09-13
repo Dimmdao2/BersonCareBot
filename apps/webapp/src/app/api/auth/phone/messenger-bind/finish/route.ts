@@ -176,7 +176,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, factorRequired: true });
   }
 
-  await deps.auth.setSessionFromUser(sessionUser, prepared.sessionOptions);
+  await deps.auth.setSessionFromUser(sessionUser, 'phone_otp', prepared.sessionOptions);
 
   return NextResponse.json({
     ok: true,

@@ -18,7 +18,7 @@ export function oauthWebLoginErrorRedirect(reason: string): string {
 export async function completeOAuthWebLoginRedirectUrls(opts: {
   userId: string;
   displayNameHint: string;
-  authMethod?: string;
+  authMethod: string;
   userByPhone: UserByPhonePort;
   next?: string | null;
   roleLoginPortal?: RoleLoginPortal | null;
@@ -53,11 +53,14 @@ export async function completeOAuthWebLoginRedirectUrls(opts: {
 
   const hint = opts.displayNameHint.trim();
   try {
-    await setSessionFromUser({
-      ...sessionUser,
-      role,
-      displayName: hint || sessionUser.displayName || sessionUser.phone || opts.userId,
-    });
+    await setSessionFromUser(
+      {
+        ...sessionUser,
+        role,
+        displayName: hint || sessionUser.displayName || sessionUser.phone || opts.userId,
+      },
+      opts.authMethod,
+    );
   } catch {
     return { ok: false, reason: 'session_failed' };
   }
@@ -65,7 +68,7 @@ export async function completeOAuthWebLoginRedirectUrls(opts: {
   await recordAuthLogin({
     userId: opts.userId,
     entryChannel: 'browser',
-    authMethod: opts.authMethod ?? 'oauth_web',
+    authMethod: opts.authMethod,
   });
 
   const finalRedirect = getPostAuthRedirectTarget(

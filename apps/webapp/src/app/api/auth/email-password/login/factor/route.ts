@@ -78,7 +78,7 @@ export async function POST(request: Request) {
     const user = await deps.userByPhone.findByUserId(continuation.userId);
     if (!user)
       return NextResponse.json({ ok: false, error: 'invalid_credentials' }, { status: 401 });
-    await setSessionFromUser(user, {
+    await setSessionFromUser(user, 'second_factor_email_code', {
       ...(continuation.postLoginHints ? { postLoginHints: continuation.postLoginHints } : {}),
       staffSecurity: { assurance: 'factor_verified', verifiedAt: Math.floor(Date.now() / 1000) },
     });
@@ -113,13 +113,17 @@ export async function POST(request: Request) {
     : result.recoveryConfirmed
       ? ('factor_verified' as const)
       : ('recovery_confirmation' as const);
-  await setSessionFromUser(user, {
-    ...(continuation.postLoginHints ? { postLoginHints: continuation.postLoginHints } : {}),
-    staffSecurity: {
-      assurance,
-      verifiedAt: Math.floor(Date.now() / 1000),
+  await setSessionFromUser(
+    user,
+    result.recoveryMode ? 'second_factor_recovery_code' : 'second_factor_totp',
+    {
+      ...(continuation.postLoginHints ? { postLoginHints: continuation.postLoginHints } : {}),
+      staffSecurity: {
+        assurance,
+        verifiedAt: Math.floor(Date.now() / 1000),
+      },
     },
-  });
+  );
   await clearStaffLoginContinuation();
   return NextResponse.json({
     ok: true,

@@ -154,7 +154,7 @@ export async function POST(request: Request) {
     sessionUser = { ...sessionUser, role: reconciledRole };
   }
 
-  await setSessionFromUser(sessionUser);
+  await setSessionFromUser(sessionUser, 'registration_email_code');
 
   await recordAuthRegistrationSuccess({
     ...LOG_BASE,

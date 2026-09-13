@@ -48,6 +48,12 @@ export function createPgJournalRetentionPort(): JournalRetentionPort {
       });
       return { deleted };
     },
+    async pruneUserLoginEvents(days, options?: JournalRetentionPurgeOptions) {
+      const deleted = await pruneRetentionTarget('user_login_events', days, {
+        dryRun: options?.dryRun === true,
+      });
+      return { deleted };
+    },
     async pruneReminderOccurrenceHistoryTerminal(days, options?: JournalRetentionPurgeOptions) {
       const deleted = await pruneRetentionTarget('reminder_occurrence_history_terminal', days, {
         dryRun: options?.dryRun === true,
