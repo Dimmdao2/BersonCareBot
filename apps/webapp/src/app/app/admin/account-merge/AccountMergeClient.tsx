@@ -12,6 +12,7 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
@@ -235,6 +236,26 @@ export function AccountMergeClient({ targetId, duplicateId }: Props) {
         <p className="mt-2 text-xs text-muted-foreground">
           Данные присоединяемой карточки перейдут в основную, а сама она перестанет быть
           самостоятельной. Действие необратимо.
+        </p>
+        {/*
+          Вход в историю входов — отсюда, а не пунктом меню: разбор всегда начинается с конкретной
+          карточки. Здесь это ещё и прямая польза — видно, один ли это человек заходил с двух
+          карточек или разные люди с разных устройств (#1112).
+        */}
+        <p className="mt-2 text-xs">
+          <Link
+            href={`/app/admin/login-history?userId=${encodeURIComponent(preview.target.id)}`}
+            className="text-primary underline-offset-2 hover:underline"
+          >
+            Входы основной карточки
+          </Link>
+          <span className="text-muted-foreground"> · </span>
+          <Link
+            href={`/app/admin/login-history?userId=${encodeURIComponent(preview.duplicate.id)}`}
+            className="text-primary underline-offset-2 hover:underline"
+          >
+            входы присоединяемой
+          </Link>
         </p>
       </section>
 
