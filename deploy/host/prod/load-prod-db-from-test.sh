@@ -17,9 +17,20 @@ umask 077
 #                 их программы, каталоги, справочники, журнал миграций;
 #   остаётся    — окружение прода: его строки system_settings по каждому environment-owned ключу,
 #                 его собственный ключ подписи principal-контекста (app.context_signing_secrets),
-#                 его env-файлы, его пароли ролей, его владелец/ACL из декларации. Роли, ACL и
-#                 владельцы TEST не копируются никогда (`--no-owner --no-acl` и на дампе, и на
-#                 восстановлении), а активный TEST-триггер блокировки настроек снимается на въезде.
+#                 его env-файлы, его пароли ролей, его права из декларации. ACL из архива не
+#                 применяются никогда (`--no-acl`), а активный TEST-триггер блокировки настроек
+#                 снимается на въезде.
+#
+# ВЛАДЕЛЬЦЫ ОБЪЕКТОВ ПРИЕЗЖАЮТ ВМЕСТЕ СО СХЕМОЙ, и это не послабление контракта, а его условие.
+# Владельцы в этих базах — исключительно кластерные NOLOGIN-роли декларации (`app_object_owner`,
+# `app_seam_*`), одни и те же по именам в обоих кластерах; ни одного логина окружения среди них
+# нет (замер 13.09.2026: 48 владельцев на TEST, все 47 кроме postgres существуют на проде
+# NOLOGIN-ролями). Сбрасывать их в postgres нельзя: мигратор — NOLOGIN-роль декларации, и
+# следующая же миграция, правящая функцию шва, падает «must be owner of function …» ПОСЛЕ
+# разрушающей границы (измерено там же). Поэтому владельцы сохраняются, а вместо надежды на
+# последующую сверку стоит прямая проверка результата: владельцем любого объекта восстановленной
+# базы может быть только postgres или NOLOGIN-роль — то есть имя логина окружения-источника в
+# прод не переходит ни одним объектом.
 #
 # ПЕРЕИМЕНОВАНИЕ. Имена базы и логинов прода уже переименованы (deploy/host/prod/
 # rename-database-to-therapysto.sh, 10.09.2026) и здесь НЕ трогаются. Дамп TEST приезжает без ролей
@@ -61,6 +72,7 @@ SETTINGS_POLICY="$SRC/deploy/host/dev-owned-settings-policy.mjs"
 CAPTURE_SQL="$SRC/deploy/postgres/dev-refresh-capture-dev-owned-state.sql"
 RESTORE_SQL="$SRC/deploy/postgres/dev-refresh-restore-dev-owned-state.sql"
 MIGRATE_PROD="$SRC/deploy/host/prod/migrate-prod.sh"
+PRIVILEGE_GENERATOR="$SRC/deploy/postgres/privileges/generate-cli.mjs"
 RUNTIME_DATABASE="$SRC/deploy/host/prod/runtime-database.sh"
 
 MODE=""
@@ -212,6 +224,7 @@ assert_canonical_file "$SETTINGS_POLICY" 'политика environment-owned н�
 assert_canonical_file "$CAPTURE_SQL" 'снятие состояния окружения'
 assert_canonical_file "$RESTORE_SQL" 'возврат состояния окружения'
 assert_canonical_file "$MIGRATE_PROD" 'канонический шлюз схемы прода'
+assert_canonical_file "$PRIVILEGE_GENERATOR" 'генератор прав'
 assert_canonical_file "$RUNTIME_DATABASE" 'разрешение имени базы рантайма'
 [[ -d "$ADMIN_SOCKET" && ! -L "$ADMIN_SOCKET" ]] || fatal 'гейт локального сокета PostgreSQL не прошёл'
 [[ -d "$STATE_DIR" && ! -L "$STATE_DIR" ]] || fatal "нет каталога состояния $STATE_DIR"
@@ -360,6 +373,12 @@ restore_target_from_archive() {
     "CREATE DATABASE \"$DB\" OWNER postgres TEMPLATE template0 CONNECTION LIMIT 0;" >/dev/null ||
     fatal 'не удалось пересоздать базу прода закрытой для подключений'
   assert_target_closed 'сразу после пересоздания'
+  # Кластерные роли обязаны существовать ДО объектов, которые на них ссылаются: восстановление
+  # назначает владельцев, и отсутствующая роль уронила бы pg_restore посреди схемы. Базис
+  # идемпотентен, поэтому стоит здесь безусловно — тем же примитивом, что и в migrate-prod.sh.
+  node --experimental-strip-types "$PRIVILEGE_GENERATOR" --shared-role-baseline --db "$DB" |
+    runuser -u postgres -- psql -X -1 -h "$ADMIN_SOCKET" -p "$ADMIN_PORT" -d postgres \
+      -v ON_ERROR_STOP=1 >/dev/null || fatal 'кластерный базис ролей не разложился'
   runuser -u postgres -- psql -X -h "$ADMIN_SOCKET" -p "$ADMIN_PORT" -d "$DB" \
     -v ON_ERROR_STOP=1 >/dev/null <<'SQL' || fatal 'не удалось поставить базовые расширения'
 CREATE EXTENSION IF NOT EXISTS btree_gist;
@@ -377,6 +396,35 @@ SQL
     --role=postgres --dbname="$DB" "$@" "$archive" || fatal 'восстановление data не прошло'
   as_postgres pg_restore --exit-on-error --no-comments --section=post-data \
     --role=postgres --dbname="$DB" "$@" "$archive" || fatal 'восстановление post-data не прошло'
+  assert_no_login_role_owns_anything
+}
+
+assert_no_login_role_owns_anything() {
+  # Прямая проверка результата вместо надежды на последующую сверку: владельцем любого объекта
+  # может быть только postgres (схема app_control и событийный триггер стены) или NOLOGIN-роль
+  # декларации. Логин окружения-источника в имени владельца — это и был бы перенос имени, которого
+  # контракт не допускает; здесь он останавливает работу, а не всплывает позже отказом рантайма.
+  local offenders
+  offenders="$(postgres_scalar "$DB" \
+    "SELECT COALESCE(string_agg(DISTINCT owner, ','), '')
+       FROM (
+         SELECT pg_catalog.pg_get_userbyid(relowner) AS owner FROM pg_catalog.pg_class AS c
+           JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace
+          WHERE n.nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast')
+         UNION
+         SELECT pg_catalog.pg_get_userbyid(proowner) FROM pg_catalog.pg_proc AS p
+           JOIN pg_catalog.pg_namespace AS n ON n.oid = p.pronamespace
+          WHERE n.nspname NOT IN ('pg_catalog', 'information_schema')
+         UNION
+         SELECT pg_catalog.pg_get_userbyid(nspowner) FROM pg_catalog.pg_namespace
+          WHERE nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast')
+       ) AS owned
+       JOIN pg_catalog.pg_roles AS role ON role.rolname = owned.owner
+      WHERE role.rolcanlogin AND owned.owner <> 'postgres';")" ||
+    fatal 'не удалось проверить владельцев восстановленных объектов'
+  [[ -z "$offenders" ]] ||
+    fatal "восстановленными объектами владеют логин-роли: $offenders — имя логина окружения-источника \
+не должно переходить в прод ни одним объектом"
 }
 
 run_migration_gate() {
@@ -453,7 +501,7 @@ if [[ "$MODE" == rollback ]]; then
   note 'rollback: возвращаю базу прода из снимка'
   DESTRUCTIVE_PHASE_STARTED=1
   stop_runtime
-  restore_target_from_archive "$ROLLBACK_DUMP" --no-owner --no-acl
+  restore_target_from_archive "$ROLLBACK_DUMP" --no-acl
   note 'rollback: шлюз схемы и сверка прав'
   run_migration_gate
   assert_target_closed 'после сверки прав отката'
@@ -512,7 +560,7 @@ note "execute: снимок сохранён — $PROD_SNAPSHOT"
 note 'execute: заменяю базу прода (разрушающая фаза началась)'
 DESTRUCTIVE_PHASE_STARTED=1
 stop_runtime
-restore_target_from_archive "$SOURCE_DUMP" --no-owner --no-acl
+restore_target_from_archive "$SOURCE_DUMP" --no-acl
 
 note 'execute: возвращаю состояние ОКРУЖЕНИЯ прода'
 runuser -u postgres -- psql -X -h "$ADMIN_SOCKET" -p "$ADMIN_PORT" -d "$DB" \
