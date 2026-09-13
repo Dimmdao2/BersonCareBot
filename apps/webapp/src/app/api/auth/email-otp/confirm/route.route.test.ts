@@ -86,6 +86,7 @@ describe('B1.2 email confirmation', () => {
     expect(fakes.isAuthChannelEnabled).toHaveBeenCalledWith('email', 'patient');
     expect(fakes.setSessionFromUser).toHaveBeenCalledWith(
       expect.objectContaining({ role: 'client' }),
+      'email_code',
     );
   });
 
@@ -121,6 +122,7 @@ describe('B1.2 email confirmation', () => {
     expect(fakes.isAuthChannelEnabled).toHaveBeenCalledWith('email', 'platform_admin');
     expect(fakes.setSessionFromUser).toHaveBeenCalledWith(
       expect.objectContaining({ role: 'admin' }),
+      'email_code',
     );
   });
 
@@ -139,6 +141,6 @@ describe('B1.2 email confirmation', () => {
 
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ ok: true, role: 'client' });
-    expect(fakes.setSessionFromUser).toHaveBeenCalledWith(user);
+    expect(fakes.setSessionFromUser).toHaveBeenCalledWith(user, 'email_code');
   });
 });

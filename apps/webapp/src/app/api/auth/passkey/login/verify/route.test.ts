@@ -78,8 +78,9 @@ describe('passkey login verify — second factor', () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({ ok: true, role: 'doctor' });
     expect(fakes.setSession).toHaveBeenCalledOnce();
-    const [sessionUser, opts] = fakes.setSession.mock.calls[0];
+    const [sessionUser, method, opts] = fakes.setSession.mock.calls[0];
     expect(sessionUser).toEqual(doctor);
+    expect(method).toBe('passkey');
     expect(opts).toEqual({
       staffSecurity: { assurance: 'factor_verified', verifiedAt: expect.any(Number) },
     });
@@ -98,6 +99,6 @@ describe('passkey login verify — second factor', () => {
     const response = await verifyPasskeyLogin(loginRequest());
 
     expect(response.status).toBe(200);
-    expect(fakes.setSession).toHaveBeenCalledWith(patient, {});
+    expect(fakes.setSession).toHaveBeenCalledWith(patient, 'passkey', {});
   });
 });

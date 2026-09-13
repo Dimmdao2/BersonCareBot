@@ -124,7 +124,7 @@ describe('B1.2 SMS booking confirmation', () => {
       ok: true,
       checkoutUrl: 'http://localhost/book/pay/intent-1',
     });
-    expect(fakes.setSessionFromUser).toHaveBeenCalledWith(payer);
+    expect(fakes.setSessionFromUser).toHaveBeenCalledWith(payer, 'phone_otp');
     // Канал подтверждения доезжает до двери зачисления тем, чем человек РЕАЛЬНО подтвердился на
     // этом шаге, а не константой воронки (`OWNER_PRODUCT_RULES.md` §33).
     expect(fakes.createVerifiedPublicBooking).toHaveBeenCalledWith(

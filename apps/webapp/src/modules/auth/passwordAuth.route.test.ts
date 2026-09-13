@@ -432,6 +432,7 @@ describe('email/password login HTTP boundary', () => {
     );
     expect(fakes.setSession).toHaveBeenCalledWith(
       user,
+      'second_factor_email_code',
       expect.objectContaining({
         staffSecurity: expect.objectContaining({ assurance: 'factor_verified' }),
       }),
@@ -553,7 +554,7 @@ describe('voluntary staff TOTP and recovery HTTP boundaries', () => {
       },
     });
     await expect((await confirmRecovery()).json()).resolves.toEqual({ ok: true });
-    expect(fakes.setSession).toHaveBeenLastCalledWith(user, {
+    expect(fakes.setSession).toHaveBeenLastCalledWith(user, 'recovery_code_confirmation', {
       staffSecurity: expect.objectContaining({ assurance: 'factor_verified' }),
     });
   });
@@ -666,7 +667,7 @@ describe('password change HTTP boundary', () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ ok: true });
-    expect(fakes.setSession).toHaveBeenCalledWith(adminUser, {
+    expect(fakes.setSession).toHaveBeenCalledWith(adminUser, 'password_change', {
       staffSecurity: session.staffSecurity,
     });
     expect(fakes.setSession).toHaveBeenCalledOnce();
