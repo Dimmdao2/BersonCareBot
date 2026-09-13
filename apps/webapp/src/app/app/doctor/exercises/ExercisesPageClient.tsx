@@ -28,11 +28,8 @@ import {
   readDoctorCatalogViewPreference,
   writeDoctorCatalogViewPreference,
 } from '@/shared/lib/doctorCatalogViewPreference';
-import {
-  doctorCatalogToolbarPrimaryActionClassName,
-  DoctorCatalogFiltersToolbar,
-  DoctorCatalogToolbarFiltersSlot,
-} from '@/shared/ui/doctor/DoctorCatalogFiltersToolbar';
+import { doctorCatalogToolbarPrimaryActionClassName } from '@/shared/ui/doctor/DoctorCatalogFiltersToolbar';
+import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
 import type { DoctorCatalogToolbarLayout } from '@/shared/ui/doctor/DoctorCatalogFiltersForm';
 import {
   DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_EXPANDED,
@@ -365,142 +362,143 @@ function ExercisesContent({
     else setMobileSheet({ exercise: null });
   };
 
+  /**
+   * Решение владельца 14.09.2026 по библиотеке ЛФК: отдельной полосы тулбара под шапкой на
+   * десктопе нет — поиск, фильтры и «Создать» стоят в самой шапке справа, в прежнем порядке.
+   * Строка шапки видна только на md+, мобильная раскладка со своим поиском и фасетами не
+   * меняется.
+   */
+  const desktopHeaderControls = (
+    <div className="hidden min-w-0 flex-wrap items-center justify-end gap-1.5 md:flex">
+      <ExercisesFiltersForm
+        idPrefix="ex"
+        q={filters.q}
+        bodyRegionItems={bodyRegionItems}
+        loadTypeItems={loadTypeItems}
+        regionCode={filters.regionCode}
+        loadType={filters.loadType}
+        view={viewMode}
+        titleSort={filters.titleSort}
+        selectedId={desktopSelectedId}
+        onFilterToolbarLayoutChange={onFilterToolbarLayoutChange}
+        className="w-auto"
+      />
+      <CreateExerciseMenu
+        triggerId="doctor-exercises-create-link-desktop"
+        onNewExercise={openNewExercise}
+      />
+    </div>
+  );
+
   return (
-    <DoctorCatalogPageLayout
-      mobileEdgeToEdge
-      toolbar={
-        <DoctorCatalogFiltersToolbar
-          // Тулбар живёт внутри `DoctorCatalogPageLayout`, а тот уже начинается ПОД шапкой страницы.
-          // Без этого флага офсет шапки резервируется второй раз и липкая полоска сползает
-          // на 44px вниз — ровно на шапку master-списка, перехватывая клики по сортировке,
-          // фильтру архива и переключателю список/плитки.
-          withinRemainingHeight
-          className="hidden md:block"
-          filters={
-            <DoctorCatalogToolbarFiltersSlot>
-              <ExercisesFiltersForm
-                idPrefix="ex"
-                q={filters.q}
-                bodyRegionItems={bodyRegionItems}
-                loadTypeItems={loadTypeItems}
-                regionCode={filters.regionCode}
-                loadType={filters.loadType}
-                view={viewMode}
-                titleSort={filters.titleSort}
-                selectedId={desktopSelectedId}
-                onFilterToolbarLayoutChange={onFilterToolbarLayoutChange}
-              />
-            </DoctorCatalogToolbarFiltersSlot>
-          }
-          end={
-            <CreateExerciseMenu
-              triggerId="doctor-exercises-create-link-desktop"
-              onNewExercise={openNewExercise}
-            />
-          }
-        />
-      }
-    >
-      <CatalogSplitLayout
-        className={cn(
-          filterToolbarLayout === 'expanded'
-            ? DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_EXPANDED
-            : DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE,
-        )}
-        left={
-          <CatalogLeftPane
-            stickySplit={false}
-            stickyToolbarRows={1}
-            className="h-full"
-            mobileEdgeToEdge
-            headerSlot={
-              <DoctorCatalogMasterListHeader
-                summaryLine={
-                  displayExercises.length === 0
-                    ? 'Нет упражнений'
-                    : `Упражнений: ${displayExercises.length}`
-                }
-                viewMode={toolbarViewMode}
-                onToggleView={toggleViewMode}
-                titleSort={filters.titleSort}
-                onTitleSortChange={changeTitleSort}
-                listBusy={isListPending}
-                archiveScope={filters.listStatus}
-                archiveScopeExtraParams={{
-                  view: viewMode,
-                  titleSort: filters.titleSort,
-                }}
-              />
-            }
-          >
-            <div
-              className={cn(
-                'min-h-0 flex-1 overflow-hidden transition-opacity',
-                isListPending && 'opacity-80',
-              )}
-              aria-busy={isListPending}
+    <>
+      <DoctorPageHeader
+        title="Упражнения ЛФК"
+        tabs={desktopHeaderControls}
+        tabsClassName="md:w-auto md:flex-initial"
+      />
+      <DoctorCatalogPageLayout mobileEdgeToEdge>
+        <CatalogSplitLayout
+          className={cn(
+            filterToolbarLayout === 'expanded'
+              ? DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_EXPANDED
+              : DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE,
+          )}
+          left={
+            <CatalogLeftPane
+              stickySplit={false}
+              stickyToolbarRows={1}
+              className="h-full"
+              mobileEdgeToEdge
+              headerSlot={
+                <DoctorCatalogMasterListHeader
+                  summaryLine={
+                    displayExercises.length === 0
+                      ? 'Нет упражнений'
+                      : `Упражнений: ${displayExercises.length}`
+                  }
+                  viewMode={toolbarViewMode}
+                  onToggleView={toggleViewMode}
+                  titleSort={filters.titleSort}
+                  onTitleSortChange={changeTitleSort}
+                  listBusy={isListPending}
+                  archiveScope={filters.listStatus}
+                  archiveScopeExtraParams={{
+                    view: viewMode,
+                    titleSort: filters.titleSort,
+                  }}
+                />
+              }
             >
-              {viewMode === 'list'
-                ? renderExerciseList(displayExercises, {
-                    activeId: desktopSelectedId,
-                    onRowSelect: (id) => {
-                      const found = displayExercises.find((e) => e.id === id) ?? null;
-                      setDesktopSelectedId(id);
-                      if (!isDesktopViewport) setMobileSheet(found ? { exercise: found } : null);
-                    },
-                  })
-                : renderExerciseTiles(displayExercises, {
-                    activeId: desktopSelectedId,
-                    onTileSelect: (id) => {
-                      const found = displayExercises.find((e) => e.id === id) ?? null;
-                      setDesktopSelectedId(id);
-                      if (!isDesktopViewport) setMobileSheet(found ? { exercise: found } : null);
-                    },
-                    columns: activeTileColumns,
-                  })}
-            </div>
-          </CatalogLeftPane>
-        }
-        right={rightPanel}
-        mobileView="list"
-      />
-      <DoctorCatalogMobileToolbar
-        search={mobileSearch}
-        filters={mobileFilters}
-        filterActive={Boolean(
-          filters.regionCode ||
-          filters.loadType ||
-          filters.titleSort ||
-          filters.listStatus !== 'active',
-        )}
-        viewMode={toolbarViewMode}
-        onToggleView={toggleViewMode}
-        onCreate={openNewExercise}
-        createLabel="Новое упражнение"
-      />
-      <DoctorModal
-        open={!isDesktopViewport && mobileSheet !== null}
-        onClose={() => setMobileSheet(null)}
-        title={mobileSheet?.exercise?.title ?? 'Новое упражнение'}
-        size="content"
-        desktopPresentation="right-sheet"
-      >
-        {!isDesktopViewport && mobileSheet !== null ? (
-          <ExerciseForm
-            exercise={mobileSheet.exercise}
-            bodyRegionItems={bodyRegionItems}
-            loadTypeItems={loadTypeItems}
-            saveAction={saveExerciseInline}
-            archiveAction={archiveExerciseInline}
-            unarchiveAction={unarchiveExerciseInline}
-            listArchiveScope={filters.listStatus}
-            viewHint={viewMode}
-            externalUsageSnapshot={usageForSelection}
-            modalFooter
-          />
-        ) : null}
-      </DoctorModal>
-    </DoctorCatalogPageLayout>
+              <div
+                className={cn(
+                  'min-h-0 flex-1 overflow-hidden transition-opacity',
+                  isListPending && 'opacity-80',
+                )}
+                aria-busy={isListPending}
+              >
+                {viewMode === 'list'
+                  ? renderExerciseList(displayExercises, {
+                      activeId: desktopSelectedId,
+                      onRowSelect: (id) => {
+                        const found = displayExercises.find((e) => e.id === id) ?? null;
+                        setDesktopSelectedId(id);
+                        if (!isDesktopViewport) setMobileSheet(found ? { exercise: found } : null);
+                      },
+                    })
+                  : renderExerciseTiles(displayExercises, {
+                      activeId: desktopSelectedId,
+                      onTileSelect: (id) => {
+                        const found = displayExercises.find((e) => e.id === id) ?? null;
+                        setDesktopSelectedId(id);
+                        if (!isDesktopViewport) setMobileSheet(found ? { exercise: found } : null);
+                      },
+                      columns: activeTileColumns,
+                    })}
+              </div>
+            </CatalogLeftPane>
+          }
+          right={rightPanel}
+          mobileView="list"
+        />
+        <DoctorCatalogMobileToolbar
+          search={mobileSearch}
+          filters={mobileFilters}
+          filterActive={Boolean(
+            filters.regionCode ||
+            filters.loadType ||
+            filters.titleSort ||
+            filters.listStatus !== 'active',
+          )}
+          viewMode={toolbarViewMode}
+          onToggleView={toggleViewMode}
+          onCreate={openNewExercise}
+          createLabel="Новое упражнение"
+        />
+        <DoctorModal
+          open={!isDesktopViewport && mobileSheet !== null}
+          onClose={() => setMobileSheet(null)}
+          title={mobileSheet?.exercise?.title ?? 'Новое упражнение'}
+          size="content"
+          desktopPresentation="right-sheet"
+        >
+          {!isDesktopViewport && mobileSheet !== null ? (
+            <ExerciseForm
+              exercise={mobileSheet.exercise}
+              bodyRegionItems={bodyRegionItems}
+              loadTypeItems={loadTypeItems}
+              saveAction={saveExerciseInline}
+              archiveAction={archiveExerciseInline}
+              unarchiveAction={unarchiveExerciseInline}
+              listArchiveScope={filters.listStatus}
+              viewHint={viewMode}
+              externalUsageSnapshot={usageForSelection}
+              modalFooter
+            />
+          ) : null}
+        </DoctorModal>
+      </DoctorCatalogPageLayout>
+    </>
   );
 }
 

@@ -70,6 +70,12 @@ export type DoctorCatalogFiltersFormProps = {
   presentation?: 'all' | 'search-only' | 'facets-only';
   /** Вертикальная полноширинная раскладка контролов внутри `DoctorModal`. */
   stacked?: boolean;
+  /**
+   * Классы внешнего контейнера. Нужны там, где панель стоит не отдельной полосой во всю ширину,
+   * а в ряду шапки страницы рядом с основным действием: тогда она обязана ужиматься по содержимому
+   * (`md:w-auto`), иначе `w-full` выдавливает кнопку на вторую строку.
+   */
+  className?: string;
 };
 
 function applyParamsPatch(
@@ -107,6 +113,7 @@ export function DoctorCatalogFiltersForm({
   onFiltersChange,
   presentation = 'all',
   stacked = false,
+  className,
 }: DoctorCatalogFiltersFormProps) {
   const pathname = usePathname();
 
@@ -314,7 +321,7 @@ export function DoctorCatalogFiltersForm({
   }
 
   return (
-    <div className="flex w-full min-w-0 flex-col gap-2">
+    <div className={cn('flex w-full min-w-0 flex-col gap-2', className)}>
       <div
         className={cn('flex gap-2', stacked ? 'flex-col items-stretch' : 'flex-wrap items-center')}
       >
