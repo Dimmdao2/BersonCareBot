@@ -6,7 +6,7 @@ const processTranscodeJob = vi.fn(async () => undefined);
 vi.mock('./processTranscodeJob.js', () => ({ processTranscodeJob }));
 const processPreviewOrder = vi.fn(async () => 'processed' as const);
 vi.mock('./processPreviewJob.js', () => ({ processPreviewOrder }));
-const { runMediaWorkerTick } = await import('./workerTick.js');
+const { runPreviewTick, runTranscodeTick } = await import('./workerTick.js');
 
 function context(control: MediaWorkerControlPort): MediaWorkerTickContext {
   return {
@@ -48,17 +48,18 @@ const claimedPreview: MediaWorkerControlPort['previewClaim'] = vi.fn(async () =>
   order: previewOrder,
 }));
 
-describe('runMediaWorkerTick', () => {
+describe('runTranscodeTick', () => {
   it('does not process a disabled or idle queue, and processes exactly one claimed job', async () => {
+    processTranscodeJob.mockClear();
     const disabledClaim: MediaWorkerControlPort['claim'] = vi.fn(async () => ({ kind: 'disabled' as const }));
     const disabled = control(disabledClaim);
-    await expect(runMediaWorkerTick(context(disabled))).resolves.toBe('disabled');
+    await expect(runTranscodeTick(context(disabled))).resolves.toBe('disabled');
     const idleClaim: MediaWorkerControlPort['claim'] = vi.fn(async () => ({ kind: 'idle' as const }));
     const idle = control(idleClaim);
-    await expect(runMediaWorkerTick(context(idle))).resolves.toBe('idle');
+    await expect(runTranscodeTick(context(idle))).resolves.toBe('idle');
     const claimedClaim: MediaWorkerControlPort['claim'] = vi.fn(async () => ({ kind: 'claimed' as const, job: { id: 'job-1', mediaId: 'media-1', organizationId: 'org-1', attempts: 1 } }));
     const claimed = control(claimedClaim);
-    await expect(runMediaWorkerTick(context(claimed))).resolves.toBe('processed');
+    await expect(runTranscodeTick(context(claimed))).resolves.toBe('processed');
     expect(processTranscodeJob).toHaveBeenCalledTimes(1);
     expect(claimedClaim).toHaveBeenCalledWith('worker-a', 30);
   });
@@ -69,34 +70,52 @@ describe('runMediaWorkerTick', () => {
       throw failure;
     });
 
-    await expect(runMediaWorkerTick(context(control(rejectedClaim)))).rejects.toBe(failure);
+    await expect(runTranscodeTick(context(control(rejectedClaim)))).rejects.toBe(failure);
   });
 
+  /* Оборот пересборки очередь превью не трогает вовсе: у неё свой оборот и свой цикл. */
+  it('never reaches for a preview order', async () => {
+    processPreviewOrder.mockClear();
+    const preview = vi.fn(async () => ({ kind: 'idle' as const }));
+    const claimedClaim: MediaWorkerControlPort['claim'] = vi.fn(async () => ({ kind: 'claimed' as const, job: { id: 'job-2', mediaId: 'media-2', organizationId: 'org-1', attempts: 0 } }));
+
+    await expect(runTranscodeTick(context(control(claimedClaim, preview)))).resolves.toBe('processed');
+    expect(preview).not.toHaveBeenCalled();
+    expect(processPreviewOrder).not.toHaveBeenCalled();
+  });
+});
+
+describe('runPreviewTick', () => {
   /*
    * Флаг `video_hls_pipeline_enabled` выключает конвейер HLS. Превью он не касается: до переезда
    * их считал host-cron, который об этом флаге не знал. Оставить очередь превью за этим флагом
    * значило бы, что выключение HLS молча гасит и плитки в библиотеке врача.
    */
-  it('takes a preview order even when the HLS pipeline is disabled', async () => {
+  it('takes a preview order regardless of the HLS pipeline flag', async () => {
     processPreviewOrder.mockClear();
     const disabledClaim: MediaWorkerControlPort['claim'] = vi.fn(async () => ({ kind: 'disabled' as const }));
 
     await expect(
-      runMediaWorkerTick(context(control(disabledClaim, claimedPreview))),
+      runPreviewTick(context(control(disabledClaim, claimedPreview))),
     ).resolves.toBe('preview_processed');
     expect(processPreviewOrder).toHaveBeenCalledTimes(1);
     expect(claimedPreview).toHaveBeenCalledWith(15);
   });
 
-  /* Пересборка видео идёт первой: превью берутся только тогда, когда её очередь пуста. */
-  it('does not touch the preview queue while a transcode job is claimed', async () => {
+  /*
+   * Главное свойство разделения (находка независимого аудита 13.09): превью берётся, ПОКА идёт
+   * пересборка видео. Оборот превью вообще не спрашивает очередь пересборки — значит, занятость
+   * той очереди его задержать не может. Прежний общий оборот держал превью до двух часов.
+   */
+  it('claims a preview order without ever consulting the transcode queue', async () => {
     processPreviewOrder.mockClear();
-    const preview = vi.fn(async () => ({ kind: 'idle' as const }));
-    const claimedClaim: MediaWorkerControlPort['claim'] = vi.fn(async () => ({ kind: 'claimed' as const, job: { id: 'job-2', mediaId: 'media-2', organizationId: 'org-1', attempts: 0 } }));
+    const busyClaim: MediaWorkerControlPort['claim'] = vi.fn(async () => ({ kind: 'claimed' as const, job: { id: 'job-3', mediaId: 'media-3', organizationId: 'org-1', attempts: 0 } }));
 
-    await expect(runMediaWorkerTick(context(control(claimedClaim, preview)))).resolves.toBe('processed');
-    expect(preview).not.toHaveBeenCalled();
-    expect(processPreviewOrder).not.toHaveBeenCalled();
+    await expect(
+      runPreviewTick(context(control(busyClaim, claimedPreview))),
+    ).resolves.toBe('preview_processed');
+    expect(busyClaim).not.toHaveBeenCalled();
+    expect(processPreviewOrder).toHaveBeenCalledTimes(1);
   });
 
   it('reports a failed preview order as an error outcome, not as idle', async () => {
@@ -105,7 +124,13 @@ describe('runMediaWorkerTick', () => {
     const idleClaim: MediaWorkerControlPort['claim'] = vi.fn(async () => ({ kind: 'idle' as const }));
 
     await expect(
-      runMediaWorkerTick(context(control(idleClaim, claimedPreview))),
+      runPreviewTick(context(control(idleClaim, claimedPreview))),
     ).resolves.toBe('preview_error');
+  });
+
+  it('is idle when the preview queue has nothing to give', async () => {
+    const idleClaim: MediaWorkerControlPort['claim'] = vi.fn(async () => ({ kind: 'idle' as const }));
+
+    await expect(runPreviewTick(context(control(idleClaim)))).resolves.toBe('idle');
   });
 });
