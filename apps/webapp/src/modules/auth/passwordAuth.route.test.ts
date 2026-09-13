@@ -473,12 +473,42 @@ describe('email/password login HTTP boundary', () => {
     const response = await login(request());
 
     expect(response.status).toBe(500);
-    await expect(response.json()).resolves.toEqual({
+    const body = (await response.json()) as Record<string, unknown>;
+    // Публичная часть не изменилась: тот же код и тот же текст человеку. Добавился correlationId —
+    // тот же, под которым общая дверь ответов пишет оператору полную деталь падения
+    // (`operatorErrorDetail`). Без него отказ входа был неразбираем: ключ `error` в журнале несёт
+    // только {"type":"Error"}, и на TEST 13.09 разобрать 500 глобального админа было нечем.
+    expect(body).toMatchObject({
       ok: false,
       error: 'server_error',
       message: 'Не удалось войти из-за сбоя на нашей стороне. Повторите попытку позже.',
     });
+    expect(body.correlationId).toEqual(expect.any(String));
     expect(fakes.setSession).not.toHaveBeenCalled();
+  });
+
+  it('denies a login whose role does not match the request surface instead of failing as our error', async () => {
+    fakes.verifyPassword.mockResolvedValue({ ok: true, userId, emailVerified: true });
+    fakes.findUser.mockResolvedValue({ ...user, role: 'admin' });
+    fakes.getSecurityStatus.mockResolvedValue({
+      enrolled: false,
+      recoveryConfirmed: false,
+      replacementRequired: false,
+      lockedUntil: null,
+      sessionVersion: 1,
+    });
+    fakes.getSetting.mockResolvedValue({ valueJson: { value: false } });
+    fakes.setSession.mockRejectedValueOnce(new Error('auth_surface_role_mismatch'));
+
+    const response = await login(request());
+
+    // Несовпадение хост-поверхности — отказ доступа, а не сбой: тот же код и тот же маскирующий
+    // текст, что у портальной двери, и никакого correlationId (оператору нечего искать).
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      error: 'portal_access_denied',
+    });
   });
 });
 

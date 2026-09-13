@@ -2,20 +2,32 @@
 import { readSmokeLoginPacket } from './smoke-login-packet.mjs';
 
 const baseUrl = 'https://test.therapysto.ru';
+/**
+ * Глобальный админ входит на СВОЁЙ поверхности, а не на стаффовой. Хост считается той же формулой,
+ * что и `platformAdminHost` в apps/webapp/src/shared/lib/surface/requestSurface.ts: `admin.` +
+ * hostname стаффового origin. Когда хосты поверхностей различимы (на TEST и на прод — различимы),
+ * `setSessionFromUser` отказывается выдать админскую сессию на стаффовом хосте
+ * (`auth_surface_role_mismatch`). Проверка, стучавшаяся админом в стаффовую дверь, ловила этот
+ * отказ как 500 и объявляла провалом перенос, с которым он никак не связан.
+ */
+const adminBaseUrl = (() => {
+  const staff = new URL(baseUrl);
+  return `${staff.protocol}//admin.${staff.hostname}${staff.port ? `:${staff.port}` : ''}`;
+})();
 const packetPath = '/opt/env/bersoncarebot/saas-smoke-login.env';
 
 function fail(message) {
   throw new Error(message);
 }
 
-async function verifyLogin(label, email, password, expectedRole) {
-  const response = await fetch(`${baseUrl}/api/auth/email-password/login`, {
+async function verifyLogin(label, email, password, expectedRole, origin = baseUrl) {
+  const response = await fetch(`${origin}/api/auth/email-password/login`, {
     method: 'POST',
     redirect: 'manual',
     signal: AbortSignal.timeout(30_000),
     headers: {
       'Content-Type': 'application/json',
-      Origin: baseUrl,
+      Origin: origin,
       'Sec-Fetch-Site': 'same-origin',
     },
     body: JSON.stringify({ email, password }),
@@ -72,6 +84,7 @@ try {
     packet.SAAS_SMOKE_GLOBAL_ADMIN_EMAIL,
     packet.SAAS_SMOKE_GLOBAL_ADMIN_PASSWORD,
     'admin',
+    adminBaseUrl,
   );
   await verifyPatientPasswordDenied(
     packet.SAAS_SMOKE_PATIENT_EMAIL,

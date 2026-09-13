@@ -1,6 +1,6 @@
 import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipal';
-import { logger } from '@/app-layer/logging/logger';
 import { NextResponse } from 'next/server';
+import { jsonError } from '@/shared/http/apiResponse';
 import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
@@ -35,6 +35,19 @@ const INVALID_CREDENTIALS_MESSAGE =
   'Email или пароль неверны. Проверьте данные или восстановите пароль.';
 const SERVER_ERROR_MESSAGE =
   'Не удалось войти из-за сбоя на нашей стороне. Повторите попытку позже.';
+
+/**
+ * Хост-поверхность — такое же несовпадение аудитории, как и `roleCanUsePortal` выше по маршруту:
+ * когда хосты поверхностей различимы, `setSessionFromUser` отказывается выдать админскую сессию на
+ * стаффовом хосте (и наоборот). Отказ приходил сюда голым `Error` и становился 500 «сбой на нашей
+ * стороне» — владелец, набравший админские креды на test.therapysto.ru вместо
+ * admin.test.therapysto.ru, видел поломку вместо отказа. Код тот же, что у портальной двери:
+ * `portal_access_denied` намеренно читается браузеру как «неверные данные» (см.
+ * shared/ui/auth/staffSecurityErrorText.ts), чтобы не выдавать роль тому, кто стучится вслепую.
+ */
+const SURFACE_MISMATCH_ERROR_RULES = {
+  auth_surface_role_mismatch: { code: 'portal_access_denied', status: 403 },
+} as const;
 
 function settingIsEnabled(valueJson: unknown): boolean {
   return (
@@ -264,10 +277,20 @@ export async function POST(request: Request) {
       role: authenticatedUser.role,
     });
   } catch (error) {
-    logger.error({ error }, '[auth/email-password/login] unhandled failure');
-    return NextResponse.json(
-      { ok: false, error: 'server_error', message: SERVER_ERROR_MESSAGE },
-      { status: 500 },
-    );
+    // Через общую дверь ответов, а не своим logger.error({ error }): ключ `error` сериализуется
+    // закрытой формой (только type/code/class), поэтому текст и стек падения входа в журнал не
+    // попадали вовсе — отказ входа был неразбираем. `resolveApiFailure` пишет полную деталь под
+    // `operatorErrorDetail` и тем же correlation id, который получает вызывающий. Публичная форма
+    // ответа не меняется: тот же `server_error` и тот же текст человеку.
+    return jsonError({
+      error,
+      literalRules: SURFACE_MISMATCH_ERROR_RULES,
+      fallback: {
+        code: 'server_error',
+        status: 500,
+        publicFields: { message: SERVER_ERROR_MESSAGE },
+      },
+      logEvent: 'auth_email_password_login_unhandled_failure',
+    });
   }
 }
