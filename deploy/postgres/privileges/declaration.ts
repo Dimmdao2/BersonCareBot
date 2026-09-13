@@ -25730,6 +25730,17 @@ const REV10_CONTEXT = {
       sessionRole: 'app_patient', targetRole: 'app_pre_session', contextClass: 'pre_session',
       purpose: 'auth.user-login-event.append',
       functionIdentity: 'app.append_user_login_event(uuid,text,text,text,text,text,text,text,text,text,text,text)' },
+    // #1112 Л-6д: две возможности ОДНОЙ читающей двери — экран «Безопасность» есть и у специалиста
+    // («Учётка»), и у админа платформы, а классы контекста у них разные по природе. Цель одна, и тело
+    // двери само сверяет пару «роль/класс»; подменить один вход другим нечем.
+    webapp_staff_own_login_devices_list: { port: 'webapp', runtimeName: 'staff_own_login_devices_list',
+      sessionRole: 'app_staff', targetRole: 'app_staff', contextClass: 'staff',
+      purpose: 'auth.user-login-devices.list-own',
+      functionIdentity: 'app.list_own_login_devices()' },
+    webapp_platform_own_login_devices_list: { port: 'webapp', runtimeName: 'platform_own_login_devices_list',
+      sessionRole: 'app_platform_settings', targetRole: 'app_platform_settings', contextClass: 'platform',
+      purpose: 'auth.user-login-devices.list-own',
+      functionIdentity: 'app.list_own_login_devices()' },
     // D15b/7a Ш8: две веб-возможности ОДНОЙ двери журнала пересечения границы. Дверь одна на все
     // четыре точки (акт связывания, вход, карточка, список) — вид события её ПАРАМЕТР, а не вторая
     // функция (AGENTS.md §5). Классов два, потому что и точки две по природе: вход человек делает
@@ -30242,6 +30253,21 @@ const REV10_CONTEXT = {
           'user_agent', 'device_kind', 'os', 'browser', 'host', 'session_ref', 'device_id', 'country'],
         operations: ['INSERT' as const, 'SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
+    // #1112 Л-6д. Читающая дверь того же журнала. Идентификатора человека среди аргументов НЕТ
+    // намеренно: тело берёт его из принятого контекста сессии, поэтому «показать чужие устройства» —
+    // не ошибка вызывающего, а несуществующее действие. Иначе со вторым экраном (специалист) SELECT
+    // пришлось бы выдать роли персонала на всю таблицу, у которой нет построчной защиты.
+    'app.list_own_login_devices()': rev10Function({
+      owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'record', returnsSet: true,
+      execute: ['app_staff', 'app_platform_settings'],
+      purpose: 'list the devices the acting person signed in from, own rows only', typedArgs: [],
+      volatility: 'STABLE', parallel: 'RESTRICTED',
+      proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+      relationSurfaces: [{ relation: 'public.user_login_events',
+        columns: ['user_id', 'outcome', 'occurred_at', 'device_id', 'user_agent', 'device_kind', 'os',
+          'browser', 'method', 'country'],
+        operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }],
+    }),
     'app.acknowledge_open_outbound_provider_incidents()': rev10Function({
       owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'bigint', returnsSet: false,
       execute: ['app_platform_admin'], purpose: 'acknowledge all open outbound-provider incidents', typedArgs: [],
@@ -31375,6 +31401,8 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
       'apps/webapp/src/infra/userLoginEvents.ts#appendUserLoginEvent',
       'apps/webapp/src/app-layer/identity/recordUserLoginEvent.ts#recordUserLoginEvent',
       'apps/webapp/src/infra/userLoginEventsRead.ts#listUserLoginEvents',
+      // Своих устройств здесь больше нет: они читаются дверью `app.list_own_login_devices()`,
+      // а прямой SELECT остался только у разбора чужих входов на платформенном экране.
       'apps/webapp/src/infra/userLoginEventsRead.ts#listUserLoginDevices',
     ],
     grants: [

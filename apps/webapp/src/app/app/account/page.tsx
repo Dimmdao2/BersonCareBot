@@ -19,6 +19,8 @@ import { AccountTabs, type AccountTab } from './AccountTabs';
 import { loadStaffAccountPageContext } from './accountContext';
 import { StaffSecuritySection } from './StaffSecuritySection';
 import { StaffPasskeySection } from './StaffPasskeySection';
+import { LoginDevicesCard } from '@/shared/ui/security/LoginDevicesCard';
+import { loadOwnLoginDevices } from '@/app-layer/identity/ownLoginDevices';
 import { isRestrictedStaffSecuritySession } from '@/app-layer/guards/requireRole';
 import { runWithStaffSecuritySelfPrincipal } from '@/app-layer/principal/staffSecuritySelfPrincipal';
 import { isIndependentAuthMethodEnabled } from '@/modules/auth/authChannelPolicy';
@@ -115,11 +117,14 @@ async function loadSecurityContent(
   recoveryOnly: boolean,
   isPlatformConsole: boolean,
 ): Promise<ReactNode> {
-  const [storedStatus, passkeyEnabled] = await Promise.all([
+  const [storedStatus, passkeyEnabled, loginDevices] = await Promise.all([
     runWithStaffSecuritySelfPrincipal(session.user.userId, 'app/account:security-self', () =>
       deps.staffSecurity.getStatus(),
     ),
     recoveryOnly ? Promise.resolve(false) : isIndependentAuthMethodEnabled('passkey'),
+    // Во время восстановления защиты экран урезан до самого восстановления — список устройств там
+    // лишний шум, а не помощь. См. ветку `recoveryOnly` в `AccountPage`.
+    recoveryOnly ? Promise.resolve(null) : loadOwnLoginDevices(),
   ]);
   const status = storedStatus ?? {
     enrolled: false,
@@ -139,6 +144,14 @@ async function loadSecurityContent(
         recoveryOnly={recoveryOnly}
       />
       {passkeyEnabled ? <StaffPasskeySection /> : null}
+      {/*
+        #1112, Л-6д. Решение владельца 14.09: «раскатывай в Учетку -> Безопасность». Кнопки
+        «завершить другие сеансы» здесь НЕ добавляется — она уже есть выше, в `StaffSecuritySection`,
+        и вторая копия читалась бы как второе, другое действие.
+      */}
+      {loginDevices ? (
+        <LoginDevicesCard devices={loginDevices.devices} loadFailed={loginDevices.loadFailed} />
+      ) : null}
     </>
   );
 }

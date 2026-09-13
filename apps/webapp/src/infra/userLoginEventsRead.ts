@@ -10,7 +10,7 @@
  * учётных записей, а имя показывает тот экран, который эту учётную запись и открыл.
  */
 import { sql, type SQL } from 'drizzle-orm';
-import { getWebappSqlDb, runWebappSql } from '@/infra/db/runWebappSql';
+import { getWebappSqlDb, runWebappNamedRoot, runWebappSql } from '@/infra/db/runWebappSql';
 
 /**
  * Время из сырого запроса приходит СТРОКОЙ, а не датой: типы столбцов знает ORM, а этот путь идёт
@@ -111,8 +111,16 @@ export async function listUserLoginEvents(
   return { items, total, page, limit };
 }
 
-/** Сколько последних входов человека сворачивается в список устройств. См. `listUserLoginDevices`. */
+/**
+ * Сколько последних входов человека сворачивается в список устройств. Значение объявлено ЗДЕСЬ только
+ * для текста на экране: сама свёртка живёт в теле двери `app.list_own_login_devices()`, и настоящее
+ * окно задано там. Расходиться им нельзя — экран обещал бы человеку не тот отрезок, по которому
+ * посчитан счётчик.
+ */
 export const USER_LOGIN_DEVICE_SCAN_LIMIT = 2000;
+
+/** Дверь, через которую человек читает СВОИ устройства. Идентификатор берётся из контекста сессии. */
+const LIST_OWN_LOGIN_DEVICES_ROOT = 'app.list_own_login_devices()';
 
 export type UserLoginDeviceRow = {
   group_key: string;
@@ -146,35 +154,24 @@ export type UserLoginDeviceRow = {
  * запрос одного экрана. Окно стоит здесь, а не «потом добавим»: список устройств от него не
  * страдает — устройство, с которого не входили последние две тысячи раз, человеку не интересно, — а
  * экран перестаёт зависеть от длины истории. Поэтому же `login_count` считает входы В ОКНЕ, и экран
- * обязан говорить это словами, а не выдавать за «всего».
+ * обязан говорить это словами, а не выдавать за «всего». Окно и длина списка теперь живут в теле
+ * двери: это свойства журнала, а не выбор экрана.
+ *
+ * ⛔ Идентификатор человека сюда БОЛЬШЕ НЕ ПЕРЕДАЁТСЯ, и это не упрощение подписи. Чьи устройства
+ * вернутся — решает принятый контекст сессии на стороне базы (`app.current_actor_user_id()`), так что
+ * «спросить чужие устройства» не ошибка вызывающего, а несуществующее действие. До Л-6д экран был
+ * один, платформенный, и таблица читалась напрямую; со вторым экраном (специалист, «Учётка» →
+ * «Безопасность») табличный грант пришлось бы выдать роли персонала — а у таблицы нет построчной
+ * защиты, и тогда один забывчивый запрос отдал бы журнал входов чужих людей вместе с их адресами.
  */
-export async function listUserLoginDevices(
-  userId: string,
-  limit = 50,
-): Promise<UserLoginDeviceRow[]> {
-  const res = await runWebappSql<RawTimestamp<UserLoginDeviceRow, 'last_seen_at'>>(
+export async function listUserLoginDevices(): Promise<UserLoginDeviceRow[]> {
+  const res = await runWebappNamedRoot<RawTimestamp<UserLoginDeviceRow, 'last_seen_at'>>(
     getWebappSqlDb(),
-    sql`WITH recent AS (
-       SELECT e.device_id, e.user_agent, e.occurred_at, e.device_kind, e.os, e.browser,
-              e.method, e.country
-         FROM user_login_events e
-        WHERE e.user_id = ${userId}::uuid AND e.outcome = 'success'
-        ORDER BY e.occurred_at DESC
-        LIMIT ${USER_LOGIN_DEVICE_SCAN_LIMIT}
-     )
-     SELECT COALESCE(r.device_id, 'ua:' || md5(COALESCE(r.user_agent, ''))) AS group_key,
-            max(r.device_id) AS device_id,
-            max(r.occurred_at) AS last_seen_at,
-            count(*)::text AS login_count,
-            (array_agg(r.device_kind ORDER BY r.occurred_at DESC))[1] AS device_kind,
-            (array_agg(r.os ORDER BY r.occurred_at DESC))[1] AS os,
-            (array_agg(r.browser ORDER BY r.occurred_at DESC))[1] AS browser,
-            (array_agg(r.method ORDER BY r.occurred_at DESC))[1] AS method,
-            array_remove(array_agg(DISTINCT r.country), NULL) AS countries
-     FROM recent r
-     GROUP BY COALESCE(r.device_id, 'ua:' || md5(COALESCE(r.user_agent, '')))
-     ORDER BY max(r.occurred_at) DESC
-     LIMIT ${Math.min(200, Math.max(1, limit))}`,
+    LIST_OWN_LOGIN_DEVICES_ROOT,
+    [],
+    sql`SELECT group_key, device_id, last_seen_at, login_count::text AS login_count,
+               device_kind, os, browser, method, countries
+          FROM app.list_own_login_devices()`,
   );
   return res.rows.map((row) => ({ ...row, last_seen_at: asDate(row.last_seen_at) }));
 }
