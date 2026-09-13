@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createPatientBookingService } from './service';
 import type { PatientBookingRecord } from './types';
 import { resolvePatientTerms } from '@/modules/system-settings/patientTerms';
+import { buildPatientCancelledMessageText } from './patientMessageText';
 
 /**
  * D14, часть 4: пациентские отмена/перенос (в отличие от врачебных — те уже покрыты D14 частями 1-2)
@@ -153,7 +154,10 @@ describe('D14: пациентская отмена шлёт cancelPendingReminde
     expect(events).toHaveLength(1);
     expect(events[0]!.cancelPendingReminders).toBe(true);
     expect(events[0]!.patientPushVariant).toBe('cancelled');
-    expect(events[0]!.patientMessageText).toBe('Запись на 10 мар. 2027 г., 12:00 отменена.');
+    // Текст закреплён у сборщика сообщений; здесь проверяется, что в событие попал именно он.
+    expect(events[0]!.patientMessageText).toBe(
+      buildPatientCancelledMessageText({ slotStart: '2027-03-10T09:00:00.000Z' }, 'Europe/Moscow'),
+    );
   });
 
   it('регрессия: если поля пропадут, тест краснеет', async () => {

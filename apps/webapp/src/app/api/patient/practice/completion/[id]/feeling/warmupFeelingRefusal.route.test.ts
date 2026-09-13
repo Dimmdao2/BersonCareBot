@@ -102,7 +102,10 @@ describe('PATCH /api/patient/practice/completion/[id]/feeling', () => {
     expect(body.ok).toBe(false);
     expect(body.error).toBe('warmup_completion_not_current_patient');
     // Экран показывает именно `message` (PatientContentPracticeComplete → toast.error(data.message)).
-    expect(body.message).toMatch(/^Не удалось записать самочувствие: .+\.$/u);
+    // Формулировка живёт в словаре текстов; здесь проверяется, что человеку досталось предложение,
+    // а не машинный код отказа.
+    expect(body.message.trim().length).toBeGreaterThan(0);
+    expect(body.message).not.toContain(body.error);
     expect(body.message).not.toMatch(/_rejected|P0001|[a-z]+_[a-z]+_[a-z]+/u);
   });
 

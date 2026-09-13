@@ -17,6 +17,7 @@ vi.mock('@/modules/system-settings/organizationAppointmentTerms', async () => {
 });
 
 import { emitStaffCanonicalBookingEvent } from './staffBookingIntegratorEvent';
+import { buildPatientCancelledMessageText } from '@/modules/patient-booking/patientMessageText';
 import type { BeAppointment } from '@/modules/booking-engine/types';
 import type { BookingSyncPort } from '@/modules/patient-booking/ports';
 
@@ -84,7 +85,11 @@ describe('D14(3): врачебные события шлют patientMessageText'
       patientPushVariant: 'cancelled',
     });
 
-    expect(captured[0]!.patientMessageText).toBe('Запись на 10 мар. 2027 г., 12:00 отменена.');
+    // Здесь проверяется шов: в событие положен текст, который строит сборщик сообщений. Сам текст
+    // закреплён у сборщика (patientMessageText.test.ts), второй раз его переписывать нечего.
+    expect(captured[0]!.patientMessageText).toBe(
+      buildPatientCancelledMessageText({ slotStart: '2027-03-10T09:00:00.000Z' }, 'Europe/Moscow'),
+    );
   });
 
   it('booking.rescheduled: воспроизводит текст переноса интегратора', async () => {

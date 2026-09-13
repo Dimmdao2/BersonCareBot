@@ -23,12 +23,23 @@ afterEach(() => {
   Object.assign(requisites, originalRequisites);
 });
 
+/**
+ * Страницу ищем по её роли, а не по формулировке: плашка «ожидают уточнения» помечена
+ * `role="status"`, и проверяется, появляется ли она и какие реквизиты в ней названы. Переписать
+ * текст плашки можно без починки этих проверок; потерять её или назвать не те реквизиты — нельзя.
+ */
+function awaitingOwnerNotice(html: string): string | null {
+  return /<p[^>]*role="status"[^>]*>([\s\S]*?)<\/p>/u.exec(html)?.[1] ?? null;
+}
+
+const REQUISITE_LABELS = ['Наименование юридического лица', 'Адрес', 'ИНН', 'ОГРН'] as const;
+
 describe.each(LEGAL_PAGES)('$path', ({ renderPage }) => {
   it('источник пуст → страница честно сообщает, какие реквизиты ожидают владельца', () => {
-    const html = renderToStaticMarkup(renderPage());
+    const notice = awaitingOwnerNotice(renderToStaticMarkup(renderPage()));
 
-    expect(html).toContain('Реквизиты оператора ожидают уточнения владельцем.');
-    expect(html).toContain('Не указаны: Наименование юридического лица, Адрес, ИНН, ОГРН.');
+    expect(notice).not.toBeNull();
+    for (const label of REQUISITE_LABELS) expect(notice).toContain(label);
   });
 
   it('источник заполнен → все значения источника видны на странице', () => {
@@ -45,7 +56,7 @@ describe.each(LEGAL_PAGES)('$path', ({ renderPage }) => {
     for (const marker of Object.values(sourceMarkers)) {
       expect(html).toContain(marker);
     }
-    expect(html).not.toContain('Реквизиты оператора ожидают уточнения владельцем.');
+    expect(awaitingOwnerNotice(html)).toBeNull();
   });
 
   it('источник заполнен частично → страница перечисляет только недостающие реквизиты', () => {
@@ -56,10 +67,12 @@ describe.each(LEGAL_PAGES)('$path', ({ renderPage }) => {
       ogrn: '',
     });
 
-    const html = renderToStaticMarkup(renderPage());
+    const notice = awaitingOwnerNotice(renderToStaticMarkup(renderPage()));
 
-    expect(html).toContain('Реквизиты оператора ожидают уточнения владельцем.');
-    expect(html).toContain('Не указаны: Адрес, ИНН, ОГРН.');
-    expect(html).not.toContain('Не указаны: Наименование юридического лица');
+    expect(notice).not.toBeNull();
+    expect(notice).toContain('Адрес');
+    expect(notice).toContain('ИНН');
+    expect(notice).toContain('ОГРН');
+    expect(notice).not.toContain('Наименование юридического лица');
   });
 });

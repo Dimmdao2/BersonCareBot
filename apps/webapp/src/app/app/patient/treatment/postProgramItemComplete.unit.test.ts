@@ -66,20 +66,26 @@ describe('postProgramItemComplete', () => {
     );
   });
 
+  // Важно, что отказ виден человеку и что отметки о выполнении при этом не появилось. Сама
+  // формулировка живёт в словаре текстов и здесь не переписывается.
   it('returns a visible failure and no completion when the complete request rejects', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('network')));
 
-    await expect(postProgramItemComplete({ base: '/items', itemId: 'item-id' })).resolves.toEqual({
-      ok: false,
-      error: 'Не удалось отметить выполнение. Повторите попытку.',
-    });
+    const result = await postProgramItemComplete({ base: '/items', itemId: 'item-id' });
+
+    expect(result.ok).toBe(false);
+    expect(result).not.toHaveProperty('completion');
+    expect(result.ok === false && result.error.trim().length > 0).toBe(true);
   });
 
   it('returns a visible failure when the exact completion metrics PATCH rejects', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('network')));
 
-    await expect(patchProgramItemCompletionMetrics({
+    const result = await patchProgramItemCompletionMetrics({
       base: '/items', itemId: 'item-id', completionId: 'completion-id', payload: {},
-    })).resolves.toEqual({ ok: false, error: 'Не удалось сохранить параметры. Повторите попытку.' });
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.ok === false && result.error.trim().length > 0).toBe(true);
   });
 });
