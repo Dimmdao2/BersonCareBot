@@ -155,7 +155,7 @@ async function main() {
     { level: 9 },
   );
 
-  const module = `/**
+  const generatedModule = `/**
  * СГЕНЕРИРОВАННЫЙ ФАЙЛ. Руками не правится.
  * Пересобрать: node apps/webapp/scripts/login-country/build-country-index.mjs
  *
@@ -176,7 +176,7 @@ export const LOGIN_COUNTRY_INDEX_GZIP_BASE64 =
   '${payload.toString('base64')}';
 `;
 
-  await writeFile(outputPath, module, 'utf8');
+  await writeFile(outputPath, generatedModule, 'utf8');
   console.log(
     `[login-country] ${outputPath}: ${v4.length} IPv4 + ${v6unique.length} IPv6 ranges, ` +
       `${countries.length} countries, ${(payload.length / 1024).toFixed(0)} KiB compressed`,
