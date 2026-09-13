@@ -335,7 +335,15 @@ export function AuthFlowV2({
   const specialistSignupSlugEditedRef = useRef(false);
   const specialistSignupSlugCheckRef = useRef(0);
   const [specialistSignupPassword, setSpecialistSignupPassword] = useState('');
-  const [pwRecoveryPhase, setPwRecoveryPhase] = useState<'none' | 'reset_code'>('none');
+  /**
+   * `request_email` — отдельный шаг «куда прислать код» (владелец 14.09.2026: «кнопка „Забыл
+   * пароль“ вместо формы ввода имейл (без пароля) говорит введите пароль»). До него кнопка сразу
+   * слала запрос по тому, что набрано в форме входа, и на пустом поле отвечала тостом «Укажите
+   * email» — то есть требовала заполнить форму входа, чтобы из неё выйти.
+   */
+  const [pwRecoveryPhase, setPwRecoveryPhase] = useState<'none' | 'request_email' | 'reset_code'>(
+    'none',
+  );
   const [pwRecoveryPurpose, setPwRecoveryPurpose] = useState<'reset' | 'setup'>('reset');
   const [pwResetEmail, setPwResetEmail] = useState('');
   const [pwResetChallengeId, setPwResetChallengeId] = useState<string | null>(null);
@@ -740,8 +748,19 @@ export function AuthFlowV2({
    * no `user_password_credentials` row) as `setupRequired`, so this one entry point covers both
    * "reset my forgotten password" and "set a password for the first time" without asking which one.
    */
-  const submitForgotPassword = async () => {
-    const email = emailLoginEmail.trim();
+  /** Кнопка «Забыли пароль?» — это переход на шаг, а не отправка: адрес спрашиваем здесь. */
+  const openForgotPassword = () => {
+    setPwResetEmail(emailLoginEmail.trim());
+    setPwRecoveryPurpose('reset');
+    setPwResetChallengeId(null);
+    setPwResetCode('');
+    setPwNewPassword('');
+    setPwRecoveryPhase('request_email');
+  };
+
+  const submitForgotPassword = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    const email = pwResetEmail.trim();
     if (!email) {
       toast.error(notificationText.commonSpecifyEmail);
       return;
@@ -1358,7 +1377,40 @@ export function AuthFlowV2({
           </Button>
         ) : null}
 
-        {pwRecoveryPhase === 'reset_code' ? (
+        {pwRecoveryPhase === 'request_email' ? (
+          <form
+            className="mt-3 flex w-full flex-col gap-3"
+            onSubmit={(e) => void submitForgotPassword(e)}
+          >
+            <p className={authStepMutedParagraphClass}>
+              Укажите почту — пришлём на неё код для смены пароля.
+            </p>
+            <div className="flex flex-col gap-1">
+              <label htmlFor="auth-pw-recovery-email" className={authFormFieldLabelClass}>
+                Email
+              </label>
+              <Input
+                id="auth-pw-recovery-email"
+                type="email"
+                name="email"
+                autoComplete="email"
+                autoFocus
+                value={pwResetEmail}
+                onChange={(e) => setPwResetEmail(e.target.value)}
+                disabled={loading}
+                className={authEmailInputClass}
+              />
+            </div>
+            <Button
+              type="submit"
+              variant="outline"
+              className={AUTH_LOGIN_FORM_PRIMARY_BUTTON_CLASS}
+              disabled={loading}
+            >
+              Прислать код
+            </Button>
+          </form>
+        ) : pwRecoveryPhase === 'reset_code' ? (
           <form
             className="mt-3 flex w-full flex-col gap-3"
             onSubmit={(e) => void submitPasswordResetFinalize(e)}
@@ -1632,7 +1684,7 @@ export function AuthFlowV2({
                   variant="link"
                   className={authLinkButtonClass}
                   disabled={loading}
-                  onClick={() => void submitForgotPassword()}
+                  onClick={openForgotPassword}
                 >
                   Забыли пароль?
                 </Button>
