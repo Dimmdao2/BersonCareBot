@@ -57,8 +57,15 @@ async function downloadDataset(month, cachePath) {
   return url;
 }
 
-/** IPv6 is compared by its top 64 bits: country is never assigned finer than that in this dataset. */
-function ipv6Top64(text) {
+/**
+ * Full 128-bit start of an IPv6 range.
+ *
+ * An earlier version kept only the top 64 bits, on the assumption that this dataset never assigns a
+ * country finer than a /64. The dataset disproves it — `2405:2026:500::`…`::1` is HK and
+ * `2405:2026:500::2`… is AU — and the truncation answered HK for addresses that belong to AU. An
+ * independent audit found 19 such addresses in a 10 000-address sample, so the whole address is kept.
+ */
+function ipv6Start(text) {
   const halves = text.split('::');
   let groups;
   if (halves.length === 2) {
@@ -69,7 +76,7 @@ function ipv6Top64(text) {
     groups = text.split(':');
   }
   const hex = groups.map((group) => group.padStart(4, '0')).join('');
-  return BigInt(`0x${hex.slice(0, 16)}`);
+  return BigInt(`0x${hex}`);
 }
 
 function ipv4ToNumber(text) {
@@ -122,18 +129,18 @@ async function main() {
     if (!line) continue;
     const [start, , code] = line.split(',');
     if (!start || !code || !/^[A-Z]{2}$/.test(code)) continue;
-    if (start.includes(':')) v6.push([ipv6Top64(start), indexOf(code)]);
+    if (start.includes(':')) v6.push([ipv6Start(start), indexOf(code)]);
     else v4.push([ipv4ToNumber(start), indexOf(code)]);
   }
   if (v4.length === 0 || v6.length === 0) throw new Error('dataset produced no ranges');
   if (countries.length > 256) throw new Error('country list no longer fits one byte per range');
 
-  // Truncating IPv6 to /64 can make neighbouring rows share a start; the first one wins, matching
-  // the binary search below, which answers with the last range at or before the address.
+  // Starts are unique now that the whole address is kept, but a duplicate would silently shift every
+  // later delta, so it is refused rather than quietly dropped.
   const v6unique = [];
   let previousStart = -1n;
   for (const entry of v6) {
-    if (entry[0] === previousStart) continue;
+    if (entry[0] === previousStart) throw new Error('duplicate IPv6 range start in dataset');
     previousStart = entry[0];
     v6unique.push(entry);
   }

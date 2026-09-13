@@ -97,12 +97,15 @@ export async function listUserLoginEvents(
   return { items: listRes.rows, total, page, limit };
 }
 
+/** Сколько последних входов человека сворачивается в список устройств. См. `listUserLoginDevices`. */
+export const USER_LOGIN_DEVICE_SCAN_LIMIT = 2000;
+
 export type UserLoginDeviceRow = {
   group_key: string;
   /** Метка устройства, если она была; null — вход без метки (старый или браузер без кук). */
   device_id: string | null;
-  first_seen_at: Date;
   last_seen_at: Date;
+  /** Число входов В РАССМОТРЕННОМ ОКНЕ, а не за всё время — см. `USER_LOGIN_DEVICE_SCAN_LIMIT`. */
   login_count: string;
   device_kind: string | null;
   os: string | null;
@@ -121,6 +124,15 @@ export type UserLoginDeviceRow = {
  * Это НЕ список активных сессий: сессии у нас не пронумерованы, и знать, жива ли каждая из них,
  * нечем (см. `docs/_TODO/SESSIONS_AND_DEVICES_DESIGN_2026-09-13.md`). Здесь — устройства, с которых
  * входили.
+ *
+ * ⛔ Сворачиваются ТОЛЬКО последние `USER_LOGIN_DEVICE_SCAN_LIMIT` входов, и отбор идёт индексом
+ * `(user_id, occurred_at DESC)` ДО группировки. Прежняя версия ограничивала только число строк на
+ * выходе, а внутрь группировки пускала всю 395-дневную историю; независимый аудит 13.09 показал на
+ * DEV цену этого на миллионе входов одного человека: 2,4 секунды и 382 МиБ временной записи на один
+ * запрос одного экрана. Окно стоит здесь, а не «потом добавим»: список устройств от него не
+ * страдает — устройство, с которого не входили последние две тысячи раз, человеку не интересно, — а
+ * экран перестаёт зависеть от длины истории. Поэтому же `login_count` считает входы В ОКНЕ, и экран
+ * обязан говорить это словами, а не выдавать за «всего».
  */
 export async function listUserLoginDevices(
   userId: string,
@@ -128,20 +140,26 @@ export async function listUserLoginDevices(
 ): Promise<UserLoginDeviceRow[]> {
   const res = await runWebappSql<UserLoginDeviceRow>(
     getWebappSqlDb(),
-    sql`SELECT COALESCE(e.device_id, 'ua:' || md5(COALESCE(e.user_agent, ''))) AS group_key,
-            max(e.device_id) AS device_id,
-            min(e.occurred_at) AS first_seen_at,
-            max(e.occurred_at) AS last_seen_at,
+    sql`WITH recent AS (
+       SELECT e.device_id, e.user_agent, e.occurred_at, e.device_kind, e.os, e.browser,
+              e.method, e.country
+         FROM user_login_events e
+        WHERE e.user_id = ${userId}::uuid AND e.outcome = 'success'
+        ORDER BY e.occurred_at DESC
+        LIMIT ${USER_LOGIN_DEVICE_SCAN_LIMIT}
+     )
+     SELECT COALESCE(r.device_id, 'ua:' || md5(COALESCE(r.user_agent, ''))) AS group_key,
+            max(r.device_id) AS device_id,
+            max(r.occurred_at) AS last_seen_at,
             count(*)::text AS login_count,
-            (array_agg(e.device_kind ORDER BY e.occurred_at DESC))[1] AS device_kind,
-            (array_agg(e.os ORDER BY e.occurred_at DESC))[1] AS os,
-            (array_agg(e.browser ORDER BY e.occurred_at DESC))[1] AS browser,
-            (array_agg(e.method ORDER BY e.occurred_at DESC))[1] AS method,
-            array_remove(array_agg(DISTINCT e.country), NULL) AS countries
-     FROM user_login_events e
-     WHERE e.user_id = ${userId}::uuid AND e.outcome = 'success'
-     GROUP BY COALESCE(e.device_id, 'ua:' || md5(COALESCE(e.user_agent, '')))
-     ORDER BY max(e.occurred_at) DESC
+            (array_agg(r.device_kind ORDER BY r.occurred_at DESC))[1] AS device_kind,
+            (array_agg(r.os ORDER BY r.occurred_at DESC))[1] AS os,
+            (array_agg(r.browser ORDER BY r.occurred_at DESC))[1] AS browser,
+            (array_agg(r.method ORDER BY r.occurred_at DESC))[1] AS method,
+            array_remove(array_agg(DISTINCT r.country), NULL) AS countries
+     FROM recent r
+     GROUP BY COALESCE(r.device_id, 'ua:' || md5(COALESCE(r.user_agent, '')))
+     ORDER BY max(r.occurred_at) DESC
      LIMIT ${Math.min(200, Math.max(1, limit))}`,
   );
   return res.rows;

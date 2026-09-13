@@ -21,9 +21,20 @@ import {
 type CountryIndex = {
   v4Starts: Uint32Array;
   v4Codes: Uint8Array;
-  v6Starts: BigUint64Array;
+  /**
+   * IPv6 range starts as full 128-bit values, split into two 64-bit halves — a typed array cannot
+   * hold 128 bits, and an array of BigInt would cost far more memory for the same answer.
+   *
+   * Whole addresses, not just their top halves: this dataset does assign different countries inside
+   * one /64 (`2405:2026:500::`…`::1` is Hong Kong, the rest of that block is Australia), and an
+   * earlier version that truncated answered the wrong country for such addresses.
+   */
+  v6StartsHigh: BigUint64Array;
+  v6StartsLow: BigUint64Array;
   v6Codes: Uint8Array;
 };
+
+const LOW_64_BITS = (1n << 64n) - 1n;
 
 let index: CountryIndex | null = null;
 
@@ -66,25 +77,49 @@ function loadIndex(): CountryIndex {
     v4.next + LOGIN_COUNTRY_V4_RANGE_COUNT,
     LOGIN_COUNTRY_V6_RANGE_COUNT,
   );
-  const v6Starts = BigUint64Array.from(v6.values);
+  const v6StartsHigh = new BigUint64Array(LOGIN_COUNTRY_V6_RANGE_COUNT);
+  const v6StartsLow = new BigUint64Array(LOGIN_COUNTRY_V6_RANGE_COUNT);
+  for (let i = 0; i < LOGIN_COUNTRY_V6_RANGE_COUNT; i += 1) {
+    v6StartsHigh[i] = v6.values[i] >> 64n;
+    v6StartsLow[i] = v6.values[i] & LOW_64_BITS;
+  }
   const v6Codes = new Uint8Array(bytes.subarray(v6.next, v6.next + LOGIN_COUNTRY_V6_RANGE_COUNT));
 
-  index = { v4Starts, v4Codes, v6Starts, v6Codes };
+  index = { v4Starts, v4Codes, v6StartsHigh, v6StartsLow, v6Codes };
   return index;
 }
 
 /** Index of the last range starting at or before `value`, or -1 when the address precedes them all. */
-function findRange(starts: Uint32Array | BigUint64Array, value: number | bigint): number {
+function findIpv4Range(starts: Uint32Array, value: number): number {
   let low = 0;
   let high = starts.length - 1;
   let found = -1;
   while (low <= high) {
     const middle = (low + high) >> 1;
-    if (starts[middle] <= (value as never)) {
+    if (starts[middle] <= value) {
       found = middle;
       low = middle + 1;
     } else {
       high = middle - 1;
+    }
+  }
+  return found;
+}
+
+/** The same search over 128-bit starts held as two halves: compare the high half, then the low. */
+function findIpv6Range(index: CountryIndex, high: bigint, low: bigint): number {
+  let lowBound = 0;
+  let highBound = index.v6StartsHigh.length - 1;
+  let found = -1;
+  while (lowBound <= highBound) {
+    const middle = (lowBound + highBound) >> 1;
+    const startHigh = index.v6StartsHigh[middle];
+    const notAfter = startHigh < high || (startHigh === high && index.v6StartsLow[middle] <= low);
+    if (notAfter) {
+      found = middle;
+      lowBound = middle + 1;
+    } else {
+      highBound = middle - 1;
     }
   }
   return found;
@@ -103,7 +138,7 @@ function parseIpv4(address: string): number | null {
   return value;
 }
 
-function parseIpv6Top64(address: string): bigint | null {
+function parseIpv6(address: string): bigint | null {
   const plain = address.split('%')[0];
   if (!/^[0-9a-fA-F:.]+$/.test(plain)) return null;
   const halves = plain.split('::');
@@ -122,10 +157,7 @@ function parseIpv6Top64(address: string): bigint | null {
   // An IPv4-mapped tail (`::ffff:1.2.3.4`) is not an IPv6 address of its own: it is handled by the
   // caller below, which retries such an address through the IPv4 table.
   if (groups.length !== 8 || groups.some((group) => !/^[0-9a-fA-F]{1,4}$/.test(group))) return null;
-  const hex = groups
-    .slice(0, 4)
-    .map((group) => group.padStart(4, '0'))
-    .join('');
+  const hex = groups.map((group) => group.padStart(4, '0')).join('');
   return BigInt(`0x${hex}`);
 }
 
@@ -144,14 +176,14 @@ export function lookupLoginCountry(address: string): string | null {
   let position: number;
   let codes: Uint8Array;
   if (target.includes(':')) {
-    const value = parseIpv6Top64(target);
+    const value = parseIpv6(target);
     if (value == null) return null;
-    position = findRange(loaded.v6Starts, value);
+    position = findIpv6Range(loaded, value >> 64n, value & LOW_64_BITS);
     codes = loaded.v6Codes;
   } else {
     const value = parseIpv4(target);
     if (value == null) return null;
-    position = findRange(loaded.v4Starts, value);
+    position = findIpv4Range(loaded.v4Starts, value);
     codes = loaded.v4Codes;
   }
   if (position < 0) return null;

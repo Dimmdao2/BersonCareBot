@@ -32,7 +32,6 @@ export default async function AdminSecurityPage() {
     devices = rows.map((row) => ({
       key: row.group_key,
       identifiedByMarker: row.device_id != null,
-      firstSeenAt: row.first_seen_at.toISOString(),
       lastSeenAt: row.last_seen_at.toISOString(),
       loginCount: Number(row.login_count),
       deviceKind: row.device_kind,

@@ -23,7 +23,6 @@ export type SecurityDevice = {
   key: string;
   /** true — устройство опознано меткой; false — только по строке браузера, то есть приблизительно. */
   identifiedByMarker: boolean;
-  firstSeenAt: string;
   lastSeenAt: string;
   loginCount: number;
   deviceKind: string | null;
@@ -38,6 +37,11 @@ function whenText(iso: string): string {
   return Number.isNaN(value.getTime()) ? '—' : value.toLocaleString('ru-RU');
 }
 
+/**
+ * «12 входов» — но именно в рассмотренном окне, а не за всё время: список устройств сворачивается по
+ * последним двум тысячам входов (иначе экран зависел бы от длины истории). Поэтому окно названо
+ * словами внизу экрана, а число тут не выдаётся за «всего».
+ */
 function loginCountText(count: number): string {
   const tail = count % 100;
   const last = count % 10;
@@ -131,8 +135,10 @@ export function AdminSecurityClient({
           или зайти в приватном окне, устройство будет показано как новое — так устроено везде.
         </p>
         <p className="mt-1 text-xs text-muted-foreground">
-          Записи о входах хранятся 13 месяцев, дальше удаляются. Страна определяется по адресу на
-          нашем сервере, по справочнику DB-IP (db-ip.com); сам адрес никуда не передаётся.
+          Список собран по двум тысячам последних входов, поэтому счётчик рядом с устройством — это
+          входы в том же отрезке, а не за всё время. Сами записи о входах хранятся 13 месяцев,
+          дальше удаляются. Страна определяется по адресу на нашем сервере, по справочнику DB-IP
+          (db-ip.com); сам адрес никуда не передаётся.
         </p>
       </DoctorSection>
 
