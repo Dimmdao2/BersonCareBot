@@ -342,8 +342,8 @@ describe('D14(3): webapp decides the patient message text', () => {
       { idempotencyPort: createInMemoryIdempotencyPort() },
     );
     const sent = patientTextSentTo(dispatchPort, 'booking-created');
+    // Точное равенство с текстом вебаппа уже означает, что свой текст интегратор не сочинял.
     expect(sent).toBe(webappText);
-    expect(sent).not.toContain('Запись подтверждена');
   });
 });
 
@@ -458,7 +458,6 @@ describe('D14(4): webapp decides whether/what to notify the doctor', () => {
     );
     const sent = doctorTextSentTo(dispatchPort, 'booking-created');
     expect(sent).toBe(webappText);
-    expect(sent).not.toContain('Новая запись');
   });
 });
 

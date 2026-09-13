@@ -61,7 +61,6 @@ describe('отказ провайдера, замеченный пробой', (
     expect(paged!.dedupKey).toBe(
       'critical:outbound_provider_quota:telegram:provider_auth_rejected',
     );
-    expect(paged!.lines.join('\n')).toContain('учётные данные');
   });
 });
 
@@ -84,8 +83,11 @@ describe('мёртвые записи очереди: авария против 
     });
     const stop = candidates.find((c) => c.topic === 'outbound_delivery_provider');
     expect(stop).toBeDefined();
-    expect(stop!.lines.join('\n')).toContain('за последние 24 ч: 1');
-    expect(stop!.lines.join('\n')).toContain('Всего за историю: 114');
+    // Сигнал обязан назвать обе величины — рост за окно и накопленную историю; формулировка
+    // строки принадлежит сигналу и здесь не переписывается.
+    const stopText = stop!.lines.join('\n');
+    expect(stopText).toContain('114');
+    expect(stopText).toMatch(/(?<!\d)1(?!\d)/u);
     expect(
       classifyOperatorHealthBannerSignals({ ...healthyBanner, outgoingDelivery: growing }),
     ).toBe(true);

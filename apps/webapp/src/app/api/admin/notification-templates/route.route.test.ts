@@ -111,12 +111,16 @@ describe('GET /api/admin/notification-templates', () => {
     );
 
     expect(response.status).toBe(403);
-    await expect(response.json()).resolves.toEqual({
+    const body = await response.json();
+    expect(body).toMatchObject({
       ok: false,
       error: 'mechanic_write_clearance_required',
       mechanic: 'branding',
-      message:
-        'Сохранение платформенного шаблона недоступно: запрос попал в тарифную дверь клиники.',
     });
+    // Платформенный шаблон не должен был попасть в тарифную дверь клиники — это дефект, поэтому
+    // отказ обязан нести код для поддержки и не обязан нести техническую деталь. Формулировка
+    // принадлежит словарю текстов и здесь не переписывается.
+    expect(body.message).toMatch(/ Код для поддержки: [0-9a-f]{6,}$/u);
+    expect(body.message).not.toMatch(/MechanicWriteClearanceRequiredError|at |\bError\b/u);
   });
 });

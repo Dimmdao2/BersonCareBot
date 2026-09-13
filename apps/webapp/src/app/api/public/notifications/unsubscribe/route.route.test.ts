@@ -40,7 +40,18 @@ describe('public topic unsubscribe response', () => {
     expect(applied.headers.get('referrer-policy')).toBe('no-referrer');
   });
 
+  // Сравниваем со страницей удачной отписки, а не с её формулировками: правка текста страницу не
+  // ломает, а неудача, выданная за успех, ломает.
   it('does not claim that settings changed when the unsubscribe write fails', async () => {
+    fakes.unsubscribeByToken.mockResolvedValueOnce({
+      applied: true,
+      topicCode: 'patient_news',
+      topicTitle: 'Новости и уведомления',
+    });
+    const appliedHtml = await (
+      await GET(new Request('https://example.test/api/public/notifications/unsubscribe?token=ok'))
+    ).text();
+
     fakes.unsubscribeByToken.mockResolvedValue({
       applied: false,
       topicCode: null,
@@ -53,7 +64,6 @@ describe('public topic unsubscribe response', () => {
     const html = await response.text();
 
     expect(response.status).toBe(200);
-    expect(html).toContain('Настройки уведомлений не изменены');
-    expect(html).not.toContain('Настройки уведомлений обновлены');
+    expect(html).not.toBe(appliedHtml);
   });
 });

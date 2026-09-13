@@ -342,7 +342,31 @@ export function createPaymentsService(deps: {
       if (!deps.resolvePatientPublicOrigin) {
         return rows.map(({ appointmentId }) => ({ appointmentId, checkoutUrl: null }));
       }
-      const patientOrigin = await deps.resolvePatientPublicOrigin(organizationId);
+      // Пациентская поверхность нужна ровно для перезаписи ссылок предоплаты. Если переписывать
+      // нечего, её не спрашивают вовсе: у клиники без опубликованного слуга этот запрос бросает
+      // `patient_public_origin_unresolved`, и раздел, которому ссылки не понадобились, падал целиком.
+      const needsPatientOrigin = rows.some(
+        ({ purpose, checkoutUrl }) => checkoutUrl && purpose === 'appointment_prepayment',
+      );
+      if (!needsPatientOrigin) {
+        return rows.map(({ appointmentId, checkoutUrl }) => ({ appointmentId, checkoutUrl }));
+      }
+      // Клиника без опубликованного слуга не может назвать пациентский адрес. Ссылку отдать нельзя —
+      // но это отсутствие ссылки, а не отказ раздела: раньше эта строка роняла весь экран «Сегодня».
+      // Наружу уходит null, интерфейс просто не показывает кнопку оплаты. Любая другая ошибка —
+      // настоящая, и её по-прежнему видно.
+      let patientOrigin: string;
+      try {
+        patientOrigin = await deps.resolvePatientPublicOrigin(organizationId);
+      } catch (error) {
+        if (error instanceof Error && error.message === 'patient_public_origin_unresolved') {
+          return rows.map(({ appointmentId, purpose, checkoutUrl }) => ({
+            appointmentId,
+            checkoutUrl: purpose === 'appointment_prepayment' ? null : checkoutUrl,
+          }));
+        }
+        throw error;
+      }
       return rows.map(({ appointmentId, intentId, purpose, checkoutUrl }) => ({
         appointmentId,
         checkoutUrl:

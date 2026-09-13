@@ -178,6 +178,126 @@ describe('payments tariff mechanic', () => {
     );
   });
 
+  it('does not ask for the patient surface when no prepayment link needs rewriting', async () => {
+    // Клиника без опубликованного слуга не может назвать пациентский origin — это законное состояние,
+    // а не сбой. Раньше раздел «Сегодня» спрашивал его всегда и падал целиком, хотя переписывать было
+    // нечего: на новом проде ноль платёжных намерений, а страница не грузилась.
+    const resolvePatientPublicOrigin = vi.fn(async () => {
+      throw new Error('patient_public_origin_unresolved');
+    });
+    const payments = createPaymentsService({
+      port: {
+        listAppointmentCheckoutUrls: vi.fn(async () => [
+          {
+            appointmentId: 'appointment-1',
+            intentId: null,
+            purpose: 'membership_purchase',
+            checkoutUrl: 'https://provider.test/pay/abc',
+          },
+          {
+            appointmentId: 'appointment-2',
+            intentId: null,
+            purpose: 'appointment_prepayment',
+            checkoutUrl: null,
+          },
+        ]),
+      } as unknown as PaymentsPort,
+      config: {
+        getBookingPaymentSettings: async () => ({
+          enabled: true,
+          defaultProviderId: 'yookassa',
+          providers: [],
+        }),
+      },
+      captureUnitOfWork: {
+        run: async (_organizationId, fn) => fn(),
+        runSerializedPostCommit: async (_organizationId, _key, fn) => fn(),
+      },
+      bookingEngine: null,
+      resolvePatientPublicOrigin,
+    });
+
+    await expect(
+      payments.listAppointmentCheckoutUrls('org-1', ['appointment-1', 'appointment-2']),
+    ).resolves.toEqual([
+      { appointmentId: 'appointment-1', checkoutUrl: 'https://provider.test/pay/abc' },
+      { appointmentId: 'appointment-2', checkoutUrl: null },
+    ]);
+    expect(resolvePatientPublicOrigin).not.toHaveBeenCalled();
+  });
+
+  it('gives no prepayment link instead of failing when the clinic has no published slug', async () => {
+    // Клиника без слуга не может назвать пациентский адрес. Это отсутствие ссылки, а не отказ раздела:
+    // экран «Сегодня» обязан открыться, просто без кнопки оплаты.
+    const payments = createPaymentsService({
+      port: {
+        listAppointmentCheckoutUrls: vi.fn(async () => [
+          {
+            appointmentId: 'appointment-1',
+            intentId: intent.id,
+            purpose: 'appointment_prepayment',
+            checkoutUrl: intent.checkoutUrl,
+          },
+        ]),
+      } as unknown as PaymentsPort,
+      config: {
+        getBookingPaymentSettings: async () => ({
+          enabled: true,
+          defaultProviderId: 'yookassa',
+          providers: [],
+        }),
+      },
+      captureUnitOfWork: {
+        run: async (_organizationId, fn) => fn(),
+        runSerializedPostCommit: async (_organizationId, _key, fn) => fn(),
+      },
+      bookingEngine: null,
+      resolvePatientPublicOrigin: async () => {
+        throw new Error('patient_public_origin_unresolved');
+      },
+    });
+
+    await expect(payments.listAppointmentCheckoutUrls('org-1', ['appointment-1'])).resolves.toEqual([
+      { appointmentId: 'appointment-1', checkoutUrl: null },
+    ]);
+  });
+
+  it('still reports a real failure of the patient-surface lookup', async () => {
+    // Гасим только названное состояние «слуга нет». Любой другой отказ обязан остаться видимым,
+    // иначе мы променяли одну немую ошибку на другую.
+    const payments = createPaymentsService({
+      port: {
+        listAppointmentCheckoutUrls: vi.fn(async () => [
+          {
+            appointmentId: 'appointment-1',
+            intentId: intent.id,
+            purpose: 'appointment_prepayment',
+            checkoutUrl: intent.checkoutUrl,
+          },
+        ]),
+      } as unknown as PaymentsPort,
+      config: {
+        getBookingPaymentSettings: async () => ({
+          enabled: true,
+          defaultProviderId: 'yookassa',
+          providers: [],
+        }),
+      },
+      captureUnitOfWork: {
+        run: async (_organizationId, fn) => fn(),
+        runSerializedPostCommit: async (_organizationId, _key, fn) => fn(),
+      },
+      bookingEngine: null,
+      resolvePatientPublicOrigin: async () => {
+        throw new Error('database_unavailable');
+      },
+    });
+
+    await expect(
+      payments.listAppointmentCheckoutUrls('org-1', ['appointment-1']),
+    ).rejects.toThrow('database_unavailable');
+  });
+
   it('keeps an existing payment intent available after payment acceptance is disabled', async () => {
     const payments = createPaymentsService({
       port: {

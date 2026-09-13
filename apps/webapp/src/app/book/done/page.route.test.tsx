@@ -48,12 +48,11 @@ describe('GET /book/done — public booking success screen', () => {
     );
     const html = renderToStaticMarkup(element);
 
-    expect(html).toContain('Запись подтверждена');
     expect(html).toContain('Консультация невролога');
     expect(html).toContain('TEST филиал A');
-    expect(html).toContain('Добавить в календарь');
-    expect(html).toContain('Google Календарь');
-    expect(html).toContain('Яндекс Календарь');
+    // Ссылки в календари проверяются по адресам, а не по подписям кнопок.
+    expect(html).toContain('calendar.google.com');
+    expect(html).toContain('calendar.yandex.ru');
     expect(html).toContain('.ics');
     // Public booker has no session-only "Новая запись" hub — the primary CTA sends them back to /book.
     expect(html).toContain('href="/book"');

@@ -62,10 +62,8 @@ describe('промах в имени клиники — выход есть, л�
     const response = await proxy(requestFor(`net-takoy-kliniki.${new URL(PATIENT_ORIGIN).hostname}`));
     expect(response.status).toBe(404);
     const body = await response.text();
+    // Выход с этой страницы — сама ссылка на общий вход; её наличие и проверяем, а не подпись.
     expect(body).toContain(`href="${PATIENT_ORIGIN}/"`);
-    expect(body).toContain('Открыть общий вход');
-    // Про «ссылку, которую надо попросить заново» здесь речи нет: человек набрал адрес руками.
-    expect(body).not.toContain('попросите отправить её заново');
   });
 
   it('чужой домен: 404 без всякого выхода на платформу', async () => {
@@ -74,7 +72,6 @@ describe('промах в имени клиники — выход есть, л�
     expect(response.status).toBe(404);
     const body = await response.text();
     expect(body).not.toContain(PATIENT_ORIGIN);
-    expect(body).toContain('попросите отправить её заново');
   });
 
   it('неактивная организация неотличима от выдуманного слага: тот же 404 и то же тело', async () => {

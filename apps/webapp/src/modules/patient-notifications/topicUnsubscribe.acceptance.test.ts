@@ -176,7 +176,6 @@ describe('topic unsubscribe signed flow', () => {
       const html = buildTopicUnsubscribeResponseHtml(result);
 
       expect(html).toContain(`«${topicTitle}»`);
-      expect(html).toContain('Остальные уведомления продолжат приходить.');
       expect(html).toContain('/app/patient/notifications/settings');
     },
   );

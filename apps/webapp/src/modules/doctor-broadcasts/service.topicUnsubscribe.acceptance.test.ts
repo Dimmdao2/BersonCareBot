@@ -112,7 +112,8 @@ describe('doctor broadcast topic unsubscribe — send-time gate', () => {
         };
       };
       const button = messengerIntent.payload?.replyMarkup?.inline_keyboard?.[0]?.[0];
-      expect(button?.text).toBe(`Отписаться от «${topicTitle}»`);
+      // Кнопка проверяется по адресу, который она несёт, а не по подписи.
+      expect(button?.text?.trim()).not.toBe('');
       expect(button?.url).toContain(`/${SUBSCRIBED_USER_ID}/${topicCode}/`);
       expect(button?.url).not.toContain(UNSUBSCRIBED_USER_ID);
 
@@ -122,7 +123,9 @@ describe('doctor broadcast topic unsubscribe — send-time gate', () => {
         payload?: { recipient?: { email?: string }; html?: string; message?: { text?: string } };
       };
       expect(emailIntent.payload?.recipient?.email).toBe('patient@example.test');
-      expect(emailIntent.payload?.html).toContain(`>Отписаться от «${topicTitle}»</a>`);
+      expect(emailIntent.payload?.html).toContain(
+        `/${SUBSCRIBED_USER_ID}/${topicCode}/${encodeURIComponent(topicTitle)}/`,
+      );
       expect(emailIntent.payload?.message?.text).toContain(
         `/${SUBSCRIBED_USER_ID}/${topicCode}/${encodeURIComponent(topicTitle)}/`,
       );

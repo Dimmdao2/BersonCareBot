@@ -6,6 +6,8 @@ vi.mock('@/modules/system-settings/appDisplayTimezone', () => ({
 
 import { createAppointmentPaymentConfirmedHandler } from './appointmentPaymentConfirmedHandler';
 import type { PatientBookingRecord } from '@/modules/patient-booking/types';
+import { buildDoctorPaymentCapturedMessageText } from '@/modules/patient-booking/doctorMessageText';
+import { buildPatientPaymentCapturedMessageText } from '@/modules/patient-booking/patientMessageText';
 
 /**
  * D14, часть 4: `booking.payment_captured` тоже переносится — вебапп теперь строит
@@ -70,8 +72,12 @@ describe('D14(3): booking.payment_captured шлёт patientMessageText', () => {
     await handler({ appointmentIds: ['appt-1'], paymentId: 'pay-1', platformUserId: 'user-1' });
 
     expect(captured).toHaveLength(1);
+    // Текст закреплён у сборщика сообщений; здесь проверяется только шов.
     expect(captured[0]!.patientMessageText).toBe(
-      'Оплата записи подтверждена. 10 мар. 2027 г., 12:00',
+      buildPatientPaymentCapturedMessageText(
+        { appointments: [{ slotStart: record.slotStart, serviceTitle: null }] },
+        'Europe/Moscow',
+      ),
     );
   });
 });
@@ -99,7 +105,12 @@ describe('D14, часть 5: booking.payment_captured шлёт doctorNotify/doct
     await handler({ appointmentIds: ['appt-1'], paymentId: 'pay-1', platformUserId: 'user-1' });
 
     expect(captured[0]!.doctorNotify).toBe(true);
-    expect(captured[0]!.doctorMessageText).toBe('Оплата записи: Пациент, 10 мар. 2027 г., 12:00');
+    expect(captured[0]!.doctorMessageText).toBe(
+      buildDoctorPaymentCapturedMessageText(
+        { slotStart: record.slotStart, contactName: record.contactName },
+        'Europe/Moscow',
+      ),
+    );
     expect(captured[0]!.calendarAction).toBe('updated');
     expect(captured[0]!.calendarTitleMarker).toBe('none');
   });

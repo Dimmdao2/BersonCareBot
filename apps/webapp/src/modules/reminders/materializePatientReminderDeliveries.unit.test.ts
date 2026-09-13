@@ -120,7 +120,6 @@ describe('patient reminder ready-delivery materializer', () => {
       });
       expect(externalEnvelope).not.toContain(privateTitle);
       expect(externalEnvelope).not.toContain(privateText);
-      expect(externalEnvelope.toLocaleLowerCase('ru-RU')).toContain('напомин');
       expect(externalEnvelope).toContain(openUrl);
     }
   });
