@@ -16,7 +16,13 @@ import { Button } from '@/shared/ui/doctor/primitives/button';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 import { errorCodeText } from '@/shared/notifications/errorCodeText';
 import { notificationText } from '@/shared/notifications/notificationText';
-import { deviceSummary, loginMethodLabel, loginRoleLabel, outcomeLabel } from './loginHistoryText';
+import {
+  countryName,
+  deviceSummary,
+  loginMethodLabel,
+  loginRoleLabel,
+  outcomeLabel,
+} from '@/shared/ui/security/loginHistoryText';
 
 type Row = {
   id: string;
@@ -32,6 +38,8 @@ type Row = {
   os: string | null;
   browser: string | null;
   host: string | null;
+  deviceId: string | null;
+  country: string | null;
 };
 
 type ApiOk = { ok: true; items: Row[]; total: number; page: number; limit: number };
@@ -154,6 +162,7 @@ export function LoginHistoryClient({ userId, ip }: Props) {
                   ) : (
                     <span>Адрес не записан</span>
                   )}
+                  <span>{countryName(row.country) ?? 'Страна не определилась'}</span>
                   <span>{loginRoleLabel(row.role)}</span>
                 </div>
                 {ip ? (

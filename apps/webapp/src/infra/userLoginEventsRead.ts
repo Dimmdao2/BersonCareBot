@@ -26,6 +26,8 @@ export type UserLoginEventRow = {
   os: string | null;
   browser: string | null;
   host: string | null;
+  device_id: string | null;
+  country: string | null;
 };
 
 export type ListUserLoginEventsParams = {
@@ -83,7 +85,9 @@ export async function listUserLoginEvents(
             e.device_kind,
             e.os,
             e.browser,
-            e.host
+            e.host,
+            e.device_id,
+            e.country
      FROM user_login_events e
      WHERE ${whereSql}
      ORDER BY e.occurred_at DESC
@@ -91,4 +95,54 @@ export async function listUserLoginEvents(
   );
 
   return { items: listRes.rows, total, page, limit };
+}
+
+export type UserLoginDeviceRow = {
+  group_key: string;
+  /** Метка устройства, если она была; null — вход без метки (старый или браузер без кук). */
+  device_id: string | null;
+  first_seen_at: Date;
+  last_seen_at: Date;
+  login_count: string;
+  device_kind: string | null;
+  os: string | null;
+  browser: string | null;
+  method: string | null;
+  countries: string[] | null;
+};
+
+/**
+ * Устройства одной учётной записи — свёртка её удачных входов (#1112, вариант B).
+ *
+ * Группируем по метке устройства. Там, где метки нет (вход сделан до её появления или браузер кук
+ * не хранит), группой становится строка браузера: это заметно грубее — одинаковые телефоны сольются
+ * в одну строку, — и экран обязан сказать об этом человеку, а не выдавать догадку за опознание.
+ *
+ * Это НЕ список активных сессий: сессии у нас не пронумерованы, и знать, жива ли каждая из них,
+ * нечем (см. `docs/_TODO/SESSIONS_AND_DEVICES_DESIGN_2026-09-13.md`). Здесь — устройства, с которых
+ * входили.
+ */
+export async function listUserLoginDevices(
+  userId: string,
+  limit = 50,
+): Promise<UserLoginDeviceRow[]> {
+  const res = await runWebappSql<UserLoginDeviceRow>(
+    getWebappSqlDb(),
+    sql`SELECT COALESCE(e.device_id, 'ua:' || md5(COALESCE(e.user_agent, ''))) AS group_key,
+            max(e.device_id) AS device_id,
+            min(e.occurred_at) AS first_seen_at,
+            max(e.occurred_at) AS last_seen_at,
+            count(*)::text AS login_count,
+            (array_agg(e.device_kind ORDER BY e.occurred_at DESC))[1] AS device_kind,
+            (array_agg(e.os ORDER BY e.occurred_at DESC))[1] AS os,
+            (array_agg(e.browser ORDER BY e.occurred_at DESC))[1] AS browser,
+            (array_agg(e.method ORDER BY e.occurred_at DESC))[1] AS method,
+            array_remove(array_agg(DISTINCT e.country), NULL) AS countries
+     FROM user_login_events e
+     WHERE e.user_id = ${userId}::uuid AND e.outcome = 'success'
+     GROUP BY COALESCE(e.device_id, 'ua:' || md5(COALESCE(e.user_agent, '')))
+     ORDER BY max(e.occurred_at) DESC
+     LIMIT ${Math.min(200, Math.max(1, limit))}`,
+  );
+  return res.rows;
 }

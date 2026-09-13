@@ -59,6 +59,8 @@ export async function GET(request: Request) {
       os: row.os,
       browser: row.browser,
       host: row.host,
+      deviceId: row.device_id,
+      country: row.country,
     })),
     total: result.total,
     page: result.page,

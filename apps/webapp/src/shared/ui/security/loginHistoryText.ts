@@ -1,5 +1,8 @@
 /**
- * Человеческие подписи для истории входов (#1112).
+ * Человеческие подписи для истории входов и устройств (#1112).
+ *
+ * Лежит в общем месте, а не рядом с одним экраном: эти подписи читают и разбор входов у админа
+ * платформы, и вкладка «Безопасность». Две копии разошлись бы на первой же правке.
  *
  * Способ входа хранится машинным кодом — так его удобно искать и он не зависит от языка. Но читает
  * его ЧЕЛОВЕК, и печатать ему `second_factor_recovery_code` нельзя (критерий владельца: в интерфейсе
@@ -73,4 +76,28 @@ export function outcomeLabel(outcome: string): string {
   if (outcome === 'success') return 'Вошли';
   if (outcome === 'failure') return 'Не удалось';
   return 'Состояние не определено';
+}
+
+/**
+ * Название страны по двухбуквенному коду — «Россия», а не «RU»: в интерфейсе не должно быть
+ * машинных слов. Если система не знает названия (редкий или спорный код), честно говорим, что
+ * страна не определилась, вместо того чтобы показать человеку сам код.
+ */
+export function countryName(code: string | null | undefined): string | null {
+  if (!code || !/^[A-Z]{2}$/.test(code)) return null;
+  try {
+    const name = new Intl.DisplayNames(['ru'], { type: 'region' }).of(code);
+    return name && name !== code ? name : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Несколько стран одной строкой: «Россия, Франция». Пусто — когда ни одна не определилась. */
+export function countriesSummary(codes: readonly string[] | null | undefined): string | null {
+  if (!codes || codes.length === 0) return null;
+  const names = Array.from(
+    new Set(codes.map((code) => countryName(code)).filter((name): name is string => name != null)),
+  );
+  return names.length > 0 ? names.join(', ') : null;
 }

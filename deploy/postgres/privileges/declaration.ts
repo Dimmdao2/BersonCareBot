@@ -31372,6 +31372,8 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     codePaths: [
       'apps/webapp/src/infra/userLoginEvents.ts#appendUserLoginEvent',
       'apps/webapp/src/app-layer/identity/recordUserLoginEvent.ts#recordUserLoginEvent',
+      'apps/webapp/src/infra/userLoginEventsRead.ts#listUserLoginEvents',
+      'apps/webapp/src/infra/userLoginEventsRead.ts#listUserLoginDevices',
     ],
     grants: [
       { role: 'app_platform_settings', operations: ['SELECT'], columns: 'table' },
