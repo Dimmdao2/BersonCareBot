@@ -1754,26 +1754,33 @@ test('tenant service has one command-aware D/M/P policy for every exact relation
     }
   }
 
-  // The census is the deepEqual below, and it is derived on BOTH sides: every declared
-  // app_tenant_service operation must have a matching rev10_tenant_* policy and vice versa, named
-  // exactly when it does not. It stays honest however many tenant tables exist.
+  // The deepEqual below compares every declared app_tenant_service operation against the
+  // rev10_tenant_* policy that must exist for it. It cannot see both sides collapsing together, and
+  // — this is the part an earlier revision of this comment got wrong — it is NOT "derived on both
+  // sides": declaration.ts builds the rev10_tenant_* policies from REV10_CLINICAL_ACCESS, the very
+  // object these expectations are read from. One source printed twice. Delete a tenant grant and
+  // both sets lose the same edge, so the comparison stays green by construction. The size assertions
+  // are the only independent anchor there is.
   //
-  // The one hole that comparison cannot see is both sides collapsing together: if the declaration
-  // stopped producing tenant grants, expectedEdges and actualEdges would both be empty and equal.
-  // The two lines that used to close it were `assert.equal(expectedEdges.size, N)` — an exact count
-  // that went red whenever one ordinary tenant table was added, naming nothing and repairable only
-  // by retyping N. It was retyped six times (130, 131, 130, 132, 130, 128) without ever catching
-  // anything. So: a FLOOR, not a census. It is deliberately far below the real figure, it moves only
-  // if the tenant wall is gutted wholesale — which is the only thing it is here to catch — and there
-  // is nothing in it to keep in sync.
-  assert.ok(expectedEdges.size >= 64,
+  // They are a RATCHET pinned to the real figure, not a floor at half of it. An independent audit
+  // (13.09) proved the difference: removing ONE app_tenant_service DELETE grant left the whole
+  // 380-test suite green under a floor of 64/32, and removing forty grants — 46.7% of the tenant
+  // wall — still passed. The same audit re-read the history the previous revision cited as "retyped
+  // six times without ever catching anything": five of those seven edits moved the number DOWN.
+  // Every one of them was this guard firing on a shrinking wall, answered by retyping the number
+  // instead of asking why the wall shrank. The guard worked; the reaction to it did not.
+  //
+  // Adding an ordinary tenant table raises the real figure and cannot make this red — that was the
+  // whole complaint, and a ratchet answers it. A number that has to come DOWN means tenant grants
+  // disappeared: find out which and why before touching this line.
+  assert.ok(expectedEdges.size >= 128,
     `tenant operation census collapsed to ${expectedEdges.size} declared edges: `
-    + 'the declaration all but stopped granting app_tenant_service, so the comparison below '
-    + 'would pass against an empty set');
-  assert.ok(tenantRelations.size >= 32,
+    + 'app_tenant_service grants disappeared from the declaration, and the comparison below cannot '
+    + 'see it because both of its sides come from the same object');
+  assert.ok(tenantRelations.size >= 60,
     `tenant relation census collapsed to ${tenantRelations.size} relations carrying a rev10_tenant_* `
-    + 'policy: the D/M/P wall all but disappeared, so the comparison below would pass against an '
-    + 'empty set');
+    + 'policy: relations dropped out of the D/M/P wall, and the comparison below cannot see it '
+    + 'because both of its sides come from the same object');
   assert.deepEqual(actualEdges, expectedEdges);
 });
 
