@@ -157,7 +157,7 @@ describe('session audience follows the resolved product surface', () => {
   ] as const)('does not mint a %s-host session for a %s account', async (surface, role) => {
     fakes.resolvedSurfaceHeader = resolvedSurfaceHeader(surface);
 
-    await expect(setSessionFromUser({ ...user, role })).rejects.toThrow();
+    await expect(setSessionFromUser({ ...user, role }, 'test')).rejects.toThrow();
 
     expect(fakes.writtenCookie).toBe('');
   });
@@ -170,7 +170,7 @@ describe('session audience follows the resolved product surface', () => {
   ] as const)('mints a %s-host session for its %s audience', async (surface, role) => {
     fakes.resolvedSurfaceHeader = resolvedSurfaceHeader(surface);
 
-    await setSessionFromUser({ ...user, role });
+    await setSessionFromUser({ ...user, role }, 'test');
 
     expect(fakes.writtenCookie).not.toBe('');
   });

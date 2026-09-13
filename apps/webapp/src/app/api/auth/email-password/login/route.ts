@@ -278,7 +278,7 @@ export async function POST(request: Request) {
       });
     }
 
-    await setSessionFromUser(authenticatedUser, prepared.sessionOptions);
+    await setSessionFromUser(authenticatedUser, 'password', prepared.sessionOptions);
     return NextResponse.json({
       ok: true,
       // A factor that the user has already enrolled is verified above. Without an enrolled factor,

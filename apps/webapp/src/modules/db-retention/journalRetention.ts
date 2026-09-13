@@ -14,6 +14,13 @@ export const OUTGOING_DELIVERY_QUEUE_SENT_RETENTION_DAYS_DEFAULT = 30;
 export const OUTGOING_DELIVERY_QUEUE_DEAD_RETENTION_DAYS_DEFAULT = 180;
 export const NOTIFICATION_DELIVERY_ATTEMPTS_RETENTION_DAYS_DEFAULT = 180;
 /**
+ * Login IP and device evidence is a security journal with a 13-month window: FSTEC Order No. 21
+ * RSB.3 sets a three-month floor, PCI DSS 4.0 10.5.1 requires 12 months, NIST SP 800-92r1 names
+ * 13 months, and ISO/IEC 27001 A.8.15 commonly uses a 12-month audit window. 395 days keeps the
+ * longest published period without retaining personal device data indefinitely.
+ */
+export const USER_LOGIN_EVENTS_RETENTION_DAYS_DEFAULT = 395;
+/**
  * `message_log` holds the doctor→patient message TEXT plus its delivery error. The recorded policy
  * already names this class: journals carrying the content of a message sent to a person keep 90 days
  * (`integrator.delivery_attempt_logs`, `public.support_delivery_events`). Placing the table in the class the
@@ -81,6 +88,7 @@ export type JournalRetentionOverrides = {
   outgoingDeliveryQueueSentRetentionDays?: number;
   outgoingDeliveryQueueDeadRetentionDays?: number;
   notificationDeliveryAttemptsRetentionDays?: number;
+  userLoginEventsRetentionDays?: number;
   messageLogRetentionDays?: number;
   reminderOccurrenceHistoryRetentionDays?: number;
   mediaUploadSessionsCompletedRetentionDays?: number;
@@ -130,6 +138,9 @@ export async function runDbJournalRetention(
     overrides.notificationDeliveryAttemptsRetentionDays ??
       NOTIFICATION_DELIVERY_ATTEMPTS_RETENTION_DAYS_DEFAULT,
   );
+  const userLoginEventsDays = clampRetentionDays(
+    overrides.userLoginEventsRetentionDays ?? USER_LOGIN_EVENTS_RETENTION_DAYS_DEFAULT,
+  );
   const messageLogDays = clampRetentionDays(
     overrides.messageLogRetentionDays ?? MESSAGE_LOG_RETENTION_DAYS_DEFAULT,
   );
@@ -172,6 +183,10 @@ export async function runDbJournalRetention(
     {
       target: 'notification_delivery_attempts',
       run: () => port.pruneNotificationDeliveryAttempts(notificationDays, { dryRun }),
+    },
+    {
+      target: 'user_login_events',
+      run: () => port.pruneUserLoginEvents(userLoginEventsDays, { dryRun }),
     },
     {
       target: 'message_log',

@@ -101,7 +101,7 @@ export async function POST(request: Request) {
       sessionUser = { ...user, role: envRole };
     }
 
-    await setSessionFromUser(sessionUser);
+    await setSessionFromUser(sessionUser, row.method);
     await deps.loginTokens.markSessionIssued(tokenHash, now);
 
     return NextResponse.json({

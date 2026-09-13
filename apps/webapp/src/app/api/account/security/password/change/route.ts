@@ -110,6 +110,7 @@ export async function POST(request: Request) {
   try {
     await setSessionFromUser(
       result.user,
+      'password_change',
       gate.session.staffSecurity ? { staffSecurity: gate.session.staffSecurity } : undefined,
     );
   } catch (err) {

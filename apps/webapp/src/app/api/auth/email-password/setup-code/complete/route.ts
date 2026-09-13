@@ -136,7 +136,7 @@ export async function POST(request: Request) {
     sessionUser = { ...sessionUser, role: reconciledRole };
   }
 
-  await setSessionFromUser(sessionUser);
+  await setSessionFromUser(sessionUser, 'email_setup_code');
   return NextResponse.json({
     ok: true,
     redirectTo: getRedirectPathForRole(sessionUser.role),

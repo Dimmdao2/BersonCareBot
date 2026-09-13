@@ -197,11 +197,14 @@ export async function handleVkOAuthCallbackGet(
   );
 
   try {
-    await setSessionFromUser({
-      ...sessionUser,
-      role,
-      displayName: oauthName?.trim() || sessionUser.displayName || oauthEmail || vkId,
-    });
+    await setSessionFromUser(
+      {
+        ...sessionUser,
+        role,
+        displayName: oauthName?.trim() || sessionUser.displayName || oauthEmail || vkId,
+      },
+      'vk_oauth',
+    );
   } catch {
     await logOAuthFailure(attemptId, 'session_failed', 'session_set', resolved.userId);
     return NextResponse.redirect(redirectToAppQuery('session_failed'));

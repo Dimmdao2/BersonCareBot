@@ -127,7 +127,7 @@ export async function POST(request: Request) {
       () => deps.userByPhone.findByUserId(payer.platformUserId),
     );
     if (!sessionUser) return jsonError('user_resolve_failed', {}, { status: 503 });
-    await deps.auth.setSessionFromUser(sessionUser);
+    await deps.auth.setSessionFromUser(sessionUser, 'phone_otp');
     // No principal wrapper here: `createVerifiedPublicBooking` owns the principal now, and it is a
     // PATIENT one. The visitor identified themselves two lines above, so the anonymous
     // organisation principal has nothing left to describe.

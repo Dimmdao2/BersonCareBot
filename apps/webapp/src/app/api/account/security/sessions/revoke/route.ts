@@ -26,7 +26,7 @@ export async function POST() {
   // endpoint would sign the caller out of the very session they used to call it.
   const user = await deps.userByPhone.findByUserId(gate.session.user.userId);
   if (!user) return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 });
-  await setSessionFromUser(user, {
+  await setSessionFromUser(user, 'session_revoke', {
     staffSecurity: { assurance: 'factor_verified', verifiedAt: Math.floor(Date.now() / 1000) },
   });
   return NextResponse.json({ ok: true });

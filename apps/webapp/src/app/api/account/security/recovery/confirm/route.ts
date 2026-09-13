@@ -14,7 +14,7 @@ export async function POST() {
   if (!ok) return NextResponse.json({ ok: false }, { status: 409 });
   const user = await deps.userByPhone.findByUserId(gate.session.user.userId);
   if (!user) return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 });
-  await setSessionFromUser(user, {
+  await setSessionFromUser(user, 'recovery_code_confirmation', {
     staffSecurity: { assurance: 'factor_verified', verifiedAt: Math.floor(Date.now() / 1000) },
   });
   return NextResponse.json({ ok: true });

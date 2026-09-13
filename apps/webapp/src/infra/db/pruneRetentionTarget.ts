@@ -21,6 +21,7 @@ export const RETENTION_SWEEP_TARGETS = [
   'outgoing_delivery_queue_sent',
   'outgoing_delivery_queue_dead',
   'notification_delivery_attempts',
+  'user_login_events',
   // Systemic residual audit 2026-08-27: §C3 (consolidated reminder history — TERMINAL occurrences
   // only) and §E1 (doctor→patient message journal).
   'reminder_occurrence_history_terminal',

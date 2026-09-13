@@ -39,6 +39,7 @@ it('sweeps every still-live Track D journal target in one tick, through the exis
     { target: 'outgoing_delivery_queue_sent', deleted: 2 },
     { target: 'outgoing_delivery_queue_dead', deleted: 2 },
     { target: 'notification_delivery_attempts', deleted: 2 },
+    { target: 'user_login_events', deleted: 2 },
     { target: 'message_log', deleted: 2 },
     { target: 'reminder_occurrence_history_terminal', deleted: 2 },
     { target: 'media_upload_sessions_completed', deleted: 2 },
@@ -49,7 +50,7 @@ it('sweeps every still-live Track D journal target in one tick, through the exis
   const rootsCalled = fakes.runWebappNamedRoot.mock.calls.map((call) => call[1]);
   expect(rootsCalled).toEqual([
     'app.prune_context_nonce_ledger(integer,integer,boolean)',
-    ...Array.from({ length: 10 }, () => 'app.prune_retention_target(text,integer,boolean)'),
+    ...Array.from({ length: 11 }, () => 'app.prune_retention_target(text,integer,boolean)'),
   ]);
 });
 
@@ -65,6 +66,7 @@ it('runs every recorded window on the number its basis names', async () => {
   await runDbJournalRetention(port);
 
   expect(windowOf('message_log')).toBe(90);
+  expect(windowOf('user_login_events')).toBe(395);
   expect(windowOf('reminder_occurrence_history_terminal')).toBe(90);
   expect(windowOf('media_upload_sessions_completed')).toBe(365);
   expect(windowOf('saas_isolation_events_resolved')).toBe(365);
@@ -109,5 +111,5 @@ it('keeps every target independent: one failing target does not stop the others,
 
   await expect(runDbJournalRetention(port)).rejects.toThrow(/integrator_idempotency_keys.*boom/);
   // every target was attempted even though the third one failed.
-  expect(fakes.runWebappNamedRoot).toHaveBeenCalledTimes(11);
+  expect(fakes.runWebappNamedRoot).toHaveBeenCalledTimes(12);
 });

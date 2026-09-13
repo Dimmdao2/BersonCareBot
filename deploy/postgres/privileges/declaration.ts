@@ -22707,7 +22707,7 @@ export const PLATFORM_ROLE_SCOPE: PlatformRoleScope = {
     'public.saas_storage_packages', 'public.saas_storage_package_period_prices', // докупка объёма (владелец 10.09)
     'public.saas_org_entitlement_overrides', 'public.saas_organization_trials', 'public.saas_tariffs',
     'public.saas_trial_policy', 'public.saas_registration_tariff_policy', 'public.saas_paid_period_policy',
-    'public.admin_audit_log',
+    'public.admin_audit_log', 'public.user_login_events',
     'public.system_settings', // только глобальные строки и только через стену роли (Д3)
     'public.system_settings_audit',
   ],
@@ -23976,6 +23976,8 @@ const TABLE_ROWS: TableRow[] = [
   { t: 'public.webapp_schema_migrations', cls: 'T', wall: 'pending-removal', rls: 'n/a', disp: 'REMOVED',
     why: 'УДАЛЕНО B0: аварийный исторический ledger больше не участвует в применении миграций',
     wallWhy: 'Физически удалённый legacy-ledger остаётся именованным только для двусторонней проверки каталога' },
+  { t: 'public.user_login_events', cls: 'S', org: false, wall: 'platform-role', why: 'журнал входов — без него '
+    + 'невозможно установить адрес, устройство и способ входа после компрометации учётной записи' },
 ];
 
 const APP_TABLES: Record<string, TableDecl> = expandTables(TABLE_ROWS, {
@@ -25722,6 +25724,10 @@ const REV10_CONTEXT = {
     webapp_pre_session_audit_event_append: { port: 'webapp', runtimeName: 'pre_session_audit_event_append',
       sessionRole: 'app_patient', targetRole: 'app_pre_session', contextClass: 'pre_session',
       purpose: 'platform.audit-event.append', functionIdentity: 'app.append_platform_audit_event(text,text,text)' },
+    webapp_pre_session_user_login_event_append: { port: 'webapp', runtimeName: 'pre_session_user_login_event_append',
+      sessionRole: 'app_patient', targetRole: 'app_pre_session', contextClass: 'pre_session',
+      purpose: 'auth.user-login-event.append',
+      functionIdentity: 'app.append_user_login_event(uuid,text,text,text,text,text,text,text,text,text)' },
     // D15b/7a Ш8: две веб-возможности ОДНОЙ двери журнала пересечения границы. Дверь одна на все
     // четыре точки (акт связывания, вход, карточка, список) — вид события её ПАРАМЕТР, а не вторая
     // функция (AGENTS.md §5). Классов два, потому что и точки две по природе: вход человек делает
@@ -28568,6 +28574,9 @@ const REV10_CONTEXT = {
         { relation: 'public.notification_delivery_attempts', columns: ['created_at', 'id'],
           operations: ['SELECT' as const, 'DELETE' as const],
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.user_login_events', columns: ['occurred_at', 'id'],
+          operations: ['SELECT' as const, 'DELETE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
         // Systemic residual audit 2026-08-27 §C3: the Track D consolidated occurrence table joins the
         // same closed list. Only terminal statuses are eligible, so the branch reads `status` next to
         // the `planned_at` window column and the PK for the bounded victims CTE.
@@ -30221,6 +30230,16 @@ const REV10_CONTEXT = {
         columns: ['organization_id', 'actor_id', 'action', 'details', 'status', 'id'],
         operations: ['SELECT' as const, 'INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
+    'app.append_user_login_event(uuid,text,text,text,text,text,text,text,text,text)': rev10Function({
+      owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'uuid', returnsSet: false,
+      execute: ['app_pre_session'], purpose: 'append one successful account session birth',
+      typedArgs: ['uuid', 'text', 'text', 'text', 'text', 'text', 'text', 'text', 'text', 'text'],
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'],
+      relationSurfaces: [{ relation: 'public.user_login_events',
+        columns: ['id', 'user_id', 'occurred_at', 'outcome', 'failure_reason', 'method', 'role', 'ip',
+          'user_agent', 'device_kind', 'os', 'browser', 'host', 'session_ref'],
+        operations: ['INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }],
+    }),
     'app.acknowledge_open_outbound_provider_incidents()': rev10Function({
       owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'bigint', returnsSet: false,
       execute: ['app_platform_admin'], purpose: 'acknowledge all open outbound-provider incidents', typedArgs: [],
@@ -31347,6 +31366,17 @@ function withoutConvertedPatientWrites(
 }
 
 const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
+  'public.user_login_events': {
+    kind: 'direct',
+    purpose: 'platform operations reads account-login evidence; session creation appends only through the named root',
+    codePaths: [
+      'apps/webapp/src/infra/userLoginEvents.ts#appendUserLoginEvent',
+      'apps/webapp/src/app-layer/identity/recordUserLoginEvent.ts#recordUserLoginEvent',
+    ],
+    grants: [
+      { role: 'app_platform_settings', operations: ['SELECT'], columns: 'table' },
+    ],
+  },
   'public.admin_audit_log': {
     kind: 'direct',
     purpose: 'platform operations reads and appends the non-clinical administrative event journal; '

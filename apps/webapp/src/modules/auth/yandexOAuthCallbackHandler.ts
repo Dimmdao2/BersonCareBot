@@ -187,11 +187,14 @@ export async function handleYandexOAuthCallbackGet(
   );
 
   try {
-    await setSessionFromUser({
-      ...sessionUser,
-      role,
-      displayName: oauthName?.trim() || sessionUser.displayName || oauthEmail || yandexId,
-    });
+    await setSessionFromUser(
+      {
+        ...sessionUser,
+        role,
+        displayName: oauthName?.trim() || sessionUser.displayName || oauthEmail || yandexId,
+      },
+      'yandex_oauth',
+    );
   } catch {
     await logOAuthFailure(attemptId, 'session_failed', 'session_set', resolved.userId);
     return NextResponse.redirect(redirectToAppQuery('session_failed'));

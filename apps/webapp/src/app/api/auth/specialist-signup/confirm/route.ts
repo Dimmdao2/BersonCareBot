@@ -179,6 +179,7 @@ export async function POST(request: Request) {
     }
     await setSessionFromUser(
       { ...verifiedSessionUser, role: 'doctor' },
+      'specialist_signup_email_code',
       {
         staffSecurity: { assurance: 'pending_enrollment' },
       },
@@ -234,6 +235,7 @@ export async function POST(request: Request) {
 
   await setSessionFromUser(
     { ...sessionUser, role: 'doctor' },
+    'specialist_signup_email_code',
     {
       staffSecurity: { assurance: 'pending_enrollment' },
     },

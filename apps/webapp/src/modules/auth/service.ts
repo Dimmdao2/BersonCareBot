@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
+import { isIP } from 'node:net';
 import { cookies, headers } from 'next/headers';
 import { decodeBase64Url } from '@/shared/utils/base64url';
 import { isProduction, webappRuntimeDatabaseIsConfigured } from '@/config/env';
@@ -236,6 +237,7 @@ async function withFreshSessionEpoch(session: AppSession): Promise<AppSession> {
 async function persistNewAuthSession(
   cookieStore: Awaited<ReturnType<typeof cookies>>,
   session: AppSession,
+  method: string,
 ): Promise<AppSession> {
   const stamped = await withFreshSessionEpoch(session);
   cookieStore.set(
@@ -265,8 +267,88 @@ async function persistNewAuthSession(
       userId: stamped.user.userId,
       issuedAtSeconds: stamped.issuedAt,
     });
+
+    let requestHeaders: Awaited<ReturnType<typeof headers>> | null = null;
+    try {
+      requestHeaders = await headers();
+    } catch {
+      // Unit callers may not install the Next request store. Missing request metadata is valid.
+    }
+    const userAgent = requestHeaders?.get('user-agent')?.trim() || null;
+    const rawIp = requestHeaders?.get('x-real-ip')?.trim() || null;
+    const ip = rawIp && isIP(rawIp) !== 0 ? rawIp : null;
+    const parsedDevice = parseLoginUserAgent(userAgent);
+    const { recordUserLoginEvent } = await import(
+      '@/app-layer/identity/recordUserLoginEvent'
+    );
+    await recordUserLoginEvent({
+      userId: stamped.user.userId,
+      issuedAtSeconds: stamped.issuedAt,
+      method,
+      role: stamped.user.role,
+      ip,
+      userAgent,
+      ...parsedDevice,
+      host: requestHeaders?.get('host')?.trim() || null,
+    });
   }
   return stamped;
+}
+
+function parseLoginUserAgent(userAgent: string | null): {
+  deviceKind: string | null;
+  os: string | null;
+  browser: string | null;
+} {
+  if (!userAgent) return { deviceKind: null, os: null, browser: null };
+
+  const deviceKind = /bot|crawler|spider|slurp/i.test(userAgent)
+    ? 'bot'
+    : /ipad|tablet|android(?!.*mobile)/i.test(userAgent)
+      ? 'tablet'
+      : /iphone|ipod|mobile/i.test(userAgent)
+        ? 'mobile'
+        : 'desktop';
+
+  const ios = /(?:CPU (?:iPhone )?OS|iPhone OS) ([\d_]+)/i.exec(userAgent)?.[1];
+  const android = /Android ([\d.]+)/i.exec(userAgent)?.[1];
+  const windows = /Windows NT ([\d.]+)/i.exec(userAgent)?.[1];
+  const mac = /Mac OS X ([\d_]+)/i.exec(userAgent)?.[1];
+  const chromeOs = /CrOS [^ ]+ ([\d.]+)/i.exec(userAgent)?.[1];
+  const os = ios
+    ? `iOS ${ios.replaceAll('_', '.')}`
+    : android
+      ? `Android ${android}`
+      : windows
+        ? `Windows ${windows}`
+        : chromeOs
+          ? `Chrome OS ${chromeOs}`
+          : mac
+            ? `macOS ${mac.replaceAll('_', '.')}`
+            : /Linux/i.test(userAgent)
+              ? 'Linux'
+              : null;
+
+  const browserMatch =
+    /EdgA?\/([\d.]+)/i.exec(userAgent)?.[1]
+      ? (['Edge', /EdgA?\/([\d.]+)/i.exec(userAgent)?.[1]] as const)
+      : /OPR\/([\d.]+)/i.exec(userAgent)?.[1]
+        ? (['Opera', /OPR\/([\d.]+)/i.exec(userAgent)?.[1]] as const)
+        : /SamsungBrowser\/([\d.]+)/i.exec(userAgent)?.[1]
+          ? (['Samsung Internet', /SamsungBrowser\/([\d.]+)/i.exec(userAgent)?.[1]] as const)
+          : /(?:CriOS|Chrome)\/([\d.]+)/i.exec(userAgent)?.[1]
+            ? (['Chrome', /(?:CriOS|Chrome)\/([\d.]+)/i.exec(userAgent)?.[1]] as const)
+            : /(?:FxiOS|Firefox)\/([\d.]+)/i.exec(userAgent)?.[1]
+              ? (['Firefox', /(?:FxiOS|Firefox)\/([\d.]+)/i.exec(userAgent)?.[1]] as const)
+              : /Version\/([\d.]+).*Safari/i.exec(userAgent)?.[1]
+                ? (['Safari', /Version\/([\d.]+).*Safari/i.exec(userAgent)?.[1]] as const)
+                : null;
+
+  return {
+    deviceKind,
+    os,
+    browser: browserMatch?.[1] ? `${browserMatch[0]} ${browserMatch[1]}` : null,
+  };
 }
 
 async function parseIntegratorToken(token: string): Promise<IntegratorTokenPayload | null> {
@@ -577,7 +659,8 @@ export async function exchangeIntegratorToken(
   // The session that is RETURNED is the one that was actually written to the cookie, epoch and all
   // (C-1) — never the pre-stamp draft, so a caller can never hand back a session shape the next
   // request would reject.
-  const session = await persistNewAuthSession(cookieStore, built);
+  const messengerMethod = effectiveMessengerBinding(parsed)?.channelCode ?? 'unknown';
+  const session = await persistNewAuthSession(cookieStore, built, messengerMethod);
 
   const setMessengerPlatformCookie =
     Boolean(user.bindings?.maxId) || Boolean(user.bindings?.telegramId);
@@ -639,7 +722,7 @@ export async function exchangeTelegramInitData(
   }
 
   const cookieStore = await cookies();
-  const session = await persistNewAuthSession(cookieStore, buildSession(user));
+  const session = await persistNewAuthSession(cookieStore, buildSession(user), 'telegram');
 
   let redirectTo = getRedirectPathForRole(user.role);
   if (user.role === 'client' && parsed.startParam) {
@@ -735,7 +818,7 @@ export async function exchangeMaxInitData(
   }
 
   const cookieStore = await cookies();
-  const session = await persistNewAuthSession(cookieStore, buildSession(user));
+  const session = await persistNewAuthSession(cookieStore, buildSession(user), 'max');
 
   let redirectTo = getRedirectPathForRole(user.role);
   if (user.role === 'client' && parsed.startParam) {
@@ -818,7 +901,7 @@ export async function exchangeTelegramLoginWidget(
   }
 
   const cookieStore = await cookies();
-  const session = await persistNewAuthSession(cookieStore, buildSession(user));
+  const session = await persistNewAuthSession(cookieStore, buildSession(user), 'telegram');
 
   return {
     session,
@@ -1025,6 +1108,7 @@ export async function clearSession(): Promise<void> {
  */
 export async function setSessionFromUser(
   user: SessionUser,
+  method: string,
   opts?: {
     postLoginHints?: AppSession['postLoginHints'];
     staffSecurity?: AppSession['staffSecurity'];
@@ -1047,7 +1131,7 @@ export async function setSessionFromUser(
     ...(opts?.staffSecurity ? { staffSecurity: opts.staffSecurity } : {}),
   };
   const cookieStore = await cookies();
-  await persistNewAuthSession(cookieStore, full);
+  await persistNewAuthSession(cookieStore, full, method);
 }
 
 export async function clearDiaryPurgeReauth(): Promise<void> {

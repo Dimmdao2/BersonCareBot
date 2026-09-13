@@ -85,22 +85,30 @@
 
 ## Этапы
 
-- [ ] **Л-1. Таблица и дверь записи.** Миграция schema B (generated snapshot + timestamp forwards, AGENTS.md §1):
+- [x] **Л-1. Таблица и дверь записи.** Миграция schema B (generated snapshot + timestamp forwards, AGENTS.md §1):
       таблица, индексы, FK с каскадом, `SECURITY DEFINER` `app.append_user_login_event(...)`.
-      Миграция НЕ выдаёт прав.
-- [ ] **Л-2. Права.** `deploy/postgres/privileges/declaration.ts`: EXECUTE на дверь тем ролям, под
+      Миграция НЕ выдаёт прав. Evidence: [forward migration](../../apps/webapp/db/drizzle-migrations/20260913T133951_user_login_events.sql),
+      [Drizzle schema](../../apps/webapp/db/schema/schema.ts).
+- [x] **Л-2. Права.** `deploy/postgres/privileges/declaration.ts`: EXECUTE на дверь тем ролям, под
       которыми реально исполняется выдача сессии; поверхность definer-функции (`relationSurfaces`)
       с полным списком колонок; чтение таблицы — ролям читающей поверхности из Л-4.
       Дальше `generate-cli.mjs --all`, гейты `--check` и `--census`, глазами `git diff
       deploy/postgres/generated/`. Классификация RLS — как у платформенного журнала, не «забыли».
-- [ ] **Л-3. Запись.** Помощник рядом с `recordIdentitySessionStart`, вызов из `persistNewAuthSession`.
+      Evidence: [declaration](../../deploy/postgres/privileges/declaration.ts),
+      [generated DEV artifact](../../deploy/postgres/generated/privileges.bcb_webapp_dev.sql).
+- [x] **Л-3. Запись.** Помощник рядом с `recordIdentitySessionStart`, вызов из `persistNewAuthSession`.
       IP — `x-real-ip`, устройство — `user-agent`, оба из `headers()`. Отказ записи не роняет вход.
       Способ входа (`method`) до этой точки сегодня не доезжает — его надо туда довести; это и есть
-      основная работа этапа, а не сама вставка.
-- [ ] **Л-4. Чистильщик.** `USER_LOGIN_EVENTS_RETENTION_DAYS_DEFAULT = 395` в
+      основная работа этапа, а не сама вставка. Evidence: [session chokepoint](../../apps/webapp/src/modules/auth/service.ts),
+      [best-effort application seam](../../apps/webapp/src/app-layer/identity/recordUserLoginEvent.ts),
+      [named-root adapter](../../apps/webapp/src/infra/userLoginEvents.ts).
+- [x] **Л-4. Чистильщик.** `USER_LOGIN_EVENTS_RETENTION_DAYS_DEFAULT = 395` в
       `apps/webapp/src/modules/db-retention/journalRetention.ts`, метод в `ports.ts`, цель в
       `app.prune_retention_target`, запись в `deploy/postgres/privileges/journal-lifecycle-registry.ts`
       (`userPurge: cascade`, `orgPurge: not-org-scoped`, `retention: 395 дней`, `sweptBy` — тот же job).
+      Evidence: [retention orchestration](../../apps/webapp/src/modules/db-retention/journalRetention.ts),
+      [lifecycle registry](../../deploy/postgres/privileges/journal-lifecycle-registry.ts),
+      [closed SQL branch](../../apps/webapp/db/drizzle-migrations/20260913T133951_user_login_events.sql).
 - [ ] **Л-5. Читающая поверхность.** Админ платформы: история входов по конкретной учётной записи и
       поиск по IP-адресу. Канон Р-АДМИН это разрешает — учётные данные, не медицинские. Вход в экран
       реактивный, как и у слияния: из журнала и из карточки учётной записи, а не отдельным разделом
