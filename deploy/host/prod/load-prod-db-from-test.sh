@@ -74,6 +74,7 @@ RESTORE_SQL="$SRC/deploy/postgres/dev-refresh-restore-dev-owned-state.sql"
 MIGRATE_PROD="$SRC/deploy/host/prod/migrate-prod.sh"
 PRIVILEGE_GENERATOR="$SRC/deploy/postgres/privileges/generate-cli.mjs"
 RUNTIME_DATABASE="$SRC/deploy/host/prod/runtime-database.sh"
+PIPELINE_STATUS="/opt/therapysto/pipeline/therapysto-status"
 
 MODE=""
 CONFIRMED=0
@@ -82,6 +83,7 @@ ROLLBACK_DUMP=""
 WORK_DIR=""
 KEYS_DIR=""
 STOPPED_CONTAINERS=""
+RUNTIME_CONTAINERS=""
 DESTRUCTIVE_PHASE_STARTED=0
 LOAD_COMPLETE=0
 TARGET_CONNECTION_LIMIT=""
@@ -226,6 +228,7 @@ assert_canonical_file "$RESTORE_SQL" 'возврат состояния окру
 assert_canonical_file "$MIGRATE_PROD" 'канонический шлюз схемы прода'
 assert_canonical_file "$PRIVILEGE_GENERATOR" 'генератор прав'
 assert_canonical_file "$RUNTIME_DATABASE" 'разрешение имени базы рантайма'
+assert_canonical_file "$PIPELINE_STATUS" 'состояние конвейера (активный цвет)'
 [[ -d "$ADMIN_SOCKET" && ! -L "$ADMIN_SOCKET" ]] || fatal 'гейт локального сокета PostgreSQL не прошёл'
 [[ -d "$STATE_DIR" && ! -L "$STATE_DIR" ]] || fatal "нет каталога состояния $STATE_DIR"
 
@@ -316,27 +319,45 @@ reopen_target() {
     >/dev/null || fatal 'не удалось вернуть лимит подключений'
 }
 
-app_containers() {
-  docker ps --format '{{.Names}}' | grep -E '^therapysto-(blue|green)-' || true
+active_colour() {
+  # Цвет спрашивается у самого конвейера, а не угадывается по именам: второй ответ на этот вопрос
+  # разошёлся бы с первым ровно в тот день, когда прод стоит на зелёном.
+  local colour
+  colour="$("$PIPELINE_STATUS" 2>/dev/null |
+    awk -F': *' '/^active colour/ { print $2; exit }')"
+  case "$colour" in blue|green) printf '%s\n' "$colour" ;; *) return 1 ;; esac
+}
+
+resolve_runtime_containers() {
+  # ВСЕ контейнеры активного цвета, а не только работающие. Разница не косметическая: если
+  # предыдущий заход упал после остановки, рантайм уже лежит, и обёртка, смотрящая на «что сейчас
+  # работает», не находит ничего — и не поднимает ничего. Именно так откат 13.09.2026 отчитался
+  # PASS, оставив прод лежать: он «никого не останавливал», значит «некого и поднимать».
+  local colour
+  colour="$(active_colour)" || fatal 'конвейер не назвал активный цвет — рантайм трогать нельзя'
+  RUNTIME_CONTAINERS="$(docker ps -a --format '{{.Names}}' |
+    grep -E "^therapysto-$colour-" | tr '\n' ' ')"
+  [[ -n "${RUNTIME_CONTAINERS// /}" ]] ||
+    fatal "у активного цвета $colour нет ни одного контейнера — рантайм прода не опознан"
+  note "рантайм активного цвета $colour: $RUNTIME_CONTAINERS"
 }
 
 stop_runtime() {
   # Контейнеры останавливаются не ради безопасности — её держит CONNECTION LIMIT 0, — а чтобы прод не
   # провёл перенос в цикле перезапусков и поднялся на новой базе одним чистым стартом.
-  STOPPED_CONTAINERS="$(app_containers | tr '\n' ' ')"
-  [[ -n "${STOPPED_CONTAINERS// /}" ]] || { note 'рантайм прода уже остановлен'; return 0; }
-  note "останавливаю рантайм: $STOPPED_CONTAINERS"
+  resolve_runtime_containers
+  STOPPED_CONTAINERS="$RUNTIME_CONTAINERS"
   # shellcheck disable=SC2086
-  docker stop $STOPPED_CONTAINERS >/dev/null || fatal 'не удалось остановить рантайм прода'
+  docker stop $RUNTIME_CONTAINERS >/dev/null || fatal 'не удалось остановить рантайм прода'
 }
 
 start_runtime() {
-  [[ -n "${STOPPED_CONTAINERS// /}" ]] || return 0
-  note "поднимаю рантайм: $STOPPED_CONTAINERS"
+  [[ -n "${RUNTIME_CONTAINERS// /}" ]] || return 0
+  note "поднимаю рантайм: $RUNTIME_CONTAINERS"
   # shellcheck disable=SC2086
-  docker start $STOPPED_CONTAINERS >/dev/null || fatal 'не удалось поднять рантайм прода'
+  docker start $RUNTIME_CONTAINERS >/dev/null || fatal 'не удалось поднять рантайм прода'
   local container status deadline
-  for container in $STOPPED_CONTAINERS; do
+  for container in $RUNTIME_CONTAINERS; do
     docker inspect -f '{{if .State.Health}}has{{end}}' "$container" 2>/dev/null | grep -q has ||
       continue
     deadline=$((SECONDS + 300))
