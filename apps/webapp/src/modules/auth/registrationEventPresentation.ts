@@ -1,5 +1,6 @@
 import type { AuthRegistrationEventType } from '@/modules/product-analytics/types';
 import type { AuthRegistrationAuthMethod } from '@/app-layer/product-analytics/recordAuthRegistration';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 const AUTH_METHOD_LABELS: Record<string, string> = {
   email_password: 'Email и пароль',
@@ -49,12 +50,14 @@ const ERROR_CODE_LABELS: Record<string, string> = {
 export function formatRegistrationAuthMethodLabel(raw: string): string {
   const key = raw.trim();
   if (!key || key === '—') return '—';
+  // notification-text-gate: не подпись для человека — журнал админа, здесь сам код и есть содержимое записи
   return AUTH_METHOD_LABELS[key] ?? key;
 }
 
 export function formatRegistrationStageLabel(raw: string): string {
   const key = raw.trim();
   if (!key || key === '—') return '—';
+  // notification-text-gate: не подпись для человека — журнал админа, здесь сам код и есть содержимое записи
   return STAGE_LABELS[key] ?? key;
 }
 
@@ -62,12 +65,14 @@ export function formatRegistrationEventTypeLabel(
   eventType: AuthRegistrationEventType | '',
 ): string {
   if (!eventType) return 'Все типы';
+  // notification-text-gate: не подпись для человека — журнал админа, здесь сам код и есть содержимое записи
   return EVENT_TYPE_LABELS[eventType] ?? eventType;
 }
 
 export function formatRegistrationErrorCodeLabel(raw: string): string {
   const key = raw.trim();
   if (!key || key === '—') return '—';
+  // notification-text-gate: не подпись для человека — журнал админа, здесь сам код и есть содержимое записи
   return ERROR_CODE_LABELS[key] ?? key;
 }
 

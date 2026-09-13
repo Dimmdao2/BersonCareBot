@@ -27,6 +27,7 @@ export function computeOperatorAlertEnvLabel(appBaseUrl: string): string {
     // Разобрать нечего — так бывает только на локальной машине, где адрес не задан.
     return 'DEV';
   }
+  // notification-text-gate: не подпись для человека — имя хоста в служебном алерте оператору, не пользовательский экран
   return KNOWN_HOSTS[host] ?? host;
 }
 

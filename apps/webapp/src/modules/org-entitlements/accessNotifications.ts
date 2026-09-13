@@ -29,7 +29,7 @@ type BillingInvoiceForAccessNotification = Pick<
  * choice) — this list only documents what is CURRENTLY wired to real data.
  */
 export const ACCESS_NOTIFICATION_VARIABLES = [
-  { name: 'клиника', description: 'Название организации' },
+  { name: 'организация', description: 'Название организации' },
   { name: 'тариф', description: 'Название тарифа' },
   { name: 'сумма', description: 'Сумма следующего платежа' },
   {
@@ -38,6 +38,31 @@ export const ACCESS_NOTIFICATION_VARIABLES = [
   },
 ] as const;
 type KnownAccessNotificationVariable = (typeof ACCESS_NOTIFICATION_VARIABLES)[number]['name'];
+
+/**
+ * Прежние имена тех же переменных. Список выше — то, что видит и пишет человек сегодня; здесь —
+ * имена, которыми уже написаны сохранённые шаблоны. Переименование `клиника` → `организация`
+ * (владелец 13.09: слова «клиника» в текстах быть не должно) не имеет права молча перестать
+ * подставлять значение в текст, написанный до переименования.
+ */
+const ACCESS_NOTIFICATION_VARIABLE_ALIASES: Readonly<
+  Record<string, KnownAccessNotificationVariable>
+> = { клиника: 'организация' };
+
+/** Значения переменных плюс те же значения под прежними именами. */
+export function withLegacyAccessNotificationVariableNames(
+  variables: Readonly<Partial<Record<KnownAccessNotificationVariable, string>>>,
+): Readonly<Record<string, string>> {
+  const result: Record<string, string> = {};
+  for (const [name, value] of Object.entries(variables)) {
+    if (typeof value === 'string') result[name] = value;
+  }
+  for (const [legacy, current] of Object.entries(ACCESS_NOTIFICATION_VARIABLE_ALIASES)) {
+    const value = result[current];
+    if (typeof value === 'string') result[legacy] = value;
+  }
+  return result;
+}
 
 /**
  * Supplies payment-specific variables from the already-raised renewal invoice.  The invoice is

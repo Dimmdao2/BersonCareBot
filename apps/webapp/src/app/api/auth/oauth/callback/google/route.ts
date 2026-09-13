@@ -23,6 +23,7 @@ import {
   oauthWebLoginErrorRedirect,
 } from '@/modules/auth/oauthWebSession';
 import { isOAuthProviderEnabled } from '@/modules/auth/authChannelPolicy';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 /**
  * GET /api/auth/oauth/callback/google — веб-логин Google (не календарь). Refresh token не сохраняем.
@@ -42,7 +43,7 @@ export async function GET(request: Request) {
   if (!verifiedState) {
     await logOAuthWebCallbackFailure(logBase, 'oauth_csrf');
     return NextResponse.json(
-      { error: 'oauth_csrf', message: 'Недействительный или просроченный state' },
+      { error: 'oauth_csrf', message: notificationText.authOauthLinkStale },
       { status: 403 },
     );
   }

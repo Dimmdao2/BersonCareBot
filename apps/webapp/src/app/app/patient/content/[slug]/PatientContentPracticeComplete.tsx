@@ -90,14 +90,14 @@ export function PatientContentPracticeComplete({
       }
       if (!res.ok || !data.ok || !data.id) {
         warmupPostGuardRef.current = false;
-        toast.error(data.message ?? notificationText.commonSaveFailedRetryLater);
+        toast.error(data.message ?? notificationText.commonSaveFailed);
         return;
       }
       setWarmupCompletionId(data.id);
       setDialogOpen(true);
     } catch {
       warmupPostGuardRef.current = false;
-      toast.error(notificationText.commonSaveFailedRetryLater);
+      toast.error(notificationText.commonSaveFailed);
     } finally {
       setPostingWarmup(false);
     }
@@ -124,7 +124,7 @@ export function PatientContentPracticeComplete({
       }
       if (!res.ok || !data.ok) {
         setPickedMoodScore(null);
-        toast.error(data.message ?? notificationText.commonSaveFailedRetryLater);
+        toast.error(data.message ?? notificationText.commonSaveFailed);
         return;
       }
       warmupSubmittedRef.current = true;
@@ -134,7 +134,7 @@ export function PatientContentPracticeComplete({
       router.refresh();
     } catch {
       setPickedMoodScore(null);
-      toast.error(notificationText.commonSaveFailedRetryLater);
+      toast.error(notificationText.commonSaveFailed);
     } finally {
       setSubmitting(false);
     }
@@ -169,7 +169,7 @@ export function PatientContentPracticeComplete({
       }
       if (!res.ok || !data.ok) {
         setPickedMoodScore(null);
-        toast.error(data.message ?? notificationText.commonSaveFailedRetryLater);
+        toast.error(data.message ?? notificationText.commonSaveFailed);
         return;
       }
       setSaved(true);
@@ -178,7 +178,7 @@ export function PatientContentPracticeComplete({
       router.refresh();
     } catch {
       setPickedMoodScore(null);
-      toast.error(notificationText.commonSaveFailedRetryLater);
+      toast.error(notificationText.commonSaveFailed);
     } finally {
       setSubmitting(false);
     }

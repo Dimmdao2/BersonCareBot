@@ -12,13 +12,13 @@ export function mapBookingCreateErrorCodeToRu(code: string | undefined): string 
     return 'Не удалось подтвердить запись. Попробуйте еще раз.';
   }
   if (code === 'branch_service_not_found') {
-    return 'Услуга или специалист недоступны.';
+    return 'Услуга или специалист недоступны. Вернитесь назад и выберите услугу снова.';
   }
   if (code === 'city_mismatch') {
     return 'Город не совпадает с выбранной услугой.';
   }
   if (code === 'consecutive_slot_cap_exceeded') {
-    return 'Выбранная длительность превышает допустимую для этой клиники.';
+    return 'Выбранная длительность больше максимально допустимой.';
   }
   if (code === 'catalog_unavailable') {
     return 'Каталог записи временно недоступен. Попробуйте позже.';
@@ -40,7 +40,7 @@ export function mapBookingCreateErrorCodeToRu(code: string | undefined): string 
     return 'Для записи нужен номер, подтверждённый в приложении (SMS или мессенджер). Сейчас откроется экран привязки.';
   }
   if (code === 'payment_provider_unavailable' || code === 'payments_disabled') {
-    return 'Онлайн-оплата в клинике сейчас недоступна. Обратитесь в клинику.';
+    return 'Онлайн-оплата сейчас недоступна. Свяжитесь с администратором, чтобы оплатить другим способом.';
   }
   if (code === 'unauthorized' || code === 'forbidden') {
     return 'Нет доступа. Войдите в аккаунт и попробуйте снова.';

@@ -1,3 +1,5 @@
+export { appointmentStatusLabel } from '@/modules/booking-calendar/appointmentStatusLabels';
+import { notificationText } from '@/shared/notifications/notificationText';
 const EVENT_TYPE_LABELS: Record<string, string> = {
   appointment_created: 'Запись создана',
   appointment_status_changed: 'Статус записи изменён',
@@ -50,17 +52,17 @@ const PURPOSE_LABELS: Record<string, string> = {
 };
 
 export function timelineEventTitle(eventType: string): string {
-  return EVENT_TYPE_LABELS[eventType] ?? eventType;
+  return EVENT_TYPE_LABELS[eventType] ?? notificationText.commonUnknownValue;
 }
 
 export function paymentMethodLabel(providerId: string | null): string | null {
   if (!providerId) return null;
-  return PROVIDER_LABELS[providerId] ?? providerId;
+  return PROVIDER_LABELS[providerId] ?? notificationText.commonUnknownValue;
 }
 
 export function paymentPurposeLabel(purpose: string | null): string | null {
   if (!purpose) return null;
-  return PURPOSE_LABELS[purpose] ?? purpose;
+  return PURPOSE_LABELS[purpose] ?? notificationText.commonUnknownValue;
 }
 
 export function formatAmountMinor(
@@ -82,7 +84,7 @@ const CANCELLATION_DECISION_LABELS: Record<string, string> = {
 };
 
 export function cancellationDecisionTypeLabel(decisionType: string): string {
-  return CANCELLATION_DECISION_LABELS[decisionType] ?? decisionType;
+  return CANCELLATION_DECISION_LABELS[decisionType] ?? notificationText.commonUnknownValue;
 }
 
 export function paymentStatusLabel(status: string): string {
@@ -93,24 +95,6 @@ export function paymentStatusLabel(status: string): string {
     failed: 'Ошибка',
     succeeded: 'Оплачено',
   };
-  return map[status] ?? status;
+  return map[status] ?? notificationText.commonUnknownStatus;
 }
 
-export function appointmentStatusLabel(status: string): string {
-  const map: Record<string, string> = {
-    created: 'Создана',
-    awaiting_payment: 'Ожидает оплаты',
-    paid: 'Оплачена',
-    confirmed: 'Подтверждена',
-    rescheduled: 'Перенесена',
-    cancelled_by_patient: 'Отменена пациентом',
-    cancelled_by_specialist: 'Отменена специалистом',
-    late_cancellation: 'Поздняя отмена',
-    no_show: 'Неявка',
-    completed: 'Завершена',
-    visit_confirmed: 'Посещение подтверждено',
-    charged_to_package: 'Списано по абонементу',
-    manual_review_required: 'Требует решения',
-  };
-  return map[status] ?? status;
-}

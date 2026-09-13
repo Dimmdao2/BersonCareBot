@@ -69,6 +69,7 @@ import {
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 import { appointmentDeliveryFormatLabels } from '@/modules/system-settings/patientTerms';
 import { notificationText } from '@/shared/notifications/notificationText';
+import { errorCodeText } from '@/shared/notifications/errorCodeText';
 
 const FORM_START_FORMAT = "yyyy-MM-dd'T'HH:mm";
 
@@ -157,7 +158,7 @@ function lifecycleActorLabel(actorType: string, patientLabel: string): string {
   if (actorType === 'specialist') return 'Специалист';
   if (actorType === 'admin') return 'Администратор';
   if (actorType === 'system') return 'Система';
-  return actorType;
+  return notificationText.commonUnknownValue;
 }
 
 function isDifferentCalendarMinute(left: string, right: string, timeZone: string): boolean {
@@ -214,18 +215,18 @@ function appointmentStatusToneClass(appointment: {
   return 'border-primary/30 bg-primary/10 text-primary';
 }
 
+/**
+ * Машинный код отказа → фраза для ВРАЧА.
+ *
+ * Прежняя версия знала 5 кодов, а на всех остальных делала `return error` — то есть показывала
+ * врачу сам код (`not_found`, `appointment_mutation_forbidden`, `invalid_body`, …). Маршруты
+ * `api/doctor/booking-engine/appointments/*` шлют 23 разных кода, так что мимо перевода шли 18.
+ * Ни одна ветка больше не возвращает вход наружу: неизвестный код — это общая фраза, а не код.
+ */
 function panelErrorLabel(error: string | undefined): string {
-  if (!error) return 'Ошибка';
-  if (error === 'external_slot_taken') return 'Время уже занято во внешней записи.';
-  if (error === 'slot_overlap') return 'Слот уже занят.';
-  if (error === 'not_cancelled') return 'Сначала отмените запись.';
-  if (error === 'appointment_financials_locked') {
-    return 'Запись уже оплачена: стоимость и условие оплаты не меняются.';
-  }
-  if (error === 'appointment_create_unavailable') {
-    return 'Не удалось создать запись. Попробуйте ещё раз.';
-  }
-  return error;
+  // Никакой собственной карты кодов: третий адверсарный аудит 13.09 показал, что каждая панель со
+  // своей картой = те же «две формулировки одного отказа», только этажом выше словаря.
+  return errorCodeText(error);
 }
 
 function listCreateServicesForSelection(

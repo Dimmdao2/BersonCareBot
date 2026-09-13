@@ -56,7 +56,8 @@ import { safeUserMessage, UserFacingError } from '@/shared/errors/userFacingErro
 
 /** §T3 preview — sample values so an admin sees a rendered letter, not raw `{{тариф}}` tokens. */
 const MAILING_PREVIEW_VARIABLES: Record<string, string> = {
-  клиника: 'Демоклиника',
+  организация: 'Демоорганизация',
+  клиника: 'Демоорганизация',
   тариф: 'Стандарт',
   сумма: '4 900',
   дата_начала_периода_автооплаты: '01.09.2026',
@@ -1211,7 +1212,7 @@ export function CommercialConstructorClient() {
       await loadState();
       toast.success(typeof success === 'function' ? success(payload.result) : success);
     } catch (error) {
-      toast.error(safeUserMessage(error, notificationText.adminOperationFailed));
+      toast.error(safeUserMessage(error, notificationText.commonGenericError));
     } finally {
       setBusy(false);
     }
@@ -1454,12 +1455,12 @@ export function CommercialConstructorClient() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="solo">Соло-специалист</SelectItem>
-                    <SelectItem value="clinic">Клиника с командой</SelectItem>
+                    <SelectItem value="clinic">Организация с командой</SelectItem>
                   </SelectContent>
                 </Select>
                 <p className="text-muted-foreground text-sm">
                   Соло: один специалист, приглашения и раздел «Команда» выключены, режим управления
-                  клиникой не появляется. Клиника: команда и приглашения доступны сразу, даже пока
+                  организацией не появляется. Команда: приглашения доступны сразу, даже пока
                   администратор работает один.
                 </p>
               </div>
@@ -1919,7 +1920,7 @@ export function CommercialConstructorClient() {
               <DoctorSectionTitle>Стартовый тариф при регистрации</DoctorSectionTitle>
             </DoctorSectionHeader>
             <div className="space-y-1 md:col-span-2">
-              <Label>Тариф, выдаваемый новой клинике при регистрации</Label>
+              <Label>Тариф, выдаваемый новой организации при регистрации</Label>
               <Select
                 value={registrationTariffId}
                 onValueChange={(value) => {
@@ -2138,7 +2139,7 @@ export function CommercialConstructorClient() {
               <DoctorSectionTitle>После завершения оплаченного периода</DoctorSectionTitle>
             </DoctorSectionHeader>
             <p className="text-sm text-muted-foreground md:col-span-2">
-              Одна общая настройка для всех клиник, когда оплаченный период закончился и продления
+              Одна общая настройка для всех организаций, когда оплаченный период закончился и продления
               нет. Отдельно от правила «После триала» выше.
             </p>
             <div className="space-y-1 md:col-span-2">
@@ -2263,7 +2264,7 @@ export function CommercialConstructorClient() {
                 <p className="text-sm text-muted-foreground">
                   Срок, условие и какое письмо уходит. Сами письма правятся на вкладке «Рассылки» —
                   там полноценный редактор с картинками и форматированием. Льготные триггеры
-                  («Льготный период начат/завершён») уходят только тем клиникам, которые ещё не
+                  («Льготный период начат/завершён») уходят только тем, кто ещё не
                   оплатили после триала.
                 </p>
                 {tariff.systemAccessPolicy ? (

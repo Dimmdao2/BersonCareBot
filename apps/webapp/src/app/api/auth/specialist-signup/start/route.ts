@@ -5,7 +5,13 @@ import {
   AUTH_CHANNEL_DISABLED_ERROR,
   isAuthChannelEnabled,
 } from '@/modules/auth/authChannelPolicy';
+import { randomUUID } from 'node:crypto';
+import { env } from '@/config/env';
+import { sendEmailSetupLinkViaIntegrator } from '@/infra/integrations/email/integratorEmailAdapter';
 import { normalizeEmail, startEmailChallenge } from '@/modules/auth/emailAuth';
+import { OTP_RESEND_COOLDOWN_SEC } from '@/modules/auth/otpConstants';
+import { sendSpecialistSignupDuplicateNotice } from '@/modules/auth/specialistSignupDuplicateNotice';
+import { isSignupStartRateLimitedByEmail } from '@/modules/auth/authRateLimits';
 import { hashPin } from '@/modules/auth/pinHash';
 import { getSpecialistSignupEnabled } from '@/modules/auth/specialistSignupRollout';
 import { enterStaffSecuritySelfPrincipal } from '@/app-layer/principal/staffSecuritySelfPrincipal';
@@ -95,6 +101,27 @@ export async function POST(request: Request) {
   }
   const specialistFullName = formatDoctorFio({ lastName, firstName, patronymic });
   const deps = buildAppDeps();
+
+  // Один старт на адрес в минуту — ДО любой проверки аккаунта. Четвёртый адверсарный аудит
+  // показал: без этого двойная отправка внутри минуты отвечала по-разному на свободном адресе
+  // (429 от кулдауна письма) и на занятом (нейтральный 200), то есть сама разница ответов
+  // сообщала, есть ли аккаунт. Теперь вторая отправка одинакова для обоих.
+  if (await isSignupStartRateLimitedByEmail(emailNorm)) {
+    return jsonError('rate_limited', { retryAfterSeconds: OTP_RESEND_COOLDOWN_SEC }, { status: 429 });
+  }
+
+  // Занятость публичного адреса проверяется ЗДЕСЬ, до ветки «есть ли такой аккаунт». Раньше
+  // занятый адрес почты отвечал успехом ещё до этой проверки, а свободный доходил до неё и мог
+  // получить 409 slug_unavailable — по паре «занятый слаг + чужая почта» ответ различался и
+  // выдавал наличие аккаунта (блокирующая находка четвёртого аудита).
+  const directory = deps.clinicDirectory;
+  if (directory) {
+    const slugState = await directory.checkSlugAvailability(organizationSlug.slug);
+    if (!slugState.ok) {
+      return jsonError(slugState.code, {}, { status: slugState.code === 'slug_unavailable' ? 409 : 400 });
+    }
+  }
+
   const passwordHash = await hashPin(parsed.data.password);
 
   const reg = await deps.userPasswordCredentials.registerPendingSpecialistVerification({
@@ -111,7 +138,20 @@ export async function POST(request: Request) {
       plainPassword: parsed.data.password,
     });
     if (!resend.ok) {
-      return jsonError('duplicate_email', {}, { status: 409 });
+      // Решение владельца 13.09: «форма всегда отвечает "мы отправили код"». Раньше здесь стоял
+      // 409 duplicate_email — по нему любой желающий проверял, заведён ли на адрес аккаунт, просто
+      // подставляя чужие почты в форму регистрации. Теперь ответ не отличается от успешного
+      // старта, а настоящему владельцу адреса уходит письмо о попытке со ссылкой восстановления.
+      // Кода при этом не создаётся: challengeId случайный, подтвердить по нему нечего.
+      await sendSpecialistSignupDuplicateNotice(
+        emailNorm,
+        env.APP_BASE_URL,
+        sendEmailSetupLinkViaIntegrator,
+      );
+      return jsonOk({
+        challengeId: randomUUID(),
+        retryAfterSeconds: OTP_RESEND_COOLDOWN_SEC,
+      });
     }
     const challenge = await startEmailChallenge(
       resend.userId,

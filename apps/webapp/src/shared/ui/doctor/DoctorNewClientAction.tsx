@@ -9,15 +9,16 @@ import { DoctorModal, type DoctorModalDesktopPresentation } from './DoctorModal'
 import { Button } from './primitives/button';
 import { Input } from './primitives/input';
 import { Label } from './primitives/label';
+import { errorCodeText } from '@/shared/notifications/errorCodeText';
 
 function manualVisitErrorLabel(result: { error?: string; message?: string }): string {
   if (result.message) return result.message;
   const error = result.error;
   if (error === 'invalid_phone') return 'Проверьте номер телефона.';
-  if (error === 'invalid_email') return 'Проверьте email.';
+  if (error === 'invalid_email') return errorCodeText('invalid_email');
   if (error === 'invalid_fio') return 'Укажите фамилию и имя.';
   if (error === 'invalid_request_id') return 'Не удалось сформировать запрос, обновите страницу.';
-  if (error === 'email_conflict') return 'Этот email уже связан с другой карточкой.';
+  if (error === 'email_conflict') return errorCodeText('email_conflict');
   if (error === 'idempotency_conflict') return 'Заявка уже обрабатывается, обновите страницу.';
   if (error === 'patient_not_available') return 'Карточка недоступна в этой организации.';
   if (error === 'specialist_required') return 'Для сотрудника не назначен профиль специалиста.';

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipal';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -14,6 +15,8 @@ import {
 } from '@/app-layer/product-analytics/recordAuthRegistration';
 import { normalizeEmail, startEmailChallenge } from '@/modules/auth/emailAuth';
 import { hashPin } from '@/modules/auth/pinHash';
+import { OTP_RESEND_COOLDOWN_SEC } from '@/modules/auth/otpConstants';
+import { isSignupStartRateLimitedByEmail } from '@/modules/auth/authRateLimits';
 import { platformMailProfileForRecipientRole } from '@/modules/auth/mailProfile';
 import {
   isPasswordEligibleRole,
@@ -56,6 +59,28 @@ const LOG_BASE = {
   entryChannel: 'browser' as const,
   contactType: 'email' as const,
 };
+
+/**
+ * Ответ «код отправлен» для случая, когда на этот адрес аккаунт уже есть.
+ *
+ * Решение владельца 13.09: «форма всегда отвечает "мы отправили код"». До этого форма отдавала
+ * 409 `duplicate_email` / `email_conflict`, и по нему кто угодно проверял чужие адреса на наличие
+ * аккаунта, просто подставляя их в регистрацию. Ответ теперь не отличается от успешного старта;
+ * кода при этом не создаётся — challengeId случайный, подтверждать по нему нечего.
+ *
+ * Письма о попытке здесь нет намеренно: это дверь клиентских (`role: 'client'`) учёток, а клиенту,
+ * по словам владельца, «такого не надо вообще — он всё равно всегда без пароля входит по коду».
+ * Письмо о повторной регистрации отправляет дверь специалиста
+ * (`api/auth/specialist-signup/start`), где человек действительно работает с паролем.
+ */
+function neutralCodeSentResponse(attemptId: string) {
+  return NextResponse.json({
+    ok: true,
+    attemptId,
+    challengeId: randomUUID(),
+    retryAfterSeconds: OTP_RESEND_COOLDOWN_SEC,
+  });
+}
 
 /** Регистрация email+password: строка канона + пароль; подтверждение почты через существующий email challenge. */
 export async function POST(request: Request) {
@@ -115,6 +140,17 @@ export async function POST(request: Request) {
     stage: 'start',
     contactValue: emailNorm,
   });
+
+  // Один старт на адрес в минуту — ДО ветки «есть ли такой аккаунт». Без этого двойная отправка
+  // внутри минуты отвечала по-разному: свободный адрес получал 429 от кулдауна письма, занятый —
+  // нейтральный 200, потому что по нему кода не создаётся и кулдаун не тратится. Сама разница и
+  // сообщала, есть ли аккаунт (блокирующая находка четвёртого адверсарного аудита).
+  if (await isSignupStartRateLimitedByEmail(emailNorm)) {
+    return NextResponse.json(
+      { ok: false, error: 'rate_limited', retryAfterSeconds: OTP_RESEND_COOLDOWN_SEC },
+      { status: 429 },
+    );
+  }
 
   const deps = buildAppDeps();
   const passwordHash = await hashPin(parsed.data.password);
@@ -205,13 +241,15 @@ export async function POST(request: Request) {
         challengeId: challenge.challengeId,
         errorCode: 'existing_account_needs_email_setup',
       });
+      // Код реально отправлен, поэтому ответ и остаётся успешным. Поля
+      // `error: 'existing_account_needs_email_setup'` и `setupCodeSent` убраны: они сообщали
+      // вызывающему, что аккаунт уже есть, то есть были тем же перечислением адресов, что и 409
+      // ниже. Подтверждение кода идёт по challengeId и в этой подсказке не нуждается.
       return NextResponse.json({
         ok: true,
         attemptId,
         challengeId: challenge.challengeId,
         retryAfterSeconds: challenge.retryAfterSeconds,
-        error: 'existing_account_needs_email_setup',
-        setupCodeSent: true,
       });
     }
 
@@ -223,7 +261,7 @@ export async function POST(request: Request) {
         contactValue: emailNorm,
         errorCode: 'email_conflict',
       });
-      return NextResponse.json({ ok: false, error: 'email_conflict' }, { status: 409 });
+      return neutralCodeSentResponse(attemptId);
     }
 
     if (state.kind === 'verified_with_password') {
@@ -234,7 +272,7 @@ export async function POST(request: Request) {
         contactValue: emailNorm,
         errorCode: 'duplicate_email',
       });
-      return NextResponse.json({ ok: false, error: 'duplicate_email' }, { status: 409 });
+      return neutralCodeSentResponse(attemptId);
     }
 
     if (state.kind === 'pending_registration') {
@@ -250,7 +288,7 @@ export async function POST(request: Request) {
           contactValue: emailNorm,
           errorCode: 'duplicate_email',
         });
-        return NextResponse.json({ ok: false, error: 'duplicate_email' }, { status: 409 });
+        return neutralCodeSentResponse(attemptId);
       }
       return respondWithChallenge(resent.userId, false);
     }
@@ -262,7 +300,7 @@ export async function POST(request: Request) {
       contactValue: emailNorm,
       errorCode: 'duplicate_email',
     });
-    return NextResponse.json({ ok: false, error: 'duplicate_email' }, { status: 409 });
+    return neutralCodeSentResponse(attemptId);
   }
 
   await recordAuthRegistrationFailure({
@@ -272,5 +310,5 @@ export async function POST(request: Request) {
     contactValue: emailNorm,
     errorCode: 'duplicate_email',
   });
-  return NextResponse.json({ ok: false, error: 'duplicate_email' }, { status: 409 });
+  return neutralCodeSentResponse(attemptId);
 }

@@ -68,7 +68,7 @@ export function StaffPasskeySection() {
         !optionsData.challengeId ||
         !optionsData.options
       ) {
-        toast.error(optionsData.message ?? notificationText.authPasskeyEnrollStartFailed);
+        toast.error(optionsData.message ?? notificationText.authPasskeyAddFailed);
         return;
       }
 

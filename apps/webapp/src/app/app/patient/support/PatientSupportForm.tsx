@@ -68,7 +68,7 @@ export function PatientSupportForm({
       }
       if (!res.ok || !data.ok) {
         // G3 (safety audit): `data.error` is a machine code, never product copy.
-        toast.error(readSafeApiErrorText(data, notificationText.commonSendFailed));
+        toast.error(readSafeApiErrorText(data, notificationText.messagingNotSent));
         return;
       }
       toast.success(data.message ?? notificationText.messagingMessageSent);

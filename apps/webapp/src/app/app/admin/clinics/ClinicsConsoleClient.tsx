@@ -46,6 +46,7 @@ import { SaasBillingOverview } from '@/shared/ui/doctor/SaasBillingOverview';
 import { apiJson } from '@/shared/lib/apiJson';
 import { formatBytesAsMb } from '@/shared/lib/formatStorageMb';
 import { OrganizationCommercialPanel } from './OrganizationCommercialPanel';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 export type PlatformClinicsData = {
   organizations: PlatformOrganizationSummary[];
@@ -160,7 +161,7 @@ function lifecycleBadgeVariant(
 function mechanicLabel(mechanic: string): string {
   return mechanic in MECHANIC_REGISTRY
     ? MECHANIC_REGISTRY[mechanic as OrgMechanic].label
-    : mechanic;
+    : notificationText.commonUnknownValue;
 }
 
 function quotaLabel(quota: TariffQuota): string {
@@ -168,11 +169,13 @@ function quotaLabel(quota: TariffQuota): string {
   if (quota.unit === 'bytes') {
     return `лимит ${formatBytesAsMb(quota.limit ?? 0)}`;
   }
+  // Единица, которой нет в словаре подписей, раньше печаталась как есть — человек читал
+  // «лимит 5 seats». Поймано ужесточённым правилом гейта после четвёртого аудита.
   const unit =
     quota.unit in QUOTA_UNIT_LABELS
-      ? QUOTA_UNIT_LABELS[quota.unit as keyof typeof QUOTA_UNIT_LABELS].toLocaleLowerCase('ru-RU')
-      : quota.unit;
-  return `лимит ${quota.limit} ${unit}`;
+      ? ` ${QUOTA_UNIT_LABELS[quota.unit as keyof typeof QUOTA_UNIT_LABELS].toLocaleLowerCase('ru-RU')}`
+      : '';
+  return `лимит ${quota.limit}${unit}`;
 }
 
 function formatQuotaUsageValue(value: number, unit: OrgQuotaProjection['quota']['unit']): string {
@@ -185,7 +188,7 @@ function OverridesSection({ organization }: { organization: PlatformOrganization
     <DoctorSection>
       <DoctorSectionHeader>
         <DoctorSectionTitle>Переопределения</DoctorSectionTitle>
-        <p className={doctorSectionSubtitleClass}>Исключения клиники поверх назначенного тарифа</p>
+        <p className={doctorSectionSubtitleClass}>Исключения организации поверх назначенного тарифа</p>
       </DoctorSectionHeader>
       {organization.overrides.length === 0 ? (
         <DoctorEmptyState size="xs">Переопределений нет.</DoctorEmptyState>
@@ -314,7 +317,7 @@ function ClinicAccountsSection({ members }: { members: PlatformClinicMember[] })
   return (
     <DoctorSection>
       <DoctorSectionHeader>
-        <DoctorSectionTitle>Аккаунты клиники</DoctorSectionTitle>
+        <DoctorSectionTitle>Аккаунты организации</DoctorSectionTitle>
       </DoctorSectionHeader>
       {members.length === 0 ? (
         <DoctorEmptyState size="xs">Сотрудников нет.</DoctorEmptyState>
@@ -325,7 +328,7 @@ function ClinicAccountsSection({ members }: { members: PlatformClinicMember[] })
             <span>Роль</span>
             <span>Статус</span>
             <span>Специалист</span>
-            <span>В клинике с</span>
+            <span>В организации с</span>
           </div>
           {members.map((member) => (
             <div
@@ -351,7 +354,7 @@ function ClinicAccountsSection({ members }: { members: PlatformClinicMember[] })
                 {member.specialistLinked ? 'Есть' : 'Нет'}
               </span>
               <span className="text-sm text-muted-foreground">
-                <span className="md:hidden">В клинике с: </span>
+                <span className="md:hidden">В организации с: </span>
                 {formatDate(member.createdAt)}
               </span>
             </div>
@@ -452,13 +455,13 @@ function ClinicsList({ data }: { data: PlatformClinicsData }) {
   return (
     <DoctorSection>
       <DoctorSectionHeader>
-        <DoctorSectionTitle>Клиники</DoctorSectionTitle>
+        <DoctorSectionTitle>Организации</DoctorSectionTitle>
         <p className={doctorSectionSubtitleClass}>
-          Клиники как клиенты платформы — без клинических и пациентских данных
+          Организации как клиенты платформы — без медицинских и пациентских данных
         </p>
       </DoctorSectionHeader>
       {data.organizations.length === 0 ? (
-        <DoctorEmptyState>Клиники ещё не созданы.</DoctorEmptyState>
+        <DoctorEmptyState>Организации ещё не созданы.</DoctorEmptyState>
       ) : (
         <>
           <div className="flex flex-wrap items-end gap-2">
@@ -633,7 +636,7 @@ function OrganizationAccountPanel({
             {ORGANIZATION_ENABLED_LABELS[organization.isActive ? 'true' : 'false']}
           </p>
           <p className="text-xs text-muted-foreground">
-            Платформенный выключатель: публичная визитка и вход в кабинет клиники. Не то же самое,
+            Платформенный выключатель: публичная визитка и вход в кабинет организации. Не то же самое,
             что «Заблокирована» по тарифу.
           </p>
           <Button
@@ -730,12 +733,12 @@ function ClinicDetail({
     return (
       <DoctorSection>
         <DoctorEmptyState>
-          <p>Клиника не найдена в списке платформы.</p>
+          <p>Организация не найдена в списке платформы.</p>
           <Link
             href="/app/admin/clinics"
             className={buttonVariants({ variant: 'outline', size: 'sm' })}
           >
-            Вернуться к клиникам
+            Вернуться к организациям
           </Link>
         </DoctorEmptyState>
       </DoctorSection>
@@ -756,7 +759,7 @@ function ClinicDetail({
             href="/app/admin/clinics"
             className={buttonVariants({ variant: 'outline', size: 'sm' })}
           >
-            Все клиники
+            Все организации
           </Link>
         </div>
         <dl className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
@@ -950,13 +953,13 @@ export function ClinicsConsoleClient({
     return (
       <DoctorSection>
         <DoctorSectionTitle>
-          {organizationId ? 'Карточка клиники не загрузилась' : 'Список клиник не загрузился'}
+          {organizationId ? 'Карточка организации не загрузилась' : 'Список организаций не загрузился'}
         </DoctorSectionTitle>
         <p className="text-sm text-muted-foreground">
           {accessDenied
             ? 'Сессия не имеет платформенного доступа.'
             : organizationId
-              ? 'Сервис данных клиники не ответил или вернул ошибку.'
+              ? 'Не удалось загрузить данные организации. Повторите попытку.'
               : 'Сервис организаций не ответил или вернул ошибку.'}
         </p>
         <p className="text-sm">

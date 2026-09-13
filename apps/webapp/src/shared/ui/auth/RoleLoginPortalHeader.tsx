@@ -13,7 +13,7 @@ const portalCopy: Record<
 > = {
   patient: {
     title: 'Войти в личный кабинет',
-    description: 'Продолжите в приложении выбранной клиники.',
+    description: 'Продолжите в приложении выбранной организации.',
     alternateLabel: 'Открыть кабинет специалистов',
     className: 'border-emerald-200 bg-emerald-50/70',
   },

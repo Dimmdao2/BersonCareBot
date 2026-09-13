@@ -12,6 +12,7 @@ import {
 import { clearDiaryPurgeReauth } from '@/modules/auth/service';
 import { normalizePhone } from '@/modules/auth/phoneNormalize';
 import { requirePatientApiBusinessAccess } from '@/app-layer/guards/requireRole';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 // SECURITY: PIN removed as a login/re-auth method (owner, 2026-08-04, docs/ARCHITECTURE/AUTH_AND_IDENTITY_CANON.md §7).
 // Destructive purge is protected by single-factor OTP only (SMS challenge).
@@ -44,7 +45,7 @@ export async function POST(request: Request) {
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {
     return NextResponse.json(
-      { ok: false, error: 'invalid_body', message: 'Укажите challengeId и код' },
+      { ok: false, error: 'invalid_body', message: notificationText.commonPageStale },
       { status: 400 },
     );
   }
@@ -71,7 +72,7 @@ export async function POST(request: Request) {
 
   if (result.user.userId !== session.user.userId) {
     return NextResponse.json(
-      { ok: false, error: 'identity_mismatch', message: 'Неверный код' },
+      { ok: false, error: 'identity_mismatch', message: notificationText.authCodeInvalidOrExpired },
       { status: 403 },
     );
   }
@@ -84,7 +85,7 @@ export async function POST(request: Request) {
     normalizePhone(sessionPhone) !== normalizePhone(confirmedPhone)
   ) {
     return NextResponse.json(
-      { ok: false, error: 'phone_mismatch', message: 'Неверный код' },
+      { ok: false, error: 'phone_mismatch', message: notificationText.authCodeInvalidOrExpired },
       { status: 403 },
     );
   }
@@ -94,7 +95,7 @@ export async function POST(request: Request) {
   } catch (e) {
     logger.error({ err: e }, '[patient/diary/purge] purgeAllDiaryDataForUser failed');
     return NextResponse.json(
-      { ok: false, error: 'purge_failed', message: 'Не удалось удалить данные' },
+      { ok: false, error: 'purge_failed', message: notificationText.commonDeleteDataFailed },
       { status: 500 },
     );
   }

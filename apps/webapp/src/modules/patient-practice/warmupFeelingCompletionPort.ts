@@ -38,8 +38,8 @@ export function isWarmupFeelingRefusedError(e: unknown): e is WarmupFeelingRefus
 export function warmupFeelingRefusalMessage(reason: WarmupFeelingRefusalReason): string {
   switch (reason) {
     case 'warmup_completion_not_current_patient':
-      return 'Не удалось записать самочувствие: эта разминка больше не числится за вами в текущей клинике. Отметьте разминку заново.';
+      return 'Не удалось записать самочувствие: эта разминка больше не числится за вами. Отметьте разминку заново.';
     case 'warmup_symptom_reference_unavailable':
-      return 'Не удалось записать самочувствие: в справочнике клиники нет активного типа симптома для разминки. Сообщите администратору клиники.';
+      return 'Не удалось записать самочувствие: тип симптома для разминки не настроен. Сообщите администратору.';
   }
 }

@@ -24,6 +24,7 @@ import { useInlineContentEditor, ContentEditorRightPane } from './ContentEditorR
 import { SYSTEM_PARENT_CODES } from '@/modules/content-sections/types';
 import { SectionForm } from './sections/SectionForm';
 import { contentMobileBackTarget } from './contentMobileBack';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -87,7 +88,7 @@ function SystemFolderPane({
   canManageCms: boolean;
   canAttachSections: boolean;
 }) {
-  const label = SYSTEM_FOLDER_LABELS[folderCode] ?? folderCode;
+  const label = SYSTEM_FOLDER_LABELS[folderCode] ?? notificationText.commonUnknownValue;
   const childSections = useMemo(
     () =>
       sections

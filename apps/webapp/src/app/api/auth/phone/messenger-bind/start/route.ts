@@ -25,6 +25,7 @@ import { isAuthChannelEnabled } from '@/modules/auth/authChannelPolicy';
 import { selectMessengerBindBotIdentity } from '@/modules/auth/messengerBindBotIdentity';
 import { readResolvedSurface } from '@/shared/lib/surface/requestSurface';
 import { logger } from '@/infra/logging/logger';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 const bodySchema = z.object({
   phone: z.string().min(1),
@@ -41,7 +42,7 @@ export async function POST(request: Request) {
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {
     return NextResponse.json(
-      { ok: false, error: 'invalid_body', message: 'Укажите телефон, канал и назначение' },
+      { ok: false, error: 'invalid_body', message: notificationText.authPhoneAndChannelRequired },
       { status: 400 },
     );
   }
@@ -49,7 +50,7 @@ export async function POST(request: Request) {
   const phone = normalizePhone(parsed.data.phone);
   if (!isValidPhoneE164(phone)) {
     return NextResponse.json(
-      { ok: false, error: 'invalid_phone', message: 'Неверный формат номера' },
+      { ok: false, error: 'invalid_phone', message: notificationText.authPhoneInvalidFormat },
       { status: 400 },
     );
   }
@@ -114,7 +115,7 @@ export async function POST(request: Request) {
       {
         ok: false,
         error: botIdentity.error,
-        message: 'Бот клиники сейчас недоступен. Обратитесь в клинику или войдите другим способом.',
+        message: notificationText.authClinicBotUnavailable,
       },
       { status: 503 },
     );
@@ -140,7 +141,7 @@ export async function POST(request: Request) {
       error: error instanceof Error ? error.message : String(error),
     });
     return NextResponse.json(
-      { ok: false, error: 'messenger_bind_unavailable', message: 'Привязка временно недоступна' },
+      { ok: false, error: 'messenger_bind_unavailable', message: notificationText.authMessengerBindUnavailable },
       { status: 503 },
     );
   }
@@ -158,7 +159,7 @@ export async function POST(request: Request) {
       });
     }
     return NextResponse.json(
-      { ok: false, error: result.code, message: 'Не удалось начать привязку' },
+      { ok: false, error: result.code, message: notificationText.messagingBindingStartFailed },
       { status: 400 },
     );
   }

@@ -436,7 +436,7 @@ export function NotificationTemplatesPageClient({
                                   className="rounded-md border border-border/60 bg-muted px-2 py-1 text-xs text-muted-foreground"
                                   disabled={!brandingMutationAvailable}
                                 >
-                                  {variableLabels[variable] ?? variable}
+                                  {variableLabels[variable] ?? notificationText.commonUnknownValue}
                                 </Button>
                               ))}
                             </span>

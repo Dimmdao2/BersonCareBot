@@ -173,7 +173,7 @@ export function SaasBillingProviderSettings() {
       if (json.ok) applySetting(json.setting.valueJson);
       toast.success(notificationText.commonSaved);
     } catch (cause) {
-      toast.error(safeUserMessage(cause, notificationText.adminBillingProviderSettingsSaveFailed));
+      toast.error(safeUserMessage(cause, notificationText.settingsSaveFailed));
     } finally {
       setSaving(false);
     }

@@ -46,7 +46,7 @@ export function createLfkTemplatesService(port: LfkTemplatesPort) {
       options?: LfkTemplateWriteOptions,
     ) {
       const title = input.title?.trim() ?? '';
-      if (!title) throw new UserFacingError(notificationText.exerciseTemplateNameRequired);
+      if (!title) throw new UserFacingError(notificationText.doctorTemplateNameRequired);
       return runTemplateWrite(options, () =>
         port.create({ ...input, title, description: input.description?.trim() || null }, createdBy),
       );
@@ -65,7 +65,7 @@ export function createLfkTemplatesService(port: LfkTemplatesPort) {
       const patch: UpdateTemplateInput = { ...input };
       if (input.title !== undefined) {
         const t = input.title.trim();
-        if (!t) throw new UserFacingError(notificationText.exerciseTemplateNameRequired);
+        if (!t) throw new UserFacingError(notificationText.doctorTemplateNameRequired);
         patch.title = t;
       }
       if (input.description !== undefined) {
@@ -107,7 +107,7 @@ export function createLfkTemplatesService(port: LfkTemplatesPort) {
         throw new UserFacingError(notificationText.exerciseTemplatePublishDraftOnly);
       }
       const titleOk = t.title.trim().length > 0;
-      if (!titleOk) throw new UserFacingError(notificationText.exerciseTemplateNameNeeded);
+      if (!titleOk) throw new UserFacingError(notificationText.doctorTemplateNameRequired);
       if (t.exercises.length < 1) {
         throw new UserFacingError(notificationText.exerciseTemplateAddAtLeastOne);
       }

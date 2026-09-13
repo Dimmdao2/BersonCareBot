@@ -36,7 +36,7 @@ export function getDoctorScreenTitle(
     '/app/admin/integrations': 'Интеграции',
     '/app/admin/booking': 'Настройки записи',
     '/app/admin/technical': 'Технические режимы',
-    '/app/doctor/clinic/settings': 'Настройки клиники',
+    '/app/doctor/clinic/settings': 'Настройки организации',
     '/app/doctor/patients': patientPluralLabel,
     '/app/doctor/schedule': 'Расписание',
     '/app/doctor/communications': 'Коммуникации',

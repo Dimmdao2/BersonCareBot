@@ -13,6 +13,7 @@ import {
 import { getCurrentSession } from '@/modules/auth/service';
 import { confirmEmailChallenge } from '@/modules/auth/emailAuth';
 import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 const bodySchema = z.object({
   challengeId: z.string().uuid(),
@@ -46,7 +47,7 @@ export async function POST(request: Request) {
   const session = await getCurrentSession();
   if (!session) {
     return NextResponse.json(
-      { ok: false, error: 'unauthorized', message: 'Требуется вход' },
+      { ok: false, error: 'unauthorized', message: notificationText.commonLoginRequired },
       { status: 401 },
     );
   }
@@ -55,7 +56,7 @@ export async function POST(request: Request) {
   const parsed = bodySchema.safeParse(json);
   if (!parsed.success) {
     return NextResponse.json(
-      { ok: false, error: 'validation_error', message: 'Некорректные данные' },
+      { ok: false, error: 'validation_error', message: notificationText.authInvalidBody },
       { status: 400 },
     );
   }
@@ -93,16 +94,16 @@ export async function POST(request: Request) {
 function errMsg(code: string): string {
   switch (code) {
     case 'invalid_code':
-      return 'Неверный код';
+      return notificationText.authCodeInvalidOrExpired;
     case 'expired_code':
-      return 'Код истёк. Запросите новый.';
+      return notificationText.authCodeExpiredRequestNew;
     case 'too_many_attempts':
-      return 'Превышено число попыток.';
+      return notificationText.authTooManyAttempts;
     case 'rate_limited':
-      return 'Слишком много запросов. Попробуйте позже.';
+      return notificationText.authTooManyAttempts;
     case 'email_conflict':
-      return 'Этот email уже используется другим аккаунтом';
+      return notificationText.authEmailBelongsToAnotherAccount;
     default:
-      return 'Ошибка подтверждения';
+      return notificationText.authConfirmationFailed;
   }
 }

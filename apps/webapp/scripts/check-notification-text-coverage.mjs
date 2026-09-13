@@ -58,9 +58,10 @@
  *    calls to either are exempt, same as any other dynamic expression on a branch.
  *  - G4: an inline `message: '...'` literal inside `NextResponse.json`/`Response.json`/`jsonError`
  *    — the shape that let a route's own copy diverge from the dictionary for the SAME code.
- *    Grandfathered by file for a large pre-existing surface this pass did not migrate (see
- *    `RESPONSE_MESSAGE_LITERAL_GRANDFATHER_FILES`'s own doc comment for the honest count and why);
- *    a literal in any file NOT on that list is a gate failure.
+ *    Файловых исключений НЕТ: список «grandfather» удалён 13.09 по прямому указанию владельца,
+ *    все 74 литерала из 32 освобождённых файлов перенесены в словарь.
+ *  - G5: функция-подпись, возвращающая собственный вход, — человек читает машинный код.
+ *  - G6: `СЛОВАРЬ[код] ?? код` — код, которого нет в словаре подписей, уходит человеку как есть.
  *
  *    HONEST LIMITS of that rule, so the next reader does not stop looking (re-audit NEW-4, 13.09 —
  *    the previous wording claimed the class "cannot reappear silently anywhere else", which was not
@@ -68,14 +69,34 @@
  *      1. Only the response builders named in `RESPONSE_BUILDER_BODY_ARG_INDEX` are inspected. A
  *         route answering through some other wrapper is invisible to this rule; add the wrapper to
  *         that map when one appears.
- *      2. Grandfathering is per FILE, not per literal, so a listed file is also exempt for NEW
- *         literals. The list may only shrink — treat any addition to it as a finding, not a fix.
+ *      2. Точечный маркер `// notification-text-gate: не подпись для человека — <причина>`
+ *         освобождает ОДНУ строку правила G6 и требует непустую причину. Это не файловое
+ *         исключение: соседний код в том же файле по-прежнему проверяется.
  *      3. Indirection is resolved exactly ONE level, and only within the same file: a module-level
  *         `const X = '…'` referenced at a shown-text call site or in a `message:` property is
  *         followed (final-audit MAJOR, 13.09 — before that a hoisted const was a silent exemption,
  *         live in `AuthFlowV2.tsx` and `specialist-signup/confirm/route.ts`). A const IMPORTED from
  *         another module, a const holding a const, or text assembled at runtime is still invisible
  *         to this gate. Do not read a green run as "no hand-typed copy anywhere".
+ *
+ *    ЧЕСТНЫЕ ОГРАНИЧЕНИЯ правил G5/G6 (названы адверсарным аудитом 13.09, находка Б2 — до неё
+ *    у этих правил не было объявлено ни одного ограничения, что само по себе было неправдой):
+ *      4. Свободная строка вида `Ошибка: ${код}` БЕЗ чтения по словарю рядом — НЕ ловится:
+ *         отличить её от законной вставки имени или числа структурно нельзя. Если словарь читается
+ *         той же строкой (`СЛОВАРЬ[код] ?? …`), шаблон и склейка через `+` ловятся с 13.09.
+ *      5. `message: код`, где значение — переменная (не константа модуля), НЕ ловится.
+ *      6. `String(data.error)` и чтение сырого `.code` (а не `.error`) внутри показа НЕ ловятся.
+ *      7. Сырое `.error` проверяется только в аргументе `toast.*`; то же значение, положенное в
+ *         `setError(...)`/`showError(...)`, правило G3 не видит.
+ *      8. G5 не видит стрелочную функцию с неявным возвратом тернарника, `return String(param)`
+ *         и `` return `Ошибка: ${param}` `` — названо вторым аудитом, не закрыто.
+ *      9. Чтение по словарю, поднятое СТРОКОЙ ВЫШЕ, разрывает связь ключа и запасного варианта:
+ *         `const label = СЛОВАРЬ[код];` + `setError(label ?? `… ${код}`)` НЕ ловится. Правило
+ *         сопоставляет выражения, а не значения, и через присваивание не ходит.
+ *     10. Ключ, к которому применили метод (`код.toUpperCase()`) или который прочитали под другим
+ *         именем (`const r = data.error;` … `${data.error}`), в запасном варианте НЕ ловится.
+ *    Пункты 9-10 названы четвёртым адверсарным аудитом 13.09 собственными обходами и НЕ закрыты.
+ *    Ни одно из этих ограничений не «когда-нибудь»: это то, что сторож пропустит СЕГОДНЯ.
  */
 import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
@@ -123,54 +144,6 @@ const FALLBACK_TEXT_HELPER_ARG_INDEX = new Map([
   ['safeActionErrorText', 2],
   // `@/app-layer/guards/requireEntitlement` — `mechanicWriteClearanceRefusalResponse(error, message)`.
   ['mechanicWriteClearanceRefusalResponse', 1],
-]);
-
-/**
- * Pre-existing `message: '...'` literals inside `NextResponse.json`/`Response.json` bodies that
- * this gating pass (G4, safety audit, 2026-09-13) did NOT migrate into the dictionary — the named
- * divergent-duplicate sites (`email-password/login/route.ts`, `email-otp/register/route.ts`) ARE
- * migrated, but a repo-wide AST sweep while building this rule found ~90 more static `message`
- * literals scattered across ~34 route/handler files, almost all pre-existing auth/otp routes. A
- * full migration of that surface is real work of its own and was judged out of scope for a gating
- * pass — see the plan doc and this round's report for the honest count. Grandfathered by FILE (not
- * by line, which drifts on unrelated edits): any `message` literal in one of these files is
- * allowed for now, but a literal in ANY file NOT on this list is a gate failure, so the class this
- * rule exists to stop — a new inline copy diverging from the dictionary — cannot reappear
- * silently anywhere else. Shrink this list as files are migrated; do not grow it for new files.
- */
-const RESPONSE_MESSAGE_LITERAL_GRANDFATHER_FILES = new Set([
-  'src/app-layer/guards/requireRole.ts',
-  'src/app/api/admin/clinic-delivery-test/route.ts',
-  'src/app/api/admin/google-calendar/calendars/route.ts',
-  'src/app/api/admin/google-calendar/start/route.ts',
-  'src/app/api/admin/settings/route.ts',
-  'src/app/api/auth/channel-link/start/route.ts',
-  'src/app/api/auth/check-phone/route.ts',
-  'src/app/api/auth/email-otp/confirm/route.ts',
-  'src/app/api/auth/email-password/register/confirm/route.ts',
-  'src/app/api/auth/email/confirm/route.ts',
-  'src/app/api/auth/email/start/route.ts',
-  'src/app/api/auth/messenger/poll/route.ts',
-  'src/app/api/auth/messenger/start/route.ts',
-  'src/app/api/auth/oauth/callback/google/route.ts',
-  'src/app/api/auth/passkey/credentials/route.ts',
-  'src/app/api/auth/passkey/login/options/route.ts',
-  'src/app/api/auth/passkey/login/verify/route.ts',
-  'src/app/api/auth/passkey/register/options/route.ts',
-  'src/app/api/auth/passkey/register/verify/route.ts',
-  'src/app/api/auth/phone/confirm/route.ts',
-  'src/app/api/auth/phone/messenger-bind/finish/route.ts',
-  'src/app/api/auth/phone/messenger-bind/start/route.ts',
-  'src/app/api/auth/phone/messenger-bind/status/route.ts',
-  'src/app/api/auth/phone/start/route.ts',
-  'src/app/api/auth/telegram-login/route.ts',
-  'src/app/api/doctor/patients/[userId]/email-change/route.ts',
-  'src/app/api/patient/diary/purge/route.ts',
-  'src/app/api/patient/email-change/confirm/route.ts',
-  'src/app/api/patient/support/route.ts',
-  'src/app/api/public/support/route.ts',
-  'src/modules/auth/vkOAuthCallbackHandler.ts',
-  'src/modules/auth/yandexOAuthCallbackHandler.ts',
 ]);
 
 /** Does `node` look like `new UserFacingError(...)`, `toast.error/success(...)`, or a call to one
@@ -399,6 +372,330 @@ function responseJsonMessageLiteralOf(node, consts = EMPTY_CONSTS) {
   return undefined;
 }
 
+
+/**
+ * G5 (владелец, 13.09 — «ни в коем случае врач не должен видеть сырой машинный код»).
+ *
+ * Класс, который все прошлые правила пропускали: функция-ПОДПИСЬ. Она существует ровно затем,
+ * чтобы превратить машинное значение (`awaiting_payment`, `not_found`, `playback_disabled`) в
+ * фразу для человека, — и заканчивается строкой `return status`, то есть отдаёт наружу тот самый
+ * код, от которого должна была защитить. На момент введения правила таких функций было 10, и
+ * одна из них (`panelErrorLabel` в панели календаря) знала 5 кодов из 23, которые реально шлют
+ * маршруты записи: 18 кодов врач видел сырыми.
+ *
+ * Опознание — по трём признакам сразу, чтобы не ловить форматтеры (`return iso`, если дата не
+ * разобралась) и склейки готовых подписей:
+ *   1. возвращаемый тип функции — ровно `string`;
+ *   2. параметр `p` где-то сравнивается со СТРОКОВЫМ ЛИТЕРАЛОМ (`p === 'ready'` или `switch (p)`
+ *      с case-литералами) — это и делает функцию словарём кодов;
+ *   3. среди её возвратов есть строковый литерал со СЛОВОМ (две буквы подряд) — то есть она
+ *      действительно возвращает подписи, а не числа, прочерки или url;
+ * и при этом есть `return p`. Дефолт обязан быть фразой (`notificationText.commonUnknownStatus`
+ * и подобные), а не входным значением.
+ */
+function codeLabelLeakReturns(fn, sf) {
+  // Требование явного `: string` в объявлении снято (адверсарный аудит 13.09, Б2): функция без
+  // аннотации типа — та же функция-подпись, а правило её не видело. Роль «словаря кодов» и так
+  // доказывают два других признака: сравнение параметра с литералами и возврат подписей-слов.
+  if (!fn.body) return [];
+  if (fn.type && fn.type.kind !== ts.SyntaxKind.StringKeyword) return [];
+  const params = new Set(
+    fn.parameters.filter((p) => ts.isIdentifier(p.name)).map((p) => p.name.text),
+  );
+  if (params.size === 0) return [];
+  const comparedToLiteral = new Set();
+  const aliasOf = new Map();
+  const returnsParam = [];
+  let returnsWordLiteral = false;
+  const walk = (n) => {
+    if (
+      ts.isBinaryExpression(n) &&
+      (n.operatorToken.kind === ts.SyntaxKind.EqualsEqualsEqualsToken ||
+        n.operatorToken.kind === ts.SyntaxKind.EqualsEqualsToken)
+    ) {
+      if (ts.isIdentifier(n.left) && params.has(n.left.text) && ts.isStringLiteral(n.right)) {
+        comparedToLiteral.add(n.left.text);
+      }
+      if (ts.isIdentifier(n.right) && params.has(n.right.text) && ts.isStringLiteral(n.left)) {
+        comparedToLiteral.add(n.right.text);
+      }
+    }
+    if (
+      ts.isSwitchStatement(n) &&
+      ts.isIdentifier(n.expression) &&
+      params.has(n.expression.text) &&
+      n.caseBlock.clauses.some((c) => ts.isCaseClause(c) && ts.isStringLiteral(c.expression))
+    ) {
+      comparedToLiteral.add(n.expression.text);
+    }
+    // `const raw = status;` — псевдоним параметра считается тем же параметром (аудит, Б2.4).
+    if (
+      ts.isVariableDeclaration(n) &&
+      ts.isIdentifier(n.name) &&
+      n.initializer &&
+      ts.isIdentifier(n.initializer) &&
+      params.has(n.initializer.text)
+    ) {
+      params.add(n.name.text);
+      aliasOf.set(n.name.text, aliasOf.get(n.initializer.text) ?? n.initializer.text);
+    }
+    if (ts.isReturnStatement(n) && n.expression) {
+      if (ts.isIdentifier(n.expression) && params.has(n.expression.text)) returnsParam.push(n);
+      if (
+        (ts.isStringLiteral(n.expression) || ts.isNoSubstitutionTemplateLiteral(n.expression)) &&
+        /\p{L}{2}/u.test(n.expression.text)
+      ) {
+        returnsWordLiteral = true;
+      }
+    }
+    // Вложенная функция — отдельная единица разбора, её возвраты не принадлежат этой.
+    if (
+      n === fn ||
+      (!ts.isFunctionDeclaration(n) && !ts.isArrowFunction(n) && !ts.isFunctionExpression(n))
+    ) {
+      ts.forEachChild(n, walk);
+    }
+  };
+  ts.forEachChild(fn.body, walk);
+  if (!returnsWordLiteral) return [];
+  return returnsParam.filter((r) => {
+    const name = r.expression.text;
+    return comparedToLiteral.has(name) || comparedToLiteral.has(aliasOf.get(name));
+  });
+}
+
+
+/**
+ * G6 (адверсарный аудит 13.09, находка Б1 — блокирующая).
+ *
+ * Тот же дефект, что G5, записанный не через `return`, а через словарь-объект:
+ *   `setError(ERROR_LABELS[code] ?? code)`
+ * Если кода нет в словаре подписей, человек получает сам код. Живой пример на момент введения
+ * правила — панель абонементов врача: словарь знал 19 кодов, маршруты слали ещё пять, и при
+ * отказе списания врач читал в баннере `consume_failed`.
+ *
+ * Форма самодостаточна и не зависит от того, внутри функции она или нет: чтение по индексу, где
+ * запасной вариант — ТОТ ЖЕ ключ, которым читали. Легитимной причины так писать нет: запасным
+ * вариантом обязан быть текст.
+ */
+function dictionaryFallbackToKeyLeaks(node, sf) {
+  if (!ts.isBinaryExpression(node)) return undefined;
+  const op = node.operatorToken.kind;
+  if (op !== ts.SyntaxKind.QuestionQuestionToken && op !== ts.SyntaxKind.BarBarToken) return undefined;
+
+  const unwrap = (e) => {
+    let x = e;
+    for (;;) {
+      if (ts.isParenthesizedExpression(x)) x = x.expression;
+      // `status as AppointmentStatus` — каст не меняет значения; без снятия правило было слепо
+      // (второй адверсарный аудит, Б6: так жила утечка сырого статуса записи врачу).
+      else if (ts.isAsExpression(x) || ts.isTypeAssertionExpression(x) || ts.isNonNullExpression(x)) x = x.expression;
+      // `String(code)` — обёртка, значение то же.
+      else if (
+        ts.isCallExpression(x) &&
+        ts.isIdentifier(x.expression) &&
+        x.expression.text === 'String' &&
+        x.arguments.length === 1
+      ) {
+        x = x.arguments[0];
+      } else return x;
+    }
+  };
+  const nameOf = (e) => {
+    const x = unwrap(e);
+    if (ts.isIdentifier(x)) return x.text;
+    if (ts.isPropertyAccessExpression(x) || ts.isPropertyAccessChain(x)) return x.getText(sf);
+    return undefined;
+  };
+  /** Чтение по ключу: `M[k]`, `M?.[k]`, `map.get(k)`. */
+  const readKeyOf = (e) => {
+    const x = unwrap(e);
+    if (ts.isElementAccessExpression(x)) return nameOf(x.argumentExpression);
+    if (
+      ts.isCallExpression(x) &&
+      (ts.isPropertyAccessExpression(x.expression) || ts.isPropertyAccessChain(x.expression)) &&
+      x.expression.name.text === 'get' &&
+      x.arguments.length === 1
+    ) {
+      return nameOf(x.arguments[0]);
+    }
+    return undefined;
+  };
+
+  // Левая часть может быть цепочкой `A[k] ?? B[k]` — достаточно, чтобы ХОТЬ ОДНО звено читало по
+  // тому же ключу, которым заканчивается цепочка.
+  const readKeys = [];
+  const collectReads = (e) => {
+    const x = unwrap(e);
+    if (
+      ts.isBinaryExpression(x) &&
+      (x.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken ||
+        x.operatorToken.kind === ts.SyntaxKind.BarBarToken)
+    ) {
+      collectReads(x.left);
+      collectReads(x.right);
+      return;
+    }
+    const key = readKeyOf(x);
+    if (key) readKeys.push(key);
+  };
+  collectReads(node.left);
+  if (readKeys.length === 0) return undefined;
+
+  // Запасной вариант выдаёт ключ: сам по себе, в шаблонной строке или склеенный через `+`.
+  // Человеку от обёртки не легче — в скобках он читает машинное слово. Дыра была живой: так были
+  // написаны три подписи в платёжной панели платформы.
+  return leaksKeyValue(node.right, readKeys, sf) ? node : undefined;
+}
+
+/**
+ * Утекает ли ключ в этом выражении: сам по себе, в шаблонной строке или склеенный через `+`.
+ *
+ * Четвёртый адверсарный аудит показал, что расширение на шаблонную строку закрыло ровно одно
+ * написание из десятка: `'Счёт не выставлен (' + code + ').'` проходил мимо, хотя это ровно тот
+ * же экран и то же машинное слово в скобках.
+ */
+function leaksKeyValue(expr, names, sf) {
+  if (!expr) return false;
+  const x = unwrapValue(expr);
+  const name = ts.isIdentifier(x)
+    ? x.text
+    : ts.isPropertyAccessExpression(x) || ts.isPropertyAccessChain(x)
+      ? x.getText(sf)
+      : undefined;
+  if (name !== undefined && names.includes(name)) return true;
+  if (templateInterpolates(x, names, sf)) return true;
+  // Склейка через `+`: достаточно, чтобы ключ был ХОТЬ ОДНИМ слагаемым.
+  if (ts.isBinaryExpression(x) && x.operatorToken.kind === ts.SyntaxKind.PlusToken) {
+    return leaksKeyValue(x.left, names, sf) || leaksKeyValue(x.right, names, sf);
+  }
+  return false;
+}
+
+/** Снятие обёрток, не меняющих значения: скобки, касты, `String(...)`. */
+function unwrapValue(e) {
+  let x = e;
+  for (;;) {
+    if (ts.isParenthesizedExpression(x)) x = x.expression;
+    else if (ts.isAsExpression(x) || ts.isTypeAssertionExpression(x) || ts.isNonNullExpression(x)) {
+      x = x.expression;
+    } else if (
+      ts.isCallExpression(x) &&
+      ts.isIdentifier(x.expression) &&
+      x.expression.text === 'String' &&
+      x.arguments.length === 1
+    ) {
+      x = x.arguments[0];
+    } else return x;
+  }
+}
+
+/** Шаблонная строка, в которую подставлено одно из перечисленных имён. */
+function templateInterpolates(expr, names, sf) {
+  if (!expr || !ts.isTemplateExpression(expr)) return false;
+  return expr.templateSpans.some((span) => {
+    let x = span.expression;
+    for (;;) {
+      if (ts.isParenthesizedExpression(x)) x = x.expression;
+      else if (ts.isAsExpression(x) || ts.isTypeAssertionExpression(x) || ts.isNonNullExpression(x)) {
+        x = x.expression;
+      } else if (
+        ts.isCallExpression(x) &&
+        ts.isIdentifier(x.expression) &&
+        x.expression.text === 'String' &&
+        x.arguments.length === 1
+      ) {
+        x = x.arguments[0];
+      } else break;
+    }
+    const name = ts.isIdentifier(x)
+      ? x.text
+      : ts.isPropertyAccessExpression(x) || ts.isPropertyAccessChain(x)
+        ? x.getText(sf)
+        : undefined;
+    return name !== undefined && names.includes(name);
+  });
+}
+
+/**
+ * `код in СЛОВАРЬ ? СЛОВАРЬ[код] : код` — та же утечка тернарником (второй аудит, Б6).
+ */
+function dictionaryTernaryToKeyLeaks(node, sf) {
+  if (!ts.isConditionalExpression(node)) return undefined;
+  const cond = unwrapValue(node.condition);
+
+  // Ключи, по которым условие спрашивает словарь. Четвёртый аудит показал, что форма `in` —
+  // лишь одно из написаний одной мысли «есть ли подпись для этого кода»; живые варианты:
+  //   `код in СЛОВАРЬ ? … : код`
+  //   `СЛОВАРЬ[код] !== undefined ? СЛОВАРЬ[код] : …`
+  //   `СЛОВАРЬ[код] ? СЛОВАРЬ[код] : …`
+  const keys = [];
+  if (ts.isBinaryExpression(cond) && cond.operatorToken.kind === ts.SyntaxKind.InKeyword) {
+    const left = unwrapValue(cond.left);
+    if (ts.isIdentifier(left)) keys.push(left.text);
+    else if (ts.isPropertyAccessExpression(left)) keys.push(left.getText(sf));
+  } else {
+    const tested =
+      ts.isBinaryExpression(cond) &&
+      (cond.operatorToken.kind === ts.SyntaxKind.ExclamationEqualsEqualsToken ||
+        cond.operatorToken.kind === ts.SyntaxKind.ExclamationEqualsToken ||
+        cond.operatorToken.kind === ts.SyntaxKind.EqualsEqualsEqualsToken ||
+        cond.operatorToken.kind === ts.SyntaxKind.EqualsEqualsToken)
+        ? unwrapValue(cond.left)
+        : cond;
+    const key = dictionaryReadKey(tested, sf);
+    if (key) keys.push(key);
+  }
+  if (keys.length === 0) return undefined;
+
+  return leaksKeyValue(node.whenFalse, keys, sf) ? node : undefined;
+}
+
+/** Имя ключа, если выражение — чтение по словарю: `M[k]`, `M?.[k]`, `map.get(k)`. */
+function dictionaryReadKey(expr, sf) {
+  const x = unwrapValue(expr);
+  const nameOf = (e) => {
+    const y = unwrapValue(e);
+    if (ts.isIdentifier(y)) return y.text;
+    if (ts.isPropertyAccessExpression(y) || ts.isPropertyAccessChain(y)) return y.getText(sf);
+    return undefined;
+  };
+  if (ts.isElementAccessExpression(x)) return nameOf(x.argumentExpression);
+  if (
+    ts.isCallExpression(x) &&
+    (ts.isPropertyAccessExpression(x.expression) || ts.isPropertyAccessChain(x.expression)) &&
+    x.expression.name.text === 'get' &&
+    x.arguments.length === 1
+  ) {
+    return nameOf(x.arguments[0]);
+  }
+  return undefined;
+}
+
+
+/**
+ * Точечное исключение ВМЕСТО списка файлов.
+ *
+ * Список исключений по файлам удалён (владелец 13.09: сторож, который пропускает, «только лишнее
+ * время на диагностику»). Но у правила G6 есть законные попадания: чтение по словарю, где значение
+ * — вообще не подпись для человека (транслитерация символа, имя хоста в операторском алерте,
+ * нормализация ключа поля формы). Такие места помечаются НА СВОЕЙ СТРОКЕ или строкой выше:
+ *
+ *   // notification-text-gate: не подпись для человека — <причина>
+ *
+ * Разница со списком файлов принципиальная: освобождается ОДНА строка, а не файл целиком; причина
+ * написана рядом и читается вместе с кодом; новый литерал в том же файле по-прежнему ловится.
+ */
+// Причина обязана быть фразой, а не отпиской: второй аудит показал, что причина «x» проходила.
+const NOT_USER_TEXT_MARK =
+  /\/\/\s*notification-text-gate:\s*не подпись для человека\s*—\s*\S[\s\S]{14,}/;
+
+function markedNotUserText(lines, lineIndex) {
+  const own = lines[lineIndex] ?? '';
+  const above = lines[lineIndex - 1] ?? '';
+  return NOT_USER_TEXT_MARK.test(own) || NOT_USER_TEXT_MARK.test(above);
+}
+
 function checkSource(relativePath, text) {
   const findings = [];
   const sf = ts.createSourceFile(
@@ -410,6 +707,21 @@ function checkSource(relativePath, text) {
   );
 
   const consts = moduleConstStringLiterals(sf);
+  const sourceLines = text.split('\n');
+  // Сколько попаданий правила G6 на каждой строке — считаем до обхода, чтобы маркер не мог
+  // освободить строку, на которой их несколько.
+  const dictionaryLeakLines = new Map();
+  {
+    const count = (n) => {
+      const hit = dictionaryFallbackToKeyLeaks(n, sf) ?? dictionaryTernaryToKeyLeaks(n, sf);
+      if (hit) {
+        const { line } = sf.getLineAndCharacterOfPosition(hit.getStart(sf));
+        dictionaryLeakLines.set(line, (dictionaryLeakLines.get(line) ?? 0) + 1);
+      }
+      ts.forEachChild(n, count);
+    };
+    count(sf);
+  }
 
   const visit = (node) => {
     const argument = textArgumentOf(node);
@@ -438,18 +750,48 @@ function checkSource(relativePath, text) {
     }
 
     // G4 (safety audit, 2026-09-13 gating pass): an inline `message: '...'` literal inside a
-    // NextResponse.json/Response.json body — grandfathered for pre-existing files, see
-    // RESPONSE_MESSAGE_LITERAL_GRANDFATHER_FILES's doc comment.
-    if (!RESPONSE_MESSAGE_LITERAL_GRANDFATHER_FILES.has(relativePath)) {
-      const messageLiteral = responseJsonMessageLiteralOf(node, consts);
-      if (messageLiteral) {
-        const { line } = sf.getLineAndCharacterOfPosition(messageLiteral.getStart(sf));
+    // NextResponse.json/Response.json/jsonError body — файловых исключений больше нет.
+    const messageLiteral = responseJsonMessageLiteralOf(node, consts);
+    if (messageLiteral) {
+      const { line } = sf.getLineAndCharacterOfPosition(messageLiteral.getStart(sf));
+      findings.push(
+        `${relativePath}:${line + 1}: string literal in a NextResponse.json/Response.json ` +
+          `"message" property — add it to notificationText.ts and reference the key instead ` +
+          `(${JSON.stringify(messageLiteral.text).slice(0, 60)})`,
+      );
+    }
+
+    // G5: функция-подпись, возвращающая собственный вход (сырой машинный код) человеку.
+    if (
+      ts.isFunctionDeclaration(node) ||
+      ts.isArrowFunction(node) ||
+      ts.isFunctionExpression(node)
+    ) {
+      for (const leak of codeLabelLeakReturns(node, sf)) {
+        const { line } = sf.getLineAndCharacterOfPosition(leak.getStart(sf));
         findings.push(
-          `${relativePath}:${line + 1}: string literal in a NextResponse.json/Response.json ` +
-            `"message" property — add it to notificationText.ts and reference the key instead ` +
-            `(${JSON.stringify(messageLiteral.text).slice(0, 60)})`,
+          `${relativePath}:${line + 1}: функция-подпись возвращает собственный вход ` +
+            `(\`${leak.expression.text}\`) — человек увидит машинный код вместо фразы. Верните ` +
+            `текст из notificationText (например commonUnknownStatus), а не входное значение`,
         );
       }
+    }
+
+    // G6: словарь подписей с запасным вариантом «сам ключ».
+    const dictionaryLeak =
+      dictionaryFallbackToKeyLeaks(node, sf) ?? dictionaryTernaryToKeyLeaks(node, sf);
+    if (dictionaryLeak) {
+      const { line } = sf.getLineAndCharacterOfPosition(dictionaryLeak.getStart(sf));
+      // Маркер гасит строку, на которой ровно ОДНО попадание: иначе `const a = M[x] ?? x, b =
+      // L[y] ?? y;` освобождался бы целиком одной причиной (второй аудит, замечание 1).
+      if (markedNotUserText(sourceLines, line) && dictionaryLeakLines.get(line) === 1) {
+        return ts.forEachChild(node, visit);
+      }
+      findings.push(
+        `${relativePath}:${line + 1}: словарь подписей с запасным вариантом «сам ключ» ` +
+          `(\`${dictionaryLeak.getText(sf).slice(0, 50)}\`) — код, которого нет в словаре, ` +
+          `уйдёт человеку как есть. Запасным вариантом должен быть текст из notificationText`,
+      );
     }
 
     ts.forEachChild(node, visit);
@@ -516,6 +858,60 @@ function selfTest() {
       "const M = 'Выберите публичный адрес клиники.';\nreturn jsonError('x', { message: M }, { status: 409 });"],
     ['module const literal riding a ?? fallback branch',
       "const NET = 'Нет связи с сервером.';\ntoast.error(data.message ?? NET);"],
+    // G5 (владелец, 13.09): функция-подпись, отдающая человеку собственный вход.
+    ['функция-подпись возвращает свой вход (цепочка if)',
+      "function label(status: string): string {\n  if (status === 'ready') return 'Готово';\n  return status;\n}"],
+    ['функция-подпись возвращает свой вход (switch)',
+      "function label(status: string): string {\n  switch (status) {\n    case 'ready':\n      return 'Готово';\n    default:\n      return status;\n  }\n}"],
+    ['переводчик кода ошибки возвращает сам код',
+      "function panelErrorLabel(error: string): string {\n  if (error === 'slot_overlap') return 'Слот занят.';\n  return error;\n}"],
+    ['функция-подпись БЕЗ аннотации типа (аудит Б2.1)',
+      "function label(status: string) {\n  if (status === 'ready') return 'Готово';\n  return status;\n}"],
+    ['код возвращается через промежуточную переменную (аудит Б2.4)',
+      "function label(status: string): string {\n  if (status === 'ready') return 'Готово';\n  const raw = status;\n  return raw;\n}"],
+    ['словарь подписей с запасным вариантом «сам ключ», ?? (аудит Б1)',
+      "setError(ERROR_LABELS[code] ?? code);"],
+    ['словарь подписей с запасным вариантом «сам ключ», ||',
+      "setError(ERROR_LABELS[code] || code);"],
+    ['то же через свойство объекта',
+      "toast.error(LABELS[json.error] ?? json.error);"],
+    // Седьмой проход: код, обёрнутый в текст, — та же утечка. Так были написаны три подписи в
+    // платёжной панели платформы, и правило их не видело.
+    ['запасной вариант — шаблонная строка с кодом внутри',
+      "setError(ERROR_LABELS[code] ?? `Счёт не выставлен (${code}).`);"],
+    ['шаблонная строка с кодом через String()',
+      "setError(ERROR_LABELS[code] ?? `Отказ: ${String(code)}`);"],
+    // Четвёртый адверсарный аудит: правило закрывало ровно одно написание из десятка. Ниже —
+    // формы, которые аудитор написал сам и которые гейт пропускал.
+    ['код склеен через + вместо шаблона',
+      "setError(ERROR_LABELS[code] ?? 'Счёт не выставлен (' + code + ').');"],
+    ['тернарник на !== undefined вместо in',
+      "setError(ERROR_LABELS[code] !== undefined ? ERROR_LABELS[code] : `Отказ (${code}).`);"],
+    ['тернарник на истинность значения',
+      "setError(ERROR_LABELS[code] ? ERROR_LABELS[code] : `Ошибка (${code})`);"],
+    ['ключ — свойство объекта, тернарник на in',
+      "const unit = quota.unit in UNIT_LABELS ? UNIT_LABELS[quota.unit] : quota.unit;"],
+    ['голый код в whenFalse при проверке значения',
+      "setError(LABELS[code] !== undefined ? LABELS[code] : code);"],
+    ['маркер БЕЗ причины не освобождает',
+      "// notification-text-gate: не подпись для человека —\nsetError(ERROR_LABELS[code] ?? code);"],
+    ['маркер через строку (не вплотную) не освобождает',
+      "// notification-text-gate: не подпись для человека — транслитерация\n\nsetError(ERROR_LABELS[code] ?? code);"],
+    ['маркер с отпиской вместо причины не освобождает',
+      "// notification-text-gate: не подпись для человека — x\nsetError(ERROR_LABELS[code] ?? code);"],
+    // Б6, второй адверсарный аудит: шесть форм той же утечки, которые правило пропускало.
+    ['ключ приведён типом (as) — каст не отменяет утечку',
+      "const t = LABELS[status as AppointmentStatus] ?? status;"],
+    ['запасной вариант обёрнут в String()',
+      "const t = LABELS[name as LineKey] ?? String(name);"],
+    ['словарь — Map, чтение через .get()',
+      "const t = labels.get(code) ?? code;"],
+    ['цепочка из двух словарей с тем же ключом в конце',
+      "const t = A[code] ?? B[code] ?? code;"],
+    ['тернарник через `in`',
+      "const t = code in M ? M[code] : code;"],
+    ['тернарник через `in` с String() в запасной ветке',
+      "const t = code in M ? M[code] : String(code);"],
   ];
   const safe = [
     ['dictionary reference', 'toast.error(notificationText.someKey);'],
@@ -558,6 +954,26 @@ function selfTest() {
       "const QUOTA = 'saas_quota_reached:files';\nif (error.message === QUOTA) return null;"],
     ['function-scoped const is not resolved',
       "function f() {\n  const local = 'Не удалось сохранить';\n  return local;\n}"],
+    // G5 не имеет права ловить форматтеры и склейки готовых подписей — три живые формы,
+    // на которых более грубая версия правила давала ложные срабатывания.
+    ['форматтер возвращает исходную строку, если значение не разобралось',
+      "function fmt(iso: string): string {\n  const d = new Date(iso);\n  if (Number.isNaN(d.getTime())) return iso;\n  return d.toLocaleDateString('ru-RU');\n}"],
+    ['склейка уже готовых подписей, без словаря кодов',
+      "function rowLabel(dateLabel: string, timeLabel: string): string {\n  if (timeLabel === '—') return dateLabel;\n  return `${dateLabel} ${timeLabel}`;\n}"],
+    ['возврат входа там, где подписей нет вовсе (значение шкалы)',
+      "function maxPain(raw: string): string {\n  if (raw === '9' || raw === '10') return raw;\n  return String(Number.parseInt(raw, 10));\n}"],
+    ['словарь подписей с ТЕКСТОВЫМ запасным вариантом — правильная форма',
+      "setError(ERROR_LABELS[code] ?? notificationText.commonGenericError);"],
+    ['чтение по индексу с запасным вариантом из ДРУГОГО значения — не эта форма',
+      "const title = TITLES[id] ?? defaultTitle;"],
+    ['точечный маркер с причиной освобождает ОДНУ строку',
+      "// notification-text-gate: не подпись для человека — транслитерация символа\nconst out = MAP[char] ?? char;"],
+    ['цепочка словарей с ДРУГИМ значением в конце — не эта форма',
+      "const t = A[code] ?? B[code] ?? notificationText.commonUnknownValue;"],
+    ['Map с текстовым запасным вариантом',
+      "const t = labels.get(code) ?? notificationText.commonUnknownValue;"],
+    ['тернарник через `in` с текстом в запасной ветке',
+      "const t = code in M ? M[code] : notificationText.commonUnknownValue;"],
   ];
 
   for (const [name, source] of leaking) {
@@ -572,28 +988,12 @@ function selfTest() {
     }
   }
 
-  // G4: a message literal in a file ON the grandfather list is deliberately not flagged.
-  const grandfatheredPath = [...RESPONSE_MESSAGE_LITERAL_GRANDFATHER_FILES][0];
-  const grandfatheredFindings = checkSource(
-    grandfatheredPath,
-    "return NextResponse.json({ ok: false, message: 'Некорректные данные' });",
-  );
-  if (grandfatheredFindings.length > 0) {
-    throw new Error(
-      `self-test went red on a grandfathered file: ${grandfatheredPath}\n${grandfatheredFindings.join('\n')}`,
-    );
-  }
-  // ...but the SAME literal in a file NOT on that list is still a violation.
-  const nonGrandfatheredFindings = checkSource(
-    'src/app/api/some/new/route.ts',
-    "return NextResponse.json({ ok: false, message: 'Некорректные данные' });",
-  );
-  if (nonGrandfatheredFindings.length === 0) {
-    throw new Error('self-test stayed green on a message literal in a non-grandfathered file');
-  }
+  // Список исключений («grandfather») УДАЛЁН 13.09 по прямому указанию владельца: гейт,
+  // который что-то пропускает, «только лишнее время на диагностику, а толку ноль». Все 71 литерал
+  // из 32 освобождённых файлов перенесены в словарь, поэтому исключений больше нет вовсе.
 
   console.log(
-    `notification text coverage self-test: OK (${leaking.length} leak fixtures red, ${safe.length} safe shapes green, grandfather-list exemption verified both ways)`,
+    `notification text coverage self-test: OK (${leaking.length} leak fixtures red, ${safe.length} safe shapes green)`,
   );
 }
 

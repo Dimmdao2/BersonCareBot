@@ -24,7 +24,7 @@ export function buildAdminPwaManifest(resolved: ResolvedSurface): MetadataRoute.
     id: '/app-admin',
     name: PLATFORM_NAME,
     short_name: PLATFORM_NAME,
-    description: 'Управление платформой: клиники, тарифы, операции.',
+    description: 'Управление платформой: организации, тарифы, операции.',
     start_url: '/app/admin',
     scope: '/app',
     display: 'standalone',

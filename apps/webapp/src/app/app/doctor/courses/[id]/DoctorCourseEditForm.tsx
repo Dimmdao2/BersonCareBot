@@ -271,7 +271,7 @@ export function DoctorCourseEditForm({
           .catch(() => {});
       }
     } catch {
-      toast.error(notificationText.commonNetworkUnavailable);
+      toast.error(notificationText.commonNoServerConnection);
     } finally {
       setPending(false);
     }
@@ -298,7 +298,7 @@ export function DoctorCourseEditForm({
           .catch(() => {});
       }
     } catch {
-      toast.error(notificationText.commonNetworkUnavailable);
+      toast.error(notificationText.commonNoServerConnection);
     } finally {
       setPending(false);
     }

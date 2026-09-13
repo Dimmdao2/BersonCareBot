@@ -169,7 +169,7 @@ export function SectionForm({
               oldSlug={section!.slug}
               pagesAffectedCount={pagesInSection}
               disabled={isSectionSlugProtectedFromDelete(section!.slug)}
-              disabledReason="Slug этого раздела нельзя изменить."
+              disabledReason="Адрес этого раздела нельзя изменить."
             />
           </div>
         </div>

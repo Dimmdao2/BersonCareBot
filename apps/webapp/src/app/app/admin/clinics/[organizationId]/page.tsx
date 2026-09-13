@@ -12,8 +12,8 @@ export default async function ClinicPage({
   const { organizationId } = await params;
 
   return (
-    <DoctorAppShell title="Карточка клиники">
-      <DoctorPageHeader title="Карточка клиники" />
+    <DoctorAppShell title="Карточка организации">
+      <DoctorPageHeader title="Карточка организации" />
       <ClinicsConsoleClient organizationId={organizationId} />
     </DoctorAppShell>
   );

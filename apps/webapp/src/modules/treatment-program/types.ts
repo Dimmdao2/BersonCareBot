@@ -1,4 +1,5 @@
 import type { MediaPreviewStatus } from '@/modules/media/types';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 /** Совпадает с CHECK в `treatment_program_template_stage_items`. */
 export const TREATMENT_PROGRAM_ITEM_TYPES = [
@@ -819,7 +820,7 @@ export type TreatmentProgramEventDoctorTimelineLabels = {
 function formatTreatmentProgramInstanceStatusRu(status: string): string {
   if (status === 'active') return 'активна';
   if (status === 'completed') return 'завершена';
-  return status;
+  return notificationText.commonUnknownStatusLower;
 }
 
 function summarizeTreatmentProgramStatusChangedForDoctorRu(

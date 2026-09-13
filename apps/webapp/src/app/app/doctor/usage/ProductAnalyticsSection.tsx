@@ -23,6 +23,7 @@ import { ProductAnalyticsEntryChannelChart } from './ProductAnalyticsEntryChanne
 import { ProductAnalyticsPushByTopicChart } from './ProductAnalyticsPushByTopicChart';
 import { ProductAnalyticsTopPagesChart } from './ProductAnalyticsTopPagesChart';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 const PRESETS = DOCTOR_ANALYTICS_WINDOW_HOUR_PRESETS;
 
@@ -110,7 +111,7 @@ export function ProductAnalyticsSection() {
   const pushOpenRatePct = data ? Math.round(data.summary.pushOpenRate * 100) : 0;
   const channelTotalsText =
     data?.entryChannelTotals
-      .map((row) => `${CHANNEL_LABEL[row.entryChannel] ?? row.entryChannel}: ${row.appOpens}`)
+      .map((row) => `${CHANNEL_LABEL[row.entryChannel] ?? notificationText.commonUnknownValue}: ${row.appOpens}`)
       .join(' · ') ?? '—';
 
   return (

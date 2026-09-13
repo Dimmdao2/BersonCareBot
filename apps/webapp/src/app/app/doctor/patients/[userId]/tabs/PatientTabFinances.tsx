@@ -125,7 +125,7 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 function StatusText({ status }: { status: string }) {
-  const label = STATUS_LABEL[status] ?? status;
+  const label = STATUS_LABEL[status] ?? notificationText.commonUnknownStatus;
   const cls =
     status === 'paid'
       ? 'text-emerald-700 dark:text-emerald-400'
@@ -295,7 +295,7 @@ export function PatientTabFinances({
       toast.success(notificationText.paymentRecorded);
       await fetchTimeline();
     } catch {
-      toast.error(notificationText.commonNetworkUnavailable);
+      toast.error(notificationText.commonNoServerConnection);
     } finally {
       setCashSubmitting(false);
     }

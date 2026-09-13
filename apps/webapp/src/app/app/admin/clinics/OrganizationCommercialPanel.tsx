@@ -104,7 +104,7 @@ export function OrganizationCommercialPanel({
         if (refreshed) toast.success(successMessage);
         else toast.error(`${successMessage}. Список не обновился — обновите страницу.`);
       } catch (error) {
-        toast.error(safeUserMessage(error, notificationText.adminOperationFailed));
+        toast.error(safeUserMessage(error, notificationText.commonGenericError));
       } finally {
         setBusy(false);
       }

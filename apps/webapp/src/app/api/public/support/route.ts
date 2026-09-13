@@ -15,6 +15,7 @@ import { logger } from '@/app-layer/logging/logger';
 import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipal';
 import { routePaths } from '@/app-layer/routes/paths';
 import { relaySupportSubmission } from '@/app-layer/support/relaySupportSubmission';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 const RATE_LIMIT_MS = 60_000;
 const lastPublicSupportByKey = new Map<string, number>();
@@ -71,7 +72,7 @@ export async function POST(request: Request) {
   const email = normalizeEmail(typeof body?.email === 'string' ? body.email : '');
   if (!email || !EMAIL_RE.test(email) || email.length > 254) {
     return NextResponse.json(
-      { ok: false, error: 'invalid_email', message: 'Укажите корректный email' },
+      { ok: false, error: 'invalid_email', message: notificationText.commonSpecifyValidEmail },
       { status: 400 },
     );
   }
@@ -134,9 +135,9 @@ export async function POST(request: Request) {
     return NextResponse.json({
       ok: true,
       delivered: false,
-      message: 'Сообщение получено. Ответим, как только сможем.',
+      message: notificationText.supportMessageReceived,
     });
   }
 
-  return NextResponse.json({ ok: true, delivered: true, message: 'Сообщение отправлено' });
+  return NextResponse.json({ ok: true, delivered: true, message: notificationText.messagingMessageSent });
 }

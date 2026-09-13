@@ -1,7 +1,7 @@
 export const ORGANIZATION_NAME_MAX_LENGTH = 100;
 
 export const ORGANIZATION_NAME_TOO_LONG_CODE = 'organization_name_too_long';
-export const ORGANIZATION_NAME_TOO_LONG_MESSAGE = `Название клиники не должно быть длиннее ${ORGANIZATION_NAME_MAX_LENGTH} знаков.`;
+export const ORGANIZATION_NAME_TOO_LONG_MESSAGE = `Название организации не должно быть длиннее ${ORGANIZATION_NAME_MAX_LENGTH} знаков.`;
 
 export type OrganizationNameValidationResult =
   | { ok: true; value: string }

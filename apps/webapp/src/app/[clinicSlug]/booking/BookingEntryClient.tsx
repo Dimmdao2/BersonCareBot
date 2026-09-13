@@ -114,7 +114,7 @@ export function BookingEntryClient({ screen, orgSlug, specialistId }: Props) {
     screen.kind === 'stale'
       ? screen.reason === 'branch_gone'
         ? 'Этот филиал больше не принимает записи.'
-        : 'Этот специалист больше не принимает записи в этой клинике.'
+        : 'Этот специалист больше не принимает записи здесь.'
       : null;
 
   // Специалиста несёт дальше только ЖИВАЯ ссылка. На экране протухшего параметра его уносить
@@ -135,7 +135,7 @@ export function BookingEntryClient({ screen, orgSlug, specialistId }: Props) {
           Филиал
         </p>
         {screen.branches.length === 0 ? (
-          <p className="text-sm">У клиники пока нет филиалов, открытых для записи.</p>
+          <p className="text-sm">Пока нет филиалов, открытых для записи.</p>
         ) : (
           screen.branches.map((branch) => (
             <Link

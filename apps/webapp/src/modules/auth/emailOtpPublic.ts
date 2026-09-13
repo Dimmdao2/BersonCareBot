@@ -44,7 +44,6 @@ export type StartPublicEmailOtpRegistrationResult =
       ok: false;
       code:
         | 'auth_channel_disabled'
-        | 'duplicate_email'
         | 'invalid_fio'
         | 'email_send_failed'
         | 'too_many_attempts';
@@ -128,6 +127,44 @@ export async function startPublicEmailOtpChallenge(
   };
 }
 
+/**
+ * Код входа для почты, за которой уже есть аккаунт. Форма ответа совпадает с успешным стартом
+ * регистрации, поэтому по ней нельзя узнать, занят адрес или нет; отказ доставки и блокировка
+ * по пользователю так же превращаются в нейтральный успех, как и на обычном входе.
+ */
+async function startLoginChallengeForExistingEmail(
+  email: string,
+  publicDb: EmailOtpPublicDbPort,
+  mailProfile: MailProfileRequest,
+): Promise<StartPublicEmailOtpResult> {
+  const user = await publicDb.findPublicEmailUser(email);
+  if (!user) {
+    return {
+      ok: true,
+      challengeId: randomUUID(),
+      retryAfterSeconds: OTP_RESEND_COOLDOWN_SEC,
+      suppressedOutcome: 'email_otp_unknown_address',
+    };
+  }
+  const result = await startEmailChallenge(user.userId, email, 'login', mailProfile);
+  if (result.ok) return result;
+  if (result.code === 'rate_limited') {
+    return {
+      ok: false,
+      code: 'rate_limited',
+      ...(result.retryAfterSeconds == null ? {} : { retryAfterSeconds: result.retryAfterSeconds }),
+      suppressedOutcome: 'email_otp_cooldown_suppressed',
+    };
+  }
+  return {
+    ok: true,
+    challengeId: randomUUID(),
+    retryAfterSeconds: OTP_RESEND_COOLDOWN_SEC,
+    suppressedOutcome:
+      result.code === 'email_send_failed' ? 'email_delivery_failed' : 'email_otp_locked',
+  };
+}
+
 /** Start a distinct structured patient email-registration flow. */
 export async function startPublicEmailOtpRegistration(
   input: { email: string; lastName: string; firstName: string; patronymic?: string | null },
@@ -161,13 +198,50 @@ export async function startPublicEmailOtpRegistration(
     firstName,
     patronymic,
   });
-  if (!registration.ok) return { ok: false, code: registration.reason };
+  if (!registration.ok) {
+    // У этой почты уже есть аккаунт. Пациент всё равно входит кодом, без пароля, поэтому
+    // отдельная «регистрация» ему не нужна: отправляем обычный код входа и ведём на тот же
+    // экран ввода кода. Решение владельца 13.09: «"Аккаунт с этой почтой уже существует" на
+    // пациентском пути регистрации надо просто вырезать». Заодно исчезает и перечисление
+    // адресов: ответ теперь не отличает занятую почту от свободной. Введённые ФИО молча
+    // игнорируются — чужой аккаунт они переименовывать не должны.
+    return startLoginChallengeForExistingEmail(email, publicDb, mailProfile);
+  }
 
   // Keep a newly-created row when delivery fails. `registerPublicEmailPatient` already treats an
   // unverified structured client as a pending registration and returns the same identity on retry
   // without overwriting its FIO. Deleting here defeated that pending contract and forced the person
   // to enter identity data again after an infrastructure failure.
-  return startEmailChallenge(registration.userId, email, 'public_registration', mailProfile);
+  //
+  // Отказ доставки и блокировка по пользователю превращаются в тот же нейтральный успех, что и на
+  // занятом адресе. Иначе оставался оракул (находка N10 четвёртого аудита): при сбое почты
+  // свободный адрес отвечал 503 `email_send_failed`, а занятый — 200, и эта разница сообщала,
+  // есть ли аккаунт. Цена известна и принята: в час сбоя почты человек видит «код отправлен» и
+  // кода не получает — ровно как на обычном входе, где так сделано с самого начала.
+  const challenge = await startEmailChallenge(
+    registration.userId,
+    email,
+    'public_registration',
+    mailProfile,
+  );
+  if (challenge.ok) return challenge;
+  if (challenge.code === 'rate_limited') {
+    return {
+      ok: false,
+      code: 'rate_limited',
+      ...(challenge.retryAfterSeconds == null
+        ? {}
+        : { retryAfterSeconds: challenge.retryAfterSeconds }),
+      suppressedOutcome: 'email_otp_cooldown_suppressed',
+    };
+  }
+  return {
+    ok: true,
+    challengeId: randomUUID(),
+    retryAfterSeconds: OTP_RESEND_COOLDOWN_SEC,
+    suppressedOutcome:
+      challenge.code === 'email_send_failed' ? 'email_delivery_failed' : 'email_otp_locked',
+  };
 }
 
 /**

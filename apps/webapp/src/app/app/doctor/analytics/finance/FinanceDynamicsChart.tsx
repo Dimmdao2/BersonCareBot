@@ -6,6 +6,7 @@ import { CartesianGrid, Legend, Line, LineChart, XAxis, YAxis } from 'recharts';
 import type { DoctorFinanceSeriesPoint } from '@/modules/doctor-finance-analytics/ports';
 import { PositiveSizeResponsiveContainer } from '@/shared/ui/charts/PositiveSizeResponsiveContainer';
 import { DoctorRechartsTooltip } from '@/shared/ui/doctor/DoctorRechartsTooltip';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 const LABELS = {
   totalMinor: 'Всего',
@@ -38,14 +39,14 @@ export function FinanceDynamicsChart({ series }: { series: DoctorFinanceSeriesPo
           <DoctorRechartsTooltip
             formatter={(value, name) => [
               `${rubles(Number(value))} ₽`,
-              LABELS[name as keyof typeof LABELS] ?? String(name),
+              LABELS[name as keyof typeof LABELS] ?? notificationText.commonUnknownValue,
             ]}
             labelFormatter={(value) => String(value)}
           />
           <Legend
             verticalAlign="bottom"
             wrapperStyle={{ paddingTop: 8 }}
-            formatter={(value) => LABELS[value as keyof typeof LABELS] ?? value}
+            formatter={(value) => LABELS[value as keyof typeof LABELS] ?? notificationText.commonUnknownValue}
           />
           <Line
             type="monotone"

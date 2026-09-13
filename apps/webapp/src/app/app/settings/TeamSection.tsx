@@ -29,6 +29,7 @@ import {
 } from '@/shared/ui/doctor/DoctorDnaFlatListRow';
 import type { ClinicSeatStatus } from '@/modules/clinic-seats/service';
 import type { OrganizationInviteRole } from '@/modules/organization-invites/ports';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 const ROLE_LABELS: Record<string, string> = {
   owner: 'Владелец',
@@ -45,7 +46,7 @@ const INVITE_ERROR_MESSAGES: Record<string, string> = {
   seat_overage_paid_period_over:
     'Оплаченный период тарифа закончился. Оплатите продление — после этого можно будет добавить место сверх тарифа.',
   already_member: 'Этот email уже участвует в организации.',
-  invalid_email: 'Некорректный email',
+  invalid_email: notificationText.commonSpecifyValidEmail,
 };
 
 export type TeamMemberRow = {
@@ -294,7 +295,7 @@ export function TeamSection({ members, invites, seats, canMutateTeam }: Props) {
                 <span
                   className={`${doctorDnaFlatListMetaClass} flex flex-wrap items-center gap-1.5`}
                 >
-                  <Badge variant="outline">{ROLE_LABELS[member.role] ?? member.role}</Badge>
+                  <Badge variant="outline">{ROLE_LABELS[member.role] ?? notificationText.commonUnknownValue}</Badge>
                   {member.seatConsuming ? <Badge variant="secondary">Место</Badge> : null}
                 </span>
                 {member.specialistLinked ? (
@@ -461,7 +462,7 @@ export function TeamSection({ members, invites, seats, canMutateTeam }: Props) {
                     {invite.invitedEmail}
                   </span>
                   <span className={`${doctorDnaFlatListMetaClass} block`}>
-                    {ROLE_LABELS[invite.invitedRole] ?? invite.invitedRole}
+                    {ROLE_LABELS[invite.invitedRole] ?? notificationText.commonUnknownValue}
                   </span>
                 </span>
                 {canMutateTeam ? (

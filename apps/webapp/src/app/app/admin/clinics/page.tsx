@@ -7,8 +7,8 @@ export default async function ClinicsPage() {
   await requirePlatformOperationsPage();
 
   return (
-    <DoctorAppShell title="Клиники">
-      <DoctorPageHeader title="Клиники" />
+    <DoctorAppShell title="Организации">
+      <DoctorPageHeader title="Организации" />
       <ClinicsConsoleClient />
     </DoctorAppShell>
   );

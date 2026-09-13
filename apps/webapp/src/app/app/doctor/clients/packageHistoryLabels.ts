@@ -1,3 +1,4 @@
+import { notificationText } from '@/shared/notifications/notificationText';
 const HISTORY_EVENT_LABELS: Record<string, string> = {
   manual_created: 'Создан вручную',
   catalog_offered: 'Назначен из каталога',
@@ -12,5 +13,5 @@ const HISTORY_EVENT_LABELS: Record<string, string> = {
 };
 
 export function packageHistoryEventLabel(eventType: string): string {
-  return HISTORY_EVENT_LABELS[eventType] ?? eventType;
+  return HISTORY_EVENT_LABELS[eventType] ?? notificationText.commonUnknownValue;
 }

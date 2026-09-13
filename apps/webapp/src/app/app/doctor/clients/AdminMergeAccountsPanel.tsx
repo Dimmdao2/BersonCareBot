@@ -377,8 +377,8 @@ export function AdminMergeAccountsPanel({
   const summaryLines = useMemo(() => {
     if (!preview || !resolution) return [];
     const lines: string[] = [];
-    lines.push(`Каноническая запись (остаётся): ${preview.targetId}`);
-    lines.push(`Дубликат (станет алиасом): ${preview.duplicateId}`);
+    lines.push(`Основная карточка (остаётся): ${preview.targetId}`);
+    lines.push(`Дубликат (станет ссылкой на основную): ${preview.duplicateId}`);
     for (const k of Object.keys(resolution.fields) as (keyof ManualMergeResolution['fields'])[]) {
       const side = resolution.fields[k];
       lines.push(`${SCALAR_LABELS[k]}: победитель — ${side === 'target' ? 'целевой' : 'дубликат'}`);
@@ -415,17 +415,16 @@ export function AdminMergeAccountsPanel({
     if (
       !window.confirm(
         'Объединить учётные записи?\n\n' +
-          'Дубликат станет алиасом (merged_into_id), его strong id будут очищены. ' +
-          'Дальше введите первые 4 hex-символа UUID дубликата (как в подсказке).',
+          'Дубликат перестанет быть отдельной карточкой и станет ссылкой на основную; ' +
+          'его способы входа будут отключены. ' +
+          'Дальше нужно будет ввести первые 4 знака кода дубликата — они показаны в подсказке.',
       )
     ) {
       return;
     }
     const prefixHint = duplicateUuidFirstFourHex(preview.duplicateId);
     const typed = window.prompt(
-      `Введите первые 4 символа UUID дубликата (hex, без дефисов).\n` +
-        `Ожидается начало: ${prefixHint}…\n` +
-        `Полный id: ${preview.duplicateId}`,
+      `Введите первые 4 знака кода дубликата.\n` + `Начало кода: ${prefixHint}…`,
     );
     if (typed === null) return;
     if (!mergeDuplicatePrefixConfirmed(typed, preview.duplicateId)) {
@@ -663,7 +662,7 @@ export function AdminMergeAccountsPanel({
             <div className="grid gap-3 lg:grid-cols-2">
               <div className="rounded-md border border-border/70 p-3">
                 <p className="text-xs font-medium uppercase text-muted-foreground mb-2">
-                  Целевой (канон)
+                  Основная карточка
                 </p>
                 <p className="font-mono text-xs break-all">{preview.targetId}</p>
                 <p className="mt-2 text-sm">{preview.target.displayName}</p>

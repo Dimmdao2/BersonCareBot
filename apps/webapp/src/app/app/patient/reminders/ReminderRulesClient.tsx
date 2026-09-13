@@ -118,7 +118,7 @@ function LegacyCategoryRuleCard({ rule }: { rule: ReminderRule }) {
       <CardHeader className="px-4 pb-2 pt-4">
         <div className="flex items-center justify-between gap-3">
           <CardTitle className={patientSectionTitleNormalClass}>
-            {labels[rule.category] ?? rule.category}
+            {labels[rule.category] ?? notificationText.commonUnknownValue}
           </CardTitle>
           <Switch
             checked={rule.enabled}
@@ -146,7 +146,7 @@ function LegacyCategoryRuleCard({ rule }: { rule: ReminderRule }) {
 
           <LegacyReminderScheduleDialog
             rule={rule}
-            categoryLabel={labels[rule.category] ?? rule.category}
+            categoryLabel={labels[rule.category] ?? notificationText.commonUnknownValue}
             open={scheduleOpen}
             onOpenChange={setScheduleOpen}
             onSaved={() => {

@@ -13,6 +13,7 @@ import {
 import type { ProgramActivityDayPoint } from '@/modules/doctor-program-activity/ports';
 import { DoctorRechartsTooltip } from '@/shared/ui/doctor/DoctorRechartsTooltip';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 const STROKE_DONE = 'hsl(142 45% 42%)';
 const STROKE_PATIENTS = 'hsl(215 65% 38%)';
@@ -78,7 +79,7 @@ export function ProgramActivityDynamicsChart({ series }: { series: ProgramActivi
           <DoctorRechartsTooltip
             formatter={(value, name) => {
               const v = typeof value === 'number' ? value : Number(value);
-              const label = lineLabels[name as LineKey] ?? String(name);
+              const label = lineLabels[name as LineKey] ?? notificationText.commonUnknownValue;
               return [`${Number.isFinite(v) ? v : '—'}`, label];
             }}
             labelFormatter={(_, payload) => {

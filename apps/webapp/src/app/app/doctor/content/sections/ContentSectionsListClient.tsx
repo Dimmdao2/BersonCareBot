@@ -171,7 +171,7 @@ function SortableSectionRow({
                     sos: 'SOS',
                     warmups: 'Разминки',
                     lessons: 'Уроки',
-                  }[row.systemParentCode] ?? row.systemParentCode)
+                  }[row.systemParentCode] ?? notificationText.commonUnknownValue)
                 : 'Корень'}
             </Badge>
           ) : null}
@@ -317,11 +317,11 @@ export function ContentSectionsListClient({
           const res = await reorderContentSections(orderedSlugs);
           if (!res.ok) {
             setItems(previous);
-            toast.error(readSafeActionErrorText(res, notificationText.doctorSectionOrderUpdateFailed));
+            toast.error(readSafeActionErrorText(res, notificationText.commonOrderSaveFailed));
           }
         } catch {
           setItems(previous);
-          toast.error(notificationText.doctorSectionOrderUpdateFailed);
+          toast.error(notificationText.commonOrderSaveFailed);
         }
       });
       return next;

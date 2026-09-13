@@ -131,7 +131,7 @@ export function CabinetBookingActions({ row }: Props) {
               toast.error(
                 json.error === 'staff_confirmation_required'
                   ? notificationText.bookingStaffConfirmationRequired
-                  : notificationText.bookingCancelFailed,
+                  : notificationText.bookingManualLifecycleActionFailed,
               );
               return;
             }

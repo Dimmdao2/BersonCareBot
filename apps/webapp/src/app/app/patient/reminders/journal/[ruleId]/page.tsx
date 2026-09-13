@@ -11,6 +11,7 @@ import {
   patientInlineLinkClass,
   patientMutedTextClass,
 } from '@/shared/ui/patient/patientVisual';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 type Props = { params: Promise<{ ruleId: string }> };
 
@@ -65,7 +66,7 @@ export default async function PatientReminderJournalPage({ params }: Props) {
               >
                 <CardContent className="flex flex-wrap items-center justify-between gap-2 py-3">
                   <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant="secondary">{ACTION_LABEL[e.action] ?? e.action}</Badge>
+                    <Badge variant="secondary">{ACTION_LABEL[e.action] ?? notificationText.commonUnknownValue}</Badge>
                     <time className={patientCaptionTextClass} dateTime={e.createdAt}>
                       {new Date(e.createdAt).toLocaleString('ru-RU')}
                     </time>

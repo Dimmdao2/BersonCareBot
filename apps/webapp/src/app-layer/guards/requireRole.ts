@@ -39,6 +39,7 @@ import {
 } from './workspaceCapabilities';
 import { isCabinetEntryBlocked } from './cabinetAccessGate';
 import { resolveCabinetAccessRequestLocal } from './cabinetAccessRequestLocal';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 export async function requireSession(returnPath?: string): Promise<AppSession> {
   const session = await getCurrentSession();
@@ -673,7 +674,7 @@ export async function requireAccountWebPushSelfApiSession(): Promise<
         {
           ok: false,
           error: 'unauthorized',
-          message: 'Войдите в аккаунт, чтобы управлять личными Push-уведомлениями.',
+          message: notificationText.pushLoginRequired,
         },
         { status: 401 },
       ),
@@ -695,7 +696,7 @@ export async function requireAccountWebPushSelfApiSession(): Promise<
         {
           ok: false,
           error: 'account_self_forbidden',
-          message: 'Личные Push-уведомления недоступны для этой учётной записи.',
+          message: notificationText.pushNotAvailableForAccount,
         },
         { status: 403 },
       ),
@@ -714,7 +715,7 @@ export async function requireAccountWebPushSelfApiSession(): Promise<
         {
           ok: false,
           error: 'identity_self_unavailable',
-          message: 'Не удалось подтвердить доступ к вашим личным Push-уведомлениям.',
+          message: notificationText.pushAccessCheckFailed,
         },
         { status: 403 },
       ),
@@ -931,7 +932,7 @@ function patientActivationRequiredJson(returnPath: string) {
     {
       ok: false,
       error: 'patient_activation_required',
-      message: 'Требуется подтверждённый профиль пациента',
+      message: notificationText.patientProfileConfirmationRequired,
       redirectTo: `${routePaths.bindPhone}?next=${next}`,
     },
     { status: 403 },
@@ -1014,7 +1015,7 @@ export async function requirePatientBookingTrustedPhoneAccess(options?: {
           {
             ok: false,
             error: 'booking_phone_trust_required',
-            message: 'Для записи на приём нужен подтверждённый номер телефона.',
+            message: notificationText.bookingConfirmedPhoneRequired,
             redirectTo: `${routePaths.bindPhone}?next=${next}`,
           },
           { status: 403 },

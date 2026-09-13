@@ -74,7 +74,7 @@ export function createTreatmentProgramService(
       options?: TreatmentProgramTemplateWriteOptions,
     ) {
       const title = input.title?.trim() ?? '';
-      if (!title) throw new UserFacingError(notificationText.exerciseTemplateNameRequired);
+      if (!title) throw new UserFacingError(notificationText.doctorTemplateNameRequired);
       return runTemplateWrite(options, () =>
         port.createTemplate(
           {
@@ -97,7 +97,7 @@ export function createTreatmentProgramService(
       const patch: UpdateTreatmentProgramTemplateInput = { ...input };
       if (input.title !== undefined) {
         const t = input.title.trim();
-        if (!t) throw new UserFacingError(notificationText.exerciseTemplateNameRequired);
+        if (!t) throw new UserFacingError(notificationText.doctorTemplateNameRequired);
         patch.title = t;
       }
       if (input.description !== undefined) {
@@ -157,7 +157,7 @@ export function createTreatmentProgramService(
     ) {
       assertUuid(templateId);
       const title = input.title?.trim() ?? '';
-      if (!title) throw new UserFacingError(notificationText.treatmentProgramStageNameRequired);
+      if (!title) throw new UserFacingError(notificationText.treatmentProgramStageNameEmpty);
       const goals =
         input.goals === undefined
           ? undefined
@@ -205,7 +205,7 @@ export function createTreatmentProgramService(
       const patch: UpdateTreatmentProgramStageInput = { ...input };
       if (input.title !== undefined) {
         const t = input.title.trim();
-        if (!t) throw new UserFacingError(notificationText.treatmentProgramStageNameRequired);
+        if (!t) throw new UserFacingError(notificationText.treatmentProgramStageNameEmpty);
         patch.title = t;
       }
       if (input.description !== undefined) {
@@ -261,13 +261,13 @@ export function createTreatmentProgramService(
         }
       } else if (input.groupId) {
         const g = ctx.groups.find((x) => x.id === input.groupId);
-        if (!g) throw new UserFacingError(notificationText.treatmentProgramGroupNotFoundOrWrongStage);
+        if (!g) throw new UserFacingError(notificationText.treatmentProgramGroupNotFound);
         assertTreatmentProgramStageItemFitsSystemGroup(g, input.itemType);
       }
       const hasGroup = Boolean(input.groupId);
       if (!hasGroup && input.itemType !== 'recommendation' && input.itemType !== 'clinical_test') {
         throw new UserFacingError(
-          notificationText.treatmentProgramNoGroupAddRestriction,
+          notificationText.treatmentProgramNoGroupRestrictedElements,
         );
       }
       await itemRefs.assertItemRefExists(input.itemType, input.itemRefId.trim());
@@ -303,7 +303,7 @@ export function createTreatmentProgramService(
       }
 
       const currentRow = await port.getStageItemById(itemId);
-      if (!currentRow) throw new UserFacingError(notificationText.treatmentProgramStageElementNotFound);
+      if (!currentRow) throw new UserFacingError(notificationText.treatmentProgramElementNotFound);
 
       if (patch.itemRefId !== undefined || patch.itemType !== undefined) {
         const nextType = patch.itemType ?? currentRow.itemType;
@@ -327,25 +327,25 @@ export function createTreatmentProgramService(
       } else {
         if (nextGroupId) {
           const g = ctx.groups.find((x) => x.id === nextGroupId);
-          if (!g) throw new UserFacingError(notificationText.treatmentProgramGroupNotFoundOrWrongStage);
+          if (!g) throw new UserFacingError(notificationText.treatmentProgramGroupNotFound);
           assertTreatmentProgramStageItemFitsSystemGroup(g, nextType);
         }
         if (!nextGroupId && nextType !== 'recommendation' && nextType !== 'clinical_test') {
           throw new UserFacingError(
-            notificationText.treatmentProgramNoGroupKeepRestriction,
+            notificationText.treatmentProgramNoGroupRestrictedElements,
           );
         }
       }
 
       const row = await runTemplateWrite(options, () => port.updateStageItem(itemId, patch));
-      if (!row) throw new UserFacingError(notificationText.treatmentProgramStageElementNotFound);
+      if (!row) throw new UserFacingError(notificationText.treatmentProgramElementNotFound);
       return row;
     },
 
     async deleteStageItem(itemId: string, options?: TreatmentProgramTemplateWriteOptions) {
       assertUuid(itemId);
       const ok = await runTemplateWrite(options, () => port.deleteStageItem(itemId));
-      if (!ok) throw new UserFacingError(notificationText.treatmentProgramStageElementNotFound);
+      if (!ok) throw new UserFacingError(notificationText.treatmentProgramElementNotFound);
     },
 
     async createTemplateStageGroup(
@@ -355,7 +355,7 @@ export function createTreatmentProgramService(
     ) {
       assertUuid(stageId);
       const title = input.title?.trim() ?? '';
-      if (!title) throw new UserFacingError(notificationText.treatmentProgramGroupNameRequired);
+      if (!title) throw new UserFacingError(notificationText.treatmentProgramGroupNameEmpty);
       return runTemplateWrite(options, () =>
         port.createTemplateStageGroup(stageId, {
           ...input,
@@ -385,7 +385,7 @@ export function createTreatmentProgramService(
       const row = await runTemplateWrite(options, () =>
         port.updateTemplateStageGroup(groupId, patch),
       );
-      if (!row) throw new UserFacingError(notificationText.treatmentProgramStageGroupNotFound);
+      if (!row) throw new UserFacingError(notificationText.treatmentProgramGroupNotFound);
       return row;
     },
 
@@ -395,7 +395,7 @@ export function createTreatmentProgramService(
     ) {
       assertUuid(groupId);
       const ok = await runTemplateWrite(options, () => port.deleteTemplateStageGroup(groupId));
-      if (!ok) throw new UserFacingError(notificationText.treatmentProgramStageGroupNotFound);
+      if (!ok) throw new UserFacingError(notificationText.treatmentProgramGroupNotFound);
     },
 
     async reorderTemplateStageGroups(
@@ -408,7 +408,7 @@ export function createTreatmentProgramService(
       const ok = await runTemplateWrite(options, () =>
         port.reorderTemplateStageGroups(stageId, orderedGroupIds),
       );
-      if (!ok) throw new UserFacingError(notificationText.treatmentProgramInvalidStageGroupOrder);
+      if (!ok) throw new UserFacingError(notificationText.treatmentProgramInvalidStageOrder);
     },
 
     async reorderTemplateStages(
@@ -446,7 +446,7 @@ export function createTreatmentProgramService(
       const ok = await runTemplateWrite(options, () =>
         port.reorderTemplateStageItems(stageId, orderedItemIds),
       );
-      if (!ok) throw new UserFacingError(notificationText.treatmentProgramInvalidStageElementOrder);
+      if (!ok) throw new UserFacingError(notificationText.treatmentProgramInvalidStageOrder);
     },
 
     async expandLfkComplexIntoTemplateStageItems(
@@ -468,7 +468,7 @@ export function createTreatmentProgramService(
 
       if (body.mode === 'new_group') {
         const title = body.newGroupTitle.trim();
-        if (!title) throw new UserFacingError(notificationText.treatmentProgramGroupNameRequired);
+        if (!title) throw new UserFacingError(notificationText.treatmentProgramGroupNameEmpty);
       }
       if (body.mode === 'existing_group') {
         assertUuid(body.existingGroupId);

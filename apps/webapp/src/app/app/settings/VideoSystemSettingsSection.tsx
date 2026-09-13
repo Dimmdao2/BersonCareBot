@@ -160,7 +160,7 @@ export function VideoSystemSettingsSection({
             <p className="mb-2 text-xs font-medium">Watermark при транскоде</p>
             <LabeledSwitch
               label="Включить watermark"
-              hint="Burn-in UUID в кадре; дольше ffmpeg. Уже готовые HLS не меняются."
+              hint="В кадр впечатывается код записи. Обработка идёт дольше; уже готовые видео не меняются."
               checked={watermark}
               onCheckedChange={(next) =>
                 void runPatch('video_watermark_enabled', next, () => setWatermark(next))

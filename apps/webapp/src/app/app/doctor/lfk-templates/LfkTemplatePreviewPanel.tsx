@@ -77,7 +77,7 @@ export function LfkTemplatePreviewPanel({
       </p>
       {template.ownerKind === 'platform' ? (
         <p className="rounded-md border border-primary/25 bg-primary/5 p-3 text-sm text-muted-foreground">
-          Базовый комплекс платформы доступен для назначения и не редактируется клиникой.
+          Базовый комплекс платформы доступен для назначения и не редактируется.
         </p>
       ) : null}
       {showOpenButton ? (

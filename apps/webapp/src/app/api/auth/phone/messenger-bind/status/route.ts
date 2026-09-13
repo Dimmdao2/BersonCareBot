@@ -2,6 +2,7 @@ import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipa
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 const bodySchema = z.object({
   setupToken: z.string().min(4),
@@ -13,7 +14,7 @@ export async function POST(request: Request) {
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {
     return NextResponse.json(
-      { ok: false, error: 'invalid_body', message: 'Укажите setupToken' },
+      { ok: false, error: 'invalid_body', message: notificationText.commonPageStale },
       { status: 400 },
     );
   }

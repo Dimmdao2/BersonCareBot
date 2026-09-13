@@ -95,7 +95,7 @@ export async function POST(request: Request) {
     result.invite.invitedEmail,
     `Приглашение в ${STAFF_SURFACE.name}`,
     [
-      `Вас пригласили в клинику ${result.invite.organizationTitle ?? ''}.`.trim(),
+      `Вас пригласили в организацию ${result.invite.organizationTitle ?? ''}.`.trim(),
       'Откройте ссылку и подтвердите email кодом:',
       inviteUrl,
       'Ссылка действует 7 дней.',

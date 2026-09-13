@@ -11,10 +11,11 @@ import { AdminRegistrationLineChart } from './AdminRegistrationLineChart';
 import { buildAdminStatsQuery, type AnalyticsPeriodValue } from './analyticsPeriodUi';
 import { DoctorStatCard } from './DoctorStatCard';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 function formatRegistrationError(code: string): string {
   if (code === 'range_too_short') return 'Период не короче 7 дней.';
-  return code;
+  return notificationText.commonGenericError;
 }
 
 type Props = {

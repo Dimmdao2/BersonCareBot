@@ -924,7 +924,7 @@ export async function applyInstanceEditorBatch(
       const stageId = resolveBatchId(stageIdRaw, idMap, 'Этап');
       const resolved = orderedGroupIds.map((id, i) => resolveBatchId(id, idMap, `Группа ${i + 1}`));
       const ok = await instances.reorderInstanceStageGroups(input.instanceId, stageId, resolved);
-      if (!ok) throw new UserFacingError(notificationText.treatmentProgramInvalidStageGroupOrder);
+      if (!ok) throw new UserFacingError(notificationText.treatmentProgramInvalidStageOrder);
       diff.groupsReordered = true;
     }
 
@@ -932,7 +932,7 @@ export async function applyInstanceEditorBatch(
       const stageId = resolveBatchId(stageIdRaw, idMap, 'Этап');
       const resolved = orderedItemIds.map((id, i) => resolveBatchId(id, idMap, `Элемент ${i + 1}`));
       const ok = await instances.reorderInstanceStageItems(input.instanceId, stageId, resolved);
-      if (!ok) throw new UserFacingError(notificationText.treatmentProgramInvalidStageElementOrder);
+      if (!ok) throw new UserFacingError(notificationText.treatmentProgramInvalidStageOrder);
       diff.itemsReordered = true;
     }
 

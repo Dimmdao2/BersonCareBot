@@ -12,6 +12,7 @@ import {
 import type { SystemSettingKey } from '@/modules/system-settings/types';
 import { relayOutbound } from '@/modules/messaging/relayOutbound';
 import type { OrgMechanic } from '@/modules/org-entitlements/types';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 const bodySchema = z.object({ channel: z.enum(['email', 'telegram', 'max']) });
 
@@ -94,7 +95,7 @@ export async function POST(request: Request) {
   });
   if (!setting) {
     return NextResponse.json(
-      { ok: false, error: 'credential_missing', message: 'Сначала сохраните настройки канала.' },
+      { ok: false, error: 'credential_missing', message: notificationText.adminSaveChannelSettingsFirst },
       { status: 409 },
     );
   }
@@ -105,8 +106,8 @@ export async function POST(request: Request) {
       organizationId: gate.ctx.organizationId,
       channel,
       recipient,
-      text: 'Проверка собственного канала клиники. Канал будет включён после успешной доставки этого сообщения.',
-      metadata: { subject: 'Проверка канала клиники' },
+      text: 'Проверка собственного канала организации. Канал будет включён после успешной доставки этого сообщения.',
+      metadata: { subject: 'Проверка канала организации' },
       clinicCredentialProbe: true,
     },
     { retryDelaysMs: [0] },
@@ -130,7 +131,7 @@ export async function POST(request: Request) {
       {
         ok: false,
         error: 'credential_changed',
-        message: 'Настройки канала изменились во время проверки. Отправьте проверку ещё раз.',
+        message: notificationText.adminChannelSettingsChangedDuringTest,
       },
       { status: 409 },
     );

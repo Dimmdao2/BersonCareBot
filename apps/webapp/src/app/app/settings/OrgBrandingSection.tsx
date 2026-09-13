@@ -343,7 +343,7 @@ export function OrgBrandingSection({
     const result = await patchAdminSettingWithResult('clinic_uses_own_patient_app', next);
     if (!result.ok) {
       setUsesOwnPatientApp(previous);
-      toast.error(notificationText.commonSettingSaveFailed);
+      toast.error(notificationText.settingsSaveFailed);
     }
     setSavingOwnApp(false);
   }
@@ -416,7 +416,7 @@ export function OrgBrandingSection({
             Своё приложение для пациентов вместо общей платформы
             <span className="mt-0.5 block text-xs text-muted-foreground">
               Пациенты попадают в кабинет только с вашего адреса. Организация сразу перестаёт
-              показываться в списке клиник на общей платформе — независимо от того, настроен ли уже
+              показываться в общем списке на платформе — независимо от того, настроен ли уже
               свой домен.
             </span>
           </span>

@@ -10,6 +10,7 @@ import {
   patientSectionSurfaceClass,
   patientSectionTitleClass,
 } from '@/shared/ui/patient/patientVisual';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 type PackageRow = {
   id: string;
@@ -71,7 +72,7 @@ export function PatientMembershipsSection({
           <li key={p.id} className={patientListItemClass}>
             <p className={patientActionTextClass}>{p.title}</p>
             <p className={patientMutedTextClass}>
-              {STATUS_LABEL[p.status] ?? p.status}
+              {STATUS_LABEL[p.status] ?? notificationText.commonUnknownStatus}
               {p.validUntil ? ` · до ${new Date(p.validUntil).toLocaleDateString('ru-RU')}` : ''}
             </p>
             <p className={patientMutedTextClass}>

@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 import type { ProfileNotificationTopicModel } from '@/modules/patient-notifications/profileTopicChannelsModel';
 import { patientBodyTextClass, patientCaptionTextClass, patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
 import { setTopicChannelNotificationEnabled } from './notificationPrefsActions';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 const CHANNEL_ORDER = ['web_push', 'telegram', 'max', 'email'] as const;
 
@@ -57,7 +58,7 @@ export function PatientNotificationsTopicMatrix({ initialTopics, pushEffective }
     }
     return CHANNEL_ORDER.filter((code) => labels.has(code)).map((code) => ({
       code,
-      label: labels.get(code) ?? code,
+      label: labels.get(code) ?? notificationText.commonUnknownValue,
     }));
   })();
 

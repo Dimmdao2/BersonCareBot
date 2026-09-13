@@ -16,6 +16,7 @@ import type { AppSession } from '@/shared/types/session';
 import { isPlatformUserUuid } from '@/shared/platform-user/isPlatformUserUuid';
 import { checkAuthConfirmRateLimit } from '@/modules/auth/authConfirmRateLimit';
 import { ensureAuthModulePortsBound } from '@/app-layer/di/bindAuthModulePorts';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 const responseSchema = z
   .object({
@@ -44,7 +45,7 @@ export async function POST(request: Request) {
   stampBootstrapPrincipal('api/auth/passkey/login/verify:POST', request);
   if (!(await isIndependentAuthMethodEnabled('passkey'))) {
     return NextResponse.json(
-      { ok: false, error: 'auth_method_disabled', message: 'Вход по ключу доступа отключён' },
+      { ok: false, error: 'auth_method_disabled', message: notificationText.authPasskeyDisabled },
       { status: 403 },
     );
   }
@@ -73,7 +74,7 @@ export async function POST(request: Request) {
   }
   if (!userId) {
     return NextResponse.json(
-      { ok: false, error: 'invalid_credentials', message: 'Не удалось подтвердить ключ доступа' },
+      { ok: false, error: 'invalid_credentials', message: notificationText.authPasskeyVerifyFailed },
       { status: 401 },
     );
   }

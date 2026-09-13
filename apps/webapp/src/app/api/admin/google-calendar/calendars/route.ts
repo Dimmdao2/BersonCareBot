@@ -14,6 +14,7 @@ import {
   refreshGoogleAccessToken,
   fetchGoogleCalendarList,
 } from '@/modules/google-calendar/googleOAuthHelpers';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 export async function GET() {
   const gate = await requireClinicManagementApiContext();
@@ -25,7 +26,7 @@ export async function GET() {
   const refreshToken = (await getGoogleRefreshToken(gate.ctx.organizationId)).trim();
   if (!refreshToken) {
     return NextResponse.json(
-      { ok: false, error: 'not_connected', message: 'Google Calendar не подключён' },
+      { ok: false, error: 'not_connected', message: notificationText.adminGoogleCalendarNotConnected },
       { status: 412 },
     );
   }
@@ -34,7 +35,7 @@ export async function GET() {
   const clientSecret = (await getGoogleClientSecret()).trim();
   if (!clientId || !clientSecret) {
     return NextResponse.json(
-      { ok: false, error: 'not_configured', message: 'Google OAuth не настроен' },
+      { ok: false, error: 'not_configured', message: notificationText.adminGoogleOauthNotConfigured },
       { status: 501 },
     );
   }
@@ -47,7 +48,7 @@ export async function GET() {
       {
         ok: false,
         error: 'token_expired',
-        message: 'Не удалось обновить токен — переподключите Google',
+        message: notificationText.adminGoogleReconnectRequired,
       },
       { status: 502 },
     );
@@ -61,7 +62,7 @@ export async function GET() {
       {
         ok: false,
         error: 'calendar_list_failed',
-        message: 'Не удалось загрузить список календарей',
+        message: notificationText.adminGoogleCalendarListFailed,
       },
       { status: 502 },
     );

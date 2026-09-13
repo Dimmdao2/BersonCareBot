@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import { Switch } from '@/shared/ui/doctor/primitives/switch';
 import type { DoctorNotificationTopicModel } from '@/modules/doctor-notifications/doctorProfileTopicChannelsModel';
 import { setDoctorTopicChannelNotificationEnabled } from './doctorNotificationPrefsActions';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 const CHANNEL_ORDER = ['web_push', 'telegram', 'max', 'email'] as const;
 
@@ -30,7 +31,7 @@ export function DoctorNotificationsTopicMatrix({ initialTopics, pushEffective }:
     }
     return CHANNEL_ORDER.filter((code) => labels.has(code)).map((code) => ({
       code,
-      label: labels.get(code) ?? code,
+      label: labels.get(code) ?? notificationText.commonUnknownValue,
     }));
   })();
 

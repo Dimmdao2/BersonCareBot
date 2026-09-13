@@ -9,6 +9,7 @@ import { setSessionFromUser } from '@/modules/auth/service';
 import { enterStaffSecuritySelfPrincipal } from '@/app-layer/principal/staffSecuritySelfPrincipal';
 import { isPlatformUserUuid } from '@/shared/platform-user/isPlatformUserUuid';
 import { isAuthChannelEnabled } from '@/modules/auth/authChannelPolicy';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 const bodySchema = z.object({
   token: z.string().min(1),
@@ -20,7 +21,7 @@ export async function POST(request: Request) {
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {
     return NextResponse.json(
-      { ok: false, error: 'invalid_body', message: 'Укажите token' },
+      { ok: false, error: 'invalid_body', message: notificationText.commonPageStale },
       { status: 400 },
     );
   }
@@ -32,7 +33,7 @@ export async function POST(request: Request) {
   const row = await deps.loginTokens.findByTokenHash(tokenHash);
   if (!row) {
     return NextResponse.json(
-      { ok: false, error: 'not_found', message: 'Токен не найден' },
+      { ok: false, error: 'not_found', message: notificationText.commonPageStale },
       { status: 404 },
     );
   }
@@ -71,7 +72,7 @@ export async function POST(request: Request) {
     const user = await deps.userByPhone.findByUserId(row.userId);
     if (!user) {
       return NextResponse.json(
-        { ok: false, error: 'user_missing', message: 'Пользователь не найден' },
+        { ok: false, error: 'user_missing', message: notificationText.commonUserNotFound },
         { status: 500 },
       );
     }
@@ -111,7 +112,7 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json(
-    { ok: false, error: 'invalid_state', message: 'Некорректный токен' },
+    { ok: false, error: 'invalid_state', message: notificationText.commonPageStale },
     { status: 400 },
   );
 }

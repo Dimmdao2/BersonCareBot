@@ -184,7 +184,7 @@ export function DoctorChatPanel({
       await loadMessages();
       await onSentRef.current?.();
     } catch {
-      toast.error(notificationText.commonNetworkUnavailable);
+      toast.error(notificationText.commonNoServerConnection);
     } finally {
       setSending(false);
     }

@@ -9,6 +9,7 @@ import { routePaths } from '@/app-layer/routes/paths';
 import { formatDiaryDayShortRu } from '@/modules/diaries/stats/formatDiaryDay';
 import { DiaryStatsPeriodBar, type DiaryStatsPeriod } from './DiaryStatsPeriodBar';
 import { AppContentLoading } from '@/shared/ui/AppContentLoading';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 const RechartsLfk = dynamic(() => import('./DiaryLineChartRecharts'), {
   ssr: false,
@@ -63,7 +64,7 @@ export function LfkStatsTable({ complexes }: { complexes: LfkStatsComplexOption[
         credentials: 'include',
       });
       if (res.status === 401 || res.status === 403) {
-        setError(res.status === 403 ? 'Доступ запрещён' : 'Требуется вход');
+        setError(res.status === 403 ? 'Доступ запрещён' : notificationText.commonLoginRequired);
         return;
       }
       if (!res.ok) {

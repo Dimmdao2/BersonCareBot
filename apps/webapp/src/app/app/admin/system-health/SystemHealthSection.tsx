@@ -47,6 +47,7 @@ import type {
   SaasIsolationSourceOperation,
   SaasIsolationStatusReason,
 } from '@/modules/operator-health/saasIsolationDiagnostics';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 type HealthOperatorAction =
   | { kind: 'archive'; probe: HealthFailureArchiveProbe }
@@ -329,7 +330,7 @@ function techProbeStatusHuman(status: string): string {
   if (status === 'success') return 'успешно';
   if (status === 'failure') return 'ошибка запуска';
   if (status === 'skipped') return 'пропущено';
-  return status;
+  return notificationText.commonUnknownStatusLower;
 }
 
 function statusBadgeVariant(status: string): 'secondary' | 'outline' | 'destructive' {
@@ -656,7 +657,7 @@ function notificationDeliveryChannelHuman(channel: string): string {
   if (channel === 'max') return 'MAX';
   if (channel === 'web_push') return 'Web Push';
   if (channel === 'email') return 'Email';
-  return channel;
+  return notificationText.commonUnknownValue;
 }
 
 function outgoingDeliveryChannelHuman(channel: string): string {
@@ -698,7 +699,7 @@ function playbackClientEventRu(eventClass: string): string {
     playback_refetch_exception: 'исключение при повторном запросе ссылки',
     hls_js_unsupported: 'устройство не поддержало HLS.js',
   };
-  return m[eventClass] ?? eventClass;
+  return m[eventClass] ?? notificationText.commonUnknownValue;
 }
 
 const SAAS_ISOLATION_CLASS_LABEL: Record<SaasIsolationEventClass, string> = {
@@ -724,7 +725,7 @@ const SAAS_ISOLATION_OPERATION_LABEL: Record<SaasIsolationSourceOperation, strin
   webapp_admin_system_health: 'страница здоровья системы',
   public_auth_config: 'публичная конфигурация входа',
   auth_role_config: 'конфигурация ролей входа',
-  clinic_platform_integration_availability: 'доступность интеграций клиники',
+  clinic_platform_integration_availability: 'доступность интеграций организации',
   patient_runtime_config: 'конфигурация кабинета пациента',
   public_booking_config: 'публичная конфигурация записи',
   patient_identity_exception_check: 'проверка тестового пациента',
@@ -960,10 +961,10 @@ export function SystemHealthSection({ displayTimeZone }: { displayTimeZone: stri
               Платформа и API
             </p>
             <HealthAccordionItem
-              name="Изоляция клиник"
+              name="Изоляция организаций"
               status={saasIsolationAccordionStatus(data?.saasIsolation?.status)}
               aiSnapshot={healthCardAiSnapshot(
-                'Изоляция клиник',
+                'Изоляция организаций',
                 data?.saasIsolation?.status ?? 'no_data',
                 data?.saasIsolation ?? {},
                 data?.meta?.probes?.saasIsolation ?? null,

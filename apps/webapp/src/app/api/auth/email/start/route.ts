@@ -9,9 +9,10 @@ import {
 import { getCurrentSession } from '@/modules/auth/service';
 import { startEmailChallenge } from '@/modules/auth/emailAuth';
 import { platformMailProfileForRecipientRole } from '@/modules/auth/mailProfile';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 const bodySchema = z.object({
-  email: z.string().trim().max(320).email({ message: 'Некорректный email' }),
+  email: z.string().trim().max(320).email({ message: notificationText.commonSpecifyValidEmail }),
 });
 
 export async function POST(request: Request) {
@@ -24,7 +25,7 @@ export async function POST(request: Request) {
   const session = await getCurrentSession();
   if (!session) {
     return NextResponse.json(
-      { ok: false, error: 'unauthorized', message: 'Требуется вход' },
+      { ok: false, error: 'unauthorized', message: notificationText.commonLoginRequired },
       { status: 401 },
     );
   }
@@ -33,7 +34,7 @@ export async function POST(request: Request) {
   const parsed = bodySchema.safeParse(json);
   if (!parsed.success) {
     return NextResponse.json(
-      { ok: false, error: 'validation_error', message: 'Некорректный email' },
+      { ok: false, error: 'validation_error', message: notificationText.commonSpecifyValidEmail },
       { status: 400 },
     );
   }
@@ -81,7 +82,7 @@ function errMsg(code: string): string {
     case 'rate_limited':
       return 'Слишком частые запросы. Подождите перед повторной отправкой.';
     case 'too_many_attempts':
-      return 'Превышено число попыток.';
+      return notificationText.authTooManyAttempts;
     case 'email_send_failed':
       return 'Не удалось отправить код на email';
     default:

@@ -17,6 +17,8 @@ import { sendPaymentLinkToPatientChat } from '../sendPaymentLinkToPatientChat';
 import { localQrCodeDataUri } from './localQrCode';
 import { parseBusinessInstant } from '@/shared/lib/formatBusinessDateTime';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
+import { notificationText } from '@/shared/notifications/notificationText';
+import { errorCodeText } from '@/shared/notifications/errorCodeText';
 
 type Response = { ok?: boolean; payment?: CalendarAppointmentPaymentView; error?: string };
 
@@ -51,15 +53,9 @@ function formatRemaining(msLeft: number): string {
 }
 
 function errorLabel(error: string, patientSingularLabel: string) {
-  if (error === 'payments_disabled') return 'Приём платежей выключен для клиники.';
-  if (error === 'payment_provider_unavailable' || error === 'payment_link_unavailable') {
-    return 'Платёжный провайдер не настроен.';
-  }
-  if (error === 'appointment_amount_unavailable') return 'Стоимость записи не определена.';
-  if (error === 'already_paid') return 'Запись уже оплачена.';
   if (error === 'chat_send_failed')
     return `Не удалось отправить ссылку в чат ${patientSingularLabel.toLowerCase()}.`;
-  return 'Не удалось выполнить действие.';
+  return errorCodeText(error, notificationText.bookingManualLifecycleActionFailed);
 }
 
 export function AppointmentPaymentSection({

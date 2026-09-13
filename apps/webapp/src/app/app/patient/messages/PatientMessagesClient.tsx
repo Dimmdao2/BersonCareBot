@@ -34,7 +34,7 @@ import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
  */
 export function PatientMessagesClient() {
   const organizationContext = usePatientOrganizationContext();
-  const organizationTitle = organizationContext?.organization.title.trim() || 'Клиника';
+  const organizationTitle = organizationContext?.organization.title.trim() || 'Организация';
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<SerializedSupportMessage[]>([]);
   const [draft, setDraft] = useState('');
@@ -151,7 +151,7 @@ export function PatientMessagesClient() {
         );
       }
     } catch {
-      toast.error(notificationText.commonNetworkUnavailable);
+      toast.error(notificationText.commonNoServerConnection);
     } finally {
       setSending(false);
     }

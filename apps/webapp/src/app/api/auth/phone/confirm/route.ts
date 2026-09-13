@@ -19,6 +19,7 @@ import { enterStaffSecuritySelfPrincipal } from '@/app-layer/principal/staffSecu
 import { isPlatformUserUuid } from '@/shared/platform-user/isPlatformUserUuid';
 import { prepareVerifiedPrimaryLogin } from '@/modules/auth/verifiedStaffPrimaryLogin';
 import { isAuthChannelEnabled } from '@/modules/auth/authChannelPolicy';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 const bodySchema = z.object({
   challengeId: z.string().trim().min(1),
@@ -60,7 +61,7 @@ export async function POST(request: Request) {
       {
         ok: false,
         error: 'challenge_id_and_code_required',
-        message: 'Код подтверждения обязателен',
+        message: notificationText.authEnterCode,
       },
       { status: 400 },
     );
@@ -182,8 +183,8 @@ function errorMessage(code: string, retryAfterSeconds?: number): string {
     case 'rate_limited':
       return retryAfterSeconds != null
         ? formatOtpRetryAfterMessage(retryAfterSeconds)
-        : 'Слишком много запросов. Попробуйте позже.';
+        : notificationText.authTooManyAttempts;
     default:
-      return 'Ошибка подтверждения.';
+      return notificationText.authConfirmationFailed;
   }
 }

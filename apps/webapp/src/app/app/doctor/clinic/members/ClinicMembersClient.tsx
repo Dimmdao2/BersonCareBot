@@ -182,7 +182,7 @@ export function ClinicMembersClient({ initialMembers, initialInvites }: Props) {
       <DoctorSection>
         <div className="flex flex-wrap items-start justify-between gap-2">
           <DoctorSectionHeader>
-            <DoctorSectionTitle>Команда клиники</DoctorSectionTitle>
+            <DoctorSectionTitle>Команда организации</DoctorSectionTitle>
             <p className="text-xs text-muted-foreground">Участники текущей организации.</p>
           </DoctorSectionHeader>
           <div className="flex flex-wrap gap-2">
@@ -202,7 +202,7 @@ export function ClinicMembersClient({ initialMembers, initialInvites }: Props) {
         </div>
 
         {members.length === 0 ? (
-          <DoctorEmptyState>В клинике пока нет участников.</DoctorEmptyState>
+          <DoctorEmptyState>В организации пока нет участников.</DoctorEmptyState>
         ) : (
           <div className="flex flex-col gap-2">
             {members.map((member) => (
@@ -234,7 +234,7 @@ export function ClinicMembersClient({ initialMembers, initialInvites }: Props) {
         <DoctorSectionHeader>
           <DoctorSectionTitle>Ожидают приглашения</DoctorSectionTitle>
           <p className="text-xs text-muted-foreground">
-            Активные email-ссылки для входа в клинику.
+            Активные email-ссылки для входа в организацию.
           </p>
         </DoctorSectionHeader>
 

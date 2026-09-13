@@ -1,4 +1,5 @@
 import type { PatientHomeBlockItem, PatientHomeBlockItemTargetType } from './ports';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 /** Slug/id → человекочитаемое имя из CMS (страница, раздел, курс). */
 export type PatientHomeRefDisplayTitles = {
@@ -58,9 +59,9 @@ export function patientHomeBlockItemDisplayTitle(
   const override = item.titleOverride?.trim();
   if (override) return override;
   const ref = item.targetRef.trim();
-  if (!ref) return item.targetRef;
-  if (item.targetType === 'content_page') return titles.contentPages[ref] ?? ref;
-  if (item.targetType === 'content_section') return titles.contentSections[ref] ?? ref;
-  if (item.targetType === 'course') return titles.courses[ref] ?? ref;
-  return ref;
+  if (!ref) return notificationText.commonUnknownValue;
+  if (item.targetType === 'content_page') return titles.contentPages[ref] ?? notificationText.commonUnknownValue;
+  if (item.targetType === 'content_section') return titles.contentSections[ref] ?? notificationText.commonUnknownValue;
+  if (item.targetType === 'course') return titles.courses[ref] ?? notificationText.commonUnknownValue;
+  return notificationText.commonUnknownValue;
 }

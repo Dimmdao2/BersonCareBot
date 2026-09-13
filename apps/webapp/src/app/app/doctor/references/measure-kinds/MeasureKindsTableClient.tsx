@@ -213,7 +213,7 @@ export function MeasureKindsTableClient({ initialItems }: Props) {
         });
         const { httpOk, body, transportError } = await readMeasureKindsJsonBody(res);
         if (transportError) {
-          fail(readSafeApiErrorText(body, notificationText.doctorMeasureKindsConnectionError));
+          fail(readSafeApiErrorText(body, notificationText.commonNoServerConnection));
           return;
         }
         if (!httpOk) {
@@ -227,7 +227,7 @@ export function MeasureKindsTableClient({ initialItems }: Props) {
         window.dispatchEvent(new CustomEvent(MEASURE_KINDS_CATALOG_CHANGED_EVENT));
         router.refresh();
       } catch {
-        fail(notificationText.doctorMeasureKindsConnectionError);
+        fail(notificationText.commonNoServerConnection);
       } finally {
         setSaveBusy(false);
       }
@@ -250,7 +250,7 @@ export function MeasureKindsTableClient({ initialItems }: Props) {
         });
         const { httpOk, body, transportError } = await readMeasureKindsJsonBody(res);
         if (transportError) {
-          fail(readSafeApiErrorText(body, notificationText.doctorMeasureKindsConnectionError));
+          fail(readSafeApiErrorText(body, notificationText.commonNoServerConnection));
           return;
         }
         if (!httpOk) {
@@ -265,7 +265,7 @@ export function MeasureKindsTableClient({ initialItems }: Props) {
         window.dispatchEvent(new CustomEvent(MEASURE_KINDS_CATALOG_CHANGED_EVENT));
         router.refresh();
       } catch {
-        fail(notificationText.doctorMeasureKindsConnectionError);
+        fail(notificationText.commonNoServerConnection);
       } finally {
         setAddBusy(false);
       }
@@ -294,7 +294,7 @@ export function MeasureKindsTableClient({ initialItems }: Props) {
       >
         <h1 className={doctorPageTitleClass}>Виды измерений (клинические тесты)</h1>
         <p className="text-sm text-muted-foreground">
-          Справочник вашей клиники для строк измерений в форме теста. Код генерируется при создании
+          Ваш справочник для строк измерений в форме теста. Код генерируется при создании
           и не меняется; здесь можно править подписи и порядок в списке.
         </p>
         <div className="flex flex-wrap items-center gap-2">

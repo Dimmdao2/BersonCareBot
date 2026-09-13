@@ -573,7 +573,7 @@ export function createTreatmentProgramProgressService(deps: {
         if (prior.length === 0) {
           return tests.createAttempt({ stageItemId: item.id, patientUserId: input.patientUserId });
         }
-        throw new UserFacingError(notificationText.testStartNewAttemptFirst);
+        throw new UserFacingError(notificationText.testStartAttemptFirst);
       });
     },
 

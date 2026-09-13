@@ -22,6 +22,7 @@ import { deriveVkPkceCodeVerifier, parseVerifiedSignedOAuthState } from '@/modul
 import { enterStaffSecuritySelfPrincipal } from '@/app-layer/principal/staffSecuritySelfPrincipal';
 import { isPlatformUserUuid } from '@/shared/platform-user/isPlatformUserUuid';
 import { isOAuthProviderEnabled } from '@/modules/auth/authChannelPolicy';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 const LOG_BASE = {
   authMethod: 'oauth_vk' as const,
@@ -75,7 +76,7 @@ export async function handleVkOAuthCallbackGet(
   if (!verifiedState) {
     await logOAuthFailure(attemptId, 'oauth_csrf', 'callback');
     return NextResponse.json(
-      { error: 'oauth_csrf', message: 'Недействительный или просроченный state' },
+      { error: 'oauth_csrf', message: notificationText.authOauthLinkStale },
       { status: 403 },
     );
   }

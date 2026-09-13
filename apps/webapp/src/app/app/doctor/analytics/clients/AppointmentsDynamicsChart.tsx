@@ -19,6 +19,7 @@ import {
 } from '@/modules/diaries/stats/formatDiaryChartTick';
 import type { AppointmentDayPoint } from '@/modules/doctor-appointments/ports';
 import { DoctorRechartsTooltip } from '@/shared/ui/doctor/DoctorRechartsTooltip';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 const STROKE_VISITS = 'hsl(215 65% 38%)';
 const STROKE_BOOKINGS = 'hsl(142 55% 36%)';
@@ -90,7 +91,7 @@ export function AppointmentsDynamicsChart({ series }: { series: AppointmentDayPo
           <DoctorRechartsTooltip
             formatter={(value, name) => {
               const v = typeof value === 'number' ? value : Number(value);
-              const label = LINE_LABELS[name as LineKey] ?? String(name);
+              const label = LINE_LABELS[name as LineKey] ?? notificationText.commonUnknownValue;
               return [`${Number.isFinite(v) ? v : '—'}`, label];
             }}
             labelFormatter={(_, payload) => {

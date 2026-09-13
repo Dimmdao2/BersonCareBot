@@ -72,7 +72,7 @@ export function SectionSlugRenameDialog({
               name="new_slug"
               required
               className="font-mono"
-              placeholder="новый-slug"
+              placeholder="новый-адрес"
               pattern="[a-z0-9\-]+"
               autoComplete="off"
             />
