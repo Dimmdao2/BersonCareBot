@@ -1,11 +1,19 @@
 import { cache } from 'react';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireStaffAccountPage } from '@/app-layer/guards/requireRole';
+import type { DoctorWorkspaceAccessContext } from '@/app-layer/guards/requireRole';
+import { resolveLaunchCapabilities } from '@/app-layer/guards/workspaceCapabilities';
 import type { DoctorWorkspaceContext } from '@/modules/doctor-workspace/types';
 
 export type StaffAccountPageContext = {
   session: Awaited<ReturnType<typeof requireStaffAccountPage>>;
   workspaceContext: DoctorWorkspaceContext | null;
+  /**
+   * Тот же разрешённый доступ, каким его видят остальные страницы кабинета, — чтобы оболочку
+   * учётки собирал ОБЩИЙ код (`buildDoctorWorkspaceShellData`), а не вторая, урезанная сборка.
+   * `null` ровно там, где организации нет вовсе: восстановление доступа и админ без членства.
+   */
+  workspaceAccess: DoctorWorkspaceAccessContext | null;
 };
 
 /**
@@ -19,7 +27,7 @@ export const loadStaffAccountPageContext = cache(async (): Promise<StaffAccountP
     session.staffSecurity?.assurance === 'recovery' ||
     session.staffSecurity?.assurance === 'recovery_confirmation'
   ) {
-    return { session, workspaceContext: null };
+    return { session, workspaceContext: null, workspaceAccess: null };
   }
   // `requireStaffAccountPage()` above already resolved this exact fact once, inside
   // `stampDbPrincipalFromSession`: a doctor-class session with no organization membership
@@ -37,19 +45,43 @@ export const loadStaffAccountPageContext = cache(async (): Promise<StaffAccountP
       platformUserId: session.user.userId,
     });
   } catch {
-    return { session, workspaceContext: null };
+    return { session, workspaceContext: null, workspaceAccess: null };
   }
 
   if (!resolution.ok) {
-    return { session, workspaceContext: null };
+    return { session, workspaceContext: null, workspaceAccess: null };
   }
 
   const { context } = resolution;
   const canAccessClinicalWorkspace =
     context.canAccessClinicalWorkspace ??
     ((context.role === 'owner' || context.role === 'doctor') && context.specialistId !== null);
+  const workspaceAccess: DoctorWorkspaceAccessContext = {
+    session,
+    organizationId: context.organizationId,
+    membershipId: context.membershipId,
+    membershipRole: context.role,
+    specialistId: context.specialistId,
+    canManageOrganization: context.canManageOrganization,
+    canManageAllSpecialists: context.canManageAllSpecialists,
+    canAccessClinicalWorkspace,
+    doctorScreensDisabled: context.doctorScreensDisabled,
+    appointmentsManageOwn: context.appointmentsManageOwn,
+    availabilityManageOwn: context.availabilityManageOwn,
+    capabilities: Array.from(
+      resolveLaunchCapabilities({
+        sessionRole: session.user.role,
+        membershipRole: context.role,
+        specialistId: context.specialistId,
+        canManageOrganization: context.canManageOrganization,
+        canAccessClinicalWorkspace,
+      }),
+    ),
+  };
+
   return {
     session,
+    workspaceAccess,
     workspaceContext: {
       organizationId: context.organizationId,
       organizationName: null,

@@ -74,9 +74,30 @@ type LoadDoctorWorkspaceShell = (
  */
 const loadDoctorShell = cache(async (allowCabinetRecovery = false) => {
   const workspaceAccess = await requireOrganizationWorkspaceContext({ allowCabinetRecovery });
+  return buildDoctorWorkspaceShellData(workspaceAccess);
+});
+
+/**
+ * Всё, чем живёт оболочка, по УЖЕ разрешённому доступу к организации — отдельно от того, кто этот
+ * доступ разрешил.
+ *
+ * Разделение появилось 14.09.2026 по замеру владельца: «выбирая в меню настройку учетки соло
+ * специалист перестает видеть кучу пунктов меню, причем непонятно по какому принципу». Принцип был
+ * такой: `/app/account` собирал оболочку своим урезанным контекстом (только сессия и членство), без
+ * тарифных разрешений, модулей состава и настроек кабинета. Меню одно и то же, а входные данные
+ * разные — и пропадало ВСЁ, что зависит от этих данных: «Задачи», «Файлы», «Контент», «Курсы»,
+ * пункт настроек соло, а термин организации «Клиенты» откатывался к умолчанию «Пациенты».
+ *
+ * Своя дверь у страницы учётки остаётся оправданной: учётка личная и должна открываться даже без
+ * организации (восстановление доступа, глобальный админ без членства). Разъезжаться имеет право
+ * ровно это — есть организация или нет; всё остальное обязано считаться одним кодом.
+ */
+export const buildDoctorWorkspaceShellData = cache(async (
+  workspaceAccess: DoctorWorkspaceAccessContext,
+): Promise<DoctorWorkspaceShellData> => {
+  const organizationId = workspaceAccess.organizationId;
   const session = workspaceAccess.session;
   const deps = buildAppDeps();
-  const organizationId = workspaceAccess.organizationId;
 
   const [organization, doctorSettings, effectiveBranding, maintenance] = await Promise.all([
     deps.bookingEngine
