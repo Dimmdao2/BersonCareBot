@@ -31,7 +31,7 @@ and clinics under `AGENTS.md` §1b.
 [`docs/archive/2026-07-rubitime-retirement/`](../../../docs/archive/2026-07-rubitime-retirement/README.md);
 восстанавливать или запускать удалённые инструменты по архивным инструкциям нельзя.
 
-**Фон CMS-медиа (превью):** [`media-preview-process-tick.ts`](media-preview-process-tick.ts) — батч `processMediaPreviewBatch` вне Next; запуск `pnpm run media-preview:tick` (см. `deploy/HOST_DEPLOY_README.md`, `docs/MEDIA_PREVIEW_PIPELINE.md`).
+**Фон CMS-медиа (превью):** скрипта здесь больше нет. С 10.09.2026 превью считает `apps/media-worker` через контрольный шов вебаппа — см. `docs/MEDIA_PREVIEW_PIPELINE.md`.
 
 **Программы лечения — битые снимки после editor-batch:** [`backfill-treatment-program-editor-draft-snapshots.ts`](backfill-treatment-program-editor-draft-snapshots.ts) — пересборка `treatment_program_instance_stage_items.snapshot` из каталога (`buildSnapshot`); runbook: [`docs/OPERATIONS/TREATMENT_PROGRAM_EDITOR_DRAFT_SNAPSHOT_BACKFILL.md`](../../../docs/OPERATIONS/TREATMENT_PROGRAM_EDITOR_DRAFT_SNAPSHOT_BACKFILL.md). Команда: `pnpm run backfill-treatment-program-editor-draft-snapshots` (dry-run, `--commit` для записи; `--all` — все кандидаты батчами).
 

@@ -93,8 +93,8 @@ async function encodeVariant(
 
 /**
  * Все варианты одной иконки. Ничего не пишет — возвращает готовые байты и их ключи, чтобы запись
- * в хранилище оставалась решением вызывающего слоя (та же дисциплина, что у
- * `buildImageStandardRendition`).
+ * в хранилище оставалась решением вызывающего слоя (та же дисциплина, что у стандартного рендишна
+ * картинки — `encodeStandardImageRendition` в `apps/media-worker/src/imageRendition.ts`).
  */
 export async function encodeOrgAppIconRenditions(
   mediaId: string,

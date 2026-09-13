@@ -1,8 +1,8 @@
 #!/usr/bin/env tsx
 /**
  * One-shot ops runner for М7 «Перенос уже лежащих оригиналов в сырой бакет + сверка счётчика»
- * (`docs/_TODO/STORAGE_PACKAGES_2026-09-10.md`). Same entry shape as `media-preview-process-tick.ts`:
- * it is a direct host runner for a media-worker-capability operation, nothing more.
+ * (`docs/_TODO/STORAGE_PACKAGES_2026-09-10.md`). It is a direct host runner for a
+ * media-worker-capability operation, nothing more.
  *
  * Usage (env as the webapp has it — `DATABASE_URL*`, S3 keys, `S3_RAW_BUCKET`):
  *   pnpm --dir apps/webapp run media-raw-bucket:migrate                      # dry-run, 100 rows
@@ -55,8 +55,7 @@ async function main(): Promise<void> {
   }
 
   /* Cross-organization maintenance of `media_files` plus its objects is the media-worker
-     capability (`app_operational_media_worker`); this CLI is its direct host runner, exactly as
-     `media-preview-process-tick.ts` is for the preview batch. */
+     capability (`app_operational_media_worker`); this CLI is its direct host runner. */
   enterWithDbInfraPrincipal({ source: WEBAPP_LOCKED_MEDIA_WORKER_CONTROL_SOURCE });
 
   const [{ runRawBucketSourceMigration, verifyRawBucketCounters }, { createPgRawBucketSourceMigrationRepo }, s3] =

@@ -10,6 +10,20 @@ import {
   readMediaWorkerRuntimeSettingInnerValue,
   type MediaWorkerRuntimeSettingKey,
 } from '@/infra/repos/pgSystemSettings';
+import {
+  claimMediaPreviewOrder, completeMediaPreviewImage, completeMediaPreviewPoster, failMediaPreview,
+  readHostedPreviewSourceUrl,
+} from '@/infra/repos/pgMediaPreviewControl';
+import {
+  HOSTED_PREVIEW_RETRY,
+  HOSTED_PREVIEW_UNAVAILABLE,
+} from '@/modules/media/mediaPreviewPlan';
+import { resolveHostedVideoThumbnail } from '@/shared/lib/hostedVideoThumbnail';
+import { recordOperatorCronJobTickBestEffort } from '@/app-layer/operator-health/recordOperatorCronJobTick';
+import {
+  OPERATOR_MEDIA_JOB_FAMILY,
+  OPERATOR_MEDIA_PREVIEW_PROCESS_JOB_KEY,
+} from '@/modules/operator-health/reconcileJobKeys';
 
 async function readMediaWorkerRuntimeBool(key: MediaWorkerRuntimeSettingKey): Promise<boolean> {
   const value = await readMediaWorkerRuntimeSettingInnerValue(key);
@@ -33,5 +47,51 @@ export function reportMediaWorkerIsolationFailure(eventClass: SaasIsolationEvent
     eventClass,
     sourceService: 'media_worker',
     sourceOperation: 'media_transcode_tick',
+  });
+}
+
+export { claimMediaPreviewOrder, completeMediaPreviewImage, completeMediaPreviewPoster, failMediaPreview };
+
+/**
+ * Байты чужой обложки для наряда превью.
+ *
+ * У воркера нет выхода в интернет к произвольным хостам и нет сервисного токена VK — ходить к
+ * провайдеру продолжает вебапп. Он при этом обложку НЕ РАЗБИРАЕТ: получил байты, передал их
+ * воркеру, тот их декодирует у себя. Разбор — единственное, что мы отсюда унесли.
+ */
+export async function readMediaPreviewHostedBytes(
+  mediaId: string,
+): Promise<{ kind: 'ready'; bytesBase64: string } | { kind: 'error'; error: string }> {
+  const url = await readHostedPreviewSourceUrl(mediaId);
+  if (!url) return { kind: 'error', error: `${HOSTED_PREVIEW_UNAVAILABLE}: source_url_missing` };
+  const outcome = await resolveHostedVideoThumbnail(url);
+  if (outcome.kind === 'terminal') {
+    return { kind: 'error', error: `${HOSTED_PREVIEW_UNAVAILABLE}: ${outcome.reason}` };
+  }
+  if (outcome.kind === 'retryable') {
+    return { kind: 'error', error: `${HOSTED_PREVIEW_RETRY}: ${outcome.reason}` };
+  }
+  return { kind: 'ready', bytesBase64: outcome.bytes.toString('base64') };
+}
+
+/**
+ * Отметка живости очереди превью в «Здоровье системы».
+ *
+ * Раньше строку `media.preview.process` писала HTTP-дверь, которую будил host-cron раз в минуту, —
+ * и писала «успех» даже тогда, когда обрабатывать было нечем. Теперь очередь ведёт резидентный
+ * `media-worker`, поэтому отметку ставит он же: умер воркер — строка протухла, и это видно.
+ */
+export async function recordMediaPreviewTick(params: {
+  processed: number;
+  errors: number;
+  durationMs: number;
+}): Promise<void> {
+  await recordOperatorCronJobTickBestEffort({
+    jobFamily: OPERATOR_MEDIA_JOB_FAMILY,
+    jobKey: OPERATOR_MEDIA_PREVIEW_PROCESS_JOB_KEY,
+    startedAtIso: new Date(Date.now() - Math.max(0, params.durationMs)).toISOString(),
+    durationMs: params.durationMs,
+    success: params.errors === 0,
+    metaJson: { processed: params.processed, errors: params.errors },
   });
 }

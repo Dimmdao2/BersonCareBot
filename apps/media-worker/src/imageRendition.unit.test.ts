@@ -1,12 +1,7 @@
 import sharp from 'sharp';
 import { describe, expect, it } from 'vitest';
 
-import {
-  STANDARD_IMAGE_SHORT_SIDE,
-  buildImageStandardRendition,
-  encodeStandardImageRendition,
-  type ImageStandardRenditionDeps,
-} from './imageStandardRendition';
+import { STANDARD_IMAGE_SHORT_SIDE, encodeStandardImageRendition } from './imageRendition.js';
 
 const solid = (width: number, height: number, r: number, g: number, b: number) =>
   sharp({ create: { width, height, channels: 3, background: { r, g, b } } });
@@ -108,74 +103,5 @@ describe('encodeStandardImageRendition', () => {
     const rendition = await encodeStandardImageRendition(source);
 
     expect((await sharp(rendition.buffer).metadata()).hasAlpha).toBe(true);
-  });
-});
-
-describe('buildImageStandardRendition', () => {
-  const source = Buffer.from('source-bytes');
-  const params = {
-    standardKey: 'media/id/standard.webp',
-    smKey: 'previews/sm/id.jpg',
-    mdKey: 'previews/md/id.jpg',
-    source,
-  };
-
-  function deps(overrides: Partial<ImageStandardRenditionDeps> = {}): ImageStandardRenditionDeps {
-    return {
-      encode: async () => ({
-        buffer: Buffer.from('webp-bytes'),
-        mimeType: 'image/webp' as const,
-        width: 1440,
-        height: 1080,
-        animated: false,
-      }),
-      putObject: async () => {},
-      headObject: async () => true,
-      thumbnails: async () => ({ sm: Buffer.from('sm'), md: Buffer.from('md') }),
-      ...overrides,
-    };
-  }
-
-  /*
-   * М7 (`docs/_TODO/STORAGE_PACKAGES_2026-09-10.md`): рендишн пишется РЯДОМ с сырым оригиналом,
-   * а не вместо него — оригинал этой функции вовсе неизвестен (нет параметра `originalKey`), и
-   * ничего не удаляется на её стороне.
-   */
-  it('пишет рендишн и оба превью, не зная и не трогая исходный объект', async () => {
-    const puts: string[] = [];
-    const outcome = await buildImageStandardRendition(params, {
-      ...deps(),
-      putObject: async (key) => {
-        puts.push(key);
-      },
-    });
-
-    expect(puts).toEqual([params.standardKey, params.smKey, params.mdKey]);
-    expect(outcome.mimeType).toBe('image/webp');
-    expect(outcome.sizeBytes).toBe(Buffer.from('webp-bytes').byteLength);
-  });
-
-  it('пишет только то, что успело кодироваться, когда переэнкод падает', async () => {
-    const puts: string[] = [];
-
-    await expect(
-      buildImageStandardRendition(params, {
-        ...deps(),
-        encode: async () => {
-          throw new Error('Input buffer contains unsupported image format');
-        },
-        putObject: async (key) => {
-          puts.push(key);
-        },
-      }),
-    ).rejects.toThrow('unsupported image format');
-
-    expect(puts).toEqual([]);
-  });
-
-  it('падает, а не тихо продолжает, когда сохранённый рендишн не читается назад', async () => {
-    await expect(
-      buildImageStandardRendition(params, { ...deps(), headObject: async () => false }),
-    ).rejects.toThrow('standard_rendition_head_missing_after_upload');
   });
 });

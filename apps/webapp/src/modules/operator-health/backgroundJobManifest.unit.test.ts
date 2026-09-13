@@ -134,12 +134,32 @@ describe('background job manifest', () => {
       'db_journal_retention',
       'media_purge',
       'media_multipart',
-      'media_preview',
       'saas_billing_renewal_tick',
       'operator_health_critical',
     ]) {
       expect(scheduled.has(id), `${id}: объявлено в реестре, но без расписания`).toBe(true);
     }
+  });
+
+  /*
+   * `media_preview` вышел из host cron (М7, 10.09.2026): очередь превью разбирает резидентный
+   * media-worker, дверь и cron-шаблон сняты вместе с обработчиком в вебаппе. Находка B2 от этого
+   * не отменяется — она лишь меняет будильник, поэтому проверяется ровно то же: строку кто-то
+   * обязан будить в обеих средах и с порогом устаревания. Задание, у которого будильник пропал,
+   * снова упадёт здесь.
+   */
+  it('превью медиа будит резидентный воркер, а не пустота (находка B2 после М7)', () => {
+    const preview = findBackgroundJob('media_preview');
+    expect(preview, 'media_preview исчез из реестра').toBeDefined();
+    expect(preview!.scheduleOwner).toBe('resident_scheduler');
+    expect(preview!.environments).toEqual(['prod', 'test']);
+    expect(preview!.staleAfterSec).toBeGreaterThan(0);
+    expect(preview!.required).toBe(true);
+    const cronDelivered = new Set(hostCronJobsForEnvironment('prod').map((entry) => entry.id));
+    expect(
+      cronDelivered.has('media_preview'),
+      'обработчика в вебаппе больше нет, а cron-артефакт всё ещё поставляется',
+    ).toBe(false);
   });
 
   it('isolation telemetry понимает каждое семейство фоновых заданий вебаппа (E3)', () => {
