@@ -559,7 +559,7 @@ export function ReferenceItemsTableClient({ categoryTitle, categoryCode, initial
       </Dialog>
 
       <DoctorPageToolbar
-        placement="sticky-page"
+        placement="sticky-remaining"
         className="flex flex-col gap-3 bg-card pb-3 pt-1 supports-backdrop-filter:bg-card/90"
       >
         <div className="flex flex-wrap items-center justify-between gap-3">

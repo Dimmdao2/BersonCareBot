@@ -289,7 +289,7 @@ export function MeasureKindsTableClient({ initialItems }: Props) {
       </Dialog>
 
       <DoctorPageToolbar
-        placement="sticky-page"
+        placement="sticky-remaining"
         className="flex flex-col gap-3 bg-card pb-3 pt-1 supports-backdrop-filter:bg-card/90"
       >
         <h1 className={doctorPageTitleClass}>Виды измерений (клинические тесты)</h1>
