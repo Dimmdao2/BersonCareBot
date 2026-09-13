@@ -30240,7 +30240,7 @@ const REV10_CONTEXT = {
       relationSurfaces: [{ relation: 'public.user_login_events',
         columns: ['id', 'user_id', 'occurred_at', 'outcome', 'failure_reason', 'method', 'role', 'ip',
           'user_agent', 'device_kind', 'os', 'browser', 'host', 'session_ref', 'device_id', 'country'],
-        operations: ['INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }],
+        operations: ['INSERT' as const, 'SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
     'app.acknowledge_open_outbound_provider_incidents()': rev10Function({
       owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'bigint', returnsSet: false,
