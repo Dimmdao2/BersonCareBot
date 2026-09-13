@@ -84,9 +84,10 @@ import { notificationText } from '@/shared/notifications/notificationText';
 
 const WEB_CHAT_ID_KEY = 'bersoncare_web_chat_id';
 
-const SMS_DISABLED_WEB_MESSAGE =
-  'SMS для входа с сайта отключён. Используйте код в Telegram, Max или на email.';
-const AUTH_NETWORK_ERROR_MESSAGE = 'Нет связи с сервером. Проверьте интернет и повторите.';
+// Local aliases, not copy: both texts live in the dictionary (a hoisted const holding the
+// literal itself used to be invisible to the coverage gate — final-audit MAJOR, 13.09).
+const SMS_DISABLED_WEB_MESSAGE = notificationText.authSmsDisabledOnWeb;
+const AUTH_NETWORK_ERROR_MESSAGE = notificationText.commonNoServerConnection;
 
 function specialistSignupSlugErrorMessage(
   error: OrganizationSlugMutationErrorCode | 'invalid_body',

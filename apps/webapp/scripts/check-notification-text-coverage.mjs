@@ -70,6 +70,12 @@
  *         that map when one appears.
  *      2. Grandfathering is per FILE, not per literal, so a listed file is also exempt for NEW
  *         literals. The list may only shrink — treat any addition to it as a finding, not a fix.
+ *      3. Indirection is resolved exactly ONE level, and only within the same file: a module-level
+ *         `const X = '…'` referenced at a shown-text call site or in a `message:` property is
+ *         followed (final-audit MAJOR, 13.09 — before that a hoisted const was a silent exemption,
+ *         live in `AuthFlowV2.tsx` and `specialist-signup/confirm/route.ts`). A const IMPORTED from
+ *         another module, a const holding a const, or text assembled at runtime is still invisible
+ *         to this gate. Do not read a green run as "no hand-typed copy anywhere".
  */
 import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
@@ -211,6 +217,28 @@ function textArgumentOf(node) {
   return undefined;
 }
 
+const EMPTY_CONSTS = new Map();
+
+/**
+ * Module-level `const NAME = '<literal>'` declarations of the file being checked, by name. Only
+ * the top level of the file is read: a const declared inside a function is scoped to it and cannot
+ * be the shared-copy shape this gate is about.
+ */
+function moduleConstStringLiterals(sf) {
+  const consts = new Map();
+  for (const statement of sf.statements) {
+    if (!ts.isVariableStatement(statement)) continue;
+    for (const declaration of statement.declarationList.declarations) {
+      if (!ts.isIdentifier(declaration.name) || !declaration.initializer) continue;
+      const init = declaration.initializer;
+      if (ts.isStringLiteral(init) || ts.isNoSubstitutionTemplateLiteral(init)) {
+        consts.set(declaration.name.text, init);
+      }
+    }
+  }
+  return consts;
+}
+
 /**
  * Walks an argument expression through the shapes that can carry a runtime value to the USER
  * while a plain string literal rides along one of the branches — `??` fallbacks, ternaries, and
@@ -219,23 +247,32 @@ function textArgumentOf(node) {
  * identifier, a property access, a call) is not a literal and contributes nothing; walking simply
  * does not go past it (there is nothing further to inspect on that branch).
  */
-function collectLiteralLeaves(expr, out = []) {
+function collectLiteralLeaves(expr, out = [], consts = EMPTY_CONSTS) {
   if (ts.isParenthesizedExpression(expr)) {
-    collectLiteralLeaves(expr.expression, out);
+    collectLiteralLeaves(expr.expression, out, consts);
     return out;
   }
   if (ts.isStringLiteral(expr) || ts.isNoSubstitutionTemplateLiteral(expr)) {
     out.push(expr);
     return out;
   }
+  // Final-audit MAJOR (13.09): a bare identifier used to end the walk, so hoisting the literal into
+  // a module-level `const X = '…'` (`AUTH_NETWORK_ERROR_MESSAGE` in AuthFlowV2.tsx — 9 call sites,
+  // green under the old rule) silently bought an exemption. One level of same-file const
+  // resolution closes that; anything further (an imported const, a value built at runtime) is
+  // still invisible and is declared as limit 3 in this file's header.
+  if (ts.isIdentifier(expr) && consts.has(expr.text)) {
+    out.push(consts.get(expr.text));
+    return out;
+  }
   if (ts.isBinaryExpression(expr) && expr.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken) {
-    collectLiteralLeaves(expr.left, out);
-    collectLiteralLeaves(expr.right, out);
+    collectLiteralLeaves(expr.left, out, consts);
+    collectLiteralLeaves(expr.right, out, consts);
     return out;
   }
   if (ts.isConditionalExpression(expr)) {
-    collectLiteralLeaves(expr.whenTrue, out);
-    collectLiteralLeaves(expr.whenFalse, out);
+    collectLiteralLeaves(expr.whenTrue, out, consts);
+    collectLiteralLeaves(expr.whenFalse, out, consts);
     return out;
   }
   // Any other expression shape (identifier, property access, call, `||`, `+`, template with
@@ -345,20 +382,19 @@ function responseBuilderBodyArg(node) {
   return node.arguments[index];
 }
 
-function responseJsonMessageLiteralOf(node) {
+function responseJsonMessageLiteralOf(node, consts = EMPTY_CONSTS) {
   let arg = responseBuilderBodyArg(node);
   if (arg === undefined) return undefined;
   if (ts.isParenthesizedExpression(arg)) arg = arg.expression;
   if (!ts.isObjectLiteralExpression(arg)) return undefined;
   for (const prop of arg.properties) {
-    if (
-      ts.isPropertyAssignment(prop) &&
-      ts.isIdentifier(prop.name) &&
-      prop.name.text === 'message' &&
-      (ts.isStringLiteral(prop.initializer) || ts.isNoSubstitutionTemplateLiteral(prop.initializer))
-    ) {
-      return prop.initializer;
-    }
+    if (!ts.isPropertyAssignment(prop) || !ts.isIdentifier(prop.name)) continue;
+    if (prop.name.text !== 'message') continue;
+    const value = prop.initializer;
+    if (ts.isStringLiteral(value) || ts.isNoSubstitutionTemplateLiteral(value)) return value;
+    // Same final-audit MAJOR as in `collectLiteralLeaves`: the live example was
+    // `message: ORGANIZATION_SLUG_REQUIRED_MESSAGE` in specialist-signup/confirm/route.ts.
+    if (ts.isIdentifier(value) && consts.has(value.text)) return consts.get(value.text);
   }
   return undefined;
 }
@@ -373,10 +409,12 @@ function checkSource(relativePath, text) {
     relativePath.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
   );
 
+  const consts = moduleConstStringLiterals(sf);
+
   const visit = (node) => {
     const argument = textArgumentOf(node);
     if (argument) {
-      for (const literal of collectLiteralLeaves(argument)) {
+      for (const literal of collectLiteralLeaves(argument, [], consts)) {
         const { line } = sf.getLineAndCharacterOfPosition(literal.getStart(sf));
         findings.push(
           `${relativePath}:${line + 1}: string literal reachable in a shown-text argument — add it ` +
@@ -403,7 +441,7 @@ function checkSource(relativePath, text) {
     // NextResponse.json/Response.json body — grandfathered for pre-existing files, see
     // RESPONSE_MESSAGE_LITERAL_GRANDFATHER_FILES's doc comment.
     if (!RESPONSE_MESSAGE_LITERAL_GRANDFATHER_FILES.has(relativePath)) {
-      const messageLiteral = responseJsonMessageLiteralOf(node);
+      const messageLiteral = responseJsonMessageLiteralOf(node, consts);
       if (messageLiteral) {
         const { line } = sf.getLineAndCharacterOfPosition(messageLiteral.getStart(sf));
         findings.push(
@@ -417,7 +455,9 @@ function checkSource(relativePath, text) {
     ts.forEachChild(node, visit);
   };
   visit(sf);
-  return findings;
+  // A const resolved from N call sites reports at its ONE declaration line — that is where the fix
+  // goes, so the same line repeated N times is noise, not N findings.
+  return [...new Set(findings)];
 }
 
 function checkTree() {
@@ -465,6 +505,17 @@ function selfTest() {
     ['NextResponse.json message literal',
       "return NextResponse.json({ ok: false, error: 'x', message: 'Некорректные данные' }, { status: 400 });"],
     ['Response.json message literal', "return Response.json({ error: 'x', message: 'Ошибка' });"],
+    // NEW-4: the `jsonError(code, body, init)` wrapper carries the body in its SECOND argument —
+    // the blind spot that hid the live X-Real-IP leaks. It had no fixture until the final audit.
+    ['jsonError message literal (body is the SECOND argument)',
+      "return jsonError('invalid_body', { message: 'Некорректные данные' }, { status: 400 });"],
+    // Final-audit MAJOR: one level of same-file const indirection, both rules.
+    ['module const literal reaching a toast argument',
+      "const NET = 'Нет связи с сервером.';\ntoast.error(NET);"],
+    ['module const literal reaching a jsonError message property',
+      "const M = 'Выберите публичный адрес клиники.';\nreturn jsonError('x', { message: M }, { status: 409 });"],
+    ['module const literal riding a ?? fallback branch',
+      "const NET = 'Нет связи с сервером.';\ntoast.error(data.message ?? NET);"],
   ];
   const safe = [
     ['dictionary reference', 'toast.error(notificationText.someKey);'],
@@ -498,6 +549,15 @@ function selfTest() {
       'return NextResponse.json({ message: `Код: ${code}` });'],
     ['NextResponse.json with no message property',
       "return NextResponse.json({ ok: false, error: 'x' });"],
+    ['jsonError message from dictionary reference',
+      "return jsonError('x', { message: notificationText.someKey }, { status: 400 });"],
+    // Const resolution must not turn every module const into a violation: a const holding a MACHINE
+    // code compared against `error.message` (the live `saas_quota_reached:files` shape) is not shown
+    // text, and a FUNCTION-scoped const is not the shared-copy shape this rule is about.
+    ['module const holding a machine code, not passed to a shown-text call site',
+      "const QUOTA = 'saas_quota_reached:files';\nif (error.message === QUOTA) return null;"],
+    ['function-scoped const is not resolved',
+      "function f() {\n  const local = 'Не удалось сохранить';\n  return local;\n}"],
   ];
 
   for (const [name, source] of leaking) {

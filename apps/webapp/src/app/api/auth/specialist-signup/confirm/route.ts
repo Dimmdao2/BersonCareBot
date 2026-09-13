@@ -29,8 +29,7 @@ const bodySchema = z.object({
   organizationSlug: z.string().max(512).optional(),
 });
 
-const ORGANIZATION_SLUG_REQUIRED_MESSAGE =
-  'Выберите публичный адрес клиники и повторите подтверждение. Код ещё действует.';
+const ORGANIZATION_SLUG_REQUIRED_MESSAGE = notificationText.authOrganizationSlugRequired;
 
 const PROVISIONING_ERROR_RULES = {
   specialist_signup_intent_not_found: { status: 400, code: 'signup_intent_not_found' },

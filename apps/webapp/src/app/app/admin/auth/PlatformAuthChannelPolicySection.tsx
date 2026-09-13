@@ -190,7 +190,7 @@ export function PlatformAuthChannelPolicySection() {
         ...current,
         [surface]: { ...current[surface], [control]: previous },
       }));
-      toast.error(notificationText.adminSettingSaveFailed);
+      toast.error(notificationText.commonSettingSaveFailed);
     } finally {
       setSaving(null);
     }
@@ -210,7 +210,7 @@ export function PlatformAuthChannelPolicySection() {
       if (!response.ok || !data.ok) throw new Error('save_failed');
     } catch {
       setUnsupportedClientFallbackEnabled(previous);
-      toast.error(notificationText.adminSettingSaveFailed);
+      toast.error(notificationText.commonSettingSaveFailed);
     } finally {
       setSaving(null);
     }

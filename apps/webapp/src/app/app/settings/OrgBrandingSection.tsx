@@ -343,7 +343,7 @@ export function OrgBrandingSection({
     const result = await patchAdminSettingWithResult('clinic_uses_own_patient_app', next);
     if (!result.ok) {
       setUsesOwnPatientApp(previous);
-      toast.error(notificationText.settingsSaveFailedRetry);
+      toast.error(notificationText.commonSettingSaveFailed);
     }
     setSavingOwnApp(false);
   }

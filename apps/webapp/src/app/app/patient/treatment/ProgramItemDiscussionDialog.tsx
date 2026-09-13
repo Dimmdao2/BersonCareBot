@@ -217,7 +217,7 @@ export function ProgramItemDiscussionDialog(props: {
       }
       void onRead?.();
     } catch {
-      toast.error(notificationText.commonNetworkError);
+      toast.error(notificationText.commonNetworkUnavailable);
     } finally {
       setSending(false);
     }

@@ -151,11 +151,11 @@ export const notificationText = {
   // C5 (copy audit): avoid repeating "попыт-" root twice ("попыток"/"попытку") — «подождите» instead.
   authTooManyAttemptsRetryLater: 'Слишком много попыток. Подождите и повторите позже.',
   // C1 (copy audit): "Провайдер недоступен" named the internal OAuth term and gave no next step.
-  authProviderUnavailable: 'Не удалось войти через выбранный способ. Повторите попытку позже.',
+  authProviderUnavailable: 'Этот способ входа сейчас недоступен. Войдите другим способом.',
   authSignupStartFailed: 'Не удалось начать регистрацию. Повторите попытку.',
   authEmailNotVerifiedRetryLogin: 'Email не подтверждён. Подтвердите адрес и повторите вход.',
-  authAttemptsTooFrequent: 'Слишком частые попытки',
-  authCodeInvalidOrExpired: 'Неверный или просроченный код',
+  authAttemptsTooFrequent: 'Слишком частые попытки. Подождите и повторите позже.',
+  authCodeInvalidOrExpired: 'Код неверный или устарел. Запросите новый код.',
   messagingMessageSent: 'Сообщение отправлено',
 
   // --- auth/account ---
@@ -179,7 +179,7 @@ export const notificationText = {
   authCodeAlreadySentCheckEmail: 'Код уже отправлен. Проверьте почту.',
   messagingBotCommandCopied: 'Команда скопирована — вставьте её в чат с ботом в Max',
   settingsSaved: 'Настройка сохранена',
-  commonNoServerConnection: 'Нет соединения с сервером. Проверьте сеть.',
+  commonNoServerConnection: 'Нет связи с сервером. Проверьте интернет и повторите.',
   authPasskeyUseFailed: 'Не удалось использовать ключ доступа. Повторите попытку.',
   patientReminderPauseUpdateFailed: 'Не удалось изменить паузу уведомлений. Повторите попытку.',
   messagingDetectAppFailed: 'Не удалось определить мессенджер. Повторите попытку.',
@@ -219,6 +219,11 @@ export const notificationText = {
   authBindingExpired: 'Время привязки истекло. Начните снова.',
   authEnterEmail: 'Введите email',
   authEnterEmailAndPassword: 'Введите email и пароль',
+  authSmsDisabledOnWeb:
+    'SMS для входа с сайта отключён. Используйте код в Telegram, Max или на email.',
+  authOrganizationSlugRequired:
+    'Выберите публичный адрес клиники и повторите подтверждение. Код ещё действует.',
+  authFormFieldInvalidBody: 'Данные поля заполнены неверно. Проверьте их и повторите действие.',
   authEnterCode: 'Введите код',
   authEnterCodeAndNewPassword: 'Введите код и новый пароль (не менее 8 символов)',
   messagingEnterText: 'Введите текст сообщения',
@@ -241,7 +246,7 @@ export const notificationText = {
   doctorFileDeletedStorageFreed: 'Файл удалён. Место в хранилище освобождено.',
   doctorChangesSaved: 'Изменения сохранены',
   treatmentProgramClinicalTestsNotAllowedOnGeneralStage: 'Клинические тесты нельзя добавлять на этап «Общие рекомендации»',
-  doctorCommentNotSaved: 'Комментарий не сохранён.',
+  doctorCommentNotSaved: 'Комментарий не сохранён. Повторите попытку.',
   treatmentProgramTestSetsNotAllowedOnGeneralStage: 'Наборы тестов нельзя добавлять на этап «Общие рекомендации»',
   treatmentProgramLfkComplexNotAllowedOnGeneralStage: 'На этапе «Общие рекомендации» нельзя разворачивать комплекс ЛФК',
   treatmentProgramGroupNameEmpty: 'Название группы не может быть пустым',
@@ -277,7 +282,6 @@ export const notificationText = {
   doctorMergeCompleted: 'Объединение выполнено.',
   doctorDesignSaved: 'Оформление сохранено',
   // C3 (copy audit): dead-end; named explicitly alongside commonNetworkUnavailable in the brief.
-  commonNetworkError: 'Проверьте подключение и повторите попытку.',
   // C3 (copy audit): 'Ошибка X' -> 'Не удалось X'; dead-end, added retry action.
   doctorSubscriptionRecalcNetworkError: 'Не удалось пересчитать из-за сети. Проверьте подключение и повторите попытку.',
   commonCancelled: 'Отменено',
@@ -304,7 +308,7 @@ export const notificationText = {
   treatmentProgramSelectGroupFromList: 'Выберите группу из списка',
   doctorConditionMovedToHistory: 'Заболевание перенесено в историю',
   doctorConditionRestored: 'Заболевание возвращено',
-  doctorEntryCreatedCommentNotSaved: 'Запись создана, комментарий не сохранён.',
+  doctorEntryCreatedCommentNotSaved: 'Запись создана, комментарий не сохранён. Повторите попытку.',
   doctorFillNamePriceAndItem: 'Заполните название, цену и добавьте хотя бы одну позицию',
   // G3 (safety audit, extended repo-wide sweep): were ad hoc literals inline in server-action
   // result objects (`lifecycleActions.ts`, `contentPageAuthActions.ts`, `reorderContentPages.ts`,
@@ -321,7 +325,7 @@ export const notificationText = {
 
   // --- admin ---
   adminProbeSettingsSaved: 'Настройки проб сохранены.',
-  adminSettingSaveFailed: 'Не удалось сохранить настройку. Повторите попытку.',
+  commonSettingSaveFailed: 'Не удалось сохранить настройку. Повторите попытку.',
   adminTelegramModeSaveFailed: 'Не удалось сохранить режим Telegram. Повторите попытку.',
   adminIntegrationToggleSaveFailed: 'Не удалось сохранить рубильник интеграции. Повторите попытку.',
   adminLocationColorsSaveFailed: 'Не удалось сохранить цвета локаций. Повторите попытку.',
@@ -349,7 +353,6 @@ export const notificationText = {
   settingsSaveFailed: 'Не удалось сохранить настройки. Повторите попытку.',
   settingsReminderSettingsSaveFailed: 'Не удалось сохранить настройки напоминаний. Повторите попытку.',
   settingsSecuritySaveFailed: 'Не удалось сохранить настройку безопасности. Повторите попытку.',
-  settingsSaveFailedRetry: 'Не удалось сохранить настройку. Повторите попытку.',
   settingsSpecialistCardsSaveFailed: 'Не удалось сохранить настройку визиток специалистов. Повторите попытку.',
   settingsSaveFailedValidationHint: 'Не удалось сохранить. Проверьте: код темы (латиница, цифры, _), длину подписи, уникальность кодов; при заполненной проекции рассылок код должен существовать в справочнике тем.',
   settingsPageSaveFailedRetry: 'Не удалось сохранить страницу. Повторите попытку.',
@@ -437,7 +440,7 @@ export const notificationText = {
   testInvalidScoreKind: 'Некорректный вид оценки',
   testDuplicateInSet: 'Один и тот же тест не может входить в набор дважды',
   testMeasurementLabelRequired: 'Подпись вида измерения не может быть пустой',
-  testLabelTooLong: 'Слишком длинная подпись',
+  testLabelTooLong: 'Подпись слишком длинная. Сократите её до 500 символов.',
   commonListStaleReloadPage: 'Список устарел: обновите страницу и попробуйте снова',
   testNotFound: 'Тест не найден. Обновите страницу и повторите попытку.',
   testArchivedRestoreToEdit: 'Тест в архиве. Верните из архива, чтобы редактировать.',
@@ -525,7 +528,7 @@ export const notificationText = {
   // --- fallback texts found by the strengthened coverage gate (DEFECT 2b, 2026-09-13 verification
   // pass) — literal reachable through a ternary branch alongside another branch (dynamic or a
   // second literal), which the original gate's argument-only check could not see. ---
-  adminOperationFailed: 'Операция не выполнена',
+  adminOperationFailed: 'Операция не выполнена. Повторите попытку.',
   // C1 (copy audit): this was a dead-end imperative with no next action ("Проверьте лестницу
   // доступа" — check what, how?) and, since `accessPolicyFromDraft`'s validation errors are now
   // `UserFacingError`s with their own specific text (see `CommercialConstructorClient.tsx`), this
@@ -587,8 +590,11 @@ export const notificationText = {
   // verification pass) — the gate only inspected `toast.error/success`/`new UserFacingError`'s OWN
   // argument, so a literal one level deeper as a helper's fallback parameter was invisible to it.
   // C3 (copy audit, 2026-09-13 third pass): this whole block was dead-end text (bare state, no next
-  // action) — every key below got ". Повторите попытку." appended, and the "Ошибка X" shapes were
-  // converted to "Не удалось X" first. ---
+  // action) — the "Ошибка X" shapes were converted to "Не удалось X" and a next action appended.
+  // NB: the earlier wording here claimed EVERY key below was covered; the final audit showed three
+  // (`adminProbeSettingsSaveFailed`, `adminImapSettingsSaveFailed`,
+  // `adminBillingProviderSettingsSaveFailed`) had been missed. They are fixed now — but do not read
+  // a blanket claim in a comment as proof a class is closed; re-measure. ---
   doctorLfkOverridesResetFailed: 'Не удалось сбросить настройки. Повторите попытку.',
   treatmentProgramAssignError: 'Не удалось назначить. Повторите попытку.',
   doctorProgramInstanceDiscussionsLoadFailed: 'Не удалось загрузить обсуждения. Повторите попытку.',
@@ -620,7 +626,6 @@ export const notificationText = {
   patientProgramItemParamsSaveFailed: 'Не удалось сохранить параметры. Повторите попытку.',
   patientProgramStatisticsLoadFailed: 'Не удалось загрузить статистику. Повторите попытку.',
   commentUpdateError: 'Не удалось обновить. Повторите попытку.',
-  commentDeleteError: 'Не удалось удалить. Повторите попытку.',
   // C1 (copy audit): the platform variant only ever fires when a platform-owned write got
   // misrouted through a per-clinic tariff check (a bug, not an explainable refusal — see the
   // route's catch block), so its text now names that plainly and the route appends the sanctioned
@@ -637,9 +642,9 @@ export const notificationText = {
   // fallbacks (this one plus the two sibling save-failure toasts in the same file, found by the
   // same-shape sweep across the repo — see the report for the full list of sites fixed this way).
   adminOperatorHealthProbeResetFailed: 'Не удалось сбросить настройки проб. Повторите попытку.',
-  adminProbeSettingsSaveFailed: 'Настройки проб не сохранены',
-  adminImapSettingsSaveFailed: 'IMAP-настройки не сохранены',
-  adminBillingProviderSettingsSaveFailed: 'Настройки не сохранены',
+  adminProbeSettingsSaveFailed: 'Настройки проб не сохранены. Повторите попытку.',
+  adminImapSettingsSaveFailed: 'IMAP-настройки не сохранены. Повторите попытку.',
+  adminBillingProviderSettingsSaveFailed: 'Настройки не сохранены. Повторите попытку.',
 } as const;
 
 export type NotificationTextKey = keyof typeof notificationText;

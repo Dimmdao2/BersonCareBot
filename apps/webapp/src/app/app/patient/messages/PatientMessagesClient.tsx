@@ -151,7 +151,7 @@ export function PatientMessagesClient() {
         );
       }
     } catch {
-      toast.error(notificationText.commonNetworkError);
+      toast.error(notificationText.commonNetworkUnavailable);
     } finally {
       setSending(false);
     }

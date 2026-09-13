@@ -153,7 +153,7 @@ export function CommentBlock({
     const res = await fetch(`/api/doctor/comments/${encodeURIComponent(id)}`, { method: 'DELETE' });
     const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
     if (!res.ok || !data.ok) {
-      setError(readSafeApiErrorText(data, notificationText.commentDeleteError));
+      setError(readSafeApiErrorText(data, notificationText.commonDeleteFailed));
       return;
     }
     await load();
