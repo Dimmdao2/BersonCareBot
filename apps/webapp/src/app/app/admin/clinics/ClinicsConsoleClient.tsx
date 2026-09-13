@@ -46,6 +46,7 @@ import { SaasBillingOverview } from '@/shared/ui/doctor/SaasBillingOverview';
 import { apiJson } from '@/shared/lib/apiJson';
 import { formatBytesAsMb } from '@/shared/lib/formatStorageMb';
 import { OrganizationCommercialPanel } from './OrganizationCommercialPanel';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 export type PlatformClinicsData = {
   organizations: PlatformOrganizationSummary[];
@@ -160,7 +161,7 @@ function lifecycleBadgeVariant(
 function mechanicLabel(mechanic: string): string {
   return mechanic in MECHANIC_REGISTRY
     ? MECHANIC_REGISTRY[mechanic as OrgMechanic].label
-    : mechanic;
+    : notificationText.commonUnknownValue;
 }
 
 function quotaLabel(quota: TariffQuota): string {

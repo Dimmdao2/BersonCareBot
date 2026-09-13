@@ -1,3 +1,4 @@
+export { appointmentStatusLabel } from '@/modules/booking-calendar/appointmentStatusLabels';
 import { notificationText } from '@/shared/notifications/notificationText';
 const EVENT_TYPE_LABELS: Record<string, string> = {
   appointment_created: 'Запись создана',
@@ -97,21 +98,3 @@ export function paymentStatusLabel(status: string): string {
   return map[status] ?? notificationText.commonUnknownStatus;
 }
 
-export function appointmentStatusLabel(status: string): string {
-  const map: Record<string, string> = {
-    created: 'Создана',
-    awaiting_payment: 'Ожидает оплаты',
-    paid: 'Оплачена',
-    confirmed: 'Подтверждена',
-    rescheduled: 'Перенесена',
-    cancelled_by_patient: 'Отменена пациентом',
-    cancelled_by_specialist: 'Отменена специалистом',
-    late_cancellation: 'Поздняя отмена',
-    no_show: 'Неявка',
-    completed: 'Завершена',
-    visit_confirmed: 'Посещение подтверждено',
-    charged_to_package: 'Списано по абонементу',
-    manual_review_required: 'Требует решения',
-  };
-  return map[status] ?? notificationText.commonUnknownStatus;
-}

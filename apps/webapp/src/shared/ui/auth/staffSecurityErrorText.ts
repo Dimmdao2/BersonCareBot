@@ -43,7 +43,7 @@ export function staffSecurityErrorText(error: string | undefined, action: Securi
     case 'factor_locked':
       return notificationText.authFactorLocked;
     case 'invalid_factor':
-      return notificationText.authCodeInvalidOrExpired;
+      return notificationText.authInvalidFactor;
     case 'invalid_recovery_code':
       return notificationText.authInvalidRecoveryCode;
     case 'invalid_credentials':
@@ -112,6 +112,12 @@ export function staffSecurityErrorText(error: string | undefined, action: Securi
   }
 }
 
-export function staffSecurityNetworkErrorText(action: SecurityAction): string {
-  return `${actionFallback[action]} Проверьте соединение с интернетом.`;
+/**
+ * Отказ ИЗ-ЗА СВЯЗИ. Раньше здесь склеивались два совета — запасной текст действия плюс «Проверьте
+ * соединение», — и человек читал «Пароль не изменён. Проверьте данные и повторите попытку.
+ * Проверьте соединение с интернетом.»: два «Проверьте» подряд и обвинение в неверном вводе, когда
+ * до сервера просто не дошёл запрос (второй адверсарный аудит 13.09). Причина одна — и совет один.
+ */
+export function staffSecurityNetworkErrorText(_action: SecurityAction): string {
+  return notificationText.commonNoServerConnection;
 }

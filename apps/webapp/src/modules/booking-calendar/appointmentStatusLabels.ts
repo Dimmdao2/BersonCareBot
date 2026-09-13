@@ -1,3 +1,4 @@
+import { notificationText } from '@/shared/notifications/notificationText';
 import type { AppointmentStatus } from '@/modules/booking-engine/types';
 
 const LABELS: Record<AppointmentStatus, string> = {
@@ -6,18 +7,24 @@ const LABELS: Record<AppointmentStatus, string> = {
   paid: 'Оплачена',
   confirmed: 'Подтверждена',
   rescheduled: 'Перенесена',
-  cancelled_by_patient: 'Отмена пациентом',
-  cancelled_by_specialist: 'Отмена специалистом',
+  cancelled_by_patient: 'Отменена пациентом',
+  cancelled_by_specialist: 'Отменена специалистом',
   late_cancellation: 'Поздняя отмена',
   no_show: 'Неявка',
   completed: 'Завершена',
-  visit_confirmed: 'Визит подтверждён',
-  charged_to_package: 'По абонементу',
-  manual_review_required: 'На проверке',
+  visit_confirmed: 'Посещение подтверждено',
+  charged_to_package: 'Списано по абонементу',
+  manual_review_required: 'Требует решения',
 };
 
+/**
+ * Единственная подпись статуса записи. Копия этой же функции с ТЕМИ ЖЕ кодами и ДРУГИМИ словами
+ * («Отмена пациентом» против «Отменена пациентом», «На проверке» против «Требует решения») жила в
+ * `modules/client-history/labels.ts` — второй адверсарный аудит 13.09, Б6. Оставлена одна, тексты
+ * взяты из более грамотного варианта. Неизвестный код — фраза, а не сам код.
+ */
 export function appointmentStatusLabel(status: AppointmentStatus | string): string {
-  return LABELS[status as AppointmentStatus] ?? status;
+  return LABELS[status as AppointmentStatus] ?? notificationText.commonUnknownStatus;
 }
 
 export function isCancelledAppointmentStatus(status: string): boolean {

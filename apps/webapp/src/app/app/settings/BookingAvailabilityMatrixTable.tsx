@@ -1,3 +1,4 @@
+import { notificationText } from '@/shared/notifications/notificationText';
 'use client';
 
 type OverviewSlice = {
@@ -22,17 +23,17 @@ export function BookingAvailabilityMatrixTable({ data }: { data: OverviewSlice }
 
   const specServiceRows = data.specialistAvailability.map((row) => ({
     id: row.id,
-    specialist: specById.get(row.specialistId) ?? row.specialistId,
-    service: svcById.get(row.serviceId) ?? row.serviceId,
-    branch: row.branchId ? (branchById.get(row.branchId) ?? row.branchId) : '—',
+    specialist: specById.get(row.specialistId) ?? notificationText.commonUnknownValue,
+    service: svcById.get(row.serviceId) ?? notificationText.commonUnknownValue,
+    branch: row.branchId ? (branchById.get(row.branchId) ?? notificationText.commonUnknownValue) : '—',
     kind: 'Специалист × услуга',
   }));
 
   const roomRows = data.specialistRooms.map((row) => ({
     id: row.id,
-    specialist: specById.get(row.specialistId) ?? row.specialistId,
+    specialist: specById.get(row.specialistId) ?? notificationText.commonUnknownValue,
     service: '—',
-    branch: roomById.get(row.roomId) ?? row.roomId,
+    branch: roomById.get(row.roomId) ?? notificationText.commonUnknownValue,
     kind: 'Специалист × кабинет',
   }));
 

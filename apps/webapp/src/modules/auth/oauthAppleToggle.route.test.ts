@@ -152,7 +152,7 @@ describe('public OAuth provider boundary', () => {
     await expect(startResponse.json()).resolves.toEqual({
       ok: false,
       error: 'server_error',
-      message: 'Не удалось начать вход из-за сбоя на нашей стороне. Повторите попытку позже.',
+      message: 'Не удалось войти из-за сбоя на нашей стороне. Повторите попытку позже.',
     });
   });
 });

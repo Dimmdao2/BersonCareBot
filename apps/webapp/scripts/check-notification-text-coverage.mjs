@@ -87,6 +87,8 @@
  *      6. `String(data.error)` и чтение сырого `.code` (а не `.error`) внутри показа НЕ ловятся.
  *      7. Сырое `.error` проверяется только в аргументе `toast.*`; то же значение, положенное в
  *         `setError(...)`/`showError(...)`, правило G3 не видит.
+ *      8. G5 не видит стрелочную функцию с неявным возвратом тернарника, `return String(param)`
+ *         и `` return `Ошибка: ${param}` `` — названо вторым аудитом, не закрыто.
  *    Ни одно из этих ограничений не «когда-нибудь»: это то, что сторож пропустит СЕГОДНЯ.
  */
 import { readdirSync, readFileSync } from 'node:fs';
@@ -473,16 +475,95 @@ function dictionaryFallbackToKeyLeaks(node, sf) {
   if (!ts.isBinaryExpression(node)) return undefined;
   const op = node.operatorToken.kind;
   if (op !== ts.SyntaxKind.QuestionQuestionToken && op !== ts.SyntaxKind.BarBarToken) return undefined;
-  let left = node.left;
-  while (ts.isParenthesizedExpression(left)) left = left.expression;
-  let right = node.right;
-  while (ts.isParenthesizedExpression(right)) right = right.expression;
-  if (!ts.isElementAccessExpression(left)) return undefined;
-  const keyText = (e) => (ts.isIdentifier(e) ? e.text : ts.isPropertyAccessExpression(e) ? e.getText(sf) : undefined);
-  const key = keyText(left.argumentExpression);
-  const fallback = keyText(right);
-  if (!key || key !== fallback) return undefined;
+
+  const unwrap = (e) => {
+    let x = e;
+    for (;;) {
+      if (ts.isParenthesizedExpression(x)) x = x.expression;
+      // `status as AppointmentStatus` — каст не меняет значения; без снятия правило было слепо
+      // (второй адверсарный аудит, Б6: так жила утечка сырого статуса записи врачу).
+      else if (ts.isAsExpression(x) || ts.isTypeAssertionExpression(x) || ts.isNonNullExpression(x)) x = x.expression;
+      // `String(code)` — обёртка, значение то же.
+      else if (
+        ts.isCallExpression(x) &&
+        ts.isIdentifier(x.expression) &&
+        x.expression.text === 'String' &&
+        x.arguments.length === 1
+      ) {
+        x = x.arguments[0];
+      } else return x;
+    }
+  };
+  const nameOf = (e) => {
+    const x = unwrap(e);
+    if (ts.isIdentifier(x)) return x.text;
+    if (ts.isPropertyAccessExpression(x) || ts.isPropertyAccessChain(x)) return x.getText(sf);
+    return undefined;
+  };
+  /** Чтение по ключу: `M[k]`, `M?.[k]`, `map.get(k)`. */
+  const readKeyOf = (e) => {
+    const x = unwrap(e);
+    if (ts.isElementAccessExpression(x)) return nameOf(x.argumentExpression);
+    if (
+      ts.isCallExpression(x) &&
+      (ts.isPropertyAccessExpression(x.expression) || ts.isPropertyAccessChain(x.expression)) &&
+      x.expression.name.text === 'get' &&
+      x.arguments.length === 1
+    ) {
+      return nameOf(x.arguments[0]);
+    }
+    return undefined;
+  };
+
+  // Левая часть может быть цепочкой `A[k] ?? B[k]` — достаточно, чтобы ХОТЬ ОДНО звено читало по
+  // тому же ключу, которым заканчивается цепочка.
+  const readKeys = [];
+  const collectReads = (e) => {
+    const x = unwrap(e);
+    if (
+      ts.isBinaryExpression(x) &&
+      (x.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken ||
+        x.operatorToken.kind === ts.SyntaxKind.BarBarToken)
+    ) {
+      collectReads(x.left);
+      collectReads(x.right);
+      return;
+    }
+    const key = readKeyOf(x);
+    if (key) readKeys.push(key);
+  };
+  collectReads(node.left);
+  if (readKeys.length === 0) return undefined;
+
+  const fallback = nameOf(node.right);
+  if (!fallback || !readKeys.includes(fallback)) return undefined;
   return node;
+}
+
+/**
+ * `код in СЛОВАРЬ ? СЛОВАРЬ[код] : код` — та же утечка тернарником (второй аудит, Б6).
+ */
+function dictionaryTernaryToKeyLeaks(node, sf) {
+  if (!ts.isConditionalExpression(node)) return undefined;
+  const cond = node.condition;
+  if (
+    !ts.isBinaryExpression(cond) ||
+    cond.operatorToken.kind !== ts.SyntaxKind.InKeyword ||
+    !ts.isIdentifier(cond.left)
+  ) {
+    return undefined;
+  }
+  const key = cond.left.text;
+  const whenFalse = node.whenFalse;
+  const bare =
+    (ts.isIdentifier(whenFalse) && whenFalse.text === key) ||
+    (ts.isCallExpression(whenFalse) &&
+      ts.isIdentifier(whenFalse.expression) &&
+      whenFalse.expression.text === 'String' &&
+      whenFalse.arguments.length === 1 &&
+      ts.isIdentifier(whenFalse.arguments[0]) &&
+      whenFalse.arguments[0].text === key);
+  return bare ? node : undefined;
 }
 
 
@@ -499,7 +580,9 @@ function dictionaryFallbackToKeyLeaks(node, sf) {
  * Разница со списком файлов принципиальная: освобождается ОДНА строка, а не файл целиком; причина
  * написана рядом и читается вместе с кодом; новый литерал в том же файле по-прежнему ловится.
  */
-const NOT_USER_TEXT_MARK = /\/\/\s*notification-text-gate:\s*не подпись для человека\s*—\s*\S/;
+// Причина обязана быть фразой, а не отпиской: второй аудит показал, что причина «x» проходила.
+const NOT_USER_TEXT_MARK =
+  /\/\/\s*notification-text-gate:\s*не подпись для человека\s*—\s*\S[\s\S]{14,}/;
 
 function markedNotUserText(lines, lineIndex) {
   const own = lines[lineIndex] ?? '';
@@ -519,6 +602,20 @@ function checkSource(relativePath, text) {
 
   const consts = moduleConstStringLiterals(sf);
   const sourceLines = text.split('\n');
+  // Сколько попаданий правила G6 на каждой строке — считаем до обхода, чтобы маркер не мог
+  // освободить строку, на которой их несколько.
+  const dictionaryLeakLines = new Map();
+  {
+    const count = (n) => {
+      const hit = dictionaryFallbackToKeyLeaks(n, sf) ?? dictionaryTernaryToKeyLeaks(n, sf);
+      if (hit) {
+        const { line } = sf.getLineAndCharacterOfPosition(hit.getStart(sf));
+        dictionaryLeakLines.set(line, (dictionaryLeakLines.get(line) ?? 0) + 1);
+      }
+      ts.forEachChild(n, count);
+    };
+    count(sf);
+  }
 
   const visit = (node) => {
     const argument = textArgumentOf(node);
@@ -575,10 +672,15 @@ function checkSource(relativePath, text) {
     }
 
     // G6: словарь подписей с запасным вариантом «сам ключ».
-    const dictionaryLeak = dictionaryFallbackToKeyLeaks(node, sf);
+    const dictionaryLeak =
+      dictionaryFallbackToKeyLeaks(node, sf) ?? dictionaryTernaryToKeyLeaks(node, sf);
     if (dictionaryLeak) {
       const { line } = sf.getLineAndCharacterOfPosition(dictionaryLeak.getStart(sf));
-      if (markedNotUserText(sourceLines, line)) return ts.forEachChild(node, visit);
+      // Маркер гасит строку, на которой ровно ОДНО попадание: иначе `const a = M[x] ?? x, b =
+      // L[y] ?? y;` освобождался бы целиком одной причиной (второй аудит, замечание 1).
+      if (markedNotUserText(sourceLines, line) && dictionaryLeakLines.get(line) === 1) {
+        return ts.forEachChild(node, visit);
+      }
       findings.push(
         `${relativePath}:${line + 1}: словарь подписей с запасным вариантом «сам ключ» ` +
           `(\`${dictionaryLeak.getText(sf).slice(0, 50)}\`) — код, которого нет в словаре, ` +
@@ -671,6 +773,21 @@ function selfTest() {
       "// notification-text-gate: не подпись для человека —\nsetError(ERROR_LABELS[code] ?? code);"],
     ['маркер через строку (не вплотную) не освобождает',
       "// notification-text-gate: не подпись для человека — транслитерация\n\nsetError(ERROR_LABELS[code] ?? code);"],
+    ['маркер с отпиской вместо причины не освобождает',
+      "// notification-text-gate: не подпись для человека — x\nsetError(ERROR_LABELS[code] ?? code);"],
+    // Б6, второй адверсарный аудит: шесть форм той же утечки, которые правило пропускало.
+    ['ключ приведён типом (as) — каст не отменяет утечку',
+      "const t = LABELS[status as AppointmentStatus] ?? status;"],
+    ['запасной вариант обёрнут в String()',
+      "const t = LABELS[name as LineKey] ?? String(name);"],
+    ['словарь — Map, чтение через .get()',
+      "const t = labels.get(code) ?? code;"],
+    ['цепочка из двух словарей с тем же ключом в конце',
+      "const t = A[code] ?? B[code] ?? code;"],
+    ['тернарник через `in`',
+      "const t = code in M ? M[code] : code;"],
+    ['тернарник через `in` с String() в запасной ветке',
+      "const t = code in M ? M[code] : String(code);"],
   ];
   const safe = [
     ['dictionary reference', 'toast.error(notificationText.someKey);'],
@@ -727,6 +844,12 @@ function selfTest() {
       "const title = TITLES[id] ?? defaultTitle;"],
     ['точечный маркер с причиной освобождает ОДНУ строку',
       "// notification-text-gate: не подпись для человека — транслитерация символа\nconst out = MAP[char] ?? char;"],
+    ['цепочка словарей с ДРУГИМ значением в конце — не эта форма',
+      "const t = A[code] ?? B[code] ?? notificationText.commonUnknownValue;"],
+    ['Map с текстовым запасным вариантом',
+      "const t = labels.get(code) ?? notificationText.commonUnknownValue;"],
+    ['тернарник через `in` с текстом в запасной ветке',
+      "const t = code in M ? M[code] : notificationText.commonUnknownValue;"],
   ];
 
   for (const [name, source] of leaking) {

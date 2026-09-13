@@ -149,6 +149,8 @@ export const notificationText = {
   authSignupStartFailed: 'Не удалось начать регистрацию. Повторите попытку.',
   authEmailNotVerifiedRetryLogin: 'Email не подтверждён. Подтвердите адрес и повторите вход.',
   authCodeInvalidOrExpired: 'Код неверный или устарел. Запросите новый код.',
+  /** Код из приложения-аутентификатора: «запросить новый» невозможно — он меняется сам. */
+  authInvalidFactor: 'Код неверный. Проверьте код в приложении и введите новый.',
   /** Запасной текст действия «проверить код»: причина неизвестна, обвинять код нельзя —
    *  склеивается с «Проверьте соединение с интернетом» в staffSecurityNetworkErrorText. */
   authVerifyEnrollmentFallback: 'Не удалось проверить код. Получите новый код и повторите.',
@@ -329,7 +331,7 @@ export const notificationText = {
   doctorTemplateSaved: 'Шаблон сохранён',
   treatmentProgramSystemGroupDeleteForbidden: 'Системную группу нельзя удалить',
   commonCreated: 'Создано',
-  doctorSubscriptionDurationInvalid: 'Срок действия — не меньше 1 месяца.',
+  doctorSubscriptionDurationInvalid: 'Срок действия — не меньше одного дня.',
   doctorPhoneCopied: 'Телефон скопирован',
   commonDeleted: 'Удалено',
   doctorTemplateNameRequired: 'Укажите название шаблона',
@@ -438,9 +440,11 @@ export const notificationText = {
     'У специалиста не настроено расписание. Настройте его в разделе «Расписание».',
   bookingScheduleSpecialistNotAvailable:
     'Специалист не работает в это время. Выберите другое время.',
-  bookingPaymentsDisabled: 'Оплаты в клинике отключены. Включите их в настройках.',
+  bookingPaymentsDisabled: 'Приём оплат в клинике отключён. Обратитесь к администратору клиники.',
   bookingPaymentProviderUnavailable:
-    'Платёжный сервис сейчас недоступен. Повторите попытку позже.',
+    'Платёжный сервис не настроен. Обратитесь к администратору клиники.',
+  bookingAppointmentAmountUnavailable: 'Стоимость записи не определена. Укажите её и повторите.',
+  bookingAlreadyPaid: 'Запись уже оплачена.',
   bookingPackageNotFound: 'Абонемент не найден. Обновите страницу и повторите попытку.',
   bookingFeedLoadFailed: 'Не удалось загрузить записи. Обновите страницу и повторите попытку.',
 
@@ -625,7 +629,8 @@ export const notificationText = {
   // since it is no longer a generic catch-all — see `BookingManualLifecycleSection.tsx`.
   bookingManualLifecycleActionFailed: 'Не удалось выполнить действие с записью. Повторите попытку.',
   settingsSmtpSaveFailedRetry: 'Сервер не смог сохранить SMTP. Повторите позже.',
-  settingsInvalidDsn: 'Укажите корректный адрес для отправки ошибок (начинается с https://).',
+  settingsInvalidDsn:
+    'Укажите корректный адрес для отправки ошибок — его выдаёт сервис отслеживания ошибок целиком, скопируйте как есть.',
   settingsBotSaveFailed: 'Не удалось сохранить настройки бота. Повторите попытку.',
   authPasswordUpdatedPleaseLogin: 'Пароль обновлён. Войдите.',
   authAccessConfigured: 'Доступ настроен.',
