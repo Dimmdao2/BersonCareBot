@@ -671,22 +671,31 @@ async function loadPlatformUser(
 /**
  * Когда человек последний раз входил этой карточкой — пятая проверка правила ФИО (владелец 13.09).
  *
- * Отдельной отметки «последний вход» у учётной записи нет: ни `last_login_at`, ни `last_seen_at` на
- * `platform_users` не существует. Единственный след входа в базе — выданная сессия по входу через
- * мессенджер (`login_tokens`, где `method` бывает только `telegram` или `max`). Вход по паролю или по
- * коду на почту такого следа не оставляет, поэтому проверка РАЗЛИЧАЕТ стороны не всегда; если следа
- * нет с обеих сторон, правило просто идёт дальше, к последней проверке «старше созданная карточка».
- * Это ограничение данных, а не решение — записано в `docs/_TODO/ACCOUNT_MERGE_TO_PLATFORM_CONSOLE_2026-09-13.md`.
+ * Читается из истории входов (#1112, `docs/_TODO/LOGIN_HISTORY_2026-09-13.md`). До 13.09 такой
+ * истории не было вовсе: отметки последнего входа у учётной записи не существует — ни
+ * `last_login_at`, ни `last_seen_at` на `platform_users`, — и единственным следом была выданная
+ * сессия по входу через мессенджер (`login_tokens`, где способ бывает только Telegram или MAX).
+ * То есть вход по паролю, по коду на почту, по ключу доступа и через OAuth не был виден никак, и
+ * проверка «кто свежее» на такой основе врала бы в пользу того, кто заходил из мессенджера.
+ *
+ * Отказ этого запроса НЕ роняет разбор пары: если истории не видно, проверка просто не различает
+ * стороны, и правило идёт дальше — к последней проверке «старше созданная карточка». Разбор пары
+ * важнее одной из пяти подсказок, и терять его из-за журнала нельзя.
  */
 async function loadLastLoginAt(pool: Pool, userId: string): Promise<Date | null> {
-  const r = await runPgPoolSql<{ last_login_at: Date | null }>(
-    pool,
-    sql`SELECT MAX(GREATEST(session_issued_at, confirmed_at)) AS last_login_at
-     FROM login_tokens
-     WHERE user_id = ${userId}::uuid
-       AND status = 'confirmed'`,
-  );
-  return r.rows[0]?.last_login_at ?? null;
+  try {
+    const r = await runPgPoolSql<{ last_login_at: Date | null }>(
+      pool,
+      sql`SELECT MAX(occurred_at) AS last_login_at
+       FROM user_login_events
+       WHERE user_id = ${userId}::uuid
+         AND outcome = 'success'`,
+    );
+    return r.rows[0]?.last_login_at ?? null;
+  } catch (err) {
+    logger.warn({ err, userId }, '[merge-preview] login history unavailable, freshness skipped');
+    return null;
+  }
 }
 
 async function loadBindings(pool: Pool, userId: string): Promise<MergePreviewChannelBinding[]> {
