@@ -1,6 +1,18 @@
 export type MediaKind = 'image' | 'audio' | 'video' | 'file';
 
-export type MediaPreviewStatus = 'pending' | 'ready' | 'failed' | 'skipped';
+/**
+ * Состояния строки превью, как их пишет очередь (`pgMediaPreviewControl`). Интерфейсу интересно
+ * только `ready` — всё остальное он показывает как «готовится», — но перечисление обязано называть
+ * реальность: `processing` появилось с выносом разбора в воркер (13.09), `blocked` — с правилом
+ * «нет декодера — не отказ файла, а ожидание починки среды» (владелец 14.09).
+ */
+export type MediaPreviewStatus =
+  | 'pending'
+  | 'processing'
+  | 'ready'
+  | 'failed'
+  | 'skipped'
+  | 'blocked';
 
 /** VIDEO_HLS_DELIVERY — transcode pipeline state for library video rows (`media_files`). */
 export type VideoProcessingStatus = 'none' | 'pending' | 'processing' | 'ready' | 'failed';
