@@ -17,6 +17,24 @@ const storagePort = `${appSourceRoot}/app-layer/media/s3Client.ts`;
 const deliveryStoragePort = `${appSourceRoot}/infra/s3/deliveryClient.ts`;
 const originalDownloadRoute = `${deliveryRouteRoot}original/route.ts`;
 const infraS3Client = `${appSourceRoot}/infra/s3/client`;
+/**
+ * Единственные два файла, которым позволено назвать «загруженный исходник».
+ *
+ * Правило владельца 14.09.2026: сырой исходник в бою не читается вообще, он отдаётся только
+ * скачиванием тому, кто его загрузил (М6). Проверка структурная, потому что словами она уже не
+ * удержалась: 14.09 нашлось, что размеры иконки клиники собирались ИЗ НЕГО — сырые байты
+ * затягивались в процесс вебаппа и шли в `sharp`, то есть разбор чужих байт вернулся в Next.js,
+ * ради выноса которого сделан отдельный медиа-воркер (М7).
+ */
+const rawOriginalReaders = new Set([originalDownloadRoute, mediaStoragePort]);
+const rawOriginalBinding = 'getMediaOriginalObjectForDownload';
+/**
+ * Разбор байт картинки в процессе вебаппа. Разрешён ровно один модуль — он режет размеры иконки
+ * клиники из НАШЕГО стандартного рендишна, а не из загруженного файла. Любой новый импорт `sharp`
+ * означает, что в вебапп снова затаскивают декодер: это решение принимается владельцем, а не
+ * правкой по дороге.
+ */
+const imageDecoderModules = new Set([`${appSourceRoot}/modules/media/orgAppIconRenditions.ts`]);
 const aclImports = new Set([
   'getMediaAccessRow',
   'resolvePlatformLfkMediaAccess',
@@ -197,6 +215,14 @@ function inspectSources(sourceFiles) {
       violations.add(`${rel}: hot-only delivery capability references raw storage`);
     }
     const entries = importEntries(source);
+    for (const entry of entries) {
+      if (entry.bindings.has(rawOriginalBinding) && !rawOriginalReaders.has(rel)) {
+        violations.add(`${rel}: reads the raw uploaded original outside the /original download door`);
+      }
+      if (entry.module === 'sharp' && !imageDecoderModules.has(rel)) {
+        violations.add(`${rel}: decodes image bytes inside the webapp process`);
+      }
+    }
     if (isDeliveryRoute(rel) && !authorizerIsCalled(source, entries)) {
       violations.add(`${rel}: media delivery route does not call authorizeMediaDelivery`);
     }

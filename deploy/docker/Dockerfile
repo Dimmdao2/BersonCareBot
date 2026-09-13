@@ -58,8 +58,18 @@ WORKDIR /app
 # one artifact per commit. tini reaps zombies; node as PID 1 does not, and ffmpeg spawns children.
 # curl is the health probe — the deploy script must be able to ask the container itself, from inside,
 # whether it is serving, before anything is switched onto it.
+#
+# imagemagick is the HEIC fallback the worker has always called for and never had. `processPreviewJob`
+# decodes HEIC/HEIF with ffmpeg and falls back to `magick`/`convert` — but the binary was never
+# installed, so on 14.09.2026 a real iPhone file on prod died as `spawn convert ENOENT` after ffmpeg
+# 5.1 failed to demux the HEIF container (still-image HEIF support arrived in ffmpeg 7). Without it
+# the whole HEIC branch is dead: uploads are accepted (`uploadAllowedMime` allows them on purpose —
+# patients send photos straight from an iPhone), no rendition is ever produced, and by the M7 rule
+# «нет нашего вывода — наружу ничего не идёт» such a picture shows «готовится» forever. Debian's
+# imagemagick carries the heic delegate (libheif); a HEIC→JPEG round-trip on this base image is the
+# check that it decodes.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      ffmpeg tini curl ca-certificates \
+      ffmpeg imagemagick tini curl ca-certificates \
  && rm -rf /var/lib/apt/lists/*
 
 ENV NODE_ENV=production

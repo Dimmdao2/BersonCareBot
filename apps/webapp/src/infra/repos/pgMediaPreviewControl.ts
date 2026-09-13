@@ -64,8 +64,19 @@ type PreviewRow = {
 type WebappTxSql = Parameters<typeof runWebappSql>[0];
 
 /**
- * Строка, которую можно взять в работу: либо ждущая своей очереди, либо занятая воркером, чья
- * аренда истекла (упал, был убит, потерял связь со швом).
+ * Строка, которую можно взять в работу: ждущая своей очереди, занятая воркером с истёкшей арендой
+ * (упал, был убит, потерял связь со швом) — либо картинка, у которой нашего вывода нет вовсе.
+ *
+ * Третья ветка — это и есть бэкфилл рендишнов, которого требует М7
+ * (`docs/_TODO/STORAGE_PACKAGES_2026-09-10.md`): у всего, загруженного ДО М7, `preview_status`
+ * давно `ready`, а `standard_rendition_at` пуст — и по правилу «нет нашего вывода, наружу ничего не
+ * идёт» такая картинка показывает вечную заглушку «готовится». Отдельного задания и своей очереди
+ * для этого не заводим: очередь уже есть, её замок и повторные попытки уже разобраны, а признаком
+ * работы служит сам недостающий факт. Отсюда идемпотентность: как только воркер проставит
+ * `standard_rendition_at`, строка перестаёт подходить под условие и больше не выбирается.
+ *
+ * Только картинки: у документа и аудио нашего вывода не бывает (`encoderOutputFor`), а видео
+ * пересобирает своя лестница — им пустой `standard_rendition_at` нормален навсегда.
  */
 function claimableRowFilter() {
   return and(
@@ -80,6 +91,11 @@ function claimableRowFilter() {
       and(
         eq(mediaFiles.previewStatus, 'processing'),
         lte(mediaFiles.previewNextAttemptAt, new Date().toISOString()),
+      ),
+      and(
+        eq(mediaFiles.previewStatus, 'ready'),
+        isNull(mediaFiles.standardRenditionAt),
+        sql`lower(${mediaFiles.mimeType}) like 'image/%'`,
       ),
     ),
     or(

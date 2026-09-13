@@ -14,6 +14,7 @@ export {
   getMediaS3KeyForRedirect,
   resolveDeliverableMediaObject,
   getMediaOriginalObjectForDownload,
+  getOrgAppIconRenditionSource,
   insertPendingMediaFileTx,
   createPendingProgramSubmissionMediaFile,
   listMediaDeleteErrors,
@@ -23,4 +24,5 @@ export type {
   MediaAccessRow,
   MediaObjectLocation,
   MediaOriginalDownloadObject,
+  OrgAppIconRenditionSource,
 } from '@/infra/repos/s3MediaStorage';

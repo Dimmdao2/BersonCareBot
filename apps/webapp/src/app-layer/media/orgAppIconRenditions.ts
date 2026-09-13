@@ -1,10 +1,7 @@
 import { logger } from '@/app-layer/logging/logger';
-import { getMediaOriginalObjectForDownload } from '@/app-layer/media/s3MediaStorage';
-import {
-  s3GetPrivateObjectBuffer,
-  s3HeadObject,
-  s3PutObjectBody,
-} from '@/app-layer/media/s3Client';
+import { getOrgAppIconRenditionSource } from '@/app-layer/media/s3MediaStorage';
+import { s3HeadObject, s3PutObjectBody } from '@/app-layer/media/s3Client';
+import { deliveryGetPrivateObjectBuffer } from '@/infra/s3/deliveryClient';
 import {
   encodeOrgAppIconRenditions,
   OrgAppIconSourceRejected,
@@ -23,14 +20,17 @@ import {
  * мы сами раздаём анониму, значит размывать смысл разделения. Фиксированная цель к тому же
  * позволяет двери выдачи не спрашивать БД вообще: адрес полностью задаёт ключ.
  *
- * Вызывается из пути сохранения бренда, где принципал — сотрудник СВОЕЙ организации, поэтому
- * исходник читается org-scoped запросом `getMediaOriginalObjectForDownload` и подсунуть чужой файл
- * нечем. Не `getMediaS3KeyForRedirect` (F-4a, коррекция аудита `raw-bucket-audit-01`): та дверь —
- * ОБЩАЯ выдача и с М7 намеренно отказывает сырому бакету (F-2), а свежая иконка в момент установки
- * ещё не имеет своего рендишна (превью-воркер синхронно не дождаться, см. `brandingActions.ts`) —
- * то есть `getMediaS3KeyForRedirect` вернула бы `null` на КАЖДОЙ установке. Здесь читается сам
- * исходник, каким бы бакетом он ни владел, — ровно то, что и раньше умел `object.kind`, просто
- * дальше его теряли.
+ * ВХОД — НАШ СОБСТВЕННЫЙ ВЫВОД, НЕ ЗАГРУЖЕННЫЙ ФАЙЛ (коррекция 14.09.2026 по правилу владельца:
+ * «сырой исходник мы не трогаем в бою вообще… нет конвертации — ждём и видим, что файл
+ * готовится»). Размеры режутся из `media/<id>/standard.webp`, который сделал изолированный
+ * медиа-воркер, и читаются hot-only способностью `deliveryGetPrivateObjectBuffer`: сырой бакет из
+ * этого модуля недостижим по построению, `StorageKind` через её сигнатуру не передать.
+ *
+ * До 14.09.2026 здесь стояло обратное: `getMediaOriginalObjectForDownload` тянул сырые байты из
+ * холодного бакета в память процесса вебаппа и отдавал их `sharp`. Так чинили «у свежей иконки
+ * рендишна ещё нет, обычная выдача вернёт null» — и тем самым вернули в Next.js разбор чужих байт,
+ * ради прекращения которого сделан отдельный воркер (М7). Правильный ответ на то же «ещё нет» —
+ * `source_processing`: врач видит «картинка готовится» и сохраняет снова.
  */
 
 const RENDITION_MIME = 'image/png';
@@ -41,6 +41,7 @@ export type OrgAppIconRenditionOutcome =
       ok: false;
       reason:
         | 'source_unavailable'
+        | 'source_processing'
         | 'source_too_small'
         | 'source_too_large'
         | 'encode_failed'
@@ -71,9 +72,10 @@ export async function writeOrgAppIconRenditions(
       keys: ORG_APP_ICON_VARIANTS.map((variant) => orgAppIconObjectKey(mediaId, variant)),
     };
   }
-  const object = await getMediaOriginalObjectForDownload(mediaId);
-  if (!object) return { ok: false, reason: 'source_unavailable' };
-  const source = await s3GetPrivateObjectBuffer(object.key, object.target, object.kind);
+  const found = await getOrgAppIconRenditionSource(mediaId);
+  if (found.status === 'missing') return { ok: false, reason: 'source_unavailable' };
+  if (found.status === 'processing') return { ok: false, reason: 'source_processing' };
+  const source = await deliveryGetPrivateObjectBuffer(found.object.key, found.object.target);
   if (!source.ok) return { ok: false, reason: 'source_unavailable' };
 
   let renditions;

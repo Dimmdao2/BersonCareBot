@@ -1329,6 +1329,54 @@ export async function getMediaOriginalObjectForDownload(
   };
 }
 
+/**
+ * Что взять ИСХОДНИКОМ для размеров иконки клиники — и это НЕ загруженный файл.
+ *
+ * Правило владельца 14.09.2026, дословно: «СЫРОЙ ИСХОДНИК МЫ НЕ ТРОГАЕМ В БОЮ ВООБЩЕ ИЗ-ЗА
+ * БЕЗОПАСНОСТИ… НЕТ КОНВЕРТАЦИИ — ЖДЕМ И ВИДИМ ЧТО ФАЙЛ ГОТОВИТСЯ». Поэтому здесь тот же
+ * единственный resolver выдачи (`resolveDeliverableMediaObject`), что и у всех остальных дверей:
+ * есть наш вывод — берём его, нет — честное «готовится». Ветки «рендишна нет → прочитаем
+ * загруженное» не существует, и `getMediaOriginalObjectForDownload` в этом пути не участвует:
+ * его единственный законный потребитель — дверь скачивания исходника М6.
+ *
+ * `processing` и `missing` различаются потому, что это разные ответы врачу: «подожди» против
+ * «выбери другой файл». Не-картинку сюда пускать нельзя вовсе — у документа и аудио нашего вывода
+ * не бывает (`encoderOutputFor`), и иконкой такой файл не станет никогда.
+ */
+export type OrgAppIconRenditionSource =
+  | { status: 'ready'; object: MediaObjectLocation }
+  | { status: 'processing' }
+  | { status: 'missing' };
+
+export async function getOrgAppIconRenditionSource(
+  id: string,
+): Promise<OrgAppIconRenditionSource> {
+  const organizationId = currentPrincipalOrganizationId();
+  const res = await runWebappSql<{
+    s3_key: string | null;
+    mime_type: string;
+    storage_target: string | null;
+    standard_rendition_at: string | Date | null;
+  }>(
+    getWebappSqlDb(),
+    sql`SELECT s3_key, mime_type, storage_target, standard_rendition_at
+         FROM media_files
+         WHERE id = ${id}::uuid AND s3_key IS NOT NULL
+           AND owner_kind = 'organization' AND organization_id = ${organizationId}::uuid
+           AND ${mediaReadableStatusPredicate}`,
+  );
+  const row = res.rows[0];
+  if (!row?.s3_key) return { status: 'missing' };
+  if (encoderOutputFor(row.mime_type) !== 'standard_image') return { status: 'missing' };
+  const object = resolveDeliverableMediaObject(id, {
+    s3_key: row.s3_key,
+    mime_type: row.mime_type,
+    storage_target: parseStorageTarget(row.storage_target),
+    standard_rendition_at: row.standard_rendition_at,
+  });
+  return object ? { status: 'ready', object } : { status: 'processing' };
+}
+
 /** Presigned-GET target for generated preview JPEG (sm/md). */
 export async function getMediaPreviewS3KeyForRedirect(
   id: string,

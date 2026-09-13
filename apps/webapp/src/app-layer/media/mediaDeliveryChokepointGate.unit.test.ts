@@ -118,6 +118,25 @@ describe('media delivery chokepoint structural gate', () => {
         ],
       },
       {
+        name: 'raw uploaded original read outside the /original download door',
+        files: [
+          {
+            path: 'apps/webapp/src/app-layer/media/orgAppIconRenditions.ts',
+            source:
+              "import { getMediaOriginalObjectForDownload } from '@/app-layer/media/s3MediaStorage';\nexport async function build(id: string) { return getMediaOriginalObjectForDownload(id); }\n",
+          },
+        ],
+      },
+      {
+        name: 'image decoder pulled back into the webapp process',
+        files: [
+          {
+            path: 'apps/webapp/src/modules/media/newThumbnails.ts',
+            source: "import sharp from 'sharp';\nexport const resize = sharp;\n",
+          },
+        ],
+      },
+      {
         name: 'relative infra S3 import',
         files: [
           {

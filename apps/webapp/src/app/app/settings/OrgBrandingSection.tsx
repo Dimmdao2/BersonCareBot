@@ -71,9 +71,11 @@ const SAVE_ERROR_MESSAGES: Record<string, string> = {
   entitlement_disabled: 'Брендирование недоступно на текущем тарифе.',
   commercial_read_only: 'Брендирование доступно только для просмотра.',
   app_icon_source_unavailable: 'Файл иконки недоступен. Загрузите картинку заново.',
+  app_icon_source_processing:
+    'Картинка ещё готовится. Подождите немного и сохраните снова — иконка собирается из готовой картинки, а не из загруженного файла.',
   app_icon_source_too_small: orgAppIconSourceRejectionMessage('source_too_small'),
   app_icon_source_too_large: orgAppIconSourceRejectionMessage('source_too_large'),
-  app_icon_encode_failed: 'Не удалось подготовить размеры иконки. Нужна картинка PNG или JPEG.',
+  app_icon_encode_failed: 'Не удалось подготовить размеры иконки. Выберите другую картинку.',
   app_icon_store_failed: 'Не удалось сохранить размеры иконки. Попробуйте ещё раз.',
   [ORGANIZATION_NAME_TOO_LONG_CODE]: ORGANIZATION_NAME_TOO_LONG_MESSAGE,
 };
