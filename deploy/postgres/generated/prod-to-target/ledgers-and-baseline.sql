@@ -203,7 +203,6 @@ INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (181
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1819, '61cd940d96c67df509cc9898209102ef7756d913a01aef197608da4aa904fe0d', 1800000265000, '20260912T002000_expired_prepayment_cancels_patient_booking');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1823, 'a47b0b53a80ca16a21789633cc904cd92e177a539b6bcd9517fa56f5f41c5f3c', 1800000266000, '20260911T233000_patient_reads_own_booking_payment_status');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1790, '72e3f577f53c84dbf20d70d54ee1058751fde5afde87010f75392c26aa2aa247', 1800000255000, '20260911T230000_a_service_is_enabled_only_when_somebody_does_it');
-INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1765, '06676d348900972b8e8c47f0ab647372f995ae909da17ff049c3c27163e97cea', 1800000243000, '20260910T223000_a_claimed_preview_row_says_so');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1792, 'dda7939158347db53b9c0b3215607ab803f8fc0dce6f67d003e9fd36a6cb88c2', 1800000256000, '20260911T234500_the_card_switch_stops_closing_things');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1767, '7f8e015047803d345e9e35211207c30ec951e18eea5fac6db1c21c71121f3c3d', 1800000244000, '20260910T233000_an_invite_opened_by_its_own_patient_needs_no_second_proof');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1797, '34f496e999e17bf9bbeb40ff6ce7fe3decb9ddc4ee4c7867972f43af671d9769', 1800000257000, '20260911T235500_the_clinic_card_shows_the_name_the_cabinet_edits');
@@ -222,6 +221,7 @@ INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (182
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1783, '3d5ea2b543dcb20e9eda648a37886f4de0e9ecb60c4d1cb248f33e55ec2bd8e9', 1800000251000, '20260911T080000_exercise_load_type_becomes_a_multi_select');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1784, '57e89c13ce32ed23e21f45af5ce3d6bd0fea166e5bf06cffaa53f4c16138168e', 1800000252000, '20260911T190000_the_clinic_card_shows_services_and_its_full_description');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1831, '2d4756cd291db875792504b6cd5bb8c99f102ff0115159ae9c403d8c1e7dcd16', 1800000270000, '20260912T095500_booking_slot_snapshot_falls_back_to_registry_default');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1765, '06676d348900972b8e8c47f0ab647372f995ae909da17ff049c3c27163e97cea', 1800000243000, '20260913T093000_a_claimed_preview_row_says_so');
 
 
 --
