@@ -100,7 +100,7 @@ export function PatientHomeMoodCheckin({
         setSelectedScore(previousSelected);
         setSavedScore(previousSaved);
         setLastEntry(previousLast);
-        toast.error(data.message ?? notificationText.commonSaveFailedRetryLaterAlt);
+        toast.error(data.message ?? notificationText.commonSaveFailedRetryLater);
         return false;
       }
       setSelectedScore(data.mood.score);
@@ -116,7 +116,7 @@ export function PatientHomeMoodCheckin({
       setSelectedScore(previousSelected);
       setSavedScore(previousSaved);
       setLastEntry(previousLast);
-      toast.error(notificationText.commonSaveFailedRetryLaterAlt);
+      toast.error(notificationText.commonSaveFailedRetryLater);
       return false;
     } finally {
       setSubmittingScore(null);

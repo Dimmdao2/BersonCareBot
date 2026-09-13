@@ -12,6 +12,8 @@ import {
   DialogTitle,
 } from '@/shared/ui/doctor/primitives/dialog';
 import { useInstanceEditorDraft } from './InstanceEditorDraftContext';
+import { notificationText } from '@/shared/notifications/notificationText';
+import { readSafeActionErrorText } from '@/shared/http/apiErrorCode';
 
 type Props = {
   open: boolean;
@@ -58,7 +60,7 @@ export function InstanceEditorUnsavedChangesDialog(props: Props) {
                   return;
                 }
                 if (!r.cancelled && r.error) {
-                  toast.error(r.error);
+                  toast.error(readSafeActionErrorText(r, notificationText.commonSaveFailed));
                 }
               });
             }}

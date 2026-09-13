@@ -13,13 +13,16 @@ export function assertUuid(id: string): void {
 
 function assertTargetType(t: string): asserts t is (typeof COMMENT_TARGET_TYPES)[number] {
   if (!COMMENT_TARGET_TYPES.includes(t as (typeof COMMENT_TARGET_TYPES)[number])) {
-    throw new UserFacingError(notificationText.commentUnknownTargetType);
+    // G2 (safety audit): was 'Неизвестный target_type комментария' — leaked the live column name
+    // of the `comments` table to patients/doctors. Owner's rule: a doctor must never see an error
+    // that names our schema. Collapsed with assertCommentType's case into one neutral key.
+    throw new UserFacingError(notificationText.commentInvalidType);
   }
 }
 
 function assertCommentType(t: string): asserts t is (typeof COMMENT_TYPES)[number] {
   if (!COMMENT_TYPES.includes(t as (typeof COMMENT_TYPES)[number])) {
-    throw new UserFacingError(notificationText.commentUnknownType);
+    throw new UserFacingError(notificationText.commentInvalidType);
   }
 }
 

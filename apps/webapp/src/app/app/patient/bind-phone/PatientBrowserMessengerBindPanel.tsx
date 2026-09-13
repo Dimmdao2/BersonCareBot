@@ -19,6 +19,7 @@ import {
   type AuthChannelUiPolicy,
 } from '@/modules/auth/otpChannelUi';
 import { notificationText } from '@/shared/notifications/notificationText';
+import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
 
 const POLL_MS = 4000;
 
@@ -84,7 +85,8 @@ export function PatientBrowserMessengerBindPanel({
           } catch {
             /* ignore */
           }
-          toast.error(data.message ?? data.error ?? notificationText.messagingLinkFetchFailed);
+          // G3 (safety audit): `data.error` is a machine code, never product copy.
+          toast.error(readSafeApiErrorText(data, notificationText.messagingLinkFetchFailed));
           return;
         }
         if (channelCode === 'telegram') {

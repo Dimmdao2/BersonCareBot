@@ -59,7 +59,7 @@ export function WebPushVapidSection({
         toast.success(notificationText.commonSaved);
         router.refresh();
       } catch {
-        toast.error(notificationText.commonSaveError);
+        toast.error(notificationText.commonSaveFailed);
       }
     });
   }

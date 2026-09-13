@@ -17,6 +17,7 @@ import {
 } from '@/shared/ui/doctor/primitives/dropdown-menu';
 import { cn } from '@/lib/utils';
 import { notificationText } from '@/shared/notifications/notificationText';
+import { readSafeActionErrorText } from '@/shared/http/apiErrorCode';
 
 type Page = {
   id: string;
@@ -58,7 +59,7 @@ export function ContentLifecycleDropdown({ page }: { page: Page }) {
       try {
         const result = await applyContentLifecycle(null, formData);
         if (!result.ok) {
-          toast.error(result.error ?? notificationText.doctorActionApplyFailed);
+          toast.error(readSafeActionErrorText(result, notificationText.doctorActionApplyFailed));
           return;
         }
         router.refresh();

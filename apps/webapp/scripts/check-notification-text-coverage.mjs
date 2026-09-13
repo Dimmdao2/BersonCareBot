@@ -48,6 +48,19 @@
  *    or action name rather than user-visible text — e.g. `staffSecurityErrorText(error,
  *    'email_password_login')` selects an internal `switch`, it does not carry a sentence;
  *  - the dictionary file itself and test files (not part of the shown-text surface).
+ *
+ * TWO MORE RULES ADDED IN THE 2026-09-13 GATING PASS (independent safety audit, verdict FAIL):
+ *  - G3: a raw `.error` property (our own API routes' machine-code field, see
+ *    `shared/http/apiErrorCode.ts`) reachable in a `toast.error`/`toast.success` argument through
+ *    the same `??`/ternary/parens branches as the literal check — a bare code like `invalid_body`
+ *    must never render as the entire toast. Route it through `readSafeApiErrorText` (server
+ *    `message` field) or `readSafeActionErrorText` (client-local action-result `error` field) —
+ *    calls to either are exempt, same as any other dynamic expression on a branch.
+ *  - G4: an inline `message: '...'` literal inside `NextResponse.json`/`Response.json` — the
+ *    shape that let a route's own copy diverge from the dictionary for the SAME code. Grandfathered
+ *    by file for a large pre-existing surface this pass did not migrate (see
+ *    `RESPONSE_MESSAGE_LITERAL_GRANDFATHER_FILES`'s own doc comment for the honest count and why);
+ *    a literal in any file NOT on that list is still a gate failure.
  */
 import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
@@ -87,10 +100,63 @@ function collectFiles(dir, out = []) {
 const FALLBACK_TEXT_HELPER_ARG_INDEX = new Map([
   // `@/shared/http/apiErrorCode` — `readSafeApiErrorText(body, fallback)`.
   ['readSafeApiErrorText', 1],
+  // `@/shared/http/apiErrorCode` — `readSafeActionErrorText(result, fallback)` (G3, 2026-09-13
+  // gating pass: same shape as `readSafeApiErrorText`, but for a client-LOCAL action-result
+  // `{ error?: string }` instead of a parsed API response `{ message?: string }`).
+  ['readSafeActionErrorText', 1],
   // `@/app-layer/errors/safeUserError` — `safeActionErrorText(scope, error, fallbackText)`.
   ['safeActionErrorText', 2],
   // `@/app-layer/guards/requireEntitlement` — `mechanicWriteClearanceRefusalResponse(error, message)`.
   ['mechanicWriteClearanceRefusalResponse', 1],
+]);
+
+/**
+ * Pre-existing `message: '...'` literals inside `NextResponse.json`/`Response.json` bodies that
+ * this gating pass (G4, safety audit, 2026-09-13) did NOT migrate into the dictionary — the named
+ * divergent-duplicate sites (`email-password/login/route.ts`, `email-otp/register/route.ts`) ARE
+ * migrated, but a repo-wide AST sweep while building this rule found ~90 more static `message`
+ * literals scattered across ~34 route/handler files, almost all pre-existing auth/otp routes. A
+ * full migration of that surface is real work of its own and was judged out of scope for a gating
+ * pass — see the plan doc and this round's report for the honest count. Grandfathered by FILE (not
+ * by line, which drifts on unrelated edits): any `message` literal in one of these files is
+ * allowed for now, but a literal in ANY file NOT on this list is a gate failure, so the class this
+ * rule exists to stop — a new inline copy diverging from the dictionary — cannot reappear
+ * silently anywhere else. Shrink this list as files are migrated; do not grow it for new files.
+ */
+const RESPONSE_MESSAGE_LITERAL_GRANDFATHER_FILES = new Set([
+  'src/app-layer/guards/requireRole.ts',
+  'src/app/api/admin/clinic-delivery-test/route.ts',
+  'src/app/api/admin/google-calendar/calendars/route.ts',
+  'src/app/api/admin/google-calendar/start/route.ts',
+  'src/app/api/admin/settings/route.ts',
+  'src/app/api/auth/channel-link/start/route.ts',
+  'src/app/api/auth/check-phone/route.ts',
+  'src/app/api/auth/email-otp/confirm/route.ts',
+  'src/app/api/auth/email-otp/start/route.ts',
+  'src/app/api/auth/email-password/register/confirm/route.ts',
+  'src/app/api/auth/email/confirm/route.ts',
+  'src/app/api/auth/email/start/route.ts',
+  'src/app/api/auth/messenger/poll/route.ts',
+  'src/app/api/auth/messenger/start/route.ts',
+  'src/app/api/auth/oauth/callback/google/route.ts',
+  'src/app/api/auth/passkey/credentials/route.ts',
+  'src/app/api/auth/passkey/login/options/route.ts',
+  'src/app/api/auth/passkey/login/verify/route.ts',
+  'src/app/api/auth/passkey/register/options/route.ts',
+  'src/app/api/auth/passkey/register/verify/route.ts',
+  'src/app/api/auth/phone/confirm/route.ts',
+  'src/app/api/auth/phone/messenger-bind/finish/route.ts',
+  'src/app/api/auth/phone/messenger-bind/start/route.ts',
+  'src/app/api/auth/phone/messenger-bind/status/route.ts',
+  'src/app/api/auth/phone/start/route.ts',
+  'src/app/api/auth/telegram-login/route.ts',
+  'src/app/api/doctor/patients/[userId]/email-change/route.ts',
+  'src/app/api/patient/diary/purge/route.ts',
+  'src/app/api/patient/email-change/confirm/route.ts',
+  'src/app/api/patient/support/route.ts',
+  'src/app/api/public/support/route.ts',
+  'src/modules/auth/vkOAuthCallbackHandler.ts',
+  'src/modules/auth/yandexOAuthCallbackHandler.ts',
 ]);
 
 /** Does `node` look like `new UserFacingError(...)`, `toast.error/success(...)`, or a call to one
@@ -169,6 +235,107 @@ function collectLiteralLeaves(expr, out = []) {
   return out;
 }
 
+/**
+ * G3 (safety audit, 2026-09-13 gating pass): does `node` look like `toast.error(...)` or
+ * `toast.success(...)`? Deliberately narrower than `textArgumentOf` above — this rule is about a
+ * DIFFERENT failure mode (a raw, un-vetted `.error` property reaching the user, not a hand-typed
+ * literal), and the report that named it scoped it to "reaching a toast argument" specifically.
+ * `new UserFacingError(...)` is intentionally excluded: `instanceEditorBatchApply.ts`'s
+ * `throw new UserFacingError(duration.error)` is a documented, deliberate exception (an
+ * already-computed string from a foreign validator, not a machine code) from an earlier round.
+ */
+function toastArgumentOf(node) {
+  if (
+    ts.isCallExpression(node) &&
+    ts.isPropertyAccessExpression(node.expression) &&
+    ts.isIdentifier(node.expression.expression) &&
+    node.expression.expression.text === 'toast' &&
+    (node.expression.name.text === 'error' || node.expression.name.text === 'success') &&
+    node.arguments.length >= 1
+  ) {
+    return node.arguments[0];
+  }
+  return undefined;
+}
+
+/**
+ * Walks the same branch shapes as `collectLiteralLeaves` (`??`, ternary, parens) looking for a
+ * RAW property-access leaf named `error` (`data.error`, `data?.error`, …) — the shape behind the
+ * five sites the safety audit found (`toast.error(data.error ?? notificationText.xxx)`): our own
+ * API routes' `error` field is a machine code by contract (`shared/http/apiErrorCode.ts`), never
+ * product copy, so it must never be READ directly at a shown-text call site. A leaf that is
+ * instead a CALL — `readSafeApiErrorText(data, fallback)`, `readSafeActionErrorText(result,
+ * fallback)`, `staffSecurityErrorText(data.error, action)`, any other helper — is dynamic as far
+ * as this walk is concerned (same rule as `collectLiteralLeaves`: only ??/ternary/parens are
+ * followed) and is NOT a violation; that is how a codebase-local action-result convention where
+ * `.error` is already-safe display text (verified case by case in the 2026-09-13 gating pass,
+ * e.g. `saveDraft()`'s `{ error }`) stays clean by routing through `readSafeActionErrorText`
+ * instead of being read bare.
+ */
+function collectRawErrorCodeLeaves(expr, out = []) {
+  if (ts.isParenthesizedExpression(expr)) {
+    collectRawErrorCodeLeaves(expr.expression, out);
+    return out;
+  }
+  if (
+    (ts.isPropertyAccessExpression(expr) || ts.isPropertyAccessChain(expr)) &&
+    expr.name.text === 'error'
+  ) {
+    out.push(expr);
+    return out;
+  }
+  if (ts.isBinaryExpression(expr) && expr.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken) {
+    collectRawErrorCodeLeaves(expr.left, out);
+    collectRawErrorCodeLeaves(expr.right, out);
+    return out;
+  }
+  if (ts.isConditionalExpression(expr)) {
+    collectRawErrorCodeLeaves(expr.whenTrue, out);
+    collectRawErrorCodeLeaves(expr.whenFalse, out);
+    return out;
+  }
+  return out;
+}
+
+/**
+ * G4 (safety audit, 2026-09-13 gating pass): does `node` look like `NextResponse.json(...)` or
+ * `Response.json(...)`? Returns its `message` property's initializer if the first argument is an
+ * object literal with a plain-string (or no-substitution template) `message: '...'` — the shape
+ * that let a route's own inline copy diverge from the dictionary for the SAME code (the owner's
+ * worked example: two places, two different wordings, for "invalid credentials"). A `message`
+ * whose value is a variable, a call (including `notificationText.someKey`), or a template WITH
+ * interpolation is dynamic/already-safe and not returned.
+ */
+function responseJsonMessageLiteralOf(node) {
+  if (
+    !(
+      ts.isCallExpression(node) &&
+      ts.isPropertyAccessExpression(node.expression) &&
+      ts.isIdentifier(node.expression.expression) &&
+      (node.expression.expression.text === 'NextResponse' ||
+        node.expression.expression.text === 'Response') &&
+      node.expression.name.text === 'json' &&
+      node.arguments.length >= 1
+    )
+  ) {
+    return undefined;
+  }
+  let arg = node.arguments[0];
+  if (ts.isParenthesizedExpression(arg)) arg = arg.expression;
+  if (!ts.isObjectLiteralExpression(arg)) return undefined;
+  for (const prop of arg.properties) {
+    if (
+      ts.isPropertyAssignment(prop) &&
+      ts.isIdentifier(prop.name) &&
+      prop.name.text === 'message' &&
+      (ts.isStringLiteral(prop.initializer) || ts.isNoSubstitutionTemplateLiteral(prop.initializer))
+    ) {
+      return prop.initializer;
+    }
+  }
+  return undefined;
+}
+
 function checkSource(relativePath, text) {
   const findings = [];
   const sf = ts.createSourceFile(
@@ -190,6 +357,36 @@ function checkSource(relativePath, text) {
         );
       }
     }
+
+    // G3 (safety audit, 2026-09-13 gating pass): a raw `.error` reaching a toast argument.
+    const toastArgument = toastArgumentOf(node);
+    if (toastArgument) {
+      for (const leaf of collectRawErrorCodeLeaves(toastArgument)) {
+        const { line } = sf.getLineAndCharacterOfPosition(leaf.getStart(sf));
+        findings.push(
+          `${relativePath}:${line + 1}: raw ".error" property reachable in a toast argument — our ` +
+            `own API routes' "error" is a machine code by contract (shared/http/apiErrorCode.ts), ` +
+            `never product copy. Route it through readSafeApiErrorText/readSafeActionErrorText or a ` +
+            `notificationText reference instead (${JSON.stringify(leaf.getText(sf)).slice(0, 60)})`,
+        );
+      }
+    }
+
+    // G4 (safety audit, 2026-09-13 gating pass): an inline `message: '...'` literal inside a
+    // NextResponse.json/Response.json body — grandfathered for pre-existing files, see
+    // RESPONSE_MESSAGE_LITERAL_GRANDFATHER_FILES's doc comment.
+    if (!RESPONSE_MESSAGE_LITERAL_GRANDFATHER_FILES.has(relativePath)) {
+      const messageLiteral = responseJsonMessageLiteralOf(node);
+      if (messageLiteral) {
+        const { line } = sf.getLineAndCharacterOfPosition(messageLiteral.getStart(sf));
+        findings.push(
+          `${relativePath}:${line + 1}: string literal in a NextResponse.json/Response.json ` +
+            `"message" property — add it to notificationText.ts and reference the key instead ` +
+            `(${JSON.stringify(messageLiteral.text).slice(0, 60)})`,
+        );
+      }
+    }
+
     ts.forEachChild(node, visit);
   };
   visit(sf);
@@ -232,6 +429,15 @@ function selfTest() {
       "return { ok: false, error: safeActionErrorText('scope', e, 'Ошибка сохранения') };"],
     ['literal in mechanicWriteClearanceRefusalResponse fallback argument',
       "const r = mechanicWriteClearanceRefusalResponse(error, 'Невозможно сохранить шаблон.');"],
+    // G3 (safety audit, 2026-09-13 gating pass): raw ".error" reaching a toast argument.
+    ['raw .error property, direct toast argument', 'toast.error(data.error);'],
+    ['raw .error property, ?? fallback in toast argument', 'toast.error(data.error ?? notificationText.someKey);'],
+    ['raw .error property, optional-chain in toast argument', 'toast.error(data?.error ?? notificationText.someKey);'],
+    ['raw .error property on ternary branch in toast argument', 'toast.success(ok ? notificationText.someKey : result.error);'],
+    // G4 (safety audit, 2026-09-13 gating pass): inline message literal in a route response body.
+    ['NextResponse.json message literal',
+      "return NextResponse.json({ ok: false, error: 'x', message: 'Некорректные данные' }, { status: 400 });"],
+    ['Response.json message literal', "return Response.json({ error: 'x', message: 'Ошибка' });"],
   ];
   const safe = [
     ['dictionary reference', 'toast.error(notificationText.someKey);'],
@@ -248,6 +454,23 @@ function selfTest() {
       "safeActionErrorText('scope', e, notificationText.someKey);"],
     ['action-code (non-literal-text) second argument to an unrelated helper stays untouched',
       "staffSecurityErrorText(data.error, 'email_password_login');"],
+    // G3: a raw ".error" routed through one of the two dictionary-fallback helpers is safe — the
+    // helper call itself is the leaf as far as the branch walk is concerned, same as any other
+    // dynamic expression; only a BARE `.error` property access is a violation.
+    ['raw .error routed through readSafeApiErrorText stays safe',
+      'toast.error(readSafeApiErrorText(data, notificationText.someKey));'],
+    ['raw .error routed through readSafeActionErrorText stays safe',
+      'toast.error(readSafeActionErrorText(result, notificationText.someKey));'],
+    ['UserFacingError with a raw .error is the documented instanceEditorBatchApply.ts exception — ' +
+      'the toast-only rule does not look at UserFacingError at all',
+      'throw new UserFacingError(duration.error);'],
+    // G4: dynamic/dictionary message values are not literals.
+    ['NextResponse.json message from dictionary reference',
+      'return NextResponse.json({ ok: false, message: notificationText.someKey });'],
+    ['NextResponse.json message template literal with interpolation',
+      'return NextResponse.json({ message: `Код: ${code}` });'],
+    ['NextResponse.json with no message property',
+      "return NextResponse.json({ ok: false, error: 'x' });"],
   ];
 
   for (const [name, source] of leaking) {
@@ -261,8 +484,29 @@ function selfTest() {
       throw new Error(`self-test went red on a safe shape: ${name}\n${findings.join('\n')}`);
     }
   }
+
+  // G4: a message literal in a file ON the grandfather list is deliberately not flagged.
+  const grandfatheredPath = [...RESPONSE_MESSAGE_LITERAL_GRANDFATHER_FILES][0];
+  const grandfatheredFindings = checkSource(
+    grandfatheredPath,
+    "return NextResponse.json({ ok: false, message: 'Некорректные данные' });",
+  );
+  if (grandfatheredFindings.length > 0) {
+    throw new Error(
+      `self-test went red on a grandfathered file: ${grandfatheredPath}\n${grandfatheredFindings.join('\n')}`,
+    );
+  }
+  // ...but the SAME literal in a file NOT on that list is still a violation.
+  const nonGrandfatheredFindings = checkSource(
+    'src/app/api/some/new/route.ts',
+    "return NextResponse.json({ ok: false, message: 'Некорректные данные' });",
+  );
+  if (nonGrandfatheredFindings.length === 0) {
+    throw new Error('self-test stayed green on a message literal in a non-grandfathered file');
+  }
+
   console.log(
-    `notification text coverage self-test: OK (${leaking.length} leak fixtures red, ${safe.length} safe shapes green)`,
+    `notification text coverage self-test: OK (${leaking.length} leak fixtures red, ${safe.length} safe shapes green, grandfather-list exemption verified both ways)`,
   );
 }
 

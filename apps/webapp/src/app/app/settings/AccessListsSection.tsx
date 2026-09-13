@@ -68,7 +68,7 @@ export function AccessListsSection({
         }
         toast.success(notificationText.commonSaved);
       } catch {
-        toast.error(notificationText.commonSaveError);
+        toast.error(notificationText.commonSaveFailed);
       }
     });
   }

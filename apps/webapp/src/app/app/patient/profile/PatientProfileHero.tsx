@@ -23,6 +23,7 @@ import {
   type StructuredFio,
 } from '@/shared/lib/fio';
 import { notificationText } from '@/shared/notifications/notificationText';
+import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
 
 type Props = {
   displayName: string;
@@ -62,7 +63,7 @@ export function PatientProfileHero({
     const firstName = normalizeFioPart(fioDraft.firstName);
     const patronymic = normalizeFioPart(fioDraft.patronymic);
     if (!lastName || !firstName) {
-      toast.error(notificationText.patientSpecifyNameSurname);
+      toast.error(notificationText.commonSpecifyNameSurname);
       return;
     }
     if (
@@ -84,7 +85,9 @@ export function PatientProfileHero({
         | { ok?: boolean; fio?: StructuredFio; error?: string }
         | null;
       if (!response.ok || !result?.ok || !result.fio) {
-        toast.error(result?.error ?? notificationText.commonSaveFailed);
+        // G3 (safety audit, extended repo-wide sweep): `result.error` is a machine code
+        // (invalid_fio/fio_required/patient_not_found), never product copy.
+        toast.error(readSafeApiErrorText(result, notificationText.commonSaveFailed));
         return;
       }
       setPersistedFio(result.fio);

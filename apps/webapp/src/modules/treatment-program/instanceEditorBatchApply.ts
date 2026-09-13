@@ -136,7 +136,9 @@ function assertPersistedStageInDetail(
 ): void {
   if (isInstanceEditorBatchClientId(stageId)) {
     if (!previewIdMap.has(stageId)) {
-      throw new UserFacingError(notificationText.treatmentProgramStageUnknownDraftId);
+      // C4 (copy audit): was a separate static key producing byte-identical text to this factory
+      // call — collapsed.
+      throw new UserFacingError(notificationTextFactory.unknownDraftId('Этап'));
     }
     return;
   }

@@ -52,7 +52,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/doctor/primitives/tabs';
 import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
 import { notificationText } from '@/shared/notifications/notificationText';
-import { safeUserMessage } from '@/shared/errors/userFacingError';
+import { safeUserMessage, UserFacingError } from '@/shared/errors/userFacingError';
 
 /** §T3 preview — sample values so an admin sees a rendered letter, not raw `{{тариф}}` tokens. */
 const MAILING_PREVIEW_VARIABLES: Record<string, string> = {
@@ -250,12 +250,15 @@ function accessPolicyFromDraft(draft: AccessPolicyDraft | null): AccessLifecycle
   const graceDays = nullableNonnegativeInteger(draft.graceDays);
   const readOnlyDays = nullableNonnegativeInteger(draft.readOnlyDays);
   if (graceDays === null || readOnlyDays === null || draft.terminalState === null) {
-    throw new Error('Заполните все поля лестницы доступа');
+    // C1 (copy audit): was a plain `Error` — `safeUserMessage` only recognises `UserFacingError`,
+    // so this specific, actually-useful validation text was silently discarded in favour of the
+    // generic `adminCheckAccessLadder` fallback every time. `UserFacingError` makes it surface.
+    throw new UserFacingError(notificationText.adminAccessLadderFieldsRequired);
   }
   const notifications = draft.notifications.map((rule) => {
     const offsetDays = Number(rule.offsetDays);
     if (!rule.offsetDays.trim() || !Number.isSafeInteger(offsetDays)) {
-      throw new Error('В каждом уведомлении заполните срок');
+      throw new UserFacingError(notificationText.adminAccessLadderNotificationOffsetRequired);
     }
     return {
       offsetDays,

@@ -5,6 +5,7 @@ import { Button } from '@/shared/ui/doctor/primitives/button';
 import { isProgramInstanceEditLocked } from './programInstanceMutationGuard';
 import { useInstanceEditorDraft } from './InstanceEditorDraftContext';
 import { notificationText } from '@/shared/notifications/notificationText';
+import { readSafeActionErrorText } from '@/shared/http/apiErrorCode';
 
 /** @deprecated На экране инстанса заменён на {@link InstanceEditorToolbar}. Оставлен для unit-тестов legacy-поведения save/discard. */
 export function InstanceEditorSaveBar() {
@@ -38,7 +39,7 @@ export function InstanceEditorSaveBar() {
               if (r.ok) {
                 toast.success(notificationText.doctorChangesSaved);
               } else if (!r.cancelled && r.error) {
-                toast.error(r.error);
+                toast.error(readSafeActionErrorText(r, notificationText.commonSaveFailed));
               }
             });
           }}

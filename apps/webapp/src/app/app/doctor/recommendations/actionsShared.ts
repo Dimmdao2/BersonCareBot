@@ -204,7 +204,7 @@ export async function saveRecommendationCore(
   } catch (e) {
     return {
       ok: false,
-      error: safeActionErrorText('app/doctor/recommendations', e, notificationText.doctorFinanceSaveError),
+      error: safeActionErrorText('app/doctor/recommendations', e, notificationText.commonSaveFailed),
     };
   }
 }

@@ -220,7 +220,7 @@ export async function saveClinicalTestCore(
   } catch (e) {
     return {
       ok: false,
-      error: safeActionErrorText('app/doctor/clinical-tests', e, notificationText.doctorFinanceSaveError),
+      error: safeActionErrorText('app/doctor/clinical-tests', e, notificationText.commonSaveFailed),
     };
   }
 }

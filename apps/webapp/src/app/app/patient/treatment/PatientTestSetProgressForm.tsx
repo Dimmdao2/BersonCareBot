@@ -597,7 +597,7 @@ export function PatientTestSetProgressForm(props: PatientTestSetProgressFormProp
                             item?: unknown;
                           };
                           if (!res.ok || !data.ok) {
-                            const msg = readSafeApiErrorText(data, notificationText.doctorFinanceSaveError);
+                            const msg = readSafeApiErrorText(data, notificationText.commonSaveFailed);
                             setErrorByTestId((e) => ({ ...e, [t.testId]: msg }));
                             return;
                           }
@@ -723,7 +723,7 @@ export function PatientTestSetProgressForm(props: PatientTestSetProgressFormProp
                           error?: string;
                         };
                         if (!res.ok || !data.ok) {
-                          const msg = readSafeApiErrorText(data, notificationText.doctorFinanceSaveError);
+                          const msg = readSafeApiErrorText(data, notificationText.commonSaveFailed);
                           setErrorByTestId((e) => ({ ...e, [t.testId]: msg }));
                           return;
                         }

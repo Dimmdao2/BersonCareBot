@@ -69,7 +69,7 @@ export function DefaultPromoProgramClient(props: {
         message?: string;
       };
       if (!res.ok || !data.ok) {
-        toast.error(readSafeApiErrorText(data, notificationText.patientReminderUpdateFailed));
+        toast.error(readSafeApiErrorText(data, notificationText.treatmentProgramPromoRefreshFailed));
         return;
       }
       const count = data.refreshedCount ?? 0;

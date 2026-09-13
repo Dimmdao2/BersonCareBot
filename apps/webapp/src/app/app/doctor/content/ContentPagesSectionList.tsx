@@ -39,6 +39,7 @@ import { reorderContentPagesInSection } from './reorderContentPages';
 import { SectionDeleteDialog } from './sections/SectionDeleteDialog';
 import toast from 'react-hot-toast';
 import { notificationText } from '@/shared/notifications/notificationText';
+import { readSafeActionErrorText } from '@/shared/http/apiErrorCode';
 
 export type ContentPageListRow = {
   id: string;
@@ -273,7 +274,7 @@ export function ContentPagesSectionList({
             const res = await reorderContentPagesInSection(sectionSlug, orderedIds);
             if (!res.ok) {
               setItems(previous);
-              toast.error(res.error ?? notificationText.doctorContentOrderUpdateFailed);
+              toast.error(readSafeActionErrorText(res, notificationText.doctorContentOrderUpdateFailed));
             }
           } catch {
             setItems(previous);
@@ -293,7 +294,7 @@ export function ContentPagesSectionList({
         if (res.ok) {
           setItems((prev) => prev.map((p) => (p.id === id ? { ...p, requiresAuth: next } : p)));
         } else {
-          toast.error(res.error ?? notificationText.doctorContentAccessUpdateFailed);
+          toast.error(readSafeActionErrorText(res, notificationText.doctorContentAccessUpdateFailed));
         }
       } catch {
         toast.error(notificationText.doctorContentAccessUpdateFailed);

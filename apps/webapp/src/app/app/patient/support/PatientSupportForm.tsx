@@ -11,6 +11,7 @@ import { routePaths } from '@/app-layer/routes/paths';
 import { cn } from '@/lib/utils';
 import { patientCaptionTextClass, patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
 import { notificationText } from '@/shared/notifications/notificationText';
+import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
 
 const MAX_LEN = 4000;
 
@@ -66,7 +67,8 @@ export function PatientSupportForm({
         return;
       }
       if (!res.ok || !data.ok) {
-        toast.error(data.message ?? data.error ?? notificationText.commonSendFailed);
+        // G3 (safety audit): `data.error` is a machine code, never product copy.
+        toast.error(readSafeApiErrorText(data, notificationText.commonSendFailed));
         return;
       }
       toast.success(data.message ?? notificationText.messagingMessageSent);

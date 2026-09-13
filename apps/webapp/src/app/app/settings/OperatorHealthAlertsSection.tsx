@@ -128,7 +128,10 @@ export function OperatorHealthAlertsSection({
         digestTime: normalizedDigestTime,
       });
       if (!alertsResult.ok) {
-        toast.error(alertsResult.error ?? notificationText.settingsOperatorAlertsSaveFailed);
+        // G3 (safety audit, extended repo-wide sweep): `alertsResult.error` may carry either a
+        // safe machine code (`ApiRequestError.code`) or a bare caught-exception `.message` — never
+        // product copy. Always show the dictionary text instead of trusting it.
+        toast.error(notificationText.settingsOperatorAlertsSaveFailed);
         return;
       }
       const fallbackResult = await patchAdminSettingWithResult(
@@ -136,7 +139,7 @@ export function OperatorHealthAlertsSection({
         checkedFallbackEmail.value,
       );
       if (!fallbackResult.ok) {
-        toast.error(fallbackResult.error ?? notificationText.settingsOperatorAlertsFallbackEmailSaveFailed);
+        toast.error(notificationText.settingsOperatorAlertsFallbackEmailSaveFailed);
         return;
       }
       setFallbackEmail(checkedFallbackEmail.value);

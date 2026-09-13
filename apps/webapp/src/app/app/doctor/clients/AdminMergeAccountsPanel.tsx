@@ -34,6 +34,7 @@ import {
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 import { notificationText } from '@/shared/notifications/notificationText';
+import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
 
 type CandidateRow = {
   id: string;
@@ -444,18 +445,21 @@ export function AdminMergeAccountsPanel({
       try {
         data = (await res.json()) as { ok?: boolean; error?: string; message?: string };
       } catch {
+        // G3 (safety audit): dropped the raw HTTP status from the toast text — a technical
+        // detail, not product copy.
         toast.error(
           res.status === 403
             ? notificationText.doctorMergeAccessDenied
-            : `Ответ сервера без JSON (HTTP ${res.status}).`,
+            : notificationText.doctorMergeResponseInvalid,
         );
         return;
       }
       if (!res.ok || !data.ok) {
+        // G3: `data.error` is a machine code, never product copy.
         const hint =
           res.status === 403
             ? notificationText.doctorMergeAccessDenied
-            : (data.message ?? data.error ?? `merge_failed (HTTP ${res.status})`);
+            : readSafeApiErrorText(data, notificationText.doctorMergeFailed);
         toast.error(hint);
         return;
       }

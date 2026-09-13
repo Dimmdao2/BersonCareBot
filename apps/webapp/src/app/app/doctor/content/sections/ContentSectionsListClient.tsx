@@ -45,6 +45,7 @@ import { SectionDeleteDialog } from './SectionDeleteDialog';
 import toast from 'react-hot-toast';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 import { notificationText } from '@/shared/notifications/notificationText';
+import { readSafeActionErrorText } from '@/shared/http/apiErrorCode';
 
 export type SectionListRow = {
   id: string;
@@ -316,7 +317,7 @@ export function ContentSectionsListClient({
           const res = await reorderContentSections(orderedSlugs);
           if (!res.ok) {
             setItems(previous);
-            toast.error(res.error ?? notificationText.doctorSectionOrderUpdateFailed);
+            toast.error(readSafeActionErrorText(res, notificationText.doctorSectionOrderUpdateFailed));
           }
         } catch {
           setItems(previous);
@@ -334,7 +335,7 @@ export function ContentSectionsListClient({
         if (res.ok) {
           setItems((prev) => prev.map((r) => (r.slug === slug ? { ...r, isVisible: next } : r)));
         } else {
-          toast.error(res.error ?? notificationText.doctorSectionVisibilityUpdateFailed);
+          toast.error(readSafeActionErrorText(res, notificationText.doctorSectionVisibilityUpdateFailed));
         }
       } catch {
         toast.error(notificationText.doctorSectionVisibilityUpdateFailed);
@@ -349,7 +350,7 @@ export function ContentSectionsListClient({
         if (res.ok) {
           setItems((prev) => prev.map((r) => (r.slug === slug ? { ...r, requiresAuth: next } : r)));
         } else {
-          toast.error(res.error ?? notificationText.doctorSectionAccessUpdateFailed);
+          toast.error(readSafeActionErrorText(res, notificationText.doctorSectionAccessUpdateFailed));
         }
       } catch {
         toast.error(notificationText.doctorSectionAccessUpdateFailed);

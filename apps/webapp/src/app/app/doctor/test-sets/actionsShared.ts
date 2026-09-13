@@ -176,7 +176,7 @@ export async function saveTestSetCore(
   } catch (e) {
     return {
       ok: false,
-      error: safeActionErrorText('app/doctor/test-sets', e, notificationText.doctorFinanceSaveError),
+      error: safeActionErrorText('app/doctor/test-sets', e, notificationText.commonSaveFailed),
     };
   }
 }

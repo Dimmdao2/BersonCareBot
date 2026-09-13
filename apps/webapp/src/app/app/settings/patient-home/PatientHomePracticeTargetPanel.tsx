@@ -31,7 +31,7 @@ export function PatientHomePracticeTargetPanel(props: { initialTarget: number })
       }
       toast.success(notificationText.commonSaved);
     } catch {
-      toast.error(notificationText.settingsPatientHomeSaveFailed);
+      toast.error(notificationText.commonSaveFailed);
     } finally {
       setPending(false);
     }

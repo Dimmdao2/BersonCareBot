@@ -119,7 +119,7 @@ export function CommentBlock({
       });
       const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
       if (!res.ok || !data.ok) {
-        setError(readSafeApiErrorText(data, notificationText.doctorFinanceSaveError));
+        setError(readSafeApiErrorText(data, notificationText.commonSaveFailed));
         return;
       }
       setNewBody('');

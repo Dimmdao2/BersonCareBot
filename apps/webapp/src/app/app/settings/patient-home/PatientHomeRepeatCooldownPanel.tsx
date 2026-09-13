@@ -73,7 +73,7 @@ export function PatientHomeRepeatCooldownPanel(props: Props) {
       toast.success(notificationText.commonSaved);
       router.refresh();
     } catch {
-      toast.error(notificationText.settingsPatientHomeSaveFailed);
+      toast.error(notificationText.commonSaveFailed);
     } finally {
       setPending(false);
     }

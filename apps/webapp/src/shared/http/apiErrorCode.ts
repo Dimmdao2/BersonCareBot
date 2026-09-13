@@ -42,3 +42,24 @@ export function readSafeApiErrorText(body: unknown, fallback: string): string {
   }
   return fallback;
 }
+
+/**
+ * Text from a client-LOCAL action-result shape (`{ ok: false; error?: string }`, the convention
+ * used by `'use server'` actions and `saveDraft()`-style hooks in this codebase) whose `error`
+ * field the action itself always populates with dictionary-backed or otherwise pre-vetted text —
+ * never a machine code. Kept distinct from `readSafeApiErrorText`'s `message` field, which is the
+ * convention for a parsed `fetch(...).json()` body from OUR OWN API routes (where `error` is a
+ * machine code by contract, see this file's header comment, and must never reach the reader raw).
+ *
+ * G3 (safety audit, extended repo-wide sweep, 2026-09-13): `notificationText.<key>` is the same
+ * dictionary reference either way, so this is only a naming/plumbing distinction; the coverage
+ * gate treats a call to this helper exactly like `readSafeApiErrorText` — a bare `.error` read
+ * NOT routed through one of these two helpers is what the gate flags.
+ */
+export function readSafeActionErrorText(result: unknown, fallback: string): string {
+  if (typeof result === 'object' && result !== null) {
+    const error = (result as { error?: unknown }).error;
+    if (typeof error === 'string' && error.trim()) return error.trim();
+  }
+  return fallback;
+}

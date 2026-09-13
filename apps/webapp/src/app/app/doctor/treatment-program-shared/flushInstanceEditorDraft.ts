@@ -50,7 +50,7 @@ export async function flushInstanceEditorDraft(input: {
     message?: string;
   } | null;
   if (!res.ok || !data?.ok) {
-    return { ok: false, error: readSafeApiErrorText(data, notificationText.doctorFinanceSaveError) };
+    return { ok: false, error: readSafeApiErrorText(data, notificationText.commonSaveFailed) };
   }
   return { ok: true };
 }

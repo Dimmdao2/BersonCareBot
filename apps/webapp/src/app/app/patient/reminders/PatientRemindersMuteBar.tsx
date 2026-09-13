@@ -47,10 +47,10 @@ export function PatientRemindersMuteBar({
           toast.error(notificationText.patientReminderPauseUpdateFailed);
           return;
         }
-        toast.success(notificationText.patientRemindersMuteToggleDone);
+        toast.success(notificationText.commonDone);
         refresh();
       } catch {
-        toast.error(notificationText.patientRemindersMuteToggleNetworkUnavailable);
+        toast.error(notificationText.commonNetworkUnavailable);
       }
     });
   };

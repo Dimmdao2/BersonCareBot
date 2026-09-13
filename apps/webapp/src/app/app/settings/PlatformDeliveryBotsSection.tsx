@@ -80,7 +80,7 @@ function PlatformBotForm({ platform }: { platform: PlatformBotSettings }) {
         setMaxWebhookSecret('');
         toast.success(notificationText.commonSaved);
       } catch {
-        toast.error(notificationText.commonSaveError);
+        toast.error(notificationText.commonSaveFailed);
       }
     });
   return (

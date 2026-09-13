@@ -78,7 +78,10 @@ export async function POST(request: Request) {
         {
           ok: false,
           error: 'proxy_configuration',
-          message: 'Защита входа временно недоступна. Повторите попытку позже.',
+          // G4 (safety audit): was a divergent inline copy of `authProxyConfiguration` — the
+          // route's own text used to win on this screen while the dictionary's won everywhere
+          // else, for the SAME code. One wording now, read from the dictionary.
+          message: notificationText.authProxyConfiguration,
         },
         { status: 503 },
       );
@@ -87,7 +90,9 @@ export async function POST(request: Request) {
       {
         ok: false,
         error: 'rate_limited',
-        message: 'Слишком много запросов. Подождите 10 минут и повторите попытку.',
+        // G4: was a divergent inline copy of `authRateLimited` (a THIRD variant,
+        // `authTooManyRequestsRetryLater`, existed too, for a different rate limiter's fallback).
+        message: notificationText.authRateLimited,
         retryAfterSeconds: AUTH_CONFIRM_RATE_LIMIT_SEC,
       },
       {
@@ -104,7 +109,8 @@ export async function POST(request: Request) {
       {
         ok: false,
         error: 'invalid_body',
-        message: 'Данные введены неверно. Проверьте их и повторите действие.',
+        // G4: exact duplicate of `authInvalidBody` typed inline instead of referenced.
+        message: notificationText.authInvalidBody,
       },
       { status: 400 },
     );
@@ -145,7 +151,8 @@ export async function POST(request: Request) {
         {
           ok: false,
           error: 'email_not_verified',
-          message: 'Email не подтверждён. Подтвердите адрес и повторите вход.',
+          // G4: exact duplicate of `authEmailNotVerifiedRetryLogin` typed inline.
+          message: notificationText.authEmailNotVerifiedRetryLogin,
         },
         { status: 409 },
       );
@@ -203,7 +210,8 @@ export async function POST(request: Request) {
             {
               ok: false,
               error: 'security_setup_pending',
-              message: 'Не удалось подготовить защищённый вход. Повторите попытку позже.',
+              // G4: exact duplicate of `authSecuritySetupPending` typed inline.
+              message: notificationText.authSecuritySetupPending,
             },
             { status: 503 },
           );
@@ -231,7 +239,8 @@ export async function POST(request: Request) {
           {
             ok: false,
             error: 'email_factor_unavailable',
-            message: 'Не удалось отправить код подтверждения. Повторите попытку позже.',
+            // G4 (extended while already touching this file's other inline literals).
+            message: notificationText.authEmailFactorSendFailed,
           },
           { status: 503 },
         );

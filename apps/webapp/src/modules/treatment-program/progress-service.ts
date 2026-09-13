@@ -401,7 +401,7 @@ export function createTreatmentProgramProgressService(deps: {
           throw new UserFacingError(notificationText.treatmentProgramRecurringRecommendationNotCompletable);
         }
         if (item.itemType === 'clinical_test') {
-          throw new UserFacingError(notificationText.treatmentProgramUseTestResultSubmission);
+          throw new UserFacingError(notificationText.treatmentProgramUseTestResultRecording);
         }
         const latest = await actionLog.lockSimpleCompletionTargetAndGetLatest({
           instanceId: input.instanceId,

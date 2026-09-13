@@ -48,6 +48,19 @@ export function staffSecurityErrorText(error: string | undefined, action: Securi
       return notificationText.authInvalidRecoveryCode;
     case 'invalid_credentials':
       return notificationText.authInvalidCredentialsSessionExpired;
+    case 'expired_code':
+      // G1 (safety audit): the route clears the login continuation before responding for this
+      // code, so "введите код ещё раз" (the generic login_factor fallback) is guaranteed to fail
+      // forever. Reuse the same text as `login_challenge_expired` — the correct next step really
+      // is to log in again and request a fresh code.
+      return notificationText.authLoginChallengeExpired;
+    case 'too_many_attempts':
+      // G1: this code arrives with HTTP 429 — never invite deepening the lockout.
+      return notificationText.authTooManyAttemptsRetryLater;
+    case 'invalid_code':
+      return notificationText.authInvalidFactor;
+    case 'email_conflict':
+      return notificationText.authLoginFactorEmailConflict;
     // Role/portal mismatch (roleCanUsePortal, pre-session) reads to the browser as wrong
     // credentials on purpose: revealing "this account exists but has no access to this door"
     // would leak role information to anyone probing the wrong login form with guessed creds.

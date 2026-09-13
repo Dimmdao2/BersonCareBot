@@ -769,7 +769,7 @@ export function createTreatmentProgramInstanceService(deps: {
       if (input.groupId) assertUuid(input.groupId);
       if ((input.itemType as string) === 'lfk_complex') {
         throw new UserFacingError(
-          notificationText.treatmentProgramUseComplexExpandFromLfk,
+          notificationText.treatmentProgramUseComplexExpand,
         );
       }
       await itemRefs.assertItemRefExists(input.itemType, input.itemRefId);
