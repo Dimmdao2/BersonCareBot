@@ -286,7 +286,7 @@ export function AuthProvidersSection({
               Для серверного OAuth 2.1 нужны ID приложения, защищённый ключ и точный redirect URI.
               Сервисный ключ доступа VK API для входа через VK ID не требуется и здесь не хранится.
             </p>
-            <DoctorField label="ID приложения (client_id / APP_ID)" htmlFor="auth-vk-client-id">
+            <DoctorField label="ID приложения" htmlFor="auth-vk-client-id">
               <Input
                 id="auth-vk-client-id"
                 type="text"

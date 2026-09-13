@@ -272,7 +272,7 @@ export function AdminAuditLogSection({ displayTimeZone }: { displayTimeZone: str
               id="audit-target"
               value={draft.target}
               onChange={(e) => setDraft((d) => ({ ...d, target: e.target.value }))}
-              placeholder="UUID или произвольный id"
+              placeholder="код объекта или любой его идентификатор"
               className="font-mono text-sm"
             />
           </DoctorField>

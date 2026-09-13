@@ -68,7 +68,7 @@ export const PLATFORM_INTEGRATION_CATALOG: readonly PlatformIntegrationCatalogEn
     implementation: 'available',
     clinicConfiguration: 'tariff_gated_sender_credentials',
     clinicHint:
-      'Локальный SMS-провайдер и пакеты SMS относятся к отдельному клиническому и тарифному слайсу.',
+      'Локальный SMS-провайдер и пакеты SMS подключаются отдельно и зависят от тарифа.',
   },
   {
     id: 'web_push',

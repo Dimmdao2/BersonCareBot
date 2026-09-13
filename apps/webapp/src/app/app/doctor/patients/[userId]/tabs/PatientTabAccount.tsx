@@ -10,11 +10,14 @@
  *  2.5. Сопровождение   — «Настроить» opens `DoctorClientSupportPanel` in a `DoctorModal` (owner live
  *     TEST 08.09: settings only live here, behind a button; Overview keeps only the read-only marker).
  *  3. Доступ к аккаунту — two equal-width Заблокировать/В архив buttons, no heading.
- *  4. Администрирование — AdminMergeAccountsPanel (collapsed by default) + audit log (admin-only,
- *     untouched — out of scope for this pass).
+ *  4. Администрирование — журнал изменений.
  *
  * Removed from here (moved to other tabs, pre-existing):
  *  - Платежи       → PatientTabRecords
+ *  - Объединение карточек → снято 13.09 по решению владельца: это инструмент админа ПЛАТФОРМЫ,
+ *    на карточке пациента у врача ему не место. Перенос в консоль платформы заведён отдельной
+ *    задачей; сама панель (`AdminMergeAccountsPanel`) и маршруты `api/doctor/clients/merge*`
+ *    оставлены на месте, чтобы переносить было что.
  */
 
 import { useCallback, useEffect, useState } from 'react';
@@ -41,7 +44,6 @@ import {
 import { cn } from '@/lib/utils';
 import { formatDoctorFio } from '@/shared/lib/fio';
 import { formatTelegramUsernameMention } from '@/modules/messaging/patientTelegramUsernameMention';
-import { AdminMergeAccountsPanel } from '@/app/app/doctor/clients/AdminMergeAccountsPanel';
 import { DoctorClientSupportPanel } from '@/app/app/doctor/clients/DoctorClientSupportPanel';
 import { AdminClientAuditHistorySection } from '@/app/app/doctor/clients/AdminClientAuditHistorySection';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
@@ -659,7 +661,6 @@ export function PatientTabAccount({
   // ---------------------------------------------------------------------------
   // Merge block collapse state
   // ---------------------------------------------------------------------------
-  const [mergeOpen, setMergeOpen] = useState(false);
 
   // ---------------------------------------------------------------------------
   // Render
@@ -880,29 +881,6 @@ export function PatientTabAccount({
                 </KVRow>
               </tbody>
             </table>
-
-            {/* Merge — collapsible, suspended until opened */}
-            <details
-              open={mergeOpen}
-              onToggle={(e) => setMergeOpen((e.currentTarget as HTMLDetailsElement).open)}
-              className="group"
-            >
-              <summary className="flex cursor-pointer list-none items-center gap-1 py-0.5">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground select-none">
-                  Объединение (merge)
-                </p>
-                <span className="ml-auto text-[10px] text-muted-foreground/60 select-none">
-                  {mergeOpen ? '▾' : '▸'}
-                </span>
-              </summary>
-              <div className="mt-1">
-                <AdminMergeAccountsPanel
-                  anchorUserId={userId}
-                  enabled
-                  suspendHeavyFetch={!active || !mergeOpen}
-                />
-              </div>
-            </details>
 
             {/* Audit log — AdminClientAuditHistorySection (handles 403 gracefully) */}
             <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mt-2">

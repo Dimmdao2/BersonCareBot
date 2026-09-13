@@ -108,7 +108,7 @@ export function PatientHomeCreateSectionInlineDialog({
             />
           </div>
           <div className="space-y-1">
-            <Label htmlFor="ph-inline-sec-slug">Slug</Label>
+            <Label htmlFor="ph-inline-sec-slug">Адрес</Label>
             <div className="flex flex-wrap gap-2">
               <Input
                 id="ph-inline-sec-slug"

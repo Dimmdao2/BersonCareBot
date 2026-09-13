@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { AdminMergeAccountsPanel } from './AdminMergeAccountsPanel';
 import { AdminClientAuditHistorySection } from './AdminClientAuditHistorySection';
 import {
   doctorClientPanelStackClass,
@@ -35,13 +34,6 @@ export function DoctorClientCardAdminSection({
         Админ
       </summary>
       <div className={`border-t border-border px-4 pb-4 pt-4 ${doctorClientPanelStackClass}`}>
-        {canPermanentDelete ? (
-          <AdminMergeAccountsPanel
-            anchorUserId={userId}
-            enabled
-            suspendHeavyFetch={!adminDetailsOpen}
-          />
-        ) : null}
         {canPermanentDelete ? (
           <AdminClientAuditHistorySection
             platformUserId={userId}
