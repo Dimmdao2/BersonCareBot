@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react';
 import toast from 'react-hot-toast';
 import { apiJson } from '@/shared/lib/apiJson';
 import { notificationText } from '@/shared/notifications/notificationText';
+import { safeUserMessage } from '@/shared/errors/userFacingError';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/primitives/card';
 import { Input } from '@/shared/ui/doctor/primitives/input';
@@ -204,11 +205,7 @@ export function ClinicDeliveryChannelsSection({
                           email: { status: 'pending' },
                         }));
                       } catch (cause) {
-                        toast.error(
-                          cause instanceof Error && cause.message.trim()
-                            ? cause.message
-                            : notificationText.settingsSmtpSaveFailedRetry,
-                        );
+                        toast.error(safeUserMessage(cause, notificationText.settingsSmtpSaveFailedRetry));
                       }
                     })
                   }

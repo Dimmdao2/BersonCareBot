@@ -16,6 +16,7 @@ import {
 import { BookingStaffPaymentPanel } from './BookingStaffPaymentPanel';
 import { apiJson } from '@/shared/lib/apiJson';
 import { notificationText } from '@/shared/notifications/notificationText';
+import { safeUserMessage } from '@/shared/errors/userFacingError';
 
 const CANCEL_TYPES = [
   { value: 'free', label: 'Бесплатная' },
@@ -166,7 +167,7 @@ export function BookingManualLifecycleSection({
                     );
                     toast.success(notificationText.settingsCancellationApplied);
                   } catch (e) {
-                    toast.error(e instanceof Error ? e.message : notificationText.commonUnknownError);
+                    toast.error(safeUserMessage(e, notificationText.commonUnknownError));
                   }
                 });
               }}
@@ -220,7 +221,7 @@ export function BookingManualLifecycleSection({
                     );
                     toast.success(notificationText.settingsRescheduleApplied);
                   } catch (e) {
-                    toast.error(e instanceof Error ? e.message : notificationText.commonUnknownError);
+                    toast.error(safeUserMessage(e, notificationText.commonUnknownError));
                   }
                 });
               }}

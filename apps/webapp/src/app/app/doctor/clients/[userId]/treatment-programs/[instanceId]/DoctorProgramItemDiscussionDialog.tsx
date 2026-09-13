@@ -136,7 +136,7 @@ export function DoctorProgramItemDiscussionDialog(props: {
       const data = (await res.json().catch(() => null)) as DiscussionPageResponse | null;
       if (generation !== loadGenerationRef.current) return null;
       if (!res.ok || !data?.ok || !Array.isArray(data.messages)) {
-        throw new Error(readSafeApiErrorText(data, 'Не удалось загрузить обсуждение'));
+        throw new Error(readSafeApiErrorText(data, notificationText.doctorProgramItemDiscussionLoadFailed));
       }
       const loaded = data.messages;
       setMessages((current) => reconcileMessages(current, loaded, appendOlder));

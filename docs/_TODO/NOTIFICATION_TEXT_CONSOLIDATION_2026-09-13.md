@@ -193,5 +193,78 @@ admin, booking, любые другие) в ОДИН файл/объект (на
       вызова. Оба дефекта (2 и 2b) описаны как обход ВЫРАЖЕНИЯ аргумента одного вызова (`??`,
       тернарник, вложенность), а не межстрочный data-flow — ловить второе потребовало бы другого
       класса анализа и является отдельной, не заявленной в этой работе задачей.
-- [ ] Независимый адверсарный аудит этого верификационного прохода — НЕ выполнен этим же агентом
-      (правило: аудитор ≠ автор). Требуется отдельный проход перед финальной приёмкой владельцем.
+- [x] Независимый адверсарный аудит верификационного прохода выше нашёл ещё две дыры (Дефект 3,
+      Дефект 4) — исправлены в этом, третьем проходе (см. секцию ниже). Аудит следующего прохода —
+      снова отдельным агентом перед приёмкой владельцем.
+
+## Третий проход (2026-09-13, следующий круг независимого аудита нашёл 2 дефекта) — исправлено
+
+Ветка `wt/notification-text-consolidation`, база `0c6469639`, предыдущий HEAD `1cac021cc`.
+
+- [x] **Дефект 3 — 51 литерал прятался в аргументе-фолбэке хелпера `readSafeApiErrorText(body,
+      fallback)`, а не в самом аргументе `toast.error`/`UserFacingError`.** Репро ДО фикса:
+      `grep -rn --include='*.ts' --include='*.tsx' "readSafeApiErrorText(.*, *'" apps/webapp/src |
+      grep -v '\.test\.' | wc -l` → 51 (21 файл). Проверены и мигрированы ВСЕ 51: часть схлопнулась
+      на уже существующие ключи (`commonSaveFailed`, `commonGenericError`, `doctorFinanceSaveError`,
+      `patientReminderUpdateFailed`, `doctorOrderUpdateFailed`, `treatmentProgramStageOrderUpdateFailed`,
+      `treatmentProgramGroupAddFailed`, `treatmentProgramStageAddFailed`,
+      `treatmentProgramElementAddFailed`), 24 новых семантических ключа заведены. Найдены и включены
+      в тот же перенос ещё ДВА хелпера того же класса (аргумент-фолбэк с реальным человеческим
+      текстом, а не машинным кодом): `safeActionErrorText(scope, error, fallbackText)` (8 сайтов,
+      `app-layer/errors/safeUserError.ts` НЕ тронут — только call site'ы) и
+      `mechanicWriteClearanceRefusalResponse(error, message)` (2 сайта,
+      `app-layer/guards/requireEntitlement.ts` НЕ тронут) — итого 61 сайт, 33 новых ключа. `staffSecurityErrorText(error, 'email_password_login')`
+      и аналоги (`errorLabel('chat_send_failed', …)`) намеренно НЕ тронуты — второй аргумент код
+      действия для внутреннего `switch`, не текст. Повторный прогон репро-грепа ПОСЛЕ миграции — 0
+      (обе команды из брифа: построчная и `-l`).
+- [x] **Дефект 3b — гейт расширен на форму «литерал в аргументе-фолбэке хелпера».** В
+      `apps/webapp/scripts/check-notification-text-coverage.mjs` добавлена карта
+      `FALLBACK_TEXT_HELPER_ARG_INDEX` (`readSafeApiErrorText`→1, `safeActionErrorText`→2,
+      `mechanicWriteClearanceRefusalResponse`→1); `textArgumentOf` возвращает их аргумент-фолбэк
+      как «текст, который увидит пользователь» — обход AST уже проверяет КАЖДЫЙ узел дерева
+      (`visit()`), поэтому вызов хелпера ловится независимо от глубины и формы обёртки
+      (`toast.error(readSafeApiErrorText(...))`, `setError(readSafeApiErrorText(...))`,
+      `throw new Error(readSafeApiErrorText(...))`, `return { error: readSafeApiErrorText(...) }`
+      — все формы из реального кода отработаны). Доказано ДО миграции: гейт на дереве коммита
+      `1cac021cc` (до этого прохода) находит **61** нарушение (`node
+      scripts/check-notification-text-coverage.mjs` → exit 1, "61 call site(s)") — проверено
+      восстановлением этого дерева через `git stash` с временной заменой только файла гейта;
+      ПОСЛЕ миграции — `exit 0, "OK"`. Self-test расширен: 6 новых leak fixtures (прямой вызов,
+      вложенный в `toast.error`, в `throw new Error`, в возвращаемом объекте, `safeActionErrorText`,
+      `mechanicWriteClearanceRefusalResponse`) + 3 новых safe fixtures (ссылка на словарь как
+      фолбэк-аргумент x2, код действия у постороннего хелпера остаётся без изменений) — было
+      10 leak/7 safe, стало 16 leak/10 safe.
+- [x] **Дефект 4 — сырой `Error.message` в toast на `OperatorHealthProbeSettingsSection.tsx:229`**
+      (`Не удалось сбросить настройки: ${e instanceof Error ? e.message : 'повторите'}`) —
+      заменён на `toast.error(safeUserMessage(e, notificationText.adminOperatorHealthProbeResetFailed))`.
+      Использован СУЩЕСТВУЮЩИЙ `safeUserMessage`/`UserFacingError` из
+      `shared/errors/userFacingError.ts` — сам файл, `safeUserError.ts` и их два гейта НЕ
+      тронуты, только вызов с этого сайта. Проверены ДВА других сайта в ТОМ ЖЕ файле с тем же
+      паттерном (строки 207-208 «Настройки проб не сохранены: …» и 273-274 «IMAP-настройки не
+      сохранены: …») — исправлены тем же способом с двумя новыми ключами
+      (`adminProbeSettingsSaveFailed`, `adminImapSettingsSaveFailed`). Repo-wide проверка (AST-скан
+      всех `toast.error`/`toast.success`, у которых в поддереве аргумента встречается
+      `<переменная из catch>.message`) нашла ЕЩЁ 12 сайтов того же класса в 7 файлах:
+      `OrganizationCommercialPanel.tsx:106`, `CommercialConstructorClient.tsx:1210,1242`,
+      `SaasBillingProviderSettings.tsx:176` (плюс новый ключ `adminBillingProviderSettingsSaveFailed`),
+      `NotificationTemplatesPageClient.tsx:189,218,258`, `BookingManualLifecycleSection.tsx:170,224`,
+      `ClinicDeliveryChannelsSection.tsx` (SMTP save), `OrgBrandingSection.tsx` (bot save) — все
+      переведены на `safeUserMessage(...)` с существующим или новым словарным фолбэком. Итого
+      15 сайтов найдено, 14 исправлено; ОДИН (`AppointmentPaymentSection.tsx:165`,
+      `errorLabel(cause.message, …)`) проверен и оставлен: `cause.message` там используется ТОЛЬКО
+      как ключ сравнения (`if (error === 'payments_disabled') return …`) внутри `errorLabel`,
+      сырой текст никогда не попадает в возвращаемую строку — не является утечкой по факту, только
+      структурная похожесть на паттерн. `setError`/`setMsg`-семейство (инлайн-ошибка под полем,
+      ~130+ мест по repo-wide скану) сознательно НЕ тронуто — это явно вынесенный из скоупа класс
+      ещё в пункте А первого прохода (185 мест «механика рендера не тронута»); Дефект 4 просил
+      конкретно toast/«user-visible string» на названном сайте плюс сайты «того же класса», а не
+      ревизию всего inline-error слоя — при обнаружении расширения скоупа за пределы toast это
+      отдельная, не запрошенная в этом брифе работа.
+- [x] Ни один тестовый файл не создан/не изменён в этом проходе (проверено `git status` перед
+      коммитом — только `.ts`/`.tsx`/`.mjs`/`.md`, ни одного `.test.`/`.spec.`).
+      `safeUserError.ts`/`userFacingError.ts`/`check-safe-user-error-door.mjs`/
+      `check-safe-error-transport.mjs` не входят в diff.
+- [x] `pnpm typecheck` (apps/webapp) — exit 0, чисто. `pnpm lint` (apps/webapp, включает усиленный
+      гейт последним шагом) — exit 0.
+- [ ] Независимый адверсарный аудит ЭТОГО (третьего) прохода — НЕ выполнен этим же агентом (правило:
+      аудитор ≠ автор). Требуется отдельный проход перед финальной приёмкой владельцем.

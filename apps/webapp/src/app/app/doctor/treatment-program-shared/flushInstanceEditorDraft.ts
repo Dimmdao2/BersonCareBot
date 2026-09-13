@@ -12,6 +12,7 @@ import {
 import { validateInstanceEditorDraftLoadSettings } from './instanceEditorLoadSettings';
 import { serializeInstanceEditorBatchDraftForApi } from './serializeInstanceEditorBatchDraftForApi';
 import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 /** Сохранить накопленный черновик редактора одним POST editor-batch. */
 export async function flushInstanceEditorDraft(input: {
@@ -49,7 +50,7 @@ export async function flushInstanceEditorDraft(input: {
     message?: string;
   } | null;
   if (!res.ok || !data?.ok) {
-    return { ok: false, error: readSafeApiErrorText(data, 'Ошибка сохранения') };
+    return { ok: false, error: readSafeApiErrorText(data, notificationText.doctorFinanceSaveError) };
   }
   return { ok: true };
 }

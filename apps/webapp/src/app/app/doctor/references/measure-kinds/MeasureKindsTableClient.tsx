@@ -34,6 +34,7 @@ import { doctorPageTitleClass } from '@/shared/ui/doctor/doctorVisual';
 import { DoctorPageToolbar } from '@/shared/ui/doctor/shell/DoctorPageToolbar';
 import { MEASURE_KINDS_CATALOG_CHANGED_EVENT } from '@/modules/tests/measureKindsClientEvent';
 import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 type MeasureKindsJsonBody = { ok?: boolean; message?: string; items?: unknown; item?: unknown };
 
@@ -212,7 +213,7 @@ export function MeasureKindsTableClient({ initialItems }: Props) {
         });
         const { httpOk, body, transportError } = await readMeasureKindsJsonBody(res);
         if (transportError) {
-          fail(readSafeApiErrorText(body, 'Ошибка соединения с сервером'));
+          fail(readSafeApiErrorText(body, notificationText.doctorMeasureKindsConnectionError));
           return;
         }
         if (!httpOk) {
@@ -220,13 +221,13 @@ export function MeasureKindsTableClient({ initialItems }: Props) {
           return;
         }
         if (!body.ok) {
-          fail(readSafeApiErrorText(body, 'Не удалось сохранить'));
+          fail(readSafeApiErrorText(body, notificationText.commonSaveFailed));
           return;
         }
         window.dispatchEvent(new CustomEvent(MEASURE_KINDS_CATALOG_CHANGED_EVENT));
         router.refresh();
       } catch {
-        fail('Ошибка соединения с сервером');
+        fail(notificationText.doctorMeasureKindsConnectionError);
       } finally {
         setSaveBusy(false);
       }
@@ -249,7 +250,7 @@ export function MeasureKindsTableClient({ initialItems }: Props) {
         });
         const { httpOk, body, transportError } = await readMeasureKindsJsonBody(res);
         if (transportError) {
-          fail(readSafeApiErrorText(body, 'Ошибка соединения с сервером'));
+          fail(readSafeApiErrorText(body, notificationText.doctorMeasureKindsConnectionError));
           return;
         }
         if (!httpOk) {
@@ -257,14 +258,14 @@ export function MeasureKindsTableClient({ initialItems }: Props) {
           return;
         }
         if (!body.ok) {
-          fail(readSafeApiErrorText(body, 'Не удалось создать'));
+          fail(readSafeApiErrorText(body, notificationText.commonCreateFailed));
           return;
         }
         setNewLabel('');
         window.dispatchEvent(new CustomEvent(MEASURE_KINDS_CATALOG_CHANGED_EVENT));
         router.refresh();
       } catch {
-        fail('Ошибка соединения с сервером');
+        fail(notificationText.doctorMeasureKindsConnectionError);
       } finally {
         setAddBusy(false);
       }

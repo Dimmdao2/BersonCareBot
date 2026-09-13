@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requirePlatformOperationsApiContext } from '@/app-layer/guards/requireRole';
 import { mechanicWriteClearanceRefusalResponse } from '@/app-layer/guards/requireEntitlement';
+import { notificationText } from '@/shared/notifications/notificationText';
 import {
   NOTIF_TEMPLATE_AUDIENCES,
   NOTIF_TEMPLATE_EVENTS,
@@ -123,7 +124,7 @@ export async function PUT(request: Request) {
     if (isInvalidTemplateError(error)) return invalidTemplateResponse();
     const clearanceRefusal = mechanicWriteClearanceRefusalResponse(
       error,
-      'Сохранение платформенного шаблона недоступно: запрос попал в тарифную дверь клиники.',
+      notificationText.adminNotificationTemplatePlatformSaveClearanceDenied,
     );
     if (clearanceRefusal) return clearanceRefusal;
     throw error;

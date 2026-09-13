@@ -73,7 +73,7 @@ function ExerciseRowEditor({
                   error?: string;
                 };
                 if (!res.ok || !data.ok) {
-                  toast.error(readSafeApiErrorText(data, 'Не удалось сохранить'));
+                  toast.error(readSafeApiErrorText(data, notificationText.commonSaveFailed));
                   return;
                 }
                 toast.success(notificationText.commonSaved);
@@ -104,7 +104,7 @@ function ExerciseRowEditor({
                   error?: string;
                 };
                 if (!res.ok || !data.ok) {
-                  toast.error(readSafeApiErrorText(data, 'Не удалось сбросить'));
+                  toast.error(readSafeApiErrorText(data, notificationText.doctorLfkOverridesResetFailed));
                   return;
                 }
                 toast.success(notificationText.commonReset);

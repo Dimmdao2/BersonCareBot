@@ -14,6 +14,7 @@ import type {
 } from '@/modules/recommendations/types';
 import { API_MEDIA_URL_RE, isLegacyAbsoluteUrl } from '@/shared/lib/mediaUrlPolicy';
 import { safeActionErrorText } from '@/app-layer/errors/safeUserError';
+import { notificationText } from '@/shared/notifications/notificationText';
 import {
   entitlementMutationRefusalMessage,
   requireEntitlementForMutationAction,
@@ -203,7 +204,7 @@ export async function saveRecommendationCore(
   } catch (e) {
     return {
       ok: false,
-      error: safeActionErrorText('app/doctor/recommendations', e, 'Ошибка сохранения'),
+      error: safeActionErrorText('app/doctor/recommendations', e, notificationText.doctorFinanceSaveError),
     };
   }
 }

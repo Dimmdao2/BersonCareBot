@@ -113,7 +113,7 @@ export function PatientTreatmentProgramsPanel(props: {
       );
       const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
       if (!res.ok || !data.ok) {
-        setAssignError(readSafeApiErrorText(data, 'Ошибка назначения'));
+        setAssignError(readSafeApiErrorText(data, notificationText.treatmentProgramAssignError));
         return;
       }
       toast.success(notificationText.treatmentProgramAssigned);
@@ -146,7 +146,7 @@ export function PatientTreatmentProgramsPanel(props: {
       );
       const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
       if (!res.ok || !data.ok) {
-        setAssignError(readSafeApiErrorText(data, 'Ошибка назначения'));
+        setAssignError(readSafeApiErrorText(data, notificationText.treatmentProgramAssignError));
         return;
       }
       toast.success(notificationText.treatmentProgramAssigned);

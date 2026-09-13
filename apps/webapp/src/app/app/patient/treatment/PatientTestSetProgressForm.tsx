@@ -42,6 +42,7 @@ import {
   CollapsibleTrigger,
 } from '@/shared/ui/patient/primitives/collapsible';
 import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 function AttemptHistoryCollapsibleList(props: {
   bundles: PatientTestSetSubmittedAttemptDetail[];
@@ -228,7 +229,7 @@ export function PatientTestSetProgressForm(props: PatientTestSetProgressFormProp
       attempt?: { id: string };
     };
     if (!res.ok || !data.ok || !data.attempt?.id) {
-      setError(readSafeApiErrorText(data, 'Не удалось начать попытку'));
+      setError(readSafeApiErrorText(data, notificationText.testAttemptStartFailed));
       return null;
     }
     return data.attempt.id;
@@ -437,7 +438,7 @@ export function PatientTestSetProgressForm(props: PatientTestSetProgressFormProp
                   error?: string;
                 };
                 if (!res.ok || !data.ok) {
-                  setError(readSafeApiErrorText(data, 'Не удалось начать попытку'));
+                  setError(readSafeApiErrorText(data, notificationText.testAttemptStartFailed));
                   return;
                 }
                 await onDone();
@@ -596,7 +597,7 @@ export function PatientTestSetProgressForm(props: PatientTestSetProgressFormProp
                             item?: unknown;
                           };
                           if (!res.ok || !data.ok) {
-                            const msg = readSafeApiErrorText(data, 'Ошибка сохранения');
+                            const msg = readSafeApiErrorText(data, notificationText.doctorFinanceSaveError);
                             setErrorByTestId((e) => ({ ...e, [t.testId]: msg }));
                             return;
                           }
@@ -722,7 +723,7 @@ export function PatientTestSetProgressForm(props: PatientTestSetProgressFormProp
                           error?: string;
                         };
                         if (!res.ok || !data.ok) {
-                          const msg = readSafeApiErrorText(data, 'Ошибка сохранения');
+                          const msg = readSafeApiErrorText(data, notificationText.doctorFinanceSaveError);
                           setErrorByTestId((e) => ({ ...e, [t.testId]: msg }));
                           return;
                         }

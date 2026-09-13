@@ -8,6 +8,7 @@ import {
   requireEntitlementForRead,
 } from '@/app-layer/guards/requireEntitlement';
 import { requireClinicManagementApiContext } from '@/app-layer/guards/requireRole';
+import { notificationText } from '@/shared/notifications/notificationText';
 import {
   NOTIF_TEMPLATE_AUDIENCES,
   NOTIF_TEMPLATE_EVENTS,
@@ -138,7 +139,7 @@ export async function PUT(request: Request) {
     if (isInvalidTemplateError(error)) return invalidTemplateResponse();
     const clearanceRefusal = mechanicWriteClearanceRefusalResponse(
       error,
-      'Невозможно сохранить шаблон: тарифная механика не разрешила запись.',
+      notificationText.doctorNotificationTemplateSaveClearanceDenied,
     );
     if (clearanceRefusal) return clearanceRefusal;
     throw error;

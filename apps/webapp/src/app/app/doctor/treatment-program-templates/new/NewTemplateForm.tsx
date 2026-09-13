@@ -16,6 +16,7 @@ import {
 import { cn } from '@/lib/utils';
 import { TREATMENT_PROGRAM_TEMPLATES_PATH } from '../paths';
 import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
+import { notificationText } from '@/shared/notifications/notificationText';
 import { DoctorModalFooter } from '@/shared/ui/doctor/DoctorModal';
 
 const TEMPLATE_STATUS_LABEL: Record<'draft' | 'published' | 'archived', string> = {
@@ -72,7 +73,7 @@ export function NewTemplateForm({
       });
       const json = (await res.json()) as { ok?: boolean; item?: { id: string }; error?: string };
       if (!res.ok || !json.ok || !json.item) {
-        setError(readSafeApiErrorText(json, 'Не удалось создать'));
+        setError(readSafeApiErrorText(json, notificationText.commonCreateFailed));
         return;
       }
       if (onCreated) onCreated(json.item.id);

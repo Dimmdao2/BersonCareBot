@@ -48,7 +48,7 @@ export function DefaultPromoProgramClient(props: {
         message?: string;
       } | null;
       if (!res.ok || !data?.ok) {
-        toast.error(readSafeApiErrorText(data, 'Не удалось сохранить'));
+        toast.error(readSafeApiErrorText(data, notificationText.commonSaveFailed));
         return;
       }
       toast.success(notificationText.commonSaved);
@@ -69,7 +69,7 @@ export function DefaultPromoProgramClient(props: {
         message?: string;
       };
       if (!res.ok || !data.ok) {
-        toast.error(readSafeApiErrorText(data, 'Не удалось обновить'));
+        toast.error(readSafeApiErrorText(data, notificationText.patientReminderUpdateFailed));
         return;
       }
       const count = data.refreshedCount ?? 0;

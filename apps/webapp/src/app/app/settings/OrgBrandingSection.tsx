@@ -33,6 +33,7 @@ import {
   ORGANIZATION_NAME_TOO_LONG_MESSAGE,
 } from '@/shared/lib/organizationName';
 import { notificationText } from '@/shared/notifications/notificationText';
+import { safeUserMessage } from '@/shared/errors/userFacingError';
 
 type Props = {
   brandingMutationAvailable: boolean;
@@ -244,11 +245,7 @@ function ClinicBotControls({
                   });
                   toast.success(notificationText.settingsBotSaved);
                 } catch (cause) {
-                  toast.error(
-                    cause instanceof Error && cause.message.trim()
-                      ? cause.message
-                      : notificationText.settingsBotSaveFailed,
-                  );
+                  toast.error(safeUserMessage(cause, notificationText.settingsBotSaveFailed));
                 }
               })
             }

@@ -540,7 +540,7 @@ function ProgramInstanceCompleteControl(props: {
       );
       const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
       if (!res.ok || !data.ok) {
-        toast.error(readSafeApiErrorText(data, 'Ошибка'));
+        toast.error(readSafeApiErrorText(data, notificationText.commonGenericError));
         return;
       }
       setOpen(false);
@@ -2018,7 +2018,7 @@ function StageDoctorControls(props: {
             );
             const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
             if (!res.ok || !data.ok) {
-              toast.error(readSafeApiErrorText(data, 'Ошибка'));
+              toast.error(readSafeApiErrorText(data, notificationText.commonGenericError));
               return;
             }
             await onPatched();
@@ -2056,7 +2056,7 @@ function StageDoctorControls(props: {
             );
             const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
             if (!res.ok || !data.ok) {
-              toast.error(readSafeApiErrorText(data, 'Ошибка'));
+              toast.error(readSafeApiErrorText(data, notificationText.commonGenericError));
               return;
             }
             await onPatched();

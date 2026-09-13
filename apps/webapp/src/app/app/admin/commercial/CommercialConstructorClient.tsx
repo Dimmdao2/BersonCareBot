@@ -52,6 +52,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/doctor/primitives/tabs';
 import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
 import { notificationText } from '@/shared/notifications/notificationText';
+import { safeUserMessage } from '@/shared/errors/userFacingError';
 
 /** §T3 preview — sample values so an admin sees a rendered letter, not raw `{{тариф}}` tokens. */
 const MAILING_PREVIEW_VARIABLES: Record<string, string> = {
@@ -1207,7 +1208,7 @@ export function CommercialConstructorClient() {
       await loadState();
       toast.success(typeof success === 'function' ? success(payload.result) : success);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : notificationText.adminOperationFailed);
+      toast.error(safeUserMessage(error, notificationText.adminOperationFailed));
     } finally {
       setBusy(false);
     }
@@ -1239,7 +1240,7 @@ export function CommercialConstructorClient() {
     try {
       systemAccessPolicy = accessPolicyFromDraft(tariff.systemAccessPolicy);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : notificationText.adminCheckAccessLadder);
+      toast.error(safeUserMessage(error, notificationText.adminCheckAccessLadder));
       return;
     }
     const input = {

@@ -501,6 +501,55 @@ export const notificationText = {
   authPasswordUpdatedPleaseLogin: 'Пароль обновлён. Войдите.',
   authAccessConfigured: 'Доступ настроен.',
   authReenterPasswordToContinueSetup: 'Войдите с паролем ещё раз, чтобы продолжить защищённую настройку.',
+
+  // --- fallback texts formerly inline as the second/third argument of `readSafeApiErrorText`/
+  // `safeActionErrorText`/`mechanicWriteClearanceRefusalResponse` (DEFECT 3, 2026-09-13 second
+  // verification pass) — the gate only inspected `toast.error/success`/`new UserFacingError`'s OWN
+  // argument, so a literal one level deeper as a helper's fallback parameter was invisible to it. ---
+  doctorLfkOverridesResetFailed: 'Не удалось сбросить',
+  treatmentProgramAssignError: 'Ошибка назначения',
+  doctorProgramInstanceDiscussionsLoadFailed: 'Не удалось загрузить обсуждения',
+  doctorProgramItemDiscussionLoadFailed: 'Не удалось загрузить обсуждение',
+  doctorMeasureKindsReferenceUnavailable: 'Справочник видов измерений недоступен',
+  doctorMeasureKindCreateError: 'Ошибка создания вида измерения',
+  doctorCourseArchiveFailed: 'Не удалось отправить курс в архив',
+  doctorCourseCreateFailed: 'Не удалось создать курс',
+  doctorMeasureKindsConnectionError: 'Ошибка соединения с сервером',
+  commonCreateFailed: 'Не удалось создать',
+  testSetCompositionParseError: 'Ошибка разбора состава',
+  testSetDraftCreateFailed: 'Не удалось создать черновик набора',
+  testSetCompositionSaveError: 'Ошибка сохранения состава',
+  doctorExerciseRecommendationsSaveFailed: 'Не удалось сохранить рекомендации',
+  treatmentProgramTemplateLoadFailed: 'Не удалось загрузить шаблон',
+  treatmentProgramTitleDescriptionSaveFailed: 'Не удалось сохранить название и описание',
+  treatmentProgramTemplateArchiveFailed: 'Не удалось отправить шаблон в архив',
+  treatmentProgramTemplateStatusUpdateFailed: 'Не удалось обновить статус шаблона',
+  treatmentProgramGroupOrderUpdateFailed: 'Не удалось изменить порядок групп',
+  treatmentProgramGroupSaveFailed: 'Не удалось сохранить группу',
+  treatmentProgramTestsFromSetAddFailed: 'Не удалось добавить тесты из набора',
+  treatmentProgramExercisesFromComplexAddFailed: 'Не удалось добавить упражнения из комплекса',
+  patientCourseEnrollFailed: 'Не удалось записаться',
+  testAttemptStartFailed: 'Не удалось начать попытку',
+  patientProgramItemDiscussionLoadFailed: 'Не удалось загрузить комментарии',
+  patientProgramItemCommentSendFailed: 'Не удалось отправить комментарий',
+  patientProgramItemCompleteMarkFailed: 'Не удалось отметить выполнение',
+  patientProgramItemParamsSaveFailed: 'Не удалось сохранить параметры',
+  patientProgramStatisticsLoadFailed: 'Не удалось загрузить статистику',
+  commentUpdateError: 'Ошибка обновления',
+  commentDeleteError: 'Ошибка удаления',
+  adminNotificationTemplatePlatformSaveClearanceDenied:
+    'Сохранение платформенного шаблона недоступно: запрос попал в тарифную дверь клиники.',
+  doctorNotificationTemplateSaveClearanceDenied:
+    'Невозможно сохранить шаблон: тарифная механика не разрешила запись.',
+  // Defect 4 (2026-09-13 second verification pass): a raw `Error.message` from a failed settings
+  // reset was interpolated straight into a toast — a DB driver message can carry table/column/bound
+  // parameter values. Routed through `safeUserMessage` instead; these are its dictionary-backed
+  // fallbacks (this one plus the two sibling save-failure toasts in the same file, found by the
+  // same-shape sweep across the repo — see the report for the full list of sites fixed this way).
+  adminOperatorHealthProbeResetFailed: 'Не удалось сбросить настройки проб',
+  adminProbeSettingsSaveFailed: 'Настройки проб не сохранены',
+  adminImapSettingsSaveFailed: 'IMAP-настройки не сохранены',
+  adminBillingProviderSettingsSaveFailed: 'Настройки не сохранены',
 } as const;
 
 export type NotificationTextKey = keyof typeof notificationText;

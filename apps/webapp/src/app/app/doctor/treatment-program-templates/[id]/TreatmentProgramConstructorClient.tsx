@@ -397,7 +397,7 @@ function TemplateStageItemCommentBlock({
               );
               const json = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
               if (!res.ok || !json.ok) {
-                toast.error(readSafeApiErrorText(json, 'Не удалось сохранить'));
+                toast.error(readSafeApiErrorText(json, notificationText.commonSaveFailed));
                 return;
               }
               await onReload();
@@ -588,7 +588,7 @@ export function TreatmentProgramConstructorClient({
         error?: string;
       };
       if (!res.ok || !json.ok) {
-        toast.error(readSafeApiErrorText(json, 'Не удалось сохранить название и описание'));
+        toast.error(readSafeApiErrorText(json, notificationText.treatmentProgramTitleDescriptionSaveFailed));
         return;
       }
       await reload();
@@ -627,7 +627,7 @@ export function TreatmentProgramConstructorClient({
       setArchiveWarnOpen(true);
       return false;
     }
-    toast.error(readSafeApiErrorText(json, 'Не удалось отправить шаблон в архив'));
+    toast.error(readSafeApiErrorText(json, notificationText.treatmentProgramTemplateArchiveFailed));
     return false;
   }
 
@@ -676,7 +676,7 @@ export function TreatmentProgramConstructorClient({
         });
         const json = (await res.json()) as { ok?: boolean; error?: string };
         if (!res.ok || !json.ok) {
-          toast.error(readSafeApiErrorText(json, 'Не удалось обновить статус шаблона'));
+          toast.error(readSafeApiErrorText(json, notificationText.treatmentProgramTemplateStatusUpdateFailed));
           return;
         }
         await reload();
@@ -904,7 +904,7 @@ export function TreatmentProgramConstructorClient({
       });
       const json = (await res.json()) as { ok?: boolean; error?: string };
       if (!res.ok || !json.ok) {
-        setStageMetaMsg(readSafeApiErrorText(json, 'Не удалось сохранить'));
+        setStageMetaMsg(readSafeApiErrorText(json, notificationText.commonSaveFailed));
         return;
       }
       await reload();
@@ -925,7 +925,7 @@ export function TreatmentProgramConstructorClient({
     );
     const json = (await res.json()) as { ok?: boolean; error?: string };
     if (!res.ok || !json.ok) {
-      toast.error(readSafeApiErrorText(json, 'Не удалось изменить порядок этапов'));
+      toast.error(readSafeApiErrorText(json, notificationText.treatmentProgramStageOrderUpdateFailed));
       return false;
     }
     return true;
@@ -942,7 +942,7 @@ export function TreatmentProgramConstructorClient({
     );
     const json = (await res.json()) as { ok?: boolean; error?: string };
     if (!res.ok || !json.ok) {
-      toast.error(readSafeApiErrorText(json, 'Не удалось изменить порядок элементов'));
+      toast.error(readSafeApiErrorText(json, notificationText.doctorOrderUpdateFailed));
       return false;
     }
     return true;
@@ -1106,7 +1106,7 @@ export function TreatmentProgramConstructorClient({
       );
       const json = (await res.json()) as { ok?: boolean; error?: string };
       if (!res.ok || !json.ok) {
-        toast.error(readSafeApiErrorText(json, 'Не удалось добавить группу'));
+        toast.error(readSafeApiErrorText(json, notificationText.treatmentProgramGroupAddFailed));
         return;
       }
       setNewGroupTitle('');
@@ -1144,7 +1144,7 @@ export function TreatmentProgramConstructorClient({
       );
       const json = (await res.json()) as { ok?: boolean; error?: string };
       if (!res.ok || !json.ok) {
-        toast.error(readSafeApiErrorText(json, 'Не удалось изменить порядок групп'));
+        toast.error(readSafeApiErrorText(json, notificationText.treatmentProgramGroupOrderUpdateFailed));
         return;
       }
       await reload();
@@ -1211,7 +1211,7 @@ export function TreatmentProgramConstructorClient({
       );
       const json = (await res.json()) as { ok?: boolean; error?: string };
       if (!res.ok || !json.ok) {
-        toast.error(readSafeApiErrorText(json, 'Не удалось сохранить группу'));
+        toast.error(readSafeApiErrorText(json, notificationText.treatmentProgramGroupSaveFailed));
         return;
       }
       setGroupEditOpen(false);
@@ -1238,7 +1238,7 @@ export function TreatmentProgramConstructorClient({
       });
       const json = (await res.json()) as { ok?: boolean; error?: string };
       if (!res.ok || !json.ok) {
-        toast.error(readSafeApiErrorText(json, 'Не удалось добавить этап'));
+        toast.error(readSafeApiErrorText(json, notificationText.treatmentProgramStageAddFailed));
         return;
       }
       setNewStageTitle('');
@@ -1308,7 +1308,7 @@ export function TreatmentProgramConstructorClient({
       );
       const json = (await res.json()) as { ok?: boolean; error?: string };
       if (!res.ok || !json.ok) {
-        toast.error(readSafeApiErrorText(json, 'Не удалось добавить элемент'));
+        toast.error(readSafeApiErrorText(json, notificationText.treatmentProgramElementAddFailed));
         return;
       }
       setItemDialogOpen(false);
@@ -1345,7 +1345,7 @@ export function TreatmentProgramConstructorClient({
       );
       const json = (await res.json()) as { ok?: boolean; error?: string };
       if (!res.ok || !json.ok) {
-        toast.error(readSafeApiErrorText(json, 'Не удалось добавить тесты из набора'));
+        toast.error(readSafeApiErrorText(json, notificationText.treatmentProgramTestsFromSetAddFailed));
         return;
       }
       setItemDialogOpen(false);
@@ -1404,7 +1404,7 @@ export function TreatmentProgramConstructorClient({
       );
       const json = (await res.json()) as { ok?: boolean; error?: string; code?: string };
       if (!res.ok || !json.ok) {
-        toast.error(readSafeApiErrorText(json, 'Не удалось добавить упражнения из комплекса'));
+        toast.error(readSafeApiErrorText(json, notificationText.treatmentProgramExercisesFromComplexAddFailed));
         return;
       }
       setItemDialogOpen(false);

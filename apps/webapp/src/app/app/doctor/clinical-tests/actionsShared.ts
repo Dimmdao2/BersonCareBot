@@ -15,6 +15,7 @@ import {
 } from '@/modules/tests/clinicalTestScoring';
 import { API_MEDIA_URL_RE, isLegacyAbsoluteUrl } from '@/shared/lib/mediaUrlPolicy';
 import { safeActionErrorText } from '@/app-layer/errors/safeUserError';
+import { notificationText } from '@/shared/notifications/notificationText';
 import {
   entitlementMutationRefusalMessage,
   requireEntitlementForMutationAction,
@@ -219,7 +220,7 @@ export async function saveClinicalTestCore(
   } catch (e) {
     return {
       ok: false,
-      error: safeActionErrorText('app/doctor/clinical-tests', e, 'Ошибка сохранения'),
+      error: safeActionErrorText('app/doctor/clinical-tests', e, notificationText.doctorFinanceSaveError),
     };
   }
 }

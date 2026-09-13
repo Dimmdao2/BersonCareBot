@@ -24,15 +24,29 @@
  * un-dictionaried string whenever the server didn't supply its own `message` — this is what the
  * expression walk below closes.)
  *
+ * ALSO a violation (DEFECT 3, 2026-09-13 second verification pass): the same literal one level
+ * deeper, as the fallback-TEXT argument of a helper this codebase's dominant call shape routes the
+ * text through first — `toast.error(readSafeApiErrorText(data, 'Не удалось сохранить'))` — rather
+ * than as `toast.error`'s own argument. `FALLBACK_TEXT_HELPER_ARG_INDEX` below names each such
+ * helper (`readSafeApiErrorText`, `safeActionErrorText`, `mechanicWriteClearanceRefusalResponse`)
+ * and which argument carries the fallback text. Because the AST walk (`visit()`) inspects every
+ * node in the file, not only nodes reached through a `toast`/`UserFacingError` argument, a call to
+ * one of these helpers is caught wherever it appears — nested inside `toast.error(...)`, or
+ * standalone inside `setError(...)`, `throw new Error(...)`, a returned object field, etc. — no
+ * matter how many other calls it is nested inside.
+ *
  * What is not a violation:
  *  - a reference to the dictionary (`notificationText.someKey`, `notificationTextFactory.fn(...)`),
- *    on its own or as a branch of `??`/a ternary;
+ *    on its own or as a branch of `??`/a ternary/a fallback-helper argument;
  *  - a template literal WITH interpolation (`` `${label}: ...` ``) — parameterized text belongs in
  *    `notificationTextFactory` by convention, but the AST can't force that split, so this gate only
  *    catches the fully-static literal case it can act on mechanically;
  *  - a branch that is some OTHER dynamic expression with no literal in it (a caught exception's
  *    bare `.message`, a variable, a function call) — those are either already governed by the
  *    separate safe-user-error-text door or are a deliberate pass-through of a runtime value;
+ *  - a literal argument to a helper NOT in `FALLBACK_TEXT_HELPER_ARG_INDEX` that is a machine code
+ *    or action name rather than user-visible text — e.g. `staffSecurityErrorText(error,
+ *    'email_password_login')` selects an internal `switch`, it does not carry a sentence;
  *  - the dictionary file itself and test files (not part of the shown-text surface).
  */
 import { readdirSync, readFileSync } from 'node:fs';
@@ -63,8 +77,35 @@ function collectFiles(dir, out = []) {
   return out;
 }
 
-/** Does `node` look like `new UserFacingError(...)` or `toast.error/success(...)`? Returns its
- * first (message) argument expression, or undefined if `node` isn't one of these calls. */
+/**
+ * Helpers whose call sites carry a plain user-visible fallback TEXT as one argument, the same way
+ * `readSafeApiErrorText(body, fallback)` does — not a machine code/action name (those select an
+ * internal switch and are exempt, e.g. `staffSecurityErrorText(error, 'email_password_login')`),
+ * but the literal sentence itself. Keyed by the bare identifier the helper is imported/called as;
+ * value is the zero-based index of its fallback-text argument.
+ */
+const FALLBACK_TEXT_HELPER_ARG_INDEX = new Map([
+  // `@/shared/http/apiErrorCode` — `readSafeApiErrorText(body, fallback)`.
+  ['readSafeApiErrorText', 1],
+  // `@/app-layer/errors/safeUserError` — `safeActionErrorText(scope, error, fallbackText)`.
+  ['safeActionErrorText', 2],
+  // `@/app-layer/guards/requireEntitlement` — `mechanicWriteClearanceRefusalResponse(error, message)`.
+  ['mechanicWriteClearanceRefusalResponse', 1],
+]);
+
+/** Does `node` look like `new UserFacingError(...)`, `toast.error/success(...)`, or a call to one
+ * of `FALLBACK_TEXT_HELPER_ARG_INDEX`'s helpers? Returns the argument expression that ends up
+ * shown to the user, or undefined if `node` isn't one of these calls.
+ *
+ * The helper-fallback shape (DEFECT 3, 2026-09-13 second verification pass) is why this is its own
+ * function rather than only looking at `toast.error`/`UserFacingError`'s own argument: the
+ * dominant call shape in this codebase routes the fallback through a helper FIRST —
+ * `toast.error(readSafeApiErrorText(data, 'Не удалось сохранить'))` — so the literal is one level
+ * too deep for the argument-only check to see. Because `visit()` below walks every node in the
+ * tree (not only nodes reached through a `toast`/`UserFacingError` argument), a helper call is
+ * caught here wherever it appears — nested inside `toast.error(...)`, or standalone inside
+ * `setError(...)`, `throw new Error(...)`, a returned object field, etc. — regardless of how many
+ * other calls it is nested inside. */
 function textArgumentOf(node) {
   if (
     ts.isNewExpression(node) &&
@@ -84,6 +125,14 @@ function textArgumentOf(node) {
     node.arguments.length >= 1
   ) {
     return node.arguments[0];
+  }
+  if (
+    ts.isCallExpression(node) &&
+    ts.isIdentifier(node.expression) &&
+    FALLBACK_TEXT_HELPER_ARG_INDEX.has(node.expression.text)
+  ) {
+    const index = FALLBACK_TEXT_HELPER_ARG_INDEX.get(node.expression.text);
+    if (node.arguments.length > index) return node.arguments[index];
   }
   return undefined;
 }
@@ -171,6 +220,18 @@ function selfTest() {
     ['literal on both ternary branches', "toast.success(added ? 'Запись добавлена' : 'Запись обновлена');"],
     ['literal nested under ?? through a parenthesised ternary',
       "toast.error(data.message ?? (ok ? 'Готово' : 'Не удалось сохранить'));"],
+    ['literal in readSafeApiErrorText fallback argument, standalone',
+      "setError(readSafeApiErrorText(data, 'Не удалось сохранить'));"],
+    ['literal in readSafeApiErrorText fallback argument, nested inside toast.error',
+      "toast.error(readSafeApiErrorText(data, 'Не удалось сохранить'));"],
+    ['literal in readSafeApiErrorText fallback argument, nested inside throw new Error',
+      "throw new Error(readSafeApiErrorText(data, 'Не удалось загрузить'));"],
+    ['literal in readSafeApiErrorText fallback argument, nested inside a returned object field',
+      "return { ok: false, error: readSafeApiErrorText(data, 'Ошибка сохранения') };"],
+    ['literal in safeActionErrorText fallback argument',
+      "return { ok: false, error: safeActionErrorText('scope', e, 'Ошибка сохранения') };"],
+    ['literal in mechanicWriteClearanceRefusalResponse fallback argument',
+      "const r = mechanicWriteClearanceRefusalResponse(error, 'Невозможно сохранить шаблон.');"],
   ];
   const safe = [
     ['dictionary reference', 'toast.error(notificationText.someKey);'],
@@ -181,6 +242,12 @@ function selfTest() {
       'toast.success(added ? notificationText.entryAdded : notificationText.entryUpdated);'],
     ['dynamic passthrough with no literal anywhere', 'toast.error(error instanceof Error ? error.message : fallbackVar);'],
     ['bare variable', 'toast.error(message);'],
+    ['dictionary reference as readSafeApiErrorText fallback argument',
+      'setError(readSafeApiErrorText(data, notificationText.someKey));'],
+    ['dictionary reference as safeActionErrorText fallback argument',
+      "safeActionErrorText('scope', e, notificationText.someKey);"],
+    ['action-code (non-literal-text) second argument to an unrelated helper stays untouched',
+      "staffSecurityErrorText(data.error, 'email_password_login');"],
   ];
 
   for (const [name, source] of leaking) {

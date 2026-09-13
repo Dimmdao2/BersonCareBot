@@ -33,6 +33,7 @@ import {
   OPERATOR_HEALTH_PROBE_QUIET_WINDOW_DEFAULT_DURATION_MS,
 } from '@/modules/system-settings/operatorHealthProbeConfig';
 import { notificationText } from '@/shared/notifications/notificationText';
+import { safeUserMessage } from '@/shared/errors/userFacingError';
 
 type ProbeName = 'max' | 'telegram' | 'google_calendar';
 type ProbeConfig = {
@@ -204,9 +205,7 @@ export function OperatorHealthProbeSettingsSection() {
       });
       toast.success(notificationText.adminProbeSettingsSaved);
     } catch (e) {
-      toast.error(
-        `Настройки проб не сохранены: ${e instanceof Error ? e.message : 'проверьте значения и повторите'}`,
-      );
+      toast.error(safeUserMessage(e, notificationText.adminProbeSettingsSaveFailed));
     } finally {
       setBusy(false);
     }
@@ -226,7 +225,7 @@ export function OperatorHealthProbeSettingsSection() {
       setResetConfirmOpen(false);
       toast.success(notificationText.adminResetToCodeDefaults);
     } catch (e) {
-      toast.error(`Не удалось сбросить настройки: ${e instanceof Error ? e.message : 'повторите'}`);
+      toast.error(safeUserMessage(e, notificationText.adminOperatorHealthProbeResetFailed));
     } finally {
       setBusy(false);
     }
@@ -270,9 +269,7 @@ export function OperatorHealthProbeSettingsSection() {
       }));
       toast.success(notificationText.adminImapSettingsSaved);
     } catch (e) {
-      toast.error(
-        `IMAP-настройки не сохранены: ${e instanceof Error ? e.message : 'проверьте поля и повторите'}`,
-      );
+      toast.error(safeUserMessage(e, notificationText.adminImapSettingsSaveFailed));
     } finally {
       setBusy(false);
     }

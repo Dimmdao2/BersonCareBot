@@ -257,7 +257,7 @@ export function DoctorCourseEditForm({
         return;
       }
       if (!first.ok) {
-        toast.error(readSafeApiErrorText(first, 'Не удалось сохранить'));
+        toast.error(readSafeApiErrorText(first, notificationText.commonSaveFailed));
         return;
       }
       toast.success(notificationText.commonSaved);
@@ -282,7 +282,7 @@ export function DoctorCourseEditForm({
     try {
       const r = await persistToServer(true);
       if (!r.ok) {
-        toast.error(readSafeApiErrorText(r, 'Не удалось отправить курс в архив'));
+        toast.error(readSafeApiErrorText(r, notificationText.doctorCourseArchiveFailed));
         return;
       }
       setWarnOpen(false);
