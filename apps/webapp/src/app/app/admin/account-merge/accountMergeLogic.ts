@@ -14,6 +14,7 @@ export type MergePreviewApiProfile = {
   displayName: string;
   firstName: string | null;
   lastName: string | null;
+  patronymic: string | null;
   email: string | null;
   createdAt: string;
 };
@@ -25,6 +26,50 @@ export type MergePreviewApiScalarConflict = {
   recommendedWinner: 'target' | 'duplicate';
   reason: string;
 };
+
+/**
+ * Фамилия, имя и отображаемое имя — одно решение оператора, а не три.
+ *
+ * Правило владельца 13.09 выбирает КАРТОЧКУ, из которой берётся ФИО целиком; разрешить собрать
+ * фамилию с одной стороны, а имя с другой — значит получить человека, которого не существует.
+ */
+export const FIO_SCALAR_FIELDS = ['display_name', 'first_name', 'last_name'] as const;
+
+export type FioScalarField = (typeof FIO_SCALAR_FIELDS)[number];
+
+export function isFioScalarField(field: string): field is FioScalarField {
+  return (FIO_SCALAR_FIELDS as readonly string[]).includes(field);
+}
+
+/**
+ * Почему ФИО предложено именно с этой стороны — человеческими словами.
+ *
+ * Порядок проверок задан владельцем 13.09 и реализован в `pickFioSourceSide`
+ * (`infra/platformUserMergePreview.ts`). Незнакомую причину не печатаем как есть: оператор не должен
+ * читать машинные слова — вместо неё общая фраза.
+ */
+const FIO_REASON_RU: Record<string, string> = {
+  cyrillic_fio_preferred: 'Имя записано по-русски, а во второй карточке — нет.',
+  treatment_program_card_preferred: 'В этой карточке назначена программа лечения.',
+  fuller_fio_preferred: 'Здесь имя записано полнее.',
+  more_contacts_preferred: 'В этой карточке больше контактов.',
+  fresher_login_preferred: 'С этой карточки входили позже.',
+  older_created_at_preferred:
+    'Различить карточки по имени, программе, контактам и входам не вышло — предложена та, что заведена раньше.',
+};
+
+export function fioSuggestionReasonText(reason: string): string {
+  return FIO_REASON_RU[reason] ?? 'Предложение выбрано по общему правилу; проверьте и решите сами.';
+}
+
+/** Имя карточки целиком: фамилия, имя, отчество — а если их нет, то отображаемое имя. */
+export function fioSummary(p: MergePreviewApiProfile): string {
+  const triple = [p.lastName, p.firstName, p.patronymic]
+    .map((v) => norm(v))
+    .filter((v): v is string => v != null)
+    .join(' ');
+  return triple !== '' ? triple : (norm(p.displayName) ?? '');
+}
 
 export type MergePreviewApiChannelConflict = {
   channelCode: string;
@@ -195,14 +240,18 @@ export function buildDefaultManualMergeResolution(
     oauth[o.provider] = o.recommendedWinner;
   }
 
+  // ФИО — одно решение на три поля. Если разошлось хоть одно из них, все три встают на сторону,
+  // которую предложило правило владельца; иначе каждое поле остаётся при своём автозначении.
+  const fioConflict = preview.scalarConflicts.find((c) => isFioScalarField(c.field));
+
   return {
     targetId: preview.targetId,
     duplicateId: preview.duplicateId,
     fields: {
       phone_normalized: defaultScalarWinner(preview, 'phone_normalized'),
-      display_name: defaultScalarWinner(preview, 'display_name'),
-      first_name: defaultScalarWinner(preview, 'first_name'),
-      last_name: defaultScalarWinner(preview, 'last_name'),
+      display_name: fioConflict?.recommendedWinner ?? defaultScalarWinner(preview, 'display_name'),
+      first_name: fioConflict?.recommendedWinner ?? defaultScalarWinner(preview, 'first_name'),
+      last_name: fioConflict?.recommendedWinner ?? defaultScalarWinner(preview, 'last_name'),
       email: defaultScalarWinner(preview, 'email'),
     },
     bindings: {
