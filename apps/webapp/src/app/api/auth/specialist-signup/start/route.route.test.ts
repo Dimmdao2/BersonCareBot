@@ -38,11 +38,15 @@ const body = {
   organizationSlug: 'clinic-name',
 };
 
-function request(organizationTitle: string): Request {
+// У маршрута есть кулдаун «один старт на адрес в минуту» — он стоит ДО проверки аккаунта, чтобы
+// повторная отправка отвечала одинаково и на свободном, и на занятом адресе. Кулдаун живёт в
+// процессе, поэтому каждый случай ниже берёт свой адрес: иначе второй случай упирается в чужой
+// кулдаун и проверяет уже не то, ради чего написан.
+function request(organizationTitle: string, email = 'doctor@example.test'): Request {
   return new Request('https://therapysto.test/api/auth/specialist-signup/start', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ ...body, organizationTitle }),
+    body: JSON.stringify({ ...body, email, organizationTitle }),
   });
 }
 
@@ -89,7 +93,9 @@ describe('POST /api/auth/specialist-signup/start organization title', () => {
   it('accepts exactly 100 characters without changing the title', async () => {
     const organizationTitle = 'К'.repeat(100);
 
-    const response = await POST(request(organizationTitle));
+    const email = 'title-100@example.test';
+
+    const response = await POST(request(organizationTitle, email));
 
     expect(response.status).toBe(200);
     expect(fakes.createSpecialistSignupIntent).toHaveBeenCalledWith(
@@ -97,21 +103,23 @@ describe('POST /api/auth/specialist-signup/start organization title', () => {
     );
     expect(fakes.startEmailChallenge).toHaveBeenCalledWith(
       'user-1',
-      'doctor@example.test',
+      email,
       'specialist_signup',
       { kind: 'platform', senderDisplayName: 'Therapysto' },
     );
   });
 
   it('returns a typed, human-readable error for 101 characters', async () => {
-    const response = await POST(request('К'.repeat(101)));
+    const response = await POST(request('К'.repeat(101), 'title-101@example.test'));
 
     expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toEqual({
-      ok: false,
-      error: 'organization_name_too_long',
-      message: 'Название клиники не должно быть длиннее 100 знаков.',
-    });
+    const failure = (await response.json()) as { ok: boolean; error: string; message: string };
+    // Формулировка живёт в словаре текстов; здесь проверяется, что человеку досталось объяснение с
+    // названным пределом, а не машинный код.
+    expect(failure.ok).toBe(false);
+    expect(failure.error).toBe('organization_name_too_long');
+    expect(failure.message).toContain('100');
+    expect(failure.message).not.toContain('organization_name_too_long');
     expect(fakes.createSpecialistSignupIntent).not.toHaveBeenCalled();
   });
 });

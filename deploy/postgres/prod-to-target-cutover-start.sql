@@ -246,7 +246,39 @@ SELECT :'cutover_s03_result'::json AS cutover_step_s03_patient_projection_appoin
 -- (`user_channel_bindings.channel_code` + `external_id`, see
 -- apps/integrator/src/infra/db/repos/platformUserByChannel.ts), so an identity whose account is
 -- already bound belongs to that person and must not spawn a nameless duplicate card.
+--
+-- Owner decision 13.09.2026: a messenger account that belongs to nobody and never told us anything
+-- about itself is not a person and must not become a patient card. On the legacy prod these are the
+-- bot's own leftovers — the demo chat `telegram 123456789` ("Test") and Telegram's service account
+-- `Channel_Bot`. They are named by what they own, not by their ids: no card, no channel binding and
+-- no contact of any kind. An identity that carries a contact still gets its bridge card, because a
+-- phone or an email means a real person stood behind that chat.
 \echo '=== CUTOVER STEP S04/06: preserve messenger identities and channel bindings ==='
+CREATE TEMP TABLE cutover_retired_messenger_identities (
+  identity_id bigint PRIMARY KEY,
+  user_id bigint NOT NULL,
+  resource text NOT NULL,
+  external_id text NOT NULL
+) ON COMMIT DROP;
+
+INSERT INTO cutover_retired_messenger_identities (identity_id, user_id, resource, external_id)
+SELECT identity_row.id, identity_row.user_id, identity_row.resource, identity_row.external_id
+FROM integrator.identities identity_row
+WHERE identity_row.resource IN ('telegram', 'max', 'vk')
+  AND NOT EXISTS (
+    SELECT 1 FROM public.platform_users user_row
+    WHERE user_row.integrator_user_id = identity_row.user_id
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM public.user_channel_bindings binding
+    WHERE binding.channel_code = identity_row.resource
+      AND binding.external_id = identity_row.external_id
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM integrator.contacts contact_row
+    WHERE contact_row.user_id = identity_row.user_id
+  );
+
 INSERT INTO public.platform_users (
   integrator_user_id, display_name, first_name, last_name, role, created_at, updated_at
 )
@@ -261,6 +293,10 @@ WHERE identity_row.resource IN ('telegram', 'max', 'vk')
     SELECT 1 FROM public.user_channel_bindings binding
     WHERE binding.channel_code = identity_row.resource
       AND binding.external_id = identity_row.external_id
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM cutover_retired_messenger_identities retired
+    WHERE retired.identity_id = identity_row.id
   );
 
 INSERT INTO public.user_channel_bindings (
@@ -302,13 +338,19 @@ SELECT json_build_object(
   'canonicalChannelBindings', (
     SELECT count(*) FROM public.user_channel_bindings WHERE channel_code IN ('telegram', 'max', 'vk')
   ),
+  'retiredMessengerIdentities', (SELECT count(*) FROM cutover_retired_messenger_identities),
   'unmappedMessengerIdentities', (
     SELECT count(*)
     FROM integrator.identities identity_row
     LEFT JOIN public.user_channel_bindings binding
       ON binding.channel_code = identity_row.resource
      AND binding.external_id = identity_row.external_id
-    WHERE identity_row.resource IN ('telegram', 'max', 'vk') AND binding.user_id IS NULL
+    WHERE identity_row.resource IN ('telegram', 'max', 'vk')
+      AND binding.user_id IS NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM cutover_retired_messenger_identities retired
+        WHERE retired.identity_id = identity_row.id
+      )
   ),
   'blockedChannelBindings', (
     SELECT count(*) FROM public.user_channel_bindings WHERE bot_blocked_at IS NOT NULL
@@ -336,13 +378,41 @@ BEGIN
     RAISE EXCEPTION 'unmapped patient booking projections: %', violations;
   END IF;
 
+  -- Nobody is lost: every messenger identity ends owned by a person. The single exception is the
+  -- retired set from S04, and it is not taken on trust — the check below re-derives it, so the
+  -- exception cannot be widened to cover an identity that does have an owner or a contact.
+  SELECT count(*) INTO violations
+  FROM cutover_retired_messenger_identities retired
+  JOIN integrator.identities identity_row ON identity_row.id = retired.identity_id
+  WHERE identity_row.resource NOT IN ('telegram', 'max', 'vk')
+     OR EXISTS (
+       SELECT 1 FROM public.platform_users user_row
+       WHERE user_row.integrator_user_id = identity_row.user_id
+     )
+     OR EXISTS (
+       SELECT 1 FROM public.user_channel_bindings binding
+       WHERE binding.channel_code = identity_row.resource
+         AND binding.external_id = identity_row.external_id
+     )
+     OR EXISTS (
+       SELECT 1 FROM integrator.contacts contact_row
+       WHERE contact_row.user_id = identity_row.user_id
+     );
+  IF violations <> 0 THEN
+    RAISE EXCEPTION 'retired messenger identities that actually belong to somebody: %', violations;
+  END IF;
+
   SELECT count(*) INTO violations
   FROM integrator.identities identity_row
   LEFT JOIN public.user_channel_bindings binding
     ON binding.channel_code = identity_row.resource
    AND binding.external_id = identity_row.external_id
   WHERE identity_row.resource IN ('telegram', 'max', 'vk')
-    AND binding.user_id IS NULL;
+    AND binding.user_id IS NULL
+    AND NOT EXISTS (
+      SELECT 1 FROM cutover_retired_messenger_identities retired
+      WHERE retired.identity_id = identity_row.id
+    );
   IF violations <> 0 THEN
     RAISE EXCEPTION 'unmapped messenger identities: %', violations;
   END IF;
@@ -439,7 +509,12 @@ SELECT json_build_object(
     LEFT JOIN public.user_channel_bindings binding
       ON binding.channel_code = identity_row.resource
      AND binding.external_id = identity_row.external_id
-    WHERE identity_row.resource IN ('telegram', 'max', 'vk') AND binding.user_id IS NULL
+    WHERE identity_row.resource IN ('telegram', 'max', 'vk')
+      AND binding.user_id IS NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM cutover_retired_messenger_identities retired
+        WHERE retired.identity_id = identity_row.id
+      )
   ),
   'legacyProjectionSourceValuesRemaining', (
     (SELECT count(*) FROM public.patient_bookings WHERE source = 'rubitime_projection')
