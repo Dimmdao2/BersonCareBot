@@ -207,6 +207,18 @@ SELECT 1 / (NOT EXISTS (
      SELECT 1 FROM dev_signing_secret AS captured WHERE captured.secret = live.secret
    )
 ))::int AS dev_signing_secret_is_the_captured_dev_one;
+\else
+-- Окружение не несёт собственного ключа подписи. Это законное состояние: после перехода на
+-- порт-контекст шов отставлен, и таблица пуста и на TEST, и на новом проде. Незаконно другое —
+-- оставить в этом окружении ключ ИСТОЧНИКА, приехавший с данными: это ровно тот перенос
+-- credential, который весь этот файл существует, чтобы не допустить. Поэтому пустое окружение не
+-- «пропускает шаг», а очищает то, что приехало, и доказывает, что очистило.
+SELECT (to_regclass('app.context_signing_secrets') IS NOT NULL)::text AS has_signing_secret_seam \gset
+\if :has_signing_secret_seam
+DELETE FROM app.context_signing_secrets;
+SELECT 1 / (count(*) = 0)::int AS source_signing_secret_did_not_survive
+  FROM app.context_signing_secrets;
+\endif
 \endif
 
 -- Per-backend rows keyed by the PID of a TEST backend that no longer exists. Ephemeral by

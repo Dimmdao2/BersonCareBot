@@ -116,7 +116,9 @@ function buildDatabase({ settings, organizations, signingSecret, objects, connec
       },
       'app.context_signing_secrets': {
         columns: [{ name: 'id', type: 'boolean', notNull: true }, { name: 'secret', type: 'text', notNull: true }],
-        rows: [{ id: true, secret: signingSecret }],
+        // `null` models an environment whose seam exists but carries no credential of its own --
+        // the real state of TEST and of the new prod after the port-context cutover.
+        rows: signingSecret === null ? [] : [{ id: true, secret: signingSecret }],
       },
       'app.principal_context': {
         columns: [{ name: 'backend_pid', type: 'integer' }, { name: 'claim', type: 'text' }],
@@ -130,7 +132,7 @@ function buildDatabase({ settings, organizations, signingSecret, objects, connec
   };
 }
 
-function buildClusterState({ devSettings, targetConnectionLimit = -1 } = {}) {
+function buildClusterState({ devSettings, targetConnectionLimit = -1, targetSigningSecret = DEV_SIGNING_SECRET } = {}) {
   return {
     events: [],
     databases: {
@@ -139,7 +141,7 @@ function buildClusterState({ devSettings, targetConnectionLimit = -1 } = {}) {
         connectionLimit: targetConnectionLimit,
         objects: [],
         organizations: [ORG_IN_TEST, ORG_ONLY_IN_DEV],
-        signingSecret: DEV_SIGNING_SECRET,
+        signingSecret: targetSigningSecret,
         settings: devSettings ?? [
           setting('app_base_url', 'dev-base-url'),
           setting('smsc_api_key', 'dev-smsc'),
@@ -176,6 +178,7 @@ function buildClusterState({ devSettings, targetConnectionLimit = -1 } = {}) {
 function createRuntime({
   devSettings,
   targetConnectionLimit,
+  targetSigningSecret,
   restoreSqlMutation = (sql) => sql,
   captureSqlMutation = (sql) => sql,
 } = {}) {
@@ -208,7 +211,7 @@ function createRuntime({
   );
   writeFileSync(join(root, 'deploy/postgres/privileges/generate-cli.mjs'), '');
   writeFileSync(join(root, 'deploy/postgres/privileges/reconcile-access.mjs'), '');
-  writeFileSync(statePath, JSON.stringify(buildClusterState({ devSettings, targetConnectionLimit })));
+  writeFileSync(statePath, JSON.stringify(buildClusterState({ devSettings, targetConnectionLimit, targetSigningSecret })));
 
   // The real key policy has its own test file; here it is a fixture so this suite tests the
   // wrapper's behaviour and not the registry.
@@ -579,6 +582,22 @@ test('no TEST environment value, credential or lock survives into DEV', () => {
   );
   assert.deepEqual(dev.tables['app.principal_context'].rows, [], 'stale TEST principal rows survived');
   assert.deepEqual(dev.tables['app.context_nonce_ledger'].rows, [], 'stale TEST nonces survived');
+});
+
+test('a target with no credential of its own does not inherit the source one', () => {
+  // Измерено 13.09.2026 на первой загрузке TEST -> PROD: после перехода на порт-контекст шов
+  // app.context_signing_secrets отставлен, и на TEST и на новом проде таблица ПУСТА. Прежний
+  // маркер спрашивал «существует ли таблица», поэтому пустое окружение объявляло, что несёт
+  // ключ, и возврат делил на ноль в «ровно одна снятая строка» — уже ПОСЛЕ разрушающей границы.
+  // Пустое окружение — законное состояние; незаконно, чтобы в нём остался ключ ИСТОЧНИКА.
+  const empty = createRuntime({ targetSigningSecret: null });
+  const result = runRefresh(empty, ['--execute', CONFIRM]);
+  assert.equal(result.status, 0, `refresh failed: ${result.stderr}`);
+  assert.deepEqual(
+    devSigningSecrets(empty),
+    [],
+    'the source credential survived into an environment that has none of its own',
+  );
 });
 
 test('the DEV signing secret is re-pinned: dropping the repin is caught, not tolerated', () => {

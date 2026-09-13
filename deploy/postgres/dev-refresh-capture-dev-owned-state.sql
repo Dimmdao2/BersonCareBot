@@ -86,10 +86,26 @@ COPY (SELECT key, scope, organization_id, value_json, updated_at FROM dev_owned_
 
 -- app.context_signing_secrets holds the principal-context signing credential of THIS environment.
 -- It is the one runtime credential that lives inside the database rather than in env, so copying
--- TEST's row into DEV would be a credential transfer. Capture DEV's own row when the seam exists.
+-- the source's row into the target would be a credential transfer. Capture the target's own row.
+--
+-- The marker answers "does this environment HAVE its own credential", not "does the seam exist".
+-- Those are different questions, and the difference is real: after the port-context cutover this
+-- seam is retired and the table is empty on TEST and on the new prod, while DEV still carries its
+-- row. Asking only about the table made an empty environment claim a credential it does not have,
+-- and the restore then divided by zero on "exactly one captured row" — measured 13.09.2026 on the
+-- first TEST -> PROD load, after the destructive boundary. An environment with no credential of its
+-- own is a legal state; what must never happen is the source's row surviving into it, and that is
+-- the restore's `\else` branch.
 -- ::text so the exported marker is literally true/false, which is what the wrapper asserts on;
 -- an uncast boolean would print psql's t/f.
-SELECT (to_regclass('app.context_signing_secrets') IS NOT NULL)::text AS dev_has_signing_secret \gset
+-- Two steps, not one predicate: a missing relation is a PARSE error, so the count may only be
+-- written after the existence answer is already in hand.
+SELECT (to_regclass('app.context_signing_secrets') IS NOT NULL)::text AS has_signing_secret_seam \gset
+\if :has_signing_secret_seam
+SELECT ((SELECT count(*) FROM app.context_signing_secrets) = 1)::text AS dev_has_signing_secret \gset
+\else
+SELECT false::text AS dev_has_signing_secret \gset
+\endif
 COPY (SELECT :'dev_has_signing_secret'::text) TO :'has_signing_secret_out';
 \if :dev_has_signing_secret
 COPY (SELECT secret FROM app.context_signing_secrets ORDER BY id) TO :'signing_secret_out';
