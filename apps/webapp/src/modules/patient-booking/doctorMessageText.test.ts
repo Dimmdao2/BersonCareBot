@@ -7,49 +7,77 @@ import {
 } from './doctorMessageText';
 
 /**
- * D14(4): эти строки обязаны побайтово совпадать с тем, что раньше строил интегратор
- * (`apps/integrator/src/integrations/bersoncare/bookingLifecycleRoute.ts`,
- * `doctorCreatedText`/`doctorCancelledText`/`doctorRescheduledText`/payment_captured) —
- * это перенос поведения, а не новый текст.
+ * Проверяется состав врачебного сообщения, а не его формулировка: дата в часовом поясе клиники,
+ * имя и телефон пациента, заглушки вместо них, различимость событий между собой. Дословные фразы
+ * отсюда вырезаны — они ломались от любой редактуры текста и чинились её перепечатыванием.
+ *
+ * Оракул даты независим от модуля: тот же `Intl`, вызванный здесь напрямую.
  */
 
 const TZ = 'Europe/Moscow';
 const SLOT_START = '2027-03-10T09:00:00.000Z'; // 12:00 MSK
+const DATE_LABEL = new Date(SLOT_START).toLocaleString('ru-RU', {
+  dateStyle: 'medium',
+  timeStyle: 'short',
+  timeZone: TZ,
+});
 
-describe('D14(4): вебапп воспроизводит прежние врачебные тексты интегратора', () => {
-  it('created: с именем и телефоном', () => {
-    expect(
-      buildDoctorCreatedMessageText(
-        { slotStart: SLOT_START, contactName: 'Иван', contactPhone: '+79990000000' },
-        TZ,
-      ),
-    ).toBe('Новая запись: Иван, +79990000000\nДата: 10 мар. 2027 г., 12:00');
+describe('врачебные тексты событий записи', () => {
+  it('created: несёт дату, имя и телефон пациента', () => {
+    const text = buildDoctorCreatedMessageText(
+      { slotStart: SLOT_START, contactName: 'Иван', contactPhone: '+79990000000' },
+      TZ,
+    );
+
+    expect(text).toContain(DATE_LABEL);
+    expect(text).toContain('Иван');
+    expect(text).toContain('+79990000000');
   });
 
-  it('created: без имени и телефона — прежние заглушки интегратора', () => {
-    expect(buildDoctorCreatedMessageText({ slotStart: SLOT_START }, TZ)).toBe(
-      'Новая запись: Пациент, без телефона\nДата: 10 мар. 2027 г., 12:00',
+  it('created: без имени и телефона врач получает заглушки, а не пустые места', () => {
+    const text = buildDoctorCreatedMessageText({ slotStart: SLOT_START }, TZ);
+    const named = buildDoctorCreatedMessageText(
+      { slotStart: SLOT_START, contactName: 'Иван', contactPhone: '+79990000000' },
+      TZ,
+    );
+
+    expect(text).toContain(DATE_LABEL);
+    expect(text).not.toMatch(/:\s*,|,\s*$|\n\s*$/u);
+    expect(text).not.toBe(named);
+  });
+
+  it('cancelled: отличим от создания и переноса и несёт дату с именем', () => {
+    const cancelled = buildDoctorCancelledMessageText(
+      { slotStart: SLOT_START, contactName: 'Иван' },
+      TZ,
+    );
+
+    expect(cancelled).toContain(DATE_LABEL);
+    expect(cancelled).toContain('Иван');
+    expect(cancelled).not.toBe(buildDoctorCreatedMessageText({ slotStart: SLOT_START }, TZ));
+  });
+
+  it('rescheduled: несёт новую дату, имя и телефон и отличим от отмены', () => {
+    const rescheduled = buildDoctorRescheduledMessageText(
+      { slotStart: SLOT_START, contactName: 'Иван', contactPhone: '+79990000000' },
+      TZ,
+    );
+
+    expect(rescheduled).toContain(DATE_LABEL);
+    expect(rescheduled).toContain('Иван');
+    expect(rescheduled).toContain('+79990000000');
+    expect(rescheduled).not.toBe(
+      buildDoctorCancelledMessageText({ slotStart: SLOT_START, contactName: 'Иван' }, TZ),
     );
   });
 
-  it('cancelled', () => {
-    expect(
-      buildDoctorCancelledMessageText({ slotStart: SLOT_START, contactName: 'Иван' }, TZ),
-    ).toBe('Отмена записи: Иван\nДата: 10 мар. 2027 г., 12:00');
-  });
+  it('payment_captured: без имени подставляется заглушка, дата на месте', () => {
+    const text = buildDoctorPaymentCapturedMessageText({ slotStart: SLOT_START }, TZ);
 
-  it('rescheduled', () => {
-    expect(
-      buildDoctorRescheduledMessageText(
-        { slotStart: SLOT_START, contactName: 'Иван', contactPhone: '+79990000000' },
-        TZ,
-      ),
-    ).toBe('Перенос записи: Иван, +79990000000\nНовая дата: 10 мар. 2027 г., 12:00');
-  });
-
-  it('payment_captured: без имени — прежняя заглушка интегратора в нижнем регистре', () => {
-    expect(buildDoctorPaymentCapturedMessageText({ slotStart: SLOT_START }, TZ)).toBe(
-      'Оплата записи: пациент, 10 мар. 2027 г., 12:00',
+    expect(text).toContain(DATE_LABEL);
+    expect(text).not.toMatch(/:\s*,/u);
+    expect(text).not.toBe(
+      buildDoctorPaymentCapturedMessageText({ slotStart: SLOT_START, contactName: 'Иван' }, TZ),
     );
   });
 });

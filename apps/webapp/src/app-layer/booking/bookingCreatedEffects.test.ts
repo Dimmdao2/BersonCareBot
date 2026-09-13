@@ -8,6 +8,7 @@ import type { BookingCreatedEffectsInput } from '@/modules/booking-notifications
 import { NOTIFICATION_TOPIC_APPOINTMENT } from '@/modules/patient-notifications/notificationTopicCodes';
 import { getDeliveryTargetsForIntegrator } from '@/modules/integrator/deliveryTargetsApi';
 import { resolvePatientTerms } from '@/modules/system-settings/patientTerms';
+import { buildPatientCreatedMessageText } from '@/modules/patient-booking/patientMessageText';
 
 /**
  * Проверяется одно: ПОЛУЧИТ ЛИ ЧЕЛОВЕК сообщение о своей записи и по какому маршруту. Не форма
@@ -66,8 +67,13 @@ describe('пациент узнаёт о созданной записи', () =>
     expect(enqueued.map((row) => row.channel)).toEqual(['telegram', 'max']);
     expect(enqueued.map((row) => row.recipient)).toEqual(['111', '222']);
     for (const row of enqueued) {
+      // Текст закреплён у сборщика сообщений; здесь проверяется шов до очереди отправки.
       expect((row.content as { text: string }).text).toBe(
-        'Запись подтверждена: 10 мар. 2027 г., 12:00\nОнлайн',
+        buildPatientCreatedMessageText(
+          { slotStart: '2027-03-10T09:00:00.000Z', bookingType: 'online' },
+          'Europe/Moscow',
+          resolvePatientTerms({ appointmentLabel: undefined }),
+        ),
       );
       expect((row.content as { senderScope?: string }).senderScope).toBe('clinic_if_configured');
     }

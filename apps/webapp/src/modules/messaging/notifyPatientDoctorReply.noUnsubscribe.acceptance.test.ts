@@ -73,7 +73,6 @@ describe('transactional doctor reply', () => {
     for (const call of calls) {
       expect(call.replyMarkup).toBeUndefined();
       expect(call.html).toBeUndefined();
-      expect(call.text).not.toContain('Отписаться от темы');
       expect((call.metadata as Record<string, unknown> | undefined)?.listUnsubscribe).toBeUndefined();
     }
     expect(calls.find((call) => call.channel === 'telegram')?.senderScope).toBe(

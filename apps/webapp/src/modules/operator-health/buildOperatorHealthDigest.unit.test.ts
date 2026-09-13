@@ -23,7 +23,12 @@ describe('buildOperatorHealthDigest', () => {
       },
     });
 
-    expect(result.lines).toContain('Инцидент: outbound_oldest_unsent / critical ×4');
-    expect(result.lines.filter((line) => line.startsWith('Инцидент:'))).toHaveLength(1);
+    // Сводка обязана свернуть четыре срабатывания в одну строку и назвать тему, тяжесть и счёт.
+    // Как именно построена фраза — дело сводки, здесь не переписывается.
+    const incidentLines = result.lines.filter((line) => line.startsWith('Инцидент:'));
+    expect(incidentLines).toHaveLength(1);
+    expect(incidentLines[0]).toContain('outbound_oldest_unsent');
+    expect(incidentLines[0]).toContain('critical');
+    expect(incidentLines[0]).toContain('4');
   });
 });

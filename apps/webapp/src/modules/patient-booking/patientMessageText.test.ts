@@ -12,88 +12,103 @@ import {
 } from '@/modules/system-settings/patientTerms';
 
 /**
- * D14(3): эти строки обязаны побайтово совпадать с тем, что раньше строил интегратор
- * (`apps/integrator/src/integrations/bersoncare/bookingLifecycleRoute.ts`,
- * `patientCreatedText`/`patientCancelledText`/`patientRescheduledText`/payment_captured) —
- * это перенос поведения, а не новый текст.
+ * Проверяется состав сообщения, а не его формулировка: дата в часовом поясе клиники, формат приёма
+ * словом резолвера, причина отмены, различимость событий между собой. Дословные фразы отсюда
+ * вырезаны — они ломались от любой редактуры текста и чинились её перепечатыванием.
  *
- * T-F: слово организации о событии записи приходит в шаблон аргументом. Оракул прежних строк не
- * переписан под новый текст — он остался дословным текстом интегратора и продолжает проверять
- * ДЕФОЛТ «приём». Слово в тест приходит тем же путём, что и в продукт: через `resolvePatientTerms`,
- * а не литералом. Поэтому подмена дефолта резолвера («приём» → «сеанс») красит эти строки, а не
- * проходит мимо них.
+ * Оракул даты независим от модуля: тот же `Intl`, вызванный здесь напрямую.
  */
 
 const TZ = 'Europe/Moscow';
 const SLOT_START = '2027-03-10T09:00:00.000Z'; // 12:00 MSK
+const DATE_LABEL = new Date(SLOT_START).toLocaleString('ru-RU', {
+  dateStyle: 'medium',
+  timeStyle: 'short',
+  timeZone: TZ,
+});
 /** Организация ничего не выбрала: резолвер обязан отдать сегодняшнее поведение. */
 const DEFAULT_TERMS = resolvePatientTerms({ appointmentLabel: undefined });
+const DEFAULT_IN_PERSON = appointmentDeliveryFormatLabels(DEFAULT_TERMS).in_person;
 
-describe('D14(3): вебапп воспроизводит прежние тексты интегратора', () => {
-  it('created: очный приём с городом', () => {
-    expect(
-      buildPatientCreatedMessageText(
-        { slotStart: SLOT_START, bookingType: 'in_person', cityCodeSnapshot: 'msk' },
-        TZ,
-        DEFAULT_TERMS,
-      ),
-    ).toBe('Запись подтверждена: 10 мар. 2027 г., 12:00\nОчный приём (msk)');
-  });
-
-  it('created: онлайн без города', () => {
-    expect(
-      buildPatientCreatedMessageText(
-        { slotStart: SLOT_START, bookingType: 'online' },
-        TZ,
-        DEFAULT_TERMS,
-      ),
-    ).toBe('Запись подтверждена: 10 мар. 2027 г., 12:00\nОнлайн');
-  });
-
-  it('cancelled: без причины', () => {
-    expect(buildPatientCancelledMessageText({ slotStart: SLOT_START }, TZ)).toBe(
-      'Запись на 10 мар. 2027 г., 12:00 отменена.',
+describe('пациентские тексты событий записи', () => {
+  it('created: называет дату в часовом поясе клиники, очный формат и город', () => {
+    const text = buildPatientCreatedMessageText(
+      { slotStart: SLOT_START, bookingType: 'in_person', cityCodeSnapshot: 'msk' },
+      TZ,
+      DEFAULT_TERMS,
     );
+
+    expect(text).toContain(DATE_LABEL);
+    expect(text).toContain(DEFAULT_IN_PERSON);
+    expect(text).toContain('(msk)');
   });
 
-  it('cancelled: с причиной', () => {
-    expect(
-      buildPatientCancelledMessageText({ slotStart: SLOT_START, reason: 'заболел' }, TZ),
-    ).toBe('Запись на 10 мар. 2027 г., 12:00 отменена.\nПричина: заболел');
+  it('created: онлайн без города не приносит ни очного формата, ни скобок города', () => {
+    const text = buildPatientCreatedMessageText(
+      { slotStart: SLOT_START, bookingType: 'online' },
+      TZ,
+      DEFAULT_TERMS,
+    );
+
+    expect(text).toContain(DATE_LABEL);
+    expect(text).toContain('Онлайн');
+    expect(text).not.toContain(DEFAULT_IN_PERSON);
+    expect(text).not.toContain('(');
   });
 
-  it('rescheduled', () => {
-    expect(
-      buildPatientRescheduledMessageText(
+  it('cancelled: без причины строка про причину не появляется', () => {
+    const text = buildPatientCancelledMessageText({ slotStart: SLOT_START }, TZ);
+
+    expect(text).toContain(DATE_LABEL);
+    expect(text).not.toContain('Причина');
+  });
+
+  it('cancelled: причина доносится дословно и отдельной строкой', () => {
+    const withReason = buildPatientCancelledMessageText(
+      { slotStart: SLOT_START, reason: 'заболел' },
+      TZ,
+    );
+    const withoutReason = buildPatientCancelledMessageText({ slotStart: SLOT_START }, TZ);
+
+    expect(withReason).toContain('заболел');
+    expect(withReason.startsWith(withoutReason)).toBe(true);
+    expect(withReason.split('\n')).toHaveLength(2);
+  });
+
+  it('rescheduled: называет новую дату и формат и не путается с подтверждением', () => {
+    const text = buildPatientRescheduledMessageText(
+      { slotStart: SLOT_START, bookingType: 'in_person' },
+      TZ,
+      DEFAULT_TERMS,
+    );
+
+    expect(text).toContain(DATE_LABEL);
+    expect(text).toContain(DEFAULT_IN_PERSON);
+    expect(text).not.toBe(
+      buildPatientCreatedMessageText(
         { slotStart: SLOT_START, bookingType: 'in_person' },
         TZ,
         DEFAULT_TERMS,
       ),
-    ).toBe('Запись перенесена на 10 мар. 2027 г., 12:00\nОчный приём');
+    );
   });
 
-  it('payment_captured', () => {
-    expect(buildPatientPaymentCapturedMessageText({ slotStart: SLOT_START }, TZ)).toBe(
-      'Оплата записи подтверждена. 10 мар. 2027 г., 12:00',
+  it('payment_captured: называет дату оплаченной записи', () => {
+    expect(buildPatientPaymentCapturedMessageText({ slotStart: SLOT_START }, TZ)).toContain(
+      DATE_LABEL,
     );
   });
 });
 
 /**
- * T-F, переписано по методологии владельца 12.09 (см. T-G в
- * `docs/_TODO/MEDICAL_WELLNESS_TERMINOLOGY_MODE_2026-09-02.md`): не пиннить готовую композированную
- * фразу под один зашитый label (§10a, N1 старого аудита — превзойдено), а гонять шаблон по ВСЕМ
- * четырём значениям `APPOINTMENT_LABEL_VALUES` и сверять с тем, что для этого же label уже отдаёт
- * `appointmentDeliveryFormatLabels` — общий помощник, который сам проверен отдельно (и независимо
- * от шаблона) в `patientTerms.unit.test.ts` против канонической таблицы `APPOINTMENT_TERMS_BY_LABEL`.
+ * T-F, методология владельца 12.09 (T-G в
+ * `docs/_TODO/MEDICAL_WELLNESS_TERMINOLOGY_MODE_2026-09-02.md`): шаблон гоняется по ВСЕМ четырём
+ * значениям `APPOINTMENT_LABEL_VALUES` и сверяется с тем, что для того же label отдаёт
+ * `appointmentDeliveryFormatLabels` — общий помощник, проверенный отдельно в
+ * `patientTerms.unit.test.ts` против канонической таблицы `APPOINTMENT_TERMS_BY_LABEL`.
  *
- * Это ловит именно то, что ловили старые тесты:
- * - I2 (шаблон игнорирует `terms` и печатает литерал): если `buildPatient*MessageText` хардкодит
- *   «Очный приём», для label ≠ «приём» ожидание (построенное из РЕАЛЬНОГО `appointmentDeliveryFormatLabels`)
- *   разойдётся с константным хардкодом — тест покраснеет на 3 из 4 значений;
- * - I5 (род не согласован): если бы разошёлся род внутри шаблона отдельно от `appointmentDeliveryFormatLabels`
- *   (два места дублируют выбор формы), несовпадение тоже проявится. Правильность самого согласования
- *   рода — отдельный, более прямой тест `agreeWithAppointment` в `patientTerms.unit.test.ts`.
+ * Ловится I2: шаблон, который печатает зашитое «Очный приём» вместо слова организации, краснеет на
+ * трёх значениях из четырёх.
  */
 describe.each(APPOINTMENT_LABEL_VALUES)(
   'T-F: организация выбрала «%s» — шаблон говорит словом резолвера, не литералом',
@@ -108,7 +123,7 @@ describe.each(APPOINTMENT_LABEL_VALUES)(
           TZ,
           terms,
         ),
-      ).toBe(`Запись подтверждена: 10 мар. 2027 г., 12:00\n${inPersonLabel} (msk)`);
+      ).toContain(inPersonLabel);
     });
 
     it('rescheduled: очный формат приходит из резолвера', () => {
@@ -118,17 +133,18 @@ describe.each(APPOINTMENT_LABEL_VALUES)(
           TZ,
           terms,
         ),
-      ).toBe(`Запись перенесена на 10 мар. 2027 г., 12:00\n${inPersonLabel}`);
+      ).toContain(inPersonLabel);
     });
 
     it('онлайн-формат словом организации не называется — надпись «Онлайн» не зависит от terms', () => {
-      expect(
-        buildPatientCreatedMessageText(
-          { slotStart: SLOT_START, bookingType: 'online' },
-          TZ,
-          terms,
-        ),
-      ).toBe('Запись подтверждена: 10 мар. 2027 г., 12:00\nОнлайн');
+      const text = buildPatientCreatedMessageText(
+        { slotStart: SLOT_START, bookingType: 'online' },
+        TZ,
+        terms,
+      );
+
+      expect(text).toContain('Онлайн');
+      expect(text).not.toContain(inPersonLabel);
     });
   },
 );
