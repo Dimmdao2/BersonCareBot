@@ -2,7 +2,7 @@ import { runWithDbBootstrapPrincipal } from '@bersoncare/db-principal';
 import { logger } from '@/infra/logging/logger';
 import { identitySessionRef } from '@/infra/identityBoundaryAudit';
 import { lookupLoginCountry } from '@/infra/loginCountry';
-import { appendUserLoginEvent } from '@/infra/userLoginEvents';
+import { appendUserLoginEvent, type UserLoginEventAppended } from '@/infra/userLoginEvents';
 
 export type RecordUserLoginEventInput = {
   userId: string;
@@ -34,17 +34,38 @@ function resolveCountry(ip: string | null): string | null {
   }
 }
 
-/** Journal failure is deliberately best-effort: authentication must still complete. */
-export async function recordUserLoginEvent(input: RecordUserLoginEventInput): Promise<void> {
+export type RecordedUserLoginEvent = UserLoginEventAppended & {
+  /** Та же страна, что легла в строку журнала, — не пересчитанная заново. */
+  country: string | null;
+};
+
+/**
+ * Journal failure is deliberately best-effort: authentication must still complete.
+ *
+ * Возвращает `null`, когда записать не удалось. Это НЕ то же самое, что «устройство знакомое»:
+ * не зная, знакомо оно или нет, письмо о новом месте отправлять нельзя — ни отправить наугад, ни
+ * промолчать наугад. Отказ уходит в лог, и решение принимает вызывающий, видя `null`.
+ */
+export async function recordUserLoginEvent(
+  input: RecordUserLoginEventInput,
+): Promise<RecordedUserLoginEvent | null> {
   try {
-    await runWithDbBootstrapPrincipal({ source: 'user-login-event/session-start' }, () =>
-      appendUserLoginEvent({
-        ...input,
-        sessionRef: identitySessionRef(input.userId, input.issuedAtSeconds),
-        country: resolveCountry(input.ip),
-      }),
+    // Страна считается ОДИН раз и уходит наружу вместе с результатом. Посчитай её второй раз для
+    // письма — и письмо смогло бы назвать страну, которой нет в строке журнала: справочник
+    // переиздаётся, а разбирающий случай человек сверяет письмо со строкой.
+    const country = resolveCountry(input.ip);
+    const appended = await runWithDbBootstrapPrincipal(
+      { source: 'user-login-event/session-start' },
+      () =>
+        appendUserLoginEvent({
+          ...input,
+          sessionRef: identitySessionRef(input.userId, input.issuedAtSeconds),
+          country,
+        }),
     );
+    return { ...appended, country };
   } catch (err) {
-    logger.error({ err, method: input.method }, 'user login event was not recorded');
+    logger.error({ err, reason: String(err), method: input.method }, 'user login event was not recorded');
+    return null;
   }
 }

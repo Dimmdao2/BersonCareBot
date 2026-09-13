@@ -21,9 +21,24 @@ export type UserLoginEventWrite = {
   country: string | null;
 };
 
+export type UserLoginEventAppended = {
+  /**
+   * #1112 Л-8.2а. Этого устройства у этого человека раньше не видели. Браузер без метки тоже даёт
+   * `true`: узнать его нечем, и назвать неузнанное знакомым было бы неправдой.
+   */
+  deviceWasNew: boolean;
+  /** Первый вход в жизни учётной записи. Это не «вход из нового места», а просто первый вход. */
+  firstLoginEver: boolean;
+};
+
 /** Appends one successful session birth through the closed SECURITY DEFINER door. */
-export async function appendUserLoginEvent(input: UserLoginEventWrite): Promise<void> {
-  await runWebappNamedRoot(
+export async function appendUserLoginEvent(
+  input: UserLoginEventWrite,
+): Promise<UserLoginEventAppended> {
+  const result = await runWebappNamedRoot<{
+    device_was_new: boolean;
+    first_login_ever: boolean;
+  }>(
     getWebappSqlDb(),
     APPEND_USER_LOGIN_EVENT_ROOT,
     [
@@ -40,7 +55,7 @@ export async function appendUserLoginEvent(input: UserLoginEventWrite): Promise<
       input.deviceId,
       input.country,
     ],
-    sql`SELECT app.append_user_login_event(
+    sql`SELECT device_was_new, first_login_ever FROM app.append_user_login_event(
       ${input.userId}::uuid,
       ${input.method}::text,
       ${input.role}::text,
@@ -55,4 +70,9 @@ export async function appendUserLoginEvent(input: UserLoginEventWrite): Promise<
       ${input.country}::text
     )`,
   );
+  const row = result.rows[0];
+  // Строка обязана быть: дверь либо вставила вход и вернула ряд, либо подняла отказ. Пустой ответ
+  // здесь — не «ничего не случилось», а расхождение с дверью, и глушить его нельзя.
+  if (!row) throw new Error('append_user_login_event_missing_result');
+  return { deviceWasNew: row.device_was_new, firstLoginEver: row.first_login_ever };
 }

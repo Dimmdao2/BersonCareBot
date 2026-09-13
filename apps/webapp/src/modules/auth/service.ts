@@ -284,7 +284,7 @@ async function persistNewAuthSession(
     const ip = rawIp && isIP(rawIp) !== 0 ? rawIp : null;
     const parsedDevice = parseLoginUserAgent(userAgent);
     const { recordUserLoginEvent } = await import('@/app-layer/identity/recordUserLoginEvent');
-    await recordUserLoginEvent({
+    const appended = await recordUserLoginEvent({
       userId: stamped.user.userId,
       issuedAtSeconds: stamped.issuedAt,
       method,
@@ -295,6 +295,30 @@ async function persistNewAuthSession(
       host: requestHeaders?.get('host')?.trim() || null,
       deviceId,
     });
+
+    // #1112 Л-8.2б. Письмо «вход с нового устройства» (владелец 14.09). Место то же самое и по той
+    // же причине, что и сам журнал: сюда приходят ВСЕ способы входа, и развесить проверку по
+    // маршрутам значило бы завести двадцать мест, где о ней можно забыть.
+    //
+    // ⛔ НЕ ждём отправки. Письмо уходит наружу, по сети, в чужую службу, у которой нет нашего
+    // срока ожидания; дождись мы его — и любая её заминка превратилась бы в зависший вход для
+    // человека, который всё сделал правильно. Вход уже состоялся, письмо к нему не относится.
+    // Отказ отправки помощник ловит сам и уводит в лог.
+    //
+    // `appended === null` значит, что журнал не ответил и мы НЕ ЗНАЕМ, новое это устройство или
+    // знакомое. Письма в этом случае нет: отправить наугад — испугать зря.
+    if (appended?.deviceWasNew && !appended.firstLoginEver) {
+      const { notifyNewDeviceLogin } = await import('@/app-layer/identity/notifyNewDeviceLogin');
+      void notifyNewDeviceLogin({
+        userId: stamped.user.userId,
+        role: stamped.user.role,
+        contacts: stamped.user.contacts,
+        method,
+        country: appended.country,
+        ...parsedDevice,
+        occurredAt: new Date(),
+      });
+    }
   }
   return stamped;
 }

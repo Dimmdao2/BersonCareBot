@@ -30256,8 +30256,11 @@ const REV10_CONTEXT = {
         columns: ['organization_id', 'actor_id', 'action', 'details', 'status', 'id'],
         operations: ['SELECT' as const, 'INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
+    // #1112 Л-8.2а. Возврат стал строкой из трёх полей: кроме идентификатора события дверь говорит,
+    // видели ли мы это устройство у этого человека и не первый ли это вход вообще. Спросить это
+    // отдельным вызовом нельзя: ответ зависит от того, вставлена ли уже строка ЭТОГО входа.
     'app.append_user_login_event(uuid,text,text,text,text,text,text,text,text,text,text,text)': rev10Function({
-      owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'uuid', returnsSet: false,
+      owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'record', returnsSet: true,
       execute: ['app_pre_session'], purpose: 'append one successful account session birth',
       typedArgs: ['uuid', 'text', 'text', 'text', 'text', 'text', 'text', 'text', 'text', 'text', 'text', 'text'],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'],
