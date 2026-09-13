@@ -295,7 +295,7 @@ export function TeamSection({ members, invites, seats, canMutateTeam }: Props) {
                 <span
                   className={`${doctorDnaFlatListMetaClass} flex flex-wrap items-center gap-1.5`}
                 >
-                  <Badge variant="outline">{ROLE_LABELS[member.role] ?? member.role}</Badge>
+                  <Badge variant="outline">{ROLE_LABELS[member.role] ?? notificationText.commonUnknownValue}</Badge>
                   {member.seatConsuming ? <Badge variant="secondary">Место</Badge> : null}
                 </span>
                 {member.specialistLinked ? (
@@ -462,7 +462,7 @@ export function TeamSection({ members, invites, seats, canMutateTeam }: Props) {
                     {invite.invitedEmail}
                   </span>
                   <span className={`${doctorDnaFlatListMetaClass} block`}>
-                    {ROLE_LABELS[invite.invitedRole] ?? invite.invitedRole}
+                    {ROLE_LABELS[invite.invitedRole] ?? notificationText.commonUnknownValue}
                   </span>
                 </span>
                 {canMutateTeam ? (

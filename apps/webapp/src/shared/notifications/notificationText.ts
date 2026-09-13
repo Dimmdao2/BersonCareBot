@@ -49,6 +49,12 @@
  * `data.message ?? notificationText.someKey` — обычная и ожидаемая форма: сервер может прислать
  * свой текст первым, словарь даёт только запасной текст на случай, если ответ его не содержит.
  * Такой фолбэк — не менее «известный код», чем прямой литерал, и обязан ссылаться на словарь.
+ *
+ * ЧТЕНИЕ КОММЕНТАРИЕВ НИЖЕ. Многие из них описывают ПРОШЛОЕ («ключ X был почти-дублем этого») и
+ * называют имена, которых в словаре уже нет — это история правок, а не утверждение о текущем
+ * составе. Единственный источник истины о существующих ключах — сам объект ниже. Замечание
+ * адверсарного аудита 13.09: раньше это нигде не было сказано, и комментарий с исчезнувшим именем
+ * читался как ложное утверждение.
  */
 
 export const notificationText = {
@@ -64,7 +70,7 @@ export const notificationText = {
     'Не удалось войти из-за сбоя на нашей стороне. Повторите попытку позже.',
   authEnrollmentNotStarted: 'Настройка защиты не начата. Начните подключение приложения заново.',
   authFactorAlreadyEnrolled: 'Приложение-аутентификатор уже подключено. Обновите страницу.',
-  authFactorLocked: 'Слишком много неверных кодов. Подождите 15 минут и попробуйте снова.',
+  authFactorLocked: 'Слишком много неверных кодов. Подождите и попробуйте снова.',
   authFactorReplacementRequired:
     'Нужно заменить фактор защиты. Войдите с резервным кодом и подключите приложение заново.',
   authForbidden: 'Для этого действия нет доступа. Войдите под нужным аккаунтом и повторите.',
@@ -143,6 +149,9 @@ export const notificationText = {
   authSignupStartFailed: 'Не удалось начать регистрацию. Повторите попытку.',
   authEmailNotVerifiedRetryLogin: 'Email не подтверждён. Подтвердите адрес и повторите вход.',
   authCodeInvalidOrExpired: 'Код неверный или устарел. Запросите новый код.',
+  /** Запасной текст действия «проверить код»: причина неизвестна, обвинять код нельзя —
+   *  склеивается с «Проверьте соединение с интернетом» в staffSecurityNetworkErrorText. */
+  authVerifyEnrollmentFallback: 'Не удалось проверить код. Получите новый код и повторите.',
   authEnterEmailAndCode: 'Укажите email и код из письма.',
   // Отказы, где «параметр запроса» человеку не виден и он его не вводил: раньше он читал
   // «Укажите setupToken» / «Токен не найден» / «Недействительный или просроченный state».
@@ -169,7 +178,8 @@ export const notificationText = {
   commonUserNotFound: 'Пользователь не найден.',
   bookingConfirmedPhoneRequired: 'Для записи на приём нужен подтверждённый номер телефона.',
   adminGoogleCalendarNotConnected: 'Google Календарь не подключён. Подключите его в настройках.',
-  adminGoogleOauthNotConfigured: 'Вход через Google не настроен. Обратитесь к администратору платформы.',
+  adminGoogleOauthNotConfigured:
+    'Подключение Google Календаря не настроено. Обратитесь к администратору платформы.',
   adminGoogleCalendarListFailed: 'Не удалось загрузить список календарей. Повторите попытку.',
   adminGoogleReconnectRequired: 'Доступ к Google истёк. Переподключите Google в настройках.',
   adminChannelSettingsChangedDuringTest:
@@ -241,7 +251,6 @@ export const notificationText = {
   authSpecifyEmailNameSurname: 'Укажите email, фамилию и имя',
   commonSpecifyNameSurname: 'Укажите фамилию и имя',
   commonPushNotSupported: 'Уведомления не поддерживаются',
-  authPasskeyLoginDisabled: 'Вход по ключу доступа отключён',
   authPasswordRecoveryUnavailable: 'Восстановление пароля по email временно недоступно.',
   authLoginRequiredToSaveProgress: 'Войдите, чтобы сохранить выполнение.',
   authBindingExpired: 'Время привязки истекло. Начните снова.',
@@ -415,6 +424,25 @@ export const notificationText = {
   bookingCancelFirst: 'Сначала отмените запись.',
   bookingFinancialsLocked: 'Запись уже оплачена: стоимость и условие оплаты не меняются.',
   bookingCreateFailed: 'Не удалось создать запись. Повторите попытку.',
+  // Ещё 13 кодов эти же маршруты отдают не литералом в теле, а через общие таблицы
+  // (`MANUAL_CREATE_ERROR_RULES`, `PAYMENT_ERROR_RULES`) — адверсарный аудит 13.09, замечание 1:
+  // кода врач не видел, но на понятный отказ получал безадресное «Что-то пошло не так».
+  bookingVisitInFuture: 'Нельзя отметить визит будущей датой. Выберите прошедшие дату и время.',
+  bookingVisitTimeInvalid: 'Дата и время визита указаны неверно. Проверьте их и повторите.',
+  bookingServiceNotFound: 'Услуга не найдена. Обновите страницу и выберите услугу заново.',
+  bookingSpecialistNotFound: 'Специалист не найден. Обновите страницу и выберите заново.',
+  bookingServiceNotAvailableForSpecialist:
+    'У этого специалиста нет такой услуги. Выберите другую услугу или специалиста.',
+  bookingRoomBranchMismatch: 'Кабинет относится к другому филиалу. Выберите кабинет этого филиала.',
+  bookingScheduleSpecialistNotConfigured:
+    'У специалиста не настроено расписание. Настройте его в разделе «Расписание».',
+  bookingScheduleSpecialistNotAvailable:
+    'Специалист не работает в это время. Выберите другое время.',
+  bookingPaymentsDisabled: 'Оплаты в клинике отключены. Включите их в настройках.',
+  bookingPaymentProviderUnavailable:
+    'Платёжный сервис сейчас недоступен. Повторите попытку позже.',
+  bookingPackageNotFound: 'Абонемент не найден. Обновите страницу и повторите попытку.',
+  bookingFeedLoadFailed: 'Не удалось загрузить записи. Обновите страницу и повторите попытку.',
 
   // --- domain/comments ---
   commentNotFound: 'Комментарий не найден. Обновите страницу и повторите попытку.',
@@ -615,7 +643,7 @@ export const notificationText = {
   // action) — the "Ошибка X" shapes were converted to "Не удалось X" and a next action appended.
   // NB: the earlier wording here claimed EVERY key below was covered; the final audit showed three
   // (`adminProbeSettingsSaveFailed`, `adminImapSettingsSaveFailed`,
-  // `adminBillingProviderSettingsSaveFailed`) had been missed. They are fixed now — but do not read
+  // `settingsSaveFailed`) had been missed. They are fixed now — but do not read
   // a blanket claim in a comment as proof a class is closed; re-measure. ---
   doctorLfkOverridesResetFailed: 'Не удалось сбросить настройки. Повторите попытку.',
   treatmentProgramAssignError: 'Не удалось назначить. Повторите попытку.',

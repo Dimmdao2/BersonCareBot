@@ -13,7 +13,7 @@ type SecurityAction =
 
 const actionFallback: Record<SecurityAction, string> = {
   start_enrollment: notificationText.authStartEnrollmentFallback,
-  verify_enrollment: notificationText.authCodeInvalidOrExpired,
+  verify_enrollment: notificationText.authVerifyEnrollmentFallback,
   confirm_recovery: notificationText.authConfirmRecoveryFallback,
   bind_specialist: notificationText.authBindSpecialistFallback,
   retry_provisioning: notificationText.authRetryProvisioningFallback,

@@ -18,7 +18,7 @@ describe('staffSecurityErrorText — email_password_login fallback', () => {
 
   it('keeps the established rate-limit and proxy-configuration wording available to this action', () => {
     expect(staffSecurityErrorText('rate_limited', 'email_password_login')).toBe(
-      'Слишком много попыток. Подождите 10 минут и повторите.',
+      'Слишком много попыток. Подождите и повторите позже.',
     );
     expect(staffSecurityErrorText('proxy_configuration', 'email_password_login')).toBe(
       'Защита входа временно недоступна. Обратитесь к администратору и повторите позже.',
@@ -27,13 +27,13 @@ describe('staffSecurityErrorText — email_password_login fallback', () => {
 
   it('covers security_setup_pending with actionable text instead of falling back', () => {
     expect(staffSecurityErrorText('security_setup_pending', 'email_password_login')).toBe(
-      'Не удалось подготовить защищённый вход. Повторите попытку позже.',
+      'Не удалось начать настройку защиты. Повторите попытку позже.',
     );
   });
 
   it('directs passwordless patient accounts to a supported login method', () => {
     expect(staffSecurityErrorText('password_not_available_for_role', 'email_password_login')).toBe(
-      'Вход по паролю не доступен. Выполните вход по коду или выберите другой способ',
+      'Вход по паролю недоступен. Выполните вход по коду или выберите другой способ.',
     );
   });
 });

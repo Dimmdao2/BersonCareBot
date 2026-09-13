@@ -125,7 +125,7 @@ function categoryLabel(cat: PatientFileCategory): string {
     фото_теста: 'Фото теста',
     прочее: 'Прочее',
   };
-  return map[cat] ?? cat;
+  return map[cat] ?? notificationText.commonUnknownValue;
 }
 
 function fileIcon(mime: string): string {

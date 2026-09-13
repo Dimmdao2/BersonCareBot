@@ -221,7 +221,7 @@ export function DoctorClientMembershipsPanel({
       setError(
         code === 'chat_send_failed'
           ? `Не удалось отправить ссылку в чат ${patientGenitive}.`
-          : (ERROR_LABELS[code] ?? code),
+          : (ERROR_LABELS[code] ?? notificationText.commonGenericError),
       );
     },
     [patientGenitive],
@@ -502,7 +502,7 @@ export function DoctorClientMembershipsPanel({
       });
       const json = (await res.json()) as { ok?: boolean; error?: string };
       if (!json.ok) {
-        showError(json.error ?? 'consume_failed');
+        showError(json.error ?? 'unknown');
         return;
       }
       setError(null);
@@ -813,7 +813,7 @@ export function DoctorClientMembershipsPanel({
               </p>
               <p className="text-muted-foreground">
                 Абонемент сохранён, текущий статус —{' '}
-                {PACKAGE_STATUS_LABELS[saleResult.status] ?? saleResult.status}. Оплату можно
+                {PACKAGE_STATUS_LABELS[saleResult.status] ?? notificationText.commonUnknownStatus}. Оплату можно
                 принять наличными или выставить ссылку позже.
               </p>
               <div className="flex flex-wrap gap-2">

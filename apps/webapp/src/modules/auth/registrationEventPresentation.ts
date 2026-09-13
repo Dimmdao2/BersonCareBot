@@ -50,26 +50,26 @@ const ERROR_CODE_LABELS: Record<string, string> = {
 export function formatRegistrationAuthMethodLabel(raw: string): string {
   const key = raw.trim();
   if (!key || key === '—') return '—';
-  return AUTH_METHOD_LABELS[key] ?? key;
+  return AUTH_METHOD_LABELS[key] ?? notificationText.commonUnknownValue;
 }
 
 export function formatRegistrationStageLabel(raw: string): string {
   const key = raw.trim();
   if (!key || key === '—') return '—';
-  return STAGE_LABELS[key] ?? key;
+  return STAGE_LABELS[key] ?? notificationText.commonUnknownValue;
 }
 
 export function formatRegistrationEventTypeLabel(
   eventType: AuthRegistrationEventType | '',
 ): string {
   if (!eventType) return 'Все типы';
-  return EVENT_TYPE_LABELS[eventType] ?? eventType;
+  return EVENT_TYPE_LABELS[eventType] ?? notificationText.commonUnknownValue;
 }
 
 export function formatRegistrationErrorCodeLabel(raw: string): string {
   const key = raw.trim();
   if (!key || key === '—') return '—';
-  return ERROR_CODE_LABELS[key] ?? key;
+  return ERROR_CODE_LABELS[key] ?? notificationText.commonGenericError;
 }
 
 export function formatRegistrationErrorClassLabel(raw: string): string {

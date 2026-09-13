@@ -9,6 +9,7 @@ import { Label } from '@/shared/ui/doctor/primitives/label';
 import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
 import type { PatientPackageSessionRow } from '@/modules/memberships/types';
 import { appointmentStatusLabel } from '@/modules/booking-calendar/appointmentStatusLabels';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 const LINKAGE_LABELS: Record<string, string> = {
   reserved: 'Резерв',
@@ -195,7 +196,7 @@ export function PatientPackageSessionsList({
                   <span className="text-muted-foreground text-xs">{s.branchTitle}</span>
                 ) : null}
                 <Badge variant="secondary" className="text-xs">
-                  {LINKAGE_LABELS[s.linkage] ?? s.linkage}
+                  {LINKAGE_LABELS[s.linkage] ?? notificationText.commonUnknownValue}
                 </Badge>
                 <Badge variant="outline" className="text-xs">
                   {appointmentStatusLabel(s.status)}

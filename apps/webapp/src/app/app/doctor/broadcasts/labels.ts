@@ -4,6 +4,7 @@ import type {
   BroadcastChannel,
 } from '@/modules/doctor-broadcasts/ports';
 import { resolvePatientTerms } from '@/modules/system-settings/patientTerms';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 /** Порядок опций в селекте аудитории (совпадает с `BroadcastAudienceSelect`). */
 export const BROADCAST_AUDIENCE_FILTERS_ORDER: readonly BroadcastAudienceFilter[] = [
@@ -63,7 +64,7 @@ export const CHANNEL_LABELS: Record<BroadcastChannel, string> = {
 };
 
 export function formatChannelsSummary(channels: BroadcastChannel[]): string {
-  return channels.map((c) => CHANNEL_LABELS[c] ?? c).join(', ');
+  return channels.map((c) => CHANNEL_LABELS[c] ?? notificationText.commonUnknownValue).join(', ');
 }
 
 /** Сегменты без полноценного фильтра в `DoctorClientsPort`: число получателей = все клиенты (см. TODO AUDIT-BACKLOG-010/011 в buildAppDeps). */
@@ -88,11 +89,11 @@ export function formatAudienceLabel(
 ): string {
   if (filter === 'all') return `Все ${patientPluralLabel}`;
   if (filter === 'active_clients') return `Активные ${patientPluralLabel.toLowerCase()}`;
-  return AUDIENCE_LABELS[filter] ?? filter;
+  return AUDIENCE_LABELS[filter] ?? notificationText.commonUnknownValue;
 }
 
 export function formatCategoryLabel(category: BroadcastCategory): string {
-  return CATEGORY_LABELS[category] ?? category;
+  return CATEGORY_LABELS[category] ?? notificationText.commonUnknownValue;
 }
 
 export function formatBroadcastDate(iso: string): string {

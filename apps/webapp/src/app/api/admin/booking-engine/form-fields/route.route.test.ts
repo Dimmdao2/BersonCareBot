@@ -105,7 +105,7 @@ describe('clinic-owner booking form field mutation', () => {
 
     expect(response.status).toBe(400);
     expect(body.message).toBe(
-      'Данные поля заполнены неверно. Проверьте их и повторите действие.',
+      'Данные введены неверно. Проверьте их и повторите действие.',
     );
   });
 

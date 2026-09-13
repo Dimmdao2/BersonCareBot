@@ -19,6 +19,7 @@ import {
 import type { WellbeingWeekChartModel } from '@/modules/diaries/buildWellbeingWeekChartData';
 import { wellbeingValue10ToRgb } from '@/modules/diaries/wellbeingWeekChartMoodColors';
 import { bucketInstantWellbeingChartPoints } from '@/modules/patient-mood/wellbeingInstantChartBucketing';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 /** Fallback, если нет точек «Среднее за день» (только instant). */
 const STROKE_AREA_FALLBACK = 'hsl(var(--patient-color-primary, 215 65% 38%))';
@@ -207,7 +208,7 @@ function PatientWellbeingWeekChartTooltip({
             className="py-px"
             style={{ fontSize: '10px', lineHeight: '13px', color: 'var(--patient-text-secondary)' }}
           >
-            {TOOLTIP_SERIES_LABELS[name] ?? name}: {v.toFixed(1)}
+            {TOOLTIP_SERIES_LABELS[name] ?? notificationText.commonUnknownValue}: {v.toFixed(1)}
           </div>
         );
       })}

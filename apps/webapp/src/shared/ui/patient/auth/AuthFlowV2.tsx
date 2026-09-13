@@ -843,7 +843,7 @@ export function AuthFlowV2({
         !optionsResult.data.options
       ) {
         if (optionsResult.ok && optionsResult.data.error === 'auth_method_disabled') {
-          toast.error(notificationText.authPasskeyLoginDisabled);
+          toast.error(notificationText.authPasskeyDisabled);
         } else {
           toast.error(
             optionsResult.ok

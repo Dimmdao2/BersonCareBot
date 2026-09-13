@@ -53,6 +53,7 @@ const SYSTEM_FIELD_KEY_ALIASES: Readonly<Record<string, string>> = {
 };
 
 export function canonicalBookingFormFieldKey(fieldKey: string): string {
+  // notification-text-gate: не подпись для человека — нормализация ключа поля, а не текст на экране
   return SYSTEM_FIELD_KEY_ALIASES[fieldKey] ?? fieldKey;
 }
 

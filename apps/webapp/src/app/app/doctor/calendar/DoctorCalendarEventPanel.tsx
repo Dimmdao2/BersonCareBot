@@ -249,6 +249,20 @@ const PANEL_ERROR_TEXT: Record<string, string> = {
   invalid_appointment: notificationText.authInvalidBody,
   invalid_feed_query: notificationText.authInvalidBody,
   invalid_view: notificationText.authInvalidBody,
+  // Коды из общих таблиц маршрутов (не литералом в теле ответа) — аудит 13.09.
+  visit_in_future: notificationText.bookingVisitInFuture,
+  invalid_visit_time: notificationText.bookingVisitTimeInvalid,
+  service_not_found: notificationText.bookingServiceNotFound,
+  specialist_not_found: notificationText.bookingSpecialistNotFound,
+  service_not_available_for_specialist: notificationText.bookingServiceNotAvailableForSpecialist,
+  room_branch_mismatch: notificationText.bookingRoomBranchMismatch,
+  schedule_specialist_not_configured: notificationText.bookingScheduleSpecialistNotConfigured,
+  schedule_specialist_not_available: notificationText.bookingScheduleSpecialistNotAvailable,
+  payments_disabled: notificationText.bookingPaymentsDisabled,
+  payment_provider_unavailable: notificationText.bookingPaymentProviderUnavailable,
+  appointment_not_found: notificationText.bookingAppointmentNotFound,
+  package_not_found: notificationText.bookingPackageNotFound,
+  appointment_feed_load_failed: notificationText.bookingFeedLoadFailed,
 };
 
 function panelErrorLabel(error: string | undefined): string {

@@ -171,7 +171,7 @@ function SortableSectionRow({
                     sos: 'SOS',
                     warmups: 'Разминки',
                     lessons: 'Уроки',
-                  }[row.systemParentCode] ?? row.systemParentCode)
+                  }[row.systemParentCode] ?? notificationText.commonUnknownValue)
                 : 'Корень'}
             </Badge>
           ) : null}

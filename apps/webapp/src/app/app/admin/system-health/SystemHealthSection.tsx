@@ -699,7 +699,7 @@ function playbackClientEventRu(eventClass: string): string {
     playback_refetch_exception: 'исключение при повторном запросе ссылки',
     hls_js_unsupported: 'устройство не поддержало HLS.js',
   };
-  return m[eventClass] ?? eventClass;
+  return m[eventClass] ?? notificationText.commonUnknownValue;
 }
 
 const SAAS_ISOLATION_CLASS_LABEL: Record<SaasIsolationEventClass, string> = {

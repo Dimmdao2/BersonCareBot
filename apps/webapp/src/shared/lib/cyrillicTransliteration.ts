@@ -41,6 +41,7 @@ const CYRILLIC_TRANSLITERATION: Readonly<Record<string, string>> = {
 /** Lowercases and replaces Cyrillic letters; every other character passes through unchanged. */
 export function transliterateCyrillic(value: string): string {
   return [...value.normalize('NFKC').toLowerCase()]
+    // notification-text-gate: не подпись для человека — транслитерация одного символа, значение словаря — не подпись
     .map((char) => CYRILLIC_TRANSLITERATION[char] ?? char)
     .join('');
 }
