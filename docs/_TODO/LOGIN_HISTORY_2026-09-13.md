@@ -458,6 +458,25 @@ IS NOT NULL` добавлен вместе с меткой — по нему с�
          клиентский набор весь путь до драйвера базы; экран отдавал 500. Признак «адресов больше, чем
          влезло» теперь считается на сервере, а карточка импортирует только типы.
 
+      ✅ **Живой прогон на TEST — 14.09, branch `feat/doctor-ui-rebuild`, `fcf573f3e`.**
+      `bash deploy/host/deploy-test.sh feat/doctor-ui-rebuild` завершился кодом `0`: применены все
+      четыре Л-8 forward migration, privilege reconcile и `background-jobs-cli --verify-installed`.
+      До и после прогона `systemctl is-active bersoncarebot-{api,webapp,scheduler,media-worker}-test`
+      вернул четыре `active`.
+
+      В новой банке cookie на `https://admin.test.therapysto.ru` два POST неверного пароля получили
+      `401 invalid_credentials`, затем штатный вход админа — `200`; с той же меткой устройства
+      повторились два `401` и один `200`. У каждого POST был `Origin: https://admin.test.therapysto.ru`.
+      На `/app/admin/security` видны обе строки: «2 раза ввели неверный пароль на этом устройстве» и
+      «2 раза ввели неверный пароль … с устройств, с которых к нам не входили — с одного адреса»;
+      снимок: `/home/dev/shots/login-history-20260913/test-l8-admin-security.png`.
+
+      Read-only SELECT после второго успешного входа: строк в `public.login_failure_tally` для
+      `dimmdao@gmail.com` — `0`; последняя `user_login_events` содержит
+      `failed_passwords_before=2`, `failed_passwords_before_unknown=0`. Предыдущая строка содержит
+      соответственно `0` и `2` (и один unknown address). Тем самым каждый мешок заморожен ровно тем
+      успешным входом, который его погасил.
+
       ⏳ **Письмо о входе с нового устройства НЕ НАЧАТО и начато не будет, пока владелец не ответит,
       что делает кнопка в письме** (рекомендация ведущего — выше). Текст письма зависит от ответа
       целиком: «мы закрыли все сеансы, задайте новый пароль» и «учётная запись заперта, ждите
