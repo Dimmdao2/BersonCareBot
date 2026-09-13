@@ -16,21 +16,35 @@
 
 ## Что сейчас есть в репозитории
 
-Механизм цел и рабочий, у него просто **нет ни одного места монтирования**:
+⚠️ **Поправка 13.09 к первой редакции этого файла.** Сначала здесь было написано «механизм цел и рабочий,
+у него просто нет места монтирования». Это неверно, и разница существенная: **ручное слияние выключено с
+20.07.2026** коммитом `9d8fe1157` «fix(auth): disable unsafe global and unscoped paths». Цел только
+движок в слое приложения; две из четырёх дверей и платформенная страница заменены заглушками.
 
 | Часть | Файл | Состояние |
 |---|---|---|
-| UI-панель | `apps/webapp/src/app/app/doctor/clients/AdminMergeAccountsPanel.tsx` | цела, нигде не смонтирована |
-| Логика подготовки решения | `apps/webapp/src/app/app/doctor/clients/adminMergeAccountsLogic.ts` | цела |
-| Слияние | `apps/webapp/src/app/api/doctor/clients/merge/route.ts` | `requirePlatformOperationsApiContext` |
-| Кандидаты по человеку | `apps/webapp/src/app/api/doctor/clients/[userId]/merge-candidates/route.ts` | `requirePlatformOperationsApiContext` |
-| Предпросмотр слияния | `apps/webapp/src/app/api/doctor/clients/merge-preview/route.ts` | `requireAdminApiContext` |
-| Поиск второго профиля | `apps/webapp/src/app/api/doctor/clients/merge-user-search/route.ts` | `requireAdminApiContext` |
+| Движок слияния | `app-layer/merge/manualPlatformUserMerge.ts` | цел |
+| Анализ и блокировки | `infra/platformUserMergePreview.ts` (`buildMergePreview`) | цел, **вызывающих нет ни одного** |
+| UI-панель | `app/app/doctor/clients/AdminMergeAccountsPanel.tsx` | цела, нигде не смонтирована |
+| Логика подготовки решения | `app/app/doctor/clients/adminMergeAccountsLogic.ts` | цела |
+| Слияние `POST` | `api/doctor/clients/merge/route.ts` | **живой**, `requirePlatformOperationsApiContext` |
+| Кандидаты по человеку `GET` | `api/doctor/clients/[userId]/merge-candidates/route.ts` | **живой**, `requirePlatformOperationsApiContext` |
+| Предпросмотр `GET` | `api/doctor/clients/merge-preview/route.ts` | 🔴 **заглушка `404 not_available`** |
+| Поиск второго профиля `GET` | `api/doctor/clients/merge-user-search/route.ts` | 🔴 **заглушка `404 not_available`** |
+| Страница админа платформы | `app/app/(global-admin)/doctor/booking-merge/page.tsx` | 🔴 **заглушка** «Глобальное объединение и восстановление профилей пациентов недоступно» |
 
-Обе двери сходятся на «сессия платформенного админа» (`requireAdminApiContext` требует
-`session.user.role === 'admin'`, а админ организации ходит с ролью `doctor` и `membershipRole: 'admin'`),
-то есть утечки к врачу нет. Но один механизм охраняется **двумя разными охранниками** — это надо свести
-к одному при переносе, иначе следующая правка одной двери разъедется со второй.
+**Следствие:** слияние через интерфейс не работало и до снятия панели с карточки врача. Панель строит
+`resolution` только из ответа предпросмотра, а предпросмотр отвечает `404` — кнопка слияния не включалась
+никогда. То, что я снял 13.09 с карточки пациента, было нерабочей панелью, а не живым инструментом.
+
+**Прод этим не затронут:** на `main` предпросмотр настоящий (`buildMergePreview` +
+`resolveMergePreviewIntegratorUserPresence`), и страницы-заглушки `booking-merge` там нет вовсе. Поэтому
+на старом проде слияние работает и отказывает по своим правилам, а на `feat`/TEST его просто нет.
+
+**Про охранников:** оставшиеся живые двери уже под `requirePlatformOperationsApiContext`; заглушки сидят
+под `requireAdminApiContext`. Обе проверки означают платформенного админа (`session.user.role === 'admin'`,
+а админ организации ходит с ролью `doctor`), утечки к врачу нет — но при восстановлении дверь должна быть
+одна.
 
 ## Чего нет
 
@@ -98,16 +112,36 @@
   (`resolved_at IS NULL`) считаются отдельно и выводятся бейджем; есть фильтр по действию и по
   человеку (`involvesPlatformUserId`), а закрывается строка через `POST /api/admin/audit-log/resolve`.
   Механизм живой — на нём и строим.
-- [ ] **М-2. Экран.** Страница под `/app/admin/*`, открываемая ПАРОЙ идентификаторов из аудит-лога, а
-      не списком людей. Панель переносится из `app/doctor/clients/` в платформенную папку вместе с
-      `adminMergeAccountsLogic.ts`; из неё уходит `useDoctorPatientTerms` (терминология врача) и
-      `doctorClientCardChrome`.
-- [ ] **М-2а. Вход из аудит-лога чинится в этой же работе.** Сегодня строки `user_merge` ведут на
-      `/app/doctor/clients/<id>`, где страницы нет вовсе (живая карточка — `/app/doctor/patients/<id>`),
-      то есть ссылка 404-ит. Должна вести на новый экран с подставленной парой.
-- [ ] **М-3. Одна дверь вместо двух.** Все четыре маршрута приводятся к `requirePlatformOperationsApiContext`
-      и переезжают из `api/doctor/clients/*` в платформенное пространство маршрутов — сейчас механизм
-      админа платформы физически лежит в API врача.
+> 🔴 **Старый глобальный интерфейс слияния переиспользовать НЕЛЬЗЯ — это действующее решение.**
+> `SAAS_PRODUCT_UX_INITIATIVE/ROUTE_MIGRATION_MAP.md` S26 про `booking-merge`: «retire / reclassify
+> before any reuse… Existing global patient merge/name-match UI is **not migrated**. Any future
+> correction must use a **separately reviewed, authorized** patient/specialist identity-resolution
+> workflow». `SCREEN_INVENTORY_SPECIALIST.md` строка 30 помечает эту поверхность «move → platform
+> operations, restricted tooling», доступ к PII — нет.
+>
+> Поэтому М-2 — **не перенос панели**, а узкий инструмент, построенный заново вокруг одной пары из
+> журнала. Ролью «separately reviewed authorized workflow» выступает решение владельца 13.09 (вход
+> только из журнала конфликтов) вместе с проверкой против норм и канона Р-АДМИН в разделе выше.
+> `AdminMergeAccountsPanel` как целое не переезжает: из него берутся только куски, которые показывают
+> ОДНУ пару — сравнение полей, выбор победителя, список блокировок.
+
+- [ ] **М-2. Экран одной пары.** Страница под `/app/admin/*`, открываемая ПАРОЙ идентификаторов из
+      журнала. Ни списка людей, ни поиска, ни выбора второй стороны. Из старой панели переиспользуются
+      только чистые функции `adminMergeAccountsLogic.ts` (сборка `resolution`, `hardBlockerUi`,
+      выравнивание сторон) — в них нет ни поиска, ни терминологии врача.
+- [ ] **М-2а. Вход из журнала.** Сегодня строки `user_merge` ведут на `/app/doctor/clients/<id>`, где
+      страницы нет вовсе, то есть ссылка 404-ит. Вести она должна на новый экран с подставленной парой.
+      ⚠️ Чинить эту ссылку подстановкой карточки пациента (`/app/doctor/patients/<id>`) **нельзя**: это
+      открыло бы админу платформы врачебную карточку с мед-данными — прямое нарушение Р-АДМИН.
+- [ ] **М-3. Восстановить предпросмотр — узкой дверью.** `buildMergePreview` цел, но HTTP-двери нет
+      (`404 not_available` с 20.07). Новая дверь принимает РОВНО пару идентификаторов, отвечает тем же
+      разбором и живёт под `requirePlatformOperationsApiContext` в платформенном пространстве маршрутов.
+      Глобальный поиск (`merge-user-search`) **не восстанавливается — удаляется**: решение владельца
+      13.09 и прежнее решение «no global patient search» совпадают.
+- [ ] **М-3а. Свести двери.** Живые `merge` и `merge-candidates` уже под правильным охранником, но лежат
+      в `api/doctor/clients/*` — переезжают в платформенное пространство вместе с новым предпросмотром.
+      `merge-candidates` оставляем: он привязан к якорю и нужен, когда в строке журнала больше двух
+      кандидатов.
 - [ ] **М-4. Тексты.** Панель уже прошла чистку 13.09 (машинные слова `merged_into_id`, hex-UUID убраны);
       при переносе проверить, что новый экран не вводит их заново, и что `pnpm lint` (гейт
       `check-notification-text-coverage.mjs`) зелёный.
