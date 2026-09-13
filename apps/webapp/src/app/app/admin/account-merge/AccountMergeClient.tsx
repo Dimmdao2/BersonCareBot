@@ -25,7 +25,10 @@ import {
   buildDefaultManualMergeResolution,
   canSubmitManualMerge,
   duplicateUuidFirstFourHex,
+  fioSuggestionReasonText,
+  fioSummary,
   hardBlockerUi,
+  isFioScalarField,
   mergeDuplicatePrefixConfirmed,
   type MergePreviewApiOk,
   type MergePreviewApiProfile,
@@ -104,10 +107,7 @@ export function AccountMergeClient({ targetId, duplicateId }: Props) {
         const data = (await res.json()) as MergePreviewApiOk | { ok: false };
         if (!res.ok || (data as MergePreviewApiOk).ok !== true) {
           setLoadError(
-            errorCodeText(
-              (data as { error?: string }).error,
-              notificationText.commonGenericError,
-            ),
+            errorCodeText((data as { error?: string }).error, notificationText.commonGenericError),
           );
           setPreview(null);
           setResolution(null);
@@ -139,6 +139,33 @@ export function AccountMergeClient({ targetId, duplicateId }: Props) {
       );
     },
     [],
+  );
+
+  /** ФИО — один выбор на три поля: фамилия, имя и отображаемое имя едут с одной стороны. */
+  const setFioWinner = useCallback((winner: 'target' | 'duplicate') => {
+    setResolution((prev) =>
+      prev
+        ? {
+            ...prev,
+            fields: {
+              ...prev.fields,
+              display_name: winner,
+              first_name: winner,
+              last_name: winner,
+            },
+          }
+        : prev,
+    );
+  }, []);
+
+  const fioConflict = useMemo(
+    () => preview?.scalarConflicts.find((c) => isFioScalarField(c.field)) ?? null,
+    [preview],
+  );
+
+  const otherScalarConflicts = useMemo(
+    () => preview?.scalarConflicts.filter((c) => !isFioScalarField(c.field)) ?? [],
+    [preview],
   );
 
   const confirmed = useMemo(
@@ -189,6 +216,7 @@ export function AccountMergeClient({ targetId, duplicateId }: Props) {
   }
 
   const blocked = preview.hardBlockers.length > 0;
+  const fioWinner = resolution.fields.display_name;
 
   return (
     <div className="flex flex-col gap-4">
@@ -229,13 +257,53 @@ export function AccountMergeClient({ targetId, duplicateId }: Props) {
         </section>
       ) : null}
 
-      {preview.scalarConflicts.length > 0 ? (
+      {fioConflict != null ? (
+        <section className="rounded-xl border border-border bg-card p-4 text-sm">
+          <h2 className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Имя записано по-разному — выберите карточку
+          </h2>
+          <p className="mb-3 text-xs text-muted-foreground">
+            {fioSuggestionReasonText(fioConflict.reason)} Фамилия, имя и отображаемое имя берутся
+            целиком из одной карточки.
+          </p>
+          <RadioGroup
+            value={fioWinner}
+            onValueChange={(v) => setFioWinner(v as 'target' | 'duplicate')}
+            className="flex flex-col gap-2"
+          >
+            <label className="flex items-start gap-2">
+              <RadioGroupItem value="target" className="mt-1" />
+              <span>
+                {fioSummary(preview.target) || '— пусто —'}
+                <span className="block text-xs text-muted-foreground">
+                  основная карточка · в списках показывается «{preview.target.displayName}»
+                </span>
+              </span>
+            </label>
+            <label className="flex items-start gap-2">
+              <RadioGroupItem value="duplicate" className="mt-1" />
+              <span>
+                {fioSummary(preview.duplicate) || '— пусто —'}
+                <span className="block text-xs text-muted-foreground">
+                  присоединяемая карточка · в списках показывается «{preview.duplicate.displayName}»
+                </span>
+              </span>
+            </label>
+          </RadioGroup>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Отчество выбрать нельзя: останется то, что заполнено в основной карточке, а если там
+            пусто — из присоединяемой.
+          </p>
+        </section>
+      ) : null}
+
+      {otherScalarConflicts.length > 0 ? (
         <section className="rounded-xl border border-border bg-card p-4 text-sm">
           <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Поля расходятся — выберите, что оставить
           </h2>
           <div className="flex flex-col gap-4">
-            {preview.scalarConflicts.map((c) => (
+            {otherScalarConflicts.map((c) => (
               <div key={c.field}>
                 <Label className="mb-1 block">{SCALAR_LABELS[c.field]}</Label>
                 <RadioGroup
