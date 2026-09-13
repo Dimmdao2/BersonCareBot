@@ -4,8 +4,8 @@ import { ManagementBookingSections } from './ManagementBookingSections';
 
 export default async function ManagementPage() {
   return (
-    <DoctorAppShell title="Управление клиникой" layout="full-height">
-      <DoctorPageHeader title="Управление клиникой" />
+    <DoctorAppShell title="Управление организацией" layout="full-height">
+      <DoctorPageHeader title="Управление организацией" />
       <ManagementBookingSections />
     </DoctorAppShell>
   );

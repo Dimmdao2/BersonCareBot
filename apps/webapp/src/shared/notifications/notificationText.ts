@@ -70,7 +70,7 @@ export const notificationText = {
     'Не удалось войти из-за сбоя на нашей стороне. Повторите попытку позже.',
   authEnrollmentNotStarted: 'Настройка защиты не начата. Начните подключение приложения заново.',
   authFactorAlreadyEnrolled: 'Приложение-аутентификатор уже подключено. Обновите страницу.',
-  authFactorLocked: 'Слишком много неверных кодов. Подождите и попробуйте снова.',
+  authFactorLocked: 'Слишком много неверных кодов. Подождите 15 минут и попробуйте снова.',
   authFactorReplacementRequired:
     'Нужно заменить фактор защиты. Войдите с резервным кодом и подключите приложение заново.',
   authForbidden: 'Для этого действия нет доступа. Войдите под нужным аккаунтом и повторите.',
@@ -83,6 +83,14 @@ export const notificationText = {
   // Отдельный текст для 'invalid_credentials' ВНЕ формы логина (например, пользователь исчез
   // между шагами подтверждения второго фактора) — контекст другой, палить нечего, поэтому текст
   // умышленно другой: «войдите заново и запросите новый код», а не «неверный пароль».
+  /** Конфликт email: новым кодом не лечится, нужен вход заново. */
+  authLoginFactorEmailConflictText: 'Не удалось подтвердить вход. Войдите снова.',
+  /**
+   * Тот же код `email_conflict` в другом значении: адрес уже принадлежит другому аккаунту или
+   * карточке. Ключ отдельный намеренно — на входе он значит «подтвердить не удалось», а при смене
+   * почты и заведении карточки «этот адрес занят», и одной фразой это не описывается.
+   */
+  authEmailBelongsToAnotherAccount: 'Этот email уже используется другим аккаунтом.',
   authInvalidCredentialsSessionExpired:
     'Не удалось подтвердить вход. Войдите снова и запросите новый код.',
   authInvalidBody: 'Данные введены неверно. Проверьте их и повторите действие.',
@@ -144,6 +152,8 @@ export const notificationText = {
   // Один смысл — один ключ. Было четыре формулировки одного отказа, включая обещание
   // «подождите 10 минут», которого лимитер не даёт (окна в authRateLimits.ts — час).
   authTooManyAttempts: 'Слишком много попыток. Подождите и повторите позже.',
+  authCodeExpiredRequestNew: 'Код истёк. Запросите новый.',
+  authConfirmationFailed: 'Не удалось подтвердить. Повторите попытку.',
   // C1 (copy audit): "Провайдер недоступен" named the internal OAuth term and gave no next step.
   authProviderUnavailable: 'Этот способ входа сейчас недоступен. Войдите другим способом.',
   authSignupStartFailed: 'Не удалось начать регистрацию. Повторите попытку.',
@@ -152,7 +162,7 @@ export const notificationText = {
   /** Код из приложения-аутентификатора: «запросить новый» невозможно — он меняется сам. */
   authInvalidFactor: 'Код неверный. Проверьте код в приложении и введите новый.',
   /** Запасной текст действия «проверить код»: причина неизвестна, обвинять код нельзя —
-   *  склеивается с «Проверьте соединение с интернетом» в staffSecurityNetworkErrorText. */
+   *  используется, когда причина отказа неизвестна. */
   authVerifyEnrollmentFallback: 'Не удалось проверить код. Получите новый код и повторите.',
   authEnterEmailAndCode: 'Укажите email и код из письма.',
   // Отказы, где «параметр запроса» человеку не виден и он его не вводил: раньше он читал
@@ -165,13 +175,14 @@ export const notificationText = {
   authSmsRussianNumbersOnly: 'SMS доступны только для российских номеров. Выберите другой способ.',
   authTelegramNotLinkedToPhone: 'Telegram не привязан к этому номеру. Привяжите его или выберите другой способ.',
   authMaxNotLinkedToPhone: 'Max не привязан к этому номеру. Привяжите его или выберите другой способ.',
-  authTelegramChatUnknown: 'Не удалось определить ваш чат в Telegram. Откройте бот клиники и повторите.',
+  authTelegramChatUnknown: 'Не удалось определить ваш чат в Telegram. Откройте бот и повторите.',
   authPhoneAndChannelRequired: 'Укажите номер телефона и способ связи.',
   authMessengerBindUnavailable: 'Привязка мессенджера сейчас недоступна. Повторите попытку позже.',
   authTelegramSessionStale: 'Вход через Telegram устарел. Начните вход заново.',
   commonSpecifyValidEmail: 'Укажите корректный email',
   authConfirmEmailInProfileFirst: 'Сначала подтвердите email в профиле.',
   commonLoginRequired: 'Войдите, чтобы продолжить.',
+  commonNoAccessToAction: 'Для этого действия нет доступа.',
   authLoginNotAllowed: 'Вход для этого аккаунта не разрешён.',
   authLoginFailedRetry: 'Не удалось войти. Повторите попытку.',
   doctorAdminOnlyChangePatientEmail: 'Менять email пациента может только администратор.',
@@ -188,7 +199,7 @@ export const notificationText = {
     'Настройки канала изменились во время проверки. Отправьте проверку ещё раз.',
   adminIntegrationCheckFailed: 'Сервер не смог проверить доступность интеграции. Повторите позже.',
   authClinicBotUnavailable:
-    'Бот клиники сейчас недоступен. Обратитесь в клинику или войдите другим способом.',
+    'Бот сейчас недоступен. Войдите другим способом.',
   pushLoginRequired: 'Войдите в аккаунт, чтобы управлять личными push-уведомлениями.',
   pushNotAvailableForAccount: 'Личные push-уведомления недоступны для этой учётной записи.',
   pushAccessCheckFailed: 'Не удалось подтвердить доступ к вашим личным Push-уведомлениям.',
@@ -206,7 +217,6 @@ export const notificationText = {
   authPasswordChanged: 'Пароль изменён',
 
   // --- patient ---
-  authEmailAlreadyRegistered: 'Аккаунт с этой почтой уже существует.',
   patientDiaryDataPurged: 'Данные дневников удалены',
   authEmailCodeSentIfExists: 'Если аккаунт с этой почтой существует, мы отправили код.',
   // C4 (copy audit): collapsed the documented intentional near-dup `patientRemindersMuteToggleDone`
@@ -260,7 +270,7 @@ export const notificationText = {
   authSmsDisabledOnWeb:
     'SMS для входа с сайта отключён. Используйте код в Telegram, Max или на email.',
   authOrganizationSlugRequired:
-    'Выберите публичный адрес клиники и повторите подтверждение. Код ещё действует.',
+    'Выберите публичный адрес организации и повторите подтверждение. Код ещё действует.',
   authEnterCode: 'Введите код',
   authEnterCodeAndNewPassword: 'Введите код и новый пароль (не менее 8 символов)',
   messagingEnterText: 'Введите текст сообщения',
@@ -317,7 +327,7 @@ export const notificationText = {
   commonCancelled: 'Отменено',
   doctorReplySentListStale: 'Ответ отправлен, но список не обновился. Откройте обсуждение заново.',
   doctorArchivePublishParamsInvalid: 'Фильтры в ссылке заданы неверно — показан вид по умолчанию.',
-  doctorMergeUuidMismatch: 'Код подтверждения не совпал — объединение отменено.',
+  doctorMergeUuidMismatch: 'Первые 4 символа не совпали — объединение отменено.',
   // G3 (safety audit): was a template literal baking in the raw HTTP status.
   doctorMergeResponseInvalid: 'Не удалось завершить объединение. Повторите попытку.',
   doctorMergeFailed: 'Не удалось объединить аккаунты. Повторите попытку.',
@@ -421,7 +431,7 @@ export const notificationText = {
   bookingRescheduleFailed: 'Не удалось перенести запись. Повторите попытку.',
   bookingAlreadyProcessing: 'Запись уже обрабатывается. Обновите страницу и повторите попытку.',
   bookingEmailTakenByAnotherPatient: 'Этот email уже занят другим пациентом. Укажите другой.',
-  bookingFeatureNotInTariff: 'Эта возможность не входит в текущий тариф клиники.',
+  bookingFeatureNotInTariff: 'Эта возможность не входит в текущий тариф.',
   bookingSlotTaken: 'Время уже занято. Выберите другое.',
   bookingCancelFirst: 'Сначала отмените запись.',
   bookingFinancialsLocked: 'Запись уже оплачена: стоимость и условие оплаты не меняются.',
@@ -440,12 +450,13 @@ export const notificationText = {
     'У специалиста не настроено расписание. Настройте его в разделе «Расписание».',
   bookingScheduleSpecialistNotAvailable:
     'Специалист не работает в это время. Выберите другое время.',
-  bookingPaymentsDisabled: 'Приём оплат в клинике отключён. Обратитесь к администратору клиники.',
+  bookingPaymentsDisabled: 'Приём оплат отключён. Включите его в настройках.',
   bookingPaymentProviderUnavailable:
-    'Платёжный сервис не настроен. Обратитесь к администратору клиники.',
+    'Платёжный сервис не настроен. Проверьте настройки приёма оплат.',
   bookingAppointmentAmountUnavailable: 'Стоимость записи не определена. Укажите её и повторите.',
   bookingAlreadyPaid: 'Запись уже оплачена.',
   bookingPackageNotFound: 'Абонемент не найден. Обновите страницу и повторите попытку.',
+  bookingMembershipsUnavailable: 'Абонементы сейчас недоступны. Повторите попытку позже.',
   bookingFeedLoadFailed: 'Не удалось загрузить записи. Обновите страницу и повторите попытку.',
 
   // --- domain/comments ---
@@ -545,7 +556,7 @@ export const notificationText = {
   treatmentProgramSystemGroupNameLocked: 'Нельзя менять название системной группы',
   treatmentProgramSystemGroupOrderLocked: 'Нельзя менять порядок системной группы',
   treatmentProgramElementDeleteReplaceLocked: 'Нельзя удалить или заменить элемент с отметкой выполнения или историей теста',
-  treatmentProgramPromoOrgUndefined: 'Промо-программа не привязана к клинике. Обратитесь в поддержку.',
+  treatmentProgramPromoOrgUndefined: 'Промо-программа не привязана к организации. Обратитесь в поддержку.',
   treatmentProgramElementAddFailed: 'Не удалось добавить элемент. Повторите попытку.',
   treatmentProgramStageAddFailed: 'Не удалось добавить этап. Повторите попытку.',
   treatmentProgramGroupAddFailed: 'Не удалось добавить группу. Повторите попытку.',
@@ -685,7 +696,7 @@ export const notificationText = {
   // text instead of engineer-speak ("тарифная механика").
   adminNotificationTemplatePlatformSaveClearanceDenied: 'Не удалось сохранить шаблон из-за ошибки на нашей стороне. Обратитесь в поддержку.',
   doctorNotificationTemplateSaveClearanceDenied:
-    'Сохранить шаблон нельзя: тариф клиники не даёт доступа к этой функции. Обратитесь к владельцу клиники или в поддержку.',
+    'Сохранить шаблон нельзя: эта возможность не входит в текущий тариф.',
   // Defect 4 (2026-09-13 second verification pass): a raw `Error.message` from a failed settings
   // reset was interpolated straight into a toast — a DB driver message can carry table/column/bound
   // parameter values. Routed through `safeUserMessage` instead; these are its dictionary-backed

@@ -725,7 +725,7 @@ const SAAS_ISOLATION_OPERATION_LABEL: Record<SaasIsolationSourceOperation, strin
   webapp_admin_system_health: 'страница здоровья системы',
   public_auth_config: 'публичная конфигурация входа',
   auth_role_config: 'конфигурация ролей входа',
-  clinic_platform_integration_availability: 'доступность интеграций клиники',
+  clinic_platform_integration_availability: 'доступность интеграций организации',
   patient_runtime_config: 'конфигурация кабинета пациента',
   public_booking_config: 'публичная конфигурация записи',
   patient_identity_exception_check: 'проверка тестового пациента',
@@ -961,10 +961,10 @@ export function SystemHealthSection({ displayTimeZone }: { displayTimeZone: stri
               Платформа и API
             </p>
             <HealthAccordionItem
-              name="Изоляция клиник"
+              name="Изоляция организаций"
               status={saasIsolationAccordionStatus(data?.saasIsolation?.status)}
               aiSnapshot={healthCardAiSnapshot(
-                'Изоляция клиник',
+                'Изоляция организаций',
                 data?.saasIsolation?.status ?? 'no_data',
                 data?.saasIsolation ?? {},
                 data?.meta?.probes?.saasIsolation ?? null,

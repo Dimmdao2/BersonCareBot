@@ -128,6 +128,18 @@ export const isPublicBookingConfirmRateLimited = createSlidingWindowRateLimit({
   db: authRateLimitDb,
 });
 
+/**
+ * Потолок на письмо «кто-то пытается зарегистрироваться на ваш email» (ключ — сам адрес).
+ * Форма регистрации специалиста отвечает успехом всегда, поэтому отправку может дёргать кто
+ * угодно; без этого потолка чужой ящик можно было бы завалить письмами через нашу форму.
+ */
+export const isSpecialistSignupDuplicateNoticeRateLimitedByKey = createSlidingWindowRateLimit({
+  scope: 'auth.specialist_signup_duplicate_notice',
+  windowMs: 24 * 60 * 60 * 1000,
+  maxPerWindow: 3,
+  db: authRateLimitDb,
+});
+
 export const isPatientInviteExchangeRateLimitedByKey = createSlidingWindowRateLimit({
   scope: 'patient_invite.exchange',
   windowMs: 60 * 1000,

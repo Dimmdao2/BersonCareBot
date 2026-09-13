@@ -38,8 +38,8 @@ const ERROR_CODE_LABELS: Record<string, string> = {
   userinfo_failed: 'Профиль провайдера',
   token_failed: 'Токен провайдера',
   provider_error: 'Ошибка провайдера',
-  invalid_body: notificationText.authInvalidBody,
-  invalid_code: notificationText.authCodeInvalidOrExpired,
+  invalid_body: 'Некорректные данные',
+  invalid_code: 'Неверный код',
   expired_code: 'Код истёк',
   duplicate_email: 'Email уже занят',
   access_denied: 'Отменено пользователем',
@@ -50,26 +50,30 @@ const ERROR_CODE_LABELS: Record<string, string> = {
 export function formatRegistrationAuthMethodLabel(raw: string): string {
   const key = raw.trim();
   if (!key || key === '—') return '—';
-  return AUTH_METHOD_LABELS[key] ?? notificationText.commonUnknownValue;
+  // notification-text-gate: не подпись для человека — журнал админа, здесь сам код и есть содержимое записи
+  return AUTH_METHOD_LABELS[key] ?? key;
 }
 
 export function formatRegistrationStageLabel(raw: string): string {
   const key = raw.trim();
   if (!key || key === '—') return '—';
-  return STAGE_LABELS[key] ?? notificationText.commonUnknownValue;
+  // notification-text-gate: не подпись для человека — журнал админа, здесь сам код и есть содержимое записи
+  return STAGE_LABELS[key] ?? key;
 }
 
 export function formatRegistrationEventTypeLabel(
   eventType: AuthRegistrationEventType | '',
 ): string {
   if (!eventType) return 'Все типы';
-  return EVENT_TYPE_LABELS[eventType] ?? notificationText.commonUnknownValue;
+  // notification-text-gate: не подпись для человека — журнал админа, здесь сам код и есть содержимое записи
+  return EVENT_TYPE_LABELS[eventType] ?? eventType;
 }
 
 export function formatRegistrationErrorCodeLabel(raw: string): string {
   const key = raw.trim();
   if (!key || key === '—') return '—';
-  return ERROR_CODE_LABELS[key] ?? notificationText.commonGenericError;
+  // notification-text-gate: не подпись для человека — журнал админа, здесь сам код и есть содержимое записи
+  return ERROR_CODE_LABELS[key] ?? key;
 }
 
 export function formatRegistrationErrorClassLabel(raw: string): string {

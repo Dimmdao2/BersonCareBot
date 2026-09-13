@@ -77,7 +77,7 @@ export function TariffPolicyHistoryPanel({ displayTimeZone }: { displayTimeZone:
         <DoctorSectionTitle>Журнал правок политики лестницы</DoctorSectionTitle>
         <p className="text-sm text-muted-foreground">
           Кто, когда и что поменял в кабинетной политике и политике каждой механики — по этой записи
-          можно объяснить клинике, почему она получила блок.
+          можно объяснить организации, почему она получила блок.
         </p>
       </DoctorSectionHeader>
 

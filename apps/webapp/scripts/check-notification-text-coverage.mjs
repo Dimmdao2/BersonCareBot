@@ -536,8 +536,41 @@ function dictionaryFallbackToKeyLeaks(node, sf) {
   if (readKeys.length === 0) return undefined;
 
   const fallback = nameOf(node.right);
-  if (!fallback || !readKeys.includes(fallback)) return undefined;
-  return node;
+  if (fallback && readKeys.includes(fallback)) return node;
+
+  // `СЛОВАРЬ[код] ?? `Счёт не выставлен (${код}).`` — тот же дефект, просто код обёрнут в текст.
+  // Человеку от этого не легче: в скобках он читает машинное слово. Дыра была живой: так были
+  // написаны три подписи в платёжной панели платформы, и гейт их не видел, потому что запасным
+  // вариантом была не переменная, а шаблонная строка.
+  if (templateInterpolates(unwrap(node.right), readKeys, sf)) return node;
+  return undefined;
+}
+
+/** Шаблонная строка, в которую подставлено одно из перечисленных имён. */
+function templateInterpolates(expr, names, sf) {
+  if (!expr || !ts.isTemplateExpression(expr)) return false;
+  return expr.templateSpans.some((span) => {
+    let x = span.expression;
+    for (;;) {
+      if (ts.isParenthesizedExpression(x)) x = x.expression;
+      else if (ts.isAsExpression(x) || ts.isTypeAssertionExpression(x) || ts.isNonNullExpression(x)) {
+        x = x.expression;
+      } else if (
+        ts.isCallExpression(x) &&
+        ts.isIdentifier(x.expression) &&
+        x.expression.text === 'String' &&
+        x.arguments.length === 1
+      ) {
+        x = x.arguments[0];
+      } else break;
+    }
+    const name = ts.isIdentifier(x)
+      ? x.text
+      : ts.isPropertyAccessExpression(x) || ts.isPropertyAccessChain(x)
+        ? x.getText(sf)
+        : undefined;
+    return name !== undefined && names.includes(name);
+  });
 }
 
 /**
@@ -769,6 +802,12 @@ function selfTest() {
       "setError(ERROR_LABELS[code] || code);"],
     ['то же через свойство объекта',
       "toast.error(LABELS[json.error] ?? json.error);"],
+    // Седьмой проход: код, обёрнутый в текст, — та же утечка. Так были написаны три подписи в
+    // платёжной панели платформы, и правило их не видело.
+    ['запасной вариант — шаблонная строка с кодом внутри',
+      "setError(ERROR_LABELS[code] ?? `Счёт не выставлен (${code}).`);"],
+    ['шаблонная строка с кодом через String()',
+      "setError(ERROR_LABELS[code] ?? `Отказ: ${String(code)}`);"],
     ['маркер БЕЗ причины не освобождает',
       "// notification-text-gate: не подпись для человека —\nsetError(ERROR_LABELS[code] ?? code);"],
     ['маркер через строку (не вплотную) не освобождает',

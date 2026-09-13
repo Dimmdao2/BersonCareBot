@@ -60,7 +60,7 @@ export function staffSecurityErrorText(error: string | undefined, action: Securi
     case 'invalid_code':
       return notificationText.authCodeInvalidOrExpired;
     case 'email_conflict':
-      return notificationText.authInvalidCredentialsSessionExpired;
+      return notificationText.authLoginFactorEmailConflictText;
     // Role/portal mismatch (roleCanUsePortal, pre-session) reads to the browser as wrong
     // credentials on purpose: revealing "this account exists but has no access to this door"
     // would leak role information to anyone probing the wrong login form with guessed creds.

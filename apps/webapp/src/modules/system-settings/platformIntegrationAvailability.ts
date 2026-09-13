@@ -36,7 +36,7 @@ export const PLATFORM_INTEGRATION_CATALOG: readonly PlatformIntegrationCatalogEn
     implementation: 'available',
     clinicConfiguration: 'tariff_gated_sender_credentials',
     clinicHint:
-      'Клиника сможет подключить своего бота, когда тариф разрешает брендирование; иначе используется отправитель платформы.',
+      'Организация сможет подключить своего бота, когда тариф разрешает брендирование; иначе используется отправитель платформы.',
   },
   {
     id: 'max',
@@ -44,7 +44,7 @@ export const PLATFORM_INTEGRATION_CATALOG: readonly PlatformIntegrationCatalogEn
     implementation: 'available',
     clinicConfiguration: 'tariff_gated_sender_credentials',
     clinicHint:
-      'Клиника сможет подключить своего бота, когда тариф разрешает брендирование; иначе используется отправитель платформы.',
+      'Организация сможет подключить своего бота, когда тариф разрешает брендирование; иначе используется отправитель платформы.',
   },
   {
     id: 'vk',
@@ -52,7 +52,7 @@ export const PLATFORM_INTEGRATION_CATALOG: readonly PlatformIntegrationCatalogEn
     implementation: 'available',
     clinicConfiguration: 'tariff_gated_sender_credentials',
     clinicHint:
-      'Клиника сможет подключить сообщество, когда тариф разрешает брендирование; иначе используется сообщество платформы.',
+      'Организация сможет подключить сообщество, когда тариф разрешает брендирование; иначе используется сообщество платформы.',
   },
   {
     id: 'email',
@@ -60,7 +60,7 @@ export const PLATFORM_INTEGRATION_CATALOG: readonly PlatformIntegrationCatalogEn
     implementation: 'available',
     clinicConfiguration: 'tariff_gated_sender_credentials',
     clinicHint:
-      'Клиника сможет указать свой SMTP, когда тариф разрешает брендирование; иначе используется SMTP платформы.',
+      'Организация сможет указать свой SMTP, когда тариф разрешает брендирование; иначе используется SMTP платформы.',
   },
   {
     id: 'smsc',
@@ -84,7 +84,7 @@ export const PLATFORM_INTEGRATION_CATALOG: readonly PlatformIntegrationCatalogEn
     implementation: 'available',
     clinicConfiguration: 'clinic_calendar_connection',
     clinicHint:
-      'Клиника будет подключать свой аккаунт и выбирать календарь локально; клинический экран ещё не входит в этот слайс.',
+      'Организация будет подключать свой аккаунт и выбирать календарь локально; клинический экран ещё не входит в этот слайс.',
   },
   {
     id: 'yandex_calendar',

@@ -495,7 +495,7 @@ export function DoctorMenuAccordion({
       pathname.startsWith('/app/manage') || pathname.startsWith('/app/settings');
     const workspaceModeItem: DoctorMenuLinkItem = managementActive
       ? { id: 'workspace-mode', label: 'Работа специалиста', href: '/app/doctor' }
-      : { id: 'workspace-mode', label: 'Управление клиникой', href: '/app/manage' };
+      : { id: 'workspace-mode', label: 'Управление организацией', href: '/app/manage' };
     const settingsIndex = visibleItems.findIndex((item) => item.id === 'settings');
 
     if (settingsIndex < 0) return [...visibleItems, workspaceModeItem];

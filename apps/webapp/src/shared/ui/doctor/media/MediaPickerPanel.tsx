@@ -44,6 +44,7 @@ import {
   type DeviceMediaNativeSelection,
 } from '@/shared/lib/deviceMedia';
 import { deviceMediaMultipartUploadToDestination } from '@/shared/lib/media/deviceMediaMultipartUpload';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 function kindFromMimeForListItem(mimeType: string): MediaListItem['kind'] {
   const lower = mimeType.toLowerCase();
@@ -124,10 +125,12 @@ function mapUploadErrorByCode(code: string | undefined): string {
     forbidden: 'Нет прав на загрузку.',
     upload_failed: 'Загрузка не удалась.',
     expected_multipart: 'Неверный формат запроса.',
-    invalid_body: 'Некорректное тело запроса.',
+    invalid_body: notificationText.authInvalidBody,
   };
   if (code && m[code]) return m[code];
-  if (code) return `Не удалось загрузить (${code}).`;
+  // Раньше сюда подставлялся сам код отказа — человек видел машинное слово вроде
+  // `storage_unavailable`. Неизвестный код теперь просто не показывается.
+
   return 'Не удалось загрузить файл.';
 }
 

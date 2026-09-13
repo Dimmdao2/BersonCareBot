@@ -190,7 +190,7 @@ export function createInMemoryPatientInvitesPort(): PatientInvitesPort {
         proofExpiresAt: null,
         proofAttempts: 0,
         proofVerifiedAt: null,
-        organizationTitle: 'Тестовая клиника',
+        organizationTitle: 'Тестовая организация',
         acceptedByPlatformUserId: null,
         acceptedVia: null,
         revokedByPlatformUserId: null,

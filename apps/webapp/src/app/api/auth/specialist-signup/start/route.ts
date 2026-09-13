@@ -5,7 +5,12 @@ import {
   AUTH_CHANNEL_DISABLED_ERROR,
   isAuthChannelEnabled,
 } from '@/modules/auth/authChannelPolicy';
+import { randomUUID } from 'node:crypto';
+import { env } from '@/config/env';
+import { sendEmailSetupLinkViaIntegrator } from '@/infra/integrations/email/integratorEmailAdapter';
 import { normalizeEmail, startEmailChallenge } from '@/modules/auth/emailAuth';
+import { OTP_RESEND_COOLDOWN_SEC } from '@/modules/auth/otpConstants';
+import { sendSpecialistSignupDuplicateNotice } from '@/modules/auth/specialistSignupDuplicateNotice';
 import { hashPin } from '@/modules/auth/pinHash';
 import { getSpecialistSignupEnabled } from '@/modules/auth/specialistSignupRollout';
 import { enterStaffSecuritySelfPrincipal } from '@/app-layer/principal/staffSecuritySelfPrincipal';
@@ -111,7 +116,20 @@ export async function POST(request: Request) {
       plainPassword: parsed.data.password,
     });
     if (!resend.ok) {
-      return jsonError('duplicate_email', {}, { status: 409 });
+      // Решение владельца 13.09: «форма всегда отвечает "мы отправили код"». Раньше здесь стоял
+      // 409 duplicate_email — по нему любой желающий проверял, заведён ли на адрес аккаунт, просто
+      // подставляя чужие почты в форму регистрации. Теперь ответ не отличается от успешного
+      // старта, а настоящему владельцу адреса уходит письмо о попытке со ссылкой восстановления.
+      // Кода при этом не создаётся: challengeId случайный, подтвердить по нему нечего.
+      await sendSpecialistSignupDuplicateNotice(
+        emailNorm,
+        env.APP_BASE_URL,
+        sendEmailSetupLinkViaIntegrator,
+      );
+      return jsonOk({
+        challengeId: randomUUID(),
+        retryAfterSeconds: OTP_RESEND_COOLDOWN_SEC,
+      });
     }
     const challenge = await startEmailChallenge(
       resend.userId,

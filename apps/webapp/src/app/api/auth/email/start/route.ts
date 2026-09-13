@@ -82,7 +82,7 @@ function errMsg(code: string): string {
     case 'rate_limited':
       return 'Слишком частые запросы. Подождите перед повторной отправкой.';
     case 'too_many_attempts':
-      return 'Превышено число попыток.';
+      return notificationText.authTooManyAttempts;
     case 'email_send_failed':
       return 'Не удалось отправить код на email';
     default:

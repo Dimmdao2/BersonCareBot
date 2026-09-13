@@ -65,7 +65,7 @@ function paymentLabel(pkg: DoctorSoldMembership): string {
   if (pkg.status === 'awaiting_payment') return 'Ожидает оплаты';
   if (pkg.paidAmountMinor === 0) return 'Без оплаты';
   if (pkg.paymentIntentId) return 'Онлайн';
-  if (pkg.paidAmountMinor !== null) return 'В клинике';
+  if (pkg.paidAmountMinor !== null) return 'На месте';
   return '—';
 }
 

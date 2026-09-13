@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import { doctorInteractiveSurfaceButtonClass } from '@/shared/ui/doctor/doctorVisual';
 import { formatDoctorFio } from '@/shared/lib/fio';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
+import { errorCodeText } from '@/shared/notifications/errorCodeText';
 
 export type CalendarPatientOption = {
   id: string | null;
@@ -216,11 +217,9 @@ export function DoctorCalendarPatientSearch({
               ? 'Укажите имя'
               : data.error === 'invalid_phone'
                 ? 'Неверный телефон'
-                : data.error === 'invalid_email'
-                  ? 'Неверный email'
-                  : data.error === 'email_conflict'
-                    ? 'Email уже занят'
-                    : 'Не удалось создать',
+                : data.error === 'invalid_email' || data.error === 'email_conflict'
+                  ? errorCodeText(data.error)
+                  : 'Не удалось создать',
         );
         return;
       }

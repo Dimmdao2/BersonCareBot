@@ -338,7 +338,6 @@ export function AuthFlowV2({
   const [pwResetChallengeId, setPwResetChallengeId] = useState<string | null>(null);
   const [pwResetCode, setPwResetCode] = useState('');
   const [pwNewPassword, setPwNewPassword] = useState('');
-  const [emailSetupPromptEmail, setEmailSetupPromptEmail] = useState<string | null>(null);
   const specialistSignupEnabled = prefetchedAuthConfig?.specialistSignupEnabled === true;
   const authChannelPolicy =
     prefetchedAuthConfig?.authChannelPolicy ?? FAIL_CLOSED_AUTH_CHANNEL_UI_POLICY;
@@ -565,46 +564,6 @@ export function AuthFlowV2({
     setPwResetChallengeId(null);
     setPwResetCode('');
     setPwNewPassword('');
-    setEmailSetupPromptEmail(null);
-  };
-
-  const startEmailSetupCode = async (
-    email: string,
-  ): Promise<
-    | { kind: 'ok'; challengeId: string; retryAfterSeconds: number }
-    | { kind: 'rate_limited'; retryAfterSeconds: number }
-    | { kind: 'failed'; message?: string }
-    | { kind: 'network_error' }
-  > => {
-    const setupCodeResult = await fetchJsonSafe<{
-      ok?: boolean;
-      challengeId?: string;
-      retryAfterSeconds?: number;
-      error?: string;
-      message?: string;
-    }>('/api/auth/email-password/setup-access', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ email }),
-    });
-    if (!setupCodeResult.ok) {
-      return { kind: 'network_error' };
-    }
-    const { response: res, data } = setupCodeResult;
-    if (data.ok && data.challengeId) {
-      return {
-        kind: 'ok',
-        challengeId: data.challengeId,
-        retryAfterSeconds: data.retryAfterSeconds ?? 60,
-      };
-    }
-    if (res.status === 429 || data.error === 'rate_limited') {
-      return {
-        kind: 'rate_limited',
-        retryAfterSeconds: Math.max(1, Math.ceil(data.retryAfterSeconds ?? 60)),
-      };
-    }
-    return { kind: 'failed', message: data.message };
   };
 
   const goBackToEntry = () => {
@@ -743,10 +702,6 @@ export function AuthFlowV2({
           patronymic,
           purpose: 'patient_email_otp',
         });
-        return;
-      }
-      if (response.status === 409 || data.error === 'duplicate_email') {
-        toast.error(notificationText.authEmailAlreadyRegistered);
         return;
       }
       toast.error(data.message ?? notificationText.authSignupStartFailed);
@@ -1134,10 +1089,6 @@ export function AuthFlowV2({
         setSpecialistSignupSlugMessage(specialistSignupSlugErrorMessage('slug_unavailable'));
         return;
       }
-      if (data.error === 'duplicate_email') {
-        toast.error(notificationText.authEmailAlreadyRegistered);
-        return;
-      }
       if (data.error === ORGANIZATION_NAME_TOO_LONG_CODE) {
         toast.error(data.message ?? ORGANIZATION_NAME_TOO_LONG_MESSAGE);
         return;
@@ -1170,38 +1121,6 @@ export function AuthFlowV2({
       { showAccessDeniedToast: false },
     );
     router.replace(target);
-  };
-
-  const submitEmailSetupAccessResend = async () => {
-    const email = emailSetupPromptEmail?.trim();
-    if (!email) return;
-    engageInteractive();
-    setLoading(true);
-    try {
-      const result = await startEmailSetupCode(email);
-      if (result.kind === 'network_error') {
-        toast.error(AUTH_NETWORK_ERROR_MESSAGE);
-        return;
-      }
-      if (result.kind === 'ok') {
-        setEmailSetupPromptEmail(null);
-        setEmailRegChallengeId(result.challengeId);
-        setEmailRegAttemptId(null);
-        setEmailRegRetrySec(result.retryAfterSeconds);
-        setEmailVerifyPurpose('setup');
-        setEmailAuthMode('verify');
-        toast.success(notificationText.authEmailCodeSent);
-        return;
-      }
-      if (result.kind === 'rate_limited') {
-        setEmailRegRetrySec(result.retryAfterSeconds);
-        toast.error(notificationText.authCodeAlreadySentCheckEmail);
-        return;
-      }
-      toast.error(notificationText.commonEmailSendFailed);
-    } finally {
-      setLoading(false);
-    }
   };
 
   const submitPasswordResetFinalize = async (e: FormEvent) => {
@@ -1383,22 +1302,19 @@ export function AuthFlowV2({
       emailPasswordReturn === 'oauth_first' && hasWebOauthAlternatives;
 
     const showEmailChromeBack =
-      emailSetupPromptEmail != null ||
       pwRecoveryPhase !== 'none' ||
       emailAuthMode === 'verify' ||
       canReturnToOauthFirst ||
       emailPasswordReturn === 'phone';
 
     const topBackLabel =
-      emailSetupPromptEmail != null
+      pwRecoveryPhase !== 'none'
         ? 'Назад'
-        : pwRecoveryPhase !== 'none'
-          ? 'Назад'
-          : emailAuthMode === 'verify'
-            ? 'Войти другим способом'
-            : canReturnToOauthFirst
-              ? 'К выбору входа'
-              : 'Назад';
+        : emailAuthMode === 'verify'
+          ? 'Войти другим способом'
+          : canReturnToOauthFirst
+            ? 'К выбору входа'
+            : 'Назад';
 
     return (
       <div id="auth-flow-v2-email-password" className={cn(authFlowShellClass, 'w-full text-left')}>
@@ -1409,10 +1325,6 @@ export function AuthFlowV2({
             className={authLinkButtonClass}
             disabled={loading}
             onClick={() => {
-              if (emailSetupPromptEmail != null) {
-                setEmailSetupPromptEmail(null);
-                return;
-              }
               if (pwRecoveryPhase !== 'none') {
                 setPwRecoveryPhase('none');
                 setPwRecoveryPurpose('reset');
@@ -1434,25 +1346,7 @@ export function AuthFlowV2({
           </Button>
         ) : null}
 
-        {emailSetupPromptEmail ? (
-          <div className="mt-3 flex w-full flex-col gap-3">
-            <p className={patientMutedTextClass}>
-              Аккаунт с этой почтой уже есть. Подтвердите email и задайте пароль для входа.
-            </p>
-            <p className={cn(patientMutedTextClass, 'break-all')}>
-              {emailSetupPromptEmail}
-            </p>
-            <Button
-              type="button"
-              variant="outline"
-              className={AUTH_LOGIN_FORM_PRIMARY_BUTTON_CLASS}
-              disabled={loading}
-              onClick={() => void submitEmailSetupAccessResend()}
-            >
-              Отправить код
-            </Button>
-          </div>
-        ) : pwRecoveryPhase === 'reset_code' ? (
+        {pwRecoveryPhase === 'reset_code' ? (
           <form
             className="mt-3 flex w-full flex-col gap-3"
             onSubmit={(e) => void submitPasswordResetFinalize(e)}
@@ -2146,7 +2040,7 @@ export function AuthFlowV2({
                           ok: false as const,
                           message:
                             data.message ??
-                            'Выберите публичный адрес клиники и повторите подтверждение.',
+                            'Выберите публичный адрес организации и повторите подтверждение.',
                         };
                       }
                       if (data.error === 'slug_unavailable') {
@@ -2334,12 +2228,6 @@ export function AuthFlowV2({
                         const sec = Math.max(1, Math.ceil(data.retryAfterSeconds ?? 60));
                         setEmailRegRetrySec(sec);
                         return { kind: 'rate_limited' as const, retryAfterSeconds: sec };
-                      }
-                      if (res.status === 409 || data.error === 'duplicate_email') {
-                        return {
-                          kind: 'error' as const,
-                          message: 'Аккаунт с этой почтой уже существует.',
-                        };
                       }
                       return {
                         kind: 'error' as const,

@@ -19,10 +19,10 @@ export function BookingOverviewPanel({ data }: { data: BookingAdminOverviewData 
     return (
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">Клиника не выбрана</CardTitle>
+          <CardTitle className="text-base">Организация не выбрана</CardTitle>
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground">
-          Данные записи, расписание, правила и абонементы доступны только в контексте клиники.
+          Данные записи, расписание, правила и абонементы доступны только в контексте организации.
         </CardContent>
       </Card>
     );

@@ -44,6 +44,7 @@ import {
 import { apiJson } from '@/shared/lib/apiJson';
 import { formatDisplayZoneInstantRu } from '@/shared/datetime/displayTimeZoneFormat';
 import { SaasBillingProviderSettings } from './SaasBillingProviderSettings';
+import { errorCodeText } from '@/shared/notifications/errorCodeText';
 
 const INVOICE_STATUS_LABELS: Record<SaasBillingInvoiceStatus, string> = {
   draft: 'Черновик',
@@ -95,7 +96,7 @@ function formatDate(value: string, displayTimeZone: string): string {
 // К4 — manual invoice: issued from the cabinet via YooKassa's /v3/invoices, distinct from the
 // self-serve renewal checkout (createIntent). See PAYMENTS_CABINET_PLAN.md К4.
 const MANUAL_INVOICE_ERROR_LABELS: Record<string, string> = {
-  saas_billing_no_tariff_assigned: 'У клиники нет назначенного тарифа — сначала назначьте его.',
+  saas_billing_no_tariff_assigned: 'У организации нет назначенного тарифа — сначала назначьте его.',
   saas_billing_manual_invoice_amount_must_be_positive_integer: 'Сумма должна быть больше нуля.',
   saas_billing_manual_invoice_description_required: 'Укажите, за что счёт.',
   saas_billing_payment_provider_unavailable:
@@ -110,7 +111,9 @@ const MANUAL_INVOICE_ERROR_LABELS: Record<string, string> = {
 };
 
 function manualInvoiceErrorLabel(code: string): string {
-  return MANUAL_INVOICE_ERROR_LABELS[code] ?? `Счёт не выставлен (${code}).`;
+  // Неизвестный код в скобках раньше уезжал прямо в экран: человек видел машинное слово вроде
+  // `saas_billing_provider_rejected_invoice`. Общая карта отвечает, если знает код, иначе — фраза.
+  return MANUAL_INVOICE_ERROR_LABELS[code] ?? errorCodeText(code, 'Счёт не выставлен.');
 }
 
 const CANCEL_ERROR_LABELS: Record<string, string> = {
@@ -123,7 +126,7 @@ const CANCEL_ERROR_LABELS: Record<string, string> = {
 };
 
 function cancelErrorLabel(code: string): string {
-  return CANCEL_ERROR_LABELS[code] ?? `Счёт не отменён (${code}).`;
+  return CANCEL_ERROR_LABELS[code] ?? errorCodeText(code, 'Счёт не отменён.');
 }
 
 function formatAmount(amountMinor: number, currency: string): string {
@@ -344,7 +347,7 @@ const RECONCILE_ERROR_LABELS: Record<string, string> = {
 };
 
 function reconcileErrorLabel(code: string): string {
-  return RECONCILE_ERROR_LABELS[code] ?? `Сверка не выполнена (${code}).`;
+  return RECONCILE_ERROR_LABELS[code] ?? errorCodeText(code, 'Сверка не выполнена.');
 }
 
 /**
@@ -592,7 +595,7 @@ function ManualInvoiceDialog({
 
   const submit = useCallback(async () => {
     if (!organizationId) {
-      setError('Выберите клинику.');
+      setError('Выберите организацию.');
       return;
     }
     const amountMinor = Math.round(Number.parseFloat(amountRub.replace(',', '.')) * 100);
@@ -638,7 +641,7 @@ function ManualInvoiceDialog({
         <DialogHeader>
           <DialogTitle>Выставить счёт</DialogTitle>
           <DialogDescription>
-            Счёт уходит провайдеру и получает ссылку на оплату — передайте её клинике. Срок оплаты —
+            Счёт уходит провайдеру и получает ссылку на оплату — передайте её организации. Срок оплаты —
             общий для всех счетов, он задаётся ниже, в настройках магазина.
           </DialogDescription>
         </DialogHeader>
@@ -670,7 +673,7 @@ function ManualInvoiceDialog({
           <div className="space-y-3">
             {loadError && (
               <DataLoadFailureNotice
-                title="Не удалось загрузить список клиник."
+                title="Не удалось загрузить список организаций."
                 digest="MANUAL-INVOICE-ORGANIZATIONS"
                 onRetry={() => void loadOptions()}
                 retrying={loadingOptions}
@@ -680,10 +683,10 @@ function ManualInvoiceDialog({
               <DoctorPanelLoading className="py-2" />
             ) : null}
             <div className="space-y-1.5">
-              <Label htmlFor="manual-invoice-org">Кому (клиника)</Label>
+              <Label htmlFor="manual-invoice-org">Кому (организация)</Label>
               <Select value={organizationId} onValueChange={(v) => setOrganizationId(v ?? '')}>
                 <SelectTrigger id="manual-invoice-org" className="w-full">
-                  <SelectValue placeholder="Выберите клинику" />
+                  <SelectValue placeholder="Выберите организацию" />
                 </SelectTrigger>
                 <SelectContent>
                   {(organizations ?? []).map((org) => (
@@ -896,7 +899,7 @@ export function PlatformPaymentsSection({ displayTimeZone }: { displayTimeZone: 
           <div>
             <CardTitle className="text-base">Платежи</CardTitle>
             <CardDescription>
-              Счета клиник за тариф из нашего журнала (`saas_billing_invoices`).
+              Счета организаций за тариф из нашего журнала (`saas_billing_invoices`).
             </CardDescription>
           </div>
           <CardAction>
@@ -954,7 +957,7 @@ export function PlatformPaymentsSection({ displayTimeZone }: { displayTimeZone: 
                 id="payments-payer"
                 value={draft.payer}
                 onChange={(e) => setDraft((d) => ({ ...d, payer: e.target.value }))}
-                placeholder="Название клиники"
+                placeholder="Название организации"
               />
             </div>
             <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-end">

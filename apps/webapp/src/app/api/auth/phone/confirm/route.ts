@@ -185,6 +185,6 @@ function errorMessage(code: string, retryAfterSeconds?: number): string {
         ? formatOtpRetryAfterMessage(retryAfterSeconds)
         : notificationText.authTooManyAttempts;
     default:
-      return 'Ошибка подтверждения.';
+      return notificationText.authConfirmationFailed;
   }
 }

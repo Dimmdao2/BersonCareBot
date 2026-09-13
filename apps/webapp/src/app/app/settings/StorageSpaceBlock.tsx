@@ -48,7 +48,7 @@ const PURCHASE_ERROR_MESSAGES: Record<string, string> = {
   // Р-18: уже оплаченное назад не отбирается, поэтому меньший пакет — это отказ, а не покупка.
   storage_package_downgrade_at_period_end:
     'Пакет меньшего объёма вступает с начала следующего периода: отключите текущий пакет.',
-  billing_admin_required: 'Докупать объём может владелец или администратор клиники.',
+  billing_admin_required: 'Докупать объём может владелец или администратор организации.',
 };
 
 const RELEASE_ERROR_MESSAGES: Record<string, string> = {

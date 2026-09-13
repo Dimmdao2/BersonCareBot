@@ -11,6 +11,7 @@ import type {
   PatientInviteLifecycleCode,
   PatientInvitePublicPreview,
 } from '@/modules/patient-invites/ports';
+import { errorCodeText } from '@/shared/notifications/errorCodeText';
 
 type ApiResult = {
   ok?: unknown;
@@ -40,12 +41,10 @@ function messageFor(code: unknown): string {
     case 'conflicting_identity':
       return 'Этот адрес уже связан с другой учётной записью. Обратитесь к специалисту для безопасного объединения.';
     case 'invalid_code':
-      return 'Неверный код.';
     case 'expired_code':
-      return 'Срок кода истёк. Запросите новый код.';
     case 'too_many_attempts':
     case 'rate_limited':
-      return 'Слишком много попыток. Повторите позже.';
+      return errorCodeText(code);
     case 'expired_token':
     case 'revoked_token':
     case 'superseded_token':
@@ -83,7 +82,7 @@ function terminalCopy(code: PatientInviteLifecycleCode | null): { title: string;
     case 'organization_unavailable':
       return {
         title: 'Доступ временно недоступен',
-        detail: 'Обратитесь к специалисту или администратору клиники.',
+        detail: 'Обратитесь к специалисту или администратору организации.',
       };
     default:
       return {

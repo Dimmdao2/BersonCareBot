@@ -12,6 +12,7 @@ import { resolveCabinetAccessRequestLocal } from '@/app-layer/guards/cabinetAcce
 import { requireOrganizationWorkspaceContext } from '@/app-layer/guards/requireRole';
 import {
   ACCESS_NOTIFICATION_VARIABLES,
+  withLegacyAccessNotificationVariableNames,
   accessNotificationBillingVariables,
   organizationHasPaidSinceTrial,
 } from '@/modules/org-entitlements/accessNotifications';
@@ -120,10 +121,10 @@ const loadDoctorShell = cache(async (allowCabinetRecovery = false) => {
   ).catch(() => null);
 
   const tariffName = entitlementSnapshot?.tariff?.name ?? null;
-  const accessNotificationVariables = {
-    клиника: organization?.title ?? '',
+  const accessNotificationVariables = withLegacyAccessNotificationVariableNames({
+    организация: organization?.title ?? '',
     тариф: tariffName ?? '',
-  } satisfies Partial<Record<(typeof ACCESS_NOTIFICATION_VARIABLES)[number]['name'], string>>;
+  } satisfies Partial<Record<(typeof ACCESS_NOTIFICATION_VARIABLES)[number]['name'], string>>);
 
   const systemNotifications = entitlementSnapshot?.tariff?.systemAccessPolicy?.notifications ?? [];
   const hasPaidSinceTrial = organizationHasPaidSinceTrial(

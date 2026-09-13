@@ -113,14 +113,6 @@ export async function POST(request: Request) {
       retryAfterSeconds: result.retryAfterSeconds ?? 60,
     });
   }
-  if (result.code === 'duplicate_email') {
-    // G4 (safety audit): exact duplicate of `authEmailAlreadyRegistered` typed inline — pointed at
-    // the dictionary, wording of the key itself untouched (out of scope, see plan doc).
-    return NextResponse.json(
-      { ok: false, error: 'duplicate_email', message: notificationText.authEmailAlreadyRegistered },
-      { status: 409 },
-    );
-  }
   if (result.code === 'invalid_fio') {
     return NextResponse.json(
       { ok: false, error: 'invalid_fio', message: notificationText.commonSpecifyNameSurname },

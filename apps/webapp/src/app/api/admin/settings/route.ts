@@ -814,7 +814,7 @@ export async function PATCH(request: Request) {
     if (!entitlement.ok) {
       return entitlementMutationRefusalResponse(
         'custom_domain',
-        'изменить собственный домен клиники',
+        'изменить собственный домен организации',
       );
     }
   }

@@ -74,7 +74,7 @@ export const MECHANIC_REGISTRY = {
   branding: { class: 'возможность', label: 'Брендирование', quotaEnforcement: 'declared_no_enforcement' },
   custom_domain: { class: 'возможность', label: 'Собственный домен', quotaEnforcement: 'declared_no_enforcement' },
   // Checked in pgOrganizationInvites under an org advisory lock, not by a database trigger.
-  clinic_team: { class: 'места', label: 'Режим клиники', quotaEnforcement: 'application_transaction_snapshot' },
+  clinic_team: { class: 'места', label: 'Режим организации', quotaEnforcement: 'application_transaction_snapshot' },
   branches: { class: 'запас', label: 'Филиалы', quotaEnforcement: 'application_transaction_snapshot' },
   external_calendar: { class: 'возможность', label: 'Внешний календарь', quotaEnforcement: 'declared_no_enforcement' },
   // Owner 31.07 (#1069): "дневники у пациентов не отбираем" — the mechanic has no toggle at all,

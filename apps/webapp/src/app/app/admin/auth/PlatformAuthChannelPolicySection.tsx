@@ -35,7 +35,7 @@ type SurfacePolicy = Record<SurfaceAuthControl, boolean>;
 type SurfacePolicies = Record<SurfaceAuthPolicyName, SurfacePolicy>;
 
 const SURFACE_LABELS: Readonly<Record<SurfaceAuthPolicyName, string>> = {
-  staff: 'Персонал клиник',
+  staff: 'Персонал организаций',
   platform_admin: 'Админ платформы',
   patient: 'Пациенты',
 };

@@ -158,7 +158,7 @@ function errorMessage(code: string, retryAfterSeconds?: number): string {
     case 'invalid_code':
       return notificationText.authCodeInvalidOrExpired;
     case 'expired_code':
-      return 'Код истёк. Запросите новый.';
+      return notificationText.authCodeExpiredRequestNew;
     case 'too_many_attempts':
       return OTP_TOO_MANY_ATTEMPTS_MESSAGE;
     case 'rate_limited':
@@ -166,8 +166,8 @@ function errorMessage(code: string, retryAfterSeconds?: number): string {
         ? formatOtpRetryAfterMessage(retryAfterSeconds)
         : notificationText.authTooManyAttempts;
     case 'email_conflict':
-      return 'Конфликт email. Обратитесь в поддержку.';
+      return notificationText.authEmailBelongsToAnotherAccount;
     default:
-      return 'Ошибка подтверждения.';
+      return notificationText.authConfirmationFailed;
   }
 }

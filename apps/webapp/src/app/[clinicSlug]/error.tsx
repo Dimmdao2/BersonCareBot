@@ -8,7 +8,7 @@
 export default function ClinicCardError() {
   return (
     <main className="mx-auto flex min-h-[60vh] max-w-lg flex-col items-center justify-center gap-3 px-4 py-10 text-center">
-      <h1 className="text-lg font-semibold">Страница клиники временно недоступна</h1>
+      <h1 className="text-lg font-semibold">Страница временно недоступна</h1>
       <p className="text-sm text-muted-foreground">
         Мы не смогли загрузить эту страницу. Попробуйте обновить её через несколько минут.
       </p>

@@ -169,7 +169,7 @@ function DashboardBody({ data }: { data: PlatformAnalyticsDashboard }) {
       <DoctorSection>
         <DoctorSectionTitle>Клиенты платформы</DoctorSectionTitle>
         <DoctorMetricList>
-          <DoctorStatCard id="clinics" title="Клиники сейчас" value={formatInt(data.clients.clinics.now)} />
+          <DoctorStatCard id="clinics" title="Организации сейчас" value={formatInt(data.clients.clinics.now)} />
           <DoctorStatCard
             id="specialists"
             title="Специалисты сейчас"
@@ -185,7 +185,7 @@ function DashboardBody({ data }: { data: PlatformAnalyticsDashboard }) {
           days={days}
           series={[
             {
-              def: { key: 'clinics', label: 'Новые клиники' },
+              def: { key: 'clinics', label: 'Новые организации' },
               values: data.clients.clinics.series.map((p) => p.count),
             },
             {

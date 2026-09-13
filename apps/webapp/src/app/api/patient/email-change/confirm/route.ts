@@ -90,10 +90,10 @@ function errMsg(code: string): string {
     case 'expired_code':
       return 'Код истёк. Попросите администратора выслать новый.';
     case 'too_many_attempts':
-      return 'Превышено число попыток.';
+      return notificationText.authTooManyAttempts;
     case 'email_conflict':
       return 'Этот email уже используется другим аккаунтом';
     default:
-      return 'Ошибка подтверждения';
+      return notificationText.authConfirmationFailed;
   }
 }

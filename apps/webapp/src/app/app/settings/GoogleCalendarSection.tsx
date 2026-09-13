@@ -29,7 +29,7 @@ const GCAL_ERROR_REASON_LABELS: Record<string, string> = {
   no_refresh_token:
     'нет refresh token: отзовите доступ к приложению в аккаунте Google и подключите снова',
   exchange_failed: 'не удалось обменять код на токены',
-  not_configured: 'OAuth credentials не заполнены в настройках',
+  not_configured: 'подключение Google не настроено на платформе',
   unauthorized: 'нужна сессия администратора',
   integration_disabled: 'платформа выключила интеграцию Google Calendar',
   tariff_disabled:

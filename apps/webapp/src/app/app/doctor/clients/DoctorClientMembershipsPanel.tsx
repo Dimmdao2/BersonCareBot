@@ -21,6 +21,7 @@ import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTer
 
 import { DateTime } from 'luxon';
 import { notificationText } from '@/shared/notifications/notificationText';
+import { errorCodeText } from '@/shared/notifications/errorCodeText';
 
 type AppointmentOption = { id: string; label: string };
 
@@ -105,13 +106,6 @@ const PACKAGE_STATUS_LABELS: Record<string, string> = {
 const ERROR_LABELS: Record<string, string> = {
   invalid_form: 'Проверьте цену и состав абонемента.',
   create_failed: 'Не удалось сохранить абонемент.',
-  entitlement_required: 'Действие не входит в ваш тариф.',
-  payments_disabled: 'Приём платежей выключен для клиники.',
-  payment_provider_unavailable: 'Платёжный провайдер не настроен.',
-  payments_unavailable: 'Платёжный модуль недоступен.',
-  memberships_unavailable: 'Модуль абонементов недоступен.',
-  catalog_package_not_found: 'Абонемент не найден.',
-  catalog_not_found: 'Абонемент не найден.',
   sale_link_requires_price: 'Ссылку на оплату нельзя выставить на нулевую цену.',
   sale_cash_requires_price: 'Для наличной продажи нужна цена больше нуля.',
   sale_free_requires_zero_price: 'Бесплатная выдача возможна только при нулевой цене.',
@@ -221,7 +215,7 @@ export function DoctorClientMembershipsPanel({
       setError(
         code === 'chat_send_failed'
           ? `Не удалось отправить ссылку в чат ${patientGenitive}.`
-          : (ERROR_LABELS[code] ?? notificationText.commonGenericError),
+          : (ERROR_LABELS[code] ?? errorCodeText(code)),
       );
     },
     [patientGenitive],

@@ -69,6 +69,7 @@ import {
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 import { appointmentDeliveryFormatLabels } from '@/modules/system-settings/patientTerms';
 import { notificationText } from '@/shared/notifications/notificationText';
+import { errorCodeText } from '@/shared/notifications/errorCodeText';
 
 const FORM_START_FORMAT = "yyyy-MM-dd'T'HH:mm";
 
@@ -222,52 +223,10 @@ function appointmentStatusToneClass(appointment: {
  * `api/doctor/booking-engine/appointments/*` шлют 23 разных кода, так что мимо перевода шли 18.
  * Ни одна ветка больше не возвращает вход наружу: неизвестный код — это общая фраза, а не код.
  */
-const PANEL_ERROR_TEXT: Record<string, string> = {
-  external_slot_taken: notificationText.bookingSlotTaken,
-  slot_overlap: notificationText.bookingSlotTaken,
-  not_cancelled: notificationText.bookingCancelFirst,
-  appointment_financials_locked: notificationText.bookingFinancialsLocked,
-  appointment_create_unavailable: notificationText.bookingCreateFailed,
-  not_found: notificationText.bookingAppointmentNotFound,
-  branch_not_found: notificationText.bookingBranchNotFound,
-  appointment_mutation_forbidden: notificationText.bookingAppointmentActionForbidden,
-  lifecycle_unavailable: notificationText.bookingAppointmentActionUnavailable,
-  patient_change_not_allowed: notificationText.bookingPatientChangeNotAllowed,
-  patient_not_available: notificationText.bookingPatientNotAvailable,
-  patient_required: notificationText.bookingPatientRequired,
-  invalid_specialist: notificationText.bookingSpecialistInvalid,
-  payments_unavailable: notificationText.bookingPaymentsUnavailable,
-  financials_update_failed: notificationText.bookingPaymentSaveFailed,
-  reschedule_failed: notificationText.bookingRescheduleFailed,
-  idempotency_conflict: notificationText.bookingAlreadyProcessing,
-  booking_calendar_unavailable: notificationText.bookingServiceTemporarilyUnavailable,
-  email_conflict: notificationText.bookingEmailTakenByAnotherPatient,
-  entitlement_required: notificationText.bookingFeatureNotInTariff,
-  empty_comment: notificationText.commentTextEmpty,
-  invalid_body: notificationText.authInvalidBody,
-  invalid_json: notificationText.authInvalidBody,
-  invalid_appointment: notificationText.authInvalidBody,
-  invalid_feed_query: notificationText.authInvalidBody,
-  invalid_view: notificationText.authInvalidBody,
-  // Коды из общих таблиц маршрутов (не литералом в теле ответа) — аудит 13.09.
-  visit_in_future: notificationText.bookingVisitInFuture,
-  invalid_visit_time: notificationText.bookingVisitTimeInvalid,
-  service_not_found: notificationText.bookingServiceNotFound,
-  specialist_not_found: notificationText.bookingSpecialistNotFound,
-  service_not_available_for_specialist: notificationText.bookingServiceNotAvailableForSpecialist,
-  room_branch_mismatch: notificationText.bookingRoomBranchMismatch,
-  schedule_specialist_not_configured: notificationText.bookingScheduleSpecialistNotConfigured,
-  schedule_specialist_not_available: notificationText.bookingScheduleSpecialistNotAvailable,
-  payments_disabled: notificationText.bookingPaymentsDisabled,
-  payment_provider_unavailable: notificationText.bookingPaymentProviderUnavailable,
-  appointment_not_found: notificationText.bookingAppointmentNotFound,
-  package_not_found: notificationText.bookingPackageNotFound,
-  appointment_feed_load_failed: notificationText.bookingFeedLoadFailed,
-};
-
 function panelErrorLabel(error: string | undefined): string {
-  if (!error) return notificationText.commonGenericError;
-  return PANEL_ERROR_TEXT[error] ?? notificationText.commonGenericError;
+  // Никакой собственной карты кодов: третий адверсарный аудит 13.09 показал, что каждая панель со
+  // своей картой = те же «две формулировки одного отказа», только этажом выше словаря.
+  return errorCodeText(error);
 }
 
 function listCreateServicesForSelection(

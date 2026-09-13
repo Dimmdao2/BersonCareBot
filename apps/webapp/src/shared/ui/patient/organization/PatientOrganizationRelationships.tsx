@@ -105,7 +105,7 @@ export function PatientOrganizationRelationships({
         <div className={cn(patientSurfaceNeutralClass, 'bg-white px-4 py-4')}>
           <p className="patient-type-navigation patient-text-primary">Нет активных организаций</p>
           <p className="mt-1 patient-type-secondary">
-            Обратитесь к специалисту или клинике, чтобы восстановить сопровождение.
+            Обратитесь к специалисту или в организацию, чтобы восстановить сопровождение.
           </p>
         </div>
       )}

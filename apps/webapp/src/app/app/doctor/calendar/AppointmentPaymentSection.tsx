@@ -18,6 +18,7 @@ import { localQrCodeDataUri } from './localQrCode';
 import { parseBusinessInstant } from '@/shared/lib/formatBusinessDateTime';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 import { notificationText } from '@/shared/notifications/notificationText';
+import { errorCodeText } from '@/shared/notifications/errorCodeText';
 
 type Response = { ok?: boolean; payment?: CalendarAppointmentPaymentView; error?: string };
 
@@ -52,18 +53,9 @@ function formatRemaining(msLeft: number): string {
 }
 
 function errorLabel(error: string, patientSingularLabel: string) {
-  // Один код — один текст: до 13.09 эта панель и панель записи, живущие на ОДНОМ экране,
-  // отвечали на `payments_disabled` и `payment_provider_unavailable` разными словами.
-  if (error === 'payments_disabled') return notificationText.bookingPaymentsDisabled;
-  if (error === 'payment_provider_unavailable' || error === 'payment_link_unavailable') {
-    return notificationText.bookingPaymentProviderUnavailable;
-  }
-  if (error === 'appointment_amount_unavailable')
-    return notificationText.bookingAppointmentAmountUnavailable;
-  if (error === 'already_paid') return notificationText.bookingAlreadyPaid;
   if (error === 'chat_send_failed')
     return `Не удалось отправить ссылку в чат ${patientSingularLabel.toLowerCase()}.`;
-  return notificationText.bookingManualLifecycleActionFailed;
+  return errorCodeText(error, notificationText.bookingManualLifecycleActionFailed);
 }
 
 export function AppointmentPaymentSection({

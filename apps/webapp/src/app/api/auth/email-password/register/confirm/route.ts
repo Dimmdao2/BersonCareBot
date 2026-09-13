@@ -176,10 +176,10 @@ function errMsg(code: string): string {
     case 'invalid_code':
       return notificationText.authCodeInvalidOrExpired;
     case 'expired_code':
-      return 'Код истёк. Запросите новый.';
+      return notificationText.authCodeExpiredRequestNew;
     case 'too_many_attempts':
-      return 'Превышено число попыток.';
+      return notificationText.authTooManyAttempts;
     default:
-      return 'Ошибка подтверждения';
+      return notificationText.authConfirmationFailed;
   }
 }

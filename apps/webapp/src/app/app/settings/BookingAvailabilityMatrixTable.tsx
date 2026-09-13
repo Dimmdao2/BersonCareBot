@@ -1,5 +1,5 @@
-import { notificationText } from '@/shared/notifications/notificationText';
 'use client';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 type OverviewSlice = {
   specialists: { id: string; fullName: string }[];

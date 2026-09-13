@@ -86,7 +86,7 @@ export const SYNTHETIC_NOTIF_TEMPLATE_VARIABLES = Object.freeze({
   city: 'Москва',
   name: 'Анна Петрова',
   phone: '+7 ••• •••-12-34',
-  organizationName: 'Название клиники',
+  organizationName: 'Название организации',
 });
 
 type AllowedVariable = keyof typeof SYNTHETIC_NOTIF_TEMPLATE_VARIABLES;
