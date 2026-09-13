@@ -490,6 +490,15 @@ export function analyzeMergePreviewModel(
   };
 }
 
+/**
+ * Почта и телефон читаются из `user_contacts` боковыми соединениями, а не колонками `platform_users`.
+ *
+ * Так было не всегда: до 13.09 запрос брал `email` и `email_verified_at` прямо из `platform_users`, а
+ * этих колонок там нет со времён переноса контактов (D15b) — запрос падал с `42703 column "email"
+ * does not exist`. Никто этого не замечал, потому что у `buildMergePreview` не осталось ни одного
+ * вызывающего: HTTP-дверь предпросмотра была заглушена `404` ещё 20.07. Найдено при разборе пары
+ * «Костяков/КОСТЯКОВ» на TEST — `docs/_TODO/runs/KOSTYAKOV_MERGE_PROBE_2026-09-13.md`.
+ */
 async function loadPlatformUser(
   pool: Pool,
   id: string,
@@ -498,13 +507,13 @@ async function loadPlatformUser(
     pool,
     sql`SELECT pu.id,
             ${sql.raw(CONTACTS.phoneNormalized)} AS phone_normalized,
+            ${sql.raw(CONTACTS.email)} AS email,
+            ${sql.raw(CONTACTS.emailVerifiedAt)} AS email_verified_at,
             merged_into_id,
             display_name,
             first_name,
             last_name,
             patronymic,
-            email,
-            email_verified_at,
             role,
             created_at,
             updated_at,

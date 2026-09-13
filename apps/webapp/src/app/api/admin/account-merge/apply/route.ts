@@ -1,3 +1,10 @@
+/**
+ * POST /api/admin/account-merge/apply — выполнить слияние пары учётных записей.
+ *
+ * Переехал 13.09 из `api/doctor/clients/merge` (#1110): решение владельца «у врача этого механизма
+ * вообще не должно быть, это для админа платформы». Охранник не менялся — он и раньше требовал сессию
+ * админа платформы; переехало только место.
+ */
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requirePlatformOperationsApiContext } from '@/app-layer/guards/requireRole';

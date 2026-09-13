@@ -33,18 +33,8 @@ export function AuditLogMergeTarget({ row }: { row: Row }) {
       const bottom = m.duplicateDisplayName ?? m.duplicateId;
       return (
         <div className="flex flex-col gap-0.5 font-sans text-xs break-words">
-          <Link
-            href={`/app/doctor/clients/${encodeURIComponent(m.targetId)}`}
-            className="text-primary underline-offset-2 hover:underline"
-          >
-            {top}
-          </Link>
-          <Link
-            href={`/app/doctor/clients/${encodeURIComponent(m.duplicateId)}`}
-            className="text-muted-foreground underline-offset-2 hover:underline"
-          >
-            {bottom}
-          </Link>
+          <span>{top}</span>
+          <span className="text-muted-foreground">{bottom}</span>
         </div>
       );
     }
@@ -57,17 +47,12 @@ export function AuditLogMergeTarget({ row }: { row: Row }) {
       return (
         <div className="flex flex-col gap-0.5 font-sans text-xs break-words">
           {mb.map((rowItem, idx) => (
-            <Link
+            <span
               key={rowItem.platformUserId}
-              href={`/app/doctor/clients/${encodeURIComponent(rowItem.platformUserId)}`}
-              className={
-                idx === 0
-                  ? 'text-primary underline-offset-2 hover:underline'
-                  : 'text-muted-foreground underline-offset-2 hover:underline'
-              }
+              className={idx === 0 ? undefined : 'text-muted-foreground'}
             >
               {rowItem.label}
-            </Link>
+            </span>
           ))}
           {ini ? (
             <span className="text-muted-foreground">
@@ -76,6 +61,14 @@ export function AuditLogMergeTarget({ row }: { row: Row }) {
               {ini.messengerDisplayHint ?? ini.externalId}
             </span>
           ) : null}
+          {mb.length >= 2 && isUuid(mb[0].platformUserId) && isUuid(mb[1].platformUserId) ? (
+            <Link
+              href={`/app/admin/account-merge?targetId=${encodeURIComponent(mb[0].platformUserId)}&duplicateId=${encodeURIComponent(mb[1].platformUserId)}`}
+              className="mt-0.5 text-primary underline-offset-2 hover:underline"
+            >
+              Разобрать и объединить
+            </Link>
+          ) : null}
         </div>
       );
     }
@@ -83,15 +76,5 @@ export function AuditLogMergeTarget({ row }: { row: Row }) {
 
   const tid = row.target_id;
   if (!tid) return <span className="text-muted-foreground">—</span>;
-  if (isUuid(tid)) {
-    return (
-      <Link
-        href={`/app/doctor/clients/${encodeURIComponent(tid)}`}
-        className="font-mono text-xs break-all text-primary underline-offset-2 hover:underline"
-      >
-        {tid}
-      </Link>
-    );
-  }
   return <span className="font-mono text-xs break-all">{tid}</span>;
 }

@@ -190,6 +190,7 @@ export const notificationText = {
   patientProfileConfirmationRequired: 'Заполните и подтвердите профиль пациента, затем повторите.',
   commonUserNotFound: 'Пользователь не найден.',
   bookingConfirmedPhoneRequired: 'Для записи на приём нужен подтверждённый номер телефона.',
+  adminAccountsMerged: 'Карточки объединены.',
   adminGoogleCalendarNotConnected: 'Google Календарь не подключён. Подключите его в настройках.',
   adminGoogleOauthNotConfigured:
     'Подключение Google Календаря не настроено. Обратитесь к администратору платформы.',
