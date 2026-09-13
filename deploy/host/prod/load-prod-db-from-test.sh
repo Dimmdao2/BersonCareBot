@@ -583,6 +583,26 @@ DESTRUCTIVE_PHASE_STARTED=1
 stop_runtime
 restore_target_from_archive "$SOURCE_DUMP" --no-acl
 
+# Активный TEST-замок настроек снимается ПЕРВЫМ же действием после восстановления, до миграций:
+# это политика деплоя TEST, а не часть схемы, и держать его включённым, пока по базе идут
+# миграции, значит дать ему шанс отказать чужой записи.
+note 'execute: снимаю активный TEST-замок настроек'
+runuser -u postgres -- psql -X -h "$ADMIN_SOCKET" -p "$ADMIN_PORT" -d "$DB" -v ON_ERROR_STOP=1 \
+  -c 'DROP TRIGGER IF EXISTS system_settings_test_lock ON public.system_settings;' >/dev/null ||
+  fatal 'не удалось снять TEST-замок настроек'
+
+# Шлюз идёт ДО возврата состояния окружения, и порядок здесь не вкусовой. Архив приезжает без ACL
+# (`--no-acl`), права в базе появляются только когда их разложит декларация — то есть в последнем
+# шаге шлюза. А возврат состояния окружения пишет в public.system_settings, на которой висит
+# SECURITY DEFINER-триггер `sync_clinic_dedicated_bot_binding` от имени `app_seam_dedicated_bot_owner`:
+# до сверки прав у этого владельца нет прав на свою же таблицу, и запись падает
+# «permission denied for table clinic_dedicated_bot_bindings» (измерено на проде 13.09.2026, уже
+# после разрушающей границы). Пока владельцы сбрасывались в postgres, этого не было видно:
+# определяющая роль была суперпользователем.
+note 'execute: канонический шлюз — схема, миграции, сверка прав декларацией'
+run_migration_gate
+assert_target_closed 'после канонического шлюза'
+
 note 'execute: возвращаю состояние ОКРУЖЕНИЯ прода'
 runuser -u postgres -- psql -X -h "$ADMIN_SOCKET" -p "$ADMIN_PORT" -d "$DB" \
   -v ON_ERROR_STOP=1 \
@@ -619,10 +639,6 @@ test_lock_present="$(postgres_scalar "$DB" \
         AND NOT trigger.tgisinternal
    )::text;")" || fatal 'не проверяется отсутствие TEST-блокировки настроек'
 [[ "$test_lock_present" == false ]] || fatal 'TEST-блокировка настроек доехала до прода'
-
-note 'execute: канонический шлюз — схема, миграции, сверка прав декларацией'
-run_migration_gate
-assert_target_closed 'после канонического шлюза'
 
 # Единственная граница успеха: всё выше выполнялось против базы, до которой не мог дотянуться ни один
 # процесс приложения.
