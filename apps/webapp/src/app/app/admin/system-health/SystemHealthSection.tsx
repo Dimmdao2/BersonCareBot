@@ -47,6 +47,7 @@ import type {
   SaasIsolationSourceOperation,
   SaasIsolationStatusReason,
 } from '@/modules/operator-health/saasIsolationDiagnostics';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 type HealthOperatorAction =
   | { kind: 'archive'; probe: HealthFailureArchiveProbe }
@@ -329,7 +330,7 @@ function techProbeStatusHuman(status: string): string {
   if (status === 'success') return 'успешно';
   if (status === 'failure') return 'ошибка запуска';
   if (status === 'skipped') return 'пропущено';
-  return status;
+  return notificationText.commonUnknownStatusLower;
 }
 
 function statusBadgeVariant(status: string): 'secondary' | 'outline' | 'destructive' {
@@ -656,7 +657,7 @@ function notificationDeliveryChannelHuman(channel: string): string {
   if (channel === 'max') return 'MAX';
   if (channel === 'web_push') return 'Web Push';
   if (channel === 'email') return 'Email';
-  return channel;
+  return notificationText.commonUnknownValue;
 }
 
 function outgoingDeliveryChannelHuman(channel: string): string {

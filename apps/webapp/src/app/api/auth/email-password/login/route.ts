@@ -103,9 +103,9 @@ export async function POST(request: Request) {
       {
         ok: false,
         error: 'rate_limited',
-        // G4: was a divergent inline copy of `authRateLimited` (a THIRD variant,
+        // G4: was a divergent inline copy of `authTooManyAttempts` (one of four wordings,
         // `authTooManyRequestsRetryLater`, existed too, for a different rate limiter's fallback).
-        message: notificationText.authRateLimited,
+        message: notificationText.authTooManyAttempts,
         retryAfterSeconds: AUTH_CONFIRM_RATE_LIMIT_SEC,
       },
       {
@@ -224,7 +224,7 @@ export async function POST(request: Request) {
               ok: false,
               error: 'security_setup_pending',
               // G4: exact duplicate of `authSecuritySetupPending` typed inline.
-              message: notificationText.authSecuritySetupPending,
+              message: notificationText.authStartEnrollmentFallback,
             },
             { status: 503 },
           );
@@ -253,7 +253,7 @@ export async function POST(request: Request) {
             ok: false,
             error: 'email_factor_unavailable',
             // G4 (extended while already touching this file's other inline literals).
-            message: notificationText.authEmailFactorSendFailed,
+            message: notificationText.authCodeSendFailed,
           },
           { status: 503 },
         );

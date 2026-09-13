@@ -25,6 +25,7 @@ import {
   authPolicyNameForRoleLoginPortal,
   roleCanUsePortal,
 } from '@/modules/auth/roleLogin';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 const bodySchema = z.object({
   email: z.string().min(1),
@@ -63,7 +64,7 @@ export async function POST(request: Request) {
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {
     return NextResponse.json(
-      { ok: false, error: 'email_and_code_required', message: 'Email и код обязательны' },
+      { ok: false, error: 'email_and_code_required', message: notificationText.authEnterEmailAndCode },
       { status: 400 },
     );
   }
@@ -107,7 +108,7 @@ export async function POST(request: Request) {
   const user = await deps.userByPhone.findByUserId(result.userId);
   if (!user) {
     return NextResponse.json(
-      { ok: false, error: 'user_not_found', message: 'Ошибка входа. Попробуйте снова.' },
+      { ok: false, error: 'user_not_found', message: notificationText.authLoginFailedRetry },
       { status: 500 },
     );
   }
@@ -155,7 +156,7 @@ export async function POST(request: Request) {
 function errorMessage(code: string, retryAfterSeconds?: number): string {
   switch (code) {
     case 'invalid_code':
-      return 'Неверный код';
+      return notificationText.authCodeInvalidOrExpired;
     case 'expired_code':
       return 'Код истёк. Запросите новый.';
     case 'too_many_attempts':
@@ -163,7 +164,7 @@ function errorMessage(code: string, retryAfterSeconds?: number): string {
     case 'rate_limited':
       return retryAfterSeconds != null
         ? formatOtpRetryAfterMessage(retryAfterSeconds)
-        : 'Слишком много запросов. Попробуйте позже.';
+        : notificationText.authTooManyAttempts;
     case 'email_conflict':
       return 'Конфликт email. Обратитесь в поддержку.';
     default:

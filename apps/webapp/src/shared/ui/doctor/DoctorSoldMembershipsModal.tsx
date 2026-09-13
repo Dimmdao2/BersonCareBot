@@ -45,7 +45,7 @@ function statusLabel(status: PatientPackageStatus): string {
   if (status === 'cancelled') return 'Закрыт';
   if (status === 'awaiting_payment') return 'Ожидает оплаты';
   if (status === 'offered') return 'Не активирован';
-  return status;
+  return notificationText.commonUnknownStatus;
 }
 
 function sessionsLabel(value: number): string {
@@ -251,7 +251,7 @@ export function DoctorSoldMembershipsModal({
                 mutationsAllowed={!readOnly}
                 nestedModals
                 onChanged={() => void load()}
-                onError={() => toast.error(notificationText.doctorSubscriptionUpdateFailed)}
+                onError={() => toast.error(notificationText.doctorSubscriptionPackageUpdateFailed)}
               />
             </div>
           </div>

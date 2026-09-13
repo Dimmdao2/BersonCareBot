@@ -1211,7 +1211,7 @@ export function CommercialConstructorClient() {
       await loadState();
       toast.success(typeof success === 'function' ? success(payload.result) : success);
     } catch (error) {
-      toast.error(safeUserMessage(error, notificationText.adminOperationFailed));
+      toast.error(safeUserMessage(error, notificationText.commonGenericError));
     } finally {
       setBusy(false);
     }

@@ -22,6 +22,7 @@ import { enterStaffSecuritySelfPrincipal } from '@/app-layer/principal/staffSecu
 import { isPlatformUserUuid } from '@/shared/platform-user/isPlatformUserUuid';
 import { prepareVerifiedPrimaryLogin } from '@/modules/auth/verifiedStaffPrimaryLogin';
 import { isAuthChannelEnabled } from '@/modules/auth/authChannelPolicy';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 const bodySchema = z
   .object({
@@ -59,7 +60,7 @@ export async function POST(request: Request) {
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {
     return NextResponse.json(
-      { ok: false, error: 'invalid_body', message: 'Укажите setupToken' },
+      { ok: false, error: 'invalid_body', message: notificationText.commonPageStale },
       { status: 400 },
     );
   }
@@ -187,7 +188,7 @@ export async function POST(request: Request) {
 function errorMessage(code: string, retryAfterSeconds?: number): string {
   switch (code) {
     case 'invalid_code':
-      return 'Неверный код';
+      return notificationText.authCodeInvalidOrExpired;
     case 'expired_code':
       return 'Код истёк. Запросите новый.';
     case 'too_many_attempts':
@@ -195,7 +196,7 @@ function errorMessage(code: string, retryAfterSeconds?: number): string {
     case 'rate_limited':
       return retryAfterSeconds != null
         ? formatOtpRetryAfterMessage(retryAfterSeconds)
-        : 'Слишком много запросов. Попробуйте позже.';
+        : notificationText.authTooManyAttempts;
     default:
       return 'Ошибка подтверждения.';
   }

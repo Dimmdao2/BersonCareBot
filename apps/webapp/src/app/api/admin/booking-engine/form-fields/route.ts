@@ -12,7 +12,7 @@ import {
 import { notificationText } from '@/shared/notifications/notificationText';
 
 /** A rejected body reaches the screen as this sentence, never as the machine code. */
-const INVALID_BODY_MESSAGE = notificationText.authFormFieldInvalidBody;
+const INVALID_BODY_MESSAGE = notificationText.authInvalidBody;
 
 const upsertBody = z
   .object({

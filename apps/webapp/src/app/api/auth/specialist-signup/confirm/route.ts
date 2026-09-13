@@ -193,7 +193,7 @@ export async function POST(request: Request) {
       return jsonError(
         'security_setup_pending',
         {
-          message: notificationText.authSecuritySetupPending,
+          message: notificationText.authStartEnrollmentFallback,
         },
         { status: 503 },
       );

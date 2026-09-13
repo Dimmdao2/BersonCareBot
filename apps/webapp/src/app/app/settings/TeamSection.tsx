@@ -29,6 +29,7 @@ import {
 } from '@/shared/ui/doctor/DoctorDnaFlatListRow';
 import type { ClinicSeatStatus } from '@/modules/clinic-seats/service';
 import type { OrganizationInviteRole } from '@/modules/organization-invites/ports';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 const ROLE_LABELS: Record<string, string> = {
   owner: 'Владелец',
@@ -45,7 +46,7 @@ const INVITE_ERROR_MESSAGES: Record<string, string> = {
   seat_overage_paid_period_over:
     'Оплаченный период тарифа закончился. Оплатите продление — после этого можно будет добавить место сверх тарифа.',
   already_member: 'Этот email уже участвует в организации.',
-  invalid_email: 'Некорректный email',
+  invalid_email: notificationText.commonSpecifyValidEmail,
 };
 
 export type TeamMemberRow = {

@@ -9,6 +9,7 @@ import { isMessengerStartRateLimited } from '@/modules/auth/messengerStartRateLi
 import { normalizePhone } from '@/modules/auth/phoneNormalize';
 import { isValidPhoneE164 } from '@/modules/auth/phoneValidation';
 import { isAuthChannelEnabled } from '@/modules/auth/authChannelPolicy';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 const bodySchema = z.object({
   phone: z.string().min(1),
@@ -25,7 +26,7 @@ export async function POST(request: Request) {
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {
     return NextResponse.json(
-      { ok: false, error: 'invalid_body', message: 'Укажите телефон и канал' },
+      { ok: false, error: 'invalid_body', message: notificationText.authPhoneAndChannelRequired },
       { status: 400 },
     );
   }
@@ -33,7 +34,7 @@ export async function POST(request: Request) {
   const phone = normalizePhone(parsed.data.phone);
   if (!isValidPhoneE164(phone)) {
     return NextResponse.json(
-      { ok: false, error: 'invalid_phone', message: 'Неверный формат номера' },
+      { ok: false, error: 'invalid_phone', message: notificationText.authPhoneInvalidFormat },
       { status: 400 },
     );
   }
@@ -45,7 +46,7 @@ export async function POST(request: Request) {
 
   if (await isMessengerStartRateLimited(phone)) {
     return NextResponse.json(
-      { ok: false, error: 'rate_limited', message: 'Слишком много запросов. Попробуйте позже.' },
+      { ok: false, error: 'rate_limited', message: notificationText.authTooManyAttempts },
       { status: 429 },
     );
   }
@@ -54,7 +55,7 @@ export async function POST(request: Request) {
   const user = await deps.userByPhone.findByPhone(phone);
   if (!user) {
     return NextResponse.json(
-      { ok: false, error: 'user_not_found', message: 'Пользователь не найден' },
+      { ok: false, error: 'user_not_found', message: notificationText.commonUserNotFound },
       { status: 404 },
     );
   }

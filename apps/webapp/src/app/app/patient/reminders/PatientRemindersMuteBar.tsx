@@ -50,7 +50,7 @@ export function PatientRemindersMuteBar({
         toast.success(notificationText.commonDone);
         refresh();
       } catch {
-        toast.error(notificationText.commonNetworkUnavailable);
+        toast.error(notificationText.commonNoServerConnection);
       }
     });
   };

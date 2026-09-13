@@ -51,6 +51,7 @@ import {
 } from '@/app/app/doctor/clients/DoctorSupplementaryContactsPanel';
 import { phoneToTelHref } from '@/shared/lib/phoneLinks';
 import type { DoctorSupplementaryContact } from '@/modules/platform-user-contacts/bookingContactUpsert';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -288,7 +289,7 @@ function EmailChange({ userId }: { userId: string }) {
       } | null;
       if (!res.ok) {
         setError(
-          body?.message ?? (body?.error === 'invalid_body' ? 'Некорректный email' : 'Не удалось'),
+          body?.message ?? (body?.error === 'invalid_body' ? notificationText.commonSpecifyValidEmail : 'Не удалось'),
         );
         return;
       }

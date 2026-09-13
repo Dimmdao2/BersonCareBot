@@ -52,7 +52,7 @@ export function DiaryDataPurgeSection({ phoneMasked }: Props) {
           setStep('intro');
         }
       } catch {
-        toast.error(notificationText.commonNetworkUnavailable);
+        toast.error(notificationText.commonNoServerConnection);
         setStep('intro');
       } finally {
         setOtpLoading(false);

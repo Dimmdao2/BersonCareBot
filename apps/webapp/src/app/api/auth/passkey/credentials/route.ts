@@ -6,6 +6,7 @@ import {
 } from '@/app-layer/auth/passkeyRuntime';
 import { requireAuthenticatedIdentitySelfApiSession } from '@/app-layer/guards/requireRole';
 import { isIndependentAuthMethodEnabled } from '@/modules/auth/authChannelPolicy';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 const deleteSchema = z.object({ credentialId: z.string().min(16).max(1024) });
 
@@ -16,7 +17,7 @@ async function authorize() {
     return {
       ok: false as const,
       response: NextResponse.json(
-        { ok: false, error: 'auth_method_disabled', message: 'Вход по ключу доступа отключён' },
+        { ok: false, error: 'auth_method_disabled', message: notificationText.authPasskeyDisabled },
         { status: 403 },
       ),
     };

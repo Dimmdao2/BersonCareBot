@@ -20,6 +20,7 @@ import {
   runWithStaffSecuritySelfPrincipal,
 } from '@/app-layer/principal/staffSecuritySelfPrincipal';
 import { isPlatformUserUuid } from '@/shared/platform-user/isPlatformUserUuid';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 const bodySchema = z.object({
   challengeId: z.string().uuid(),
@@ -67,7 +68,7 @@ export async function POST(request: Request) {
       errorCode: 'expired_code',
     });
     return NextResponse.json(
-      { ok: false, error: 'expired_code', message: 'Код недействителен' },
+      { ok: false, error: 'expired_code', message: notificationText.authCodeInvalidOrExpired },
       { status: 400 },
     );
   }
@@ -173,7 +174,7 @@ export async function POST(request: Request) {
 function errMsg(code: string): string {
   switch (code) {
     case 'invalid_code':
-      return 'Неверный код';
+      return notificationText.authCodeInvalidOrExpired;
     case 'expired_code':
       return 'Код истёк. Запросите новый.';
     case 'too_many_attempts':

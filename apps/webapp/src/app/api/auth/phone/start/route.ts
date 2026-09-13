@@ -26,6 +26,7 @@ import {
   isAuthChannelEnabled,
 } from '@/modules/auth/authChannelPolicy';
 import { requireResolvedSurface } from '@/shared/lib/surface/requestSurface';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 const PUBLIC_LOGIN_START_MIN_RESPONSE_MS = 500;
 const PUBLIC_LOGIN_DECOY_USER_ID = '00000000-0000-4000-8000-000000000000';
@@ -73,7 +74,7 @@ export async function POST(request: Request) {
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {
     return NextResponse.json(
-      { ok: false, error: 'phone_required', message: 'Номер телефона обязателен' },
+      { ok: false, error: 'phone_required', message: notificationText.authPhoneRequired },
       { status: 400 },
     );
   }
@@ -94,7 +95,7 @@ export async function POST(request: Request) {
     const chatId = parsed.data.chatId?.trim();
     if (!chatId) {
       return NextResponse.json(
-        { ok: false, error: 'chat_id_required', message: 'Для Telegram укажите chatId' },
+        { ok: false, error: 'chat_id_required', message: notificationText.authTelegramChatUnknown },
         { status: 400 },
       );
     }
@@ -115,7 +116,7 @@ export async function POST(request: Request) {
   const normalized = normalizePhone(phone);
   if (!isValidPhoneE164(normalized)) {
     return NextResponse.json(
-      { ok: false, error: 'invalid_phone', message: 'Неверный формат номера' },
+      { ok: false, error: 'invalid_phone', message: notificationText.authPhoneInvalidFormat },
       { status: 400 },
     );
   }
@@ -129,7 +130,7 @@ export async function POST(request: Request) {
       {
         ok: false,
         error: 'sms_ru_only',
-        message: 'SMS доступно только для номеров РФ.',
+        message: notificationText.authSmsRussianNumbersOnly,
       },
       { status: 400 },
     );
@@ -245,7 +246,7 @@ export async function POST(request: Request) {
             {
               ok: false,
               error: 'channel_unavailable',
-              message: 'Telegram не привязан к этому номеру',
+              message: notificationText.authTelegramNotLinkedToPhone,
             },
             { status: 400 },
           );
@@ -265,7 +266,7 @@ export async function POST(request: Request) {
             {
               ok: false,
               error: 'channel_unavailable',
-              message: 'Max не привязан к этому номеру',
+              message: notificationText.authMaxNotLinkedToPhone,
             },
             { status: 400 },
           );
@@ -285,7 +286,7 @@ export async function POST(request: Request) {
             {
               ok: false,
               error: 'channel_unavailable',
-              message: 'Сначала подтвердите email в профиле',
+              message: notificationText.authConfirmEmailInProfileFirst,
             },
             { status: 400 },
           );
@@ -296,7 +297,7 @@ export async function POST(request: Request) {
             {
               ok: false,
               error: 'channel_unavailable',
-              message: 'Подтверждённый email не найден',
+              message: notificationText.authConfirmEmailInProfileFirst,
             },
             { status: 400 },
           );
@@ -423,15 +424,15 @@ function errorMessage(code: string, retryAfterSeconds?: number): string {
     case 'sms_disabled_web':
       return 'SMS для входа с сайта отключён. Используйте код в Telegram или Max.';
     case 'sms_ru_only':
-      return 'SMS доступно только для номеров РФ.';
+      return notificationText.authSmsRussianNumbersOnly;
     case 'invalid_phone':
-      return 'Неверный формат номера';
+      return notificationText.authPhoneInvalidFormat;
     case 'delivery_failed':
       return 'Не удалось отправить код. Попробуйте позже.';
     case 'rate_limited':
       return retryAfterSeconds != null
         ? formatOtpRetryAfterMessage(retryAfterSeconds)
-        : 'Слишком много запросов. Попробуйте позже.';
+        : notificationText.authTooManyAttempts;
     case 'too_many_attempts':
       return OTP_TOO_MANY_ATTEMPTS_MESSAGE;
     default:

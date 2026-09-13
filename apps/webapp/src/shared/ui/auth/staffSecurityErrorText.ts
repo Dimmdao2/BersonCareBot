@@ -13,7 +13,7 @@ type SecurityAction =
 
 const actionFallback: Record<SecurityAction, string> = {
   start_enrollment: notificationText.authStartEnrollmentFallback,
-  verify_enrollment: notificationText.authVerifyEnrollmentFallback,
+  verify_enrollment: notificationText.authCodeInvalidOrExpired,
   confirm_recovery: notificationText.authConfirmRecoveryFallback,
   bind_specialist: notificationText.authBindSpecialistFallback,
   retry_provisioning: notificationText.authRetryProvisioningFallback,
@@ -39,11 +39,11 @@ export function staffSecurityErrorText(error: string | undefined, action: Securi
     case 'password_changed_session_reissue_failed':
       return notificationText.authPasswordChangedSessionReissueFailed;
     case 'rate_limited':
-      return notificationText.authRateLimited;
+      return notificationText.authTooManyAttempts;
     case 'factor_locked':
       return notificationText.authFactorLocked;
     case 'invalid_factor':
-      return notificationText.authInvalidFactor;
+      return notificationText.authCodeInvalidOrExpired;
     case 'invalid_recovery_code':
       return notificationText.authInvalidRecoveryCode;
     case 'invalid_credentials':
@@ -56,11 +56,11 @@ export function staffSecurityErrorText(error: string | undefined, action: Securi
       return notificationText.authLoginChallengeExpired;
     case 'too_many_attempts':
       // G1: this code arrives with HTTP 429 — never invite deepening the lockout.
-      return notificationText.authTooManyAttemptsRetryLater;
+      return notificationText.authTooManyAttempts;
     case 'invalid_code':
-      return notificationText.authInvalidFactor;
+      return notificationText.authCodeInvalidOrExpired;
     case 'email_conflict':
-      return notificationText.authLoginFactorEmailConflict;
+      return notificationText.authInvalidCredentialsSessionExpired;
     // Role/portal mismatch (roleCanUsePortal, pre-session) reads to the browser as wrong
     // credentials on purpose: revealing "this account exists but has no access to this door"
     // would leak role information to anyone probing the wrong login form with guessed creds.
@@ -78,11 +78,11 @@ export function staffSecurityErrorText(error: string | undefined, action: Securi
     case 'factor_already_enrolled':
       return notificationText.authFactorAlreadyEnrolled;
     case 'totp_enrollment_start_failed':
-      return notificationText.authTotpEnrollmentStartFailed;
+      return notificationText.authStartEnrollmentFallback;
     case 'owner_required':
       return notificationText.authOwnerRequired;
     case 'specialist_binding_failed':
-      return notificationText.authSpecialistBindingFailed;
+      return notificationText.authBindSpecialistFallback;
     case 'auth_channel_disabled':
       return notificationText.authChannelDisabled;
     case 'signup_intent_not_found':
@@ -104,9 +104,9 @@ export function staffSecurityErrorText(error: string | undefined, action: Securi
     case 'proxy_configuration':
       return notificationText.authProxyConfiguration;
     case 'password_change_failed':
-      return notificationText.authPasswordChangeFailed;
+      return notificationText.authChangePasswordFallback;
     case 'security_setup_pending':
-      return notificationText.authSecuritySetupPending;
+      return notificationText.authStartEnrollmentFallback;
     default:
       return actionFallback[action];
   }

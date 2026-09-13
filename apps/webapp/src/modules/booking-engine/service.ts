@@ -45,7 +45,7 @@ function assertAppointmentStatus(s: string): asserts s is AppointmentStatus {
     'charged_to_package',
     'manual_review_required',
   ];
-  if (!statuses.includes(s)) throw new UserFacingError(notificationText.bookingUnknownStatus);
+  if (!statuses.includes(s)) throw new UserFacingError(notificationText.commonUnknownStatus);
 }
 
 type BookingEngineServiceDependencies = {

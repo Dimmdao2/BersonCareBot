@@ -21,6 +21,7 @@ import {
   resolveYandexOAuthConfig,
   yandexOAuthStateMatchesSurface,
 } from '@/modules/auth/yandexOAuthConfig';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 const LOG_BASE = {
   authMethod: 'oauth_yandex' as const,
@@ -68,7 +69,7 @@ export async function handleYandexOAuthCallbackGet(
   if (!verifiedState) {
     await logOAuthFailure(attemptId, 'oauth_csrf', 'callback');
     return NextResponse.json(
-      { error: 'oauth_csrf', message: 'Недействительный или просроченный state' },
+      { error: 'oauth_csrf', message: notificationText.authOauthLinkStale },
       { status: 403 },
     );
   }

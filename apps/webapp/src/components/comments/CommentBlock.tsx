@@ -141,7 +141,7 @@ export function CommentBlock({
     });
     const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
     if (!res.ok || !data.ok) {
-      setError(readSafeApiErrorText(data, notificationText.commentUpdateError));
+      setError(readSafeApiErrorText(data, notificationText.doctorDataUpdateFailed));
       return;
     }
     setEditingId(null);

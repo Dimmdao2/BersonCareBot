@@ -285,7 +285,7 @@ export function PhoneMessengerAuthFlow({
           data.message ??
             (data.retryAfterSeconds != null
               ? `Повторите через ${Math.ceil(data.retryAfterSeconds / 60)} мин.`
-              : notificationText.authTooManyRequestsRetryLater),
+              : notificationText.authTooManyAttempts),
         );
         return;
       }

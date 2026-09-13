@@ -114,6 +114,7 @@ import {
   parseCalendarDoctorSettings,
   type CalendarDoctorSettings,
 } from '../scheduleCalendarSettings';
+import { notificationText } from '@/shared/notifications/notificationText';
 type FullCalendarInstance = InstanceType<typeof FullCalendar>;
 
 const DUPLICATE_CALENDAR_LOAD_WINDOW_MS = 2_000;
@@ -223,7 +224,7 @@ function rescheduleErrorLabel(error: string | undefined): string {
   if (error === 'slot_overlap') return 'Слот уже занят другой записью этого специалиста.';
   if (error === 'not_found') return 'Запись не найдена.';
   if (error.startsWith('load_failed')) return 'Не удалось сохранить перенос. Попробуйте ещё раз.';
-  return error;
+  return notificationText.bookingRescheduleFailed;
 }
 
 // View types for the v26 calendar tab switcher (3days / weekgrid / month / day(drill-down))

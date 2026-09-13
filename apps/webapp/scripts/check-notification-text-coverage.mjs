@@ -125,54 +125,6 @@ const FALLBACK_TEXT_HELPER_ARG_INDEX = new Map([
   ['mechanicWriteClearanceRefusalResponse', 1],
 ]);
 
-/**
- * Pre-existing `message: '...'` literals inside `NextResponse.json`/`Response.json` bodies that
- * this gating pass (G4, safety audit, 2026-09-13) did NOT migrate into the dictionary — the named
- * divergent-duplicate sites (`email-password/login/route.ts`, `email-otp/register/route.ts`) ARE
- * migrated, but a repo-wide AST sweep while building this rule found ~90 more static `message`
- * literals scattered across ~34 route/handler files, almost all pre-existing auth/otp routes. A
- * full migration of that surface is real work of its own and was judged out of scope for a gating
- * pass — see the plan doc and this round's report for the honest count. Grandfathered by FILE (not
- * by line, which drifts on unrelated edits): any `message` literal in one of these files is
- * allowed for now, but a literal in ANY file NOT on this list is a gate failure, so the class this
- * rule exists to stop — a new inline copy diverging from the dictionary — cannot reappear
- * silently anywhere else. Shrink this list as files are migrated; do not grow it for new files.
- */
-const RESPONSE_MESSAGE_LITERAL_GRANDFATHER_FILES = new Set([
-  'src/app-layer/guards/requireRole.ts',
-  'src/app/api/admin/clinic-delivery-test/route.ts',
-  'src/app/api/admin/google-calendar/calendars/route.ts',
-  'src/app/api/admin/google-calendar/start/route.ts',
-  'src/app/api/admin/settings/route.ts',
-  'src/app/api/auth/channel-link/start/route.ts',
-  'src/app/api/auth/check-phone/route.ts',
-  'src/app/api/auth/email-otp/confirm/route.ts',
-  'src/app/api/auth/email-password/register/confirm/route.ts',
-  'src/app/api/auth/email/confirm/route.ts',
-  'src/app/api/auth/email/start/route.ts',
-  'src/app/api/auth/messenger/poll/route.ts',
-  'src/app/api/auth/messenger/start/route.ts',
-  'src/app/api/auth/oauth/callback/google/route.ts',
-  'src/app/api/auth/passkey/credentials/route.ts',
-  'src/app/api/auth/passkey/login/options/route.ts',
-  'src/app/api/auth/passkey/login/verify/route.ts',
-  'src/app/api/auth/passkey/register/options/route.ts',
-  'src/app/api/auth/passkey/register/verify/route.ts',
-  'src/app/api/auth/phone/confirm/route.ts',
-  'src/app/api/auth/phone/messenger-bind/finish/route.ts',
-  'src/app/api/auth/phone/messenger-bind/start/route.ts',
-  'src/app/api/auth/phone/messenger-bind/status/route.ts',
-  'src/app/api/auth/phone/start/route.ts',
-  'src/app/api/auth/telegram-login/route.ts',
-  'src/app/api/doctor/patients/[userId]/email-change/route.ts',
-  'src/app/api/patient/diary/purge/route.ts',
-  'src/app/api/patient/email-change/confirm/route.ts',
-  'src/app/api/patient/support/route.ts',
-  'src/app/api/public/support/route.ts',
-  'src/modules/auth/vkOAuthCallbackHandler.ts',
-  'src/modules/auth/yandexOAuthCallbackHandler.ts',
-]);
-
 /** Does `node` look like `new UserFacingError(...)`, `toast.error/success(...)`, or a call to one
  * of `FALLBACK_TEXT_HELPER_ARG_INDEX`'s helpers? Returns the argument expression that ends up
  * shown to the user, or undefined if `node` isn't one of these calls.
@@ -399,6 +351,79 @@ function responseJsonMessageLiteralOf(node, consts = EMPTY_CONSTS) {
   return undefined;
 }
 
+
+/**
+ * G5 (владелец, 13.09 — «ни в коем случае врач не должен видеть сырой машинный код»).
+ *
+ * Класс, который все прошлые правила пропускали: функция-ПОДПИСЬ. Она существует ровно затем,
+ * чтобы превратить машинное значение (`awaiting_payment`, `not_found`, `playback_disabled`) в
+ * фразу для человека, — и заканчивается строкой `return status`, то есть отдаёт наружу тот самый
+ * код, от которого должна была защитить. На момент введения правила таких функций было 10, и
+ * одна из них (`panelErrorLabel` в панели календаря) знала 5 кодов из 23, которые реально шлют
+ * маршруты записи: 18 кодов врач видел сырыми.
+ *
+ * Опознание — по трём признакам сразу, чтобы не ловить форматтеры (`return iso`, если дата не
+ * разобралась) и склейки готовых подписей:
+ *   1. возвращаемый тип функции — ровно `string`;
+ *   2. параметр `p` где-то сравнивается со СТРОКОВЫМ ЛИТЕРАЛОМ (`p === 'ready'` или `switch (p)`
+ *      с case-литералами) — это и делает функцию словарём кодов;
+ *   3. среди её возвратов есть строковый литерал со СЛОВОМ (две буквы подряд) — то есть она
+ *      действительно возвращает подписи, а не числа, прочерки или url;
+ * и при этом есть `return p`. Дефолт обязан быть фразой (`notificationText.commonUnknownStatus`
+ * и подобные), а не входным значением.
+ */
+function codeLabelLeakReturns(fn, sf) {
+  if (!fn.body || !fn.type || fn.type.kind !== ts.SyntaxKind.StringKeyword) return [];
+  const params = new Set(
+    fn.parameters.filter((p) => ts.isIdentifier(p.name)).map((p) => p.name.text),
+  );
+  if (params.size === 0) return [];
+  const comparedToLiteral = new Set();
+  const returnsParam = [];
+  let returnsWordLiteral = false;
+  const walk = (n) => {
+    if (
+      ts.isBinaryExpression(n) &&
+      (n.operatorToken.kind === ts.SyntaxKind.EqualsEqualsEqualsToken ||
+        n.operatorToken.kind === ts.SyntaxKind.EqualsEqualsToken)
+    ) {
+      if (ts.isIdentifier(n.left) && params.has(n.left.text) && ts.isStringLiteral(n.right)) {
+        comparedToLiteral.add(n.left.text);
+      }
+      if (ts.isIdentifier(n.right) && params.has(n.right.text) && ts.isStringLiteral(n.left)) {
+        comparedToLiteral.add(n.right.text);
+      }
+    }
+    if (
+      ts.isSwitchStatement(n) &&
+      ts.isIdentifier(n.expression) &&
+      params.has(n.expression.text) &&
+      n.caseBlock.clauses.some((c) => ts.isCaseClause(c) && ts.isStringLiteral(c.expression))
+    ) {
+      comparedToLiteral.add(n.expression.text);
+    }
+    if (ts.isReturnStatement(n) && n.expression) {
+      if (ts.isIdentifier(n.expression) && params.has(n.expression.text)) returnsParam.push(n);
+      if (
+        (ts.isStringLiteral(n.expression) || ts.isNoSubstitutionTemplateLiteral(n.expression)) &&
+        /\p{L}{2}/u.test(n.expression.text)
+      ) {
+        returnsWordLiteral = true;
+      }
+    }
+    // Вложенная функция — отдельная единица разбора, её возвраты не принадлежат этой.
+    if (
+      n === fn ||
+      (!ts.isFunctionDeclaration(n) && !ts.isArrowFunction(n) && !ts.isFunctionExpression(n))
+    ) {
+      ts.forEachChild(n, walk);
+    }
+  };
+  ts.forEachChild(fn.body, walk);
+  if (!returnsWordLiteral) return [];
+  return returnsParam.filter((r) => comparedToLiteral.has(r.expression.text));
+}
+
 function checkSource(relativePath, text) {
   const findings = [];
   const sf = ts.createSourceFile(
@@ -440,14 +465,28 @@ function checkSource(relativePath, text) {
     // G4 (safety audit, 2026-09-13 gating pass): an inline `message: '...'` literal inside a
     // NextResponse.json/Response.json body — grandfathered for pre-existing files, see
     // RESPONSE_MESSAGE_LITERAL_GRANDFATHER_FILES's doc comment.
-    if (!RESPONSE_MESSAGE_LITERAL_GRANDFATHER_FILES.has(relativePath)) {
-      const messageLiteral = responseJsonMessageLiteralOf(node, consts);
-      if (messageLiteral) {
-        const { line } = sf.getLineAndCharacterOfPosition(messageLiteral.getStart(sf));
+    const messageLiteral = responseJsonMessageLiteralOf(node, consts);
+    if (messageLiteral) {
+      const { line } = sf.getLineAndCharacterOfPosition(messageLiteral.getStart(sf));
+      findings.push(
+        `${relativePath}:${line + 1}: string literal in a NextResponse.json/Response.json ` +
+          `"message" property — add it to notificationText.ts and reference the key instead ` +
+          `(${JSON.stringify(messageLiteral.text).slice(0, 60)})`,
+      );
+    }
+
+    // G5: функция-подпись, возвращающая собственный вход (сырой машинный код) человеку.
+    if (
+      ts.isFunctionDeclaration(node) ||
+      ts.isArrowFunction(node) ||
+      ts.isFunctionExpression(node)
+    ) {
+      for (const leak of codeLabelLeakReturns(node, sf)) {
+        const { line } = sf.getLineAndCharacterOfPosition(leak.getStart(sf));
         findings.push(
-          `${relativePath}:${line + 1}: string literal in a NextResponse.json/Response.json ` +
-            `"message" property — add it to notificationText.ts and reference the key instead ` +
-            `(${JSON.stringify(messageLiteral.text).slice(0, 60)})`,
+          `${relativePath}:${line + 1}: функция-подпись возвращает собственный вход ` +
+            `(\`${leak.expression.text}\`) — человек увидит машинный код вместо фразы. Верните ` +
+            `текст из notificationText (например commonUnknownStatus), а не входное значение`,
         );
       }
     }
@@ -516,6 +555,13 @@ function selfTest() {
       "const M = 'Выберите публичный адрес клиники.';\nreturn jsonError('x', { message: M }, { status: 409 });"],
     ['module const literal riding a ?? fallback branch',
       "const NET = 'Нет связи с сервером.';\ntoast.error(data.message ?? NET);"],
+    // G5 (владелец, 13.09): функция-подпись, отдающая человеку собственный вход.
+    ['функция-подпись возвращает свой вход (цепочка if)',
+      "function label(status: string): string {\n  if (status === 'ready') return 'Готово';\n  return status;\n}"],
+    ['функция-подпись возвращает свой вход (switch)',
+      "function label(status: string): string {\n  switch (status) {\n    case 'ready':\n      return 'Готово';\n    default:\n      return status;\n  }\n}"],
+    ['переводчик кода ошибки возвращает сам код',
+      "function panelErrorLabel(error: string): string {\n  if (error === 'slot_overlap') return 'Слот занят.';\n  return error;\n}"],
   ];
   const safe = [
     ['dictionary reference', 'toast.error(notificationText.someKey);'],
@@ -558,6 +604,14 @@ function selfTest() {
       "const QUOTA = 'saas_quota_reached:files';\nif (error.message === QUOTA) return null;"],
     ['function-scoped const is not resolved',
       "function f() {\n  const local = 'Не удалось сохранить';\n  return local;\n}"],
+    // G5 не имеет права ловить форматтеры и склейки готовых подписей — три живые формы,
+    // на которых более грубая версия правила давала ложные срабатывания.
+    ['форматтер возвращает исходную строку, если значение не разобралось',
+      "function fmt(iso: string): string {\n  const d = new Date(iso);\n  if (Number.isNaN(d.getTime())) return iso;\n  return d.toLocaleDateString('ru-RU');\n}"],
+    ['склейка уже готовых подписей, без словаря кодов',
+      "function rowLabel(dateLabel: string, timeLabel: string): string {\n  if (timeLabel === '—') return dateLabel;\n  return `${dateLabel} ${timeLabel}`;\n}"],
+    ['возврат входа там, где подписей нет вовсе (значение шкалы)',
+      "function maxPain(raw: string): string {\n  if (raw === '9' || raw === '10') return raw;\n  return String(Number.parseInt(raw, 10));\n}"],
   ];
 
   for (const [name, source] of leaking) {
@@ -572,28 +626,12 @@ function selfTest() {
     }
   }
 
-  // G4: a message literal in a file ON the grandfather list is deliberately not flagged.
-  const grandfatheredPath = [...RESPONSE_MESSAGE_LITERAL_GRANDFATHER_FILES][0];
-  const grandfatheredFindings = checkSource(
-    grandfatheredPath,
-    "return NextResponse.json({ ok: false, message: 'Некорректные данные' });",
-  );
-  if (grandfatheredFindings.length > 0) {
-    throw new Error(
-      `self-test went red on a grandfathered file: ${grandfatheredPath}\n${grandfatheredFindings.join('\n')}`,
-    );
-  }
-  // ...but the SAME literal in a file NOT on that list is still a violation.
-  const nonGrandfatheredFindings = checkSource(
-    'src/app/api/some/new/route.ts',
-    "return NextResponse.json({ ok: false, message: 'Некорректные данные' });",
-  );
-  if (nonGrandfatheredFindings.length === 0) {
-    throw new Error('self-test stayed green on a message literal in a non-grandfathered file');
-  }
+  // Список исключений («grandfather») УДАЛЁН 13.09 по прямому указанию владельца: гейт,
+  // который что-то пропускает, «только лишнее время на диагностику, а толку ноль». Все 71 литерал
+  // из 32 освобождённых файлов перенесены в словарь, поэтому исключений больше нет вовсе.
 
   console.log(
-    `notification text coverage self-test: OK (${leaking.length} leak fixtures red, ${safe.length} safe shapes green, grandfather-list exemption verified both ways)`,
+    `notification text coverage self-test: OK (${leaking.length} leak fixtures red, ${safe.length} safe shapes green)`,
   );
 }
 

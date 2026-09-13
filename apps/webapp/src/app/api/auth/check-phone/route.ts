@@ -6,6 +6,7 @@ import { isCheckPhoneRateLimited } from '@/modules/auth/checkPhoneRateLimit';
 import { normalizePhone } from '@/modules/auth/phoneNormalize';
 import { isValidPhoneE164 } from '@/modules/auth/phoneValidation';
 import { getClientVisibleAuthChannelPolicy } from '@/modules/auth/authChannelPolicy';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 const PUBLIC_CHECK_PHONE_MIN_RESPONSE_MS = 500;
 
@@ -21,7 +22,7 @@ export async function POST(request: Request) {
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {
     return NextResponse.json(
-      { ok: false, error: 'invalid_body', message: 'Укажите номер телефона' },
+      { ok: false, error: 'invalid_body', message: notificationText.authPhoneRequired },
       { status: 400 },
     );
   }
@@ -29,14 +30,14 @@ export async function POST(request: Request) {
   const phone = normalizePhone(parsed.data.phone);
   if (!isValidPhoneE164(phone)) {
     return NextResponse.json(
-      { ok: false, error: 'invalid_phone', message: 'Неверный формат номера' },
+      { ok: false, error: 'invalid_phone', message: notificationText.authPhoneInvalidFormat },
       { status: 400 },
     );
   }
 
   if (await isCheckPhoneRateLimited(phone)) {
     return NextResponse.json(
-      { ok: false, error: 'rate_limited', message: 'Слишком много запросов. Попробуйте позже.' },
+      { ok: false, error: 'rate_limited', message: notificationText.authTooManyAttempts },
       { status: 429 },
     );
   }

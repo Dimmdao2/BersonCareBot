@@ -76,7 +76,7 @@ export function PatientBrowserMessengerBindPanel({
           } catch {
             /* ignore */
           }
-          toast.error(data.message ?? notificationText.authTooManyRequestsRetryLater);
+          toast.error(data.message ?? notificationText.authTooManyAttempts);
           return;
         }
         if (!res.ok || !data.ok || !data.url) {

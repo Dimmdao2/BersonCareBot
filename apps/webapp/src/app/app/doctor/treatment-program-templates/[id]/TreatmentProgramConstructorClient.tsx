@@ -1270,12 +1270,12 @@ export function TreatmentProgramConstructorClient({
       }
     } else if (itemType === 'clinical_test') {
       if (st.sortOrder === 0) {
-        toast.error(notificationText.treatmentProgramClinicalTestsNotAllowedOnGeneralStage);
+        toast.error(notificationText.treatmentProgramGeneralStageRecommendationsOnly);
         return;
       }
       const tg = st.groups.find((g) => g.systemKind === 'tests');
       if (!tg) {
-        toast.error(notificationText.treatmentProgramTestingGroupNotFound);
+        toast.error(notificationText.treatmentProgramTestingSystemGroupNotFound);
         return;
       }
       gid = tg.id;
@@ -1328,7 +1328,7 @@ export function TreatmentProgramConstructorClient({
     const st = detail.stages.find((s) => s.id === itemDialogStageId);
     if (!st) return;
     if (st.sortOrder === 0) {
-      toast.error(notificationText.treatmentProgramTestSetsNotAllowedOnGeneralStage);
+      toast.error(notificationText.treatmentProgramGeneralStageRecommendationsOnly);
       return;
     }
 
@@ -1366,7 +1366,7 @@ export function TreatmentProgramConstructorClient({
     const st = detail.stages.find((s) => s.id === itemDialogStageId);
     if (!st) return;
     if (st.sortOrder === 0) {
-      toast.error(notificationText.treatmentProgramLfkComplexNotAllowedOnGeneralStage);
+      toast.error(notificationText.treatmentProgramGeneralStageRecommendationsOnly);
       return;
     }
 

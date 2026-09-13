@@ -26,9 +26,10 @@ import {
   getPendingEmailChallenge,
 } from '@/modules/auth/emailAuth';
 import { platformMailProfileForRecipientRole } from '@/modules/auth/mailProfile';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 const bodySchema = z.object({
-  email: z.string().trim().min(1).max(320).email({ message: 'Некорректный email' }),
+  email: z.string().trim().min(1).max(320).email({ message: notificationText.commonSpecifyValidEmail }),
 });
 
 export async function POST(request: Request, { params }: { params: Promise<{ userId: string }> }) {
@@ -42,7 +43,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ use
       {
         ok: false,
         error: 'forbidden',
-        message: 'Только администратор может менять email пациента',
+        message: notificationText.doctorAdminOnlyChangePatientEmail,
       },
       { status: 403 },
     );
@@ -129,7 +130,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ use
       {
         ok: false,
         error: 'forbidden',
-        message: 'Только администратор может просматривать ожидающий email',
+        message: notificationText.doctorAdminOnlyViewPendingEmail,
       },
       { status: 403 },
     );

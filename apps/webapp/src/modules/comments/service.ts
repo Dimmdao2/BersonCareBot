@@ -47,7 +47,7 @@ export function createCommentsService(port: CommentsPort) {
       assertUuid(authorId);
       assertCommentType(input.commentType);
       const body = input.body?.trim() ?? '';
-      if (!body) throw new UserFacingError(notificationText.commentTextRequired);
+      if (!body) throw new UserFacingError(notificationText.commentTextEmpty);
       return port.create(
         {
           ...input,

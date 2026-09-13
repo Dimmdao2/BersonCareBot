@@ -6,12 +6,13 @@ import {
   isOAuthStartRateLimitedByKey,
   resolveOAuthStartRateLimitClientKey,
 } from '@/modules/auth/oauthStartRateLimit';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 export async function POST(request: Request) {
   stampBootstrapPrincipal('api/auth/passkey/login/options:POST', request);
   if (!(await isIndependentAuthMethodEnabled('passkey'))) {
     return NextResponse.json(
-      { ok: false, error: 'auth_method_disabled', message: 'Вход по ключу доступа отключён' },
+      { ok: false, error: 'auth_method_disabled', message: notificationText.authPasskeyDisabled },
       { status: 403 },
     );
   }

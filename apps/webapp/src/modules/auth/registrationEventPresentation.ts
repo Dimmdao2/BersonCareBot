@@ -1,5 +1,6 @@
 import type { AuthRegistrationEventType } from '@/modules/product-analytics/types';
 import type { AuthRegistrationAuthMethod } from '@/app-layer/product-analytics/recordAuthRegistration';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 const AUTH_METHOD_LABELS: Record<string, string> = {
   email_password: 'Email и пароль',
@@ -37,8 +38,8 @@ const ERROR_CODE_LABELS: Record<string, string> = {
   userinfo_failed: 'Профиль провайдера',
   token_failed: 'Токен провайдера',
   provider_error: 'Ошибка провайдера',
-  invalid_body: 'Некорректные данные',
-  invalid_code: 'Неверный код',
+  invalid_body: notificationText.authInvalidBody,
+  invalid_code: notificationText.authCodeInvalidOrExpired,
   expired_code: 'Код истёк',
   duplicate_email: 'Email уже занят',
   access_denied: 'Отменено пользователем',

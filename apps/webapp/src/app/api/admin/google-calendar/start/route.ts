@@ -16,6 +16,7 @@ import {
   getGoogleRedirectUri,
   isGoogleCalendarPlatformAvailable,
 } from '@/modules/system-settings/integrationRuntime';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 const OAUTH_STATE_TTL_SECONDS = 600;
 
@@ -45,7 +46,7 @@ export async function POST() {
       {
         ok: false,
         error: 'not_configured',
-        message: 'Google OAuth не настроен (client_id / client_secret / redirect_uri)',
+        message: notificationText.adminGoogleOauthNotConfigured,
       },
       { status: 501 },
     );

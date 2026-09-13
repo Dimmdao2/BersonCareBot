@@ -6,6 +6,7 @@ import {
 } from '@/modules/treatment-program/stage-semantics';
 import type { TreatmentProgramInstanceDetail } from '@/modules/treatment-program/types';
 import type { DoctorClientActiveProgramTreeModel } from './types';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 function snapshotTitle(snapshot: Record<string, unknown>, itemType: string): string {
   const t = snapshot.title;
@@ -20,7 +21,7 @@ function itemTypeLabel(itemType: string): string {
   if (itemType === 'test_set') return 'Набор тестов';
   if (itemType === 'recommendation') return 'Рекомендация';
   if (itemType === 'lesson') return 'Материал';
-  return itemType;
+  return notificationText.commonUnknownValue;
 }
 
 function stageStatusLabel(status: string): string {
@@ -28,7 +29,7 @@ function stageStatusLabel(status: string): string {
   if (status === 'available') return 'Доступен';
   if (status === 'completed') return 'Завершён';
   if (status === 'skipped') return 'Пропущен';
-  return status;
+  return notificationText.commonUnknownStatus;
 }
 
 function activeItemsForStage(stage: TreatmentProgramInstanceDetail['stages'][number]) {

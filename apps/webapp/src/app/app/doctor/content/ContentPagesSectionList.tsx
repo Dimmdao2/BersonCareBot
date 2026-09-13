@@ -274,11 +274,11 @@ export function ContentPagesSectionList({
             const res = await reorderContentPagesInSection(sectionSlug, orderedIds);
             if (!res.ok) {
               setItems(previous);
-              toast.error(readSafeActionErrorText(res, notificationText.doctorContentOrderUpdateFailed));
+              toast.error(readSafeActionErrorText(res, notificationText.commonOrderSaveFailed));
             }
           } catch {
             setItems(previous);
-            toast.error(notificationText.doctorContentOrderUpdateFailed);
+            toast.error(notificationText.commonOrderSaveFailed);
           }
         });
         return next;

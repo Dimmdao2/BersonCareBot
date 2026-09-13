@@ -157,7 +157,7 @@ function lifecycleActorLabel(actorType: string, patientLabel: string): string {
   if (actorType === 'specialist') return 'Специалист';
   if (actorType === 'admin') return 'Администратор';
   if (actorType === 'system') return 'Система';
-  return actorType;
+  return notificationText.commonUnknownValue;
 }
 
 function isDifferentCalendarMinute(left: string, right: string, timeZone: string): boolean {
@@ -214,18 +214,46 @@ function appointmentStatusToneClass(appointment: {
   return 'border-primary/30 bg-primary/10 text-primary';
 }
 
+/**
+ * Машинный код отказа → фраза для ВРАЧА.
+ *
+ * Прежняя версия знала 5 кодов, а на всех остальных делала `return error` — то есть показывала
+ * врачу сам код (`not_found`, `appointment_mutation_forbidden`, `invalid_body`, …). Маршруты
+ * `api/doctor/booking-engine/appointments/*` шлют 23 разных кода, так что мимо перевода шли 18.
+ * Ни одна ветка больше не возвращает вход наружу: неизвестный код — это общая фраза, а не код.
+ */
+const PANEL_ERROR_TEXT: Record<string, string> = {
+  external_slot_taken: notificationText.bookingSlotTaken,
+  slot_overlap: notificationText.bookingSlotTaken,
+  not_cancelled: notificationText.bookingCancelFirst,
+  appointment_financials_locked: notificationText.bookingFinancialsLocked,
+  appointment_create_unavailable: notificationText.bookingCreateFailed,
+  not_found: notificationText.bookingAppointmentNotFound,
+  branch_not_found: notificationText.bookingBranchNotFound,
+  appointment_mutation_forbidden: notificationText.bookingAppointmentActionForbidden,
+  lifecycle_unavailable: notificationText.bookingAppointmentActionUnavailable,
+  patient_change_not_allowed: notificationText.bookingPatientChangeNotAllowed,
+  patient_not_available: notificationText.bookingPatientNotAvailable,
+  patient_required: notificationText.bookingPatientRequired,
+  invalid_specialist: notificationText.bookingSpecialistInvalid,
+  payments_unavailable: notificationText.bookingPaymentsUnavailable,
+  financials_update_failed: notificationText.bookingPaymentSaveFailed,
+  reschedule_failed: notificationText.bookingRescheduleFailed,
+  idempotency_conflict: notificationText.bookingAlreadyProcessing,
+  booking_calendar_unavailable: notificationText.bookingServiceTemporarilyUnavailable,
+  email_conflict: notificationText.bookingEmailTakenByAnotherPatient,
+  entitlement_required: notificationText.bookingFeatureNotInTariff,
+  empty_comment: notificationText.commentTextEmpty,
+  invalid_body: notificationText.authInvalidBody,
+  invalid_json: notificationText.authInvalidBody,
+  invalid_appointment: notificationText.authInvalidBody,
+  invalid_feed_query: notificationText.authInvalidBody,
+  invalid_view: notificationText.authInvalidBody,
+};
+
 function panelErrorLabel(error: string | undefined): string {
-  if (!error) return 'Ошибка';
-  if (error === 'external_slot_taken') return 'Время уже занято во внешней записи.';
-  if (error === 'slot_overlap') return 'Слот уже занят.';
-  if (error === 'not_cancelled') return 'Сначала отмените запись.';
-  if (error === 'appointment_financials_locked') {
-    return 'Запись уже оплачена: стоимость и условие оплаты не меняются.';
-  }
-  if (error === 'appointment_create_unavailable') {
-    return 'Не удалось создать запись. Попробуйте ещё раз.';
-  }
-  return error;
+  if (!error) return notificationText.commonGenericError;
+  return PANEL_ERROR_TEXT[error] ?? notificationText.commonGenericError;
 }
 
 function listCreateServicesForSelection(

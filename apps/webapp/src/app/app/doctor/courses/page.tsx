@@ -28,6 +28,7 @@ import {
   doctorHoverLinkClass,
   doctorSectionCardClass,
 } from '@/shared/ui/doctor/doctorVisual';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 function statusLabel(status: CourseStatus): string {
   switch (status) {
@@ -38,7 +39,7 @@ function statusLabel(status: CourseStatus): string {
     case 'archived':
       return 'Архив';
     default:
-      return status;
+      return notificationText.commonUnknownStatus;
   }
 }
 

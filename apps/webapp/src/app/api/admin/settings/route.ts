@@ -90,6 +90,7 @@ import {
   normalizeSupportGroupLabel,
   SUPPORT_GROUP_LABEL_KEY,
 } from '@/modules/system-settings/patientTerms';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 /** Owner-facing reasons for a rejected dedicated bot configuration. */
 const CLINIC_BOT_PATCH_MESSAGES: Readonly<Record<ClinicBotPatchError, string>> = {
@@ -755,7 +756,7 @@ export async function PATCH(request: Request) {
         {
           ok: false,
           error: 'integration_availability_unavailable',
-          message: 'Сервер не смог проверить доступность интеграции. Повторите позже.',
+          message: notificationText.adminIntegrationCheckFailed,
         },
         { status: 503 },
       );

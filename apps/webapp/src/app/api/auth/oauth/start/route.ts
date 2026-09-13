@@ -126,7 +126,7 @@ export async function POST(request: Request) {
     await logOAuthStartFailure(null, 'rate_limited');
     return jsonError(
       'rate_limited',
-      { message: notificationText.authTooManyAttemptsRetryLater },
+      { message: notificationText.authTooManyAttempts },
       { status: 429 },
     );
   }
@@ -260,7 +260,7 @@ export async function POST(request: Request) {
     logger.error({ error, provider }, '[auth/oauth/start] unhandled failure');
     return jsonError(
       'server_error',
-      { message: notificationText.authOauthStartFailed },
+      { message: notificationText.authEmailPasswordLoginFallback },
       { status: 500 },
     );
   }

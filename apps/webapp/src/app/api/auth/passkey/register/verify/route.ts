@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { finishSelfPasskeyRegistration } from '@/app-layer/auth/passkeyRuntime';
 import { requireAuthenticatedIdentitySelfApiSession } from '@/app-layer/guards/requireRole';
 import { isIndependentAuthMethodEnabled } from '@/modules/auth/authChannelPolicy';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 const responseSchema = z
   .object({
@@ -32,7 +33,7 @@ export async function POST(request: Request) {
   if (!gate.ok) return gate.response;
   if (!(await isIndependentAuthMethodEnabled('passkey'))) {
     return NextResponse.json(
-      { ok: false, error: 'auth_method_disabled', message: 'Вход по ключу доступа отключён' },
+      { ok: false, error: 'auth_method_disabled', message: notificationText.authPasskeyDisabled },
       { status: 403 },
     );
   }

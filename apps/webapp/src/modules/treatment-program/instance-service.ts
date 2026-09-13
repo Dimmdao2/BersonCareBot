@@ -554,7 +554,7 @@ export function createTreatmentProgramInstanceService(deps: {
         input.stageItemId,
         input.localComment,
       );
-      if (!row) throw new UserFacingError(notificationText.treatmentProgramElementNotFoundInProgram);
+      if (!row) throw new UserFacingError(notificationText.treatmentProgramElementNotFound);
       const afterEffective = effectiveInstanceStageItemComment(row);
       if (beforeEffective !== afterEffective) {
         await appendEvent({
@@ -1192,7 +1192,7 @@ export function createTreatmentProgramInstanceService(deps: {
         input.stageId,
         input.orderedItemIds,
       );
-      if (!ok) throw new UserFacingError(notificationText.treatmentProgramInvalidStageElementOrder);
+      if (!ok) throw new UserFacingError(notificationText.treatmentProgramInvalidStageOrder);
       await appendEvent({
         instanceId: input.instanceId,
         actorId: input.actorId,
@@ -1390,7 +1390,7 @@ export function createTreatmentProgramInstanceService(deps: {
         input.stageId,
         input.orderedGroupIds,
       );
-      if (!ok) throw new UserFacingError(notificationText.treatmentProgramInvalidStageGroupOrder);
+      if (!ok) throw new UserFacingError(notificationText.treatmentProgramInvalidStageOrder);
       await appendEvent({
         instanceId: input.instanceId,
         actorId: input.actorId,

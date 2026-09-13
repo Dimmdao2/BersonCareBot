@@ -6,6 +6,7 @@ import type { TelegramLoginWidgetPayload } from '@/modules/auth/telegramLoginVer
 import { verifyTelegramLoginWidgetSignature } from '@/modules/auth/telegramLoginVerify';
 import { getTelegramBotToken } from '@/modules/system-settings/integrationRuntime';
 import { isAuthChannelEnabled } from '@/modules/auth/authChannelPolicy';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 const bodySchema = z.record(z.string(), z.unknown());
 
@@ -45,13 +46,13 @@ export async function POST(request: Request) {
         {
           ok: false,
           error: 'auth_expired',
-          message: 'Сессия Telegram устарела. Попробуйте снова.',
+          message: notificationText.authTelegramSessionStale,
         },
         { status: 403 },
       );
     }
     return NextResponse.json(
-      { ok: false, error: 'access_denied', message: 'Вход не разрешён.' },
+      { ok: false, error: 'access_denied', message: notificationText.authLoginNotAllowed },
       { status: 403 },
     );
   }

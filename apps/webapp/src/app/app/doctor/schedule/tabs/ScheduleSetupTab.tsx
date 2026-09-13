@@ -426,7 +426,7 @@ function SectionPackages({ readOnly }: { readOnly: boolean }) {
         setSelectedCatalogPackage(null);
         load();
       } catch {
-        toast.error(notificationText.doctorSubscriptionUpdateFailed);
+        toast.error(notificationText.doctorSubscriptionPackageUpdateFailed);
       }
     });
   }

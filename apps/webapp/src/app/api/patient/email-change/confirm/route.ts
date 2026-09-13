@@ -20,6 +20,7 @@ import {
 } from '@/modules/auth/authChannelPolicy';
 import { confirmLatestEmailChallengeCodeForUser } from '@/modules/auth/emailAuth';
 import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 const bodySchema = z.object({
   code: z.string().trim().min(4).max(12),
@@ -32,7 +33,7 @@ export async function POST(request: Request) {
   if (!gate.ok) {
     if (gate.response.status === 401) {
       return NextResponse.json(
-        { ok: false, error: 'unauthorized', message: 'Требуется вход' },
+        { ok: false, error: 'unauthorized', message: notificationText.commonLoginRequired },
         { status: 401 },
       );
     }
@@ -48,7 +49,7 @@ export async function POST(request: Request) {
   const parsed = bodySchema.safeParse(json);
   if (!parsed.success) {
     return NextResponse.json(
-      { ok: false, error: 'validation_error', message: 'Некорректный код' },
+      { ok: false, error: 'validation_error', message: notificationText.authCodeInvalidOrExpired },
       { status: 400 },
     );
   }
@@ -85,7 +86,7 @@ export async function POST(request: Request) {
 function errMsg(code: string): string {
   switch (code) {
     case 'invalid_code':
-      return 'Неверный код';
+      return notificationText.authCodeInvalidOrExpired;
     case 'expired_code':
       return 'Код истёк. Попросите администратора выслать новый.';
     case 'too_many_attempts':

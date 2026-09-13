@@ -524,7 +524,7 @@ export function AuthFlowV2({
         return;
       }
       if (res.status === 429 || data.error === 'rate_limited') {
-        toast.error(data.message ?? notificationText.authTooManyAttemptsRetryLater);
+        toast.error(data.message ?? notificationText.authTooManyAttempts);
         return;
       }
       toast.error(data.message ?? notificationText.authProviderUnavailable);
@@ -653,7 +653,7 @@ export function AuthFlowV2({
     engageInteractive();
     const email = emailLoginEmail.trim();
     if (!email) {
-      toast.error(notificationText.authEnterEmail);
+      toast.error(notificationText.commonSpecifyEmail);
       return;
     }
     setLoading(true);
@@ -776,7 +776,7 @@ export function AuthFlowV2({
   const submitForgotPassword = async () => {
     const email = emailLoginEmail.trim();
     if (!email) {
-      toast.error(notificationText.authEnterEmail);
+      toast.error(notificationText.commonSpecifyEmail);
       return;
     }
     engageInteractive();
@@ -886,7 +886,7 @@ export function AuthFlowV2({
       toast.error(verifyResult.data.message ?? notificationText.authPasskeyVerifyFailed);
     } catch (error) {
       if (error instanceof Error && error.name === 'NotAllowedError') return;
-      toast.error(notificationText.authPasskeyUseFailed);
+      toast.error(notificationText.authPasskeyVerifyFailed);
     } finally {
       setLoading(false);
     }
@@ -1150,7 +1150,7 @@ export function AuthFlowV2({
         return;
       }
       if (res.status === 429 || data.error === 'rate_limited') {
-        toast.error(data.message ?? notificationText.authTooManyAttemptsRetryLater);
+        toast.error(data.message ?? notificationText.authTooManyAttempts);
         return;
       }
       toast.error(data.message ?? notificationText.authSignupStartFailed);
@@ -1263,11 +1263,11 @@ export function AuthFlowV2({
         return;
       }
       if (res.status === 429 || data.error === 'too_many_attempts') {
-        toast.error(data.message ?? notificationText.authAttemptsTooFrequent);
+        toast.error(data.message ?? notificationText.authTooManyAttempts);
         return;
       }
       if (data.error === 'expired_code') {
-        toast.error(notificationText.authCodeExpired);
+        toast.error(notificationText.authCodeInvalidOrExpired);
         return;
       }
       toast.error(data.message ?? notificationText.authCodeInvalidOrExpired);
@@ -2175,7 +2175,7 @@ export function AuthFlowV2({
                         };
                       }
                       if (data.error === 'invalid_code') {
-                        return { ok: false as const, message: 'Неверный код' };
+                        return { ok: false as const, message: notificationText.authCodeInvalidOrExpired };
                       }
                       return {
                         ok: false as const,
@@ -2217,7 +2217,7 @@ export function AuthFlowV2({
                           retryAfterSeconds: data.retryAfterSeconds,
                         };
                       }
-                      return { ok: false as const, message: data.message ?? 'Неверный код' };
+                      return { ok: false as const, message: data.message ?? notificationText.authCodeInvalidOrExpired };
                     }
                     if (emailVerifyPurpose === 'setup' && emailRegPassword.length < 8) {
                       return { ok: false as const, message: 'Пароль — не менее 8 символов.' };

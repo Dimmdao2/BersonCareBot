@@ -9,6 +9,7 @@ import { getMaxLoginBotNickname } from '@/modules/system-settings/maxLoginBotNic
 import { getTelegramLoginBotUsername } from '@/modules/system-settings/telegramLoginBotUsername';
 import { isAuthChannelEnabled } from '@/modules/auth/authChannelPolicy';
 import { runWithDbInfraPrincipal } from '@bersoncare/db-principal';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 const bodySchema = z.object({
   channelCode: z.enum(['telegram', 'max', 'vk']),
@@ -40,7 +41,7 @@ export async function POST(request: Request) {
   const uid = session.user.userId?.trim();
   if (uid && (await isChannelLinkStartRateLimited(uid))) {
     return NextResponse.json(
-      { ok: false, error: 'rate_limited', message: 'Слишком много запросов. Попробуйте позже.' },
+      { ok: false, error: 'rate_limited', message: notificationText.authTooManyAttempts },
       { status: 429 },
     );
   }

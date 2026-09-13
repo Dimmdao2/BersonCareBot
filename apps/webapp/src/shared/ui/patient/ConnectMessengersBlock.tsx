@@ -16,6 +16,7 @@ import {
   FAIL_CLOSED_AUTH_CHANNEL_UI_POLICY,
   type AuthChannelUiPolicy,
 } from '@/modules/auth/otpChannelUi';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 const BIND_POLL_MS = 4000;
 
@@ -92,7 +93,7 @@ export function ConnectMessengersBlock({
         } catch {
           /* ignore */
         }
-        setError(data.message ?? 'Слишком много запросов. Попробуйте позже.');
+        setError(data.message ?? notificationText.authTooManyAttempts);
         return;
       }
       if (!res.ok || !data.ok || !data.url) {

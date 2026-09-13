@@ -9,6 +9,7 @@ import { routePaths } from '@/app-layer/routes/paths';
 import { DIARY_SYMPTOM_ENTRY_SAVED_EVENT } from '@/modules/diaries/symptomDiaryClientEvents';
 import { DiaryStatsPeriodBar, type DiaryStatsPeriod } from './DiaryStatsPeriodBar';
 import { AppContentLoading } from '@/shared/ui/AppContentLoading';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 const RechartsSymptom = dynamic(() => import('./SymptomChartRecharts'), {
   ssr: false,
@@ -76,7 +77,7 @@ export function SymptomChart({
         credentials: 'include',
       });
       if (res.status === 401 || res.status === 403) {
-        setError(res.status === 403 ? 'Доступ запрещён' : 'Требуется вход');
+        setError(res.status === 403 ? 'Доступ запрещён' : notificationText.commonLoginRequired);
         setPoints([]);
         return;
       }

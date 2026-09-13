@@ -149,7 +149,7 @@ export async function POST(request: Request) {
     {
       ok: false,
       error: 'email_send_failed',
-      message: notificationText.authEmailFactorSendFailed,
+      message: notificationText.authCodeSendFailed,
     },
     { status: 503 },
   );

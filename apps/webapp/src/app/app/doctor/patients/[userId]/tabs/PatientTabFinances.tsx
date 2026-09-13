@@ -295,7 +295,7 @@ export function PatientTabFinances({
       toast.success(notificationText.paymentRecorded);
       await fetchTimeline();
     } catch {
-      toast.error(notificationText.commonNetworkUnavailable);
+      toast.error(notificationText.commonNoServerConnection);
     } finally {
       setCashSubmitting(false);
     }
