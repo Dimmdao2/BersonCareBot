@@ -55,11 +55,27 @@ export function readSafeApiErrorText(body: unknown, fallback: string): string {
  * dictionary reference either way, so this is only a naming/plumbing distinction; the coverage
  * gate treats a call to this helper exactly like `readSafeApiErrorText` — a bare `.error` read
  * NOT routed through one of these two helpers is what the gate flags.
+ *
+ * Re-audit finding (NEW-1, 13.09): the parameter used to be `unknown`, which let a parsed API body
+ * be handed to this helper — and because the gate trusts the helper by name, that would have shown
+ * a machine code (`invalid_body`, `blocked`) to a human WITH the gate green: exactly the defect G3
+ * exists to stop, rubber-stamped. Требование `ok: boolean` (не `ok?:`) отклоняет на компиляции
+ * разобранное тело API-ответа, где поле необязательно. Это структурная типизация, а не гарантия:
+ * тело, у которого `ok` объявлен обязательным, пройдёт. Поэтому правило остаётся и в ревью —
+ * `error` из ответа НАШЕГО API читается только через `readSafeApiErrorText`.
  */
-export function readSafeActionErrorText(result: unknown, fallback: string): string {
-  if (typeof result === 'object' && result !== null) {
-    const error = (result as { error?: unknown }).error;
-    if (typeof error === 'string' && error.trim()) return error.trim();
-  }
+export type ServerActionResultWithUserText = {
+  /** Есть всегда у состояния server action; у разобранного тела API-ответа — необязательно. */
+  ok: boolean;
+  /** Текст для человека, который сам action и положил, а не машинный код. */
+  error?: string | null;
+};
+
+export function readSafeActionErrorText(
+  result: ServerActionResultWithUserText | null | undefined,
+  fallback: string,
+): string {
+  const error = result?.error;
+  if (typeof error === 'string' && error.trim()) return error.trim();
   return fallback;
 }

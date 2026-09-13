@@ -56,11 +56,20 @@
  *    must never render as the entire toast. Route it through `readSafeApiErrorText` (server
  *    `message` field) or `readSafeActionErrorText` (client-local action-result `error` field) —
  *    calls to either are exempt, same as any other dynamic expression on a branch.
- *  - G4: an inline `message: '...'` literal inside `NextResponse.json`/`Response.json` — the
- *    shape that let a route's own copy diverge from the dictionary for the SAME code. Grandfathered
- *    by file for a large pre-existing surface this pass did not migrate (see
+ *  - G4: an inline `message: '...'` literal inside `NextResponse.json`/`Response.json`/`jsonError`
+ *    — the shape that let a route's own copy diverge from the dictionary for the SAME code.
+ *    Grandfathered by file for a large pre-existing surface this pass did not migrate (see
  *    `RESPONSE_MESSAGE_LITERAL_GRANDFATHER_FILES`'s own doc comment for the honest count and why);
- *    a literal in any file NOT on that list is still a gate failure.
+ *    a literal in any file NOT on that list is a gate failure.
+ *
+ *    HONEST LIMITS of that rule, so the next reader does not stop looking (re-audit NEW-4, 13.09 —
+ *    the previous wording claimed the class "cannot reappear silently anywhere else", which was not
+ *    true and hid three live leaks):
+ *      1. Only the response builders named in `RESPONSE_BUILDER_BODY_ARG_INDEX` are inspected. A
+ *         route answering through some other wrapper is invisible to this rule; add the wrapper to
+ *         that map when one appears.
+ *      2. Grandfathering is per FILE, not per literal, so a listed file is also exempt for NEW
+ *         literals. The list may only shrink — treat any addition to it as a finding, not a fix.
  */
 import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
@@ -132,7 +141,6 @@ const RESPONSE_MESSAGE_LITERAL_GRANDFATHER_FILES = new Set([
   'src/app/api/auth/channel-link/start/route.ts',
   'src/app/api/auth/check-phone/route.ts',
   'src/app/api/auth/email-otp/confirm/route.ts',
-  'src/app/api/auth/email-otp/start/route.ts',
   'src/app/api/auth/email-password/register/confirm/route.ts',
   'src/app/api/auth/email/confirm/route.ts',
   'src/app/api/auth/email/start/route.ts',
@@ -306,21 +314,40 @@ function collectRawErrorCodeLeaves(expr, out = []) {
  * whose value is a variable, a call (including `notificationText.someKey`), or a template WITH
  * interpolation is dynamic/already-safe and not returned.
  */
-function responseJsonMessageLiteralOf(node) {
+/**
+ * Re-audit finding (NEW-4, 13.09): this rule used to match ONLY `NextResponse.json`/`Response.json`
+ * while the header claimed the divergent-copy class "cannot reappear silently anywhere else". That
+ * was false — every route answering through the `jsonError(code, body, init)` wrapper was invisible,
+ * and three live leaks sat in exactly that blind spot: the reverse-proxy/`X-Real-IP` sentence shown
+ * on the PUBLIC booking route and on the OAuth login screen. `jsonError` carries the body in its
+ * SECOND argument, hence the per-builder index rather than a fixed `arguments[0]`.
+ */
+const RESPONSE_BUILDER_BODY_ARG_INDEX = new Map([
+  ['NextResponse.json', 0],
+  ['Response.json', 0],
+  ['jsonError', 1],
+]);
+
+function responseBuilderBodyArg(node) {
+  if (!ts.isCallExpression(node) || node.arguments.length === 0) return undefined;
+  let name;
   if (
-    !(
-      ts.isCallExpression(node) &&
-      ts.isPropertyAccessExpression(node.expression) &&
-      ts.isIdentifier(node.expression.expression) &&
-      (node.expression.expression.text === 'NextResponse' ||
-        node.expression.expression.text === 'Response') &&
-      node.expression.name.text === 'json' &&
-      node.arguments.length >= 1
-    )
+    ts.isPropertyAccessExpression(node.expression) &&
+    ts.isIdentifier(node.expression.expression) &&
+    ts.isIdentifier(node.expression.name)
   ) {
-    return undefined;
+    name = `${node.expression.expression.text}.${node.expression.name.text}`;
+  } else if (ts.isIdentifier(node.expression)) {
+    name = node.expression.text;
   }
-  let arg = node.arguments[0];
+  const index = name === undefined ? undefined : RESPONSE_BUILDER_BODY_ARG_INDEX.get(name);
+  if (index === undefined) return undefined;
+  return node.arguments[index];
+}
+
+function responseJsonMessageLiteralOf(node) {
+  let arg = responseBuilderBodyArg(node);
+  if (arg === undefined) return undefined;
   if (ts.isParenthesizedExpression(arg)) arg = arg.expression;
   if (!ts.isObjectLiteralExpression(arg)) return undefined;
   for (const prop of arg.properties) {

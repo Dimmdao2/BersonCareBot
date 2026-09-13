@@ -80,6 +80,9 @@ export const notificationText = {
   authInvalidCredentialsSessionExpired:
     'Не удалось подтвердить вход. Войдите снова и запросите новый код.',
   authInvalidBody: 'Данные введены неверно. Проверьте их и повторите действие.',
+  authOauthProviderRequired: 'Выберите способ входа.',
+  authOauthStartFailed:
+    'Не удалось начать вход из-за сбоя на нашей стороне. Повторите попытку позже.',
   authInvalidEmailFormat: 'Неверный формат email',
   // Channel-neutral on purpose (G1): this key now also covers the email `invalid_code` case, so
   // it must not say "в приложении" (authenticator-app-only wording).
@@ -190,7 +193,7 @@ export const notificationText = {
   // попытку» to match the majority phrasing used across the dictionary.
   commonSaveFailedRetryLater: 'Не удалось сохранить. Повторите попытку позже.',
   paymentSucceeded: 'Оплата прошла',
-  commonGenericError: 'Ошибка',
+  commonGenericError: 'Что-то пошло не так. Повторите попытку.',
   messagingOpenBotChat: 'Откройте чат с ботом и отправьте контакт по кнопке.',
   authEmailCodeSent: 'Отправили код на почту.',
   authSignupPasswordTooShort: 'Пароль — не менее 8 символов.',
@@ -364,6 +367,10 @@ export const notificationText = {
 
   // --- domain/booking-engine ---
   bookingUnknownStatus: 'Неизвестный статус записи',
+  // Публичная запись: отказ инфраструктуры (не прошёл reverse proxy) — читателю здесь нечего
+  // делать с деталью про заголовок X-Real-IP, и знать её он не должен (re-audit NEW-4).
+  bookingServiceTemporarilyUnavailable:
+    'Запись временно недоступна. Повторите попытку позже.',
   bookingSpecifyBranch: 'Укажите филиал',
   bookingEndTimeMustBeAfterStart: 'Время окончания должно быть позже начала',
   bookingAppointmentNotFound: 'Запись не найдена. Обновите страницу и повторите попытку.',
@@ -410,7 +417,7 @@ export const notificationText = {
   exerciseTemplateNotFound: 'Шаблон не найден. Обновите страницу и повторите попытку.',
 
   // --- domain/messaging ---
-  messagingNotSent: 'Не отправлено',
+  messagingNotSent: 'Сообщение не отправлено. Повторите попытку.',
 
   // --- domain/recommendations ---
   recommendationNameRequired: 'Название рекомендации обязательно',
@@ -570,6 +577,10 @@ export const notificationText = {
   authPasswordUpdatedPleaseLogin: 'Пароль обновлён. Войдите.',
   authAccessConfigured: 'Доступ настроен.',
   authReenterPasswordToContinueSetup: 'Войдите с паролем ещё раз, чтобы продолжить защищённую настройку.',
+  // Тот же смысл плюс подтверждение почты: отдельный ключ, потому что текст показывается в
+  // другой момент — сразу после подтверждения адреса, а не при повторном входе.
+  authEmailVerifiedReenterPasswordToContinueSetup:
+    'Почта подтверждена. Войдите с паролем ещё раз, чтобы продолжить защищённую настройку.',
 
   // --- fallback texts formerly inline as the second/third argument of `readSafeApiErrorText`/
   // `safeActionErrorText`/`mechanicWriteClearanceRefusalResponse` (DEFECT 3, 2026-09-13 second

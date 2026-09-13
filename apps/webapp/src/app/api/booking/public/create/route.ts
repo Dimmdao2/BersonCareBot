@@ -47,6 +47,7 @@ import {
   mapApiError,
   type ApiErrorLiteralRules,
 } from '@/shared/http/apiResponse';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 const PUBLIC_IN_PERSON_RESOLVE_ERROR_RULES = {
   ambiguous_booking_tenant: { status: 400, code: 'ambiguous_booking_tenant' },
@@ -84,7 +85,7 @@ export async function POST(request: Request) {
   if (!rateKey.ok) {
     return jsonError(
       'proxy_configuration',
-      { message: 'Запрос должен проходить через reverse proxy с заголовком X-Real-IP.' },
+      { message: notificationText.bookingServiceTemporarilyUnavailable },
       { status: 503 },
     );
   }
