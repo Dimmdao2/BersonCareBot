@@ -6,8 +6,16 @@ import pg from 'pg';
 
 const { Client } = pg;
 
-const TEST_DATABASE = 'bersoncarebot_test';
-const TEST_PASSWORD = '123456testTEST';
+/**
+ * Базы, на которых учётки владельца вообще существуют для проверки руками. Список закрытый и
+ * перечислен поимённо: скрипт ставит ИЗВЕСТНЫЙ пароль, поэтому попасть на боевую базу он не должен
+ * не «по недосмотру оператора», а по построению.
+ */
+const NONPROD_DATABASES = {
+  test: 'bersoncarebot_test',
+  dev: 'bcb_webapp_dev',
+};
+const NONPROD_PASSWORD = '123456testTEST';
 const EXPECTED_ACCOUNTS = [
   { email: 'dimmdao@yandex.ru', role: 'doctor', fallbackPhone: '+79643805480' },
   { email: 'dimmdao@gmail.com', role: 'admin', fallbackPhone: null },
@@ -26,13 +34,21 @@ function parseArgs(argv) {
   const confirmed = argv.includes('--confirm-test-owner-password-reset');
   const selfTest = argv.includes('--self-test');
   const known = new Set(['--execute', '--confirm-test-owner-password-reset', '--self-test']);
-  const unknown = argv.filter((arg) => !known.has(arg));
+  const environmentArgs = argv.filter((arg) => arg.startsWith('--database='));
+  const unknown = argv.filter((arg) => !known.has(arg) && !arg.startsWith('--database='));
   if (unknown.length > 0) fail(`unknown arguments: ${unknown.join(', ')}`);
   if (selfTest && (execute || confirmed)) fail('--self-test cannot be combined with execution');
-  if (!selfTest && (!execute || !confirmed)) {
+  if (selfTest) return { selfTest: true, databaseName: null };
+  if (!execute || !confirmed) {
     fail('execution requires --execute --confirm-test-owner-password-reset');
   }
-  return { selfTest };
+  if (environmentArgs.length !== 1) {
+    fail(`execution requires exactly one --database=<${Object.keys(NONPROD_DATABASES).join('|')}>`);
+  }
+  const environment = environmentArgs[0].slice('--database='.length);
+  const databaseName = NONPROD_DATABASES[environment];
+  if (!databaseName) fail(`refusing unknown environment ${environment}`);
+  return { selfTest: false, databaseName };
 }
 
 function runSelfTest() {
@@ -41,10 +57,13 @@ function runSelfTest() {
       fail(`invalid password protection key for ${account.email}`);
     }
   }
-  console.log('ensure-test-owner-account-passwords self-test: OK');
+  for (const [environment, databaseName] of Object.entries(NONPROD_DATABASES)) {
+    if (/prod/.test(databaseName)) fail(`environment ${environment} points at a prod database`);
+  }
+  console.log('ensure-nonprod-owner-account-passwords self-test: OK');
 }
 
-async function execute() {
+async function execute(expectedDatabase) {
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) fail('DATABASE_URL is required');
 
@@ -55,7 +74,7 @@ async function execute() {
     const context = await client.query('SELECT current_database() AS database_name, current_user AS user_name');
     const databaseName = context.rows[0]?.database_name;
     const userName = context.rows[0]?.user_name;
-    if (databaseName !== TEST_DATABASE) fail(`refusing database ${String(databaseName)}`);
+    if (databaseName !== expectedDatabase) fail(`refusing database ${String(databaseName)}`);
     if (userName !== 'postgres') fail(`refusing database user ${String(userName)}`);
 
     let accountsUpdated = 0;
@@ -111,7 +130,7 @@ async function execute() {
         fail(`owner account email is not confirmed for ${account.email}`);
       }
 
-      const passwordHash = await argon2.hash(TEST_PASSWORD, { type: argon2.argon2id });
+      const passwordHash = await argon2.hash(NONPROD_PASSWORD, { type: argon2.argon2id });
       await client.query(
         `INSERT INTO public.user_password_credentials (
            user_id, password_hash, algo, failed_attempts, next_allowed_at, locked_until,
@@ -160,8 +179,10 @@ async function execute() {
 try {
   const options = parseArgs(process.argv.slice(2));
   if (options.selfTest) runSelfTest();
-  else await execute();
+  else await execute(options.databaseName);
 } catch (error) {
-  console.error(`ensure-test-owner-account-passwords: ${error instanceof Error ? error.message : String(error)}`);
+  console.error(
+    `ensure-nonprod-owner-account-passwords: ${error instanceof Error ? error.message : String(error)}`,
+  );
   process.exit(1);
 }

@@ -937,13 +937,14 @@ log "restore preserved TEST SMTP"
 restore_test_smtp_outbound
 
 # A fresh PROD dump correctly carries PROD credential hashes, but the published doctor and global-admin owner accounts
-# have one stable password on named DEV/TEST (AGENTS.md §1a). Restore that TEST-only contract while writers remain stopped;
-# the helper refuses every database except exact bersoncarebot_test and never prints the password or hashes.
+# have one stable password on named DEV/TEST (AGENTS.md §1a). Restore that non-prod contract while writers remain stopped;
+# the helper takes the environment by name, refuses every database outside its DEV/TEST allowlist, and never prints the
+# password or hashes.
 log "restore canonical TEST owner account passwords"
 sudo -u postgres env \
   DATABASE_URL="postgresql:///$DB?host=/var/run/postgresql" \
-  node "$DEPLOY_REPO/apps/webapp/scripts/ensure-test-owner-account-passwords.mjs" \
-    --execute --confirm-test-owner-password-reset
+  node "$DEPLOY_REPO/apps/webapp/scripts/ensure-nonprod-owner-account-passwords.mjs" \
+    --execute --confirm-test-owner-password-reset --database=test
 
 # 8. end-state self-check (reproducibility gate — same asserted state every run, from zero)
 log "verify end-state"
