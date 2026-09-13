@@ -12,6 +12,19 @@
 import { sql, type SQL } from 'drizzle-orm';
 import { getWebappSqlDb, runWebappSql } from '@/infra/db/runWebappSql';
 
+/**
+ * Время из сырого запроса приходит СТРОКОЙ, а не датой: типы столбцов знает ORM, а этот путь идёт
+ * мимо неё. Приводим здесь, один раз, чтобы наружу уходило то, что объявлено в типе, — иначе первый
+ * же вызов `toISOString` у читателя падает, и экран показывает отказ вместо списка (поймано живым
+ * прогоном на DEV 13.09, статические проверки этого увидеть не могли).
+ */
+function asDate(value: unknown): Date {
+  return value instanceof Date ? value : new Date(String(value));
+}
+
+/** То же поле, каким его на самом деле отдаёт драйвер, до приведения. */
+type RawTimestamp<T, K extends keyof T> = Omit<T, K> & { [P in K]: Date | string };
+
 export type UserLoginEventRow = {
   id: string;
   user_id: string;
@@ -71,7 +84,7 @@ export async function listUserLoginEvents(
   );
   const total = Number(countRes.rows[0]?.n ?? 0);
 
-  const listRes = await runWebappSql<UserLoginEventRow>(
+  const listRes = await runWebappSql<RawTimestamp<UserLoginEventRow, 'occurred_at'>>(
     db,
     sql`SELECT e.id,
             e.user_id,
@@ -94,7 +107,8 @@ export async function listUserLoginEvents(
      LIMIT ${limit} OFFSET ${offset}`,
   );
 
-  return { items: listRes.rows, total, page, limit };
+  const items = listRes.rows.map((row) => ({ ...row, occurred_at: asDate(row.occurred_at) }));
+  return { items, total, page, limit };
 }
 
 /** Сколько последних входов человека сворачивается в список устройств. См. `listUserLoginDevices`. */
@@ -138,7 +152,7 @@ export async function listUserLoginDevices(
   userId: string,
   limit = 50,
 ): Promise<UserLoginDeviceRow[]> {
-  const res = await runWebappSql<UserLoginDeviceRow>(
+  const res = await runWebappSql<RawTimestamp<UserLoginDeviceRow, 'last_seen_at'>>(
     getWebappSqlDb(),
     sql`WITH recent AS (
        SELECT e.device_id, e.user_agent, e.occurred_at, e.device_kind, e.os, e.browser,
@@ -162,5 +176,5 @@ export async function listUserLoginDevices(
      ORDER BY max(r.occurred_at) DESC
      LIMIT ${Math.min(200, Math.max(1, limit))}`,
   );
-  return res.rows;
+  return res.rows.map((row) => ({ ...row, last_seen_at: asDate(row.last_seen_at) }));
 }

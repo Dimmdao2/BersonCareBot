@@ -684,14 +684,20 @@ async function loadPlatformUser(
  */
 async function loadLastLoginAt(pool: Pool, userId: string): Promise<Date | null> {
   try {
-    const r = await runPgPoolSql<{ last_login_at: Date | null }>(
+    const r = await runPgPoolSql<{ last_login_at: Date | string | null }>(
       pool,
       sql`SELECT MAX(occurred_at) AS last_login_at
        FROM user_login_events
        WHERE user_id = ${userId}::uuid
          AND outcome = 'success'`,
     );
-    return r.rows[0]?.last_login_at ?? null;
+    // Время здесь приходит СТРОКОЙ: запрос идёт мимо ORM, а типы столбцов знает только она. Без
+    // приведения вызывающий позовёт `getTime()` у строки и уронит весь разбор пары — причём уже за
+    // пределами этого `try`, то есть «мягкий отказ истории» превратился бы в жёсткий отказ экрана.
+    const raw = r.rows[0]?.last_login_at ?? null;
+    if (raw == null) return null;
+    const parsed = raw instanceof Date ? raw : new Date(raw);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
   } catch (err) {
     logger.warn({ err, userId }, '[merge-preview] login history unavailable, freshness skipped');
     return null;

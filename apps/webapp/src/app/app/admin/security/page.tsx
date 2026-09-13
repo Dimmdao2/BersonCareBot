@@ -43,7 +43,9 @@ export default async function AdminSecurityPage() {
   } catch (err) {
     // Экран безопасности не должен падать целиком из-за журнала: кнопка «выйти со всех устройств»
     // важнее списка и обязана остаться доступной.
-    logger.error({ err }, '[admin-security] device list unavailable');
+    // `reason` дублирует текст ошибки строкой намеренно: логгер сериализует `err` как `{"type":"Error"}`
+    // и текст теряется, из-за чего отказ этого экрана виден в журнале, но неразбираем.
+    logger.error({ err, reason: String(err) }, '[admin-security] device list unavailable');
     loadFailed = true;
   }
 
