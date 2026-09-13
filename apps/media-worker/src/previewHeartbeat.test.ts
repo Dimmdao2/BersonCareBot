@@ -66,6 +66,61 @@ describe('отметка живости очереди превью', () => {
     expect(report).toHaveBeenLastCalledWith({ processed: 0, errors: 0, durationMs: 0 });
   });
 
+  /*
+   * Считает наряды один цикл, пишет отметку другой. Наряд, закрытый пока запись в полёте, не
+   * имеет права пропасть: потерянный отказ превью пометил бы окно успешным.
+   */
+  it('наряд, закрытый во время записи отметки, попадает в следующую, а не пропадает', async () => {
+    const seen: Array<{ processed: number; errors: number; durationMs: number }> = [];
+    let clock = 1_000;
+    let inFlight: (() => void) | null = null;
+    const hb = createPreviewHeartbeat({
+      intervalMs: 60_000,
+      now: () => clock,
+      report: async (values) => {
+        seen.push(values);
+        /* Зависает только первая запись — на ней и проверяется наряд, пришедший в полёте. */
+        if (seen.length > 1) return;
+        await new Promise<void>((resolve) => {
+          inFlight = resolve;
+        });
+      },
+    });
+
+    const first = hb.reportIfDue();
+    hb.record('preview_error', 900);
+    inFlight!();
+    await first;
+
+    clock += 60_000;
+    await hb.reportIfDue();
+
+    expect(seen[1]).toEqual({ processed: 0, errors: 1, durationMs: 900 });
+  });
+
+  it('отказ записи не теряет накопленное — оно уходит следующей отметкой', async () => {
+    const seen: Array<{ processed: number; errors: number; durationMs: number }> = [];
+    let clock = 1_000;
+    let failNext = true;
+    const hb = createPreviewHeartbeat({
+      intervalMs: 60_000,
+      now: () => clock,
+      report: async (values) => {
+        if (failNext) {
+          failNext = false;
+          throw new Error('control unavailable');
+        }
+        seen.push(values);
+      },
+    });
+
+    hb.record('preview_processed', 400);
+    await expect(hb.reportIfDue()).rejects.toThrow('control unavailable');
+    await hb.reportIfDue();
+
+    expect(seen[0]).toEqual({ processed: 1, errors: 0, durationMs: 400 });
+  });
+
   it('отказ записи не съедается молча — его видит вызывающий', async () => {
     const failure = new Error('control unavailable');
     const hb = createPreviewHeartbeat({

@@ -52,11 +52,26 @@ export function createPreviewHeartbeat(params: {
       const at = now();
       /* Первый вызов отмечается сразу: запуск воркера — тоже факт, и он должен быть виден. */
       if (reportedAt !== null && at - reportedAt < params.intervalMs) return;
-      await params.report({ processed, errors, durationMs });
-      reportedAt = at;
+      /*
+       * Счётчики снимаются и обнуляются ДО записи, а не после (находка перепроверки 13.09).
+       * Считает и отмечает теперь разные циклы: наряд, закрытый пока запись в полёте, при
+       * обнулении хвостом потерялся бы — а потерянный отказ превью делает окно «успешным»
+       * (`recordMediaPreviewTick` ставит success по errors === 0). Отказ самой записи
+       * возвращает снятое обратно в копилку, чтобы оно ушло следующей отметкой.
+       */
+      const snapshot = { processed, errors, durationMs };
       processed = 0;
       errors = 0;
       durationMs = 0;
+      try {
+        await params.report(snapshot);
+      } catch (error) {
+        processed += snapshot.processed;
+        errors += snapshot.errors;
+        durationMs += snapshot.durationMs;
+        throw error;
+      }
+      reportedAt = at;
     },
   };
 }
