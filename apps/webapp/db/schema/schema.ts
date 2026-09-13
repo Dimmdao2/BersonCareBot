@@ -3127,6 +3127,8 @@ export const userLoginEvents = pgTable(
     browser: text(),
     host: text(),
     sessionRef: text('session_ref'),
+    deviceId: text('device_id'),
+    country: text(),
   },
   (table) => [
     index('idx_user_login_events_user_occurred').using(
@@ -3145,6 +3147,13 @@ export const userLoginEvents = pgTable(
         table.occurredAt.desc().nullsFirst().op('timestamptz_ops'),
       )
       .where(sql`(ip IS NOT NULL)`),
+    index('idx_user_login_events_device_occurred')
+      .using(
+        'btree',
+        table.deviceId.asc().nullsLast().op('text_ops'),
+        table.occurredAt.desc().nullsFirst().op('timestamptz_ops'),
+      )
+      .where(sql`(device_id IS NOT NULL)`),
     foreignKey({
       columns: [table.userId],
       foreignColumns: [platformUsers.id],

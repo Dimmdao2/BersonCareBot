@@ -25727,7 +25727,7 @@ const REV10_CONTEXT = {
     webapp_pre_session_user_login_event_append: { port: 'webapp', runtimeName: 'pre_session_user_login_event_append',
       sessionRole: 'app_patient', targetRole: 'app_pre_session', contextClass: 'pre_session',
       purpose: 'auth.user-login-event.append',
-      functionIdentity: 'app.append_user_login_event(uuid,text,text,text,text,text,text,text,text,text)' },
+      functionIdentity: 'app.append_user_login_event(uuid,text,text,text,text,text,text,text,text,text,text,text)' },
     // D15b/7a Ш8: две веб-возможности ОДНОЙ двери журнала пересечения границы. Дверь одна на все
     // четыре точки (акт связывания, вход, карточка, список) — вид события её ПАРАМЕТР, а не вторая
     // функция (AGENTS.md §5). Классов два, потому что и точки две по природе: вход человек делает
@@ -30230,14 +30230,14 @@ const REV10_CONTEXT = {
         columns: ['organization_id', 'actor_id', 'action', 'details', 'status', 'id'],
         operations: ['SELECT' as const, 'INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
-    'app.append_user_login_event(uuid,text,text,text,text,text,text,text,text,text)': rev10Function({
+    'app.append_user_login_event(uuid,text,text,text,text,text,text,text,text,text,text,text)': rev10Function({
       owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'uuid', returnsSet: false,
       execute: ['app_pre_session'], purpose: 'append one successful account session birth',
-      typedArgs: ['uuid', 'text', 'text', 'text', 'text', 'text', 'text', 'text', 'text', 'text'],
+      typedArgs: ['uuid', 'text', 'text', 'text', 'text', 'text', 'text', 'text', 'text', 'text', 'text', 'text'],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'],
       relationSurfaces: [{ relation: 'public.user_login_events',
         columns: ['id', 'user_id', 'occurred_at', 'outcome', 'failure_reason', 'method', 'role', 'ip',
-          'user_agent', 'device_kind', 'os', 'browser', 'host', 'session_ref'],
+          'user_agent', 'device_kind', 'os', 'browser', 'host', 'session_ref', 'device_id', 'country'],
         operations: ['INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
     'app.acknowledge_open_outbound_provider_incidents()': rev10Function({

@@ -32,6 +32,7 @@ import { SESSION_COOKIE_NAME } from './sessionCookieNames';
 import {
   buildRenewedSessionCookieOptions,
   buildSessionCookieOptions,
+  ensureDeviceMarkerCookie,
   clearFreshLoginMarkerCookie,
   decodeSessionCookie,
   encodeSessionCookie,
@@ -246,6 +247,11 @@ async function persistNewAuthSession(
     buildSessionCookieOptions(stamped),
   );
   writeFreshLoginMarkerCookie(cookieStore);
+  // #1112 (вариант B, решение владельца 13.09). Метка устройства ставится ЗДЕСЬ по той же причине,
+  // по которой здесь же пишется журнал входов: это единственное место, где сессия рождается.
+  // Метка не участвует в аутентификации — она только позволяет узнать то же устройство после смены
+  // адреса, чтобы телефон под VPN не выглядел на экране «Безопасность» чужим устройством.
+  const deviceId = ensureDeviceMarkerCookie(cookieStore);
   // D15b/7a Ш8: вход — одна из четырёх точек пересечения границы «личность ↔ медицина», и пишется
   // он РАЗ НА СЕССИЮ, а не на запрос. Место выбрано не «поближе к логину», а потому, что это
   // единственная точка, где сессия РОЖДАЕТСЯ: все ~20 маршрутов входа (пароль, код на почту,
@@ -260,9 +266,8 @@ async function persistNewAuthSession(
   // журнала он не поместится — колонка uuid. Такую сессию просто не записываем: медицинской
   // области у неё нет, пересекать нечего.
   if (isPlatformUserUuid(stamped.user.userId)) {
-    const { recordIdentitySessionStart } = await import(
-      '@/app-layer/identity/recordIdentityBoundaryCrossing'
-    );
+    const { recordIdentitySessionStart } =
+      await import('@/app-layer/identity/recordIdentityBoundaryCrossing');
     await recordIdentitySessionStart({
       userId: stamped.user.userId,
       issuedAtSeconds: stamped.issuedAt,
@@ -278,9 +283,7 @@ async function persistNewAuthSession(
     const rawIp = requestHeaders?.get('x-real-ip')?.trim() || null;
     const ip = rawIp && isIP(rawIp) !== 0 ? rawIp : null;
     const parsedDevice = parseLoginUserAgent(userAgent);
-    const { recordUserLoginEvent } = await import(
-      '@/app-layer/identity/recordUserLoginEvent'
-    );
+    const { recordUserLoginEvent } = await import('@/app-layer/identity/recordUserLoginEvent');
     await recordUserLoginEvent({
       userId: stamped.user.userId,
       issuedAtSeconds: stamped.issuedAt,
@@ -290,6 +293,7 @@ async function persistNewAuthSession(
       userAgent,
       ...parsedDevice,
       host: requestHeaders?.get('host')?.trim() || null,
+      deviceId,
     });
   }
   return stamped;
@@ -329,20 +333,19 @@ function parseLoginUserAgent(userAgent: string | null): {
               ? 'Linux'
               : null;
 
-  const browserMatch =
-    /EdgA?\/([\d.]+)/i.exec(userAgent)?.[1]
-      ? (['Edge', /EdgA?\/([\d.]+)/i.exec(userAgent)?.[1]] as const)
-      : /OPR\/([\d.]+)/i.exec(userAgent)?.[1]
-        ? (['Opera', /OPR\/([\d.]+)/i.exec(userAgent)?.[1]] as const)
-        : /SamsungBrowser\/([\d.]+)/i.exec(userAgent)?.[1]
-          ? (['Samsung Internet', /SamsungBrowser\/([\d.]+)/i.exec(userAgent)?.[1]] as const)
-          : /(?:CriOS|Chrome)\/([\d.]+)/i.exec(userAgent)?.[1]
-            ? (['Chrome', /(?:CriOS|Chrome)\/([\d.]+)/i.exec(userAgent)?.[1]] as const)
-            : /(?:FxiOS|Firefox)\/([\d.]+)/i.exec(userAgent)?.[1]
-              ? (['Firefox', /(?:FxiOS|Firefox)\/([\d.]+)/i.exec(userAgent)?.[1]] as const)
-              : /Version\/([\d.]+).*Safari/i.exec(userAgent)?.[1]
-                ? (['Safari', /Version\/([\d.]+).*Safari/i.exec(userAgent)?.[1]] as const)
-                : null;
+  const browserMatch = /EdgA?\/([\d.]+)/i.exec(userAgent)?.[1]
+    ? (['Edge', /EdgA?\/([\d.]+)/i.exec(userAgent)?.[1]] as const)
+    : /OPR\/([\d.]+)/i.exec(userAgent)?.[1]
+      ? (['Opera', /OPR\/([\d.]+)/i.exec(userAgent)?.[1]] as const)
+      : /SamsungBrowser\/([\d.]+)/i.exec(userAgent)?.[1]
+        ? (['Samsung Internet', /SamsungBrowser\/([\d.]+)/i.exec(userAgent)?.[1]] as const)
+        : /(?:CriOS|Chrome)\/([\d.]+)/i.exec(userAgent)?.[1]
+          ? (['Chrome', /(?:CriOS|Chrome)\/([\d.]+)/i.exec(userAgent)?.[1]] as const)
+          : /(?:FxiOS|Firefox)\/([\d.]+)/i.exec(userAgent)?.[1]
+            ? (['Firefox', /(?:FxiOS|Firefox)\/([\d.]+)/i.exec(userAgent)?.[1]] as const)
+            : /Version\/([\d.]+).*Safari/i.exec(userAgent)?.[1]
+              ? (['Safari', /Version\/([\d.]+).*Safari/i.exec(userAgent)?.[1]] as const)
+              : null;
 
   return {
     deviceKind,
@@ -474,9 +477,7 @@ function webappEntryTokenMatchesVerifiedMessenger(
 }
 
 /** Validates Telegram Web App initData (from window.Telegram.WebApp.initData). Returns user id and role or null. */
-async function validateTelegramInitData(
-  initData: string,
-): Promise<{
+async function validateTelegramInitData(initData: string): Promise<{
   telegramId: string;
   role: UserRole;
   displayName?: string;
@@ -602,7 +603,10 @@ export async function exchangeIntegratorToken(
       // Track D (#987): a signed link whose binding names nobody is a dead end, not a sign-up.
       if (!resolved) {
         if (process.env.NODE_ENV !== 'test') {
-          console.info('[auth/exchange] binding_resolves_no_account channel=%s', binding.channelCode);
+          console.info(
+            '[auth/exchange] binding_resolves_no_account channel=%s',
+            binding.channelCode,
+          );
         }
         return null;
       }
@@ -1012,7 +1016,10 @@ async function getCurrentSessionWithPrincipalMode(
         session.user.userId,
         'getCurrentSession:verified-email-role-resolution',
         async () => {
-          return (await requireSessionUserPort().getVerifiedEmailForUser(session.user.userId)) ?? undefined;
+          return (
+            (await requireSessionUserPort().getVerifiedEmailForUser(session.user.userId)) ??
+            undefined
+          );
         },
       );
     } catch {
