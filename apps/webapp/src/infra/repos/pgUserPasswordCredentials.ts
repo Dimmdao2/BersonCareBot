@@ -8,6 +8,8 @@ import {
   type PasswordVerificationResult,
 } from '@/modules/auth/passwordLoginProtection';
 import type { PasswordLoginProtectionPort } from '@/modules/auth/passwordLoginProtectionPort';
+import type { LoginAttemptOrigin } from '@/modules/auth/loginAttemptOrigin';
+import { recordLoginFailure } from '@/infra/loginFailureTally';
 
 export type UserPasswordCredentialsPort = {
   /** Регистрация клиента с паролем до подтверждения email (`email_verified_at` заполняется challenge). */
@@ -48,11 +50,17 @@ export type UserPasswordCredentialsPort = {
    * Проверка пароля без требования `email_verified_at` — для UX «дозавершите подтверждение email»
    * и нейтрального отличия от «неверный пароль».
    */
+  /**
+   * `origin` — откуда пришла попытка (#1112 Л-8). Личность неудачной попытки наверх по-прежнему НЕ
+   * поднимается: она остаётся здесь, где её и так вернула выдача аренды, а маршрут отдаёт всё тот же
+   * неразличимый отказ. Поэтому приходит вниз обстановка, а не уходит вверх имя.
+   */
   verifyEmailPasswordForLogin(
     emailNormalized: string,
     plainPassword: string,
     altchaProof?: PasswordAltchaProof,
     altchaSubmitted?: boolean,
+    origin?: LoginAttemptOrigin,
   ): Promise<PasswordVerificationResult>;
   /** Пользователь с подтверждённым email и строкой пароля (для сброса). */
   findVerifiedUserIdWithPassword(emailNormalized: string): Promise<string | null>;
@@ -120,6 +128,7 @@ export function createPgUserPasswordCredentialsPort(
     plainPassword: string,
     altchaProof?: PasswordAltchaProof,
     altchaSubmitted = false,
+    origin?: LoginAttemptOrigin,
   ): Promise<PasswordVerificationResult> {
     const admission = await protection.acquirePasswordProof({
       emailNormalized,
@@ -163,6 +172,21 @@ export function createPgUserPasswordCredentialsPort(
         userId: completion.userId,
         emailVerified: completion.emailVerified,
       };
+    }
+    // #1112 Л-8. Пароль не подошёл. Считаем ЗДЕСЬ, потому что только здесь одновременно известны
+    // человек (его вернула выдача аренды мгновением раньше) и обстановка попытки. Свой итог ведётся
+    // отдельно от счётчика блокировки: тот обнуляется и при успехе, и по истечении блокировки, и
+    // насыщается на десяти — в журнале он показывал бы «девять» там, где попыток были тысячи.
+    //
+    // `admission.userId` пуст, когда такой почты у нас нет: считать нечего и не на кого — учётной
+    // записи не существует, а заводить ей копилку значило бы хранить след чужого перебора адресов.
+    if (origin && admission.userId) {
+      await recordLoginFailure({
+        userId: admission.userId,
+        deviceKey: origin.deviceKey,
+        sourceIp: origin.sourceIp,
+        kind: 'password',
+      });
     }
     return {
       ok: false,

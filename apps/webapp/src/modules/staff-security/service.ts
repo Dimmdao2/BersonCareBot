@@ -127,6 +127,7 @@ export function createStaffSecurityService(
             ok: false as const,
             error: lockedUntil ? ('factor_locked' as const) : ('invalid_recovery_code' as const),
             lockedUntil,
+            codeRejected: true as const,
           };
         }
         return { ok: true as const, recoveryMode: true, sessionVersion: result.sessionVersion };
@@ -144,6 +145,11 @@ export function createStaffSecurityService(
           ok: false as const,
           error: lockedUntil ? ('factor_locked' as const) : ('invalid_factor' as const),
           lockedUntil,
+          // #1112 Л-8. Здесь код РЕАЛЬНО проверили, и он не подошёл. По одной метке `factor_locked`
+          // это не отличить: та же метка возвращается и когда учётная запись уже была заперта и
+          // никакого кода не проверялось. Счёт «сколько раз вводили второй фактор» человек видит в
+          // «Безопасности», и завышать его нельзя — поэтому признак ставится в месте проверки.
+          codeRejected: true as const,
         };
       }
       if (!(await port.consumeTotpLogin({ challengeHash: profile.loginChallengeHash }))) {

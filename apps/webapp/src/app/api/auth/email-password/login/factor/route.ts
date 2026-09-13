@@ -11,10 +11,27 @@ import { setSessionFromUser } from '@/modules/auth/service';
 import { getRedirectPathForRole } from '@/modules/auth/redirectPolicy';
 import { enterStaffSecuritySelfPrincipal } from '@/app-layer/principal/staffSecuritySelfPrincipal';
 import { consumeEmailChallengeCode } from '@/modules/auth/emailAuth';
+import { resolveLoginAttemptOrigin } from '@/modules/auth/loginAttemptOrigin';
+import { recordLoginFailure } from '@/infra/loginFailureTally';
 import {
   AUTH_CONFIRM_RATE_LIMIT_SEC,
   checkAuthConfirmRateLimit,
 } from '@/modules/auth/authConfirmRateLimit';
+
+/**
+ * #1112 Л-8. Ненулевой счёт второго фактора значит, что пароль УЖЕ подошёл: до этого маршрута иначе
+ * не доходят. Именно эту связь владелец просил сделать видимой при разборе — «будет видно что
+ * блокировка произошла после успешного ввода пароля и сколько раз второй фактор ввели».
+ */
+async function recordSecondFactorFailure(request: Request, userId: string): Promise<void> {
+  const origin = await resolveLoginAttemptOrigin(request);
+  await recordLoginFailure({
+    userId,
+    deviceKey: origin.deviceKey,
+    sourceIp: origin.sourceIp,
+    kind: 'second_factor',
+  });
+}
 
 const bodySchema = z
   .object({
@@ -69,6 +86,12 @@ export async function POST(request: Request) {
       'staff_login_factor',
     );
     if (!emailFactor.ok) {
+      // #1112 Л-8. Считаем ТОЛЬКО не подошедший код. `expired_code` — код был наш, но просрочен, а
+      // `too_many_attempts` — попытку вообще не проверяли. Записать их значило бы завысить число,
+      // по которому потом разбирают, подбирали ли учётную запись.
+      if (emailFactor.code === 'invalid_code') {
+        await recordSecondFactorFailure(request, continuation.userId);
+      }
       if (emailFactor.code === 'expired_code') await clearStaffLoginContinuation();
       return NextResponse.json(
         { ok: false, error: emailFactor.code, retryAfterSeconds: emailFactor.retryAfterSeconds },
@@ -96,6 +119,11 @@ export async function POST(request: Request) {
     recoveryCode: parsed.data.recoveryCode,
   });
   if (!result.ok) {
+    // Признак ставит сама проверка кода: по `factor_locked` отсюда не понять, отвергли код или
+    // отказали уже запертой учётной записи, не проверяя ничего.
+    if ('codeRejected' in result && result.codeRejected) {
+      await recordSecondFactorFailure(request, continuation.userId);
+    }
     if (result.error === 'login_challenge_expired') await clearStaffLoginContinuation();
     return NextResponse.json(
       {

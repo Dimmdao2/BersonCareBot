@@ -22,6 +22,15 @@ function asDate(value: unknown): Date {
   return value instanceof Date ? value : new Date(String(value));
 }
 
+/**
+ * То же, но для полей, которых может не быть вовсе: «тогда не считали» — законное состояние, и
+ * превращать его в `new Date('null')` нельзя, иначе экран покажет дату из ниоткуда.
+ */
+function asOptionalDate(value: unknown): Date | null {
+  if (value === null || value === undefined) return null;
+  return asDate(value);
+}
+
 /** То же поле, каким его на самом деле отдаёт драйвер, до приведения. */
 type RawTimestamp<T, K extends keyof T> = Omit<T, K> & { [P in K]: Date | string };
 
@@ -134,6 +143,28 @@ export type UserLoginDeviceRow = {
   browser: string | null;
   method: string | null;
   countries: string[] | null;
+  /**
+   * #1112 Л-8. Замороженный счёт неудачных попыток — НАИБОЛЬШИЙ за окно и дата, когда он случился.
+   *
+   * Именно наибольший, а не последний: счёт обнуляется каждым успешным входом, поэтому у живого
+   * устройства последнее значение почти всегда ноль. Показав ноль, экран скрыл бы от человека ровно
+   * то происшествие, ради которого его и считали.
+   *
+   * `null` и ноль — разные вещи и в базе разведены: `null` значит «тогда не считали» (входы до этой
+   * работы), ноль — «считали, попыток не было». Экран обоим случаям молчит: сказать нечего.
+   */
+  worst_failed_passwords: number | null;
+  worst_failed_passwords_at: Date | null;
+  /** Начало периода, за который набрано число: без него «3412 попыток» не с чем соотнести. */
+  worst_failed_passwords_since: Date | null;
+  worst_unknown_passwords: number | null;
+  /** Сколько разных адресов стучалось. На потолке в 32 экран говорит «32 и более». */
+  worst_unknown_sources: number | null;
+  worst_unknown_passwords_at: Date | null;
+  worst_unknown_passwords_since: Date | null;
+  /** Ненулевое значит, что ПАРОЛЬ УЖЕ ПОДОШЁЛ, а споткнулись на втором факторе. */
+  worst_failed_second_factor: number | null;
+  worst_failed_second_factor_at: Date | null;
 };
 
 /**
@@ -165,13 +196,35 @@ export type UserLoginDeviceRow = {
  * защиты, и тогда один забывчивый запрос отдал бы журнал входов чужих людей вместе с их адресами.
  */
 export async function listUserLoginDevices(): Promise<UserLoginDeviceRow[]> {
-  const res = await runWebappNamedRoot<RawTimestamp<UserLoginDeviceRow, 'last_seen_at'>>(
+  const res = await runWebappNamedRoot<
+    RawTimestamp<
+      UserLoginDeviceRow,
+      | 'last_seen_at'
+      | 'worst_failed_passwords_at'
+      | 'worst_failed_passwords_since'
+      | 'worst_unknown_passwords_at'
+      | 'worst_unknown_passwords_since'
+      | 'worst_failed_second_factor_at'
+    >
+  >(
     getWebappSqlDb(),
     LIST_OWN_LOGIN_DEVICES_ROOT,
     [],
     sql`SELECT group_key, device_id, last_seen_at, login_count::text AS login_count,
-               device_kind, os, browser, method, countries
+               device_kind, os, browser, method, countries,
+               worst_failed_passwords, worst_failed_passwords_at, worst_failed_passwords_since,
+               worst_unknown_passwords, worst_unknown_sources,
+               worst_unknown_passwords_at, worst_unknown_passwords_since,
+               worst_failed_second_factor, worst_failed_second_factor_at
           FROM app.list_own_login_devices()`,
   );
-  return res.rows.map((row) => ({ ...row, last_seen_at: asDate(row.last_seen_at) }));
+  return res.rows.map((row) => ({
+    ...row,
+    last_seen_at: asDate(row.last_seen_at),
+    worst_failed_passwords_at: asOptionalDate(row.worst_failed_passwords_at),
+    worst_failed_passwords_since: asOptionalDate(row.worst_failed_passwords_since),
+    worst_unknown_passwords_at: asOptionalDate(row.worst_unknown_passwords_at),
+    worst_unknown_passwords_since: asOptionalDate(row.worst_unknown_passwords_since),
+    worst_failed_second_factor_at: asOptionalDate(row.worst_failed_second_factor_at),
+  }));
 }

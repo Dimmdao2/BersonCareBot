@@ -6,6 +6,7 @@ import { randomUUID } from 'node:crypto';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { ensureAuthModulePortsBound } from '@/app-layer/di/bindAuthModulePorts';
 import { normalizeEmail } from '@/modules/auth/emailAuth';
+import { resolveLoginAttemptOrigin } from '@/modules/auth/loginAttemptOrigin';
 import { reconcileDbRoleWithEnvRole, resolveRoleFromEnv } from '@/modules/auth/envRole';
 import { getRedirectPathForRole } from '@/modules/auth/redirectPolicy';
 import { setSessionFromUser } from '@/modules/auth/service';
@@ -139,6 +140,10 @@ export async function POST(request: Request) {
       parsed.data.password,
       altchaProof,
       parsed.data.altcha !== undefined,
+      // #1112 Л-8: обстановка попытки уходит ВНИЗ, к тому слою, где уже известна личность. Наверх, в
+      // ответ этого маршрута, по-прежнему не возвращается ничего, что отличало бы «нет такой почты»
+      // от «неверный пароль».
+      await resolveLoginAttemptOrigin(request),
     );
     if (!pwd.ok) {
       return NextResponse.json(

@@ -24,7 +24,70 @@ export type OwnLoginDevice = {
   browser: string | null;
   method: string | null;
   countries: string[];
+  /**
+   * #1112 Л-8. Что случилось ДО входов с этого устройства. Наружу уходит только то, о чём есть что
+   * сказать: и «не считали» (старые входы), и «попыток не было» сворачиваются в `null` — экрану в
+   * обоих случаях говорить нечего, а разница между ними нужна разбору, который читает журнал сам.
+   */
+  failures: OwnLoginDeviceFailures | null;
 };
+
+/** Три числа, которые НЕ складываются в одно: это три разных происшествия. */
+export type OwnLoginDeviceFailures = {
+  /** Неверные пароли с ЭТОГО устройства: кто-то у вашего стола, с вашим браузером. */
+  passwords: number;
+  passwordsAt: string | null;
+  passwordsSince: string | null;
+  /** Неверные пароли с устройств, которые вход у нас не проходили: подбор извне. */
+  unknownPasswords: number;
+  /** Сколько разных адресов стучалось. */
+  unknownSources: number;
+  /**
+   * Список адресов упёрся в потолок, и точного числа мы уже не знаем. Признак считается ЗДЕСЬ, а не
+   * на экране: потолок — свойство хранилища, и вёрстке незачем его знать, чтобы выбрать слова.
+   */
+  unknownSourcesCapped: boolean;
+  unknownAt: string | null;
+  unknownSince: string | null;
+  /** Ненулевое значит, что пароль УЖЕ подошёл, а остановил второй фактор. */
+  secondFactor: number;
+  secondFactorAt: string | null;
+};
+
+/**
+ * На потолке список адресов перестаёт расти — см. ограничение в `public.login_failure_tally`. Оно
+ * стоит там, чтобы подбирающий не мог раздувать нашу запись, сколько бы ни стучался.
+ */
+const UNKNOWN_SOURCES_CAP = 32;
+
+function buildFailures(row: {
+  worst_failed_passwords: number | null;
+  worst_failed_passwords_at: Date | null;
+  worst_failed_passwords_since: Date | null;
+  worst_unknown_passwords: number | null;
+  worst_unknown_sources: number | null;
+  worst_unknown_passwords_at: Date | null;
+  worst_unknown_passwords_since: Date | null;
+  worst_failed_second_factor: number | null;
+  worst_failed_second_factor_at: Date | null;
+}): OwnLoginDeviceFailures | null {
+  const passwords = row.worst_failed_passwords ?? 0;
+  const unknownPasswords = row.worst_unknown_passwords ?? 0;
+  const secondFactor = row.worst_failed_second_factor ?? 0;
+  if (passwords === 0 && unknownPasswords === 0 && secondFactor === 0) return null;
+  return {
+    passwords,
+    passwordsAt: row.worst_failed_passwords_at?.toISOString() ?? null,
+    passwordsSince: row.worst_failed_passwords_since?.toISOString() ?? null,
+    unknownPasswords,
+    unknownSources: row.worst_unknown_sources ?? 0,
+    unknownSourcesCapped: (row.worst_unknown_sources ?? 0) >= UNKNOWN_SOURCES_CAP,
+    unknownAt: row.worst_unknown_passwords_at?.toISOString() ?? null,
+    unknownSince: row.worst_unknown_passwords_since?.toISOString() ?? null,
+    secondFactor,
+    secondFactorAt: row.worst_failed_second_factor_at?.toISOString() ?? null,
+  };
+}
 
 export type OwnLoginDevicesView = {
   devices: OwnLoginDevice[];
@@ -46,6 +109,7 @@ export async function loadOwnLoginDevices(): Promise<OwnLoginDevicesView> {
         browser: row.browser,
         method: row.method,
         countries: row.countries ?? [],
+        failures: buildFailures(row),
       })),
       loadFailed: false,
     };

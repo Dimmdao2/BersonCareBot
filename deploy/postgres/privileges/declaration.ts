@@ -23563,6 +23563,12 @@ const TABLE_ROWS: TableRow[] = [
     + 'каталога упражнений нет назначений', wallWhy: W_REF_COPY },
   { t: 'public.lfk_sessions', cls: 'P', org: true, why: 'Дневник выполнения ЛФК — без неё нет дневника и статистики '
     + 'выполнения' },
+  // #1112 Л-8. Между входами здесь лежит «сколько раз не подошло». Грантов не имеет никто: пишет и
+  // гасит только дверь. Человек это число видит УЖЕ замороженным в строке журнала входов, а не отсюда.
+  { t: 'public.login_failure_tally', cls: 'S', org: false, wall: 'definer-only', why: 'копилка неудачных '
+    + 'попыток до входа — без неё в журнале не видно, подбирали ли пароль перед успешным входом',
+    wallWhy: 'адреса и счёт чужих попыток по учётной записи: рантайм-ролям не нужны ни на чтение, ни на '
+      + 'запись, единственный путь — дверь записи попытки и дверь записи входа, которая её и гасит' },
   { t: 'public.login_tokens', cls: 'S', org: false, wall: 'definer-only', why: 'Одноразовые токены входа — вход по '
     + 'ссылке/коду', wallWhy: W_AUTH_DEFINER,
     revoke: { app_staff: REV_D1 },
@@ -25730,6 +25736,13 @@ const REV10_CONTEXT = {
       sessionRole: 'app_patient', targetRole: 'app_pre_session', contextClass: 'pre_session',
       purpose: 'auth.user-login-event.append',
       functionIdentity: 'app.append_user_login_event(uuid,text,text,text,text,text,text,text,text,text,text,text)' },
+    // #1112 Л-8: та же пред-сессионная дорога, что у записи входа. Неудачная попытка по определению
+    // случается до того, как принципал человека установлен, — другого класса контекста у неё быть не
+    // может, и именно поэтому запись идёт через дверь, а не грантом на таблицу.
+    webapp_pre_session_login_failure_record: { port: 'webapp', runtimeName: 'pre_session_login_failure_record',
+      sessionRole: 'app_patient', targetRole: 'app_pre_session', contextClass: 'pre_session',
+      purpose: 'auth.login-failure.record',
+      functionIdentity: 'app.record_login_failure(uuid,text,text,text)' },
     // #1112 Л-6д: две возможности ОДНОЙ читающей двери — экран «Безопасность» есть и у специалиста
     // («Учётка»), и у админа платформы, а классы контекста у них разные по природе. Цель одна, и тело
     // двери само сверяет пару «роль/класс»; подменить один вход другим нечем.
@@ -30250,8 +30263,31 @@ const REV10_CONTEXT = {
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'],
       relationSurfaces: [{ relation: 'public.user_login_events',
         columns: ['id', 'user_id', 'occurred_at', 'outcome', 'failure_reason', 'method', 'role', 'ip',
-          'user_agent', 'device_kind', 'os', 'browser', 'host', 'session_ref', 'device_id', 'country'],
-        operations: ['INSERT' as const, 'SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }],
+          'user_agent', 'device_kind', 'os', 'browser', 'host', 'session_ref', 'device_id', 'country',
+          // #1112 Л-8. Замороженный итог неудачных попыток до этого входа.
+          'failed_passwords_before', 'failed_passwords_before_unknown', 'unknown_sources_before',
+          'failed_second_factor_before', 'failures_since'],
+        operations: ['INSERT' as const, 'SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        // #1112 Л-8. Та же дверь гасит накопленный итог: запись строки и обнуление — одна операция,
+        // иначе между ними появляется промежуток, в котором число уже стёрто, а строки ещё нет.
+        { relation: 'public.login_failure_tally',
+          columns: ['user_id', 'device_key', 'failed_passwords', 'failed_second_factor',
+            'source_addresses', 'first_failure_at'],
+          operations: ['SELECT' as const, 'DELETE' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }],
+    }),
+    // #1112 Л-8. Копилка неудачных попыток до входа. Отдельно от счётчика блокировки: тот обнуляется
+    // и при успехе, и при истечении блокировки, и насыщается на десяти — журналу он врал бы.
+    'app.record_login_failure(uuid,text,text,text)': rev10Function({
+      owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'void', returnsSet: false,
+      execute: ['app_pre_session'],
+      purpose: 'accumulate one failed sign-in attempt against the account and device marker',
+      typedArgs: ['uuid', 'text', 'text', 'text'],
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, pg_temp'],
+      relationSurfaces: [{ relation: 'public.login_failure_tally',
+        columns: ['user_id', 'device_key', 'failed_passwords', 'failed_second_factor',
+          'source_addresses', 'first_failure_at', 'last_failure_at'],
+        operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const],
+        evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
     // #1112 Л-6д. Читающая дверь того же журнала. Идентификатора человека среди аргументов НЕТ
     // намеренно: тело берёт его из принятого контекста сессии, поэтому «показать чужие устройства» —
@@ -30265,7 +30301,10 @@ const REV10_CONTEXT = {
       proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
       relationSurfaces: [{ relation: 'public.user_login_events',
         columns: ['user_id', 'outcome', 'occurred_at', 'device_id', 'user_agent', 'device_kind', 'os',
-          'browser', 'method', 'country'],
+          'browser', 'method', 'country',
+          // #1112 Л-8. Замороженный счёт неудачных попыток до каждого входа.
+          'failed_passwords_before', 'failed_passwords_before_unknown', 'unknown_sources_before',
+          'failed_second_factor_before', 'failures_since'],
         operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
     'app.acknowledge_open_outbound_provider_incidents()': rev10Function({

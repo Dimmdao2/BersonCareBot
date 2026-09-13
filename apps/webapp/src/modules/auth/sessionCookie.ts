@@ -255,6 +255,23 @@ export function isWellFormedDeviceMarker(value: string | null | undefined): valu
  * Продление на каждом входе намеренное: у устройства, которым пользуются, метка не истекает, а у
  * заброшенного она сама уходит через год — держать её вечно незачем.
  */
+/**
+ * Возвращает метку устройства, если браузер её уже носит, и НИЧЕГО не заводит, если не носит.
+ *
+ * Это не мелкая оптимизация, а граница замысла (#1112 Л-8). Метку выдаёт только успешный вход —
+ * поэтому «известное устройство» на экране «Безопасность» значит ровно «отсюда уже входили с верным
+ * паролем». Начни мы ставить метку всякому, кто постучался, и слово «известное» перестало бы что-то
+ * значить: подбирающий получал бы её первым же запросом, а заодно мы бы раздавали куки анонимным
+ * посетителям. Неудачные попытки без метки складываются в общий мешок «с неизвестного устройства» —
+ * там их различает только число разных адресов, и это честнее выдуманной точности.
+ */
+export function readDeviceMarkerCookie(cookieStore: {
+  get: (name: string) => { value: string } | undefined;
+}): string | null {
+  const existing = cookieStore.get(DEVICE_MARKER_COOKIE_NAME)?.value?.trim();
+  return isWellFormedDeviceMarker(existing) ? existing : null;
+}
+
 export function ensureDeviceMarkerCookie(
   cookieStore: CookieWriter & { get: (name: string) => { value: string } | undefined },
 ): string {
