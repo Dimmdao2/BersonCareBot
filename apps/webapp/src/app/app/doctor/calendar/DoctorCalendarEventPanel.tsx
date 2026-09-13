@@ -716,7 +716,6 @@ function DoctorCalendarEventPanelInner({
           onClose={() => setOverlapConfirmOpen(false)}
           title="Время занято"
           size="sm"
-          nested
         >
           <p className={doctorBodyTextClass}>
             На это время у специалиста уже есть запись. Создать наложение?
@@ -1274,7 +1273,6 @@ function DoctorCalendarEventPanelInner({
         }
         size="lg"
         desktopPresentation="right-sheet"
-        nested
       >
         <DoctorAppointmentForm
           mode="edit"

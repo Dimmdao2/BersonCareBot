@@ -5,9 +5,7 @@
  *
  * Editing moved to the canonical full-page editor
  * (`/app/doctor/patients/[userId]/visits/[visitId]`, built by the ENCOUNTER-PAGE
- * workstream) — this modal only reads the existing projection and links there. `nested`
- * is passed by the caller: true when opened from `EncounterHistoryModal` (already the
- * open layer), false when opened directly (this becomes the first/backdrop layer).
+ * workstream) — this modal only reads the existing projection and links there.
  */
 import Link from 'next/link';
 import type { Visit } from '@/modules/patient-clinical/ports';
@@ -21,14 +19,12 @@ import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTer
 
 export function EncounterViewModal({
   visit,
-  nested,
   editHref,
   patientName,
   patientOnSupport,
   onClose,
 }: {
   visit: Visit | null;
-  nested: boolean;
   editHref: string;
   patientName: string | null;
   patientOnSupport: boolean;
@@ -45,7 +41,6 @@ export function EncounterViewModal({
     <DoctorModal
       open={visit !== null}
       onClose={onClose}
-      nested={nested}
       size="md"
       bodyClassName="space-y-4"
       title={

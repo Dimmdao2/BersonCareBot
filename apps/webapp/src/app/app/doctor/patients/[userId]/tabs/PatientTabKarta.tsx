@@ -227,7 +227,6 @@ export function PatientTabKarta({
       {encountersEnabled ? (
         <EncounterViewModal
           visit={viewedVisit}
-          nested={false}
           editHref={viewedVisit ? `/app/doctor/patients/${userId}/visits/${viewedVisit.id}` : ''}
           patientName={patientName}
           patientOnSupport={patientOnSupport}

@@ -318,7 +318,6 @@ export function SpecialistTaskFormContent({
         onClose={() => setDeleteConfirmOpen(false)}
         title="Удалить задачу?"
         size="sm"
-        nested
         footer={
           <>
             <Button

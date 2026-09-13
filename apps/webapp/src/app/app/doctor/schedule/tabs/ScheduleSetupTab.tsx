@@ -564,7 +564,6 @@ function SectionPackages({ readOnly }: { readOnly: boolean }) {
         open={packageFormOpen}
         onClose={closePackageForm}
         title={editingPackage ? 'Изменить абонемент' : 'Новый абонемент'}
-        nested={editingPackage != null}
         desktopPresentation="right-sheet"
         footer={
           <>

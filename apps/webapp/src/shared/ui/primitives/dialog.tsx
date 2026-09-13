@@ -41,15 +41,24 @@ function DialogContent({
   children,
   showCloseButton = true,
   showOverlay = true,
+  forceOverlay = false,
   ...props
 }: DialogPrimitive.Popup.Props & {
   showCloseButton?: boolean;
   /** A second layer opened over an already dimmed one must not dim the screen again. */
   showOverlay?: boolean;
+  /**
+   * Снимает подавление Base UI: библиотека сама прячет backdrop у диалога, открытого поверх
+   * другого диалога, — а правая панель кабинета тоже построена на Dialog, и из-за этого модалка
+   * над ней оставалась без затемнения. Ставят те вызывающие, кто решает вопрос «кто затемняет»
+   * сам (кабинет — общим стеком слоёв, `DoctorModalLayerContext`); остальным остаётся поведение
+   * библиотеки по умолчанию.
+   */
+  forceOverlay?: boolean;
 }) {
   return (
     <DialogPortal>
-      {showOverlay ? <DialogOverlay /> : null}
+      {showOverlay ? <DialogOverlay forceRender={forceOverlay} /> : null}
       <DialogPrimitive.Popup
         data-slot="dialog-content"
         className={cn(

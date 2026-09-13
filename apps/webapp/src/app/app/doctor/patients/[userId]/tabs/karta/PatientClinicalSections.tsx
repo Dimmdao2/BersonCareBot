@@ -959,7 +959,6 @@ export function PatientClinicalSections({
 
       <ComplaintFormModal
         open={complaintEditOpen}
-        nested
         patientTitle={patientTitle('Изменить симптом', patientName, patientOnSupport)}
         draft={complaintDraft}
         onDraft={setComplaintDraft}
@@ -1025,7 +1024,6 @@ export function PatientClinicalSections({
 
       <DiagnosisFormModal
         open={diagnosisEditOpen}
-        nested
         patientTitle={patientTitle('Изменить диагноз', patientName, patientOnSupport)}
         draft={diagnosisDraft}
         onDraft={setDiagnosisDraft}
@@ -1125,7 +1123,6 @@ export function PatientClinicalCreateModal({
     return (
       <ComplaintFormModal
         open={open}
-        nested={false}
         patientTitle={patientTitle('Новый симптом', patientName, patientOnSupport)}
         draft={complaintDraft}
         onDraft={setComplaintDraft}
@@ -1141,7 +1138,6 @@ export function PatientClinicalCreateModal({
   return (
     <DiagnosisFormModal
       open={open}
-      nested={false}
       patientTitle={patientTitle('Новый диагноз', patientName, patientOnSupport)}
       draft={diagnosisDraft}
       onDraft={setDiagnosisDraft}
@@ -1155,7 +1151,6 @@ export function PatientClinicalCreateModal({
 
 function ComplaintFormModal({
   open,
-  nested,
   patientTitle: modalTitle,
   draft,
   onDraft,
@@ -1166,7 +1161,6 @@ function ComplaintFormModal({
   showSeverity = false,
 }: {
   open: boolean;
-  nested: boolean;
   patientTitle: ReactNode;
   draft: ComplaintDraft;
   onDraft: (draft: ComplaintDraft) => void;
@@ -1181,7 +1175,6 @@ function ComplaintFormModal({
       open={open}
       onClose={onClose}
       title={modalTitle}
-      nested={nested}
       size="md"
       footer={
         <Button type="button" disabled={saving} onClick={onSave}>
@@ -1229,7 +1222,6 @@ function ComplaintFormModal({
 
 function DiagnosisFormModal({
   open,
-  nested,
   patientTitle: modalTitle,
   draft,
   onDraft,
@@ -1239,7 +1231,6 @@ function DiagnosisFormModal({
   onSave,
 }: {
   open: boolean;
-  nested: boolean;
   patientTitle: ReactNode;
   draft: DiagnosisDraft;
   onDraft: (draft: DiagnosisDraft) => void;
@@ -1253,7 +1244,6 @@ function DiagnosisFormModal({
       open={open}
       onClose={onClose}
       title={modalTitle}
-      nested={nested}
       size="md"
       footer={
         <Button type="button" disabled={saving} onClick={onSave}>
@@ -1786,7 +1776,6 @@ function LifeAnamnesisSection({
       {editor?.section === 'lifestyle' ? (
         <DoctorModal
           open
-          nested
           onClose={() => setEditor(null)}
           title={patientTitle('Образ жизни', patientName, patientOnSupport)}
           size="md"
@@ -1816,7 +1805,6 @@ function LifeAnamnesisSection({
       ) : (
         <DoctorModal
           open={editor !== null}
-          nested
           onClose={() => setEditor(null)}
           title={patientTitle(
             editor?.id ? 'Изменить запись' : 'Новая запись',

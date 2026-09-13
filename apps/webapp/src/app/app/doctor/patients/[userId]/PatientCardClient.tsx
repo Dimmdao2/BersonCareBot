@@ -871,7 +871,6 @@ function PatientCardTabPanels({
             visit={
               historyVisitId ? (visits.find((visit) => visit.id === historyVisitId) ?? null) : null
             }
-            nested={historyOpen}
             editHref={
               historyVisitId
                 ? `/app/doctor/patients/${identity.userId}/visits/${historyVisitId}`

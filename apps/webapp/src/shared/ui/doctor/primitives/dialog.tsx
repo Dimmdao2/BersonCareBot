@@ -19,30 +19,33 @@ import { cn } from '@/lib/utils';
 import { Button } from './button';
 import { DrawerContent } from './drawer';
 import { useIsMobileViewport } from './useIsMobileViewport';
-import {
-  DoctorModalLayerProvider,
-  useDoctorModalLayer,
-  useDoctorModalOverlay,
-} from '@/shared/ui/doctor/DoctorModalLayerContext';
+import { useDoctorModalOverlay } from '@/shared/ui/doctor/DoctorModalLayerContext';
 
 type DoctorDialogContextValue = {
   isMobile: boolean;
-  isNestedLayer: boolean;
   showRootOverlay: boolean;
 };
 
 const DoctorDialogMobileContext = React.createContext<DoctorDialogContextValue>({
   isMobile: false,
-  isNestedLayer: false,
   showRootOverlay: true,
 });
 
-function Dialog(props: DialogPrimitive.Root.Props) {
+type DoctorDialogProps = DialogPrimitive.Root.Props & {
+  /**
+   * `DoctorModal` регистрирует слой в стеке сам и передаёт готовый `showOverlay` в `DialogContent`.
+   * Тогда обёртка обязана промолчать: два слоя на одну модалку — это ситуация «подо мной уже есть
+   * затемняющий слой», и модалка перестаёт затемнять фон вообще.
+   */
+  ownsLayer?: boolean;
+};
+
+function Dialog({ ownsLayer = true, ...props }: DoctorDialogProps) {
   const isMobile = useIsMobileViewport();
-  const { isNestedLayer, parentDepth } = useDoctorModalLayer();
   const [uncontrolledOpen, setUncontrolledOpen] = React.useState(Boolean(props.defaultOpen));
   const currentOpen = props.open ?? uncontrolledOpen;
-  const showRootOverlay = useDoctorModalOverlay(currentOpen && !isNestedLayer, isNestedLayer);
+  // Обычный диалог всегда накрывает страницу: затемняет он или нет — решает общий стек слоёв.
+  const showRootOverlay = useDoctorModalOverlay(currentOpen && ownsLayer, 'backdrop');
   const { onOpenChange, ...rootProps } = props;
 
   const handleOpenChange = (open: boolean, details: DialogPrimitive.Root.ChangeEventDetails) => {
@@ -52,12 +55,8 @@ function Dialog(props: DialogPrimitive.Root.Props) {
 
   if (!isMobile) {
     return (
-      <DoctorDialogMobileContext.Provider
-        value={{ isMobile: false, isNestedLayer, showRootOverlay }}
-      >
-        <DoctorModalLayerProvider depth={parentDepth + (currentOpen ? 1 : 0)}>
-          <SharedDialog {...rootProps} onOpenChange={handleOpenChange} />
-        </DoctorModalLayerProvider>
+      <DoctorDialogMobileContext.Provider value={{ isMobile: false, showRootOverlay }}>
+        <SharedDialog {...rootProps} onOpenChange={handleOpenChange} />
       </DoctorDialogMobileContext.Provider>
     );
   }
@@ -66,21 +65,17 @@ function Dialog(props: DialogPrimitive.Root.Props) {
   void handle;
 
   return (
-    <DoctorDialogMobileContext.Provider value={{ isMobile: true, isNestedLayer, showRootOverlay }}>
-      <DoctorModalLayerProvider depth={parentDepth + (currentOpen ? 1 : 0)}>
-        <DrawerPrimitive.Root
-          {...drawerProps}
-          actionsRef={
-            actionsRef as React.RefObject<DrawerPrimitive.Root.Actions | null> | undefined
-          }
-          onOpenChange={(open, details) =>
-            handleOpenChange(open, details as unknown as DialogPrimitive.Root.ChangeEventDetails)
-          }
-          swipeDirection="down"
-        >
-          {children}
-        </DrawerPrimitive.Root>
-      </DoctorModalLayerProvider>
+    <DoctorDialogMobileContext.Provider value={{ isMobile: true, showRootOverlay }}>
+      <DrawerPrimitive.Root
+        {...drawerProps}
+        actionsRef={actionsRef as React.RefObject<DrawerPrimitive.Root.Actions | null> | undefined}
+        onOpenChange={(open, details) =>
+          handleOpenChange(open, details as unknown as DialogPrimitive.Root.ChangeEventDetails)
+        }
+        swipeDirection="down"
+      >
+        {children}
+      </DrawerPrimitive.Root>
     </DoctorDialogMobileContext.Provider>
   );
 }
@@ -132,6 +127,7 @@ function DialogContent({
         )}
         showCloseButton={showCloseButton}
         showOverlay={effectiveShowOverlay}
+        forceOverlay
         {...props}
       >
         {children}

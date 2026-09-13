@@ -279,7 +279,6 @@ export function AppointmentPaymentSection({
         title="Приём оплаты"
         titleSubject={patientName}
         size="sm"
-        nested
       >
         <div className="flex flex-col gap-4">
           <p className={doctorSecondaryListTextClass}>{appointmentWhen}</p>

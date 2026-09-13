@@ -30,8 +30,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from './primitives/sheet
 import { useIsMobileViewport } from './primitives/useIsMobileViewport';
 import { useViewportMinWidth } from '@/shared/hooks/useViewportMinWidth';
 import {
-  DoctorModalLayerProvider,
-  useDoctorModalLayer,
+  type DoctorModalLayerKind,
   useDoctorModalOverlay,
 } from '@/shared/ui/doctor/DoctorModalLayerContext';
 import {
@@ -196,8 +195,6 @@ type DoctorModalProps = {
   bodyVariant?: DoctorModalBodyVariant;
   /** Desktop/tablet presentation. Mobile always uses the canonical bottom drawer. */
   desktopPresentation?: DoctorModalDesktopPresentation;
-  /** Второй и последующие слои стека не добавляют новое затемнение поверх первого. */
-  nested?: boolean;
   /** Called before a non-modal right sheet closes from a pointer press outside it. */
   onRightSheetOutsidePress?: () => void;
   /** Full-viewport media viewer which keeps the underlying modal mounted. */
@@ -316,14 +313,18 @@ export function DoctorModal({
   bodyClassName,
   bodyVariant = 'default',
   desktopPresentation = 'dialog',
-  nested = false,
   onRightSheetOutsidePress,
   presentation = 'standard',
 }: DoctorModalProps) {
   const isMobile = useIsMobileViewport();
-  const { isNestedLayer, parentDepth } = useDoctorModalLayer(nested);
-  const showOverlay = useDoctorModalOverlay(open, isNestedLayer);
   const isWideDesktop = useViewportMinWidth(1280);
+  // Правая панель — слой рядом со страницей, а не поверх неё: она не затемняет и не мешает
+  // затемнять модалке, открытой из неё. Все остальные пути (десктопный диалог, мобильный
+  // bottom-sheet, полноэкранные режимы) — обычные накрывающие слои.
+  const usesRightSheet =
+    !isMobile && desktopPresentation === 'right-sheet' && presentation !== 'fullscreen-media';
+  const layerKind: DoctorModalLayerKind = usesRightSheet ? 'panel' : 'backdrop';
+  const showOverlay = useDoctorModalOverlay(open, layerKind);
   const isContent = size === 'content';
   const isListBody = bodyVariant === 'list';
   const isFullscreenText = presentation === 'fullscreen-text';
@@ -435,8 +436,6 @@ export function DoctorModal({
     if (!v) onClose();
   };
 
-  const layerDepth = parentDepth + (open ? 1 : 0);
-
   if (presentation === 'fullscreen-media') {
     const fullscreenBody = (
       <div className="relative flex h-full min-h-0 w-full flex-1 flex-col bg-black text-white">
@@ -461,7 +460,6 @@ export function DoctorModal({
 
     if (isMobile) {
       return (
-        <DoctorModalLayerProvider depth={layerDepth}>
           <Drawer open={open} onOpenChange={handleOpenChange}>
             <DrawerContent
               showCloseButton={false}
@@ -473,13 +471,11 @@ export function DoctorModal({
               {fullscreenBody}
             </DrawerContent>
           </Drawer>
-        </DoctorModalLayerProvider>
       );
     }
 
     return (
-      <DoctorModalLayerProvider depth={layerDepth}>
-        <Dialog open={open} onOpenChange={handleOpenChange}>
+        <Dialog open={open} onOpenChange={handleOpenChange} ownsLayer={false}>
           <DialogContent
             fullScreen
             showCloseButton={false}
@@ -490,7 +486,6 @@ export function DoctorModal({
             {fullscreenBody}
           </DialogContent>
         </Dialog>
-      </DoctorModalLayerProvider>
     );
   }
 
@@ -509,7 +504,6 @@ export function DoctorModal({
       : undefined;
 
     return (
-      <DoctorModalLayerProvider depth={layerDepth}>
         <Drawer open={open} onOpenChange={handleOpenChange}>
           <DrawerContent
             showCloseButton={false}
@@ -533,13 +527,11 @@ export function DoctorModal({
             {footerNode}
           </DrawerContent>
         </Drawer>
-      </DoctorModalLayerProvider>
     );
   }
 
   if (isMobile) {
     return (
-      <DoctorModalLayerProvider depth={layerDepth}>
         <Drawer open={open} onOpenChange={handleOpenChange}>
           <DrawerContent
             showCloseButton={false}
@@ -562,13 +554,11 @@ export function DoctorModal({
             {mobileSafeAreaNode}
           </DrawerContent>
         </Drawer>
-      </DoctorModalLayerProvider>
     );
   }
 
   if (desktopPresentation === 'right-sheet') {
     return (
-      <DoctorModalLayerProvider depth={layerDepth}>
         <Sheet
           open={open}
           modal={false}
@@ -611,13 +601,11 @@ export function DoctorModal({
             {footerNode}
           </SheetContent>
         </Sheet>
-      </DoctorModalLayerProvider>
     );
   }
 
   return (
-    <DoctorModalLayerProvider depth={layerDepth}>
-      <Dialog open={open} onOpenChange={handleOpenChange}>
+      <Dialog open={open} onOpenChange={handleOpenChange} ownsLayer={false}>
         <DialogContent
           showCloseButton
           showOverlay={showOverlay}
@@ -641,6 +629,5 @@ export function DoctorModal({
           {footerNode}
         </DialogContent>
       </Dialog>
-    </DoctorModalLayerProvider>
   );
 }

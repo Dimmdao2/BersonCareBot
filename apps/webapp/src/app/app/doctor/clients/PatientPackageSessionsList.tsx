@@ -35,7 +35,6 @@ type Props = {
   onChanged?: () => void;
   mutationsAllowed?: boolean;
   /** Confirmation dialogs opened from an existing modal must join its modal stack. */
-  nestedModals?: boolean;
 };
 
 export function PatientPackageSessionsList({
@@ -44,7 +43,6 @@ export function PatientPackageSessionsList({
   onError,
   onChanged,
   mutationsAllowed = true,
-  nestedModals = false,
 }: Props) {
   // Default to true so doctors immediately see past visits available for manual consume.
   const [includePast, setIncludePast] = useState(true);
@@ -265,7 +263,6 @@ export function PatientPackageSessionsList({
         onClose={() => setConfirmStep(0)}
         title="Подтверждение"
         size="sm"
-        nested={nestedModals}
         footer={
           <>
             <Button type="button" variant="outline" onClick={() => setConfirmStep(0)}>
@@ -287,7 +284,6 @@ export function PatientPackageSessionsList({
         onClose={() => setConfirmStep(0)}
         title="Прошедшая запись"
         size="sm"
-        nested={nestedModals}
         footer={
           <>
             <Button type="button" variant="outline" onClick={() => setConfirmStep(0)}>
@@ -307,7 +303,6 @@ export function PatientPackageSessionsList({
         onClose={() => setLateChoice(null)}
         title="Поздняя отвязка"
         size="sm"
-        nested={nestedModals}
       >
         <p className="text-sm text-muted-foreground">
           Выберите исход для записи вне бесплатного окна отмены.

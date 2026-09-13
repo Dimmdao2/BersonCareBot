@@ -192,7 +192,6 @@ export function DoctorSoldMembershipsModal({
             patientHref={selected ? patientCardHref(selected.platformUserId) : null}
           />
         }
-        nested
         desktopPresentation="right-sheet"
       >
         {selected ? (
@@ -249,7 +248,6 @@ export function DoctorSoldMembershipsModal({
                 packageId={selected.id}
                 apiBase="/api/doctor/booking-engine/patient-packages"
                 mutationsAllowed={!readOnly}
-                nestedModals
                 onChanged={() => void load()}
                 onError={() => toast.error(notificationText.doctorSubscriptionPackageUpdateFailed)}
               />
