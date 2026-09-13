@@ -60,3 +60,4 @@ export * from './clinicDedicatedBotBindings';
 export * from './systemSettingsAudit';
 export * from './bookingCalendarMap';
 export * from './emailOtpLocks';
+export * from './loginFailureTally';

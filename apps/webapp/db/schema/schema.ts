@@ -3129,6 +3129,13 @@ export const userLoginEvents = pgTable(
     sessionRef: text('session_ref'),
     deviceId: text('device_id'),
     country: text(),
+    // #1112 Л-8. Замороженный итог неудачных попыток ДО этого входа. NULL значим и не равен нулю:
+    // NULL — «тогда не считали» (входы до этой работы), 0 — «считали, не было ни одной».
+    failedPasswordsBefore: integer('failed_passwords_before'),
+    failedPasswordsBeforeUnknown: integer('failed_passwords_before_unknown'),
+    unknownSourcesBefore: integer('unknown_sources_before'),
+    failedSecondFactorBefore: integer('failed_second_factor_before'),
+    failuresSince: timestamp('failures_since', { withTimezone: true, mode: 'string' }),
   },
   (table) => [
     index('idx_user_login_events_user_occurred').using(
