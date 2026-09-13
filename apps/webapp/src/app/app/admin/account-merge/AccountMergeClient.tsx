@@ -46,6 +46,11 @@ const SCALAR_LABELS: Record<ScalarKey, string> = {
   email: 'Почта',
 };
 
+const AUTO_SCALAR_LABELS: Record<string, string> = {
+  ...SCALAR_LABELS,
+  patronymic: 'Отчество',
+};
+
 const CHANNEL_LABELS: Record<'telegram' | 'max' | 'vk', string> = {
   telegram: 'Telegram',
   max: 'MAX',
@@ -283,6 +288,30 @@ export function AccountMergeClient({ targetId, duplicateId }: Props) {
               );
             })}
           </div>
+        </section>
+      ) : null}
+
+      {preview.autoMergeScalars.length > 0 ? (
+        <section className="rounded-xl border border-border bg-card p-4 text-sm">
+          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Заполнится само
+          </h2>
+          <p className="mb-2 text-xs text-muted-foreground">
+            Эти поля выбора не требуют — значение определяется автоматически. Показано, каким оно
+            станет после объединения.
+          </p>
+          <ul className="flex flex-col gap-1">
+            {preview.autoMergeScalars.map((a) => {
+              const label = AUTO_SCALAR_LABELS[a.field];
+              if (label == null) return null;
+              return (
+                <li key={a.field}>
+                  <span className="text-muted-foreground">{label}: </span>
+                  {a.effectiveValue ?? '— пусто —'}
+                </li>
+              );
+            })}
+          </ul>
         </section>
       ) : null}
 

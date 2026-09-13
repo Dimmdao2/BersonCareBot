@@ -42,8 +42,13 @@ export type MergePreviewApiOauthConflict = {
   reason: string;
 };
 
+/**
+ * Здесь, в отличие от `scalarConflicts`, есть и отчество: выбирать по нему нечего (движок слияния
+ * его не арбитрирует), но показать, каким оно станет, нужно — иначе расхождение просто исчезнет с
+ * глаз. Дверь предпросмотра отдаёт этот список целиком, а список выбора — без отчества.
+ */
 export type MergePreviewApiAutoScalar = {
-  field: 'phone_normalized' | 'display_name' | 'first_name' | 'last_name' | 'email';
+  field: 'phone_normalized' | 'display_name' | 'first_name' | 'last_name' | 'patronymic' | 'email';
   effectiveValue: string | null;
   note: string;
 };

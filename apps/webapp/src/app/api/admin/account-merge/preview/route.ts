@@ -46,6 +46,23 @@ function bindings(rows: PreviewModel['targetBindings']) {
   }));
 }
 
+/**
+ * Поля, по которым оператор действительно может выбрать победителя.
+ *
+ * Разбор умеет находить расхождение и по отчеству, а `ManualMergeResolution.fields` отчества не
+ * содержит — движок слияния его не арбитрирует. Если отдать такое расхождение как выбор, экран
+ * нарисует переключатель, который некуда записать. Поэтому отчество сюда не попадает; его
+ * фактическое значение после слияния видно в `autoMergeScalars`, который отдаётся целиком.
+ * Найдено проверкой на TEST 13.09 — `docs/_TODO/runs/KOSTYAKOV_MERGE_PROBE_2026-09-13.md`.
+ */
+const ARBITRABLE_SCALAR_FIELDS = new Set([
+  'phone_normalized',
+  'display_name',
+  'first_name',
+  'last_name',
+  'email',
+]);
+
 function serializePreview(model: PreviewModel) {
   return {
     ok: true as const,
@@ -57,7 +74,7 @@ function serializePreview(model: PreviewModel) {
     duplicateBindings: bindings(model.duplicateBindings),
     dependentCounts: model.dependentCounts,
     hardBlockers: model.hardBlockers,
-    scalarConflicts: model.scalarConflicts,
+    scalarConflicts: model.scalarConflicts.filter((c) => ARBITRABLE_SCALAR_FIELDS.has(c.field)),
     channelConflicts: model.channelConflicts,
     oauthConflicts: model.oauthConflicts,
     autoMergeScalars: model.autoMergeScalars,
