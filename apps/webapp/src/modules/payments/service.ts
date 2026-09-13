@@ -342,6 +342,15 @@ export function createPaymentsService(deps: {
       if (!deps.resolvePatientPublicOrigin) {
         return rows.map(({ appointmentId }) => ({ appointmentId, checkoutUrl: null }));
       }
+      // Пациентская поверхность нужна ровно для перезаписи ссылок предоплаты. Если переписывать
+      // нечего, её не спрашивают вовсе: у клиники без опубликованного слуга этот запрос бросает
+      // `patient_public_origin_unresolved`, и раздел, которому ссылки не понадобились, падал целиком.
+      const needsPatientOrigin = rows.some(
+        ({ purpose, checkoutUrl }) => checkoutUrl && purpose === 'appointment_prepayment',
+      );
+      if (!needsPatientOrigin) {
+        return rows.map(({ appointmentId, checkoutUrl }) => ({ appointmentId, checkoutUrl }));
+      }
       const patientOrigin = await deps.resolvePatientPublicOrigin(organizationId);
       return rows.map(({ appointmentId, intentId, purpose, checkoutUrl }) => ({
         appointmentId,
