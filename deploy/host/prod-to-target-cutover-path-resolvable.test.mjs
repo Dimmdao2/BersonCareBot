@@ -165,13 +165,44 @@ test('post-cutover executed SQL creates no schema object outside schema B', () =
     + offenders.join('\n'));
 });
 
-test('TEST settings override preserves the schema-B lock and limits trigger bypasses', () => {
+// The lock has two halves with two different owners, and the guard follows that split rather than the
+// older premise that both halves were schema B's. The body
+// (`public.system_settings_test_lock_guard()`) is a schema-B object: this overlay may only name it. The
+// trigger is TEST policy — "не дать случайно щёлкнуть обслуживание или регистрацию" — and on 13.09.2026
+// the schema-B snapshot was rebuilt from DEV, where the trigger neither is nor should be; so the overlay
+// installs it, in exactly the shape the 02.09 re-audit prescribed (RUNTIME_OVERLAY_SYSTEMIC_CLOSURE_
+// REAUDIT_2026-09-02.md, F4 "Fix shape"). What F4 actually guards is that no reset ends with TEST
+// unlocked, so that is what is asserted here: one bounded drop and one restore inside the same
+// transaction, the restore last, by reference, and a fail-closed check outside it.
+test('TEST settings override restores the TEST lock by reference and limits trigger bypasses', () => {
   const rel = 'deploy/postgres/test-settings-override.sql';
   const text = readFileSync(resolve(repoRoot, rel), 'utf8');
-  assert.ok(!/\b(?:DROP|CREATE)\s+TRIGGER\s+(?:IF\s+EXISTS\s+)?system_settings_test_lock\b/iu.test(text),
-    `${rel} must not remove or recreate the schema-B lock trigger`);
-  assert.match(text, /tgname\s*=\s*'system_settings_test_lock'[\s\S]*tgenabled\s*=\s*'O'/u,
-    `${rel} must fail closed unless the declared lock is installed and enabled`);
+
+  assert.ok(!/\bCREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION[\s\S]*?system_settings_test_lock_guard/iu.test(text),
+    `${rel} must not redefine the schema-B lock body; it may only name it (F1–F3)`);
+  assert.match(text, /to_regprocedure\(\s*'public\.system_settings_test_lock_guard\(\)'\s*\)/u,
+    `${rel} must fail closed when the schema-B lock body is absent instead of installing a broken trigger`);
+
+  const drops = text.match(/\bDROP\s+TRIGGER\s+IF\s+EXISTS\s+system_settings_test_lock\b/giu) ?? [];
+  const creates = [...text.matchAll(/\bCREATE\s+TRIGGER\s+system_settings_test_lock\b[\s\S]*?;/giu)];
+  assert.equal(drops.length, 1, `${rel} must lift the TEST lock exactly once, not per protected block`);
+  assert.equal(creates.length, 1, `${rel} must restore the TEST lock exactly once`);
+  assert.match(creates[0][0], /EXECUTE\s+FUNCTION\s+public\.system_settings_test_lock_guard\(\)/iu,
+    `${rel} must restore the lock by reference to the schema-B body`);
+
+  const begin = text.indexOf('\nBEGIN;');
+  const commit = text.indexOf('\nCOMMIT;');
+  assert.ok(begin >= 0 && commit > begin, `${rel} no longer wraps the override in one transaction`);
+  const dropAt = text.search(/\bDROP\s+TRIGGER\s+IF\s+EXISTS\s+system_settings_test_lock\b/iu);
+  const createAt = creates[0].index ?? -1;
+  assert.ok(begin < dropAt && dropAt < createAt && createAt + creates[0][0].length < commit,
+    `${rel} must lift and restore the lock inside the one transaction, restore last: any failure between `
+    + `them must roll back to a locked TEST, never leave it open`);
+  assert.equal(text.slice(createAt + creates[0][0].length, commit).trim(), '',
+    `${rel} must restore the lock as the last statement of the transaction, after every protected upsert`);
+
+  assert.match(text.slice(commit), /tgname\s*=\s*'system_settings_test_lock'[\s\S]*tgenabled\s*=\s*'O'/u,
+    `${rel} must fail closed after COMMIT unless the lock ended up installed and enabled`);
   const bypasses = text.match(/SET LOCAL session_replication_role = replica;/gu) ?? [];
   const restores = text.match(/SET LOCAL session_replication_role = origin;/gu) ?? [];
   assert.ok(bypasses.length > 0, `${rel} no longer has a bounded way to update protected TEST rows`);
