@@ -46,6 +46,32 @@ export function isPermanentPreviewError(message: string): boolean {
   return PERMANENT_ERROR_PATTERNS.some((p) => message.includes(p));
 }
 
+/**
+ * Инструменты разбора, которых может не оказаться в окружении. Имя одно на весь конвейер: воркер
+ * сообщает им же, что у него есть, вебапп им же решает, кого выпускать из `blocked`.
+ */
+export const PREVIEW_TOOL_HEIC_DECODER = 'heic_decoder';
+export type PreviewTool = typeof PREVIEW_TOOL_HEIC_DECODER;
+
+/**
+ * Отказ не по файлу, а по НАШЕМУ окружению: разбирать нечем.
+ *
+ * Поручение владельца 14.09.2026: «если мы уже определили причину ошибки как НЕТ ДЕКОДЕРА —
+ * пытаться повторять это каждые несколько минут — бред». Такой отказ не станет успехом ни на
+ * второй попытке, ни на пятой: он чинится деплоем, а не временем. Поэтому он и не отказ файла —
+ * строка уходит в `blocked` и ждёт, пока воркер скажет, что инструмент появился.
+ *
+ * Формулировки дословные. `magick_not_found_or_failed` поднимает сам `magickConvert.ts`, когда
+ * кандидатов не осталось; `spawn <имя> ENOENT` приходит от Node, когда последнего кандидата в PATH
+ * нет — так и выглядел замер на проде 14.09 (`spawn convert ENOENT`).
+ */
+export function missingPreviewTool(message: string): PreviewTool | null {
+  const heicDecoderGone =
+    message.includes('magick_not_found_or_failed') ||
+    /spawn\s+(?:magick|convert)\b[\s\S]*ENOENT/.test(message);
+  return heicDecoderGone ? PREVIEW_TOOL_HEIC_DECODER : null;
+}
+
 export function backoffMinutesAfterFailure(attemptsAfterIncrement: number): number {
   const exp = Math.min(attemptsAfterIncrement, 20);
   return Math.min(1440, Math.pow(2, exp));

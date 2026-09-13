@@ -5,6 +5,7 @@ import {
   MAX_IMAGE_PREVIEW_BYTES,
   backoffMinutesAfterFailure,
   isPermanentPreviewError,
+  missingPreviewTool,
   planMediaPreview,
 } from './mediaPreviewPlan';
 
@@ -102,5 +103,27 @@ describe('backoffMinutesAfterFailure', () => {
     expect(backoffMinutesAfterFailure(1)).toBe(2);
     expect(backoffMinutesAfterFailure(4)).toBe(16);
     expect(backoffMinutesAfterFailure(20)).toBe(1440);
+  });
+});
+
+describe('missingPreviewTool', () => {
+  /**
+   * Владелец 14.09.2026: отказ по отсутствующему декодеру — не отказ файла, повторять его каждые
+   * несколько минут бессмысленно. Формулировки дословные: так это выглядело на проде.
+   */
+  it.each([
+    'Error: spawn convert ENOENT',
+    'Error: spawn magick ENOENT',
+    'magick_not_found_or_failed',
+  ])('узнаёт «разбирать нечем»: %s', (message) => {
+    expect(missingPreviewTool(message)).toBe('heic_decoder');
+  });
+
+  it.each([
+    'ffmpeg exited with code 1: Invalid data found when processing input',
+    'download_timeout',
+    'magick_failed_code_1: unable to open image',
+  ])('не путает отказ файла с отказом окружения: %s', (message) => {
+    expect(missingPreviewTool(message)).toBeNull();
   });
 });

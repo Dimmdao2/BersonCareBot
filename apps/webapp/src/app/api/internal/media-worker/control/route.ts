@@ -9,8 +9,8 @@ import {
   completeMediaPreviewImage, completeMediaPreviewPoster, completeMediaWorkerHlsJob,
   completeMediaWorkerProgramJob, failMediaPreview, failMediaWorkerJob, loadMediaWorkerControlMedia,
   markMediaWorkerProcessing, readMediaPreviewHostedBytes, readMediaWorkerErrorTrackingConfig,
-  readMediaWorkerWatermarkEnabled, recordMediaPreviewTick, reportMediaWorkerIsolationFailure,
-  retryMediaWorkerJob,
+  readMediaWorkerWatermarkEnabled, recordMediaPreviewTick, reportMediaPreviewTools,
+  reportMediaWorkerIsolationFailure, retryMediaWorkerJob,
 } from '@/app-layer/media/mediaWorkerControl';
 
 const jobSchema = z.object({ id: z.string().uuid(), mediaId: z.string().uuid() }).strict();
@@ -39,6 +39,8 @@ const commandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('preview_done_image'), mediaId: z.string().uuid(), values: z.object({ mimeType: z.string().min(1).max(200), sizeBytes: z.number().int().nonnegative(), width: z.number().int().positive(), height: z.number().int().positive() }) }),
   z.object({ type: z.literal('preview_done_poster'), mediaId: z.string().uuid(), values: z.object({ width: z.number().int().positive().nullable(), height: z.number().int().positive().nullable() }) }),
   z.object({ type: z.literal('preview_failed'), mediaId: z.string().uuid(), error: z.string().max(8000) }),
+  /* Что воркер умеет разобрать — говорит он сам на старте, потому что окружение его, а не наше. */
+  z.object({ type: z.literal('preview_tools'), tools: z.array(z.enum(['heic_decoder'])).max(8) }),
   z.object({ type: z.literal('preview_tick'), processed: z.number().int().nonnegative(), errors: z.number().int().nonnegative(), durationMs: z.number().int().nonnegative() }),
 ]);
 
@@ -67,6 +69,7 @@ export async function POST(request: Request) {
       case 'preview_done_image': await completeMediaPreviewImage({ mediaId: command.mediaId, ...command.values }); break;
       case 'preview_done_poster': await completeMediaPreviewPoster({ mediaId: command.mediaId, ...command.values }); break;
       case 'preview_failed': await failMediaPreview(command.mediaId, command.error); break;
+      case 'preview_tools': return NextResponse.json({ ok: true, result: await reportMediaPreviewTools(command.tools) });
       case 'preview_tick': await recordMediaPreviewTick({ processed: command.processed, errors: command.errors, durationMs: command.durationMs }); break;
     }
     return NextResponse.json({ ok: true, result: null });

@@ -50,6 +50,7 @@ const {
   claimMediaPreviewOrder,
   completeMediaPreviewImage,
   failMediaPreview,
+  releaseBlockedMediaPreviews,
 } = await import('./pgMediaPreviewControl');
 
 const MEDIA_ID = '00000000-0000-4000-8000-0000000000c1';
@@ -219,6 +220,45 @@ describe('failMediaPreview', () => {
 
     await failMediaPreview(MEDIA_ID, 'download_timeout');
 
+    expect(issuedSql()).toEqual([]);
+  });
+
+  /**
+   * Владелец 14.09.2026: «если мы уже определили причину ошибки как НЕТ ДЕКОДЕРА — пытаться
+   * повторять это каждые несколько минут — бред». Отказ окружения не жжёт попытки и не планирует
+   * следующую: строка ждёт, пока инструмент появится.
+   */
+  it('defers a row nothing can decode instead of burning attempts on the environment', async () => {
+    nextSelectRows = [{ id: MEDIA_ID, attempts: 1 }];
+
+    await failMediaPreview(MEDIA_ID, 'Error: spawn convert ENOENT');
+
+    const sql = issuedSql();
+    const blocked = sql.find((text) => text.includes("preview_status = 'blocked'"));
+    expect(blocked).toBeDefined();
+    expect(blocked).toContain('preview_next_attempt_at = NULL');
+    expect(sql.some((text) => text.includes('preview_attempts ='))).toBe(false);
+    expect(sql.some((text) => text.includes("preview_status = 'failed'"))).toBe(false);
+  });
+});
+
+describe('releaseBlockedMediaPreviews', () => {
+  it('queues deferred rows again once the worker reports the tool is there', async () => {
+    runWebappSql.mockResolvedValue({ rows: [{ id: MEDIA_ID }, { id: MEDIA_ID }] });
+
+    const released = await releaseBlockedMediaPreviews(['heic_decoder']);
+
+    expect(released).toBe(2);
+    const update = issuedSql().find((text) => text.includes("preview_status = 'pending'"));
+    expect(update).toBeDefined();
+    expect(update).toContain("preview_status = 'blocked'");
+    expect(update).toContain('preview_attempts = 0');
+  });
+
+  it('leaves them deferred while the tool is still missing', async () => {
+    const released = await releaseBlockedMediaPreviews([]);
+
+    expect(released).toBe(0);
     expect(issuedSql()).toEqual([]);
   });
 });

@@ -12,6 +12,7 @@ import {
 import { createMediaWorkerIsolationReporter } from './saasIsolationTelemetry.js';
 import { createPreviewHeartbeat } from './previewHeartbeat.js';
 import { resolveMagickCommand } from './magickConvert.js';
+import { detectPreviewTools } from './previewTools.js';
 
 /** Раз в минуту при потолке протухания строки «Превью медиа» в три минуты. */
 const PREVIEW_HEARTBEAT_INTERVAL_MS = 60_000;
@@ -60,6 +61,19 @@ async function main() {
   };
   process.on('SIGTERM', () => onStop('SIGTERM'));
   process.on('SIGINT', () => onStop('SIGINT'));
+
+  /*
+   * Отчёт об инструментах идёт ДО циклов и один раз: он ничего не включает, он только снимает
+   * ожидание со строк, отложенных из-за отсутствия декодера (владелец 14.09.2026). Отказ шва здесь
+   * не должен мешать воркеру работать — превью он считает и без этого отчёта.
+   */
+  try {
+    const tools = await detectPreviewTools(ctx.magickCandidates);
+    await control.previewTools(tools);
+    log.info({ tools }, 'preview tools reported');
+  } catch (e) {
+    log.error({ err: e }, 'preview tools report failed');
+  }
 
   log.info({ lockId: env.lockId }, 'media-worker started');
 

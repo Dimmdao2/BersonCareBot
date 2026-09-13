@@ -118,7 +118,12 @@ export type MediaWorkerControlPort = {
   ): Promise<void>;
   previewFailed(mediaId: string, error: string): Promise<void>;
   previewTick(values: { processed: number; errors: number; durationMs: number }): Promise<void>;
+  /** Чем этот процесс умеет разбирать байты; отправляется один раз на старте. */
+  previewTools(tools: readonly MediaPreviewTool[]): Promise<void>;
 };
+
+/** Словарь инструментов один с вебаппом (`modules/media/mediaPreviewPlan.ts`). */
+export type MediaPreviewTool = 'heic_decoder';
 
 /** One vocabulary with the classifier and the webapp control seam; never a second local list. */
 export type MediaWorkerIsolationEventClass = SaasIsolationTelemetryEventClass;
@@ -219,6 +224,9 @@ export function createHttpMediaWorkerControl(params: {
     },
     async previewTick(values) {
       await command({ type: 'preview_tick', ...values });
+    },
+    async previewTools(tools) {
+      await command({ type: 'preview_tools', tools: [...tools] });
     },
   };
 }

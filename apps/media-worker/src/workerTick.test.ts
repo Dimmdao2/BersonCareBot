@@ -30,7 +30,7 @@ function control(
     ready: vi.fn(), errorTrackingConfig: vi.fn(), isolationFailure: vi.fn(), claim, load: vi.fn(), watermarkEnabled: vi.fn(), processing: vi.fn(), retry: vi.fn(),
     failed: vi.fn(), doneHls: vi.fn(), doneProgram: vi.fn(),
     previewClaim, previewHostedBytes: vi.fn(), previewDoneImage: vi.fn(), previewDonePoster: vi.fn(),
-    previewFailed: vi.fn(), previewTick: vi.fn(),
+    previewFailed: vi.fn(), previewTick: vi.fn(), previewTools: vi.fn(),
   };
 }
 

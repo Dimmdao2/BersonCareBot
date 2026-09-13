@@ -60,6 +60,15 @@ export type CriticalHealthSignalsInput = {
   /** Open incidents created by the integrator only after each probe's configured streak threshold. */
   probeIncidentsOpenCount?: number;
   videoTranscodeStatus: VideoTranscodeHealthStatus;
+  /**
+   * Сколько файлов отложено, потому что разбирать их НЕЧЕМ (`preview_status = 'blocked'`).
+   *
+   * Поручение владельца 14.09.2026: «надо уведомить глобал админа и просто записать эти медиа в
+   * отложенные до исправления». Счётчик сам по себе и есть сигнал: он не растёт от времени, как
+   * счётчик отказов, и гаснет ровно тогда, когда причина устранена, — деплой с недостающим
+   * инструментом выпускает строки, и число становится нулём без чьего-либо участия.
+   */
+  blockedMediaPreviews?: number;
   /** Burst inbound webhook errors (P8); omit when lightweight collect skips webhook table. */
   webhookBursts?: WebhookBurstRow[];
   /** A3: low-cardinality tenant-isolation detector, collected only by the five-minute health tick. */
@@ -104,6 +113,7 @@ export function classifyOperatorHealthBannerSignals(input: OperatorHealthBannerI
   if (input.webappDb === 'down') return true;
   if (input.integratorApi !== 'ok') return true;
   if (input.videoTranscodeStatus === 'error') return true;
+  if ((input.blockedMediaPreviews ?? 0) > 0) return true;
   if (Object.values(input.backupJobs).some((j) => j.lastStatus === 'failure')) return true;
   if (input.operatorIncidentsOpenCount > 0) return true;
   if ((input.probeIncidentsOpenCount ?? 0) > 0) return true;
@@ -372,6 +382,20 @@ export function classifyCriticalHealthSignals(
       dedupKey: 'critical:video_transcode:error',
       pushTitle: 'Критичный сбой: транскод HLS',
       lines: ['Очередь транскода HLS: error'],
+    });
+  }
+
+  const blockedPreviews = input.blockedMediaPreviews ?? 0;
+  if (blockedPreviews > 0) {
+    out.push({
+      topic: 'media_preview_blocked',
+      dedupKey: 'critical:media_preview_blocked:active',
+      pushTitle: 'Критичный сбой: нечем разобрать файлы',
+      lines: [
+        `Файлов отложено до исправления: ${blockedPreviews}`,
+        'Разобрать их нечем: в окружении нет нужного декодера. Повторы намеренно остановлены —',
+        'строки вернутся в очередь сами, когда воркер на старте сообщит, что инструмент появился.',
+      ],
     });
   }
 

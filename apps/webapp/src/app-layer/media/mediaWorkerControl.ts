@@ -12,11 +12,12 @@ import {
 } from '@/infra/repos/pgSystemSettings';
 import {
   claimMediaPreviewOrder, completeMediaPreviewImage, completeMediaPreviewPoster, failMediaPreview,
-  readHostedPreviewSourceUrl,
+  readHostedPreviewSourceUrl, releaseBlockedMediaPreviews,
 } from '@/infra/repos/pgMediaPreviewControl';
 import {
   HOSTED_PREVIEW_RETRY,
   HOSTED_PREVIEW_UNAVAILABLE,
+  type PreviewTool,
 } from '@/modules/media/mediaPreviewPlan';
 import { resolveHostedVideoThumbnail } from '@/shared/lib/hostedVideoThumbnail';
 import { recordOperatorCronJobTickBestEffort } from '@/app-layer/operator-health/recordOperatorCronJobTick';
@@ -24,6 +25,16 @@ import {
   OPERATOR_MEDIA_JOB_FAMILY,
   OPERATOR_MEDIA_PREVIEW_PROCESS_JOB_KEY,
 } from '@/modules/operator-health/reconcileJobKeys';
+
+/**
+ * Воркер на старте говорит, чем он умеет разбирать байты. Единственное следствие — выпустить из
+ * `blocked` строки, которые ждали именно этого (владелец 14.09.2026: деплой с декодером обязан
+ * сбрасывать отложенное). Отчёт НЕ включает инструмент в работу и ничего не настраивает: что
+ * запускать, решает план наряда, а здесь только снимается ожидание.
+ */
+export async function reportMediaPreviewTools(tools: readonly PreviewTool[]): Promise<number> {
+  return releaseBlockedMediaPreviews(tools);
+}
 
 async function readMediaWorkerRuntimeBool(key: MediaWorkerRuntimeSettingKey): Promise<boolean> {
   const value = await readMediaWorkerRuntimeSettingInnerValue(key);

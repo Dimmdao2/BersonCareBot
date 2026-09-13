@@ -1,6 +1,7 @@
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { getCurrentCorrelationIdHeader } from '@bersoncare/db-principal';
 import { loadAdminTranscodeHealthMetricsSafe } from '@/app-layer/media/adminTranscodeHealthMetrics';
+import { countBlockedMediaPreviewsSafe } from '@/app-layer/media/blockedMediaPreviews';
 import { env } from '@/config/env';
 import { classifyVideoTranscodeSystemHealthStatus } from '@/modules/operator-health/adminHealthThresholds';
 import {
@@ -211,6 +212,7 @@ async function collectScheduledCriticalHealthSignalsBase(
     probeIncidentsOpenCount: operatorIncidents.filter(isOperatorProbeFailureIncident).length,
     videoTranscodeStatus: curatedVideoTranscodeStatus(snapshot),
     webhookBursts,
+    blockedMediaPreviews: await countBlockedMediaPreviewsSafe(),
   };
 }
 
@@ -273,6 +275,7 @@ async function collectCriticalHealthSignalsBase(
     probeIncidentsOpenCount: operatorIncidents.filter(isOperatorProbeFailureIncident).length,
     videoTranscodeStatus,
     webhookBursts,
+    blockedMediaPreviews: await countBlockedMediaPreviewsSafe(),
   };
 }
 

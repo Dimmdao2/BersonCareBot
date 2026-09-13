@@ -66,6 +66,7 @@ function control(): MediaWorkerControlPort {
     load: vi.fn(), watermarkEnabled: vi.fn(), processing: vi.fn(), retry: vi.fn(), failed: vi.fn(),
     doneHls: vi.fn(), doneProgram: vi.fn(), previewClaim: vi.fn(),
     previewHostedBytes: vi.fn(async () => ({ kind: 'ready' as const, bytesBase64: 'AAAA' })),
+    previewTools: vi.fn(),
     previewDoneImage: vi.fn(), previewDonePoster: vi.fn(), previewFailed: vi.fn(),
     previewTick: vi.fn(),
   };

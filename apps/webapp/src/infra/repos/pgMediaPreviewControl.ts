@@ -10,8 +10,11 @@ import {
   MAX_PREVIEW_ATTEMPTS,
   backoffMinutesAfterFailure,
   isPermanentPreviewError,
+  missingPreviewTool,
+  PREVIEW_TOOL_HEIC_DECODER,
   planMediaPreview,
   type MediaPreviewPlan,
+  type PreviewTool,
 } from '@/modules/media/mediaPreviewPlan';
 
 /**
@@ -113,6 +116,19 @@ async function markSkipped(db: WebappTxSql, mediaId: string): Promise<void> {
   await runWebappSql(
     db,
     sql`UPDATE media_files SET preview_status = 'skipped', preview_next_attempt_at = NULL
+        WHERE id = ${mediaId}::uuid`,
+  );
+}
+
+/**
+ * «Разобрать нечем» — состояние НАС, а не файла (владелец 14.09.2026). Попытка не планируется:
+ * `preview_next_attempt_at` пуст, в очередь строка не возвращается и счётчик попыток не жжётся.
+ * Выход отсюда один — `releaseBlockedMediaPreviews`, когда воркер сообщит, что инструмент появился.
+ */
+async function markBlocked(db: WebappTxSql, mediaId: string): Promise<void> {
+  await runWebappSql(
+    db,
+    sql`UPDATE media_files SET preview_status = 'blocked', preview_next_attempt_at = NULL
         WHERE id = ${mediaId}::uuid`,
   );
 }
@@ -317,6 +333,15 @@ export async function failMediaPreview(mediaId: string, error: string): Promise<
       );
       return;
     }
+    const missingTool = missingPreviewTool(error);
+    if (missingTool) {
+      await markBlocked(db, mediaId);
+      logger.error(
+        { mediaId, error, missingTool },
+        '[mediaPreviewControl] no tool to decode this file, deferred until the environment is fixed',
+      );
+      return;
+    }
     if (isPermanentPreviewError(error)) {
       await markSkipped(db, mediaId);
       logger.warn({ mediaId, error }, '[mediaPreviewControl] permanent error, skipped');
@@ -359,5 +384,59 @@ export async function readHostedPreviewSourceUrl(mediaId: string): Promise<strin
       .limit(1);
     const url = rows[0]?.url?.trim();
     return url ? url : null;
+  });
+}
+
+/**
+ * Инструмент появился — отложенные строки возвращаются в очередь.
+ *
+ * Поручение владельца 14.09.2026: «деплой, который добавляет декодер, должен сбрасывать те строки,
+ * которые упали именно из-за его отсутствия». Отдельного шага в скрипте деплоя для этого НЕ
+ * заводим: воркер перезапускается каждым деплоем и на старте сам говорит, что у него есть, — то
+ * есть условие проверяется по факту окружения, а не по намерению того, кто катил релиз. Ручной
+ * прогон после деплоя не нужен и забыть его нельзя.
+ *
+ * Счётчик попыток обнуляется: прошлые попытки считали среду, а не файл, и держать их против строки
+ * нечестно — иначе файл, который ждал починки дольше других, получил бы меньше всего попыток.
+ */
+export async function releaseBlockedMediaPreviews(tools: readonly PreviewTool[]): Promise<number> {
+  if (!tools.includes(PREVIEW_TOOL_HEIC_DECODER)) return 0;
+  const pool = getPool();
+  const released = await withPoolTransaction<number>(pool, async (client) => {
+    const db = getWebappSqlFromPgClient(client);
+    const res = await runWebappSql<{ id: string }>(
+      db,
+      sql`UPDATE media_files SET
+             preview_status = 'pending',
+             preview_attempts = 0,
+             preview_next_attempt_at = NULL
+           WHERE preview_status = 'blocked'
+           RETURNING id::text AS id`,
+    );
+    return res.rows.length;
+  });
+  if (released > 0) {
+    logger.info(
+      { released, tools },
+      '[mediaPreviewControl] the tool is back, deferred rows are queued again',
+    );
+  }
+  return released;
+}
+
+/**
+ * Сколько файлов сейчас ждут починки среды. Это и есть сигнал глобальному админу: сам по себе он
+ * не гаснет со временем (в отличие от `failed`, который просто перестаёт расти) и гаснет ровно
+ * тогда, когда причина устранена, — потому что строки при этом уезжают из `blocked`.
+ */
+export async function countBlockedMediaPreviews(): Promise<number> {
+  const pool = getPool();
+  return withPoolTransaction<number>(pool, async (client) => {
+    const db = getWebappSqlFromPgClient(client);
+    const res = await runWebappSql<{ blocked: string }>(
+      db,
+      sql`SELECT count(*)::text AS blocked FROM media_files WHERE preview_status = 'blocked'`,
+    );
+    return Number(res.rows[0]?.blocked ?? 0) || 0;
   });
 }
