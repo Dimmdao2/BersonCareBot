@@ -239,6 +239,13 @@ SELECT json_build_object(
 SELECT :'cutover_s03_result'::json AS cutover_step_s03_patient_projection_appointments;
 
 -- Preserve legacy messenger identities as canonical platform identities and bindings.
+-- A bridge card is created only for an identity that no existing person can claim. The numeric
+-- `integrator_user_id` alone is not that test: one human routinely owns two integrator users (one
+-- per messenger) while the card carries a single number, and 172 of the legacy cards carry none at
+-- all. The target model resolves a messenger account to a person by channel binding
+-- (`user_channel_bindings.channel_code` + `external_id`, see
+-- apps/integrator/src/infra/db/repos/platformUserByChannel.ts), so an identity whose account is
+-- already bound belongs to that person and must not spawn a nameless duplicate card.
 \echo '=== CUTOVER STEP S04/06: preserve messenger identities and channel bindings ==='
 INSERT INTO public.platform_users (
   integrator_user_id, display_name, first_name, last_name, role, created_at, updated_at
@@ -249,6 +256,11 @@ WHERE identity_row.resource IN ('telegram', 'max', 'vk')
   AND NOT EXISTS (
     SELECT 1 FROM public.platform_users user_row
     WHERE user_row.integrator_user_id = identity_row.user_id
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM public.user_channel_bindings binding
+    WHERE binding.channel_code = identity_row.resource
+      AND binding.external_id = identity_row.external_id
   );
 
 INSERT INTO public.user_channel_bindings (
@@ -333,6 +345,25 @@ BEGIN
     AND binding.user_id IS NULL;
   IF violations <> 0 THEN
     RAISE EXCEPTION 'unmapped messenger identities: %', violations;
+  END IF;
+
+  -- The bridge card from S04 exists only to own a messenger account nobody else owns. One that ends
+  -- up owning no binding is a nameless duplicate of a real patient, which is how the numeric-only
+  -- match used to leak people into the patient list twice.
+  SELECT count(*) INTO violations
+  FROM public.platform_users user_row
+  WHERE coalesce(user_row.display_name, '') = ''
+    AND EXISTS (
+      SELECT 1 FROM integrator.identities identity_row
+      WHERE identity_row.user_id = user_row.integrator_user_id
+        AND identity_row.resource IN ('telegram', 'max', 'vk')
+    )
+    AND NOT EXISTS (
+      SELECT 1 FROM public.user_channel_bindings binding
+      WHERE binding.user_id = coalesce(user_row.merged_into_id, user_row.id)
+    );
+  IF violations <> 0 THEN
+    RAISE EXCEPTION 'nameless messenger bridge cards without any channel binding: %', violations;
   END IF;
 
   SELECT count(*) INTO violations
