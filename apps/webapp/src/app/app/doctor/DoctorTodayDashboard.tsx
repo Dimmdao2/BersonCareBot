@@ -53,7 +53,6 @@ type Props = {
   specialistTasksAvailable: boolean;
   specialistTasksReadable: boolean;
   appointmentsManageOwn?: boolean;
-  videoMeetingsEnabled?: boolean;
 };
 
 function peopleItemName(client: TodayDashboardData['people'][number]): string {
@@ -202,7 +201,6 @@ export function DoctorTodayDashboard({
   specialistTasksAvailable,
   specialistTasksReadable,
   appointmentsManageOwn = true,
-  videoMeetingsEnabled = false,
 }: Props) {
   const { supportGroupLabel } = useDoctorPatientTerms();
   const router = useRouter();
@@ -340,7 +338,6 @@ export function DoctorTodayDashboard({
           <DoctorTodayNextAppointment
             appointment={data.nextAppointment}
             displayIana={displayIana}
-            videoMeetingsEnabled={videoMeetingsEnabled}
           />
 
           <DoctorMetricList columns="two" aria-label="Сводка дня">
