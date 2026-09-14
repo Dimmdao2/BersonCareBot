@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import { dispatchDoctorCatalogUrlSync } from '@/shared/lib/doctorCatalogClientUrlSync';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
+import { DOCTOR_ACTIVE_FILTER_BUTTON_CLASS } from '@/shared/ui/doctor/calendar/DoctorSchedulePeriodNav';
 import { DoctorShellMobileBottomTabsRegistration } from '@/shared/ui/doctor/shell/DoctorShellChromeContext';
 
 const FILTER_PARAMS = [
@@ -52,7 +53,7 @@ export function DoctorCatalogMobileToolbar({
           type="button"
           size="icon"
           variant="outline"
-          className={cn('relative size-9 shrink-0', filterActive && 'border-primary text-primary')}
+          className={cn('relative size-9 shrink-0', filterActive && DOCTOR_ACTIVE_FILTER_BUTTON_CLASS)}
           onClick={() => setFiltersOpen(true)}
           aria-label="Фильтры"
           title="Фильтры"

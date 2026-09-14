@@ -14,6 +14,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { BadgePlus, CalendarPlus, ChevronDown, ChevronRight, Eye, FunnelX } from 'lucide-react';
 import type { PatientAppointmentItem, PatientCardHeader } from '@/modules/doctor-clients/ports';
 import { MembershipCardHeader } from '@/shared/ui/doctor/MembershipCardHeader';
+import { DOCTOR_ACTIVE_FILTER_BUTTON_CLASS } from '@/shared/ui/doctor/calendar/DoctorSchedulePeriodNav';
 import {
   doctorSectionCardClass,
   doctorSectionTitleClass,
@@ -563,7 +564,7 @@ export function PatientTabRecords({
                 }
                 className={cn(
                   'bg-card text-muted-foreground',
-                  showCancelledAppointments && 'border-primary text-primary',
+                  showCancelledAppointments && DOCTOR_ACTIVE_FILTER_BUTTON_CLASS,
                 )}
                 onClick={() => setShowCancelledAppointments((value) => !value)}
               >
