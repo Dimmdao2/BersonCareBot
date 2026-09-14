@@ -13,11 +13,12 @@ import type { PasswordChangeResult } from '@/modules/auth/passwordChange';
 import { newPasswordSchema } from '@/modules/auth/passwordPolicy';
 import { notificationText } from '@/shared/notifications/notificationText';
 import { setSessionFromUser } from '@/modules/auth/service';
+import { resolveRealIpRateLimitClientKey } from '@/modules/auth/realIpRateLimitClientKey';
 
 const bodySchema = z.object({
   currentPassword: z.string().min(1).max(128),
   newPassword: newPasswordSchema,
-  altcha: z.string().max(32_768).optional(),
+  captcha: z.string().max(32_768).optional(),
 });
 
 export async function POST(request: Request) {
@@ -63,15 +64,43 @@ export async function POST(request: Request) {
   try {
     const deps = buildAppDeps();
     const verifiedEmail = await deps.userByPhone.getVerifiedEmailForUser(gate.session.user.userId);
-    const altchaProof = verifiedEmail
-      ? await deps.passwordAltcha.verify(verifiedEmail.trim().toLowerCase(), parsed.data.altcha)
-      : undefined;
+    // Адрес нужен ТОЛЬКО Яндексу и только как подсказка. Отсутствие доверенного заголовка не
+    // повод отказать человеку в этом маршруте: за конфигурацию прокси отвечает счётчик частоты
+    // выше, а здесь пустой адрес означает лишь, что параметр не будет отправлен.
+    const captchaIp = resolveRealIpRateLimitClientKey(request, {
+      scope: 'account_password_change_captcha',
+      logPrefix: 'account_password_change_captcha',
+      fallbackKey: '',
+      productionMissingLogLevel: 'warn',
+    });
+    const captchaVerification = verifiedEmail
+      ? await deps.passwordAltcha.verify(
+          verifiedEmail.trim().toLowerCase(),
+          parsed.data.captcha,
+          captchaIp.ok ? captchaIp.key : null,
+        )
+      : { verifiedExternally: false };
+    // Поставщик капчи промолчал — отказываем ДО двери смены пароля, чтобы молчание чужой стороны
+    // не засчиталось человеку неудачной попыткой. Решение владельца 14.09: «значит не пускать».
+    if (captchaVerification?.providerUnavailable) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: 'captcha_unavailable',
+          message: notificationText.authCaptchaUnavailable,
+          captchaRequired: true,
+          captchaRefreshRequired: true,
+        },
+        { status: 503 },
+      );
+    }
     result = await deps.passwordChange.changePassword({
       userId: gate.session.user.userId,
       currentPassword: parsed.data.currentPassword,
       newPassword: parsed.data.newPassword,
-      ...(altchaProof ? { altchaProof } : {}),
-      altchaSubmitted: parsed.data.altcha !== undefined,
+      ...(captchaVerification?.altchaProof ? { altchaProof: captchaVerification.altchaProof } : {}),
+      altchaSubmitted: parsed.data.captcha !== undefined,
+      captchaVerifiedExternally: captchaVerification?.verifiedExternally === true,
     });
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);

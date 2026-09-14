@@ -110,15 +110,39 @@ function guardVariable(prefix, schema, name) {
   return `bcb_${prefix}_${`${schema}_${name}`.replaceAll(/[^A-Za-z0-9_]/gu, '_')}`;
 }
 
+/**
+ * Метки, по которым reconcile отделяет операторы с ACCESS EXCLUSIVE от всего остального и применяет
+ * их ОТДЕЛЬНОЙ короткой транзакцией. Без этого один разошедшийся объект удерживал свой замок до
+ * конца длинной сверки — аудит 14.09.2026 поймал читателя, вставшего в очередь именно так.
+ */
+export const EXCLUSIVE_DDL_BEGIN = '-- BCB-EXCLUSIVE-DDL-BEGIN';
+export const EXCLUSIVE_DDL_END = '-- BCB-EXCLUSIVE-DDL-END';
+
+/** Делит вывод генератора на короткую часть с ACCESS EXCLUSIVE и всё остальное. */
+export function splitExclusiveDdl(text) {
+  const exclusive = [];
+  const rest = [];
+  let inside = false;
+  for (const line of text.split('\n')) {
+    if (line === EXCLUSIVE_DDL_BEGIN) { inside = true; continue; }
+    if (line === EXCLUSIVE_DDL_END) { inside = false; continue; }
+    (inside ? exclusive : rest).push(line);
+  }
+  if (inside) throw new Error('незакрытая метка BCB-EXCLUSIVE-DDL в выводе генератора');
+  return { exclusive: exclusive.join('\n'), rest: rest.join('\n') };
+}
+
 function guardedExclusiveDdl(variable, probeSql, statements) {
   if (statements.length === 0) return [];
   return [
+    EXCLUSIVE_DDL_BEGIN,
     `SELECT coalesce((${probeSql}), false) AS ${variable}`,
     '\\gset',
     `\\if :${variable}`,
     '\\else',
     ...statements,
     '\\endif',
+    EXCLUSIVE_DDL_END,
   ];
 }
 
@@ -137,21 +161,76 @@ function relationStateProbe(schema, name, { owner, rls }) {
     + ` WHERE c.oid = pg_catalog.to_regclass(${lit(`${q(schema)}.${q(name)}`)})`;
 }
 
-/** Дайджест текста оператора `CREATE POLICY` — он же значение комментария на политике. */
+/** Дайджест текста оператора `CREATE POLICY` — объявленная половина комментария на политике. */
 function policyDigest(statement) {
   return `bcb1:${createHash('sha256').update(statement).digest('hex').slice(0, 16)}`;
 }
 
-/** Набор политик отношения совпадает с объявленным по имени И по дайджесту предиката. */
+/**
+ * Отпечаток ЖИВОЙ политики: вид, команда, грантополучатели и оба предиката, как их вернул сам
+ * PostgreSQL. Считается и в момент постановки (вторая половина комментария), и в момент сравнения.
+ *
+ * Одного объявленного дайджеста мало: `ALTER POLICY … USING (…)` сохраняет oid политики, а с ним и
+ * комментарий, — то есть подменённый предикат выглядел бы «тем же самым». Аудит 14.09.2026 это
+ * воспроизвёл живьём: после `ALTER POLICY … USING (false)` reconcile проходил и оставлял `false`.
+ * Живая половина ловит ровно такой дрейф: её нельзя сохранить, изменив политику.
+ */
+function policyLiveDigestSql(alias) {
+  return `pg_catalog.md5(${alias}.polpermissive::text || '|' || ${alias}.polcmd::text`
+    + ` || '|' || ${alias}.polroles::text`
+    + ` || '|' || coalesce(pg_catalog.pg_get_expr(${alias}.polqual, ${alias}.polrelid), '')`
+    + ` || '|' || coalesce(pg_catalog.pg_get_expr(${alias}.polwithcheck, ${alias}.polrelid), ''))`;
+}
+
+/** Половина комментария с объявленным дайджестом: `bcb1:<hex>` из `bcb1:<hex>:<живой>`. */
+function policyDeclaredHalfSql(alias) {
+  const comment = `coalesce(pg_catalog.obj_description(${alias}.oid, 'pg_policy'), '')`;
+  return `pg_catalog.split_part(${comment}, ':', 1) || ':' || pg_catalog.split_part(${comment}, ':', 2)`;
+}
+
+/** Живая половина комментария: третье поле. */
+function policyStoredLiveHalfSql(alias) {
+  return `pg_catalog.split_part(coalesce(pg_catalog.obj_description(${alias}.oid, 'pg_policy'), ''), ':', 3)`;
+}
+
+/**
+ * Набор политик отношения совпадает с объявленным: и по имени с объявленным дайджестом, и по тому,
+ * что живая политика с момента постановки не менялась.
+ */
 function policySetProbe(schema, name, fingerprints) {
   const want = fingerprints.length === 0
     ? 'ARRAY[]::text[]'
     : `ARRAY[${fingerprints.map(lit).join(', ')}]::text[]`;
-  return 'SELECT coalesce((SELECT pg_catalog.array_agg('
-    + "p.polname || '|' || coalesce(pg_catalog.obj_description(p.oid, 'pg_policy'), '')"
-    + ' ORDER BY p.polname) FROM pg_catalog.pg_policy p'
-    + ` WHERE p.polrelid = pg_catalog.to_regclass(${lit(`${q(schema)}.${q(name)}`)})),`
-    + ` ARRAY[]::text[]) = ${want}`;
+  return 'SELECT coalesce((SELECT coalesce(pg_catalog.array_agg('
+    + `p.polname || '|' || ${policyDeclaredHalfSql('p')}`
+    + ` ORDER BY p.polname), ARRAY[]::text[]) = ${want}`
+    + ` AND coalesce(pg_catalog.bool_and(${policyStoredLiveHalfSql('p')} = ${policyLiveDigestSql('p')}), true)`
+    + ' FROM pg_catalog.pg_policy p'
+    + ` WHERE p.polrelid = pg_catalog.to_regclass(${lit(`${q(schema)}.${q(name)}`)})), false)`;
+}
+
+/**
+ * Проставить комментарии-отпечатки на только что поставленные политики. Живую половину считает уже
+ * сам PostgreSQL, поэтому она пишется здесь, а не выводится генератором.
+ */
+function policyStampStatements(schema, name, declared) {
+  if (declared.length === 0) return [];
+  const qualified = `${q(schema)}.${q(name)}`;
+  return [
+    'DO $bcb$',
+    'DECLARE pr record;',
+    'BEGIN',
+    `  FOR pr IN SELECT v.name, v.declared, ${policyLiveDigestSql('pol')} AS live FROM (VALUES`,
+    declared.map(({ policyName, digest }) => `      (${lit(policyName)}, ${lit(digest)})`).join(',\n'),
+    '    ) AS v(name, declared)',
+    `    JOIN pg_catalog.pg_policy pol ON pol.polrelid = pg_catalog.to_regclass(${lit(qualified)})`,
+    '      AND pol.polname = v.name',
+    '    ORDER BY 1 LOOP',
+    `    EXECUTE pg_catalog.format('COMMENT ON POLICY %I ON ${qualified} IS %L', pr.name, pr.declared || ':' || pr.live);`,
+    '  END LOOP;',
+    'END',
+    '$bcb$;',
+  ];
 }
 
 function sortedKeys(obj) {
@@ -426,10 +505,26 @@ export function generatePortContextCapabilitySeedSql(declaration, dbName) {
     '  port = EXCLUDED.port, session_login = EXCLUDED.session_login, target_role = EXCLUDED.target_role,',
     '  context_class = EXCLUDED.context_class, purpose = EXCLUDED.purpose,',
     '  function_identity = EXCLUDED.function_identity, active_from = clock_timestamp(), active_until = NULL;',
-    'ALTER TABLE app_ext.port_context_capabilities',
-    '  DROP CONSTRAINT IF EXISTS port_context_capabilities_port_session_login_target_role_co_key;',
-    'ALTER TABLE app_ext.port_context_capabilities',
-    '  DROP CONSTRAINT IF EXISTS port_context_capabilities_authority_tuple_key;',
+    // `ALTER TABLE … DROP CONSTRAINT IF EXISTS` берёт ACCESS EXCLUSIVE даже когда ограничения
+    // давно нет, и держит его до COMMIT. Поэтому сначала смотрим каталог и трогаем таблицу, только
+    // если есть что снимать.
+    EXCLUSIVE_DDL_BEGIN,
+    'DO $bcb_capability_legacy_keys$',
+    'BEGIN',
+    '  IF EXISTS (',
+    '    SELECT 1 FROM pg_catalog.pg_constraint',
+    "    WHERE conrelid = pg_catalog.to_regclass('app_ext.port_context_capabilities')",
+    "      AND conname IN ('port_context_capabilities_port_session_login_target_role_co_key',",
+    "                      'port_context_capabilities_authority_tuple_key')",
+    '  ) THEN',
+    '    ALTER TABLE app_ext.port_context_capabilities',
+    '      DROP CONSTRAINT IF EXISTS port_context_capabilities_port_session_login_target_role_co_key;',
+    '    ALTER TABLE app_ext.port_context_capabilities',
+    '      DROP CONSTRAINT IF EXISTS port_context_capabilities_authority_tuple_key;',
+    '  END IF;',
+    'END',
+    '$bcb_capability_legacy_keys$;',
+    EXCLUSIVE_DDL_END,
     '',
   ].join('\n');
 }
@@ -2133,7 +2228,7 @@ export function generatePrivilegesSql(declaration, dbName, options = {}) {
         [
           `DROP POLICY IF EXISTS ${q(policyName)} ON ${qualified};`,
           `${privateStatement};`,
-          `COMMENT ON POLICY ${q(policyName)} ON ${qualified} IS ${lit(privateDigest)};`,
+          ...policyStampStatements(schema, name, [{ policyName, digest: privateDigest }]),
         ],
       ));
     }
@@ -2327,6 +2422,7 @@ export function generatePrivilegesSql(declaration, dbName, options = {}) {
     // постановка берут ACCESS EXCLUSIVE, поэтому на совпадении набора не делаем ни того, ни другого.
     const policyStatements = [];
     const policyFingerprints = [];
+    const declaredPolicyStamps = [];
     for (const policy of [...(table.policies ?? [])].sort((a, b) => a.name.localeCompare(b.name))) {
       const to = [...policy.to].sort().map((r) => (r === 'PUBLIC' ? 'PUBLIC' : q(r))).join(', ');
       let statement = `CREATE POLICY ${q(policy.name)} ON ${qualified} AS ${policy.as} FOR ${policy.cmd} TO ${to}`;
@@ -2334,9 +2430,10 @@ export function generatePrivilegesSql(declaration, dbName, options = {}) {
       if (policy.withCheck) statement += ` WITH CHECK (${policy.withCheck})`;
       const digest = policyDigest(statement);
       policyFingerprints.push(`${policy.name}|${digest}`);
+      declaredPolicyStamps.push({ policyName: policy.name, digest });
       policyStatements.push(`${statement};`);
-      policyStatements.push(`COMMENT ON POLICY ${q(policy.name)} ON ${qualified} IS ${lit(digest)};`);
     }
+    policyStatements.push(...policyStampStatements(schema, name, declaredPolicyStamps));
     out.push(...guardedExclusiveDdl(
       guardVariable('pol', schema, name),
       policySetProbe(schema, name, policyFingerprints),
