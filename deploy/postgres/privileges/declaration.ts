@@ -24730,6 +24730,7 @@ const TENANT_WALL_CROSSINGS: Readonly<Record<string, Readonly<Record<string, str
     'public.product_analytics_user_hourly': 'platform analytics history follows the canonical account globally after the clinic-owned blocker is approved',
     'public.program_item_discussion_reads': 'patient-owned discussion state follows the canonical account globally after the clinic-owned blocker is approved',
     'public.symptom_trackings': 'the door first rejects a medical blocker in every other organization, then moves the approved pair as one canonical account',
+    'public.user_channel_preferences': 'the exact pair is authorized by the current-clinic pending conflict; global delivery preferences then follow the canonical account',
     'public.user_web_push_subscriptions': 'patient devices follow the canonical account globally after the clinic-owned blocker is approved',
   },
   // Приглашение в персонал: строку находит неугадываемый `token_hash`, и человек, который его
@@ -29192,6 +29193,16 @@ const REV10_CONTEXT = {
       proconfig: ['search_path=pg_catalog'], relationSurfaces: [
         patientSurface('public.patient_merge_candidates', ['id', 'organization_id', 'anchor_user_id',
           'candidate_user_id', 'reason', 'status', 'resolved_at', 'resolved_by'], ['SELECT', 'UPDATE']),
+        patientSurface('public.user_password_credentials', ['user_id'], ['SELECT', 'UPDATE', 'DELETE']),
+        patientSurface('public.channel_link_secrets', ['user_id'], ['SELECT', 'UPDATE']),
+        patientSurface('public.email_challenges', ['user_id'], ['SELECT', 'UPDATE']),
+        patientSurface('public.user_oauth_bindings', ['user_id'], ['SELECT', 'UPDATE']),
+        patientSurface('public.email_send_cooldowns', ['user_id', 'email_normalized', 'last_sent_at'],
+          ['SELECT', 'INSERT', 'UPDATE', 'DELETE']),
+        patientSurface('public.login_tokens', ['user_id'], ['SELECT', 'DELETE']),
+        patientSurface('public.user_channel_preferences', ['user_id', 'platform_user_id', 'channel_code',
+          'is_enabled_for_messages', 'is_enabled_for_notifications', 'is_preferred_for_auth', 'updated_at'],
+          ['SELECT', 'UPDATE', 'DELETE']),
         ...[
           ['public.clinical_visit', 'patient_user_id'],
           ['public.clinical_complaint', 'patient_user_id'],

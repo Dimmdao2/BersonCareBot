@@ -67,29 +67,37 @@ function mapRow(row: typeof patientMergeCandidates.$inferSelect): PatientMergeCa
 export async function recordPatientMedicalMergeConflict(
   error: MergeDependentConflictError,
   source: 'projection' | 'phone_bind' | 'email_bind',
-): Promise<string> {
+): Promise<string | null> {
+  if (error.kind !== 'medical_history') return null;
   if (error.candidateIds.length !== 2) {
     throw new Error('Medical merge conflict is missing its account pair');
   }
   const [anchorUserId, candidateUserId] = error.candidateIds;
-  const result = await runWithDbBootstrapPrincipal(
-    { source: 'patient-medical-merge-conflict/record' },
-    () =>
-      runWebappNamedRoot<{ conflict_id: string }>(
-        getWebappSqlDb(),
-        'app.record_patient_medical_merge_conflict(uuid,uuid,uuid,text)',
-        [error.organizationId, anchorUserId, candidateUserId, source],
-        sql`SELECT app.record_patient_medical_merge_conflict(
-              ${error.organizationId}::uuid,
-              ${anchorUserId}::uuid,
-              ${candidateUserId}::uuid,
-              ${source}::text
-            )::text AS conflict_id`,
-      ),
-  );
-  const conflictId = result.rows[0]?.conflict_id;
-  if (!conflictId) throw new Error('Medical merge conflict was not recorded');
-  return conflictId;
+  const organizationIds = [
+    ...new Set(error.organizationIds.length > 0 ? error.organizationIds : [error.organizationId]),
+  ];
+  let firstConflictId: string | null = null;
+  for (const organizationId of organizationIds) {
+    const result = await runWithDbBootstrapPrincipal(
+      { source: 'patient-medical-merge-conflict/record' },
+      () =>
+        runWebappNamedRoot<{ conflict_id: string }>(
+          getWebappSqlDb(),
+          'app.record_patient_medical_merge_conflict(uuid,uuid,uuid,text)',
+          [organizationId, anchorUserId, candidateUserId, source],
+          sql`SELECT app.record_patient_medical_merge_conflict(
+                ${organizationId}::uuid,
+                ${anchorUserId}::uuid,
+                ${candidateUserId}::uuid,
+                ${source}::text
+              )::text AS conflict_id`,
+        ),
+    );
+    const conflictId = result.rows[0]?.conflict_id;
+    if (!conflictId) throw new Error('Medical merge conflict was not recorded');
+    firstConflictId ??= conflictId;
+  }
+  return firstConflictId;
 }
 
 export function createPgPatientMergeCandidatePort(): PatientMergeCandidatePort {

@@ -13,7 +13,10 @@ import {
   runWebappSql,
   type WebappSqlExecutor,
 } from '@/infra/db/runWebappSql';
-import { MergeConflictError } from '@/infra/repos/platformUserMergeErrors';
+import {
+  MergeConflictError,
+  MergeDependentConflictError,
+} from '@/infra/repos/platformUserMergeErrors';
 import {
   upsertIdentityProjection,
   collapseIdentityProjectionCandidates,
@@ -30,8 +33,9 @@ import {
   TrustedPatientPhoneSource,
   trustedPatientPhoneWriteAnchor,
 } from '@/modules/platform-access/trustedPhonePolicy';
-import type { PoolClient } from 'pg';
+import type { Pool, PoolClient } from 'pg';
 import { applyPlatformUserPhoneHistoryTransition } from '@/infra/repos/pgPhoneHistory';
+import { recordPatientMedicalMergeConflict } from '@/infra/repos/pgPatientMergeCandidate';
 import {
   findPlatformUserIdWithEmailConflict,
   findPlatformUserIdWithPhoneConflict,
@@ -63,13 +67,22 @@ class PatchAdminClientProfileNoRowsError extends Error {
  * implementation the integrator's `mergeCandidateIdsViaPlatformMerge` uses, not a parallel copy).
  */
 export async function mergeCanonicalPlatformUserCandidates(
-  client: PoolClient,
+  pool: Pool,
   candidateIds: string[],
   reason: 'projection' | 'phone_bind',
 ): Promise<string> {
   const uniq = [...new Set(candidateIds)].filter(Boolean);
   if (uniq.length === 0) throw new MergeConflictError('mergeCandidates: empty', candidateIds);
-  return collapseIdentityProjectionCandidates(client, uniq, reason);
+  try {
+    return await withPoolTransaction(pool, (client) =>
+      collapseIdentityProjectionCandidates(client, uniq, reason),
+    );
+  } catch (error) {
+    if (error instanceof MergeDependentConflictError) {
+      await recordPatientMedicalMergeConflict(error, 'projection');
+    }
+    throw error;
+  }
 }
 
 export const pgUserProjectionPort: UserProjectionPort = {

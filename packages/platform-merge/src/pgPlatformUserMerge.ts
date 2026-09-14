@@ -55,7 +55,7 @@ export type MergePlatformUsersOptions = {
  * is the only actor allowed to move a real history.
  */
 type MedicalHistoryRecord = {
-  automaticProbe?: (accountIds: readonly string[]) => SQL;
+  automaticProbe?: (accountId: string) => SQL;
   transfer: (targetId: string, duplicateId: string) => SQL[];
 };
 
@@ -66,50 +66,50 @@ type MedicalHistoryRecord = {
  */
 const MEDICAL_HISTORY_RECORDS: readonly MedicalHistoryRecord[] = [
   {
-    automaticProbe: (ids) =>
-      sql`SELECT organization_id FROM clinical_visit WHERE patient_user_id = ANY(${ids}::uuid[])`,
+    automaticProbe: (id) =>
+      sql`SELECT organization_id FROM clinical_visit WHERE patient_user_id = ${id}::uuid`,
     transfer: (targetId, duplicateId) => [
       sql`UPDATE clinical_visit SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
     ],
   },
   {
-    automaticProbe: (ids) =>
-      sql`SELECT organization_id FROM clinical_complaint WHERE patient_user_id = ANY(${ids}::uuid[])`,
+    automaticProbe: (id) =>
+      sql`SELECT organization_id FROM clinical_complaint WHERE patient_user_id = ${id}::uuid`,
     transfer: (targetId, duplicateId) => [
       sql`UPDATE clinical_complaint SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
     ],
   },
   {
-    automaticProbe: (ids) =>
-      sql`SELECT organization_id FROM clinical_diagnosis WHERE patient_user_id = ANY(${ids}::uuid[])`,
+    automaticProbe: (id) =>
+      sql`SELECT organization_id FROM clinical_diagnosis WHERE patient_user_id = ${id}::uuid`,
     transfer: (targetId, duplicateId) => [
       sql`UPDATE clinical_diagnosis SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
     ],
   },
   {
-    automaticProbe: (ids) =>
-      sql`SELECT organization_id FROM clinical_anamnesis_trauma WHERE patient_user_id = ANY(${ids}::uuid[])`,
+    automaticProbe: (id) =>
+      sql`SELECT organization_id FROM clinical_anamnesis_trauma WHERE patient_user_id = ${id}::uuid`,
     transfer: (targetId, duplicateId) => [
       sql`UPDATE clinical_anamnesis_trauma SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
     ],
   },
   {
-    automaticProbe: (ids) =>
-      sql`SELECT organization_id FROM clinical_anamnesis_illness WHERE patient_user_id = ANY(${ids}::uuid[])`,
+    automaticProbe: (id) =>
+      sql`SELECT organization_id FROM clinical_anamnesis_illness WHERE patient_user_id = ${id}::uuid`,
     transfer: (targetId, duplicateId) => [
       sql`UPDATE clinical_anamnesis_illness SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
     ],
   },
   {
-    automaticProbe: (ids) =>
-      sql`SELECT organization_id FROM clinical_anamnesis_lifestyle WHERE patient_user_id = ANY(${ids}::uuid[])`,
+    automaticProbe: (id) =>
+      sql`SELECT organization_id FROM clinical_anamnesis_lifestyle WHERE patient_user_id = ${id}::uuid`,
     transfer: (targetId, duplicateId) => [
       sql`UPDATE clinical_anamnesis_lifestyle SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
     ],
   },
   {
-    automaticProbe: (ids) =>
-      sql`SELECT organization_id FROM doctor_notes WHERE user_id = ANY(${ids}::uuid[])`,
+    automaticProbe: (id) =>
+      sql`SELECT organization_id FROM doctor_notes WHERE user_id = ${id}::uuid`,
     transfer: (targetId, duplicateId) => [
       sql`UPDATE doctor_notes SET user_id = ${targetId}::uuid WHERE user_id = ${duplicateId}::uuid`,
     ],
@@ -125,9 +125,9 @@ const MEDICAL_HISTORY_RECORDS: readonly MedicalHistoryRecord[] = [
     ],
   },
   {
-    automaticProbe: (ids) =>
+    automaticProbe: (id) =>
       sql`SELECT organization_id FROM treatment_program_instances
-          WHERE patient_user_id = ANY(${ids}::uuid[]) AND assignment_source = 'doctor'`,
+          WHERE patient_user_id = ${id}::uuid AND assignment_source = 'doctor'`,
     transfer: (targetId, duplicateId) => [
       sql`UPDATE treatment_program_instances SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
     ],
@@ -188,29 +188,26 @@ async function assertAutomaticMergeHasNoMedicalHistory(
   // список не входит вообще — у её записей automaticProbe нет, гейт её не касается. Разрешение врача
   // снимает только конфликт его организации; конфликт другой организации продолжает блокировать merge.
   const probesFor = (id: string) =>
-    MEDICAL_HISTORY_RECORDS.flatMap((record) => (record.automaticProbe ? [record.automaticProbe([id])] : []));
+    MEDICAL_HISTORY_RECORDS.flatMap((record) => (record.automaticProbe ? [record.automaticProbe(id)] : []));
   const result = await runMergeSql<{
     conflict_organization_id: string | null;
-    target_has: boolean;
-    duplicate_has: boolean;
   }>(
     client,
-    sql`SELECT DISTINCT target.organization_id AS conflict_organization_id,
-                         true AS target_has,
-                         true AS duplicate_has
+    sql`SELECT DISTINCT target.organization_id AS conflict_organization_id
           FROM (${sql.join(probesFor(targetId), sql` UNION ALL `)}) AS target(organization_id)
           JOIN (${sql.join(probesFor(duplicateId), sql` UNION ALL `)}) AS duplicate(organization_id)
             ON duplicate.organization_id IS NOT DISTINCT FROM target.organization_id
          WHERE ${approvedOrganizationId ?? null}::uuid IS NULL
             OR target.organization_id IS DISTINCT FROM ${approvedOrganizationId ?? null}::uuid
-         LIMIT 1`,
+         ORDER BY conflict_organization_id NULLS FIRST`,
   );
-  const conflict = result.rows[0];
-  if (conflict?.target_has && conflict.duplicate_has) {
+  if (result.rows.length > 0) {
+    const organizationIds = result.rows.map((row) => row.conflict_organization_id ?? null);
     throw new MergeDependentConflictError(
       'medical_history: automatic merge requires support; doctor review owns the organization conflict',
       [targetId, duplicateId],
-      conflict.conflict_organization_id ?? null,
+      organizationIds[0] ?? null,
+      { kind: 'medical_history', organizationIds },
     );
   }
 }
@@ -382,7 +379,7 @@ export async function mergePlatformUsersInTransaction(
        AND email.contact_kind = 'email' AND email.is_primary = true
      WHERE pu.id IN (${targetId}::uuid, ${duplicateId}::uuid)
      ORDER BY id
-     FOR UPDATE`,
+     FOR UPDATE OF pu`,
   );
   if (lockRes.rows.length !== 2) {
     throw new MergeConflictError('merge: target or duplicate platform_users row missing', [
@@ -431,7 +428,9 @@ export async function mergePlatformUsersInTransaction(
     ]);
   }
   await assertSharedPhoneGuard(client, targetId, duplicateId, pA, pB);
-  await assertAutoMergePasswordCredentialsSafe(client, targetId, duplicateId, reason);
+  if (!options?.medicalConflictApproval) {
+    await assertAutoMergePasswordCredentialsSafe(client, targetId, duplicateId, reason);
+  }
   await assertPatientBookingsSafeToMerge(client, targetId, duplicateId);
   await assertPatientLfkAssignmentsSafe(client, targetId, duplicateId);
   await reconcileActiveTreatmentProgramInstancesForMerge(client, targetId, duplicateId);
@@ -520,59 +519,63 @@ export async function mergePlatformUsersInTransaction(
     );
   }
 
-  if (manualResolution) {
-    await mergeOauthBindingsManual(client, targetId, duplicateId, manualResolution);
-  } else {
-    await mergeOauthBindingsAuto(client, targetId, duplicateId);
-  }
+  if (!options?.medicalConflictApproval) {
+    if (manualResolution) {
+      await mergeOauthBindingsManual(client, targetId, duplicateId, manualResolution);
+    } else {
+      await mergeOauthBindingsAuto(client, targetId, duplicateId);
+    }
 
-  await runMergeSql(
-    client,
-    sql`UPDATE channel_link_secrets SET user_id = ${targetId}::uuid WHERE user_id = ${duplicateId}::uuid`,
-  );
-  await runMergeSql(
-    client,
-    sql`UPDATE email_challenges SET user_id = ${targetId}::uuid WHERE user_id = ${duplicateId}::uuid`,
-  );
-
-  const pwTarget = await runMergeSql(
-    client,
-    sql`SELECT 1 FROM user_password_credentials WHERE user_id = ${targetId}::uuid LIMIT 1`,
-  );
-  const pwDup = await runMergeSql(
-    client,
-    sql`SELECT 1 FROM user_password_credentials WHERE user_id = ${duplicateId}::uuid LIMIT 1`,
-  );
-  if (pwTarget.rows.length === 0 && pwDup.rows.length > 0) {
     await runMergeSql(
       client,
-      sql`UPDATE user_password_credentials SET user_id = ${targetId}::uuid WHERE user_id = ${duplicateId}::uuid`,
+      sql`UPDATE channel_link_secrets SET user_id = ${targetId}::uuid WHERE user_id = ${duplicateId}::uuid`,
     );
-  } else {
     await runMergeSql(
       client,
-      sql`DELETE FROM user_password_credentials WHERE user_id = ${duplicateId}::uuid`,
+      sql`UPDATE email_challenges SET user_id = ${targetId}::uuid WHERE user_id = ${duplicateId}::uuid`,
     );
+
+    const pwTarget = await runMergeSql(
+      client,
+      sql`SELECT 1 FROM user_password_credentials WHERE user_id = ${targetId}::uuid LIMIT 1`,
+    );
+    const pwDup = await runMergeSql(
+      client,
+      sql`SELECT 1 FROM user_password_credentials WHERE user_id = ${duplicateId}::uuid LIMIT 1`,
+    );
+    if (pwTarget.rows.length === 0 && pwDup.rows.length > 0) {
+      await runMergeSql(
+        client,
+        sql`UPDATE user_password_credentials SET user_id = ${targetId}::uuid WHERE user_id = ${duplicateId}::uuid`,
+      );
+    } else {
+      await runMergeSql(
+        client,
+        sql`DELETE FROM user_password_credentials WHERE user_id = ${duplicateId}::uuid`,
+      );
+    }
+
+    await runMergeSql(
+      client,
+      sql`INSERT INTO email_send_cooldowns (user_id, email_normalized, last_sent_at)
+       SELECT ${targetId}::uuid, email_normalized, last_sent_at
+       FROM email_send_cooldowns WHERE user_id = ${duplicateId}::uuid
+       ON CONFLICT (user_id, email_normalized) DO UPDATE SET
+         last_sent_at = GREATEST(email_send_cooldowns.last_sent_at, EXCLUDED.last_sent_at)`,
+    );
+    await runMergeSql(client, sql`DELETE FROM email_send_cooldowns WHERE user_id = ${duplicateId}::uuid`);
+
+    await runMergeSql(client, sql`DELETE FROM login_tokens WHERE user_id = ${duplicateId}::uuid`);
   }
 
-  await runMergeSql(
-    client,
-    sql`INSERT INTO email_send_cooldowns (user_id, email_normalized, last_sent_at)
-     SELECT ${targetId}::uuid, email_normalized, last_sent_at
-     FROM email_send_cooldowns WHERE user_id = ${duplicateId}::uuid
-     ON CONFLICT (user_id, email_normalized) DO UPDATE SET
-       last_sent_at = GREATEST(email_send_cooldowns.last_sent_at, EXCLUDED.last_sent_at)`,
-  );
-  await runMergeSql(client, sql`DELETE FROM email_send_cooldowns WHERE user_id = ${duplicateId}::uuid`);
-
-  await runMergeSql(client, sql`DELETE FROM login_tokens WHERE user_id = ${duplicateId}::uuid`);
-
-  await mergeUserChannelPreferences(
-    client,
-    targetId,
-    duplicateId,
-    manualResolution?.channelPreferences ?? 'keep_newer',
-  );
+  if (!options?.medicalConflictApproval) {
+    await mergeUserChannelPreferences(
+      client,
+      targetId,
+      duplicateId,
+      manualResolution?.channelPreferences ?? 'keep_newer',
+    );
+  }
 
   if (!options?.medicalConflictApproval) {
     for (const sk of SINGLETON_SYMPTOM_KEYS) {

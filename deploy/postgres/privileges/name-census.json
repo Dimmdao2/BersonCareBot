@@ -53,6 +53,7 @@
     "app.transfer_staff_approved_platform_user_merge_data(uuid,uuid,uuid,uuid) -> public.product_analytics_user_hourly",
     "app.transfer_staff_approved_platform_user_merge_data(uuid,uuid,uuid,uuid) -> public.program_item_discussion_reads",
     "app.transfer_staff_approved_platform_user_merge_data(uuid,uuid,uuid,uuid) -> public.symptom_trackings",
+    "app.transfer_staff_approved_platform_user_merge_data(uuid,uuid,uuid,uuid) -> public.user_channel_preferences",
     "app.transfer_staff_approved_platform_user_merge_data(uuid,uuid,uuid,uuid) -> public.user_web_push_subscriptions"
   ],
   "integratorDoorsOnTheWebappTenantRole": [],

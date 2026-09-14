@@ -3,12 +3,17 @@ import {
   mergePlatformUsersInTransaction,
   type PlatformMergeDbClient,
 } from '../../../../packages/platform-merge/src/pgPlatformUserMerge';
+import { MergeDependentConflictError } from '../../../../packages/platform-merge/src/platformUserMergeErrors';
 import type { ManualMergeResolution } from '../../../../packages/platform-merge/src/manualMergeResolution';
 
 const targetId = '00000000-0000-4000-8000-000000000001';
 const duplicateId = '00000000-0000-4000-8000-000000000002';
+const organizationId = '00000000-0000-4000-8000-000000000010';
+const secondOrganizationId = '00000000-0000-4000-8000-000000000011';
 
-function clientWithMedicalHistory(): PlatformMergeDbClient & { query: ReturnType<typeof vi.fn> } {
+function clientWithMedicalHistory(
+  organizationIds: string[] = [organizationId],
+): PlatformMergeDbClient & { query: ReturnType<typeof vi.fn> } {
   return {
     query: vi.fn(async (query: string) => {
       if (query.includes('FOR UPDATE')) {
@@ -45,9 +50,10 @@ function clientWithMedicalHistory(): PlatformMergeDbClient & { query: ReturnType
           ],
         };
       }
-      if (query.includes('AS target_has')) {
-        // An appointment is one of the owner-defined history rows on BOTH sides — a real conflict.
-        return { rows: [{ target_has: true, duplicate_has: true }] };
+      if (query.includes('AS conflict_organization_id')) {
+        return {
+          rows: organizationIds.map((id) => ({ conflict_organization_id: id })),
+        };
       }
       return { rows: [] };
     }),
@@ -133,6 +139,21 @@ describe('automatic account merge medical-history gate', () => {
     await expect(
       mergePlatformUsersInTransaction(db, targetId, duplicateId, 'phone_bind'),
     ).rejects.toThrow('medical_history: automatic merge requires support');
+  });
+
+  it('reports every organization whose medical histories conflict so each doctor receives the blocker', async () => {
+    const merge = mergePlatformUsersInTransaction(
+      clientWithMedicalHistory([organizationId, secondOrganizationId]),
+      targetId,
+      duplicateId,
+      'phone_bind',
+    );
+
+    await expect(merge).rejects.toMatchObject<Partial<MergeDependentConflictError>>({
+      kind: 'medical_history',
+      organizationId,
+      organizationIds: [organizationId, secondOrganizationId],
+    });
   });
 
   it('does not reject when only the target side has qualifying history — owner 20.08 (final): block only on conflict (both sides), single-side history is the normal returning-patient case', async () => {

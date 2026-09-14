@@ -251,6 +251,7 @@ SET search_path = pg_catalog
 AS $function$
 DECLARE
   v_organization_id uuid := app.current_org_id();
+  v_password_credentials_count integer;
 BEGIN
   -- This door is called inside the already-installed staff relation transaction.  EXECUTE belongs
   -- only to app_staff; the current organization plus the exact pending row are the capability.
@@ -302,6 +303,77 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'medical_merge_blocked_by_another_organization' USING ERRCODE = 'P0001';
   END IF;
+
+  -- Identity/auth rows are deliberately inaccessible to app_staff. The same narrow door that
+  -- validates the exact doctor-owned conflict performs their part of the merge as its seam owner.
+  PERFORM 1
+    FROM public.user_password_credentials
+   WHERE user_id IN (p_target_user_id, p_duplicate_user_id)
+   ORDER BY user_id
+   FOR UPDATE;
+  SELECT count(*)::integer
+    INTO v_password_credentials_count
+    FROM public.user_password_credentials
+   WHERE user_id IN (p_target_user_id, p_duplicate_user_id);
+  IF v_password_credentials_count > 1 THEN
+    RAISE EXCEPTION 'merge_both_password_credentials' USING ERRCODE = 'P0001';
+  END IF;
+
+  UPDATE public.channel_link_secrets SET user_id = p_target_user_id
+   WHERE user_id = p_duplicate_user_id;
+  UPDATE public.email_challenges SET user_id = p_target_user_id
+   WHERE user_id = p_duplicate_user_id;
+  UPDATE public.user_oauth_bindings SET user_id = p_target_user_id
+   WHERE user_id = p_duplicate_user_id;
+
+  IF EXISTS (
+    SELECT 1 FROM public.user_password_credentials WHERE user_id = p_target_user_id
+  ) THEN
+    DELETE FROM public.user_password_credentials WHERE user_id = p_duplicate_user_id;
+  ELSE
+    UPDATE public.user_password_credentials SET user_id = p_target_user_id
+     WHERE user_id = p_duplicate_user_id;
+  END IF;
+
+  INSERT INTO public.email_send_cooldowns (user_id, email_normalized, last_sent_at)
+  SELECT p_target_user_id, email_normalized, last_sent_at
+    FROM public.email_send_cooldowns WHERE user_id = p_duplicate_user_id
+  ON CONFLICT (user_id, email_normalized) DO UPDATE SET
+    last_sent_at = GREATEST(public.email_send_cooldowns.last_sent_at, EXCLUDED.last_sent_at);
+  DELETE FROM public.email_send_cooldowns WHERE user_id = p_duplicate_user_id;
+  DELETE FROM public.login_tokens WHERE user_id = p_duplicate_user_id;
+
+  UPDATE public.user_channel_preferences AS target
+     SET is_enabled_for_messages = CASE
+           WHEN duplicate.updated_at > target.updated_at THEN duplicate.is_enabled_for_messages
+           ELSE target.is_enabled_for_messages
+         END,
+         is_enabled_for_notifications = CASE
+           WHEN duplicate.updated_at > target.updated_at THEN duplicate.is_enabled_for_notifications
+           ELSE target.is_enabled_for_notifications
+         END,
+         is_preferred_for_auth = CASE
+           WHEN target.is_preferred_for_auth AND duplicate.is_preferred_for_auth
+             THEN target.is_preferred_for_auth
+           WHEN duplicate.updated_at > target.updated_at THEN duplicate.is_preferred_for_auth
+           ELSE target.is_preferred_for_auth
+         END,
+         updated_at = GREATEST(target.updated_at, duplicate.updated_at),
+         platform_user_id = p_target_user_id
+    FROM public.user_channel_preferences duplicate
+   WHERE (target.user_id = p_target_user_id::text OR target.platform_user_id = p_target_user_id)
+     AND (duplicate.user_id = p_duplicate_user_id::text OR duplicate.platform_user_id = p_duplicate_user_id)
+     AND target.channel_code = duplicate.channel_code;
+  DELETE FROM public.user_channel_preferences duplicate
+   WHERE (duplicate.user_id = p_duplicate_user_id::text OR duplicate.platform_user_id = p_duplicate_user_id)
+     AND EXISTS (
+       SELECT 1 FROM public.user_channel_preferences target
+        WHERE (target.user_id = p_target_user_id::text OR target.platform_user_id = p_target_user_id)
+          AND target.channel_code = duplicate.channel_code
+     );
+  UPDATE public.user_channel_preferences
+     SET user_id = p_target_user_id::text, platform_user_id = p_target_user_id
+   WHERE user_id = p_duplicate_user_id::text OR platform_user_id = p_duplicate_user_id;
 
   UPDATE public.reminder_rules SET platform_user_id = p_target_user_id
    WHERE platform_user_id = p_duplicate_user_id;

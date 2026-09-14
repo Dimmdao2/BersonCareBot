@@ -14,10 +14,22 @@ export class MergeDependentConflictError extends Error {
   readonly code = 'MergeDependentConflictError' as const;
   readonly candidateIds: string[];
   readonly organizationId: string | null;
-  constructor(message: string, candidateIds?: string[], organizationId?: string | null) {
+  readonly organizationIds: (string | null)[];
+  readonly kind: 'medical_history' | 'merge_dependency';
+  constructor(
+    message: string,
+    candidateIds?: string[],
+    organizationId?: string | null,
+    options?: {
+      organizationIds?: (string | null)[];
+      kind?: 'medical_history' | 'merge_dependency';
+    },
+  ) {
     super(message);
     this.name = 'MergeDependentConflictError';
     this.candidateIds = candidateIds ?? [];
     this.organizationId = organizationId ?? null;
+    this.organizationIds = options?.organizationIds ?? [];
+    this.kind = options?.kind ?? 'merge_dependency';
   }
 }

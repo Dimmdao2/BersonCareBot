@@ -58,21 +58,28 @@ export type MessengerBindAuditTargetRow = {
   label: string;
 };
 
-/** Parse `messenger_phone_bind_blocked` / `_anomaly` enriched `details.candidates` for admin tables. */
+/** Parse a pair that the platform administrator can open in the account-merge console. */
 export function parseMessengerPhoneBindAuditTargets(
   details: Record<string, unknown> | null | undefined,
 ): MessengerBindAuditTargetRow[] | null {
   if (!details || typeof details !== 'object') return null;
   const raw = details.candidates;
-  if (!Array.isArray(raw) || raw.length === 0) return null;
   const rows: MessengerBindAuditTargetRow[] = [];
-  for (const item of raw) {
-    if (!item || typeof item !== 'object') continue;
-    const rec = item as Record<string, unknown>;
-    const id = typeof rec.platformUserId === 'string' ? rec.platformUserId.trim() : '';
-    if (!id) continue;
-    const dn = typeof rec.displayName === 'string' ? rec.displayName.trim() : '';
-    rows.push({ platformUserId: id, label: dn.length > 0 ? dn : id });
+  if (Array.isArray(raw)) {
+    for (const item of raw) {
+      if (!item || typeof item !== 'object') continue;
+      const rec = item as Record<string, unknown>;
+      const id = typeof rec.platformUserId === 'string' ? rec.platformUserId.trim() : '';
+      if (!id) continue;
+      const dn = typeof rec.displayName === 'string' ? rec.displayName.trim() : '';
+      rows.push({ platformUserId: id, label: dn.length > 0 ? dn : id });
+    }
+  }
+  if (rows.length === 0 && Array.isArray(details.candidateIds)) {
+    for (const item of details.candidateIds) {
+      const id = typeof item === 'string' ? item.trim() : '';
+      if (id) rows.push({ platformUserId: id, label: id });
+    }
   }
   if (rows.length === 0) return null;
   rows.sort((a, b) => a.platformUserId.localeCompare(b.platformUserId));
@@ -109,5 +116,9 @@ export function parseMessengerPhoneBindAuditInitiator(
 }
 
 export function isMessengerPhoneBindAuditAction(action: string): boolean {
-  return action === 'messenger_phone_bind_blocked' || action === 'messenger_phone_bind_anomaly';
+  return (
+    action === 'messenger_phone_bind_blocked' ||
+    action === 'messenger_phone_bind_anomaly' ||
+    action === 'auto_merge_conflict'
+  );
 }

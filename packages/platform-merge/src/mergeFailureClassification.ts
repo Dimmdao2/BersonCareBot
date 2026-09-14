@@ -36,7 +36,7 @@ export function classifyMergeFailure(
 
   if (err instanceof MergeDependentConflictError) {
     const msg = err.message;
-    if (msg.includes('medical_history:')) {
+    if (err.kind === 'medical_history') {
       return { code: 'merge_blocked_medical_history_support_required', candidateIds: idsFromErr };
     }
     if (msg.includes('patient_bookings: overlapping')) {
