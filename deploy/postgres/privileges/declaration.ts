@@ -14090,6 +14090,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "created_at",
           "description",
           "display_name",
+          "full_description_markdown",
           "is_published",
           "logo_media_id",
           "organization_id",

@@ -13234,7 +13234,7 @@ GRANT SELECT ("organization_id", "slug") ON TABLE "public"."clinic_public_direct
 GRANT SELECT ("is_published", "organization_id", "slug") ON TABLE "public"."clinic_public_directory_entries" TO "app_seam_public_slug_owner";
 GRANT INSERT ("created_at", "display_name", "is_published", "organization_id", "published_at", "slug", "updated_at") ON TABLE "public"."clinic_public_directory_entries" TO "app_seam_specialist_provision_owner";
 GRANT SELECT ON TABLE "public"."clinic_public_directory_entries" TO "app_staff";
-GRANT INSERT ("card_is_published", "created_at", "description", "display_name", "is_published", "logo_media_id", "organization_id", "photo_media_ids", "public_contact_email", "public_contact_phone", "public_website_url", "published_at", "slug", "updated_at") ON TABLE "public"."clinic_public_directory_entries" TO "app_staff";
+GRANT INSERT ("card_is_published", "created_at", "description", "display_name", "full_description_markdown", "is_published", "logo_media_id", "organization_id", "photo_media_ids", "public_contact_email", "public_contact_phone", "public_website_url", "published_at", "slug", "updated_at") ON TABLE "public"."clinic_public_directory_entries" TO "app_staff";
 GRANT UPDATE ("slug", "updated_at") ON TABLE "public"."clinic_public_directory_entries" TO "app_staff";
 -- последовательности public.clinic_public_directory_entries: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
