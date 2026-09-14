@@ -128,32 +128,44 @@ export function createPgPasswordLoginProtectionPort(): PasswordLoginProtectionPo
       };
     },
 
+    // Задачка-капча — часть той же защиты от перебора, и её двери тоже пред-сессионные. Их
+    // забыли в первой правке, и экран смены пароля падал ровно там, где защита и нужна: как
+    // только попыток стало много и потребовалась капча. Найдено независимым аудитом 14.09,
+    // живьём: `Missing unique declared webapp port capability`.
     async readAltchaRootSecret() {
-      const result = await runWebappNamedRoot<{ secret: string | null }>(
-        getWebappSqlDb(),
-        'app.password_login_read_altcha_secret()',
-        [],
-        sql`SELECT app.password_login_read_altcha_secret() AS secret`,
+      const result = await runWithDbBootstrapPrincipal(
+        { source: 'password-login-protection/altcha-secret' },
+        () =>
+          runWebappNamedRoot<{ secret: string | null }>(
+            getWebappSqlDb(),
+            'app.password_login_read_altcha_secret()',
+            [],
+            sql`SELECT app.password_login_read_altcha_secret() AS secret`,
+          ),
       );
       return result.rows[0]?.secret ?? null;
     },
 
     async registerAltchaChallenge(params) {
-      const result = await runWebappNamedRoot<{ issued: boolean }>(
-        getWebappSqlDb(),
-        'app.password_login_issue_altcha_challenge(text,uuid,text,timestamp with time zone)',
-        [
-          params.emailNormalized,
-          params.challengeId,
-          params.challengeDigest,
-          params.expiresAt,
-        ],
-        sql`SELECT app.password_login_issue_altcha_challenge(
+      const result = await runWithDbBootstrapPrincipal(
+        { source: 'password-login-protection/altcha-challenge' },
+        () =>
+          runWebappNamedRoot<{ issued: boolean }>(
+            getWebappSqlDb(),
+            'app.password_login_issue_altcha_challenge(text,uuid,text,timestamp with time zone)',
+            [
+              params.emailNormalized,
+              params.challengeId,
+              params.challengeDigest,
+              params.expiresAt,
+            ],
+            sql`SELECT app.password_login_issue_altcha_challenge(
            ${params.emailNormalized},
            ${params.challengeId}::uuid,
            ${params.challengeDigest},
            ${params.expiresAt.toISOString()}::timestamptz
          ) AS issued`,
+          ),
       );
       return result.rows[0]?.issued === true;
     },
