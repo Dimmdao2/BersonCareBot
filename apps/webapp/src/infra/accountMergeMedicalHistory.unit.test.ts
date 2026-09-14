@@ -9,7 +9,9 @@ const targetId = '00000000-0000-4000-8000-000000000001';
 const duplicateId = '00000000-0000-4000-8000-000000000002';
 const organizationId = '00000000-0000-4000-8000-0000000000aa';
 
-function clientWithMedicalHistory(): PlatformMergeDbClient & { query: ReturnType<typeof vi.fn> } {
+function clientWithMedicalHistory(
+  conflictOrganizationId: string | null = organizationId,
+): PlatformMergeDbClient & { query: ReturnType<typeof vi.fn> } {
   return {
     query: vi.fn(async (query: string) => {
       if (query.includes('FOR UPDATE')) {
@@ -48,7 +50,7 @@ function clientWithMedicalHistory(): PlatformMergeDbClient & { query: ReturnType
       }
       if (query.includes('AS conflict_organization_id')) {
         // Записи есть у обеих сторон И в одной организации — настоящий конфликт (канон §18).
-        return { rows: [{ conflict_organization_id: organizationId }] };
+        return { rows: [{ conflict_organization_id: conflictOrganizationId }] };
       }
       return { rows: [] };
     }),
@@ -171,18 +173,12 @@ describe('automatic account merge medical-history gate', () => {
     ).resolves.not.toThrow();
   });
 
-  it('asks the database for an organization-scoped intersection, not for two independent EXISTS', async () => {
-    // Гейт обязан спрашивать именно пересечение по организации: пара независимых «есть ли история»
-    // не различает две клиники и одну, а канон §18 различает.
-    const db = clientWithMedicalHistory();
+  it('rejects when both sides have qualifying history with no attributed organization', async () => {
+    const db = clientWithMedicalHistory(null);
+
     await expect(
       mergePlatformUsersInTransaction(db, targetId, duplicateId, 'phone_bind'),
-    ).rejects.toThrow();
-    const asked = db.query.mock.calls.map(([query]) => String(query));
-    const gate = asked.find((query) => query.includes('conflict_organization_id'));
-    expect(gate).toBeDefined();
-    expect(gate).toContain('IS NOT DISTINCT FROM');
-    expect(asked.some((query) => query.includes('target_has'))).toBe(false);
+    ).rejects.toThrow('medical_history: automatic merge requires support');
   });
 
   it('does not reject when only the duplicate side has qualifying history — same rule, other side', async () => {
@@ -194,6 +190,32 @@ describe('automatic account merge medical-history gate', () => {
         'phone_bind',
       ),
     ).resolves.not.toThrow();
+  });
+
+  it('allows appointment-only accounts to merge and transfers their bookings', async () => {
+    let bookingOwner = duplicateId;
+    const db = {
+      query: vi.fn(async (query: string, values?: unknown[]) => {
+        if (query.includes('FROM platform_users') && query.includes('FOR UPDATE')) {
+          return {
+            rows: [
+              platformUserRow(targetId, 'Appointment target'),
+              platformUserRow(duplicateId, 'Appointment duplicate'),
+            ],
+          };
+        }
+        if (query.includes('AS conflict_organization_id')) return { rows: [] };
+        if (query.includes('UPDATE patient_bookings SET platform_user_id')) {
+          const [nextOwner, previousOwner] = values ?? [];
+          if (bookingOwner === previousOwner) bookingOwner = String(nextOwner);
+        }
+        return { rows: [] };
+      }),
+    } as unknown as PlatformMergeDbClient;
+
+    await mergePlatformUsersInTransaction(db, targetId, duplicateId, 'phone_bind');
+
+    expect(bookingOwner).toBe(targetId);
   });
 });
 
@@ -211,6 +233,9 @@ describe('support account merge', () => {
               platformUserRow(newAccountId, 'New account'),
             ],
           };
+        }
+        if (query.includes('AS conflict_organization_id')) {
+          return { rows: [{ conflict_organization_id: organizationId }] };
         }
         if (query.includes('UPDATE clinical_visit SET patient_user_id')) {
           const [nextOwner, previousOwner] = values ?? [];

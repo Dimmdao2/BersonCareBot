@@ -41,91 +41,123 @@ export type MergePlatformUsersOptions = {
   mergeContext?: MergePlatformUsersContext;
 };
 
-/**
- * Owner rule D26 §5.2: automatic merge is only safe for an account with no
- * clinical history.  Manual support merge is intentionally excluded: support
- * is the only actor allowed to move a real history.
- */
-type MedicalHistoryRecord = {
-  automaticProbe?: (accountIds: readonly string[]) => SQL;
+/** Canon §18: only medical history on both accounts in the same organization blocks auto-merge. */
+type MergeTransferRecord = {
+  prepareTransfer?: (
+    client: PlatformMergeDbClient,
+    targetId: string,
+    duplicateId: string,
+  ) => Promise<void>;
   transfer: (targetId: string, duplicateId: string) => SQL[];
 };
 
+type BlockingMedicalHistoryRecord = MergeTransferRecord & {
+  automaticProbe: (accountIds: readonly string[]) => SQL;
+};
+
+type NonBlockingMergeRecord = MergeTransferRecord & {
+  automaticProbe?: never;
+};
+
 /**
- * D26 §5.2 / §5.8: one definition of patient medical history. Automatic merges
- * probe every applicable row for both accounts; manual support merges transfer
- * the same rows (plus the clinic link that makes the history reachable).
+ * Every record in this list is medical by construction: omitting its probe is a type error.
+ * Non-blocking history lives in the separately typed transfer-only list below.
  */
-const MEDICAL_HISTORY_RECORDS: readonly MedicalHistoryRecord[] = [
+const MEDICAL_HISTORY_RECORDS = [
   {
     automaticProbe: (ids) =>
-sql`SELECT organization_id FROM clinical_visit WHERE patient_user_id = ANY(${ids}::uuid[])`,
+      sql`SELECT organization_id FROM clinical_visit WHERE patient_user_id = ANY(${ids}::uuid[])`,
     transfer: (targetId, duplicateId) => [
       sql`UPDATE clinical_visit SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
     ],
   },
   {
     automaticProbe: (ids) =>
-sql`SELECT organization_id FROM clinical_complaint WHERE patient_user_id = ANY(${ids}::uuid[])`,
+      sql`SELECT organization_id FROM clinical_complaint WHERE patient_user_id = ANY(${ids}::uuid[])`,
     transfer: (targetId, duplicateId) => [
       sql`UPDATE clinical_complaint SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
     ],
   },
   {
     automaticProbe: (ids) =>
-sql`SELECT organization_id FROM clinical_diagnosis WHERE patient_user_id = ANY(${ids}::uuid[])`,
+      sql`SELECT organization_id FROM clinical_diagnosis WHERE patient_user_id = ANY(${ids}::uuid[])`,
     transfer: (targetId, duplicateId) => [
       sql`UPDATE clinical_diagnosis SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
     ],
   },
   {
     automaticProbe: (ids) =>
-sql`SELECT organization_id FROM clinical_anamnesis_trauma WHERE patient_user_id = ANY(${ids}::uuid[])`,
+      sql`SELECT organization_id FROM clinical_anamnesis_trauma WHERE patient_user_id = ANY(${ids}::uuid[])`,
     transfer: (targetId, duplicateId) => [
       sql`UPDATE clinical_anamnesis_trauma SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
     ],
   },
   {
     automaticProbe: (ids) =>
-sql`SELECT organization_id FROM clinical_anamnesis_illness WHERE patient_user_id = ANY(${ids}::uuid[])`,
+      sql`SELECT organization_id FROM clinical_anamnesis_illness WHERE patient_user_id = ANY(${ids}::uuid[])`,
     transfer: (targetId, duplicateId) => [
       sql`UPDATE clinical_anamnesis_illness SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
     ],
   },
   {
     automaticProbe: (ids) =>
-sql`SELECT organization_id FROM clinical_anamnesis_lifestyle WHERE patient_user_id = ANY(${ids}::uuid[])`,
+      sql`SELECT organization_id FROM clinical_anamnesis_lifestyle WHERE patient_user_id = ANY(${ids}::uuid[])`,
     transfer: (targetId, duplicateId) => [
       sql`UPDATE clinical_anamnesis_lifestyle SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
     ],
   },
   {
     automaticProbe: (ids) =>
-sql`SELECT organization_id FROM doctor_notes WHERE user_id = ANY(${ids}::uuid[])`,
+      sql`SELECT organization_id FROM doctor_notes WHERE user_id = ANY(${ids}::uuid[])`,
     transfer: (targetId, duplicateId) => [
       sql`UPDATE doctor_notes SET user_id = ${targetId}::uuid WHERE user_id = ${duplicateId}::uuid`,
     ],
   },
   {
     automaticProbe: (ids) =>
-sql`SELECT organization_id FROM patient_bookings WHERE platform_user_id = ANY(${ids}::uuid[])`,
+      sql`SELECT organization_id FROM symptom_trackings
+          WHERE (platform_user_id = ANY(${ids}::uuid[]) OR user_id = ANY(${ids}::text[]))
+            AND deleted_at IS NULL
+            AND (symptom_key IS NULL OR symptom_key NOT IN ('general_wellbeing', 'warmup_feeling'))`,
+    prepareTransfer: async (client, targetId, duplicateId) => {
+      for (const symptomKey of SINGLETON_SYMPTOM_KEYS) {
+        await dedupeSingletonSymptomTrackingsForMerge(client, targetId, duplicateId, symptomKey);
+      }
+    },
+    transfer: (targetId, duplicateId) => [
+      sql`UPDATE symptom_trackings SET user_id = ${targetId}::text, platform_user_id = ${targetId}::uuid
+          WHERE user_id = ${duplicateId}::text OR platform_user_id = ${duplicateId}::uuid`,
+      sql`UPDATE symptom_entries SET user_id = ${targetId}::text, platform_user_id = ${targetId}::uuid
+          WHERE user_id = ${duplicateId}::text OR platform_user_id = ${duplicateId}::uuid`,
+    ],
+  },
+  {
+    automaticProbe: (ids) =>
+      sql`SELECT organization_id FROM patient_lfk_assignments WHERE patient_user_id = ANY(${ids}::uuid[])`,
+    transfer: (targetId, duplicateId) => [
+      sql`UPDATE patient_lfk_assignments SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
+    ],
+  },
+  {
+    automaticProbe: (ids) =>
+      sql`SELECT organization_id FROM treatment_program_instances
+          WHERE patient_user_id = ANY(${ids}::uuid[]) AND assignment_source = 'doctor'`,
+    transfer: (targetId, duplicateId) => [
+      sql`UPDATE treatment_program_instances SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
+    ],
+  },
+] satisfies readonly BlockingMedicalHistoryRecord[];
+
+const NON_BLOCKING_MERGE_RECORDS = [
+  // Appointment history never blocks (canon §18), but both appointment stores are transferred.
+  {
     transfer: (targetId, duplicateId) => [
       sql`UPDATE patient_bookings SET platform_user_id = ${targetId}::uuid WHERE platform_user_id = ${duplicateId}::uuid`,
     ],
   },
   {
-    automaticProbe: (ids) =>
-sql`SELECT organization_id FROM be_appointments WHERE platform_user_id = ANY(${ids}::uuid[])`,
     transfer: (targetId, duplicateId) => [
       sql`UPDATE be_appointments SET platform_user_id = ${targetId}::uuid WHERE platform_user_id = ${duplicateId}::uuid`,
-    ],
-  },
-  {
-    automaticProbe: (ids) =>
-sql`SELECT organization_id FROM treatment_program_instances
-          WHERE patient_user_id = ANY(${ids}::uuid[]) AND assignment_source = 'doctor'`,
-    transfer: (targetId, duplicateId) => [
-      sql`UPDATE treatment_program_instances SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
     ],
   },
   {
@@ -166,6 +198,11 @@ sql`SELECT organization_id FROM treatment_program_instances
       sql`UPDATE patient_specialist_links SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
     ],
   },
+] satisfies readonly NonBlockingMergeRecord[];
+
+const MERGE_TRANSFER_RECORDS: readonly MergeTransferRecord[] = [
+  ...MEDICAL_HISTORY_RECORDS,
+  ...NON_BLOCKING_MERGE_RECORDS,
 ];
 
 async function assertAutomaticMergeHasNoMedicalHistory(
@@ -174,13 +211,13 @@ async function assertAutomaticMergeHasNoMedicalHistory(
   duplicateId: string,
 ): Promise<void> {
   // Канон §18: блокирует ТОЛЬКО конфликт медицинских данных ВНУТРИ ОДНОЙ организации — когда
-  // квалифицирующие записи (визиты, записи/приёмы, мед.карточки, назначенные врачом программы — записи
-  // ниже с automaticProbe) есть у ОБЕИХ сторон пары и относятся к ОДНОЙ И ТОЙ ЖЕ клинике. Данные в
+  // квалифицирующие записи (медкарточка, заметки, назначенные упражнения/программы и отслеживание
+  // симптомов) есть у ОБЕИХ сторон пары и относятся к ОДНОЙ И ТОЙ ЖЕ клинике. Данные в
   // РАЗНЫХ организациях слиянию не мешают вовсе: у одного человека спокойно живут две клиники со
   // своими назначениями, это нормальное состояние, а не конфликт. Данные только на одной стороне не
-  // блокировали и раньше — вернувшийся пациент добавляет новый канал. Переписка (чат/обсуждения) в
-  // список не входит вообще: у её записей automaticProbe нет, гейт её не касается, она переносится
-  // безусловно.
+  // блокировали и раньше — вернувшийся пациент добавляет новый канал. Записи на приём, переписка,
+  // самочувствие и разминки лежат только в transfer-only категории: гейт их не касается, перенос
+  // остаётся безусловным.
   //
   // `IS NOT DISTINCT FROM`, а не обычное равенство: у части клинических таблиц `organization_id`
   // допускает NULL (строки одноарендной эпохи). NULL против NULL при обычном сравнении дал бы «не
@@ -188,7 +225,7 @@ async function assertAutomaticMergeHasNoMedicalHistory(
   // права расширяться от того, что данных о клинике не хватает, поэтому NULL считается совпадающим с
   // NULL и такая пара по-прежнему блокируется.
   const probesFor = (id: string) =>
-    MEDICAL_HISTORY_RECORDS.flatMap((record) => (record.automaticProbe ? [record.automaticProbe([id])] : []));
+    MEDICAL_HISTORY_RECORDS.map((record) => record.automaticProbe([id]));
   const result = await runMergeSql<{ conflict_organization_id: string | null }>(
     client,
     sql`SELECT DISTINCT target.organization_id AS conflict_organization_id
@@ -205,12 +242,13 @@ async function assertAutomaticMergeHasNoMedicalHistory(
   }
 }
 
-async function transferMedicalHistoryForMerge(
+async function transferMergeRecords(
   client: PlatformMergeDbClient,
   targetId: string,
   duplicateId: string,
 ): Promise<void> {
-  for (const record of MEDICAL_HISTORY_RECORDS) {
+  for (const record of MERGE_TRANSFER_RECORDS) {
+    await record.prepareTransfer?.(client, targetId, duplicateId);
     for (const transfer of record.transfer(targetId, duplicateId)) {
       await runMergeSql(client, transfer);
     }
@@ -469,7 +507,7 @@ export async function mergePlatformUsersInTransaction(
     client,
     sql`UPDATE content_access_grants_webapp SET platform_user_id = ${targetId}::uuid WHERE platform_user_id = ${duplicateId}::uuid`,
   );
-  await transferMedicalHistoryForMerge(client, targetId, duplicateId);
+  await transferMergeRecords(client, targetId, duplicateId);
   await runMergeSql(
     client,
     sql`UPDATE user_phone_history SET platform_user_id = ${targetId}::uuid WHERE platform_user_id = ${duplicateId}::uuid`,
@@ -477,11 +515,6 @@ export async function mergePlatformUsersInTransaction(
   await runMergeSql(
     client,
     sql`UPDATE online_intake_requests SET user_id = ${targetId}::uuid WHERE user_id = ${duplicateId}::uuid`,
-  );
-
-  await runMergeSql(
-    client,
-    sql`UPDATE patient_lfk_assignments SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
   );
 
   if (manualResolution) {
@@ -538,21 +571,6 @@ export async function mergePlatformUsersInTransaction(
     manualResolution?.channelPreferences ?? 'keep_newer',
   );
 
-  for (const sk of SINGLETON_SYMPTOM_KEYS) {
-    await dedupeSingletonSymptomTrackingsForMerge(client, targetId, duplicateId, sk);
-  }
-
-  // PG cannot infer one type for the same $n used as both ::text and ::uuid — use distinct placeholders.
-  await runMergeSql(
-    client,
-    sql`UPDATE symptom_trackings SET user_id = ${targetId}::text, platform_user_id = ${targetId}::uuid
-     WHERE user_id = ${duplicateId}::text OR platform_user_id = ${duplicateId}::uuid`,
-  );
-  await runMergeSql(
-    client,
-    sql`UPDATE symptom_entries SET user_id = ${targetId}::text, platform_user_id = ${targetId}::uuid
-     WHERE user_id = ${duplicateId}::text OR platform_user_id = ${duplicateId}::uuid`,
-  );
   await runMergeSql(
     client,
     sql`UPDATE lfk_complexes SET user_id = ${targetId}::text, platform_user_id = ${targetId}::uuid
