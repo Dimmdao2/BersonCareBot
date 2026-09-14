@@ -145,18 +145,7 @@ export function DoctorStatCard({
       ) : null}
     </div>
   );
-  // На квадратной плитке (три КПИ в ряд на телефоне) шеврон едет в одной строке с числом, а не в
-  // отдельной колонке справа: подпись здесь обязана владеть всей шириной — см. комментарий выше.
-  // Колонка под шеврон отнимала у неё 24 пикселя, и «Сообщения» теряли последнюю букву.
-  const metricRow =
-    opensDetails && isStacked ? (
-      <div className="flex w-full min-w-0 items-center justify-between gap-2">
-        {metric}
-        <ChevronRight className={doctorStatCardChevronClass} aria-hidden />
-      </div>
-    ) : (
-      metric
-    );
+  const metricRow = metric;
   const inner = valuePlacement === 'side-center' ? (
     <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] grid-rows-[auto_auto] items-start gap-x-1.5">
       <div className="col-start-1 row-start-1">{label}</div>
@@ -189,11 +178,27 @@ export function DoctorStatCard({
       ) : null}
     </div>
   );
-  const content = opensDetails && !isStacked ? (
-    <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
-      <div className="min-w-0">{inner}</div>
-      <ChevronRight className={doctorStatCardChevronClass} aria-hidden />
-    </div>
+  // Владелец 14.09: «сдвинь галочку правую ближе к краю и вертикально по центру» — на квадратной
+  // плитке (isStacked, три КПИ в ряд на телефоне) подпись по-прежнему обязана владеть всей
+  // шириной (см. `metricRow` выше — отдельная колонка под шеврон отнимала 24px и «Сообщения»
+  // теряли последнюю букву), поэтому здесь шеврон не в grid-колонке, а наложен абсолютным
+  // позиционированием поверх правого паддинга карточки — по высоте он центрируется относительно
+  // ВСЕЙ карточки (подпись + число), а не по строке числа.
+  const content = opensDetails ? (
+    isStacked ? (
+      <div className="relative w-full min-w-0">
+        {inner}
+        <ChevronRight
+          className={cn(doctorStatCardChevronClass, 'absolute right-0 top-1/2 -translate-y-1/2')}
+          aria-hidden
+        />
+      </div>
+    ) : (
+      <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+        <div className="min-w-0">{inner}</div>
+        <ChevronRight className={doctorStatCardChevronClass} aria-hidden />
+      </div>
+    )
   ) : (
     inner
   );

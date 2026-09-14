@@ -332,6 +332,7 @@ export function DoctorModal({
     isFullscreenText && isMobile && open,
   );
   const [rightSheetWidth, setRightSheetWidth] = useState<string | null>(null);
+  const [rightSheetInset, setRightSheetInset] = useState<number | null>(null);
   const [footerSlotElement, setFooterSlotElement] = useState<HTMLDivElement | null>(null);
   const [hasSlottedFooter, setHasSlottedFooter] = useState(false);
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -356,6 +357,15 @@ export function DoctorModal({
       const widthRatio = isWideDesktop ? 0.5 : 0.45;
       const nextWidth = `calc(${rect.width * widthRatio}px + 0.375rem)`;
       setRightSheetWidth((current) => (current === nextWidth ? current : nextWidth));
+      // Владелец 14.09: «правая панель вылезает далековато и закрывает пробел между правой
+      // и левой частью экрана». Пикселем это оказался `right: 0` — панель садится вплотную
+      // к правому краю ВЬЮПОРТА, а не контейнера страницы (`max-w-7xl`, центрированного):
+      // на широких экранах между концом контейнера и краем окна есть собственный отступ, и
+      // панель, растягиваясь до самого края окна, заезжает в контент ровно на этот же отступ
+      // глубже, чем нужно — визуально садится вплотную на правую панель дашборда без зазора.
+      // Держим правый край панели там же, где кончается контейнер страницы, а не у края окна.
+      const nextInset = Math.max(0, window.innerWidth - rect.right);
+      setRightSheetInset((current) => (current === nextInset ? current : nextInset));
     };
 
     updateGeometry();
@@ -576,7 +586,7 @@ export function DoctorModal({
             style={{
               top: 'var(--doctor-page-header-h, 2.75rem)',
               height: 'calc(100dvh - var(--doctor-page-header-h, 2.75rem))',
-              right: 0,
+              right: rightSheetInset ?? 0,
               width:
                 rightSheetWidth ??
                 (isWideDesktop ? 'calc(50vw + 0.375rem)' : 'calc(45vw + 0.375rem)'),
