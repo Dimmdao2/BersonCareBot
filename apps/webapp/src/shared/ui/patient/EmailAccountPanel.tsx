@@ -7,6 +7,8 @@ import { Input } from '@/shared/ui/patient/primitives/input';
 import { OtpCodeForm } from '@/shared/ui/patient/auth/OtpCodeForm';
 import { cn } from '@/lib/utils';
 import { patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
+import { AccountMergeConfirmation } from '@/shared/ui/patient/auth/AccountMergeConfirmation';
+import type { HumanMergePrompt } from '@bersoncare/platform-merge';
 
 const PATIENT_EMAIL_INPUT_ID = 'patient-email-panel-address';
 
@@ -37,12 +39,17 @@ export function EmailAccountPanel({
   layout = 'default',
 }: Props) {
   const router = useRouter();
-  const [emailStep, setEmailStep] = useState<'view' | 'enter' | 'code' | 'adminCode'>('view');
+  const [emailStep, setEmailStep] = useState<'view' | 'enter' | 'code' | 'adminCode' | 'merge'>('view');
   const [emailDraft, setEmailDraft] = useState('');
   const [emailChallengeId, setEmailChallengeId] = useState<string | null>(null);
   const [emailRetrySec, setEmailRetrySec] = useState(60);
   const [emailStartError, setEmailStartError] = useState<string | null>(null);
   const [emailStartPending, setEmailStartPending] = useState(false);
+  const [mergeRequest, setMergeRequest] = useState<{
+    prompt: HumanMergePrompt;
+    endpoint: '/api/auth/email/confirm' | '/api/patient/email-change/confirm';
+    body: { code: string; challengeId?: string };
+  } | null>(null);
 
   const refresh = () => {
     router.refresh();
@@ -84,6 +91,44 @@ export function EmailAccountPanel({
         layout === 'default' && !embeddedInTitledSection && 'border-t border-border pt-4',
       )}
     >
+      {emailStep === 'merge' && mergeRequest ? (
+        <AccountMergeConfirmation
+          prompt={mergeRequest.prompt}
+          busy={emailStartPending}
+          onReject={() => {
+            setMergeRequest(null);
+            setEmailStep('view');
+          }}
+          onConfirm={async (fio) => {
+            setEmailStartPending(true);
+            try {
+              const res = await fetch(mergeRequest.endpoint, {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({
+                  ...mergeRequest.body,
+                  mergeDecision: { accountConfirmed: true, fio },
+                }),
+              });
+              const data = (await res.json().catch(() => ({}))) as {
+                ok?: boolean;
+                message?: string;
+              };
+              if (!res.ok || !data.ok) {
+                setEmailStartError(data.message ?? 'Не удалось объединить аккаунты');
+                return;
+              }
+              setMergeRequest(null);
+              setEmailChallengeId(null);
+              setEmailStep('view');
+              refresh();
+            } finally {
+              setEmailStartPending(false);
+            }
+          }}
+        />
+      ) : null}
+
       {emailStep === 'view' && layout === 'profileHero' ? (
         <div className="flex flex-col gap-1 border-t border-[var(--patient-border)] pt-4">
           <div className="flex flex-wrap items-start justify-between gap-2">
@@ -273,10 +318,21 @@ export function EmailAccountPanel({
               });
               const data = (await res.json().catch(() => ({}))) as {
                 ok?: boolean;
+                mergeRequired?: boolean;
+                prompt?: HumanMergePrompt;
                 message?: string;
                 error?: string;
                 retryAfterSeconds?: number;
               };
+              if (data.ok && data.mergeRequired && data.prompt) {
+                setMergeRequest({
+                  prompt: data.prompt,
+                  endpoint: '/api/auth/email/confirm',
+                  body: { challengeId: emailChallengeId, code },
+                });
+                setEmailStep('merge');
+                return { ok: true as const };
+              }
               if (data.ok) {
                 setEmailStep('view');
                 setEmailChallengeId(null);
@@ -343,10 +399,21 @@ export function EmailAccountPanel({
               });
               const data = (await res.json().catch(() => ({}))) as {
                 ok?: boolean;
+                mergeRequired?: boolean;
+                prompt?: HumanMergePrompt;
                 message?: string;
                 error?: string;
                 retryAfterSeconds?: number;
               };
+              if (data.ok && data.mergeRequired && data.prompt) {
+                setMergeRequest({
+                  prompt: data.prompt,
+                  endpoint: '/api/patient/email-change/confirm',
+                  body: { code },
+                });
+                setEmailStep('merge');
+                return { ok: true as const };
+              }
               if (data.ok) {
                 setEmailStep('view');
                 refresh();

@@ -21,9 +21,28 @@ import {
 import { confirmLatestEmailChallengeCodeForUser } from '@/modules/auth/emailAuth';
 import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import { notificationText } from '@/shared/notifications/notificationText';
+import { isCyrillicFioInput } from '@/shared/lib/fio';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+
+const fioSelectionSchema = z.discriminatedUnion('source', [
+  z.object({ source: z.literal('target') }),
+  z.object({ source: z.literal('duplicate') }),
+  z.object({
+    source: z.literal('custom'),
+    value: z.string().trim().min(1).max(100).refine(isCyrillicFioInput),
+  }),
+]);
 
 const bodySchema = z.object({
   code: z.string().trim().min(4).max(12),
+  mergeDecision: z.object({
+    accountConfirmed: z.literal(true),
+    fio: z.object({
+      last_name: fioSelectionSchema.optional(),
+      first_name: fioSelectionSchema.optional(),
+      patronymic: fioSelectionSchema.optional(),
+    }),
+  }).optional(),
 });
 
 export async function POST(request: Request) {
@@ -59,9 +78,15 @@ export async function POST(request: Request) {
     session.user.userId,
     parsed.data.code,
     'patient_email_change',
-    organizationId ? { profileBindOrganizationId: organizationId } : undefined,
+    {
+      ...(organizationId ? { profileBindOrganizationId: organizationId } : {}),
+      ...(parsed.data.mergeDecision ? { humanMergeAnswer: parsed.data.mergeDecision } : {}),
+    },
   );
   if (!result.ok) {
+    if (result.code === 'merge_confirmation_required') {
+      return NextResponse.json({ ok: true, mergeRequired: true, prompt: result.prompt });
+    }
     const status =
       result.code === 'too_many_attempts' ? 429 : result.code === 'email_conflict' ? 409 : 400;
     return NextResponse.json(
@@ -80,6 +105,11 @@ export async function POST(request: Request) {
     );
   }
 
+  if (result.mergedAccountId) {
+    const deps = buildAppDeps();
+    const user = await deps.userByPhone.findByUserId(session.user.userId);
+    if (user) await deps.accountMergeNotifications.enqueue(user, result.mergedAccountId);
+  }
   return NextResponse.json({ ok: true });
 }
 

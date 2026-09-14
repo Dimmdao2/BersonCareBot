@@ -3,6 +3,14 @@ export type {
   ScalarFieldWinner,
   ChannelBindingWinner,
 } from './manualMergeResolution.js';
+export type {
+  HumanMergeDecision,
+  HumanMergeFioField,
+  HumanMergeFioSelection,
+  HumanMergeAccountSummary,
+  HumanMergePrompt,
+} from './humanMergeDecision.js';
+export { HUMAN_MERGE_FIO_FIELDS } from './humanMergeDecision.js';
 export { assertManualMergeResolutionIds } from './manualMergeResolution.js';
 
 export { MergeConflictError, MergeDependentConflictError } from './platformUserMergeErrors.js';
@@ -13,6 +21,8 @@ export type {
   PlatformMergeDbClient,
   MergePlatformUsersContext,
   MergePlatformUsersOptions,
+  AutomaticMergePlatformUsersOptions,
+  ManualMergePlatformUsersOptions,
   MergeContactsSaved,
 } from './pgPlatformUserMerge.js';
 

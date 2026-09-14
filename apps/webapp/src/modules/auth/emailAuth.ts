@@ -7,10 +7,15 @@ import {
   OTP_RESEND_COOLDOWN_SEC,
   nextOtpLockoutDurationSeconds,
 } from '@/modules/auth/otpConstants';
-import type { EmailAuthDbPort, EmailChallengePurpose } from '@/modules/auth/emailAuthPort';
+import type {
+  EmailAuthDbPort,
+  EmailChallengePurpose,
+  HumanMergeAnswer,
+} from '@/modules/auth/emailAuthPort';
 import { sendEmailAuthCode } from '@/modules/auth/emailSendPort';
 import type { MailProfileRequest } from '@/modules/auth/mailProfile';
 import { AUTH_CHANNEL_DISABLED_ERROR } from '@/modules/auth/authChannelPolicy';
+import type { HumanMergePrompt } from '@bersoncare/platform-merge';
 
 export type { EmailChallengePurpose } from '@/modules/auth/emailAuthPort';
 
@@ -197,16 +202,28 @@ export type EmailStartResult =
     };
 
 export type EmailConfirmResult =
-  | { ok: true }
+  | { ok: true; mergedAccountId?: string }
+  | {
+      ok: false;
+      code: 'merge_confirmation_required';
+      prompt: HumanMergePrompt;
+      retryAfterSeconds?: undefined;
+    }
   | {
       ok: false;
       code: 'invalid_code' | 'expired_code' | 'too_many_attempts' | 'email_conflict';
       retryAfterSeconds?: number;
     };
 
+export type EmailConfirmWithoutMergeResult = Exclude<
+  EmailConfirmResult,
+  { code: 'merge_confirmation_required' }
+>;
+
 export type ConfirmEmailOptions = {
   /** Server-resolved organization scope; enables safe merge with an existing client account. */
   profileBindOrganizationId?: string;
+  humanMergeAnswer?: HumanMergeAnswer;
 };
 
 async function verifyChallengeCodeRow(params: {
@@ -373,6 +390,20 @@ export async function startEmailChallenge(
   return { ok: false, code: 'email_send_failed' };
 }
 
+export function confirmEmailChallenge(
+  userId: string,
+  challengeId: string,
+  codeRaw: string,
+  expectedPurpose: 'email_verify',
+  options?: ConfirmEmailOptions,
+): Promise<EmailConfirmResult>;
+export function confirmEmailChallenge(
+  userId: string,
+  challengeId: string,
+  codeRaw: string,
+  expectedPurpose: Exclude<EmailChallengePurpose, 'email_verify'>,
+  options?: ConfirmEmailOptions,
+): Promise<EmailConfirmWithoutMergeResult>;
 export async function confirmEmailChallenge(
   userId: string,
   challengeId: string,
@@ -434,12 +465,17 @@ export async function confirmEmailChallenge(
     row,
     expectedPurpose,
     onSuccess: async () => {
+      let mergedAccountId: string | undefined;
       try {
         const claimed = await db.claimVerifiedEmail(userId, row.email, options);
         if (!claimed.ok) {
+          if (claimed.code === 'merge_confirmation_required') {
+            return claimed;
+          }
           await db.deleteEmailChallengesForUser(userId);
           return { ok: false, code: 'email_conflict' };
         }
+        mergedAccountId = claimed.mergedAccountId;
       } catch (err: unknown) {
         const pgCode =
           typeof err === 'object' && err !== null
@@ -452,7 +488,7 @@ export async function confirmEmailChallenge(
         throw err;
       }
       await db.deleteEmailChallengesForUser(userId);
-      return { ok: true };
+      return { ok: true, ...(mergedAccountId ? { mergedAccountId } : {}) };
     },
   });
 }
@@ -519,6 +555,18 @@ export async function consumeEmailChallengeCode(
  * to actually switch the email on the account (same semantics as confirmEmailChallenge
  * but without requiring the challengeId — the patient only knows the code).
  */
+export function confirmLatestEmailChallengeCodeForUser(
+  userId: string,
+  codeRaw: string,
+  expectedPurpose: 'patient_email_change',
+  options?: ConfirmEmailOptions,
+): Promise<EmailConfirmResult>;
+export function confirmLatestEmailChallengeCodeForUser(
+  userId: string,
+  codeRaw: string,
+  expectedPurpose: Exclude<EmailChallengePurpose, 'patient_email_change'>,
+  options?: ConfirmEmailOptions,
+): Promise<EmailConfirmWithoutMergeResult>;
 export async function confirmLatestEmailChallengeCodeForUser(
   userId: string,
   codeRaw: string,
@@ -596,12 +644,17 @@ export async function confirmLatestEmailChallengeCodeForUser(
     row,
     expectedPurpose,
     onSuccess: async () => {
+      let mergedAccountId: string | undefined;
       try {
         const claimed = await db.claimVerifiedEmail(userId, row.email, options);
         if (!claimed.ok) {
+          if (claimed.code === 'merge_confirmation_required') {
+            return claimed;
+          }
           await db.deleteEmailChallengesForUser(userId);
           return { ok: false, code: 'email_conflict' };
         }
+        mergedAccountId = claimed.mergedAccountId;
       } catch (err: unknown) {
         const pgCode =
           typeof err === 'object' && err !== null
@@ -614,7 +667,7 @@ export async function confirmLatestEmailChallengeCodeForUser(
         throw err;
       }
       await db.deleteEmailChallengesForUser(userId);
-      return { ok: true };
+      return { ok: true, ...(mergedAccountId ? { mergedAccountId } : {}) };
     },
   });
 }

@@ -6,6 +6,11 @@ import { mutateCanonicalUserContacts } from './userContactsMirrorWrite.js';
 import { syncUserIdentityFioMirror } from './userIdentityFioWrite.js';
 import type { ManualMergeResolution } from './manualMergeResolution.js';
 import { assertManualMergeResolutionIds } from './manualMergeResolution.js';
+import type {
+  HumanMergeDecision,
+  HumanMergeFioField,
+  HumanMergeFioSelection,
+} from './humanMergeDecision.js';
 import {
   collectMergeLosingContacts,
   persistMergeLosingContacts,
@@ -36,10 +41,19 @@ export type MergePlatformUsersContext = {
   actorId?: string | null;
 };
 
-export type MergePlatformUsersOptions = {
-  resolution?: ManualMergeResolution;
+export type AutomaticMergePlatformUsersOptions = {
+  humanDecision: HumanMergeDecision;
   mergeContext?: MergePlatformUsersContext;
 };
+
+export type ManualMergePlatformUsersOptions = {
+  resolution: ManualMergeResolution;
+  mergeContext?: MergePlatformUsersContext;
+};
+
+export type MergePlatformUsersOptions =
+  | AutomaticMergePlatformUsersOptions
+  | ManualMergePlatformUsersOptions;
 
 /**
  * Owner rule D26 §5.2: automatic merge is only safe for an account with no
@@ -47,7 +61,7 @@ export type MergePlatformUsersOptions = {
  * is the only actor allowed to move a real history.
  */
 type MedicalHistoryRecord = {
-  automaticProbe?: (accountIds: readonly string[]) => SQL;
+  automaticProbe?: (accountId: string) => SQL;
   transfer: (targetId: string, duplicateId: string) => SQL[];
 };
 
@@ -58,71 +72,71 @@ type MedicalHistoryRecord = {
  */
 const MEDICAL_HISTORY_RECORDS: readonly MedicalHistoryRecord[] = [
   {
-    automaticProbe: (ids) =>
-      sql`SELECT 1 FROM clinical_visit WHERE patient_user_id = ANY(${ids}::uuid[])`,
+    automaticProbe: (id) =>
+      sql`SELECT 1 FROM clinical_visit WHERE patient_user_id = ${id}::uuid`,
     transfer: (targetId, duplicateId) => [
       sql`UPDATE clinical_visit SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
     ],
   },
   {
-    automaticProbe: (ids) =>
-      sql`SELECT 1 FROM clinical_complaint WHERE patient_user_id = ANY(${ids}::uuid[])`,
+    automaticProbe: (id) =>
+      sql`SELECT 1 FROM clinical_complaint WHERE patient_user_id = ${id}::uuid`,
     transfer: (targetId, duplicateId) => [
       sql`UPDATE clinical_complaint SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
     ],
   },
   {
-    automaticProbe: (ids) =>
-      sql`SELECT 1 FROM clinical_diagnosis WHERE patient_user_id = ANY(${ids}::uuid[])`,
+    automaticProbe: (id) =>
+      sql`SELECT 1 FROM clinical_diagnosis WHERE patient_user_id = ${id}::uuid`,
     transfer: (targetId, duplicateId) => [
       sql`UPDATE clinical_diagnosis SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
     ],
   },
   {
-    automaticProbe: (ids) =>
-      sql`SELECT 1 FROM clinical_anamnesis_trauma WHERE patient_user_id = ANY(${ids}::uuid[])`,
+    automaticProbe: (id) =>
+      sql`SELECT 1 FROM clinical_anamnesis_trauma WHERE patient_user_id = ${id}::uuid`,
     transfer: (targetId, duplicateId) => [
       sql`UPDATE clinical_anamnesis_trauma SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
     ],
   },
   {
-    automaticProbe: (ids) =>
-      sql`SELECT 1 FROM clinical_anamnesis_illness WHERE patient_user_id = ANY(${ids}::uuid[])`,
+    automaticProbe: (id) =>
+      sql`SELECT 1 FROM clinical_anamnesis_illness WHERE patient_user_id = ${id}::uuid`,
     transfer: (targetId, duplicateId) => [
       sql`UPDATE clinical_anamnesis_illness SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
     ],
   },
   {
-    automaticProbe: (ids) =>
-      sql`SELECT 1 FROM clinical_anamnesis_lifestyle WHERE patient_user_id = ANY(${ids}::uuid[])`,
+    automaticProbe: (id) =>
+      sql`SELECT 1 FROM clinical_anamnesis_lifestyle WHERE patient_user_id = ${id}::uuid`,
     transfer: (targetId, duplicateId) => [
       sql`UPDATE clinical_anamnesis_lifestyle SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
     ],
   },
   {
-    automaticProbe: (ids) => sql`SELECT 1 FROM doctor_notes WHERE user_id = ANY(${ids}::uuid[])`,
+    automaticProbe: (id) => sql`SELECT 1 FROM doctor_notes WHERE user_id = ${id}::uuid`,
     transfer: (targetId, duplicateId) => [
       sql`UPDATE doctor_notes SET user_id = ${targetId}::uuid WHERE user_id = ${duplicateId}::uuid`,
     ],
   },
   {
-    automaticProbe: (ids) =>
-      sql`SELECT 1 FROM patient_bookings WHERE platform_user_id = ANY(${ids}::uuid[])`,
+    automaticProbe: (id) =>
+      sql`SELECT 1 FROM patient_bookings WHERE platform_user_id = ${id}::uuid`,
     transfer: (targetId, duplicateId) => [
       sql`UPDATE patient_bookings SET platform_user_id = ${targetId}::uuid WHERE platform_user_id = ${duplicateId}::uuid`,
     ],
   },
   {
-    automaticProbe: (ids) =>
-      sql`SELECT 1 FROM be_appointments WHERE platform_user_id = ANY(${ids}::uuid[])`,
+    automaticProbe: (id) =>
+      sql`SELECT 1 FROM be_appointments WHERE platform_user_id = ${id}::uuid`,
     transfer: (targetId, duplicateId) => [
       sql`UPDATE be_appointments SET platform_user_id = ${targetId}::uuid WHERE platform_user_id = ${duplicateId}::uuid`,
     ],
   },
   {
-    automaticProbe: (ids) =>
+    automaticProbe: (id) =>
       sql`SELECT 1 FROM treatment_program_instances
-          WHERE patient_user_id = ANY(${ids}::uuid[]) AND assignment_source = 'doctor'`,
+          WHERE patient_user_id = ${id}::uuid AND assignment_source = 'doctor'`,
     transfer: (targetId, duplicateId) => [
       sql`UPDATE treatment_program_instances SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
     ],
@@ -181,7 +195,9 @@ async function assertAutomaticMergeHasNoMedicalHistory(
   // спокойно переносит историю duplicate→target, как при любом merge. Переписка (чат/обсуждения) в этот
   // список не входит вообще — у её записей automaticProbe нет, гейт её не касается.
   const probesFor = (id: string) =>
-    MEDICAL_HISTORY_RECORDS.flatMap((record) => (record.automaticProbe ? [record.automaticProbe([id])] : []));
+    MEDICAL_HISTORY_RECORDS.flatMap((record) =>
+      record.automaticProbe ? [record.automaticProbe(id)] : [],
+    );
   const result = await runMergeSql<{ target_has: boolean; duplicate_has: boolean }>(
     client,
     sql`SELECT
@@ -246,6 +262,43 @@ export type PickMergeTargetCandidate = {
   /** Количество строк `patient_bookings` для канона — выше приоритет как merge target (native bookings). */
   patientBookingCount?: number;
 };
+
+function normalizedFioPart(value: string | null | undefined): string | null {
+  const trimmed = value?.trim() ?? '';
+  return trimmed || null;
+}
+
+function resolveHumanFioField(
+  field: HumanMergeFioField,
+  targetValue: string | null,
+  duplicateValue: string | null,
+  selection: HumanMergeFioSelection | undefined,
+  candidateIds: readonly string[],
+): string | null {
+  const target = normalizedFioPart(targetValue);
+  const duplicate = normalizedFioPart(duplicateValue);
+  if (!target) return duplicate;
+  if (!duplicate || target === duplicate) return target;
+  if (!selection) {
+    throw new MergeConflictError(`merge: human choice required for ${field}`, [...candidateIds]);
+  }
+  if (selection.source === 'target') return target;
+  if (selection.source === 'duplicate') return duplicate;
+  const custom = normalizedFioPart(selection.value);
+  if (!custom) {
+    throw new MergeConflictError(`merge: custom human choice is empty for ${field}`, [...candidateIds]);
+  }
+  return custom;
+}
+
+function formatResolvedDisplayName(input: {
+  lastName: string | null;
+  firstName: string | null;
+  patronymic: string | null;
+  fallback: string;
+}): string {
+  return [input.lastName, input.firstName, input.patronymic].filter(Boolean).join(' ') || input.fallback;
+}
 
 const SINGLETON_SYMPTOM_KEYS = ['general_wellbeing', 'warmup_feeling'] as const;
 
@@ -314,19 +367,33 @@ async function dedupeSingletonSymptomTrackingsForMerge(
  * Caller must BEGIN; this function does not COMMIT.
  * Requires the canonical phone/contact constraints.
  */
+export function mergePlatformUsersInTransaction(
+  client: PlatformMergeDbClient,
+  targetId: string,
+  duplicateId: string,
+  reason: 'manual',
+  options: ManualMergePlatformUsersOptions,
+): Promise<{ targetId: string; duplicateId: string; mergeContactsSaved: MergeContactsSaved[] }>;
+export function mergePlatformUsersInTransaction(
+  client: PlatformMergeDbClient,
+  targetId: string,
+  duplicateId: string,
+  reason: Exclude<MergePlatformUsersReason, 'manual'>,
+  options: AutomaticMergePlatformUsersOptions,
+): Promise<{ targetId: string; duplicateId: string; mergeContactsSaved: MergeContactsSaved[] }>;
 export async function mergePlatformUsersInTransaction(
   client: PlatformMergeDbClient,
   targetId: string,
   duplicateId: string,
   reason: MergePlatformUsersReason,
-  options?: MergePlatformUsersOptions,
+  options: MergePlatformUsersOptions,
 ): Promise<{ targetId: string; duplicateId: string; mergeContactsSaved: MergeContactsSaved[] }> {
   if (targetId === duplicateId) {
     throw new MergeConflictError('merge: target and duplicate are the same id', [targetId]);
   }
 
   if (reason === 'manual') {
-    if (!options?.resolution) {
+    if (!('resolution' in options)) {
       throw new MergeConflictError('merge: reason "manual" requires options.resolution', [
         targetId,
         duplicateId,
@@ -342,8 +409,8 @@ export async function mergePlatformUsersInTransaction(
         duplicateId,
       ]);
     }
-  } else if (options?.resolution) {
-    throw new MergeConflictError('merge: resolution is only valid for reason manual', [
+  } else if (!('humanDecision' in options)) {
+    throw new MergeConflictError('merge: automatic merge requires a human decision', [
       targetId,
       duplicateId,
     ]);
@@ -364,7 +431,7 @@ export async function mergePlatformUsersInTransaction(
        AND email.contact_kind = 'email' AND email.is_primary = true
      WHERE pu.id IN (${targetId}::uuid, ${duplicateId}::uuid)
      ORDER BY id
-     FOR UPDATE`,
+     FOR UPDATE OF pu`,
   );
   if (lockRes.rows.length !== 2) {
     throw new MergeConflictError('merge: target or duplicate platform_users row missing', [
@@ -396,7 +463,21 @@ export async function mergePlatformUsersInTransaction(
     await assertAutomaticMergeHasNoMedicalHistory(client, targetId, duplicateId);
   }
 
-  const manualResolution = reason === 'manual' ? options!.resolution! : undefined;
+  const manualResolution = reason === 'manual' && 'resolution' in options ? options.resolution : undefined;
+  const humanDecision = reason !== 'manual' && 'humanDecision' in options ? options.humanDecision : undefined;
+  if (
+    humanDecision &&
+    (!humanDecision.accountConfirmed ||
+      humanDecision.targetId !== targetId ||
+      humanDecision.duplicateId !== duplicateId ||
+      (humanDecision.recognizedAccountId !== targetId &&
+        humanDecision.recognizedAccountId !== duplicateId))
+  ) {
+    throw new MergeConflictError('merge: human decision does not match locked account pair', [
+      targetId,
+      duplicateId,
+    ]);
+  }
 
   const pA = a.phone_normalized?.trim() || null;
   const pB = b.phone_normalized?.trim() || null;
@@ -594,107 +675,22 @@ export async function mergePlatformUsersInTransaction(
       ],
     );
   } else {
+    if (!humanDecision) {
+      throw new MergeConflictError('merge: automatic merge requires a human decision', [targetId, duplicateId]);
+    }
+    const lastName = resolveHumanFioField('last_name', a.last_name, b.last_name, humanDecision.fio.last_name, [targetId, duplicateId]);
+    const firstName = resolveHumanFioField('first_name', a.first_name, b.first_name, humanDecision.fio.first_name, [targetId, duplicateId]);
+    const patronymic = resolveHumanFioField('patronymic', a.patronymic, b.patronymic, humanDecision.fio.patronymic, [targetId, duplicateId]);
+    const recognizedAccount = humanDecision.recognizedAccountId === targetId ? a : b;
+    const fallbackDisplayName = normalizedFioPart(recognizedAccount.display_name) ?? '';
+    const displayName = formatResolvedDisplayName({ lastName, firstName, patronymic, fallback: fallbackDisplayName });
     await runMergePgText(
       client,
-      `UPDATE platform_users AS root
-       SET
-         display_name = CASE
-           WHEN NULLIF(trim(COALESCE(pu.phone_normalized, '')), '') IS NOT NULL
-            AND NULLIF(trim(COALESCE(dup.phone_normalized, '')), '') IS NULL
-           THEN COALESCE(NULLIF(trim(pu.display_name), ''), NULLIF(trim(dup.display_name), ''), '')
-           WHEN NULLIF(trim(COALESCE(dup.phone_normalized, '')), '') IS NOT NULL
-            AND NULLIF(trim(COALESCE(pu.phone_normalized, '')), '') IS NULL
-           THEN COALESCE(NULLIF(trim(dup.display_name), ''), NULLIF(trim(pu.display_name), ''), '')
-           WHEN NULLIF(trim(COALESCE(pu.phone_normalized, '')), '') IS NOT NULL
-            AND NULLIF(trim(COALESCE(dup.phone_normalized, '')), '') IS NOT NULL
-            AND pu.phone_normalized IS NOT DISTINCT FROM dup.phone_normalized
-           THEN COALESCE(
-             NULLIF(trim(CASE WHEN pu.created_at <= dup.created_at THEN pu.display_name ELSE dup.display_name END), ''),
-             NULLIF(trim(CASE WHEN pu.created_at <= dup.created_at THEN dup.display_name ELSE pu.display_name END), ''),
-             ''
-           )
-           ELSE COALESCE(NULLIF(trim(pu.display_name), ''), NULLIF(trim(dup.display_name), ''), '')
-         END,
-         first_name = CASE
-           WHEN NULLIF(trim(COALESCE(pu.phone_normalized, '')), '') IS NOT NULL
-            AND NULLIF(trim(COALESCE(dup.phone_normalized, '')), '') IS NULL
-           THEN CASE
-             WHEN (NULLIF(trim(pu.first_name), '') IS NOT NULL AND NULLIF(trim(pu.last_name), '') IS NOT NULL)
-              AND NOT (NULLIF(trim(dup.first_name), '') IS NOT NULL AND NULLIF(trim(dup.last_name), '') IS NOT NULL)
-             THEN COALESCE(NULLIF(trim(pu.first_name), ''), NULLIF(trim(dup.first_name), ''))
-             WHEN (NULLIF(trim(dup.first_name), '') IS NOT NULL AND NULLIF(trim(dup.last_name), '') IS NOT NULL)
-              AND NOT (NULLIF(trim(pu.first_name), '') IS NOT NULL AND NULLIF(trim(pu.last_name), '') IS NOT NULL)
-             THEN COALESCE(NULLIF(trim(dup.first_name), ''), NULLIF(trim(pu.first_name), ''))
-             ELSE COALESCE(NULLIF(trim(pu.first_name), ''), NULLIF(trim(dup.first_name), ''))
-           END
-           WHEN NULLIF(trim(COALESCE(dup.phone_normalized, '')), '') IS NOT NULL
-            AND NULLIF(trim(COALESCE(pu.phone_normalized, '')), '') IS NULL
-           THEN CASE
-             WHEN (NULLIF(trim(dup.first_name), '') IS NOT NULL AND NULLIF(trim(dup.last_name), '') IS NOT NULL)
-              AND NOT (NULLIF(trim(pu.first_name), '') IS NOT NULL AND NULLIF(trim(pu.last_name), '') IS NOT NULL)
-             THEN COALESCE(NULLIF(trim(dup.first_name), ''), NULLIF(trim(pu.first_name), ''))
-             WHEN (NULLIF(trim(pu.first_name), '') IS NOT NULL AND NULLIF(trim(pu.last_name), '') IS NOT NULL)
-              AND NOT (NULLIF(trim(dup.first_name), '') IS NOT NULL AND NULLIF(trim(dup.last_name), '') IS NOT NULL)
-             THEN COALESCE(NULLIF(trim(pu.first_name), ''), NULLIF(trim(dup.first_name), ''))
-             ELSE COALESCE(NULLIF(trim(dup.first_name), ''), NULLIF(trim(pu.first_name), ''))
-           END
-           WHEN NULLIF(trim(COALESCE(pu.phone_normalized, '')), '') IS NOT NULL
-            AND NULLIF(trim(COALESCE(dup.phone_normalized, '')), '') IS NOT NULL
-            AND pu.phone_normalized IS NOT DISTINCT FROM dup.phone_normalized
-           THEN CASE
-             WHEN pu.created_at <= dup.created_at THEN COALESCE(NULLIF(trim(pu.first_name), ''), NULLIF(trim(dup.first_name), ''))
-             ELSE COALESCE(NULLIF(trim(dup.first_name), ''), NULLIF(trim(pu.first_name), ''))
-           END
-           ELSE COALESCE(NULLIF(trim(pu.first_name), ''), NULLIF(trim(dup.first_name), ''))
-         END,
-         last_name = CASE
-           WHEN NULLIF(trim(COALESCE(pu.phone_normalized, '')), '') IS NOT NULL
-            AND NULLIF(trim(COALESCE(dup.phone_normalized, '')), '') IS NULL
-           THEN CASE
-             WHEN (NULLIF(trim(pu.first_name), '') IS NOT NULL AND NULLIF(trim(pu.last_name), '') IS NOT NULL)
-              AND NOT (NULLIF(trim(dup.first_name), '') IS NOT NULL AND NULLIF(trim(dup.last_name), '') IS NOT NULL)
-             THEN COALESCE(NULLIF(trim(pu.last_name), ''), NULLIF(trim(dup.last_name), ''))
-             WHEN (NULLIF(trim(dup.first_name), '') IS NOT NULL AND NULLIF(trim(dup.last_name), '') IS NOT NULL)
-              AND NOT (NULLIF(trim(pu.first_name), '') IS NOT NULL AND NULLIF(trim(pu.last_name), '') IS NOT NULL)
-             THEN COALESCE(NULLIF(trim(dup.last_name), ''), NULLIF(trim(pu.last_name), ''))
-             ELSE COALESCE(NULLIF(trim(pu.last_name), ''), NULLIF(trim(dup.last_name), ''))
-           END
-           WHEN NULLIF(trim(COALESCE(dup.phone_normalized, '')), '') IS NOT NULL
-            AND NULLIF(trim(COALESCE(pu.phone_normalized, '')), '') IS NULL
-           THEN CASE
-             WHEN (NULLIF(trim(dup.first_name), '') IS NOT NULL AND NULLIF(trim(dup.last_name), '') IS NOT NULL)
-              AND NOT (NULLIF(trim(pu.first_name), '') IS NOT NULL AND NULLIF(trim(pu.last_name), '') IS NOT NULL)
-             THEN COALESCE(NULLIF(trim(dup.last_name), ''), NULLIF(trim(pu.last_name), ''))
-             WHEN (NULLIF(trim(pu.first_name), '') IS NOT NULL AND NULLIF(trim(pu.last_name), '') IS NOT NULL)
-              AND NOT (NULLIF(trim(dup.first_name), '') IS NOT NULL AND NULLIF(trim(dup.last_name), '') IS NOT NULL)
-             THEN COALESCE(NULLIF(trim(pu.last_name), ''), NULLIF(trim(dup.last_name), ''))
-             ELSE COALESCE(NULLIF(trim(dup.last_name), ''), NULLIF(trim(pu.last_name), ''))
-           END
-           WHEN NULLIF(trim(COALESCE(pu.phone_normalized, '')), '') IS NOT NULL
-            AND NULLIF(trim(COALESCE(dup.phone_normalized, '')), '') IS NOT NULL
-            AND pu.phone_normalized IS NOT DISTINCT FROM dup.phone_normalized
-           THEN CASE
-             WHEN pu.created_at <= dup.created_at THEN COALESCE(NULLIF(trim(pu.last_name), ''), NULLIF(trim(dup.last_name), ''))
-             ELSE COALESCE(NULLIF(trim(dup.last_name), ''), NULLIF(trim(pu.last_name), ''))
-           END
-           ELSE COALESCE(NULLIF(trim(pu.last_name), ''), NULLIF(trim(dup.last_name), ''))
-         END,
-         patronymic = COALESCE(NULLIF(trim(pu.patronymic), ''), NULLIF(trim(dup.patronymic), '')),
-         updated_at = now()
-       FROM (
-         SELECT pu0.*,
-           (SELECT uc.value_normalized FROM user_contacts uc
-            WHERE uc.platform_user_id = pu0.id AND uc.contact_kind = 'phone' AND uc.is_primary = true LIMIT 1) AS phone_normalized
-         FROM platform_users pu0 WHERE pu0.id = $1::uuid
-       ) pu,
-       (
-         SELECT dup0.*,
-           (SELECT uc.value_normalized FROM user_contacts uc
-            WHERE uc.platform_user_id = dup0.id AND uc.contact_kind = 'phone' AND uc.is_primary = true LIMIT 1) AS phone_normalized
-         FROM platform_users dup0 WHERE dup0.id = $2::uuid
-       ) dup
-       WHERE root.id = $1::uuid`,
-      [targetId, duplicateId],
+      `UPDATE platform_users
+       SET display_name = $3::text, first_name = $4::text, last_name = $5::text,
+           patronymic = $6::text, updated_at = now()
+       WHERE id = $1::uuid`,
+      [targetId, duplicateId, displayName, firstName, lastName, patronymic],
     );
   }
 

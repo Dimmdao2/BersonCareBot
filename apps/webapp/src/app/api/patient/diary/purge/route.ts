@@ -70,6 +70,10 @@ export async function POST(request: Request) {
     );
   }
 
+  if (result.mergeRequired) {
+    return NextResponse.json({ ok: false, error: 'identity_mismatch' }, { status: 409 });
+  }
+
   if (result.user.userId !== session.user.userId) {
     return NextResponse.json(
       { ok: false, error: 'identity_mismatch', message: notificationText.authCodeInvalidOrExpired },

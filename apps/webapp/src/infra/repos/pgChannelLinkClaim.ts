@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm';
 import type { Pool, PoolClient } from 'pg';
 
-import { classifyMergeFailure, mergePlatformUsersInTransaction } from '@bersoncare/platform-merge';
+import { classifyMergeFailure, MergeConflictError } from '@bersoncare/platform-merge';
 import {
   getWebappSqlFromPgClient,
   runWebappSql,
@@ -145,13 +145,10 @@ export async function tryMergeChannelLinkOwners(
 ): Promise<ChannelLinkOwnersMergeResult> {
   try {
     await withPoolTransaction(pool, async (client) => {
-      await mergePlatformUsersInTransaction(
-        client,
+      throw new MergeConflictError('merge: human account confirmation required', [
         params.tokenUserId,
         params.existingUserId,
-        'phone_bind',
-        { mergeContext: { channel: params.channelCode } },
-      );
+      ]);
       await runWebappSql(
         getWebappSqlFromPgClient(client),
         sql`SELECT app.auth_channel_link_mark_secret_used_if_unused(${params.secretRowId}::uuid) AS marked`,

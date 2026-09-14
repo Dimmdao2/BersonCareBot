@@ -2,47 +2,23 @@
  * Domain SQL as typed Drizzle fragments; duplicate-email merge via `runWebappTransaction` +
  * `PlatformMergeDbClient`. `getPool()` only for Class C `upsertOpenConflictLog` in `adminAuditLog`.
  */
-import type { QueryResultRow } from 'pg';
 import { sql } from 'drizzle-orm';
 import { getPool } from '@/infra/db/client';
 import {
   getWebappSqlDb,
   runWebappNamedRoot,
   runWebappSql,
-  runWebappTransaction,
-  webappSqlFromPgText,
-  type WebappSqlTransactionExecutor,
 } from '@/infra/db/runWebappSql';
 import { upsertOpenConflictLog } from '@/infra/adminAuditLog';
 import type { EmailPasswordLookupPort } from '@/modules/auth/emailPasswordLookup/ports';
 import type { EmailPasswordAuthState } from '@/modules/auth/emailPasswordLookup/types';
-import {
-  classifyMergeFailure,
-  mergePlatformUsersInTransaction,
-  type PlatformMergeDbClient,
-} from '@bersoncare/platform-merge';
+import { classifyMergeFailure } from '@bersoncare/platform-merge';
 
 type EmailAuthStateRow = {
   id: string;
   email_verified: boolean;
   has_password: boolean;
 };
-
-function mergeDbClientFromTx(tx: WebappSqlTransactionExecutor): PlatformMergeDbClient {
-  return {
-    async query<R extends QueryResultRow = QueryResultRow>(
-      queryText: string,
-      values: unknown[] = [],
-    ) {
-      // `@bersoncare/platform-merge` is shared with the integrator and so cannot depend on the
-      // webapp's Drizzle port: it builds typed `sql` fragments and hands this client the `$n` text
-      // its own dialect compiled. Nothing here is hand-numbered — `webappSqlFromPgText` only puts
-      // that machine-generated text back on the Drizzle `execute` channel.
-      const r = await runWebappSql<R>(tx, webappSqlFromPgText(queryText, values));
-      return { rows: r.rows, rowCount: r.rowCount };
-    },
-  };
-}
 
 function pickEmailConflictTarget(rows: EmailAuthStateRow[]): string {
   const verifiedWithPassword = rows.filter((row) => row.email_verified && row.has_password);
@@ -115,28 +91,15 @@ async function tryAutoMergeDuplicateEmailUsers(
   }
   const duplicateIds = rows.map((row) => row.id).filter((id) => id !== targetId);
   if (duplicateIds.length === 0) return true;
-  try {
-    await runWebappTransaction(async (tx) => {
-      const mergeClient = mergeDbClientFromTx(tx);
-      for (const duplicateId of duplicateIds) {
-        await mergePlatformUsersInTransaction(mergeClient, targetId, duplicateId, 'projection', {
-          mergeContext: { source: 'email_password_lookup' },
-        });
-      }
-    });
-    return true;
-  } catch (err) {
-    const candidateIds = rows.map((row) => row.id);
-    const classified = classifyMergeFailure(err, candidateIds);
-    await recordEmailAuthConflict({
-      emailNormalized,
-      rows,
-      targetId,
-      reason: classified.code,
-      candidateIds: classified.candidateIds.length > 0 ? classified.candidateIds : candidateIds,
-    });
-    return false;
-  }
+  const candidateIds = rows.map((row) => row.id);
+  await recordEmailAuthConflict({
+    emailNormalized,
+    rows,
+    targetId,
+    reason: 'human_account_confirmation_required',
+    candidateIds,
+  });
+  return false;
 }
 
 export function createPgEmailPasswordLookupPort(): EmailPasswordLookupPort {

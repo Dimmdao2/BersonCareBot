@@ -376,6 +376,7 @@ import { createPgIntegratorDeliveryTargetsPort } from '@/infra/repos/pgIntegrato
 import { inMemoryIntegratorDeliveryTargetsPort } from '@/infra/repos/inMemoryIntegratorDeliveryTargets';
 import { createPatientBookingService } from '@/modules/patient-booking/service';
 import { createPgOutboundMessageQueue } from '@/infra/repos/pgOutboundMessageQueue';
+import { enqueueAccountMergeLoginNotification } from '@/modules/auth/accountMergeNotification';
 import { createBookingCreatedEffects } from '@/app-layer/booking/bookingCreatedEffects';
 import { createBookingSyncPort } from '@/modules/integrator/bookingM2mApi';
 import { createAppointmentPaymentConfirmedHandler } from '@/app-layer/booking/appointmentPaymentConfirmedHandler';
@@ -1767,6 +1768,10 @@ function _buildAppDeps() {
     integratorDeliveryTargets: integratorDeliveryTargetsPort,
   };
   return {
+    accountMergeNotifications: {
+      enqueue: (user: import('@/shared/types/session').SessionUser, mergedAccountId: string) =>
+        enqueueAccountMergeLoginNotification(user, mergedAccountId, createPgOutboundMessageQueue()),
+    },
     auth: {
       getCurrentSession,
       exchangeIntegratorToken: (token: string) =>
@@ -1790,9 +1795,19 @@ function _buildAppDeps() {
       startPhoneAuth: (phone: string, context: ChannelContext, opts?: StartPhoneAuthOptions) =>
         startPhoneAuthFlow(phone, context, phoneAuthDeps, opts),
       getPhoneChallenge: (challengeId: string) => challengeStore.get(challengeId),
-      confirmPhoneAuth: async (challengeId: string, code: string) => {
-        const result = await confirmPhoneAuthFlow(challengeId, code, phoneAuthDeps);
+      confirmPhoneAuth: async (
+        challengeId: string,
+        code: string,
+        humanMergeDecision?: import('@bersoncare/platform-merge').HumanMergeDecision,
+      ) => {
+        const result = await confirmPhoneAuthFlow(
+          challengeId,
+          code,
+          phoneAuthDeps,
+          humanMergeDecision,
+        );
         if (!result.ok) return result;
+        if ('mergeRequired' in result && result.mergeRequired) return result;
         const envRole = resolveRoleFromEnv({
           phone: result.user.phone,
           telegramId: result.user.bindings?.telegramId,
@@ -1814,10 +1829,12 @@ function _buildAppDeps() {
             : { ...result.user, role: effectiveRole };
         return {
           ok: true as const,
+          mergeRequired: false as const,
           user,
           redirectTo: getRedirectPathForRole(effectiveRole),
           deliveryChannel: result.deliveryChannel,
           wasCreated: result.wasCreated,
+          mergedAccountId: result.mergedAccountId,
           registrationAttemptId: result.registrationAttemptId,
         };
       },

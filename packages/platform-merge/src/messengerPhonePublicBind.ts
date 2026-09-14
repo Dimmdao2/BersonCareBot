@@ -4,12 +4,10 @@
  */
 import { sql } from 'drizzle-orm';
 import { classifyMergeFailure } from './mergeFailureClassification.js';
+import { MergeConflictError } from './platformUserMergeErrors.js';
 import { mergeLogger as logger } from './mergeLogger.js';
 import { runMergeSql } from './mergeSql.js';
 import {
-  mergePlatformUsersInTransaction,
-  pickMergeTargetId,
-  enrichPickMergeCandidatesWithBookingCounts,
   type PickMergeTargetCandidate,
   type PlatformMergeDbClient,
 } from './pgPlatformUserMerge.js';
@@ -180,11 +178,12 @@ async function mergePairIfDistinct(
       candidateIds: [idA, idB],
     });
   }
-  const [ea, eb] = await enrichPickMergeCandidatesWithBookingCounts(mergeClient, a, b);
-  const { target, duplicate } = pickMergeTargetId(ea, eb);
-  await mergePlatformUsersInTransaction(mergeClient, target, duplicate, 'phone_bind', {
-    mergeContext: { channel: channelCode },
-  });
+  void mergeClient;
+  void channelCode;
+  throw new MergeConflictError('messenger phone bind: human account confirmation required', [
+    idA,
+    idB,
+  ]);
 }
 
 /**

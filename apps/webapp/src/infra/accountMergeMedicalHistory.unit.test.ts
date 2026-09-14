@@ -127,11 +127,19 @@ function clientWithMedicalHistoryOnDuplicateOnly(): PlatformMergeDbClient {
 }
 
 describe('automatic account merge medical-history gate', () => {
+  const humanDecision = {
+    accountConfirmed: true as const,
+    targetId,
+    duplicateId,
+    recognizedAccountId: duplicateId,
+    fio: {},
+  };
+
   it('rejects an automatic merge when BOTH sides have qualifying history — a real conflict', async () => {
     const db = clientWithMedicalHistory();
 
     await expect(
-      mergePlatformUsersInTransaction(db, targetId, duplicateId, 'phone_bind'),
+      mergePlatformUsersInTransaction(db, targetId, duplicateId, 'phone_bind', { humanDecision }),
     ).rejects.toThrow('medical_history: automatic merge requires support');
   });
 
@@ -142,6 +150,7 @@ describe('automatic account merge medical-history gate', () => {
         targetId,
         duplicateId,
         'phone_bind',
+        { humanDecision },
       ),
     ).resolves.not.toThrow();
   });
@@ -153,6 +162,7 @@ describe('automatic account merge medical-history gate', () => {
         targetId,
         duplicateId,
         'phone_bind',
+        { humanDecision },
       ),
     ).resolves.not.toThrow();
   });

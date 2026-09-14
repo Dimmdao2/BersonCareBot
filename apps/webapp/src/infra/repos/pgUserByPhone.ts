@@ -28,6 +28,7 @@ import {
   pickMergeTargetId,
   enrichPickMergeCandidatesWithBookingCounts,
 } from '@/infra/repos/pgPlatformUserMerge';
+import type { HumanMergeDecision, HumanMergePrompt } from '@bersoncare/platform-merge';
 import { upsertBroadcastDefaultsAfterChannelBind } from '@/infra/upsertBroadcastDefaultsAfterChannelBind';
 import { applyPlatformUserPhoneHistoryTransition } from '@/infra/repos/pgPhoneHistory';
 import {
@@ -96,13 +97,53 @@ async function loadPuRowForMerge(client: PoolClient, id: string) {
     sql`SELECT pu.id,
             phone.value_normalized AS phone_normalized,
             pu.merged_into_id,
-            pu.display_name, pu.first_name, pu.last_name, email.value_normalized AS email, pu.created_at
+            pu.display_name, pu.first_name, pu.last_name, pu.patronymic,
+            email.value_normalized AS email, pu.created_at
      FROM platform_users pu
      LEFT JOIN user_contacts phone ON phone.platform_user_id = pu.id AND phone.contact_kind = 'phone' AND phone.is_primary = true
      LEFT JOIN user_contacts email ON email.platform_user_id = pu.id AND email.contact_kind = 'email' AND email.is_primary = true
      WHERE pu.id = ${id}`,
   );
   return r.rows[0] ? parseIdentityRow(puMergeRowSchema, r.rows[0], 'pu_merge_row') : null;
+}
+
+type MergePromptRow = NonNullable<Awaited<ReturnType<typeof loadPuRowForMerge>>>;
+
+function buildHumanMergePrompt(
+  target: MergePromptRow,
+  duplicate: MergePromptRow,
+  foundAccountId: string,
+): HumanMergePrompt {
+  const conflicts = (['last_name', 'first_name', 'patronymic'] as const).filter((field) => {
+    const left = target[field]?.trim() || null;
+    const right = duplicate[field]?.trim() || null;
+    return left !== null && right !== null && left !== right;
+  });
+  const summary = (row: MergePromptRow) => ({
+    id: row.id,
+    displayName: row.display_name,
+    firstName: row.first_name,
+    lastName: row.last_name,
+    patronymic: row.patronymic,
+    createdAt: row.created_at.toISOString(),
+  });
+  return {
+    target: summary(target),
+    duplicate: summary(duplicate),
+    foundAccountId,
+    conflicts,
+  };
+}
+
+function decisionForPair(
+  decision: HumanMergeDecision | undefined,
+  targetId: string,
+  duplicateId: string,
+): HumanMergeDecision | null {
+  if (!decision || decision.targetId !== targetId || decision.duplicateId !== duplicateId) {
+    return null;
+  }
+  return decision;
 }
 
 /**
@@ -403,6 +444,7 @@ export const pgUserByPhonePort: UserByPhonePort = {
         throw new Error('createOrBind: platform user cannot start a session');
       }
       return {
+        kind: 'complete',
         user: sessionUserFromPreSessionIdentityPayload(payload),
         wasCreated: payload.was_created,
       };
@@ -458,6 +500,7 @@ export const pgUserByPhonePort: UserByPhonePort = {
         throw new Error('createOrBind: platform user cannot start a session');
       }
       return {
+        kind: 'complete',
         user: sessionUserFromPreSessionIdentityPayload(payload),
         wasCreated: payload.was_created,
       };
@@ -507,7 +550,7 @@ export const pgUserByPhonePort: UserByPhonePort = {
             trustedPatientPhoneWriteAnchor(TrustedPatientPhoneSource.OtpCreateOrBind);
             await markPatientPhoneTrusted(client, userId, normalized);
           }
-          return { userId, wasCreated: false };
+          return { kind: 'complete' as const, userId, wasCreated: false };
         }
 
         const phoneRow = await runIdentityClientSql(
@@ -559,12 +602,34 @@ export const pgUserByPhonePort: UserByPhonePort = {
               (await resolveCanonicalUserId(getWebappSqlFromPgClient(client), owner.id)) ??
               owner.id;
             if (canonicalOwnerId !== canonicalProfileId) {
+              const targetRow = await loadPuRowForMerge(client, canonicalProfileId);
+              const duplicateRow = await loadPuRowForMerge(client, canonicalOwnerId);
+              if (!targetRow || !duplicateRow) {
+                throw new MergeConflictError('createOrBind: merge prompt row load failed', [
+                  canonicalProfileId,
+                  canonicalOwnerId,
+                ]);
+              }
+              const humanDecision = decisionForPair(
+                options?.humanMergeDecision,
+                canonicalProfileId,
+                canonicalOwnerId,
+              );
+              if (!humanDecision) {
+                return {
+                  kind: 'merge_required' as const,
+                  prompt: buildHumanMergePrompt(targetRow, duplicateRow, canonicalOwnerId),
+                };
+              }
               await mergePlatformUsersInTransaction(
                 client,
                 canonicalProfileId,
                 canonicalOwnerId,
                 'phone_bind',
-                { mergeContext: { channel: parsedContext.channel, source: 'otp' } },
+                {
+                  humanDecision,
+                  mergeContext: { channel: parsedContext.channel, source: 'otp' },
+                },
               );
             }
           } else {
@@ -665,8 +730,24 @@ export const pgUserByPhonePort: UserByPhonePort = {
                 throw new MergeConflictError('createOrBind: row load failed', [userId, other]);
               const [ea, eb] = await enrichPickMergeCandidatesWithBookingCounts(client, a, b);
               const { target, duplicate } = pickMergeTargetId(ea, eb);
+              const humanDecision = decisionForPair(
+                options?.humanMergeDecision,
+                target,
+                duplicate,
+              );
+              if (!humanDecision) {
+                return {
+                  kind: 'merge_required' as const,
+                  prompt: buildHumanMergePrompt(
+                    target === a.id ? a : b,
+                    duplicate === a.id ? a : b,
+                    other,
+                  ),
+                };
+              }
               try {
                 await mergePlatformUsersInTransaction(client, target, duplicate, 'phone_bind', {
+                  humanDecision,
                   mergeContext: { channel: parsedContext.channel, source: 'otp' },
                 });
               } catch (e) {
@@ -683,18 +764,26 @@ export const pgUserByPhonePort: UserByPhonePort = {
           trustedPatientPhoneWriteAnchor(TrustedPatientPhoneSource.OtpCreateOrBind);
           await markPatientPhoneTrusted(client, userId, normalized);
         }
-        return { userId, wasCreated };
+        return { kind: 'complete' as const, userId, wasCreated };
       });
 
     const bound = profileBindOrganizationId
       ? await runWithDbOrganizationPrincipal(profileBindOrganizationId, bindInTransaction)
       : await bindInTransaction();
 
+    if (bound.kind === 'merge_required') return bound;
     const user = await loadSessionIdentityUser(bound.userId);
     if (!user) {
       // Archived (D2): binding a channel must not resurrect an archived identity into a session.
       throw new Error('createOrBind: platform user is archived');
     }
-    return { user, wasCreated: bound.wasCreated };
+    return {
+      kind: 'complete',
+      user,
+      wasCreated: bound.wasCreated,
+      ...(options?.humanMergeDecision
+        ? { mergedAccountId: options.humanMergeDecision.duplicateId }
+        : {}),
+    };
   },
 };

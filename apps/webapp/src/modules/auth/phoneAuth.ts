@@ -9,6 +9,7 @@ import { normalizePhone } from './phoneNormalize';
 import { isValidPhoneE164 } from './phoneValidation';
 import { assertPhoneCanStartChallenge } from './phoneOtpLimits';
 import { generateSmsCode } from './smsCode';
+import type { HumanMergeDecision, HumanMergePrompt } from '@bersoncare/platform-merge';
 
 export { normalizePhone } from './phoneNormalize';
 
@@ -30,12 +31,15 @@ export type StartPhoneAuthResult =
   | { ok: false; code: string; retryAfterSeconds?: number };
 
 export type ConfirmPhoneAuthResult =
+  | { ok: true; mergeRequired: true; prompt: HumanMergePrompt }
   | {
       ok: true;
+      mergeRequired: false;
       user: SessionUser;
       redirectTo: string;
       deliveryChannel?: 'sms' | 'telegram' | 'max' | 'email';
       wasCreated: boolean;
+      mergedAccountId?: string;
       registrationAttemptId?: string;
     }
   | { ok: false; code: string; retryAfterSeconds?: number };
@@ -64,7 +68,10 @@ export async function createPhoneOtpChallenge(
   phone: string,
   context: ChannelContext,
   deps: PhoneAuthDeps,
-  options?: Pick<StartPhoneAuthOptions, 'registrationAttemptId' | 'isRegistrationIntent'>,
+  options?: Pick<
+    StartPhoneAuthOptions,
+    'registrationAttemptId' | 'isRegistrationIntent' | 'profileBindUserId'
+  >,
 ): Promise<
   | { ok: true; challengeId: string; code: string; retryAfterSeconds?: number }
   | { ok: false; code: string; retryAfterSeconds?: number }
@@ -101,6 +108,9 @@ export async function createPhoneOtpChallenge(
       ? { registrationAttemptId: options.registrationAttemptId.trim() }
       : {}),
     ...(options?.isRegistrationIntent === true ? { isRegistrationIntent: true } : {}),
+    ...(options?.profileBindUserId?.trim()
+      ? { profileBindUserId: options.profileBindUserId.trim() }
+      : {}),
   });
 
   return { ok: true, challengeId, code, retryAfterSeconds: 60 };
@@ -164,6 +174,7 @@ export async function confirmPhoneAuth(
   challengeId: string,
   code: string,
   deps: PhoneAuthDeps,
+  humanMergeDecision?: HumanMergeDecision,
 ): Promise<ConfirmPhoneAuthResult> {
   const challenge = await deps.challengeStore.get(challengeId);
   if (!challenge) {
@@ -182,6 +193,14 @@ export async function confirmPhoneAuth(
   }
 
   const context = challenge.channelContext ?? defaultWebContext();
+  if (humanMergeDecision && (
+    !challenge.mergePrompt ||
+    humanMergeDecision.targetId !== challenge.mergePrompt.target.id ||
+    humanMergeDecision.duplicateId !== challenge.mergePrompt.duplicate.id ||
+    humanMergeDecision.recognizedAccountId !== challenge.mergePrompt.foundAccountId
+  )) {
+    return { ok: false, code: 'merge_decision_mismatch' };
+  }
   const bindResult = await deps.userByPhonePort.createOrBind(challenge.phone, context, {
     phoneNumberProven:
       challenge.phoneNumberProven ?? isPhoneNumberProvenByOtpDelivery(deliveryChannel),
@@ -190,13 +209,20 @@ export async function confirmPhoneAuth(
     ...(challenge.profileBindOrganizationId
       ? { profileBindOrganizationId: challenge.profileBindOrganizationId }
       : {}),
+    ...(humanMergeDecision ? { humanMergeDecision } : {}),
   });
+  if (bindResult.kind === 'merge_required') {
+    await deps.challengeStore.set(challengeId, { ...challenge, mergePrompt: bindResult.prompt });
+    return { ok: true, mergeRequired: true, prompt: bindResult.prompt };
+  }
   return {
     ok: true,
+    mergeRequired: false,
     user: bindResult.user,
     redirectTo: getRedirectPathForRole(bindResult.user.role),
     deliveryChannel,
     wasCreated: bindResult.wasCreated,
+    mergedAccountId: bindResult.mergedAccountId,
     registrationAttemptId: challenge.registrationAttemptId,
   };
 }
