@@ -3622,7 +3622,7 @@ INSERT INTO bcb_function_relation_surfaces(signature,relation_name,columns,opera
   ('app.read_curated_system_health()', 'public.media_playback_client_events', ARRAY['media_id', 'event_class', 'delivery', 'created_at']::text[], ARRAY['SELECT']::text[]),
   ('app.read_curated_system_health()', 'public.notification_delivery_attempts', ARRAY['created_at', 'channel', 'status', 'reason', 'provider_status_code', 'error_message']::text[], ARRAY['SELECT']::text[]),
   ('app.read_curated_system_health()', 'public.outgoing_delivery_queue', ARRAY['kind', 'channel', 'status', 'sent_at', 'created_at']::text[], ARRAY['SELECT']::text[]),
-  ('app.read_curated_system_health()', 'public.operator_job_status', ARRAY['job_key', 'job_family', 'last_status', 'last_finished_at', 'last_success_at', 'last_failure_at', 'last_duration_ms']::text[], ARRAY['SELECT']::text[]),
+  ('app.read_curated_system_health()', 'public.operator_job_status', ARRAY['job_key', 'job_family', 'last_status', 'last_finished_at', 'last_success_at', 'last_failure_at', 'last_duration_ms', 'meta_json']::text[], ARRAY['SELECT']::text[]),
   ('app.read_current_org_tariff_transition_usage()', 'public.be_branches', ARRAY['organization_id', 'is_active']::text[], ARRAY['SELECT']::text[]),
   ('app.read_current_patient_active_organizations()', 'public.be_organizations', ARRAY['id', 'title', 'is_active', 'created_at']::text[], ARRAY['SELECT']::text[]),
   ('app.read_current_patient_active_organizations()', 'public.org_enrollments', ARRAY['id', 'organization_id', 'platform_user_id', 'status', 'created_at']::text[], ARRAY['SELECT']::text[]),
@@ -15879,7 +15879,6 @@ GRANT SELECT ON TABLE "public"."operator_job_status" TO "app_worker";
 GRANT INSERT ("job_family", "job_key", "last_duration_ms", "last_error", "last_failure_at", "last_finished_at", "last_started_at", "last_status", "last_success_at", "meta_json") ON TABLE "public"."operator_job_status" TO "app_worker";
 GRANT UPDATE ("job_family", "last_duration_ms", "last_error", "last_failure_at", "last_finished_at", "last_started_at", "last_status", "last_success_at", "meta_json") ON TABLE "public"."operator_job_status" TO "app_worker";
 GRANT SELECT ("job_family", "job_key", "last_duration_ms", "last_failure_at", "last_finished_at", "last_status", "last_success_at", "meta_json") ON TABLE "public"."operator_job_status" TO "saas_system_health_owner";
-GRANT SELECT ("job_family", "job_key", "last_duration_ms", "last_failure_at", "last_finished_at", "last_status", "last_success_at") ON TABLE "public"."operator_job_status" TO "saas_system_health_owner";
 -- последовательности public.operator_job_status: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;

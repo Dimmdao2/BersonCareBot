@@ -6636,7 +6636,8 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
           "last_finished_at",
           "last_success_at",
           "last_failure_at",
-          "last_duration_ms"
+          "last_duration_ms",
+          "meta_json"
         ],
         "operations": [
           "SELECT"

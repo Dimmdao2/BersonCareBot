@@ -22,8 +22,28 @@ const safeProviderErrorCodeSchema = z.enum([
   'Unregistered',
 ]);
 
+/**
+ * Журнал бэкапов: имя артефакта, размер и время. Приезжает из `meta_json` строки бэкапа через
+ * аллоу-лист `safeMeta` курируемой функции, где каждая запись уже пересобрана по полям с проверкой
+ * формы. Здесь форма проверяется ТРЕТИЙ раз — по той же причине, по которой она проверяется в
+ * функции: снимок здоровья читает панель глобального админа, и ни одно значение с диска хоста не
+ * должно доезжать до неё непроверенным.
+ */
+export const backupArtifactSchema = z
+  .object({
+    name: z
+      .string()
+      .min(1)
+      .max(200)
+      .regex(/^[A-Za-z0-9_]+\.dump\.age$/),
+    bytes: nonNegativeNumber,
+    at: z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/),
+  })
+  .strict();
+
 const safeMetaSchema = z
   .object({
+    artifacts: z.array(backupArtifactSchema).max(20).optional(),
     failed: nonNegativeNumber.optional(),
     consecutiveCronFailures: nonNegativeNumber.optional(),
     consecutiveFailRuns: nonNegativeNumber.optional(),

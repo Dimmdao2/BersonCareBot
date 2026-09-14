@@ -50,6 +50,7 @@ type BackupJobHealthSlice = {
   lastFailureAt: string | null;
   lastDurationMs: number | null;
   lastError: string | null;
+  artifacts?: readonly { name: string; bytes: number; at: string }[];
 };
 
 export type CronJobsHealthPayload = {
@@ -67,7 +68,10 @@ function backupRowToTick(jobKey: string, row: BackupJobHealthSlice): CronJobLast
     lastFailureAt: row.lastFailureAt,
     lastDurationMs: row.lastDurationMs,
     lastError: row.lastError,
-    metaJson: {},
+    // Журнал бэкапов: снимок каталога хоста, собранный скриптом и пропущенный через аллоу-лист
+    // курируемой функции. Отсутствие поля означает «скрипт этой версии журнал ещё не писал», и
+    // это не то же самое, что пустой список.
+    metaJson: row.artifacts ? { artifacts: row.artifacts } : {},
   };
 }
 

@@ -88,6 +88,8 @@ type SystemHealthPayload = {
       lastFailureAt: string | null;
       lastDurationMs: number | null;
       lastError: string | null;
+      /** Что лежит в каталоге бэкапов этого режима на момент последнего прогона. */
+      artifacts?: readonly { name: string; bytes: number; at: string }[];
     }
   >;
   outgoingDelivery?: {
@@ -511,6 +513,52 @@ function DetailRow({ label, value }: { label: string; value: ReactNode }) {
     <div className="flex items-start justify-between gap-3">
       <span className="text-muted-foreground">{label}</span>
       <span className="text-right">{value}</span>
+    </div>
+  );
+}
+
+/** Мегабайты, а не байты: размер бэкапа читают глазами, а не сравнивают побайтно. */
+function formatBackupSize(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes < 0) return '—';
+  if (bytes < 1024) return `${bytes} Б`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} КБ`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} МБ`;
+}
+
+/**
+ * Журнал бэкапов: что лежит в каталоге этого режима прямо сейчас. Владелец просил видеть не
+ * только «когда сделан последний», но и сам список.
+ *
+ * Отсутствие поля и пустой список — РАЗНЫЕ вещи, и говорятся они разными словами: первое значит,
+ * что скрипт на хосте ещё старой версии и журнал не ведёт, второе — что бэкапов действительно нет.
+ * Схлопнуть их в одну строку значило бы показать «бэкапов нет» там, где мы просто не знаем.
+ */
+function BackupArtifactList({
+  artifacts,
+  formatDateTime,
+}: {
+  artifacts?: readonly { name: string; bytes: number; at: string }[];
+  formatDateTime: (value: string | null | undefined) => string;
+}) {
+  if (!artifacts) {
+    return <DetailRow label="Файлы бэкапов" value="скрипт на хосте журнал не ведёт" />;
+  }
+  if (artifacts.length === 0) {
+    return <DetailRow label="Файлы бэкапов" value="каталог пуст" />;
+  }
+  return (
+    <div className="mt-2">
+      <p className="mb-1 text-muted-foreground">Файлы бэкапов ({artifacts.length})</p>
+      <ul className="space-y-0.5">
+        {artifacts.map((artifact) => (
+          <li key={artifact.name} className="flex items-start justify-between gap-3">
+            <span className="truncate">{artifact.name}</span>
+            <span className="shrink-0 text-right text-muted-foreground">
+              {formatBackupSize(artifact.bytes)} · {formatDateTime(artifact.at)}
+            </span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -1796,6 +1844,10 @@ export function SystemHealthSection({ displayTimeZone }: { displayTimeZone: stri
                         value={formatDateTime(st.lastFailureAt)}
                       />
                       <DetailRow label="Текст ошибки" value={st.lastError ?? '—'} />
+                      <BackupArtifactList
+                        artifacts={st.artifacts}
+                        formatDateTime={formatDateTime}
+                      />
                     </div>
                   ))}
                 </div>

@@ -180,6 +180,13 @@ type VideoTranscodeHealthPayload = {
   lastReconcileTick: VideoTranscodeLastReconcileTickPayload | null;
 };
 
+/** Одна запись журнала бэкапов: что лежит на диске хоста прямо сейчас. */
+export type BackupArtifactPayload = {
+  name: string;
+  bytes: number;
+  at: string;
+};
+
 type OperatorBackupJobPayload = {
   lastStatus: string;
   lastStartedAt: string | null;
@@ -188,6 +195,12 @@ type OperatorBackupJobPayload = {
   lastFailureAt: string | null;
   lastDurationMs: number | null;
   lastError: string | null;
+  /**
+   * Снимок каталога бэкапов на момент последнего тика — владелец просил видеть не только «когда»,
+   * но и «что есть». Пустой список значит «каталог пуст», отсутствие поля — «скрипт этой версии
+   * журнал ещё не писал».
+   */
+  artifacts?: readonly BackupArtifactPayload[];
 };
 
 export type OutgoingDeliveryHealthPayload = {
@@ -966,6 +979,7 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
         lastFailureAt: job.lastFailureAt,
         lastDurationMs: job.lastDurationMs,
         lastError: null,
+        artifacts: job.safeMeta.artifacts,
       };
     }
   }
