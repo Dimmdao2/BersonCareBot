@@ -29,7 +29,6 @@ import { SpecialistTaskFormDialog } from './clients/SpecialistTaskFormDialog';
 import { useViewportMinWidth } from '@/shared/hooks/useViewportMinWidth';
 import { useOptionalDoctorShellBadgeCounts } from '@/shared/ui/doctor/shell/DoctorSupportUnreadProvider';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
-import { cn } from '@/lib/utils';
 
 type Props = Pick<
   TodayDashboardData,
@@ -245,15 +244,7 @@ export function DoctorTodayLeftKpiRow({
           aria-label="Входящий поток"
           className={kpiGridClass}
         >
-          {kpiTiles.map((tile) =>
-            cloneElement(tile, {
-              valuePlacement: kpiValuePlacement,
-              className: cn(
-                tile.props.className,
-                kpiTiles.length === 3 && 'aspect-square md:aspect-auto',
-              ),
-            }),
-          )}
+          {kpiTiles.map((tile) => cloneElement(tile, { valuePlacement: kpiValuePlacement }))}
         </DoctorMetricList>
       ) : null}
 
