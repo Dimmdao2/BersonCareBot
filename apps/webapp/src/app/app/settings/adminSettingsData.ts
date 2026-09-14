@@ -195,7 +195,11 @@ export async function loadAdminAuthPageData(): Promise<{
   return {
     authProvidersConfig: buildAuthProvidersConfig(adminSettingsList),
     loginCaptchaConfig: {
-      initialEnabled: captchaEnabled === true || captchaEnabled === 'true',
+      // Только настоящее логическое значение считается «включено» — ровно как читает дверь
+      // входа (`value = 'true'::jsonb`). Строка "true" там ВЫКЛЮЧЕНО, и если принять её здесь,
+      // админ увидит включённую капчу, которой на входе нет. Маршрут записи приводит к boolean,
+      // так что расхождение недостижимо, — и пусть остаётся недостижимым с обеих сторон.
+      initialEnabled: captchaEnabled === true,
       initialFromAttempt:
         typeof captchaAfter === 'number' && Number.isInteger(captchaAfter)
           ? Math.max(1, Math.min(50, captchaAfter))
