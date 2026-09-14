@@ -135,25 +135,19 @@ export async function POST(request: Request) {
   try {
     const emailNorm = normalizeEmail(parsed.data.email);
     const deps = buildAppDeps();
+    // Адрес нужен ТОЛЬКО Яндексу и только как подсказка. Отсутствие доверенного заголовка не
+    // повод отказать человеку в этом маршруте: за конфигурацию прокси отвечает счётчик частоты
+    // выше, а здесь пустой адрес означает лишь, что параметр не будет отправлен.
     const captchaIp = resolveRealIpRateLimitClientKey(request, {
       scope: 'email_password_login_captcha',
       logPrefix: 'email_password_login_captcha',
-      fallbackKey: 'dev-email-password-login-captcha',
+      fallbackKey: '',
+      productionMissingLogLevel: 'warn',
     });
-    if (!captchaIp.ok) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: 'proxy_configuration',
-          message: notificationText.authProxyConfiguration,
-        },
-        { status: 503 },
-      );
-    }
     const captchaVerification = await deps.passwordAltcha.verify(
       emailNorm,
       parsed.data.captcha,
-      captchaIp.key,
+      captchaIp.ok ? captchaIp.key : null,
     );
 
     const pwd = await deps.userPasswordCredentials.verifyEmailPasswordForLogin(

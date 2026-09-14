@@ -64,26 +64,20 @@ export async function POST(request: Request) {
   try {
     const deps = buildAppDeps();
     const verifiedEmail = await deps.userByPhone.getVerifiedEmailForUser(gate.session.user.userId);
+    // Адрес нужен ТОЛЬКО Яндексу и только как подсказка. Отсутствие доверенного заголовка не
+    // повод отказать человеку в этом маршруте: за конфигурацию прокси отвечает счётчик частоты
+    // выше, а здесь пустой адрес означает лишь, что параметр не будет отправлен.
     const captchaIp = resolveRealIpRateLimitClientKey(request, {
       scope: 'account_password_change_captcha',
       logPrefix: 'account_password_change_captcha',
-      fallbackKey: 'dev-account-password-change-captcha',
+      fallbackKey: '',
+      productionMissingLogLevel: 'warn',
     });
-    if (!captchaIp.ok) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: 'proxy_configuration',
-          message: notificationText.authProxyConfiguration,
-        },
-        { status: 503 },
-      );
-    }
     const captchaVerification = verifiedEmail
       ? await deps.passwordAltcha.verify(
           verifiedEmail.trim().toLowerCase(),
           parsed.data.captcha,
-          captchaIp.key,
+          captchaIp.ok ? captchaIp.key : null,
         )
       : { verifiedExternally: false };
     result = await deps.passwordChange.changePassword({

@@ -84,8 +84,28 @@ async function readCaptchaConfig(port: PasswordLoginProtectionPort) {
     : { provider: 'altcha' as const, yandexClientKey: null, yandexServerKey: null };
 }
 
-async function verifyYandexToken(serverKey: string, token: string, ip: string): Promise<boolean> {
-  const body = new URLSearchParams({ secret: serverKey, token, ip });
+/**
+ * Адрес человека Яндексу передаётся, только если это действительно адрес. В обычной работе сюда
+ * приходит доверенный `x-real-ip` от nginx, но на dev-стенде его нет и общий резолвер возвращает
+ * СЛОВО-заглушку вместо адреса. Слать её как `ip` — значит врать чужой стороне о происхождении
+ * попытки; параметр необязательный, поэтому в таком случае он просто не ставится.
+ */
+function asIpAddress(value: string | null): string | null {
+  if (!value) return null;
+  const candidate = value.trim();
+  if (candidate.length === 0 || candidate.length > 45) return null;
+  const looksLikeIpv4 = /^\d{1,3}(\.\d{1,3}){3}$/.test(candidate);
+  const looksLikeIpv6 = candidate.includes(':') && /^[0-9a-fA-F:.]+$/.test(candidate);
+  return looksLikeIpv4 || looksLikeIpv6 ? candidate : null;
+}
+
+async function verifyYandexToken(
+  serverKey: string,
+  token: string,
+  ip: string | null,
+): Promise<boolean> {
+  const address = asIpAddress(ip);
+  const body = new URLSearchParams({ secret: serverKey, token, ...(address ? { ip: address } : {}) });
   try {
     const response = await fetch('https://smartcaptcha.cloud.yandex.ru/validate', {
       method: 'POST',
@@ -145,18 +165,21 @@ export function createPasswordAltchaService(port: PasswordLoginProtectionPort) {
     async verify(
       emailNormalized: string,
       answer: string | undefined,
-      ip: string,
+      ip: string | null,
     ): Promise<PasswordCaptchaVerification | undefined> {
+      // Ответа нет — и спрашивать настройки незачем: решение «капчу не проходили» одинаково при
+      // любом поставщике. Вход по паролю зовёт эту проверку КАЖДЫЙ раз, в том числе при выключенной
+      // капче, и лишний поход в базу на каждой попытке здесь не нужен ни за чем.
+      if (!answer) return { verifiedExternally: false };
       const config = await readCaptchaConfig(port);
       if (config.provider === 'yandex') {
-        if (!answer || !config.yandexServerKey || !config.yandexClientKey) {
+        if (!config.yandexServerKey || !config.yandexClientKey) {
           return { verifiedExternally: false };
         }
         return {
           verifiedExternally: await verifyYandexToken(config.yandexServerKey, answer, ip),
         };
       }
-      if (!answer) return { verifiedExternally: false };
       const rawPayload = answer;
       const payload = decodePayload(rawPayload);
       if (!payload) return { verifiedExternally: false };
