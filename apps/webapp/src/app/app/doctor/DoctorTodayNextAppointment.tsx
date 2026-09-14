@@ -64,7 +64,10 @@ export function DoctorTodayNextAppointment({ appointment, displayIana }: Props) 
                 </DoctorSectionTitle>
                 <DoctorPatientName
                   isOnSupport={appointment.patientOnSupport}
-                  className="min-w-0 truncate text-right text-[15px] font-medium text-primary"
+                  // Синий цвет остался от времён, когда имя было ссылкой на карточку клиента.
+                  // Ссылки здесь больше нет — вся карточка одна кнопка, — а синее имя обещает
+                  // переход, которого не случится. В остальных списках врача имя тоже `foreground`.
+                  className="min-w-0 truncate text-right text-[15px] font-medium text-foreground"
                 >
                   {patientLabel}
                 </DoctorPatientName>

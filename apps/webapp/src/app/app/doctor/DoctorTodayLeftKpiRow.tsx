@@ -62,11 +62,14 @@ type KpiModal = 'messages' | 'comments' | 'tasks' | null;
 
 const attentionKpiBackgroundClass = 'bg-[#f5ede5]';
 const attentionKpiValueClass = 'text-destructive';
+// Pin every breakpoint (not just the base + md), otherwise the shared grid's
+// `xl:grid-cols-4 2xl:grid-cols-5` (doctorStatCardGridClass) leaks through on large
+// desktop screens and tiles stop stretching to fill the row (owner report, 14.09).
 const kpiGridClassByTileCount: Record<number, string> = {
-  1: 'grid-cols-2 md:grid-cols-2',
-  2: 'grid-cols-2 md:grid-cols-2',
-  3: 'grid-cols-3 md:grid-cols-3',
-  4: 'grid-cols-2 md:grid-cols-4',
+  1: 'grid-cols-2 md:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-2',
+  2: 'grid-cols-2 md:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-2',
+  3: 'grid-cols-3 md:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-3',
+  4: 'grid-cols-2 md:grid-cols-4 xl:grid-cols-4 2xl:grid-cols-4',
 };
 
 function UnreadConversationModalItem({

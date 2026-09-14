@@ -145,6 +145,7 @@ export function DoctorStatCard({
       ) : null}
     </div>
   );
+  const metricRow = metric;
   const inner = valuePlacement === 'side-center' ? (
     <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] grid-rows-[auto_auto] items-start gap-x-1.5">
       <div className="col-start-1 row-start-1">{label}</div>
@@ -169,7 +170,7 @@ export function DoctorStatCard({
               'col-start-2 flex items-baseline justify-end gap-0.5 md:mt-0.5 md:w-full md:justify-start md:gap-1',
           )}
         >
-          {metric}
+          {metricRow}
         </div>
       </div>
       {hint ? (
@@ -177,11 +178,27 @@ export function DoctorStatCard({
       ) : null}
     </div>
   );
+  // Владелец 14.09: «сдвинь галочку правую ближе к краю и вертикально по центру» — на квадратной
+  // плитке (isStacked, три КПИ в ряд на телефоне) подпись по-прежнему обязана владеть всей
+  // шириной (см. `metricRow` выше — отдельная колонка под шеврон отнимала 24px и «Сообщения»
+  // теряли последнюю букву), поэтому здесь шеврон не в grid-колонке, а наложен абсолютным
+  // позиционированием поверх правого паддинга карточки — по высоте он центрируется относительно
+  // ВСЕЙ карточки (подпись + число), а не по строке числа.
   const content = opensDetails ? (
-    <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
-      <div className="min-w-0">{inner}</div>
-      <ChevronRight className={doctorStatCardChevronClass} aria-hidden />
-    </div>
+    isStacked ? (
+      <div className="relative w-full min-w-0">
+        {inner}
+        <ChevronRight
+          className={cn(doctorStatCardChevronClass, 'absolute right-0 top-1/2 -translate-y-1/2')}
+          aria-hidden
+        />
+      </div>
+    ) : (
+      <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+        <div className="min-w-0">{inner}</div>
+        <ChevronRight className={doctorStatCardChevronClass} aria-hidden />
+      </div>
+    )
   ) : (
     inner
   );
