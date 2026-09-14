@@ -72,6 +72,12 @@ install -d -m 0750 -o caddy -g caddy "$(sed -n 's/^CADDY_DATA_DIR=//p' "$CADDY_E
   "$CADDY_BINARY" validate --config "$CADDYFILE_SRC" --adapter caddyfile
 ) || die "Caddyfile did not validate — nginx has NOT been touched"
 
+# `validate` идёт от root и по пути создаёт файл журнала из конфигурации — root:root 0600. Служба
+# работает под учёткой `caddy` и такой файл открыть уже не может: край падал на старте с
+# `permission denied` при живом и верном конфиге (замер на проде 14.09.2026). Владельца каталога
+# восстанавливаем ПОСЛЕ проверки, а не до неё.
+chown -R caddy:caddy "$(sed -n 's/^CADDY_DATA_DIR=//p' "$CADDY_ENV_FILE" | tail -1)"
+
 say "backing up and replacing the public nginx site"
 BACKUP="/etc/nginx/sites-available/therapysto.pre-caddy.$(date +%s)"
 cp "$THERAPYSTO_PUBLIC_SITE" "$BACKUP"
