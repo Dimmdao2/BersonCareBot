@@ -59,69 +59,70 @@ type MedicalHistoryRecord = {
 const MEDICAL_HISTORY_RECORDS: readonly MedicalHistoryRecord[] = [
   {
     automaticProbe: (ids) =>
-      sql`SELECT 1 FROM clinical_visit WHERE patient_user_id = ANY(${ids}::uuid[])`,
+sql`SELECT organization_id FROM clinical_visit WHERE patient_user_id = ANY(${ids}::uuid[])`,
     transfer: (targetId, duplicateId) => [
       sql`UPDATE clinical_visit SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
     ],
   },
   {
     automaticProbe: (ids) =>
-      sql`SELECT 1 FROM clinical_complaint WHERE patient_user_id = ANY(${ids}::uuid[])`,
+sql`SELECT organization_id FROM clinical_complaint WHERE patient_user_id = ANY(${ids}::uuid[])`,
     transfer: (targetId, duplicateId) => [
       sql`UPDATE clinical_complaint SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
     ],
   },
   {
     automaticProbe: (ids) =>
-      sql`SELECT 1 FROM clinical_diagnosis WHERE patient_user_id = ANY(${ids}::uuid[])`,
+sql`SELECT organization_id FROM clinical_diagnosis WHERE patient_user_id = ANY(${ids}::uuid[])`,
     transfer: (targetId, duplicateId) => [
       sql`UPDATE clinical_diagnosis SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
     ],
   },
   {
     automaticProbe: (ids) =>
-      sql`SELECT 1 FROM clinical_anamnesis_trauma WHERE patient_user_id = ANY(${ids}::uuid[])`,
+sql`SELECT organization_id FROM clinical_anamnesis_trauma WHERE patient_user_id = ANY(${ids}::uuid[])`,
     transfer: (targetId, duplicateId) => [
       sql`UPDATE clinical_anamnesis_trauma SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
     ],
   },
   {
     automaticProbe: (ids) =>
-      sql`SELECT 1 FROM clinical_anamnesis_illness WHERE patient_user_id = ANY(${ids}::uuid[])`,
+sql`SELECT organization_id FROM clinical_anamnesis_illness WHERE patient_user_id = ANY(${ids}::uuid[])`,
     transfer: (targetId, duplicateId) => [
       sql`UPDATE clinical_anamnesis_illness SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
     ],
   },
   {
     automaticProbe: (ids) =>
-      sql`SELECT 1 FROM clinical_anamnesis_lifestyle WHERE patient_user_id = ANY(${ids}::uuid[])`,
+sql`SELECT organization_id FROM clinical_anamnesis_lifestyle WHERE patient_user_id = ANY(${ids}::uuid[])`,
     transfer: (targetId, duplicateId) => [
       sql`UPDATE clinical_anamnesis_lifestyle SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
     ],
   },
   {
-    automaticProbe: (ids) => sql`SELECT 1 FROM doctor_notes WHERE user_id = ANY(${ids}::uuid[])`,
+    automaticProbe: (ids) =>
+sql`SELECT organization_id FROM doctor_notes WHERE user_id = ANY(${ids}::uuid[])`,
     transfer: (targetId, duplicateId) => [
       sql`UPDATE doctor_notes SET user_id = ${targetId}::uuid WHERE user_id = ${duplicateId}::uuid`,
     ],
   },
   {
     automaticProbe: (ids) =>
-      sql`SELECT 1 FROM patient_bookings WHERE platform_user_id = ANY(${ids}::uuid[])`,
+sql`SELECT organization_id FROM patient_bookings WHERE platform_user_id = ANY(${ids}::uuid[])`,
     transfer: (targetId, duplicateId) => [
       sql`UPDATE patient_bookings SET platform_user_id = ${targetId}::uuid WHERE platform_user_id = ${duplicateId}::uuid`,
     ],
   },
   {
     automaticProbe: (ids) =>
-      sql`SELECT 1 FROM be_appointments WHERE platform_user_id = ANY(${ids}::uuid[])`,
+sql`SELECT organization_id FROM be_appointments WHERE platform_user_id = ANY(${ids}::uuid[])`,
     transfer: (targetId, duplicateId) => [
       sql`UPDATE be_appointments SET platform_user_id = ${targetId}::uuid WHERE platform_user_id = ${duplicateId}::uuid`,
     ],
   },
   {
     automaticProbe: (ids) =>
-      sql`SELECT 1 FROM treatment_program_instances
+sql`SELECT organization_id FROM treatment_program_instances
           WHERE patient_user_id = ANY(${ids}::uuid[]) AND assignment_source = 'doctor'`,
     transfer: (targetId, duplicateId) => [
       sql`UPDATE treatment_program_instances SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
@@ -172,26 +173,33 @@ async function assertAutomaticMergeHasNoMedicalHistory(
   targetId: string,
   duplicateId: string,
 ): Promise<void> {
-  // D26 §5.2/§5.4 (владелец 20.08, финальная формулировка после серии уточнений): блок только при
-  // РЕАЛЬНОМ КОНФЛИКТЕ — когда квалифицирующие медицинские данные (визиты, записи/приёмы, мед.карточки,
-  // назначенные врачом программы — записи ниже с automaticProbe) есть У ОБЕИХ сторон пары одновременно.
-  // Если данные есть только у одной стороны (не важно, у target или у duplicate) — блокировать нечего:
-  // «зачем блокировать мерж, если только один аккаунт с данными и оба контакта подтверждены» — это
-  // штатный сценарий (вернувшийся пациент добавляет новый канал), и transferMedicalHistoryForMerge ниже
-  // спокойно переносит историю duplicate→target, как при любом merge. Переписка (чат/обсуждения) в этот
-  // список не входит вообще — у её записей automaticProbe нет, гейт её не касается.
+  // Канон §18: блокирует ТОЛЬКО конфликт медицинских данных ВНУТРИ ОДНОЙ организации — когда
+  // квалифицирующие записи (визиты, записи/приёмы, мед.карточки, назначенные врачом программы — записи
+  // ниже с automaticProbe) есть у ОБЕИХ сторон пары и относятся к ОДНОЙ И ТОЙ ЖЕ клинике. Данные в
+  // РАЗНЫХ организациях слиянию не мешают вовсе: у одного человека спокойно живут две клиники со
+  // своими назначениями, это нормальное состояние, а не конфликт. Данные только на одной стороне не
+  // блокировали и раньше — вернувшийся пациент добавляет новый канал. Переписка (чат/обсуждения) в
+  // список не входит вообще: у её записей automaticProbe нет, гейт её не касается, она переносится
+  // безусловно.
+  //
+  // `IS NOT DISTINCT FROM`, а не обычное равенство: у части клинических таблиц `organization_id`
+  // допускает NULL (строки одноарендной эпохи). NULL против NULL при обычном сравнении дал бы «не
+  // совпало» и МОЛЧА пропустил бы слияние двух неатрибутированных историй. Гейт безопасности не имеет
+  // права расширяться от того, что данных о клинике не хватает, поэтому NULL считается совпадающим с
+  // NULL и такая пара по-прежнему блокируется.
   const probesFor = (id: string) =>
     MEDICAL_HISTORY_RECORDS.flatMap((record) => (record.automaticProbe ? [record.automaticProbe([id])] : []));
-  const result = await runMergeSql<{ target_has: boolean; duplicate_has: boolean }>(
+  const result = await runMergeSql<{ conflict_organization_id: string | null }>(
     client,
-    sql`SELECT
-          EXISTS (${sql.join(probesFor(targetId), sql` UNION ALL `)}) AS target_has,
-          EXISTS (${sql.join(probesFor(duplicateId), sql` UNION ALL `)}) AS duplicate_has`,
+    sql`SELECT DISTINCT target.organization_id AS conflict_organization_id
+          FROM (${sql.join(probesFor(targetId), sql` UNION ALL `)}) AS target(organization_id)
+          JOIN (${sql.join(probesFor(duplicateId), sql` UNION ALL `)}) AS duplicate(organization_id)
+            ON duplicate.organization_id IS NOT DISTINCT FROM target.organization_id
+         LIMIT 1`,
   );
-  const row = result.rows[0];
-  if (row?.target_has && row?.duplicate_has) {
+  if (result.rows.length > 0) {
     throw new MergeDependentConflictError(
-      'medical_history: automatic merge requires support (conflict on both sides)',
+      'medical_history: automatic merge requires support (conflict inside one organization)',
       [targetId, duplicateId],
     );
   }

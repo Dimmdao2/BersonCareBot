@@ -7,6 +7,7 @@ import type { ManualMergeResolution } from '../../../../packages/platform-merge/
 
 const targetId = '00000000-0000-4000-8000-000000000001';
 const duplicateId = '00000000-0000-4000-8000-000000000002';
+const organizationId = '00000000-0000-4000-8000-0000000000aa';
 
 function clientWithMedicalHistory(): PlatformMergeDbClient & { query: ReturnType<typeof vi.fn> } {
   return {
@@ -45,9 +46,9 @@ function clientWithMedicalHistory(): PlatformMergeDbClient & { query: ReturnType
           ],
         };
       }
-      if (query.includes('AS target_has')) {
-        // An appointment is one of the owner-defined history rows on BOTH sides — a real conflict.
-        return { rows: [{ target_has: true, duplicate_has: true }] };
+      if (query.includes('AS conflict_organization_id')) {
+        // Записи есть у обеих сторон И в одной организации — настоящий конфликт (канон §18).
+        return { rows: [{ conflict_organization_id: organizationId }] };
       }
       return { rows: [] };
     }),
@@ -99,8 +100,9 @@ function clientWithMedicalHistoryOnTargetOnly(): PlatformMergeDbClient {
           ],
         };
       }
-      if (query.includes('AS target_has')) {
-        return { rows: [{ target_has: true, duplicate_has: false }] };
+      if (query.includes('AS conflict_organization_id')) {
+        // Записи только на одной стороне: пересечения нет, строк не возвращается.
+        return { rows: [] };
       }
       return { rows: [] };
     }),
@@ -118,8 +120,8 @@ function clientWithMedicalHistoryOnDuplicateOnly(): PlatformMergeDbClient {
           ],
         };
       }
-      if (query.includes('AS target_has')) {
-        return { rows: [{ target_has: false, duplicate_has: true }] };
+      if (query.includes('AS conflict_organization_id')) {
+        return { rows: [] };
       }
       return { rows: [] };
     }),
@@ -144,6 +146,43 @@ describe('automatic account merge medical-history gate', () => {
         'phone_bind',
       ),
     ).resolves.not.toThrow();
+  });
+
+  it('does not reject when both sides have history but in DIFFERENT organizations — canon §18', async () => {
+    // Пересечение по организации пусто, поэтому запрос не возвращает ни одной строки: у одного
+    // человека две клиники со своими назначениями — это нормальное состояние, а не конфликт.
+    const db = {
+      query: vi.fn(async (query: string) => {
+        if (query.includes('FROM platform_users') && query.includes('FOR UPDATE')) {
+          return {
+            rows: [
+              platformUserRow(targetId, 'Клиника А'),
+              platformUserRow(duplicateId, 'Клиника Б'),
+            ],
+          };
+        }
+        if (query.includes('AS conflict_organization_id')) return { rows: [] };
+        return { rows: [] };
+      }),
+    } as unknown as PlatformMergeDbClient;
+
+    await expect(
+      mergePlatformUsersInTransaction(db, targetId, duplicateId, 'phone_bind'),
+    ).resolves.not.toThrow();
+  });
+
+  it('asks the database for an organization-scoped intersection, not for two independent EXISTS', async () => {
+    // Гейт обязан спрашивать именно пересечение по организации: пара независимых «есть ли история»
+    // не различает две клиники и одну, а канон §18 различает.
+    const db = clientWithMedicalHistory();
+    await expect(
+      mergePlatformUsersInTransaction(db, targetId, duplicateId, 'phone_bind'),
+    ).rejects.toThrow();
+    const asked = db.query.mock.calls.map(([query]) => String(query));
+    const gate = asked.find((query) => query.includes('conflict_organization_id'));
+    expect(gate).toBeDefined();
+    expect(gate).toContain('IS NOT DISTINCT FROM');
+    expect(asked.some((query) => query.includes('target_has'))).toBe(false);
   });
 
   it('does not reject when only the duplicate side has qualifying history — same rule, other side', async () => {
