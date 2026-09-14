@@ -102,10 +102,15 @@ export function SpecialistTaskRow({
           className={cn(
             'grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-3 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
             getDoctorSectionItemClass(!completed && overdue ? 'urgent' : 'neutral'),
+            // Владелец 14.09: «стандартный плоский список … заполнение так же как на мобиле,
+            // а контейнер … как на десктопных клиентах / чатах» — на десктопе строка раньше
+            // была отдельным боксом (rounded-lg/border/p-3), теперь мобильное оформление строки
+            // (без рамки/скругления, только волосяная линия между строками из
+            // `doctorDnaFlatListClass`) действует на всех брейкпоинтах.
             mobileFlat &&
               cn(
-                'rounded-none border-0 bg-card px-[var(--doctor-list-inline-padding,18px)] py-2.5 md:rounded-lg md:border md:p-3',
-                !completed && overdue ? 'bg-destructive/5 md:bg-destructive/5' : 'md:bg-muted/15',
+                'rounded-none border-0 bg-card px-[var(--doctor-list-inline-padding,18px)] py-2.5',
+                !completed && overdue && 'bg-destructive/5',
               ),
             active && doctorCatalogRowActiveClass,
           )}

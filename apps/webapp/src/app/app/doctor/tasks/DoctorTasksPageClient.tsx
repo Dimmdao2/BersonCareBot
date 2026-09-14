@@ -281,8 +281,12 @@ export function DoctorTasksPageClient({
                       label={group.kind === 'completed' ? 'Выполненные' : 'Открытых'}
                       value={group.tasks.length}
                     />
+                    {/* Владелец 14.09: «стандартный плоский список как на стр клиенты и
+                        сообщения/комментарии» — на десктопе строки раньше стояли отдельными
+                        боксами (див между ними снят здесь), теперь их разделяет обычная
+                        волосяная линия `doctorDnaFlatListClass`, как на Клиентах/Сообщениях. */}
                     {group.tasks.length ? (
-                      <DoctorDnaFlatList className="flex flex-col gap-0 md:gap-1 md:[&>li+li]:border-t-0">
+                      <DoctorDnaFlatList className="flex flex-col gap-0">
                         {group.tasks.map((task) => (
                           <SpecialistTaskRow
                             key={task.id}
