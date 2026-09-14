@@ -1265,6 +1265,12 @@ export function ScheduleCalendarTab({
     [view, anchorDate, branchId, serviceId, timeZone, scheduleScope],
   );
 
+  // Отменённые нужны серверу только по одной причине — их попросили показать: переключателем
+  // «показывать отмены» или КПИ-фильтром «Отмены». Зависимость именно от этого булева, а не от
+  // всего списка выбранных КПИ: список меняет тождество на каждом нажатии плитки, и лента записей
+  // перезапрашивалась бы двумя запросами даже там, где фильтр отрабатывает на клиенте.
+  const includeCancelledAppointments =
+    showCancelledAppointments || selectedKpiFilters.includes('cancellationsInPeriod');
   const fetchAppointmentFeedPage = useCallback(
     async (params: {
       from?: string;
@@ -1280,9 +1286,7 @@ export function ScheduleCalendarTab({
           to: params.to,
           q: params.q,
           order: params.order,
-          includeCancelled: String(
-            showCancelledAppointments || selectedKpiFilters.includes('cancellationsInPeriod'),
-          ),
+          includeCancelled: String(includeCancelledAppointments),
           limit: String(params.limit ?? APPOINTMENT_FEED_PAGE_SIZE),
           offset: String(params.offset ?? 0),
           branchId,
@@ -1294,7 +1298,7 @@ export function ScheduleCalendarTab({
       if (!response.ok || !json.ok) throw new Error(json.error ?? 'appointment_feed_load_failed');
       return json;
     },
-    [branchId, scheduleScope, selectedKpiFilters, serviceId, showCancelledAppointments],
+    [branchId, includeCancelledAppointments, scheduleScope, serviceId],
   );
 
   const loadInitialAppointmentFeed = useCallback(async () => {
@@ -1789,8 +1793,6 @@ export function ScheduleCalendarTab({
     return (appointment) => selectedKpiFilters.every((key) => predicates[key](appointment));
   }, [currentTimeZone, kpis?.firstVisitIds, selectedKpiFilters]);
 
-  const includeCancelledAppointments =
-    showCancelledAppointments || selectedKpiFilters.includes('cancellationsInPeriod');
   const displayableCalendarEvents = useMemo(
     () =>
       (data?.events ?? []).filter(
