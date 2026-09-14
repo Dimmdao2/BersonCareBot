@@ -54,6 +54,8 @@ export function StaffSecuritySection(props: Props) {
   const [code, setCode] = useState('');
   const [recoveryCodes, setRecoveryCodes] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
+  const [specialistFullName, setSpecialistFullName] = useState('');
+  const [specialistFioRequired, setSpecialistFioRequired] = useState(false);
 
   const securityReady = status.enrolled && status.recoveryConfirmed && !status.replacementRequired;
 
@@ -121,14 +123,26 @@ export function StaffSecuritySection(props: Props) {
   }
 
   async function bindSpecialist() {
+    setBusy(true);
     try {
-      const result = await postJson<{ ok: boolean; redirectTo?: string; error?: string }>(
+      const result = await postJson<{
+        ok: boolean;
+        redirectTo?: string;
+        error?: string;
+        message?: string;
+      }>(
         '/api/account/first-run/bind-specialist',
+        specialistFioRequired ? { fullName: specialistFullName } : undefined,
       );
-      if (!result.ok) return toast.error(staffSecurityErrorText(result.error, 'bind_specialist'));
+      if (!result.ok) {
+        if (result.error === 'fio_latin_rejected') setSpecialistFioRequired(true);
+        return toast.error(result.message ?? staffSecurityErrorText(result.error, 'bind_specialist'));
+      }
       window.location.assign(result.redirectTo ?? '/app/doctor');
     } catch {
       toast.error(staffSecurityNetworkErrorText('bind_specialist'));
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -257,9 +271,23 @@ export function StaffSecuritySection(props: Props) {
         props.showSpecialistFirstRun !== false &&
         props.hasOrganization &&
         !props.hasSpecialistBinding ? (
-          <Button size="sm" onClick={bindSpecialist}>
-            Подключить рабочий кабинет
-          </Button>
+          specialistFioRequired ? (
+            <div className="flex flex-wrap gap-2">
+              <Input
+                aria-label="ФИО специалиста"
+                placeholder="ФИО специалиста"
+                value={specialistFullName}
+                onChange={(event) => setSpecialistFullName(event.target.value)}
+              />
+              <Button size="sm" disabled={busy} onClick={bindSpecialist}>
+                Подключить рабочий кабинет
+              </Button>
+            </div>
+          ) : (
+            <Button size="sm" disabled={busy} onClick={bindSpecialist}>
+              Подключить рабочий кабинет
+            </Button>
+          )
         ) : null}
         {securityReady && !props.recoveryOnly ? (
           <div className="flex flex-wrap gap-2">
