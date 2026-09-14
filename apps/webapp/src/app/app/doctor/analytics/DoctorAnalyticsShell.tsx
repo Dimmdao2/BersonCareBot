@@ -15,7 +15,7 @@ import { doctorSectionTabClass } from '@/shared/ui/doctor/DoctorSectionTabs';
 import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
 import { DoctorMobileSectionTabs } from '@/shared/ui/doctor/shell/DoctorMobileSectionTabs';
 import {
-  DOCTOR_ACTIVE_FILTER_BUTTON_CLASS,
+  DOCTOR_FILTERS_HIDE_RECORDS_BUTTON_CLASS,
   DOCTOR_SCHEDULE_TOOLBAR_CONTROL_CLASS,
   DOCTOR_SCHEDULE_TOOLBAR_ICON_CONTROL_CLASS,
 } from '@/shared/ui/doctor/calendar/DoctorSchedulePeriodNav';
@@ -220,7 +220,9 @@ export function DoctorAnalyticsShell({
       variant="outline"
       className={cn(
         DOCTOR_SCHEDULE_TOOLBAR_ICON_CONTROL_CLASS,
-        locationFilter ? DOCTOR_ACTIVE_FILTER_BUTTON_CLASS : DOCTOR_SCHEDULE_TOOLBAR_CONTROL_CLASS,
+        locationFilter
+          ? DOCTOR_FILTERS_HIDE_RECORDS_BUTTON_CLASS
+          : DOCTOR_SCHEDULE_TOOLBAR_CONTROL_CLASS,
       )}
       onClick={() => setBranchPickerOpen(true)}
       aria-label={

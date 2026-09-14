@@ -108,6 +108,7 @@ export function NotificationsAnalyticsClient({ isActive = true }: { isActive?: b
               id="notif-sent-total"
               title="Отправлено"
               value={remindersSentTotal}
+              opensDetails
               onClick={() =>
                 setMetricDialog({ metric: 'notif_reminders_sent', title: 'Отправлено' })
               }
@@ -116,6 +117,7 @@ export function NotificationsAnalyticsClient({ isActive = true }: { isActive?: b
               id="notif-failed-total"
               title="Ошибок"
               value={remindersFailedTotal}
+              opensDetails
               tone={remindersFailedTotal > 0 ? 'warning' : 'neutral'}
               hint={
                 remindersSentTotal > 0
@@ -130,6 +132,7 @@ export function NotificationsAnalyticsClient({ isActive = true }: { isActive?: b
               id="notif-open-rate"
               title="Push open rate"
               value={openRatePct}
+              opensDetails
               hint={`Открыто: ${data.pushOpensSummary.opened} из ${data.pushOpensSummary.sent}`}
               onClick={() => setMetricDialog({ metric: 'notif_push_opened', title: 'Push open' })}
             />
