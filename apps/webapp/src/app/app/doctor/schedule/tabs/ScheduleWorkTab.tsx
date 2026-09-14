@@ -33,11 +33,11 @@ import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
 import { DoctorCatalogStickyToolbar } from '@/shared/ui/doctor/DoctorCatalogStickyToolbar';
 import {
   DOCTOR_ACTIVE_FILTER_BUTTON_CLASS,
-  DOCTOR_FILTERS_HIDE_RECORDS_BUTTON_CLASS,
   DOCTOR_SCHEDULE_TOOLBAR_CONTROL_CLASS,
   DOCTOR_SCHEDULE_TOOLBAR_ICON_CONTROL_CLASS,
   DoctorSchedulePeriodNav,
 } from '@/shared/ui/doctor/calendar/DoctorSchedulePeriodNav';
+import { DoctorAttentionBadge } from '@/shared/ui/doctor/DoctorAttentionBadge';
 import { DoctorDateTimePicker } from '@/shared/ui/doctor/DoctorDateTimePicker';
 import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
 import { emitDoctorScheduleCalendarRefresh } from '../scheduleCalendarEvents';
@@ -1562,7 +1562,7 @@ export function ScheduleWorkTab({
             DOCTOR_SCHEDULE_TOOLBAR_ICON_CONTROL_CLASS,
             allBranchesSelected
               ? DOCTOR_SCHEDULE_TOOLBAR_CONTROL_CLASS
-              : DOCTOR_FILTERS_HIDE_RECORDS_BUTTON_CLASS,
+              : DOCTOR_ACTIVE_FILTER_BUTTON_CLASS,
           )}
           onClick={() => setBranchPickerOpen(true)}
           disabled={branches.length <= 1}
@@ -1570,7 +1570,10 @@ export function ScheduleWorkTab({
           title="Филиалы"
           data-testid="branch-filter-open"
         >
-          <MapPin className="size-4" aria-hidden />
+          <span className="relative inline-flex">
+            <MapPin className="size-4" aria-hidden />
+            <DoctorAttentionBadge count={allBranchesSelected ? 0 : 1} dot />
+          </span>
         </Button>
         <DoctorSchedulePeriodNav
           className="justify-center"

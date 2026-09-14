@@ -13,8 +13,10 @@ import { cn } from '@/lib/utils';
 export const DOCTOR_SCHEDULE_TOOLBAR_CONTROL_CLASS = 'bg-white hover:bg-muted';
 export const DOCTOR_ACTIVE_FILTER_BUTTON_CLASS =
   'border-primary text-primary hover:bg-primary/5 hover:text-primary';
-export const DOCTOR_FILTERS_HIDE_RECORDS_BUTTON_CLASS =
-  'border-destructive text-destructive hover:bg-destructive/5 hover:text-destructive';
+// Владелец 14.09: красная обводка/текст на кнопках, скрывающих записи фильтром, ему не понравилась.
+// Возврат к обычному синему `DOCTOR_ACTIVE_FILTER_BUTTON_CLASS` на кнопке — сигнал «прячет записи»
+// теперь несёт только красная точка на самой иконке (`DoctorAttentionBadge dot`), тем же приёмом,
+// что уже используется для непрочитанных сообщений и задач в нижней навигации.
 
 /** Square icon control of the schedule toolbars (radius comes from the doctor button). */
 export const DOCTOR_SCHEDULE_TOOLBAR_ICON_CONTROL_CLASS = 'size-[32px] shrink-0';

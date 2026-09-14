@@ -45,7 +45,8 @@ import {
 } from '@/shared/ui/doctor/DoctorDnaFlatListRow';
 import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
 import { DOCTOR_MOBILE_SCROLL_END_INSET_CLASS } from '@/shared/ui/doctor/doctorWorkspaceLayout';
-import { DOCTOR_FILTERS_HIDE_RECORDS_BUTTON_CLASS } from '@/shared/ui/doctor/calendar/DoctorSchedulePeriodNav';
+import { DOCTOR_ACTIVE_FILTER_BUTTON_CLASS } from '@/shared/ui/doctor/calendar/DoctorSchedulePeriodNav';
+import { DoctorAttentionBadge } from '@/shared/ui/doctor/DoctorAttentionBadge';
 import { CatalogSplitLayout } from '@/shared/ui/doctor/catalog/CatalogSplitLayout';
 import { CatalogRightPane } from '@/shared/ui/doctor/catalog/CatalogRightPane';
 import { formatDoctorFio } from '@/shared/lib/fio';
@@ -667,8 +668,8 @@ function PatientsContent({
                 size="icon-sm"
                 variant="outline"
                 className={cn(
-                  'size-8 shrink-0',
-                  supportFilterActive && DOCTOR_FILTERS_HIDE_RECORDS_BUTTON_CLASS,
+                  'relative size-8 shrink-0',
+                  supportFilterActive && DOCTOR_ACTIVE_FILTER_BUTTON_CLASS,
                 )}
                 onClick={() => onSegmentToggle('on_support')}
                 aria-label={`Только: ${supportGroupLabel}`}
@@ -677,24 +678,24 @@ function PatientsContent({
                 <DoctorSupportStar
                   className={cn(
                     'top-0 ml-0 text-xs',
-                    // Красный ободок без красной звезды — половина предупреждения; владелец
-                    // просил красными и ободок, и саму иконку.
-                    supportFilterActive ? 'text-destructive' : 'text-muted-foreground',
+                    supportFilterActive ? 'text-primary' : 'text-muted-foreground',
                   )}
                 />
+                <DoctorAttentionBadge count={supportFilterActive ? 1 : 0} dot />
               </Button>
               <Button
                 type="button"
                 size="icon-sm"
                 variant="outline"
                 className={cn(
-                  'size-8 shrink-0',
-                  hasActiveFilters && DOCTOR_FILTERS_HIDE_RECORDS_BUTTON_CLASS,
+                  'relative size-8 shrink-0',
+                  hasActiveFilters && DOCTOR_ACTIVE_FILTER_BUTTON_CLASS,
                 )}
                 onClick={() => onMobileFiltersOpenChange(true)}
                 aria-label="Фильтры"
               >
                 <Filter className="size-3.5" aria-hidden />
+                <DoctorAttentionBadge count={hasActiveFilters ? 1 : 0} dot />
               </Button>
             </>
           ) : null}
