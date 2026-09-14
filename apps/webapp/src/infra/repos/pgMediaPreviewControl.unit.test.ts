@@ -50,7 +50,7 @@ const {
   claimMediaPreviewOrder,
   completeMediaPreviewImage,
   failMediaPreview,
-  releaseBlockedMediaPreviews,
+  releaseStuckMediaPreviews,
 } = await import('./pgMediaPreviewControl');
 
 const MEDIA_ID = '00000000-0000-4000-8000-0000000000c1';
@@ -242,23 +242,34 @@ describe('failMediaPreview', () => {
   });
 });
 
-describe('releaseBlockedMediaPreviews', () => {
-  it('queues deferred rows again once the worker reports the tool is there', async () => {
+describe('releaseStuckMediaPreviews', () => {
+  it('queues both the deferred and the burnt-out rows once the worker is up with the tool', async () => {
     runWebappSql.mockResolvedValue({ rows: [{ id: MEDIA_ID }, { id: MEDIA_ID }] });
 
-    const released = await releaseBlockedMediaPreviews(['heic_decoder']);
+    const released = await releaseStuckMediaPreviews(['heic_decoder']);
 
     expect(released).toBe(2);
     const update = issuedSql().find((text) => text.includes("preview_status = 'pending'"));
     expect(update).toBeDefined();
-    expect(update).toContain("preview_status = 'blocked'");
+    /* Обе стопки возвращаются в очередь, и счётчик попыток обнуляется: прошлые попытки считали
+       среду, а не файл. */
+    expect(update).toContain('blocked');
+    expect(update).toContain('failed');
     expect(update).toContain('preview_attempts = 0');
   });
 
-  it('leaves them deferred while the tool is still missing', async () => {
-    const released = await releaseBlockedMediaPreviews([]);
+  it('still frees the burnt-out rows when the tool is missing, and leaves the deferred alone', async () => {
+    runWebappSql.mockResolvedValue({ rows: [{ id: MEDIA_ID }] });
 
-    expect(released).toBe(0);
-    expect(issuedSql()).toEqual([]);
+    const released = await releaseStuckMediaPreviews([]);
+
+    /* Упавшие выпускаются всегда: до появления `blocked` отсутствие инструмента считалось обычным
+       отказом, и такие строки осели в `failed` навсегда — их не берёт ни одна ветка очереди.
+       Отложенные без инструмента выпускать нечем, они остаются ждать. */
+    expect(released).toBe(1);
+    const update = issuedSql().find((text) => text.includes("preview_status = 'pending'"));
+    expect(update).toBeDefined();
+    expect(update).toContain('failed');
+    expect(update).not.toContain('blocked');
   });
 });

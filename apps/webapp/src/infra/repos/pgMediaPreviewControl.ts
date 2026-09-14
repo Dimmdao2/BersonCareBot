@@ -123,7 +123,7 @@ async function markSkipped(db: WebappTxSql, mediaId: string): Promise<void> {
 /**
  * «Разобрать нечем» — состояние НАС, а не файла (владелец 14.09.2026). Попытка не планируется:
  * `preview_next_attempt_at` пуст, в очередь строка не возвращается и счётчик попыток не жжётся.
- * Выход отсюда один — `releaseBlockedMediaPreviews`, когда воркер сообщит, что инструмент появился.
+ * Выход отсюда один — `releaseStuckMediaPreviews` — воркер на старте сообщает, что инструмент появился.
  */
 async function markBlocked(db: WebappTxSql, mediaId: string): Promise<void> {
   await runWebappSql(
@@ -388,19 +388,35 @@ export async function readHostedPreviewSourceUrl(mediaId: string): Promise<strin
 }
 
 /**
- * Инструмент появился — отложенные строки возвращаются в очередь.
+ * Воркер поднялся — застрявшие строки возвращаются в очередь.
  *
- * Поручение владельца 14.09.2026: «деплой, который добавляет декодер, должен сбрасывать те строки,
- * которые упали именно из-за его отсутствия». Отдельного шага в скрипте деплоя для этого НЕ
- * заводим: воркер перезапускается каждым деплоем и на старте сам говорит, что у него есть, — то
- * есть условие проверяется по факту окружения, а не по намерению того, кто катил релиз. Ручной
- * прогон после деплоя не нужен и забыть его нельзя.
+ * Поручение владельца 14.09.2026, дословно: «надо сделать, чтобы deploy делал сброс. Любой deploy
+ * делал сброс, потому что мы же не будем каждый раз разбираться, добавили мы декодер в этом деплое
+ * или что-то ещё». Отдельного шага в скрипте деплоя нет и не будет: воркер перезапускается каждой
+ * выкладкой и на старте сам говорит, чем умеет разбирать байты, — условие проверяется по факту
+ * окружения, а не по намерению того, кто катил релиз. Забыть такой сброс нельзя.
+ *
+ * Две разные строки и два разных правила:
+ *
+ * 1. `blocked` — строка, которую НЕЧЕМ было разобрать. Выпускать её, пока инструмента нет, значит
+ *    гонять её по кругу впустую, поэтому здесь условие на инструмент остаётся.
+ * 2. `failed` — строка, которая исчерпала попытки. Выпускается ВСЕГДА. Причина прямая: до появления
+ *    состояния `blocked` отсутствие инструмента считалось обычным отказом, и такие строки осели в
+ *    `failed` навсегда — их не берёт ни одна ветка очереди. Ровно так 14.09 на новом проде застряли
+ *    шесть картинок: декодер уже стоял, а строки лежали мёртвыми. Отличить «файл битый» от «среда
+ *    была сломана» по самой строке невозможно, и гадать мы не будем — перезапуск воркера означает
+ *    возможную новую среду, и дешевле попробовать снова.
+ *
+ * Чем это ограничено: воркер в цикле падений возвращал бы `failed` в очередь на каждом старте. Это
+ * само по себе авария и видно отдельно; цена одного круга ограничена потолком попыток на строку.
  *
  * Счётчик попыток обнуляется: прошлые попытки считали среду, а не файл, и держать их против строки
  * нечестно — иначе файл, который ждал починки дольше других, получил бы меньше всего попыток.
  */
-export async function releaseBlockedMediaPreviews(tools: readonly PreviewTool[]): Promise<number> {
-  if (!tools.includes(PREVIEW_TOOL_HEIC_DECODER)) return 0;
+export async function releaseStuckMediaPreviews(tools: readonly PreviewTool[]): Promise<number> {
+  const statuses = tools.includes(PREVIEW_TOOL_HEIC_DECODER)
+    ? ['blocked', 'failed']
+    : ['failed'];
   const pool = getPool();
   const released = await withPoolTransaction<number>(pool, async (client) => {
     const db = getWebappSqlFromPgClient(client);
@@ -410,15 +426,15 @@ export async function releaseBlockedMediaPreviews(tools: readonly PreviewTool[])
              preview_status = 'pending',
              preview_attempts = 0,
              preview_next_attempt_at = NULL
-           WHERE preview_status = 'blocked'
+           WHERE preview_status = ANY(${statuses}::text[])
            RETURNING id::text AS id`,
     );
     return res.rows.length;
   });
   if (released > 0) {
     logger.info(
-      { released, tools },
-      '[mediaPreviewControl] the tool is back, deferred rows are queued again',
+      { released, tools, statuses },
+      '[mediaPreviewControl] the worker is up, stuck rows are queued again',
     );
   }
   return released;

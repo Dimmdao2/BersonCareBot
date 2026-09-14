@@ -12,7 +12,7 @@ import {
 } from '@/infra/repos/pgSystemSettings';
 import {
   claimMediaPreviewOrder, completeMediaPreviewImage, completeMediaPreviewPoster, failMediaPreview,
-  readHostedPreviewSourceUrl, releaseBlockedMediaPreviews,
+  readHostedPreviewSourceUrl, releaseStuckMediaPreviews,
 } from '@/infra/repos/pgMediaPreviewControl';
 import {
   HOSTED_PREVIEW_RETRY,
@@ -27,13 +27,13 @@ import {
 } from '@/modules/operator-health/reconcileJobKeys';
 
 /**
- * Воркер на старте говорит, чем он умеет разбирать байты. Единственное следствие — выпустить из
- * `blocked` строки, которые ждали именно этого (владелец 14.09.2026: деплой с декодером обязан
- * сбрасывать отложенное). Отчёт НЕ включает инструмент в работу и ничего не настраивает: что
- * запускать, решает план наряда, а здесь только снимается ожидание.
+ * Воркер на старте говорит, чем он умеет разбирать байты. Единственное следствие — вернуть в
+ * очередь застрявшие строки: `failed` всегда, `blocked` — когда нужный инструмент появился
+ * (владелец 14.09.2026: «любой deploy делал сброс»). Отчёт НЕ включает инструмент в работу и ничего
+ * не настраивает: что запускать, решает план наряда, а здесь только снимается ожидание.
  */
 export async function reportMediaPreviewTools(tools: readonly PreviewTool[]): Promise<number> {
-  return releaseBlockedMediaPreviews(tools);
+  return releaseStuckMediaPreviews(tools);
 }
 
 async function readMediaWorkerRuntimeBool(key: MediaWorkerRuntimeSettingKey): Promise<boolean> {
