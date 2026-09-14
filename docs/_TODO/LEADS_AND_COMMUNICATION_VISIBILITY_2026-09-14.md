@@ -291,7 +291,7 @@ are implemented».
 
 | Ветка | Клон | Чем занята |
 |---|---|---|
-| `wt/today-kpi` | `/home/dev/dev-projects/bcb-wt-today-kpi` | §4, §5: снять KPI «Тесты», адаптивный ряд, термин «Сопровождение» |
+| `wt/today-kpi` | `/home/dev/dev-projects/bcb-wt-today-kpi` | ✅ ПРИНЯТА ведущим 14.09 (`24e37bca2` + коррекция `c3d42cc81`), строка вердикта в очереди аудита. Живая проверка — после приземления. Приземление ждёт команды владельца |
 | `wt/comms-visibility` | `/home/dev/dev-projects/bcb-wt-comms-visibility` | §2, §3, §7.1–7.3: пустых вкладок нет, схлопывание до одной, рассылки в главное меню |
 | `wt/leads-core` | `/home/dev/dev-projects/bcb-wt-leads-core` | §1, §9: таблицы, домен, механика `leads`, переключатель, поля формы |
 
