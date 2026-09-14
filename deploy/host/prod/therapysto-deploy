@@ -108,6 +108,14 @@ else
     "$BACKUP_SCRIPT" ||
     die "не удалось установить $BACKUP_SCRIPT — $ACTIVE is still live and untouched"
 
+  # Второй бэкап хоста — хранилище сертификатов края. Только root: само хранилище закрыто 0700 на
+  # учётку caddy, и группа postgres здесь ни при чём. Его расписание приходит из того же манифеста.
+  install -d -m 0700 -o root -g root /opt/backups/caddy ||
+    die "не удалось создать /opt/backups/caddy — $ACTIVE is still live and untouched"
+  install -m 0700 -o root -g root "$THERAPYSTO_SRC/deploy/backups/caddy-store-backup.sh" \
+    /opt/backups/scripts/caddy-store-backup.sh ||
+    die "не удалось установить caddy-store-backup.sh — $ACTIVE is still live and untouched"
+
   # Срез ПЕРЕД миграциями — единственная точка возврата, если миграция окажется неверной. У старого
   # прода этот шаг в деплое был (`deploy/host/deploy-prod.sh`), у нового его не было вовсе: схема
   # боевой базы менялась без точки возврата. Найдено 14.09.2026 вместе с тем, что бэкапов нет совсем.

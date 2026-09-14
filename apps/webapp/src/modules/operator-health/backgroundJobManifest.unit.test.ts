@@ -95,9 +95,14 @@ describe('background job manifest', () => {
 
     for (const entry of backups) {
       expect(entry.scheduleOwner, `${entry.id}: расписание снова вне манифеста`).toBe('host_cron');
-      expect(entry.backupMode, `${entry.id}: нет режима скрипта`).toMatch(
-        /^(hourly|daily|weekly|prune)$/,
-      );
+      /* Бэкап хоста — это либо режим канонического скрипта базы, либо свой скрипт целиком (бэкап
+         хранилища сертификатов края). Одно из двух обязано быть названо: команда без того и другого
+         не собирается вовсе. */
+      if (entry.backupScriptPath === undefined) {
+        expect(entry.backupMode, `${entry.id}: нет ни режима скрипта, ни своего скрипта`).toMatch(
+          /^(hourly|daily|weekly|prune)$/,
+        );
+      }
       expect(entry.route, `${entry.id}: у бэкапа появилась HTTP-дверь`).toBeUndefined();
       expect(entry.principal).toBe('host_shell');
       expect(entry.surfaceIdentity).toBe('none');
@@ -133,7 +138,8 @@ describe('background job manifest', () => {
         expect(command).not.toContain('/dev/null');
         expect(command).toBe(
           entry.kind === 'backup_shell'
-            ? `/opt/backups/scripts/postgres-backup.sh ${entry.backupMode}`
+            ? (entry.backupScriptPath ??
+              `/opt/backups/scripts/postgres-backup.sh ${entry.backupMode}`)
             : `${environment.projectRoot}/deploy/host/run-internal-job.sh ${envId} ${entry.id}`,
         );
 
@@ -149,7 +155,7 @@ describe('background job manifest', () => {
         // Учётка не косметика: право читать базу целиком в этом режиме даёт ИМЕННО она, и `root`
         // здесь означал бы дамп одной из узких ролей рантайма, то есть часть базы под видом бэкапа.
         expect(cronUserFor(entry, environment)).toBe(
-          entry.kind === 'backup_shell' ? 'postgres' : 'root',
+          entry.kind === 'backup_shell' ? (entry.cronUser ?? 'postgres') : 'root',
         );
       }
     }

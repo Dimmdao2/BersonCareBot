@@ -175,6 +175,13 @@ export type BackgroundJobBackupMode = 'hourly' | 'daily' | 'weekly' | 'prune';
  */
 export const BACKUP_SCRIPT_PATH = '/opt/backups/scripts/postgres-backup.sh';
 
+/**
+ * Второй бэкап-скрипт хоста: хранилище сертификатов края. Отдельный файл, а не режим первого, по двум
+ * причинам — он работает от `root` (хранилище закрыто 0700 на учётку `caddy`, до которой `postgres` не
+ * дотягивается) и он не трогает базу вовсе.
+ */
+export const CADDY_STORE_BACKUP_SCRIPT_PATH = '/opt/backups/scripts/caddy-store-backup.sh';
+
 export type BackgroundJobRoute = {
   readonly method: 'POST';
   readonly path: string;
@@ -207,6 +214,13 @@ export type BackgroundJobManifestEntry = {
    * маршрута, и общий transport вебаппа его не будит.
    */
   readonly backupMode?: BackgroundJobBackupMode;
+  /**
+   * Свой путь скрипта вместо `BACKUP_SCRIPT_PATH` + режим. Только для `kind: 'backup_shell'`: бэкапов
+   * на хосте два, и второй — это другой файл, а не другой аргумент первого.
+   */
+  readonly backupScriptPath?: string;
+  /** Учётка cron, если она не `environment.backupOsUser`. */
+  readonly cronUser?: string;
   readonly principal: BackgroundJobPrincipal;
   readonly surfaceIdentity: BackgroundJobSurfaceIdentity;
   /** `curl --max-time`; задание, не уложившееся в него, — громкий отказ, а не тихий висяк. */
@@ -633,6 +647,28 @@ const BACKGROUND_JOB_MANIFEST_SOURCE = [
     required: true,
     why: 'Без чистки диск забивается дампами и хост встаёт целиком — отказ уборки тоже авария.',
   },
+  {
+    id: 'backup_caddy_store',
+    jobFamily: OPERATOR_BACKUP_JOB_FAMILY,
+    jobKey: 'backup.caddy_store',
+    label: 'Бэкап хранилища сертификатов края',
+    kind: 'backup_shell',
+    scheduleOwner: 'host_cron',
+    // Раньше суточного дампа базы: он короткий и не держит ни долгой транзакции, ни заметной доли диска.
+    scheduleHint: 'ежедневно в 03:20 UTC',
+    cron: '20 3 * * *',
+    artifactSlug: 'backup-caddy-store',
+    backupScriptPath: CADDY_STORE_BACKUP_SCRIPT_PATH,
+    // Хранилище края закрыто 0700 на учётку `caddy`; `postgres`, от которого идут дампы базы, туда не
+    // дотягивается. Отметку в журнале скрипт пишет через `runuser -u postgres`.
+    cronUser: 'root',
+    environments: ['prod'],
+    principal: 'host_shell',
+    surfaceIdentity: 'none',
+    staleAfterSec: 28 * 60 * 60,
+    required: true,
+    why: 'Потеря хранилища — не потеря данных, но повторный выпуск упирается в лимит Let\'s Encrypt (50 новых сертификатов в неделю на домен). При десятках клиник это дни без TLS у части из них; копия снимает риск целиком.',
+  },
 ] as const satisfies readonly BackgroundJobManifestEntry[];
 
 export type BackgroundJobId = (typeof BACKGROUND_JOB_MANIFEST_SOURCE)[number]['id'];
@@ -725,6 +761,7 @@ export function renderCronCommand(
   environment: BackgroundJobEnvironment,
 ): string {
   if (entry.kind === 'backup_shell') {
+    if (entry.backupScriptPath) return entry.backupScriptPath;
     if (!entry.backupMode) throw new Error(`background job ${entry.id} has no backupMode`);
     return `${BACKUP_SCRIPT_PATH} ${entry.backupMode}`;
   }
@@ -782,6 +819,7 @@ export function cronUserFor(
   environment: BackgroundJobEnvironment,
 ): string {
   if (entry.kind !== 'backup_shell') return 'root';
+  if (entry.cronUser) return entry.cronUser;
   if (!environment.backupOsUser) {
     throw new Error(`environment ${environment.id} has no backup OS user`);
   }
@@ -834,7 +872,7 @@ export function renderCronArtifact(
   const transportLines =
     entry.kind === 'backup_shell'
       ? [
-          `# Запускается напрямую ${BACKUP_SCRIPT_PATH} — это не HTTP-тик вебаппа, общий transport`,
+          `# Запускается напрямую ${entry.backupScriptPath ?? BACKUP_SCRIPT_PATH} — это не HTTP-тик вебаппа, общий transport`,
           '# run-internal-job.sh его не будит. Скрипт кладёт на хост тот же деплой, что и эту строку.',
         ]
       : [
