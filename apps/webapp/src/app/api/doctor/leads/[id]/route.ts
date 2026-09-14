@@ -89,9 +89,12 @@ export async function PATCH(request: Request, route: { params: Promise<{ id: str
         { status: 409 },
       );
     }
+    // 503 и для предметной, и для неопознанной: до этой правки маршрут отвечал 503 на всё, кроме
+    // запрещённого перехода, и менять это молча вместе с закрытием утечки текста нельзя.
     return respondWithSafeApiError('api/doctor/leads/[id]', error, {
       fallbackCode: 'lead_change_failed',
       fallbackStatus: 503,
+      domainStatus: 503,
     });
   }
 }

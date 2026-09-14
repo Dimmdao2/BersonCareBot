@@ -2,11 +2,15 @@ import { and, desc, eq, isNull } from 'drizzle-orm';
 import { getDrizzle, type DrizzleDb } from '@/app-layer/db/drizzle';
 import { orgEnrollments } from '../../../db/schema/bookingEngine';
 import { leads } from '../../../db/schema/leads';
-import { logger } from '@/infra/logging/logger';
+import { logger, serializeError } from '@/infra/logging/logger';
+import { reportEmptyAudience } from '@/modules/operator-alerts/emptyAudienceRuntime';
 import { createPgOutboundMessageQueue } from '@/infra/repos/pgOutboundMessageQueue';
 import type { LeadsPort } from '@/modules/leads/ports';
 import type { Lead } from '@/modules/leads/types';
 import { leadRejectionNotification } from '@/modules/leads/rejectionNotification';
+
+/** Короткий стабильный ключ места для операторских сигналов, без персональных данных. */
+const LEAD_REJECTED_TOPIC = 'lead.rejected' as const;
 
 type Transaction = Parameters<Parameters<DrizzleDb['transaction']>[0]>[0];
 type Executor = DrizzleDb | Transaction;
@@ -168,12 +172,25 @@ export function createPgLeadsPort(): LeadsPort {
           enqueued ? 'lead rejection email queued' : 'lead rejection email already queued',
         );
       } catch (err) {
-        // Отказ по заявке уже зафиксирован и повторной попыткой не откатывается: сообщаем об
-        // отказе доставки в журнал, а не роняем операцию оператора.
-        logger.warn(
-          { event: 'lead.rejection_email.enqueue_failed', leadId: input.leadId, err },
+        // Отказ по заявке уже зафиксирован, и повторить его нельзя: CAS по `status='new'` закрыл
+        // дверь навсегда. Значит отказ ДОСТАВКИ здесь — это «человек никогда не узнает», и молчать
+        // о нём нельзя. Уходит тем же портом, что и пустая аудитория у подтверждения брони:
+        // итог для человека тот же — он не получил.
+        logger.error(
+          {
+            scope: 'lead_rejection_delivery',
+            topic: LEAD_REJECTED_TOPIC,
+            organizationId: input.organizationId,
+            err: serializeError(err),
+          },
           'lead rejection email could not be queued',
         );
+        await reportEmptyAudience({
+          topic: LEAD_REJECTED_TOPIC,
+          severity: 'user_facing',
+          channels: ['email'],
+          context: { organizationId: input.organizationId, reason: 'enqueue_failed' },
+        });
       }
       return rejected;
     },

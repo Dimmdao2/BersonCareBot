@@ -60,6 +60,7 @@ export const expectedP083PublicDirectOrgTargets = Object.freeze([
   'public.courses',
   'public.doctor_notes',
   'public.doctor_patient_support',
+  'public.leads',
   'public.lfk_complex_templates',
   'public.lfk_complexes',
   'public.lfk_exercise_load_types',

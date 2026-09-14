@@ -4,6 +4,7 @@ import type { Lead } from '@/modules/leads/types';
 const fakes = vi.hoisted(() => ({
   db: { select: vi.fn(), update: vi.fn() },
   enqueue: vi.fn(),
+  reportEmptyAudience: vi.fn(async () => undefined),
 }));
 
 vi.mock('@/app-layer/db/drizzle', () => ({ getDrizzle: () => fakes.db }));
@@ -11,7 +12,11 @@ vi.mock('@/infra/repos/pgOutboundMessageQueue', () => ({
   createPgOutboundMessageQueue: () => ({ enqueue: fakes.enqueue }),
 }));
 vi.mock('@/infra/logging/logger', () => ({
-  logger: { info: () => undefined, warn: () => undefined },
+  logger: { info: () => undefined, warn: () => undefined, error: () => undefined },
+  serializeError: (err: unknown) => ({ type: (err as Error)?.name }),
+}));
+vi.mock('@/modules/operator-alerts/emptyAudienceRuntime', () => ({
+  reportEmptyAudience: fakes.reportEmptyAudience,
 }));
 
 import { createPgLeadsPort } from './pgLeads';
@@ -112,6 +117,15 @@ describe('lead rejection delivery', () => {
     });
 
     expect(lead?.status).toBe('rejected');
+    // Повторить отказ нельзя — CAS закрыл дверь. Значит несостоявшееся письмо обязано быть
+    // СЛЫШНЫМ оператору, иначе человек не узнает об отказе никогда при зелёном экране.
+    expect(fakes.reportEmptyAudience).toHaveBeenCalledWith(
+      expect.objectContaining({
+        topic: 'lead.rejected',
+        severity: 'user_facing',
+        context: expect.objectContaining({ reason: 'enqueue_failed' }),
+      }),
+    );
   });
 
   it('a repeated reject is refused before a second durable email can be queued', async () => {
