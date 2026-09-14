@@ -76,4 +76,34 @@ done < <(find "$CERT_ROOT" -type f -name '*.crt' -print0 2>/dev/null)
 
 [ "$found" = 1 ] || bad "certificate store" "$CERT_ROOT exists but holds no .crt files"
 
+# coturn держит СОБСТВЕННУЮ копию сертификата на turn: он работает под не-root учёткой и до хранилища
+# Caddy не дотягивается. Копию обновляет therapysto-turn-cert-sync.timer. Если таймер молча встанет,
+# в хранилище Caddy всё будет свежим, а видео однажды перестанет соединяться по TLS — поэтому копию
+# проверяем отдельно, и отдельно проверяем, что она совпадает с тем, что держит Caddy.
+TURN_DOMAIN="${CADDY_TURN_DOMAIN:-turn.therapysto.ru}"
+COTURN_CERT="${COTURN_TLS_DIR:-/etc/therapysto/jitsi-prod/config/coturn/tls}/fullchain.pem"
+if [ -s "$COTURN_CERT" ]; then
+  end_epoch=$(openssl x509 -noout -enddate -in "$COTURN_CERT" 2>/dev/null | sed 's/^notAfter=//' | xargs -I{} date -d "{}" +%s 2>/dev/null)
+  if [ -z "$end_epoch" ]; then
+    bad "coturn copy" "could not read expiry of $COTURN_CERT"
+  else
+    days_left=$(( (end_epoch - $(date +%s)) / 86400 ))
+    if [ "$days_left" -lt "$WARN_DAYS" ]; then
+      bad "coturn copy ($TURN_DOMAIN)" "expires in $days_left days — the turn cert sync timer is probably not running"
+    else
+      ok "coturn copy ($TURN_DOMAIN) — $days_left days left"
+    fi
+  fi
+  store_cert=$(find "$CERT_ROOT" -type f -path "*/$TURN_DOMAIN/$TURN_DOMAIN.crt" 2>/dev/null | sort | head -1)
+  if [ -z "$store_cert" ]; then
+    bad "coturn copy ($TURN_DOMAIN)" "Caddy holds no certificate for this name — nothing renews it"
+  elif ! cmp -s "$store_cert" "$COTURN_CERT"; then
+    bad "coturn copy ($TURN_DOMAIN)" "differs from what Caddy holds — run sync-coturn-tls.sh"
+  else
+    ok "coturn copy matches the Caddy store"
+  fi
+else
+  bad "coturn copy" "$COTURN_CERT is missing — video TLS has no certificate"
+fi
+
 exit "$fail"

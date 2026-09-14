@@ -57,4 +57,13 @@ install -m 0644 -o "$ACCOUNT" -g "$ACCOUNT" \
   /opt/therapysto/src/deploy/systemd/therapysto-jitsi-prod-network-policy.service \
   "$(dirname "$DST")/systemd/therapysto-jitsi-prod-network-policy.service"
 
+# Доставка сертификата turn от Caddy к coturn. Ставится и включается на каждой выкладке намеренно:
+# если таймер кто-то выключит или юнит разойдётся с репозиторием, следующий же деплой это вернёт.
+# Сам запуск идемпотентен — при совпадающем сертификате он не трогает ни файлы, ни контейнер.
+for unit in therapysto-turn-cert-sync.service therapysto-turn-cert-sync.timer; do
+  install -m 0644 -o root -g root "/opt/therapysto/src/deploy/systemd/$unit" "/etc/systemd/system/$unit"
+done
+systemctl daemon-reload
+systemctl enable --now therapysto-turn-cert-sync.timer >/dev/null
+
 echo "пакет видео разложен в $DST из $(git -C /opt/therapysto/src rev-parse --short HEAD)"

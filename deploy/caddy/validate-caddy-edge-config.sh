@@ -15,7 +15,10 @@ export CADDY_ACME_EMAIL=ops@example.invalid
 export CADDY_DATA_DIR="$work_dir/data"
 export CADDY_PLATFORM_DOMAINS='therapysto.ru www.therapysto.ru admin.therapysto.ru www.therapygo.ru'
 export CADDY_ASK_URL=https://therapygo.ru/api/public/domains/ask
-export CADDY_UPSTREAM=127.0.0.1:8080
+export CADDY_UPSTREAM=127.0.0.1:8088
+export CADDY_MEET_DOMAIN=meet.example.invalid
+export CADDY_MEET_UPSTREAM=127.0.0.1:8000
+export CADDY_TURN_DOMAIN=turn.example.invalid
 
 "$script_dir/build-caddy-edge.sh" --output "$work_dir/caddy"
 # The edge must stay plugin-free: a DNS provider module in this binary would mean

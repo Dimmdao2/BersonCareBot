@@ -24,6 +24,12 @@ fail() { echo "[jitsi-${JITSI_DEPLOYMENT}-nginx] FATAL: $*" >&2; exit 1; }
 [[ "$(id -u)" == 0 ]] || fail "$MODE must run as root because the ACME certificate is root-readable only"
 
 jitsi_require_host
+# На хосте, где эдж держит Caddy, этого пути больше нет. Причина не в удобстве: vhost занимает 443,
+# а 443 принадлежит Caddy — включить его обратно значит уронить весь эдж, а не только meet. meet
+# отдаёт Caddy своим блоком (deploy/caddy/Caddyfile.template).
+if [[ "${JITSI_TLS_SOURCE:-certbot}" == "caddy" ]]; then
+  fail "на этом хосте публичные имена отдаёт Caddy: meet описан в deploy/caddy/Caddyfile.template, отдельный nginx-vhost на 443 сюда больше не ставится"
+fi
 [[ -f "$TEMPLATE" ]] || fail "missing $TEMPLATE"
 command -v nginx >/dev/null 2>&1 || fail "nginx is not installed"
 [[ -s "/etc/letsencrypt/live/$JITSI_TLS_LINEAGE/fullchain.pem" ]] || fail "missing $JITSI_TLS_LINEAGE certificate"

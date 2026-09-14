@@ -94,6 +94,10 @@ case "$JITSI_DEPLOYMENT" in
     JITSI_NFT_UNIT_NAME="bersoncarebot-jitsi-test-network-policy.service"
     JITSI_NFT_BACKUP_ROOT="/var/backups/bersoncare-jitsi-test-network-policy"
     JITSI_TLS_LINEAGE="bcb-jitsi-test"
+    # TEST по-прежнему получает сертификат от certbot одной линией на все свои имена: на том хосте
+    # нет Caddy, менять там нечего.
+    JITSI_TLS_SOURCE="certbot"
+    JITSI_COTURN_CERT_HOSTS="$JITSI_CERT_HOSTS"
     JITSI_COMPOSE_PROJECT="bcb-jitsi-test"
     ;;
   prod)
@@ -126,12 +130,17 @@ case "$JITSI_DEPLOYMENT" in
     JITSI_NFT_TARGET_CONF="/etc/nftables-therapysto-jitsi-prod.conf"
     JITSI_NFT_UNIT_NAME="therapysto-jitsi-prod-network-policy.service"
     JITSI_NFT_BACKUP_ROOT="/var/backups/therapysto-jitsi-prod-network-policy"
-    # Отдельной линии сертификата на этом хосте НЕТ намеренно: существующая линия `therapysto` уже
-    # выписана на meet.therapysto.ru и turn.therapysto.ru вместе с остальными именами прода (замерено
-    # 10.09.2026 по SAN). Вторая линия на те же имена удвоила бы поверхность продления ради одного
-    # только имени каталога, и продлевать пришлось бы обе, иначе видео однажды тихо останется со
-    # старым сертификатом. На TEST линия своя, потому что там она и была заведена своей.
-    JITSI_TLS_LINEAGE="therapysto"
+    # Сертификаты на новом проде выпускает и продлевает Caddy — по одному на имя, сам, без certbot
+    # (решение 14.09.2026, docs/ARCHITECTURE/SERVER CONVENTIONS.md). До этого дня здесь была одна
+    # линия certbot `therapysto` сразу на девять имён: когда эдж забрал Caddy, восемь из этих имён
+    # перестали отвечать certbot на проверку владения, и продление всей линии — вместе с turn —
+    # обречено было упасть. Поэтому источник у coturn теперь хранилище Caddy, а линии certbot нет.
+    JITSI_TLS_LINEAGE=""
+    JITSI_TLS_SOURCE="caddy"
+    # coturn слушает TLS только на turn.therapysto.ru, meet отдаёт сам Caddy. Требовать от копии
+    # coturn ещё и SAN meet — значит требовать общий сертификат, то есть ровно ту связку, из-за
+    # которой продление и ломалось.
+    JITSI_COTURN_CERT_HOSTS="$JITSI_TURN_HOST"
     JITSI_COMPOSE_PROJECT="therapysto-jitsi-prod"
     ;;
   *)
@@ -147,6 +156,9 @@ esac
 JITSI_NGINX_TEMPLATE_NAME="meet-${JITSI_DEPLOYMENT}.vhost.template.conf"
 # Container name follows the compose project, which is itself per-profile above.
 JITSI_COTURN_CONTAINER="${JITSI_COMPOSE_PROJECT}-coturn"
+# Откуда брать каталог хранилища Caddy, когда источник сертификата — он (профиль prod). Файл
+# root:caddy 0640, поэтому читать его может только root — как раз тот, кто и запускает синхронизацию.
+JITSI_CADDY_ENV_FILE="${JITSI_CADDY_ENV_FILE:-/etc/therapysto/env/caddy.prod}"
 JITSI_ENV_EXAMPLE="env/jitsi-${JITSI_DEPLOYMENT}.env.example"
 JITSI_TURN_ENV_EXAMPLE="env/coturn-${JITSI_DEPLOYMENT}.env.example"
 JITSI_LOG_TAG="[jitsi-${JITSI_DEPLOYMENT}]"
@@ -164,6 +176,7 @@ export JITSI_DEPLOYMENT JITSI_EXPECTED_HOST_IP JITSI_MEET_HOST JITSI_TURN_HOST J
   JITSI_NFT_CHAIN_IN JITSI_NFT_CHAIN_FWD JITSI_NFT_BACKUP_ROOT \
   JITSI_LEGACY_PROD_HOST_IP JITSI_NFT_SOURCE_CONF_NAME JITSI_NFT_TARGET_CONF JITSI_NFT_UNIT_NAME \
   JITSI_NGINX_TEMPLATE_NAME JITSI_NGINX_SERVER_NAMES JITSI_TLS_LINEAGE JITSI_CERT_HOSTS \
+  JITSI_TLS_SOURCE JITSI_COTURN_CERT_HOSTS JITSI_CADDY_ENV_FILE \
   JITSI_TRUSTED_PEER_IPS JITSI_COMPOSE_PROJECT JITSI_COTURN_CONTAINER \
   JITSI_ENV_EXAMPLE JITSI_TURN_ENV_EXAMPLE JITSI_TEST_SECRET_STORE JITSI_PROFILE_RESOLVED
 

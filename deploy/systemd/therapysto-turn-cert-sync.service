@@ -1,0 +1,12 @@
+[Unit]
+# Единственный путь, которым продлённый Caddy сертификат на turn.therapysto.ru доезжает до coturn.
+# У стокового Caddy нет хука «выполни команду после выпуска», поэтому синхронизация ходит таймером и
+# сама решает, изменилось ли что-нибудь: при совпадении она не трогает файлы и не перезапускает coturn.
+Description=Therapysto: доставка сертификата turn.therapysto.ru от Caddy к coturn
+After=therapysto-caddy-edge.service docker.service
+Wants=therapysto-caddy-edge.service
+
+[Service]
+Type=oneshot
+Environment=JITSI_DEPLOYMENT=prod
+ExecStart=/opt/therapysto/jitsi/bin/sync-coturn-tls.sh

@@ -1,0 +1,14 @@
+[Unit]
+Description=Ежедневная сверка сертификата turn.therapysto.ru с хранилищем Caddy
+
+[Timer]
+# Caddy продлевает примерно за треть срока до конца (у Let's Encrypt это около 30 дней запаса), так
+# что суточной сверки достаточно с огромным запасом. Разброс — чтобы перезапуск coturn не приходился
+# на одну и ту же минуту с остальной ночной машинерией.
+OnCalendar=daily
+RandomizedDelaySec=30m
+Persistent=true
+Unit=therapysto-turn-cert-sync.service
+
+[Install]
+WantedBy=timers.target
