@@ -95,6 +95,10 @@ systemctl reload nginx || {
 
 say "installing Caddy edge and its health timer"
 install -d -m 0755 /etc/caddy
+# Домашний каталог учётки края. Конфигурация приезжает файлом и без него, но Caddy пишет туда
+# автосохранение и на каждом старте ругается «permission denied» — шум в журнале, в котором потом
+# теряется настоящая ошибка.
+install -d -m 0700 -o caddy -g caddy /var/lib/caddy
 install -m 0644 "$CADDYFILE_SRC" "$CADDYFILE_DEST"
 install -m 0644 "$THERAPYSTO_PIPELINE/therapysto-caddy-edge.service" "/etc/systemd/system/$CADDY_SERVICE"
 install -m 0644 "$THERAPYSTO_PIPELINE/therapysto-caddy-edge-health.service" /etc/systemd/system/therapysto-caddy-edge-health.service
