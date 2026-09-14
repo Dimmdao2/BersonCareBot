@@ -1,4 +1,5 @@
 import { sql } from 'drizzle-orm';
+import { runWithDbBootstrapPrincipal } from '@bersoncare/db-principal';
 import { getWebappSqlDb, runWebappNamedRoot } from '@/infra/db/runWebappSql';
 import type { AuthRateLimitAttemptResult } from '@/modules/auth/authRateLimitPort';
 
@@ -36,15 +37,24 @@ export async function recordAndCountAuthRateLimitEvent(
   const batchSize = scopePrune
     ? Math.max(1, Math.min(AUTH_RATE_LIMIT_SCOPE_PRUNE_MAX_BATCH, Math.floor(scopePrune.batchSize)))
     : null;
-  const result = await runWebappNamedRoot<{ limited: boolean; attempts: number }>(
-    getWebappSqlDb(),
-    'app.auth_rate_limit_check_and_record(text,text,integer,integer,text,integer,integer)',
-    [scope, key, exactWindowMs, exactLimit, CHECK_AND_RECORD_ACTION, retentionMs, batchSize],
-    sql`SELECT limited, attempts
+  // Дверь счётчика попыток объявлена ПРЕД-СЕССИОННОЙ: она считает по паре «область + ключ» и
+  // человека не знает. Но зовут её и под уже установленным принципалом — например, когда вошедший
+  // человек меняет пароль в «Безопасности». Без своей области такой вызов отказывал ещё до базы, а
+  // счётчик от одного отказа НАВСЕГДА переходил на память процесса, то есть защита от перебора
+  // тихо выключалась целиком. Область задаём здесь, в единственной точке вызова этой двери.
+  const result = await runWithDbBootstrapPrincipal(
+    { source: 'auth-rate-limit/check-and-record' },
+    () =>
+      runWebappNamedRoot<{ limited: boolean; attempts: number }>(
+        getWebappSqlDb(),
+        'app.auth_rate_limit_check_and_record(text,text,integer,integer,text,integer,integer)',
+        [scope, key, exactWindowMs, exactLimit, CHECK_AND_RECORD_ACTION, retentionMs, batchSize],
+        sql`SELECT limited, attempts
           FROM app.auth_rate_limit_check_and_record(
             ${scope}, ${key}, ${exactWindowMs}::integer, ${exactLimit}::integer,
             ${CHECK_AND_RECORD_ACTION}, ${retentionMs}::integer, ${batchSize}::integer
           )`,
+      ),
   );
   const row = result.rows[0];
   if (!row) throw new Error('auth rate-limit root returned no result');

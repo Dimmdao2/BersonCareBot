@@ -1,4 +1,5 @@
 import { sql } from 'drizzle-orm';
+import { runWithDbBootstrapPrincipal } from '@bersoncare/db-principal';
 import { getWebappSqlDb, runWebappNamedRoot } from '@/infra/db/runWebappSql';
 import type {
   PasswordLoginProtectionPort,
@@ -28,19 +29,31 @@ type CompleteRow = {
   captcha_required: boolean;
 };
 
+/**
+ * Обе двери защиты от перебора объявлены ПРЕД-СЕССИОННЫМИ: они считают попытки по адресу почты и
+ * человека не знают. Среда для такой двери требует пред-сессионного принципала, а сюда приходят и
+ * звонящие, у которых принципал уже свой: смену пароля из «Безопасности» делает вошедший человек.
+ * Раньше это кончалось отказом ещё до базы — сменить пароль было нельзя ВООБЩЕ (доказано живым
+ * прогоном на TEST 14.09), а счётчик попыток тем же отказом навсегда переходил на память процесса.
+ * Поэтому область принципала задаём ЗДЕСЬ, в единственной точке вызова каждой двери: она узкая —
+ * ровно один вызов — и после неё принципал звонящего возвращается сам.
+ */
 export function createPgPasswordLoginProtectionPort(): PasswordLoginProtectionPort {
   return {
     async acquirePasswordProof(params): Promise<PasswordProofAdmission> {
-      const result = await runWebappNamedRoot<AcquireRow>(
-        getWebappSqlDb(),
-        'app.password_login_acquire(text,text,uuid,text)',
-        [
-          params.emailNormalized,
-          params.identifierKey,
-          params.altchaProof?.challengeId ?? null,
-          params.altchaProof?.challengeDigest ?? null,
-        ],
-        sql`SELECT
+      const result = await runWithDbBootstrapPrincipal(
+        { source: 'password-login-protection/acquire' },
+        () =>
+          runWebappNamedRoot<AcquireRow>(
+            getWebappSqlDb(),
+            'app.password_login_acquire(text,text,uuid,text)',
+            [
+              params.emailNormalized,
+              params.identifierKey,
+              params.altchaProof?.challengeId ?? null,
+              params.altchaProof?.challengeDigest ?? null,
+            ],
+            sql`SELECT
            status,
            lease_token::text AS lease_token,
            password_hash,
@@ -48,6 +61,7 @@ export function createPgPasswordLoginProtectionPort(): PasswordLoginProtectionPo
            retry_after_seconds,
            captcha_required
          FROM app.password_login_acquire(${params.emailNormalized}, ${params.identifierKey}, ${params.altchaProof?.challengeId ?? null}::uuid, ${params.altchaProof?.challengeDigest ?? null})`,
+          ),
       );
       const row = result.rows[0];
       if (!row) throw new Error('password_login_acquire_missing_result');
@@ -77,11 +91,14 @@ export function createPgPasswordLoginProtectionPort(): PasswordLoginProtectionPo
     },
 
     async completePasswordProof(params): Promise<PasswordProofCompletion> {
-      const result = await runWebappNamedRoot<CompleteRow>(
-        getWebappSqlDb(),
-        'app.password_login_complete(uuid,boolean)',
-        [params.leaseToken, params.passwordVerified],
-        sql`SELECT
+      const result = await runWithDbBootstrapPrincipal(
+        { source: 'password-login-protection/complete' },
+        () =>
+          runWebappNamedRoot<CompleteRow>(
+            getWebappSqlDb(),
+            'app.password_login_complete(uuid,boolean)',
+            [params.leaseToken, params.passwordVerified],
+            sql`SELECT
            accepted,
            succeeded,
            user_id::text AS user_id,
@@ -90,6 +107,7 @@ export function createPgPasswordLoginProtectionPort(): PasswordLoginProtectionPo
            retry_after_seconds,
            captcha_required
          FROM app.password_login_complete(${params.leaseToken}::uuid, ${params.passwordVerified})`,
+          ),
       );
       const row = result.rows[0];
       if (!row?.accepted) return { accepted: false };
