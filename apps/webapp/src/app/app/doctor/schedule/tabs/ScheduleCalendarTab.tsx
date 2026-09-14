@@ -10,7 +10,6 @@ import {
   useState,
   useTransition,
   type CSSProperties,
-  type Ref,
 } from 'react';
 import dynamic from 'next/dynamic';
 import { DateTime } from 'luxon';
@@ -418,6 +417,27 @@ function mobilePeriodLabel(anchorDate: string, zone: string): string {
   );
 }
 
+/**
+ * Подпись периода над КПИ-плитками: даты «с — по». Владелец 14.09 смотрел на числа плиток и не мог
+ * понять, за что они посчитаны, — в режиме списка на экране месяцы, а считается видимый период.
+ *
+ * Берётся ИМЕННО `visibleRange` — та же функция, по которой КПИ уходят на сервер (`loadKpis`).
+ * Любой другой источник рано или поздно разойдётся со счётом, и подпись начнёт врать. `to` в этой
+ * модели — начало следующего дня, поэтому последний включённый день на сутки раньше.
+ */
+function kpiPeriodLabel(view: CalV26View, anchorDate: string, zone: string): string {
+  const range = visibleRange(view, anchorDate, zone);
+  const start = DateTime.fromISO(range.from, { zone }).setLocale('ru');
+  const end = DateTime.fromISO(range.to, { zone }).minus({ days: 1 }).setLocale('ru');
+  if (!start.isValid || !end.isValid) return '';
+  if (start.hasSame(end, 'day')) return start.toFormat('d MMMM yyyy');
+  if (start.hasSame(end, 'month')) return `${start.toFormat('d')} — ${end.toFormat('d MMMM yyyy')}`;
+  if (start.hasSame(end, 'year')) {
+    return `${start.toFormat('d MMMM')} — ${end.toFormat('d MMMM yyyy')}`;
+  }
+  return `${start.toFormat('d MMMM yyyy')} — ${end.toFormat('d MMMM yyyy')}`;
+}
+
 function capitalizeRussianLabel(label: string): string {
   return label ? `${label[0]?.toLocaleUpperCase('ru')}${label.slice(1)}` : label;
 }
@@ -508,12 +528,25 @@ type KpiRowTabProps = {
   kpis: ScheduleKpis | null;
   kpisLoading: boolean;
   selectedKpiFilters: ScheduleKpiFilterKey[];
+  periodLabel: string;
   onKpiClick?: (key: ScheduleKpiFilterKey) => void;
 };
 
-function KpiRowTab({ kpis, kpisLoading, selectedKpiFilters, onKpiClick }: KpiRowTabProps) {
+function KpiRowTab({
+  kpis,
+  kpisLoading,
+  selectedKpiFilters,
+  periodLabel,
+  onKpiClick,
+}: KpiRowTabProps) {
   return (
-    <div className="grid grid-cols-2 gap-2" data-testid="cal-kpi-row">
+    <div className="flex flex-col gap-2">
+      {periodLabel ? (
+        <p className="px-0.5 text-xs text-muted-foreground" data-testid="cal-kpi-period">
+          Период: {periodLabel}
+        </p>
+      ) : null}
+      <div className="grid grid-cols-2 gap-2" data-testid="cal-kpi-row">
       {KPI_ITEMS.map(({ key, label }) => {
         const value = kpis?.[key] ?? 0;
         const selected = key !== 'recordsInPeriod' && selectedKpiFilters.includes(key);
@@ -538,7 +571,8 @@ function KpiRowTab({ kpis, kpisLoading, selectedKpiFilters, onKpiClick }: KpiRow
             testId={`kpi-${key}`}
           />
         );
-      })}
+        })}
+      </div>
     </div>
   );
 }
@@ -556,7 +590,6 @@ type ListDayCardProps = {
   nextApptId?: string;
   branchShortLabels: ReadonlyMap<string, string>;
   showSpecialist: boolean;
-  nextAppointmentRef?: Ref<HTMLButtonElement>;
 };
 
 // R29: фон строки списка повторяет статусную палитру календаря (eventClassName);
@@ -579,6 +612,9 @@ function listRowStyle(appt: CalendarAppointmentEvent): CSSProperties | undefined
   return {
     '--list-branch-bg': background,
     '--list-branch-border': border,
+    // Подпись филиала красится полным цветом — как часы филиала в «Графике работы». Заливка в 16%
+    // сама по себе на телефоне не различается, из-за чего строки читались «одним цветом».
+    '--list-branch-text': appt.branchColor,
   } as CSSProperties;
 }
 
@@ -591,7 +627,6 @@ function ListDayCard({
   nextApptId,
   branchShortLabels,
   showSpecialist,
-  nextAppointmentRef,
 }: ListDayCardProps) {
   return (
     <div
@@ -612,7 +647,6 @@ function ListDayCard({
             : appt.branchTitle;
           return (
             <Button
-              ref={isNext ? nextAppointmentRef : undefined}
               key={appt.id}
               type="button"
               variant="ghost"
@@ -635,7 +669,14 @@ function ListDayCard({
                 </span>
                 {branchLabel ? (
                   <span
-                    className="truncate text-muted-foreground"
+                    className={cn(
+                      'truncate',
+                      // Цвет филиала читается по подписи, а не только по бледной заливке строки.
+                      // У отменённой записи своя палитра — её не перебиваем.
+                      appt.branchColor && !cancelled
+                        ? 'font-medium text-[color:var(--list-branch-text)]'
+                        : 'text-muted-foreground',
+                    )}
                     title={appt.branchTitle ?? undefined}
                   >
                     {branchLabel}
@@ -710,7 +751,6 @@ function ListView({
 }: ListViewProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const anchorMarkerRef = useRef<HTMLDivElement>(null);
-  const nextAppointmentRef = useRef<HTMLButtonElement>(null);
   const earlierSentinelRef = useRef<HTMLDivElement>(null);
   const laterSentinelRef = useRef<HTMLDivElement>(null);
   const positionedAnchorRef = useRef<string | null>(null);
@@ -787,10 +827,10 @@ function ListView({
     }
     const isExplicitTodayRequest = scrollToTodayRequest > positionedTodayRequestRef.current;
     const frame = window.requestAnimationFrame(() => {
-      const targetNode =
-        isExplicitTodayRequest && nextAppointmentRef.current
-          ? nextAppointmentRef.current
-          : markerNode;
+      // Владелец 14.09: наверху экрана должна быть ДАТА, а не строка ближайшей записи — «я вижу
+      // весь сегодняшний день». Поэтому цель прокрутки всегда заголовок дня; отметка ближайшей
+      // записи остаётся на своём месте как граница прошлого и будущего, но к ней не прокручиваем.
+      const targetNode = markerNode;
       const targetTop =
         targetNode.getBoundingClientRect().top -
         scrollNode.getBoundingClientRect().top +
@@ -873,12 +913,16 @@ function ListView({
         <>
           {dayGroups.map(({ dateKey, label, appointments }, index) => (
             <Fragment key={dateKey}>
-              {index === anchorMarkerIndex ? <div ref={anchorMarkerRef} /> : null}
               {index === 0 || dayGroups[index - 1]?.monthKey !== dayGroups[index]?.monthKey ? (
                 <p className="mt-2 border-t border-border/70 px-3 py-4 text-center text-base font-normal capitalize text-foreground md:px-0">
                   {dayGroups[index]?.monthLabel}
                 </p>
               ) : null}
+              {/*
+                Маркер прокрутки — ПОСЛЕ заголовка месяца, чтобы на первом дне месяца целью
+                становился заголовок дня, а не заголовок месяца (аудит 14.09, Э1 FAIL).
+              */}
+              {index === anchorMarkerIndex ? <div ref={anchorMarkerRef} /> : null}
               <ListDayCard
                 dateKey={dateKey}
                 label={label}
@@ -888,7 +932,6 @@ function ListView({
                 nextApptId={nextApptId}
                 branchShortLabels={branchShortLabels}
                 showSpecialist={showSpecialist}
-                nextAppointmentRef={nextAppointmentRef}
               />
             </Fragment>
           ))}
@@ -1706,6 +1749,40 @@ export function ScheduleCalendarTab({
     }),
     [branchId, data?.resolvedScope.specialistId, scheduleScope.specialistId, serviceId],
   );
+
+  /**
+   * Подпись «за какой период посчитаны плитки» — ровно тот диапазон, который уходит в КПИ.
+   * `loadKpis` строит `from/to` по state `timeZone` (не по `data?.timeZone`) — подпись обязана
+   * читать тот же источник пояса, иначе после смены пояса устройства она способна описывать не
+   * тот интервал, по которому реально посчитаны числа (аудит 14.09, Э3 FAIL).
+   */
+  const kpiPeriod = useMemo(
+    () => kpiPeriodLabel(view, anchorDate, timeZone),
+    [anchorDate, timeZone, view],
+  );
+
+  /**
+   * День, на который встаёт список при открытии. Владелец 14.09: переключившись на телефоне из
+   * месяца в список, он должен увидеть СЕГОДНЯ, а не первое число месяца. Поэтому сегодняшний день
+   * побеждает, когда он попадает в видимый период; осознанный уход в другой месяц при этом не
+   * теряется — там сегодняшнего дня в периоде нет, и якорем остаётся его начало. Дальше список сам
+   * встаёт на ближайший день С ЗАПИСЯМИ (`dateKey >= anchorDate`), то есть правило «сегодня, либо
+   * день следующей записи» выполняется без отдельной ветки.
+   */
+  const listAnchorDate = useMemo(() => {
+    const zone = data?.timeZone ?? timeZone;
+    const range = visibleRange(view, anchorDate, zone);
+    // Начало ВИДИМОГО периода для любого вида, не только `month` — иначе `weekgrid` на неделе,
+    // отличной от anchor-недели, ставит якорь на день недели из `anchorDate` вместо понедельника
+    // выбранной недели (аудит 14.09, Э1 FAIL).
+    const periodStart = DateTime.fromISO(range.from, { zone }).toISODate() ?? anchorDate;
+    const todayKey = DateTime.now().setZone(zone).toISODate();
+    const fromKey = periodStart;
+    // `to` в модели периода — начало следующего дня, то есть граница не включается.
+    const toKey = DateTime.fromISO(range.to, { zone }).toISODate();
+    if (!todayKey || !fromKey || !toKey) return periodStart;
+    return todayKey >= fromKey && todayKey < toKey ? todayKey : periodStart;
+  }, [anchorDate, data?.timeZone, timeZone, view]);
   const scheduleSpecialistOptions = useMemo(
     () =>
       scopeBootstrap.specialists.map((specialist) => ({
@@ -3115,13 +3192,7 @@ export function ScheduleCalendarTab({
             // Continuous list view — grouped by month/day, lazily paged in both directions
             <ListView
               appointments={visibleListAppointments}
-              anchorDate={
-                view === 'month'
-                  ? (DateTime.fromISO(anchorDate, { zone: currentTimeZone })
-                      .startOf('month')
-                      .toISODate() ?? anchorDate)
-                  : anchorDate
-              }
+              anchorDate={listAnchorDate}
               timeZone={currentTimeZone}
               loading={listLoading}
               loadingEarlier={listLoadingEarlier}
@@ -3210,7 +3281,11 @@ export function ScheduleCalendarTab({
                   pointer-events: none !important;
                 }
                 .fc-timegrid-bg-harness { pointer-events: none !important; }
-                .fc-event .fc-event-main { color: var(--foreground) !important; }
+                /* Пол по умолчанию для .fc-v-event (у него FC не задаёт цвет текста своим
+                   правилом) — БЕЗ !important, чтобы инлайновый textColor от
+                   doctorCalendarAppointmentBranchColors() (цвет филиала) побеждал: инлайн-стиль
+                   и без !important сильнее любого селекторного правила (аудит 14.09, Э2 FAIL). */
+                .fc-event .fc-event-main { color: var(--foreground); }
                 /* R10 — прошедшие записи приглушаем, будущие/актуальные ярче */
                 .fc-event.fc-event-past { opacity: 0.6; }
 
@@ -3533,6 +3608,7 @@ export function ScheduleCalendarTab({
               kpis={kpis}
               kpisLoading={kpisLoading}
               selectedKpiFilters={selectedKpiFilters}
+              periodLabel={kpiPeriod}
               onKpiClick={handleKpiClick}
             />
           ) : null}
@@ -3649,6 +3725,7 @@ export function ScheduleCalendarTab({
               kpis={kpis}
               kpisLoading={kpisLoading}
               selectedKpiFilters={selectedKpiFilters}
+              periodLabel={kpiPeriod}
               onKpiClick={handleKpiClick}
             />
           ) : null}
