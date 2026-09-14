@@ -415,6 +415,12 @@ export const notificationText = {
   settingsSmtpPasswordMissing: 'В настройках нет пароля SMTP',
   settingsCaptchaSecretRequired:
     'Сначала задайте секретный ключ капчи — без него задачка не выдаётся, и капчу включать нельзя.',
+  // 14.09: три маршрута выбирали текст тернарником прямо в ответе, и сторож этого не видел —
+  // он проверял только литерал, стоящий значением `message:` напрямую. Ветки теперь обходятся,
+  // а тексты живут здесь.
+  settingsIntegrationDisabledByPlatform: 'Интеграция отключена платформой.',
+  settingsSmtpDisabledByPlatform: 'SMTP отключён платформой.',
+  settingsDeliveryTestNoEmail: 'У вашей учётной записи нет адреса почты для проверки.',
 
   // --- domain/booking-engine ---
   // Публичная запись: отказ инфраструктуры (не прошёл reverse proxy) — читателю здесь нечего

@@ -81,7 +81,7 @@ export async function POST(request: Request) {
         error: 'employee_recipient_missing',
         message:
           channel === 'email'
-            ? 'У вашей учётной записи нет адреса почты для проверки.'
+            ? notificationText.settingsDeliveryTestNoEmail
             : `У вашей учётной записи не подключён ${channel === 'telegram' ? 'Telegram' : 'MAX'} для проверки.`,
       },
       { status: 400 },

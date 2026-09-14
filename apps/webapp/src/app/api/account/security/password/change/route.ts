@@ -11,6 +11,7 @@ import {
 } from '@/modules/auth/authConfirmRateLimit';
 import type { PasswordChangeResult } from '@/modules/auth/passwordChange';
 import { newPasswordSchema } from '@/modules/auth/passwordPolicy';
+import { notificationText } from '@/shared/notifications/notificationText';
 import { setSessionFromUser } from '@/modules/auth/service';
 
 const bodySchema = z.object({
@@ -92,10 +93,10 @@ export async function POST(request: Request) {
         ok: false,
         error: result.error,
         message: locked
-          ? 'Слишком много неверных попыток. Подождите 15 минут или восстановите пароль.'
+          ? notificationText.authPasswordTemporarilyLocked
           : result.error === 'wrong_current_password'
-            ? 'Текущий пароль неверен. Проверьте его или восстановите пароль.'
-            : 'Вход по паролю не настроен. Используйте другой способ входа.',
+            ? notificationText.authWrongCurrentPassword
+            : notificationText.authPasswordLoginUnavailable,
         ...(locked ? { retryAfterSeconds } : {}),
         captchaRequired: result.captchaRequired === true,
         captchaRefreshRequired: result.captchaRefreshRequired === true,

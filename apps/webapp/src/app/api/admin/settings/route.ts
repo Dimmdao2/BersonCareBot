@@ -773,8 +773,8 @@ export async function PATCH(request: Request) {
           integration,
           message:
             integration === 'email'
-              ? 'SMTP отключён платформой.'
-              : 'Интеграция отключена платформой.',
+              ? notificationText.settingsSmtpDisabledByPlatform
+              : notificationText.settingsIntegrationDisabledByPlatform,
         },
         { status: 403 },
       );
