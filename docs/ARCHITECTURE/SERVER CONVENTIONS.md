@@ -192,6 +192,9 @@ S3-медиа — громкая ошибка старта, не молчали�
   `CUSTOM_DOMAIN_CNAME_TARGET=test.therapygo.ru`. Nginx/TLS применяются через `apply-test-surface-domains.sh`,
   env — через `apply-test-surface-env.sh`. Произвольный tenant под `*.test.therapygo.ru` требует wildcard-сертификата DNS-01;
   DNS wildcard сам по себе TLS не завершает.
+- **Почтовый перехватчик TEST:** `mailpit.service` принимает SMTP только на `127.0.0.1:1025` и отдаёт UI/API
+  только на `127.0.0.1:8025`; хранилище — `/var/lib/mailpit/mailpit.db`. Для SMTP-клиента приложения в unit
+  включены `--smtp-auth-accept-any` и `--smtp-auth-allow-insecure`; Mailpit не настроен на relay/forward наружу.
 - **Деплой (факт):** обычный `bash deploy/host/deploy-test.sh` обновляет существующую именованную TEST БД.
   Отдельный owner-authorized full-reset path умеет прочитать свежий PROD dump и атомарно получить текущий B-state
   на той же named TEST; репетиция 02.09 завершилась PASS. Одноразовые/disposable БД и исторический replay
