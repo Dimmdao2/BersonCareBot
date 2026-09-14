@@ -93,9 +93,6 @@ async function DoctorTodayDashboardSection({
         doctorUserId: session.user.userId,
         organizationId: workspace.organizationId,
         visibilityActor: workspace,
-        treatmentProgramProgress: workspaceModules.rehabilitation
-          ? deps.treatmentProgramProgress
-          : undefined,
         treatmentProgramInstance: workspaceModules.rehabilitation
           ? deps.treatmentProgramInstance
           : undefined,

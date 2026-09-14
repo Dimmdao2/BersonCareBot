@@ -1,19 +1,13 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { cloneElement, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { DoctorMetricList } from '@/shared/ui/doctor/DoctorMetricList';
 import { KpiPreviewModal } from '@/shared/ui/doctor/KpiPreviewModal';
 import { Button, buttonVariants } from '@/shared/ui/doctor/primitives/button';
 import { DoctorConversationListRow } from '@/modules/messaging/components/DoctorConversationListRow';
 import { DoctorConversationChatModal } from '@/modules/messaging/components/DoctorConversationChatModal';
-import {
-  doctorDnaFlatListClickableClass,
-  doctorDnaFlatListMetaClass,
-  doctorDnaFlatListPrimaryClass,
-  doctorDnaFlatListRowClass,
-} from '@/shared/ui/doctor/DoctorDnaFlatListRow';
 import { DoctorStatCard } from './analytics/clients/DoctorStatCard';
 import { DoctorTodayExerciseCommentsModal } from './comments/DoctorTodayExerciseCommentsModal';
 import type {
@@ -21,7 +15,6 @@ import type {
   TodayUnreadConversationItem,
   TodayExerciseCommentAttentionItem,
 } from './loadDoctorTodayDashboard';
-import type { TodayPendingProgramTestItem } from './mapPendingProgramTestsForToday';
 import { routePaths } from '@/app-layer/routes/paths';
 import type { SpecialistTaskRow } from '@/modules/specialist-tasks/types';
 import {
@@ -36,18 +29,16 @@ import { SpecialistTaskFormDialog } from './clients/SpecialistTaskFormDialog';
 import { useViewportMinWidth } from '@/shared/hooks/useViewportMinWidth';
 import { useOptionalDoctorShellBadgeCounts } from '@/shared/ui/doctor/shell/DoctorSupportUnreadProvider';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
+import { cn } from '@/lib/utils';
 
 type Props = Pick<
   TodayDashboardData,
   | 'unreadConversations'
   | 'unreadTotal'
-  | 'pendingProgramTests'
-  | 'pendingProgramTestsTotal'
   | 'exerciseCommentAttentionItems'
   | 'exerciseCommentAttentionTotal'
   | 'exerciseCommentAttentionTruncated'
 > & {
-  pendingTestsTotal: number;
   /**
    * SEG-07: Переопределяет локальный счётчик комментариев.
    * Управляется из DoctorTodayLeftPaneBridge (client) в DoctorTodayDashboard.tsx,
@@ -68,10 +59,16 @@ type Props = Pick<
   onTaskDeleted: (taskId: string) => void;
 };
 
-type KpiModal = 'messages' | 'comments' | 'tests' | 'tasks' | null;
+type KpiModal = 'messages' | 'comments' | 'tasks' | null;
 
 const attentionKpiBackgroundClass = 'bg-[#f5ede5]';
 const attentionKpiValueClass = 'text-destructive';
+const kpiGridClassByTileCount: Record<number, string> = {
+  1: 'grid-cols-2 md:grid-cols-2',
+  2: 'grid-cols-2 md:grid-cols-2',
+  3: 'grid-cols-3 md:grid-cols-3',
+  4: 'grid-cols-2 md:grid-cols-4',
+};
 
 function UnreadConversationModalItem({
   item,
@@ -99,27 +96,9 @@ function UnreadConversationModalItem({
   );
 }
 
-function PendingTestModalItem({ item }: { item: TodayPendingProgramTestItem }) {
-  return (
-    <Link
-      href={item.href}
-      className={`${doctorDnaFlatListRowClass} ${doctorDnaFlatListClickableClass} block`}
-    >
-      <p className={doctorDnaFlatListPrimaryClass}>{item.patientDisplayName}</p>
-      <p className={`${doctorDnaFlatListMetaClass} mt-0.5`}>
-        {item.instanceTitle} · {item.stageTitle}
-      </p>
-      <p className={`${doctorDnaFlatListMetaClass} mt-0.5`}>{item.submittedAtLabel}</p>
-    </Link>
-  );
-}
-
 export function DoctorTodayLeftKpiRow({
-  pendingTestsTotal,
   unreadConversations,
   unreadTotal,
-  pendingProgramTests,
-  pendingProgramTestsTotal,
   exerciseCommentAttentionItems,
   exerciseCommentAttentionTotal,
   exerciseCommentsTotalOverride,
@@ -201,70 +180,73 @@ export function DoctorTodayLeftKpiRow({
   const selectedTask = selectedTaskId
     ? (tasks.find((task) => task.id === selectedTaskId) ?? null)
     : null;
+  const kpiTiles = [
+    <DoctorStatCard
+      key="messages"
+      id="doctor-today-left-kpi-messages"
+      title="Сообщения"
+      value={messageTotal}
+      tooltip={`Непрочитанные сообщения от ${patientGenPlural}.`}
+      tone={messageTotal > 0 ? 'warning' : 'neutral'}
+      className={messageTotal > 0 ? attentionKpiBackgroundClass : undefined}
+      valueClassName={messageTotal > 0 ? attentionKpiValueClass : undefined}
+      onClick={messageTotal > 0 ? () => setKpiModal('messages') : undefined}
+    />,
+    <DoctorStatCard
+      key="comments"
+      id="doctor-today-left-kpi-comments"
+      title="Комментарии"
+      value={displayTotal}
+      tooltip={`Новые комментарии ${patientGenPlural} к упражнениям.`}
+      tone={displayTotal > 0 ? 'warning' : 'neutral'}
+      className={displayTotal > 0 ? attentionKpiBackgroundClass : undefined}
+      valueClassName={displayTotal > 0 ? attentionKpiValueClass : undefined}
+      onClick={displayTotal > 0 ? () => setKpiModal('comments') : undefined}
+    />,
+    tasksReadable ? (
+      <DoctorStatCard
+        key="tasks"
+        id="doctor-today-left-kpi-tasks"
+        title="Задачи"
+        value={taskAttentionCount > 0 ? taskAttentionCount : tasksTotal}
+        secondaryValue={taskAttentionCount > 0 ? tasksTotal : undefined}
+        tooltip="Открытые задачи."
+        tone={hasOverdueTasks ? 'warning' : 'neutral'}
+        className={hasOverdueTasks ? attentionKpiBackgroundClass : undefined}
+        onClick={
+          (taskAttentionCount > 0 ? taskAttentionCount : tasksTotal) > 0
+            ? () => {
+                if (isDesktopViewport) {
+                  router.push(routePaths.doctorTasks);
+                  return;
+                }
+                setKpiModal('tasks');
+              }
+            : undefined
+        }
+        valueClassName={hasOverdueTasks ? attentionKpiValueClass : undefined}
+      />
+    ) : null,
+  ].filter((tile) => tile !== null);
+  const kpiGridClass = kpiGridClassByTileCount[kpiTiles.length] ?? kpiGridClassByTileCount[4];
+  const kpiValuePlacement = kpiTiles.length === 3 ? 'stacked' : 'responsive';
 
   return (
     <>
       <DoctorMetricList
         id="doctor-today-left-kpi"
         aria-label="Входящий поток"
-        className="grid-cols-2 sm:grid-cols-2 md:grid-cols-4 xl:grid-cols-4 2xl:grid-cols-4"
+        className={kpiGridClass}
       >
-        {/* Сообщения → KpiPreviewModal (SEG-02) */}
-        <DoctorStatCard
-          id="doctor-today-left-kpi-messages"
-          title="Сообщения"
-          value={messageTotal}
-          tooltip={`Непрочитанные сообщения от ${patientGenPlural}.`}
-          tone={messageTotal > 0 ? 'warning' : 'neutral'}
-          className={messageTotal > 0 ? attentionKpiBackgroundClass : undefined}
-          valueClassName={messageTotal > 0 ? attentionKpiValueClass : undefined}
-          onClick={messageTotal > 0 ? () => setKpiModal('messages') : undefined}
-        />
-        {/* Комментарии к упражнениям → KpiPreviewModal (S2.8) */}
-        <DoctorStatCard
-          id="doctor-today-left-kpi-comments"
-          title="Комментарии"
-          value={displayTotal}
-          tooltip={`Новые комментарии ${patientGenPlural} к упражнениям.`}
-          tone={displayTotal > 0 ? 'warning' : 'neutral'}
-          className={displayTotal > 0 ? attentionKpiBackgroundClass : undefined}
-          valueClassName={displayTotal > 0 ? attentionKpiValueClass : undefined}
-          onClick={displayTotal > 0 ? () => setKpiModal('comments') : undefined}
-        />
-        {/* Тесты к проверке → KpiPreviewModal (SEG-02) */}
-        <DoctorStatCard
-          id="doctor-today-left-kpi-tests"
-          title="Тесты"
-          value={pendingTestsTotal}
-          tooltip="Тесты по программам, ожидающие проверки."
-          tone={pendingTestsTotal > 0 ? 'warning' : 'neutral'}
-          className={pendingTestsTotal > 0 ? attentionKpiBackgroundClass : undefined}
-          valueClassName={pendingTestsTotal > 0 ? attentionKpiValueClass : undefined}
-          onClick={pendingTestsTotal > 0 ? () => setKpiModal('tests') : undefined}
-        />
-        {tasksReadable ? (
-          <DoctorStatCard
-            id="doctor-today-left-kpi-tasks"
-            title="Задачи"
-            value={taskAttentionCount > 0 ? taskAttentionCount : tasksTotal}
-            secondaryValue={taskAttentionCount > 0 ? tasksTotal : undefined}
-            tooltip="Открытые задачи."
-            tone={hasOverdueTasks ? 'warning' : 'neutral'}
-            className={hasOverdueTasks ? attentionKpiBackgroundClass : undefined}
-            onClick={
-              (taskAttentionCount > 0 ? taskAttentionCount : tasksTotal) > 0
-                ? () => {
-                    if (isDesktopViewport) {
-                      router.push(routePaths.doctorTasks);
-                      return;
-                    }
-                    setKpiModal('tasks');
-                  }
-                : undefined
-            }
-            valueClassName={hasOverdueTasks ? attentionKpiValueClass : undefined}
-          />
-        ) : null}
+        {kpiTiles.map((tile) =>
+          cloneElement(tile, {
+            valuePlacement: kpiValuePlacement,
+            className: cn(
+              tile.props.className,
+              kpiTiles.length === 3 && 'aspect-square md:aspect-auto',
+            ),
+          }),
+        )}
       </DoctorMetricList>
 
       <DoctorTodayExerciseCommentsModal
@@ -324,27 +306,6 @@ export function DoctorTodayLeftKpiRow({
         emptyState={
           <p className="py-4 text-center text-sm text-muted-foreground">
             Нет непрочитанных сообщений
-          </p>
-        }
-      />
-
-      {/* KpiPreviewModal: Тесты к проверке (SEG-02) */}
-      <KpiPreviewModal<TodayPendingProgramTestItem>
-        open={kpiModal === 'tests'}
-        onClose={() => setKpiModal(null)}
-        title="Тесты к проверке"
-        count={pendingProgramTestsTotal}
-        showCount={false}
-        desktopPresentation="right-sheet"
-        items={pendingProgramTests}
-        renderItem={(item) => (
-          <li>
-            <PendingTestModalItem item={item} />
-          </li>
-        )}
-        emptyState={
-          <p className="py-4 text-center text-sm text-muted-foreground">
-            Нет тестов, ожидающих проверки
           </p>
         }
       />

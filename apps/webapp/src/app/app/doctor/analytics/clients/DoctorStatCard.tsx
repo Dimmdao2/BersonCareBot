@@ -31,7 +31,7 @@ type Props = {
   valueClassName?: string;
   hintClassName?: string;
   testId?: string;
-  valuePlacement?: 'responsive' | 'inline' | 'side-center';
+  valuePlacement?: 'responsive' | 'inline' | 'side-center' | 'stacked';
   actionIcon?: ReactNode;
   actionLabel?: string;
   onActionClick?: () => void;

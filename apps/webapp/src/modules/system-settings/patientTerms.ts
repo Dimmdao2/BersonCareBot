@@ -80,7 +80,7 @@ export type PatientTerms = AppointmentTerms & {
   /** Творительный падеж мн.ч.: «пациентами» или «клиентами». */
   patientInstrumentalPlural: string;
   /** Chosen display name for the one `doctor_patient_support.on_support` group. */
-  supportGroupLabel: 'Избранные' | 'На сопровождении';
+  supportGroupLabel: 'Избранные' | 'Сопровождение';
 };
 
 export const PATIENT_LABEL_VALUES = ['пациент', 'клиент'] as const;
@@ -219,7 +219,7 @@ function unwrapSettingEnvelope(value: unknown): unknown {
  * оставляет их на совести следующего вызывающего.
  *
  * @param input.patientLabel — `patient_label`; не передано или не распознано → дефолт «пациент».
- * @param input.supportGroupLabel — `support_group_label`; не распознано → «На сопровождении».
+ * @param input.supportGroupLabel — `support_group_label`; не распознано → «Сопровождение».
  * @param input.appointmentLabel — `appointment_label`; не передано (`undefined`) или не распознано →
  *   «приём» (сегодняшнее поведение). Поле обязательно, чтобы вызывающий явно решил, что значения нет,
  *   а не забыл его передать.
@@ -238,7 +238,7 @@ export function resolvePatientTerms(input: {
   const supportGroupLabel =
     normalizeSupportGroupLabel(input.supportGroupLabel) === 'favorites'
       ? 'Избранные'
-      : 'На сопровождении';
+      : 'Сопровождение';
   if (normalized === 'клиент') {
     return {
       ...appointment,

@@ -450,8 +450,8 @@ export function SettingsForm({
                     <SelectItem value="favorites" label="Избранные">
                       Избранные
                     </SelectItem>
-                    <SelectItem value="on_support" label="На сопровождении">
-                      На сопровождении
+                    <SelectItem value="on_support" label="Сопровождение">
+                      Сопровождение
                     </SelectItem>
                   </SelectContent>
                 </Select>

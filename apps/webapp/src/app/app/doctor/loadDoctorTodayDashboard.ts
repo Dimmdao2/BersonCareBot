@@ -14,7 +14,6 @@ import type {
 } from '@/modules/doctor-clients/ports';
 import type { SpecialistTaskRow } from '@/modules/specialist-tasks/types';
 import type { SpecialistTasksService } from '@/modules/specialist-tasks/service';
-import type { TreatmentProgramProgressService } from '@/modules/treatment-program/progress-service';
 import { pickActivePlanInstance } from '@/modules/treatment-program/pickActivePlanInstance';
 import type {
   TreatmentProgramInstanceDetail,
@@ -31,11 +30,6 @@ import {
   type DoctorTodayPreferences,
 } from '@/modules/system-settings/doctorTodayPreferences';
 import { DateTime } from 'luxon';
-import {
-  DOCTOR_TODAY_PENDING_TESTS_PREVIEW_LIMIT,
-  mapPendingProgramTestsForToday,
-  type TodayPendingProgramTestItem,
-} from './mapPendingProgramTestsForToday';
 import { patientCardHref } from './patients/patientCardHref';
 import { communicationsChatHref } from './communications/doctorCommunicationsTabs';
 import { formatDateTimeRu, truncateText } from './doctorTodayFormat';
@@ -97,7 +91,6 @@ export type DoctorTodayDashboardDeps = {
   doctorUserId?: string;
   organizationId: string;
   visibilityActor: PatientVisibilityActor;
-  treatmentProgramProgress?: TreatmentProgramProgressService;
   treatmentProgramInstance?: {
     listForPatientClinicalView(patientUserId: string): Promise<TreatmentProgramInstanceSummary[]>;
     getInstanceById(instanceId: string): Promise<TreatmentProgramInstanceDetail>;
@@ -232,9 +225,6 @@ export type TodayDashboardData = {
   globalTaskPatientOnSupport: Record<string, boolean>;
   /** Общее количество открытых задач (§1.3). */
   globalOpenTasksTotal: number;
-  pendingProgramTests: TodayPendingProgramTestItem[];
-  pendingProgramTestsTotal: number;
-  pendingProgramTestsTruncated: boolean;
   exerciseCommentAttentionItems: TodayExerciseCommentAttentionItem[];
   exerciseCommentAttentionTotal: number;
   exerciseCommentAttentionTruncated: boolean;
@@ -822,7 +812,7 @@ export async function loadDoctorTodayDashboard(
   const onSupportPeopleCount = onSupportSorted.length;
   const onSupportPeopleListTruncated = onSupportPeopleCount > onSupportPeople.length;
 
-  const [openTasksData, pendingTestsResult, exerciseCommentAttention, nextAppointment] =
+  const [openTasksData, exerciseCommentAttention, nextAppointment] =
     await Promise.all([
       // §1.3: грузим ВСЕ открытые задачи владельца (без лимита, без фильтра по patientUserId —
       // owner punch-list 2026-07-25 item 1: раньше `patientUserId: null` скрывал задачи,
@@ -836,17 +826,6 @@ export async function loadDoctorTodayDashboard(
         visibilityActor: deps.visibilityActor,
         audience,
       }),
-      deps.treatmentProgramProgress
-        ? Promise.all([
-            deps.treatmentProgramProgress.countPendingTestEvaluationAttemptsGlobal(
-              deps.organizationId,
-            ),
-            deps.treatmentProgramProgress.listPendingTestEvaluationsGlobal(
-              deps.organizationId,
-              DOCTOR_TODAY_PENDING_TESTS_PREVIEW_LIMIT,
-            ),
-          ])
-        : Promise.resolve([0, []] as const),
       loadDoctorExerciseCommentAttention(deps, effectiveCommentClientsRaw),
       loadCurrentOrNextAppointment(deps, futureRaw, scopedAudience.excludedUserIds ?? []),
     ]);
@@ -881,11 +860,7 @@ export async function loadDoctorTodayDashboard(
   const globalTaskPatientNames = openTasksData.patientNames;
   const globalTaskPatientOnSupport = openTasksData.patientOnSupport;
 
-  const [pendingProgramTestsTotal, pendingRows] = pendingTestsResult;
   const appDisplayTimeZone = await getAppDisplayTimeZone();
-  const pendingProgramTests = mapPendingProgramTestsForToday(pendingRows, appDisplayTimeZone);
-  const pendingProgramTestsTruncated =
-    pendingProgramTestsTotal > DOCTOR_TODAY_PENDING_TESTS_PREVIEW_LIMIT;
   const currentWeekLists = buildCurrentWeekAppointmentLists(timelineRaw, deps.displayIana);
 
   return {
@@ -913,9 +888,6 @@ export async function loadDoctorTodayDashboard(
     globalTaskPatientNames,
     globalTaskPatientOnSupport,
     globalOpenTasksTotal: globalOpenTasks.length,
-    pendingProgramTests,
-    pendingProgramTestsTotal,
-    pendingProgramTestsTruncated,
     exerciseCommentAttentionItems: exerciseCommentAttention.items,
     exerciseCommentAttentionTotal: exerciseCommentAttention.total,
     exerciseCommentAttentionTruncated: exerciseCommentAttention.truncated,
