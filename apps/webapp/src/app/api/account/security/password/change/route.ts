@@ -80,6 +80,20 @@ export async function POST(request: Request) {
           captchaIp.ok ? captchaIp.key : null,
         )
       : { verifiedExternally: false };
+    // Поставщик капчи промолчал — отказываем ДО двери смены пароля, чтобы молчание чужой стороны
+    // не засчиталось человеку неудачной попыткой. Решение владельца 14.09: «значит не пускать».
+    if (captchaVerification?.providerUnavailable) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: 'captcha_unavailable',
+          message: notificationText.authCaptchaUnavailable,
+          captchaRequired: true,
+          captchaRefreshRequired: true,
+        },
+        { status: 503 },
+      );
+    }
     result = await deps.passwordChange.changePassword({
       userId: gate.session.user.userId,
       currentPassword: parsed.data.currentPassword,

@@ -260,6 +260,24 @@ describe('email/password login HTTP boundary', () => {
     expect(fakes.setSession).not.toHaveBeenCalled();
   });
 
+  it('refuses when the captcha provider stayed silent, without spending the attempt', async () => {
+    // Решение владельца 14.09 («значит не пускать»): молчание Яндекса — не пропуск. И не неудачная
+    // попытка: дверь входа не должна быть тронута вовсе, иначе чужая недоступность приближала бы
+    // человека к паузе и к блокировке.
+    fakes.verifyAltcha.mockResolvedValueOnce({ verifiedExternally: false, providerUnavailable: true });
+
+    const response = await login(request());
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: false,
+      error: 'captcha_unavailable',
+      captchaRefreshRequired: true,
+    });
+    expect(fakes.verifyPassword).not.toHaveBeenCalled();
+    expect(fakes.setSession).not.toHaveBeenCalled();
+  });
+
   it('sends staff without a self-enrolled factor to their cabinet', async () => {
     fakes.verifyPassword.mockResolvedValue({ ok: true, userId, emailVerified: true });
     fakes.findUser.mockResolvedValue(user);
@@ -655,6 +673,23 @@ describe('password change HTTP boundary', () => {
     expect(fakes.setSession).not.toHaveBeenCalled();
   });
 
+  it('refuses when the captcha provider stayed silent, without touching the password door', async () => {
+    fakes.verifyAltcha.mockResolvedValueOnce({
+      verifiedExternally: false,
+      providerUnavailable: true,
+    });
+
+    const response = await changePassword(request());
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: false,
+      error: 'captcha_unavailable',
+      captchaRefreshRequired: true,
+    });
+    expect(fakes.changePassword).not.toHaveBeenCalled();
+  });
+
   it('keeps global admin eligible and reissues only the rotated current session', async () => {
     const adminUser = { ...user, role: 'admin' as const, sessionEpoch: 8 };
     fakes.requireStaffSession.mockResolvedValue({
@@ -686,7 +721,7 @@ describe('password change HTTP boundary', () => {
     await expect(response.json()).resolves.toMatchObject({
       ok: false,
       error: 'password_login_unavailable',
-      message: 'Вход по паролю не настроен. Используйте другой способ входа.',
+      message: 'Для аккаунта не настроен вход по паролю. Используйте другой способ входа.',
     });
     expect(fakes.setSession).not.toHaveBeenCalled();
   });

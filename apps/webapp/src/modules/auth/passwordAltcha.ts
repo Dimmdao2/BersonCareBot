@@ -8,6 +8,7 @@ import {
 } from 'altcha-lib';
 import { deriveKey } from 'altcha-lib/algorithms/pbkdf2';
 import { z } from 'zod';
+import { logger } from '@/infra/logging/logger';
 import { passwordIdentifierKey, type PasswordAltchaProof } from './passwordLoginProtection';
 import type {
   PasswordCaptchaChallenge,
@@ -76,6 +77,13 @@ function decodePayload(rawPayload: string): Payload | null {
 export type PasswordCaptchaVerification = {
   altchaProof?: PasswordAltchaProof;
   verifiedExternally: boolean;
+  /**
+   * Поставщик капчи не ответил (таймаут, обрыв, не-200). Это НЕ «капча не пройдена»: попытка
+   * вообще не состоялась, и маршрут обязан отказать ДО двери входа, чтобы молчание чужой стороны
+   * не съело человеку попытку и не приблизило его к паузе. Решение владельца 14.09: «значит не
+   * пускать».
+   */
+  providerUnavailable?: boolean;
 };
 
 async function readCaptchaConfig(port: PasswordLoginProtectionPort) {
@@ -99,11 +107,21 @@ function asIpAddress(value: string | null): string | null {
   return looksLikeIpv4 || looksLikeIpv6 ? candidate : null;
 }
 
+/**
+ * Ждём ответ Яндекса три секунды. Числа в документации Яндекса нет — это НАШЕ значение. Оно
+ * выбрано не под терпение человека (галочку он ставит дольше), а под время ответа чужого сервиса:
+ * секунды хватает в норме, но одна медленная сеть превращала бы её в отказ на ровном месте. Повтора
+ * нет: токен одноразовый, второй запрос с тем же токеном Яндекс уже не примет.
+ */
+const YANDEX_VERIFY_TIMEOUT_MS = 3_000;
+
+type YandexVerdict = 'ok' | 'failed' | 'unavailable';
+
 async function verifyYandexToken(
   serverKey: string,
   token: string,
   ip: string | null,
-): Promise<boolean> {
+): Promise<YandexVerdict> {
   const address = asIpAddress(ip);
   const body = new URLSearchParams({ secret: serverKey, token, ...(address ? { ip: address } : {}) });
   try {
@@ -111,17 +129,44 @@ async function verifyYandexToken(
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
       body,
-      signal: AbortSignal.timeout(1_000),
+      signal: AbortSignal.timeout(YANDEX_VERIFY_TIMEOUT_MS),
     });
-    if (!response.ok) return true;
+    // Яндекс рекомендует считать не-200 успехом, «чтобы не было задержки». Мы так НЕ делаем:
+    // капча появляется только с третьей попытки подряд, то есть ровно тогда, когда кто-то
+    // перебирает пароли. Пропускать в этот момент — значит снимать защиту в единственный момент,
+    // когда она работает. Обычный вход молчание Яндекса не задевает вовсе. Решение владельца
+    // 14.09: «значит не пускать»; OWASP относит fail-open к дефектам обработки ошибок.
+    if (!response.ok) {
+      logger.warn({
+        msg: 'password_captcha_provider_unavailable',
+        provider: 'yandex',
+        reason: 'http_status',
+        status: response.status,
+      });
+      return 'unavailable';
+    }
     const parsed = z
       .object({ status: z.enum(['ok', 'failed']), message: z.string().optional() })
       .safeParse(await response.json().catch(() => null));
-    return parsed.success && parsed.data.status === 'ok';
-  } catch {
-    // Yandex recommends treating protocol and transport failures as a pass so its outage cannot
-    // deny access. A processed `status: failed` response above remains a failed captcha.
-    return true;
+    if (!parsed.success) {
+      logger.warn({
+        msg: 'password_captcha_provider_unavailable',
+        provider: 'yandex',
+        reason: 'unreadable_response',
+      });
+      return 'unavailable';
+    }
+    return parsed.data.status === 'ok' ? 'ok' : 'failed';
+  } catch (error) {
+    // Таймаут или обрыв связи. Разобранный ответ `status: "failed"` выше — это НЕ сюда: там капча
+    // честно не пройдена, и попытка засчитывается как обычно.
+    logger.warn({
+      msg: 'password_captcha_provider_unavailable',
+      provider: 'yandex',
+      reason: error instanceof Error && error.name === 'TimeoutError' ? 'timeout' : 'transport',
+      timeoutMs: YANDEX_VERIFY_TIMEOUT_MS,
+    });
+    return 'unavailable';
   }
 }
 
@@ -176,8 +221,10 @@ export function createPasswordAltchaService(port: PasswordLoginProtectionPort) {
         if (!config.yandexServerKey || !config.yandexClientKey) {
           return { verifiedExternally: false };
         }
+        const verdict = await verifyYandexToken(config.yandexServerKey, answer, ip);
         return {
-          verifiedExternally: await verifyYandexToken(config.yandexServerKey, answer, ip),
+          verifiedExternally: verdict === 'ok',
+          ...(verdict === 'unavailable' ? { providerUnavailable: true } : {}),
         };
       }
       const rawPayload = answer;

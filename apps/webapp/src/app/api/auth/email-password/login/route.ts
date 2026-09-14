@@ -149,6 +149,21 @@ export async function POST(request: Request) {
       parsed.data.captcha,
       captchaIp.ok ? captchaIp.key : null,
     );
+    // Поставщик капчи промолчал — не пускаем и НЕ трогаем дверь входа: попытка не состоялась,
+    // поэтому она не должна ни засчитываться неудачей, ни приближать человека к паузе. Пароль при
+    // этом даже не проверяется. Решение владельца 14.09: «значит не пускать».
+    if (captchaVerification?.providerUnavailable) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: 'captcha_unavailable',
+          message: notificationText.authCaptchaUnavailable,
+          captchaRequired: true,
+          captchaRefreshRequired: true,
+        },
+        { status: 503 },
+      );
+    }
 
     const pwd = await deps.userPasswordCredentials.verifyEmailPasswordForLogin(
       emailNorm,

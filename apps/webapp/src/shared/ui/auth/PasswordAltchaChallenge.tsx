@@ -1,8 +1,6 @@
 'use client';
 
 import { createElement, useEffect, useRef, useState } from 'react';
-import 'altcha';
-import 'altcha/i18n/ru';
 import type { AltchaWidgetElement } from 'altcha';
 import { notificationText } from '@/shared/notifications/notificationText';
 
@@ -30,6 +28,24 @@ type SmartCaptchaApi = {
 };
 
 let smartCaptchaScriptPromise: Promise<void> | null = null;
+let altchaWidgetModulePromise: Promise<void> | null = null;
+
+/**
+ * В страницу подгружается ТОЛЬКО выбранный поставщик (требование владельца 14.09). Яндекс тянется
+ * своим скриптом ниже; наш ALTCHA — вот этим импортом, и тоже лишь тогда, когда сервер ответил, что
+ * проверка идёт через него. Статический `import 'altcha'` наверху файла клал бы виджет и его русский
+ * словарь в бандл каждому, кто открыл вход, — даже когда выбран Яндекс и ALTCHA никогда не покажется.
+ */
+function loadAltchaWidgetModule(): Promise<void> {
+  altchaWidgetModulePromise ??= (async () => {
+    await import('altcha');
+    await import('altcha/i18n/ru');
+  })().catch((error: unknown) => {
+    altchaWidgetModulePromise = null;
+    throw error;
+  });
+  return altchaWidgetModulePromise;
+}
 
 function smartCaptchaApi(): SmartCaptchaApi | undefined {
   return (window as Window & { smartCaptcha?: SmartCaptchaApi }).smartCaptcha;
@@ -94,24 +110,36 @@ export function PasswordAltchaChallenge({ endpoint, email, onVerified }: Props) 
     if (challenge?.provider !== 'altcha') return;
     const widget = altchaRef.current;
     if (!widget) return;
+    let cancelled = false;
     const handleVerified = (event: Event) => {
       const detail = (event as CustomEvent<{ payload?: unknown }>).detail;
       onVerified(typeof detail?.payload === 'string' ? detail.payload : null);
     };
     widget.addEventListener('verified', handleVerified);
-    void widget
-      .configure({
-        challenge: challenge.challenge as Parameters<
-          AltchaWidgetElement['configure']
-        >[0]['challenge'],
-        display: 'standard',
-        language: 'ru',
-        type: 'checkbox',
-        humanInteractionSignature: false,
+    // Настраивать виджет можно только после того, как модуль определил `altcha-widget`: до этого
+    // в разметке стоит ещё не «поднятый» браузером элемент без метода `configure`.
+    void loadAltchaWidgetModule()
+      .then(() => {
+        if (cancelled) return;
+        return widget
+          .configure({
+            challenge: challenge.challenge as Parameters<
+              AltchaWidgetElement['configure']
+            >[0]['challenge'],
+            display: 'standard',
+            language: 'ru',
+            type: 'checkbox',
+            humanInteractionSignature: false,
+          })
+          .then(() => widget.reset());
       })
-      .then(() => widget.reset())
-      .catch(() => setError(notificationText.authCaptchaUnavailable));
-    return () => widget.removeEventListener('verified', handleVerified);
+      .catch(() => {
+        if (!cancelled) setError(notificationText.authCaptchaUnavailable);
+      });
+    return () => {
+      cancelled = true;
+      widget.removeEventListener('verified', handleVerified);
+    };
   }, [challenge, onVerified]);
 
   useEffect(() => {
