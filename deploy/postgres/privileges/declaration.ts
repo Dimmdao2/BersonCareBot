@@ -27373,6 +27373,14 @@ const REV10_CONTEXT = {
       ],
       execute: [], invocation: 'internal' as const,
       purpose: 'private implementation behind exact-gated app.password_login_issue_altcha_challenge',
+      relationSurfaces: [
+        ...(BUSINESS_SEAM_FUNCTIONS[
+          'app.password_login_issue_altcha_challenge(text,uuid,text,timestamp with time zone)'
+        ].relationSurfaces ?? []),
+        { relation: 'public.system_settings',
+          columns: ['key', 'scope', 'value_json', 'organization_id'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
     },
     'app.password_login_read_altcha_secret_impl()': {
       ...BUSINESS_SEAM_FUNCTIONS['app.password_login_read_altcha_secret()'],

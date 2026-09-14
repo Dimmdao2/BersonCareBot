@@ -3482,6 +3482,7 @@ INSERT INTO bcb_function_relation_surfaces(signature,relation_name,columns,opera
   ('app.password_login_issue_altcha_challenge_impl(text,uuid,text,timestamp with time zone)', 'public.password_login_identifier_protection', ARRAY['identifier_key', 'failed_attempts', 'locked_until']::text[], ARRAY['SELECT', 'INSERT']::text[]),
   ('app.password_login_issue_altcha_challenge_impl(text,uuid,text,timestamp with time zone)', 'public.platform_users', ARRAY['id', 'merged_into_id']::text[], ARRAY['SELECT']::text[]),
   ('app.password_login_issue_altcha_challenge_impl(text,uuid,text,timestamp with time zone)', 'public.user_password_credentials', ARRAY['user_id', 'failed_attempts', 'locked_until']::text[], ARRAY['SELECT']::text[]),
+  ('app.password_login_issue_altcha_challenge_impl(text,uuid,text,timestamp with time zone)', 'public.system_settings', ARRAY['key', 'scope', 'value_json', 'organization_id']::text[], ARRAY['SELECT']::text[]),
   ('app.password_login_issue_altcha_challenge_impl(text,uuid,text,timestamp with time zone)', 'public.user_contacts', ARRAY['platform_user_id', 'contact_kind', 'value_normalized', 'is_primary', 'confirmed_at', 'source_origin', 'created_at', 'updated_at']::text[], ARRAY['SELECT']::text[]),
   ('app.password_login_read_altcha_secret_impl()', 'public.system_settings', ARRAY['key', 'scope', 'value_json', 'organization_id']::text[], ARRAY['SELECT']::text[]),
   ('app.patch_current_patient_booking_notifications(uuid,text,text)', 'public.be_appointments', ARRAY['id', 'organization_id', 'platform_user_id', 'deleted_at']::text[], ARRAY['SELECT']::text[]),
@@ -4236,7 +4237,7 @@ BEGIN
   END LOOP;
   SELECT pg_catalog.string_agg(message, E'\n' ORDER BY message) INTO gap_list FROM bcb_function_surface_gaps;
   IF gap_list IS NOT NULL THEN RAISE EXCEPTION 'function body surface gaps (%):\n%', (SELECT count(*) FROM bcb_function_surface_gaps), gap_list; END IF;
-  RAISE NOTICE 'BCB_FUNCTION_BODY_SURFACES_VERIFIED functions=449 rows=1065 special_contracts=8 trigger_sources=1';
+  RAISE NOTICE 'BCB_FUNCTION_BODY_SURFACES_VERIFIED functions=449 rows=1066 special_contracts=8 trigger_sources=1';
 END
 $bcb$;
 
