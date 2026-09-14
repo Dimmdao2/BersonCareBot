@@ -119,6 +119,7 @@ const ADMIN_BOOLEAN_SETTING_KEYS = new Set<string>([
   'patient_program_discussion_doctor_reply_from_log_enabled',
   'patient_program_discussion_ui_enabled',
   'patient_program_discussion_media_submission_enabled',
+  'auth_captcha_enabled',
 ]);
 
 const ADMIN_SCOPE_KEYS = [
@@ -192,6 +193,9 @@ const ADMIN_SCOPE_KEYS = [
   'clinic_max_bot_api_key',
   'clinic_vk_community_access_token',
   'operator_health_imap',
+  'auth_captcha_enabled',
+  'auth_captcha_after_failures',
+  'auth_altcha_hmac_secret',
   'web_push_vapid',
   'rustore_universal_push_therapygo',
   'rustore_universal_push_therapysto',
@@ -958,6 +962,50 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ ok: false, error: 'invalid_value' }, { status: 400 });
     }
     normalizedValue = { value: b };
+  }
+
+  if (parsed.data.key === 'auth_captcha_after_failures') {
+    const inner = normalizedValue.value;
+    const attempts =
+      typeof inner === 'number' && Number.isInteger(inner)
+        ? inner
+        : typeof inner === 'string' && /^\d+$/.test(inner.trim())
+          ? Number.parseInt(inner.trim(), 10)
+          : NaN;
+    if (!Number.isFinite(attempts) || attempts < 1 || attempts > 50) {
+      return NextResponse.json({ ok: false, error: 'invalid_value' }, { status: 400 });
+    }
+    normalizedValue = { value: attempts };
+  }
+
+  if (parsed.data.key === 'auth_altcha_hmac_secret') {
+    const secret = normalizedValue.value;
+    if (typeof secret !== 'string' || secret.trim().length === 0) {
+      return NextResponse.json({ ok: false, error: 'invalid_value' }, { status: 400 });
+    }
+    normalizedValue = { value: secret.trim() };
+  }
+
+  if (parsed.data.key === 'auth_captcha_enabled' && normalizedValue.value === true) {
+    const secretRow = await deps.systemSettings.getSetting('auth_altcha_hmac_secret', 'admin', {
+      organizationId: null,
+    });
+    const secretValue =
+      secretRow?.valueJson !== null &&
+      typeof secretRow?.valueJson === 'object' &&
+      'value' in secretRow.valueJson
+        ? (secretRow.valueJson as Record<string, unknown>).value
+        : null;
+    if (typeof secretValue !== 'string' || secretValue.trim().length === 0) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: 'auth_captcha_secret_required',
+          message: 'Сначала задайте секретный ключ капчи',
+        },
+        { status: 400 },
+      );
+    }
   }
 
   if (

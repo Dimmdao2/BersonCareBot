@@ -27338,21 +27338,34 @@ const REV10_CONTEXT = {
       ...BUSINESS_SEAM_FUNCTIONS['app.password_login_acquire(text,text,uuid,text)'],
       execute: [], invocation: 'internal' as const,
       purpose: 'private implementation behind exact-gated app.password_login_acquire',
-      relationSurfaces: BUSINESS_SEAM_FUNCTIONS[
-        'app.password_login_acquire(text,text,uuid,text)'
-      ].relationSurfaces?.map((surface) => ({
-        ...surface,
-        ...(surface.relation === 'public.password_altcha_challenges'
-          || surface.relation === 'public.password_login_identifier_protection'
-          || surface.relation === 'public.user_password_credentials'
-          ? { tableOperations: ['SELECT' as const] }
-          : {}),
-      })),
+      relationSurfaces: [
+        ...(BUSINESS_SEAM_FUNCTIONS[
+          'app.password_login_acquire(text,text,uuid,text)'
+        ].relationSurfaces?.map((surface) => ({
+          ...surface,
+          ...(surface.relation === 'public.password_altcha_challenges'
+            || surface.relation === 'public.password_login_identifier_protection'
+            || surface.relation === 'public.user_password_credentials'
+            ? { tableOperations: ['SELECT' as const] }
+            : {}),
+        })) ?? []),
+        { relation: 'public.system_settings',
+          columns: ['key', 'scope', 'value_json', 'organization_id'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
     },
     'app.password_login_complete_impl(uuid,boolean)': {
       ...BUSINESS_SEAM_FUNCTIONS['app.password_login_complete(uuid,boolean)'],
       execute: [], invocation: 'internal' as const,
       purpose: 'private implementation behind exact-gated app.password_login_complete',
+      relationSurfaces: [
+        ...(BUSINESS_SEAM_FUNCTIONS[
+          'app.password_login_complete(uuid,boolean)'
+        ].relationSurfaces ?? []),
+        { relation: 'public.system_settings',
+          columns: ['key', 'scope', 'value_json', 'organization_id'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
     },
     'app.password_login_issue_altcha_challenge_impl(text,uuid,text,timestamp with time zone)': {
       ...BUSINESS_SEAM_FUNCTIONS[
