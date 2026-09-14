@@ -41,4 +41,9 @@ export const COMMUNICATIONS_TAB_REGISTRY: CommunicationsTabRegistryEntry[] = [
     loader: () => import('./tabs/CommentsTab').then((m) => ({ default: m.CommentsTab })),
     deepLinkKeys: [],
   },
+  {
+    id: 'leads',
+    loader: () => import('./tabs/LeadsTab').then((m) => ({ default: m.LeadsTab })),
+    deepLinkKeys: ['archived'],
+  },
 ];

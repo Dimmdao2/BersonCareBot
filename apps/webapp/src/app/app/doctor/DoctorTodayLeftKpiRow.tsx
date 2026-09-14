@@ -30,6 +30,8 @@ import { useViewportMinWidth } from '@/shared/hooks/useViewportMinWidth';
 import { useOptionalDoctorShellBadgeCounts } from '@/shared/ui/doctor/shell/DoctorSupportUnreadProvider';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
+const LEADS_HREF = '/app/doctor/communications?tab=leads';
+
 type Props = Pick<
   TodayDashboardData,
   | 'unreadConversations'
@@ -230,6 +232,19 @@ export function DoctorTodayLeftKpiRow({
             : undefined
         }
         valueClassName={hasOverdueTasks ? attentionKpiValueClass : undefined}
+      />
+    ) : null,
+    shellBadges.leadsVisible ? (
+      <DoctorStatCard
+        key="leads"
+        id="doctor-today-left-kpi-leads"
+        title="Заявки"
+        value={shellBadges.newLeads}
+        tooltip="Новые заявки."
+        tone={shellBadges.newLeads > 0 ? 'warning' : 'neutral'}
+        className={shellBadges.newLeads > 0 ? attentionKpiBackgroundClass : undefined}
+        valueClassName={shellBadges.newLeads > 0 ? attentionKpiValueClass : undefined}
+        onClick={() => router.push(LEADS_HREF)}
       />
     ) : null,
   ].filter((tile) => tile !== null);
