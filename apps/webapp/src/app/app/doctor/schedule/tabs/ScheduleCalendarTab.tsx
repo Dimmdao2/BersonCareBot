@@ -15,7 +15,7 @@ import dynamic from 'next/dynamic';
 import { DateTime } from 'luxon';
 import { DayPicker } from 'react-day-picker';
 import { ru } from 'react-day-picker/locale';
-import { Calendar, CalendarDays, Columns3, Filter, List, Play, Search } from 'lucide-react';
+import { CalendarDays, Columns3, Filter, List, Search } from 'lucide-react';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { DoctorCatalogStickyToolbar } from '@/shared/ui/doctor/DoctorCatalogStickyToolbar';
@@ -384,34 +384,6 @@ const SELECTION_MUTATION_ERRORS: Record<string, string> = {
 // Helper: period label
 // ---------------------------------------------------------------------------
 
-function periodLabel(view: CalV26View, anchorDate: string, zone: string): string {
-  const anchor = DateTime.fromISO(anchorDate, { zone });
-
-  if (view === 'day') {
-    return anchor.setLocale('ru').toFormat('cccc, d LLLL yyyy');
-  }
-  if (view === 'month') {
-    return capitalizeRussianLabel(anchor.setLocale('ru').toFormat('LLLL yyyy'));
-  }
-  if (view === '3days') {
-    const start = anchor.startOf('day');
-    const end = anchor.startOf('day').plus({ days: 2 });
-    if (start.month === end.month) {
-      return `${start.setLocale('ru').toFormat('d')}–${end.setLocale('ru').toFormat('d LLLL yyyy')}`;
-    }
-    return `${start.setLocale('ru').toFormat('d LLLL')} – ${end.setLocale('ru').toFormat('d LLLL yyyy')}`;
-  }
-  if (view === 'weekgrid') {
-    const start = anchor.startOf('week');
-    const end = anchor.endOf('week');
-    if (start.month === end.month) {
-      return `${start.setLocale('ru').toFormat('d')}–${end.setLocale('ru').toFormat('d LLLL yyyy')}`;
-    }
-    return `${start.setLocale('ru').toFormat('d LLLL')} – ${end.setLocale('ru').toFormat('d LLLL yyyy')}`;
-  }
-  return '';
-}
-
 function mobilePeriodLabel(anchorDate: string, zone: string): string {
   return capitalizeRussianLabel(
     DateTime.fromISO(anchorDate, { zone }).setLocale('ru').toFormat('LLLL yyyy'),
@@ -543,7 +515,12 @@ function KpiRowTab({
   return (
     <div className="flex flex-col gap-2">
       {periodLabel ? (
-        <p className="px-0.5 text-xs text-muted-foreground" data-testid="cal-kpi-period">
+        // Владелец 14.09: на десктопе/планшете над кнопками фильтров теперь есть отдельный блок
+        // «Период» (в правой панели фильтров) — эта подпись стала бы дублем. Прячем её от `md` и
+        // выше тем же брейкпоинтом, что делит мобильный тулбар и десктопный/планшетный; на
+        // мобильном (<768, `useIsMobileViewport`) блока «Период» в панели фильтров нет — подпись
+        // здесь остаётся единственным источником периода для КПИ и не трогается.
+        <p className="px-0.5 text-xs text-muted-foreground md:hidden" data-testid="cal-kpi-period">
           Период: {periodLabel}
         </p>
       ) : null}
@@ -638,14 +615,18 @@ function ListDayCard({
   showSpecialist,
 }: ListDayCardProps) {
   return (
-    <div
-      className="flex flex-col bg-card md:gap-2 md:rounded-xl md:border md:border-border md:p-3"
-      data-testid={`list-day-${dateKey}`}
-    >
-      <p className="border-b border-border/60 px-3 py-2 text-sm font-semibold capitalize text-foreground md:border-0 md:p-0">
+    // Владелец 14.09: «стандартный плоский список … заполнение так же как на мобиле, а
+    // контейнер … как на десктопных клиентах / чатах» — раньше каждый день был своей
+    // скруглённой карточкой (md:rounded-xl md:border md:p-3), а КАЖДАЯ запись внутри неё —
+    // ЕЩЁ одной вложенной карточкой (md:rounded-md md:border). Теперь и день, и запись
+    // плоские на всех брейкпоинтах (мобильное оформление); цветовую палитру по филиалу/
+    // статусу (R29, listRowClass/listRowStyle) не трогаем — она остаётся волосяной нижней
+    // границей и фоновой заливкой, просто без обводки со всех сторон и скругления.
+    <div className="flex flex-col" data-testid={`list-day-${dateKey}`}>
+      <p className="border-b border-border/60 px-[var(--doctor-list-inline-padding,18px)] py-2 text-sm font-semibold capitalize text-foreground">
         {label}
       </p>
-      <div className="flex flex-col md:gap-1">
+      <div className="flex flex-col">
         {appointments.map((appt) => {
           const start = parseFeedInstant(appt.startAt, timeZone).toFormat('HH:mm');
           const end = parseFeedInstant(appt.endAt, timeZone).toFormat('HH:mm');
@@ -662,7 +643,7 @@ function ListDayCard({
               onClick={() => onSelect(appt)}
               style={listRowStyle(appt)}
               className={cn(
-                'flex h-auto min-h-0 w-full items-start gap-3 whitespace-normal rounded-none border-0 border-b border-border/60 px-3 py-2 text-left text-sm md:rounded-md md:border md:px-3 md:py-2',
+                'flex h-auto min-h-0 w-full items-start gap-3 whitespace-normal rounded-none border-0 border-b border-border/60 px-[var(--doctor-list-inline-padding,18px)] py-2.5 text-left text-sm',
                 listRowClass(appt, timeZone),
                 // APPT-LIST-01: отметка ближайшей записи идёт ПОСЛЕ палитры строки — иначе
                 // tailwind-merge считает `border-primary/30` из палитры конфликтующим и
@@ -902,9 +883,14 @@ function ListView({
   }, [appointments.length, loadingEarlier]);
 
   return (
+    // Владелец 14.09: контейнер списка — как на десктопных «Клиенты»/«Сообщения»/«Комментарии»
+    // (`data-doctor-flat-list-surface`, edge-to-edge на мобильном, рамка+скругление от `md:`).
+    // Раньше каждый день был своей карточкой с зазором (`md:gap-3`) между ними — теперь один
+    // непрерывный список, дни разделяет собственный заголовок дня (`border-b` в `ListDayCard`).
     <div
       ref={scrollRef}
-      className="flex h-full min-h-0 flex-col overflow-y-auto bg-card md:gap-3 md:pr-1"
+      data-doctor-flat-list-surface
+      className="flex h-full min-h-0 flex-col overflow-y-auto rounded-none border-0 bg-card md:rounded-lg md:border md:border-border md:pr-1"
       data-testid="list-view"
     >
       <div ref={earlierSentinelRef} className="h-px" aria-hidden />
@@ -923,7 +909,7 @@ function ListView({
           {dayGroups.map(({ dateKey, label, appointments }, index) => (
             <Fragment key={dateKey}>
               {index === 0 || dayGroups[index - 1]?.monthKey !== dayGroups[index]?.monthKey ? (
-                <p className="mt-2 border-t border-border/70 px-3 py-4 text-center text-base font-normal capitalize text-foreground md:px-0">
+                <p className="mt-2 border-t border-border/70 px-[var(--doctor-list-inline-padding,18px)] py-4 text-center text-base font-normal capitalize text-foreground">
                   {dayGroups[index]?.monthLabel}
                 </p>
               ) : null}
@@ -1864,6 +1850,161 @@ export function ScheduleCalendarTab({
         />
       </div>
     </div>
+  );
+
+  /**
+   * Владелец 14.09: «в десктопном и планшетном виде надо верхнюю панель перенести в правый блок
+   * фильтров: сверху блок „Вид“ … ниже блок „Период“ … ниже блок поиск по записям … ниже уже идут
+   * фильтры». Три блока стоят над `renderScheduleFilters` и общей КПИ-строкой в ОБОИХ местах,
+   * где раньше жил верхний тулбар: постоянно открытом `<aside>` (xl+) и модалке фильтров, которую
+   * на md..xl открывает кнопка «Фильтры» (на мобильном модалка этот блок не получает — см. вызов
+   * ниже). «Список» — один из вариантов «Вид», отдельной иконки календаря нет; период форматирует
+   * та же `mobilePeriodLabel`, что и на мобильном, от всегда свежего `anchorDate` (в отличие от
+   * `mobileVisibleDate`, который вне мобильного вьюпорта не обновляется при листании стрелками —
+   * `shiftAnchor`).
+   */
+  const renderScheduleTopBlocks = () => (
+    <>
+      <section className={doctorSectionCardClass}>
+        <h2 className={doctorSectionTitleClass}>Вид</h2>
+        <div className="flex flex-wrap gap-1" role="group" aria-label="Режим отображения">
+          {(
+            [
+              { key: '3days' as const, label: '3 дня' },
+              { key: 'weekgrid' as const, label: 'Неделя' },
+              { key: 'month' as const, label: 'Месяц' },
+              { key: 'list' as const, label: 'Список' },
+            ] as const
+          ).map(({ key, label }) => {
+            const active =
+              key === 'list' ? renderMode === 'list' : renderMode === 'calendar' && view === key;
+            return (
+              <Button
+                key={key}
+                type="button"
+                size="sm"
+                variant={active ? 'default' : 'outline'}
+                className={active ? undefined : INACTIVE_TOOLBAR_BUTTON_CLASS}
+                onClick={() => {
+                  setFiltersPanelOpen(false);
+                  if (view === 'day') {
+                    setDrillBackView(null);
+                    onDeepLinkChange('from', null);
+                  }
+                  if (key === 'list') {
+                    setRenderMode('list');
+                    return;
+                  }
+                  setRenderMode('calendar');
+                  setView(key);
+                }}
+                data-testid={key === 'list' ? 'render-btn-list' : `view-btn-${key}`}
+              >
+                {label}
+              </Button>
+            );
+          })}
+        </div>
+        {/* Drill-down «День»: показываем если сейчас day (клик по дню в месяце) */}
+        {view === 'day' ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className={INACTIVE_TOOLBAR_BUTTON_CLASS}
+            onClick={() => {
+              setFiltersPanelOpen(false);
+              drillBack();
+            }}
+            data-testid="drill-back-btn"
+          >
+            ← Назад
+          </Button>
+        ) : null}
+      </section>
+
+      <section className={doctorSectionCardClass}>
+        <h2 className={doctorSectionTitleClass}>Период</h2>
+        <div className="flex items-center gap-1">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className={INACTIVE_TOOLBAR_BUTTON_CLASS}
+            onClick={() => {
+              setFiltersPanelOpen(false);
+              goToday();
+            }}
+            data-testid="period-today"
+          >
+            Сегодня
+          </Button>
+          <DoctorSchedulePeriodNav
+            label={mobilePeriodLabel(anchorDate, currentTimeZone)}
+            onPrev={() => {
+              setFiltersPanelOpen(false);
+              shiftAnchor(-1);
+            }}
+            onNext={() => {
+              setFiltersPanelOpen(false);
+              shiftAnchor(1);
+            }}
+            onLabelClick={() => {
+              setFiltersPanelOpen(false);
+              // Тот же приём, что и на мобильном label-click: перед открытием общей модалки
+              // выбора даты подтягиваем `mobileVisibleDate` к текущему `anchorDate` — иначе
+              // DayPicker (использует `mobileVisibleDate`, не обновляемый стрелками вне
+              // мобильного вьюпорта) откроется на устаревшем месяце.
+              updateMobileVisibleDate(anchorDate, true);
+              setDatePickerOpen(true);
+            }}
+            prevAriaLabel="Предыдущий период"
+            nextAriaLabel="Следующий период"
+            labelAriaLabel="Перейти к дате"
+            prevTestId="period-prev"
+            nextTestId="period-next"
+            labelTestId="period-label"
+          />
+        </div>
+      </section>
+
+      <section className={doctorSectionCardClass}>
+        <h2 className={doctorSectionTitleClass}>Поиск по записям</h2>
+        <div className="relative">
+          <Search
+            className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
+            aria-hidden
+          />
+          <Input
+            type="search"
+            placeholder="Поиск записей…"
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            className="h-8 pl-8 text-sm"
+            aria-label="Поиск записей"
+          />
+        </div>
+        {renderMode === 'list' && searchQuery.trim() ? (
+          <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+            <DoctorResultCount
+              data-testid="search-count"
+              label="Найдено"
+              value={serverSearchTotal ?? visibleListAppointments.length}
+            />
+            {searchQuery.trim().length >= 3 && !serverSearchQuery ? (
+              <button
+                type="button"
+                className="text-primary underline-offset-2 hover:underline"
+                onClick={() => void searchAllAppointments()}
+                disabled={serverSearchLoading}
+              >
+                {serverSearchLoading ? 'Поиск…' : 'Искать более ранние'}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+      </section>
+    </>
   );
 
   const currentTimeZone = data?.timeZone ?? timeZone;
@@ -2936,155 +3077,27 @@ export function ScheduleCalendarTab({
           </div>
         </div>
 
-        {renderMode === 'list' ? (
-          <div className="w-full md:hidden">
-            <div className="relative">
-              <Search
-                className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
-                aria-hidden
-              />
-              <Input
-                type="search"
-                placeholder="Поиск записей…"
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                className="h-8 pl-8 text-sm"
-                aria-label="Поиск записей"
-              />
-            </div>
-            {searchQuery.trim() ? (
-              <div className="mt-1 flex items-center justify-between px-1">
-                <DoctorResultCount
-                  label="Найдено"
-                  value={serverSearchTotal ?? visibleListAppointments.length}
-                />
-                {searchQuery.trim().length >= 3 && !serverSearchQuery ? (
-                  <button
-                    type="button"
-                    className="text-primary underline-offset-2 hover:underline"
-                    onClick={() => void searchAllAppointments()}
-                    disabled={serverSearchLoading}
-                  >
-                    {serverSearchLoading ? 'Поиск…' : 'Искать более ранние'}
-                  </button>
-                ) : null}
-              </div>
-            ) : null}
+        {/* Владелец 14.09: «Добавляем только строку поиска по записям» на мобильном — раньше
+            строка стояла только в режиме списка, теперь показывается во всех режимах (поиск уже
+            фильтрует и календарную сетку — см. `visibleEvents`). */}
+        <div className="w-full md:hidden">
+          <div className="relative">
+            <Search
+              className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
+              aria-hidden
+            />
+            <Input
+              type="search"
+              placeholder="Поиск записей…"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              className="h-8 pl-8 text-sm"
+              aria-label="Поиск записей"
+            />
           </div>
-        ) : null}
-
-        <div className="hidden w-full flex-wrap items-center gap-2 md:flex">
-          {/* View switcher: 3 дня · Неделя · Месяц (без «Лента» и без «День») */}
-          <div className="flex gap-1" role="group" aria-label="Режим отображения">
-            {(
-              [
-                { v: '3days' as const, label: '3 дня' },
-                { v: 'weekgrid' as const, label: 'Неделя' },
-                { v: 'month' as const, label: 'Месяц' },
-              ] as const
-            ).map(({ v, label }) => (
-              <Button
-                key={v}
-                type="button"
-                size="sm"
-                variant={view === v ? 'default' : 'outline'}
-                className={view === v ? undefined : INACTIVE_TOOLBAR_BUTTON_CLASS}
-                onClick={() => {
-                  setFiltersPanelOpen(false);
-                  // При переключении из day (drill-down) — выходим из drill-down
-                  if (view === 'day') {
-                    setDrillBackView(null);
-                    onDeepLinkChange('from', null);
-                  }
-                  setView(v);
-                }}
-                data-testid={`view-btn-${v}`}
-              >
-                {label}
-              </Button>
-            ))}
-          </div>
-
-          {/* Drill-down «День»: показываем если сейчас day */}
-          {view === 'day' ? (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className={INACTIVE_TOOLBAR_BUTTON_CLASS}
-              onClick={() => {
-                setFiltersPanelOpen(false);
-                drillBack();
-              }}
-              data-testid="drill-back-btn"
-            >
-              ← Назад
-            </Button>
-          ) : null}
-
-          {/* Calendar/List toggle — compact icon pair */}
-          <div className="flex gap-1" role="group" aria-label="Вид отображения">
-            <Button
-              type="button"
-              size="icon"
-              variant={renderMode === 'calendar' ? 'default' : 'outline'}
-              className={cn(
-                'size-[32px] shrink-0',
-                renderMode !== 'calendar' && INACTIVE_TOOLBAR_BUTTON_CLASS,
-              )}
-              aria-label="Календарь"
-              title="Календарь"
-              onClick={() => {
-                setFiltersPanelOpen(false);
-                setRenderMode('calendar');
-              }}
-              data-testid="render-btn-calendar"
-            >
-              <Calendar className="size-4" aria-hidden />
-            </Button>
-            <Button
-              type="button"
-              size="icon"
-              variant={renderMode === 'list' ? 'default' : 'outline'}
-              className={cn(
-                'size-[32px] shrink-0',
-                renderMode !== 'list' && INACTIVE_TOOLBAR_BUTTON_CLASS,
-              )}
-              aria-label="Список"
-              title="Список"
-              onClick={() => {
-                setFiltersPanelOpen(false);
-                setRenderMode('list');
-              }}
-              data-testid="render-btn-list"
-            >
-              <List className="size-4" aria-hidden />
-            </Button>
-          </div>
-
-          {/* Search bar (list mode) */}
-          {renderMode === 'list' ? (
-            <div className="relative flex-1 min-w-[8rem] max-w-xs">
-              <Search
-                className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground"
-                aria-hidden
-              />
-              <Input
-                type="search"
-                placeholder="Поиск записей…"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-8 text-sm h-8"
-                aria-label="Поиск записей"
-              />
-            </div>
-          ) : null}
-
-          {/* найдено N counter when searching */}
           {renderMode === 'list' && searchQuery.trim() ? (
-            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+            <div className="mt-1 flex items-center justify-between px-1">
               <DoctorResultCount
-                data-testid="search-count"
                 label="Найдено"
                 value={serverSearchTotal ?? visibleListAppointments.length}
               />
@@ -3100,66 +3113,20 @@ export function ScheduleCalendarTab({
               ) : null}
             </div>
           ) : null}
+        </div>
 
-          {/* «Сегодня» — вернуть текущий вид к сегодняшнему периоду */}
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className={INACTIVE_TOOLBAR_BUTTON_CLASS}
-            onClick={() => {
-              setFiltersPanelOpen(false);
-              goToday();
-            }}
-            data-testid="period-today"
-          >
-            Сегодня
-          </Button>
-
-          {/* Period nav: ◀ label ▶ */}
-          <>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className={INACTIVE_TOOLBAR_BUTTON_CLASS}
-              onClick={() => {
-                setFiltersPanelOpen(false);
-                shiftAnchor(-1);
-              }}
-              aria-label="Предыдущий период"
-              data-testid="period-prev"
-            >
-              <Play className="size-3 rotate-180" fill="currentColor" aria-hidden />
-            </Button>
-            <span
-              className="text-sm font-medium text-foreground px-1 min-w-[8rem] text-center"
-              data-testid="period-label"
-            >
-              {periodLabel(view, anchorDate, currentTimeZone)}
-            </span>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className={INACTIVE_TOOLBAR_BUTTON_CLASS}
-              onClick={() => {
-                setFiltersPanelOpen(false);
-                shiftAnchor(1);
-              }}
-              aria-label="Следующий период"
-              data-testid="period-next"
-            >
-              <Play className="size-3" fill="currentColor" aria-hidden />
-            </Button>
-          </>
-
+        {/* Владелец 14.09: «в десктопном и планшетном виде надо верхнюю панель перенести в
+            правый блок фильтров» — вид/период/поиск переехали в панель фильтров (блоки «Вид»,
+            «Период», «Поиск по записям» — см. `renderScheduleTopBlocks` ниже), десктоп (xl+)
+            видит их в постоянно открытом `<aside>`, планшет (md..xl) — открыв ту же панель этой
+            кнопкой. Сам тулбар в этом диапазоне ширины несёт только триггер открытия панели. */}
+        <div className="hidden w-full items-center justify-end gap-2 md:flex xl:hidden">
           <Button
             type="button"
             size="sm"
             variant={filtersPanelOpen && !hasActiveScheduleFilters ? 'default' : 'outline'}
             className={cn(
-              'ml-auto gap-2 xl:hidden',
+              'gap-2',
               // То же, что и у значка выше: с открытой панелью и без фильтров цвет даёт вариант
               // `default`, иначе белая надпись легла бы на белый фон.
               hasActiveScheduleFilters
@@ -3618,6 +3585,7 @@ export function ScheduleCalendarTab({
         </div>
 
         <aside className="hidden h-full min-h-0 w-full space-y-3 overflow-y-auto xl:block">
+          {renderScheduleTopBlocks()}
           <section className={doctorSectionCardClass}>
             <h2 className={doctorSectionTitleClass}>Фильтры</h2>
             {renderScheduleFilters('flex flex-col gap-2', 'w-full')}
@@ -3738,6 +3706,12 @@ export function ScheduleCalendarTab({
         bodyClassName="p-4"
       >
         <div id="schedule-filters-panel" className="flex flex-col gap-3">
+          {/* Владелец 14.09: «в мобильном оставляем всё как было» — эта же модалка открывается и
+              на мобильном (своей кнопкой «Фильтры» в верхнем тулбаре), где вид/период уже есть в
+              её собственном тулбаре. Блоки «Вид»/«Период»/«Поиск» внутри панели — только для
+              планшета (md..xl), не для мобильного (<768, `isMobileViewport`), иначе на мобильном
+              они задублировались бы. */}
+          {!isMobileViewport ? renderScheduleTopBlocks() : null}
           {renderScheduleFilters('flex flex-col gap-2', 'w-full')}
           {showKpi ? (
             <KpiRowTab

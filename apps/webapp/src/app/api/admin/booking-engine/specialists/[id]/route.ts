@@ -4,9 +4,22 @@ import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganiza
 import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
 import { jsonIfInvalidUuid } from '../../_uuid';
 import { requireClinicManagementBookingEngine } from '../../_requireClinicManagementBookingEngine';
+import {
+  FIO_LATIN_REJECTED_MESSAGE,
+  FIO_LATIN_REJECTED_TEXT,
+  isCyrillicFioInput,
+  isFioLatinRejection,
+} from '@/shared/lib/fio';
 
 const PatchSchema = z.object({
-  fullName: z.string().min(1).max(200).optional(),
+  // §20 канона идентичности: правка ФИО специалиста принимает только кириллицу — тот же запрет, что
+  // на создании. Уже сохранённые латинские имена правило не трогает: оно стоит на вводе.
+  fullName: z
+    .string()
+    .min(1)
+    .max(200)
+    .refine(isCyrillicFioInput, { message: FIO_LATIN_REJECTED_MESSAGE })
+    .optional(),
   description: z.union([z.string().max(2000), z.null()]).optional(),
   avatarMediaId: z.union([z.string().uuid(), z.null()]).optional(),
   fullDescriptionMarkdown: z.union([z.string().max(50_000), z.null()]).optional(),
@@ -30,7 +43,14 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
   const body = await request.json().catch(() => null);
   const parsed = PatchSchema.safeParse(body);
   if (!parsed.success)
-    return NextResponse.json({ ok: false, error: 'invalid_input' }, { status: 400 });
+    return NextResponse.json(
+      {
+        ok: false,
+        error: 'invalid_input',
+        ...(isFioLatinRejection(parsed) ? { message: FIO_LATIN_REJECTED_TEXT } : {}),
+      },
+      { status: 400 },
+    );
   const specialist = await withDoctorWorkspacePrincipal(
     gate.ctx,
     'admin.booking-engine.specialists.update',
