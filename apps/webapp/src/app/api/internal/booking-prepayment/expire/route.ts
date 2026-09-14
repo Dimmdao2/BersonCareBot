@@ -60,7 +60,7 @@ export async function POST(request: Request) {
       success: false,
       error: msg,
     });
-    logger.error({ err: e }, '[internal/booking-prepayment/expire] failed');
+    logger.error({ operatorErrorDetail: e }, '[internal/booking-prepayment/expire] failed');
     return NextResponse.json({ ok: false, error: 'internal_error' }, { status: 500 });
   }
 }
