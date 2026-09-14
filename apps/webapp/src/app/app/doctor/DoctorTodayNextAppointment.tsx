@@ -1,11 +1,9 @@
 'use client';
 
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { Video } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import type { TodayNextAppointmentItem } from './loadDoctorTodayDashboard';
-import { patientCardHref } from './patients/patientCardHref';
 import { TodayAppointmentFullModal } from './TodayAppointmentFullModal';
 import {
   DoctorSection,
@@ -15,126 +13,85 @@ import {
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { formatDoctorFioShortLabel } from '@/shared/lib/fio';
 import { DoctorPatientName } from '@/shared/ui/doctor/DoctorSupportStar';
-import { useActiveCall } from '@/shared/ui/video/ActiveCallCoordinator';
+import {
+  doctorInteractiveSurfaceButtonClass,
+  doctorStatCardChevronClass,
+} from '@/shared/ui/doctor/doctorVisual';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 import { agreeWithAppointment } from '@/modules/system-settings/patientTerms';
+import { cn } from '@/lib/utils';
 
 type Props = {
   appointment: TodayNextAppointmentItem | null;
   displayIana: string;
-  videoMeetingsEnabled?: boolean;
 };
 
-export function DoctorTodayNextAppointment({
-  appointment,
-  displayIana,
-  videoMeetingsEnabled = false,
-}: Props) {
+export function DoctorTodayNextAppointment({ appointment, displayIana }: Props) {
   const router = useRouter();
   const terms = useDoctorPatientTerms();
   // «Следующий приём» / «Следующая тренировка» — определение согласуется с родом слова.
   const nextAppointmentTitle = `${agreeWithAppointment(terms, 'Следующий', 'Следующая')} ${terms.appointmentSingular}`;
-  const { activeCall } = useActiveCall();
   const [detailsOpen, setDetailsOpen] = useState(false);
 
-  const patientHref = appointment?.clientUserId ? patientCardHref(appointment.clientUserId) : null;
-  const createVisitHref = appointment?.clientUserId
-    ? patientCardHref(appointment.clientUserId, {
-        tab: 'karta',
-        createVisitFrom: appointment.id,
-        visitDate: appointment.visitDate,
-      })
-    : null;
   const appointmentComment = appointment?.comment?.trim() || null;
   const patientLabel = appointment
     ? formatDoctorFioShortLabel(appointment.clientLabel, appointment.clientLabel)
     : null;
-  const videoCallHref =
-    appointment?.deliveryFormat === 'online' && videoMeetingsEnabled && appointment.clientUserId
-      ? `/app/doctor/patients/${encodeURIComponent(appointment.clientUserId)}/live?${new URLSearchParams({ appointmentId: appointment.id })}`
-      : null;
 
   return (
     <DoctorSection id="doctor-today-next-appointment">
       {appointment ? (
-        <div className="flex min-w-0 flex-col gap-3">
-          <div className="flex min-w-0 flex-col">
-            <div className="flex min-w-0 items-baseline justify-between gap-2">
-              <DoctorSectionTitle>
-                {appointment.isCurrent
-                  ? `Сейчас на ${terms.appointmentPrepositional}`
-                  : nextAppointmentTitle}
-              </DoctorSectionTitle>
-              <DoctorPatientName
-                isOnSupport={appointment.patientOnSupport}
-                className="min-w-0 truncate text-right text-[15px] font-medium text-primary"
-              >
-                {patientHref ? (
-                  <Link
-                    href={patientHref}
-                    className="block truncate underline decoration-1 underline-offset-2"
-                  >
-                    {patientLabel}
-                  </Link>
-                ) : (
-                  patientLabel
-                )}
-              </DoctorPatientName>
-            </div>
+        // Вся карточка — одна кнопка: «Детали записи», «Начать приём»/созвон и переход на карточку
+        // клиента живут внутри самой модалки, поэтому здесь они были дублями. Шеврон справа —
+        // общий, тот же, что у КПИ-плиток, чтобы «сюда можно ткнуть» читалось одинаково везде.
+        <Button
+          type="button"
+          variant="ghost"
+          className={cn(
+            doctorInteractiveSurfaceButtonClass,
+            'w-full justify-start text-left',
+          )}
+          onClick={() => setDetailsOpen(true)}
+          data-testid="today-next-appointment-open"
+        >
+          <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+            <div className="flex min-w-0 flex-col">
+              <div className="flex min-w-0 items-baseline justify-between gap-2">
+                <DoctorSectionTitle>
+                  {appointment.isCurrent
+                    ? `Сейчас на ${terms.appointmentPrepositional}`
+                    : nextAppointmentTitle}
+                </DoctorSectionTitle>
+                <DoctorPatientName
+                  isOnSupport={appointment.patientOnSupport}
+                  // Синий цвет остался от времён, когда имя было ссылкой на карточку клиента.
+                  // Ссылки здесь больше нет — вся карточка одна кнопка, — а синее имя обещает
+                  // переход, которого не случится. В остальных списках врача имя тоже `foreground`.
+                  className="min-w-0 truncate text-right text-[15px] font-medium text-foreground"
+                >
+                  {patientLabel}
+                </DoctorPatientName>
+              </div>
 
-            <div className="mt-1.5 grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3 text-sm">
-              <p className="min-w-0 text-base font-medium tabular-nums">
-                {appointment.dateTimeLabel}
-              </p>
-              {appointment.relativeLabel ? (
-                <p className="shrink-0 font-medium">{appointment.relativeLabel}</p>
+              <div className="mt-1.5 grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3 text-sm">
+                <p className="min-w-0 text-base font-medium tabular-nums">
+                  {appointment.dateTimeLabel}
+                </p>
+                {appointment.relativeLabel ? (
+                  <p className="shrink-0 font-medium">{appointment.relativeLabel}</p>
+                ) : null}
+              </div>
+
+              {appointmentComment ? (
+                <p className="mt-1 line-clamp-2 min-w-0 whitespace-pre-wrap break-words text-sm leading-[18px]">
+                  <span className="text-muted-foreground">Комментарий: </span>
+                  {appointmentComment}
+                </p>
               ) : null}
             </div>
-
-            {appointmentComment ? (
-              <p className="mt-1 line-clamp-2 min-w-0 whitespace-pre-wrap break-words text-sm leading-[18px]">
-                <span className="text-muted-foreground">Комментарий: </span>
-                {appointmentComment}
-              </p>
-            ) : null}
+            <ChevronRight className={doctorStatCardChevronClass} aria-hidden />
           </div>
-
-          <div className="flex w-full min-w-0 items-center gap-1.5">
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="min-w-0 flex-1"
-              onClick={() => setDetailsOpen(true)}
-            >
-              Детали записи
-            </Button>
-            {videoCallHref ? (
-              <Button
-                size="sm"
-                className="min-w-0 flex-1 gap-2"
-                render={<Link href={activeCall?.returnUrl ?? videoCallHref} />}
-                nativeButton={false}
-              >
-                {activeCall ? 'Вернуться к звонку' : 'Начать созвон'}
-                <Video className="size-4 shrink-0" aria-hidden />
-              </Button>
-            ) : createVisitHref ? (
-              <Button
-                size="sm"
-                className="min-w-0 flex-1"
-                render={<Link href={createVisitHref} />}
-                nativeButton={false}
-              >
-                Начать {terms.appointmentAccusative}
-              </Button>
-            ) : (
-              <Button size="sm" className="min-w-0 flex-1" disabled>
-                Начать {terms.appointmentAccusative}
-              </Button>
-            )}
-          </div>
-        </div>
+        </Button>
       ) : (
         <DoctorSectionHeader>
           <DoctorSectionTitle>{nextAppointmentTitle}: нет записей</DoctorSectionTitle>

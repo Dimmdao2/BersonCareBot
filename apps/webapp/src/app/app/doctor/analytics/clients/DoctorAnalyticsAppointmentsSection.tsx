@@ -102,6 +102,7 @@ export function DoctorAnalyticsAppointmentsSection({
               id="doctor-stats-appointments-past-visits"
               title={`Визиты ${patientGenPlural}`}
               value={stats.pastVisitsInPeriod}
+              opensDetails={Boolean(onMetricClick)}
               onClick={
                 onMetricClick
                   ? () =>
@@ -116,6 +117,7 @@ export function DoctorAnalyticsAppointmentsSection({
               id="doctor-stats-appointments-cancelled-visits"
               title="Отменённых визитов"
               value={stats.cancelledVisitsInPeriod}
+              opensDetails={Boolean(onMetricClick)}
               tone="warning"
               onClick={
                 onMetricClick
@@ -128,6 +130,7 @@ export function DoctorAnalyticsAppointmentsSection({
               id="doctor-stats-appointments-bookings-created"
               title="Записались за период"
               value={stats.bookingsCreatedInPeriod}
+              opensDetails={Boolean(onMetricClick)}
               onClick={
                 onMetricClick
                   ? () =>
@@ -139,6 +142,7 @@ export function DoctorAnalyticsAppointmentsSection({
               id="doctor-stats-appointments-cancellation-actions"
               title="Отмены записи"
               value={stats.cancellationActionsInPeriod}
+              opensDetails={Boolean(onMetricClick)}
               tone="warning"
               onClick={
                 onMetricClick
@@ -151,6 +155,7 @@ export function DoctorAnalyticsAppointmentsSection({
               id="doctor-stats-appointments-reschedule-actions"
               title="Переносы за период"
               value={stats.rescheduleActionsInPeriod}
+              opensDetails={Boolean(onMetricClick)}
               onClick={
                 onMetricClick
                   ? () =>
@@ -162,6 +167,7 @@ export function DoctorAnalyticsAppointmentsSection({
               id="doctor-stats-appointments-first-visits"
               title="Первичных визитов"
               value={stats.firstVisitInPeriod}
+              opensDetails={Boolean(onMetricClick)}
               onClick={
                 onMetricClick
                   ? () => onMetricClick('appointments_past_visits', 'Первичные визиты за период')
@@ -172,6 +178,7 @@ export function DoctorAnalyticsAppointmentsSection({
               id="doctor-stats-appointments-repeat-visits"
               title="Повторных визитов"
               value={stats.repeatVisitInPeriod}
+              opensDetails={Boolean(onMetricClick)}
               onClick={
                 onMetricClick
                   ? () => onMetricClick('appointments_past_visits', 'Повторные визиты за период')

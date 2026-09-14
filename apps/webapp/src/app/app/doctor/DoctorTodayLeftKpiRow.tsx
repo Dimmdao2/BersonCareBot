@@ -64,11 +64,14 @@ type KpiModal = 'messages' | 'comments' | 'tasks' | null;
 
 const attentionKpiBackgroundClass = 'bg-[#f5ede5]';
 const attentionKpiValueClass = 'text-destructive';
+// Pin every breakpoint (not just the base + md), otherwise the shared grid's
+// `xl:grid-cols-4 2xl:grid-cols-5` (doctorStatCardGridClass) leaks through on large
+// desktop screens and tiles stop stretching to fill the row (owner report, 14.09).
 const kpiGridClassByTileCount: Record<number, string> = {
-  1: 'grid-cols-2 md:grid-cols-2',
-  2: 'grid-cols-2 md:grid-cols-2',
-  3: 'grid-cols-3 md:grid-cols-3',
-  4: 'grid-cols-2 md:grid-cols-4',
+  1: 'grid-cols-2 md:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-2',
+  2: 'grid-cols-2 md:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-2',
+  3: 'grid-cols-3 md:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-3',
+  4: 'grid-cols-2 md:grid-cols-4 xl:grid-cols-4 2xl:grid-cols-4',
 };
 
 function UnreadConversationModalItem({
@@ -190,6 +193,7 @@ export function DoctorTodayLeftKpiRow({
         id="doctor-today-left-kpi-messages"
         title="Сообщения"
         value={messageTotal}
+        opensDetails={messageTotal > 0}
         tooltip={`Непрочитанные сообщения от ${patientGenPlural}.`}
         tone={messageTotal > 0 ? 'warning' : 'neutral'}
         className={messageTotal > 0 ? attentionKpiBackgroundClass : undefined}
@@ -203,6 +207,7 @@ export function DoctorTodayLeftKpiRow({
         id="doctor-today-left-kpi-comments"
         title="Комментарии"
         value={displayTotal}
+        opensDetails={displayTotal > 0}
         tooltip={`Новые комментарии ${patientGenPlural} к упражнениям.`}
         tone={displayTotal > 0 ? 'warning' : 'neutral'}
         className={displayTotal > 0 ? attentionKpiBackgroundClass : undefined}
@@ -216,6 +221,7 @@ export function DoctorTodayLeftKpiRow({
         id="doctor-today-left-kpi-tasks"
         title="Задачи"
         value={taskAttentionCount > 0 ? taskAttentionCount : tasksTotal}
+        opensDetails={(taskAttentionCount > 0 ? taskAttentionCount : tasksTotal) > 0}
         secondaryValue={taskAttentionCount > 0 ? tasksTotal : undefined}
         tooltip="Открытые задачи."
         tone={hasOverdueTasks ? 'warning' : 'neutral'}

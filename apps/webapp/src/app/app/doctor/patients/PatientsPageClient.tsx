@@ -46,6 +46,7 @@ import {
 import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
 import { DOCTOR_MOBILE_SCROLL_END_INSET_CLASS } from '@/shared/ui/doctor/doctorWorkspaceLayout';
 import { DOCTOR_ACTIVE_FILTER_BUTTON_CLASS } from '@/shared/ui/doctor/calendar/DoctorSchedulePeriodNav';
+import { DoctorAttentionBadge } from '@/shared/ui/doctor/DoctorAttentionBadge';
 import { CatalogSplitLayout } from '@/shared/ui/doctor/catalog/CatalogSplitLayout';
 import { CatalogRightPane } from '@/shared/ui/doctor/catalog/CatalogRightPane';
 import { formatDoctorFio } from '@/shared/lib/fio';
@@ -667,7 +668,7 @@ function PatientsContent({
                 size="icon-sm"
                 variant="outline"
                 className={cn(
-                  'size-8 shrink-0',
+                  'relative size-8 shrink-0',
                   supportFilterActive && DOCTOR_ACTIVE_FILTER_BUTTON_CLASS,
                 )}
                 onClick={() => onSegmentToggle('on_support')}
@@ -680,19 +681,21 @@ function PatientsContent({
                     supportFilterActive ? 'text-primary' : 'text-muted-foreground',
                   )}
                 />
+                <DoctorAttentionBadge count={supportFilterActive ? 1 : 0} dot />
               </Button>
               <Button
                 type="button"
                 size="icon-sm"
                 variant="outline"
                 className={cn(
-                  'size-8 shrink-0',
+                  'relative size-8 shrink-0',
                   hasActiveFilters && DOCTOR_ACTIVE_FILTER_BUTTON_CLASS,
                 )}
                 onClick={() => onMobileFiltersOpenChange(true)}
                 aria-label="Фильтры"
               >
                 <Filter className="size-3.5" aria-hidden />
+                <DoctorAttentionBadge count={hasActiveFilters ? 1 : 0} dot />
               </Button>
             </>
           ) : null}

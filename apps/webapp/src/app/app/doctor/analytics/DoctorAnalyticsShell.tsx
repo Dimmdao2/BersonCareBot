@@ -19,6 +19,7 @@ import {
   DOCTOR_SCHEDULE_TOOLBAR_CONTROL_CLASS,
   DOCTOR_SCHEDULE_TOOLBAR_ICON_CONTROL_CLASS,
 } from '@/shared/ui/doctor/calendar/DoctorSchedulePeriodNav';
+import { DoctorAttentionBadge } from '@/shared/ui/doctor/DoctorAttentionBadge';
 import {
   DOCTOR_DESKTOP_ATTACH_TO_PAGE_HEADER_CLASS,
   DOCTOR_REMAINING_HEIGHT_BODY_CLASS,
@@ -219,6 +220,7 @@ export function DoctorAnalyticsShell({
       size="icon"
       variant="outline"
       className={cn(
+        'relative',
         DOCTOR_SCHEDULE_TOOLBAR_ICON_CONTROL_CLASS,
         locationFilter ? DOCTOR_ACTIVE_FILTER_BUTTON_CLASS : DOCTOR_SCHEDULE_TOOLBAR_CONTROL_CLASS,
       )}
@@ -237,6 +239,7 @@ export function DoctorAnalyticsShell({
       }
     >
       <MapPin className="size-4" aria-hidden />
+      <DoctorAttentionBadge count={locationFilter ? 1 : 0} dot />
     </Button>
   ) : null;
 

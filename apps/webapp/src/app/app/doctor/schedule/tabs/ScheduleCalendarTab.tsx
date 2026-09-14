@@ -10,7 +10,6 @@ import {
   useState,
   useTransition,
   type CSSProperties,
-  type Ref,
 } from 'react';
 import dynamic from 'next/dynamic';
 import { DateTime } from 'luxon';
@@ -35,6 +34,7 @@ import {
   DOCTOR_SCHEDULE_TOOLBAR_CONTROL_CLASS,
   DoctorSchedulePeriodNav,
 } from '@/shared/ui/doctor/calendar/DoctorSchedulePeriodNav';
+import { DoctorAttentionBadge } from '@/shared/ui/doctor/DoctorAttentionBadge';
 import { DoctorStatCard } from '@/app/app/doctor/analytics/clients/DoctorStatCard';
 import { cn } from '@/lib/utils';
 import { DEFAULT_APP_DISPLAY_TIMEZONE } from '@/modules/system-settings/calendarIana';
@@ -54,8 +54,6 @@ import type {
 } from '@/modules/booking-calendar/types';
 import type { ScheduleKpis } from '@/modules/doctor-appointments/ports';
 import type { ScheduleTabProps } from '../scheduleTabRegistry';
-import { KpiPreviewModal } from '@/shared/ui/doctor/KpiPreviewModal';
-import { AppointmentKpiItem } from '@/shared/ui/doctor/AppointmentKpiItem';
 import {
   DoctorModal,
   DoctorModalFooter,
@@ -155,12 +153,32 @@ const APPOINTMENT_FEED_API = `${API_BASE}/appointments/feed`;
 const APPOINTMENT_FEED_PAGE_SIZE = 100;
 const APPOINTMENT_FEED_HISTORY_MONTHS = 3;
 
+type ScheduleKpiNumberKey = Exclude<keyof ScheduleKpis, 'firstVisitIds'>;
+
+const KPI_FILTER_KEYS = [
+  'futureInPeriod',
+  'firstVisitInPeriod',
+  'bySubscriptionInPeriod',
+  'cancellationsInPeriod',
+  'reschedulesInPeriod',
+] as const satisfies readonly Exclude<ScheduleKpiNumberKey, 'recordsInPeriod'>[];
+
+type ScheduleKpiFilterKey = (typeof KPI_FILTER_KEYS)[number];
+
+/** Стабильная пустая ссылка: подставляется вместо выбора, когда КПИ-плиток на странице нет. */
+const NO_KPI_FILTERS: ScheduleKpiFilterKey[] = [];
+
+function isScheduleKpiFilterKey(value: string): value is ScheduleKpiFilterKey {
+  return KPI_FILTER_KEYS.includes(value as ScheduleKpiFilterKey);
+}
+
 type CachedScheduleFilters = {
   branchId: string | null;
   serviceId: string | null;
   scope: DoctorScheduleScopeState['scope'];
   specialistId: string | null;
   showCancelledAppointments: boolean;
+  kpiFilters: ScheduleKpiFilterKey[];
 };
 
 function readCachedScheduleFilters(): CachedScheduleFilters | null {
@@ -178,12 +196,18 @@ function readCachedScheduleFilters(): CachedScheduleFilters | null {
       return null;
     }
     if (typeof value.showCancelledAppointments !== 'boolean') return null;
+    const kpiFilters = Array.isArray(value.kpiFilters)
+      ? [...new Set(value.kpiFilters.filter((key): key is string => typeof key === 'string'))].filter(
+          isScheduleKpiFilterKey,
+        )
+      : [];
     return {
       branchId: value.branchId,
       serviceId: value.serviceId,
       scope: value.scope,
       specialistId: value.specialistId,
       showCancelledAppointments: value.showCancelledAppointments,
+      kpiFilters,
     };
   } catch {
     return null;
@@ -394,6 +418,27 @@ function mobilePeriodLabel(anchorDate: string, zone: string): string {
   );
 }
 
+/**
+ * Подпись периода над КПИ-плитками: даты «с — по». Владелец 14.09 смотрел на числа плиток и не мог
+ * понять, за что они посчитаны, — в режиме списка на экране месяцы, а считается видимый период.
+ *
+ * Берётся ИМЕННО `visibleRange` — та же функция, по которой КПИ уходят на сервер (`loadKpis`).
+ * Любой другой источник рано или поздно разойдётся со счётом, и подпись начнёт врать. `to` в этой
+ * модели — начало следующего дня, поэтому последний включённый день на сутки раньше.
+ */
+function kpiPeriodLabel(view: CalV26View, anchorDate: string, zone: string): string {
+  const range = visibleRange(view, anchorDate, zone);
+  const start = DateTime.fromISO(range.from, { zone }).setLocale('ru');
+  const end = DateTime.fromISO(range.to, { zone }).minus({ days: 1 }).setLocale('ru');
+  if (!start.isValid || !end.isValid) return '';
+  if (start.hasSame(end, 'day')) return start.toFormat('d MMMM yyyy');
+  if (start.hasSame(end, 'month')) return `${start.toFormat('d')} — ${end.toFormat('d MMMM yyyy')}`;
+  if (start.hasSame(end, 'year')) {
+    return `${start.toFormat('d MMMM')} — ${end.toFormat('d MMMM yyyy')}`;
+  }
+  return `${start.toFormat('d MMMM yyyy')} — ${end.toFormat('d MMMM yyyy')}`;
+}
+
 function capitalizeRussianLabel(label: string): string {
   return label ? `${label[0]?.toLocaleUpperCase('ru')}${label.slice(1)}` : label;
 }
@@ -471,9 +516,7 @@ function eventLastName(event: CalendarEvent): string {
 // KPI Row (D2)
 // ---------------------------------------------------------------------------
 
-type ScheduleKpiNumberKey = Exclude<keyof ScheduleKpis, 'firstVisitIds'>;
-
-const KPI_ITEMS: Array<{ key: ScheduleKpiNumberKey; label: string }> = [
+const KPI_ITEMS: Array<{ key: ScheduleKpiFilterKey | 'recordsInPeriod'; label: string }> = [
   { key: 'recordsInPeriod', label: 'Записей всего' },
   { key: 'futureInPeriod', label: 'Впереди' },
   { key: 'firstVisitInPeriod', label: 'Первичных' },
@@ -485,16 +528,41 @@ const KPI_ITEMS: Array<{ key: ScheduleKpiNumberKey; label: string }> = [
 type KpiRowTabProps = {
   kpis: ScheduleKpis | null;
   kpisLoading: boolean;
-  onKpiClick?: (key: ScheduleKpiNumberKey) => void;
+  selectedKpiFilters: ScheduleKpiFilterKey[];
+  periodLabel: string;
+  onKpiClick?: (key: ScheduleKpiFilterKey | 'recordsInPeriod') => void;
 };
 
-function KpiRowTab({ kpis, kpisLoading, onKpiClick }: KpiRowTabProps) {
+function KpiRowTab({
+  kpis,
+  kpisLoading,
+  selectedKpiFilters,
+  periodLabel,
+  onKpiClick,
+}: KpiRowTabProps) {
   return (
-    <div className="grid grid-cols-2 gap-2" data-testid="cal-kpi-row">
+    <div className="flex flex-col gap-2">
+      {periodLabel ? (
+        <p className="px-0.5 text-xs text-muted-foreground" data-testid="cal-kpi-period">
+          Период: {periodLabel}
+        </p>
+      ) : null}
+      <div className="grid grid-cols-2 gap-2" data-testid="cal-kpi-row">
       {KPI_ITEMS.map(({ key, label }) => {
         const value = kpis?.[key] ?? 0;
+        // «Записей всего» — не обычный фильтр: она отражает состояние «фильтров нет» (выделена по
+        // умолчанию, пока список не сужен) и по клику СБРАСЫВАЕТ остальные, а не добавляется к ним
+        // (владелец 14.09: «нажатие на „Записей всего“ должно сбрасывать все остальные»; «карточка
+        // должна быть выделяемая и с ободком, если вообще записи есть в периоде» — то есть ободок,
+        // как у остальных плиток, появляется только при value > 0).
+        const isRecordsTile = key === 'recordsInPeriod';
+        const selected = isRecordsTile
+          ? selectedKpiFilters.length === 0 && value > 0
+          : selectedKpiFilters.includes(key);
         const handleClick =
-          key !== 'recordsInPeriod' && value > 0 && onKpiClick ? () => onKpiClick(key) : undefined;
+          onKpiClick && (isRecordsTile ? selectedKpiFilters.length > 0 : selected || value > 0)
+            ? () => onKpiClick(key)
+            : undefined;
         return (
           <DoctorStatCard
             key={key}
@@ -508,10 +576,12 @@ function KpiRowTab({ kpis, kpisLoading, onKpiClick }: KpiRowTabProps) {
               )
             }
             onClick={handleClick}
+            selected={selected}
             testId={`kpi-${key}`}
           />
         );
-      })}
+        })}
+      </div>
     </div>
   );
 }
@@ -529,7 +599,6 @@ type ListDayCardProps = {
   nextApptId?: string;
   branchShortLabels: ReadonlyMap<string, string>;
   showSpecialist: boolean;
-  nextAppointmentRef?: Ref<HTMLButtonElement>;
 };
 
 // R29: фон строки списка повторяет статусную палитру календаря (eventClassName);
@@ -552,6 +621,9 @@ function listRowStyle(appt: CalendarAppointmentEvent): CSSProperties | undefined
   return {
     '--list-branch-bg': background,
     '--list-branch-border': border,
+    // Подпись филиала красится полным цветом — как часы филиала в «Графике работы». Заливка в 16%
+    // сама по себе на телефоне не различается, из-за чего строки читались «одним цветом».
+    '--list-branch-text': appt.branchColor,
   } as CSSProperties;
 }
 
@@ -564,7 +636,6 @@ function ListDayCard({
   nextApptId,
   branchShortLabels,
   showSpecialist,
-  nextAppointmentRef,
 }: ListDayCardProps) {
   return (
     <div
@@ -585,7 +656,6 @@ function ListDayCard({
             : appt.branchTitle;
           return (
             <Button
-              ref={isNext ? nextAppointmentRef : undefined}
               key={appt.id}
               type="button"
               variant="ghost"
@@ -608,7 +678,14 @@ function ListDayCard({
                 </span>
                 {branchLabel ? (
                   <span
-                    className="truncate text-muted-foreground"
+                    className={cn(
+                      'truncate',
+                      // Цвет филиала читается по подписи, а не только по бледной заливке строки.
+                      // У отменённой записи своя палитра — её не перебиваем.
+                      appt.branchColor && !cancelled
+                        ? 'font-medium text-[color:var(--list-branch-text)]'
+                        : 'text-muted-foreground',
+                    )}
                     title={appt.branchTitle ?? undefined}
                   >
                     {branchLabel}
@@ -683,7 +760,6 @@ function ListView({
 }: ListViewProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const anchorMarkerRef = useRef<HTMLDivElement>(null);
-  const nextAppointmentRef = useRef<HTMLButtonElement>(null);
   const earlierSentinelRef = useRef<HTMLDivElement>(null);
   const laterSentinelRef = useRef<HTMLDivElement>(null);
   const positionedAnchorRef = useRef<string | null>(null);
@@ -760,10 +836,10 @@ function ListView({
     }
     const isExplicitTodayRequest = scrollToTodayRequest > positionedTodayRequestRef.current;
     const frame = window.requestAnimationFrame(() => {
-      const targetNode =
-        isExplicitTodayRequest && nextAppointmentRef.current
-          ? nextAppointmentRef.current
-          : markerNode;
+      // Владелец 14.09: наверху экрана должна быть ДАТА, а не строка ближайшей записи — «я вижу
+      // весь сегодняшний день». Поэтому цель прокрутки всегда заголовок дня; отметка ближайшей
+      // записи остаётся на своём месте как граница прошлого и будущего, но к ней не прокручиваем.
+      const targetNode = markerNode;
       const targetTop =
         targetNode.getBoundingClientRect().top -
         scrollNode.getBoundingClientRect().top +
@@ -846,12 +922,16 @@ function ListView({
         <>
           {dayGroups.map(({ dateKey, label, appointments }, index) => (
             <Fragment key={dateKey}>
-              {index === anchorMarkerIndex ? <div ref={anchorMarkerRef} /> : null}
               {index === 0 || dayGroups[index - 1]?.monthKey !== dayGroups[index]?.monthKey ? (
                 <p className="mt-2 border-t border-border/70 px-3 py-4 text-center text-base font-normal capitalize text-foreground md:px-0">
                   {dayGroups[index]?.monthLabel}
                 </p>
               ) : null}
+              {/*
+                Маркер прокрутки — ПОСЛЕ заголовка месяца, чтобы на первом дне месяца целью
+                становился заголовок дня, а не заголовок месяца (аудит 14.09, Э1 FAIL).
+              */}
+              {index === anchorMarkerIndex ? <div ref={anchorMarkerRef} /> : null}
               <ListDayCard
                 dateKey={dateKey}
                 label={label}
@@ -861,7 +941,6 @@ function ListView({
                 nextApptId={nextApptId}
                 branchShortLabels={branchShortLabels}
                 showSpecialist={showSpecialist}
-                nextAppointmentRef={nextAppointmentRef}
               />
             </Fragment>
           ))}
@@ -967,6 +1046,13 @@ export function ScheduleCalendarTab({
   const [filtersPanelOpen, setFiltersPanelOpen] = useState(false);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [showCancelledAppointments, setShowCancelledAppointments] = useState(false);
+  const [selectedKpiFilters, setSelectedKpiFilters] = useState<ScheduleKpiFilterKey[]>([]);
+  // КПИ-фильтр снимается той же плиткой, которой ставится. Если плиток на странице нет —
+  // статистика организации выключена, а в кэше с прошлого раза лежит выбранный фильтр, — человек
+  // получил бы урезанное расписание без единой возможности это отменить. Поэтому без плиток
+  // фильтры не применяются вовсе: выбор в хранилище остаётся и оживёт вместе со статистикой.
+  const showKpi = doctorStatisticsEnabled;
+  const activeKpiFilters = showKpi ? selectedKpiFilters : NO_KPI_FILTERS;
   const [filterCacheReady, setFilterCacheReady] = useState(false);
   const isMobileViewport = useIsMobileViewport();
   const isWideScheduleLayout = useViewportMinWidth(1280);
@@ -999,7 +1085,6 @@ export function ScheduleCalendarTab({
   const [serverSearchLoading, setServerSearchLoading] = useState(false);
   const [serverSearchQuery, setServerSearchQuery] = useState<string | null>(null);
   const listLoadGenerationRef = useRef(0);
-  const [kpiModalFilter, setKpiModalFilter] = useState<ScheduleKpiNumberKey | null>(null);
   // R32: время старта/конца, подставляемое в форму создания при выделении области.
   const [createInitialStart, setCreateInitialStart] = useState<string | null>(null);
   // #225: время конца из drag-интервала → используется как начальная длительность в форме создания.
@@ -1241,6 +1326,12 @@ export function ScheduleCalendarTab({
     [view, anchorDate, branchId, serviceId, timeZone, scheduleScope],
   );
 
+  // Отменённые нужны серверу только по одной причине — их попросили показать: переключателем
+  // «показывать отмены» или КПИ-фильтром «Отмены». Зависимость именно от этого булева, а не от
+  // всего списка выбранных КПИ: список меняет тождество на каждом нажатии плитки, и лента записей
+  // перезапрашивалась бы двумя запросами даже там, где фильтр отрабатывает на клиенте.
+  const includeCancelledAppointments =
+    showCancelledAppointments || activeKpiFilters.includes('cancellationsInPeriod');
   const fetchAppointmentFeedPage = useCallback(
     async (params: {
       from?: string;
@@ -1256,7 +1347,7 @@ export function ScheduleCalendarTab({
           to: params.to,
           q: params.q,
           order: params.order,
-          includeCancelled: String(showCancelledAppointments),
+          includeCancelled: String(includeCancelledAppointments),
           limit: String(params.limit ?? APPOINTMENT_FEED_PAGE_SIZE),
           offset: String(params.offset ?? 0),
           branchId,
@@ -1268,7 +1359,7 @@ export function ScheduleCalendarTab({
       if (!response.ok || !json.ok) throw new Error(json.error ?? 'appointment_feed_load_failed');
       return json;
     },
-    [branchId, scheduleScope, serviceId, showCancelledAppointments],
+    [branchId, includeCancelledAppointments, scheduleScope, serviceId],
   );
 
   const loadInitialAppointmentFeed = useCallback(async () => {
@@ -1624,6 +1715,7 @@ export function ScheduleCalendarTab({
           }
         }
         setShowCancelledAppointments(cached.showCancelledAppointments);
+        setSelectedKpiFilters(cached.kpiFilters);
       }
       setFilterCacheReady(true);
     });
@@ -1640,8 +1732,16 @@ export function ScheduleCalendarTab({
       scope: scheduleScope.scope,
       specialistId: scheduleScope.specialistId,
       showCancelledAppointments,
+      kpiFilters: selectedKpiFilters,
     });
-  }, [branchId, filterCacheReady, scheduleScope, serviceId, showCancelledAppointments]);
+  }, [
+    branchId,
+    filterCacheReady,
+    scheduleScope,
+    selectedKpiFilters,
+    serviceId,
+    showCancelledAppointments,
+  ]);
 
   const defaultCreateSpecialistId =
     calendarSettings.defaultSpecialistId &&
@@ -1658,6 +1758,40 @@ export function ScheduleCalendarTab({
     }),
     [branchId, data?.resolvedScope.specialistId, scheduleScope.specialistId, serviceId],
   );
+
+  /**
+   * Подпись «за какой период посчитаны плитки» — ровно тот диапазон, который уходит в КПИ.
+   * `loadKpis` строит `from/to` по state `timeZone` (не по `data?.timeZone`) — подпись обязана
+   * читать тот же источник пояса, иначе после смены пояса устройства она способна описывать не
+   * тот интервал, по которому реально посчитаны числа (аудит 14.09, Э3 FAIL).
+   */
+  const kpiPeriod = useMemo(
+    () => kpiPeriodLabel(view, anchorDate, timeZone),
+    [anchorDate, timeZone, view],
+  );
+
+  /**
+   * День, на который встаёт список при открытии. Владелец 14.09: переключившись на телефоне из
+   * месяца в список, он должен увидеть СЕГОДНЯ, а не первое число месяца. Поэтому сегодняшний день
+   * побеждает, когда он попадает в видимый период; осознанный уход в другой месяц при этом не
+   * теряется — там сегодняшнего дня в периоде нет, и якорем остаётся его начало. Дальше список сам
+   * встаёт на ближайший день С ЗАПИСЯМИ (`dateKey >= anchorDate`), то есть правило «сегодня, либо
+   * день следующей записи» выполняется без отдельной ветки.
+   */
+  const listAnchorDate = useMemo(() => {
+    const zone = data?.timeZone ?? timeZone;
+    const range = visibleRange(view, anchorDate, zone);
+    // Начало ВИДИМОГО периода для любого вида, не только `month` — иначе `weekgrid` на неделе,
+    // отличной от anchor-недели, ставит якорь на день недели из `anchorDate` вместо понедельника
+    // выбранной недели (аудит 14.09, Э1 FAIL).
+    const periodStart = DateTime.fromISO(range.from, { zone }).toISODate() ?? anchorDate;
+    const todayKey = DateTime.now().setZone(zone).toISODate();
+    const fromKey = periodStart;
+    // `to` в модели периода — начало следующего дня, то есть граница не включается.
+    const toKey = DateTime.fromISO(range.to, { zone }).toISODate();
+    if (!todayKey || !fromKey || !toKey) return periodStart;
+    return todayKey >= fromKey && todayKey < toKey ? todayKey : periodStart;
+  }, [anchorDate, data?.timeZone, timeZone, view]);
   const scheduleSpecialistOptions = useMemo(
     () =>
       scopeBootstrap.specialists.map((specialist) => ({
@@ -1673,6 +1807,7 @@ export function ScheduleCalendarTab({
     branchId !== null ||
     serviceId !== null ||
     showCancelledAppointments ||
+    activeKpiFilters.length > 0 ||
     scheduleScope.scope !== defaultScheduleScope.scope ||
     scheduleScope.specialistId !== defaultScheduleScope.specialistId;
   const handleCalendarFilterOpenChange = useCallback((open: boolean) => {
@@ -1731,18 +1866,39 @@ export function ScheduleCalendarTab({
     </div>
   );
 
+  const currentTimeZone = data?.timeZone ?? timeZone;
+  const kpiFilterPredicate = useMemo<
+    ((appointment: CalendarAppointmentEvent) => boolean) | null
+  >(() => {
+    if (activeKpiFilters.length === 0) return null;
+    const firstVisitIdSet = new Set<string>(kpis?.firstVisitIds ?? []);
+    const predicates: Record<
+      ScheduleKpiFilterKey,
+      (appointment: CalendarAppointmentEvent) => boolean
+    > = {
+      cancellationsInPeriod: (appointment) => isCancelledAppointmentStatus(appointment.status),
+      firstVisitInPeriod: (appointment) => firstVisitIdSet.has(appointment.id),
+      bySubscriptionInPeriod: (appointment) =>
+        Boolean(appointment.packageUsageRef || appointment.packageTitle),
+      futureInPeriod: (appointment) =>
+        parseFeedInstant(appointment.startAt, currentTimeZone) >= DateTime.now(),
+      reschedulesInPeriod: (appointment) =>
+        !isCancelledAppointmentStatus(appointment.status) && appointment.rescheduleCount > 0,
+    };
+    return (appointment) => activeKpiFilters.every((key) => predicates[key](appointment));
+  }, [activeKpiFilters, currentTimeZone, kpis?.firstVisitIds]);
+
   const displayableCalendarEvents = useMemo(
     () =>
       (data?.events ?? []).filter(
         (event) =>
-          showCancelledAppointments ||
           event.kind !== 'appointment' ||
-          !isCancelledAppointmentStatus(event.status),
+          (includeCancelledAppointments || !isCancelledAppointmentStatus(event.status)) &&
+            (!kpiFilterPredicate || kpiFilterPredicate(event)),
       ),
-    [data?.events, showCancelledAppointments],
+    [data?.events, includeCancelledAppointments, kpiFilterPredicate],
   );
 
-  const currentTimeZone = data?.timeZone ?? timeZone;
   const workingBounds = data?.workingBounds;
   const calendarScrollTime = deriveCalendarInitialScrollTime(
     workingBounds,
@@ -2559,8 +2715,6 @@ export function ScheduleCalendarTab({
 
   // ─── Render ────────────────────────────────────────────────────────────────
 
-  const showKpi = doctorStatisticsEnabled;
-
   // Calendar/list filters: cancellations are hidden by default; search narrows the remainder.
   const visibleEvents = useMemo<CalendarEvent[]>(() => {
     const q = searchQuery.toLowerCase();
@@ -2583,9 +2737,10 @@ export function ScheduleCalendarTab({
     const source = serverSearchQuery ? serverSearchItems : listAppointments;
     const query = searchQuery.trim().toLocaleLowerCase('ru');
     return source.filter((appointment) => {
-      if (!showCancelledAppointments && isCancelledAppointmentStatus(appointment.status)) {
+      if (!includeCancelledAppointments && isCancelledAppointmentStatus(appointment.status)) {
         return false;
       }
+      if (kpiFilterPredicate && !kpiFilterPredicate(appointment)) return false;
       if (serverSearchQuery || !query) return true;
       return [
         appointment.patientName,
@@ -2599,7 +2754,8 @@ export function ScheduleCalendarTab({
     searchQuery,
     serverSearchItems,
     serverSearchQuery,
-    showCancelledAppointments,
+    includeCancelledAppointments,
+    kpiFilterPredicate,
   ]);
   const branchShortLabels = useMemo(
     () =>
@@ -2609,41 +2765,6 @@ export function ScheduleCalendarTab({
     [filters.branches],
   );
 
-  // KPI modal: predicate map + filtered items.
-  // firstVisitInPeriod / repeatVisitInPeriod use the id-set returned by the API
-  // (kpis.firstVisitIds) so the modal shows exactly the same appointments as the
-  // tile counter — matching the SQL NOT EXISTS logic that looks across ALL time,
-  // not just the visible feed window.
-  const kpiModalItems = useMemo<CalendarAppointmentEvent[]>(() => {
-    if (!kpiModalFilter) return [];
-
-    const firstVisitIdSet = new Set<string>(kpis?.firstVisitIds ?? []);
-
-    const KPI_PREDICATES: Partial<
-      Record<keyof ScheduleKpis, (e: CalendarAppointmentEvent) => boolean>
-    > = {
-      cancellationsInPeriod: (e) => isCancelledAppointmentStatus(e.status),
-      firstVisitInPeriod: (e) => firstVisitIdSet.has(e.id),
-      repeatVisitInPeriod: (e) =>
-        !isCancelledAppointmentStatus(e.status) && !firstVisitIdSet.has(e.id),
-      bySubscriptionInPeriod: (e) => Boolean(e.packageUsageRef || e.packageTitle),
-      pastInPeriod: (e) => parseFeedInstant(e.startAt, currentTimeZone) < DateTime.now(),
-      futureInPeriod: (e) => parseFeedInstant(e.startAt, currentTimeZone) >= DateTime.now(),
-      uniquePatientsInPeriod: (_e) => true,
-      recordsInPeriod: (_e) => true,
-      reschedulesInPeriod: (e) => !isCancelledAppointmentStatus(e.status) && e.rescheduleCount > 0,
-    };
-
-    const pred = KPI_PREDICATES[kpiModalFilter];
-    if (!pred) return [];
-    return (data?.events ?? []).filter(
-      (e): e is CalendarAppointmentEvent => e.kind === 'appointment' && pred(e),
-    );
-  }, [kpiModalFilter, data?.events, currentTimeZone, kpis?.firstVisitIds]);
-
-  const kpiModalTitle = kpiModalFilter
-    ? (KPI_ITEMS.find((k) => k.key === kpiModalFilter)?.label ?? '')
-    : '';
   const eventPanelOpen = selected !== null || showCreatePanel;
   const eventPanelTitle = selected ? (
     <DoctorModalStackedTitle
@@ -2687,9 +2808,14 @@ export function ScheduleCalendarTab({
       }}
     />
   ) : null;
-  const handleKpiClick = (key: ScheduleKpiNumberKey) => {
-    setFiltersPanelOpen(false);
-    setKpiModalFilter((previous) => (previous === key ? null : key));
+  const handleKpiClick = (key: ScheduleKpiFilterKey | 'recordsInPeriod') => {
+    if (key === 'recordsInPeriod') {
+      setSelectedKpiFilters(NO_KPI_FILTERS);
+      return;
+    }
+    setSelectedKpiFilters((current) =>
+      current.includes(key) ? current.filter((selected) => selected !== key) : [...current, key],
+    );
   };
   const toggleFiltersPanel = () => {
     if (filtersPanelOpen) {
@@ -2697,7 +2823,6 @@ export function ScheduleCalendarTab({
       return;
     }
     if (eventPanelOpen && !closeDraftOrSelectionFromGrid()) return;
-    setKpiModalFilter(null);
     setFiltersPanelOpen(true);
   };
 
@@ -2788,20 +2913,25 @@ export function ScheduleCalendarTab({
             <Button
               type="button"
               size="icon"
-              variant={filtersPanelOpen ? 'default' : 'outline'}
+              variant={filtersPanelOpen && !hasActiveScheduleFilters ? 'default' : 'outline'}
               className={cn(
                 'size-[32px]',
-                !filtersPanelOpen &&
-                  (hasActiveScheduleFilters
-                    ? DOCTOR_ACTIVE_FILTER_BUTTON_CLASS
-                    : INACTIVE_TOOLBAR_BUTTON_CLASS),
+                // Белый фон «спящей» кнопки нельзя класть поверх варианта `default`: у того белый
+                // значок, и вместе они дают белое на белом. Пока панель открыта и фильтров нет,
+                // кнопку красит сам вариант.
+                hasActiveScheduleFilters
+                  ? DOCTOR_ACTIVE_FILTER_BUTTON_CLASS
+                  : !filtersPanelOpen && INACTIVE_TOOLBAR_BUTTON_CLASS,
               )}
               onClick={toggleFiltersPanel}
               aria-label="Фильтры"
               aria-expanded={filtersPanelOpen}
               aria-controls="schedule-filters-panel"
             >
-              <Filter className="size-4" aria-hidden />
+              <span className="relative inline-flex">
+                <Filter className="size-4" aria-hidden />
+                <DoctorAttentionBadge count={hasActiveScheduleFilters ? 1 : 0} dot />
+              </span>
             </Button>
           </div>
         </div>
@@ -3027,19 +3157,23 @@ export function ScheduleCalendarTab({
           <Button
             type="button"
             size="sm"
-            variant={filtersPanelOpen ? 'default' : 'outline'}
+            variant={filtersPanelOpen && !hasActiveScheduleFilters ? 'default' : 'outline'}
             className={cn(
               'ml-auto gap-2 xl:hidden',
-              !filtersPanelOpen &&
-                (hasActiveScheduleFilters
-                  ? DOCTOR_ACTIVE_FILTER_BUTTON_CLASS
-                  : INACTIVE_TOOLBAR_BUTTON_CLASS),
+              // То же, что и у значка выше: с открытой панелью и без фильтров цвет даёт вариант
+              // `default`, иначе белая надпись легла бы на белый фон.
+              hasActiveScheduleFilters
+                ? DOCTOR_ACTIVE_FILTER_BUTTON_CLASS
+                : !filtersPanelOpen && INACTIVE_TOOLBAR_BUTTON_CLASS,
             )}
             onClick={toggleFiltersPanel}
             aria-expanded={filtersPanelOpen}
             aria-controls="schedule-filters-panel"
           >
-            <Filter className="size-4" aria-hidden />
+            <span className="relative inline-flex">
+              <Filter className="size-4" aria-hidden />
+              <DoctorAttentionBadge count={hasActiveScheduleFilters ? 1 : 0} dot />
+            </span>
             Фильтры
           </Button>
         </div>
@@ -3077,13 +3211,7 @@ export function ScheduleCalendarTab({
             // Continuous list view — grouped by month/day, lazily paged in both directions
             <ListView
               appointments={visibleListAppointments}
-              anchorDate={
-                view === 'month'
-                  ? (DateTime.fromISO(anchorDate, { zone: currentTimeZone })
-                      .startOf('month')
-                      .toISODate() ?? anchorDate)
-                  : anchorDate
-              }
+              anchorDate={listAnchorDate}
               timeZone={currentTimeZone}
               loading={listLoading}
               loadingEarlier={listLoadingEarlier}
@@ -3172,7 +3300,11 @@ export function ScheduleCalendarTab({
                   pointer-events: none !important;
                 }
                 .fc-timegrid-bg-harness { pointer-events: none !important; }
-                .fc-event .fc-event-main { color: var(--foreground) !important; }
+                /* Пол по умолчанию для .fc-v-event (у него FC не задаёт цвет текста своим
+                   правилом) — БЕЗ !important, чтобы инлайновый textColor от
+                   doctorCalendarAppointmentBranchColors() (цвет филиала) побеждал: инлайн-стиль
+                   и без !important сильнее любого селекторного правила (аудит 14.09, Э2 FAIL). */
+                .fc-event .fc-event-main { color: var(--foreground); }
                 /* R10 — прошедшие записи приглушаем, будущие/актуальные ярче */
                 .fc-event.fc-event-past { opacity: 0.6; }
 
@@ -3491,7 +3623,13 @@ export function ScheduleCalendarTab({
             {renderScheduleFilters('flex flex-col gap-2', 'w-full')}
           </section>
           {showKpi ? (
-            <KpiRowTab kpis={kpis} kpisLoading={kpisLoading} onKpiClick={handleKpiClick} />
+            <KpiRowTab
+              kpis={kpis}
+              kpisLoading={kpisLoading}
+              selectedKpiFilters={selectedKpiFilters}
+              periodLabel={kpiPeriod}
+              onKpiClick={handleKpiClick}
+            />
           ) : null}
         </aside>
       </div>
@@ -3602,7 +3740,13 @@ export function ScheduleCalendarTab({
         <div id="schedule-filters-panel" className="flex flex-col gap-3">
           {renderScheduleFilters('flex flex-col gap-2', 'w-full')}
           {showKpi ? (
-            <KpiRowTab kpis={kpis} kpisLoading={kpisLoading} onKpiClick={handleKpiClick} />
+            <KpiRowTab
+              kpis={kpis}
+              kpisLoading={kpisLoading}
+              selectedKpiFilters={selectedKpiFilters}
+              periodLabel={kpiPeriod}
+              onKpiClick={handleKpiClick}
+            />
           ) : null}
         </div>
       </DoctorModal>
@@ -3645,37 +3789,6 @@ export function ScheduleCalendarTab({
         onCancel={cancelRescheduleConfirm}
       />
 
-      <KpiPreviewModal
-        open={kpiModalFilter !== null}
-        onClose={() => setKpiModalFilter(null)}
-        title={kpiModalTitle}
-        count={kpiModalItems.length}
-        items={kpiModalItems}
-        renderItem={(item) => {
-          const dt = parseFeedInstant(item.startAt, currentTimeZone);
-          // Match the «Сегодня» etalon row format: «HH:mm DD.MM».
-          const timeLabel = dt.toFormat('HH:mm dd.MM');
-          return (
-            <li>
-              <AppointmentKpiItem
-                item={{
-                  clientLabel: item.patientName ?? patientSingularLabel,
-                  time: timeLabel,
-                  typeLabel: item.serviceTitle ?? null,
-                  statusLabel: appointmentStatusLabel(item.status),
-                  branchName: item.branchTitle ?? null,
-                  altNameNote: null,
-                  cancelled: isCancelledAppointmentStatus(item.status),
-                  href: item.platformUserId
-                    ? routePaths.doctorPatientCard(item.platformUserId)
-                    : null,
-                  ctaLabel: item.platformUserId ? 'Открыть карточку' : null,
-                }}
-              />
-            </li>
-          );
-        }}
-      />
     </div>
   );
 }
