@@ -455,8 +455,16 @@ test('full-body overdeclaration corrections preserve only executable operations'
   const wrapperDelegates = {
     'app.email_auth_find_email_owner_conflict(uuid,text)':
       'app.find_platform_user_ids_by_any_confirmed_email(text)',
+    // Обе двери входа по паролю ведут в ОДНО пятиаргументное тело (миграция
+    // `20260914T115312_captcha_provider_setting`): четырёхаргументные — совместимость, они просто
+    // подставляют `false` пятым аргументом. Поэтому делегат у всех трёх один и тот же, и
+    // совместимостная обёртка `_impl(text,text,uuid,text)` проверяется здесь наравне с дверьми.
     'app.password_login_acquire(text,text,uuid,text)':
-      'app.password_login_acquire_impl(text,text,uuid,text)',
+      'app.password_login_acquire_impl(text,text,uuid,text,boolean)',
+    'app.password_login_acquire(text,text,uuid,text,boolean)':
+      'app.password_login_acquire_impl(text,text,uuid,text,boolean)',
+    'app.password_login_acquire_impl(text,text,uuid,text)':
+      'app.password_login_acquire_impl(text,text,uuid,text,boolean)',
     'app.password_login_complete(uuid,boolean)':
       'app.password_login_complete_impl(uuid,boolean)',
     'app.password_login_issue_altcha_challenge(text,uuid,text,timestamp with time zone)':
