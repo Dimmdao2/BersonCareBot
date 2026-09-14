@@ -24555,7 +24555,7 @@ const CANONICAL_CONTACT_SURFACE_CORRECTIONS: Readonly<Record<string, CanonicalCo
   'app.is_platform_registration_analytics_user_excluded(uuid)': { contacts: ['SELECT'] },
   'app.password_credentials_replace_self(text,text)': { contacts: ['SELECT'] },
   'app.password_credentials_upsert_self(text,text)': { contacts: ['SELECT'] },
-  'app.password_login_acquire_impl(text,text,uuid,text)': { contacts: ['SELECT'] },
+  'app.password_login_acquire_impl(text,text,uuid,text,boolean)': { contacts: ['SELECT'] },
   'app.password_login_complete_impl(uuid,boolean)': { contacts: ['SELECT'] },
   'app.password_login_issue_altcha_challenge_impl(text,uuid,text,timestamp with time zone)': {
     contacts: ['SELECT'],
@@ -26071,12 +26071,18 @@ const REV10_CONTEXT = {
     password_login_acquire: { port: 'webapp', sessionRole: 'app_patient', targetRole: 'app_pre_session',
       contextClass: 'pre_session', purpose: 'auth.password.acquire',
       functionIdentity: 'app.password_login_acquire(text,text,uuid,text)' },
+    password_login_acquire_with_external_captcha: { port: 'webapp', sessionRole: 'app_patient',
+      targetRole: 'app_pre_session', contextClass: 'pre_session', purpose: 'auth.password.acquire',
+      functionIdentity: 'app.password_login_acquire(text,text,uuid,text,boolean)' },
     password_login_complete: { port: 'webapp', sessionRole: 'app_patient', targetRole: 'app_pre_session',
       contextClass: 'pre_session', purpose: 'auth.password.complete',
       functionIdentity: 'app.password_login_complete(uuid,boolean)' },
     password_login_read_altcha_secret: { port: 'webapp', sessionRole: 'app_patient', targetRole: 'app_pre_session',
       contextClass: 'pre_session', purpose: 'auth.password.altcha-secret',
       functionIdentity: 'app.password_login_read_altcha_secret()' },
+    password_login_read_captcha_config: { port: 'webapp', sessionRole: 'app_patient', targetRole: 'app_pre_session',
+      contextClass: 'pre_session', purpose: 'auth.password.captcha-config',
+      functionIdentity: 'app.password_login_read_captcha_config()' },
     password_login_issue_altcha_challenge: { port: 'webapp', sessionRole: 'app_patient',
       targetRole: 'app_pre_session', contextClass: 'pre_session', purpose: 'auth.password.altcha-issue',
       functionIdentity: 'app.password_login_issue_altcha_challenge(text,uuid,text,timestamp with time zone)' },
@@ -26610,7 +26616,13 @@ const REV10_CONTEXT = {
     'app.password_login_acquire(text,text,uuid,text)': {
       ...BUSINESS_SEAM_FUNCTIONS['app.password_login_acquire(text,text,uuid,text)'],
       relationSurfaces: [],
-      delegatesTo: ['app.password_login_acquire_impl(text,text,uuid,text)'],
+      delegatesTo: ['app.password_login_acquire_impl(text,text,uuid,text,boolean)'],
+    },
+    'app.password_login_acquire(text,text,uuid,text,boolean)': {
+      ...BUSINESS_SEAM_FUNCTIONS['app.password_login_acquire(text,text,uuid,text)'],
+      typedArgs: ['text', 'text', 'uuid', 'text', 'boolean'],
+      relationSurfaces: [],
+      delegatesTo: ['app.password_login_acquire_impl(text,text,uuid,text,boolean)'],
     },
     'app.password_login_complete(uuid,boolean)': {
       ...BUSINESS_SEAM_FUNCTIONS['app.password_login_complete(uuid,boolean)'],
@@ -26628,6 +26640,13 @@ const REV10_CONTEXT = {
       ...BUSINESS_SEAM_FUNCTIONS['app.password_login_read_altcha_secret()'],
       relationSurfaces: [],
       delegatesTo: ['app.password_login_read_altcha_secret_impl()'],
+    },
+    'app.password_login_read_captcha_config()': {
+      ...BUSINESS_SEAM_FUNCTIONS['app.password_login_read_altcha_secret()'],
+      returns: 'record', returnsSet: true,
+      purpose: 'read the selected password captcha provider and its Yandex keys',
+      relationSurfaces: [],
+      delegatesTo: ['app.password_login_read_captcha_config_impl()'],
     },
     'app.require_attested_target_role(name,name[])': rev10Function({
       owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'name', returnsSet: false,
@@ -27399,6 +27418,14 @@ const REV10_CONTEXT = {
     'app.password_login_acquire_impl(text,text,uuid,text)': {
       ...BUSINESS_SEAM_FUNCTIONS['app.password_login_acquire(text,text,uuid,text)'],
       execute: [], invocation: 'internal' as const,
+      purpose: 'compatibility delegation to the five-argument password login implementation',
+      relationSurfaces: [],
+      delegatesTo: ['app.password_login_acquire_impl(text,text,uuid,text,boolean)'],
+    },
+    'app.password_login_acquire_impl(text,text,uuid,text,boolean)': {
+      ...BUSINESS_SEAM_FUNCTIONS['app.password_login_acquire(text,text,uuid,text)'],
+      typedArgs: ['text', 'text', 'uuid', 'text', 'boolean'],
+      execute: [], invocation: 'internal' as const,
       purpose: 'private implementation behind exact-gated app.password_login_acquire',
       relationSurfaces: [
         ...(BUSINESS_SEAM_FUNCTIONS[
@@ -27448,6 +27475,15 @@ const REV10_CONTEXT = {
       ...BUSINESS_SEAM_FUNCTIONS['app.password_login_read_altcha_secret()'],
       execute: [], invocation: 'internal' as const,
       purpose: 'private implementation behind exact-gated app.password_login_read_altcha_secret',
+    },
+    'app.password_login_read_captcha_config_impl()': {
+      ...BUSINESS_SEAM_FUNCTIONS['app.password_login_read_altcha_secret()'],
+      returns: 'record', returnsSet: true,
+      execute: [], invocation: 'internal' as const,
+      purpose: 'private implementation behind exact-gated app.password_login_read_captcha_config',
+      relationSurfaces: [{ relation: 'public.system_settings',
+        columns: ['key', 'scope', 'value_json', 'organization_id'],
+        operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     },
     'app_control.enforce_relation_birth_wall()': rev10Function({
       owner: 'postgres', security: 'DEFINER', returns: 'event_trigger', returnsSet: false, execute: [],

@@ -13,6 +13,7 @@ type PasswordCredentialsPort = {
     plainPassword: string,
     altchaProof?: PasswordAltchaProof,
     altchaSubmitted?: boolean,
+    captchaVerifiedExternally?: boolean,
   ): Promise<PasswordVerificationResult>;
   updatePasswordHash(userId: string, emailNormalized: string, passwordHash: string): Promise<void>;
 };
@@ -48,6 +49,7 @@ export function createPasswordChangeService(deps: PasswordChangeDeps) {
       newPassword: string;
       altchaProof?: PasswordAltchaProof;
       altchaSubmitted?: boolean;
+      captchaVerifiedExternally?: boolean;
     }): Promise<PasswordChangeResult> {
       const verifiedEmail = await deps.users.getVerifiedEmailForUser(input.userId);
       if (!verifiedEmail) {
@@ -60,6 +62,7 @@ export function createPasswordChangeService(deps: PasswordChangeDeps) {
         input.currentPassword,
         input.altchaProof,
         input.altchaSubmitted,
+        input.captchaVerifiedExternally,
       );
       if (!verified.ok || verified.userId !== input.userId || !verified.emailVerified) {
         if (!verified.ok) {

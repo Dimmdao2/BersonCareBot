@@ -26,11 +26,12 @@ import { runWithDbBootstrapPrincipal } from '@bersoncare/db-principal';
 import { roleCanUsePortal } from '@/modules/auth/roleLogin';
 import { notificationText } from '@/shared/notifications/notificationText';
 import { routePaths } from '@/app-layer/routes/paths';
+import { resolveRealIpRateLimitClientKey } from '@/modules/auth/realIpRateLimitClientKey';
 
 const bodySchema = z.object({
   email: z.string().email().max(320),
   password: z.string().min(1).max(128),
-  altcha: z.string().max(32_768).optional(),
+  captcha: z.string().max(32_768).optional(),
   roleLoginPortal: z.enum(['doctor', 'patient', 'admin']).optional(),
 });
 
@@ -134,17 +135,46 @@ export async function POST(request: Request) {
   try {
     const emailNorm = normalizeEmail(parsed.data.email);
     const deps = buildAppDeps();
-    const altchaProof = await deps.passwordAltcha.verify(emailNorm, parsed.data.altcha);
+    // Адрес нужен ТОЛЬКО Яндексу и только как подсказка. Отсутствие доверенного заголовка не
+    // повод отказать человеку в этом маршруте: за конфигурацию прокси отвечает счётчик частоты
+    // выше, а здесь пустой адрес означает лишь, что параметр не будет отправлен.
+    const captchaIp = resolveRealIpRateLimitClientKey(request, {
+      scope: 'email_password_login_captcha',
+      logPrefix: 'email_password_login_captcha',
+      fallbackKey: '',
+      productionMissingLogLevel: 'warn',
+    });
+    const captchaVerification = await deps.passwordAltcha.verify(
+      emailNorm,
+      parsed.data.captcha,
+      captchaIp.ok ? captchaIp.key : null,
+    );
+    // Поставщик капчи промолчал — не пускаем и НЕ трогаем дверь входа: попытка не состоялась,
+    // поэтому она не должна ни засчитываться неудачей, ни приближать человека к паузе. Пароль при
+    // этом даже не проверяется. Решение владельца 14.09: «значит не пускать».
+    if (captchaVerification?.providerUnavailable) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: 'captcha_unavailable',
+          message: notificationText.authCaptchaUnavailable,
+          captchaRequired: true,
+          captchaRefreshRequired: true,
+        },
+        { status: 503 },
+      );
+    }
 
     const pwd = await deps.userPasswordCredentials.verifyEmailPasswordForLogin(
       emailNorm,
       parsed.data.password,
-      altchaProof,
-      parsed.data.altcha !== undefined,
+      captchaVerification?.altchaProof,
+      parsed.data.captcha !== undefined,
       // #1112 Л-8: обстановка попытки уходит ВНИЗ, к тому слою, где уже известна личность. Наверх, в
       // ответ этого маршрута, по-прежнему не возвращается ничего, что отличало бы «нет такой почты»
       // от «неверный пароль».
       await resolveLoginAttemptOrigin(request),
+      captchaVerification?.verifiedExternally === true,
     );
     if (!pwd.ok) {
       return NextResponse.json(

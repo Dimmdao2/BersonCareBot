@@ -97,6 +97,9 @@ const ADMIN_SETTINGS_PAGE_REQUIRED_KEYS = [
   'therapysto_max_webhook_secret',
   'auth_captcha_enabled',
   'auth_captcha_from_attempt',
+  'auth_captcha_provider',
+  'auth_yandex_smartcaptcha_client_key',
+  'auth_yandex_smartcaptcha_server_key',
   'web_push_vapid',
   'rustore_universal_push_therapygo',
   'rustore_universal_push_therapysto',
@@ -191,6 +194,20 @@ export async function loadAdminAuthPageData(): Promise<{
     adminSettingsList.find((setting) => setting.key === 'auth_altcha_hmac_secret')?.valueJson,
     null,
   );
+  const captchaProvider = getValueJson<unknown>(
+    adminSettingsList.find((setting) => setting.key === 'auth_captcha_provider')?.valueJson,
+    'altcha',
+  );
+  const yandexClientKeyStatus = getValueJson<unknown>(
+    adminSettingsList.find((setting) => setting.key === 'auth_yandex_smartcaptcha_client_key')
+      ?.valueJson,
+    '',
+  );
+  const yandexServerKeyStatus = getValueJson<unknown>(
+    adminSettingsList.find((setting) => setting.key === 'auth_yandex_smartcaptcha_server_key')
+      ?.valueJson,
+    null,
+  );
 
   return {
     authProvidersConfig: buildAuthProvidersConfig(adminSettingsList),
@@ -204,10 +221,19 @@ export async function loadAdminAuthPageData(): Promise<{
         typeof captchaAfter === 'number' && Number.isInteger(captchaAfter)
           ? Math.max(1, Math.min(50, captchaAfter))
           : 3,
-      hasStoredSecret:
+      initialProvider: captchaProvider === 'yandex' ? 'yandex' : 'altcha',
+      hasStoredAltchaSecret:
         captchaSecretStatus !== null &&
         typeof captchaSecretStatus === 'object' &&
         (captchaSecretStatus as Record<string, unknown>).hasStoredSecret === true,
+      hasStoredYandexClientKey:
+        yandexClientKeyStatus !== null &&
+        typeof yandexClientKeyStatus === 'object' &&
+        (yandexClientKeyStatus as Record<string, unknown>).hasStoredValue === true,
+      hasStoredYandexServerKey:
+        yandexServerKeyStatus !== null &&
+        typeof yandexServerKeyStatus === 'object' &&
+        (yandexServerKeyStatus as Record<string, unknown>).hasStoredSecret === true,
     },
   };
 }

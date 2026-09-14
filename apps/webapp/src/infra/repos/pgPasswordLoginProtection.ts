@@ -46,12 +46,13 @@ export function createPgPasswordLoginProtectionPort(): PasswordLoginProtectionPo
         () =>
           runWebappNamedRoot<AcquireRow>(
             getWebappSqlDb(),
-            'app.password_login_acquire(text,text,uuid,text)',
+            'app.password_login_acquire(text,text,uuid,text,boolean)',
             [
               params.emailNormalized,
               params.identifierKey,
               params.altchaProof?.challengeId ?? null,
               params.altchaProof?.challengeDigest ?? null,
+              params.captchaVerifiedExternally === true,
             ],
             sql`SELECT
            status,
@@ -60,7 +61,7 @@ export function createPgPasswordLoginProtectionPort(): PasswordLoginProtectionPo
            user_id::text AS user_id,
            retry_after_seconds,
            captcha_required
-         FROM app.password_login_acquire(${params.emailNormalized}, ${params.identifierKey}, ${params.altchaProof?.challengeId ?? null}::uuid, ${params.altchaProof?.challengeDigest ?? null})`,
+         FROM app.password_login_acquire(${params.emailNormalized}, ${params.identifierKey}, ${params.altchaProof?.challengeId ?? null}::uuid, ${params.altchaProof?.challengeDigest ?? null}, ${params.captchaVerifiedExternally === true})`,
           ),
       );
       const row = result.rows[0];
@@ -146,6 +147,30 @@ export function createPgPasswordLoginProtectionPort(): PasswordLoginProtectionPo
       return result.rows[0]?.secret ?? null;
     },
 
+    async readCaptchaConfig() {
+      const result = await runWithDbBootstrapPrincipal(
+        { source: 'password-login-protection/captcha-config' },
+        () =>
+          runWebappNamedRoot<{
+            provider: string;
+            yandex_client_key: string | null;
+            yandex_server_key: string | null;
+          }>(
+            getWebappSqlDb(),
+            'app.password_login_read_captcha_config()',
+            [],
+            sql`SELECT provider, yandex_client_key, yandex_server_key
+                FROM app.password_login_read_captcha_config()`,
+          ),
+      );
+      const row = result.rows[0];
+      return {
+        provider: row?.provider === 'yandex' ? 'yandex' : 'altcha',
+        yandexClientKey: row?.yandex_client_key ?? null,
+        yandexServerKey: row?.yandex_server_key ?? null,
+      };
+    },
+
     async registerAltchaChallenge(params) {
       const result = await runWithDbBootstrapPrincipal(
         { source: 'password-login-protection/altcha-challenge' },
@@ -187,6 +212,9 @@ export const inMemoryPasswordLoginProtectionPort: PasswordLoginProtectionPort = 
   },
   async readAltchaRootSecret() {
     return null;
+  },
+  async readCaptchaConfig() {
+    return { provider: 'altcha', yandexClientKey: null, yandexServerKey: null };
   },
   async registerAltchaChallenge() {
     return false;

@@ -68,6 +68,10 @@ export function staffSecurityErrorText(error: string | undefined, action: Securi
       return notificationText.authInvalidCredentialsOrPortalDenied;
     case 'invalid_body':
       return notificationText.authInvalidBody;
+    // Поставщик капчи не ответил. Это не вина человека и не неудачная попытка: пароль вообще не
+    // проверялся, и повторить можно сразу же.
+    case 'captcha_unavailable':
+      return notificationText.authCaptchaUnavailable;
     case 'enrollment_not_started':
       return notificationText.authEnrollmentNotStarted;
     case 'security_session_required':

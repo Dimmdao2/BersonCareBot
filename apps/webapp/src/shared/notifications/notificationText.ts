@@ -419,6 +419,14 @@ export const notificationText = {
   settingsSmtpPasswordMissing: 'В настройках нет пароля SMTP',
   settingsCaptchaSecretRequired:
     'Сначала задайте секретный ключ капчи — без него задачка не выдаётся, и капчу включать нельзя.',
+  settingsYandexCaptchaKeysRequired:
+    'Сначала задайте ключ клиента и ключ сервера Яндекс SmartCaptcha — без них капчу включать нельзя.',
+  settingsCaptchaAltchaMissing: 'Сначала задайте секретный ключ ALTCHA.',
+  settingsCaptchaYandexClientMissing: 'Сначала задайте ключ клиента Яндекс SmartCaptcha.',
+  settingsCaptchaYandexServerMissing: 'Сначала задайте ключ сервера Яндекс SmartCaptcha.',
+  settingsCaptchaYandexKeysMissing:
+    'Сначала задайте ключ клиента и ключ сервера Яндекс SmartCaptcha.',
+  authCaptchaUnavailable: 'Проверка временно недоступна. Повторите попытку.',
   // 14.09: три маршрута выбирали текст тернарником прямо в ответе, и сторож этого не видел —
   // он проверял только литерал, стоящий значением `message:` напрямую. Ветки теперь обходятся,
   // а тексты живут здесь.

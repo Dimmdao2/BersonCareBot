@@ -196,6 +196,9 @@ const ADMIN_SCOPE_KEYS = [
   'auth_captcha_enabled',
   'auth_captcha_from_attempt',
   'auth_altcha_hmac_secret',
+  'auth_captcha_provider',
+  'auth_yandex_smartcaptcha_client_key',
+  'auth_yandex_smartcaptcha_server_key',
   'web_push_vapid',
   'rustore_universal_push_therapygo',
   'rustore_universal_push_therapysto',
@@ -978,30 +981,93 @@ export async function PATCH(request: Request) {
     normalizedValue = { value: attempts };
   }
 
-  if (parsed.data.key === 'auth_altcha_hmac_secret') {
-    const secret = normalizedValue.value;
-    if (typeof secret !== 'string' || secret.trim().length === 0) {
+  if (parsed.data.key === 'auth_captcha_provider') {
+    if (normalizedValue.value !== 'altcha' && normalizedValue.value !== 'yandex') {
       return NextResponse.json({ ok: false, error: 'invalid_value' }, { status: 400 });
     }
-    normalizedValue = { value: secret.trim() };
+    normalizedValue = { value: normalizedValue.value };
   }
 
-  if (parsed.data.key === 'auth_captcha_enabled' && normalizedValue.value === true) {
-    const secretRow = await deps.systemSettings.getSetting('auth_altcha_hmac_secret', 'admin', {
-      organizationId: null,
-    });
-    const secretValue =
-      secretRow?.valueJson !== null &&
-      typeof secretRow?.valueJson === 'object' &&
-      'value' in secretRow.valueJson
-        ? (secretRow.valueJson as Record<string, unknown>).value
+  if (
+    parsed.data.key === 'auth_altcha_hmac_secret' ||
+    parsed.data.key === 'auth_yandex_smartcaptcha_client_key' ||
+    parsed.data.key === 'auth_yandex_smartcaptcha_server_key'
+  ) {
+    const key = normalizedValue.value;
+    if (typeof key !== 'string') {
+      return NextResponse.json({ ok: false, error: 'invalid_value' }, { status: 400 });
+    }
+    normalizedValue = { value: key.trim() };
+  }
+
+  const captchaConfigurationKeys = new Set<string>([
+    'auth_captcha_enabled',
+    'auth_captcha_provider',
+    'auth_altcha_hmac_secret',
+    'auth_yandex_smartcaptcha_client_key',
+    'auth_yandex_smartcaptcha_server_key',
+  ]);
+  if (captchaConfigurationKeys.has(parsed.data.key)) {
+    async function readCaptchaValue(
+      key:
+        | 'auth_captcha_enabled'
+        | 'auth_captcha_provider'
+        | 'auth_altcha_hmac_secret'
+        | 'auth_yandex_smartcaptcha_client_key'
+        | 'auth_yandex_smartcaptcha_server_key',
+    ): Promise<unknown> {
+      const row = await deps.systemSettings.getSetting(key, 'admin', { organizationId: null });
+      return row?.valueJson !== null &&
+        typeof row?.valueJson === 'object' &&
+        'value' in row.valueJson
+        ? (row.valueJson as Record<string, unknown>).value
         : null;
-    if (typeof secretValue !== 'string' || secretValue.trim().length === 0) {
+    }
+
+    const [storedEnabled, storedProvider, storedAltcha, storedYandexClient, storedYandexServer] =
+      await Promise.all([
+        readCaptchaValue('auth_captcha_enabled'),
+        readCaptchaValue('auth_captcha_provider'),
+        readCaptchaValue('auth_altcha_hmac_secret'),
+        readCaptchaValue('auth_yandex_smartcaptcha_client_key'),
+        readCaptchaValue('auth_yandex_smartcaptcha_server_key'),
+      ]);
+    const desiredEnabled =
+      parsed.data.key === 'auth_captcha_enabled'
+        ? normalizedValue.value === true
+        : storedEnabled === true;
+    const desiredProvider =
+      parsed.data.key === 'auth_captcha_provider'
+        ? normalizedValue.value
+        : storedProvider === 'yandex'
+          ? 'yandex'
+          : 'altcha';
+    const desiredAltcha =
+      parsed.data.key === 'auth_altcha_hmac_secret' ? normalizedValue.value : storedAltcha;
+    const desiredYandexClient =
+      parsed.data.key === 'auth_yandex_smartcaptcha_client_key'
+        ? normalizedValue.value
+        : storedYandexClient;
+    const desiredYandexServer =
+      parsed.data.key === 'auth_yandex_smartcaptcha_server_key'
+        ? normalizedValue.value
+        : storedYandexServer;
+    const hasText = (value: unknown): value is string =>
+      typeof value === 'string' && value.trim().length > 0;
+    const selectedProviderReady =
+      desiredProvider === 'yandex'
+        ? hasText(desiredYandexClient) && hasText(desiredYandexServer)
+        : hasText(desiredAltcha);
+
+    if (desiredEnabled && !selectedProviderReady) {
+      const yandex = desiredProvider === 'yandex';
       return NextResponse.json(
         {
           ok: false,
-          error: 'auth_captcha_secret_required',
-          message: notificationText.settingsCaptchaSecretRequired,
+          error: yandex ? 'auth_yandex_captcha_keys_required' : 'auth_captcha_secret_required',
+          message: yandex
+            ? notificationText.settingsYandexCaptchaKeysRequired
+            : notificationText.settingsCaptchaSecretRequired,
         },
         { status: 400 },
       );
