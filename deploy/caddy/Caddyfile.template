@@ -91,6 +91,39 @@ therapygo.ru {
 	import edge_common
 }
 
+# Видеовстречи. Отдельный блок, потому что это не приложение и не blue/green: трафик идёт прямо в
+# контейнер Jitsi web на петле, минуя nginx. Ограничение по адресу источника здесь СНЯТО решением
+# владельца 14.09.2026 («Ограничения на новый прод по ip снимай») — комнату по-прежнему не получить
+# без приложения и действующего короткоживущего JWT, защита стоит на этом, а не на адресе.
+{$CADDY_MEET_DOMAIN} {
+	encode gzip zstd
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	# BOSH long-poll и WebSocket сигнализации держат соединение открытым часами: у Caddy нет
+	# read-таймаута по умолчанию, поэтому явного послабления не требуется.
+	reverse_proxy {$CADDY_MEET_UPSTREAM} {
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+	}
+}
+
 :80 {
-	redir https://{host}{uri} permanent
+	# Caddy становится единственным, кто слушает 80, и этим отрезал бы certbot от HTTP-01. Линия
+	# `therapysto` всё ещё нужна: coturn читает файлы сертификата с диска и Caddy-хранилище не знает.
+	# Собственные проверки Caddy обслуживает раньше этого обработчика, чужие токены падают сюда и
+	# читаются из того же webroot, что и раньше.
+	handle /.well-known/acme-challenge/* {
+		root * {$CADDY_ACME_WEBROOT:/var/www/html}
+		file_server
+	}
+
+	handle {
+		redir https://{host}{uri} permanent
+	}
 }

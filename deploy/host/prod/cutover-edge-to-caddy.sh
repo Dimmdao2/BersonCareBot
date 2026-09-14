@@ -45,7 +45,8 @@ grep -q 'therapysto_webapp' "$THERAPYSTO_PUBLIC_SITE" || die "$THERAPYSTO_PUBLIC
 # REG.RU keys are gone with the wildcard (owner, 12.09.2026): every name is issued per-name over
 # HTTP-01/TLS-ALPN, so the edge needs no registrar credentials and no DNS module. Requiring them
 # here would have blocked the cutover on settings that must not exist.
-for key in CADDY_ACME_EMAIL CADDY_PLATFORM_DOMAINS CADDY_ASK_URL CADDY_UPSTREAM; do
+for key in CADDY_ACME_EMAIL CADDY_PLATFORM_DOMAINS CADDY_ASK_URL CADDY_UPSTREAM \
+           CADDY_MEET_DOMAIN CADDY_MEET_UPSTREAM; do
   grep -qE "^${key}=" "$CADDY_ENV_FILE" || die "$CADDY_ENV_FILE is missing $key"
 done
 CADDY_UPSTREAM_VALUE=$(sed -n 's/^CADDY_UPSTREAM=//p' "$CADDY_ENV_FILE" | tail -1)

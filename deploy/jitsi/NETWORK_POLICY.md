@@ -95,10 +95,14 @@ host still showed the published port — the "looks applied, nothing connects" f
 avoid. The forward rules match the stack's subnet `172.30.110.0/24` rather than an interface name because
 compose names that bridge `br-<hash>`, which is not knowable before the network is created.
 
-**Source scoping: the media ports are open to ANY source, deliberately.** The trial allow-list
-(`151.241.228.122` + loopback) gates the *web* vhost in nginx — that is what keeps the trial private:
-without loading the app from that vhost and holding a valid short-lived JWT, nobody gets a room. It is the
-wrong tool for the media ports. Real WebRTC clients and TURN peers arrive from arbitrary addresses (a
+**НА НОВОМ ПРОДЕ ОГРАНИЧЕНИЯ ПО IP СНЯТЫ — решение владельца 14.09.2026**, дословно: «Ограничения на
+новый прод по ip снимай». Пробный список (`151.241.228.122` + петля) на веб-vhost'е `135.106.187.95`
+больше не стоит: он и был тем, что не давало пациенту открыть ссылку на звонок. Комнату по-прежнему
+не получить без приложения и действующего короткоживущего JWT — защита осталась на этом, а не на
+адресе источника. На TEST-хосте `151.241.228.122` список сохраняется как был.
+
+**Source scoping: the media ports are open to ANY source, deliberately.** Список источников и на TEST
+гейтит только *web* vhost в nginx. It is the wrong tool for the media ports. Real WebRTC clients and TURN peers arrive from arbitrary addresses (a
 mobile network, a hotel wifi, the other participant's ISP), so scoping 3478/5349/10000/4443 and the relay
 range to the trial list would make a call impossible for anyone but the owner's own browser on the dev box
 — including the owner's own phone. What protects those ports is not the source address:
@@ -110,10 +114,10 @@ range to the trial list would make a call impossible for anyone but the owner's 
 * the relay range is 101 ports, not coturn's ~16k default (see below);
 * jvb accepts media only for conferences Jicofo created for an authenticated (JWT) participant.
 
-During the trial this means: the meeting **page** is reachable only from the owner's VPN exit, while the
-**media/TURN ports** answer the whole internet, the way any public TURN/JVB deployment must. Narrowing
-them is a deliberate owner decision — and would break every client that is not the dev box — not a
-hardening step to apply quietly.
+На TEST это значит: страница встречи доступна только с VPN-выхода владельца, а **медиа/TURN-порты**
+отвечают всему интернету, как и обязан любой публичный TURN/JVB. На новом проде с 14.09 публична и
+страница тоже. Сужать медиа-порты — отдельное решение владельца, оно сломало бы каждого клиента,
+кроме одного браузера, и тихой мерой закалки не является.
 
 **Persistence: this package never rewrites `/etc/nftables.conf`.** The host loads its own ruleset from
 that file at boot, which is where the `inet filter` table and its base chains come from; the chains this
@@ -148,7 +152,7 @@ policy. Repository sources are `nftables-bcb-jitsi-test.conf`,
 
 | Port                                                                     | Proto   | Component             | Exposure                                  | Notes                                                                                                                                                                                        |
 | ------------------------------------------------------------------------ | ------- | --------------------- | ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 443                                                                      | tcp     | existing host nginx   | public (allowlisted, see below) | new vhost for the profile's meet host, TLS terminated by nginx                                                                                                                              |
+| 443                                                                      | tcp     | existing host nginx   | prod: публично; test: по списку источников | new vhost for the profile's meet host, TLS terminated by nginx                                                                                                                              |
 | `${HTTP_PORT}` (default `8000`)                                          | tcp     | Jitsi `web` container | `127.0.0.1` only                          | plain HTTP — with `DISABLE_HTTPS=1` the container never opens a TLS listener at all (verified against the pinned tag's own nginx template); not exposed beyond loopback, nginx proxies to it |
 | `${JVB_COLIBRI_PORT}` (default `8080`)                                   | tcp     | JVB Colibri REST API  | `127.0.0.1` only                          | `COLIBRI_REST_ENABLED=1`; upstream's own base compose already binds this to loopback — `bin/health-check.sh` uses `GET /about/health` on it, never a new public surface                      |
 | `${JVB_PORT}` (default `10000`)                                          | udp     | JVB                   | public                                    | media fallback path; must be reachable without NAT surprises — `JVB_ADVERTISE_IPS` below                                                                                                     |
