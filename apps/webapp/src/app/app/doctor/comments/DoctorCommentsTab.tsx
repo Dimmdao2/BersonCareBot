@@ -119,7 +119,7 @@ function DoctorCommentsPatientsTab({ initialPatients, active = true }: DoctorCom
   // Default: «Все» — показать всю историю комментариев; «Непрочитанные» — только непрочитанные.
   const [viewMode, setViewMode] = useState<'unread' | 'all'>('all');
 
-  // ── «На сопровождении» — независимый toggle-фильтр (не визуальный маркер).
+  // ── «Сопровождение» — независимый toggle-фильтр (не визуальный маркер).
   // Комбинируется с viewMode: оба фильтра действуют независимо друг от друга.
   const [onSupportOnly, setOnSupportOnly] = useState(false);
 
@@ -229,7 +229,7 @@ function DoctorCommentsPatientsTab({ initialPatients, active = true }: DoctorCom
   // In "unread" mode: SSR-provided patients (already filtered to unreadCount>0).
   // In "all" mode: lazy-fetched allModePatients (all on-support with any comment).
   const activePatients = viewMode === 'all' ? (allModePatients ?? []) : patients;
-  // «На сопровождении» — независимый toggle-фильтр (комбинируется с viewMode, а не заменяет его).
+  // «Сопровождение» — независимый toggle-фильтр (комбинируется с viewMode, а не заменяет его).
   const onSupportFilteredPatients = onSupportOnly
     ? activePatients.filter((p) => p.isOnSupport)
     : activePatients;
