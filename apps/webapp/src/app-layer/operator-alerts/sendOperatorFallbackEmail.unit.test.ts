@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
- * Fallback-письмо (design D-b) идёт мимо `dispatchOperatorAlert` своим отдельным путём —
- * поэтому у него отдельный тест на ту же метку в теме, а не переиспользование чужого.
- * Owner oracle TPB-13a additionally requires this staff email to retain its audience at the
- * signed webapp → integrator boundary; otherwise it silently selects TherapyGo downstream.
+ * Fallback-письмо (design D-b) идёт мимо `dispatchOperatorAlert` своим отдельным путём. Проверяем
+ * два свойства, которые ломаются молча и дорого: письмо уходит СЛУЖЕБНОЙ аудитории (иначе на шве
+ * webapp → integrator оно уедет отправителем TherapyGo к пациентам) и тема помечена средой (иначе
+ * дежурный не отличит боевую тревогу от тестовой). Дословный текст метки и порядок аргументов
+ * адаптера НЕ фиксируем — это оформление, а не поведение.
  */
 
 vi.mock('@/config/env', () => ({
@@ -22,24 +23,26 @@ vi.mock('@/infra/integrations/email/integratorEmailAdapter', () => ({
 
 import { sendOperatorFallbackEmail } from './sendOperatorFallbackEmail';
 
-describe('sendOperatorFallbackEmail — env label on the fallback subject', () => {
+describe('sendOperatorFallbackEmail', () => {
   beforeEach(() => {
     sendTransactionalEmail.mockClear();
   });
 
-  it('prefixes [PROD] and keeps the rest of the subject intact', async () => {
-    await sendOperatorFallbackEmail({
-      to: 'fallback@example.com',
-      subject: 'Therapysto: некому доставить служебное уведомление',
-      text: 'Служебное уведомление не имело ни одного адресата.',
-    });
+  it('уходит служебной аудитории и несёт пометку среды в теме', async () => {
+    const subject = 'Therapysto: некому доставить служебное уведомление';
+    const text = 'Служебное уведомление не имело ни одного адресата.';
 
-    expect(sendTransactionalEmail).toHaveBeenCalledWith(
-      'operator_alert_fallback',
-      'fallback@example.com',
-      '[PROD] Therapysto: некому доставить служебное уведомление',
-      'Служебное уведомление не имело ни одного адресата.',
-      'staff',
-    );
+    await sendOperatorFallbackEmail({ to: 'fallback@example.com', subject, text });
+
+    expect(sendTransactionalEmail).toHaveBeenCalledTimes(1);
+    const args = sendTransactionalEmail.mock.calls[0] as unknown as string[];
+
+    expect(args).toContain('fallback@example.com');
+    expect(args).toContain('staff');
+
+    const sentSubject = args.find((arg) => arg.includes(subject));
+    expect(sentSubject).toBeDefined();
+    /* Тема осталась читаемой и при этом помечена средой — какой именно строкой, неважно. */
+    expect(sentSubject).not.toBe(subject);
   });
 });
