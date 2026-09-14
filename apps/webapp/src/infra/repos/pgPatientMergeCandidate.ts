@@ -1,12 +1,11 @@
 import { and, desc, eq, like, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
+import { runWithDbBootstrapPrincipal } from '@bersoncare/db-principal';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import { getPool } from '@/infra/db/client';
 import {
   getWebappSqlDb,
-  getWebappSqlFromPgClient,
   runWebappNamedRoot,
-  runWebappSql,
 } from '@/infra/db/runWebappSql';
 import { withTwoUserLifecycleLocksExclusive } from '@/infra/userLifecycleLock';
 import { mergePlatformUsersInTransaction } from '@/infra/repos/pgPlatformUserMerge';
@@ -69,20 +68,24 @@ export async function recordPatientMedicalMergeConflict(
   error: MergeDependentConflictError,
   source: 'projection' | 'phone_bind' | 'email_bind',
 ): Promise<string> {
-  if (!error.organizationId || error.candidateIds.length !== 2) {
-    throw new Error('Medical merge conflict is missing its organization or account pair');
+  if (error.candidateIds.length !== 2) {
+    throw new Error('Medical merge conflict is missing its account pair');
   }
   const [anchorUserId, candidateUserId] = error.candidateIds;
-  const result = await runWebappNamedRoot<{ conflict_id: string }>(
-    getWebappSqlDb(),
-    'app.record_patient_medical_merge_conflict(uuid,uuid,uuid,text)',
-    [error.organizationId, anchorUserId, candidateUserId, source],
-    sql`SELECT app.record_patient_medical_merge_conflict(
-          ${error.organizationId}::uuid,
-          ${anchorUserId}::uuid,
-          ${candidateUserId}::uuid,
-          ${source}::text
-        )::text AS conflict_id`,
+  const result = await runWithDbBootstrapPrincipal(
+    { source: 'patient-medical-merge-conflict/record' },
+    () =>
+      runWebappNamedRoot<{ conflict_id: string }>(
+        getWebappSqlDb(),
+        'app.record_patient_medical_merge_conflict(uuid,uuid,uuid,text)',
+        [error.organizationId, anchorUserId, candidateUserId, source],
+        sql`SELECT app.record_patient_medical_merge_conflict(
+              ${error.organizationId}::uuid,
+              ${anchorUserId}::uuid,
+              ${candidateUserId}::uuid,
+              ${source}::text
+            )::text AS conflict_id`,
+      ),
   );
   const conflictId = result.rows[0]?.conflict_id;
   if (!conflictId) throw new Error('Medical merge conflict was not recorded');
@@ -197,22 +200,14 @@ export function createPgPatientMergeCandidatePort(): PatientMergeCandidatePort {
             candidate.candidateUserId,
             medicalMergeReason(candidate.reason),
             {
-              medicalConflictApprovedForOrganizationId: organizationId,
+              medicalConflictApproval: {
+                conflictId,
+                organizationId,
+                actorId: resolvedBy,
+              },
               mergeContext: { actorId: resolvedBy, source: 'doctor_medical_conflict_review' },
             },
           );
-          const resolved = await runWebappSql<{ id: string }>(
-            getWebappSqlFromPgClient(client),
-            sql`UPDATE patient_merge_candidates
-                   SET status = 'resolved', resolved_at = now(), resolved_by = ${resolvedBy}::uuid
-                 WHERE id = ${conflictId}::uuid
-                   AND organization_id = ${organizationId}::uuid
-                   AND status = 'pending'
-                 RETURNING id::text`,
-          );
-          if (resolved.rows.length !== 1) {
-            throw new Error('Medical merge conflict changed during resolution');
-          }
         },
       );
       return true;

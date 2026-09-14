@@ -42,7 +42,18 @@
     "app.redeem_patient_invite_email(text) -> public.user_contacts",
     "app.redeem_patient_invite_session(text) -> public.be_organizations",
     "app.redeem_patient_invite_session(text) -> public.org_enrollments",
-    "app.redeem_patient_invite_session(text) -> public.patient_invites"
+    "app.redeem_patient_invite_session(text) -> public.patient_invites",
+    "app.transfer_staff_approved_platform_user_merge_data(uuid,uuid,uuid,uuid) -> public.be_patient_booking_profiles",
+    "app.transfer_staff_approved_platform_user_merge_data(uuid,uuid,uuid,uuid) -> public.broadcast_audit_recipients",
+    "app.transfer_staff_approved_platform_user_merge_data(uuid,uuid,uuid,uuid) -> public.material_ratings",
+    "app.transfer_staff_approved_platform_user_merge_data(uuid,uuid,uuid,uuid) -> public.native_push_targets",
+    "app.transfer_staff_approved_platform_user_merge_data(uuid,uuid,uuid,uuid) -> public.patient_daily_warmup_presentations",
+    "app.transfer_staff_approved_platform_user_merge_data(uuid,uuid,uuid,uuid) -> public.patient_diary_day_snapshots",
+    "app.transfer_staff_approved_platform_user_merge_data(uuid,uuid,uuid,uuid) -> public.patient_specialist_links",
+    "app.transfer_staff_approved_platform_user_merge_data(uuid,uuid,uuid,uuid) -> public.product_analytics_user_hourly",
+    "app.transfer_staff_approved_platform_user_merge_data(uuid,uuid,uuid,uuid) -> public.program_item_discussion_reads",
+    "app.transfer_staff_approved_platform_user_merge_data(uuid,uuid,uuid,uuid) -> public.symptom_trackings",
+    "app.transfer_staff_approved_platform_user_merge_data(uuid,uuid,uuid,uuid) -> public.user_web_push_subscriptions"
   ],
   "integratorDoorsOnTheWebappTenantRole": [],
   "integratorRootColumnParameterRenames": [

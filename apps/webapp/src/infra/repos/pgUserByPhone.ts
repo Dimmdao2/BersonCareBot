@@ -693,11 +693,8 @@ export const pgUserByPhonePort: UserByPhonePort = {
         ? await runWithDbOrganizationPrincipal(profileBindOrganizationId, bindInTransaction)
         : await bindInTransaction();
     } catch (error) {
-      if (error instanceof MergeDependentConflictError && profileBindOrganizationId) {
-        if (error.organizationId !== profileBindOrganizationId) throw error;
-        await runWithDbOrganizationPrincipal(profileBindOrganizationId, () =>
-          recordPatientMedicalMergeConflict(error, 'phone_bind'),
-        );
+      if (error instanceof MergeDependentConflictError) {
+        await recordPatientMedicalMergeConflict(error, 'phone_bind');
       }
       throw error;
     }

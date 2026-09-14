@@ -19,8 +19,10 @@ import type { EmailPasswordAuthState } from '@/modules/auth/emailPasswordLookup/
 import {
   classifyMergeFailure,
   mergePlatformUsersInTransaction,
+  MergeDependentConflictError,
   type PlatformMergeDbClient,
 } from '@bersoncare/platform-merge';
+import { recordPatientMedicalMergeConflict } from '@/infra/repos/pgPatientMergeCandidate';
 
 type EmailAuthStateRow = {
   id: string;
@@ -126,6 +128,9 @@ async function tryAutoMergeDuplicateEmailUsers(
     });
     return true;
   } catch (err) {
+    if (err instanceof MergeDependentConflictError) {
+      await recordPatientMedicalMergeConflict(err, 'projection');
+    }
     const candidateIds = rows.map((row) => row.id);
     const classified = classifyMergeFailure(err, candidateIds);
     await recordEmailAuthConflict({

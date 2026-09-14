@@ -49,7 +49,7 @@ export const patientMergeCandidates = pgTable(
         sql`LEAST(anchor_user_id::text, candidate_user_id::text)`,
         sql`GREATEST(anchor_user_id::text, candidate_user_id::text)`,
       )
-      .where(sql`status = 'pending'`),
+      .where(sql`status = 'pending' AND reason LIKE 'medical_history:%'`),
     foreignKey({
       columns: [table.organizationId],
       foreignColumns: [beOrganizations.id],

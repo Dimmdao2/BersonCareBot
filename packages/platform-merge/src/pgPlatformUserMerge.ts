@@ -41,6 +41,12 @@ export type MergePlatformUsersOptions = {
   mergeContext?: MergePlatformUsersContext;
   /** The clinic whose doctor has explicitly accepted its medical-history conflict. */
   medicalConflictApprovedForOrganizationId?: string;
+  /** Staff-only DB door that authorizes and performs dependent-row transfer for one reviewed conflict. */
+  medicalConflictApproval?: {
+    conflictId: string;
+    organizationId: string;
+    actorId: string;
+  };
 };
 
 /**
@@ -409,7 +415,8 @@ export async function mergePlatformUsersInTransaction(
       client,
       targetId,
       duplicateId,
-      options?.medicalConflictApprovedForOrganizationId,
+      options?.medicalConflictApproval?.organizationId ??
+        options?.medicalConflictApprovedForOrganizationId,
     );
   }
 
@@ -434,6 +441,25 @@ export async function mergePlatformUsersInTransaction(
     await mergeChannelBindingsManual(client, targetId, duplicateId, manualResolution);
   } else {
     await mergeChannelBindingsAuto(client, targetId, duplicateId);
+  }
+
+  if (options?.medicalConflictApproval) {
+    const approval = options.medicalConflictApproval;
+    const transferred = await runMergeSql<{ transferred: boolean }>(
+      client,
+      sql`SELECT app.transfer_staff_approved_platform_user_merge_data(
+            ${approval.conflictId}::uuid,
+            ${targetId}::uuid,
+            ${duplicateId}::uuid,
+            ${approval.actorId}::uuid
+          ) AS transferred`,
+    );
+    if (transferred.rows[0]?.transferred !== true) {
+      throw new MergeConflictError('medical merge conflict changed during resolution', [
+        targetId,
+        duplicateId,
+      ]);
+    }
   }
 
   await runMergeSql(
@@ -470,28 +496,29 @@ export async function mergePlatformUsersInTransaction(
     sql`DELETE FROM user_notification_topic_channels WHERE user_id = ${duplicateId}::uuid`,
   );
 
-  await runMergeSql(
-    client,
-    sql`UPDATE reminder_rules SET platform_user_id = ${targetId}::uuid WHERE platform_user_id = ${duplicateId}::uuid`,
-  );
-  await runMergeSql(
-    client,
-    sql`UPDATE content_access_grants_webapp SET platform_user_id = ${targetId}::uuid WHERE platform_user_id = ${duplicateId}::uuid`,
-  );
-  await transferMedicalHistoryForMerge(client, targetId, duplicateId);
-  await runMergeSql(
-    client,
-    sql`UPDATE user_phone_history SET platform_user_id = ${targetId}::uuid WHERE platform_user_id = ${duplicateId}::uuid`,
-  );
-  await runMergeSql(
-    client,
-    sql`UPDATE online_intake_requests SET user_id = ${targetId}::uuid WHERE user_id = ${duplicateId}::uuid`,
-  );
-
-  await runMergeSql(
-    client,
-    sql`UPDATE patient_lfk_assignments SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
-  );
+  if (!options?.medicalConflictApproval) {
+    await runMergeSql(
+      client,
+      sql`UPDATE reminder_rules SET platform_user_id = ${targetId}::uuid WHERE platform_user_id = ${duplicateId}::uuid`,
+    );
+    await runMergeSql(
+      client,
+      sql`UPDATE content_access_grants_webapp SET platform_user_id = ${targetId}::uuid WHERE platform_user_id = ${duplicateId}::uuid`,
+    );
+    await transferMedicalHistoryForMerge(client, targetId, duplicateId);
+    await runMergeSql(
+      client,
+      sql`UPDATE user_phone_history SET platform_user_id = ${targetId}::uuid WHERE platform_user_id = ${duplicateId}::uuid`,
+    );
+    await runMergeSql(
+      client,
+      sql`UPDATE online_intake_requests SET user_id = ${targetId}::uuid WHERE user_id = ${duplicateId}::uuid`,
+    );
+    await runMergeSql(
+      client,
+      sql`UPDATE patient_lfk_assignments SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
+    );
+  }
 
   if (manualResolution) {
     await mergeOauthBindingsManual(client, targetId, duplicateId, manualResolution);
@@ -547,47 +574,49 @@ export async function mergePlatformUsersInTransaction(
     manualResolution?.channelPreferences ?? 'keep_newer',
   );
 
-  for (const sk of SINGLETON_SYMPTOM_KEYS) {
-    await dedupeSingletonSymptomTrackingsForMerge(client, targetId, duplicateId, sk);
+  if (!options?.medicalConflictApproval) {
+    for (const sk of SINGLETON_SYMPTOM_KEYS) {
+      await dedupeSingletonSymptomTrackingsForMerge(client, targetId, duplicateId, sk);
+    }
+
+    // PG cannot infer one type for the same $n used as both ::text and ::uuid — use distinct placeholders.
+    await runMergeSql(
+      client,
+      sql`UPDATE symptom_trackings SET user_id = ${targetId}::text, platform_user_id = ${targetId}::uuid
+       WHERE user_id = ${duplicateId}::text OR platform_user_id = ${duplicateId}::uuid`,
+    );
+    await runMergeSql(
+      client,
+      sql`UPDATE symptom_entries SET user_id = ${targetId}::text, platform_user_id = ${targetId}::uuid
+       WHERE user_id = ${duplicateId}::text OR platform_user_id = ${duplicateId}::uuid`,
+    );
+    await runMergeSql(
+      client,
+      sql`UPDATE lfk_complexes SET user_id = ${targetId}::text, platform_user_id = ${targetId}::uuid
+       WHERE user_id = ${duplicateId}::text OR platform_user_id = ${duplicateId}::uuid`,
+    );
+    await runMergeSql(
+      client,
+      sql`UPDATE lfk_sessions SET user_id = ${targetId}::uuid WHERE user_id = ${duplicateId}::uuid`,
+    );
+
+    await runMergeSql(
+      client,
+      sql`UPDATE message_log SET user_id = ${targetId}::text, platform_user_id = ${targetId}::uuid
+       WHERE user_id = ${duplicateId}::text OR platform_user_id = ${duplicateId}::uuid`,
+    );
+    await runMergeSql(
+      client,
+      sql`UPDATE media_files SET uploaded_by = ${targetId}::uuid WHERE uploaded_by = ${duplicateId}::uuid`,
+    );
+    await runMergeSql(
+      client,
+      sql`UPDATE media_upload_sessions SET owner_user_id = ${targetId}::uuid WHERE owner_user_id = ${duplicateId}::uuid`,
+    );
+    await mergeExtendedUserOwnedData(client, targetId, duplicateId);
+  } else {
+    await repointPlatformUserContactsForMerge(client, targetId, duplicateId);
   }
-
-  // PG cannot infer one type for the same $n used as both ::text and ::uuid — use distinct placeholders.
-  await runMergeSql(
-    client,
-    sql`UPDATE symptom_trackings SET user_id = ${targetId}::text, platform_user_id = ${targetId}::uuid
-     WHERE user_id = ${duplicateId}::text OR platform_user_id = ${duplicateId}::uuid`,
-  );
-  await runMergeSql(
-    client,
-    sql`UPDATE symptom_entries SET user_id = ${targetId}::text, platform_user_id = ${targetId}::uuid
-     WHERE user_id = ${duplicateId}::text OR platform_user_id = ${duplicateId}::uuid`,
-  );
-  await runMergeSql(
-    client,
-    sql`UPDATE lfk_complexes SET user_id = ${targetId}::text, platform_user_id = ${targetId}::uuid
-     WHERE user_id = ${duplicateId}::text OR platform_user_id = ${duplicateId}::uuid`,
-  );
-  await runMergeSql(
-    client,
-    sql`UPDATE lfk_sessions SET user_id = ${targetId}::uuid WHERE user_id = ${duplicateId}::uuid`,
-  );
-
-  await runMergeSql(
-    client,
-    sql`UPDATE message_log SET user_id = ${targetId}::text, platform_user_id = ${targetId}::uuid
-     WHERE user_id = ${duplicateId}::text OR platform_user_id = ${duplicateId}::uuid`,
-  );
-
-  await runMergeSql(
-    client,
-    sql`UPDATE media_files SET uploaded_by = ${targetId}::uuid WHERE uploaded_by = ${duplicateId}::uuid`,
-  );
-  await runMergeSql(
-    client,
-    sql`UPDATE media_upload_sessions SET owner_user_id = ${targetId}::uuid WHERE owner_user_id = ${duplicateId}::uuid`,
-  );
-
-  await mergeExtendedUserOwnedData(client, targetId, duplicateId);
 
   if (manualResolution) {
     const f = manualResolution.fields;

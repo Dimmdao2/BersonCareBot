@@ -322,12 +322,7 @@ export async function claimVerifiedEmail(
     );
   } catch (err) {
     if (err instanceof MergeDependentConflictError) {
-      if (err.organizationId) {
-        if (err.organizationId !== organizationId) throw err;
-        await runWithDbOrganizationPrincipal(organizationId, () =>
-          recordPatientMedicalMergeConflict(err, 'email_bind'),
-        );
-      }
+      await recordPatientMedicalMergeConflict(err, 'email_bind');
       return { ok: false, code: 'email_conflict' };
     }
     if (err instanceof EmailClaimConflictError || err instanceof MergeConflictError) {
