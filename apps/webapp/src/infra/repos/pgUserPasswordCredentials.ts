@@ -45,6 +45,7 @@ export type UserPasswordCredentialsPort = {
     plainPassword: string,
     altchaProof?: PasswordAltchaProof,
     altchaSubmitted?: boolean,
+    captchaVerifiedExternally?: boolean,
   ): Promise<PasswordVerificationResult>;
   /**
    * Проверка пароля без требования `email_verified_at` — для UX «дозавершите подтверждение email»
@@ -61,6 +62,7 @@ export type UserPasswordCredentialsPort = {
     altchaProof?: PasswordAltchaProof,
     altchaSubmitted?: boolean,
     origin?: LoginAttemptOrigin,
+    captchaVerifiedExternally?: boolean,
   ): Promise<PasswordVerificationResult>;
   /** Пользователь с подтверждённым email и строкой пароля (для сброса). */
   findVerifiedUserIdWithPassword(emailNormalized: string): Promise<string | null>;
@@ -129,11 +131,13 @@ export function createPgUserPasswordCredentialsPort(
     altchaProof?: PasswordAltchaProof,
     altchaSubmitted = false,
     origin?: LoginAttemptOrigin,
+    captchaVerifiedExternally = false,
   ): Promise<PasswordVerificationResult> {
     const admission = await protection.acquirePasswordProof({
       emailNormalized,
       identifierKey: passwordIdentifierKey(emailNormalized),
       ...(altchaProof ? { altchaProof } : {}),
+      captchaVerifiedExternally,
     });
     if (!admission.acquired) {
       return {
@@ -162,7 +166,7 @@ export function createPgUserPasswordCredentialsPort(
         attempts: 0,
         retryAfterSeconds: 1,
         captchaRequired: admission.captchaRequired,
-        captchaRefreshRequired: altchaProof !== undefined,
+        captchaRefreshRequired: altchaSubmitted,
         locked: false,
       };
     }
@@ -193,7 +197,7 @@ export function createPgUserPasswordCredentialsPort(
       attempts: completion.attempts,
       retryAfterSeconds: completion.retryAfterSeconds,
       captchaRequired: completion.captchaRequired,
-      captchaRefreshRequired: altchaProof !== undefined,
+      captchaRefreshRequired: altchaSubmitted,
       locked: completion.attempts >= 10,
     };
   }
@@ -246,12 +250,20 @@ export function createPgUserPasswordCredentialsPort(
       }
     },
 
-    async tryVerifyLogin(emailNormalized, plainPassword, altchaProof, altchaSubmitted) {
+    async tryVerifyLogin(
+      emailNormalized,
+      plainPassword,
+      altchaProof,
+      altchaSubmitted,
+      captchaVerifiedExternally,
+    ) {
       const r = await verifyEmailPasswordForLoginImpl(
         emailNormalized,
         plainPassword,
         altchaProof,
         altchaSubmitted,
+        undefined,
+        captchaVerifiedExternally,
       );
       if (!r.ok || !r.emailVerified) return r;
       return r;

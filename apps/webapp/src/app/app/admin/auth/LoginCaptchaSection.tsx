@@ -15,11 +15,23 @@ import {
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { LabeledSwitch } from '@/shared/ui/doctor/primitives/labeled-switch';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/shared/ui/doctor/primitives/select';
+
+type CaptchaProvider = 'altcha' | 'yandex';
 
 export type LoginCaptchaSectionProps = {
   initialEnabled: boolean;
   initialFromAttempt: number;
-  hasStoredSecret: boolean;
+  initialProvider: CaptchaProvider;
+  hasStoredAltchaSecret: boolean;
+  hasStoredYandexClientKey: boolean;
+  hasStoredYandexServerKey: boolean;
 };
 
 function randomHex(bytes: number): string {
@@ -31,37 +43,79 @@ function randomHex(bytes: number): string {
 export function LoginCaptchaSection({
   initialEnabled,
   initialFromAttempt,
-  hasStoredSecret,
+  initialProvider,
+  hasStoredAltchaSecret,
+  hasStoredYandexClientKey,
+  hasStoredYandexServerKey,
 }: LoginCaptchaSectionProps) {
   const router = useRouter();
   const [enabled, setEnabled] = useState(initialEnabled);
   const [fromAttempt, setFromAttempt] = useState(String(initialFromAttempt));
-  const [secretInput, setSecretInput] = useState('');
-  const [secretStored, setSecretStored] = useState(hasStoredSecret);
-  const [saving, setSaving] = useState<'enabled' | 'from' | 'secret' | null>(null);
+  const [provider, setProvider] = useState<CaptchaProvider>(initialProvider);
+  const [altchaSecretInput, setAltchaSecretInput] = useState('');
+  const [altchaSecretStored, setAltchaSecretStored] = useState(hasStoredAltchaSecret);
+  const [yandexClientKeyInput, setYandexClientKeyInput] = useState('');
+  const [yandexClientKeyStored, setYandexClientKeyStored] = useState(hasStoredYandexClientKey);
+  const [yandexServerKeyInput, setYandexServerKeyInput] = useState('');
+  const [yandexServerKeyStored, setYandexServerKeyStored] = useState(hasStoredYandexServerKey);
+  const [saving, setSaving] = useState<
+    'enabled' | 'from' | 'provider' | 'altcha' | 'yandex-client' | 'yandex-server' | null
+  >(null);
   const [isPending, startTransition] = useTransition();
+
+  const providerReady =
+    provider === 'altcha'
+      ? altchaSecretStored
+      : yandexClientKeyStored && yandexServerKeyStored;
+
+  const missingProviderText =
+    provider === 'altcha'
+      ? notificationText.settingsCaptchaAltchaMissing
+      : !yandexClientKeyStored && !yandexServerKeyStored
+        ? notificationText.settingsCaptchaYandexKeysMissing
+        : !yandexClientKeyStored
+          ? notificationText.settingsCaptchaYandexClientMissing
+          : notificationText.settingsCaptchaYandexServerMissing;
 
   function showSaveResult(
     result: Awaited<ReturnType<typeof patchAdminSettingWithResult>>,
   ): boolean {
     if (result.ok) return true;
-    // Машинный код маршрута человеку не показываем: общая карта кодов выдаёт фразу, а
-    // незнакомый код превращается в запасной текст, а не утекает как есть (AGENTS.md §21a).
     toast.error(errorCodeText(result.code, notificationText.commonSaveFailed));
     return false;
   }
 
-  function updateEnabled(nextEnabled: boolean): void {
-    setSaving('enabled');
+  function saveSetting(
+    kind: NonNullable<typeof saving>,
+    key:
+      | 'auth_captcha_enabled'
+      | 'auth_captcha_from_attempt'
+      | 'auth_captcha_provider'
+      | 'auth_altcha_hmac_secret'
+      | 'auth_yandex_smartcaptcha_client_key'
+      | 'auth_yandex_smartcaptcha_server_key',
+    value: boolean | number | string,
+    onSaved: () => void,
+  ): void {
+    setSaving(kind);
     startTransition(async () => {
-      const result = await patchAdminSettingWithResult('auth_captcha_enabled', nextEnabled);
+      const result = await patchAdminSettingWithResult(key, value);
       if (showSaveResult(result)) {
-        setEnabled(nextEnabled);
+        onSaved();
         toast.success(notificationText.commonSaved);
         router.refresh();
       }
       setSaving(null);
     });
+  }
+
+  function updateEnabled(nextEnabled: boolean): void {
+    saveSetting('enabled', 'auth_captcha_enabled', nextEnabled, () => setEnabled(nextEnabled));
+  }
+
+  function updateProvider(nextProvider: string | null): void {
+    if (nextProvider !== 'altcha' && nextProvider !== 'yandex') return;
+    saveSetting('provider', 'auth_captcha_provider', nextProvider, () => setProvider(nextProvider));
   }
 
   function saveFromAttempt(): void {
@@ -70,30 +124,32 @@ export function LoginCaptchaSection({
       toast.error(notificationTextFactory.integerRangeRequired('Номер попытки', 1, 50));
       return;
     }
-    setSaving('from');
-    startTransition(async () => {
-      const result = await patchAdminSettingWithResult('auth_captcha_from_attempt', attempts);
-      if (showSaveResult(result)) {
-        setFromAttempt(String(attempts));
-        toast.success(notificationText.commonSaved);
-        router.refresh();
-      }
-      setSaving(null);
+    saveSetting('from', 'auth_captcha_from_attempt', attempts, () =>
+      setFromAttempt(String(attempts)),
+    );
+  }
+
+  function saveAltchaSecret(): void {
+    const secret = altchaSecretInput.trim();
+    saveSetting('altcha', 'auth_altcha_hmac_secret', secret, () => {
+      setAltchaSecretStored(secret.length > 0);
+      setAltchaSecretInput('');
     });
   }
 
-  function saveSecret(): void {
-    const secret = secretInput.trim();
-    setSaving('secret');
-    startTransition(async () => {
-      const result = await patchAdminSettingWithResult('auth_altcha_hmac_secret', secret);
-      if (showSaveResult(result)) {
-        setSecretStored(true);
-        setSecretInput('');
-        toast.success(notificationText.commonSaved);
-        router.refresh();
-      }
-      setSaving(null);
+  function saveYandexClientKey(): void {
+    const key = yandexClientKeyInput.trim();
+    saveSetting('yandex-client', 'auth_yandex_smartcaptcha_client_key', key, () => {
+      setYandexClientKeyInput('');
+      setYandexClientKeyStored(key.length > 0);
+    });
+  }
+
+  function saveYandexServerKey(): void {
+    const key = yandexServerKeyInput.trim();
+    saveSetting('yandex-server', 'auth_yandex_smartcaptcha_server_key', key, () => {
+      setYandexServerKeyStored(key.length > 0);
+      setYandexServerKeyInput('');
     });
   }
 
@@ -108,20 +164,33 @@ export function LoginCaptchaSection({
         настройках.
       </p>
       <div className="flex max-w-xl flex-col gap-4">
-        {/* Включить капчу без ключа нельзя: задачка не выдастся, и человек с верным паролем
-            останется снаружи. Поэтому переключатель виден, но не нажимается, и рядом сказано
-            почему (решение владельца 14.09). Сервер отказывает в том же самостоятельно. */}
+        <DoctorField label="Поставщик капчи" htmlFor="auth-captcha-provider" width="lg">
+          <Select value={provider} onValueChange={updateProvider} disabled={isPending}>
+            <SelectTrigger
+              id="auth-captcha-provider"
+              displayLabel={provider === 'altcha' ? 'ALTCHA (наша)' : 'Яндекс SmartCaptcha'}
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="altcha" label="ALTCHA (наша)">
+                ALTCHA (наша)
+              </SelectItem>
+              <SelectItem value="yandex" label="Яндекс SmartCaptcha">
+                Яндекс SmartCaptcha
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </DoctorField>
         <div className="flex flex-col gap-1">
           <LabeledSwitch
             label="Включить капчу при входе по паролю"
             checked={enabled}
-            disabled={isPending || !secretStored}
+            disabled={isPending || !providerReady}
             onCheckedChange={updateEnabled}
           />
-          {secretStored ? null : (
-            <span className="text-sm text-muted-foreground">
-              Сначала задайте секретный ключ капчи — без него задачка не выдаётся.
-            </span>
+          {providerReady ? null : (
+            <span className="text-sm text-muted-foreground">{missingProviderText}</span>
           )}
         </div>
         <DoctorField
@@ -140,27 +209,22 @@ export function LoginCaptchaSection({
               onChange={(event) => setFromAttempt(event.target.value)}
               disabled={isPending}
             />
-            <Button
-              type="button"
-              variant="outline"
-              onClick={saveFromAttempt}
-              disabled={isPending}
-            >
+            <Button type="button" variant="outline" onClick={saveFromAttempt} disabled={isPending}>
               Сохранить
             </Button>
           </div>
         </DoctorField>
         <DoctorField
-          label="Секретный ключ капчи"
-          htmlFor="auth-captcha-secret"
-          hint={secretStored ? 'ключ сохранён' : 'ключ не задан'}
+          label="Секретный ключ ALTCHA"
+          htmlFor="auth-captcha-altcha-secret"
+          hint={altchaSecretStored ? 'ключ задан' : 'ключ не задан'}
           width="lg"
         >
           <Input
-            id="auth-captcha-secret"
+            id="auth-captcha-altcha-secret"
             type="password"
-            value={secretInput}
-            onChange={(event) => setSecretInput(event.target.value)}
+            value={altchaSecretInput}
+            onChange={(event) => setAltchaSecretInput(event.target.value)}
             disabled={isPending}
             autoComplete="new-password"
             spellCheck={false}
@@ -170,20 +234,68 @@ export function LoginCaptchaSection({
           <Button
             type="button"
             variant="outline"
-            onClick={() => setSecretInput(randomHex(32))}
+            onClick={() => setAltchaSecretInput(randomHex(32))}
             disabled={isPending}
           >
             Сгенерировать
           </Button>
           <Button
             type="button"
-            onClick={saveSecret}
-            disabled={isPending || secretInput.trim().length === 0}
+            onClick={saveAltchaSecret}
+            disabled={isPending || altchaSecretInput.trim().length === 0}
           >
-            Сохранить ключ
+            Сохранить ключ ALTCHA
           </Button>
-          {saving ? <span className="text-sm text-muted-foreground">Сохранение…</span> : null}
         </div>
+        <DoctorField
+          label="Ключ клиента Яндекс SmartCaptcha"
+          htmlFor="auth-captcha-yandex-client-key"
+          hint={yandexClientKeyStored ? 'ключ задан' : 'ключ не задан'}
+          width="lg"
+        >
+          <div className="flex items-center gap-3">
+            <Input
+              id="auth-captcha-yandex-client-key"
+              value={yandexClientKeyInput}
+              onChange={(event) => setYandexClientKeyInput(event.target.value)}
+              disabled={isPending}
+              spellCheck={false}
+            />
+            <Button
+              type="button"
+              onClick={saveYandexClientKey}
+              disabled={isPending || yandexClientKeyInput.trim().length === 0}
+            >
+              Сохранить
+            </Button>
+          </div>
+        </DoctorField>
+        <DoctorField
+          label="Ключ сервера Яндекс SmartCaptcha"
+          htmlFor="auth-captcha-yandex-server-key"
+          hint={yandexServerKeyStored ? 'ключ задан' : 'ключ не задан'}
+          width="lg"
+        >
+          <div className="flex items-center gap-3">
+            <Input
+              id="auth-captcha-yandex-server-key"
+              type="password"
+              value={yandexServerKeyInput}
+              onChange={(event) => setYandexServerKeyInput(event.target.value)}
+              disabled={isPending}
+              autoComplete="new-password"
+              spellCheck={false}
+            />
+            <Button
+              type="button"
+              onClick={saveYandexServerKey}
+              disabled={isPending || yandexServerKeyInput.trim().length === 0}
+            >
+              Сохранить
+            </Button>
+          </div>
+        </DoctorField>
+        {saving ? <span className="text-sm text-muted-foreground">Сохранение…</span> : null}
       </div>
     </DoctorSection>
   );

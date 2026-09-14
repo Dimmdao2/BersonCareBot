@@ -13,11 +13,12 @@ import type { PasswordChangeResult } from '@/modules/auth/passwordChange';
 import { newPasswordSchema } from '@/modules/auth/passwordPolicy';
 import { notificationText } from '@/shared/notifications/notificationText';
 import { setSessionFromUser } from '@/modules/auth/service';
+import { resolveRealIpRateLimitClientKey } from '@/modules/auth/realIpRateLimitClientKey';
 
 const bodySchema = z.object({
   currentPassword: z.string().min(1).max(128),
   newPassword: newPasswordSchema,
-  altcha: z.string().max(32_768).optional(),
+  captcha: z.string().max(32_768).optional(),
 });
 
 export async function POST(request: Request) {
@@ -63,15 +64,35 @@ export async function POST(request: Request) {
   try {
     const deps = buildAppDeps();
     const verifiedEmail = await deps.userByPhone.getVerifiedEmailForUser(gate.session.user.userId);
-    const altchaProof = verifiedEmail
-      ? await deps.passwordAltcha.verify(verifiedEmail.trim().toLowerCase(), parsed.data.altcha)
-      : undefined;
+    const captchaIp = resolveRealIpRateLimitClientKey(request, {
+      scope: 'account_password_change_captcha',
+      logPrefix: 'account_password_change_captcha',
+      fallbackKey: 'dev-account-password-change-captcha',
+    });
+    if (!captchaIp.ok) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: 'proxy_configuration',
+          message: notificationText.authProxyConfiguration,
+        },
+        { status: 503 },
+      );
+    }
+    const captchaVerification = verifiedEmail
+      ? await deps.passwordAltcha.verify(
+          verifiedEmail.trim().toLowerCase(),
+          parsed.data.captcha,
+          captchaIp.key,
+        )
+      : { verifiedExternally: false };
     result = await deps.passwordChange.changePassword({
       userId: gate.session.user.userId,
       currentPassword: parsed.data.currentPassword,
       newPassword: parsed.data.newPassword,
-      ...(altchaProof ? { altchaProof } : {}),
-      altchaSubmitted: parsed.data.altcha !== undefined,
+      ...(captchaVerification?.altchaProof ? { altchaProof: captchaVerification.altchaProof } : {}),
+      altchaSubmitted: parsed.data.captcha !== undefined,
+      captchaVerifiedExternally: captchaVerification?.verifiedExternally === true,
     });
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);

@@ -38,12 +38,18 @@ export type PasswordLoginProtectionPort = {
     emailNormalized: string;
     identifierKey: string;
     altchaProof?: PasswordAltchaProof;
+    captchaVerifiedExternally?: boolean;
   }): Promise<PasswordProofAdmission>;
   completePasswordProof(params: {
     leaseToken: string;
     passwordVerified: boolean;
   }): Promise<PasswordProofCompletion>;
   readAltchaRootSecret(): Promise<string | null>;
+  readCaptchaConfig?(): Promise<{
+    provider: 'altcha' | 'yandex';
+    yandexClientKey: string | null;
+    yandexServerKey: string | null;
+  }>;
   registerAltchaChallenge(params: {
     emailNormalized: string;
     challengeId: string;
@@ -53,6 +59,14 @@ export type PasswordLoginProtectionPort = {
 };
 
 export type PasswordAltchaChallenge = {
+  provider: 'altcha';
   challenge: Challenge;
   expiresAt: string;
 };
+
+export type PasswordYandexCaptchaChallenge = {
+  provider: 'yandex';
+  clientKey: string;
+};
+
+export type PasswordCaptchaChallenge = PasswordAltchaChallenge | PasswordYandexCaptchaChallenge;

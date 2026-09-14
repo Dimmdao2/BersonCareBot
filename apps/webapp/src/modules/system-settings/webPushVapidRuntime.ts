@@ -189,7 +189,7 @@ export function redactAdminSettingsForClient(settings: SystemSetting[]): SystemS
         },
       };
     }
-    if (s.key === 'auth_altcha_hmac_secret') {
+    if (s.key === 'auth_altcha_hmac_secret' || s.key === 'auth_yandex_smartcaptcha_server_key') {
       const value =
         s.valueJson !== null && typeof s.valueJson === 'object'
           ? (s.valueJson as Record<string, unknown>).value
@@ -198,6 +198,18 @@ export function redactAdminSettingsForClient(settings: SystemSetting[]): SystemS
         ...s,
         valueJson: {
           value: { hasStoredSecret: typeof value === 'string' && value.trim().length > 0 },
+        },
+      };
+    }
+    if (s.key === 'auth_yandex_smartcaptcha_client_key') {
+      const value =
+        s.valueJson !== null && typeof s.valueJson === 'object'
+          ? (s.valueJson as Record<string, unknown>).value
+          : null;
+      return {
+        ...s,
+        valueJson: {
+          value: { hasStoredValue: typeof value === 'string' && value.trim().length > 0 },
         },
       };
     }

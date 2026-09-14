@@ -10,7 +10,7 @@ import { deriveKey } from 'altcha-lib/algorithms/pbkdf2';
 import { z } from 'zod';
 import { passwordIdentifierKey, type PasswordAltchaProof } from './passwordLoginProtection';
 import type {
-  PasswordAltchaChallenge,
+  PasswordCaptchaChallenge,
   PasswordLoginProtectionPort,
 } from './passwordLoginProtectionPort';
 
@@ -73,9 +73,47 @@ function decodePayload(rawPayload: string): Payload | null {
   }
 }
 
+export type PasswordCaptchaVerification = {
+  altchaProof?: PasswordAltchaProof;
+  verifiedExternally: boolean;
+};
+
+async function readCaptchaConfig(port: PasswordLoginProtectionPort) {
+  return port.readCaptchaConfig
+    ? port.readCaptchaConfig()
+    : { provider: 'altcha' as const, yandexClientKey: null, yandexServerKey: null };
+}
+
+async function verifyYandexToken(serverKey: string, token: string, ip: string): Promise<boolean> {
+  const body = new URLSearchParams({ secret: serverKey, token, ip });
+  try {
+    const response = await fetch('https://smartcaptcha.cloud.yandex.ru/validate', {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body,
+      signal: AbortSignal.timeout(1_000),
+    });
+    if (!response.ok) return true;
+    const parsed = z
+      .object({ status: z.enum(['ok', 'failed']), message: z.string().optional() })
+      .safeParse(await response.json().catch(() => null));
+    return parsed.success && parsed.data.status === 'ok';
+  } catch {
+    // Yandex recommends treating protocol and transport failures as a pass so its outage cannot
+    // deny access. A processed `status: failed` response above remains a failed captcha.
+    return true;
+  }
+}
+
 export function createPasswordAltchaService(port: PasswordLoginProtectionPort) {
   return {
-    async issue(emailNormalized: string): Promise<PasswordAltchaChallenge | null> {
+    async issue(emailNormalized: string): Promise<PasswordCaptchaChallenge | null> {
+      const config = await readCaptchaConfig(port);
+      if (config.provider === 'yandex') {
+        return config.yandexClientKey && config.yandexServerKey
+          ? { provider: 'yandex', clientKey: config.yandexClientKey }
+          : null;
+      }
       const rootSecret = await port.readAltchaRootSecret();
       if (!rootSecret) return null;
 
@@ -101,37 +139,51 @@ export function createPasswordAltchaService(port: PasswordLoginProtectionPort) {
         challengeDigest: challengeDigest(challenge),
         expiresAt,
       });
-      return issued ? { challenge, expiresAt: expiresAt.toISOString() } : null;
+      return issued ? { provider: 'altcha', challenge, expiresAt: expiresAt.toISOString() } : null;
     },
 
     async verify(
       emailNormalized: string,
-      rawPayload: string | undefined,
-    ): Promise<PasswordAltchaProof | undefined> {
-      if (!rawPayload) return undefined;
+      answer: string | undefined,
+      ip: string,
+    ): Promise<PasswordCaptchaVerification | undefined> {
+      const config = await readCaptchaConfig(port);
+      if (config.provider === 'yandex') {
+        if (!answer || !config.yandexServerKey || !config.yandexClientKey) {
+          return { verifiedExternally: false };
+        }
+        return {
+          verifiedExternally: await verifyYandexToken(config.yandexServerKey, answer, ip),
+        };
+      }
+      if (!answer) return { verifiedExternally: false };
+      const rawPayload = answer;
       const payload = decodePayload(rawPayload);
-      if (!payload) return undefined;
+      if (!payload) return { verifiedExternally: false };
       const data = payload.challenge.parameters.data;
       if (
         data?.purpose !== PURPOSE ||
         data.identifierKey !== passwordIdentifierKey(emailNormalized) ||
         typeof data.challengeId !== 'string'
       ) {
-        return undefined;
+        return { verifiedExternally: false };
       }
 
       const rootSecret = await port.readAltchaRootSecret();
-      if (!rootSecret) return undefined;
+      if (!rootSecret) return { verifiedExternally: false };
       const result = await verifySolution({
         challenge: payload.challenge,
         solution: payload.solution,
         deriveKey,
         hmacSignatureSecret: signatureSecret(rootSecret),
       });
-      if (!result.verified) return undefined;
+      if (!result.verified) return { verifiedExternally: false };
       return {
-        challengeId: data.challengeId,
-        challengeDigest: challengeDigest(payload.challenge),
+        altchaProof: {
+          challengeId: data.challengeId,
+          challengeDigest: challengeDigest(payload.challenge),
+        },
+        verifiedExternally: false,
       };
     },
   };

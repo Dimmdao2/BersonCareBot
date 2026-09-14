@@ -26,11 +26,12 @@ import { runWithDbBootstrapPrincipal } from '@bersoncare/db-principal';
 import { roleCanUsePortal } from '@/modules/auth/roleLogin';
 import { notificationText } from '@/shared/notifications/notificationText';
 import { routePaths } from '@/app-layer/routes/paths';
+import { resolveRealIpRateLimitClientKey } from '@/modules/auth/realIpRateLimitClientKey';
 
 const bodySchema = z.object({
   email: z.string().email().max(320),
   password: z.string().min(1).max(128),
-  altcha: z.string().max(32_768).optional(),
+  captcha: z.string().max(32_768).optional(),
   roleLoginPortal: z.enum(['doctor', 'patient', 'admin']).optional(),
 });
 
@@ -134,17 +135,37 @@ export async function POST(request: Request) {
   try {
     const emailNorm = normalizeEmail(parsed.data.email);
     const deps = buildAppDeps();
-    const altchaProof = await deps.passwordAltcha.verify(emailNorm, parsed.data.altcha);
+    const captchaIp = resolveRealIpRateLimitClientKey(request, {
+      scope: 'email_password_login_captcha',
+      logPrefix: 'email_password_login_captcha',
+      fallbackKey: 'dev-email-password-login-captcha',
+    });
+    if (!captchaIp.ok) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: 'proxy_configuration',
+          message: notificationText.authProxyConfiguration,
+        },
+        { status: 503 },
+      );
+    }
+    const captchaVerification = await deps.passwordAltcha.verify(
+      emailNorm,
+      parsed.data.captcha,
+      captchaIp.key,
+    );
 
     const pwd = await deps.userPasswordCredentials.verifyEmailPasswordForLogin(
       emailNorm,
       parsed.data.password,
-      altchaProof,
-      parsed.data.altcha !== undefined,
+      captchaVerification?.altchaProof,
+      parsed.data.captcha !== undefined,
       // #1112 Л-8: обстановка попытки уходит ВНИЗ, к тому слою, где уже известна личность. Наверх, в
       // ответ этого маршрута, по-прежнему не возвращается ничего, что отличало бы «нет такой почты»
       // от «неверный пароль».
       await resolveLoginAttemptOrigin(request),
+      captchaVerification?.verifiedExternally === true,
     );
     if (!pwd.ok) {
       return NextResponse.json(

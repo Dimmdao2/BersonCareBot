@@ -905,7 +905,7 @@ export function AuthFlowV2({
         body: JSON.stringify({
           email,
           password,
-          ...(passwordAltchaPayload ? { altcha: passwordAltchaPayload } : {}),
+          ...(passwordAltchaPayload ? { captcha: passwordAltchaPayload } : {}),
           ...(roleLoginPortal ? { roleLoginPortal } : {}),
         }),
       });

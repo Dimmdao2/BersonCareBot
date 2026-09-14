@@ -66,6 +66,7 @@ const ERROR_CODE_TEXT: Record<string, string> = {
   invalid_view: notificationText.authInvalidBody,
   empty_comment: notificationText.commentTextEmpty,
   auth_captcha_secret_required: notificationText.settingsCaptchaSecretRequired,
+  auth_yandex_captcha_keys_required: notificationText.settingsYandexCaptchaKeysRequired,
 
   // --- оплаты и абонементы ---
   payments_disabled: notificationText.bookingPaymentsDisabled,
