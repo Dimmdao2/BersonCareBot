@@ -12,9 +12,9 @@ import {
 import {
   MergeConflictError,
   MergeDependentConflictError,
+  createHumanMergePrompt,
+  humanMergeDecisionMatchesPrompt,
   mergePlatformUsersInTransaction,
-  type HumanMergeDecision,
-  type HumanMergePrompt,
   type PlatformMergeDbClient,
 } from '@bersoncare/platform-merge';
 import type {
@@ -313,38 +313,19 @@ export async function claimVerifiedEmail(
           throw new EmailClaimConflictError('email_owner_not_client');
         }
 
-        const humanMergeAnswer = options?.humanMergeAnswer;
-        if (!humanMergeAnswer) {
-          const conflicts = (['last_name', 'first_name', 'patronymic'] as const).filter(
-            (field) => {
-              const left = current[field]?.trim() || null;
-              const right = owner[field]?.trim() || null;
-              return left !== null && right !== null && left !== right;
-            },
-          );
-          const summary = (row: typeof current) => ({
-            id: row.id,
-            displayName: row.display_name,
-            firstName: row.first_name,
-            lastName: row.last_name,
-            patronymic: row.patronymic,
-            createdAt: new Date(row.created_at).toISOString(),
-          });
-          const prompt: HumanMergePrompt = {
-            target: summary(current),
-            duplicate: summary(owner),
-            foundAccountId: owner.id,
-            conflicts,
-          };
+        const summary = (row: typeof current) => ({
+          id: row.id,
+          displayName: row.display_name,
+          firstName: row.first_name,
+          lastName: row.last_name,
+          patronymic: row.patronymic,
+          createdAt: row.created_at,
+        });
+        const prompt = createHumanMergePrompt(summary(current), summary(owner), owner.id);
+        const humanDecision = options?.humanMergeDecision;
+        if (!humanDecision || !humanMergeDecisionMatchesPrompt(humanDecision, prompt)) {
           return { ok: false, code: 'merge_confirmation_required' as const, prompt };
         }
-
-        const humanDecision: HumanMergeDecision = {
-          ...humanMergeAnswer,
-          targetId: userId,
-          duplicateId: owner.id,
-          recognizedAccountId: owner.id,
-        };
 
         await mergePlatformUsersInTransaction(
           mergeDbClientFromTx(tx),

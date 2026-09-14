@@ -33,6 +33,7 @@ import {
   startPhoneAuth as startPhoneAuthFlow,
   confirmPhoneAuth as confirmPhoneAuthFlow,
   consumePhoneOtpChallenge,
+  type ConfirmPhoneAuthOptions,
   type StartPhoneAuthOptions,
 } from '@/modules/auth/phoneAuth';
 import {
@@ -1769,8 +1770,23 @@ function _buildAppDeps() {
   };
   return {
     accountMergeNotifications: {
-      enqueue: (user: import('@/shared/types/session').SessionUser, mergedAccountId: string) =>
-        enqueueAccountMergeLoginNotification(user, mergedAccountId, createPgOutboundMessageQueue()),
+      enqueue: async (
+        user: import('@/shared/types/session').SessionUser,
+        mergedAccountId: string,
+      ) => {
+        const result = await enqueueAccountMergeLoginNotification(
+          user,
+          mergedAccountId,
+          createPgOutboundMessageQueue(),
+        );
+        if (result.failed > 0) {
+          logger.error({
+            event: 'account_merge_login_notification_enqueue_failed',
+            userId: user.userId,
+            failedTargets: result.failed,
+          });
+        }
+      },
     },
     auth: {
       getCurrentSession,
@@ -1798,14 +1814,9 @@ function _buildAppDeps() {
       confirmPhoneAuth: async (
         challengeId: string,
         code: string,
-        humanMergeDecision?: import('@bersoncare/platform-merge').HumanMergeDecision,
+        options?: ConfirmPhoneAuthOptions,
       ) => {
-        const result = await confirmPhoneAuthFlow(
-          challengeId,
-          code,
-          phoneAuthDeps,
-          humanMergeDecision,
-        );
+        const result = await confirmPhoneAuthFlow(challengeId, code, phoneAuthDeps, options);
         if (!result.ok) return result;
         if ('mergeRequired' in result && result.mergeRequired) return result;
         const envRole = resolveRoleFromEnv({

@@ -7,10 +7,16 @@ export type {
   HumanMergeDecision,
   HumanMergeFioField,
   HumanMergeFioSelection,
+  HumanMergeFioSelections,
   HumanMergeAccountSummary,
   HumanMergePrompt,
 } from './humanMergeDecision.js';
-export { HUMAN_MERGE_FIO_FIELDS } from './humanMergeDecision.js';
+export {
+  HUMAN_MERGE_FIO_FIELDS,
+  createHumanMergeDecision,
+  createHumanMergePrompt,
+  humanMergeDecisionMatchesPrompt,
+} from './humanMergeDecision.js';
 export { assertManualMergeResolutionIds } from './manualMergeResolution.js';
 
 export { MergeConflictError, MergeDependentConflictError } from './platformUserMergeErrors.js';
@@ -91,7 +97,10 @@ export {
 } from './identityProjectionWrite.js';
 
 export { syncUserIdentityFioMirror } from './userIdentityFioWrite.js';
-export { mutateCanonicalUserContacts, type CanonicalContactMutation } from './userContactsMirrorWrite.js';
+export {
+  mutateCanonicalUserContacts,
+  type CanonicalContactMutation,
+} from './userContactsMirrorWrite.js';
 
 export type { MergeSqlExecutor } from './mergeSql.js';
 export { runMergeSql, runMergePgText, mergeDbClientToSqlExecutor } from './mergeSql.js';

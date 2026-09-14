@@ -1,8 +1,6 @@
 import type { MailProfileRequest } from './mailProfile';
 import type { HumanMergeDecision, HumanMergePrompt } from '@bersoncare/platform-merge';
 
-export type HumanMergeAnswer = Pick<HumanMergeDecision, 'accountConfirmed' | 'fio'>;
-
 /**
  * C-2 step 4 (OWASP ASVS V6.6.2 / NIST SP 800-63B §5.1.3): the intent an email challenge was minted
  * for. One purpose per `startEmailChallenge` caller, matching the confirm engine that legitimately
@@ -51,7 +49,7 @@ export type ClaimVerifiedEmailResult =
 export type ClaimVerifiedEmailOptions = {
   /** Server-resolved organization scope used only for an authenticated profile merge. */
   profileBindOrganizationId?: string;
-  humanMergeAnswer?: HumanMergeAnswer;
+  humanMergeDecision?: HumanMergeDecision;
 };
 
 export type EmailAuthDbPort = {

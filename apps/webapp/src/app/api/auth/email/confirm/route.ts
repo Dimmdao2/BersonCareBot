@@ -14,29 +14,13 @@ import { getCurrentSession } from '@/modules/auth/service';
 import { confirmEmailChallenge } from '@/modules/auth/emailAuth';
 import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import { notificationText } from '@/shared/notifications/notificationText';
-import { isCyrillicFioInput } from '@/shared/lib/fio';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-
-const fioSelectionSchema = z.discriminatedUnion('source', [
-  z.object({ source: z.literal('target') }),
-  z.object({ source: z.literal('duplicate') }),
-  z.object({
-    source: z.literal('custom'),
-    value: z.string().trim().min(1).max(100).refine(isCyrillicFioInput),
-  }),
-]);
+import { humanMergeDecisionSchema } from '@/modules/auth/humanMergeDecisionSchema';
 
 const bodySchema = z.object({
   challengeId: z.string().uuid(),
   code: z.string().min(4).max(12),
-  mergeDecision: z.object({
-    accountConfirmed: z.literal(true),
-    fio: z.object({
-      last_name: fioSelectionSchema.optional(),
-      first_name: fioSelectionSchema.optional(),
-      patronymic: fioSelectionSchema.optional(),
-    }),
-  }).optional(),
+  mergeDecision: humanMergeDecisionSchema.optional(),
 });
 
 export async function POST(request: Request) {
@@ -88,7 +72,7 @@ export async function POST(request: Request) {
     'email_verify',
     {
       ...(organizationId ? { profileBindOrganizationId: organizationId } : {}),
-      ...(parsed.data.mergeDecision ? { humanMergeAnswer: parsed.data.mergeDecision } : {}),
+      ...(parsed.data.mergeDecision ? { humanMergeDecision: parsed.data.mergeDecision } : {}),
     },
   );
   if (!result.ok) {

@@ -11,6 +11,7 @@ import type {
   HumanMergeFioField,
   HumanMergeFioSelection,
 } from './humanMergeDecision.js';
+import { createHumanMergePrompt, humanMergeDecisionMatchesPrompt } from './humanMergeDecision.js';
 import {
   collectMergeLosingContacts,
   persistMergeLosingContacts,
@@ -52,8 +53,7 @@ export type ManualMergePlatformUsersOptions = {
 };
 
 export type MergePlatformUsersOptions =
-  | AutomaticMergePlatformUsersOptions
-  | ManualMergePlatformUsersOptions;
+  AutomaticMergePlatformUsersOptions | ManualMergePlatformUsersOptions;
 
 /**
  * Owner rule D26 §5.2: automatic merge is only safe for an account with no
@@ -72,8 +72,7 @@ type MedicalHistoryRecord = {
  */
 const MEDICAL_HISTORY_RECORDS: readonly MedicalHistoryRecord[] = [
   {
-    automaticProbe: (id) =>
-      sql`SELECT 1 FROM clinical_visit WHERE patient_user_id = ${id}::uuid`,
+    automaticProbe: (id) => sql`SELECT 1 FROM clinical_visit WHERE patient_user_id = ${id}::uuid`,
     transfer: (targetId, duplicateId) => [
       sql`UPDATE clinical_visit SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
     ],
@@ -127,8 +126,7 @@ const MEDICAL_HISTORY_RECORDS: readonly MedicalHistoryRecord[] = [
     ],
   },
   {
-    automaticProbe: (id) =>
-      sql`SELECT 1 FROM be_appointments WHERE platform_user_id = ${id}::uuid`,
+    automaticProbe: (id) => sql`SELECT 1 FROM be_appointments WHERE platform_user_id = ${id}::uuid`,
     transfer: (targetId, duplicateId) => [
       sql`UPDATE be_appointments SET platform_user_id = ${targetId}::uuid WHERE platform_user_id = ${duplicateId}::uuid`,
     ],
@@ -286,7 +284,9 @@ function resolveHumanFioField(
   if (selection.source === 'duplicate') return duplicate;
   const custom = normalizedFioPart(selection.value);
   if (!custom) {
-    throw new MergeConflictError(`merge: custom human choice is empty for ${field}`, [...candidateIds]);
+    throw new MergeConflictError(`merge: custom human choice is empty for ${field}`, [
+      ...candidateIds,
+    ]);
   }
   return custom;
 }
@@ -297,7 +297,9 @@ function formatResolvedDisplayName(input: {
   patronymic: string | null;
   fallback: string;
 }): string {
-  return [input.lastName, input.firstName, input.patronymic].filter(Boolean).join(' ') || input.fallback;
+  return (
+    [input.lastName, input.firstName, input.patronymic].filter(Boolean).join(' ') || input.fallback
+  );
 }
 
 const SINGLETON_SYMPTOM_KEYS = ['general_wellbeing', 'warmup_feeling'] as const;
@@ -463,20 +465,49 @@ export async function mergePlatformUsersInTransaction(
     await assertAutomaticMergeHasNoMedicalHistory(client, targetId, duplicateId);
   }
 
-  const manualResolution = reason === 'manual' && 'resolution' in options ? options.resolution : undefined;
-  const humanDecision = reason !== 'manual' && 'humanDecision' in options ? options.humanDecision : undefined;
+  const manualResolution =
+    reason === 'manual' && 'resolution' in options ? options.resolution : undefined;
+  const humanDecision =
+    reason !== 'manual' && 'humanDecision' in options ? options.humanDecision : undefined;
   if (
     humanDecision &&
     (!humanDecision.accountConfirmed ||
-      humanDecision.targetId !== targetId ||
-      humanDecision.duplicateId !== duplicateId ||
-      (humanDecision.recognizedAccountId !== targetId &&
-        humanDecision.recognizedAccountId !== duplicateId))
+      humanDecision.prompt.target.id !== targetId ||
+      humanDecision.prompt.duplicate.id !== duplicateId ||
+      (humanDecision.prompt.foundAccountId !== targetId &&
+        humanDecision.prompt.foundAccountId !== duplicateId))
   ) {
     throw new MergeConflictError('merge: human decision does not match locked account pair', [
       targetId,
       duplicateId,
     ]);
+  }
+  if (humanDecision) {
+    const lockedPrompt = createHumanMergePrompt(
+      {
+        id: a.id,
+        displayName: a.display_name,
+        firstName: a.first_name,
+        lastName: a.last_name,
+        patronymic: a.patronymic,
+        createdAt: a.created_at,
+      },
+      {
+        id: b.id,
+        displayName: b.display_name,
+        firstName: b.first_name,
+        lastName: b.last_name,
+        patronymic: b.patronymic,
+        createdAt: b.created_at,
+      },
+      humanDecision.prompt.foundAccountId,
+    );
+    if (!humanMergeDecisionMatchesPrompt(humanDecision, lockedPrompt)) {
+      throw new MergeConflictError('merge: shown account details changed before confirmation', [
+        targetId,
+        duplicateId,
+      ]);
+    }
   }
 
   const pA = a.phone_normalized?.trim() || null;
@@ -600,7 +631,10 @@ export async function mergePlatformUsersInTransaction(
      ON CONFLICT (user_id, email_normalized) DO UPDATE SET
        last_sent_at = GREATEST(email_send_cooldowns.last_sent_at, EXCLUDED.last_sent_at)`,
   );
-  await runMergeSql(client, sql`DELETE FROM email_send_cooldowns WHERE user_id = ${duplicateId}::uuid`);
+  await runMergeSql(
+    client,
+    sql`DELETE FROM email_send_cooldowns WHERE user_id = ${duplicateId}::uuid`,
+  );
 
   await runMergeSql(client, sql`DELETE FROM login_tokens WHERE user_id = ${duplicateId}::uuid`);
 
@@ -666,24 +700,44 @@ export async function mergePlatformUsersInTransaction(
          updated_at = now()
        FROM platform_users dup
        WHERE pu.id = $1::uuid AND dup.id = $2::uuid`,
-      [
-        targetId,
-        duplicateId,
-        f.display_name,
-        f.first_name,
-        f.last_name,
-      ],
+      [targetId, duplicateId, f.display_name, f.first_name, f.last_name],
     );
   } else {
     if (!humanDecision) {
-      throw new MergeConflictError('merge: automatic merge requires a human decision', [targetId, duplicateId]);
+      throw new MergeConflictError('merge: automatic merge requires a human decision', [
+        targetId,
+        duplicateId,
+      ]);
     }
-    const lastName = resolveHumanFioField('last_name', a.last_name, b.last_name, humanDecision.fio.last_name, [targetId, duplicateId]);
-    const firstName = resolveHumanFioField('first_name', a.first_name, b.first_name, humanDecision.fio.first_name, [targetId, duplicateId]);
-    const patronymic = resolveHumanFioField('patronymic', a.patronymic, b.patronymic, humanDecision.fio.patronymic, [targetId, duplicateId]);
-    const recognizedAccount = humanDecision.recognizedAccountId === targetId ? a : b;
+    const lastName = resolveHumanFioField(
+      'last_name',
+      a.last_name,
+      b.last_name,
+      humanDecision.fio.last_name,
+      [targetId, duplicateId],
+    );
+    const firstName = resolveHumanFioField(
+      'first_name',
+      a.first_name,
+      b.first_name,
+      humanDecision.fio.first_name,
+      [targetId, duplicateId],
+    );
+    const patronymic = resolveHumanFioField(
+      'patronymic',
+      a.patronymic,
+      b.patronymic,
+      humanDecision.fio.patronymic,
+      [targetId, duplicateId],
+    );
+    const recognizedAccount = humanDecision.prompt.foundAccountId === targetId ? a : b;
     const fallbackDisplayName = normalizedFioPart(recognizedAccount.display_name) ?? '';
-    const displayName = formatResolvedDisplayName({ lastName, firstName, patronymic, fallback: fallbackDisplayName });
+    const displayName = formatResolvedDisplayName({
+      lastName,
+      firstName,
+      patronymic,
+      fallback: fallbackDisplayName,
+    });
     await runMergePgText(
       client,
       `UPDATE platform_users
@@ -694,14 +748,23 @@ export async function mergePlatformUsersInTransaction(
     );
   }
 
-  await mutateCanonicalUserContacts(client, targetId, [{ action: 'merge-from', duplicatePlatformUserId: duplicateId }]);
+  await mutateCanonicalUserContacts(client, targetId, [
+    { action: 'merge-from', duplicatePlatformUserId: duplicateId },
+  ]);
 
   if (manualResolution) {
-    const selectedPhone = manualResolution.fields.phone_normalized === 'target' ? a.phone_normalized : b.phone_normalized;
+    const selectedPhone =
+      manualResolution.fields.phone_normalized === 'target'
+        ? a.phone_normalized
+        : b.phone_normalized;
     const selectedEmail = manualResolution.fields.email === 'target' ? a.email : b.email;
     await mutateCanonicalUserContacts(client, targetId, [
-      ...(selectedPhone ? [{ action: 'promote' as const, kind: 'phone' as const, valueNormalized: selectedPhone }] : []),
-      ...(selectedEmail ? [{ action: 'promote' as const, kind: 'email' as const, valueNormalized: selectedEmail }] : []),
+      ...(selectedPhone
+        ? [{ action: 'promote' as const, kind: 'phone' as const, valueNormalized: selectedPhone }]
+        : []),
+      ...(selectedEmail
+        ? [{ action: 'promote' as const, kind: 'email' as const, valueNormalized: selectedEmail }]
+        : []),
     ]);
   }
 
@@ -764,7 +827,10 @@ async function mergeChannelBindingsAuto(
   duplicateId: string,
 ): Promise<void> {
   await reassignAllUserChannelBindingsFromDuplicate(client, targetId, duplicateId);
-  await runMergeSql(client, sql`DELETE FROM user_channel_bindings WHERE user_id = ${duplicateId}::uuid`);
+  await runMergeSql(
+    client,
+    sql`DELETE FROM user_channel_bindings WHERE user_id = ${duplicateId}::uuid`,
+  );
 }
 
 async function mergeChannelBindingsManual(
@@ -820,7 +886,10 @@ async function mergeChannelBindingsManual(
       );
     }
   }
-  await runMergeSql(client, sql`DELETE FROM user_channel_bindings WHERE user_id = ${duplicateId}::uuid`);
+  await runMergeSql(
+    client,
+    sql`DELETE FROM user_channel_bindings WHERE user_id = ${duplicateId}::uuid`,
+  );
 }
 
 async function mergeOauthBindingsAuto(
@@ -829,7 +898,10 @@ async function mergeOauthBindingsAuto(
   duplicateId: string,
 ): Promise<void> {
   await reassignAllUserOauthBindingsFromDuplicate(client, targetId, duplicateId);
-  await runMergeSql(client, sql`DELETE FROM user_oauth_bindings WHERE user_id = ${duplicateId}::uuid`);
+  await runMergeSql(
+    client,
+    sql`DELETE FROM user_oauth_bindings WHERE user_id = ${duplicateId}::uuid`,
+  );
 }
 
 async function mergeOauthBindingsManual(
@@ -894,7 +966,10 @@ async function mergeOauthBindingsManual(
       }
     }
   }
-  await runMergeSql(client, sql`DELETE FROM user_oauth_bindings WHERE user_id = ${duplicateId}::uuid`);
+  await runMergeSql(
+    client,
+    sql`DELETE FROM user_oauth_bindings WHERE user_id = ${duplicateId}::uuid`,
+  );
 }
 
 async function mergeUserChannelPreferences(
@@ -1457,8 +1532,14 @@ async function mergeExtendedUserOwnedData(
     sql`UPDATE user_web_push_subscriptions SET user_id = ${targetId}::uuid WHERE user_id = ${duplicateId}::uuid`,
   );
 
-  await runMergeSql(client, sql`DELETE FROM native_push_targets d WHERE d.user_id = ${duplicateId}::uuid AND EXISTS (SELECT 1 FROM native_push_targets t WHERE t.user_id = ${targetId}::uuid AND t.app_id = d.app_id AND t.provider = d.provider AND t.installation_id_hash = d.installation_id_hash)`);
-  await runMergeSql(client, sql`UPDATE native_push_targets SET user_id = ${targetId}::uuid WHERE user_id = ${duplicateId}::uuid`);
+  await runMergeSql(
+    client,
+    sql`DELETE FROM native_push_targets d WHERE d.user_id = ${duplicateId}::uuid AND EXISTS (SELECT 1 FROM native_push_targets t WHERE t.user_id = ${targetId}::uuid AND t.app_id = d.app_id AND t.provider = d.provider AND t.installation_id_hash = d.installation_id_hash)`,
+  );
+  await runMergeSql(
+    client,
+    sql`UPDATE native_push_targets SET user_id = ${targetId}::uuid WHERE user_id = ${duplicateId}::uuid`,
+  );
 
   await runMergeSql(
     client,

@@ -1,15 +1,17 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import type {
-  HumanMergeFioField,
-  HumanMergeFioSelection,
-  HumanMergePrompt,
+import {
+  createHumanMergeDecision,
+  type HumanMergeDecision,
+  type HumanMergeFioField,
+  type HumanMergeFioSelection,
+  type HumanMergePrompt,
 } from '@bersoncare/platform-merge';
 import { Button } from '@/shared/ui/patient/primitives/button';
 import { Input } from '@/shared/ui/patient/primitives/input';
 import { patientMutedTextClass, patientSectionTitleClass } from '@/shared/ui/patient/patientVisual';
-import { FIO_LATIN_REJECTED_TEXT, isCyrillicFioInput } from '@/shared/lib/fio';
+import { FIO_LATIN_REJECTED_TEXT, formatDoctorFio, isCyrillicFioInput } from '@/shared/lib/fio';
 
 const FIELD_LABELS: Record<HumanMergeFioField, string> = {
   last_name: 'Фамилия',
@@ -19,7 +21,11 @@ const FIELD_LABELS: Record<HumanMergeFioField, string> = {
 
 type SelectionState = Partial<Record<HumanMergeFioField, HumanMergeFioSelection>>;
 
-function accountValue(prompt: HumanMergePrompt, field: HumanMergeFioField, side: 'target' | 'duplicate') {
+function accountValue(
+  prompt: HumanMergePrompt,
+  field: HumanMergeFioField,
+  side: 'target' | 'duplicate',
+) {
   const account = prompt[side];
   return field === 'last_name'
     ? account.lastName
@@ -32,15 +38,24 @@ export function AccountMergeConfirmation(props: {
   prompt: HumanMergePrompt;
   busy: boolean;
   onReject: () => void;
-  onConfirm: (fio: SelectionState) => Promise<void>;
+  onConfirm: (decision: HumanMergeDecision) => Promise<void>;
 }) {
   const [accountConfirmed, setAccountConfirmed] = useState(false);
   const [selections, setSelections] = useState<SelectionState>({});
   const [customField, setCustomField] = useState<HumanMergeFioField | null>(null);
   const [customValues, setCustomValues] = useState<Partial<Record<HumanMergeFioField, string>>>({});
-  const found = props.prompt.foundAccountId === props.prompt.target.id
-    ? props.prompt.target
-    : props.prompt.duplicate;
+  const found =
+    props.prompt.foundAccountId === props.prompt.target.id
+      ? props.prompt.target
+      : props.prompt.duplicate;
+  const foundFio = formatDoctorFio(
+    {
+      lastName: found.lastName,
+      firstName: found.firstName,
+      patronymic: found.patronymic,
+    },
+    found.displayName,
+  );
   const ready = useMemo(
     () => props.prompt.conflicts.every((field) => selections[field] !== undefined),
     [props.prompt.conflicts, selections],
@@ -51,12 +66,22 @@ export function AccountMergeConfirmation(props: {
       <section className="flex w-full flex-col gap-3 text-left">
         <h2 className={patientSectionTitleClass}>Это ваш аккаунт?</h2>
         <div className="rounded-xl border p-3">
-          <p>{found.displayName || 'ФИО не указано'}</p>
+          <p>{foundFio || 'ФИО не указано'}</p>
           <p className={patientMutedTextClass}>
             Создан {new Intl.DateTimeFormat('ru-RU').format(new Date(found.createdAt))}
           </p>
         </div>
-        <Button type="button" disabled={props.busy} onClick={() => setAccountConfirmed(true)}>
+        <Button
+          type="button"
+          disabled={props.busy}
+          onClick={() => {
+            if (props.prompt.conflicts.length === 0) {
+              void props.onConfirm(createHumanMergeDecision(props.prompt, {}));
+              return;
+            }
+            setAccountConfirmed(true);
+          }}
+        >
           Да, это мой аккаунт
         </Button>
         <Button type="button" variant="outline" disabled={props.busy} onClick={props.onReject}>
@@ -131,7 +156,11 @@ export function AccountMergeConfirmation(props: {
           </fieldset>
         );
       })}
-      <Button type="button" disabled={props.busy || !ready} onClick={() => props.onConfirm(selections)}>
+      <Button
+        type="button"
+        disabled={props.busy || !ready}
+        onClick={() => props.onConfirm(createHumanMergeDecision(props.prompt, selections))}
+      >
         Объединить аккаунты
       </Button>
     </section>

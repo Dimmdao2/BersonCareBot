@@ -1,4 +1,8 @@
-import type { OutboundMessageQueuePort, OutboundMessageChannel } from '@/modules/messaging/outboundMessageQueuePort';
+import { createHash } from 'node:crypto';
+import type {
+  OutboundMessageQueuePort,
+  OutboundMessageChannel,
+} from '@/modules/messaging/outboundMessageQueuePort';
 import type { SessionUser } from '@/shared/types/session';
 import { notificationText } from '@/shared/notifications/notificationText';
 
@@ -31,14 +35,14 @@ export async function enqueueAccountMergeLoginNotification(
   user: SessionUser,
   mergedAccountId: string,
   queue: OutboundMessageQueuePort,
-): Promise<void> {
+): Promise<{ failed: number }> {
   const targets = mergeNotificationTargets(user);
-  await Promise.allSettled(
-    targets.map((target, index) =>
+  const results = await Promise.allSettled(
+    targets.map((target) =>
       queue.enqueue({
         organizationId: null,
         purpose: 'account_merge.new_device_login',
-        idempotencyKey: `${user.userId}:${mergedAccountId}:${target.channel}:${index}`,
+        idempotencyKey: `${user.userId}:${mergedAccountId}:${target.channel}:${createHash('sha256').update(target.recipient).digest('hex')}`,
         channel: target.channel,
         recipient: target.recipient,
         content: {
@@ -54,4 +58,5 @@ export async function enqueueAccountMergeLoginNotification(
       }),
     ),
   );
+  return { failed: results.filter((result) => result.status === 'rejected').length };
 }

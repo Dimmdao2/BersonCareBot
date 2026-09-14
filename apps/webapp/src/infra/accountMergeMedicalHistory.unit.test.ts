@@ -3,6 +3,10 @@ import {
   mergePlatformUsersInTransaction,
   type PlatformMergeDbClient,
 } from '../../../../packages/platform-merge/src/pgPlatformUserMerge';
+import {
+  createHumanMergeDecision,
+  createHumanMergePrompt,
+} from '../../../../packages/platform-merge/src/humanMergeDecision';
 import type { ManualMergeResolution } from '../../../../packages/platform-merge/src/manualMergeResolution';
 
 const targetId = '00000000-0000-4000-8000-000000000001';
@@ -127,19 +131,37 @@ function clientWithMedicalHistoryOnDuplicateOnly(): PlatformMergeDbClient {
 }
 
 describe('automatic account merge medical-history gate', () => {
-  const humanDecision = {
-    accountConfirmed: true as const,
-    targetId,
-    duplicateId,
-    recognizedAccountId: duplicateId,
-    fio: {},
-  };
+  const humanDecision = (targetDisplayName: string, duplicateDisplayName: string) =>
+    createHumanMergeDecision(
+      createHumanMergePrompt(
+        {
+          id: targetId,
+          displayName: targetDisplayName,
+          firstName: null,
+          lastName: null,
+          patronymic: null,
+          createdAt: new Date('2026-01-01T00:00:00Z'),
+        },
+        {
+          id: duplicateId,
+          displayName: duplicateDisplayName,
+          firstName: null,
+          lastName: null,
+          patronymic: null,
+          createdAt: new Date('2026-01-01T00:00:00Z'),
+        },
+        duplicateId,
+      ),
+      {},
+    );
 
   it('rejects an automatic merge when BOTH sides have qualifying history — a real conflict', async () => {
     const db = clientWithMedicalHistory();
 
     await expect(
-      mergePlatformUsersInTransaction(db, targetId, duplicateId, 'phone_bind', { humanDecision }),
+      mergePlatformUsersInTransaction(db, targetId, duplicateId, 'phone_bind', {
+        humanDecision: humanDecision('New account', 'Old account'),
+      }),
     ).rejects.toThrow('medical_history: automatic merge requires support');
   });
 
@@ -150,7 +172,7 @@ describe('automatic account merge medical-history gate', () => {
         targetId,
         duplicateId,
         'phone_bind',
-        { humanDecision },
+        { humanDecision: humanDecision('Old account with history', 'New account without history') },
       ),
     ).resolves.not.toThrow();
   });
@@ -162,7 +184,7 @@ describe('automatic account merge medical-history gate', () => {
         targetId,
         duplicateId,
         'phone_bind',
-        { humanDecision },
+        { humanDecision: humanDecision('New account without history', 'Old account with history') },
       ),
     ).resolves.not.toThrow();
   });
@@ -208,25 +230,65 @@ describe('support account merge', () => {
       sourceOrigin: 'direct' | 'oauth';
     };
     const contacts: CanonicalContact[] = [
-      { platformUserId: targetId, kind: 'phone', value: '+79990000001', isPrimary: true, confirmedAt: null, sourceOrigin: 'direct' },
-      { platformUserId: targetId, kind: 'email', value: 'target@example.test', isPrimary: true, confirmedAt: null, sourceOrigin: 'direct' },
-      { platformUserId: duplicateId, kind: 'phone', value: '+79990000002', isPrimary: true, confirmedAt: '2026-08-20T00:00:00.000Z', sourceOrigin: 'oauth' },
-      { platformUserId: duplicateId, kind: 'email', value: 'oauth@example.test', isPrimary: true, confirmedAt: '2026-08-20T00:00:00.000Z', sourceOrigin: 'oauth' },
+      {
+        platformUserId: targetId,
+        kind: 'phone',
+        value: '+79990000001',
+        isPrimary: true,
+        confirmedAt: null,
+        sourceOrigin: 'direct',
+      },
+      {
+        platformUserId: targetId,
+        kind: 'email',
+        value: 'target@example.test',
+        isPrimary: true,
+        confirmedAt: null,
+        sourceOrigin: 'direct',
+      },
+      {
+        platformUserId: duplicateId,
+        kind: 'phone',
+        value: '+79990000002',
+        isPrimary: true,
+        confirmedAt: '2026-08-20T00:00:00.000Z',
+        sourceOrigin: 'oauth',
+      },
+      {
+        platformUserId: duplicateId,
+        kind: 'email',
+        value: 'oauth@example.test',
+        isPrimary: true,
+        confirmedAt: '2026-08-20T00:00:00.000Z',
+        sourceOrigin: 'oauth',
+      },
     ];
     const db = {
       query: vi.fn(async (query: string, values?: unknown[]) => {
         if (query.includes('FROM platform_users') && query.includes('FOR UPDATE')) {
           return {
             rows: [
-              { ...platformUserRow(targetId, 'Target'), phone_normalized: '+79990000001', email: 'target@example.test' },
-              { ...platformUserRow(duplicateId, 'Duplicate'), phone_normalized: '+79990000002', email: 'oauth@example.test' },
+              {
+                ...platformUserRow(targetId, 'Target'),
+                phone_normalized: '+79990000001',
+                email: 'target@example.test',
+              },
+              {
+                ...platformUserRow(duplicateId, 'Duplicate'),
+                phone_normalized: '+79990000002',
+                email: 'oauth@example.test',
+              },
             ],
           };
         }
-        if (query.includes('UPDATE public.user_contacts') && query.includes('SET platform_user_id')) {
+        if (
+          query.includes('UPDATE public.user_contacts') &&
+          query.includes('SET platform_user_id')
+        ) {
           for (const contact of contacts.filter((row) => row.platformUserId === duplicateId)) {
             const targetAlreadyPrimary = contacts.some(
-              (row) => row.platformUserId === targetId && row.kind === contact.kind && row.isPrimary,
+              (row) =>
+                row.platformUserId === targetId && row.kind === contact.kind && row.isPrimary,
             );
             contact.platformUserId = targetId;
             if (targetAlreadyPrimary) contact.isPrimary = false;
@@ -241,8 +303,11 @@ describe('support account merge', () => {
         }
         if (query.includes('WITH demoted_primary AS')) {
           const kind = values?.find((value) => value === 'phone' || value === 'email');
-          const value = values?.find((item) => item === '+79990000002' || item === 'oauth@example.test');
-          if ((kind !== 'phone' && kind !== 'email') || typeof value !== 'string') return { rows: [] };
+          const value = values?.find(
+            (item) => item === '+79990000002' || item === 'oauth@example.test',
+          );
+          if ((kind !== 'phone' && kind !== 'email') || typeof value !== 'string')
+            return { rows: [] };
           for (const contact of contacts) {
             if (contact.platformUserId === targetId && contact.kind === kind) {
               contact.isPrimary = contact.value === value;
@@ -260,9 +325,23 @@ describe('support account merge', () => {
     await mergePlatformUsersInTransaction(db, targetId, duplicateId, 'manual', { resolution });
 
     expect(contacts.filter((contact) => contact.platformUserId === duplicateId)).toEqual([]);
-    expect(contacts.filter((contact) => contact.platformUserId === targetId && contact.isPrimary)).toEqual(expect.arrayContaining([
-      expect.objectContaining({ kind: 'phone', value: '+79990000002', confirmedAt: '2026-08-20T00:00:00.000Z', sourceOrigin: 'oauth' }),
-      expect.objectContaining({ kind: 'email', value: 'oauth@example.test', confirmedAt: '2026-08-20T00:00:00.000Z', sourceOrigin: 'oauth' }),
-    ]));
+    expect(
+      contacts.filter((contact) => contact.platformUserId === targetId && contact.isPrimary),
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'phone',
+          value: '+79990000002',
+          confirmedAt: '2026-08-20T00:00:00.000Z',
+          sourceOrigin: 'oauth',
+        }),
+        expect.objectContaining({
+          kind: 'email',
+          value: 'oauth@example.test',
+          confirmedAt: '2026-08-20T00:00:00.000Z',
+          sourceOrigin: 'oauth',
+        }),
+      ]),
+    );
   });
 });

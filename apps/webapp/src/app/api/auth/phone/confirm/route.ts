@@ -20,31 +20,14 @@ import { isPlatformUserUuid } from '@/shared/platform-user/isPlatformUserUuid';
 import { prepareVerifiedPrimaryLogin } from '@/modules/auth/verifiedStaffPrimaryLogin';
 import { isAuthChannelEnabled } from '@/modules/auth/authChannelPolicy';
 import { notificationText } from '@/shared/notifications/notificationText';
-import { isCyrillicFioInput } from '@/shared/lib/fio';
-import type { HumanMergeDecision } from '@bersoncare/platform-merge';
-
-const fioSelectionSchema = z.discriminatedUnion('source', [
-  z.object({ source: z.literal('target') }),
-  z.object({ source: z.literal('duplicate') }),
-  z.object({
-    source: z.literal('custom'),
-    value: z.string().trim().min(1).max(100).refine(isCyrillicFioInput),
-  }),
-]);
+import { humanMergeDecisionSchema } from '@/modules/auth/humanMergeDecisionSchema';
 
 const bodySchema = z.object({
   challengeId: z.string().trim().min(1),
   code: z.string().trim().min(1),
   browserCalendarIana: z.string().max(120).optional(),
   attemptId: z.string().uuid().optional(),
-  mergeDecision: z.object({
-    accountConfirmed: z.literal(true),
-    fio: z.object({
-      last_name: fioSelectionSchema.optional(),
-      first_name: fioSelectionSchema.optional(),
-      patronymic: fioSelectionSchema.optional(),
-    }),
-  }).optional(),
+  mergeDecision: humanMergeDecisionSchema.optional(),
 });
 
 /**
@@ -103,20 +86,9 @@ export async function POST(request: Request) {
         ? ('max' as const)
         : ('browser' as const);
 
-  let humanMergeDecision: HumanMergeDecision | undefined;
-  if (parsed.data.mergeDecision) {
-    if (!challenge?.mergePrompt) {
-      return NextResponse.json({ ok: false, error: 'merge_prompt_missing' }, { status: 409 });
-    }
-    humanMergeDecision = {
-      accountConfirmed: true,
-      targetId: challenge.mergePrompt.target.id,
-      duplicateId: challenge.mergePrompt.duplicate.id,
-      recognizedAccountId: challenge.mergePrompt.foundAccountId,
-      fio: parsed.data.mergeDecision.fio,
-    };
-  }
-  const result = await deps.auth.confirmPhoneAuth(challengeId, code, humanMergeDecision);
+  const result = await deps.auth.confirmPhoneAuth(challengeId, code, {
+    ...(parsed.data.mergeDecision ? { humanMergeDecision: parsed.data.mergeDecision } : {}),
+  });
 
   if (!result.ok) {
     if (isRegistrationIntent) {

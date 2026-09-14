@@ -242,6 +242,7 @@ export function PhoneMessengerAuthFlow({
   ) {
     return (
       <AccountMergeConfirmation
+        key={JSON.stringify(mergePrompt)}
         prompt={mergePrompt}
         busy={loading}
         onReject={() => {
@@ -250,7 +251,7 @@ export function PhoneMessengerAuthFlow({
           setChallengeId(null);
           setStep('phone');
         }}
-        onConfirm={async (fio) => {
+        onConfirm={async (mergeDecision) => {
           setLoading(true);
           try {
             const profileMessengerBind = purpose === 'profile_bind' && setupToken;
@@ -259,23 +260,27 @@ export function PhoneMessengerAuthFlow({
                 ? '/api/auth/phone/messenger-bind/finish'
                 : '/api/auth/phone/confirm',
               {
-              method: 'POST',
-              headers: { 'content-type': 'application/json' },
-              body: JSON.stringify({
-                ...(profileMessengerBind
-                  ? { setupToken }
-                  : { challengeId, code: verifiedCode }),
-                browserCalendarIana: getBrowserCalendarIanaForAuth(),
-                mergeDecision: { accountConfirmed: true, fio },
-              }),
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({
+                  ...(profileMessengerBind ? { setupToken } : { challengeId, code: verifiedCode }),
+                  browserCalendarIana: getBrowserCalendarIanaForAuth(),
+                  mergeDecision,
+                }),
               },
             );
             const data = (await res.json().catch(() => ({}))) as {
               ok?: boolean;
+              mergeRequired?: boolean;
+              prompt?: HumanMergePrompt;
               redirectTo?: string;
               role?: 'client' | 'doctor' | 'admin';
               message?: string;
             };
+            if (data.ok && data.mergeRequired && data.prompt) {
+              setMergePrompt(data.prompt);
+              return;
+            }
             if (!res.ok || !data.ok) {
               toast.error(data.message ?? notificationText.authConfirmationFailed);
               return;
@@ -283,6 +288,8 @@ export function PhoneMessengerAuthFlow({
             clearPoll();
             if (purpose === 'profile_bind') onProfileComplete?.();
             else if (data.redirectTo) redirectOk(data.redirectTo, data.role);
+          } catch {
+            toast.error(notificationText.authConfirmationFailed);
           } finally {
             setLoading(false);
           }
@@ -412,13 +419,11 @@ export function PhoneMessengerAuthFlow({
     if (!phone || !challengeId)
       return { kind: 'error', message: 'Нет данных для повторной отправки' };
     if (purpose === 'login') {
-      return startLoginPhoneOtp(
-        phone,
-        otpChannel === 'automatic' ? undefined : otpChannel,
-      ).then((ok) =>
-        ok
-          ? { kind: 'ok' as const }
-          : { kind: 'error' as const, message: 'Не удалось запросить код' },
+      return startLoginPhoneOtp(phone, otpChannel === 'automatic' ? undefined : otpChannel).then(
+        (ok) =>
+          ok
+            ? { kind: 'ok' as const }
+            : { kind: 'error' as const, message: 'Не удалось запросить код' },
       );
     }
     if (setupToken && bindChannel) {
@@ -473,9 +478,7 @@ export function PhoneMessengerAuthFlow({
             Назад
           </Button>
         ) : null}
-        <h2 className={cn(patientSectionTitleClass, 'text-center')}>
-          {title}
-        </h2>
+        <h2 className={cn(patientSectionTitleClass, 'text-center')}>{title}</h2>
         <InternationalPhoneInput
           disabled={loading}
           onSubmit={runCheckPhone}
@@ -573,9 +576,7 @@ export function PhoneMessengerAuthFlow({
             {bindManualCommand ? (
               <p className={patientCaptionTextClass}>
                 Если бот открылся без запроса контакта, отправьте команду:{' '}
-                <span className="font-mono patient-text-primary">
-                  {bindManualCommand}
-                </span>
+                <span className="font-mono patient-text-primary">{bindManualCommand}</span>
               </p>
             ) : null}
             <Button

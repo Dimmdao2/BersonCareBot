@@ -28,7 +28,12 @@ import {
   pickMergeTargetId,
   enrichPickMergeCandidatesWithBookingCounts,
 } from '@/infra/repos/pgPlatformUserMerge';
-import type { HumanMergeDecision, HumanMergePrompt } from '@bersoncare/platform-merge';
+import {
+  createHumanMergePrompt,
+  humanMergeDecisionMatchesPrompt,
+  type HumanMergeDecision,
+  type HumanMergePrompt,
+} from '@bersoncare/platform-merge';
 import { upsertBroadcastDefaultsAfterChannelBind } from '@/infra/upsertBroadcastDefaultsAfterChannelBind';
 import { applyPlatformUserPhoneHistoryTransition } from '@/infra/repos/pgPhoneHistory';
 import {
@@ -114,33 +119,22 @@ function buildHumanMergePrompt(
   duplicate: MergePromptRow,
   foundAccountId: string,
 ): HumanMergePrompt {
-  const conflicts = (['last_name', 'first_name', 'patronymic'] as const).filter((field) => {
-    const left = target[field]?.trim() || null;
-    const right = duplicate[field]?.trim() || null;
-    return left !== null && right !== null && left !== right;
-  });
   const summary = (row: MergePromptRow) => ({
     id: row.id,
     displayName: row.display_name,
     firstName: row.first_name,
     lastName: row.last_name,
     patronymic: row.patronymic,
-    createdAt: row.created_at.toISOString(),
+    createdAt: row.created_at,
   });
-  return {
-    target: summary(target),
-    duplicate: summary(duplicate),
-    foundAccountId,
-    conflicts,
-  };
+  return createHumanMergePrompt(summary(target), summary(duplicate), foundAccountId);
 }
 
-function decisionForPair(
+function decisionForPrompt(
   decision: HumanMergeDecision | undefined,
-  targetId: string,
-  duplicateId: string,
+  prompt: HumanMergePrompt,
 ): HumanMergeDecision | null {
-  if (!decision || decision.targetId !== targetId || decision.duplicateId !== duplicateId) {
+  if (!decision || !humanMergeDecisionMatchesPrompt(decision, prompt)) {
     return null;
   }
   return decision;
@@ -610,15 +604,12 @@ export const pgUserByPhonePort: UserByPhonePort = {
                   canonicalOwnerId,
                 ]);
               }
-              const humanDecision = decisionForPair(
-                options?.humanMergeDecision,
-                canonicalProfileId,
-                canonicalOwnerId,
-              );
+              const prompt = buildHumanMergePrompt(targetRow, duplicateRow, canonicalOwnerId);
+              const humanDecision = decisionForPrompt(options?.humanMergeDecision, prompt);
               if (!humanDecision) {
                 return {
                   kind: 'merge_required' as const,
-                  prompt: buildHumanMergePrompt(targetRow, duplicateRow, canonicalOwnerId),
+                  prompt,
                 };
               }
               await mergePlatformUsersInTransaction(
@@ -730,19 +721,16 @@ export const pgUserByPhonePort: UserByPhonePort = {
                 throw new MergeConflictError('createOrBind: row load failed', [userId, other]);
               const [ea, eb] = await enrichPickMergeCandidatesWithBookingCounts(client, a, b);
               const { target, duplicate } = pickMergeTargetId(ea, eb);
-              const humanDecision = decisionForPair(
-                options?.humanMergeDecision,
-                target,
-                duplicate,
+              const prompt = buildHumanMergePrompt(
+                target === a.id ? a : b,
+                duplicate === a.id ? a : b,
+                other,
               );
+              const humanDecision = decisionForPrompt(options?.humanMergeDecision, prompt);
               if (!humanDecision) {
                 return {
                   kind: 'merge_required' as const,
-                  prompt: buildHumanMergePrompt(
-                    target === a.id ? a : b,
-                    duplicate === a.id ? a : b,
-                    other,
-                  ),
+                  prompt,
                 };
               }
               try {
@@ -782,7 +770,7 @@ export const pgUserByPhonePort: UserByPhonePort = {
       user,
       wasCreated: bound.wasCreated,
       ...(options?.humanMergeDecision
-        ? { mergedAccountId: options.humanMergeDecision.duplicateId }
+        ? { mergedAccountId: options.humanMergeDecision.prompt.duplicate.id }
         : {}),
     };
   },

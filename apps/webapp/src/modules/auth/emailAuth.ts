@@ -7,15 +7,11 @@ import {
   OTP_RESEND_COOLDOWN_SEC,
   nextOtpLockoutDurationSeconds,
 } from '@/modules/auth/otpConstants';
-import type {
-  EmailAuthDbPort,
-  EmailChallengePurpose,
-  HumanMergeAnswer,
-} from '@/modules/auth/emailAuthPort';
+import type { EmailAuthDbPort, EmailChallengePurpose } from '@/modules/auth/emailAuthPort';
 import { sendEmailAuthCode } from '@/modules/auth/emailSendPort';
 import type { MailProfileRequest } from '@/modules/auth/mailProfile';
 import { AUTH_CHANNEL_DISABLED_ERROR } from '@/modules/auth/authChannelPolicy';
-import type { HumanMergePrompt } from '@bersoncare/platform-merge';
+import type { HumanMergeDecision, HumanMergePrompt } from '@bersoncare/platform-merge';
 
 export type { EmailChallengePurpose } from '@/modules/auth/emailAuthPort';
 
@@ -223,7 +219,7 @@ export type EmailConfirmWithoutMergeResult = Exclude<
 export type ConfirmEmailOptions = {
   /** Server-resolved organization scope; enables safe merge with an existing client account. */
   profileBindOrganizationId?: string;
-  humanMergeAnswer?: HumanMergeAnswer;
+  humanMergeDecision?: HumanMergeDecision;
 };
 
 async function verifyChallengeCodeRow(params: {
