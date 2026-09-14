@@ -3,9 +3,22 @@ import { z } from 'zod';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
 import { requireClinicManagementBookingEngine } from '../_requireClinicManagementBookingEngine';
+import {
+  FIO_LATIN_REJECTED_MESSAGE,
+  FIO_LATIN_REJECTED_TEXT,
+  isCyrillicFioInput,
+  isFioLatinRejection,
+} from '@/shared/lib/fio';
 
 const PostSchema = z.object({
-  fullName: z.string().min(1).max(200),
+  // §20 канона идентичности: ФИО сотрудника клиники — только кириллица. Поле подписано «ФИО» и
+  // хранит имя человека, поэтому подчиняется тому же запрету, что карточка пациента и регистрация;
+  // латиница остаётся разрешённой только названию клиники и локации.
+  fullName: z
+    .string()
+    .min(1)
+    .max(200)
+    .refine(isCyrillicFioInput, { message: FIO_LATIN_REJECTED_MESSAGE }),
   /** Короткое описание обычным текстом — оно же строка превью на визитке (#926 §17.H). */
   description: z.string().max(2000).nullable().optional(),
   avatarMediaId: z.string().uuid().nullable().optional(),
@@ -31,7 +44,14 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const parsed = PostSchema.safeParse(body);
   if (!parsed.success)
-    return NextResponse.json({ ok: false, error: 'invalid_input' }, { status: 400 });
+    return NextResponse.json(
+      {
+        ok: false,
+        error: 'invalid_input',
+        ...(isFioLatinRejection(parsed) ? { message: FIO_LATIN_REJECTED_TEXT } : {}),
+      },
+      { status: 400 },
+    );
   if (parsed.data.branchId) {
     const branch = await gate.ctx.service.catalog.getBranch(parsed.data.branchId);
     if (!branch || branch.organizationId !== gate.ctx.organizationId) {
