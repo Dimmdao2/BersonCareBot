@@ -32,7 +32,7 @@ export function PasswordChangeForm({ successHref }: Props) {
         body: JSON.stringify({
           currentPassword,
           newPassword,
-          ...(altchaPayload ? { altcha: altchaPayload } : {}),
+          ...(altchaPayload ? { captcha: altchaPayload } : {}),
         }),
       });
       const result = (await response.json().catch(() => null)) as {

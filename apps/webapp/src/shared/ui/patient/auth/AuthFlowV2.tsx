@@ -905,7 +905,7 @@ export function AuthFlowV2({
         body: JSON.stringify({
           email,
           password,
-          ...(passwordAltchaPayload ? { altcha: passwordAltchaPayload } : {}),
+          ...(passwordAltchaPayload ? { captcha: passwordAltchaPayload } : {}),
           ...(roleLoginPortal ? { roleLoginPortal } : {}),
         }),
       });
@@ -927,14 +927,17 @@ export function AuthFlowV2({
         toast.error(data.message ?? notificationText.authEmailNotVerifiedRetryLogin);
         return;
       }
+      // Признаки капчи разбираем до разбора кода отказа: их приносит не только «неверные данные»,
+      // но и «проверка недоступна». Виджет в этом случае обязан начаться заново — токен Яндекса
+      // одноразовый, и повторная отправка уже потраченного сожгла бы человеку следующую попытку.
+      if (data.captchaRefreshRequired) {
+        setPasswordAltchaRequired(true);
+        setPasswordAltchaPayload(null);
+        setPasswordAltchaGeneration((current) => current + 1);
+      } else if (data.captchaRequired) {
+        setPasswordAltchaRequired(true);
+      }
       if (data.error === 'invalid_credentials') {
-        if (data.captchaRefreshRequired) {
-          setPasswordAltchaRequired(true);
-          setPasswordAltchaPayload(null);
-          setPasswordAltchaGeneration((current) => current + 1);
-        } else if (data.captchaRequired) {
-          setPasswordAltchaRequired(true);
-        }
         toast.error(data.message ?? notificationText.authInvalidCredentialsOrPortalDenied);
         return;
       }

@@ -324,6 +324,7 @@ export const SYSTEM_SETTING_REGISTRY = {
   auth_passkey_enabled: runtime('admin', 'global', 'public', 'boolean', 'true'),
   auth_captcha_enabled: runtime('admin', 'global', 'server', 'boolean', 'false'),
   auth_captcha_from_attempt: runtime('admin', 'global', 'server', 'integer', '3'),
+  auth_captcha_provider: runtime('admin', 'global', 'server', 'string', 'altcha'),
   ...surfaceAuthSettingDefinitions,
   /**
    * Platform-wide availability of clinic-facing integrations. This is deliberately one
@@ -627,6 +628,14 @@ export const SYSTEM_SETTING_REGISTRY = {
     'oauth_vk_enabled',
   ),
   auth_altcha_hmac_secret: restricted('admin', 'global', 'secret_envelope', 'absent', 'redacted'),
+  auth_yandex_smartcaptcha_client_key: restricted('admin', 'global', 'string', 'absent'),
+  auth_yandex_smartcaptcha_server_key: restricted(
+    'admin',
+    'global',
+    'secret_envelope',
+    'absent',
+    'redacted',
+  ),
   vk_id_redirect_uri: restricted('admin', 'global', 'url', 'absent', 'derived', 'oauth_vk_enabled'),
   // Public OAuth client identifier, not a credential — see the yandex_oauth_client_id comment above.
   google_client_id: withSecretAudit(restricted('admin', 'global', 'secret_envelope'), AUDIT_NONE),
