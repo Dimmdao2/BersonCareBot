@@ -123,7 +123,7 @@ all_safe_jobs AS MATERIALIZED (
             'name', kept.name,
             'bytes', kept.bytes::bigint,
             'at', kept.at
-          ))
+          ) ORDER BY kept.at DESC)
           FROM (
             SELECT
               artifact->>'name' AS name,
