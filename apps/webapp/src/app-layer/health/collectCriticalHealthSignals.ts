@@ -284,6 +284,7 @@ async function collectCriticalHealthSignalsBase(
     videoTranscodeStatus,
     webhookBursts,
     operatorIncidents,
+    blockedMediaPreviews,
   ] = await Promise.all([
     probeWebappDb(),
     probeIntegratorApi(),
@@ -293,6 +294,9 @@ async function collectCriticalHealthSignalsBase(
     probeVideoTranscodeStatus(),
     read.listWebhookBurstSignals(WEBHOOK_BURST_WINDOW_MINUTES, WEBHOOK_BURST_MIN_COUNT),
     read.listOpenIncidents(100),
+    // Баннер и так ходит в базу несколько раз; лишней ПОСЛЕДОВАТЕЛЬНОЙ поездки в конце быть не
+    // должно — счёт заблокированных превью едет вместе с остальными замерами.
+    countBlockedMediaPreviewsSafe(),
   ]);
   // См. пояснение в запланированном пути: счётчик отказов интегратора хранится в отметке тика,
   // потому что соседние тики попадают на разные цвета blue/green.
@@ -339,7 +343,7 @@ async function collectCriticalHealthSignalsBase(
     probeIncidentsOpenCount: operatorIncidents.filter(isOperatorProbeFailureIncident).length,
     videoTranscodeStatus,
     webhookBursts,
-    blockedMediaPreviews: await countBlockedMediaPreviewsSafe(),
+    blockedMediaPreviews,
   };
 }
 
