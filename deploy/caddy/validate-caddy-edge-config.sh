@@ -13,7 +13,8 @@ trap cleanup EXIT
 
 export CADDY_ACME_EMAIL=ops@example.invalid
 export CADDY_DATA_DIR="$work_dir/data"
-export CADDY_PLATFORM_DOMAINS='therapysto.ru www.therapysto.ru admin.therapysto.ru www.therapygo.ru'
+export CADDY_PLATFORM_DOMAINS='therapysto.ru admin.therapysto.ru'
+export CADDY_WWW_DOMAINS='www.therapysto.ru www.therapygo.ru'
 export CADDY_ASK_URL=https://therapygo.ru/api/public/domains/ask
 export CADDY_UPSTREAM=127.0.0.1:8088
 export CADDY_MEET_DOMAIN=meet.example.invalid

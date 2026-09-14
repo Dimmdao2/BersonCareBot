@@ -79,6 +79,18 @@ therapygo.ru {
 	import edge_common
 }
 
+# Имена с `www`. Они наши, сертификат для них выпускается так же, но приложение про них не знает:
+# его карта поверхностей описывает апексы, а всё незнакомое имя получает один и тот же ответ «такого
+# адреса нет» (proxy.ts, решение B4a/B5 — четыре разных отказа обязаны быть неразличимы). Поэтому
+# `www` разруливается здесь, на краю: человек, набравший привычное `www.`, попадает куда хотел, а
+# карта поверхностей приложения и неразличимость отказов остаются нетронутыми.
+#
+# `{labels.N}` нумеруются справа налево: для `www.therapygo.ru` это ru=0, therapygo=1, www=2 — то
+# есть цель редиректа собирается из имени запроса и отдельного списка апексов не требует.
+{$CADDY_WWW_DOMAINS} {
+	redir https://{labels.1}.{labels.0}{uri} permanent
+}
+
 # Clinic names — their own domains and their `<slug>.therapygo.ru` subdomains.
 # The headerless public ask endpoint approves only a hostname we actually serve:
 # an eligible custom-domain binding, or a subdomain label that resolves to an
