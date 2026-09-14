@@ -42,6 +42,11 @@ type LeadListResponse = { ok: true; leads: Lead[] };
 type LeadMutationResponse = { ok: boolean; lead?: Lead; error?: string };
 type LeadFilter = 'all' | LeadStatus;
 type LeadAction = 'accept' | 'close' | 'reject' | 'archive' | 'unarchive';
+type LeadAccountGroup = {
+  platformUserId: string;
+  contact: Lead;
+  applications: Lead[];
+};
 
 const LEAD_STATUS_LABEL: Record<LeadStatus, string> = {
   new: 'Новая заявка',
@@ -60,6 +65,23 @@ function leadName(lead: Lead): string {
 
 function leadContact(lead: Lead): string {
   return [lead.submittedEmail, lead.submittedPhone].filter(Boolean).join(' · ');
+}
+
+function groupLeadsByAccount(leads: readonly Lead[]): LeadAccountGroup[] {
+  const groups = new Map<string, LeadAccountGroup>();
+  for (const lead of leads) {
+    const group = groups.get(lead.platformUserId);
+    if (group) {
+      group.applications.push(lead);
+    } else {
+      groups.set(lead.platformUserId, {
+        platformUserId: lead.platformUserId,
+        contact: lead,
+        applications: [lead],
+      });
+    }
+  }
+  return [...groups.values()];
 }
 
 function formatLeadDate(value: string): string {
@@ -323,6 +345,7 @@ export function LeadsTab({ deepLinkParams, onDeepLinkChange }: CommunicationsTab
     () => (filter === 'all' ? leads : leads.filter((lead) => lead.status === filter)),
     [filter, leads],
   );
+  const leadAccountGroups = useMemo(() => groupLeadsByAccount(filteredLeads), [filteredLeads]);
   const selectedLead = leads.find((lead) => lead.id === selectedId) ?? null;
 
   const applyAction = useCallback(
@@ -396,36 +419,54 @@ export function LeadsTab({ deepLinkParams, onDeepLinkChange }: CommunicationsTab
         ) : filteredLeads.length === 0 ? (
           <DoctorEmptyState>Заявок нет</DoctorEmptyState>
         ) : (
-          <DoctorDnaFlatList>
-            {filteredLeads.map((lead) => {
-              const selected = lead.id === selectedId;
+          <ul className="m-0 list-none p-0 [&>li+li]:border-t [&>li+li]:border-border/60">
+            {leadAccountGroups.map((group) => {
               return (
-                <li key={lead.id}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedId(lead.id);
-                      setMobileView('detail');
-                    }}
-                    className={cn(
-                      doctorDnaFlatListRowClass,
-                      doctorDnaFlatListClickableClass,
-                      'w-full flex-col items-stretch gap-1 text-left',
-                      selected && 'bg-primary/15 text-primary',
-                    )}
+                <li key={group.platformUserId}>
+                  <div className="grid gap-0.5 bg-muted/35 px-[var(--doctor-list-inline-padding,18px)] py-2.5">
+                    <span className={doctorDnaFlatListPrimaryClass}>{leadName(group.contact)}</span>
+                    <span className={doctorDnaFlatListMetaClass}>{leadContact(group.contact)}</span>
+                  </div>
+                  <DoctorDnaFlatList
+                    aria-label={`Заявки контакта ${leadName(group.contact)}`}
+                    className="border-t border-border/60"
                   >
-                    {selected ? <DoctorDnaFlatListSelectionStrip /> : null}
-                    <span className={doctorDnaFlatListPrimaryClass}>{leadName(lead)}</span>
-                    <span className={doctorDnaFlatListMetaClass}>{leadContact(lead)}</span>
-                    <span className="flex flex-wrap justify-between gap-x-2 gap-y-1">
-                      <span>{LEAD_STATUS_LABEL[lead.status]}</span>
-                      <span>{formatLeadDate(lead.createdAt)}</span>
-                    </span>
-                  </button>
+                    {group.applications.map((lead) => {
+                      const selected = lead.id === selectedId;
+                      return (
+                        <li key={lead.id}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedId(lead.id);
+                              setMobileView('detail');
+                            }}
+                            className={cn(
+                              doctorDnaFlatListRowClass,
+                              doctorDnaFlatListClickableClass,
+                              'w-full flex-col items-stretch gap-1 text-left',
+                              selected && 'bg-primary/15 text-primary',
+                            )}
+                          >
+                            {selected ? <DoctorDnaFlatListSelectionStrip /> : null}
+                            <span className={doctorDnaFlatListPrimaryClass}>
+                              {LEAD_STATUS_LABEL[lead.status]}
+                            </span>
+                            <span className={cn(doctorDnaFlatListMetaClass, 'line-clamp-2')}>
+                              {lead.messageText}
+                            </span>
+                            <span className={doctorDnaFlatListMetaClass}>
+                              {formatLeadDate(lead.createdAt)}
+                            </span>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </DoctorDnaFlatList>
                 </li>
               );
             })}
-          </DoctorDnaFlatList>
+          </ul>
         )}
       </div>
     </section>

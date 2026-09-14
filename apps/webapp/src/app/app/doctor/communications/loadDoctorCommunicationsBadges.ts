@@ -21,7 +21,7 @@ export type DoctorCommunicationsBadgesDeps = {
   leads?: {
     list(params: {
       organizationId: string;
-      includeArchived: boolean;
+      archiveScope: 'active' | 'archived';
       limit: number;
     }): Promise<Array<{ status: string }>>;
   };
@@ -73,7 +73,7 @@ export async function loadDoctorCommunicationsBadges(
           .catch(() => 0);
 
   const newLeads = await deps.leads
-    ?.list({ organizationId: context.organizationId, includeArchived: false, limit: 200 })
+    ?.list({ organizationId: context.organizationId, archiveScope: 'active', limit: 200 })
     .then((leads) => leads.filter((lead) => lead.status === 'new').length)
     .catch(() => 0);
 
