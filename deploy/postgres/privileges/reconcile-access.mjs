@@ -7,6 +7,8 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { resolve } from 'node:path';
 
+import { splitExclusiveDdl } from './generate.mjs';
+
 const root = resolve(import.meta.dirname, '..', '..', '..');
 
 // Сколько ждать чужой замок, прежде чем отступить. Три секунды — заметно больше любого живого
@@ -97,20 +99,53 @@ generator('--db', dbName, '--check');
 // from the declaration (or, as found 19.08, keep unresolved merge-conflict markers) and no deploy
 // or CI step would ever notice — this reconcile is the only place that already gates on `--check`.
 generator('--db', dbName, '--check', '--port-context-only');
+// Артефакт прав отдаётся генератором ОДНИМ куском, но внутри он размечен: операторы, берущие
+// ACCESS EXCLUSIVE (владелец таблицы, флаги RLS, набор политик), стоят между метками. Здесь мы их
+// отделяем и применяем ОТДЕЛЬНОЙ короткой транзакцией — см. комментарий к `sql` ниже.
+const targetAccess = splitExclusiveDdl(generator('--db', dbName, '--target-access-only'));
+
+// Один и тот же набор логинов раскладывается дважды: до артефакта (чтобы было чем подключаться) и
+// после (артефакт снимает login-ACL и пересобирает их по декларации — последнее слово за env).
+const envLogins = generator('--env', envName, '--db', dbName);
+
+/*
+ * ДВЕ ТРАНЗАКЦИИ, а не одна, и вот почему.
+ *
+ * Замок ACCESS EXCLUSIVE держится до COMMIT. Пока всё лежало в одной транзакции, первый же
+ * разошедшийся объект отдавал свой замок только в самом конце — после четырёх длинных сверок
+ * каталога. Аудит 14.09.2026 поймал этим читателя, простоявшего в `wait_event=relation` всю
+ * оставшуюся сверку. Поэтому:
+ *
+ *   ТРАНЗАКЦИЯ 1 — короткая: предпосылки (логины, контракт порт-контекста, реестр стен,
+ *   org-allowlist) и ТОЛЬКО операторы с ACCESS EXCLUSIVE. Коммитится сразу, замок живёт секунды.
+ *   ТРАНЗАКЦИЯ 2 — атомарная, как и была: REVOKE/GRANT целиком плюс все сверки. Набор прав
+ *   по-прежнему либо применяется целиком, либо не применяется вовсе.
+ *
+ * Что это стоит: если упадёт вторая транзакция, владелец/RLS/политики уже починены, а набор грантов
+ * останется прежним — то есть предыдущим согласованным, а не половинчатым. Это заметно лучше, чем
+ * держать клинику в очереди за замком всё время деплоя.
+ *
+ * Взаимное исключение двух reconcile держит advisory-замок УРОВНЯ СЕССИИ: транзакционный умер бы на
+ * первом COMMIT и пустил второй процесс в середину. `lock_timeout` тоже ставится на сессию, чтобы
+ * накрыть и сам advisory-замок, и обе транзакции.
+ */
+const advisoryLockArgument =
+  "pg_catalog.hashtextextended('bcb-access-reconcile:' || current_database(), 0)";
 const sql = [
   '\\set ON_ERROR_STOP on',
   `\\set DBNAME ${dbName}`,
   generator('--env', envName, '--db', dbName, '--env-login-variables'),
-  'BEGIN;',
   // Замок берём С ОЖИДАНИЕМ, а не намертво. Без этого первый же занятый объект ставил reconcile в
   // очередь на ACCESS EXCLUSIVE, а за ним — ВСЕХ последующих читателей той же таблицы: живая работа
-  // клиники вставала до конца деплоя. С таймаутом попытка падает целиком и повторяется позже, когда
-  // очередной запрос отпустит объект; частичного состояния при этом не остаётся — транзакция одна.
-  `SET LOCAL lock_timeout = ${LOCK_TIMEOUT_SQL_LITERAL};`,
-  `SELECT pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('bcb-access-reconcile:' || current_database(), 0));`,
+  // клиники вставала до конца деплоя. С таймаутом попытка падает и повторяется позже, когда
+  // очередной запрос отпустит объект.
+  `SET lock_timeout = ${LOCK_TIMEOUT_SQL_LITERAL};`,
+  `SELECT pg_catalog.pg_advisory_lock(${advisoryLockArgument});`,
+
+  'BEGIN;',
   // Target login shells, attributes, memberships and passwords are the only
   // allowed cluster mutations in a per-target reconcile.
-  generator('--env', envName, '--db', dbName),
+  envLogins,
   // Verify the complete shared graph after repairing this target's exact four
   // login edges. Sibling or rogue edges are never repaired here.
   // `--db` здесь называет КЛАСТЕР цели: роль-мигратор объявлена на среду, и требовать мигратора
@@ -119,15 +154,21 @@ const sql = [
   repositorySql('deploy/postgres/port-context/contract.sql'),
   generator('--db', dbName, '--relation-wall-registry'),
   repositorySql(`deploy/postgres/generated/org-allowlist.${dbName}.sql`),
-  generator('--db', dbName, '--target-access-only'),
+  targetAccess.exclusive,
+  'COMMIT;',
+
+  'BEGIN;',
+  targetAccess.rest,
   // The deny-by-default target artifact revokes login ACLs before rebuilding
   // canonical-role access. Reapply the same four target logins last so their
   // exact CONNECT/schema ACLs and memberships are the committed final state.
-  generator('--env', envName, '--db', dbName),
+  envLogins,
   generator('--db', dbName, '--port-context-verify'),
   generator('--env', envName, '--db', dbName, '--env-verify'),
   generator('--db', dbName, '--catalog-closure-verify'),
   'COMMIT;',
+
+  `SELECT pg_catalog.pg_advisory_unlock(${advisoryLockArgument});`,
 ].join('\n');
 
 /**
