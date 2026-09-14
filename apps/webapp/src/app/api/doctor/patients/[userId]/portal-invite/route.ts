@@ -21,12 +21,32 @@ const revokeSchema = z.object({ inviteId: z.string().uuid() }).strict();
  * Именно у `deps.resolvePatientPublicOrigin`, а не у сервиса напрямую: витрина, из которой origin
  * выводится, объявлена пред-сессионной, и под принципалом специалиста прямой вызов падает 500.
  */
+/**
+ * Отсутствие публичного адреса у клиники — ОЖИДАЕМЫЙ отказ, а не поломка. Резолвер сообщает о нём
+ * исключением (этот контракт уже ловит `modules/payments/service.ts`), и без перехвата здесь
+ * маршрут отдавал голый 500, а специалист читал «Повторите попытку» — совет, который не поможет
+ * НИКОГДА. Найдено 14.09.2026 на живом проде: у клиники нет записи в публичном каталоге, потому
+ * что поверхности специалиста и пациента разведены по разным доменам и подстановка одного общего
+ * адреса больше не работает.
+ */
+async function patientOriginOrNull(
+  deps: ReturnType<typeof buildAppDeps>,
+  organizationId: string,
+): Promise<string | null> {
+  try {
+    return (await deps.resolvePatientPublicOrigin?.(organizationId)) ?? null;
+  } catch (error) {
+    if (error instanceof Error && error.message === 'patient_public_origin_unresolved') return null;
+    throw error;
+  }
+}
+
 async function inviteLinkPayload(
   deps: ReturnType<typeof buildAppDeps>,
   organizationId: string,
   inviteId: string,
 ): Promise<{ url: string; qrDataUri: string } | null> {
-  const patientOrigin = await deps.resolvePatientPublicOrigin?.(organizationId);
+  const patientOrigin = await patientOriginOrNull(deps, organizationId);
   if (!patientOrigin) return null;
   const url = new URL(patientInviteRelativeUrl(inviteId), patientOrigin).toString();
   return { url, qrDataUri: await renderInviteQrDataUri(url) };
@@ -91,6 +111,12 @@ export async function POST(_request: Request, { params }: { params: Promise<{ us
       { ok: false, error: 'workspace_module_disabled', module: 'client_portal' },
       { status: 403 },
     );
+  }
+  // Адрес проверяется ДО выпуска: приглашение, к которому нельзя собрать ссылку, показать
+  // специалисту всё равно нечем, а в базе оно бы осталось висеть неотданным.
+  const patientOrigin = await patientOriginOrNull(patient.deps, gate.ctx.organizationId);
+  if (!patientOrigin) {
+    return NextResponse.json({ ok: false, error: 'patient_origin_unresolved' }, { status: 503 });
   }
   const result = await withDoctorWorkspacePrincipal(
     gate.ctx,

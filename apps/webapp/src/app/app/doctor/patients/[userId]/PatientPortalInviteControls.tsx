@@ -94,7 +94,14 @@ export function PatientPortalInviteControls({
         typeof json.url !== 'string' ||
         typeof json.qrDataUri !== 'string'
       ) {
-        toast.error(notificationText.doctorInviteCreateFailed);
+        // «Повторите попытку» годится только там, где повтор может помочь. Отсутствие публичного
+        // адреса у клиники повтором не лечится, и молчать об этом — значит отправить специалиста
+        // жать кнопку до бесконечности (владелец прислал ровно этот экран 14.09.2026).
+        toast.error(
+          json?.error === 'patient_origin_unresolved'
+            ? notificationText.doctorInvitePatientOriginMissing
+            : notificationText.doctorInviteCreateFailed,
+        );
         return;
       }
       // Абсолютную ссылку собирает сервер: у клиники со своим доменом она обязана вести на её

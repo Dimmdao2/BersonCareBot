@@ -162,9 +162,14 @@ describe('C3M-10 portal invite door', () => {
     fakes.buildAppDeps.mockReturnValue(deps);
 
     // Молча собрать ссылку «хоть от какого-нибудь» хоста нельзя: она уйдёт человеку и не откроется.
-    await expect(
-      issuePortalInvite(new Request('https://app.example.test'), params),
-    ).rejects.toThrow();
+    // Но и падать с 500 маршрут не имеет права: специалист читал «Повторите попытку», а повтор не
+    // помогает НИКОГДА, пока у клиники нет публичного адреса (владелец прислал этот экран 14.09).
+    const response = await issuePortalInvite(new Request('https://app.example.test'), params);
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({ ok: false, error: 'patient_origin_unresolved' });
+    // Приглашение не выпускается вовсе: отдать его специалисту всё равно нечем, а в базе оно
+    // осталось бы висеть неотданным.
+    expect(deps.patientInvites.issue).not.toHaveBeenCalled();
   });
 
   it('refuses to issue an invite when the organization turned the portal off', async () => {
