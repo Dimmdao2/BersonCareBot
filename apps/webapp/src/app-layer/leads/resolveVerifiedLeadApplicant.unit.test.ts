@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { WebappSqlExecutor } from '@/infra/db/runWebappSql';
 import { resolveVerifiedLeadApplicant } from './resolveVerifiedLeadApplicant';
 
 describe('verified lead identity resolution', () => {
@@ -14,7 +13,6 @@ describe('verified lead identity resolution', () => {
         submittedPhone: '+79991234567',
       },
       {
-        db: {} as WebappSqlExecutor,
         findTrustedPhoneOwner,
         claimEmail,
       },
@@ -39,7 +37,6 @@ describe('verified lead identity resolution', () => {
         submittedPhone: '+79991234567',
       },
       {
-        db: {} as WebappSqlExecutor,
         findTrustedPhoneOwner: vi.fn(async () => null),
         claimEmail,
       },

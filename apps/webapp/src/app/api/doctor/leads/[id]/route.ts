@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
 import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import {
@@ -80,8 +81,20 @@ export async function PATCH(request: Request, route: { params: Promise<{ id: str
       ? NextResponse.json({ ok: true, lead })
       : NextResponse.json({ ok: false, error: 'lead_not_found' }, { status: 404 });
   } catch (error) {
-    const code = error instanceof Error ? error.message : 'lead_change_failed';
-    const status = code === 'lead_status_transition_invalid' ? 409 : 503;
-    return NextResponse.json({ ok: false, error: code }, { status });
+    // Наружу уходит либо ЕДИНСТВЕННЫЙ предметный код перехода, либо безопасный отказ с digest:
+    // `error.message` в ответе отдавал бы человеку текст любого внутреннего исключения.
+    if (error instanceof Error && error.message === 'lead_status_transition_invalid') {
+      return NextResponse.json(
+        { ok: false, error: 'lead_status_transition_invalid' },
+        { status: 409 },
+      );
+    }
+    // 503 и для предметной, и для неопознанной: до этой правки маршрут отвечал 503 на всё, кроме
+    // запрещённого перехода, и менять это молча вместе с закрытием утечки текста нельзя.
+    return respondWithSafeApiError('api/doctor/leads/[id]', error, {
+      fallbackCode: 'lead_change_failed',
+      fallbackStatus: 503,
+      domainStatus: 503,
+    });
   }
 }

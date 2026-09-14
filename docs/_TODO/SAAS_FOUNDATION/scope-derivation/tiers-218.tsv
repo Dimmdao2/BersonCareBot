@@ -117,6 +117,7 @@ SCOPED|public.doctor_notes
 SCOPED|public.doctor_patient_support
 SCOPED|public.lfk_complex_exercises
 SCOPED|public.lfk_complex_template_exercises
+SCOPED|public.leads
 SCOPED|public.lfk_complex_templates
 SCOPED|public.lfk_complexes
 SCOPED|public.lfk_exercise_load_types

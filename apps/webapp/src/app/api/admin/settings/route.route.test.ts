@@ -474,8 +474,24 @@ describe('clinic-owner atomic settings readback', () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ ok: true, settings: saved });
     expect(fakes.persistSettingsBatch).toHaveBeenCalledOnce();
+    // Форма кабинета не шлёт серверные механики без своего экрана («Заявки»), их дописывает
+    // нормализация — поэтому ожидается КАНОНИЧЕСКИЙ вид записи, а не дословный вход. Предмет
+    // теста прежний: запись одна и ровно в этом виде.
     expect(fakes.persistSettingsBatch).toHaveBeenCalledWith(
-      items.map((item) => ({ key: item.key, scope: 'doctor', value: item.value })),
+      items.map((item) =>
+        item.key === 'doctor_workspace_composition'
+          ? {
+              key: item.key,
+              scope: 'doctor',
+              value: {
+                value: {
+                  ...composition,
+                  modules: { ...composition.modules, leads: true },
+                },
+              },
+            }
+          : { key: item.key, scope: 'doctor', value: item.value },
+      ),
       clinicSession.user.userId,
       { organizationId: CLINIC_ORGANIZATION_ID },
     );

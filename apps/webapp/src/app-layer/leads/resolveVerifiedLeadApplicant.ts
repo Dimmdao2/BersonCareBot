@@ -1,13 +1,11 @@
-import { getWebappSqlDb, type WebappSqlExecutor } from '@/infra/db/runWebappSql';
 import { claimVerifiedEmail } from '@/infra/repos/pgEmailAuth';
-import { findTrustedCanonicalUserIdByPhone } from '@/infra/repos/pgCanonicalPlatformUser';
+import { findTrustedCanonicalUserIdByPhoneFromPool } from '@/infra/repos/pgCanonicalPlatformUser';
 import { normalizePhone } from '@/modules/auth/phoneNormalize';
 import { isValidPhoneE164 } from '@/modules/auth/phoneValidation';
 import type { VerifiedLeadApplicant } from '@/modules/leads/types';
 
 type ResolveVerifiedLeadApplicantDeps = {
-  db: WebappSqlExecutor;
-  findTrustedPhoneOwner: typeof findTrustedCanonicalUserIdByPhone;
+  findTrustedPhoneOwner: typeof findTrustedCanonicalUserIdByPhoneFromPool;
   claimEmail: typeof claimVerifiedEmail;
 };
 
@@ -29,8 +27,7 @@ export async function resolveVerifiedLeadApplicant(
   const deps =
     dependencies ??
     ({
-      db: getWebappSqlDb(),
-      findTrustedPhoneOwner: findTrustedCanonicalUserIdByPhone,
+      findTrustedPhoneOwner: findTrustedCanonicalUserIdByPhoneFromPool,
       claimEmail: claimVerifiedEmail,
     } satisfies ResolveVerifiedLeadApplicantDeps);
   const phone = input.submittedPhone ? normalizePhone(input.submittedPhone) : null;
@@ -43,7 +40,7 @@ export async function resolveVerifiedLeadApplicant(
     } as VerifiedLeadApplicant;
   }
 
-  const phoneOwnerId = await deps.findTrustedPhoneOwner(deps.db, phone);
+  const phoneOwnerId = await deps.findTrustedPhoneOwner(phone);
   if (!phoneOwnerId || phoneOwnerId === input.verifiedEmailUserId) {
     return {
       platformUserId: input.verifiedEmailUserId,

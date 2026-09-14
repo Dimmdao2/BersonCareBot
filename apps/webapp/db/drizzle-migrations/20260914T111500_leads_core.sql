@@ -58,8 +58,8 @@ CREATE INDEX IF NOT EXISTS idx_leads_org_created ON public.leads (organization_i
 CREATE INDEX IF NOT EXISTS idx_leads_org_status_created ON public.leads (organization_id, status, created_at);
 CREATE INDEX IF NOT EXISTS idx_leads_user_created ON public.leads (platform_user_id, created_at);
 
-ALTER TABLE public.leads ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.leads FORCE ROW LEVEL SECURITY;
+-- RLS здесь НЕ включается: AGENTS.md §1 — состояние прав объявлено в
+-- deploy/postgres/privileges/declaration.ts ('public.leads', стена клиники), его ставит reconcile.
 
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_public_booking_owner
