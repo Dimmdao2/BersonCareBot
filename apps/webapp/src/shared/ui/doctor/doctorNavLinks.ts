@@ -116,7 +116,7 @@ export function isDoctorMenuLinkVisible(
 }
 
 const RAW_DOCTOR_MENU_ITEMS: DoctorMenuLinkItem[] = [
-  { id: 'today', label: 'Сегодня', href: '/app/doctor', badgeKey: 'todayAttention' },
+  { id: 'today', label: 'Сегодня', href: '/app/doctor' },
   {
     id: 'schedule',
     label: 'Расписание',

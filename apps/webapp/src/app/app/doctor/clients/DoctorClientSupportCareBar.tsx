@@ -11,7 +11,7 @@ type SupportSettingsResponse = {
   effectivePolicy?: PatientProgramInteractionPolicy;
 };
 
-/** Компактный тумблер «На сопровождении» для Hero (id якоря support). */
+/** Компактный тумблер «Сопровождение» для Hero (id якоря support). */
 export function DoctorClientSupportCareBar({ patientUserId }: { patientUserId: string }) {
   const { supportGroupLabel } = useDoctorPatientTerms();
   const [loading, setLoading] = useState(true);

@@ -318,11 +318,8 @@ export function DoctorTodayDashboard({
           className="flex min-h-0 min-w-0 flex-col gap-3 overflow-hidden"
         >
           <DoctorTodayLeftKpiRow
-            pendingTestsTotal={data.pendingProgramTestsTotal}
             unreadConversations={data.unreadConversations}
             unreadTotal={data.unreadTotal}
-            pendingProgramTests={data.pendingProgramTests}
-            pendingProgramTestsTotal={data.pendingProgramTestsTotal}
             exerciseCommentAttentionItems={data.exerciseCommentAttentionItems}
             exerciseCommentAttentionTotal={data.exerciseCommentAttentionTotal}
             exerciseCommentAttentionTruncated={data.exerciseCommentAttentionTruncated}

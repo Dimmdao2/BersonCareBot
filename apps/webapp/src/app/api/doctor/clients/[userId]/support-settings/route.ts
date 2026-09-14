@@ -1,5 +1,5 @@
 /**
- * GET/PATCH /api/doctor/clients/:userId/support-settings — «На сопровождении» и гейты комментариев/медиа.
+ * GET/PATCH /api/doctor/clients/:userId/support-settings — «Сопровождение» и гейты комментариев/медиа.
  */
 import { NextResponse } from 'next/server';
 import { z } from 'zod';

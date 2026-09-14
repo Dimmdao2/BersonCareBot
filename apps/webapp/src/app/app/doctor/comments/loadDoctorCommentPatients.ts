@@ -24,7 +24,7 @@
  * Решение: email в многополевой поиск НЕ включается (см. развилку в LOG.md).
  * Поиск работает по: displayName, phone, telegramId, maxId.
  *
- * ——— ★ На сопровождении ———
+ * ——— ★ Сопровождение ———
  * Сопровождение — только визуальный маркер, не условие попадания в непрочитанные.
  */
 import type { DoctorClientsFilters } from '@/modules/doctor-clients/ports';
