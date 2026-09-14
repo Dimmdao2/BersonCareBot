@@ -30,10 +30,11 @@ import {
   formatDoctorCalendarHour,
 } from '@/shared/ui/doctor/calendar/doctorCalendarPresentation';
 import {
-  DOCTOR_FILTERS_HIDE_RECORDS_BUTTON_CLASS,
+  DOCTOR_ACTIVE_FILTER_BUTTON_CLASS,
   DOCTOR_SCHEDULE_TOOLBAR_CONTROL_CLASS,
   DoctorSchedulePeriodNav,
 } from '@/shared/ui/doctor/calendar/DoctorSchedulePeriodNav';
+import { DoctorAttentionBadge } from '@/shared/ui/doctor/DoctorAttentionBadge';
 import { DoctorStatCard } from '@/app/app/doctor/analytics/clients/DoctorStatCard';
 import { cn } from '@/lib/utils';
 import { DEFAULT_APP_DISPLAY_TIMEZONE } from '@/modules/system-settings/calendarIana';
@@ -2919,7 +2920,7 @@ export function ScheduleCalendarTab({
                 // значок, и вместе они дают белое на белом. Пока панель открыта и фильтров нет,
                 // кнопку красит сам вариант.
                 hasActiveScheduleFilters
-                  ? DOCTOR_FILTERS_HIDE_RECORDS_BUTTON_CLASS
+                  ? DOCTOR_ACTIVE_FILTER_BUTTON_CLASS
                   : !filtersPanelOpen && INACTIVE_TOOLBAR_BUTTON_CLASS,
               )}
               onClick={toggleFiltersPanel}
@@ -2927,7 +2928,10 @@ export function ScheduleCalendarTab({
               aria-expanded={filtersPanelOpen}
               aria-controls="schedule-filters-panel"
             >
-              <Filter className="size-4" aria-hidden />
+              <span className="relative inline-flex">
+                <Filter className="size-4" aria-hidden />
+                <DoctorAttentionBadge count={hasActiveScheduleFilters ? 1 : 0} dot />
+              </span>
             </Button>
           </div>
         </div>
@@ -3159,14 +3163,17 @@ export function ScheduleCalendarTab({
               // То же, что и у значка выше: с открытой панелью и без фильтров цвет даёт вариант
               // `default`, иначе белая надпись легла бы на белый фон.
               hasActiveScheduleFilters
-                ? DOCTOR_FILTERS_HIDE_RECORDS_BUTTON_CLASS
+                ? DOCTOR_ACTIVE_FILTER_BUTTON_CLASS
                 : !filtersPanelOpen && INACTIVE_TOOLBAR_BUTTON_CLASS,
             )}
             onClick={toggleFiltersPanel}
             aria-expanded={filtersPanelOpen}
             aria-controls="schedule-filters-panel"
           >
-            <Filter className="size-4" aria-hidden />
+            <span className="relative inline-flex">
+              <Filter className="size-4" aria-hidden />
+              <DoctorAttentionBadge count={hasActiveScheduleFilters ? 1 : 0} dot />
+            </span>
             Фильтры
           </Button>
         </div>
