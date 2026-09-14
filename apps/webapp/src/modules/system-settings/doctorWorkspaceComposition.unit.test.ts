@@ -30,6 +30,10 @@ const ALL_AVAILABLE = {
   analytics: true,
   client_portal: true,
   video_meetings: true,
+  // «Заявки» — серверный механик без своего экрана настроек, но он такой же ключ карты
+  // доступности: без него резолвер считает его недоступным и правило «ничего не прячем без
+  // сохранённого предпочтения» проверялось бы на неполной карте.
+  leads: true,
 } satisfies WorkspaceModuleAvailability;
 
 const ALL_UNAVAILABLE = {
@@ -43,6 +47,7 @@ const ALL_UNAVAILABLE = {
   analytics: false,
   client_portal: false,
   video_meetings: false,
+  leads: false,
 } satisfies WorkspaceModuleAvailability;
 
 function compositionWith(
