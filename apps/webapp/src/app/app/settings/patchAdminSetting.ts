@@ -1,4 +1,4 @@
-import { apiJson } from '@/shared/lib/apiJson';
+import { apiJson, ApiRequestError } from '@/shared/lib/apiJson';
 
 /**
  * PATCH ключей scope=admin через `/api/admin/settings`.
@@ -7,7 +7,10 @@ export async function patchAdminSetting(key: string, value: unknown): Promise<bo
   return (await patchAdminSettingWithResult(key, value)).ok;
 }
 
-export type PatchAdminSettingResult = { ok: true } | { ok: false; error?: string };
+export type PatchAdminSettingResult =
+  | { ok: true }
+  /** `code` — машинный код отказа маршрута; человеку его показывать нельзя, он для выбора фразы. */
+  | { ok: false; error?: string; code?: string };
 
 export async function patchAdminSettingWithResult(
   key: string,
@@ -21,7 +24,11 @@ export async function patchAdminSettingWithResult(
     });
     return { ok: true };
   } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : undefined };
+    return {
+      ok: false,
+      ...(error instanceof Error ? { error: error.message } : {}),
+      ...(error instanceof ApiRequestError ? { code: error.code } : {}),
+    };
   }
 }
 

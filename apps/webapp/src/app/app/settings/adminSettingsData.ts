@@ -19,6 +19,7 @@ import {
 } from '@/modules/operator-alerts/operatorHealthAlertConfig';
 import { parseOperatorAlertFallbackEmailSetting } from '@/modules/operator-alerts/operatorAlertFallbackEmail';
 import { RuntimeSettingUnavailableError } from '@/modules/system-settings/runtimeSettingUnavailable';
+import type { LoginCaptchaSectionProps } from '@/app/app/admin/auth/LoginCaptchaSection';
 
 export const ADMIN_TAB_REDIRECTS: Record<string, string> = {
   'system-health': '/app/admin/system-health',
@@ -94,6 +95,8 @@ const ADMIN_SETTINGS_PAGE_REQUIRED_KEYS = [
   'therapysto_max_bot_api_key',
   'therapygo_max_webhook_secret',
   'therapysto_max_webhook_secret',
+  'auth_captcha_enabled',
+  'auth_captcha_from_attempt',
   'web_push_vapid',
   'rustore_universal_push_therapygo',
   'rustore_universal_push_therapysto',
@@ -167,8 +170,46 @@ function buildAuthProvidersConfig(
 
 /** The auth page reads only its own settings; unrelated technical rows must not take it down. */
 export async function loadAuthProvidersConfig(): Promise<AuthProvidersSectionProps> {
+  return (await loadAdminAuthPageData()).authProvidersConfig;
+}
+
+export async function loadAdminAuthPageData(): Promise<{
+  authProvidersConfig: AuthProvidersSectionProps;
+  loginCaptchaConfig: LoginCaptchaSectionProps;
+}> {
   const rawAdminSettingsList = await buildAppDeps().systemSettings.listSettingsByScope('admin');
-  return buildAuthProvidersConfig(redactAdminSettingsForClient(rawAdminSettingsList));
+  const adminSettingsList = redactAdminSettingsForClient(rawAdminSettingsList);
+  const captchaEnabled = getValueJson<unknown>(
+    adminSettingsList.find((setting) => setting.key === 'auth_captcha_enabled')?.valueJson,
+    false,
+  );
+  const captchaAfter = getValueJson<unknown>(
+    adminSettingsList.find((setting) => setting.key === 'auth_captcha_from_attempt')?.valueJson,
+    3,
+  );
+  const captchaSecretStatus = getValueJson<unknown>(
+    adminSettingsList.find((setting) => setting.key === 'auth_altcha_hmac_secret')?.valueJson,
+    null,
+  );
+
+  return {
+    authProvidersConfig: buildAuthProvidersConfig(adminSettingsList),
+    loginCaptchaConfig: {
+      // Только настоящее логическое значение считается «включено» — ровно как читает дверь
+      // входа (`value = 'true'::jsonb`). Строка "true" там ВЫКЛЮЧЕНО, и если принять её здесь,
+      // админ увидит включённую капчу, которой на входе нет. Маршрут записи приводит к boolean,
+      // так что расхождение недостижимо, — и пусть остаётся недостижимым с обеих сторон.
+      initialEnabled: captchaEnabled === true,
+      initialFromAttempt:
+        typeof captchaAfter === 'number' && Number.isInteger(captchaAfter)
+          ? Math.max(1, Math.min(50, captchaAfter))
+          : 3,
+      hasStoredSecret:
+        captchaSecretStatus !== null &&
+        typeof captchaSecretStatus === 'object' &&
+        (captchaSecretStatus as Record<string, unknown>).hasStoredSecret === true,
+    },
+  };
 }
 
 function parseVideoBoolSetting(valueJson: unknown): boolean {
