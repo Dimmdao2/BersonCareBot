@@ -37,10 +37,10 @@ import {
 import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
 import { notifyDoctorLeadsChanged } from '@/shared/ui/doctor/shell/doctorShellBadgeEvents';
 import type { CommunicationsTabProps } from '../communicationsTabRegistry';
+import { resolveVisibleLeadSelection, type LeadFilter } from './leadListSelection';
 
 type LeadListResponse = { ok: true; leads: Lead[] };
 type LeadMutationResponse = { ok: boolean; lead?: Lead; error?: string };
-type LeadFilter = 'all' | LeadStatus;
 type LeadAction = 'accept' | 'close' | 'reject' | 'archive' | 'unarchive';
 type LeadAccountGroup = {
   platformUserId: string;
@@ -341,12 +341,11 @@ export function LeadsTab({ deepLinkParams, onDeepLinkChange }: CommunicationsTab
     void loadLeads();
   }, [loadLeads]);
 
-  const filteredLeads = useMemo(
-    () => (filter === 'all' ? leads : leads.filter((lead) => lead.status === filter)),
-    [filter, leads],
+  const { filteredLeads, selectedLead } = useMemo(
+    () => resolveVisibleLeadSelection(leads, filter, selectedId),
+    [filter, leads, selectedId],
   );
   const leadAccountGroups = useMemo(() => groupLeadsByAccount(filteredLeads), [filteredLeads]);
-  const selectedLead = leads.find((lead) => lead.id === selectedId) ?? null;
 
   const applyAction = useCallback(
     async (action: LeadAction, comment?: string) => {
