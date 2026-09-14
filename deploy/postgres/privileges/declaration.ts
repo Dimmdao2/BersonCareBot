@@ -30324,17 +30324,24 @@ const REV10_CONTEXT = {
       typedArgs: ['text'], volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog, app, pg_temp'],
       relationSurfaces: [
+        // Читает дверь шире, чем пишет, поэтому список записи задан отдельно: без него генератор
+        // выдаёт право писать во ВСЕ прочитанные колонки, и дверь защиты учётной записи получила бы
+        // право менять чужой адрес, признак слияния и сам одноразовый ключ. Поймано аудитом 14.09.
         { relation: 'public.login_security_actions',
           columns: ['id', 'token_hash', 'user_id', 'purpose', 'expires_at', 'used_at',
             'source_login_event_id'], operations: ['SELECT' as const, 'UPDATE' as const],
+          // Одного колоночного права записи хватает и на блокировку строки при чтении.
+          operationColumns: { UPDATE: ['used_at'] },
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.platform_users',
           columns: ['id', 'session_epoch', 'updated_at', 'merged_into_id'],
           operations: ['SELECT' as const, 'UPDATE' as const],
+          operationColumns: { UPDATE: ['session_epoch', 'updated_at'] },
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.user_password_credentials',
           columns: ['user_id', 'must_change_at', 'updated_at'],
           operations: ['SELECT' as const, 'UPDATE' as const],
+          operationColumns: { UPDATE: ['must_change_at', 'updated_at'] },
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.user_contacts',
           columns: ['id', 'platform_user_id', 'contact_kind', 'value_normalized', 'is_primary',
