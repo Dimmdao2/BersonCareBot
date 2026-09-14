@@ -91,7 +91,7 @@ export async function POST(request: Request) {
       success: false,
       error: msg,
     });
-    logger.error({ err: e }, '[internal/media-multipart/cleanup] failed');
+    logger.error({ operatorErrorDetail: e }, '[internal/media-multipart/cleanup] failed');
     return NextResponse.json({ ok: false, error: 'cleanup_failed' }, { status: 500 });
   }
 }

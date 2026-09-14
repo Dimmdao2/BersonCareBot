@@ -45,7 +45,7 @@ export async function GET(request: Request) {
     }
     return NextResponse.json({ ok: true });
   } catch (e) {
-    logger.error({ err: e }, '[internal/domains/ask] failed');
+    logger.error({ operatorErrorDetail: e }, '[internal/domains/ask] failed');
     return NextResponse.json({ ok: false, error: 'internal_error' }, { status: 500 });
   }
 }

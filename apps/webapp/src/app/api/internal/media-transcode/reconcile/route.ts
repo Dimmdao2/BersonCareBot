@@ -157,7 +157,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ ok: true, report });
   } catch (e) {
-    logger.error({ err: e }, '[internal/media-transcode/reconcile] failed');
+    logger.error({ operatorErrorDetail: e }, '[internal/media-transcode/reconcile] failed');
     const durationMs = Date.now() - reconcileStartedAt;
     const msg = e instanceof Error ? e.message : String(e);
     try {
