@@ -15,7 +15,7 @@ const ALERT_CLAIM_LEASE_MS = 10 * 60 * 1_000;
  */
 export async function runOperatorHealthCriticalTick(
   now = new Date(),
-): Promise<{ alerted: number; keys: string[] }> {
+): Promise<{ alerted: number; keys: string[]; integratorApiFailRuns: number }> {
   const input = await collectCriticalHealthSignals();
 
   // D-d, пульс 1: бьётся ТОЛЬКО когда ватермарка подтверждённых доставок сдвинулась вперёд.
@@ -187,5 +187,7 @@ export async function runOperatorHealthCriticalTick(
     activeDedupKeys: activeGenericDedupKeys,
   });
 
-  return { alerted, keys };
+  // Счётчик отказов интегратора возвращается наружу, чтобы маршрут положил его в отметку тика:
+  // следующий тик прочитает его оттуда и поймёт, второй ли это отказ подряд.
+  return { alerted, keys, integratorApiFailRuns: signals.integratorApiFailRuns ?? 0 };
 }

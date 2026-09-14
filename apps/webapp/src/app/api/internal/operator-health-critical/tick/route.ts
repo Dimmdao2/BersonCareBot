@@ -22,14 +22,16 @@ export async function POST(request: Request) {
   const startedAtIso = new Date(startedAt).toISOString();
 
   try {
-    const { alerted, keys } = await runOperatorHealthCriticalTick();
+    const { alerted, keys, integratorApiFailRuns } = await runOperatorHealthCriticalTick();
     await recordOperatorCronJobTickBestEffort({
       jobFamily: OPERATOR_HEALTH_JOB_FAMILY,
       jobKey: OPERATOR_HEALTH_CRITICAL_TICK_JOB_KEY,
       startedAtIso,
       durationMs: Date.now() - startedAt,
       success: true,
-      metaJson: { alerted, keys },
+      // `integratorApiFailRuns` — память между тиками: один тик видит отказ, письмо уходит только
+      // когда следующий видит его снова. Без записи сюда счётчик обнулялся бы каждый раз.
+      metaJson: { alerted, keys, integratorApiFailRuns },
     });
     return NextResponse.json({ ok: true, alerted, keys });
   } catch (e) {

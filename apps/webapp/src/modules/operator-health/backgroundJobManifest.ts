@@ -191,15 +191,29 @@ const BACKGROUND_JOB_MANIFEST_SOURCE = [
     label: 'Удаление медиа (purge)',
     kind: 'internal_http',
     scheduleOwner: 'host_cron',
-    scheduleHint: 'каждую минуту',
-    cron: '* * * * *',
+    /*
+     * Пять минут, а не минута (решение владельца 14.09.2026). Из библиотеки файл пропал в тот
+     * момент, когда врач его удалил; здесь дочищается хвост в S3 и в БД, и этого хвоста никто не
+     * ждёт. Минутный ритм давал 1440 запусков в сутки — треть всего шума крона на хосте.
+     *
+     * Порция поднята с 25 до 50 ОДНОВРЕМЕННО с разрежением, потому что пропускная способность равна
+     * «порция × число запусков»: 25 в минуту — это 36 000 в сутки, 25 раз в пять минут было бы
+     * 7 200, и удалённая папка на тысячу файлов уезжала бы часами. 50 раз в пять минут дают 14 400
+     * в сутки — запас против любой реальной уборки.
+     *
+     * Больше пятидесяти просить бессмысленно: `purgePendingMediaDeleteBatch` сама режет порцию
+     * пятьюдесятью, и эта граница держит длительность одного захода внутри `timeoutSec`, потому что
+     * строки удаляются по одной, каждая со своими обращениями в S3.
+     */
+    scheduleHint: 'каждые пять минут',
+    cron: '*/5 * * * *',
     artifactSlug: 'media-purge',
     environments: ['prod', 'test'],
-    route: { method: 'POST', path: '/api/internal/media-pending-delete/purge', query: 'limit=25' },
+    route: { method: 'POST', path: '/api/internal/media-pending-delete/purge', query: 'limit=50' },
     principal: 'internal_job_bearer',
     surfaceIdentity: 'app_public_origin',
     timeoutSec: 50,
-    staleAfterSec: 3 * 60,
+    staleAfterSec: 15 * 60,
     required: true,
     why: 'Очередь удаления медиа: без тика строки остаются в S3 и в БД после удаления из библиотеки.',
   },

@@ -104,10 +104,15 @@ services:
       # The surface resolver rejects a bare loopback Host. Derive the header only from a validated
       # exact origin so malformed env cannot inject another curl header.
       test: ["CMD-SHELL", "health_host=$$(node /app/deploy/host/webapp-health-host.mjs) && curl -fsS -H \"Host: $$health_host\" -o /dev/null http://127.0.0.1/api/health"]
-      interval: 10s
+      # Пока контейнер поднимается — шаг 5 секунд (`start_interval`), чтобы деплой замечал здоровье
+      # сразу, как раньше. Как только он ответил здоровым, шаг становится минутным: шесть опросов в
+      # минуту в установившейся работе ничего не добавляли, а журнал забивали (замер 14.09.2026 —
+      # 8640 строк в сутки на одном контейнере, половина всего журнала хоста).
+      interval: 60s
       timeout: 5s
-      retries: 12
-      start_period: 30s
+      retries: 3
+      start_period: 60s
+      start_interval: 5s
 
   api:
     <<: *app
@@ -132,10 +137,15 @@ services:
       # /health reports the database too, so a container that starts but cannot reach postgres is
       # unhealthy rather than green — the deploy gate reads this.
       test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:3200/health"]
-      interval: 10s
+      # Пока контейнер поднимается — шаг 5 секунд (`start_interval`), чтобы деплой замечал здоровье
+      # сразу, как раньше. Как только он ответил здоровым, шаг становится минутным: шесть опросов в
+      # минуту в установившейся работе ничего не добавляли, а журнал забивали (замер 14.09.2026 —
+      # 8640 строк в сутки на одном контейнере, половина всего журнала хоста).
+      interval: 60s
       timeout: 5s
-      retries: 12
-      start_period: 30s
+      retries: 3
+      start_period: 60s
+      start_interval: 5s
 
   # D30 Ш9: worker and scheduler are one resident process — one systemd-equivalent service, one
   # leader lock, one top-level cycle. There is no separate `worker` service anymore.
