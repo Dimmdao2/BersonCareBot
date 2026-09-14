@@ -615,14 +615,18 @@ function ListDayCard({
   showSpecialist,
 }: ListDayCardProps) {
   return (
-    <div
-      className="flex flex-col bg-card md:gap-2 md:rounded-xl md:border md:border-border md:p-3"
-      data-testid={`list-day-${dateKey}`}
-    >
-      <p className="border-b border-border/60 px-3 py-2 text-sm font-semibold capitalize text-foreground md:border-0 md:p-0">
+    // Владелец 14.09: «стандартный плоский список … заполнение так же как на мобиле, а
+    // контейнер … как на десктопных клиентах / чатах» — раньше каждый день был своей
+    // скруглённой карточкой (md:rounded-xl md:border md:p-3), а КАЖДАЯ запись внутри неё —
+    // ЕЩЁ одной вложенной карточкой (md:rounded-md md:border). Теперь и день, и запись
+    // плоские на всех брейкпоинтах (мобильное оформление); цветовую палитру по филиалу/
+    // статусу (R29, listRowClass/listRowStyle) не трогаем — она остаётся волосяной нижней
+    // границей и фоновой заливкой, просто без обводки со всех сторон и скругления.
+    <div className="flex flex-col" data-testid={`list-day-${dateKey}`}>
+      <p className="border-b border-border/60 px-[var(--doctor-list-inline-padding,18px)] py-2 text-sm font-semibold capitalize text-foreground">
         {label}
       </p>
-      <div className="flex flex-col md:gap-1">
+      <div className="flex flex-col">
         {appointments.map((appt) => {
           const start = parseFeedInstant(appt.startAt, timeZone).toFormat('HH:mm');
           const end = parseFeedInstant(appt.endAt, timeZone).toFormat('HH:mm');
@@ -639,7 +643,7 @@ function ListDayCard({
               onClick={() => onSelect(appt)}
               style={listRowStyle(appt)}
               className={cn(
-                'flex h-auto min-h-0 w-full items-start gap-3 whitespace-normal rounded-none border-0 border-b border-border/60 px-3 py-2 text-left text-sm md:rounded-md md:border md:px-3 md:py-2',
+                'flex h-auto min-h-0 w-full items-start gap-3 whitespace-normal rounded-none border-0 border-b border-border/60 px-[var(--doctor-list-inline-padding,18px)] py-2.5 text-left text-sm',
                 listRowClass(appt, timeZone),
                 // APPT-LIST-01: отметка ближайшей записи идёт ПОСЛЕ палитры строки — иначе
                 // tailwind-merge считает `border-primary/30` из палитры конфликтующим и
@@ -879,9 +883,14 @@ function ListView({
   }, [appointments.length, loadingEarlier]);
 
   return (
+    // Владелец 14.09: контейнер списка — как на десктопных «Клиенты»/«Сообщения»/«Комментарии»
+    // (`data-doctor-flat-list-surface`, edge-to-edge на мобильном, рамка+скругление от `md:`).
+    // Раньше каждый день был своей карточкой с зазором (`md:gap-3`) между ними — теперь один
+    // непрерывный список, дни разделяет собственный заголовок дня (`border-b` в `ListDayCard`).
     <div
       ref={scrollRef}
-      className="flex h-full min-h-0 flex-col overflow-y-auto bg-card md:gap-3 md:pr-1"
+      data-doctor-flat-list-surface
+      className="flex h-full min-h-0 flex-col overflow-y-auto rounded-none border-0 bg-card md:rounded-lg md:border md:border-border md:pr-1"
       data-testid="list-view"
     >
       <div ref={earlierSentinelRef} className="h-px" aria-hidden />
@@ -900,7 +909,7 @@ function ListView({
           {dayGroups.map(({ dateKey, label, appointments }, index) => (
             <Fragment key={dateKey}>
               {index === 0 || dayGroups[index - 1]?.monthKey !== dayGroups[index]?.monthKey ? (
-                <p className="mt-2 border-t border-border/70 px-3 py-4 text-center text-base font-normal capitalize text-foreground md:px-0">
+                <p className="mt-2 border-t border-border/70 px-[var(--doctor-list-inline-padding,18px)] py-4 text-center text-base font-normal capitalize text-foreground">
                   {dayGroups[index]?.monthLabel}
                 </p>
               ) : null}
