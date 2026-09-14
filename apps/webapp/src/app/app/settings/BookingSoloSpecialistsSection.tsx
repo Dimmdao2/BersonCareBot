@@ -37,6 +37,7 @@ import { MediaPickerShell } from '@/shared/ui/doctor/media/MediaPickerShell';
 import { MediaPickerPanel } from '@/shared/ui/doctor/media/MediaPickerPanel';
 import type { MediaListItem } from '@/shared/ui/doctor/media/MediaPickerList';
 import { apiJson } from '@/app/app/settings/bookingSoloAdminApi';
+import { FIO_LATIN_REJECTED_TEXT, isCyrillicFioInput } from '@/shared/lib/fio';
 
 const BASE = '/api/admin/booking-engine';
 
@@ -167,8 +168,20 @@ export function BookingSoloSpecialistsSection({
     });
   }
 
+  /**
+   * §20 канона идентичности: ФИО — только кириллица. Дверь всё равно откажет, но человек должен
+   * увидеть причину словами, а не «invalid_input». Одна проверка на все три места, где форма
+   * сохраняется: создание, правка карточки и профиль соло-специалиста.
+   */
+  function latinFioBlocked(draft: SpecialistDraft): boolean {
+    if (isCyrillicFioInput(draft.fullName)) return false;
+    setActionError(FIO_LATIN_REJECTED_TEXT);
+    return true;
+  }
+
   function createSpecialist() {
     if (!createDraft.fullName.trim()) return;
+    if (latinFioBlocked(createDraft)) return;
     run(
       async () => {
         const maxOrder = specialists.reduce(
@@ -196,6 +209,7 @@ export function BookingSoloSpecialistsSection({
 
   function saveEditedSpecialist() {
     if (!editedSpecialist || !editDraft.fullName.trim()) return;
+    if (latinFioBlocked(editDraft)) return;
     run(
       () =>
         apiJson(`${BASE}/specialists/${editedSpecialist.id}`, {
@@ -219,6 +233,7 @@ export function BookingSoloSpecialistsSection({
 
   function saveSoloProfile() {
     if (!editDraft.fullName.trim()) return;
+    if (latinFioBlocked(editDraft)) return;
     const body = draftBody(editDraft);
     run(() =>
       soloSpecialist
