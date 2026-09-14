@@ -119,7 +119,10 @@ export type DoctorCalendarAppointmentAppearance = {
  */
 const APPOINTMENT_SURFACES = {
   package: { surface: '!bg-violet-500/15 text-violet-900', border: '!border-violet-500/40' },
-  branch: { surface: 'text-foreground', border: '' },
+  // Текста тут нет намеренно: цвет надписи ставит инлайновый `textColor` филиала (см.
+  // `doctorCalendarAppointmentBranchColors`), а класс `text-foreground` его бы перебил в тех
+  // видах, где FullCalendar красит не сам элемент события, а вложенный контейнер заголовка.
+  branch: { surface: '', border: '' },
   // R10 «чуть темнее для всего»; прошлые дополнительно приглушаются через .fc-event-past.
   default: { surface: '!bg-primary/15 text-foreground', border: '!border-primary/35' },
 } as const;
@@ -235,7 +238,7 @@ export function doctorCalendarBranchColorRgba(hex: string, alpha: number): strin
  */
 export function doctorCalendarAppointmentBranchColors(
   appointment: DoctorCalendarAppointmentAppearance,
-): { backgroundColor?: string; borderColor?: string } {
+): { backgroundColor?: string; borderColor?: string; textColor?: string } {
   if (
     !appointment.branchColor ||
     isCancelledAppointmentStatus(appointment.status) ||
@@ -247,10 +250,14 @@ export function doctorCalendarAppointmentBranchColors(
   const backgroundColor = doctorCalendarBranchColorRgba(appointment.branchColor, 0.16);
   const borderColor = doctorCalendarBranchColorRgba(appointment.branchColor, 0.42);
   if (!backgroundColor || !borderColor) return {};
+  // Надпись красится ПОЛНЫМ цветом филиала — тем же приёмом, что в «Графике работы», где часы
+  // филиала подписаны насыщенным цветом. Одной заливки в 16% не хватает: владелец 14.09 смотрел на
+  // телефон и видел «какой-то один цвет» — бледно-синий и бледно-зелёный в мелком блоке неотличимы.
+  const textColor = appointment.branchColor;
   // FullCalendar writes `borderColor` as an inline style, which an `!important` author rule still
   // beats — but the branch border is dropped anyway when the status owns it, so the intent is
   // readable from the data instead of resting on one cascade rule.
   return isPaymentPendingAppointment(appointment)
-    ? { backgroundColor }
-    : { backgroundColor, borderColor };
+    ? { backgroundColor, textColor }
+    : { backgroundColor, borderColor, textColor };
 }
