@@ -8,6 +8,7 @@ const fakes = vi.hoisted(() => ({
   requireDoctorWorkspaceConfigModuleForApi: vi.fn(),
   listAdminFields: vi.fn(),
   upsertAdminField: vi.fn(),
+  archiveAdminField: vi.fn(),
 }));
 
 vi.mock('@/app-layer/di/buildAppDeps', () => ({ buildAppDeps: fakes.buildAppDeps }));
@@ -26,7 +27,7 @@ vi.mock('@/app-layer/principal/withOrganizationPrincipal', () => ({
     work(),
 }));
 
-import { GET, POST } from './route';
+import { DELETE, GET, POST } from './route';
 
 const ORGANIZATION_ID = '11111111-1111-4111-8111-111111111111';
 
@@ -60,6 +61,7 @@ describe('clinic-owner booking form field mutation', () => {
       bookingForm: {
         listAdminFields: fakes.listAdminFields,
         upsertAdminField: fakes.upsertAdminField,
+        archiveAdminField: fakes.archiveAdminField,
       },
     });
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
@@ -108,6 +110,38 @@ describe('clinic-owner booking form field mutation', () => {
       'leads',
     );
     expect(fakes.upsertAdminField).not.toHaveBeenCalled();
+  });
+
+  // Архивация — третья экспортированная дверь той же поверхности. Без неё выключенный механик заявок
+  // обходился бы через `DELETE`, и тест остался бы зелёным: §10b требует проверять настоящий
+  // публичный handler, а не один из трёх.
+  it('refuses lead-form archiving when the leads workspace module is disabled', async () => {
+    fakes.requireDoctorWorkspaceConfigModuleForApi.mockResolvedValue({
+      ok: false,
+      response: Response.json(
+        { ok: false, error: 'workspace_module_disabled', module: 'leads' },
+        { status: 403 },
+      ),
+    });
+
+    const response = await DELETE(
+      new Request('http://test/api/admin/booking-engine/form-fields', {
+        method: 'DELETE',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          id: '22222222-2222-4222-8222-222222222222',
+          formSurface: 'leads',
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(403);
+    expect(fakes.requireDoctorWorkspaceConfigModuleForApi).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ organizationId: ORGANIZATION_ID }),
+      'leads',
+    );
+    expect(fakes.archiveAdminField).not.toHaveBeenCalled();
   });
 
   it('creates through the exact organization port and returns the usable field', async () => {
