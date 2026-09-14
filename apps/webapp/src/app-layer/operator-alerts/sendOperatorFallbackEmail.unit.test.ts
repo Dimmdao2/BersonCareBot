@@ -35,6 +35,7 @@ describe('sendOperatorFallbackEmail — env label on the fallback subject', () =
     });
 
     expect(sendTransactionalEmail).toHaveBeenCalledWith(
+      'operator_alert_fallback',
       'fallback@example.com',
       '[PROD] Therapysto: некому доставить служебное уведомление',
       'Служебное уведомление не имело ни одного адресата.',
