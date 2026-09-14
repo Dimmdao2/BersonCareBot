@@ -30308,9 +30308,13 @@ const REV10_CONTEXT = {
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.user_password_credentials', columns: ['user_id'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        // INSERT ... RETURNING id — возврат строки это ЧТЕНИЕ, поэтому одного права записи мало:
+        // без SELECT сверка прав отказывает («INSERT RETURNING requires undeclared SELECT»), и дверь
+        // умирает на первом же вызове. Поймано гейтом при накатывании на DEV, а не в бою.
         { relation: 'public.login_security_actions',
           columns: ['id', 'token_hash', 'user_id', 'purpose', 'expires_at', 'source_login_event_id'],
-          operations: ['INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+          operations: ['INSERT' as const, 'SELECT' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
     'app.consume_login_security_action(text)': rev10Function({
