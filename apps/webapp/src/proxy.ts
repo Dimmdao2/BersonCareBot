@@ -40,6 +40,7 @@ import {
 } from '@/shared/lib/surface/requestSurface';
 import { productionTenantSurfaceLookup } from '@/app-layer/surface/productionTenantSurfaceLookup';
 import { CUSTOM_DOMAIN_ROUTING_PROBE_PATH } from '@/modules/domain-health/domainCertificateProbe';
+import { routePaths } from '@/app-layer/routes/paths';
 
 /**
  * Страница «здесь такого адреса нет» — одна строка, без подсказок про устройство хостов.
@@ -238,6 +239,23 @@ export async function proxy(
     response.headers.set(BC_CORRELATION_ID_HEADER, correlationId);
     return response;
   }
+  const signedSession = decodeSessionCookie(
+    request.cookies.get(SESSION_COOKIE_NAME)?.value ?? '',
+  );
+  if (
+    signedSession?.user.mustChangePassword === true &&
+    (request.method === 'GET' || request.method === 'HEAD') &&
+    !pathname.startsWith(routePaths.accountProtection) &&
+    !pathname.startsWith('/api/')
+  ) {
+    const target = request.nextUrl.clone();
+    target.pathname = routePaths.passwordChangeRequired;
+    target.search = '';
+    const response = NextResponse.redirect(target);
+    rebaseRedirectToPublicOrigin(response, resolvedSurface.publicOrigin);
+    response.headers.set(BC_CORRELATION_ID_HEADER, correlationId);
+    return response;
+  }
   const doctorResponse = doctorRouteRedirectResponse(request);
   if (doctorResponse) {
     rebaseRedirectToPublicOrigin(doctorResponse, resolvedSurface.publicOrigin);
@@ -264,7 +282,7 @@ export async function proxy(
 
   const portal = portalForAppPath(pathname);
   if (portal && !isRoleLoginPath(pathname)) {
-    const session = decodeSessionCookie(request.cookies.get(SESSION_COOKIE_NAME)?.value ?? '');
+    const session = signedSession;
     if (!session) {
       const loginUrl = request.nextUrl.clone();
       loginUrl.pathname = getRoleLoginPath(portal);

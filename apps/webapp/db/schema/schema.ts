@@ -253,6 +253,7 @@ export const userPasswordCredentials = pgTable(
       withTimezone: true,
       mode: 'string',
     }),
+    mustChangeAt: timestamp('must_change_at', { withTimezone: true, mode: 'string' }),
     updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
       .defaultNow()
       .notNull(),
@@ -3166,6 +3167,54 @@ export const userLoginEvents = pgTable(
       foreignColumns: [platformUsers.id],
       name: 'user_login_events_user_id_fkey',
     }).onDelete('cascade'),
+  ],
+);
+
+/** One-time account-protection actions issued with new-device login notices. */
+export const loginSecurityActions = pgTable(
+  'login_security_actions',
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    tokenHash: text('token_hash').notNull(),
+    userId: uuid('user_id').notNull(),
+    purpose: text().notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true, mode: 'string' }).notNull(),
+    usedAt: timestamp('used_at', { withTimezone: true, mode: 'string' }),
+    sourceLoginEventId: uuid('source_login_event_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_login_security_actions_token_hash').on(table.tokenHash),
+    uniqueIndex('uq_login_security_actions_source_login_event_id').on(table.sourceLoginEventId),
+    index('idx_login_security_actions_user_created').using(
+      'btree',
+      table.userId.asc().nullsLast().op('uuid_ops'),
+      table.createdAt.desc().nullsFirst().op('timestamptz_ops'),
+    ),
+    index('idx_login_security_actions_expires_at').using(
+      'btree',
+      table.expiresAt.asc().nullsLast().op('timestamptz_ops'),
+    ),
+    foreignKey({
+      columns: [table.userId],
+      foreignColumns: [platformUsers.id],
+      name: 'login_security_actions_user_id_fkey',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [table.sourceLoginEventId],
+      foreignColumns: [userLoginEvents.id],
+      name: 'login_security_actions_source_login_event_id_fkey',
+    }).onDelete('cascade'),
+    check(
+      'login_security_actions_token_hash_check',
+      sql`token_hash ~ '^[0-9a-f]{64}$'::text`,
+    ),
+    check(
+      'login_security_actions_purpose_check',
+      sql`purpose = 'revoke_sessions_and_require_password_change'::text`,
+    ),
   ],
 );
 

@@ -25,6 +25,7 @@ import { platformMailProfileForRecipientRole } from '@/modules/auth/mailProfile'
 import { runWithDbBootstrapPrincipal } from '@bersoncare/db-principal';
 import { roleCanUsePortal } from '@/modules/auth/roleLogin';
 import { notificationText } from '@/shared/notifications/notificationText';
+import { routePaths } from '@/app-layer/routes/paths';
 
 const bodySchema = z.object({
   email: z.string().email().max(320),
@@ -288,7 +289,9 @@ export async function POST(request: Request) {
       ok: true,
       // A factor that the user has already enrolled is verified above. Without an enrolled factor,
       // 2FA is voluntary and the role's own cabinet remains reachable.
-      redirectTo: getRedirectPathForRole(sessionUser.role),
+      redirectTo: authenticatedUser.mustChangePassword
+        ? routePaths.passwordChangeRequired
+        : getRedirectPathForRole(sessionUser.role),
       role: authenticatedUser.role,
     });
   } catch (error) {

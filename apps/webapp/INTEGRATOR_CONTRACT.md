@@ -229,9 +229,11 @@ Canonical linking rules:
 
 ---
 
-## Flow 5: BersonCare → Integrator (send email code)
+## Flow 5: BersonCare → Integrator (send email)
 
-**Направление:** webapp (bersoncare) вызывает integrator для отправки email с OTP-кодом подтверждения. Генерация и проверка кода остаются на стороне webapp.
+**Направление:** webapp (bersoncare) вызывает integrator для отправки email с OTP-кодом
+подтверждения или с явно разрешённым transactional-назначением. Генерация и проверка OTP остаются
+на стороне webapp.
 
 **SMTP на integrator:** параметры исходящей почты читаются из **`system_settings.smtp_outbound`** (admin, зеркало после sync) с коротким TTL-кэшем; при неполной строке в БД используется legacy **env** `SMTP_*` / `MAIL_*` интегратора (см. `apps/integrator/src/config/smtpOutbound.ts`).
 
@@ -260,6 +262,7 @@ Canonical linking rules:
 
 ```json
 {
+  "purpose": "new_device_login",
   "to": "patient@example.com",
   "subject": "Информационное письмо BersonCare",
   "text": "…готовый текст письма…"
@@ -271,6 +274,10 @@ Canonical linking rules:
 - `to` — email получателя (обязательно)
 - `code` — OTP-код (обязательно для OTP; **не** указывать вместе с `text`)
 - `text` — готовый текст письма (для transactional без OTP; обязателен, если нет `code`)
+- `purpose` — обязательное назначение transactional-письма без OTP из закрытого списка:
+  `new_device_login`, `clinic_invite`, `specialist_signup_duplicate`,
+  `specialist_task_reminder`, `operator_alert_fallback`; неизвестное или отсутствующее назначение
+  отклоняется как `invalid_payload`
 - `subject` — тема письма (опционально)
 - `templateId` — идентификатор шаблона для будущего расширения (опционально)
 

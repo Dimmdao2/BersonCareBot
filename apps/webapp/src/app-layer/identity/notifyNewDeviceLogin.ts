@@ -4,6 +4,7 @@ import { sendEmailSetupLinkViaIntegrator } from '@/infra/integrations/email/inte
 import { STAFF_SURFACE } from '@/config/productSurfaces';
 import { countryName, deviceSummary, loginMethodLabel } from '@/shared/ui/security/loginHistoryText';
 import type { SessionIdentityContact, UserRole } from '@/shared/types/session';
+import { issueLoginSecurityAction } from '@/infra/loginSecurityAction';
 
 /**
  * Письмо «вход с нового устройства» (#1112, Л-8.2б; решение владельца 14.09).
@@ -18,14 +19,9 @@ import type { SessionIdentityContact, UserRole } from '@/shared/types/session';
  * стоит перед экраном. Это решает дверь записи входа, отдавая `firstLoginEver`.
  */
 
-/** Разделы «Безопасность» у специалиста и у админа платформы живут по разным адресам. */
-const SECURITY_PATH_BY_ROLE: Partial<Record<UserRole, string>> = {
-  doctor: '/app/account?tab=security',
-  admin: '/app/admin/security',
-};
-
 export type NewDeviceLoginNotice = {
   userId: string;
+  sourceLoginEventId: string;
   role: UserRole;
   contacts: readonly SessionIdentityContact[] | undefined;
   method: string;
@@ -71,9 +67,11 @@ function moscowStamp(at: Date): string {
   }).format(at);
 }
 
-function buildText(input: NewDeviceLoginNotice, securityUrl: string): string {
+const ACTION_LABEL = 'Закрыть сеансы + смена пароля';
+
+function buildText(input: NewDeviceLoginNotice, actionUrl: string | null): string {
   const country = countryName(input.country);
-  return [
+  const paragraphs = [
     'Скорее всего это вы: так выглядит вход с нового телефона или компьютера, из другого ' +
       'браузера, после чистки данных сайта или из приватного окна. Тогда делать ничего не нужно, ' +
       'письмо можно удалить.',
@@ -88,12 +86,70 @@ function buildText(input: NewDeviceLoginNotice, securityUrl: string): string {
       })}`,
       `Как вошли: ${loginMethodLabel(input.method)}`,
     ].join('\n'),
-    'Если это были не вы — откройте раздел «Безопасность»:',
-    securityUrl,
-    'Там видно, с каких устройств входили и сколько раз перед этим не подошёл пароль. Оттуда же ' +
-      'можно завершить все остальные сеансы — на всех других устройствах потребуется войти заново.',
-    'Пароль в этом письме мы не спрашиваем и никогда не спросим.',
-  ].join('\n\n');
+  ];
+  if (actionUrl) {
+    paragraphs.push(
+      'Если это были не вы, нажмите кнопку ниже. Мы завершим вход на всех устройствах. При следующем ' +
+        'входе потребуется выбрать новый пароль.',
+      `${ACTION_LABEL}:\n${actionUrl}`,
+      'Ссылка действует 7 дней и сработает только один раз.',
+    );
+  } else {
+    paragraphs.push(
+      'Если это были не вы, откройте раздел «Безопасность» в кабинете и завершите вход на всех ' +
+        'устройствах.',
+    );
+  }
+  paragraphs.push('Пароль в этом письме мы не спрашиваем и никогда не спросим.');
+  return paragraphs.join('\n\n');
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+}
+
+function buildHtml(input: NewDeviceLoginNotice, actionUrl: string | null): string {
+  const country = countryName(input.country) ?? 'страна не определилась';
+  const device = deviceSummary({
+    deviceKind: input.deviceKind,
+    os: input.os,
+    browser: input.browser,
+  });
+  const parts = [
+    '<div style="font:16px/1.5 Arial,sans-serif;color:#17264a;max-width:640px">',
+    '<p>Скорее всего это вы: так выглядит вход с нового телефона или компьютера, из другого ' +
+      'браузера, после чистки данных сайта или из приватного окна. Тогда делать ничего не нужно.</p>',
+    '<p>Мы написали потому, что с этого устройства в вашу учётную запись раньше не входили.</p>',
+    `<p><strong>Когда:</strong> ${escapeHtml(moscowStamp(input.occurredAt))} (московское время)<br>` +
+      `<strong>Откуда:</strong> ${escapeHtml(country)}<br>` +
+      `<strong>Устройство:</strong> ${escapeHtml(device)}<br>` +
+      `<strong>Как вошли:</strong> ${escapeHtml(loginMethodLabel(input.method))}</p>`,
+  ];
+  if (actionUrl) {
+    parts.push(
+      '<p>Если это были не вы, завершите вход на всех устройствах. При следующем входе потребуется ' +
+        'выбрать новый пароль.</p>',
+      `<p><a href="${escapeHtml(actionUrl)}" style="display:inline-block;padding:12px 18px;` +
+        'border-radius:8px;background:#284da0;color:#fff;text-decoration:none;font-weight:700">' +
+        `${ACTION_LABEL}</a></p>`,
+      '<p>Ссылка действует 7 дней и сработает только один раз.</p>',
+    );
+  } else {
+    parts.push(
+      '<p>Если это были не вы, откройте раздел «Безопасность» в кабинете и завершите вход на всех ' +
+        'устройствах.</p>',
+    );
+  }
+  parts.push(
+    '<p>Пароль в этом письме мы не спрашиваем и никогда не спросим.</p>',
+    '</div>',
+  );
+  return parts.join('');
 }
 
 /**
@@ -105,8 +161,7 @@ function buildText(input: NewDeviceLoginNotice, securityUrl: string): string {
  */
 export async function notifyNewDeviceLogin(input: NewDeviceLoginNotice): Promise<void> {
   try {
-    const securityPath = SECURITY_PATH_BY_ROLE[input.role];
-    if (!securityPath) return;
+    if (input.role !== 'doctor' && input.role !== 'admin') return;
 
     const to = confirmedEmail(input.contacts);
     if (!to) {
@@ -119,10 +174,28 @@ export async function notifyNewDeviceLogin(input: NewDeviceLoginNotice): Promise
       return;
     }
 
+    let actionUrl: string | null = null;
+    try {
+      const actionValue = await issueLoginSecurityAction({
+        userId: input.userId,
+        sourceLoginEventId: input.sourceLoginEventId,
+      });
+      actionUrl = `${env.APP_BASE_URL}/app/protect-account?key=${encodeURIComponent(actionValue)}`;
+    } catch (err) {
+      // У сотрудника может не быть пароля (messenger/passkey/OAuth). Тогда action-key не имеет
+      // смысла и SQL-дверь закономерно отказывает, но сам сигнал о новом устройстве терять нельзя.
+      // Любой иной отказ выпуска ключа тоже не должен отменять независимое письмо-предупреждение.
+      logger.warn(
+        { err, reason: String(err), userId: input.userId },
+        '[new-device] protection action unavailable; sending notice without action',
+      );
+    }
     const result = await sendEmailSetupLinkViaIntegrator(
+      'new_device_login',
       to,
       `Вход в ${STAFF_SURFACE.name} с нового устройства`,
-      buildText(input, `${env.APP_BASE_URL}${securityPath}`),
+      buildText(input, actionUrl),
+      buildHtml(input, actionUrl),
     );
     if (!result.ok) {
       logger.error(

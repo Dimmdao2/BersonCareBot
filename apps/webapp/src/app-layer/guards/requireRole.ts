@@ -12,7 +12,11 @@ import {
   getCurrentDbPrincipal,
 } from '@bersoncare/db-principal';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import { getCurrentSession, getCurrentSessionForIdentitySelf } from '@/modules/auth/service';
+import {
+  getCurrentSession,
+  getCurrentSessionForIdentitySelf,
+  getCurrentSessionForPasswordChange,
+} from '@/modules/auth/service';
 import {
   patientClientBusinessGate,
   resolvePlatformAccessContext,
@@ -734,11 +738,15 @@ export async function requireAccountWebPushSelfApiSession(): Promise<
  * Authorization is principal-based (`enterStaffSecuritySelfPrincipal`, scoped to `session.user.userId`
  * at the DB/RLS layer), not derived from this cookie field, so relaxing it does not widen access.
  */
-export async function requireStaffSecurityApiSession(): Promise<
+export async function requireStaffSecurityApiSession(
+  options: { allowPasswordChangeRequired?: boolean } = {},
+): Promise<
   { ok: true; session: AppSession } | { ok: false; response: NextResponse }
 > {
   ensureDbPrincipalContext({ source: 'requireStaffSecurityApiSession:pending' });
-  const session = await getCurrentSession();
+  const session = options.allowPasswordChangeRequired
+    ? await getCurrentSessionForPasswordChange()
+    : await getCurrentSession();
   if (!session) {
     return {
       ok: false,

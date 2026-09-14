@@ -17,6 +17,7 @@ import {
   AUTH_CONFIRM_RATE_LIMIT_SEC,
   checkAuthConfirmRateLimit,
 } from '@/modules/auth/authConfirmRateLimit';
+import { routePaths } from '@/app-layer/routes/paths';
 
 /**
  * #1112 Л-8. Ненулевой счёт второго фактора значит, что пароль УЖЕ подошёл: до этого маршрута иначе
@@ -108,7 +109,9 @@ export async function POST(request: Request) {
     await clearStaffLoginContinuation();
     return NextResponse.json({
       ok: true,
-      redirectTo: getRedirectPathForRole(user.role),
+      redirectTo: user.mustChangePassword
+        ? routePaths.passwordChangeRequired
+        : getRedirectPathForRole(user.role),
       recoveryMode: false,
       role: user.role,
     });
@@ -156,7 +159,9 @@ export async function POST(request: Request) {
   return NextResponse.json({
     ok: true,
     redirectTo:
-      assurance === 'factor_verified'
+      user.mustChangePassword
+        ? routePaths.passwordChangeRequired
+        : assurance === 'factor_verified'
         ? getRedirectPathForRole(user.role)
         : '/app/account?tab=security',
     recoveryMode: result.recoveryMode,

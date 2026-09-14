@@ -92,6 +92,7 @@ export async function POST(request: Request) {
   const baseUrl = env.APP_BASE_URL;
   const inviteUrl = buildInviteUrl(baseUrl, token);
   const emailResult = await sendEmailSetupLinkViaIntegrator(
+    'clinic_invite',
     result.invite.invitedEmail,
     `Приглашение в ${STAFF_SURFACE.name}`,
     [

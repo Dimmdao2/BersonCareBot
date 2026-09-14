@@ -22,6 +22,8 @@ export type UserLoginEventWrite = {
 };
 
 export type UserLoginEventAppended = {
+  /** Physical row that authorized any one-time action included in the matching notice. */
+  eventId: string;
   /**
    * #1112 Л-8.2а. Этого устройства у этого человека раньше не видели. Браузер без метки тоже даёт
    * `true`: узнать его нечем, и назвать неузнанное знакомым было бы неправдой.
@@ -36,6 +38,7 @@ export async function appendUserLoginEvent(
   input: UserLoginEventWrite,
 ): Promise<UserLoginEventAppended> {
   const result = await runWebappNamedRoot<{
+    event_id: string;
     device_was_new: boolean;
     first_login_ever: boolean;
   }>(
@@ -55,7 +58,7 @@ export async function appendUserLoginEvent(
       input.deviceId,
       input.country,
     ],
-    sql`SELECT device_was_new, first_login_ever FROM app.append_user_login_event(
+    sql`SELECT event_id::text, device_was_new, first_login_ever FROM app.append_user_login_event(
       ${input.userId}::uuid,
       ${input.method}::text,
       ${input.role}::text,
@@ -74,5 +77,9 @@ export async function appendUserLoginEvent(
   // Строка обязана быть: дверь либо вставила вход и вернула ряд, либо подняла отказ. Пустой ответ
   // здесь — не «ничего не случилось», а расхождение с дверью, и глушить его нельзя.
   if (!row) throw new Error('append_user_login_event_missing_result');
-  return { deviceWasNew: row.device_was_new, firstLoginEver: row.first_login_ever };
+  return {
+    eventId: row.event_id,
+    deviceWasNew: row.device_was_new,
+    firstLoginEver: row.first_login_ever,
+  };
 }

@@ -6,6 +6,13 @@ import type { MailProfileRequest } from '@/modules/auth/mailProfile';
 
 export type PlatformEmailAudience = 'staff' | 'patient';
 
+export type TransactionalEmailPurpose =
+  | 'new_device_login'
+  | 'clinic_invite'
+  | 'specialist_signup_duplicate'
+  | 'specialist_task_reminder'
+  | 'operator_alert_fallback';
+
 type SendEmailResult = { ok: true } | { ok: false; error: string };
 
 export type IntegratorEmailAdapterDeps = {
@@ -92,12 +99,17 @@ export function createIntegratorEmailAdapter(deps: IntegratorEmailAdapterDeps) {
     },
 
     async sendTransactionalEmail(
+      purpose: TransactionalEmailPurpose,
       to: string,
       subject: string,
       text: string,
       audience: PlatformEmailAudience,
+      html?: string,
     ): Promise<SendEmailResult> {
-      return postSendEmail({ to, subject, text, audience }, `email:send:${randomUUID()}`);
+      return postSendEmail(
+        { purpose, to, subject, text, audience, ...(html ? { html } : {}) },
+        `email:send:${randomUUID()}`,
+      );
     },
   };
 }
@@ -115,13 +127,15 @@ export async function sendEmailCodeViaIntegrator(
 }
 
 export async function sendEmailSetupLinkViaIntegrator(
+  purpose: Exclude<TransactionalEmailPurpose, 'operator_alert_fallback'>,
   to: string,
   subject: string,
   text: string,
+  html?: string,
 ): Promise<SendEmailResult> {
   const adapter = createIntegratorEmailAdapter({
     integratorBaseUrl: env.INTEGRATOR_API_URL,
     sharedSecret: integratorWebhookSecret(),
   });
-  return adapter.sendTransactionalEmail(to, subject, text, 'staff');
+  return adapter.sendTransactionalEmail(purpose, to, subject, text, 'staff', html);
 }

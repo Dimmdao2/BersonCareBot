@@ -26,6 +26,7 @@ export async function sendOperatorFallbackEmail(input: {
     sharedSecret: integratorWebhookSecret(),
   });
   const result = await adapter.sendTransactionalEmail(
+    'operator_alert_fallback',
     input.to,
     stampOperatorAlertSubject(input.subject),
     input.text,

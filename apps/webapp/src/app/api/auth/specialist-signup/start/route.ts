@@ -146,7 +146,8 @@ export async function POST(request: Request) {
       await sendSpecialistSignupDuplicateNotice(
         emailNorm,
         env.APP_BASE_URL,
-        sendEmailSetupLinkViaIntegrator,
+        (to, subject, text) =>
+          sendEmailSetupLinkViaIntegrator('specialist_signup_duplicate', to, subject, text),
       );
       return jsonOk({
         challengeId: randomUUID(),
