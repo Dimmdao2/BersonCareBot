@@ -32,6 +32,7 @@ import { DoctorSection } from '@/shared/ui/doctor/DoctorSection';
 import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
 import { DoctorCatalogStickyToolbar } from '@/shared/ui/doctor/DoctorCatalogStickyToolbar';
 import {
+  DOCTOR_ACTIVE_FILTER_BUTTON_CLASS,
   DOCTOR_FILTERS_HIDE_RECORDS_BUTTON_CLASS,
   DOCTOR_SCHEDULE_TOOLBAR_CONTROL_CLASS,
   DOCTOR_SCHEDULE_TOOLBAR_ICON_CONTROL_CLASS,
@@ -1591,8 +1592,10 @@ export function ScheduleWorkTab({
           variant="outline"
           className={cn(
             DOCTOR_SCHEDULE_TOOLBAR_ICON_CONTROL_CLASS,
+            // Не фильтр: режим «выбирать несколько дней» меняет только механику выделения
+            // ячеек и ничего не прячет, поэтому предупреждающий красный здесь солгал бы.
             multiSelectEnabled
-              ? DOCTOR_FILTERS_HIDE_RECORDS_BUTTON_CLASS
+              ? DOCTOR_ACTIVE_FILTER_BUTTON_CLASS
               : DOCTOR_SCHEDULE_TOOLBAR_CONTROL_CLASS,
           )}
           onClick={() => setMultiSelectEnabled((enabled) => !enabled)}

@@ -165,6 +165,9 @@ const KPI_FILTER_KEYS = [
 
 type ScheduleKpiFilterKey = (typeof KPI_FILTER_KEYS)[number];
 
+/** Стабильная пустая ссылка: подставляется вместо выбора, когда КПИ-плиток на странице нет. */
+const NO_KPI_FILTERS: ScheduleKpiFilterKey[] = [];
+
 function isScheduleKpiFilterKey(value: string): value is ScheduleKpiFilterKey {
   return KPI_FILTER_KEYS.includes(value as ScheduleKpiFilterKey);
 }
@@ -992,6 +995,12 @@ export function ScheduleCalendarTab({
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [showCancelledAppointments, setShowCancelledAppointments] = useState(false);
   const [selectedKpiFilters, setSelectedKpiFilters] = useState<ScheduleKpiFilterKey[]>([]);
+  // КПИ-фильтр снимается той же плиткой, которой ставится. Если плиток на странице нет —
+  // статистика организации выключена, а в кэше с прошлого раза лежит выбранный фильтр, — человек
+  // получил бы урезанное расписание без единой возможности это отменить. Поэтому без плиток
+  // фильтры не применяются вовсе: выбор в хранилище остаётся и оживёт вместе со статистикой.
+  const showKpi = doctorStatisticsEnabled;
+  const activeKpiFilters = showKpi ? selectedKpiFilters : NO_KPI_FILTERS;
   const [filterCacheReady, setFilterCacheReady] = useState(false);
   const isMobileViewport = useIsMobileViewport();
   const isWideScheduleLayout = useViewportMinWidth(1280);
@@ -1270,7 +1279,7 @@ export function ScheduleCalendarTab({
   // всего списка выбранных КПИ: список меняет тождество на каждом нажатии плитки, и лента записей
   // перезапрашивалась бы двумя запросами даже там, где фильтр отрабатывает на клиенте.
   const includeCancelledAppointments =
-    showCancelledAppointments || selectedKpiFilters.includes('cancellationsInPeriod');
+    showCancelledAppointments || activeKpiFilters.includes('cancellationsInPeriod');
   const fetchAppointmentFeedPage = useCallback(
     async (params: {
       from?: string;
@@ -1712,7 +1721,7 @@ export function ScheduleCalendarTab({
     branchId !== null ||
     serviceId !== null ||
     showCancelledAppointments ||
-    selectedKpiFilters.length > 0 ||
+    activeKpiFilters.length > 0 ||
     scheduleScope.scope !== defaultScheduleScope.scope ||
     scheduleScope.specialistId !== defaultScheduleScope.specialistId;
   const handleCalendarFilterOpenChange = useCallback((open: boolean) => {
@@ -1775,7 +1784,7 @@ export function ScheduleCalendarTab({
   const kpiFilterPredicate = useMemo<
     ((appointment: CalendarAppointmentEvent) => boolean) | null
   >(() => {
-    if (selectedKpiFilters.length === 0) return null;
+    if (activeKpiFilters.length === 0) return null;
     const firstVisitIdSet = new Set<string>(kpis?.firstVisitIds ?? []);
     const predicates: Record<
       ScheduleKpiFilterKey,
@@ -1790,8 +1799,8 @@ export function ScheduleCalendarTab({
       reschedulesInPeriod: (appointment) =>
         !isCancelledAppointmentStatus(appointment.status) && appointment.rescheduleCount > 0,
     };
-    return (appointment) => selectedKpiFilters.every((key) => predicates[key](appointment));
-  }, [currentTimeZone, kpis?.firstVisitIds, selectedKpiFilters]);
+    return (appointment) => activeKpiFilters.every((key) => predicates[key](appointment));
+  }, [activeKpiFilters, currentTimeZone, kpis?.firstVisitIds]);
 
   const displayableCalendarEvents = useMemo(
     () =>
@@ -2619,8 +2628,6 @@ export function ScheduleCalendarTab({
   }, [view]);
 
   // ─── Render ────────────────────────────────────────────────────────────────
-
-  const showKpi = doctorStatisticsEnabled;
 
   // Calendar/list filters: cancellations are hidden by default; search narrows the remainder.
   const visibleEvents = useMemo<CalendarEvent[]>(() => {

@@ -798,9 +798,10 @@ export function PatientTabRecords({
               {hasNoShows && <span className="ml-1 font-black text-destructive">!</span>}
             </>
           }
-          hint={hasNoShows ? 'есть неявка · детали ↓' : 'за всё время'}
+          hint={hasNoShows ? 'есть неявка' : 'за всё время'}
           tone={hasNoShows ? 'warning' : 'neutral'}
           onClick={() => setCancelsPanelOpen((v) => !v)}
+          opensDetails
         />
 
         {/* Переносы */}

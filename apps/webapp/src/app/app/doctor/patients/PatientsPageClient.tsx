@@ -677,7 +677,9 @@ function PatientsContent({
                 <DoctorSupportStar
                   className={cn(
                     'top-0 ml-0 text-xs',
-                    supportFilterActive ? 'text-primary' : 'text-muted-foreground',
+                    // Красный ободок без красной звезды — половина предупреждения; владелец
+                    // просил красными и ободок, и саму иконку.
+                    supportFilterActive ? 'text-destructive' : 'text-muted-foreground',
                   )}
                 />
               </Button>
