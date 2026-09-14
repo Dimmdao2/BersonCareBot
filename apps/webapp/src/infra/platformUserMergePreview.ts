@@ -67,14 +67,7 @@ export type MergePreviewDependentCounts = {
   platformUserContacts: number;
 };
 
-export type MergePreviewHardBlockerCode =
-  | 'target_is_alias'
-  | 'duplicate_is_alias'
-  | 'active_bookings_time_overlap'
-  | 'active_lfk_template_conflict'
-  | 'active_treatment_program_conflict'
-  | 'open_test_attempt_conflict'
-  | 'shared_phone_both_have_meaningful_data';
+export type MergePreviewHardBlockerCode = 'target_is_alias' | 'duplicate_is_alias';
 
 export type MergePreviewHardBlocker = {
   code: MergePreviewHardBlockerCode;
@@ -148,9 +141,8 @@ export type MergePreviewModel = {
   /** `true` iff no hard blockers (preview-only; see `v1MergeEngineCallable`). */
   mergeAllowed: boolean;
   /**
-   * `true` iff today’s `mergePlatformUsersInTransaction` can succeed for this pair
-   * (no hard blockers **and** no different non-null phones — engine throws `MergeConflictError` before dependent guards).
-   * Does not imply channel/oauth/email semantics are ideal; manual merge may still change resolution later.
+   * Legacy scalar-only auto-merge hint: aliases and two different non-null phones are excluded.
+   * Automatic medical-history policy is transaction-bound and is not predicted by manual preview.
    */
   v1MergeEngineCallable: boolean;
 };
@@ -406,12 +398,6 @@ export function analyzeMergePreviewModel(
       target: MergePreviewDependentCounts;
       duplicate: MergePreviewDependentCounts;
     };
-    activeBookingOverlapCount: number;
-    activeLfkTemplateConflictCount: number;
-    activeTreatmentProgramConflictCount: number;
-    openTestAttemptConflictCount: number;
-    meaningfulDataScoreTarget: number;
-    meaningfulDataScoreDuplicate: number;
     /** Последний вход с каждой стороны — пятая проверка правила ФИО; `null`, если входов не видно. */
     targetLastLoginAt: Date | null;
     duplicateLastLoginAt: Date | null;
@@ -442,55 +428,8 @@ export function analyzeMergePreviewModel(
     });
   }
 
-  if (opts.activeBookingOverlapCount > 0) {
-    hardBlockers.push({
-      code: 'active_bookings_time_overlap',
-      message:
-        'Active patient_bookings overlap in time between candidates (same cooperator snapshot rule as merge guard).',
-      details: { overlapPairCount: opts.activeBookingOverlapCount },
-    });
-  }
-
-  if (opts.activeLfkTemplateConflictCount > 0) {
-    hardBlockers.push({
-      code: 'active_lfk_template_conflict',
-      message: 'Active patient_lfk_assignments share the same template on both users.',
-      details: { conflictingTemplateRows: opts.activeLfkTemplateConflictCount },
-    });
-  }
-
-  if (opts.activeTreatmentProgramConflictCount > 0) {
-    hardBlockers.push({
-      code: 'active_treatment_program_conflict',
-      message:
-        'Both users have a non-promo active treatment program (one active per patient invariant).',
-      details: { conflictingActiveProgramRows: opts.activeTreatmentProgramConflictCount },
-    });
-  }
-
-  if (opts.openTestAttemptConflictCount > 0) {
-    hardBlockers.push({
-      code: 'open_test_attempt_conflict',
-      message: 'Both users have an open test_attempt on the same program stage item.',
-      details: { conflictingOpenAttemptRows: opts.openTestAttemptConflictCount },
-    });
-  }
-
   const pT = normStr(target.phone_normalized);
   const pD = normStr(duplicate.phone_normalized);
-  if (pT != null && pD != null && pT === pD) {
-    if (opts.meaningfulDataScoreTarget > 0 && opts.meaningfulDataScoreDuplicate > 0) {
-      hardBlockers.push({
-        code: 'shared_phone_both_have_meaningful_data',
-        message:
-          'Shared phone with meaningful data on both users (same guard as assertSharedPhoneGuard).',
-        details: {
-          meaningfulDataScoreTarget: opts.meaningfulDataScoreTarget,
-          meaningfulDataScoreDuplicate: opts.meaningfulDataScoreDuplicate,
-        },
-      });
-    }
-  }
 
   const fioSource = pickFioSourceSide(target, duplicate, {
     targetHasTreatmentProgram: opts.dependentCounts.target.treatmentProgramInstances > 0,
@@ -726,7 +665,7 @@ async function loadOauth(pool: Pool, userId: string): Promise<MergePreviewOAuthB
   return r.rows;
 }
 
-/** Exported for the preview/apply consistency test — same shared-phone counter the preview runs. */
+/** Exported for the legacy shared-phone guard proof. Manual preview does not gate on this score. */
 export async function countMeaningfulData(pool: Pool, userId: string): Promise<number> {
   // Must count exactly what assertSharedPhoneGuard's meaningfulCount counts
   // (packages/platform-merge/src/pgPlatformUserMerge.ts) — the apply path's authority for the
@@ -830,86 +769,6 @@ async function countDependents(pool: Pool, userId: string): Promise<MergePreview
   };
 }
 
-async function countActiveBookingOverlap(
-  pool: Pool,
-  targetId: string,
-  duplicateId: string,
-): Promise<number> {
-  const overlap = await runPgPoolSql<{ c: string }>(
-    pool,
-    sql`SELECT COUNT(*)::text AS c
-     FROM patient_bookings pb1
-     INNER JOIN patient_bookings pb2
-       ON pb1.platform_user_id = ${targetId}::uuid
-      AND pb2.platform_user_id = ${duplicateId}::uuid
-      AND pb1.id <> pb2.id
-      AND tstzrange(pb1.slot_start, pb1.slot_end, '[)') && tstzrange(pb2.slot_start, pb2.slot_end, '[)')
-      AND pb1.status IN ('confirmed', 'rescheduled', 'creating', 'cancelling', 'cancel_failed')
-      AND pb2.status IN ('confirmed', 'rescheduled', 'creating', 'cancelling', 'cancel_failed')
-      `,
-  );
-  return parseInt(overlap.rows[0]?.c ?? '0', 10);
-}
-
-async function countActiveLfkTemplateConflict(
-  pool: Pool,
-  targetId: string,
-  duplicateId: string,
-): Promise<number> {
-  const r = await runPgPoolSql<{ c: string }>(
-    pool,
-    sql`SELECT COUNT(*)::text AS c
-     FROM patient_lfk_assignments a
-     INNER JOIN patient_lfk_assignments b
-       ON a.patient_user_id = ${targetId}::uuid
-      AND b.patient_user_id = ${duplicateId}::uuid
-      AND a.organization_id = b.organization_id
-      AND a.template_id = b.template_id
-      AND a.is_active = true
-      AND b.is_active = true`,
-  );
-  return parseInt(r.rows[0]?.c ?? '0', 10);
-}
-
-async function countActiveTreatmentProgramConflict(
-  pool: Pool,
-  targetId: string,
-  duplicateId: string,
-): Promise<number> {
-  const r = await runPgPoolSql<{ c: string }>(
-    pool,
-    sql`SELECT COUNT(*)::text AS c
-     FROM treatment_program_instances t
-     INNER JOIN treatment_program_instances d
-       ON t.patient_user_id = ${targetId}::uuid
-      AND d.patient_user_id = ${duplicateId}::uuid
-      AND t.status = 'active'
-      AND d.status = 'active'
-      AND t.assignment_source <> 'promo'
-      AND d.assignment_source <> 'promo'`,
-  );
-  return parseInt(r.rows[0]?.c ?? '0', 10);
-}
-
-async function countOpenTestAttemptConflict(
-  pool: Pool,
-  targetId: string,
-  duplicateId: string,
-): Promise<number> {
-  const r = await runPgPoolSql<{ c: string }>(
-    pool,
-    sql`SELECT COUNT(*)::text AS c
-     FROM test_attempts t
-     INNER JOIN test_attempts d
-       ON t.patient_user_id = ${targetId}::uuid
-      AND d.patient_user_id = ${duplicateId}::uuid
-      AND t.submitted_at IS NULL
-      AND d.submitted_at IS NULL
-      AND t.instance_stage_item_id = d.instance_stage_item_id`,
-  );
-  return parseInt(r.rows[0]?.c ?? '0', 10);
-}
-
 export async function buildMergePreview(
   pool: Pool,
   targetId: string,
@@ -945,12 +804,6 @@ export async function buildMergePreview(
     duplicateBindings,
     targetOauth,
     duplicateOauth,
-    meaningfulDataScoreTarget,
-    meaningfulDataScoreDuplicate,
-    activeBookingOverlapCount,
-    activeLfkTemplateConflictCount,
-    activeTreatmentProgramConflictCount,
-    openTestAttemptConflictCount,
     depTarget,
     depDup,
     targetLastLoginAt,
@@ -960,12 +813,6 @@ export async function buildMergePreview(
     loadBindings(pool, duplicateId),
     loadOauth(pool, targetId),
     loadOauth(pool, duplicateId),
-    countMeaningfulData(pool, targetId),
-    countMeaningfulData(pool, duplicateId),
-    countActiveBookingOverlap(pool, targetId, duplicateId),
-    countActiveLfkTemplateConflict(pool, targetId, duplicateId),
-    countActiveTreatmentProgramConflict(pool, targetId, duplicateId),
-    countOpenTestAttemptConflict(pool, targetId, duplicateId),
     countDependents(pool, targetId),
     countDependents(pool, duplicateId),
     loadLastLoginAt(pool, targetId),
@@ -978,12 +825,6 @@ export async function buildMergePreview(
     targetOauth,
     duplicateOauth,
     dependentCounts: { target: depTarget, duplicate: depDup },
-    activeBookingOverlapCount,
-    activeLfkTemplateConflictCount,
-    activeTreatmentProgramConflictCount,
-    openTestAttemptConflictCount,
-    meaningfulDataScoreTarget,
-    meaningfulDataScoreDuplicate,
     targetLastLoginAt,
     duplicateLastLoginAt,
   });

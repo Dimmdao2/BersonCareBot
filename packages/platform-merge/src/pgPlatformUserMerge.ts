@@ -452,11 +452,13 @@ export async function mergePlatformUsersInTransaction(
       duplicateId,
     ]);
   }
-  await assertSharedPhoneGuard(client, targetId, duplicateId, pA, pB);
-  await assertAutoMergePasswordCredentialsSafe(client, targetId, duplicateId, reason);
-  await assertPatientLfkAssignmentsSafe(client, targetId, duplicateId);
-  await reconcileActiveTreatmentProgramInstancesForMerge(client, targetId, duplicateId);
-  await assertOpenTestAttemptsSafe(client, targetId, duplicateId);
+  if (reason !== 'manual') {
+    await assertSharedPhoneGuard(client, targetId, duplicateId, pA, pB);
+    await assertAutoMergePasswordCredentialsSafe(client, targetId, duplicateId, reason);
+    await assertOpenTestAttemptsSafe(client, targetId, duplicateId);
+  }
+  await reconcilePatientLfkAssignmentsForMerge(client, targetId, duplicateId, reason);
+  await reconcileActiveTreatmentProgramInstancesForMerge(client, targetId, duplicateId, reason);
 
   if (manualResolution) {
     await mergeChannelBindingsManual(client, targetId, duplicateId, manualResolution);
@@ -1039,11 +1041,31 @@ async function assertSharedPhoneGuard(
   }
 }
 
-async function assertPatientLfkAssignmentsSafe(
+async function reconcilePatientLfkAssignmentsForMerge(
   client: PlatformMergeDbClient,
   targetId: string,
   duplicateId: string,
+  reason: MergePlatformUsersReason,
 ): Promise<void> {
+  if (reason === 'manual') {
+    await runMergeSql(
+      client,
+      sql`UPDATE patient_lfk_assignments duplicate
+          SET is_active = false
+          WHERE duplicate.patient_user_id = ${duplicateId}::uuid
+            AND duplicate.is_active = true
+            AND EXISTS (
+              SELECT 1
+              FROM patient_lfk_assignments target
+              WHERE target.patient_user_id = ${targetId}::uuid
+                AND target.organization_id IS NOT DISTINCT FROM duplicate.organization_id
+                AND target.template_id = duplicate.template_id
+                AND target.is_active = true
+            )`,
+    );
+    return;
+  }
+
   const r = await runMergeSql<{ c: string }>(
     client,
     sql`SELECT COUNT(*)::text AS c
@@ -1066,6 +1088,7 @@ async function assertPatientLfkAssignmentsSafe(
 }
 
 type ActiveTreatmentProgramMergePair = {
+  organization_id: string | null;
   target_instance_id: string;
   target_assignment_source: string;
   target_template_id: string | null;
@@ -1191,16 +1214,20 @@ async function assertAutoMergePasswordCredentialsSafe(
  * A promo instance is the platform default, not a clinician/course assignment. When duplicate
  * identities each materialized an active plan, promo must not prevent identity reconciliation:
  * close the promo side first, then let the normal patient_user_id repoint preserve both histories.
- * Two real active assignments remain a hard blocker.
+ * Two real active assignments remain a hard blocker for automatic merge. Manual support explicitly
+ * chooses the surviving account, so its active instance wins inside an organization and the other
+ * instance is retained as completed history.
  */
 async function reconcileActiveTreatmentProgramInstancesForMerge(
   client: PlatformMergeDbClient,
   targetId: string,
   duplicateId: string,
+  reason: MergePlatformUsersReason,
 ): Promise<void> {
   const r = await runMergeSql<ActiveTreatmentProgramMergePair>(
     client,
-    sql`SELECT t.id::text AS target_instance_id,
+    sql`SELECT t.organization_id::text AS organization_id,
+            t.id::text AS target_instance_id,
             t.assignment_source AS target_assignment_source,
             t.template_id::text AS target_template_id,
             d.id::text AS duplicate_instance_id,
@@ -1210,45 +1237,47 @@ async function reconcileActiveTreatmentProgramInstancesForMerge(
      INNER JOIN treatment_program_instances d
        ON t.patient_user_id = ${targetId}::uuid
       AND d.patient_user_id = ${duplicateId}::uuid
+      AND t.organization_id IS NOT DISTINCT FROM d.organization_id
       AND t.status = 'active'
       AND d.status = 'active'`,
   );
-  const pair = r.rows[0];
-  if (!pair) return;
+  const closingInstanceIds: string[] = [];
+  for (const pair of r.rows) {
+    const targetIsPromo = pair.target_assignment_source === 'promo';
+    const duplicateIsPromo = pair.duplicate_assignment_source === 'promo';
+    if (!targetIsPromo && !duplicateIsPromo && reason !== 'manual') {
+      throw new MergeDependentConflictError(
+        'treatment_program_instances: active program on both merge candidates',
+        [targetId, duplicateId],
+      );
+    }
 
-  const targetIsPromo = pair.target_assignment_source === 'promo';
-  const duplicateIsPromo = pair.duplicate_assignment_source === 'promo';
-  if (!targetIsPromo && !duplicateIsPromo) {
-    throw new MergeDependentConflictError(
-      'treatment_program_instances: active program on both merge candidates',
-      [targetId, duplicateId],
+    if (
+      targetIsPromo &&
+      duplicateIsPromo &&
+      typeof pair.target_template_id === 'string' &&
+      pair.target_template_id === pair.duplicate_template_id
+    ) {
+      await consolidateMatchingPromoProgress(
+        client,
+        pair.target_instance_id,
+        pair.duplicate_instance_id,
+      );
+    }
+
+    closingInstanceIds.push(
+      targetIsPromo && !duplicateIsPromo ? pair.target_instance_id : pair.duplicate_instance_id,
     );
   }
-
-  if (
-    targetIsPromo &&
-    duplicateIsPromo &&
-    typeof pair.target_template_id === 'string' &&
-    pair.target_template_id === pair.duplicate_template_id
-  ) {
-    await consolidateMatchingPromoProgress(
-      client,
-      pair.target_instance_id,
-      pair.duplicate_instance_id,
-    );
-  }
-
-  const closingInstanceId =
-    targetIsPromo && !duplicateIsPromo ? pair.target_instance_id : pair.duplicate_instance_id;
+  if (closingInstanceIds.length === 0) return;
 
   await runMergePgText(
     client,
     `WITH closed AS (
        UPDATE treatment_program_instances
        SET status = 'completed', updated_at = now()
-       WHERE id = $1::uuid
+       WHERE id = ANY($1::uuid[])
          AND status = 'active'
-         AND assignment_source = 'promo'
        RETURNING id, organization_id
      )
      INSERT INTO treatment_program_events (
@@ -1268,7 +1297,7 @@ async function reconcileActiveTreatmentProgramInstancesForMerge(
             ),
             'platform_user_merge'
      FROM closed`,
-    [closingInstanceId],
+    [closingInstanceIds],
   );
 }
 
