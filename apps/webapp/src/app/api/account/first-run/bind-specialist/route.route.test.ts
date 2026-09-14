@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { createInMemoryOrganizationProvisioningPort } from '@/infra/repos/inMemoryOrganizationProvisioning';
+import { createOrganizationProvisioningService } from '@/modules/organization-provisioning/service';
 
 const fakes = vi.hoisted(() => ({
   getCurrentSession: vi.fn(),
@@ -17,7 +19,7 @@ import { POST } from './route';
 
 const baseUser = {
   userId: '00000000-0000-4000-8000-000000000017',
-  displayName: 'Staff user',
+  displayName: 'Иванов Иван',
   bindings: {},
 };
 
@@ -76,5 +78,39 @@ describe('first-run specialist self-binding boundary', () => {
       specialistId: null,
       displayName: baseUser.displayName,
     });
+  });
+
+  it('refuses to create a new specialist row from a legacy Latin account name', async () => {
+    const legacyDoctorSession = {
+      user: { ...baseUser, role: 'doctor', displayName: 'John Smith' },
+    };
+    fakes.getCurrentSession.mockResolvedValue(legacyDoctorSession);
+    fakes.workspaceGate.mockResolvedValue({
+      ok: true,
+      ctx: {
+        organizationId: '00000000-0000-4000-8000-000000000118',
+        membershipId: '00000000-0000-4000-8000-000000000119',
+        membershipRole: 'owner',
+        specialistId: null,
+        session: legacyDoctorSession,
+      },
+    });
+
+    const provisioningPort = createInMemoryOrganizationProvisioningPort(baseUser.userId);
+    const persistSpecialist = vi
+      .spyOn(provisioningPort, 'ensureOwnBookableSpecialist')
+      .mockResolvedValue({
+        specialistId: '00000000-0000-4000-8000-000000000120',
+        created: true,
+      });
+    fakes.buildAppDeps.mockReturnValue({
+      organizationProvisioning: createOrganizationProvisioningService({ provisioningPort }),
+    });
+
+    const response = await POST();
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({ ok: false });
+    expect(persistSpecialist).not.toHaveBeenCalled();
   });
 });

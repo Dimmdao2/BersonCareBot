@@ -26,7 +26,6 @@ vi.mock('@/app-layer/principal/withOrganizationPrincipal', () => ({
   withDoctorWorkspacePrincipal: <T>(_ctx: unknown, _op: string, run: () => T): T => run(),
 }));
 
-import { FIO_LATIN_REJECTED_TEXT } from '@/shared/lib/fio';
 import { POST as createSpecialist } from './route';
 import { PATCH as updateSpecialist } from './[id]/route';
 
@@ -45,6 +44,11 @@ const existingSpecialist = {
   sortOrder: 10,
 };
 
+const legacyLatinSpecialist = {
+  ...existingSpecialist,
+  fullName: 'John Smith',
+};
+
 function postRequest(body: unknown): Request {
   return new Request('http://localhost/api/admin/booking-engine/specialists', {
     method: 'POST',
@@ -59,6 +63,14 @@ function patchRequest(body: unknown): Request {
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
   });
+}
+
+function expectReadableRejection(body: { ok: boolean; error?: string; message?: string }): void {
+  expect(body.ok).toBe(false);
+  expect(body.error).toBe('invalid_input');
+  expect(body.message).toEqual(expect.any(String));
+  expect(body.message?.trim()).not.toBe('');
+  expect(body.message).not.toBe(body.error);
 }
 
 const routeParams = { params: Promise.resolve({ id: SPECIALIST_ID }) };
@@ -89,11 +101,14 @@ beforeEach(() => {
 describe('карточка специалиста: ФИО только кириллицей', () => {
   it('создание с латинским ФИО отказано, записи не происходит', async () => {
     const response = await createSpecialist(postRequest({ fullName: 'Ivan Ivanov' }));
-    const body = (await response.json()) as { ok: boolean; message?: string };
+    const body = (await response.json()) as {
+      ok: boolean;
+      error?: string;
+      message?: string;
+    };
 
     expect(response.status).toBe(400);
-    expect(body.ok).toBe(false);
-    expect(body.message).toBe(FIO_LATIN_REJECTED_TEXT);
+    expectReadableRejection(body);
     expect(fakes.upsertSpecialist).not.toHaveBeenCalled();
   });
 
@@ -115,23 +130,56 @@ describe('карточка специалиста: ФИО только кири�
     expect(fakes.upsertSpecialist).not.toHaveBeenCalled();
   });
 
-  it('правка карточки на латинское ФИО отказана, сохранённое имя остаётся нетронутым', async () => {
-    const response = await updateSpecialist(patchRequest({ fullName: 'John Smith' }), routeParams);
-    const body = (await response.json()) as { ok: boolean; message?: string };
+  it('правка карточки на смешанное ФИО тоже отказана', async () => {
+    const response = await updateSpecialist(
+      patchRequest({ fullName: 'Ивaнов Иван' }),
+      routeParams,
+    );
 
     expect(response.status).toBe(400);
-    expect(body.message).toBe(FIO_LATIN_REJECTED_TEXT);
     expect(fakes.upsertSpecialist).not.toHaveBeenCalled();
   });
 
-  it('правка без имени (например перетаскивание порядка) запретом не задета', async () => {
-    const response = await updateSpecialist(patchRequest({ sortOrder: 20 }), routeParams);
+  it('правка карточки на кириллическое ФИО проходит до записи', async () => {
+    const response = await updateSpecialist(
+      patchRequest({ fullName: 'Петров Пётр Петрович' }),
+      routeParams,
+    );
 
     expect(response.status).toBe(200);
     expect(fakes.upsertSpecialist).toHaveBeenCalledTimes(1);
     expect(fakes.upsertSpecialist.mock.calls[0][0]).toMatchObject({
-      fullName: existingSpecialist.fullName,
-      sortOrder: 20,
+      fullName: 'Петров Пётр Петрович',
+    });
+  });
+
+  it('правка карточки на латинское ФИО отказана, сохранённое имя остаётся нетронутым', async () => {
+    const response = await updateSpecialist(patchRequest({ fullName: 'John Smith' }), routeParams);
+    const body = (await response.json()) as {
+      ok: boolean;
+      error?: string;
+      message?: string;
+    };
+
+    expect(response.status).toBe(400);
+    expectReadableRejection(body);
+    expect(fakes.upsertSpecialist).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['перетаскивание порядка', { sortOrder: 20 }],
+    ['публикация карточки', { cardIsPublished: true }],
+    ['выключение специалиста', { isActive: false }],
+  ])('правка без имени (%s) сохраняет старое латинское ФИО', async (_label, patch) => {
+    fakes.getSpecialist.mockResolvedValue(legacyLatinSpecialist);
+
+    const response = await updateSpecialist(patchRequest(patch), routeParams);
+
+    expect(response.status).toBe(200);
+    expect(fakes.upsertSpecialist).toHaveBeenCalledTimes(1);
+    expect(fakes.upsertSpecialist.mock.calls[0][0]).toMatchObject({
+      ...patch,
+      fullName: legacyLatinSpecialist.fullName,
     });
   });
 });
