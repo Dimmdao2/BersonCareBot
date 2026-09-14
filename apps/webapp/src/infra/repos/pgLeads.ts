@@ -1,9 +1,11 @@
 import { and, desc, eq, isNull } from 'drizzle-orm';
 import { getDrizzle, type DrizzleDb } from '@/app-layer/db/drizzle';
 import { orgEnrollments } from '../../../db/schema/bookingEngine';
-import { leadBlocks, leads } from '../../../db/schema/leads';
+import { leads } from '../../../db/schema/leads';
+import { withPgOutboundMessageEnqueueTransaction } from '@/infra/repos/pgOutboundMessageQueue';
 import type { LeadsPort } from '@/modules/leads/ports';
 import type { Lead } from '@/modules/leads/types';
+import { leadRejectionNotification } from '@/modules/leads/rejectionNotification';
 
 type Transaction = Parameters<Parameters<DrizzleDb['transaction']>[0]>[0];
 type Executor = DrizzleDb | Transaction;
@@ -28,37 +30,25 @@ async function readLead(
 export function createPgLeadsPort(): LeadsPort {
   return {
     async create(input, now) {
-      return getDrizzle().transaction(async (tx) => {
-        const blocked = await tx
-          .select({ id: leadBlocks.id })
-          .from(leadBlocks)
-          .where(
-            and(
-              eq(leadBlocks.organizationId, input.organizationId),
-              eq(leadBlocks.platformUserId, input.platformUserId),
-            ),
-          )
-          .limit(1);
-        if (blocked[0]) return null;
-        const rows = await tx
-          .insert(leads)
-          .values({
-            organizationId: input.organizationId,
-            platformUserId: input.platformUserId,
-            submittedFirstName: input.firstName,
-            submittedLastName: input.lastName,
-            submittedPatronymic: input.patronymic,
-            submittedEmail: input.emailNormalized,
-            submittedPhone: input.phoneNormalized,
-            preferredContact: input.preferredContact,
-            messageText: input.messageText,
-            sourceSurface: input.sourceSurface,
-            createdAt: now,
-            updatedAt: now,
-          })
-          .returning();
-        return rows[0] ? mapLead(rows[0]) : null;
-      });
+      const rows = await getDrizzle()
+        .insert(leads)
+        .values({
+          organizationId: input.organizationId,
+          platformUserId: input.platformUserId,
+          submittedFirstName: input.firstName,
+          submittedLastName: input.lastName,
+          submittedPatronymic: input.patronymic,
+          submittedEmail: input.emailNormalized,
+          submittedPhone: input.phoneNormalized,
+          preferredContact: input.preferredContact,
+          messageText: input.messageText,
+          sourceSurface: input.sourceSurface,
+          createdAt: now,
+          updatedAt: now,
+        })
+        .returning();
+      if (!rows[0]) throw new Error('lead_create_failed');
+      return mapLead(rows[0]);
     },
     async list(input) {
       const filters = [eq(leads.organizationId, input.organizationId)];
@@ -129,43 +119,46 @@ export function createPgLeadsPort(): LeadsPort {
       throw new Error('lead_status_transition_invalid');
     },
     async reject(input) {
-      return getDrizzle().transaction(async (tx) => {
-        const transitioned = await tx
-          .update(leads)
-          .set({
-            status: 'rejected',
-            rejectionComment: input.comment,
-            rejectedAt: input.now,
-            updatedAt: input.now,
-          })
-          .where(
-            and(
-              eq(leads.organizationId, input.organizationId),
-              eq(leads.id, input.leadId),
-              eq(leads.status, 'new'),
-            ),
-          )
-          .returning();
-        const current = transitioned[0]
-          ? mapLead(transitioned[0])
-          : await readLead(tx, input.organizationId, input.leadId);
-        if (!current) return null;
-        if (current.status !== 'rejected') throw new Error('lead_status_transition_invalid');
-        if (input.blockApplicant) {
-          await tx
-            .insert(leadBlocks)
-            .values({
-              organizationId: input.organizationId,
-              platformUserId: current.platformUserId,
-              sourceLeadId: current.id,
-              createdAt: input.now,
+      const current = await readLead(getDrizzle(), input.organizationId, input.leadId);
+      if (!current) return null;
+      if (current.status !== 'new') throw new Error('lead_status_transition_invalid');
+      const notification = leadRejectionNotification(input.comment);
+      const result = await withPgOutboundMessageEnqueueTransaction(
+        {
+          organizationId: input.organizationId,
+          purpose: 'lead.rejected',
+          idempotencyKey: input.leadId,
+          channel: 'email',
+          recipient: current.submittedEmail,
+          content: {
+            text: notification.text,
+            subject: notification.subject,
+            senderScope: 'clinic_required',
+            audience: 'patient',
+          },
+        },
+        async (tx) => {
+          const transitioned = await tx
+            .update(leads)
+            .set({
+              status: 'rejected',
+              rejectionComment: input.comment,
+              rejectedAt: input.now,
+              updatedAt: input.now,
             })
-            .onConflictDoNothing({
-              target: [leadBlocks.organizationId, leadBlocks.platformUserId],
-            });
-        }
-        return current;
-      });
+            .where(
+              and(
+                eq(leads.organizationId, input.organizationId),
+                eq(leads.id, input.leadId),
+                eq(leads.status, 'new'),
+              ),
+            )
+            .returning();
+          if (!transitioned[0]) throw new Error('lead_status_transition_invalid');
+          return mapLead(transitioned[0]);
+        },
+      );
+      return result.value;
     },
     async setArchived(organizationId, leadId, archived, now) {
       const rows = await getDrizzle()

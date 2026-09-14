@@ -1,12 +1,11 @@
 import { normalizeEmail } from '@/modules/auth/emailNormalize';
 import { normalizePhone } from '@/modules/auth/phoneNormalize';
 import { isValidPhoneE164 } from '@/modules/auth/phoneValidation';
-import type { LeadRejectionNotifier, LeadsPort, LeadsService } from './ports';
+import type { LeadsPort, LeadsService } from './ports';
 import type { Lead, NormalizedLeadInput, SubmitLeadInput } from './types';
 
 type LeadsServiceDependencies = {
   assertWriteClearance?: (mechanic: 'leads') => void;
-  notifyRejected?: LeadRejectionNotifier;
   now?: () => string;
 };
 
@@ -57,7 +56,6 @@ export function createLeadsService(
       assertWrite();
       const normalized = normalizeSubmission(input);
       const row = await port.create(normalized, now());
-      if (!row) throw new Error('lead_submission_blocked');
       return assertTenant(input.organizationId, row);
     },
     async list(input) {
@@ -83,17 +81,7 @@ export function createLeadsService(
       const comment = optionalText(input.comment);
       const row = await port.reject({ ...input, comment, now: now() });
       if (!row) return null;
-      const lead = assertTenant(input.organizationId, row);
-      if (!dependencies.notifyRejected) throw new Error('lead_rejection_notification_unavailable');
-      const notified = await dependencies.notifyRejected({
-        organizationId: lead.organizationId,
-        leadId: lead.id,
-        platformUserId: lead.platformUserId,
-        recipientEmail: lead.submittedEmail,
-        comment: lead.rejectionComment,
-      });
-      if (!notified) throw new Error('lead_rejection_notification_failed');
-      return lead;
+      return assertTenant(input.organizationId, row);
     },
     async archive(organizationId, leadId) {
       assertWrite();

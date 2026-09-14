@@ -1,5 +1,13 @@
 import { sql } from 'drizzle-orm';
-import { getWebappSqlDb, runWebappNamedRoot } from '@/infra/db/runWebappSql';
+import { portTypedArgsForFunctionIdentity } from '@bersoncare/db-principal';
+import {
+  getWebappSqlDb,
+  runWebappNamedRoot,
+  runWebappSql,
+  runWebappTransaction,
+  type WebappSqlTransactionExecutor,
+} from '@/infra/db/runWebappSql';
+import { runWithWebappPortOperation } from '@/infra/db/portContextRuntime';
 import {
   DEFAULT_OUTBOUND_MESSAGE_MAX_ATTEMPTS,
   type OutboundMessageContext,
@@ -17,35 +25,78 @@ import {
  * может воспроизвести байт в байт. `contentJson` уходит как текст и разбирается `::jsonb` внутри
  * тела корня — та же форма, что у соседнего `app.replace_appointment_reminder_generation`.
  */
+const OUTBOUND_MESSAGE_FUNCTION_IDENTITY =
+  'app.enqueue_outbound_message(uuid,text,text,text,text,text,integer)';
+
+function outboundMessageCall(context: OutboundMessageContext) {
+  const contentJson = JSON.stringify(context.content);
+  const maxAttempts = context.maxAttempts ?? DEFAULT_OUTBOUND_MESSAGE_MAX_ATTEMPTS;
+  const args = [
+    context.organizationId,
+    context.purpose,
+    context.idempotencyKey,
+    context.channel,
+    context.recipient,
+    contentJson,
+    maxAttempts,
+  ];
+  return {
+    args,
+    statement: sql`SELECT app.enqueue_outbound_message(
+      ${context.organizationId}::uuid,
+      ${context.purpose}::text,
+      ${context.idempotencyKey}::text,
+      ${context.channel}::text,
+      ${context.recipient}::text,
+      ${contentJson}::text,
+      ${maxAttempts}::integer
+    ) AS enqueued`,
+  };
+}
+
+async function executeOutboundMessageCall(
+  db: ReturnType<typeof getWebappSqlDb> | WebappSqlTransactionExecutor,
+  call: ReturnType<typeof outboundMessageCall>,
+): Promise<boolean> {
+  const result = await runWebappSql<{ enqueued: boolean | null }>(db, call.statement);
+  return result.rows[0]?.enqueued === true;
+}
+
 export function createPgOutboundMessageQueue(): OutboundMessageQueuePort {
   return {
     async enqueue(context: OutboundMessageContext): Promise<boolean> {
-      const contentJson = JSON.stringify(context.content);
-      const maxAttempts = context.maxAttempts ?? DEFAULT_OUTBOUND_MESSAGE_MAX_ATTEMPTS;
-      const args = [
-        context.organizationId,
-        context.purpose,
-        context.idempotencyKey,
-        context.channel,
-        context.recipient,
-        contentJson,
-        maxAttempts,
-      ];
+      const call = outboundMessageCall(context);
       const result = await runWebappNamedRoot<{ enqueued: boolean | null }>(
         getWebappSqlDb(),
-        'app.enqueue_outbound_message(uuid,text,text,text,text,text,integer)',
-        args,
-        sql`SELECT app.enqueue_outbound_message(
-          ${context.organizationId}::uuid,
-          ${context.purpose}::text,
-          ${context.idempotencyKey}::text,
-          ${context.channel}::text,
-          ${context.recipient}::text,
-          ${contentJson}::text,
-          ${maxAttempts}::integer
-        ) AS enqueued`,
+        OUTBOUND_MESSAGE_FUNCTION_IDENTITY,
+        call.args,
+        call.statement,
       );
       return result.rows[0]?.enqueued === true;
     },
   };
+}
+
+/**
+ * Runs a relation mutation and the existing universal enqueue root in one physical transaction.
+ * The named-root capability is selected before Drizzle opens the transaction; installing it from
+ * inside an already-open relation transaction is intentionally forbidden by `runWebappNamedRoot`.
+ */
+export async function withPgOutboundMessageEnqueueTransaction<T>(
+  context: OutboundMessageContext,
+  work: (tx: WebappSqlTransactionExecutor) => Promise<T>,
+): Promise<{ value: T; enqueued: boolean }> {
+  const call = outboundMessageCall(context);
+  return runWithWebappPortOperation(
+    {
+      functionIdentity: OUTBOUND_MESSAGE_FUNCTION_IDENTITY,
+      typedArgs: portTypedArgsForFunctionIdentity(OUTBOUND_MESSAGE_FUNCTION_IDENTITY, call.args),
+    },
+    () =>
+      runWebappTransaction(async (tx) => {
+        const value = await work(tx);
+        const enqueued = await executeOutboundMessageCall(tx, call);
+        return { value, enqueued };
+      }),
+  );
 }

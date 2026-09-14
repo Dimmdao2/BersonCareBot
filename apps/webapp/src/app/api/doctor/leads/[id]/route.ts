@@ -14,7 +14,6 @@ const patchBody = z.union([
   z
     .object({
       action: z.literal('reject'),
-      blockApplicant: z.boolean().default(false),
       comment: z.string().trim().max(4_000).nullish(),
     })
     .strict(),
@@ -69,7 +68,6 @@ export async function PATCH(request: Request, route: { params: Promise<{ id: str
           return gate.deps.leads!.reject({
             organizationId: gate.ctx.organizationId,
             leadId: id,
-            blockApplicant: parsed.data.blockApplicant,
             comment: parsed.data.comment,
           });
         case 'archive':

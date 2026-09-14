@@ -5,8 +5,12 @@ import {
   requireEntitlementForMutation,
   requireEntitlementForRead,
 } from '@/app-layer/guards/requireEntitlement';
+import { requireDoctorWorkspaceConfigModuleForApi } from '@/app-layer/guards/workspaceModuleAccess';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
-import { requireClinicManagementBookingEngine } from '../_requireClinicManagementBookingEngine';
+import {
+  requireClinicManagementBookingEngine,
+  type AdminBookingEngineContext,
+} from '../_requireClinicManagementBookingEngine';
 import {
   BOOKING_FORM_FIELD_KEY_MAX_LENGTH,
   BOOKING_FORM_FIELD_KEY_PATTERN,
@@ -41,6 +45,27 @@ const archiveBody = z
   .object({ id: z.string().uuid(), formSurface: z.enum(FORM_SURFACES).default('booking') })
   .strict();
 
+type AppDeps = ReturnType<typeof buildAppDeps>;
+
+async function requireFormSurfaceAccess(
+  ctx: AdminBookingEngineContext,
+  deps: AppDeps,
+  surface: (typeof FORM_SURFACES)[number],
+  access: 'read' | 'mutation',
+) {
+  const mechanic = surface === 'leads' ? 'leads' : 'booking';
+  const entitlement =
+    access === 'read'
+      ? await requireEntitlementForRead(ctx, mechanic)
+      : await requireEntitlementForMutation(ctx, mechanic);
+  if (!entitlement.ok) return entitlement;
+  if (surface === 'leads') {
+    const workspace = await requireDoctorWorkspaceConfigModuleForApi(deps, ctx, 'leads');
+    if (!workspace.ok) return workspace;
+  }
+  return { ok: true as const };
+}
+
 function pgErrorFacts(error: unknown): { code: string; constraint: string } {
   if (typeof error !== 'object' || error === null) return { code: '', constraint: '' };
   const value = error as {
@@ -71,12 +96,9 @@ export async function GET(request: Request) {
     .enum(FORM_SURFACES)
     .catch('booking')
     .parse(new URL(request.url).searchParams.get('surface'));
-  const entitlement = await requireEntitlementForRead(
-    gate.ctx,
-    surface === 'leads' ? 'leads' : 'booking',
-  );
-  if (!entitlement.ok) return entitlement.response;
   const deps = buildAppDeps();
+  const access = await requireFormSurfaceAccess(gate.ctx, deps, surface, 'read');
+  if (!access.ok) return access.response;
   if (!deps.bookingForm) {
     return NextResponse.json({ ok: false, error: 'booking_engine_unavailable' }, { status: 503 });
   }
@@ -94,12 +116,14 @@ export async function POST(request: Request) {
       { status: 400 },
     );
   }
-  const entitlement = await requireEntitlementForMutation(
-    gate.ctx,
-    parsed.data.formSurface === 'leads' ? 'leads' : 'booking',
-  );
-  if (!entitlement.ok) return entitlement.response;
   const deps = buildAppDeps();
+  const access = await requireFormSurfaceAccess(
+    gate.ctx,
+    deps,
+    parsed.data.formSurface,
+    'mutation',
+  );
+  if (!access.ok) return access.response;
   if (!deps.bookingForm) {
     return NextResponse.json({ ok: false, error: 'booking_engine_unavailable' }, { status: 503 });
   }
@@ -153,12 +177,14 @@ export async function DELETE(request: Request) {
   if (!parsed.success) {
     return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   }
-  const entitlement = await requireEntitlementForMutation(
-    gate.ctx,
-    parsed.data.formSurface === 'leads' ? 'leads' : 'booking',
-  );
-  if (!entitlement.ok) return entitlement.response;
   const deps = buildAppDeps();
+  const access = await requireFormSurfaceAccess(
+    gate.ctx,
+    deps,
+    parsed.data.formSurface,
+    'mutation',
+  );
+  if (!access.ok) return access.response;
   if (!deps.bookingForm) {
     return NextResponse.json({ ok: false, error: 'booking_engine_unavailable' }, { status: 503 });
   }

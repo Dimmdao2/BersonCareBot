@@ -9,10 +9,10 @@ import { validateBookingFormAnswers } from './validateAnswers';
 
 type BookingFormServiceDependencies = {
   /**
-   * 3.2: physically refuses a `booking` write unless a passing mutation decision already ran in
+   * 3.2: physically refuses a surface write unless its passing mutation decision already ran in
    * this request (injected from `buildAppDeps.ts` as `assertMechanicWriteClearance`).
    */
-  assertWriteClearance?: (mechanic: 'booking') => void;
+  assertWriteClearance?: (mechanic: 'booking' | 'leads') => void;
 };
 
 export function createBookingFormService(
@@ -64,8 +64,8 @@ export function createBookingFormService(
     );
   }
 
-  function assertBookingWriteClearance(): void {
-    dependencies.assertWriteClearance?.('booking');
+  function assertSurfaceWriteClearance(surface: FormSurface): void {
+    dependencies.assertWriteClearance?.(surface);
   }
 
   return {
@@ -104,13 +104,13 @@ export function createBookingFormService(
     },
 
     async upsertAdminField(organizationId, input) {
-      assertBookingWriteClearance();
+      const surface = input.formSurface ?? 'booking';
+      assertSurfaceWriteClearance(surface);
       const existing = input.id
-        ? (await port.listAllFieldsAdmin(organizationId, input.formSurface ?? 'booking')).find(
+        ? (await port.listAllFieldsAdmin(organizationId, surface)).find(
             (field) => field.id === input.id,
           )
         : null;
-      const surface = input.formSurface ?? 'booking';
       const systemFieldKey = existing?.fieldKey ?? input.fieldKey;
       const definition = SYSTEM_FORM_FIELDS[surface].find(
         (candidate) => candidate.fieldKey === canonicalBookingFormFieldKey(systemFieldKey),
@@ -132,7 +132,7 @@ export function createBookingFormService(
     },
 
     async archiveAdminField(organizationId, fieldId, surface = 'booking') {
-      assertBookingWriteClearance();
+      assertSurfaceWriteClearance(surface);
       const field = (await port.listAllFieldsAdmin(organizationId, surface)).find(
         (candidate) => candidate.id === fieldId,
       );

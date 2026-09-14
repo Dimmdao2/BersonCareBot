@@ -4,6 +4,9 @@ const fakes = vi.hoisted(() => ({
   buildAppDeps: vi.fn(),
   requireClinicManagementBookingEngine: vi.fn(),
   requireEntitlementForMutation: vi.fn(),
+  requireEntitlementForRead: vi.fn(),
+  requireDoctorWorkspaceConfigModuleForApi: vi.fn(),
+  listAdminFields: vi.fn(),
   upsertAdminField: vi.fn(),
 }));
 
@@ -13,16 +16,17 @@ vi.mock('../_requireClinicManagementBookingEngine', () => ({
 }));
 vi.mock('@/app-layer/guards/requireEntitlement', () => ({
   requireEntitlementForMutation: fakes.requireEntitlementForMutation,
+  requireEntitlementForRead: fakes.requireEntitlementForRead,
+}));
+vi.mock('@/app-layer/guards/workspaceModuleAccess', () => ({
+  requireDoctorWorkspaceConfigModuleForApi: fakes.requireDoctorWorkspaceConfigModuleForApi,
 }));
 vi.mock('@/app-layer/principal/withOrganizationPrincipal', () => ({
-  withDoctorWorkspacePrincipal: (
-    _ctx: unknown,
-    _source: string,
-    work: () => Promise<unknown>,
-  ) => work(),
+  withDoctorWorkspacePrincipal: (_ctx: unknown, _source: string, work: () => Promise<unknown>) =>
+    work(),
 }));
 
-import { POST } from './route';
+import { GET, POST } from './route';
 
 const ORGANIZATION_ID = '11111111-1111-4111-8111-111111111111';
 
@@ -50,10 +54,60 @@ describe('clinic-owner booking form field mutation', () => {
       ctx: { organizationId: ORGANIZATION_ID },
     });
     fakes.requireEntitlementForMutation.mockResolvedValue({ ok: true });
+    fakes.requireEntitlementForRead.mockResolvedValue({ ok: true });
+    fakes.requireDoctorWorkspaceConfigModuleForApi.mockResolvedValue({ ok: true });
     fakes.buildAppDeps.mockReturnValue({
-      bookingForm: { upsertAdminField: fakes.upsertAdminField },
+      bookingForm: {
+        listAdminFields: fakes.listAdminFields,
+        upsertAdminField: fakes.upsertAdminField,
+      },
     });
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
+  });
+
+  it('refuses lead-form reads when the leads workspace module is disabled', async () => {
+    fakes.requireDoctorWorkspaceConfigModuleForApi.mockResolvedValue({
+      ok: false,
+      response: Response.json(
+        { ok: false, error: 'workspace_module_disabled', module: 'leads' },
+        { status: 403 },
+      ),
+    });
+
+    const response = await GET(
+      new Request('http://test/api/admin/booking-engine/form-fields?surface=leads'),
+    );
+
+    expect(response.status).toBe(403);
+    expect(fakes.requireEntitlementForRead).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: ORGANIZATION_ID }),
+      'leads',
+    );
+    expect(fakes.requireDoctorWorkspaceConfigModuleForApi).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ organizationId: ORGANIZATION_ID }),
+      'leads',
+    );
+    expect(fakes.listAdminFields).not.toHaveBeenCalled();
+  });
+
+  it('refuses lead-form writes when the leads workspace module is disabled', async () => {
+    fakes.requireDoctorWorkspaceConfigModuleForApi.mockResolvedValue({
+      ok: false,
+      response: Response.json(
+        { ok: false, error: 'workspace_module_disabled', module: 'leads' },
+        { status: 403 },
+      ),
+    });
+
+    const response = await POST(request({ formSurface: 'leads' }));
+
+    expect(response.status).toBe(403);
+    expect(fakes.requireEntitlementForMutation).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: ORGANIZATION_ID }),
+      'leads',
+    );
+    expect(fakes.upsertAdminField).not.toHaveBeenCalled();
   });
 
   it('creates through the exact organization port and returns the usable field', async () => {

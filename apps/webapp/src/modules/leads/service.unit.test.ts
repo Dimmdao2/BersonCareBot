@@ -4,7 +4,9 @@ import type { LeadsPort } from './ports';
 import type { SubmitLeadInput, VerifiedLeadApplicant } from './types';
 
 function rejectingPort() {
-  const create = vi.fn<LeadsPort['create']>(async () => null);
+  const create = vi.fn<LeadsPort['create']>(async () => {
+    throw new Error('unexpected lead create');
+  });
   const port: LeadsPort = {
     create,
     async list() {

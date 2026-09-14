@@ -69,6 +69,5 @@ export type NormalizedLeadInput = {
 export type RejectLeadInput = {
   organizationId: string;
   leadId: string;
-  blockApplicant: boolean;
   comment?: string | null;
 };

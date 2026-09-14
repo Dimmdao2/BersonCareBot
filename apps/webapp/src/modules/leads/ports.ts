@@ -1,7 +1,7 @@
 import type { Lead, NormalizedLeadInput, RejectLeadInput, SubmitLeadInput } from './types';
 
 export type LeadsPort = {
-  create(input: NormalizedLeadInput, now: string): Promise<Lead | null>;
+  create(input: NormalizedLeadInput, now: string): Promise<Lead>;
   list(input: { organizationId: string; includeArchived: boolean; limit: number }): Promise<Lead[]>;
   get(organizationId: string, leadId: string): Promise<Lead | null>;
   accept(organizationId: string, leadId: string, now: string): Promise<Lead | null>;
@@ -14,14 +14,6 @@ export type LeadsPort = {
     now: string,
   ): Promise<Lead | null>;
 };
-
-export type LeadRejectionNotifier = (input: {
-  organizationId: string;
-  leadId: string;
-  platformUserId: string;
-  recipientEmail: string;
-  comment: string | null;
-}) => Promise<boolean>;
 
 export type LeadsService = {
   submit(input: SubmitLeadInput): Promise<Lead>;

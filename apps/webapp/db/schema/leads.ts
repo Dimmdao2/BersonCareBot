@@ -66,35 +66,3 @@ export const leads = pgTable(
     check('leads_message_not_blank_check', sql`btrim(${table.messageText}) <> ''`),
   ],
 );
-
-export const leadBlocks = pgTable(
-  'lead_blocks',
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    organizationId: uuid('organization_id').notNull(),
-    platformUserId: uuid('platform_user_id').notNull(),
-    sourceLeadId: uuid('source_lead_id').notNull(),
-    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
-      .defaultNow()
-      .notNull(),
-  },
-  (table) => [
-    index('idx_lead_blocks_user').on(table.platformUserId),
-    unique('uq_lead_blocks_org_user').on(table.organizationId, table.platformUserId),
-    foreignKey({
-      columns: [table.organizationId],
-      foreignColumns: [beOrganizations.id],
-      name: 'lead_blocks_organization_id_fkey',
-    }).onDelete('cascade'),
-    foreignKey({
-      columns: [table.platformUserId],
-      foreignColumns: [platformUsers.id],
-      name: 'lead_blocks_platform_user_id_fkey',
-    }).onDelete('cascade'),
-    foreignKey({
-      columns: [table.sourceLeadId, table.organizationId],
-      foreignColumns: [leads.id, leads.organizationId],
-      name: 'lead_blocks_source_lead_id_fkey',
-    }).onDelete('restrict'),
-  ],
-);

@@ -62,4 +62,39 @@ describe('booking-form — 3.2 physical door (booking)', () => {
     });
     expect(upsertFieldAdmin).toHaveBeenCalledOnce();
   });
+
+  it('requires leads clearance, not booking clearance, for the leads surface', async () => {
+    const { service, upsertFieldAdmin } = buildService();
+    await runWithoutMechanicWriteClearance(async () => {
+      enterWithMechanicWriteClearance('booking');
+      await expect(
+        service.upsertAdminField(ORG_ID, {
+          formSurface: 'leads',
+          fieldKey: 'message',
+          fieldType: 'textarea',
+          label: 'Сообщение',
+          isRequired: true,
+          sortOrder: 0,
+          isActive: true,
+        }),
+      ).rejects.toMatchObject({ mechanic: 'leads' });
+    });
+    expect(upsertFieldAdmin).not.toHaveBeenCalled();
+
+    await runWithoutMechanicWriteClearance(async () => {
+      enterWithMechanicWriteClearance('leads');
+      await expect(
+        service.upsertAdminField(ORG_ID, {
+          formSurface: 'leads',
+          fieldKey: 'message',
+          fieldType: 'textarea',
+          label: 'Сообщение',
+          isRequired: true,
+          sortOrder: 0,
+          isActive: true,
+        }),
+      ).resolves.toMatchObject({ id: 'field-1' });
+    });
+    expect(upsertFieldAdmin).toHaveBeenCalledOnce();
+  });
 });

@@ -1,8 +1,8 @@
 -- BCB-MIGRATION-OWNER: app_object_owner
--- BCB-MIGRATION-VERIFY: SELECT to_regclass('public.leads') IS NOT NULL AND to_regclass('public.lead_blocks') IS NOT NULL AND EXISTS (SELECT 1 FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relname IN ('leads','lead_blocks') AND c.relrowsecurity AND c.relforcerowsecurity GROUP BY n.nspname HAVING count(*)=2) AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='be_booking_form_fields' AND column_name='form_surface') AND pg_catalog.strpos(pg_catalog.pg_get_functiondef('app.list_public_booking_form_fields()'::regprocedure), 'form_surface = ''booking''') > 0 AND pg_catalog.strpos(pg_catalog.pg_get_functiondef('app.save_current_patient_booking_form_answers(uuid,text)'::regprocedure), 'form_surface = ''booking''') > 0
+-- BCB-MIGRATION-VERIFY: SELECT to_regclass('public.leads') IS NOT NULL AND EXISTS (SELECT 1 FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relname='leads' AND c.relrowsecurity AND c.relforcerowsecurity) AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='be_booking_form_fields' AND column_name='form_surface') AND pg_catalog.strpos(pg_catalog.pg_get_functiondef('app.list_public_booking_form_fields()'::regprocedure), 'form_surface = ''booking''') > 0 AND pg_catalog.strpos(pg_catalog.pg_get_functiondef('app.save_current_patient_booking_form_answers(uuid,text)'::regprocedure), 'form_surface = ''booking''') > 0
 --
--- Rights analysis: the two tenant relations are declared for app_staff in the canonical privilege
--- declaration; RLS policies are produced by reconcile from that declaration. Existing definer
+-- Rights analysis: the tenant relation is declared for app_staff in the canonical privilege
+-- declaration; its RLS policy is produced by reconcile from that declaration. Existing definer
 -- roots gain only the form_surface column in their declared relation surfaces. No rights are
 -- granted or revoked by this migration.
 ALTER TABLE public.be_booking_form_fields
@@ -58,21 +58,8 @@ CREATE INDEX IF NOT EXISTS idx_leads_org_created ON public.leads (organization_i
 CREATE INDEX IF NOT EXISTS idx_leads_org_status_created ON public.leads (organization_id, status, created_at);
 CREATE INDEX IF NOT EXISTS idx_leads_user_created ON public.leads (platform_user_id, created_at);
 
-CREATE TABLE IF NOT EXISTS public.lead_blocks (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-  organization_id uuid NOT NULL REFERENCES public.be_organizations(id) ON DELETE CASCADE,
-  platform_user_id uuid NOT NULL REFERENCES public.platform_users(id) ON DELETE CASCADE,
-  source_lead_id uuid NOT NULL,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT uq_lead_blocks_org_user UNIQUE (organization_id, platform_user_id),
-  CONSTRAINT lead_blocks_source_lead_id_fkey FOREIGN KEY (source_lead_id, organization_id) REFERENCES public.leads(id, organization_id) ON DELETE RESTRICT
-);
-CREATE INDEX IF NOT EXISTS idx_lead_blocks_user ON public.lead_blocks (platform_user_id);
-
 ALTER TABLE public.leads ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.leads FORCE ROW LEVEL SECURITY;
-ALTER TABLE public.lead_blocks ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.lead_blocks FORCE ROW LEVEL SECURITY;
 
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_public_booking_owner

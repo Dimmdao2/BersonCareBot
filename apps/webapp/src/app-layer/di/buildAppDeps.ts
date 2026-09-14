@@ -455,7 +455,6 @@ import { createPgBookingFormPort } from '@/infra/repos/pgBookingForm';
 import { createBookingFormService } from '@/modules/booking-form/service';
 import { createPgLeadsPort } from '@/infra/repos/pgLeads';
 import { createLeadsService } from '@/modules/leads/service';
-import { notifyLeadRejected } from '@/app-layer/leads/notifyLeadRejected';
 import { createPgPatientMergeCandidatePort } from '@/infra/repos/pgPatientMergeCandidate';
 import { createPatientMergeCandidateService } from '@/modules/patient-merge-candidate/service';
 import {
@@ -882,7 +881,6 @@ const leadsPort = !inMemoryRepos ? createPgLeadsPort() : null;
 const leadsService = leadsPort
   ? createLeadsService(leadsPort, {
       assertWriteClearance: assertMechanicWriteClearance,
-      notifyRejected: notifyLeadRejected,
     })
   : null;
 const patientMergeCandidatePort = !inMemoryRepos ? createPgPatientMergeCandidatePort() : null;

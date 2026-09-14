@@ -12159,35 +12159,6 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
       }
     ]
   },
-  "public.lead_blocks": {
-    "kind": "direct",
-    "purpose": "блокировки новых заявок в одной клинике — отклонённый заявитель может обойти запрет",
-    "codePaths": [
-      "apps/webapp/src/infra/repos/pgLeads.ts"
-    ],
-    "grants": [
-      {
-        "role": "app_staff",
-        "operations": [
-          "SELECT"
-        ],
-        "columns": "table"
-      },
-      {
-        "role": "app_staff",
-        "operations": [
-          "INSERT"
-        ],
-        "columns": [
-          "created_at",
-          "id",
-          "organization_id",
-          "platform_user_id",
-          "source_lead_id"
-        ]
-      }
-    ]
-  },
   "public.leads": {
     "kind": "direct",
     "purpose": "заявки клиники — кабинет не принимает и не обрабатывает обращения",
@@ -23450,8 +23421,6 @@ const TABLE_ROWS: TableRow[] = [
     + 'свободные слоты' },
   { t: 'public.be_booking_form_fields', cls: 'C', org: true, why: 'конструктор полей формы записи — форма записи '
     + 'теряет настраиваемые поля' },
-  { t: 'public.lead_blocks', cls: 'P', org: true, wall: 'clinic', why: 'блокировки заявок — заявитель обходит запрет клиники',
-    wallWhy: 'доступ пока только админу клиники' },
   { t: 'public.leads', cls: 'P', org: true, wall: 'clinic', why: 'заявки — клиника теряет новые обращения',
     wallWhy: 'доступ пока только админу клиники' },
   { t: 'public.be_booking_form_submissions', cls: 'P', org: true, why: 'ответы пациента в форме записи — теряются данные, '
@@ -30885,11 +30854,6 @@ export const REV10_LOCKED_POLICY_DATA: Readonly<Record<string, LockedPolicyEntry
     dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())))",
   },
   "public.be_booking_form_fields": {
-    policyName: "saas_org_dormant_p0_8_3",
-    strictPredicate: "(app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
-    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())))",
-  },
-  "public.lead_blocks": {
     policyName: "saas_org_dormant_p0_8_3",
     strictPredicate: "(app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
     dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())))",
