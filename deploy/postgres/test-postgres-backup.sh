@@ -1409,6 +1409,79 @@ for bad31 in 'postgres://u:p@h/db' 'db;DROP' 'db name' '$(id)' '../etc'; do
   if [ "$rc31b" -ne 0 ]; then pass "scenario31b: «${bad31}» отбито по форме"; else fail "scenario31b: «${bad31}» принято как имя базы"; fi
 done
 
+# --- Scenario 32: журнал бэкапов в meta_json — снимок каталога, а не накопленный список ----
+#
+# Смысл шага: владелец просил видеть в здоровье системы, какие бэкапы есть и когда сделаны
+# («можно посмотреть список бэкапов в идеале»). Файлы лежат на хосте, вебапп их не видит, поэтому
+# список едет в панель через meta_json собственной строки operator_job_status.
+#
+# Проверяется ровно то, что делает этот список безопасным и честным:
+#   1) в SQL-литерал попадают ТОЛЬКО наши сгенерированные имена. Имя с кавычкой и точкой с запятой
+#      подкладывается намеренно: без проверки формы именно оно стало бы инъекцией в единственное
+#      место, которое пишет в базу от суперпользователя;
+#   2) список — снимок каталога, поэтому удалённый retention-ом файл исчезает из него сам. Именно
+#      ради этого он снимок, а не накопленная история прогонов: иначе панель предлагала бы
+#      скачать то, чего на диске уже нет.
+#
+# Два прогона намеренно разделены очисткой каталога: подряд в одну секунду скрипт обязан отказать,
+# чтобы не затереть поколение (сценарий 12), и здесь это не проверяется повторно.
+
+case32="${WORKROOT}/case32"; mkdir -p "$case32"
+fakebin32="${case32}/fakebin"; make_fakebin "$fakebin32"
+root32="${case32}/backups_root"
+recipients32="${case32}/age-recipients.txt"; write_recipients_file "$recipients32"
+call32="${case32}/call.log"; : > "$call32"
+tick32="${case32}/tick.log"; : > "$tick32"
+
+run32() {
+  set +e
+  env -i PATH="${fakebin32}:/usr/bin:/bin" \
+    BERSONCAREBOT_BACKUPS_ROOT="$root32" \
+    BERSONCAREBOT_BACKUP_AGE_RECIPIENTS_FILE="$recipients32" \
+    BERSONCAREBOT_BACKUP_EXPECT_HOSTNAME="$EXPECT_HOSTNAME" \
+    BERSONCAREBOT_BACKUP_EXPECT_IPV4="$EXPECT_IPV4" \
+    BERSONCAREBOT_BACKUP_DATABASE="$UNIFIED_DB" \
+    FAKE_CALL_LOG="$call32" \
+    FAKE_PSQL_TICK_LOG="$tick32" \
+    bash "$SCRIPT_UNDER_TEST" manual >>"${case32}/stdout.log" 2>>"${case32}/stderr.log"
+  local rc=$?
+  set -e
+  return "$rc"
+}
+
+mkdir -p "${root32}/manual"
+chmod 0700 "$root32" "${root32}/manual"
+# Чужой файл: имя проходит маску find, но не проходит проверку формы.
+hostile32="${root32}/manual/evil'; DROP TABLE public.operator_job_status; --.dump.age"
+printf 'not ours\n' > "$hostile32"
+# Прежнее поколение с нашим именем: оно обязано попасть в журнал, а после удаления — пропасть.
+old32="unified_${UNIFIED_DB}_20260101_000000.dump.age"
+printf 'FAKE-AGE-ENCRYPTED\n' > "${root32}/manual/${old32}"
+
+run32 || fail "scenario32: прогон вышел ненулевым"
+
+if grep -q '"artifacts"' "$tick32"; then pass "scenario32: журнал уехал в meta_json"; else fail "scenario32: в meta_json нет списка артефактов"; fi
+if grep -qE '\{"name":"unified_'"${UNIFIED_DB}"'_[0-9]{8}_[0-9]{6}\.dump\.age","bytes":[0-9]+,"at":"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z"\}' "$tick32"; then
+  pass "scenario32: запись журнала несёт имя, размер и время"
+else
+  fail "scenario32: запись журнала не той формы"
+fi
+if grep -q "$old32" "$tick32"; then pass "scenario32: прежнее поколение видно в журнале"; else fail "scenario32: прежнее поколение в журнал не попало"; fi
+if grep -q 'DROP TABLE' "$tick32"; then fail "scenario32: чужое имя файла доехало до SQL"; else pass "scenario32: чужое имя файла в SQL не попало"; fi
+if grep -q 'not ours' "$tick32"; then fail "scenario32: содержимое чужого файла доехало до SQL"; else pass "scenario32: содержимое чужого файла в SQL не попало"; fi
+assert_no_marker "scenario32" "$case32/stdout.log" "$case32/stderr.log" "$call32" "$tick32"
+
+# 32b: каталог очищен от всех наших поколений — следующий тик обязан их забыть.
+find "${root32}/manual" -name '*.dump.age' -delete
+find "${root32}/manual" -name '*.dump.age.sha256' -delete
+: > "$tick32"
+run32 || fail "scenario32b: прогон после очистки вышел ненулевым"
+if grep -q "$old32" "$tick32"; then
+  fail "scenario32b: удалённый бэкап всё ещё числится в журнале"
+else
+  pass "scenario32b: удалённый бэкап из журнала исчез"
+fi
+
 # --- summary -----------------------------------------------------------------
 
 echo "---"

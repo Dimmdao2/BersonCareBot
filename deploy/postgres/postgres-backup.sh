@@ -478,6 +478,47 @@ backup_job_key() {
   esac
 }
 
+# Журнал бэкапов для панели здоровья: СНИМОК КАТАЛОГА на момент тика, а не накопленный
+# список прогонов. Накопленный список пережил бы retention и показывал бы оператору имена
+# файлов, которых на диске уже нет, — то есть предлагал бы скачать несуществующее. Снимок
+# самоочищается сам и отвечает ровно на вопрос «какие бэкапы сейчас есть».
+#
+# В строку SQL это уходит как литерал, поэтому каждое поле проверяется ПЕРЕД склейкой: имя
+# файла обязано быть нашим сгенерированным именем без кавычек и спецсимволов, размер и время —
+# только цифрами. Всё, что не прошло, молча выбрасывается: журнал не повод ослабить границу.
+BACKUP_INVENTORY_MAX=20
+
+backup_dir_inventory_json() {
+  local dir="$1"
+  local out='['
+  local first=1
+  local epoch bytes name iso
+  while IFS="$(printf '\t')" read -r epoch bytes name; do
+    [ -n "${name:-}" ] || continue
+    epoch="${epoch%%.*}"
+    [[ "$epoch" =~ ^[0-9]{1,12}$ ]] || continue
+    [[ "$bytes" =~ ^[0-9]{1,15}$ ]] || continue
+    [[ "$name" =~ ^[A-Za-z0-9_]+\.dump\.age$ ]] || continue
+    iso="$(date -u -d "@${epoch}" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null)" || continue
+    [ "$first" = 1 ] || out="${out},"
+    first=0
+    out="${out}{\"name\":\"${name}\",\"bytes\":${bytes},\"at\":\"${iso}\"}"
+  done < <(find "$dir" -maxdepth 1 -type f -name '*.dump.age' -printf '%T@\t%s\t%f\n' 2>/dev/null |
+             sort -rn | head -n "$BACKUP_INVENTORY_MAX")
+  printf '%s]' "$out"
+}
+
+# Готовый объект meta_json для тика. Пустой каталог даёт пустой список, а не отсутствие поля:
+# «бэкапов нет» — это ответ, который панель обязана уметь показать.
+backup_inventory_meta_json() {
+  local dir="${1:-}"
+  if [ -z "$dir" ]; then
+    printf '{}'
+    return 0
+  fi
+  printf '{"artifacts":%s}' "$(backup_dir_inventory_json "$dir")"
+}
+
 # All psql calls below authenticate via the PGDATABASE libpq environment
 # variable (accepts a full postgres:// connection string), never via argv —
 # DATABASE_URL is never visible in `ps`/process argv.
@@ -486,9 +527,11 @@ tick_job_success() {
   local job_key="$2"
   local duration_ms="$3"
   local started_iso="$4"
+  local meta_json="${5:-}"
+  [ -n "$meta_json" ] || meta_json='{}'
   PGDATABASE="$conn" psql -v ON_ERROR_STOP=1 -q -c \
     "INSERT INTO public.operator_job_status (job_key, job_family, last_status, last_started_at, last_finished_at, last_success_at, last_failure_at, last_duration_ms, last_error, meta_json)
-     VALUES ('${job_key}', '${JOB_FAMILY}', 'success', '${started_iso}'::timestamptz, now(), now(), NULL, ${duration_ms}, NULL, '{}'::jsonb)
+     VALUES ('${job_key}', '${JOB_FAMILY}', 'success', '${started_iso}'::timestamptz, now(), now(), NULL, ${duration_ms}, NULL, '${meta_json}'::jsonb)
      ON CONFLICT (job_key) DO UPDATE SET
        job_family = EXCLUDED.job_family,
        last_status = 'success',
@@ -497,7 +540,8 @@ tick_job_success() {
        last_success_at = now(),
        last_failure_at = NULL,
        last_duration_ms = EXCLUDED.last_duration_ms,
-       last_error = NULL;" \
+       last_error = NULL,
+       meta_json = EXCLUDED.meta_json;" \
     >/dev/null 2>&1
 }
 
@@ -507,11 +551,13 @@ tick_job_failure() {
   local duration_ms="$3"
   local err_raw="$4"
   local started_iso="$5"
+  local meta_json="${6:-}"
+  [ -n "$meta_json" ] || meta_json='{}'
   local err
   err="$(sql_escape_literal "$err_raw")"
   PGDATABASE="$conn" psql -v ON_ERROR_STOP=1 -q -c \
     "INSERT INTO public.operator_job_status (job_key, job_family, last_status, last_started_at, last_finished_at, last_success_at, last_failure_at, last_duration_ms, last_error, meta_json)
-     VALUES ('${job_key}', '${JOB_FAMILY}', 'failure', '${started_iso}'::timestamptz, now(), NULL, now(), ${duration_ms}, '${err}', '{}'::jsonb)
+     VALUES ('${job_key}', '${JOB_FAMILY}', 'failure', '${started_iso}'::timestamptz, now(), NULL, now(), ${duration_ms}, '${err}', '${meta_json}'::jsonb)
      ON CONFLICT (job_key) DO UPDATE SET
        job_family = EXCLUDED.job_family,
        last_status = 'failure',
@@ -519,7 +565,8 @@ tick_job_failure() {
        last_finished_at = now(),
        last_failure_at = now(),
        last_duration_ms = EXCLUDED.last_duration_ms,
-       last_error = EXCLUDED.last_error;" \
+       last_error = EXCLUDED.last_error,
+       meta_json = EXCLUDED.meta_json;" \
     >/dev/null 2>&1
 }
 
@@ -900,7 +947,7 @@ run_mode() {
   if [ "$mode" = "prune" ]; then
     run_prune_retention
     local dur_ms=$(( (SECONDS - started) * 1000 ))
-    tick_job_success "$webapp_url" "$job_key" "$dur_ms" "$run_started_iso" || echo "postgres-backup: warning: operator_job_status tick failed" >&2
+    tick_job_success "$webapp_url" "$job_key" "$dur_ms" "$run_started_iso" "{}" || echo "postgres-backup: warning: operator_job_status tick failed" >&2
     echo "postgres-backup: done (${mode})"
     return 0
   fi
@@ -918,11 +965,15 @@ run_mode() {
     rc=$?
   fi
   local dur_ms=$(( (SECONDS - started) * 1000 ))
+  # Снимок каталога снимается и на отказе тоже: именно тогда оператору и нужно знать, что из
+  # прежних бэкапов ещё лежит на диске.
+  local meta_json
+  meta_json="$(backup_inventory_meta_json "$outdir")"
   if [ "$rc" -ne 0 ]; then
-    tick_job_failure "$webapp_url" "$job_key" "$dur_ms" "backup dump failed" "$run_started_iso" || true
+    tick_job_failure "$webapp_url" "$job_key" "$dur_ms" "backup dump failed" "$run_started_iso" "$meta_json" || true
     die "backup dump failed"
   fi
-  tick_job_success "$webapp_url" "$job_key" "$dur_ms" "$run_started_iso" || echo "postgres-backup: warning: operator_job_status tick failed" >&2
+  tick_job_success "$webapp_url" "$job_key" "$dur_ms" "$run_started_iso" "$meta_json" || echo "postgres-backup: warning: operator_job_status tick failed" >&2
 
   echo "postgres-backup: done (${mode})"
 }
