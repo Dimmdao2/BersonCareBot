@@ -414,6 +414,10 @@ export async function readHostedPreviewSourceUrl(mediaId: string): Promise<strin
  * нечестно — иначе файл, который ждал починки дольше других, получил бы меньше всего попыток.
  */
 export async function releaseStuckMediaPreviews(tools: readonly PreviewTool[]): Promise<number> {
+  // `sql.param` обязателен: без него drizzle разворачивает массив в СПИСОК параметров — получалось
+  // `ANY(($1, $2)::text[])`, а это не массив, и запрос падал на каждом старте воркера. Снаружи это
+  // выглядело как «превью не чинятся сами»: отчёт об инструментах не доходил, и строки, ждавшие
+  // декодера, не выпускались никогда. Замерено 15.09.2026 на живом проде.
   const statuses = tools.includes(PREVIEW_TOOL_HEIC_DECODER)
     ? ['blocked', 'failed']
     : ['failed'];
@@ -426,7 +430,7 @@ export async function releaseStuckMediaPreviews(tools: readonly PreviewTool[]): 
              preview_status = 'pending',
              preview_attempts = 0,
              preview_next_attempt_at = NULL
-           WHERE preview_status = ANY(${statuses}::text[])
+           WHERE preview_status = ANY(${sql.param(statuses)}::text[])
            RETURNING id::text AS id`,
     );
     return res.rows.length;
