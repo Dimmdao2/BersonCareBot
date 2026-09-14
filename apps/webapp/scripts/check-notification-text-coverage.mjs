@@ -58,6 +58,10 @@
  *    calls to either are exempt, same as any other dynamic expression on a branch.
  *  - G4: an inline `message: '...'` literal inside `NextResponse.json`/`Response.json`/`jsonError`
  *    — the shape that let a route's own copy diverge from the dictionary for the SAME code.
+ *    Since 14.09 the value is walked through the same `??`/ternary/parens branches as a toast
+ *    argument: the rule used to accept ONLY a literal standing directly as the value, so a route
+ *    that picked its sentence with a ternary passed clean. Three live routes sat in that blind
+ *    spot (password change, admin settings, clinic delivery test).
  *    Файловых исключений НЕТ: список «grandfather» удалён 13.09 по прямому указанию владельца,
  *    все 74 литерала из 32 освобождённых файлов перенесены в словарь.
  *  - G5: функция-подпись, возвращающая собственный вход, — человек читает машинный код.
@@ -363,11 +367,14 @@ function responseJsonMessageLiteralOf(node, consts = EMPTY_CONSTS) {
   for (const prop of arg.properties) {
     if (!ts.isPropertyAssignment(prop) || !ts.isIdentifier(prop.name)) continue;
     if (prop.name.text !== 'message') continue;
-    const value = prop.initializer;
-    if (ts.isStringLiteral(value) || ts.isNoSubstitutionTemplateLiteral(value)) return value;
-    // Same final-audit MAJOR as in `collectLiteralLeaves`: the live example was
-    // `message: ORGANIZATION_SLUG_REQUIRED_MESSAGE` in specialist-signup/confirm/route.ts.
-    if (ts.isIdentifier(value) && consts.has(value.text)) return consts.get(value.text);
+    // Owner check, 14.09: G4 used to accept ONLY a literal standing directly as the value, while
+    // the toast rule had long walked `??`/ternary branches. A route that chose its sentence with a
+    // ternary — `message: locked ? 'Слишком много попыток…' : 'Пароль неверен…'` — therefore passed
+    // clean, which is the same divergent-copy class this rule exists to stop. Three live routes sat
+    // in that blind spot (password change, admin settings, clinic delivery test). Walk the same
+    // branch shapes here, and report the first literal found on any branch.
+    const leaves = collectLiteralLeaves(prop.initializer, [], consts);
+    if (leaves.length > 0) return leaves[0];
   }
   return undefined;
 }
@@ -847,6 +854,11 @@ function selfTest() {
     ['NextResponse.json message literal',
       "return NextResponse.json({ ok: false, error: 'x', message: 'Некорректные данные' }, { status: 400 });"],
     ['Response.json message literal', "return Response.json({ error: 'x', message: 'Ошибка' });"],
+    // Owner check, 14.09: the branch shapes the toast rule had always walked were invisible here.
+    ['NextResponse.json message ternary',
+      "return NextResponse.json({ error: 'x', message: locked ? 'Слишком много попыток.' : 'Пароль неверен.' });"],
+    ['NextResponse.json message ?? fallback',
+      "return NextResponse.json({ error: 'x', message: serverMessage ?? 'Не удалось сохранить.' });"],
     // NEW-4: the `jsonError(code, body, init)` wrapper carries the body in its SECOND argument —
     // the blind spot that hid the live X-Real-IP leaks. It had no fixture until the final audit.
     ['jsonError message literal (body is the SECOND argument)',
