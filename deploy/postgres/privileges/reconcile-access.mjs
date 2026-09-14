@@ -9,6 +9,11 @@ import { resolve } from 'node:path';
 
 const root = resolve(import.meta.dirname, '..', '..', '..');
 
+// Сколько ждать чужой замок, прежде чем отступить. Три секунды — заметно больше любого живого
+// запроса приложения и заметно меньше того, что пользователь считает зависанием.
+const LOCK_TIMEOUT_SQL_LITERAL = "'3s'";
+const RETRY_BACKOFF_SECONDS = [5, 15, 45, 90];
+
 function value(name, fallback = undefined) {
   const at = process.argv.indexOf(`--${name}`);
   if (at < 0) {
@@ -50,17 +55,21 @@ for (const file of files) {
   if (!existsSync(resolve(root, file))) throw new Error(`missing ${file}`);
 }
 
-function command(commandName, args, options = {}) {
+function run(commandName, args, options = {}) {
   const postgresIdentity = process.getuid?.() === 0 && commandName === 'psql';
   const executable = postgresIdentity ? 'runuser' : commandName;
   const executableArgs = postgresIdentity ? ['-u', 'postgres', '--', commandName, ...args] : args;
-  const result = spawnSync(executable, executableArgs, {
+  return spawnSync(executable, executableArgs, {
     cwd: root,
     env: process.env,
     encoding: 'utf8',
     maxBuffer: 64 * 1024 * 1024,
     ...options,
   });
+}
+
+function command(commandName, args, options = {}) {
+  const result = run(commandName, args, options);
   if (result.status !== 0) {
     throw new Error(
       `${commandName} failed (${result.status ?? result.signal}):\n${result.stderr ?? ''}${result.stdout ?? ''}`,
@@ -93,6 +102,11 @@ const sql = [
   `\\set DBNAME ${dbName}`,
   generator('--env', envName, '--db', dbName, '--env-login-variables'),
   'BEGIN;',
+  // Замок берём С ОЖИДАНИЕМ, а не намертво. Без этого первый же занятый объект ставил reconcile в
+  // очередь на ACCESS EXCLUSIVE, а за ним — ВСЕХ последующих читателей той же таблицы: живая работа
+  // клиники вставала до конца деплоя. С таймаутом попытка падает целиком и повторяется позже, когда
+  // очередной запрос отпустит объект; частичного состояния при этом не остаётся — транзакция одна.
+  `SET LOCAL lock_timeout = ${LOCK_TIMEOUT_SQL_LITERAL};`,
   `SELECT pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('bcb-access-reconcile:' || current_database(), 0));`,
   // Target login shells, attributes, memberships and passwords are the only
   // allowed cluster mutations in a per-target reconcile.
@@ -116,10 +130,40 @@ const sql = [
   'COMMIT;',
 ].join('\n');
 
-command('psql', [
+/**
+ * Отказ из-за замка — это НЕ поломка прав, а «сейчас занято»: объект держит живой запрос. Такую
+ * попытку повторяем целиком, потому что reconcile атомарен и после отката база осталась ровно в том
+ * состоянии, в котором была. Любая другая ошибка — настоящая: падаем сразу и громко.
+ */
+function isLockContention(output) {
+  return /lock timeout|deadlock detected|55P03|40P01/iu.test(output);
+}
+
+function sleepSeconds(seconds) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, seconds * 1000);
+}
+
+const psqlArgs = [
   '-X', '-h', adminSocket, '-p', adminPort, '-U', 'postgres', '-d', dbName,
   '-v', 'ON_ERROR_STOP=1',
-], { input: sql });
+];
+let applied = false;
+for (let attempt = 1; attempt <= RETRY_BACKOFF_SECONDS.length + 1 && !applied; attempt += 1) {
+  const result = run('psql', psqlArgs, { input: sql });
+  if (result.status === 0) {
+    applied = true;
+    break;
+  }
+  const output = `${result.stderr ?? ''}${result.stdout ?? ''}`;
+  const backoff = RETRY_BACKOFF_SECONDS[attempt - 1];
+  if (!isLockContention(output) || backoff === undefined) {
+    throw new Error(`psql failed (${result.status ?? result.signal}):\n${output}`);
+  }
+  console.warn(
+    `access reconcile: объект занят живым запросом (попытка ${attempt}), повтор через ${backoff} c`,
+  );
+  sleepSeconds(backoff);
+}
 console.log(
   `access reconcile committed: env=${envName} database=${dbName}; local admin socket=${adminSocket}`,
 );
