@@ -118,6 +118,7 @@ export function ActivityAnalyticsTab({ period, periodReady }: Props) {
                 id="doctor-analytics-activity-with-activity"
                 title="С активностью за период"
                 value={kpis.patientsWithActivityInPeriod}
+                opensDetails
                 onClick={openActivityDrilldown}
               />
               <DoctorStatCard

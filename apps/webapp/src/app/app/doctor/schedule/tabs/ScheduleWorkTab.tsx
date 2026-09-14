@@ -32,7 +32,7 @@ import { DoctorSection } from '@/shared/ui/doctor/DoctorSection';
 import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
 import { DoctorCatalogStickyToolbar } from '@/shared/ui/doctor/DoctorCatalogStickyToolbar';
 import {
-  DOCTOR_ACTIVE_FILTER_BUTTON_CLASS,
+  DOCTOR_FILTERS_HIDE_RECORDS_BUTTON_CLASS,
   DOCTOR_SCHEDULE_TOOLBAR_CONTROL_CLASS,
   DOCTOR_SCHEDULE_TOOLBAR_ICON_CONTROL_CLASS,
   DoctorSchedulePeriodNav,
@@ -1561,7 +1561,7 @@ export function ScheduleWorkTab({
             DOCTOR_SCHEDULE_TOOLBAR_ICON_CONTROL_CLASS,
             allBranchesSelected
               ? DOCTOR_SCHEDULE_TOOLBAR_CONTROL_CLASS
-              : DOCTOR_ACTIVE_FILTER_BUTTON_CLASS,
+              : DOCTOR_FILTERS_HIDE_RECORDS_BUTTON_CLASS,
           )}
           onClick={() => setBranchPickerOpen(true)}
           disabled={branches.length <= 1}
@@ -1592,7 +1592,7 @@ export function ScheduleWorkTab({
           className={cn(
             DOCTOR_SCHEDULE_TOOLBAR_ICON_CONTROL_CLASS,
             multiSelectEnabled
-              ? DOCTOR_ACTIVE_FILTER_BUTTON_CLASS
+              ? DOCTOR_FILTERS_HIDE_RECORDS_BUTTON_CLASS
               : DOCTOR_SCHEDULE_TOOLBAR_CONTROL_CLASS,
           )}
           onClick={() => setMultiSelectEnabled((enabled) => !enabled)}

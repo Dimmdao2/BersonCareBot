@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { ReactElement, ReactNode } from 'react';
+import { ChevronRight } from 'lucide-react';
 import {
   doctorInlineMetricValueClass,
   doctorMetricLabelClass,
@@ -7,6 +8,7 @@ import {
   doctorInteractiveSurfaceButtonClass,
   doctorStatCardActionSegmentClass,
   doctorStatCardContentPaddingClass,
+  doctorStatCardChevronClass,
   doctorStatCardInteractiveClass,
   doctorStatCardInteractiveNeutralClass,
   doctorStatCardShellClass,
@@ -27,6 +29,7 @@ type Props = {
   selected?: boolean;
   href?: string;
   onClick?: () => void;
+  opensDetails?: boolean;
   className?: string;
   valueClassName?: string;
   hintClassName?: string;
@@ -48,6 +51,7 @@ export function DoctorStatCard({
   selected,
   href,
   onClick,
+  opensDetails,
   className,
   valueClassName,
   hintClassName,
@@ -173,6 +177,14 @@ export function DoctorStatCard({
       ) : null}
     </div>
   );
+  const content = opensDetails ? (
+    <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+      <div className="min-w-0">{inner}</div>
+      <ChevronRight className={doctorStatCardChevronClass} aria-hidden />
+    </div>
+  ) : (
+    inner
+  );
 
   if (actionIcon && actionLabel && onActionClick) {
     return (
@@ -215,7 +227,7 @@ export function DoctorStatCard({
   if (href) {
     trigger = (
       <Link id={id} href={href} className={shellClass} data-testid={testId}>
-        {inner}
+        {content}
       </Link>
     );
   } else if (onClick) {
@@ -233,7 +245,7 @@ export function DoctorStatCard({
         aria-pressed={selected}
         data-testid={testId}
       >
-        {inner}
+        {content}
       </Button>
     );
   } else {
@@ -244,7 +256,7 @@ export function DoctorStatCard({
         tabIndex={tooltip ? 0 : undefined}
         data-testid={testId}
       >
-        {inner}
+        {content}
       </article>
     );
   }

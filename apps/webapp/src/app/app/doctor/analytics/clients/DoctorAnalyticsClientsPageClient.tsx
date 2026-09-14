@@ -198,24 +198,28 @@ export function DoctorAnalyticsClientsPageClient({
                 id="doctor-stats-clients-patients"
                 title={patientPluralLabel}
                 value={clients.patientsCount}
+                opensDetails
                 onClick={() => openMetric('clients_total', `${patientPluralLabel} (с записями)`)}
               />
               <DoctorStatCard
                 id="doctor-stats-clients-potential"
                 title="Потенциальных"
                 value={clients.subscribersOnlyCount}
+                opensDetails
                 onClick={() => openMetric('clients_total', 'Потенциальные (без записей)')}
               />
               <DoctorStatCard
                 id="doctor-stats-clients-total"
                 title={`Всего ${patientGenPlural}`}
                 value={clients.total}
+                opensDetails
                 onClick={() => openMetric('clients_total', `Все ${patientGenPlural}`)}
               />
               <DoctorStatCard
                 id="doctor-stats-clients-phone-only"
                 title="Только телефон"
                 value={clients.phoneOnly}
+                opensDetails
                 tone="warning"
                 onClick={() =>
                   openMetric('clients_phone_only', `${patientPluralLabel}: только телефон`)
@@ -225,6 +229,7 @@ export function DoctorAnalyticsClientsPageClient({
                 id="doctor-stats-clients-app-guests"
                 title="Гости приложения"
                 value={clients.appGuests}
+                opensDetails
                 tone="warning"
                 onClick={() => openMetric('clients_app_guests', 'Гости приложения')}
               />
@@ -232,6 +237,7 @@ export function DoctorAnalyticsClientsPageClient({
                 id="doctor-stats-clients-bot-blocked-telegram"
                 title="ТГ: бот заблокирован"
                 value={clients.contactBreakdown.messengerBotBlocked.telegram}
+                opensDetails
                 onClick={() =>
                   openMetric('clients_messenger_bot_blocked_telegram', 'Telegram: бот заблокирован')
                 }
@@ -240,6 +246,7 @@ export function DoctorAnalyticsClientsPageClient({
                 id="doctor-stats-clients-bot-blocked-max"
                 title="MAX: бот заблокирован"
                 value={clients.contactBreakdown.messengerBotBlocked.max}
+                opensDetails
                 onClick={() =>
                   openMetric('clients_messenger_bot_blocked_max', 'MAX: бот заблокирован')
                 }
