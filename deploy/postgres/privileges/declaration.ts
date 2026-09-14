@@ -25752,11 +25752,11 @@ const REV10_CONTEXT = {
       targetRole: 'app_pre_session', contextClass: 'pre_session',
       purpose: 'auth.login-security-action.consume',
       functionIdentity: 'app.consume_login_security_action(text)' },
-    webapp_patient_password_change_required_read: { port: 'webapp',
-      runtimeName: 'patient_password_change_required_read', sessionRole: 'app_patient',
-      targetRole: 'app_patient', contextClass: 'patient',
-      purpose: 'auth.password-change-required.read-self',
-      functionIdentity: 'app.password_credentials_must_change_self()' },
+    webapp_pre_session_password_change_required_read: { port: 'webapp',
+      runtimeName: 'pre_session_password_change_required_read', sessionRole: 'app_patient',
+      targetRole: 'app_pre_session', contextClass: 'pre_session',
+      purpose: 'auth.password-change-required.read',
+      functionIdentity: 'app.password_credentials_must_change(uuid)' },
     // #1112 Л-8: та же пред-сессионная дорога, что у записи входа. Неудачная попытка по определению
     // случается до того, как принципал человека установлен, — другого класса контекста у неё быть не
     // может, и именно поэтому запись идёт через дверь, а не грантом на таблицу.
@@ -30342,13 +30342,12 @@ const REV10_CONTEXT = {
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
-    'app.password_credentials_must_change_self()': rev10Function({
+    'app.password_credentials_must_change(uuid)': rev10Function({
       owner: 'app_seam_password_auth_owner', security: 'DEFINER',
       returns: 'timestamp with time zone', returnsSet: false,
-      execute: ['app_patient'], purpose: 'read whether the current identity must replace its password',
-      typedArgs: [], volatility: 'STABLE', parallel: 'UNSAFE',
+      execute: ['app_pre_session'], purpose: 'read whether a resolved login identity must replace its password',
+      typedArgs: ['uuid'], volatility: 'STABLE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog, app, pg_temp'],
-      delegatesTo: ['app.require_staff_security_self_user_id()'],
       relationSurfaces: [{ relation: 'public.user_password_credentials',
         columns: ['user_id', 'must_change_at'], operations: ['SELECT' as const],
         evidence: 'pg16-function-body-lexical-upper-bound' as const }],

@@ -2,6 +2,7 @@ import type { PoolClient } from 'pg';
 import { eq, sql } from 'drizzle-orm';
 import {
   getCurrentDbPrincipalPlatformUserId,
+  runWithDbBootstrapPrincipal,
   runWithDbOrganizationPrincipal,
 } from '@bersoncare/db-principal';
 import { platformUsers } from '../../../db/schema/schema';
@@ -160,11 +161,15 @@ export async function loadSessionIdentityUser(
   const u = parseIdentityRow(platformUserSessionRowSchema, userRow.rows[0], 'load_session_user');
   if (u.is_archived || u.is_blocked) return null;
   const passwordChangeState = options.includeSecurityFactor
-    ? await runWebappNamedRoot<{ must_change_at: string | Date | null }>(
-        getWebappSqlDb(),
-        'app.password_credentials_must_change_self()',
-        [],
-        sql`SELECT app.password_credentials_must_change_self() AS must_change_at`,
+    ? await runWithDbBootstrapPrincipal(
+        { source: 'load-session-user:password-change-required' },
+        () =>
+          runWebappNamedRoot<{ must_change_at: string | Date | null }>(
+            getWebappSqlDb(),
+            'app.password_credentials_must_change(uuid)',
+            [canonicalId],
+            sql`SELECT app.password_credentials_must_change(${canonicalId}::uuid) AS must_change_at`,
+          ),
       )
     : null;
   const mustChangePassword = passwordChangeState?.rows[0]?.must_change_at != null;
