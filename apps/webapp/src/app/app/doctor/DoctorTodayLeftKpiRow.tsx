@@ -180,29 +180,35 @@ export function DoctorTodayLeftKpiRow({
   const selectedTask = selectedTaskId
     ? (tasks.find((task) => task.id === selectedTaskId) ?? null)
     : null;
+  // Плитка исчезает вместе со своим каналом: выключенный механик не должен оставлять
+  // на «Сегодня» счётчик того, чего в кабинете больше нет.
   const kpiTiles = [
-    <DoctorStatCard
-      key="messages"
-      id="doctor-today-left-kpi-messages"
-      title="Сообщения"
-      value={messageTotal}
-      tooltip={`Непрочитанные сообщения от ${patientGenPlural}.`}
-      tone={messageTotal > 0 ? 'warning' : 'neutral'}
-      className={messageTotal > 0 ? attentionKpiBackgroundClass : undefined}
-      valueClassName={messageTotal > 0 ? attentionKpiValueClass : undefined}
-      onClick={messageTotal > 0 ? () => setKpiModal('messages') : undefined}
-    />,
-    <DoctorStatCard
-      key="comments"
-      id="doctor-today-left-kpi-comments"
-      title="Комментарии"
-      value={displayTotal}
-      tooltip={`Новые комментарии ${patientGenPlural} к упражнениям.`}
-      tone={displayTotal > 0 ? 'warning' : 'neutral'}
-      className={displayTotal > 0 ? attentionKpiBackgroundClass : undefined}
-      valueClassName={displayTotal > 0 ? attentionKpiValueClass : undefined}
-      onClick={displayTotal > 0 ? () => setKpiModal('comments') : undefined}
-    />,
+    shellBadges.directChatVisible ? (
+      <DoctorStatCard
+        key="messages"
+        id="doctor-today-left-kpi-messages"
+        title="Сообщения"
+        value={messageTotal}
+        tooltip={`Непрочитанные сообщения от ${patientGenPlural}.`}
+        tone={messageTotal > 0 ? 'warning' : 'neutral'}
+        className={messageTotal > 0 ? attentionKpiBackgroundClass : undefined}
+        valueClassName={messageTotal > 0 ? attentionKpiValueClass : undefined}
+        onClick={messageTotal > 0 ? () => setKpiModal('messages') : undefined}
+      />
+    ) : null,
+    shellBadges.programCommentsVisible ? (
+      <DoctorStatCard
+        key="comments"
+        id="doctor-today-left-kpi-comments"
+        title="Комментарии"
+        value={displayTotal}
+        tooltip={`Новые комментарии ${patientGenPlural} к упражнениям.`}
+        tone={displayTotal > 0 ? 'warning' : 'neutral'}
+        className={displayTotal > 0 ? attentionKpiBackgroundClass : undefined}
+        valueClassName={displayTotal > 0 ? attentionKpiValueClass : undefined}
+        onClick={displayTotal > 0 ? () => setKpiModal('comments') : undefined}
+      />
+    ) : null,
     tasksReadable ? (
       <DoctorStatCard
         key="tasks"
@@ -233,21 +239,23 @@ export function DoctorTodayLeftKpiRow({
 
   return (
     <>
-      <DoctorMetricList
-        id="doctor-today-left-kpi"
-        aria-label="Входящий поток"
-        className={kpiGridClass}
-      >
-        {kpiTiles.map((tile) =>
-          cloneElement(tile, {
-            valuePlacement: kpiValuePlacement,
-            className: cn(
-              tile.props.className,
-              kpiTiles.length === 3 && 'aspect-square md:aspect-auto',
-            ),
-          }),
-        )}
-      </DoctorMetricList>
+      {kpiTiles.length > 0 ? (
+        <DoctorMetricList
+          id="doctor-today-left-kpi"
+          aria-label="Входящий поток"
+          className={kpiGridClass}
+        >
+          {kpiTiles.map((tile) =>
+            cloneElement(tile, {
+              valuePlacement: kpiValuePlacement,
+              className: cn(
+                tile.props.className,
+                kpiTiles.length === 3 && 'aspect-square md:aspect-auto',
+              ),
+            }),
+          )}
+        </DoctorMetricList>
+      ) : null}
 
       <DoctorTodayExerciseCommentsModal
         open={kpiModal === 'comments'}
