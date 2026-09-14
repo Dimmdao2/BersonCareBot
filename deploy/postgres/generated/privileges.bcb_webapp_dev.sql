@@ -14774,7 +14774,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."login_security_actions" FROM "app_clini
 GRANT SELECT ("expires_at", "id", "purpose", "source_login_event_id", "token_hash", "used_at", "user_id") ON TABLE "public"."login_security_actions" TO "app_seam_password_auth_owner";
 GRANT SELECT ("expires_at", "id", "purpose", "source_login_event_id", "token_hash", "user_id") ON TABLE "public"."login_security_actions" TO "app_seam_password_auth_owner";
 GRANT INSERT ("expires_at", "id", "purpose", "source_login_event_id", "token_hash", "user_id") ON TABLE "public"."login_security_actions" TO "app_seam_password_auth_owner";
-GRANT UPDATE ("expires_at", "id", "purpose", "source_login_event_id", "token_hash", "used_at", "user_id") ON TABLE "public"."login_security_actions" TO "app_seam_password_auth_owner";
+GRANT UPDATE ("used_at") ON TABLE "public"."login_security_actions" TO "app_seam_password_auth_owner";
 -- последовательности public.login_security_actions: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
@@ -17300,7 +17300,7 @@ GRANT SELECT ("id", "merged_into_id") ON TABLE "public"."platform_users" TO "app
 GRANT SELECT ("display_name", "first_name", "id", "last_name", "merged_into_id", "patronymic", "role", "updated_at") ON TABLE "public"."platform_users" TO "app_seam_password_auth_owner";
 GRANT SELECT ("id", "merged_into_id", "updated_at") ON TABLE "public"."platform_users" TO "app_seam_password_auth_owner";
 GRANT INSERT ("display_name", "first_name", "id", "last_name", "merged_into_id", "patronymic", "role", "updated_at") ON TABLE "public"."platform_users" TO "app_seam_password_auth_owner";
-GRANT UPDATE ("id", "merged_into_id", "session_epoch", "updated_at") ON TABLE "public"."platform_users" TO "app_seam_password_auth_owner";
+GRANT UPDATE ("session_epoch", "updated_at") ON TABLE "public"."platform_users" TO "app_seam_password_auth_owner";
 GRANT SELECT ("id", "merged_into_id") ON TABLE "public"."platform_users" TO "app_seam_patient_booking_owner";
 GRANT SELECT ("id", "merged_into_id", "role") ON TABLE "public"."platform_users" TO "app_seam_patient_booking_owner";
 GRANT SELECT ("id", "merged_into_id", "role", "updated_at") ON TABLE "public"."platform_users" TO "app_seam_patient_invite_owner";
@@ -20772,7 +20772,7 @@ GRANT SELECT ("failed_attempts", "locked_until", "user_id") ON TABLE "public"."u
 GRANT SELECT ("failed_attempts", "locked_until", "password_hash", "updated_at", "user_id") ON TABLE "public"."user_password_credentials" TO "app_seam_password_auth_owner";
 GRANT INSERT ("password_hash", "updated_at", "user_id") ON TABLE "public"."user_password_credentials" TO "app_seam_password_auth_owner";
 GRANT INSERT ("failed_attempts", "locked_until", "must_change_at", "next_allowed_at", "password_hash", "updated_at", "user_id", "verification_lease_token", "verification_lease_until") ON TABLE "public"."user_password_credentials" TO "app_seam_password_auth_owner";
-GRANT UPDATE ("must_change_at", "updated_at", "user_id") ON TABLE "public"."user_password_credentials" TO "app_seam_password_auth_owner";
+GRANT UPDATE ("must_change_at", "updated_at") ON TABLE "public"."user_password_credentials" TO "app_seam_password_auth_owner";
 GRANT UPDATE ("failed_attempts", "locked_until", "must_change_at", "next_allowed_at", "password_hash", "updated_at", "user_id", "verification_lease_token", "verification_lease_until") ON TABLE "public"."user_password_credentials" TO "app_seam_password_auth_owner";
 GRANT UPDATE ("failed_attempts", "locked_until", "next_allowed_at", "password_hash", "updated_at", "user_id", "verification_lease_token", "verification_lease_until") ON TABLE "public"."user_password_credentials" TO "app_seam_password_auth_owner";
 GRANT UPDATE ("failed_attempts", "locked_until", "next_allowed_at", "updated_at", "user_id", "verification_lease_token", "verification_lease_until") ON TABLE "public"."user_password_credentials" TO "app_seam_password_auth_owner";
