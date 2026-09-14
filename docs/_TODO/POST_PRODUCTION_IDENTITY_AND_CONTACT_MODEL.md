@@ -17,7 +17,7 @@
 - ФИО, контакты, channel/OAuth bindings и медицинские данные — разные части модели. Будущая псевдонимизация
   medical store остаётся отдельным от этого workstream этапом.
 
-Канон прежних owner-решений: [`IDENTITY_AND_MERGE_SCHEME.md`](runs/integrator-cleanup/IDENTITY_AND_MERGE_SCHEME.md).
+Канон прежних owner-решений: [`IDENTITY_AND_MERGE_SCHEME.md`](../archive/2026-09-identity-merge-superseded/IDENTITY_AND_MERGE_SCHEME.md).
 
 ## 2. Что реально построено сейчас
 
@@ -163,7 +163,7 @@ ref внутри уже существующего identity/DB-port + port-conte
 оркестрации Track D, не после production launch. Отдельным (действительно post-production) privacy-workstream
 остаётся только следующая, дорогая и низкообратимая стадия — физическое разнесение баз. Авторитет —
 `docs/OWNER_DECISIONS.md` → «Track D», `WORK_ORDER.md` D15b/7,
-`runs/integrator-cleanup/IDENTITY_AND_MERGE_SCHEME.md` §2b–§2c.
+`../archive/2026-09-identity-merge-superseded/IDENTITY_AND_MERGE_SCHEME.md` §2b–§2c.
 
 ### 4.3 Session cookie, principal и свежий user snapshot смешаны
 

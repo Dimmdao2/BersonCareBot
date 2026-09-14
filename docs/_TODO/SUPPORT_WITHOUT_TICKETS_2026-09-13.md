@@ -13,7 +13,7 @@ helpdesk сейчас не внедряем (сравнение сделано �
 [`SUPPORT_HELPDESK_COMPARISON_2026-09-13.md`](SUPPORT_HELPDESK_COMPARISON_2026-09-13.md), рекомендация
 FreeScout, отложена). Продуктовое требование остаётся ровно одно и простое: **обращение человека обязано
 дойти до админа платформы.** Вторая половина решения (вход к слиянию учёток) живёт в `#1110` и
-[`ACCOUNT_MERGE_TO_PLATFORM_CONSOLE_2026-09-13.md`](ACCOUNT_MERGE_TO_PLATFORM_CONSOLE_2026-09-13.md).
+[`ACCOUNT_MERGE_TO_PLATFORM_CONSOLE_2026-09-13.md`](../archive/2026-09-identity-merge-superseded/ACCOUNT_MERGE_TO_PLATFORM_CONSOLE_2026-09-13.md).
 
 ## Как это работает сегодня
 

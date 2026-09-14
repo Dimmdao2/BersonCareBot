@@ -502,7 +502,7 @@
 | docs/_TODO/runs/integrator-cleanup/DEV_LEDGER_REPAIR_BRIEF_2026-08-04.md | # Расшить DEV: отравленный водяной знак леджера и упавший воркер | 0 | 0 | 2026-08-04 |  |
 | docs/_TODO/runs/integrator-cleanup/DEV_SCHEMA_SYNC_BRIEF_2026-08-04.md | # DEV отстаёт по схеме от TEST — агенты проверяют работу не на той базе | 0 | 0 | 2026-08-04 |  |
 | docs/_TODO/runs/integrator-cleanup/DEV_SCHEMA_SYNC_REPORT_2026-08-04.md | # DEV schema sync — measured, standard path attempted, blocked with a named cause | 0 | 0 | 2026-08-04 |  |
-| docs/_TODO/runs/integrator-cleanup/IDENTITY_AND_MERGE_SCHEME.md | # Схема идентичности, входа и слияния аккаунтов — с слов владельца 31.07 | 0 | 0 | 2026-08-04 |  |
+| docs/archive/2026-09-identity-merge-superseded/IDENTITY_AND_MERGE_SCHEME.md | # Схема идентичности, входа и слияния аккаунтов — с слов владельца 31.07 | 0 | 0 | 2026-08-04 |  |
 | docs/_TODO/runs/integrator-cleanup/IDENTITY_DB_SPLIT_RESEARCH_2026-08-03.md | # Разделение базы контактов/идентичности и базы ФИО+медданных — исследование | 0 | 0 | 2026-08-03 |  |
 | docs/_TODO/runs/integrator-cleanup/IDENTITY_DB_SPLIT_RESEARCH_BRIEF_2026-08-03.md | # Research — splitting the identity/contacts store from the PII+medical store | 0 | 0 | 2026-08-03 | - Не запускай фоновые воркфлоу, демоны и отложенные прогоны. Всё делается внутри твоего хода. |
 | docs/_TODO/runs/integrator-cleanup/IDENTITY_MODEL_RESEARCH_BRIEF.md | # Исследование: «вход любым привязанным контактом» — как это делают взрослые системы и где схема кривая | 0 | 0 | 2026-07-31 |  |
@@ -514,7 +514,7 @@
 | docs/_TODO/runs/integrator-cleanup/LOGIN_SCREENS_INVENTORY_2026-08-04.md | # Инвентаризация экранов входа — 2026-08-04 | 0 | 0 | 2026-08-04 |  |
 | docs/_TODO/runs/integrator-cleanup/LOGIN_SCREENS_INVENTORY_BRIEF_2026-08-04.md | # Инвентаризация экранов входа и схема действий — до любых правок | 0 | 0 | 2026-08-04 |  |
 | docs/_TODO/runs/integrator-cleanup/OVERLAY_OWNERSHIP_REVERT_BRIEF_2026-08-04.md | # Оверлеи деплоя молча отменяют починку входа при каждой выкатке | 0 | 0 | 2026-08-04 |  |
-| docs/_TODO/runs/integrator-cleanup/OWNER_QUOTE_2026-07-31_IDENTITY.md | # Дословная цитата владельца, 31.07 — ответы по вычистке интегратора и схеме идентичности | 0 | 0 | 2026-08-04 |  |
+| docs/archive/2026-09-identity-merge-superseded/OWNER_QUOTE_2026-07-31_IDENTITY.md | # Дословная цитата владельца, 31.07 — ответы по вычистке интегратора и схеме идентичности | 0 | 0 | 2026-08-04 |  |
 | docs/_TODO/runs/integrator-cleanup/PATIENT_ASSIGNMENT_INVENTORY_BRIEF_2026-08-04.md | # «Свой пациент» — чего нет в коде под модель владельца | 0 | 0 | 2026-08-04 |  |
 | docs/_TODO/runs/integrator-cleanup/PATIENT_FILES_PURGE_BRIEF_2026-08-04.md | # Файлы пациента действительно удаляются из хранилища | 0 | 0 | 2026-08-04 |  |
 | docs/_TODO/runs/integrator-cleanup/PGGREEN_AUDIT_BRIEF_2026-08-04.md | # Аудит: postgres-job доведён до зелёного (`0ba4224b5`) | 0 | 0 | 2026-08-04 |  |
@@ -1373,7 +1373,7 @@
 - docs/_TODO/runs/integrator-cleanup/DEV_LEDGER_REPAIR_BRIEF_2026-08-04.md
 - docs/_TODO/runs/integrator-cleanup/DEV_SCHEMA_SYNC_BRIEF_2026-08-04.md
 - docs/_TODO/runs/integrator-cleanup/DEV_SCHEMA_SYNC_REPORT_2026-08-04.md
-- docs/_TODO/runs/integrator-cleanup/IDENTITY_AND_MERGE_SCHEME.md
+- docs/archive/2026-09-identity-merge-superseded/IDENTITY_AND_MERGE_SCHEME.md
 - docs/_TODO/runs/integrator-cleanup/IDENTITY_DB_SPLIT_RESEARCH_2026-08-03.md
 - docs/_TODO/runs/integrator-cleanup/IDENTITY_DB_SPLIT_RESEARCH_BRIEF_2026-08-03.md
 - docs/_TODO/runs/integrator-cleanup/IDENTITY_MODEL_RESEARCH_BRIEF.md
@@ -1385,7 +1385,7 @@
 - docs/_TODO/runs/integrator-cleanup/LOGIN_SCREENS_INVENTORY_2026-08-04.md
 - docs/_TODO/runs/integrator-cleanup/LOGIN_SCREENS_INVENTORY_BRIEF_2026-08-04.md
 - docs/_TODO/runs/integrator-cleanup/OVERLAY_OWNERSHIP_REVERT_BRIEF_2026-08-04.md
-- docs/_TODO/runs/integrator-cleanup/OWNER_QUOTE_2026-07-31_IDENTITY.md
+- docs/archive/2026-09-identity-merge-superseded/OWNER_QUOTE_2026-07-31_IDENTITY.md
 - docs/_TODO/runs/integrator-cleanup/PATIENT_ASSIGNMENT_INVENTORY_BRIEF_2026-08-04.md
 - docs/_TODO/runs/integrator-cleanup/PATIENT_FILES_PURGE_BRIEF_2026-08-04.md
 - docs/_TODO/runs/integrator-cleanup/PGGREEN_AUDIT_BRIEF_2026-08-04.md
