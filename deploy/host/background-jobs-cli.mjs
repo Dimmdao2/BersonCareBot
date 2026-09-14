@@ -67,6 +67,7 @@ export function planCronArtifacts(manifest) {
         // Бэкап — единственное задание расписания, которое общий transport вебаппа НЕ будит: у него
         // нет HTTP-маршрута, его запускает собственный скрипт на хосте.
         usesInternalJobRunner: entry.kind !== 'backup_shell',
+        cronUser: manifest.cronUserFor(entry, environment),
       });
     }
   }
@@ -120,7 +121,7 @@ export function parseCronDFile(text) {
 
 /** Ожидаемая строка расписания для задания. */
 export function expectedCronRow(item) {
-  return `${item.cron} root ${item.command}`.replace(/\s+/g, ' ');
+  return `${item.cron} ${item.cronUser} ${item.command}`.replace(/\s+/g, ' ');
 }
 
 /**

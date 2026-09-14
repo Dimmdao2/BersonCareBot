@@ -54,6 +54,8 @@
 # Env:
 #   BERSONCAREBOT_BACKUP_EXPECT_HOSTNAME      ОБЯЗАТЕЛЬНО — имя машины, на которой разрешено работать
 #   BERSONCAREBOT_BACKUP_EXPECT_IPV4          ОБЯЗАТЕЛЬНО — её локальный IPv4
+#   BERSONCAREBOT_BACKUP_DATABASE             имя базы для подключения по локальному сокету;
+#                                             задано — env-файлы не читаются вовсе
 #   BERSONCAREBOT_API_ENV_FILE               default /opt/env/bersoncarebot/api.prod
 #   BERSONCAREBOT_WEBAPP_ENV_FILE             default /opt/env/bersoncarebot/webapp.prod
 #   BERSONCAREBOT_BACKUPS_ROOT                default /opt/backups/postgres (override for tests only)
@@ -108,6 +110,29 @@ assert_canonical_prod_host
 
 API_ENV_FILE="${BERSONCAREBOT_API_ENV_FILE:-/opt/env/bersoncarebot/api.prod}"
 WEBAPP_ENV_FILE="${BERSONCAREBOT_WEBAPP_ENV_FILE:-/opt/env/bersoncarebot/webapp.prod}"
+
+# Имя базы для подключения по ЛОКАЛЬНОМУ СОКЕТУ, без строки подключения вообще.
+#
+# Зачем понадобился второй источник. Скрипт писался под старый прод, где в env-файле лежал один
+# `DATABASE_URL` с логином и паролем. На новом проде такого файла нет и не будет: рантайм ходит в
+# базу тремя УЗКИМИ ролями по mTLS (`DATABASE_URL_STAFF`, `_PATIENT`, `_GLOBAL_ADMIN`), и каждая из
+# них видит под RLS только свою часть данных. Дамп такой ролью был бы не бэкапом, а его подделкой:
+# файл есть, размер правдоподобный, внутри — часть базы.
+#
+# Поэтому здесь тот же путь, которым на этом хосте идут все остальные привилегированные операции
+# (миграции, сверка прав): процесс работает от `postgres` и подключается по unix-сокету, где его
+# опознаёт сама система. Пароля, сертификата и строки подключения в этом режиме не существует —
+# значит, их нельзя ни украсть, ни забыть отозвать, ни залогировать.
+#
+# `PGDATABASE` принимает и URI, и просто имя базы, поэтому весь остальной код ниже не различает
+# два режима: и там и там он работает с непрозрачной строкой подключения.
+LOCAL_DATABASE="${BERSONCAREBOT_BACKUP_DATABASE:-}"
+# Регулярное выражение, а НЕ шаблон `case`: шаблоны там глобы, и `[a-zA-Z_][a-zA-Z0-9_]*` в них
+# значит «два допустимых знака и дальше что угодно» — под такой «проверкой» проходят и `db;DROP`, и
+# `db name`, и строка подключения целиком. Поймано собственным набором сценария 31b.
+if [ -n "$LOCAL_DATABASE" ] && ! [[ "$LOCAL_DATABASE" =~ ^[a-zA-Z_][a-zA-Z0-9_]{0,62}$ ]]; then
+  die "BERSONCAREBOT_BACKUP_DATABASE must be a plain database name, got «${LOCAL_DATABASE}»"
+fi
 BACKUPS_ROOT="${BERSONCAREBOT_BACKUPS_ROOT:-/opt/backups/postgres}"
 AGE_RECIPIENTS_FILE="${BERSONCAREBOT_BACKUP_AGE_RECIPIENTS_FILE:-/opt/backups/age-recipients.txt}"
 PRUNE_DRY_RUN="${BERSONCAREBOT_PRUNE_DRY_RUN:-0}"
@@ -338,6 +363,16 @@ require_prune_prereqs() {
 # instead of ever touching the authority.
 db_name_from_database_url() {
   local raw="$1"
+
+  # Локальный сокет: «строка подключения» и есть имя базы, уже проверенное по форме при чтении
+  # BERSONCAREBOT_BACKUP_DATABASE. Секрета в ней нет по построению, поэтому она годится в имя файла
+  # как есть — иначе каждый артефакт назывался бы «unknown» и по имени нельзя было бы понять, что
+  # это за дамп.
+  if [ -n "$LOCAL_DATABASE" ] && [ "$raw" = "$LOCAL_DATABASE" ]; then
+    printf '%s' "$LOCAL_DATABASE"
+    return 0
+  fi
+
   raw="${raw#jdbc:}"
   raw="${raw%%\?*}"
   raw="${raw%%#*}"
@@ -849,8 +884,14 @@ run_mode() {
   ensure_dir_0700 "$BACKUPS_ROOT"
 
   local integrator_url webapp_url
-  integrator_url="$(extract_database_url "$API_ENV_FILE")"
-  webapp_url="$(extract_database_url "$WEBAPP_ENV_FILE")"
+  if [ -n "$LOCAL_DATABASE" ]; then
+    # Локальный сокет: строки подключения нет вовсе (см. комментарий у LOCAL_DATABASE).
+    integrator_url="$LOCAL_DATABASE"
+    webapp_url="$LOCAL_DATABASE"
+  else
+    integrator_url="$(extract_database_url "$API_ENV_FILE")"
+    webapp_url="$(extract_database_url "$WEBAPP_ENV_FILE")"
+  fi
 
   local started="$SECONDS"
   local run_started_iso

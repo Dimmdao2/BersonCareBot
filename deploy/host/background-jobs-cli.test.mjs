@@ -219,8 +219,7 @@ test('присваивания окружения есть только у бэ�
   const allowed = new Set([
     'BERSONCAREBOT_BACKUP_EXPECT_HOSTNAME',
     'BERSONCAREBOT_BACKUP_EXPECT_IPV4',
-    'BERSONCAREBOT_API_ENV_FILE',
-    'BERSONCAREBOT_WEBAPP_ENV_FILE',
+    'BERSONCAREBOT_BACKUP_DATABASE',
   ]);
 
   for (const item of plan) {

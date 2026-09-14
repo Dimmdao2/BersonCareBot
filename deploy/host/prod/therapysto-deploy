@@ -90,13 +90,21 @@ else
   # добавленный в её новую версию, в этом же деплое не выполнится. Оставить его там значило бы
   # первый деплой после этой правки гарантированно уронить на отсутствующем файле.
   #
-  # 0700: скрипт читает env-файлы с боевыми строками подключения. Каталог самих бэкапов здесь не
-  # создаётся — его создаёт сам скрипт, с собственной проверкой режима и владельца.
+  # Права здесь ровно под одну учётку: бэкап работает от `postgres`, потому что право прочитать базу
+  # целиком в этом режиме даёт именно она (подключение по unix-сокету, без пароля и сертификата).
+  # Значит postgres обязан пройти в /opt/backups, прочитать скрипт и писать в свой каталог дампов.
+  # Никто, кроме root и postgres, не получает ничего: 0750 root:postgres на пути, 0700 postgres на
+  # каталоге самих дампов. Раньше весь /opt/backups был 0700 root — и это единственное, что здесь
+  # меняется.
   say "устанавливаю канонический скрипт бэкапов"
   BACKUP_SCRIPT=/opt/backups/scripts/postgres-backup.sh
-  install -d -m 0700 -o root -g root /opt/backups/scripts ||
+  install -d -m 0750 -o root -g postgres /opt/backups ||
+    die "не удалось подготовить /opt/backups — $ACTIVE is still live and untouched"
+  install -d -m 0750 -o root -g postgres /opt/backups/scripts ||
     die "не удалось создать /opt/backups/scripts — $ACTIVE is still live and untouched"
-  install -m 0700 -o root -g root "$THERAPYSTO_SRC/deploy/postgres/postgres-backup.sh" \
+  install -d -m 0700 -o postgres -g postgres /opt/backups/postgres ||
+    die "не удалось создать /opt/backups/postgres — $ACTIVE is still live and untouched"
+  install -m 0750 -o root -g postgres "$THERAPYSTO_SRC/deploy/postgres/postgres-backup.sh" \
     "$BACKUP_SCRIPT" ||
     die "не удалось установить $BACKUP_SCRIPT — $ACTIVE is still live and untouched"
 
@@ -109,7 +117,7 @@ else
   say "снимаю срез базы перед миграциями"
   BACKUP_ENV=$(node "$THERAPYSTO_SRC/deploy/host/background-jobs-cli.mjs" --backup-env --env prod) ||
     die "манифест не отдал окружение бэкапа — $ACTIVE is still live and untouched"
-  env $BACKUP_ENV "$BACKUP_SCRIPT" pre-migrations ||
+  runuser -u postgres -- env $BACKUP_ENV "$BACKUP_SCRIPT" pre-migrations ||
     die "срез перед миграциями не снят — $ACTIVE is still live and untouched"
 
   say "applying migrations and reconciling privileges for $COMMIT"

@@ -4,6 +4,7 @@ import {
   BACKGROUND_JOB_ENVIRONMENT_IDS,
   BACKGROUND_JOB_MANIFEST,
   cronArtifactName,
+  cronUserFor,
   findBackgroundJob,
   hostCronJobsForEnvironment,
   internalJobBearerCsrfExemptPaths,
@@ -142,7 +143,14 @@ describe('background job manifest', () => {
           .split('\n')
           .map((line) => line.trim())
           .filter((line) => line && !line.startsWith('#') && !/^[A-Za-z_][A-Za-z0-9_]*=/.test(line));
-        expect(scheduleLines).toEqual([`${entry.cron} root ${command}`]);
+        expect(scheduleLines).toEqual([
+          `${entry.cron} ${cronUserFor(entry, environment)} ${command}`,
+        ]);
+        // Учётка не косметика: право читать базу целиком в этом режиме даёт ИМЕННО она, и `root`
+        // здесь означал бы дамп одной из узких ролей рантайма, то есть часть базы под видом бэкапа.
+        expect(cronUserFor(entry, environment)).toBe(
+          entry.kind === 'backup_shell' ? 'postgres' : 'root',
+        );
       }
     }
   });

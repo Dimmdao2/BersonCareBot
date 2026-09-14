@@ -16,7 +16,7 @@ SCRIPT_UNDER_TEST="${HERE}/postgres-backup.sh"
 [ -x "$SCRIPT_UNDER_TEST" ] || { echo "FATAL: ${SCRIPT_UNDER_TEST} is not executable" >&2; exit 1; }
 
 WORKROOT="$(mktemp -d "${TMPDIR:-/tmp}/bcb-postgres-backup-test.XXXXXX")"
-cleanup() { rm -rf "$WORKROOT"; }
+cleanup() { [ -n "${BCB_KEEP_WORKROOT:-}" ] || rm -rf "$WORKROOT"; }
 trap cleanup EXIT
 
 # Скрипт отказывается работать не на той машине, и ожидание он берёт снаружи. Набор подставляет
@@ -1354,6 +1354,60 @@ rc30c=$?
 set -e
 if [ "$rc30c" -ne 0 ]; then pass "scenario30c: совпавшее имя при чужом адресе всё равно отказ"; else fail "scenario30c: бэкап пошёл при несовпавшем адресе"; fi
 if [ ! -s "$call30c" ]; then pass "scenario30c: ни один провайдер не был вызван"; else fail "scenario30c: провайдер был вызван при несовпавшем адресе"; fi
+
+# --- Scenario 31: локальный сокет — строки подключения нет вовсе ---------------
+#
+# Смысл шага: на новом проде в env-файлах нет и не будет общего DATABASE_URL — рантайм ходит в базу
+# тремя УЗКИМИ ролями под RLS, и дамп такой ролью был бы подделкой бэкапа (файл есть, внутри часть
+# базы). Поэтому появился второй источник: имя базы и подключение по unix-сокету, без пароля.
+#
+# Проверяется ровно то, ради чего он заведён: env-файлы в этом режиме не читаются ВООБЩЕ (здесь их
+# физически нет), а имя базы попадает в имя артефакта, чтобы дамп можно было опознать.
+
+case31="${WORKROOT}/case31"; mkdir -p "$case31"
+fakebin31="${case31}/fakebin"; make_fakebin "$fakebin31"
+root31="${case31}/backups_root"
+recipients31="${case31}/age-recipients.txt"; write_recipients_file "$recipients31"
+call31="${case31}/call.log"; : > "$call31"
+tick31="${case31}/tick.log"; : > "$tick31"
+
+set +e
+env -i PATH="${fakebin31}:/usr/bin:/bin" \
+  BERSONCAREBOT_API_ENV_FILE="${case31}/no-such-api.env" \
+  BERSONCAREBOT_WEBAPP_ENV_FILE="${case31}/no-such-webapp.env" \
+  BERSONCAREBOT_BACKUPS_ROOT="$root31" \
+  BERSONCAREBOT_BACKUP_AGE_RECIPIENTS_FILE="$recipients31" \
+  BERSONCAREBOT_BACKUP_EXPECT_HOSTNAME="$EXPECT_HOSTNAME" \
+  BERSONCAREBOT_BACKUP_EXPECT_IPV4="$EXPECT_IPV4" \
+  BERSONCAREBOT_BACKUP_DATABASE="$UNIFIED_DB" \
+  FAKE_CALL_LOG="$call31" \
+  FAKE_PSQL_TICK_LOG="$tick31" \
+  bash "$SCRIPT_UNDER_TEST" manual >"${case31}/stdout.log" 2>"${case31}/stderr.log"
+rc31=$?
+set -e
+
+if [ "$rc31" -eq 0 ]; then pass "scenario31: локальный режим работает без env-файлов"; else fail "scenario31: локальный режим вышел $rc31"; fi
+if find "$root31" -path "*/manual/*" -name "unified_${UNIFIED_DB}_*.dump.age" | grep -q .; then pass "scenario31: имя базы попало в имя артефакта"; else fail "scenario31: артефакт не назван по базе"; fi
+if ! find "$root31" -name '*_unknown_*' | grep -q .; then pass "scenario31: артефакт не остался безымянным"; else fail "scenario31: артефакт назван unknown"; fi
+if grep -q "PGDATABASE" "$call31" || grep -q '^pg_dump ' "$call31"; then pass "scenario31: дамп был запущен"; else fail "scenario31: дамп не запускался"; fi
+assert_no_marker "scenario31" "$case31/stdout.log" "$case31/stderr.log" "$call31" "$tick31"
+
+# 31b: имя базы — только простое имя. Всё, что похоже на строку подключения или на подстановку,
+# отбивается по форме ДО любой работы: иначе «имя базы» стало бы дырой в самой защищённой части.
+for bad31 in 'postgres://u:p@h/db' 'db;DROP' 'db name' '$(id)' '../etc'; do
+  set +e
+  env -i PATH="${fakebin31}:/usr/bin:/bin" \
+    BERSONCAREBOT_BACKUPS_ROOT="${case31}/root-bad" \
+    BERSONCAREBOT_BACKUP_AGE_RECIPIENTS_FILE="$recipients31" \
+    BERSONCAREBOT_BACKUP_EXPECT_HOSTNAME="$EXPECT_HOSTNAME" \
+    BERSONCAREBOT_BACKUP_EXPECT_IPV4="$EXPECT_IPV4" \
+    BERSONCAREBOT_BACKUP_DATABASE="$bad31" \
+    FAKE_CALL_LOG="${case31}/call-bad.log" \
+    bash "$SCRIPT_UNDER_TEST" manual >/dev/null 2>&1
+  rc31b=$?
+  set -e
+  if [ "$rc31b" -ne 0 ]; then pass "scenario31b: «${bad31}» отбито по форме"; else fail "scenario31b: «${bad31}» принято как имя базы"; fi
+done
 
 # --- summary -----------------------------------------------------------------
 

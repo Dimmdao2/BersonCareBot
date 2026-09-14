@@ -87,10 +87,16 @@ export type BackgroundJobEnvironment = {
    */
   readonly loopbackMode?: 'app_port' | 'nginx_tls';
   /**
-   * Канонический env-файл integrator. Нужен только бэкапу: он читает `DATABASE_URL` из ОБОИХ
-   * env-файлов как данные и сверяет их между собой, чтобы не снять дамп не с той базы.
+   * Имя боевой базы для бэкапа и учётка ОС, от которой он работает.
+   *
+   * Бэкап подключается по локальному unix-сокету, где систему опознаёт сама ОС, а не по строке
+   * подключения из env-файла. Иначе пришлось бы выбирать между двумя плохими вариантами: дампить
+   * одной из трёх УЗКИХ ролей рантайма — и получить под RLS дамп ЧАСТИ базы, который выглядит как
+   * настоящий, — или завести ещё один пароль с правом читать всё. Здесь нет ни того, ни другого:
+   * красть, отзывать и логировать просто нечего.
    */
-  readonly apiEnvFile?: string;
+  readonly backupDatabase?: string;
+  readonly backupOsUser?: string;
   /**
    * Имя и адрес машины, на которой этой среде разрешено снимать бэкап.
    *
@@ -115,7 +121,8 @@ export const BACKGROUND_JOB_ENVIRONMENTS = {
     projectRoot: '/opt/therapysto/src',
     cronFilePrefix: 'therapysto-',
     loopbackMode: 'nginx_tls',
-    apiEnvFile: '/etc/therapysto/env/api.prod',
+    backupDatabase: 'therapysto_prod',
+    backupOsUser: 'postgres',
     backupHostName: 'therapysto-prod',
     backupHostIpv4: '135.106.187.95',
   },
@@ -754,16 +761,31 @@ export function renderCronEnvAssignments(
 export function backupScriptEnvAssignments(
   environment: BackgroundJobEnvironment,
 ): readonly string[] {
-  const { backupHostName, backupHostIpv4, apiEnvFile } = environment;
-  if (!backupHostName || !backupHostIpv4 || !apiEnvFile) {
+  const { backupHostName, backupHostIpv4, backupDatabase } = environment;
+  if (!backupHostName || !backupHostIpv4 || !backupDatabase) {
     throw new Error(`environment ${environment.id} has no backup host expectation`);
   }
   return [
     `BERSONCAREBOT_BACKUP_EXPECT_HOSTNAME=${backupHostName}`,
     `BERSONCAREBOT_BACKUP_EXPECT_IPV4=${backupHostIpv4}`,
-    `BERSONCAREBOT_API_ENV_FILE=${apiEnvFile}`,
-    `BERSONCAREBOT_WEBAPP_ENV_FILE=${environment.envFile}`,
+    `BERSONCAREBOT_BACKUP_DATABASE=${backupDatabase}`,
   ];
+}
+
+/**
+ * От чьего имени cron запускает задание. Всё, что ходит в вебапп по loopback, запускает `root`;
+ * бэкап — `postgres`, потому что его право читать базу целиком даёт именно эта учётка ОС, и никакого
+ * другого доказательства (пароля, сертификата) в этом режиме не существует.
+ */
+export function cronUserFor(
+  entry: BackgroundJobManifestEntry,
+  environment: BackgroundJobEnvironment,
+): string {
+  if (entry.kind !== 'backup_shell') return 'root';
+  if (!environment.backupOsUser) {
+    throw new Error(`environment ${environment.id} has no backup OS user`);
+  }
+  return environment.backupOsUser;
 }
 
 /**
@@ -830,7 +852,7 @@ export function renderCronArtifact(
     `# principal=${entry.principal} surface=${entry.surfaceIdentity} timeout=${entry.timeoutSec ? `${entry.timeoutSec}s` : 'нет'} stale_after=${entry.staleAfterSec}s`,
     ...transportLines,
     ...renderCronEnvAssignments(entry, environment),
-    `${entry.cron} root ${renderCronCommand(entry, environment)}`,
+    `${entry.cron} ${cronUserFor(entry, environment)} ${renderCronCommand(entry, environment)}`,
   ];
   return `${lines.join('\n')}\n`;
 }
