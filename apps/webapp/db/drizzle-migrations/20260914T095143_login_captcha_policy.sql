@@ -1,5 +1,5 @@
 -- BCB-MIGRATION-BACKFILL
--- BCB-MIGRATION-VERIFY: SELECT EXISTS (SELECT 1 FROM public.system_settings WHERE key = 'auth_captcha_enabled' AND scope = 'admin' AND organization_id IS NULL AND value_json = '{"value":false}'::jsonb) AND EXISTS (SELECT 1 FROM public.system_settings WHERE key = 'auth_captcha_after_failures' AND scope = 'admin' AND organization_id IS NULL AND value_json = '{"value":3}'::jsonb)
+-- BCB-MIGRATION-VERIFY: SELECT EXISTS (SELECT 1 FROM public.system_settings WHERE key = 'auth_captcha_enabled' AND scope = 'admin' AND organization_id IS NULL AND value_json = '{"value":false}'::jsonb) AND EXISTS (SELECT 1 FROM public.system_settings WHERE key = 'auth_captcha_from_attempt' AND scope = 'admin' AND organization_id IS NULL AND value_json = '{"value":3}'::jsonb)
 INSERT INTO public.system_settings (
   key,
   scope,
@@ -10,7 +10,7 @@ INSERT INTO public.system_settings (
 )
 VALUES
   ('auth_captcha_enabled', 'admin', NULL, '{"value":false}'::jsonb, statement_timestamp(), NULL),
-  ('auth_captcha_after_failures', 'admin', NULL, '{"value":3}'::jsonb, statement_timestamp(), NULL)
+  ('auth_captcha_from_attempt', 'admin', NULL, '{"value":3}'::jsonb, statement_timestamp(), NULL)
 ON CONFLICT (key, scope) WHERE organization_id IS NULL DO NOTHING;
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_password_auth_owner
@@ -36,7 +36,7 @@ DECLARE
   v_challenge public.password_altcha_challenges%ROWTYPE;
   v_expected_identifier_key text;
   v_captcha_enabled boolean := false;
-  v_captcha_after integer := 3;
+  v_captcha_from integer := 3;
 BEGIN
   WITH policy AS (
     SELECT
@@ -50,7 +50,7 @@ BEGIN
       ), false) AS has_secret,
       max(
         CASE
-          WHEN settings.key = 'auth_captcha_after_failures'
+          WHEN settings.key = 'auth_captcha_from_attempt'
             AND btrim(settings.value_json ->> 'value') ~ '^[+-]?[0-9]+$'
           THEN greatest(
             1::numeric,
@@ -58,21 +58,24 @@ BEGIN
           )::integer
           ELSE NULL
         END
-      ) AS after_failures
+      ) AS from_attempt
     FROM public.system_settings AS settings
     WHERE settings.scope = 'admin'
       AND settings.organization_id IS NULL
       AND settings.key IN (
         'auth_captcha_enabled',
-        'auth_captcha_after_failures',
+        'auth_captcha_from_attempt',
         'auth_altcha_hmac_secret'
       )
   )
   SELECT
     -- A blank secret disables captcha so login never demands a challenge that cannot be issued.
+    -- `auth_captcha_from_attempt` is the ATTEMPT NUMBER that first carries a captcha, which is the
+    -- admin's own reading of the field (owner, 14.09). `v_attempts` counts failures already made,
+    -- so the third attempt is guarded once two failures stand: hence `>= v_captcha_from - 1`.
     policy.enabled AND policy.has_secret,
-    coalesce(policy.after_failures, 3)
-  INTO v_captcha_enabled, v_captcha_after
+    coalesce(policy.from_attempt, 3)
+  INTO v_captcha_enabled, v_captcha_from
   FROM policy;
 
   IF p_email_normalized IS NULL
@@ -217,7 +220,7 @@ BEGIN
       NULL::uuid,
       false,
       greatest(1, ceil(extract(epoch FROM v_locked_until - v_now))::integer),
-      v_captcha_enabled AND v_attempts >= v_captcha_after;
+      v_captcha_enabled AND v_attempts >= greatest(v_captcha_from - 1, 0);
     RETURN;
   END IF;
 
@@ -229,17 +232,17 @@ BEGIN
       NULL::uuid,
       false,
       greatest(1, ceil(extract(epoch FROM v_next_allowed_at - v_now))::integer),
-      v_captcha_enabled AND v_attempts >= v_captcha_after;
+      v_captcha_enabled AND v_attempts >= greatest(v_captcha_from - 1, 0);
     RETURN;
   END IF;
 
   IF v_lease_until IS NOT NULL AND v_lease_until > v_now THEN
     RETURN QUERY SELECT 'busy'::text, NULL::uuid, NULL::text, NULL::uuid, false, 1,
-      v_captcha_enabled AND v_attempts >= v_captcha_after;
+      v_captcha_enabled AND v_attempts >= greatest(v_captcha_from - 1, 0);
     RETURN;
   END IF;
 
-  IF v_captcha_enabled AND v_attempts >= v_captcha_after THEN
+  IF v_captcha_enabled AND v_attempts >= greatest(v_captcha_from - 1, 0) THEN
     IF p_altcha_challenge_id IS NULL OR p_altcha_challenge_digest IS NULL THEN
       RETURN QUERY SELECT 'challenge_required'::text, NULL::uuid, NULL::text, NULL::uuid, false, 0, true;
       RETURN;
@@ -291,7 +294,7 @@ BEGIN
     v_user_id,
     coalesce(v_email_verified, false),
     0,
-    v_captcha_enabled AND v_attempts >= v_captcha_after;
+    v_captcha_enabled AND v_attempts >= greatest(v_captcha_from - 1, 0);
 END
 $function$;
 --> statement-breakpoint
@@ -314,7 +317,7 @@ DECLARE
   v_next_allowed_at timestamptz;
   v_locked_until timestamptz;
   v_captcha_enabled boolean := false;
-  v_captcha_after integer := 3;
+  v_captcha_from integer := 3;
 BEGIN
   WITH policy AS (
     SELECT
@@ -328,7 +331,7 @@ BEGIN
       ), false) AS has_secret,
       max(
         CASE
-          WHEN settings.key = 'auth_captcha_after_failures'
+          WHEN settings.key = 'auth_captcha_from_attempt'
             AND btrim(settings.value_json ->> 'value') ~ '^[+-]?[0-9]+$'
           THEN greatest(
             1::numeric,
@@ -336,21 +339,24 @@ BEGIN
           )::integer
           ELSE NULL
         END
-      ) AS after_failures
+      ) AS from_attempt
     FROM public.system_settings AS settings
     WHERE settings.scope = 'admin'
       AND settings.organization_id IS NULL
       AND settings.key IN (
         'auth_captcha_enabled',
-        'auth_captcha_after_failures',
+        'auth_captcha_from_attempt',
         'auth_altcha_hmac_secret'
       )
   )
   SELECT
     -- A blank secret disables captcha so login never demands a challenge that cannot be issued.
+    -- `auth_captcha_from_attempt` is the ATTEMPT NUMBER that first carries a captcha, which is the
+    -- admin's own reading of the field (owner, 14.09). `v_attempts` counts failures already made,
+    -- so the third attempt is guarded once two failures stand: hence `>= v_captcha_from - 1`.
     policy.enabled AND policy.has_secret,
-    coalesce(policy.after_failures, 3)
-  INTO v_captcha_enabled, v_captcha_after
+    coalesce(policy.from_attempt, 3)
+  INTO v_captcha_enabled, v_captcha_from
   FROM policy;
 
   SELECT state.*
@@ -471,6 +477,6 @@ BEGIN
         THEN greatest(1, ceil(extract(epoch FROM v_next_allowed_at - v_now))::integer)
       ELSE 0
     END,
-    v_captcha_enabled AND v_attempts >= v_captcha_after;
+    v_captcha_enabled AND v_attempts >= greatest(v_captcha_from - 1, 0);
 END
 $function$;

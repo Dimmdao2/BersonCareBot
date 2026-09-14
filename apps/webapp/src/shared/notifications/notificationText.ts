@@ -413,6 +413,8 @@ export const notificationText = {
   settingsTestEmailSent: 'Тестовое письмо отправлено',
   settingsInvalidRecipientEmail: 'Укажите корректный email получателя',
   settingsSmtpPasswordMissing: 'В настройках нет пароля SMTP',
+  settingsCaptchaSecretRequired:
+    'Сначала задайте секретный ключ капчи — без него задачка не выдаётся, и капчу включать нельзя.',
 
   // --- domain/booking-engine ---
   // Публичная запись: отказ инфраструктуры (не прошёл reverse proxy) — читателю здесь нечего

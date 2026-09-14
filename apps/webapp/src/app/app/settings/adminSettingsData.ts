@@ -96,7 +96,7 @@ const ADMIN_SETTINGS_PAGE_REQUIRED_KEYS = [
   'therapygo_max_webhook_secret',
   'therapysto_max_webhook_secret',
   'auth_captcha_enabled',
-  'auth_captcha_after_failures',
+  'auth_captcha_from_attempt',
   'web_push_vapid',
   'rustore_universal_push_therapygo',
   'rustore_universal_push_therapysto',
@@ -184,7 +184,7 @@ export async function loadAdminAuthPageData(): Promise<{
     false,
   );
   const captchaAfter = getValueJson<unknown>(
-    adminSettingsList.find((setting) => setting.key === 'auth_captcha_after_failures')?.valueJson,
+    adminSettingsList.find((setting) => setting.key === 'auth_captcha_from_attempt')?.valueJson,
     3,
   );
   const captchaSecretStatus = getValueJson<unknown>(
@@ -196,7 +196,7 @@ export async function loadAdminAuthPageData(): Promise<{
     authProvidersConfig: buildAuthProvidersConfig(adminSettingsList),
     loginCaptchaConfig: {
       initialEnabled: captchaEnabled === true || captchaEnabled === 'true',
-      initialAfterFailures:
+      initialFromAttempt:
         typeof captchaAfter === 'number' && Number.isInteger(captchaAfter)
           ? Math.max(1, Math.min(50, captchaAfter))
           : 3,

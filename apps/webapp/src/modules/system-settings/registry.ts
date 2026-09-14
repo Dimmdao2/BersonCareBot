@@ -323,7 +323,7 @@ export const SYSTEM_SETTING_REGISTRY = {
   auth_oauth_apple_enabled: runtime('admin', 'global', 'public', 'boolean', 'false'),
   auth_passkey_enabled: runtime('admin', 'global', 'public', 'boolean', 'true'),
   auth_captcha_enabled: runtime('admin', 'global', 'server', 'boolean', 'false'),
-  auth_captcha_after_failures: runtime('admin', 'global', 'server', 'integer', '3'),
+  auth_captcha_from_attempt: runtime('admin', 'global', 'server', 'integer', '3'),
   ...surfaceAuthSettingDefinitions,
   /**
    * Platform-wide availability of clinic-facing integrations. This is deliberately one

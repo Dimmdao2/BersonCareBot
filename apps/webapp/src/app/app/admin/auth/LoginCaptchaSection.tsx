@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import toast from 'react-hot-toast';
 import { patchAdminSettingWithResult } from '@/app/app/settings/patchAdminSetting';
+import { errorCodeText } from '@/shared/notifications/errorCodeText';
 import { notificationText, notificationTextFactory } from '@/shared/notifications/notificationText';
 import { DoctorField } from '@/shared/ui/doctor/DoctorField';
 import {
@@ -17,7 +18,7 @@ import { LabeledSwitch } from '@/shared/ui/doctor/primitives/labeled-switch';
 
 export type LoginCaptchaSectionProps = {
   initialEnabled: boolean;
-  initialAfterFailures: number;
+  initialFromAttempt: number;
   hasStoredSecret: boolean;
 };
 
@@ -29,22 +30,24 @@ function randomHex(bytes: number): string {
 
 export function LoginCaptchaSection({
   initialEnabled,
-  initialAfterFailures,
+  initialFromAttempt,
   hasStoredSecret,
 }: LoginCaptchaSectionProps) {
   const router = useRouter();
   const [enabled, setEnabled] = useState(initialEnabled);
-  const [afterFailures, setAfterFailures] = useState(String(initialAfterFailures));
+  const [fromAttempt, setFromAttempt] = useState(String(initialFromAttempt));
   const [secretInput, setSecretInput] = useState('');
   const [secretStored, setSecretStored] = useState(hasStoredSecret);
-  const [saving, setSaving] = useState<'enabled' | 'after' | 'secret' | null>(null);
+  const [saving, setSaving] = useState<'enabled' | 'from' | 'secret' | null>(null);
   const [isPending, startTransition] = useTransition();
 
   function showSaveResult(
     result: Awaited<ReturnType<typeof patchAdminSettingWithResult>>,
   ): boolean {
     if (result.ok) return true;
-    toast.error(result.error ?? notificationText.commonSaveFailed);
+    // Машинный код маршрута человеку не показываем: общая карта кодов выдаёт фразу, а
+    // незнакомый код превращается в запасной текст, а не утекает как есть (AGENTS.md §21a).
+    toast.error(errorCodeText(result.code, notificationText.commonSaveFailed));
     return false;
   }
 
@@ -61,17 +64,17 @@ export function LoginCaptchaSection({
     });
   }
 
-  function saveAfterFailures(): void {
-    const attempts = Number(afterFailures);
+  function saveFromAttempt(): void {
+    const attempts = Number(fromAttempt);
     if (!Number.isInteger(attempts) || attempts < 1 || attempts > 50) {
-      toast.error(notificationTextFactory.integerRangeRequired('Количество попыток', 1, 50));
+      toast.error(notificationTextFactory.integerRangeRequired('Номер попытки', 1, 50));
       return;
     }
-    setSaving('after');
+    setSaving('from');
     startTransition(async () => {
-      const result = await patchAdminSettingWithResult('auth_captcha_after_failures', attempts);
+      const result = await patchAdminSettingWithResult('auth_captcha_from_attempt', attempts);
       if (showSaveResult(result)) {
-        setAfterFailures(String(attempts));
+        setFromAttempt(String(attempts));
         toast.success(notificationText.commonSaved);
         router.refresh();
       }
@@ -100,35 +103,47 @@ export function LoginCaptchaSection({
         <DoctorSectionTitle>Капча при входе</DoctorSectionTitle>
       </DoctorSectionHeader>
       <p className="text-sm text-muted-foreground">
-        Выключено — капча никому не показывается и не требуется; включено — появляется после N
-        неверных попыток подряд.
+        Выключено — капча никому не показывается и не требуется; включено — она требуется начиная с
+        указанной попытки подряд. Пароль сам по себе учётную запись не блокирует ни при каких
+        настройках.
       </p>
       <div className="flex max-w-xl flex-col gap-4">
-        <LabeledSwitch
-          label="Включить капчу при входе по паролю"
-          checked={enabled}
-          disabled={isPending}
-          onCheckedChange={updateEnabled}
-        />
+        {/* Включить капчу без ключа нельзя: задачка не выдастся, и человек с верным паролем
+            останется снаружи. Поэтому переключатель виден, но не нажимается, и рядом сказано
+            почему (решение владельца 14.09). Сервер отказывает в том же самостоятельно. */}
+        <div className="flex flex-col gap-1">
+          <LabeledSwitch
+            label="Включить капчу при входе по паролю"
+            checked={enabled}
+            disabled={isPending || !secretStored}
+            onCheckedChange={updateEnabled}
+          />
+          {secretStored ? null : (
+            <span className="text-sm text-muted-foreground">
+              Сначала задайте секретный ключ капчи — без него задачка не выдаётся.
+            </span>
+          )}
+        </div>
         <DoctorField
-          label="Показывать после скольких неверных попыток"
-          htmlFor="auth-captcha-after-failures"
+          label="Требовать капчу начиная с какой попытки"
+          htmlFor="auth-captcha-from-attempt"
+          hint="3 — первые две попытки без капчи, третья уже с ней"
           width="sm"
         >
           <div className="flex items-center gap-3">
             <Input
-              id="auth-captcha-after-failures"
+              id="auth-captcha-from-attempt"
               type="number"
               min={1}
               max={50}
-              value={afterFailures}
-              onChange={(event) => setAfterFailures(event.target.value)}
+              value={fromAttempt}
+              onChange={(event) => setFromAttempt(event.target.value)}
               disabled={isPending}
             />
             <Button
               type="button"
               variant="outline"
-              onClick={saveAfterFailures}
+              onClick={saveFromAttempt}
               disabled={isPending}
             >
               Сохранить

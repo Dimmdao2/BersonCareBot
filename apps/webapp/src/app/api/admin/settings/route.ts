@@ -194,7 +194,7 @@ const ADMIN_SCOPE_KEYS = [
   'clinic_vk_community_access_token',
   'operator_health_imap',
   'auth_captcha_enabled',
-  'auth_captcha_after_failures',
+  'auth_captcha_from_attempt',
   'auth_altcha_hmac_secret',
   'web_push_vapid',
   'rustore_universal_push_therapygo',
@@ -964,7 +964,7 @@ export async function PATCH(request: Request) {
     normalizedValue = { value: b };
   }
 
-  if (parsed.data.key === 'auth_captcha_after_failures') {
+  if (parsed.data.key === 'auth_captcha_from_attempt') {
     const inner = normalizedValue.value;
     const attempts =
       typeof inner === 'number' && Number.isInteger(inner)
@@ -1001,7 +1001,7 @@ export async function PATCH(request: Request) {
         {
           ok: false,
           error: 'auth_captcha_secret_required',
-          message: 'Сначала задайте секретный ключ капчи',
+          message: notificationText.settingsCaptchaSecretRequired,
         },
         { status: 400 },
       );
