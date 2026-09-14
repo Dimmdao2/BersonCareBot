@@ -209,8 +209,11 @@ export function DoctorTodayMiniCalendar({
             cursor: pointer !important;
             --fc-event-text-color: var(--foreground) !important;
           }
+          /* Пол по умолчанию — БЕЗ !important, чтобы инлайновый textColor (цвет филиала)
+             побеждал: инлайн-стиль сильнее селекторного правила и без !important
+             (аудит 14.09, Э2 FAIL — то же перекрытие, что в ScheduleCalendarTab). */
           #doctor-today-mini-calendar .fc-event .fc-event-main {
-            color: var(--foreground) !important;
+            color: var(--foreground);
           }
           #doctor-today-mini-calendar .fc-event.fc-event-past { opacity: 0.6; }
           #doctor-today-mini-calendar .fc-timegrid-event-harness { margin-inline: 1px; }
