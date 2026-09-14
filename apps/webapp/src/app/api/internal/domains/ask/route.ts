@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { enterWithDbInfraPrincipal } from '@bersoncare/db-principal';
+import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipal';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { logger } from '@/app-layer/logging/logger';
 import { isOnDemandTlsHostnameAuthorized } from '@/app-layer/surface/onDemandTlsAuthorization';
@@ -24,7 +24,12 @@ export async function GET(request: Request) {
     return NextResponse.json({ ok: false, error: 'missing_domain' }, { status: 400 });
   }
 
-  enterWithDbInfraPrincipal({ source: 'api/internal/domains/ask:GET' });
+  /* Резолвер слага — SECURITY DEFINER, выполнять его вправе только `app_pre_session`, и приложение
+     берёт эту роль из bootstrap-принципала. Здесь стоял infra-принципал, и КАЖДОЕ имя под нашим
+     апексом получало `permission denied for function` → 500 вместо честного да/нет, то есть
+     on-demand выпуск сертификата не мог сработать ни для одной клиники. Собственный домен клиники
+     идёт своей дверью и остаётся на infra — ровно как в `productionTenantSurfaceLookup`. */
+  stampBootstrapPrincipal('api/internal/domains/ask:GET', request);
   const deps = buildAppDeps();
   if (!deps.customDomainBinding && !deps.clinicDirectory) {
     return NextResponse.json({ ok: false, error: 'not_configured' }, { status: 503 });

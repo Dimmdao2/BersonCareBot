@@ -42,7 +42,10 @@ done
 [ -f "$CADDY_ENV_FILE" ] || die "missing $CADDY_ENV_FILE"
 [ -f "$THERAPYSTO_PUBLIC_SITE" ] || die "missing $THERAPYSTO_PUBLIC_SITE"
 grep -q 'therapysto_webapp' "$THERAPYSTO_PUBLIC_SITE" || die "$THERAPYSTO_PUBLIC_SITE has no therapysto_webapp proxy_pass yet"
-for key in CADDY_ACME_EMAIL CADDY_PLATFORM_DOMAINS CADDY_REGRU_USERNAME CADDY_REGRU_PASSWORD CADDY_ASK_URL CADDY_UPSTREAM; do
+# REG.RU keys are gone with the wildcard (owner, 12.09.2026): every name is issued per-name over
+# HTTP-01/TLS-ALPN, so the edge needs no registrar credentials and no DNS module. Requiring them
+# here would have blocked the cutover on settings that must not exist.
+for key in CADDY_ACME_EMAIL CADDY_PLATFORM_DOMAINS CADDY_ASK_URL CADDY_UPSTREAM; do
   grep -qE "^${key}=" "$CADDY_ENV_FILE" || die "$CADDY_ENV_FILE is missing $key"
 done
 CADDY_UPSTREAM_VALUE=$(sed -n 's/^CADDY_UPSTREAM=//p' "$CADDY_ENV_FILE" | tail -1)
@@ -52,7 +55,7 @@ case "$INTERNAL_PORT" in
 esac
 [[ "$CADDY_UPSTREAM_VALUE" == 127.0.0.1:* ]] || die "CADDY_UPSTREAM must be loopback-only"
 
-say "building pinned Caddy v2.11.2 + REG.RU module v0.1.10"
+say "building pinned stock Caddy v2.11.2 (no plugins)"
 getent group caddy >/dev/null || groupadd --system caddy
 id caddy >/dev/null 2>&1 || useradd --system --gid caddy --home-dir /var/lib/caddy --shell /usr/sbin/nologin caddy
 "$CADDY_BUILD" --output "$CADDY_BINARY" || die "pinned Caddy build failed"

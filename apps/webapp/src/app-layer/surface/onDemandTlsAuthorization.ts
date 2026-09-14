@@ -12,6 +12,7 @@
  * Отказ здесь — это не 403 пользователю, а отказ НАЧИНАТЬ ACME-заказ. Поэтому правило намеренно
  * закрытое: разрешаем только имя, которое мы и так обслуживаем.
  */
+import { runWithDbInfraPrincipal } from '@bersoncare/db-principal';
 import { PATIENT_DEFAULT_SURFACE } from '@/config/productSurfaces';
 import { extractPatientSubdomainLabel } from '@/app-layer/surface/productionTenantSurfaceLookup';
 import { resolvePatientSubdomainOrganization } from '@/modules/clinic-directory/patientSubdomainOrganization';
@@ -77,5 +78,10 @@ export async function isOnDemandTlsHostnameAuthorized(
   }
 
   if (!deps.customDomainBinding) return false;
-  return deps.customDomainBinding.isHostnameAskAuthorized(hostname);
+  /* Собственный домен клиники решает проверка привязки, и она читается infra-принципалом — тем же,
+     что и probe в `productionTenantSurfaceLookup`. Вызывающий стоит на bootstrap ради резолвера
+     слага выше, поэтому на эту ветку принципал переключается явно. */
+  return runWithDbInfraPrincipal({ source: 'ondemand-tls:custom-domain' }, () =>
+    deps.customDomainBinding!.isHostnameAskAuthorized(hostname),
+  );
 }
