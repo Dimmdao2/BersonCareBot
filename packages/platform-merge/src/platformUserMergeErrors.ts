@@ -13,9 +13,11 @@ export class MergeConflictError extends Error {
 export class MergeDependentConflictError extends Error {
   readonly code = 'MergeDependentConflictError' as const;
   readonly candidateIds: string[];
-  constructor(message: string, candidateIds?: string[]) {
+  readonly organizationId: string | null;
+  constructor(message: string, candidateIds?: string[], organizationId?: string | null) {
     super(message);
     this.name = 'MergeDependentConflictError';
     this.candidateIds = candidateIds ?? [];
+    this.organizationId = organizationId ?? null;
   }
 }

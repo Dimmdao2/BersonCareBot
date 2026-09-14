@@ -15,6 +15,7 @@ import {
   mergePlatformUsersInTransaction,
   type PlatformMergeDbClient,
 } from '@bersoncare/platform-merge';
+import { recordPatientMedicalMergeConflict } from '@/infra/repos/pgPatientMergeCandidate';
 import type {
   ClaimVerifiedEmailOptions,
   ClaimVerifiedEmailResult,
@@ -320,11 +321,16 @@ export async function claimVerifiedEmail(
       }),
     );
   } catch (err) {
-    if (
-      err instanceof EmailClaimConflictError ||
-      err instanceof MergeConflictError ||
-      err instanceof MergeDependentConflictError
-    ) {
+    if (err instanceof MergeDependentConflictError) {
+      if (err.organizationId) {
+        if (err.organizationId !== organizationId) throw err;
+        await runWithDbOrganizationPrincipal(organizationId, () =>
+          recordPatientMedicalMergeConflict(err, 'email_bind'),
+        );
+      }
+      return { ok: false, code: 'email_conflict' };
+    }
+    if (err instanceof EmailClaimConflictError || err instanceof MergeConflictError) {
       return { ok: false, code: 'email_conflict' };
     }
     throw err;

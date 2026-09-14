@@ -39,6 +39,8 @@ export type MergePlatformUsersContext = {
 export type MergePlatformUsersOptions = {
   resolution?: ManualMergeResolution;
   mergeContext?: MergePlatformUsersContext;
+  /** The clinic whose doctor has explicitly accepted its medical-history conflict. */
+  medicalConflictApprovedForOrganizationId?: string;
 };
 
 /**
@@ -59,69 +61,66 @@ type MedicalHistoryRecord = {
 const MEDICAL_HISTORY_RECORDS: readonly MedicalHistoryRecord[] = [
   {
     automaticProbe: (ids) =>
-      sql`SELECT 1 FROM clinical_visit WHERE patient_user_id = ANY(${ids}::uuid[])`,
+      sql`SELECT organization_id FROM clinical_visit WHERE patient_user_id = ANY(${ids}::uuid[])`,
     transfer: (targetId, duplicateId) => [
       sql`UPDATE clinical_visit SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
     ],
   },
   {
     automaticProbe: (ids) =>
-      sql`SELECT 1 FROM clinical_complaint WHERE patient_user_id = ANY(${ids}::uuid[])`,
+      sql`SELECT organization_id FROM clinical_complaint WHERE patient_user_id = ANY(${ids}::uuid[])`,
     transfer: (targetId, duplicateId) => [
       sql`UPDATE clinical_complaint SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
     ],
   },
   {
     automaticProbe: (ids) =>
-      sql`SELECT 1 FROM clinical_diagnosis WHERE patient_user_id = ANY(${ids}::uuid[])`,
+      sql`SELECT organization_id FROM clinical_diagnosis WHERE patient_user_id = ANY(${ids}::uuid[])`,
     transfer: (targetId, duplicateId) => [
       sql`UPDATE clinical_diagnosis SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
     ],
   },
   {
     automaticProbe: (ids) =>
-      sql`SELECT 1 FROM clinical_anamnesis_trauma WHERE patient_user_id = ANY(${ids}::uuid[])`,
+      sql`SELECT organization_id FROM clinical_anamnesis_trauma WHERE patient_user_id = ANY(${ids}::uuid[])`,
     transfer: (targetId, duplicateId) => [
       sql`UPDATE clinical_anamnesis_trauma SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
     ],
   },
   {
     automaticProbe: (ids) =>
-      sql`SELECT 1 FROM clinical_anamnesis_illness WHERE patient_user_id = ANY(${ids}::uuid[])`,
+      sql`SELECT organization_id FROM clinical_anamnesis_illness WHERE patient_user_id = ANY(${ids}::uuid[])`,
     transfer: (targetId, duplicateId) => [
       sql`UPDATE clinical_anamnesis_illness SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
     ],
   },
   {
     automaticProbe: (ids) =>
-      sql`SELECT 1 FROM clinical_anamnesis_lifestyle WHERE patient_user_id = ANY(${ids}::uuid[])`,
+      sql`SELECT organization_id FROM clinical_anamnesis_lifestyle WHERE patient_user_id = ANY(${ids}::uuid[])`,
     transfer: (targetId, duplicateId) => [
       sql`UPDATE clinical_anamnesis_lifestyle SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
     ],
   },
   {
-    automaticProbe: (ids) => sql`SELECT 1 FROM doctor_notes WHERE user_id = ANY(${ids}::uuid[])`,
+    automaticProbe: (ids) =>
+      sql`SELECT organization_id FROM doctor_notes WHERE user_id = ANY(${ids}::uuid[])`,
     transfer: (targetId, duplicateId) => [
       sql`UPDATE doctor_notes SET user_id = ${targetId}::uuid WHERE user_id = ${duplicateId}::uuid`,
     ],
   },
   {
-    automaticProbe: (ids) =>
-      sql`SELECT 1 FROM patient_bookings WHERE platform_user_id = ANY(${ids}::uuid[])`,
     transfer: (targetId, duplicateId) => [
       sql`UPDATE patient_bookings SET platform_user_id = ${targetId}::uuid WHERE platform_user_id = ${duplicateId}::uuid`,
     ],
   },
   {
-    automaticProbe: (ids) =>
-      sql`SELECT 1 FROM be_appointments WHERE platform_user_id = ANY(${ids}::uuid[])`,
     transfer: (targetId, duplicateId) => [
       sql`UPDATE be_appointments SET platform_user_id = ${targetId}::uuid WHERE platform_user_id = ${duplicateId}::uuid`,
     ],
   },
   {
     automaticProbe: (ids) =>
-      sql`SELECT 1 FROM treatment_program_instances
+      sql`SELECT organization_id FROM treatment_program_instances
           WHERE patient_user_id = ANY(${ids}::uuid[]) AND assignment_source = 'doctor'`,
     transfer: (targetId, duplicateId) => [
       sql`UPDATE treatment_program_instances SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
@@ -171,28 +170,41 @@ async function assertAutomaticMergeHasNoMedicalHistory(
   client: PlatformMergeDbClient,
   targetId: string,
   duplicateId: string,
+  approvedOrganizationId?: string,
 ): Promise<void> {
-  // D26 §5.2/§5.4 (владелец 20.08, финальная формулировка после серии уточнений): блок только при
-  // РЕАЛЬНОМ КОНФЛИКТЕ — когда квалифицирующие медицинские данные (визиты, записи/приёмы, мед.карточки,
-  // назначенные врачом программы — записи ниже с automaticProbe) есть У ОБЕИХ сторон пары одновременно.
+  // AUTH_AND_IDENTITY_CANON §18: блок только при РЕАЛЬНОМ КОНФЛИКТЕ — когда квалифицирующие
+  // медицинские данные (медкарта, заметки, назначения — записи ниже с automaticProbe) есть У ОБЕИХ
+  // сторон пары В ОДНОЙ организации. История записей/приёмов блокером не является.
   // Если данные есть только у одной стороны (не важно, у target или у duplicate) — блокировать нечего:
   // «зачем блокировать мерж, если только один аккаунт с данными и оба контакта подтверждены» — это
   // штатный сценарий (вернувшийся пациент добавляет новый канал), и transferMedicalHistoryForMerge ниже
-  // спокойно переносит историю duplicate→target, как при любом merge. Переписка (чат/обсуждения) в этот
-  // список не входит вообще — у её записей automaticProbe нет, гейт её не касается.
+  // спокойно переносит историю duplicate→target, как при любом merge. Переписка (чат/обсуждения) в
+  // список не входит вообще — у её записей automaticProbe нет, гейт её не касается. Разрешение врача
+  // снимает только конфликт его организации; конфликт другой организации продолжает блокировать merge.
   const probesFor = (id: string) =>
     MEDICAL_HISTORY_RECORDS.flatMap((record) => (record.automaticProbe ? [record.automaticProbe([id])] : []));
-  const result = await runMergeSql<{ target_has: boolean; duplicate_has: boolean }>(
+  const result = await runMergeSql<{
+    conflict_organization_id: string | null;
+    target_has: boolean;
+    duplicate_has: boolean;
+  }>(
     client,
-    sql`SELECT
-          EXISTS (${sql.join(probesFor(targetId), sql` UNION ALL `)}) AS target_has,
-          EXISTS (${sql.join(probesFor(duplicateId), sql` UNION ALL `)}) AS duplicate_has`,
+    sql`SELECT DISTINCT target.organization_id AS conflict_organization_id,
+                         true AS target_has,
+                         true AS duplicate_has
+          FROM (${sql.join(probesFor(targetId), sql` UNION ALL `)}) AS target(organization_id)
+          JOIN (${sql.join(probesFor(duplicateId), sql` UNION ALL `)}) AS duplicate(organization_id)
+            ON duplicate.organization_id IS NOT DISTINCT FROM target.organization_id
+         WHERE ${approvedOrganizationId ?? null}::uuid IS NULL
+            OR target.organization_id IS DISTINCT FROM ${approvedOrganizationId ?? null}::uuid
+         LIMIT 1`,
   );
-  const row = result.rows[0];
-  if (row?.target_has && row?.duplicate_has) {
+  const conflict = result.rows[0];
+  if (conflict?.target_has && conflict.duplicate_has) {
     throw new MergeDependentConflictError(
-      'medical_history: automatic merge requires support (conflict on both sides)',
+      'medical_history: automatic merge requires support; doctor review owns the organization conflict',
       [targetId, duplicateId],
+      conflict.conflict_organization_id ?? null,
     );
   }
 }
@@ -393,7 +405,12 @@ export async function mergePlatformUsersInTransaction(
   }
 
   if (reason !== 'manual') {
-    await assertAutomaticMergeHasNoMedicalHistory(client, targetId, duplicateId);
+    await assertAutomaticMergeHasNoMedicalHistory(
+      client,
+      targetId,
+      duplicateId,
+      options?.medicalConflictApprovedForOrganizationId,
+    );
   }
 
   const manualResolution = reason === 'manual' ? options!.resolution! : undefined;

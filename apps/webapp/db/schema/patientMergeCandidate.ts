@@ -43,6 +43,13 @@ export const patientMergeCandidates = pgTable(
     uniqueIndex('uq_patient_merge_candidates_org_pending_pair')
       .on(table.organizationId, table.anchorUserId, table.candidateUserId)
       .where(sql`status = 'pending'`),
+    uniqueIndex('uq_patient_merge_candidates_org_pending_unordered_pair')
+      .on(
+        table.organizationId,
+        sql`LEAST(anchor_user_id::text, candidate_user_id::text)`,
+        sql`GREATEST(anchor_user_id::text, candidate_user_id::text)`,
+      )
+      .where(sql`status = 'pending'`),
     foreignKey({
       columns: [table.organizationId],
       foreignColumns: [beOrganizations.id],
@@ -70,7 +77,7 @@ export const patientMergeCandidates = pgTable(
     }).onDelete('set null'),
     check(
       'patient_merge_candidates_status_check',
-      sql`status = ANY (ARRAY['pending'::text, 'resolved'::text, 'dismissed'::text])`,
+      sql`status = ANY (ARRAY['pending'::text, 'resolved'::text, 'dismissed'::text, 'escalated'::text])`,
     ),
     check('patient_merge_candidates_distinct_users', sql`anchor_user_id <> candidate_user_id`),
   ],

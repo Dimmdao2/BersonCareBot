@@ -31,6 +31,8 @@
     "app.read_integrator_delivery_target_snapshot(uuid,text,text,text,uuid,text,timestamp with time zone) -> public.user_channel_bindings",
     "app.read_integrator_delivery_target_snapshot(uuid,text,text,text,uuid,text,timestamp with time zone) -> public.user_contacts",
     "app.read_org_brand_core_context(uuid) -> public.be_organizations",
+    "app.read_staff_patient_medical_merge_conflict(uuid) -> public.platform_users",
+    "app.read_staff_patient_medical_merge_conflict(uuid) -> public.user_identity",
     "app.record_public_booking_merge_candidates(uuid,uuid,text,uuid) -> public.platform_users",
     "app.record_public_booking_merge_candidates(uuid,uuid,text,uuid) -> public.user_contacts",
     "app.record_public_booking_merge_candidates(uuid,uuid,text,uuid) -> public.user_identity",
