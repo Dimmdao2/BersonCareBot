@@ -2826,9 +2826,12 @@ export function ScheduleCalendarTab({
               variant={filtersPanelOpen && !hasActiveScheduleFilters ? 'default' : 'outline'}
               className={cn(
                 'size-[32px]',
+                // Белый фон «спящей» кнопки нельзя класть поверх варианта `default`: у того белый
+                // значок, и вместе они дают белое на белом. Пока панель открыта и фильтров нет,
+                // кнопку красит сам вариант.
                 hasActiveScheduleFilters
                   ? DOCTOR_FILTERS_HIDE_RECORDS_BUTTON_CLASS
-                  : INACTIVE_TOOLBAR_BUTTON_CLASS,
+                  : !filtersPanelOpen && INACTIVE_TOOLBAR_BUTTON_CLASS,
               )}
               onClick={toggleFiltersPanel}
               aria-label="Фильтры"
@@ -3064,9 +3067,11 @@ export function ScheduleCalendarTab({
             variant={filtersPanelOpen && !hasActiveScheduleFilters ? 'default' : 'outline'}
             className={cn(
               'ml-auto gap-2 xl:hidden',
+              // То же, что и у значка выше: с открытой панелью и без фильтров цвет даёт вариант
+              // `default`, иначе белая надпись легла бы на белый фон.
               hasActiveScheduleFilters
                 ? DOCTOR_FILTERS_HIDE_RECORDS_BUTTON_CLASS
-                : INACTIVE_TOOLBAR_BUTTON_CLASS,
+                : !filtersPanelOpen && INACTIVE_TOOLBAR_BUTTON_CLASS,
             )}
             onClick={toggleFiltersPanel}
             aria-expanded={filtersPanelOpen}
