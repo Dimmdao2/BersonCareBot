@@ -472,7 +472,9 @@ export function LeadsTab({ deepLinkParams, onDeepLinkChange }: CommunicationsTab
   );
 
   const detailPane = selectedLead ? (
-    <LeadDetail lead={selectedLead} busy={busy} onAction={applyAction} />
+    // key сбрасывает черновик отклонения: без него комментарий, написанный по одной заявке,
+    // уходит письмом заявителю другой.
+    <LeadDetail key={selectedLead.id} lead={selectedLead} busy={busy} onAction={applyAction} />
   ) : (
     <section className={cn(doctorSectionCardClass, 'flex min-h-0 flex-1')}>
       <DoctorEmptyState>Выберите заявку</DoctorEmptyState>
