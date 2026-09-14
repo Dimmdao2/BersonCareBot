@@ -1,13 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { portTypedArgsForFunctionIdentity } from '@bersoncare/db-principal';
-import {
-  getWebappSqlDb,
-  runWebappNamedRoot,
-  runWebappSql,
-  runWebappTransaction,
-  type WebappSqlTransactionExecutor,
-} from '@/infra/db/runWebappSql';
-import { runWithWebappPortOperation } from '@/infra/db/portContextRuntime';
+import { getWebappSqlDb, runWebappNamedRoot } from '@/infra/db/runWebappSql';
 import {
   DEFAULT_OUTBOUND_MESSAGE_MAX_ATTEMPTS,
   type OutboundMessageContext,
@@ -54,14 +46,6 @@ function outboundMessageCall(context: OutboundMessageContext) {
   };
 }
 
-async function executeOutboundMessageCall(
-  db: ReturnType<typeof getWebappSqlDb> | WebappSqlTransactionExecutor,
-  call: ReturnType<typeof outboundMessageCall>,
-): Promise<boolean> {
-  const result = await runWebappSql<{ enqueued: boolean | null }>(db, call.statement);
-  return result.rows[0]?.enqueued === true;
-}
-
 export function createPgOutboundMessageQueue(): OutboundMessageQueuePort {
   return {
     async enqueue(context: OutboundMessageContext): Promise<boolean> {
@@ -75,28 +59,4 @@ export function createPgOutboundMessageQueue(): OutboundMessageQueuePort {
       return result.rows[0]?.enqueued === true;
     },
   };
-}
-
-/**
- * Runs a relation mutation and the existing universal enqueue root in one physical transaction.
- * The named-root capability is selected before Drizzle opens the transaction; installing it from
- * inside an already-open relation transaction is intentionally forbidden by `runWebappNamedRoot`.
- */
-export async function withPgOutboundMessageEnqueueTransaction<T>(
-  context: OutboundMessageContext,
-  work: (tx: WebappSqlTransactionExecutor) => Promise<T>,
-): Promise<{ value: T; enqueued: boolean }> {
-  const call = outboundMessageCall(context);
-  return runWithWebappPortOperation(
-    {
-      functionIdentity: OUTBOUND_MESSAGE_FUNCTION_IDENTITY,
-      typedArgs: portTypedArgsForFunctionIdentity(OUTBOUND_MESSAGE_FUNCTION_IDENTITY, call.args),
-    },
-    () =>
-      runWebappTransaction(async (tx) => {
-        const value = await work(tx);
-        const enqueued = await executeOutboundMessageCall(tx, call);
-        return { value, enqueued };
-      }),
-  );
 }

@@ -154,6 +154,7 @@ VALUES
   ('public', 'doctor_patient_support', 'SCOPED'),
   ('public', 'email_challenges', 'BOOTSTRAP'),
   ('public', 'email_send_cooldowns', 'BOOTSTRAP'),
+  ('public', 'leads', 'SCOPED'),
   ('public', 'lfk_complex_exercises', 'SCOPED'),
   ('public', 'lfk_complex_template_exercises', 'SCOPED'),
   ('public', 'lfk_complex_templates', 'SCOPED'),

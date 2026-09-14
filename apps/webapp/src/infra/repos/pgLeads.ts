@@ -2,10 +2,15 @@ import { and, desc, eq, isNull } from 'drizzle-orm';
 import { getDrizzle, type DrizzleDb } from '@/app-layer/db/drizzle';
 import { orgEnrollments } from '../../../db/schema/bookingEngine';
 import { leads } from '../../../db/schema/leads';
-import { withPgOutboundMessageEnqueueTransaction } from '@/infra/repos/pgOutboundMessageQueue';
+import { logger, serializeError } from '@/infra/logging/logger';
+import { reportEmptyAudience } from '@/modules/operator-alerts/emptyAudienceRuntime';
+import { createPgOutboundMessageQueue } from '@/infra/repos/pgOutboundMessageQueue';
 import type { LeadsPort } from '@/modules/leads/ports';
 import type { Lead } from '@/modules/leads/types';
 import { leadRejectionNotification } from '@/modules/leads/rejectionNotification';
+
+/** Короткий стабильный ключ места для операторских сигналов, без персональных данных. */
+const LEAD_REJECTED_TOPIC = 'lead.rejected' as const;
 
 type Transaction = Parameters<Parameters<DrizzleDb['transaction']>[0]>[0];
 type Executor = DrizzleDb | Transaction;
@@ -122,9 +127,34 @@ export function createPgLeadsPort(): LeadsPort {
       const current = await readLead(getDrizzle(), input.organizationId, input.leadId);
       if (!current) return null;
       if (current.status !== 'new') throw new Error('lead_status_transition_invalid');
+      // Переход и письмо — ДВА отдельных обращения, а не одна транзакция. Принятый контекст порта
+      // один на транзакцию (PK `app_ext.accepted_port_contexts` — база+backend+xid), и у корня
+      // доставки он именованный: под ним ЛЮБОЕ обращение к `public.leads` отказано гейтом
+      // `rev10_context_gate_27` («accepted port context required», проверено живьём на DEV 14.09).
+      // Поэтому здесь тот же порядок, что у подтверждения брони: сначала состояние, затем
+      // постановка в очередь. Повтор невозможен из-за CAS по `status='new'`, а сама очередь
+      // идемпотентна по ключу заявки.
+      const transitioned = await getDrizzle()
+        .update(leads)
+        .set({
+          status: 'rejected',
+          rejectionComment: input.comment,
+          rejectedAt: input.now,
+          updatedAt: input.now,
+        })
+        .where(
+          and(
+            eq(leads.organizationId, input.organizationId),
+            eq(leads.id, input.leadId),
+            eq(leads.status, 'new'),
+          ),
+        )
+        .returning();
+      if (!transitioned[0]) throw new Error('lead_status_transition_invalid');
+      const rejected = mapLead(transitioned[0]);
       const notification = leadRejectionNotification(input.comment);
-      const result = await withPgOutboundMessageEnqueueTransaction(
-        {
+      try {
+        const enqueued = await createPgOutboundMessageQueue().enqueue({
           organizationId: input.organizationId,
           purpose: 'lead.rejected',
           idempotencyKey: input.leadId,
@@ -136,29 +166,33 @@ export function createPgLeadsPort(): LeadsPort {
             senderScope: 'clinic_required',
             audience: 'patient',
           },
-        },
-        async (tx) => {
-          const transitioned = await tx
-            .update(leads)
-            .set({
-              status: 'rejected',
-              rejectionComment: input.comment,
-              rejectedAt: input.now,
-              updatedAt: input.now,
-            })
-            .where(
-              and(
-                eq(leads.organizationId, input.organizationId),
-                eq(leads.id, input.leadId),
-                eq(leads.status, 'new'),
-              ),
-            )
-            .returning();
-          if (!transitioned[0]) throw new Error('lead_status_transition_invalid');
-          return mapLead(transitioned[0]);
-        },
-      );
-      return result.value;
+        });
+        logger.info(
+          { event: 'lead.rejection_email.enqueued', leadId: input.leadId, enqueued },
+          enqueued ? 'lead rejection email queued' : 'lead rejection email already queued',
+        );
+      } catch (err) {
+        // Отказ по заявке уже зафиксирован, и повторить его нельзя: CAS по `status='new'` закрыл
+        // дверь навсегда. Значит отказ ДОСТАВКИ здесь — это «человек никогда не узнает», и молчать
+        // о нём нельзя. Уходит тем же портом, что и пустая аудитория у подтверждения брони:
+        // итог для человека тот же — он не получил.
+        logger.error(
+          {
+            scope: 'lead_rejection_delivery',
+            topic: LEAD_REJECTED_TOPIC,
+            organizationId: input.organizationId,
+            err: serializeError(err),
+          },
+          'lead rejection email could not be queued',
+        );
+        await reportEmptyAudience({
+          topic: LEAD_REJECTED_TOPIC,
+          severity: 'user_facing',
+          channels: ['email'],
+          context: { organizationId: input.organizationId, reason: 'enqueue_failed' },
+        });
+      }
+      return rejected;
     },
     async setArchived(organizationId, leadId, archived, now) {
       const rows = await getDrizzle()

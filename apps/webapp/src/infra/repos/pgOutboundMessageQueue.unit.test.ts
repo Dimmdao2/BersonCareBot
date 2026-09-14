@@ -10,27 +10,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const fakes = vi.hoisted(() => ({
   db: { execute: vi.fn() },
-  tx: { execute: vi.fn(), rollback: vi.fn() },
   runWebappNamedRoot: vi.fn(),
-  runWebappSql: vi.fn(),
-  runWebappTransaction: vi.fn(),
-  runWithWebappPortOperation: vi.fn((_operation: unknown, work: () => unknown) => work()),
 }));
 
 vi.mock('@/infra/db/runWebappSql', () => ({
   getWebappSqlDb: () => fakes.db,
   runWebappNamedRoot: fakes.runWebappNamedRoot,
-  runWebappSql: fakes.runWebappSql,
-  runWebappTransaction: fakes.runWebappTransaction,
-}));
-vi.mock('@/infra/db/portContextRuntime', () => ({
-  runWithWebappPortOperation: fakes.runWithWebappPortOperation,
 }));
 
-import {
-  createPgOutboundMessageQueue,
-  withPgOutboundMessageEnqueueTransaction,
-} from './pgOutboundMessageQueue';
+import { createPgOutboundMessageQueue } from './pgOutboundMessageQueue';
 
 const ORG = 'b0000000-0000-4000-8000-0000000000b0';
 const ICS = Buffer.from('BEGIN:VCALENDAR\r\nEND:VCALENDAR', 'utf-8').toString('base64');
@@ -90,35 +78,5 @@ describe('outbound message enqueue seam', () => {
     fakes.runWebappNamedRoot.mockResolvedValueOnce({ rows: [{ enqueued: false }] });
 
     await expect(createPgOutboundMessageQueue().enqueue(CONTEXT)).resolves.toBe(false);
-  });
-
-  it('keeps the product mutation and durable enqueue inside the same database transaction', async () => {
-    let transactionActive = false;
-    fakes.runWebappTransaction.mockImplementation(
-      async (work: (tx: unknown) => Promise<unknown>) => {
-        transactionActive = true;
-        try {
-          return await work(fakes.tx);
-        } finally {
-          transactionActive = false;
-        }
-      },
-    );
-    fakes.runWebappSql.mockImplementation(async (db: unknown) => {
-      if (!transactionActive || db !== fakes.tx) throw new Error('enqueue escaped transaction');
-      return { rows: [{ enqueued: true }] };
-    });
-
-    await expect(
-      withPgOutboundMessageEnqueueTransaction(CONTEXT, async (tx) => {
-        if (!transactionActive || (tx as unknown) !== fakes.tx) {
-          throw new Error('mutation escaped transaction');
-        }
-        return 'rejected';
-      }),
-    ).resolves.toEqual({ value: 'rejected', enqueued: true });
-
-    expect(fakes.runWebappTransaction).toHaveBeenCalledOnce();
-    expect(fakes.runWebappSql).toHaveBeenCalledOnce();
   });
 });

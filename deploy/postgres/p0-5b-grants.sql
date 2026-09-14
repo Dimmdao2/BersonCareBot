@@ -131,6 +131,7 @@ VALUES
   ('public', 'idempotency_keys'),
   ('public', 'integration_webhook_error_events'),
   ('public', 'integration_webhook_last_status'),
+  ('public', 'leads'),
   ('public', 'lfk_complex_exercises'),
   ('public', 'lfk_complex_template_exercises'),
   ('public', 'lfk_complex_templates'),
