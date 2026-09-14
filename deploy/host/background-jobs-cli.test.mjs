@@ -18,7 +18,9 @@ import {
   expectedCronRow,
   findArtifactProblems,
   findInstalledScheduleProblems,
+  isOurBackgroundJobFile,
   loadManifest,
+  parseCronDFile,
   planCronArtifacts,
   planInstalledScheduleChanges,
 } from './background-jobs-cli.mjs';
@@ -200,13 +202,84 @@ test('описание задания для transport несёт маршрут
 test('ни один artifact не копирует Host/Origin/секрет и не глушит вывод в /dev/null', () => {
   for (const item of plan) {
     assert.doesNotMatch(item.content, /\/dev\/null/, item.fileName);
-    const scheduleRows = item.content
-      .split('\n')
-      .filter((line) => line.trim() && !line.trim().startsWith('#'));
+    const scheduleRows = parseCronDFile(item.content);
     assert.equal(scheduleRows.length, 1, item.fileName);
     assert.doesNotMatch(scheduleRows[0], /Host:|Origin:|Authorization|INTERNAL_JOB_SECRET|curl/, item.fileName);
     assert.equal(scheduleRows[0], expectedCronRow(item));
   }
+});
+
+/*
+ * Присваивания окружения в cron-файле — единственное место, куда что-то могло бы просочиться мимо
+ * проверки выше: `parseCronDFile` их намеренно не читает как расписание. Поэтому они проверяются
+ * отдельно и по белому списку: у HTTP-заданий их нет вовсе, у бэкапа — ровно четыре известных
+ * ключа, и ни в одном нет ни секрета, ни подстановки, которую исполнил бы шелл.
+ */
+test('присваивания окружения есть только у бэкапа и только четыре известных', () => {
+  const allowed = new Set([
+    'BERSONCAREBOT_BACKUP_EXPECT_HOSTNAME',
+    'BERSONCAREBOT_BACKUP_EXPECT_IPV4',
+    'BERSONCAREBOT_API_ENV_FILE',
+    'BERSONCAREBOT_WEBAPP_ENV_FILE',
+  ]);
+
+  for (const item of plan) {
+    const assignments = item.content
+      .split('\n')
+      .filter((line) => /^[A-Za-z_][A-Za-z0-9_]*=/.test(line.trim()))
+      .map((line) => line.trim());
+
+    if (item.usesInternalJobRunner) {
+      assert.deepEqual(assignments, [], item.fileName);
+      continue;
+    }
+
+    assert.equal(assignments.length, allowed.size, item.fileName);
+    for (const assignment of assignments) {
+      const [key, value] = assignment.split('=', 2);
+      assert.ok(allowed.has(key), `${item.fileName}: неожиданный ключ ${key}`);
+      assert.doesNotMatch(value, /[$`'"\\]/, `${item.fileName}: подстановка в ${key}`);
+      assert.doesNotMatch(assignment, /SECRET|PASSWORD|postgres:\/\//, item.fileName);
+    }
+  }
+});
+
+/*
+ * Бэкап — единственное задание расписания, которое общий transport вебаппа НЕ будит. Три вещи,
+ * которые из этого следуют и которые легко потерять при следующей правке: строка зовёт сам скрипт,
+ * `--describe` отказывается выдавать его за HTTP-тик, и снятый бэкап всё равно опознаётся как наш
+ * (иначе деплой перестал бы его снимать, а сверка продолжала бы считать лишним — вечно красно).
+ */
+test('бэкап ходит мимо общего transport, но снимается тем же деплоем', () => {
+  const backups = prodPlan.filter((item) => !item.usesInternalJobRunner);
+  assert.ok(backups.length >= 4, 'в плане прода нет заданий бэкапа');
+
+  for (const item of backups) {
+    assert.match(item.command, /^\/opt\/backups\/scripts\/postgres-backup\.sh (hourly|daily|weekly|prune)$/);
+    assert.doesNotMatch(item.command, /run-internal-job\.sh/);
+    assert.throws(() => describeJobAssignments(manifest, 'prod', item.jobId), /not an HTTP tick/);
+    assert.ok(isOurBackgroundJobFile(item.artifactName, item.content), item.artifactName);
+  }
+});
+
+/*
+ * Отсутствие общего transport — беда только тех заданий, которые он будит. Пока проверка смотрела
+ * на первое задание плана, отсутствующий `run-internal-job.sh` объявил бы неустановимым и бэкап,
+ * который его вообще не касается.
+ */
+test('отсутствующий transport не объявляет бэкап неустановимым', () => {
+  const installed = new Map(
+    prodPlan.map((item) => [item.artifactName, `# comment\n${expectedCronRow(item)}\n`]),
+  );
+  const problems = findInstalledScheduleProblems({
+    plan,
+    envId: 'prod',
+    installed,
+    runnerExists: false,
+  });
+
+  assert.equal(problems.length, 1, problems.join('; '));
+  assert.match(problems[0], /run-internal-job\.sh/);
 });
 
 /*

@@ -85,6 +85,21 @@ fi
 if [ "${THERAPYSTO_SKIP_MIGRATIONS:-0}" = 1 ]; then
   warn "миграции пропущены по THERAPYSTO_SKIP_MIGRATIONS=1"
 else
+  # Срез ПЕРЕД миграциями — единственная точка возврата, если миграция окажется неверной. У старого
+  # прода этот шаг в деплое был (`deploy/host/deploy-prod.sh`), у нового его не было вовсе: схема
+  # боевой базы менялась без точки возврата. Найдено 14.09.2026 вместе с тем, что бэкапов нет совсем.
+  #
+  # Значения окружения печатает тот же манифест, что и cron-файлы, — второй копии у деплоя нет.
+  # Отказ здесь останавливает выкладку: миграция без точки возврата хуже, чем невыложенный релиз.
+  say "снимаю срез базы перед миграциями"
+  BACKUP_SCRIPT=/opt/backups/scripts/postgres-backup.sh
+  [ -x "$BACKUP_SCRIPT" ] ||
+    die "нет $BACKUP_SCRIPT — миграции без точки возврата не запускаются; проверьте install-pipeline.sh"
+  BACKUP_ENV=$(node "$THERAPYSTO_SRC/deploy/host/background-jobs-cli.mjs" --backup-env --env prod) ||
+    die "манифест не отдал окружение бэкапа — $ACTIVE is still live and untouched"
+  env $BACKUP_ENV "$BACKUP_SCRIPT" pre-migrations ||
+    die "срез перед миграциями не снят — $ACTIVE is still live and untouched"
+
   say "applying migrations and reconciling privileges for $COMMIT"
   bash "$THERAPYSTO_SRC/deploy/host/prod/migrate-prod.sh" ||
     die "schema/privileges did not reach $COMMIT — $ACTIVE is still live and untouched"

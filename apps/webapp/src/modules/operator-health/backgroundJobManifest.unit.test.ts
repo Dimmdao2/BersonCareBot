@@ -62,16 +62,44 @@ describe('background job manifest', () => {
     expect(new Set(artifacts).size).toBe(artifacts.length);
   });
 
-  it('каждое host-cron задание несёт полную запись: cadence, artifact, среда, route, timeout', () => {
+  it('каждое host-cron задание несёт полную запись: cadence, artifact, среда', () => {
     for (const entry of BACKGROUND_JOB_MANIFEST) {
       if (entry.scheduleOwner !== 'host_cron') continue;
       expect(entry.cron, `${entry.id}: нет cadence`).toMatch(/^\S+( \S+){4}$/);
       expect(entry.artifactSlug, `${entry.id}: нет artifact`).toBeTruthy();
       expect(entry.environments?.length, `${entry.id}: не объявлена среда`).toBeGreaterThan(0);
+    }
+  });
+
+  /*
+   * Расписание хоста будит два РАЗНЫХ вида работы, и их полнота проверяется раздельно. Пока
+   * бэкапы стояли вне манифеста, проверка выше знала только HTTP-тик; перенеся их внутрь, легко
+   * было ослабить её до общего знаменателя — и тогда HTTP-задание без маршрута или без timeout
+   * проехало бы молча. Поэтому здесь два набора требований, а не один смягчённый.
+   */
+  it('HTTP-тик несёт маршрут, timeout и принципала двери', () => {
+    for (const entry of BACKGROUND_JOB_MANIFEST) {
+      if (entry.scheduleOwner !== 'host_cron' || entry.kind !== 'internal_http') continue;
       expect(entry.route?.path, `${entry.id}: нет маршрута`).toMatch(/^\/api\//);
       expect(entry.timeoutSec, `${entry.id}: нет timeout`).toBeGreaterThan(0);
       expect(entry.principal).toBe('internal_job_bearer');
       expect(entry.surfaceIdentity).toBe('app_public_origin');
+      expect(entry.backupMode, `${entry.id}: HTTP-тик с режимом бэкапа`).toBeUndefined();
+    }
+  });
+
+  it('бэкап несёт режим скрипта и НЕ несёт HTTP-двери', () => {
+    const backups = BACKGROUND_JOB_MANIFEST.filter((entry) => entry.kind === 'backup_shell');
+    expect(backups.length, 'задания бэкапа исчезли из манифеста').toBeGreaterThanOrEqual(4);
+
+    for (const entry of backups) {
+      expect(entry.scheduleOwner, `${entry.id}: расписание снова вне манифеста`).toBe('host_cron');
+      expect(entry.backupMode, `${entry.id}: нет режима скрипта`).toMatch(
+        /^(hourly|daily|weekly|prune)$/,
+      );
+      expect(entry.route, `${entry.id}: у бэкапа появилась HTTP-дверь`).toBeUndefined();
+      expect(entry.principal).toBe('host_shell');
+      expect(entry.surfaceIdentity).toBe('none');
     }
   });
 
@@ -103,13 +131,17 @@ describe('background job manifest', () => {
         expect(command).not.toMatch(/Host:|Origin:|X-Forwarded-Proto|Authorization|curl|INTERNAL_JOB_SECRET/);
         expect(command).not.toContain('/dev/null');
         expect(command).toBe(
-          `${environment.projectRoot}/deploy/host/run-internal-job.sh ${envId} ${entry.id}`,
+          entry.kind === 'backup_shell'
+            ? `/opt/backups/scripts/postgres-backup.sh ${entry.backupMode}`
+            : `${environment.projectRoot}/deploy/host/run-internal-job.sh ${envId} ${entry.id}`,
         );
 
         const artifact = renderCronArtifact(entry, environment);
+        // `KEY=value` — не расписание: cron читает их как окружение, и разбор файла их пропускает.
         const scheduleLines = artifact
           .split('\n')
-          .filter((line) => line.trim() && !line.trim().startsWith('#'));
+          .map((line) => line.trim())
+          .filter((line) => line && !line.startsWith('#') && !/^[A-Za-z_][A-Za-z0-9_]*=/.test(line));
         expect(scheduleLines).toEqual([`${entry.cron} root ${command}`]);
       }
     }
@@ -118,6 +150,15 @@ describe('background job manifest', () => {
   it('обязательное задание объявлено и на PROD, и на TEST — иначе среда остаётся без будильника', () => {
     for (const entry of BACKGROUND_JOB_MANIFEST) {
       if (entry.scheduleOwner !== 'host_cron' || !entry.required) continue;
+      // Бэкап — единственное исключение, и оно не «так сложилось»: на TEST нет боевых данных,
+      // которые можно потерять, а хранение зашифрованных дампов там ничего не защищает. Исключение
+      // названо по виду задания, а не списком id, — иначе пятый бэкап тихо оказался бы вне правила.
+      if (entry.kind === 'backup_shell') {
+        expect(entry.environments, `${entry.id}: бэкап объявлен не только на PROD`).toEqual([
+          'prod',
+        ]);
+        continue;
+      }
       expect(entry.environments, `${entry.id}: обязательное задание без среды`).toEqual([
         'prod',
         'test',

@@ -481,6 +481,22 @@ async function main() {
     return 0;
   }
 
+  // Присваивания окружения для прямого вызова postgres-backup.sh (срез перед миграциями). Печатаются
+  // из того же манифеста, что и cron-файлы, чтобы у деплоя не завелось второй копии этих значений.
+  if (flags.has('backup-env')) {
+    const envId = values.get('env');
+    if (!envId) throw new Error('--backup-env requires --env');
+    const environment = manifest.BACKGROUND_JOB_ENVIRONMENTS[envId];
+    if (!environment) throw new Error(`unknown background job environment: ${envId}`);
+    for (const line of manifest.backupScriptEnvAssignments(environment)) {
+      if (!/^[A-Z_][A-Z0-9_]*=[^'"\n\r $`\\]*$/.test(line)) {
+        throw new Error(`unsafe backup env assignment for ${envId}: ${line}`);
+      }
+      process.stdout.write(`${line}\n`);
+    }
+    return 0;
+  }
+
   if (flags.has('apply-installed')) {
     const envId = values.get('env');
     if (!envId) throw new Error('--apply-installed requires --env');

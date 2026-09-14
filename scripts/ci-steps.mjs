@@ -21,6 +21,10 @@ const phases = [
       command('test:scripts'),
       command('test:db-principal', Math.max(1, Math.floor(cpuBudget / 4))),
       command('test:db-privileges'),
+      // Синтетический набор `postgres-backup.sh`. В CI его не было, и до 14.09.2026 он физически не
+      // мог пройти нигде, кроме одной машины: ожидание хоста было зашито в тело скрипта. Набор
+      // существовал, был подробным — и не гонялся никогда. Теперь гоняется здесь.
+      command('test:backup', 1),
       command('test:media-worker', 1),
       command('test:error-tracking', 1),
     ],

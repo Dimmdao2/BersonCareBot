@@ -28,6 +28,7 @@
     "test:db-principal": "pnpm --dir packages/db-principal test",
     "test:error-tracking": "pnpm --dir packages/error-tracking test",
     "test:db-privileges": "node --test deploy/postgres/privileges/*.test.mjs",
+    "test:backup": "bash deploy/postgres/test-postgres-backup.sh",
     "check:db-privileges-generated": "node deploy/postgres/privileges/generate-cli.mjs --check && node deploy/postgres/privileges/generate-cli.mjs --all --check --port-context-only",
     "check:db-privileges-census": "node deploy/postgres/privileges/generate-cli.mjs --census",
     "test:e2e": "pnpm --dir apps/integrator test:e2e",

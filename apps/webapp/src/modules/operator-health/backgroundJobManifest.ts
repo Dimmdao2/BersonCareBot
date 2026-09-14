@@ -720,11 +720,22 @@ export function renderCronEnvAssignments(
   environment: BackgroundJobEnvironment,
 ): readonly string[] {
   if (entry.kind !== 'backup_shell') return [];
+  return backupScriptEnvAssignments(environment);
+}
+
+/**
+ * Те же присваивания отдельно от расписания — их нужен и тот, кто зовёт скрипт вне cron.
+ *
+ * Такой вызов один: срез ПЕРЕД миграциями внутри самого деплоя. У нового прода его не было вовсе
+ * (у старого — был), то есть схема боевой базы менялась без точки возврата. Отдельной копии
+ * значений здесь нет намеренно: копия и есть тот механизм, которым расписание разъезжается с кодом.
+ */
+export function backupScriptEnvAssignments(
+  environment: BackgroundJobEnvironment,
+): readonly string[] {
   const { backupHostName, backupHostIpv4, apiEnvFile } = environment;
   if (!backupHostName || !backupHostIpv4 || !apiEnvFile) {
-    throw new Error(
-      `environment ${environment.id} has no backup host expectation — refusing to schedule ${entry.id}`,
-    );
+    throw new Error(`environment ${environment.id} has no backup host expectation`);
   }
   return [
     `BERSONCAREBOT_BACKUP_EXPECT_HOSTNAME=${backupHostName}`,
