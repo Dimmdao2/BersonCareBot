@@ -453,6 +453,9 @@ import { createPgClientHistoryPort } from '@/infra/repos/pgClientHistory';
 import { inMemoryClientHistoryPort } from '@/infra/repos/inMemoryClientHistory';
 import { createPgBookingFormPort } from '@/infra/repos/pgBookingForm';
 import { createBookingFormService } from '@/modules/booking-form/service';
+import { createPgLeadsPort } from '@/infra/repos/pgLeads';
+import { createLeadsService } from '@/modules/leads/service';
+import { notifyLeadRejected } from '@/app-layer/leads/notifyLeadRejected';
 import { createPgPatientMergeCandidatePort } from '@/infra/repos/pgPatientMergeCandidate';
 import { createPatientMergeCandidateService } from '@/modules/patient-merge-candidate/service';
 import {
@@ -873,6 +876,13 @@ const bookingFormPort = !inMemoryRepos ? createPgBookingFormPort() : null;
 const bookingFormService = bookingFormPort
   ? createBookingFormService(bookingFormPort, {
       assertWriteClearance: assertMechanicWriteClearance,
+    })
+  : null;
+const leadsPort = !inMemoryRepos ? createPgLeadsPort() : null;
+const leadsService = leadsPort
+  ? createLeadsService(leadsPort, {
+      assertWriteClearance: assertMechanicWriteClearance,
+      notifyRejected: notifyLeadRejected,
     })
   : null;
 const patientMergeCandidatePort = !inMemoryRepos ? createPgPatientMergeCandidatePort() : null;
@@ -2232,6 +2242,7 @@ function _buildAppDeps() {
     bookingCalendar: bookingCalendarService,
     clientHistory: clientHistoryService,
     bookingForm: bookingFormService,
+    leads: leadsService,
     bookingPolicies: bookingPoliciesService,
     bookingAppointmentLifecycle: bookingAppointmentLifecycleService,
     payments: paymentsService,

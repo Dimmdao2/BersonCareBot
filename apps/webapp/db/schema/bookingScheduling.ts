@@ -23,6 +23,8 @@ import {
 export {
   BOOKING_FORM_FIELD_TYPES,
   type BookingFormFieldType,
+  FORM_SURFACES,
+  type FormSurface,
 } from '../../src/modules/booking-form/fieldTypes';
 
 export const beBookingFormFields = pgTable(
@@ -30,6 +32,7 @@ export const beBookingFormFields = pgTable(
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
     organizationId: uuid('organization_id').notNull(),
+    formSurface: text('form_surface').default('booking').notNull(),
     fieldKey: text('field_key').notNull(),
     fieldType: text('field_type').notNull(),
     label: text().notNull(),
@@ -57,7 +60,15 @@ export const beBookingFormFields = pgTable(
       foreignColumns: [beOrganizations.id],
       name: 'be_booking_form_fields_organization_id_fkey',
     }).onDelete('cascade'),
-    unique('uq_be_booking_form_fields_org_key').on(table.organizationId, table.fieldKey),
+    unique('uq_be_booking_form_fields_org_surface_key').on(
+      table.organizationId,
+      table.formSurface,
+      table.fieldKey,
+    ),
+    check(
+      'be_booking_form_fields_surface_check',
+      sql`${table.formSurface} = ANY (ARRAY['booking'::text, 'leads'::text])`,
+    ),
     check(
       'be_booking_form_fields_type_check',
       sql`field_type = ANY (ARRAY[

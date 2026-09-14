@@ -21,8 +21,12 @@ export const WORKSPACE_MODULE_KEYS = [
 
 export type WorkspaceModuleKey = (typeof WORKSPACE_MODULE_KEYS)[number];
 
-function isWorkspaceModuleKey(value: string): value is WorkspaceModuleKey {
-  return (WORKSPACE_MODULE_KEYS as readonly string[]).includes(value);
+/** Persisted switches include server-owned modules that do not yet have a settings screen. */
+export const WORKSPACE_MODULE_CONFIG_KEYS = [...WORKSPACE_MODULE_KEYS, 'leads'] as const;
+export type WorkspaceModuleConfigKey = (typeof WORKSPACE_MODULE_CONFIG_KEYS)[number];
+
+function isWorkspaceModuleKey(value: string): value is WorkspaceModuleConfigKey {
+  return (WORKSPACE_MODULE_CONFIG_KEYS as readonly string[]).includes(value);
 }
 
 /**
@@ -34,7 +38,7 @@ function isWorkspaceModuleKey(value: string): value is WorkspaceModuleKey {
  * their own stored preference — see `resolveWorkspaceModuleEffective`.
  */
 export const WORKSPACE_MODULE_DEPENDENCIES: Readonly<
-  Record<WorkspaceModuleKey, readonly WorkspaceModuleKey[]>
+  Record<WorkspaceModuleConfigKey, readonly WorkspaceModuleConfigKey[]>
 > = {
   medical_record: [],
   encounters: [],
@@ -46,6 +50,7 @@ export const WORKSPACE_MODULE_DEPENDENCIES: Readonly<
   analytics: [],
   client_portal: [],
   video_meetings: [],
+  leads: [],
 };
 
 export const DOCTOR_WORKSPACE_COMPOSITION_KEY = 'doctor_workspace_composition' as const;
@@ -71,15 +76,17 @@ export type DoctorWorkspaceClientDefaults = Readonly<{
 
 export type DoctorWorkspaceComposition = Readonly<{
   version: typeof DOCTOR_WORKSPACE_COMPOSITION_VERSION;
-  modules: Readonly<Record<WorkspaceModuleKey, boolean>>;
+  modules: Readonly<
+    Record<WorkspaceModuleKey, boolean> & Partial<Record<WorkspaceModuleConfigKey, boolean>>
+  >;
 }>;
 
 /** Compatibility default (C3M-03): absence of a stored preference hides nothing. */
 export function defaultDoctorWorkspaceComposition(): DoctorWorkspaceComposition {
   return {
     version: DOCTOR_WORKSPACE_COMPOSITION_VERSION,
-    modules: Object.fromEntries(WORKSPACE_MODULE_KEYS.map((key) => [key, true])) as Record<
-      WorkspaceModuleKey,
+    modules: Object.fromEntries(WORKSPACE_MODULE_CONFIG_KEYS.map((key) => [key, true])) as Record<
+      WorkspaceModuleConfigKey,
       boolean
     >,
   };
@@ -172,13 +179,13 @@ export function normalizeDoctorWorkspaceComposition(
   if (!isRecord(value)) return null;
   if (value.version !== DOCTOR_WORKSPACE_COMPOSITION_VERSION) return null;
   if (!isRecord(value.modules)) return null;
-  const modules = {} as Record<WorkspaceModuleKey, boolean>;
+  const modules = {} as Record<WorkspaceModuleConfigKey, boolean>;
   for (const [key, flag] of Object.entries(value.modules)) {
     if (!isWorkspaceModuleKey(key)) return null;
     if (typeof flag !== 'boolean') return null;
     modules[key] = flag;
   }
-  for (const key of WORKSPACE_MODULE_KEYS) {
+  for (const key of WORKSPACE_MODULE_CONFIG_KEYS) {
     if (!(key in modules)) modules[key] = true;
   }
   return { version: DOCTOR_WORKSPACE_COMPOSITION_VERSION, modules };
@@ -208,8 +215,12 @@ export function parseDoctorWorkspaceComposition(valueJson: unknown): DoctorWorks
  * calling `resolveWorkspaceModuleEffective`; its only job is intersecting it with the stored
  * preference, once.
  */
-export type WorkspaceModuleAvailability = Readonly<Record<WorkspaceModuleKey, boolean>>;
-export type WorkspaceModuleEffective = Readonly<Record<WorkspaceModuleKey, boolean>>;
+export type WorkspaceModuleAvailability = Readonly<
+  Record<WorkspaceModuleKey, boolean> & Partial<Record<WorkspaceModuleConfigKey, boolean>>
+>;
+export type WorkspaceModuleEffective = Readonly<
+  Record<WorkspaceModuleKey, boolean> & Partial<Record<WorkspaceModuleConfigKey, boolean>>
+>;
 
 /**
  * The one effective resolver (C3M-03, §C3M.3 canonical formula `effective = availability &&
@@ -223,8 +234,8 @@ export function resolveWorkspaceModuleEffective(
   composition: DoctorWorkspaceComposition,
   availability: WorkspaceModuleAvailability,
 ): WorkspaceModuleEffective {
-  const effective = {} as Record<WorkspaceModuleKey, boolean>;
-  function resolve(key: WorkspaceModuleKey): boolean {
+  const effective = {} as Record<WorkspaceModuleConfigKey, boolean>;
+  function resolve(key: WorkspaceModuleConfigKey): boolean {
     if (key in effective) return effective[key];
     const selfOn = availability[key] === true && composition.modules[key] === true;
     const parentsOn = WORKSPACE_MODULE_DEPENDENCIES[key].every((parent) => resolve(parent));
@@ -232,6 +243,6 @@ export function resolveWorkspaceModuleEffective(
     effective[key] = value;
     return value;
   }
-  for (const key of WORKSPACE_MODULE_KEYS) resolve(key);
+  for (const key of WORKSPACE_MODULE_CONFIG_KEYS) resolve(key);
   return effective;
 }

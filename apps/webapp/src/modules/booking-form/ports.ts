@@ -1,6 +1,9 @@
+import type { FormSurface } from './fieldTypes';
+
 export type BookingFormFieldRecord = {
   id: string;
   organizationId: string;
+  formSurface: FormSurface;
   fieldKey: string;
   fieldType: string;
   label: string;
@@ -17,12 +20,17 @@ export type BookingFormPort = {
   listActiveFields(
     organizationId: string,
     audience: 'patient' | 'staff',
+    surface?: FormSurface,
   ): Promise<BookingFormFieldRecord[]>;
-  listAllFieldsAdmin(organizationId: string): Promise<BookingFormFieldRecord[]>;
+  listAllFieldsAdmin(
+    organizationId: string,
+    surface?: FormSurface,
+  ): Promise<BookingFormFieldRecord[]>;
   upsertFieldAdmin(
     organizationId: string,
     input: {
       id?: string;
+      formSurface?: FormSurface;
       fieldKey: string;
       fieldType: string;
       label: string;
@@ -35,7 +43,7 @@ export type BookingFormPort = {
       isActive: boolean;
     },
   ): Promise<BookingFormFieldRecord>;
-  archiveFieldAdmin(organizationId: string, fieldId: string): Promise<void>;
+  archiveFieldAdmin(organizationId: string, fieldId: string, surface?: FormSurface): Promise<void>;
   saveSubmissions(input: {
     organizationId: string;
     appointmentId: string;
@@ -56,10 +64,10 @@ export type BookingFormService = {
     answers: FormAnswerInput[],
   ): Promise<void>;
   listPatientFields(organizationId: string): Promise<BookingFormFieldRecord[]>;
-  listAdminFields(organizationId: string): Promise<BookingFormFieldRecord[]>;
+  listAdminFields(organizationId: string, surface?: FormSurface): Promise<BookingFormFieldRecord[]>;
   upsertAdminField(
     organizationId: string,
     input: Parameters<BookingFormPort['upsertFieldAdmin']>[1],
   ): Promise<BookingFormFieldRecord>;
-  archiveAdminField(organizationId: string, fieldId: string): Promise<void>;
+  archiveAdminField(organizationId: string, fieldId: string, surface?: FormSurface): Promise<void>;
 };

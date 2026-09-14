@@ -9,11 +9,13 @@ import {
   beBookingFormSubmissions,
 } from '../../../db/schema/bookingScheduling';
 import type { BookingFormFieldRecord, BookingFormPort } from '@/modules/booking-form/ports';
+import type { FormSurface } from '@/modules/booking-form/fieldTypes';
 
 type BookingFormFieldRow = Pick<
   typeof beBookingFormFields.$inferSelect,
   | 'id'
   | 'organizationId'
+  | 'formSurface'
   | 'fieldKey'
   | 'fieldType'
   | 'label'
@@ -30,6 +32,7 @@ const publicBookingFormFieldsSchema = z.array(
   z.object({
     id: z.string().uuid(),
     organizationId: z.string().uuid(),
+    formSurface: z.literal('booking').optional().default('booking'),
     fieldKey: z.string(),
     fieldType: z.string(),
     label: z.string(),
@@ -67,6 +70,7 @@ function mapField(row: BookingFormFieldRow): BookingFormFieldRecord {
   return {
     id: row.id,
     organizationId: row.organizationId,
+    formSurface: row.formSurface as FormSurface,
     fieldKey: row.fieldKey,
     fieldType: row.fieldType,
     label: row.label,
@@ -82,6 +86,7 @@ export function createPgBookingFormPort(): BookingFormPort {
   async function listActiveFields(
     organizationId: string,
     _audience: 'patient' | 'staff',
+    surface = 'booking',
   ): Promise<BookingFormFieldRecord[]> {
     if (isCurrentPublicBookingPrincipal()) {
       return (await readPublicBookingFormFields(organizationId)).map(mapField);
@@ -118,6 +123,7 @@ export function createPgBookingFormPort(): BookingFormPort {
       .where(
         and(
           eq(beBookingFormFields.organizationId, organizationId),
+          eq(beBookingFormFields.formSurface, surface),
           isNull(beBookingFormFields.archivedAt),
         ),
       )
@@ -128,7 +134,7 @@ export function createPgBookingFormPort(): BookingFormPort {
   return {
     listActiveFields,
 
-    async listAllFieldsAdmin(organizationId) {
+    async listAllFieldsAdmin(organizationId, surface = 'booking') {
       const db = getDrizzle();
       const rows = await db
         .select()
@@ -136,6 +142,7 @@ export function createPgBookingFormPort(): BookingFormPort {
         .where(
           and(
             eq(beBookingFormFields.organizationId, organizationId),
+            eq(beBookingFormFields.formSurface, surface),
             isNull(beBookingFormFields.archivedAt),
           ),
         )
@@ -167,6 +174,7 @@ export function createPgBookingFormPort(): BookingFormPort {
               and(
                 eq(beBookingFormFields.id, fieldId),
                 eq(beBookingFormFields.organizationId, organizationId),
+                eq(beBookingFormFields.formSurface, input.formSurface ?? 'booking'),
               ),
             )
             .returning(),
@@ -179,6 +187,7 @@ export function createPgBookingFormPort(): BookingFormPort {
           .insert(beBookingFormFields)
           .values({
             organizationId,
+            formSurface: input.formSurface ?? 'booking',
             fieldKey: input.fieldKey,
             fieldType: input.fieldType,
             label: input.label,
@@ -192,7 +201,11 @@ export function createPgBookingFormPort(): BookingFormPort {
             updatedAt: now,
           })
           .onConflictDoUpdate({
-            target: [beBookingFormFields.organizationId, beBookingFormFields.fieldKey],
+            target: [
+              beBookingFormFields.organizationId,
+              beBookingFormFields.formSurface,
+              beBookingFormFields.fieldKey,
+            ],
             set: {
               fieldType: input.fieldType,
               label: input.label,
@@ -212,7 +225,7 @@ export function createPgBookingFormPort(): BookingFormPort {
       return mapField(inserted[0]);
     },
 
-    async archiveFieldAdmin(organizationId, fieldId) {
+    async archiveFieldAdmin(organizationId, fieldId, surface = 'booking') {
       const db = getDrizzle();
       const archived = await db
         .update(beBookingFormFields)
@@ -225,6 +238,7 @@ export function createPgBookingFormPort(): BookingFormPort {
           and(
             eq(beBookingFormFields.id, fieldId),
             eq(beBookingFormFields.organizationId, organizationId),
+            eq(beBookingFormFields.formSurface, surface),
             isNull(beBookingFormFields.archivedAt),
           ),
         )
@@ -256,7 +270,12 @@ export function createPgBookingFormPort(): BookingFormPort {
       const fields = await db
         .select()
         .from(beBookingFormFields)
-        .where(eq(beBookingFormFields.organizationId, organizationId));
+        .where(
+          and(
+            eq(beBookingFormFields.organizationId, organizationId),
+            eq(beBookingFormFields.formSurface, 'booking'),
+          ),
+        );
       const byKey = new Map(fields.map((f) => [f.fieldKey, f]));
       for (const answer of answers) {
         const field = byKey.get(answer.fieldKey);

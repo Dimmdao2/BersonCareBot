@@ -1,13 +1,17 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
+import {
+  requireEntitlementForMutation,
+  requireEntitlementForRead,
+} from '@/app-layer/guards/requireEntitlement';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { requireClinicManagementBookingEngine } from '../_requireClinicManagementBookingEngine';
 import {
   BOOKING_FORM_FIELD_KEY_MAX_LENGTH,
   BOOKING_FORM_FIELD_KEY_PATTERN,
   BOOKING_FORM_FIELD_TYPES,
+  FORM_SURFACES,
 } from '@/modules/booking-form/fieldTypes';
 import { notificationText } from '@/shared/notifications/notificationText';
 
@@ -17,6 +21,7 @@ const INVALID_BODY_MESSAGE = notificationText.authInvalidBody;
 const upsertBody = z
   .object({
     id: z.string().uuid().optional(),
+    formSurface: z.enum(FORM_SURFACES).default('booking'),
     fieldKey: z
       .string()
       .trim()
@@ -32,7 +37,9 @@ const upsertBody = z
   })
   .strict();
 
-const archiveBody = z.object({ id: z.string().uuid() }).strict();
+const archiveBody = z
+  .object({ id: z.string().uuid(), formSurface: z.enum(FORM_SURFACES).default('booking') })
+  .strict();
 
 function pgErrorFacts(error: unknown): { code: string; constraint: string } {
   if (typeof error !== 'object' || error === null) return { code: '', constraint: '' };
@@ -57,22 +64,29 @@ function pgErrorFacts(error: unknown): { code: string; constraint: string } {
   };
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const gate = await requireClinicManagementBookingEngine();
   if (!gate.ok) return gate.response;
+  const surface = z
+    .enum(FORM_SURFACES)
+    .catch('booking')
+    .parse(new URL(request.url).searchParams.get('surface'));
+  const entitlement = await requireEntitlementForRead(
+    gate.ctx,
+    surface === 'leads' ? 'leads' : 'booking',
+  );
+  if (!entitlement.ok) return entitlement.response;
   const deps = buildAppDeps();
   if (!deps.bookingForm) {
     return NextResponse.json({ ok: false, error: 'booking_engine_unavailable' }, { status: 503 });
   }
-  const fields = await deps.bookingForm.listAdminFields(gate.ctx.organizationId);
+  const fields = await deps.bookingForm.listAdminFields(gate.ctx.organizationId, surface);
   return NextResponse.json({ ok: true, fields });
 }
 
 export async function POST(request: Request) {
   const gate = await requireClinicManagementBookingEngine();
   if (!gate.ok) return gate.response;
-  const entitlement = await requireEntitlementForMutation(gate.ctx, 'booking');
-  if (!entitlement.ok) return entitlement.response;
   const parsed = upsertBody.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json(
@@ -80,6 +94,11 @@ export async function POST(request: Request) {
       { status: 400 },
     );
   }
+  const entitlement = await requireEntitlementForMutation(
+    gate.ctx,
+    parsed.data.formSurface === 'leads' ? 'leads' : 'booking',
+  );
+  if (!entitlement.ok) return entitlement.response;
   const deps = buildAppDeps();
   if (!deps.bookingForm) {
     return NextResponse.json({ ok: false, error: 'booking_engine_unavailable' }, { status: 503 });
@@ -130,19 +149,26 @@ export async function POST(request: Request) {
 export async function DELETE(request: Request) {
   const gate = await requireClinicManagementBookingEngine();
   if (!gate.ok) return gate.response;
-  const entitlement = await requireEntitlementForMutation(gate.ctx, 'booking');
-  if (!entitlement.ok) return entitlement.response;
   const parsed = archiveBody.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   }
+  const entitlement = await requireEntitlementForMutation(
+    gate.ctx,
+    parsed.data.formSurface === 'leads' ? 'leads' : 'booking',
+  );
+  if (!entitlement.ok) return entitlement.response;
   const deps = buildAppDeps();
   if (!deps.bookingForm) {
     return NextResponse.json({ ok: false, error: 'booking_engine_unavailable' }, { status: 503 });
   }
   try {
     await withDoctorWorkspacePrincipal(gate.ctx, 'admin.booking-engine.form-fields.archive', () =>
-      deps.bookingForm!.archiveAdminField(gate.ctx.organizationId, parsed.data.id),
+      deps.bookingForm!.archiveAdminField(
+        gate.ctx.organizationId,
+        parsed.data.id,
+        parsed.data.formSurface,
+      ),
     );
     return NextResponse.json({ ok: true });
   } catch (error) {

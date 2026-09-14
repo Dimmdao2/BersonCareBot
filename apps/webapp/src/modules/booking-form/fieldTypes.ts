@@ -13,6 +13,9 @@ export const BOOKING_FORM_FIELD_TYPES = [
 
 export type BookingFormFieldType = (typeof BOOKING_FORM_FIELD_TYPES)[number];
 
+export const FORM_SURFACES = ['booking', 'leads'] as const;
+export type FormSurface = (typeof FORM_SURFACES)[number];
+
 export const SYSTEM_BOOKING_FORM_FIELDS = [
   {
     fieldKey: 'last_name',
@@ -46,6 +49,51 @@ export const SYSTEM_BOOKING_FORM_FIELDS = [
   },
 ] as const;
 
+export const SYSTEM_LEAD_FORM_FIELDS = [
+  {
+    fieldKey: 'last_name',
+    fieldType: 'last_name',
+    label: 'Фамилия',
+    isRequired: false,
+    sortOrder: 10,
+  },
+  {
+    fieldKey: 'first_name',
+    fieldType: 'first_name',
+    label: 'Имя',
+    isRequired: false,
+    sortOrder: 20,
+  },
+  {
+    fieldKey: 'patronymic',
+    fieldType: 'free_text',
+    label: 'Отчество',
+    isRequired: false,
+    sortOrder: 30,
+  },
+  { fieldKey: 'email', fieldType: 'email', label: 'Email', isRequired: true, sortOrder: 40 },
+  { fieldKey: 'phone', fieldType: 'phone', label: 'Телефон', isRequired: false, sortOrder: 50 },
+  {
+    fieldKey: 'preferred_contact',
+    fieldType: 'free_text',
+    label: 'Как связаться',
+    isRequired: false,
+    sortOrder: 60,
+  },
+  {
+    fieldKey: 'message',
+    fieldType: 'problem_description',
+    label: 'Чем можем помочь',
+    isRequired: true,
+    sortOrder: 70,
+  },
+] as const;
+
+export const SYSTEM_FORM_FIELDS = {
+  booking: SYSTEM_BOOKING_FORM_FIELDS,
+  leads: SYSTEM_LEAD_FORM_FIELDS,
+} as const;
+
 const SYSTEM_FIELD_KEY_ALIASES: Readonly<Record<string, string>> = {
   contact_name: 'first_name',
   contact_phone: 'phone',
@@ -60,6 +108,11 @@ export function canonicalBookingFormFieldKey(fieldKey: string): string {
 export function isSystemBookingFormField(fieldKey: string): boolean {
   const canonicalKey = canonicalBookingFormFieldKey(fieldKey);
   return SYSTEM_BOOKING_FORM_FIELDS.some((field) => field.fieldKey === canonicalKey);
+}
+
+export function isSystemFormField(surface: FormSurface, fieldKey: string): boolean {
+  const canonicalKey = canonicalBookingFormFieldKey(fieldKey);
+  return SYSTEM_FORM_FIELDS[surface].some((field) => field.fieldKey === canonicalKey);
 }
 
 /**
