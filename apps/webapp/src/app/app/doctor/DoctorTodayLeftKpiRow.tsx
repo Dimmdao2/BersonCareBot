@@ -188,6 +188,7 @@ export function DoctorTodayLeftKpiRow({
         id="doctor-today-left-kpi-messages"
         title="Сообщения"
         value={messageTotal}
+        opensDetails={messageTotal > 0}
         tooltip={`Непрочитанные сообщения от ${patientGenPlural}.`}
         tone={messageTotal > 0 ? 'warning' : 'neutral'}
         className={messageTotal > 0 ? attentionKpiBackgroundClass : undefined}
@@ -201,6 +202,7 @@ export function DoctorTodayLeftKpiRow({
         id="doctor-today-left-kpi-comments"
         title="Комментарии"
         value={displayTotal}
+        opensDetails={displayTotal > 0}
         tooltip={`Новые комментарии ${patientGenPlural} к упражнениям.`}
         tone={displayTotal > 0 ? 'warning' : 'neutral'}
         className={displayTotal > 0 ? attentionKpiBackgroundClass : undefined}
@@ -214,6 +216,7 @@ export function DoctorTodayLeftKpiRow({
         id="doctor-today-left-kpi-tasks"
         title="Задачи"
         value={taskAttentionCount > 0 ? taskAttentionCount : tasksTotal}
+        opensDetails={(taskAttentionCount > 0 ? taskAttentionCount : tasksTotal) > 0}
         secondaryValue={taskAttentionCount > 0 ? tasksTotal : undefined}
         tooltip="Открытые задачи."
         tone={hasOverdueTasks ? 'warning' : 'neutral'}

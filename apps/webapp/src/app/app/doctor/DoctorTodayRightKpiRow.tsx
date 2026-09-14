@@ -180,6 +180,7 @@ export function DoctorTodayRightKpiRow({
           id="doctor-today-right-kpi-today"
           title="Записи сегодня"
           value={todayCount}
+          opensDetails={todayCount > 0}
           className="flex h-[5.5rem] flex-col"
           valueClassName="mt-auto pt-1"
           onClick={

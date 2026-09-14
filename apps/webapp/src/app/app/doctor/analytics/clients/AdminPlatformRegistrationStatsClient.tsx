@@ -83,6 +83,7 @@ export function AdminPlatformRegistrationStatsClient({ period, ready, onMetricCl
               id="doctor-stats-admin-registrations"
               title="Регистрации"
               value={data.summary.registrations}
+              opensDetails={Boolean(onMetricClick)}
               onClick={
                 onMetricClick
                   ? () => onMetricClick('registrations', 'Регистрации за период')
@@ -94,6 +95,7 @@ export function AdminPlatformRegistrationStatsClient({ period, ready, onMetricCl
                 id="doctor-stats-admin-merges"
                 title="Слияния"
                 value={data.summary.merges}
+                opensDetails={Boolean(onMetricClick)}
                 tone="warning"
                 onClick={
                   onMetricClick
@@ -106,6 +108,7 @@ export function AdminPlatformRegistrationStatsClient({ period, ready, onMetricCl
               id="doctor-stats-admin-registration-combined"
               title="Всего событий"
               value={data.summary.combined}
+              opensDetails={Boolean(onMetricClick)}
               onClick={
                 onMetricClick
                   ? () => onMetricClick('registrations_combined', 'Все события за период')

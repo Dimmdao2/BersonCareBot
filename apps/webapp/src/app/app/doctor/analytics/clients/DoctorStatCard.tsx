@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { ReactElement, ReactNode } from 'react';
+import { ChevronRight } from 'lucide-react';
 import {
   doctorInlineMetricValueClass,
   doctorMetricLabelClass,
@@ -7,6 +8,7 @@ import {
   doctorInteractiveSurfaceButtonClass,
   doctorStatCardActionSegmentClass,
   doctorStatCardContentPaddingClass,
+  doctorStatCardChevronClass,
   doctorStatCardInteractiveClass,
   doctorStatCardInteractiveNeutralClass,
   doctorStatCardShellClass,
@@ -27,6 +29,7 @@ type Props = {
   selected?: boolean;
   href?: string;
   onClick?: () => void;
+  opensDetails?: boolean;
   className?: string;
   valueClassName?: string;
   hintClassName?: string;
@@ -48,6 +51,7 @@ export function DoctorStatCard({
   selected,
   href,
   onClick,
+  opensDetails,
   className,
   valueClassName,
   hintClassName,
@@ -141,6 +145,18 @@ export function DoctorStatCard({
       ) : null}
     </div>
   );
+  // На квадратной плитке (три КПИ в ряд на телефоне) шеврон едет в одной строке с числом, а не в
+  // отдельной колонке справа: подпись здесь обязана владеть всей шириной — см. комментарий выше.
+  // Колонка под шеврон отнимала у неё 24 пикселя, и «Сообщения» теряли последнюю букву.
+  const metricRow =
+    opensDetails && isStacked ? (
+      <div className="flex w-full min-w-0 items-center justify-between gap-2">
+        {metric}
+        <ChevronRight className={doctorStatCardChevronClass} aria-hidden />
+      </div>
+    ) : (
+      metric
+    );
   const inner = valuePlacement === 'side-center' ? (
     <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] grid-rows-[auto_auto] items-start gap-x-1.5">
       <div className="col-start-1 row-start-1">{label}</div>
@@ -165,13 +181,21 @@ export function DoctorStatCard({
               'col-start-2 flex items-baseline justify-end gap-0.5 md:mt-0.5 md:w-full md:justify-start md:gap-1',
           )}
         >
-          {metric}
+          {metricRow}
         </div>
       </div>
       {hint ? (
         <div className={cn(valuePlacement === 'responsive' && 'col-span-full')}>{hintNode}</div>
       ) : null}
     </div>
+  );
+  const content = opensDetails && !isStacked ? (
+    <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+      <div className="min-w-0">{inner}</div>
+      <ChevronRight className={doctorStatCardChevronClass} aria-hidden />
+    </div>
+  ) : (
+    inner
   );
 
   if (actionIcon && actionLabel && onActionClick) {
@@ -215,7 +239,7 @@ export function DoctorStatCard({
   if (href) {
     trigger = (
       <Link id={id} href={href} className={shellClass} data-testid={testId}>
-        {inner}
+        {content}
       </Link>
     );
   } else if (onClick) {
@@ -233,7 +257,7 @@ export function DoctorStatCard({
         aria-pressed={selected}
         data-testid={testId}
       >
-        {inner}
+        {content}
       </Button>
     );
   } else {
@@ -244,7 +268,7 @@ export function DoctorStatCard({
         tabIndex={tooltip ? 0 : undefined}
         data-testid={testId}
       >
-        {inner}
+        {content}
       </article>
     );
   }

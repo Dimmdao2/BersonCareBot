@@ -13,6 +13,8 @@ import { cn } from '@/lib/utils';
 export const DOCTOR_SCHEDULE_TOOLBAR_CONTROL_CLASS = 'bg-white hover:bg-muted';
 export const DOCTOR_ACTIVE_FILTER_BUTTON_CLASS =
   'border-primary text-primary hover:bg-primary/5 hover:text-primary';
+export const DOCTOR_FILTERS_HIDE_RECORDS_BUTTON_CLASS =
+  'border-destructive text-destructive hover:bg-destructive/5 hover:text-destructive';
 
 /** Square icon control of the schedule toolbars (radius comes from the doctor button). */
 export const DOCTOR_SCHEDULE_TOOLBAR_ICON_CONTROL_CLASS = 'size-[32px] shrink-0';

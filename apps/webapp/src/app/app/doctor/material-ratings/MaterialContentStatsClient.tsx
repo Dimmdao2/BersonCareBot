@@ -250,6 +250,7 @@ export function MaterialContentStatsClient() {
                   id="content-stats-video-resolutions"
                   title="Выдач всего"
                   value={data.videoPlayback.totalResolutions}
+                  opensDetails
                   hint="за период"
                   href="/app/admin/system-health"
                 />
@@ -257,6 +258,7 @@ export function MaterialContentStatsClient() {
                   id="content-stats-video-watch-minutes"
                   title="Минут просмотра"
                   value={data.videoPlaybackEstimatedWatchMinutes}
+                  opensDetails
                   hint="оценка по длительности роликов"
                   href="/app/admin/system-health"
                 />
@@ -264,6 +266,7 @@ export function MaterialContentStatsClient() {
                   id="content-stats-video-pairs"
                   title="Уникальных пар"
                   value={data.videoPlayback.uniquePlaybackPairsFirstSeenInWindow}
+                  opensDetails
                   hint="пользователь + видео"
                   href="/app/admin/system-health"
                 />
@@ -271,6 +274,7 @@ export function MaterialContentStatsClient() {
                   id="content-stats-video-errors"
                   title="Ошибок плеера"
                   value={data.videoPlaybackClient.totalErrors}
+                  opensDetails
                   tone={data.videoPlaybackClient.totalErrors > 0 ? 'warning' : 'neutral'}
                   hint={
                     data.videoPlaybackClient.likelyLooping
