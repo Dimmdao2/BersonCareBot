@@ -16,12 +16,23 @@
  *   --describe --env E --job ID  KEY=value описание задания для transport
  *   --verify-installed --env E [--cron-dir DIR]
  *                                сверить manifest с реально установленным расписанием
+ *   --apply-installed --env E [--cron-dir DIR]
+ *                                ПРИВЕСТИ расписание хоста к manifest: поставить недостающее и
+ *                                изменившееся, снять снятые задания. Нужны права записи в каталог.
  *   --self-test                  фикстуры чистых функций (без хоста и без записи)
  *
  * Коды выхода: 0 — ок; 1 — расхождение либо ошибка ввода-вывода.
  */
 
-import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  statSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -156,6 +167,45 @@ export function findInstalledScheduleProblems({ plan, envId, installed, runnerEx
   }
 
   return problems;
+}
+
+/**
+ * Что НАДО СДЕЛАТЬ с расписанием хоста, чтобы оно совпало с manifest.
+ *
+ * Отдельно от `findInstalledScheduleProblems` намеренно: та отвечает на вопрос «расходится ли»,
+ * эта — «чем починить». Обе читают один и тот же plan, поэтому «применили и всё равно красно»
+ * невозможно по построению.
+ *
+ * ⛔ Снимается СТРОГО то же множество, которое сверка считает лишним: имя начинается с нашего
+ * префикса, файла нет в manifest НИ ОДНОЙ среды, и внутри действительно наше фоновое задание.
+ * Шире брать нельзя: на dev-боксе рядом живут TEST и остатки старого прода, а в `/etc/cron.d`
+ * лежат чужие файлы (`certbot`, `e2scrub_all`), которым здесь ничего не грозит.
+ */
+export function planInstalledScheduleChanges({ plan, envId, installed }) {
+  const envPlan = plan.filter((item) => item.envId === envId);
+  const knownArtifactNames = new Set(plan.map((item) => item.artifactName));
+  const write = [];
+  const remove = [];
+
+  for (const item of envPlan) {
+    const text = installed.get(item.artifactName);
+    if (text === undefined) {
+      write.push({ artifactName: item.artifactName, content: item.content, reason: 'missing' });
+      continue;
+    }
+    if (!parseCronDFile(text).includes(expectedCronRow(item))) {
+      write.push({ artifactName: item.artifactName, content: item.content, reason: 'drifted' });
+    }
+  }
+
+  for (const [name, text] of installed) {
+    if (knownArtifactNames.has(name)) continue;
+    if (!name.startsWith('bersoncarebot-') && !name.startsWith('therapysto-')) continue;
+    if (!/\/api\/internal\/|run-internal-job\.sh/.test(text)) continue;
+    remove.push(name);
+  }
+
+  return { write, remove };
 }
 
 /** KEY=value описание задания для shell. Значение с кавычкой/переводом строки — отказ. */
@@ -403,6 +453,56 @@ async function main() {
     if (!envId || !jobId) throw new Error('--describe requires --env and --job');
     for (const line of describeJobAssignments(manifest, envId, jobId)) {
       process.stdout.write(`${line}\n`);
+    }
+    return 0;
+  }
+
+  if (flags.has('apply-installed')) {
+    const envId = values.get('env');
+    if (!envId) throw new Error('--apply-installed requires --env');
+    if (!manifest.BACKGROUND_JOB_ENVIRONMENTS[envId]) {
+      throw new Error(`unknown background job environment: ${envId}`);
+    }
+    const cronDir = values.get('cron-dir') ?? DEFAULT_INSTALLED_CRON_DIR;
+    const { write, remove } = planInstalledScheduleChanges({
+      plan,
+      envId,
+      installed: readInstalledCronDir(cronDir),
+    });
+
+    for (const item of write) {
+      const target = path.join(cronDir, item.artifactName);
+      writeFileSync(target, item.content, { mode: 0o644 });
+      process.stdout.write(
+        `background-jobs-cli --apply-installed (${envId}): установлено ${target} (${item.reason})\n`,
+      );
+    }
+    for (const name of remove) {
+      const target = path.join(cronDir, name);
+      unlinkSync(target);
+      process.stdout.write(
+        `background-jobs-cli --apply-installed (${envId}): снято ${target} (нет в manifest)\n`,
+      );
+    }
+    if (write.length === 0 && remove.length === 0) {
+      process.stdout.write(
+        `background-jobs-cli --apply-installed (${envId}): расписание уже совпадает с manifest\n`,
+      );
+    }
+
+    // Перечитываем каталог и сверяем заново: «применили» без доказательства — не результат.
+    const problems = findInstalledScheduleProblems({
+      plan,
+      envId,
+      installed: readInstalledCronDir(cronDir),
+      runnerExists: true,
+    });
+    if (problems.length > 0) {
+      reportProblems(
+        `background-jobs-cli --apply-installed (${envId}, ${cronDir}): после применения расписание ВСЁ РАВНО расходится`,
+        problems,
+      );
+      return 1;
     }
     return 0;
   }

@@ -422,8 +422,13 @@ mark_e1_runtime_coverage_start
 # `product_analytics_events_recent` копил строки старше объявленного окна.
 sudo -u deploy node "$DEPLOY_REPO/deploy/host/background-jobs-cli.mjs" --check ||
   fail 'background job manifest and shipped cron artifacts disagree'
-sudo -u deploy node "$DEPLOY_REPO/deploy/host/background-jobs-cli.mjs" --verify-installed --env test ||
-  fail 'installed TEST schedule does not match the background job manifest'
+# Расписание не сверяется, а ПРИВОДИТСЯ к кандидату (решение владельца 14.09.2026): ставится
+# недостающее, переписывается изменившееся, снимаются снятые задания. Сверка, которая только
+# ругается, оставляет расхождение жить до тех пор, пока до него не дойдёт человек — так снятое
+# задание превью прожило на проде четверо суток. Запись в `/etc/cron.d` требует root, поэтому этот
+# шаг единственный здесь идёт не под `deploy`; трогаются только наши файлы заданий.
+sudo node "$DEPLOY_REPO/deploy/host/background-jobs-cli.mjs" --apply-installed --env test ||
+  fail 'host cron could not be brought in line with the background job manifest'
 
 for unit_name in api scheduler webapp; do sudo systemctl restart "bersoncarebot-$unit_name-test"; done
 webapp_ready=0
