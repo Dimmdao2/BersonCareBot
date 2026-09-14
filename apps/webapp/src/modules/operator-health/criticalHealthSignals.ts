@@ -26,6 +26,36 @@ export const OUTBOUND_PROVIDER_FAILURE_DIRECTION = OUTBOUND_PROVIDER_INCIDENT_DI
 export const OUTBOUND_PROVIDER_FAILURE_WINDOW_MINUTES = 15;
 export const OUTBOUND_PROVIDER_FAILURE_MIN_INCIDENTS = 1;
 export const OUTBOUND_PROVIDER_STOP_PREFIX = '🛑 !';
+/**
+ * Сколько подряд неудачных тиков нужно, чтобы будить человека из-за интегратора.
+ *
+ * Одной пробы мало: при переключении blue/green старый цвет ещё обслуживает, а его сосед-интегратор
+ * уже остановлен, и одиночная проба честно видит «недоступен». 13.09.2026 ровно так владельцу и
+ * ушло письмо «Критичный сбой: integrator API» в 22:15 — через двадцать секунд после этого живым
+ * стал новый цвет, и всё было в порядке. Два тика подряд (пять минут) это отсекают, а настоящий
+ * отказ задерживают на те же пять минут — цена, которую владелец согласился платить 14.09.
+ */
+export const INTEGRATOR_API_MIN_FAIL_RUNS = 2;
+
+/** Счётчик подряд идущих отказов: успех обнуляет, отказ прибавляет. */
+export function nextIntegratorApiFailRuns(
+  previous: number | null | undefined,
+  status: IntegratorApiStatus,
+): number {
+  if (status === 'ok') return 0;
+  const prev = typeof previous === 'number' && Number.isFinite(previous) && previous > 0
+    ? Math.trunc(previous)
+    : 0;
+  return prev + 1;
+}
+
+/** Читает счётчик из `operator_job_status.meta_json` тика критичного здоровья. */
+export function readIntegratorApiFailRuns(
+  metaJson: Record<string, unknown> | undefined | null,
+): number {
+  const value = metaJson?.integratorApiFailRuns;
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? Math.trunc(value) : 0;
+}
 const OPERATOR_PROBE_FAILURE_ERROR_CLASSES = new Set([
   'max_probe_failed',
   'telegram_probe_failed',
@@ -40,6 +70,12 @@ export type VideoTranscodeHealthStatus = 'ok' | 'degraded' | 'error';
 export type CriticalHealthSignalsInput = {
   webappDb: DbStatus;
   integratorApi: IntegratorApiStatus;
+  /**
+   * Сколько ТИКОВ ПОДРЯД интегратор отвечает не «ok». Поле необязательно, и это намеренно:
+   * поверхности, которые просто ПОКАЗЫВАЮТ состояние (панель здоровья, баннер), обязаны краснеть
+   * сразу и ничего сюда не передают. Подтверждение нужно только тем, кто БУДИТ человека письмом.
+   */
+  integratorApiFailRuns?: number;
   /**
    * `deadRecent` — а не `deadTotal` — решает, красить ли и будить ли. `deadTotal` терминален и
    * только растёт; порог по нему даёт баннер, который горит вечно и потому не сообщает ничего.
@@ -311,7 +347,12 @@ export function classifyCriticalHealthSignals(
     });
   }
 
-  if (input.integratorApi !== 'ok') {
+  // `?? INTEGRATOR_API_MIN_FAIL_RUNS` — поведение по умолчанию для тех, кто счётчик не ведёт:
+  // они будят сразу, как и раньше. Порог применяется только там, где счётчик реально передан.
+  if (
+    input.integratorApi !== 'ok' &&
+    (input.integratorApiFailRuns ?? INTEGRATOR_API_MIN_FAIL_RUNS) >= INTEGRATOR_API_MIN_FAIL_RUNS
+  ) {
     out.push({
       topic: 'integrator_api',
       dedupKey: `critical:integrator_api:${input.integratorApi}`,

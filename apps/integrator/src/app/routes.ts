@@ -28,6 +28,10 @@ import {
 import { reportIntegratorIsolationFailure } from '../infra/observability/saasIsolationTelemetry.js';
 import { recordOperatorFailureIncident } from '../infra/operatorIncident/reportOperatorFailure.js';
 import {
+  decideHealthProbeLog,
+  emptyHealthProbeWindow,
+} from './healthProbeLog.js';
+import {
   getSmscRuntimeConfig,
   getTelegramRuntimeConfig,
 } from '../infra/adapters/integrationRuntimeConfig.js';
@@ -106,11 +110,37 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
     });
   };
 
-  app.get<{ Reply: HealthResponse }>('/health', async (_request, _reply) => {
-    const dbOk = await deps.healthCheckDb();
-    const body: HealthResponse = { ok: true, db: dbOk ? 'up' : 'down' };
-    return body;
-  });
+  /*
+   * `logLevel: 'warn'` снимает построчный журнал fastify ИМЕННО У ЭТОГО маршрута: «incoming
+   * request/request completed» на каждую проверку давали 8640 строк в сутки, в которых тонул
+   * настоящий отказ. Отказы самого маршрута (warn и выше) пишутся как прежде, а про состояние
+   * отвечает `healthProbeLog` — строка раз в минуту и сразу при смене состояния.
+   */
+  let healthWindow = emptyHealthProbeWindow();
+  app.get<{ Reply: HealthResponse }>(
+    '/health',
+    { logLevel: 'warn' },
+    async (_request, _reply) => {
+      const dbOk = await deps.healthCheckDb();
+      const body: HealthResponse = { ok: true, db: dbOk ? 'up' : 'down' };
+
+      const decision = decideHealthProbeLog(healthWindow, dbOk ? 'ok' : 'db_down', Date.now());
+      healthWindow = decision.window;
+      if (decision.log) {
+        const line = {
+          scope: 'health_probe',
+          state: decision.state,
+          previous: decision.previous,
+          reason: decision.reason,
+        };
+        // Плохое состояние — предупреждением: тогда его видно и при фильтре по уровню.
+        if (decision.state === 'ok') app.log.info(line, 'health probe');
+        else app.log.warn(line, 'health probe');
+      }
+
+      return body;
+    },
+  );
 
   await registerBersoncareSendSmsRoute(app, {
     dispatchPort: deps.dispatchPort,

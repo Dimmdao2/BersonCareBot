@@ -7,6 +7,7 @@ import { classifyVideoTranscodeSystemHealthStatus } from '@/modules/operator-hea
 import {
   OPERATOR_HEALTH_JOB_FAMILY,
   OPERATOR_MEDIA_JOB_FAMILY,
+  OPERATOR_HEALTH_CRITICAL_TICK_JOB_KEY,
   OPERATOR_MEDIA_TRANSCODE_RECONCILE_JOB_KEY,
   OPERATOR_OUTBOUND_PROBE_JOB_KEY,
 } from '@/modules/operator-health/reconcileJobKeys';
@@ -20,6 +21,8 @@ import type {
 import {
   countRecentOutboundProviderFailureIncidents,
   isOperatorProbeFailureIncident,
+  nextIntegratorApiFailRuns,
+  readIntegratorApiFailRuns,
 } from '@/modules/operator-health/criticalHealthSignals';
 import { readProbeConsecutiveFailRuns } from '@/modules/operator-health/probeOutboundMeta';
 import {
@@ -185,10 +188,22 @@ async function collectScheduledCriticalHealthSignalsBase(
     OPERATOR_HEALTH_JOB_FAMILY,
     OPERATOR_OUTBOUND_PROBE_JOB_KEY,
   );
+  // Счётчик отказов интегратора живёт в отметке ЭТОГО ЖЕ тика: два соседних тика попадают на разные
+  // цвета blue/green, поэтому память процесса здесь не годится — она обнуляется ровно тогда, когда
+  // и нужна (при переключении).
+  const criticalTickJob = findCuratedJob(
+    snapshot,
+    OPERATOR_HEALTH_JOB_FAMILY,
+    OPERATOR_HEALTH_CRITICAL_TICK_JOB_KEY,
+  );
 
   return {
     webappDb,
     integratorApi,
+    integratorApiFailRuns: nextIntegratorApiFailRuns(
+      readIntegratorApiFailRuns(criticalTickJob?.safeMeta),
+      integratorApi,
+    ),
     outgoingDelivery: {
       deadTotal: outgoingDelivery.deadTotal,
       deadRecent: outgoingDelivery.deadRecent,
@@ -239,6 +254,11 @@ async function collectCriticalHealthSignalsBase(
     read.listWebhookBurstSignals(WEBHOOK_BURST_WINDOW_MINUTES, WEBHOOK_BURST_MIN_COUNT),
     read.listOpenIncidents(100),
   ]);
+  // См. пояснение в запланированном пути: счётчик отказов интегратора хранится в отметке тика,
+  // потому что соседние тики попадают на разные цвета blue/green.
+  const criticalTickJob = await read
+    .getOperatorJobStatus(OPERATOR_HEALTH_JOB_FAMILY, OPERATOR_HEALTH_CRITICAL_TICK_JOB_KEY)
+    .catch(() => null);
   // D-d/D-b: пульс и счётчик пустой аудитории собираются best-effort — их собственный сбой
   // не имеет права ослепить остальную часть тика.
   const [heartbeats, emptyAudience] = await Promise.all([
@@ -252,6 +272,10 @@ async function collectCriticalHealthSignalsBase(
   return {
     webappDb,
     integratorApi,
+    integratorApiFailRuns: nextIntegratorApiFailRuns(
+      readIntegratorApiFailRuns(criticalTickJob?.metaJson),
+      integratorApi,
+    ),
     outgoingDelivery: {
       deadTotal: outgoingDelivery.deadTotal,
       deadRecent: outgoingDelivery.deadRecent,

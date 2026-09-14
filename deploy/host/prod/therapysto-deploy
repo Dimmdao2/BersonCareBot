@@ -91,7 +91,7 @@ else
 fi
 
 # ---------------------------------------------------------------- расписание
-# Крон хоста сверяется с единственным манифестом фоновых заданий ДО переключения цвета.
+# Крон хоста приводится к единственному манифесту фоновых заданий ДО переключения цвета.
 #
 # Зачем. Снятое задание остаётся в `/etc/cron.d` и молча долбится по своему расписанию. Ровно так
 # `therapysto-media-preview` прожил на проде четверо суток после переезда превью в резидентный
@@ -99,13 +99,19 @@ fi
 # (`deploy-test.sh`) и у старого прода (`deploy-prod.sh`) эта сверка в деплое стоит с 27.08, у
 # blue/green нового прода её не было вовсе, поэтому здесь это и не всплыло само.
 #
-# Гейт только СВЕРЯЕТ и печатает команды установки: расписание хоста — решение человека, а деплой,
-# который сам правит `/etc/cron.d`, меняет поведение машины мимо ревью.
-say "verifying host cron against the background job manifest"
+# Деплой не СВЕРЯЕТ расписание, а ПРИВОДИТ его к выкладываемому коммиту: ставит недостающее,
+# переписывает изменившееся, снимает снятые задания (решение владельца 14.09 — «надо сделать так,
+# чтобы деплой удалял всё лишнее, устанавливал всё правильное»). Проверка, которая только ругается,
+# требует человека, а значит расхождение живёт ровно столько, сколько человек до него не дошёл.
+#
+# Трогаются ТОЛЬКО наши файлы заданий; чужие строки `/etc/cron.d` (certbot и прочее) не затрагиваются.
+# После применения каталог перечитывается и сверяется заново — «применили» без доказательства не
+# результат, и несовпадение здесь по-прежнему останавливает выкладку.
+say "bringing host cron in line with the background job manifest"
 node "$THERAPYSTO_SRC/deploy/host/background-jobs-cli.mjs" --check ||
   die "background job manifest and shipped cron artifacts disagree — $ACTIVE is still live and untouched"
-node "$THERAPYSTO_SRC/deploy/host/background-jobs-cli.mjs" --verify-installed --env prod ||
-  die "installed PROD schedule does not match the background job manifest — $ACTIVE is still live and untouched"
+node "$THERAPYSTO_SRC/deploy/host/background-jobs-cli.mjs" --apply-installed --env prod ||
+  die "host cron could not be brought in line with the manifest — $ACTIVE is still live and untouched"
 
 # ---------------------------------------------------------------- gate
 export THERAPYSTO_IMAGE="$IMAGE"

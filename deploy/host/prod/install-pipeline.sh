@@ -84,10 +84,13 @@ fi
 # не стоял с самого переименования 10.09.2026 (найдено 12.09.2026 через застрявший в pending
 # app.bersoncare.ru). Ставим на каждом деплое, а не только при первой установке: новое обязательное
 # задание в manifest обязано появиться в /etc/cron.d без отдельного ручного шага.
+#
+# Установкой занимается ЕДИНСТВЕННЫЙ порт `background-jobs-cli.mjs --apply-installed`, а не копия
+# цикла `install` здесь. Прежний цикл только КЛАЛ файлы и никогда ничего не снимал, поэтому снятое
+# из кода задание оставалось на хосте навсегда: так `therapysto-media-preview` долбился каждую
+# минуту четверо суток после переезда превью в резидентный media-worker (10.09 → найдено 14.09).
 echo "==> устанавливаю обязательные host-cron задания"
-for f in "$SRC"/deploy/host/cron.d/therapysto-*.cron.template; do
-  [ -f "$f" ] || continue
-  install -m 0644 -o root -g root "$f" "/etc/cron.d/$(basename "$f" .cron.template)"
-done
+node "$SRC/deploy/host/background-jobs-cli.mjs" --apply-installed --env prod ||
+  die "расписание хоста не удалось привести к манифесту"
 
 echo "конвейер разложен из $COMMIT"

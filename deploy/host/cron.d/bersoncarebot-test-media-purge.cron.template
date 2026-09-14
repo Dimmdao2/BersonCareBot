@@ -4,8 +4,8 @@
 #
 # Удаление медиа (purge) — среда test.
 # Очередь удаления медиа: без тика строки остаются в S3 и в БД после удаления из библиотеки.
-# id=media_purge tick=media/media.pending_delete.purge POST /api/internal/media-pending-delete/purge?limit=25
-# principal=internal_job_bearer surface=app_public_origin timeout=50s stale_after=180s
+# id=media_purge tick=media/media.pending_delete.purge POST /api/internal/media-pending-delete/purge?limit=50
+# principal=internal_job_bearer surface=app_public_origin timeout=50s stale_after=900s
 # Host/Origin/X-Forwarded-Proto и env-файл (/opt/env/bersoncarebot/webapp.test) строит общий transport
 # deploy/host/run-internal-job.sh — cron-строка их не копирует и не знает про branding proxy.
-* * * * * root /opt/projects/bersoncarebot-test/deploy/host/run-internal-job.sh test media_purge
+*/5 * * * * root /opt/projects/bersoncarebot-test/deploy/host/run-internal-job.sh test media_purge

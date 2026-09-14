@@ -1,5 +1,12 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -13,6 +20,7 @@ import {
   findInstalledScheduleProblems,
   loadManifest,
   planCronArtifacts,
+  planInstalledScheduleChanges,
 } from './background-jobs-cli.mjs';
 
 const cliPath = fileURLToPath(new URL('./background-jobs-cli.mjs', import.meta.url));
@@ -176,7 +184,10 @@ test('transport отказывается запускать задание, ко
 test('описание задания для transport несёт маршрут, timeout и допустимые статусы', () => {
   const assignments = describeJobAssignments(manifest, 'prod', 'media_purge');
   assert.ok(assignments.includes("BCB_JOB_PATH='/api/internal/media-pending-delete/purge'"));
-  assert.ok(assignments.includes("BCB_JOB_QUERY='limit=25'"));
+  // Порция уборки медиа — 50 (14.09.2026, вместе с разрежением ритма до пяти минут): пропускная
+  // способность равна «порция × число запусков», и прежние 25 при новом ритме означали бы впятеро
+  // более медленную уборку.
+  assert.ok(assignments.includes("BCB_JOB_QUERY='limit=50'"));
   assert.ok(assignments.includes("BCB_JOB_ENV_FILE='/etc/therapysto/env/webapp.prod'"));
   assert.ok(assignments.some((line) => /^BCB_JOB_TIMEOUT='\d+'$/.test(line)));
   assert.ok(assignments.includes("BCB_JOB_ACCEPT_STATUSES='200'"));
@@ -196,4 +207,81 @@ test('ни один artifact не копирует Host/Origin/секрет и �
     assert.doesNotMatch(scheduleRows[0], /Host:|Origin:|Authorization|INTERNAL_JOB_SECRET|curl/, item.fileName);
     assert.equal(scheduleRows[0], expectedCronRow(item));
   }
+});
+
+/*
+ * `--apply-installed` — то, чем деплой ЧИНИТ расписание, а не жалуется на него (решение владельца
+ * 14.09.2026: «надо сделать так, чтобы деплой удалял всё лишнее, устанавливал всё правильное»).
+ * Набор держит три его обязательства — поставить недостающее, переписать изменившееся, снять
+ * снятое — и одно запрещение: не трогать ничего чужого.
+ */
+
+test('--apply-installed ставит недостающее, переписывает изменившееся и снимает снятое', () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'bcb-cron-apply-'));
+  try {
+    const required = prodPlan.find((item) => item.required);
+    // Устаревшая строка того же задания: обязана быть переписана, а не оставлена как есть.
+    writeFileSync(
+      path.join(dir, required.artifactName),
+      '# stale\n0 0 31 2 * root /nonexistent/run-internal-job.sh prod whatever\n',
+    );
+    // Снятое задание: в manifest его нет, но по имени и содержимому оно наше.
+    writeFileSync(
+      path.join(dir, 'therapysto-media-preview'),
+      '# id=media_preview\n* * * * * root /opt/therapysto/src/deploy/host/run-internal-job.sh prod media_preview\n',
+    );
+    // Чужая строка: её не должно коснуться ничто.
+    writeFileSync(path.join(dir, 'certbot'), '0 3 * * * root certbot renew\n');
+
+    const applied = runCli(['--apply-installed', '--env', 'prod', '--cron-dir', dir]);
+    assert.equal(applied.status, 0, applied.stderr);
+
+    for (const item of prodPlan) {
+      assert.ok(existsSync(path.join(dir, item.artifactName)), `не установлено: ${item.artifactName}`);
+    }
+    assert.equal(existsSync(path.join(dir, 'therapysto-media-preview')), false, 'снятое задание осталось');
+    assert.equal(readFileSync(path.join(dir, 'certbot'), 'utf8'), '0 3 * * * root certbot renew\n');
+
+    // После применения сверка обязана быть зелёной: иначе «починили» ничего не значит.
+    const verified = runCli(['--verify-installed', '--env', 'prod', '--cron-dir', dir]);
+    assert.equal(verified.status, 0, verified.stderr);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('--apply-installed на совпадающем расписании ничего не трогает', () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'bcb-cron-idem-'));
+  try {
+    runCli(['--apply-installed', '--env', 'prod', '--cron-dir', dir]);
+    const before = readdirSync(dir).map((name) => [name, readFileSync(path.join(dir, name), 'utf8')]);
+
+    const again = runCli(['--apply-installed', '--env', 'prod', '--cron-dir', dir]);
+    assert.equal(again.status, 0, again.stderr);
+    assert.match(again.stdout, /уже совпадает/);
+
+    const after = readdirSync(dir).map((name) => [name, readFileSync(path.join(dir, name), 'utf8')]);
+    assert.deepEqual(after, before);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('снимается только своё: чужие файлы и соседняя среда лишними не считаются', () => {
+  const neighbour = plan.find((item) => item.envId === 'test');
+  const installed = new Map([
+    // Чужой файл с нашим префиксом, но без признаков нашего задания внутри.
+    ['therapysto-backup-rsync', '0 2 * * * root /usr/local/sbin/rsync-backup\n'],
+    // Задание СОСЕДНЕЙ среды: на общем боксе рядом живут TEST и остатки старого прода.
+    [neighbour.artifactName, `# fixture\n${expectedCronRow(neighbour)}\n`],
+    ['certbot', '0 3 * * * root certbot renew\n'],
+  ]);
+  for (const item of prodPlan) {
+    installed.set(item.artifactName, `# fixture\n${expectedCronRow(item)}\n`);
+  }
+
+  const { write, remove } = planInstalledScheduleChanges({ plan, envId: 'prod', installed });
+
+  assert.deepEqual(write, []);
+  assert.deepEqual(remove, []);
 });
