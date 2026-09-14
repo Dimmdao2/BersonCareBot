@@ -384,10 +384,49 @@ const SELECTION_MUTATION_ERRORS: Record<string, string> = {
 // Helper: period label
 // ---------------------------------------------------------------------------
 
-function mobilePeriodLabel(anchorDate: string, zone: string): string {
-  return capitalizeRussianLabel(
-    DateTime.fromISO(anchorDate, { zone }).setLocale('ru').toFormat('LLLL yyyy'),
-  );
+/**
+ * Границы видимого периода словами. `monthToken` — формат месяца люксона: `LLLL` (полное имя) для
+ * подписи над КПИ, `LLL` (сокращение) для узкой кнопки периода в тулбаре.
+ *
+ * `to` в модели периода — начало следующего дня, поэтому последний включённый день на сутки раньше.
+ */
+function formatPeriodRange(
+  view: CalV26View,
+  anchorDate: string,
+  zone: string,
+  monthToken: 'LLLL' | 'LLL',
+): string {
+  const range = visibleRange(view, anchorDate, zone);
+  const start = DateTime.fromISO(range.from, { zone }).setLocale('ru');
+  const end = DateTime.fromISO(range.to, { zone }).minus({ days: 1 }).setLocale('ru');
+  if (!start.isValid || !end.isValid) return '';
+  if (start.hasSame(end, 'day')) return start.toFormat(`d ${monthToken} yyyy`);
+  if (start.hasSame(end, 'month')) {
+    return `${start.toFormat('d')} — ${end.toFormat(`d ${monthToken} yyyy`)}`;
+  }
+  if (start.hasSame(end, 'year')) {
+    return `${start.toFormat(`d ${monthToken}`)} — ${end.toFormat(`d ${monthToken} yyyy`)}`;
+  }
+  return `${start.toFormat(`d ${monthToken} yyyy`)} — ${end.toFormat(`d ${monthToken} yyyy`)}`;
+}
+
+/**
+ * Подпись кнопки периода в тулбаре. Владелец 15.09: «в кнопке с месяцем надо во всех размерах
+ * экрана писать период: даты, месяц сокращенно и год» — раньше там стоял только месяц с годом
+ * («Сентябрь 2026»), и по кнопке нельзя было понять, какие именно дни на экране.
+ */
+function periodNavLabel(view: CalV26View, anchorDate: string, zone: string): string {
+  return formatPeriodRange(view, anchorDate, zone, 'LLL');
+}
+
+/**
+ * Подпись кнопки периода в режиме списка. Владелец 15.09: «в режиме списка писать только дату
+ * начала отображаемого списка и обновлять ее при прокрутке списка» — у непрерывной ленты нет
+ * конца периода, поэтому показываем одну дату — ту, что сейчас наверху экрана.
+ */
+function listPeriodNavLabel(dateKey: string, zone: string): string {
+  const day = DateTime.fromISO(dateKey, { zone }).setLocale('ru');
+  return day.isValid ? day.toFormat('d LLL yyyy') : '';
 }
 
 /**
@@ -623,7 +662,10 @@ function ListDayCard({
     // статусу (R29, listRowClass/listRowStyle) не трогаем — она остаётся волосяной нижней
     // границей и фоновой заливкой, просто без обводки со всех сторон и скругления.
     <div className="flex flex-col" data-testid={`list-day-${dateKey}`}>
-      <p className="border-b border-border/60 px-[var(--doctor-list-inline-padding,18px)] py-2 text-sm font-semibold capitalize text-foreground">
+      <p
+        data-list-day-heading={dateKey}
+        className="border-b border-border/60 px-[var(--doctor-list-inline-padding,18px)] py-2 text-sm font-semibold capitalize text-foreground"
+      >
         {label}
       </p>
       <div className="flex flex-col">
@@ -721,6 +763,14 @@ type ListViewProps = {
   branchShortLabels: ReadonlyMap<string, string>;
   showSpecialist: boolean;
   scrollToTodayRequest: number;
+  /** Дата, которую лента показывает наверху экрана; обновляется при прокрутке (п.7). */
+  onVisibleDateChange?: (dateKey: string) => void;
+  /**
+   * Счётчик полных перезагрузок ленты. Растёт, когда лента перезапрошена целиком (смена фильтров),
+   * и заставляет заново встать на `anchorDate`: иначе после подмены всего массива записей браузер
+   * оставляет прежний `scrollTop`, а он указывает уже в другое место (владелец 15.09, п.1).
+   */
+  repositionRequest: number;
 };
 
 function ListView({
@@ -738,6 +788,8 @@ function ListView({
   branchShortLabels,
   showSpecialist,
   scrollToTodayRequest,
+  onVisibleDateChange,
+  repositionRequest,
 }: ListViewProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const anchorMarkerRef = useRef<HTMLDivElement>(null);
@@ -745,6 +797,7 @@ function ListView({
   const laterSentinelRef = useRef<HTMLDivElement>(null);
   const positionedAnchorRef = useRef<string | null>(null);
   const positionedTodayRequestRef = useRef(0);
+  const positionedRepositionRef = useRef(0);
   const prependSnapshotRef = useRef<{ height: number; top: number } | null>(null);
   const dayGroups = useMemo<
     Array<{
@@ -811,7 +864,8 @@ function ListView({
       !scrollNode ||
       !markerNode ||
       (positionedAnchorRef.current === anchorDate &&
-        positionedTodayRequestRef.current === scrollToTodayRequest)
+        positionedTodayRequestRef.current === scrollToTodayRequest &&
+        positionedRepositionRef.current === repositionRequest)
     ) {
       return;
     }
@@ -831,9 +885,10 @@ function ListView({
       });
       positionedAnchorRef.current = anchorDate;
       positionedTodayRequestRef.current = scrollToTodayRequest;
+      positionedRepositionRef.current = repositionRequest;
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [anchorDate, loading, scrollToTodayRequest]);
+  }, [anchorDate, loading, repositionRequest, scrollToTodayRequest]);
 
   useEffect(() => {
     const root = scrollRef.current;
@@ -881,6 +936,45 @@ function ListView({
     root.scrollTop = snapshot.top + (root.scrollHeight - snapshot.height);
     prependSnapshotRef.current = null;
   }, [appointments.length, loadingEarlier]);
+
+  /**
+   * Какая дата сейчас наверху ленты (владелец 15.09, п.7: «в режиме списка писать только дату
+   * начала отображаемого списка и обновлять ее при прокрутке списка»).
+   *
+   * Наблюдаем ЗАГОЛОВКИ ДНЕЙ, а не строки записей: их десятки, а не тысячи, и наблюдатель не
+   * просыпается на каждый пиксель прокрутки. Из пересечённых берём последний, чья верхняя граница
+   * уже ушла выше линии отсечки — это и есть день, чьи записи сейчас на экране. Результат уходит
+   * наверх колбэком, который переписывает подпись кнопки напрямую в DOM, без состояния и без
+   * перерисовки ленты.
+   */
+  useEffect(() => {
+    const root = scrollRef.current;
+    if (!root || !onVisibleDateChange || typeof IntersectionObserver === 'undefined') return;
+    const headings = [...root.querySelectorAll<HTMLElement>('[data-list-day-heading]')];
+    if (headings.length === 0) return;
+
+    const report = () => {
+      const rootTop = root.getBoundingClientRect().top;
+      let current: string | null = null;
+      for (const heading of headings) {
+        // 12px — та же щель, что и при прокрутке к якорю (`targetTop - 8`) плюс запас на рамку;
+        // без неё заголовок, стоящий ровно на границе, отдавал бы предыдущий день.
+        if (heading.getBoundingClientRect().top - rootTop <= 12) {
+          current = heading.dataset.listDayHeading ?? null;
+        } else break;
+      }
+      const next = current ?? headings[0]?.dataset.listDayHeading ?? null;
+      if (next) onVisibleDateChange(next);
+    };
+
+    const observer = new IntersectionObserver(report, {
+      root,
+      rootMargin: '0px 0px -85% 0px',
+    });
+    for (const heading of headings) observer.observe(heading);
+    report();
+    return () => observer.disconnect();
+  }, [dayGroups, onVisibleDateChange]);
 
   return (
     // Владелец 14.09: контейнер списка — как на десктопных «Клиенты»/«Сообщения»/«Комментарии»
@@ -995,7 +1089,6 @@ export function ScheduleCalendarTab({
     () => bootstrap?.anchorDate ?? resolveAnchorDate(deepLinkParams.date, timeZone),
   );
   const mobileVisibleDateRef = useRef(mobileVisibleDate);
-  const mobilePeriodButtonRef = useRef<HTMLButtonElement>(null);
   const [branchId, setBranchIdState] = useState<string | null>(
     () => bootstrap?.branchId ?? deepLinkParams.location ?? null,
   );
@@ -1071,6 +1164,11 @@ export function ScheduleCalendarTab({
   const [serverSearchLoading, setServerSearchLoading] = useState(false);
   const [serverSearchQuery, setServerSearchQuery] = useState<string | null>(null);
   const listLoadGenerationRef = useRef(0);
+  /** Вид+якорь прошлого запроса ленты: отличает смену периода от перезапроса по смене фильтров. */
+  const previousFeedKeyRef = useRef<string | null>(null);
+  /** Дата, на которую лента должна встать после перезапроса по фильтрам (null — обычный якорь). */
+  const [listScrollTargetDate, setListScrollTargetDate] = useState<string | null>(null);
+  const [listRepositionRequest, setListRepositionRequest] = useState(0);
   // R32: время старта/конца, подставляемое в форму создания при выделении области.
   const [createInitialStart, setCreateInitialStart] = useState<string | null>(null);
   // #225: время конца из drag-интервала → используется как начальная длительность в форме создания.
@@ -1191,18 +1289,17 @@ export function ScheduleCalendarTab({
     [onDeepLinkChange],
   );
 
-  const updateMobileVisibleDate = useCallback(
-    (dateKey: string, commit = false) => {
-      mobileVisibleDateRef.current = dateKey;
-      if (mobilePeriodButtonRef.current) {
-        mobilePeriodButtonRef.current.textContent = mobilePeriodLabel(dateKey, timeZone);
-      }
-      if (commit) {
-        setMobileVisibleDateState((current) => (current === dateKey ? current : dateKey));
-      }
-    },
-    [timeZone],
-  );
+  const updateMobileVisibleDate = useCallback((dateKey: string, commit = false) => {
+    // Раньше здесь же переписывался текст кнопки периода форматом «месяц год». Владелец 15.09
+    // (п.6) заменил формат на границы периода датами, и единственным источником подписи стал
+    // `periodNavLabelText` при обычной перерисовке. Все вызовы этой функции и так меняют
+    // `anchorDate`/`view`, то есть перерисовка следует сразу же; писать сюда второй, уже неверный
+    // формат было бы прямым источником расхождения.
+    mobileVisibleDateRef.current = dateKey;
+    if (commit) {
+      setMobileVisibleDateState((current) => (current === dateKey ? current : dateKey));
+    }
+  }, []);
 
   useEffect(() => {
     if (!isActive || !isMobileViewport || view !== 'weekgrid') return;
@@ -1348,10 +1445,29 @@ export function ScheduleCalendarTab({
     [branchId, includeCancelledAppointments, scheduleScope, serviceId],
   );
 
+  /**
+   * Владелец 15.09 (п.1): «после сброса или просто изменения фильтров календаря, в режиме списка
+   * происходит сброс периода и переход к началу года или какой то произвольной дате в прошлом.
+   * Исправить, должно оставаться там же где было».
+   *
+   * Причина: смена фильтра меняет тождество `fetchAppointmentFeedPage`, а с ним и этой функции —
+   * лента перезапрашивается целиком и ВЕСЬ массив записей подменяется свежим окном вокруг
+   * `anchorDate`. Всё, что человек долистал бесконечной прокруткой, при этом пропадает, высота
+   * ленты схлопывается, а браузер оставляет прежний `scrollTop` — он и утыкается в начало
+   * подгруженной истории, то есть «куда-то в прошлое».
+   *
+   * Лечение: если перезапрос вызван ТОЛЬКО сменой фильтров (вид и якорь те же), окно тянем вокруг
+   * даты, которая сейчас на экране, и просим ленту заново встать на неё (`repositionRequest`).
+   */
   const loadInitialAppointmentFeed = useCallback(async () => {
     const generation = ++listLoadGenerationRef.current;
-    const rawAnchor = DateTime.fromISO(anchorDate, { zone: timeZone });
-    const target = view === 'month' ? rawAnchor.startOf('month') : rawAnchor.startOf('day');
+    const feedKey = `${view}\u0000${anchorDate}`;
+    const isFilterOnlyReload = previousFeedKeyRef.current === feedKey;
+    previousFeedKeyRef.current = feedKey;
+    const preservedDate = isFilterOnlyReload ? listVisibleDateRef.current : null;
+    const rawAnchor = DateTime.fromISO(preservedDate ?? anchorDate, { zone: timeZone });
+    const target =
+      view === 'month' && !preservedDate ? rawAnchor.startOf('month') : rawAnchor.startOf('day');
     const historyStart = target.minus({ months: APPOINTMENT_FEED_HISTORY_MONTHS }).startOf('month');
     const targetIso = target.toUTC().toISO();
     const historyStartIso = historyStart.toUTC().toISO();
@@ -1381,6 +1497,11 @@ export function ScheduleCalendarTab({
       setListHasEarlier(true);
       setListHasLater(Boolean(futurePage.hasMore));
       setError(null);
+      // Лента встала на новый массив — вернуть её туда, где человек был. Без этого эффект
+      // позиционирования не проснётся: `anchorDate` не менялся, и его собственный сторож
+      // (`positionedAnchorRef`) считает работу уже сделанной.
+      setListScrollTargetDate(preservedDate);
+      setListRepositionRequest((current) => current + 1);
     } catch {
       if (generation === listLoadGenerationRef.current) setError('network_error');
     } finally {
@@ -1475,7 +1596,16 @@ export function ScheduleCalendarTab({
   ]);
 
   useEffect(() => {
-    if (renderMode !== 'list') return;
+    if (renderMode !== 'list') {
+      // Выход из ленты обнуляет её «где я был». Иначе при следующем возврате в список перезапрос
+      // с тем же видом и якорем выглядел бы как смена фильтра, и лента встала бы на прокрутку
+      // прошлого сеанса вместо сегодняшнего дня — правило владельца 14.09 «переключившись из
+      // месяца в список, вижу СЕГОДНЯ» держится именно на этом обнулении.
+      previousFeedKeyRef.current = null;
+      listVisibleDateRef.current = null;
+      setListScrollTargetDate(null);
+      return;
+    }
     if (listFeedSeededRef.current) {
       listFeedSeededRef.current = false;
       return;
@@ -1841,41 +1971,103 @@ export function ScheduleCalendarTab({
         onOpenChange={handleCalendarFilterOpenChange}
         className={controlClassName}
       />
-      <div className="flex h-8 w-full items-center justify-between gap-3 px-1 text-sm text-foreground">
-        <span>Показывать отмены</span>
+      {/* Владелец 15.09: «флажок показывать отмены расположить рядом с фразой а не в другом конце
+          экрана» — переключатель прижат к подписи, а не разведён с ней по краям строки. */}
+      <label className="flex h-8 w-full cursor-pointer items-center gap-2 px-1 text-sm text-foreground">
         <Switch
           checked={showCancelledAppointments}
           onCheckedChange={setShowCancelledAppointments}
           aria-label="Показывать отмены"
         />
-      </div>
+        <span>Показывать отмены</span>
+      </label>
     </div>
   );
 
+  const currentTimeZone = data?.timeZone ?? timeZone;
+
+  /**
+   * Подпись периода живёт в двух-трёх экземплярах сразу (мобильный тулбар, панель в `<aside>`,
+   * панель в модалке), а в режиме списка обязана обновляться НА КАЖДОЙ ПРОКРУТКЕ (владелец 15.09,
+   * п.7). Гонять ради этого React-состояние нельзя: перерисовка ленты в сотни строк на каждом
+   * шаге прокрутки — это заметный рывок. Поэтому кнопки регистрируют свои DOM-узлы здесь, и при
+   * прокрутке текст переписывается напрямую (`textContent`), мимо React. В состояние дата
+   * переезжает только когда прокрутка
+   * остановилась, чтобы следующая штатная перерисовка не вернула устаревшую подпись.
+   */
+  const periodLabelNodesRef = useRef(new Map<string, HTMLButtonElement>());
+  const periodLabelSettersRef = useRef(
+    new Map<string, (node: HTMLButtonElement | null) => void>(),
+  );
+  const registerPeriodLabelNode = useCallback((key: string) => {
+    const cached = periodLabelSettersRef.current.get(key);
+    if (cached) return cached;
+    const setter = (node: HTMLButtonElement | null) => {
+      if (node) periodLabelNodesRef.current.set(key, node);
+      else periodLabelNodesRef.current.delete(key);
+    };
+    periodLabelSettersRef.current.set(key, setter);
+    return setter;
+  }, []);
+
+  const [listVisibleDate, setListVisibleDate] = useState<string | null>(null);
+  const listVisibleDateRef = useRef<string | null>(null);
+  const listVisibleCommitTimerRef = useRef<number | null>(null);
+
+  const handleListVisibleDateChange = useCallback(
+    (dateKey: string) => {
+      if (listVisibleDateRef.current === dateKey) return;
+      listVisibleDateRef.current = dateKey;
+      const text = listPeriodNavLabel(dateKey, currentTimeZone);
+      for (const node of periodLabelNodesRef.current.values()) node.textContent = text;
+      if (listVisibleCommitTimerRef.current !== null) {
+        window.clearTimeout(listVisibleCommitTimerRef.current);
+      }
+      listVisibleCommitTimerRef.current = window.setTimeout(() => {
+        listVisibleCommitTimerRef.current = null;
+        setListVisibleDate(dateKey);
+      }, 200);
+    },
+    [currentTimeZone],
+  );
+
+  useEffect(
+    () => () => {
+      if (listVisibleCommitTimerRef.current !== null) {
+        window.clearTimeout(listVisibleCommitTimerRef.current);
+      }
+    },
+    [],
+  );
+
+  const scheduleViewOptions: Array<{ key: CalV26View | 'list'; label: string }> = [
+    { key: '3days', label: '3 дня' },
+    ...(isMobileViewport ? [] : [{ key: 'weekgrid' as const, label: 'Неделя' }]),
+    { key: 'month', label: 'Месяц' },
+    { key: 'list', label: 'Список' },
+  ];
+
   /**
    * Владелец 14.09: «в десктопном и планшетном виде надо верхнюю панель перенести в правый блок
-   * фильтров: сверху блок „Вид“ … ниже блок „Период“ … ниже блок поиск по записям … ниже уже идут
-   * фильтры». Три блока стоят над `renderScheduleFilters` и общей КПИ-строкой в ОБОИХ местах,
-   * где раньше жил верхний тулбар: постоянно открытом `<aside>` (xl+) и модалке фильтров, которую
-   * на md..xl открывает кнопка «Фильтры» (на мобильном модалка этот блок не получает — см. вызов
-   * ниже). «Список» — один из вариантов «Вид», отдельной иконки календаря нет; период форматирует
-   * та же `mobilePeriodLabel`, что и на мобильном, от всегда свежего `anchorDate` (в отличие от
-   * `mobileVisibleDate`, который вне мобильного вьюпорта не обновляется при листании стрелками —
-   * `shiftAnchor`).
+   * фильтров: сверху блок „Вид“ … ниже блок „Период“ … ниже уже идут фильтры». Блоки стоят над
+   * `renderScheduleFilters` во ВСЕХ трёх местах, где живёт панель: постоянно открытом `<aside>`
+   * (xl+) и модалке фильтров — и на планшете, и на мобильном (владелец 15.09: «в модалке
+   * мобильного пусть будет так же две верхние строки — выбор периода на экране и режима»).
+   *
+   * «Список» — один из вариантов «Вид», отдельной иконки календаря нет. «Неделя» на мобильном не
+   * предлагается (владелец 15.09: «только без недели») — недельная сетка там всё равно не живёт,
+   * отдельный эффект разворачивает `weekgrid` обратно в `3days` на узком экране.
+   *
+   * Заголовки блоков скрыты на десктопе (`xl:hidden`, владелец 15.09) — в постоянно открытой
+   * панели они лишний шум; в модалке (планшет и мобильный) остаются: там блоки идут подряд без
+   * контекста страницы.
    */
-  const renderScheduleTopBlocks = () => (
+  const renderScheduleTopBlocks = (slotKey: 'aside' | 'modal') => (
     <>
       <section className={doctorSectionCardClass}>
-        <h2 className={doctorSectionTitleClass}>Вид</h2>
+        <h2 className={cn(doctorSectionTitleClass, 'xl:hidden')}>Вид</h2>
         <div className="flex flex-wrap gap-1" role="group" aria-label="Режим отображения">
-          {(
-            [
-              { key: '3days' as const, label: '3 дня' },
-              { key: 'weekgrid' as const, label: 'Неделя' },
-              { key: 'month' as const, label: 'Месяц' },
-              { key: 'list' as const, label: 'Список' },
-            ] as const
-          ).map(({ key, label }) => {
+          {scheduleViewOptions.map(({ key, label }) => {
             const active =
               key === 'list' ? renderMode === 'list' : renderMode === 'calendar' && view === key;
             return (
@@ -1924,7 +2116,7 @@ export function ScheduleCalendarTab({
       </section>
 
       <section className={doctorSectionCardClass}>
-        <h2 className={doctorSectionTitleClass}>Период</h2>
+        <h2 className={cn(doctorSectionTitleClass, 'xl:hidden')}>Период</h2>
         <div className="flex items-center gap-1">
           <Button
             type="button"
@@ -1940,7 +2132,8 @@ export function ScheduleCalendarTab({
             Сегодня
           </Button>
           <DoctorSchedulePeriodNav
-            label={mobilePeriodLabel(anchorDate, currentTimeZone)}
+            label={periodNavLabelText}
+            labelRef={registerPeriodLabelNode(slotKey)}
             onPrev={() => {
               setFiltersPanelOpen(false);
               shiftAnchor(-1);
@@ -1967,47 +2160,65 @@ export function ScheduleCalendarTab({
           />
         </div>
       </section>
+    </>
+  );
 
-      <section className={doctorSectionCardClass}>
-        <h2 className={doctorSectionTitleClass}>Поиск по записям</h2>
-        <div className="relative">
-          <Search
-            className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
-            aria-hidden
-          />
-          <Input
-            type="search"
-            placeholder="Поиск записей…"
-            value={searchQuery}
-            onChange={(event) => setSearchQuery(event.target.value)}
-            className="h-8 pl-8 text-sm"
-            aria-label="Поиск записей"
-          />
-        </div>
-        {renderMode === 'list' && searchQuery.trim() ? (
-          <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+  /**
+   * Поиск по записям. Владелец 15.09: «поиск перенести под блок с выбором филиала/услуги/отмен —
+   * и в десктопе/планшете и в мобиле», поэтому блок отделён от `renderScheduleTopBlocks` и
+   * вызывается ПОСЛЕ `renderScheduleFilters`. С мобильного верхнего тулбара строка поиска убрана
+   * тем же решением — на телефоне она теперь живёт здесь же, в модалке фильтров.
+   */
+  const renderScheduleSearchBlock = () => (
+    <section className={doctorSectionCardClass}>
+      <h2 className={cn(doctorSectionTitleClass, 'xl:hidden')}>Поиск по записям</h2>
+      <div className="relative">
+        <Search
+          className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
+          aria-hidden
+        />
+        <Input
+          type="search"
+          placeholder="Поиск записей…"
+          value={searchQuery}
+          onChange={(event) => setSearchQuery(event.target.value)}
+          className="h-8 pl-8 text-sm"
+          aria-label="Поиск записей"
+        />
+      </div>
+      {renderMode === 'list' && searchQuery.trim() ? (
+        <div className="flex flex-col gap-1 text-xs text-muted-foreground">
+          <div className="flex items-center justify-between gap-3">
             <DoctorResultCount
               data-testid="search-count"
               label="Найдено"
               value={serverSearchTotal ?? visibleListAppointments.length}
             />
-            {searchQuery.trim().length >= 3 && !serverSearchQuery ? (
-              <button
-                type="button"
-                className="text-primary underline-offset-2 hover:underline"
-                onClick={() => void searchAllAppointments()}
-                disabled={serverSearchLoading}
-              >
-                {serverSearchLoading ? 'Поиск…' : 'Искать более ранние'}
-              </button>
+            {/*
+              Владелец 15.09: «в режиме списка, поскольку мы подгружаем так же историю, писать не
+              только сколько найдено но и с какого периода». У ленты нет конца периода — есть
+              граница, докуда её дотянули, поэтому вместо диапазона пишем одну дату: самую раннюю
+              из найденного.
+            */}
+            {searchResultsFromLabel ? (
+              <span data-testid="search-from">с {searchResultsFromLabel}</span>
             ) : null}
           </div>
-        ) : null}
-      </section>
-    </>
+          {searchQuery.trim().length >= 3 && !serverSearchQuery ? (
+            <button
+              type="button"
+              className="self-start text-primary underline-offset-2 hover:underline"
+              onClick={() => void searchAllAppointments()}
+              disabled={serverSearchLoading}
+            >
+              {serverSearchLoading ? 'Поиск…' : 'Искать более ранние'}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+    </section>
   );
 
-  const currentTimeZone = data?.timeZone ?? timeZone;
   const kpiFilterPredicate = useMemo<
     ((appointment: CalendarAppointmentEvent) => boolean) | null
   >(() => {
@@ -2039,6 +2250,28 @@ export function ScheduleCalendarTab({
       ),
     [data?.events, includeCancelledAppointments, kpiFilterPredicate],
   );
+
+  /**
+   * Поиск сужает КАЛЕНДАРНУЮ СЕТКУ, а не только ленту списка. Владелец 15.09: «в режиме календаря
+   * поиск сейчас не работает и записи в видимом окне не фильтрует (ни в 3 дня/неделе, ни в месяце)»
+   * — до этой правки такой мемо в файле был, но его никто не использовал: сетку кормит
+   * `calendarEvents`, собранный напрямую из `displayableCalendarEvents`, поэтому строка поиска
+   * молча ни на что не влияла.
+   *
+   * Прячем ТОЛЬКО записи, не подходящие под поиск (решение владельца 15.09). Рабочие часы,
+   * перерывы, свободные слоты и блокировки остаются на месте: они разметка дня, а не результат
+   * поиска, и без них сетка схлопнулась бы в пустое поле.
+   */
+  const searchedCalendarEvents = useMemo<CalendarEvent[]>(() => {
+    const query = searchQuery.trim().toLocaleLowerCase('ru');
+    if (!query) return displayableCalendarEvents;
+    return displayableCalendarEvents.filter((event) => {
+      if (event.kind !== 'appointment') return true;
+      return [event.patientName, event.patientPhone, event.serviceTitle, event.branchTitle].some(
+        (value) => value?.toLocaleLowerCase('ru').includes(query),
+      );
+    });
+  }, [displayableCalendarEvents, searchQuery]);
 
   const workingBounds = data?.workingBounds;
   const calendarScrollTime = deriveCalendarInitialScrollTime(
@@ -2585,7 +2818,7 @@ export function ScheduleCalendarTab({
           extendedProps: { kind: 'nonworking' as const },
         }))
       : [];
-    const mapped = displayableCalendarEvents
+    const mapped = searchedCalendarEvents
       .map((event) => {
         // Рабочее время — не рендерим (фон белый).
         if (event.kind === 'working') return null;
@@ -2665,6 +2898,7 @@ export function ScheduleCalendarTab({
   }, [
     data,
     displayableCalendarEvents,
+    searchedCalendarEvents,
     view,
     fcView,
     calendarFeedRange,
@@ -2856,16 +3090,6 @@ export function ScheduleCalendarTab({
 
   // ─── Render ────────────────────────────────────────────────────────────────
 
-  // Calendar/list filters: cancellations are hidden by default; search narrows the remainder.
-  const visibleEvents = useMemo<CalendarEvent[]>(() => {
-    const q = searchQuery.toLowerCase();
-    return displayableCalendarEvents.filter(
-      (event) =>
-        !searchQuery.trim() ||
-        (event.kind === 'appointment' && (event.patientName ?? '').toLowerCase().includes(q)),
-    );
-  }, [displayableCalendarEvents, searchQuery]);
-
   useEffect(() => {
     if (serverSearchQuery !== null && serverSearchQuery !== searchQuery.trim()) {
       setServerSearchQuery(null);
@@ -2898,6 +3122,31 @@ export function ScheduleCalendarTab({
     includeCancelledAppointments,
     kpiFilterPredicate,
   ]);
+  /**
+   * «С какого периода» для счётчика найденного в ленте (владелец 15.09, п.8): самая ранняя из
+   * найденных записей. Ленты и результаты серверного поиска отсортированы по возрастанию
+   * (`mergeAppointmentPages`, `order: 'asc'`), поэтому это первый элемент. После «искать более
+   * ранние» дата сама сдвигается назад вместе с новыми результатами.
+   */
+  const searchResultsFromLabel = useMemo(() => {
+    if (renderMode !== 'list' || !searchQuery.trim()) return null;
+    const earliest = visibleListAppointments[0];
+    if (!earliest) return null;
+    const day = parseFeedInstant(earliest.startAt, currentTimeZone).setLocale('ru');
+    return day.isValid ? day.toFormat('d LLL yyyy') : null;
+  }, [currentTimeZone, renderMode, searchQuery, visibleListAppointments]);
+
+  /**
+   * Текст кнопки периода. В сетке — границы видимого периода датами (владелец 15.09, п.6: «даты,
+   * месяц сокращенно и год» во всех размерах экрана). В ленте — одна дата, та, что сейчас наверху
+   * экрана (п.7); пока прокрутка идёт, текст переписывает `handleListVisibleDateChange` напрямую в
+   * DOM, а сюда попадает уже устоявшееся значение.
+   */
+  const periodNavLabelText =
+    renderMode === 'list'
+      ? listPeriodNavLabel(listVisibleDate ?? listAnchorDate, currentTimeZone)
+      : periodNavLabel(view, anchorDate, currentTimeZone);
+
   const branchShortLabels = useMemo(
     () =>
       new Map(
@@ -2971,9 +3220,14 @@ export function ScheduleCalendarTab({
     <div className="flex min-h-0 flex-1 flex-col gap-3 md:gap-4">
       {/* Toolbar (D1) — full width. R30: прилипает 2-м рядом под per-page-шапкой
           (комбинируем базовый sticky-класс с top-офсетом, как эталон exercises). */}
+      {/* Владелец 15.09: «в десктопе от прошлого верхнего тулбара осталась маленькая серая
+          полоска — убрать». Полоска — сам этот контейнер: `DoctorPageToolbar` рисует рамку снизу
+          и вертикальные отступы независимо от содержимого, а на xl+ всё содержимое скрыто (оба
+          мобильных ряда — `md:hidden`, планшетный триггер — `xl:hidden`), поэтому оставалась
+          пустая полоса с рамкой. Прячем контейнер целиком там, где ему нечего показывать. */}
       <DoctorCatalogStickyToolbar
         withinRemainingHeight
-        className="flex flex-wrap items-center gap-2"
+        className="flex flex-wrap items-center gap-2 xl:hidden"
         data-testid="cal-toolbar"
       >
         <div className="flex w-full min-w-0 items-center gap-1 md:hidden">
@@ -2991,8 +3245,8 @@ export function ScheduleCalendarTab({
           </Button>
 
           <DoctorSchedulePeriodNav
-            label={mobilePeriodLabel(mobileVisibleDate, currentTimeZone)}
-            labelRef={mobilePeriodButtonRef}
+            label={periodNavLabelText}
+            labelRef={registerPeriodLabelNode('mobile')}
             onPrev={() => {
               setFiltersPanelOpen(false);
               shiftAnchor(-1);
@@ -3077,43 +3331,9 @@ export function ScheduleCalendarTab({
           </div>
         </div>
 
-        {/* Владелец 14.09: «Добавляем только строку поиска по записям» на мобильном — раньше
-            строка стояла только в режиме списка, теперь показывается во всех режимах (поиск уже
-            фильтрует и календарную сетку — см. `visibleEvents`). */}
-        <div className="w-full md:hidden">
-          <div className="relative">
-            <Search
-              className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
-              aria-hidden
-            />
-            <Input
-              type="search"
-              placeholder="Поиск записей…"
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              className="h-8 pl-8 text-sm"
-              aria-label="Поиск записей"
-            />
-          </div>
-          {renderMode === 'list' && searchQuery.trim() ? (
-            <div className="mt-1 flex items-center justify-between px-1">
-              <DoctorResultCount
-                label="Найдено"
-                value={serverSearchTotal ?? visibleListAppointments.length}
-              />
-              {searchQuery.trim().length >= 3 && !serverSearchQuery ? (
-                <button
-                  type="button"
-                  className="text-primary underline-offset-2 hover:underline"
-                  onClick={() => void searchAllAppointments()}
-                  disabled={serverSearchLoading}
-                >
-                  {serverSearchLoading ? 'Поиск…' : 'Искать более ранние'}
-                </button>
-              ) : null}
-            </div>
-          ) : null}
-        </div>
+        {/* Владелец 15.09: «поиск перенести под блок с выбором филиала/услуги/отмен … и в
+            десктопе/планшете и в мобиле» — строка поиска ушла из верхнего тулбара телефона в
+            модалку фильтров, под блок фильтров (`renderScheduleSearchBlock`). */}
 
         {/* Владелец 14.09: «в десктопном и планшетном виде надо верхнюю панель перенести в
             правый блок фильтров» — вид/период/поиск переехали в панель фильтров (блоки «Вид»,
@@ -3178,7 +3398,7 @@ export function ScheduleCalendarTab({
             // Continuous list view — grouped by month/day, lazily paged in both directions
             <ListView
               appointments={visibleListAppointments}
-              anchorDate={listAnchorDate}
+              anchorDate={listScrollTargetDate ?? listAnchorDate}
               timeZone={currentTimeZone}
               loading={listLoading}
               loadingEarlier={listLoadingEarlier}
@@ -3198,6 +3418,8 @@ export function ScheduleCalendarTab({
               branchShortLabels={branchShortLabels}
               showSpecialist={filters.specialists.length > 1}
               scrollToTodayRequest={listTodayRequest}
+              onVisibleDateChange={handleListVisibleDateChange}
+              repositionRequest={listRepositionRequest}
             />
           ) : (
             // FullCalendar
@@ -3585,12 +3807,17 @@ export function ScheduleCalendarTab({
         </div>
 
         <aside className="hidden h-full min-h-0 w-full space-y-3 overflow-y-auto xl:block">
-          {renderScheduleTopBlocks()}
+          {renderScheduleTopBlocks('aside')}
           <section className={doctorSectionCardClass}>
             <h2 className={doctorSectionTitleClass}>Фильтры</h2>
             {renderScheduleFilters('flex flex-col gap-2', 'w-full')}
           </section>
-          {showKpi ? (
+          {renderScheduleSearchBlock()}
+          {/* Владелец 15.09: «в режиме списка можно скрывать вообще цифры в КПИ». Лента тянет
+              историю без конца — «период», за который посчитаны плитки, там не определён, и
+              числа описывали бы не то, что на экране. В ленте вместо них работает счётчик
+              найденного с датой начала (`renderScheduleSearchBlock`). */}
+          {showKpi && renderMode !== 'list' ? (
             <KpiRowTab
               kpis={kpis}
               kpisLoading={kpisLoading}
@@ -3706,14 +3933,18 @@ export function ScheduleCalendarTab({
         bodyClassName="p-4"
       >
         <div id="schedule-filters-panel" className="flex flex-col gap-3">
-          {/* Владелец 14.09: «в мобильном оставляем всё как было» — эта же модалка открывается и
-              на мобильном (своей кнопкой «Фильтры» в верхнем тулбаре), где вид/период уже есть в
-              её собственном тулбаре. Блоки «Вид»/«Период»/«Поиск» внутри панели — только для
-              планшета (md..xl), не для мобильного (<768, `isMobileViewport`), иначе на мобильном
-              они задублировались бы. */}
-          {!isMobileViewport ? renderScheduleTopBlocks() : null}
+          {/* Владелец 15.09: «в модалке мобильного пусть будет так же две верхние строки — выбор
+              периода на экране и режима» — блоки «Вид»/«Период» теперь показываются и на
+              мобильном (раньше стояли только для планшета). Поиск идёт ПОСЛЕ фильтров — «поиск
+              перенести под блок с выбором филиала/услуги/отмен … и в мобиле». */}
+          {renderScheduleTopBlocks('modal')}
           {renderScheduleFilters('flex flex-col gap-2', 'w-full')}
-          {showKpi ? (
+          {renderScheduleSearchBlock()}
+          {/* Владелец 15.09: «в режиме списка можно скрывать вообще цифры в КПИ». Лента тянет
+              историю без конца — «период», за который посчитаны плитки, там не определён, и
+              числа описывали бы не то, что на экране. В ленте вместо них работает счётчик
+              найденного с датой начала (`renderScheduleSearchBlock`). */}
+          {showKpi && renderMode !== 'list' ? (
             <KpiRowTab
               kpis={kpis}
               kpisLoading={kpisLoading}
