@@ -1,10 +1,10 @@
 /**
- * Маршрут приёма запросов от webapp (bersoncare): отправка email с OTP-кодом.
+ * Маршрут приёма запросов от webapp (bersoncare): отправка OTP и разрешённых transactional email.
  * Контракт: webapp/INTEGRATOR_CONTRACT.md, раздел «Flow 5: send-email».
  *
- * Dispatches only the existing authentication-code email through dispatchPort (the chokepoint)
- * instead of calling sendMail directly. Generic text/template email is intentionally rejected by
- * the route and by the central egress policy.
+ * Dispatches authentication codes and a closed set of explicitly declared transactional email
+ * purposes through dispatchPort (the chokepoint) instead of calling sendMail directly. Generic
+ * text/template email remains rejected by the route and by the central egress policy.
  *
  * email_not_configured: pre-checked via resolveSmtpOutboundConfig + isResolvedMailerConfigured
  * before dispatch, so callers still receive a 503 synchronously when SMTP is not set up.
@@ -17,7 +17,13 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import type { DispatchPort, DbPort, IdempotencyPort } from '../../kernel/contracts/index.js';
+import type {
+  DispatchPort,
+  DbPort,
+  IdempotencyPort,
+  OutboundMessageCapability,
+  OutboundMessageClass,
+} from '../../kernel/contracts/index.js';
 import { resolveSmtpOutboundConfig } from '../../config/smtpOutbound.js';
 import { isResolvedMailerConfigured } from '../email/mailer.js';
 import { messageToIntent } from '../../infra/adapters/channelRouting.js';
@@ -42,11 +48,49 @@ const encodedMailProfileSchema = z.preprocess((value) => {
   }
 }, mailProfileRequestSchema);
 
+const transactionalEmailPurposeSchema = z.enum([
+  'new_device_login',
+  'clinic_invite',
+  'specialist_signup_duplicate',
+  'specialist_task_reminder',
+  'operator_alert_fallback',
+]);
+
+type TransactionalEmailPurpose = z.infer<typeof transactionalEmailPurposeSchema>;
+type OutboundPolicyMarker = {
+  outboundMessageClass: OutboundMessageClass;
+  outboundCapability: OutboundMessageCapability;
+};
+
+const TRANSACTIONAL_EMAIL_POLICY_MARKERS = {
+  new_device_login: {
+    outboundMessageClass: 'routine_product',
+    outboundCapability: 'essential_delivery',
+  },
+  clinic_invite: {
+    outboundMessageClass: 'routine_product',
+    outboundCapability: 'essential_delivery',
+  },
+  specialist_signup_duplicate: {
+    outboundMessageClass: 'routine_product',
+    outboundCapability: 'essential_delivery',
+  },
+  specialist_task_reminder: {
+    outboundMessageClass: 'routine_product',
+    outboundCapability: 'essential_delivery',
+  },
+  operator_alert_fallback: {
+    outboundMessageClass: 'operator_security',
+    outboundCapability: 'operator_alert',
+  },
+} as const satisfies Record<TransactionalEmailPurpose, OutboundPolicyMarker>;
+
 const sendEmailBodySchema = z
   .object({
     to: z.string().email(),
     subject: z.string().optional(),
     code: z.string().optional(),
+    purpose: transactionalEmailPurposeSchema.optional(),
     mailProfile: encodedMailProfileSchema.optional(),
     text: z.string().optional(),
     html: z.string().optional(),
@@ -61,6 +105,10 @@ const sendEmailBodySchema = z
   .refine((data) => Boolean(data.code?.trim() || data.subject?.trim()), {
     message: 'subject_required_for_transactional_email',
     path: ['subject'],
+  })
+  .refine((data) => Boolean(data.code?.trim() || data.purpose), {
+    message: 'purpose_required_for_transactional_email',
+    path: ['purpose'],
   })
   .refine((data) => !data.code?.trim() || data.mailProfile !== undefined, {
     message: 'mail_profile_required_for_auth_code',
@@ -174,6 +222,14 @@ export async function registerBersoncareSendEmailRoute(
 
     const subject = payload.subject?.trim() ?? '';
     const text = payload.text?.trim() ?? '';
+    const policyMarker: OutboundPolicyMarker | undefined = isAuthCode
+      ? { outboundMessageClass: 'auth_code', outboundCapability: 'auth_code' }
+      : payload.purpose
+        ? TRANSACTIONAL_EMAIL_POLICY_MARKERS[payload.purpose]
+        : undefined;
+    if (!policyMarker) {
+      return reply.code(400).send({ ok: false, error: 'invalid_payload' });
+    }
 
     // See module header OTP safety note: dispatchPort never persists an attempt row for this
     // route, so there is nothing here left to redact.
@@ -192,9 +248,7 @@ export async function registerBersoncareSendEmailRoute(
         eventId,
         occurredAt: new Date().toISOString(),
         source: 'email',
-        ...(isAuthCode
-          ? { outboundMessageClass: 'auth_code' as const, outboundCapability: 'auth_code' as const }
-          : {}),
+        ...policyMarker,
       },
     };
 

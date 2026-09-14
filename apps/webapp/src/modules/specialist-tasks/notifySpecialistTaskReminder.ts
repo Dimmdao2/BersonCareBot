@@ -142,6 +142,7 @@ export async function notifySpecialistTaskReminder(
       const { sendEmailSetupLinkViaIntegrator } =
         await import('@/infra/integrations/email/integratorEmailAdapter');
       const result = await sendEmailSetupLinkViaIntegrator(
+        'specialist_task_reminder',
         email.trim(),
         'Напоминание о задаче',
         text,

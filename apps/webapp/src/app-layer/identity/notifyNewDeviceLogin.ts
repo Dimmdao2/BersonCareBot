@@ -69,9 +69,9 @@ function moscowStamp(at: Date): string {
 
 const ACTION_LABEL = 'Закрыть сеансы + смена пароля';
 
-function buildText(input: NewDeviceLoginNotice, actionUrl: string): string {
+function buildText(input: NewDeviceLoginNotice, actionUrl: string | null): string {
   const country = countryName(input.country);
-  return [
+  const paragraphs = [
     'Скорее всего это вы: так выглядит вход с нового телефона или компьютера, из другого ' +
       'браузера, после чистки данных сайта или из приватного окна. Тогда делать ничего не нужно, ' +
       'письмо можно удалить.',
@@ -86,12 +86,22 @@ function buildText(input: NewDeviceLoginNotice, actionUrl: string): string {
       })}`,
       `Как вошли: ${loginMethodLabel(input.method)}`,
     ].join('\n'),
-    'Если это были не вы, нажмите кнопку ниже. Мы завершим вход на всех устройствах. При следующем ' +
-      'входе потребуется выбрать новый пароль.',
-    `${ACTION_LABEL}:\n${actionUrl}`,
-    'Ссылка действует 7 дней и сработает только один раз.',
-    'Пароль в этом письме мы не спрашиваем и никогда не спросим.',
-  ].join('\n\n');
+  ];
+  if (actionUrl) {
+    paragraphs.push(
+      'Если это были не вы, нажмите кнопку ниже. Мы завершим вход на всех устройствах. При следующем ' +
+        'входе потребуется выбрать новый пароль.',
+      `${ACTION_LABEL}:\n${actionUrl}`,
+      'Ссылка действует 7 дней и сработает только один раз.',
+    );
+  } else {
+    paragraphs.push(
+      'Если это были не вы, откройте раздел «Безопасность» в кабинете и завершите вход на всех ' +
+        'устройствах.',
+    );
+  }
+  paragraphs.push('Пароль в этом письме мы не спрашиваем и никогда не спросим.');
+  return paragraphs.join('\n\n');
 }
 
 function escapeHtml(value: string): string {
@@ -103,14 +113,14 @@ function escapeHtml(value: string): string {
     .replaceAll("'", '&#039;');
 }
 
-function buildHtml(input: NewDeviceLoginNotice, actionUrl: string): string {
+function buildHtml(input: NewDeviceLoginNotice, actionUrl: string | null): string {
   const country = countryName(input.country) ?? 'страна не определилась';
   const device = deviceSummary({
     deviceKind: input.deviceKind,
     os: input.os,
     browser: input.browser,
   });
-  return [
+  const parts = [
     '<div style="font:16px/1.5 Arial,sans-serif;color:#17264a;max-width:640px">',
     '<p>Скорее всего это вы: так выглядит вход с нового телефона или компьютера, из другого ' +
       'браузера, после чистки данных сайта или из приватного окна. Тогда делать ничего не нужно.</p>',
@@ -119,15 +129,27 @@ function buildHtml(input: NewDeviceLoginNotice, actionUrl: string): string {
       `<strong>Откуда:</strong> ${escapeHtml(country)}<br>` +
       `<strong>Устройство:</strong> ${escapeHtml(device)}<br>` +
       `<strong>Как вошли:</strong> ${escapeHtml(loginMethodLabel(input.method))}</p>`,
-    '<p>Если это были не вы, завершите вход на всех устройствах. При следующем входе потребуется ' +
-      'выбрать новый пароль.</p>',
-    `<p><a href="${escapeHtml(actionUrl)}" style="display:inline-block;padding:12px 18px;` +
-      'border-radius:8px;background:#284da0;color:#fff;text-decoration:none;font-weight:700">' +
-      `${ACTION_LABEL}</a></p>`,
-    '<p>Ссылка действует 7 дней и сработает только один раз.</p>',
+  ];
+  if (actionUrl) {
+    parts.push(
+      '<p>Если это были не вы, завершите вход на всех устройствах. При следующем входе потребуется ' +
+        'выбрать новый пароль.</p>',
+      `<p><a href="${escapeHtml(actionUrl)}" style="display:inline-block;padding:12px 18px;` +
+        'border-radius:8px;background:#284da0;color:#fff;text-decoration:none;font-weight:700">' +
+        `${ACTION_LABEL}</a></p>`,
+      '<p>Ссылка действует 7 дней и сработает только один раз.</p>',
+    );
+  } else {
+    parts.push(
+      '<p>Если это были не вы, откройте раздел «Безопасность» в кабинете и завершите вход на всех ' +
+        'устройствах.</p>',
+    );
+  }
+  parts.push(
     '<p>Пароль в этом письме мы не спрашиваем и никогда не спросим.</p>',
     '</div>',
-  ].join('');
+  );
+  return parts.join('');
 }
 
 /**
@@ -152,12 +174,24 @@ export async function notifyNewDeviceLogin(input: NewDeviceLoginNotice): Promise
       return;
     }
 
-    const actionValue = await issueLoginSecurityAction({
-      userId: input.userId,
-      sourceLoginEventId: input.sourceLoginEventId,
-    });
-    const actionUrl = `${env.APP_BASE_URL}/app/protect-account?key=${encodeURIComponent(actionValue)}`;
+    let actionUrl: string | null = null;
+    try {
+      const actionValue = await issueLoginSecurityAction({
+        userId: input.userId,
+        sourceLoginEventId: input.sourceLoginEventId,
+      });
+      actionUrl = `${env.APP_BASE_URL}/app/protect-account?key=${encodeURIComponent(actionValue)}`;
+    } catch (err) {
+      // У сотрудника может не быть пароля (messenger/passkey/OAuth). Тогда action-key не имеет
+      // смысла и SQL-дверь закономерно отказывает, но сам сигнал о новом устройстве терять нельзя.
+      // Любой иной отказ выпуска ключа тоже не должен отменять независимое письмо-предупреждение.
+      logger.warn(
+        { err, reason: String(err), userId: input.userId },
+        '[new-device] protection action unavailable; sending notice without action',
+      );
+    }
     const result = await sendEmailSetupLinkViaIntegrator(
+      'new_device_login',
       to,
       `Вход в ${STAFF_SURFACE.name} с нового устройства`,
       buildText(input, actionUrl),
