@@ -266,7 +266,8 @@ async function collectScheduledCriticalHealthSignalsBase(
     probeIncidentsOpenCount: operatorIncidents.filter(isOperatorProbeFailureIncident).length,
     videoTranscodeStatus: curatedVideoTranscodeStatus(snapshot),
     webhookBursts,
-    blockedMediaPreviews: await countBlockedMediaPreviewsSafe(),
+    // Снимок здоровья уже загружен — второй раз за тем же числом не ходим.
+    blockedMediaPreviews: snapshot.mediaPreview.blockedCount,
   };
 }
 

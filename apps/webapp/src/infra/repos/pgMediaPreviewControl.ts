@@ -440,19 +440,10 @@ export async function releaseStuckMediaPreviews(tools: readonly PreviewTool[]): 
   return released;
 }
 
-/**
- * Сколько файлов сейчас ждут починки среды. Это и есть сигнал глобальному админу: сам по себе он
- * не гаснет со временем (в отличие от `failed`, который просто перестаёт расти) и гаснет ровно
- * тогда, когда причина устранена, — потому что строки при этом уезжают из `blocked`.
+/*
+ * Счёт `blocked`-строк жил здесь и был снят 14.09.2026. Это сигнал глобальному админу, а не работа
+ * очереди: его читает сборщик здоровья, у которого в rev10-режиме порт-контекст выбирает роль
+ * `app_worker` — без прав на `media_files` и правильно, что без них. Число теперь приезжает
+ * курируемой дверью здоровья (`app.read_curated_system_health()`, поле `mediaPreview.blockedCount`),
+ * см. `app-layer/media/blockedMediaPreviews.ts`.
  */
-export async function countBlockedMediaPreviews(): Promise<number> {
-  const pool = getPool();
-  return withPoolTransaction<number>(pool, async (client) => {
-    const db = getWebappSqlFromPgClient(client);
-    const res = await runWebappSql<{ blocked: string }>(
-      db,
-      sql`SELECT count(*)::text AS blocked FROM media_files WHERE preview_status = 'blocked'`,
-    );
-    return Number(res.rows[0]?.blocked ?? 0) || 0;
-  });
-}

@@ -152,6 +152,7 @@ export const curatedSystemHealthSnapshotSchema = z
     mediaPreview: z
       .object({
         stalePendingCount: nonNegativeNumber,
+        blockedCount: nonNegativeNumber,
         byMimeAndStatus: z
           .object({
             'video/quicktime': previewStatusCountsSchema,
