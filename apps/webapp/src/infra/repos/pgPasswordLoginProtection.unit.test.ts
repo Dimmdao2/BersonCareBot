@@ -1,4 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  getCurrentDbPrincipal,
+  runWithDbPatientPrincipal,
+} from '@bersoncare/db-principal';
 
 const fakes = vi.hoisted(() => ({
   db: { execute: vi.fn() },
@@ -13,37 +17,92 @@ vi.mock('@/infra/db/runWebappSql', () => ({
 
 import { createPgPasswordLoginProtectionPort } from './pgPasswordLoginProtection';
 
+const selfUserId = '00000000-0000-4000-8000-000000000017';
+
 beforeEach(() => {
   vi.clearAllMocks();
   fakes.getWebappSqlDb.mockReturnValue(fakes.db);
 });
 
-describe('createPgPasswordLoginProtectionPort named roots', () => {
-  it('keeps both absent ALTCHA values as typed null arguments for password acquire', async () => {
-    fakes.runWebappNamedRoot.mockResolvedValueOnce({
-      rows: [
-        {
-          status: 'challenge_required',
-          lease_token: null,
-          password_hash: null,
-          user_id: null,
-          retry_after_seconds: 30,
-          captcha_required: true,
-        },
-      ],
+describe('password-login pre-session principal boundary', () => {
+  it('borrows bootstrap only for password-proof acquisition and restores the caller', async () => {
+    let principalAtDoor: string | undefined;
+    fakes.runWebappNamedRoot.mockImplementation(async () => {
+      principalAtDoor = getCurrentDbPrincipal()?.kind;
+      return {
+        rows: [
+          {
+            status: 'acquired',
+            lease_token: '00000000-0000-4000-8000-000000000018',
+            password_hash: 'hash',
+            user_id: selfUserId,
+            retry_after_seconds: 0,
+            captcha_required: false,
+          },
+        ],
+      };
     });
 
-    await expect(
-      createPgPasswordLoginProtectionPort().acquirePasswordProof({
-        emailNormalized: 'doctor@example.com',
-        identifierKey: 'ip:hash',
-      }),
-    ).resolves.toMatchObject({ acquired: false, reason: 'challenge_required' });
-
-    expect(fakes.runWebappNamedRoot).toHaveBeenCalledTimes(1);
-    const [db, identity, args] = fakes.runWebappNamedRoot.mock.calls[0] as unknown[];
-    expect(db).toBe(fakes.db);
-    expect(identity).toBe('app.password_login_acquire(text,text,uuid,text)');
-    expect(args).toEqual(['doctor@example.com', 'ip:hash', null, null]);
+    await runWithDbPatientPrincipal({ platformUserId: selfUserId }, async () => {
+      await expect(
+        createPgPasswordLoginProtectionPort().acquirePasswordProof({
+          emailNormalized: 'doctor@example.com',
+          identifierKey: 'password-email:v1:key',
+        }),
+      ).resolves.toMatchObject({ acquired: true, userId: selfUserId });
+      expect(principalAtDoor).toBe('bootstrap');
+      expect(getCurrentDbPrincipal()?.kind).toBe('patient');
+    });
   });
+
+  it('borrows bootstrap only for password-proof completion and restores the caller', async () => {
+    let principalAtDoor: string | undefined;
+    fakes.runWebappNamedRoot.mockImplementation(async () => {
+      principalAtDoor = getCurrentDbPrincipal()?.kind;
+      return {
+        rows: [
+          {
+            accepted: true,
+            succeeded: true,
+            user_id: selfUserId,
+            email_verified: true,
+            attempts: 0,
+            retry_after_seconds: 0,
+            captcha_required: false,
+          },
+        ],
+      };
+    });
+
+    await runWithDbPatientPrincipal({ platformUserId: selfUserId }, async () => {
+      await expect(
+        createPgPasswordLoginProtectionPort().completePasswordProof({
+          leaseToken: '00000000-0000-4000-8000-000000000018',
+          passwordVerified: true,
+        }),
+      ).resolves.toMatchObject({ accepted: true, succeeded: true, userId: selfUserId });
+      expect(principalAtDoor).toBe('bootstrap');
+      expect(getCurrentDbPrincipal()?.kind).toBe('patient');
+    });
+  });
+
+  it('restores the caller when password-proof completion throws inside bootstrap scope', async () => {
+    let principalAtDoor: string | undefined;
+    fakes.runWebappNamedRoot.mockImplementation(async () => {
+      principalAtDoor = getCurrentDbPrincipal()?.kind;
+      throw new Error('door_failed');
+    });
+
+    await runWithDbPatientPrincipal({ platformUserId: selfUserId }, async () => {
+      await expect(
+        createPgPasswordLoginProtectionPort().completePasswordProof({
+          leaseToken: '00000000-0000-4000-8000-000000000018',
+          passwordVerified: true,
+        }),
+      ).rejects.toThrow('door_failed');
+      expect(principalAtDoor).toBe('bootstrap');
+      expect(getCurrentDbPrincipal()?.kind).toBe('patient');
+    });
+  });
+
 });

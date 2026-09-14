@@ -1,4 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  getCurrentDbPrincipal,
+  runWithDbPatientPrincipal,
+} from '@bersoncare/db-principal';
 
 const fakes = vi.hoisted(() => ({
   db: { execute: vi.fn() },
@@ -13,54 +17,53 @@ vi.mock('@/infra/db/runWebappSql', () => ({
 
 import { recordAndCountAuthRateLimitEvent } from './pgAuthRateLimitEvents';
 
+const selfUserId = '00000000-0000-4000-8000-000000000017';
+
 beforeEach(() => {
   vi.clearAllMocks();
   fakes.getWebappSqlDb.mockReturnValue(fakes.db);
 });
 
-describe('auth rate-limit atomic named root', () => {
-  it('binds the exact admission semantics and bounded scope cleanup in one call', async () => {
-    fakes.runWebappNamedRoot.mockResolvedValueOnce({
-      rows: [{ limited: false, attempts: 3 }],
+describe('auth rate-limit pre-session principal boundary', () => {
+  it('records under bootstrap and restores the signed-in caller', async () => {
+    let principalAtDoor: string | undefined;
+    fakes.runWebappNamedRoot.mockImplementation(async () => {
+      principalAtDoor = getCurrentDbPrincipal()?.kind;
+      return { rows: [{ limited: false, attempts: 3 }] };
     });
 
-    await expect(
-      recordAndCountAuthRateLimitEvent({
-        scope: 'auth.oauth_start',
-        key: 'ip:v1:hash',
-        windowMs: 60_000.9,
-        maxPerWindow: 10.8,
-        scopePrune: { retentionMs: 30_000, batchSize: 5_000 },
-      }),
-    ).resolves.toEqual({ limited: false, attempts: 3 });
-
-    expect(fakes.runWebappNamedRoot).toHaveBeenCalledOnce();
-    const [db, identity, args] = fakes.runWebappNamedRoot.mock.calls[0] as unknown[];
-    expect(db).toBe(fakes.db);
-    expect(identity).toBe(
-      'app.auth_rate_limit_check_and_record(text,text,integer,integer,text,integer,integer)',
-    );
-    expect(args).toEqual([
-      'auth.oauth_start',
-      'ip:v1:hash',
-      60_000,
-      10,
-      'check_and_record',
-      60_000,
-      1_000,
-    ]);
+    await runWithDbPatientPrincipal({ platformUserId: selfUserId }, async () => {
+      await expect(
+        recordAndCountAuthRateLimitEvent({
+          scope: 'auth.confirm',
+          key: 'ip:v1:key',
+          windowMs: 60_000,
+          maxPerWindow: 10,
+        }),
+      ).resolves.toEqual({ limited: false, attempts: 3 });
+      expect(principalAtDoor).toBe('bootstrap');
+      expect(getCurrentDbPrincipal()?.kind).toBe('patient');
+    });
   });
 
-  it('fails closed when the admission root returns no decision', async () => {
-    fakes.runWebappNamedRoot.mockResolvedValueOnce({ rows: [] });
+  it('restores the signed-in caller when the rate-limit door throws', async () => {
+    let principalAtDoor: string | undefined;
+    fakes.runWebappNamedRoot.mockImplementation(async () => {
+      principalAtDoor = getCurrentDbPrincipal()?.kind;
+      throw new Error('door_failed');
+    });
 
-    await expect(
-      recordAndCountAuthRateLimitEvent({
-        scope: 'auth.email_otp_start',
-        key: 'ip:v1:hash',
-        windowMs: 60_000,
-        maxPerWindow: 10,
-      }),
-    ).rejects.toThrow('auth rate-limit root returned no result');
+    await runWithDbPatientPrincipal({ platformUserId: selfUserId }, async () => {
+      await expect(
+        recordAndCountAuthRateLimitEvent({
+          scope: 'auth.confirm',
+          key: 'ip:v1:key',
+          windowMs: 60_000,
+          maxPerWindow: 10,
+        }),
+      ).rejects.toThrow('door_failed');
+      expect(principalAtDoor).toBe('bootstrap');
+      expect(getCurrentDbPrincipal()?.kind).toBe('patient');
+    });
   });
 });
