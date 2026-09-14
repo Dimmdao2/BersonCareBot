@@ -53,7 +53,6 @@ type Props = {
   specialistTasksAvailable: boolean;
   specialistTasksReadable: boolean;
   appointmentsManageOwn?: boolean;
-  videoMeetingsEnabled?: boolean;
 };
 
 function peopleItemName(client: TodayDashboardData['people'][number]): string {
@@ -202,7 +201,6 @@ export function DoctorTodayDashboard({
   specialistTasksAvailable,
   specialistTasksReadable,
   appointmentsManageOwn = true,
-  videoMeetingsEnabled = false,
 }: Props) {
   const { supportGroupLabel } = useDoctorPatientTerms();
   const router = useRouter();
@@ -340,7 +338,6 @@ export function DoctorTodayDashboard({
           <DoctorTodayNextAppointment
             appointment={data.nextAppointment}
             displayIana={displayIana}
-            videoMeetingsEnabled={videoMeetingsEnabled}
           />
 
           <DoctorMetricList columns="two" aria-label="Сводка дня">
@@ -348,12 +345,14 @@ export function DoctorTodayDashboard({
               id="doctor-today-mobile-kpi-support"
               title={supportGroupLabel}
               value={data.onSupportPeopleCount}
+              opensDetails={data.onSupportPeopleCount > 0}
               onClick={data.onSupportPeopleCount > 0 ? () => setMobileModal('support') : undefined}
             />
             <DoctorStatCard
               id="doctor-today-mobile-kpi-appointments"
               title="Записей сегодня"
               value={activeTodayAppointments.length}
+              opensDetails={isMobile && activeTodayAppointments.length > 0}
               onClick={
                 isMobile && activeTodayAppointments.length > 0
                   ? () => setMobileModal('calendar')
@@ -375,6 +374,7 @@ export function DoctorTodayDashboard({
               id="doctor-today-mobile-kpi-week-appointments"
               title="Записей на неделе"
               value={currentWeek?.appointments ?? 0}
+              opensDetails={data.currentWeekAppointments.length > 0}
               onClick={
                 data.currentWeekAppointments.length > 0
                   ? () => setMobileModal('week-appointments')
@@ -385,6 +385,7 @@ export function DoctorTodayDashboard({
               id="doctor-today-mobile-kpi-week-new-clients"
               title="Первичных на неделе"
               value={currentWeek?.firstAppointments ?? 0}
+              opensDetails={data.currentWeekFirstAppointments.length > 0}
               onClick={
                 data.currentWeekFirstAppointments.length > 0
                   ? () => setMobileModal('week-primary')

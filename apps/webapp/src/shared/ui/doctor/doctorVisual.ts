@@ -135,6 +135,9 @@ export const doctorStatCardInteractiveClass =
 /** A subtle affordance for neutral KPI cards that open a destination or modal. */
 export const doctorStatCardInteractiveNeutralClass = 'border-primary/35';
 
+/** Chevron affordance for KPI cards that open a destination or a detail list. */
+export const doctorStatCardChevronClass = 'size-4 shrink-0 text-muted-foreground';
+
 /** Attached action segment on the right edge of an actionable KPI card. */
 export const doctorStatCardActionSegmentClass =
   'h-full min-w-11 rounded-l-none rounded-r-[var(--doctor-kpi-radius,8px)] border border-primary/30 bg-primary/5 px-3 text-primary hover:bg-primary/15';

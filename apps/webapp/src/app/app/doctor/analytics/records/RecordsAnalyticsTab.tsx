@@ -125,12 +125,14 @@ export function RecordsAnalyticsTab({
                 id="doctor-analytics-records-total"
                 title="Всего записей"
                 value={kpis.recordsInPeriod}
+                opensDetails
                 onClick={() => openMetric('analytics_records_period', 'Записи за период', 'all')}
               />
               <DoctorStatCard
                 id="doctor-analytics-records-past"
                 title="Состоявшиеся"
                 value={kpis.pastInPeriod}
+                opensDetails
                 onClick={() =>
                   openMetric('analytics_records_period', 'Состоявшиеся записи', 'past')
                 }
@@ -139,12 +141,14 @@ export function RecordsAnalyticsTab({
                 id="doctor-analytics-records-future"
                 title="Будущие"
                 value={kpis.futureInPeriod}
+                opensDetails
                 onClick={() => openMetric('analytics_records_period', 'Будущие записи', 'future')}
               />
               <DoctorStatCard
                 id="doctor-analytics-records-unique"
                 title={`Уникальных ${patientGenPlural}`}
                 value={kpis.uniquePatientsInPeriod}
+                opensDetails
                 onClick={() =>
                   openMetric('analytics_records_period', `Уникальные ${patientGenPlural}`, 'unique')
                 }
@@ -153,18 +157,21 @@ export function RecordsAnalyticsTab({
                 id="doctor-analytics-records-first"
                 title="Первичных"
                 value={kpis.firstVisitInPeriod}
+                opensDetails
                 onClick={() => openMetric('analytics_records_period', 'Первичные записи', 'first')}
               />
               <DoctorStatCard
                 id="doctor-analytics-records-repeat"
                 title="Повторных"
                 value={kpis.repeatVisitInPeriod}
+                opensDetails
                 onClick={() => openMetric('analytics_records_period', 'Повторные записи', 'repeat')}
               />
               <DoctorStatCard
                 id="doctor-analytics-records-cancellations"
                 title="Отмены"
                 value={kpis.cancellationsInPeriod}
+                opensDetails
                 tone="warning"
                 valueClassName="text-destructive"
                 onClick={() =>
@@ -179,6 +186,7 @@ export function RecordsAnalyticsTab({
                 id="doctor-analytics-records-reschedules"
                 title="Переносы"
                 value={kpis.reschedulesInPeriod}
+                opensDetails
                 onClick={() =>
                   openMetric('analytics_records_period', 'Перенесённые записи', 'rescheduled')
                 }
@@ -187,6 +195,7 @@ export function RecordsAnalyticsTab({
                 id="doctor-analytics-records-by-subscription"
                 title="По абонементу"
                 value={kpis.bySubscriptionInPeriod}
+                opensDetails
                 onClick={() =>
                   openMetric('analytics_records_period', 'Записи по абонементу', 'subscription')
                 }

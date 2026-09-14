@@ -31,7 +31,7 @@ import {
   formatDoctorCalendarHour,
 } from '@/shared/ui/doctor/calendar/doctorCalendarPresentation';
 import {
-  DOCTOR_ACTIVE_FILTER_BUTTON_CLASS,
+  DOCTOR_FILTERS_HIDE_RECORDS_BUTTON_CLASS,
   DOCTOR_SCHEDULE_TOOLBAR_CONTROL_CLASS,
   DoctorSchedulePeriodNav,
 } from '@/shared/ui/doctor/calendar/DoctorSchedulePeriodNav';
@@ -54,8 +54,6 @@ import type {
 } from '@/modules/booking-calendar/types';
 import type { ScheduleKpis } from '@/modules/doctor-appointments/ports';
 import type { ScheduleTabProps } from '../scheduleTabRegistry';
-import { KpiPreviewModal } from '@/shared/ui/doctor/KpiPreviewModal';
-import { AppointmentKpiItem } from '@/shared/ui/doctor/AppointmentKpiItem';
 import {
   DoctorModal,
   DoctorModalFooter,
@@ -155,12 +153,32 @@ const APPOINTMENT_FEED_API = `${API_BASE}/appointments/feed`;
 const APPOINTMENT_FEED_PAGE_SIZE = 100;
 const APPOINTMENT_FEED_HISTORY_MONTHS = 3;
 
+type ScheduleKpiNumberKey = Exclude<keyof ScheduleKpis, 'firstVisitIds'>;
+
+const KPI_FILTER_KEYS = [
+  'futureInPeriod',
+  'firstVisitInPeriod',
+  'bySubscriptionInPeriod',
+  'cancellationsInPeriod',
+  'reschedulesInPeriod',
+] as const satisfies readonly Exclude<ScheduleKpiNumberKey, 'recordsInPeriod'>[];
+
+type ScheduleKpiFilterKey = (typeof KPI_FILTER_KEYS)[number];
+
+/** Стабильная пустая ссылка: подставляется вместо выбора, когда КПИ-плиток на странице нет. */
+const NO_KPI_FILTERS: ScheduleKpiFilterKey[] = [];
+
+function isScheduleKpiFilterKey(value: string): value is ScheduleKpiFilterKey {
+  return KPI_FILTER_KEYS.includes(value as ScheduleKpiFilterKey);
+}
+
 type CachedScheduleFilters = {
   branchId: string | null;
   serviceId: string | null;
   scope: DoctorScheduleScopeState['scope'];
   specialistId: string | null;
   showCancelledAppointments: boolean;
+  kpiFilters: ScheduleKpiFilterKey[];
 };
 
 function readCachedScheduleFilters(): CachedScheduleFilters | null {
@@ -178,12 +196,18 @@ function readCachedScheduleFilters(): CachedScheduleFilters | null {
       return null;
     }
     if (typeof value.showCancelledAppointments !== 'boolean') return null;
+    const kpiFilters = Array.isArray(value.kpiFilters)
+      ? [...new Set(value.kpiFilters.filter((key): key is string => typeof key === 'string'))].filter(
+          isScheduleKpiFilterKey,
+        )
+      : [];
     return {
       branchId: value.branchId,
       serviceId: value.serviceId,
       scope: value.scope,
       specialistId: value.specialistId,
       showCancelledAppointments: value.showCancelledAppointments,
+      kpiFilters,
     };
   } catch {
     return null;
@@ -471,9 +495,7 @@ function eventLastName(event: CalendarEvent): string {
 // KPI Row (D2)
 // ---------------------------------------------------------------------------
 
-type ScheduleKpiNumberKey = Exclude<keyof ScheduleKpis, 'firstVisitIds'>;
-
-const KPI_ITEMS: Array<{ key: ScheduleKpiNumberKey; label: string }> = [
+const KPI_ITEMS: Array<{ key: ScheduleKpiFilterKey | 'recordsInPeriod'; label: string }> = [
   { key: 'recordsInPeriod', label: 'Записей всего' },
   { key: 'futureInPeriod', label: 'Впереди' },
   { key: 'firstVisitInPeriod', label: 'Первичных' },
@@ -485,16 +507,20 @@ const KPI_ITEMS: Array<{ key: ScheduleKpiNumberKey; label: string }> = [
 type KpiRowTabProps = {
   kpis: ScheduleKpis | null;
   kpisLoading: boolean;
-  onKpiClick?: (key: ScheduleKpiNumberKey) => void;
+  selectedKpiFilters: ScheduleKpiFilterKey[];
+  onKpiClick?: (key: ScheduleKpiFilterKey) => void;
 };
 
-function KpiRowTab({ kpis, kpisLoading, onKpiClick }: KpiRowTabProps) {
+function KpiRowTab({ kpis, kpisLoading, selectedKpiFilters, onKpiClick }: KpiRowTabProps) {
   return (
     <div className="grid grid-cols-2 gap-2" data-testid="cal-kpi-row">
       {KPI_ITEMS.map(({ key, label }) => {
         const value = kpis?.[key] ?? 0;
+        const selected = key !== 'recordsInPeriod' && selectedKpiFilters.includes(key);
         const handleClick =
-          key !== 'recordsInPeriod' && value > 0 && onKpiClick ? () => onKpiClick(key) : undefined;
+          key !== 'recordsInPeriod' && (selected || value > 0) && onKpiClick
+            ? () => onKpiClick(key)
+            : undefined;
         return (
           <DoctorStatCard
             key={key}
@@ -508,6 +534,7 @@ function KpiRowTab({ kpis, kpisLoading, onKpiClick }: KpiRowTabProps) {
               )
             }
             onClick={handleClick}
+            selected={selected}
             testId={`kpi-${key}`}
           />
         );
@@ -967,6 +994,13 @@ export function ScheduleCalendarTab({
   const [filtersPanelOpen, setFiltersPanelOpen] = useState(false);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [showCancelledAppointments, setShowCancelledAppointments] = useState(false);
+  const [selectedKpiFilters, setSelectedKpiFilters] = useState<ScheduleKpiFilterKey[]>([]);
+  // КПИ-фильтр снимается той же плиткой, которой ставится. Если плиток на странице нет —
+  // статистика организации выключена, а в кэше с прошлого раза лежит выбранный фильтр, — человек
+  // получил бы урезанное расписание без единой возможности это отменить. Поэтому без плиток
+  // фильтры не применяются вовсе: выбор в хранилище остаётся и оживёт вместе со статистикой.
+  const showKpi = doctorStatisticsEnabled;
+  const activeKpiFilters = showKpi ? selectedKpiFilters : NO_KPI_FILTERS;
   const [filterCacheReady, setFilterCacheReady] = useState(false);
   const isMobileViewport = useIsMobileViewport();
   const isWideScheduleLayout = useViewportMinWidth(1280);
@@ -999,7 +1033,6 @@ export function ScheduleCalendarTab({
   const [serverSearchLoading, setServerSearchLoading] = useState(false);
   const [serverSearchQuery, setServerSearchQuery] = useState<string | null>(null);
   const listLoadGenerationRef = useRef(0);
-  const [kpiModalFilter, setKpiModalFilter] = useState<ScheduleKpiNumberKey | null>(null);
   // R32: время старта/конца, подставляемое в форму создания при выделении области.
   const [createInitialStart, setCreateInitialStart] = useState<string | null>(null);
   // #225: время конца из drag-интервала → используется как начальная длительность в форме создания.
@@ -1241,6 +1274,12 @@ export function ScheduleCalendarTab({
     [view, anchorDate, branchId, serviceId, timeZone, scheduleScope],
   );
 
+  // Отменённые нужны серверу только по одной причине — их попросили показать: переключателем
+  // «показывать отмены» или КПИ-фильтром «Отмены». Зависимость именно от этого булева, а не от
+  // всего списка выбранных КПИ: список меняет тождество на каждом нажатии плитки, и лента записей
+  // перезапрашивалась бы двумя запросами даже там, где фильтр отрабатывает на клиенте.
+  const includeCancelledAppointments =
+    showCancelledAppointments || activeKpiFilters.includes('cancellationsInPeriod');
   const fetchAppointmentFeedPage = useCallback(
     async (params: {
       from?: string;
@@ -1256,7 +1295,7 @@ export function ScheduleCalendarTab({
           to: params.to,
           q: params.q,
           order: params.order,
-          includeCancelled: String(showCancelledAppointments),
+          includeCancelled: String(includeCancelledAppointments),
           limit: String(params.limit ?? APPOINTMENT_FEED_PAGE_SIZE),
           offset: String(params.offset ?? 0),
           branchId,
@@ -1268,7 +1307,7 @@ export function ScheduleCalendarTab({
       if (!response.ok || !json.ok) throw new Error(json.error ?? 'appointment_feed_load_failed');
       return json;
     },
-    [branchId, scheduleScope, serviceId, showCancelledAppointments],
+    [branchId, includeCancelledAppointments, scheduleScope, serviceId],
   );
 
   const loadInitialAppointmentFeed = useCallback(async () => {
@@ -1624,6 +1663,7 @@ export function ScheduleCalendarTab({
           }
         }
         setShowCancelledAppointments(cached.showCancelledAppointments);
+        setSelectedKpiFilters(cached.kpiFilters);
       }
       setFilterCacheReady(true);
     });
@@ -1640,8 +1680,16 @@ export function ScheduleCalendarTab({
       scope: scheduleScope.scope,
       specialistId: scheduleScope.specialistId,
       showCancelledAppointments,
+      kpiFilters: selectedKpiFilters,
     });
-  }, [branchId, filterCacheReady, scheduleScope, serviceId, showCancelledAppointments]);
+  }, [
+    branchId,
+    filterCacheReady,
+    scheduleScope,
+    selectedKpiFilters,
+    serviceId,
+    showCancelledAppointments,
+  ]);
 
   const defaultCreateSpecialistId =
     calendarSettings.defaultSpecialistId &&
@@ -1673,6 +1721,7 @@ export function ScheduleCalendarTab({
     branchId !== null ||
     serviceId !== null ||
     showCancelledAppointments ||
+    activeKpiFilters.length > 0 ||
     scheduleScope.scope !== defaultScheduleScope.scope ||
     scheduleScope.specialistId !== defaultScheduleScope.specialistId;
   const handleCalendarFilterOpenChange = useCallback((open: boolean) => {
@@ -1731,18 +1780,39 @@ export function ScheduleCalendarTab({
     </div>
   );
 
+  const currentTimeZone = data?.timeZone ?? timeZone;
+  const kpiFilterPredicate = useMemo<
+    ((appointment: CalendarAppointmentEvent) => boolean) | null
+  >(() => {
+    if (activeKpiFilters.length === 0) return null;
+    const firstVisitIdSet = new Set<string>(kpis?.firstVisitIds ?? []);
+    const predicates: Record<
+      ScheduleKpiFilterKey,
+      (appointment: CalendarAppointmentEvent) => boolean
+    > = {
+      cancellationsInPeriod: (appointment) => isCancelledAppointmentStatus(appointment.status),
+      firstVisitInPeriod: (appointment) => firstVisitIdSet.has(appointment.id),
+      bySubscriptionInPeriod: (appointment) =>
+        Boolean(appointment.packageUsageRef || appointment.packageTitle),
+      futureInPeriod: (appointment) =>
+        parseFeedInstant(appointment.startAt, currentTimeZone) >= DateTime.now(),
+      reschedulesInPeriod: (appointment) =>
+        !isCancelledAppointmentStatus(appointment.status) && appointment.rescheduleCount > 0,
+    };
+    return (appointment) => activeKpiFilters.every((key) => predicates[key](appointment));
+  }, [activeKpiFilters, currentTimeZone, kpis?.firstVisitIds]);
+
   const displayableCalendarEvents = useMemo(
     () =>
       (data?.events ?? []).filter(
         (event) =>
-          showCancelledAppointments ||
           event.kind !== 'appointment' ||
-          !isCancelledAppointmentStatus(event.status),
+          (includeCancelledAppointments || !isCancelledAppointmentStatus(event.status)) &&
+            (!kpiFilterPredicate || kpiFilterPredicate(event)),
       ),
-    [data?.events, showCancelledAppointments],
+    [data?.events, includeCancelledAppointments, kpiFilterPredicate],
   );
 
-  const currentTimeZone = data?.timeZone ?? timeZone;
   const workingBounds = data?.workingBounds;
   const calendarScrollTime = deriveCalendarInitialScrollTime(
     workingBounds,
@@ -2559,8 +2629,6 @@ export function ScheduleCalendarTab({
 
   // ─── Render ────────────────────────────────────────────────────────────────
 
-  const showKpi = doctorStatisticsEnabled;
-
   // Calendar/list filters: cancellations are hidden by default; search narrows the remainder.
   const visibleEvents = useMemo<CalendarEvent[]>(() => {
     const q = searchQuery.toLowerCase();
@@ -2583,9 +2651,10 @@ export function ScheduleCalendarTab({
     const source = serverSearchQuery ? serverSearchItems : listAppointments;
     const query = searchQuery.trim().toLocaleLowerCase('ru');
     return source.filter((appointment) => {
-      if (!showCancelledAppointments && isCancelledAppointmentStatus(appointment.status)) {
+      if (!includeCancelledAppointments && isCancelledAppointmentStatus(appointment.status)) {
         return false;
       }
+      if (kpiFilterPredicate && !kpiFilterPredicate(appointment)) return false;
       if (serverSearchQuery || !query) return true;
       return [
         appointment.patientName,
@@ -2599,7 +2668,8 @@ export function ScheduleCalendarTab({
     searchQuery,
     serverSearchItems,
     serverSearchQuery,
-    showCancelledAppointments,
+    includeCancelledAppointments,
+    kpiFilterPredicate,
   ]);
   const branchShortLabels = useMemo(
     () =>
@@ -2609,41 +2679,6 @@ export function ScheduleCalendarTab({
     [filters.branches],
   );
 
-  // KPI modal: predicate map + filtered items.
-  // firstVisitInPeriod / repeatVisitInPeriod use the id-set returned by the API
-  // (kpis.firstVisitIds) so the modal shows exactly the same appointments as the
-  // tile counter — matching the SQL NOT EXISTS logic that looks across ALL time,
-  // not just the visible feed window.
-  const kpiModalItems = useMemo<CalendarAppointmentEvent[]>(() => {
-    if (!kpiModalFilter) return [];
-
-    const firstVisitIdSet = new Set<string>(kpis?.firstVisitIds ?? []);
-
-    const KPI_PREDICATES: Partial<
-      Record<keyof ScheduleKpis, (e: CalendarAppointmentEvent) => boolean>
-    > = {
-      cancellationsInPeriod: (e) => isCancelledAppointmentStatus(e.status),
-      firstVisitInPeriod: (e) => firstVisitIdSet.has(e.id),
-      repeatVisitInPeriod: (e) =>
-        !isCancelledAppointmentStatus(e.status) && !firstVisitIdSet.has(e.id),
-      bySubscriptionInPeriod: (e) => Boolean(e.packageUsageRef || e.packageTitle),
-      pastInPeriod: (e) => parseFeedInstant(e.startAt, currentTimeZone) < DateTime.now(),
-      futureInPeriod: (e) => parseFeedInstant(e.startAt, currentTimeZone) >= DateTime.now(),
-      uniquePatientsInPeriod: (_e) => true,
-      recordsInPeriod: (_e) => true,
-      reschedulesInPeriod: (e) => !isCancelledAppointmentStatus(e.status) && e.rescheduleCount > 0,
-    };
-
-    const pred = KPI_PREDICATES[kpiModalFilter];
-    if (!pred) return [];
-    return (data?.events ?? []).filter(
-      (e): e is CalendarAppointmentEvent => e.kind === 'appointment' && pred(e),
-    );
-  }, [kpiModalFilter, data?.events, currentTimeZone, kpis?.firstVisitIds]);
-
-  const kpiModalTitle = kpiModalFilter
-    ? (KPI_ITEMS.find((k) => k.key === kpiModalFilter)?.label ?? '')
-    : '';
   const eventPanelOpen = selected !== null || showCreatePanel;
   const eventPanelTitle = selected ? (
     <DoctorModalStackedTitle
@@ -2687,9 +2722,10 @@ export function ScheduleCalendarTab({
       }}
     />
   ) : null;
-  const handleKpiClick = (key: ScheduleKpiNumberKey) => {
-    setFiltersPanelOpen(false);
-    setKpiModalFilter((previous) => (previous === key ? null : key));
+  const handleKpiClick = (key: ScheduleKpiFilterKey) => {
+    setSelectedKpiFilters((current) =>
+      current.includes(key) ? current.filter((selected) => selected !== key) : [...current, key],
+    );
   };
   const toggleFiltersPanel = () => {
     if (filtersPanelOpen) {
@@ -2697,7 +2733,6 @@ export function ScheduleCalendarTab({
       return;
     }
     if (eventPanelOpen && !closeDraftOrSelectionFromGrid()) return;
-    setKpiModalFilter(null);
     setFiltersPanelOpen(true);
   };
 
@@ -2788,13 +2823,12 @@ export function ScheduleCalendarTab({
             <Button
               type="button"
               size="icon"
-              variant={filtersPanelOpen ? 'default' : 'outline'}
+              variant={filtersPanelOpen && !hasActiveScheduleFilters ? 'default' : 'outline'}
               className={cn(
                 'size-[32px]',
-                !filtersPanelOpen &&
-                  (hasActiveScheduleFilters
-                    ? DOCTOR_ACTIVE_FILTER_BUTTON_CLASS
-                    : INACTIVE_TOOLBAR_BUTTON_CLASS),
+                hasActiveScheduleFilters
+                  ? DOCTOR_FILTERS_HIDE_RECORDS_BUTTON_CLASS
+                  : INACTIVE_TOOLBAR_BUTTON_CLASS,
               )}
               onClick={toggleFiltersPanel}
               aria-label="Фильтры"
@@ -3027,13 +3061,12 @@ export function ScheduleCalendarTab({
           <Button
             type="button"
             size="sm"
-            variant={filtersPanelOpen ? 'default' : 'outline'}
+            variant={filtersPanelOpen && !hasActiveScheduleFilters ? 'default' : 'outline'}
             className={cn(
               'ml-auto gap-2 xl:hidden',
-              !filtersPanelOpen &&
-                (hasActiveScheduleFilters
-                  ? DOCTOR_ACTIVE_FILTER_BUTTON_CLASS
-                  : INACTIVE_TOOLBAR_BUTTON_CLASS),
+              hasActiveScheduleFilters
+                ? DOCTOR_FILTERS_HIDE_RECORDS_BUTTON_CLASS
+                : INACTIVE_TOOLBAR_BUTTON_CLASS,
             )}
             onClick={toggleFiltersPanel}
             aria-expanded={filtersPanelOpen}
@@ -3491,7 +3524,12 @@ export function ScheduleCalendarTab({
             {renderScheduleFilters('flex flex-col gap-2', 'w-full')}
           </section>
           {showKpi ? (
-            <KpiRowTab kpis={kpis} kpisLoading={kpisLoading} onKpiClick={handleKpiClick} />
+            <KpiRowTab
+              kpis={kpis}
+              kpisLoading={kpisLoading}
+              selectedKpiFilters={selectedKpiFilters}
+              onKpiClick={handleKpiClick}
+            />
           ) : null}
         </aside>
       </div>
@@ -3602,7 +3640,12 @@ export function ScheduleCalendarTab({
         <div id="schedule-filters-panel" className="flex flex-col gap-3">
           {renderScheduleFilters('flex flex-col gap-2', 'w-full')}
           {showKpi ? (
-            <KpiRowTab kpis={kpis} kpisLoading={kpisLoading} onKpiClick={handleKpiClick} />
+            <KpiRowTab
+              kpis={kpis}
+              kpisLoading={kpisLoading}
+              selectedKpiFilters={selectedKpiFilters}
+              onKpiClick={handleKpiClick}
+            />
           ) : null}
         </div>
       </DoctorModal>
@@ -3645,37 +3688,6 @@ export function ScheduleCalendarTab({
         onCancel={cancelRescheduleConfirm}
       />
 
-      <KpiPreviewModal
-        open={kpiModalFilter !== null}
-        onClose={() => setKpiModalFilter(null)}
-        title={kpiModalTitle}
-        count={kpiModalItems.length}
-        items={kpiModalItems}
-        renderItem={(item) => {
-          const dt = parseFeedInstant(item.startAt, currentTimeZone);
-          // Match the «Сегодня» etalon row format: «HH:mm DD.MM».
-          const timeLabel = dt.toFormat('HH:mm dd.MM');
-          return (
-            <li>
-              <AppointmentKpiItem
-                item={{
-                  clientLabel: item.patientName ?? patientSingularLabel,
-                  time: timeLabel,
-                  typeLabel: item.serviceTitle ?? null,
-                  statusLabel: appointmentStatusLabel(item.status),
-                  branchName: item.branchTitle ?? null,
-                  altNameNote: null,
-                  cancelled: isCancelledAppointmentStatus(item.status),
-                  href: item.platformUserId
-                    ? routePaths.doctorPatientCard(item.platformUserId)
-                    : null,
-                  ctaLabel: item.platformUserId ? 'Открыть карточку' : null,
-                }}
-              />
-            </li>
-          );
-        }}
-      />
     </div>
   );
 }

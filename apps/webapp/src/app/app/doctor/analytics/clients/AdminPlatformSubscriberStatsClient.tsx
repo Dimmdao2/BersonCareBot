@@ -77,6 +77,7 @@ export function AdminPlatformSubscriberStatsClient({ period, ready, onMetricClic
               id="doctor-stats-admin-subscribers-total"
               title="На конец периода"
               value={data.summary.cumulativeEnd}
+              opensDetails={Boolean(onMetricClick)}
               onClick={
                 onMetricClick
                   ? () => onMetricClick('subscribers_total', 'Подписчики на конец периода')
@@ -87,6 +88,7 @@ export function AdminPlatformSubscriberStatsClient({ period, ready, onMetricClic
               id="doctor-stats-admin-subscribers-delta"
               title="Прирост за период"
               value={data.summary.deltaInRange}
+              opensDetails={Boolean(onMetricClick)}
               onClick={
                 onMetricClick
                   ? () => onMetricClick('subscribers_delta', 'Новые подписчики за период')
