@@ -913,12 +913,16 @@ function ListView({
         <>
           {dayGroups.map(({ dateKey, label, appointments }, index) => (
             <Fragment key={dateKey}>
-              {index === anchorMarkerIndex ? <div ref={anchorMarkerRef} /> : null}
               {index === 0 || dayGroups[index - 1]?.monthKey !== dayGroups[index]?.monthKey ? (
                 <p className="mt-2 border-t border-border/70 px-3 py-4 text-center text-base font-normal capitalize text-foreground md:px-0">
                   {dayGroups[index]?.monthLabel}
                 </p>
               ) : null}
+              {/*
+                Маркер прокрутки — ПОСЛЕ заголовка месяца, чтобы на первом дне месяца целью
+                становился заголовок дня, а не заголовок месяца (аудит 14.09, Э1 FAIL).
+              */}
+              {index === anchorMarkerIndex ? <div ref={anchorMarkerRef} /> : null}
               <ListDayCard
                 dateKey={dateKey}
                 label={label}
@@ -1746,10 +1750,15 @@ export function ScheduleCalendarTab({
     [branchId, data?.resolvedScope.specialistId, scheduleScope.specialistId, serviceId],
   );
 
-  /** Подпись «за какой период посчитаны плитки» — ровно тот диапазон, который уходит в КПИ. */
+  /**
+   * Подпись «за какой период посчитаны плитки» — ровно тот диапазон, который уходит в КПИ.
+   * `loadKpis` строит `from/to` по state `timeZone` (не по `data?.timeZone`) — подпись обязана
+   * читать тот же источник пояса, иначе после смены пояса устройства она способна описывать не
+   * тот интервал, по которому реально посчитаны числа (аудит 14.09, Э3 FAIL).
+   */
   const kpiPeriod = useMemo(
-    () => kpiPeriodLabel(view, anchorDate, data?.timeZone ?? timeZone),
-    [anchorDate, data?.timeZone, timeZone, view],
+    () => kpiPeriodLabel(view, anchorDate, timeZone),
+    [anchorDate, timeZone, view],
   );
 
   /**
@@ -1762,13 +1771,13 @@ export function ScheduleCalendarTab({
    */
   const listAnchorDate = useMemo(() => {
     const zone = data?.timeZone ?? timeZone;
-    const periodStart =
-      view === 'month'
-        ? (DateTime.fromISO(anchorDate, { zone }).startOf('month').toISODate() ?? anchorDate)
-        : anchorDate;
     const range = visibleRange(view, anchorDate, zone);
+    // Начало ВИДИМОГО периода для любого вида, не только `month` — иначе `weekgrid` на неделе,
+    // отличной от anchor-недели, ставит якорь на день недели из `anchorDate` вместо понедельника
+    // выбранной недели (аудит 14.09, Э1 FAIL).
+    const periodStart = DateTime.fromISO(range.from, { zone }).toISODate() ?? anchorDate;
     const todayKey = DateTime.now().setZone(zone).toISODate();
-    const fromKey = DateTime.fromISO(range.from, { zone }).toISODate();
+    const fromKey = periodStart;
     // `to` в модели периода — начало следующего дня, то есть граница не включается.
     const toKey = DateTime.fromISO(range.to, { zone }).toISODate();
     if (!todayKey || !fromKey || !toKey) return periodStart;
@@ -3272,7 +3281,11 @@ export function ScheduleCalendarTab({
                   pointer-events: none !important;
                 }
                 .fc-timegrid-bg-harness { pointer-events: none !important; }
-                .fc-event .fc-event-main { color: var(--foreground) !important; }
+                /* Пол по умолчанию для .fc-v-event (у него FC не задаёт цвет текста своим
+                   правилом) — БЕЗ !important, чтобы инлайновый textColor от
+                   doctorCalendarAppointmentBranchColors() (цвет филиала) побеждал: инлайн-стиль
+                   и без !important сильнее любого селекторного правила (аудит 14.09, Э2 FAIL). */
+                .fc-event .fc-event-main { color: var(--foreground); }
                 /* R10 — прошедшие записи приглушаем, будущие/актуальные ярче */
                 .fc-event.fc-event-past { opacity: 0.6; }
 
