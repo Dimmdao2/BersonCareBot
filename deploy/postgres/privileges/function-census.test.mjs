@@ -136,6 +136,21 @@ function collectDelegationGaps(source, bodies) {
         gaps.push(`${signature} -> ${delegated}: body calls arity ${[...new Set(arities)].sort().join(',')}`);
       }
     }
+    // Тело, которое НИЧЕГО не трогает само, не может нести собственных поверхностей: объявленная
+    // поверхность — это команда генератору выдать владельцу колоночные гранты и написать политики
+    // шва, то есть реальное расширение доступа, а не запись факта. Вызов делегата в тексте тела
+    // лексически неотличим от чтения таблицы (`FROM app.fn(...)`), поэтому имена делегатов
+    // вычёркиваются — ровно как это делает `compareFunctionSurfaces`.
+    if ((fn.delegatesTo?.length ?? 0) > 0 && (fn.relationSurfaces?.length ?? 0) > 0) {
+      const body = bodies.get(`${bareName(signature)}/${arity(signature)}`);
+      if (body !== undefined) {
+        const touched = extractPublicRelationOperations(body);
+        for (const delegated of fn.delegatesTo) touched.delete(bareName(delegated));
+        if (touched.size === 0) {
+          gaps.push(`${signature}: declares relation surfaces but the body only calls its delegates`);
+        }
+      }
+    }
   }
   return gaps.sort();
 }
@@ -589,6 +604,18 @@ test('every declared delegation edge is the overload the body actually calls', (
     ['app.password_login_read_altcha_secret_impl()'];
   assert.deepEqual(collectDelegationGaps(unrelated, bodies), [
     'app.password_login_complete(uuid,boolean) -> app.password_login_read_altcha_secret_impl(): body never calls the delegated root',
+  ]);
+
+  // Поверхность, приписанная чистой обёртке: тело зовёт только делегата, а декларация просит для
+  // владельца гранты и политики на таблицу. Это ровно то утверждение, которое прежде держал
+  // список из пяти пар, — теперь оно правило и покрывает все 19 таких обёрток.
+  const surfaceOnWrapper = structuredClone(declaration);
+  surfaceOnWrapper.portContext.functions['app.password_login_complete(uuid,boolean)'].relationSurfaces = [
+    { relation: 'public.platform_users', columns: ['id'], operations: ['SELECT'],
+      evidence: 'pg16-function-body-lexical-upper-bound' },
+  ];
+  assert.deepEqual(collectDelegationGaps(surfaceOnWrapper, bodies), [
+    'app.password_login_complete(uuid,boolean): declares relation surfaces but the body only calls its delegates',
   ]);
 
   // Несуществующий делегат ловится и здесь, и детектором пробелов генератора.
