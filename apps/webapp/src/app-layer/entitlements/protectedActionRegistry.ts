@@ -919,16 +919,6 @@ export const PROTECTED_ACTION_MAPPINGS = [
     serviceBoundary: 'leads.list',
   },
   {
-    id: 'leads.accept',
-    mechanic: 'leads',
-    file: 'src/app/api/doctor/leads/route.ts',
-    exportName: 'POST',
-    method: 'POST',
-    authContext: 'requireClinicManagementApiContext',
-    guard: 'requireEntitlementForMutation',
-    serviceBoundary: 'leads.accept',
-  },
-  {
     id: 'leads.read',
     mechanic: 'leads',
     file: 'src/app/api/doctor/leads/[id]/route.ts',

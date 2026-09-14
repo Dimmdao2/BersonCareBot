@@ -872,10 +872,13 @@ test('clinic-owner mutation grants include every default column emitted by Drizz
     'description', 'expected_duration_days', 'expected_duration_text', 'goals', 'id', 'objectives',
     'skip_reason', 'sort_order', 'started_at', 'status', 'title',
   ]);
+  // `form_surface` объявлен с DEFAULT 'booking' (`db/schema/bookingScheduling.ts`), поэтому Drizzle
+  // НАЗЫВАЕТ его в каждом INSERT клиники, даже когда порт значения не передаёт — как `tests.owner_kind`
+  // выше. Без гранта разделение форм брони и заявок умирало бы живым `42501`.
   exactColumns('public.be_booking_form_fields', 'app_staff', 'INSERT', [
-    'archived_at', 'created_at', 'field_key', 'field_type', 'id', 'is_active', 'is_required', 'label',
-    'organization_id', 'placeholder', 'sort_order', 'updated_at', 'visible_to_patient',
-    'visible_to_staff',
+    'archived_at', 'created_at', 'field_key', 'field_type', 'form_surface', 'id', 'is_active',
+    'is_required', 'label', 'organization_id', 'placeholder', 'sort_order', 'updated_at',
+    'visible_to_patient', 'visible_to_staff',
   ]);
   // `locations_json` снят миграцией 4c5c5052c (17.J, решение владельца 11.09 «все только ссылками
   // на реальные записи»): колонка-снимок адресов удалена вместе со своим единственным писателем,
