@@ -529,7 +529,7 @@ type KpiRowTabProps = {
   kpisLoading: boolean;
   selectedKpiFilters: ScheduleKpiFilterKey[];
   periodLabel: string;
-  onKpiClick?: (key: ScheduleKpiFilterKey) => void;
+  onKpiClick?: (key: ScheduleKpiFilterKey | 'recordsInPeriod') => void;
 };
 
 function KpiRowTab({
@@ -549,9 +549,17 @@ function KpiRowTab({
       <div className="grid grid-cols-2 gap-2" data-testid="cal-kpi-row">
       {KPI_ITEMS.map(({ key, label }) => {
         const value = kpis?.[key] ?? 0;
-        const selected = key !== 'recordsInPeriod' && selectedKpiFilters.includes(key);
+        // «Записей всего» — не обычный фильтр: она отражает состояние «фильтров нет» (выделена по
+        // умолчанию, пока список не сужен) и по клику СБРАСЫВАЕТ остальные, а не добавляется к ним
+        // (владелец 14.09: «нажатие на „Записей всего“ должно сбрасывать все остальные»; «карточка
+        // должна быть выделяемая и с ободком, если вообще записи есть в периоде» — то есть ободок,
+        // как у остальных плиток, появляется только при value > 0).
+        const isRecordsTile = key === 'recordsInPeriod';
+        const selected = isRecordsTile
+          ? selectedKpiFilters.length === 0 && value > 0
+          : selectedKpiFilters.includes(key);
         const handleClick =
-          key !== 'recordsInPeriod' && (selected || value > 0) && onKpiClick
+          onKpiClick && (isRecordsTile ? selectedKpiFilters.length > 0 : selected || value > 0)
             ? () => onKpiClick(key)
             : undefined;
         return (
@@ -2799,7 +2807,11 @@ export function ScheduleCalendarTab({
       }}
     />
   ) : null;
-  const handleKpiClick = (key: ScheduleKpiFilterKey) => {
+  const handleKpiClick = (key: ScheduleKpiFilterKey | 'recordsInPeriod') => {
+    if (key === 'recordsInPeriod') {
+      setSelectedKpiFilters(NO_KPI_FILTERS);
+      return;
+    }
     setSelectedKpiFilters((current) =>
       current.includes(key) ? current.filter((selected) => selected !== key) : [...current, key],
     );
