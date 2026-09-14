@@ -125,7 +125,7 @@ export async function POST(request: Request) {
       success: false,
       error: msg,
     });
-    logger.error({ err: e }, '[internal/product-analytics/retention] failed');
+    logger.error({ operatorErrorDetail: e }, '[internal/product-analytics/retention] failed');
     return NextResponse.json({ ok: false, error: 'retention_failed' }, { status: 500 });
   }
 }

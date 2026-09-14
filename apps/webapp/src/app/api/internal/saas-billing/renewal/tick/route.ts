@@ -69,7 +69,7 @@ export async function POST(request: Request) {
       success: false,
       error: msg,
     });
-    logger.error({ err: e }, '[internal/saas-billing/renewal/tick] failed');
+    logger.error({ operatorErrorDetail: e }, '[internal/saas-billing/renewal/tick] failed');
     return NextResponse.json({ ok: false, error: 'internal_error' }, { status: 500 });
   }
 }

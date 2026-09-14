@@ -74,7 +74,14 @@ export async function POST(request: Request) {
     }
     return NextResponse.json({ ok: true, result: null });
   } catch (error) {
-    logger.error({ err: error, command: parsed.data.type }, '[internal/media-worker/control] failed');
+    /*
+     * `operatorErrorDetail`, а не `err`: закрытая форма `err` по построению не несёт текста, и
+     * 14.09.2026 это стоило дорого — отчёт воркера об инструментах падал на каждом старте, в логе
+     * стояло только `{"type":"Error"}`, и превью, ждавшие декодера, не выпускались месяцами. Все
+     * двери `/api/internal/**` машинные: их ответ не видит ни пациент, ни специалист, поэтому текст
+     * ошибки здесь уместен. В пользовательских маршрутах `err` остаётся закрытым.
+     */
+    logger.error({ operatorErrorDetail: error, command: parsed.data.type }, '[internal/media-worker/control] failed');
     return NextResponse.json({ ok: false, error: 'control_failed' }, { status: 409 });
   }
 }

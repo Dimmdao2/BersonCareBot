@@ -47,7 +47,7 @@ export async function POST(request: Request) {
       alreadyQueued: out.alreadyQueued,
     });
   } catch (e) {
-    logger.error({ err: e }, '[internal/media-transcode/enqueue] failed');
+    logger.error({ operatorErrorDetail: e }, '[internal/media-transcode/enqueue] failed');
     return NextResponse.json({ ok: false, error: 'enqueue_failed' }, { status: 500 });
   }
 }
