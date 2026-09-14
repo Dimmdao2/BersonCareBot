@@ -119,10 +119,13 @@ export type DoctorCalendarAppointmentAppearance = {
  */
 const APPOINTMENT_SURFACES = {
   package: { surface: '!bg-violet-500/15 text-violet-900', border: '!border-violet-500/40' },
-  // Текста тут нет намеренно: цвет надписи ставит инлайновый `textColor` филиала (см.
-  // `doctorCalendarAppointmentBranchColors`), а класс `text-foreground` его бы перебил в тех
-  // видах, где FullCalendar красит не сам элемент события, а вложенный контейнер заголовка.
-  branch: { surface: '', border: '' },
+  // `text-foreground` здесь — ПОЛ, а не итоговый цвет: сверху ложится инлайновый `textColor`
+  // филиала из `doctorCalendarAppointmentBranchColors`. Конфликта нет — FullCalendar пишет этот
+  // цвет стилем на вложенный `.fc-event-main` (@fullcalendar/core 6.1.21,
+  // `internal-common.js:7152`), а класс живёт на корне события, поэтому инлайн выигрывает как
+  // более близкий. Пол нужен для филиала с непригодным значением цвета: тогда инлайна нет вовсе,
+  // и без класса надпись досталась бы дефолтному белому тексту FullCalendar на светлой заливке.
+  branch: { surface: 'text-foreground', border: '' },
   // R10 «чуть темнее для всего»; прошлые дополнительно приглушаются через .fc-event-past.
   default: { surface: '!bg-primary/15 text-foreground', border: '!border-primary/35' },
 } as const;
