@@ -86,6 +86,22 @@ export type BackgroundJobEnvironment = {
    * активного цвета в лучшем случае через раз.
    */
   readonly loopbackMode?: 'app_port' | 'nginx_tls';
+  /**
+   * Канонический env-файл integrator. Нужен только бэкапу: он читает `DATABASE_URL` из ОБОИХ
+   * env-файлов как данные и сверяет их между собой, чтобы не снять дамп не с той базы.
+   */
+  readonly apiEnvFile?: string;
+  /**
+   * Имя и адрес машины, на которой этой среде разрешено снимать бэкап.
+   *
+   * Бэкап — единственное задание, которое обязано отказаться работать «не там». Остальные ходят по
+   * loopback и на чужой машине просто никуда не попадут; `pg_dump` же на чужой машине снимет чужую
+   * базу в чужой каталог и запишет это в чужой журнал как успех. До 14.09.2026 ожидание было зашито
+   * литералами в тело скрипта (`adelaide` / `135.106.162.170` — СТАРЫЙ прод), поэтому на новом
+   * проде скрипт не запустился бы вовсе, даже если бы его туда положили.
+   */
+  readonly backupHostName?: string;
+  readonly backupHostIpv4?: string;
 };
 
 export const BACKGROUND_JOB_ENVIRONMENTS = {
@@ -99,6 +115,9 @@ export const BACKGROUND_JOB_ENVIRONMENTS = {
     projectRoot: '/opt/therapysto/src',
     cronFilePrefix: 'therapysto-',
     loopbackMode: 'nginx_tls',
+    apiEnvFile: '/etc/therapysto/env/api.prod',
+    backupHostName: 'therapysto-prod',
+    backupHostIpv4: '135.106.187.95',
   },
   test: {
     id: 'test',
@@ -115,8 +134,18 @@ export const BACKGROUND_JOB_ENVIRONMENT_IDS: readonly BackgroundJobEnvironmentId
 
 /* ──────────────────────────────── manifest ──────────────────────────────── */
 
-/** Кто будит задание. `host_cron` — единственный вид, для которого репозиторий поставляет artifact. */
-export type BackgroundJobScheduleOwner = 'host_cron' | 'resident_scheduler' | 'host_backup';
+/**
+ * Кто будит задание. `host_cron` — единственный вид, для которого репозиторий поставляет artifact.
+ *
+ * Третьего значения `host_backup` («расписание принадлежит скрипту хоста») здесь больше нет, и это
+ * не переименование, а снятие целого класса потерь. Пока оно существовало, четыре задания бэкапа
+ * были единственными в манифесте, чьё расписание никто не ставил и ни с чем не сверял. Итог замерен
+ * 14.09.2026: на новом проде не было НИ ОДНОГО бэкапа боевой базы — скрипт не установлен, строк в
+ * `/etc/cron.d` нет, артефактов ноль, — а панель здоровья показывала зелёные строки «Бэкап
+ * PostgreSQL», приехавшие внутри восстановленного дампа и описывавшие чужую историю. «Принадлежит
+ * скрипту хоста» на деле означало «не принадлежит никому».
+ */
+export type BackgroundJobScheduleOwner = 'host_cron' | 'resident_scheduler';
 
 /** Чем задание доказывает право на вызов. */
 export type BackgroundJobPrincipal = 'internal_job_bearer' | 'integrator_hmac' | 'host_shell';
@@ -129,6 +158,15 @@ export type BackgroundJobPrincipal = 'internal_job_bearer' | 'integrator_hmac' |
 export type BackgroundJobSurfaceIdentity = 'app_public_origin' | 'none';
 
 export type BackgroundJobKind = 'internal_http' | 'resident_scheduler' | 'backup_shell';
+
+/** Режимы `deploy/postgres/postgres-backup.sh`, которые вызываются по расписанию. */
+export type BackgroundJobBackupMode = 'hourly' | 'daily' | 'weekly' | 'prune';
+
+/**
+ * Куда deploy кладёт канонический `deploy/postgres/postgres-backup.sh` на хосте. Путь один для всех
+ * сред: каталог заведён под бэкапы и ничего больше в нём не живёт.
+ */
+export const BACKUP_SCRIPT_PATH = '/opt/backups/scripts/postgres-backup.sh';
 
 export type BackgroundJobRoute = {
   readonly method: 'POST';
@@ -157,6 +195,11 @@ export type BackgroundJobManifestEntry = {
   /** Среды, в которых задание обязано существовать. */
   readonly environments?: readonly BackgroundJobEnvironmentId[];
   readonly route?: BackgroundJobRoute;
+  /**
+   * Режим `postgres-backup.sh`. Только для `kind: 'backup_shell'` — это не HTTP-тик, у него нет
+   * маршрута, и общий transport вебаппа его не будит.
+   */
+  readonly backupMode?: BackgroundJobBackupMode;
   readonly principal: BackgroundJobPrincipal;
   readonly surfaceIdentity: BackgroundJobSurfaceIdentity;
   /** `curl --max-time`; задание, не уложившееся в него, — громкий отказ, а не тихий висяк. */
@@ -506,14 +549,24 @@ const BACKGROUND_JOB_MANIFEST_SOURCE = [
     jobKey: 'backup.hourly',
     label: 'Бэкап PostgreSQL (hourly)',
     kind: 'backup_shell',
-    scheduleOwner: 'host_backup',
+    scheduleOwner: 'host_cron',
+    /*
+     * Не в ноль минут: в ноль на хосте уже сходятся все пятиминутные и десятиминутные задания, а
+     * `pg_dump` — единственное из них, которое держит долгую транзакцию и заметную долю диска.
+     * Смещение не «на всякий случай», а чтобы час не начинался с очереди.
+     */
+    scheduleHint: 'ежечасно, в 17 минут',
+    cron: '17 * * * *',
+    artifactSlug: 'backup-hourly',
+    backupMode: 'hourly',
     environments: ['prod'],
-    scheduleHint: 'ежечасно',
     principal: 'host_shell',
     surfaceIdentity: 'none',
+    // Три часа, а не час с небольшим: один пропущенный час — это ещё не потеря, а вот два подряд
+    // означают, что бэкапы встали, и об этом надо знать.
     staleAfterSec: 3 * 60 * 60,
     required: true,
-    why: 'Расписание принадлежит /opt/backups/scripts/postgres-backup.sh, не cron.d вебаппа.',
+    why: 'Единственная защита боевой базы от потери. Отсутствие часового бэкапа — авария, а не шум.',
   },
   {
     id: 'backup_daily',
@@ -521,15 +574,17 @@ const BACKGROUND_JOB_MANIFEST_SOURCE = [
     jobKey: 'backup.daily',
     label: 'Бэкап PostgreSQL (daily)',
     kind: 'backup_shell',
-    scheduleOwner: 'host_backup',
+    scheduleOwner: 'host_cron',
+    scheduleHint: 'ежедневно в 03:40 UTC',
+    cron: '40 3 * * *',
+    artifactSlug: 'backup-daily',
+    backupMode: 'daily',
     environments: ['prod'],
-    scheduleHint: 'ежедневно',
     principal: 'host_shell',
     surfaceIdentity: 'none',
     staleAfterSec: 28 * 60 * 60,
-    required: false,
-    optionalNoData: true,
-    why: 'Расписание принадлежит backup-скрипту хоста.',
+    required: true,
+    why: 'Суточный срез с хранением 35 дней: часовые живут двое суток и от ошибки недельной давности не спасают.',
   },
   {
     id: 'backup_weekly',
@@ -537,15 +592,17 @@ const BACKGROUND_JOB_MANIFEST_SOURCE = [
     jobKey: 'backup.weekly',
     label: 'Бэкап PostgreSQL (weekly)',
     kind: 'backup_shell',
-    scheduleOwner: 'host_backup',
+    scheduleOwner: 'host_cron',
+    scheduleHint: 'по воскресеньям в 04:10 UTC',
+    cron: '10 4 * * 0',
+    artifactSlug: 'backup-weekly',
+    backupMode: 'weekly',
     environments: ['prod'],
-    scheduleHint: 'еженедельно',
     principal: 'host_shell',
     surfaceIdentity: 'none',
     staleAfterSec: 8 * 24 * 60 * 60,
-    required: false,
-    optionalNoData: true,
-    why: 'Расписание принадлежит backup-скрипту хоста.',
+    required: true,
+    why: 'Недельный срез с хранением 12 недель: дальняя точка возврата, если порча данных вскрылась поздно.',
   },
   {
     id: 'backup_prune',
@@ -553,15 +610,21 @@ const BACKGROUND_JOB_MANIFEST_SOURCE = [
     jobKey: 'backup.prune',
     label: 'Бэкап PostgreSQL (prune)',
     kind: 'backup_shell',
-    scheduleOwner: 'host_backup',
+    scheduleOwner: 'host_cron',
+    /*
+     * После суточного и недельного срезов, а не до них: удаление считает поколения, и считать их
+     * надо уже с учётом свежего. Иначе раз в неделю чистка видит на одно поколение меньше, чем есть.
+     */
+    scheduleHint: 'ежедневно в 04:50 UTC, после суточного и недельного срезов',
+    cron: '50 4 * * *',
+    artifactSlug: 'backup-prune',
+    backupMode: 'prune',
     environments: ['prod'],
-    scheduleHint: 'по расписанию retention',
     principal: 'host_shell',
     surfaceIdentity: 'none',
-    staleAfterSec: 8 * 24 * 60 * 60,
-    required: false,
-    optionalNoData: true,
-    why: 'Расписание принадлежит backup-скрипту хоста.',
+    staleAfterSec: 28 * 60 * 60,
+    required: true,
+    why: 'Без чистки диск забивается дампами и хост встаёт целиком — отказ уборки тоже авария.',
   },
 ] as const satisfies readonly BackgroundJobManifestEntry[];
 
@@ -633,7 +696,42 @@ export function renderCronCommand(
   entry: BackgroundJobManifestEntry,
   environment: BackgroundJobEnvironment,
 ): string {
+  if (entry.kind === 'backup_shell') {
+    if (!entry.backupMode) throw new Error(`background job ${entry.id} has no backupMode`);
+    return `${BACKUP_SCRIPT_PATH} ${entry.backupMode}`;
+  }
   return `${internalJobRunnerPath(environment)} ${environment.id} ${entry.id}`;
+}
+
+/**
+ * Присваивания окружения, которые cron-файл обязан нести ПЕРЕД строкой расписания.
+ *
+ * Только для бэкапа и только три вещи: на какой машине ему разрешено работать и где лежат два
+ * env-файла, из которых он читает `DATABASE_URL`. Значения по умолчанию внутри скрипта указывают на
+ * СТАРЫЙ прод (`adelaide`, `/opt/env/bersoncarebot/…`) и на новом хосте неверны все до одного,
+ * поэтому среда задаётся здесь явно, а не берётся из умолчаний.
+ *
+ * Проверка «та ли машина» остаётся именно проверкой: файл сгенерирован для среды `prod`, и если он
+ * окажется на любой другой машине, ожидание в нём не совпадёт и бэкап откажется работать — вместо
+ * того чтобы молча снять чужую базу в чужой каталог и записать это как успех.
+ */
+export function renderCronEnvAssignments(
+  entry: BackgroundJobManifestEntry,
+  environment: BackgroundJobEnvironment,
+): readonly string[] {
+  if (entry.kind !== 'backup_shell') return [];
+  const { backupHostName, backupHostIpv4, apiEnvFile } = environment;
+  if (!backupHostName || !backupHostIpv4 || !apiEnvFile) {
+    throw new Error(
+      `environment ${environment.id} has no backup host expectation — refusing to schedule ${entry.id}`,
+    );
+  }
+  return [
+    `BERSONCAREBOT_BACKUP_EXPECT_HOSTNAME=${backupHostName}`,
+    `BERSONCAREBOT_BACKUP_EXPECT_IPV4=${backupHostIpv4}`,
+    `BERSONCAREBOT_API_ENV_FILE=${apiEnvFile}`,
+    `BERSONCAREBOT_WEBAPP_ENV_FILE=${environment.envFile}`,
+  ];
 }
 
 /**
@@ -679,6 +777,16 @@ export function renderCronArtifact(
   const route = entry.route
     ? `${entry.route.method} ${entry.route.path}${entry.route.query ? `?${entry.route.query}` : ''}`
     : 'нет HTTP-маршрута';
+  const transportLines =
+    entry.kind === 'backup_shell'
+      ? [
+          `# Запускается напрямую ${BACKUP_SCRIPT_PATH} — это не HTTP-тик вебаппа, общий transport`,
+          '# run-internal-job.sh его не будит. Скрипт кладёт на хост тот же деплой, что и эту строку.',
+        ]
+      : [
+          `# Host/Origin/X-Forwarded-Proto и env-файл (${environment.envFile}) строит общий transport`,
+          '# deploy/host/run-internal-job.sh — cron-строка их не копирует и не знает про branding proxy.',
+        ];
   const lines = [
     `# СГЕНЕРИРОВАНО из ${CRON_ARTIFACT_GENERATED_BY}. Руками не править.`,
     '# Перегенерировать: node deploy/host/background-jobs-cli.mjs --write',
@@ -687,9 +795,9 @@ export function renderCronArtifact(
     `# ${entry.label} — среда ${environment.id}.`,
     `# ${entry.why}`,
     `# id=${entry.id} tick=${entry.jobFamily}/${entry.jobKey} ${route}`,
-    `# principal=${entry.principal} surface=${entry.surfaceIdentity} timeout=${entry.timeoutSec ?? 0}s stale_after=${entry.staleAfterSec}s`,
-    `# Host/Origin/X-Forwarded-Proto и env-файл (${environment.envFile}) строит общий transport`,
-    '# deploy/host/run-internal-job.sh — cron-строка их не копирует и не знает про branding proxy.',
+    `# principal=${entry.principal} surface=${entry.surfaceIdentity} timeout=${entry.timeoutSec ? `${entry.timeoutSec}s` : 'нет'} stale_after=${entry.staleAfterSec}s`,
+    ...transportLines,
+    ...renderCronEnvAssignments(entry, environment),
     `${entry.cron} root ${renderCronCommand(entry, environment)}`,
   ];
   return `${lines.join('\n')}\n`;

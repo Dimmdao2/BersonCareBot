@@ -1,0 +1,15 @@
+# СГЕНЕРИРОВАНО из apps/webapp/src/modules/operator-health/backgroundJobManifest.ts. Руками не править.
+# Перегенерировать: node deploy/host/background-jobs-cli.mjs --write
+# Сверить (гейт deploy и CI): node deploy/host/background-jobs-cli.mjs --check
+#
+# Бэкап PostgreSQL (daily) — среда prod.
+# Суточный срез с хранением 35 дней: часовые живут двое суток и от ошибки недельной давности не спасают.
+# id=backup_daily tick=backup/backup.daily нет HTTP-маршрута
+# principal=host_shell surface=none timeout=нет stale_after=100800s
+# Запускается напрямую /opt/backups/scripts/postgres-backup.sh — это не HTTP-тик вебаппа, общий transport
+# run-internal-job.sh его не будит. Скрипт кладёт на хост тот же деплой, что и эту строку.
+BERSONCAREBOT_BACKUP_EXPECT_HOSTNAME=therapysto-prod
+BERSONCAREBOT_BACKUP_EXPECT_IPV4=135.106.187.95
+BERSONCAREBOT_API_ENV_FILE=/etc/therapysto/env/api.prod
+BERSONCAREBOT_WEBAPP_ENV_FILE=/etc/therapysto/env/webapp.prod
+40 3 * * * root /opt/backups/scripts/postgres-backup.sh daily

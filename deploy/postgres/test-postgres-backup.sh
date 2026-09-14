@@ -19,6 +19,14 @@ WORKROOT="$(mktemp -d "${TMPDIR:-/tmp}/bcb-postgres-backup-test.XXXXXX")"
 cleanup() { rm -rf "$WORKROOT"; }
 trap cleanup EXIT
 
+# Скрипт отказывается работать не на той машине, и ожидание он берёт снаружи. Набор подставляет
+# ожидание ЭТОЙ машины — иначе он запускался бы ровно на одном сервере в мире и потому не гонялся бы
+# никогда (до 14.09.2026 так и было: здесь он падал на первом же сценарии).
+EXPECT_HOSTNAME="$(hostname -s)"
+EXPECT_IPV4="$(hostname -I | tr ' ' '\n' | grep -v '^$' | head -1)"
+[ -n "$EXPECT_HOSTNAME" ] && [ -n "$EXPECT_IPV4" ] ||
+  { echo "FATAL: не удалось определить имя и адрес этой машины" >&2; exit 1; }
+
 FAILED=0
 pass() { echo "PASS: $1"; }
 fail() { echo "FAIL: $1"; FAILED=1; }
@@ -197,6 +205,8 @@ run_backup() {
     BERSONCAREBOT_WEBAPP_ENV_FILE="$webapp_env" \
     BERSONCAREBOT_BACKUPS_ROOT="$backups_root" \
     BERSONCAREBOT_BACKUP_AGE_RECIPIENTS_FILE="$recipients_file" \
+    BERSONCAREBOT_BACKUP_EXPECT_HOSTNAME="$EXPECT_HOSTNAME" \
+    BERSONCAREBOT_BACKUP_EXPECT_IPV4="$EXPECT_IPV4" \
     FAKE_CALL_LOG="$call_log" \
     FAKE_PSQL_TICK_LOG="$tick_log" \
     "$@" \
@@ -219,6 +229,8 @@ run_backup_xtrace() {
     BERSONCAREBOT_WEBAPP_ENV_FILE="$webapp_env" \
     BERSONCAREBOT_BACKUPS_ROOT="$backups_root" \
     BERSONCAREBOT_BACKUP_AGE_RECIPIENTS_FILE="$recipients_file" \
+    BERSONCAREBOT_BACKUP_EXPECT_HOSTNAME="$EXPECT_HOSTNAME" \
+    BERSONCAREBOT_BACKUP_EXPECT_IPV4="$EXPECT_IPV4" \
     FAKE_CALL_LOG="$call_log" \
     FAKE_PSQL_TICK_LOG="$tick_log" \
     bash -x "$SCRIPT_UNDER_TEST" "$mode" \
@@ -813,6 +825,8 @@ setsid env -i \
   BERSONCAREBOT_WEBAPP_ENV_FILE="$webapp17" \
   BERSONCAREBOT_BACKUPS_ROOT="$root17" \
   BERSONCAREBOT_BACKUP_AGE_RECIPIENTS_FILE="$recipients17" \
+  BERSONCAREBOT_BACKUP_EXPECT_HOSTNAME="$EXPECT_HOSTNAME" \
+  BERSONCAREBOT_BACKUP_EXPECT_IPV4="$EXPECT_IPV4" \
   bash "$SCRIPT_UNDER_TEST" manual >"${case17}/stdout.log" 2>"${case17}/stderr.log" &
 bg_pid17=$!
 
@@ -874,6 +888,8 @@ setsid env -i \
   BERSONCAREBOT_WEBAPP_ENV_FILE="$webapp18" \
   BERSONCAREBOT_BACKUPS_ROOT="$root18" \
   BERSONCAREBOT_BACKUP_AGE_RECIPIENTS_FILE="$recipients18" \
+  BERSONCAREBOT_BACKUP_EXPECT_HOSTNAME="$EXPECT_HOSTNAME" \
+  BERSONCAREBOT_BACKUP_EXPECT_IPV4="$EXPECT_IPV4" \
   FAKE_CALL_LOG="${case18}/call.log" \
   bash "$SCRIPT_UNDER_TEST" pre-migrations >"${case18}/stdout.log" 2>"${case18}/stderr.log" &
 bg_pid18=$!
@@ -1273,6 +1289,71 @@ run_backup_xtrace "$case27" manual "$root27" "$api27" "$webapp27" "$fakebin27" "
 if [ "$RUN_RC" -eq 0 ]; then pass "scenario27: bash -x run succeeds"; else fail "scenario27: bash -x run exited $RUN_RC"; fi
 assert_no_marker "scenario27" "$case27/stdout.log" "$case27/stderr.log" "$case27/call.log" "$case27/tick.log"
 if grep -q '^age ' "$case27/call.log" && grep -q '^pg_dump ' "$case27/call.log"; then pass "scenario27: parser preflight and providers were reached after xtrace disable"; else fail "scenario27: expected preflight/provider calls were not reached"; fi
+
+# --- Scenario 30: «та ли это машина» — отказ, а не догадка ---------------------
+#
+# Смысл шага: бэкап на чужой машине снимет чужую базу в чужой каталог и запишет это как успех.
+# Поэтому ожидание хоста обязательно (пусто — отказ) и обязано совпадать (не совпало — отказ).
+# До 14.09.2026 ожидание было зашито в тело скрипта литералами старого прода, и на новом проде
+# скрипт не запустился бы вовсе.
+
+case30="${WORKROOT}/case30"; mkdir -p "$case30"
+fakebin30="${case30}/fakebin"; make_fakebin "$fakebin30"
+root30="${case30}/backups_root"
+api30="${case30}/api.env"; webapp30="${case30}/webapp.env"
+write_env_file "$api30" "$UNIFIED_DB"
+write_env_file "$webapp30" "$UNIFIED_DB"
+recipients30="${case30}/age-recipients.txt"; write_recipients_file "$recipients30"
+
+# 30a: ожидания нет вовсе.
+call30a="${case30}/call-a.log"; : > "$call30a"
+set +e
+env -i PATH="${fakebin30}:/usr/bin:/bin" \
+  BERSONCAREBOT_API_ENV_FILE="$api30" \
+  BERSONCAREBOT_WEBAPP_ENV_FILE="$webapp30" \
+  BERSONCAREBOT_BACKUPS_ROOT="$root30" \
+  BERSONCAREBOT_BACKUP_AGE_RECIPIENTS_FILE="$recipients30" \
+  FAKE_CALL_LOG="$call30a" \
+  bash "$SCRIPT_UNDER_TEST" manual >"${case30}/stdout-a.log" 2>"${case30}/stderr-a.log"
+rc30a=$?
+set -e
+if [ "$rc30a" -ne 0 ]; then pass "scenario30a: без ожидания хоста бэкап отказывается работать"; else fail "scenario30a: бэкап без ожидания хоста завершился успехом"; fi
+if [ ! -s "$call30a" ]; then pass "scenario30a: ни один провайдер не был вызван"; else fail "scenario30a: провайдер был вызван до проверки хоста"; fi
+if [ ! -d "$root30" ]; then pass "scenario30a: каталог бэкапов даже не создан"; else fail "scenario30a: каталог бэкапов создан до проверки хоста"; fi
+
+# 30b: ожидание есть, но это ДРУГАЯ машина.
+call30b="${case30}/call-b.log"; : > "$call30b"
+set +e
+env -i PATH="${fakebin30}:/usr/bin:/bin" \
+  BERSONCAREBOT_API_ENV_FILE="$api30" \
+  BERSONCAREBOT_WEBAPP_ENV_FILE="$webapp30" \
+  BERSONCAREBOT_BACKUPS_ROOT="$root30" \
+  BERSONCAREBOT_BACKUP_AGE_RECIPIENTS_FILE="$recipients30" \
+  BERSONCAREBOT_BACKUP_EXPECT_HOSTNAME="not-${EXPECT_HOSTNAME}" \
+  BERSONCAREBOT_BACKUP_EXPECT_IPV4="$EXPECT_IPV4" \
+  FAKE_CALL_LOG="$call30b" \
+  bash "$SCRIPT_UNDER_TEST" manual >"${case30}/stdout-b.log" 2>"${case30}/stderr-b.log"
+rc30b=$?
+set -e
+if [ "$rc30b" -ne 0 ]; then pass "scenario30b: чужое имя машины останавливает бэкап"; else fail "scenario30b: бэкап пошёл на машине с чужим именем"; fi
+if [ ! -s "$call30b" ]; then pass "scenario30b: ни один провайдер не был вызван"; else fail "scenario30b: провайдер был вызван на чужой машине"; fi
+
+# 30c: имя совпало, а адрес — нет.
+call30c="${case30}/call-c.log"; : > "$call30c"
+set +e
+env -i PATH="${fakebin30}:/usr/bin:/bin" \
+  BERSONCAREBOT_API_ENV_FILE="$api30" \
+  BERSONCAREBOT_WEBAPP_ENV_FILE="$webapp30" \
+  BERSONCAREBOT_BACKUPS_ROOT="$root30" \
+  BERSONCAREBOT_BACKUP_AGE_RECIPIENTS_FILE="$recipients30" \
+  BERSONCAREBOT_BACKUP_EXPECT_HOSTNAME="$EXPECT_HOSTNAME" \
+  BERSONCAREBOT_BACKUP_EXPECT_IPV4="203.0.113.7" \
+  FAKE_CALL_LOG="$call30c" \
+  bash "$SCRIPT_UNDER_TEST" manual >"${case30}/stdout-c.log" 2>"${case30}/stderr-c.log"
+rc30c=$?
+set -e
+if [ "$rc30c" -ne 0 ]; then pass "scenario30c: совпавшее имя при чужом адресе всё равно отказ"; else fail "scenario30c: бэкап пошёл при несовпавшем адресе"; fi
+if [ ! -s "$call30c" ]; then pass "scenario30c: ни один провайдер не был вызван"; else fail "scenario30c: провайдер был вызван при несовпавшем адресе"; fi
 
 # --- summary -----------------------------------------------------------------
 

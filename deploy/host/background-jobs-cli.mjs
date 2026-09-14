@@ -64,6 +64,9 @@ export function planCronArtifacts(manifest) {
         content: manifest.renderCronArtifact(entry, environment),
         command: manifest.renderCronCommand(entry, environment),
         cron: entry.cron,
+        // Бэкап — единственное задание расписания, которое общий transport вебаппа НЕ будит: у него
+        // нет HTTP-маршрута, его запускает собственный скрипт на хосте.
+        usesInternalJobRunner: entry.kind !== 'backup_shell',
       });
     }
   }
@@ -121,6 +124,21 @@ export function expectedCronRow(item) {
 }
 
 /**
+ * Наш ли это файл в `/etc/cron.d` — по имени И по содержимому.
+ *
+ * Одно определение на обе стороны: и на вопрос «это лишнее» (сверка), и на «это можно снимать»
+ * (применение). Пока их было два, любое расхождение между ними означало бы файл, который сверка
+ * считает лишним, а применение не снимает, — и деплой навсегда оставался бы красным.
+ *
+ * Имени мало: префикс `therapysto-` носят и файлы, которые фоновым заданием не являются. Содержимое
+ * без имени — тоже мало: чужой файл может упоминать наш путь в комментарии.
+ */
+export function isOurBackgroundJobFile(name, text) {
+  if (!name.startsWith('bersoncarebot-') && !name.startsWith('therapysto-')) return false;
+  return /\/api\/internal\/|run-internal-job\.sh|postgres-backup\.sh/.test(text);
+}
+
+/**
  * Сверка manifest с реально установленным расписанием одной среды.
  *
  * `installed` — Map<имя файла в cron-каталоге, содержимое>.
@@ -153,16 +171,18 @@ export function findInstalledScheduleProblems({ plan, envId, installed, runnerEx
 
   for (const [name, text] of installed) {
     if (knownArtifactNames.has(name)) continue;
-    if (!name.startsWith('bersoncarebot-') && !name.startsWith('therapysto-')) continue;
-    if (!/\/api\/internal\/|run-internal-job\.sh/.test(text)) continue;
+    if (!isOurBackgroundJobFile(name, text)) continue;
     problems.push(
       `установлено фоновое задание ${name}, у которого нет записи в manifest (${MANIFEST_RELATIVE})`,
     );
   }
 
-  if (envPlan.length > 0 && !runnerExists) {
+  // Отсутствие общего transport — беда только тех заданий, которые он будит. Бэкап ходит мимо него,
+  // собственным скриптом, и объявлять его неустановимым из-за чужого отсутствующего файла нельзя.
+  const runnerJob = envPlan.find((item) => item.usesInternalJobRunner);
+  if (runnerJob && !runnerExists) {
     problems.push(
-      `общий transport ${envPlan[0].command.split(' ')[0]} отсутствует или не исполняем: установить задание нечем`,
+      `общий transport ${runnerJob.command.split(' ')[0]} отсутствует или не исполняем: установить задание нечем`,
     );
   }
 
@@ -200,8 +220,7 @@ export function planInstalledScheduleChanges({ plan, envId, installed }) {
 
   for (const [name, text] of installed) {
     if (knownArtifactNames.has(name)) continue;
-    if (!name.startsWith('bersoncarebot-') && !name.startsWith('therapysto-')) continue;
-    if (!/\/api\/internal\/|run-internal-job\.sh/.test(text)) continue;
+    if (!isOurBackgroundJobFile(name, text)) continue;
     remove.push(name);
   }
 
@@ -217,6 +236,11 @@ export function describeJobAssignments(manifest, envId, jobId) {
   if (entry.scheduleOwner !== 'host_cron') {
     throw new Error(
       `background job ${jobId} is owned by ${entry.scheduleOwner}, not host cron — refusing to run it as a cron job`,
+    );
+  }
+  if (entry.kind === 'backup_shell') {
+    throw new Error(
+      `background job ${jobId} is a host backup script, not an HTTP tick — run-internal-job.sh does not wake it`,
     );
   }
   if (!(entry.environments ?? []).includes(envId)) {

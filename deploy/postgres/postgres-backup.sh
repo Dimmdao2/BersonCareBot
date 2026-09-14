@@ -52,6 +52,8 @@
 # generic failure message, never a captured connection string or temporary error file.
 #
 # Env:
+#   BERSONCAREBOT_BACKUP_EXPECT_HOSTNAME      ОБЯЗАТЕЛЬНО — имя машины, на которой разрешено работать
+#   BERSONCAREBOT_BACKUP_EXPECT_IPV4          ОБЯЗАТЕЛЬНО — её локальный IPv4
 #   BERSONCAREBOT_API_ENV_FILE               default /opt/env/bersoncarebot/api.prod
 #   BERSONCAREBOT_WEBAPP_ENV_FILE             default /opt/env/bersoncarebot/webapp.prod
 #   BERSONCAREBOT_BACKUPS_ROOT                default /opt/backups/postgres (override for tests only)
@@ -69,19 +71,37 @@ die() {
   exit 1
 }
 
+# На той ли машине мы работаем.
+#
+# Проверка нужна: остальные задания ходят по loopback и на чужой машине просто никуда не попадут, а
+# pg_dump на чужой машине снимет ЧУЖУЮ базу в чужой каталог и запишет это в чужой журнал как успех.
+#
+# Ожидание приходит СНАРУЖИ и обязательно, а не зашито здесь литералом. До 14.09.2026 в теле стояли
+# `adelaide` и `135.106.162.170` — имя и адрес СТАРОГО прода, — и из-за этого скрипт на новом проде
+# не запустился бы вовсе, даже если бы его туда положили. Задаёт ожидание тот же cron-файл, который
+# генерируется из манифеста фоновых заданий под конкретную среду, поэтому копия файла, оказавшаяся
+# на другой машине, здесь и остановится.
+#
+# Пусто — отказ, а не «проверка выключена»: бэкап без ответа на вопрос «та ли это машина» опаснее,
+# чем отсутствие бэкапа, потому что выглядит как сделанная работа.
 assert_canonical_prod_host() {
+  local expected_hostname="${BERSONCAREBOT_BACKUP_EXPECT_HOSTNAME:-}"
+  local expected_ipv4="${BERSONCAREBOT_BACKUP_EXPECT_IPV4:-}"
+  [ -n "$expected_hostname" ] && [ -n "$expected_ipv4" ] ||
+    die "refusing PROD backup without a host expectation; set BERSONCAREBOT_BACKUP_EXPECT_HOSTNAME and BERSONCAREBOT_BACKUP_EXPECT_IPV4 (the cron file generated from the background job manifest sets both)"
+
   local current_hostname address found_ip=0
   current_hostname="$(hostname -s 2>/dev/null || true)"
-  [ "$current_hostname" = "adelaide" ] ||
-    die "refusing PROD backup on host '${current_hostname:-unknown}'; expected adelaide"
+  [ "$current_hostname" = "$expected_hostname" ] ||
+    die "refusing PROD backup on host '${current_hostname:-unknown}'; expected $expected_hostname"
   for address in $(hostname -I 2>/dev/null || true); do
-    if [ "$address" = "135.106.162.170" ]; then
+    if [ "$address" = "$expected_ipv4" ]; then
       found_ip=1
       break
     fi
   done
   [ "$found_ip" -eq 1 ] ||
-    die "refusing PROD backup without local IPv4 135.106.162.170"
+    die "refusing PROD backup without local IPv4 $expected_ipv4"
 }
 
 assert_canonical_prod_host
