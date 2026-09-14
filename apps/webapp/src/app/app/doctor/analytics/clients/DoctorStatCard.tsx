@@ -63,8 +63,14 @@ export function DoctorStatCard({
         ? 'text-muted-foreground'
         : 'text-primary'
       : undefined;
+  // Квадратная плитка (три КПИ в ряд на телефоне): подпись занимает всю ширину,
+  // поэтому правый отступ под вынесенное вправо число здесь только отъедает место.
+  // `flex items-center` — чтобы некликабельная плитка (article) держала содержимое
+  // по центру так же, как кликабельная (кнопка центрирует его сама).
+  const isStacked = valuePlacement === 'stacked';
   const shellClass = cn(
     tone === 'warning' ? doctorStatCardShellWarningClass : doctorStatCardShellClass,
+    isStacked && 'flex items-center p-2.5',
     (href || onClick) && doctorStatCardInteractiveClass,
     tone === 'neutral' && (href || onClick) && doctorStatCardInteractiveNeutralClass,
     selected &&
@@ -90,7 +96,17 @@ export function DoctorStatCard({
           : 'border-border/60 bg-card',
   );
 
-  const label = <p className={cn(doctorMetricLabelClass, selected && 'text-primary')}>{title}</p>;
+  const label = (
+    <p
+      className={cn(
+        doctorMetricLabelClass,
+        isStacked && 'tracking-normal',
+        selected && 'text-primary',
+      )}
+    >
+      {title}
+    </p>
+  );
   const valueNode = (
     <div
       className={cn(

@@ -1,10 +1,47 @@
--- C4 least-privilege operational runtime roles.
--- Creates four NOLOGIN capability roles and binds the three DB operational capabilities
--- through PostgreSQL 16 SET-only LOGIN membership edges. The media capability is selected
--- only by the webapp control seam; passwords/URLs are never managed here.
+-- ARCHIVE — one-time C4 provisioning of 2026-08. NOT a deploy step, and no deploy step is missing.
+--
+-- This file was the hand-run provisioning of the C4 operational contour (four NOLOGIN capability
+-- roles plus the SET-only LOGIN membership edges). It is applied by exactly one caller,
+-- deploy/host/provision-c4-operational-runtime.sh, which root runs by hand; deploy-test-saas.sh only
+-- syntax-checks it, and deploy-prod.sh only names it in an error message. Nothing re-applies it on a
+-- deploy, and the absence of such a step is not an oversight.
+--
+-- It can no longer be applied, measured 14.09.2026 against the live cluster:
+--   • every ALTER FUNCTION here says OWNER TO app_owner and every REVOKE names
+--     app_operational_diagnostic — NEITHER ROLE EXISTS any more. Ownership now belongs to
+--     app_object_owner and to the named seam owners.
+--   • the ten function bodies below are OLDER than the live ones. Measured 14.09.2026: all ten live
+--     functions carry a context guard — eight call app.require_attested_context_for_roles and two
+--     (operator_incident_alert_already_sent, mark_operator_incident_alert_sent) call
+--     app.require_accepted_context — and not one of the ten bodies below carries either. Re-applying
+--     this file strips the context guard from ten SECURITY DEFINER functions at once.
+--   • the two policies in the c4_operational_down branch (saas_org_dormant_p0_8_3/4) do not exist
+--     on the cluster at all: that generation was replaced by the rev10_* policies.
+--
+-- Where the truth lives now: privileges, ownership and policies — deploy/postgres/privileges/
+-- declaration.ts, applied by the access reconcile; function bodies — the drizzle migration ledger
+-- (the email support these two probe functions were missing landed as
+-- 20260914T120000_the_email_probe_opens_and_closes_its_own_incident.sql, built on the LIVE body,
+-- exactly because this file's copy is older).
+--
+-- The guard below therefore refuses to run it. The one documented caller that still applies it —
+-- deploy/host/provision-c4-operational-runtime.sh --bootstrap-test-env — passes
+-- -v c4_allow_archived_overlay=1 explicitly, and its self-test fails if that line is ever removed.
+-- Nothing else may pass it without first reconciling the bodies and role names with the cluster.
 
 \set ON_ERROR_STOP on
 \pset pager off
+
+\if :{?c4_allow_archived_overlay}
+\else
+\echo 'FATAL: deploy/postgres/c4-operational-runtime.sql is an ARCHIVE of the 2026-08 C4'
+\echo 'FATAL: provisioning. It names roles that no longer exist (app_owner,'
+\echo 'FATAL: app_operational_diagnostic) and carries function bodies OLDER than the live ones —'
+\echo 'FATAL: applying it would strip the context guard from ten SECURITY DEFINER functions.'
+\echo 'FATAL: Privileges belong to deploy/postgres/privileges/declaration.ts, bodies to'
+\echo 'FATAL: the drizzle migration ledger. Pass -v c4_allow_archived_overlay=1 only deliberately.'
+SELECT 1 / 0;
+\endif
 
 \if :{?c4_diagnostic_login_role}
 \else

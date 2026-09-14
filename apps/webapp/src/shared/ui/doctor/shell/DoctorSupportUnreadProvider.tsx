@@ -10,6 +10,13 @@ import {
 } from './doctorShellBadgeEvents';
 
 type DoctorShellBadgeCounts = {
+  /**
+   * Видимость канала в кабинете (модуль включён и не выключен по умолчанию клиники).
+   * Решение принято на границе организации в `resolveCommunicationsSurface`; здесь оно
+   * только раздаётся дереву, чтобы плитки «Сегодня» исчезали вместе со своей вкладкой.
+   */
+  directChatVisible: boolean;
+  programCommentsVisible: boolean;
   messagesUnread: number;
   unreadExerciseComments: number;
   overdueTasks: number;
@@ -175,6 +182,8 @@ export function DoctorSupportUnreadProvider({
   return (
     <DoctorShellBadgeContext.Provider
       value={{
+        directChatVisible: directChatEnabled,
+        programCommentsVisible: programCommentsEnabled,
         messagesUnread: messagesEnabled ? messages.count : 0,
         unreadExerciseComments: commentsEnabled ? navigationAttention.unreadExerciseComments : 0,
         overdueTasks: enabled ? navigationAttention.overdueTasks : 0,
@@ -203,6 +212,9 @@ export function useDoctorShellBadgeCounts(): DoctorShellBadgeCounts {
 export function useOptionalDoctorShellBadgeCounts(): DoctorShellBadgeCounts {
   return (
     useContext(DoctorShellBadgeContext) ?? {
+      // Вне оболочки состав кабинета неизвестен — ничего не прячем.
+      directChatVisible: true,
+      programCommentsVisible: true,
       messagesUnread: 0,
       unreadExerciseComments: 0,
       overdueTasks: 0,

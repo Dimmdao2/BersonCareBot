@@ -88,6 +88,151 @@ function splitQualified(key, site) {
   return { schema: parts[0], name: parts[1], qualified: `${q(parts[0])}.${q(parts[1])}` };
 }
 
+/* ───────── ограда вокруг операторов, берущих ACCESS EXCLUSIVE (SCHEME §B) ───────── */
+/**
+ * PostgreSQL берёт ACCESS EXCLUSIVE на КАЖДЫЙ `ALTER TABLE` и `CREATE/DROP POLICY` — даже когда
+ * оператор ничего не меняет, — и держит его до конца транзакции. Полное переприменение поэтому на
+ * всё время деплоя закрывало для читателей почти каждую таблицу базы: 14.09.2026 на проде это дало
+ * взаимную блокировку `ALTER TABLE app_ext.accepted_port_contexts OWNER TO …` против живого
+ * `app.begin_port_context`.
+ *
+ * Отсюда ограда: сравнение состояния читает только каталог (`pg_class`, `pg_policy`), никакого замка
+ * не берёт, и при совпадении пропускает весь блок целиком. Деплой, который ничего не меняет, не
+ * трогает ни одной таблицы. GRANT/REVOKE остаются СНАРУЖИ ограды: им хватает ROW EXCLUSIVE, они
+ * читателей не ждут и не блокируют, а их сравнение с живым ACL стоило бы дороже самой статьи.
+ *
+ * Сравнивается ровно то, что стоит внутри: владелец и RLS-флаги — из `pg_class`; политики — по паре
+ * «имя | дайджест ТЕКСТА оператора `CREATE POLICY`», где дайджест хранится комментарием на самой
+ * политике (`COMMENT ON POLICY`). Имена политик нумеруются позицией таблицы в декларации и потому
+ * меняются от посторонних правок; дайджест меняется ровно тогда, когда меняется сам предикат.
+ */
+function guardVariable(prefix, schema, name) {
+  return `bcb_${prefix}_${`${schema}_${name}`.replaceAll(/[^A-Za-z0-9_]/gu, '_')}`;
+}
+
+/**
+ * Метки, по которым reconcile отделяет операторы с ACCESS EXCLUSIVE от всего остального и применяет
+ * их ОТДЕЛЬНОЙ короткой транзакцией. Без этого один разошедшийся объект удерживал свой замок до
+ * конца длинной сверки — аудит 14.09.2026 поймал читателя, вставшего в очередь именно так.
+ */
+export const EXCLUSIVE_DDL_BEGIN = '-- BCB-EXCLUSIVE-DDL-BEGIN';
+export const EXCLUSIVE_DDL_END = '-- BCB-EXCLUSIVE-DDL-END';
+
+/** Делит вывод генератора на короткую часть с ACCESS EXCLUSIVE и всё остальное. */
+export function splitExclusiveDdl(text) {
+  const exclusive = [];
+  const rest = [];
+  let inside = false;
+  for (const line of text.split('\n')) {
+    if (line === EXCLUSIVE_DDL_BEGIN) { inside = true; continue; }
+    if (line === EXCLUSIVE_DDL_END) { inside = false; continue; }
+    (inside ? exclusive : rest).push(line);
+  }
+  if (inside) throw new Error('незакрытая метка BCB-EXCLUSIVE-DDL в выводе генератора');
+  return { exclusive: exclusive.join('\n'), rest: rest.join('\n') };
+}
+
+function guardedExclusiveDdl(variable, probeSql, statements) {
+  if (statements.length === 0) return [];
+  return [
+    EXCLUSIVE_DDL_BEGIN,
+    `SELECT coalesce((${probeSql}), false) AS ${variable}`,
+    '\\gset',
+    `\\if :${variable}`,
+    '\\else',
+    ...statements,
+    '\\endif',
+    EXCLUSIVE_DDL_END,
+  ];
+}
+
+/** Владелец и RLS-флаги отношения уже такие, как объявлено. */
+function relationStateProbe(schema, name, { owner, rls }) {
+  const conditions = [`pg_catalog.pg_get_userbyid(c.relowner) = ${lit(owner)}`];
+  if (rls === 'off') {
+    conditions.push('c.relrowsecurity IS FALSE', 'c.relforcerowsecurity IS FALSE');
+  } else if (rls) {
+    conditions.push(
+      'c.relrowsecurity IS TRUE',
+      rls === 'force' ? 'c.relforcerowsecurity IS TRUE' : 'c.relforcerowsecurity IS FALSE',
+    );
+  }
+  return `SELECT ${conditions.join(' AND ')} FROM pg_catalog.pg_class c`
+    + ` WHERE c.oid = pg_catalog.to_regclass(${lit(`${q(schema)}.${q(name)}`)})`;
+}
+
+/** Дайджест текста оператора `CREATE POLICY` — объявленная половина комментария на политике. */
+function policyDigest(statement) {
+  return `bcb1:${createHash('sha256').update(statement).digest('hex').slice(0, 16)}`;
+}
+
+/**
+ * Отпечаток ЖИВОЙ политики: вид, команда, грантополучатели и оба предиката, как их вернул сам
+ * PostgreSQL. Считается и в момент постановки (вторая половина комментария), и в момент сравнения.
+ *
+ * Одного объявленного дайджеста мало: `ALTER POLICY … USING (…)` сохраняет oid политики, а с ним и
+ * комментарий, — то есть подменённый предикат выглядел бы «тем же самым». Аудит 14.09.2026 это
+ * воспроизвёл живьём: после `ALTER POLICY … USING (false)` reconcile проходил и оставлял `false`.
+ * Живая половина ловит ровно такой дрейф: её нельзя сохранить, изменив политику.
+ */
+function policyLiveDigestSql(alias) {
+  return `pg_catalog.md5(${alias}.polpermissive::text || '|' || ${alias}.polcmd::text`
+    + ` || '|' || ${alias}.polroles::text`
+    + ` || '|' || coalesce(pg_catalog.pg_get_expr(${alias}.polqual, ${alias}.polrelid), '')`
+    + ` || '|' || coalesce(pg_catalog.pg_get_expr(${alias}.polwithcheck, ${alias}.polrelid), ''))`;
+}
+
+/** Половина комментария с объявленным дайджестом: `bcb1:<hex>` из `bcb1:<hex>:<живой>`. */
+function policyDeclaredHalfSql(alias) {
+  const comment = `coalesce(pg_catalog.obj_description(${alias}.oid, 'pg_policy'), '')`;
+  return `pg_catalog.split_part(${comment}, ':', 1) || ':' || pg_catalog.split_part(${comment}, ':', 2)`;
+}
+
+/** Живая половина комментария: третье поле. */
+function policyStoredLiveHalfSql(alias) {
+  return `pg_catalog.split_part(coalesce(pg_catalog.obj_description(${alias}.oid, 'pg_policy'), ''), ':', 3)`;
+}
+
+/**
+ * Набор политик отношения совпадает с объявленным: и по имени с объявленным дайджестом, и по тому,
+ * что живая политика с момента постановки не менялась.
+ */
+function policySetProbe(schema, name, fingerprints) {
+  const want = fingerprints.length === 0
+    ? 'ARRAY[]::text[]'
+    : `ARRAY[${fingerprints.map(lit).join(', ')}]::text[]`;
+  return 'SELECT coalesce((SELECT coalesce(pg_catalog.array_agg('
+    + `p.polname || '|' || ${policyDeclaredHalfSql('p')}`
+    + ` ORDER BY p.polname), ARRAY[]::text[]) = ${want}`
+    + ` AND coalesce(pg_catalog.bool_and(${policyStoredLiveHalfSql('p')} = ${policyLiveDigestSql('p')}), true)`
+    + ' FROM pg_catalog.pg_policy p'
+    + ` WHERE p.polrelid = pg_catalog.to_regclass(${lit(`${q(schema)}.${q(name)}`)})), false)`;
+}
+
+/**
+ * Проставить комментарии-отпечатки на только что поставленные политики. Живую половину считает уже
+ * сам PostgreSQL, поэтому она пишется здесь, а не выводится генератором.
+ */
+function policyStampStatements(schema, name, declared) {
+  if (declared.length === 0) return [];
+  const qualified = `${q(schema)}.${q(name)}`;
+  return [
+    'DO $bcb$',
+    'DECLARE pr record;',
+    'BEGIN',
+    `  FOR pr IN SELECT v.name, v.declared, ${policyLiveDigestSql('pol')} AS live FROM (VALUES`,
+    declared.map(({ policyName, digest }) => `      (${lit(policyName)}, ${lit(digest)})`).join(',\n'),
+    '    ) AS v(name, declared)',
+    `    JOIN pg_catalog.pg_policy pol ON pol.polrelid = pg_catalog.to_regclass(${lit(qualified)})`,
+    '      AND pol.polname = v.name',
+    '    ORDER BY 1 LOOP',
+    `    EXECUTE pg_catalog.format('COMMENT ON POLICY %I ON ${qualified} IS %L', pr.name, pr.declared || ':' || pr.live);`,
+    '  END LOOP;',
+    'END',
+    '$bcb$;',
+  ];
+}
+
 function sortedKeys(obj) {
   return Object.keys(obj ?? {}).sort();
 }
@@ -360,10 +505,26 @@ export function generatePortContextCapabilitySeedSql(declaration, dbName) {
     '  port = EXCLUDED.port, session_login = EXCLUDED.session_login, target_role = EXCLUDED.target_role,',
     '  context_class = EXCLUDED.context_class, purpose = EXCLUDED.purpose,',
     '  function_identity = EXCLUDED.function_identity, active_from = clock_timestamp(), active_until = NULL;',
-    'ALTER TABLE app_ext.port_context_capabilities',
-    '  DROP CONSTRAINT IF EXISTS port_context_capabilities_port_session_login_target_role_co_key;',
-    'ALTER TABLE app_ext.port_context_capabilities',
-    '  DROP CONSTRAINT IF EXISTS port_context_capabilities_authority_tuple_key;',
+    // `ALTER TABLE … DROP CONSTRAINT IF EXISTS` берёт ACCESS EXCLUSIVE даже когда ограничения
+    // давно нет, и держит его до COMMIT. Поэтому сначала смотрим каталог и трогаем таблицу, только
+    // если есть что снимать.
+    EXCLUSIVE_DDL_BEGIN,
+    'DO $bcb_capability_legacy_keys$',
+    'BEGIN',
+    '  IF EXISTS (',
+    '    SELECT 1 FROM pg_catalog.pg_constraint',
+    "    WHERE conrelid = pg_catalog.to_regclass('app_ext.port_context_capabilities')",
+    "      AND conname IN ('port_context_capabilities_port_session_login_target_role_co_key',",
+    "                      'port_context_capabilities_authority_tuple_key')",
+    '  ) THEN',
+    '    ALTER TABLE app_ext.port_context_capabilities',
+    '      DROP CONSTRAINT IF EXISTS port_context_capabilities_port_session_login_target_role_co_key;',
+    '    ALTER TABLE app_ext.port_context_capabilities',
+    '      DROP CONSTRAINT IF EXISTS port_context_capabilities_authority_tuple_key;',
+    '  END IF;',
+    'END',
+    '$bcb_capability_legacy_keys$;',
+    EXCLUSIVE_DDL_END,
     '',
   ].join('\n');
 }
@@ -613,9 +774,29 @@ export function generateRelationWallRegistrySeedSql(declaration, dbName, { recon
   }
   const values = exactRows.map((row) =>
     `  (${lit(row.schema)}::name, ${lit(row.name)}::name, ${lit(row.cls)}, ${lit(row.wall)}, ${lit(row.expectedOwner)}::name)`).join(',\n');
+  // Владельца правим только там, где он РАЗОШЁЛСЯ: `ALTER TABLE` берёт ACCESS EXCLUSIVE даже когда
+  // ничего не меняет, и держит его до конца транзакции reconcile. Список тот же, что и был, — он
+  // просто стал условием цикла, а не безусловной пачкой операторов.
   const ownerReconciliation = reconcileOwners
-    ? exactRows.map((row) =>
-      `ALTER TABLE ${q(row.schema)}.${q(row.name)} OWNER TO ${q(row.expectedOwner)};`).join('\n')
+    ? [
+      'DO $bcb$',
+      'DECLARE o record;',
+      'BEGIN',
+      '  FOR o IN SELECT v.schema_name, v.table_name, v.expected_owner FROM (VALUES',
+      exactRows.map((row) =>
+        `    (${lit(row.schema)}::name, ${lit(row.name)}::name, ${lit(row.expectedOwner)}::name)`).join(',\n'),
+      '  ) AS v(schema_name, table_name, expected_owner)',
+      '  JOIN pg_catalog.pg_class c'
+        + " ON c.oid = pg_catalog.to_regclass(pg_catalog.quote_ident(v.schema_name) || '.'"
+        + ' || pg_catalog.quote_ident(v.table_name))',
+      '  WHERE pg_catalog.pg_get_userbyid(c.relowner) <> v.expected_owner',
+      '  ORDER BY 1, 2 LOOP',
+      "    EXECUTE pg_catalog.format('ALTER TABLE %I.%I OWNER TO %I',"
+        + ' o.schema_name, o.table_name, o.expected_owner);',
+      '  END LOOP;',
+      'END',
+      '$bcb$;',
+    ].join('\n')
     : '';
   return [
     '-- Exact declaration-derived relation birth-wall registry.',
@@ -1996,15 +2177,21 @@ export function generatePrivilegesSql(declaration, dbName, options = {}) {
     "  FOR o IN SELECT c.relkind, n.nspname, c.relname FROM pg_catalog.pg_class c",
     '             JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace',
     "            WHERE n.nspname IN ('public', 'app', 'integrator', 'app_ext', 'drizzle')",
-    "              AND c.relkind IN ('v', 'm') ORDER BY n.nspname, c.relname LOOP",
+    "              AND c.relkind IN ('v', 'm')",
+    `              AND pg_catalog.pg_get_userbyid(c.relowner) <> ${lit('app_object_owner')}`,
+    '            ORDER BY n.nspname, c.relname LOOP',
     `    EXECUTE pg_catalog.format('ALTER %s %I.%I OWNER TO %I', CASE o.relkind WHEN 'v' THEN 'VIEW' ELSE 'MATERIALIZED VIEW' END, o.nspname, o.relname, ${lit('app_object_owner')});`,
     '  END LOOP;',
     "  FOR o IN SELECT n.nspname, t.typname FROM pg_catalog.pg_type t JOIN pg_catalog.pg_namespace n ON n.oid = t.typnamespace",
-    "            WHERE n.nspname IN ('public', 'app', 'integrator', 'app_ext', 'drizzle') AND t.typtype IN ('b', 'c', 'd', 'e', 'r') AND t.typelem = 0 AND t.typrelid = 0 ORDER BY 1, 2 LOOP",
+    "            WHERE n.nspname IN ('public', 'app', 'integrator', 'app_ext', 'drizzle') AND t.typtype IN ('b', 'c', 'd', 'e', 'r') AND t.typelem = 0 AND t.typrelid = 0",
+    `              AND pg_catalog.pg_get_userbyid(t.typowner) <> ${lit('app_object_owner')}`,
+    '            ORDER BY 1, 2 LOOP',
     `    EXECUTE pg_catalog.format('ALTER TYPE %I.%I OWNER TO %I', o.nspname, o.typname, ${lit('app_object_owner')});`,
     '  END LOOP;',
     "  FOR o IN SELECT n.nspname, p.proname, pg_catalog.pg_get_function_identity_arguments(p.oid) AS args FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace",
-    "            WHERE n.nspname IN ('app', 'app_ext') AND NOT p.prosecdef ORDER BY 1, 2, 3 LOOP",
+    "            WHERE n.nspname IN ('app', 'app_ext') AND NOT p.prosecdef",
+    `              AND pg_catalog.pg_get_userbyid(p.proowner) <> ${lit('app_object_owner')}`,
+    '            ORDER BY 1, 2, 3 LOOP',
     `    EXECUTE pg_catalog.format('ALTER FUNCTION %I.%I(%s) OWNER TO %I', o.nspname, o.proname, o.args, ${lit('app_object_owner')});`,
     '  END LOOP;',
     'END', '$bcb$;', '',
@@ -2021,16 +2208,29 @@ export function generatePrivilegesSql(declaration, dbName, options = {}) {
     for (const [identity, relation] of Object.entries(portContext.privateRelations).sort(([a], [b]) => a.localeCompare(b))) {
       const { schema, name, qualified } = splitQualified(identity, `portContext.privateRelations.${identity}`);
       const policyName = `bcb_private_owner_${schema}_${name}`;
-      out.push(`ALTER TABLE ${qualified} OWNER TO ${q(relation.owner)};`);
+      out.push(...guardedExclusiveDdl(
+        guardVariable('own', schema, name),
+        relationStateProbe(schema, name, { owner: relation.owner }),
+        [`ALTER TABLE ${qualified} OWNER TO ${q(relation.owner)};`],
+      ));
       out.push(`REVOKE ALL PRIVILEGES ON TABLE ${qualified} FROM PUBLIC;`);
       const targets = revokeTargets(relation.owner);
       if (targets.length > 0) out.push(`REVOKE ALL PRIVILEGES ON TABLE ${qualified} FROM ${revokeList(targets)};`);
-      out.push(`DROP POLICY IF EXISTS ${q(policyName)} ON ${qualified};`);
-      out.push(
+      const privateStatement = [
         `CREATE POLICY ${q(policyName)} ON ${qualified} AS PERMISSIVE FOR ALL TO ${q(relation.owner)}`,
         `  USING (current_user = ${lit(relation.owner)}::name)`,
-        `  WITH CHECK (current_user = ${lit(relation.owner)}::name);`,
-      );
+        `  WITH CHECK (current_user = ${lit(relation.owner)}::name)`,
+      ].join('\n');
+      const privateDigest = policyDigest(privateStatement);
+      out.push(...guardedExclusiveDdl(
+        guardVariable('pol', schema, name),
+        policySetProbe(schema, name, [`${policyName}|${privateDigest}`]),
+        [
+          `DROP POLICY IF EXISTS ${q(policyName)} ON ${qualified};`,
+          `${privateStatement};`,
+          ...policyStampStatements(schema, name, [{ policyName, digest: privateDigest }]),
+        ],
+      ));
     }
     out.push(generatePortContextCapabilitySeedSql(declaration, dbName));
     out.push('');
@@ -2167,14 +2367,18 @@ export function generatePrivilegesSql(declaration, dbName, options = {}) {
       );
       continue;
     }
-    out.push(`ALTER TABLE ${qualified} OWNER TO ${q(owner)};`);
-    if (table.rls === 'off') {
-      out.push(`ALTER TABLE ${qualified} NO FORCE ROW LEVEL SECURITY;`);
-      out.push(`ALTER TABLE ${qualified} DISABLE ROW LEVEL SECURITY;`);
-    } else {
-      out.push(`ALTER TABLE ${qualified} ENABLE ROW LEVEL SECURITY;`);
-      out.push(`ALTER TABLE ${qualified} ${table.rls === 'force' ? 'FORCE' : 'NO FORCE'} ROW LEVEL SECURITY;`);
-    }
+    out.push(...guardedExclusiveDdl(
+      guardVariable('own', schema, name),
+      relationStateProbe(schema, name, { owner, rls: table.rls }),
+      [
+        `ALTER TABLE ${qualified} OWNER TO ${q(owner)};`,
+        ...(table.rls === 'off'
+          ? [`ALTER TABLE ${qualified} NO FORCE ROW LEVEL SECURITY;`,
+            `ALTER TABLE ${qualified} DISABLE ROW LEVEL SECURITY;`]
+          : [`ALTER TABLE ${qualified} ENABLE ROW LEVEL SECURITY;`,
+            `ALTER TABLE ${qualified} ${table.rls === 'force' ? 'FORCE' : 'NO FORCE'} ROW LEVEL SECURITY;`]),
+      ],
+    ));
     out.push(`REVOKE ALL PRIVILEGES ON TABLE ${qualified} FROM PUBLIC;`);
     if (tableRevoke.length > 0) {
       out.push(`REVOKE ALL PRIVILEGES ON TABLE ${qualified} FROM ${revokeList(tableRevoke)};`);
@@ -2214,25 +2418,38 @@ export function generatePrivilegesSql(declaration, dbName, options = {}) {
       '$bcb$;',
     );
 
-    // политики: полное переприменение — снять ВСЕ, поставить объявленные
-    out.push(
-      'DO $bcb$',
-      'DECLARE p record;',
-      'BEGIN',
-      '  FOR p IN SELECT policyname FROM pg_catalog.pg_policies',
-      `            WHERE schemaname = ${lit(schema)} AND tablename = ${lit(name)} ORDER BY policyname LOOP`,
-      `    EXECUTE pg_catalog.format('DROP POLICY %I ON %I.%I', p.policyname, ${lit(schema)}, ${lit(name)});`,
-      '  END LOOP;',
-      'END',
-      '$bcb$;',
-    );
+    // политики: полное переприменение — снять ВСЕ, поставить объявленные. Под оградой: и снятие, и
+    // постановка берут ACCESS EXCLUSIVE, поэтому на совпадении набора не делаем ни того, ни другого.
+    const policyStatements = [];
+    const policyFingerprints = [];
+    const declaredPolicyStamps = [];
     for (const policy of [...(table.policies ?? [])].sort((a, b) => a.name.localeCompare(b.name))) {
       const to = [...policy.to].sort().map((r) => (r === 'PUBLIC' ? 'PUBLIC' : q(r))).join(', ');
       let statement = `CREATE POLICY ${q(policy.name)} ON ${qualified} AS ${policy.as} FOR ${policy.cmd} TO ${to}`;
       if (policy.using) statement += ` USING (${policy.using})`;
       if (policy.withCheck) statement += ` WITH CHECK (${policy.withCheck})`;
-      out.push(`${statement};`);
+      const digest = policyDigest(statement);
+      policyFingerprints.push(`${policy.name}|${digest}`);
+      declaredPolicyStamps.push({ policyName: policy.name, digest });
+      policyStatements.push(`${statement};`);
     }
+    policyStatements.push(...policyStampStatements(schema, name, declaredPolicyStamps));
+    out.push(...guardedExclusiveDdl(
+      guardVariable('pol', schema, name),
+      policySetProbe(schema, name, policyFingerprints),
+      [
+        'DO $bcb$',
+        'DECLARE p record;',
+        'BEGIN',
+        '  FOR p IN SELECT policyname FROM pg_catalog.pg_policies',
+        `            WHERE schemaname = ${lit(schema)} AND tablename = ${lit(name)} ORDER BY policyname LOOP`,
+        `    EXECUTE pg_catalog.format('DROP POLICY %I ON %I.%I', p.policyname, ${lit(schema)}, ${lit(name)});`,
+        '  END LOOP;',
+        'END',
+        '$bcb$;',
+        ...policyStatements,
+      ],
+    ));
     out.push('');
   }
 

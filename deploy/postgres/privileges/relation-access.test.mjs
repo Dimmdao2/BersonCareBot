@@ -881,8 +881,8 @@ test('clinic-owner mutation grants include every default column emitted by Drizz
   // на реальные записи»): колонка-снимок адресов удалена вместе со своим единственным писателем,
   // в drizzle-схеме её больше нет — значит и в гранте вставки ей места нет.
   exactColumns('public.clinic_public_directory_entries', 'app_staff', 'INSERT', [
-    'card_is_published', 'created_at', 'description', 'display_name', 'is_published',
-    'logo_media_id', 'organization_id', 'photo_media_ids',
+    'card_is_published', 'created_at', 'description', 'display_name', 'full_description_markdown',
+    'is_published', 'logo_media_id', 'organization_id', 'photo_media_ids',
     'public_contact_email', 'public_contact_phone', 'public_website_url', 'published_at', 'slug',
     'updated_at',
   ]);

@@ -152,6 +152,10 @@ export const curatedSystemHealthSnapshotSchema = z
     mediaPreview: z
       .object({
         stalePendingCount: nonNegativeNumber,
+        // Поле добавлено позже остальных, поэтому необязательное со значением по умолчанию —
+        // тот же приём, что у `confirmedDeliveries24h`: во время раскатки приложение новее базы
+        // на несколько минут, и снимок без этой цифры обязан разбираться, а не ронять весь тик.
+        blockedCount: nonNegativeNumber.optional().default(0),
         byMimeAndStatus: z
           .object({
             'video/quicktime': previewStatusCountsSchema,

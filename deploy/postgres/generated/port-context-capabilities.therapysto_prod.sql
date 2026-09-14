@@ -328,7 +328,20 @@ ON CONFLICT (capability_id) DO UPDATE SET
   port = EXCLUDED.port, session_login = EXCLUDED.session_login, target_role = EXCLUDED.target_role,
   context_class = EXCLUDED.context_class, purpose = EXCLUDED.purpose,
   function_identity = EXCLUDED.function_identity, active_from = clock_timestamp(), active_until = NULL;
-ALTER TABLE app_ext.port_context_capabilities
-  DROP CONSTRAINT IF EXISTS port_context_capabilities_port_session_login_target_role_co_key;
-ALTER TABLE app_ext.port_context_capabilities
-  DROP CONSTRAINT IF EXISTS port_context_capabilities_authority_tuple_key;
+-- BCB-EXCLUSIVE-DDL-BEGIN
+DO $bcb_capability_legacy_keys$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_catalog.pg_constraint
+    WHERE conrelid = pg_catalog.to_regclass('app_ext.port_context_capabilities')
+      AND conname IN ('port_context_capabilities_port_session_login_target_role_co_key',
+                      'port_context_capabilities_authority_tuple_key')
+  ) THEN
+    ALTER TABLE app_ext.port_context_capabilities
+      DROP CONSTRAINT IF EXISTS port_context_capabilities_port_session_login_target_role_co_key;
+    ALTER TABLE app_ext.port_context_capabilities
+      DROP CONSTRAINT IF EXISTS port_context_capabilities_authority_tuple_key;
+  END IF;
+END
+$bcb_capability_legacy_keys$;
+-- BCB-EXCLUSIVE-DDL-END

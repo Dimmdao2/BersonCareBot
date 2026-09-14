@@ -38,13 +38,27 @@ CREATE TABLE IF NOT EXISTS app_control.relation_wall_registry (
 REVOKE ALL ON SCHEMA app_control FROM PUBLIC;
 REVOKE ALL ON TABLE app_control.org_table_allowlist FROM PUBLIC;
 REVOKE ALL ON TABLE app_control.relation_wall_registry FROM PUBLIC;
-ALTER TABLE app_control.org_table_allowlist ENABLE ROW LEVEL SECURITY;
-ALTER TABLE app_control.org_table_allowlist FORCE ROW LEVEL SECURITY;
-ALTER TABLE app_control.relation_wall_registry ENABLE ROW LEVEL SECURITY;
-ALTER TABLE app_control.relation_wall_registry FORCE ROW LEVEL SECURITY;
 ALTER SCHEMA app_control OWNER TO postgres;
-ALTER TABLE app_control.org_table_allowlist OWNER TO postgres;
-ALTER TABLE app_control.relation_wall_registry OWNER TO postgres;
+-- RLS-флаги и владелец правятся ТОЛЬКО при расхождении. `ALTER TABLE` берёт ACCESS EXCLUSIVE даже
+-- когда ничего не меняет, и держит его до конца транзакции reconcile — то есть безусловная пачка
+-- закрывала эти таблицы для читателей на каждом деплое. Сравнение читает каталог и замка не берёт.
+DO $bcb_app_control_state$
+DECLARE r record;
+BEGIN
+  FOR r IN SELECT n.nspname, c.relname FROM pg_catalog.pg_class c
+             JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+            WHERE n.nspname = 'app_control'
+              AND c.relname IN ('org_table_allowlist', 'relation_wall_registry')
+              AND (NOT c.relrowsecurity OR NOT c.relforcerowsecurity
+                   OR pg_catalog.pg_get_userbyid(c.relowner) <> 'postgres')
+            ORDER BY 1, 2
+  LOOP
+    EXECUTE pg_catalog.format('ALTER TABLE %I.%I ENABLE ROW LEVEL SECURITY', r.nspname, r.relname);
+    EXECUTE pg_catalog.format('ALTER TABLE %I.%I FORCE ROW LEVEL SECURITY', r.nspname, r.relname);
+    EXECUTE pg_catalog.format('ALTER TABLE %I.%I OWNER TO postgres', r.nspname, r.relname);
+  END LOOP;
+END
+$bcb_app_control_state$;
 
 DO $$ BEGIN CREATE TYPE app.port_name AS ENUM ('webapp', 'integrator'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN CREATE TYPE app.port_context_class AS ENUM ('pre_session', 'staff', 'patient', 'platform', 'integrator', 'tenant_service', 'service'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
@@ -117,8 +131,17 @@ CREATE TABLE IF NOT EXISTS app_ext.port_context_capabilities (
 );
 -- Capability IDs, not the descriptive tuple, are authority: multiple audited
 -- relation descriptors may intentionally share the same NULL root tuple.
-ALTER TABLE app_ext.port_context_capabilities
-  DROP CONSTRAINT IF EXISTS port_context_capabilities_port_session_login_target_role_co_key;
+-- `DROP CONSTRAINT IF EXISTS` пропускает отсутствующий constraint, но замок берёт всё равно.
+DO $bcb_capability_key$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_catalog.pg_constraint
+              WHERE conrelid = 'app_ext.port_context_capabilities'::regclass
+                AND conname = 'port_context_capabilities_port_session_login_target_role_co_key') THEN
+    ALTER TABLE app_ext.port_context_capabilities
+      DROP CONSTRAINT port_context_capabilities_port_session_login_target_role_co_key;
+  END IF;
+END
+$bcb_capability_key$;
 CREATE TABLE IF NOT EXISTS app_ext.accepted_port_contexts (
   database_oid oid NOT NULL,
   backend_pid integer NOT NULL,
@@ -183,8 +206,17 @@ CREATE TABLE IF NOT EXISTS app_ext.variant_a_identity_refs (
 );
 -- Таблица уже рождённая (DEV, TEST, PROD и любая база из снимка схемы B) приходит к той же форме
 -- этими шагами.  Каждый из них проверяет факт, а не догадку, поэтому повторный reconcile — no-op.
-ALTER TABLE app_ext.variant_a_identity_refs
-  ADD COLUMN IF NOT EXISTS ref_kind text NOT NULL DEFAULT 'actor';
+-- `ADD COLUMN IF NOT EXISTS` на уже существующей колонке тоже берёт ACCESS EXCLUSIVE.
+DO $bcb_variant_a_kind_column$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_attribute
+                  WHERE attrelid = 'app_ext.variant_a_identity_refs'::regclass
+                    AND attname = 'ref_kind' AND NOT attisdropped) THEN
+    ALTER TABLE app_ext.variant_a_identity_refs
+      ADD COLUMN ref_kind text NOT NULL DEFAULT 'actor';
+  END IF;
+END
+$bcb_variant_a_kind_column$;
 DO $variant_a_kind$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_constraint
@@ -208,9 +240,23 @@ BEGIN
   END IF;
 END
 $variant_a_kind$;
-ALTER TABLE app_ext.port_context_capabilities OWNER TO app_seam_context_owner;
-ALTER TABLE app_ext.accepted_port_contexts OWNER TO app_seam_context_owner;
-ALTER TABLE app_ext.variant_a_identity_refs OWNER TO app_seam_identity_lookup_owner;
+DO $bcb_seam_owner$
+DECLARE r record;
+BEGIN
+  FOR r IN SELECT v.nsp, v.rel, v.owner FROM (VALUES
+        ('app_ext', 'port_context_capabilities', 'app_seam_context_owner'),
+        ('app_ext', 'accepted_port_contexts', 'app_seam_context_owner'),
+        ('app_ext', 'variant_a_identity_refs', 'app_seam_identity_lookup_owner')
+      ) AS v(nsp, rel, owner)
+      JOIN pg_catalog.pg_class c
+        ON c.oid = pg_catalog.to_regclass(pg_catalog.quote_ident(v.nsp) || '.' || pg_catalog.quote_ident(v.rel))
+     WHERE pg_catalog.pg_get_userbyid(c.relowner) <> v.owner
+     ORDER BY 1, 2
+  LOOP
+    EXECUTE pg_catalog.format('ALTER TABLE %I.%I OWNER TO %I', r.nsp, r.rel, r.owner);
+  END LOOP;
+END
+$bcb_seam_owner$;
 REVOKE ALL ON ALL TABLES IN SCHEMA app_ext FROM PUBLIC, :"app_staff_login", :"app_patient_login", :"app_global_admin_login", :"integrator_login";
 REVOKE ALL ON ALL TABLES IN SCHEMA app_ext FROM app_pre_session, app_staff, app_patient, app_platform_settings,
   app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_tenant_service, app_service, app_seam_password_auth_owner;

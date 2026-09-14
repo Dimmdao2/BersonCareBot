@@ -95,6 +95,12 @@ run_self_test(){
     echo "FATAL: self-test accepted unknown database for legacy media login retirement" >&2
     return 1
   fi
+  # Оверлей отказывается применяться без разрешения. Без этой строки самопроверка давала зелёный, а
+  # документированный bootstrap обрывался бы на живом хосте уже после правки env и ролей.
+  grep -q 'c4_allow_archived_overlay=1' "${BASH_SOURCE[0]}" || {
+    echo "FATAL: self-test: применение архивного оверлея больше не несёт c4_allow_archived_overlay=1" >&2
+    return 1
+  }
   echo "provision-c4-operational-runtime self-test: OK"
 }
 
@@ -220,7 +226,12 @@ SQL
 done
 unset password passwords urls diagnostic_url delivery_url scheduler_url endpoint DATABASE_URL
 
+# Оверлей помечен архивом и сам отказывается применяться без явного разрешения (см. его шапку).
+# Этот вызов — ЕДИНСТВЕННЫЙ исторический применяющий, ради которого исключение и оставлено: без него
+# документированный `--bootstrap-test-env` обрывался бы уже после правки env и ролей. Разрешение
+# стоит здесь явной строкой, чтобы никто не применил файл случайно, мимо этого пути.
 sudo -u postgres psql -d "$database" -X -v ON_ERROR_STOP=1 \
+  -v c4_allow_archived_overlay=1 \
   -v c4_diagnostic_login_role="${roles[0]}" \
   -v c4_delivery_worker_login_role="${roles[1]}" \
   -v c4_scheduler_login_role="${roles[2]}" \
