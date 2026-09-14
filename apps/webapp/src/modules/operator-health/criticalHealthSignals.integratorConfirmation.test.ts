@@ -23,6 +23,7 @@ function input(overrides: Partial<CriticalHealthSignalsInput>): CriticalHealthSi
     backupJobs: {},
     probeConsecutiveFailRuns: 0,
     probeIncidentsOpenCount: 0,
+    videoTranscodeStatus: 'ok',
     ...overrides,
   };
 }
