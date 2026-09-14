@@ -115,6 +115,10 @@ export function internalJobRunnerPath(environment) {
   return environment.projectRoot + '/deploy/host/run-internal-job.sh';
 }
 
+export function cronUserFor(entry) {
+  return entry.kind === 'backup_shell' ? 'postgres' : 'root';
+}
+
 export function renderCronCommand(entry, environment) {
   return internalJobRunnerPath(environment) + ' ' + environment.id + ' ' + entry.id;
 }
