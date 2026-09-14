@@ -96,8 +96,12 @@ export function createIntegratorEmailAdapter(deps: IntegratorEmailAdapterDeps) {
       subject: string,
       text: string,
       audience: PlatformEmailAudience,
+      html?: string,
     ): Promise<SendEmailResult> {
-      return postSendEmail({ to, subject, text, audience }, `email:send:${randomUUID()}`);
+      return postSendEmail(
+        { to, subject, text, audience, ...(html ? { html } : {}) },
+        `email:send:${randomUUID()}`,
+      );
     },
   };
 }
@@ -118,10 +122,11 @@ export async function sendEmailSetupLinkViaIntegrator(
   to: string,
   subject: string,
   text: string,
+  html?: string,
 ): Promise<SendEmailResult> {
   const adapter = createIntegratorEmailAdapter({
     integratorBaseUrl: env.INTEGRATOR_API_URL,
     sharedSecret: integratorWebhookSecret(),
   });
-  return adapter.sendTransactionalEmail(to, subject, text, 'staff');
+  return adapter.sendTransactionalEmail(to, subject, text, 'staff', html);
 }

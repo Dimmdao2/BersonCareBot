@@ -22,7 +22,7 @@ const bodySchema = z.object({
 export async function POST(request: Request) {
   stampBootstrapPrincipal('api/account/security/password/change:POST', request);
 
-  const gate = await requireStaffSecurityApiSession();
+  const gate = await requireStaffSecurityApiSession({ allowPasswordChangeRequired: true });
   if (!gate.ok) return gate.response;
 
   // Authenticate before consuming the shared confirm budget so anonymous callers cannot exhaust it;

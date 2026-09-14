@@ -4968,7 +4968,8 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
           "locked_until",
           "next_allowed_at",
           "verification_lease_token",
-          "verification_lease_until"
+          "verification_lease_until",
+          "must_change_at"
         ],
         "operations": [
           "SELECT",
@@ -5040,7 +5041,8 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
           "locked_until",
           "next_allowed_at",
           "verification_lease_token",
-          "verification_lease_until"
+          "verification_lease_until",
+          "must_change_at"
         ],
         "operations": [
           "SELECT",
@@ -23984,6 +23986,9 @@ const TABLE_ROWS: TableRow[] = [
   { t: 'public.webapp_schema_migrations', cls: 'T', wall: 'pending-removal', rls: 'n/a', disp: 'REMOVED',
     why: 'УДАЛЕНО B0: аварийный исторический ledger больше не участвует в применении миграций',
     wallWhy: 'Физически удалённый legacy-ledger остаётся именованным только для двусторонней проверки каталога' },
+  { t: 'public.login_security_actions', cls: 'S', org: false, wall: 'definer-only',
+    why: 'одноразовые ссылки из писем о новом устройстве — только через точные двери защиты входа',
+    wallWhy: W_AUTH_DEFINER },
   { t: 'public.user_login_events', cls: 'S', org: false, wall: 'platform-role', why: 'журнал входов — без него '
     + 'невозможно установить адрес, устройство и способ входа после компрометации учётной записи' },
 ];
@@ -25736,6 +25741,21 @@ const REV10_CONTEXT = {
       sessionRole: 'app_patient', targetRole: 'app_pre_session', contextClass: 'pre_session',
       purpose: 'auth.user-login-event.append',
       functionIdentity: 'app.append_user_login_event(uuid,text,text,text,text,text,text,text,text,text,text,text)' },
+    webapp_pre_session_login_security_action_issue: { port: 'webapp',
+      runtimeName: 'pre_session_login_security_action_issue', sessionRole: 'app_patient',
+      targetRole: 'app_pre_session', contextClass: 'pre_session',
+      purpose: 'auth.login-security-action.issue',
+      functionIdentity: 'app.issue_login_security_action(uuid,uuid,text,timestamp with time zone)' },
+    webapp_pre_session_login_security_action_consume: { port: 'webapp',
+      runtimeName: 'pre_session_login_security_action_consume', sessionRole: 'app_patient',
+      targetRole: 'app_pre_session', contextClass: 'pre_session',
+      purpose: 'auth.login-security-action.consume',
+      functionIdentity: 'app.consume_login_security_action(text)' },
+    webapp_patient_password_change_required_read: { port: 'webapp',
+      runtimeName: 'patient_password_change_required_read', sessionRole: 'app_patient',
+      targetRole: 'app_patient', contextClass: 'patient',
+      purpose: 'auth.password-change-required.read-self',
+      functionIdentity: 'app.password_credentials_must_change_self()' },
     // #1112 Л-8: та же пред-сессионная дорога, что у записи входа. Неудачная попытка по определению
     // случается до того, как принципал человека установлен, — другого класса контекста у неё быть не
     // может, и именно поэтому запись идёт через дверь, а не грантом на таблицу.
@@ -30277,6 +30297,56 @@ const REV10_CONTEXT = {
           columns: ['user_id', 'device_key', 'failed_passwords', 'failed_second_factor',
             'source_addresses', 'first_failure_at'],
           operations: ['SELECT' as const, 'DELETE' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }],
+    }),
+    'app.issue_login_security_action(uuid,uuid,text,timestamp with time zone)': rev10Function({
+      owner: 'app_seam_password_auth_owner', security: 'DEFINER', returns: 'uuid', returnsSet: false,
+      execute: ['app_pre_session'], purpose: 'issue one expiring account-protection action for a successful login',
+      typedArgs: ['uuid', 'uuid', 'text', 'timestamp with time zone'],
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, pg_temp'],
+      relationSurfaces: [
+        { relation: 'public.user_login_events', columns: ['id', 'user_id', 'outcome'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.user_password_credentials', columns: ['user_id'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.login_security_actions',
+          columns: ['id', 'token_hash', 'user_id', 'purpose', 'expires_at', 'source_login_event_id'],
+          operations: ['INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.consume_login_security_action(text)': rev10Function({
+      owner: 'app_seam_password_auth_owner', security: 'DEFINER', returns: 'record', returnsSet: true,
+      execute: ['app_pre_session'], purpose: 'consume one account-protection action and revoke access atomically',
+      typedArgs: ['text'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog, app, pg_temp'],
+      relationSurfaces: [
+        { relation: 'public.login_security_actions',
+          columns: ['id', 'token_hash', 'user_id', 'purpose', 'expires_at', 'used_at',
+            'source_login_event_id'], operations: ['SELECT' as const, 'UPDATE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.platform_users',
+          columns: ['id', 'session_epoch', 'updated_at', 'merged_into_id'],
+          operations: ['SELECT' as const, 'UPDATE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.user_password_credentials',
+          columns: ['user_id', 'must_change_at', 'updated_at'],
+          operations: ['SELECT' as const, 'UPDATE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.user_contacts',
+          columns: ['id', 'platform_user_id', 'contact_kind', 'value_normalized', 'is_primary',
+            'confirmed_at', 'created_at'], operations: ['SELECT' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.password_credentials_must_change_self()': rev10Function({
+      owner: 'app_seam_password_auth_owner', security: 'DEFINER',
+      returns: 'timestamp with time zone', returnsSet: false,
+      execute: ['app_patient'], purpose: 'read whether the current identity must replace its password',
+      typedArgs: [], volatility: 'STABLE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog, app, pg_temp'],
+      delegatesTo: ['app.require_staff_security_self_user_id()'],
+      relationSurfaces: [{ relation: 'public.user_password_credentials',
+        columns: ['user_id', 'must_change_at'], operations: ['SELECT' as const],
+        evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
     // #1112 Л-8. Копилка неудачных попыток до входа. Отдельно от счётчика блокировки: тот обнуляется
     // и при успехе, и при истечении блокировки, и насыщается на десяти — журналу он врал бы.

@@ -12,7 +12,7 @@ import {
 const NO_STORE_HEADERS = { 'Cache-Control': 'no-store' };
 export async function POST(request: Request) {
   stampBootstrapPrincipal('api/account/security/password/change/challenge:POST', request);
-  const gate = await requireStaffSecurityApiSession();
+  const gate = await requireStaffSecurityApiSession({ allowPasswordChangeRequired: true });
   if (!gate.ok) {
     gate.response.headers.set('Cache-Control', 'no-store');
     return gate.response;

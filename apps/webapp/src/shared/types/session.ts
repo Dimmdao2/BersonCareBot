@@ -74,6 +74,8 @@ export type SessionUser = {
   sessionEpoch?: number;
   /** A verified staff factor exists in DB; workspace access requires a factor-verified session. */
   securityFactorRequired?: boolean;
+  /** A successful password login may only continue to the password replacement screen. */
+  mustChangePassword?: boolean;
 };
 
 export type AppSession = {

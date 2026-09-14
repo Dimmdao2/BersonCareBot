@@ -49,6 +49,7 @@ const sendEmailBodySchema = z
     code: z.string().optional(),
     mailProfile: encodedMailProfileSchema.optional(),
     text: z.string().optional(),
+    html: z.string().optional(),
     /** Auth-code callers from the historical signed contract remain patient-only. */
     audience: z.enum(['staff', 'patient']).optional(),
     templateId: z.string().optional(),
@@ -185,6 +186,7 @@ export async function registerBersoncareSendEmailRoute(
       content: {
         subject,
         text,
+        ...(payload.html?.trim() ? { html: payload.html } : {}),
       },
       meta: {
         eventId,

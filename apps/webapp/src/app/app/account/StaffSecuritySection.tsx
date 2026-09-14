@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
@@ -12,13 +12,12 @@ import {
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { LogoutForm } from '@/shared/ui/LogoutForm';
 import { Input } from '@/shared/ui/doctor/primitives/input';
-import { Label } from '@/shared/ui/doctor/primitives/label';
 import {
   staffSecurityErrorText,
   staffSecurityNetworkErrorText,
 } from '@/shared/ui/auth/staffSecurityErrorText';
-import { PasswordAltchaChallenge } from '@/shared/ui/auth/PasswordAltchaChallenge';
 import { notificationText } from '@/shared/notifications/notificationText';
+import { PasswordChangeForm } from './PasswordChangeForm';
 
 type SecurityStatus = {
   enrolled: boolean;
@@ -55,12 +54,6 @@ export function StaffSecuritySection(props: Props) {
   const [code, setCode] = useState('');
   const [recoveryCodes, setRecoveryCodes] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [passwordBusy, setPasswordBusy] = useState(false);
-  const [passwordAltchaRequired, setPasswordAltchaRequired] = useState(false);
-  const [passwordAltchaPayload, setPasswordAltchaPayload] = useState<string | null>(null);
-  const [passwordAltchaGeneration, setPasswordAltchaGeneration] = useState(0);
 
   const securityReady = status.enrolled && status.recoveryConfirmed && !status.replacementRequired;
 
@@ -164,48 +157,6 @@ export function StaffSecuritySection(props: Props) {
     }
   }
 
-  async function changePassword(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setPasswordBusy(true);
-    try {
-      const result = await postJson<{
-        ok: boolean;
-        error?: string;
-        passwordChanged?: boolean;
-        captchaRequired?: boolean;
-        captchaRefreshRequired?: boolean;
-      }>('/api/account/security/password/change', {
-        currentPassword,
-        newPassword,
-        ...(passwordAltchaPayload ? { altcha: passwordAltchaPayload } : {}),
-      });
-      if (!result.ok) {
-        if (result.passwordChanged) {
-          setCurrentPassword('');
-          setNewPassword('');
-        }
-        if (result.captchaRefreshRequired) {
-          setPasswordAltchaRequired(true);
-          setPasswordAltchaPayload(null);
-          setPasswordAltchaGeneration((current) => current + 1);
-        } else if (result.captchaRequired) {
-          setPasswordAltchaRequired(true);
-        }
-        toast.error(staffSecurityErrorText(result.error, 'change_password'));
-        return;
-      }
-      setCurrentPassword('');
-      setNewPassword('');
-      setPasswordAltchaRequired(false);
-      setPasswordAltchaPayload(null);
-      toast.success(notificationText.authPasswordChanged);
-    } catch {
-      toast.error(staffSecurityNetworkErrorText('change_password'));
-    } finally {
-      setPasswordBusy(false);
-    }
-  }
-
   return (
     <div className="flex flex-col gap-3">
       {!props.recoveryOnly && props.showSpecialistFirstRun !== false ? (
@@ -255,48 +206,7 @@ export function StaffSecuritySection(props: Props) {
         <DoctorSectionHeader>
           <DoctorSectionTitle>Защита аккаунта</DoctorSectionTitle>
         </DoctorSectionHeader>
-        <form className="grid max-w-md gap-2" onSubmit={changePassword}>
-          <div className="grid gap-1">
-            <Label htmlFor="account-current-password">Текущий пароль</Label>
-            <Input
-              id="account-current-password"
-              type="password"
-              autoComplete="current-password"
-              maxLength={128}
-              required
-              value={currentPassword}
-              onChange={(event) => setCurrentPassword(event.target.value)}
-            />
-          </div>
-          <div className="grid gap-1">
-            <Label htmlFor="account-new-password">Новый пароль</Label>
-            <Input
-              id="account-new-password"
-              type="password"
-              autoComplete="new-password"
-              minLength={8}
-              maxLength={128}
-              required
-              value={newPassword}
-              onChange={(event) => setNewPassword(event.target.value)}
-            />
-          </div>
-          {passwordAltchaRequired ? (
-            <PasswordAltchaChallenge
-              key={passwordAltchaGeneration}
-              endpoint="/api/account/security/password/change/challenge"
-              onVerified={setPasswordAltchaPayload}
-            />
-          ) : null}
-          <Button
-            className="w-fit"
-            size="sm"
-            type="submit"
-            disabled={passwordBusy || (passwordAltchaRequired && !passwordAltchaPayload)}
-          >
-            Сменить пароль
-          </Button>
-        </form>
+        <PasswordChangeForm />
         {securityReady ? (
           <p className="text-sm">Приложение-аутентификатор подключено, резервные коды сохранены.</p>
         ) : null}

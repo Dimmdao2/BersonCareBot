@@ -48,6 +48,11 @@ export const SURFACE_ROUTE_RULES: readonly SurfaceRouteRule[] = [
     why: 'Recovery/support is reachable from both login surfaces.',
   },
   {
+    match: { kind: 'prefix', path: '/app/protect-account' },
+    audience: 'shared',
+    why: 'Account protection from an email is available before login on every staff surface.',
+  },
+  {
     match: { kind: 'prefix', path: '/legal' },
     audience: 'shared',
     why: 'One legal kit owned by the platform company is reachable from both surfaces.',

@@ -311,6 +311,7 @@ async function persistNewAuthSession(
       const { notifyNewDeviceLogin } = await import('@/app-layer/identity/notifyNewDeviceLogin');
       void notifyNewDeviceLogin({
         userId: stamped.user.userId,
+        sourceLoginEventId: appended.eventId,
         role: stamped.user.role,
         contacts: stamped.user.contacts,
         method,
@@ -947,7 +948,7 @@ export async function exchangeTelegramLoginWidget(
  * даёт `null` (клиент увидит «не авторизован»), даже если cookie ещё не истёк.
  */
 async function getCurrentSessionWithPrincipalMode(
-  options: { stampDbPrincipal?: boolean } = {},
+  options: { stampDbPrincipal?: boolean; allowPasswordChangeRequired?: boolean } = {},
 ): Promise<AppSession | null> {
   // Next dev/build can instantiate instrumentation, RSC and route handlers as separate module
   // graphs. A cold route graph therefore cannot rely on instrumentation's module-local binding
@@ -1005,6 +1006,10 @@ async function getCurrentSessionWithPrincipalMode(
     if (decoded.user.sessionEpoch !== resolved.sessionEpoch) return null;
   }
   const resolvedUser = resolved.user;
+  // A compromised-password response never becomes an ordinary authenticated session. The one
+  // password-replacement surface opts in below; every existing caller keeps the deny-by-default
+  // behavior without duplicating this check in route handlers.
+  if (resolvedUser.mustChangePassword && !options.allowPasswordChangeRequired) return null;
   // Absolute age cap, enforced here so the proxy's renewal path cannot bypass it (renewal itself
   // also refuses past this point — see sessionCookie.ts — but a cookie renewed right up to the
   // boundary and then merely replayed without ever asking to renew again must still die here).
@@ -1092,6 +1097,14 @@ export async function getCurrentSession(): Promise<AppSession | null> {
  */
 export async function getCurrentSessionForIdentitySelf(): Promise<AppSession | null> {
   return getCurrentSessionWithPrincipalMode({ stampDbPrincipal: false });
+}
+
+/** The sole escape hatch used by password replacement and its challenge. */
+export async function getCurrentSessionForPasswordChange(): Promise<AppSession | null> {
+  return getCurrentSessionWithPrincipalMode({
+    stampDbPrincipal: false,
+    allowPasswordChangeRequired: true,
+  });
 }
 
 /**

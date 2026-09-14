@@ -16,6 +16,10 @@ export const routePaths = {
   root: '/app',
   /** Поддержка с экрана входа (гость, без сессии). */
   loginContactSupport: LOGIN_CONTACT_SUPPORT_PATH,
+  /** Public confirmation page opened from a new-device email. */
+  accountProtection: '/app/protect-account',
+  /** Only cabinet surface available while a password replacement is required. */
+  passwordChangeRequired: '/app/protect-account/password',
   patient: '/app/patient',
   /** Редирект из напоминаний бота: актуальная разминка дня (как «Начать разминку» на главной). */
   patientGoDailyWarmup: '/app/patient/go/daily-warmup',

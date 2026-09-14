@@ -159,6 +159,15 @@ export async function loadSessionIdentityUser(
   }
   const u = parseIdentityRow(platformUserSessionRowSchema, userRow.rows[0], 'load_session_user');
   if (u.is_archived || u.is_blocked) return null;
+  const passwordChangeState = options.includeSecurityFactor
+    ? await runWebappNamedRoot<{ must_change_at: string | Date | null }>(
+        getWebappSqlDb(),
+        'app.password_credentials_must_change_self()',
+        [],
+        sql`SELECT app.password_credentials_must_change_self() AS must_change_at`,
+      )
+    : null;
+  const mustChangePassword = passwordChangeState?.rows[0]?.must_change_at != null;
   const firstName = u.first_name?.trim() || undefined;
   const lastName = u.last_name?.trim() || undefined;
   const patronymic = u.patronymic?.trim() || undefined;
@@ -189,6 +198,7 @@ export async function loadSessionIdentityUser(
     ...(options.includeSecurityFactor
       ? { securityFactorRequired: u.security_factor_required }
       : {}),
+    ...(mustChangePassword ? { mustChangePassword: true } : {}),
   };
 }
 
