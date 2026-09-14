@@ -66,49 +66,49 @@ type NonBlockingMergeRecord = MergeTransferRecord & {
 const MEDICAL_HISTORY_RECORDS = [
   {
     automaticProbe: (ids) =>
-      sql`SELECT organization_id FROM clinical_visit WHERE patient_user_id = ANY(${ids}::uuid[])`,
+      sql`SELECT organization_id FROM clinical_visit WHERE patient_user_id = ANY(${sql.param(ids)}::uuid[])`,
     transfer: (targetId, duplicateId) => [
       sql`UPDATE clinical_visit SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
     ],
   },
   {
     automaticProbe: (ids) =>
-      sql`SELECT organization_id FROM clinical_complaint WHERE patient_user_id = ANY(${ids}::uuid[])`,
+      sql`SELECT organization_id FROM clinical_complaint WHERE patient_user_id = ANY(${sql.param(ids)}::uuid[])`,
     transfer: (targetId, duplicateId) => [
       sql`UPDATE clinical_complaint SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
     ],
   },
   {
     automaticProbe: (ids) =>
-      sql`SELECT organization_id FROM clinical_diagnosis WHERE patient_user_id = ANY(${ids}::uuid[])`,
+      sql`SELECT organization_id FROM clinical_diagnosis WHERE patient_user_id = ANY(${sql.param(ids)}::uuid[])`,
     transfer: (targetId, duplicateId) => [
       sql`UPDATE clinical_diagnosis SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
     ],
   },
   {
     automaticProbe: (ids) =>
-      sql`SELECT organization_id FROM clinical_anamnesis_trauma WHERE patient_user_id = ANY(${ids}::uuid[])`,
+      sql`SELECT organization_id FROM clinical_anamnesis_trauma WHERE patient_user_id = ANY(${sql.param(ids)}::uuid[])`,
     transfer: (targetId, duplicateId) => [
       sql`UPDATE clinical_anamnesis_trauma SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
     ],
   },
   {
     automaticProbe: (ids) =>
-      sql`SELECT organization_id FROM clinical_anamnesis_illness WHERE patient_user_id = ANY(${ids}::uuid[])`,
+      sql`SELECT organization_id FROM clinical_anamnesis_illness WHERE patient_user_id = ANY(${sql.param(ids)}::uuid[])`,
     transfer: (targetId, duplicateId) => [
       sql`UPDATE clinical_anamnesis_illness SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
     ],
   },
   {
     automaticProbe: (ids) =>
-      sql`SELECT organization_id FROM clinical_anamnesis_lifestyle WHERE patient_user_id = ANY(${ids}::uuid[])`,
+      sql`SELECT organization_id FROM clinical_anamnesis_lifestyle WHERE patient_user_id = ANY(${sql.param(ids)}::uuid[])`,
     transfer: (targetId, duplicateId) => [
       sql`UPDATE clinical_anamnesis_lifestyle SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
     ],
   },
   {
     automaticProbe: (ids) =>
-      sql`SELECT organization_id FROM doctor_notes WHERE user_id = ANY(${ids}::uuid[])`,
+      sql`SELECT organization_id FROM doctor_notes WHERE user_id = ANY(${sql.param(ids)}::uuid[])`,
     transfer: (targetId, duplicateId) => [
       sql`UPDATE doctor_notes SET user_id = ${targetId}::uuid WHERE user_id = ${duplicateId}::uuid`,
     ],
@@ -116,7 +116,7 @@ const MEDICAL_HISTORY_RECORDS = [
   {
     automaticProbe: (ids) =>
       sql`SELECT organization_id FROM symptom_trackings
-          WHERE (platform_user_id = ANY(${ids}::uuid[]) OR user_id = ANY(${ids}::text[]))
+          WHERE (platform_user_id = ANY(${sql.param(ids)}::uuid[]) OR user_id = ANY(${sql.param(ids)}::text[]))
             AND deleted_at IS NULL
             AND (symptom_key IS NULL OR symptom_key NOT IN ('general_wellbeing', 'warmup_feeling'))`,
     prepareTransfer: async (client, targetId, duplicateId) => {
@@ -133,7 +133,7 @@ const MEDICAL_HISTORY_RECORDS = [
   },
   {
     automaticProbe: (ids) =>
-      sql`SELECT organization_id FROM patient_lfk_assignments WHERE patient_user_id = ANY(${ids}::uuid[])`,
+      sql`SELECT organization_id FROM patient_lfk_assignments WHERE patient_user_id = ANY(${sql.param(ids)}::uuid[])`,
     transfer: (targetId, duplicateId) => [
       sql`UPDATE patient_lfk_assignments SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
     ],
@@ -141,7 +141,7 @@ const MEDICAL_HISTORY_RECORDS = [
   {
     automaticProbe: (ids) =>
       sql`SELECT organization_id FROM treatment_program_instances
-          WHERE patient_user_id = ANY(${ids}::uuid[]) AND assignment_source = 'doctor'`,
+          WHERE patient_user_id = ANY(${sql.param(ids)}::uuid[]) AND assignment_source = 'doctor'`,
     transfer: (targetId, duplicateId) => [
       sql`UPDATE treatment_program_instances SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
     ],
@@ -410,7 +410,7 @@ export async function mergePlatformUsersInTransaction(
        AND email.contact_kind = 'email' AND email.is_primary = true
      WHERE pu.id IN (${targetId}::uuid, ${duplicateId}::uuid)
      ORDER BY id
-     FOR UPDATE`,
+     FOR UPDATE OF pu`,
   );
   if (lockRes.rows.length !== 2) {
     throw new MergeConflictError('merge: target or duplicate platform_users row missing', [
@@ -454,7 +454,6 @@ export async function mergePlatformUsersInTransaction(
   }
   await assertSharedPhoneGuard(client, targetId, duplicateId, pA, pB);
   await assertAutoMergePasswordCredentialsSafe(client, targetId, duplicateId, reason);
-  await assertPatientBookingsSafeToMerge(client, targetId, duplicateId);
   await assertPatientLfkAssignmentsSafe(client, targetId, duplicateId);
   await reconcileActiveTreatmentProgramInstancesForMerge(client, targetId, duplicateId);
   await assertOpenTestAttemptsSafe(client, targetId, duplicateId);
@@ -810,7 +809,7 @@ async function mergeChannelBindingsManual(
         client,
         sql`SELECT user_id::text AS user_id
          FROM user_channel_bindings
-         WHERE user_id = ANY(${[targetId, duplicateId]}::uuid[]) AND channel_code = ${ch}`,
+         WHERE user_id = ANY(${sql.param([targetId, duplicateId])}::uuid[]) AND channel_code = ${ch}`,
       );
       const hasTargetBinding = bindingPresence.rows.some((row) =>
         uuidTextEquals(row.user_id, targetId),
@@ -871,7 +870,7 @@ async function mergeOauthBindingsManual(
   const r = await runMergeSql<OauthRow>(
     client,
     sql`SELECT user_id::text AS user_id, provider, provider_user_id, email, created_at
-     FROM user_oauth_bindings WHERE user_id = ANY(${[targetId, duplicateId]}::uuid[])`,
+     FROM user_oauth_bindings WHERE user_id = ANY(${sql.param([targetId, duplicateId])}::uuid[])`,
   );
   const byProvider = new Map<string, OauthRow[]>();
   for (const row of r.rows) {
@@ -1035,32 +1034,6 @@ async function assertSharedPhoneGuard(
   if (ct > 0 && cd > 0) {
     throw new MergeDependentConflictError(
       'shared-phone guard: meaningful data on both candidates',
-      [targetId, duplicateId],
-    );
-  }
-}
-
-async function assertPatientBookingsSafeToMerge(
-  client: PlatformMergeDbClient,
-  targetId: string,
-  duplicateId: string,
-): Promise<void> {
-  const overlap = await runMergeSql<{ c: string }>(
-    client,
-    sql`SELECT COUNT(*)::text AS c
-     FROM patient_bookings pb1
-     INNER JOIN patient_bookings pb2
-       ON pb1.platform_user_id = ${targetId}::uuid
-      AND pb2.platform_user_id = ${duplicateId}::uuid
-      AND pb1.id <> pb2.id
-      AND tstzrange(pb1.slot_start, pb1.slot_end, '[)') && tstzrange(pb2.slot_start, pb2.slot_end, '[)')
-      AND pb1.status IN ('confirmed', 'rescheduled', 'creating', 'cancelling', 'cancel_failed')
-      AND pb2.status IN ('confirmed', 'rescheduled', 'creating', 'cancelling', 'cancel_failed')`,
-  );
-  const n = parseInt(overlap.rows[0]?.c ?? '0', 10);
-  if (n > 0) {
-    throw new MergeDependentConflictError(
-      'patient_bookings: overlapping active slots between merge candidates',
       [targetId, duplicateId],
     );
   }
@@ -1576,7 +1549,7 @@ export async function enrichPickMergeCandidatesWithBookingCounts(
     client,
     sql`SELECT platform_user_id::text AS uid, COUNT(*)::text AS c
      FROM patient_bookings
-     WHERE platform_user_id = ANY(${[a.id, b.id]}::uuid[])
+     WHERE platform_user_id = ANY(${sql.param([a.id, b.id])}::uuid[])
      GROUP BY platform_user_id`,
   );
   const map = new Map<string, number>();

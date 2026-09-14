@@ -9,7 +9,10 @@
  *   sudo -n $(which node) docs/audit/merge-org-gate-recheck-live-proof-2026-09-14.mjs
  */
 import pg from '/home/dev/dev-projects/bcb-wt-merge-org-gate/apps/webapp/node_modules/pg/lib/index.js';
-import { mergePlatformUsersInTransaction } from '/home/dev/dev-projects/bcb-wt-merge-org-gate/packages/platform-merge/dist/pgPlatformUserMerge.js';
+import {
+  enrichPickMergeCandidatesWithBookingCounts,
+  mergePlatformUsersInTransaction,
+} from '/home/dev/dev-projects/bcb-wt-merge-org-gate/packages/platform-merge/dist/pgPlatformUserMerge.js';
 
 if (typeof process.setuid === 'function' && process.getuid() === 0) {
   process.setgid('postgres');
@@ -59,7 +62,20 @@ const SCENARIOS = [
     after: async (q, t, d) => {
       const b = await q(`SELECT count(*)::int c FROM patient_bookings WHERE platform_user_id = $1`, [t]);
       const a = await q(`SELECT count(*)::int c FROM be_appointments WHERE platform_user_id = $1`, [t]);
-      return { bookings_on_target: b.rows[0].c, appointments_on_target: a.rows[0].c, want: 2 };
+      const [targetCandidate, duplicateCandidate] = await enrichPickMergeCandidatesWithBookingCounts(
+        { query: q },
+        { id: t, phone_normalized: null, created_at: new Date(0) },
+        { id: d, phone_normalized: null, created_at: new Date(0) },
+      );
+      return {
+        bookings_on_target: b.rows[0].c,
+        appointments_on_target: a.rows[0].c,
+        enriched_booking_counts: [
+          targetCandidate.patientBookingCount,
+          duplicateCandidate.patientBookingCount,
+        ],
+        want: '2 transfers and enriched booking counts [2, 0]',
+      };
     },
   },
   {
