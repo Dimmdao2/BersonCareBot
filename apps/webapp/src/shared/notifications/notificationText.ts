@@ -58,6 +58,10 @@
  */
 
 export const notificationText = {
+  leadSubmissionBlocked:
+    'Эта клиника больше не принимает от вас новые заявки. Свяжитесь с ней другим способом.',
+  leadRejectedSubject: 'Ваша заявка отклонена',
+  leadRejectedWithoutComment: 'Клиника отклонила вашу заявку.',
   // --- security / staff auth (ранее shared/ui/auth/staffSecurityErrorText.ts) ---
   authBindSpecialistFallback: 'Не удалось подключить рабочий кабинет. Повторите попытку позже.',
   authChangePasswordFallback: 'Пароль не изменён. Проверьте данные и повторите попытку.',
@@ -737,6 +741,8 @@ export type NotificationTextKey = keyof typeof notificationText;
  * вынесены в отдельный объект, потому что содержимое не `string`, а `(...) => string`.
  */
 export const notificationTextFactory = {
+  leadRejectedWithComment: (comment: string) =>
+    `Клиника отклонила вашу заявку. Комментарий клиники: ${comment}`,
   /**
    * `assertUuid` (`booking-engine/service.ts`) — C1 (copy audit): `label` here is always a raw
    * camelCase internal field name (`organizationId`, `specialistId`, `appointmentId`, …), so it is

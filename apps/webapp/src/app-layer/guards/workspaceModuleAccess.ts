@@ -10,10 +10,12 @@ import type { DoctorWorkspaceAccessContext } from '@/app-layer/guards/requireRol
 import { resolveMechanicAccess } from '@/modules/org-entitlements/service';
 import {
   resolveWorkspaceModuleEffective,
+  WORKSPACE_MODULE_CONFIG_KEYS,
   WORKSPACE_MODULE_KEYS,
   type WorkspaceModuleAvailability,
   type WorkspaceModuleEffective,
   type WorkspaceModuleKey,
+  type WorkspaceModuleConfigKey,
 } from '@/modules/system-settings/doctorWorkspaceComposition';
 import {
   isClientChannelAllowed,
@@ -23,7 +25,7 @@ import {
 type AppDeps = ReturnType<typeof buildAppDeps>;
 
 const ALL_WORKSPACE_MODULES_AVAILABLE = Object.fromEntries(
-  WORKSPACE_MODULE_KEYS.map((key) => [key, true]),
+  WORKSPACE_MODULE_CONFIG_KEYS.map((key) => [key, true]),
 ) as WorkspaceModuleAvailability;
 
 function mechanicIsVisible(resolution: Awaited<ReturnType<typeof resolveMechanicAccess>>): boolean {
@@ -144,7 +146,7 @@ export function workspaceModuleForApiPath(pathname: string): WorkspaceModuleKey 
  * (`entitlementMutationRefusalResponse` in `requireEntitlement.ts`), so a client-side error handler
  * does not need a second case for a workspace-disabled module versus a tariff-disabled mechanic.
  */
-export function workspaceModuleDisabledResponse(module: WorkspaceModuleKey): NextResponse {
+export function workspaceModuleDisabledResponse(module: WorkspaceModuleConfigKey): NextResponse {
   return NextResponse.json(
     {
       ok: false,
@@ -176,19 +178,21 @@ export async function resolveDoctorWorkspaceModules(
     AppDeps['systemSettings']['getDoctorWorkspaceComposition']
   >[1],
 ): Promise<WorkspaceModuleEffective> {
-  const [exerciseCatalog, mailings, analytics, patientApp, videoMeetings, composition] = await Promise.all([
-    resolveMechanicAccess(deps.orgEntitlements, workspace.organizationId, 'exercise_catalog'),
-    resolveMechanicAccess(deps.orgEntitlements, workspace.organizationId, 'mailings'),
-    resolveMechanicAccess(deps.orgEntitlements, workspace.organizationId, 'doctor_statistics'),
-    resolveMechanicAccess(deps.orgEntitlements, workspace.organizationId, 'patient_app'),
-    resolveMechanicAccess(deps.orgEntitlements, workspace.organizationId, 'video_meetings'),
-    deps.systemSettings.getDoctorWorkspaceComposition(
-      {
-        organizationId: workspace.organizationId,
-      },
-      preloadedCompositionRow,
-    ),
-  ]);
+  const [exerciseCatalog, mailings, analytics, patientApp, videoMeetings, leads, composition] =
+    await Promise.all([
+      resolveMechanicAccess(deps.orgEntitlements, workspace.organizationId, 'exercise_catalog'),
+      resolveMechanicAccess(deps.orgEntitlements, workspace.organizationId, 'mailings'),
+      resolveMechanicAccess(deps.orgEntitlements, workspace.organizationId, 'doctor_statistics'),
+      resolveMechanicAccess(deps.orgEntitlements, workspace.organizationId, 'patient_app'),
+      resolveMechanicAccess(deps.orgEntitlements, workspace.organizationId, 'video_meetings'),
+      resolveMechanicAccess(deps.orgEntitlements, workspace.organizationId, 'leads'),
+      deps.systemSettings.getDoctorWorkspaceComposition(
+        {
+          organizationId: workspace.organizationId,
+        },
+        preloadedCompositionRow,
+      ),
+    ]);
   const clinical = workspace.canAccessClinicalWorkspace;
   return resolveWorkspaceModuleEffective(composition, {
     medical_record: clinical,
@@ -201,6 +205,7 @@ export async function resolveDoctorWorkspaceModules(
     analytics: clinical && mechanicIsVisible(analytics),
     client_portal: clinical && mechanicIsVisible(patientApp),
     video_meetings: clinical && mechanicIsVisible(videoMeetings),
+    leads: workspace.canManageOrganization && mechanicIsVisible(leads),
   });
 }
 
@@ -263,6 +268,19 @@ export async function requireDoctorWorkspaceModuleForApi(
   deps: Pick<AppDeps, 'orgEntitlements' | 'systemSettings'>,
   workspace: DoctorWorkspaceAccessContext,
   module: WorkspaceModuleKey,
+): Promise<
+  { ok: true; modules: WorkspaceModuleEffective } | { ok: false; response: NextResponse }
+> {
+  const modules = await resolveDoctorWorkspaceModules(deps, workspace);
+  return modules[module]
+    ? { ok: true, modules }
+    : { ok: false, response: workspaceModuleDisabledResponse(module) };
+}
+
+export async function requireDoctorWorkspaceConfigModuleForApi(
+  deps: Pick<AppDeps, 'orgEntitlements' | 'systemSettings'>,
+  workspace: DoctorWorkspaceAccessContext,
+  module: WorkspaceModuleConfigKey,
 ): Promise<
   { ok: true; modules: WorkspaceModuleEffective } | { ok: false; response: NextResponse }
 > {

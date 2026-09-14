@@ -82,6 +82,7 @@ WITH declared(schema_name, table_name) AS (VALUES
   ('public', 'courses'),
   ('public', 'doctor_notes'),
   ('public', 'doctor_patient_support'),
+  ('public', 'leads'),
   ('public', 'lfk_complex_exercises'),
   ('public', 'lfk_complex_template_exercises'),
   ('public', 'lfk_complex_templates'),

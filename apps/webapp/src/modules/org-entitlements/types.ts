@@ -53,6 +53,7 @@ export type MechanicDefinition =
  */
 export const MECHANIC_REGISTRY = {
   booking: { class: 'возможность', label: 'Онлайн-запись', quotaEnforcement: 'declared_no_enforcement' },
+  leads: { class: 'возможность', label: 'Заявки', quotaEnforcement: 'declared_no_enforcement' },
   exercise_catalog: { class: 'возможность', label: 'Каталог упражнений', quotaEnforcement: 'declared_no_enforcement' },
   exercise_packages: { class: 'возможность', label: 'Пакеты упражнений', quotaEnforcement: 'declared_no_enforcement' },
   courses: { class: 'возможность', label: 'Курсы', quotaEnforcement: 'declared_no_enforcement' },

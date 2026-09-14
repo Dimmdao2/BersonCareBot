@@ -4,19 +4,11 @@ import {
   requireClinicManagementApiContext,
   type DoctorWorkspaceAccessContext,
 } from '@/app-layer/guards/requireRole';
-import type { AppSession } from '@/shared/types/session';
 
 type BookingEngineService = NonNullable<ReturnType<typeof buildAppDeps>['bookingEngine']>;
 
-export type AdminBookingEngineContext = {
-  session: AppSession;
+export type AdminBookingEngineContext = DoctorWorkspaceAccessContext & {
   service: BookingEngineService;
-  organizationId: string;
-  membershipId: string;
-  membershipRole: DoctorWorkspaceAccessContext['membershipRole'];
-  specialistId: string | null;
-  canManageOrganization: boolean;
-  canManageAllSpecialists: boolean;
 };
 
 export async function requireClinicManagementBookingEngine(): Promise<
@@ -37,14 +29,8 @@ export async function requireClinicManagementBookingEngine(): Promise<
   return {
     ok: true,
     ctx: {
-      session: workspaceGate.ctx.session,
+      ...workspaceGate.ctx,
       service,
-      organizationId: workspaceGate.ctx.organizationId,
-      membershipId: workspaceGate.ctx.membershipId,
-      membershipRole: workspaceGate.ctx.membershipRole,
-      specialistId: workspaceGate.ctx.specialistId,
-      canManageOrganization: workspaceGate.ctx.canManageOrganization,
-      canManageAllSpecialists: workspaceGate.ctx.canManageAllSpecialists,
     },
   };
 }

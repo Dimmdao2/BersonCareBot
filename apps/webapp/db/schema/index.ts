@@ -61,3 +61,4 @@ export * from './systemSettingsAudit';
 export * from './bookingCalendarMap';
 export * from './emailOtpLocks';
 export * from './loginFailureTally';
+export * from './leads';
