@@ -800,8 +800,12 @@ export function PatientTabRecords({
           }
           hint={hasNoShows ? 'есть неявка' : 'за всё время'}
           tone={hasNoShows ? 'warning' : 'neutral'}
-          onClick={() => setCancelsPanelOpen((v) => !v)}
-          opensDetails
+          // Панель ниже рендерится только при непустой истории отмен, а счётчик берётся из шапки и
+          // бывает ненулевым при недогруженной ленте. Поэтому и клик, и шеврон — по наличию самих
+          // строк: иначе карточка обещала бы детали, которых нет. Та же форма, что у соседней
+          // плитки «Записей» выше.
+          onClick={cancelsHistory.length > 0 ? () => setCancelsPanelOpen((v) => !v) : undefined}
+          opensDetails={cancelsHistory.length > 0}
         />
 
         {/* Переносы */}
