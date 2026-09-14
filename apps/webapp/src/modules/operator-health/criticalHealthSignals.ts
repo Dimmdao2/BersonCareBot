@@ -90,7 +90,7 @@ export type CriticalHealthSignalsInput = {
     /** Server-only cadence rows; never exposed by the classifier or UI API. */
     openIncidents?: OperatorIncidentOpenRow[];
   };
-  backupJobs: Record<string, { lastStatus: string }>;
+  backupJobs: Record<string, BackupJobHealthRow>;
   /** Из `operator_job_status.meta_json.consecutiveFailRuns` (outbound probe). */
   probeConsecutiveFailRuns: number;
   /** Open incidents created by the integrator only after each probe's configured streak threshold. */
@@ -150,7 +150,7 @@ export function classifyOperatorHealthBannerSignals(input: OperatorHealthBannerI
   if (input.integratorApi !== 'ok') return true;
   if (input.videoTranscodeStatus === 'error') return true;
   if ((input.blockedMediaPreviews ?? 0) > 0) return true;
-  if (Object.values(input.backupJobs).some((j) => j.lastStatus === 'failure')) return true;
+  if (Object.values(input.backupJobs).some((j) => classifyBackupJobHealth(j) !== 'ok')) return true;
   if (input.operatorIncidentsOpenCount > 0) return true;
   if ((input.probeIncidentsOpenCount ?? 0) > 0) return true;
   if ((input.webhookBursts ?? []).some(isWebhookBurstCritical)) return true;
@@ -292,6 +292,58 @@ export function isOperatorProbeFailureIncident(
   );
 }
 
+/**
+ * Одна строка бэкапа в том виде, в каком её видит тревога.
+ *
+ * `lastSuccessAt` и `staleAfterSec` появились здесь 14.09.2026 вместе с ответом на вопрос, почему о
+ * полном отсутствии бэкапов боевой базы никто не узнал. Правило смотрело ровно на одно поле —
+ * `lastStatus === 'failure'`, — то есть будило только тогда, когда бэкап ЗАПУСТИЛСЯ И УПАЛ. Бэкапа,
+ * который не запускался никогда, в `operator_job_status` нет вовсе, и молчание правила означало
+ * «всё хорошо». Именно этот случай и был на новом проде: ноль артефактов, зелёная панель.
+ */
+export type BackupJobHealthRow = {
+  lastStatus: string;
+  /** Время последнего УСПЕШНОГО прогона. `null`/отсутствие — успеха не было ни разу. */
+  lastSuccessAt?: string | null;
+  /** Порог из манифеста фоновых заданий: дольше него без успеха — уже не «пока не дошло». */
+  staleAfterSec?: number;
+};
+
+export type BackupJobVerdict = 'ok' | 'failure' | 'never' | 'stale';
+
+export const BACKUP_JOB_VERDICT_RU: Record<Exclude<BackupJobVerdict, 'ok'>, string> = {
+  failure: 'последний прогон завершился ошибкой',
+  never: 'успешного прогона не было НИ РАЗУ',
+  stale: 'успешного прогона нет дольше допустимого срока',
+};
+
+/**
+ * Отказ и отсутствие — разные беды, и обе критичны. Порядок проверок не косметика: строка, которая
+ * И упала, И давно не имела успеха, должна называться упавшей — это точнее и ведёт к причине.
+ *
+ * Без `staleAfterSec` устаревание не проверяется: порог задаёт манифест, и выдумывать его здесь
+ * значило бы завести вторую правду о том, как часто идёт бэкап.
+ */
+export function classifyBackupJobHealth(
+  job: BackupJobHealthRow,
+  nowMs: number = Date.now(),
+): BackupJobVerdict {
+  if (job.lastStatus === 'failure') return 'failure';
+
+  const successMs = job.lastSuccessAt ? Date.parse(job.lastSuccessAt) : Number.NaN;
+  if (!Number.isFinite(successMs)) {
+    // Успех без отметки времени — не «никогда»: свежесть по нему не судить, но прогон был.
+    // Настоящий скрипт пишет отметку всегда; так выглядят только старые и синтетические строки.
+    return job.lastStatus === 'success' ? 'ok' : 'never';
+  }
+
+  const staleAfterSec = job.staleAfterSec;
+  if (typeof staleAfterSec !== 'number' || !Number.isFinite(staleAfterSec) || staleAfterSec <= 0) {
+    return 'ok';
+  }
+  return nowMs - successMs > staleAfterSec * 1000 ? 'stale' : 'ok';
+}
+
 function classifyTenantIsolationSignals(
   input: TenantIsolationCriticalHealthSignal | undefined,
 ): CriticalAlertCandidate[] {
@@ -335,6 +387,7 @@ function classifyTenantIsolationSignals(
 
 export function classifyCriticalHealthSignals(
   input: CriticalHealthSignalsInput,
+  nowMs: number = Date.now(),
 ): CriticalAlertCandidate[] {
   const out: CriticalAlertCandidate[] = [];
 
@@ -395,12 +448,13 @@ export function classifyCriticalHealthSignals(
   }
 
   for (const [jobKey, job] of Object.entries(input.backupJobs)) {
-    if (job.lastStatus !== 'failure') continue;
+    const verdict = classifyBackupJobHealth(job, nowMs);
+    if (verdict === 'ok') continue;
     out.push({
       topic: 'backup',
-      dedupKey: `critical:backup:${jobKey}:failure`,
+      dedupKey: `critical:backup:${jobKey}:${verdict}`,
       pushTitle: 'Критичный сбой: бэкап',
-      lines: [`Бэкап ${jobKey}: последний прогон failure`],
+      lines: [`Бэкап ${jobKey}: ${BACKUP_JOB_VERDICT_RU[verdict]}`],
     });
   }
 

@@ -661,6 +661,27 @@ export function findBackgroundJobByTickKey(
   );
 }
 
+/**
+ * Чего тревога ОБЯЗАНА ждать от бэкапа: ключ строки и срок, после которого её отсутствие — авария.
+ *
+ * Тревога обязана идти от ОЖИДАНИЯ, а не от того, что нашлось в журнале. Пока она перебирала только
+ * существующие строки `operator_job_status`, бэкап, который не запускался ни разу, не давал строки
+ * вовсе — и молчание читалось как «всё хорошо». Ровно это и было на новом проде 14.09.2026.
+ */
+export function expectedBackupJobs(): readonly {
+  jobKey: string;
+  label: string;
+  staleAfterSec: number;
+}[] {
+  return BACKGROUND_JOB_MANIFEST.filter(
+    (entry) => entry.kind === 'backup_shell' && entry.required,
+  ).map((entry) => ({
+    jobKey: entry.jobKey,
+    label: entry.label,
+    staleAfterSec: entry.staleAfterSec,
+  }));
+}
+
 /** Задания, для которых репозиторий обязан поставить cron artifact в указанной среде. */
 export function hostCronJobsForEnvironment(
   environmentId: BackgroundJobEnvironmentId,

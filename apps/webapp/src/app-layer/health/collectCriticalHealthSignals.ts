@@ -4,6 +4,7 @@ import { loadAdminTranscodeHealthMetricsSafe } from '@/app-layer/media/adminTran
 import { countBlockedMediaPreviewsSafe } from '@/app-layer/media/blockedMediaPreviews';
 import { env } from '@/config/env';
 import { classifyVideoTranscodeSystemHealthStatus } from '@/modules/operator-health/adminHealthThresholds';
+import { expectedBackupJobs } from '@/modules/operator-health/backgroundJobManifest';
 import {
   OPERATOR_HEALTH_JOB_FAMILY,
   OPERATOR_MEDIA_JOB_FAMILY,
@@ -12,6 +13,7 @@ import {
   OPERATOR_OUTBOUND_PROBE_JOB_KEY,
 } from '@/modules/operator-health/reconcileJobKeys';
 import type {
+  BackupJobHealthRow,
   CriticalHealthSignalsInput,
   DbStatus,
   IntegratorApiStatus,
@@ -108,13 +110,45 @@ async function probeVideoTranscodeStatus(): Promise<VideoTranscodeHealthStatus> 
   }
 }
 
+/**
+ * Карта начинается с ОЖИДАНИЯ манифеста, а не с того, что нашлось в журнале.
+ *
+ * Бэкап, который не запускался ни разу, строки в `operator_job_status` не оставляет вообще. Пока
+ * карта строилась перебором найденных строк, такой бэкап просто отсутствовал в ней, и тревога
+ * молчала — то есть «бэкапов нет совсем» и «всё хорошо» выглядели одинаково. Замер 14.09.2026 на
+ * новом проде показал именно этот случай: ноль артефактов и зелёная панель.
+ *
+ * Поэтому сначала кладутся все ожидаемые ключи со статусом «успеха не было», а уже поверх — то, что
+ * журнал действительно знает.
+ */
+function seedExpectedBackupJobs(): Record<string, BackupJobHealthRow> {
+  const backupJobs: Record<string, BackupJobHealthRow> = {};
+  for (const expected of expectedBackupJobs()) {
+    backupJobs[expected.jobKey] = {
+      lastStatus: 'missing',
+      lastSuccessAt: null,
+      staleAfterSec: expected.staleAfterSec,
+    };
+  }
+  return backupJobs;
+}
+
+/** Срок устаревания принадлежит манифесту; строка журнала его не несёт и нести не должна. */
+function staleAfterSecFor(jobKey: string): number | undefined {
+  return expectedBackupJobs().find((expected) => expected.jobKey === jobKey)?.staleAfterSec;
+}
+
 async function loadBackupJobsMap(
   read: ReturnType<typeof buildAppDeps>['operatorHealthRead'],
-): Promise<Record<string, { lastStatus: string }>> {
+): Promise<Record<string, BackupJobHealthRow>> {
   const rows = await read.listBackupJobStatus();
-  const backupJobs: Record<string, { lastStatus: string }> = {};
+  const backupJobs = seedExpectedBackupJobs();
   for (const row of rows) {
-    backupJobs[row.jobKey] = { lastStatus: row.lastStatus };
+    backupJobs[row.jobKey] = {
+      lastStatus: row.lastStatus,
+      lastSuccessAt: row.lastSuccessAt,
+      staleAfterSec: staleAfterSecFor(row.jobKey),
+    };
   }
   return backupJobs;
 }
@@ -125,10 +159,15 @@ function findCuratedJob(snapshot: CuratedSystemHealthSnapshot, jobFamily: string
 
 function curatedBackupJobsMap(
   snapshot: CuratedSystemHealthSnapshot,
-): Record<string, { lastStatus: string }> {
-  const backupJobs: Record<string, { lastStatus: string }> = {};
+): Record<string, BackupJobHealthRow> {
+  const backupJobs = seedExpectedBackupJobs();
   for (const job of snapshot.operatorJobs) {
-    if (job.jobFamily === 'backup') backupJobs[job.jobKey] = { lastStatus: job.lastStatus };
+    if (job.jobFamily !== 'backup') continue;
+    backupJobs[job.jobKey] = {
+      lastStatus: job.lastStatus,
+      lastSuccessAt: job.lastSuccessAt,
+      staleAfterSec: staleAfterSecFor(job.jobKey),
+    };
   }
   return backupJobs;
 }

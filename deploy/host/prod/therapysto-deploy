@@ -85,6 +85,21 @@ fi
 if [ "${THERAPYSTO_SKIP_MIGRATIONS:-0}" = 1 ]; then
   warn "миграции пропущены по THERAPYSTO_SKIP_MIGRATIONS=1"
 else
+  # Скрипт бэкапа ставится ЗДЕСЬ, а не в раскладке конвейера, хотя по смыслу он её часть. Причина
+  # в порядке: раскладку выполняет ещё СТАРАЯ установленная копия install-pipeline.sh, и шаг,
+  # добавленный в её новую версию, в этом же деплое не выполнится. Оставить его там значило бы
+  # первый деплой после этой правки гарантированно уронить на отсутствующем файле.
+  #
+  # 0700: скрипт читает env-файлы с боевыми строками подключения. Каталог самих бэкапов здесь не
+  # создаётся — его создаёт сам скрипт, с собственной проверкой режима и владельца.
+  say "устанавливаю канонический скрипт бэкапов"
+  BACKUP_SCRIPT=/opt/backups/scripts/postgres-backup.sh
+  install -d -m 0700 -o root -g root /opt/backups/scripts ||
+    die "не удалось создать /opt/backups/scripts — $ACTIVE is still live and untouched"
+  install -m 0700 -o root -g root "$THERAPYSTO_SRC/deploy/postgres/postgres-backup.sh" \
+    "$BACKUP_SCRIPT" ||
+    die "не удалось установить $BACKUP_SCRIPT — $ACTIVE is still live and untouched"
+
   # Срез ПЕРЕД миграциями — единственная точка возврата, если миграция окажется неверной. У старого
   # прода этот шаг в деплое был (`deploy/host/deploy-prod.sh`), у нового его не было вовсе: схема
   # боевой базы менялась без точки возврата. Найдено 14.09.2026 вместе с тем, что бэкапов нет совсем.
@@ -92,9 +107,6 @@ else
   # Значения окружения печатает тот же манифест, что и cron-файлы, — второй копии у деплоя нет.
   # Отказ здесь останавливает выкладку: миграция без точки возврата хуже, чем невыложенный релиз.
   say "снимаю срез базы перед миграциями"
-  BACKUP_SCRIPT=/opt/backups/scripts/postgres-backup.sh
-  [ -x "$BACKUP_SCRIPT" ] ||
-    die "нет $BACKUP_SCRIPT — миграции без точки возврата не запускаются; проверьте install-pipeline.sh"
   BACKUP_ENV=$(node "$THERAPYSTO_SRC/deploy/host/background-jobs-cli.mjs" --backup-env --env prod) ||
     die "манифест не отдал окружение бэкапа — $ACTIVE is still live and untouched"
   env $BACKUP_ENV "$BACKUP_SCRIPT" pre-migrations ||
