@@ -130,8 +130,10 @@ export const routePaths = {
   patientWarmups: patientWarmupsSectionHref(),
   /** Расписание врача (новый URL, объединяет calendar + appointments + admin/booking). */
   doctorSchedule: '/app/doctor/schedule',
-  /** Коммуникации врача (чаты, комментарии и рассылки). */
+  /** Коммуникации врача (чаты и комментарии; заявки добавятся отдельным owner-stage). */
   doctorCommunications: '/app/doctor/communications',
+  /** Рассылки врача — самостоятельный раздел основного меню. */
+  doctorBroadcasts: '/app/doctor/broadcasts',
   /** Список пациентов врача (новый раздел «Пациенты», Patients list page). */
   doctorPatients: '/app/doctor/patients',
   /** Карточка пациента (Patients card page). */

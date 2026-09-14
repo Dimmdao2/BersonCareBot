@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReactElement } from 'react';
 import type { DoctorCommunicationsShellProps } from './DoctorCommunicationsShell';
 import type { WorkspaceModuleEffective } from '@/modules/system-settings/doctorWorkspaceComposition';
+import { resolveCommunicationsSurface } from '@/modules/doctor-communications/communicationsSurface';
 
 const fakes = vi.hoisted(() => ({
   buildAppDeps: vi.fn(),
@@ -15,9 +16,15 @@ const fakes = vi.hoisted(() => ({
   notFound: vi.fn(() => {
     throw new Error('NEXT_NOT_FOUND');
   }),
+  permanentRedirect: vi.fn((href: string) => {
+    throw new Error(`NEXT_REDIRECT:${href}`);
+  }),
 }));
 
-vi.mock('next/navigation', () => ({ notFound: fakes.notFound }));
+vi.mock('next/navigation', () => ({
+  notFound: fakes.notFound,
+  permanentRedirect: fakes.permanentRedirect,
+}));
 vi.mock('@/app-layer/di/buildAppDeps', () => ({ buildAppDeps: fakes.buildAppDeps }));
 vi.mock('@/app-layer/analytics/loadAnalyticsAudience', () => ({
   loadDoctorAnalyticsAudience: fakes.loadAudience,
@@ -68,7 +75,14 @@ const workspaceAccess = {
 };
 
 function useModules(modules: WorkspaceModuleEffective) {
-  fakes.loadDoctorWorkspaceShell.mockResolvedValue({ workspaceAccess, workspaceModules: modules });
+  fakes.loadDoctorWorkspaceShell.mockResolvedValue({
+    workspaceAccess,
+    workspaceModules: modules,
+    communicationsSurface: resolveCommunicationsSurface(modules, {
+      direct_chat: 'all',
+      program_comments: 'on_support',
+    }),
+  });
 }
 
 describe('communications workspace projection', () => {
@@ -101,19 +115,21 @@ describe('communications workspace projection', () => {
   });
 
   it('loads no hidden child bootstrap and treats an empty communications shell as absent', async () => {
-    useModules({ ...ALL_MODULES_OFF, mailings: true });
-    const result = (await DoctorCommunicationsPage({
-      searchParams: Promise.resolve({ tab: 'comments' }),
-    })) as ReactElement<DoctorCommunicationsShellProps>;
-
+    useModules(ALL_MODULES_OFF);
+    await expect(DoctorCommunicationsPage({ searchParams: Promise.resolve({}) })).rejects.toThrow(
+      'NEXT_NOT_FOUND',
+    );
     expect(fakes.loadComments).not.toHaveBeenCalled();
     expect(fakes.loadPatients).not.toHaveBeenCalled();
     expect(fakes.loadBadges).not.toHaveBeenCalled();
-    expect(result.props.initialTab).toBe('broadcasts');
+  });
 
-    useModules(ALL_MODULES_OFF);
+  it('moves legacy broadcasts tab links to the standalone broadcasts page', async () => {
     await expect(
-      DoctorCommunicationsPage({ searchParams: Promise.resolve({}) }),
-    ).rejects.toThrow('NEXT_NOT_FOUND');
+      DoctorCommunicationsPage({
+        searchParams: Promise.resolve({ tab: 'broadcasts', archive: '1' }),
+      }),
+    ).rejects.toThrow('NEXT_REDIRECT:/app/doctor/broadcasts?archive=1');
+    expect(fakes.loadDoctorWorkspaceShell).not.toHaveBeenCalled();
   });
 });

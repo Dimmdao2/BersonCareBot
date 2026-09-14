@@ -1,8 +1,6 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import Link from 'next/link';
-import { Settings } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ComponentType } from 'react';
 import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
@@ -10,7 +8,7 @@ import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
 import { DoctorMobileSectionTabs } from '@/shared/ui/doctor/shell/DoctorMobileSectionTabs';
 import { DoctorAttentionBadge } from '@/shared/ui/doctor/DoctorAttentionBadge';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
-import { Button, buttonVariants } from '@/shared/ui/doctor/primitives/button';
+import { Button } from '@/shared/ui/doctor/primitives/button';
 import { doctorSectionTabClass } from '@/shared/ui/doctor/DoctorSectionTabs';
 import { DOCTOR_REMAINING_HEIGHT_BODY_CLASS } from '@/shared/ui/doctor/doctorWorkspaceLayout';
 import { cn } from '@/lib/utils';
@@ -27,7 +25,11 @@ import {
   type CommunicationsTabProps,
 } from './communicationsTabRegistry';
 import { useOptionalDoctorShellBadgeCounts } from '@/shared/ui/doctor/shell/DoctorSupportUnreadProvider';
-import type { WorkspaceModuleEffective } from '@/modules/system-settings/doctorWorkspaceComposition';
+import {
+  DEFAULT_COMMUNICATIONS_SURFACE,
+  DEFAULT_COMMUNICATIONS_SURFACE_LABEL,
+  type CommunicationsSurface,
+} from '@/modules/doctor-communications/communicationsSurface';
 
 // ---------------------------------------------------------------------------
 // Tabs nav (inline, passed to DoctorPageHeader.tabs slot)
@@ -117,10 +119,8 @@ export type DoctorCommunicationsShellProps = {
   initialTabData?: Partial<Record<CommunicationsTabId, unknown>>;
   /** IANA timezone name for display (e.g. "Europe/Moscow"). Threaded to all tab components. */
   displayIana?: string;
-  /** Tariff permission for creating or sending new mailings; history stays available. */
-  mailingsMutationAvailable?: boolean;
-  /** Request-local effective workspace projection; disabled tabs never mount or preload. */
-  workspaceModules?: WorkspaceModuleEffective;
+  /** Request-local communications projection; hidden tabs never mount or preload. */
+  communicationsSurface?: CommunicationsSurface;
 };
 
 /**
@@ -137,16 +137,12 @@ export function DoctorCommunicationsShell({
   badges,
   initialTabData,
   displayIana,
-  mailingsMutationAvailable = true,
-  workspaceModules,
+  communicationsSurface = DEFAULT_COMMUNICATIONS_SURFACE,
 }: DoctorCommunicationsShellProps) {
-  const availableTabs = useMemo(
-    () =>
-      workspaceModules
-        ? COMMUNICATIONS_TABS.filter((tab) => workspaceModules[tab.workspaceModule])
-        : COMMUNICATIONS_TABS,
-    [workspaceModules],
-  );
+  const availableTabs = useMemo(() => {
+    const visibleTabIds = new Set(communicationsSurface.visibleTabIds);
+    return COMMUNICATIONS_TABS.filter((tab) => visibleTabIds.has(tab.id));
+  }, [communicationsSurface.visibleTabIds]);
   const availableTabIds = useMemo(
     () => new Set(availableTabs.map((tab) => tab.id)),
     [availableTabs],
@@ -259,46 +255,42 @@ export function DoctorCommunicationsShell({
   );
 
   const mobileBottomTabs = useMemo(
-    () => (
-      <DoctorMobileSectionTabs
-        tabs={availableTabs.map((tab) => ({ ...tab, badge: liveBadges[tab.id] }))}
-        activeTab={activeTab}
-        onTabChange={handleTabChange}
-        ariaLabel="Разделы коммуникаций"
-      />
-    ),
+    () =>
+      availableTabs.length > 1 ? (
+        <DoctorMobileSectionTabs
+          tabs={availableTabs.map((tab) => ({ ...tab, badge: liveBadges[tab.id] }))}
+          activeTab={activeTab}
+          onTabChange={handleTabChange}
+          ariaLabel="Разделы коммуникаций"
+        />
+      ) : undefined,
     [activeTab, availableTabs, handleTabChange, liveBadges],
   );
 
   return (
-    <DoctorAppShell title="Коммуникации" layout="full-height" mobileBottomTabs={mobileBottomTabs}>
+    <DoctorAppShell
+      title={communicationsSurface.label ?? DEFAULT_COMMUNICATIONS_SURFACE_LABEL}
+      layout="full-height"
+      mobileBottomTabs={mobileBottomTabs}
+    >
       <DoctorPageHeader
         id="doctor-communications-header"
-        title="Коммуникации"
+        title={communicationsSurface.label ?? DEFAULT_COMMUNICATIONS_SURFACE_LABEL}
         toolbar={
           activeTab === 'chats' || activeTab === 'comments' ? (
             <div id="doctor-communications-mobile-toolbar" />
           ) : undefined
         }
         toolbarClassName="md:hidden"
-        info={
-          activeTab === 'broadcasts' ? (
-            <Link
-              href="/app/settings?tab=organization#clinic-delivery-channels"
-              className={buttonVariants({ variant: 'outline', size: 'sm' })}
-            >
-              <Settings aria-hidden className="size-4" />
-              Настройки уведомлений
-            </Link>
-          ) : undefined
-        }
         tabs={
-          <CommunicationsTabsNav
-            tabs={availableTabs}
-            activeTab={activeTab}
-            badges={liveBadges}
-            onTabClick={handleTabChange}
-          />
+          availableTabs.length > 1 ? (
+            <CommunicationsTabsNav
+              tabs={availableTabs}
+              activeTab={activeTab}
+              badges={liveBadges}
+              onTabClick={handleTabChange}
+            />
+          ) : undefined
         }
       />
       {effectiveRegistry.map((entry) => {
@@ -317,7 +309,6 @@ export function DoctorCommunicationsShell({
               initialData={initialTabData?.[tabId]}
               isActive={tabId === activeTab}
               displayIana={displayIana}
-              mailingsMutationAvailable={mailingsMutationAvailable}
             />
           </div>
         );

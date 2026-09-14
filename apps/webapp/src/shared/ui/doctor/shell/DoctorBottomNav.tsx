@@ -21,37 +21,37 @@ import { useReportShellChromeHeight } from '@/shared/hooks/useReportShellChromeH
 export const DOCTOR_BOTTOM_NAV_HEIGHT_VAR = '--doctor-bottom-nav-height';
 
 const items = [
-  { id: 'today', label: 'Сегодня', href: routePaths.doctor },
+  { id: 'today', href: routePaths.doctor },
   {
     id: 'schedule',
-    label: 'Расписание',
     href: `${routePaths.doctorSchedule}?view=3days`,
     accessHref: routePaths.doctorSchedule,
   },
-  { id: 'tasks', label: 'Задачи', href: routePaths.doctorTasks },
-  { id: 'patients', label: 'Клиенты', href: routePaths.doctorPatients },
-  { id: 'communications', label: 'Коммуникации', href: routePaths.doctorCommunications },
+  { id: 'tasks', href: routePaths.doctorTasks },
+  { id: 'patients', href: routePaths.doctorPatients },
+  { id: 'communications', href: routePaths.doctorCommunications },
 ] as const;
 
 export function DoctorBottomNav({
   menuAccess,
-  patientLabel,
 }: {
   menuAccess: DoctorMenuAccess;
   patientLabel?: string;
 }) {
   const navRef = useRef<HTMLElement>(null);
   const terms = useDoctorPatientTerms();
-  const { patientPluralLabel } = terms;
   const pathname = usePathname() ?? routePaths.doctor;
   const { messagesUnread, unreadExerciseComments, overdueTasks, todayTasks } =
     useOptionalDoctorShellBadgeCounts();
-  const visibleHrefs = new Set(
-    getDoctorMenuItems(menuAccess, terms).flatMap((item) => (item.href ? [item.href] : [])),
+  const menuItemsByHref = new Map(
+    getDoctorMenuItems(menuAccess, terms).flatMap((item) =>
+      item.href ? [[item.href, item] as const] : [],
+    ),
   );
-  const visibleItems = items.filter((item) =>
-    visibleHrefs.has('accessHref' in item ? item.accessHref : item.href),
-  );
+  const visibleItems = items.flatMap((item) => {
+    const menuItem = menuItemsByHref.get('accessHref' in item ? item.accessHref : item.href);
+    return menuItem ? [{ ...item, label: menuItem.label }] : [];
+  });
 
   useReportShellChromeHeight(navRef, DOCTOR_BOTTOM_NAV_HEIGHT_VAR);
 
@@ -63,7 +63,7 @@ export function DoctorBottomNav({
     >
       <div className="flex h-12">
         {visibleItems.map((item) => {
-          const label = item.id === 'patients' ? patientPluralLabel : item.label;
+          const label = item.label;
           const active = isDoctorNavItemActive(
             'accessHref' in item ? item.accessHref : item.href,
             pathname,

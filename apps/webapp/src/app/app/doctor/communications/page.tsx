@@ -1,6 +1,5 @@
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
-import { getMechanicMutationAvailability } from '@/app-layer/guards/requireEntitlement';
 import { loadDoctorAnalyticsAudience } from '@/app-layer/analytics/loadAnalyticsAudience';
 import { COMMUNICATIONS_TABS, communicationsTabFromQuery } from './doctorCommunicationsTabs';
 import { loadDoctorCommunicationsBadges } from './loadDoctorCommunicationsBadges';
@@ -10,29 +9,33 @@ import { DoctorCommunicationsShell } from './DoctorCommunicationsShell';
 import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
 import { requireWorkspaceModuleForPage } from '@/app-layer/guards/workspaceModuleAccess';
 import { loadDoctorWorkspaceShell } from '../loadDoctorWorkspaceShell';
+import { permanentRedirect } from 'next/navigation';
+import { routePaths } from '@/app-layer/routes/paths';
 
 type Props = { searchParams: Promise<{ tab?: string; archive?: string }> };
 
 export default async function DoctorCommunicationsPage({ searchParams }: Props) {
+  const params = await searchParams;
+  if (params.tab === 'broadcasts') {
+    permanentRedirect(
+      params.archive === '1'
+        ? `${routePaths.doctorBroadcasts}?archive=1`
+        : routePaths.doctorBroadcasts,
+    );
+  }
+
   const shell = await loadDoctorWorkspaceShell();
   const workspace = shell.workspaceAccess;
-  const workspaceModules = shell.workspaceModules;
   const session = workspace.session;
-  const params = await searchParams;
-  const availableTabs = COMMUNICATIONS_TABS.filter((tab) => workspaceModules[tab.workspaceModule]);
+  const visibleTabIds = new Set(shell.communicationsSurface.visibleTabIds);
+  const availableTabs = COMMUNICATIONS_TABS.filter((tab) => visibleTabIds.has(tab.id));
   requireWorkspaceModuleForPage(availableTabs.length > 0);
   const initialTab = communicationsTabFromQuery(params.tab ?? null, availableTabs);
 
   const deps = buildAppDeps();
 
-  const [mailingsMutationAvailable, badges, displayIana, commentsBundle] = await Promise.all([
-    workspaceModules.mailings
-      ? Promise.all([
-          getMechanicMutationAvailability(workspace, 'mailings'),
-          getMechanicMutationAvailability(workspace, 'branding'),
-        ]).then(([mailings, branding]) => mailings.available && branding.available)
-      : Promise.resolve(false),
-    workspaceModules.direct_chat
+  const [badges, displayIana, commentsBundle] = await Promise.all([
+    visibleTabIds.has('chats')
       ? loadDoctorCommunicationsBadges(deps, {
           organizationId: workspace.organizationId,
           visibilityActor: workspace,
@@ -93,8 +96,7 @@ export default async function DoctorCommunicationsPage({ searchParams }: Props) 
   return (
     <DoctorCommunicationsShell
       initialTab={initialTab}
-      workspaceModules={workspaceModules}
-      mailingsMutationAvailable={mailingsMutationAvailable}
+      communicationsSurface={shell.communicationsSurface}
       badges={commentsUnread > 0 ? { ...badges, comments: commentsUnread } : badges}
       displayIana={displayIana}
       initialTabData={

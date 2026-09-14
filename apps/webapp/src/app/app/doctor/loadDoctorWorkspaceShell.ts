@@ -22,13 +22,20 @@ import type { DoctorWorkspaceContext } from '@/modules/doctor-workspace/types';
 import type { DoctorWorkspaceAccessContext } from '@/app-layer/guards/requireRole';
 import { getPatientMaintenanceConfig } from '@/modules/system-settings/patientMaintenance';
 import { sessionMatchesTestAccountIdentifiers } from '@/config/testAccounts';
-import type { WorkspaceModuleEffective } from '@/modules/system-settings/doctorWorkspaceComposition';
+import {
+  parseDoctorWorkspaceClientDefaults,
+  type WorkspaceModuleEffective,
+} from '@/modules/system-settings/doctorWorkspaceComposition';
 import { resolveDoctorWorkspaceModules } from '@/app-layer/guards/workspaceModuleAccess';
 import { requireEntitlementForReadAction } from '@/app-layer/guards/requireEntitlement';
 import {
   resolveDoctorWorkspaceComposition,
   type DoctorWorkspaceComposition,
 } from '@/modules/doctor-workspace/composition';
+import {
+  resolveCommunicationsSurface,
+  type CommunicationsSurface,
+} from '@/modules/doctor-communications/communicationsSurface';
 
 function getValueJson<T>(valueJson: unknown, fallback: T): T {
   if (
@@ -59,6 +66,7 @@ export type DoctorWorkspaceShellData = {
   patientHomeTodayEnabled: boolean;
   specialistTasksEnabled: boolean;
   workspaceModules: WorkspaceModuleEffective;
+  communicationsSurface: CommunicationsSurface;
   workspaceComposition: DoctorWorkspaceComposition;
   canRenderClinicalChildren: boolean;
   maintenance: { enabled: boolean; message: string };
@@ -224,6 +232,29 @@ export const buildDoctorWorkspaceShellData = cache(async (
     workspaceAccess,
     doctorSettings.find((setting) => setting.key === 'doctor_workspace_composition') ?? null,
   );
+  const workspaceClientDefaults = parseDoctorWorkspaceClientDefaults(
+    doctorSettings.find((setting) => setting.key === 'doctor_workspace_client_defaults')?.valueJson,
+    {
+      legacyCommentsWithoutSupportEnabled: getValueJson(
+        doctorSettings.find(
+          (setting) =>
+            setting.key === 'doctor_patient_support_comments_without_support_default_enabled',
+        )?.valueJson,
+        false,
+      ),
+      legacyMediaWithoutSupportEnabled: getValueJson(
+        doctorSettings.find(
+          (setting) =>
+            setting.key === 'doctor_patient_support_media_without_support_default_enabled',
+        )?.valueJson,
+        false,
+      ),
+    },
+  );
+  const communicationsSurface = resolveCommunicationsSurface(
+    workspaceModules,
+    workspaceClientDefaults.channelDefaults,
+  );
   const workspaceComposition = resolveDoctorWorkspaceComposition({
     clinicTeamEntitled: clinicTeamEntitlement.ok,
     seats,
@@ -254,6 +285,7 @@ export const buildDoctorWorkspaceShellData = cache(async (
     patientHomeTodayEnabled: patientHomeTodayVisibility.specialistNavigation,
     specialistTasksEnabled: specialistTasksVisibility.specialistNavigation,
     workspaceModules,
+    communicationsSurface,
     workspaceComposition,
     canRenderClinicalChildren,
     maintenance: {

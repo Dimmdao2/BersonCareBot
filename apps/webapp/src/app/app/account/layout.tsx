@@ -63,6 +63,8 @@ export default async function AccountLayout({ children }: { children: ReactNode 
             cmsEnabled: shell.cmsEnabled,
             patientHomeTodayEnabled: shell.patientHomeTodayEnabled,
             specialistTasksEnabled: shell.specialistTasksEnabled,
+            workspaceModules: shell.workspaceModules,
+            communicationsSurface: shell.communicationsSurface,
             brand: shell.shellBrand,
           }
         : {})}

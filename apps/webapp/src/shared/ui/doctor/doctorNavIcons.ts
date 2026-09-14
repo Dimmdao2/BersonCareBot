@@ -18,6 +18,7 @@ import {
   LayoutDashboard,
   ListTodo,
   MessageCircle,
+  Megaphone,
   Plug,
   ScrollText,
   Server,
@@ -47,6 +48,8 @@ export function getDoctorMenuIcon(id: string): ElementType | null {
       return Calendar;
     case 'communications':
       return MessageCircle;
+    case 'broadcasts':
+      return Megaphone;
     case 'library':
       return BookOpen;
     case 'references':

@@ -5,6 +5,7 @@ import {
   bookingAdminTabFromPathname,
 } from '@/app/app/doctor/admin/booking/bookingAdminTabs';
 import { resolvePatientTerms, type PatientTerms } from '@/modules/system-settings/patientTerms';
+import { DEFAULT_COMMUNICATIONS_SURFACE_LABEL } from '@/modules/doctor-communications/communicationsSurface';
 
 /**
  * Заголовки экранов кабинета врача по pathname (сервер и клиент).
@@ -39,7 +40,7 @@ export function getDoctorScreenTitle(
     '/app/doctor/clinic/settings': 'Настройки организации',
     '/app/doctor/patients': patientPluralLabel,
     '/app/doctor/schedule': 'Расписание',
-    '/app/doctor/communications': 'Коммуникации',
+    '/app/doctor/communications': DEFAULT_COMMUNICATIONS_SURFACE_LABEL,
     '/app/doctor/appointments': 'Записи',
     '/app/doctor/calendar': 'Календарь',
     '/app/doctor/messages': 'Сообщения',
