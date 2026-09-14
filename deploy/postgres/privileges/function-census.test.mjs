@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import test from 'node:test';
 
 import { declaration } from './declaration.ts';
@@ -7,6 +8,7 @@ import {
 } from './function-census.ts';
 import { collectGaps, generateFunctionCensusSql } from './generate.mjs';
 import {
+  activeSchemaArtifacts,
   compareFunctionSurfaces,
   extractPublicRelationOperations,
   parseExecutableFunctions,
@@ -25,6 +27,118 @@ const DATABASES = Object.keys(declaration.databases);
 
 const functionsFor = (database) => Object.entries(declaration.portContext.functions)
   .filter(([, fn]) => !fn.databases || fn.databases.includes(database));
+
+const CREATE_FUNCTION_HEAD =
+  /create\s+(?:or\s+replace\s+)?function\s+((?:app|app_ext|integrator|public)\.[a-z_][a-z0-9_]*)\s*\(/gi;
+
+/**
+ * Скобочная группа, начинающаяся с `open`: где закрылась и сколько в ней аргументов ВЕРХНЕГО уровня.
+ * Запятая внутри вложенных скобок, массива или строкового литерала принадлежит выражению, а не
+ * списку. Пустые скобки — ноль аргументов, а не один.
+ */
+function parenGroup(text, open) {
+  let depth = 0;
+  let separators = 0;
+  let filled = false;
+  for (let index = open; index < text.length; index += 1) {
+    const character = text[index];
+    if (character === "'") {
+      index += 1;
+      while (index < text.length && text[index] !== "'") index += 1;
+      filled = true;
+      continue;
+    }
+    if (character === '(' || character === '[') {
+      depth += 1;
+      if (depth > 1) filled = true;
+      continue;
+    }
+    if (character === ')' || character === ']') {
+      depth -= 1;
+      if (depth === 0) return { end: index, args: filled ? separators + 1 : 0 };
+      continue;
+    }
+    if (character === ',' && depth === 1) { separators += 1; continue; }
+    if (!/\s/.test(character)) filled = true;
+  }
+  return null;
+}
+
+/**
+ * Тела действующих определений С УЧЁТОМ ЧИСЛА АРГУМЕНТОВ, ключ — `имя/арность`.
+ *
+ * Общий разборщик `parseExecutableFunctions` хранит функции по ГОЛОМУ имени, и перегрузки в нём
+ * схлопываются: последнее определение имени вытесняет остальные. Для делегирования этого мало —
+ * именно выбор перегрузки и есть то, что проверяется ниже.
+ */
+function artifactBodiesByArity() {
+  const bodies = new Map();
+  for (const file of activeSchemaArtifacts()) {
+    const sql = fs.readFileSync(file, 'utf8');
+    for (const head of sql.matchAll(CREATE_FUNCTION_HEAD)) {
+      const signature = parenGroup(sql, head.index + head[0].length - 1);
+      if (!signature) continue;
+      const opener = /\bas\s+(\$[a-z_][a-z0-9_]*\$|\$\$)/i.exec(sql.slice(signature.end, signature.end + 4096));
+      if (!opener) continue;
+      const start = signature.end + opener.index + opener[0].length;
+      const end = sql.indexOf(opener[1], start);
+      if (end < 0) continue;
+      bodies.set(`${head[1].toLowerCase()}/${signature.args}`, sql.slice(start, end).toLowerCase());
+    }
+  }
+  return bodies;
+}
+
+const bareName = (signature) => signature.slice(0, signature.indexOf('('));
+
+/** Арности всех вызовов функции `name` в теле. */
+function callArities(body, name) {
+  const arities = [];
+  const pattern = new RegExp(`\\b${bareName(name).replace('.', '\\.')}\\s*\\(`, 'g');
+  for (const call of body.matchAll(pattern)) {
+    const group = parenGroup(body, call.index + call[0].length - 1);
+    if (group) arities.push(group.args);
+  }
+  return arities;
+}
+
+/**
+ * Каждое объявленное ребро `delegatesTo` — против ТЕЛА обёртки, а не против списка в тесте.
+ *
+ * Подпись делегата не бухгалтерия: по этому ребру генератор пробрасывает ПРИНЯТЫЕ КОНТЕКСТЫ на
+ * точную подпись (`generate.mjs`, «Propagate contexts through the explicit delegatesTo graph»).
+ * Названа не та перегрузка — контекст уезжает в однофамильца, а настоящий вызываемый на исполнении
+ * отказывает «accepted port context required». Поймать это больше нечем: лексическая сверка тел
+ * вычёркивает делегата по голому имени (`function-body-surface.mjs`), а живой контролёр тел на
+ * `delegatesTo` не смотрит вовсе.
+ */
+function collectDelegationGaps(source, bodies) {
+  const gaps = [];
+  const functions = source.portContext.functions;
+  const arity = (signature) => (functions[signature]?.typedArgs ?? []).length;
+  for (const [signature, fn] of Object.entries(functions)) {
+    for (const delegated of fn.delegatesTo ?? []) {
+      if (!functions[delegated]) {
+        gaps.push(`${signature} -> ${delegated}: delegated root is not declared`);
+        continue;
+      }
+      const body = bodies.get(`${bareName(signature)}/${arity(signature)}`);
+      if (body === undefined) {
+        gaps.push(`${signature}: no active artifact defines this exact arity`);
+        continue;
+      }
+      const arities = callArities(body, delegated);
+      if (arities.length === 0) {
+        gaps.push(`${signature} -> ${delegated}: body never calls the delegated root`);
+        continue;
+      }
+      if (!arities.includes(arity(delegated))) {
+        gaps.push(`${signature} -> ${delegated}: body calls arity ${[...new Set(arities)].sort().join(',')}`);
+      }
+    }
+  }
+  return gaps.sort();
+}
 
 // Владелец шва — это стена: тело SECURITY DEFINER исполняется ЕГО правами, а не правами вызвавшего.
 // Счётчик владельцев не двигался, когда функция переезжала с собственного узкого владельца на
@@ -450,32 +564,47 @@ test('special body relation contracts are an exact closed set and arbitrary bypa
     && gap.reason.includes('not in the exact special body relation contract allowlist')));
 });
 
+test('every declared delegation edge is the overload the body actually calls', () => {
+  const bodies = artifactBodiesByArity();
+  const edges = Object.entries(declaration.portContext.functions)
+    .flatMap(([signature, fn]) => (fn.delegatesTo ?? []).map((delegated) => [signature, delegated]));
+  // Храповик, а не точное число: новая обёртка не должна править тест, а вот молча опустевшее
+  // правило (сломался разбор, переименовалось поле) обязано покраснеть.
+  assert.ok(edges.length >= 42, `delegation edges collapsed to ${edges.length}`);
+  assert.deepEqual(collectDelegationGaps(declaration, bodies), []);
+
+  // Подмена перегрузки: `app.password_login_acquire` отдаёт работу пятиаргументному телу, а
+  // четырёхаргументное — такая же совместимостная обёртка. Оба объявлены, оба существуют, имя
+  // одно — ошибиться здесь можно только молча, и до этой проверки было нечем поймать.
+  const wrongOverload = structuredClone(declaration);
+  wrongOverload.portContext.functions['app.password_login_acquire(text,text,uuid,text)'].delegatesTo =
+    ['app.password_login_acquire_impl(text,text,uuid,text)'];
+  assert.deepEqual(collectDelegationGaps(wrongOverload, bodies), [
+    'app.password_login_acquire(text,text,uuid,text) -> app.password_login_acquire_impl(text,text,uuid,text): body calls arity 5',
+  ]);
+
+  // Делегат, которого тело не зовёт вовсе, — тот же класс: контекст уезжает мимо.
+  const unrelated = structuredClone(declaration);
+  unrelated.portContext.functions['app.password_login_complete(uuid,boolean)'].delegatesTo =
+    ['app.password_login_read_altcha_secret_impl()'];
+  assert.deepEqual(collectDelegationGaps(unrelated, bodies), [
+    'app.password_login_complete(uuid,boolean) -> app.password_login_read_altcha_secret_impl(): body never calls the delegated root',
+  ]);
+
+  // Несуществующий делегат ловится и здесь, и детектором пробелов генератора.
+  const unknown = structuredClone(declaration);
+  unknown.portContext.functions['app.password_login_complete(uuid,boolean)'].delegatesTo =
+    ['app.password_login_complete_impl(uuid)'];
+  assert.deepEqual(collectDelegationGaps(unknown, bodies), [
+    'app.password_login_complete(uuid,boolean) -> app.password_login_complete_impl(uuid): delegated root is not declared',
+  ]);
+  assert.ok(collectGaps(unknown, 'bcb_webapp_dev').some((gap) =>
+    gap.site === 'portContext.functions.app.password_login_complete(uuid,boolean).delegatesTo'
+    && gap.reason.includes("unknown delegated root")));
+});
+
 test('full-body overdeclaration corrections preserve only executable operations', () => {
   const functions = declaration.portContext.functions;
-  const wrapperDelegates = {
-    'app.email_auth_find_email_owner_conflict(uuid,text)':
-      'app.find_platform_user_ids_by_any_confirmed_email(text)',
-    // Обе двери входа по паролю ведут в ОДНО пятиаргументное тело (миграция
-    // `20260914T115312_captcha_provider_setting`): четырёхаргументные — совместимость, они просто
-    // подставляют `false` пятым аргументом. Поэтому делегат у всех трёх один и тот же, и
-    // совместимостная обёртка `_impl(text,text,uuid,text)` проверяется здесь наравне с дверьми.
-    'app.password_login_acquire(text,text,uuid,text)':
-      'app.password_login_acquire_impl(text,text,uuid,text,boolean)',
-    'app.password_login_acquire(text,text,uuid,text,boolean)':
-      'app.password_login_acquire_impl(text,text,uuid,text,boolean)',
-    'app.password_login_acquire_impl(text,text,uuid,text)':
-      'app.password_login_acquire_impl(text,text,uuid,text,boolean)',
-    'app.password_login_complete(uuid,boolean)':
-      'app.password_login_complete_impl(uuid,boolean)',
-    'app.password_login_issue_altcha_challenge(text,uuid,text,timestamp with time zone)':
-      'app.password_login_issue_altcha_challenge_impl(text,uuid,text,timestamp with time zone)',
-    'app.password_login_read_altcha_secret()': 'app.password_login_read_altcha_secret_impl()',
-  };
-  for (const [signature, delegated] of Object.entries(wrapperDelegates)) {
-    assert.deepEqual(functions[signature].relationSurfaces, [], signature);
-    assert.deepEqual(functions[signature].delegatesTo, [delegated], signature);
-  }
-
   const provisionOrganization = functions['app.provision_specialist_owner(uuid)'].relationSurfaces
     .find((surface) => surface.relation === 'public.be_organizations');
   assert.deepEqual(provisionOrganization.operations, ['INSERT']);
