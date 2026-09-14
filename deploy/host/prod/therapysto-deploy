@@ -90,6 +90,23 @@ else
     die "schema/privileges did not reach $COMMIT — $ACTIVE is still live and untouched"
 fi
 
+# ---------------------------------------------------------------- расписание
+# Крон хоста сверяется с единственным манифестом фоновых заданий ДО переключения цвета.
+#
+# Зачем. Снятое задание остаётся в `/etc/cron.d` и молча долбится по своему расписанию. Ровно так
+# `therapysto-media-preview` прожил на проде четверо суток после переезда превью в резидентный
+# media-worker (10.09.2026) и насыпал 1431 отказ в сутки — треть всего журнала хоста. У TEST
+# (`deploy-test.sh`) и у старого прода (`deploy-prod.sh`) эта сверка в деплое стоит с 27.08, у
+# blue/green нового прода её не было вовсе, поэтому здесь это и не всплыло само.
+#
+# Гейт только СВЕРЯЕТ и печатает команды установки: расписание хоста — решение человека, а деплой,
+# который сам правит `/etc/cron.d`, меняет поведение машины мимо ревью.
+say "verifying host cron against the background job manifest"
+node "$THERAPYSTO_SRC/deploy/host/background-jobs-cli.mjs" --check ||
+  die "background job manifest and shipped cron artifacts disagree — $ACTIVE is still live and untouched"
+node "$THERAPYSTO_SRC/deploy/host/background-jobs-cli.mjs" --verify-installed --env prod ||
+  die "installed PROD schedule does not match the background job manifest — $ACTIVE is still live and untouched"
+
 # ---------------------------------------------------------------- gate
 export THERAPYSTO_IMAGE="$IMAGE"
 start_colour_frontends "$TARGET" "$IMAGE"
