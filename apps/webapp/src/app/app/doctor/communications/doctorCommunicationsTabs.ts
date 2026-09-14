@@ -7,39 +7,26 @@
  * через `doctorRouteRedirects.ts`. Schedule-rewrite и его REWRITE_MARKER_HEADER не затронуты.
  */
 
-import type { WorkspaceModuleKey } from '@/modules/system-settings/doctorWorkspaceComposition';
+import {
+  COMMUNICATIONS_SURFACE_TABS,
+  type CommunicationsSurfaceTabId,
+} from '@/modules/doctor-communications/communicationsSurface';
 
 export const COMMUNICATIONS_BASE = '/app/doctor/communications';
 
-export type CommunicationsTabId = 'chats' | 'comments' | 'broadcasts';
+export type CommunicationsTabId = CommunicationsSurfaceTabId;
 
 export type CommunicationsTab = {
   id: CommunicationsTabId;
   label: string;
   href: string;
-  workspaceModule: Extract<WorkspaceModuleKey, 'direct_chat' | 'program_comments' | 'mailings'>;
+  workspaceModule: (typeof COMMUNICATIONS_SURFACE_TABS)[number]['workspaceModule'];
 };
 
-export const COMMUNICATIONS_TABS: CommunicationsTab[] = [
-  {
-    id: 'chats',
-    label: 'Чаты',
-    href: `${COMMUNICATIONS_BASE}?tab=chats`,
-    workspaceModule: 'direct_chat',
-  },
-  {
-    id: 'comments',
-    label: 'Комментарии',
-    href: `${COMMUNICATIONS_BASE}?tab=comments`,
-    workspaceModule: 'program_comments',
-  },
-  {
-    id: 'broadcasts',
-    label: 'Рассылки',
-    href: `${COMMUNICATIONS_BASE}?tab=broadcasts`,
-    workspaceModule: 'mailings',
-  },
-];
+export const COMMUNICATIONS_TABS: CommunicationsTab[] = COMMUNICATIONS_SURFACE_TABS.map((tab) => ({
+  ...tab,
+  href: `${COMMUNICATIONS_BASE}?tab=${tab.id}`,
+}));
 
 export const COMMUNICATIONS_DEFAULT_TAB: CommunicationsTabId = 'chats';
 

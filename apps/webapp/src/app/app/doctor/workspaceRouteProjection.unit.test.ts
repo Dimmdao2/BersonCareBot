@@ -10,6 +10,7 @@ const fakes = vi.hoisted(() => ({
     throw new Error(`NEXT_REDIRECT:${href}`);
   }),
   buildAppDeps: vi.fn(),
+  getMutationAvailability: vi.fn(),
 }));
 
 vi.mock('next/navigation', () => ({
@@ -20,6 +21,9 @@ vi.mock('./loadDoctorWorkspaceShell', () => ({
   loadDoctorWorkspaceShell: fakes.loadDoctorWorkspaceShell,
 }));
 vi.mock('@/app-layer/di/buildAppDeps', () => ({ buildAppDeps: fakes.buildAppDeps }));
+vi.mock('@/app-layer/guards/requireEntitlement', () => ({
+  getMechanicMutationAvailability: fakes.getMutationAvailability,
+}));
 
 import DoctorBroadcastsPage from './broadcasts/page';
 import DoctorClinicalTestsLayout from './clinical-tests/layout';
@@ -58,7 +62,6 @@ describe('workspace-module direct page projection', () => {
   it.each([
     ['direct_chat', DoctorMessagesPage, '/app/doctor/communications?tab=chats'],
     ['program_comments', DoctorCommentsPage, '/app/doctor/communications?tab=comments'],
-    ['mailings', DoctorBroadcastsPage, '/app/doctor/communications?tab=broadcasts'],
   ] as const)('guards %s before its legacy redirect', async (module, page, redirectHref) => {
     fakes.loadDoctorWorkspaceShell.mockResolvedValue(shellWith(module, false));
     await expect(page()).rejects.toThrow('NEXT_NOT_FOUND');
@@ -66,6 +69,24 @@ describe('workspace-module direct page projection', () => {
 
     fakes.loadDoctorWorkspaceShell.mockResolvedValue(shellWith(module, true));
     await expect(page()).rejects.toThrow(`NEXT_REDIRECT:${redirectHref}`);
+  });
+
+  it('guards the standalone broadcasts page and no longer redirects an enabled page', async () => {
+    fakes.loadDoctorWorkspaceShell.mockResolvedValue(shellWith('mailings', false));
+    await expect(DoctorBroadcastsPage({ searchParams: Promise.resolve({}) })).rejects.toThrow(
+      'NEXT_NOT_FOUND',
+    );
+    expect(fakes.getMutationAvailability).not.toHaveBeenCalled();
+
+    fakes.loadDoctorWorkspaceShell.mockResolvedValue({
+      ...shellWith('mailings', true),
+      workspaceAccess: {},
+    });
+    fakes.getMutationAvailability
+      .mockResolvedValueOnce({ available: true })
+      .mockResolvedValueOnce({ available: true });
+    await expect(DoctorBroadcastsPage({ searchParams: Promise.resolve({}) })).resolves.toBeTruthy();
+    expect(fakes.permanentRedirect).not.toHaveBeenCalled();
   });
 
   it.each([

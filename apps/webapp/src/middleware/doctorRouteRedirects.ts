@@ -75,8 +75,6 @@ export function doctorRouteRedirectResponse(request: NextRequest): NextResponse 
     '/app/doctor/clients': '/app/doctor/patients',
     '/app/doctor/messages': '/app/doctor/communications?tab=chats',
     '/app/doctor/comments': '/app/doctor/communications?tab=comments',
-    '/app/doctor/broadcasts/archive': '/app/doctor/communications?tab=broadcasts&archive=1',
-    '/app/doctor/broadcasts': '/app/doctor/communications?tab=broadcasts',
     // Schedule legacy → real page-shell (e12). Tab values align with scheduleTabFromQuery: cal/work/setup.
     '/app/doctor/calendar': '/app/doctor/schedule?tab=cal',
     '/app/doctor/appointments': '/app/doctor/schedule?tab=cal',

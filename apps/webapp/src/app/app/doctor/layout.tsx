@@ -51,6 +51,7 @@ export default async function DoctorSectionLayout({ children }: { children: Reac
       patientHomeTodayEnabled={shell.patientHomeTodayEnabled}
       specialistTasksEnabled={shell.specialistTasksEnabled}
       workspaceModules={shell.workspaceModules}
+      communicationsSurface={shell.communicationsSurface}
       brand={shell.shellBrand}
       mobileHeaderActions={
         <DoctorGlobalQuickActions

@@ -7,7 +7,7 @@ import { DoctorAttentionBadge } from '@/shared/ui/doctor/DoctorAttentionBadge';
 import { COMMUNICATIONS_TABS, type CommunicationsTabId } from './doctorCommunicationsTabs';
 
 type Props = {
-  /** Активная вкладка — страница знает свою (chats/intake/comments/broadcasts). */
+  /** Активная вкладка — страница знает свой id из канонического communications registry. */
   activeTab: CommunicationsTabId;
   /**
    * Опциональные счётчики-бейджи на вкладках. Страница передаёт то, что уже загрузила.

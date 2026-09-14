@@ -18,6 +18,10 @@ import type { DoctorWorkspaceComposition } from '@/modules/doctor-workspace/comp
 import type { WorkspaceModuleEffective } from '@/modules/system-settings/doctorWorkspaceComposition';
 import { ActiveCallCoordinator } from '@/shared/ui/video/ActiveCallCoordinator';
 import { DoctorActiveCallIndicator } from '@/shared/ui/doctor/calls/DoctorActiveCallIndicator';
+import {
+  DEFAULT_COMMUNICATIONS_SURFACE,
+  type CommunicationsSurface,
+} from '@/modules/doctor-communications/communicationsSurface';
 
 type DoctorWorkspaceShellProps = {
   isPlatformOperator: boolean;
@@ -42,6 +46,8 @@ type DoctorWorkspaceShellProps = {
   specialistTasksEnabled?: boolean;
   /** One request-local projection of capability/entitlement availability and org preference. */
   workspaceModules?: WorkspaceModuleEffective;
+  /** One server-resolved projection shared by communications navigation and page chrome. */
+  communicationsSurface?: CommunicationsSurface;
   /** Disable tenant-only background badge requests on global operator surfaces. */
   enableTenantRuntime?: boolean;
   /**
@@ -85,6 +91,7 @@ export function DoctorWorkspaceShell({
   patientHomeTodayEnabled = false,
   specialistTasksEnabled = false,
   workspaceModules,
+  communicationsSurface = DEFAULT_COMMUNICATIONS_SURFACE,
   enableTenantRuntime = true,
   brand,
   menuKind = 'doctor',
@@ -113,12 +120,14 @@ export function DoctorWorkspaceShell({
     patientHomeTodayEnabled,
     specialistTasksEnabled,
     workspaceModules,
+    communicationsSurface,
     // Solo has no cabinet-mode switch, so its own menu carries the settings entry.
     soloSettingsHub: workspaceComposition === 'solo',
   };
   const homeHref = getDoctorShellHomeHref(menuAccess);
   const showClinicalShortcuts = capabilities.includes('clinical.workspace');
   const clinicalRuntimeEnabled = enableTenantRuntime && showClinicalShortcuts;
+  const visibleCommunicationsTabIds: readonly string[] = communicationsSurface.visibleTabIds;
   const showWorkspaceModeSwitch =
     workspaceComposition === 'clinic' &&
     workspaceContext?.canManageOrganization &&
@@ -132,8 +141,8 @@ export function DoctorWorkspaceShell({
     >
       <DoctorSupportUnreadProvider
         enabled={clinicalRuntimeEnabled}
-        directChatEnabled={workspaceModules?.direct_chat ?? clinicalRuntimeEnabled}
-        programCommentsEnabled={workspaceModules?.program_comments ?? clinicalRuntimeEnabled}
+        directChatEnabled={visibleCommunicationsTabIds.includes('chats')}
+        programCommentsEnabled={visibleCommunicationsTabIds.includes('comments')}
         rehabilitationEnabled={workspaceModules?.rehabilitation ?? clinicalRuntimeEnabled}
         registrationFailuresEnabled={
           clinicalRuntimeEnabled && capabilities.includes('platform.operations')

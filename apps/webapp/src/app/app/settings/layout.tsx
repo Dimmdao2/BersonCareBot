@@ -39,6 +39,8 @@ export default async function SettingsLayout({ children }: { children: ReactNode
       cmsEnabled={shell.cmsEnabled}
       patientHomeTodayEnabled={shell.patientHomeTodayEnabled}
       specialistTasksEnabled={shell.specialistTasksEnabled}
+      workspaceModules={shell.workspaceModules}
+      communicationsSurface={shell.communicationsSurface}
       brand={shell.shellBrand}
       menuKind={managementMode ? 'management' : 'doctor'}
     >

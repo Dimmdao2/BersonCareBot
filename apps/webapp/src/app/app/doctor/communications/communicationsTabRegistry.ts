@@ -21,7 +21,7 @@ export type CommunicationsTabRegistryEntry = {
   id: CommunicationsTabId;
   /** Фабрика динамического импорта. Возвращает компонент с CommunicationsTabProps. */
   loader: () => Promise<{ default: ComponentType<CommunicationsTabProps> }>;
-  /** URL-ключи, которые этот таб читает/пишет (напр. ["id"] для intake, ["archive"] для broadcasts). */
+  /** URL-ключи, которые этот таб читает/пишет. */
   deepLinkKeys: readonly string[];
 };
 
@@ -40,10 +40,5 @@ export const COMMUNICATIONS_TAB_REGISTRY: CommunicationsTabRegistryEntry[] = [
     id: 'comments',
     loader: () => import('./tabs/CommentsTab').then((m) => ({ default: m.CommentsTab })),
     deepLinkKeys: [],
-  },
-  {
-    id: 'broadcasts',
-    loader: () => import('./tabs/BroadcastsTab').then((m) => ({ default: m.BroadcastsTab })),
-    deepLinkKeys: ['archive'],
   },
 ];

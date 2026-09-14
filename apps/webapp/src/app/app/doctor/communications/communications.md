@@ -1,27 +1,29 @@
 # Коммуникации (`/app/doctor/communications`)
 
-Агрегатный экран кабинета врача: весь входящий/исходящий поток с пациентами под одним
-заголовком «Коммуникации» и единым таб-баром. Wireframe: `docs/design/doctor-cabinet-wireframe.html#p-comms`.
+Агрегатный экран кабинета врача для чатов и комментариев. Состав и название поверхности вычисляет
+`modules/doctor-communications/communicationsSurface.ts`: выключенный модуль или дефолт канала `off`
+убирает вкладку; при одной вкладке таб-бар исчезает, а поверхность получает её имя; при нуле страница
+отдаёт 404 и пункт меню отсутствует.
 
 **Версия UI:** V2 (COMMUNICATIONS_MD_V2_INITIATIVE, 2026-06-13). Онлайн-заявки удалены решением владельца 2026-08-02; исторический журнал ниже сохранён как история реализации.
 
 ## Порядок вкладок
 
-`Чаты → Комментарии → Рассылки`
+`Чаты → Комментарии` (заявки добавятся отдельным owner-stage)
 
-Управляется `COMMUNICATIONS_TABS` в `doctorCommunicationsTabs.ts` и `COMMUNICATIONS_TAB_REGISTRY`
-в `communicationsTabRegistry.ts`.
+Видимость и названия управляются `resolveCommunicationsSurface`; URL-адаптер — `COMMUNICATIONS_TABS`
+в `doctorCommunicationsTabs.ts`, lazy-компоненты — `COMMUNICATIONS_TAB_REGISTRY`.
 
 ## Маршрутизация (клиентский шелл, без rewrite)
 
 `/app/doctor/communications` — настоящая страница-шелл (`page.tsx` → `DoctorCommunicationsShell`).
-Internal-rewrite убран (Block 5 TODO#3). Старые прямые URL → **308** на агрегатный URL.
+Internal-rewrite убран (Block 5 TODO#3). Старые прямые URL чатов/комментариев → **308** на агрегатный URL.
+Legacy `?tab=broadcasts` → отдельная страница `/app/doctor/broadcasts`.
 
-| Вкладка     | id                | Старый URL (308 → агрегатный)                                                   |
-| ----------- | ----------------- | ------------------------------------------------------------------------------- |
-| Чаты        | `chats` (default) | `/app/doctor/messages`                                                          |
-| Комментарии | `comments`        | `/app/doctor/comments`                                                          |
-| Рассылки    | `broadcasts`      | `/app/doctor/broadcasts`, `/broadcasts/archive` (→ `?tab=broadcasts&archive=1`) |
+| Вкладка     | id                | Старый URL (308 → агрегатный) |
+| ----------- | ----------------- | ----------------------------- |
+| Чаты        | `chats` (default) | `/app/doctor/messages`        |
+| Комментарии | `comments`        | `/app/doctor/comments`        |
 
 **Защита от петли redirects** больше не нужна для communications (rewrite убран).
 Маркер `x-bc-doctor-rewrite` сохранён только для `/schedule`. Тесты: `doctorRouteRedirects.test.ts`.
@@ -34,16 +36,16 @@ SSR-предзагрузка непрочитанных комментариев
 `DoctorCommunicationsShell(initialTab, badges, initialTabData)`.
 
 - `DoctorCommunicationsShell.tsx` (`"use client"`) — `DoctorAppShell` + `DoctorCommunicationsTabsNav` +
-  реестр табов (`communicationsTabRegistry.ts`) + URL-sync (`?tab` + deep-link `chatId`/`archive` через
+  реестр табов (`communicationsTabRegistry.ts`) + URL-sync (`?tab` + deep-link `chatId` через
   `history.replaceState`/`popstate`). Лениво монтирует активный таб (`next/dynamic`, `ssr:false`) и
   кэширует уже открытые (keepMounted: скрытие, не размонтирование) → мгновенное переключение.
-- 3 таб-обёртки в `tabs/`: `ChatsTab`, `CommentsTab`, `BroadcastsTab`.
+- 2 таб-обёртки в `tabs/`: `ChatsTab`, `CommentsTab`.
 - Активная область каждого таба: `flex-1 min-h-0` — растягивается на оставшуюся высоту, внутри
   каждый таб использует `CatalogSplitLayout` с независимым скроллом двух пейнов.
 
 ## Независимый скролл (split-layout)
 
-Все 3 вкладки используют `CatalogSplitLayout` + `DOCTOR_REMAINING_HEIGHT_SPLIT_LAYOUT_CLASS`:
+Обе вкладки используют `CatalogSplitLayout` + `DOCTOR_REMAINING_HEIGHT_SPLIT_LAYOUT_CLASS`:
 
 - Левый пейн — список (пациенты/заявки/форма рассылки).
 - Правый пейн — деталь/тред/журнал.
@@ -105,7 +107,12 @@ SSR: `loadDoctorCommentPatients` + `loadDoctorExerciseCommentsForTab` (пара�
 - `app/api/doctor/comments/exercise-metrics/route.ts`
 - `shared/ui/doctor/ExerciseMicroChart.tsx`
 
-### Рассылки (`broadcasts/BroadcastForm.tsx`, `tabs/BroadcastsTab.tsx`)
+### Рассылки — отдельная страница (`/app/doctor/broadcasts`)
+
+Рассылки больше не входят в `COMMUNICATIONS_TABS`. Самостоятельная страница переиспользует
+`BroadcastsTab` и существующий `BroadcastForm`; `/app/doctor/broadcasts/archive` канонизируется в
+`/app/doctor/broadcasts?archive=1`. Видимость остаётся на эффективном модуле `mailings`, а право мутации
+по-прежнему пересекает `mailings` и `branding`, поэтому `read_only` сохраняет журнал без формы.
 
 **Форма (левый пейн):** порядок полей Аудитория → Категория → Каналы → Заголовок → Текст → кнопки.
 
@@ -123,12 +130,12 @@ Legacy `bot_message` → нормализуется в `telegram+max`. Email-ф�
 
 ## Компоненты таб-бара
 
-- `doctorCommunicationsTabs.ts` — конфиг 3 вкладок (`COMMUNICATIONS_TABS`) + `communicationsTabFromQuery`.
+- `doctorCommunicationsTabs.ts` — URL-конфиг 2 вкладок (`COMMUNICATIONS_TABS`) + `communicationsTabFromQuery`.
 - `DoctorCommunicationsTabsNav.tsx` — sticky таб-бар (паттерн `BookingAdminTabsNav`). Активная вкладка —
   пропом `activeTab` от шелла; клик по вкладке — `onTabClick` (client-switch без навигации). Бейджи — проп `badges`.
 
-Таб-бар рендерит **только шелл** (`DoctorCommunicationsShell`), не отдельные страницы — легаси-страницы
-вкладок сведены к 308-редиректам (Block 6).
+Таб-бар рендерит **только шелл** (`DoctorCommunicationsShell`) и только при двух или более вкладках.
+Исторический журнал ниже описывает прежний этап и не является текущим routing-контрактом.
 
 ## TODO
 
@@ -255,7 +262,7 @@ typecheck/lint/тесты затронутых пакетов + живой dev �
   `loadDoctorCommunicationsBadges` (`chats` = непрочитанные сообщения, `intake` = новые заявки) +
   unit-тесты. Коммит `7d16040e`.
 - **2026-06-11 · TODO#2 Block 2 ✅** — все 4 страницы вкладок передают `badges` в таб-бар;
-живо проверено owner-учёткой: «Чаты 3» виден и на вкладке «Рассылки» (кросс-таб). Коммит `a36306d2`.
+  живо проверено owner-учёткой: «Чаты 3» виден и на вкладке «Рассылки» (кросс-таб). Коммит `a36306d2`.
 - **2026-06-12 · TODO#3 Block 5** — убран internal-rewrite communications из `doctorRouteRedirects.ts`;
   `/communications` проходит насквозь → рендерится страница-шелл; 308 со старых URL сохранены;
   `schedule` rewrite не тронут. 7 тестов-passthrough добавлены, 7 старых rewrite-тестов заменены.

@@ -10,6 +10,11 @@ import type {
   WorkspaceModuleEffective,
   WorkspaceModuleKey,
 } from '@/modules/system-settings/doctorWorkspaceComposition';
+import {
+  DEFAULT_COMMUNICATIONS_SURFACE,
+  DEFAULT_COMMUNICATIONS_SURFACE_LABEL,
+  type CommunicationsSurface,
+} from '@/modules/doctor-communications/communicationsSurface';
 
 /** Устаревший ключ: один открытый кластер. Читается только для миграции в формат множества. */
 export const DOCTOR_MENU_OPEN_CLUSTER_STORAGE_KEY = 'doctorMenu.openCluster.v1';
@@ -45,7 +50,7 @@ export type DoctorMenuLinkItem = {
   requiresPatientHomeTodayEntitlement?: boolean;
   requiresSpecialistTasksEntitlement?: boolean;
   requiresWorkspaceModule?: WorkspaceModuleKey;
-  requiresAnyWorkspaceModule?: readonly WorkspaceModuleKey[];
+  requiresCommunicationsSurface?: boolean;
   /** Solo-only entry: the clinic composition reaches the same destination from its management menu. */
   requiresSoloSettingsHub?: boolean;
 };
@@ -60,6 +65,7 @@ export type DoctorMenuAccess = {
   patientHomeTodayEnabled?: boolean;
   specialistTasksEnabled?: boolean;
   workspaceModules?: WorkspaceModuleEffective;
+  communicationsSurface?: CommunicationsSurface;
   /**
    * Server-resolved solo composition. Solo has no cabinet-mode switch, so its settings entry lives
    * in this very menu; the clinic composition keeps them in the separate management menu instead.
@@ -95,9 +101,8 @@ export function isDoctorMenuLinkVisible(
     return false;
   }
   if (
-    item.requiresAnyWorkspaceModule &&
-    access.workspaceModules &&
-    !item.requiresAnyWorkspaceModule.some((module) => access.workspaceModules?.[module] === true)
+    item.requiresCommunicationsSurface &&
+    (access.communicationsSurface ?? DEFAULT_COMMUNICATIONS_SURFACE).kind === 'hidden'
   ) {
     return false;
   }
@@ -133,10 +138,16 @@ const RAW_DOCTOR_MENU_ITEMS: DoctorMenuLinkItem[] = [
   },
   {
     id: 'communications',
-    label: 'Коммуникации',
+    label: DEFAULT_COMMUNICATIONS_SURFACE_LABEL,
     href: routePaths.doctorCommunications,
     badgeKey: 'communicationsTotal',
-    requiresAnyWorkspaceModule: ['direct_chat', 'program_comments', 'mailings'],
+    requiresCommunicationsSurface: true,
+  },
+  {
+    id: 'broadcasts',
+    label: 'Рассылки',
+    href: routePaths.doctorBroadcasts,
+    requiresWorkspaceModule: 'mailings',
   },
   {
     id: 'analytics',
@@ -227,6 +238,10 @@ export function getDoctorMenuItems(
       if (!item.items) {
         if (item.id === 'patients') {
           return { ...item, label: patientPluralLabel };
+        }
+        if (item.id === 'communications') {
+          const surface = access.communicationsSurface ?? DEFAULT_COMMUNICATIONS_SURFACE;
+          return surface.kind === 'hidden' ? item : { ...item, label: surface.label };
         }
         return item;
       }
