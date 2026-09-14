@@ -30,7 +30,7 @@ export async function POST(request: Request) {
     }
     return NextResponse.json({ ok: result.unhealthy === 0, ...result });
   } catch (e) {
-    logger.error({ err: e }, '[internal/domains/activate] failed');
+    logger.error({ operatorErrorDetail: e }, '[internal/domains/activate] failed');
     return NextResponse.json({ ok: false, error: 'internal_error' }, { status: 500 });
   }
 }

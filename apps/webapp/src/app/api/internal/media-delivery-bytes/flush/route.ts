@@ -60,7 +60,7 @@ export async function POST(request: Request) {
       success: false,
       error: msg,
     });
-    logger.error({ err: e }, '[internal/media-delivery-bytes/flush] failed');
+    logger.error({ operatorErrorDetail: e }, '[internal/media-delivery-bytes/flush] failed');
     return NextResponse.json({ ok: false, error: 'flush_failed' }, { status: 500 });
   }
 }

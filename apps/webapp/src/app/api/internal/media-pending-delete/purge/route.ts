@@ -58,7 +58,7 @@ export async function POST(request: Request) {
       success: false,
       error: msg,
     });
-    logger.error({ err: e }, '[internal/media-pending-delete/purge] failed');
+    logger.error({ operatorErrorDetail: e }, '[internal/media-pending-delete/purge] failed');
     return NextResponse.json({ ok: false, error: 'purge_failed' }, { status: 500 });
   }
 }

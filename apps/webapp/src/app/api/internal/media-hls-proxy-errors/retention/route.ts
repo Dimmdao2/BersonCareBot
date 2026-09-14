@@ -85,7 +85,7 @@ export async function POST(request: Request) {
       success: false,
       error: msg,
     });
-    logger.error({ err: e }, '[internal/media-hls-proxy-errors/retention] failed');
+    logger.error({ operatorErrorDetail: e }, '[internal/media-hls-proxy-errors/retention] failed');
     return NextResponse.json({ ok: false, error: 'retention_failed' }, { status: 500 });
   }
 }

@@ -67,7 +67,7 @@ export async function POST(request: Request) {
       success: false,
       error: msg,
     });
-    logger.error({ err: e }, '[internal/db-journal-retention/tick] failed');
+    logger.error({ operatorErrorDetail: e }, '[internal/db-journal-retention/tick] failed');
     return NextResponse.json({ ok: false, error: 'retention_failed' }, { status: 500 });
   }
 }

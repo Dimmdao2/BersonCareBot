@@ -44,7 +44,7 @@ export async function POST(request: Request) {
       success: false,
       error: msg,
     });
-    logger.error({ err: e }, '[internal/operator-health-critical/tick] failed');
+    logger.error({ operatorErrorDetail: e }, '[internal/operator-health-critical/tick] failed');
     return NextResponse.json({ ok: false, error: 'internal_error' }, { status: 500 });
   }
 }
