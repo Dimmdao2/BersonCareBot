@@ -3,7 +3,7 @@
 Run: `worker-plans-tidy-fix`. Правки сделаны, не предложены. Цитатник `OWNER_QUOTE_2026-07-31_IDENTITY.md`
 **не редактировался** (только читался, целиком, все три порции). Код, `docs/archive/`,
 `docs/ARCHITECTURE/` не тронуты. Тронуты три файла: `UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md`,
-`runs/integrator-cleanup/D12B_REACHABLE_CENSUS.md`, `runs/integrator-cleanup/IDENTITY_AND_MERGE_SCHEME.md`.
+`runs/integrator-cleanup/D12B_REACHABLE_CENSUS.md`, `../archive/2026-09-identity-merge-superseded/IDENTITY_AND_MERGE_SCHEME.md`.
 
 ---
 

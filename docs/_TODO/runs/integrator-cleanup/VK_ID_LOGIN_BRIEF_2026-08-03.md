@@ -10,7 +10,7 @@ Rules: `AGENTS.md` — Маршрут, CORE rules, §2/§3/§4 (integration conf
 **commit before you finish**.
 
 Authority: `docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md` — **D31 (часть 2/2)** «VK как настоящий
-канал», decision **Р-D31**; identity rules — `runs/integrator-cleanup/IDENTITY_AND_MERGE_SCHEME.md` §1, §2, §2a.
+канал», decision **Р-D31**; identity rules — `../archive/2026-09-identity-merge-superseded/IDENTITY_AND_MERGE_SCHEME.md` §1, §2, §2a.
 
 Источник оракула: `WORK_ORDER.md` **Р-D31** (владелец) — «делать API для VK, инсту удалять»; и владелец 03.08:
 «VK id довести до рабочего. Ключи сегодня дам».

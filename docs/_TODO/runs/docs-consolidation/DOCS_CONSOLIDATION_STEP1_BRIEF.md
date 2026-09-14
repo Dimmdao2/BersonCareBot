@@ -39,12 +39,12 @@
 Всё, что противоречит его словам, — кандидат на удаление; всё, что их повторяет иначе, — кандидат на слияние.
 Дословные источники (читать ПЕРВЫМИ, целиком):
 
-- `docs/_TODO/runs/integrator-cleanup/OWNER_QUOTE_2026-07-31_IDENTITY.md` — три порции ответов 31.07:
+- `docs/archive/2026-09-identity-merge-superseded/OWNER_QUOTE_2026-07-31_IDENTITY.md` — три порции ответов 31.07:
   идентичность, вход, слияние, тесты интегратора, очередь доставки, «один цикл», доверие к телефону;
 - `docs/_TODO/SAAS_FOUNDATION/OWNER_RULINGS_2026-07-15.md` — решения 15.07;
 - `docs/_TODO/SAAS_FOUNDATION/QUOTAS_AND_MECHANICS_DESIGN_2026-07-28.md` — канон механик, квот и лестницы,
   включая точный список триггеров уведомлений (владелец 31.07);
-- `docs/_TODO/runs/integrator-cleanup/IDENTITY_AND_MERGE_SCHEME.md` — схема идентичности с его слов;
+- `docs/archive/2026-09-identity-merge-superseded/IDENTITY_AND_MERGE_SCHEME.md` — схема идентичности с его слов;
 - `docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md` — Track D, пункты D0–D30 с его решениями;
 - `docs/_TODO/SAAS_FOUNDATION/TARIFFS_PAYMENTS_ADMIN_PLAN.md` — план тарифов §5a.
 
