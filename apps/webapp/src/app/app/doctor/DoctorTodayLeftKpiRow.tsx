@@ -211,6 +211,20 @@ export function DoctorTodayLeftKpiRow({
         onClick={displayTotal > 0 ? () => setKpiModal('comments') : undefined}
       />
     ) : null,
+    shellBadges.leadsVisible ? (
+      <DoctorStatCard
+        key="leads"
+        id="doctor-today-left-kpi-leads"
+        title="Заявки"
+        value={shellBadges.newLeads}
+        opensDetails={shellBadges.newLeads > 0}
+        tooltip="Новые заявки."
+        tone={shellBadges.newLeads > 0 ? 'warning' : 'neutral'}
+        className={shellBadges.newLeads > 0 ? attentionKpiBackgroundClass : undefined}
+        valueClassName={shellBadges.newLeads > 0 ? attentionKpiValueClass : undefined}
+        onClick={shellBadges.newLeads > 0 ? () => router.push(LEADS_HREF) : undefined}
+      />
+    ) : null,
     tasksReadable ? (
       <DoctorStatCard
         key="tasks"
@@ -238,20 +252,6 @@ export function DoctorTodayLeftKpiRow({
             : undefined
         }
         valueClassName={hasOverdueTasks ? attentionKpiValueClass : undefined}
-      />
-    ) : null,
-    shellBadges.leadsVisible ? (
-      <DoctorStatCard
-        key="leads"
-        id="doctor-today-left-kpi-leads"
-        title="Заявки"
-        value={shellBadges.newLeads}
-        opensDetails={shellBadges.newLeads > 0}
-        tooltip="Новые заявки."
-        tone={shellBadges.newLeads > 0 ? 'warning' : 'neutral'}
-        className={shellBadges.newLeads > 0 ? attentionKpiBackgroundClass : undefined}
-        valueClassName={shellBadges.newLeads > 0 ? attentionKpiValueClass : undefined}
-        onClick={shellBadges.newLeads > 0 ? () => router.push(LEADS_HREF) : undefined}
       />
     ) : null,
   ].filter((tile) => tile !== null);
