@@ -79,10 +79,17 @@ function assignmentKindLabel(kind: 'treatment_program' | 'lfk_assignment'): stri
   return kind === 'treatment_program' ? 'Программа лечения' : 'Комплекс ЛФК';
 }
 
+/**
+ * Вид контакта врачу показывается словом. Раньше незнакомый вид возвращался как есть — врач увидел бы
+ * машинный код вместо подписи; это ловит гейт `check-notification-text-coverage` («функция-подпись не
+ * возвращает свой вход»). Сегодня в `user_contacts` живут только `phone` и `email`, поэтому запасная
+ * ветка недостижима — и именно поэтому она обязана быть человеческой фразой, а не кодом: появится
+ * новый вид, и врач прочитает «Неизвестно», а не `telegram`.
+ */
 function contactKindLabel(kind: string): string {
   if (kind === 'phone') return 'Телефон';
   if (kind === 'email') return 'Почта';
-  return kind;
+  return notificationText.commonUnknownValue;
 }
 
 function ConflictDetails({ conflict }: { conflict: PatientMergeConflictDetails }) {
