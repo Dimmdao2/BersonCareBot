@@ -19,6 +19,8 @@ import {
 
 export type TelegramBotIdentityTarget =
   | { scope: 'platform'; audience: 'staff' | 'patient' }
+  /** Бот Telegram Login Widget — третья платформенная личность со своим токеном и своим доменом. */
+  | { scope: 'platform_login_widget' }
   | { scope: 'clinic'; organizationId: string };
 
 export type TelegramBotIdentityResult =

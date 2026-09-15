@@ -470,10 +470,11 @@ fail-closed конфигурацию из глобального `public.system_
 
 **Направление:** webapp спрашивает, **как называется бот**, которому принадлежит сохранённый токен.
 
-**Зачем:** имя бота (`telegram_login_bot_username` платформы, `botPublicId` клиники) нужно Login Widget,
-ссылке `t.me/<имя>?start=` и проверке `app.is_telegram_login_configured()`. До 16.09.2026 его вводили руками
-отдельно от токена и не сверяли ни с чем — владелец получил в проде чужого бота, и код входа молча не доходил.
-Теперь имя берётся у Telegram (`getMe`), а вписанное руками отвергается, если принадлежит другому боту.
+**Зачем:** имя бота (`telegram_login_bot_username` платформы, `telegram_login_widget_bot_username` виджета,
+`botPublicId` клиники) нужно Login Widget, ссылке `t.me/<имя>?start=` и проверке
+`app.is_telegram_login_configured()`. До 16.09.2026 его вводили руками отдельно от токена и не сверяли ни с чем —
+владелец получил в проде чужого бота, и код входа молча не доходил. Теперь имя берётся у Telegram (`getMe`), а
+руками его не вводят вовсе: `/api/admin/settings` отказывает записи любого из этих имён.
 
 **Почему в интеграторе:** в мессенджеры ходит только он, и токены читает сам. **Токен в запросе не передаётся** —
 webapp сообщает лишь адресацию.
@@ -482,10 +483,16 @@ webapp сообщает лишь адресацию.
 
 **Заголовки:** как Flow 6 (`X-Bersoncare-Timestamp`, `X-Bersoncare-Signature`, raw JSON body).
 
-**Тело (JSON):** `{ "scope": "platform", "audience": "staff" | "patient" }` — платформенный бот аудитории
-(`therapysto_…` / `therapygo_telegram_bot_token`), либо `{ "scope": "clinic", "organizationId": "<uuid>" }` —
-собственный бот организации; credential резолвится тем же резолвером, что и доставка, с `allowUnverified: true`
-(имя спрашивают сразу после сохранения токена, до живой проверки канала).
+**Тело (JSON):** одно из трёх —
+
+- `{ "scope": "platform", "audience": "staff" | "patient" }` — платформенный бот ДОСТАВКИ кодов этой аудитории
+  (`therapysto_…` / `therapygo_telegram_bot_token`);
+- `{ "scope": "platform_login_widget" }` — бот Telegram **Login Widget** (`telegram_login_widget_bot_token`).
+  Третья платформенная личность: у него в @BotFather привязан домен, доставкой он не занимается, и с ботом кодов
+  его смешивать нельзя (владелец 16.09.2026: «одно дело логин виджет, другое — подтверждение номера в телеграм»);
+- `{ "scope": "clinic", "organizationId": "<uuid>" }` — собственный бот организации; credential резолвится тем же
+  резолвером, что и доставка, с `allowUnverified: true` (имя спрашивают сразу после сохранения токена, до живой
+  проверки канала).
 
 **Ответы:** `200 { ok: true, username, botId }`; `200 { ok: false, error }` с причиной
 `credential_missing` | `telegram_rejected` | `telegram_unreachable` | `bot_without_username`; `401 invalid_signature`.

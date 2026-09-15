@@ -19,6 +19,7 @@ export type IntegratorProviderRuntimeSettingKey =
   | 'therapygo_smtp_outbound'
   | 'therapysto_smtp_outbound'
   | 'therapygo_telegram_bot_token'
+  | 'telegram_login_widget_bot_token'
   | 'therapysto_telegram_bot_token'
   | 'therapygo_telegram_webhook_secret'
   | 'therapysto_telegram_webhook_secret'

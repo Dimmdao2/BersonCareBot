@@ -122,6 +122,26 @@ export function getTelegramRuntimeConfig(
   return readTelegramRuntimeConfig(createDbPort(), audience);
 }
 
+/**
+ * Токен бота Telegram Login Widget. Это ТРЕТЬЯ платформенная личность: у виджета в @BotFather
+ * привязан домен, а код в чат шлёт бот доставки — владелец 16.09.2026: «одно дело логин виджет,
+ * другое — подтверждение номера в телеграм». Доставкой этот бот не занимается и в
+ * `TelegramRuntimeConfig` не входит; он нужен только чтобы спросить у Telegram его имя.
+ */
+export async function readTelegramLoginWidgetBotToken(db: DbPort): Promise<string> {
+  try {
+    return await runWithBootstrapPrincipal({ source: 'integrator-server-runtime-config' }, () =>
+      value(db, 'telegram_login_widget_bot_token'),
+    );
+  } catch {
+    return '';
+  }
+}
+
+export function getTelegramLoginWidgetBotToken(): Promise<string> {
+  return readTelegramLoginWidgetBotToken(createDbPort());
+}
+
 export async function readMaxRuntimeConfig(
   db: DbPort,
   audience: PlatformDeliveryAudience = 'patient',

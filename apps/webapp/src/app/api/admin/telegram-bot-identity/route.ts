@@ -9,9 +9,31 @@
  * (`app.is_telegram_login_configured()` смотрит только на него).
  */
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requirePlatformOperationsApiContext } from '@/app-layer/guards/requireRole';
-import { fetchTelegramBotIdentity } from '@/modules/messaging/telegramBotIdentity';
+import {
+  fetchTelegramBotIdentity,
+  type TelegramBotIdentityTarget,
+} from '@/modules/messaging/telegramBotIdentity';
+
+/**
+ * Две платформенные личности, каждая со своим токеном и своей настройкой имени: бот доставки кодов
+ * и бот Telegram Login Widget с привязанным доменом. Владелец 16.09.2026: «одно дело логин виджет,
+ * другое — подтверждение номера в телеграм».
+ */
+const BOT_TARGETS = {
+  delivery: {
+    target: { scope: 'platform', audience: 'patient' } as TelegramBotIdentityTarget,
+    usernameKey: 'telegram_login_bot_username',
+  },
+  login_widget: {
+    target: { scope: 'platform_login_widget' } as TelegramBotIdentityTarget,
+    usernameKey: 'telegram_login_widget_bot_username',
+  },
+} as const;
+
+const bodySchema = z.object({ bot: z.enum(['delivery', 'login_widget']).default('delivery') });
 
 const MESSAGES: Readonly<Record<string, string>> = {
   credential_missing: 'Токен бота не сохранён — сначала сохраните его.',
@@ -22,13 +44,19 @@ const MESSAGES: Readonly<Record<string, string>> = {
     'У бота с этим токеном нет публичного имени (@username). Задайте его в @BotFather.',
 };
 
-export async function POST() {
-  // Платформенное имя для Login Widget — платформенная настройка; клиника называет свой бот через
-  // сохранение собственного токена, где деривация уже встроена.
+export async function POST(request: Request) {
+  // Платформенные имена — платформенная настройка; клиника называет свой бот через сохранение
+  // собственного токена, где деривация уже встроена.
   const gate = await requirePlatformOperationsApiContext();
   if (!gate.ok) return gate.response;
 
-  const identity = await fetchTelegramBotIdentity({ scope: 'platform', audience: 'patient' });
+  const parsed = bodySchema.safeParse(await request.json().catch(() => ({})));
+  if (!parsed.success) {
+    return NextResponse.json({ ok: false, error: 'invalid_payload' }, { status: 400 });
+  }
+  const { target, usernameKey } = BOT_TARGETS[parsed.data.bot];
+
+  const identity = await fetchTelegramBotIdentity(target);
   if (!identity.ok) {
     return NextResponse.json(
       { ok: false, error: identity.error, message: MESSAGES[identity.error] },
@@ -37,7 +65,7 @@ export async function POST() {
   }
 
   await buildAppDeps().systemSettings.updateSetting(
-    'telegram_login_bot_username',
+    usernameKey,
     'admin',
     { value: identity.username },
     gate.session.user.userId,
