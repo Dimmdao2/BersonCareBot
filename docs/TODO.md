@@ -139,7 +139,11 @@ Rubitime выведено из эксплуатации 2026-07-27. Старые
 
 ## Config / Secrets
 
-- Убрать чтение полных секретов в `GET /api/auth/oauth/providers` — проверка «настроено» без вытягивания значения в handler.
+- (сделано 16.09.2026) Чтение полных секретов ради проверки «настроено» убрано: маршрут
+  `GET /api/auth/oauth/providers` удалён по слову владельца, а признак «настроено» теперь —
+  публичная проекция, которую поддерживает триггер БД (`isOAuthProviderConfigured` →
+  `getPublicRuntimeBool('oauth_<provider>_enabled', 'public_auth_config')`,
+  `apps/webapp/src/modules/auth/authChannelPolicy.ts:135`). Секрет в handler не попадает.
 - Слой «config validation» / exists-only accessors для admin keys.
 - Проверить логирование `integrationRuntime` и смежных путей на утечки секретов.
 

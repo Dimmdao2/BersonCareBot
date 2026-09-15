@@ -2,11 +2,11 @@
 
 Канонический личный раздел сотрудника: `/app/account`.
 
-- `profile` (default): существующие account email и SMS fallback; organization workspace composition,
+- `account` (default): существующие account email и SMS fallback; organization workspace composition,
   channel defaults и терминология принадлежат только `/app/settings`.
 - `notifications`: существующая персональная матрица каналов/тем; organization-specific task projection читается
   только при наличии clinical workspace.
-- `install`: существующий `StaffPwaInstallSection` без копии PWA-механики.
+- установка приложения живёт в `/app/settings?tab=workspace`.
 
 Доступ проверяет U1 capability `account.self` через `requireStaffAccountPage`; membership и specialist binding не
 являются условием личного аккаунта. Organization context, если он есть, используется только для shell и сохранённых
@@ -17,3 +17,6 @@ Security tab содержит добровольные 2FA/sessions controls и 
 owner-membership без `specialist_id` здесь же доступен owner-only repair «Подключить рабочий кабинет» без
 предварительного TOTP. Уже настроенный фактор по-прежнему нужно подтвердить в текущем сеансе; отдельного
 платформенного требования для всего персонала нет. Отдельного `/app/ops/account` нет.
+
+У сотрудника ровно три вкладки: «Аккаунт», «Безопасность», «Уведомления». «Первый запуск» пока не
+рендерится; recovery-механика и её API не удалены.

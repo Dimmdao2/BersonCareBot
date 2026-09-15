@@ -44,6 +44,15 @@ function storedCredential(valueJson: unknown): string {
 export function parseClinicBotPatchValue(input: {
   patchEnvelope: unknown;
   existingValueJson: unknown;
+  /**
+   * Публичное имя бота принадлежит токену, а не браузеру. Для Telegram оно выводится по `getMe`
+   * ПОСЛЕ записи, поэтому присланное значение здесь игнорируется целиком: иначе администратор
+   * записывает любое имя, а при недозвоне до Telegram (`telegram_unreachable` имя не трогает)
+   * ложная строка остаётся жить в ссылке `t.me/<имя>` — ровно «левый бот» из жалобы владельца
+   * 16.09.2026, только на брендированной поверхности. Найдено независимым аудитом 16.09.2026.
+   * У MAX своего `getMe` нет, ник вписывает администратор — там значение принимается как прежде.
+   */
+  botPublicIdIsDerived?: boolean;
 }): ClinicBotPatchResult {
   const patch =
     input.patchEnvelope !== null &&
@@ -62,7 +71,7 @@ export function parseClinicBotPatchValue(input: {
   const previous = parseClinicBotPublicConfig(input.existingValueJson);
 
   let botPublicId = previous.botPublicId;
-  if (Object.prototype.hasOwnProperty.call(patch, 'botPublicId')) {
+  if (!input.botPublicIdIsDerived && Object.prototype.hasOwnProperty.call(patch, 'botPublicId')) {
     const raw = patch.botPublicId;
     if (raw === null || (typeof raw === 'string' && raw.trim() === '')) {
       botPublicId = null;
@@ -106,11 +115,14 @@ export function parseClinicBotPatchValue(input: {
   }
 
   const merged = withClinicBotPublicConfig(
-    { ...(typeof input.existingValueJson === 'object' && input.existingValueJson !== null &&
+    {
+      ...(typeof input.existingValueJson === 'object' &&
+      input.existingValueJson !== null &&
       !Array.isArray(input.existingValueJson)
         ? (input.existingValueJson as Record<string, unknown>)
         : {}),
-      value: credential },
+      value: credential,
+    },
     { botPublicId, inboundForwarding },
   );
 

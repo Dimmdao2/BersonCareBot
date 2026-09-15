@@ -63,6 +63,9 @@ export type ClinicTariffChangeState = {
   choices: Array<{
     id: string;
     name: string;
+    description?: string;
+    mechanics?: Record<string, boolean>;
+    quotas?: import('@/modules/org-entitlements/types').TariffQuotaMap;
     /**
      * #1069 owner decision 2026-09-05 (period grid) — this tariff's price for every globally
      * selectable period; the picker below reads it directly instead of trusting a client amount.

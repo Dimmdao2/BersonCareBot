@@ -82,7 +82,6 @@ vi.mock('@/modules/system-settings/integrationRuntime', () => ({
   getVkIdClientSecret: () => Promise.resolve('vk-secret'),
 }));
 
-import { GET as listProviders } from '@/app/api/auth/oauth/providers/route';
 import { POST as startOAuth } from '@/app/api/auth/oauth/start/route';
 import { POST as appleCallback } from '@/app/api/auth/oauth/callback/apple/route';
 
@@ -108,20 +107,7 @@ beforeEach(() => {
 });
 
 describe('public OAuth provider boundary', () => {
-  it('rejects Apple in both public entry points when its independent toggle is off', async () => {
-    const providersResponse = await listProviders(
-      new Request('https://app.example.test/api/auth/oauth/providers'),
-    );
-
-    expect(providersResponse.status).toBe(200);
-    await expect(providersResponse.json()).resolves.toEqual({
-      ok: true,
-      yandex: true,
-      google: true,
-      apple: false,
-      vk: true,
-    });
-
+  it('rejects Apple at OAuth start when its independent toggle is off', async () => {
     const startResponse = await startOAuth(
       new Request('https://app.example.test/api/auth/oauth/start', {
         method: 'POST',

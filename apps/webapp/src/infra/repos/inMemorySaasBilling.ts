@@ -415,6 +415,9 @@ export function createInMemorySaasBillingRepository(
           return {
             id,
             name: tariff?.name ?? 'In-memory tariff',
+            description: '',
+            mechanics: {},
+            quotas: {},
             periodPrices: (tariff?.periodPrices ?? [])
               .filter((row) => selectableCodes.has(row.billingPeriodCode))
               .map((row) => ({ billingPeriodCode: row.billingPeriodCode, priceMinor: row.priceMinor })),

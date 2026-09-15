@@ -1,13 +1,12 @@
 import Link from 'next/link';
 import { doctorSectionTabClass } from '@/shared/ui/doctor/DoctorSectionTabs';
 
-export type AccountTab = 'profile' | 'security' | 'notifications' | 'install';
+export type AccountTab = 'account' | 'security' | 'notifications';
 
 const ACCOUNT_TABS: ReadonlyArray<{ id: AccountTab; label: string }> = [
-  { id: 'profile', label: 'Профиль' },
+  { id: 'account', label: 'Аккаунт' },
   { id: 'security', label: 'Безопасность' },
   { id: 'notifications', label: 'Уведомления' },
-  { id: 'install', label: 'Установить приложение' },
 ];
 
 export function AccountTabs({ activeTab }: { activeTab: AccountTab }) {
@@ -16,7 +15,7 @@ export function AccountTabs({ activeTab }: { activeTab: AccountTab }) {
       <div className="flex gap-1 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {ACCOUNT_TABS.map((tab) => {
           const isSelected = tab.id === activeTab;
-          const href = tab.id === 'profile' ? '/app/account' : `/app/account?tab=${tab.id}`;
+          const href = tab.id === 'account' ? '/app/account' : `/app/account?tab=${tab.id}`;
           return (
             <Link
               key={tab.id}

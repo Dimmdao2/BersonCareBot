@@ -4,7 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useCallback, useRef, useState, type ReactNode } from 'react';
-import { AlignRight, ArrowLeft } from 'lucide-react';
+import { AlignRight, ArrowLeft, Settings } from 'lucide-react';
 import { Button, buttonVariants } from '@/shared/ui/doctor/primitives/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/shared/ui/doctor/primitives/sheet';
 import { cn } from '@/lib/utils';
@@ -166,13 +166,21 @@ export function DoctorHeader({
               />
             </nav>
             <div className="shrink-0 border-t border-border/70 py-2">
-              {/* Тот же контейнер, что в боковой навигации: у управленца это «Профиль и настройки». */}
+              {menuAccess.capabilities.includes('organization.management') ? (
+                <Link
+                  href={`${routePaths.settings}?tab=profile`}
+                  className={cn(
+                    DOCTOR_MENU_ITEM_RADIUS_CLASS,
+                    'flex min-h-10 items-center gap-2 px-3 py-2 text-sm font-normal text-foreground no-underline hover:bg-muted/60',
+                  )}
+                  onClick={closeMenu}
+                >
+                  <Settings size={18} strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden />
+                  Настройки
+                </Link>
+              ) : null}
               <Link
-                href={
-                  menuAccess.capabilities.includes('organization.management')
-                    ? `${routePaths.settings}?tab=account`
-                    : routePaths.account
-                }
+                href={routePaths.account}
                 className={cn(
                   DOCTOR_MENU_ITEM_RADIUS_CLASS,
                   'flex min-h-10 items-center px-3 py-2 text-sm font-normal text-foreground no-underline hover:bg-muted/60',

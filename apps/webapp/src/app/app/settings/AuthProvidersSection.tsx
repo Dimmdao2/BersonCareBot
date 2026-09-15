@@ -54,6 +54,46 @@ function validateHttpUrl(label: string, raw: string): string | null {
   return null;
 }
 
+/**
+ * Имя бота принадлежит токену, а не памяти администратора: спрашиваем Telegram и показываем как
+ * есть. Владелец 16.09.2026 получил в бою чужого бота — «там оказывается был какой то левый бот», —
+ * потому что имя вписывали руками отдельно от токена; его решение: «имя, вписанное руками — убрать,
+ * сразу получать и показывать там как нередактируемое». Обе платформенные личности — бот доставки
+ * кодов и бот Login Widget — проходят один и тот же путь.
+ */
+async function fetchBotUsername(
+  bot: 'delivery' | 'login_widget',
+): Promise<{ username: string | null; problem: string | null }> {
+  try {
+    const response = await fetch('/api/admin/telegram-bot-identity', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ bot }),
+    });
+    const data = (await response.json().catch(() => ({}))) as {
+      ok?: boolean;
+      username?: string;
+      message?: string;
+    };
+    if (data.ok === true && typeof data.username === 'string') {
+      return { username: data.username, problem: null };
+    }
+    return { username: null, problem: data.message ?? 'Имя бота получить не удалось.' };
+  } catch {
+    return { username: null, problem: 'Имя бота получить не удалось.' };
+  }
+}
+
+async function loadBotUsername(
+  bot: 'delivery' | 'login_widget',
+  setName: (value: string) => void,
+  setProblem: (value: string | null) => void,
+): Promise<void> {
+  const result = await fetchBotUsername(bot);
+  if (result.username !== null) setName(result.username);
+  setProblem(result.problem);
+}
+
 export function AuthProvidersSection({
   telegramLoginBotUsername,
   telegramLoginWidgetBotUsername,
@@ -80,6 +120,7 @@ export function AuthProvidersSection({
   const [telegramBot, setTelegramBot] = useState(telegramLoginBotUsername);
   const [telegramBotProblem, setTelegramBotProblem] = useState<string | null>(null);
   const [widgetBot, setWidgetBot] = useState(telegramLoginWidgetBotUsername);
+  const [widgetBotProblem, setWidgetBotProblem] = useState<string | null>(null);
   const [widgetToken, setWidgetToken] = useState('');
   const [maxBotNick, setMaxBotNick] = useState(maxLoginBotNickname);
   const [maxApiKey, setMaxApiKey] = useState(maxBotApiKey);
@@ -172,16 +213,16 @@ export function AuthProvidersSection({
         if (vkIdClientSecret.trim().length > 0) {
           patches.push(patchAdminSetting('vk_id_client_secret', vkIdClientSecret.trim()));
         }
-        // Токен виджета пишем ПЕРВЫМ и отдельно: маршрут не примет имя бота виджета, пока токена
-        // нет, — иначе кнопка появилась бы, а подпись проверить было бы нечем.
+        // Токен виджета пишем отдельно: маршрут в ответ на его сохранение сам спрашивает у Telegram
+        // имя ЭТОГО бота и записывает его. Имя отсюда не отправляется — его никто не вводит.
         if (widgetToken.trim().length > 0) {
           if (!(await patchAdminSetting('telegram_login_widget_bot_token', widgetToken.trim()))) {
             toast.error(notificationText.settingsPartialSaveFailed);
             return;
           }
           setWidgetToken('');
+          await loadBotUsername('login_widget', setWidgetBot, setWidgetBotProblem);
         }
-        patches.push(patchAdminSetting('telegram_login_widget_bot_username', widgetBot.trim()));
         const results = await Promise.all(patches);
         if (results.some((r) => !r)) {
           toast.error(notificationText.settingsPartialSaveFailed);
@@ -203,24 +244,15 @@ export function AuthProvidersSection({
    */
   useEffect(() => {
     let active = true;
-    void fetch('/api/admin/telegram-bot-identity', { method: 'POST' })
-      .then(async (response) => {
-        const data = (await response.json().catch(() => ({}))) as {
-          ok?: boolean;
-          username?: string;
-          message?: string;
-        };
+    const apply =
+      (setName: (value: string) => void, setProblem: (value: string | null) => void) =>
+      (result: { username: string | null; problem: string | null }) => {
         if (!active) return;
-        if (data.ok === true && typeof data.username === 'string') {
-          setTelegramBot(data.username);
-          setTelegramBotProblem(null);
-          return;
-        }
-        setTelegramBotProblem(data.message ?? 'Имя бота получить не удалось.');
-      })
-      .catch(() => {
-        if (active) setTelegramBotProblem('Имя бота получить не удалось.');
-      });
+        if (result.username !== null) setName(result.username);
+        setProblem(result.problem);
+      };
+    void fetchBotUsername('delivery').then(apply(setTelegramBot, setTelegramBotProblem));
+    void fetchBotUsername('login_widget').then(apply(setWidgetBot, setWidgetBotProblem));
     return () => {
       active = false;
     };
@@ -264,25 +296,27 @@ export function AuthProvidersSection({
             <p className="text-sm font-semibold">Telegram Login Widget</p>
             <p className="text-xs text-muted-foreground">
               Отдельный способ входа: человек жмёт кнопку Telegram на странице, код в чат не
-              приходит. Бот здесь свой — тот, которому в @BotFather привязан домен, — и вписывается
-              явно. Кнопка появляется только при включённом переключателе «Telegram Login Widget» в
-              разделе «Доступные способы входа».
+              приходит. Бот здесь свой — тот, которому в @BotFather привязан домен. Введите его
+              токен: имя подставится по токену само. Кнопка появляется только при включённом
+              переключателе «Telegram Login Widget» в разделе «Доступные способы входа».
             </p>
             <DoctorField
               label="Имя бота виджета"
               htmlFor="auth-telegram-widget-bot"
-              hint="Публичный @username бота с привязанным доменом. Принимается @имя, имя или ссылка t.me/имя. Пустое — виджет выключен."
+              hint="Имя принадлежит токену бота виджета и подставляется по нему: вводить его руками не нужно и нельзя. Пустое — виджет выключен."
             >
               <Input
                 id="auth-telegram-widget-bot"
                 type="text"
-                placeholder="bersoncare_login_bot"
                 value={widgetBot}
-                onChange={(e) => setWidgetBot(e.target.value)}
-                disabled={isPending}
+                readOnly
+                disabled
                 autoComplete="off"
               />
             </DoctorField>
+            {widgetBotProblem ? (
+              <p className="text-xs text-destructive">{widgetBotProblem}</p>
+            ) : null}
             <DoctorField
               label="Токен бота виджета"
               htmlFor="auth-telegram-widget-token"

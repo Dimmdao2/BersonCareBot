@@ -1,4 +1,7 @@
+import Link from 'next/link';
 import { Badge } from '@/shared/ui/doctor/primitives/badge';
+import { buttonVariants } from '@/shared/ui/doctor/primitives/button-variants';
+import { cn } from '@/lib/utils';
 import {
   DoctorSection,
   DoctorSectionHeader,
@@ -10,29 +13,20 @@ import {
   doctorDnaFlatListPrimaryClass,
   doctorDnaFlatListRowClass,
 } from '@/shared/ui/doctor/DoctorDnaFlatListRow';
-import type { OrgMechanic } from '@/modules/org-entitlements/types';
 import type { OrgQuotaProjection } from '@/modules/org-entitlements/types';
 import type { SaasBillingOverview } from '@/modules/saas-billing/ports';
 import { SaasBillingOverview as SaasBillingOverviewSection } from '@/shared/ui/doctor/SaasBillingOverview';
-import { PayTariffButton, type ClinicTariffChangeState } from './PayTariffButton';
+import type { ClinicTariffChangeState } from './PayTariffButton';
 import { AutopayToggleButton } from './AutopayToggleButton';
 import { CancelSubscriptionButton } from './CancelSubscriptionButton';
 import { StorageSpaceBlock, type ClinicStorageOffers } from './StorageSpaceBlock';
 import { formatQuotaValue, QUOTA_THRESHOLD_LABEL } from './billingQuotaFormat';
-
-export type BillingMechanicRow = {
-  mechanic: OrgMechanic;
-  label: string;
-  enabled: boolean;
-};
 
 type Props = {
   /** `null` when the organization genuinely has no tariff assigned (own tariff, not the resolver's default). */
   tariffName: string | null;
   /** Human sentence from `describeCommercialAccessState` — never the raw enum. */
   commercialStateLabel: string;
-  /** Every canonical mechanic (`MECHANICS`), resolved through `resolveOrgEntitlements`/`entitlementsFromSnapshot`. */
-  mechanics: BillingMechanicRow[];
   /**
    * §5a stage 6.1 — "использовано из включённого" per number (patients, branches, file storage,
    * specialist seats), from `resolveOwnOrgQuotaProjections`. A mechanic without a configured
@@ -57,7 +51,6 @@ type Props = {
 export function BillingSection({
   tariffName,
   commercialStateLabel,
-  mechanics,
   quotaUsage,
   billing,
   tariffChange,
@@ -74,9 +67,11 @@ export function BillingSection({
   // `tariffName` (действующий тариф из снимка прав) здесь пуст. Имя показываем из самого выбора —
   // иначе клиника не видит, что именно она выбрала и за что ей платить.
   const chosenUnpaidTariffName = tariffChange.awaitingFirstPayment
-    ? tariffChange.choices.find((choice) => choice.id === tariffChange.currentTariffId)?.name ?? null
+    ? (tariffChange.choices.find((choice) => choice.id === tariffChange.currentTariffId)?.name ??
+      null)
     : null;
-  const needsFirstTariffChoice = tariffChange.currentTariffId === null && tariffChange.choices.length > 0;
+  const needsFirstTariffChoice =
+    tariffChange.currentTariffId === null && tariffChange.choices.length > 0;
   return (
     <>
       <DoctorSection>
@@ -100,9 +95,15 @@ export function BillingSection({
               ? 'Выберите тариф ниже и оплатите его — доступ откроется после оплаты.'
               : commercialStateLabel}
         </p>
-        {/* Выбор тарифа и оплата живут в одном элементе, поэтому он рендерится всегда: клинику без
-            действующего тарифа нельзя оставить на экране, где не выбрать и не оплатить. */}
-        <PayTariffButton tariffChange={tariffChange} billingEmail={billing.billingEmail} />
+        <Link
+          href="/app/settings/tariffs"
+          className={cn(
+            buttonVariants({ size: 'sm', variant: 'outline' }),
+            'h-9 w-fit rounded-[var(--doctor-button-radius,8px)] bg-[var(--doctor-page-gap-background,var(--bc-canvas,#f2f2f0))]',
+          )}
+        >
+          Изменить тариф
+        </Link>
         {tariffName !== null && (
           <>
             <AutopayToggleButton subscription={paidSubscription} />
@@ -145,25 +146,6 @@ export function BillingSection({
           offers={storage}
           releaseScheduled={paidSubscription?.storagePackageCancelAtPeriodEnd ?? false}
         />
-
-        <div className="space-y-1.5">
-          <p className="text-sm font-medium text-foreground">Что доступно организации</p>
-          <ul aria-label="Механики тарифа" className={doctorDnaFlatListClass}>
-            {mechanics.map((row) => (
-              <li
-                key={row.mechanic}
-                className={`${doctorDnaFlatListRowClass} justify-between gap-2`}
-              >
-                <span className={doctorDnaFlatListPrimaryClass}>{row.label}</span>
-                <span className={doctorDnaFlatListMetaClass}>
-                  <Badge variant={row.enabled ? 'secondary' : 'outline'}>
-                    {row.enabled ? 'Включено' : 'Недоступно'}
-                  </Badge>
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
       </DoctorSection>
       <SaasBillingOverviewSection billing={billing} />
     </>

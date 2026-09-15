@@ -17,7 +17,10 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { logger } from '../../infra/observability/logger.js';
 import { fetchTelegramBotIdentity } from '../telegram/client.js';
-import { getTelegramRuntimeConfig } from '../../infra/adapters/integrationRuntimeConfig.js';
+import {
+  getTelegramLoginWidgetBotToken,
+  getTelegramRuntimeConfig,
+} from '../../infra/adapters/integrationRuntimeConfig.js';
 import { runWithOptionalOrganizationPrincipal } from '../../infra/principal/organizationPrincipal.js';
 import type { ClinicDeliveryCredential } from '../../infra/db/clinicDeliveryCredentials.js';
 
@@ -27,6 +30,10 @@ const bodySchema = z.union([
   z.object({
     scope: z.literal('platform'),
     audience: z.enum(['staff', 'patient']),
+  }),
+  /** Бот Login Widget: своя личность, свой токен, доставкой не занимается. */
+  z.object({
+    scope: z.literal('platform_login_widget'),
   }),
   z.object({
     scope: z.literal('clinic'),
@@ -47,7 +54,9 @@ function verifySignature(
   if (!Number.isFinite(ts)) return false;
   const now = Math.floor(Date.now() / 1000);
   if (Math.abs(now - ts) > WINDOW_SECONDS) return false;
-  const expected = createHmac('sha256', secret).update(`${timestamp}.${rawBody}`).digest('base64url');
+  const expected = createHmac('sha256', secret)
+    .update(`${timestamp}.${rawBody}`)
+    .digest('base64url');
   const left = Buffer.from(expected);
   const right = Buffer.from(signature);
   return left.length === right.length && timingSafeEqual(left, right);
@@ -106,11 +115,14 @@ export async function registerBersoncareTelegramBotIdentityRoute(
     if (parsed.data.scope === 'platform') {
       const runtime = await getTelegramRuntimeConfig(parsed.data.audience);
       botToken = runtime.enabled ? runtime.botToken : '';
+    } else if (parsed.data.scope === 'platform_login_widget') {
+      botToken = await getTelegramLoginWidgetBotToken();
     } else {
       // `allowUnverified`: имя спрашивают сразу после сохранения токена, до живой проверки канала —
       // иначе настроить бота было бы нельзя в принципе.
-      const credential = await runWithOptionalOrganizationPrincipal(parsed.data.organizationId, () =>
-        resolveClinicDeliveryCredential('telegram', { allowUnverified: true }),
+      const credential = await runWithOptionalOrganizationPrincipal(
+        parsed.data.organizationId,
+        () => resolveClinicDeliveryCredential('telegram', { allowUnverified: true }),
       );
       botToken = credential?.channel === 'telegram' ? credential.botToken : '';
     }
@@ -121,7 +133,10 @@ export async function registerBersoncareTelegramBotIdentityRoute(
     const identity = await fetchTelegramBotIdentity(botToken);
     if (!identity.ok) {
       // Причина — классифицированная, без тела ответа Telegram: в нём может оказаться сам токен.
-      logger.warn({ scope: parsed.data.scope, reason: identity.error }, 'telegram bot identity failed');
+      logger.warn(
+        { scope: parsed.data.scope, reason: identity.error },
+        'telegram bot identity failed',
+      );
       return reply.code(200).send({ ok: false, error: identity.error });
     }
     return reply.code(200).send({ ok: true, username: identity.username, botId: identity.botId });

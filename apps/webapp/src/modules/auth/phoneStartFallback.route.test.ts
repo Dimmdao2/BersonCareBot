@@ -25,7 +25,8 @@ const fakes = vi.hoisted(() => ({
   recordRegistrationSuccess: vi.fn(),
   isChannelEnabled: vi.fn<(channel: string) => Promise<boolean>>(),
   getClientVisiblePolicy: vi.fn<() => Promise<AuthChannelPolicy>>(),
-  resolveAuthOtpChannel: vi.fn<(userId: string) => Promise<'sms' | 'telegram' | 'max' | 'email' | null>>(),
+  resolveAuthOtpChannel:
+    vi.fn<(userId: string) => Promise<'sms' | 'telegram' | 'max' | 'email' | null>>(),
   getPhoneChallenge: vi.fn<(challengeId: string) => Promise<PhoneChallengePayload | null>>(),
   confirmPhoneAuth: vi.fn<(challengeId: string, code: string) => Promise<ConfirmPhoneAuthResult>>(),
   checkConfirmRateLimit:
@@ -206,42 +207,6 @@ afterEach(() => {
 });
 
 describe('phone login automatic delivery fallback', () => {
-  it('bootstraps via SMS when no preferred/default channel is resolved', async () => {
-    const response = await finishResponse(
-      startPhone(
-        request({
-          phone: '+79991234567',
-          channel: 'web',
-          chatId: 'browser-1005',
-          purpose: 'login',
-        }),
-      ),
-    );
-
-    expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({
-      ok: true,
-      challengeId: 'real-challenge-id-1005',
-      retryAfterSeconds: 60,
-      deliveryChannel: 'automatic',
-    });
-    expect(fakes.startPhoneAuth).toHaveBeenCalledWith(
-      '+79991234567',
-      { channel: 'web', chatId: 'browser-1005', displayName: undefined },
-      expect.objectContaining({
-        delivery: { channel: 'sms' },
-        deferredDelivery: { schedule: fakes.after },
-      }),
-    );
-    expect(fakes.getVerifiedEmail).not.toHaveBeenCalled();
-  });
-
-  /**
-   * Правило владельца 16.09.2026: «по телефону можно отправлять только в ботов, то есть в макс или
-   * телеграм. По имейл — надо ввести имейл». Раньше почта была доставкой по номеру, и при опечатке в
-   * номере код уходил на адрес ЧУЖОГО аккаунта. Теперь по номеру письмо не уходит никому — ни
-   * известному номеру, ни неизвестному, — и обе ветки по-прежнему неотличимы снаружи.
-   */
   it('never delivers an email code at the phone door, and stays indistinguishable', async () => {
     fakes.getClientVisiblePolicy.mockResolvedValue({
       email: true,
@@ -435,36 +400,48 @@ describe('phone login automatic delivery fallback', () => {
     expect(fakes.startPhoneAuth).not.toHaveBeenCalled();
   });
 
-  it('accepts an explicitly selected configured SMS channel on the code screen', async () => {
-    fakes.isChannelEnabled.mockImplementation(async (channel) => channel === 'sms');
+  it('keeps a requested Telegram response identical for linked and unknown numbers', async () => {
+    fakes.isChannelEnabled.mockImplementation(async (channel) => channel === 'telegram');
+    fakes.findByPhone.mockResolvedValueOnce({
+      ...user,
+      bindings: { telegramId: 'tg-1005' },
+    });
 
-    const response = await finishResponse(
+    const linked = await finishResponse(
       startPhone(
         request({
           phone: '+79991234567',
           channel: 'web',
           chatId: 'browser-1005',
           purpose: 'login',
-          deliveryChannel: 'sms',
+          deliveryChannel: 'telegram',
         }),
       ),
     );
+    const linkedBody = (await linked.json()) as Record<string, unknown>;
 
-    expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({
-      ok: true,
-      challengeId: 'real-challenge-id-1005',
-      retryAfterSeconds: 60,
-      deliveryChannel: 'sms',
-    });
-    expect(fakes.startPhoneAuth).toHaveBeenCalledWith(
-      '+79991234567',
-      { channel: 'web', chatId: 'browser-1005', displayName: undefined },
-      expect.objectContaining({
-        delivery: { channel: 'sms' },
-        deferredDelivery: { schedule: fakes.after },
-      }),
+    fakes.findByPhone.mockResolvedValueOnce(null);
+    const unknown = await finishResponse(
+      startPhone(
+        request({
+          phone: '+79995550000',
+          channel: 'web',
+          chatId: 'browser-1005',
+          purpose: 'login',
+          deliveryChannel: 'telegram',
+        }),
+      ),
     );
+    const unknownBody = (await unknown.json()) as Record<string, unknown>;
+
+    expect(unknown.status).toBe(linked.status);
+    expect(Object.keys(unknownBody).sort()).toEqual(Object.keys(linkedBody).sort());
+    expect(unknownBody).toMatchObject({
+      ok: true,
+      retryAfterSeconds: 60,
+      deliveryChannel: 'telegram',
+    });
+    expect(String(unknownBody.challengeId)).toHaveLength(String(linkedBody.challengeId).length);
   });
 
   it('stays silent when the resolved channel is not enabled+configured (no SMS fallback)', async () => {

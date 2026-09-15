@@ -67,8 +67,10 @@ login/registration UI must reflect those toggles **dynamically**.
 ## Current state — RECON (verified 2026-07-24, `scratchpad/channel-auth-toggles-recon.md`)
 
 - **Login resolver:** `apps/webapp/src/modules/auth/authChannelPolicy.ts` + `loginAlternativesConfig.ts` →
-  `/api/auth/login/alternatives-config`, `/api/auth/telegram-login/config`, `/api/auth/oauth/providers` →
-  `AuthFlowV2.tsx`/`AuthBootstrap.tsx`. **Fail-closed by default**, and ~30 API routes ALSO server-enforce the channel
+  `publicAuthSnapshot.ts` (RSC props) и `/api/auth/telegram-login/config` →
+  `AuthFlowV2.tsx`/`AuthBootstrap.tsx`. ⚠️ Обновлено 16.09.2026: публичные адреса
+  `/api/auth/login/alternatives-config` и `/api/auth/oauth/providers` УДАЛЕНЫ по слову владельца
+  («удаляй, лишние дыры»); единственная проекция — серверный снимок. **Fail-closed by default**, and ~30 API routes ALSO server-enforce the channel
   flag (not just UI hiding — good). So the dynamic-gating machinery already exists; we extend its inputs.
 - **Per-method gating today:**
   - **email / sms / telegram / max** — ALREADY have individual `system_settings` booleans (`auth_email_enabled` etc.,
@@ -91,7 +93,7 @@ login/registration UI must reflect those toggles **dynamically**.
 1. **Extend the settings registry** with independent boolean toggles: `auth_oauth_google_enabled`,
    `auth_oauth_yandex_enabled`, (`auth_oauth_apple_enabled`?), `auth_2fa_enabled` — add to `registry.ts` +
    `PLATFORM_GLOBAL_SETTINGS_API_KEYS`. OAuth toggle becomes `enabled AND creds-present` (decouple from creds-only).
-2. **Login resolver:** feed the new toggles into `authChannelPolicy`/`oauth/providers` + the ~30 server-enforcing routes
+2. **Login resolver:** feed the new toggles into `authChannelPolicy`/`publicAuthSnapshot` + the ~30 server-enforcing routes
    so a disabled method vanishes from UI AND is rejected server-side (fail-closed).
 3. **2FA:** не возвращать удалённый boolean `auth_2fa_enabled`; добавить типизированную policy-настройку
    `disabled | optional | required` и один общий reader для login/guards/admin UI. `disabled` запрещает новое
@@ -300,6 +302,34 @@ WhatsApp подтверждает его только при таком же д�
       значение берётся у Telegram (`getMe`) при сохранении токена и при открытии настроек. Токен через сеть не
       передаётся — `getMe` зовёт integrator (`POST /api/bersoncare/telegram-bot-identity`), webapp шлёт только
       адресацию. Коммиты `65a9708b0` (механика) и правка выше.
+- [x] Telegram Login Widget отделён от входа по боту: свой переключатель `telegram_login_widget` (выключен по
+      умолчанию), свой бот, свой токен `telegram_login_widget_bot_token`. Владелец 16.09: «это не тоже самое что
+      вход по боту», «одно дело логин виджет, другое — подтверждение номера в телеграм», «и выключатели у
+      платформы отдельные». Mini App остался на прежнем токене. — коммит `a6bac8af4`.
+- [x] Имена ботов закрыты и на маршруте, не только в интерфейсе: `/api/admin/settings` отказывает записи
+      `telegram_login_bot_username` и `telegram_login_widget_bot_username` (`telegram_bot_username_derived_only`),
+      имя виджета выводится по ЕГО СОБСТВЕННОМУ токену, публичное имя телеграм-бота клиники не берётся из
+      браузерного payload. Новые настройки виджета проходят публичную проекцию (`app.read_authenticated_runtime_setting`)
+      и видны интегратору (`app.read_integrator_provider_runtime_setting`); без миграции способ входа был мёртв
+      целиком. — миграция `20260916T090000_the_login_widget_settings_reach_the_public_door.sql`
+      (preflight PASS, `pending=1 total=228`), коммит `2447776d2`.
+
+**Независимый аудит 16.09.2026** (`gpt-5.6-sol/high`, клон `bcb-wt-l82v`, acceptance-коммит `61177440d`):
+вердикт FAIL, шесть находок. PASS по анти-энумерации (проверена инъекцией отказа), по границе секрета (токен не
+пересекает сеть, текст ошибки Telegram не попадает в ответ и логи), по независимости почтовой двери, по Mini App.
+Четыре находки исправлены строкой выше. Пятая — тест на точный текст и порядок кнопок в `otpDoor.unit.test.ts`
+(запрещён §10a) — удалён самим аудитором, удаление принято. Шестая — ниже.
+
+- [x] **Решение владельца 16.09.2026 — SMS на телефонном входе ОСТАЁТСЯ.** Дословно: «оставляем — доктор может
+      подключить себе смс провайдера». То есть фраза «только в ботов, то есть в макс или телеграм» была сказана
+      против ПОЧТЫ, а не против SMS: SMS уходит на тот самый введённый номер, чужих данных не требует, и клиника
+      подключает своего провайдера сама (`clinic_smsc_api_key`) — выключить канал здесь значило бы отобрать у неё
+      уже купленную возможность. Два acceptance-теста аудитора, писавших обратное, удалены.
+- [x] **Решение владельца 16.09.2026 — текст экрана остаётся как есть.** Дословно: «код отправлен в мессенджер,
+      привязанный к вашему номеру — говорит одинаково для всех». Одинаковость и есть требование: ответ
+      существующему и несуществующему номеру обязан быть неразличим (OWASP ASVS 5.0 6.3.8, CWE-204). Находка
+      аудита закрыта как НЕ дефект — формулировка ничего не утверждает о конкретном номере.
+
 - [ ] Имя для Login Widget по-прежнему ОДНО на платформу (`telegram_login_bot_username`, registry `global`), а код
       входа на брендированной поверхности шлёт бот клиники (`clinic_telegram_bot_token`). Одна строка не может
       называть бота каждой клиники — значит на брендированной поверхности ссылка `t.me/<имя>` и виджет могут

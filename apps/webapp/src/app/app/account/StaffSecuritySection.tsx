@@ -31,6 +31,7 @@ type Props = {
   hasProfileName: boolean;
   hasOrganization: boolean;
   hasSpecialistBinding: boolean;
+  verifiedEmail: string | null;
   showSpecialistFirstRun?: boolean;
   recoveryOnly?: boolean;
 };
@@ -136,7 +137,9 @@ export function StaffSecuritySection(props: Props) {
       );
       if (!result.ok) {
         if (result.error === 'fio_latin_rejected') setSpecialistFioRequired(true);
-        return toast.error(result.message ?? staffSecurityErrorText(result.error, 'bind_specialist'));
+        return toast.error(
+          result.message ?? staffSecurityErrorText(result.error, 'bind_specialist'),
+        );
       }
       window.location.assign(result.redirectTo ?? '/app/doctor');
     } catch {
@@ -221,6 +224,13 @@ export function StaffSecuritySection(props: Props) {
           <DoctorSectionTitle>Защита аккаунта</DoctorSectionTitle>
         </DoctorSectionHeader>
         <PasswordChangeForm />
+        <div className="border-t border-border/70 pt-3">
+          <p className="text-sm font-medium text-foreground">Двухфакторная защита</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Код на email —{' '}
+            {props.verifiedEmail ? props.verifiedEmail : 'подтверждённый email не подключён'}
+          </p>
+        </div>
         {securityReady ? (
           <p className="text-sm">Приложение-аутентификатор подключено, резервные коды сохранены.</p>
         ) : null}

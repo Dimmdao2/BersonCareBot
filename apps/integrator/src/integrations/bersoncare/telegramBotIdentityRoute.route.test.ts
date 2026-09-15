@@ -11,6 +11,8 @@ const apps: FastifyInstance[] = [];
 const fakes = vi.hoisted(() => ({
   fetchTelegramBotIdentity: vi.fn(),
   getTelegramRuntimeConfig: vi.fn(),
+  getTelegramLoginWidgetBotToken: vi.fn(),
+  loggerWarn: vi.fn(),
 }));
 
 vi.mock('../telegram/client.js', () => ({
@@ -18,9 +20,13 @@ vi.mock('../telegram/client.js', () => ({
 }));
 vi.mock('../../infra/adapters/integrationRuntimeConfig.js', () => ({
   getTelegramRuntimeConfig: fakes.getTelegramRuntimeConfig,
+  getTelegramLoginWidgetBotToken: fakes.getTelegramLoginWidgetBotToken,
 }));
 vi.mock('../../infra/principal/organizationPrincipal.js', () => ({
   runWithOptionalOrganizationPrincipal: async (_id: string, fn: () => Promise<unknown>) => fn(),
+}));
+vi.mock('../../infra/observability/logger.js', () => ({
+  logger: { warn: fakes.loggerWarn },
 }));
 
 function signedHeaders(rawBody: string): Record<string, string> {
@@ -39,10 +45,9 @@ async function buildApp(resolveClinicDeliveryCredential = vi.fn(async () => null
   apps.push(app);
   await registerBersoncareTelegramBotIdentityRoute(app, {
     sharedSecret: SHARED_SECRET,
-    resolveClinicDeliveryCredential:
-      resolveClinicDeliveryCredential as unknown as Parameters<
-        typeof registerBersoncareTelegramBotIdentityRoute
-      >[1]['resolveClinicDeliveryCredential'],
+    resolveClinicDeliveryCredential: resolveClinicDeliveryCredential as unknown as Parameters<
+      typeof registerBersoncareTelegramBotIdentityRoute
+    >[1]['resolveClinicDeliveryCredential'],
   });
   return app;
 }
@@ -85,9 +90,35 @@ describe('POST /api/bersoncare/telegram-bot-identity', () => {
     expect(fakes.fetchTelegramBotIdentity).toHaveBeenCalledWith('123:AAsecret');
   });
 
+  /**
+   * Бот Login Widget — ТРЕТЬЯ личность: свой токен, свой домен в @BotFather, доставкой не занят.
+   * Аудит 16.09.2026 показал, чем платит смешение: имя виджета принималось при любом сохранённом
+   * токене, и кнопка бота A проверялась подписью бота B — вход отказывал всегда.
+   */
+  it('спрашивает имя бота виджета по ЕГО токену, а не по токену доставки', async () => {
+    fakes.getTelegramLoginWidgetBotToken.mockResolvedValue('widget:AAsecret');
+    fakes.fetchTelegramBotIdentity.mockResolvedValue({
+      ok: true,
+      username: 'bersoncare_login_bot',
+      botId: 76,
+    });
+    const app = await buildApp();
+
+    const response = await inject(app, { scope: 'platform_login_widget' });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ ok: true, username: 'bersoncare_login_bot' });
+    expect(fakes.fetchTelegramBotIdentity).toHaveBeenCalledWith('widget:AAsecret');
+    expect(fakes.getTelegramRuntimeConfig).not.toHaveBeenCalled();
+  });
+
   it('берёт токен клиники тем же резолвером, что и доставка, ещё до живой проверки канала', async () => {
     const resolve = vi.fn(async () => ({ channel: 'telegram', botToken: 'clinic:AAsecret' }));
-    fakes.fetchTelegramBotIdentity.mockResolvedValue({ ok: true, username: 'clinic_bot', botId: 7 });
+    fakes.fetchTelegramBotIdentity.mockResolvedValue({
+      ok: true,
+      username: 'clinic_bot',
+      botId: 7,
+    });
     const app = await buildApp(resolve as never);
 
     const response = await inject(app, { scope: 'clinic', organizationId: ORGANIZATION_ID });
@@ -108,13 +139,17 @@ describe('POST /api/bersoncare/telegram-bot-identity', () => {
   });
 
   it('отдаёт классифицированную причину отказа Telegram', async () => {
-    fakes.getTelegramRuntimeConfig.mockResolvedValue({ enabled: true, botToken: '123:AAwrong' });
+    const rejectedToken = '123:AAwrong-do-not-leak';
+    fakes.getTelegramRuntimeConfig.mockResolvedValue({ enabled: true, botToken: rejectedToken });
     fakes.fetchTelegramBotIdentity.mockResolvedValue({ ok: false, error: 'telegram_rejected' });
     const app = await buildApp();
 
     const response = await inject(app, { scope: 'platform', audience: 'patient' });
 
-    expect(response.json()).toEqual({ ok: false, error: 'telegram_rejected' });
+    const responseBody = response.json();
+    expect(responseBody).toEqual({ ok: false, error: 'telegram_rejected' });
+    expect(JSON.stringify(responseBody)).not.toContain(rejectedToken);
+    expect(JSON.stringify(fakes.loggerWarn.mock.calls)).not.toContain(rejectedToken);
   });
 
   it('без верной подписи не спрашивает ничего', async () => {

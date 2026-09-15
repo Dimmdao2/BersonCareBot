@@ -143,9 +143,12 @@ export async function loadSecurityContent(
   recoveryOnly: boolean,
   isPlatformConsole: boolean,
 ): Promise<ReactNode> {
-  const [storedStatus, passkeyEnabled, loginDevices] = await Promise.all([
+  const [[storedStatus, accountEmail], passkeyEnabled, loginDevices] = await Promise.all([
     runWithStaffSecuritySelfPrincipal(session.user.userId, 'app/account:security-self', () =>
-      deps.staffSecurity.getStatus(),
+      Promise.all([
+        deps.staffSecurity.getStatus(),
+        deps.userProjection.getProfileEmailFields(session.user.userId),
+      ]),
     ),
     recoveryOnly ? Promise.resolve(false) : isIndependentAuthMethodEnabled('passkey'),
     // Во время восстановления защиты экран урезан до самого восстановления — список устройств там
@@ -166,7 +169,8 @@ export async function loadSecurityContent(
         hasProfileName={Boolean(session.user.displayName.trim())}
         hasOrganization={workspaceContext !== null}
         hasSpecialistBinding={workspaceContext?.specialistId != null}
-        showSpecialistFirstRun={!isPlatformConsole}
+        verifiedEmail={accountEmail.emailVerifiedAt ? accountEmail.email : null}
+        showSpecialistFirstRun={false}
         recoveryOnly={recoveryOnly}
       />
       {passkeyEnabled ? <StaffPasskeySection /> : null}

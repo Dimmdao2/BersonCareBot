@@ -34,10 +34,7 @@ import {
 } from '@/modules/auth/oauthProviderRegistry';
 import { markFreshLoginAfterAuth } from '@/shared/lib/webPush/freshLoginStorage';
 import { ChannelPicker } from '@/shared/ui/patient/auth/ChannelPicker';
-import {
-  OtpCodeForm,
-  type OtpResendOutcome,
-} from '@/shared/ui/patient/auth/OtpCodeForm';
+import { OtpCodeForm, type OtpResendOutcome } from '@/shared/ui/patient/auth/OtpCodeForm';
 import {
   buildPublicPhoneOtpAlternatives,
   otpCodeDescription,
@@ -190,6 +187,8 @@ export type PrefetchedPublicAuthConfig = {
   passkeyEnabled?: boolean;
   telegramBotUsername: string | null;
   maxBotOpenUrl: string | null;
+  vkWebLoginUrl: string | null;
+  smsFallbackEnabled: boolean;
   specialistSignupEnabled: boolean;
   authChannelPolicy?: AuthChannelUiPolicy;
   fetchedAt: number;
@@ -1276,10 +1275,12 @@ export function AuthFlowV2({
   }
 
   if (step === 'email_password') {
-    // 'oauth_first' — реальный шаг «выбор входа» только когда есть куда возвращаться
-    // (OAuth/passkey-альтернативы); иначе (напр. doctor-портал — только email+пароль) кнопка
-    // вела в тупик — владелец, скрин входа после разлогина.
-    const canReturnToOauthFirst = emailPasswordReturn === 'oauth_first' && hasWebOauthAlternatives;
+    // У специалиста отдельного экрана выбора нет: email+пароль — первый экран, passkey остаётся
+    // вторичной ссылкой прямо на форме (владелец 16.09). У остальных дверей oauth_first остаётся
+    // реальным шагом выбора, когда есть OAuth/passkey-альтернативы.
+    const doctorEmailFirst = roleLoginPortal === 'doctor';
+    const canReturnToOauthFirst =
+      !doctorEmailFirst && emailPasswordReturn === 'oauth_first' && hasWebOauthAlternatives;
 
     const showEmailChromeBack =
       pwRecoveryPhase !== 'none' ||
@@ -1637,6 +1638,17 @@ export function AuthFlowV2({
                 >
                   Забыли пароль?
                 </Button>
+                {doctorEmailFirst && passkeyEnabled ? (
+                  <Button
+                    type="button"
+                    variant="link"
+                    className={authLinkButtonClass}
+                    disabled={loading}
+                    onClick={() => void startPasskeyLogin()}
+                  >
+                    Войти с Passkey
+                  </Button>
+                ) : null}
                 {emailOtpEnabled ? (
                   <Button
                     type="button"
@@ -2143,15 +2155,15 @@ export function AuthFlowV2({
                       message?: string;
                       retryAfterSeconds?: number;
                     }>('/api/auth/email-password/setup-code/complete', {
-                        method: 'POST',
-                        headers: { 'content-type': 'application/json' },
-                        body: JSON.stringify({
-                          email: emailLoginEmail.trim(),
-                          ...(emailRegChallengeId ? { challengeId: emailRegChallengeId } : {}),
-                          code,
-                          password: emailRegPassword,
-                        }),
-                      });
+                      method: 'POST',
+                      headers: { 'content-type': 'application/json' },
+                      body: JSON.stringify({
+                        email: emailLoginEmail.trim(),
+                        ...(emailRegChallengeId ? { challengeId: emailRegChallengeId } : {}),
+                        code,
+                        password: emailRegPassword,
+                      }),
+                    });
                     if (!confirmEmailResult.ok) {
                       return { ok: false as const, message: AUTH_NETWORK_ERROR_MESSAGE };
                     }
@@ -2343,11 +2355,11 @@ export function AuthFlowV2({
                       retryAfterSeconds?: number;
                       error?: string;
                       message?: string;
-                    }>('/api/auth/email-password/setup-access', {
-                        method: 'POST',
-                        headers: { 'content-type': 'application/json' },
-                        body: JSON.stringify({ email }),
-                      });
+                    }>('/api/auth/email-password/forgot', {
+                      method: 'POST',
+                      headers: { 'content-type': 'application/json' },
+                      body: JSON.stringify({ email }),
+                    });
                     if (!resendRegisterResult.ok) {
                       return { kind: 'error' as const, message: AUTH_NETWORK_ERROR_MESSAGE };
                     }

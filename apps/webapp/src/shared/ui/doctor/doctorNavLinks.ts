@@ -200,12 +200,8 @@ const RAW_DOCTOR_MENU_ITEMS: DoctorMenuLinkItem[] = [
     href: '/app/doctor/courses',
     requiresCoursesEntitlement: true,
   },
-  // Отдельного пункта «Настройки» в меню НЕТ (владелец 15.09.2026: «ты не удалил „настройки“ из
-  // меню»). Контейнером «Профиля и настроек» стала ссылка с именем организации в боковой панели —
-  // `DoctorAdminSidebar` ведёт ею на `routePaths.settings`, у кого есть `organization.management`,
-  // и в личный раздел у кого его нет. Пункт меню рядом с ней был вторым входом в то же место.
-  // Прежнее основание (ruling 2026-09-10: у соло нет переключателя режима, поэтому вход только
-  // здесь) снято именно этой ссылкой, а не отменено: вход у соло остался, он просто один.
+  // «Настройки» не входят в основной рабочий список: отдельная ссылка с шестерёнкой закреплена
+  // прямо над аккаунтом в `DoctorAdminSidebar` и в нижней части мобильного Sheet-меню.
   // NOTE: the platform operator's own destinations (analytics + the former "system" cluster)
   // moved out to `platformNavLinks.ts` — the platform shell has its own dedicated, flat
   // navigation now (owner ruling 2026-07-26: the global admin is not a doctor and does not
