@@ -1,13 +1,15 @@
 import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipal';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import {
   AUTH_CHANNEL_DISABLED_ERROR,
   isAuthChannelEnabled,
 } from '@/modules/auth/authChannelPolicy';
-import { normalizeEmail, startEmailChallenge } from '@/modules/auth/emailAuth';
-import { platformMailProfileForRecipientRole } from '@/modules/auth/mailProfile';
+import { normalizeEmail } from '@/modules/auth/emailAuth';
+import {
+  PASSWORD_RECOVERY_REQUEST_ACCEPTED,
+  requestPasswordRecoveryChallenge,
+} from '@/app-layer/auth/passwordRecovery';
 
 const bodySchema = z.object({
   email: z.string().email(),
@@ -16,7 +18,7 @@ const bodySchema = z.object({
 /** Повторная отправка setup-кода для contact-only / verified без пароля (явный запрос UI). */
 export async function POST(request: Request) {
   stampBootstrapPrincipal('api/auth/email-password/setup-access:POST', request);
-  if (!(await isAuthChannelEnabled('email'))) {
+  if (!(await isAuthChannelEnabled('email', undefined, 'transactional'))) {
     return NextResponse.json({ ok: false, error: AUTH_CHANNEL_DISABLED_ERROR }, { status: 503 });
   }
   const raw = (await request.json().catch(() => null)) as unknown;
@@ -26,29 +28,6 @@ export async function POST(request: Request) {
   }
 
   const emailNorm = normalizeEmail(parsed.data.email);
-  const deps = buildAppDeps();
-  const state = await deps.emailPasswordLookup.resolveAuthState(emailNorm);
-
-  if (state.kind !== 'needs_email_setup') {
-    return NextResponse.json({ ok: false, error: 'not_eligible' }, { status: 400 });
-  }
-
-  const challenge = await startEmailChallenge(
-    state.userId,
-    emailNorm,
-    'password_setup',
-    platformMailProfileForRecipientRole('client'),
-  );
-  if (!challenge.ok) {
-    return NextResponse.json(
-      { ok: false, error: challenge.code, retryAfterSeconds: challenge.retryAfterSeconds },
-      { status: challenge.code === 'rate_limited' ? 429 : 503 },
-    );
-  }
-
-  return NextResponse.json({
-    ok: true,
-    challengeId: challenge.challengeId,
-    retryAfterSeconds: challenge.retryAfterSeconds,
-  });
+  await requestPasswordRecoveryChallenge(emailNorm, 'setup_resend');
+  return NextResponse.json(PASSWORD_RECOVERY_REQUEST_ACCEPTED);
 }

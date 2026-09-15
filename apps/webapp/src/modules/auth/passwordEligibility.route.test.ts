@@ -7,6 +7,7 @@ import type { SessionUser } from '@/shared/types/session';
 const fakes = vi.hoisted(() => ({
   registerPendingVerification: vi.fn<UserPasswordCredentialsPort['registerPendingVerification']>(),
   resolveAuthState: vi.fn<EmailPasswordLookupPort['resolveAuthState']>(),
+  startEmailChallenge: vi.fn(),
   confirmEmailChallenge: vi.fn(),
   consumeLatest: vi.fn(),
   findUser: vi.fn<UserByPhonePort['findByUserId']>(),
@@ -30,7 +31,7 @@ vi.mock('@/modules/auth/authConfirmRateLimit', () => ({
 }));
 vi.mock('@/modules/auth/emailAuth', () => ({
   normalizeEmail: (value: string) => value.trim().toLowerCase(),
-  startEmailChallenge: vi.fn(),
+  startEmailChallenge: fakes.startEmailChallenge,
   confirmEmailChallenge: fakes.confirmEmailChallenge,
   consumeLatestEmailChallengeCodeForUser: fakes.consumeLatest,
 }));
@@ -62,6 +63,8 @@ vi.mock('@/app-layer/di/buildAppDeps', () => ({
 }));
 
 import { POST as register } from '@/app/api/auth/email-password/register/route';
+import { POST as forgotPassword } from '@/app/api/auth/email-password/forgot/route';
+import { POST as requestSetupAccess } from '@/app/api/auth/email-password/setup-access/route';
 import { POST as setupCodeComplete } from '@/app/api/auth/email-password/setup-code/complete/route';
 
 const userId = '00000000-0000-4000-8000-000000000301';
@@ -141,5 +144,80 @@ describe('email/password setup-code complete HTTP boundary', () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({ ok: true, role: 'doctor' });
     expect(fakes.upsertPasswordHash).toHaveBeenCalledOnce();
+  });
+});
+
+describe('password recovery doors before code verification', () => {
+  const accountStates = [
+    { email: 'unknown@example.test', state: { kind: 'free' as const } },
+    {
+      email: 'contact-only@example.test',
+      state: { kind: 'needs_email_setup' as const, userId },
+    },
+    {
+      email: 'password@example.test',
+      state: { kind: 'verified_with_password' as const, userId },
+    },
+    {
+      email: 'owner-patient@example.test',
+      state: {
+        kind: 'verified_with_password' as const,
+        userId: '00000000-0000-4000-8000-000000000304',
+      },
+    },
+  ];
+
+  it('returns one status and body per door for unknown, contact-only, password, and owner-patient addresses', async () => {
+    fakes.resolveAuthState.mockImplementation(async (email) => {
+      const account = accountStates.find((candidate) => candidate.email === email);
+      if (!account) throw new Error(`unexpected email: ${email}`);
+      return account.state;
+    });
+    fakes.findUser.mockResolvedValue(doctorUser);
+    fakes.startEmailChallenge.mockResolvedValue({
+      ok: true,
+      challengeId: '00000000-0000-4000-8000-000000000305',
+      retryAfterSeconds: 60,
+    });
+    fakes.confirmEmailChallenge.mockResolvedValue({ ok: false, code: 'invalid_code' });
+
+    const forgotResponses = await Promise.all(
+      accountStates.map(({ email }) =>
+        forgotPassword(jsonRequest('/api/auth/email-password/forgot', { email })),
+      ),
+    );
+    const setupAccessResponses = await Promise.all(
+      accountStates.map(({ email }) =>
+        requestSetupAccess(jsonRequest('/api/auth/email-password/setup-access', { email })),
+      ),
+    );
+    const setupCompleteResponses = await Promise.all(
+      accountStates.map(({ email }) =>
+        setupCodeComplete(
+          jsonRequest('/api/auth/email-password/setup-code/complete', {
+            email,
+            challengeId: '00000000-0000-4000-8000-000000000306',
+            code: '000000',
+            password: 'a-strong-password',
+          }),
+        ),
+      ),
+    );
+
+    await expect(
+      Promise.all(
+        forgotResponses.map(async (response) => [response.status, await response.json()]),
+      ),
+    ).resolves.toEqual(accountStates.map(() => [200, { ok: true, retryAfterSeconds: 60 }]));
+    await expect(
+      Promise.all(
+        setupAccessResponses.map(async (response) => [response.status, await response.json()]),
+      ),
+    ).resolves.toEqual(accountStates.map(() => [200, { ok: true, retryAfterSeconds: 60 }]));
+    await expect(
+      Promise.all(
+        setupCompleteResponses.map(async (response) => [response.status, await response.json()]),
+      ),
+    ).resolves.toEqual(accountStates.map(() => [400, { ok: false, error: 'invalid_code' }]));
   });
 });

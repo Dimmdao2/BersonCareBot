@@ -2,6 +2,7 @@ import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipa
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { completePasswordSetupAfterVerification } from '@/app-layer/auth/completePasswordSetup';
 import { ensureAuthModulePortsBound } from '@/app-layer/di/bindAuthModulePorts';
 import {
   AUTH_CHANNEL_DISABLED_ERROR,
@@ -9,6 +10,8 @@ import {
 } from '@/modules/auth/authChannelPolicy';
 import { checkAuthConfirmRateLimit } from '@/modules/auth/authConfirmRateLimit';
 import {
+  confirmEmailChallenge,
+  confirmLatestEmailChallengeCodeForUser,
   consumeEmailChallengeCode,
   consumeLatestEmailChallengeCodeForUser,
   normalizeEmail,
@@ -61,36 +64,55 @@ export async function POST(request: Request) {
 
   const emailNorm = normalizeEmail(parsed.data.email);
   const deps = buildAppDeps();
-  const userId = await deps.userPasswordCredentials.findVerifiedUserIdWithPassword(emailNorm);
-  if (!userId) {
-    if (parsed.data.challengeId) {
-      await consumeEmailChallengeCode(
-        DUMMY_RESET_USER_ID,
-        parsed.data.challengeId,
-        parsed.data.code,
-        'password_reset',
-      );
-    } else {
-      await consumeLatestEmailChallengeCodeForUser(
-        DUMMY_RESET_USER_ID,
-        parsed.data.code,
-        'password_reset',
-      );
-    }
-    return resetNeutralFailureResponse();
-  }
-
-  const consumed = parsed.data.challengeId
-    ? await consumeEmailChallengeCode(
-        userId,
-        parsed.data.challengeId,
-        parsed.data.code,
-        'password_reset',
-      )
-    : await consumeLatestEmailChallengeCodeForUser(userId, parsed.data.code, 'password_reset');
+  const state = await deps.emailPasswordLookup.resolveAuthState(emailNorm);
+  const candidateUserId =
+    state.kind === 'verified_with_password' || state.kind === 'needs_email_setup'
+      ? state.userId
+      : DUMMY_RESET_USER_ID;
+  const consumed =
+    state.kind === 'needs_email_setup'
+      ? parsed.data.challengeId
+        ? await confirmEmailChallenge(
+            candidateUserId,
+            parsed.data.challengeId,
+            parsed.data.code,
+            'password_setup',
+          )
+        : await confirmLatestEmailChallengeCodeForUser(
+            candidateUserId,
+            parsed.data.code,
+            'password_setup',
+          )
+      : parsed.data.challengeId
+        ? await consumeEmailChallengeCode(
+            candidateUserId,
+            parsed.data.challengeId,
+            parsed.data.code,
+            'password_reset',
+          )
+        : await consumeLatestEmailChallengeCodeForUser(
+            candidateUserId,
+            parsed.data.code,
+            'password_reset',
+          );
   if (!consumed.ok) {
     return resetNeutralFailureResponse();
   }
+  if (state.kind === 'needs_email_setup') {
+    const completed = await completePasswordSetupAfterVerification({
+      deps,
+      userId: state.userId,
+      emailNormalized: emailNorm,
+      password: parsed.data.newPassword,
+      principalSource: 'api/auth/email-password/reset:setup-code-verified-self',
+    });
+    if (!completed.ok) {
+      return NextResponse.json({ ok: false, error: completed.error }, { status: completed.status });
+    }
+    return NextResponse.json(completed);
+  }
+  if (state.kind !== 'verified_with_password') return resetNeutralFailureResponse();
+  const userId = state.userId;
 
   const targetUser = await deps.userByPhone.findByUserId(userId);
   if (!targetUser || !isPasswordEligibleRole(targetUser.role)) {
