@@ -102,7 +102,12 @@
 | `appointment.record.upserted` / phone bind: `MergeConflictError` / `MergeDependentConflictError` | Событие **202**, аудит `auto_merge_conflict`, projection **без** привязки к «первому попавшемуся» user (см. § Projection ingestion ниже).                                                                               |
 | Один телефон, meaningful data на обоих                                                           | Guard автоматического merge останавливает событие; техподдержка выполняет ручной merge с явным выбором данных.                                                                                                          |
 
-Регрессия сценария «импортированные приёмы + дневник/разминка (PWA) на одном canonical» — unit-тест `repoints appointments and diary/warmup domains to canonical user` в `pgPlatformUserMerge.test.ts` (manual merge path).
+Живое доказательство поведения merge — `deploy/postgres/privileges/platform-user-merge.devDbProof.test.mjs`
+(§10b `devDbProof`: opt-in по `RUN_PLATFORM_USER_MERGE_DB=1`, вся проба — одна транзакция на именованной
+`bcb_webapp_dev`, всегда `ROLLBACK`). Он исполняет SQL гейта против живого PostgreSQL и покрывает разрез
+по организации, `NULL`-организацию и каждую коллизию уникальных индексов на пути переноса. Прежние
+fake-driven unit-тесты этой поверхности (`pgPlatformUserMerge.test.ts`, `accountMergeMedicalHistory.unit.test.ts`)
+удалены: они оставались зелёными при любой правке проверяемого SQL.
 
 ## Исторический ingestion внешней системы записи
 
