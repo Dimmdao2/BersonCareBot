@@ -3036,3 +3036,12 @@ wt/leads-notify | — | РАЗРЕШЕНИЕ РАСХОЖДЕНИЯ ДВУХ А�
   одна миграция и четыре документа, `GRANT|REVOKE|CREATE POLICY` — 0, ни в одной из четырёх функций
   нет `:=` внутри `DECLARE`, первое присваивание в каждой стоит ПОСЛЕ `require_accepted_context`,
   `migrate-dev preflight: PASS`, `pending=1 total=224 unapplied=0`, `ROLLBACK`.
+
+- `wt/altcha-gate-order | 69aeb1ac2` — приземлена. После приземления всех трёх веток миграции
+  применены на DEV по-настоящему (`migrate-dev: PASS`, `pending=3 total=226 unapplied=0`,
+  порт-контекстное окружение синхронизировано), и два живых proof-файла, красных в дереве
+  по устройству, прогнаны: `leadClinicNotificationProfiles.devDbProof` и
+  `leadClinicNotificationPath.devDbProof` — `Test Files 2 passed`, `Tests 3 passed`. Объяснение
+  аудитора («красный только из-за неприменённой миграции») выдержало мою проверку. Одна правка
+  моя и прямая в `feat`: проба хранила старый код темы и после перевода на `doctor_leads` получала
+  `unsupported_lead_notification_topic` — изменён ровно вход, одна строка, проверки не тронуты.
