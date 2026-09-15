@@ -64,9 +64,10 @@ export function planCronArtifacts(manifest) {
         content: manifest.renderCronArtifact(entry, environment),
         command: manifest.renderCronCommand(entry, environment),
         cron: entry.cron,
-        // Бэкап — единственное задание расписания, которое общий transport вебаппа НЕ будит: у него
-        // нет HTTP-маршрута, его запускает собственный скрипт на хосте.
-        usesInternalJobRunner: entry.kind !== 'backup_shell',
+        kind: entry.kind,
+        // Только internal_http будит общий transport вебаппа. Бэкапы и host-сторожи запускаются
+        // своими root-owned скриптами на хосте.
+        usesInternalJobRunner: entry.kind === 'internal_http',
         cronUser: manifest.cronUserFor(entry, environment),
       });
     }
@@ -136,7 +137,7 @@ export function expectedCronRow(item) {
  */
 export function isOurBackgroundJobFile(name, text) {
   if (!name.startsWith('bersoncarebot-') && !name.startsWith('therapysto-')) return false;
-  return /\/api\/internal\/|run-internal-job\.sh|postgres-backup\.sh/.test(text);
+  return /\/api\/internal\/|run-internal-job\.sh|postgres-backup\.sh|therapysto-container-restart-watchdog/.test(text);
 }
 
 /**
@@ -239,9 +240,9 @@ export function describeJobAssignments(manifest, envId, jobId) {
       `background job ${jobId} is owned by ${entry.scheduleOwner}, not host cron — refusing to run it as a cron job`,
     );
   }
-  if (entry.kind === 'backup_shell') {
+  if (entry.kind !== 'internal_http') {
     throw new Error(
-      `background job ${jobId} is a host backup script, not an HTTP tick — run-internal-job.sh does not wake it`,
+      `background job ${jobId} is ${entry.kind}, not an HTTP tick — run-internal-job.sh does not wake it`,
     );
   }
   if (!(entry.environments ?? []).includes(envId)) {

@@ -164,7 +164,7 @@ export type BackgroundJobPrincipal = 'internal_job_bearer' | 'integrator_hmac' |
  */
 export type BackgroundJobSurfaceIdentity = 'app_public_origin' | 'none';
 
-export type BackgroundJobKind = 'internal_http' | 'resident_scheduler' | 'backup_shell';
+export type BackgroundJobKind = 'internal_http' | 'resident_scheduler' | 'backup_shell' | 'host_shell';
 
 /** Режимы `deploy/postgres/postgres-backup.sh`, которые вызываются по расписанию. */
 export type BackgroundJobBackupMode = 'hourly' | 'daily' | 'weekly' | 'prune';
@@ -220,6 +220,8 @@ export type BackgroundJobManifestEntry = {
    * на хосте два, и второй — это другой файл, а не другой аргумент первого.
    */
   readonly backupScriptPath?: string;
+  /** Прямая host-команда для `kind: 'host_shell'`; общий HTTP transport её не будит. */
+  readonly hostCommand?: string;
   /** Учётка cron, если она не `environment.backupOsUser`. */
   readonly cronUser?: string;
   readonly principal: BackgroundJobPrincipal;
@@ -389,6 +391,25 @@ const BACKGROUND_JOB_MANIFEST_SOURCE = [
     required: true,
     deadMansSwitch: true,
     why: 'Сторож наблюдаемого scheduler: должен пережить его смерть, поэтому остаётся внешним host-cron.',
+  },
+  {
+    id: 'container_restart_watchdog',
+    jobFamily: OPERATOR_HEALTH_JOB_FAMILY,
+    jobKey: 'health.container_restart.watch',
+    label: 'Перезапуски контейнеров',
+    kind: 'host_shell',
+    scheduleOwner: 'host_cron',
+    scheduleHint: 'каждые 5 мин',
+    cron: '*/5 * * * *',
+    artifactSlug: 'container-restart-watchdog',
+    environments: ['prod'],
+    hostCommand: '/opt/therapysto/pipeline/therapysto-container-restart-watchdog',
+    principal: 'host_shell',
+    surfaceIdentity: 'none',
+    staleAfterSec: 12 * 60,
+    required: true,
+    optionalNoData: true,
+    why: 'Наблюдатель обязан пережить смерть наблюдаемого контейнера, поэтому работает на хосте и пишет рост RestartCount в системный журнал.',
   },
   {
     id: 'operator_health.digest.daily',
@@ -790,6 +811,10 @@ export function renderCronCommand(
   entry: BackgroundJobManifestEntry,
   environment: BackgroundJobEnvironment,
 ): string {
+  if (entry.kind === 'host_shell') {
+    if (!entry.hostCommand) throw new Error(`background job ${entry.id} has no hostCommand`);
+    return entry.hostCommand;
+  }
   if (entry.kind === 'backup_shell') {
     if (entry.backupScriptPath) return entry.backupScriptPath;
     if (!entry.backupMode) throw new Error(`background job ${entry.id} has no backupMode`);
@@ -905,10 +930,15 @@ export function renderCronArtifact(
           `# Запускается напрямую ${entry.backupScriptPath ?? BACKUP_SCRIPT_PATH} — это не HTTP-тик вебаппа, общий transport`,
           '# run-internal-job.sh его не будит. Скрипт кладёт на хост тот же деплой, что и эту строку.',
         ]
-      : [
-          `# Host/Origin/X-Forwarded-Proto и env-файл (${environment.envFile}) строит общий transport`,
-          '# deploy/host/run-internal-job.sh — cron-строка их не копирует и не знает про branding proxy.',
-        ];
+      : entry.kind === 'host_shell'
+        ? [
+            `# Запускается напрямую ${entry.hostCommand} — это host-сторож, не HTTP-тик вебаппа.`,
+            '# Состояние хранится вне контейнеров, чтобы их пересоздание или смерть не убивали наблюдателя.',
+          ]
+        : [
+            `# Host/Origin/X-Forwarded-Proto и env-файл (${environment.envFile}) строит общий transport`,
+            '# deploy/host/run-internal-job.sh — cron-строка их не копирует и не знает про branding proxy.',
+          ];
   const lines = [
     `# СГЕНЕРИРОВАНО из ${CRON_ARTIFACT_GENERATED_BY}. Руками не править.`,
     '# Перегенерировать: node deploy/host/background-jobs-cli.mjs --write',
