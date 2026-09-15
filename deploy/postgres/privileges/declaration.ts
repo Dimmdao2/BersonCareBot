@@ -27922,7 +27922,7 @@ const REV10_CONTEXT = {
       owner: 'app_seam_public_booking_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
       execute: ['app_tenant_service'],
       purpose: 'return booking form field configuration of the published accepted organization',
-      typedArgs: ['text@1'], volatility: 'STABLE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      typedArgs: ['text'], volatility: 'STABLE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
         { relation: 'public.be_booking_form_fields', columns: ['id', 'organization_id', 'field_key',
           'form_surface', 'field_type', 'label', 'placeholder', 'is_required', 'visible_to_patient', 'visible_to_staff',
@@ -27934,12 +27934,23 @@ const REV10_CONTEXT = {
     'app.create_public_lead(uuid,text,text,text,text,text,text,text,text,timestamp with time zone)': rev10Function({
       owner: 'app_seam_public_booking_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
       execute: ['app_tenant_service'], purpose: 'create one verified public lead for the published accepted organization',
-      typedArgs: ['uuid@1', 'text@1', 'text@1', 'text@1', 'text@1', 'text@1', 'text@1', 'text@1', 'text@1', 'timestamptz@1'],
+      typedArgs: ['uuid', 'text', 'text', 'text', 'text', 'text', 'text', 'text', 'text', 'timestamp with time zone'],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
-        { relation: 'public.leads', columns: ['organization_id', 'platform_user_id', 'submitted_first_name',
-          'submitted_last_name', 'submitted_patronymic', 'submitted_email', 'submitted_phone', 'preferred_contact',
-          'message_text', 'source_surface', 'created_at', 'updated_at'], operations: ['INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        // `INSERT … RETURNING *` читает ВСЮ вставленную строку, включая колонки, которые тело не
+        // писало: `id`, `status` и метки жизненного цикла приходят из DEFAULT. PostgreSQL требует на
+        // `RETURNING` привилегию SELECT по каждой возвращаемой колонке, поэтому поверхность несёт обе
+        // операции: INSERT — по колонкам списка вставки, SELECT — по всей строке.
+        { relation: 'public.leads', columns: ['id', 'organization_id', 'platform_user_id',
+          'submitted_first_name', 'submitted_last_name', 'submitted_patronymic', 'submitted_email',
+          'submitted_phone', 'preferred_contact', 'message_text', 'status', 'rejection_comment',
+          'rejected_at', 'accepted_at', 'closed_at', 'archived_at', 'source_surface', 'created_at',
+          'updated_at'],
+          operations: ['INSERT' as const, 'SELECT' as const],
+          operationColumns: { INSERT: ['organization_id', 'platform_user_id', 'submitted_first_name',
+            'submitted_last_name', 'submitted_patronymic', 'submitted_email', 'submitted_phone',
+            'preferred_contact', 'message_text', 'source_surface', 'created_at', 'updated_at'] },
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.clinic_public_directory_entries', columns: ['organization_id', 'is_published'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
