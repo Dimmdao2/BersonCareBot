@@ -5,7 +5,7 @@ import {
   type CommunicationsSurfaceTabId,
 } from './communicationsSurface';
 
-const BOTH_MODULES_ON = { direct_chat: true, program_comments: true } as const;
+const BOTH_MODULES_ON = { direct_chat: true, program_comments: true, leads: true } as const;
 const BOTH_CHANNELS_ON = { direct_chat: 'all', program_comments: 'on_support' } as const;
 
 describe('resolveCommunicationsSurface', () => {
@@ -21,6 +21,17 @@ describe('resolveCommunicationsSurface', () => {
     expect(surface.visibleTabIds).not.toContain(tabId);
   });
 
+  it('keeps leads visible with no applications and removes only it when its mechanic is off', () => {
+    const enabled = resolveCommunicationsSurface(BOTH_MODULES_ON, BOTH_CHANNELS_ON);
+    const disabled = resolveCommunicationsSurface(
+      { ...BOTH_MODULES_ON, leads: false },
+      BOTH_CHANNELS_ON,
+    );
+
+    expect(enabled.visibleTabIds).toContain('leads');
+    expect(disabled.visibleTabIds).not.toContain('leads');
+  });
+
   it.each(['chats', 'comments'] as const)(
     'uses the surviving tab own name when only %s remains',
     (survivingTabId) => {
@@ -28,6 +39,7 @@ describe('resolveCommunicationsSurface', () => {
         {
           direct_chat: survivingTabId === 'chats',
           program_comments: survivingTabId === 'comments',
+          leads: false,
         },
         BOTH_CHANNELS_ON,
       );
@@ -41,7 +53,7 @@ describe('resolveCommunicationsSurface', () => {
   it('distinguishes a multi-tab surface from an absent surface', () => {
     const multiple = resolveCommunicationsSurface(BOTH_MODULES_ON, BOTH_CHANNELS_ON);
     const hidden = resolveCommunicationsSurface(
-      { direct_chat: false, program_comments: false },
+      { direct_chat: false, program_comments: false, leads: false },
       BOTH_CHANNELS_ON,
     );
 
@@ -51,7 +63,7 @@ describe('resolveCommunicationsSurface', () => {
   });
 
   it('never reports a visible tab whose module is unavailable', () => {
-    const moduleAvailability = { direct_chat: false, program_comments: true } as const;
+    const moduleAvailability = { direct_chat: false, program_comments: true, leads: true } as const;
     const surface = resolveCommunicationsSurface(moduleAvailability, BOTH_CHANNELS_ON);
     const unavailableTabIds = COMMUNICATIONS_SURFACE_TABS.filter(
       (tab) => !moduleAvailability[tab.workspaceModule],

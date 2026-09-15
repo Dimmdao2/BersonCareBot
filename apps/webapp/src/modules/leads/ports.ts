@@ -2,7 +2,11 @@ import type { Lead, NormalizedLeadInput, RejectLeadInput, SubmitLeadInput } from
 
 export type LeadsPort = {
   create(input: NormalizedLeadInput, now: string): Promise<Lead>;
-  list(input: { organizationId: string; includeArchived: boolean; limit: number }): Promise<Lead[]>;
+  list(input: {
+    organizationId: string;
+    archiveScope: 'active' | 'archived';
+    limit: number;
+  }): Promise<Lead[]>;
   get(organizationId: string, leadId: string): Promise<Lead | null>;
   accept(organizationId: string, leadId: string, now: string): Promise<Lead | null>;
   close(organizationId: string, leadId: string, now: string): Promise<Lead | null>;

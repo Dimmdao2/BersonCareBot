@@ -103,6 +103,8 @@ export type InsertAcquiringPendingInput = {
 export interface PatientPaymentsPort {
   /** Список платежей пациента, новые первыми. */
   listPayments(patientUserId: string): Promise<PatientPayment[]>;
+  /** Журнал текущей организации, новые платежи первыми. Tenant берётся из установленного principal. */
+  listOrganizationPayments(limit?: number): Promise<PatientPayment[]>;
   /** Paid/pending ledger rows for one exact appointment inside the installed tenant principal. */
   listAppointmentPayments(appointmentId: string, patientUserId: string): Promise<PatientPayment[]>;
   /**
