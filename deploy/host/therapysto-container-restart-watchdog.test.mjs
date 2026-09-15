@@ -53,4 +53,14 @@ test('рост RestartCount того же контейнера сигналит,
     [snapshotRow({ id: 'new-id', name: 'therapysto-webapp-green-1', restartCount: 0 })],
   );
   assert.deepEqual(deploymentReplacement, []);
+
+  // Единственный случай, в котором сверка Id несёт нагрузку: у пришедшего на замену контейнера
+  // счётчик ВЫШЕ, чем был у прежнего. Сравнение одних чисел здесь молчать не умеет — молчит только
+  // различение Id. Без этой строки прежняя фикстура (7 → 0) проходила и при вырезанной сверке Id,
+  // то есть главное требование М-4.3 оставалось непокрытым.
+  const replacementWithHigherCount = compareSnapshots(
+    [snapshotRow({ id: 'old-id', name: 'therapysto-webapp-green-1', restartCount: 0 })],
+    [snapshotRow({ id: 'new-id', name: 'therapysto-webapp-green-1', restartCount: 2 })],
+  );
+  assert.deepEqual(replacementWithHigherCount, []);
 });
