@@ -17,8 +17,8 @@ export type AuthFlowPendingStored =
       lastName: string | null;
       firstName: string | null;
       patronymic: string | null;
-      purpose?: 'patient_email_otp';
-      /** Old payloads keep confirming the existing challenge, but cannot resend via the structured API. */
+      purpose: 'patient_email_otp';
+      /** Old payloads are discarded: their password-registration route no longer exists. */
       legacyDisplayName?: string;
     }
   | {
@@ -64,8 +64,10 @@ function readRaw(): AuthFlowPendingStored | null {
       if (
         typeof o.email !== 'string' ||
         typeof o.challengeId !== 'string' ||
-        typeof o.retryAfterSeconds !== 'number'
+        typeof o.retryAfterSeconds !== 'number' ||
+        o.purpose !== 'patient_email_otp'
       ) {
+        sessionStorage.removeItem(STORAGE_KEY);
         return null;
       }
       if (

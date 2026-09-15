@@ -27,6 +27,7 @@ import { notificationText } from '@/shared/notifications/notificationText';
 type PolicyKey = keyof AuthChannelUiPolicy;
 const UNSUPPORTED_CLIENT_FALLBACK_KEY = 'patient_unsupported_client_fallback_enabled' as const;
 type ConfigurationStatus = Readonly<{ enabled: boolean; configured: boolean }>;
+const TELEGRAM_LOGIN_WIDGET_BOT_USERNAME_KEY = 'telegram_login_widget_bot_username' as const;
 type ChannelConfigurationStatus = Readonly<Record<PolicyKey, ConfigurationStatus>>;
 type OAuthConfigurationStatus = Readonly<Record<OAuthProvider, ConfigurationStatus>>;
 type SurfacePolicy = Record<SurfaceAuthControl, boolean>;
@@ -38,8 +39,17 @@ const CONTROL_LABELS: ReadonlyArray<{
 }> = [
   { control: 'email', label: 'Email-коды', hint: 'Разрешить вход по одноразовому коду из письма.' },
   { control: 'sms', label: 'SMS-коды', hint: 'Разрешить вход по коду из SMS.' },
-  { control: 'telegram', label: 'Telegram', hint: 'Разрешить вход через Telegram.' },
+  {
+    control: 'telegram',
+    label: 'Telegram — код в боте',
+    hint: 'Разрешить подтверждение номера кодом в чате с ботом.',
+  },
   { control: 'max', label: 'MAX', hint: 'Разрешить вход через MAX.' },
+  {
+    control: 'telegram_login_widget',
+    label: 'Telegram Login Widget',
+    hint: 'Разрешить вход кнопкой Telegram на странице. Это отдельный бот с привязанным доменом, не бот с кодами.',
+  },
   ...OAUTH_PROVIDER_REGISTRY.map((meta) => ({
     control: `oauth_${meta.provider}` as const,
     label: meta.adminLabel,
@@ -107,7 +117,11 @@ function isConfigured(
   control: SurfaceAuthControl,
   channels: ChannelConfigurationStatus,
   oauth: OAuthConfigurationStatus,
+  telegramLoginWidgetBot: string,
 ): boolean {
+  // Виджет настроен, когда у него явно указан СВОЙ бот: домен в @BotFather привязан именно к нему,
+  // и бот с кодами тут ни при чём (владелец 16.09.2026).
+  if (control === 'telegram_login_widget') return telegramLoginWidgetBot.trim().length > 0;
   if (control.startsWith('oauth_')) {
     return oauth[control.slice('oauth_'.length) as OAuthProvider].configured;
   }
@@ -124,6 +138,7 @@ export function PlatformAuthChannelPolicySection() {
     useState<ChannelConfigurationStatus>(EMPTY_CHANNEL_STATUS);
   const [oauthStatus, setOauthStatus] = useState<OAuthConfigurationStatus>(EMPTY_OAUTH_STATUS);
   const [unsupportedClientFallbackEnabled, setUnsupportedClientFallbackEnabled] = useState(false);
+  const [telegramLoginWidgetBot, setTelegramLoginWidgetBot] = useState('');
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState<string | null>(null);
 
@@ -152,6 +167,14 @@ export function PlatformAuthChannelPolicySection() {
           readBoolean(
             data.settings.find((item) => item.key === UNSUPPORTED_CLIENT_FALLBACK_KEY)?.valueJson,
           ),
+        );
+        const widgetBotValue = data.settings.find(
+          (item) => item.key === TELEGRAM_LOGIN_WIDGET_BOT_USERNAME_KEY,
+        )?.valueJson;
+        setTelegramLoginWidgetBot(
+          widgetBotValue && typeof widgetBotValue === 'object' && 'value' in widgetBotValue
+            ? String((widgetBotValue as { value?: unknown }).value ?? '')
+            : '',
         );
         setLoaded(true);
       })
@@ -217,7 +240,12 @@ export function PlatformAuthChannelPolicySection() {
           <div className="text-sm font-medium">Пациенты</div>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {CONTROL_LABELS.map(({ control, label, hint }) => {
-              const configured = isConfigured(control, channelStatus, oauthStatus);
+              const configured = isConfigured(
+                control,
+                channelStatus,
+                oauthStatus,
+                telegramLoginWidgetBot,
+              );
               return (
                 <div key={control} className="flex flex-col gap-1">
                   <div className="flex items-start gap-1.5">

@@ -1,17 +1,25 @@
 import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipal';
 import { NextResponse } from 'next/server';
 import { logAuthRouteTiming } from '@/modules/auth/authRouteObservability';
-import { getTelegramLoginBotUsername } from '@/modules/system-settings/telegramLoginBotUsername';
-import { isAuthChannelEnabled } from '@/modules/auth/authChannelPolicy';
+import {
+  getTelegramLoginWidgetBotUsername,
+  isTelegramLoginWidgetEnabled,
+} from '@/modules/auth/authChannelPolicy';
 
 const ROUTE = 'auth/telegram-login/config';
 
-/** Публичный конфиг для Telegram Login Widget: имя бота (без секретов). */
+/**
+ * Публичный конфиг для Telegram Login Widget: имя ЕГО бота (без секретов).
+ *
+ * Это не бот, который присылает код в чат: у виджета свой переключатель и свой бот с привязанным
+ * доменом (владелец 16.09.2026 — «одно дело логин виджет, другое подтверждение номера в телеграм»).
+ * Выключенный переключатель отдаёт `null`, и кнопка не появляется.
+ */
 export async function GET(request: Request) {
   stampBootstrapPrincipal('api/auth/telegram-login/config:GET', request);
   const startedAt = Date.now();
-  const enabled = await isAuthChannelEnabled('telegram');
-  const raw = enabled ? (await getTelegramLoginBotUsername()).trim() : '';
+  const enabled = await isTelegramLoginWidgetEnabled();
+  const raw = enabled ? await getTelegramLoginWidgetBotUsername() : '';
   const botUsername = raw.length > 0 ? raw : null;
   const res = NextResponse.json({ ok: true as const, botUsername });
   logAuthRouteTiming({

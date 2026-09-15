@@ -4,6 +4,7 @@ import { registerBersoncareSendEmailRoute } from '../integrations/bersoncare/sen
 import { registerBersoncareRelayOutboundRoute } from '../integrations/bersoncare/relayOutboundRoute.js';
 import { registerOperatorAlertRelayRoute } from '../integrations/bersoncare/operatorAlertRelayRoute.js';
 import { registerBersoncareRequestContactRoute } from '../integrations/bersoncare/requestContactRoute.js';
+import { registerBersoncareTelegramBotIdentityRoute } from '../integrations/bersoncare/telegramBotIdentityRoute.js';
 import { registerBersoncareSendOtpRoute } from '../integrations/bersoncare/sendOtpRoute.js';
 import { registerBersoncareBookingLifecycleRoute } from '../integrations/bersoncare/bookingLifecycleRoute.js';
 import { createDbPort } from '../infra/db/client.js';
@@ -174,6 +175,11 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
     dispatchPort: deps.dispatchPort,
     sharedSecret: integratorWebhookSecret(),
     idempotencyPort: deps.idempotencyPort,
+  });
+
+  await registerBersoncareTelegramBotIdentityRoute(app, {
+    sharedSecret: integratorWebhookSecret(),
+    resolveClinicDeliveryCredential: createClinicDeliveryCredentialResolver(createDbPort()),
   });
 
   await registerBersoncareSendOtpRoute(app, {

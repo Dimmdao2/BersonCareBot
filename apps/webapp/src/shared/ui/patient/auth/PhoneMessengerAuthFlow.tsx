@@ -21,8 +21,7 @@ import {
 } from '@/shared/ui/patient/auth/OtpCodeForm';
 import {
   buildPhoneMessengerOtpAlternatives,
-  phoneBindOtpDescription,
-  phoneLoginOtpDescription,
+  otpCodeDescription,
 } from '@/shared/ui/patient/auth/otpDoor';
 import {
   AUTH_LOGIN_ACCENT_TEXT_CLASS,
@@ -576,11 +575,7 @@ export function PhoneMessengerAuthFlow({
             retryAfterSeconds={retryAfterSeconds}
             supportContactHref={supportContactHref}
             submitLabel={purpose === 'login' ? 'Войти' : 'Подтвердить'}
-            description={
-              purpose === 'profile_bind'
-                ? phoneBindOtpDescription(otpChannel)
-                : phoneLoginOtpDescription(otpChannel)
-            }
+            description={otpCodeDescription(otpChannel)}
             alternatives={loginAlternatives}
             alternativesLabel="Подтвердить другим способом"
             onConfirm={async (code) => {
