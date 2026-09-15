@@ -1,12 +1,16 @@
 -- BCB-MIGRATION-OWNER: app_seam_public_booking_owner
 -- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
--- BCB-MIGRATION-VERIFY: SELECT to_regprocedure('app.list_public_booking_form_fields(text)') IS NOT NULL AND to_regprocedure('app.create_public_lead(uuid,text,text,text,text,text,text,text,text,timestamp with time zone)') IS NOT NULL AND to_regprocedure('app.public_lead_issue_altcha_challenge(text,uuid,text,timestamp with time zone)') IS NOT NULL AND to_regprocedure('app.public_lead_consume_altcha_challenge(text,uuid,text)') IS NOT NULL
+-- BCB-MIGRATION-VERIFY: SELECT to_regprocedure('app.list_public_booking_form_fields(text)') IS NOT NULL
 --
 -- The pre-session/tenant-service gate must be the first executable operation in every public
 -- lead door.  The landed L3 bodies initialized app.current_org_id()/statement_timestamp() in
 -- DECLARE, which computes before require_accepted_context.  This replacement preserves each
 -- body and moves only those initializations after its exact gate.
+--
+-- Each function keeps its OWN owner section: the two lead doors belong to
+-- app_seam_public_booking_owner, the two captcha doors to app_seam_password_auth_owner.  One
+-- shared block would run all four as a single owner and the preflight refuses it.
 
 CREATE OR REPLACE FUNCTION app.list_public_booking_form_fields(p_surface text) RETURNS jsonb
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path TO 'pg_catalog' AS $$
@@ -21,6 +25,11 @@ BEGIN
   RETURN v_fields;
 END $$;
 
+--> statement-breakpoint
+-- BCB-MIGRATION-OWNER: app_seam_public_booking_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
+-- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
+-- BCB-MIGRATION-VERIFY: SELECT to_regprocedure('app.create_public_lead(uuid,text,text,text,text,text,text,text,text,timestamp with time zone)') IS NOT NULL
 CREATE OR REPLACE FUNCTION app.create_public_lead(
   p_platform_user_id uuid,
   p_first_name text,
@@ -46,6 +55,11 @@ BEGIN
   RETURN jsonb_build_object('id',v_lead.id,'organizationId',v_lead.organization_id,'platformUserId',v_lead.platform_user_id,'submittedFirstName',v_lead.submitted_first_name,'submittedLastName',v_lead.submitted_last_name,'submittedPatronymic',v_lead.submitted_patronymic,'submittedEmail',v_lead.submitted_email,'submittedPhone',v_lead.submitted_phone,'preferredContact',v_lead.preferred_contact,'messageText',v_lead.message_text,'status',v_lead.status,'rejectionComment',v_lead.rejection_comment,'rejectedAt',v_lead.rejected_at,'acceptedAt',v_lead.accepted_at,'closedAt',v_lead.closed_at,'archivedAt',v_lead.archived_at,'sourceSurface',v_lead.source_surface,'createdAt',v_lead.created_at,'updatedAt',v_lead.updated_at);
 END $$;
 
+--> statement-breakpoint
+-- BCB-MIGRATION-OWNER: app_seam_password_auth_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
+-- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
+-- BCB-MIGRATION-VERIFY: SELECT to_regprocedure('app.public_lead_issue_altcha_challenge(text,uuid,text,timestamp with time zone)') IS NOT NULL
 CREATE OR REPLACE FUNCTION app.public_lead_issue_altcha_challenge(
   p_identifier_key text,
   p_challenge_id uuid,
@@ -92,6 +106,11 @@ BEGIN
   RETURN true;
 END $$;
 
+--> statement-breakpoint
+-- BCB-MIGRATION-OWNER: app_seam_password_auth_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
+-- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
+-- BCB-MIGRATION-VERIFY: SELECT to_regprocedure('app.public_lead_consume_altcha_challenge(text,uuid,text)') IS NOT NULL
 CREATE OR REPLACE FUNCTION app.public_lead_consume_altcha_challenge(
   p_identifier_key text,
   p_challenge_id uuid,
