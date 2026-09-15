@@ -1,39 +1,46 @@
-# settings compatibility
+# /app/settings — «Профиль и настройки»
 
-`/app/settings` — канонический раздел управления кабинетом/организацией для staff с capability
-`organization.management`. Канонический личный раздел staff-account — `/app/account`:
+Канонический раздел управления организацией для staff с capability `organization.management`.
+Контейнер — ссылка с именем организации в навигации; заголовок экрана — «Профиль и настройки»
+(владелец 15.09.2026). Состав вкладок и решения владельца —
+`docs/_TODO/SETTINGS_TABS_RESTRUCTURE_2026-09-15.md`; список вкладок в коде — `settingsTabs.ts`.
 
-- default → guarded organization settings; binding специалиста для этого не требуется;
-- `?tab=specialist` — единственный writer публичного профиля существующей specialist entity в solo;
-- `?tab=install` → `/app/account?tab=install`;
-- `?tab=organization` сохраняет единственный guarded writer терминологии и organization reminders и является
-  канонической поверхностью **«Настройки»** для владельца кабинета/организации; legacy owner без `specialist_id`
-  видит здесь причину недоступности клинического кабинета и прямую ссылку на `/app/account?tab=security`;
-- секция «Рабочее пространство» является единственным writer состава доступных модулей, defaults клиентских
-  каналов/нового symptom tracking и названий «Клиенты / Пациенты», «Избранные / Сопровождение»;
-- здесь же management-capable member видит и создаёт публичный адрес `/book/{slug}`, копирует полную ссылку
-  и может самостоятельно переименовывать slug через browser-protected `POST /api/clinic/slug`; прежние адреса
-  навсегда остаются привязаны к той же организации и доступны ей для возврата;
-- `?tab=team` сохраняет существующую C4A-поверхность только для organization manager с активным
-  `clinic_team`; без capability переход безопасно возвращается на `/app/settings?tab=organization`;
-- `?tab=billing` сохраняет честный owner-only placeholder до C5 и не объявляется личной настройкой.
+## Вкладки
 
-Legacy `?adminTab=` по-прежнему перенаправляет на соответствующие platform-operation URL через
-`ADMIN_TAB_REDIRECTS`. Все переходы имеют внешний безопасный fallback и не перенаправляют обратно в тот же URL.
+- `?tab=account` — личные разделы (почта входа, безопасность, устройства входа, выход) плюс тариф,
+  использование включённого и докупка объёма. Личные разделы рисует общий модуль
+  `app/account/accountSections.tsx`, не копия.
+- `?tab=profile` — имя организации и логотип (`OrgBrandingSection scope="profile"`), публичный
+  адрес организации, ФИО и фотография специалиста у соло.
+- `?tab=public` — визитка организации и её предпросмотр.
+- `?tab=branding` — иконка приложения, «своё приложение», свой домен, свои каналы доставки
+  (SMTP, SMS, выделенные боты).
+- `?tab=booking` — ссылка записи, напоминания клиентам; у соло здесь же писатели онлайн-записи,
+  которыми у клиники владеет `/app/manage`.
+- `?tab=payments` — приём оплаты; вкладка появляется только при механике тарифа.
+- `?tab=workspace` — состав модулей, названия «клиенты/пациенты» и «сеансы», «Сегодня», установка
+  приложения на устройство.
+- `?tab=notifications` — куда и что слать самому специалисту.
+- `?tab=integrations` — внешние календари.
+- `?tab=team` — участники и доступ; только состав с командой. Здесь же «требовать второй фактор у
+  персонала»: правило про персонал живёт там, где персонал заводят, и у соло его нет вовсе.
 
-Legacy `/app/doctor/install` ведёт в account install, `/app/doctor/clinic/settings` — в этот organization writer,
-`/app/doctor/clinic/members` — в entitlement-guarded Team compatibility entry. Legacy `/app/manage` не является
-отдельной продуктовой страницей и только перенаправляет на `/app/settings?tab=organization`.
+## Совместимость
 
-В clinic composition shell `/app/settings` использует navigation management mode: Team, clinic settings and billing
-stay on their established writer routes without returning the user to clinical navigation. Booking settings остаются
-в `/app/doctor/schedule?tab=setup`: owner запретил переносить или копировать их в U2.
-Коммерческие действия остаются недоступными до C5, security/2FA/sessions — до U3S.
+Прежние значения `?tab=` отвечают редиректом (`LEGACY_SETTINGS_TAB_REDIRECTS`): `organization` и
+`specialist` → `profile`, `billing` → `account`, `install` → `workspace`. Неизвестное значение
+открывает «Аккаунт», а не падает.
 
-Секреты и операционные значения интеграций по правилам репозитория хранятся в `system_settings`, а не в новых
-env-переменных.
+`/app/account` остаётся ЛИЧНОЙ страницей персонала клиники без права управлять организацией. У кого
+это право есть, тот с неё уходит редиректом в соответствующую вкладку настроек — одно место, а не
+два. Сеанс восстановления защиты редирект не трогает.
 
-В organization tab находится единственный блок «Каналы доставки клиники»: SMTP, SMSC API key и credentials
-dedicated Telegram/MAX bots. Это org-scoped `secret_envelope` storage с redacted HTTP/audit представлением;
-настоящая encryption-at-rest остаётся отдельным §12.7. Каждая запись требует отдельный tariff mechanic. Inbound
-webhook/binding dedicated bots не дублируется здесь и остаётся контуром S6.5.
+Legacy `?adminTab=` по-прежнему перенаправляет на platform-operation URL через `ADMIN_TAB_REDIRECTS`.
+Legacy `/app/doctor/install` ведёт в account install, `/app/doctor/clinic/settings` — в «Профиль»,
+`/app/doctor/clinic/members` — в entitlement-guarded вход «Команды». `/app/manage` — не отдельная
+продуктовая страница и только перенаправляет в настройки.
+
+Секреты и операционные значения интеграций по правилам репозитория хранятся в `system_settings`,
+а не в новых env-переменных. Каналы доставки клиники (SMTP, SMSC, выделенные Telegram/MAX-боты) —
+org-scoped `secret_envelope` с redacted HTTP/audit-представлением; каждая запись требует своей
+механики тарифа. Inbound webhook/binding выделенных ботов здесь не дублируется.

@@ -661,9 +661,9 @@ export const notificationText = {
   adminInvalidRequestBodyExtraFields: 'Форма заполнена неверно. Проверьте поля и повторите.',
   adminEmptySettingsList: 'Пустой список настроек',
   // G5 (safety audit): was `commonUnknownError: 'error'` — a bare English word that was the
-  // ENTIRE error experience for manual appointment cancel/reschedule (the only two call sites),
-  // because `safeUserMessage` never recognised `ApiRequestError`. Real text now, key renamed
-  // since it is no longer a generic catch-all — see `BookingManualLifecycleSection.tsx`.
+  // ENTIRE error experience for manual appointment cancel/reschedule, because `safeUserMessage`
+  // never recognised `ApiRequestError`. Real text now, key renamed since it is no longer a generic
+  // catch-all. Живые места — карточка записи в кабинете и действия записи в кабинете пациента.
   bookingManualLifecycleActionFailed: 'Не удалось выполнить действие с записью. Повторите попытку.',
   settingsSmtpSaveFailedRetry: 'Сервер не смог сохранить SMTP. Повторите позже.',
   settingsInvalidDsn:

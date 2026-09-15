@@ -16,6 +16,11 @@ export type MediaThumbProps = {
   /** Passed to `<img sizes>` when `mdUrl` is set (srcSet 1x/2x). */
   sizes?: string;
   alt?: string;
+  /**
+   * `compact` — для квадратов вроде аватара (48px), куда подпись состояния физически не влезает:
+   * значок уменьшается, слова уходят в `title`. Сами состояния и их разбор общие.
+   */
+  density?: 'default' | 'compact';
 };
 
 export function MediaThumb({
@@ -26,7 +31,10 @@ export function MediaThumb({
   lazy = true,
   sizes = '160px',
   alt = '',
+  density = 'default',
 }: MediaThumbProps) {
+  const compact = density === 'compact';
+  const stateIconClass = compact ? 'h-5 w-5 opacity-60' : 'h-8 w-8 opacity-60';
   const phase: MediaThumbPhase = getMediaThumbPhase({
     kind: media.kind,
     previewStatus: media.previewStatus,
@@ -79,15 +87,17 @@ export function MediaThumb({
   }
 
   if (phase === 'failed' || phase === 'skipped') {
+    const label = phase === 'skipped' ? skippedLabel : failedLabel;
     return (
       <div
         className={cn(
           'flex flex-col items-center justify-center gap-1 bg-muted/20 text-xs text-muted-foreground',
           className,
         )}
+        title={compact ? label : undefined}
       >
-        <ImageOff className="h-8 w-8 opacity-60" aria-hidden />
-        <span>{phase === 'skipped' ? skippedLabel : failedLabel}</span>
+        <ImageOff className={stateIconClass} aria-hidden />
+        {compact ? <span className="sr-only">{label}</span> : <span>{label}</span>}
       </div>
     );
   }
@@ -105,9 +115,10 @@ export function MediaThumb({
         className,
       )}
       role="status"
+      title={compact ? pendingLabel : undefined}
     >
-      <Loader2 className="h-8 w-8 animate-spin opacity-60" aria-hidden />
-      <span className="px-1 text-center">{pendingLabel}</span>
+      <Loader2 className={cn('animate-spin', stateIconClass)} aria-hidden />
+      <span className={compact ? 'sr-only' : 'px-1 text-center'}>{pendingLabel}</span>
     </div>
   );
 }

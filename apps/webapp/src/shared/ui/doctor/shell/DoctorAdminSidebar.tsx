@@ -53,8 +53,20 @@ export function DoctorAdminSidebar({
   const [tabletExpanded, setTabletExpanded] = useState(false);
   const accountDisplayName = brand?.displayName ?? userDisplayName ?? 'Аккаунт';
   const accountInitial = accountDisplayName.trim().charAt(0).toUpperCase() || 'А';
+  /**
+   * Ссылка с именем организации — контейнер «Профиля и настроек» (владелец 15.09.2026:
+   * «Контейнером становится ссылка с именем организации, заголовок в шапке „Профиль и настройки“»).
+   * У кого права управлять организацией нет, тот по-прежнему уходит в свой личный раздел: настроек
+   * организации ему не показывают, и вести его туда значило бы вести в отказ.
+   */
+  const managesOrganization = menuAccess.capabilities.includes('organization.management');
+  const accountHref = managesOrganization
+    ? `${routePaths.settings}?tab=account`
+    : routePaths.account;
   const accountActive =
-    pathname === routePaths.account || pathname.startsWith(`${routePaths.account}/`);
+    pathname === routePaths.account ||
+    pathname.startsWith(`${routePaths.account}/`) ||
+    (managesOrganization && pathname === routePaths.settings);
 
   return (
     <aside
@@ -144,7 +156,7 @@ export function DoctorAdminSidebar({
         </nav>
 
         <Link
-          href={routePaths.account}
+          href={accountHref}
           prefetch={false}
           id="doctor-sidebar-account"
           title={accountDisplayName}

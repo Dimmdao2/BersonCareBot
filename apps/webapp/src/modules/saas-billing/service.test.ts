@@ -2088,7 +2088,7 @@ describe('К4 round 2: повторное «Выставить счёт» не �
         payerRef: 'organization:org-k4r2',
         purpose: 'saas_billing_tariff_renewal',
         subjectRef: first.id,
-        returnUrl: expect.stringMatching(/^https?:\/\/[^/]+\/app\/settings\?tab=billing$/),
+        returnUrl: expect.stringMatching(/^https?:\/\/[^/]+\/app\/settings\?tab=account$/),
         // Этап 1, пункт 1.3 — 30 дней от момента выставления, не выбор администратора.
         invoice: { description: 'Счёт за тариф', expiresAt: '2026-09-01T00:00:00.000Z' },
       }),

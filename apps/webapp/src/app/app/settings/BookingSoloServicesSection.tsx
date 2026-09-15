@@ -39,6 +39,7 @@ import {
   apiJson,
   fetchSoloOverview,
   minorToRublesInput,
+  notifySoloCatalogChanged,
   parseRublesInput,
   rublesToMinor,
   serviceDoerNote,
@@ -211,6 +212,9 @@ export function BookingSoloServicesSection() {
       try {
         await task();
         await load();
+        // Соседняя «Доступность услуг по филиалам» читает тот же обзор и должна увидеть включённую
+        // услугу сразу, а не после перезагрузки страницы (владелец 15.09.2026).
+        notifySoloCatalogChanged();
         onSuccess?.();
       } catch (error) {
         setActionError(error instanceof Error ? error.message : 'action_failed');
@@ -357,6 +361,7 @@ export function BookingSoloServicesSection() {
           ),
         );
         await load();
+        notifySoloCatalogChanged();
       } catch (error) {
         setActionError(error instanceof Error ? error.message : 'action_failed');
         await load();
