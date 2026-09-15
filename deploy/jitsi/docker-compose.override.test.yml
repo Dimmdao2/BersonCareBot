@@ -59,6 +59,11 @@ services:
     volumes:
       - ./config/web/custom-config.js:/config/custom-config.js:ro
       - ./config/web/custom-interface_config.js:/config/custom-interface_config.js:ro
+      # Раскладка звонка: файл стиля и правило nginx, которое его отдаёт и дописывает ссылку в HTML
+      # комнаты. Контейнер подключает каталог nginx-custom сам (include в его meet.conf), поэтому
+      # край — наш nginx на TEST и Caddy на проде — об этом ничего знать не обязан.
+      - ./config/web/therapysto-call.css:/config/therapysto-call.css:ro
+      - ./config/web/nginx-custom-therapysto.conf:/config/nginx-custom/therapysto.conf:ro
 
   prosody:
     # Образы jitsi построены на s6-overlay: контейнер стартует под root, s6-overlay-suexec сбрасывает

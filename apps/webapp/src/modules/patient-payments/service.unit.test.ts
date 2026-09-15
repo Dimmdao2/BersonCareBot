@@ -29,6 +29,7 @@ const clinicPayment: PatientPayment = {
 function portWithPayment(payment: PatientPayment | null): PatientPaymentsPort {
   return {
     listPayments: vi.fn(),
+    listOrganizationPayments: vi.fn(),
     listAppointmentPayments: vi.fn(),
     sumPaidMinorForAppointments: vi.fn(),
     addCashPayment: vi.fn(),
