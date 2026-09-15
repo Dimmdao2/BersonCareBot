@@ -245,6 +245,87 @@ export async function startPublicEmailOtpRegistration(
 }
 
 /**
+ * Старт подтверждения почты для ПУБЛИЧНОЙ ЗАЯВКИ.
+ *
+ * Состав полей заявки задаёт КЛИНИКА (план `LEADS_AND_COMMUNICATION_VISIBILITY_2026-09-14.md` §11,
+ * слова владельца: «клиника указывает, какие поля обязательны, кто-то хочет, там, имя видеть»).
+ * Поэтому ФИО в заявке может не быть вовсе — а обычная регистрация пациента их требует и отвечает
+ * 400 `invalid_fio`. Раньше это означало, что клиника, выключившая ФИО, не может принять НИ ОДНОЙ
+ * заявки: человек не проходит подтверждение почты и до самой заявки не доходит.
+ *
+ * Отдельного движка здесь нет. ФИО собраны — путь ровно тот же, что у обычной регистрации. ФИО не
+ * собраны — учётная запись заводится по одной подтверждаемой почте тем же корнем
+ * `findOrCreatePublicEmailUser`, которым её заводит приём приглашения: он ставит `display_name` из
+ * адреса, разбирает цепочку слияний и чужое ФИО не трогает.
+ *
+ * Форма ответа во всех ветках одна и та же, включая отказ доставки и блокировку по пользователю:
+ * иначе по ней читалось бы, есть ли за адресом аккаунт.
+ */
+export async function startPublicLeadEmailVerification(
+  input: {
+    email: string;
+    lastName?: string | null;
+    firstName?: string | null;
+    patronymic?: string | null;
+  },
+  publicDb: EmailOtpPublicDbPort,
+  mailProfile: MailProfileRequest,
+): Promise<StartPublicEmailOtpRegistrationResult> {
+  const lastName = normalizeFioPart(input.lastName);
+  const firstName = normalizeFioPart(input.firstName);
+  if (lastName && firstName) {
+    return startPublicEmailOtpRegistration(
+      { email: input.email, lastName, firstName, patronymic: input.patronymic ?? null },
+      publicDb,
+      mailProfile,
+    );
+  }
+
+  const email = normalizeEmail(input.email);
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return { ok: false, code: 'invalid_email' };
+  }
+
+  const lastSent = await publicDb.findEmailSendCooldownByEmail(email);
+  if (lastSent) {
+    const deltaSec = Math.floor((Date.now() - new Date(lastSent).getTime()) / 1000);
+    if (deltaSec < OTP_RESEND_COOLDOWN_SEC) {
+      return {
+        ok: false,
+        code: 'rate_limited',
+        retryAfterSeconds: OTP_RESEND_COOLDOWN_SEC - deltaSec,
+      };
+    }
+  }
+
+  const user = await publicDb.findOrCreatePublicEmailUser(email);
+  const challenge = await startEmailChallenge(
+    user.userId,
+    email,
+    user.wasCreated ? 'public_registration' : 'login',
+    mailProfile,
+  );
+  if (challenge.ok) return challenge;
+  if (challenge.code === 'rate_limited') {
+    return {
+      ok: false,
+      code: 'rate_limited',
+      ...(challenge.retryAfterSeconds == null
+        ? {}
+        : { retryAfterSeconds: challenge.retryAfterSeconds }),
+      suppressedOutcome: 'email_otp_cooldown_suppressed',
+    };
+  }
+  return {
+    ok: true,
+    challengeId: randomUUID(),
+    retryAfterSeconds: OTP_RESEND_COOLDOWN_SEC,
+    suppressedOutcome:
+      challenge.code === 'email_send_failed' ? 'email_delivery_failed' : 'email_otp_locked',
+  };
+}
+
+/**
  * Confirm a public email-OTP code.
  * The database atomically locks, rechecks, verifies, claims and consumes the latest
  * challenge. It receives only the shared hash, never the raw OTP.

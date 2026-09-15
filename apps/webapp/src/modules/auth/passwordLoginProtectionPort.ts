@@ -56,6 +56,23 @@ export type PasswordLoginProtectionPort = {
     challengeDigest: string;
     expiresAt: Date;
   }): Promise<boolean>;
+  /**
+   * Задачка публичной заявки одноразовая ровно потому, что её регистрируют при выдаче и гасят при
+   * приёме. Без пары этих вызовов один решённый payload действителен всё окно жизни задачки
+   * сколько угодно раз, то есть стоимость решения размазывается на неограниченный поток заявок.
+   * Ключ здесь уже производный от адреса (`lead-email:v1:<sha256>`) — сама почта в дверь не идёт.
+   */
+  registerPublicLeadAltchaChallenge(params: {
+    identifierKey: string;
+    challengeId: string;
+    challengeDigest: string;
+    expiresAt: Date;
+  }): Promise<boolean>;
+  consumePublicLeadAltchaChallenge(params: {
+    identifierKey: string;
+    challengeId: string;
+    challengeDigest: string;
+  }): Promise<boolean>;
 };
 
 export type PasswordAltchaChallenge = {

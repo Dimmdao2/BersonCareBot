@@ -254,11 +254,12 @@ test('бэкап ходит мимо общего transport, но снимает
   assert.ok(backups.length >= 4, 'в плане прода нет заданий бэкапа');
 
   for (const item of backups) {
-    // Скриптов бэкапа стало два: срез базы и хранилище сертификатов нового края (Caddy).
-    // Список остаётся ЗАКРЫТЫМ — произвольная команда мимо общего transport по-прежнему красная.
+    // Скриптов бэкапа стало три: срез базы, хранилище сертификатов нового края (Caddy) и отправка
+    // готовых артефактов на отдельный сервер. Список остаётся ЗАКРЫТЫМ — произвольная команда мимо
+    // общего transport по-прежнему красная.
     assert.match(
       item.command,
-      /^\/opt\/backups\/scripts\/(postgres-backup\.sh (hourly|daily|weekly|prune)|caddy-store-backup\.sh)$/,
+      /^\/opt\/backups\/scripts\/(postgres-backup\.sh (hourly|daily|weekly|prune)|caddy-store-backup\.sh|offsite-push\.sh)$/,
     );
     assert.doesNotMatch(item.command, /run-internal-job\.sh/);
     assert.throws(() => describeJobAssignments(manifest, 'prod', item.jobId), /not an HTTP tick/);

@@ -29,6 +29,10 @@ const ERROR_CODE_TEXT: Record<string, string> = {
   entitlement_required: notificationText.bookingFeatureNotInTariff,
   idempotency_conflict: notificationText.bookingAlreadyProcessing,
   lead_status_transition_invalid: notificationText.leadAlreadyInProgress,
+  lead_submit_failed: notificationText.leadSubmitFailed,
+  lead_email_verification_required: notificationText.authVerifiedEmailRequired,
+  captcha_required: notificationText.leadCaptchaRequired,
+  captcha_unavailable: notificationText.authCaptchaUnavailable,
 
   // --- коды входа и подтверждения ---
   expired_code: notificationText.authCodeInvalidOrExpired,

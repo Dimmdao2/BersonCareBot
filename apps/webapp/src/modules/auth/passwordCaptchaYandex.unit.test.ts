@@ -24,6 +24,8 @@ const port: PasswordLoginProtectionPort = {
     yandexServerKey: 'server-key',
   })),
   registerAltchaChallenge: vi.fn(async () => true),
+  registerPublicLeadAltchaChallenge: vi.fn(async () => true),
+  consumePublicLeadAltchaChallenge: vi.fn(async () => true),
 };
 
 const service = createPasswordAltchaService(port);
