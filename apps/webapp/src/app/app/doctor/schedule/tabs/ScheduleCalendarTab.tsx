@@ -1198,11 +1198,21 @@ export function ScheduleCalendarTab({
     [],
   );
 
-  const scheduleViewOptions: Array<{ key: CalV26View | 'list'; label: string }> = [
+  /**
+   * Владелец 15.09: «вижу что съехало слово список - давай там иконку списка рисовать без слова».
+   * Четыре подписи в ряд не помещались в ширину правой панели, и «Список» переносился на свою
+   * строку. Режим списка — единственный не-календарный, поэтому именно он уходит в иконку;
+   * подпись остаётся доступной как `aria-label` и всплывающая подсказка.
+   */
+  const scheduleViewOptions: Array<{
+    key: CalV26View | 'list';
+    label: string;
+    iconOnly?: boolean;
+  }> = [
     { key: '3days', label: '3 дня' },
     ...(isMobileViewport ? [] : [{ key: 'weekgrid' as const, label: 'Неделя' }]),
     { key: 'month', label: 'Месяц' },
-    { key: 'list', label: 'Список' },
+    { key: 'list', label: 'Список', iconOnly: true },
   ];
 
   /**
@@ -1229,7 +1239,7 @@ export function ScheduleCalendarTab({
     <section className={doctorSectionCardClass}>
       <h2 className={cn(doctorSectionTitleClass, 'xl:hidden')}>Период</h2>
       <div className="flex flex-wrap gap-1" role="group" aria-label="Режим отображения">
-        {scheduleViewOptions.map(({ key, label }) => {
+        {scheduleViewOptions.map(({ key, label, iconOnly }) => {
           const active =
             key === 'list' ? renderMode === 'list' : renderMode === 'calendar' && view === key;
           return (
@@ -1253,8 +1263,9 @@ export function ScheduleCalendarTab({
                 setView(key);
               }}
               data-testid={key === 'list' ? 'render-btn-list' : `view-btn-${key}`}
+              {...(iconOnly ? { 'aria-label': label, title: label } : {})}
             >
-              {label}
+              {iconOnly ? <List className="size-4" aria-hidden /> : label}
             </Button>
           );
         })}
