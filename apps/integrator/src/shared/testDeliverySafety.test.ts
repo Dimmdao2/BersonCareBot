@@ -14,10 +14,6 @@ vi.mock('../integrations/email/mailer.js', () => ({ sendMail: mailFakes.sendMail
 import { createDefaultDispatchPort } from '../infra/adapters/dispatchPort.js';
 import { createEmailDeliveryAdapter } from '../integrations/email/deliveryAdapter.js';
 import type { ResolvedSmtpOutboundConfig } from '../config/smtpOutbound.js';
-import {
-  isTestDeliveryRecipientAllowed,
-  readTestAccountIdentifiers,
-} from './testDeliverySafety.js';
 
 const TEST_ENV_KEYS = [
   'NODE_ENV',
@@ -159,13 +155,15 @@ describe('final TEST delivery safety gate', () => {
     expect(sent).toEqual([]);
   });
 
-  it.each(['telegram', 'max', 'vk', 'smsc', 'web_push'])(
+  it.each(['max', 'vk', 'smsc', 'web_push'])(
     'on DEV the %s channel never reaches its adapter',
     async (channel) => {
       // Исключение на DEV ровно одно — почта в петлевой приёмник. Всё остальное обязано молчать,
       // и проверяется это по КАЖДОМУ каналу, а не по одному телеграму. Набор каналов — тот же,
       // что пропускает политика исходящих (`outboundMessagePolicy.ts`): telegram, max, vk, smsc,
       // web_push и email. `sms` публичным входом не является и до адаптера не доходит вовсе.
+      // Телеграма здесь нет намеренно: его DEV-клетку держит ряд «на DEV протёкший
+      // VITEST_WORKER_ID стену не снимает» выше, и вторая защита на ту же поломку — дубль (§10a).
       process.env.NODE_ENV = 'development';
       const { adapter, sent } = recordingAdapter();
       const port = createDefaultDispatchPort({ adapters: [adapter] });
@@ -243,31 +241,40 @@ describe('final TEST delivery safety gate', () => {
     expect(sent[0]?.payload.message).toEqual(outgoing.payload.message);
   });
 
-  it('matches each supported channel only against its own env list', () => {
+  // Каждый канал сверяется со СВОИМ списком — и видно это по тому, доходит ли сообщение до
+  // адаптера, а не по значению предиката. Чужой идентификатор (номер из списка телефонов в поле
+  // телеграма и наоборот) обязан подавляться так же, как посторонний.
+  it.each([
+    { channel: 'telegram', allowed: { chatId: 700000001 }, foreign: { chatId: 800000001 } },
+    { channel: 'max', allowed: { userId: 800000001 }, foreign: { userId: 700000001 } },
+    {
+      channel: 'smsc',
+      allowed: { phoneNormalized: '+7 (918) 000-00-02' },
+      foreign: { phoneNormalized: '+79180000009' },
+    },
+    { channel: 'email', allowed: { email: 'owner@example.org' }, foreign: { email: 'owner@example.com' } },
+    {
+      channel: 'web_push',
+      allowed: { pushUserId: '22222222-2222-4222-8222-222222222222' },
+      foreign: { pushUserId: '33333333-3333-4333-8333-333333333333' },
+    },
+    { channel: 'vk', allowed: { userId: 800000001 }, foreign: { userId: 'known' } },
+  ])('on TEST the $channel channel admits only its own list', async ({ channel, allowed, foreign }) => {
+    process.env.NODE_ENV = 'production';
+    process.env.TEST = 'true';
     configureTestAccounts();
-    const identifiers = readTestAccountIdentifiers();
+    const { adapter, sent } = recordingAdapter();
+    const port = createDefaultDispatchPort({ adapters: [adapter] });
 
-    expect(isTestDeliveryRecipientAllowed('telegram', { chatId: 700000001 }, identifiers)).toBe(true);
-    expect(isTestDeliveryRecipientAllowed('max', { userId: 800000001 }, identifiers)).toBe(true);
-    expect(
-      isTestDeliveryRecipientAllowed(
-        'smsc',
-        { phoneNormalized: '+7 (918) 000-00-02' },
-        identifiers,
-      ),
-    ).toBe(true);
-    expect(
-      isTestDeliveryRecipientAllowed('email', { email: 'owner@example.org' }, identifiers),
-    ).toBe(true);
-    expect(
-      isTestDeliveryRecipientAllowed(
-        'web_push',
-        { pushUserId: '22222222-2222-4222-8222-222222222222' },
-        identifiers,
-      ),
-    ).toBe(true);
-    expect(isTestDeliveryRecipientAllowed('telegram', { chatId: 800000001 }, identifiers)).toBe(false);
-    expect(isTestDeliveryRecipientAllowed('vk', { userId: 'known' }, identifiers)).toBe(false);
+    const foreignResult = await port.dispatchOutgoing(intent(channel, foreign));
+    const allowedResult = await port.dispatchOutgoing(intent(channel, allowed));
+
+    expect(foreignResult).toEqual({ suppressedByEnvironment: true });
+    // `vk` собственного списка не имеет вовсе — разрешённых получателей у него на стенде нет.
+    expect(sent.map((delivered) => delivered.payload.recipient)).toEqual(
+      channel === 'vk' ? [] : [allowed],
+    );
+    expect(allowedResult).toEqual(channel === 'vk' ? { suppressedByEnvironment: true } : {});
   });
 
   it('TEST fails closed when account env is absent', async () => {
