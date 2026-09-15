@@ -5,19 +5,22 @@
  * надо через `relayOutbound`». То есть после создания заявки уведомление обязано ДОЙТИ до отправки,
  * а не отбиться правами на полпути.
  *
- * Предмет здесь НЕ аудитория (её закрывает `leadClinicAdminAudience.devDbProof.test.ts`), а ВСЁ
- * ОСТАЛЬНОЕ, что `notifyClinicLeadCreated` делает ПОСЛЕ аудитории. Дверь заявки Л3 ставит принципал
- * ОРГАНИЗАЦИИ (класс контекста `tenant_service`), и у этого класса реляционного пути нет: каждое
- * прямое чтение отношений внутри `notifyDoctorPatientMessageToStaff` отбивается тем же отказом, на
- * котором стоял Д1 аудита 15.09.
+ * Предмет здесь — ВСЁ, что `notifyClinicLeadCreated` делает после единственного чтения профилей.
+ * Дверь заявки Л3 ставит принципал ОРГАНИЗАЦИИ (класс контекста `tenant_service`), и у этого класса
+ * реляционного пути нет: замер 15.09 показал четыре чтения внутри `notifyDoctorPatientMessageToStaff`
+ * (`topicChannelPrefs`, `channelPreferences`, `getChannelBindings`, `webPushSubscriptions`), и все
+ * четыре отвечали `Missing declared webapp port capability: tenant_service`. Порты здесь НАСТОЯЩИЕ,
+ * те же, что даёт `buildAppDeps`: если путь снова к ним пойдёт, отказ приедет живой, а не выдуманный.
+ *
+ * Сам корень профилей живой базой закрывает `infra/repos/leadClinicNotificationProfiles.devDbProof.test.ts`;
+ * здесь профиль подан готовым — ровно так, как его отдаёт корень.
  *
  * Дорогой молчаливый отказ, ради которого файл написан: заявка создана, человек получил «принято»,
  * уведомление упало — и с 15.09 падает МОЛЧА, потому что `service.ts` гасит его в `.catch(log)`.
  * Клиника не узнаёт о заявке никогда, и наружу это не видно ничем.
  *
  * Следов на DEV не оставляет: фикстур нет вовсе — получателем взят несуществующий uuid, у которого
- * заведомо нет ни привязок мессенджеров, ни подписок веб-пуша, поэтому никакая отправка невозможна
- * даже если чтения пройдут.
+ * заведомо нет ни привязок мессенджеров, ни подписок веб-пуша, поэтому никакая отправка невозможна.
  *
  * Запуск из `apps/webapp` с загруженным DEV-env:
  *   set -a && source /home/dev/dev-projects/BersonCareBot/apps/webapp/.env.dev && set +a
@@ -26,6 +29,7 @@
  */
 import { execFileSync } from 'node:child_process';
 import { beforeAll, describe, expect, it } from 'vitest';
+import type { Lead } from './types';
 
 const enabled =
   process.env.USE_REAL_DATABASE === '1' && process.env.RUN_LEAD_CLINIC_NOTIFY_PATH_DB === '1';
@@ -47,18 +51,16 @@ function psql(sqlText: string): string {
   ).trim();
 }
 
-describe.skipIf(!enabled)('путь уведомления о заявке ПОСЛЕ аудитории, живой DEV', () => {
+describe.skipIf(!enabled)('путь уведомления о заявке ПОСЛЕ профилей, живой DEV', () => {
   let organizationId: string;
   let runWithDbOrganizationPrincipal: typeof import('@bersoncare/db-principal').runWithDbOrganizationPrincipal;
-  let notifyDoctorPatientMessageToStaff: typeof import('@/modules/doctor-notifications/notifyDoctorPatientMessageToStaff').notifyDoctorPatientMessageToStaff;
-  let deps: import('@/modules/doctor-notifications/notifyDoctorPatientMessageToStaff').NotifyDoctorPatientMessageToStaffDeps;
+  let notifyClinicLeadCreated: typeof import('./notifyClinicLeadCreated').notifyClinicLeadCreated;
+  let deps: import('./notifyClinicLeadCreated').NotifyClinicLeadCreatedDeps;
 
   beforeAll(async () => {
     process.env.DB_PRINCIPAL_CONTEXT_MODE = 'port-context';
     ({ runWithDbOrganizationPrincipal } = await import('@bersoncare/db-principal'));
-    ({ notifyDoctorPatientMessageToStaff } = await import(
-      '@/modules/doctor-notifications/notifyDoctorPatientMessageToStaff'
-    ));
+    ({ notifyClinicLeadCreated } = await import('./notifyClinicLeadCreated'));
     const [{ createPgTopicChannelPrefsPort }, { pgChannelPreferencesPort },
       { createPgWebPushSubscriptionsPort }, { loadPlatformUserChannelBindings },
       { createPgPatientStaffNotificationProfilesPort }, { createPgStaffUsersPort }] =
@@ -85,6 +87,18 @@ describe.skipIf(!enabled)('путь уведомления о заявке ПО�
       } as unknown as import('@/modules/doctor-notifications/notifyDoctorPatientMessageToStaff').NotifyDoctorPatientMessageToStaffDeps['systemSettings'],
       getChannelBindings: loadPlatformUserChannelBindings,
       patientStaffNotificationProfiles: createPgPatientStaffNotificationProfilesPort(),
+      clinicLeadNotificationProfiles: {
+        listForLeadOrganization: async () => [
+          {
+            userId: UNREACHABLE_RECIPIENT,
+            telegramId: null,
+            maxId: null,
+            hasWebPushSubscription: false,
+            channelPreferences: [],
+            topicChannelPreferences: [],
+          },
+        ],
+      },
     };
     organizationId = psql(
       `SELECT member.organization_id FROM public.be_organization_members AS member
@@ -94,26 +108,21 @@ describe.skipIf(!enabled)('путь уведомления о заявке ПО�
   });
 
   it('уведомление о заявке доходит до отправки под принципалом двери заявки', async () => {
-    // §8.8: клинику уведомляет `relayOutbound`. Под принципалом ОРГАНИЗАЦИИ, с уже разрешённой
-    // аудиторией, вызов обязан дойти до решения по каналам и вернуть счётчики — получателю нечем
-    // отправлять, поэтому все три нуля. Отказ здесь означает «заявка принята, клиника не узнала».
-    const result = await runWithDbOrganizationPrincipal(organizationId, () =>
-      notifyDoctorPatientMessageToStaff(
-        {
-          organizationId,
-          staffUserIds: [UNREACHABLE_RECIPIENT],
-          topicCode: 'doctor_patient_messages',
-          messageId: 'lead.created:audit-l4-path',
-          senderDisplayName: 'audit-l4@example.test',
-          notificationText: 'Новая заявка',
-          notificationTitle: 'Новая заявка',
-          notificationUrl: 'https://example.test/app/doctor/communications?tab=leads',
-          nativeRoute: '/app/doctor/communications',
-        },
-        deps,
-      ),
-    );
+    // §8.8: клинику уведомляет `relayOutbound`. Под принципалом ОРГАНИЗАЦИИ, с профилем, поданным
+    // корнем, вызов обязан дойти до решения по каналам и вернуться — получателю нечем отправлять,
+    // поэтому отправки не происходит. Отказ здесь означает «заявка принята, клиника не узнала».
+    const lead = {
+      id: 'audit-l4-path',
+      organizationId,
+      platformUserId: UNREACHABLE_RECIPIENT,
+      submittedEmail: 'audit-l4@example.test',
+      messageText: 'живая проба пути уведомления',
+      status: 'new',
+      sourceSurface: 'public_page',
+    } as unknown as Lead;
 
-    expect(result).toEqual({ telegramDelivered: 0, maxDelivered: 0, pushDelivered: 0 });
+    await expect(
+      runWithDbOrganizationPrincipal(organizationId, () => notifyClinicLeadCreated(lead, deps)),
+    ).resolves.toBeUndefined();
   });
 });

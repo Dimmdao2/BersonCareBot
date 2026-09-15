@@ -27,6 +27,7 @@ import { defaultDoctorTopicFallbackChannels } from './doctorTopicChannelDefaults
 import type { DoctorNotificationTopicCode } from './doctorNotificationTopics';
 import { resolveDoctorNotificationChannels } from './resolveDoctorNotificationChannels';
 import type { PatientStaffNotificationProfilesPort } from './patientStaffNotificationProfilesPort';
+import type { StaffNotificationProfile } from './staffNotificationProfile';
 import type { StaffUsersPort } from './staffUsersPort';
 import { reportEmptyAudience } from '@/modules/operator-alerts/emptyAudienceRuntime';
 
@@ -64,6 +65,13 @@ export type NotifyDoctorStaffTopicInput = {
    * staff list must not be reshaped to serve one event's rule.
    */
   staffUserIds?: string[];
+  /**
+   * A producer-supplied per-recipient delivery profile. Given, the four per-user reads below are
+   * not performed: a producer whose DB principal cannot reach the staff preference, binding and
+   * subscription tables resolves the whole set through its own named root and hands it over ready.
+   * Without this, such a producer's notification dies on the first of those reads.
+   */
+  staffProfiles?: StaffNotificationProfile[];
 };
 
 export type NotifyDoctorPatientMessageToStaffResult = {
@@ -76,16 +84,18 @@ export async function notifyDoctorPatientMessageToStaff(
   input: NotifyDoctorStaffTopicInput,
   deps: NotifyDoctorPatientMessageToStaffDeps,
 ): Promise<NotifyDoctorPatientMessageToStaffResult> {
-  const patientProfiles = deps.patientStaffNotificationProfiles
-    ? await deps.patientStaffNotificationProfiles.listForCurrentPatientOrganization({
-        organizationId: input.organizationId,
-        topicCode: input.topicCode,
-      })
-    : null;
+  const patientProfiles =
+    input.staffProfiles || !deps.patientStaffNotificationProfiles
+      ? null
+      : await deps.patientStaffNotificationProfiles.listForCurrentPatientOrganization({
+          organizationId: input.organizationId,
+          topicCode: input.topicCode,
+        });
+  const profiles = input.staffProfiles ?? patientProfiles;
   const staffIds = input.staffUserIds
     ? input.staffUserIds
-    : patientProfiles
-      ? patientProfiles.map((profile) => profile.userId)
+    : profiles
+      ? profiles.map((profile) => profile.userId)
       : await deps.staffUsers.listActiveStaffUserIds();
   const globalFallback = defaultDoctorTopicFallbackChannels(input.topicCode);
   const replyMarkup = input.replyMarkup;
@@ -123,13 +133,13 @@ export async function notifyDoctorPatientMessageToStaff(
   }
 
   for (const userId of staffIds) {
-    const patientProfile = patientProfiles?.find((profile) => profile.userId === userId);
-    const [prefRows, channelPrefs, bindings, hasPush] = patientProfile
+    const profile = profiles?.find((row) => row.userId === userId);
+    const [prefRows, channelPrefs, bindings, hasPush] = profile
       ? [
-          patientProfile.topicChannelPreferences,
-          patientProfile.channelPreferences,
-          { telegramId: patientProfile.telegramId, maxId: patientProfile.maxId },
-          patientProfile.hasWebPushSubscription,
+          profile.topicChannelPreferences,
+          profile.channelPreferences,
+          { telegramId: profile.telegramId, maxId: profile.maxId },
+          profile.hasWebPushSubscription,
         ]
       : await Promise.all([
           deps.topicChannelPrefs.listByUserId(userId),

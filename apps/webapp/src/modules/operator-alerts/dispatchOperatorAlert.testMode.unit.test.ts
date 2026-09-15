@@ -48,7 +48,6 @@ describe('dispatchOperatorAlert в режиме ТЕСТ', () => {
     registerAdminIncidentStaffPushDeps({
       staffUsers: {
         listActiveStaffUserIds: async () => ['staff-1'],
-        listActiveClinicAdminUserIds: async () => [],
         listActiveStaffOrganizationRecipients: async () => [],
       },
     });

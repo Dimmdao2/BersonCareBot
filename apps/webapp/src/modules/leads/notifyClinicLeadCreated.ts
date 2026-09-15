@@ -3,25 +3,39 @@ import {
   type NotifyDoctorPatientMessageToStaffDeps,
 } from '@/modules/doctor-notifications/notifyDoctorPatientMessageToStaff';
 import { env } from '@/config/env';
+import type { ClinicLeadNotificationProfilesPort } from './clinicNotificationProfilesPort';
 import type { Lead } from './types';
 
 const LEAD_CREATED_TOPIC = 'lead.created' as const;
+const LEAD_NOTIFICATION_TOPIC_CODE = 'doctor_patient_messages' as const;
+
+export type NotifyClinicLeadCreatedDeps = NotifyDoctorPatientMessageToStaffDeps & {
+  clinicLeadNotificationProfiles: ClinicLeadNotificationProfilesPort;
+};
 
 /**
  * The current staff-notification channel/preferences model has no separate lead topic.
  * Reuse the existing patient-message topic rather than silently creating a second preference
  * surface; only active owner/admin members of this lead's organization are selected by the port.
+ *
+ * Аудиторию И способ доставки отдаёт ОДИН порт. Причина не в экономии запросов: заявку создаёт
+ * только публичная дверь, у которой принципал ОРГАНИЗАЦИИ, а у этого класса реляционного пути к
+ * предпочтениям, привязкам и подпискам персонала нет — каждое такое чтение отбивается отказом
+ * прав. Пока их было четыре, уведомление умирало на первом, и с `void … .catch` — молча.
  */
 export async function notifyClinicLeadCreated(
   lead: Lead,
-  deps: NotifyDoctorPatientMessageToStaffDeps,
+  deps: NotifyClinicLeadCreatedDeps,
 ): Promise<void> {
-  const staffUserIds = await deps.staffUsers.listActiveClinicAdminUserIds(lead.organizationId);
+  const staffProfiles = await deps.clinicLeadNotificationProfiles.listForLeadOrganization({
+    organizationId: lead.organizationId,
+    topicCode: LEAD_NOTIFICATION_TOPIC_CODE,
+  });
   await notifyDoctorPatientMessageToStaff(
     {
       organizationId: lead.organizationId,
-      staffUserIds,
-      topicCode: 'doctor_patient_messages',
+      staffProfiles,
+      topicCode: LEAD_NOTIFICATION_TOPIC_CODE,
       messageId: `${LEAD_CREATED_TOPIC}:${lead.id}`,
       senderDisplayName: lead.submittedEmail,
       notificationText: 'Новая заявка',

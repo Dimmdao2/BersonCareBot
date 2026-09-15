@@ -1,10 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
-import { notifyClinicLeadCreated } from './notifyClinicLeadCreated';
+import { notifyClinicLeadCreated, type NotifyClinicLeadCreatedDeps } from './notifyClinicLeadCreated';
 import type { Lead } from './types';
-import type { NotifyDoctorPatientMessageToStaffDeps } from '@/modules/doctor-notifications/notifyDoctorPatientMessageToStaff';
 
-const relayOutbound = vi.fn(async () => ({ ok: true as const }));
-vi.mock('@/modules/messaging/relayOutbound', () => ({ relayOutbound: (...args: unknown[]) => relayOutbound(...(args as [])) }));
+const relayOutbound = vi.fn(async (_params: Record<string, unknown>) => ({ ok: true as const }));
+vi.mock('@/modules/messaging/relayOutbound', () => ({
+  relayOutbound: (params: Record<string, unknown>) => relayOutbound(params),
+}));
 
 const lead = (organizationId: string): Lead =>
   ({
@@ -18,46 +19,56 @@ const lead = (organizationId: string): Lead =>
   }) as Lead;
 
 /**
- * Поломка: аудиторию события «новая заявка» берут не у клиники заявки.
- * Последствие: контакты обратившегося человека уезжают персоналу ЧУЖОЙ организации (§8.8 — старый
- * relay заявок брал глобальные `admin_*_ids`, «что в SaaS адресует не тому»), либо уведомление
- * переучивает общий список персонала и ломает соседей по этому списку.
+ * Oracle — живой замер против `bcb_webapp_dev`, записанный в
+ * `docs/_TODO/AUDIT_L4_CLINIC_NOTIFICATION_CORRECTION_2026-09-15.md`: под принципалом двери заявки
+ * (класс `tenant_service`) КАЖДОЕ прямое чтение предпочтений, привязок, подписок и общего списка
+ * персонала отвечает `Missing declared webapp port capability: tenant_service`. Здесь этот отказ
+ * подан ровно теми же портами, какие даёт `buildAppDeps`.
  *
- * Стена арендатора в самой ВЫБОРКЕ доказывается живой базой
- * (`infra/repos/leadClinicAdminAudience.devDbProof.test.ts`) — здесь проверяется только шов:
- * какой организацией событие спрашивает аудиторию и что оно не трогает общий список.
+ * Дорогая молчаливая поломка: заявка записана, посетитель увидел «принято», а уведомление умерло
+ * на первом же таком чтении — и с `void … .catch(log)` умерло МОЛЧА. Клиника не узнаёт о заявке
+ * никогда, и наружу это не видно ничем.
+ *
+ * Наблюдаемый конец цепочки — сама отправка: `relayOutbound` есть предписанный §8.8 способ
+ * уведомить клинику и последний side effect этого пути.
  */
-describe('аудитория уведомления о новой заявке', () => {
-  function deps() {
-    const listActiveClinicAdminUserIds = vi.fn(async (_organizationId: string) => ['admin-of-own-clinic']);
-    const listActiveStaffUserIds = vi.fn(async () => ['кто-угодно-со-всей-платформы']);
-    const seen: Array<{ organizationId: string; staffUserIds?: string[] }> = [];
-    return {
-      seen,
-      listActiveClinicAdminUserIds,
-      listActiveStaffUserIds,
-      value: {
-        staffUsers: { listActiveClinicAdminUserIds, listActiveStaffUserIds },
-        topicChannelPrefs: { listByUserId: async () => [] },
-        channelPreferences: { getPreferences: async () => [] },
-        webPushSubscriptions: { hasAnyForUserId: async () => false },
-        systemSettings: { getSetting: async () => null },
-        getChannelBindings: async () => ({ telegramId: null, maxId: null }),
-      } as unknown as NotifyDoctorPatientMessageToStaffDeps,
+describe('уведомление клиники о новой заявке', () => {
+  function refuse(port: string) {
+    return async () => {
+      throw new Error(`Missing declared webapp port capability: tenant_service (${port})`);
     };
   }
 
-  it('спрашивает аудиторию у клиники самой заявки', async () => {
-    const fakes = deps();
-    await notifyClinicLeadCreated(lead('org-of-this-lead'), fakes.value);
-    expect(fakes.listActiveClinicAdminUserIds).toHaveBeenCalledWith('org-of-this-lead');
-  });
+  it('доходит до отправки, не читая закрытых для двери заявки таблиц персонала', async () => {
+    relayOutbound.mockClear();
+    const deps = {
+      clinicLeadNotificationProfiles: {
+        listForLeadOrganization: async () => [
+          {
+            userId: 'admin-of-own-clinic',
+            telegramId: '100500',
+            maxId: null,
+            hasWebPushSubscription: false,
+            channelPreferences: [],
+            topicChannelPreferences: [],
+          },
+        ],
+      },
+      staffUsers: { listActiveStaffUserIds: refuse('staffUsers') },
+      topicChannelPrefs: { listByUserId: refuse('topicChannelPrefs') },
+      channelPreferences: { getPreferences: refuse('channelPreferences') },
+      webPushSubscriptions: { hasAnyForUserId: refuse('webPushSubscriptions') },
+      systemSettings: { getSetting: refuse('systemSettings') },
+      getChannelBindings: refuse('getChannelBindings'),
+    } as unknown as NotifyClinicLeadCreatedDeps;
 
-  it('не трогает общий список персонала платформы', async () => {
-    const fakes = deps();
-    await notifyClinicLeadCreated(lead('org-of-this-lead'), fakes.value);
-    // Первая версия Л4 переписала общий `listActiveStaffUserIds` под правило заявок и сломала
-    // соседа по этому методу. Событие обязано называть аудиторию само, а не переучивать список.
-    expect(fakes.listActiveStaffUserIds).not.toHaveBeenCalled();
+    await notifyClinicLeadCreated(lead('org-of-this-lead'), deps);
+
+    expect(relayOutbound).toHaveBeenCalledTimes(1);
+    expect(relayOutbound.mock.calls[0]?.[0]).toMatchObject({
+      channel: 'telegram',
+      recipient: '100500',
+      organizationId: 'org-of-this-lead',
+    });
   });
 });
