@@ -50,9 +50,15 @@ import { POST } from './route';
 const ORG_A = '00000000-0000-4000-8000-0000000000aa';
 const ORG_B = '00000000-0000-4000-8000-0000000000bb';
 const USER = '00000000-0000-4000-8000-0000000000c1';
+const PHONE_OWNER = '00000000-0000-4000-8000-0000000000c2';
 const ROOT_SECRET = 'l3-audit-root-secret';
 
-type CreatedLead = { organizationId: string; phoneNormalized: string | null; messageText: string };
+type CreatedLead = {
+  organizationId: string;
+  platformUserId: string;
+  phoneNormalized: string | null;
+  messageText: string;
+};
 let created: CreatedLead[] = [];
 /** Конфигурация полей клиники: что арендатор включил и что сделал обязательным. */
 let configuredFields: BookingFormFieldRecord[] = [];
@@ -204,8 +210,11 @@ beforeEach(() => {
       contacts: [{ kind: 'email', value: EMAIL, confirmedAt: '2026-09-15T00:00:00.000Z' }],
     },
   });
-  fakes.resolveApplicant.mockImplementation(async (input: { organizationId: string }) => ({
-    platformUserId: USER,
+  fakes.resolveApplicant.mockImplementation(async (input: {
+    organizationId: string;
+    submittedPhone?: string | null;
+  }) => ({
+    platformUserId: input.submittedPhone ? PHONE_OWNER : USER,
     emailNormalized: EMAIL,
     proof: 'authenticated_session',
     organizationId: input.organizationId,
@@ -307,5 +316,6 @@ describe('Л3 публичный приём заявки — чужая клин
     configuredFields = [...configuredFields, field('phone', { isActive: false })];
     await post(baseBody({ phone: '+79990000000', captcha: await solvedCaptchaFor(EMAIL) }));
     expect(created.map((lead) => lead.phoneNormalized)).toEqual([null]);
+    expect(created.map((lead) => lead.platformUserId)).toEqual([USER]);
   });
 });
