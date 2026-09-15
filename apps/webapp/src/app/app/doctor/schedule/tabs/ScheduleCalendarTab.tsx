@@ -1705,7 +1705,16 @@ export function ScheduleCalendarTab({
     if (renderMode === 'calendar') {
       loadFeed(undefined, undefined, generation);
     }
-    loadKpis(view, anchorDate, generation);
+    // Владелец 15.09: «я поэтому и сказал убрать цифры и НЕ СЧИТАТЬ — просто фильтровать». В ленте
+    // числа не показываются (`valuesHidden`), а отбор по плиткам решает по полям самой записи, и
+    // `kpis` для него не нужны — единственный предикат, который их читал (`firstVisitInPeriod` по
+    // `firstVisitIds`), в ленте не показывается и не применяется. Поэтому запрос КПИ в режиме
+    // списка не уходит вовсе — включая тридцатисекундный опрос ниже, который до этой правки гонял
+    // счёт по якорному периоду ради чисел, которых на экране нет. Возврат в календарь перезапускает
+    // `load` (в зависимостях есть `renderMode`) и числа считаются снова.
+    if (renderMode !== 'list') {
+      loadKpis(view, anchorDate, generation);
+    }
   }, [
     anchorDate,
     branchId,
