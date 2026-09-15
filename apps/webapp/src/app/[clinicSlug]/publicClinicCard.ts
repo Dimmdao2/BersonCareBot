@@ -1,3 +1,4 @@
+import { cache } from 'react';
 import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipal';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import type { ClinicPublicCard, ClinicPublicCardMedia } from '@/modules/clinic-public-card/ports';
@@ -43,8 +44,16 @@ function reportCardFailure(source: string, slug: string, error: unknown): void {
   });
 }
 
-/** RSC: the whole anonymous surface of `/{clinic}`, resolved through the declared root. */
-export async function loadClinicPublicCardRsc(slug: string): Promise<LoadClinicPublicCardResult> {
+/**
+ * RSC: the whole anonymous surface of `/{clinic}`, resolved through the declared root.
+ *
+ * Обёрнуто в `cache`, потому что теперь читателей на один запрос два: сама страница и
+ * `generateMetadata`, которой нужен знак клиники для превью ссылки. Два одинаковых чтения на один
+ * показ страницы — лишняя работа базы, а не «на всякий случай».
+ */
+export const loadClinicPublicCardRsc = cache(async function loadClinicPublicCardRsc(
+  slug: string,
+): Promise<LoadClinicPublicCardResult> {
   stampBootstrapPrincipal('app/[clinicSlug]:read-public-card');
   const deps = buildAppDeps();
   if (!deps.clinicPublicCard) return { status: 'unavailable' };
@@ -55,7 +64,7 @@ export async function loadClinicPublicCardRsc(slug: string): Promise<LoadClinicP
     reportCardFailure('app/[clinicSlug]:read-public-card', slug, error);
     return { status: 'unavailable' };
   }
-}
+});
 
 /**
  * RSC: страница ОДНОГО опубликованного специалиста.
@@ -67,7 +76,7 @@ export async function loadClinicPublicCardRsc(slug: string): Promise<LoadClinicP
  * Галка «показывать страницу организации» страницу специалиста не закрывает (уточнение владельца
  * 11.09, §17.F): она решает только вид корневого экрана клиники.
  */
-export async function loadPublicSpecialistRsc(
+export const loadPublicSpecialistRsc = cache(async function loadPublicSpecialistRsc(
   slug: string,
   specialistId: string,
 ): Promise<
@@ -83,7 +92,7 @@ export async function loadPublicSpecialistRsc(
     reportCardFailure('app/[clinicSlug]/specialist:read-public-specialist', slug, error);
     return { status: 'unavailable' };
   }
-}
+});
 
 /**
  * RSC/route: one media asset of one published card.

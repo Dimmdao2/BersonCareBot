@@ -1,6 +1,7 @@
+import type { Metadata } from 'next';
 import { notFound, permanentRedirect } from 'next/navigation';
 import { routePaths } from '@/app-layer/routes/paths';
-import { PLATFORM_NAME } from '@/config/productSurfaces';
+import { PATIENT_DEFAULT_SURFACE, PLATFORM_NAME } from '@/config/productSurfaces';
 import {
   publicBookPaths,
   publicClinicCardPath,
@@ -22,6 +23,50 @@ import { withPublicLeadsAccess } from '@/app-layer/leads/withPublicLeadsAccess';
 export const dynamic = 'force-dynamic';
 
 type Props = { params: Promise<{ clinicSlug: string }> };
+
+/**
+ * Превью ссылки на визитку в мессенджере: имя клиники, её описание и её знак.
+ *
+ * До 15.09 у этой страницы не было ни `og:*`, ни своего заголовка: ссылка на клинику приходила в
+ * Telegram безымянной и без картинки. Картинка берётся из ТОГО ЖЕ набора карточки, что и логотип на
+ * самой странице, — набор и есть право на анонимную отдачу. Робот превью приходит без сессии, и
+ * иначе быть не может, поэтому подписанный `/api/media/{uuid}` сюда не годится в принципе.
+ *
+ * Карточка нечитаема или её нет — метаданных не выдумываем: пусть работает то, что задано корневым
+ * layout, а страница сама решит, 404 это или 500.
+ */
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { clinicSlug } = await params;
+  const result = await loadClinicPublicCardRsc(clinicSlug);
+  if (result.status !== 'ok') return {};
+  const { card } = result;
+  const description = card.description?.trim() || undefined;
+  const logo = card.media.find((item) => item.role === 'logo');
+  const image = logo
+    ? absolutePublicUrl(clinicCardMediaPath(card.canonicalSlug, logo.id))
+    : null;
+  return {
+    title: card.displayName,
+    ...(description ? { description } : {}),
+    openGraph: {
+      title: card.displayName,
+      ...(description ? { description } : {}),
+      type: 'website',
+      siteName: PLATFORM_NAME,
+      ...(image ? { images: [{ url: image, alt: card.displayName }] } : {}),
+    },
+    ...(image ? { twitter: { card: 'summary', title: card.displayName, images: [image] } } : {}),
+  };
+}
+
+/** Абсолютный адрес на пациентском origin: относительный робот превью не разрешит. */
+function absolutePublicUrl(path: string): string | null {
+  try {
+    return new URL(path, PATIENT_DEFAULT_SURFACE.origin).toString();
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Public clinic card `/{clinic}` — owner ruling 19.08 («просто их визитку с описанием»).
