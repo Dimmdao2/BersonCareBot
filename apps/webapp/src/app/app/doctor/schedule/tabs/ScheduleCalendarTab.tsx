@@ -3225,7 +3225,13 @@ export function ScheduleCalendarTab({
       onClose={clearDraftAndPanel}
       onChanged={() => {
         clearDraftAndPanel();
+        recentLoadRef.current = null;
         load();
+        // `load()` обновляет только календарную сетку: запрос ленты стоит под
+        // `renderMode === 'calendar'`, а с 15.09 под тем же условием и счёт КПИ. Поэтому создание,
+        // отмена и перенос записи из режима списка не меняли на экране ничего, пока человек не
+        // перезагружал страницу. `onUpdated` рядом это уже делал — здесь была дыра, а не решение.
+        if (renderMode === 'list') void loadInitialAppointmentFeed();
       }}
       onUpdated={(updated) => {
         if (updated) setSelected(updated);
