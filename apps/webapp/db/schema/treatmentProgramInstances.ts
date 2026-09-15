@@ -59,7 +59,7 @@ export const treatmentProgramInstances = pgTable(
       table.templateId.asc().nullsLast().op('uuid_ops'),
     ),
     uniqueIndex('uq_treatment_program_instances_one_active_per_patient')
-      .on(table.patientUserId)
+      .on(table.organizationId, table.patientUserId)
       .where(sql`status = 'active'::text`),
     foreignKey({
       columns: [table.organizationId],

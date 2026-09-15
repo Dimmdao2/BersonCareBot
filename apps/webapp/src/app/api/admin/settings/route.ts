@@ -253,7 +253,6 @@ const DOCTOR_SCOPE_KEYS = [
   'doctor_patient_support_media_without_support_default_enabled',
   'doctor_specialist_task_reminder_channels',
   'doctor_today_preferences',
-  'doctor_appointment_reminder_enabled',
   'doctor_appointment_reminder_offsets_minutes',
   'booking_calendar_default_branch_id',
   'booking_calendar_default_service_id',
@@ -1076,8 +1075,7 @@ export async function PATCH(request: Request) {
 
   if (
     parsed.data.key === 'doctor_patient_support_comments_without_support_default_enabled' ||
-    parsed.data.key === 'doctor_patient_support_media_without_support_default_enabled' ||
-    parsed.data.key === 'doctor_appointment_reminder_enabled'
+    parsed.data.key === 'doctor_patient_support_media_without_support_default_enabled'
   ) {
     const b = coerceAdminBooleanSetting(normalizedValue.value);
     if (b === null) {
@@ -1087,11 +1085,10 @@ export async function PATCH(request: Request) {
   }
 
   if (parsed.data.key === 'doctor_appointment_reminder_offsets_minutes') {
-    const inner = normalizedValue.value;
-    if (
-      !Array.isArray(inner) ||
-      inner.some((value) => typeof value !== 'number' || !Number.isInteger(value) || value <= 0)
-    ) {
+    const { parseAppointmentReminderOffsets } =
+      await import('@/modules/booking-notifications/appointmentReminderSchedule');
+    const inner = parseAppointmentReminderOffsets(normalizedValue.value);
+    if (inner === null) {
       return NextResponse.json({ ok: false, error: 'invalid_value' }, { status: 400 });
     }
     normalizedValue = { value: inner };

@@ -72,7 +72,13 @@ function loadKnownInvisible() {
   const frozenBaseline = {};
   for (const [app, files] of Object.entries(raw.frozenBaseline ?? {}))
     frozenBaseline[app] = new Set(files);
-  return { asOf: raw.asOf, apps, frozenBaseline };
+  return {
+    asOf: raw.asOf,
+    apps,
+    frozenBaseline,
+    nodeTestRequired: new Set(raw.nodeTestRequired ?? []),
+    nodeTestKnownUncovered: new Set(raw.nodeTestKnownUncovered ?? []),
+  };
 }
 
 function listDiskTestFiles(appDirAbs, testRoots) {
@@ -124,6 +130,137 @@ function listRunnerFilesDetailed(appDirAbs, invocation = { args: [], env: {} }) 
     if (project) filesToProjects.get(file).add(project);
   }
   return filesToProjects;
+}
+
+// Э1 круг 6 (пятый аудит, точка 2): гейт знал только про vitest-приложения, а `node --test` —
+// второй раннер репозитория (`test:db-privileges`, `test:scripts`, `test:db-principal`) — не был
+// известен ему вовсе. Названный дорогой и молчаливый отказ: живая проба поведения (например
+// `deploy/postgres/privileges/platform-user-merge.devDbProof.test.mjs`, доказательство гейта
+// слияния учёток) переименована, перенесена или удалена — glob перестал её выбирать, прогон
+// остался зелёным, защиты больше нет и об этом никто не узнал.
+//
+// Две проверки:
+//   1) КАЖДЫЙ `*.test.mjs` на диске обязан выбираться хоть одним `node --test`-скриптом; новый
+//      файл в каталоге, который никто не гоняет, — FAIL (список известных исключений сокращаемый);
+//   2) файлы из реестра `nodeTestRequired` обязаны выбираться и сегодня — пропажа, переименование
+//      или переезд в невыбираемый каталог красит гейт.
+// Реестр — ступень 3 §10a («защита от отката»): условие снятия — раннер, который сам печатает
+// список исполненных файлов и умеет сверять его с ожидаемым, как это делает `vitest list` выше.
+const NODE_TEST_IGNORED_DIRS = new Set(['node_modules', '.next', '.git', 'dist', 'coverage']);
+const NODE_TEST_MANIFEST_ROOTS = ['packages', 'apps'];
+
+function collectNodeTestPatterns() {
+  const manifestDirs = [''];
+  for (const root of NODE_TEST_MANIFEST_ROOTS) {
+    let entries;
+    try {
+      entries = readdirSync(join(repoRoot, root), { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const entry of entries) if (entry.isDirectory()) manifestDirs.push(`${root}/${entry.name}`);
+  }
+  const patterns = [];
+  for (const dir of manifestDirs) {
+    let scripts;
+    try {
+      scripts = JSON.parse(readFileSync(join(repoRoot, dir, 'package.json'), 'utf8')).scripts ?? {};
+    } catch {
+      continue;
+    }
+    for (const [name, command] of Object.entries(scripts)) {
+      for (const match of String(command).matchAll(/node --test ([^&|;]+)/g)) {
+        for (const token of match[1].trim().split(/\s+/)) {
+          if (token.startsWith('-')) continue;
+          patterns.push({
+            script: `${dir || '.'}:${name}`,
+            pattern: dir ? `${dir}/${token}` : token,
+          });
+        }
+      }
+    }
+  }
+  return patterns;
+}
+
+function patternToRegExp(pattern) {
+  const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '[^/]*');
+  return new RegExp(`^${escaped}$`);
+}
+
+function listNodeTestFilesOnDisk() {
+  const files = [];
+  const walk = (dir) => {
+    let entries;
+    try {
+      entries = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      if (NODE_TEST_IGNORED_DIRS.has(entry.name)) continue;
+      const abs = join(dir, entry.name);
+      if (entry.isDirectory()) walk(abs);
+      else if (entry.name.endsWith('.test.mjs')) {
+        files.push(relative(repoRoot, abs).replaceAll('\\', '/'));
+      }
+    }
+  };
+  walk(repoRoot);
+  return files.sort();
+}
+
+function checkNodeTestSuites(known) {
+  const matchers = collectNodeTestPatterns().map((entry) => ({
+    ...entry,
+    regexp: patternToRegExp(entry.pattern),
+  }));
+  const disk = listNodeTestFilesOnDisk();
+  const selected = new Set(disk.filter((file) => matchers.some((m) => m.regexp.test(file))));
+  const uncovered = disk.filter((file) => !selected.has(file));
+  const newUncovered = uncovered.filter((file) => !known.nodeTestKnownUncovered.has(file));
+  const staleUncovered = [...known.nodeTestKnownUncovered].filter((file) => selected.has(file));
+  const missingRequired = [...known.nodeTestRequired].filter((file) => !selected.has(file));
+  return {
+    patterns: matchers.length,
+    disk: disk.length,
+    selected: selected.size,
+    newUncovered,
+    staleUncovered,
+    missingRequired,
+  };
+}
+
+function printNodeTestReport(result) {
+  let failed = false;
+  console.log(
+    `check-test-runner-visibility: node --test: диск=${result.disk} выбирается=${result.selected} ` +
+      `шаблонов=${result.patterns}`,
+  );
+  if (result.missingRequired.length > 0) {
+    failed = true;
+    console.error('  ПРОПАЛ ОБЯЗАТЕЛЬНЫЙ ФАЙЛ (реестр nodeTestRequired): ни один `node --test`-скрипт');
+    console.error('  его больше не выбирает — удалён, переименован или перенесён:');
+    for (const f of result.missingRequired) console.error(`    - ${f}`);
+    console.error(
+      `  Почини путь/имя или, если файл удалён осознанно, убери строку из ${knownInvisiblePath}`,
+    );
+    console.error('  ТЕМ ЖЕ коммитом — снятие защиты обязано быть видно в диффе отдельной строкой.');
+  }
+  if (result.newUncovered.length > 0) {
+    failed = true;
+    console.error('  НОВЫЙ файл `*.test.mjs`, который не гоняет ни один скрипт `node --test`:');
+    for (const f of result.newUncovered) console.error(`    - ${f}`);
+    console.error('  Добавь его каталог в подходящий скрипт package.json — иначе тест не исполняется,');
+    console.error('  а прогон зелёный именно поэтому.');
+  }
+  if (result.staleUncovered.length > 0) {
+    failed = true;
+    console.error('  ПРОТУХШАЯ запись nodeTestKnownUncovered (файл уже выбирается раннером):');
+    for (const f of result.staleUncovered) console.error(`    - ${f}`);
+    console.error(`  Удали запись из ${knownInvisiblePath} — список имеет право только сокращаться.`);
+  }
+  return failed;
 }
 
 function checkApp(app, known) {
@@ -236,7 +373,9 @@ function printReport(results, known) {
 
 const known = loadKnownInvisible();
 const results = APPS.map((app) => checkApp(app, known));
-const failed = printReport(results, known);
+const vitestFailed = printReport(results, known);
+const nodeTestFailed = printNodeTestReport(checkNodeTestSuites(known));
+const failed = vitestFailed || nodeTestFailed;
 
 if (failed) {
   console.error('check-test-runner-visibility: FAIL');

@@ -15,6 +15,7 @@ import {
   buildMessengerBindBlockedRelayLines,
   enrichMessengerBindAuditDetailsFields,
   messengerPhoneBindReasonHumanRu,
+  MergeDependentConflictError,
   MessengerPhoneLinkError,
   type MessengerBindAuditCandidateSummary,
   type MessengerBindAuditInitiatorSummary,
@@ -29,6 +30,7 @@ import { notifyMessengerPhoneBindBlockedFromWebapp } from '@/modules/admin-incid
 import { logger } from '@/infra/logging/logger';
 import { env } from '@/config/env';
 import { getPool } from '@/app-layer/db/client';
+import { recordPatientMedicalMergeConflict } from '@/infra/repos/pgPatientMergeCandidate';
 
 const bindInputSchema = z.object({
   channelCode: z.enum(['telegram', 'max']),
@@ -114,6 +116,9 @@ export async function executeMessengerPhoneHttpBind(
       await tx.rollback();
       if (err instanceof MessengerPhoneLinkError) {
         const cause = (err as Error & { cause?: unknown }).cause;
+        if (cause instanceof MergeDependentConflictError) {
+          await recordPatientMedicalMergeConflict(cause, 'phone_bind');
+        }
         const sqlState = pgSqlStateFromUnknown(cause) ?? pgSqlStateFromUnknown(err);
         logger.warn(
           {

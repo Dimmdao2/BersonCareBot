@@ -6,7 +6,6 @@ const fakes = vi.hoisted(() => ({
   buildAppDeps: vi.fn(),
   createBookingSyncPort: vi.fn(),
   createScheduledManualPatientVisit: vi.fn(),
-  getSpecialistAppointmentReminderSettings: vi.fn(),
   ensureStaffBookingProjection: vi.fn(),
 }));
 
@@ -50,10 +49,6 @@ describe('doctor booking-engine manual-patient-visit (scheduled): reminderPlan �
   beforeEach(() => {
     vi.clearAllMocks();
     captured = [];
-    fakes.getSpecialistAppointmentReminderSettings.mockResolvedValue({
-      allowedPresetIds: ['day_before'],
-      defaultPresetId: 'day_before',
-    });
     fakes.ensureStaffBookingProjection.mockResolvedValue(null);
 
     fakes.requireDoctorBookingEngine.mockResolvedValue({
@@ -61,9 +56,7 @@ describe('doctor booking-engine manual-patient-visit (scheduled): reminderPlan �
       ctx: {
         organizationId: 'org-1',
         session: { user: { userId: 'user-doc-1' } },
-        service: {
-          getSpecialistAppointmentReminderSettings: fakes.getSpecialistAppointmentReminderSettings,
-        },
+        service: {},
       },
     });
 
@@ -78,6 +71,9 @@ describe('doctor booking-engine manual-patient-visit (scheduled): reminderPlan �
         ensureStaffBookingProjection: fakes.ensureStaffBookingProjection,
       },
       emailSetupAccess: {},
+      systemSettings: {
+        getSetting: vi.fn(async () => ({ valueJson: { value: [1440] } })),
+      },
     });
 
     fakes.createScheduledManualPatientVisit.mockImplementation(
@@ -93,9 +89,10 @@ describe('doctor booking-engine manual-patient-visit (scheduled): reminderPlan �
           serviceId: input.appointment.serviceId,
           startAt: '2027-03-10T09:00:00.000Z',
           endAt: '2027-03-10T09:30:00.000Z',
-          appointmentReminderAllowedPresetIds:
-            input.appointment.appointmentReminderAllowedPresetIds ?? [],
-          appointmentReminderPresetId: input.appointment.appointmentReminderPresetId ?? null,
+          appointmentReminderAvailableOffsetsMinutes:
+            input.appointment.appointmentReminderAvailableOffsetsMinutes ?? [],
+          appointmentReminderOffsetsMinutes:
+            input.appointment.appointmentReminderOffsetsMinutes ?? [],
           attributionJson: {},
         },
         patient: {
@@ -118,7 +115,7 @@ describe('doctor booking-engine manual-patient-visit (scheduled): reminderPlan �
     });
   });
 
-  it('несёт план напоминаний из snapshot выбранного специалиста', async () => {
+  it('несёт план напоминаний из настройки организации', async () => {
     const response = await POST(
       new Request('http://127.0.0.1/api/doctor/booking-engine/appointments/manual-patient-visit', {
         method: 'POST',

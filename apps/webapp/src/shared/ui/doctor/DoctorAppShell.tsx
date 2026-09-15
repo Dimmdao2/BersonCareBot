@@ -7,6 +7,7 @@ import type { ReactNode } from 'react';
 import {
   DOCTOR_PAGE_CONTAINER_CLASS,
   DOCTOR_FULL_HEIGHT_PAGE_CLASS,
+  DOCTOR_SURFACE_PAGE_CLASS,
   DOCTOR_FULL_HEIGHT_CONTENT_CLASS,
   DOCTOR_MOBILE_PAGE_BOTTOM_GUTTER_CLASS,
 } from '@/shared/ui/doctor/doctorWorkspaceLayout';
@@ -24,8 +25,10 @@ export type DoctorAppShellProps = {
    *   scroll internally (Пациенты, Коммуникации, Заявки, Расписание-список).
    *   На всех ширинах shell занимает остаток viewport и делегирует прокрутку
    *   внутренним панелям. Обычные страницы должны использовать `"default"`.
+   * - `"surface"`: то же, что `"full-height"`, но без потолка ширины — для страниц, которые сами
+   *   и есть рабочая поверхность во весь экран (видеовстреча).
    */
-  layout?: 'default' | 'full-height';
+  layout?: 'default' | 'full-height' | 'surface';
   /** Keep the shared dashboard gutter above mobile bottom navigation. */
   mobileBottomGutter?: boolean;
   /** Legacy AppShell props — ignored; doctor chrome is in DoctorWorkspaceShell layout. */
@@ -50,14 +53,19 @@ export function DoctorAppShell({
 }: DoctorAppShellProps) {
   // `--doctor-sticky-offset` определяется зонально для `#app-shell-doctor` в `doctor.css`
   // (см. doctorWorkspaceLayout.ts): <md → 0, md+ → высота per-page DoctorPageHeader.
-  const fullHeight = layout === 'full-height';
+  const surface = layout === 'surface';
+  const fullHeight = surface || layout === 'full-height';
 
   return (
     <div
       id="app-shell-doctor"
       data-doctor-page-layout={layout}
       className={cn(
-        fullHeight ? DOCTOR_FULL_HEIGHT_PAGE_CLASS : DOCTOR_PAGE_CONTAINER_CLASS,
+        surface
+          ? DOCTOR_SURFACE_PAGE_CLASS
+          : fullHeight
+            ? DOCTOR_FULL_HEIGHT_PAGE_CLASS
+            : DOCTOR_PAGE_CONTAINER_CLASS,
         mobileBottomGutter && DOCTOR_MOBILE_PAGE_BOTTOM_GUTTER_CLASS,
         'theme-bersoncare-doctor-dna',
       )}

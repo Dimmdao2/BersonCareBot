@@ -111,6 +111,7 @@ const CURRENT_PATIENT_UI_SETTING_KEYS: ReadonlySet<SystemSettingKey> = new Set([
   'notifications_topics',
   'patient_default_promo_treatment_program_template_id',
   'booking_lifecycle_notifications',
+  'doctor_appointment_reminder_offsets_minutes',
   'patient_label',
 ]);
 

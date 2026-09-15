@@ -24,7 +24,7 @@ import {
 } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowDown, ArrowUp, Bell, CalendarDays, Filter } from 'lucide-react';
+import { AlertTriangle, ArrowDown, ArrowUp, Bell, CalendarDays, Filter } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { ClientListItem, DoctorDashboardPatientMetrics } from '@/modules/doctor-clients/ports';
 import { DoctorMetricList } from '@/shared/ui/doctor/DoctorMetricList';
@@ -51,6 +51,7 @@ import { CatalogSplitLayout } from '@/shared/ui/doctor/catalog/CatalogSplitLayou
 import { CatalogRightPane } from '@/shared/ui/doctor/catalog/CatalogRightPane';
 import { formatDoctorFio } from '@/shared/lib/fio';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
+import { useDoctorMedicalMergeConflicts } from '@/shared/ui/doctor/DoctorMedicalMergeConflictProvider';
 import {
   buildPatientListWorkspaceHref,
   patientCardHrefWithReturnTo,
@@ -460,6 +461,8 @@ function PatientsContent({
   onMobileFiltersOpenChange,
 }: PatientsContentProps) {
   const { patientGenPlural, appointmentPrepositional } = useDoctorPatientTerms();
+  const { conflictIdForClient, hasConflictForClient, openConflict } =
+    useDoctorMedicalMergeConflicts();
   const router = useRouter();
   const allClients = use(listPromise);
   const metrics = use(metricsPromise);
@@ -746,8 +749,10 @@ function PatientsContent({
                 {filtered.map((c, index) => {
                   const futureAppointmentCount = c.activeAppointmentsCount ?? 0;
                   const cardHref = patientCardHrefWithReturnTo(c.userId, workspaceState);
+                  const conflictId = conflictIdForClient(c.userId);
+                  const hasMedicalConflict = hasConflictForClient(c.userId);
                   return (
-                    <li key={c.userId} id={`doctor-patients-item-${c.userId}`}>
+                    <li key={c.userId} id={`doctor-patients-item-${c.userId}`} className="relative">
                       <Link
                         id={`doctor-patients-card-${c.userId}`}
                         href={cardHref}
@@ -760,6 +765,7 @@ function PatientsContent({
                           doctorDnaFlatListClickableClass,
                           'h-auto w-full rounded-none bg-transparent text-left shadow-none active:bg-muted/80 md:gap-3',
                           index === 0 && 'border-t-0',
+                          hasMedicalConflict && 'border-l-[3px] border-l-destructive font-medium',
                         )}
                       >
                         <div className="flex min-w-0 flex-1 items-center">
@@ -777,7 +783,28 @@ function PatientsContent({
                         >
                           <CalendarDays className="size-3.5 text-muted-foreground/60" aria-hidden />
                         </IconSlot>
+                        {/*
+                          Keeps the trailing icon column free for the conflict mark below. The mark
+                          cannot live inside this link: an <a> must not host a <button>, and the row
+                          click has to keep opening the client card — §18б counts that card as the
+                          fourth entry point into the same modal, so swallowing the row click would
+                          strip the doctor of their own client while the conflict is open.
+                        */}
+                        {conflictId ? <span className="size-7 shrink-0" aria-hidden /> : null}
                       </Link>
+                      {conflictId ? (
+                        <Button
+                          type="button"
+                          id={`doctor-patients-conflict-${c.userId}`}
+                          variant="destructive"
+                          size="icon-xs"
+                          onClick={() => openConflict(conflictId)}
+                          aria-label={`Конфликт учётных записей: ${clientPrimaryName(c)}`}
+                          className="absolute top-1/2 right-[var(--doctor-list-inline-padding,18px)] -translate-y-1/2"
+                        >
+                          <AlertTriangle className="size-4" aria-hidden />
+                        </Button>
+                      ) : null}
                     </li>
                   );
                 })}

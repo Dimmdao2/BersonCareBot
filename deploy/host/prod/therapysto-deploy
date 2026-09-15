@@ -116,6 +116,16 @@ else
     /opt/backups/scripts/caddy-store-backup.sh ||
     die "не удалось установить caddy-store-backup.sh — $ACTIVE is still live and untouched"
 
+  # Третий — отправка готовых артефактов на отдельный сервер. Бэкап на том же диске, что и база, не
+  # спасает от потери машины; копия вне её — единственное, что это закрывает. Только root: отправлять
+  # надо и дампы (0700 postgres), и копию хранилища края (0700 root). Каталог ключей — тоже 0700
+  # root: приватная половина ключа отправки рождается на этой машине и отсюда не уходит.
+  install -d -m 0700 -o root -g root /opt/backups/keys ||
+    die "не удалось создать /opt/backups/keys — $ACTIVE is still live and untouched"
+  install -m 0700 -o root -g root "$THERAPYSTO_SRC/deploy/backups/offsite-push.sh" \
+    /opt/backups/scripts/offsite-push.sh ||
+    die "не удалось установить offsite-push.sh — $ACTIVE is still live and untouched"
+
   # Срез ПЕРЕД миграциями — единственная точка возврата, если миграция окажется неверной. У старого
   # прода этот шаг в деплое был (`deploy/host/deploy-prod.sh`), у нового его не было вовсе: схема
   # боевой базы менялась без точки возврата. Найдено 14.09.2026 вместе с тем, что бэкапов нет совсем.

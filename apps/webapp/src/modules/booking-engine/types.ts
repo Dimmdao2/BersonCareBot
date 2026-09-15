@@ -1,4 +1,3 @@
-import type { AppointmentReminderPresetId } from '@/modules/booking-notifications/appointmentReminderPresets';
 import type { PrepaymentMode } from '@/modules/payments/types';
 
 export const APPOINTMENT_STATUSES = [
@@ -65,8 +64,6 @@ export type BeSpecialist = {
   fullDescriptionMarkdown: string | null;
   /** Клиника решает, показывать ли человека снаружи. Выключено — снаружи его нет вовсе. */
   cardIsPublished: boolean;
-  appointmentReminderAllowedPresetIds: AppointmentReminderPresetId[];
-  appointmentReminderDefaultPresetId: AppointmentReminderPresetId | null;
   isActive: boolean;
   sortOrder: number;
 };
@@ -154,8 +151,8 @@ export type BeAppointment = {
   packageUsageRef: string | null;
   phoneNormalized: string | null;
   attributionJson: Record<string, unknown>;
-  appointmentReminderAllowedPresetIds: AppointmentReminderPresetId[];
-  appointmentReminderPresetId: AppointmentReminderPresetId | null;
+  appointmentReminderAvailableOffsetsMinutes: number[];
+  appointmentReminderOffsetsMinutes: number[];
   appointmentReminderSelectionSource: 'specialist_default' | 'patient';
 };
 
@@ -196,8 +193,8 @@ export type CreateAppointmentInput = {
   phoneNormalized?: string | null;
   actorId?: string | null;
   attributionJson?: Record<string, unknown>;
-  appointmentReminderAllowedPresetIds?: AppointmentReminderPresetId[];
-  appointmentReminderPresetId?: AppointmentReminderPresetId | null;
+  appointmentReminderAvailableOffsetsMinutes?: number[];
+  appointmentReminderOffsetsMinutes?: number[];
   appointmentReminderSelectionSource?: 'specialist_default' | 'patient';
   /**
    * ENCOUNTER-APPOINTMENT-05: слот, наложение на который специалист подтвердил ЯВНО. Пара

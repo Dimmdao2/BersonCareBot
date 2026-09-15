@@ -7,7 +7,9 @@ import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Button, buttonVariants } from '@/shared/ui/doctor/primitives/button';
 import { cn } from '@/lib/utils';
+import { useDoctorShellDesktopRail } from '@/shared/ui/doctor/shell/DoctorShellChromeContext';
 import { useDoctorShellBadgeCounts } from '@/shared/hooks/useSupportUnreadPolling';
+import { useDoctorMedicalMergeConflicts } from '@/shared/ui/doctor/DoctorMedicalMergeConflictProvider';
 import {
   getDoctorMenuItems,
   isDoctorNavItemActive,
@@ -42,6 +44,7 @@ function badgeSpanAriaLabel(badgeKey: DoctorMenuBadgeKey, formatted: string): st
   if (badgeKey === 'pendingProgramTests') return `К проверке: ${formatted}`;
   if (badgeKey === 'todayAttention') return `Требует внимания: ${formatted}`;
   if (badgeKey === 'communicationsTotal') return `Непрочитанных: ${formatted}`;
+  if (badgeKey === 'medicalMergeConflicts') return `Конфликтов учётных записей: ${formatted}`;
   if (badgeKey === 'overdueTasks') return 'Есть просроченные задачи';
   return `Непрочитанных сообщений: ${formatted}`;
 }
@@ -59,6 +62,9 @@ function linkAriaLabelWhenBadged(
   if (item.badgeKey === 'pendingProgramTests') return `${item.label}. К проверке: ${formatted}.`;
   if (item.badgeKey === 'todayAttention') return `${item.label}. Требует внимания: ${formatted}.`;
   if (item.badgeKey === 'communicationsTotal') return `${item.label}. Есть непрочитанные.`;
+  if (item.badgeKey === 'medicalMergeConflicts') {
+    return `${item.label}. Есть конфликт учётных записей клиента.`;
+  }
   if (item.badgeKey === 'overdueTasks') {
     return taskAttentionTone === 'danger'
       ? `${item.label}. Есть просроченные задачи.`
@@ -68,7 +74,11 @@ function linkAriaLabelWhenBadged(
 }
 
 function isDotBadge(badgeKey: DoctorMenuBadgeKey): boolean {
-  return badgeKey === 'communicationsTotal' || badgeKey === 'overdueTasks';
+  return (
+    badgeKey === 'communicationsTotal' ||
+    badgeKey === 'overdueTasks' ||
+    badgeKey === 'medicalMergeConflicts'
+  );
 }
 
 function navigationBadge(
@@ -183,6 +193,7 @@ function SidebarGroupFlyout({
   onNavigate?: () => void;
   tabletExpanded: boolean;
 }) {
+  const desktopRail = useDoctorShellDesktopRail();
   const [open, setOpen] = useState(false);
   const [flyoutPos, setFlyoutPos] = useState<{ top: number; left: number } | null>(null);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -244,7 +255,7 @@ function SidebarGroupFlyout({
           }
         }}
         className={doctorSidebarRowClassName(
-          tabletExpanded,
+          { tabletExpanded, desktopRail },
           anySubActive && 'font-medium text-primary hover:bg-muted focus-visible:bg-muted',
         )}
       >
@@ -473,6 +484,7 @@ export function DoctorMenuAccordion({
   tabletExpanded = false,
   showWorkspaceModeSwitch = false,
 }: DoctorMenuAccordionProps) {
+  const desktopRail = useDoctorShellDesktopRail();
   const terms = useDoctorPatientTerms();
   const items = useMemo(() => {
     const menuItems =
@@ -514,6 +526,7 @@ export function DoctorMenuAccordion({
     pendingProgramTests,
     registrationSystemFailures,
   } = useDoctorShellBadgeCounts();
+  const { count: medicalMergeConflicts } = useDoctorMedicalMergeConflicts();
 
   const badgeCounts = useMemo(
     () =>
@@ -524,6 +537,7 @@ export function DoctorMenuAccordion({
         todayAttention: pendingProgramTests,
         communicationsTotal: messagesUnread + unreadExerciseComments,
         overdueTasks: overdueTasks > 0 ? overdueTasks : todayTasks,
+        medicalMergeConflicts,
       }) satisfies Record<DoctorMenuBadgeKey, number>,
     [
       messagesUnread,
@@ -532,6 +546,7 @@ export function DoctorMenuAccordion({
       todayTasks,
       registrationSystemFailures,
       pendingProgramTests,
+      medicalMergeConflicts,
     ],
   );
   const taskAttentionTone =
@@ -571,7 +586,7 @@ export function DoctorMenuAccordion({
               onClick={onNavigate}
               aria-label={aria}
               className={doctorSidebarRowClassName(
-                tabletExpanded,
+                { tabletExpanded, desktopRail },
                 isDoctorNavItemActive(item.href, pathname) &&
                   'bg-primary/15 font-medium text-primary hover:bg-primary/15 focus-visible:bg-primary/15',
               )}

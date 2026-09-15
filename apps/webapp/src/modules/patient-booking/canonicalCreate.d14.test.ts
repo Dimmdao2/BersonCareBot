@@ -408,8 +408,6 @@ describe('§5a/2.1c: booking prepayment is patient money, not the clinic tariff 
             servicePublicWidgetVisible: true,
             serviceAdminManualOnly: false,
             serviceSortOrder: 0,
-            specialistReminderAllowedPresetIds: [],
-            specialistReminderDefaultPresetId: null,
           },
         })),
         assertSlotAvailable: vi.fn(async () => undefined),

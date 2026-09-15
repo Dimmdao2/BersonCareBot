@@ -11,6 +11,7 @@ import { DoctorWorkspaceViewport } from '@/shared/ui/doctor/shell/DoctorWorkspac
 import { DoctorShellChromeProvider } from '@/shared/ui/doctor/shell/DoctorShellChromeContext';
 import { DoctorPatientTermsProvider } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 import { DoctorSupportUnreadProvider } from '@/shared/ui/doctor/shell/DoctorSupportUnreadProvider';
+import { DoctorMedicalMergeConflictProvider } from '@/shared/ui/doctor/DoctorMedicalMergeConflictProvider';
 import { getDoctorShellHomeHref } from '@/shared/ui/doctor/doctorNavLinks';
 import type { UserRole } from '@/shared/types/session';
 import type { DoctorWorkspaceContext } from '@/modules/doctor-workspace/types';
@@ -147,54 +148,56 @@ export function DoctorWorkspaceShell({
           clinicalRuntimeEnabled && capabilities.includes('platform.operations')
         }
       >
-        <Suspense fallback={null}>
-          <AppAccessDeniedToastEffect />
-        </Suspense>
-        {!isPlatformOperator ? <StaffPwaBootstrap /> : null}
-        {!isPlatformOperator ? <StaffWebPushBootstrap /> : null}
-        <StaffCalendarTimezoneBootstrap />
-        <DoctorShellChromeProvider>
-          <DoctorPatientTermsProvider
-            patientLabel={patientLabel}
-            supportGroupLabel={supportGroupLabel}
-            appointmentLabel={appointmentLabel}
-          >
-            <DoctorWorkspaceViewport
-              header={{
-                userDisplayName,
-                isPlatformOperator,
-                menuAccess,
-                patientLabel,
-                hideMenuOnDesktop: showDoctorDesktopNav,
-                menuKind,
-                showWorkspaceModeSwitch,
-                globalActions: mobileHeaderActions,
-              }}
-              sidebar={
-                showDoctorDesktopNav ? (
-                  <DoctorAdminSidebar
-                    userDisplayName={userDisplayName}
-                    menuAccess={menuAccess}
-                    patientLabel={patientLabel}
-                    homeHref={homeHref}
-                    brand={brand}
-                    menuKind={menuKind}
-                    showWorkspaceModeSwitch={showWorkspaceModeSwitch}
-                  />
-                ) : undefined
-              }
-              bottomNav={
-                // Owner 2026-09-10: the specialist bottom bar belongs to the clinical menu only —
-                // clinic management is not the specialist workspace and must not dock it.
-                menuKind === 'doctor' && showClinicalShortcuts
-                  ? { menuAccess, patientLabel }
-                  : undefined
-              }
+        <DoctorMedicalMergeConflictProvider enabled={clinicalRuntimeEnabled}>
+          <Suspense fallback={null}>
+            <AppAccessDeniedToastEffect />
+          </Suspense>
+          {!isPlatformOperator ? <StaffPwaBootstrap /> : null}
+          {!isPlatformOperator ? <StaffWebPushBootstrap /> : null}
+          <StaffCalendarTimezoneBootstrap />
+          <DoctorShellChromeProvider>
+            <DoctorPatientTermsProvider
+              patientLabel={patientLabel}
+              supportGroupLabel={supportGroupLabel}
+              appointmentLabel={appointmentLabel}
             >
-              {children}
-            </DoctorWorkspaceViewport>
-          </DoctorPatientTermsProvider>
-        </DoctorShellChromeProvider>
+              <DoctorWorkspaceViewport
+                header={{
+                  userDisplayName,
+                  isPlatformOperator,
+                  menuAccess,
+                  patientLabel,
+                  hideMenuOnDesktop: showDoctorDesktopNav,
+                  menuKind,
+                  showWorkspaceModeSwitch,
+                  globalActions: mobileHeaderActions,
+                }}
+                sidebar={
+                  showDoctorDesktopNav ? (
+                    <DoctorAdminSidebar
+                      userDisplayName={userDisplayName}
+                      menuAccess={menuAccess}
+                      patientLabel={patientLabel}
+                      homeHref={homeHref}
+                      brand={brand}
+                      menuKind={menuKind}
+                      showWorkspaceModeSwitch={showWorkspaceModeSwitch}
+                    />
+                  ) : undefined
+                }
+                bottomNav={
+                  // Owner 2026-09-10: the specialist bottom bar belongs to the clinical menu only —
+                  // clinic management is not the specialist workspace and must not dock it.
+                  menuKind === 'doctor' && showClinicalShortcuts
+                    ? { menuAccess, patientLabel }
+                    : undefined
+                }
+              >
+                {children}
+              </DoctorWorkspaceViewport>
+            </DoctorPatientTermsProvider>
+          </DoctorShellChromeProvider>
+        </DoctorMedicalMergeConflictProvider>
       </DoctorSupportUnreadProvider>
     </ActiveCallCoordinator>
   );
