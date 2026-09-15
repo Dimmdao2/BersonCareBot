@@ -28,6 +28,7 @@ const ERROR_CODE_TEXT: Record<string, string> = {
   too_many_attempts: notificationText.authTooManyAttempts,
   entitlement_required: notificationText.bookingFeatureNotInTariff,
   idempotency_conflict: notificationText.bookingAlreadyProcessing,
+  lead_status_transition_invalid: notificationText.leadAlreadyInProgress,
 
   // --- коды входа и подтверждения ---
   expired_code: notificationText.authCodeInvalidOrExpired,

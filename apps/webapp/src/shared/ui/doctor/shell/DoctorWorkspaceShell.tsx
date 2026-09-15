@@ -143,6 +143,7 @@ export function DoctorWorkspaceShell({
         enabled={clinicalRuntimeEnabled}
         directChatEnabled={visibleCommunicationsTabIds.includes('chats')}
         programCommentsEnabled={visibleCommunicationsTabIds.includes('comments')}
+        leadsEnabled={visibleCommunicationsTabIds.includes('leads')}
         rehabilitationEnabled={workspaceModules?.rehabilitation ?? clinicalRuntimeEnabled}
         registrationFailuresEnabled={
           clinicalRuntimeEnabled && capabilities.includes('platform.operations')

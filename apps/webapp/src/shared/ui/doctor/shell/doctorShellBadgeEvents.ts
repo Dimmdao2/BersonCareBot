@@ -3,6 +3,7 @@
 export const DOCTOR_TASKS_CHANGED_EVENT = 'bersoncare:doctor-tasks-changed';
 export const DOCTOR_EXERCISE_COMMENTS_CHANGED_EVENT =
   'bersoncare:doctor-exercise-comments-changed';
+export const DOCTOR_LEADS_CHANGED_EVENT = 'bersoncare:doctor-leads-changed';
 
 export function notifyDoctorTasksChanged() {
   if (typeof window === 'undefined') return;
@@ -12,4 +13,9 @@ export function notifyDoctorTasksChanged() {
 export function notifyDoctorExerciseCommentsChanged() {
   if (typeof window === 'undefined') return;
   window.dispatchEvent(new Event(DOCTOR_EXERCISE_COMMENTS_CHANGED_EVENT));
+}
+
+export function notifyDoctorLeadsChanged() {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new Event(DOCTOR_LEADS_CHANGED_EVENT));
 }
