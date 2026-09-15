@@ -288,6 +288,16 @@ are implemented».
 (`doctorProfileTopicChannelsModel.ts:63`), поэтому отдельный переключатель появится сам и второй список
 заводить не нужно.
 
+**Тема появляется по тем же двум дверям, что и сами заявки (владелец, 15.09).** Дословно: «тема тоже
+подключается только при тарифе и включенной в кабинете механике». То есть в профиле врача строка
+«Заявки» не должна существовать, пока механика `leads` не оплачена тарифом И не включена в составе
+кабинета — ровно то же условие, по которому гаснут вкладка и плитка
+(`workspaceModuleAccess.ts`, `leads: … && mechanicIsVisible(leads)`). Реестр тем статический, и
+`buildDoctorNotificationTopicModels` (`doctorProfileTopicChannelsModel.ts:63`) перебирает его целиком,
+поэтому решение живёт там же, где уже живут решения про каналы: тема отсеивается по признаку
+доступности, как `telegram` отсеивается по `availability.hasTelegram`. Третьего списка тем заводить
+не надо.
+
 Капкан, который видно заранее: `notifyDoctorPatientMessageToStaff` первым делом спрашивает
 `patientStaffNotificationProfiles.listForCurrentPatientOrganization`, а корень
 `app.read_current_patient_staff_notification_profiles(uuid,text)` принимает ровно два кода темы и на
