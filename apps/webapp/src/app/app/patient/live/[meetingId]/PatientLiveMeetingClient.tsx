@@ -43,10 +43,13 @@ export function PatientLiveMeetingClient({
   }
   const hasPatientPanels = diaryPanel != null || programPanel != null;
   return (
-    <main className={hasPatientPanels ? 'grid min-h-screen grid-cols-1 lg:grid-cols-[minmax(0,1fr)_420px]' : 'min-h-screen bg-black'}>
-      <section className="min-w-0 bg-black">
+    <main className={hasPatientPanels ? 'grid min-h-[100dvh] grid-cols-1 lg:h-[100dvh] lg:grid-cols-[minmax(0,1fr)_420px]' : 'h-[100dvh] bg-black'}>
+      {/* Провайдер растягивает свой iframe на всю высоту контейнера, поэтому контейнер обязан нести
+          настоящую высоту: одного min-height хватает только на пустую чёрную полосу сверху. */}
+      <section className={hasPatientPanels ? 'flex min-h-[60dvh] min-w-0 bg-black lg:min-h-0' : 'flex h-full min-w-0 bg-black'}>
         {!activeCall.isMobile ? (
           <VideoMeetingStage
+            className="relative flex min-h-0 flex-1 items-center justify-center bg-black text-sm text-white"
             session={activeCall.activeCall?.session ?? session}
             onHangup={activeCall.completeFromRenderer}
             onDiagnostic={activeCall.reportDiagnostic}

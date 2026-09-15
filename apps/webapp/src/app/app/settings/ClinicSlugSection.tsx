@@ -23,6 +23,7 @@ import {
   DialogTrigger,
 } from '@/shared/ui/doctor/primitives/dialog';
 import { Input } from '@/shared/ui/doctor/primitives/input';
+import { publicBookPaths } from '@/shared/publicBook/paths';
 
 type ClinicSlugSectionProps = {
   initialState: OrganizationSlugManagementState;
@@ -72,10 +73,16 @@ export function ClinicSlugSection({ initialState, patientOrigin }: ClinicSlugSec
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
+  /**
+   * Канонический адрес записи — `<пациентский хост>/<метка>/booking` (владелец 19.08: «должно быть
+   * не domain/booking/clinic, а domain/clinic/booking»). Здесь до 15.09.2026 строился прежний
+   * `/book/{метка}`: он жив, но это вечный 308-редирект, и клиника копировала себе в рекламу
+   * адрес-пересылку вместо настоящего. Форма адреса живёт в одном месте — `publicBookPaths`.
+   */
   const publicUrl = useMemo(
     () =>
       state.currentSlug
-        ? new URL(`/book/${encodeURIComponent(state.currentSlug)}`, patientOrigin).toString()
+        ? new URL(publicBookPaths.forSlug(state.currentSlug), patientOrigin).toString()
         : null,
     [patientOrigin, state.currentSlug],
   );

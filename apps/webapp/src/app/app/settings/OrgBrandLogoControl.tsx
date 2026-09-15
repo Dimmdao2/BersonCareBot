@@ -1,22 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { MediaPickerShell } from '@/shared/ui/doctor/media/MediaPickerShell';
 import { MediaPickerPanel } from '@/shared/ui/doctor/media/MediaPickerPanel';
 import type { MediaListItem } from '@/shared/ui/doctor/media/MediaPickerList';
-import { MediaThumb } from '@/shared/ui/doctor/media/MediaThumb';
-import { libraryMediaRowToPreviewUi } from '@/shared/ui/doctor/media/mediaPreviewUiModel';
-import { fetchAdminMediaListItem } from '@/shared/ui/doctor/media/fetchAdminMediaListItem';
-import type { MediaPreviewStatus } from '@/modules/media/types';
-
-type PickedLogo = {
-  mediaId: string;
-  url: string;
-  previewSmUrl: string | null;
-  previewMdUrl: string | null;
-  previewStatus: MediaPreviewStatus | null;
-};
+import { MediaIdThumb } from '@/shared/ui/doctor/media/MediaIdThumb';
 
 export type OrgBrandLogoChange = { mediaId: string; url: string } | null;
 
@@ -62,78 +51,39 @@ export function OrgBrandLogoControl({
   sourceGate,
 }: Props) {
   const [open, setOpen] = useState(false);
-  const [logo, setLogo] = useState<PickedLogo | null>(
-    initialMediaId && initialUrl
-      ? {
-          mediaId: initialMediaId,
-          url: initialUrl,
-          previewSmUrl: null,
-          previewMdUrl: null,
-          previewStatus: null,
-        }
-      : null,
+  // Состояние превью здесь не хранится вовсе: его знает `MediaIdThumb` по одному идентификатору и
+  // сам доспрашивает дверь, пока файл считается (владелец 15.09.2026 — «по логотипам всё чинить»,
+  // единым механизмом). Форме остаётся только выбранный файл и адрес для `onChange`.
+  const [mediaId, setMediaId] = useState<string | null>(
+    initialMediaId && initialUrl ? initialMediaId : null,
   );
 
-  // Hydrate the server-given initial logo's preview fields once (same idiom as
-  // ContentHeroImage/MediaLibraryPickerDialog): the management-state read only carries the media
-  // id, not preview status, so the thumbnail would otherwise render a permanent pending skeleton.
-  useEffect(() => {
-    if (!initialMediaId || !initialUrl) return;
-    let cancelled = false;
-    void fetchAdminMediaListItem(initialMediaId).then((item) => {
-      if (cancelled || !item) return;
-      setLogo({
-        mediaId: item.id,
-        url: item.url,
-        previewSmUrl: item.previewSmUrl ?? null,
-        previewMdUrl: item.previewMdUrl ?? null,
-        previewStatus: item.previewStatus ?? null,
-      });
-    });
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   const handlePick = (item: MediaListItem) => {
-    setLogo({
-      mediaId: item.id,
-      url: item.url,
-      previewSmUrl: item.previewSmUrl ?? null,
-      previewMdUrl: item.previewMdUrl ?? null,
-      previewStatus: item.previewStatus ?? null,
-    });
+    setMediaId(item.id);
     onChange({ mediaId: item.id, url: item.url });
     setOpen(false);
   };
 
   const handleClear = () => {
-    setLogo(null);
+    setMediaId(null);
     onChange(null);
   };
 
   return (
     <div className="flex items-center gap-3">
       <div className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border/60 bg-muted/30">
-        {logo ? (
-          <MediaThumb
-            media={libraryMediaRowToPreviewUi({
-              id: logo.mediaId,
-              kind: 'image',
-              url: logo.url,
-              previewSmUrl: logo.previewSmUrl,
-              previewMdUrl: logo.previewMdUrl,
-              previewStatus: logo.previewStatus,
-            })}
-            className="h-16 w-16"
-            imgClassName="h-16 w-16 object-contain"
-            sizes="64px"
-            labels={{ skipped: 'Без превью', failed: 'Ошибка превью' }}
-          />
-        ) : (
-          <span className="px-1 text-center text-[10px] text-muted-foreground">{emptyLabel}</span>
-        )}
+        <MediaIdThumb
+          mediaId={mediaId}
+          className="h-16 w-16"
+          imgClassName="h-16 w-16 object-contain"
+          sizes="64px"
+          lazy={false}
+          density="compact"
+          labels={{ skipped: 'Без превью', failed: 'Ошибка превью' }}
+          empty={
+            <span className="px-1 text-center text-[10px] text-muted-foreground">{emptyLabel}</span>
+          }
+        />
       </div>
       <div className="flex flex-wrap gap-2">
         <Button
@@ -149,7 +99,7 @@ export function OrgBrandLogoControl({
           type="button"
           variant="outline"
           size="sm"
-          disabled={disabled || !logo}
+          disabled={disabled || !mediaId}
           onClick={handleClear}
         >
           Очистить

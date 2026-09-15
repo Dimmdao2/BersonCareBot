@@ -23,8 +23,8 @@ const MANAGEMENT_MENU_ITEMS: readonly DoctorMenuLinkItem[] = [
     ],
   },
   { id: 'online-booking', label: 'Онлайн-запись', href: '/app/manage/online-booking' },
-  { id: 'settings', label: 'Настройки организации', href: '/app/settings?tab=organization' },
-  { id: 'billing', label: 'Тариф', href: '/app/settings?tab=billing' },
+  { id: 'settings', label: 'Настройки организации', href: '/app/settings?tab=profile' },
+  { id: 'billing', label: 'Тариф', href: '/app/settings?tab=account' },
 ];
 
 /** Management capability is resolved by the server shell; this registry does not infer roles. */

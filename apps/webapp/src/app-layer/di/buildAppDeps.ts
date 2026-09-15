@@ -149,7 +149,7 @@ import {
   formatBookingDateTimeMediumRu,
 } from '@/shared/lib/formatBusinessDateTime';
 import { SCHEDULE_RECORD_PROVENANCE_PREFIX } from '@/shared/lib/scheduleRecordProvenance';
-import { formatDoctorFio } from '@/shared/lib/fio';
+import { formatDoctorFio, formatDoctorFioShort } from '@/shared/lib/fio';
 import { selectPersonalChatSenderDisplayName } from '@/modules/messaging/notifyPatientDoctorReply';
 import { createMediaService } from '@/modules/media/service';
 import type { PlaybackUserVideoFirstResolvePort } from '@/modules/media/ports';
@@ -1009,6 +1009,27 @@ const videoMeetingsService = !inMemoryRepos
         outboundMessageQueue: createPgOutboundMessageQueue(),
       }),
       resolvePatientPublicOrigin,
+      // Имя участника в звонке выдаёт приложение, а не браузер собеседника. Читается под явным
+      // принципалом организации встречи: гостевой обмен идёт без сессии человека, а отказ чтения
+      // (права, отсутствующая строка) обязан оставить звонок живым и просто без подписи.
+      resolveDisplayName: ({ meeting, role }) =>
+        withExplicitOrganizationPrincipal(
+          { organizationId: meeting.organizationId, source: 'video-meeting.display-name' },
+          async () => {
+            if (role === 'specialist') {
+              const specialist = await bookingEngineService?.catalog.getSpecialist(meeting.specialistId);
+              return specialist?.fullName?.trim() || null;
+            }
+            const identity = await doctorClientsPort.getClientIdentity(meeting.patientUserId);
+            if (!identity) return null;
+            return (
+              formatDoctorFioShort(
+                { lastName: identity.lastName ?? null, firstName: identity.firstName ?? null, patronymic: null },
+                identity.displayName?.trim() ?? '',
+              ) || null
+            );
+          },
+        ).catch(() => null),
       logDiagnostic: (payload) => logger.info(payload, 'video_meeting_diagnostic'),
     })
   : null;

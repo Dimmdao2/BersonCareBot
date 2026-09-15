@@ -52,12 +52,20 @@ export function createJitsiVideoMeetingProvider(settings: SettingsReader): Video
         return { ok: false as const, reason: 'provider_unhealthy' as const };
       }
     },
-    async issueJoinMaterial({ meeting, role, subject }) {
+    async issueJoinMaterial({ meeting, role, subject, displayName }) {
       const configured = await config(settings);
       if (!configured) throw new Error('jitsi_provider_unconfigured');
       const expiresAt = new Date(Math.min(Date.now() + 10 * 60 * 1000, Date.parse(meeting.expiresAt)));
       const accessToken = await new SignJWT({
-        context: { user: { id: subject, moderator: role === 'specialist' } },
+        context: {
+          user: {
+            id: subject,
+            // Имя участника приходит только из подписанного токена: Jitsi показывает собеседнику
+            // его, а не то, что участник ввёл бы у себя. Пустое имя = дефолтная подпись Jitsi.
+            ...(displayName && displayName.trim() !== '' ? { name: displayName.trim() } : {}),
+            moderator: role === 'specialist',
+          },
+        },
         room: meeting.providerRoomRef,
       })
         .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })

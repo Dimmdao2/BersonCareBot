@@ -27,6 +27,8 @@ import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
 import { MediaPickerShell } from '@/shared/ui/doctor/media/MediaPickerShell';
 import { MediaPickerPanel } from '@/shared/ui/doctor/media/MediaPickerPanel';
 import type { MediaListItem } from '@/shared/ui/doctor/media/MediaPickerList';
+import { useMediaPreviewUiMap } from '@/shared/ui/doctor/media/useMediaPreviewUi';
+import type { MediaPreviewUiModel } from '@/shared/ui/doctor/media/mediaPreviewUiModel';
 import { patchAdminSettingWithResult } from './patchAdminSetting';
 import { notificationText } from '@/shared/notifications/notificationText';
 
@@ -68,7 +70,7 @@ type Props = {
  * страницы ещё не работает. Тип файла здесь неизвестен и НЕ угадывается: картинка нарисуется
  * картинкой, всё прочее останется ссылкой, а не превратится в выдуманный плеер.
  */
-function previewMarkdownAssets(markdown: string | null): { id: string; mimeType: string; src: string }[] {
+function previewMarkdownAssetIds(markdown: string | null): string[] {
   if (!markdown) return [];
   const ids = new Set<string>();
   for (const match of markdown.matchAll(
@@ -76,7 +78,21 @@ function previewMarkdownAssets(markdown: string | null): { id: string; mimeType:
   )) {
     ids.add(match[1]!.toLowerCase());
   }
-  return [...ids].map((id) => ({ id, mimeType: '', src: `/api/media/${id}` }));
+  return [...ids];
+}
+
+/**
+ * Адрес файла для предпросмотра — или `null`, пока показывать нечего.
+ *
+ * `/api/media/{uuid}` отдаёт НЕ загруженный файл, а наш стандартный рендишн, и до его появления
+ * дверь честно не отдаёт ничего (SECURITY_CANON §5: сырой исходник наружу не уходит никогда —
+ * HEIC с айфона именно этот случай). Раньше предпросмотр ставил такой адрес в `<img>` сразу и
+ * человек видел битый значок. Теперь несозревший файл просто не попадает в карточку — ровно как у
+ * посетителя, которому публичная дверь его тоже ещё не отдаст, — а о том, что он есть и считается,
+ * говорит строка под предпросмотром.
+ */
+function previewMediaSrc(model: MediaPreviewUiModel | undefined): string | null {
+  return model?.standardRendition === true ? `/api/media/${model.id}` : null;
 }
 
 /**
@@ -200,6 +216,24 @@ export function ClinicPublicCardSection({
 
   const photosFull = settings.photoMediaIds.length >= CLINIC_PUBLIC_CARD_LIMITS.maxPhotos;
 
+  /**
+   * Готовность всех картинок предпросмотра — одной дверью и только пока предпросмотр открыт:
+   * закрытый предпросмотр не должен опрашивать библиотеку на каждой загрузке страницы.
+   */
+  const markdownAssetIds = previewMarkdownAssetIds(settings.fullDescriptionMarkdown);
+  const previewMediaIds = previewOpen
+    ? [
+        settings.logoMediaId,
+        ...settings.photoMediaIds,
+        ...specialists.map((specialist) => specialist.avatarMediaId),
+        ...markdownAssetIds,
+      ]
+    : [];
+  const previewMedia = useMediaPreviewUiMap(previewMediaIds);
+  const previewMediaNotReady = [...new Set(previewMediaIds.filter(Boolean) as string[])].filter(
+    (id) => previewMedia[id] && previewMedia[id].standardRendition !== true,
+  ).length;
+
   return (
     <DoctorSection>
       <DoctorSectionHeader>
@@ -234,18 +268,33 @@ export function ClinicPublicCardSection({
             {previewOpen ? (
               // Ровно тот же компонент, что рисует публичную страницу: клиника правит то, что
               // увидит посетитель, а не похожую копию. Картинки идут через общий `/api/media`,
-              // потому что публичный медиа-адрес у выключенной страницы ещё не работает.
-              <div className="rounded-md border border-border bg-background p-4">
+              // потому что публичный медиа-адрес у выключенной страницы ещё не работает, и только
+              // те, что уже прошли стандартный рендишн (см. `previewMediaSrc`).
+              <div className="flex flex-col gap-2 rounded-md border border-border bg-background p-4">
+                {previewMediaNotReady > 0 ? (
+                  <p className="text-sm text-muted-foreground" role="status">
+                    {previewMediaNotReady === 1
+                      ? 'Одно изображение ещё готовится — посетитель его пока не увидит.'
+                      : `${previewMediaNotReady} изображения ещё готовятся — посетитель их пока не увидит.`}
+                  </p>
+                ) : null}
                 <ClinicPublicCardView
                   card={{
                     displayName: identity.displayName,
                     description: settings.description,
-                    logoSrc: settings.logoMediaId ? `/api/media/${settings.logoMediaId}` : null,
-                    photoSrcs: settings.photoMediaIds.map((id) => `/api/media/${id}`),
+                    logoSrc: previewMediaSrc(
+                      settings.logoMediaId ? previewMedia[settings.logoMediaId] : undefined,
+                    ),
+                    photoSrcs: settings.photoMediaIds
+                      .map((id) => previewMediaSrc(previewMedia[id]))
+                      .filter((src): src is string => Boolean(src)),
                     locations,
                     services,
                     fullDescriptionMarkdown: settings.fullDescriptionMarkdown,
-                    fullDescriptionMedia: previewMarkdownAssets(settings.fullDescriptionMarkdown),
+                    fullDescriptionMedia: markdownAssetIds.flatMap((id) => {
+                      const src = previewMediaSrc(previewMedia[id]);
+                      return src ? [{ id, mimeType: '', src }] : [];
+                    }),
                     // Адреса картинок — общий `/api/media` под сессией сотрудника, как у логотипа:
                     // публичный медиа-адрес у выключенной страницы ещё не работает. Ссылки на
                     // страницу специалиста в предпросмотре нет по той же причине.
@@ -253,9 +302,11 @@ export function ClinicPublicCardSection({
                       id: specialist.id,
                       fullName: specialist.fullName,
                       shortDescription: specialist.shortDescription,
-                      avatarSrc: specialist.avatarMediaId
-                        ? `/api/media/${specialist.avatarMediaId}`
-                        : null,
+                      avatarSrc: previewMediaSrc(
+                        specialist.avatarMediaId
+                          ? previewMedia[specialist.avatarMediaId]
+                          : undefined,
+                      ),
                       href: null,
                     })),
                     publicContactPhone: settings.publicContactPhone,

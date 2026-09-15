@@ -811,7 +811,7 @@ export function PatientTabFiles({
           {uploadError === 'file_storage_limit_reached' ? (
             <>
               {' '}
-              <Link className="underline" href={`${routePaths.settings}?tab=billing`}>
+              <Link className="underline" href={`${routePaths.settings}?tab=account`}>
                 Увеличить место
               </Link>
             </>
