@@ -71,7 +71,11 @@ ask_remote() {
   remote=$(ssh "${SSH_OPTS[@]}" "$TARGET_SSH" 'mktemp /tmp/bcb-journal-truth.XXXXXXXX.sql') || return 0
   [ -n "$remote" ] || return 0
   # shellcheck disable=SC2064
-  trap "ssh ${SSH_OPTS[*]} '$TARGET_SSH' 'rm -f \"$remote\" \"$remote.pg\"' >/dev/null 2>&1; rm -rf '$WORK'" EXIT
+  # Копию `.pg` кладёт `sudo install`, то есть её владелец — root, а мы ходим от deploy. Обычный
+  # `rm` в sticky-каталоге /tmp такой файл снять НЕ может, и каждый запасной прогон оставлял на
+  # цели ещё один root-owned хвост. Поэтому снимаем её тем же способом, каким положили: через sudo.
+  # shellcheck disable=SC2064
+  trap "ssh ${SSH_OPTS[*]} '$TARGET_SSH' 'rm -f \"$remote\"; sudo -n rm -f \"$remote.pg\" || rm -f \"$remote.pg\"' >/dev/null 2>&1; rm -rf '$WORK'" EXIT
   scp "${SCP_OPTS[@]}" -q "$SQL" "$TARGET_SSH:$remote"
   # shellcheck disable=SC2029
   ssh "${SSH_OPTS[@]}" "$TARGET_SSH" "sudo -n install -m 0644 '$remote' '$remote.pg' &&

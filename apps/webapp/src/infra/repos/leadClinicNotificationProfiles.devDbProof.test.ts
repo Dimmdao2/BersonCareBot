@@ -29,6 +29,7 @@
  *   USE_REAL_DATABASE=1 RUN_LEAD_CLINIC_AUDIENCE_DB=1 \
  *     pnpm exec vitest run --project fast src/infra/repos/leadClinicNotificationProfiles.devDbProof.test.ts
  */
+import { LEAD_NOTIFICATION_TOPIC_CODE } from '@/modules/leads/notifyClinicLeadCreated';
 import { execFileSync } from 'node:child_process';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -47,7 +48,12 @@ const OWN_MERGED_ADMIN = 'a4000000-0000-4000-8000-00000000a004';
 const FOREIGN_ADMIN = 'a4000000-0000-4000-8000-00000000b001';
 /** Привязка своего админа: способ доставки обязан приехать тем же чтением, что и получатель. */
 const OWN_ADMIN_TELEGRAM = 'AUDITL4-tg-own-admin';
-const TOPIC_CODE = 'doctor_leads';
+// ⛔ НЕ своя строка: тема берётся у ПРОДЮСЕРА. Пока здесь стояла отдельная константа, подмена темы
+// в продюсере оставляла и unit-тест, и обе живые пробы зелёными — а настоящий корень принимает
+// только `doctor_leads`, значит уведомление падало бы до отправки, и `leads/service.ts` этот отказ
+// глотает. Ровно тот молчаливый разрыв, который §9.11 плана запрещает. Теперь подмена у продюсера
+// красит эту пробу.
+const TOPIC_CODE: string = LEAD_NOTIFICATION_TOPIC_CODE;
 
 function psql(sqlText: string): string {
   return execFileSync(
