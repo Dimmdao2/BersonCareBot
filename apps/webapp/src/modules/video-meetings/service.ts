@@ -46,6 +46,12 @@ export function createVideoMeetingsService(deps: {
   store: VideoMeetingStore;
   provider: VideoMeetingProvider;
   invitationNotification?: VideoMeetingInvitationNotification;
+  /**
+   * Имя участника для самого звонка. Без него провайдер подписывает join-material без имени, и
+   * собеседник видит дефолтную подпись провайдера вместо человека. Отказ этого чтения не отменяет
+   * звонок: имя опускается, встреча продолжается.
+   */
+  resolveDisplayName?: (input: { meeting: VideoMeetingRecord; role: 'specialist' | 'patient' }) => Promise<string | null>;
   resolvePatientPublicOrigin?: (organizationId: string) => Promise<string>;
   logDiagnostic?: (payload: { meetingId: string; organizationId: string; role: 'specialist'; event: 'join' | 'error' | 'end'; durationMs?: number; transport?: 'p2p' | 'relay'; errorClass?: 'connection' | 'media' | 'provider' }) => void;
 }) {
@@ -60,8 +66,14 @@ export function createVideoMeetingsService(deps: {
     }
     const failure = await requireProvider();
     if (failure) return { ok: false as const, error: failure };
+    let displayName: string | null = null;
     try {
-      return { ok: true as const, meetingId: meeting.id, session: await deps.provider.issueJoinMaterial({ meeting, role, subject }) };
+      displayName = (await deps.resolveDisplayName?.({ meeting, role })) ?? null;
+    } catch {
+      displayName = null;
+    }
+    try {
+      return { ok: true as const, meetingId: meeting.id, session: await deps.provider.issueJoinMaterial({ meeting, role, subject, displayName }) };
     } catch {
       return { ok: false as const, error: 'provider_unhealthy' as const };
     }

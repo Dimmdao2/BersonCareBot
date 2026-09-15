@@ -496,6 +496,44 @@ function classifyFunctionStatement(head) {
  * are already split on `--> statement-breakpoint`, so a `CREATE FUNCTION` body — which routinely
  * contains the words CREATE, DROP and TABLE — is never read as a declaration of its own.
  */
+/**
+ * Первый оператор блока. Блок режется только по `--> statement-breakpoint`, поэтому в одном блоке
+ * законно стоят несколько операторов через `;`. Для `ALTER TABLE` это было не безобидно: список
+ * изменений брался «до конца блока», и ограничение СОСЕДНЕГО оператора приписывалось таблице
+ * первого. 15.09.2026 из-за этого миграция `20260914T111500_leads_core` объявлялась не применённой
+ * на TEST — гейт искал `org_enrollments_portal_activation_check` на `be_booking_form_fields`, где
+ * его никогда не было, и отказывал КАЖДОЙ выкатке.
+ *
+ * Точка с запятой внутри строкового литерала и внутри долларовой кавычки оператор не заканчивает.
+ */
+export function firstStatementOf(sql) {
+  let index = 0;
+  while (index < sql.length) {
+    const char = sql[index];
+    if (char === ';') return sql.slice(0, index);
+    if (char === "'") {
+      index += 1;
+      while (index < sql.length) {
+        if (sql[index] === "'") {
+          if (sql[index + 1] === "'") { index += 2; continue; }
+          break;
+        }
+        index += 1;
+      }
+      index += 1;
+      continue;
+    }
+    const dollar = /^\$[A-Za-z_0-9]*\$/u.exec(sql.slice(index));
+    if (dollar) {
+      const close = sql.indexOf(dollar[0], index + dollar[0].length);
+      index = close === -1 ? sql.length : close + dollar[0].length;
+      continue;
+    }
+    index += 1;
+  }
+  return sql;
+}
+
 function classifyStatement(sql) {
   const head = sql.replace(/^(?:\s|--[^\n]*\n)+/u, '');
   const functionEffect = classifyFunctionStatement(head);
@@ -531,11 +569,13 @@ function classifyStatement(sql) {
   const alter = new RegExp(`^ALTER\\s+TABLE\\s+${IF_EXISTS}(?:ONLY\\s+)?(${QUALIFIED})\\s+([\\s\\S]*)$`, 'iu').exec(head);
   if (!alter) return [];
   const relation = splitQualified(alter[1]);
+  // Список изменений принадлежит ЭТОМУ оператору, а не всему блоку — см. firstStatementOf выше.
+  const clauses = firstStatementOf(alter[2]);
   // A rename makes every earlier name for this relation unverifiable; forget the whole relation
   // rather than demand an object under a name the migration itself retired.
-  if (/(?:^|\s)RENAME\s/iu.test(alter[2])) return [{ effect: 'forget-relation', relation }];
+  if (/(?:^|\s)RENAME\s/iu.test(clauses)) return [{ effect: 'forget-relation', relation }];
   const effects = [];
-  for (const clause of alter[2].split(',')) {
+  for (const clause of clauses.split(',')) {
     const added = new RegExp(`^\\s*ADD\\s+COLUMN\\s+${IF_NOT_EXISTS}(${NAME})`, 'iu').exec(clause);
     if (added) effects.push({ effect: 'create', kind: 'column', ...splitQualified(added[1]), relation });
     const dropped = new RegExp(`^\\s*DROP\\s+COLUMN\\s+${IF_EXISTS}(${NAME})`, 'iu').exec(clause);

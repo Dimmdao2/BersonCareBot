@@ -148,7 +148,7 @@ import {
   formatBookingDateTimeMediumRu,
 } from '@/shared/lib/formatBusinessDateTime';
 import { SCHEDULE_RECORD_PROVENANCE_PREFIX } from '@/shared/lib/scheduleRecordProvenance';
-import { formatDoctorFio } from '@/shared/lib/fio';
+import { formatDoctorFio, formatDoctorFioShort } from '@/shared/lib/fio';
 import { selectPersonalChatSenderDisplayName } from '@/modules/messaging/notifyPatientDoctorReply';
 import { createMediaService } from '@/modules/media/service';
 import type { PlaybackUserVideoFirstResolvePort } from '@/modules/media/ports';
@@ -1004,6 +1004,36 @@ const videoMeetingsService = !inMemoryRepos
         outboundMessageQueue: createPgOutboundMessageQueue(),
       }),
       resolvePatientPublicOrigin,
+      /**
+       * Имя участника в звонке выдаёт приложение, а не браузер собеседника: оно уезжает в
+       * подписанное join-material и потому не подменяется с клиента.
+       *
+       * Читается ТЕМ принципалом, который уже стоит на маршруте, без подмены на организационный:
+       * организационный класс (`tenant_service`) ходит к данным только через именованные корни, и
+       * обычный выбор из `be_specialists` под ним падает ещё до базы («Missing declared webapp port
+       * capability: tenant_service»). Поэтому имя специалиста берётся на кабинетном маршруте под
+       * его же staff-принципалом, а имя клиента — на пациентском маршруте его собственной дверью
+       * `getCurrentPatientFio`. Гостевая ссылка сессии человека не несёт вовсе: там имени взять
+       * законно неоткуда, и участник подписывается нейтральным «Гость» (решение владельца 15.09.2026:
+       * настоящее ФИО того не стоит), а не подписью провайдера.
+       */
+      resolveDisplayName: async ({ meeting, role }) => {
+        try {
+          if (role === 'specialist') {
+            const specialist = await bookingEngineService?.catalog.getSpecialist(meeting.specialistId);
+            return specialist?.fullName?.trim() || null;
+          }
+          const fio = await userProjectionPort.getCurrentPatientFio();
+          return (
+            formatDoctorFioShort(
+              { lastName: fio?.lastName ?? null, firstName: fio?.firstName ?? null, patronymic: null },
+              fio?.displayName?.trim() ?? '',
+            ) || 'Гость'
+          );
+        } catch {
+          return role === 'patient' ? 'Гость' : null;
+        }
+      },
       logDiagnostic: (payload) => logger.info(payload, 'video_meeting_diagnostic'),
     })
   : null;

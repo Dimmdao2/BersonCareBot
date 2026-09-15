@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull } from 'drizzle-orm';
+import { and, desc, eq, isNotNull, isNull } from 'drizzle-orm';
 import { getDrizzle, type DrizzleDb } from '@/app-layer/db/drizzle';
 import { orgEnrollments } from '../../../db/schema/bookingEngine';
 import { leads } from '../../../db/schema/leads';
@@ -56,12 +56,12 @@ export function createPgLeadsPort(): LeadsPort {
       return mapLead(rows[0]);
     },
     async list(input) {
-      const filters = [eq(leads.organizationId, input.organizationId)];
-      if (!input.includeArchived) filters.push(isNull(leads.archivedAt));
+      const archiveFilter =
+        input.archiveScope === 'archived' ? isNotNull(leads.archivedAt) : isNull(leads.archivedAt);
       const rows = await getDrizzle()
         .select()
         .from(leads)
-        .where(and(...filters))
+        .where(and(eq(leads.organizationId, input.organizationId), archiveFilter))
         .orderBy(desc(leads.createdAt), desc(leads.id))
         .limit(input.limit);
       return rows.map(mapLead);

@@ -62,6 +62,11 @@ export const notificationText = {
     'Эта клиника больше не принимает от вас новые заявки. Свяжитесь с ней другим способом.',
   leadRejectedSubject: 'Ваша заявка отклонена',
   leadRejectedWithoutComment: 'Клиника отклонила вашу заявку.',
+  leadAlreadyInProgress: 'Заявка уже в работе.',
+  leadListLoadFailed: 'Не удалось загрузить заявки. Обновите страницу и повторите.',
+  leadChangeFailed: 'Не удалось изменить заявку. Повторите попытку.',
+  leadContactCopied: 'Контакт скопирован.',
+  leadContactCopyFailed: 'Не удалось скопировать контакт.',
   // --- security / staff auth (ранее shared/ui/auth/staffSecurityErrorText.ts) ---
   authBindSpecialistFallback: 'Не удалось подключить рабочий кабинет. Повторите попытку позже.',
   authChangePasswordFallback: 'Пароль не изменён. Проверьте данные и повторите попытку.',
@@ -354,6 +359,12 @@ export const notificationText = {
   commonCreated: 'Создано',
   doctorSubscriptionDurationInvalid: 'Срок действия — не меньше одного дня.',
   doctorPhoneCopied: 'Телефон скопирован',
+  // Видеовстреча: итог автоматической отправки гостевой ссылки клиенту. Владелец, 15.09.2026:
+  // «непонятно, что значит „приглашение поставлено в очередь“» — человеку говорим про ссылку и
+  // клиента, а не про внутреннюю очередь доставки.
+  doctorVideoInviteSent: 'Ссылка на звонок отправлена клиенту',
+  doctorVideoInviteAlreadySent: 'Ссылку на этот звонок клиенту уже отправляли',
+  doctorVideoInviteNotSent: 'Отправить ссылку не удалось — скопируйте её и передайте клиенту',
   commonDeleted: 'Удалено',
   doctorTemplateNameRequired: 'Укажите название шаблона',
   treatmentProgramSelectGroupFromList: 'Выберите группу из списка',

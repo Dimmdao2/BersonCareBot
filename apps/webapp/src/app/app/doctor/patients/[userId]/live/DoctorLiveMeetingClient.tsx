@@ -11,6 +11,16 @@ import { useActiveCall } from '@/shared/ui/video/ActiveCallCoordinator';
 import { DoctorNotesPanel } from '@/app/app/doctor/clients/DoctorNotesPanel';
 import { EncounterPageClient } from '../visits/EncounterPageClient';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
+import { notificationText } from '@/shared/notifications/notificationText';
+
+/** Сообщение о приглашении — подтверждение действия, а не постоянная надпись на экране. */
+const INVITATION_NOTICE_MS = 12_000;
+
+function invitationNoticeText(status: NotificationResult['status']): string {
+  if (status === 'queued' || status === 'partially_queued') return notificationText.doctorVideoInviteSent;
+  if (status === 'skipped') return notificationText.doctorVideoInviteAlreadySent;
+  return notificationText.doctorVideoInviteNotSent;
+}
 
 type NotificationResult = {
   status: 'queued' | 'partially_queued' | 'skipped' | 'unavailable';
@@ -59,6 +69,19 @@ export function DoctorLiveMeetingClient({
   const [notification, setNotification] = useState<NotificationResult | null>(null);
   const [error, setError] = useState(false);
   const [starting, setStarting] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (!notification) return;
+    const timer = setTimeout(() => setNotification(null), INVITATION_NOTICE_MS);
+    return () => clearTimeout(timer);
+  }, [notification]);
+
+  useEffect(() => {
+    if (!copied) return;
+    const timer = setTimeout(() => setCopied(false), 4_000);
+    return () => clearTimeout(timer);
+  }, [copied]);
 
   const prepare = useCallback((mount: boolean) => {
     const request = async () => {
@@ -141,7 +164,7 @@ export function DoctorLiveMeetingClient({
       <section className="relative flex min-h-[320px] min-w-0 overflow-hidden rounded-lg bg-black lg:min-h-0">
         {!activeCall.isMobile && (activeCall.isActiveRoute || !activeCall.activeCall) ? (
           <VideoMeetingStage
-            className="relative flex min-h-0 flex-1 bg-black"
+            className="relative flex min-h-0 flex-1 items-center justify-center bg-black text-sm text-white"
             session={activeSession}
             onHangup={activeCall.completeFromRenderer}
             onDiagnostic={activeCall.reportDiagnostic}
@@ -162,9 +185,20 @@ export function DoctorLiveMeetingClient({
       </section>
       <aside className="min-w-0 overflow-y-auto rounded-lg border bg-card p-3">
         {error ? <div className="mb-3 flex items-center gap-2 text-sm text-destructive"><span>Не удалось начать звонок</span><Button type="button" size="sm" variant="outline" onClick={retryPrepare}>Повторить</Button></div> : null}
-        {notification ? <p className="mb-3 text-sm text-muted-foreground">{notification.status === 'queued' || notification.status === 'partially_queued' ? 'Приглашение поставлено в очередь' : 'Приглашение не отправлено автоматически'}</p> : null}
+        {notification ? <p className="mb-3 text-sm text-muted-foreground">{invitationNoticeText(notification.status)}</p> : null}
         <div className="mb-3 flex justify-end">
-          {guestUrl ? <Button type="button" size="sm" variant="outline" onClick={() => void navigator.clipboard.writeText(guestUrl)}><Copy className="size-4" /> Скопировать ссылку</Button> : null}
+          {guestUrl ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                void navigator.clipboard.writeText(guestUrl).then(() => setCopied(true), () => setCopied(false));
+              }}
+            >
+              <Copy className="size-4" /> {copied ? notificationText.commonLinkCopied : 'Скопировать ссылку'}
+            </Button>
+          ) : null}
           {!guestUrl && preparedMeetingId ? <Button type="button" size="sm" variant="outline" onClick={() => {
             const meetingId = meetingIdRef.current;
             if (!meetingId) return;

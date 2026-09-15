@@ -116,7 +116,11 @@ export function JitsiMeetingRenderer({
           parentNode: targetRef.current,
           roomName: roomReference,
           jwt: session.accessToken,
+          // Интерфейс звонка — на языке продукта: иначе собственная плитка подписана английским
+          // «me», а служебные подсказки говорят с человеком не на его языке.
+          lang: 'ru',
           configOverwrite: {
+            defaultLanguage: 'ru',
             prejoinConfig: { enabled: false },
             disableDeepLinking: true,
             enableWelcomePage: false,
@@ -203,7 +207,7 @@ export function JitsiMeetingRenderer({
 
   return (
     <div className={className ?? 'relative min-h-[320px] bg-black'}>
-      <div ref={targetRef} className={className ? 'h-full w-full' : 'min-h-[320px] w-full'} />
+      <div ref={targetRef} className={className ? 'h-full min-h-0 w-full flex-1' : 'min-h-[320px] w-full'} />
       {state !== 'ready' ? (
         <div className="absolute inset-0 flex items-center justify-center bg-black/70 text-sm text-white">
           {state === 'unavailable' ? (

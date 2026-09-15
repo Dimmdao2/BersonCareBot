@@ -171,6 +171,7 @@ export function DoctorCommunicationsShell({
       comments: shellBadges.unreadExerciseCommentsReady
         ? shellBadges.unreadExerciseComments
         : badges?.comments,
+      leads: shellBadges.newLeadsReady ? shellBadges.newLeads : badges?.leads,
     }),
     [badges, shellBadges],
   );
