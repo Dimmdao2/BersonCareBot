@@ -266,6 +266,12 @@ export async function proxy(
       `https://${resolvedSurface.redirectToHostname}`,
     );
     const response = NextResponse.redirect(target, 308);
+    // 308 кэшируется браузером ПО УМОЛЧАНИЮ и навсегда, а эта пара «технический поддомен → свой
+    // домен» живёт в базе и может быть снята или переназначена. Без этой строки один запрос,
+    // сделанный в момент действующей привязки, запирал бы браузер человека на прежнем адресе даже
+    // после её отмены — и никакой правкой на сервере это уже не лечится, потому что браузер к нам
+    // просто не приходит. Запрет хранения оставляет смысл 308 и снимает вечность.
+    response.headers.set('Cache-Control', 'no-store');
     response.headers.set(BC_CORRELATION_ID_HEADER, correlationId);
     return response;
   }
