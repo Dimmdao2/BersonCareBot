@@ -228,7 +228,7 @@ test('присваивания окружения есть только у бэ�
       .filter((line) => /^[A-Za-z_][A-Za-z0-9_]*=/.test(line.trim()))
       .map((line) => line.trim());
 
-    if (item.usesInternalJobRunner) {
+    if (item.kind !== 'backup_shell') {
       assert.deepEqual(assignments, [], item.fileName);
       continue;
     }
@@ -244,13 +244,13 @@ test('присваивания окружения есть только у бэ�
 });
 
 /*
- * Бэкап — единственное задание расписания, которое общий transport вебаппа НЕ будит. Три вещи,
+ * Бэкап — отдельный вид задания расписания, которое общий transport вебаппа НЕ будит. Три вещи,
  * которые из этого следуют и которые легко потерять при следующей правке: строка зовёт сам скрипт,
  * `--describe` отказывается выдавать его за HTTP-тик, и снятый бэкап всё равно опознаётся как наш
  * (иначе деплой перестал бы его снимать, а сверка продолжала бы считать лишним — вечно красно).
  */
 test('бэкап ходит мимо общего transport, но снимается тем же деплоем', () => {
-  const backups = prodPlan.filter((item) => !item.usesInternalJobRunner);
+  const backups = prodPlan.filter((item) => item.kind === 'backup_shell');
   assert.ok(backups.length >= 4, 'в плане прода нет заданий бэкапа');
 
   for (const item of backups) {

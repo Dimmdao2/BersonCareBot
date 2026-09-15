@@ -6,6 +6,16 @@ import { mutateCanonicalUserContacts } from './userContactsMirrorWrite.js';
 import { syncUserIdentityFioMirror } from './userIdentityFioWrite.js';
 import type { ManualMergeResolution } from './manualMergeResolution.js';
 import { assertManualMergeResolutionIds } from './manualMergeResolution.js';
+import type {
+  HumanMergeDecision,
+  HumanMergeFioField,
+  HumanMergeFioSelection,
+} from './humanMergeDecision.js';
+import {
+  createHumanMergePrompt,
+  humanMergeDecisionMatchesPrompt,
+  isHumanMergeCustomFioValue,
+} from './humanMergeDecision.js';
 import {
   collectMergeLosingContacts,
   persistMergeLosingContacts,
@@ -41,23 +51,56 @@ export type MergePlatformUsersContext = {
  * БЫЛО, и вызывающий обязан сказать об этом человеку, а не ответить успехом:
  *  - `awaiting_other_organization` — врач своей клиники одобрил, но у пары есть медицинский блокер
  *    в другой клинике, и снять его может только её врач (канон §18б: врач решает за свою клинику);
- *  - `conflict_not_found` — у вызывающей клиники нет такого незакрытого медицинского конфликта.
+ *  - `conflict_not_found` — у вызывающей клиники нет такого незакрытого медицинского конфликта;
+ *  - `fio_decision_required` — ФИО сторон конфликтует, а годного ответа человека (§18а) у двери нет:
+ *    его не сохранили либо показанные ему данные с тех пор изменились. Слить, оставив подпись,
+ *    выбранную движком, §18а запрещает, поэтому дверь отказывает и просит переспросить человека.
  */
 export type MergePlatformUsersOutcome =
-  'merged' | 'awaiting_other_organization' | 'conflict_not_found';
+  | 'merged'
+  | 'awaiting_other_organization'
+  | 'conflict_not_found'
+  | 'fio_decision_required';
 
-export type MergePlatformUsersOptions = {
-  resolution?: ManualMergeResolution;
+/**
+ * §18а: автоматическое слияние идёт только после ответа человека «это ваш аккаунт?» — вариант без
+ * `humanDecision` не собирается.
+ */
+export type AutomaticMergePlatformUsersOptions = {
+  humanDecision: HumanMergeDecision;
   mergeContext?: MergePlatformUsersContext;
   /** The clinic whose doctor has explicitly accepted its medical-history conflict. */
   medicalConflictApprovedForOrganizationId?: string;
+};
+
+export type ManualMergePlatformUsersOptions = {
+  resolution: ManualMergeResolution;
+  mergeContext?: MergePlatformUsersContext;
+};
+
+/**
+ * §18б: дверь врача. Врачу канон оставляет ровно два действия, «слить» и «отказать», — выбирать
+ * чужую подпись он не вправе. Но и движок не вправе: §18а исключения для врачебного пути не знает.
+ * Поэтому сюда приезжает ответ человека, данный ДО медицинского блокера и сохранённый со строкой
+ * конфликта; дверь его применяет. Ответа нет, а ФИО сторон расходится — слияния не будет
+ * (`fio_decision_required`), человека надо спросить заново.
+ */
+export type StaffApprovedMergePlatformUsersOptions = {
   /** Staff-only DB door that authorizes and performs dependent-row transfer for one reviewed conflict. */
-  medicalConflictApproval?: {
+  medicalConflictApproval: {
     conflictId: string;
     organizationId: string;
     actorId: string;
   };
+  /** §18а: ответ человека, сохранённый со строкой конфликта при медицинском defer. */
+  humanDecision?: HumanMergeDecision;
+  mergeContext?: MergePlatformUsersContext;
 };
+
+export type MergePlatformUsersOptions =
+  | AutomaticMergePlatformUsersOptions
+  | ManualMergePlatformUsersOptions
+  | StaffApprovedMergePlatformUsersOptions;
 
 /** Canon §18: only medical history on both accounts in the same organization blocks auto-merge. */
 type MergeTransferRecord = {
@@ -231,6 +274,7 @@ async function assertAutomaticMergeHasNoMedicalHistory(
   targetId: string,
   duplicateId: string,
   approvedOrganizationId?: string,
+  humanFioDecision?: HumanMergeDecision,
 ): Promise<void> {
   // Канон §18: блокирует ТОЛЬКО конфликт медицинских данных ВНУТРИ ОДНОЙ организации — когда
   // квалифицирующие записи (медкарточка, заметки, назначенные упражнения/программы и отслеживание
@@ -269,11 +313,14 @@ async function assertAutomaticMergeHasNoMedicalHistory(
   );
   if (result.rows.length > 0) {
     const organizationIds = result.rows.map((row) => row.conflict_organization_id ?? null);
+    // §18а: ответ человека про ФИО уже сверен с заблокированными строками и сейчас пропадёт вместе
+    // с откатом этой транзакции. Он уезжает с блокером, чтобы лечь в строку конфликта: врач потом
+    // сливает пару, и подпись обязана остаться той, которую выбрал человек, а не целевой по умолчанию.
     throw new MergeDependentConflictError(
       'medical_history: automatic merge requires support (conflict inside one organization)',
       [targetId, duplicateId],
       organizationIds[0] ?? null,
-      { kind: 'medical_history', organizationIds },
+      { kind: 'medical_history', organizationIds, humanFioDecision },
     );
   }
 }
@@ -328,6 +375,91 @@ export type PickMergeTargetCandidate = {
   /** Количество строк `patient_bookings` для канона — выше приоритет как merge target (native bookings). */
   patientBookingCount?: number;
 };
+
+function normalizedFioPart(value: string | null | undefined): string | null {
+  const trimmed = value?.trim() ?? '';
+  return trimmed || null;
+}
+
+/**
+ * §18а: поле без конфликта дополняется молча, поле в конфликте ждёт ответа человека.
+ * `humanChoiceRequired` — поле названо конфликтом в показанном человеку диалоге; тогда движок не
+ * выбирает сам даже там, где вторая сторона пуста: «не указывать» — это тоже ответ человека.
+ */
+function resolveHumanFioField(
+  field: HumanMergeFioField,
+  targetValue: string | null,
+  duplicateValue: string | null,
+  selection: HumanMergeFioSelection | undefined,
+  candidateIds: readonly string[],
+  humanChoiceRequired: boolean,
+): string | null {
+  const target = normalizedFioPart(targetValue);
+  const duplicate = normalizedFioPart(duplicateValue);
+  const sidesDiffer = target !== null && duplicate !== null && target !== duplicate;
+  if (!humanChoiceRequired && !sidesDiffer) return target ?? duplicate;
+  if (!selection) {
+    throw new MergeConflictError(`merge: human choice required for ${field}`, [...candidateIds]);
+  }
+  if (selection.source === 'target') return target;
+  if (selection.source === 'duplicate') return duplicate;
+  const custom = normalizedFioPart(selection.value);
+  if (!custom || !isHumanMergeCustomFioValue(custom)) {
+    throw new MergeConflictError(`merge: invalid custom human choice for ${field}`, [
+      ...candidateIds,
+    ]);
+  }
+  return custom;
+}
+
+/**
+ * ФИО ручного слияния: тот же общий шов, что у автоматического диалога. Выбор оператора — ответ
+ * человека (`source`), поэтому `humanChoiceRequired` здесь не нужен: вопрос уже закрыт в форме.
+ */
+function resolveManualFioParts(
+  target: Pick<PuRow, 'display_name' | 'first_name' | 'last_name' | 'patronymic'>,
+  duplicate: Pick<PuRow, 'display_name' | 'first_name' | 'last_name' | 'patronymic'>,
+  fields: ManualMergeResolution['fields'],
+  candidateIds: readonly string[],
+): {
+  displayName: string;
+  firstName: string | null;
+  lastName: string | null;
+  patronymic: string | null;
+} {
+  const pick = (
+    field: HumanMergeFioField,
+    targetValue: string | null,
+    duplicateValue: string | null,
+    winner: ManualMergeResolution['fields']['first_name'],
+  ): string | null =>
+    resolveHumanFioField(
+      field,
+      targetValue,
+      duplicateValue,
+      { source: winner },
+      candidateIds,
+      false,
+    );
+  return {
+    displayName:
+      pick('display_name', target.display_name, duplicate.display_name, fields.display_name) ?? '',
+    firstName: pick('first_name', target.first_name, duplicate.first_name, fields.first_name),
+    lastName: pick('last_name', target.last_name, duplicate.last_name, fields.last_name),
+    patronymic: pick('patronymic', target.patronymic, duplicate.patronymic, fields.patronymic),
+  };
+}
+
+function formatResolvedDisplayName(input: {
+  lastName: string | null;
+  firstName: string | null;
+  patronymic: string | null;
+  fallback: string;
+}): string {
+  return (
+    [input.lastName, input.firstName, input.patronymic].filter(Boolean).join(' ') || input.fallback
+  );
+}
 
 const SINGLETON_SYMPTOM_KEYS = ['general_wellbeing', 'warmup_feeling'] as const;
 
@@ -459,12 +591,48 @@ async function dedupeSingletonSymptomTrackingsForMerge(
  * Caller must BEGIN; this function does not COMMIT.
  * Requires the canonical phone/contact constraints.
  */
+export function mergePlatformUsersInTransaction(
+  client: PlatformMergeDbClient,
+  targetId: string,
+  duplicateId: string,
+  reason: 'manual',
+  options: ManualMergePlatformUsersOptions,
+): Promise<{
+  targetId: string;
+  duplicateId: string;
+  mergeContactsSaved: MergeContactsSaved[];
+  mergeOutcome: MergePlatformUsersOutcome;
+}>;
+export function mergePlatformUsersInTransaction(
+  client: PlatformMergeDbClient,
+  targetId: string,
+  duplicateId: string,
+  reason: Exclude<MergePlatformUsersReason, 'manual'>,
+  options: AutomaticMergePlatformUsersOptions,
+): Promise<{
+  targetId: string;
+  duplicateId: string;
+  mergeContactsSaved: MergeContactsSaved[];
+  mergeOutcome: MergePlatformUsersOutcome;
+}>;
+export function mergePlatformUsersInTransaction(
+  client: PlatformMergeDbClient,
+  targetId: string,
+  duplicateId: string,
+  reason: Exclude<MergePlatformUsersReason, 'manual'>,
+  options: StaffApprovedMergePlatformUsersOptions,
+): Promise<{
+  targetId: string;
+  duplicateId: string;
+  mergeContactsSaved: MergeContactsSaved[];
+  mergeOutcome: MergePlatformUsersOutcome;
+}>;
 export async function mergePlatformUsersInTransaction(
   client: PlatformMergeDbClient,
   targetId: string,
   duplicateId: string,
   reason: MergePlatformUsersReason,
-  options?: MergePlatformUsersOptions,
+  options: MergePlatformUsersOptions,
 ): Promise<{
   targetId: string;
   duplicateId: string;
@@ -475,8 +643,19 @@ export async function mergePlatformUsersInTransaction(
     throw new MergeConflictError('merge: target and duplicate are the same id', [targetId]);
   }
 
+  /**
+   * Третий вход помимо автоматического и ручного — дверь врача (§18б). Разбирается один раз здесь,
+   * чтобы ниже не спрашивать про поле, которого у двух других вариантов нет.
+   */
+  const medicalConflictApproval =
+    'medicalConflictApproval' in options ? options.medicalConflictApproval : undefined;
+  const medicalConflictApprovedForOrganizationId =
+    'medicalConflictApprovedForOrganizationId' in options
+      ? options.medicalConflictApprovedForOrganizationId
+      : undefined;
+
   if (reason === 'manual') {
-    if (!options?.resolution) {
+    if (!('resolution' in options)) {
       throw new MergeConflictError('merge: reason "manual" requires options.resolution', [
         targetId,
         duplicateId,
@@ -492,8 +671,8 @@ export async function mergePlatformUsersInTransaction(
         duplicateId,
       ]);
     }
-  } else if (options?.resolution) {
-    throw new MergeConflictError('merge: resolution is only valid for reason manual', [
+  } else if (!('humanDecision' in options) && !medicalConflictApproval) {
+    throw new MergeConflictError('merge: automatic merge requires a human decision', [
       targetId,
       duplicateId,
     ]);
@@ -542,10 +721,85 @@ export async function mergePlatformUsersInTransaction(
     ]);
   }
 
-  if (options?.medicalConflictApproval) {
+  const manualResolution =
+    reason === 'manual' && 'resolution' in options ? options.resolution : undefined;
+  const humanDecision =
+    reason !== 'manual' && 'humanDecision' in options ? options.humanDecision : undefined;
+
+  /** Снимок стороны ровно в том виде, в каком его показывает диалог §18а. */
+  const lockedSummary = (row: PuRow) => ({
+    id: row.id,
+    displayName: row.display_name,
+    firstName: row.first_name,
+    lastName: row.last_name,
+    patronymic: row.patronymic,
+    createdAt: row.created_at,
+  });
+  /**
+   * `foundAccountId` влияет только на запасную подпись, но не на список конфликтующих полей:
+   * поэтому один и тот же вызов отвечает и «какие поля спорят прямо сейчас», и «совпадает ли
+   * заблокированная пара с тем, что человек видел».
+   */
+  const lockedPromptFor = (foundAccountId: string) =>
+    createHumanMergePrompt(lockedSummary(a), lockedSummary(b), foundAccountId);
+
+  const humanDecisionPairMismatch =
+    humanDecision !== undefined &&
+    (!humanDecision.accountConfirmed ||
+      humanDecision.prompt.target.id !== targetId ||
+      humanDecision.prompt.duplicate.id !== duplicateId ||
+      (humanDecision.prompt.foundAccountId !== targetId &&
+        humanDecision.prompt.foundAccountId !== duplicateId));
+  const humanDecisionSnapshotStale =
+    humanDecision !== undefined &&
+    !humanDecisionPairMismatch &&
+    !humanMergeDecisionMatchesPrompt(
+      humanDecision,
+      lockedPromptFor(humanDecision.prompt.foundAccountId),
+    );
+  if (!medicalConflictApproval) {
+    // Автоматическая дверь: негодный ответ — это ошибка вызывающего, и она громкая.
+    if (humanDecisionPairMismatch) {
+      throw new MergeConflictError('merge: human decision does not match locked account pair', [
+        targetId,
+        duplicateId,
+      ]);
+    }
+    if (humanDecisionSnapshotStale) {
+      throw new MergeConflictError('merge: shown account details changed before confirmation', [
+        targetId,
+        duplicateId,
+      ]);
+    }
+  }
+  /**
+   * За дверью врача ответ приезжает из строки конфликта, сохранённой днями раньше. Негодный ответ
+   * там — не ошибка врача, а повод переспросить человека, поэтому он не бросает исключение, а
+   * гасится: ниже это превращается в отказ `fio_decision_required`.
+   */
+  const usableHumanDecision =
+    humanDecision !== undefined && !humanDecisionPairMismatch && !humanDecisionSnapshotStale
+      ? humanDecision
+      : undefined;
+
+  if (medicalConflictApproval) {
+    /**
+     * §18а не знает исключения для врачебного пути: при конфликте полей подпись выбирает человек.
+     * Годного ответа нет — слияния нет. Оставить подпись целевой учётки здесь значило бы выбрать
+     * сторону молча, а это ровно то, что §18а запрещает. Проверка стоит ДО двери переноса: после
+     * неё зависимые строки уже переехали, и «не слили» было бы неправдой.
+     */
+    if (!usableHumanDecision && lockedPromptFor(targetId).conflicts.length > 0) {
+      return {
+        targetId,
+        duplicateId,
+        mergeContactsSaved: [],
+        mergeOutcome: 'fio_decision_required',
+      };
+    }
     // Дверь врача (§18б). Перенос зависимых строк делает SECURITY DEFINER-функция: роль врача сама
     // их двигать не вправе, и она же сверяет, что конфликт принадлежит организации вызывающего.
-    const approval = options.medicalConflictApproval;
+    const approval = medicalConflictApproval;
     const transferred = await runMergeSql<{ transferred: string }>(
       client,
       sql`SELECT app.transfer_staff_approved_platform_user_merge_data(
@@ -574,11 +828,10 @@ export async function mergePlatformUsersInTransaction(
       client,
       targetId,
       duplicateId,
-      options?.medicalConflictApprovedForOrganizationId,
+      medicalConflictApprovedForOrganizationId,
+      usableHumanDecision,
     );
   }
-
-  const manualResolution = reason === 'manual' ? options!.resolution! : undefined;
 
   const pA = a.phone_normalized?.trim() || null;
   const pB = b.phone_normalized?.trim() || null;
@@ -590,12 +843,12 @@ export async function mergePlatformUsersInTransaction(
   }
   if (reason !== 'manual') {
     await assertSharedPhoneGuard(client, targetId, duplicateId, pA, pB);
-    if (!options?.medicalConflictApproval) {
+    if (!medicalConflictApproval) {
       await assertAutoMergePasswordCredentialsSafe(client, targetId, duplicateId, reason);
     }
     await assertOpenTestAttemptsSafe(client, targetId, duplicateId);
   }
-  if (!options?.medicalConflictApproval) {
+  if (!medicalConflictApproval) {
     // За дверью врача КАЖДУЮ попытку дубликата уже перевела на цель SECURITY DEFINER-функция БД
     // (`UPDATE public.test_attempts SET patient_user_id = p_target_user_id`), поэтому строк дубликата
     // здесь не остаётся и сверять нечего. Роль врача при этом не вправе писать в `test_results`, а
@@ -646,7 +899,7 @@ export async function mergePlatformUsersInTransaction(
     sql`DELETE FROM user_notification_topic_channels WHERE user_id = ${duplicateId}::uuid`,
   );
 
-  if (options?.medicalConflictApproval) {
+  if (medicalConflictApproval) {
     // За дверью врача зависимые строки уже перенесла SECURITY DEFINER-функция БД, и повторять
     // перенос здесь нельзя: роль врача таких прав не имеет, а вторая попытка ничего не находит.
     // Контакты функция не трогает — их переводит на цель этот вызов.
@@ -767,124 +1020,119 @@ export async function mergePlatformUsersInTransaction(
   }
 
   if (manualResolution) {
+    /**
+     * §18а действует и здесь: движок не выбирает ФИО сам ни в одном поле. Ручная дверь идёт через
+     * тот же `resolveHumanFioField`, что и автоматическая, — отдельной ветки «для отчества» нет.
+     * Ответ оператора по карточке приходит в `fields`, поэтому вопрос закрыт всегда, а поле без
+     * конфликта дополняется молча и не стирается выбором стороны, у которой его нет.
+     */
     const f = manualResolution.fields;
+    const parts = resolveManualFioParts(a, b, f, [targetId, duplicateId]);
     await runMergePgText(
       client,
-      `UPDATE platform_users AS pu
-       SET
-         display_name = CASE WHEN $3::text = 'target' THEN pu.display_name ELSE dup.display_name END,
-         first_name = CASE WHEN $4::text = 'target' THEN pu.first_name ELSE dup.first_name END,
-         last_name = CASE WHEN $5::text = 'target' THEN pu.last_name ELSE dup.last_name END,
-         patronymic = COALESCE(NULLIF(trim(pu.patronymic), ''), NULLIF(trim(dup.patronymic), '')),
-         updated_at = now()
-       FROM platform_users dup
-       WHERE pu.id = $1::uuid AND dup.id = $2::uuid`,
-      [targetId, duplicateId, f.display_name, f.first_name, f.last_name],
+      `UPDATE platform_users
+       SET display_name = $3::text, first_name = $4::text, last_name = $5::text,
+           patronymic = $6::text, updated_at = now()
+       WHERE id = $1::uuid`,
+      [targetId, duplicateId, parts.displayName, parts.firstName, parts.lastName, parts.patronymic],
     );
-  } else {
-    await runMergePgText(
-      client,
-      `UPDATE platform_users AS root
-       SET
-         display_name = CASE
-           WHEN NULLIF(trim(COALESCE(pu.phone_normalized, '')), '') IS NOT NULL
-            AND NULLIF(trim(COALESCE(dup.phone_normalized, '')), '') IS NULL
-           THEN COALESCE(NULLIF(trim(pu.display_name), ''), NULLIF(trim(dup.display_name), ''), '')
-           WHEN NULLIF(trim(COALESCE(dup.phone_normalized, '')), '') IS NOT NULL
-            AND NULLIF(trim(COALESCE(pu.phone_normalized, '')), '') IS NULL
-           THEN COALESCE(NULLIF(trim(dup.display_name), ''), NULLIF(trim(pu.display_name), ''), '')
-           WHEN NULLIF(trim(COALESCE(pu.phone_normalized, '')), '') IS NOT NULL
-            AND NULLIF(trim(COALESCE(dup.phone_normalized, '')), '') IS NOT NULL
-            AND pu.phone_normalized IS NOT DISTINCT FROM dup.phone_normalized
-           THEN COALESCE(
-             NULLIF(trim(CASE WHEN pu.created_at <= dup.created_at THEN pu.display_name ELSE dup.display_name END), ''),
-             NULLIF(trim(CASE WHEN pu.created_at <= dup.created_at THEN dup.display_name ELSE pu.display_name END), ''),
-             ''
-           )
-           ELSE COALESCE(NULLIF(trim(pu.display_name), ''), NULLIF(trim(dup.display_name), ''), '')
-         END,
-         first_name = CASE
-           WHEN NULLIF(trim(COALESCE(pu.phone_normalized, '')), '') IS NOT NULL
-            AND NULLIF(trim(COALESCE(dup.phone_normalized, '')), '') IS NULL
-           THEN CASE
-             WHEN (NULLIF(trim(pu.first_name), '') IS NOT NULL AND NULLIF(trim(pu.last_name), '') IS NOT NULL)
-              AND NOT (NULLIF(trim(dup.first_name), '') IS NOT NULL AND NULLIF(trim(dup.last_name), '') IS NOT NULL)
-             THEN COALESCE(NULLIF(trim(pu.first_name), ''), NULLIF(trim(dup.first_name), ''))
-             WHEN (NULLIF(trim(dup.first_name), '') IS NOT NULL AND NULLIF(trim(dup.last_name), '') IS NOT NULL)
-              AND NOT (NULLIF(trim(pu.first_name), '') IS NOT NULL AND NULLIF(trim(pu.last_name), '') IS NOT NULL)
-             THEN COALESCE(NULLIF(trim(dup.first_name), ''), NULLIF(trim(pu.first_name), ''))
-             ELSE COALESCE(NULLIF(trim(pu.first_name), ''), NULLIF(trim(dup.first_name), ''))
-           END
-           WHEN NULLIF(trim(COALESCE(dup.phone_normalized, '')), '') IS NOT NULL
-            AND NULLIF(trim(COALESCE(pu.phone_normalized, '')), '') IS NULL
-           THEN CASE
-             WHEN (NULLIF(trim(dup.first_name), '') IS NOT NULL AND NULLIF(trim(dup.last_name), '') IS NOT NULL)
-              AND NOT (NULLIF(trim(pu.first_name), '') IS NOT NULL AND NULLIF(trim(pu.last_name), '') IS NOT NULL)
-             THEN COALESCE(NULLIF(trim(dup.first_name), ''), NULLIF(trim(pu.first_name), ''))
-             WHEN (NULLIF(trim(pu.first_name), '') IS NOT NULL AND NULLIF(trim(pu.last_name), '') IS NOT NULL)
-              AND NOT (NULLIF(trim(dup.first_name), '') IS NOT NULL AND NULLIF(trim(dup.last_name), '') IS NOT NULL)
-             THEN COALESCE(NULLIF(trim(pu.first_name), ''), NULLIF(trim(dup.first_name), ''))
-             ELSE COALESCE(NULLIF(trim(dup.first_name), ''), NULLIF(trim(pu.first_name), ''))
-           END
-           WHEN NULLIF(trim(COALESCE(pu.phone_normalized, '')), '') IS NOT NULL
-            AND NULLIF(trim(COALESCE(dup.phone_normalized, '')), '') IS NOT NULL
-            AND pu.phone_normalized IS NOT DISTINCT FROM dup.phone_normalized
-           THEN CASE
-             WHEN pu.created_at <= dup.created_at THEN COALESCE(NULLIF(trim(pu.first_name), ''), NULLIF(trim(dup.first_name), ''))
-             ELSE COALESCE(NULLIF(trim(dup.first_name), ''), NULLIF(trim(pu.first_name), ''))
-           END
-           ELSE COALESCE(NULLIF(trim(pu.first_name), ''), NULLIF(trim(dup.first_name), ''))
-         END,
-         last_name = CASE
-           WHEN NULLIF(trim(COALESCE(pu.phone_normalized, '')), '') IS NOT NULL
-            AND NULLIF(trim(COALESCE(dup.phone_normalized, '')), '') IS NULL
-           THEN CASE
-             WHEN (NULLIF(trim(pu.first_name), '') IS NOT NULL AND NULLIF(trim(pu.last_name), '') IS NOT NULL)
-              AND NOT (NULLIF(trim(dup.first_name), '') IS NOT NULL AND NULLIF(trim(dup.last_name), '') IS NOT NULL)
-             THEN COALESCE(NULLIF(trim(pu.last_name), ''), NULLIF(trim(dup.last_name), ''))
-             WHEN (NULLIF(trim(dup.first_name), '') IS NOT NULL AND NULLIF(trim(dup.last_name), '') IS NOT NULL)
-              AND NOT (NULLIF(trim(pu.first_name), '') IS NOT NULL AND NULLIF(trim(pu.last_name), '') IS NOT NULL)
-             THEN COALESCE(NULLIF(trim(dup.last_name), ''), NULLIF(trim(pu.last_name), ''))
-             ELSE COALESCE(NULLIF(trim(pu.last_name), ''), NULLIF(trim(dup.last_name), ''))
-           END
-           WHEN NULLIF(trim(COALESCE(dup.phone_normalized, '')), '') IS NOT NULL
-            AND NULLIF(trim(COALESCE(pu.phone_normalized, '')), '') IS NULL
-           THEN CASE
-             WHEN (NULLIF(trim(dup.first_name), '') IS NOT NULL AND NULLIF(trim(dup.last_name), '') IS NOT NULL)
-              AND NOT (NULLIF(trim(pu.first_name), '') IS NOT NULL AND NULLIF(trim(pu.last_name), '') IS NOT NULL)
-             THEN COALESCE(NULLIF(trim(dup.last_name), ''), NULLIF(trim(pu.last_name), ''))
-             WHEN (NULLIF(trim(pu.first_name), '') IS NOT NULL AND NULLIF(trim(pu.last_name), '') IS NOT NULL)
-              AND NOT (NULLIF(trim(dup.first_name), '') IS NOT NULL AND NULLIF(trim(dup.last_name), '') IS NOT NULL)
-             THEN COALESCE(NULLIF(trim(pu.last_name), ''), NULLIF(trim(dup.last_name), ''))
-             ELSE COALESCE(NULLIF(trim(dup.last_name), ''), NULLIF(trim(pu.last_name), ''))
-           END
-           WHEN NULLIF(trim(COALESCE(pu.phone_normalized, '')), '') IS NOT NULL
-            AND NULLIF(trim(COALESCE(dup.phone_normalized, '')), '') IS NOT NULL
-            AND pu.phone_normalized IS NOT DISTINCT FROM dup.phone_normalized
-           THEN CASE
-             WHEN pu.created_at <= dup.created_at THEN COALESCE(NULLIF(trim(pu.last_name), ''), NULLIF(trim(dup.last_name), ''))
-             ELSE COALESCE(NULLIF(trim(dup.last_name), ''), NULLIF(trim(pu.last_name), ''))
-           END
-           ELSE COALESCE(NULLIF(trim(pu.last_name), ''), NULLIF(trim(dup.last_name), ''))
-         END,
-         patronymic = COALESCE(NULLIF(trim(pu.patronymic), ''), NULLIF(trim(dup.patronymic), '')),
-         updated_at = now()
-       FROM (
-         SELECT pu0.*,
-           (SELECT uc.value_normalized FROM user_contacts uc
-            WHERE uc.platform_user_id = pu0.id AND uc.contact_kind = 'phone' AND uc.is_primary = true LIMIT 1) AS phone_normalized
-         FROM platform_users pu0 WHERE pu0.id = $1::uuid
-       ) pu,
-       (
-         SELECT dup0.*,
-           (SELECT uc.value_normalized FROM user_contacts uc
-            WHERE uc.platform_user_id = dup0.id AND uc.contact_kind = 'phone' AND uc.is_primary = true LIMIT 1) AS phone_normalized
-         FROM platform_users dup0 WHERE dup0.id = $2::uuid
-       ) dup
-       WHERE root.id = $1::uuid`,
+  } else if (usableHumanDecision) {
+    /**
+     * Та же ветка обслуживает автоматическую дверь и дверь врача: за врачебной сюда приезжает тот
+     * же ответ человека, только сохранённый со строкой конфликта, — отдельного «врачебного» выбора
+     * ФИО не существует (§18а + §18б).
+     */
+    const answered = usableHumanDecision;
+    const askedFields = answered.prompt.conflicts;
+    const lastName = resolveHumanFioField(
+      'last_name',
+      a.last_name,
+      b.last_name,
+      answered.fio.last_name,
       [targetId, duplicateId],
+      askedFields.includes('last_name'),
     );
+    const firstName = resolveHumanFioField(
+      'first_name',
+      a.first_name,
+      b.first_name,
+      answered.fio.first_name,
+      [targetId, duplicateId],
+      askedFields.includes('first_name'),
+    );
+    const patronymic = resolveHumanFioField(
+      'patronymic',
+      a.patronymic,
+      b.patronymic,
+      answered.fio.patronymic,
+      [targetId, duplicateId],
+      askedFields.includes('patronymic'),
+    );
+    let displayName: string;
+    if (askedFields.includes('display_name')) {
+      const selection = answered.fio.display_name;
+      if (!selection) {
+        throw new MergeConflictError('merge: human choice required for display_name', [
+          targetId,
+          duplicateId,
+        ]);
+      }
+      /**
+       * Части НЕ берутся оптом со стороны выбранной подписи: каждая из них — отдельный вопрос того
+       * же диалога (`createHumanMergePrompt`), и сюда приходит уже готовый ответ человека.
+       */
+      if (selection.source === 'target') {
+        displayName = a.display_name;
+      } else if (selection.source === 'duplicate') {
+        displayName = b.display_name;
+      } else {
+        const custom = normalizedFioPart(selection.value);
+        if (!custom || !isHumanMergeCustomFioValue(custom)) {
+          throw new MergeConflictError('merge: invalid custom human choice for display_name', [
+            targetId,
+            duplicateId,
+          ]);
+        }
+        displayName = custom;
+      }
+    } else {
+      /**
+       * §18а: «с одной стороны пусто — дополняем недостающее». Пустое `display_name` найденной
+       * учётки поэтому не затирает настоящее имя второй стороны, а уступает ему.
+       */
+      const recognizedAccount = answered.prompt.foundAccountId === targetId ? a : b;
+      const otherAccount = recognizedAccount === a ? b : a;
+      const fallbackDisplayName =
+        normalizedFioPart(recognizedAccount.display_name) ??
+        normalizedFioPart(otherAccount.display_name) ??
+        '';
+      displayName = formatResolvedDisplayName({
+        lastName,
+        firstName,
+        patronymic,
+        fallback: fallbackDisplayName,
+      });
+    }
+    await runMergePgText(
+      client,
+      `UPDATE platform_users
+       SET display_name = $3::text, first_name = $4::text, last_name = $5::text,
+           patronymic = $6::text, updated_at = now()
+       WHERE id = $1::uuid`,
+      [targetId, duplicateId, displayName, firstName, lastName, patronymic],
+    );
+  } else if (!medicalConflictApproval) {
+    throw new MergeConflictError('merge: automatic merge requires a human decision', [
+      targetId,
+      duplicateId,
+    ]);
   }
+  /**
+   * Третьей ветки с записью ФИО здесь нет намеренно. Дверь врача идёт по ветке выше вместе с
+   * автоматической: §18а не знает для неё исключения. Сюда она доходит только когда спорить не о
+   * чем — ни одно поле ФИО не конфликтует (иначе выше вернулся бы `fio_decision_required`), и
+   * выбирать между сторонами не приходится.
+   */
 
   await mutateCanonicalUserContacts(client, targetId, [
     { action: 'merge-from', duplicatePlatformUserId: duplicateId },
@@ -925,7 +1173,7 @@ export async function mergePlatformUsersInTransaction(
   );
 
   logger.info(
-    { targetId, duplicateId, reason, mergeContactsSaved, mergeContext: options?.mergeContext },
+    { targetId, duplicateId, reason, mergeContactsSaved, mergeContext: options.mergeContext },
     '[merge] merged duplicate into target',
   );
   trustedPatientPhoneWriteAnchor(TrustedPatientPhoneSource.PlatformUserMerge);
@@ -984,7 +1232,7 @@ async function mergeChannelBindingsManual(
         client,
         sql`SELECT user_id::text AS user_id
          FROM user_channel_bindings
-         WHERE user_id = ANY(${sql.param([targetId, duplicateId])}::uuid[]) AND channel_code = ${ch}`,
+         WHERE user_id = ANY(ARRAY[${targetId}::uuid, ${duplicateId}::uuid]) AND channel_code = ${ch}`,
       );
       const hasTargetBinding = bindingPresence.rows.some((row) =>
         uuidTextEquals(row.user_id, targetId),
@@ -1051,7 +1299,7 @@ async function mergeOauthBindingsManual(
   const r = await runMergeSql<OauthRow>(
     client,
     sql`SELECT user_id::text AS user_id, provider, provider_user_id, email, created_at
-     FROM user_oauth_bindings WHERE user_id = ANY(${sql.param([targetId, duplicateId])}::uuid[])`,
+     FROM user_oauth_bindings WHERE user_id = ANY(ARRAY[${targetId}::uuid, ${duplicateId}::uuid])`,
   );
   const byProvider = new Map<string, OauthRow[]>();
   for (const row of r.rows) {
@@ -1883,7 +2131,7 @@ export async function enrichPickMergeCandidatesWithBookingCounts(
     client,
     sql`SELECT platform_user_id::text AS uid, COUNT(*)::text AS c
      FROM patient_bookings
-     WHERE platform_user_id = ANY(${sql.param([a.id, b.id])}::uuid[])
+     WHERE platform_user_id = ANY(ARRAY[${a.id}::uuid, ${b.id}::uuid])
      GROUP BY platform_user_id`,
   );
   const map = new Map<string, number>();

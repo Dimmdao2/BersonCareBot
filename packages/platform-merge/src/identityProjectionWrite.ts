@@ -12,9 +12,6 @@
 import { sql } from 'drizzle-orm';
 import { MergeConflictError } from './platformUserMergeErrors.js';
 import {
-  mergePlatformUsersInTransaction,
-  pickMergeTargetId,
-  enrichPickMergeCandidatesWithBookingCounts,
   type MergePlatformUsersReason,
   type MergePlatformUsersContext,
   type PickMergeTargetCandidate,
@@ -101,20 +98,16 @@ export async function collapseIdentityProjectionCandidates(
   if (uniq.length === 0) {
     throw new MergeConflictError('collapseIdentityProjectionCandidates: empty', []);
   }
-  let ids = [...uniq].sort();
-  while (ids.length > 1) {
-    const id0 = ids[0]!;
-    const id1 = ids[1]!;
-    const a = await loadCandidateForMerge(db, id0);
-    const b = await loadCandidateForMerge(db, id1);
-    if (!a || !b) {
-      throw new MergeConflictError('collapseIdentityProjectionCandidates: row missing', ids);
-    }
-    const [ea, eb] = await enrichPickMergeCandidatesWithBookingCounts(db, a, b);
-    const { target, duplicate } = pickMergeTargetId(ea, eb);
-    await mergePlatformUsersInTransaction(db, target, duplicate, reason, { mergeContext });
-    ids = ids.filter((x) => x !== duplicate);
+  if (uniq.length > 1) {
+    throw new MergeConflictError(
+      'collapseIdentityProjectionCandidates: human account confirmation required',
+      uniq,
+    );
   }
+  let ids = [...uniq].sort();
+  void db;
+  void reason;
+  void mergeContext;
   return ids[0]!;
 }
 

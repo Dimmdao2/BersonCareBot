@@ -263,7 +263,18 @@ function formatValidityDays(value: number | null): string {
   return `${value} ${suffix}`;
 }
 
-function SectionPackages({ readOnly }: { readOnly: boolean }) {
+function SectionPackages({
+  readOnly,
+  fillHeight = false,
+}: {
+  readOnly: boolean;
+  /**
+   * Секция — единственное содержимое экрана и должна занять его высоту целиком. Владелец 15.09:
+   * «абонементы — чтобы были на всю высоту блоки без пустоты внизу (только нормальные отступы как
+   * везде)». В простыне управления клиникой секция стоит среди других и высоту не тянет.
+   */
+  fillHeight?: boolean;
+}) {
   const [state, setState] = useState<PackagesState>({ phase: 'loading' });
   const [, startTransition] = useTransition();
   /**
@@ -484,8 +495,11 @@ function SectionPackages({ readOnly }: { readOnly: boolean }) {
       ? soldPackages.filter((pkg) => pkg.subscriptionPackageId === selectedCatalogPackage.id).length
       : null;
 
+  const scrollPaneClass = 'min-h-0 flex-1 overflow-y-auto [scrollbar-width:thin]';
+  const stretchPane = isWidePackagesLayout && fillHeight;
+
   const packagesListBlock = (
-    <DoctorSection className="overflow-hidden p-0">
+    <DoctorSection className={cn('overflow-hidden p-0', stretchPane && 'h-full min-h-0')}>
       <DoctorSectionHeader className="flex-row items-center justify-between gap-3 px-[var(--doctor-block-padding,18px)] pt-[var(--doctor-block-padding,18px)]">
         <DoctorSectionTitle>Абонементы</DoctorSectionTitle>
         {!readOnly ? (
@@ -539,6 +553,7 @@ function SectionPackages({ readOnly }: { readOnly: boolean }) {
         </DoctorSectionActions>
       </div>
 
+      <div className={cn(stretchPane && scrollPaneClass)}>
       {visiblePackages.length > 0 ? (
         <DoctorDnaFlatList>
           {visiblePackages.map((pkg) => {
@@ -588,6 +603,7 @@ function SectionPackages({ readOnly }: { readOnly: boolean }) {
           {packageView === 'active' ? 'Активных абонементов нет' : 'Архивных абонементов нет'}
         </DoctorEmptyState>
       )}
+      </div>
     </DoctorSection>
   );
 
@@ -777,9 +793,17 @@ function SectionPackages({ readOnly }: { readOnly: boolean }) {
     const rightFooter = rightMode === 'form' ? packageFormFooter : packageDetailsFooter;
     return (
       <>
-        <div className="grid grid-cols-[minmax(0,24rem)_minmax(0,1fr)] items-start gap-3">
+        {/* Пропорции — «тот же принцип что у упражнений» (владелец 15.09): там половина на
+            половину, `CatalogSplitLayout` без своей раскладки колонок. Списку узкой колонки
+            не хватало: цена и срок жались к названию. */}
+        <div
+          className={cn(
+            'grid grid-cols-2 gap-3',
+            stretchPane ? 'h-full min-h-0' : 'items-start',
+          )}
+        >
           {packagesListBlock}
-          <DoctorSection>
+          <DoctorSection className={cn(stretchPane && 'h-full min-h-0')}>
             <DoctorSectionHeader>
               <DoctorSectionTitle>
                 {rightMode === 'form' ? (
@@ -796,13 +820,17 @@ function SectionPackages({ readOnly }: { readOnly: boolean }) {
                 )}
               </DoctorSectionTitle>
             </DoctorSectionHeader>
-            {rightMode === 'form' ? packageFormBody : null}
-            {rightMode === 'details' ? packageDetailsBody : null}
-            {rightMode === 'empty' ? (
-              <DoctorEmptyState>Выберите абонемент</DoctorEmptyState>
-            ) : null}
+            <div className={cn(stretchPane && scrollPaneClass)}>
+              {rightMode === 'form' ? packageFormBody : null}
+              {rightMode === 'details' ? packageDetailsBody : null}
+              {rightMode === 'empty' ? (
+                <DoctorEmptyState>Выберите абонемент</DoctorEmptyState>
+              ) : null}
+            </div>
             {rightFooter ? (
-              <DoctorSectionActions className="justify-end gap-2">{rightFooter}</DoctorSectionActions>
+              <DoctorSectionActions className="justify-end gap-2">
+                {rightFooter}
+              </DoctorSectionActions>
             ) : null}
           </DoctorSection>
         </div>
@@ -990,7 +1018,16 @@ export function ScheduleSetupTab({
       data-testid="schedule-setup-tab"
     >
       <DoctorShellMobileSubsectionTabsRegistration content={mobileSubsectionTabs} />
-      <div className="flex flex-col gap-3 py-3">
+      {/* В режиме «только абонементы» секция одна и забирает высоту экрана целиком. Нижний
+          отступ там снимается: под блоком уже лежит общий нижний зазор страницы, и вместе с
+          `py-3` получалось 30px против 18px у «Упражнений» — на них владелец и указал как на
+          образец («только нормальные отступы как везде»). */}
+      <div
+        className={cn(
+          'flex flex-col gap-3 py-3',
+          setupPackagesOnly && 'xl:h-full xl:min-h-0 xl:pb-0',
+        )}
+      >
         {!setupPackagesOnly ? (
           <nav
             className="hidden flex-wrap gap-1 md:flex"
@@ -1012,7 +1049,10 @@ export function ScheduleSetupTab({
           </nav>
         ) : null}
 
-        <div data-testid={`setup-section-${activeSection}`}>
+        <div
+          className={cn(setupPackagesOnly && 'xl:min-h-0 xl:flex-1')}
+          data-testid={`setup-section-${activeSection}`}
+        >
           {activeSection === 'locations' && <SectionLocations />}
           {activeSection === 'services' && <SectionServices />}
           {activeSection === 'specialists' && <SectionSpecialists />}
@@ -1022,7 +1062,7 @@ export function ScheduleSetupTab({
             <SectionNotifications />
           )}
           {activeSection === 'packages' && packagesVisible && (
-            <SectionPackages readOnly={packagesReadOnly} />
+            <SectionPackages readOnly={packagesReadOnly} fillHeight={setupPackagesOnly} />
           )}
         </div>
       </div>

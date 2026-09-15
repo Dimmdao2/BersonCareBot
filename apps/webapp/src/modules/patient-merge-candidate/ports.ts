@@ -31,12 +31,15 @@ export type PatientMergeConflictDetails = {
 /**
  * Чем кончилось нажатие врачом «слить». `merged` — учётки объединены; `awaiting_other_organization`
  * — одобрение врача записано, но слияния НЕ было: у пары есть медицинский блокер второй клиники, и
- * снять его может только её врач; `conflict_not_found` — незакрытого конфликта этой клиники нет.
+ * снять его может только её врач; `conflict_not_found` — незакрытого конфликта этой клиники нет;
+ * `fio_decision_required` — ФИО сторон расходится, а ответа человека, какой вариант правильный
+ * (§18а), у нас нет: слить, выбрав подпись за него, нельзя, человека нужно спросить заново.
  */
 export type PatientMergeConflictMergeOutcome =
   | 'merged'
   | 'awaiting_other_organization'
-  | 'conflict_not_found';
+  | 'conflict_not_found'
+  | 'fio_decision_required';
 
 export type PatientMergeCandidateRecord = {
   id: string;

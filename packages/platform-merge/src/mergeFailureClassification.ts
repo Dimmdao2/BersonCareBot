@@ -5,6 +5,7 @@ import { MergeConflictError, MergeDependentConflictError } from './platformUserM
  * Machine codes for merge guard / conflict outcomes (subset of messenger phone-bind / channel-link flows).
  */
 export type MergeFailureClassificationCode =
+  | 'human_account_confirmation_required'
   | 'phone_owned_by_other_user'
   | 'channel_already_bound_to_other_user'
   | 'merge_blocked_booking_overlap'
@@ -16,6 +17,20 @@ export type MergeFailureClassificationCode =
   | 'merge_blocked_integrator_conflict'
   | 'merge_blocked_medical_history_support_required'
   | 'db_transient_failure';
+
+/**
+ * §18а: движок остановился не потому, что контакт принадлежит чужому человеку, а потому что ждёт
+ * ответа человека в диалоге «это ваш аккаунт?». Раньше все эти отказы падали в общий
+ * `phone_owned_by_other_user`, и каждая дверь этого правила говорила человеку неправду о телефоне.
+ */
+function awaitsHumanAccountConfirmation(message: string): boolean {
+  return (
+    message.includes('human account confirmation required') ||
+    message.includes('human choice required for') ||
+    message.includes('automatic merge requires a human decision') ||
+    message.includes('shown account details changed before confirmation')
+  );
+}
 
 export type MergeFailureClassification = {
   code: MergeFailureClassificationCode;
@@ -59,6 +74,9 @@ export function classifyMergeFailure(
 
   if (err instanceof MergeConflictError) {
     const msg = err.message;
+    if (awaitsHumanAccountConfirmation(msg)) {
+      return { code: 'human_account_confirmation_required', candidateIds: idsFromErr };
+    }
     if (msg.includes('two different non-null phone')) {
       return { code: 'merge_blocked_distinct_real_users', candidateIds: idsFromErr };
     }

@@ -1,0 +1,155 @@
+#!/usr/bin/env bash
+# Host-side container restart observer. It deliberately runs outside Docker: the observer must
+# survive the death of the containers it watches.
+
+set -euo pipefail
+
+readonly STATE_DIR="${THERAPYSTO_CONTAINER_RESTART_STATE_DIR:-/var/lib/therapysto/container-restart-watchdog}"
+readonly STATE_FILE="$STATE_DIR/snapshot.tsv"
+readonly LOCK_FILE="${THERAPYSTO_CONTAINER_RESTART_LOCK_FILE:-/run/lock/therapysto-container-restart-watchdog.lock}"
+TEMP_FILES=()
+
+cleanup() {
+  [ "${#TEMP_FILES[@]}" = 0 ] || rm -f -- "${TEMP_FILES[@]}"
+}
+trap cleanup EXIT
+
+die() {
+  echo "FATAL: therapysto-container-restart-watchdog: $*" >&2
+  exit 1
+}
+
+collect_snapshot() {
+  local ids_text
+  local -a ids=()
+
+  ids_text=$(docker ps -aq --filter 'name=^/therapysto-') || return
+  [ -n "$ids_text" ] || return 0
+  mapfile -t ids <<< "$ids_text"
+
+  # Контейнер может исчезнуть между `ps` и `inspect` — на выкатке это норма, а не поломка. docker в
+  # таком случае печатает строки по уцелевшим и ВСЁ РАВНО выходит с ненулевым кодом; под `set -e`
+  # это роняло весь вывод, и `therapysto-status` терял список контейнеров целиком — там, где прежний
+  # `docker ps` просто не показал бы исчезнувший. Частичный ответ принимаем, молчание при живом
+  # отказе демона — нет: пустой вывод с ненулевым кодом возвращаем наверх как отказ.
+  local inspected
+  local rc=0
+  # Разделитель — ИМЕННО `{{"\t"}}`, а не `\t` в тексте шаблона: `docker inspect` отдаёт свой
+  # `--format` в Go-шаблон как есть, и обратный слэш в тексте остаётся двумя символами. Живой прод
+  # 15.09 печатал `…c69b\t/therapysto-green-webapp-1\trunning` — вся строка попадала в первое поле,
+  # а `therapysto-status` показывал восемь строк с пустыми `status=`, `image=` и без имён. В кавычках
+  # шаблон разбирает escape сам, поэтому табуляция получается настоящей.
+  local fmt='{{.Id}}{{"\t"}}{{.Name}}{{"\t"}}{{.RestartCount}}{{"\t"}}{{.State.StartedAt}}'
+  fmt+='{{"\t"}}{{.HostConfig.RestartPolicy.Name}}{{"\t"}}{{.HostConfig.RestartPolicy.MaximumRetryCount}}'
+  fmt+='{{"\t"}}{{.Config.Image}}{{"\t"}}{{.State.Status}}'
+  inspected=$(docker inspect --format "$fmt" "${ids[@]}") || rc=$?
+  if [ -n "$inspected" ]; then
+    printf '%s\n' "$inspected"
+    return 0
+  fi
+  return "$rc"
+}
+
+# Emits one TSV row per observed restart: name, id, previous count, current count. A replacement
+# container has the same name but another Id and therefore establishes a new baseline silently.
+compare_snapshots() {
+  local previous_file="$1"
+  local current_file="$2"
+
+  awk -F '\t' '
+    function valid(row_kind) {
+      if (NF < 3 || $1 == "" || $2 == "" || $3 !~ /^[0-9]+$/) {
+        printf "invalid %s snapshot row: %s\n", row_kind, $0 > "/dev/stderr"
+        invalid_rows = 1
+        return 0
+      }
+      return 1
+    }
+    FILENAME == ARGV[1] {
+      if (!valid("previous")) next
+      previous_id[$2] = $1
+      previous_count[$2] = $3 + 0
+      next
+    }
+    {
+      if (!valid("current")) next
+      current_count = $3 + 0
+      if (($2 in previous_id) && previous_id[$2] == $1 && current_count > previous_count[$2]) {
+        display_name = $2
+        sub(/^\//, "", display_name)
+        printf "%s\t%s\t%d\t%d\n", display_name, $1, previous_count[$2], current_count
+      }
+    }
+    END { if (invalid_rows) exit 2 }
+  ' "$previous_file" "$current_file"
+}
+
+print_status() {
+  local snapshot
+  local id name restart_count started_at policy max_retries image status
+
+  snapshot=$(mktemp)
+  TEMP_FILES+=("$snapshot")
+  collect_snapshot > "$snapshot"
+  if [ ! -s "$snapshot" ]; then
+    echo "  <none>"
+    return 0
+  fi
+
+  while IFS=$'\t' read -r id name restart_count started_at policy max_retries image status; do
+    name=${name#/}
+    if [ "$policy" = on-failure ]; then
+      policy="$policy:$max_retries"
+    fi
+    printf '  %s  status=%s  restarts=%s  started=%s  restart_policy=%s  image=%s\n' \
+      "$name" "$status" "$restart_count" "$started_at" "$policy" "$image"
+  done < "$snapshot"
+}
+
+watch_restarts() {
+  local snapshot events previous_file
+  local name id previous_count current_count
+
+  [ "$(id -u)" = 0 ] || die "watch mode must run as root"
+  command -v docker >/dev/null || die "docker is unavailable"
+  command -v flock >/dev/null || die "flock is unavailable"
+  command -v logger >/dev/null || die "logger is unavailable"
+
+  install -d -m 0755 -o root -g root "$STATE_DIR"
+  exec 9>"$LOCK_FILE"
+  flock -n 9 || exit 0
+
+  snapshot=$(mktemp "$STATE_DIR/snapshot.new.XXXXXX")
+  events=$(mktemp "$STATE_DIR/events.XXXXXX")
+  TEMP_FILES+=("$snapshot" "$events")
+
+  collect_snapshot > "$snapshot"
+  previous_file=/dev/null
+  [ ! -f "$STATE_FILE" ] || previous_file="$STATE_FILE"
+  compare_snapshots "$previous_file" "$snapshot" > "$events"
+
+  while IFS=$'\t' read -r name id previous_count current_count; do
+    [ -n "$name" ] || continue
+    logger --priority daemon.err --tag therapysto-container-restart-watchdog -- \
+      "container restarted: name=$name id=$id restart_count=$previous_count->$current_count"
+  done < "$events"
+
+  chmod 0644 "$snapshot"
+  mv -f -- "$snapshot" "$STATE_FILE"
+}
+
+case "${1:-}" in
+  '')
+    watch_restarts
+    ;;
+  --status)
+    print_status
+    ;;
+  --compare-snapshots)
+    [ "$#" = 3 ] || die "usage: $0 --compare-snapshots PREVIOUS CURRENT"
+    compare_snapshots "$2" "$3"
+    ;;
+  *)
+    die "usage: $0 [--status | --compare-snapshots PREVIOUS CURRENT]"
+    ;;
+esac

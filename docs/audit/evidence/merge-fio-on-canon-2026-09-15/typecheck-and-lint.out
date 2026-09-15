@@ -1,0 +1,11 @@
+=== apps/webapp tsc --noEmit ===
+EXIT=0
+
+=== apps/integrator tsc --noEmit ===
+EXIT=0
+
+=== packages/platform-merge tsc --noEmit ===
+EXIT=0
+
+=== eslint (затронутые файлы webapp) ===
+EXIT=0

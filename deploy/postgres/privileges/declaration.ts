@@ -25919,12 +25919,12 @@ const REV10_CONTEXT = {
       runtimeName: 'patient_medical_merge_conflict_record', sessionRole: 'app_patient',
       targetRole: 'app_patient', contextClass: 'patient',
       purpose: 'identity.medical-merge-conflict.record',
-      functionIdentity: 'app.record_patient_medical_merge_conflict(uuid,uuid,uuid,text)' },
+      functionIdentity: 'app.record_patient_medical_merge_conflict(uuid,uuid,uuid,text,text)' },
     webapp_pre_session_patient_medical_merge_conflict_record: { port: 'webapp',
       runtimeName: 'pre_session_patient_medical_merge_conflict_record', sessionRole: 'app_patient',
       targetRole: 'app_pre_session', contextClass: 'pre_session',
       purpose: 'identity.medical-merge-conflict.record',
-      functionIdentity: 'app.record_patient_medical_merge_conflict(uuid,uuid,uuid,text)' },
+      functionIdentity: 'app.record_patient_medical_merge_conflict(uuid,uuid,uuid,text,text)' },
     webapp_staff_patient_medical_merge_conflict_read: { port: 'webapp',
       runtimeName: 'staff_patient_medical_merge_conflict_read', sessionRole: 'app_staff',
       targetRole: 'app_staff', contextClass: 'staff',
@@ -26500,6 +26500,10 @@ const REV10_CONTEXT = {
       targetRole: 'app_tenant_service', contextClass: 'tenant_service',
       purpose: 'leads.public-submit.create',
       functionIdentity: 'app.create_public_lead(uuid,text,text,text,text,text,text,text,text,timestamp with time zone)' },
+    read_clinic_lead_notification_profiles: { port: 'webapp', sessionRole: 'app_staff',
+      targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+      purpose: 'leads.clinic-notification-profiles.read',
+      functionIdentity: 'app.read_clinic_lead_notification_profiles(uuid,text)' },
     // Публичная визитка клиники `/{clinic}` (владелец 19.08). Анонимный посетитель читает ОДНУ
     // строку публичной проекции через дверь: прямой SELECT ему отозван целиком (42501).
     read_public_clinic_card: { port: 'webapp', sessionRole: 'app_patient',
@@ -28064,6 +28068,34 @@ const REV10_CONTEXT = {
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
+    // Единственная дверь создания заявки — публичная, и держит она принципал ОРГАНИЗАЦИИ. У класса
+    // `tenant_service` реляционного пути к предпочтениям, привязкам и подпискам персонала нет, и
+    // открывать его туда нельзя: это данные персонала, а класс обслуживает публичную поверхность.
+    // Поэтому корень отдаёт СРАЗУ профиль доставки каждого получателя — кого уведомить и чем, —
+    // и запрос читает базу один раз за одним гейтом вместо пяти чтений без гейта.
+    'app.read_clinic_lead_notification_profiles(uuid,text)': rev10Function({
+      owner: 'app_seam_public_booking_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
+      execute: ['app_tenant_service'],
+      purpose: 'resolve delivery profiles only for active clinic administrators of the accepted lead organization',
+      typedArgs: ['uuid', 'text'], volatility: 'STABLE', parallel: 'RESTRICTED',
+      proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.be_organization_members', columns: ['organization_id', 'platform_user_id', 'role', 'status'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.platform_users', columns: ['id', 'role', 'merged_into_id'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.user_channel_bindings', columns: ['user_id', 'channel_code', 'external_id', 'created_at'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.user_channel_preferences', columns: [
+          'user_id', 'platform_user_id', 'channel_code', 'is_enabled_for_messages',
+          'is_enabled_for_notifications', 'is_preferred_for_auth',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.user_notification_topic_channels', columns: ['user_id', 'topic_code', 'channel_code', 'is_enabled'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.user_web_push_subscriptions', columns: ['user_id'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
     // Личность посетителя. Организации в аргументах нет: телефон принадлежит человеку, а не клинике,
     // и класс `pre_session` стоит до выбора арендатора.
     'app.resolve_public_booking_client_by_phone(text,text,boolean)': rev10Function({
@@ -29260,10 +29292,10 @@ const REV10_CONTEXT = {
           operations: ['SELECT' as const, 'INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
-    'app.record_patient_medical_merge_conflict(uuid,uuid,uuid,text)': rev10Function({
+    'app.record_patient_medical_merge_conflict(uuid,uuid,uuid,text,text)': rev10Function({
       owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'uuid', returnsSet: false,
       execute: ['app_patient', 'app_pre_session'], purpose: 'persist or globally escalate one deferred medical merge conflict',
-      typedArgs: ['uuid', 'uuid', 'uuid', 'text'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      typedArgs: ['uuid', 'uuid', 'uuid', 'text', 'text'], volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
         { relation: 'public.patient_merge_candidates',

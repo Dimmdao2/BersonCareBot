@@ -1,0 +1,11 @@
+# СГЕНЕРИРОВАНО из apps/webapp/src/modules/operator-health/backgroundJobManifest.ts. Руками не править.
+# Перегенерировать: node deploy/host/background-jobs-cli.mjs --write
+# Сверить (гейт deploy и CI): node deploy/host/background-jobs-cli.mjs --check
+#
+# Перезапуски контейнеров — среда prod.
+# Наблюдатель обязан пережить смерть наблюдаемого контейнера, поэтому работает на хосте и пишет рост RestartCount в системный журнал.
+# id=container_restart_watchdog tick=health/health.container_restart.watch нет HTTP-маршрута
+# principal=host_shell surface=none timeout=нет stale_after=720s
+# Запускается напрямую /opt/therapysto/pipeline/therapysto-container-restart-watchdog — это host-сторож, не HTTP-тик вебаппа.
+# Состояние хранится вне контейнеров, чтобы их пересоздание или смерть не убивали наблюдателя.
+*/5 * * * * root /opt/therapysto/pipeline/therapysto-container-restart-watchdog

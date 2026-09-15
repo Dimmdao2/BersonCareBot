@@ -1,0 +1,2 @@
+MERGE_FAILED_BEFORE_HUMAN_PATRONYMIC_CHOICE 42846 cannot cast type record to uuid[]
+RESIDUE {"rows":0}

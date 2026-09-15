@@ -27,6 +27,7 @@ import { defaultDoctorTopicFallbackChannels } from './doctorTopicChannelDefaults
 import type { DoctorNotificationTopicCode } from './doctorNotificationTopics';
 import { resolveDoctorNotificationChannels } from './resolveDoctorNotificationChannels';
 import type { PatientStaffNotificationProfilesPort } from './patientStaffNotificationProfilesPort';
+import type { StaffNotificationProfile } from './staffNotificationProfile';
 import type { StaffUsersPort } from './staffUsersPort';
 import { reportEmptyAudience } from '@/modules/operator-alerts/emptyAudienceRuntime';
 
@@ -55,6 +56,22 @@ export type NotifyDoctorStaffTopicInput = {
    */
   nativeRoute?: string;
   replyMarkup?: { inline_keyboard: RelayInlineButton[][] };
+  /** A producer-supplied neutral event label when the event is not a patient chat message. */
+  notificationText?: string;
+  notificationTitle?: string;
+  /**
+   * A producer-supplied audience. Given, it wins over both the patient profiles and the staff
+   * port: the producer of a non-patient event knows who must hear about it, and the shared
+   * staff list must not be reshaped to serve one event's rule.
+   */
+  staffUserIds?: string[];
+  /**
+   * A producer-supplied per-recipient delivery profile. Given, the four per-user reads below are
+   * not performed: a producer whose DB principal cannot reach the staff preference, binding and
+   * subscription tables resolves the whole set through its own named root and hands it over ready.
+   * Without this, such a producer's notification dies on the first of those reads.
+   */
+  staffProfiles?: StaffNotificationProfile[];
 };
 
 export type NotifyDoctorPatientMessageToStaffResult = {
@@ -67,25 +84,35 @@ export async function notifyDoctorPatientMessageToStaff(
   input: NotifyDoctorStaffTopicInput,
   deps: NotifyDoctorPatientMessageToStaffDeps,
 ): Promise<NotifyDoctorPatientMessageToStaffResult> {
-  const patientProfiles = deps.patientStaffNotificationProfiles
-    ? await deps.patientStaffNotificationProfiles.listForCurrentPatientOrganization({
-        organizationId: input.organizationId,
-        topicCode: input.topicCode,
-      })
-    : null;
-  const staffIds = patientProfiles
-    ? patientProfiles.map((profile) => profile.userId)
-    : await deps.staffUsers.listActiveStaffUserIds();
-  const patientLabelSetting = await deps.systemSettings.getSetting('patient_label', 'doctor', {
-    organizationId: input.organizationId,
-  });
+  const patientProfiles =
+    input.staffProfiles || !deps.patientStaffNotificationProfiles
+      ? null
+      : await deps.patientStaffNotificationProfiles.listForCurrentPatientOrganization({
+          organizationId: input.organizationId,
+          topicCode: input.topicCode,
+        });
+  const profiles = input.staffProfiles ?? patientProfiles;
+  const staffIds = input.staffUserIds
+    ? input.staffUserIds
+    : profiles
+      ? profiles.map((profile) => profile.userId)
+      : await deps.staffUsers.listActiveStaffUserIds();
   const globalFallback = defaultDoctorTopicFallbackChannels(input.topicCode);
   const replyMarkup = input.replyMarkup;
-  const notificationText = buildPersonalChatNotificationText(
-    input.senderDisplayName,
-    'patient',
-    resolvePatientTerms({ patientLabel: patientLabelSetting?.valueJson, appointmentLabel: undefined }),
-  );
+  const notificationText =
+    input.notificationText ??
+    buildPersonalChatNotificationText(
+      input.senderDisplayName,
+      'patient',
+      resolvePatientTerms({
+        patientLabel: (
+          await deps.systemSettings.getSetting('patient_label', 'doctor', {
+            organizationId: input.organizationId,
+          })
+        )?.valueJson,
+        appointmentLabel: undefined,
+      }),
+    );
   const messengerText = `${notificationText}\n\n${input.notificationUrl}`;
 
   let telegramDelivered = 0;
@@ -106,13 +133,13 @@ export async function notifyDoctorPatientMessageToStaff(
   }
 
   for (const userId of staffIds) {
-    const patientProfile = patientProfiles?.find((profile) => profile.userId === userId);
-    const [prefRows, channelPrefs, bindings, hasPush] = patientProfile
+    const profile = profiles?.find((row) => row.userId === userId);
+    const [prefRows, channelPrefs, bindings, hasPush] = profile
       ? [
-          patientProfile.topicChannelPreferences,
-          patientProfile.channelPreferences,
-          { telegramId: patientProfile.telegramId, maxId: patientProfile.maxId },
-          patientProfile.hasWebPushSubscription,
+          profile.topicChannelPreferences,
+          profile.channelPreferences,
+          { telegramId: profile.telegramId, maxId: profile.maxId },
+          profile.hasWebPushSubscription,
         ]
       : await Promise.all([
           deps.topicChannelPrefs.listByUserId(userId),
@@ -155,6 +182,7 @@ export async function notifyDoctorPatientMessageToStaff(
       const recipient = bindings.telegramId.trim();
       const result = await relayOutbound({
         messageId: `${input.messageId}:tg:${userId}:${recipient}`,
+        organizationId: input.organizationId,
         channel: 'telegram',
         recipient,
         text: messengerText,
@@ -172,6 +200,7 @@ export async function notifyDoctorPatientMessageToStaff(
       const recipient = bindings.maxId.trim();
       const result = await relayOutbound({
         messageId: `${input.messageId}:max:${userId}:${recipient}`,
+        organizationId: input.organizationId,
         channel: 'max',
         recipient,
         text: messengerText,
@@ -197,7 +226,7 @@ export async function notifyDoctorPatientMessageToStaff(
         recipient: userId,
         text: notificationText,
         metadata: {
-          title: 'Новое сообщение',
+          title: input.notificationTitle ?? 'Новое сообщение',
           url: input.notificationUrl,
           pushExtras: {
             tag,

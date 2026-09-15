@@ -39,6 +39,7 @@ export type DoctorNotificationAvailability = {
   emailVerified: boolean;
   hasWebPushSubscription: boolean;
   globalWebPushEnabled: boolean;
+  hasLeads: boolean;
 };
 
 function globalFallbackForTopic(
@@ -60,7 +61,9 @@ export function buildDoctorNotificationTopicModels(
   availability: DoctorNotificationAvailability,
   globalTaskReminderChannels: readonly string[],
 ): DoctorNotificationTopicModel[] {
-  return DOCTOR_NOTIFICATION_TOPIC_CODES.map((topicId) => {
+  return DOCTOR_NOTIFICATION_TOPIC_CODES.filter(
+    (topicId) => topicId !== 'doctor_leads' || availability.hasLeads,
+  ).map((topicId) => {
     const allowed = allowedDoctorChannelsForTopic(topicId);
     const globalFallback = globalFallbackForTopic(topicId, globalTaskReminderChannels);
     const channels: DoctorNotificationChannelModel[] = [];

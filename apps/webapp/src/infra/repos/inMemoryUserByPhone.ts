@@ -60,7 +60,7 @@ export const inMemoryUserByPhonePort: UserByPhonePort = {
         displayName: context.displayName ?? existing.displayName,
       };
       usersByPhone.set(normalized, updated);
-      return { user: updated, wasCreated: false };
+      return { kind: 'complete', user: updated, wasCreated: false };
     }
     const key = channelToBindingKey(context.channel);
     const bindings: ChannelBindings = {};
@@ -83,7 +83,7 @@ export const inMemoryUserByPhonePort: UserByPhonePort = {
       bindings,
     };
     usersByPhone.set(normalized, user);
-    return { user, wasCreated: true };
+    return { kind: 'complete', user, wasCreated: true };
   },
 
   async invalidateSessionsForSelf(): Promise<void> {

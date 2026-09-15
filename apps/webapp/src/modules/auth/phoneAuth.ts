@@ -9,6 +9,11 @@ import { normalizePhone } from './phoneNormalize';
 import { isValidPhoneE164 } from './phoneValidation';
 import { assertPhoneCanStartChallenge } from './phoneOtpLimits';
 import { generateSmsCode } from './smsCode';
+import {
+  humanMergeDecisionMatchesPrompt,
+  type HumanMergeDecision,
+  type HumanMergePrompt,
+} from '@bersoncare/platform-merge';
 
 export { normalizePhone } from './phoneNormalize';
 
@@ -30,12 +35,15 @@ export type StartPhoneAuthResult =
   | { ok: false; code: string; retryAfterSeconds?: number };
 
 export type ConfirmPhoneAuthResult =
+  | { ok: true; mergeRequired: true; prompt: HumanMergePrompt }
   | {
       ok: true;
+      mergeRequired: false;
       user: SessionUser;
       redirectTo: string;
       deliveryChannel?: 'sms' | 'telegram' | 'max' | 'email';
       wasCreated: boolean;
+      mergedAccountId?: string;
       registrationAttemptId?: string;
     }
   | { ok: false; code: string; retryAfterSeconds?: number };
@@ -46,6 +54,12 @@ export type StartPhoneAuthOptions = {
   registrationAttemptId?: string;
   isRegistrationIntent?: boolean;
   profileBindUserId?: string;
+  profileBindOrganizationId?: string;
+};
+
+export type ConfirmPhoneAuthOptions = {
+  humanMergeDecision?: HumanMergeDecision;
+  /** Server-resolved scope for a profile bind whose messenger challenge could only pin the user. */
   profileBindOrganizationId?: string;
 };
 
@@ -64,7 +78,10 @@ export async function createPhoneOtpChallenge(
   phone: string,
   context: ChannelContext,
   deps: PhoneAuthDeps,
-  options?: Pick<StartPhoneAuthOptions, 'registrationAttemptId' | 'isRegistrationIntent'>,
+  options?: Pick<
+    StartPhoneAuthOptions,
+    'registrationAttemptId' | 'isRegistrationIntent' | 'profileBindUserId'
+  >,
 ): Promise<
   | { ok: true; challengeId: string; code: string; retryAfterSeconds?: number }
   | { ok: false; code: string; retryAfterSeconds?: number }
@@ -101,6 +118,9 @@ export async function createPhoneOtpChallenge(
       ? { registrationAttemptId: options.registrationAttemptId.trim() }
       : {}),
     ...(options?.isRegistrationIntent === true ? { isRegistrationIntent: true } : {}),
+    ...(options?.profileBindUserId?.trim()
+      ? { profileBindUserId: options.profileBindUserId.trim() }
+      : {}),
   });
 
   return { ok: true, challengeId, code, retryAfterSeconds: 60 };
@@ -164,6 +184,7 @@ export async function confirmPhoneAuth(
   challengeId: string,
   code: string,
   deps: PhoneAuthDeps,
+  options?: ConfirmPhoneAuthOptions,
 ): Promise<ConfirmPhoneAuthResult> {
   const challenge = await deps.challengeStore.get(challengeId);
   if (!challenge) {
@@ -182,21 +203,44 @@ export async function confirmPhoneAuth(
   }
 
   const context = challenge.channelContext ?? defaultWebContext();
+  const humanMergeDecision = options?.humanMergeDecision;
+  if (
+    humanMergeDecision &&
+    (!challenge.mergePrompt ||
+      !humanMergeDecisionMatchesPrompt(humanMergeDecision, challenge.mergePrompt))
+  ) {
+    return { ok: false, code: 'merge_decision_mismatch' };
+  }
+  const storedOrganizationId = challenge.profileBindOrganizationId?.trim();
+  const suppliedOrganizationId = options?.profileBindOrganizationId?.trim();
+  if (
+    storedOrganizationId &&
+    suppliedOrganizationId &&
+    storedOrganizationId !== suppliedOrganizationId
+  ) {
+    return { ok: false, code: 'profile_bind_organization_mismatch' };
+  }
+  const profileBindOrganizationId = storedOrganizationId || suppliedOrganizationId;
   const bindResult = await deps.userByPhonePort.createOrBind(challenge.phone, context, {
     phoneNumberProven:
       challenge.phoneNumberProven ?? isPhoneNumberProvenByOtpDelivery(deliveryChannel),
     confirmingChannel: deliveryChannel,
     ...(challenge.profileBindUserId ? { profileBindUserId: challenge.profileBindUserId } : {}),
-    ...(challenge.profileBindOrganizationId
-      ? { profileBindOrganizationId: challenge.profileBindOrganizationId }
-      : {}),
+    ...(profileBindOrganizationId ? { profileBindOrganizationId } : {}),
+    ...(humanMergeDecision ? { humanMergeDecision } : {}),
   });
+  if (bindResult.kind === 'merge_required') {
+    await deps.challengeStore.set(challengeId, { ...challenge, mergePrompt: bindResult.prompt });
+    return { ok: true, mergeRequired: true, prompt: bindResult.prompt };
+  }
   return {
     ok: true,
+    mergeRequired: false,
     user: bindResult.user,
     redirectTo: getRedirectPathForRole(bindResult.user.role),
     deliveryChannel,
     wasCreated: bindResult.wasCreated,
+    mergedAccountId: bindResult.mergedAccountId,
     registrationAttemptId: challenge.registrationAttemptId,
   };
 }

@@ -1,3 +1,5 @@
+import type { HumanMergeDecision } from './humanMergeDecision.js';
+
 /** Strong identifier or policy conflict: callers may retry or route to manual review. */
 export class MergeConflictError extends Error {
   readonly code = 'MergeConflictError' as const;
@@ -16,6 +18,12 @@ export class MergeDependentConflictError extends Error {
   readonly organizationId: string | null;
   readonly organizationIds: (string | null)[];
   readonly kind: 'medical_history' | 'merge_dependency';
+  /**
+   * §18а: ответ человека про ФИО, уже сверенный с заблокированными строками, в ту же секунду, когда
+   * медицинский блокер отменяет слияние. Транзакция слияния откатывается вместе с ним, поэтому
+   * ответ обязан уехать наружу здесь — иначе врач потом сливает пару, а выбранной подписи уже нет.
+   */
+  readonly humanFioDecision: HumanMergeDecision | null;
   constructor(
     message: string,
     candidateIds?: string[],
@@ -23,6 +31,7 @@ export class MergeDependentConflictError extends Error {
     options?: {
       organizationIds?: (string | null)[];
       kind?: 'medical_history' | 'merge_dependency';
+      humanFioDecision?: HumanMergeDecision | null;
     },
   ) {
     super(message);
@@ -31,5 +40,6 @@ export class MergeDependentConflictError extends Error {
     this.organizationId = organizationId ?? null;
     this.organizationIds = options?.organizationIds ?? [];
     this.kind = options?.kind ?? 'merge_dependency';
+    this.humanFioDecision = options?.humanFioDecision ?? null;
   }
 }

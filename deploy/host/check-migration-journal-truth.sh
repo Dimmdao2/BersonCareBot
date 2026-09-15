@@ -55,14 +55,31 @@ ask_local() {
 # там, где конвейера нет (стенд, свежий хост), и работает только под учёткой с sudo.
 ask_remote() {
   local db=$1
-  if ssh "${SSH_OPTS[@]}" "$TARGET_SSH" "sudo -n $PIPELINE/therapysto-journal-truth" 2>/dev/null |
+  # shellcheck disable=SC2029
+  if ssh "${SSH_OPTS[@]}" "$TARGET_SSH" "sudo -n $PIPELINE/therapysto-journal-truth" 2>"$WORK/pipeline.err" |
        grep '^RESULT'; then
     return 0
   fi
-  scp "${SCP_OPTS[@]}" -q "$SQL" "$TARGET_SSH:/tmp/bcb-journal-truth.sql"
+  # Почему запасной путь вообще понадобился — видно здесь, а не в тишине: 15.09 конвейерный путь
+  # молча не сработал, запасной упёрся в чужой файл, и наверх ушло «в базе прода нет того, что
+  # миграции обещали» — сообщение про совсем другое.
+  [ -s "$WORK/pipeline.err" ] && sed 's/^/  конвейерный путь: /' "$WORK/pipeline.err" >&2
+  # Имя файла на цели — своё на каждый прогон. Постоянный путь в общем /tmp запирает гейт навсегда,
+  # как только его однажды создаст другая учётка: прежние выкладки шли от root, нынешние от deploy,
+  # и `scp` получил Permission denied на root-owned /tmp/bcb-journal-truth.sql.
+  local remote
+  remote=$(ssh "${SSH_OPTS[@]}" "$TARGET_SSH" 'mktemp /tmp/bcb-journal-truth.XXXXXXXX.sql') || return 0
+  [ -n "$remote" ] || return 0
+  # shellcheck disable=SC2064
+  # Копию `.pg` кладёт `sudo install`, то есть её владелец — root, а мы ходим от deploy. Обычный
+  # `rm` в sticky-каталоге /tmp такой файл снять НЕ может, и каждый запасной прогон оставлял на
+  # цели ещё один root-owned хвост. Поэтому снимаем её тем же способом, каким положили: через sudo.
+  # shellcheck disable=SC2064
+  trap "ssh ${SSH_OPTS[*]} '$TARGET_SSH' 'rm -f \"$remote\"; sudo -n rm -f \"$remote.pg\" || rm -f \"$remote.pg\"' >/dev/null 2>&1; rm -rf '$WORK'" EXIT
+  scp "${SCP_OPTS[@]}" -q "$SQL" "$TARGET_SSH:$remote"
   # shellcheck disable=SC2029
-  ssh "${SSH_OPTS[@]}" "$TARGET_SSH" "sudo -n install -m 0644 /tmp/bcb-journal-truth.sql /tmp/bcb-journal-truth-pg.sql &&
-    sudo -n -u postgres psql -d '$db' -X -A -t -F \$'\t' -v ON_ERROR_STOP=1 -f /tmp/bcb-journal-truth-pg.sql 2>/dev/null" |
+  ssh "${SSH_OPTS[@]}" "$TARGET_SSH" "sudo -n install -m 0644 '$remote' '$remote.pg' &&
+    sudo -n -u postgres psql -d '$db' -X -A -t -F \$'\t' -v ON_ERROR_STOP=1 -f '$remote.pg' 2>/dev/null" |
     grep '^RESULT' || true
 }
 

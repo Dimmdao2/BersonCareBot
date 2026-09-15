@@ -78,6 +78,8 @@ describe('pgUserByPhonePort.createOrBind (D15b/6 confirm-path bootstrap door)', 
       chatId: 'device-1',
     });
 
+    expect(result.kind).toBe('complete');
+    if (result.kind !== 'complete') throw new Error('expected complete phone binding');
     expect(result.wasCreated).toBe(false);
     expect(result.user).toEqual(
       expect.objectContaining({ userId: 'user-1', role: 'client', phone: '+79261234567' }),
@@ -92,6 +94,8 @@ describe('pgUserByPhonePort.createOrBind (D15b/6 confirm-path bootstrap door)', 
       chatId: 'device-2',
     });
 
+    expect(result.kind).toBe('complete');
+    if (result.kind !== 'complete') throw new Error('expected complete phone binding');
     expect(result.wasCreated).toBe(true);
     expect(result.user.userId).toBe('user-2');
   });

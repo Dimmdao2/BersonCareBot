@@ -7,6 +7,9 @@ import { Input } from '@/shared/ui/patient/primitives/input';
 import { OtpCodeForm } from '@/shared/ui/patient/auth/OtpCodeForm';
 import { cn } from '@/lib/utils';
 import { patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
+import { AccountMergeConfirmation } from '@/shared/ui/patient/auth/AccountMergeConfirmation';
+import { notificationText } from '@/shared/notifications/notificationText';
+import type { HumanMergePrompt } from '@bersoncare/platform-merge';
 
 const PATIENT_EMAIL_INPUT_ID = 'patient-email-panel-address';
 
@@ -37,12 +40,19 @@ export function EmailAccountPanel({
   layout = 'default',
 }: Props) {
   const router = useRouter();
-  const [emailStep, setEmailStep] = useState<'view' | 'enter' | 'code' | 'adminCode'>('view');
+  const [emailStep, setEmailStep] = useState<'view' | 'enter' | 'code' | 'adminCode' | 'merge'>(
+    'view',
+  );
   const [emailDraft, setEmailDraft] = useState('');
   const [emailChallengeId, setEmailChallengeId] = useState<string | null>(null);
   const [emailRetrySec, setEmailRetrySec] = useState(60);
   const [emailStartError, setEmailStartError] = useState<string | null>(null);
   const [emailStartPending, setEmailStartPending] = useState(false);
+  const [mergeRequest, setMergeRequest] = useState<{
+    prompt: HumanMergePrompt;
+    endpoint: '/api/auth/email/confirm' | '/api/patient/email-change/confirm';
+    body: { code: string; challengeId?: string };
+  } | null>(null);
 
   const refresh = () => {
     router.refresh();
@@ -84,14 +94,66 @@ export function EmailAccountPanel({
         layout === 'default' && !embeddedInTitledSection && 'border-t border-border pt-4',
       )}
     >
+      {emailStep === 'merge' && mergeRequest ? (
+        <>
+          <AccountMergeConfirmation
+            key={JSON.stringify(mergeRequest.prompt)}
+            prompt={mergeRequest.prompt}
+            busy={emailStartPending}
+            onReject={() => {
+              setMergeRequest(null);
+              setEmailStep('view');
+            }}
+            onConfirm={async (mergeDecision) => {
+              setEmailStartError(null);
+              setEmailStartPending(true);
+              try {
+                const res = await fetch(mergeRequest.endpoint, {
+                  method: 'POST',
+                  headers: { 'content-type': 'application/json' },
+                  body: JSON.stringify({
+                    ...mergeRequest.body,
+                    mergeDecision,
+                  }),
+                });
+                const data = (await res.json().catch(() => ({}))) as {
+                  ok?: boolean;
+                  mergeRequired?: boolean;
+                  prompt?: HumanMergePrompt;
+                  message?: string;
+                };
+                if (data.ok && data.mergeRequired && data.prompt) {
+                  const refreshedPrompt = data.prompt;
+                  setMergeRequest((current) =>
+                    current ? { ...current, prompt: refreshedPrompt } : current,
+                  );
+                  return;
+                }
+                if (!res.ok || !data.ok) {
+                  setEmailStartError(data.message ?? notificationText.doctorMergeFailed);
+                  return;
+                }
+                setMergeRequest(null);
+                setEmailChallengeId(null);
+                setEmailStep('view');
+                refresh();
+              } catch {
+                setEmailStartError(notificationText.doctorMergeFailed);
+              } finally {
+                setEmailStartPending(false);
+              }
+            }}
+          />
+          {emailStartError ? (
+            <p className="patient-type-secondary patient-text-danger">{emailStartError}</p>
+          ) : null}
+        </>
+      ) : null}
+
       {emailStep === 'view' && layout === 'profileHero' ? (
         <div className="flex flex-col gap-1 border-t border-[var(--patient-border)] pt-4">
           <div className="flex flex-wrap items-start justify-between gap-2">
-            <span
-              className="patient-type-caption uppercase tracking-wide"
-            >
-              Email
-            </span>
+            <span className="patient-type-caption uppercase tracking-wide">Email</span>
             <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1">
               {initialEmail && !emailVerified ? (
                 <Button
@@ -142,9 +204,7 @@ export function EmailAccountPanel({
           )}
         >
           {!embeddedInTitledSection ? (
-            <span className="patient-type-caption uppercase tracking-wide">
-              Email
-            </span>
+            <span className="patient-type-caption uppercase tracking-wide">Email</span>
           ) : null}
           <Button
             type="button"
@@ -189,9 +249,7 @@ export function EmailAccountPanel({
       ) : null}
 
       {emailStep === 'view' && layout !== 'profileHero' && !initialEmail ? (
-        <p className="patient-type-secondary">
-          не указано — добавьте email для уведомлений.
-        </p>
+        <p className="patient-type-secondary">не указано — добавьте email для уведомлений.</p>
       ) : null}
 
       {emailStep === 'view' && emailStartError ? (
@@ -235,7 +293,9 @@ export function EmailAccountPanel({
             onChange={(e) => setEmailDraft(e.target.value)}
             placeholder="email@example.com"
           />
-          {emailStartError ? <p className="patient-type-secondary patient-text-danger">{emailStartError}</p> : null}
+          {emailStartError ? (
+            <p className="patient-type-secondary patient-text-danger">{emailStartError}</p>
+          ) : null}
           <div className="flex flex-wrap gap-2">
             <Button type="button" onClick={() => void startEmail()} disabled={emailStartPending}>
               {emailStartPending ? 'Отправка…' : 'Получить код'}
@@ -273,10 +333,21 @@ export function EmailAccountPanel({
               });
               const data = (await res.json().catch(() => ({}))) as {
                 ok?: boolean;
+                mergeRequired?: boolean;
+                prompt?: HumanMergePrompt;
                 message?: string;
                 error?: string;
                 retryAfterSeconds?: number;
               };
+              if (data.ok && data.mergeRequired && data.prompt) {
+                setMergeRequest({
+                  prompt: data.prompt,
+                  endpoint: '/api/auth/email/confirm',
+                  body: { challengeId: emailChallengeId, code },
+                });
+                setEmailStep('merge');
+                return { ok: true as const };
+              }
               if (data.ok) {
                 setEmailStep('view');
                 setEmailChallengeId(null);
@@ -343,10 +414,21 @@ export function EmailAccountPanel({
               });
               const data = (await res.json().catch(() => ({}))) as {
                 ok?: boolean;
+                mergeRequired?: boolean;
+                prompt?: HumanMergePrompt;
                 message?: string;
                 error?: string;
                 retryAfterSeconds?: number;
               };
+              if (data.ok && data.mergeRequired && data.prompt) {
+                setMergeRequest({
+                  prompt: data.prompt,
+                  endpoint: '/api/patient/email-change/confirm',
+                  body: { code },
+                });
+                setEmailStep('merge');
+                return { ok: true as const };
+              }
               if (data.ok) {
                 setEmailStep('view');
                 refresh();

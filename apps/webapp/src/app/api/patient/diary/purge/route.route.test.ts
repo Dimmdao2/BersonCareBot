@@ -54,6 +54,7 @@ describe('patient diary resource purge identity boundary', () => {
   it('refuses an OTP challenge resolved to another patient without deleting diary data', async () => {
     fakes.confirmPhoneAuth.mockResolvedValue({
       ok: true,
+      mergeRequired: false,
       user: {
         userId: OTHER_PATIENT_ID,
         phone: '+79991234567',

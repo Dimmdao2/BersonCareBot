@@ -146,7 +146,17 @@ function listRunnerFilesDetailed(appDirAbs, invocation = { args: [], env: {} }) 
 //      или переезд в невыбираемый каталог красит гейт.
 // Реестр — ступень 3 §10a («защита от отката»): условие снятия — раннер, который сам печатает
 // список исполненных файлов и умеет сверять его с ожидаемым, как это делает `vitest list` выше.
-const NODE_TEST_IGNORED_DIRS = new Set(['node_modules', '.next', '.git', 'dist', 'coverage']);
+// `.claude` игнорируется репозиторием и держит рабочие копии соседних агентов — это целые клоны
+// дерева. Без этой строки гейт мерил бы не репозиторий, а чужие копии его же файлов, и краснел бы
+// от каждого клона, который кто-то забыл убрать.
+const NODE_TEST_IGNORED_DIRS = new Set([
+  'node_modules',
+  '.next',
+  '.git',
+  '.claude',
+  'dist',
+  'coverage',
+]);
 const NODE_TEST_MANIFEST_ROOTS = ['packages', 'apps'];
 
 function collectNodeTestPatterns() {

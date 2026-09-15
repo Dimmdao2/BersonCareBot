@@ -20,7 +20,13 @@ export type MergePreviewApiProfile = {
 };
 
 export type MergePreviewApiScalarConflict = {
-  field: 'phone_normalized' | 'display_name' | 'first_name' | 'last_name' | 'email';
+  field:
+    | 'phone_normalized'
+    | 'display_name'
+    | 'first_name'
+    | 'last_name'
+    | 'patronymic'
+    | 'email';
   targetValue: string | null;
   duplicateValue: string | null;
   recommendedWinner: 'target' | 'duplicate';
@@ -28,12 +34,18 @@ export type MergePreviewApiScalarConflict = {
 };
 
 /**
- * Фамилия, имя и отображаемое имя — одно решение оператора, а не три.
+ * Фамилия, имя, отчество и отображаемое имя — одно решение оператора, а не четыре.
  *
  * Правило владельца 13.09 выбирает КАРТОЧКУ, из которой берётся ФИО целиком; разрешить собрать
  * фамилию с одной стороны, а имя с другой — значит получить человека, которого не существует.
+ * Отчество стоит здесь с 15.09 (§18а): своей отдельной двери у него нет, движок его не арбитрирует.
  */
-export const FIO_SCALAR_FIELDS = ['display_name', 'first_name', 'last_name'] as const;
+export const FIO_SCALAR_FIELDS = [
+  'display_name',
+  'first_name',
+  'last_name',
+  'patronymic',
+] as const;
 
 export type FioScalarField = (typeof FIO_SCALAR_FIELDS)[number];
 
@@ -88,9 +100,9 @@ export type MergePreviewApiOauthConflict = {
 };
 
 /**
- * Здесь, в отличие от `scalarConflicts`, есть и отчество: выбирать по нему нечего (движок слияния
- * его не арбитрирует), но показать, каким оно станет, нужно — иначе расхождение просто исчезнет с
- * глаз. Дверь предпросмотра отдаёт этот список целиком, а список выбора — без отчества.
+ * Поля, которые заполнятся сами: расхождения в них нет, выбирать нечего, но показать итоговое
+ * значение нужно — иначе оно исчезнет с глаз. Конфликтующие поля сюда не попадают: они уходят в
+ * `scalarConflicts`, где их закрывает человек.
  */
 export type MergePreviewApiAutoScalar = {
   field: 'phone_normalized' | 'display_name' | 'first_name' | 'last_name' | 'patronymic' | 'email';
@@ -163,6 +175,8 @@ function scalarFromProfile(p: MergePreviewApiProfile, field: ScalarKey): string 
       return norm(p.firstName);
     case 'last_name':
       return norm(p.lastName);
+    case 'patronymic':
+      return norm(p.patronymic);
     case 'email':
       return norm(p.email);
     default:
@@ -240,8 +254,8 @@ export function buildDefaultManualMergeResolution(
     oauth[o.provider] = o.recommendedWinner;
   }
 
-  // ФИО — одно решение на три поля. Если разошлось хоть одно из них, все три встают на сторону,
-  // которую предложило правило владельца; иначе каждое поле остаётся при своём автозначении.
+  // ФИО — одно решение на четыре поля. Если разошлось хоть одно из них, все четыре встают на
+  // сторону, которую предложило правило владельца; иначе каждое поле остаётся при своём автозначении.
   const fioConflict = preview.scalarConflicts.find((c) => isFioScalarField(c.field));
 
   return {
@@ -252,6 +266,7 @@ export function buildDefaultManualMergeResolution(
       display_name: fioConflict?.recommendedWinner ?? defaultScalarWinner(preview, 'display_name'),
       first_name: fioConflict?.recommendedWinner ?? defaultScalarWinner(preview, 'first_name'),
       last_name: fioConflict?.recommendedWinner ?? defaultScalarWinner(preview, 'last_name'),
+      patronymic: fioConflict?.recommendedWinner ?? defaultScalarWinner(preview, 'patronymic'),
       email: defaultScalarWinner(preview, 'email'),
     },
     bindings: {

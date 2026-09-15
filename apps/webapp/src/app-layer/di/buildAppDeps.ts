@@ -33,6 +33,7 @@ import {
   startPhoneAuth as startPhoneAuthFlow,
   confirmPhoneAuth as confirmPhoneAuthFlow,
   consumePhoneOtpChallenge,
+  type ConfirmPhoneAuthOptions,
   type StartPhoneAuthOptions,
 } from '@/modules/auth/phoneAuth';
 import {
@@ -165,7 +166,10 @@ import { pgSymptomDiaryPort } from '@/infra/repos/pgSymptomDiary';
 import { pgLfkDiaryPort } from '@/infra/repos/pgLfkDiary';
 import { purgeAllDiaryDataForUserPg } from '@/infra/repos/pgDiaryPurge';
 import { readReminderWebappNotifyGate } from '@/infra/repos/pgReminderWebappNotifyGate';
-import { loadPlatformUserChannelBindings } from '@/infra/repos/loadPlatformUserChannelBindings';
+import {
+  loadPlatformUserChannelBindingRows,
+  loadPlatformUserChannelBindings,
+} from '@/infra/repos/loadPlatformUserChannelBindings';
 import { createPgAppointmentReminderMaterializationPort } from '@/infra/repos/pgAppointmentReminderMaterialization';
 import type { AppointmentReminderMaterializationPort } from '@/modules/booking-notifications/appointmentReminderMaterializationPort';
 import {
@@ -376,6 +380,7 @@ import { createPgIntegratorDeliveryTargetsPort } from '@/infra/repos/pgIntegrato
 import { inMemoryIntegratorDeliveryTargetsPort } from '@/infra/repos/inMemoryIntegratorDeliveryTargets';
 import { createPatientBookingService } from '@/modules/patient-booking/service';
 import { createPgOutboundMessageQueue } from '@/infra/repos/pgOutboundMessageQueue';
+import { enqueueAccountMergeLoginNotification } from '@/modules/auth/accountMergeNotification';
 import { createBookingCreatedEffects } from '@/app-layer/booking/bookingCreatedEffects';
 import { createBookingSyncPort } from '@/modules/integrator/bookingM2mApi';
 import { createAppointmentPaymentConfirmedHandler } from '@/app-layer/booking/appointmentPaymentConfirmedHandler';
@@ -454,7 +459,12 @@ import { inMemoryClientHistoryPort } from '@/infra/repos/inMemoryClientHistory';
 import { createPgBookingFormPort } from '@/infra/repos/pgBookingForm';
 import { createBookingFormService } from '@/modules/booking-form/service';
 import { createPgLeadsPort } from '@/infra/repos/pgLeads';
+import {
+  createPgClinicLeadNotificationProfilesPort,
+  emptyClinicLeadNotificationProfilesPort,
+} from '@/infra/repos/pgClinicLeadNotificationProfiles';
 import { createLeadsService } from '@/modules/leads/service';
+import { notifyClinicLeadCreated } from '@/modules/leads/notifyClinicLeadCreated';
 import { createPgPatientMergeCandidatePort } from '@/infra/repos/pgPatientMergeCandidate';
 import { createPatientMergeCandidateService } from '@/modules/patient-merge-candidate/service';
 import {
@@ -566,6 +576,9 @@ const staffUsersPort = !inMemoryRepos ? createPgStaffUsersPort() : inMemoryStaff
 const patientStaffNotificationProfilesPort = !inMemoryRepos
   ? createPgPatientStaffNotificationProfilesPort()
   : undefined;
+const clinicLeadNotificationProfilesPort = !inMemoryRepos
+  ? createPgClinicLeadNotificationProfilesPort()
+  : emptyClinicLeadNotificationProfilesPort;
 const globalAdminWebPushRecipientsPort: GlobalAdminWebPushRecipientsPort = !inMemoryRepos
   ? createPgGlobalAdminWebPushRecipientsPort()
   : emptyGlobalAdminWebPushRecipientsPort;
@@ -874,12 +887,6 @@ const clientHistoryService = createClientHistoryService(clientHistoryPort);
 const bookingFormPort = !inMemoryRepos ? createPgBookingFormPort() : null;
 const bookingFormService = bookingFormPort
   ? createBookingFormService(bookingFormPort, {
-      assertWriteClearance: assertMechanicWriteClearance,
-    })
-  : null;
-const leadsPort = !inMemoryRepos ? createPgLeadsPort() : null;
-const leadsService = leadsPort
-  ? createLeadsService(leadsPort, {
       assertWriteClearance: assertMechanicWriteClearance,
     })
   : null;
@@ -1312,6 +1319,27 @@ const doctorPatientMessageStaffDeps = {
   getChannelBindings: loadPlatformUserChannelBindings,
   patientStaffNotificationProfiles: patientStaffNotificationProfilesPort,
 };
+const leadsPort = !inMemoryRepos ? createPgLeadsPort() : null;
+const leadsService = leadsPort
+  ? createLeadsService(leadsPort, {
+      assertWriteClearance: assertMechanicWriteClearance,
+      notifyClinicLeadCreated: (lead) =>
+        notifyClinicLeadCreated(lead, {
+          ...doctorPatientMessageStaffDeps,
+          clinicLeadNotificationProfiles: clinicLeadNotificationProfilesPort,
+        }),
+      reportClinicLeadNotificationError: (err, lead) => {
+        logger.error(
+          {
+            err,
+            leadId: lead.id,
+            organizationId: lead.organizationId,
+          },
+          '[leads] clinic notification failed',
+        );
+      },
+    })
+  : null;
 registerAdminIncidentStaffPushDeps({
   staffUsers: staffUsersPort,
 });
@@ -1807,6 +1835,26 @@ function _buildAppDeps() {
     integratorDeliveryTargets: integratorDeliveryTargetsPort,
   };
   return {
+    accountMergeNotifications: {
+      enqueue: async (
+        user: import('@/shared/types/session').SessionUser,
+        mergedAccountId: string,
+      ) => {
+        const result = await enqueueAccountMergeLoginNotification(
+          user,
+          mergedAccountId,
+          await loadPlatformUserChannelBindingRows(user.userId),
+          createPgOutboundMessageQueue(),
+        );
+        if (result.failed > 0) {
+          logger.error({
+            event: 'account_merge_login_notification_enqueue_failed',
+            userId: user.userId,
+            failedTargets: result.failed,
+          });
+        }
+      },
+    },
     auth: {
       getCurrentSession,
       exchangeIntegratorToken: (token: string) =>
@@ -1830,9 +1878,14 @@ function _buildAppDeps() {
       startPhoneAuth: (phone: string, context: ChannelContext, opts?: StartPhoneAuthOptions) =>
         startPhoneAuthFlow(phone, context, phoneAuthDeps, opts),
       getPhoneChallenge: (challengeId: string) => challengeStore.get(challengeId),
-      confirmPhoneAuth: async (challengeId: string, code: string) => {
-        const result = await confirmPhoneAuthFlow(challengeId, code, phoneAuthDeps);
+      confirmPhoneAuth: async (
+        challengeId: string,
+        code: string,
+        options?: ConfirmPhoneAuthOptions,
+      ) => {
+        const result = await confirmPhoneAuthFlow(challengeId, code, phoneAuthDeps, options);
         if (!result.ok) return result;
+        if ('mergeRequired' in result && result.mergeRequired) return result;
         const envRole = resolveRoleFromEnv({
           phone: result.user.phone,
           telegramId: result.user.bindings?.telegramId,
@@ -1854,10 +1907,12 @@ function _buildAppDeps() {
             : { ...result.user, role: effectiveRole };
         return {
           ok: true as const,
+          mergeRequired: false as const,
           user,
           redirectTo: getRedirectPathForRole(effectiveRole),
           deliveryChannel: result.deliveryChannel,
           wasCreated: result.wasCreated,
+          mergedAccountId: result.mergedAccountId,
           registrationAttemptId: result.registrationAttemptId,
         };
       },
