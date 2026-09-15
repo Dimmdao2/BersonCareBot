@@ -46,6 +46,21 @@ export function surfaceAuthSettingKey(
   return `auth_surface_${surface}_${control}_enabled`;
 }
 
+/**
+ * Доступен ли сам способ этой поверхности. Отвечает на вопрос «бывает ли такая дверь здесь вообще»,
+ * тогда как настройка отвечает «включена ли она сейчас». Разделение нужно, чтобы запрет канона не
+ * снимался тумблером: у сотрудника и админа клиники в наборе нет телефонного кода, поэтому sms,
+ * telegram и max на их поверхностях отказывают даже при записанном `true`.
+ */
+export function surfaceAuthControlAvailable(
+  surface: SurfaceAuthPolicyName,
+  control: SurfaceAuthControl,
+): boolean {
+  const availableMethods: readonly SurfaceAuthMethod[] =
+    DEFAULT_SURFACE_AUTH_POLICY_CONFIG[surface].availableMethods;
+  return availableMethods.includes(METHOD_BY_CONTROL[control]);
+}
+
 /** F1 remains the only compiled default matrix; persisted settings only override its cells. */
 export function defaultSurfaceAuthControlEnabled(
   surface: SurfaceAuthPolicyName,

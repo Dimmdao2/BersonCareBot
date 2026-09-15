@@ -19,12 +19,18 @@ export type SurfaceAuthPolicyConfig = Readonly<Record<SurfaceAuthPolicyName, Sur
 
 /** Client-safe single source for the surface authentication matrix. */
 export const DEFAULT_SURFACE_AUTH_POLICY_CONFIG = {
+  // Телефонного кода в наборе сотрудничьих дверей нет и включить его настройкой нельзя: канон
+  // (`AUTH_AND_IDENTITY_CANON.md`, таблица дверей) даёт специалисту и админу клиники «почта +
+  // пароль + код или 2FA», а глобальному админу «почта + пароль». Владелец 16.09: «для терапиго
+  // оно доступно а для тераписто и админ.тераписто - нет». Отсутствие метода здесь — не UI-выбор:
+  // `surfaceAuthControlAvailable` запирает дверь до чтения переключателя, иначе один тумблер в
+  // админке молча заменял бы пароль сотрудника кодом на трубку.
   staff: {
-    availableMethods: SURFACE_AUTH_METHODS,
+    availableMethods: ['password', 'email_code', 'totp', 'oauth', 'passkey'],
     enabledMethods: ['password', 'totp'],
   },
   platform_admin: {
-    availableMethods: SURFACE_AUTH_METHODS,
+    availableMethods: ['password', 'email_code', 'totp', 'oauth', 'passkey'],
     enabledMethods: ['password', 'email_code', 'totp', 'passkey'],
   },
   patient: {
