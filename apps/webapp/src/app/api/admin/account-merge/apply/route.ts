@@ -20,6 +20,7 @@ const resolutionSchema = z.object({
     display_name: winner,
     first_name: winner,
     last_name: winner,
+    patronymic: winner,
     email: winner,
   }),
   bindings: z.object({

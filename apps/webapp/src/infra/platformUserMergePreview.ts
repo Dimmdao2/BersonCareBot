@@ -219,12 +219,14 @@ function scalarConflict(
   if (tv == null || dv == null || tv === dv) return null;
   if (field === 'email' && emailsEqual(tv, dv)) return null;
 
-  // Отчество оператор не арбитрирует: движок слияния берёт его как «отчество основной карточки, иначе
-  // отчество второй» и другого ему сказать нечем (`ManualMergeResolution.fields` отчества не знает).
-  // Значит расхождение по отчеству — не выбор, а сообщение: каким оно станет, видно в «Заполнится само».
-  if (field === 'patronymic') return null;
-
-  if (field === 'display_name' || field === 'first_name' || field === 'last_name') {
+  // §18а: отчество арбитрирует человек наравне с фамилией и именем — движкового приоритета для него
+  // больше нет ни в автоматическом слиянии, ни в ручном.
+  if (
+    field === 'display_name' ||
+    field === 'first_name' ||
+    field === 'last_name' ||
+    field === 'patronymic'
+  ) {
     return {
       field,
       targetValue: tv,

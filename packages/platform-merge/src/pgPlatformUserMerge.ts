@@ -301,6 +301,44 @@ function resolveHumanFioField(
   return custom;
 }
 
+/**
+ * ФИО ручного слияния: тот же общий шов, что у автоматического диалога. Выбор оператора — ответ
+ * человека (`source`), поэтому `humanChoiceRequired` здесь не нужен: вопрос уже закрыт в форме.
+ */
+function resolveManualFioParts(
+  target: Pick<PuRow, 'display_name' | 'first_name' | 'last_name' | 'patronymic'>,
+  duplicate: Pick<PuRow, 'display_name' | 'first_name' | 'last_name' | 'patronymic'>,
+  fields: ManualMergeResolution['fields'],
+  candidateIds: readonly string[],
+): {
+  displayName: string;
+  firstName: string | null;
+  lastName: string | null;
+  patronymic: string | null;
+} {
+  const pick = (
+    field: HumanMergeFioField,
+    targetValue: string | null,
+    duplicateValue: string | null,
+    winner: ManualMergeResolution['fields']['first_name'],
+  ): string | null =>
+    resolveHumanFioField(
+      field,
+      targetValue,
+      duplicateValue,
+      { source: winner },
+      candidateIds,
+      false,
+    );
+  return {
+    displayName:
+      pick('display_name', target.display_name, duplicate.display_name, fields.display_name) ?? '',
+    firstName: pick('first_name', target.first_name, duplicate.first_name, fields.first_name),
+    lastName: pick('last_name', target.last_name, duplicate.last_name, fields.last_name),
+    patronymic: pick('patronymic', target.patronymic, duplicate.patronymic, fields.patronymic),
+  };
+}
+
 function formatResolvedDisplayName(input: {
   lastName: string | null;
   firstName: string | null;
@@ -698,19 +736,21 @@ export async function mergePlatformUsersInTransaction(
   await mergeExtendedUserOwnedData(client, targetId, duplicateId);
 
   if (manualResolution) {
+    /**
+     * §18а действует и здесь: движок не выбирает ФИО сам ни в одном поле. Ручная дверь идёт через
+     * тот же `resolveHumanFioField`, что и автоматическая, — отдельной ветки «для отчества» нет.
+     * Ответ оператора по карточке приходит в `fields`, поэтому вопрос закрыт всегда, а поле без
+     * конфликта дополняется молча и не стирается выбором стороны, у которой его нет.
+     */
     const f = manualResolution.fields;
+    const parts = resolveManualFioParts(a, b, f, [targetId, duplicateId]);
     await runMergePgText(
       client,
-      `UPDATE platform_users AS pu
-       SET
-         display_name = CASE WHEN $3::text = 'target' THEN pu.display_name ELSE dup.display_name END,
-         first_name = CASE WHEN $4::text = 'target' THEN pu.first_name ELSE dup.first_name END,
-         last_name = CASE WHEN $5::text = 'target' THEN pu.last_name ELSE dup.last_name END,
-         patronymic = COALESCE(NULLIF(trim(pu.patronymic), ''), NULLIF(trim(dup.patronymic), '')),
-         updated_at = now()
-       FROM platform_users dup
-       WHERE pu.id = $1::uuid AND dup.id = $2::uuid`,
-      [targetId, duplicateId, f.display_name, f.first_name, f.last_name],
+      `UPDATE platform_users
+       SET display_name = $3::text, first_name = $4::text, last_name = $5::text,
+           patronymic = $6::text, updated_at = now()
+       WHERE id = $1::uuid`,
+      [targetId, duplicateId, parts.displayName, parts.firstName, parts.lastName, parts.patronymic],
     );
   } else {
     if (!humanDecision) {
@@ -897,7 +937,7 @@ async function mergeChannelBindingsManual(
         client,
         sql`SELECT user_id::text AS user_id
          FROM user_channel_bindings
-         WHERE user_id = ANY(${[targetId, duplicateId]}::uuid[]) AND channel_code = ${ch}`,
+         WHERE user_id = ANY(ARRAY[${targetId}::uuid, ${duplicateId}::uuid]) AND channel_code = ${ch}`,
       );
       const hasTargetBinding = bindingPresence.rows.some((row) =>
         uuidTextEquals(row.user_id, targetId),
@@ -964,7 +1004,7 @@ async function mergeOauthBindingsManual(
   const r = await runMergeSql<OauthRow>(
     client,
     sql`SELECT user_id::text AS user_id, provider, provider_user_id, email, created_at
-     FROM user_oauth_bindings WHERE user_id = ANY(${[targetId, duplicateId]}::uuid[])`,
+     FROM user_oauth_bindings WHERE user_id = ANY(ARRAY[${targetId}::uuid, ${duplicateId}::uuid])`,
   );
   const byProvider = new Map<string, OauthRow[]>();
   for (const row of r.rows) {
@@ -1678,7 +1718,7 @@ export async function enrichPickMergeCandidatesWithBookingCounts(
     client,
     sql`SELECT platform_user_id::text AS uid, COUNT(*)::text AS c
      FROM patient_bookings
-     WHERE platform_user_id = ANY(${[a.id, b.id]}::uuid[])
+     WHERE platform_user_id = ANY(ARRAY[${a.id}::uuid, ${b.id}::uuid])
      GROUP BY platform_user_id`,
   );
   const map = new Map<string, number>();

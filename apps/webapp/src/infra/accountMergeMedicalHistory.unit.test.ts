@@ -154,15 +154,20 @@ function clientForHumanDecision(target: TestPlatformUserRow, duplicate: TestPlat
   };
 }
 
-function manualResolution(target: string, duplicate: string): ManualMergeResolution {
+function manualResolution(
+  target: string,
+  duplicate: string,
+  fioWinner: 'target' | 'duplicate' = 'target',
+): ManualMergeResolution {
   return {
     targetId: target,
     duplicateId: duplicate,
     fields: {
       phone_normalized: 'target',
-      display_name: 'target',
-      first_name: 'target',
-      last_name: 'target',
+      display_name: fioWinner,
+      first_name: fioWinner,
+      last_name: fioWinner,
+      patronymic: fioWinner,
       email: 'target',
     },
     bindings: { telegram: 'both', max: 'both', vk: 'both' },
@@ -473,12 +478,12 @@ describe('automatic account merge human-decision safety gate', () => {
 
 describe('support account merge', () => {
   /**
-   * Поломка: при ручном слиянии у двух карточек разные отчества, но форма не спрашивает человека
-   * и движок молча оставляет отчество target через COALESCE — врач видит выбранное движком ФИО.
-   * Оракул — AUTH_AND_IDENTITY_CANON.md §18а: при конфликте выбирает человек, и прежнего порядка
-   * приоритетов больше нет также в ручном слиянии.
+   * Поломка: два отчества в конфликте, человек выбрал карточку с «Сергеевич», а в учётке осталось
+   * «Петрович» — движок выбрал ФИО за человека (прежний `COALESCE(target, duplicate)`).
+   * Оракул — AUTH_AND_IDENTITY_CANON.md §18а: при конфликте выбирает человек, и движкового
+   * порядка приоритетов больше нет ни в автоматическом слиянии, ни в ручном.
    */
-  it('refuses a manual merge when patronymics conflict but the resolution has no human choice', async () => {
+  it('writes the patronymic of the card the person chose when the two patronymics conflict', async () => {
     const target = {
       ...platformUserRow(targetId, 'Иванов Иван Петрович'),
       first_name: 'Иван',
@@ -491,13 +496,49 @@ describe('support account merge', () => {
       last_name: 'Иванов',
       patronymic: 'Сергеевич',
     };
-    const { client } = clientForHumanDecision(target, duplicate);
+    const { client, writtenFio } = clientForHumanDecision(target, duplicate);
 
-    await expect(
-      mergePlatformUsersInTransaction(client, targetId, duplicateId, 'manual', {
-        resolution: manualResolution(targetId, duplicateId),
-      }),
-    ).rejects.toThrow('human choice required for patronymic');
+    await mergePlatformUsersInTransaction(client, targetId, duplicateId, 'manual', {
+      resolution: manualResolution(targetId, duplicateId, 'duplicate'),
+    });
+
+    expect(writtenFio()).toEqual({
+      displayName: 'Иванов Иван Сергеевич',
+      firstName: 'Иван',
+      lastName: 'Иванов',
+      patronymic: 'Сергеевич',
+    });
+  });
+
+  /**
+   * Поломка: отчество есть только во второй карточке, человек выбрал первую — и отчество исчезает,
+   * хотя §18а велит непротиворечивое поле молча ДОПОЛНИТЬ, а не стереть выбором стороны.
+   */
+  it('keeps the only patronymic there is when the chosen card has none', async () => {
+    const target = {
+      ...platformUserRow(targetId, 'Иванов Иван'),
+      first_name: 'Иван',
+      last_name: 'Иванов',
+      patronymic: null,
+    };
+    const duplicate = {
+      ...platformUserRow(duplicateId, 'Иванов И.'),
+      first_name: 'Иван',
+      last_name: 'Иванов',
+      patronymic: 'Петрович',
+    };
+    const { client, writtenFio } = clientForHumanDecision(target, duplicate);
+
+    await mergePlatformUsersInTransaction(client, targetId, duplicateId, 'manual', {
+      resolution: manualResolution(targetId, duplicateId, 'target'),
+    });
+
+    expect(writtenFio()).toEqual({
+      displayName: 'Иванов Иван',
+      firstName: 'Иван',
+      lastName: 'Иванов',
+      patronymic: 'Петрович',
+    });
   });
 
   it('moves a clinical visit when support merges the newer account back into the old account', async () => {

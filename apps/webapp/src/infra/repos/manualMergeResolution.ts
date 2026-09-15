@@ -17,6 +17,12 @@ export type ManualMergeResolution = {
     display_name: ScalarFieldWinner;
     first_name: ScalarFieldWinner;
     last_name: ScalarFieldWinner;
+    /**
+     * §18а: отчество — такая же часть ФИО, как фамилия и имя, и при конфликте его выбирает человек.
+     * Поле обязательное: резолюции без ответа по отчеству просто нельзя построить, поэтому движку
+     * снова некуда вернуть движковый `COALESCE`.
+     */
+    patronymic: ScalarFieldWinner;
     email: ScalarFieldWinner;
   };
   bindings: {
