@@ -9,7 +9,10 @@ import {
 } from '@/infra/db/runWebappSql';
 import { withTwoUserLifecycleLocksExclusive } from '@/infra/userLifecycleLock';
 import { mergePlatformUsersInTransaction } from '@/infra/repos/pgPlatformUserMerge';
-import { parseStoredHumanMergeDecision } from '@bersoncare/platform-merge';
+import {
+  mergeOrientationForStoredDecision,
+  parseStoredHumanMergeDecision,
+} from '@bersoncare/platform-merge';
 import { MergeDependentConflictError } from '@/infra/repos/platformUserMergeErrors';
 import { patientMergeCandidates } from '../../../db/schema/patientMergeCandidate';
 import type {
@@ -177,6 +180,14 @@ export function createPgPatientMergeCandidatePort(): PatientMergeCandidatePort {
       const candidate = rows[0];
       if (!candidate) return 'conflict_not_found';
 
+      const humanDecision =
+        parseStoredHumanMergeDecision(
+          (candidate.payload as Record<string, unknown> | null)?.humanFioDecision,
+        ) ?? undefined;
+      // Порядок полей строки задаёт уникальность, а не продукт: направление слияния и смысл
+      // ответа человека берутся из самого ответа (§18а) — разбор в `platform-merge`.
+      const { targetId, duplicateId } = mergeOrientationForStoredDecision(candidate, humanDecision);
+
       // Исход двери передаётся наверх как есть: слияние могло не состояться из-за блокера второй
       // клиники, и тогда врачу нельзя отвечать успехом.
       let outcome: PatientMergeConflictMergeOutcome = 'conflict_not_found';
@@ -187,8 +198,8 @@ export function createPgPatientMergeCandidatePort(): PatientMergeCandidatePort {
         async (client) => {
           const merged = await mergePlatformUsersInTransaction(
             client,
-            candidate.anchorUserId,
-            candidate.candidateUserId,
+            targetId,
+            duplicateId,
             medicalMergeReason(candidate.reason),
             {
               medicalConflictApproval: {
@@ -199,10 +210,7 @@ export function createPgPatientMergeCandidatePort(): PatientMergeCandidatePort {
               // §18а: подпись выбирал человек, а не движок и не врач. Ответ лежит в строке
               // конфликта с того дня, когда медицинский блокер отменил автоматическое слияние;
               // негодный или отсутствующий движок не заменяет собой — он отказывает.
-              humanDecision:
-                parseStoredHumanMergeDecision(
-                  (candidate.payload as Record<string, unknown> | null)?.humanFioDecision,
-                ) ?? undefined,
+              humanDecision,
               mergeContext: { actorId: resolvedBy, source: 'doctor_medical_conflict_review' },
             },
           );

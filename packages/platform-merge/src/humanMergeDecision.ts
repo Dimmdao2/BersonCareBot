@@ -166,6 +166,28 @@ export function createHumanMergeDecision(
   return { accountConfirmed: true, prompt, fio };
 }
 
+/**
+ * В какую сторону сливать пару, за которой стоит ответ человека (§18а).
+ *
+ * Строка конфликта хранит пару в поряде полей `anchor`/`candidate`, и этот порядок задаёт не
+ * продукт, а уникальность: легаси-индекс ordered-пары может быть занят чужой строкой, и тогда
+ * медицинская строка ложится наоборот. Ответ человека, наоборот, привязан к паре ровно в том
+ * порядке, в каком человек её видел, — «целевая» и «дубль» в его выборе означают конкретные
+ * учётки. Поэтому порядок берётся из ответа, когда ответ описывает ту же пару; иначе остаётся
+ * порядок строки, и негодный ответ гасится дальше по пути обычным отказом.
+ */
+export function mergeOrientationForStoredDecision(
+  row: { readonly anchorUserId: string; readonly candidateUserId: string },
+  decision: HumanMergeDecision | null | undefined,
+): { targetId: string; duplicateId: string } {
+  const fromRow = { targetId: row.anchorUserId, duplicateId: row.candidateUserId };
+  if (!decision) return fromRow;
+  const shown = [decision.prompt.target.id, decision.prompt.duplicate.id].sort();
+  const stored = [row.anchorUserId, row.candidateUserId].sort();
+  if (shown[0] !== stored[0] || shown[1] !== stored[1]) return fromRow;
+  return { targetId: decision.prompt.target.id, duplicateId: decision.prompt.duplicate.id };
+}
+
 function readAccountSummary(value: unknown): HumanMergeAccountSummary | null {
   if (typeof value !== 'object' || value === null) return null;
   const row = value as Record<string, unknown>;

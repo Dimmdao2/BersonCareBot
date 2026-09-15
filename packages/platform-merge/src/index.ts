@@ -16,6 +16,7 @@ export {
   HUMAN_MERGE_FIO_FIELDS,
   createHumanMergeCustomFioValue,
   createHumanMergeDecision,
+  mergeOrientationForStoredDecision,
   createHumanMergePrompt,
   humanMergeDecisionMatchesPrompt,
   isHumanMergeCustomFioValue,

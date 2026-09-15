@@ -22,6 +22,7 @@
 import {
   createHumanMergeDecision,
   createHumanMergePrompt,
+  mergeOrientationForStoredDecision,
   mergePlatformUsersInTransaction,
   parseStoredHumanMergeDecision,
 } from '@bersoncare/platform-merge';
@@ -157,11 +158,17 @@ async function doctorPressesMerge(client, capability, clinic, conflictId) {
   const candidate = stored.rows[0];
   const decision = parseStoredHumanMergeDecision(candidate?.payload?.humanFioDecision);
   say(`conflict ${conflictId}: stored human FIO answer = ${decision ? 'yes' : 'NO'}`);
+  // Порядок пары сюда не переписывается руками: его выбирает тот же продуктовый разбор, что и
+  // репозиторий двери врача, — иначе сценарий проверял бы копию кода, а не сам код.
+  const { targetId, duplicateId } = mergeOrientationForStoredDecision(
+    { anchorUserId: candidate.target_id, candidateUserId: candidate.duplicate_id },
+    decision,
+  );
   await installDoctorContext(client, capability, clinic);
   const result = await mergePlatformUsersInTransaction(
     client,
-    candidate.target_id,
-    candidate.duplicate_id,
+    targetId,
+    duplicateId,
     'phone_bind',
     {
       medicalConflictApproval: {
