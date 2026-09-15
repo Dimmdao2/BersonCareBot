@@ -57,6 +57,7 @@ export type BookingFormService = {
     audience: 'patient' | 'staff',
     answers: FormAnswerInput[],
     profilePrefill?: Record<string, string>,
+    surface?: FormSurface,
   ): Promise<{ ok: true } | { ok: false; error: string; fieldKey?: string }>;
   saveForAppointment(
     organizationId: string,

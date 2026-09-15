@@ -71,11 +71,11 @@ export function createBookingFormService(
   }
 
   return {
-    async validateAnswers(organizationId, _audience, answers, profilePrefill) {
+    async validateAnswers(organizationId, _audience, answers, profilePrefill, surface = 'booking') {
       const fields = withSystemFields(
         organizationId,
-        'booking',
-        await port.listActiveFields(organizationId, _audience),
+        surface,
+        await port.listActiveFields(organizationId, _audience, surface),
       );
       return validateBookingFormAnswers(
         fields.filter((field) => field.isActive),

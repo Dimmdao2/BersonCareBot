@@ -78,6 +78,22 @@ export async function POST(request: Request) {
           submittedPhone: body.phone,
           proof: 'authenticated_session',
         });
+        const validation = await publicDeps.bookingForm!.validateAnswers(
+          organizationId,
+          'patient',
+          [
+            { fieldKey: 'first_name', value: body.firstName ?? '' },
+            { fieldKey: 'last_name', value: body.lastName ?? '' },
+            { fieldKey: 'patronymic', value: body.patronymic ?? '' },
+            { fieldKey: 'email', value: email },
+            { fieldKey: 'phone', value: body.phone ?? '' },
+            { fieldKey: 'preferred_contact', value: body.preferredContact ?? '' },
+            { fieldKey: 'message', value: body.messageText },
+          ],
+          undefined,
+          'leads',
+        );
+        if (!validation.ok) throw new Error(validation.error);
         return publicDeps.leads!.submit({
           organizationId,
           applicant,
@@ -99,7 +115,9 @@ export async function POST(request: Request) {
     return jsonError({
       error,
       literalRules: {
+        required_field_missing: { status: 400, code: 'required_field_missing' },
         invalid_lead_phone: { status: 400, code: 'invalid_phone' },
+        invalid_phone: { status: 400, code: 'invalid_phone' },
         lead_identity_merge_conflict: { status: 409, code: 'email_conflict' },
       },
       fallback: { code: 'lead_submit_failed', status: 500 },
