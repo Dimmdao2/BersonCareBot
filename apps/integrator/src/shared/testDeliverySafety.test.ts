@@ -122,6 +122,19 @@ describe('final TEST delivery safety gate', () => {
     expect(isLocalDevelopmentDeliverySuppressed({ NODE_ENV: 'test' })).toBe(false);
   });
 
+  it('an unset NODE_ENV cannot let deployed TEST bypass its recipient wall when VITEST leaks', async () => {
+    process.env.TEST = 'true';
+    process.env.VITEST = 'true';
+    configureTestAccounts();
+    const { adapter, sent } = recordingAdapter();
+    const port = createDefaultDispatchPort({ adapters: [adapter] });
+
+    const result = await port.dispatchOutgoing(intent('telegram', { chatId: 555000111 }));
+
+    expect(result).toEqual({ suppressedByEnvironment: true });
+    expect(sent).toEqual([]);
+  });
+
   it('TEST suppresses email when the allowed-recipient list is absent entirely', async () => {
     // Список получателей приезжает из окружения выкладки. Пропал список — доставка обязана
     // замолчать, а не выпустить кого угодно: иначе стенд молча пишет живым людям.
