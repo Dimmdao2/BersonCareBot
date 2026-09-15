@@ -12,6 +12,12 @@
  * Поэтому набор проверяет новый инвариант на том же месте: собственный домен клиники — её
  * приложение, платформенный поддомен — её визитка, и выбор между ними ничем снаружи не двигается.
  * Значения намеренно свои, отличные от авторских и от файла аудита `B5`.
+ *
+ * 15.09.2026 уточнён АДРЕС этого приложения: не общий выбор портала `/app`, а `/app/patient` —
+ * тот же, что стоит `start_url` в манифесте установленного пациентского приложения. Владелец: «у
+ * них в манифесте стартовая страница именно в веб-приложении — это app slash patient.
+ * Соответственно, они должны туда и попасть». Корень ОБЫЧНОГО пациентского домена этим не
+ * затронут и по-прежнему ведёт на `/app` — это проверяет отдельный случай ниже.
  */
 import { NextRequest } from 'next/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -115,7 +121,7 @@ describe('корень брендированной поверхности вы�
       tenantFor(CLINIC_ON_OWN_DOMAIN, ORG_ON_OWN_DOMAIN, OWN_DOMAIN),
     );
     expect(response.status).toBe(200);
-    expect(routedPath(response, '/')).toBe('/app');
+    expect(routedPath(response, '/')).toBe('/app/patient');
   });
 
   it('платформенный поддомен клиники без своего домена открывает визитку', async () => {
@@ -182,8 +188,8 @@ describe('изоляция арендаторов на корне', () => {
     );
     const brandedAfter = await runtime.proxy(requestFor(OWN_DOMAIN, '/'), branded);
 
-    expect(routedPath(brandedFirst, '/')).toBe('/app');
-    expect(routedPath(brandedAfter, '/')).toBe('/app');
+    expect(routedPath(brandedFirst, '/')).toBe('/app/patient');
+    expect(routedPath(brandedAfter, '/')).toBe('/app/patient');
     const card = runtime.publicClinicCardPath(CLINIC_ON_PLATFORM);
     expect(routedPath(platformAfter, '/')).toBe(card);
     expect(routedPath(platformFirst, '/')).toBe(card);

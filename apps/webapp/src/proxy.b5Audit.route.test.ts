@@ -217,7 +217,7 @@ describe('B5a · корень брендированного адреса выб
     ]);
 
     expect(routedPath(platform, '/')).toBe(runtime.publicClinicCardPath(CLINIC_ONE));
-    expect(routedPath(ownDomain, '/')).toBe('/app');
+    expect(routedPath(ownDomain, '/')).toBe('/app/patient');
     expect(routedPath(patientDefault, '/')).toBe('/app');
   });
 
@@ -228,7 +228,7 @@ describe('B5a · корень брендированного адреса выб
       runtime.proxy(requestFor(brandedHost(CLINIC_TWO), '/'), TENANT_TWO),
     ]);
 
-    expect(routedPath(first, '/')).toBe('/app');
+    expect(routedPath(first, '/')).toBe('/app/patient');
     expect(routedPath(second, '/')).toBe(runtime.publicClinicCardPath(CLINIC_TWO));
   });
 });
