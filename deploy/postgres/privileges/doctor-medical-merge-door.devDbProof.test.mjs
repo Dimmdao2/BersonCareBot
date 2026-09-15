@@ -29,6 +29,10 @@
  *   DOCTOR_MEDICAL_MERGE_DOOR_FAULT=foreign-org-conflict (дверь не сверяет организацию конфликта)
  *   DOCTOR_MEDICAL_MERGE_DOOR_FAULT=fio-decision-not-persisted (строка конфликта снова теряет ответ
  *                                                               человека про ФИО)
+ *   DOCTOR_MEDICAL_MERGE_DOOR_FAULT=support-always-escalates (отказ всегда уезжает в поддержку)
+ *   DOCTOR_MEDICAL_MERGE_DOOR_FAULT=decision-stays-pending (после решения остаётся красный pending)
+ *   DOCTOR_MEDICAL_MERGE_DOOR_FAULT=comment-not-saved (решение теряет комментарий врача)
+ *   DOCTOR_MEDICAL_MERGE_DOOR_FAULT=approval-comment-not-saved (подтверждение теряет комментарий)
  *
  * `DOCTOR_MEDICAL_MERGE_DOOR_ECHO=1` печатает журнал каждого прогона, в том числе зелёного.
  */
@@ -50,6 +54,10 @@ if (
     'staff-insert',
     'foreign-org-conflict',
     'fio-decision-not-persisted',
+    'support-always-escalates',
+    'decision-stays-pending',
+    'comment-not-saved',
+    'approval-comment-not-saved',
   ].includes(FAULT)
 ) {
   throw new Error(`unknown DOCTOR_MEDICAL_MERGE_DOOR_FAULT '${FAULT}'`);
@@ -59,6 +67,7 @@ const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, '..', '..', '..');
 const MIGRATIONS = [
   'apps/webapp/db/drizzle-migrations/20260914T220000_doctor_resolves_medical_merge_conflict.sql',
+  'apps/webapp/db/drizzle-migrations/20260915T102455_doctor_merge_decision_has_a_record.sql',
   'apps/webapp/db/drizzle-migrations/20260915T150000_the_person_fio_answer_survives_the_doctor_defer.sql',
 ];
 const PRIVILEGES = 'deploy/postgres/generated/privileges.bcb_webapp_dev.sql';
@@ -147,6 +156,15 @@ test('врач сливает медицинский конфликт целик
   });
 });
 
+test('решение врача хранит комментарий, гасит pending и только явно отправляет обращение', { skip: !ENABLED }, () => {
+  proof('doctor-medical-merge-decision.proofBody.mjs', (output) => {
+    assert.match(output, /"target_marks":1,"duplicate_marks":1/u, output);
+    assert.match(output, /"support_rows":0,"pending_rows":0/u, output);
+    assert.match(output, /support refusal: .*"support_rows":1/u, output);
+    assert.match(output, /RESULT: PASS/u, output);
+  });
+});
+
 test('конфликт в двух клиниках: первому врачу говорят правду, второй доводит слияние', { skip: !ENABLED }, () => {
   proof('doctor-medical-merge-two-clinics.proofBody.mjs', (output) => {
     if (FAULT === 'two-clinic-blindness' || FAULT === 'privilege') {
@@ -154,7 +172,7 @@ test('конфликт в двух клиниках: первому врачу �
       return;
     }
     assert.match(output, /doctor A merge returned: .*"mergeOutcome":"awaiting_other_organization"/u, output);
-    assert.match(output, /doctor A still sees his conflict: yes, doctorApproved=true/u, output);
+    assert.match(output, /doctor A pending conflicts after decision: 0/u, output);
     assert.match(output, /"duplicate_merged_into":null/u, output);
     assert.match(output, /doctor B merge returned: .*"mergeOutcome":"merged"/u, output);
     assert.match(output, /RESULT: PASS/u, output);

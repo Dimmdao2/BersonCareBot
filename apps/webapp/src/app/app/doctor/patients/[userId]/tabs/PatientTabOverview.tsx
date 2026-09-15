@@ -88,6 +88,7 @@ import { DoctorModalSummaryBar } from '@/shared/ui/doctor/DoctorModalSummaryBar'
 import { DOCTOR_ACTIVE_FILTER_BUTTON_CLASS } from '@/shared/ui/doctor/calendar/DoctorSchedulePeriodNav';
 import { notifyDoctorTasksChanged } from '@/shared/ui/doctor/shell/doctorShellBadgeEvents';
 import { useDoctorMedicalMergeConflicts } from '@/shared/ui/doctor/DoctorMedicalMergeConflictProvider';
+import type { PatientMergeConflictRefusalSummary } from '@/modules/patient-merge-candidate/ports';
 
 // ---------------------------------------------------------------------------
 // Backend response types
@@ -914,8 +915,10 @@ export function PatientTabOverview({
   compositionMode,
 }: Props) {
   const { patientSingularLabel } = useDoctorPatientTerms();
-  const { conflictIdForClient, openConflict } = useDoctorMedicalMergeConflicts();
+  const { conflictIdForClient, openConflict, decisionRevision } =
+    useDoctorMedicalMergeConflicts();
   const medicalConflictId = conflictIdForClient(userId);
+  const [mergeRefusals, setMergeRefusals] = useState<PatientMergeConflictRefusalSummary[]>([]);
   const isComposed = compositionMode != null;
   const isOverviewComposition = compositionMode === 'overview';
   const seededExerciseCalendar = unwrapBootstrapEnvelope(initialExerciseCalendarSnapshot);
@@ -931,6 +934,28 @@ export function PatientTabOverview({
     initialTasks != null &&
     initialProgramActivity != null &&
     initialAppointments != null;
+
+  useEffect(() => {
+    if (!active) return;
+    let cancelled = false;
+    void fetch(`/api/doctor/patients/${encodeURIComponent(userId)}/merge-refusals`, {
+      credentials: 'include',
+      cache: 'no-store',
+    })
+      .then(async (response) => {
+        const payload = (await response.json().catch(() => null)) as {
+          ok?: boolean;
+          refusals?: PatientMergeConflictRefusalSummary[];
+        } | null;
+        if (!cancelled && response.ok && payload?.ok === true && Array.isArray(payload.refusals)) {
+          setMergeRefusals(payload.refusals);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [active, decisionRevision, userId]);
   const [data, setData] = useState<OverviewData | null>(() => {
     if (hasInitialOverviewData) {
       return buildSsrSeedData(
@@ -1715,6 +1740,32 @@ export function PatientTabOverview({
           </Button>
         </section>
       ) : null}
+      {mergeRefusals.map((refusal) => (
+        <section
+          key={refusal.id}
+          className="col-span-full flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-muted/15 px-3 py-2"
+        >
+          <div>
+            <p className={doctorSectionTitleClass}>
+              Попытка слияния учётных записей заблокирована специалистом
+            </p>
+            <p className={cn(doctorMetaTextClass, 'mt-0.5')}>
+              {new Intl.DateTimeFormat('ru-RU', {
+                dateStyle: 'medium',
+                timeStyle: 'short',
+              }).format(new Date(refusal.resolvedAt))}
+            </p>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => openConflict(refusal.id)}
+          >
+            Подробнее
+          </Button>
+        </section>
+      ))}
       {/* ===== LEFT COLUMN ===== */}
       <div className={cn(isComposed ? 'contents' : 'flex flex-col gap-2.5')}>
         {/* «+ Создать визит» entry point */}

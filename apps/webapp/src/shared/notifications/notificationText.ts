@@ -363,6 +363,8 @@ export const notificationText = {
   doctorMergeCompleted: 'Объединение выполнено.',
   doctorMedicalConflictMerged: 'Учётные записи объединены.',
   doctorMedicalConflictEscalated: 'Конфликт передан администраторам платформы.',
+  doctorMedicalConflictRefused: 'Отказ записан без обращения в техподдержку.',
+  doctorMedicalConflictCommentRequired: 'Добавьте комментарий врача.',
   doctorMedicalConflictAwaitingOtherOrganization:
     'Решение записано. Слияние ждёт решения другой клиники.',
   doctorMedicalConflictFioDecisionRequired:

@@ -16,6 +16,12 @@ export type PatientMergeConflictParty = {
   patronymic: string | null;
   lastActivityAt: string | null;
   assignments: PatientMergeConflictAssignment[];
+  contacts: Array<{ kind: string; value: string }>;
+};
+
+export type PatientMergeConflictActor = {
+  userId: string;
+  displayName: string;
 };
 
 export type PatientMergeConflictDetails = {
@@ -25,7 +31,18 @@ export type PatientMergeConflictDetails = {
   source: string;
   /** Врач этой клиники уже нажал «слить», и пара ждёт решения второй клиники. */
   doctorApproved: boolean;
+  status: PatientMergeCandidateStatus;
+  resolvedAt: string | null;
+  resolvedBy: PatientMergeConflictActor | null;
+  doctorComment: string | null;
+  supportRequested: boolean | null;
+  initiatedBy: PatientMergeConflictActor | null;
   parties: [PatientMergeConflictParty, PatientMergeConflictParty];
+};
+
+export type PatientMergeConflictRefusalSummary = {
+  id: string;
+  resolvedAt: string;
 };
 
 /**
@@ -53,6 +70,8 @@ export type PatientMergeCandidateRecord = {
   createdAt: string;
   resolvedAt: string | null;
   resolvedBy: string | null;
+  doctorComment: string | null;
+  supportRequested: boolean | null;
 };
 
 export type PatientMergeCandidatePort = {
@@ -65,15 +84,22 @@ export type PatientMergeCandidatePort = {
     organizationId: string,
     conflictId: string,
   ): Promise<PatientMergeConflictDetails | null>;
+  listMedicalConflictRefusalsForUser(
+    organizationId: string,
+    userId: string,
+  ): Promise<PatientMergeConflictRefusalSummary[]>;
   mergeMedicalConflict(
     organizationId: string,
     conflictId: string,
     resolvedBy: string,
+    doctorComment: string,
   ): Promise<PatientMergeConflictMergeOutcome>;
   refuseMedicalConflict(
     organizationId: string,
     conflictId: string,
     resolvedBy: string,
+    doctorComment: string,
+    supportRequested: boolean,
   ): Promise<boolean>;
   dismissCandidate(id: string, resolvedBy: string): Promise<boolean>;
   markResolvedForUserPair(

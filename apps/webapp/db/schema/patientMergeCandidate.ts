@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import {
   pgTable,
+  boolean,
   uuid,
   text,
   timestamp,
@@ -32,6 +33,8 @@ export const patientMergeCandidates = pgTable(
       .notNull(),
     resolvedAt: timestamp('resolved_at', { withTimezone: true, mode: 'string' }),
     resolvedBy: uuid('resolved_by'),
+    doctorComment: text('doctor_comment'),
+    supportRequested: boolean('support_requested'),
   },
   (table) => [
     index('idx_patient_merge_candidates_org_status').using(

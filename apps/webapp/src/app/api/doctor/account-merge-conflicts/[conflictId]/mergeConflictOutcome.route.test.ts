@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * Канон §18б: у врача ровно два действия, и «слить» — это «да, это мой клиент», под свою
@@ -11,11 +11,14 @@ import { describe, expect, it, vi } from 'vitest';
  * схлопывался в `true` по дороге наружу.
  *
  * Независимый oracle — канон, а не реализация: проверяется наблюдаемый ответ HTTP-границы на каждый
- * исход двери. Точные коды и тексты не фиксируются: их выбирает продукт.
+ * исход двери. Для отказа отдельно проверяется дорогая развилка внешнего side effect: ответ врача
+ * «нет» не должен превратиться в обращение, а «да» обязан дойти до порта. Точные тексты UI здесь
+ * намеренно не фиксируются.
  */
 const fakes = vi.hoisted(() => ({
   requireDoctorWorkspaceApiContext: vi.fn(),
   mergeMedicalConflict: vi.fn(),
+  refuseMedicalConflict: vi.fn(),
 }));
 
 vi.mock('@/app-layer/guards/requireRole', () => ({
@@ -28,6 +31,7 @@ vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: () => ({
     patientMergeCandidate: createPatientMergeCandidateService({
       mergeMedicalConflict: fakes.mergeMedicalConflict,
+      refuseMedicalConflict: fakes.refuseMedicalConflict,
     } as unknown as PatientMergeCandidatePort),
   }),
 }));
@@ -49,12 +53,37 @@ async function pressMerge(outcome: string) {
     new Request(`http://test/api/doctor/account-merge-conflicts/${CONFLICT_ID}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ action: 'merge' }),
+      body: JSON.stringify({ action: 'merge', comment: 'Учётки принадлежат одному клиенту' }),
     }),
     { params: Promise.resolve({ conflictId: CONFLICT_ID }) },
   );
   return { status: response.status, body: (await response.json()) as Record<string, unknown> };
 }
+
+async function pressRefuse(supportRequested: boolean) {
+  fakes.requireDoctorWorkspaceApiContext.mockResolvedValue({
+    ok: true,
+    ctx: { organizationId: ORGANIZATION_ID, session: { user: { userId: 'doctor-1' } } },
+  });
+  fakes.refuseMedicalConflict.mockResolvedValue(true);
+  const response = await POST(
+    new Request(`http://test/api/doctor/account-merge-conflicts/${CONFLICT_ID}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        action: 'refuse',
+        comment: 'Это два разных человека',
+        supportRequested,
+      }),
+    }),
+    { params: Promise.resolve({ conflictId: CONFLICT_ID }) },
+  );
+  return { status: response.status, body: (await response.json()) as Record<string, unknown> };
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
 
 describe('врач нажал «слить» — ответ соответствует тому, что произошло (§18б)', () => {
   it('слияние состоялось — врач получает успех', async () => {
@@ -88,5 +117,35 @@ describe('врач нажал «слить» — ответ соответств
     const { status, body } = await pressMerge('conflict_not_found');
     expect(status).toBe(403);
     expect(body.ok).toBe(false);
+  });
+});
+
+describe('врач отказал — только его явный ответ управляет обращением в поддержку (§18б)', () => {
+  it('ответ «нет» завершает разбор без обращения', async () => {
+    const result = await pressRefuse(false);
+
+    expect(result.status).toBe(200);
+    expect(result.body.supportRequested).toBe(false);
+    expect(fakes.refuseMedicalConflict).toHaveBeenCalledWith(
+      ORGANIZATION_ID,
+      CONFLICT_ID,
+      'doctor-1',
+      'Это два разных человека',
+      false,
+    );
+  });
+
+  it('ответ «да» передаёт обращение', async () => {
+    const result = await pressRefuse(true);
+
+    expect(result.status).toBe(200);
+    expect(result.body.supportRequested).toBe(true);
+    expect(fakes.refuseMedicalConflict).toHaveBeenCalledWith(
+      ORGANIZATION_ID,
+      CONFLICT_ID,
+      'doctor-1',
+      'Это два разных человека',
+      true,
+    );
   });
 });

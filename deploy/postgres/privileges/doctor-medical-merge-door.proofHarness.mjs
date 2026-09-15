@@ -23,6 +23,7 @@ const REPO = process.env.BCB_PROOF_REPO;
 const MIGRATION_FILE_BOUNDARY = '-- BCB-PROOF-MIGRATION-BOUNDARY';
 const MIGRATIONS = [
   'apps/webapp/db/drizzle-migrations/20260914T220000_doctor_resolves_medical_merge_conflict.sql',
+  'apps/webapp/db/drizzle-migrations/20260915T102455_doctor_merge_decision_has_a_record.sql',
   'apps/webapp/db/drizzle-migrations/20260915T150000_the_person_fio_answer_survives_the_doctor_defer.sql',
 ].map((relative) => path.join(REPO ?? '', relative));
 const PRIVILEGES = path.join(REPO ?? '', 'deploy/postgres/generated', `privileges.${DB}.sql`);
@@ -35,6 +36,10 @@ export const FAULTS = new Set([
   'staff-insert',
   'foreign-org-conflict',
   'fio-decision-not-persisted',
+  'support-always-escalates',
+  'decision-stays-pending',
+  'comment-not-saved',
+  'approval-comment-not-saved',
 ]);
 
 export function faultFromEnv() {
@@ -68,6 +73,33 @@ function migrationSource(fault) {
     const marker = 'AND candidate.organization_id = v_organization_id';
     if (!source.includes(marker)) throw new Error('fault foreign-org-conflict: marker not found');
     source = source.replace(marker, 'AND TRUE');
+  }
+  if (fault === 'support-always-escalates') {
+    const marker = 'IF p_support_requested THEN\n    INSERT INTO public.admin_audit_log';
+    if (!source.includes(marker)) throw new Error('fault support-always-escalates: marker not found');
+    source = source.replace(marker, 'IF TRUE THEN\n    INSERT INTO public.admin_audit_log');
+  }
+  if (fault === 'decision-stays-pending') {
+    const marker = "IF v_outcome = 'awaiting_other_organization' THEN\n    UPDATE public.patient_merge_candidates\n       SET status = 'resolved', resolved_at = pg_catalog.now(), resolved_by = p_actor_id";
+    if (!source.includes(marker)) throw new Error('fault decision-stays-pending: marker not found');
+    source = source.replace(
+      marker,
+      "IF v_outcome = 'awaiting_other_organization' THEN\n    UPDATE public.patient_merge_candidates\n       SET resolved_at = pg_catalog.now(), resolved_by = p_actor_id",
+    );
+  }
+  if (fault === 'comment-not-saved') {
+    const marker = 'doctor_comment = pg_catalog.btrim(p_doctor_comment),\n         support_requested = p_support_requested';
+    if (!source.includes(marker)) throw new Error('fault comment-not-saved: marker not found');
+    source = source.replace(marker, "doctor_comment = NULL,\n         support_requested = p_support_requested");
+  }
+  if (fault === 'approval-comment-not-saved') {
+    const marker =
+      'UPDATE public.patient_merge_candidates candidate\n     SET doctor_comment = pg_catalog.btrim(p_doctor_comment)';
+    if (!source.includes(marker)) throw new Error('fault approval-comment-not-saved: marker not found');
+    source = source.replace(
+      marker,
+      'UPDATE public.patient_merge_candidates candidate\n     SET doctor_comment = NULL',
+    );
   }
   return source;
 }
@@ -127,7 +159,7 @@ function candidatePrivilegeStatements(installed) {
   // старое состояние базы вместо кандидатного.
   const doorTableRe = /^(GRANT|REVOKE) .* ON TABLE "public"\."patient_merge_candidates" (TO|FROM) /u;
   const newDoors =
-    /^GRANT EXECUTE ON FUNCTION app\.(record_patient_medical_merge_conflict|transfer_staff_approved_platform_user_merge_data|read_staff_patient_medical_merge_conflict|refuse_staff_patient_medical_merge_conflict|resolve_platform_patient_medical_merge_conflicts)\(/u;
+    /^GRANT EXECUTE ON FUNCTION app\.(record_patient_medical_merge_conflict|transfer_staff_approved_platform_user_merge_data|read_staff_patient_medical_merge_conflict|read_staff_patient_medical_merge_refusal|refuse_staff_patient_medical_merge_conflict|resolve_platform_patient_medical_merge_conflicts)\(/u;
   // Фикстура «конфликт в двух клиниках» заводит вторую клинику (живая на DEV одна), а на INSERT в
   // `be_organizations` висит триггер `app.seed_reference_catalog_after_organization_insert()`. Его
   // `ON CONFLICT … DO NOTHING` требует SELECT по колонкам арбитра, которого у владельца шва на DEV
@@ -199,6 +231,12 @@ export async function installCandidate(client, fault, say) {
   }
   if (fault === 'fio-decision-not-persisted') {
     say("FAULT INJECTED: the conflict row no longer keeps the person's FIO answer");
+  }
+  if (fault === 'support-always-escalates') say('FAULT INJECTED: support is always escalated');
+  if (fault === 'decision-stays-pending') say('FAULT INJECTED: accepted decision stays pending');
+  if (fault === 'comment-not-saved') say('FAULT INJECTED: refusal drops the doctor comment');
+  if (fault === 'approval-comment-not-saved') {
+    say('FAULT INJECTED: approval drops the doctor comment');
   }
 
   const privileges = candidatePrivilegeStatements(await alreadyGrantedPolicies(client));
@@ -346,16 +384,26 @@ export async function installCandidateNamedRootCapability(client, functionIdenti
 }
 
 /** Порт-контекст ИМЕНОВАННОГО КОРНЯ: ровно то, что открывает `runWebappNamedRoot`. */
-export async function installDoctorNamedRootContext(client, capability, doctor, uuidArgs) {
+const TYPED_ARG_SEND = {
+  uuid: ['uuid@1', 'uuid_send'],
+  text: ['text@1', 'textsend'],
+  boolean: ['boolean@1', 'boolsend'],
+};
+
+export async function installDoctorNamedRootContext(client, capability, doctor, args) {
+  const typedArgs = args.map((argument) =>
+    typeof argument === 'string' ? { type: 'uuid', value: argument } : argument,
+  );
+  const rows = typedArgs.map((argument, index) => {
+    const recipe = TYPED_ARG_SEND[argument.type];
+    if (!recipe) throw new Error(`unsupported typed arg '${argument.type}'`);
+    return `ROW('${recipe[0]}', pg_catalog.${recipe[1]}($${index + 1}::${argument.type}))::app.port_typed_arg`;
+  });
   // Хеш типизированных аргументов считается ДО смены авторизации: логину роли врача исполнять
   // `app.hash_port_typed_args` не положено, это делает рантайм до входа в контекст.
   const hash = await client.query(
-    `SELECT encode(app.hash_port_typed_args(ARRAY(
-              SELECT ROW('uuid@1', pg_catalog.uuid_send(value::uuid))::app.port_typed_arg
-                FROM pg_catalog.unnest($1::text[]) WITH ORDINALITY AS argument(value, position)
-               ORDER BY argument.position
-            )), 'hex') AS args_hash`,
-    [uuidArgs],
+    `SELECT encode(app.hash_port_typed_args(ARRAY[${rows.join(', ')}]), 'hex') AS args_hash`,
+    typedArgs.map((argument) => argument.value),
   );
   await client.query(`SET LOCAL SESSION AUTHORIZATION ${capability.login}`);
   await client.query(
@@ -373,8 +421,6 @@ export async function installDoctorNamedRootContext(client, capability, doctor, 
     ],
   );
 }
-
-const TYPED_ARG_SEND = { uuid: ['uuid@1', 'uuid_send'], text: ['text@1', 'textsend'] };
 
 /**
  * Порт-контекст ИМЕНОВАННОГО КОРНЯ класса `pre_session` — ровно то, что открывает bootstrap-принципал

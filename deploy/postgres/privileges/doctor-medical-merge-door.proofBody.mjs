@@ -106,6 +106,7 @@ async function main() {
         conflictId: CONFLICT,
         organizationId: clinic.org_id,
         actorId: clinic.staff_id,
+        doctorComment: 'Один клиент, подтверждено врачом',
       },
       mergeContext: { actorId: clinic.staff_id, source: 'doctor_medical_conflict_review' },
     });

@@ -12,7 +12,7 @@
  * Уже случившийся отказ, который прогон ловит (F1 третьего круга аудита): дверь помечала строку
  * разобранной и возвращала `false`, движок честно отдавал `mergeCompleted:false`, а репозиторий это
  * значение выбрасывал и всегда возвращал `true` — маршрут отвечал `200 {"ok":true}`. Человек
- * оставался двумя учётками, конфликт исчезал с индикатора, и вернуться к нему было нечем.
+ * оставался двумя учётками, а врачу отвечали так, будто слияние завершилось.
  *
  * Запускается не напрямую, а из `doctor-medical-merge-door.devDbProof.test.mjs`.
  */
@@ -23,9 +23,7 @@ import {
   connect,
   faultFromEnv,
   installCandidate,
-  installCandidateNamedRootCapability,
   installDoctorContext,
-  installDoctorNamedRootContext,
   staffCapability,
 } from './doctor-medical-merge-door.proofHarness.mjs';
 
@@ -106,12 +104,13 @@ async function main() {
         conflictId: CONFLICT_A,
         organizationId: clinicA.org_id,
         actorId: clinicA.staff_id,
+        doctorComment: 'Клиника A подтверждает совпадение',
       },
       mergeContext: { actorId: clinicA.staff_id, source: 'doctor_medical_conflict_review' },
     });
     say(`doctor A merge returned: ${JSON.stringify(first)}`);
 
-    // Индикатор врача — ровно тот запрос, которым его строит продукт (listPendingMedicalByOrganization).
+    // Все четыре красных входа питаются этим одним pending-набором.
     const indicator = await client.query(
       `SELECT count(*)::int AS pending
          FROM public.patient_merge_candidates
@@ -119,30 +118,13 @@ async function main() {
           AND status = 'pending' AND reason LIKE 'medical_history:%'`,
       [clinicA.org_id, CONFLICT_A],
     );
-    say(`doctor A indicator still shows pending medical conflicts: ${indicator.rows[0].pending}`);
-
-    // И его модалка: тот же конфликт, но уже с пометкой «учтено, ждём вторую клинику».
-    await clearDoctorContext(client);
-    const readCapability = await installCandidateNamedRootCapability(
-      client,
-      'app.read_staff_patient_medical_merge_conflict(uuid)',
-    );
-    await installDoctorNamedRootContext(client, readCapability, clinicA, [CONFLICT_A]);
-    const ownView = await client.query(
-      `SELECT app.read_staff_patient_medical_merge_conflict($1::uuid) AS snapshot`,
-      [CONFLICT_A],
-    );
-    const snapshot = ownView.rows[0]?.snapshot;
-    say(
-      `doctor A still sees his conflict: ${snapshot == null ? 'NO — it disappeared from his indicator' : `yes, doctorApproved=${snapshot.doctorApproved}`}`,
-    );
-
+    say(`doctor A pending conflicts after decision: ${indicator.rows[0].pending}`);
     await clearDoctorContext(client);
     const afterFirst = await client.query(
       `SELECT (SELECT merged_into_id::text FROM public.platform_users WHERE id = $2::uuid) AS duplicate_merged_into,
               (SELECT count(*)::int FROM public.user_password_credentials WHERE user_id = $2::uuid) AS duplicate_credentials,
               (SELECT count(*)::int FROM public.user_password_credentials WHERE user_id = $1::uuid) AS target_credentials,
-              (SELECT status || '/' || COALESCE(payload->>'doctorApproved', 'null')
+              (SELECT status || '/' || COALESCE(payload->>'doctorApproved', 'null') || '/' || COALESCE(doctor_comment, '')
                  FROM public.patient_merge_candidates WHERE id = $3::uuid) AS clinic_a_row,
               (SELECT status || '/' || COALESCE(payload->>'doctorApproved', 'null')
                  FROM public.patient_merge_candidates WHERE id = $4::uuid) AS clinic_b_row`,
@@ -160,17 +142,14 @@ async function main() {
     if (a.duplicate_credentials !== 1 || a.target_credentials !== 1) {
       throw new Error('identity rows moved even though no merge happened');
     }
-    if (a.clinic_a_row !== 'pending/true') {
-      throw new Error(`clinic A row is '${a.clinic_a_row}', expected 'pending/true' (still on the indicator)`);
+    if (a.clinic_a_row !== 'resolved/true/Клиника A подтверждает совпадение') {
+      throw new Error(`clinic A row is '${a.clinic_a_row}', expected a resolved approval with its comment`);
     }
     if (a.clinic_b_row !== 'pending/null') {
       throw new Error(`clinic B row is '${a.clinic_b_row}', expected an untouched 'pending/null'`);
     }
-    if (indicator.rows[0].pending !== 1) {
-      throw new Error(`clinic A indicator shows ${indicator.rows[0].pending} pending conflicts, expected 1`);
-    }
-    if (snapshot == null || snapshot.doctorApproved !== true) {
-      throw new Error('the doctor lost his own conflict, or it does not say that he already approved');
+    if (indicator.rows[0].pending !== 0) {
+      throw new Error(`clinic A indicators still see ${indicator.rows[0].pending} pending conflicts`);
     }
 
     // --- шаг 2: «слить» жмёт врач клиники B ---
@@ -181,6 +160,7 @@ async function main() {
         conflictId: CONFLICT_B,
         organizationId: clinicB.org_id,
         actorId: clinicB.staff_id,
+        doctorComment: 'Клиника B подтверждает совпадение',
       },
       mergeContext: { actorId: clinicB.staff_id, source: 'doctor_medical_conflict_review' },
     });

@@ -108,6 +108,7 @@ async function main() {
         conflictId: CONFLICT_A,
         organizationId: clinicB.org_id,
         actorId: clinicB.staff_id,
+        doctorComment: 'Чужой врач не должен пройти',
       },
       mergeContext: { actorId: clinicB.staff_id, source: 'doctor_medical_conflict_review' },
     });

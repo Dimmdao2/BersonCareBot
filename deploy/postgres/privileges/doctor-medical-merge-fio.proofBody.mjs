@@ -193,6 +193,7 @@ async function doctorPressesMerge(client, capability, clinic, conflictId) {
         conflictId,
         organizationId: clinic.org_id,
         actorId: clinic.staff_id,
+        doctorComment: 'ФИО сверено с ответом клиента',
       },
       humanDecision: decision ?? undefined,
       mergeContext: { actorId: clinic.staff_id, source: 'doctor_medical_conflict_review' },
