@@ -18,6 +18,13 @@ export const DOCTOR_PAGE_HEADER_HEIGHT_VAR = '--doctor-page-header-h';
 export const DOCTOR_ADMIN_SIDEBAR_WIDTH_CLASS = 'md:w-14 lg:w-56';
 
 /**
+ * Тот же sidebar на странице-поверхности (видеовстреча): полоска на всех ширинах, разворот —
+ * только кнопкой поверх содержимого. Владелец 15.09.2026: «меню на десктопе при этом сворачиваем
+ * в полоску как на планшете».
+ */
+export const DOCTOR_ADMIN_SIDEBAR_RAIL_WIDTH_CLASS = 'md:w-14';
+
+/**
  * `position: sticky` сайдбара: на desktop глобальной шапки нет, поэтому липнет к верху вьюпорта.
  * (Сайдбар скрыт на <md, поэтому мобильный кейс не нужен.)
  */

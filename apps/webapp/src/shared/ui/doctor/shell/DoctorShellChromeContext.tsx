@@ -29,6 +29,15 @@ type MobileBottomTabsRegistration = { content: ReactNode; token: symbol };
 
 type DoctorShellChromeContextValue = {
   chrome: DoctorShellChrome | null;
+  /**
+   * Страница попросила свернуть левое меню в полоску и на десктопе. Нужна страницам, которые сами
+   * и есть рабочая поверхность во весь экран, — сейчас это видеовстреча (владелец 15.09.2026:
+   * «меню на десктопе при этом сворачиваем в полоску как на планшете»). Держится счётчиком
+   * регистраций, а не булевым флагом: две страницы в переходе между маршрутами живут одновременно,
+   * и размонтирование старой не должно снимать просьбу новой.
+   */
+  desktopRail: boolean;
+  registerDesktopRail: (token: symbol) => () => void;
   register: (chrome: DoctorShellChrome, token: symbol) => () => void;
   registerMobileBottomTabs: (content: ReactNode, token: symbol) => () => void;
   registerMobileSubsectionTabs: (content: ReactNode, token: symbol) => () => void;
@@ -38,6 +47,13 @@ const DoctorShellChromeContext = createContext<DoctorShellChromeContextValue | n
 
 export function DoctorShellChromeProvider({ children }: { children: ReactNode }) {
   const [registration, setRegistration] = useState<Registration | null>(null);
+  const [desktopRailTokens, setDesktopRailTokens] = useState<symbol[]>([]);
+  const registerDesktopRail = useCallback((token: symbol) => {
+    setDesktopRailTokens((tokens) => (tokens.includes(token) ? tokens : [...tokens, token]));
+    return () => {
+      setDesktopRailTokens((tokens) => tokens.filter((current) => current !== token));
+    };
+  }, []);
   const [mobileBottomTabsRegistration, setMobileBottomTabsRegistration] =
     useState<MobileBottomTabsRegistration | null>(null);
   const [mobileSubsectionTabsRegistration, setMobileSubsectionTabsRegistration] =
@@ -74,8 +90,22 @@ export function DoctorShellChromeProvider({ children }: { children: ReactNode })
     [mobileBottomTabsRegistration, mobileSubsectionTabsRegistration, registration],
   );
   const value = useMemo(
-    () => ({ chrome, register, registerMobileBottomTabs, registerMobileSubsectionTabs }),
-    [chrome, register, registerMobileBottomTabs, registerMobileSubsectionTabs],
+    () => ({
+      chrome,
+      register,
+      registerMobileBottomTabs,
+      registerMobileSubsectionTabs,
+      desktopRail: desktopRailTokens.length > 0,
+      registerDesktopRail,
+    }),
+    [
+      chrome,
+      desktopRailTokens,
+      register,
+      registerDesktopRail,
+      registerMobileBottomTabs,
+      registerMobileSubsectionTabs,
+    ],
   );
   return (
     <DoctorShellChromeContext.Provider value={value}>{children}</DoctorShellChromeContext.Provider>
@@ -127,4 +157,23 @@ export function DoctorShellChromeRegistration({
 
 export function useDoctorShellChrome(): DoctorShellChrome | null {
   return useContext(DoctorShellChromeContext)?.chrome ?? null;
+}
+
+/**
+ * Пока страница смонтирована, левое меню оболочки свёрнуто в полоску и на десктопе.
+ * Ставится страницей-поверхностью (видеовстреча), снимается автоматически при уходе с неё.
+ */
+export function DoctorShellDesktopRailRegistration() {
+  const context = useContext(DoctorShellChromeContext);
+  const registerDesktopRail = context?.registerDesktopRail;
+  const tokenRef = useRef(Symbol('doctor-shell-desktop-rail'));
+  useEffect(() => {
+    if (!registerDesktopRail) return;
+    return registerDesktopRail(tokenRef.current);
+  }, [registerDesktopRail]);
+  return null;
+}
+
+export function useDoctorShellDesktopRail(): boolean {
+  return useContext(DoctorShellChromeContext)?.desktopRail ?? false;
 }

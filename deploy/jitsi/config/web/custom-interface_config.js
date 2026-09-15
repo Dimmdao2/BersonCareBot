@@ -26,3 +26,11 @@ interfaceConfig.DISPLAY_WELCOME_FOOTER = false;
 interfaceConfig.DISABLE_PRESENCE_STATUS = true;
 interfaceConfig.GENERATE_ROOMNAMES_ON_WELCOME_PAGE = false;
 interfaceConfig.SHOW_CHROME_EXTENSION_BANNER = false;
+
+// Видео собеседника заполняет кадр целиком, с обрезкой по краям, а не вписывается с чёрными полями
+// — так ведут себя все привычные звонилки. Владелец 15.09.2026: «неужели не взять как это сделано в
+// нормальных звонилках». Это штатная настройка провайдера, а не наш CSS: 'height' масштабирует поток
+// по высоте экрана, поэтому пустого поля не остаётся ни на высоком окне врача, ни на телефоне в
+// портрете. Значение по умолчанию ('both') оставляло поля, которые провайдер закрашивал размытой
+// копией того же потока — тем самым «вторым слоем».
+interfaceConfig.VIDEO_LAYOUT_FIT = 'height';
