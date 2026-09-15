@@ -15,7 +15,11 @@ export function allowedDoctorChannelsForTopic(
   if (t === 'doctor_specialist_task_reminders') {
     return ['telegram', 'max', 'email', 'web_push'];
   }
-  if (t === 'doctor_patient_messages' || t === 'doctor_patient_program_notes') {
+  if (
+    t === 'doctor_patient_messages' ||
+    t === 'doctor_patient_program_notes' ||
+    t === 'doctor_leads'
+  ) {
     return ['web_push', 'telegram', 'max'];
   }
   return DOCTOR_TOPIC_CHANNEL_CODES;
