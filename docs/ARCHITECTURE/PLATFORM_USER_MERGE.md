@@ -87,11 +87,11 @@
 
 Канон продуктового потока: [`../LOGIN_REGISTER_NEW_LOGIC/MAIN PLAN.md`](../LOGIN_REGISTER_NEW_LOGIC/MAIN%20PLAN.md) §1–7, журнал — [`../LOGIN_REGISTER_NEW_LOGIC/LOG.md`](../LOGIN_REGISTER_NEW_LOGIC/LOG.md).
 
-| Слой                                  | Роль                                                                                                                                                                                            |
-| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Legacy identity ingestion**         | Историческое предотвращение дублей: `appointment.record.upserted` → `ensureAppointmentClientTx` (phone → integrator_id → email); trusted phone; contact email без auto-password.              |
-| **Email setup / register (фазы 3–5)** | Contact-only не плодит второго `platform_user`; `email_conflict` сначала пробует безопасный auto-merge дублей по email, но не сливает два полноценных password-login аккаунта.                  |
-| **Merge (этот документ)**             | Страховка, если дубль уже есть: ручной merge в кабинете врача или auto-merge на ingestion / phone bind.                                                                                         |
+| Слой                                  | Роль                                                                                                                                                                             |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Legacy identity ingestion**         | Историческое предотвращение дублей: `appointment.record.upserted` → `ensureAppointmentClientTx` (phone → integrator_id → email); trusted phone; contact email без auto-password. |
+| **Email setup / register (фазы 3–5)** | Contact-only не плодит второго `platform_user`; `email_conflict` сначала пробует безопасный auto-merge дублей по email, но не сливает два полноценных password-login аккаунта.   |
+| **Merge (этот документ)**             | Страховка, если дубль уже есть: ручной merge в кабинете врача или auto-merge на ingestion / phone bind.                                                                          |
 
 ### Ограничения auto-merge (не заменяют support / manual merge)
 
@@ -148,20 +148,27 @@ Helper: `apps/webapp/src/infra/repos/pgCanonicalPlatformUser.ts`.
 | `patient_daily_warmup_presentations`                            | UPSERT `(user_id)`                           | одна строка на пользователя                                                             |
 | `be_patient_booking_profiles`                                   | UPSERT `(organization_id, platform_user_id)` | booking-репутация                                                                       |
 | `product_analytics_user_hourly`                                 | UPSERT pkey                                  | агрегаты по часу                                                                        |
-| `patient_diary_day_snapshots`                                   | UPDATE `platform_user_id`                    |                                                                                         |
+| `patient_diary_day_snapshots`                                   | dedupe + UPDATE `platform_user_id`           | одна строка на локальную дату                                                           |
 | `webapp_reminder_occurrences`                                   | UPDATE                                       |                                                                                         |
 | `user_web_push_subscriptions`                                   | UPDATE                                       |                                                                                         |
+| `native_push_targets`                                           | dedupe + UPDATE                              | одинаковый `(app, provider, token)` остаётся одной целью                                |
 | `broadcast_audit_recipients`                                    | UPDATE                                       |                                                                                         |
 | `patient_content_rating_feedback`                               | UPDATE                                       |                                                                                         |
 | `patient_practice_completions`                                  | UPDATE                                       |                                                                                         |
 | `patient_daily_warmup_video_views`                              | UPDATE                                       |                                                                                         |
 | `program_action_log`                                            | UPDATE                                       |                                                                                         |
-| `test_attempts`                                                 | UPDATE                                       | guard: open attempt conflict                                                            |
+| `test_attempts`                                                 | reconcile + UPDATE                           | auto блокирует два open draft; manual сводит их и сохраняет результаты                  |
 | `treatment_program_instances`                                   | UPDATE                                       | две реальные active-программы — blocker; promo закрывается как superseded перед repoint |
 | `be_appointments`, `be_patient_timeline_events`, …              | UPDATE                                       | booking-engine domain                                                                   |
 | `be_payment_*`, `be_patient_packages`                           | UPDATE                                       | payments / memberships                                                                  |
 | `product_push_notifications`, `product_analytics_events_recent` | UPDATE                                       | analytics                                                                               |
 | `platform_user_contacts`                                        | repoint duplicate → target + merge fallback  | см. ниже                                                                                |
+
+До массового repoint общий merge-проход также устраняет коллизии инвариантов владельца:
+`doctor_notes` с одинаковыми `(organization, author, date)` объединяются хронологически без потери
+текста; в `user_phone_history` сохраняются все интервалы, но текущим остаётся один; разные preferred
+каналы сводятся к одному наиболее свежему `user_channel_preferences`. Это часть транзакции merge, а
+не отдельная процедура поддержки.
 
 Базовый перенос (до extended): bookings, diaries, media, reminders, channel/oauth bindings, scalar COALESCE на `platform_users`, email-order fix (`clearDuplicateEmailBeforeTargetNormalization`).
 
