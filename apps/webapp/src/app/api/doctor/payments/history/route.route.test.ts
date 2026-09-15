@@ -3,7 +3,7 @@ import type { PatientPayment } from '@/modules/patient-payments/ports';
 import type { PaymentHistoryEventRecord } from '@/modules/payments/types';
 
 const fakes = vi.hoisted(() => ({
-  requireDoctorWorkspaceApiContext: vi.fn(),
+  requireClinicManagementApiContext: vi.fn(),
   requireEntitlementForRead: vi.fn(),
   buildAppDeps: vi.fn(),
   withDoctorWorkspacePrincipal: vi.fn(),
@@ -12,7 +12,7 @@ const fakes = vi.hoisted(() => ({
 }));
 
 vi.mock('@/app-layer/guards/requireRole', () => ({
-  requireDoctorWorkspaceApiContext: fakes.requireDoctorWorkspaceApiContext,
+  requireClinicManagementApiContext: fakes.requireClinicManagementApiContext,
 }));
 vi.mock('@/app-layer/guards/requireEntitlement', () => ({
   requireEntitlementForRead: fakes.requireEntitlementForRead,
@@ -65,7 +65,7 @@ const prepaymentEvent: PaymentHistoryEventRecord = {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  fakes.requireDoctorWorkspaceApiContext.mockResolvedValue({
+  fakes.requireClinicManagementApiContext.mockResolvedValue({
     ok: true,
     ctx: { organizationId: ORGANIZATION_A, session: { user: { userId: 'doctor-a' } } },
   });
@@ -117,6 +117,22 @@ describe('doctor organization payment history route', () => {
     const response = await GET();
 
     expect(response.status).toBe(403);
+    expect(fakes.buildAppDeps).not.toHaveBeenCalled();
+    expect(fakes.listOrganizationPayments).not.toHaveBeenCalled();
+    expect(fakes.listPaymentHistoryForOrganization).not.toHaveBeenCalled();
+  });
+
+  it('не пускает к деньгам организации того, кому дверь отказала', async () => {
+    // Журнал платежей живёт во вкладке настроек, а она требует управления организацией. Если дверь
+    // отказала, ни один из двух реестров не должен быть даже открыт — иначе отказ был бы косметикой
+    // поверх уже прочитанных чужих денег.
+    const denied = Response.json({ ok: false, error: 'forbidden' }, { status: 403 });
+    fakes.requireClinicManagementApiContext.mockResolvedValue({ ok: false, response: denied });
+
+    const response = await GET();
+
+    expect(response.status).toBe(403);
+    expect(fakes.requireEntitlementForRead).not.toHaveBeenCalled();
     expect(fakes.buildAppDeps).not.toHaveBeenCalled();
     expect(fakes.listOrganizationPayments).not.toHaveBeenCalled();
     expect(fakes.listPaymentHistoryForOrganization).not.toHaveBeenCalled();
