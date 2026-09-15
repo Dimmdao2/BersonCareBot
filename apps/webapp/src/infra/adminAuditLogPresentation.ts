@@ -76,10 +76,14 @@ export function parseMessengerPhoneBindAuditTargets(
     }
   }
   if (rows.length === 0 && Array.isArray(details.candidateIds)) {
+    // `candidateIds` — упорядоченная пара «канон, дубликат»: первым идёт аккаунт, который останется.
+    // Ссылка в консоль слияния подставляет первый как `targetId`, поэтому порядок здесь НЕ сортируется:
+    // сортировка по UUID половину случаев уводила бы слияние в обратную сторону.
     for (const item of details.candidateIds) {
       const id = typeof item === 'string' ? item.trim() : '';
       if (id) rows.push({ platformUserId: id, label: id });
     }
+    return rows.length > 0 ? rows : null;
   }
   if (rows.length === 0) return null;
   rows.sort((a, b) => a.platformUserId.localeCompare(b.platformUserId));
