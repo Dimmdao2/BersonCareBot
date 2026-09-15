@@ -17,9 +17,13 @@ import { getBrowserCalendarIanaForAuth } from '@/shared/lib/browserCalendarIana'
 import { InternationalPhoneInput } from '@/shared/ui/patient/auth/InternationalPhoneInput';
 import {
   OtpCodeForm,
-  type OtpAlternativeEntry,
   type OtpResendOutcome,
 } from '@/shared/ui/patient/auth/OtpCodeForm';
+import {
+  buildPhoneMessengerOtpAlternatives,
+  phoneBindOtpDescription,
+  phoneLoginOtpDescription,
+} from '@/shared/ui/patient/auth/otpDoor';
 import {
   AUTH_LOGIN_ACCENT_TEXT_CLASS,
   AUTH_LOGIN_FORM_PRIMARY_BUTTON_CLASS,
@@ -48,29 +52,6 @@ function getWebChatId(): string {
 }
 
 type LoginOtpChannel = 'automatic' | OtpUiChannel;
-
-function otpDescription(channel: LoginOtpChannel): string {
-  return channel === 'email'
-    ? 'Код отправлен, проверьте входящие. Если письмо не приходит, проверьте папку «Спам».'
-    : 'Код отправлен, проверьте входящие.';
-}
-
-function buildLoginAlternatives(
-  channelPolicy: AuthChannelUiPolicy,
-  onChoose: (channel: OtpUiChannel) => Promise<void>,
-): OtpAlternativeEntry[] {
-  return OTP_OTHER_CHANNELS_ORDER.filter((channel) => channelPolicy[channel]).map((channel) => ({
-    label:
-      channel === 'telegram'
-        ? 'Получить код в Telegram'
-        : channel === 'max'
-          ? 'Получить код в Max'
-          : channel === 'email'
-            ? 'Получить код на email'
-            : 'Получить код по SMS',
-    onClick: () => onChoose(channel),
-  }));
-}
 
 export type PhoneMessengerAuthFlowProps = {
   channelPolicy?: AuthChannelUiPolicy;
@@ -539,7 +520,7 @@ export function PhoneMessengerAuthFlow({
     const waitingForBot = setupToken != null && challengeId == null && purpose === 'login';
     const loginAlternatives =
       purpose === 'login'
-        ? buildLoginAlternatives(channelPolicy, async (channel) => {
+        ? buildPhoneMessengerOtpAlternatives(channelPolicy, async (channel) => {
             if (!phone) return;
             clearPoll();
             const started = await startLoginPhoneOtp(phone, channel);
@@ -595,7 +576,11 @@ export function PhoneMessengerAuthFlow({
             retryAfterSeconds={retryAfterSeconds}
             supportContactHref={supportContactHref}
             submitLabel={purpose === 'login' ? 'Войти' : 'Подтвердить'}
-            description={otpDescription(otpChannel)}
+            description={
+              purpose === 'profile_bind'
+                ? phoneBindOtpDescription(otpChannel)
+                : phoneLoginOtpDescription(otpChannel)
+            }
             alternatives={loginAlternatives}
             alternativesLabel="Подтвердить другим способом"
             onConfirm={async (code) => {

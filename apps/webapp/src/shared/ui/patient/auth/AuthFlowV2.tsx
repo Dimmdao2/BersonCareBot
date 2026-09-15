@@ -36,9 +36,12 @@ import { markFreshLoginAfterAuth } from '@/shared/lib/webPush/freshLoginStorage'
 import { ChannelPicker } from '@/shared/ui/patient/auth/ChannelPicker';
 import {
   OtpCodeForm,
-  type OtpAlternativeEntry,
   type OtpResendOutcome,
 } from '@/shared/ui/patient/auth/OtpCodeForm';
+import {
+  buildPublicPhoneOtpAlternatives,
+  phoneLoginOtpDescription,
+} from '@/shared/ui/patient/auth/otpDoor';
 import { InternationalPhoneInput } from '@/shared/ui/patient/auth/InternationalPhoneInput';
 import {
   AUTH_LOGIN_ACCENT_TEXT_CLASS,
@@ -168,56 +171,6 @@ function hasPublicWebOtpChannel(methods: AuthMethodsPayload): boolean {
     isOtpChannelAvailablePublic(methods, 'max') ||
     isOtpChannelAvailablePublic(methods, 'email')
   );
-}
-
-function otpDescription(channel: OtpChannel): string {
-  switch (channel) {
-    case 'telegram':
-      return 'Введите код, отправленный вам в Telegram.';
-    case 'max':
-      return 'Введите код, отправленный вам в Max.';
-    case 'email':
-      return 'Введите код, отправленный вам на email.';
-    default:
-      return 'Введите код, отправленный вам.';
-  }
-}
-
-function buildAlternatives(
-  methods: AuthMethodsPayload,
-  currentChannel: OtpChannel,
-  onChoose: (ch: OtpChannel) => Promise<OtpResendOutcome>,
-): OtpAlternativeEntry[] {
-  const result: OtpAlternativeEntry[] = [];
-  for (const ch of OTP_PUBLIC_OTHER_CHANNELS_ORDER) {
-    if (ch === currentChannel) continue;
-    if (!isOtpChannelAvailablePublic(methods, ch)) continue;
-    if (ch === 'telegram') {
-      result.push({
-        label: 'Получить код в Telegram',
-        onClick: async () => {
-          await onChoose('telegram');
-        },
-      });
-      continue;
-    }
-    if (ch === 'max') {
-      result.push({
-        label: 'Получить код в Max',
-        onClick: async () => {
-          await onChoose('max');
-        },
-      });
-      continue;
-    }
-    result.push({
-      label: 'Получить код на email',
-      onClick: async () => {
-        await onChoose('email');
-      },
-    });
-  }
-  return result;
 }
 
 function withContactSupportReturn(
@@ -2746,8 +2699,11 @@ export function AuthFlowV2({
   }
 
   if (step === 'code' && challengeId && methods) {
-    const alternatives = buildAlternatives(methods, otpChannel, (ch) =>
-      startPhoneOtp(ch, 'channel'),
+    const alternatives = buildPublicPhoneOtpAlternatives(
+      methods,
+      otpChannel,
+      (ch) => startPhoneOtp(ch, 'channel'),
+      emailOtpEnabled || passwordLoginEnabled ? () => openEmailPasswordLogin('phone') : null,
     );
 
     return (
@@ -2757,7 +2713,7 @@ export function AuthFlowV2({
           retryAfterSeconds={retryAfterSeconds}
           supportContactHref={supportContactHref}
           submitLabel="Войти"
-          description={otpDescription(otpChannel)}
+          description={phoneLoginOtpDescription(otpChannel)}
           alternatives={alternatives}
           onConfirm={async (code) => {
             engageInteractive();
