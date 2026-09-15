@@ -1,0 +1,254 @@
+import pg from 'pg';
+const R = '/home/dev/dev-projects/bcb-wt-fio-dialog/packages/platform-merge/src';
+const { mergePlatformUsersInTransaction } = await import(`${R}/pgPlatformUserMerge.ts`);
+const { createHumanMergePrompt, createHumanMergeDecision } = await import(`${R}/humanMergeDecision.ts`);
+
+const c = new pg.Client({ host: '/tmp/e3sock', database: 'bcb_webapp_dev', user: 'postgres' });
+await c.connect();
+
+type Row = Record<string, unknown>;
+const q = async (t: string, v: unknown[] = []) => (await c.query(t, v)).rows;
+
+async function mkUser(opts: {
+  display: string; last?: string | null; first?: string | null; patr?: string | null; created?: string;
+}) {
+  const r = await q(
+    `INSERT INTO platform_users (display_name, role, first_name, last_name, patronymic, created_at)
+     VALUES ($1,'client',$2,$3,$4,COALESCE($5::timestamptz, now())) RETURNING id`,
+    [opts.display, opts.first ?? null, opts.last ?? null, opts.patr ?? null, opts.created ?? null],
+  );
+  const id = r[0]!.id as string;
+  await q(
+    `INSERT INTO user_identity (platform_user_id, first_name, last_name, patronymic, display_name)
+     VALUES ($1,$2,$3,$4,$5)`,
+    [id, opts.first ?? null, opts.last ?? null, opts.patr ?? null, opts.display],
+  );
+  return id;
+}
+
+async function summary(id: string) {
+  const r = await q(
+    `SELECT id, display_name, first_name, last_name, patronymic, created_at FROM platform_users WHERE id=$1`, [id],
+  );
+  const x = r[0]!;
+  return {
+    id: x.id as string,
+    displayName: x.display_name as string,
+    firstName: x.first_name as string | null,
+    lastName: x.last_name as string | null,
+    patronymic: x.patronymic as string | null,
+    createdAt: x.created_at as Date,
+  };
+}
+
+async function show(label: string, id: string) {
+  const pu = (await q(`SELECT display_name, first_name, last_name, patronymic, merged_into_id FROM platform_users WHERE id=$1`, [id]))[0];
+  const ui = (await q(`SELECT display_name, first_name, last_name, patronymic FROM user_identity WHERE platform_user_id=$1`, [id]))[0];
+  const ch = await q(`SELECT channel_code, external_id FROM user_channel_bindings WHERE user_id=$1 ORDER BY external_id`, [id]);
+  const ct = await q(`SELECT contact_kind, value_normalized, is_primary, confirmed_at IS NOT NULL AS confirmed FROM user_contacts WHERE platform_user_id=$1 ORDER BY contact_kind, value_normalized`, [id]);
+  console.log(`--- ${label} platform_users:`, JSON.stringify(pu));
+  console.log(`--- ${label} user_identity :`, JSON.stringify(ui));
+  console.log(`--- ${label} channels      :`, JSON.stringify(ch));
+  console.log(`--- ${label} contacts      :`, JSON.stringify(ct));
+}
+
+async function scenario(name: string, fn: () => Promise<void>) {
+  await c.query('BEGIN');
+  console.log(`\n================ ${name} ================`);
+  try { await fn(); } catch (e) { console.log('THREW:', (e as Error).message); }
+  await c.query('ROLLBACK');
+}
+
+// A. legacy display-only, different names: must be a human conflict; chosen variant lands everywhere
+await scenario('A: legacy display-only conflict', async () => {
+  const t = await mkUser({ display: 'Иванов Иван Петрович', created: '2026-01-01' });
+  const d = await mkUser({ display: 'Сидорова Анна Сергеевна', created: '2025-01-01' });
+  await q(`INSERT INTO user_channel_bindings (user_id, channel_code, external_id) VALUES ($1,'telegram','tg-initiator'),($2,'telegram','tg-real-owner'),($2,'max','max-real-owner')`, [t, d]);
+  await q(`INSERT INTO user_contacts (platform_user_id, contact_kind, value_normalized, is_primary, confirmed_at, source_origin)
+           VALUES ($1,'phone','+79990000001',true,now(),'direct'),($2,'email','old-owner@example.test',true,now(),'direct')`, [t, d]);
+  const prompt = createHumanMergePrompt(await summary(t), await summary(d), d);
+  console.log('conflicts =', JSON.stringify(prompt.conflicts));
+  try {
+    await mergePlatformUsersInTransaction(c, t, d, 'phone_bind', { humanDecision: createHumanMergeDecision(prompt, {}) });
+    console.log('!! merged with NO choice');
+  } catch (e) { console.log('no-choice merge refused:', (e as Error).message); }
+  await mergePlatformUsersInTransaction(c, t, d, 'phone_bind', {
+    humanDecision: createHumanMergeDecision(prompt, { display_name: { source: 'duplicate' } }),
+  });
+  await show('target', t);
+  await show('dup   ', d);
+});
+
+// B. one side parsed, other legacy display only
+await scenario('B: parsed vs legacy', async () => {
+  const t = await mkUser({ display: 'Иванов Иван', last: 'Иванов', first: 'Иван', created: '2026-01-01' });
+  const d = await mkUser({ display: 'Ваня', created: '2025-01-01' });
+  const prompt = createHumanMergePrompt(await summary(t), await summary(d), d);
+  console.log('conflicts =', JSON.stringify(prompt.conflicts));
+  await mergePlatformUsersInTransaction(c, t, d, 'phone_bind', {
+    humanDecision: createHumanMergeDecision(prompt, { display_name: { source: 'duplicate' } }),
+  });
+  await show('target', t);
+});
+
+// C. same display name, different case/spacing
+await scenario('C: case/spacing', async () => {
+  const t = await mkUser({ display: 'иванов  иван', created: '2026-01-01' });
+  const d = await mkUser({ display: 'Иванов Иван', created: '2025-01-01' });
+  const prompt = createHumanMergePrompt(await summary(t), await summary(d), d);
+  console.log('conflicts =', JSON.stringify(prompt.conflicts));
+  try {
+    await mergePlatformUsersInTransaction(c, t, d, 'phone_bind', { humanDecision: createHumanMergeDecision(prompt, {}) });
+    console.log('merged silently, result:');
+    await show('target', t);
+  } catch (e) { console.log('refused:', (e as Error).message); }
+});
+
+// D. latin custom value forged past the Zod schema
+await scenario('D: latin custom bypass', async () => {
+  const t = await mkUser({ display: 'Иванов Иван Петрович', created: '2026-01-01' });
+  const d = await mkUser({ display: 'Сидорова Анна', created: '2025-01-01' });
+  const prompt = createHumanMergePrompt(await summary(t), await summary(d), d);
+  const forged = { accountConfirmed: true, prompt, fio: { display_name: { source: 'custom', value: 'Smith John' } } };
+  try {
+    await mergePlatformUsersInTransaction(c, t, d, 'phone_bind', { humanDecision: forged });
+    console.log('!! latin accepted'); await show('target', t);
+  } catch (e) { console.log('latin refused:', (e as Error).message); }
+  const forged2 = { accountConfirmed: true, prompt, fio: { display_name: { source: 'custom', value: 'Иванова Мария' } } };
+  await mergePlatformUsersInTransaction(c, t, d, 'phone_bind', { humanDecision: forged2 });
+  await show('target', t);
+});
+
+// E. no human decision at all
+await scenario('E: no human decision', async () => {
+  const t = await mkUser({ display: 'Иванов Иван', created: '2026-01-01' });
+  const d = await mkUser({ display: 'Иванов Иван', created: '2025-01-01' });
+  await mergePlatformUsersInTransaction(c, t, d, 'phone_bind', {});
+  console.log('!! merged with no decision'); await show('target', t);
+});
+
+await scenario('F: empty display on found side', async () => {
+  const t = await mkUser({ display: 'Иванов Иван Петрович', created: '2026-01-01' });
+  const d = await mkUser({ display: '', created: '2025-01-01' });
+  const prompt = createHumanMergePrompt(await summary(t), await summary(d), d);
+  console.log('conflicts =', JSON.stringify(prompt.conflicts));
+  await mergePlatformUsersInTransaction(c, t, d, 'phone_bind', {
+    humanDecision: createHumanMergeDecision(prompt, {}),
+  });
+  await show('target', t);
+});
+
+// G. legacy side is the target, parsed side is the duplicate; person picks the legacy name
+await scenario('G: parsed duplicate, legacy target', async () => {
+  const t = await mkUser({ display: 'Ваня', created: '2026-01-01' });
+  const d = await mkUser({ display: 'Иванов Иван', last: 'Иванов', first: 'Иван', created: '2025-01-01' });
+  const prompt = createHumanMergePrompt(await summary(t), await summary(d), d);
+  console.log('conflicts =', JSON.stringify(prompt.conflicts));
+  await mergePlatformUsersInTransaction(c, t, d, 'phone_bind', {
+    humanDecision: createHumanMergeDecision(prompt, { display_name: { source: 'target' } }),
+  });
+  await show('target', t);
+});
+
+// H. non-conflicting complement of parts, display names differ (no question asked)
+await scenario('H: complement, different display names', async () => {
+  const t = await mkUser({ display: 'Иванов Иван', last: 'Иванов', created: '2026-01-01' });
+  const d = await mkUser({ display: 'Сидорова Анна', first: 'Анна', created: '2025-01-01' });
+  const prompt = createHumanMergePrompt(await summary(t), await summary(d), d);
+  console.log('conflicts =', JSON.stringify(prompt.conflicts));
+  await mergePlatformUsersInTransaction(c, t, d, 'phone_bind', {
+    humanDecision: createHumanMergeDecision(prompt, {}),
+  });
+  await show('target', t);
+});
+
+// I. structured conflict: person enters their own cyrillic variant for one field
+await scenario('I: custom value for one structured field', async () => {
+  const t = await mkUser({ display: 'Иванов Иван', last: 'Иванов', first: 'Иван', created: '2026-01-01' });
+  const d = await mkUser({ display: 'Сидоров Иван', last: 'Сидоров', first: 'Иван', patr: 'Петрович', created: '2025-01-01' });
+  const prompt = createHumanMergePrompt(await summary(t), await summary(d), d);
+  console.log('conflicts =', JSON.stringify(prompt.conflicts));
+  await mergePlatformUsersInTransaction(c, t, d, 'phone_bind', {
+    humanDecision: createHumanMergeDecision(prompt, { last_name: { source: 'custom', value: 'Иванов-Сидоров' } }),
+  });
+  await show('target', t);
+});
+// J. snapshot changed after the dialog was shown
+await scenario('J: stale snapshot', async () => {
+  const t = await mkUser({ display: 'Иванов Иван Петрович', created: '2026-01-01' });
+  const d = await mkUser({ display: 'Сидорова Анна', created: '2025-01-01' });
+  const prompt = createHumanMergePrompt(await summary(t), await summary(d), d);
+  await q(`UPDATE platform_users SET display_name='Петров Пётр' WHERE id=$1`, [t]);
+  try {
+    await mergePlatformUsersInTransaction(c, t, d, 'phone_bind', {
+      humanDecision: createHumanMergeDecision(prompt, { display_name: { source: 'target' } }),
+    });
+    console.log('!! stale snapshot accepted'); await show('target', t);
+  } catch (e) { console.log('refused:', (e as Error).message); }
+});
+
+// K. forged prompt that claims there is no conflict
+await scenario('K: forged prompt, conflicts erased', async () => {
+  const t = await mkUser({ display: 'Иванов Иван', last: 'Иванов', first: 'Иван', created: '2026-01-01' });
+  const d = await mkUser({ display: 'Сидорова Анна', last: 'Сидорова', first: 'Анна', created: '2025-01-01' });
+  const real = createHumanMergePrompt(await summary(t), await summary(d), d);
+  console.log('real conflicts =', JSON.stringify(real.conflicts));
+  const forged = { ...real, conflicts: [] };
+  try {
+    await mergePlatformUsersInTransaction(c, t, d, 'phone_bind', {
+      humanDecision: { accountConfirmed: true, prompt: forged, fio: {} },
+    });
+    console.log('!! forged prompt accepted'); await show('target', t);
+  } catch (e) { console.log('refused:', (e as Error).message); }
+});
+
+// L. decision for a different account pair
+await scenario('L: decision from another pair', async () => {
+  const t = await mkUser({ display: 'Иванов Иван', created: '2026-01-01' });
+  const d = await mkUser({ display: 'Сидорова Анна', created: '2025-01-01' });
+  const other = await mkUser({ display: 'Сидорова Анна', created: '2025-01-01' });
+  const prompt = createHumanMergePrompt(await summary(t), await summary(other), other);
+  try {
+    await mergePlatformUsersInTransaction(c, t, d, 'phone_bind', {
+      humanDecision: createHumanMergeDecision(prompt, { display_name: { source: 'target' } }),
+    });
+    console.log('!! foreign decision accepted');
+  } catch (e) { console.log('refused:', (e as Error).message); }
+});
+
+// M. accountConfirmed = false
+await scenario('M: unconfirmed account', async () => {
+  const t = await mkUser({ display: 'Иванов Иван', created: '2026-01-01' });
+  const d = await mkUser({ display: 'Иванов Иван', created: '2025-01-01' });
+  const prompt = createHumanMergePrompt(await summary(t), await summary(d), d);
+  try {
+    await mergePlatformUsersInTransaction(c, t, d, 'phone_bind', {
+      humanDecision: { accountConfirmed: false, prompt, fio: {} },
+    });
+    console.log('!! unconfirmed decision accepted'); await show('target', t);
+  } catch (e) { console.log('refused:', (e as Error).message); }
+});
+// N. blank display on the found side, mirrored: found account IS the target
+await scenario('N: blank found = target', async () => {
+  const t = await mkUser({ display: '', created: '2026-01-01' });
+  const d = await mkUser({ display: 'Иванов Иван Петрович', created: '2025-01-01' });
+  const prompt = createHumanMergePrompt(await summary(t), await summary(d), t);
+  console.log('conflicts =', JSON.stringify(prompt.conflicts));
+  await mergePlatformUsersInTransaction(c, t, d, 'phone_bind', {
+    humanDecision: createHumanMergeDecision(prompt, {}),
+  });
+  await show('target', t);
+});
+
+// O. blank display on the found side, but the named side has parsed parts
+await scenario('O: blank found, parsed other side', async () => {
+  const t = await mkUser({ display: 'Иванов Иван', last: 'Иванов', first: 'Иван', created: '2026-01-01' });
+  const d = await mkUser({ display: '', created: '2025-01-01' });
+  const prompt = createHumanMergePrompt(await summary(t), await summary(d), d);
+  console.log('conflicts =', JSON.stringify(prompt.conflicts));
+  await mergePlatformUsersInTransaction(c, t, d, 'phone_bind', {
+    humanDecision: createHumanMergeDecision(prompt, {}),
+  });
+  await show('target', t);
+});
+await c.end();

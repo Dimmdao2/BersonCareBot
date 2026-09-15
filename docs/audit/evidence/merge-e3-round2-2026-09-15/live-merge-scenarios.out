@@ -1,0 +1,151 @@
+
+================ A: legacy display-only conflict ================
+conflicts = ["display_name"]
+no-choice merge refused: merge: human choice required for display_name
+[platform-merge] [merge] merged duplicate into target {
+  targetId: 'e93b9301-8db4-4534-8a53-c2e24faff6d2',
+  duplicateId: '8773237b-2299-43ae-a27e-4af1ee1d1e18',
+  reason: 'phone_bind',
+  mergeContactsSaved: [],
+  mergeContext: undefined
+}
+--- target platform_users: {"display_name":"Сидорова Анна Сергеевна","first_name":null,"last_name":null,"patronymic":null,"merged_into_id":null}
+--- target user_identity : {"display_name":"Сидорова Анна Сергеевна","first_name":null,"last_name":null,"patronymic":null}
+--- target channels      : [{"channel_code":"max","external_id":"max-real-owner"},{"channel_code":"telegram","external_id":"tg-initiator"},{"channel_code":"telegram","external_id":"tg-real-owner"}]
+--- target contacts      : [{"contact_kind":"email","value_normalized":"old-owner@example.test","is_primary":true,"confirmed":true},{"contact_kind":"phone","value_normalized":"+79990000001","is_primary":true,"confirmed":true}]
+--- dup    platform_users: {"display_name":"Сидорова Анна Сергеевна","first_name":null,"last_name":null,"patronymic":null,"merged_into_id":"e93b9301-8db4-4534-8a53-c2e24faff6d2"}
+--- dup    user_identity : {"display_name":"Сидорова Анна Сергеевна","first_name":null,"last_name":null,"patronymic":null}
+--- dup    channels      : []
+--- dup    contacts      : []
+
+================ B: parsed vs legacy ================
+conflicts = ["display_name"]
+[platform-merge] [merge] merged duplicate into target {
+  targetId: '1390ff9c-fe0d-4eac-89ec-e79914d570a6',
+  duplicateId: '532d0133-fc43-4faf-8282-74f1512ff909',
+  reason: 'phone_bind',
+  mergeContactsSaved: [],
+  mergeContext: undefined
+}
+--- target platform_users: {"display_name":"Ваня","first_name":null,"last_name":null,"patronymic":null,"merged_into_id":null}
+--- target user_identity : {"display_name":"Ваня","first_name":null,"last_name":null,"patronymic":null}
+--- target channels      : []
+--- target contacts      : []
+
+================ C: case/spacing ================
+conflicts = ["display_name"]
+refused: merge: human choice required for display_name
+
+================ D: latin custom bypass ================
+latin refused: merge: invalid custom human choice for display_name
+[platform-merge] [merge] merged duplicate into target {
+  targetId: '1972c5e4-7515-42aa-bf83-fbb45b43246c',
+  duplicateId: '024338f3-74fd-45d7-8289-317ad941048a',
+  reason: 'phone_bind',
+  mergeContactsSaved: [],
+  mergeContext: undefined
+}
+--- target platform_users: {"display_name":"Иванова Мария","first_name":null,"last_name":null,"patronymic":null,"merged_into_id":null}
+--- target user_identity : {"display_name":"Иванова Мария","first_name":null,"last_name":null,"patronymic":null}
+--- target channels      : []
+--- target contacts      : []
+
+================ E: no human decision ================
+THREW: merge: automatic merge requires a human decision
+
+================ F: empty display on found side ================
+conflicts = []
+[platform-merge] [merge] merged duplicate into target {
+  targetId: '5b4ccd75-1720-4e77-a77d-c27fd192a5f2',
+  duplicateId: 'fdd3e0cf-be17-4f7f-9d1e-87ebe30c6595',
+  reason: 'phone_bind',
+  mergeContactsSaved: [],
+  mergeContext: undefined
+}
+--- target platform_users: {"display_name":"","first_name":null,"last_name":null,"patronymic":null,"merged_into_id":null}
+--- target user_identity : {"display_name":"","first_name":null,"last_name":null,"patronymic":null}
+--- target channels      : []
+--- target contacts      : []
+
+================ G: parsed duplicate, legacy target ================
+conflicts = ["display_name"]
+[platform-merge] [merge] merged duplicate into target {
+  targetId: '29459a82-a8ef-45f0-9029-aa3db4faef0c',
+  duplicateId: 'eca42383-3190-47de-bfc2-a90a7d4a3f6a',
+  reason: 'phone_bind',
+  mergeContactsSaved: [],
+  mergeContext: undefined
+}
+--- target platform_users: {"display_name":"Ваня","first_name":null,"last_name":null,"patronymic":null,"merged_into_id":null}
+--- target user_identity : {"display_name":"Ваня","first_name":null,"last_name":null,"patronymic":null}
+--- target channels      : []
+--- target contacts      : []
+
+================ H: complement, different display names ================
+conflicts = []
+[platform-merge] [merge] merged duplicate into target {
+  targetId: 'c286e99d-55ce-470d-85e4-ea75d3550f48',
+  duplicateId: '6cc6dbfc-65df-4d90-bc84-92d4d159fea2',
+  reason: 'phone_bind',
+  mergeContactsSaved: [],
+  mergeContext: undefined
+}
+--- target platform_users: {"display_name":"Иванов Анна","first_name":"Анна","last_name":"Иванов","patronymic":null,"merged_into_id":null}
+--- target user_identity : {"display_name":"Иванов Анна","first_name":"Анна","last_name":"Иванов","patronymic":null}
+--- target channels      : []
+--- target contacts      : []
+
+================ I: custom value for one structured field ================
+conflicts = ["last_name"]
+[platform-merge] [merge] merged duplicate into target {
+  targetId: 'd56d9c3e-e16f-4d31-a56e-82c44af6816a',
+  duplicateId: 'fdb0bedc-4db9-4b55-9120-6bc51d793d50',
+  reason: 'phone_bind',
+  mergeContactsSaved: [],
+  mergeContext: undefined
+}
+--- target platform_users: {"display_name":"Иванов-Сидоров Иван Петрович","first_name":"Иван","last_name":"Иванов-Сидоров","patronymic":"Петрович","merged_into_id":null}
+--- target user_identity : {"display_name":"Иванов-Сидоров Иван Петрович","first_name":"Иван","last_name":"Иванов-Сидоров","patronymic":"Петрович"}
+--- target channels      : []
+--- target contacts      : []
+
+================ J: stale snapshot ================
+refused: merge: shown account details changed before confirmation
+
+================ K: forged prompt, conflicts erased ================
+real conflicts = ["last_name","first_name"]
+refused: merge: shown account details changed before confirmation
+
+================ L: decision from another pair ================
+refused: merge: human decision does not match locked account pair
+
+================ M: unconfirmed account ================
+refused: merge: human decision does not match locked account pair
+
+================ N: blank found = target ================
+conflicts = []
+[platform-merge] [merge] merged duplicate into target {
+  targetId: 'c310a57a-5e75-4b0a-bb18-0f52a9454341',
+  duplicateId: '93de8908-4645-427f-a846-a90976f487cf',
+  reason: 'phone_bind',
+  mergeContactsSaved: [],
+  mergeContext: undefined
+}
+--- target platform_users: {"display_name":"","first_name":null,"last_name":null,"patronymic":null,"merged_into_id":null}
+--- target user_identity : {"display_name":"","first_name":null,"last_name":null,"patronymic":null}
+--- target channels      : []
+--- target contacts      : []
+
+================ O: blank found, parsed other side ================
+conflicts = []
+[platform-merge] [merge] merged duplicate into target {
+  targetId: '2691c75d-db58-41f4-9d79-81d51dcc607d',
+  duplicateId: 'd797d7a7-128d-4659-9b38-c3ebe860ff13',
+  reason: 'phone_bind',
+  mergeContactsSaved: [],
+  mergeContext: undefined
+}
+--- target platform_users: {"display_name":"Иванов Иван","first_name":"Иван","last_name":"Иванов","patronymic":null,"merged_into_id":null}
+--- target user_identity : {"display_name":"Иванов Иван","first_name":"Иван","last_name":"Иванов","patronymic":null}
+--- target channels      : []
+--- target contacts      : []
