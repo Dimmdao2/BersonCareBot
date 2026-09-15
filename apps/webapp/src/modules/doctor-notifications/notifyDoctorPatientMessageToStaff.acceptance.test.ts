@@ -80,6 +80,7 @@ describe.each(['doctor_patient_messages', 'doctor_patient_program_notes'] as con
       expect(fakes.relayOutbound).toHaveBeenCalledWith(
         expect.objectContaining({
           channel: 'max',
+          organizationId: 'org-1',
           recipient: 'max-1',
           userId: 'org-1-doctor',
           audience: 'staff',

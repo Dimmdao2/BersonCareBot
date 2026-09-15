@@ -454,7 +454,12 @@ import { inMemoryClientHistoryPort } from '@/infra/repos/inMemoryClientHistory';
 import { createPgBookingFormPort } from '@/infra/repos/pgBookingForm';
 import { createBookingFormService } from '@/modules/booking-form/service';
 import { createPgLeadsPort } from '@/infra/repos/pgLeads';
+import {
+  createPgClinicLeadNotificationProfilesPort,
+  emptyClinicLeadNotificationProfilesPort,
+} from '@/infra/repos/pgClinicLeadNotificationProfiles';
 import { createLeadsService } from '@/modules/leads/service';
+import { notifyClinicLeadCreated } from '@/modules/leads/notifyClinicLeadCreated';
 import { createPgPatientMergeCandidatePort } from '@/infra/repos/pgPatientMergeCandidate';
 import { createPatientMergeCandidateService } from '@/modules/patient-merge-candidate/service';
 import {
@@ -566,6 +571,9 @@ const staffUsersPort = !inMemoryRepos ? createPgStaffUsersPort() : inMemoryStaff
 const patientStaffNotificationProfilesPort = !inMemoryRepos
   ? createPgPatientStaffNotificationProfilesPort()
   : undefined;
+const clinicLeadNotificationProfilesPort = !inMemoryRepos
+  ? createPgClinicLeadNotificationProfilesPort()
+  : emptyClinicLeadNotificationProfilesPort;
 const globalAdminWebPushRecipientsPort: GlobalAdminWebPushRecipientsPort = !inMemoryRepos
   ? createPgGlobalAdminWebPushRecipientsPort()
   : emptyGlobalAdminWebPushRecipientsPort;
@@ -874,12 +882,6 @@ const clientHistoryService = createClientHistoryService(clientHistoryPort);
 const bookingFormPort = !inMemoryRepos ? createPgBookingFormPort() : null;
 const bookingFormService = bookingFormPort
   ? createBookingFormService(bookingFormPort, {
-      assertWriteClearance: assertMechanicWriteClearance,
-    })
-  : null;
-const leadsPort = !inMemoryRepos ? createPgLeadsPort() : null;
-const leadsService = leadsPort
-  ? createLeadsService(leadsPort, {
       assertWriteClearance: assertMechanicWriteClearance,
     })
   : null;
@@ -1312,6 +1314,27 @@ const doctorPatientMessageStaffDeps = {
   getChannelBindings: loadPlatformUserChannelBindings,
   patientStaffNotificationProfiles: patientStaffNotificationProfilesPort,
 };
+const leadsPort = !inMemoryRepos ? createPgLeadsPort() : null;
+const leadsService = leadsPort
+  ? createLeadsService(leadsPort, {
+      assertWriteClearance: assertMechanicWriteClearance,
+      notifyClinicLeadCreated: (lead) =>
+        notifyClinicLeadCreated(lead, {
+          ...doctorPatientMessageStaffDeps,
+          clinicLeadNotificationProfiles: clinicLeadNotificationProfilesPort,
+        }),
+      reportClinicLeadNotificationError: (err, lead) => {
+        logger.error(
+          {
+            err,
+            leadId: lead.id,
+            organizationId: lead.organizationId,
+          },
+          '[leads] clinic notification failed',
+        );
+      },
+    })
+  : null;
 registerAdminIncidentStaffPushDeps({
   staffUsers: staffUsersPort,
 });
