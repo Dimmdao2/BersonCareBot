@@ -25923,6 +25923,12 @@ const REV10_CONTEXT = {
       sessionRole: 'app_staff', targetRole: 'app_worker', contextClass: 'service',
       purpose: 'health.delivery-queue.aggregate',
       functionIdentity: 'app.read_operator_delivery_queue_health()' },
+    // Одна дверь чтения и записи отметки дедупликации алертов. Прямой доступ `app_staff` /
+    // `app_worker` к системной таблице намеренно отсутствует.
+    webapp_operator_alert_dedup_manage: { port: 'webapp', runtimeName: 'operator_alert_dedup_manage',
+      sessionRole: 'app_staff', targetRole: 'app_worker', contextClass: 'service',
+      purpose: 'health.operator-alert-dedup.manage',
+      functionIdentity: 'app.manage_operator_health_alert_dedup(text,text,integer,text)' },
     // Ежедневная проверка DNS/TLS получает только нормализованные публичные hostname. Прямой
     // cross-tenant SELECT по system_settings рабочей роли не выдаётся.
     webapp_custom_domain_health_list: { port: 'webapp', runtimeName: 'custom_domain_health_list',
@@ -28499,6 +28505,19 @@ const REV10_CONTEXT = {
         columns: ['status', 'next_retry_at', 'failure_class', 'created_at', 'channel', 'kind',
           'sent_at', 'updated_at'],
         operations: ['SELECT' as const],
+        evidence: 'pg16-function-body-lexical-upper-bound' as const }],
+    }),
+    // Одна дверь для всего lifecycle плоской дедупликации: проверить окно, записать успешную
+    // отправку или прочитать последнюю отметку для сводки. Runtime получает только EXECUTE.
+    'app.manage_operator_health_alert_dedup(text,text,integer,text)': rev10Function({
+      owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'jsonb',
+      returnsSet: false, execute: ['app_worker'],
+      purpose: 'manage only operator-alert deduplication marks through a closed action set',
+      typedArgs: ['text', 'text', 'integer', 'text'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [{ relation: 'public.operator_health_alert_sent',
+        columns: ['dedup_key', 'severity', 'sent_at'],
+        operations: ['SELECT' as const, 'INSERT' as const],
         evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
     // Единственная дверь постановки суточной сводки здоровья. До неё вебапп писал очередь прямым
