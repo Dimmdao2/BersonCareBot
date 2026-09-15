@@ -75,4 +75,35 @@ cleanup `0|0|0|0` (маркированные заявки | временная 
 
 ## Инъекции
 
-Будут добавлены финальным коммитом отчёта после целевых прогонов. Продуктовый fix F1 аудитор не делает.
+Инъекции делались по одной в файлы candidate, после каждой файл возвращался к исходному содержимому.
+Unit-прогоны выполнялись только под host-lock командой:
+
+```bash
+/home/dev/brain/host-orch/run-tests.sh "pnpm --filter @bersoncare/webapp exec vitest --run --project unit src/app/app/doctor/communications/tabs/leadListSelection.unit.test.ts src/app-layer/leads/withDoctorLeadsApiAccess.unit.test.ts src/modules/leads/service.unit.test.ts src/infra/repos/pgLeads.rejection.unit.test.ts"
+```
+
+| Инъекция | Тип проверяемого свойства | Сделано | Убито | Не поймано | Результат |
+|---|---|---:|---:|---:|---|
+| Д1: `selectedLead` снова берётся из полного `leads`, а не из `filteredLeads` | ПОВЕДЕНИЕ | 1 | 1 | 0 | Целевой `leadListSelection.unit.test.ts` покраснел: вместо ожидаемого `null` вернулась скрытая заявка `new-lead`. |
+| Удалён `key={selectedLead.id}` у `LeadDetail` | ВЗГЛЯД | 1 | 0 | 1 | Разрешённый набор остался зелёным: `4` файла, `8` тестов. Это ожидаемо: поломка React identity доказывается разбором, автоматический UI-тест запрещён §10a. |
+| KPI «Заявки» сделан кликабельным с шевроном при `0` | ПОВЕДЕНИЕ | 1 | 0 | 1 | Разрешённый набор остался зелёным: `4` файла, `8` тестов. Покрытие этой UI-поломки — live-проверка общего `:5200`, автоматический UI-тест запрещён §10a. |
+| **Итого** |  | **3** | **1** | **2** | Непойманные инъекции не создают новую работу по тестам: применимый oracle для них уже выполнен как ВЗГЛЯД/live. |
+
+После восстановления та же команда дала `4 passed (4)` файлов и `8 passed (8)` тестов. Побайтовое
+восстановление проверено командой
+
+```bash
+sha256sum apps/webapp/src/app/app/doctor/communications/tabs/leadListSelection.ts \
+  apps/webapp/src/app/app/doctor/DoctorTodayLeftKpiRow.tsx \
+  apps/webapp/src/app/app/doctor/communications/tabs/LeadsTab.tsx
+```
+
+и исходными SHA-256 соответственно:
+
+- `9f6ad10f832b371c4d708bef58578457a4aa25ba19c37412b3cd651a26b2c220`;
+- `855c25f55d843654af3be96293a018de7a31c4e61dea7b90b7ddb53d0930a5d4`;
+- `2724ca2ee223f5c6fdc50ff0f958a9ca4d592782743a7443c5c4a36d6430dee0`.
+
+`git diff` по трём продуктовым файлам пуст. Полный CI не запускался по прямому запрету brief.
+Продуктовый fix F1 аудитор не делает; блокер закрытия Л2 — вернуть KPI «Заявки» в прежний третий слот
+KPI «Тесты» и провести повторную независимую приёмку этой правки.
