@@ -238,7 +238,7 @@ function DoctorMedicalMergeConflictModal({
             disabled={busy !== null || loading}
             onClick={() => void act('refuse')}
           >
-            {busy === 'refuse' ? 'Передаём…' : 'Отказать и передать в поддержку'}
+            {busy === 'refuse' ? 'Передаём…' : 'Отказать и передать администраторам платформы'}
           </Button>
           <Button
             type="button"

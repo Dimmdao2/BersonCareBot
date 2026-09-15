@@ -24,7 +24,7 @@ import {
 } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowDown, ArrowUp, Bell, CalendarDays, Filter } from 'lucide-react';
+import { AlertTriangle, ArrowDown, ArrowUp, Bell, CalendarDays, Filter } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { ClientListItem, DoctorDashboardPatientMetrics } from '@/modules/doctor-clients/ports';
 import { DoctorMetricList } from '@/shared/ui/doctor/DoctorMetricList';
@@ -752,18 +752,13 @@ function PatientsContent({
                   const conflictId = conflictIdForClient(c.userId);
                   const hasMedicalConflict = hasConflictForClient(c.userId);
                   return (
-                    <li key={c.userId} id={`doctor-patients-item-${c.userId}`}>
+                    <li key={c.userId} id={`doctor-patients-item-${c.userId}`} className="relative">
                       <Link
                         id={`doctor-patients-card-${c.userId}`}
                         href={cardHref}
                         prefetch={false}
                         onMouseEnter={() => router.prefetch(cardHref)}
                         onFocus={() => router.prefetch(cardHref)}
-                        onClick={(event) => {
-                          if (!conflictId) return;
-                          event.preventDefault();
-                          openConflict(conflictId);
-                        }}
                         className={cn(
                           buttonVariants({ variant: 'ghost' }),
                           doctorDnaFlatListRowClass,
@@ -788,7 +783,26 @@ function PatientsContent({
                         >
                           <CalendarDays className="size-3.5 text-muted-foreground/60" aria-hidden />
                         </IconSlot>
+                        {/*
+                          Keeps the trailing icon column free for the conflict mark below. The mark
+                          cannot live inside this link: an <a> must not host a <button>, and the row
+                          click has to keep opening the client card — §18б counts that card as the
+                          fourth entry point into the same modal, so swallowing the row click would
+                          strip the doctor of their own client while the conflict is open.
+                        */}
+                        {conflictId ? <span className="size-7 shrink-0" aria-hidden /> : null}
                       </Link>
+                      {conflictId ? (
+                        <button
+                          type="button"
+                          id={`doctor-patients-conflict-${c.userId}`}
+                          onClick={() => openConflict(conflictId)}
+                          aria-label={`Конфликт учётных записей: ${clientPrimaryName(c)}`}
+                          className="absolute top-1/2 right-[var(--doctor-list-inline-padding,18px)] inline-flex size-7 -translate-y-1/2 items-center justify-center rounded-[8px] text-destructive transition-colors hover:bg-destructive/10 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                        >
+                          <AlertTriangle className="size-4" aria-hidden />
+                        </button>
+                      ) : null}
                     </li>
                   );
                 })}
