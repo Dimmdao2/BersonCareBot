@@ -61,6 +61,10 @@ function channelLinkCompleteFailureTemplateKey(source: string, errRaw: string | 
   if (e === 'integrator_id_mismatch') {
     return `${source}:channelLink.completeFailed.generic`;
   }
+  /** §18а: слияние ждёт ответа человека — это не «канал занят чужим», и тупика тут быть не должно. */
+  if (e === 'human_account_confirmation_required') {
+    return `${source}:channelLink.completeFailed.humanConfirmation`;
+  }
   const conflictLike = new Set([
     'conflict',
     'channel_owned_by_real_user',
@@ -88,6 +92,9 @@ function phoneMessengerBindCompleteFailureTemplateKey(
   const e = (errRaw ?? '').trim().toLowerCase();
   if (e === 'phone_mismatch') {
     return `${source}:phoneAuthMismatch`;
+  }
+  if (e === 'human_account_confirmation_required') {
+    return `${source}:channelLink.completeFailed.humanConfirmation`;
   }
   const conflictLike = new Set([
     'conflict',

@@ -7,6 +7,9 @@ export const HUMAN_MERGE_FIO_FIELDS = [
 
 export type HumanMergeFioField = (typeof HUMAN_MERGE_FIO_FIELDS)[number];
 
+/** Разобранные части ФИО — всё, кроме сводной подписи `display_name`. */
+export type HumanMergeStructuredFioField = Exclude<HumanMergeFioField, 'display_name'>;
+
 declare const humanMergeCustomFioValueBrand: unique symbol;
 
 export type HumanMergeCustomFioValue = string & {
@@ -68,48 +71,36 @@ export function createHumanMergeCustomFioValue(value: string): HumanMergeCustomF
   return normalized;
 }
 
+/** Разобранная часть ФИО учётки по имени поля — один разбор вместо трёх вложенных тернарников. */
+function structuredFioValue(
+  account: Pick<HumanMergeAccountSummary, 'firstName' | 'lastName' | 'patronymic'>,
+  field: HumanMergeStructuredFioField,
+): string | null {
+  return field === 'last_name'
+    ? account.lastName
+    : field === 'first_name'
+      ? account.firstName
+      : account.patronymic;
+}
+
 export function createHumanMergePrompt(
   target: HumanMergeAccountSummaryInput,
   duplicate: HumanMergeAccountSummaryInput,
   foundAccountId: string,
 ): HumanMergePrompt {
   const structuredFields = HUMAN_MERGE_FIO_FIELDS.filter(
-    (field): field is Exclude<HumanMergeFioField, 'display_name'> => field !== 'display_name',
+    (field): field is HumanMergeStructuredFioField => field !== 'display_name',
   );
   const structuredConflicts = structuredFields.filter((field) => {
-    const targetValue =
-      field === 'last_name'
-        ? target.lastName
-        : field === 'first_name'
-          ? target.firstName
-          : target.patronymic;
-    const duplicateValue =
-      field === 'last_name'
-        ? duplicate.lastName
-        : field === 'first_name'
-          ? duplicate.firstName
-          : duplicate.patronymic;
-    const left = normalizedPart(targetValue);
-    const right = normalizedPart(duplicateValue);
+    const left = normalizedPart(structuredFioValue(target, field));
+    const right = normalizedPart(structuredFioValue(duplicate, field));
     return left !== null && right !== null && left !== right;
   });
   const targetHasStructuredFio = structuredFields.some((field) =>
-    normalizedPart(
-      field === 'last_name'
-        ? target.lastName
-        : field === 'first_name'
-          ? target.firstName
-          : target.patronymic,
-    ),
+    normalizedPart(structuredFioValue(target, field)),
   );
   const duplicateHasStructuredFio = structuredFields.some((field) =>
-    normalizedPart(
-      field === 'last_name'
-        ? duplicate.lastName
-        : field === 'first_name'
-          ? duplicate.firstName
-          : duplicate.patronymic,
-    ),
+    normalizedPart(structuredFioValue(duplicate, field)),
   );
   const targetDisplayName = normalizedPart(target.displayName);
   const duplicateDisplayName = normalizedPart(duplicate.displayName);
@@ -118,8 +109,19 @@ export function createHumanMergePrompt(
     targetDisplayName !== null &&
     duplicateDisplayName !== null &&
     targetDisplayName !== duplicateDisplayName;
+  /**
+   * §18а: выбранный человеком display-вариант может расходиться с разобранными частями второй
+   * стороны — это тоже конфликт, и решает его человек. Поэтому каждая часть, которая есть ровно у
+   * одной стороны, получает в диалоге свой вопрос: иначе выбор подписи молча стёр бы фамилию и имя
+   * (или молча сохранил бы их вопреки выбору), а врач читал бы из `user_identity` не то, что выбрали.
+   */
+  const displayNameSideFields = structuredFields.filter((field) => {
+    const left = normalizedPart(structuredFioValue(target, field));
+    const right = normalizedPart(structuredFioValue(duplicate, field));
+    return (left === null) !== (right === null);
+  });
   const conflicts: HumanMergeFioField[] = displayNameConflict
-    ? ['display_name']
+    ? ['display_name', ...displayNameSideFields]
     : structuredConflicts;
   return {
     target: { ...target, createdAt: new Date(target.createdAt).toISOString() },

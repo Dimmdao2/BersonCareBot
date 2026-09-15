@@ -270,17 +270,23 @@ function normalizedFioPart(value: string | null | undefined): string | null {
   return trimmed || null;
 }
 
+/**
+ * §18а: поле без конфликта дополняется молча, поле в конфликте ждёт ответа человека.
+ * `humanChoiceRequired` — поле названо конфликтом в показанном человеку диалоге; тогда движок не
+ * выбирает сам даже там, где вторая сторона пуста: «не указывать» — это тоже ответ человека.
+ */
 function resolveHumanFioField(
   field: HumanMergeFioField,
   targetValue: string | null,
   duplicateValue: string | null,
   selection: HumanMergeFioSelection | undefined,
   candidateIds: readonly string[],
+  humanChoiceRequired: boolean,
 ): string | null {
   const target = normalizedFioPart(targetValue);
   const duplicate = normalizedFioPart(duplicateValue);
-  if (!target) return duplicate;
-  if (!duplicate || target === duplicate) return target;
+  const sidesDiffer = target !== null && duplicate !== null && target !== duplicate;
+  if (!humanChoiceRequired && !sidesDiffer) return target ?? duplicate;
   if (!selection) {
     throw new MergeConflictError(`merge: human choice required for ${field}`, [...candidateIds]);
   }
@@ -713,30 +719,33 @@ export async function mergePlatformUsersInTransaction(
         duplicateId,
       ]);
     }
-    let lastName = resolveHumanFioField(
+    const askedFields = humanDecision.prompt.conflicts;
+    const lastName = resolveHumanFioField(
       'last_name',
       a.last_name,
       b.last_name,
       humanDecision.fio.last_name,
       [targetId, duplicateId],
+      askedFields.includes('last_name'),
     );
-    let firstName = resolveHumanFioField(
+    const firstName = resolveHumanFioField(
       'first_name',
       a.first_name,
       b.first_name,
       humanDecision.fio.first_name,
       [targetId, duplicateId],
+      askedFields.includes('first_name'),
     );
-    let patronymic = resolveHumanFioField(
+    const patronymic = resolveHumanFioField(
       'patronymic',
       a.patronymic,
       b.patronymic,
       humanDecision.fio.patronymic,
       [targetId, duplicateId],
+      askedFields.includes('patronymic'),
     );
-    const displayNameConflict = humanDecision.prompt.conflicts.includes('display_name');
     let displayName: string;
-    if (displayNameConflict) {
+    if (askedFields.includes('display_name')) {
       const selection = humanDecision.fio.display_name;
       if (!selection) {
         throw new MergeConflictError('merge: human choice required for display_name', [
@@ -744,16 +753,14 @@ export async function mergePlatformUsersInTransaction(
           duplicateId,
         ]);
       }
+      /**
+       * Части НЕ берутся оптом со стороны выбранной подписи: каждая из них — отдельный вопрос того
+       * же диалога (`createHumanMergePrompt`), и сюда приходит уже готовый ответ человека.
+       */
       if (selection.source === 'target') {
         displayName = a.display_name;
-        lastName = normalizedFioPart(a.last_name);
-        firstName = normalizedFioPart(a.first_name);
-        patronymic = normalizedFioPart(a.patronymic);
       } else if (selection.source === 'duplicate') {
         displayName = b.display_name;
-        lastName = normalizedFioPart(b.last_name);
-        firstName = normalizedFioPart(b.first_name);
-        patronymic = normalizedFioPart(b.patronymic);
       } else {
         const custom = normalizedFioPart(selection.value);
         if (!custom || !isHumanMergeCustomFioValue(custom)) {
@@ -763,13 +770,18 @@ export async function mergePlatformUsersInTransaction(
           ]);
         }
         displayName = custom;
-        lastName = null;
-        firstName = null;
-        patronymic = null;
       }
     } else {
+      /**
+       * §18а: «с одной стороны пусто — дополняем недостающее». Пустое `display_name` найденной
+       * учётки поэтому не затирает настоящее имя второй стороны, а уступает ему.
+       */
       const recognizedAccount = humanDecision.prompt.foundAccountId === targetId ? a : b;
-      const fallbackDisplayName = normalizedFioPart(recognizedAccount.display_name) ?? '';
+      const otherAccount = recognizedAccount === a ? b : a;
+      const fallbackDisplayName =
+        normalizedFioPart(recognizedAccount.display_name) ??
+        normalizedFioPart(otherAccount.display_name) ??
+        '';
       displayName = formatResolvedDisplayName({
         lastName,
         firstName,

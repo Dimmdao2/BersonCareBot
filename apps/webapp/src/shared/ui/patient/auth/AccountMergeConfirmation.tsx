@@ -21,6 +21,9 @@ const FIELD_LABELS: Record<HumanMergeFioField, string> = {
   patronymic: 'Отчество',
 };
 
+/** Сторона без значения — тоже вариант ответа («не указывать»), и он обязан быть видимым. */
+const EMPTY_SIDE_LABEL = 'Не указано';
+
 type SelectionState = Partial<Record<HumanMergeFioField, HumanMergeFioSelection>>;
 
 function accountValue(
@@ -118,7 +121,7 @@ export function AccountMergeConfirmation(props: {
                     setSelections((current) => ({ ...current, [field]: { source } }));
                   }}
                 >
-                  {value}
+                  {value.trim() ? value : EMPTY_SIDE_LABEL}
                 </Button>
               );
             })}

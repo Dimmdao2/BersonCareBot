@@ -120,7 +120,8 @@ function promptForRows(
 }
 
 function clientForHumanDecision(target: TestPlatformUserRow, duplicate: TestPlatformUserRow) {
-  let writtenDisplayName: unknown;
+  /** Параметры канонического UPDATE идут в порядке появления `$n` в тексте: ФИО, имя, фамилия, отчество. */
+  let writtenFio: unknown[] | undefined;
   const client = {
     query: vi.fn(async (query: string, values?: unknown[]) => {
       if (query.includes('FROM platform_users pu') && query.includes('FOR UPDATE OF pu')) {
@@ -130,18 +131,27 @@ function clientForHumanDecision(target: TestPlatformUserRow, duplicate: TestPlat
         return { rows: [{ target_has: false, duplicate_has: false }] };
       }
       if (
-        writtenDisplayName === undefined &&
+        writtenFio === undefined &&
         query.includes('UPDATE platform_users') &&
         query.includes('display_name') &&
         query.includes('first_name') &&
         query.includes('patronymic')
       ) {
-        writtenDisplayName = values?.[0];
+        writtenFio = values ?? [];
       }
       return { rows: [] };
     }),
   } as PlatformMergeDbClient & { query: ReturnType<typeof vi.fn> };
-  return { client, writtenDisplayName: () => writtenDisplayName };
+  return {
+    client,
+    writtenDisplayName: () => writtenFio?.[0],
+    writtenFio: () => ({
+      displayName: writtenFio?.[0],
+      firstName: writtenFio?.[1],
+      lastName: writtenFio?.[2],
+      patronymic: writtenFio?.[3],
+    }),
+  };
 }
 
 function manualResolution(target: string, duplicate: string): ManualMergeResolution {
@@ -341,6 +351,101 @@ describe('automatic account merge human-decision safety gate', () => {
     });
 
     expect(writtenDisplayName()).toBe('Сидорова Анна Сергеевна');
+  });
+
+  /**
+   * Поломка: человек выбирает legacy-подпись «Ваня», а движок молча стирает НЕконфликтующие
+   * фамилию «Иванов» и имя «Иван» второй стороны — врач читает ФИО из зеркала `user_identity`
+   * и видит в карточке прозвище вместо имени пациента. Дорого и беззвучно: никто не заметит.
+   * Оракул — `AUTH_AND_IDENTITY_CANON.md` §18а: расхождение разбирает человек, а не движок.
+   */
+  const legacyVersusStructuredRows = () => {
+    const target = {
+      ...platformUserRow(targetId, 'Иванов Иван'),
+      last_name: 'Иванов',
+      first_name: 'Иван',
+    };
+    const duplicate = platformUserRow(duplicateId, 'Ваня');
+    duplicate.created_at = new Date('2025-01-01T00:00:00Z');
+    return { target, duplicate };
+  };
+
+  it('asks about every FIO part the display-name choice can overwrite, instead of wiping it', async () => {
+    const { target, duplicate } = legacyVersusStructuredRows();
+    const prompt = promptForRows(target, duplicate);
+
+    expect(prompt.conflicts).toEqual(['display_name', 'last_name', 'first_name']);
+
+    const { client } = clientForHumanDecision(target, duplicate);
+    await expect(
+      mergePlatformUsersInTransaction(client, targetId, duplicateId, 'phone_bind', {
+        humanDecision: createHumanMergeDecision(prompt, { display_name: { source: 'duplicate' } }),
+      }),
+    ).rejects.toThrow('human choice required for last_name');
+  });
+
+  it('keeps the FIO parts the person kept while writing the display name the person chose', async () => {
+    const { target, duplicate } = legacyVersusStructuredRows();
+    const prompt = promptForRows(target, duplicate);
+    const { client, writtenFio } = clientForHumanDecision(target, duplicate);
+
+    await mergePlatformUsersInTransaction(client, targetId, duplicateId, 'phone_bind', {
+      humanDecision: createHumanMergeDecision(prompt, {
+        display_name: { source: 'duplicate' },
+        last_name: { source: 'target' },
+        first_name: { source: 'target' },
+      }),
+    });
+
+    expect(writtenFio()).toEqual({
+      displayName: 'Ваня',
+      lastName: 'Иванов',
+      firstName: 'Иван',
+      patronymic: null,
+    });
+  });
+
+  it('drops the FIO parts only when the person answered "not specified" for them', async () => {
+    const { target, duplicate } = legacyVersusStructuredRows();
+    const prompt = promptForRows(target, duplicate);
+    const { client, writtenFio } = clientForHumanDecision(target, duplicate);
+
+    await mergePlatformUsersInTransaction(client, targetId, duplicateId, 'phone_bind', {
+      humanDecision: createHumanMergeDecision(prompt, {
+        display_name: { source: 'duplicate' },
+        last_name: { source: 'duplicate' },
+        first_name: { source: 'duplicate' },
+      }),
+    });
+
+    expect(writtenFio()).toEqual({
+      displayName: 'Ваня',
+      lastName: null,
+      firstName: null,
+      patronymic: null,
+    });
+  });
+
+  /**
+   * Поломка: у найденной учётки `display_name` пустой, вопроса человеку нет вовсе, и слияние
+   * записывает пустую строку поверх «Иванов Иван Петрович» — имя человека исчезает с платформы,
+   * а он в диалоге видел «ФИО не указано» и нажал «Да, это мой аккаунт». §18а: пустая сторона
+   * дополняется, а не затирает.
+   */
+  it('lets the empty display name of the recognized account be filled in, not overwrite the real one', async () => {
+    const target = platformUserRow(targetId, 'Иванов Иван Петрович');
+    const duplicate = platformUserRow(duplicateId, '');
+    duplicate.created_at = new Date('2025-01-01T00:00:00Z');
+    const prompt = promptForRows(target, duplicate);
+
+    expect(prompt.conflicts).toEqual([]);
+
+    const { client, writtenDisplayName } = clientForHumanDecision(target, duplicate);
+    await mergePlatformUsersInTransaction(client, targetId, duplicateId, 'phone_bind', {
+      humanDecision: createHumanMergeDecision(prompt, {}),
+    });
+
+    expect(writtenDisplayName()).toBe('Иванов Иван Петрович');
   });
 
   it('rejects a Latin custom FIO even when a caller bypasses the request schema', async () => {
