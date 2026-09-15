@@ -1,7 +1,9 @@
 import { isOAuthProviderEnabled } from '@/modules/auth/authChannelPolicy';
 import type { VerifiedOAuthState } from '@/modules/auth/oauthSignedState';
+import { authPolicyNameForRequestSurface } from '@/modules/auth/surfaceAuthSettings';
 import { getConfigValue } from '@/modules/system-settings/configAdapter';
 import type { ResolvedSurface } from '@/shared/lib/surface/requestSurface';
+import type { SurfaceAuthPolicyName } from '@/shared/lib/surface/surfaceAuthPolicy';
 
 export const YANDEX_OAUTH_CALLBACK_PATH = '/api/auth/oauth/callback/yandex';
 
@@ -46,13 +48,13 @@ function parseExactCallbackAllowlist(raw: string): readonly string[] | null {
 
 /**
  * The sole Yandex OAuth configuration choke point. Credentials are global, but may only be
- * used by an enabled patient surface whose exact callback URL is registered in settings.
+ * used by an enabled patient door whose exact callback URL is registered in settings.
  */
 export async function resolveYandexOAuthConfig(
   surface: ResolvedSurface,
+  authPolicySurface: SurfaceAuthPolicyName = authPolicyNameForRequestSurface(surface.surface),
 ): Promise<ResolvedYandexOAuthConfig | null> {
-  if (surface.surface !== 'patient_default' && surface.surface !== 'patient_branded') return null;
-  if (!surface.authPolicy.availableMethods.includes('oauth')) return null;
+  if (authPolicySurface !== 'patient') return null;
 
   const redirectUri = callbackUriFor(surface);
   if (!redirectUri) return null;

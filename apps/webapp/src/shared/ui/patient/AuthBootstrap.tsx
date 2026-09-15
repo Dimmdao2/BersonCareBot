@@ -56,6 +56,7 @@ import type { SurfaceAuthPolicy } from '@/shared/lib/surface/requestSurface';
 import type { RoleLoginPortal } from '@/modules/auth/roleLogin';
 import { PLATFORM_COOKIE_NAME, readMessengerSurfaceCookie } from '@/shared/lib/platform';
 import { FAIL_CLOSED_AUTH_CHANNEL_UI_POLICY } from '@/modules/auth/otpChannelUi';
+import { errorCodeText } from '@/shared/notifications/errorCodeText';
 import {
   markClientBootModuleExecuted,
   markClientBootReactMounted,
@@ -1110,6 +1111,22 @@ export function AuthBootstrap({
               Войти иначе
             </a>
           </div>
+        </section>
+      </>
+    );
+  }
+
+  if (oauthErrorReason === 'oauth_role_not_allowed') {
+    return (
+      <>
+        <MaxBridgeScript active={loadMaxBridge} />
+        <section className="flex flex-col gap-4 text-left">
+          <p className={patientMutedTextClass}>{errorCodeText(oauthErrorReason)}</p>
+          {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- reload the server-owned
+              role door after an OAuth callback; client navigation would retain stale auth state. */}
+          <a href="/app" className={AUTH_LOGIN_FORM_SECONDARY_BUTTON_CLASS}>
+            Войти иначе
+          </a>
         </section>
       </>
     );

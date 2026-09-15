@@ -184,6 +184,8 @@ export const notificationText = {
   authConfirmationFailed: 'Не удалось подтвердить. Повторите попытку.',
   // C1 (copy audit): "Провайдер недоступен" named the internal OAuth term and gave no next step.
   authProviderUnavailable: 'Этот способ входа сейчас недоступен. Войдите другим способом.',
+  authOauthRoleNotAllowed:
+    'Этот способ входа доступен только пациентам. Сотруднику нужно войти по почте и паролю.',
   authSignupStartFailed: 'Не удалось начать регистрацию. Повторите попытку.',
   authEmailNotVerifiedRetryLogin: 'Email не подтверждён. Подтвердите адрес и повторите вход.',
   authCodeInvalidOrExpired: 'Код неверный или устарел. Запросите новый код.',

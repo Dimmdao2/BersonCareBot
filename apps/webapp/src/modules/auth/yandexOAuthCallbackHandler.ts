@@ -6,22 +6,21 @@ import {
   registrationAttemptIdFromOAuthState,
 } from '@/app-layer/product-analytics/recordAuthRegistration';
 import { exchangeYandexCode, fetchYandexUserInfo } from '@/modules/auth/oauthService';
-import { recordAuthLogin } from '@/app-layer/product-analytics/recordAuthLogin';
-import { setSessionFromUser } from '@/modules/auth/service';
-import { getPostAuthRedirectTarget } from '@/modules/auth/redirectPolicy';
-import { reconcileDbRoleWithEnvRole, resolveRoleAsync } from '@/modules/auth/envRole';
 import { resolveUserIdForYandexOAuth } from '@/modules/auth/oauthYandexResolve';
 import type { OAuthBindingsPort } from '@/modules/auth/oauthBindingsPort';
 import type { UserByPhonePort } from '@/modules/auth/userByPhonePort';
-import { parseVerifiedSignedOAuthState } from '@/modules/auth/oauthSignedState';
-import { enterStaffSecuritySelfPrincipal } from '@/app-layer/principal/staffSecuritySelfPrincipal';
-import { isPlatformUserUuid } from '@/shared/platform-user/isPlatformUserUuid';
+import {
+  parseVerifiedSignedOAuthState,
+  roleLoginPortalFromOAuthState,
+} from '@/modules/auth/oauthSignedState';
 import { getResolvedSurface } from '@/shared/lib/surface/requestSurface.server';
 import {
   resolveYandexOAuthConfig,
   yandexOAuthStateMatchesSurface,
 } from '@/modules/auth/yandexOAuthConfig';
 import { notificationText } from '@/shared/notifications/notificationText';
+import { authPolicyNameForRoleLoginPortal } from '@/modules/auth/roleLogin';
+import { completeOAuthWebLoginRedirectUrls } from '@/modules/auth/oauthWebSession';
 
 const LOG_BASE = {
   authMethod: 'oauth_yandex' as const,
@@ -73,6 +72,7 @@ export async function handleYandexOAuthCallbackGet(
       { status: 403 },
     );
   }
+  const roleLoginPortal = roleLoginPortalFromOAuthState(verifiedState);
 
   const surface = await getResolvedSurface();
   const appBase = surface.surface === 'patient_default' || surface.surface === 'patient_branded'
@@ -80,7 +80,10 @@ export async function handleYandexOAuthCallbackGet(
     : env.APP_BASE_URL;
   const redirectToAppQuery = (reason: string): URL =>
     new URL(`/app?oauth=error&reason=${encodeURIComponent(reason)}`, appBase);
-  const config = await resolveYandexOAuthConfig(surface);
+  const config = await resolveYandexOAuthConfig(
+    surface,
+    authPolicyNameForRoleLoginPortal(roleLoginPortal),
+  );
   if (
     !config ||
     !yandexOAuthStateMatchesSurface(verifiedState, surface)
@@ -158,70 +161,31 @@ export async function handleYandexOAuthCallbackGet(
     );
   }
 
-  let sessionUser;
-  try {
-    if (isPlatformUserUuid(resolved.userId)) {
-      enterStaffSecuritySelfPrincipal(resolved.userId, 'auth/oauth-yandex:provider-verified-self');
-    }
-    sessionUser = await deps.userByPhone.findByUserId(resolved.userId);
-  } catch {
-    await logOAuthFailure(attemptId, 'db_error', 'session_set', resolved.userId);
-    return NextResponse.redirect(redirectToAppQuery('db_error'));
-  }
-
-  if (!sessionUser) {
-    await logOAuthFailure(attemptId, 'session_failed', 'session_set', resolved.userId);
-    return NextResponse.redirect(redirectToAppQuery('session_failed'));
-  }
-
-  // C-4 (2026-07-26): see the equivalent comment in oauthWebSession.ts — reconciled against the
-  // just-read DB role so a resolver that never promotes anyone anymore cannot demote an existing
-  // staff account logging in via Yandex OAuth.
-  const role = reconcileDbRoleWithEnvRole(
-    sessionUser.role,
-    await resolveRoleAsync({
-      phone: sessionUser.phone,
-      telegramId: sessionUser.bindings.telegramId,
-      maxId: sessionUser.bindings.maxId,
-    }),
-  );
-
-  try {
-    await setSessionFromUser(
-      {
-        ...sessionUser,
-        role,
-        displayName: oauthName?.trim() || sessionUser.displayName || oauthEmail || yandexId,
-      },
-      'yandex_oauth',
-    );
-  } catch {
-    await logOAuthFailure(attemptId, 'session_failed', 'session_set', resolved.userId);
-    return NextResponse.redirect(redirectToAppQuery('session_failed'));
-  }
-
-  await recordAuthLogin({
-    userId: sessionUser.userId,
-    entryChannel: 'browser',
+  const done = await completeOAuthWebLoginRedirectUrls({
+    userId: resolved.userId,
+    displayNameHint: oauthName?.trim() || oauthEmail || yandexId,
     authMethod: 'yandex_oauth',
+    userByPhone: deps.userByPhone,
+    next: verifiedState.next,
+    roleLoginPortal,
+    appBaseUrl: appBase,
   });
+
+  if (!done.ok) {
+    await logOAuthFailure(attemptId, done.reason, 'session_set', resolved.userId);
+    return NextResponse.redirect(redirectToAppQuery(done.reason));
+  }
 
   if (resolved.accountOutcome === 'created') {
     await recordAuthRegistrationSuccess({
       ...LOG_BASE,
       attemptId,
       stage: 'session_set',
-      userId: sessionUser.userId,
+      userId: resolved.userId,
       contactValue: oauthEmail ?? oauthPhone ?? 'yandex',
       isNewAccount: true,
     });
   }
 
-  const finalRedirect = getPostAuthRedirectTarget(
-    role,
-    verifiedState.next ?? null,
-    null,
-    verifiedState.roleLoginPortal ?? null,
-  );
-  return NextResponse.redirect(new URL(finalRedirect, appBase));
+  return NextResponse.redirect(done.redirectUrl);
 }
