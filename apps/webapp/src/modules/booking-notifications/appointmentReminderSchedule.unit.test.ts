@@ -16,6 +16,19 @@ describe('appointment reminder schedule', () => {
     expect(isAppointmentReminderSelectionAllowed([1440, 120], [60])).toBe(false);
   });
 
+  // Мутация аудитора 15.09: ослабить `Number.isSafeInteger(value) && value > 0` до проверки типа и
+  // снять сверку уникальности — набор оставался зелёным. Значит расписание могло принять ноль,
+  // минус, дробь и повтор, а клиент получил бы напоминание в бессмысленный момент или дважды.
+  it('не принимает мусорный период и повтор вместо тихого исправления', () => {
+    expect(parseAppointmentReminderOffsets([1440, 1440])).toBeNull();
+    expect(parseAppointmentReminderOffsets([0])).toBeNull();
+    expect(parseAppointmentReminderOffsets([-60])).toBeNull();
+    expect(parseAppointmentReminderOffsets([90.5])).toBeNull();
+    expect(parseAppointmentReminderOffsets(['60'])).toBeNull();
+    // Соседние допустимые значения остаются допустимыми — проба ловит ослабление, а не запрещает всё.
+    expect(parseAppointmentReminderOffsets([1440, 120])).toEqual([1440, 120]);
+  });
+
   it('keeps the existing scheduler contract in minutes', () => {
     expect(appointmentReminderPlanForOffsets([1440, 120])).toEqual({
       enabled: true,
