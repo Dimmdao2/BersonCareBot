@@ -1,0 +1,11 @@
+PASS 1a surname and patronymic complement silently
+PASS 1b entirely empty side does not erase structured FIO
+PASS 1c display choice preserves each separately confirmed part
+PASS 2a empty recognized display falls back to the named side
+PASS 2b mirrored empty recognized display also falls back
+PASS 2c both empty stay empty without borrowing any other identity
+PASS 2d conflicting display-only names write the chosen account name
+PASS 3a a real structured conflict refuses an unanswered merge
+PASS 3b a missing field alone creates no question
+RESIDUE {"platform_users":0,"user_identity":0}
+[2026-09-15T05:54:08+03:00] pid=2031524 RELEASED test lock (rc=0, 2s)
