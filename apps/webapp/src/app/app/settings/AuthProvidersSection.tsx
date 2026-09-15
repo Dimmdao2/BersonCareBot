@@ -9,6 +9,7 @@ import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
 import { DoctorField } from '@/shared/ui/doctor/DoctorField';
 import { isSafeExternalHref } from '@/lib/url/isSafeExternalHref';
 import { parseIdTokens } from '@/shared/parsers/parseIdTokens';
+import { normalizeTelegramLoginBotUsername } from '@/modules/system-settings/telegramLoginBotUsernameInput';
 import { patchAdminSetting } from './patchAdminSetting';
 import { notificationText } from '@/shared/notifications/notificationText';
 
@@ -130,6 +131,16 @@ export function AuthProvidersSection({
           setError(aRedirErr);
           return;
         }
+        // Имя бота принимается в любой записи, какой человек его видит: `@имя`, `имя`, `t.me/имя`.
+        const telegramBotChecked = normalizeTelegramLoginBotUsername(telegramBot);
+        if (!telegramBotChecked.ok) {
+          setError(
+            'Имя бота: 5–32 символа, буквы, цифры и подчёркивание, первый символ буква. ' +
+              'Можно вписать @имя или ссылку t.me/имя.',
+          );
+          return;
+        }
+        const normalizedTelegramBot = telegramBotChecked.value;
         const vkTrim = vkLoginUrl.trim();
         if (vkTrim.length > 0) {
           const vkErr = validateHttpUrl('Ссылка VK ID', vkTrim);
@@ -143,7 +154,7 @@ export function AuthProvidersSection({
           }
         }
         const patches = [
-          patchAdminSetting('telegram_login_bot_username', telegramBot.trim()),
+          patchAdminSetting('telegram_login_bot_username', normalizedTelegramBot),
           patchAdminSetting('max_login_bot_nickname', maxBotNick.trim()),
           patchAdminSetting('max_bot_api_key', maxApiKey.trim()),
           patchAdminSetting('vk_web_login_url', vkTrim),
@@ -194,9 +205,9 @@ export function AuthProvidersSection({
           <section className="flex flex-col gap-2">
             <p className="text-sm font-semibold">Telegram Login Widget</p>
             <DoctorField
-              label="Имя бота (без @)"
+              label="Имя бота"
               htmlFor="auth-telegram-bot"
-              hint="Публичный username бота без @ (как в t.me/…), не числовой id бота. Пустое значение отключает диплинк."
+              hint="Можно вписать @имя, просто имя или ссылку t.me/имя — лишнее уберём сами. Это публичный username бота, не числовой id. Пустое значение отключает диплинк."
             >
               <Input
                 id="auth-telegram-bot"
