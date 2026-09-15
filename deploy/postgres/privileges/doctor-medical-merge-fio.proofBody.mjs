@@ -49,8 +49,26 @@ const LOST = {
   target: '00000000-0000-4000-8000-00000000f2b1',
   duplicate: '00000000-0000-4000-8000-00000000f2b2',
 };
+const TARGET_CHOICE = {
+  target: '00000000-0000-4000-8000-00000000f2d1',
+  duplicate: '00000000-0000-4000-8000-00000000f2d2',
+};
+const FOREIGN = {
+  target: '00000000-0000-4000-8000-00000000f2e1',
+  duplicate: '00000000-0000-4000-8000-00000000f2e2',
+};
 const LEGACY_PENDING = '00000000-0000-4000-8000-00000000f2c1';
-const ALL_IDS = [KEPT.target, KEPT.duplicate, LOST.target, LOST.duplicate];
+const LEGACY_TARGET_CHOICE_PENDING = '00000000-0000-4000-8000-00000000f2c2';
+const ALL_IDS = [
+  KEPT.target,
+  KEPT.duplicate,
+  LOST.target,
+  LOST.duplicate,
+  TARGET_CHOICE.target,
+  TARGET_CHOICE.duplicate,
+  FOREIGN.target,
+  FOREIGN.duplicate,
+];
 
 const FAULT = faultFromEnv();
 function say(line) {
@@ -104,14 +122,14 @@ async function insertPair(client, clinic, pair, names) {
 }
 
 /** Шаг человека: он подтвердил найденную учётку и выбрал фамилию дубликата. */
-async function answerFioQuestion(client, pair) {
+async function answerFioQuestion(client, pair, source = 'duplicate') {
   const target = await loadSummary(client, pair.target);
   const duplicate = await loadSummary(client, pair.duplicate);
   const prompt = createHumanMergePrompt(target, duplicate, pair.duplicate);
   if (prompt.conflicts.join(',') !== 'last_name') {
     throw new Error(`fixture is not a last-name conflict: ${JSON.stringify(prompt.conflicts)}`);
   }
-  return createHumanMergeDecision(prompt, { last_name: { source: 'duplicate' } });
+  return createHumanMergeDecision(prompt, { last_name: { source } });
 }
 
 /** Настоящая автоматическая дверь: ответ человека есть, а медицинский блокер её отменяет. */
@@ -195,6 +213,19 @@ async function fioAfter(client, pair) {
   return row.rows[0];
 }
 
+async function accountState(client, pair) {
+  const row = await client.query(
+    `SELECT COALESCE(jsonb_agg(to_jsonb(u) ORDER BY u.id)::text, '[]') AS users,
+            (SELECT COALESCE(jsonb_agg(to_jsonb(i) ORDER BY i.platform_user_id)::text, '[]')
+               FROM public.user_identity i
+              WHERE i.platform_user_id = ANY($1::uuid[])) AS identities
+       FROM public.platform_users u
+      WHERE u.id = ANY($1::uuid[])`,
+    [[pair.target, pair.duplicate]],
+  );
+  return row.rows[0];
+}
+
 async function main() {
   const { client, db, who } = await connect();
   say(`connected: db=${db} as=${who}`);
@@ -220,6 +251,11 @@ async function main() {
     };
     await insertPair(client, clinic, KEPT, names);
     await insertPair(client, clinic, LOST, names);
+    await insertPair(client, clinic, TARGET_CHOICE, names);
+    await insertPair(client, clinic, FOREIGN, {
+      target: { lastName: 'Орлов', firstName: 'Пётр' },
+      duplicate: { lastName: 'Петров', firstName: 'Пётр' },
+    });
     // Реальная legacy-коллизия: старый вид pending-кандидата занимает ordered-пару. Дверь записи
     // медицинского конфликта обязана сохранить отдельную строку и потому разворачивает пару.
     await client.query(
@@ -228,7 +264,18 @@ async function main() {
        ) VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, 'legacy_match', 'pending')`,
       [LEGACY_PENDING, clinic.org_id, LOST.target, LOST.duplicate],
     );
-    say('fixture inserted (2 pairs, conflicting last names, medical history on both sides)');
+    await client.query(
+      `INSERT INTO public.patient_merge_candidates(
+         id, organization_id, anchor_user_id, candidate_user_id, reason, status
+       ) VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, 'legacy_match', 'pending')`,
+      [
+        LEGACY_TARGET_CHOICE_PENDING,
+        clinic.org_id,
+        TARGET_CHOICE.target,
+        TARGET_CHOICE.duplicate,
+      ],
+    );
+    say('fixture inserted (4 pairs, conflicting last names, medical history on both sides)');
 
     // --- сценарий 1: ответ человека сохранён и применён ---
     const decision = await answerFioQuestion(client, KEPT);
@@ -283,6 +330,43 @@ async function main() {
     const recovered = await fioAfter(client, LOST);
     say(`FIO after the recovered loop: ${JSON.stringify(recovered)}`);
 
+    // Та же перевёрнутая строка, но человек выбрал роль `target`. Это доказывает, что роль
+    // относится к показанной учётке, а не к позиции anchor/candidate в служебной строке.
+    const targetDecision = await answerFioQuestion(client, TARGET_CHOICE, 'target');
+    const targetBlocker = await deferredByMedicalBlocker(
+      client,
+      TARGET_CHOICE,
+      targetDecision,
+    );
+    const targetConflict = await recordConflict(
+      client,
+      recordCapability,
+      clinic,
+      TARGET_CHOICE,
+      targetBlocker,
+    );
+    const targetOrientation = await client.query(
+      `SELECT anchor_user_id::text AS anchor, candidate_user_id::text AS candidate
+         FROM public.patient_merge_candidates WHERE id = $1::uuid`,
+      [targetConflict],
+    );
+    const targetOutcome = await doctorPressesMerge(client, staff, clinic, targetConflict);
+    const targetFio = await fioAfter(client, TARGET_CHOICE);
+    say(`source target on reversed row returned: ${JSON.stringify(targetOutcome)}`);
+    say(`source target FIO after merge: ${JSON.stringify(targetFio)}`);
+
+    // Ответ про другую пару не подгоняется к текущей строке: врач получает явный отказ, а обе
+    // учётки остаются побайтно теми же на публичных identity-строках.
+    const foreignBefore = await accountState(client, FOREIGN);
+    const foreignConflict = await recordConflict(client, recordCapability, clinic, FOREIGN, {
+      humanFioDecision: targetDecision,
+    });
+    const foreignOutcome = await doctorPressesMerge(client, staff, clinic, foreignConflict);
+    const foreignAfter = await accountState(client, FOREIGN);
+    const foreignUnchanged = JSON.stringify(foreignAfter) === JSON.stringify(foreignBefore);
+    say(`foreign-pair answer returned: ${JSON.stringify(foreignOutcome)}`);
+    say(`foreign-pair accounts unchanged: ${foreignUnchanged ? 'yes' : 'NO'}`);
+
     const failures = [];
     if (keptOutcome.mergeOutcome !== 'merged') {
       failures.push(`scenario 1: expected merged, got ${keptOutcome.mergeOutcome}`);
@@ -322,6 +406,27 @@ async function main() {
     }
     if (recovered.duplicate_merged_into !== LOST.target) {
       failures.push('scenario 2: the duplicate was not merged after the person answered again');
+    }
+    if (
+      targetOrientation.rows[0]?.anchor !== TARGET_CHOICE.duplicate ||
+      targetOrientation.rows[0]?.candidate !== TARGET_CHOICE.target
+    ) {
+      failures.push('scenario 3: fixture did not exercise the reversed target-choice row');
+    }
+    if (targetOutcome.mergeOutcome !== 'merged') {
+      failures.push(`scenario 3: expected merged, got ${targetOutcome.mergeOutcome}`);
+    }
+    if (targetFio.users_last_name !== 'Иванов' || targetFio.identity_last_name !== 'Иванов') {
+      failures.push('scenario 3: source target did not preserve the target account surname');
+    }
+    if (targetFio.duplicate_merged_into !== TARGET_CHOICE.target) {
+      failures.push('scenario 3: source target was interpreted relative to the reversed row');
+    }
+    if (foreignOutcome.mergeOutcome !== 'fio_decision_required') {
+      failures.push(`scenario 4: foreign-pair answer returned ${foreignOutcome.mergeOutcome}`);
+    }
+    if (!foreignUnchanged) {
+      failures.push('scenario 4: a foreign-pair answer changed one of the accounts');
     }
 
     if (failures.length > 0) {

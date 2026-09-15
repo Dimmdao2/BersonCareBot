@@ -196,6 +196,10 @@ test('выбранное человеком ФИО переживает меди
     assert.match(output, /"users_last_name":"Сидоров"/u, output);
     assert.match(output, /"identity_last_name":"Сидоров"/u, output);
     assert.match(output, /doctor merge WITHOUT a stored answer returned: .*"mergeOutcome":"fio_decision_required"/u, output);
+    assert.match(output, /source target on reversed row returned: .*"mergeOutcome":"merged"/u, output);
+    assert.match(output, /source target FIO after merge: .*"users_last_name":"Иванов".*"identity_last_name":"Иванов"/u, output);
+    assert.match(output, /foreign-pair answer returned: .*"mergeOutcome":"fio_decision_required"/u, output);
+    assert.match(output, /foreign-pair accounts unchanged: yes/u, output);
     assert.match(output, /RESULT: PASS/u, output);
   });
 });
