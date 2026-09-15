@@ -80,3 +80,959 @@ check-c4-migration-owned-function-bodies: OK
 > @bersoncare/webapp@0.1.0 lint /home/dev/dev-projects/bcb-wt-fio-dialog/apps/webapp
 > eslint . && node ../../scripts/check-no-new-raw-sql.mjs && node ../../scripts/check-webapp-infra-import-boundary.mjs && node ../../scripts/check-webapp-infra-import-boundary.mjs --self-test && node ../../scripts/check-media-delivery-chokepoint.mjs && node ../../scripts/check-transaction-quota-port-boundary.mjs && node ../../scripts/check-transaction-quota-port-boundary.mjs --self-test && node ../../scripts/check-migration-privileges.mjs && node ../../scripts/check-migration-privileges.mjs --self-test && node ../../scripts/check-prorated-purchase-single-door.mjs && node ../../scripts/check-prorated-purchase-single-door.mjs --self-test && bash scripts/check-legacy-migrations-frozen.sh && bash scripts/check-drizzle-migration-order.sh && node scripts/check-media-upload-door.mjs && node scripts/check-media-upload-door.mjs --self-test && node scripts/check-safe-user-error-door.mjs && node scripts/check-safe-user-error-door.mjs --self-test --self-test-only && node scripts/check-safe-error-transport.mjs && node scripts/check-safe-error-transport.mjs --self-test && node scripts/check-appointment-word-single-source.mjs && node scripts/check-appointment-word-single-source.mjs --self-test && node scripts/check-notification-text-coverage.mjs --self-test && node scripts/check-notification-text-coverage.mjs
 
+[BABEL] Note: The code generator has deoptimised the styling of /home/dev/dev-projects/bcb-wt-fio-dialog/apps/webapp/src/infra/loginCountryData.ts as it exceeds the max of 500KB.
+apps/webapp typecheck: Done
+ci-steps: PASS typecheck (84s)
+check-no-new-raw-sql: OK (integrator low-level DB port: 4; integrator migration/deploy SQL executor: 1; webapp low-level DB port: 5; package:db-principal low-level DB port: 2; package:platform-merge low-level DB port: 1; production debt: 0)
+check-webapp-infra-import-boundary: OK
+check-webapp-infra-import-boundary self-test: 7 bypass forms rejected; canonical port consumer accepted
+ ELIFECYCLE  Command failed.
+ci-record: голова дерева сдвинулась во время прогона (f2ef7bd7e -> 24c36d791). Шаги завершились с кодом 1, но измеренного состояния больше нет — результат не доказательство. Дождитесь конца сведения и прогоните заново.
+ ELIFECYCLE  Command failed with exit code 1.
+[2026-09-15T04:40:43+03:00] pid=1704350 RELEASED test lock (rc=1, 194s)
+check-transaction-quota-port-boundary: OK
+check-transaction-quota-port-boundary self-test: 3 bypass forms rejected
+check-transaction-quota-port-boundary self-test: canonical port writer accepted
+check-migration-privileges: OK (218 migration files)
+check-migration-privileges: self-test OK (7 red fixtures, 1 green fixture)
+check-prorated-purchase-single-door: OK
+check-prorated-purchase-single-door self-test: 11 bypass forms rejected
+check-prorated-purchase-single-door self-test: canonical door writers accepted
+run-webapp-drizzle-migrate transaction-safe migration layout check: OK
+check-drizzle-migration-order: OK
+media upload door: OK
+media upload door self-test: OK (all structural bypass fixtures went red)
+media upload door: OK
+safe user error door: OK
+safe user error door self-test: OK (8 leak fixtures red, 6 safe shapes green)
+check-safe-error-transport: OK (5 files of frozen legacy debt unchanged)
+check-safe-error-transport self-test: OK (13 bypass forms rejected, 10 canonical forms accepted)
+appointment word single-source: OK
+appointment word single-source self-test: OK (all fixtures went red)
+appointment word single-source: OK
+notification text coverage self-test: OK (52 leak fixtures red, 28 safe shapes green)
+notification text coverage: OK
+notification text coverage: OK
+ci-steps: PASS lint (311s)
+ci-steps: PHASE 2/5 (3 lanes)
+ci-steps: START test
+ci-steps: START test:webapp
+ci-steps: START test:scripts
+
+> berson-care-bot@1.0.0 test /home/dev/dev-projects/bcb-wt-fio-dialog
+> pnpm --dir apps/integrator test
+
+
+> berson-care-bot@1.0.0 test:scripts /home/dev/dev-projects/bcb-wt-fio-dialog
+> node --test scripts/*.test.mjs deploy/host/*.test.mjs
+
+
+> berson-care-bot@1.0.0 test:webapp /home/dev/dev-projects/bcb-wt-fio-dialog
+> pnpm --dir apps/webapp test
+
+TAP version 13
+
+> @bersoncare/integrator@1.0.0 test /home/dev/dev-projects/bcb-wt-fio-dialog/apps/integrator
+> vitest --run
+
+
+> @bersoncare/webapp@0.1.0 test /home/dev/dev-projects/bcb-wt-fio-dialog/apps/webapp
+> vitest --run
+
+
+ RUN  v5.0.0 /home/dev/dev-projects/bcb-wt-fio-dialog/apps/integrator
+
+
+ RUN  v5.0.0 /home/dev/dev-projects/bcb-wt-fio-dialog/apps/webapp
+
+# Subtest: поставляемые artifacts совпадают с manifest (иначе host получает вчерашнее расписание)
+ok 1 - поставляемые artifacts совпадают с manifest (иначе host получает вчерашнее расписание)
+  ---
+  duration_ms: 207.76847
+  type: 'test'
+  ...
+# Subtest: встроенные фикстуры гейта проходят
+ok 2 - встроенные фикстуры гейта проходят
+  ---
+  duration_ms: 159.390743
+  type: 'test'
+  ...
+# Subtest: удалённый или отредактированный руками artifact краснит гейт
+ok 3 - удалённый или отредактированный руками artifact краснит гейт
+  ---
+  duration_ms: 2.931968
+  type: 'test'
+  ...
+# Subtest: artifact без записи в manifest краснит гейт
+ok 4 - artifact без записи в manifest краснит гейт
+  ---
+  duration_ms: 0.282992
+  type: 'test'
+  ...
+# Subtest: обязательное задание без установленного расписания краснит deploy
+ok 5 - обязательное задание без установленного расписания краснит deploy
+  ---
+  duration_ms: 2.752365
+  type: 'test'
+  ...
+# Subtest: установленная строка мимо общего transport краснит deploy
+ok 6 - установленная строка мимо общего transport краснит deploy
+  ---
+  duration_ms: 0.239076
+  type: 'test'
+  ...
+# Subtest: установленное фоновое задание без записи в manifest краснит deploy
+ok 7 - установленное фоновое задание без записи в manifest краснит deploy
+  ---
+  duration_ms: 1.462353
+  type: 'test'
+  ...
+# Subtest: расписание TEST не считается лишним при проверке PROD и наоборот
+ok 8 - расписание TEST не считается лишним при проверке PROD и наоборот
+  ---
+  duration_ms: 2.637729
+  type: 'test'
+  ...
+# Subtest: отсутствующий transport краснит deploy: задание нечем установить
+ok 9 - отсутствующий transport краснит deploy: задание нечем установить
+  ---
+  duration_ms: 0.370275
+  type: 'test'
+  ...
+# Subtest: --verify-installed читает реальный каталог расписания и отвечает кодом выхода
+ok 10 - --verify-installed читает реальный каталог расписания и отвечает кодом выхода
+  ---
+  duration_ms: 421.438853
+  type: 'test'
+  ...
+# Subtest: нечитаемый каталог расписания — громкий отказ, а не «всё установлено»
+ok 11 - нечитаемый каталог расписания — громкий отказ, а не «всё установлено»
+  ---
+  duration_ms: 356.426878
+  type: 'test'
+  ...
+# Subtest: transport отказывается запускать задание, которым владеет резидентный scheduler
+ok 12 - transport отказывается запускать задание, которым владеет резидентный scheduler
+  ---
+  duration_ms: 0.783597
+  type: 'test'
+  ...
+# Subtest: описание задания для transport несёт маршрут, timeout и допустимые статусы
+ok 13 - описание задания для transport несёт маршрут, timeout и допустимые статусы
+  ---
+  duration_ms: 0.45127
+  type: 'test'
+  ...
+# Subtest: ни один artifact не копирует Host/Origin/секрет и не глушит вывод в /dev/null
+ok 14 - ни один artifact не копирует Host/Origin/секрет и не глушит вывод в /dev/null
+  ---
+  duration_ms: 1.284462
+  type: 'test'
+  ...
+# Subtest: присваивания окружения есть только у бэкапа и только четыре известных
+ok 15 - присваивания окружения есть только у бэкапа и только четыре известных
+  ---
+  duration_ms: 0.47832
+  type: 'test'
+  ...
+# Subtest: бэкап ходит мимо общего transport, но снимается тем же деплоем
+ok 16 - бэкап ходит мимо общего transport, но снимается тем же деплоем
+  ---
+  duration_ms: 0.316213
+  type: 'test'
+  ...
+# Subtest: отсутствующий transport не объявляет бэкап неустановимым
+ok 17 - отсутствующий transport не объявляет бэкап неустановимым
+  ---
+  duration_ms: 4.411988
+  type: 'test'
+  ...
+# Subtest: --apply-installed ставит недостающее, переписывает изменившееся и снимает снятое
+ok 18 - --apply-installed ставит недостающее, переписывает изменившееся и снимает снятое
+  ---
+  duration_ms: 538.702389
+  type: 'test'
+  ...
+# Subtest: --apply-installed на совпадающем расписании ничего не трогает
+ok 19 - --apply-installed на совпадающем расписании ничего не трогает
+  ---
+  duration_ms: 344.597811
+  type: 'test'
+  ...
+# Subtest: снимается только своё: чужие файлы и соседняя среда лишними не считаются
+ok 20 - снимается только своё: чужие файлы и соседняя среда лишними не считаются
+  ---
+  duration_ms: 2.137064
+  type: 'test'
+  ...
+# Subtest: same-checkout snapshot preflight precedes the shared destructive reset
+ok 21 - same-checkout snapshot preflight precedes the shared destructive reset
+  ---
+  duration_ms: 42.836972
+  type: 'test'
+  ...
+# Subtest: failed snapshot preflight propagates and never invokes the shared reset
+ok 22 - failed snapshot preflight propagates and never invokes the shared reset
+  ---
+  duration_ms: 31.557574
+  type: 'test'
+  ...
+# Subtest: missing owner confirmation fails before preflight
+ok 23 - missing owner confirmation fails before preflight
+  ---
+  duration_ms: 22.09585
+  type: 'test'
+  ...
+# Subtest: missing shared reset engine fails by name before any preflight or exec
+ok 24 - missing shared reset engine fails by name before any preflight or exec
+  ---
+  duration_ms: 39.947378
+  type: 'test'
+  ...
+# Subtest: every server-only registry key is DEV-owned, so no provider credential rides in from TEST
+ok 25 - every server-only registry key is DEV-owned, so no provider credential rides in from TEST
+  ---
+  duration_ms: 169.83642
+  type: 'test'
+  ...
+# Subtest: keys the TEST environment overlay owns stay with DEV even when the registry calls them runtime
+ok 26 - keys the TEST environment overlay owns stay with DEV even when the registry calls them runtime
+  ---
+  duration_ms: 1.869524
+  type: 'test'
+  ...
+# Subtest: ordinary product settings are NOT DEV-owned, so accepted TEST product state does arrive
+ok 27 - ordinary product settings are NOT DEV-owned, so accepted TEST product state does arrive
+  ---
+  duration_ms: 0.593145
+  type: 'test'
+  ...
+# Subtest: a silently unmatched overlay shape is fatal, never an empty key set
+ok 28 - a silently unmatched overlay shape is fatal, never an empty key set
+  ---
+  duration_ms: 1.547824
+  type: 'test'
+  ...
+# Subtest: a value that is not a setting key is rejected instead of becoming a key
+ok 29 - a value that is not a setting key is rejected instead of becoming a key
+  ---
+  duration_ms: 0.23521
+  type: 'test'
+  ...
+# Subtest: the CLI emits sorted, unique, value-free key names and nothing else
+ok 30 - the CLI emits sorted, unique, value-free key names and nothing else
+  ---
+  duration_ms: 407.024716
+  type: 'test'
+  ...
+# Subtest: the CLI refuses an unknown or missing mode instead of defaulting to one
+ok 31 - the CLI refuses an unknown or missing mode instead of defaulting to one
+  ---
+  duration_ms: 222.563218
+  type: 'test'
+  ...
+# Subtest: --self-test passes on the committed registry and overlay
+ok 32 - --self-test passes on the committed registry and overlay
+  ---
+  duration_ms: 209.806542
+  type: 'test'
+  ...
+# Subtest: a DELETE with a real predicate removes exactly the matching rows
+ok 33 - a DELETE with a real predicate removes exactly the matching rows
+  ---
+  duration_ms: 4.307559
+  type: 'test'
+  ...
+# Subtest: an INSERT that violates the organization foreign key fails the script
+ok 34 - an INSERT that violates the organization foreign key fails the script
+  ---
+  duration_ms: 2.962525
+  type: 'test'
+  ...
+# Subtest: an INSERT for an organization that exists is accepted
+ok 35 - an INSERT for an organization that exists is accepted
+  ---
+  duration_ms: 1.723592
+  type: 'test'
+  ...
+# Subtest: a failure inside a transaction rolls the whole transaction back
+ok 36 - a failure inside a transaction rolls the whole transaction back
+  ---
+  duration_ms: 1.232903
+  type: 'test'
+  ...
+# Subtest: the division-by-zero assertion idiom the SQL uses really fails
+ok 37 - the division-by-zero assertion idiom the SQL uses really fails
+  ---
+  duration_ms: 1.632543
+  type: 'test'
+  ...
+# Subtest: correlated NOT EXISTS is evaluated against rows, not assumed true
+ok 38 - correlated NOT EXISTS is evaluated against rows, not assumed true
+  ---
+  duration_ms: 2.932119
+  type: 'test'
+  ...
+# Subtest: DROP TRIGGER removes the object the wrapper then probes for
+ok 39 - DROP TRIGGER removes the object the wrapper then probes for
+  ---
+  duration_ms: 1.071856
+  type: 'test'
+  ...
+# Subtest: SQL the model does not understand is a loud failure, never a silent pass
+ok 40 - SQL the model does not understand is a loud failure, never a silent pass
+  ---
+  duration_ms: 0.534847
+  type: 'test'
+  ...
+# Subtest: a script that quits early executes nothing after the quit
+ok 41 - a script that quits early executes nothing after the quit
+  ---
+  duration_ms: 0.701021
+  type: 'test'
+  ...
+# Subtest: reconcile env is derived from the exact four post-cutover runtime URLs
+ok 42 - reconcile env is derived from the exact four post-cutover runtime URLs
+  ---
+  duration_ms: 1.55187
+  type: 'test'
+  ...
+# Subtest: reconcile env parser rejects a runtime URL for another login or database
+ok 43 - reconcile env parser rejects a runtime URL for another login or database
+  ---
+  duration_ms: 2.152088
+  type: 'test'
+  ...
+# Subtest: reconcile env shell-quotes a password without executing or corrupting it
+ok 44 - reconcile env shell-quotes a password without executing or corrupting it
+  ---
+  duration_ms: 23.459163
+  type: 'test'
+  ...
+# Subtest: runtime capability env replacement is exact and rejects duplicate keys
+ok 45 - runtime capability env replacement is exact and rejects duplicate keys
+  ---
+  duration_ms: 0.669903
+  type: 'test'
+  ...
+# Subtest: migrate-dev preflight accepts only the stationary post-cutover migrator
+ok 46 - migrate-dev preflight accepts only the stationary post-cutover migrator
+  ---
+  duration_ms: 279.27338
+  type: 'test'
+  ...
+# Subtest: candidate preflight reads runtime URLs from a separate regular checkout only
+ok 47 - candidate preflight reads runtime URLs from a separate regular checkout only
+  ---
+  duration_ms: 353.672432
+  type: 'test'
+  ...
+# Subtest: runtime env root and both env files reject symlinks
+ok 48 - runtime env root and both env files reject symlinks
+  ---
+  duration_ms: 151.063134
+  type: 'test'
+  ...
+# Subtest: runtime env root override is rejected for execute
+ok 49 - runtime env root override is rejected for execute
+  ---
+  duration_ms: 46.913759
+  type: 'test'
+  ...
+# Subtest: migrate-dev preflight stops on rollback validation failure without execute side effects
+ok 50 - migrate-dev preflight stops on rollback validation failure without execute side effects
+  ---
+  duration_ms: 278.305001
+  type: 'test'
+  ...
+# Subtest: migrate-dev rejects a LOGIN/BYPASS/member migrator before any migration
+ok 51 - migrate-dev rejects a LOGIN/BYPASS/member migrator before any migration
+  ---
+  duration_ms: 244.636684
+  type: 'test'
+  ...
+# Subtest: migrate-dev executes the canonical B0-forward owner order before mandatory reconcile
+ok 52 - migrate-dev executes the canonical B0-forward owner order before mandatory reconcile
+  ---
+  duration_ms: 354.782467
+  type: 'test'
+  ...
+# Subtest: integrator local adapter commits a pending file and ledger row under the exact owner
+ok 53 - integrator local adapter commits a pending file and ledger row under the exact owner
+  ---
+  duration_ms: 121.786244
+  type: 'test'
+  ...
+# Subtest: migrate-dev has no implicit mode
+ok 54 - migrate-dev has no implicit mode
+  ---
+  duration_ms: 29.336389
+  type: 'test'
+  ...
+# Subtest: --host-lock-fd re-enters on the caller's own held descriptor instead of a second lockless runner
+ok 55 - --host-lock-fd re-enters on the caller's own held descriptor instead of a second lockless runner
+  ---
+  duration_ms: 239.683459
+  type: 'test'
+  ...
+# Subtest: --host-lock-fd still refuses when a third party holds the same lock
+ok 56 - --host-lock-fd still refuses when a third party holds the same lock
+  ---
+  duration_ms: 96.201995
+  type: 'test'
+  ...
+# Subtest: --host-lock-fd refuses a descriptor that is not this exact lock file, or is not open
+ok 57 - --host-lock-fd refuses a descriptor that is not this exact lock file, or is not open
+  ---
+  duration_ms: 143.377133
+  type: 'test'
+  ...
+# Subtest: --host-lock-fd rejects a value that is not an inheritable descriptor number
+ok 58 - --host-lock-fd rejects a value that is not an inheritable descriptor number
+  ---
+  duration_ms: 106.644606
+  type: 'test'
+  ...
+# Subtest: every \\ir include reachable from the executed full-reset SQL resolves
+ok 59 - every \\ir include reachable from the executed full-reset SQL resolves
+  ---
+  duration_ms: 172.165237
+  type: 'test'
+  ...
+# Subtest: port-context cutover external artifacts exist and the deleted primitive is not referenced
+ok 60 - port-context cutover external artifacts exist and the deleted primitive is not referenced
+  ---
+  duration_ms: 1.915637
+  type: 'test'
+  ...
+# Subtest: no executed full-reset SQL names the retired app_owner role
+ok 61 - no executed full-reset SQL names the retired app_owner role
+  ---
+  duration_ms: 85.6445
+  type: 'test'
+  ...
+# Subtest: post-cutover executed SQL creates no schema object outside schema B
+ok 62 - post-cutover executed SQL creates no schema object outside schema B
+  ---
+  duration_ms: 4.825752
+  type: 'test'
+  ...
+# Subtest: TEST settings override restores the TEST lock by reference and limits trigger bypasses
+ok 63 - TEST settings override restores the TEST lock by reference and limits trigger bypasses
+  ---
+  duration_ms: 15.631317
+  type: 'test'
+  ...
+# Subtest: the retired second closure is not reachable from the engine
+ok 64 - the retired second closure is not reachable from the engine
+  ---
+  duration_ms: 4.449867
+  type: 'test'
+  ...
+# Subtest: the public post-migration access closure installs declared access before releasing TEST
+ok 65 - the public post-migration access closure installs declared access before releasing TEST
+  ---
+  duration_ms: 183.865218
+  type: 'test'
+  ...
+# Subtest: the default full-reset path ends in that same access closure, not a second one
+ok 66 - the default full-reset path ends in that same access closure, not a second one
+  ---
+  duration_ms: 0.763856
+  type: 'test'
+  ...
+# Subtest: fault injection: dropping the closure call from the public path is caught
+ok 67 - fault injection: dropping the closure call from the public path is caught
+  ---
+  duration_ms: 226.841702
+  type: 'test'
+  ...
+# Subtest: fault injection: a retired-owner or object body reintroduced after the cutover is caught
+ok 68 - fault injection: a retired-owner or object body reintroduced after the cutover is caught
+  ---
+  duration_ms: 0.756797
+  type: 'test'
+  ...
+{"level":40,"time":1789436573517,"service":"bersoncare-webapp","pid":1744397,"scope":"notification_delivery","event":"notification_audience_empty","topic":"booking_created_patient_message","severity":"user_facing","channels":["telegram","max"],"organizationId":"org-1","reason":"no_channel_bindings","msg":"notification resolved to an empty audience"}
+{"level":50,"time":1789436573525,"service":"bersoncare-webapp","pid":1744397,"scope":"booking_created_effects","topic":"booking_created_patient_message","organizationId":"org-1","err":{"type":"ErrorLike"},"msg":"booking created patient notification failed"}
+{"level":40,"time":1789436573525,"service":"bersoncare-webapp","pid":1744397,"scope":"notification_delivery","event":"notification_audience_empty","topic":"booking_created_patient_message","severity":"user_facing","channels":["telegram","max"],"organizationId":"org-1","reason":"enqueue_failed","msg":"notification resolved to an empty audience"}
+{"level":30,"time":1789436578883,"service":"bersoncare-webapp","pid":1745926,"event":"booking.confirmation_email.enqueued","bookingId":"bk-1","enqueued":true,"msg":"booking confirmation email queued"}
+{"level":30,"time":1789436578893,"service":"bersoncare-webapp","pid":1745926,"event":"booking.confirmation_email.enqueued","bookingId":"bk-1","enqueued":true,"msg":"booking confirmation email queued"}
+{"level":30,"time":1789436578893,"service":"bersoncare-webapp","pid":1745926,"event":"booking.confirmation_email.enqueued","bookingId":"bk-1","enqueued":false,"msg":"booking confirmation email already queued (idempotent no-op)"}
+{"level":40,"time":1789436578894,"service":"bersoncare-webapp","pid":1745926,"err":{"type":"Error"},"event":"booking.confirmation_email.error","bookingId":"bk-1","msg":"booking confirmation email enqueue failed (best-effort, booking already confirmed)"}
+{"level":30,"time":1789436582346,"service":"bersoncare-webapp","pid":1747072,"event":"doctor_staff_notify.channels","userId":"org-1-doctor","audience":"staff","topicCode":"doctor_patient_messages","messageId":"message-doctor_patient_messages","selectedChannels":["max"],"hasWebPushSubscription":false,"vapidConfigured":true,"msg":"doctor staff notify channels"}
+{"level":30,"time":1789436582352,"service":"bersoncare-webapp","pid":1747072,"event":"doctor_staff_notify.channels","userId":"org-1-doctor","audience":"staff","topicCode":"doctor_patient_program_notes","messageId":"message-doctor_patient_program_notes","selectedChannels":["max"],"hasWebPushSubscription":false,"vapidConfigured":true,"msg":"doctor staff notify channels"}
+{"level":30,"time":1789436605991,"service":"bersoncare-webapp","pid":1752705,"event":"web_push_subscription_registered","userId":"22222222-2222-4222-8222-222222222222","endpointHash":"cd887d3cf14795fe","platform":"pwa","msg":"web push subscription registered"}
+{"level":30,"time":1789436605993,"service":"bersoncare-webapp","pid":1752705,"event":"web_push_defaults_enabled","userId":"22222222-2222-4222-8222-222222222222","enabledTopics":["warmup_reminders","training_reminders","appointment_reminders","patient_news","specialist_messages","support_messages","important_broadcasts"],"msg":"web push defaults enabled for notification topics"}
+{"level":50,"time":1789436606647,"service":"bersoncare-webapp","pid":1753989,"correlationId":"6134e02a-b87e-49ec-945f-536cac0b69e5","operatorErrorDetail":{"type":"Error","message":"permission denied for table platform_users","stack":"Error: permission denied for table platform_users\n    at /home/dev/dev-projects/bcb-wt-fio-dialog/apps/webapp/src/modules/auth/passwordAuth.route.test.ts:489:7\n    at file:///home/dev/dev-projects/bcb-wt-fio-dialog/node_modules/.pnpm/vitest@5.0.0_@opentelemetry+api@1.9.1_@types+node@26.4.1_@vitest+coverage-v8@5.0.0_jsdo_18e9b707100bbc247204c828275af4af/node_modules/vitest/dist/chunks/run.CQOUYP-x.js:1628:35\n    at file:///home/dev/dev-projects/bcb-wt-fio-dialog/node_modules/.pnpm/vitest@5.0.0_@opentelemetry+api@1.9.1_@types+node@26.4.1_@vitest+coverage-v8@5.0.0_jsdo_18e9b707100bbc247204c828275af4af/node_modules/vitest/dist/chunks/run.CQOUYP-x.js:2783:26\n    at file:///home/dev/dev-projects/bcb-wt-fio-dialog/node_modules/.pnpm/vitest@5.0.0_@opentelemetry+api@1.9.1_@types+node@26.4.1_@vitest+coverage-v8@5.0.0_jsdo_18e9b707100bbc247204c828275af4af/node_modules/vitest/dist/chunks/run.CQOUYP-x.js:3319:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///home/dev/dev-projects/bcb-wt-fio-dialog/node_modules/.pnpm/vitest@5.0.0_@opentelemetry+api@1.9.1_@types+node@26.4.1_@vitest+coverage-v8@5.0.0_jsdo_18e9b707100bbc247204c828275af4af/node_modules/vitest/dist/chunks/run.CQOUYP-x.js:3314:10)\n    at file:///home/dev/dev-projects/bcb-wt-fio-dialog/node_modules/.pnpm/vitest@5.0.0_@opentelemetry+api@1.9.1_@types+node@26.4.1_@vitest+coverage-v8@5.0.0_jsdo_18e9b707100bbc247204c828275af4af/node_modules/vitest/dist/chunks/run.CQOUYP-x.js:3299:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///home/dev/dev-projects/bcb-wt-fio-dialog/node_modules/.pnpm/vitest@5.0.0_@opentelemetry+api@1.9.1_@types+node@26.4.1_@vitest+coverage-v8@5.0.0_jsdo_18e9b707100bbc247204c828275af4af/node_modules/vitest/dist/chunks/run.CQOUYP-x.js:3257:10)\n    at file:///home/dev/dev-projects/bcb-wt-fio-dialog/node_modules/.pnpm/vitest@5.0.0_@opentelemetry+api@1.9.1_@types+node@26.4.1_@vitest+coverage-v8@5.0.0_jsdo_18e9b707100bbc247204c828275af4af/node_modules/vitest/dist/chunks/run.CQOUYP-x.js:3876:64"},"msg":"auth_email_password_login_unhandled_failure"}
+{"level":50,"time":1789436606716,"service":"bersoncare-webapp","pid":1754387,"err":{"type":"Error"},"msg":"[book/pay] invoice check failed"}
+{"level":50,"time":1789436614174,"service":"bersoncare-webapp","pid":1756769,"correlationId":"e642012f-e82c-4ff9-b083-8b12468d4a22","operatorErrorDetail":{"type":"Error","message":"provider_down","stack":"Error: provider_down\n    at /home/dev/dev-projects/bcb-wt-fio-dialog/apps/webapp/src/app/api/doctor/booking-engine/appointments/[id]/payment/route.route.test.ts:252:60\n    at file:///home/dev/dev-projects/bcb-wt-fio-dialog/node_modules/.pnpm/vitest@5.0.0_@opentelemetry+api@1.9.1_@types+node@26.4.1_@vitest+coverage-v8@5.0.0_jsdo_18e9b707100bbc247204c828275af4af/node_modules/vitest/dist/chunks/run.CQOUYP-x.js:1628:35\n    at file:///home/dev/dev-projects/bcb-wt-fio-dialog/node_modules/.pnpm/vitest@5.0.0_@opentelemetry+api@1.9.1_@types+node@26.4.1_@vitest+coverage-v8@5.0.0_jsdo_18e9b707100bbc247204c828275af4af/node_modules/vitest/dist/chunks/run.CQOUYP-x.js:2783:26\n    at file:///home/dev/dev-projects/bcb-wt-fio-dialog/node_modules/.pnpm/vitest@5.0.0_@opentelemetry+api@1.9.1_@types+node@26.4.1_@vitest+coverage-v8@5.0.0_jsdo_18e9b707100bbc247204c828275af4af/node_modules/vitest/dist/chunks/run.CQOUYP-x.js:3319:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///home/dev/dev-projects/bcb-wt-fio-dialog/node_modules/.pnpm/vitest@5.0.0_@opentelemetry+api@1.9.1_@types+node@26.4.1_@vitest+coverage-v8@5.0.0_jsdo_18e9b707100bbc247204c828275af4af/node_modules/vitest/dist/chunks/run.CQOUYP-x.js:3314:10)\n    at file:///home/dev/dev-projects/bcb-wt-fio-dialog/node_modules/.pnpm/vitest@5.0.0_@opentelemetry+api@1.9.1_@types+node@26.4.1_@vitest+coverage-v8@5.0.0_jsdo_18e9b707100bbc247204c828275af4af/node_modules/vitest/dist/chunks/run.CQOUYP-x.js:3299:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///home/dev/dev-projects/bcb-wt-fio-dialog/node_modules/.pnpm/vitest@5.0.0_@opentelemetry+api@1.9.1_@types+node@26.4.1_@vitest+coverage-v8@5.0.0_jsdo_18e9b707100bbc247204c828275af4af/node_modules/vitest/dist/chunks/run.CQOUYP-x.js:3257:10)\n    at file:///home/dev/dev-projects/bcb-wt-fio-dialog/node_modules/.pnpm/vitest@5.0.0_@opentelemetry+api@1.9.1_@types+node@26.4.1_@vitest+coverage-v8@5.0.0_jsdo_18e9b707100bbc247204c828275af4af/node_modules/vitest/dist/chunks/run.CQOUYP-x.js:3876:64"},"msg":"doctor_appointment_payment_failed"}
+{"level":50,"time":1789436620416,"service":"bersoncare-webapp","pid":1758366,"scope":"api/patient/treatment-program-instances/[instanceId]/passage-stats","digest":"771b291c","err":{"type":"ErrorLike","code":"42703","class":"42"},"msg":"server_runtime_error"}
+{"level":50,"time":1789436620423,"service":"bersoncare-webapp","pid":1758366,"correlationId":"83cf700a-b860-4737-bf7e-2a5e0bf01da4","operatorErrorDetail":{"type":"Error","code":"42703","class":"42","message":"Failed query: insert into schedule_templates …\nparams: SENSITIVE_TEST_MARKER","stack":"Error: Failed query: insert into schedule_templates …\nparams: SENSITIVE_TEST_MARKER\n    at databaseFailure (/home/dev/dev-projects/bcb-wt-fio-dialog/apps/webapp/src/app/api/safeUserErrorDomainContract.route.test.ts:27:24)\n    at /home/dev/dev-projects/bcb-wt-fio-dialog/apps/webapp/src/app/api/safeUserErrorDomainContract.route.test.ts:160:7\n    at file:///home/dev/dev-projects/bcb-wt-fio-dialog/node_modules/.pnpm/vitest@5.0.0_@opentelemetry+api@1.9.1_@types+node@26.4.1_@vitest+coverage-v8@5.0.0_jsdo_18e9b707100bbc247204c828275af4af/node_modules/vitest/dist/chunks/run.CQOUYP-x.js:1628:35\n    at file:///home/dev/dev-projects/bcb-wt-fio-dialog/node_modules/.pnpm/vitest@5.0.0_@opentelemetry+api@1.9.1_@types+node@26.4.1_@vitest+coverage-v8@5.0.0_jsdo_18e9b707100bbc247204c828275af4af/node_modules/vitest/dist/chunks/run.CQOUYP-x.js:2783:26\n    at file:///home/dev/dev-projects/bcb-wt-fio-dialog/node_modules/.pnpm/vitest@5.0.0_@opentelemetry+api@1.9.1_@types+node@26.4.1_@vitest+coverage-v8@5.0.0_jsdo_18e9b707100bbc247204c828275af4af/node_modules/vitest/dist/chunks/run.CQOUYP-x.js:3319:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///home/dev/dev-projects/bcb-wt-fio-dialog/node_modules/.pnpm/vitest@5.0.0_@opentelemetry+api@1.9.1_@types+node@26.4.1_@vitest+coverage-v8@5.0.0_jsdo_18e9b707100bbc247204c828275af4af/node_modules/vitest/dist/chunks/run.CQOUYP-x.js:3314:10)\n    at file:///home/dev/dev-projects/bcb-wt-fio-dialog/node_modules/.pnpm/vitest@5.0.0_@opentelemetry+api@1.9.1_@types+node@26.4.1_@vitest+coverage-v8@5.0.0_jsdo_18e9b707100bbc247204c828275af4af/node_modules/vitest/dist/chunks/run.CQOUYP-x.js:3299:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///home/dev/dev-projects/bcb-wt-fio-dialog/node_modules/.pnpm/vitest@5.0.0_@opentelemetry+api@1.9.1_@types+node@26.4.1_@vitest+coverage-v8@5.0.0_jsdo_18e9b707100bbc247204c828275af4af/node_modules/vitest/dist/chunks/run.CQOUYP-x.js:3257:10)"},"msg":"doctor_schedule_template_create_failed"}
+{"level":50,"time":1789436620430,"service":"bersoncare-webapp","pid":1758366,"correlationId":"83cf700a-b860-4737-bf7e-2a5e0bf01da4","scope":"api/doctor/courses/[id]","digest":"c70268aa","err":{"type":"ErrorLike","code":"42703","class":"42"},"msg":"server_runtime_error"}
+{"level":50,"time":1789436622055,"service":"bersoncare-webapp","pid":1758746,"scope":"api/doctor/courses","digest":"a2569eb6","err":{"type":"ErrorLike","code":"42703","class":"42"},"msg":"server_runtime_error"}
+{"level":50,"time":1789436622061,"service":"bersoncare-webapp","pid":1758746,"scope":"api/patient/courses/[courseId]/enroll","digest":"d1a47c93","err":{"type":"ErrorLike","code":"42703","class":"42"},"msg":"server_runtime_error"}
+{"level":50,"time":1789436622062,"service":"bersoncare-webapp","pid":1758746,"scope":"api/patient/courses/[courseId]/enroll","digest":"44bd1baf","err":{"type":"ErrorLike","code":"42703","class":"42"},"msg":"server_runtime_error"}
+{"level":50,"time":1789436622063,"service":"bersoncare-webapp","pid":1758746,"scope":"api/doctor/courses","digest":"c89277bc","err":{"type":"ErrorLike","code":"42703","class":"42"},"msg":"server_runtime_error"}
+{"level":50,"time":1789436623164,"service":"bersoncare-webapp","pid":1758987,"err":{"type":"Error"},"challengeId":"challenge-1","msg":"[booking/public/confirm] verified public booking was not created"}
+
+ Test Files  127 passed | 2 skipped (129)
+      Tests  696 passed | 2 expected fail | 2 skipped (700)
+   Start at  04:42:45
+   Duration  57.96s (import 72%, tests 12%, transform 10%, setup 3%, worker 1%)
+
+     Import  353 modules were evaluated 2647 times · 64.50s total, 72% of tracked time
+             ~25.93s faster with isolate: false — shared modules are evaluated once per worker instead of once per file
+             learn more: https://vitest.dev/guide/improving-performance#test-isolation
+
+ci-steps: PASS test (60s)
+{"level":50,"time":1789436625325,"service":"bersoncare-webapp","pid":1759516,"scope":"api/admin/notification-templates","digest":"a6a19501","err":{"type":"ErrorLike"},"mechanic":"branding","msg":"server_runtime_error"}
+{"level":50,"time":1789436625696,"service":"bersoncare-webapp","pid":1759607,"scope":"api/doctor/comments#list","digest":"9fc97154","err":{"type":"ErrorLike","code":"42703","class":"42"},"msg":"server_runtime_error"}
+{"level":50,"time":1789436628426,"service":"bersoncare-webapp","pid":1760123,"err":{"type":"Error"},"action":"identity_session_start","msg":"identity boundary crossing was not recorded"}
+{"level":50,"time":1789436628502,"service":"bersoncare-webapp","pid":1760123,"err":{"type":"Error"},"reason":"Error: DATABASE_URL is not set","method":"test","msg":"user login event was not recorded"}
+{"level":50,"time":1789436628504,"service":"bersoncare-webapp","pid":1760123,"err":{"type":"Error"},"action":"identity_session_start","msg":"identity boundary crossing was not recorded"}
+{"level":50,"time":1789436628504,"service":"bersoncare-webapp","pid":1760123,"err":{"type":"Error"},"reason":"Error: DATABASE_URL is not set","method":"test","msg":"user login event was not recorded"}
+{"level":50,"time":1789436628505,"service":"bersoncare-webapp","pid":1760123,"err":{"type":"Error"},"action":"identity_session_start","msg":"identity boundary crossing was not recorded"}
+{"level":50,"time":1789436628505,"service":"bersoncare-webapp","pid":1760123,"err":{"type":"Error"},"reason":"Error: DATABASE_URL is not set","method":"test","msg":"user login event was not recorded"}
+{"level":50,"time":1789436628506,"service":"bersoncare-webapp","pid":1760123,"err":{"type":"Error"},"action":"identity_session_start","msg":"identity boundary crossing was not recorded"}
+{"level":50,"time":1789436628506,"service":"bersoncare-webapp","pid":1760123,"err":{"type":"Error"},"reason":"Error: DATABASE_URL is not set","method":"test","msg":"user login event was not recorded"}
+# Subtest: a destructive mode without the confirmation token refuses and touches nothing
+ok 69 - a destructive mode without the confirmation token refuses and touches nothing
+  ---
+  duration_ms: 35.715163
+  type: 'test'
+  ...
+# Subtest: --check refuses the destructive confirmation token instead of quietly accepting it
+ok 70 - --check refuses the destructive confirmation token instead of quietly accepting it
+  ---
+  duration_ms: 39.277154
+  type: 'test'
+  ...
+# Subtest: an unknown argument prints usage and refuses; no argument can name a database
+ok 71 - an unknown argument prints usage and refuses; no argument can name a database
+  ---
+  duration_ms: 130.709374
+  type: 'test'
+  ...
+# Subtest: the wrapper refuses off the documented DEV/TEST host and on a PROD host
+ok 72 - the wrapper refuses off the documented DEV/TEST host and on a PROD host
+  ---
+  duration_ms: 117.388177
+  type: 'test'
+  ...
+# Subtest: a swapped target identity is refused before anything is dumped or dropped
+ok 73 - a swapped target identity is refused before anything is dumped or dropped
+  ---
+  duration_ms: 267.615273
+  type: 'test'
+  ...
+# Subtest: a missing or unusable TEST source is refused before the destructive phase
+ok 74 - a missing or unusable TEST source is refused before the destructive phase
+  ---
+  duration_ms: 1187.16353
+  type: 'test'
+  ...
+# Subtest: a non-local admin channel is refused
+ok 75 - a non-local admin channel is refused
+  ---
+  duration_ms: 283.043159
+  type: 'test'
+  ...
+# Subtest: a live DEV writer stops the refresh with a named operator action and no process is killed
+ok 76 - a live DEV writer stops the refresh with a named operator action and no process is killed
+  ---
+  duration_ms: 1294.946416
+  type: 'test'
+  ...
+# Subtest: a target already fail-closed at CONNECTION LIMIT 0 refuses until the previous recovery is finished
+ok 77 - a target already fail-closed at CONNECTION LIMIT 0 refuses until the previous recovery is finished
+  ---
+  duration_ms: 848.896695
+  type: 'test'
+  ...
+# Subtest: --check proves readiness, changes nothing and leaves the env files byte-identical
+ok 78 - --check proves readiness, changes nothing and leaves the env files byte-identical
+  ---
+  duration_ms: 896.040202
+  type: 'test'
+  ...
+# Subtest: --execute copies accepted TEST product data and keeps every DEV-owned value
+not ok 79 - --execute copies accepted TEST product data and keeps every DEV-owned value
+  ---
+  duration_ms: 3010.336785
+  type: 'test'
+  location: '/home/dev/dev-projects/bcb-wt-fio-dialog/deploy/host/refresh-dev-from-test.test.mjs:525:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    the wrapper leaked temporary directories: bcb-dev-refresh-credentials.i0Jws1, bcb-dev-refresh-keys.cbecrn
+    + actual - expected
+    
+    + [
+    +   'bcb-dev-refresh-credentials.i0Jws1',
+    +   'bcb-dev-refresh-keys.cbecrn'
+    + ]
+    - []
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+    0: 'bcb-dev-refresh-credentials.i0Jws1'
+    1: 'bcb-dev-refresh-keys.cbecrn'
+  operator: 'deepStrictEqual'
+  stack: |-
+    assertNoLeftoverTempDirs (file:///home/dev/dev-projects/bcb-wt-fio-dialog/deploy/host/refresh-dev-from-test.test.mjs:373:10)
+    TestContext.<anonymous> (file:///home/dev/dev-projects/bcb-wt-fio-dialog/deploy/host/refresh-dev-from-test.test.mjs:556:3)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: no TEST environment value, credential or lock survives into DEV
+ok 80 - no TEST environment value, credential or lock survives into DEV
+  ---
+  duration_ms: 3205.890276
+  type: 'test'
+  ...
+# Subtest: a target with no credential of its own does not inherit the source one
+ok 81 - a target with no credential of its own does not inherit the source one
+  ---
+  duration_ms: 3113.412222
+  type: 'test'
+  ...
+# Subtest: the DEV signing secret is re-pinned: dropping the repin is caught, not tolerated
+ok 82 - the DEV signing secret is re-pinned: dropping the repin is caught, not tolerated
+  ---
+  duration_ms: 2763.302315
+  type: 'test'
+  ...
+# Subtest: a neutered DEV-state restore cannot pass: the no-op mutation is caught by row state
+ok 83 - a neutered DEV-state restore cannot pass: the no-op mutation is caught by row state
+  ---
+  duration_ms: 2397.347885
+  type: 'test'
+  ...
+# Subtest: a DEV-owned credential of an organization that TEST does not carry is dropped, counted and named
+ok 84 - a DEV-owned credential of an organization that TEST does not carry is dropped, counted and named
+  ---
+  duration_ms: 2477.245973
+  type: 'test'
+  ...
+# Subtest: without the absent-organization policy the refresh dies after the destructive boundary
+ok 85 - without the absent-organization policy the refresh dies after the destructive boundary
+  ---
+  duration_ms: 2655.487945
+  type: 'test'
+  ...
+# Subtest: a global DEV row is never dropped as an orphan, and no absent-org drop is reported
+ok 86 - a global DEV row is never dropped as an orphan, and no absent-org drop is reported
+  ---
+  duration_ms: 3251.642628
+  type: 'test'
+  ...
+# Subtest: the recreated DEV target is born closed and stays closed until the one success boundary
+ok 87 - the recreated DEV target is born closed and stays closed until the one success boundary
+  ---
+  duration_ms: 3535.271502
+  type: 'test'
+  ...
+# Subtest: a run that fails after the destructive boundary leaves DEV closed and names the recovery
+ok 88 - a run that fails after the destructive boundary leaves DEV closed and names the recovery
+  ---
+  duration_ms: 2983.316984
+  type: 'test'
+  ...
+# Subtest: PASS is unreachable without the canonical migrate-dev gate, which runs before the reopen
+ok 89 - PASS is unreachable without the canonical migrate-dev gate, which runs before the reopen
+  ---
+  duration_ms: 3301.558871
+  type: 'test'
+  ...
+# Subtest: a failed migration gate is not an after-PASS instruction: it fails the refresh
+ok 90 - a failed migration gate is not an after-PASS instruction: it fails the refresh
+  ---
+  duration_ms: 3176.381537
+  type: 'test'
+  ...
+# Subtest: the migration gate is handed this run's own held host-lock descriptor
+ok 91 - the migration gate is handed this run's own held host-lock descriptor
+  ---
+  duration_ms: 3258.134783
+  type: 'test'
+  ...
+# Subtest: --execute never puts a DEV credential in argv or in its own output
+ok 92 - --execute never puts a DEV credential in argv or in its own output
+  ---
+  duration_ms: 3605.526435
+  type: 'test'
+  ...
+# Subtest: an empty DEV-owned capture refuses before the destructive phase
+ok 93 - an empty DEV-owned capture refuses before the destructive phase
+  ---
+  duration_ms: 1464.4218
+  type: 'test'
+  ...
+# Subtest: a failed DEV-owned state restore never reports PASS and names the rollback
+ok 94 - a failed DEV-owned state restore never reports PASS and names the rollback
+  ---
+  duration_ms: 2916.83282
+  type: 'test'
+  ...
+# Subtest: a surviving TEST environment lock is fatal, not a warning
+ok 95 - a surviving TEST environment lock is fatal, not a warning
+  ---
+  duration_ms: 2527.43949
+  type: 'test'
+  ...
+# Subtest: a migrator that kept a capability after reconcile fails the rollback run
+ok 96 - a migrator that kept a capability after reconcile fails the rollback run
+  ---
+  duration_ms: 2460.436977
+  type: 'test'
+  ...
+# Subtest: an env file written during the run fails the run instead of reporting PASS
+ok 97 - an env file written during the run fails the run instead of reporting PASS
+  ---
+  duration_ms: 2623.521801
+  type: 'test'
+  ...
+# Subtest: the declaration-owned port-context line the migration gate re-renders is not an env violation
+ok 98 - the declaration-owned port-context line the migration gate re-renders is not an env violation
+  ---
+  duration_ms: 2280.764953
+  type: 'test'
+  ...
+# Subtest: --rollback requires the confirmation token and an absolute, real custom archive
+ok 99 - --rollback requires the confirmation token and an absolute, real custom archive
+  ---
+  duration_ms: 1386.513267
+  type: 'test'
+  ...
+# Subtest: --rollback puts the pre-refresh DEV rows back and reruns the declaration reconcile
+ok 100 - --rollback puts the pre-refresh DEV rows back and reruns the declaration reconcile
+  ---
+  duration_ms: 3333.860474
+  type: 'test'
+  ...
+# Subtest: a failed declaration reconcile in rollback never reports PASS and leaves the recovery named
+ok 101 - a failed declaration reconcile in rollback never reports PASS and leaves the recovery named
+  ---
+  duration_ms: 1919.285305
+  type: 'test'
+  ...
+# Subtest: a signal during the run runs the cleanup traps instead of leaking private state
+ok 102 - a signal during the run runs the cleanup traps instead of leaking private state
+  ---
+  duration_ms: 1089.289808
+  type: 'test'
+  ...
+# Subtest: общий transport предъявляет публичную surface identity, а не голый loopback Host
+ok 103 - общий transport предъявляет публичную surface identity, а не голый loopback Host
+  ---
+  duration_ms: 406.221268
+  type: 'test'
+  ...
+# Subtest: неизвестный Host: 404 маршрутизации — громкий отказ с телом ответа, а не тихий успех
+ok 104 - неизвестный Host: 404 маршрутизации — громкий отказ с телом ответа, а не тихий успех
+  ---
+  duration_ms: 307.782087
+  type: 'test'
+  ...
+# Subtest: заявленный в manifest 503 feature-flag не считается отказом transport
+ok 105 - заявленный в manifest 503 feature-flag не считается отказом transport
+  ---
+  duration_ms: 808.929652
+  type: 'test'
+  ...
+# Subtest: отказ сети не превращается в выполненную работу
+ok 106 - отказ сети не превращается в выполненную работу
+  ---
+  duration_ms: 480.057481
+  type: 'test'
+  ...
+# Subtest: пустой INTERNAL_JOB_SECRET останавливает задание до запроса
+ok 107 - пустой INTERNAL_JOB_SECRET останавливает задание до запроса
+  ---
+  duration_ms: 207.47474
+  type: 'test'
+  ...
+# Subtest: APP_BASE_URL без валидного origin останавливает задание до запроса
+ok 108 - APP_BASE_URL без валидного origin останавливает задание до запроса
+  ---
+  duration_ms: 223.734357
+  type: 'test'
+  ...
+# Subtest: задание без записи в manifest не выполняется
+ok 109 - задание без записи в manifest не выполняется
+  ---
+  duration_ms: 296.990603
+  type: 'test'
+  ...
+# Subtest: the gate produces coverage for the marked window with the caller-stated check count
+ok 110 - the gate produces coverage for the marked window with the caller-stated check count
+  ---
+  duration_ms: 1104.310837
+  type: 'test'
+  ...
+# Subtest: each caller states its own check count instead of inheriting a hardcoded one
+ok 111 - each caller states its own check count instead of inheriting a hardcoded one
+  ---
+  duration_ms: 1152.612286
+  type: 'test'
+  ...
+# Subtest: a red diagnostic gate warns and leaves the running TEST deploy alive
+ok 112 - a red diagnostic gate warns and leaves the running TEST deploy alive
+  ---
+  duration_ms: 1089.730074
+  type: 'test'
+  ...
+# Subtest: coverage is refused when no window start was marked before the restart
+ok 113 - coverage is refused when no window start was marked before the restart
+  ---
+  duration_ms: 5.661519
+  type: 'test'
+  ...
+# Subtest: coverage is refused when the caller states no check count
+ok 114 - coverage is refused when the caller states no check count
+  ---
+  duration_ms: 45.953302
+  type: 'test'
+  ...
+# Subtest: the library refuses to run as an entrypoint
+ok 115 - the library refuses to run as an entrypoint
+  ---
+  duration_ms: 6.121931
+  type: 'test'
+  ...
+# Subtest: the three TEST reset entrypoints agree on postgres ownership
+ok 116 - the three TEST reset entrypoints agree on postgres ownership
+  ---
+  duration_ms: 16.063657
+  type: 'test'
+  ...
+# Subtest: the TEST reset entrypoints do not recreate or elevate the retired owner role
+ok 117 - the TEST reset entrypoints do not recreate or elevate the retired owner role
+  ---
+  duration_ms: 10.69751
+  type: 'test'
+  ...
+# Subtest: prints the Host for an exact HTTP(S) application origin
+ok 118 - prints the Host for an exact HTTP(S) application origin
+  ---
+  duration_ms: 145.793114
+  type: 'test'
+  ...
+# Subtest: rejects values that could inject or disguise a health Host header
+ok 119 - rejects values that could inject or disguise a health Host header
+  ---
+  duration_ms: 679.971012
+  type: 'test'
+  ...
+# Subtest: renders redacted Gitleaks finding locations from SARIF
+ok 120 - renders redacted Gitleaks finding locations from SARIF
+  ---
+  duration_ms: 126.032449
+  type: 'test'
+  ...
+# Subtest: checked push exits non-zero when a discovered Actions run is red
+ok 121 - checked push exits non-zero when a discovered Actions run is red
+  ---
+  duration_ms: 1279.231121
+  type: 'test'
+  ...
+# Subtest: reports only deprecated, major, and pre-1.0 minor dependency drift
+ok 122 - reports only deprecated, major, and pre-1.0 minor dependency drift
+  ---
+  duration_ms: 12.407172
+  type: 'test'
+  ...
+# Subtest: parses pnpm outdated JSON when pnpm prefixes a registry warning
+ok 123 - parses pnpm outdated JSON when pnpm prefixes a registry warning
+  ---
+  duration_ms: 1.266575
+  type: 'test'
+  ...
+# Subtest: deduplicates findings, repeats them weekly, and reports recovery
+ok 124 - deduplicates findings, repeats them weekly, and reports recovery
+  ---
+  duration_ms: 0.26115
+  type: 'test'
+  ...
+# Subtest: target baseline contains exactly four reviewed product tariffs
+ok 125 - target baseline contains exactly four reviewed product tariffs
+  ---
+  duration_ms: 3.222653
+  type: 'test'
+  ...
+# Subtest: retired linked-phone setting is removed from rows and function allowlists
+ok 126 - retired linked-phone setting is removed from rows and function allowlists
+  ---
+  duration_ms: 0.204012
+  type: 'test'
+  ...
+# Subtest: singleton policy seed ignores volatile DEV operator metadata
+ok 127 - singleton policy seed ignores volatile DEV operator metadata
+  ---
+  duration_ms: 0.243672
+  type: 'test'
+  ...
+# Subtest: active environment fixture is excluded by registry id, not by name
+ok 128 - active environment fixture is excluded by registry id, not by name
+  ---
+  duration_ms: 3.64683
+  type: 'test'
+  ...
+# Subtest: an active tariff with missing billing fields fails closed
+ok 129 - an active tariff with missing billing fields fails closed
+  ---
+  duration_ms: 1.489554
+  type: 'test'
+  ...
+# Subtest: a complete-looking price drift still requires review
+ok 130 - a complete-looking price drift still requires review
+  ---
+  duration_ms: 0.799992
+  type: 'test'
+  ...
+# Subtest: an expired exception fails closed and demands review
+ok 131 - an expired exception fails closed and demands review
+  ---
+  duration_ms: 4.449127
+  type: 'test'
+  ...
+# Subtest: an unrelated advisory remains a gate failure
+ok 132 - an unrelated advisory remains a gate failure
+  ---
+  duration_ms: 0.913405
+  type: 'test'
+  ...
+1..132
+# tests 132
+# suites 0
+# pass 131
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 70036.948652
+ ELIFECYCLE  Command failed with exit code 1.
+ci-steps: FAIL test:scripts (71s)
+{"level":50,"time":1789436638590,"service":"bersoncare-webapp","pid":1761975,"err":{"type":"Error"},"mediaId":"55555555-5555-4555-8555-555555555555","msg":"[purgePendingMediaDeleteBatch] s3 delete failed"}
+{"level":50,"time":1789436638610,"service":"bersoncare-webapp","pid":1761975,"err":{"type":"Error"},"mediaId":"55555555-5555-4555-8555-555555555555","uploadId":"upload-1","msg":"[purgePendingMediaDeleteBatch] multipart abort failed; retry identity kept"}
+{"level":40,"time":1789436638618,"service":"bersoncare-webapp","pid":1761975,"mediaId":"55555555-5555-4555-8555-555555555555","msg":"[purgePendingMediaDeleteBatch] DB completion was not confirmed; retry requested"}
+{"level":50,"time":1789436638619,"service":"bersoncare-webapp","pid":1761975,"err":{"type":"Error"},"mediaId":"55555555-5555-4555-8555-555555555555","msg":"[purgePendingMediaDeleteBatch] s3 delete failed"}
+{"level":30,"time":1789436638619,"service":"bersoncare-webapp","pid":1761975,"mediaId":"55555555-5555-4555-8555-555555555555","uploadId":"upload-1","msg":"[purgePendingMediaDeleteBatch] multipart upload already absent; continuing purge"}
+{"level":40,"time":1789436638639,"service":"bersoncare-webapp","pid":1761975,"mediaId":"55555555-5555-4555-8555-555555555555","key":"media/other-media-id/poster/poster.jpg","msg":"[collectS3KeysForMediaPurge] skipped untrusted poster_s3_key; trying canonical poster prefix list"}
+{"level":30,"time":1789436643031,"service":"bersoncare-webapp","pid":1762387,"event":"booking.confirmation_email.enqueued","bookingId":"booking-1","enqueued":true,"msg":"booking confirmation email queued"}
+{"level":30,"time":1789436643048,"service":"bersoncare-webapp","pid":1762387,"event":"booking.confirmation_email.enqueued","bookingId":"booking-1","enqueued":true,"msg":"booking confirmation email queued"}
+{"level":50,"time":1789436651367,"service":"bersoncare-webapp","pid":1763229,"err":{"type":"Error"},"organizationId":"org-1","appointmentId":"appointment-1","msg":"[booking/public] merge candidates for a public booking were not recorded"}
+{"level":50,"time":1789436661277,"service":"bersoncare-webapp","pid":1764145,"correlationId":"e06783d9-9178-4575-be6a-fefbdd8001f7","operatorErrorDetail":{"type":"Error","code":"42501","class":"42","message":"insert into \"be_patient_package_items\" (\"id\",\"patient_package_id\",\"service_id\",\"quantity\") values ($1, $2, $3, $4) - permission denied for table be_patient_package_items","stack":"Error: insert into \"be_patient_package_items\" (\"id\",\"patient_package_id\",\"service_id\",\"quantity\") values ($1, $2, $3, $4) - permission denied for table be_patient_package_items\n    at /home/dev/dev-projects/bcb-wt-fio-dialog/apps/webapp/src/app/api/booking-engine/patientPackagesRouteShared.unit.test.ts:25:7\n    at file:///home/dev/dev-projects/bcb-wt-fio-dialog/node_modules/.pnpm/vitest@5.0.0_@opentelemetry+api@1.9.1_@types+node@26.4.1_@vitest+coverage-v8@5.0.0_jsdo_18e9b707100bbc247204c828275af4af/node_modules/vitest/dist/chunks/run.CQOUYP-x.js:1628:35\n    at file:///home/dev/dev-projects/bcb-wt-fio-dialog/node_modules/.pnpm/vitest@5.0.0_@opentelemetry+api@1.9.1_@types+node@26.4.1_@vitest+coverage-v8@5.0.0_jsdo_18e9b707100bbc247204c828275af4af/node_modules/vitest/dist/chunks/run.CQOUYP-x.js:2783:26\n    at file:///home/dev/dev-projects/bcb-wt-fio-dialog/node_modules/.pnpm/vitest@5.0.0_@opentelemetry+api@1.9.1_@types+node@26.4.1_@vitest+coverage-v8@5.0.0_jsdo_18e9b707100bbc247204c828275af4af/node_modules/vitest/dist/chunks/run.CQOUYP-x.js:3319:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///home/dev/dev-projects/bcb-wt-fio-dialog/node_modules/.pnpm/vitest@5.0.0_@opentelemetry+api@1.9.1_@types+node@26.4.1_@vitest+coverage-v8@5.0.0_jsdo_18e9b707100bbc247204c828275af4af/node_modules/vitest/dist/chunks/run.CQOUYP-x.js:3314:10)\n    at file:///home/dev/dev-projects/bcb-wt-fio-dialog/node_modules/.pnpm/vitest@5.0.0_@opentelemetry+api@1.9.1_@types+node@26.4.1_@vitest+coverage-v8@5.0.0_jsdo_18e9b707100bbc247204c828275af4af/node_modules/vitest/dist/chunks/run.CQOUYP-x.js:3299:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///home/dev/dev-projects/bcb-wt-fio-dialog/node_modules/.pnpm/vitest@5.0.0_@opentelemetry+api@1.9.1_@types+node@26.4.1_@vitest+coverage-v8@5.0.0_jsdo_18e9b707100bbc247204c828275af4af/node_modules/vitest/dist/chunks/run.CQOUYP-x.js:3257:10)\n    at file:///home/dev/dev-projects/bcb-wt-fio-dialog/node_modules/.pnpm/vitest@5.0.0_@opentelemetry+api@1.9.1_@types+node@26.4.1_@vitest+coverage-v8@5.0.0_jsdo_18e9b707100bbc247204c828275af4af/node_modules/vitest/dist/chunks/run.CQOUYP-x.js:3876:64"},"msg":"patient_package_operation_failed"}
+
+ Test Files  548 passed | 11 skipped (559)
+      Tests  3139 passed | 40 skipped (3179)
+   Start at  04:42:46
+   Duration  111.63s (import 68%, transform 15%, tests 12%, setup 4%, worker 2%)
+
+ci-steps: PASS test:webapp (115s)
