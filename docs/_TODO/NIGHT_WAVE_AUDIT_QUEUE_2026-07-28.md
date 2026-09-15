@@ -3045,3 +3045,14 @@ wt/leads-notify | — | РАЗРЕШЕНИЕ РАСХОЖДЕНИЯ ДВУХ А�
   аудитора («красный только из-за неприменённой миграции») выдержало мою проверку. Одна правка
   моя и прямая в `feat`: проба хранила старый код темы и после перевода на `doctor_leads` получала
   `unsupported_lead_notification_topic` — изменён ровно вход, одна строка, проверки не тронуты.
+
+- `68ce69a7e` — выкладка на TEST (`deploy-test-20260915`, gpt-5.6-sol high, режим ops): **ГОТОВО**.
+  Отчёт `TEST_DEPLOY_EVIDENCE_2026-09-15.md` ветки `wt/leads-notify`. Моя собственная проверка, не по
+  отчёту: в `/opt/projects/bersoncarebot-test` голова `bb91018eccef` — ровно тот коммит, на котором
+  зелёный полный CI; `bersoncarebot-{api,webapp,scheduler,media-worker}-test.service` — все четыре
+  `active running`; `curl -H 'Host: test.therapysto.ru' http://127.0.0.1:6300/api/health` →
+  `{"ok":true,"db":"up"}`; `background-jobs-cli --verify-installed --env test` → `OK` (12 заданий,
+  расхождений нет). Остаточное, кодом не лечится и в работу не берётся: у 33 preview-записей нет
+  исходников в TEST S3, поэтому preview-health остаётся `degraded`; на хосте два `failed`-юнита
+  Certbot, к приложению не относятся; `bersoncarebot-jitsi-test.service` крутится в
+  `activating auto-restart` — моё наблюдение, в этой выкладке не участвовало.
