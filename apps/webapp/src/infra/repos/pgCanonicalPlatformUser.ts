@@ -1,5 +1,9 @@
 import { and, asc, eq, isNotNull, isNull, ne, or, sql } from 'drizzle-orm';
-import { getWebappSqlDb, type WebappSqlExecutor } from '@/infra/db/runWebappSql';
+import {
+  getWebappSqlDb,
+  runWebappNamedRoot,
+  type WebappSqlExecutor,
+} from '@/infra/db/runWebappSql';
 import { drizzlePrimaryPhoneCol } from '@/infra/repos/userContactsSql';
 import { drizzleFioCols, drizzleUserIdentityFioJoin } from '@/infra/repos/userIdentityFioSql';
 import {
@@ -158,7 +162,13 @@ export async function findTrustedCanonicalUserIdByPhone(
 export async function findTrustedCanonicalUserIdByPhoneFromPool(
   phoneNormalized: string,
 ): Promise<string | null> {
-  return findTrustedCanonicalUserIdByPhone(getWebappSqlDb(), phoneNormalized);
+  const result = await runWebappNamedRoot<{ platform_user_id: string | null }>(
+    getWebappSqlDb(),
+    'app.read_public_lead_trusted_phone_owner(text)',
+    [phoneNormalized],
+    sql`SELECT app.read_public_lead_trusted_phone_owner(${phoneNormalized}::text) AS platform_user_id`,
+  );
+  return result.rows[0]?.platform_user_id ?? null;
 }
 
 export async function findCanonicalUserIdByChannelBinding(
