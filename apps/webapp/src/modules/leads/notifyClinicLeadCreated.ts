@@ -7,16 +7,17 @@ import type { ClinicLeadNotificationProfilesPort } from './clinicNotificationPro
 import type { Lead } from './types';
 
 const LEAD_CREATED_TOPIC = 'lead.created' as const;
-const LEAD_NOTIFICATION_TOPIC_CODE = 'doctor_patient_messages' as const;
+const LEAD_NOTIFICATION_TOPIC_CODE = 'doctor_leads' as const;
 
 export type NotifyClinicLeadCreatedDeps = NotifyDoctorPatientMessageToStaffDeps & {
   clinicLeadNotificationProfiles: ClinicLeadNotificationProfilesPort;
 };
 
 /**
- * The current staff-notification channel/preferences model has no separate lead topic.
- * Reuse the existing patient-message topic rather than silently creating a second preference
- * surface; only active owner/admin members of this lead's organization are selected by the port.
+ * Тема у заявки своя — «Заявки» (решение владельца 15.09), а не тема сообщений пациента: иначе
+ * выключить сообщения означало бы выключить и заявки. Сама тема показывается в кабинете только
+ * при тарифе и включённой механике заявок; получателей отбирает порт — активные owner/admin
+ * этой организации.
  *
  * Аудиторию И способ доставки отдаёт ОДИН порт. Причина не в экономии запросов: заявку создаёт
  * только публичная дверь, у которой принципал ОРГАНИЗАЦИИ, а у этого класса реляционного пути к

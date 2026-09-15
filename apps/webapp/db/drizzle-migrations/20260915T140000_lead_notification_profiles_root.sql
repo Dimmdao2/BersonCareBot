@@ -28,7 +28,7 @@ PARALLEL RESTRICTED
 SET search_path TO 'pg_catalog'
 AS $$
 DECLARE
-  v_organization_id uuid := app.current_org_id();
+  v_organization_id uuid;
   v_result jsonb;
 BEGIN
   PERFORM app.require_accepted_context(
@@ -43,7 +43,9 @@ BEGIN
     'app.read_clinic_lead_notification_profiles(uuid,text)'::regprocedure
   );
 
-  IF p_topic_code IS DISTINCT FROM 'doctor_patient_messages' THEN
+  v_organization_id := app.current_org_id();
+
+  IF p_topic_code IS DISTINCT FROM 'doctor_leads' THEN
     RETURN jsonb_build_object('ok', false, 'code', 'unsupported_lead_notification_topic');
   END IF;
 
