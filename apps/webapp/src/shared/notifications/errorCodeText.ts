@@ -33,6 +33,7 @@ const ERROR_CODE_TEXT: Record<string, string> = {
   lead_email_verification_required: notificationText.authVerifiedEmailRequired,
   captcha_required: notificationText.leadCaptchaRequired,
   captcha_unavailable: notificationText.authCaptchaUnavailable,
+  oauth_role_not_allowed: notificationText.authOauthRoleNotAllowed,
 
   // --- коды входа и подтверждения ---
   expired_code: notificationText.authCodeInvalidOrExpired,

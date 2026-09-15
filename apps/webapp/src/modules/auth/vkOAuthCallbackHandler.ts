@@ -6,10 +6,6 @@ import {
   registrationAttemptIdFromOAuthState,
 } from '@/app-layer/product-analytics/recordAuthRegistration';
 import { exchangeVkCode, fetchVkUserInfo } from '@/modules/auth/oauthVkService';
-import { recordAuthLogin } from '@/app-layer/product-analytics/recordAuthLogin';
-import { setSessionFromUser } from '@/modules/auth/service';
-import { getPostAuthRedirectTarget } from '@/modules/auth/redirectPolicy';
-import { reconcileDbRoleWithEnvRole, resolveRoleAsync } from '@/modules/auth/envRole';
 import { resolveUserIdForVkOAuth } from '@/modules/auth/oauthVkResolve';
 import type { OAuthBindingsPort } from '@/modules/auth/oauthBindingsPort';
 import type { UserByPhonePort } from '@/modules/auth/userByPhonePort';
@@ -18,11 +14,15 @@ import {
   getVkIdClientSecret,
   getVkIdRedirectUri,
 } from '@/modules/system-settings/integrationRuntime';
-import { deriveVkPkceCodeVerifier, parseVerifiedSignedOAuthState } from '@/modules/auth/oauthSignedState';
-import { enterStaffSecuritySelfPrincipal } from '@/app-layer/principal/staffSecuritySelfPrincipal';
-import { isPlatformUserUuid } from '@/shared/platform-user/isPlatformUserUuid';
+import {
+  deriveVkPkceCodeVerifier,
+  parseVerifiedSignedOAuthState,
+  roleLoginPortalFromOAuthState,
+} from '@/modules/auth/oauthSignedState';
 import { isOAuthProviderEnabled } from '@/modules/auth/authChannelPolicy';
 import { notificationText } from '@/shared/notifications/notificationText';
+import { authPolicyNameForRoleLoginPortal } from '@/modules/auth/roleLogin';
+import { completeOAuthWebLoginRedirectUrls } from '@/modules/auth/oauthWebSession';
 
 const LOG_BASE = {
   authMethod: 'oauth_vk' as const,
@@ -80,11 +80,15 @@ export async function handleVkOAuthCallbackGet(
       { status: 403 },
     );
   }
+  const roleLoginPortal = roleLoginPortalFromOAuthState(verifiedState);
 
   // Defense in depth: closes the race window between /oauth/start (which already gates on this
   // toggle) and this callback, in case the admin disables the provider mid-flight (owner ruling
   // 2026-07-24, R2 fail-closed server-side) — same pattern as the other three providers.
-  const vkOAuthEnabled = await isOAuthProviderEnabled('vk');
+  const vkOAuthEnabled = await isOAuthProviderEnabled(
+    'vk',
+    authPolicyNameForRoleLoginPortal(roleLoginPortal),
+  );
   const clientId = (await getVkIdApplicationId()).trim();
   const redirectUri = (await getVkIdRedirectUri()).trim();
   const secret = (await getVkIdClientSecret()).trim();
@@ -168,70 +172,31 @@ export async function handleVkOAuthCallbackGet(
     );
   }
 
-  let sessionUser;
-  try {
-    if (isPlatformUserUuid(resolved.userId)) {
-      enterStaffSecuritySelfPrincipal(resolved.userId, 'auth/oauth-vk:provider-verified-self');
-    }
-    sessionUser = await deps.userByPhone.findByUserId(resolved.userId);
-  } catch {
-    await logOAuthFailure(attemptId, 'db_error', 'session_set', resolved.userId);
-    return NextResponse.redirect(redirectToAppQuery('db_error'));
-  }
-
-  if (!sessionUser) {
-    await logOAuthFailure(attemptId, 'session_failed', 'session_set', resolved.userId);
-    return NextResponse.redirect(redirectToAppQuery('session_failed'));
-  }
-
-  // C-4 (2026-07-26): see the equivalent comment in oauthWebSession.ts — reconciled against the
-  // just-read DB role so a resolver that never promotes anyone anymore cannot demote an existing
-  // staff account logging in via VK ID OAuth.
-  const role = reconcileDbRoleWithEnvRole(
-    sessionUser.role,
-    await resolveRoleAsync({
-      phone: sessionUser.phone,
-      telegramId: sessionUser.bindings.telegramId,
-      maxId: sessionUser.bindings.maxId,
-    }),
-  );
-
-  try {
-    await setSessionFromUser(
-      {
-        ...sessionUser,
-        role,
-        displayName: oauthName?.trim() || sessionUser.displayName || oauthEmail || vkId,
-      },
-      'vk_oauth',
-    );
-  } catch {
-    await logOAuthFailure(attemptId, 'session_failed', 'session_set', resolved.userId);
-    return NextResponse.redirect(redirectToAppQuery('session_failed'));
-  }
-
-  await recordAuthLogin({
-    userId: sessionUser.userId,
-    entryChannel: 'browser',
+  const done = await completeOAuthWebLoginRedirectUrls({
+    userId: resolved.userId,
+    displayNameHint: oauthName?.trim() || oauthEmail || vkId,
     authMethod: 'vk_oauth',
+    userByPhone: deps.userByPhone,
+    next: verifiedState.next,
+    roleLoginPortal,
+    appBaseUrl: appBase,
   });
+
+  if (!done.ok) {
+    await logOAuthFailure(attemptId, done.reason, 'session_set', resolved.userId);
+    return NextResponse.redirect(redirectToAppQuery(done.reason));
+  }
 
   if (resolved.accountOutcome === 'created') {
     await recordAuthRegistrationSuccess({
       ...LOG_BASE,
       attemptId,
       stage: 'session_set',
-      userId: sessionUser.userId,
+      userId: resolved.userId,
       contactValue: oauthEmail ?? oauthPhone ?? 'vk',
       isNewAccount: true,
     });
   }
 
-  const finalRedirect = getPostAuthRedirectTarget(
-    role,
-    verifiedState.next ?? null,
-    null,
-    verifiedState.roleLoginPortal ?? null,
-  );
-  return NextResponse.redirect(new URL(finalRedirect, appBase));
+  return NextResponse.redirect(done.redirectUrl);
 }

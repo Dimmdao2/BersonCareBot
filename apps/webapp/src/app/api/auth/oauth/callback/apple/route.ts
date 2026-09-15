@@ -7,7 +7,10 @@ import {
   logOAuthWebCallbackRegistrationSuccess,
 } from '@/app-layer/product-analytics/registrationOAuthWebCallback';
 import { registrationAttemptIdFromOAuthState } from '@/app-layer/product-analytics/recordAuthRegistration';
-import { parseVerifiedSignedOAuthState } from '@/modules/auth/oauthSignedState';
+import {
+  parseVerifiedSignedOAuthState,
+  roleLoginPortalFromOAuthState,
+} from '@/modules/auth/oauthSignedState';
 import {
   getAppleOauthClientId,
   getAppleOauthRedirectUri,
@@ -27,6 +30,7 @@ import {
   oauthWebLoginErrorRedirect,
 } from '@/modules/auth/oauthWebSession';
 import { isOAuthProviderEnabled } from '@/modules/auth/authChannelPolicy';
+import { authPolicyNameForRoleLoginPortal } from '@/modules/auth/roleLogin';
 
 /**
  * POST /api/auth/oauth/callback/apple — Sign in with Apple (`response_mode=form_post`).
@@ -34,9 +38,6 @@ import { isOAuthProviderEnabled } from '@/modules/auth/authChannelPolicy';
 export async function POST(request: Request) {
   stampBootstrapPrincipal('api/auth/oauth/callback/apple:POST', request);
   const appBase = env.APP_BASE_URL;
-  if (!(await isOAuthProviderEnabled('apple'))) {
-    return NextResponse.redirect(new URL(oauthWebLoginErrorRedirect('oauth_disabled'), appBase));
-  }
   const ct = request.headers.get('content-type') ?? '';
   if (!ct.includes('application/x-www-form-urlencoded')) {
     return NextResponse.redirect(
@@ -63,6 +64,11 @@ export async function POST(request: Request) {
   if (!verified || !verified.nonce) {
     await logOAuthWebCallbackFailure(logBase, 'invalid_state');
     return NextResponse.redirect(new URL(oauthWebLoginErrorRedirect('invalid_state'), appBase));
+  }
+  const roleLoginPortal = roleLoginPortalFromOAuthState(verified);
+  if (!(await isOAuthProviderEnabled('apple', authPolicyNameForRoleLoginPortal(roleLoginPortal)))) {
+    await logOAuthWebCallbackFailure(logBase, 'oauth_disabled');
+    return NextResponse.redirect(new URL(oauthWebLoginErrorRedirect('oauth_disabled'), appBase));
   }
 
   const errorParam = params.get('error');
@@ -175,7 +181,7 @@ export async function POST(request: Request) {
     authMethod: 'apple_oauth',
     userByPhone: deps.userByPhone,
     next: verified.next,
-    roleLoginPortal: verified.roleLoginPortal,
+    roleLoginPortal,
   });
 
   if (!done.ok) {

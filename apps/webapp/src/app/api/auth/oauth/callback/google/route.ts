@@ -7,7 +7,10 @@ import {
   logOAuthWebCallbackRegistrationSuccess,
 } from '@/app-layer/product-analytics/registrationOAuthWebCallback';
 import { registrationAttemptIdFromOAuthState } from '@/app-layer/product-analytics/recordAuthRegistration';
-import { parseVerifiedSignedOAuthState } from '@/modules/auth/oauthSignedState';
+import {
+  parseVerifiedSignedOAuthState,
+  roleLoginPortalFromOAuthState,
+} from '@/modules/auth/oauthSignedState';
 import {
   getGoogleClientId,
   getGoogleClientSecret,
@@ -24,6 +27,7 @@ import {
 } from '@/modules/auth/oauthWebSession';
 import { isOAuthProviderEnabled } from '@/modules/auth/authChannelPolicy';
 import { notificationText } from '@/shared/notifications/notificationText';
+import { authPolicyNameForRoleLoginPortal } from '@/modules/auth/roleLogin';
 
 /**
  * GET /api/auth/oauth/callback/google — веб-логин Google (не календарь). Refresh token не сохраняем.
@@ -47,12 +51,16 @@ export async function GET(request: Request) {
       { status: 403 },
     );
   }
+  const roleLoginPortal = roleLoginPortalFromOAuthState(verifiedState);
 
   const deps = buildAppDeps();
   // Defense in depth: closes the race window between /oauth/start (which already gates on this
   // toggle) and this callback, in case the admin disables the provider mid-flight (owner ruling
   // 2026-07-24, R2 fail-closed server-side).
-  const googleOAuthEnabled = await isOAuthProviderEnabled('google');
+  const googleOAuthEnabled = await isOAuthProviderEnabled(
+    'google',
+    authPolicyNameForRoleLoginPortal(roleLoginPortal),
+  );
   const clientId = (await getGoogleClientId()).trim();
   const clientSecret = (await getGoogleClientSecret()).trim();
   const redirectUri = (await getGoogleOauthLoginRedirectUri()).trim();
@@ -127,7 +135,7 @@ export async function GET(request: Request) {
     authMethod: 'google_oauth',
     userByPhone: deps.userByPhone,
     next: verifiedState.next,
-    roleLoginPortal: verifiedState.roleLoginPortal,
+    roleLoginPortal,
   });
 
   if (!done.ok) {

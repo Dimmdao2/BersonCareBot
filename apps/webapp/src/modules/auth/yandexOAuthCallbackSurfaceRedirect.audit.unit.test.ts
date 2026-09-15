@@ -22,6 +22,8 @@ vi.mock('@/shared/lib/surface/requestSurface.server', () => ({
 }));
 vi.mock('@/modules/auth/oauthSignedState', () => ({
   parseVerifiedSignedOAuthState: fakes.parseVerifiedSignedOAuthState,
+  roleLoginPortalFromOAuthState: (state: { roleLoginPortal?: 'doctor' | 'patient' | 'admin' }) =>
+    state.roleLoginPortal ?? 'patient',
 }));
 vi.mock('@/modules/auth/yandexOAuthConfig', () => ({
   resolveYandexOAuthConfig: fakes.resolveYandexOAuthConfig,

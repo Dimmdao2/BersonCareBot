@@ -155,7 +155,7 @@ export async function POST(request: Request) {
   const tzOpt = {
     browserCalendarIana: browserCalendarIana?.trim() || null,
     next: safeNext,
-    roleLoginPortal: safeNext ? roleLoginPortal : null,
+    roleLoginPortal: roleLoginPortal ?? null,
   };
 
   try {
