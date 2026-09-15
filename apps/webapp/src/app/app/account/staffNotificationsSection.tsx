@@ -1,10 +1,11 @@
 import type { ReactNode } from 'react';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { resolveDoctorWorkspaceModules } from '@/app-layer/guards/workspaceModuleAccess';
+import type { DoctorWorkspaceAccessContext } from '@/app-layer/guards/requireRole';
 import { runWithStaffSecuritySelfPrincipal } from '@/app-layer/principal/staffSecuritySelfPrincipal';
 import { DoctorNotificationChannelsSection } from '@/app/app/settings/DoctorNotificationChannelsSection';
 import { buildDoctorNotificationTopicModels } from '@/modules/doctor-notifications/doctorProfileTopicChannelsModel';
 import { parseSpecialistTaskReminderChannels } from '@/modules/specialist-tasks/reminderChannels';
-import type { DoctorWorkspaceContext } from '@/modules/doctor-workspace/types';
 import type { loadStaffAccountPageContext } from './accountContext';
 
 /**
@@ -32,10 +33,7 @@ import type { loadStaffAccountPageContext } from './accountContext';
 export async function loadStaffNotificationsSection(
   deps: ReturnType<typeof buildAppDeps>,
   session: Awaited<ReturnType<typeof loadStaffAccountPageContext>>['session'],
-  workspaceContext: Pick<
-    DoctorWorkspaceContext,
-    'organizationId' | 'canAccessClinicalWorkspace'
-  > | null,
+  workspaceAccess: DoctorWorkspaceAccessContext | null,
 ): Promise<ReactNode> {
   const hasTelegram = Boolean(session.user.bindings.telegramId?.trim());
   const hasMax = Boolean(session.user.bindings.maxId?.trim());
@@ -48,11 +46,18 @@ export async function loadStaffNotificationsSection(
         deps.topicChannelPrefs.listByUserId(session.user.userId),
       ]),
     );
-  const doctorSettings = workspaceContext?.canAccessClinicalWorkspace
+  const doctorSettings = workspaceAccess?.canAccessClinicalWorkspace
     ? await deps.systemSettings.listSettingsByScope('doctor', {
-        organizationId: workspaceContext.organizationId,
+        organizationId: workspaceAccess.organizationId,
       })
     : [];
+  const workspaceModules = workspaceAccess
+    ? await resolveDoctorWorkspaceModules(
+        deps,
+        workspaceAccess,
+        doctorSettings.find((setting) => setting.key === 'doctor_workspace_composition') ?? null,
+      )
+    : null;
   const globalWebPushEnabled =
     channelPrefs.find((preference) => preference.channelCode === 'web_push')
       ?.isEnabledForNotifications !== false;
@@ -68,6 +73,7 @@ export async function loadStaffNotificationsSection(
       emailVerified: Boolean(accountEmail.emailVerifiedAt),
       hasWebPushSubscription,
       globalWebPushEnabled,
+      hasLeads: workspaceModules?.leads === true,
     },
     taskReminderChannels,
   );
