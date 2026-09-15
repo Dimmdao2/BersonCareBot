@@ -243,7 +243,9 @@ describe('final TEST delivery safety gate', () => {
 
   // Каждый канал сверяется со СВОИМ списком — и видно это по тому, доходит ли сообщение до
   // адаптера, а не по значению предиката. Чужой идентификатор (номер из списка телефонов в поле
-  // телеграма и наоборот) обязан подавляться так же, как посторонний.
+  // телеграма и наоборот) обязан подавляться так же, как посторонний. Почты здесь нет намеренно:
+  // обе её стороны держат отдельные сценарии ниже — разрешённый получатель доходит неизменным, а
+  // посторонний подавляется; третья защита на тот же класс была бы дублем (§10a).
   it.each([
     { channel: 'telegram', allowed: { chatId: 700000001 }, foreign: { chatId: 800000001 } },
     { channel: 'max', allowed: { userId: 800000001 }, foreign: { userId: 700000001 } },
@@ -252,7 +254,6 @@ describe('final TEST delivery safety gate', () => {
       allowed: { phoneNormalized: '+7 (918) 000-00-02' },
       foreign: { phoneNormalized: '+79180000009' },
     },
-    { channel: 'email', allowed: { email: 'owner@example.org' }, foreign: { email: 'owner@example.com' } },
     {
       channel: 'web_push',
       allowed: { pushUserId: '22222222-2222-4222-8222-222222222222' },
