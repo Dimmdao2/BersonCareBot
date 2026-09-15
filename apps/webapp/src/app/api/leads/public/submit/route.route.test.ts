@@ -52,6 +52,7 @@ type CreatedLead = {
   organizationId: string;
   platformUserId: string;
   phoneNormalized: string | null;
+  preferredContact: string | null;
   messageText: string;
 };
 let created: CreatedLead[] = [];
@@ -298,17 +299,38 @@ describe('Л3 публичный приём заявки — чужая клин
     expect(created).toEqual([]);
   });
 
-  it('заполненный телефон едет в заявку и личность заявителя не меняет', async () => {
+  it('обязательный телефон и способ связи едут в заявку, а личность остаётся почтовой', async () => {
     // §18в канона идентичности: телефон из заявки идентичностью не становится. Заявитель — учётная
     // запись подтверждённой почты, а телефон виден врачу как оставленный контакт.
-    configuredFields = [...configuredFields, field('phone')];
+    configuredFields = [
+      ...configuredFields,
+      field('phone', { isRequired: true }),
+      field('preferred_contact'),
+    ];
     const response = await post(
-      baseBody({ phone: '+79990000000', captcha: await solvedCaptchaFor(EMAIL) }),
+      baseBody({
+        phone: '+79990000000',
+        preferredContact: 'Звонить после 18:00',
+        captcha: await solvedCaptchaFor(EMAIL),
+      }),
     );
     expect(response.status).toBe(201);
-    expect(created.map((lead) => [lead.platformUserId, lead.phoneNormalized])).toEqual([
-      [USER, '+79990000000'],
+    expect(created).toMatchObject([
+      {
+        platformUserId: USER,
+        phoneNormalized: '+79990000000',
+        preferredContact: 'Звонить после 18:00',
+      },
     ]);
+  });
+
+  it('мусор в телефоне отвечает 400 invalid_phone и заявку не создаёт', async () => {
+    configuredFields = [...configuredFields, field('phone')];
+    const response = await post(
+      baseBody({ phone: 'not-a-phone', captcha: await solvedCaptchaFor(EMAIL) }),
+    );
+    expect([response.status, (await response.json()).error]).toEqual([400, 'invalid_phone']);
+    expect(created).toEqual([]);
   });
 
   it('значение поля, выключенного клиникой, в заявку не попадает', async () => {
