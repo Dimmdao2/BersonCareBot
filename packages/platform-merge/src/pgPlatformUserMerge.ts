@@ -595,7 +595,14 @@ export async function mergePlatformUsersInTransaction(
     }
     await assertOpenTestAttemptsSafe(client, targetId, duplicateId);
   }
-  await reconcileOpenTestAttemptsForMerge(client, targetId, duplicateId);
+  if (!options?.medicalConflictApproval) {
+    // За дверью врача КАЖДУЮ попытку дубликата уже перевела на цель SECURITY DEFINER-функция БД
+    // (`UPDATE public.test_attempts SET patient_user_id = p_target_user_id`), поэтому строк дубликата
+    // здесь не остаётся и сверять нечего. Роль врача при этом не вправе писать в `test_results`, а
+    // право на запись PostgreSQL проверяет на плане, а не на найденных строках: шаг падал 42501 на
+    // заведомо пустой выборке. Тот же обход, что и у остального переноса зависимых строк ниже.
+    await reconcileOpenTestAttemptsForMerge(client, targetId, duplicateId);
+  }
   await reconcilePatientLfkAssignmentsForMerge(client, targetId, duplicateId, reason);
   await reconcileActiveTreatmentProgramInstancesForMerge(client, targetId, duplicateId, reason);
 

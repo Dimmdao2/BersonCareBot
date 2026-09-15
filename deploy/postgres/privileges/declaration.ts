@@ -10785,8 +10785,21 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
           "updated_by"
         ],
         "operations": [
-          "INSERT"
+          "INSERT",
+          "SELECT"
         ],
+        // `ON CONFLICT (key, scope, organization_id) … DO NOTHING` — это вывод арбитра, и PostgreSQL
+        // требует на нём SELECT по колонкам арбитра: без него INSERT отбивается «permission denied
+        // for table system_settings» ещё на плане. Отсюда SELECT ровно на три колонки арбитра —
+        // значение настройки этот шов не читает. Тот же вывод независимо даёт лексический разбор
+        // тела (`extractRelationOperations`: `on conflict ( … ) do nothing` → SELECT).
+        "operationColumns": {
+          "SELECT": [
+            "key",
+            "scope",
+            "organization_id"
+          ]
+        },
         "evidence": "pg16-function-body-lexical-upper-bound"
       }
     ],

@@ -76,6 +76,14 @@ function candidatePrivilegeStatements(installed) {
   const doorTableRe = /^(GRANT|REVOKE) .* ON TABLE "public"\."patient_merge_candidates" (TO|FROM) /u;
   const newDoors =
     /^GRANT EXECUTE ON FUNCTION app\.(record_patient_medical_merge_conflict|transfer_staff_approved_platform_user_merge_data|read_staff_patient_medical_merge_conflict|refuse_staff_patient_medical_merge_conflict|resolve_platform_patient_medical_merge_conflicts)\(/u;
+  // Фикстура «конфликт в двух клиниках» заводит вторую клинику (живая на DEV одна), а на INSERT в
+  // `be_organizations` висит триггер `app.seed_reference_catalog_after_organization_insert()`. Его
+  // `ON CONFLICT … DO NOTHING` требует SELECT по колонкам арбитра, которого у владельца шва на DEV
+  // ещё нет: права реконсайлились с декларации, где объявлен был только INSERT. Кандидатный GRANT
+  // доезжает сюда по тому же принципу, что и права двери, — иначе прогон меряет старое состояние
+  // базы вместо кандидатного и краснеет на фикстуре, не дойдя до предмета проверки.
+  const seedTriggerGrant =
+    /^GRANT SELECT \(.*\) ON TABLE "public"\."system_settings" TO "app_seam_specialist_provision_owner";$/u;
   const policyRe = /^CREATE POLICY "([^"]+)" ON ("[^"]+"\."[^"]+")/u;
   for (const raw of lines) {
     const line = raw.trim();
@@ -83,7 +91,7 @@ function candidatePrivilegeStatements(installed) {
       out.push(line);
       continue;
     }
-    if (grantRe.test(line) || newDoors.test(line)) {
+    if (grantRe.test(line) || newDoors.test(line) || seedTriggerGrant.test(line)) {
       out.push(line);
       continue;
     }
