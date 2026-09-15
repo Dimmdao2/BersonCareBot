@@ -28518,7 +28518,7 @@ const REV10_CONTEXT = {
       relationSurfaces: [{ relation: 'public.operator_health_alert_sent',
         columns: ['dedup_key', 'severity', 'sent_at'],
         operations: ['SELECT' as const, 'INSERT' as const],
-        evidence: 'closed was_sent/record_sent/latest_for_prefix branches in the declared root' as const }],
+        evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
     // Единственная дверь постановки суточной сводки здоровья. До неё вебапп писал очередь прямым
     // INSERT под `app_staff`, у которого на ней нет ни одной привилегии, — сводка не уходила ни
