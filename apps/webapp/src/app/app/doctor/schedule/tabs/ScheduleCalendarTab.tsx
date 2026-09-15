@@ -542,6 +542,20 @@ type KpiRowTabProps = {
   selectedKpiFilters: ScheduleKpiFilterKey[];
   periodLabel: string;
   onKpiClick?: (key: ScheduleKpiFilterKey | 'recordsInPeriod') => void;
+  /**
+   * Режим списка: плитки остаются ФИЛЬТРАМИ, но без чисел. Владелец 15.09: «можно скрывать вообще
+   * цифры в КПИ» → «ты в режиме списка убрал фильтры — а надо было цифры в них». Числа в ленте
+   * описывали бы не то, что на экране: они посчитаны по якорному периоду (`visibleRange`), а лента
+   * тянет историю месяцами и конца периода не имеет. Сам отбор по плиткам в ленте работает —
+   * `kpiFilterPredicate` применяется в `visibleListAppointments`.
+   *
+   * Следствия, обязательные вместе с флагом: (1) клик больше не гасится по `value > 0` — значение
+   * якорного периода ничего не говорит о ленте, и нулём в нём запиралась бы рабочая плитка;
+   * (2) «Первичных» в ленте не показывается вовсе: этот предикат решает по `kpis.firstVisitIds`,
+   * собранному за якорный период, поэтому в ленте он отрезал бы её до этого периода, а не отбирал
+   * первичные. Остальные четыре предиката решают по самой записи и в ленте верны.
+   */
+  valuesHidden?: boolean;
 };
 
 function KpiRowTab({
@@ -550,7 +564,11 @@ function KpiRowTab({
   selectedKpiFilters,
   periodLabel,
   onKpiClick,
+  valuesHidden = false,
 }: KpiRowTabProps) {
+  const items = valuesHidden
+    ? KPI_ITEMS.filter(({ key }) => key !== 'firstVisitInPeriod')
+    : KPI_ITEMS;
   return (
     <div className="flex flex-col gap-2">
       {periodLabel ? (
@@ -564,7 +582,7 @@ function KpiRowTab({
         </p>
       ) : null}
       <div className="grid grid-cols-2 gap-2" data-testid="cal-kpi-row">
-      {KPI_ITEMS.map(({ key, label }) => {
+      {items.map(({ key, label }) => {
         const value = kpis?.[key] ?? 0;
         // «Записей всего» — не обычный фильтр: она отражает состояние «фильтров нет» (выделена по
         // умолчанию, пока список не сужен) и по клику СБРАСЫВАЕТ остальные, а не добавляется к ним
@@ -573,19 +591,19 @@ function KpiRowTab({
         // как у остальных плиток, появляется только при value > 0).
         const isRecordsTile = key === 'recordsInPeriod';
         const selected = isRecordsTile
-          ? selectedKpiFilters.length === 0 && value > 0
+          ? selectedKpiFilters.length === 0 && (valuesHidden || value > 0)
           : selectedKpiFilters.includes(key);
-        const handleClick =
-          onKpiClick && (isRecordsTile ? selectedKpiFilters.length > 0 : selected || value > 0)
-            ? () => onKpiClick(key)
-            : undefined;
+        const clickable = isRecordsTile
+          ? selectedKpiFilters.length > 0
+          : valuesHidden || selected || value > 0;
+        const handleClick = onKpiClick && clickable ? () => onKpiClick(key) : undefined;
         return (
           <DoctorStatCard
             key={key}
             id={`kpi-${key}`}
             title={label}
             value={
-              kpisLoading && kpis === null ? (
+              valuesHidden ? null : kpisLoading && kpis === null ? (
                 <span className="text-sm text-muted-foreground">…</span>
               ) : (
                 value
@@ -1131,7 +1149,21 @@ export function ScheduleCalendarTab({
   // получил бы урезанное расписание без единой возможности это отменить. Поэтому без плиток
   // фильтры не применяются вовсе: выбор в хранилище остаётся и оживёт вместе со статистикой.
   const showKpi = doctorStatisticsEnabled;
-  const activeKpiFilters = showKpi ? selectedKpiFilters : NO_KPI_FILTERS;
+  /**
+   * То же правило, что и абзацем выше, но для одной плитки: в режиме списка «Первичных» не
+   * показывается (её предикат считает по `kpis.firstVisitIds`, собранным за якорный период, и в
+   * ленте отрезал бы историю до него), поэтому в ленте он и НЕ ПРИМЕНЯЕТСЯ. Иначе человек,
+   * выбравший «Первичных» в календаре и переключившийся в список, получил бы урезанную ленту с
+   * невидимой причиной. Возврат в календарь показывает плитку и отбор снова — выбор не теряется.
+   */
+  const activeKpiFilters = useMemo(() => {
+    if (!showKpi) return NO_KPI_FILTERS;
+    if (renderMode !== 'list') return selectedKpiFilters;
+    const withoutFirstVisit = selectedKpiFilters.filter((key) => key !== 'firstVisitInPeriod');
+    return withoutFirstVisit.length === selectedKpiFilters.length
+      ? selectedKpiFilters
+      : withoutFirstVisit;
+  }, [renderMode, selectedKpiFilters, showKpi]);
   const [filterCacheReady, setFilterCacheReady] = useState(false);
   const isMobileViewport = useIsMobileViewport();
   const isWideScheduleLayout = useViewportMinWidth(1280);
@@ -1939,6 +1971,12 @@ export function ScheduleCalendarTab({
     });
   }, []);
 
+  /**
+   * Контролы фильтров идут одной колонкой; шаг между ними задаёт вызывающий. Владелец 15.09: «в
+   * фильтрах большие расстояния — можно чуть меньше» — 8px между контролами высотой 32px сжаты до
+   * 6px. Отступ строк от края блока владелец трогать не велел («ну хотя оставь»), поэтому padding
+   * карточки остался канонический.
+   */
   const renderScheduleFilters = (className: string, controlClassName?: string) => (
     <div className={className}>
       <DoctorCalendarToolbarFilter
@@ -1981,6 +2019,7 @@ export function ScheduleCalendarTab({
         />
         <span>Показывать отмены</span>
       </label>
+      {renderScheduleSearchControls()}
     </div>
   );
 
@@ -2049,129 +2088,130 @@ export function ScheduleCalendarTab({
 
   /**
    * Владелец 14.09: «в десктопном и планшетном виде надо верхнюю панель перенести в правый блок
-   * фильтров: сверху блок „Вид“ … ниже блок „Период“ … ниже уже идут фильтры». Блоки стоят над
+   * фильтров: сверху блок „Вид“ … ниже блок „Период“ … ниже уже идут фильтры». Блок стоит над
    * `renderScheduleFilters` во ВСЕХ трёх местах, где живёт панель: постоянно открытом `<aside>`
    * (xl+) и модалке фильтров — и на планшете, и на мобильном (владелец 15.09: «в модалке
    * мобильного пусть будет так же две верхние строки — выбор периода на экране и режима»).
    *
-   * «Список» — один из вариантов «Вид», отдельной иконки календаря нет. «Неделя» на мобильном не
-   * предлагается (владелец 15.09: «только без недели») — недельная сетка там всё равно не живёт,
-   * отдельный эффект разворачивает `weekgrid` обратно в `3days` на узком экране.
+   * Владелец 15.09: «слей блоки период и дата в один» — выбор длины периода (3 дня/неделя/месяц/
+   * список) и выбор самой даты были двумя отдельными карточками подряд, хотя описывают одно и то
+   * же: какой отрезок времени показан. Теперь это одна карточка в две строки; рамка, заголовок и
+   * межблочный зазор экономятся в пользу фильтров ниже.
    *
-   * Заголовки блоков скрыты на десктопе (`xl:hidden`, владелец 15.09) — в постоянно открытой
-   * панели они лишний шум; в модалке (планшет и мобильный) остаются: там блоки идут подряд без
+   * «Список» — один из вариантов длины периода, отдельной иконки календаря нет. «Неделя» на
+   * мобильном не предлагается (владелец 15.09: «только без недели») — недельная сетка там всё
+   * равно не живёт, отдельный эффект разворачивает `weekgrid` обратно в `3days` на узком экране.
+   *
+   * Заголовок блока скрыт на десктопе (`xl:hidden`, владелец 15.09) — в постоянно открытой
+   * панели он лишний шум; в модалке (планшет и мобильный) остаётся: там блоки идут подряд без
    * контекста страницы.
    */
-  const renderScheduleTopBlocks = (slotKey: 'aside' | 'modal') => (
-    <>
-      <section className={doctorSectionCardClass}>
-        <h2 className={cn(doctorSectionTitleClass, 'xl:hidden')}>Вид</h2>
-        <div className="flex flex-wrap gap-1" role="group" aria-label="Режим отображения">
-          {scheduleViewOptions.map(({ key, label }) => {
-            const active =
-              key === 'list' ? renderMode === 'list' : renderMode === 'calendar' && view === key;
-            return (
-              <Button
-                key={key}
-                type="button"
-                size="sm"
-                variant={active ? 'default' : 'outline'}
-                className={active ? undefined : INACTIVE_TOOLBAR_BUTTON_CLASS}
-                onClick={() => {
-                  setFiltersPanelOpen(false);
-                  if (view === 'day') {
-                    setDrillBackView(null);
-                    onDeepLinkChange('from', null);
-                  }
-                  if (key === 'list') {
-                    setRenderMode('list');
-                    return;
-                  }
-                  setRenderMode('calendar');
-                  setView(key);
-                }}
-                data-testid={key === 'list' ? 'render-btn-list' : `view-btn-${key}`}
-              >
-                {label}
-              </Button>
-            );
-          })}
-        </div>
-        {/* Drill-down «День»: показываем если сейчас day (клик по дню в месяце) */}
-        {view === 'day' ? (
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className={INACTIVE_TOOLBAR_BUTTON_CLASS}
-            onClick={() => {
-              setFiltersPanelOpen(false);
-              drillBack();
-            }}
-            data-testid="drill-back-btn"
-          >
-            ← Назад
-          </Button>
-        ) : null}
-      </section>
-
-      <section className={doctorSectionCardClass}>
-        <h2 className={cn(doctorSectionTitleClass, 'xl:hidden')}>Период</h2>
-        <div className="flex items-center gap-1">
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className={INACTIVE_TOOLBAR_BUTTON_CLASS}
-            onClick={() => {
-              setFiltersPanelOpen(false);
-              goToday();
-            }}
-            data-testid="period-today"
-          >
-            Сегодня
-          </Button>
-          <DoctorSchedulePeriodNav
-            label={periodNavLabelText}
-            labelRef={registerPeriodLabelNode(slotKey)}
-            onPrev={() => {
-              setFiltersPanelOpen(false);
-              shiftAnchor(-1);
-            }}
-            onNext={() => {
-              setFiltersPanelOpen(false);
-              shiftAnchor(1);
-            }}
-            onLabelClick={() => {
-              setFiltersPanelOpen(false);
-              // Тот же приём, что и на мобильном label-click: перед открытием общей модалки
-              // выбора даты подтягиваем `mobileVisibleDate` к текущему `anchorDate` — иначе
-              // DayPicker (использует `mobileVisibleDate`, не обновляемый стрелками вне
-              // мобильного вьюпорта) откроется на устаревшем месяце.
-              updateMobileVisibleDate(anchorDate, true);
-              setDatePickerOpen(true);
-            }}
-            prevAriaLabel="Предыдущий период"
-            nextAriaLabel="Следующий период"
-            labelAriaLabel="Перейти к дате"
-            prevTestId="period-prev"
-            nextTestId="period-next"
-            labelTestId="period-label"
-          />
-        </div>
-      </section>
-    </>
+  const renderSchedulePeriodBlock = (slotKey: 'aside' | 'modal') => (
+    <section className={doctorSectionCardClass}>
+      <h2 className={cn(doctorSectionTitleClass, 'xl:hidden')}>Период</h2>
+      <div className="flex flex-wrap gap-1" role="group" aria-label="Режим отображения">
+        {scheduleViewOptions.map(({ key, label }) => {
+          const active =
+            key === 'list' ? renderMode === 'list' : renderMode === 'calendar' && view === key;
+          return (
+            <Button
+              key={key}
+              type="button"
+              size="sm"
+              variant={active ? 'default' : 'outline'}
+              className={active ? undefined : INACTIVE_TOOLBAR_BUTTON_CLASS}
+              onClick={() => {
+                setFiltersPanelOpen(false);
+                if (view === 'day') {
+                  setDrillBackView(null);
+                  onDeepLinkChange('from', null);
+                }
+                if (key === 'list') {
+                  setRenderMode('list');
+                  return;
+                }
+                setRenderMode('calendar');
+                setView(key);
+              }}
+              data-testid={key === 'list' ? 'render-btn-list' : `view-btn-${key}`}
+            >
+              {label}
+            </Button>
+          );
+        })}
+      </div>
+      {/* Drill-down «День»: показываем если сейчас day (клик по дню в месяце) */}
+      {view === 'day' ? (
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className={cn(INACTIVE_TOOLBAR_BUTTON_CLASS, 'self-start')}
+          onClick={() => {
+            setFiltersPanelOpen(false);
+            drillBack();
+          }}
+          data-testid="drill-back-btn"
+        >
+          ← Назад
+        </Button>
+      ) : null}
+      <div className="flex items-center gap-1">
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className={INACTIVE_TOOLBAR_BUTTON_CLASS}
+          onClick={() => {
+            setFiltersPanelOpen(false);
+            goToday();
+          }}
+          data-testid="period-today"
+        >
+          Сегодня
+        </Button>
+        <DoctorSchedulePeriodNav
+          label={periodNavLabelText}
+          labelRef={registerPeriodLabelNode(slotKey)}
+          onPrev={() => {
+            setFiltersPanelOpen(false);
+            shiftAnchor(-1);
+          }}
+          onNext={() => {
+            setFiltersPanelOpen(false);
+            shiftAnchor(1);
+          }}
+          onLabelClick={() => {
+            setFiltersPanelOpen(false);
+            // Тот же приём, что и на мобильном label-click: перед открытием общей модалки
+            // выбора даты подтягиваем `mobileVisibleDate` к текущему `anchorDate` — иначе
+            // DayPicker (использует `mobileVisibleDate`, не обновляемый стрелками вне
+            // мобильного вьюпорта) откроется на устаревшем месяце.
+            updateMobileVisibleDate(anchorDate, true);
+            setDatePickerOpen(true);
+          }}
+          prevAriaLabel="Предыдущий период"
+          nextAriaLabel="Следующий период"
+          labelAriaLabel="Перейти к дате"
+          prevTestId="period-prev"
+          nextTestId="period-next"
+          labelTestId="period-label"
+        />
+      </div>
+    </section>
   );
 
   /**
    * Поиск по записям. Владелец 15.09: «поиск перенести под блок с выбором филиала/услуги/отмен —
-   * и в десктопе/планшете и в мобиле», поэтому блок отделён от `renderScheduleTopBlocks` и
-   * вызывается ПОСЛЕ `renderScheduleFilters`. С мобильного верхнего тулбара строка поиска убрана
-   * тем же решением — на телефоне она теперь живёт здесь же, в модалке фильтров.
+   * и в десктопе/планшете и в мобиле». Сначала это была отдельная карточка сразу под фильтрами,
+   * теперь — «поиск влей в фильтры» (владелец 15.09): строка поиска стоит последним контролом
+   * ВНУТРИ блока фильтров, рядом с филиалом/сотрудником/услугой/отменами. Она такой же фильтр
+   * выдачи, как они, и собственная рамка с заголовком делала из неё отдельную сущность.
+   * С мобильного верхнего тулбара строка убрана тем же решением — на телефоне она живёт здесь же,
+   * в модалке фильтров.
    */
-  const renderScheduleSearchBlock = () => (
-    <section className={doctorSectionCardClass}>
-      <h2 className={cn(doctorSectionTitleClass, 'xl:hidden')}>Поиск по записям</h2>
+  const renderScheduleSearchControls = () => (
+    <>
       <div className="relative">
         <Search
           className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
@@ -2216,7 +2256,7 @@ export function ScheduleCalendarTab({
           ) : null}
         </div>
       ) : null}
-    </section>
+    </>
   );
 
   const kpiFilterPredicate = useMemo<
@@ -3814,23 +3854,25 @@ export function ScheduleCalendarTab({
         </div>
 
         <aside className="hidden h-full min-h-0 w-full space-y-3 overflow-y-auto xl:block">
-          {renderScheduleTopBlocks('aside')}
+          {renderSchedulePeriodBlock('aside')}
           <section className={doctorSectionCardClass}>
             <h2 className={doctorSectionTitleClass}>Фильтры</h2>
-            {renderScheduleFilters('flex flex-col gap-2', 'w-full')}
+            {renderScheduleFilters('flex flex-col gap-1.5', 'w-full')}
           </section>
-          {renderScheduleSearchBlock()}
-          {/* Владелец 15.09: «в режиме списка можно скрывать вообще цифры в КПИ». Лента тянет
-              историю без конца — «период», за который посчитаны плитки, там не определён, и
-              числа описывали бы не то, что на экране. В ленте вместо них работает счётчик
-              найденного с датой начала (`renderScheduleSearchBlock`). */}
-          {showKpi && renderMode !== 'list' ? (
+          {/* Владелец 15.09: «в режиме списка можно скрывать вообще цифры в КПИ» — и сразу следом
+              «ты в режиме списка убрал фильтры, а надо было цифры в них». Плитки в ленте остаются
+              (это единственный доступ к отбору «Отмены/Переносы/По абонементу/Впереди»), уходят
+              только числа и подпись периода: и то и другое посчитано по якорному периоду, а лента
+              тянет историю месяцами. Сколько найдено — говорит счётчик в блоке фильтров
+              (`renderScheduleSearchControls`). */}
+          {showKpi ? (
             <KpiRowTab
               kpis={kpis}
               kpisLoading={kpisLoading}
               selectedKpiFilters={selectedKpiFilters}
-              periodLabel={kpiPeriod}
+              periodLabel={renderMode === 'list' ? '' : kpiPeriod}
               onKpiClick={handleKpiClick}
+              valuesHidden={renderMode === 'list'}
             />
           ) : null}
         </aside>
@@ -3941,23 +3983,22 @@ export function ScheduleCalendarTab({
       >
         <div id="schedule-filters-panel" className="flex flex-col gap-3">
           {/* Владелец 15.09: «в модалке мобильного пусть будет так же две верхние строки — выбор
-              периода на экране и режима» — блоки «Вид»/«Период» теперь показываются и на
-              мобильном (раньше стояли только для планшета). Поиск идёт ПОСЛЕ фильтров — «поиск
-              перенести под блок с выбором филиала/услуги/отмен … и в мобиле». */}
-          {renderScheduleTopBlocks('modal')}
-          {renderScheduleFilters('flex flex-col gap-2', 'w-full')}
-          {renderScheduleSearchBlock()}
-          {/* Владелец 15.09: «в режиме списка можно скрывать вообще цифры в КПИ». Лента тянет
-              историю без конца — «период», за который посчитаны плитки, там не определён, и
-              числа описывали бы не то, что на экране. В ленте вместо них работает счётчик
-              найденного с датой начала (`renderScheduleSearchBlock`). */}
-          {showKpi && renderMode !== 'list' ? (
+              периода на экране и режима» — блок «Период» (режим + дата одной карточкой, «слей
+              блоки период и дата в один») показывается и на мобильном, раньше стоял только для
+              планшета. Поиск — последняя строка блока фильтров («поиск влей в фильтры»). */}
+          {renderSchedulePeriodBlock('modal')}
+          {renderScheduleFilters('flex flex-col gap-1.5', 'w-full')}
+          {/* То же, что и в `<aside>`: в ленте плитки остаются отбором, без чисел и без подписи
+              периода (владелец 15.09: «ты в режиме списка убрал фильтры — а надо было цифры в
+              них»). Подробности и почему «Первичных» в ленте не показывается — у `valuesHidden`. */}
+          {showKpi ? (
             <KpiRowTab
               kpis={kpis}
               kpisLoading={kpisLoading}
               selectedKpiFilters={selectedKpiFilters}
-              periodLabel={kpiPeriod}
+              periodLabel={renderMode === 'list' ? '' : kpiPeriod}
               onKpiClick={handleKpiClick}
+              valuesHidden={renderMode === 'list'}
             />
           ) : null}
         </div>
