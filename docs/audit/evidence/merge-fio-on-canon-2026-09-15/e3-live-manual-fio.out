@@ -1,0 +1,6 @@
+# сценарии Э3 (ручная дверь), перенацеленные на ЭТОТ клон
+PASS M1 conflicting patronymics take the card the person chose
+PASS M2 the mirrored choice writes the other patronymic
+PASS M3 the only patronymic survives a card choice that has none
+RESIDUE {"platform_users":0,"user_identity":0}
+rc=0

@@ -1,0 +1,110 @@
+[2026-09-15T06:56:37+03:00] pid=2178070 WAITING for test lock :: sudo -n bash -lc 'cd /home/dev/dev-projects/bcb-wt-conflict-screens && RUN_PLATFORM_USER_MERGE_DB=1 exec apps/webapp/node_modules/.bin/tsx --test deploy/postgres/privileges/platform-user-merge.devDbProof.test.mjs'
+[2026-09-15T06:56:37+03:00] pid=2178070 ACQUIRED test lock :: sudo -n bash -lc 'cd /home/dev/dev-projects/bcb-wt-conflict-screens && RUN_PLATFORM_USER_MERGE_DB=1 exec apps/webapp/node_modules/.bin/tsx --test deploy/postgres/privileges/platform-user-merge.devDbProof.test.mjs'
+TAP version 13
+# Subtest: the proof stays bound to the live merge engine export
+ok 1 - the proof stays bound to the live merge engine export
+  ---
+  duration_ms: 719.615401
+  type: 'test'
+  ...
+# [platform-merge] [merge] merged duplicate into target {
+#   targetId: 'a5e10000-0000-4000-8000-000000000103',
+#   duplicateId: 'a5e10000-0000-4000-8000-000000000104',
+#   reason: 'phone_bind',
+#   mergeContactsSaved: [],
+#   mergeContext: undefined
+# }
+# [platform-merge] [merge] merged duplicate into target {
+#   targetId: 'a5e10000-0000-4000-8000-000000000107',
+#   duplicateId: 'a5e10000-0000-4000-8000-000000000108',
+#   reason: 'manual',
+#   mergeContactsSaved: [],
+#   mergeContext: undefined
+# }
+# [platform-merge] [merge] merged duplicate into target {
+#   targetId: 'a5e10000-0000-4000-8000-000000000109',
+#   duplicateId: 'a5e10000-0000-4000-8000-000000000110',
+#   reason: 'phone_bind',
+#   mergeContactsSaved: [],
+#   mergeContext: undefined
+# }
+# [platform-merge] [merge] merged duplicate into target {
+#   targetId: 'a5e10000-0000-4000-8000-000000000111',
+#   duplicateId: 'a5e10000-0000-4000-8000-000000000112',
+#   reason: 'phone_bind',
+#   mergeContactsSaved: [],
+#   mergeContext: undefined
+# }
+# [platform-merge] [merge] merged duplicate into target {
+#   targetId: 'a5e10000-0000-4000-8000-000000000113',
+#   duplicateId: 'a5e10000-0000-4000-8000-000000000114',
+#   reason: 'manual',
+#   mergeContactsSaved: [],
+#   mergeContext: undefined
+# }
+# [platform-merge] [merge] merged duplicate into target {
+#   targetId: 'a5e10000-0000-4000-8000-000000000115',
+#   duplicateId: 'a5e10000-0000-4000-8000-000000000116',
+#   reason: 'manual',
+#   mergeContactsSaved: [],
+#   mergeContext: undefined
+# }
+# [platform-merge] [merge] merged duplicate into target {
+#   targetId: 'a5e10000-0000-4000-8000-000000000117',
+#   duplicateId: 'a5e10000-0000-4000-8000-000000000118',
+#   reason: 'manual',
+#   mergeContactsSaved: [],
+#   mergeContext: undefined
+# }
+# [platform-merge] [merge] merged duplicate into target {
+#   targetId: 'a5e10000-0000-4000-8000-000000000119',
+#   duplicateId: 'a5e10000-0000-4000-8000-000000000120',
+#   reason: 'manual',
+#   mergeContactsSaved: [],
+#   mergeContext: undefined
+# }
+# [platform-merge] [merge] merged duplicate into target {
+#   targetId: 'a5e10000-0000-4000-8000-000000000221',
+#   duplicateId: 'a5e10000-0000-4000-8000-000000000222',
+#   reason: 'phone_bind',
+#   mergeContactsSaved: [],
+#   mergeContext: undefined
+# }
+# PASS same-organization clinical_visit blocks automatic merge
+# PASS same-organization clinical_complaint blocks automatic merge
+# PASS same-organization clinical_diagnosis blocks automatic merge
+# PASS same-organization clinical_anamnesis_trauma blocks automatic merge
+# PASS same-organization clinical_anamnesis_illness blocks automatic merge
+# PASS same-organization clinical_anamnesis_lifestyle blocks automatic merge
+# PASS same-organization doctor_notes blocks automatic merge
+# PASS same-organization symptom_trackings blocks automatic merge
+# PASS same-organization patient_lfk_assignments blocks automatic merge
+# PASS same-organization treatment_program_instances blocks automatic merge
+# PASS different-organization doctor notes merge
+# PASS two unattributed medical histories block automatic merge
+# PASS legacy unattributed history blocks merge against an attributed organization
+# PASS manual merge consolidates same-author same-day doctor notes
+# PASS cross-organization active programs keep their organization boundary
+# PASS canonical cross-organization notes merge with two active phone histories
+# PASS manual merge keeps one preferred auth channel across different channels
+# PASS manual merge deduplicates the same native push token
+# PASS manual merge consolidates colliding open test attempts without losing results
+# PASS manual merge reconciles same-organization active doctor programs
+# PASS wellbeing diary entries stay visible after singleton tracking dedup
+# proof_status=PASS scenarios=21 rollback=complete residual_rows=0
+# Subtest: live PostgreSQL enforces the organization merge gate and completes collision-prone transfers
+ok 2 - live PostgreSQL enforces the organization merge gate and completes collision-prone transfers
+  ---
+  duration_ms: 916.173646
+  type: 'test'
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 2
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1790.536106
+[2026-09-15T06:56:39+03:00] pid=2178070 RELEASED test lock (rc=0, 2s)
