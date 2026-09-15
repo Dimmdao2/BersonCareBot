@@ -472,6 +472,34 @@ describe('automatic account merge human-decision safety gate', () => {
 });
 
 describe('support account merge', () => {
+  /**
+   * Поломка: при ручном слиянии у двух карточек разные отчества, но форма не спрашивает человека
+   * и движок молча оставляет отчество target через COALESCE — врач видит выбранное движком ФИО.
+   * Оракул — AUTH_AND_IDENTITY_CANON.md §18а: при конфликте выбирает человек, и прежнего порядка
+   * приоритетов больше нет также в ручном слиянии.
+   */
+  it('refuses a manual merge when patronymics conflict but the resolution has no human choice', async () => {
+    const target = {
+      ...platformUserRow(targetId, 'Иванов Иван Петрович'),
+      first_name: 'Иван',
+      last_name: 'Иванов',
+      patronymic: 'Петрович',
+    };
+    const duplicate = {
+      ...platformUserRow(duplicateId, 'Иванов Иван Сергеевич'),
+      first_name: 'Иван',
+      last_name: 'Иванов',
+      patronymic: 'Сергеевич',
+    };
+    const { client } = clientForHumanDecision(target, duplicate);
+
+    await expect(
+      mergePlatformUsersInTransaction(client, targetId, duplicateId, 'manual', {
+        resolution: manualResolution(targetId, duplicateId),
+      }),
+    ).rejects.toThrow('human choice required for patronymic');
+  });
+
   it('moves a clinical visit when support merges the newer account back into the old account', async () => {
     const oldAccountId = duplicateId;
     const newAccountId = targetId;
