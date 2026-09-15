@@ -18,6 +18,7 @@ import {
   getCurrentSessionForPasswordChange,
 } from '@/modules/auth/service';
 import {
+  patientEmailGateForProtectedData,
   patientClientBusinessGate,
   resolvePlatformAccessContext,
 } from '@/app-layer/platform-access';
@@ -66,7 +67,15 @@ export async function requirePatientAccess(returnPath?: string): Promise<AppSess
 /** Как requirePatientAccess, плюс бизнес-доступ пациента: tier **patient** из БД (фаза C), без БД — fallback на телефон в сессии. */
 export async function requirePatientAccessWithPhone(returnPath?: string): Promise<AppSession> {
   const session = await requirePatientAccess(returnPath);
-  await requirePatientBusinessTierOrRedirect(session, returnPath ?? routePaths.patient);
+  const returnTo = returnPath ?? routePaths.patient;
+  await requirePatientBusinessTierOrRedirect(session, returnTo);
+  const emailGate = await patientEmailGateForProtectedData({
+    sessionRole: session.user.role,
+    pathname: returnTo,
+  });
+  if (emailGate.blocksProtectedData) {
+    redirect(`${routePaths.bindEmail}?next=${encodeURIComponent(returnTo)}`);
+  }
   return session;
 }
 
@@ -947,6 +956,19 @@ function patientActivationRequiredJson(returnPath: string) {
   );
 }
 
+function patientEmailRequiredJson(returnPath: string) {
+  const next = encodeURIComponent(returnPath);
+  return NextResponse.json(
+    {
+      ok: false,
+      error: 'patient_email_required',
+      message: notificationText.patientEmailRequired,
+      redirectTo: `${routePaths.bindEmail}?next=${next}`,
+    },
+    { status: 403 },
+  );
+}
+
 /**
  * Для Route Handlers под `/api/patient/*` и `/api/booking/*`: тот же критерий, что `requirePatientAccessWithPhone`
  * (`patientClientBusinessGate`). Перечень patient-business API — `patientApiPathIsPatientBusinessSurface` в `patientRouteApiPolicy`.
@@ -975,6 +997,14 @@ export async function requirePatientApiBusinessAccess(options?: {
   }
   if (gate === 'need_activation') {
     return { ok: false, response: patientActivationRequiredJson(returnPath) };
+  }
+
+  const emailGate = await patientEmailGateForProtectedData({
+    sessionRole: session.user.role,
+    pathname: returnPath,
+  });
+  if (emailGate.blocksProtectedData) {
+    return { ok: false, response: patientEmailRequiredJson(returnPath) };
   }
 
   const principal = await stampPatientPrincipalForApi(session);

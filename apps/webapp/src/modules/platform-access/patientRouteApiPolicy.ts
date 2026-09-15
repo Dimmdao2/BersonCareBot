@@ -1,4 +1,6 @@
 import type { ClientAccessTier } from './types';
+import type { PatientEmailGateState } from './ports';
+import type { UserRole } from '@/shared/types/session';
 
 /**
  * Единая политика маршрутов и API patient-контура (фаза D, MASTER_PLAN §5 D):
@@ -22,6 +24,27 @@ export type PatientEmailGateInput = {
   now: Date;
   pathname: string;
 };
+
+export type PatientEmailGatePolicy = {
+  decision: PatientEmailGateDecision;
+  shouldMarkFirstRequest: boolean;
+  blocksProtectedData: boolean;
+};
+
+export type PatientEmailGateEvaluation = PatientEmailGatePolicy & {
+  emailVerified: boolean;
+  shouldPromptNow: boolean;
+};
+
+type PatientEmailGateSubjectInput = {
+  sessionRole: UserRole;
+  now: Date;
+  pathname: string;
+};
+
+type PatientEmailGateStateLoader = (
+  markFirstRequest: boolean,
+) => Promise<PatientEmailGateState>;
 
 const PATIENT_EMAIL_REQUIREMENT_DELAY_MS = 14 * 24 * 60 * 60 * 1000;
 
@@ -132,6 +155,64 @@ export function resolvePatientEmailGateDecision({
   return now.getTime() - firstRequestedAtMs >= PATIENT_EMAIL_REQUIREMENT_DELAY_MS
     ? 'requirement'
     : 'request';
+}
+
+/**
+ * One email-access rule for every patient door. Non-patient roles never enter the patient policy;
+ * a soft request remains non-blocking, while the fourteen-day requirement closes protected data.
+ */
+export function resolvePatientEmailGatePolicy(
+  input: PatientEmailGateSubjectInput & PatientEmailGateState,
+): PatientEmailGatePolicy {
+  if (input.sessionRole !== 'client') {
+    return {
+      decision: 'none',
+      shouldMarkFirstRequest: false,
+      blocksProtectedData: false,
+    };
+  }
+
+  const decision = resolvePatientEmailGateDecision(input);
+  return {
+    decision,
+    shouldMarkFirstRequest:
+      decision === 'request' && input.emailFirstRequestedAt === null,
+    blocksProtectedData: decision === 'requirement',
+  };
+}
+
+async function evaluatePatientEmailGate(
+  input: PatientEmailGateSubjectInput,
+  loadState: PatientEmailGateStateLoader,
+  markFirstRequest: boolean,
+): Promise<PatientEmailGateEvaluation> {
+  const state = await loadState(false);
+  const policy = resolvePatientEmailGatePolicy({ ...input, ...state });
+  const shouldMarkNow = markFirstRequest && policy.shouldMarkFirstRequest;
+  if (shouldMarkNow) {
+    await loadState(true);
+  }
+  return {
+    ...policy,
+    emailVerified: state.emailVerified,
+    shouldPromptNow: policy.blocksProtectedData || shouldMarkNow,
+  };
+}
+
+/** Cabinet entry is the only surface that starts the persistent fourteen-day clock. */
+export async function evaluatePatientEmailGateForCabinetEntry(
+  input: PatientEmailGateSubjectInput,
+  loadState: PatientEmailGateStateLoader,
+): Promise<PatientEmailGateEvaluation> {
+  return evaluatePatientEmailGate(input, loadState, true);
+}
+
+/** API and server-action data doors enforce an existing requirement but never start the clock. */
+export async function evaluatePatientEmailGateForProtectedData(
+  input: PatientEmailGateSubjectInput,
+  loadState: PatientEmailGateStateLoader,
+): Promise<PatientEmailGateEvaluation> {
+  return evaluatePatientEmailGate(input, loadState, false);
 }
 
 /**

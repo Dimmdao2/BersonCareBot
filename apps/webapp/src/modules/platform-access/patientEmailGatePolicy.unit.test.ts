@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { resolvePatientEmailGateDecision } from './patientRouteApiPolicy';
+import {
+  evaluatePatientEmailGateForCabinetEntry,
+  evaluatePatientEmailGateForProtectedData,
+  resolvePatientEmailGateDecision,
+  resolvePatientEmailGatePolicy,
+} from './patientRouteApiPolicy';
 
 const NOW = new Date('2026-09-15T12:00:00.000Z');
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -77,5 +82,68 @@ describe('patient email gate policy', () => {
         pathname,
       }),
     ).toBe('none');
+  });
+
+  it('records the first cabinet request and asks the patient once', async () => {
+    let firstRequestedAt: string | null = null;
+    const marks: boolean[] = [];
+    const loadState = async (markFirstRequest: boolean) => {
+      marks.push(markFirstRequest);
+      if (markFirstRequest && firstRequestedAt === null) firstRequestedAt = NOW.toISOString();
+      return { emailVerified: false, emailFirstRequestedAt: firstRequestedAt };
+    };
+
+    const outcome = await evaluatePatientEmailGateForCabinetEntry(
+      { sessionRole: 'client', now: NOW, pathname: '/app/patient/messages' },
+      loadState,
+    );
+
+    expect(outcome).toMatchObject({
+      decision: 'request',
+      shouldMarkFirstRequest: true,
+      blocksProtectedData: false,
+      shouldPromptNow: true,
+    });
+    expect(marks).toEqual([false, true]);
+    expect(firstRequestedAt).toBe(NOW.toISOString());
+  });
+
+  it('keeps protected data open during the fourteen-day request period without moving the clock', async () => {
+    const marks: boolean[] = [];
+    const outcome = await evaluatePatientEmailGateForProtectedData(
+      { sessionRole: 'client', now: NOW, pathname: '/app/patient/messages' },
+      async (markFirstRequest) => {
+        marks.push(markFirstRequest);
+        return { emailVerified: false, emailFirstRequestedAt: daysAgo(3) };
+      },
+    );
+
+    expect(outcome.blocksProtectedData).toBe(false);
+    expect(marks).toEqual([false]);
+  });
+
+  it('blocks protected data when the fourteen-day requirement has started', async () => {
+    const outcome = await evaluatePatientEmailGateForProtectedData(
+      { sessionRole: 'client', now: NOW, pathname: '/app/patient/messages' },
+      async () => ({ emailVerified: false, emailFirstRequestedAt: daysAgo(14) }),
+    );
+
+    expect(outcome.blocksProtectedData).toBe(true);
+  });
+
+  it('never applies the patient email requirement to staff roles', () => {
+    expect(
+      resolvePatientEmailGatePolicy({
+        sessionRole: 'doctor',
+        emailVerified: false,
+        emailFirstRequestedAt: daysAgo(40),
+        now: NOW,
+        pathname: '/app/patient/messages',
+      }),
+    ).toEqual({
+      decision: 'none',
+      shouldMarkFirstRequest: false,
+      blocksProtectedData: false,
+    });
   });
 });

@@ -26,10 +26,15 @@ export {
   patientPathsAllowedDuringPhoneActivation,
   patientServerActionPageAllowsOnboardingOnly,
   patientSessionSnapshotHasPhone,
+  evaluatePatientEmailGateForCabinetEntry,
+  evaluatePatientEmailGateForProtectedData,
   resolvePatientEmailGateDecision,
+  resolvePatientEmailGatePolicy,
   resolvePatientLayoutPathname,
   type PatientEmailGateDecision,
+  type PatientEmailGateEvaluation,
   type PatientEmailGateInput,
+  type PatientEmailGatePolicy,
 } from './patientRouteApiPolicy';
 export { patientOnboardingServerActionSurfaceOk } from './onboardingServerActionSurface';
 export { resolvePatientCanViewAuthOnlyContent } from './resolvePatientCanViewAuthOnlyContent';

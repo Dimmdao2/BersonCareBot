@@ -2,9 +2,8 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requirePatientAccess } from '@/app-layer/guards/requireRole';
-import { loadPatientEmailGateState } from '@/app-layer/platform-access';
+import { patientEmailGateForCabinetEntry } from '@/app-layer/platform-access';
 import { routePaths } from '@/app-layer/routes/paths';
-import { resolvePatientEmailGateDecision } from '@/modules/platform-access';
 import { getSupportContactUrl } from '@/modules/system-settings/supportContactUrl';
 import { EmailAccountPanel } from '@/shared/ui/patient/EmailAccountPanel';
 import { PatientAppShell } from '@/shared/ui/patient/PatientAppShell';
@@ -32,22 +31,14 @@ export default async function BindEmailPage({ searchParams }: Props) {
   const deps = buildAppDeps();
   const { next } = await searchParams;
   const nextPath = safePatientNext(next);
-  const now = new Date();
-  let emailGateState = await loadPatientEmailGateState(false);
-  const emailFields = await deps.userProjection.getProfileEmailFields(session.user.userId);
-
-  if (emailGateState.emailVerified) redirect(nextPath);
-  if (emailGateState.emailFirstRequestedAt === null) {
-    emailGateState = await loadPatientEmailGateState(true);
-    if (emailGateState.emailVerified) redirect(nextPath);
-  }
-
-  const decision = resolvePatientEmailGateDecision({
-    ...emailGateState,
-    now,
+  const emailGate = await patientEmailGateForCabinetEntry({
+    sessionRole: session.user.role,
     pathname: nextPath,
   });
-  const canContinueWithoutEmail = decision !== 'requirement';
+  const emailFields = await deps.userProjection.getProfileEmailFields(session.user.userId);
+
+  if (emailGate.emailVerified) redirect(nextPath);
+  const canContinueWithoutEmail = !emailGate.blocksProtectedData;
   const supportContactHref = await getSupportContactUrl();
 
   return (

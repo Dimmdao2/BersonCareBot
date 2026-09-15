@@ -2,10 +2,12 @@ import type { ReactNode } from 'react';
 import { sessionMatchesTestAccountIdentifiers } from '@/config/testAccounts';
 import { headers } from 'next/headers';
 import { notFound, redirect } from 'next/navigation';
-import { loadPatientEmailGateState, patientClientBusinessGate } from '@/app-layer/platform-access';
+import {
+  patientClientBusinessGate,
+  patientEmailGateForCabinetEntry,
+} from '@/app-layer/platform-access';
 import {
   patientPathRequiresBoundPhone,
-  resolvePatientEmailGateDecision,
   resolvePatientLayoutPathname,
 } from '@/modules/platform-access';
 import { logger } from '@/infra/logging/logger';
@@ -95,32 +97,14 @@ export default async function PatientLayout({ children }: { children: ReactNode 
     redirect(`${routePaths.bindPhone}?next=${encodeURIComponent(returnTo)}`);
   }
 
-  // Every session-producing door reaches this one post-auth decision. The first soft request sets
-  // the only persistent clock; later requests in the grace period must not trap cabinet navigation.
-  if (databaseConfigured && session.user.role === 'client') {
-    const now = new Date();
-    let emailGateState = await loadPatientEmailGateState(false);
-    let emailGateDecision = resolvePatientEmailGateDecision({
-      ...emailGateState,
-      now,
-      pathname,
-    });
-    const isFirstRequest =
-      emailGateDecision === 'request' && emailGateState.emailFirstRequestedAt === null;
-    if (isFirstRequest) {
-      emailGateState = await loadPatientEmailGateState(true);
-      emailGateDecision = resolvePatientEmailGateDecision({
-        ...emailGateState,
-        now,
-        pathname,
-      });
-    }
-    if (
-      emailGateDecision === 'requirement' ||
-      (emailGateDecision === 'request' && isFirstRequest)
-    ) {
-      redirect(`${routePaths.bindEmail}?next=${encodeURIComponent(returnTo)}`);
-    }
+  // The shared policy owns the first-request decision and clock write. This layout only presents
+  // the request/requirement screen selected for this cabinet entry.
+  const emailGate = await patientEmailGateForCabinetEntry({
+    sessionRole: session.user.role,
+    pathname,
+  });
+  if (emailGate.shouldPromptNow) {
+    redirect(`${routePaths.bindEmail}?next=${encodeURIComponent(returnTo)}`);
   }
 
   if (session.user.role === 'client') {
