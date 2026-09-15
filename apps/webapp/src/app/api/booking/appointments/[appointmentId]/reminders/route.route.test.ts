@@ -4,7 +4,7 @@ const fakes = vi.hoisted(() => ({
   buildAppDeps: vi.fn(),
   requirePatientApiBusinessAccess: vi.fn(),
   getPatientAppointmentReminderPreference: vi.fn(),
-  setPatientAppointmentReminderPreset: vi.fn(),
+  setPatientAppointmentReminderOffsets: vi.fn(),
   getAppointment: vi.fn(),
   getBookingByCanonicalAppointment: vi.fn(),
   emitBookingEvent: vi.fn(),
@@ -20,12 +20,12 @@ import { PATCH } from './route';
 const appointmentId = '11111111-1111-4111-8111-111111111111';
 const bookingId = '22222222-2222-4222-8222-222222222222';
 
-function patchReminder(presetId: string | null, mutationId: string) {
+function patchReminder(offsetsMinutes: number[], mutationId: string) {
   return PATCH(
     new Request(`http://localhost/api/booking/appointments/${appointmentId}/reminders`, {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ presetId, mutationId }),
+      body: JSON.stringify({ offsetsMinutes, mutationId }),
     }),
     { params: Promise.resolve({ appointmentId }) },
   );
@@ -40,11 +40,11 @@ beforeEach(() => {
   fakes.getPatientAppointmentReminderPreference.mockResolvedValue({
     organizationId: '44444444-4444-4444-8444-444444444444',
     status: 'confirmed',
-    allowedPresetIds: ['day_before', 'two_hours_before'],
-    presetId: 'day_before',
+    availableOffsetsMinutes: [1440, 120],
+    selectedOffsetsMinutes: [1440],
     selectionSource: 'patient',
   });
-  fakes.setPatientAppointmentReminderPreset.mockResolvedValue(true);
+  fakes.setPatientAppointmentReminderOffsets.mockResolvedValue(true);
   fakes.getAppointment.mockResolvedValue({
     id: appointmentId,
     organizationId: '44444444-4444-4444-8444-444444444444',
@@ -69,7 +69,7 @@ beforeEach(() => {
   fakes.buildAppDeps.mockReturnValue({
     bookingEngine: {
       getPatientAppointmentReminderPreference: fakes.getPatientAppointmentReminderPreference,
-      setPatientAppointmentReminderPreset: fakes.setPatientAppointmentReminderPreset,
+      setPatientAppointmentReminderOffsets: fakes.setPatientAppointmentReminderOffsets,
       getAppointment: fakes.getAppointment,
     },
     patientBooking: {
@@ -81,16 +81,9 @@ beforeEach(() => {
 
 describe('patient appointment reminder preference', () => {
   it('does not deduplicate a later return to an earlier choice', async () => {
-    expect(
-      (await patchReminder('day_before', '55555555-5555-4555-8555-555555555551')).status,
-    ).toBe(200);
-    expect(
-      (await patchReminder('two_hours_before', '55555555-5555-4555-8555-555555555552'))
-        .status,
-    ).toBe(200);
-    expect(
-      (await patchReminder('day_before', '55555555-5555-4555-8555-555555555553')).status,
-    ).toBe(200);
+    expect((await patchReminder([1440], '55555555-5555-4555-8555-555555555551')).status).toBe(200);
+    expect((await patchReminder([120], '55555555-5555-4555-8555-555555555552')).status).toBe(200);
+    expect((await patchReminder([1440], '55555555-5555-4555-8555-555555555553')).status).toBe(200);
 
     const emitted = fakes.emitBookingEvent.mock.calls.map(
       ([event]) => (event as { idempotencyKey: string }).idempotencyKey,
@@ -99,12 +92,9 @@ describe('patient appointment reminder preference', () => {
   });
 
   it('does not schedule when the atomic write loses confirmed status or the allowed preset', async () => {
-    fakes.setPatientAppointmentReminderPreset.mockResolvedValue(false);
+    fakes.setPatientAppointmentReminderOffsets.mockResolvedValue(false);
 
-    const response = await patchReminder(
-      'day_before',
-      '66666666-6666-4666-8666-666666666666',
-    );
+    const response = await patchReminder([1440], '66666666-6666-4666-8666-666666666666');
 
     expect(response.status).toBe(404);
     expect(fakes.emitBookingEvent).not.toHaveBeenCalled();
@@ -113,10 +103,7 @@ describe('patient appointment reminder preference', () => {
   it('schedules a canonical manual appointment without creating a duplicate patient booking row', async () => {
     fakes.getBookingByCanonicalAppointment.mockResolvedValue(null);
 
-    const response = await patchReminder(
-      'two_hours_before',
-      '77777777-7777-4777-8777-777777777777',
-    );
+    const response = await patchReminder([120], '77777777-7777-4777-8777-777777777777');
 
     expect(response.status).toBe(200);
     expect(fakes.emitBookingEvent).toHaveBeenCalledWith(

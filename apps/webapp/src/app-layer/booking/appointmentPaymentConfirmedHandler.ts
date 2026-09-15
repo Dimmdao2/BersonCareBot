@@ -4,7 +4,7 @@ import {
   type BookingLifecycleNotificationsSettings,
 } from '@/modules/booking-notifications/settings';
 import type { BookingSyncPort, PatientBookingsPort } from '@/modules/patient-booking/ports';
-import { appointmentReminderPlanForPreset } from '@/modules/booking-notifications/appointmentReminderPresets';
+import { appointmentReminderPlanForOffsets } from '@/modules/booking-notifications/appointmentReminderSchedule';
 import { buildPatientPaymentCapturedMessageText } from '@/modules/patient-booking/patientMessageText';
 import { buildDoctorPaymentCapturedMessageText } from '@/modules/patient-booking/doctorMessageText';
 import { resolveBookingCalendarSyncFields } from '@/modules/patient-booking/bookingCalendarSyncFields';
@@ -100,7 +100,9 @@ export function createAppointmentPaymentConfirmedHandler(deps: {
           cityCodeSnapshot: row.cityCodeSnapshot,
           serviceTitleSnapshot: row.serviceTitleSnapshot,
           canonicalAppointmentId: appointmentId,
-          reminderPlan: appointmentReminderPlanForPreset(appointment.appointmentReminderPresetId),
+          reminderPlan: appointmentReminderPlanForOffsets(
+            appointment.appointmentReminderOffsetsMinutes,
+          ),
           ...(carriesPatientMessage
             ? { patientMessageText }
             : { suppressPatientNotification: true }),

@@ -646,7 +646,6 @@ test('clinic topology grants cover the exact columns emitted by Drizzle inserts'
     // называет КАЖДУЮ колонку в INSERT, поэтому отсутствие любой из трёх в гранте отказало бы
     // создание специалиста целиком (42501), а не только новое поле.
     'public.be_specialists': [
-      'appointment_reminder_allowed_preset_ids', 'appointment_reminder_default_preset_id',
       'avatar_media_id', 'card_is_published', 'created_at', 'description',
       'full_description_markdown', 'full_name', 'id', 'is_active', 'organization_id', 'sort_order',
       'updated_at',
@@ -695,7 +694,7 @@ test('schedule grants cover the default columns emitted by Drizzle inserts', () 
     // ENCOUNTER-APPOINTMENT-05: plus the confirmed-overlap slot the manual door writes, which the
     // same Drizzle insert names on every staff create.
     'public.be_appointments': [
-      'appointment_reminder_allowed_preset_ids', 'appointment_reminder_preset_id',
+      'appointment_reminder_available_offsets_minutes', 'appointment_reminder_offsets_minutes',
       'appointment_reminder_selection_source', 'attribution_json', 'branch_id', 'chain_id',
       'chain_position', 'created_at', 'deleted_at', 'delivery_format', 'duration_minutes', 'end_at', 'id',
       'organization_id', 'original_start_at', 'overlap_confirmed_end_at',

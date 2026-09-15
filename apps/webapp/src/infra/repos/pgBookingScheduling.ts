@@ -81,12 +81,6 @@ const bookingSnapshotContextSchema = z.object({
       servicePublicWidgetVisible: z.boolean(),
       serviceAdminManualOnly: z.boolean(),
       serviceSortOrder: z.number().int(),
-      specialistReminderAllowedPresetIds: z.array(
-        z.enum(['day_and_two_hours', 'day_before', 'two_hours_before']),
-      ),
-      specialistReminderDefaultPresetId: z
-        .enum(['day_and_two_hours', 'day_before', 'two_hours_before'])
-        .nullable(),
     })
     .optional(),
 });

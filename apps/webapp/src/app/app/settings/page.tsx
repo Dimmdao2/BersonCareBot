@@ -72,7 +72,7 @@ import { parseDoctorTodayPreferences } from '@/modules/system-settings/doctorTod
 import { isPlatformIntegrationAvailable } from '@/modules/system-settings/platformIntegrationAvailability';
 import { smtpInnerFromValueJson } from '@/modules/system-settings/smtpOutboundPatch';
 import { shouldShowGoogleCalendarSettings } from './googleCalendarVisibility';
-import { type AppointmentReminderSpecialistSettings } from '@/modules/booking-notifications/appointmentReminderPresets';
+import { parseAppointmentReminderSettings } from '@/modules/booking-notifications/appointmentReminderSchedule';
 import { parseClinicDeliveryReadiness } from '@/modules/system-settings/clinicDeliveryReadiness';
 import { parseClinicBotPublicConfig } from '@/modules/system-settings/clinicBotConfig';
 import { parseBookingPaymentSettingsValue } from '@/modules/payments/bookingPaymentSettings';
@@ -431,13 +431,11 @@ export default async function SettingsPage({
       client_portal: true,
       video_meetings: videoMeetingsVisibility.directUrl,
     };
-    const appointmentReminderSettings: AppointmentReminderSpecialistSettings =
-      workspace.specialistId
-        ? ((await deps.bookingEngine?.getSpecialistAppointmentReminderSettings({
-            organizationId: workspace.organizationId,
-            specialistId: workspace.specialistId,
-          })) ?? { allowedPresetIds: [], defaultPresetId: null })
-        : { allowedPresetIds: [], defaultPresetId: null };
+    const appointmentReminderSettings = parseAppointmentReminderSettings(
+      doctorSettings.find(
+        (setting) => setting.key === 'doctor_appointment_reminder_offsets_minutes',
+      )?.valueJson ?? null,
+    );
     const todayPreferences = parseDoctorTodayPreferences(
       doctorSettings.find((setting) => setting.key === 'doctor_today_preferences')?.valueJson,
     );
@@ -693,9 +691,7 @@ export default async function SettingsPage({
               specialists={bookingLinkOptions.specialists}
             />
           ) : null}
-          {workspace.specialistId ? (
-            <AppointmentReminderSettingsSection initialSettings={appointmentReminderSettings} />
-          ) : null}
+          <AppointmentReminderSettingsSection initialSettings={appointmentReminderSettings} />
           {composition === 'solo' ? (
             <ManagementBookingSections
               // Одной простынёй: во вкладке настроек под-навигация была бы вкладками внутри
