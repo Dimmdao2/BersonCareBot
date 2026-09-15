@@ -1,6 +1,7 @@
 import {
   getPublicAuthChannelConfigured,
   getPublicRuntimeBool,
+  getPublicRuntimeValue,
 } from '@/modules/system-settings/configAdapter';
 import { OAUTH_PROVIDERS, type OAuthProvider } from '@/modules/auth/oauthProviderRegistry';
 import type { SurfaceAuthPolicyName } from '@/shared/lib/surface/requestSurface';
@@ -88,6 +89,30 @@ export async function getClientVisibleAuthChannelPolicy(
     }),
   );
   return Object.fromEntries(entries) as AuthChannelPolicy;
+}
+
+/**
+ * TELEGRAM LOGIN WIDGET — отдельный способ входа, НЕ «подтверждение номера в Telegram».
+ *
+ * Владелец 16.09.2026: «одно дело — логин виджет, другое — подтверждение номера в телеграм»,
+ * «Login Widget указывается отдельно… и только если телеграм оаус админ включил на платформе».
+ * Поэтому у него свой переключатель и свой бот: у виджета в @BotFather привязан домен, а код в чат
+ * шлёт бот доставки, чьё имя мы берём по токену. Настроенность = явно вписанное имя бота виджета;
+ * без него показывать кнопку нечем.
+ */
+export async function getTelegramLoginWidgetBotUsername(): Promise<string> {
+  const raw = await getPublicRuntimeValue('telegram_login_widget_bot_username');
+  return typeof raw === 'string' ? raw.trim().replace(/^@/, '') : '';
+}
+
+export async function isTelegramLoginWidgetEnabled(
+  surface?: SurfaceAuthPolicyName,
+): Promise<boolean> {
+  const [enabled, botUsername] = await Promise.all([
+    getSurfaceAwareToggle('telegram_login_widget', surface),
+    getTelegramLoginWidgetBotUsername(),
+  ]);
+  return enabled && botUsername.length > 0;
 }
 
 /**

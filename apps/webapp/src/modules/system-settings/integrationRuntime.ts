@@ -26,6 +26,15 @@ export async function getTelegramBotToken(): Promise<string> {
   return getConfigValue('telegram_bot_token');
 }
 
+/**
+ * Токен бота Telegram Login Widget. Отдельный от бота доставки и от платформенного бота Mini App:
+ * подпись виджета проверяется ключом ИМЕННО того бота, чьей кнопкой вошёл человек. Пусто — виджет
+ * не настроен; подставлять сюда другой токен нельзя, проверка подписи всё равно не сойдётся.
+ */
+export async function getTelegramLoginWidgetBotToken(): Promise<string> {
+  return getConfigValue('telegram_login_widget_bot_token');
+}
+
 /** VK ID OAuth 2.1 credentials: `system_settings` (admin), same seam as Yandex/Google/Apple. */
 export async function getVkIdApplicationId(): Promise<string> {
   return getConfigValue('vk_id_application_id');

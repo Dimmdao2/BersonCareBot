@@ -58,3 +58,27 @@ export function createMessagingPort(botToken?: string): MessagingPort {
       }),
   };
 }
+
+export type TelegramBotIdentityResult =
+  | { ok: true; username: string; botId: number }
+  | { ok: false; error: 'telegram_rejected' | 'telegram_unreachable' | 'bot_without_username' };
+
+/**
+ * `getMe` по конкретному токену: единственный способ узнать, КАКОМУ боту токен принадлежит.
+ * Ошибку возвращаем классифицированной, без текста от Telegram и без токена — ответ Bot API на
+ * неверный токен содержит сам токен в описании запроса, и такой текст нельзя ни логировать, ни
+ * отдавать наружу.
+ */
+export async function fetchTelegramBotIdentity(botToken: string): Promise<TelegramBotIdentityResult> {
+  let me: { id: number; username?: string };
+  try {
+    me = await getBot(botToken).api.getMe();
+  } catch (error) {
+    const status = (error as { error_code?: number })?.error_code;
+    // 401/404 — токен не принят Telegram; всё остальное (сеть, таймаут, 5xx) — «не дозвонились».
+    return { ok: false, error: status === 401 || status === 404 ? 'telegram_rejected' : 'telegram_unreachable' };
+  }
+  const username = typeof me.username === 'string' ? me.username.trim() : '';
+  if (!username) return { ok: false, error: 'bot_without_username' };
+  return { ok: true, username, botId: me.id };
+}

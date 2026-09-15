@@ -226,6 +226,13 @@ export const SYSTEM_SETTING_REGISTRY = {
   important_fallback_delay_minutes: runtime('admin', 'global', 'server', 'integer', 'absent'),
   support_contact_url: runtime('admin', 'global', 'public', 'url', ''),
   telegram_login_bot_username: runtime('admin', 'global', 'public', 'string', ''),
+  /**
+   * Бот Telegram Login Widget — отдельный от бота, который шлёт коды. Владелец 16.09.2026: «Login
+   * Widget указывается отдельно… это не тоже самое что вход по боту». Имя вписывается явно (в
+   * @BotFather у этого бота привязан домен), токен нужен для проверки подписи виджета.
+   */
+  telegram_login_widget_bot_username: runtime('admin', 'global', 'public', 'string', ''),
+  telegram_login_widget_bot_token: restricted('admin', 'global', 'secret_envelope'),
   max_login_bot_nickname: runtime('admin', 'global', 'public', 'string', ''),
   max_bot_api_key: restricted('admin', 'global', 'secret_envelope'),
   /** TherapyGo's patient-facing MAX sender. Never shared with staff delivery. */

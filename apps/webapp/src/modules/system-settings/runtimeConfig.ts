@@ -120,6 +120,7 @@ export const PUBLIC_RUNTIME_BOOLEAN_KEYS = [
 
 export const PUBLIC_RUNTIME_STRING_KEYS = [
   'telegram_login_bot_username',
+  'telegram_login_widget_bot_username',
   'max_login_bot_nickname',
   'vk_web_login_url',
   'support_contact_url',

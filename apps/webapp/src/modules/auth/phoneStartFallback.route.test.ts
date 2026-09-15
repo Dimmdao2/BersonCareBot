@@ -236,7 +236,13 @@ describe('phone login automatic delivery fallback', () => {
     expect(fakes.getVerifiedEmail).not.toHaveBeenCalled();
   });
 
-  it('uses the resolved default channel (email) without exposing whether the phone has an account', async () => {
+  /**
+   * Правило владельца 16.09.2026: «по телефону можно отправлять только в ботов, то есть в макс или
+   * телеграм. По имейл — надо ввести имейл». Раньше почта была доставкой по номеру, и при опечатке в
+   * номере код уходил на адрес ЧУЖОГО аккаунта. Теперь по номеру письмо не уходит никому — ни
+   * известному номеру, ни неизвестному, — и обе ветки по-прежнему неотличимы снаружи.
+   */
+  it('never delivers an email code at the phone door, and stays indistinguishable', async () => {
     fakes.getClientVisiblePolicy.mockResolvedValue({
       email: true,
       sms: false,
@@ -260,10 +266,14 @@ describe('phone login automatic delivery fallback', () => {
       '+79991234567',
       { channel: 'web', chatId: 'browser-1005', displayName: undefined },
       expect.objectContaining({
-        delivery: { channel: 'email', email: 'verified@example.test' },
-        deferredDelivery: { schedule: fakes.after },
+        deferredDelivery: expect.objectContaining({
+          schedule: fakes.after,
+          suppressDelivery: true,
+          challengeDeliveryChannel: 'email',
+        }),
       }),
     );
+    expect(fakes.startPhoneAuth.mock.calls.at(-1)?.[2]?.delivery).toBeUndefined();
 
     fakes.findByPhone.mockResolvedValueOnce(null);
     fakes.startPhoneAuth.mockClear();
@@ -312,7 +322,7 @@ describe('phone login automatic delivery fallback', () => {
     expect(fakes.recordRegistrationSuccess).not.toHaveBeenCalled();
   });
 
-  it('uses the resolved default channel when SMS is not effectively available', async () => {
+  it('does not fall back to email even when no other channel is available', async () => {
     fakes.isChannelEnabled.mockResolvedValue(true);
     fakes.getClientVisiblePolicy.mockResolvedValue({
       email: true,
@@ -333,51 +343,7 @@ describe('phone login automatic delivery fallback', () => {
       ),
     );
 
-    expect(fakes.startPhoneAuth).toHaveBeenCalledWith(
-      '+79991234567',
-      { channel: 'web', chatId: 'browser-1005', displayName: undefined },
-      expect.objectContaining({ delivery: { channel: 'email', email: 'verified@example.test' } }),
-    );
-  });
-
-  it('does not send an email login code for an untrusted entered phone', async () => {
-    fakes.getClientVisiblePolicy.mockResolvedValue({
-      email: true,
-      sms: false,
-      telegram: false,
-      max: false,
-    });
-    fakes.resolveAuthOtpChannel.mockResolvedValue('email');
-    // Untrusted: the primary phone contact is unconfirmed (no `confirmedAt`), so
-    // `primaryConfirmedContactValue(user, 'phone')` in the route resolves to null.
-    fakes.findByPhone.mockResolvedValue({
-      ...user,
-      contacts: user.contacts?.map((contact) =>
-        contact.kind === 'phone' ? { ...contact, confirmedAt: undefined } : contact,
-      ),
-    });
-
-    await finishResponse(
-      startPhone(
-        request({
-          phone: '+79991234567',
-          channel: 'web',
-          chatId: 'browser-1005',
-          purpose: 'login',
-        }),
-      ),
-    );
-
-    expect(fakes.startPhoneAuth).toHaveBeenCalledWith(
-      '+79991234567',
-      { channel: 'web', chatId: 'browser-1005', displayName: undefined },
-      expect.objectContaining({
-        deferredDelivery: expect.objectContaining({
-          suppressDelivery: true,
-          challengeDeliveryChannel: 'email',
-        }),
-      }),
-    );
+    expect(fakes.startPhoneAuth.mock.calls.at(-1)?.[2]?.delivery).toBeUndefined();
   });
 
   it('prefers the resolved channel (telegram) over SMS bootstrap even when SMS is available', async () => {
@@ -425,9 +391,17 @@ describe('phone login automatic delivery fallback', () => {
     expect((await responsePromise).status).toBe(200);
   });
 
-  it('does not reintroduce account enumeration through an explicit email request', async () => {
+  /**
+   * Явный `deliveryChannel: 'email'` на двери входа ПО НОМЕРУ больше не принимается: раньше эта
+   * кнопка («подтвердить по email») слала код на адрес аккаунта, найденного по введённому номеру, не
+   * спросив адрес. Владелец 16.09.2026: «меня даже не спросили ввести имейл — просто куда-то
+   * отправили… если я случайно ошибся в номере… я хочу поменять способ входа — но не могу ввести
+   * правильный имейл». Отказ зависит ТОЛЬКО от запрошенного канала и наступает до поиска аккаунта,
+   * поэтому перечислить через него аккаунты по-прежнему нельзя.
+   */
+  it('refuses an explicit email request without ever looking up the account', async () => {
     fakes.isChannelEnabled.mockImplementation(async (channel) => channel === 'email');
-    const available = await finishResponse(
+    const known = await finishResponse(
       startPhone(
         request({
           phone: '+79991234567',
@@ -438,14 +412,12 @@ describe('phone login automatic delivery fallback', () => {
         }),
       ),
     );
-    const availableBody = (await available.json()) as Record<string, unknown>;
+    const knownBody = (await known.json()) as Record<string, unknown>;
 
-    fakes.findByPhone.mockResolvedValueOnce(null);
-    fakes.startPhoneAuth.mockClear();
-    const unavailable = await finishResponse(
+    const unknown = await finishResponse(
       startPhone(
         request({
-          phone: '+79991234567',
+          phone: '+79995550000',
           channel: 'web',
           chatId: 'browser-1005',
           purpose: 'login',
@@ -453,26 +425,14 @@ describe('phone login automatic delivery fallback', () => {
         }),
       ),
     );
-    const unavailableBody = (await unavailable.json()) as Record<string, unknown>;
+    const unknownBody = (await unknown.json()) as Record<string, unknown>;
 
-    expect(unavailable.status).toBe(available.status);
-    expect(Object.keys(unavailableBody).sort()).toEqual(Object.keys(availableBody).sort());
-    expect(unavailableBody).toMatchObject({
-      ok: true,
-      retryAfterSeconds: 60,
-      deliveryChannel: 'email',
-    });
-    expect(fakes.startPhoneAuth).toHaveBeenCalledWith(
-      '+79991234567',
-      { channel: 'web', chatId: 'browser-1005', displayName: undefined },
-      expect.objectContaining({
-        deferredDelivery: expect.objectContaining({
-          schedule: fakes.after,
-          suppressDelivery: true,
-          challengeDeliveryChannel: 'email',
-        }),
-      }),
-    );
+    expect(known.status).toBe(400);
+    expect(unknown.status).toBe(known.status);
+    expect(unknownBody).toEqual(knownBody);
+    expect(knownBody).toMatchObject({ ok: false, error: 'channel_unavailable' });
+    expect(fakes.findByPhone).not.toHaveBeenCalled();
+    expect(fakes.startPhoneAuth).not.toHaveBeenCalled();
   });
 
   it('accepts an explicitly selected configured SMS channel on the code screen', async () => {
@@ -548,7 +508,7 @@ describe('phone login automatic delivery fallback', () => {
   });
 
   it('does not trust a client-claimed Telegram context to bypass opaque login', async () => {
-    fakes.isChannelEnabled.mockImplementation(async (channel) => channel === 'email');
+    fakes.isChannelEnabled.mockImplementation(async (channel) => channel === 'telegram');
     fakes.findByPhone.mockResolvedValueOnce(null);
 
     const response = await finishResponse(
@@ -558,7 +518,7 @@ describe('phone login automatic delivery fallback', () => {
           channel: 'telegram',
           chatId: 'attacker-controlled',
           purpose: 'login',
-          deliveryChannel: 'email',
+          deliveryChannel: 'telegram',
         }),
       ),
     );
@@ -571,7 +531,7 @@ describe('phone login automatic delivery fallback', () => {
         deferredDelivery: expect.objectContaining({
           schedule: fakes.after,
           suppressDelivery: true,
-          challengeDeliveryChannel: 'email',
+          challengeDeliveryChannel: 'telegram',
         }),
       }),
     );
