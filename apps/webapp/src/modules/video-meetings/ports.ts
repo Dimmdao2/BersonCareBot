@@ -54,7 +54,16 @@ export type VideoMeetingStore = {
 
 export type VideoMeetingProvider = {
   health(): Promise<{ ok: true } | { ok: false; reason: 'provider_unconfigured' | 'provider_unhealthy' }>;
-  issueJoinMaterial(input: { meeting: VideoMeetingRecord; role: VideoMeetingRole; subject: string }): Promise<VideoMeetingRenderSession>;
+  /**
+   * `displayName` — имя участника, которое видит собеседник в самом звонке. Его выдаёт приложение,
+   * а не браузер участника: имя уезжает в подписанное join-material и потому не подменяется с клиента.
+   */
+  issueJoinMaterial(input: {
+    meeting: VideoMeetingRecord;
+    role: VideoMeetingRole;
+    subject: string;
+    displayName?: string | null;
+  }): Promise<VideoMeetingRenderSession>;
 };
 
 /**

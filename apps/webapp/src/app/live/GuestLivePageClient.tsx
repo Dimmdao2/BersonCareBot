@@ -29,5 +29,16 @@ export function GuestLivePageClient() {
       })
       .catch(() => dispatch({ type: 'refused' }));
   }, []);
-  return state.refused ? <main className="flex min-h-screen items-center justify-center text-sm">Подключение к звонку недоступно</main> : <main className="min-h-screen bg-black"><VideoMeetingStage session={state.session} /></main>;
+  // Звонок занимает весь экран целиком: провайдер растягивает свой iframe на 100% высоты
+  // контейнера, поэтому у контейнера должна быть настоящая высота, а не только min-height.
+  return state.refused ? (
+    <main className="flex min-h-[100dvh] items-center justify-center text-sm">Подключение к звонку недоступно</main>
+  ) : (
+    <main className="h-[100dvh] w-full bg-black">
+      <VideoMeetingStage
+        className="relative flex h-full w-full items-center justify-center bg-black text-sm text-white"
+        session={state.session}
+      />
+    </main>
+  );
 }

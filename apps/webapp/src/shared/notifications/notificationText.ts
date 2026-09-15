@@ -354,6 +354,12 @@ export const notificationText = {
   commonCreated: 'Создано',
   doctorSubscriptionDurationInvalid: 'Срок действия — не меньше одного дня.',
   doctorPhoneCopied: 'Телефон скопирован',
+  // Видеовстреча: итог автоматической отправки гостевой ссылки клиенту. Владелец, 15.09.2026:
+  // «непонятно, что значит „приглашение поставлено в очередь“» — человеку говорим про ссылку и
+  // клиента, а не про внутреннюю очередь доставки.
+  doctorVideoInviteSent: 'Ссылка на звонок отправлена клиенту',
+  doctorVideoInviteAlreadySent: 'Ссылку на этот звонок клиенту уже отправляли',
+  doctorVideoInviteNotSent: 'Отправить ссылку не удалось — скопируйте её и передайте клиенту',
   commonDeleted: 'Удалено',
   doctorTemplateNameRequired: 'Укажите название шаблона',
   treatmentProgramSelectGroupFromList: 'Выберите группу из списка',
