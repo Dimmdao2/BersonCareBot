@@ -9,6 +9,7 @@ import {
 } from '@/infra/db/runWebappSql';
 import { withTwoUserLifecycleLocksExclusive } from '@/infra/userLifecycleLock';
 import { mergePlatformUsersInTransaction } from '@/infra/repos/pgPlatformUserMerge';
+import { parseStoredHumanMergeDecision } from '@bersoncare/platform-merge';
 import { MergeDependentConflictError } from '@/infra/repos/platformUserMergeErrors';
 import { patientMergeCandidates } from '../../../db/schema/patientMergeCandidate';
 import type {
@@ -78,6 +79,14 @@ export async function recordPatientMedicalMergeConflict(
   const organizationIds = [
     ...new Set(error.organizationIds.length > 0 ? error.organizationIds : [error.organizationId]),
   ];
+  /**
+   * §18а: ответ человека про ФИО едет в строку конфликта. Он был дан и сверен ДО медицинского
+   * блокера, а транзакция слияния откатилась вместе с ним — если не сохранить его здесь, после
+   * одобрения врача (§18б) выбранную подпись брать будет неоткуда.
+   */
+  const humanFioDecision = error.humanFioDecision
+    ? JSON.stringify(error.humanFioDecision)
+    : null;
   let firstConflictId: string | null = null;
   for (const organizationId of organizationIds) {
     const result = await runWithDbBootstrapPrincipal(
@@ -85,13 +94,14 @@ export async function recordPatientMedicalMergeConflict(
       () =>
         runWebappNamedRoot<{ conflict_id: string }>(
           getWebappSqlDb(),
-          'app.record_patient_medical_merge_conflict(uuid,uuid,uuid,text)',
-          [organizationId, anchorUserId, candidateUserId, source],
+          'app.record_patient_medical_merge_conflict(uuid,uuid,uuid,text,text)',
+          [organizationId, anchorUserId, candidateUserId, source, humanFioDecision],
           sql`SELECT app.record_patient_medical_merge_conflict(
                 ${organizationId}::uuid,
                 ${anchorUserId}::uuid,
                 ${candidateUserId}::uuid,
-                ${source}::text
+                ${source}::text,
+                ${humanFioDecision}::text
               )::text AS conflict_id`,
         ),
     );
@@ -186,6 +196,13 @@ export function createPgPatientMergeCandidatePort(): PatientMergeCandidatePort {
                 organizationId,
                 actorId: resolvedBy,
               },
+              // §18а: подпись выбирал человек, а не движок и не врач. Ответ лежит в строке
+              // конфликта с того дня, когда медицинский блокер отменил автоматическое слияние;
+              // негодный или отсутствующий движок не заменяет собой — он отказывает.
+              humanDecision:
+                parseStoredHumanMergeDecision(
+                  (candidate.payload as Record<string, unknown> | null)?.humanFioDecision,
+                ) ?? undefined,
               mergeContext: { actorId: resolvedBy, source: 'doctor_medical_conflict_review' },
             },
           );

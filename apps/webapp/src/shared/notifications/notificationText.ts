@@ -365,6 +365,8 @@ export const notificationText = {
   doctorMedicalConflictEscalated: 'Конфликт передан администраторам платформы.',
   doctorMedicalConflictAwaitingOtherOrganization:
     'Решение записано. Слияние ждёт решения другой клиники.',
+  doctorMedicalConflictFioDecisionRequired:
+    'Учётные записи не объединены: клиент не выбрал, какое ФИО оставить. Попросите его войти и ответить на вопрос об имени.',
   doctorMedicalConflictUnavailable: 'Конфликт больше недоступен. Обновите страницу.',
   doctorMedicalConflictLoadFailed: 'Не удалось загрузить конфликт. Обновите страницу и повторите.',
   doctorMedicalConflictActionFailed: 'Не удалось применить решение. Повторите попытку.',

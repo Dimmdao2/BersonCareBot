@@ -19,6 +19,7 @@ export {
   createHumanMergePrompt,
   humanMergeDecisionMatchesPrompt,
   isHumanMergeCustomFioValue,
+  parseStoredHumanMergeDecision,
 } from './humanMergeDecision.js';
 export { assertManualMergeResolutionIds } from './manualMergeResolution.js';
 
@@ -33,6 +34,7 @@ export type {
   MergePlatformUsersOutcome,
   AutomaticMergePlatformUsersOptions,
   ManualMergePlatformUsersOptions,
+  StaffApprovedMergePlatformUsersOptions,
   MergeContactsSaved,
 } from './pgPlatformUserMerge.js';
 

@@ -51,10 +51,16 @@ export type MergePlatformUsersContext = {
  * БЫЛО, и вызывающий обязан сказать об этом человеку, а не ответить успехом:
  *  - `awaiting_other_organization` — врач своей клиники одобрил, но у пары есть медицинский блокер
  *    в другой клинике, и снять его может только её врач (канон §18б: врач решает за свою клинику);
- *  - `conflict_not_found` — у вызывающей клиники нет такого незакрытого медицинского конфликта.
+ *  - `conflict_not_found` — у вызывающей клиники нет такого незакрытого медицинского конфликта;
+ *  - `fio_decision_required` — ФИО сторон конфликтует, а годного ответа человека (§18а) у двери нет:
+ *    его не сохранили либо показанные ему данные с тех пор изменились. Слить, оставив подпись,
+ *    выбранную движком, §18а запрещает, поэтому дверь отказывает и просит переспросить человека.
  */
 export type MergePlatformUsersOutcome =
-  'merged' | 'awaiting_other_organization' | 'conflict_not_found';
+  | 'merged'
+  | 'awaiting_other_organization'
+  | 'conflict_not_found'
+  | 'fio_decision_required';
 
 /**
  * §18а: автоматическое слияние идёт только после ответа человека «это ваш аккаунт?» — вариант без
@@ -73,10 +79,11 @@ export type ManualMergePlatformUsersOptions = {
 };
 
 /**
- * §18б: дверь врача. Ответ человека про ФИО здесь не появляется — канон оставляет врачу ровно два
- * действия, «слить» и «отказать», и выбор чужой подписи в их число не входит. Поэтому за этой
- * дверью ФИО не переписывается вовсе: выживает подпись целевой учётки, а движок между сторонами
- * по-прежнему не выбирает (§18а).
+ * §18б: дверь врача. Врачу канон оставляет ровно два действия, «слить» и «отказать», — выбирать
+ * чужую подпись он не вправе. Но и движок не вправе: §18а исключения для врачебного пути не знает.
+ * Поэтому сюда приезжает ответ человека, данный ДО медицинского блокера и сохранённый со строкой
+ * конфликта; дверь его применяет. Ответа нет, а ФИО сторон расходится — слияния не будет
+ * (`fio_decision_required`), человека надо спросить заново.
  */
 export type StaffApprovedMergePlatformUsersOptions = {
   /** Staff-only DB door that authorizes and performs dependent-row transfer for one reviewed conflict. */
@@ -85,6 +92,8 @@ export type StaffApprovedMergePlatformUsersOptions = {
     organizationId: string;
     actorId: string;
   };
+  /** §18а: ответ человека, сохранённый со строкой конфликта при медицинском defer. */
+  humanDecision?: HumanMergeDecision;
   mergeContext?: MergePlatformUsersContext;
 };
 
@@ -265,6 +274,7 @@ async function assertAutomaticMergeHasNoMedicalHistory(
   targetId: string,
   duplicateId: string,
   approvedOrganizationId?: string,
+  humanFioDecision?: HumanMergeDecision,
 ): Promise<void> {
   // Канон §18: блокирует ТОЛЬКО конфликт медицинских данных ВНУТРИ ОДНОЙ организации — когда
   // квалифицирующие записи (медкарточка, заметки, назначенные упражнения/программы и отслеживание
@@ -303,11 +313,14 @@ async function assertAutomaticMergeHasNoMedicalHistory(
   );
   if (result.rows.length > 0) {
     const organizationIds = result.rows.map((row) => row.conflict_organization_id ?? null);
+    // §18а: ответ человека про ФИО уже сверен с заблокированными строками и сейчас пропадёт вместе
+    // с откатом этой транзакции. Он уезжает с блокером, чтобы лечь в строку конфликта: врач потом
+    // сливает пару, и подпись обязана остаться той, которую выбрал человек, а не целевой по умолчанию.
     throw new MergeDependentConflictError(
       'medical_history: automatic merge requires support (conflict inside one organization)',
       [targetId, duplicateId],
       organizationIds[0] ?? null,
-      { kind: 'medical_history', organizationIds },
+      { kind: 'medical_history', organizationIds, humanFioDecision },
     );
   }
 }
@@ -708,7 +721,82 @@ export async function mergePlatformUsersInTransaction(
     ]);
   }
 
+  const manualResolution =
+    reason === 'manual' && 'resolution' in options ? options.resolution : undefined;
+  const humanDecision =
+    reason !== 'manual' && 'humanDecision' in options ? options.humanDecision : undefined;
+
+  /** Снимок стороны ровно в том виде, в каком его показывает диалог §18а. */
+  const lockedSummary = (row: PuRow) => ({
+    id: row.id,
+    displayName: row.display_name,
+    firstName: row.first_name,
+    lastName: row.last_name,
+    patronymic: row.patronymic,
+    createdAt: row.created_at,
+  });
+  /**
+   * `foundAccountId` влияет только на запасную подпись, но не на список конфликтующих полей:
+   * поэтому один и тот же вызов отвечает и «какие поля спорят прямо сейчас», и «совпадает ли
+   * заблокированная пара с тем, что человек видел».
+   */
+  const lockedPromptFor = (foundAccountId: string) =>
+    createHumanMergePrompt(lockedSummary(a), lockedSummary(b), foundAccountId);
+
+  const humanDecisionPairMismatch =
+    humanDecision !== undefined &&
+    (!humanDecision.accountConfirmed ||
+      humanDecision.prompt.target.id !== targetId ||
+      humanDecision.prompt.duplicate.id !== duplicateId ||
+      (humanDecision.prompt.foundAccountId !== targetId &&
+        humanDecision.prompt.foundAccountId !== duplicateId));
+  const humanDecisionSnapshotStale =
+    humanDecision !== undefined &&
+    !humanDecisionPairMismatch &&
+    !humanMergeDecisionMatchesPrompt(
+      humanDecision,
+      lockedPromptFor(humanDecision.prompt.foundAccountId),
+    );
+  if (!medicalConflictApproval) {
+    // Автоматическая дверь: негодный ответ — это ошибка вызывающего, и она громкая.
+    if (humanDecisionPairMismatch) {
+      throw new MergeConflictError('merge: human decision does not match locked account pair', [
+        targetId,
+        duplicateId,
+      ]);
+    }
+    if (humanDecisionSnapshotStale) {
+      throw new MergeConflictError('merge: shown account details changed before confirmation', [
+        targetId,
+        duplicateId,
+      ]);
+    }
+  }
+  /**
+   * За дверью врача ответ приезжает из строки конфликта, сохранённой днями раньше. Негодный ответ
+   * там — не ошибка врача, а повод переспросить человека, поэтому он не бросает исключение, а
+   * гасится: ниже это превращается в отказ `fio_decision_required`.
+   */
+  const usableHumanDecision =
+    humanDecision !== undefined && !humanDecisionPairMismatch && !humanDecisionSnapshotStale
+      ? humanDecision
+      : undefined;
+
   if (medicalConflictApproval) {
+    /**
+     * §18а не знает исключения для врачебного пути: при конфликте полей подпись выбирает человек.
+     * Годного ответа нет — слияния нет. Оставить подпись целевой учётки здесь значило бы выбрать
+     * сторону молча, а это ровно то, что §18а запрещает. Проверка стоит ДО двери переноса: после
+     * неё зависимые строки уже переехали, и «не слили» было бы неправдой.
+     */
+    if (!usableHumanDecision && lockedPromptFor(targetId).conflicts.length > 0) {
+      return {
+        targetId,
+        duplicateId,
+        mergeContactsSaved: [],
+        mergeOutcome: 'fio_decision_required',
+      };
+    }
     // Дверь врача (§18б). Перенос зависимых строк делает SECURITY DEFINER-функция: роль врача сама
     // их двигать не вправе, и она же сверяет, что конфликт принадлежит организации вызывающего.
     const approval = medicalConflictApproval;
@@ -741,52 +829,8 @@ export async function mergePlatformUsersInTransaction(
       targetId,
       duplicateId,
       medicalConflictApprovedForOrganizationId,
+      usableHumanDecision,
     );
-  }
-
-  const manualResolution =
-    reason === 'manual' && 'resolution' in options ? options.resolution : undefined;
-  const humanDecision =
-    reason !== 'manual' && 'humanDecision' in options ? options.humanDecision : undefined;
-  if (
-    humanDecision &&
-    (!humanDecision.accountConfirmed ||
-      humanDecision.prompt.target.id !== targetId ||
-      humanDecision.prompt.duplicate.id !== duplicateId ||
-      (humanDecision.prompt.foundAccountId !== targetId &&
-        humanDecision.prompt.foundAccountId !== duplicateId))
-  ) {
-    throw new MergeConflictError('merge: human decision does not match locked account pair', [
-      targetId,
-      duplicateId,
-    ]);
-  }
-  if (humanDecision) {
-    const lockedPrompt = createHumanMergePrompt(
-      {
-        id: a.id,
-        displayName: a.display_name,
-        firstName: a.first_name,
-        lastName: a.last_name,
-        patronymic: a.patronymic,
-        createdAt: a.created_at,
-      },
-      {
-        id: b.id,
-        displayName: b.display_name,
-        firstName: b.first_name,
-        lastName: b.last_name,
-        patronymic: b.patronymic,
-        createdAt: b.created_at,
-      },
-      humanDecision.prompt.foundAccountId,
-    );
-    if (!humanMergeDecisionMatchesPrompt(humanDecision, lockedPrompt)) {
-      throw new MergeConflictError('merge: shown account details changed before confirmation', [
-        targetId,
-        duplicateId,
-      ]);
-    }
   }
 
   const pA = a.phone_normalized?.trim() || null;
@@ -992,13 +1036,19 @@ export async function mergePlatformUsersInTransaction(
        WHERE id = $1::uuid`,
       [targetId, duplicateId, parts.displayName, parts.firstName, parts.lastName, parts.patronymic],
     );
-  } else if (humanDecision) {
-    const askedFields = humanDecision.prompt.conflicts;
+  } else if (usableHumanDecision) {
+    /**
+     * Та же ветка обслуживает автоматическую дверь и дверь врача: за врачебной сюда приезжает тот
+     * же ответ человека, только сохранённый со строкой конфликта, — отдельного «врачебного» выбора
+     * ФИО не существует (§18а + §18б).
+     */
+    const answered = usableHumanDecision;
+    const askedFields = answered.prompt.conflicts;
     const lastName = resolveHumanFioField(
       'last_name',
       a.last_name,
       b.last_name,
-      humanDecision.fio.last_name,
+      answered.fio.last_name,
       [targetId, duplicateId],
       askedFields.includes('last_name'),
     );
@@ -1006,7 +1056,7 @@ export async function mergePlatformUsersInTransaction(
       'first_name',
       a.first_name,
       b.first_name,
-      humanDecision.fio.first_name,
+      answered.fio.first_name,
       [targetId, duplicateId],
       askedFields.includes('first_name'),
     );
@@ -1014,13 +1064,13 @@ export async function mergePlatformUsersInTransaction(
       'patronymic',
       a.patronymic,
       b.patronymic,
-      humanDecision.fio.patronymic,
+      answered.fio.patronymic,
       [targetId, duplicateId],
       askedFields.includes('patronymic'),
     );
     let displayName: string;
     if (askedFields.includes('display_name')) {
-      const selection = humanDecision.fio.display_name;
+      const selection = answered.fio.display_name;
       if (!selection) {
         throw new MergeConflictError('merge: human choice required for display_name', [
           targetId,
@@ -1050,7 +1100,7 @@ export async function mergePlatformUsersInTransaction(
        * §18а: «с одной стороны пусто — дополняем недостающее». Пустое `display_name` найденной
        * учётки поэтому не затирает настоящее имя второй стороны, а уступает ему.
        */
-      const recognizedAccount = humanDecision.prompt.foundAccountId === targetId ? a : b;
+      const recognizedAccount = answered.prompt.foundAccountId === targetId ? a : b;
       const otherAccount = recognizedAccount === a ? b : a;
       const fallbackDisplayName =
         normalizedFioPart(recognizedAccount.display_name) ??
@@ -1078,10 +1128,10 @@ export async function mergePlatformUsersInTransaction(
     ]);
   }
   /**
-   * Третьей ветки с записью ФИО здесь нет намеренно. За дверью врача (§18б) ответа человека про
-   * ФИО не существует: он дал его до блокера, вместе с откатившейся транзакцией, а врачу канон
-   * оставляет только «слить» или «отказать». Поэтому подпись целевой учётки остаётся как есть —
-   * молчаливый выбор стороны движком §18а запрещает так же, как явный.
+   * Третьей ветки с записью ФИО здесь нет намеренно. Дверь врача идёт по ветке выше вместе с
+   * автоматической: §18а не знает для неё исключения. Сюда она доходит только когда спорить не о
+   * чем — ни одно поле ФИО не конфликтует (иначе выше вернулся бы `fio_decision_required`), и
+   * выбирать между сторонами не приходится.
    */
 
   await mutateCanonicalUserContacts(client, targetId, [

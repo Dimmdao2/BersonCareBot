@@ -165,3 +165,68 @@ export function createHumanMergeDecision(
 ): HumanMergeDecision {
   return { accountConfirmed: true, prompt, fio };
 }
+
+function readAccountSummary(value: unknown): HumanMergeAccountSummary | null {
+  if (typeof value !== 'object' || value === null) return null;
+  const row = value as Record<string, unknown>;
+  const text = (key: string): string | null | undefined =>
+    row[key] === null ? null : typeof row[key] === 'string' ? (row[key] as string) : undefined;
+  const id = text('id');
+  const displayName = text('displayName');
+  const createdAt = text('createdAt');
+  const firstName = text('firstName');
+  const lastName = text('lastName');
+  const patronymic = text('patronymic');
+  if (!id || displayName === undefined || displayName === null) return null;
+  if (!createdAt) return null;
+  if (firstName === undefined || lastName === undefined || patronymic === undefined) return null;
+  return { id, displayName, firstName, lastName, patronymic, createdAt };
+}
+
+function readFioSelection(value: unknown): HumanMergeFioSelection | null {
+  if (typeof value !== 'object' || value === null) return null;
+  const row = value as Record<string, unknown>;
+  if (row.source === 'target' || row.source === 'duplicate') return { source: row.source };
+  if (row.source !== 'custom' || typeof row.value !== 'string') return null;
+  const custom = row.value.trim();
+  if (!isHumanMergeCustomFioValue(custom)) return null;
+  return { source: 'custom', value: custom };
+}
+
+/**
+ * Ответ человека, пролежавший в строке конфликта между его диалогом и решением врача (§18а + §18б).
+ *
+ * Разбирается здесь, рядом с определением формы, а не у читающего: хранилище отдаёт `unknown`, и
+ * единственная защита от «поле переименовали, а старые строки остались» — отказ разбора. Негодная
+ * запись становится `null`, и дверь врача отказывает вместо того, чтобы слить с чужой подписью.
+ */
+export function parseStoredHumanMergeDecision(value: unknown): HumanMergeDecision | null {
+  if (typeof value !== 'object' || value === null) return null;
+  const row = value as Record<string, unknown>;
+  if (row.accountConfirmed !== true) return null;
+  if (typeof row.prompt !== 'object' || row.prompt === null) return null;
+  const prompt = row.prompt as Record<string, unknown>;
+  const target = readAccountSummary(prompt.target);
+  const duplicate = readAccountSummary(prompt.duplicate);
+  if (!target || !duplicate) return null;
+  if (typeof prompt.foundAccountId !== 'string' || !prompt.foundAccountId) return null;
+  if (!Array.isArray(prompt.conflicts)) return null;
+  const conflicts: HumanMergeFioField[] = [];
+  for (const field of prompt.conflicts) {
+    if (!HUMAN_MERGE_FIO_FIELDS.includes(field as HumanMergeFioField)) return null;
+    conflicts.push(field as HumanMergeFioField);
+  }
+  const fio: HumanMergeFioSelections = {};
+  const storedFio = typeof row.fio === 'object' && row.fio !== null ? row.fio : {};
+  for (const [key, raw] of Object.entries(storedFio as Record<string, unknown>)) {
+    if (!HUMAN_MERGE_FIO_FIELDS.includes(key as HumanMergeFioField)) return null;
+    const selection = readFioSelection(raw);
+    if (!selection) return null;
+    fio[key as HumanMergeFioField] = selection;
+  }
+  return {
+    accountConfirmed: true,
+    prompt: { target, duplicate, foundAccountId: prompt.foundAccountId, conflicts },
+    fio,
+  };
+}
