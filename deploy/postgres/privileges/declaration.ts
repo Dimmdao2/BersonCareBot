@@ -24725,29 +24725,6 @@ const ROW_LOCK_SURFACES: Readonly<Record<string, Readonly<Record<string, string>
  * оценка живого маршрута — `docs/_TODO/runs/integrator-cleanup/DEFINER_TENANT_PREDICATE_GATE_2026-08-22.md`.
  */
 const TENANT_WALL_CROSSINGS: Readonly<Record<string, Readonly<Record<string, string>>>> = {
-  'app.transfer_staff_approved_platform_user_merge_data(uuid,uuid,uuid,uuid)': {
-    'public.be_patient_booking_profiles': 'after the current-clinic pending conflict and all other clinic blockers are checked, the canonical account merge preserves non-conflicting rows from every clinic',
-    'public.broadcast_audit_recipients': 'platform delivery history follows the canonical account globally after the clinic-owned blocker is approved',
-    'public.clinical_anamnesis_illness': 'the refusal check must look OUTSIDE the current clinic on purpose: a doctor may lift only their own blocker, so the door reads every organization to find a clinic that still has an unresolved one',
-    'public.clinical_anamnesis_lifestyle': 'the refusal check must look OUTSIDE the current clinic on purpose: a doctor may lift only their own blocker, so the door reads every organization to find a clinic that still has an unresolved one',
-    'public.clinical_anamnesis_trauma': 'the refusal check must look OUTSIDE the current clinic on purpose: a doctor may lift only their own blocker, so the door reads every organization to find a clinic that still has an unresolved one',
-    'public.clinical_complaint': 'the refusal check must look OUTSIDE the current clinic on purpose: a doctor may lift only their own blocker, so the door reads every organization to find a clinic that still has an unresolved one',
-    'public.clinical_diagnosis': 'the refusal check must look OUTSIDE the current clinic on purpose: a doctor may lift only their own blocker, so the door reads every organization to find a clinic that still has an unresolved one',
-    'public.clinical_visit': 'the refusal check must look OUTSIDE the current clinic on purpose: a doctor may lift only their own blocker, so the door reads every organization to find a clinic that still has an unresolved one',
-    'public.doctor_notes': 'the refusal check must look OUTSIDE the current clinic on purpose: a doctor may lift only their own blocker, so the door reads every organization to find a clinic that still has an unresolved one',
-    'public.material_ratings': 'patient-owned rating history follows the canonical account globally after the clinic-owned blocker is approved',
-    'public.native_push_targets': 'patient devices follow the canonical account globally after the clinic-owned blocker is approved',
-    'public.patient_daily_warmup_presentations': 'patient-owned warmup state follows the canonical account globally after the clinic-owned blocker is approved',
-    'public.patient_diary_day_snapshots': 'patient-owned diary state follows the canonical account globally after the clinic-owned blocker is approved',
-    'public.patient_merge_candidates': 'the pending row of the CURRENT clinic is read with the organization predicate; the second read deliberately looks for an approval recorded by ANOTHER clinic, which is what lets the last doctor finish the merge, and after the accounts actually become one the same door closes every clinic pending row of that pair — the blocker no longer exists anywhere',
-    'public.patient_specialist_links': 'the exact pair is authorized by the current-clinic pending conflict; non-conflicting links then follow the canonical account',
-    'public.product_analytics_user_hourly': 'platform analytics history follows the canonical account globally after the clinic-owned blocker is approved',
-    'public.program_item_discussion_reads': 'patient-owned discussion state follows the canonical account globally after the clinic-owned blocker is approved',
-    'public.symptom_trackings': 'the door first rejects a medical blocker in every other organization, then moves the approved pair as one canonical account',
-    'public.treatment_program_instances': 'the refusal check must look OUTSIDE the current clinic on purpose: a doctor-assigned program in another organization is a blocker that only that clinic may lift',
-    'public.user_channel_preferences': 'the exact pair is authorized by the current-clinic pending conflict; global delivery preferences then follow the canonical account',
-    'public.user_web_push_subscriptions': 'patient devices follow the canonical account globally after the clinic-owned blocker is approved',
-  },
   // Приглашение в персонал: строку находит неугадываемый `token_hash`, и человек, который его
   // предъявил, к этой клинике ещё не принадлежит — сравнивать её организацию не с чем. Место в
   // тарифе считается по клинике САМОГО приглашения, а не по клинике вызывающего, потому что
