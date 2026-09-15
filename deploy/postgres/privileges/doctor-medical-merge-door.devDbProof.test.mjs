@@ -212,11 +212,25 @@ test('врач чужой организации не читает и не пе�
   // Ветки «под этой поломкой ждём FAIL» здесь намеренно НЕТ: она инвертирует сигнал и красит
   // прогон под инъекцией зелёным. Этот сценарий обязан краснеть по-настоящему.
   proof('doctor-medical-merge-refusal-foreign-org.proofBody.mjs', (output) => {
-    assert.match(output, /doctor B refused clinic A's pending conflict, door returned: false/u, output);
-    assert.match(output, /"status":"pending","doctor_comment":null,"support_requested":null,"resolved_by":null,"platform_requests":0/u, output);
-    assert.match(output, /clinic A sees its own trace: /u, output);
-    assert.match(output, /refusal marks the doctor's patient card actually reads: \{"clinicA_target":1,"clinicA_duplicate":1,"clinicB_target":0\}/u, output);
-    assert.match(output, /doctor B read clinic A's refusal trace, door returned: null/u, output);
+    // Сверяем ЗНАЧЕНИЯ из машиночитаемой строки, а не английские фразы журнала: переформулировка
+    // диагностики поведение не меняет и красить прогон не должна (§10a — тест не дублирует текст).
+    const facts = JSON.parse(/^FACTS: (.+)$/mu.exec(output)?.[1] ?? 'null');
+    assert.ok(facts, `в выводе пробы нет строки FACTS:\n${output}`);
+    assert.equal(facts.foreignRefusalAccepted, false, output);
+    assert.deepEqual(
+      facts.conflictAfterForeignRefusal,
+      {
+        status: 'pending',
+        doctor_comment: null,
+        support_requested: null,
+        resolved_by: null,
+        platform_requests: 0,
+      },
+      output,
+    );
+    assert.equal(typeof facts.ownTraceComment, 'string', output);
+    assert.deepEqual(facts.marks, { clinicA_target: 1, clinicA_duplicate: 1, clinicB_target: 0 }, output);
+    assert.equal(facts.foreignTraceRead, null, output);
     assert.match(output, /RESULT: PASS/u, output);
   });
 });

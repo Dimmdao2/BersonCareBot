@@ -205,6 +205,18 @@ async function main() {
       );
     }
 
+    // Машиночитаемая строка фактов: тест сверяет ЗНАЧЕНИЯ, а не английские фразы журнала.
+    // Переформулировка любой диагностической строки выше не должна красить прогон (§10a: тест не
+    // дублирует текст), а подмена самого факта — обязана.
+    say(
+      `FACTS: ${JSON.stringify({
+        foreignRefusalAccepted: foreignRefusal,
+        conflictAfterForeignRefusal: row,
+        ownTraceComment: ownSnapshot?.doctorComment ?? null,
+        marks,
+        foreignTraceRead: foreignSnapshot,
+      })}`,
+    );
     say('RESULT: PASS — a doctor of another organization neither reads nor writes clinic A\'s refusal');
   } catch (error) {
     say(`RESULT: FAIL — ${error.code ? `${error.code} ` : ''}${error.message}`);
