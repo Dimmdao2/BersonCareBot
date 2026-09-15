@@ -477,7 +477,7 @@ const requireOrganizationWorkspaceContextRequestLocal = cache(
     }
     stampStaffPrincipal(resolved.ctx, 'requireOrganizationWorkspaceContext');
     if (!allowCabinetRecovery && (await cabinetEntryIsBlocked(resolved.ctx.organizationId))) {
-      redirect(`${routePaths.settings}?tab=billing`);
+      redirect(`${routePaths.settings}?tab=account`);
     }
     return resolved.ctx;
   },
@@ -507,7 +507,7 @@ export async function requireDoctorWorkspaceContext(
   if (!contextHasCapability(ctx, 'clinical.workspace')) {
     redirect(
       contextHasCapability(ctx, 'organization.management')
-        ? `${routePaths.settings}?tab=organization`
+        ? `${routePaths.settings}?tab=profile`
         : routePaths.account,
     );
   }

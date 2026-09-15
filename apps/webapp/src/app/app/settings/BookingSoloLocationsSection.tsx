@@ -40,6 +40,7 @@ import {
   setOnlineLocationEnabled,
   slugCityCode,
   type SoloOverview,
+  notifySoloCatalogChanged,
 } from '@/app/app/settings/bookingSoloAdminApi';
 import { isBuiltInOnlineLocation } from '@/modules/booking-engine/onlineLocation';
 import { DEFAULT_BOOKING_LOCATION_PALETTE } from '@/modules/booking-engine/locationPalette';
@@ -120,6 +121,8 @@ export function BookingSoloLocationsSection() {
       try {
         await task();
         await load();
+        // Филиалы — столбцы «Доступности услуг по филиалам»: она перечитывает обзор по сигналу.
+        notifySoloCatalogChanged();
         onSuccess?.();
       } catch (error) {
         setActionError(error instanceof Error ? error.message : 'action_failed');

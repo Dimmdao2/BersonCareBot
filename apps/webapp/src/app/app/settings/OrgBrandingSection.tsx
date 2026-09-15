@@ -57,6 +57,16 @@ type Props = {
     telegram: ClinicBotSettings;
     max: ClinicBotSettings;
   };
+  /**
+   * Какая половина бренда правится на этом экране (владелец 15.09.2026, разбор настроек):
+   * «Профиль» — имя организации и логотип, «Брендинг» — иконка приложения, своё приложение и боты
+   * («Иконка приложения — в брендинге очевидно»).
+   *
+   * Это ОДИН раздел с двумя видами, а не два раздела: публикация бренда атомарна — имя, логотип и
+   * иконка уезжают одной ревизией. Поэтому вид, который поля не показывает, отправляет их
+   * опубликованные значения без изменений, и сохранение в «Профиле» не стирает иконку.
+   */
+  scope?: 'all' | 'profile' | 'branding';
 };
 
 type ClinicBotSettings = {
@@ -277,6 +287,7 @@ export function OrgBrandingSection({
   publishedAppIconUrl,
   usesOwnPatientApp: initialUsesOwnPatientApp,
   clinicBots,
+  scope = 'all',
 }: Props) {
   const router = useRouter();
   const [name, setName] = useState(publishedDisplayName ?? coreDisplayName);
@@ -289,12 +300,20 @@ export function OrgBrandingSection({
   const [usesOwnPatientApp, setUsesOwnPatientApp] = useState(initialUsesOwnPatientApp);
   const [savingOwnApp, setSavingOwnApp] = useState(false);
 
+  const showsProfileFields = scope !== 'branding';
+  const showsBrandingFields = scope !== 'profile';
+
   const baselineName = (publishedDisplayName ?? coreDisplayName).trim();
+  /**
+   * «Есть что сохранять» считается только по тем полям, которые этот вид показывает: скрытые поля
+   * уезжают опубликованными значениями, поэтому изменить их здесь нельзя, а кнопка, светящаяся от
+   * чужой правки, обманывала бы.
+   */
   const dirty =
     !hasPublishedRevision ||
-    name.trim() !== baselineName ||
-    logoMediaId !== publishedLogoMediaId ||
-    appIconMediaId !== publishedAppIconMediaId;
+    (showsProfileFields &&
+      (name.trim() !== baselineName || logoMediaId !== publishedLogoMediaId)) ||
+    (showsBrandingFields && appIconMediaId !== publishedAppIconMediaId);
 
   function handleLogoChange(next: OrgBrandLogoChange) {
     setLogoMediaId(next?.mediaId ?? null);
@@ -316,7 +335,13 @@ export function OrgBrandingSection({
       // straightforward "cleared back to platform default" state instead of an inert duplicate.
       const displayName =
         trimmedName === '' || trimmedName === coreDisplayName.trim() ? null : trimmedName;
-      const result = await saveOrgBranding({ displayName, logoMediaId, appIconMediaId });
+      // Публикация бренда атомарна: скрытая половина уезжает ровно тем, что опубликовано сейчас,
+      // иначе сохранение в одном виде стирало бы поля другого.
+      const result = await saveOrgBranding({
+        displayName: showsProfileFields ? displayName : (publishedDisplayName ?? null),
+        logoMediaId: showsProfileFields ? logoMediaId : publishedLogoMediaId,
+        appIconMediaId: showsBrandingFields ? appIconMediaId : publishedAppIconMediaId,
+      });
       if (!result.ok) {
         // The known codes keep their own sentence; the support reference travels with whatever the
         // door could not name, so an unmapped save failure is still traceable from this screen.
@@ -353,7 +378,9 @@ export function OrgBrandingSection({
   return (
     <DoctorSection>
       <DoctorSectionHeader>
-        <DoctorSectionTitle>Бренд организации</DoctorSectionTitle>
+        <DoctorSectionTitle>
+          {scope === 'branding' ? 'Приложение организации' : 'Бренд организации'}
+        </DoctorSectionTitle>
       </DoctorSectionHeader>
 
       {!brandingMutationAvailable ? (
@@ -364,65 +391,73 @@ export function OrgBrandingSection({
       ) : null}
 
       <div className="flex max-w-md flex-col gap-4">
-        <DoctorField label="Название организации" htmlFor="org-brand-name">
-          <Input
-            id="org-brand-name"
-            value={name}
-            onChange={(e) => {
-              setName(e.target.value);
-              setJustSaved(false);
-            }}
-            disabled={!brandingMutationAvailable || saving}
-            maxLength={ORGANIZATION_NAME_MAX_LENGTH}
-          />
-        </DoctorField>
+        {showsProfileFields ? (
+          <>
+            <DoctorField label="Название организации" htmlFor="org-brand-name">
+              <Input
+                id="org-brand-name"
+                value={name}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  setJustSaved(false);
+                }}
+                disabled={!brandingMutationAvailable || saving}
+                maxLength={ORGANIZATION_NAME_MAX_LENGTH}
+              />
+            </DoctorField>
 
-        <div className="flex flex-col gap-1.5">
-          <span className="text-sm font-medium">Логотип</span>
-          <OrgBrandLogoControl
-            initialMediaId={publishedLogoMediaId}
-            initialUrl={publishedLogoUrl}
-            disabled={!brandingMutationAvailable || saving}
-            onChange={handleLogoChange}
-          />
-        </div>
+            <div className="flex flex-col gap-1.5">
+              <span className="text-sm font-medium">Логотип</span>
+              <OrgBrandLogoControl
+                initialMediaId={publishedLogoMediaId}
+                initialUrl={publishedLogoUrl}
+                disabled={!brandingMutationAvailable || saving}
+                onChange={handleLogoChange}
+              />
+            </div>
+          </>
+        ) : null}
 
-        <div className="flex flex-col gap-1.5">
-          <span className="text-sm font-medium">Иконка приложения</span>
-          <p className="text-xs text-muted-foreground">
-            Квадратная картинка: она встаёт на иконку установленного приложения пациента и на
-            фавикон сайта. Нужные размеры готовятся сразу при сохранении. Сторона от{' '}
-            {ORG_APP_ICON_MIN_SOURCE_SIDE} до {ORG_APP_ICON_MAX_SOURCE_SIDE} px.
-          </p>
-          <OrgBrandLogoControl
-            initialMediaId={publishedAppIconMediaId}
-            initialUrl={publishedAppIconUrl}
-            disabled={!brandingMutationAvailable || saving}
-            onChange={handleAppIconChange}
-            emptyLabel="Нет иконки"
-            pickerTitle="Иконка приложения"
-            instanceKey="org-brand-app-icon"
-            sourceGate={appIconSourceGate}
-          />
-        </div>
+        {showsBrandingFields ? (
+          <>
+            <div className="flex flex-col gap-1.5">
+              <span className="text-sm font-medium">Иконка приложения</span>
+              <p className="text-xs text-muted-foreground">
+                Квадратная картинка: она встаёт на иконку установленного приложения пациента и на
+                фавикон сайта. Нужные размеры готовятся сразу при сохранении. Сторона от{' '}
+                {ORG_APP_ICON_MIN_SOURCE_SIDE} до {ORG_APP_ICON_MAX_SOURCE_SIDE} px.
+              </p>
+              <OrgBrandLogoControl
+                initialMediaId={publishedAppIconMediaId}
+                initialUrl={publishedAppIconUrl}
+                disabled={!brandingMutationAvailable || saving}
+                onChange={handleAppIconChange}
+                emptyLabel="Нет иконки"
+                pickerTitle="Иконка приложения"
+                instanceKey="org-brand-app-icon"
+                sourceGate={appIconSourceGate}
+              />
+            </div>
 
-        <label className="flex items-start gap-2 text-sm" htmlFor={ownAppId}>
-          <Checkbox
-            id={ownAppId}
-            checked={usesOwnPatientApp}
-            onCheckedChange={(checked) => void saveOwnPatientApp(checked === true)}
-            disabled={!brandingMutationAvailable || savingOwnApp}
-            className="mt-0.5"
-          />
-          <span>
-            Своё приложение для пациентов вместо общей платформы
-            <span className="mt-0.5 block text-xs text-muted-foreground">
-              Пациенты попадают в кабинет только с вашего адреса. Организация сразу перестаёт
-              показываться в общем списке на платформе — независимо от того, настроен ли уже
-              свой домен.
-            </span>
-          </span>
-        </label>
+            <label className="flex items-start gap-2 text-sm" htmlFor={ownAppId}>
+              <Checkbox
+                id={ownAppId}
+                checked={usesOwnPatientApp}
+                onCheckedChange={(checked) => void saveOwnPatientApp(checked === true)}
+                disabled={!brandingMutationAvailable || savingOwnApp}
+                className="mt-0.5"
+              />
+              <span>
+                Своё приложение для пациентов вместо общей платформы
+                <span className="mt-0.5 block text-xs text-muted-foreground">
+                  Пациенты попадают в кабинет только с вашего адреса. Организация сразу перестаёт
+                  показываться в общем списке на платформе — независимо от того, настроен ли уже
+                  свой домен.
+                </span>
+              </span>
+            </label>
+          </>
+        ) : null}
 
         <ActionFailureText failure={error} />
         {justSaved && !dirty ? <p className="text-sm text-muted-foreground">Сохранено.</p> : null}
@@ -438,10 +473,10 @@ export function OrgBrandingSection({
           </Button>
         </div>
 
-        {clinicBots?.telegram.available ? (
+        {showsBrandingFields && clinicBots?.telegram.available ? (
           <ClinicBotControls channel="telegram" settings={clinicBots.telegram} />
         ) : null}
-        {clinicBots?.max.available ? (
+        {showsBrandingFields && clinicBots?.max.available ? (
           <ClinicBotControls channel="max" settings={clinicBots.max} />
         ) : null}
       </div>

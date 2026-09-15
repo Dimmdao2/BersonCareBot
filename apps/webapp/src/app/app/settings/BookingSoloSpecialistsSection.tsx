@@ -36,6 +36,7 @@ import { MarkdownEditor } from '@/shared/ui/doctor/markdown/MarkdownEditor';
 import { MediaPickerShell } from '@/shared/ui/doctor/media/MediaPickerShell';
 import { MediaPickerPanel } from '@/shared/ui/doctor/media/MediaPickerPanel';
 import type { MediaListItem } from '@/shared/ui/doctor/media/MediaPickerList';
+import { MediaIdThumb } from '@/shared/ui/doctor/media/MediaIdThumb';
 import { apiJson } from '@/app/app/settings/bookingSoloAdminApi';
 import { FIO_LATIN_REJECTED_TEXT, isCyrillicFioInput } from '@/shared/lib/fio';
 
@@ -437,16 +438,20 @@ function SpecialistProfileFields({
       <div className="flex flex-col gap-1">
         <Label>Фотография</Label>
         <div className="flex flex-wrap items-center gap-2">
-          {draft.avatarMediaId ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={`/api/media/${draft.avatarMediaId}`}
-              alt=""
-              className="size-12 rounded-full object-cover"
-            />
-          ) : (
-            <div aria-hidden className="size-12 rounded-full border border-border/60 bg-muted/30" />
-          )}
+          {/* Общий контрол картинки по идентификатору: «готовится» вместо битого значка, пока
+              очередь превью не доделала файл, и без перезагрузки страницы (§20). */}
+          <MediaIdThumb
+            mediaId={draft.avatarMediaId}
+            className="size-12 overflow-hidden rounded-full border border-border/60 bg-muted/30"
+            imgClassName="size-12 rounded-full object-cover"
+            sizes="48px"
+            lazy={false}
+            density="compact"
+            labels={{ skipped: 'Превью не создаётся', failed: 'Превью не получилось' }}
+            empty={
+              <div aria-hidden className="size-12 rounded-full border border-border/60 bg-muted/30" />
+            }
+          />
           <Button
             type="button"
             size="sm"

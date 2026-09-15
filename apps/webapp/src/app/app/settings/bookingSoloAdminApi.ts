@@ -263,3 +263,29 @@ export function slugFieldKey(label: string, existing: string[]): string {
   }
   return key;
 }
+
+/**
+ * Каталог записи сменился — пересчитать тем, кто его показывает.
+ *
+ * Зачем. Услуги и «Доступность услуг по филиалам» — два соседних раздела, и каждый читал обзор
+ * САМ, один раз при появлении. Владелец 15.09.2026: «в настройках записи при включении выключенной
+ * услуги она сама в блоке „доступность услуг по филиалам“ не появляется до перезагрузки страницы».
+ * Так и было по построению: включили услугу в одном разделе, а второй об этом не знал.
+ *
+ * Общий сигнал, а не общий стейт: разделы монтируются в разных местах (соло-настройки и управление
+ * клиникой), и поднимать их данные в общий контейнер значило бы переписать оба под один экран.
+ * Кто МЕНЯЕТ каталог — зовёт `notifySoloCatalogChanged`; кто ПОКАЗЫВАЕТ — подписывается. Слушатель
+ * не обязан ничего знать про того, кто правил.
+ */
+const soloCatalogListeners = new Set<() => void>();
+
+export function notifySoloCatalogChanged(): void {
+  for (const listener of [...soloCatalogListeners]) listener();
+}
+
+export function subscribeSoloCatalogChanged(listener: () => void): () => void {
+  soloCatalogListeners.add(listener);
+  return () => {
+    soloCatalogListeners.delete(listener);
+  };
+}

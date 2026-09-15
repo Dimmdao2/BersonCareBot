@@ -32,21 +32,21 @@ import type { loadStaffAccountPageContext } from './accountContext';
 export async function loadStaffNotificationsSection(
   deps: ReturnType<typeof buildAppDeps>,
   session: Awaited<ReturnType<typeof loadStaffAccountPageContext>>['session'],
-  workspaceContext: DoctorWorkspaceContext | null,
+  workspaceContext: Pick<
+    DoctorWorkspaceContext,
+    'organizationId' | 'canAccessClinicalWorkspace'
+  > | null,
 ): Promise<ReactNode> {
   const hasTelegram = Boolean(session.user.bindings.telegramId?.trim());
   const hasMax = Boolean(session.user.bindings.maxId?.trim());
   const [accountEmail, hasWebPushSubscription, channelPrefs, topicPrefs] =
-    await runWithStaffSecuritySelfPrincipal(
-      session.user.userId,
-      'account:notifications-self',
-      () =>
-        Promise.all([
-          deps.userProjection.getProfileEmailFields(session.user.userId),
-          deps.webPushSubscriptions.hasAnyForUserId(session.user.userId),
-          deps.channelPreferencesPort.getPreferences(session.user.userId),
-          deps.topicChannelPrefs.listByUserId(session.user.userId),
-        ]),
+    await runWithStaffSecuritySelfPrincipal(session.user.userId, 'account:notifications-self', () =>
+      Promise.all([
+        deps.userProjection.getProfileEmailFields(session.user.userId),
+        deps.webPushSubscriptions.hasAnyForUserId(session.user.userId),
+        deps.channelPreferencesPort.getPreferences(session.user.userId),
+        deps.topicChannelPrefs.listByUserId(session.user.userId),
+      ]),
     );
   const doctorSettings = workspaceContext?.canAccessClinicalWorkspace
     ? await deps.systemSettings.listSettingsByScope('doctor', {
