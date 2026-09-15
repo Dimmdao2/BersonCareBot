@@ -16,7 +16,7 @@ export function PatientEncounterPageShell({
   title: string;
   children: ReactNode;
   workspaceModules: WorkspaceModuleEffective;
-  layout?: 'default' | 'full-height';
+  layout?: 'default' | 'full-height' | 'surface';
 }) {
   return (
     <DoctorAppShell

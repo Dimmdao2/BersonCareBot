@@ -1528,6 +1528,16 @@ patientBookingService = createPatientBookingService({
       await import('@/modules/booking-notifications/settings');
     return parseBookingLifecycleNotificationsSettings(row?.valueJson ?? null);
   },
+  getAppointmentReminderOffsets: async (organizationId) => {
+    const row = await systemSettingsService.getSetting(
+      'doctor_appointment_reminder_offsets_minutes',
+      'doctor',
+      { organizationId },
+    );
+    const { parseAppointmentReminderSettings } =
+      await import('@/modules/booking-notifications/appointmentReminderSchedule');
+    return parseAppointmentReminderSettings(row?.valueJson ?? null).offsetsMinutes;
+  },
   getAppDisplayTimeZone,
   // T-F: слово организации о событии записи для текстов пациентских сообщений. Та же дверь, что у
   // кабинета (`app.read_authenticated_runtime_setting`); вызывается под пациентским принципалом

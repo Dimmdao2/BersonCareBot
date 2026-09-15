@@ -78,7 +78,7 @@ function appointment(over: Record<string, unknown> = {}) {
     prepaymentAmountMinor: null,
     prepaymentRequiredMinor: 0,
     prepaymentPaidMinor: 0,
-    appointmentReminderPresetId: null,
+    appointmentReminderOffsetsMinutes: [],
     phoneNormalized: null,
     ...over,
   };

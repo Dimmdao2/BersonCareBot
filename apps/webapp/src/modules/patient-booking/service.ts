@@ -33,7 +33,7 @@ import {
 } from './bookingLifecycleNotifications';
 import type { PatientBookingRecord } from './types';
 import type { BeAppointment } from '@/modules/booking-engine/types';
-import { appointmentReminderPlanForPreset } from '@/modules/booking-notifications/appointmentReminderPresets';
+import { appointmentReminderPlanForOffsets } from '@/modules/booking-notifications/appointmentReminderSchedule';
 import {
   buildPatientCancelledMessageText,
   buildPatientRescheduledMessageText,
@@ -104,6 +104,7 @@ export function createPatientBookingService(input: {
   platformUserContacts?: PlatformUserContactsService | null;
   getPlatformUserIdentityContacts?: (userId: string) => Promise<IdentityContactFields | null>;
   getBookingLifecycleNotificationSettings?: () => Promise<BookingLifecycleNotificationsSettings | null>;
+  getAppointmentReminderOffsets?: (organizationId: string) => Promise<number[]>;
   /** D14(3): часовой пояс организации для текста пациентского сообщения. Отсутствие — DEFAULT_APP_DISPLAY_TIMEZONE. */
   getAppDisplayTimeZone?: () => Promise<string>;
   /**
@@ -151,6 +152,7 @@ export function createPatientBookingService(input: {
           getPlatformUserIdentityContacts: input.getPlatformUserIdentityContacts,
           getBookingLifecycleNotificationSettings:
             input.getBookingLifecycleNotificationSettings ?? (async () => null),
+          getAppointmentReminderOffsets: input.getAppointmentReminderOffsets ?? (async () => []),
           getAppDisplayTimeZone: input.getAppDisplayTimeZone,
           getAppointmentTerms: input.getAppointmentTerms,
           outboundMessageQueue: input.outboundMessageQueue,
@@ -558,8 +560,8 @@ export function createPatientBookingService(input: {
           input.bookingEngine,
           row.canonicalAppointmentId,
         );
-        const reminderPlan = appointmentReminderPlanForPreset(
-          appointment.appointmentReminderPresetId,
+        const reminderPlan = appointmentReminderPlanForOffsets(
+          appointment.appointmentReminderOffsetsMinutes,
         );
         const timeZone = (await input.getAppDisplayTimeZone?.()) ?? DEFAULT_APP_DISPLAY_TIMEZONE;
         const terms = await input.getAppointmentTerms(orgId);
