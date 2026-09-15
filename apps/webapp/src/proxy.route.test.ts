@@ -170,50 +170,16 @@ describe('surface auth policy', () => {
     ]);
 
     expect(staff?.authPolicy).toEqual({
-      availableMethods: ['password', 'email_code', 'phone_bot', 'totp', 'oauth', 'passkey'],
-      enabledMethods: ['password', 'totp'],
+      availableMethods: ['password', 'totp', 'passkey'],
+      enabledMethods: ['password', 'totp', 'passkey'],
     });
     expect(platformAdmin?.authPolicy).toEqual({
-      availableMethods: ['password', 'email_code', 'phone_bot', 'totp', 'oauth', 'passkey'],
-      enabledMethods: ['password', 'email_code', 'totp', 'passkey'],
+      availableMethods: ['password', 'totp', 'passkey'],
+      enabledMethods: ['password', 'totp', 'passkey'],
     });
     expect(patient?.authPolicy).toEqual({
       availableMethods: ['email_code', 'phone_bot', 'oauth', 'passkey'],
       enabledMethods: ['email_code', 'phone_bot', 'oauth'],
-    });
-  });
-
-  it('enables OAuth and passkey by policy setting without changing the resolver or method type', async () => {
-    const runtime = await loadProxyForSurfaceConfiguration(PLATFORM_SURFACE_CONFIGURATIONS[1]);
-    const disabledConfig: SurfaceAuthPolicyConfig = {
-      ...DEFAULT_SURFACE_AUTH_POLICY_CONFIG,
-      staff: {
-        ...DEFAULT_SURFACE_AUTH_POLICY_CONFIG.staff,
-        enabledMethods: ['password', 'email_code', 'phone_bot', 'totp'],
-      },
-    };
-    const enabledConfig: SurfaceAuthPolicyConfig = {
-      ...disabledConfig,
-      staff: {
-        ...disabledConfig.staff,
-        enabledMethods: [...disabledConfig.staff.enabledMethods, 'oauth', 'passkey'],
-      },
-    };
-    const resolveWith = (authPolicyConfig: SurfaceAuthPolicyConfig) =>
-      runtime.resolveRequestSurface({
-        host: runtime.staffOrigin.host,
-        protocol: runtime.staffOrigin.protocol,
-        resolveTenantSurface: async () => ({ status: 'unknown' }),
-        authPolicyConfig,
-      });
-
-    await expect(resolveWith(disabledConfig)).resolves.toMatchObject({
-      authPolicy: { enabledMethods: ['password', 'email_code', 'phone_bot', 'totp'] },
-    });
-    await expect(resolveWith(enabledConfig)).resolves.toMatchObject({
-      authPolicy: {
-        enabledMethods: ['password', 'email_code', 'phone_bot', 'totp', 'oauth', 'passkey'],
-      },
     });
   });
 

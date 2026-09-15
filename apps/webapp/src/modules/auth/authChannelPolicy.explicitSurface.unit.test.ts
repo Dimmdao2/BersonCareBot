@@ -49,16 +49,17 @@ describe('single-Host misclassification cannot leak into an explicit-surface aut
     fakes.headers.mockReset();
   });
 
-  it('without an explicit surface, the ambient (possibly misclassified) Host resolution decides the key', async () => {
+  // С 16.09 у сотрудничьей поверхности телефонного метода нет в наборе вовсе, поэтому ambient-
+  // резолюция в `staff` теперь кончается отказом ДО чтения ключа настройки. Прежняя редакция этого
+  // случая ждала обращения к `auth_surface_staff_telegram_enabled` — ждать его больше нельзя, но
+  // сам предмет проверки сохранён: ambient-резолюция решает судьбу вызова без явной поверхности.
+  it('without an explicit surface, ambient staff resolution denies a messenger channel outright', async () => {
     fakes.headers.mockResolvedValue(STAFF_MISCLASSIFIED_HEADERS());
     fakes.getPublicRuntimeBool.mockResolvedValue(true);
 
-    await isAuthChannelEnabled('telegram');
+    await expect(isAuthChannelEnabled('telegram')).resolves.toBe(false);
 
-    expect(fakes.getPublicRuntimeBool).toHaveBeenCalledWith(
-      'auth_surface_staff_telegram_enabled',
-      'public_auth_config',
-    );
+    expect(fakes.getPublicRuntimeBool).not.toHaveBeenCalled();
   });
 
   it("the patient messenger-bind route's explicit surface='patient' overrides the misclassified Host resolution", async () => {

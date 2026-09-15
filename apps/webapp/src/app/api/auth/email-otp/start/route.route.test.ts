@@ -114,13 +114,11 @@ beforeEach(() => {
   vi.setSystemTime(new Date('2026-08-03T09:00:00.000Z'));
   fakes.publicValues.clear();
   fakes.requestSurface.value = {
-    surface: 'staff',
-    publicOrigin: 'https://therapysto.example.test',
+    surface: 'patient_default',
+    publicOrigin: 'https://therapygo.example.test',
     authPolicy: { availableMethods: ['email_code'], enabledMethods: ['email_code'] },
   };
-  fakes.publicValues.set('auth_surface_staff_email_enabled', true);
   fakes.publicValues.set('auth_surface_patient_email_enabled', true);
-  fakes.publicValues.set('auth_surface_platform_admin_email_enabled', true);
   fakes.getPublicRuntimeBool.mockImplementation(async (key) => {
     const value = fakes.publicValues.get(key);
     if (value === undefined) throw new Error(`missing public projection: ${key}`);
@@ -141,10 +139,8 @@ afterEach(() => {
 });
 
 describe('public email OTP start anti-enumeration', () => {
-  it('uses the explicit patient/admin portal policy on a shared staff host', async () => {
-    fakes.publicValues.set('auth_surface_staff_email_enabled', false);
+  it('allows the explicit patient portal but rejects admin email-code login on a shared staff host', async () => {
     fakes.publicValues.set('auth_surface_patient_email_enabled', true);
-    fakes.publicValues.set('auth_surface_platform_admin_email_enabled', true);
 
     const patientResponse = await resolveAfterPublicFloor(
       POST(request('patient@example.test', 'patient')),
@@ -153,11 +149,11 @@ describe('public email OTP start anti-enumeration', () => {
       POST(request('admin@example.test', 'admin')),
     );
 
-    expect([patientResponse.status, adminResponse.status]).toEqual([200, 200]);
-    expect(fakes.startPublicEmailOtpChallenge).toHaveBeenCalledTimes(2);
+    expect([patientResponse.status, adminResponse.status]).toEqual([200, 503]);
+    expect(fakes.startPublicEmailOtpChallenge).toHaveBeenCalledOnce();
   });
 
-  it('uses the resolved-surface header as the sole delivery gate in both directions', async () => {
+  it('keeps the patient toggle effective while staff email-code login stays disabled in code', async () => {
     fakes.publicValues.set('auth_surface_staff_email_enabled', true);
     fakes.publicValues.set('auth_surface_patient_email_enabled', false);
 
@@ -172,11 +168,11 @@ describe('public email OTP start anti-enumeration', () => {
       publicOrigin: 'https://therapysto.example.test',
       authPolicy: { availableMethods: ['email_code'], enabledMethods: ['email_code'] },
     };
-    const staffAllowed = await resolveAfterPublicFloor(POST(request()));
+    const staffDeniedWithLegacyTrue = await resolveAfterPublicFloor(POST(request()));
 
     expect(patientDenied.status).toBe(503);
-    expect(staffAllowed.status).toBe(200);
-    expect(fakes.startPublicEmailOtpChallenge).toHaveBeenCalledTimes(1);
+    expect(staffDeniedWithLegacyTrue.status).toBe(503);
+    expect(fakes.startPublicEmailOtpChallenge).not.toHaveBeenCalled();
 
     fakes.startPublicEmailOtpChallenge.mockClear();
     fakes.publicValues.set('auth_surface_staff_email_enabled', false);

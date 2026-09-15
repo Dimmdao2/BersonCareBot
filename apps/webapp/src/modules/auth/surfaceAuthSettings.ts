@@ -5,8 +5,6 @@ import {
 } from '@/shared/lib/surface/surfaceAuthPolicy';
 import type { RequestSurface } from '@/shared/lib/surface/requestSurface';
 
-export const SURFACE_AUTH_POLICY_NAMES = ['staff', 'platform_admin', 'patient'] as const;
-
 export const SURFACE_AUTH_CONTROLS = [
   'email',
   'sms',
@@ -20,8 +18,7 @@ export const SURFACE_AUTH_CONTROLS = [
 ] as const;
 
 export type SurfaceAuthControl = (typeof SURFACE_AUTH_CONTROLS)[number];
-export type SurfaceAuthSettingKey =
-  `auth_surface_${SurfaceAuthPolicyName}_${SurfaceAuthControl}_enabled`;
+export type SurfaceAuthSettingKey = `auth_surface_patient_${SurfaceAuthControl}_enabled`;
 
 const METHOD_BY_CONTROL = {
   email: 'email_code',
@@ -35,25 +32,36 @@ const METHOD_BY_CONTROL = {
   passkey: 'passkey',
 } as const satisfies Readonly<Record<SurfaceAuthControl, SurfaceAuthMethod>>;
 
-export const SURFACE_AUTH_SETTING_KEYS = SURFACE_AUTH_POLICY_NAMES.flatMap((surface) =>
-  SURFACE_AUTH_CONTROLS.map((control) => surfaceAuthSettingKey(surface, control)),
+export const SURFACE_AUTH_SETTING_KEYS = SURFACE_AUTH_CONTROLS.map((control) =>
+  patientSurfaceAuthSettingKey(control),
 );
 
-export function surfaceAuthSettingKey(
-  surface: SurfaceAuthPolicyName,
-  control: SurfaceAuthControl,
-): SurfaceAuthSettingKey {
-  return `auth_surface_${surface}_${control}_enabled`;
+export function patientSurfaceAuthSettingKey(control: SurfaceAuthControl): SurfaceAuthSettingKey {
+  return `auth_surface_patient_${control}_enabled`;
 }
 
-/** F1 remains the only compiled default matrix; persisted settings only override its cells. */
+/**
+ * Доступен ли сам способ этой поверхности. Отвечает на вопрос «бывает ли такая дверь здесь вообще»,
+ * тогда как настройка отвечает «включена ли она сейчас». Разделение нужно, чтобы запрет канона не
+ * снимался тумблером: у сотрудника и админа клиники в наборе нет телефонного кода, поэтому sms,
+ * telegram и max на их поверхностях отказывают даже при записанном `true`.
+ */
+export function surfaceAuthControlAvailable(
+  surface: SurfaceAuthPolicyName,
+  control: SurfaceAuthControl,
+): boolean {
+  const availableMethods: readonly SurfaceAuthMethod[] =
+    DEFAULT_SURFACE_AUTH_POLICY_CONFIG[surface].availableMethods;
+  return availableMethods.includes(METHOD_BY_CONTROL[control]);
+}
+
+/** Compiled staff/admin policy and patient defaults share the same matrix. */
 export function defaultSurfaceAuthControlEnabled(
   surface: SurfaceAuthPolicyName,
   control: SurfaceAuthControl,
 ): boolean {
-  // Provider cells must not inherit one generic OAuth default: the owner keeps the one global
-  // patient Yandex registration enabled, while Google and every staff/admin OAuth provider stay
-  // disabled until their own surface setting is switched on.
+  // Provider cells must not inherit one generic OAuth default: the owner keeps the patient
+  // Yandex registration enabled, while the other patient providers stay disabled by default.
   if (control === 'oauth_yandex') return surface === 'patient';
   if (control.startsWith('oauth_')) return false;
   // SMS remains implemented but is deliberately off in the base delivery configuration on every

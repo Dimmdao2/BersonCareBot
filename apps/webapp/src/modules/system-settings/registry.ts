@@ -1,8 +1,7 @@
 import {
   defaultSurfaceAuthControlEnabled,
+  patientSurfaceAuthSettingKey,
   SURFACE_AUTH_CONTROLS,
-  SURFACE_AUTH_POLICY_NAMES,
-  surfaceAuthSettingKey,
   type SurfaceAuthSettingKey,
 } from '@/modules/auth/surfaceAuthSettings';
 
@@ -130,18 +129,16 @@ const runtime = (
   }) as const;
 
 const surfaceAuthSettingDefinitions = Object.fromEntries(
-  SURFACE_AUTH_POLICY_NAMES.flatMap((surface) =>
-    SURFACE_AUTH_CONTROLS.map((control) => [
-      surfaceAuthSettingKey(surface, control),
-      runtime(
-        'admin',
-        'global',
-        'public',
-        'boolean',
-        String(defaultSurfaceAuthControlEnabled(surface, control)),
-      ),
-    ]),
-  ),
+  SURFACE_AUTH_CONTROLS.map((control) => [
+    patientSurfaceAuthSettingKey(control),
+    runtime(
+      'admin',
+      'global',
+      'public',
+      'boolean',
+      String(defaultSurfaceAuthControlEnabled('patient', control)),
+    ),
+  ]),
 ) as Readonly<Record<SurfaceAuthSettingKey, SystemSettingDefinition>>;
 
 /** Every legacy SystemSettingKey is classified here; no fallback entry exists. */
