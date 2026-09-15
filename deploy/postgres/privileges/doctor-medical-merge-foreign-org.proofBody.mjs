@@ -55,9 +55,13 @@ async function main() {
     say(`clinic B (чужой врач)  =${clinicB.org_id} doctor=${clinicB.staff_id}`);
 
     // --- фикстура: пара учёток, медицинская история с обеих сторон в ОБЕИХ клиниках ---
+    // ФИО обеих сторон намеренно ОДИНАКОВО: предмет этого прогона — права и границы двери, а не
+    // §18а. Разные подписи означали бы незакрытый вопрос человека, и дверь честно отказала бы
+    // `fio_decision_required`, не дойдя до проверяемого здесь. Выбор ФИО проверяет отдельный
+    // прогон `doctor-medical-merge-fio.proofBody.mjs`.
     for (const [id, name] of [
-      [TARGET, 'F1 proof canonical'],
-      [DUPLICATE, 'F1 proof duplicate'],
+      [TARGET, 'F1 proof person'],
+      [DUPLICATE, 'F1 proof person'],
     ]) {
       await client.query(
         `INSERT INTO public.platform_users(id, display_name, role) VALUES ($1::uuid, $2, 'client')`,

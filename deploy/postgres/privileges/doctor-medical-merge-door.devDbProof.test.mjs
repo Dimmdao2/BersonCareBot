@@ -12,7 +12,9 @@
  *  Д2 — `app_staff` сам вписывает себе основание для двери и двигает чужие учётные строки;
  *  Д3 — врач ЧУЖОЙ организации со своим законным контекстом и известным `conflictId` проходит
  *       дверь конфликта соседней клиники: дверь ставит от его имени отметку «врач одобрил» на
- *       строку этой клиники, и последний блокер пары снимается без её решения.
+ *       строку этой клиники, и последний блокер пары снимается без её решения;
+ *  Ф1 — человек выбрал, какое ФИО оставить, медицинский блокер отложил слияние до врача, и после
+ *       «Слить» у человека молча осталась подпись целевой учётки — выбранная движком, а не им.
  *
  * Оракул — живой PostgreSQL, а не наш же текст.
  *
@@ -25,6 +27,8 @@
  *   DOCTOR_MEDICAL_MERGE_DOOR_FAULT=two-clinic-blindness (дверь не видит блокер второй клиники)
  *   DOCTOR_MEDICAL_MERGE_DOOR_FAULT=staff-insert         (роли врача возвращают колоночный INSERT)
  *   DOCTOR_MEDICAL_MERGE_DOOR_FAULT=foreign-org-conflict (дверь не сверяет организацию конфликта)
+ *   DOCTOR_MEDICAL_MERGE_DOOR_FAULT=fio-decision-not-persisted (строка конфликта снова теряет ответ
+ *                                                               человека про ФИО)
  *
  * `DOCTOR_MEDICAL_MERGE_DOOR_ECHO=1` печатает журнал каждого прогона, в том числе зелёного.
  */
@@ -38,13 +42,25 @@ import { fileURLToPath } from 'node:url';
 
 const ENABLED = process.env.RUN_DOCTOR_MEDICAL_MERGE_DOOR_DB === '1';
 const FAULT = process.env.DOCTOR_MEDICAL_MERGE_DOOR_FAULT ?? '';
-if (!['', 'privilege', 'two-clinic-blindness', 'staff-insert', 'foreign-org-conflict'].includes(FAULT)) {
+if (
+  ![
+    '',
+    'privilege',
+    'two-clinic-blindness',
+    'staff-insert',
+    'foreign-org-conflict',
+    'fio-decision-not-persisted',
+  ].includes(FAULT)
+) {
   throw new Error(`unknown DOCTOR_MEDICAL_MERGE_DOOR_FAULT '${FAULT}'`);
 }
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, '..', '..', '..');
-const MIGRATION = 'apps/webapp/db/drizzle-migrations/20260914T220000_doctor_resolves_medical_merge_conflict.sql';
+const MIGRATIONS = [
+  'apps/webapp/db/drizzle-migrations/20260914T220000_doctor_resolves_medical_merge_conflict.sql',
+  'apps/webapp/db/drizzle-migrations/20260915T150000_the_person_fio_answer_survives_the_doctor_defer.sql',
+];
 const PRIVILEGES = 'deploy/postgres/generated/privileges.bcb_webapp_dev.sql';
 const PORT_CONTEXT = 'deploy/postgres/generated/port-context-capabilities.bcb_webapp_dev.sql';
 
@@ -81,7 +97,7 @@ function stage(bodyFile) {
     '--external:cloudflare:sockets',
   ], { stdio: 'pipe' });
 
-  for (const relative of [MIGRATION, PRIVILEGES, PORT_CONTEXT]) {
+  for (const relative of [...MIGRATIONS, PRIVILEGES, PORT_CONTEXT]) {
     const destination = path.join(dir, 'repo', relative);
     fs.mkdirSync(path.dirname(destination), { recursive: true });
     fs.copyFileSync(path.join(repoRoot, relative), destination);
@@ -166,6 +182,20 @@ test('врач чужой организации не проходит двер�
     assert.match(output, /doctor B pressed merge on clinic A's conflict, door returned: .*"mergeOutcome":"conflict_not_found"/u, output);
     assert.match(output, /"clinic_a_row":"pending\/null"/u, output);
     assert.match(output, /"duplicate_merged_into":null/u, output);
+    assert.match(output, /RESULT: PASS/u, output);
+  });
+});
+
+test('выбранное человеком ФИО переживает медицинский defer и одобрение врача', { skip: !ENABLED }, () => {
+  // Ветки «под этой поломкой ждём FAIL» здесь НЕТ намеренно: она инвертирует сигнал и красит
+  // прогон под инъекцией зелёным. Этот сценарий обязан краснеть по-настоящему.
+  proof('doctor-medical-merge-fio.proofBody.mjs', (output) => {
+    assert.match(output, /automatic merge deferred by the medical blocker; answer carried out with it: yes/u, output);
+    assert.match(output, /stored human FIO answer = yes/u, output);
+    assert.match(output, /doctor merge returned: .*"mergeOutcome":"merged"/u, output);
+    assert.match(output, /"users_last_name":"Сидоров"/u, output);
+    assert.match(output, /"identity_last_name":"Сидоров"/u, output);
+    assert.match(output, /doctor merge WITHOUT a stored answer returned: .*"mergeOutcome":"fio_decision_required"/u, output);
     assert.match(output, /RESULT: PASS/u, output);
   });
 });

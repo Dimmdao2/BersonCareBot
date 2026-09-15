@@ -14,14 +14,28 @@ export const DB = 'bcb_webapp_dev';
 export const SEAM = 'app_seam_identity_lookup_owner';
 
 const REPO = process.env.BCB_PROOF_REPO;
-const MIGRATION = path.join(
-  REPO ?? '',
+/**
+ * Кандидатные миграции двери — В ПОРЯДКЕ ИМЁН, как их применяет мигратор. Вторая переписывает
+ * `app.record_patient_medical_merge_conflict`, поэтому применить только первую значит мерить
+ * позавчерашнюю дверь и не заметить ни одного отказа, который чинит вторая.
+ */
+/** Метка склейки файлов: по ней блоки соотносятся со своей миграцией. */
+const MIGRATION_FILE_BOUNDARY = '-- BCB-PROOF-MIGRATION-BOUNDARY';
+const MIGRATIONS = [
   'apps/webapp/db/drizzle-migrations/20260914T220000_doctor_resolves_medical_merge_conflict.sql',
-);
+  'apps/webapp/db/drizzle-migrations/20260915T150000_the_person_fio_answer_survives_the_doctor_defer.sql',
+].map((relative) => path.join(REPO ?? '', relative));
 const PRIVILEGES = path.join(REPO ?? '', 'deploy/postgres/generated', `privileges.${DB}.sql`);
 
 /** Слепые поломки: каждая возвращает поверхность к тому состоянию, ради которого фикс и делался. */
-export const FAULTS = new Set(['', 'privilege', 'two-clinic-blindness', 'staff-insert', 'foreign-org-conflict']);
+export const FAULTS = new Set([
+  '',
+  'privilege',
+  'two-clinic-blindness',
+  'staff-insert',
+  'foreign-org-conflict',
+  'fio-decision-not-persisted',
+]);
 
 export function faultFromEnv() {
   const fault = process.env.BCB_PROOF_FAULT ?? '';
@@ -29,8 +43,17 @@ export function faultFromEnv() {
   return fault;
 }
 
-function migrationBlocks(fault) {
-  let source = fs.readFileSync(MIGRATION, 'utf8');
+function migrationSource(fault) {
+  let source = MIGRATIONS.map((file) => fs.readFileSync(file, 'utf8')).join(
+    `\n${MIGRATION_FILE_BOUNDARY}\n--> statement-breakpoint\n`,
+  );
+  if (fault === 'fio-decision-not-persisted') {
+    // Дверь записи конфликта перестаёт класть ответ человека про ФИО в строку конфликта — ровно то
+    // состояние, из-за которого после одобрения врача выживала подпись, выбранная движком (§18а).
+    const marker = "|| pg_catalog.jsonb_build_object('humanFioDecision', p_human_fio_decision::jsonb)";
+    if (!source.includes(marker)) throw new Error('fault fio-decision-not-persisted: marker not found');
+    source = source.replace(marker, "|| '{}'::jsonb");
+  }
   if (fault === 'two-clinic-blindness') {
     // Дверь перестаёт видеть блокер ЧУЖОЙ клиники — ровно то, что чинит Д1. Прогон, который после
     // этого остаётся зелёным, про «второй клинике решать самой» ничего не доказывает.
@@ -46,11 +69,40 @@ function migrationBlocks(fault) {
     if (!source.includes(marker)) throw new Error('fault foreign-org-conflict: marker not found');
     source = source.replace(marker, 'AND TRUE');
   }
-  return source.split('--> statement-breakpoint').map((block) => {
-    const owner = /--\s*BCB-MIGRATION-OWNER:\s*([a-z_0-9]+)/u.exec(block)?.[1];
+  return source;
+}
+
+/**
+ * Блоки кандидата в порядке применения. `migrationIndex` нужен вызывающему: часть миграций ветки уже
+ * приземлена и накатана на DEV, и повторять их ОДНОРАЗОВЫЙ DDL в транзакции нельзя — индекс и
+ * ограничение уже стоят. Тела `CREATE OR REPLACE FUNCTION` повторять и нужно, и безопасно: только так
+ * в уже применённую дверь доезжает слепая поломка, ради которой прогон и существует.
+ */
+function migrationBlocks(fault) {
+  let migrationIndex = 0;
+  const blocks = [];
+  for (const chunk of migrationSource(fault).split('--> statement-breakpoint')) {
+    if (chunk.includes(MIGRATION_FILE_BOUNDARY)) migrationIndex += 1;
+    const sql = chunk.replaceAll(MIGRATION_FILE_BOUNDARY, '');
+    const owner = /--\s*BCB-MIGRATION-OWNER:\s*([a-z_0-9]+)/u.exec(sql)?.[1];
     if (!owner) throw new Error('migration block without an owner header');
-    return { owner, sql: block };
-  });
+    blocks.push({
+      owner,
+      sql,
+      migrationIndex,
+      replaceable: /CREATE OR REPLACE FUNCTION/u.test(sql),
+    });
+  }
+  return blocks;
+}
+
+/** Теги миграций ветки, которые в живой DEV уже применены по ledger. */
+async function appliedMigrationTags(client) {
+  const rows = await client.query(
+    `SELECT tag FROM drizzle.__drizzle_migrations WHERE tag = ANY($1::text[])`,
+    [MIGRATIONS.map((file) => path.basename(file, '.sql'))],
+  );
+  return new Set(rows.rows.map((row) => row.tag));
 }
 
 async function alreadyGrantedPolicies(client) {
@@ -117,18 +169,36 @@ function candidatePrivilegeStatements(installed) {
 export async function installCandidate(client, fault, say) {
   await client.query(`GRANT CREATE ON SCHEMA app, app_ext TO ${SEAM}`);
   await client.query(`GRANT USAGE ON LANGUAGE plpgsql, sql TO ${SEAM}`);
-  const blocks = migrationBlocks(fault);
-  for (const block of blocks) {
+  const applied = await appliedMigrationTags(client);
+  const tags = MIGRATIONS.map((file) => path.basename(file, '.sql'));
+  let executed = 0;
+  let skipped = 0;
+  for (const block of migrationBlocks(fault)) {
+    // Уже применённую миграцию повторяем ТОЛЬКО телами функций: её одноразовый DDL в живой DEV уже
+    // отработал, и второй `CREATE UNIQUE INDEX` просто уронил бы прогон на 42P07.
+    if (applied.has(tags[block.migrationIndex]) && !block.replaceable) {
+      skipped += 1;
+      continue;
+    }
     await client.query(`SET LOCAL ROLE ${block.owner}`);
     await client.query(block.sql);
     await client.query('RESET ROLE');
+    executed += 1;
   }
-  say(`candidate migration applied: ${blocks.length} owner-ordered blocks`);
+  const pending = tags.filter((tag) => !applied.has(tag));
+  say(
+    `candidate migration applied: ${executed} owner-ordered blocks` +
+      ` (${skipped} one-time blocks of already-applied migrations skipped;` +
+      ` pending in DEV: ${pending.length > 0 ? pending.join(', ') : 'none'})`,
+  );
   if (fault === 'two-clinic-blindness') {
     say("FAULT INJECTED: the door no longer sees another clinic's blocker");
   }
   if (fault === 'foreign-org-conflict') {
     say("FAULT INJECTED: the door no longer checks that the conflict belongs to the doctor's organization");
+  }
+  if (fault === 'fio-decision-not-persisted') {
+    say("FAULT INJECTED: the conflict row no longer keeps the person's FIO answer");
   }
 
   const privileges = candidatePrivilegeStatements(await alreadyGrantedPolicies(client));
@@ -239,24 +309,38 @@ export async function installDoctorContext(client, capability, doctor) {
  * Возможность порт-контекста именованного корня — из КАНДИДАТНОГО артефакта, а не выдуманная: у
  * новых дверей ветки её на DEV ещё нет, а `require_accepted_context` без неё отказывает (42501).
  */
-export async function installCandidateNamedRootCapability(client, functionIdentity) {
+export async function installCandidateNamedRootCapability(client, functionIdentity, targetRole) {
   const source = fs.readFileSync(
     path.join(REPO ?? '', 'deploy/postgres/generated', `port-context-capabilities.${DB}.sql`),
     'utf8',
   );
+  // У одной двери бывает несколько строк каталога — по одной на роль вызывающего. Без фильтра
+  // берётся первая по файлу, и прогон молча меряет не тот вход, чем и обесценивается.
   const line = source
     .split('\n')
-    .find((candidate) => candidate.includes(`'${functionIdentity}'::regprocedure`));
+    .find(
+      (candidate) =>
+        candidate.includes(`'${functionIdentity}'::regprocedure`) &&
+        (targetRole === undefined || candidate.includes(`'${targetRole}'::name`)),
+    );
   if (!line) throw new Error(`candidate capability for ${functionIdentity} not found`);
   const values = [...line.matchAll(/'([^']*)'(?:::[a-z_. ]+)?/gu)].map((match) => match[1]);
-  const [capabilityId, port, login, targetRole, contextClass, purpose] = values;
+  const [capabilityId, port, login, capabilityRole, contextClass, purpose] = values;
+  // Строка каталога с этим `capability_id` в живой DEV уже может быть — от ПРЕЖНЕЙ сигнатуры двери
+  // (`capability_id` детерминирован и сигнатуру не различает). `DO NOTHING` тогда молча оставил бы
+  // указатель на старую функцию, и контекст отбивался бы «capability mismatch». Кандидатный
+  // reconcile переписал бы строку — здесь то же самое, внутри транзакции с ROLLBACK.
   await client.query(
     `INSERT INTO app_ext.port_context_capabilities(capability_id, port, session_login, target_role,
        context_class, purpose, function_identity, active_from)
      VALUES ($1::uuid, $2::app.port_name, $3::name, $4::name, $5::app.port_context_class, $6,
              $7::regprocedure, now())
-     ON CONFLICT DO NOTHING`,
-    [capabilityId, port, login, targetRole, contextClass, purpose, functionIdentity],
+     ON CONFLICT (capability_id) DO UPDATE SET
+       port = EXCLUDED.port, session_login = EXCLUDED.session_login,
+       target_role = EXCLUDED.target_role, context_class = EXCLUDED.context_class,
+       purpose = EXCLUDED.purpose, function_identity = EXCLUDED.function_identity,
+       active_from = EXCLUDED.active_from, active_until = NULL`,
+    [capabilityId, port, login, capabilityRole, contextClass, purpose, functionIdentity],
   );
   return { capability_id: capabilityId, login, purpose, function_identity: functionIdentity };
 }
@@ -290,8 +374,48 @@ export async function installDoctorNamedRootContext(client, capability, doctor, 
   );
 }
 
-/** Вернуться на место аудитора: app_staff учётные таблицы не читает вовсе. */
-export async function clearDoctorContext(client) {
+const TYPED_ARG_SEND = { uuid: ['uuid@1', 'uuid_send'], text: ['text@1', 'textsend'] };
+
+/**
+ * Порт-контекст ИМЕНОВАННОГО КОРНЯ класса `pre_session` — ровно то, что открывает bootstrap-принципал
+ * webapp, когда записывает отложенный медицинский конфликт: ни организации, ни актора у него нет.
+ */
+export async function installPreSessionNamedRootContext(
+  client,
+  capability,
+  typedArgs,
+  requestId = '00000000-0000-4000-8000-0000000c4001',
+) {
+  const rows = typedArgs.map((argument, index) => {
+    const recipe = TYPED_ARG_SEND[argument.type];
+    if (!recipe) throw new Error(`unsupported typed arg '${argument.type}'`);
+    return `ROW('${recipe[0]}', pg_catalog.${recipe[1]}($${index + 1}::${argument.type}))::app.port_typed_arg`;
+  });
+  // Хеш считается ДО смены авторизации: рантайм-логину исполнять `app.hash_port_typed_args` не положено.
+  const hash = await client.query(
+    `SELECT encode(app.hash_port_typed_args(ARRAY[${rows.join(', ')}]), 'hex') AS args_hash`,
+    typedArgs.map((argument) => argument.value),
+  );
+  await client.query(`SET LOCAL SESSION AUTHORIZATION ${capability.login}`);
+  await client.query(
+    `SELECT app.begin_port_context($1::uuid,
+       ROW(1::smallint, 'pre_session'::app.port_context_class, 'app_pre_session'::name, $2,
+           $3::regprocedure, decode($4, 'hex'), NULL::uuid, NULL::uuid, NULL::uuid,
+           NULL::bigint, $5::uuid)::app.port_context_claims)`,
+    [
+      capability.capability_id,
+      capability.purpose,
+      capability.function_identity,
+      hash.rows[0].args_hash,
+      // Класс `pre_session` обязан нести номер запроса и НЕ нести ни личности, ни организации:
+      // человек ещё не вошёл, и привязать контекст можно только к запросу.
+      requestId,
+    ],
+  );
+}
+
+/** Вернуться на место аудитора: рантайм-роли учётные таблицы не читают вовсе. */
+export async function clearPortContext(client) {
   await client.query('RESET SESSION AUTHORIZATION');
   await client.query(
     `DELETE FROM app_ext.accepted_port_contexts
@@ -307,3 +431,6 @@ export async function connect() {
   if (who.rows[0].db !== DB) throw new Error(`refusing to run against ${who.rows[0].db}`);
   return { client, db: who.rows[0].db, who: who.rows[0].who };
 }
+
+/** Прежнее имя того же действия — тела-доказательства двери врача зовут его так. */
+export const clearDoctorContext = clearPortContext;
