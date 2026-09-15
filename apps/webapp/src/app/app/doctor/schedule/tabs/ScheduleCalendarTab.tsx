@@ -549,11 +549,12 @@ type KpiRowTabProps = {
    * тянет историю месяцами и конца периода не имеет. Сам отбор по плиткам в ленте работает —
    * `kpiFilterPredicate` применяется в `visibleListAppointments`.
    *
-   * Следствия, обязательные вместе с флагом: (1) клик больше не гасится по `value > 0` — значение
-   * якорного периода ничего не говорит о ленте, и нулём в нём запиралась бы рабочая плитка;
-   * (2) «Первичных» в ленте не показывается вовсе: этот предикат решает по `kpis.firstVisitIds`,
-   * собранному за якорный период, поэтому в ленте он отрезал бы её до этого периода, а не отбирал
-   * первичные. Остальные четыре предиката решают по самой записи и в ленте верны.
+   * Следствие, обязательное вместе с флагом: клик больше не гасится по `value > 0` — значение
+   * якорного периода ничего не говорит о ленте, и нулём в нём запиралась бы рабочая плитка.
+   *
+   * Все пять плиток в ленте работают одинаково: каждый предикат решает по полям самой записи,
+   * включая «Первичных» — с 15.09 признак первого посещения едет на записи (`isFirstVisit`), а не
+   * списком id за окно КПИ.
    */
   valuesHidden?: boolean;
 };
@@ -566,9 +567,6 @@ function KpiRowTab({
   onKpiClick,
   valuesHidden = false,
 }: KpiRowTabProps) {
-  const items = valuesHidden
-    ? KPI_ITEMS.filter(({ key }) => key !== 'firstVisitInPeriod')
-    : KPI_ITEMS;
   return (
     <div className="flex flex-col gap-2">
       {periodLabel ? (
@@ -582,7 +580,7 @@ function KpiRowTab({
         </p>
       ) : null}
       <div className="grid grid-cols-2 gap-2" data-testid="cal-kpi-row">
-      {items.map(({ key, label }) => {
+      {KPI_ITEMS.map(({ key, label }) => {
         const value = kpis?.[key] ?? 0;
         // «Записей всего» — не обычный фильтр: она отражает состояние «фильтров нет» (выделена по
         // умолчанию, пока список не сужен) и по клику СБРАСЫВАЕТ остальные, а не добавляется к ним
@@ -1149,21 +1147,7 @@ export function ScheduleCalendarTab({
   // получил бы урезанное расписание без единой возможности это отменить. Поэтому без плиток
   // фильтры не применяются вовсе: выбор в хранилище остаётся и оживёт вместе со статистикой.
   const showKpi = doctorStatisticsEnabled;
-  /**
-   * То же правило, что и абзацем выше, но для одной плитки: в режиме списка «Первичных» не
-   * показывается (её предикат считает по `kpis.firstVisitIds`, собранным за якорный период, и в
-   * ленте отрезал бы историю до него), поэтому в ленте он и НЕ ПРИМЕНЯЕТСЯ. Иначе человек,
-   * выбравший «Первичных» в календаре и переключившийся в список, получил бы урезанную ленту с
-   * невидимой причиной. Возврат в календарь показывает плитку и отбор снова — выбор не теряется.
-   */
-  const activeKpiFilters = useMemo(() => {
-    if (!showKpi) return NO_KPI_FILTERS;
-    if (renderMode !== 'list') return selectedKpiFilters;
-    const withoutFirstVisit = selectedKpiFilters.filter((key) => key !== 'firstVisitInPeriod');
-    return withoutFirstVisit.length === selectedKpiFilters.length
-      ? selectedKpiFilters
-      : withoutFirstVisit;
-  }, [renderMode, selectedKpiFilters, showKpi]);
+  const activeKpiFilters = showKpi ? selectedKpiFilters : NO_KPI_FILTERS;
   const [filterCacheReady, setFilterCacheReady] = useState(false);
   const isMobileViewport = useIsMobileViewport();
   const isWideScheduleLayout = useViewportMinWidth(1280);
@@ -1706,11 +1690,11 @@ export function ScheduleCalendarTab({
       loadFeed(undefined, undefined, generation);
     }
     // Владелец 15.09: «я поэтому и сказал убрать цифры и НЕ СЧИТАТЬ — просто фильтровать». В ленте
-    // числа не показываются (`valuesHidden`), а отбор по плиткам решает по полям самой записи, и
-    // `kpis` для него не нужны — единственный предикат, который их читал (`firstVisitInPeriod` по
-    // `firstVisitIds`), в ленте не показывается и не применяется. Поэтому запрос КПИ в режиме
-    // списка не уходит вовсе — включая тридцатисекундный опрос ниже, который до этой правки гонял
-    // счёт по якорному периоду ради чисел, которых на экране нет. Возврат в календарь перезапускает
+    // числа не показываются (`valuesHidden`), а отбор по плиткам целиком решает по полям самой
+    // записи — `kpis` ему не нужны вовсе с тех пор, как признак первого посещения приехал на
+    // записи (`isFirstVisit`) вместо списка `firstVisitIds` за окно. Поэтому запрос КПИ в режиме
+    // списка не уходит — включая тридцатисекундный опрос ниже, который до этой правки гонял счёт
+    // по якорному периоду ради чисел, которых на экране нет. Возврат в календарь перезапускает
     // `load` (в зависимостях есть `renderMode`) и числа считаются снова.
     if (renderMode !== 'list') {
       loadKpis(view, anchorDate, generation);
@@ -2272,13 +2256,17 @@ export function ScheduleCalendarTab({
     ((appointment: CalendarAppointmentEvent) => boolean) | null
   >(() => {
     if (activeKpiFilters.length === 0) return null;
-    const firstVisitIdSet = new Set<string>(kpis?.firstVisitIds ?? []);
     const predicates: Record<
       ScheduleKpiFilterKey,
       (appointment: CalendarAppointmentEvent) => boolean
     > = {
       cancellationsInPeriod: (appointment) => isCancelledAppointmentStatus(appointment.status),
-      firstVisitInPeriod: (appointment) => firstVisitIdSet.has(appointment.id),
+      // Владелец 15.09: «первичные — это человек впервые пришёл, а не первая за период». Признак
+      // приходит НА САМОЙ записи (`isFirstVisit`, см. `modules/booking-calendar/types.ts`), а не
+      // списком id за окно КПИ, как было до 15.09: список ограничен `visibleRange`, поэтому в
+      // ленте, которая тянет историю месяцами, отбор резал её до якорного периода вместо отбора
+      // первичных. Теперь этот предикат такой же, как остальные четыре, — читает поле записи.
+      firstVisitInPeriod: (appointment) => appointment.isFirstVisit === true,
       bySubscriptionInPeriod: (appointment) =>
         Boolean(appointment.packageUsageRef || appointment.packageTitle),
       futureInPeriod: (appointment) =>
@@ -2287,7 +2275,7 @@ export function ScheduleCalendarTab({
         !isCancelledAppointmentStatus(appointment.status) && appointment.rescheduleCount > 0,
     };
     return (appointment) => activeKpiFilters.every((key) => predicates[key](appointment));
-  }, [activeKpiFilters, currentTimeZone, kpis?.firstVisitIds]);
+  }, [activeKpiFilters, currentTimeZone]);
 
   const displayableCalendarEvents = useMemo(
     () =>
@@ -3870,10 +3858,9 @@ export function ScheduleCalendarTab({
           </section>
           {/* Владелец 15.09: «в режиме списка можно скрывать вообще цифры в КПИ» — и сразу следом
               «ты в режиме списка убрал фильтры, а надо было цифры в них». Плитки в ленте остаются
-              (это единственный доступ к отбору «Отмены/Переносы/По абонементу/Впереди»), уходят
-              только числа и подпись периода: и то и другое посчитано по якорному периоду, а лента
-              тянет историю месяцами. Сколько найдено — говорит счётчик в блоке фильтров
-              (`renderScheduleSearchControls`). */}
+              все пять (это единственный доступ к отбору), уходят только числа и подпись периода:
+              и то и другое посчитано по якорному периоду, а лента тянет историю месяцами. Сколько
+              найдено — говорит счётчик в блоке фильтров (`renderScheduleSearchControls`). */}
           {showKpi ? (
             <KpiRowTab
               kpis={kpis}
@@ -3999,7 +3986,7 @@ export function ScheduleCalendarTab({
           {renderScheduleFilters('flex flex-col gap-1.5', 'w-full')}
           {/* То же, что и в `<aside>`: в ленте плитки остаются отбором, без чисел и без подписи
               периода (владелец 15.09: «ты в режиме списка убрал фильтры — а надо было цифры в
-              них»). Подробности и почему «Первичных» в ленте не показывается — у `valuesHidden`. */}
+              них»). Подробности — у `valuesHidden`. */}
           {showKpi ? (
             <KpiRowTab
               kpis={kpis}

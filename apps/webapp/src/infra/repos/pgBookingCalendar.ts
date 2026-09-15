@@ -7,6 +7,7 @@ import {
   gte,
   ilike,
   inArray,
+  isNotNull,
   isNull,
   lte,
   notInArray,
@@ -76,6 +77,66 @@ function contactNameFromAttribution(
         ? attr.contactName
         : null;
   return formatDoctorFioShortLabel(v, '') || null;
+}
+
+/**
+ * Отменённая запись посещением не считается — ни как «первое», ни как более раннее, которое его
+ * отменяет. Тот же список статусов, что у КПИ (`CANCELLED_STATUSES` в
+ * `pgDoctorCanonicalAppointments`), иначе «Первичных» в плитке и в отборе разошлись бы.
+ */
+const CANCELLED_APPOINTMENT_STATUSES = [
+  'cancelled_by_patient',
+  'cancelled_by_specialist',
+  'late_cancellation',
+  'no_show',
+] as const;
+
+/**
+ * Отбирает из переданных записей те, что являются ПЕРВЫМ посещением своего пациента.
+ *
+ * Владелец 15.09: «первичные — это человек впервые пришёл, а не первая за период». Критерий
+ * дословно повторяет `getScheduleKpis`: у пациента нет более ранней неотменённой записи в этой
+ * организации, строгий порядок по `(start_at, id)` — чтобы один новый человек с двумя записями
+ * подряд дал ровно одну «первичную», а не две.
+ *
+ * Считается ПО ВСЕЙ истории организации, а не по окну запроса: окно ограничивает только список
+ * проверяемых записей (`appointmentIds`), а подзапрос `NOT EXISTS` смотрит назад без границ.
+ * Именно из-за границы окна признак нельзя было отдавать списком `firstVisitIds` из КПИ — в ленте
+ * записи вне окна в него не попадали.
+ */
+async function selectFirstVisitAppointmentIds(
+  organizationId: string,
+  appointmentIds: string[],
+): Promise<Set<string>> {
+  if (appointmentIds.length === 0) return new Set();
+  const db = getDrizzle();
+  const rows = await db
+    .select({ id: beAppointments.id })
+    .from(beAppointments)
+    .where(
+      and(
+        eq(beAppointments.organizationId, organizationId),
+        inArray(beAppointments.id, appointmentIds),
+        isNull(beAppointments.deletedAt),
+        isNotNull(beAppointments.platformUserId),
+        notInArray(beAppointments.status, [...CANCELLED_APPOINTMENT_STATUSES]),
+        sql`NOT EXISTS (
+          SELECT 1 FROM be_appointments earlier
+          WHERE earlier.organization_id = ${organizationId}
+            AND earlier.deleted_at IS NULL
+            AND earlier.platform_user_id = ${beAppointments.platformUserId}
+            AND (
+              earlier.start_at < ${beAppointments.startAt}
+              OR (earlier.start_at = ${beAppointments.startAt} AND earlier.id < ${beAppointments.id})
+            )
+            AND earlier.status NOT IN (${sql.join(
+              CANCELLED_APPOINTMENT_STATUSES.map((status) => sql`${status}`),
+              sql`, `,
+            )})
+        )`,
+      ),
+    );
+  return new Set(rows.map((row) => row.id));
 }
 
 export function isPrepaymentPending(
@@ -400,6 +461,10 @@ export function createPgBookingCalendarPort(): BookingCalendarPort {
       }
 
       const visibleRows = await filterCanonicalRowsNotPurged(filters.organizationId, rows);
+      const firstVisitIds = await selectFirstVisitAppointmentIds(
+        filters.organizationId,
+        visibleRows.map((row) => row.id),
+      );
 
       return visibleRows.map((row) => {
         const attr = (row.attributionJson ?? {}) as Record<string, unknown>;
@@ -448,6 +513,7 @@ export function createPgBookingCalendarPort(): BookingCalendarPort {
           packageDisplayNumber: packageData?.displayNumber ?? null,
           rescheduleCount: row.rescheduleCount,
           originalStartAt: row.originalStartAt ?? null,
+          isFirstVisit: firstVisitIds.has(row.id),
           formComments: formCommentsByAppt.get(row.id) ?? [],
           primaryComment: primaryCommentByAppt.get(row.id)?.trim() || null,
           // Сводку оплаты наполняет app-layer: она требует тарифных решений и платёжного
@@ -470,14 +536,7 @@ export function createPgBookingCalendarPort(): BookingCalendarPort {
       if (filters.roomId) conds.push(eq(beAppointments.roomId, filters.roomId));
       if (filters.serviceId) conds.push(eq(beAppointments.serviceId, filters.serviceId));
       if (!filters.includeCancelled) {
-        conds.push(
-          notInArray(beAppointments.status, [
-            'cancelled_by_patient',
-            'cancelled_by_specialist',
-            'late_cancellation',
-            'no_show',
-          ]),
-        );
+        conds.push(notInArray(beAppointments.status, [...CANCELLED_APPOINTMENT_STATUSES]));
       }
 
       const search = filters.search?.trim();
