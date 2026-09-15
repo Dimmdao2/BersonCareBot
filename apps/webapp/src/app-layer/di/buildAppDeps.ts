@@ -1004,27 +1004,35 @@ const videoMeetingsService = !inMemoryRepos
         outboundMessageQueue: createPgOutboundMessageQueue(),
       }),
       resolvePatientPublicOrigin,
-      // Имя участника в звонке выдаёт приложение, а не браузер собеседника. Читается под явным
-      // принципалом организации встречи: гостевой обмен идёт без сессии человека, а отказ чтения
-      // (права, отсутствующая строка) обязан оставить звонок живым и просто без подписи.
-      resolveDisplayName: ({ meeting, role }) =>
-        withExplicitOrganizationPrincipal(
-          { organizationId: meeting.organizationId, source: 'video-meeting.display-name' },
-          async () => {
-            if (role === 'specialist') {
-              const specialist = await bookingEngineService?.catalog.getSpecialist(meeting.specialistId);
-              return specialist?.fullName?.trim() || null;
-            }
-            const identity = await doctorClientsPort.getClientIdentity(meeting.patientUserId);
-            if (!identity) return null;
-            return (
-              formatDoctorFioShort(
-                { lastName: identity.lastName ?? null, firstName: identity.firstName ?? null, patronymic: null },
-                identity.displayName?.trim() ?? '',
-              ) || null
-            );
-          },
-        ).catch(() => null),
+      /**
+       * Имя участника в звонке выдаёт приложение, а не браузер собеседника: оно уезжает в
+       * подписанное join-material и потому не подменяется с клиента.
+       *
+       * Читается ТЕМ принципалом, который уже стоит на маршруте, без подмены на организационный:
+       * организационный класс (`tenant_service`) ходит к данным только через именованные корни, и
+       * обычный выбор из `be_specialists` под ним падает ещё до базы («Missing declared webapp port
+       * capability: tenant_service»). Поэтому имя специалиста берётся на кабинетном маршруте под
+       * его же staff-принципалом, а имя клиента — на пациентском маршруте его собственной дверью
+       * `getCurrentPatientFio`. Гостевая ссылка сессии человека не несёт вовсе: там имени взять
+       * законно неоткуда, и участник подписывается нейтральным «Клиент», а не подписью провайдера.
+       */
+      resolveDisplayName: async ({ meeting, role }) => {
+        try {
+          if (role === 'specialist') {
+            const specialist = await bookingEngineService?.catalog.getSpecialist(meeting.specialistId);
+            return specialist?.fullName?.trim() || null;
+          }
+          const fio = await userProjectionPort.getCurrentPatientFio();
+          return (
+            formatDoctorFioShort(
+              { lastName: fio?.lastName ?? null, firstName: fio?.firstName ?? null, patronymic: null },
+              fio?.displayName?.trim() ?? '',
+            ) || 'Клиент'
+          );
+        } catch {
+          return role === 'patient' ? 'Клиент' : null;
+        }
+      },
       logDiagnostic: (payload) => logger.info(payload, 'video_meeting_diagnostic'),
     })
   : null;
