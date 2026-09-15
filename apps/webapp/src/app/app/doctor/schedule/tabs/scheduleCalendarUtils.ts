@@ -165,12 +165,29 @@ export function formatPeriodRange(
 }
 
 /**
- * Подпись кнопки периода в тулбаре. Владелец 15.09: «в кнопке с месяцем надо во всех размерах
- * экрана писать период: даты, месяц сокращенно и год» — раньше там стоял только месяц с годом
- * («Сентябрь 2026»), и по кнопке нельзя было понять, какие именно дни на экране.
+ * Подпись кнопки периода в тулбаре.
+ *
+ * Для «3 дня», «Неделя» и «День» — период датами: владелец 15.09 «в кнопке с месяцем надо во всех
+ * размерах экрана писать период: даты, месяц сокращенно и год», потому что по одному месяцу нельзя
+ * было понять, какие именно дни на экране.
+ *
+ * Для вида «Месяц» это правило В ТОТ ЖЕ ДЕНЬ отменено, посмотрев живьём: «и там и там просто
+ * месяц» (про список и про месяц календаря). Причина первой редакции на месяц и не
+ * распространялась — там на экране ровно один месяц целиком, и «1 — 30 сент. 2026» не сообщает
+ * ничего сверх «Сентябрь 2026», только занимает ширину кнопки.
+ *
+ * Подпись над КПИ-плитками (`kpiPeriodLabel`) остаётся диапазоном: она объясняет, за что посчитаны
+ * числа, и это другой вопрос.
  */
 export function periodNavLabel(view: CalV26View, anchorDate: string, zone: string): string {
+  if (view === 'month') return monthOnlyLabel(anchorDate, zone);
   return formatPeriodRange(view, anchorDate, zone, 'LLL');
+}
+
+/** «Сентябрь 2026» — общая форма подписи для месяца календаря и для списка, чтобы они не разошлись. */
+function monthOnlyLabel(dateKey: string, zone: string): string {
+  const day = DateTime.fromISO(dateKey, { zone }).setLocale('ru');
+  return day.isValid ? capitalizeRussianLabel(day.toFormat('LLLL yyyy')) : '';
 }
 
 /**
@@ -184,8 +201,7 @@ export function periodNavLabel(view: CalV26View, anchorDate: string, zone: strin
  * месяцами, а не на каждом дне прокрутки.
  */
 export function listPeriodNavLabel(dateKey: string, zone: string): string {
-  const day = DateTime.fromISO(dateKey, { zone }).setLocale('ru');
-  return day.isValid ? capitalizeRussianLabel(day.toFormat('LLLL yyyy')) : '';
+  return monthOnlyLabel(dateKey, zone);
 }
 
 /**
