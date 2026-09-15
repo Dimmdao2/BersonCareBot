@@ -35,11 +35,18 @@ export default async function DoctorCommunicationsPage({ searchParams }: Props) 
   const deps = buildAppDeps();
 
   const [badges, displayIana, commentsBundle] = await Promise.all([
-    visibleTabIds.has('chats')
-      ? loadDoctorCommunicationsBadges(deps, {
-          organizationId: workspace.organizationId,
-          visibilityActor: workspace,
-        })
+    visibleTabIds.has('chats') || visibleTabIds.has('leads')
+      ? loadDoctorCommunicationsBadges(
+          {
+            ...deps,
+            leads: visibleTabIds.has('leads') ? (deps.leads ?? undefined) : undefined,
+          },
+          {
+            organizationId: workspace.organizationId,
+            visibilityActor: workspace,
+          },
+          { includeChats: visibleTabIds.has('chats') },
+        )
       : Promise.resolve({}),
     getAppDisplayTimeZone(),
     initialTab === 'comments'

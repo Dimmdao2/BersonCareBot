@@ -1,0 +1,59 @@
+/*
+ * Раскладка звонка поверх экрана провайдера. Подаётся изнутри контейнера Jitsi web
+ * (см. ./nginx-custom-therapysto.conf), поэтому не зависит от того, что стоит на краю:
+ * на TEST это наш nginx-vhost, на новом проде — Caddy.
+ *
+ * Зачем вообще: у провайдера нет настройки «собственная плитка в углу». В его штатной
+ * раскладке она живёт в вертикальной плёнке во всю высоту справа, а рядом с ней висит
+ * миниатюра собеседника — дубль того, кто и так занимает главное окно. Владелец 15.09.2026
+ * на живом звонке: «можно ли у специалиста картинку me поудачнее расположить».
+ *
+ * Правила держатся за имена узлов Jitsi (`#filmstripLocalVideo`, `#remoteVideos`), то есть за
+ * чужую вёрстку. Это осознанная цена варианта «свой CSS»: при поднятии версии Jitsi
+ * (deploy/jitsi/VERSIONS.md) раскладку надо посмотреть живьём заново. Снято с stable-11146-2.
+ */
+
+/* Плёнка перестаёт быть полосой во всю высоту и становится плавающим окном в углу. */
+#videoconference_page.vertical-filmstrip .filmstrip {
+  position: absolute !important;
+  inset: auto 16px 96px auto !important;
+  width: auto !important;
+  height: auto !important;
+  background: none !important;
+  z-index: 3 !important;
+}
+
+#videoconference_page.vertical-filmstrip .resizable-filmstrip,
+#videoconference_page.vertical-filmstrip #remoteVideos {
+  width: auto !important;
+  height: auto !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  background: none !important;
+}
+
+/*
+ * Встреча строго один-на-один (третьего участника отказывает сервер, см. план #1100 ACC-06),
+ * поэтому собеседник ВСЕГДА занимает главное окно, а его миниатюра в плёнке — дубль.
+ */
+#videoconference_page.vertical-filmstrip #remoteVideos .remote-videos {
+  display: none !important;
+}
+
+/* Собственное видео — компактное окно со скруглением и тенью, как в привычных мессенджерах. */
+#videoconference_page.vertical-filmstrip #filmstripLocalVideo {
+  width: 224px !important;
+  height: 126px !important;
+  margin: 0 !important;
+  border-radius: 12px !important;
+  overflow: hidden !important;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45) !important;
+}
+
+#videoconference_page.vertical-filmstrip #filmstripLocalVideo #localVideoContainer,
+#videoconference_page.vertical-filmstrip #filmstripLocalVideo #localVideoWrapper,
+#videoconference_page.vertical-filmstrip #filmstripLocalVideo #localVideo_container {
+  width: 100% !important;
+  height: 100% !important;
+  border-radius: 12px !important;
+}
