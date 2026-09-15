@@ -152,6 +152,17 @@ export function createPgPatientPaymentsPort(): PatientPaymentsPort {
       return rows.map(rowToPayment);
     },
 
+    async listOrganizationPayments(limit = 100): Promise<PatientPayment[]> {
+      const organizationId = requiredPrincipalOrganizationId();
+      const rows = await getDrizzle()
+        .select()
+        .from(patientPayment)
+        .where(eq(patientPayment.organizationId, organizationId))
+        .orderBy(desc(patientPayment.createdAt))
+        .limit(limit);
+      return rows.map(rowToPayment);
+    },
+
     async listAppointmentPayments(appointmentId, patientUserId): Promise<PatientPayment[]> {
       const organizationId = requiredPrincipalOrganizationId();
       const rows = await getDrizzle()

@@ -871,6 +871,17 @@ export function createPgPaymentsPort(): PaymentsPort {
       return rows.map(mapHistory);
     },
 
+    async listHistoryForOrganization(organizationId, limit = 100) {
+      const db = getDrizzleOrMutationTx();
+      const rows = await db
+        .select()
+        .from(bePaymentHistoryEvents)
+        .where(eq(bePaymentHistoryEvents.organizationId, organizationId))
+        .orderBy(desc(bePaymentHistoryEvents.occurredAt))
+        .limit(limit);
+      return rows.map(mapHistory);
+    },
+
     async setAppointmentPaymentRef(appointmentId, paymentId, organizationId) {
       await runPaymentMutation(organizationId, (tx) =>
         tx

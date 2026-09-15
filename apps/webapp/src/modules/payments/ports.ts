@@ -192,6 +192,10 @@ export type PaymentsPort = {
     organizationId: string,
     limit?: number,
   ): Promise<PaymentHistoryEventRecord[]>;
+  listHistoryForOrganization(
+    organizationId: string,
+    limit?: number,
+  ): Promise<PaymentHistoryEventRecord[]>;
   setAppointmentPaymentRef(
     appointmentId: string,
     paymentId: string,
