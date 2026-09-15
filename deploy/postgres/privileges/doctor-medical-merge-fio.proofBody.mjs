@@ -11,7 +11,8 @@
  *
  * Два сценария, оба в одной транзакции с `ROLLBACK`:
  *  1. ответ человека сохранён → врач жмёт «Слить» → в `platform_users` и `user_identity` выбранное им;
- *  2. ответа нет, а ФИО расходится → дверь НЕ сливает и отвечает `fio_decision_required`.
+ *  2. ответа нет, а ФИО расходится → дверь НЕ сливает и отвечает `fio_decision_required`; человек
+ *     отвечает при следующем входе → ответ обновляет ТУ ЖЕ pending-строку → врач доводит слияние.
  *
  * Оракул независим от нашего кода: он в каноне (§18а «просим человека выбрать правильный вариант»),
  * а измеряется живым PostgreSQL — что лежит в строке после слияния.
@@ -47,6 +48,7 @@ const LOST = {
   target: '00000000-0000-4000-8000-00000000f2b1',
   duplicate: '00000000-0000-4000-8000-00000000f2b2',
 };
+const LEGACY_PENDING = '00000000-0000-4000-8000-00000000f2c1';
 const ALL_IDS = [KEPT.target, KEPT.duplicate, LOST.target, LOST.duplicate];
 
 const FAULT = faultFromEnv();
@@ -146,18 +148,20 @@ async function recordConflict(client, capability, clinic, pair, blocker) {
 }
 
 /** Нажатие врачом «Слить» — ровно то, что делает `mergeMedicalConflict` репозитория. */
-async function doctorPressesMerge(client, capability, clinic, pair, conflictId) {
+async function doctorPressesMerge(client, capability, clinic, conflictId) {
   const stored = await client.query(
-    `SELECT payload FROM public.patient_merge_candidates WHERE id = $1::uuid`,
+    `SELECT payload, anchor_user_id::text AS target_id, candidate_user_id::text AS duplicate_id
+       FROM public.patient_merge_candidates WHERE id = $1::uuid`,
     [conflictId],
   );
-  const decision = parseStoredHumanMergeDecision(stored.rows[0]?.payload?.humanFioDecision);
+  const candidate = stored.rows[0];
+  const decision = parseStoredHumanMergeDecision(candidate?.payload?.humanFioDecision);
   say(`conflict ${conflictId}: stored human FIO answer = ${decision ? 'yes' : 'NO'}`);
   await installDoctorContext(client, capability, clinic);
   const result = await mergePlatformUsersInTransaction(
     client,
-    pair.target,
-    pair.duplicate,
+    candidate.target_id,
+    candidate.duplicate_id,
     'phone_bind',
     {
       medicalConflictApproval: {
@@ -209,6 +213,14 @@ async function main() {
     };
     await insertPair(client, clinic, KEPT, names);
     await insertPair(client, clinic, LOST, names);
+    // Реальная legacy-коллизия: старый вид pending-кандидата занимает ordered-пару. Дверь записи
+    // медицинского конфликта обязана сохранить отдельную строку и потому разворачивает пару.
+    await client.query(
+      `INSERT INTO public.patient_merge_candidates(
+         id, organization_id, anchor_user_id, candidate_user_id, reason, status
+       ) VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, 'legacy_match', 'pending')`,
+      [LEGACY_PENDING, clinic.org_id, LOST.target, LOST.duplicate],
+    );
     say('fixture inserted (2 pairs, conflicting last names, medical history on both sides)');
 
     // --- сценарий 1: ответ человека сохранён и применён ---
@@ -220,7 +232,7 @@ async function main() {
       }`,
     );
     const keptConflict = await recordConflict(client, recordCapability, clinic, KEPT, blocker);
-    const keptOutcome = await doctorPressesMerge(client, staff, clinic, KEPT, keptConflict);
+    const keptOutcome = await doctorPressesMerge(client, staff, clinic, keptConflict);
     say(`doctor merge returned: ${JSON.stringify(keptOutcome)}`);
     const kept = await fioAfter(client, KEPT);
     say(`FIO after the doctor merged: ${JSON.stringify(kept)}`);
@@ -229,10 +241,40 @@ async function main() {
     const lostConflict = await recordConflict(client, recordCapability, clinic, LOST, {
       humanFioDecision: null,
     });
-    const lostOutcome = await doctorPressesMerge(client, staff, clinic, LOST, lostConflict);
+    const lostOrientation = await client.query(
+      `SELECT anchor_user_id::text AS anchor, candidate_user_id::text AS candidate
+         FROM public.patient_merge_candidates WHERE id = $1::uuid`,
+      [lostConflict],
+    );
+    say(`medical conflict orientation beside the legacy row: ${JSON.stringify(lostOrientation.rows[0])}`);
+    const lostOutcome = await doctorPressesMerge(client, staff, clinic, lostConflict);
     say(`doctor merge WITHOUT a stored answer returned: ${JSON.stringify(lostOutcome)}`);
     const lost = await fioAfter(client, LOST);
     say(`state after the refused merge: ${JSON.stringify(lost)}`);
+
+    // Следующий вход снова получает вопрос §18а. Новый ответ должен обновить ту же pending-строку,
+    // а не породить второй конфликт и не оставить старую пару вечной.
+    const recoveredDecision = await answerFioQuestion(client, LOST);
+    const recoveredBlocker = await deferredByMedicalBlocker(client, LOST, recoveredDecision);
+    const recoveredConflict = await recordConflict(
+      client,
+      recordCapability,
+      clinic,
+      LOST,
+      recoveredBlocker,
+    );
+    say(
+      `next entry updated the same pending conflict: ${recoveredConflict === lostConflict ? 'yes' : 'NO'}`,
+    );
+    const recoveredOutcome = await doctorPressesMerge(
+      client,
+      staff,
+      clinic,
+      recoveredConflict,
+    );
+    say(`doctor merge after the person's new answer returned: ${JSON.stringify(recoveredOutcome)}`);
+    const recovered = await fioAfter(client, LOST);
+    say(`FIO after the recovered loop: ${JSON.stringify(recovered)}`);
 
     const failures = [];
     if (keptOutcome.mergeOutcome !== 'merged') {
@@ -253,13 +295,34 @@ async function main() {
     if (lost.duplicate_merged_into !== null) {
       failures.push('scenario 2: accounts were merged although nobody chose the surname');
     }
+    if (
+      lostOrientation.rows[0]?.anchor !== LOST.duplicate ||
+      lostOrientation.rows[0]?.candidate !== LOST.target
+    ) {
+      failures.push('scenario 2: fixture did not exercise the reversed medical-conflict row');
+    }
+    if (recoveredConflict !== lostConflict) {
+      failures.push('scenario 2: the next entry created another conflict instead of updating the pending row');
+    }
+    if (recoveredOutcome.mergeOutcome !== 'merged') {
+      failures.push(`scenario 2: expected recovered merge, got ${recoveredOutcome.mergeOutcome}`);
+    }
+    if (recovered.users_last_name !== 'Сидоров') {
+      failures.push(`scenario 2: platform_users.last_name is '${recovered.users_last_name}', not the newly chosen 'Сидоров'`);
+    }
+    if (recovered.identity_last_name !== 'Сидоров') {
+      failures.push(`scenario 2: user_identity.last_name is '${recovered.identity_last_name}', not the newly chosen 'Сидоров'`);
+    }
+    if (recovered.duplicate_merged_into !== LOST.target) {
+      failures.push('scenario 2: the duplicate was not merged after the person answered again');
+    }
 
     if (failures.length > 0) {
       for (const failure of failures) say(`  ! ${failure}`);
       say("RESULT: FAIL — the person's FIO answer does not survive the doctor door");
       process.exitCode = 1;
     } else {
-      say("RESULT: PASS — the person's chosen surname survived the medical defer and the doctor merge");
+      say("RESULT: PASS — the person's chosen surname survived the defer, and an old row recovered after the next answer");
     }
   } catch (err) {
     say(`RESULT: FAIL — ${err.code ? `${err.code} ` : ''}${err.message}`);
