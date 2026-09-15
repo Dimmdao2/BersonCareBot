@@ -33,6 +33,8 @@
  *   DOCTOR_MEDICAL_MERGE_DOOR_FAULT=decision-stays-pending (после решения остаётся красный pending)
  *   DOCTOR_MEDICAL_MERGE_DOOR_FAULT=comment-not-saved (решение теряет комментарий врача)
  *   DOCTOR_MEDICAL_MERGE_DOOR_FAULT=approval-comment-not-saved (подтверждение теряет комментарий)
+ *   DOCTOR_MEDICAL_MERGE_DOOR_FAULT=refusal-read-any-org  (дверь следа отказа не сверяет организацию)
+ *   DOCTOR_MEDICAL_MERGE_DOOR_FAULT=refusal-write-any-org (дверь записи отказа не сверяет организацию)
  *
  * `DOCTOR_MEDICAL_MERGE_DOOR_ECHO=1` печатает журнал каждого прогона, в том числе зелёного.
  */
@@ -58,6 +60,8 @@ if (
     'decision-stays-pending',
     'comment-not-saved',
     'approval-comment-not-saved',
+    'refusal-read-any-org',
+    'refusal-write-any-org',
   ].includes(FAULT)
 ) {
   throw new Error(`unknown DOCTOR_MEDICAL_MERGE_DOOR_FAULT '${FAULT}'`);
@@ -200,6 +204,19 @@ test('врач чужой организации не проходит двер�
     assert.match(output, /doctor B pressed merge on clinic A's conflict, door returned: .*"mergeOutcome":"conflict_not_found"/u, output);
     assert.match(output, /"clinic_a_row":"pending\/null"/u, output);
     assert.match(output, /"duplicate_merged_into":null/u, output);
+    assert.match(output, /RESULT: PASS/u, output);
+  });
+});
+
+test('врач чужой организации не читает и не переписывает отказ соседней клиники', { skip: !ENABLED }, () => {
+  // Ветки «под этой поломкой ждём FAIL» здесь намеренно НЕТ: она инвертирует сигнал и красит
+  // прогон под инъекцией зелёным. Этот сценарий обязан краснеть по-настоящему.
+  proof('doctor-medical-merge-refusal-foreign-org.proofBody.mjs', (output) => {
+    assert.match(output, /doctor B refused clinic A's pending conflict, door returned: false/u, output);
+    assert.match(output, /"status":"pending","doctor_comment":null,"support_requested":null,"resolved_by":null,"platform_requests":0/u, output);
+    assert.match(output, /clinic A sees its own trace: /u, output);
+    assert.match(output, /refusal marks the doctor's patient card actually reads: \{"clinicA_target":1,"clinicA_duplicate":1,"clinicB_target":0\}/u, output);
+    assert.match(output, /doctor B read clinic A's refusal trace, door returned: null/u, output);
     assert.match(output, /RESULT: PASS/u, output);
   });
 });

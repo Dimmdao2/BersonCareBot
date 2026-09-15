@@ -40,6 +40,8 @@ export const FAULTS = new Set([
   'decision-stays-pending',
   'comment-not-saved',
   'approval-comment-not-saved',
+  'refusal-read-any-org',
+  'refusal-write-any-org',
 ]);
 
 export function faultFromEnv() {
@@ -91,6 +93,23 @@ function migrationSource(fault) {
     const marker = 'doctor_comment = pg_catalog.btrim(p_doctor_comment),\n         support_requested = p_support_requested';
     if (!source.includes(marker)) throw new Error('fault comment-not-saved: marker not found');
     source = source.replace(marker, "doctor_comment = NULL,\n         support_requested = p_support_requested");
+  }
+  if (fault === 'refusal-read-any-org') {
+    // Дверь чтения следа отказа перестаёт сверять организацию конфликта, а §18б держит разбор за
+    // врачом СВОЕЙ клиники. Прогон, зелёный после этого, про стену чтения не говорит ничего.
+    const marker = "AND c.organization_id = app.current_org_id()\n         AND c.status IN ('dismissed', 'escalated')";
+    if (!source.includes(marker)) throw new Error('fault refusal-read-any-org: marker not found');
+    source = source.replace(marker, "AND TRUE\n         AND c.status IN ('dismissed', 'escalated')");
+  }
+  if (fault === 'refusal-write-any-org') {
+    // Дверь записи отказа перестаёт сверять организацию конфликта. Приложение здесь не
+    // подстраховывает: маршрут отдаёт в дверь `conflictId` из URL без единой сверки организации.
+    const marker = 'support_requested = p_support_requested\n   WHERE id = p_conflict_id\n     AND organization_id = app.current_org_id()';
+    if (!source.includes(marker)) throw new Error('fault refusal-write-any-org: marker not found');
+    source = source.replace(
+      marker,
+      'support_requested = p_support_requested\n   WHERE id = p_conflict_id\n     AND TRUE',
+    );
   }
   if (fault === 'approval-comment-not-saved') {
     const marker =
@@ -237,6 +256,12 @@ export async function installCandidate(client, fault, say) {
   if (fault === 'comment-not-saved') say('FAULT INJECTED: refusal drops the doctor comment');
   if (fault === 'approval-comment-not-saved') {
     say('FAULT INJECTED: approval drops the doctor comment');
+  }
+  if (fault === 'refusal-read-any-org') {
+    say('FAULT INJECTED: the refusal-trace read door no longer checks the organization');
+  }
+  if (fault === 'refusal-write-any-org') {
+    say('FAULT INJECTED: the refusal write door no longer checks the organization');
   }
 
   const privileges = candidatePrivilegeStatements(await alreadyGrantedPolicies(client));
