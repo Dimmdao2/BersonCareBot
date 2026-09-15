@@ -161,7 +161,13 @@ export function DoctorLiveMeetingClient({
 
   return (
     <main className="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-y-auto lg:grid-cols-[minmax(0,1fr)_420px] lg:overflow-hidden">
-      <section className="relative flex min-h-[320px] min-w-0 overflow-hidden rounded-lg bg-black lg:min-h-0">
+      {/*
+        Сцена держит пропорции видеопотока (16:9), а не растягивается на всю высоту колонки.
+        Растянутая сцена оставляла поле, которое Jitsi заполнял размытой копией того же потока —
+        владелец 15.09.2026: «экран собеседника в два слоя как будто». `self-start`, чтобы grid
+        не растягивал строку обратно.
+      */}
+      <section className="relative flex aspect-[16/9] min-w-0 self-start overflow-hidden rounded-lg bg-black">
         {!activeCall.isMobile && (activeCall.isActiveRoute || !activeCall.activeCall) ? (
           <VideoMeetingStage
             className="relative flex min-h-0 flex-1 items-center justify-center bg-black text-sm text-white"
