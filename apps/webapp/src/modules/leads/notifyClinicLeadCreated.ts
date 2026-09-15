@@ -7,7 +7,7 @@ import type { ClinicLeadNotificationProfilesPort } from './clinicNotificationPro
 import type { Lead } from './types';
 
 const LEAD_CREATED_TOPIC = 'lead.created' as const;
-const LEAD_NOTIFICATION_TOPIC_CODE = 'doctor_leads' as const;
+export const LEAD_NOTIFICATION_TOPIC_CODE = 'doctor_leads' as const;
 
 export type NotifyClinicLeadCreatedDeps = NotifyDoctorPatientMessageToStaffDeps & {
   clinicLeadNotificationProfiles: ClinicLeadNotificationProfilesPort;

@@ -95,16 +95,30 @@ test('исчезнувший между ps и inspect контейнер не у
     'running',
   ].join('\t');
 
+  // Уцелевших ДВА, а не один: с одной строкой тест проходил и тогда, когда частичный ответ
+  // обрезался до первой — а это снова молча прячет проблемный контейнер, чего М-4.1 не допускает.
+  const secondRow = [
+    'alive-id-2',
+    '/therapysto-blue-api-1',
+    '3',
+    '2026-09-15T08:00:01.000000000Z',
+    'unless-stopped',
+    '0',
+    'therapysto-app:fixture',
+    'running',
+  ].join('\t');
+
   const partial = runStatusWithDockerStub(
     `#!/usr/bin/env bash
-if [ "$1" = ps ]; then printf '%s\\n' alive-id gone-id; exit 0; fi
-printf '%s\\n' "${row}"
+if [ "$1" = ps ]; then printf '%s\\n' alive-id gone-id alive-id-2; exit 0; fi
+printf '%s\\n' "${row}" "${secondRow}"
 echo 'Error: No such object: gone-id' >&2
 exit 1
 `,
   );
   assert.equal(partial.status, 0, partial.stderr);
   assert.match(partial.stdout, /therapysto-blue-webapp-1 {2}status=running {2}restarts=0/);
+  assert.match(partial.stdout, /therapysto-blue-api-1 {2}status=running {2}restarts=3/);
 
   const daemonDown = runStatusWithDockerStub(
     `#!/usr/bin/env bash
