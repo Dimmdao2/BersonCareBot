@@ -38,6 +38,7 @@ import {
   DoctorSchedulePeriodNav,
 } from '@/shared/ui/doctor/calendar/DoctorSchedulePeriodNav';
 import { DoctorAttentionBadge } from '@/shared/ui/doctor/DoctorAttentionBadge';
+import { useViewportMinWidth } from '@/shared/hooks/useViewportMinWidth';
 import { DoctorDateTimePicker } from '@/shared/ui/doctor/DoctorDateTimePicker';
 import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
 import { emitDoctorScheduleCalendarRefresh } from '../scheduleCalendarEvents';
@@ -858,6 +859,23 @@ export function ScheduleWorkTab({
 }: ScheduleTabProps) {
   // ── State ─────────────────────────────────────────────────────────────────
 
+  /**
+   * Владелец 15.09: «вкладка график работы на десктопе и планшете — тулбар уезжает в правую часть
+   * как фильтры в записях; там выбор филиалов, период; кнопка мультивыбора только на планшете;
+   * легенда ниже; шаблоны расписаний там же ниже и только при выбранных днях».
+   *
+   * Порог 768 — граница «мобильный / планшет» по канону кабинета: с него начинается двухколоночная
+   * раскладка вкладки (раньше она включалась только с 1024, и планшет оставался без правой части).
+   * Мультивыбор мышью на десктопе делается Ctrl/⌘ и Shift, поэтому отдельная кнопка там лишняя;
+   * на планшете клавиш нет — кнопка остаётся. На мобильном верхняя полоска не меняется вовсе.
+   *
+   * Ветка по ширине одна и на JS, а не два дерева с `display:none`: у контролов тулбара есть
+   * `data-testid` и `aria-*`, и второй скрытый экземпляр каждого дал бы на странице две кнопки
+   * «Предыдущий месяц» — для чтения с экрана и для тестов это две РАЗНЫЕ кнопки.
+   */
+  const isWideWorkLayout = useViewportMinWidth(768);
+  const isDesktopWorkLayout = useViewportMinWidth(1280);
+
   const [selectionMode, setSelectionMode] = useState<'dates' | 'weekday'>('dates');
   const [selectedWeekday, setSelectedWeekday] = useState<number | null>(null);
   // #232: «постоянное расписание» чекбокс УДАЛЁН — weekday selection всегда сохраняет
@@ -1541,78 +1559,179 @@ export function ScheduleWorkTab({
 
   // ── Render ────────────────────────────────────────────────────────────────
 
+  const branchFilterButton = (
+    <Button
+      type="button"
+      size="icon"
+      variant="outline"
+      className={cn(
+        DOCTOR_SCHEDULE_TOOLBAR_ICON_CONTROL_CLASS,
+        allBranchesSelected
+          ? DOCTOR_SCHEDULE_TOOLBAR_CONTROL_CLASS
+          : DOCTOR_ACTIVE_FILTER_BUTTON_CLASS,
+      )}
+      onClick={() => setBranchPickerOpen(true)}
+      disabled={branches.length <= 1}
+      aria-label="Выбрать филиалы"
+      title="Филиалы"
+      data-testid="branch-filter-open"
+    >
+      <span className="relative inline-flex">
+        <MapPin className="size-4" aria-hidden />
+        <DoctorAttentionBadge count={allBranchesSelected ? 0 : 1} dot />
+      </span>
+    </Button>
+  );
+
+  const periodNav = (
+    <DoctorSchedulePeriodNav
+      className="justify-center"
+      labelClassName="max-w-48"
+      label={`${RU_MONTHS[viewMonth]} ${viewYear}`}
+      onPrev={() => navigateMonth(-1)}
+      onNext={() => navigateMonth(1)}
+      onLabelClick={() => setMonthPickerOpen(true)}
+      prevAriaLabel="Предыдущий месяц"
+      nextAriaLabel="Следующий месяц"
+      labelAriaLabel="Выбрать месяц"
+      prevTestId="month-prev"
+      nextTestId="month-next"
+      labelTestId="month-label"
+    />
+  );
+
+  const multiSelectButton = (
+    <Button
+      type="button"
+      size="icon"
+      variant="outline"
+      className={cn(
+        DOCTOR_SCHEDULE_TOOLBAR_ICON_CONTROL_CLASS,
+        // Не фильтр: режим «выбирать несколько дней» меняет только механику выделения
+        // ячеек и ничего не прячет, поэтому предупреждающий красный здесь солгал бы.
+        multiSelectEnabled
+          ? DOCTOR_ACTIVE_FILTER_BUTTON_CLASS
+          : DOCTOR_SCHEDULE_TOOLBAR_CONTROL_CLASS,
+      )}
+      onClick={() => setMultiSelectEnabled((enabled) => !enabled)}
+      aria-pressed={multiSelectEnabled}
+      aria-label="Выбирать несколько дней"
+      title="Выбрать несколько дней"
+      data-testid="multi-select-toggle"
+    >
+      <Layers className="size-4" aria-hidden />
+    </Button>
+  );
+
+  const templatesPanel = (
+    <DoctorSection data-testid="templates-panel">
+      <div className="flex items-center justify-between gap-2">
+        <h3 className={doctorSectionTitleClass}>Шаблоны расписаний</h3>
+        {/* Владелец 15.09: «в шаблонах нет кнопки добавить шаблон». Кнопка была и пропала в
+            `1738f2243` («complete management workspace UI #1099») — модалка создания шаблона
+            осталась в файле, но открыть её стало нечем. Возвращена на прежнее место; в отличие
+            от прежней версии закрыта тем же правом, что и «Применить» рядом. */}
+        {availabilityManageOwn ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className={DOCTOR_SCHEDULE_TOOLBAR_CONTROL_CLASS}
+            onClick={() => {
+              setTplBranchId(panelBranchId);
+              setTplDialogOpen(true);
+            }}
+            data-testid="btn-create-template"
+          >
+            + Создать
+          </Button>
+        ) : null}
+      </div>
+
+      {templates.length === 0 ? (
+        <DoctorEmptyState size="xs">Нет шаблонов.</DoctorEmptyState>
+      ) : (
+        <ul className="flex flex-col gap-1.5">
+          {templates
+            .filter((t) => t.isActive)
+            .map((tpl) => {
+              // E5: short branch label in template
+              const tplBranch = tpl.branchId
+                ? branches.find((b) => b.id === tpl.branchId)
+                : undefined;
+              const tplBranchLabel = tplBranch ? (tplBranch.shortTitle ?? tplBranch.title) : null;
+              const tplBreaksSummary = formatBreakSummary(tpl.breaks ?? []);
+
+              return (
+                <li
+                  key={tpl.id}
+                  className="flex items-center justify-between gap-2 rounded-md border border-border bg-card px-2.5 py-1.5 text-sm"
+                  data-testid={`template-${tpl.id}`}
+                >
+                  <div className="min-w-0 flex-1">
+                    <span className="truncate text-sm">{tpl.name}</span>
+                    {(tplBranchLabel || tplBreaksSummary) && (
+                      <span className="ml-1.5 text-xs text-muted-foreground">
+                        {[tplBranchLabel, tplBreaksSummary].filter(Boolean).join(' · ')}
+                      </span>
+                    )}
+                  </div>
+                  {availabilityManageOwn ? (
+                    <div className="flex shrink-0 gap-1">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className={cn('h-7 px-2 text-xs', DOCTOR_SCHEDULE_TOOLBAR_CONTROL_CLASS)}
+                        disabled={pending || selectedCount === 0}
+                        title={selectedCount === 0 ? 'Выберите дни для применения' : undefined}
+                        onClick={() => handleApplyTemplate(tpl.id)}
+                        data-testid={`btn-apply-template-${tpl.id}`}
+                      >
+                        Применить
+                      </Button>
+                    </div>
+                  ) : null}
+                </li>
+              );
+            })}
+        </ul>
+      )}
+
+      {availabilityManageOwn && selectedCount === 0 && templates.length > 0 && (
+        <p className="text-[10px] text-muted-foreground">Выберите дни для применения шаблона.</p>
+      )}
+    </DoctorSection>
+  );
+
   return (
     <div
       className="flex min-h-0 flex-1 flex-col"
       data-testid="schedule-work-tab"
       onMouseDown={handleSurfaceMouseDown}
     >
-      {/* Shared schedule toolbar: centered month navigation + branch filter action. */}
-      <DoctorCatalogStickyToolbar
-        withinRemainingHeight
-        className="mt-0 grid grid-cols-[2rem_minmax(0,1fr)_2rem] items-center gap-1 md:-mt-3"
-        onMouseDown={handleTopBarMouseDown}
-        data-testid="schedule-work-topbar"
-      >
-        <Button
-          type="button"
-          size="icon"
-          variant="outline"
-          className={cn(
-            DOCTOR_SCHEDULE_TOOLBAR_ICON_CONTROL_CLASS,
-            allBranchesSelected
-              ? DOCTOR_SCHEDULE_TOOLBAR_CONTROL_CLASS
-              : DOCTOR_ACTIVE_FILTER_BUTTON_CLASS,
-          )}
-          onClick={() => setBranchPickerOpen(true)}
-          disabled={branches.length <= 1}
-          aria-label="Выбрать филиалы"
-          title="Филиалы"
-          data-testid="branch-filter-open"
+      {/* Мобильная полоска: филиалы + месяц + мультивыбор. На планшете и десктопе те же
+          контролы стоят первым блоком правой колонки. */}
+      {!isWideWorkLayout ? (
+        <DoctorCatalogStickyToolbar
+          withinRemainingHeight
+          className="mt-0 grid grid-cols-[2rem_minmax(0,1fr)_2rem] items-center gap-1 md:-mt-3"
+          onMouseDown={handleTopBarMouseDown}
+          data-testid="schedule-work-topbar"
         >
-          <span className="relative inline-flex">
-            <MapPin className="size-4" aria-hidden />
-            <DoctorAttentionBadge count={allBranchesSelected ? 0 : 1} dot />
-          </span>
-        </Button>
-        <DoctorSchedulePeriodNav
-          className="justify-center"
-          labelClassName="max-w-48"
-          label={`${RU_MONTHS[viewMonth]} ${viewYear}`}
-          onPrev={() => navigateMonth(-1)}
-          onNext={() => navigateMonth(1)}
-          onLabelClick={() => setMonthPickerOpen(true)}
-          prevAriaLabel="Предыдущий месяц"
-          nextAriaLabel="Следующий месяц"
-          labelAriaLabel="Выбрать месяц"
-          prevTestId="month-prev"
-          nextTestId="month-next"
-          labelTestId="month-label"
-        />
-        <Button
-          type="button"
-          size="icon"
-          variant="outline"
-          className={cn(
-            DOCTOR_SCHEDULE_TOOLBAR_ICON_CONTROL_CLASS,
-            // Не фильтр: режим «выбирать несколько дней» меняет только механику выделения
-            // ячеек и ничего не прячет, поэтому предупреждающий красный здесь солгал бы.
-            multiSelectEnabled
-              ? DOCTOR_ACTIVE_FILTER_BUTTON_CLASS
-              : DOCTOR_SCHEDULE_TOOLBAR_CONTROL_CLASS,
-          )}
-          onClick={() => setMultiSelectEnabled((enabled) => !enabled)}
-          aria-pressed={multiSelectEnabled}
-          aria-label="Выбирать несколько дней"
-          title="Выбрать несколько дней"
-          data-testid="multi-select-toggle"
-        >
-          <Layers className="size-4" aria-hidden />
-        </Button>
-      </DoctorCatalogStickyToolbar>
+          {branchFilterButton}
+          {periodNav}
+          {multiSelectButton}
+        </DoctorCatalogStickyToolbar>
+      ) : null}
 
       <div className="-mx-3 min-h-0 flex-1 overflow-y-auto px-3 md:mx-0 md:px-0 [scrollbar-width:thin]">
-        <div className="flex flex-col gap-3 py-3">
+        {/* `py-3` здесь — тот самый отступ, о котором владелец 15.09: «проверь чтобы когда
+            уберешь тулбар блоки не прилипли кверху». Замерено на живом `:5200`: от низа шапки
+            до верха первого блока 12px — ровно столько же, сколько у соседних вкладок. */}
+        <div
+          className={cn('flex flex-col gap-3 py-3', isWideWorkLayout && 'md:h-full md:min-h-0')}
+        >
           {/* Errors / feedback */}
           {loadError ? (
             <p className="text-sm text-destructive" data-testid="load-error">
@@ -1629,7 +1748,15 @@ export function ScheduleWorkTab({
           {/* #235: клик в стороне от активных элементов (за пределами month-grid и hours-panel)
           сбрасывает выбор. Используем onMouseDown чтобы перехватить раньше дочерних onClick. */}
           <div
-            className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 lg:grid-cols-[minmax(0,1fr)_320px]"
+            className={cn(
+              // На планшете правая колонка уже: фиксированные 320px отнимали у месяца слишком
+              // много — семь колонок дней сжимались до сорока точек. С 1280 колонка прежняя.
+              'grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 md:grid-cols-[minmax(0,1fr)_260px] xl:grid-cols-[minmax(0,1fr)_320px]',
+              // Владелец 15.09: «а сам календарь растяни побольше в высоту». Сетка забирает
+              // остаток высоты таба, месяц растягивается по ней; раньше карточка держала
+              // высоту по содержимому и под ней оставалась пустая половина экрана.
+              isWideWorkLayout && 'md:min-h-0 md:flex-1',
+            )}
             onMouseDown={(e) => {
               const target = e.target as HTMLElement;
               // Не сбрасываем если клик внутри month-grid (дни/заголовки) или hours-panel.
@@ -1651,9 +1778,18 @@ export function ScheduleWorkTab({
             }}
           >
             {/* LEFT: month grid */}
-            <div className="flex min-w-0 flex-col gap-2">
+            <div
+              className={cn(
+                'flex min-w-0 flex-col gap-2',
+                isWideWorkLayout && 'md:min-h-0',
+              )}
+            >
               <div
-                className={cn(doctorSectionCardClass, 'overflow-hidden p-0')}
+                className={cn(
+                  doctorSectionCardClass,
+                  'overflow-hidden p-0',
+                  isWideWorkLayout && 'md:min-h-0 md:flex-1',
+                )}
                 data-testid="month-grid"
               >
                 {/* Weekday header — click selects entire weekday column (SCH-R-03) */}
@@ -1726,7 +1862,14 @@ export function ScheduleWorkTab({
                   })}
                 </div>
                 {/* Day cells (E2 — компактнее, время крупнее) */}
-                <div className="grid grid-cols-7 gap-0.5 p-1.5">
+                <div
+                  className={cn(
+                    'grid grid-cols-7 gap-0.5 p-1.5',
+                    // Ряды делят остаток высоты поровну; `min-h-[52px]` в самой ячейке
+                    // остаётся полом, так что короткий месяц не схлопывается.
+                    isWideWorkLayout && 'md:min-h-0 md:flex-1 md:auto-rows-fr',
+                  )}
+                >
                   {cells.map((dateKey, idx) => (
                     <DayCell
                       key={dateKey ?? `pad-${idx}`}
@@ -1752,8 +1895,24 @@ export function ScheduleWorkTab({
               </div>
             </div>
 
-            {/* RIGHT: selection summary; the editor itself lives in a standard modal. */}
-            <div>
+            {/* RIGHT: тулбар, сводка выбора (редактор — в модалке), легенда, шаблоны. */}
+            <div
+              className={cn(
+                'flex flex-col gap-3',
+                isWideWorkLayout && 'md:min-h-0 md:overflow-y-auto [scrollbar-width:thin]',
+              )}
+            >
+              {isWideWorkLayout ? (
+                <DoctorSection
+                  className="flex-row items-center gap-2 py-2"
+                  data-testid="work-toolbar-panel"
+                >
+                  {branchFilterButton}
+                  <div className="min-w-0 flex-1">{periodNav}</div>
+                  {!isDesktopWorkLayout ? multiSelectButton : null}
+                </DoctorSection>
+              ) : null}
+
               {availabilityManageOwn && selectedCount > 0 ? (
                 <DoctorSection className="bg-card" data-testid="hours-panel">
                   <h3 className={doctorSectionTitleClass}>
@@ -1792,7 +1951,7 @@ export function ScheduleWorkTab({
                   </div>
                 </DoctorSection>
               ) : availabilityManageOwn ? (
-                <DoctorSection className="border-dashed">
+                <DoctorSection className="border-dashed" data-testid="work-legend">
                   <div className="flex flex-col gap-2 text-sm text-muted-foreground">
                     <p>
                       Выберите дни для настройки расписания. Для постоянного расписания выберите
@@ -1802,85 +1961,30 @@ export function ScheduleWorkTab({
                       <span className="flex items-center gap-1.5">
                         <MapPin className="size-4" aria-hidden /> — фильтр по филиалам
                       </span>
-                      <span className="flex items-center gap-1.5">
-                        <Layers className="size-4" aria-hidden /> — Режим мультивыбора
-                      </span>
+                      {isDesktopWorkLayout ? (
+                        // На десктопе кнопки мультивыбора нет — объяснять несуществующую
+                        // кнопку значило бы соврать; там несколько дней берут клавишами.
+                        <span>Ctrl/⌘ + клик — несколько дней, Shift — диапазон</span>
+                      ) : (
+                        <span className="flex items-center gap-1.5">
+                          <Layers className="size-4" aria-hidden /> — Режим мультивыбора
+                        </span>
+                      )}
                     </div>
                   </div>
                 </DoctorSection>
               ) : null}
+
+              {/* Владелец 15.09: «шаблоны расписаний там же ниже» — и сразу следом «верни шаблоны
+                  чтоб не только при наличии выбранного дня были»: блок стоит в правой колонке
+                  всегда, кнопка «Применить» в нём и так заблокирована без выбранных дней. */}
+              {isWideWorkLayout ? templatesPanel : null}
             </div>
           </div>
 
-          {/* BOTTOM (full width): templates panel (E5) */}
-          <DoctorSection data-testid="templates-panel">
-            <div className="flex items-center justify-between gap-2">
-              <h3 className={doctorSectionTitleClass}>Шаблоны расписаний</h3>
-            </div>
-
-            {templates.length === 0 ? (
-              <DoctorEmptyState size="xs">Нет шаблонов.</DoctorEmptyState>
-            ) : (
-              <ul className="flex flex-col gap-1.5">
-                {templates
-                  .filter((t) => t.isActive)
-                  .map((tpl) => {
-                    // E5: short branch label in template
-                    const tplBranch = tpl.branchId
-                      ? branches.find((b) => b.id === tpl.branchId)
-                      : undefined;
-                    const tplBranchLabel = tplBranch
-                      ? (tplBranch.shortTitle ?? tplBranch.title)
-                      : null;
-                    const tplBreaksSummary = formatBreakSummary(tpl.breaks ?? []);
-
-                    return (
-                      <li
-                        key={tpl.id}
-                        className="flex items-center justify-between gap-2 rounded-md border border-border bg-card px-2.5 py-1.5 text-sm"
-                        data-testid={`template-${tpl.id}`}
-                      >
-                        <div className="min-w-0 flex-1">
-                          <span className="truncate text-sm">{tpl.name}</span>
-                          {(tplBranchLabel || tplBreaksSummary) && (
-                            <span className="ml-1.5 text-xs text-muted-foreground">
-                              {[tplBranchLabel, tplBreaksSummary].filter(Boolean).join(' · ')}
-                            </span>
-                          )}
-                        </div>
-                        {availabilityManageOwn ? (
-                          <div className="flex shrink-0 gap-1">
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              className={cn(
-                                'h-7 px-2 text-xs',
-                                DOCTOR_SCHEDULE_TOOLBAR_CONTROL_CLASS,
-                              )}
-                              disabled={pending || selectedCount === 0}
-                              title={
-                                selectedCount === 0 ? 'Выберите дни для применения' : undefined
-                              }
-                              onClick={() => handleApplyTemplate(tpl.id)}
-                              data-testid={`btn-apply-template-${tpl.id}`}
-                            >
-                              Применить
-                            </Button>
-                          </div>
-                        ) : null}
-                      </li>
-                    );
-                  })}
-              </ul>
-            )}
-
-            {availabilityManageOwn && selectedCount === 0 && templates.length > 0 && (
-              <p className="text-[10px] text-muted-foreground">
-                Выберите дни для применения шаблона.
-              </p>
-            )}
-          </DoctorSection>
+          {/* Мобильный низ страницы: шаблоны во всю ширину и всегда на виду. На планшете и
+              десктопе этот блок живёт в правой колонке и только при выбранных днях. */}
+          {!isWideWorkLayout ? templatesPanel : null}
         </div>
       </div>
 
