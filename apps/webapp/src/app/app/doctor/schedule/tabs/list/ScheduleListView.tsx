@@ -52,12 +52,8 @@ function listRowStyle(appt: CalendarAppointmentEvent): CSSProperties | undefined
   // Заливка колонки заметно плотнее прежней строчной (0.16): раньше цвет дублировался подписью
   // филиала, теперь подпись чёрная и заливка осталась единственным носителем цвета.
   const background = doctorCalendarBranchColorRgba(appt.branchColor, 0.3);
-  const border = doctorCalendarBranchColorRgba(appt.branchColor, 0.55);
-  if (!background || !border) return undefined;
-  return {
-    '--list-branch-bg': background,
-    '--list-branch-border': border,
-  } as CSSProperties;
+  if (!background) return undefined;
+  return { '--list-branch-bg': background } as CSSProperties;
 }
 
 function ListDayCard({
@@ -102,7 +98,7 @@ function ListDayCard({
               onClick={() => onSelect(appt)}
               style={listRowStyle(appt)}
               className={cn(
-                'flex h-auto min-h-0 w-full items-start gap-3 whitespace-normal rounded-none border-0 border-b border-border/60 px-[var(--doctor-list-inline-padding,18px)] py-2.5 text-left text-sm',
+                'flex h-auto min-h-0 w-full items-stretch gap-3 whitespace-normal rounded-none border-0 border-b border-border/60 px-[var(--doctor-list-inline-padding,18px)] py-2.5 text-left text-sm',
                 listRowClass(appt, timeZone),
                 // APPT-LIST-01: отметка ближайшей записи идёт ПОСЛЕ палитры строки — иначе
                 // tailwind-merge считает `border-primary/30` из палитры конфликтующим и
@@ -112,14 +108,16 @@ function ListDayCard({
               )}
               data-testid={`list-appt-${appt.id}`}
             >
-              {/* Единственное место, где живёт цвет филиала: колонка «время + короткое имя
-                  филиала». Сама подпись филиала — обычным текстом строки (чёрным), цвет несёт
-                  только заливка колонки. */}
+              {/* Единственное место, где живёт цвет филиала: КОЛОНКА «время + короткое имя
+                  филиала» — сплошная полоса во всю высоту строки, вплотную к левому краю.
+                  Отрицательные отступы гасят паддинги строки, поэтому это колонка, а не таблетка
+                  внутри строки. Подпись филиала печатается обычным чёрным текстом; цвет несёт
+                  только заливка. */}
               <span
                 className={cn(
-                  'flex shrink-0 flex-col gap-0.5 overflow-hidden text-xs',
+                  'flex shrink-0 flex-col justify-center gap-0.5 overflow-hidden text-xs',
                   appt.branchColor && !cancelled
-                    ? 'w-[5.5rem] rounded-md border border-[color:var(--list-branch-border)] bg-[color:var(--list-branch-bg)] px-2 py-1'
+                    ? '-my-2.5 -ml-[var(--doctor-list-inline-padding,18px)] w-[5.75rem] bg-[color:var(--list-branch-bg)] py-2.5 pl-[var(--doctor-list-inline-padding,18px)] pr-2'
                     : 'w-[4.75rem]',
                 )}
               >
