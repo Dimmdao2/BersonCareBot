@@ -917,16 +917,65 @@ export function ScheduleCalendarTab({
     }
     if (next) {
       if (isMobileViewport) updateMobileVisibleDate(next, true);
+      clearListScrollHold();
       setAnchorDate(next);
     }
   }
 
+  /**
+   * Снимает «удержание места» ленты. `listScrollTargetDate` ставится при перезапросе по фильтрам,
+   * чтобы человека не выбросило в начало подгруженной истории, и живёт до выхода из списка. Но
+   * список целится по `listScrollTargetDate ?? listAnchorDate` — значит пока удержание висит, ЛЮБАЯ
+   * явная навигация (стрелки периода, выбор даты, «Сегодня») молча игнорируется: лента остаётся
+   * там, где её удержали. Поэтому каждый явный переход снимает удержание сам.
+   */
+  function clearListScrollHold() {
+    listVisibleDateRef.current = null;
+    setListScrollTargetDate(null);
+  }
+
+  /**
+   * «Сегодня» в ленте обязан ОТМЕНИТЬ удержание прежнего места прокрутки, а не только попросить
+   * прокрутку.
+   *
+   * Владелец 15.09.2026: «после нескольких переключений в разных сочетаниях и прокруток туда-сюда
+   * календарь сошёл с ума и на кнопку сегодня стал показывать на три-четыре месяца раньше».
+   * Механика была такая. Смена фильтра при том же виде и якоре — «перезапрос только по фильтрам»:
+   * окно ленты собирается вокруг даты, которая была на экране, и в `listScrollTargetDate` остаётся
+   * ЭТА дата, чтобы человек не улетел в начало подгруженной истории. Дальше `listScrollTargetDate`
+   * снимался ровно в одном месте — при выходе из режима списка. Нажатие «Сегодня» его не трогало,
+   * а список целится по `listScrollTargetDate ?? listAnchorDate`, то есть прокручивался обратно в
+   * удержанное место. `setAnchorDate(today)` при этом ничего не чинил: якорь чаще всего УЖЕ был
+   * сегодняшним (прокрутка ленты его не двигает), то есть перезапроса не происходило вовсе.
+   * Отставание получалось около глубины истории окна (`APPOINTMENT_FEED_HISTORY_MONTHS` = 3) —
+   * те самые «три-четыре месяца».
+   *
+   * Поэтому отслеживание даты при прокрутке трогать не пришлось: оно не причина, а потерпевший —
+   * подпись просто честно показывала, куда увёл список.
+   */
   function goToday() {
     const today = DateTime.now().setZone(timeZone).toISODate();
     if (!today) return;
     updateMobileVisibleDate(today, true);
+    if (renderMode === 'list') {
+      const hadPreservedPosition =
+        listVisibleDateRef.current !== null || listScrollTargetDate !== null;
+      listVisibleDateRef.current = null;
+      // Цель прокрутки — САМ сегодняшний день, а не `listAnchorDate`. Тот отдаёт начало видимого
+      // периода, когда сегодня в него не попадает (например, якорь на прошлой неделе), — и
+      // «Сегодня» уезжал на понедельник той недели вместо сегодня.
+      setListScrollTargetDate(today);
+      setListTodayRequest((current) => current + 1);
+      // Якорь уже сегодняшний — смена состояния ничего не перезапросит, а окно ленты собрано
+      // вокруг удержанной даты, и сегодняшнего дня в нём может не быть вовсе. Тогда перезапрос
+      // нужен явный; `previousFeedKeyRef` обнуляем, чтобы он не сошёл за «только фильтры» и снова
+      // не собрался вокруг прежнего места.
+      if (hadPreservedPosition && anchorDate === today) {
+        previousFeedKeyRef.current = null;
+        void loadInitialAppointmentFeed();
+      }
+    }
     setAnchorDate(today);
-    if (renderMode === 'list') setListTodayRequest((current) => current + 1);
   }
 
   function jumpToDate(date: Date) {
@@ -936,6 +985,7 @@ export function ScheduleCalendarTab({
     ).toISODate();
     if (!dateKey) return;
     updateMobileVisibleDate(dateKey, true);
+    clearListScrollHold();
     setAnchorDate(dateKey);
     setDatePickerOpen(false);
   }

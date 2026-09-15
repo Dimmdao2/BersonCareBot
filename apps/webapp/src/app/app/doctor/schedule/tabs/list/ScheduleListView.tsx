@@ -290,7 +290,15 @@ export function ListView({
     ) {
       return;
     }
-    const isExplicitTodayRequest = scrollToTodayRequest > positionedTodayRequestRef.current;
+    // Прокрутка МГНОВЕННАЯ, а не плавная — даже по явному «Сегодня».
+    //
+    // Владелец 15.09.2026: «после нескольких переключений … календарь сошёл с ума и на кнопку
+    // сегодня стал показывать на три-четыре месяца раньше». Плавная прокрутка едет сотни
+    // миллисекунд, и ВСЁ это время верхний сторож бесконечной ленты остаётся на экране: он честно
+    // срабатывает и подгружает ещё три месяца истории. Новые дни встают НАД текущей позицией,
+    // прокрутка уезжает в прошлое — и человек оказывается дальше от сегодня, чем был. Прыжок без
+    // анимации не даёт сторожу ни одного кадра. Показывать анимацию пролёта через три месяца
+    // записей всё равно нечего.
     const frame = window.requestAnimationFrame(() => {
       // Владелец 14.09: наверху экрана должна быть ДАТА, а не строка ближайшей записи — «я вижу
       // весь сегодняшний день». Поэтому цель прокрутки всегда заголовок дня; отметка ближайшей
@@ -300,9 +308,17 @@ export function ListView({
         targetNode.getBoundingClientRect().top -
         scrollNode.getBoundingClientRect().top +
         scrollNode.scrollTop;
-      scrollNode.scrollTo({
-        top: Math.max(0, targetTop - 8),
-        behavior: isExplicitTodayRequest ? 'smooth' : 'auto',
+      scrollNode.scrollTo({ top: Math.max(0, targetTop - 8), behavior: 'auto' });
+      // Доводчик на следующем кадре: высоты успевают устояться (пропал блок загрузки, дорисовались
+      // строки), и первая прокрутка могла не довести до цели.
+      window.requestAnimationFrame(() => {
+        const settledTop =
+          targetNode.getBoundingClientRect().top -
+          scrollNode.getBoundingClientRect().top +
+          scrollNode.scrollTop;
+        if (Math.abs(settledTop - scrollNode.scrollTop - 8) > 2) {
+          scrollNode.scrollTo({ top: Math.max(0, settledTop - 8), behavior: 'auto' });
+        }
       });
       positionedAnchorRef.current = anchorDate;
       positionedTodayRequestRef.current = scrollToTodayRequest;
