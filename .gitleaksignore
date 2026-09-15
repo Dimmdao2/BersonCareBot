@@ -87,3 +87,27 @@ e6ff3c17c469d1c63d6a6b5e9436d1dec5dd4b04:apps/media-worker/src/main.ts:generic-a
 
 # 2026-09-09 mobile-push audit brief: ordinary English test-scope prose, not a credential.
 969d097b511829076487ebbcf1b49d8cdfaba436:.lead/briefs/mobile-web-runtime-push-audit-correction-20260909.md:generic-api-key:3
+
+# 2026-09-15 выкладка Э4c/Л5 — четыре находки первого полного пуша после 156 накопленных коммитов.
+# Разобраны поимённо, а не скопом; в HEAD значения убраны там, где они были лишними.
+#
+# 1) Отчёт о применении миграции Э4c на DEV: в приведённой команде `curl` стояло тело запроса входа
+#    с паролем владельца на DEV. В HEAD пароль заменён на «<ПАРОЛЬ НЕ ХРАНИТСЯ В РЕПОЗИТОРИИ>»;
+#    отпечаток остаётся у коммита, который его внёс.
+9d66e994afb582b17bda5a25bf8528ab06f210f8:docs/_TODO/E4C_DEV_APPLY_2026-09-15.md:generic-api-key:377
+#
+# 2) Отчёт живой приёмки Л4: одноразовый капча-вызов стенда (подпись, nonce, соль, префикс ключа).
+#    Он истёк в тот же час и учётной записью не является, но выглядит как ключ. В HEAD подпись и
+#    случайные части обезличены, структура ответа оставлена — ради неё отчёт и писался.
+300ba45b138937a5a31f5dcfff1b5bfd983a8f73:docs/_TODO/LIVE_ACCEPTANCE_L4_2026-09-15/REPORT.md:generic-api-key:204
+#
+# 3) `ensure-nonprod-owner-account-passwords.mjs` — единый пароль учёток владельца на DEV и TEST,
+#    вписанный константой 14.09 (`1f85ebbbc`). Это НЕ ложное срабатывание: пароль настоящий, просто
+#    непроизводственный. Запись здесь снимает гейт, но НЕ утверждает, что хранить его в исходниках
+#    правильно: убрать константу в окружение — отдельное решение владельца, потому что этим скриптом
+#    входят на стенды все агенты. Вынесено владельцу отдельной строкой доклада 15.09.
+1f85ebbbc081cb1164840d60690734a94ccc1bc2:apps/webapp/scripts/ensure-nonprod-owner-account-passwords.mjs:generic-api-key:18
+#
+# 4) `media-raw-bucket-migrate.ts:7` — строка комментария «Usage (env as the webapp has it —
+#    `DATABASE_URL*`, S3 keys, `S3_RAW_BUCKET`)». Значения там нет вовсе, ловится слово «keys».
+42a96f0e80675366cc52a481e34f1809a055492d:apps/webapp/scripts/media-raw-bucket-migrate.ts:generic-api-key:7

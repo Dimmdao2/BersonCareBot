@@ -201,7 +201,7 @@ HTTP/1.1 200 OK
 content-type: application/json
 x-bc-correlation-id: 8eed99f7-48a0-4e45-bd3d-aaeafd583bd7
 
-{"ok":true,"provider":"altcha","challenge":{"parameters":{"algorithm":"PBKDF2/SHA-256","cost":5000,"data":{"challengeId":"6d320860-fccc-418c-8c50-959e81991f41","identifierKey":"lead-email:v1:7cca4c3da766c182594c0faa37ee2c78046784f57baea6e866c3686da94b5b14","purpose":"public_lead"},"expiresAt":1789467243,"keyLength":32,"keyPrefix":"fff4ff6950be6af1313dd849887e99ad","nonce":"f4458c5dc3d57d1b6406c2e2355d17e8","salt":"5cae0a6280fd7eb9ea58f0194bbe352f"},"signature":"119b97ff5260dc607727bb57ae91b1bf837bdd72c56551d0de19765df4d0ed20"},"expiresAt":"2026-09-15T10:14:03.275Z"}
+{"ok": true, "provider": "altcha", "challenge": {"parameters": {"algorithm": "PBKDF2/SHA-256", "cost": 5000, "data": {"challengeId": "6d320860-fccc-418c-8c50-959e81991f41", "identifierKey": "lead-email:v1:7cca4c3da766c182594c0faa37ee2c78046784f57baea6e866c3686da94b5b14", "purpose": "public_lead"}, "expiresAt": 1789467243, "keyLength": 32, "keyPrefix": "<СКРЫТО>", "nonce": "<СКРЫТО>", "salt": "<СКРЫТО>"}, "signature": "<СКРЫТО>"}, "expiresAt": "2026-09-15T10:14:03.275Z"}
 ```
 
 Первая попытка очистки использовала неверно заранее вычисленный identifier hash и честно вернула `DELETE 0`;

@@ -374,7 +374,7 @@ HTTP 403
 cookie_jar="$(mktemp /tmp/e4c-doctor-cookie.XXXXXX)"
 curl -sS -c "$cookie_jar" \
   -H 'origin: http://127.0.0.1:5200' -H 'content-type: application/json' \
-  --data '{"email":"dimmdao@yandex.ru","password":"123456testTEST"}' \
+  --data '{"email":"dimmdao@yandex.ru","password":"<ПАРОЛЬ НЕ ХРАНИТСЯ В РЕПОЗИТОРИИ>"}' \
   -w '\nHTTP %{http_code}\n' \
   http://127.0.0.1:5200/api/auth/email-password/login
 ```
