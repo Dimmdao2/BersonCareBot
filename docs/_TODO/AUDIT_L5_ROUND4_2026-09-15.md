@@ -1,63 +1,68 @@
-Классификация по §24.4: **тест** — меняется повторяемое поведение процесса доставки, поэтому вывод принимается по наблюдаемому выходу `createDefaultDispatchPort().dispatchOutgoing()`.
+Классификация по §24.4: **тест** — меняется повторяемое поведение процесса доставки, поэтому findings принимаются только по наблюдаемому выходу `createDefaultDispatchPort().dispatchOutgoing()`; отдельная проверка согласованности активного канона классифицирована как разовое состояние по §0.
 
-# Независимый аудит Л5, круг 4
+# Независимый аудит Л5, круг 5
 
-Дата: 2026-09-15. Candidate: `3e65e46ab` поверх `b9efbc254`, ветка `wt/dev-mail-trap`.
+Дата: 2026-09-15. Candidate: `5579c12c0` поверх `3e65e46ab` и `b9efbc254`, ветка
+`wt/dev-mail-trap`. Имя файла сохранено ровно по brief ведущего.
+
 Authority: `docs/_TODO/LEADS_AND_COMMUNICATION_VISIBILITY_2026-09-14.md`, «Очередь до цели»,
 пункт 5 (Л5), и обязательные `AGENTS.md` §0, §1b.2, §10a, §10b, §24.
 
 ## Вердикт
 
-**FAIL. MUST FIX 1.** Продуктовая коррекция проходит матрицу среды: отсутствующий `NODE_ENV`
-не открывает стену TEST; положительно опознанный Vitest-runner (`NODE_ENV=test`, `VITEST=true`)
-остаётся рабочим; DEV выпускает к сетевой границе только email, где непетлевой SMTP гасится;
-TEST пропускает allowlisted recipient неизменённым; production без `TEST` не заглушён. Полный
-integrator-набор также зелёный. Но параметризованный TEST-ряд `email` повторяет уже существующий
-standalone-сценарий allowlisted email на той же публичной границе: одна точечная поломка красит оба.
+**FAIL. MUST FIX 1.** Исполняемая коррекция проходит матрицу среды и тестовую линейку:
+отсутствующий `NODE_ENV` не открывает стену TEST; положительно опознанный Vitest-runner
+(`NODE_ENV=test`, `VITEST=true`) остаётся рабочим; DEV выпускает только email к петлевой SMTP-
+границе; TEST пропускает исходного allowlisted recipient без редиректа; production без `TEST`
+не заглушён. После снятия параметризованного email-ряда обе стороны почтовой стены сохранились,
+и каждая точечная поломка красит ровно один сценарий. Полный integrator-набор зелёный.
+
+Гейт не проходит из-за активной документации: канон уведомлений всё ещё одновременно требует
+DEV-allowlist `TEST_ACCOUNT_*` и разрешает аварийным алертам обход dev-фильтра. Оба требования
+противоречат более новой §1b.2 и пункту Л5, где DEV-email не зависит от `TEST_ACCOUNT_EMAILS`, а
+все непочтовые каналы DEV заглушены без исключения по классу сообщения.
 
 ## MUST FIX
 
-1. **Убрать дублирующую TEST-email клетку одного класса.**
+1. **Удалить несовместимую DEV-редакцию из активного канона уведомлений и его реестра.**
 
-   Достижимая поломка: ветка `email` в `isTestDeliveryRecipientAllowed()` начинает сверять адрес
-   с чужим `TEST_ACCOUNT_MAX_IDS`, поэтому разрешённое TEST-письмо молча не доходит до адаптера.
-   Инъекция была внесена в production-код заменой `identifiers.emails` на
-   `identifiers.maxIds`. На одном и том же выходе `dispatchOutgoing()` покраснели сразу два
-   сценария:
+   Достижимый сценарий 1: исполнитель следует активному
+   `docs/ARCHITECTURE/OWNER_PRODUCT_RULES.md:601-605` и применяет `TEST_ACCOUNT_*` к DEV-email.
+   Тогда письмо на адрес живой заявки, которого намеренно нет в DEV allowlist, не доходит даже до
+   петлевого Mailpit — ровно исходный разрыв Л5. Инъекция этого правила в pre-fork gate уронила
+   наблюдаемое утверждение `on DEV email reaches the network boundary only through loopback SMTP`:
+   `1 failed | 18 passed`; цепочка вернула `{ suppressedByEnvironment: true }` вместо вызова
+   email-адаптера.
 
-   - `TEST delivers an allowlisted recipient unchanged`;
-   - `on TEST the email channel admits only its own list`.
+   Достижимый сценарий 2: исполнитель следует
+   `docs/ARCHITECTURE/OWNER_PRODUCT_RULES.md:817-845` и
+   `docs/CURRENT_AUTHORITY_MAP.md:59`, где аварийный алерт идёт «мимо dev-фильтра». Тестовые intents
+   имеют `outboundCapability=operator_alert`; точная инъекция исключения для operator-alert
+   Telegram уронила наблюдаемое утверждение `на DEV протёкший VITEST_WORKER_ID стену не снимает`:
+   `1 failed | 18 passed`, настоящий `{ chatId: 555000111 }` дошёл до адаптера.
 
-   Точная команда:
-
-   ```bash
-   /home/dev/brain/host-orch/run-tests.sh "pnpm --dir apps/integrator exec vitest --run src/shared/testDeliverySafety.test.ts --reporter=dot"
-   ```
-
-   Наблюдаемый результат: `2 failed | 18 passed (20)`; в обоих случаях recording adapter получил
-   `[]` вместо исходного `{ email: 'owner@example.org' }`. Это один класс решения, один публичный
-   слой и один side effect, а не defense-in-depth. Standalone-сценарий дополнительно проверяет
-   неизменность recipient/message, поэтому полезный oracle остаётся там; общий ряд `email`
-   дублирует его и нарушает §10a «один сценарий не размножается» / §10b «fault injection один раз
-   на независимый класс». Минимальная коррекция — исключить `email` из параметризованного списка,
-   как уже сделано для `telegram`; точный способ выбирает исполнитель.
+   Нарушенное требование: `AGENTS.md` §0 требует при новой редакции удалить конфликтующие активные
+   формулировки, а §1b.2 и Л5 требуют ровно одного DEV-исключения — email к loopback SMTP, без
+   `TEST_ACCOUNT_EMAILS`; остальные каналы остаются no-op. `CURRENT_AUTHORITY_MAP.md:59` прямо
+   объявляет `OWNER_PRODUCT_RULES.md` источником уведомлений, поэтому это активный конфликт, не
+   историческая цитата. Исправление должно согласовать §23, §28 и строку реестра с §1b.2, не менять
+   уже правильный product-код и тесты.
 
 ## Матрица среды через настоящий dispatch
 
-Одноразовый harness вызывал настоящий `createDefaultDispatchPort().dispatchOutgoing()` с Telegram
-intent и recording adapter. `R` — настоящий неразрешённый recipient `555000111`; `A` — allowlisted
-recipient `700000001`; «да» означает, что именно этот исходный recipient дошёл до адаптера.
-Для DEV это проверка непочтового канала; email отдельно проходит через настоящий
-`EmailDeliveryAdapter`, который разрешает `sendMail` только для `127.0.0.1`, `::1`, `localhost`.
+Одноразовый harness вызывал настоящий `createDefaultDispatchPort().dispatchOutgoing()` дважды в
+каждой клетке с Telegram intent и recording adapter. `R` — настоящий неразрешённый recipient
+`555000111`; `A` — allowlisted recipient `700000001`; «да» означает, что именно исходный recipient
+дошёл до адаптера.
 
 Точная команда:
 
 ```bash
-/home/dev/brain/host-orch/run-tests.sh "pnpm --dir apps/integrator exec vitest --run src/shared/auditL5Round4EnvironmentMatrix.test.ts --reporter=verbose"
+/home/dev/brain/host-orch/run-tests.sh "pnpm --dir apps/integrator exec vitest --run src/shared/auditL5Round5EnvironmentMatrix.test.ts --reporter=verbose"
 ```
 
-Результат команды: `1 passed` файл, `25 passed` тестов — 24 клетки и контроль полноты. Harness
-после чтения вывода удалён: постоянный тест обстоятельств запуска по §10a не нужен.
+Результат команды: `1 passed` файл, `24 passed` теста. Harness после чтения результата удалён: по
+§10a постоянный тест полной таблицы обстоятельств запуска не нужен.
 
 | `NODE_ENV` | `TEST` | `VITEST` | R до адаптера | A до адаптера | Результат |
 | --- | --- | --- | --- | --- | --- |
@@ -74,23 +79,22 @@ recipient `700000001`; «да» означает, что именно этот �
 | `development` | не задан | `true` | нет | нет | DEV |
 | `development` | не задан | не задан | нет | нет | DEV |
 | `test` | `true` | `true` | да | да | положительно опознанный Vitest-runner |
-| `test` | `true` | не задан | нет | да | сомнительный TEST-like процесс fail-closed |
+| `test` | `true` | не задан | нет | да | TEST-like процесс fail-closed |
 | `test` | `false` | `true` | да | да | test process без TEST-стенда |
 | `test` | `false` | не задан | да | да | test process без TEST-стенда |
 | `test` | не задан | `true` | да | да | test runner без TEST-стенда |
 | `test` | не задан | не задан | да | да | test process без TEST-стенда |
 | не задан | `true` | `true` | **нет** | да | потерянный `NODE_ENV` не снимает TEST-стену |
-| не задан | `true` | не задан | нет | да | TEST-like fail-closed |
+| не задан | `true` | не задан | нет | да | TEST-like процесс fail-closed |
 | не задан | `false` | `true` | да | да | production-default |
 | не задан | `false` | не задан | да | да | production-default |
 | не задан | не задан | `true` | да | да | production-default |
 | не задан | не задан | не задан | да | да | production-default |
 
-Соседняя клетка `NODE_ENV=development`, `TEST=true`, `VITEST_WORKER_ID=1` проверена постоянным
-сценарием: recipient до адаптера не дошёл. Инъекция разрешения Telegram на DEV уронила только этот
-сценарий (`1 failed | 19 passed`). DEV-email с петлевым SMTP вызвал `sendMail` один раз; после
-подмены хоста на `smtp.external.example` цепочка вернула
-`development_non_loopback_smtp_host`, а второго сетевого вызова не было.
+DEV-email проверен постоянным сценарием через настоящий dispatch и `EmailDeliveryAdapter`: при
+`127.0.0.1` `sendMail` вызван один раз; после подмены разрешённого SMTP на
+`smtp.external.example` цепочка вернула
+`development_non_loopback_smtp_host`, нового сетевого вызова не было.
 
 ## Инъекции
 
@@ -101,60 +105,85 @@ recipient `700000001`; «да» означает, что именно этот �
 ```
 
 | # | Внесено | Поймано наблюдаемым выходом | Не поймано |
-| ---: | --- | --- | --- |
-| 1 | Возвращён прежний fallback: вне явно `production/development` доверять одному `!VITEST` | `стенд TEST, потерявший строку NODE_ENV, тоже не открывается`: `1 failed / 19 passed` | 0 |
-| 2 | Любой `TEST=true` объявлен стендом, исключение собственного runner удалено | `собственный процесс раннера стендом не является`: `1 failed / 19 passed` | 0 |
-| 3 | DEV-гейт разрешает `telegram` рядом с `email` | `на DEV протёкший VITEST_WORKER_ID стену не снимает`: `1 failed / 19 passed` | 0 |
-| 4 | MAX сверяется с `TEST_ACCOUNT_TELEGRAM_IDS` | `on TEST the max channel admits only its own list`: `1 failed / 19 passed` | 0 |
-| 5 | Email сверяется с `TEST_ACCOUNT_MAX_IDS` | **два сценария**: standalone allowlisted email и параметризованный email-ряд, `2 failed / 18 passed` — MUST FIX 1 | 0 |
+| ---: | --- | --- | ---: |
+| 1 | При `NODE_ENV` unset + `TEST=true` доверять одному `VITEST` и снять TEST-стену | `стенд TEST, потерявший строку NODE_ENV, тоже не открывается`: `1 failed / 18 passed`; R дошёл до адаптера | 0 |
+| 2 | Любой `TEST=true` считать стендом, включая собственный Vitest-runner | `собственный процесс раннера стендом не является и доставку не глушит`: `1 failed / 18 passed`; ожидаемый R не дошёл | 0 |
+| 3 | TEST-email сверять с `TEST_ACCOUNT_MAX_IDS` | `TEST delivers an allowlisted recipient unchanged`: `1 failed / 18 passed`; разрешённое письмо не дошло | 0 |
+| 4 | Разрешить конкретный посторонний TEST-email | `TEST suppresses a non-allowlisted email recipient before the adapter`: `1 failed / 18 passed`; постороннее письмо дошло | 0 |
+| 5 | Разрешить Telegram рядом с DEV-email | `на DEV протёкший VITEST_WORKER_ID стену не снимает`: `1 failed / 18 passed`; R дошёл | 0 |
+| 6 | Снять отказ для непетлевого DEV SMTP | `on DEV email reaches the network boundary only through loopback SMTP`: `1 failed / 18 passed`; внешний SMTP вернул успешный dispatch | 0 |
+| 7 | TEST-MAX сверять с Telegram allowlist | `on TEST the max channel admits only its own list`: `1 failed / 18 passed`; чужой recipient дошёл | 0 |
+| 8 | Вернуть из активного §23 TEST-account allowlist на DEV-email | DEV-email/loopback-сценарий: `1 failed / 18 passed`; цепочка заглушена до адаптера | 0 |
+| 9 | По активному §28 пропустить operator-alert Telegram мимо DEV-стены | DEV/VITEST_WORKER_ID-сценарий: `1 failed / 18 passed`; R дошёл | 0 |
 
-Итого по точной таблице выше: **5 инъекций, 5 поймано, 0 не поймано**. У последней инъекции
-два красных сценария вместо одного — это доказательство дублирования, а не дополнительная защита.
-Все временные изменения production-кода восстановлены текстовыми patch; финальный `git diff --check`
-до создания этого отчёта не вывел ошибок, `git status --short` был пуст.
+Итого по точной таблице: **команда выше выполнена с 9 инъекциями; поймано 9, не поймано 0**.
+Строки 5 и 9 различают общий channel-bypass и отдельный message-class bypass: это разные ветви,
+которые допускают разные активные формулировки. Каждая инъекция красит ровно один сценарий; после
+снятия email-ряда дублей с двумя красными сценариями нет. Все временные production-изменения
+восстановлены через `apply_patch`.
 
-## Проверка тестов по §10a / §10b
+## Годность тестов по §10a / §10b
 
-- Исправленные четыре ряда среды проверяют конечный side effect адаптера, не helper.
-- Telegram отсутствует в общей DEV-таблице каналов и держится ровно одним сценарием leaked
-  `VITEST_WORKER_ID`; инъекция №3 красит один тест.
-- Удалённый сценарий «TEST suppresses a real recipient instead of redirecting it» не нужен:
-  отсутствие adapter side effect уже наблюдается в TEST-матрице каналов.
-- Ряды `max`, `vk`, `smsc`, `web_push` имеют собственные channel/list решения и не дублируют друг
-  друга. Инъекция MAX→Telegram красит один ряд.
-- Ряд `email` дублирует standalone allowlisted-email путь — MUST FIX 1.
-- В изменённом тесте нет чтения текста production-кода, внутренних helper-assertions и UI-проверок.
+- Все изменённые сценарии подают intent в публичный `dispatchOutgoing()` и проверяют конечный side
+  effect адаптера либо его отсутствие; helper-результаты и текст production-кода не читаются.
+- Email исключён из параметризованного TEST-ряда. Allow-сторону держит один сценарий с проверкой
+  неизменённых recipient/message; deny-сторону — один сценарий отсутствия adapter side effect.
+  Инъекции 3 и 4 красят их раздельно и по одному.
+- Telegram отсутствует в общей DEV-таблице; его единственную DEV-клетку держит средовой ряд с
+  `VITEST_WORKER_ID`. Инъекции 5 и 9 красят этот один наблюдаемый сценарий.
+- `max`, `vk`, `smsc`, `web_push` имеют разные channel/list решения. Инъекция 7 красит только MAX.
+- Соседний `dispatchPort.test.ts` сценарий clinic credential probe не является дублем: его конечный
+  эффект — исключение `CLINIC_CHANNEL_PROBE_SUPPRESSED` вместо ложного «канал доставляет», тогда как
+  Л5 проверяет утечку исходного recipient к адаптеру.
+- Точный поиск проверок текста в изменённом файле выполнен командой:
+
+  ```bash
+  rg -n "readFile|readFileSync|toContain\\(|indexOf\\(|match\\(/|source.*text|\\.sql" apps/integrator/src/shared/testDeliverySafety.test.ts
+  ```
+
+  Результат: exit `1`, строк нет. Автоматизированных UI-тестов в candidate нет.
 
 ## Активные формулировки §0
 
-Точный поиск:
+Поиск выполнен тремя способами.
+
+Лексический индекс:
 
 ```bash
-rg -n -i -e 'DEV[^\n]{0,120}(подавлен|no-op|не (?:уходит|отправ|шл))' -e '(подавлен|no-op|не (?:уходит|отправ|шл))[^\n]{0,120}DEV' -e 'development[^\n]{0,120}(delivery|достав|no-op|send)' AGENTS.md CLAUDE.md .cursor docs/ARCHITECTURE docs/RULES --glob '*.md' --glob '*.mdc'
+node /home/dev/brain/tools/code-search.mjs "development delivery all external channels suppressed email loopback" --repo bcb -k 30
 ```
 
-В активном каноне найдены согласованные редакции: `AGENTS.md:597` разрешает только email в
-loopback SMTP, `docs/ARCHITECTURE/SERVER CONVENTIONS.md:183` говорит «ничего, кроме письма в
-петлевой SMTP-приёмник». Старое «подавлена целиком» встречается только как процитированная
-историческая находка в `AUDIT_L5_ROUND3_2026-09-15.md`; по §0 audit record не переписывается.
+Он вернул действующие `dispatchPort.ts`, `testDeliverySafety.ts`, тесты и соседние документы.
 
-Лексический `code-search` и попытка смыслового поиска выполнены командами:
+Смысловой поиск:
 
 ```bash
-node /home/dev/brain/tools/code-search.mjs "development delivery all external channels suppressed test environment" --repo bcb -k 20
 bash /home/dev/brain/tools/codeq.sh "active documentation says local development suppresses every external delivery including email" --repo bcb --k 20 --semantic
 ```
 
-Первый вернул действующие `testDeliverySafety.ts`, `dispatchPort.ts` и согласованный server-канон;
-второй сообщил `coverage=0% (вектор вес 0.00)` и дал только lexical fallback без активного
-конфликта. Обратные ссылки проверены командой:
+Он сообщил `coverage=0% (вектор вес 0.00)` и дал lexical fallback без надёжного ответа, поэтому
+результат не использован как доказательство пустоты.
+
+Точный широкий поиск активных документов:
 
 ```bash
-rg -n 'SERVER CONVENTIONS|LOCAL_DEV_AND_AGENT_TESTING|testDeliverySafety|Изоляция отправок' README.md docs/README.md docs/CURRENT_AUTHORITY_MAP.md docs/_TODO/LEADS_AND_COMMUNICATION_VISIBILITY_2026-09-14.md
+rg -n -i 'DEV[^\n]{0,180}(достав|отправ|почт|email|SMTP|канал)|development[^\n]{0,180}(delivery|send|email|SMTP|channel)' AGENTS.md CLAUDE.md .cursor/rules docs/ARCHITECTURE docs/RULES --glob '*.md' --glob '*.mdc'
 ```
 
-`README.md`, `docs/README.md` и `CURRENT_AUTHORITY_MAP.md` ведут к `SERVER CONVENTIONS`; второй
-активной редакции «DEV подавляет всё, включая email» по этим трём способам не найдено.
+Он подтвердил согласованные `AGENTS.md:561`, `AGENTS.md:597`,
+`SERVER CONVENTIONS.md:183`, `LOCAL_DEV_AND_AGENT_TESTING.md:258`, а также нашёл конфликтующие
+активные `OWNER_PRODUCT_RULES.md:601-605`, `:817-845`. `DOCTOR_BROADCASTS.md:3` сам помечен
+`SUPERSEDED AS NOTIFICATION POLICY` и finding не является.
+
+Обратные ссылки:
+
+```bash
+rg -n 'OWNER_PRODUCT_RULES|SERVER CONVENTIONS|LOCAL_DEV_AND_AGENT_TESTING|testDeliverySafety|Изоляция отправок' README.md docs/README.md docs/CURRENT_AUTHORITY_MAP.md docs/_TODO/LEADS_AND_COMMUNICATION_VISIBILITY_2026-09-14.md
+```
+
+`CURRENT_AUTHORITY_MAP.md:59` не только объявляет `OWNER_PRODUCT_RULES.md` единственным источником
+уведомлений, но и сам повторяет конфликт «мимо dev-фильтра». Поэтому MUST FIX 1 доказан точным
+поиском, смысловым поиском и реестровой обратной ссылкой.
 
 ## Проверки восстановленного candidate
 
@@ -162,40 +191,48 @@ rg -n 'SERVER CONVENTIONS|LOCAL_DEV_AND_AGENT_TESTING|testDeliverySafety|Изо�
 /home/dev/brain/host-orch/run-tests.sh "pnpm --dir apps/integrator exec vitest --run src/shared/testDeliverySafety.test.ts --reporter=dot"
 ```
 
-Финальный результат после всех откатов: `1 passed` файл, `20 passed` тестов.
+Результат после коррекции и до инъекций: `1 passed` файл, `19 passed` тестов.
 
 ```bash
 /home/dev/brain/host-orch/run-tests.sh "pnpm test"
 ```
 
-Результат полного integrator-набора: `127 passed | 2 skipped` файлов;
-`709 passed | 2 expected fail | 2 skipped` тестов. Fail-closed редакция не сломала тесты
-интегратора вне целевого файла.
+Результат после удаления временного harness и восстановления всех инъекций:
+`127 passed | 2 skipped` файлов; `708 passed | 2 expected fail | 2 skipped` тестов. Fail-closed
+редакция не сломала тесты integrator вне целевого файла.
 
 ```bash
-git diff --name-only c42d48776..3e65e46ab
+/home/dev/brain/host-orch/run-tests.sh "pnpm --dir apps/integrator exec tsc --noEmit && pnpm --dir apps/integrator exec eslint src/shared/testDeliverySafety.ts src/shared/testDeliverySafety.test.ts src/infra/adapters/dispatchPort.ts src/integrations/email/deliveryAdapter.ts"
 ```
 
-Результат: ровно три candidate-файла — `testDeliverySafety.ts`,
-`testDeliverySafety.test.ts`, `SERVER CONVENTIONS.md`.
+Результат: exit `0`.
 
 ```bash
-git diff --name-only c42d48776..3e65e46ab | rg '(^|/)migrations?/|\.sql$'
+git diff -- apps/integrator/src/shared/testDeliverySafety.ts apps/integrator/src/shared/testDeliverySafety.test.ts apps/integrator/src/infra/adapters/dispatchPort.ts apps/integrator/src/integrations/email/deliveryAdapter.ts
 ```
 
-Результат: exit `1`, строк нет; миграций и прав в candidate нет, поэтому rollback-only preflight
-не применим.
+Результат после инъекций: строк нет; production-код и постоянные тесты восстановлены.
+
+```bash
+git diff --name-only c42d48776..HEAD | rg '(^|/)migrations?/|\.sql$'
+```
+
+Результат: exit `1`, строк нет; миграций и прав в candidate нет, rollback-only preflight не применим.
 
 ## ВОПРОСЫ ВЛАДЕЛЬЦУ
 
-Нет. MUST FIX 1 имеет прямой authority в обязательных §10a/§10b и не расширяет продуктовый scope.
+Нет. MUST FIX 1 прямо следует из обязательного §0, §1b.2 и более нового решения Л5; продуктового
+выбора для исправления активных дублей не требуется.
 
 ## НЕ СДЕЛАНО
 
 - Продуктовый код и постоянные тесты аудитором не исправлялись.
-- PROD не читался, не изменялся и не проверялся; TEST runtime и его настройки не менялись.
+- Конфликтующие активные документы не исправлялись: это correction для ведущего, а не продуктовый
+  fix аудитора.
+- PROD не читался, не изменялся и не проверялся; TEST runtime и его настройки не читались и не
+  изменялись.
 - DEV/TEST БД, миграции и привилегии не затрагивались; preflight не запускался.
 - Живых отправок, второго Next-сервера и автоматических UI-тестов не было.
-- Полный CI не запускался по прямому запрету брифа.
+- Полный CI не запускался по прямому запрету brief.
 - Строка вердикта в `feat` не записывалась. Текст ведущему:
-  `FAIL — Л5 round 4: продуктовая матрица и полный integrator-набор зелёные; MUST FIX 1 — TEST-email allowlist дублируется standalone-сценарием и параметризованным рядом, одна инъекция красит оба.`
+  `FAIL — Л5 round 5: исполняемая матрица и полный integrator-набор зелёные, email-дубль снят без потери защиты; MUST FIX 1 — активные OWNER_PRODUCT_RULES §23/§28 и CURRENT_AUTHORITY_MAP всё ещё требуют DEV allowlist и обход dev-фильтра, что противоречит §1b.2 и Л5.`
