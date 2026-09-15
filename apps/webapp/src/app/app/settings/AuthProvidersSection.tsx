@@ -18,6 +18,9 @@ export type AuthProvidersSectionProps = {
   maxLoginBotNickname: string;
   /** MAX Bot API key — проверка Mini App initData (тот же ключ, что MAX_API_KEY у интегратора). */
   maxBotApiKey: string;
+  /** Бот Telegram Login Widget — отдельный от бота с кодами; имя вписывается явно. */
+  telegramLoginWidgetBotUsername: string;
+  telegramLoginWidgetHasStoredToken: boolean;
   /** Ссылка для будущей кнопки «Вход с VK ID» на экране входа (https). */
   vkWebLoginUrl?: string;
   vkIdApplicationId: string;
@@ -53,6 +56,8 @@ function validateHttpUrl(label: string, raw: string): string | null {
 
 export function AuthProvidersSection({
   telegramLoginBotUsername,
+  telegramLoginWidgetBotUsername,
+  telegramLoginWidgetHasStoredToken,
   maxLoginBotNickname,
   maxBotApiKey,
   vkWebLoginUrl = '',
@@ -74,6 +79,8 @@ export function AuthProvidersSection({
 }: AuthProvidersSectionProps) {
   const [telegramBot, setTelegramBot] = useState(telegramLoginBotUsername);
   const [telegramBotProblem, setTelegramBotProblem] = useState<string | null>(null);
+  const [widgetBot, setWidgetBot] = useState(telegramLoginWidgetBotUsername);
+  const [widgetToken, setWidgetToken] = useState('');
   const [maxBotNick, setMaxBotNick] = useState(maxLoginBotNickname);
   const [maxApiKey, setMaxApiKey] = useState(maxBotApiKey);
   const [vkLoginUrl, setVkLoginUrl] = useState(vkWebLoginUrl);
@@ -165,6 +172,16 @@ export function AuthProvidersSection({
         if (vkIdClientSecret.trim().length > 0) {
           patches.push(patchAdminSetting('vk_id_client_secret', vkIdClientSecret.trim()));
         }
+        // Токен виджета пишем ПЕРВЫМ и отдельно: маршрут не примет имя бота виджета, пока токена
+        // нет, — иначе кнопка появилась бы, а подпись проверить было бы нечем.
+        if (widgetToken.trim().length > 0) {
+          if (!(await patchAdminSetting('telegram_login_widget_bot_token', widgetToken.trim()))) {
+            toast.error(notificationText.settingsPartialSaveFailed);
+            return;
+          }
+          setWidgetToken('');
+        }
+        patches.push(patchAdminSetting('telegram_login_widget_bot_username', widgetBot.trim()));
         const results = await Promise.all(patches);
         if (results.some((r) => !r)) {
           toast.error(notificationText.settingsPartialSaveFailed);
@@ -223,7 +240,7 @@ export function AuthProvidersSection({
         </CardHeader>
         <CardContent className="flex flex-col gap-5">
           <section className="flex flex-col gap-2">
-            <p className="text-sm font-semibold">Telegram Login Widget</p>
+            <p className="text-sm font-semibold">Telegram — код в боте</p>
             <DoctorField
               label="Имя бота"
               htmlFor="auth-telegram-bot"
@@ -241,6 +258,52 @@ export function AuthProvidersSection({
             {telegramBotProblem ? (
               <p className="text-xs text-destructive">{telegramBotProblem}</p>
             ) : null}
+          </section>
+
+          <section className="flex flex-col gap-2">
+            <p className="text-sm font-semibold">Telegram Login Widget</p>
+            <p className="text-xs text-muted-foreground">
+              Отдельный способ входа: человек жмёт кнопку Telegram на странице, код в чат не
+              приходит. Бот здесь свой — тот, которому в @BotFather привязан домен, — и вписывается
+              явно. Кнопка появляется только при включённом переключателе «Telegram Login Widget» в
+              разделе «Доступные способы входа».
+            </p>
+            <DoctorField
+              label="Имя бота виджета"
+              htmlFor="auth-telegram-widget-bot"
+              hint="Публичный @username бота с привязанным доменом. Принимается @имя, имя или ссылка t.me/имя. Пустое — виджет выключен."
+            >
+              <Input
+                id="auth-telegram-widget-bot"
+                type="text"
+                placeholder="bersoncare_login_bot"
+                value={widgetBot}
+                onChange={(e) => setWidgetBot(e.target.value)}
+                disabled={isPending}
+                autoComplete="off"
+              />
+            </DoctorField>
+            <DoctorField
+              label="Токен бота виджета"
+              htmlFor="auth-telegram-widget-token"
+              hint={
+                telegramLoginWidgetHasStoredToken
+                  ? 'Токен сохранён. Оставьте пустым, чтобы не менять.'
+                  : 'Без токена подпись виджета проверить нечем — имя бота без него не сохранится.'
+              }
+            >
+              <Input
+                id="auth-telegram-widget-token"
+                type="password"
+                value={widgetToken}
+                onChange={(e) => setWidgetToken(e.target.value)}
+                disabled={isPending}
+                autoComplete="new-password"
+                placeholder={
+                  telegramLoginWidgetHasStoredToken ? 'Оставьте пустым, чтобы не менять' : ''
+                }
+              />
+            </DoctorField>
           </section>
 
           <section className="flex flex-col gap-2">

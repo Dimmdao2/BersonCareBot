@@ -134,6 +134,8 @@ const ADMIN_SCOPE_KEYS = [
   'important_fallback_delay_minutes',
   'support_contact_url',
   'telegram_login_bot_username',
+  'telegram_login_widget_bot_username',
+  'telegram_login_widget_bot_token',
   'max_login_bot_nickname',
   'max_bot_api_key',
   'therapygo_max_bot_api_key',
@@ -1276,6 +1278,53 @@ export async function PATCH(request: Request) {
     // только нормализация: руками его больше никто не вводит — поле в настройках нередактируемое
     // (владелец 16.09.2026: «имя, вписанное руками — убрать, сразу получать и показывать как
     // нередактируемое»).
+    normalizedValue = { value: checked.value };
+  }
+
+  /**
+   * Имя бота Login Widget принимается только вместе с его токеном. Без токена подпись виджета
+   * проверить нечем — кнопка появилась бы, а вход по ней всегда отказывал; ровно этот класс
+   * «включено, но не работает» владелец разбирал 15–16.09.2026. Токен задаётся отдельным ключом:
+   * это НЕ бот доставки кодов и не бот Mini App.
+   */
+  if (parsed.data.key === 'telegram_login_widget_bot_username') {
+    const checked = normalizeTelegramLoginBotUsername(normalizedValue.value);
+    if (!checked.ok) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: 'telegram_login_widget_bot_username_invalid',
+          message:
+            'Имя бота — 5–32 символа: буквы, цифры и подчёркивание, первый символ буква. ' +
+            'Можно вписать @имя или ссылку t.me/имя — лишнее уберём сами.',
+        },
+        { status: 400 },
+      );
+    }
+    if (checked.value) {
+      const tokenRow = await deps.systemSettings.getSetting(
+        'telegram_login_widget_bot_token',
+        'admin',
+        { organizationId: null },
+      );
+      const storedToken = tokenRow?.valueJson;
+      const tokenPresent =
+        storedToken !== null &&
+        typeof storedToken === 'object' &&
+        'value' in storedToken &&
+        typeof (storedToken as { value?: unknown }).value === 'string' &&
+        ((storedToken as { value?: string }).value ?? '').trim().length > 0;
+      if (!tokenPresent) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error: 'telegram_login_widget_bot_token_required',
+            message: 'Сначала сохраните токен бота Login Widget — без него вход кнопкой не работает.',
+          },
+          { status: 400 },
+        );
+      }
+    }
     normalizedValue = { value: checked.value };
   }
 

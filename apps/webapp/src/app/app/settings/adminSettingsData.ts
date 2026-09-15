@@ -59,6 +59,8 @@ const ADMIN_SETTINGS_PAGE_REQUIRED_KEYS = [
   'support_contact_url',
   'app_display_timezone',
   'telegram_login_bot_username',
+  'telegram_login_widget_bot_username',
+  'telegram_login_widget_bot_token',
   'max_login_bot_nickname',
   'max_bot_api_key',
   'vk_web_login_url',
@@ -140,6 +142,8 @@ function buildAuthProvidersConfig(
 
   return {
     telegramLoginBotUsername: adminStr('telegram_login_bot_username'),
+    telegramLoginWidgetBotUsername: adminStr('telegram_login_widget_bot_username'),
+    telegramLoginWidgetHasStoredToken: adminStr('telegram_login_widget_bot_token').length > 0,
     maxLoginBotNickname: adminStr('max_login_bot_nickname'),
     maxBotApiKey: adminStr('max_bot_api_key'),
     vkWebLoginUrl: adminStr('vk_web_login_url'),

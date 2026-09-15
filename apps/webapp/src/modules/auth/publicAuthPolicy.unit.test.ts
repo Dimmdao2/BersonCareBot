@@ -121,6 +121,7 @@ describe('public auth policy', () => {
       sms: false,
       telegram: false,
       max: false,
+      telegram_login_widget: false,
       oauth_google: false,
       oauth_yandex: false,
       oauth_vk: false,

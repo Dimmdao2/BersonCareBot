@@ -18,6 +18,7 @@ import {
   getIntegratorWebappEntrySecret,
   getMaxBotApiKey,
   getTelegramBotToken,
+  getTelegramLoginWidgetBotToken,
 } from '@/modules/system-settings/integrationRuntime';
 import {
   parseMaxWebAppInitDataDetailed,
@@ -872,7 +873,9 @@ export async function exchangeTelegramLoginWidget(
   updateRoleFn?: ((platformUserId: string, role: string) => Promise<void>) | null,
   webappEntryToken?: string | null,
 ): Promise<ExchangeResult | null> {
-  const botToken = (await getTelegramBotToken()).trim();
+  // Подпись виджета проверяется токеном ЕГО бота, а не бота доставки и не бота Mini App: это разные
+  // боты и разные ключи (владелец 16.09.2026 — виджет указывается отдельно).
+  const botToken = (await getTelegramLoginWidgetBotToken()).trim();
   if (!botToken) return null;
 
   const verified = verifyTelegramLoginWidgetSignature(raw, botToken);

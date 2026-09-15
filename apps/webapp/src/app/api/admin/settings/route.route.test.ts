@@ -853,3 +853,86 @@ describe('имя телеграм-бота берётся по токену', ()
     );
   });
 });
+
+/**
+ * Бот Login Widget — не бот с кодами: у него свой токен, которым проверяется подпись кнопки.
+ * Имя без токена дало бы кнопку, по которой вход всегда отказывает, — тот же класс «включено, но не
+ * работает», из-за которого владелец 15.09.2026 ждал код, которого никто не слал.
+ */
+describe('бот Telegram Login Widget сохраняется только парой', () => {
+  it('имя без сохранённого токена не принимается', async () => {
+    fakes.getSetting.mockResolvedValue(null);
+
+    const response = await patch({
+      key: 'telegram_login_widget_bot_username',
+      value: 'bersoncare_login_bot',
+    });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: false,
+      error: 'telegram_login_widget_bot_token_required',
+    });
+    expect(fakes.updateSetting).not.toHaveBeenCalled();
+  });
+
+  it('с сохранённым токеном имя принимается и нормализуется', async () => {
+    fakes.getSetting.mockImplementation(async (key: string) =>
+      key === 'telegram_login_widget_bot_token'
+        ? {
+            key,
+            scope: 'admin',
+            organizationId: null,
+            valueJson: { value: 'widget:AAsecret' },
+            updatedAt: '2026-09-16T00:00:00.000Z',
+            updatedBy: platformSession.user.userId,
+          }
+        : null,
+    );
+    fakes.updateSetting.mockResolvedValue({
+      key: 'telegram_login_widget_bot_username',
+      scope: 'admin',
+      organizationId: null,
+      valueJson: { value: 'bersoncare_login_bot' },
+      updatedAt: '2026-09-16T00:00:00.000Z',
+      updatedBy: platformSession.user.userId,
+    });
+
+    const response = await patch({
+      key: 'telegram_login_widget_bot_username',
+      value: 'https://t.me/bersoncare_login_bot',
+    });
+
+    expect(response.status).toBe(200);
+    expect(fakes.updateSetting).toHaveBeenCalledWith(
+      'telegram_login_widget_bot_username',
+      'admin',
+      { value: 'bersoncare_login_bot' },
+      platformSession.user.userId,
+      { organizationId: null, allowPlatformGlobalFallbackWrite: true },
+    );
+  });
+
+  it('пустое имя выключает виджет и токена не требует', async () => {
+    fakes.getSetting.mockResolvedValue(null);
+    fakes.updateSetting.mockResolvedValue({
+      key: 'telegram_login_widget_bot_username',
+      scope: 'admin',
+      organizationId: null,
+      valueJson: { value: '' },
+      updatedAt: '2026-09-16T00:00:00.000Z',
+      updatedBy: platformSession.user.userId,
+    });
+
+    const response = await patch({ key: 'telegram_login_widget_bot_username', value: '' });
+
+    expect(response.status).toBe(200);
+    expect(fakes.updateSetting).toHaveBeenCalledWith(
+      'telegram_login_widget_bot_username',
+      'admin',
+      { value: '' },
+      platformSession.user.userId,
+      { organizationId: null, allowPlatformGlobalFallbackWrite: true },
+    );
+  });
+});
