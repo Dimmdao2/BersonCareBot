@@ -61,7 +61,7 @@ setup() {
   {
     echo "# Автоматизация деплоя с dev-бокса. Заменяет собой вход root по SSH."
     echo "# Файлы принадлежат root и учётке deploy не пишутся — иначе право свелось бы к полному root."
-    echo "$DEPLOY_USER ALL=(root) NOPASSWD: $PIPELINE/install-pipeline.sh, $PIPELINE/therapysto-deploy, $PIPELINE/therapysto-rollback, $PIPELINE/therapysto-status"
+    echo "$DEPLOY_USER ALL=(root) NOPASSWD: $PIPELINE/install-pipeline.sh, $PIPELINE/therapysto-deploy, $PIPELINE/therapysto-rollback, $PIPELINE/therapysto-status, $PIPELINE/therapysto-journal-truth"
   } > "$SUDOERS.new"
   chmod 0440 "$SUDOERS.new"
   visudo -cf "$SUDOERS.new" >/dev/null || { rm -f "$SUDOERS.new"; die "правило sudoers не проходит visudo; ничего не изменено"; }
