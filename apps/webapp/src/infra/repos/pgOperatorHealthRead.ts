@@ -32,11 +32,6 @@ import {
   type WebhookBurstRow,
 } from '@/modules/operator-health/ports';
 
-/** Dead queue rows that count toward operator degradation (excludes blocked-bot finals). */
-export function countAsOperatorOutgoingDeliveryDead(failureClass: string | null): boolean {
-  return failureClass !== 'recipient_blocked_bot';
-}
-
 const queueCountMapSchema = z.record(z.string(), z.number().finite().nonnegative());
 
 const outgoingDeliveryQueueHealthRootSchema = z

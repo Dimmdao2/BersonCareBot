@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { Copy, Play } from 'lucide-react';
+import { Copy, PanelRightClose, PanelRightOpen, Play } from 'lucide-react';
 import type { VideoMeetingRenderSession } from '@/modules/video-meetings/ports';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/doctor/primitives/tabs';
@@ -12,6 +12,8 @@ import { DoctorNotesPanel } from '@/app/app/doctor/clients/DoctorNotesPanel';
 import { EncounterPageClient } from '../visits/EncounterPageClient';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 import { notificationText } from '@/shared/notifications/notificationText';
+import { DoctorShellDesktopRailRegistration } from '@/shared/ui/doctor/shell/DoctorShellChromeContext';
+import { cn } from '@/lib/utils';
 
 /** Сообщение о приглашении — подтверждение действия, а не постоянная надпись на экране. */
 const INVITATION_NOTICE_MS = 12_000;
@@ -158,16 +160,25 @@ export function DoctorLiveMeetingClient({
   }, [prepare]);
 
   const activeSession = activeCall.activeCall?.session ?? session;
+  const [notesOpen, setNotesOpen] = useState(true);
 
   return (
-    <main className="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-y-auto lg:grid-cols-[minmax(0,1fr)_420px] lg:overflow-hidden">
+    <main className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto lg:flex-row lg:overflow-hidden">
       {/*
-        Сцена держит пропорции видеопотока (16:9), а не растягивается на всю высоту колонки.
-        Растянутая сцена оставляла поле, которое Jitsi заполнял размытой копией того же потока —
-        владелец 15.09.2026: «экран собеседника в два слоя как будто». `self-start`, чтобы grid
-        не растягивал строку обратно.
+        Звонок — рабочая поверхность во весь экран, а не страница внутри кабинета. Поэтому левое
+        меню сворачивается в полоску и на десктопе, а заметки убираются вбок по кнопке: владелец
+        15.09.2026 — «меню на десктопе при этом сворачиваем в полоску как на планшете. заметки
+        делаем сворачивающимся вбок тоже с кнопкой развернуть». Освободившуюся ширину забирает
+        видео: собеседник крупнее, и собственная плитка (её размер — доля ширины) вместе с ним.
       */}
-      <section className="relative flex aspect-[16/9] min-w-0 self-start overflow-hidden rounded-lg bg-black">
+      <DoctorShellDesktopRailRegistration />
+      {/*
+        Сцена занимает всю свободную площадь. Навязывать ей пропорции не нужно: поток заполняет
+        кадр средствами самого провайдера (`interfaceConfig.VIDEO_LAYOUT_FIT = 'height'`,
+        deploy/jitsi/config/web/custom-interface_config.js), поэтому ни пустых полей, ни размытой
+        подложки под ними не возникает.
+      */}
+      <section className="relative flex min-h-[320px] min-w-0 flex-1 overflow-hidden rounded-lg bg-black lg:min-h-0">
         {!activeCall.isMobile && (activeCall.isActiveRoute || !activeCall.activeCall) ? (
           <VideoMeetingStage
             className="relative flex min-h-0 flex-1 items-center justify-center bg-black text-sm text-white"
@@ -189,7 +200,40 @@ export function DoctorLiveMeetingClient({
           </div>
         ) : null}
       </section>
-      <aside className="min-w-0 overflow-y-auto rounded-lg border bg-card p-3">
+      <aside
+        className={cn(
+          'flex min-w-0 shrink-0 flex-col rounded-lg border bg-card lg:h-full lg:transition-[width] lg:duration-200',
+          notesOpen ? 'lg:w-[420px]' : 'lg:w-12',
+        )}
+      >
+        <div className="hidden shrink-0 justify-end p-1.5 lg:flex">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            aria-expanded={notesOpen}
+            aria-controls="doctor-live-notes"
+            aria-label={notesOpen ? 'Свернуть заметки' : 'Развернуть заметки'}
+            onClick={() => setNotesOpen((open) => !open)}
+          >
+            {notesOpen ? (
+              <PanelRightClose className="size-4" />
+            ) : (
+              <PanelRightOpen className="size-4" />
+            )}
+          </Button>
+        </div>
+        {/*
+          Содержимое остаётся смонтированным и в свёрнутом виде: в заметке может лежать
+          недописанный черновик, и размонтирование стёрло бы его вместе с панелью.
+        */}
+        <div
+          id="doctor-live-notes"
+          className={cn(
+            'min-h-0 flex-1 overflow-y-auto p-3 lg:pt-0',
+            !notesOpen && 'lg:hidden',
+          )}
+        >
         {error ? <div className="mb-3 flex items-center gap-2 text-sm text-destructive"><span>Не удалось начать звонок</span><Button type="button" size="sm" variant="outline" onClick={retryPrepare}>Повторить</Button></div> : null}
         {notification ? <p className="mb-3 text-sm text-muted-foreground">{invitationNoticeText(notification.status)}</p> : null}
         <div className="mb-3 flex justify-end">
@@ -236,6 +280,7 @@ export function DoctorLiveMeetingClient({
             </TabsContent>
           ) : null}
         </Tabs>
+        </div>
       </aside>
     </main>
   );
