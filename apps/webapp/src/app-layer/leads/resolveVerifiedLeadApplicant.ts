@@ -1,60 +1,30 @@
-import { claimVerifiedEmail } from '@/infra/repos/pgEmailAuth';
-import { findTrustedCanonicalUserIdByPhoneFromPool } from '@/infra/repos/pgCanonicalPlatformUser';
-import { normalizePhone } from '@/modules/auth/phoneNormalize';
-import { isValidPhoneE164 } from '@/modules/auth/phoneValidation';
 import type { VerifiedLeadApplicant } from '@/modules/leads/types';
 
-type ResolveVerifiedLeadApplicantDeps = {
-  findTrustedPhoneOwner: typeof findTrustedCanonicalUserIdByPhoneFromPool;
-  claimEmail: typeof claimVerifiedEmail;
-};
-
 /**
- * Continues the existing public email-OTP seam after `confirmPublicEmailOtpChallenge` returned the
- * verified account. If the submitted, unverified phone already belongs to another canonical
- * account as a confirmed contact, the existing email-bind merger makes that phone account the
- * canonical identity and moves the newly verified email onto it.
+ * Опознание заявителя — ТОЛЬКО почта и код на неё. Канон идентичности §18в (владелец, 15.09):
+ * «из заявки телефон не привязывается, значит все контакты кроме почты мы прикрепляем врачу к
+ * заявке как метаданные, то есть он просто видит оставленные контакты… Совпадение телефона с чужой
+ * учётной записью перестаёт быть событием идентичности, потому что телефон из заявки идентичностью
+ * не становится».
+ *
+ * Телефон в заявке НЕ подтверждён ничем: его набрал кто угодно в публичной форме. Поэтому он не
+ * выбирает учётную запись, не переносит почту на чужую и вообще не читает личности платформы — он
+ * едет врачу полем заявки. Слияние остаётся в единственной точке, где его начинает сам человек, —
+ * подтверждение контакта в своём кабинете.
+ *
+ * Формат телефона здесь НЕ проверяется: поля заявки проверяет общий сервис формы
+ * (`createBookingFormService.validateAnswers`), тот же, что у публичной записи, — мусор в телефоне
+ * отвечает `400 invalid_phone` оттуда. Своя копия проверки была вторым chokepoint'ом на то же
+ * правило: её снятие ничего не меняло для человека и ловилось бы только тестом на написание кода,
+ * что запрещает §10a.
  */
-export async function resolveVerifiedLeadApplicant(
-  input: {
-    organizationId: string;
-    verifiedEmailUserId: string;
-    emailNormalized: string;
-    submittedPhone?: string | null;
-    proof?: VerifiedLeadApplicant['proof'];
-  },
-  dependencies?: ResolveVerifiedLeadApplicantDeps,
-): Promise<VerifiedLeadApplicant> {
-  const deps =
-    dependencies ??
-    ({
-      findTrustedPhoneOwner: findTrustedCanonicalUserIdByPhoneFromPool,
-      claimEmail: claimVerifiedEmail,
-    } satisfies ResolveVerifiedLeadApplicantDeps);
-  const phone = input.submittedPhone ? normalizePhone(input.submittedPhone) : null;
-  if (phone && !isValidPhoneE164(phone)) throw new Error('invalid_lead_phone');
-  if (!phone) {
-    return {
-      platformUserId: input.verifiedEmailUserId,
-      emailNormalized: input.emailNormalized,
-      proof: input.proof ?? 'email_otp',
-    } as VerifiedLeadApplicant;
-  }
-
-  const phoneOwnerId = await deps.findTrustedPhoneOwner(phone);
-  if (!phoneOwnerId || phoneOwnerId === input.verifiedEmailUserId) {
-    return {
-      platformUserId: input.verifiedEmailUserId,
-      emailNormalized: input.emailNormalized,
-      proof: input.proof ?? 'email_otp',
-    } as VerifiedLeadApplicant;
-  }
-  const claimed = await deps.claimEmail(phoneOwnerId, input.emailNormalized, {
-    profileBindOrganizationId: input.organizationId,
-  });
-  if (!claimed.ok) throw new Error('lead_identity_merge_conflict');
+export function resolveVerifiedLeadApplicant(input: {
+  verifiedEmailUserId: string;
+  emailNormalized: string;
+  proof?: VerifiedLeadApplicant['proof'];
+}): VerifiedLeadApplicant {
   return {
-    platformUserId: phoneOwnerId,
+    platformUserId: input.verifiedEmailUserId,
     emailNormalized: input.emailNormalized,
     proof: input.proof ?? 'email_otp',
   } as VerifiedLeadApplicant;

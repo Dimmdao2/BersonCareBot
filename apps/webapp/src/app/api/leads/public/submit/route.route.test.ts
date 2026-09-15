@@ -17,7 +17,6 @@ import { defaultDoctorWorkspaceComposition } from '@/modules/system-settings/doc
 const fakes = vi.hoisted(() => ({
   session: vi.fn(),
   rateLimited: vi.fn(),
-  resolveApplicant: vi.fn(),
   mechanicAccess: vi.fn(),
 }));
 
@@ -26,9 +25,6 @@ vi.mock('@/app-layer/principal/bootstrapPrincipal', () => ({
 }));
 vi.mock('@/app-layer/di/bindAuthModulePorts', () => ({ ensureAuthModulePortsBound: vi.fn() }));
 vi.mock('@/modules/auth/service', () => ({ getCurrentSessionForIdentitySelf: fakes.session }));
-vi.mock('@/app-layer/leads/resolveVerifiedLeadApplicant', () => ({
-  resolveVerifiedLeadApplicant: fakes.resolveApplicant,
-}));
 vi.mock('@/modules/public-booking/publicBookingRateLimit', () => ({
   PUBLIC_LEAD_RATE_LIMIT_SEC: 3600,
   isPublicLeadSubmitRateLimited: fakes.rateLimited,
@@ -50,13 +46,13 @@ import { POST } from './route';
 const ORG_A = '00000000-0000-4000-8000-0000000000aa';
 const ORG_B = '00000000-0000-4000-8000-0000000000bb';
 const USER = '00000000-0000-4000-8000-0000000000c1';
-const PHONE_OWNER = '00000000-0000-4000-8000-0000000000c2';
 const ROOT_SECRET = 'l3-audit-root-secret';
 
 type CreatedLead = {
   organizationId: string;
   platformUserId: string;
   phoneNormalized: string | null;
+  preferredContact: string | null;
   messageText: string;
 };
 let created: CreatedLead[] = [];
@@ -210,15 +206,6 @@ beforeEach(() => {
       contacts: [{ kind: 'email', value: EMAIL, confirmedAt: '2026-09-15T00:00:00.000Z' }],
     },
   });
-  fakes.resolveApplicant.mockImplementation(async (input: {
-    organizationId: string;
-    submittedPhone?: string | null;
-  }) => ({
-    platformUserId: input.submittedPhone ? PHONE_OWNER : USER,
-    emailNormalized: EMAIL,
-    proof: 'authenticated_session',
-    organizationId: input.organizationId,
-  }));
 });
 
 describe('Л3 публичный приём заявки — отказ вместо заявки', () => {
@@ -309,6 +296,52 @@ describe('Л3 публичный приём заявки — чужая клин
       400,
       'required_field_missing',
     ]);
+    expect(created).toEqual([]);
+  });
+
+  it('обязательный телефон и способ связи едут в заявку, а личность остаётся почтовой', async () => {
+    // §18в канона идентичности: телефон из заявки идентичностью не становится. Заявитель — учётная
+    // запись подтверждённой почты, а телефон виден врачу как оставленный контакт.
+    configuredFields = [
+      ...configuredFields,
+      field('phone', { isRequired: true }),
+      field('preferred_contact'),
+    ];
+    const response = await post(
+      baseBody({
+        phone: '+79990000000',
+        preferredContact: 'Звонить после 18:00',
+        captcha: await solvedCaptchaFor(EMAIL),
+      }),
+    );
+    expect(response.status).toBe(201);
+    expect(created).toMatchObject([
+      {
+        platformUserId: USER,
+        phoneNormalized: '+79990000000',
+        preferredContact: 'Звонить после 18:00',
+      },
+    ]);
+  });
+
+  it('мусор в телефоне отвечает 400 invalid_phone и заявку не создаёт', async () => {
+    configuredFields = [...configuredFields, field('phone')];
+    const response = await post(
+      baseBody({ phone: 'not-a-phone', captcha: await solvedCaptchaFor(EMAIL) }),
+    );
+    expect([response.status, (await response.json()).error]).toEqual([400, 'invalid_phone']);
+    expect(created).toEqual([]);
+  });
+
+  it('цифровой мусор, который проходит форму, отсекается по E.164 и заявку не создаёт', async () => {
+    // Общий сервис формы пропускает всё, где хотя бы десять цифр, поэтому такую строку отсекает
+    // только проверка формата перед записью. Класс входа отдельный: он не попадает под сценарий
+    // «not-a-phone», и без него снятие E.164-проверки ничем не наблюдается.
+    configuredFields = [...configuredFields, field('phone')];
+    const response = await post(
+      baseBody({ phone: '12345678901234567890', captcha: await solvedCaptchaFor(EMAIL) }),
+    );
+    expect([response.status, (await response.json()).error]).toEqual([400, 'invalid_phone']);
     expect(created).toEqual([]);
   });
 

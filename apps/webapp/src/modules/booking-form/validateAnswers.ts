@@ -30,6 +30,13 @@ export function validateBookingFormAnswers(
     if (field.fieldType === 'email' && !EMAIL_RE.test(value)) {
       return { ok: false, error: 'invalid_email', fieldKey: field.fieldKey };
     }
+    // Грубый фильтр поля: телефон без десяти цифр — заведомо не телефон, и отказ здесь называет
+    // ИМЯ поля. Точный формат (E.164) решается там, где значение записывается: у заявок это
+    // `modules/leads/service.ts`, у записи — `resolveOrCreateUserByPhone`. Слои разные: здесь
+    // проверка поля формы для любой поверхности, там — инвариант хранения. Снятие этого фильтра
+    // публичного ответа не меняет (замерено 15.09: 103 теста бронирования и заявок остаются
+    // зелёными), поэтому «зуба» у него нет по построению — это не повод его удалять и не повод
+    // заводить третью проверку.
     if (field.fieldType === 'phone' && value.replace(/\D/g, '').length < 10) {
       return { ok: false, error: 'invalid_phone', fieldKey: field.fieldKey };
     }
