@@ -45,11 +45,19 @@ import { routePaths } from '@/app-layer/routes/paths';
 /**
  * Страница «здесь такого адреса нет» — одна строка, без подсказок про устройство хостов.
  *
- * `exitHref` появляется РОВНО в одном случае: имя запроса — поддомен нашего же пациентского домена
- * (см. {@link platformSubdomainExitHref}). Владелец 11.09.2026 набрал несуществующий поддомен и
- * получил тупик: «вместо того, чтобы показать, что такой страницы не существует, или просто
- * редиректнуть, например, на главную страницу входа в терапиго». Текст про «ссылку» ему в этом
- * случае ещё и врал — никакой ссылки он не открывал, а набрал адрес руками.
+ * Выход появляется в ДВУХ случаях, и оба — когда человек пришёл сам, без ссылки.
+ *
+ * 1. Имя запроса — поддомен нашего же пациентского домена (см. {@link platformSubdomainExitHref}).
+ *    Владелец 11.09.2026 набрал несуществующий поддомен и получил тупик: «вместо того, чтобы
+ *    показать, что такой страницы не существует, или просто редиректнуть, например, на главную
+ *    страницу входа в терапиго». Текст про «ссылку» ему в этом случае ещё и врал — никакой ссылки
+ *    он не открывал, а набрал адрес руками.
+ * 2. Хост арендатора ОПОЗНАН, а путь на этой поверхности не живёт — служебные `/app/doctor`,
+ *    `/app/admin` на пациентском домене клиники. Владелец 15.09 на `app.bersoncare.ru`: «я заходил
+ *    без всякой ссылки… они в принципе должны просто быть ошибкой… а в корне должен быть логин.
+ *    Человек зашёл без ссылки приглашения — он должен увидеть ссылку входа в приложение, на сайт.
+ *    Как иначе-то?» Здесь выход ничего не раскрывает: человек УЖЕ стоит на этом хосте, а ссылка
+ *    ведёт на его же корень, где и живёт вход клиники.
  *
  * Почему выход СССЫЛКОЙ, а не редиректом, и почему статус остаётся `404`: решение B4a/B5
  * («неизвестная метка, неактивная организация, дубль хоста и чужое происхождение бренда дают
@@ -58,9 +66,11 @@ import { routePaths } from '@/app-layer/routes/paths';
  * промаха в имени — это отдельное решение владельца, а не следствие этой жалобы. Ссылка даёт
  * человеку выход и не меняет ни статус, ни различимость отказов.
  */
-function surfaceNotFoundBody(exitHref: string | null): string {
-  const second = exitHref
-    ? `<p>Проверьте имя в адресе. <a href="${exitHref}" style="color:#1a4bd8">Открыть общий вход</a>.</p>`
+type SurfaceNotFoundExit = { href: string; lead: string; action: string };
+
+function surfaceNotFoundBody(exit: SurfaceNotFoundExit | null): string {
+  const second = exit
+    ? `<p>${exit.lead} <a href="${exit.href}" style="color:#1a4bd8">${exit.action}</a>.</p>`
     : '<p>Возможно, ссылка устарела или открыта не на том сайте — попросите отправить её заново.</p>';
   return (
     '<!doctype html><html lang="ru"><head><meta charset="utf-8">' +
@@ -94,6 +104,25 @@ function platformSubdomainExitHref(request: NextRequest): string | null {
   return new URL('/', PATIENT_DEFAULT_SURFACE.origin).toString();
 }
 
+/**
+ * Куда вывести человека со страницы «не найдено».
+ *
+ * Опознанный арендатор ведёт на СВОЙ корень — там вход клиники, и раскрывать этой ссылкой нечего:
+ * запрос уже пришёл на этот хост. Неопознанный хост получает прежнее поведение: выход только для
+ * поддомена нашего пациентского домена, чужой домен — ничего.
+ */
+function surfaceNotFoundExit(
+  request: NextRequest,
+  tenantSurfaceResolved: boolean,
+): SurfaceNotFoundExit | null {
+  if (tenantSurfaceResolved) {
+    return { href: '/', lead: 'На этом сайте такой страницы нет.', action: 'Открыть вход' };
+  }
+  const platformHref = platformSubdomainExitHref(request);
+  return platformHref
+    ? { href: platformHref, lead: 'Проверьте имя в адресе.', action: 'Открыть общий вход' }
+    : null;
+}
 
 /**
  * Куда отправить человека, открывшего ССЫЛКУ ПРИГЛАШЕНИЯ не на том сайте.
@@ -186,9 +215,10 @@ export async function proxy(
   ) {
     // Тело и тип обязательны. Пустой ответ без `Content-Type` браузер не считает страницей: Safari
     // на телефоне предлагает СОХРАНИТЬ ФАЙЛ, названный последним куском пути, — владелец 10.09
-    // получил «Хотите загрузить файл „start“?» вместо страницы приглашения. Что здесь показано,
-    // сознательно не зависит от поверхности: этот ответ отдаётся ДО опознания арендатора, и
-    // говорить, какие адреса на этом хосте существуют, он не должен.
+    // получил «Хотите загрузить файл „start“?» вместо страницы приглашения. Сам ТЕКСТ отказа не
+    // зависит от того, что за путь запрошен, — говорить, какие адреса на этом хосте существуют, он
+    // не должен. Отличается только выход: опознанный арендатор ведёт на свой корень, неопознанный
+    // хост — на общий вход или никуда (см. {@link surfaceNotFoundExit}).
     const elsewhere = inviteRedirectTarget(request, routedPathname);
     if (elsewhere) {
       // 307, а не 308: путь может появиться на этом хосте позже, и запомненный браузером навсегда
@@ -198,10 +228,13 @@ export async function proxy(
       redirect.headers.set(BC_CORRELATION_ID_HEADER, correlationId);
       return redirect;
     }
-    const response = new NextResponse(surfaceNotFoundBody(platformSubdomainExitHref(request)), {
-      status: 404,
-      headers: { 'Content-Type': 'text/html; charset=utf-8' },
-    });
+    const response = new NextResponse(
+      surfaceNotFoundBody(surfaceNotFoundExit(request, Boolean(resolvedSurface))),
+      {
+        status: 404,
+        headers: { 'Content-Type': 'text/html; charset=utf-8' },
+      },
+    );
     response.headers.set('Cache-Control', 'no-store');
     response.headers.set(BC_CORRELATION_ID_HEADER, correlationId);
     return response;
@@ -239,9 +272,7 @@ export async function proxy(
     response.headers.set(BC_CORRELATION_ID_HEADER, correlationId);
     return response;
   }
-  const signedSession = decodeSessionCookie(
-    request.cookies.get(SESSION_COOKIE_NAME)?.value ?? '',
-  );
+  const signedSession = decodeSessionCookie(request.cookies.get(SESSION_COOKIE_NAME)?.value ?? '');
   if (
     signedSession?.user.mustChangePassword === true &&
     (request.method === 'GET' || request.method === 'HEAD') &&
