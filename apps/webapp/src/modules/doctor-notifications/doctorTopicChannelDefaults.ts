@@ -10,7 +10,11 @@ import {
 export function defaultDoctorTopicFallbackChannels(
   topicCode: DoctorNotificationTopicCode,
 ): readonly SpecialistTaskReminderChannelCode[] {
-  if (topicCode === 'doctor_patient_messages' || topicCode === 'doctor_patient_program_notes') {
+  if (
+    topicCode === 'doctor_patient_messages' ||
+    topicCode === 'doctor_patient_program_notes' ||
+    topicCode === 'doctor_leads'
+  ) {
     return ['web_push', 'telegram', 'max'];
   }
   return [];
