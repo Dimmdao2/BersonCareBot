@@ -15,6 +15,9 @@ import { AlertTriangle } from 'lucide-react';
 import type { PatientMergeConflictDetails } from '@/modules/patient-merge-candidate/ports';
 import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
 import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Label } from '@/shared/ui/doctor/primitives/label';
+import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
+import { LabeledSwitch } from '@/shared/ui/doctor/primitives/labeled-switch';
 import {
   doctorBodyTextClass,
   doctorMetaTextClass,
@@ -35,6 +38,7 @@ type DoctorMedicalMergeConflictContextValue = {
   conflictIdForClient: (userId: string) => string | null;
   openConflict: (conflictId: string) => void;
   refresh: () => Promise<void>;
+  decisionRevision: number;
 };
 
 const DoctorMedicalMergeConflictContext = createContext<
@@ -75,9 +79,36 @@ function assignmentKindLabel(kind: 'treatment_program' | 'lfk_assignment'): stri
   return kind === 'treatment_program' ? 'Программа лечения' : 'Комплекс ЛФК';
 }
 
+function contactKindLabel(kind: string): string {
+  if (kind === 'phone') return 'Телефон';
+  if (kind === 'email') return 'Почта';
+  return kind;
+}
+
 function ConflictDetails({ conflict }: { conflict: PatientMergeConflictDetails }) {
+  const isRefusal = conflict.status === 'dismissed' || conflict.status === 'escalated';
   return (
     <div className="flex flex-col gap-3">
+      {isRefusal ? (
+        <section className="rounded-lg border border-border bg-muted/15 p-3">
+          <p className={doctorSectionTitleClass}>
+            Попытка слияния учётных записей заблокирована специалистом
+          </p>
+          <dl className={cn(doctorMetaTextClass, 'mt-2 grid gap-1')}>
+            <div>Дата: {formatDateTime(conflict.resolvedAt)}</div>
+            <div>
+              Инициатор: {conflict.initiatedBy?.displayName || 'учётная запись не определена'}
+            </div>
+            <div>Специалист: {conflict.resolvedBy?.displayName || 'не указан'}</div>
+            <div>
+              Обращение в техподдержку: {conflict.supportRequested ? 'отправлено' : 'не отправлялось'}
+            </div>
+          </dl>
+          <p className={cn(doctorBodyTextClass, 'mt-2 whitespace-pre-wrap break-words')}>
+            {conflict.doctorComment}
+          </p>
+        </section>
+      ) : null}
       {conflict.doctorApproved ? (
         <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-sm text-foreground">
           Решение этой клиники записано. Слияние ждёт решения другой клиники.
@@ -98,6 +129,21 @@ function ConflictDetails({ conflict }: { conflict: PatientMergeConflictDetails }
             </div>
           </div>
           <div className="mt-3 border-t border-border/60 pt-2">
+            {party.contacts.length ? (
+              <div className="mb-2">
+                <p className={doctorMetaTextClass}>Контакты</p>
+                <ul className="mt-1 flex flex-col gap-0.5">
+                  {party.contacts.map((contact) => (
+                    <li
+                      key={`${contact.kind}:${contact.value}`}
+                      className={cn(doctorBodyTextClass, 'break-words')}
+                    >
+                      {contactKindLabel(contact.kind)}: {contact.value}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
             <p className={doctorMetaTextClass}>Назначения</p>
             {party.assignments.length ? (
               <ul className="mt-1.5 flex flex-col gap-1.5">
@@ -136,6 +182,16 @@ function DoctorMedicalMergeConflictModal({
   const [conflict, setConflict] = useState<PatientMergeConflictDetails | null>(null);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState<'merge' | 'refuse' | null>(null);
+  const [decision, setDecision] = useState<'merge' | 'refuse' | null>(null);
+  const [comment, setComment] = useState('');
+  const [supportRequested, setSupportRequested] = useState(false);
+
+  const close = useCallback(() => {
+    setDecision(null);
+    setComment('');
+    setSupportRequested(false);
+    onClose();
+  }, [onClose]);
 
   const load = useCallback(async () => {
     if (!conflictId) return;
@@ -168,12 +224,20 @@ function DoctorMedicalMergeConflictModal({
 
   useEffect(() => {
     setConflict(null);
+    setDecision(null);
+    setComment('');
+    setSupportRequested(false);
     if (conflictId) void load();
   }, [conflictId, load]);
 
   const act = useCallback(
     async (action: 'merge' | 'refuse') => {
       if (!conflictId) return;
+      const normalizedComment = comment.trim();
+      if (!normalizedComment) {
+        toast.error(notificationText.doctorMedicalConflictCommentRequired);
+        return;
+      }
       setBusy(action);
       try {
         const response = await fetch(
@@ -182,7 +246,11 @@ function DoctorMedicalMergeConflictModal({
             method: 'POST',
             credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action }),
+            body: JSON.stringify({
+              action,
+              comment: normalizedComment,
+              ...(action === 'refuse' ? { supportRequested } : {}),
+            }),
           },
         );
         const payload = (await response.json().catch(() => null)) as {
@@ -192,13 +260,17 @@ function DoctorMedicalMergeConflictModal({
         if (action === 'merge' && response.ok && payload?.ok === true) {
           toast.success(notificationText.doctorMedicalConflictMerged);
           await onChanged();
-          onClose();
+          close();
           return;
         }
         if (action === 'refuse' && response.ok && payload?.ok === true) {
-          toast.success(notificationText.doctorMedicalConflictEscalated);
+          toast.success(
+            supportRequested
+              ? notificationText.doctorMedicalConflictEscalated
+              : notificationText.doctorMedicalConflictRefused,
+          );
           await onChanged();
-          onClose();
+          close();
           return;
         }
         if (
@@ -220,50 +292,106 @@ function DoctorMedicalMergeConflictModal({
         ) {
           toast.success(notificationText.doctorMedicalConflictAwaitingOtherOrganization);
           await onChanged();
-          await load();
+          close();
           return;
         }
         toast.error(notificationText.doctorMedicalConflictUnavailable);
         await onChanged();
-        onClose();
+        close();
       } catch {
         toast.error(notificationText.doctorMedicalConflictActionFailed);
       } finally {
         setBusy(null);
       }
     },
-    [conflictId, load, onChanged, onClose],
+    [close, comment, conflictId, load, onChanged, supportRequested],
   );
+
+  const isRefusalTrace =
+    conflict?.status === 'dismissed' || conflict?.status === 'escalated';
 
   return (
     <DoctorModal
       open={conflictId !== null}
-      onClose={onClose}
+      onClose={close}
       title="Конфликт учётных записей"
       description="Проверьте, один ли это клиент, прежде чем принимать решение."
       size="lg"
       footer={
-        <>
-          <Button
-            type="button"
-            variant="outline"
-            disabled={busy !== null || loading}
-            onClick={() => void act('refuse')}
-          >
-            {busy === 'refuse' ? 'Передаём…' : 'Отказать и передать администраторам платформы'}
+        isRefusalTrace ? (
+          <Button type="button" variant="outline" onClick={close}>
+            Закрыть
           </Button>
-          <Button
-            type="button"
-            disabled={busy !== null || loading || conflict?.doctorApproved === true}
-            onClick={() => void act('merge')}
-          >
-            {busy === 'merge' ? 'Объединяем…' : 'Слить в этой организации'}
-          </Button>
-        </>
+        ) : decision ? (
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={busy !== null}
+              onClick={() => setDecision(null)}
+            >
+              Назад
+            </Button>
+            <Button
+              type="button"
+              variant={decision === 'refuse' ? 'destructive' : 'default'}
+              disabled={busy !== null || !comment.trim()}
+              onClick={() => void act(decision)}
+            >
+              {busy ? 'Сохраняем…' : 'Подтвердить'}
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={busy !== null || loading}
+              onClick={() => setDecision('refuse')}
+            >
+              Отказать
+            </Button>
+            <Button
+              type="button"
+              disabled={busy !== null || loading || conflict?.doctorApproved === true}
+              onClick={() => setDecision('merge')}
+            >
+              Принять
+            </Button>
+          </>
+        )
       }
     >
       {loading ? <p className={doctorMetaTextClass}>Загружаем сведения о конфликте…</p> : null}
-      {!loading && conflict ? <ConflictDetails conflict={conflict} /> : null}
+      {!loading && conflict && !decision ? <ConflictDetails conflict={conflict} /> : null}
+      {!loading && conflict && decision ? (
+        <div className="flex flex-col gap-3">
+          <p className={doctorBodyTextClass}>
+            {decision === 'merge'
+              ? 'Подтвердите, что это один клиент. После подтверждения учётные записи будут объединены.'
+              : 'Подтвердите, что это разные люди.'}
+          </p>
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="doctor-medical-merge-comment">Комментарий врача</Label>
+            <Textarea
+              id="doctor-medical-merge-comment"
+              value={comment}
+              maxLength={2000}
+              rows={4}
+              disabled={busy !== null}
+              onChange={(event) => setComment(event.target.value)}
+            />
+          </div>
+          {decision === 'refuse' ? (
+            <LabeledSwitch
+              label="Отправить обращение в техподдержку?"
+              checked={supportRequested}
+              disabled={busy !== null}
+              onCheckedChange={setSupportRequested}
+            />
+          ) : null}
+        </div>
+      ) : null}
       {!loading && !conflict ? (
         <p className={doctorMetaTextClass}>Конфликт больше недоступен.</p>
       ) : null}
@@ -287,6 +415,7 @@ export function DoctorMedicalMergeConflictProvider({
     conflicts: [],
   });
   const [selectedConflictId, setSelectedConflictId] = useState<string | null>(null);
+  const [decisionRevision, setDecisionRevision] = useState(0);
 
   const refresh = useCallback(async () => {
     if (!enabled) {
@@ -349,9 +478,15 @@ export function DoctorMedicalMergeConflictProvider({
       conflictIdForClient: (userId) => conflictIdByClientId.get(userId) ?? null,
       openConflict: (conflictId) => setSelectedConflictId(conflictId),
       refresh,
+      decisionRevision,
     }),
-    [conflictIdByClientId, refresh, summary.conflictIds.length],
+    [conflictIdByClientId, decisionRevision, refresh, summary.conflictIds.length],
   );
+
+  const handleDecision = useCallback(async () => {
+    await refresh();
+    setDecisionRevision((value) => value + 1);
+  }, [refresh]);
 
   return (
     <DoctorMedicalMergeConflictContext.Provider value={contextValue}>
@@ -359,7 +494,7 @@ export function DoctorMedicalMergeConflictProvider({
       <DoctorMedicalMergeConflictModal
         conflictId={selectedConflictId}
         onClose={() => setSelectedConflictId(null)}
-        onChanged={refresh}
+        onChanged={handleDecision}
       />
     </DoctorMedicalMergeConflictContext.Provider>
   );

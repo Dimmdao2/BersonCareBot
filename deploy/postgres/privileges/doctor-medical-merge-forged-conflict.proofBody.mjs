@@ -69,7 +69,9 @@ async function main() {
     say('fixture inserted (2 outsiders: no enrollment in this clinic, no medical history)');
 
     const runtime = await installDoctorContext(client, capability, clinic);
-    say(`runtime role installed: session_user=${runtime.login} current_user=${runtime.role} org=${runtime.org}`);
+    say(
+      `runtime role installed: session_user=${runtime.login} current_user=${runtime.role} org=${runtime.org}`,
+    );
 
     // --- 1. попытка выписать доверенность себе ---
     let forgeRefusal = null;
@@ -84,11 +86,13 @@ async function main() {
         [FORGED, clinic.org_id, TARGET, DUPLICATE],
       );
       await client.query('RELEASE SAVEPOINT forgery');
-      say('FORGED ROW: app_staff inserted its own pending medical_history conflict — INSERT SUCCEEDED');
+      say(
+        'FORGED ROW: app_staff inserted its own pending medical_history conflict — INSERT SUCCEEDED',
+      );
     } catch (err) {
-      forgeRefusal = `${err.code} ${err.message}`;
+      forgeRefusal = { code: err.code ?? null, message: err.message };
       await client.query('ROLLBACK TO SAVEPOINT forgery');
-      say(`forgery refused: ${forgeRefusal}`);
+      say(`forgery refused: ${forgeRefusal.code} ${forgeRefusal.message}`);
     }
 
     // --- 2. дверь по строке, которой нет ---
@@ -114,15 +118,20 @@ async function main() {
 
     const state = after.rows[0];
     if (forgeRefusal === null) {
-      throw new Error(`app_staff still writes its own door authorization; door answered '${doorOutcome}'`);
+      throw new Error(
+        `app_staff still writes its own door authorization; door answered '${doorOutcome}'`,
+      );
     }
-    if (!forgeRefusal.startsWith('42501')) {
-      throw new Error(`forgery failed with '${forgeRefusal}', expected an insufficient_privilege 42501`);
+    if (forgeRefusal.code !== '42501') {
+      throw new Error(
+        `forgery failed with '${forgeRefusal.code} ${forgeRefusal.message}', expected an insufficient_privilege 42501`,
+      );
     }
     if (state.forged_rows !== 0) throw new Error('a forged authorization row survived');
     if (state.dup_creds !== 1 || state.tgt_creds !== 1) {
       throw new Error(`credentials moved: target=${state.tgt_creds} duplicate=${state.dup_creds}`);
     }
+    say(`FACTS: ${JSON.stringify({ forgeRefusal, doorOutcome, state })}`);
     say('RESULT: PASS — app_staff cannot write the row the door trusts, and nothing moved');
   } catch (err) {
     say(`RESULT: FAIL — ${err.code ? `${err.code} ` : ''}${err.message}`);
@@ -136,6 +145,7 @@ async function main() {
       [TARGET, DUPLICATE],
     );
     say(`rolled back; fixture rows left in the database: ${check.rows[0].leftovers}`);
+    say(`ROLLBACK_FACTS: ${JSON.stringify({ fixtureRows: check.rows[0].leftovers })}`);
     await client.end();
   }
 }

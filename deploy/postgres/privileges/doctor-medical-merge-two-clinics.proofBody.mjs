@@ -12,7 +12,7 @@
  * Уже случившийся отказ, который прогон ловит (F1 третьего круга аудита): дверь помечала строку
  * разобранной и возвращала `false`, движок честно отдавал `mergeCompleted:false`, а репозиторий это
  * значение выбрасывал и всегда возвращал `true` — маршрут отвечал `200 {"ok":true}`. Человек
- * оставался двумя учётками, конфликт исчезал с индикатора, и вернуться к нему было нечем.
+ * оставался двумя учётками, а врачу отвечали так, будто слияние завершилось.
  *
  * Запускается не напрямую, а из `doctor-medical-merge-door.devDbProof.test.mjs`.
  */
@@ -23,9 +23,7 @@ import {
   connect,
   faultFromEnv,
   installCandidate,
-  installCandidateNamedRootCapability,
   installDoctorContext,
-  installDoctorNamedRootContext,
   staffCapability,
 } from './doctor-medical-merge-door.proofHarness.mjs';
 
@@ -33,6 +31,14 @@ const TARGET = '00000000-0000-4000-8000-00000000d1a1';
 const DUPLICATE = '00000000-0000-4000-8000-00000000d1a2';
 const CONFLICT_A = '00000000-0000-4000-8000-00000000d1c1';
 const CONFLICT_B = '00000000-0000-4000-8000-00000000d1c2';
+
+const NEIGHBOUR_SCENARIOS = [
+  { key: 'wrongOrg', prefix: 'd2' },
+  { key: 'closed', prefix: 'd3' },
+  { key: 'nonMedical', prefix: 'd4' },
+  { key: 'notApproved', prefix: 'd5' },
+  { key: 'wrongPair', prefix: 'd6' },
+];
 
 const FAULT = faultFromEnv();
 const log = [];
@@ -50,9 +56,104 @@ async function main() {
     await installCandidate(client, FAULT, say);
 
     const capability = await staffCapability(client);
-    const [clinicA, clinicB] = await clinicsWithDoctors(client, 2, say);
+    const [clinicA, clinicB, clinicC] = await clinicsWithDoctors(client, 3, say);
     say(`clinic A=${clinicA.org_id} doctor=${clinicA.staff_id}`);
     say(`clinic B=${clinicB.org_id} doctor=${clinicB.staff_id}`);
+
+    // Пять независимых соседних строк: каждая отличается от настоящего решения клиники A ровно
+    // одним предикатом. Врач B не вправе принять ни одну из них за разрешение своей пары.
+    const neighbourAdmission = {};
+    for (const scenario of NEIGHBOUR_SCENARIOS) {
+      await client.query('SAVEPOINT neighbour_approval_probe');
+      const probeTarget = `00000000-0000-4000-8000-00000000${scenario.prefix}01`;
+      const probeDuplicate = `00000000-0000-4000-8000-00000000${scenario.prefix}02`;
+      const probeOther = `00000000-0000-4000-8000-00000000${scenario.prefix}03`;
+      const currentConflict = `00000000-0000-4000-8000-00000000${scenario.prefix}11`;
+      const decoyConflict = `00000000-0000-4000-8000-00000000${scenario.prefix}12`;
+
+      for (const id of [probeTarget, probeDuplicate, probeOther]) {
+        await client.query(
+          `INSERT INTO public.platform_users(id, display_name, role)
+           VALUES ($1::uuid, $2, 'client')`,
+          [id, `neighbour-${scenario.key}`],
+        );
+      }
+      for (const id of [probeTarget, probeDuplicate]) {
+        for (const clinic of [clinicA, clinicB]) {
+          await client.query(
+            `INSERT INTO public.org_enrollments(organization_id, platform_user_id, status)
+             VALUES ($1::uuid, $2::uuid, 'active')`,
+            [clinic.org_id, id],
+          );
+        }
+        await client.query(
+          `INSERT INTO public.clinical_visit(
+             patient_user_id, visit_type, visited_at, created_by, organization_id
+           ) VALUES ($1::uuid, 'first', now(), $2::uuid, $3::uuid)`,
+          [id, clinicA.staff_id, clinicA.org_id],
+        );
+        await client.query(
+          `INSERT INTO public.user_password_credentials(user_id, password_hash)
+           VALUES ($1::uuid, 'argon2-neighbour-proof')`,
+          [id],
+        );
+      }
+
+      await client.query(
+        `INSERT INTO public.patient_merge_candidates(
+           id, organization_id, anchor_user_id, candidate_user_id, reason, status
+         ) VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid,
+                   'medical_history:neighbour-proof', 'pending')`,
+        [currentConflict, clinicB.org_id, probeTarget, probeDuplicate],
+      );
+      await client.query(
+        `INSERT INTO public.patient_merge_candidates(
+           id, organization_id, anchor_user_id, candidate_user_id, reason, status, payload
+         ) VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5, $6, $7::jsonb)`,
+        [
+          decoyConflict,
+          scenario.key === 'wrongOrg' ? clinicC.org_id : clinicA.org_id,
+          probeTarget,
+          scenario.key === 'wrongPair' ? probeOther : probeDuplicate,
+          scenario.key === 'nonMedical' ? 'email_bind' : 'medical_history:neighbour-proof',
+          scenario.key === 'closed' ? 'dismissed' : 'resolved',
+          scenario.key === 'notApproved' ? '{}' : '{"doctorApproved":true}',
+        ],
+      );
+
+      await installDoctorContext(client, capability, clinicB);
+      const probe = await mergePlatformUsersInTransaction(
+        client,
+        probeTarget,
+        probeDuplicate,
+        'neighbour-proof',
+        {
+          medicalConflictApproval: {
+            conflictId: currentConflict,
+            organizationId: clinicB.org_id,
+            actorId: clinicB.staff_id,
+            doctorComment: `Клиника B: ${scenario.key}`,
+          },
+          mergeContext: {
+            actorId: clinicB.staff_id,
+            source: 'doctor_medical_conflict_review',
+          },
+        },
+      );
+      await clearDoctorContext(client);
+      const probeState = await client.query(
+        `SELECT merged_into_id::text AS duplicate_merged_into
+           FROM public.platform_users WHERE id = $1::uuid`,
+        [probeDuplicate],
+      );
+      neighbourAdmission[scenario.key] = {
+        outcome: probe.mergeOutcome,
+        duplicateMergedInto: probeState.rows[0].duplicate_merged_into,
+      };
+      await client.query('ROLLBACK TO SAVEPOINT neighbour_approval_probe');
+      await client.query('RELEASE SAVEPOINT neighbour_approval_probe');
+    }
+    say(`neighbour approval admission: ${JSON.stringify(neighbourAdmission)}`);
 
     // --- фикстура: одна пара учёток, медицинская история с обеих сторон в ОБЕИХ клиниках ---
     // ФИО обеих сторон намеренно ОДИНАКОВО: предмет этого прогона — права и границы двери, а не
@@ -96,22 +197,27 @@ async function main() {
         [conflictId, clinic.org_id, TARGET, DUPLICATE],
       );
     }
-    say('fixture inserted (2 accounts, clinical history in BOTH clinics, one pending row per clinic)');
+    say(
+      'fixture inserted (2 accounts, clinical history in BOTH clinics, one pending row per clinic)',
+    );
 
     // --- шаг 1: «слить» жмёт врач клиники A ---
     const runtimeA = await installDoctorContext(client, capability, clinicA);
-    say(`doctor A runtime: session_user=${runtimeA.login} current_user=${runtimeA.role} org=${runtimeA.org}`);
+    say(
+      `doctor A runtime: session_user=${runtimeA.login} current_user=${runtimeA.role} org=${runtimeA.org}`,
+    );
     const first = await mergePlatformUsersInTransaction(client, TARGET, DUPLICATE, 'projection', {
       medicalConflictApproval: {
         conflictId: CONFLICT_A,
         organizationId: clinicA.org_id,
         actorId: clinicA.staff_id,
+        doctorComment: 'Клиника A подтверждает совпадение',
       },
       mergeContext: { actorId: clinicA.staff_id, source: 'doctor_medical_conflict_review' },
     });
     say(`doctor A merge returned: ${JSON.stringify(first)}`);
 
-    // Индикатор врача — ровно тот запрос, которым его строит продукт (listPendingMedicalByOrganization).
+    // Все четыре красных входа питаются этим одним pending-набором.
     const indicator = await client.query(
       `SELECT count(*)::int AS pending
          FROM public.patient_merge_candidates
@@ -119,30 +225,13 @@ async function main() {
           AND status = 'pending' AND reason LIKE 'medical_history:%'`,
       [clinicA.org_id, CONFLICT_A],
     );
-    say(`doctor A indicator still shows pending medical conflicts: ${indicator.rows[0].pending}`);
-
-    // И его модалка: тот же конфликт, но уже с пометкой «учтено, ждём вторую клинику».
-    await clearDoctorContext(client);
-    const readCapability = await installCandidateNamedRootCapability(
-      client,
-      'app.read_staff_patient_medical_merge_conflict(uuid)',
-    );
-    await installDoctorNamedRootContext(client, readCapability, clinicA, [CONFLICT_A]);
-    const ownView = await client.query(
-      `SELECT app.read_staff_patient_medical_merge_conflict($1::uuid) AS snapshot`,
-      [CONFLICT_A],
-    );
-    const snapshot = ownView.rows[0]?.snapshot;
-    say(
-      `doctor A still sees his conflict: ${snapshot == null ? 'NO — it disappeared from his indicator' : `yes, doctorApproved=${snapshot.doctorApproved}`}`,
-    );
-
+    say(`doctor A pending conflicts after decision: ${indicator.rows[0].pending}`);
     await clearDoctorContext(client);
     const afterFirst = await client.query(
       `SELECT (SELECT merged_into_id::text FROM public.platform_users WHERE id = $2::uuid) AS duplicate_merged_into,
               (SELECT count(*)::int FROM public.user_password_credentials WHERE user_id = $2::uuid) AS duplicate_credentials,
               (SELECT count(*)::int FROM public.user_password_credentials WHERE user_id = $1::uuid) AS target_credentials,
-              (SELECT status || '/' || COALESCE(payload->>'doctorApproved', 'null')
+              (SELECT status || '/' || COALESCE(payload->>'doctorApproved', 'null') || '/' || COALESCE(doctor_comment, '')
                  FROM public.patient_merge_candidates WHERE id = $3::uuid) AS clinic_a_row,
               (SELECT status || '/' || COALESCE(payload->>'doctorApproved', 'null')
                  FROM public.patient_merge_candidates WHERE id = $4::uuid) AS clinic_b_row`,
@@ -152,7 +241,9 @@ async function main() {
 
     const a = afterFirst.rows[0];
     if (first.mergeOutcome !== 'awaiting_other_organization') {
-      throw new Error(`doctor A got '${first.mergeOutcome}', expected 'awaiting_other_organization'`);
+      throw new Error(
+        `doctor A got '${first.mergeOutcome}', expected 'awaiting_other_organization'`,
+      );
     }
     if (a.duplicate_merged_into !== null) {
       throw new Error('the pair was merged while the second clinic still blocks it');
@@ -160,27 +251,31 @@ async function main() {
     if (a.duplicate_credentials !== 1 || a.target_credentials !== 1) {
       throw new Error('identity rows moved even though no merge happened');
     }
-    if (a.clinic_a_row !== 'pending/true') {
-      throw new Error(`clinic A row is '${a.clinic_a_row}', expected 'pending/true' (still on the indicator)`);
+    if (a.clinic_a_row !== 'resolved/true/Клиника A подтверждает совпадение') {
+      throw new Error(
+        `clinic A row is '${a.clinic_a_row}', expected a resolved approval with its comment`,
+      );
     }
     if (a.clinic_b_row !== 'pending/null') {
       throw new Error(`clinic B row is '${a.clinic_b_row}', expected an untouched 'pending/null'`);
     }
-    if (indicator.rows[0].pending !== 1) {
-      throw new Error(`clinic A indicator shows ${indicator.rows[0].pending} pending conflicts, expected 1`);
-    }
-    if (snapshot == null || snapshot.doctorApproved !== true) {
-      throw new Error('the doctor lost his own conflict, or it does not say that he already approved');
+    if (indicator.rows[0].pending !== 0) {
+      throw new Error(
+        `clinic A indicators still see ${indicator.rows[0].pending} pending conflicts`,
+      );
     }
 
     // --- шаг 2: «слить» жмёт врач клиники B ---
     const runtimeB = await installDoctorContext(client, capability, clinicB);
-    say(`doctor B runtime: session_user=${runtimeB.login} current_user=${runtimeB.role} org=${runtimeB.org}`);
+    say(
+      `doctor B runtime: session_user=${runtimeB.login} current_user=${runtimeB.role} org=${runtimeB.org}`,
+    );
     const second = await mergePlatformUsersInTransaction(client, TARGET, DUPLICATE, 'projection', {
       medicalConflictApproval: {
         conflictId: CONFLICT_B,
         organizationId: clinicB.org_id,
         actorId: clinicB.staff_id,
+        doctorComment: 'Клиника B подтверждает совпадение',
       },
       mergeContext: { actorId: clinicB.staff_id, source: 'doctor_medical_conflict_review' },
     });
@@ -203,10 +298,24 @@ async function main() {
     }
     if (b.duplicate_merged_into !== TARGET) throw new Error('the pair did not actually merge');
     if (b.clinic_a_row !== 'resolved' || b.clinic_b_row !== 'resolved') {
-      throw new Error(`stale indicator: clinic A '${b.clinic_a_row}', clinic B '${b.clinic_b_row}'`);
+      throw new Error(
+        `stale indicator: clinic A '${b.clinic_a_row}', clinic B '${b.clinic_b_row}'`,
+      );
     }
 
-    say('RESULT: PASS — the first clinic got a truthful refusal, the second one completed the merge');
+    say(
+      `FACTS: ${JSON.stringify({
+        neighbourAdmission,
+        firstOutcome: first.mergeOutcome,
+        pendingAfterFirst: indicator.rows[0].pending,
+        afterFirst: a,
+        secondOutcome: second.mergeOutcome,
+        afterSecond: b,
+      })}`,
+    );
+    say(
+      'RESULT: PASS — the first clinic got a truthful refusal, the second one completed the merge',
+    );
   } catch (err) {
     say(`RESULT: FAIL — ${err.code ? `${err.code} ` : ''}${err.message}`);
     if (err.where) say(`  where: ${String(err.where)}`);
@@ -219,6 +328,7 @@ async function main() {
       [TARGET, DUPLICATE],
     );
     say(`rolled back; fixture rows left in the database: ${check.rows[0].leftovers}`);
+    say(`ROLLBACK_FACTS: ${JSON.stringify({ fixtureRows: check.rows[0].leftovers })}`);
     await client.end();
   }
 }

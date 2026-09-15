@@ -26,15 +26,31 @@ export function createPatientMergeCandidateService(port: PatientMergeCandidatePo
     readMedicalConflictDetails(organizationId: string, conflictId: string) {
       return port.readMedicalConflictDetails(organizationId, conflictId);
     },
+    listMedicalConflictRefusalsForUser(organizationId: string, userId: string) {
+      return port.listMedicalConflictRefusalsForUser(organizationId, userId);
+    },
     mergeMedicalConflict(
       organizationId: string,
       conflictId: string,
       resolvedBy: string,
+      doctorComment: string,
     ): Promise<PatientMergeConflictMergeOutcome> {
-      return port.mergeMedicalConflict(organizationId, conflictId, resolvedBy);
+      return port.mergeMedicalConflict(organizationId, conflictId, resolvedBy, doctorComment);
     },
-    refuseMedicalConflict(organizationId: string, conflictId: string, resolvedBy: string) {
-      return port.refuseMedicalConflict(organizationId, conflictId, resolvedBy);
+    refuseMedicalConflict(
+      organizationId: string,
+      conflictId: string,
+      resolvedBy: string,
+      doctorComment: string,
+      supportRequested: boolean,
+    ) {
+      return port.refuseMedicalConflict(
+        organizationId,
+        conflictId,
+        resolvedBy,
+        doctorComment,
+        supportRequested,
+      );
     },
     dismiss(id: string, resolvedBy: string): Promise<boolean> {
       return port.dismissCandidate(id, resolvedBy);

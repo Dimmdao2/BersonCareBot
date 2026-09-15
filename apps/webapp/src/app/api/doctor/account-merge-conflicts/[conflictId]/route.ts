@@ -4,7 +4,17 @@ import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
 
-const actionSchema = z.object({ action: z.enum(['merge', 'refuse']) }).strict();
+const doctorCommentSchema = z.string().trim().min(1).max(2000);
+const actionSchema = z.discriminatedUnion('action', [
+  z.object({ action: z.literal('merge'), comment: doctorCommentSchema }).strict(),
+  z
+    .object({
+      action: z.literal('refuse'),
+      comment: doctorCommentSchema,
+      supportRequested: z.boolean(),
+    })
+    .strict(),
+]);
 const uuidSchema = z.string().uuid();
 
 type RouteContext = { params: Promise<{ conflictId: string }> };
@@ -47,17 +57,33 @@ export async function POST(request: Request, context: RouteContext) {
   }
   const actorId = gate.ctx.session.user.userId;
   if (parsedBody.data.action === 'refuse') {
+    const { comment, supportRequested } = parsedBody.data;
     const refused = await withDoctorWorkspacePrincipal(gate.ctx, () =>
-      service.refuseMedicalConflict(gate.ctx.organizationId, conflictId, actorId),
+      service.refuseMedicalConflict(
+        gate.ctx.organizationId,
+        conflictId,
+        actorId,
+        comment,
+        supportRequested,
+      ),
     );
     if (!refused) {
       return NextResponse.json({ ok: false, error: 'forbidden' }, { status: 403 });
     }
-    return NextResponse.json({ ok: true, action: 'refuse' });
+    return NextResponse.json({
+      ok: true,
+      action: 'refuse',
+      supportRequested,
+    });
   }
 
   const outcome = await withDoctorWorkspacePrincipal(gate.ctx, () =>
-    service.mergeMedicalConflict(gate.ctx.organizationId, conflictId, actorId),
+    service.mergeMedicalConflict(
+      gate.ctx.organizationId,
+      conflictId,
+      actorId,
+      parsedBody.data.comment,
+    ),
   );
   if (outcome === 'conflict_not_found') {
     return NextResponse.json({ ok: false, error: 'forbidden' }, { status: 403 });

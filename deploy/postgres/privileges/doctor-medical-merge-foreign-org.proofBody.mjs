@@ -95,11 +95,15 @@ async function main() {
         [conflictId, clinic.org_id, TARGET, DUPLICATE],
       );
     }
-    say('fixture inserted (2 accounts, clinical history in BOTH clinics, one pending row per clinic)');
+    say(
+      'fixture inserted (2 accounts, clinical history in BOTH clinics, one pending row per clinic)',
+    );
 
     // --- врач клиники Б подаёт в дверь conflictId клиники А ---
     const runtimeB = await installDoctorContext(client, capability, clinicB);
-    say(`doctor B runtime: session_user=${runtimeB.login} current_user=${runtimeB.role} org=${runtimeB.org}`);
+    say(
+      `doctor B runtime: session_user=${runtimeB.login} current_user=${runtimeB.role} org=${runtimeB.org}`,
+    );
     if (runtimeB.org !== clinicB.org_id) {
       throw new Error(`doctor B runtime org is ${runtimeB.org}, expected ${clinicB.org_id}`);
     }
@@ -108,6 +112,7 @@ async function main() {
         conflictId: CONFLICT_A,
         organizationId: clinicB.org_id,
         actorId: clinicB.staff_id,
+        doctorComment: 'Чужой врач не должен пройти',
       },
       mergeContext: { actorId: clinicB.staff_id, source: 'doctor_medical_conflict_review' },
     });
@@ -120,6 +125,11 @@ async function main() {
               (SELECT count(*)::int FROM public.user_password_credentials WHERE user_id = $1::uuid) AS target_credentials,
               (SELECT status || '/' || COALESCE(payload->>'doctorApproved', 'null')
                  FROM public.patient_merge_candidates WHERE id = $3::uuid) AS clinic_a_row,
+              -- Комментарий врача пишет ПЯТИАРГУМЕНТНАЯ дверь ДО того, как четырёхаргументная
+              -- откажет по организации. Если сверять только статус и payload, снос стены именно в
+              -- этой записи остаётся незамеченным: слияния нет, а запись в чужую строку уже есть.
+              (SELECT doctor_comment
+                 FROM public.patient_merge_candidates WHERE id = $3::uuid) AS clinic_a_comment,
               (SELECT status || '/' || COALESCE(payload->>'doctorApproved', 'null')
                  FROM public.patient_merge_candidates WHERE id = $4::uuid) AS clinic_b_row`,
       [TARGET, DUPLICATE, CONFLICT_A, CONFLICT_B],
@@ -137,8 +147,17 @@ async function main() {
         `clinic A's row is '${state.clinic_a_row}', expected an untouched 'pending/null' — a foreign doctor stamped its approval`,
       );
     }
+    if (state.clinic_a_comment !== null) {
+      throw new Error(
+        `в строку клиники А лёг комментарий врача ЧУЖОЙ организации: ${JSON.stringify(
+          state.clinic_a_comment,
+        )} — решение врача имеет вес только в своей организации`,
+      );
+    }
     if (state.clinic_b_row !== 'pending/null') {
-      throw new Error(`clinic B's own row is '${state.clinic_b_row}', expected an untouched 'pending/null'`);
+      throw new Error(
+        `clinic B's own row is '${state.clinic_b_row}', expected an untouched 'pending/null'`,
+      );
     }
     if (state.duplicate_merged_into !== null) {
       throw new Error('the pair was merged by a doctor of another organization');
@@ -149,7 +168,10 @@ async function main() {
       );
     }
 
-    say("RESULT: PASS — a doctor of another organization is refused and clinic A's conflict is untouched");
+    say(`FACTS: ${JSON.stringify({ attempt, state })}`);
+    say(
+      "RESULT: PASS — a doctor of another organization is refused and clinic A's conflict is untouched",
+    );
   } catch (err) {
     say(`RESULT: FAIL — ${err.code ? `${err.code} ` : ''}${err.message}`);
     if (err.where) say(`  where: ${String(err.where)}`);
@@ -164,6 +186,7 @@ async function main() {
       [TARGET, DUPLICATE, CONFLICT_A, CONFLICT_B],
     );
     say(`rolled back; fixture rows left in the database: ${check.rows[0].leftovers}`);
+    say(`ROLLBACK_FACTS: ${JSON.stringify({ fixtureRows: check.rows[0].leftovers })}`);
     await client.end();
   }
 }

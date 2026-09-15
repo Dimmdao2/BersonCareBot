@@ -24725,29 +24725,6 @@ const ROW_LOCK_SURFACES: Readonly<Record<string, Readonly<Record<string, string>
  * оценка живого маршрута — `docs/_TODO/runs/integrator-cleanup/DEFINER_TENANT_PREDICATE_GATE_2026-08-22.md`.
  */
 const TENANT_WALL_CROSSINGS: Readonly<Record<string, Readonly<Record<string, string>>>> = {
-  'app.transfer_staff_approved_platform_user_merge_data(uuid,uuid,uuid,uuid)': {
-    'public.be_patient_booking_profiles': 'after the current-clinic pending conflict and all other clinic blockers are checked, the canonical account merge preserves non-conflicting rows from every clinic',
-    'public.broadcast_audit_recipients': 'platform delivery history follows the canonical account globally after the clinic-owned blocker is approved',
-    'public.clinical_anamnesis_illness': 'the refusal check must look OUTSIDE the current clinic on purpose: a doctor may lift only their own blocker, so the door reads every organization to find a clinic that still has an unresolved one',
-    'public.clinical_anamnesis_lifestyle': 'the refusal check must look OUTSIDE the current clinic on purpose: a doctor may lift only their own blocker, so the door reads every organization to find a clinic that still has an unresolved one',
-    'public.clinical_anamnesis_trauma': 'the refusal check must look OUTSIDE the current clinic on purpose: a doctor may lift only their own blocker, so the door reads every organization to find a clinic that still has an unresolved one',
-    'public.clinical_complaint': 'the refusal check must look OUTSIDE the current clinic on purpose: a doctor may lift only their own blocker, so the door reads every organization to find a clinic that still has an unresolved one',
-    'public.clinical_diagnosis': 'the refusal check must look OUTSIDE the current clinic on purpose: a doctor may lift only their own blocker, so the door reads every organization to find a clinic that still has an unresolved one',
-    'public.clinical_visit': 'the refusal check must look OUTSIDE the current clinic on purpose: a doctor may lift only their own blocker, so the door reads every organization to find a clinic that still has an unresolved one',
-    'public.doctor_notes': 'the refusal check must look OUTSIDE the current clinic on purpose: a doctor may lift only their own blocker, so the door reads every organization to find a clinic that still has an unresolved one',
-    'public.material_ratings': 'patient-owned rating history follows the canonical account globally after the clinic-owned blocker is approved',
-    'public.native_push_targets': 'patient devices follow the canonical account globally after the clinic-owned blocker is approved',
-    'public.patient_daily_warmup_presentations': 'patient-owned warmup state follows the canonical account globally after the clinic-owned blocker is approved',
-    'public.patient_diary_day_snapshots': 'patient-owned diary state follows the canonical account globally after the clinic-owned blocker is approved',
-    'public.patient_merge_candidates': 'the pending row of the CURRENT clinic is read with the organization predicate; the second read deliberately looks for an approval recorded by ANOTHER clinic, which is what lets the last doctor finish the merge, and after the accounts actually become one the same door closes every clinic pending row of that pair — the blocker no longer exists anywhere',
-    'public.patient_specialist_links': 'the exact pair is authorized by the current-clinic pending conflict; non-conflicting links then follow the canonical account',
-    'public.product_analytics_user_hourly': 'platform analytics history follows the canonical account globally after the clinic-owned blocker is approved',
-    'public.program_item_discussion_reads': 'patient-owned discussion state follows the canonical account globally after the clinic-owned blocker is approved',
-    'public.symptom_trackings': 'the door first rejects a medical blocker in every other organization, then moves the approved pair as one canonical account',
-    'public.treatment_program_instances': 'the refusal check must look OUTSIDE the current clinic on purpose: a doctor-assigned program in another organization is a blocker that only that clinic may lift',
-    'public.user_channel_preferences': 'the exact pair is authorized by the current-clinic pending conflict; global delivery preferences then follow the canonical account',
-    'public.user_web_push_subscriptions': 'patient devices follow the canonical account globally after the clinic-owned blocker is approved',
-  },
   // Приглашение в персонал: строку находит неугадываемый `token_hash`, и человек, который его
   // предъявил, к этой клинике ещё не принадлежит — сравнивать её организацию не с чем. Место в
   // тарифе считается по клинике САМОГО приглашения, а не по клинике вызывающего, потому что
@@ -24818,6 +24795,11 @@ const TENANT_WALL_CROSSINGS: Readonly<Record<string, Readonly<Record<string, str
   'app.read_staff_patient_medical_merge_conflict(uuid)': {
     'public.platform_users': 'two identity rows referenced by the current-clinic conflict, not a platform user listing',
     'public.user_identity': 'FIO for the same two conflict-bound identity rows',
+  },
+  'app.read_staff_patient_medical_merge_refusal(uuid)': {
+    'public.platform_users': 'the two reviewed accounts plus the resolver and initiator referenced by the current-clinic refusal row',
+    'public.user_identity': 'FIO for only those refusal-bound account ids',
+    'public.user_contacts': 'canonical contacts for only the two account ids stored in the current-clinic refusal row',
   },
 
   'app.lookup_pending_org_invite(text)': {
@@ -25930,11 +25912,16 @@ const REV10_CONTEXT = {
       targetRole: 'app_staff', contextClass: 'staff',
       purpose: 'identity.medical-merge-conflict.read',
       functionIdentity: 'app.read_staff_patient_medical_merge_conflict(uuid)' },
+    webapp_staff_patient_medical_merge_refusal_read: { port: 'webapp',
+      runtimeName: 'staff_patient_medical_merge_refusal_read', sessionRole: 'app_staff',
+      targetRole: 'app_staff', contextClass: 'staff',
+      purpose: 'identity.medical-merge-conflict.read-refusal',
+      functionIdentity: 'app.read_staff_patient_medical_merge_refusal(uuid)' },
     webapp_staff_patient_medical_merge_conflict_refuse: { port: 'webapp',
       runtimeName: 'staff_patient_medical_merge_conflict_refuse', sessionRole: 'app_staff',
       targetRole: 'app_staff', contextClass: 'staff',
       purpose: 'identity.medical-merge-conflict.refuse',
-      functionIdentity: 'app.refuse_staff_patient_medical_merge_conflict(uuid,uuid)' },
+      functionIdentity: 'app.refuse_staff_patient_medical_merge_conflict(uuid,uuid,text,boolean)' },
     webapp_platform_patient_medical_merge_conflicts_resolve: { port: 'webapp',
       runtimeName: 'platform_patient_medical_merge_conflicts_resolve', sessionRole: 'app_platform_settings',
       targetRole: 'app_platform_admin', contextClass: 'platform',
@@ -29320,7 +29307,8 @@ const REV10_CONTEXT = {
     }),
     'app.transfer_staff_approved_platform_user_merge_data(uuid,uuid,uuid,uuid)': rev10Function({
       owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'text', returnsSet: false,
-      execute: ['app_staff'], purpose: 'move dependent rows only for an exact current-clinic doctor-approved conflict',
+      execute: [], invocation: 'internal' as const,
+      purpose: 'private dependent-row transfer behind the commenting doctor-approval wrapper',
       typedArgs: ['uuid', 'uuid', 'uuid', 'uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog'], relationSurfaces: [
         patientSurface('public.patient_merge_candidates', ['id', 'organization_id', 'anchor_user_id',
@@ -29404,6 +29392,19 @@ const REV10_CONTEXT = {
         ].map(([relation, identityColumn]) => patientSurface(relation!, [identityColumn!], ['SELECT', 'UPDATE'])),
       ],
     }),
+    'app.transfer_staff_approved_platform_user_merge_data(uuid,uuid,uuid,uuid,text)': rev10Function({
+      owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'text', returnsSet: false,
+      execute: ['app_staff'], purpose: 'record the doctor comment and resolve one exact current-clinic approval',
+      typedArgs: ['uuid', 'uuid', 'uuid', 'uuid', 'text'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'],
+      delegatesTo: ['app.transfer_staff_approved_platform_user_merge_data(uuid,uuid,uuid,uuid)'],
+      relationSurfaces: [
+        { relation: 'public.patient_merge_candidates', columns: ['id', 'organization_id', 'anchor_user_id',
+          'candidate_user_id', 'reason', 'status', 'resolved_at', 'resolved_by', 'doctor_comment'],
+          operations: ['SELECT' as const, 'UPDATE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
     'app.read_staff_patient_medical_merge_conflict(uuid)': rev10Function({
       owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
       execute: ['app_staff'], purpose: 'read one current-clinic medical merge conflict for doctor review',
@@ -29428,13 +29429,33 @@ const REV10_CONTEXT = {
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
-    'app.refuse_staff_patient_medical_merge_conflict(uuid,uuid)': rev10Function({
-      owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false,
-      execute: ['app_staff'], purpose: 'escalate a doctor-refused current-clinic merge conflict',
-      typedArgs: ['uuid', 'uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+    'app.read_staff_patient_medical_merge_refusal(uuid)': rev10Function({
+      owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
+      execute: ['app_staff'], purpose: 'read the immutable doctor-refusal trace from either reviewed account',
+      typedArgs: ['uuid'], volatility: 'STABLE', parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
         { relation: 'public.patient_merge_candidates', columns: ['id', 'organization_id', 'anchor_user_id',
-          'candidate_user_id', 'reason', 'status', 'resolved_at', 'resolved_by'],
+          'candidate_user_id', 'reason', 'status', 'created_at', 'resolved_at', 'resolved_by', 'payload',
+          'doctor_comment', 'support_requested'], operations: ['SELECT' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.platform_users', columns: ['id', 'display_name', 'first_name', 'last_name', 'patronymic'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.user_identity', columns: ['platform_user_id', 'display_name', 'first_name',
+          'last_name', 'patronymic'], operations: ['SELECT' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.user_contacts', columns: ['platform_user_id', 'contact_kind', 'value_normalized'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.refuse_staff_patient_medical_merge_conflict(uuid,uuid,text,boolean)': rev10Function({
+      owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false,
+      execute: ['app_staff'], purpose: 'record a doctor refusal and optionally escalate it to platform support',
+      typedArgs: ['uuid', 'uuid', 'text', 'boolean'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.patient_merge_candidates', columns: ['id', 'organization_id', 'anchor_user_id',
+          'candidate_user_id', 'reason', 'status', 'resolved_at', 'resolved_by', 'doctor_comment',
+          'support_requested'],
           operations: ['SELECT' as const, 'UPDATE' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.admin_audit_log', columns: ['organization_id', 'actor_id', 'action', 'target_id',
           'conflict_key', 'details', 'status', 'repeat_count', 'last_seen_at', 'resolved_at'],

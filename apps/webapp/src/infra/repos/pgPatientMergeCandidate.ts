@@ -1,4 +1,4 @@
-import { and, desc, eq, like, or, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, like, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { runWithDbBootstrapPrincipal } from '@bersoncare/db-principal';
 import { getDrizzle } from '@/app-layer/db/drizzle';
@@ -37,6 +37,7 @@ const medicalConflictPartySchema = z.object({
       status: z.string(),
     }),
   ),
+  contacts: z.array(z.object({ kind: z.string(), value: z.string() })).default([]),
 });
 
 const medicalConflictDetailsSchema = z.object({
@@ -45,6 +46,18 @@ const medicalConflictDetailsSchema = z.object({
   createdAt: z.string(),
   source: z.string(),
   doctorApproved: z.boolean(),
+  status: z.enum(['pending', 'resolved', 'dismissed', 'escalated']).default('pending'),
+  resolvedAt: z.string().nullable().default(null),
+  resolvedBy: z
+    .object({ userId: z.string().uuid(), displayName: z.string() })
+    .nullable()
+    .default(null),
+  doctorComment: z.string().nullable().default(null),
+  supportRequested: z.boolean().nullable().default(null),
+  initiatedBy: z
+    .object({ userId: z.string().uuid(), displayName: z.string() })
+    .nullable()
+    .default(null),
   parties: z.tuple([medicalConflictPartySchema, medicalConflictPartySchema]),
 });
 
@@ -67,6 +80,8 @@ function mapRow(row: typeof patientMergeCandidates.$inferSelect): PatientMergeCa
     createdAt: row.createdAt,
     resolvedAt: row.resolvedAt,
     resolvedBy: row.resolvedBy,
+    doctorComment: row.doctorComment,
+    supportRequested: row.supportRequested,
   };
 }
 
@@ -149,13 +164,22 @@ export function createPgPatientMergeCandidatePort(): PatientMergeCandidatePort {
     },
 
     async readMedicalConflictDetails(organizationId, conflictId) {
-      const result = await runWebappNamedRoot<{ snapshot: unknown }>(
+      const pending = await runWebappNamedRoot<{ snapshot: unknown }>(
         getWebappSqlDb(),
         'app.read_staff_patient_medical_merge_conflict(uuid)',
         [conflictId],
         sql`SELECT app.read_staff_patient_medical_merge_conflict(${conflictId}::uuid) AS snapshot`,
       );
-      const snapshot = result.rows[0]?.snapshot;
+      let snapshot = pending.rows[0]?.snapshot;
+      if (snapshot == null) {
+        const refused = await runWebappNamedRoot<{ snapshot: unknown }>(
+          getWebappSqlDb(),
+          'app.read_staff_patient_medical_merge_refusal(uuid)',
+          [conflictId],
+          sql`SELECT app.read_staff_patient_medical_merge_refusal(${conflictId}::uuid) AS snapshot`,
+        );
+        snapshot = refused.rows[0]?.snapshot;
+      }
       if (snapshot == null) return null;
       const parsed = medicalConflictDetailsSchema.safeParse(snapshot);
       if (!parsed.success || parsed.data.organizationId !== organizationId) {
@@ -164,7 +188,31 @@ export function createPgPatientMergeCandidatePort(): PatientMergeCandidatePort {
       return parsed.data;
     },
 
-    async mergeMedicalConflict(organizationId, conflictId, resolvedBy) {
+    async listMedicalConflictRefusalsForUser(organizationId, userId) {
+      const rows = await getDrizzle()
+        .select({
+          id: patientMergeCandidates.id,
+          resolvedAt: patientMergeCandidates.resolvedAt,
+        })
+        .from(patientMergeCandidates)
+        .where(
+          and(
+            eq(patientMergeCandidates.organizationId, organizationId),
+            inArray(patientMergeCandidates.status, ['dismissed', 'escalated']),
+            like(patientMergeCandidates.reason, 'medical_history:%'),
+            or(
+              eq(patientMergeCandidates.anchorUserId, userId),
+              eq(patientMergeCandidates.candidateUserId, userId),
+            ),
+          ),
+        )
+        .orderBy(desc(patientMergeCandidates.resolvedAt));
+      return rows.flatMap((row) =>
+        row.resolvedAt ? [{ id: row.id, resolvedAt: row.resolvedAt }] : [],
+      );
+    },
+
+    async mergeMedicalConflict(organizationId, conflictId, resolvedBy, doctorComment) {
       const rows = await getDrizzle()
         .select()
         .from(patientMergeCandidates)
@@ -206,6 +254,7 @@ export function createPgPatientMergeCandidatePort(): PatientMergeCandidatePort {
                 conflictId,
                 organizationId,
                 actorId: resolvedBy,
+                doctorComment,
               },
               // §18а: подпись выбирал человек, а не движок и не врач. Ответ лежит в строке
               // конфликта с того дня, когда медицинский блокер отменил автоматическое слияние;
@@ -220,13 +269,22 @@ export function createPgPatientMergeCandidatePort(): PatientMergeCandidatePort {
       return outcome;
     },
 
-    async refuseMedicalConflict(organizationId, conflictId, resolvedBy) {
+    async refuseMedicalConflict(
+      organizationId,
+      conflictId,
+      resolvedBy,
+      doctorComment,
+      supportRequested,
+    ) {
       const result = await runWebappNamedRoot<{ resolved: boolean }>(
         getWebappSqlDb(),
-        'app.refuse_staff_patient_medical_merge_conflict(uuid,uuid)',
-        [conflictId, resolvedBy],
+        'app.refuse_staff_patient_medical_merge_conflict(uuid,uuid,text,boolean)',
+        [conflictId, resolvedBy, doctorComment, supportRequested],
         sql`SELECT app.refuse_staff_patient_medical_merge_conflict(
-              ${conflictId}::uuid, ${resolvedBy}::uuid
+              ${conflictId}::uuid,
+              ${resolvedBy}::uuid,
+              ${doctorComment}::text,
+              ${supportRequested}::boolean
             ) AS resolved`,
       );
       return result.rows[0]?.resolved === true;

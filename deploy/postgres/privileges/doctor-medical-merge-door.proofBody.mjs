@@ -106,6 +106,7 @@ async function main() {
         conflictId: CONFLICT,
         organizationId: clinic.org_id,
         actorId: clinic.staff_id,
+        doctorComment: 'Один клиент, подтверждено врачом',
       },
       mergeContext: { actorId: clinic.staff_id, source: 'doctor_medical_conflict_review' },
     });
@@ -122,6 +123,14 @@ async function main() {
       [TARGET, DUPLICATE, CONFLICT],
     );
     say(`after merge: ${JSON.stringify(after.rows[0])}`);
+    say(
+      `FACTS: ${JSON.stringify({
+        clinicOrg: clinic.org_id,
+        runtime,
+        mergeOutcome: result.mergeOutcome,
+        state: after.rows[0],
+      })}`,
+    );
     say('RESULT: PASS — merge completed under the doctor runtime role, no privilege refusal');
   } catch (err) {
     say(`RESULT: FAIL — ${err.code ? `${err.code} ` : ''}${err.message}`);
@@ -136,6 +145,7 @@ async function main() {
       [TARGET, DUPLICATE],
     );
     say(`rolled back; fixture rows left in the database: ${check.rows[0].leftovers}`);
+    say(`ROLLBACK_FACTS: ${JSON.stringify({ fixtureRows: check.rows[0].leftovers })}`);
     await client.end();
   }
 }

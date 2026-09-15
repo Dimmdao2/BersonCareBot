@@ -91,6 +91,7 @@ export type StaffApprovedMergePlatformUsersOptions = {
     conflictId: string;
     organizationId: string;
     actorId: string;
+    doctorComment: string;
   };
   /** §18а: ответ человека, сохранённый со строкой конфликта при медицинском defer. */
   humanDecision?: HumanMergeDecision;
@@ -806,7 +807,8 @@ export async function mergePlatformUsersInTransaction(
             ${approval.conflictId}::uuid,
             ${targetId}::uuid,
             ${duplicateId}::uuid,
-            ${approval.actorId}::uuid
+            ${approval.actorId}::uuid,
+            ${approval.doctorComment}::text
           ) AS transferred`,
     );
     const outcome = transferred.rows[0]?.transferred;
