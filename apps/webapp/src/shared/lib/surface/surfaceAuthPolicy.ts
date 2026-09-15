@@ -19,19 +19,16 @@ export type SurfaceAuthPolicyConfig = Readonly<Record<SurfaceAuthPolicyName, Sur
 
 /** Client-safe single source for the surface authentication matrix. */
 export const DEFAULT_SURFACE_AUTH_POLICY_CONFIG = {
-  // Телефонного кода в наборе сотрудничьих дверей нет и включить его настройкой нельзя: канон
-  // (`AUTH_AND_IDENTITY_CANON.md`, таблица дверей) даёт специалисту и админу клиники «почта +
-  // пароль + код или 2FA», а глобальному админу «почта + пароль». Владелец 16.09: «для терапиго
-  // оно доступно а для тераписто и админ.тераписто - нет». Отсутствие метода здесь — не UI-выбор:
-  // `surfaceAuthControlAvailable` запирает дверь до чтения переключателя, иначе один тумблер в
-  // админке молча заменял бы пароль сотрудника кодом на трубку.
+  // Состав сотрудничьих дверей задаётся только этой матрицей, а не настройками поверхности.
+  // Email-код здесь не самостоятельная дверь: после проверки пароля существующая staffSecurity-
+  // цепочка отдельно выбирает личный TOTP либо email-код как второй фактор.
   staff: {
-    availableMethods: ['password', 'email_code', 'totp', 'oauth', 'passkey'],
-    enabledMethods: ['password', 'totp'],
+    availableMethods: ['password', 'totp', 'passkey'],
+    enabledMethods: ['password', 'totp', 'passkey'],
   },
   platform_admin: {
-    availableMethods: ['password', 'email_code', 'totp', 'oauth', 'passkey'],
-    enabledMethods: ['password', 'email_code', 'totp', 'passkey'],
+    availableMethods: ['password', 'totp', 'passkey'],
+    enabledMethods: ['password', 'totp', 'passkey'],
   },
   patient: {
     availableMethods: ['email_code', 'phone_bot', 'oauth', 'passkey'],

@@ -24,7 +24,8 @@ vi.mock('@/modules/system-settings/configAdapter', () => ({
 }));
 vi.mock('next/headers', () => ({ headers: fakes.headers }));
 
-const { isAuthChannelEnabled } = await import('./authChannelPolicy');
+const { isAuthChannelEnabled, isIndependentAuthMethodEnabled } =
+  await import('./authChannelPolicy');
 
 describe('телефонный код на сотрудничьих поверхностях запрещён набором, а не настройкой', () => {
   beforeEach(() => {
@@ -54,11 +55,15 @@ describe('телефонный код на сотрудничьих поверх
     });
   }
 
-  it('почта у сотрудника остаётся в наборе: её судьбу по-прежнему решает настройка', async () => {
-    await expect(isAuthChannelEnabled('email', 'staff')).resolves.toBe(true);
-    expect(fakes.getPublicRuntimeBool).toHaveBeenCalledWith(
-      'auth_surface_staff_email_enabled',
-      'public_auth_config',
-    );
+  it('email-код не становится самостоятельной дверью сотрудника даже при legacy true', async () => {
+    await expect(isAuthChannelEnabled('email', 'staff')).resolves.toBe(false);
+    expect(fakes.getPublicRuntimeBool).not.toHaveBeenCalled();
+  });
+
+  it('passkey сотрудника остаётся вариантом входа даже при legacy false', async () => {
+    fakes.getPublicRuntimeBool.mockResolvedValue(false);
+
+    await expect(isIndependentAuthMethodEnabled('passkey', 'staff')).resolves.toBe(true);
+    expect(fakes.getPublicRuntimeBool).not.toHaveBeenCalled();
   });
 });
