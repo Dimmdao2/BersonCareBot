@@ -55,6 +55,7 @@ vi.mock('@/app-layer/di/buildAppDeps', () => ({
     },
     bookingScheduling: null,
     patientBooking: { getBookingByCanonicalAppointment: async () => null },
+    systemSettings: { getSetting: async () => null },
   }),
 }));
 

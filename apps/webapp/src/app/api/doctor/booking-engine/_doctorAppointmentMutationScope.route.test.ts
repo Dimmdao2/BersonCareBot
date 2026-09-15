@@ -169,6 +169,7 @@ beforeEach(() => {
     systemSettings: { getSetting: vi.fn() },
   });
   mocks.loadLifecycleSettings.mockResolvedValue({});
+  mocks.loadReminderPlan.mockResolvedValue({ enabled: false, offsetsMinutes: [] });
   mocks.runStaffManualCancelAfterCanonical.mockResolvedValue({});
 });
 
@@ -250,7 +251,9 @@ describe('doctor appointment mutation scope', () => {
   it('ignores a hostile create specialist ID for a normal doctor', async () => {
     const created = appointment(OWN_ID);
     mocks.createAppointment.mockResolvedValue(created);
-    mocks.buildAppDeps.mockReturnValue({});
+    mocks.buildAppDeps.mockReturnValue({
+      systemSettings: { getSetting: vi.fn().mockResolvedValue(null) },
+    });
 
     const response = await createAppointment(
       request('/api/doctor/booking-engine/appointments/manual', {

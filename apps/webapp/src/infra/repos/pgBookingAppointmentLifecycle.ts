@@ -10,10 +10,7 @@ import { drizzlePrimaryPhoneCol } from '@/infra/repos/userContactsSql';
 import { assertValidAppointmentStatusTransition } from '@/modules/booking-engine/appointmentStatusFsm';
 import { appointmentStatusAfterReschedule } from '@/modules/payments/appointmentFinancialSnapshot';
 import type { BeAppointment } from '@/modules/booking-engine/types';
-import {
-  deserializeAppointmentReminderOffsets,
-  parseAppointmentReminderOffsets,
-} from '@/modules/booking-notifications/appointmentReminderSchedule';
+import { parseAppointmentReminderOffsets } from '@/modules/booking-notifications/appointmentReminderSchedule';
 import type {
   AppointmentCancellationRecord,
   AppointmentLifecyclePort,
@@ -66,9 +63,8 @@ function mapAppointment(row: typeof beAppointments.$inferSelect): BeAppointment 
     phoneNormalized: row.phoneNormalized ?? null,
     attributionJson: (row.attributionJson ?? {}) as Record<string, unknown>,
     appointmentReminderAvailableOffsetsMinutes: availableOffsets,
-    appointmentReminderOffsetsMinutes: deserializeAppointmentReminderOffsets(
-      row.appointmentReminderOffsetsToken,
-    ),
+    appointmentReminderOffsetsMinutes:
+      parseAppointmentReminderOffsets(row.appointmentReminderOffsetsMinutes) ?? [],
     appointmentReminderSelectionSource:
       row.appointmentReminderSelectionSource === 'patient' ? 'patient' : 'specialist_default',
   };
@@ -168,8 +164,8 @@ type CurrentPatientAppointmentRow = {
   package_usage_ref: string | null;
   phone_normalized: string | null;
   attribution_json: Record<string, unknown> | null;
-  appointment_reminder_allowed_preset_ids: number[] | null;
-  appointment_reminder_preset_id: string | null;
+  appointment_reminder_available_offsets_minutes: number[] | null;
+  appointment_reminder_offsets_minutes: number[] | null;
   appointment_reminder_selection_source: string;
 };
 
@@ -197,7 +193,7 @@ type CurrentPatientRescheduleRow = {
 
 function mapCurrentPatientAppointment(row: CurrentPatientAppointmentRow): BeAppointment {
   const availableOffsets =
-    parseAppointmentReminderOffsets(row.appointment_reminder_allowed_preset_ids) ?? [];
+    parseAppointmentReminderOffsets(row.appointment_reminder_available_offsets_minutes) ?? [];
   return {
     id: row.id,
     organizationId: row.organization_id,
@@ -227,9 +223,8 @@ function mapCurrentPatientAppointment(row: CurrentPatientAppointmentRow): BeAppo
     phoneNormalized: row.phone_normalized,
     attributionJson: row.attribution_json ?? {},
     appointmentReminderAvailableOffsetsMinutes: availableOffsets,
-    appointmentReminderOffsetsMinutes: deserializeAppointmentReminderOffsets(
-      row.appointment_reminder_preset_id,
-    ),
+    appointmentReminderOffsetsMinutes:
+      parseAppointmentReminderOffsets(row.appointment_reminder_offsets_minutes) ?? [],
     appointmentReminderSelectionSource:
       row.appointment_reminder_selection_source === 'patient' ? 'patient' : 'specialist_default',
   };

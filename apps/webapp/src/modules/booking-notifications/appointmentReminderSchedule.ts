@@ -41,26 +41,6 @@ export function appointmentReminderPlanForOffsets(offsetsMinutes: readonly numbe
   return { enabled: normalized.length > 0, offsetsMinutes: normalized };
 }
 
-/**
- * The legacy appointment column is text, so the per-appointment selection is encoded as JSON.
- * This is an appointment snapshot, not a settings store; the scheduler still receives minutes.
- */
-export function serializeAppointmentReminderOffsets(
-  offsetsMinutes: readonly number[],
-): string | null {
-  const normalized = parseAppointmentReminderOffsets(offsetsMinutes);
-  return normalized && normalized.length > 0 ? JSON.stringify(normalized) : null;
-}
-
-export function deserializeAppointmentReminderOffsets(value: string | null): number[] {
-  if (value === null) return [];
-  try {
-    return parseAppointmentReminderOffsets(JSON.parse(value)) ?? [];
-  } catch {
-    return [];
-  }
-}
-
 export function isAppointmentReminderSelectionAllowed(
   availableOffsetsMinutes: readonly number[],
   selectedOffsetsMinutes: readonly number[],

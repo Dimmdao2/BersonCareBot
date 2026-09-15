@@ -562,11 +562,16 @@ export const beAppointments = pgTable(
       .$type<Record<string, unknown>>()
       .notNull()
       .default(sql`'{}'::jsonb`),
-    appointmentReminderAvailableOffsetsMinutes: jsonb('appointment_reminder_allowed_preset_ids')
+    appointmentReminderAvailableOffsetsMinutes: jsonb(
+      'appointment_reminder_available_offsets_minutes',
+    )
       .$type<number[]>()
       .notNull()
       .default(sql`'[]'::jsonb`),
-    appointmentReminderOffsetsToken: text('appointment_reminder_preset_id'),
+    appointmentReminderOffsetsMinutes: jsonb('appointment_reminder_offsets_minutes')
+      .$type<number[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
     appointmentReminderSelectionSource: text('appointment_reminder_selection_source')
       .notNull()
       .default('specialist_default'),

@@ -6,6 +6,7 @@ import { apiJson } from '@/shared/lib/apiJson';
 import {
   MAX_APPOINTMENT_REMINDERS,
   parseAppointmentReminderOffsets,
+  parseAppointmentReminderSettings,
   type AppointmentReminderSettings,
 } from '@/modules/booking-notifications/appointmentReminderSchedule';
 import {
@@ -73,17 +74,21 @@ export function AppointmentReminderSettingsSection({
     if (!offsetsMinutes) return;
     startTransition(async () => {
       try {
-        const response = (await apiJson('/api/doctor/appointment-reminders', {
+        const response = (await apiJson('/api/admin/settings', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ offsetsMinutes }),
-        })) as { settings: AppointmentReminderSettings };
+          body: JSON.stringify({
+            key: 'doctor_appointment_reminder_offsets_minutes',
+            value: offsetsMinutes,
+          }),
+        })) as { setting: { valueJson: unknown } };
+        const saved = parseAppointmentReminderSettings(response.setting.valueJson);
         setDrafts(
-          response.settings.offsetsMinutes.map((offset, index) =>
+          saved.offsetsMinutes.map((offset, index) =>
             draftFromOffset(nextId.current + index, offset),
           ),
         );
-        nextId.current += response.settings.offsetsMinutes.length;
+        nextId.current += saved.offsetsMinutes.length;
         toast.success(notificationText.commonSaved);
       } catch {
         toast.error(notificationText.settingsReminderSettingsSaveFailed);
