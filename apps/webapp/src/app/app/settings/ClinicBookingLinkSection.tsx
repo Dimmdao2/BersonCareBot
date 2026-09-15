@@ -75,21 +75,28 @@ export function ClinicBookingLinkSection({ bookingUrl, branches, specialists }: 
           </select>
         </DoctorField>
 
-        <DoctorField label="Специалист" htmlFor={specialistId}>
-          <select
-            id={specialistId}
-            className="h-9 rounded-md border border-input bg-transparent px-3 text-sm"
-            value={specialist}
-            onChange={(event) => setSpecialist(event.currentTarget.value)}
-          >
-            <option value="">Любой</option>
-            {specialists.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.title}
-              </option>
-            ))}
-          </select>
-        </DoctorField>
+        {/*
+          Выбирать не из кого — поля нет. Владелец 15.09.2026: «Для СОЛО надо убрать там вообще
+          поле „выбор специалиста“ в виджете да и в других местах». Признак — сам список: один
+          специалист (или ни одного) и есть соло, отдельного флага для этого не заводится.
+        */}
+        {specialists.length > 1 ? (
+          <DoctorField label="Специалист" htmlFor={specialistId}>
+            <select
+              id={specialistId}
+              className="h-9 rounded-md border border-input bg-transparent px-3 text-sm"
+              value={specialist}
+              onChange={(event) => setSpecialist(event.currentTarget.value)}
+            >
+              <option value="">Любой</option>
+              {specialists.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.title}
+                </option>
+              ))}
+            </select>
+          </DoctorField>
+        ) : null}
 
         <div className="flex flex-wrap items-center gap-2">
           <Input readOnly value={link} className="min-w-0 flex-1 font-mono text-xs" />

@@ -13,6 +13,7 @@ import {
   fetchSoloOverview,
   isServiceAvailableAtLocation,
   setSpecialistServiceAtBranch,
+  subscribeSoloCatalogChanged,
   type SoloOverview,
 } from '@/app/app/settings/bookingSoloAdminApi';
 import { isBuiltInOnlineLocation } from '@/modules/booking-engine/onlineLocation';
@@ -44,6 +45,9 @@ export function BookingSoloAvailabilitySection() {
       void load();
     });
   }, [load]);
+
+  /* Список услуг правится в соседнем разделе — перечитываем обзор по его сигналу. */
+  useEffect(() => subscribeSoloCatalogChanged(() => void load()), [load]);
 
   const activeBranches = useMemo(() => {
     const branches = (overview?.branches ?? []).filter((branch) => branch.isActive);
