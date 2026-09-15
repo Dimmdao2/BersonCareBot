@@ -2974,3 +2974,20 @@ wt/leads-notify | — | РАЗРЕШЕНИЕ РАСХОЖДЕНИЯ ДВУХ А�
   4/4; `e3-rerun.sh` PASS 1a…3b, RESIDUE 0; `tsc` 0 в обоих пакетах. Инъекция «помощник возвращает
   порядок строки» — красный ровно сценарий 5, непоймано 0. Отчёт —
   `REPORT_MERGE_FIO_ORIENTATION_FIX_2026-09-15.md`. Сам не принимаю: уходит на независимый аудит.
+
+- `a440910ba` — **FAIL** второго аудита порядка гейта публичных дверей (`altcha-audit2-20260915`,
+  gpt-5.6-sol high; автор правки — ведущий claude-opus-5). Дефект мой и механический: пересобирая
+  миграцию, я оставил один заголовок владельца на весь файл и убрал все
+  `--> statement-breakpoint` — четыре функции пошли одним блоком, preflight отказал `rc=3`
+  (`must be owner of function public_lead_issue_altcha_challenge`). Аудит при этом подтвердил:
+  тела отличаются от приземлённых только переносом присваиваний, живое поведение капчи, лимита и
+  создания заявки верное, `roots=101`, migration-order PASS, DEV чистая
+  (`leads=0,captcha=0,ledger=0`), Л4 не переоткрывался. Отчёт —
+  `AUDIT_LEADS_PUBLIC_GATE_ORDER_ROUND2_2026-09-15.md` ветки `wt/comms-visibility` (`3124d27e8`).
+- `ec17206a0` — **моя коррекция** (ведущий): каждой двери вернулась своя owner-секция —
+  две двери заявки под `app_seam_public_booking_owner`, две двери капчи под
+  `app_seam_password_auth_owner`, между ними `--> statement-breakpoint`. Тела не тронуты: в диффе
+  20 строк заголовков и разделителей, ни одной строки тела. Мой прогон через замок:
+  `migrate-dev.sh --preflight --runtime-env-root …` → `preflight: PASS`, `pending=1 total=224
+  unapplied=0`, `ROLLBACK`. `GRANT|REVOKE|CREATE POLICY` в миграции — 0. Сам не принимаю: уходит
+  на независимый аудит.
