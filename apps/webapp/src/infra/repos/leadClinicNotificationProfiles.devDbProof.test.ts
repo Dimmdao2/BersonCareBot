@@ -47,7 +47,7 @@ const OWN_MERGED_ADMIN = 'a4000000-0000-4000-8000-00000000a004';
 const FOREIGN_ADMIN = 'a4000000-0000-4000-8000-00000000b001';
 /** Привязка своего админа: способ доставки обязан приехать тем же чтением, что и получатель. */
 const OWN_ADMIN_TELEGRAM = 'AUDITL4-tg-own-admin';
-const TOPIC_CODE = 'doctor_patient_messages';
+const TOPIC_CODE = 'doctor_leads';
 
 function psql(sqlText: string): string {
   return execFileSync(
