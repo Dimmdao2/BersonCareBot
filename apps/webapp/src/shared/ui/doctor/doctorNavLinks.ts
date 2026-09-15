@@ -51,8 +51,6 @@ export type DoctorMenuLinkItem = {
   requiresSpecialistTasksEntitlement?: boolean;
   requiresWorkspaceModule?: WorkspaceModuleKey;
   requiresCommunicationsSurface?: boolean;
-  /** Solo-only entry: the clinic composition reaches the same destination from its management menu. */
-  requiresSoloSettingsHub?: boolean;
 };
 
 export type DoctorMenuAccessTier = 'doctor' | 'staff' | 'clinic_admin' | 'global_admin';
@@ -66,11 +64,6 @@ export type DoctorMenuAccess = {
   specialistTasksEnabled?: boolean;
   workspaceModules?: WorkspaceModuleEffective;
   communicationsSurface?: CommunicationsSurface;
-  /**
-   * Server-resolved solo composition. Solo has no cabinet-mode switch, so its settings entry lives
-   * in this very menu; the clinic composition keeps them in the separate management menu instead.
-   */
-  soloSettingsHub?: boolean;
 };
 
 export function getDoctorShellHomeHref(access: DoctorMenuAccess): string {
@@ -93,7 +86,6 @@ export function isDoctorMenuLinkVisible(
   if (item.requiresCmsEntitlement && !access.cmsEnabled) return false;
   if (item.requiresPatientHomeTodayEntitlement && !access.patientHomeTodayEnabled) return false;
   if (item.requiresSpecialistTasksEntitlement && !access.specialistTasksEnabled) return false;
-  if (item.requiresSoloSettingsHub && !access.soloSettingsHub) return false;
   if (
     item.requiresWorkspaceModule &&
     access.workspaceModules?.[item.requiresWorkspaceModule] === false
@@ -202,16 +194,12 @@ const RAW_DOCTOR_MENU_ITEMS: DoctorMenuLinkItem[] = [
     href: '/app/doctor/courses',
     requiresCoursesEntitlement: true,
   },
-  // Owner ruling 2026-09-10: the solo product has no cabinet-mode switch, so every management
-  // destination (clinic/app settings, online booking, specialist profile, tariff) is reached from
-  // this single entry. Removing the switch had left solo with no way into settings at all.
-  {
-    id: 'settings',
-    label: 'Настройки',
-    href: routePaths.settings,
-    accessTier: 'clinic_admin',
-    requiresSoloSettingsHub: true,
-  },
+  // Отдельного пункта «Настройки» в меню НЕТ (владелец 15.09.2026: «ты не удалил „настройки“ из
+  // меню»). Контейнером «Профиля и настроек» стала ссылка с именем организации в боковой панели —
+  // `DoctorAdminSidebar` ведёт ею на `routePaths.settings`, у кого есть `organization.management`,
+  // и в личный раздел у кого его нет. Пункт меню рядом с ней был вторым входом в то же место.
+  // Прежнее основание (ruling 2026-09-10: у соло нет переключателя режима, поэтому вход только
+  // здесь) снято именно этой ссылкой, а не отменено: вход у соло остался, он просто один.
   // NOTE: the platform operator's own destinations (analytics + the former "system" cluster)
   // moved out to `platformNavLinks.ts` — the platform shell has its own dedicated, flat
   // navigation now (owner ruling 2026-07-26: the global admin is not a doctor and does not

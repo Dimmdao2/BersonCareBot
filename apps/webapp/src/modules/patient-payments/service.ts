@@ -52,6 +52,10 @@ export function createPatientPaymentsService({
       return patientPaymentsPort.listPayments(patientUserId);
     },
 
+    async listOrganizationPayments(limit?: number): Promise<PatientPayment[]> {
+      return patientPaymentsPort.listOrganizationPayments(limit);
+    },
+
     /**
      * Список платежей + агрегат «итого оплачено наличными».
      * Используется GET-маршрутом для отдачи totalPaidMinor без отдельного запроса.
