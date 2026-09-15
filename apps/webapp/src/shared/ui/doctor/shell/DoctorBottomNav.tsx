@@ -13,8 +13,11 @@ import {
 } from '@/shared/ui/doctor/doctorNavLinks';
 import { getDoctorMenuIcon } from '@/shared/ui/doctor/doctorNavIcons';
 import { DoctorAttentionBadge } from '@/shared/ui/doctor/DoctorAttentionBadge';
-import { useOptionalDoctorShellBadgeCounts } from '@/shared/ui/doctor/shell/DoctorSupportUnreadProvider';
-import { resolveSpecialistTaskAttentionTone } from '@/modules/specialist-tasks/taskPriority';
+import {
+  badgeTone,
+  linkAriaLabelWhenBadged,
+  useDoctorNavBadgeCounts,
+} from '@/shared/ui/doctor/shell/doctorNavBadges';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 import { useReportShellChromeHeight } from '@/shared/hooks/useReportShellChromeHeight';
 
@@ -41,8 +44,7 @@ export function DoctorBottomNav({
   const navRef = useRef<HTMLElement>(null);
   const terms = useDoctorPatientTerms();
   const pathname = usePathname() ?? routePaths.doctor;
-  const { messagesUnread, unreadExerciseComments, overdueTasks, todayTasks } =
-    useOptionalDoctorShellBadgeCounts();
+  const { badgeCounts, taskAttentionTone } = useDoctorNavBadgeCounts();
   const menuItemsByHref = new Map(
     getDoctorMenuItems(menuAccess, terms).flatMap((item) =>
       item.href ? [[item.href, item] as const] : [],
@@ -50,7 +52,7 @@ export function DoctorBottomNav({
   );
   const visibleItems = items.flatMap((item) => {
     const menuItem = menuItemsByHref.get('accessHref' in item ? item.accessHref : item.href);
-    return menuItem ? [{ ...item, label: menuItem.label }] : [];
+    return menuItem ? [{ ...item, label: menuItem.label, badgeKey: menuItem.badgeKey }] : [];
   });
 
   useReportShellChromeHeight(navRef, DOCTOR_BOTTOM_NAV_HEIGHT_VAR);
@@ -70,27 +72,17 @@ export function DoctorBottomNav({
           );
           const Icon = getDoctorMenuIcon(item.id);
           if (!Icon) return null;
-          const hasAttention =
-            item.id === 'communications'
-              ? messagesUnread + unreadExerciseComments > 0
-              : item.id === 'tasks'
-                ? overdueTasks > 0 || todayTasks > 0
-                : false;
-          const taskAttentionTone =
-            resolveSpecialistTaskAttentionTone(overdueTasks, todayTasks) ?? 'primary';
+          const badgeKey = item.badgeKey;
+          const hasAttention = badgeKey ? badgeCounts[badgeKey] > 0 : false;
           return (
             <Link
               key={item.href}
               href={item.href}
               prefetch={false}
               aria-label={
-                hasAttention
-                  ? item.id === 'tasks'
-                    ? overdueTasks > 0
-                      ? `${label}. Есть просроченные задачи.`
-                      : `${label}. Есть задачи на сегодня.`
-                    : `${label}. Есть непрочитанные.`
-                  : label
+                (hasAttention
+                  ? linkAriaLabelWhenBadged({ label, badgeKey }, '1', taskAttentionTone)
+                  : label) ?? label
               }
               aria-current={active ? 'page' : undefined}
               title={label}
@@ -104,7 +96,7 @@ export function DoctorBottomNav({
                 <DoctorAttentionBadge
                   count={hasAttention ? 1 : 0}
                   dot
-                  tone={item.id === 'tasks' ? taskAttentionTone : 'danger'}
+                  tone={badgeKey ? badgeTone(badgeKey, taskAttentionTone) : 'danger'}
                 />
               </span>
             </Link>

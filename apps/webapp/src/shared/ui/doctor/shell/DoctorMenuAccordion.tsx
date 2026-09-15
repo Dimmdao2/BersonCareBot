@@ -8,8 +8,12 @@ import { createPortal } from 'react-dom';
 import { Button, buttonVariants } from '@/shared/ui/doctor/primitives/button';
 import { cn } from '@/lib/utils';
 import { useDoctorShellDesktopRail } from '@/shared/ui/doctor/shell/DoctorShellChromeContext';
-import { useDoctorShellBadgeCounts } from '@/shared/hooks/useSupportUnreadPolling';
-import { useDoctorMedicalMergeConflicts } from '@/shared/ui/doctor/DoctorMedicalMergeConflictProvider';
+import {
+  isDotBadge,
+  linkAriaLabelWhenBadged,
+  useDoctorNavBadgeCounts,
+  type TaskAttentionTone,
+} from '@/shared/ui/doctor/shell/doctorNavBadges';
 import {
   getDoctorMenuItems,
   isDoctorNavItemActive,
@@ -26,10 +30,6 @@ import {
   doctorSidebarRowClassName,
 } from '@/shared/ui/doctor/shell/DoctorSidebarRowContent';
 import { DoctorAttentionBadge } from '@/shared/ui/doctor/DoctorAttentionBadge';
-import {
-  resolveSpecialistTaskAttentionTone,
-  type SpecialistTaskAttentionTone,
-} from '@/modules/specialist-tasks/taskPriority';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
 /** Отображаемый текст бейджа; `null` — не показывать. */
@@ -47,38 +47,6 @@ function badgeSpanAriaLabel(badgeKey: DoctorMenuBadgeKey, formatted: string): st
   if (badgeKey === 'medicalMergeConflicts') return `Конфликтов учётных записей: ${formatted}`;
   if (badgeKey === 'overdueTasks') return 'Есть просроченные задачи';
   return `Непрочитанных сообщений: ${formatted}`;
-}
-
-type TaskAttentionTone = Exclude<SpecialistTaskAttentionTone, null>;
-
-function linkAriaLabelWhenBadged(
-  item: DoctorMenuLinkItem,
-  formatted: string,
-  taskAttentionTone: TaskAttentionTone,
-): string | undefined {
-  if (!item.badgeKey || !formatted) return undefined;
-  if (item.badgeKey === 'registrationSystemFailures')
-    return `${item.label}. Сбоев регистрации: ${formatted}.`;
-  if (item.badgeKey === 'pendingProgramTests') return `${item.label}. К проверке: ${formatted}.`;
-  if (item.badgeKey === 'todayAttention') return `${item.label}. Требует внимания: ${formatted}.`;
-  if (item.badgeKey === 'communicationsTotal') return `${item.label}. Есть непрочитанные.`;
-  if (item.badgeKey === 'medicalMergeConflicts') {
-    return `${item.label}. Есть конфликт учётных записей клиента.`;
-  }
-  if (item.badgeKey === 'overdueTasks') {
-    return taskAttentionTone === 'danger'
-      ? `${item.label}. Есть просроченные задачи.`
-      : `${item.label}. Есть задачи на сегодня.`;
-  }
-  return `${item.label}. Непрочитанных сообщений: ${formatted}.`;
-}
-
-function isDotBadge(badgeKey: DoctorMenuBadgeKey): boolean {
-  return (
-    badgeKey === 'communicationsTotal' ||
-    badgeKey === 'overdueTasks' ||
-    badgeKey === 'medicalMergeConflicts'
-  );
 }
 
 function navigationBadge(
@@ -518,39 +486,7 @@ export function DoctorMenuAccordion({
     ];
   }, [menuKind, menuAccess, pathname, showWorkspaceModeSwitch, terms, variant]);
 
-  const {
-    messagesUnread,
-    unreadExerciseComments,
-    overdueTasks,
-    todayTasks,
-    pendingProgramTests,
-    registrationSystemFailures,
-  } = useDoctorShellBadgeCounts();
-  const { count: medicalMergeConflicts } = useDoctorMedicalMergeConflicts();
-
-  const badgeCounts = useMemo(
-    () =>
-      ({
-        messagesUnread,
-        registrationSystemFailures,
-        pendingProgramTests,
-        todayAttention: pendingProgramTests,
-        communicationsTotal: messagesUnread + unreadExerciseComments,
-        overdueTasks: overdueTasks > 0 ? overdueTasks : todayTasks,
-        medicalMergeConflicts,
-      }) satisfies Record<DoctorMenuBadgeKey, number>,
-    [
-      messagesUnread,
-      unreadExerciseComments,
-      overdueTasks,
-      todayTasks,
-      registrationSystemFailures,
-      pendingProgramTests,
-      medicalMergeConflicts,
-    ],
-  );
-  const taskAttentionTone =
-    resolveSpecialistTaskAttentionTone(overdueTasks, todayTasks) ?? 'primary';
+  const { badgeCounts, taskAttentionTone } = useDoctorNavBadgeCounts();
 
   if (variant === 'sheet') {
     return (

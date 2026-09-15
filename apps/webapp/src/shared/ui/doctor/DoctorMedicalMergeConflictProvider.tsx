@@ -500,6 +500,14 @@ export function DoctorMedicalMergeConflictProvider({
   );
 }
 
+/**
+ * Вне оболочки кабинета конфликтов не существует — вместо падения отдаём пустой счёт.
+ * Нужен нижней навигации, которая по той же причине берёт и счётчики оболочки необязательным хуком.
+ */
+export function useOptionalDoctorMedicalMergeConflictCount(): number {
+  return useContext(DoctorMedicalMergeConflictContext)?.count ?? 0;
+}
+
 export function useDoctorMedicalMergeConflicts(): DoctorMedicalMergeConflictContextValue {
   const value = useContext(DoctorMedicalMergeConflictContext);
   if (!value) {
