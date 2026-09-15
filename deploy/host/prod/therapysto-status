@@ -38,4 +38,4 @@ fi
 echo "nginx sends to: $(grep -oE '127\.0\.0\.1:[0-9]+' "$THERAPYSTO_UPSTREAM_CONF" 2>/dev/null | paste -sd' ' || echo '<not configured>')"
 echo
 echo "containers:"
-docker ps --filter 'name=therapysto-' --format '  {{.Names}}\t{{.Status}}\t{{.Image}}' | sed 's/\t/  /g'
+"$(dirname "$LIB")/therapysto-container-restart-watchdog" --status

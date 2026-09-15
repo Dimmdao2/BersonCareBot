@@ -136,12 +136,14 @@ describe('background job manifest', () => {
         const command = renderCronCommand(entry, environment);
         expect(command).not.toMatch(/Host:|Origin:|X-Forwarded-Proto|Authorization|curl|INTERNAL_JOB_SECRET/);
         expect(command).not.toContain('/dev/null');
-        expect(command).toBe(
+        const expectedCommand =
           entry.kind === 'backup_shell'
             ? (entry.backupScriptPath ??
               `/opt/backups/scripts/postgres-backup.sh ${entry.backupMode}`)
-            : `${environment.projectRoot}/deploy/host/run-internal-job.sh ${envId} ${entry.id}`,
-        );
+            : entry.kind === 'host_shell'
+              ? entry.hostCommand
+              : `${environment.projectRoot}/deploy/host/run-internal-job.sh ${envId} ${entry.id}`;
+        expect(command).toBe(expectedCommand);
 
         const artifact = renderCronArtifact(entry, environment);
         // `KEY=value` — не расписание: cron читает их как окружение, и разбор файла их пропускает.
@@ -164,11 +166,10 @@ describe('background job manifest', () => {
   it('обязательное задание объявлено и на PROD, и на TEST — иначе среда остаётся без будильника', () => {
     for (const entry of BACKGROUND_JOB_MANIFEST) {
       if (entry.scheduleOwner !== 'host_cron' || !entry.required) continue;
-      // Бэкап — единственное исключение, и оно не «так сложилось»: на TEST нет боевых данных,
-      // которые можно потерять, а хранение зашифрованных дампов там ничего не защищает. Исключение
-      // названо по виду задания, а не списком id, — иначе пятый бэкап тихо оказался бы вне правила.
-      if (entry.kind === 'backup_shell') {
-        expect(entry.environments, `${entry.id}: бэкап объявлен не только на PROD`).toEqual([
+      // Прямые host-задачи относятся к инфраструктуре нового PROD: TEST не использует его Docker
+      // blue/green-контейнеры. Исключение названо по виду задания, а не списком id.
+      if (entry.kind === 'backup_shell' || entry.kind === 'host_shell') {
+        expect(entry.environments, `${entry.id}: host-задача объявлена не только на PROD`).toEqual([
           'prod',
         ]);
         continue;

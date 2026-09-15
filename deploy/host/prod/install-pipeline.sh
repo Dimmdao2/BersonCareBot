@@ -56,6 +56,7 @@ S="$SRC/deploy/host/prod"
 D="$SRC/deploy/docker"
 
 for f in therapysto-bluegreen-lib.sh therapysto-deploy therapysto-rollback therapysto-status \
+         therapysto-container-restart-watchdog \
          cutover-edge-to-caddy.sh rollback-edge-to-nginx.sh check-caddy-edge-health.sh \
          runtime-database.sh install-pipeline.sh therapysto-journal-truth; do
   install -m 0755 -o root -g root "$S/$f" "$PIPELINE/$f"

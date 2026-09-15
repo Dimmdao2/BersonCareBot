@@ -936,6 +936,12 @@ sudo systemctl reload nginx
   `deploy-test.sh` **до** рестарта служб: обязательное задание без будильника, файл без записи в manifest и
   строка мимо общего transport роняют выкатку до переключения версии.
 
+Прямой host-сторож `container_restart_watchdog` — `kind: 'host_shell'`: генератор ставит его раз в
+пять минут от root без HTTP transport. Он хранит предыдущие `Id`/`RestartCount` в
+`/var/lib/therapysto/container-restart-watchdog`, а рост счётчика того же контейнера пишет с
+приоритетом `daemon.err` в системный журнал. Смена `Id` при blue/green-выкладке начинает новый
+baseline без тревоги; доставка этого события в критический операторский канал остаётся этапом М-4.4.
+
 Актуальный перечень печатает сам manifest — таблицу здесь не дублируем:
 
 ```bash
