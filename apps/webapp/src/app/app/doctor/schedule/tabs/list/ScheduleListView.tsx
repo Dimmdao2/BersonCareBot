@@ -31,27 +31,32 @@ type ListDayCardProps = {
 
 // R29: фон строки списка повторяет статусную палитру календаря (eventClassName);
 // прошедшие приглушаются, отменённые — destructive + line-through.
+//
+// Владелец 15.09.2026: «в списке давай красить в цвет филиала только колонку с датой-временем и
+// коротким названием филиала. Само называние филиала писать черным». Поэтому цвет филиала больше
+// не заливает СТРОКУ — он живёт ровно в левой колонке (см. `branchColumnClass`), а строка остаётся
+// нейтральной. Статусная палитра (отменённая, прошедшая) по-прежнему принадлежит строке: это не
+// про филиал.
 function listRowClass(appt: CalendarAppointmentEvent, timeZone: string): string {
   if (isCancelledAppointmentStatus(appt.status))
     return 'border-destructive/25 bg-destructive/10 text-destructive/80 hover:bg-destructive/15';
   const isPast = parseFeedInstant(appt.startAt, timeZone) < DateTime.now();
   const base = appt.branchColor
-    ? 'border-[color:var(--list-branch-border)] bg-[color:var(--list-branch-bg)] text-foreground hover:brightness-[0.98]'
+    ? 'border-border/60 bg-transparent text-foreground hover:bg-muted/50'
     : 'border-primary/30 bg-primary/10 hover:bg-primary/15';
   return cn(base, isPast && 'opacity-60');
 }
 
 function listRowStyle(appt: CalendarAppointmentEvent): CSSProperties | undefined {
   if (!appt.branchColor || isCancelledAppointmentStatus(appt.status)) return undefined;
-  const background = doctorCalendarBranchColorRgba(appt.branchColor, 0.16);
-  const border = doctorCalendarBranchColorRgba(appt.branchColor, 0.42);
+  // Заливка колонки заметно плотнее прежней строчной (0.16): раньше цвет дублировался подписью
+  // филиала, теперь подпись чёрная и заливка осталась единственным носителем цвета.
+  const background = doctorCalendarBranchColorRgba(appt.branchColor, 0.3);
+  const border = doctorCalendarBranchColorRgba(appt.branchColor, 0.55);
   if (!background || !border) return undefined;
   return {
     '--list-branch-bg': background,
     '--list-branch-border': border,
-    // Подпись филиала красится полным цветом — как часы филиала в «Графике работы». Заливка в 16%
-    // сама по себе на телефоне не различается, из-за чего строки читались «одним цветом».
-    '--list-branch-text': appt.branchColor,
   } as CSSProperties;
 }
 
@@ -107,7 +112,17 @@ function ListDayCard({
               )}
               data-testid={`list-appt-${appt.id}`}
             >
-              <span className="flex w-[4.75rem] shrink-0 flex-col gap-0.5 overflow-hidden text-xs">
+              {/* Единственное место, где живёт цвет филиала: колонка «время + короткое имя
+                  филиала». Сама подпись филиала — обычным текстом строки (чёрным), цвет несёт
+                  только заливка колонки. */}
+              <span
+                className={cn(
+                  'flex shrink-0 flex-col gap-0.5 overflow-hidden text-xs',
+                  appt.branchColor && !cancelled
+                    ? 'w-[5.5rem] rounded-md border border-[color:var(--list-branch-border)] bg-[color:var(--list-branch-bg)] px-2 py-1'
+                    : 'w-[4.75rem]',
+                )}
+              >
                 <span className="whitespace-nowrap font-semibold tabular-nums">
                   {start}–{end}
                 </span>
@@ -115,11 +130,7 @@ function ListDayCard({
                   <span
                     className={cn(
                       'truncate',
-                      // Цвет филиала читается по подписи, а не только по бледной заливке строки.
-                      // У отменённой записи своя палитра — её не перебиваем.
-                      appt.branchColor && !cancelled
-                        ? 'font-medium text-[color:var(--list-branch-text)]'
-                        : 'text-muted-foreground',
+                      appt.branchColor && !cancelled ? 'font-medium' : 'text-muted-foreground',
                     )}
                     title={appt.branchTitle ?? undefined}
                   >
