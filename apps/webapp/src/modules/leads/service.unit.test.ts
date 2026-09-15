@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createLeadsService } from './service';
 import type { LeadsPort } from './ports';
-import type { SubmitLeadInput, VerifiedLeadApplicant } from './types';
+import type { Lead, SubmitLeadInput, VerifiedLeadApplicant } from './types';
 
 function rejectingPort() {
   const create = vi.fn<LeadsPort['create']>(async () => {
@@ -45,6 +45,23 @@ const submission = (organizationId = 'org-a'): SubmitLeadInput => ({
   sourceSurface: 'public_page',
 });
 
+const createdLead = (organizationId: string): Lead =>
+  ({
+    id: 'lead-1',
+    organizationId,
+    platformUserId: 'user-1',
+    submittedEmail: 'person@example.com',
+    messageText: 'Нужна консультация',
+    status: 'new',
+    sourceSurface: 'public_page',
+  }) as Lead;
+
+function creatingPort(organizationId = 'org-a') {
+  const create = vi.fn<LeadsPort['create']>(async () => createdLead(organizationId));
+  const port = { ...rejectingPort().port, create } as LeadsPort;
+  return { port, create };
+}
+
 describe('lead lifecycle', () => {
   it('does not create a lead before the applicant has proved the submitted email', async () => {
     const fake = rejectingPort();
@@ -70,5 +87,27 @@ describe('lead lifecycle', () => {
     });
     await expect(service.submit(submission())).rejects.toThrow('mechanic_disabled');
     expect(fake.create).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Поломка: отказ канала уведомления валит САМО создание заявки.
+ * Последствие: строка заявки уже записана и учётная запись человека уже заведена, а публичная
+ * дверь отвечает 500 `lead_submit_failed` — человек видит отказ и отправляет заявку снова
+ * (дубль), клиника при этом не узнаёт ни о первой, ни о второй. Уведомление — следствие
+ * созданной заявки, а не условие её создания; оба соседних производителя того же уведомления
+ * (`notifyDoctorPatientMessage`, `notifyDoctorPatientProgramNote`) зовут его как
+ * `void … .catch(log)` именно поэтому.
+ */
+describe('заявка не зависит от своего уведомления', () => {
+  it('созданная заявка возвращается, даже если уведомить клинику не удалось', async () => {
+    const fake = creatingPort();
+    const service = createLeadsService(fake.port, {
+      notifyClinicLeadCreated: async () => {
+        throw new Error('permission denied for table be_organization_members');
+      },
+    });
+    await expect(service.submit(submission())).resolves.toMatchObject({ id: 'lead-1' });
+    expect(fake.create).toHaveBeenCalledTimes(1);
   });
 });
