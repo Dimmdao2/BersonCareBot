@@ -28,6 +28,7 @@ export type MessengerPhoneLinkFailureCode =
   | 'merge_blocked_lfk_conflict'
   | 'merge_blocked_treatment_program_conflict'
   | 'merge_blocked_open_test_attempt_conflict'
+  | 'merge_blocked_medical_history_support_required'
   | 'merge_blocked_ambiguous_candidates'
   | 'legacy_contacts_conflict'
   | 'db_transient_failure';

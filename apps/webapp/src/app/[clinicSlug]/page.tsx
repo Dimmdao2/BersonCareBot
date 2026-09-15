@@ -16,6 +16,8 @@ import {
 } from '@/shared/ui/clinicPublicCard/ClinicRootEntryView';
 import { ClinicCardUnavailableError } from './clinicCardUnavailable';
 import { clinicCardMediaPath, loadClinicPublicCardRsc } from './publicClinicCard';
+import { PublicLeadForm } from '@/shared/publicBook/PublicLeadForm';
+import { withPublicLeadsAccess } from '@/app-layer/leads/withPublicLeadsAccess';
 
 export const dynamic = 'force-dynamic';
 
@@ -113,8 +115,7 @@ export default async function ClinicPublicCardPage({ params }: Props) {
       fullName: specialist.fullName,
       shortDescription: specialist.shortDescription,
       avatarSrc:
-        specialist.avatarMediaId &&
-        card.media.some((item) => item.id === specialist.avatarMediaId)
+        specialist.avatarMediaId && card.media.some((item) => item.id === specialist.avatarMediaId)
           ? clinicCardMediaPath(card.canonicalSlug, specialist.avatarMediaId)
           : null,
       href: publicClinicSpecialistPath(card.canonicalSlug, specialist.id),
@@ -124,10 +125,23 @@ export default async function ClinicPublicCardPage({ params }: Props) {
     publicWebsiteUrl: card.publicWebsiteUrl,
     bookingHref: publicBookPaths.forSlug(card.canonicalSlug),
   };
+  const leads = await withPublicLeadsAccess(
+    card.canonicalSlug,
+    'app/[clinicSlug]:lead-availability',
+    'read',
+    async () => true,
+  );
 
   return (
     <main className="mx-auto flex max-w-2xl flex-col gap-6 px-4 py-8">
-      <ClinicPublicCardView card={view} />
+      <ClinicPublicCardView
+        card={view}
+        leadForm={
+          leads.ok ? (
+            <PublicLeadForm orgSlug={card.canonicalSlug} sourceSurface="public_page" />
+          ) : undefined
+        }
+      />
     </main>
   );
 }

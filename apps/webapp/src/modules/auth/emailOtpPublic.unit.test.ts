@@ -10,7 +10,11 @@ vi.mock('./emailAuth', async (importOriginal) => {
   return { ...actual, startEmailChallenge: fakes.startEmailChallenge };
 });
 
-import { startPublicEmailOtpChallenge } from './emailOtpPublic';
+import {
+  startPublicEmailOtpChallenge,
+  startPublicEmailOtpRegistration,
+  startPublicLeadEmailVerification,
+} from './emailOtpPublic';
 
 const knownUserId = '00000000-0000-4000-8000-000000000027';
 const mailProfile = { kind: 'platform', senderDisplayName: 'Therapygo' } as const;
@@ -109,5 +113,59 @@ describe('public email OTP start anti-enumeration', () => {
       suppressedOutcome: 'email_otp_cooldown_suppressed',
     });
     expect(fakes.startEmailChallenge).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Д5 независимого аудита Л3. Состав полей заявки задаёт клиника; выключив ФИО, она делала
+ * подтверждение почты невозможным, а значит и заявку — невозможной ВООБЩЕ, и узнать об этом ей
+ * было неоткуда: отказ видит только посетитель.
+ */
+describe('подтверждение почты для публичной заявки', () => {
+  const leadDb = () => ({
+    ...publicDb({ userId: null }),
+    findOrCreatePublicEmailUser: vi
+      .fn()
+      .mockResolvedValue({ userId: knownUserId, wasCreated: true }),
+  });
+
+  it('клиника не собрала ФИО — код на почту всё равно уходит', async () => {
+    const db = leadDb();
+    const result = await startPublicLeadEmailVerification(
+      { email: 'visitor@example.test', firstName: '', lastName: '', patronymic: '' },
+      db,
+      mailProfile,
+    );
+
+    expect(result).toMatchObject({ ok: true, retryAfterSeconds: 60 });
+    expect(result).not.toHaveProperty('suppressedOutcome');
+    expect(fakes.startEmailChallenge).toHaveBeenCalledTimes(1);
+  });
+
+  it('обычная регистрация без ФИО по-прежнему отказывает', async () => {
+    const refusal = await startPublicEmailOtpRegistration(
+      { email: 'visitor@example.test', firstName: '', lastName: '' },
+      leadDb(),
+      mailProfile,
+    );
+
+    expect(refusal).toEqual({ ok: false, code: 'invalid_fio' });
+    expect(fakes.startEmailChallenge).not.toHaveBeenCalled();
+  });
+
+  it('ФИО собраны — заявка идёт обычным путём регистрации', async () => {
+    const db = leadDb();
+    db.registerPublicEmailPatient = vi
+      .fn()
+      .mockResolvedValue({ ok: true, userId: knownUserId, wasCreated: true });
+
+    const result = await startPublicLeadEmailVerification(
+      { email: 'visitor@example.test', firstName: 'Иван', lastName: 'Петров' },
+      db,
+      mailProfile,
+    );
+
+    expect(result).toMatchObject({ ok: true, retryAfterSeconds: 60 });
+    expect(db.findOrCreatePublicEmailUser).not.toHaveBeenCalled();
   });
 });

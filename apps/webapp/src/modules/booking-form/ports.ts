@@ -1,4 +1,5 @@
 import type { FormSurface } from './fieldTypes';
+import type { AcceptedFormAnswers } from './validateAnswers';
 
 export type BookingFormFieldRecord = {
   id: string;
@@ -57,13 +58,17 @@ export type BookingFormService = {
     audience: 'patient' | 'staff',
     answers: FormAnswerInput[],
     profilePrefill?: Record<string, string>,
-  ): Promise<{ ok: true } | { ok: false; error: string; fieldKey?: string }>;
+    surface?: FormSurface,
+  ): Promise<
+    { ok: true; accepted: AcceptedFormAnswers } | { ok: false; error: string; fieldKey?: string }
+  >;
   saveForAppointment(
     organizationId: string,
     appointmentId: string,
     answers: FormAnswerInput[],
   ): Promise<void>;
   listPatientFields(organizationId: string): Promise<BookingFormFieldRecord[]>;
+  listPublicFields(organizationId: string, surface: FormSurface): Promise<BookingFormFieldRecord[]>;
   listAdminFields(organizationId: string, surface?: FormSurface): Promise<BookingFormFieldRecord[]>;
   upsertAdminField(
     organizationId: string,

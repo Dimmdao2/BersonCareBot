@@ -1,10 +1,12 @@
 import type { Pool } from 'pg';
+import { sql } from 'drizzle-orm';
 import { writeAuditLog } from '@/infra/adminAuditLog';
 import { fetchMergePartyDisplayLabels } from '@/infra/mergeAuditLabels';
 import type { ManualMergeResolution } from '@/infra/repos/manualMergeResolution';
 import { mergePlatformUsersInTransaction } from '@/infra/repos/pgPlatformUserMerge';
 import { MergeConflictError } from '@/infra/repos/platformUserMergeErrors';
 import { withTwoUserLifecycleLocksExclusive } from '@/infra/userLifecycleLock';
+import { getWebappSqlDb, runWebappNamedRoot } from '@/infra/db/runWebappSql';
 
 export type ManualMergeOk = {
   ok: true;
@@ -44,6 +46,14 @@ export async function runManualPlatformUserMerge(
       );
       mergeContactsSaved = mergeResult.mergeContactsSaved;
     });
+    await runWebappNamedRoot(
+      getWebappSqlDb(),
+      'app.resolve_platform_patient_medical_merge_conflicts(uuid,uuid,uuid)',
+      [targetId, duplicateId, actorId],
+      sql`SELECT app.resolve_platform_patient_medical_merge_conflicts(
+            ${targetId}::uuid, ${duplicateId}::uuid, ${actorId}::uuid
+          )`,
+    );
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     await writeAuditLog(pool, {

@@ -53,6 +53,16 @@ export function BookingPublicWidgetSection() {
         : null,
     [origin, publicSlug],
   );
+  const leadOutputs = useMemo(
+    () =>
+      origin && publicSlug
+        ? buildPublicBookingWidgetOutputs(origin, {
+            orgSlug: publicSlug,
+            surface: 'leads',
+          })
+        : null,
+    [origin, publicSlug],
+  );
 
   async function copyText(text: string) {
     try {
@@ -67,6 +77,11 @@ export function BookingPublicWidgetSection() {
     { label: 'Виджет', text: outputs?.popupSnippet ?? null },
     { label: 'Страница', text: outputs?.pageUrl ?? null },
     { label: 'Код встраивания', text: outputs?.iframeSnippet ?? null },
+  ];
+  const leadVariants = [
+    { label: 'Виджет', text: leadOutputs?.popupSnippet ?? null },
+    { label: 'Страница', text: leadOutputs?.pageUrl ?? null },
+    { label: 'Код встраивания', text: leadOutputs?.iframeSnippet ?? null },
   ];
 
   return (
@@ -86,6 +101,32 @@ export function BookingPublicWidgetSection() {
         ) : pending ? null : (
           <p className="text-sm text-muted-foreground">Публичная форма пока недоступна.</p>
         )}
+      </DoctorSection>
+
+      <DoctorSection>
+        <DoctorSectionHeader>
+          <DoctorSectionTitle>Публичная форма заявки</DoctorSectionTitle>
+        </DoctorSectionHeader>
+        <div className="divide-y divide-border/60">
+          {leadVariants.map((variant) => (
+            <div key={variant.label} className="flex min-h-11 items-center justify-between gap-3">
+              <span className="text-base">{variant.label}</span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label={`Копировать: ${variant.label}`}
+                title="Копировать"
+                disabled={!variant.text}
+                onClick={() => {
+                  if (variant.text) void copyText(variant.text);
+                }}
+              >
+                <Copy className="size-4" aria-hidden />
+              </Button>
+            </div>
+          ))}
+        </div>
       </DoctorSection>
 
       <DoctorSection>

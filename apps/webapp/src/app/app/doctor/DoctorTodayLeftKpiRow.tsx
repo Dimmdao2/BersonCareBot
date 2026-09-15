@@ -26,7 +26,6 @@ import {
 import { SpecialistTaskRow as TaskRow } from './clients/SpecialistTaskRow';
 import { SpecialistTaskDetailsDialog } from './clients/SpecialistTaskDetailsDialog';
 import { SpecialistTaskFormDialog } from './clients/SpecialistTaskFormDialog';
-import { useViewportMinWidth } from '@/shared/hooks/useViewportMinWidth';
 import { useOptionalDoctorShellBadgeCounts } from '@/shared/ui/doctor/shell/DoctorSupportUnreadProvider';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
@@ -129,9 +128,6 @@ export function DoctorTodayLeftKpiRow({
   );
   const [taskFormOpen, setTaskFormOpen] = useState(false);
   const router = useRouter();
-  // DoctorTodayDashboard switches to its two-column desktop workspace at `md` (768px).
-  // Keep KPI navigation on the same boundary so tablet widths do not open the mobile modal.
-  const isDesktopViewport = useViewportMinWidth(768);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [locallyReadCommentKeys, setLocallyReadCommentKeys] = useState<Set<string>>(
     () => new Set(),
@@ -215,31 +211,6 @@ export function DoctorTodayLeftKpiRow({
         onClick={displayTotal > 0 ? () => setKpiModal('comments') : undefined}
       />
     ) : null,
-    tasksReadable ? (
-      <DoctorStatCard
-        key="tasks"
-        id="doctor-today-left-kpi-tasks"
-        title="Задачи"
-        value={taskAttentionCount > 0 ? taskAttentionCount : tasksTotal}
-        opensDetails={(taskAttentionCount > 0 ? taskAttentionCount : tasksTotal) > 0}
-        secondaryValue={taskAttentionCount > 0 ? tasksTotal : undefined}
-        tooltip="Открытые задачи."
-        tone={hasOverdueTasks ? 'warning' : 'neutral'}
-        className={hasOverdueTasks ? attentionKpiBackgroundClass : undefined}
-        onClick={
-          (taskAttentionCount > 0 ? taskAttentionCount : tasksTotal) > 0
-            ? () => {
-                if (isDesktopViewport) {
-                  router.push(routePaths.doctorTasks);
-                  return;
-                }
-                setKpiModal('tasks');
-              }
-            : undefined
-        }
-        valueClassName={hasOverdueTasks ? attentionKpiValueClass : undefined}
-      />
-    ) : null,
     shellBadges.leadsVisible ? (
       <DoctorStatCard
         key="leads"
@@ -252,6 +223,35 @@ export function DoctorTodayLeftKpiRow({
         className={shellBadges.newLeads > 0 ? attentionKpiBackgroundClass : undefined}
         valueClassName={shellBadges.newLeads > 0 ? attentionKpiValueClass : undefined}
         onClick={shellBadges.newLeads > 0 ? () => router.push(LEADS_HREF) : undefined}
+      />
+    ) : null,
+    tasksReadable ? (
+      <DoctorStatCard
+        key="tasks"
+        id="doctor-today-left-kpi-tasks"
+        title="Задачи"
+        value={taskAttentionCount > 0 ? taskAttentionCount : tasksTotal}
+        opensDetails={(taskAttentionCount > 0 ? taskAttentionCount : tasksTotal) > 0}
+        secondaryValue={taskAttentionCount > 0 ? tasksTotal : undefined}
+        tooltip="Открытые задачи."
+        tone={hasOverdueTasks ? 'warning' : 'neutral'}
+        className={hasOverdueTasks ? attentionKpiBackgroundClass : undefined}
+        /**
+         * Плитка открывает СПИСОК задач, а не страницу «Задачи». Владелец 15.09: «на странице
+         * сегодня кпи задачи пусть открывает то же список что и в мобиле — только в правой панели».
+         * Раньше на десктопе она уводила навигацией (`router.push`), и человек терял «Сегодня»
+         * целиком ради трёх строк. Соседние плитки — «Сообщения» и «Комментарии» — так себя не
+         * вели никогда: обе открывают тот же список правой панелью на десктопе и нижним листом на
+         * мобильном (`desktopPresentation="right-sheet"` у `KpiPreviewModal`). Теперь ветки по
+         * ширине нет вовсе — одна и та же панель на всех ширинах. Полная страница остаётся в
+         * одном клике: кнопка «Все задачи» в подвале панели.
+         */
+        onClick={
+          (taskAttentionCount > 0 ? taskAttentionCount : tasksTotal) > 0
+            ? () => setKpiModal('tasks')
+            : undefined
+        }
+        valueClassName={hasOverdueTasks ? attentionKpiValueClass : undefined}
       />
     ) : null,
   ].filter((tile) => tile !== null);

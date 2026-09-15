@@ -34,6 +34,7 @@ import {
   MergeConflictError,
   MergeDependentConflictError,
 } from '@/infra/repos/platformUserMergeErrors';
+import { recordPatientMedicalMergeConflict } from '@/infra/repos/pgPatientMergeCandidate';
 import {
   isTrustedPatientPhoneActivation,
   TrustedPatientPhoneSource,
@@ -686,9 +687,17 @@ export const pgUserByPhonePort: UserByPhonePort = {
         return { userId, wasCreated };
       });
 
-    const bound = profileBindOrganizationId
-      ? await runWithDbOrganizationPrincipal(profileBindOrganizationId, bindInTransaction)
-      : await bindInTransaction();
+    let bound: Awaited<ReturnType<typeof bindInTransaction>>;
+    try {
+      bound = profileBindOrganizationId
+        ? await runWithDbOrganizationPrincipal(profileBindOrganizationId, bindInTransaction)
+        : await bindInTransaction();
+    } catch (error) {
+      if (error instanceof MergeDependentConflictError) {
+        await recordPatientMedicalMergeConflict(error, 'phone_bind');
+      }
+      throw error;
+    }
 
     const user = await loadSessionIdentityUser(bound.userId);
     if (!user) {

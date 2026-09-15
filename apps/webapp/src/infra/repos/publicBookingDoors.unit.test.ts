@@ -142,7 +142,7 @@ function doorsAnswering(answers: Record<string, unknown>) {
         ? 'catalog'
         : functionIdentity === 'app.read_public_booking_slot_snapshot(uuid,uuid,text,text)'
           ? 'snapshot'
-          : functionIdentity === 'app.list_public_booking_form_fields()'
+          : functionIdentity === 'app.list_public_booking_form_fields(text)'
             ? 'fields'
             : 'organization_id';
     return { rows: [{ [column]: value }] };
@@ -221,7 +221,7 @@ describe('public booking — every read goes through a named root, never through
       doorsAnswering({
         'app.read_public_booking_catalog(uuid,uuid,uuid)': null,
         'app.read_public_booking_slot_snapshot(uuid,uuid,text,text)': null,
-        'app.list_public_booking_form_fields()': null,
+        'app.list_public_booking_form_fields(text)': null,
         'app.resolve_public_booking_organization(uuid,uuid)': null,
       }),
     );

@@ -1,4 +1,5 @@
 import { titleForBookingCityCode } from '@/modules/patient-booking/inPersonServicesCatalog';
+import type { ReactNode } from 'react';
 import { PublicMarkdownMaterial, type PublicMarkdownAsset } from './PublicMarkdownMaterial';
 
 /**
@@ -64,7 +65,13 @@ export type ClinicPublicCardViewModel = {
   bookingHref: string | null;
 };
 
-export function ClinicPublicCardView({ card }: { card: ClinicPublicCardViewModel }) {
+export function ClinicPublicCardView({
+  card,
+  leadForm,
+}: {
+  card: ClinicPublicCardViewModel;
+  leadForm?: ReactNode;
+}) {
   return (
     <div className="flex flex-col gap-6">
       <header className="flex items-center gap-4">
@@ -207,6 +214,8 @@ export function ClinicPublicCardView({ card }: { card: ClinicPublicCardViewModel
         </section>
       ) : null}
 
+      {leadForm}
+
       {card.bookingHref ? (
         <a
           href={card.bookingHref}
@@ -282,4 +291,3 @@ function SpecialistPreview({ specialist }: { specialist: ClinicPublicCardSpecial
     </a>
   );
 }
-

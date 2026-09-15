@@ -32,7 +32,7 @@ const publicBookingFormFieldsSchema = z.array(
   z.object({
     id: z.string().uuid(),
     organizationId: z.string().uuid(),
-    formSurface: z.literal('booking').optional().default('booking'),
+    formSurface: z.enum(['booking', 'leads']),
     fieldKey: z.string(),
     fieldType: z.string(),
     label: z.string(),
@@ -50,12 +50,12 @@ const publicBookingFormFieldsSchema = z.array(
  * Дверь полей формы для анонимного посетителя. `NULL` — неопубликованная клиника: снаружи её нет,
  * и форма для неё пуста, а не «как обычно». Пустой список от опубликованной клиники — законный.
  */
-async function readPublicBookingFormFields(organizationId: string) {
+async function readPublicBookingFormFields(organizationId: string, surface: FormSurface) {
   const result = await runWebappNamedRoot<{ fields: unknown }>(
     getWebappSqlDb(),
-    'app.list_public_booking_form_fields()',
-    [],
-    sql`SELECT app.list_public_booking_form_fields() AS fields`,
+    'app.list_public_booking_form_fields(text)',
+    [surface],
+    sql`SELECT app.list_public_booking_form_fields(${surface}) AS fields`,
   );
   const payload = result.rows[0]?.fields;
   if (payload == null) return [];
@@ -86,10 +86,10 @@ export function createPgBookingFormPort(): BookingFormPort {
   async function listActiveFields(
     organizationId: string,
     _audience: 'patient' | 'staff',
-    surface = 'booking',
+    surface: FormSurface = 'booking',
   ): Promise<BookingFormFieldRecord[]> {
     if (isCurrentPublicBookingPrincipal()) {
-      return (await readPublicBookingFormFields(organizationId)).map(mapField);
+      return (await readPublicBookingFormFields(organizationId, surface)).map(mapField);
     }
     if (getCurrentDbPrincipal()?.kind === 'patient') {
       const result = await runWebappNamedRoot<BookingFormFieldRow>(

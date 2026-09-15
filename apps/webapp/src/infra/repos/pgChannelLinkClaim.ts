@@ -1,7 +1,11 @@
 import { sql } from 'drizzle-orm';
 import type { Pool, PoolClient } from 'pg';
 
-import { classifyMergeFailure, mergePlatformUsersInTransaction } from '@bersoncare/platform-merge';
+import {
+  classifyMergeFailure,
+  mergePlatformUsersInTransaction,
+  MergeDependentConflictError,
+} from '@bersoncare/platform-merge';
 import {
   getWebappSqlFromPgClient,
   runWebappSql,
@@ -14,6 +18,7 @@ import {
   USER_CONTACTS_PRIMARY_PHONE_LATERAL,
   mutateCanonicalUserContactsWebapp,
 } from '@/infra/repos/userContactsSql';
+import { recordPatientMedicalMergeConflict } from '@/infra/repos/pgPatientMergeCandidate';
 
 export class ChannelLinkClaimRejectedError extends Error {
   readonly reason: string;
@@ -159,6 +164,9 @@ export async function tryMergeChannelLinkOwners(
     });
     return { ok: true };
   } catch (err) {
+    if (err instanceof MergeDependentConflictError) {
+      await recordPatientMedicalMergeConflict(err, 'phone_bind');
+    }
     const classified = classifyMergeFailure(err, [params.tokenUserId, params.existingUserId]);
     return {
       ok: false,

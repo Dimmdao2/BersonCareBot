@@ -67,10 +67,17 @@ export const notificationText = {
   leadChangeFailed: 'Не удалось изменить заявку. Повторите попытку.',
   leadContactCopied: 'Контакт скопирован.',
   leadContactCopyFailed: 'Не удалось скопировать контакт.',
+  leadFormLoadFailed: 'Форма заявки временно недоступна. Обновите страницу и повторите.',
+  leadSubmitFailed: 'Не удалось отправить заявку. Повторите попытку.',
+  leadSubmitted: 'Заявка отправлена.',
+  leadConsentRequired: 'Подтвердите согласие на обработку персональных данных.',
+  leadVerificationCodeSent: 'Введите код из письма.',
+  leadCaptchaRequired: 'Подтвердите, что вы человек.',
   // --- security / staff auth (ранее shared/ui/auth/staffSecurityErrorText.ts) ---
   authBindSpecialistFallback: 'Не удалось подключить рабочий кабинет. Повторите попытку позже.',
   authChangePasswordFallback: 'Пароль не изменён. Проверьте данные и повторите попытку.',
-  authChannelDisabled: 'Вход по email временно отключён. Обратитесь к администратору и повторите позже.',
+  authChannelDisabled:
+    'Вход по email временно отключён. Обратитесь к администратору и повторите позже.',
   authConfirmRecoveryFallback:
     'Не удалось подтвердить сохранение кодов. Проверьте, что коды сохранены, и повторите.',
   authDoctorWorkspaceMembershipRequired:
@@ -99,8 +106,7 @@ export const notificationText = {
    * карточке. Ключ отдельный намеренно — на входе он значит «подтвердить не удалось», а при смене
    * почты и заведении карточки «этот адрес занят», и одной фразой это не описывается.
    */
-  authEmailBelongsToAnotherAccount:
-    'Этот email уже используется другим аккаунтом. Укажите другой.',
+  authEmailBelongsToAnotherAccount: 'Этот email уже используется другим аккаунтом. Укажите другой.',
   authInvalidCredentialsSessionExpired:
     'Не удалось подтвердить вход. Войдите снова и запросите новый код.',
   authInvalidBody: 'Данные введены неверно. Проверьте их и повторите действие.',
@@ -108,10 +114,12 @@ export const notificationText = {
   authInvalidEmailFormat: 'Неверный формат email',
   // Channel-neutral on purpose (G1): this key now also covers the email `invalid_code` case, so
   // it must not say "в приложении" (authenticator-app-only wording).
-  authInvalidRecoveryCode: 'Резервный код неверный или уже использован. Введите другой резервный код.',
+  authInvalidRecoveryCode:
+    'Резервный код неверный или уже использован. Введите другой резервный код.',
   authLoginChallengeExpired: 'Время подтверждения истекло. Войдите снова и запросите новый код.',
   authLoginFactorFallback: 'Не удалось подтвердить вход. Введите код ещё раз.',
-  authOwnerRequired: 'Подключить рабочий кабинет может только владелец. Войдите под аккаунтом владельца.',
+  authOwnerRequired:
+    'Подключить рабочий кабинет может только владелец. Войдите под аккаунтом владельца.',
   authPasswordChangedSessionReissueFailed:
     'Пароль изменён, но сеанс завершён. Войдите снова с новым паролем.',
   authPasswordLoginUnavailable:
@@ -122,18 +130,23 @@ export const notificationText = {
   authPasswordTemporarilyLocked:
     'Слишком много неверных попыток. Подождите 15 минут или восстановите пароль.',
   authProvisioningPending: 'Настройка аккаунта ещё выполняется. Подождите немного и повторите.',
-  authProxyConfiguration: 'Защита входа временно недоступна. Обратитесь к администратору и повторите позже.',
-  authRetryProvisioningFallback: 'Не удалось завершить настройку аккаунта. Повторите попытку позже.',
+  authProxyConfiguration:
+    'Защита входа временно недоступна. Обратитесь к администратору и повторите позже.',
+  authRetryProvisioningFallback:
+    'Не удалось завершить настройку аккаунта. Повторите попытку позже.',
   authRevokeSessionsFallback: 'Не удалось завершить другие сеансы. Повторите попытку.',
   authSecuritySessionRequired:
     'Сеанс защиты больше не подтверждён. Выйдите и войдите снова, затем повторите.',
   authSecuritySetupRequired:
     'Сначала подключите двухфакторную защиту в разделе «Аккаунт» → «Безопасность».',
-  authSignupIntentNotFound: 'Заявка на создание кабинета не найдена. Начните регистрацию кабинета заново.',
+  authSignupIntentNotFound:
+    'Заявка на создание кабинета не найдена. Начните регистрацию кабинета заново.',
   authStartEnrollmentFallback: 'Не удалось начать настройку защиты. Повторите попытку позже.',
   authUnauthorized: 'Сеанс входа истёк. Войдите снова и повторите действие.',
-  authVerifiedEmailRequired: 'Email не подтверждён. Подтвердите email и повторите настройку защиты.',
-  authWeakNewPassword: 'Новый пароль должен содержать от 8 до 128 символов. Измените пароль и повторите.',
+  authVerifiedEmailRequired:
+    'Email не подтверждён. Подтвердите email и повторите настройку защиты.',
+  authWeakNewPassword:
+    'Новый пароль должен содержать от 8 до 128 символов. Измените пароль и повторите.',
   authWrongCurrentPassword: 'Текущий пароль указан неверно. Проверьте его и повторите попытку.',
 
   // --- generic domain constants (ранее собственные именованные константы модулей) ---
@@ -154,8 +167,10 @@ export const notificationText = {
   patientReminderUpdateFailed: 'Не удалось обновить напоминание. Повторите попытку.',
   exerciseSessionMarkFailed: 'Не удалось отметить занятие. Повторите попытку.',
   doctorWarmupScheduleSaveFailed: 'Не удалось сохранить расписание. Повторите попытку.',
-  settingsOperatorAlertsSaveFailed: 'Не удалось сохранить настройки операторских алертов. Повторите попытку.',
-  settingsOperatorAlertsFallbackEmailSaveFailed: 'Не удалось сохранить резервный e-mail. Повторите попытку.',
+  settingsOperatorAlertsSaveFailed:
+    'Не удалось сохранить настройки операторских алертов. Повторите попытку.',
+  settingsOperatorAlertsFallbackEmailSaveFailed:
+    'Не удалось сохранить резервный e-mail. Повторите попытку.',
   messagingCodeRequestFailed: 'Не удалось запросить код. Повторите попытку.',
   messagingBindingStartFailed: 'Не удалось начать привязку. Повторите попытку.',
   // C5 (copy audit): avoid repeating "попыт-" root twice ("попыток"/"попытку") — «подождите» instead.
@@ -183,8 +198,10 @@ export const notificationText = {
   authPhoneRequired: 'Укажите номер телефона.',
   authPhoneInvalidFormat: 'Номер указан неверно. Проверьте формат и повторите.',
   authSmsRussianNumbersOnly: 'SMS доступны только для российских номеров. Выберите другой способ.',
-  authTelegramNotLinkedToPhone: 'Telegram не привязан к этому номеру. Привяжите его или выберите другой способ.',
-  authMaxNotLinkedToPhone: 'Max не привязан к этому номеру. Привяжите его или выберите другой способ.',
+  authTelegramNotLinkedToPhone:
+    'Telegram не привязан к этому номеру. Привяжите его или выберите другой способ.',
+  authMaxNotLinkedToPhone:
+    'Max не привязан к этому номеру. Привяжите его или выберите другой способ.',
   authTelegramChatUnknown: 'Не удалось определить ваш чат в Telegram. Откройте бот и повторите.',
   authPhoneAndChannelRequired: 'Укажите номер телефона и способ связи.',
   authMessengerBindUnavailable: 'Привязка мессенджера сейчас недоступна. Повторите попытку позже.',
@@ -195,7 +212,8 @@ export const notificationText = {
   authLoginNotAllowed: 'Вход для этого аккаунта не разрешён.',
   authLoginFailedRetry: 'Не удалось войти. Повторите попытку.',
   doctorAdminOnlyChangePatientEmail: 'Менять email пациента может только администратор.',
-  doctorAdminOnlyViewPendingEmail: 'Смотреть ожидающий подтверждения email может только администратор.',
+  doctorAdminOnlyViewPendingEmail:
+    'Смотреть ожидающий подтверждения email может только администратор.',
   patientProfileConfirmationRequired: 'Заполните и подтвердите профиль пациента, затем повторите.',
   commonUserNotFound: 'Пользователь не найден.',
   bookingConfirmedPhoneRequired: 'Для записи на приём нужен подтверждённый номер телефона.',
@@ -208,8 +226,7 @@ export const notificationText = {
   adminChannelSettingsChangedDuringTest:
     'Настройки канала изменились во время проверки. Отправьте проверку ещё раз.',
   adminIntegrationCheckFailed: 'Сервер не смог проверить доступность интеграции. Повторите позже.',
-  authClinicBotUnavailable:
-    'Бот сейчас недоступен. Войдите другим способом.',
+  authClinicBotUnavailable: 'Бот сейчас недоступен. Войдите другим способом.',
   pushLoginRequired: 'Войдите в аккаунт, чтобы управлять личными push-уведомлениями.',
   pushNotAvailableForAccount: 'Личные push-уведомления недоступны для этой учётной записи.',
   pushAccessCheckFailed: 'Не удалось подтвердить доступ к вашим личным Push-уведомлениям.',
@@ -297,16 +314,20 @@ export const notificationText = {
 
   // --- doctor ---
   doctorSubscriptionCreated: 'Абонемент создан',
-  treatmentProgramNoGroupRestrictedElements: 'Без группы допустимы только рекомендации и клинические тесты',
+  treatmentProgramNoGroupRestrictedElements:
+    'Без группы допустимы только рекомендации и клинические тесты',
   doctorDraftSaved: 'Черновик сохранён',
-  doctorFileDeletedListStale: 'Файл удалён из чата, но список не обновился. Откройте обсуждение заново.',
+  doctorFileDeletedListStale:
+    'Файл удалён из чата, но список не обновился. Откройте обсуждение заново.',
   doctorFileDeletedStorageFreed: 'Файл удалён. Место в хранилище освобождено.',
   doctorChangesSaved: 'Изменения сохранены',
   doctorCommentNotSaved: 'Комментарий не сохранён. Повторите попытку.',
   treatmentProgramGroupNameEmpty: 'Название группы не может быть пустым',
-  treatmentProgramRecommendationsGroupNotFound: 'Не найдена системная группа «Рекомендации» для этапа. Обновите страницу и повторите попытку.',
+  treatmentProgramRecommendationsGroupNotFound:
+    'Не найдена системная группа «Рекомендации» для этапа. Обновите страницу и повторите попытку.',
   // C5 (copy audit): «Попробуйте» → «Повторите попытку», majority phrasing.
-  doctorArchiveFailed: 'Не удалось архивировать. Повторите попытку или обратитесь к администратору.',
+  doctorArchiveFailed:
+    'Не удалось архивировать. Повторите попытку или обратитесь к администратору.',
   doctorContentAccessUpdateFailed: 'Не удалось изменить доступ к материалу. Повторите попытку.',
   doctorSectionAccessUpdateFailed: 'Не удалось изменить доступ к разделу. Повторите попытку.',
   doctorGroupUpdateFailed: 'Не удалось изменить группу. Повторите попытку.',
@@ -319,7 +340,8 @@ export const notificationText = {
   doctorSubscriptionRecalcFailed: 'Не удалось пересчитать абонемент. Повторите попытку.',
   doctorActionApplyFailed: 'Не удалось применить действие. Повторите попытку.',
   doctorPhoneCopyFailed: 'Не удалось скопировать телефон. Повторите попытку.',
-  treatmentProgramElementGroupChangeFailed: 'Не удалось сменить группу элемента. Повторите попытку.',
+  treatmentProgramElementGroupChangeFailed:
+    'Не удалось сменить группу элемента. Повторите попытку.',
   doctorUnarchiveFailed: 'Не удалось снять архив. Повторите попытку.',
   // C3/C4 (copy audit): dead-end (no next action); also collapsed the documented intentional
   // near-dup `settingsPatientHomeSaveFailed` into this key (see file header) now that both sides
@@ -336,10 +358,18 @@ export const notificationText = {
   treatmentProgramStageDeleteFailed: 'Не удалось удалить этап. Повторите попытку.',
   treatmentProgramGroupDeleteFailed: 'Не удалось удалить группу. Повторите попытку.',
   doctorMergeCompleted: 'Объединение выполнено.',
+  doctorMedicalConflictMerged: 'Учётные записи объединены.',
+  doctorMedicalConflictEscalated: 'Конфликт передан администраторам платформы.',
+  doctorMedicalConflictAwaitingOtherOrganization:
+    'Решение записано. Слияние ждёт решения другой клиники.',
+  doctorMedicalConflictUnavailable: 'Конфликт больше недоступен. Обновите страницу.',
+  doctorMedicalConflictLoadFailed: 'Не удалось загрузить конфликт. Обновите страницу и повторите.',
+  doctorMedicalConflictActionFailed: 'Не удалось применить решение. Повторите попытку.',
   doctorDesignSaved: 'Оформление сохранено',
   // C3 (copy audit): dead-end; named explicitly alongside commonNetworkUnavailable in the brief.
   // C3 (copy audit): 'Ошибка X' -> 'Не удалось X'; dead-end, added retry action.
-  doctorSubscriptionRecalcNetworkError: 'Не удалось пересчитать из-за сети. Проверьте подключение и повторите попытку.',
+  doctorSubscriptionRecalcNetworkError:
+    'Не удалось пересчитать из-за сети. Проверьте подключение и повторите попытку.',
   commonCancelled: 'Отменено',
   doctorReplySentListStale: 'Ответ отправлен, но список не обновился. Откройте обсуждение заново.',
   doctorArchivePublishParamsInvalid: 'Фильтры в ссылке заданы неверно — показан вид по умолчанию.',
@@ -376,7 +406,8 @@ export const notificationText = {
   // result objects (`lifecycleActions.ts`, `contentPageAuthActions.ts`, `reorderContentPages.ts`,
   // `reorderContentSections.ts`, `sectionVisibilityActions.ts`) — the client toast read them
   // through an untyped `.error` field, the exact shape the gate now flags.
-  commonMissingIdentifier: 'Не удалось определить, к чему относится действие. Обновите страницу и повторите.',
+  commonMissingIdentifier:
+    'Не удалось определить, к чему относится действие. Обновите страницу и повторите.',
   doctorContentLifecycleMissingData: 'Данные заполнены неверно. Проверьте их и повторите.',
   doctorContentLifecycleUnknownAction: 'Действие недоступно. Обновите страницу и повторите.',
   doctorContentSectionMissing: 'Не указан раздел.',
@@ -388,12 +419,15 @@ export const notificationText = {
   // --- admin ---
   adminProbeSettingsSaved: 'Настройки проб сохранены.',
   adminTelegramModeSaveFailed: 'Не удалось сохранить режим Telegram. Повторите попытку.',
-  adminIntegrationToggleSaveFailed: 'Не удалось сохранить переключатель интеграции. Повторите попытку.',
+  adminIntegrationToggleSaveFailed:
+    'Не удалось сохранить переключатель интеграции. Повторите попытку.',
   adminLocationColorsSaveFailed: 'Не удалось сохранить цвета локаций. Повторите попытку.',
-  adminGlobalIntegrationTogglesLoadFailed: 'Не удалось загрузить переключатели интеграций. Повторите попытку.',
+  adminGlobalIntegrationTogglesLoadFailed:
+    'Не удалось загрузить переключатели интеграций. Повторите попытку.',
   adminLoginSettingsLoadFailed: 'Не удалось загрузить настройки способов входа. Повторите попытку.',
   adminLocationColorsLoadFailed: 'Не удалось загрузить цвета локаций. Повторите попытку.',
-  adminTelegramCredentialsLoadFailed: 'Не удалось загрузить учётные данные Telegram. Повторите попытку.',
+  adminTelegramCredentialsLoadFailed:
+    'Не удалось загрузить учётные данные Telegram. Повторите попытку.',
   adminImapSettingsSaved: 'Параметры служебного IMAP-ящика сохранены.',
   adminResetToCodeDefaults: 'Сброшено: снова действуют стандартные значения.',
   commonSaved: 'Сохранено',
@@ -412,10 +446,13 @@ export const notificationText = {
   settingsCredentialSaveFailed: 'Не удалось сохранить учётные данные. Повторите попытку.',
   settingsReceiptEmailSaveFailed: 'Не удалось сохранить email для чека. Повторите попытку.',
   settingsSaveFailed: 'Не удалось сохранить настройки. Повторите попытку.',
-  settingsReminderSettingsSaveFailed: 'Не удалось сохранить настройки напоминаний. Повторите попытку.',
+  settingsReminderSettingsSaveFailed:
+    'Не удалось сохранить настройки напоминаний. Повторите попытку.',
   settingsSecuritySaveFailed: 'Не удалось сохранить настройку безопасности. Повторите попытку.',
-  settingsSpecialistCardsSaveFailed: 'Не удалось сохранить настройку визиток специалистов. Повторите попытку.',
-  settingsSaveFailedValidationHint: 'Не удалось сохранить. Проверьте: код темы (латиница, цифры, _), длину подписи, уникальность кодов; при заполненной проекции рассылок код должен существовать в справочнике тем.',
+  settingsSpecialistCardsSaveFailed:
+    'Не удалось сохранить настройку визиток специалистов. Повторите попытку.',
+  settingsSaveFailedValidationHint:
+    'Не удалось сохранить. Проверьте: код темы (латиница, цифры, _), длину подписи, уникальность кодов; при заполненной проекции рассылок код должен существовать в справочнике тем.',
   settingsPageSaveFailedRetry: 'Не удалось сохранить страницу. Повторите попытку.',
   settingsCancellationApplied: 'Отмена применена',
   settingsRescheduleApplied: 'Перенос применён',
@@ -424,7 +461,8 @@ export const notificationText = {
   settingsPushDisabled: 'Уведомления в браузере отключены',
   settingsPushEnabled: 'Уведомления в браузере включены',
   settingsSmtpFullConfigRequired: 'Сначала заполните и сохраните все поля почтового сервера.',
-  settingsSavedConfigAppliesAfterRestart: 'Сохранено. Новые настройки заработают после перезапуска сервиса.',
+  settingsSavedConfigAppliesAfterRestart:
+    'Сохранено. Новые настройки заработают после перезапуска сервиса.',
   settingsTestEmailSent: 'Тестовое письмо отправлено',
   settingsInvalidRecipientEmail: 'Укажите корректный email получателя',
   settingsSmtpPasswordMissing: 'В настройках нет пароля SMTP',
@@ -448,8 +486,7 @@ export const notificationText = {
   // --- domain/booking-engine ---
   // Публичная запись: отказ инфраструктуры (не прошёл reverse proxy) — читателю здесь нечего
   // делать с деталью про заголовок X-Real-IP, и знать её он не должен (re-audit NEW-4).
-  bookingServiceTemporarilyUnavailable:
-    'Запись временно недоступна. Повторите попытку позже.',
+  bookingServiceTemporarilyUnavailable: 'Запись временно недоступна. Повторите попытку позже.',
   bookingSpecifyBranch: 'Укажите филиал',
   bookingEndTimeMustBeAfterStart: 'Время окончания должно быть позже начала',
   bookingAppointmentNotFound: 'Запись не найдена. Обновите страницу и повторите попытку.',
@@ -509,14 +546,17 @@ export const notificationText = {
   courseEnrollOnlyPublished: 'Доступна только запись на опубликованный курс',
   courseNotFound: 'Курс не найден. Обновите страницу и повторите попытку.',
   courseNameRequired: 'Название курса обязательно',
-  courseIntroLessonMustBePublishedNotArchived: 'Страница вступительного урока должна быть опубликована и не в архиве',
+  courseIntroLessonMustBePublishedNotArchived:
+    'Страница вступительного урока должна быть опубликована и не в архиве',
   // C1 (copy audit): kept the established product label «Только для залогиненных» (used verbatim
   // on the actual toggle in `ContentPagesSectionList.tsx`/`ContentSectionsListClient.tsx`), just
   // put it in active voice with a concrete next action instead of passive "должна быть отмечена".
   courseIntroLessonMustBeLoggedInOnly:
     'Отметьте страницу как «Только для залогиненных», чтобы использовать её как вступительный урок.',
-  courseIntroLessonNotFound: 'Страница вступительного урока не найдена. Обновите страницу и повторите попытку.',
-  courseIntroLessonMustBeFromLessonsSection: 'Вступительным уроком может быть только страница из раздела «Уроки»',
+  courseIntroLessonNotFound:
+    'Страница вступительного урока не найдена. Обновите страницу и повторите попытку.',
+  courseIntroLessonMustBeFromLessonsSection:
+    'Вступительным уроком может быть только страница из раздела «Уроки»',
   courseEnrollmentClosed: 'Запись на курс закрыта',
 
   // --- domain/lfk-assignments ---
@@ -529,8 +569,10 @@ export const notificationText = {
 
   // --- domain/lfk-templates ---
   exerciseTemplateAddAtLeastOne: 'Добавьте хотя бы одно упражнение',
-  exerciseComplexArchivedRestoreToEdit: 'Комплекс в архиве. Верните из архива, чтобы редактировать.',
-  exerciseTemplatePublishedCannotRemoveAll: 'Нельзя удалить все упражнения из опубликованного шаблона',
+  exerciseComplexArchivedRestoreToEdit:
+    'Комплекс в архиве. Верните из архива, чтобы редактировать.',
+  exerciseTemplatePublishedCannotRemoveAll:
+    'Нельзя удалить все упражнения из опубликованного шаблона',
   exerciseTemplatePublishDraftOnly: 'Опубликовать можно только черновик',
   exerciseTemplateNotFound: 'Шаблон не найден. Обновите страницу и повторите попытку.',
 
@@ -540,11 +582,13 @@ export const notificationText = {
   // --- domain/recommendations ---
   recommendationNameRequired: 'Название рекомендации обязательно',
   recommendationNotFound: 'Рекомендация не найдена. Обновите страницу и повторите попытку.',
-  recommendationArchivedRestoreToEdit: 'Рекомендация в архиве. Верните из архива, чтобы редактировать.',
+  recommendationArchivedRestoreToEdit:
+    'Рекомендация в архиве. Верните из архива, чтобы редактировать.',
 
   // --- domain/tests ---
   testSetNotFound: 'Набор не найден. Обновите страницу и повторите попытку.',
-  testSetArchivedRestoreToChangeComposition: 'Набор в архиве. Верните из архива, чтобы менять состав.',
+  testSetArchivedRestoreToChangeComposition:
+    'Набор в архиве. Верните из архива, чтобы менять состав.',
   testSetArchivedRestoreToEdit: 'Набор в архиве. Верните из архива, чтобы редактировать.',
   testSetNameRequired: 'Название набора обязательно',
   testNameRequired: 'Название теста обязательно',
@@ -579,9 +623,12 @@ export const notificationText = {
   treatmentProgramGroupNotFound: 'Группа не найдена. Обновите страницу и повторите попытку.',
   treatmentProgramCommentsUnavailableForCourseProgram: 'Комментарии недоступны для программы курса',
   treatmentProgramCommentsUnavailableForPromoProgram: 'Комментарии недоступны для промо-программы',
-  treatmentProgramLfkComplexNotFoundOrArchived: 'Комплекс ЛФК не найден или в архиве. Обновите страницу и повторите попытку.',
-  treatmentProgramGeneralStageRecommendationsOnly: 'На этапе «Общие рекомендации» разрешены только рекомендации',
-  treatmentProgramGeneralStageNoGroupBinding: 'На этапе «Общие рекомендации» элементы не привязываются к группам',
+  treatmentProgramLfkComplexNotFoundOrArchived:
+    'Комплекс ЛФК не найден или в архиве. Обновите страницу и повторите попытку.',
+  treatmentProgramGeneralStageRecommendationsOnly:
+    'На этапе «Общие рекомендации» разрешены только рекомендации',
+  treatmentProgramGeneralStageNoGroupBinding:
+    'На этапе «Общие рекомендации» элементы не привязываются к группам',
   treatmentProgramLoadChangeExerciseOnly: 'Нагрузку можно менять только для упражнений',
   treatmentProgramAssignPublishedOnly: 'Назначать можно только опубликованный шаблон',
   treatmentProgramStageNameEmpty: 'Название этапа не может быть пустым',
@@ -589,38 +636,51 @@ export const notificationText = {
   treatmentProgramNameEmpty: 'Название не может быть пустым',
   treatmentProgramUnknownElementType: 'Этот пункт программы не поддерживается. Обновите страницу.',
   commonInvalidTimezone: 'Некорректная временная зона',
-  treatmentProgramInvalidStageOrder: 'Не удалось применить новый порядок. Обновите страницу и повторите попытку.',
+  treatmentProgramInvalidStageOrder:
+    'Не удалось применить новый порядок. Обновите страницу и повторите попытку.',
   treatmentProgramSystemGroupNameLocked: 'Нельзя менять название системной группы',
   treatmentProgramSystemGroupOrderLocked: 'Нельзя менять порядок системной группы',
-  treatmentProgramElementDeleteReplaceLocked: 'Нельзя удалить или заменить элемент с отметкой выполнения или историей теста',
-  treatmentProgramPromoOrgUndefined: 'Промо-программа не привязана к организации. Обратитесь в поддержку.',
+  treatmentProgramElementDeleteReplaceLocked:
+    'Нельзя удалить или заменить элемент с отметкой выполнения или историей теста',
+  treatmentProgramPromoOrgUndefined:
+    'Промо-программа не привязана к организации. Обратитесь в поддержку.',
   treatmentProgramElementAddFailed: 'Не удалось добавить элемент. Повторите попытку.',
   treatmentProgramStageAddFailed: 'Не удалось добавить этап. Повторите попытку.',
   treatmentProgramGroupAddFailed: 'Не удалось добавить группу. Повторите попытку.',
   treatmentProgramRecommendationAddFailed: 'Не удалось добавить рекомендацию. Повторите попытку.',
-  treatmentProgramPersonalExerciseCreateFailed: 'Не удалось создать личное упражнение. Повторите попытку.',
+  treatmentProgramPersonalExerciseCreateFailed:
+    'Не удалось создать личное упражнение. Повторите попытку.',
   treatmentProgramElementReplaceFailed: 'Не удалось заменить элемент. Повторите попытку.',
-  treatmentProgramExpectedDaysInvalid: 'Ожидаемый срок в днях должен быть неотрицательным целым числом',
-  treatmentProgramRecurringRecommendationNotCompletable: 'Постоянная рекомендация не отмечается выполненной',
+  treatmentProgramExpectedDaysInvalid:
+    'Ожидаемый срок в днях должен быть неотрицательным целым числом',
+  treatmentProgramRecurringRecommendationNotCompletable:
+    'Постоянная рекомендация не отмечается выполненной',
   treatmentProgramNotFound: 'Программа не найдена. Обновите страницу и повторите попытку.',
   treatmentProgramPromoNotConfigured: 'Промо-программа не настроена',
   treatmentProgramEmptyLoadSettingsRequest: 'Не выбрано ни одного параметра нагрузки.',
-  treatmentProgramExecutionModeRecommendationsOnly: 'Режим выполнения задаётся только для рекомендаций',
+  treatmentProgramExecutionModeRecommendationsOnly:
+    'Режим выполнения задаётся только для рекомендаций',
   treatmentProgramResultNotFound: 'Результат не найден. Обновите страницу и повторите попытку.',
-  treatmentProgramTemplateNotFound: 'Шаблон программы не найден. Обновите страницу и повторите попытку.',
-  treatmentProgramStageSystemGroupNotFound: 'Системная группа этапа не найдена. Обновите страницу и повторите попытку.',
-  treatmentProgramTestingSystemGroupNotFound: 'Системная группа «Тестирование» не найдена. Обновите страницу и повторите попытку.',
+  treatmentProgramTemplateNotFound:
+    'Шаблон программы не найден. Обновите страницу и повторите попытку.',
+  treatmentProgramStageSystemGroupNotFound:
+    'Системная группа этапа не найдена. Обновите страницу и повторите попытку.',
+  treatmentProgramTestingSystemGroupNotFound:
+    'Системная группа «Тестирование» не найдена. Обновите страницу и повторите попытку.',
   treatmentProgramSystemGroupHideForbidden: 'Системную группу нельзя скрыть',
   testStartAttemptFirst: 'Сначала начните попытку',
-  treatmentProgramFreeTextGeneralStageOnly: 'Свободный текст можно добавить только на этап «Общие рекомендации»',
+  treatmentProgramFreeTextGeneralStageOnly:
+    'Свободный текст можно добавить только на этап «Общие рекомендации»',
   treatmentProgramTestMismatchItem: 'Тест не соответствует пункту программы',
   // C1 (copy audit): leaked the internal enum values (`passed`/`failed`/`partial`) and the
   // English field name `score` verbatim into doctor-facing text.
   testSpecifyOutcome:
     'Укажите результат теста («сдано», «не сдано» или «частично») или числовое значение, если заданы пороги.',
   treatmentProgramLoadWeightOutOfRange: 'Вес: число от 0 до 500',
-  treatmentProgramRecommendationsGroupOnlyRecommendations: 'В группу «Рекомендации» можно помещать только рекомендации',
-  treatmentProgramTestingGroupOnlyClinicalTests: 'В группу «Тестирование» можно помещать только клинические тесты',
+  treatmentProgramRecommendationsGroupOnlyRecommendations:
+    'В группу «Рекомендации» можно помещать только рекомендации',
+  treatmentProgramTestingGroupOnlyClinicalTests:
+    'В группу «Тестирование» можно помещать только клинические тесты',
   exerciseComplexEmpty: 'В комплексе нет упражнений',
   treatmentProgramEnterObservationText: 'Введите текст наблюдения',
   treatmentProgramSelectGroupForElementType: 'Выберите группу для этого типа элемента',
@@ -641,7 +701,8 @@ export const notificationText = {
   // was a plain `Error`, invisible to `safeUserMessage`; now `UserFacingError` referencing this key.
   adminAccessLadderFieldsRequired: 'Заполните все поля лестницы доступа.',
   adminAccessLadderNotificationOffsetRequired: 'В каждом уведомлении заполните срок.',
-  doctorMergeAccessDenied: 'Доступ запрещён: нужна роль «Администратор» и включённый режим администратора.',
+  doctorMergeAccessDenied:
+    'Доступ запрещён: нужна роль «Администратор» и включённый режим администратора.',
   doctorInviteLinkStillActive: 'Ссылка приглашения ещё действует',
   doctorInviteLinkCreated: 'Ссылка приглашения создана',
   doctorSymptomClosed: 'Симптом закрыт',
@@ -682,7 +743,8 @@ export const notificationText = {
   settingsBotSaveFailed: 'Не удалось сохранить настройки бота. Повторите попытку.',
   authPasswordUpdatedPleaseLogin: 'Пароль обновлён. Войдите.',
   authAccessConfigured: 'Доступ настроен.',
-  authReenterPasswordToContinueSetup: 'Войдите с паролем ещё раз, чтобы продолжить защищённую настройку.',
+  authReenterPasswordToContinueSetup:
+    'Войдите с паролем ещё раз, чтобы продолжить защищённую настройку.',
   // Тот же смысл плюс подтверждение почты: отдельный ключ, потому что текст показывается в
   // другой момент — сразу после подтверждения адреса, а не при повторном входе.
   authEmailVerifiedReenterPasswordToContinueSetup:
@@ -700,23 +762,28 @@ export const notificationText = {
   // a blanket claim in a comment as proof a class is closed; re-measure. ---
   doctorLfkOverridesResetFailed: 'Не удалось сбросить настройки. Повторите попытку.',
   treatmentProgramAssignError: 'Не удалось назначить. Повторите попытку.',
-  doctorMeasureKindsReferenceUnavailable: 'Справочник видов измерений недоступен. Повторите попытку.',
+  doctorMeasureKindsReferenceUnavailable:
+    'Справочник видов измерений недоступен. Повторите попытку.',
   doctorMeasureKindCreateError: 'Не удалось создать вид измерения. Повторите попытку.',
   doctorCourseArchiveFailed: 'Не удалось отправить курс в архив. Повторите попытку.',
   doctorCourseCreateFailed: 'Не удалось создать курс. Повторите попытку.',
   commonCreateFailed: 'Не удалось создать. Повторите попытку.',
-  testSetCompositionParseError: 'Не удалось прочитать состав набора. Обновите страницу и повторите.',
+  testSetCompositionParseError:
+    'Не удалось прочитать состав набора. Обновите страницу и повторите.',
   testSetDraftCreateFailed: 'Не удалось создать черновик набора. Повторите попытку.',
   testSetCompositionSaveError: 'Не удалось сохранить состав. Повторите попытку.',
   doctorExerciseRecommendationsSaveFailed: 'Не удалось сохранить рекомендации. Повторите попытку.',
   treatmentProgramTemplateLoadFailed: 'Не удалось загрузить шаблон. Повторите попытку.',
-  treatmentProgramTitleDescriptionSaveFailed: 'Не удалось сохранить название и описание. Повторите попытку.',
+  treatmentProgramTitleDescriptionSaveFailed:
+    'Не удалось сохранить название и описание. Повторите попытку.',
   treatmentProgramTemplateArchiveFailed: 'Не удалось отправить шаблон в архив. Повторите попытку.',
-  treatmentProgramTemplateStatusUpdateFailed: 'Не удалось обновить статус шаблона. Повторите попытку.',
+  treatmentProgramTemplateStatusUpdateFailed:
+    'Не удалось обновить статус шаблона. Повторите попытку.',
   treatmentProgramGroupOrderUpdateFailed: 'Не удалось изменить порядок групп. Повторите попытку.',
   treatmentProgramGroupSaveFailed: 'Не удалось сохранить группу. Повторите попытку.',
   treatmentProgramTestsFromSetAddFailed: 'Не удалось добавить тесты из набора. Повторите попытку.',
-  treatmentProgramExercisesFromComplexAddFailed: 'Не удалось добавить упражнения из комплекса. Повторите попытку.',
+  treatmentProgramExercisesFromComplexAddFailed:
+    'Не удалось добавить упражнения из комплекса. Повторите попытку.',
   patientCourseEnrollFailed: 'Не удалось записаться. Повторите попытку.',
   // C3 (copy audit): avoid repeating "попытку" (test attempt vs. retry action).
   testAttemptStartFailed: 'Не удалось начать прохождение теста. Повторите попытку.',
@@ -731,7 +798,8 @@ export const notificationText = {
   // "Код для поддержки: <digest>" suffix itself. The doctor-cabinet variant is a real, expected
   // refusal (clinic tariff really doesn't include the feature), so it gets actionable next-step
   // text instead of engineer-speak ("тарифная механика").
-  adminNotificationTemplatePlatformSaveClearanceDenied: 'Не удалось сохранить шаблон из-за ошибки на нашей стороне. Обратитесь в поддержку.',
+  adminNotificationTemplatePlatformSaveClearanceDenied:
+    'Не удалось сохранить шаблон из-за ошибки на нашей стороне. Обратитесь в поддержку.',
   doctorNotificationTemplateSaveClearanceDenied:
     'Сохранить шаблон нельзя: эта возможность не входит в текущий тариф. Обратитесь к владельцу или в поддержку.',
   // Defect 4 (2026-09-13 second verification pass): a raw `Error.message` from a failed settings
@@ -778,8 +846,8 @@ export const notificationTextFactory = {
   /** `instanceEditorBatchApply.ts` — черновой идентификатор не найден среди присланных элементов. */
   unknownDraftId: (label: string) => `${label} ещё не сохранён. Сохраните изменения и повторите.`,
   /** `modules/tests/service.ts` — тест из набора не найден по id. */
-  testNotFoundById: (_testId: string) =>
-    'Тест не найден. Обновите страницу и повторите попытку.',
+  testNotFoundById: (_testId: string) => 'Тест не найден. Обновите страницу и повторите попытку.',
   /** `modules/tests/service.ts` — тест архивирован и не может входить в набор. */
-  testArchivedCannotBeInSet: (title: string) => `Тест архивирован и не может входить в набор: ${title}`,
+  testArchivedCannotBeInSet: (title: string) =>
+    `Тест архивирован и не может входить в набор: ${title}`,
 } as const;

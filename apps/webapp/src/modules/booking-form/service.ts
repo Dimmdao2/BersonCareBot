@@ -30,12 +30,14 @@ export function createBookingFormService(
         (candidate) => candidate.fieldKey === canonicalKey,
       );
       if (!definition) return field;
-      const mandatoryLeadEmail = surface === 'leads' && definition.fieldKey === 'email';
+      const mandatoryLeadField =
+        surface === 'leads' &&
+        (definition.fieldKey === 'email' || definition.fieldKey === 'message');
       return {
         ...field,
         fieldType: definition.fieldType,
         ...(surface === 'booking' ? { label: definition.label } : {}),
-        ...(mandatoryLeadEmail ? { isRequired: true, isActive: true } : {}),
+        ...(mandatoryLeadField ? { isRequired: true, isActive: true } : {}),
       };
     });
     const configuredSystemKeys = new Set(
@@ -69,11 +71,11 @@ export function createBookingFormService(
   }
 
   return {
-    async validateAnswers(organizationId, _audience, answers, profilePrefill) {
+    async validateAnswers(organizationId, _audience, answers, profilePrefill, surface = 'booking') {
       const fields = withSystemFields(
         organizationId,
-        'booking',
-        await port.listActiveFields(organizationId, _audience),
+        surface,
+        await port.listActiveFields(organizationId, _audience, surface),
       );
       return validateBookingFormAnswers(
         fields.filter((field) => field.isActive),
@@ -91,6 +93,15 @@ export function createBookingFormService(
         organizationId,
         'booking',
         await port.listActiveFields(organizationId, 'patient'),
+      );
+      return fields.filter((field) => field.isActive);
+    },
+
+    async listPublicFields(organizationId, surface) {
+      const fields = withSystemFields(
+        organizationId,
+        surface,
+        await port.listActiveFields(organizationId, 'patient', surface),
       );
       return fields.filter((field) => field.isActive);
     },
@@ -123,7 +134,8 @@ export function createBookingFormService(
               fieldKey: systemFieldKey,
               fieldType: definition.fieldType,
               ...(surface === 'booking' ? { label: definition.label } : {}),
-              ...(surface === 'leads' && definition.fieldKey === 'email'
+              ...(surface === 'leads' &&
+              (definition.fieldKey === 'email' || definition.fieldKey === 'message')
                 ? { isRequired: true, isActive: true }
                 : {}),
             }

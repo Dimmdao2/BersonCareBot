@@ -10785,10 +10785,22 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
           "updated_by"
         ],
         "operations": [
-          "SELECT",
-          "INSERT"
+          "INSERT",
+          "SELECT"
         ],
-        "evidence": "pg16-function-body-lexical-upper-bound; ON CONFLICT DO NOTHING ЧИТАЕТ конфликтующую строку, поэтому нужен и SELECT"
+        // `ON CONFLICT (key, scope, organization_id) … DO NOTHING` — это вывод арбитра, и PostgreSQL
+        // требует на нём SELECT по колонкам арбитра: без него INSERT отбивается «permission denied
+        // for table system_settings» ещё на плане. Отсюда SELECT ровно на три колонки арбитра —
+        // значение настройки этот шов не читает. Тот же вывод независимо даёт лексический разбор
+        // тела (`extractRelationOperations`: `on conflict ( … ) do nothing` → SELECT).
+        "operationColumns": {
+          "SELECT": [
+            "key",
+            "scope",
+            "organization_id"
+          ]
+        },
+        "evidence": "pg16-function-body-lexical-upper-bound"
       }
     ],
     "delegatesTo": [
@@ -17803,25 +17815,6 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
       {
         "role": "app_staff",
         "operations": [
-          "INSERT"
-        ],
-        "columns": [
-          "anchor_user_id",
-          "candidate_user_id",
-          "created_at",
-          "id",
-          "organization_id",
-          "payload",
-          "reason",
-          "resolved_at",
-          "resolved_by",
-          "status",
-          "trigger_appointment_id"
-        ]
-      },
-      {
-        "role": "app_staff",
-        "operations": [
           "UPDATE"
         ],
         "columns": [
@@ -24732,6 +24725,29 @@ const ROW_LOCK_SURFACES: Readonly<Record<string, Readonly<Record<string, string>
  * оценка живого маршрута — `docs/_TODO/runs/integrator-cleanup/DEFINER_TENANT_PREDICATE_GATE_2026-08-22.md`.
  */
 const TENANT_WALL_CROSSINGS: Readonly<Record<string, Readonly<Record<string, string>>>> = {
+  'app.transfer_staff_approved_platform_user_merge_data(uuid,uuid,uuid,uuid)': {
+    'public.be_patient_booking_profiles': 'after the current-clinic pending conflict and all other clinic blockers are checked, the canonical account merge preserves non-conflicting rows from every clinic',
+    'public.broadcast_audit_recipients': 'platform delivery history follows the canonical account globally after the clinic-owned blocker is approved',
+    'public.clinical_anamnesis_illness': 'the refusal check must look OUTSIDE the current clinic on purpose: a doctor may lift only their own blocker, so the door reads every organization to find a clinic that still has an unresolved one',
+    'public.clinical_anamnesis_lifestyle': 'the refusal check must look OUTSIDE the current clinic on purpose: a doctor may lift only their own blocker, so the door reads every organization to find a clinic that still has an unresolved one',
+    'public.clinical_anamnesis_trauma': 'the refusal check must look OUTSIDE the current clinic on purpose: a doctor may lift only their own blocker, so the door reads every organization to find a clinic that still has an unresolved one',
+    'public.clinical_complaint': 'the refusal check must look OUTSIDE the current clinic on purpose: a doctor may lift only their own blocker, so the door reads every organization to find a clinic that still has an unresolved one',
+    'public.clinical_diagnosis': 'the refusal check must look OUTSIDE the current clinic on purpose: a doctor may lift only their own blocker, so the door reads every organization to find a clinic that still has an unresolved one',
+    'public.clinical_visit': 'the refusal check must look OUTSIDE the current clinic on purpose: a doctor may lift only their own blocker, so the door reads every organization to find a clinic that still has an unresolved one',
+    'public.doctor_notes': 'the refusal check must look OUTSIDE the current clinic on purpose: a doctor may lift only their own blocker, so the door reads every organization to find a clinic that still has an unresolved one',
+    'public.material_ratings': 'patient-owned rating history follows the canonical account globally after the clinic-owned blocker is approved',
+    'public.native_push_targets': 'patient devices follow the canonical account globally after the clinic-owned blocker is approved',
+    'public.patient_daily_warmup_presentations': 'patient-owned warmup state follows the canonical account globally after the clinic-owned blocker is approved',
+    'public.patient_diary_day_snapshots': 'patient-owned diary state follows the canonical account globally after the clinic-owned blocker is approved',
+    'public.patient_merge_candidates': 'the pending row of the CURRENT clinic is read with the organization predicate; the second read deliberately looks for an approval recorded by ANOTHER clinic, which is what lets the last doctor finish the merge, and after the accounts actually become one the same door closes every clinic pending row of that pair — the blocker no longer exists anywhere',
+    'public.patient_specialist_links': 'the exact pair is authorized by the current-clinic pending conflict; non-conflicting links then follow the canonical account',
+    'public.product_analytics_user_hourly': 'platform analytics history follows the canonical account globally after the clinic-owned blocker is approved',
+    'public.program_item_discussion_reads': 'patient-owned discussion state follows the canonical account globally after the clinic-owned blocker is approved',
+    'public.symptom_trackings': 'the door first rejects a medical blocker in every other organization, then moves the approved pair as one canonical account',
+    'public.treatment_program_instances': 'the refusal check must look OUTSIDE the current clinic on purpose: a doctor-assigned program in another organization is a blocker that only that clinic may lift',
+    'public.user_channel_preferences': 'the exact pair is authorized by the current-clinic pending conflict; global delivery preferences then follow the canonical account',
+    'public.user_web_push_subscriptions': 'patient devices follow the canonical account globally after the clinic-owned blocker is approved',
+  },
   // Приглашение в персонал: строку находит неугадываемый `token_hash`, и человек, который его
   // предъявил, к этой клинике ещё не принадлежит — сравнивать её организацию не с чем. Место в
   // тарифе считается по клинике САМОГО приглашения, а не по клинике вызывающего, потому что
@@ -24795,6 +24811,13 @@ const TENANT_WALL_CROSSINGS: Readonly<Record<string, Readonly<Record<string, str
     'public.platform_users': 'дедуп дублей ищет совпадение ФИО среди ВСЕХ клиентов платформы без телефона, а не только клиники записи',
     'public.user_identity': 'то же имя того же кандидата — источник ФИО для сравнения, не выборка по клинике',
     'public.user_contacts': 'проверка «у кандидата ещё нет телефона» — ключ отбора кандидата, не выборка по клинике',
+  },
+
+  // The candidate row is first narrowed to the current clinic. The two platform identities and
+  // their login activity are then read only by the two ids stored in that clinic-owned row.
+  'app.read_staff_patient_medical_merge_conflict(uuid)': {
+    'public.platform_users': 'two identity rows referenced by the current-clinic conflict, not a platform user listing',
+    'public.user_identity': 'FIO for the same two conflict-bound identity rows',
   },
 
   'app.lookup_pending_org_invite(text)': {
@@ -25892,6 +25915,31 @@ const REV10_CONTEXT = {
       targetRole: 'app_patient', contextClass: 'patient',
       purpose: 'booking.public-merge-candidates.record',
       functionIdentity: 'app.record_public_booking_merge_candidates(uuid,uuid,text,uuid)' },
+    webapp_patient_medical_merge_conflict_record: { port: 'webapp',
+      runtimeName: 'patient_medical_merge_conflict_record', sessionRole: 'app_patient',
+      targetRole: 'app_patient', contextClass: 'patient',
+      purpose: 'identity.medical-merge-conflict.record',
+      functionIdentity: 'app.record_patient_medical_merge_conflict(uuid,uuid,uuid,text)' },
+    webapp_pre_session_patient_medical_merge_conflict_record: { port: 'webapp',
+      runtimeName: 'pre_session_patient_medical_merge_conflict_record', sessionRole: 'app_patient',
+      targetRole: 'app_pre_session', contextClass: 'pre_session',
+      purpose: 'identity.medical-merge-conflict.record',
+      functionIdentity: 'app.record_patient_medical_merge_conflict(uuid,uuid,uuid,text)' },
+    webapp_staff_patient_medical_merge_conflict_read: { port: 'webapp',
+      runtimeName: 'staff_patient_medical_merge_conflict_read', sessionRole: 'app_staff',
+      targetRole: 'app_staff', contextClass: 'staff',
+      purpose: 'identity.medical-merge-conflict.read',
+      functionIdentity: 'app.read_staff_patient_medical_merge_conflict(uuid)' },
+    webapp_staff_patient_medical_merge_conflict_refuse: { port: 'webapp',
+      runtimeName: 'staff_patient_medical_merge_conflict_refuse', sessionRole: 'app_staff',
+      targetRole: 'app_staff', contextClass: 'staff',
+      purpose: 'identity.medical-merge-conflict.refuse',
+      functionIdentity: 'app.refuse_staff_patient_medical_merge_conflict(uuid,uuid)' },
+    webapp_platform_patient_medical_merge_conflicts_resolve: { port: 'webapp',
+      runtimeName: 'platform_patient_medical_merge_conflicts_resolve', sessionRole: 'app_platform_settings',
+      targetRole: 'app_platform_admin', contextClass: 'platform',
+      purpose: 'identity.medical-merge-conflict.resolve-platform',
+      functionIdentity: 'app.resolve_platform_patient_medical_merge_conflicts(uuid,uuid,uuid)' },
     webapp_platform_health_archive_list: { port: 'webapp', runtimeName: 'platform_health_archive_list',
       sessionRole: 'app_platform_settings', targetRole: 'app_platform_admin', contextClass: 'platform',
       purpose: 'platform.health-archive.list',
@@ -26104,6 +26152,17 @@ const REV10_CONTEXT = {
     password_login_issue_altcha_challenge: { port: 'webapp', sessionRole: 'app_patient',
       targetRole: 'app_pre_session', contextClass: 'pre_session', purpose: 'auth.password.altcha-issue',
       functionIdentity: 'app.password_login_issue_altcha_challenge(text,uuid,text,timestamp with time zone)' },
+    // Капча публичной заявки. Тот же одноразовый механизм, что у входа по паролю, и та же таблица
+    // `public.password_altcha_challenges`: задачка регистрируется при выдаче и гасится при приёме,
+    // иначе один решённый payload действителен всё окно жизни задачки сколько угодно раз. Класс
+    // `pre_session` — потому что дверь стоит ДО выбора арендатора и человека не знает: у неё на
+    // входе только производная от адреса почты.
+    public_lead_issue_altcha_challenge: { port: 'webapp', sessionRole: 'app_patient',
+      targetRole: 'app_pre_session', contextClass: 'pre_session', purpose: 'auth.public-lead.altcha-issue',
+      functionIdentity: 'app.public_lead_issue_altcha_challenge(text,uuid,text,timestamp with time zone)' },
+    public_lead_consume_altcha_challenge: { port: 'webapp', sessionRole: 'app_patient',
+      targetRole: 'app_pre_session', contextClass: 'pre_session', purpose: 'auth.public-lead.altcha-consume',
+      functionIdentity: 'app.public_lead_consume_altcha_challenge(text,uuid,text)' },
     email_password_find_login_candidate: { port: 'webapp', sessionRole: 'app_patient',
       targetRole: 'app_pre_session', contextClass: 'pre_session', purpose: 'auth.password.reset-candidate',
       functionIdentity: 'app.email_password_find_reset_candidate(text)' },
@@ -26436,7 +26495,11 @@ const REV10_CONTEXT = {
     list_public_booking_form_fields: { port: 'webapp', sessionRole: 'app_staff',
       targetRole: 'app_tenant_service', contextClass: 'tenant_service',
       purpose: 'booking.public-form-fields.read',
-      functionIdentity: 'app.list_public_booking_form_fields()' },
+      functionIdentity: 'app.list_public_booking_form_fields(text)' },
+    create_public_lead: { port: 'webapp', sessionRole: 'app_staff',
+      targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+      purpose: 'leads.public-submit.create',
+      functionIdentity: 'app.create_public_lead(uuid,text,text,text,text,text,text,text,text,timestamp with time zone)' },
     // Публичная визитка клиники `/{clinic}` (владелец 19.08). Анонимный посетитель читает ОДНУ
     // строку публичной проекции через дверь: прямой SELECT ему отозван целиком (42501).
     read_public_clinic_card: { port: 'webapp', sessionRole: 'app_patient',
@@ -27932,15 +27995,71 @@ const REV10_CONTEXT = {
     }),
     // Публичный близнец `app.read_current_patient_booking_form_fields()` возвращает
     // конфигурацию полей; единый флаг `is_active` определяет видимость в форме.
-    'app.list_public_booking_form_fields()': rev10Function({
+    'app.list_public_booking_form_fields(text)': rev10Function({
       owner: 'app_seam_public_booking_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
       execute: ['app_tenant_service'],
       purpose: 'return booking form field configuration of the published accepted organization',
-      typedArgs: [], volatility: 'STABLE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      typedArgs: ['text'], volatility: 'STABLE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
         { relation: 'public.be_booking_form_fields', columns: ['id', 'organization_id', 'field_key',
-          'field_type', 'label', 'placeholder', 'is_required', 'visible_to_patient', 'visible_to_staff',
+          'form_surface', 'field_type', 'label', 'placeholder', 'is_required', 'visible_to_patient', 'visible_to_staff',
           'sort_order', 'is_active', 'archived_at'], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.clinic_public_directory_entries', columns: ['organization_id', 'is_published'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    // Обе двери капчи заявки принадлежат `app_seam_password_auth_owner` — тому же владельцу, что и
+    // двери капчи входа: таблица задачек одна, и второй владелец на ней означал бы второй набор
+    // прав и политик на те же строки.
+    'app.public_lead_issue_altcha_challenge(text,uuid,text,timestamp with time zone)': rev10Function({
+      owner: 'app_seam_password_auth_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false,
+      execute: ['app_pre_session'],
+      purpose: 'register one single-use public lead captcha challenge for the submitted email',
+      typedArgs: ['text', 'uuid', 'text', 'timestamp with time zone'],
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.password_altcha_challenges', columns: ['challenge_id', 'identifier_key',
+          'purpose', 'challenge_digest', 'expires_at', 'consumed_at'],
+          operations: ['SELECT' as const, 'INSERT' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.public_lead_consume_altcha_challenge(text,uuid,text)': rev10Function({
+      owner: 'app_seam_password_auth_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false,
+      execute: ['app_pre_session'],
+      purpose: 'burn one public lead captcha challenge exactly once',
+      typedArgs: ['text', 'uuid', 'text'],
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        // `SELECT … FOR UPDATE` требует ТАБЛИЧНОЙ привилегии модификации: поколоночного SELECT ему
+        // не хватает (AGENTS.md §1, «разбор по телу»).
+        { relation: 'public.password_altcha_challenges', columns: ['challenge_id', 'identifier_key',
+          'purpose', 'challenge_digest', 'expires_at', 'consumed_at'],
+          operations: ['SELECT' as const, 'UPDATE' as const],
+          tableOperations: ['SELECT' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.create_public_lead(uuid,text,text,text,text,text,text,text,text,timestamp with time zone)': rev10Function({
+      owner: 'app_seam_public_booking_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
+      execute: ['app_tenant_service'], purpose: 'create one verified public lead for the published accepted organization',
+      typedArgs: ['uuid', 'text', 'text', 'text', 'text', 'text', 'text', 'text', 'text', 'timestamp with time zone'],
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        // `INSERT … RETURNING *` читает ВСЮ вставленную строку, включая колонки, которые тело не
+        // писало: `id`, `status` и метки жизненного цикла приходят из DEFAULT. PostgreSQL требует на
+        // `RETURNING` привилегию SELECT по каждой возвращаемой колонке, поэтому поверхность несёт обе
+        // операции: INSERT — по колонкам списка вставки, SELECT — по всей строке.
+        { relation: 'public.leads', columns: ['id', 'organization_id', 'platform_user_id',
+          'submitted_first_name', 'submitted_last_name', 'submitted_patronymic', 'submitted_email',
+          'submitted_phone', 'preferred_contact', 'message_text', 'status', 'rejection_comment',
+          'rejected_at', 'accepted_at', 'closed_at', 'archived_at', 'source_surface', 'created_at',
+          'updated_at'],
+          operations: ['INSERT' as const, 'SELECT' as const],
+          operationColumns: { INSERT: ['organization_id', 'platform_user_id', 'submitted_first_name',
+            'submitted_last_name', 'submitted_patronymic', 'submitted_email', 'submitted_phone',
+            'preferred_contact', 'message_text', 'source_surface', 'created_at', 'updated_at'] },
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.clinic_public_directory_entries', columns: ['organization_id', 'is_published'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
@@ -29139,6 +29258,156 @@ const REV10_CONTEXT = {
           columns: ['organization_id', 'anchor_user_id', 'candidate_user_id', 'reason', 'status',
             'trigger_appointment_id', 'payload'],
           operations: ['SELECT' as const, 'INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.record_patient_medical_merge_conflict(uuid,uuid,uuid,text)': rev10Function({
+      owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'uuid', returnsSet: false,
+      execute: ['app_patient', 'app_pre_session'], purpose: 'persist or globally escalate one deferred medical merge conflict',
+      typedArgs: ['uuid', 'uuid', 'uuid', 'text'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.patient_merge_candidates',
+          columns: ['id', 'organization_id', 'anchor_user_id', 'candidate_user_id', 'reason', 'status', 'payload'],
+          operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.admin_audit_log', columns: ['id', 'organization_id', 'actor_id', 'action',
+          'target_id', 'conflict_key', 'details', 'status', 'repeat_count', 'last_seen_at', 'resolved_at'],
+          operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.resolve_platform_patient_medical_merge_conflicts(uuid,uuid,uuid)': rev10Function({
+      owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'integer', returnsSet: false,
+      execute: ['app_platform_admin'], purpose: 'close doctor indicators after the platform console merged their pair',
+      typedArgs: ['uuid', 'uuid', 'uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'], relationSurfaces: [
+        { relation: 'public.patient_merge_candidates', columns: ['anchor_user_id', 'candidate_user_id',
+          'reason', 'status', 'resolved_at', 'resolved_by'], operations: ['SELECT' as const, 'UPDATE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.transfer_staff_approved_platform_user_merge_data(uuid,uuid,uuid,uuid)': rev10Function({
+      owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'text', returnsSet: false,
+      execute: ['app_staff'], purpose: 'move dependent rows only for an exact current-clinic doctor-approved conflict',
+      typedArgs: ['uuid', 'uuid', 'uuid', 'uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'], relationSurfaces: [
+        patientSurface('public.patient_merge_candidates', ['id', 'organization_id', 'anchor_user_id',
+          'candidate_user_id', 'reason', 'status', 'resolved_at', 'resolved_by', 'payload'], ['SELECT', 'UPDATE']),
+        patientSurface('public.user_password_credentials', ['user_id'], ['SELECT', 'UPDATE', 'DELETE']),
+        patientSurface('public.channel_link_secrets', ['user_id'], ['SELECT', 'UPDATE']),
+        patientSurface('public.email_challenges', ['user_id'], ['SELECT', 'UPDATE']),
+        patientSurface('public.user_oauth_bindings', ['user_id'], ['SELECT', 'UPDATE']),
+        patientSurface('public.email_send_cooldowns', ['user_id', 'email_normalized', 'last_sent_at'],
+          ['SELECT', 'INSERT', 'UPDATE', 'DELETE']),
+        patientSurface('public.login_tokens', ['user_id'], ['SELECT', 'DELETE']),
+        patientSurface('public.user_channel_preferences', ['user_id', 'platform_user_id', 'channel_code',
+          'is_enabled_for_messages', 'is_enabled_for_notifications', 'is_preferred_for_auth', 'updated_at'],
+          ['SELECT', 'UPDATE', 'DELETE']),
+        ...[
+          ['public.clinical_visit', 'patient_user_id'],
+          ['public.clinical_complaint', 'patient_user_id'],
+          ['public.clinical_diagnosis', 'patient_user_id'],
+          ['public.clinical_anamnesis_trauma', 'patient_user_id'],
+          ['public.clinical_anamnesis_illness', 'patient_user_id'],
+          ['public.clinical_anamnesis_lifestyle', 'patient_user_id'],
+          ['public.doctor_notes', 'user_id'],
+          ['public.treatment_program_instances', 'patient_user_id'],
+        ].map(([relation, identityColumn]) => patientSurface(
+          relation!, ['organization_id', identityColumn!, ...(relation === 'public.treatment_program_instances' ? ['assignment_source'] : [])],
+          ['SELECT', 'UPDATE'],
+        )),
+        patientSurface('public.reminder_rules', ['platform_user_id'], ['SELECT', 'UPDATE']),
+        patientSurface('public.content_access_grants_webapp', ['platform_user_id'], ['SELECT', 'UPDATE']),
+        patientSurface('public.patient_bookings', ['platform_user_id'], ['SELECT', 'UPDATE']),
+        patientSurface('public.be_appointments', ['platform_user_id'], ['SELECT', 'UPDATE']),
+        patientSurface('public.support_conversations', ['platform_user_id'], ['SELECT', 'UPDATE']),
+        patientSurface('public.program_item_discussion_reads', ['patient_user_id', 'instance_stage_item_id'],
+          ['SELECT', 'UPDATE', 'DELETE']),
+        patientSurface('public.program_item_discussion_messages', ['patient_user_id'], ['SELECT', 'UPDATE']),
+        patientSurface('public.patient_specialist_links', ['patient_user_id', 'specialist_id', 'status',
+          'ended_at', 'ended_reason'], ['SELECT', 'UPDATE']),
+        patientSurface('public.user_phone_history', ['platform_user_id'], ['SELECT', 'UPDATE']),
+        patientSurface('public.online_intake_requests', ['user_id'], ['SELECT', 'UPDATE']),
+        patientSurface('public.patient_lfk_assignments', ['patient_user_id'], ['SELECT', 'UPDATE']),
+        patientSurface('public.symptom_trackings', ['id', 'user_id', 'platform_user_id', 'symptom_key',
+          'is_active', 'deleted_at', 'updated_at'], ['SELECT', 'UPDATE']),
+        patientSurface('public.symptom_entries', ['tracking_id', 'user_id', 'platform_user_id'], ['SELECT', 'UPDATE']),
+        patientSurface('public.lfk_complexes', ['user_id', 'platform_user_id'], ['SELECT', 'UPDATE']),
+        patientSurface('public.lfk_sessions', ['user_id'], ['SELECT', 'UPDATE']),
+        patientSurface('public.message_log', ['user_id', 'platform_user_id'], ['SELECT', 'UPDATE']),
+        patientSurface('public.media_files', ['uploaded_by'], ['SELECT', 'UPDATE']),
+        patientSurface('public.media_upload_sessions', ['owner_user_id'], ['SELECT', 'UPDATE']),
+        patientSurface('public.material_ratings', ['user_id', 'target_kind', 'target_id', 'stars', 'updated_at'],
+          ['SELECT', 'INSERT', 'UPDATE', 'DELETE']),
+        patientSurface('public.patient_daily_warmup_presentations', ['user_id', 'content_page_id', 'updated_at',
+          'last_rotation_at', 'skip_next_scheduled_rotation'], ['SELECT', 'INSERT', 'UPDATE', 'DELETE']),
+        patientSurface('public.be_patient_booking_profiles', ['organization_id', 'platform_user_id',
+          'is_problematic', 'booking_blocked', 'problematic_note', 'updated_at', 'updated_by'],
+          ['SELECT', 'INSERT', 'UPDATE', 'DELETE']),
+        patientSurface('public.product_analytics_user_hourly', ['organization_id', 'bucket_hour', 'user_id',
+          'entry_channel', 'page_key', 'app_opens', 'page_views', 'push_opens', 'active_minutes',
+          'last_seen_at', 'updated_at'], ['SELECT', 'INSERT', 'UPDATE', 'DELETE']),
+        patientSurface('public.patient_diary_day_snapshots', ['platform_user_id', 'local_date'],
+          ['SELECT', 'UPDATE', 'DELETE']),
+        patientSurface('public.user_web_push_subscriptions', ['user_id', 'endpoint'],
+          ['SELECT', 'UPDATE', 'DELETE']),
+        patientSurface('public.native_push_targets', ['user_id', 'app_id', 'provider', 'installation_id_hash'],
+          ['SELECT', 'UPDATE', 'DELETE']),
+        patientSurface('public.broadcast_audit_recipients', ['platform_user_id', 'audit_id'],
+          ['SELECT', 'UPDATE', 'DELETE']),
+        ...[
+          ['public.patient_content_rating_feedback', 'user_id'],
+          ['public.patient_practice_completions', 'user_id'],
+          ['public.patient_daily_warmup_video_views', 'user_id'],
+          ['public.program_action_log', 'patient_user_id'],
+          ['public.test_attempts', 'patient_user_id'],
+          ['public.be_patient_timeline_events', 'platform_user_id'],
+          ['public.be_appointment_staff_comments', 'platform_user_id'],
+          ['public.be_payment_intents', 'platform_user_id'],
+          ['public.be_payments', 'platform_user_id'],
+          ['public.be_payment_history_events', 'platform_user_id'],
+          ['public.be_patient_packages', 'platform_user_id'],
+          ['public.product_push_notifications', 'user_id'],
+          ['public.product_analytics_events_recent', 'user_id'],
+        ].map(([relation, identityColumn]) => patientSurface(relation!, [identityColumn!], ['SELECT', 'UPDATE'])),
+      ],
+    }),
+    'app.read_staff_patient_medical_merge_conflict(uuid)': rev10Function({
+      owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
+      execute: ['app_staff'], purpose: 'read one current-clinic medical merge conflict for doctor review',
+      typedArgs: ['uuid'], volatility: 'STABLE', parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.patient_merge_candidates', columns: ['id', 'organization_id', 'anchor_user_id',
+          'candidate_user_id', 'reason', 'status', 'created_at', 'payload'], operations: ['SELECT' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.platform_users', columns: ['id', 'display_name', 'first_name', 'last_name', 'patronymic'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.user_identity', columns: ['platform_user_id', 'display_name', 'first_name', 'last_name', 'patronymic'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.user_login_events', columns: ['user_id', 'occurred_at'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.treatment_program_instances', columns: ['id', 'organization_id', 'patient_user_id',
+          'assignment_source', 'title', 'status', 'created_at'], operations: ['SELECT' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.patient_lfk_assignments', columns: ['id', 'organization_id', 'patient_user_id',
+          'template_id', 'assigned_at', 'is_active'], operations: ['SELECT' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.lfk_complex_templates', columns: ['id', 'organization_id', 'owner_kind', 'title'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.refuse_staff_patient_medical_merge_conflict(uuid,uuid)': rev10Function({
+      owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false,
+      execute: ['app_staff'], purpose: 'escalate a doctor-refused current-clinic merge conflict',
+      typedArgs: ['uuid', 'uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.patient_merge_candidates', columns: ['id', 'organization_id', 'anchor_user_id',
+          'candidate_user_id', 'reason', 'status', 'resolved_at', 'resolved_by'],
+          operations: ['SELECT' as const, 'UPDATE' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.admin_audit_log', columns: ['organization_id', 'actor_id', 'action', 'target_id',
+          'conflict_key', 'details', 'status', 'repeat_count', 'last_seen_at', 'resolved_at'],
+          operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
     'app.read_current_patient_booking_form_fields()': rev10Function({

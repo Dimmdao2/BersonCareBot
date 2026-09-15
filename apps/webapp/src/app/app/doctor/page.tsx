@@ -28,6 +28,7 @@ import {
 import { buttonVariants } from '@/shared/ui/doctor/primitives/button-variants';
 import { DoctorPageLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 import { DoctorTodayAdminBannersSuspense } from './DoctorTodayAdminBanners';
+import { DoctorTodayMedicalConflictBanner } from './DoctorTodayMedicalConflictBanner';
 import { DoctorTodayDashboard, type DoctorTodayCalendarSnapshot } from './DoctorTodayDashboard';
 import { loadDoctorTodayDashboard } from './loadDoctorTodayDashboard';
 import { loadDoctorWorkspaceShell } from './loadDoctorWorkspaceShell';
@@ -84,8 +85,7 @@ async function DoctorTodayDashboardSection({
         bookingCalendar: deps.bookingCalendar ?? undefined,
         clientHistory: deps.clientHistory,
         doctorClients: deps.doctorClientsPort,
-        filterPatientUserIdsByClientChannel:
-          deps.doctorClients.filterPatientUserIdsByClientChannel,
+        filterPatientUserIdsByClientChannel: deps.doctorClients.filterPatientUserIdsByClientChannel,
         directChatEnabled: workspaceModules.direct_chat,
         messaging: deps.messaging,
         specialistTasks: specialistTasksReadable ? deps.specialistTasks : undefined,
@@ -136,8 +136,8 @@ export default async function DoctorPage() {
             <DoctorSectionTitle>Защитите аккаунт</DoctorSectionTitle>
           </DoctorSectionHeader>
           <p className="text-sm text-muted-foreground">
-            Кабинет создан. Чтобы открыть {terms.patientGenPlural} и клинические данные, подключите двухфакторную
-            защиту и сохраните резервные коды.
+            Кабинет создан. Чтобы открыть {terms.patientGenPlural} и клинические данные, подключите
+            двухфакторную защиту и сохраните резервные коды.
           </p>
           <Link className={buttonVariants({ size: 'sm' })} href="/app/account?tab=security">
             Настроить двухфакторную защиту
@@ -151,6 +151,9 @@ export default async function DoctorPage() {
   return (
     <DoctorAppShell title="Сегодня" user={session.user} layout="full-height" mobileBottomGutter>
       <div className="flex min-h-0 flex-1 flex-col gap-3">
+        <Suspense fallback={null}>
+          <DoctorTodayMedicalConflictBanner workspace={workspace} />
+        </Suspense>
         {session.user.role === 'admin' ? <DoctorTodayAdminBannersSuspense /> : null}
         <Suspense fallback={<DoctorTodayDashboardFallback />}>
           <DoctorTodayDashboardSection workspace={workspace} displayIana={displayIana} />

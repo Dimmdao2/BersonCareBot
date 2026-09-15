@@ -36,9 +36,27 @@ export type MergePlatformUsersContext = {
   actorId?: string | null;
 };
 
+/**
+ * Чем кончилось слияние. `merged` — учётки объединены; остальные значения означают, что слияния НЕ
+ * БЫЛО, и вызывающий обязан сказать об этом человеку, а не ответить успехом:
+ *  - `awaiting_other_organization` — врач своей клиники одобрил, но у пары есть медицинский блокер
+ *    в другой клинике, и снять его может только её врач (канон §18б: врач решает за свою клинику);
+ *  - `conflict_not_found` — у вызывающей клиники нет такого незакрытого медицинского конфликта.
+ */
+export type MergePlatformUsersOutcome =
+  'merged' | 'awaiting_other_organization' | 'conflict_not_found';
+
 export type MergePlatformUsersOptions = {
   resolution?: ManualMergeResolution;
   mergeContext?: MergePlatformUsersContext;
+  /** The clinic whose doctor has explicitly accepted its medical-history conflict. */
+  medicalConflictApprovedForOrganizationId?: string;
+  /** Staff-only DB door that authorizes and performs dependent-row transfer for one reviewed conflict. */
+  medicalConflictApproval?: {
+    conflictId: string;
+    organizationId: string;
+    actorId: string;
+  };
 };
 
 /** Canon §18: only medical history on both accounts in the same organization blocks auto-merge. */
@@ -212,6 +230,7 @@ async function assertAutomaticMergeHasNoMedicalHistory(
   client: PlatformMergeDbClient,
   targetId: string,
   duplicateId: string,
+  approvedOrganizationId?: string,
 ): Promise<void> {
   // Канон §18: блокирует ТОЛЬКО конфликт медицинских данных ВНУТРИ ОДНОЙ организации — когда
   // квалифицирующие записи (медкарточка, заметки, назначенные упражнения/программы и отслеживание
@@ -230,6 +249,10 @@ async function assertAutomaticMergeHasNoMedicalHistory(
   // (обычное `=` тут молча пропустило бы слияние двух неатрибутированных историй), и с любой
   // атрибутированной. Разъехаться сторонам позволяет только случай, когда обе организации известны
   // и РАЗНЫЕ: две клиники у одного человека — нормальное состояние, а не конфликт.
+  // Возвращается ВЕСЬ список конфликтующих организаций, а не первая: по нему
+  // `pgPatientMergeCandidate` заводит по строке конфликта на каждую клинику, иначе врач второй
+  // клиники своего блокера никогда не увидит. Одобрение врача (`approvedOrganizationId`) снимает
+  // конфликт ТОЛЬКО его организации — конфликт соседней продолжает блокировать слияние (§18б).
   const probesFor = (id: string) =>
     MEDICAL_HISTORY_RECORDS.map((record) => record.automaticProbe([id]));
   const result = await runMergeSql<{ conflict_organization_id: string | null }>(
@@ -240,12 +263,17 @@ async function assertAutomaticMergeHasNoMedicalHistory(
             ON (duplicate.organization_id IS NULL
                 OR target.organization_id IS NULL
                 OR duplicate.organization_id = target.organization_id)
-         LIMIT 1`,
+         WHERE ${approvedOrganizationId ?? null}::uuid IS NULL
+            OR target.organization_id IS DISTINCT FROM ${approvedOrganizationId ?? null}::uuid
+         ORDER BY conflict_organization_id NULLS FIRST`,
   );
   if (result.rows.length > 0) {
+    const organizationIds = result.rows.map((row) => row.conflict_organization_id ?? null);
     throw new MergeDependentConflictError(
       'medical_history: automatic merge requires support (conflict inside one organization)',
       [targetId, duplicateId],
+      organizationIds[0] ?? null,
+      { kind: 'medical_history', organizationIds },
     );
   }
 }
@@ -437,7 +465,12 @@ export async function mergePlatformUsersInTransaction(
   duplicateId: string,
   reason: MergePlatformUsersReason,
   options?: MergePlatformUsersOptions,
-): Promise<{ targetId: string; duplicateId: string; mergeContactsSaved: MergeContactsSaved[] }> {
+): Promise<{
+  targetId: string;
+  duplicateId: string;
+  mergeContactsSaved: MergeContactsSaved[];
+  mergeOutcome: MergePlatformUsersOutcome;
+}> {
   if (targetId === duplicateId) {
     throw new MergeConflictError('merge: target and duplicate are the same id', [targetId]);
   }
@@ -509,8 +542,40 @@ export async function mergePlatformUsersInTransaction(
     ]);
   }
 
-  if (reason !== 'manual') {
-    await assertAutomaticMergeHasNoMedicalHistory(client, targetId, duplicateId);
+  if (options?.medicalConflictApproval) {
+    // Дверь врача (§18б). Перенос зависимых строк делает SECURITY DEFINER-функция: роль врача сама
+    // их двигать не вправе, и она же сверяет, что конфликт принадлежит организации вызывающего.
+    const approval = options.medicalConflictApproval;
+    const transferred = await runMergeSql<{ transferred: string }>(
+      client,
+      sql`SELECT app.transfer_staff_approved_platform_user_merge_data(
+            ${approval.conflictId}::uuid,
+            ${targetId}::uuid,
+            ${duplicateId}::uuid,
+            ${approval.actorId}::uuid
+          ) AS transferred`,
+    );
+    const outcome = transferred.rows[0]?.transferred;
+    if (outcome !== 'merged') {
+      // Пара НЕ слита. Причину возвращаем наружу дословно: молчаливый «успех» здесь означал бы,
+      // что человек остался двумя учётками, а врач считает, что разобрал конфликт.
+      return {
+        targetId,
+        duplicateId,
+        mergeContactsSaved: [],
+        mergeOutcome:
+          outcome === 'awaiting_other_organization'
+            ? 'awaiting_other_organization'
+            : 'conflict_not_found',
+      };
+    }
+  } else if (reason !== 'manual') {
+    await assertAutomaticMergeHasNoMedicalHistory(
+      client,
+      targetId,
+      duplicateId,
+      options?.medicalConflictApprovedForOrganizationId,
+    );
   }
 
   const manualResolution = reason === 'manual' ? options!.resolution! : undefined;
@@ -525,10 +590,19 @@ export async function mergePlatformUsersInTransaction(
   }
   if (reason !== 'manual') {
     await assertSharedPhoneGuard(client, targetId, duplicateId, pA, pB);
-    await assertAutoMergePasswordCredentialsSafe(client, targetId, duplicateId, reason);
+    if (!options?.medicalConflictApproval) {
+      await assertAutoMergePasswordCredentialsSafe(client, targetId, duplicateId, reason);
+    }
     await assertOpenTestAttemptsSafe(client, targetId, duplicateId);
   }
-  await reconcileOpenTestAttemptsForMerge(client, targetId, duplicateId);
+  if (!options?.medicalConflictApproval) {
+    // За дверью врача КАЖДУЮ попытку дубликата уже перевела на цель SECURITY DEFINER-функция БД
+    // (`UPDATE public.test_attempts SET patient_user_id = p_target_user_id`), поэтому строк дубликата
+    // здесь не остаётся и сверять нечего. Роль врача при этом не вправе писать в `test_results`, а
+    // право на запись PostgreSQL проверяет на плане, а не на найденных строках: шаг падал 42501 на
+    // заведомо пустой выборке. Тот же обход, что и у остального переноса зависимых строк ниже.
+    await reconcileOpenTestAttemptsForMerge(client, targetId, duplicateId);
+  }
   await reconcilePatientLfkAssignmentsForMerge(client, targetId, duplicateId, reason);
   await reconcileActiveTreatmentProgramInstancesForMerge(client, targetId, duplicateId, reason);
 
@@ -572,113 +646,125 @@ export async function mergePlatformUsersInTransaction(
     sql`DELETE FROM user_notification_topic_channels WHERE user_id = ${duplicateId}::uuid`,
   );
 
-  await runMergeSql(
-    client,
-    sql`UPDATE reminder_rules SET platform_user_id = ${targetId}::uuid WHERE platform_user_id = ${duplicateId}::uuid`,
-  );
-  await runMergeSql(
-    client,
-    sql`UPDATE content_access_grants_webapp SET platform_user_id = ${targetId}::uuid WHERE platform_user_id = ${duplicateId}::uuid`,
-  );
-  await transferMergeRecords(client, targetId, duplicateId);
-  const selectedPhoneForHistory = manualResolution
-    ? manualResolution.fields.phone_normalized === 'target'
-      ? pA
-      : pB
-    : (pA ?? pB);
-  await reconcileActivePhoneHistoryForMerge(client, targetId, duplicateId, selectedPhoneForHistory);
-  await runMergeSql(
-    client,
-    sql`UPDATE user_phone_history SET platform_user_id = ${targetId}::uuid WHERE platform_user_id = ${duplicateId}::uuid`,
-  );
-  await runMergeSql(
-    client,
-    sql`UPDATE online_intake_requests SET user_id = ${targetId}::uuid WHERE user_id = ${duplicateId}::uuid`,
-  );
-
-  if (manualResolution) {
-    await mergeOauthBindingsManual(client, targetId, duplicateId, manualResolution);
-  } else {
-    await mergeOauthBindingsAuto(client, targetId, duplicateId);
-  }
-
-  await runMergeSql(
-    client,
-    sql`UPDATE channel_link_secrets SET user_id = ${targetId}::uuid WHERE user_id = ${duplicateId}::uuid`,
-  );
-  await runMergeSql(
-    client,
-    sql`UPDATE email_challenges SET user_id = ${targetId}::uuid WHERE user_id = ${duplicateId}::uuid`,
-  );
-
-  const pwTarget = await runMergeSql(
-    client,
-    sql`SELECT 1 FROM user_password_credentials WHERE user_id = ${targetId}::uuid LIMIT 1`,
-  );
-  const pwDup = await runMergeSql(
-    client,
-    sql`SELECT 1 FROM user_password_credentials WHERE user_id = ${duplicateId}::uuid LIMIT 1`,
-  );
-  if (pwTarget.rows.length === 0 && pwDup.rows.length > 0) {
-    await runMergeSql(
-      client,
-      sql`UPDATE user_password_credentials SET user_id = ${targetId}::uuid WHERE user_id = ${duplicateId}::uuid`,
-    );
+  if (options?.medicalConflictApproval) {
+    // За дверью врача зависимые строки уже перенесла SECURITY DEFINER-функция БД, и повторять
+    // перенос здесь нельзя: роль врача таких прав не имеет, а вторая попытка ничего не находит.
+    // Контакты функция не трогает — их переводит на цель этот вызов.
+    await repointPlatformUserContactsForMerge(client, targetId, duplicateId);
   } else {
     await runMergeSql(
       client,
-      sql`DELETE FROM user_password_credentials WHERE user_id = ${duplicateId}::uuid`,
+      sql`UPDATE reminder_rules SET platform_user_id = ${targetId}::uuid WHERE platform_user_id = ${duplicateId}::uuid`,
     );
+    await runMergeSql(
+      client,
+      sql`UPDATE content_access_grants_webapp SET platform_user_id = ${targetId}::uuid WHERE platform_user_id = ${duplicateId}::uuid`,
+    );
+    await transferMergeRecords(client, targetId, duplicateId);
+    const selectedPhoneForHistory = manualResolution
+      ? manualResolution.fields.phone_normalized === 'target'
+        ? pA
+        : pB
+      : (pA ?? pB);
+    await reconcileActivePhoneHistoryForMerge(
+      client,
+      targetId,
+      duplicateId,
+      selectedPhoneForHistory,
+    );
+    await runMergeSql(
+      client,
+      sql`UPDATE user_phone_history SET platform_user_id = ${targetId}::uuid WHERE platform_user_id = ${duplicateId}::uuid`,
+    );
+    await runMergeSql(
+      client,
+      sql`UPDATE online_intake_requests SET user_id = ${targetId}::uuid WHERE user_id = ${duplicateId}::uuid`,
+    );
+
+    if (manualResolution) {
+      await mergeOauthBindingsManual(client, targetId, duplicateId, manualResolution);
+    } else {
+      await mergeOauthBindingsAuto(client, targetId, duplicateId);
+    }
+
+    await runMergeSql(
+      client,
+      sql`UPDATE channel_link_secrets SET user_id = ${targetId}::uuid WHERE user_id = ${duplicateId}::uuid`,
+    );
+    await runMergeSql(
+      client,
+      sql`UPDATE email_challenges SET user_id = ${targetId}::uuid WHERE user_id = ${duplicateId}::uuid`,
+    );
+
+    const pwTarget = await runMergeSql(
+      client,
+      sql`SELECT 1 FROM user_password_credentials WHERE user_id = ${targetId}::uuid LIMIT 1`,
+    );
+    const pwDup = await runMergeSql(
+      client,
+      sql`SELECT 1 FROM user_password_credentials WHERE user_id = ${duplicateId}::uuid LIMIT 1`,
+    );
+    if (pwTarget.rows.length === 0 && pwDup.rows.length > 0) {
+      await runMergeSql(
+        client,
+        sql`UPDATE user_password_credentials SET user_id = ${targetId}::uuid WHERE user_id = ${duplicateId}::uuid`,
+      );
+    } else {
+      await runMergeSql(
+        client,
+        sql`DELETE FROM user_password_credentials WHERE user_id = ${duplicateId}::uuid`,
+      );
+    }
+
+    await runMergeSql(
+      client,
+      sql`INSERT INTO email_send_cooldowns (user_id, email_normalized, last_sent_at)
+       SELECT ${targetId}::uuid, email_normalized, last_sent_at
+       FROM email_send_cooldowns WHERE user_id = ${duplicateId}::uuid
+       ON CONFLICT (user_id, email_normalized) DO UPDATE SET
+         last_sent_at = GREATEST(email_send_cooldowns.last_sent_at, EXCLUDED.last_sent_at)`,
+    );
+    await runMergeSql(
+      client,
+      sql`DELETE FROM email_send_cooldowns WHERE user_id = ${duplicateId}::uuid`,
+    );
+
+    await runMergeSql(client, sql`DELETE FROM login_tokens WHERE user_id = ${duplicateId}::uuid`);
+
+    await mergeUserChannelPreferences(
+      client,
+      targetId,
+      duplicateId,
+      manualResolution?.channelPreferences ?? 'keep_newer',
+    );
+
+    await runMergeSql(
+      client,
+      sql`UPDATE lfk_complexes SET user_id = ${targetId}::text, platform_user_id = ${targetId}::uuid
+       WHERE user_id = ${duplicateId}::text OR platform_user_id = ${duplicateId}::uuid`,
+    );
+    await runMergeSql(
+      client,
+      sql`UPDATE lfk_sessions SET user_id = ${targetId}::uuid WHERE user_id = ${duplicateId}::uuid`,
+    );
+
+    await runMergeSql(
+      client,
+      sql`UPDATE message_log SET user_id = ${targetId}::text, platform_user_id = ${targetId}::uuid
+       WHERE user_id = ${duplicateId}::text OR platform_user_id = ${duplicateId}::uuid`,
+    );
+
+    await runMergeSql(
+      client,
+      sql`UPDATE media_files SET uploaded_by = ${targetId}::uuid WHERE uploaded_by = ${duplicateId}::uuid`,
+    );
+    await runMergeSql(
+      client,
+      sql`UPDATE media_upload_sessions SET owner_user_id = ${targetId}::uuid WHERE owner_user_id = ${duplicateId}::uuid`,
+    );
+
+    await mergeExtendedUserOwnedData(client, targetId, duplicateId);
   }
-
-  await runMergeSql(
-    client,
-    sql`INSERT INTO email_send_cooldowns (user_id, email_normalized, last_sent_at)
-     SELECT ${targetId}::uuid, email_normalized, last_sent_at
-     FROM email_send_cooldowns WHERE user_id = ${duplicateId}::uuid
-     ON CONFLICT (user_id, email_normalized) DO UPDATE SET
-       last_sent_at = GREATEST(email_send_cooldowns.last_sent_at, EXCLUDED.last_sent_at)`,
-  );
-  await runMergeSql(
-    client,
-    sql`DELETE FROM email_send_cooldowns WHERE user_id = ${duplicateId}::uuid`,
-  );
-
-  await runMergeSql(client, sql`DELETE FROM login_tokens WHERE user_id = ${duplicateId}::uuid`);
-
-  await mergeUserChannelPreferences(
-    client,
-    targetId,
-    duplicateId,
-    manualResolution?.channelPreferences ?? 'keep_newer',
-  );
-
-  await runMergeSql(
-    client,
-    sql`UPDATE lfk_complexes SET user_id = ${targetId}::text, platform_user_id = ${targetId}::uuid
-     WHERE user_id = ${duplicateId}::text OR platform_user_id = ${duplicateId}::uuid`,
-  );
-  await runMergeSql(
-    client,
-    sql`UPDATE lfk_sessions SET user_id = ${targetId}::uuid WHERE user_id = ${duplicateId}::uuid`,
-  );
-
-  await runMergeSql(
-    client,
-    sql`UPDATE message_log SET user_id = ${targetId}::text, platform_user_id = ${targetId}::uuid
-     WHERE user_id = ${duplicateId}::text OR platform_user_id = ${duplicateId}::uuid`,
-  );
-
-  await runMergeSql(
-    client,
-    sql`UPDATE media_files SET uploaded_by = ${targetId}::uuid WHERE uploaded_by = ${duplicateId}::uuid`,
-  );
-  await runMergeSql(
-    client,
-    sql`UPDATE media_upload_sessions SET owner_user_id = ${targetId}::uuid WHERE owner_user_id = ${duplicateId}::uuid`,
-  );
-
-  await mergeExtendedUserOwnedData(client, targetId, duplicateId);
 
   if (manualResolution) {
     const f = manualResolution.fields;
@@ -843,7 +929,7 @@ export async function mergePlatformUsersInTransaction(
     '[merge] merged duplicate into target',
   );
   trustedPatientPhoneWriteAnchor(TrustedPatientPhoneSource.PlatformUserMerge);
-  return { targetId, duplicateId, mergeContactsSaved };
+  return { targetId, duplicateId, mergeContactsSaved, mergeOutcome: 'merged' };
 }
 
 /**
