@@ -322,6 +322,22 @@ const scenarios = [
     ],
   },
   {
+    // Смешанная пара: одна сторона — легаси-заметка доSaaS-эпохи (`organization_id IS NULL`),
+    // другая уже атрибутирована ORG_A. Легаси-строка ФАКТИЧЕСКИ принадлежит какой-то клинике, мы
+    // просто не знаем какой, и по §18 это медицинские данные с обеих сторон внутри одной
+    // организации. Названный дорогой и молчаливый отказ: сравнение, считающее NULL совпадающим
+    // только с NULL, пропускает такую пару в автоматическое слияние — медкарты двух разных людей
+    // становятся одной учёткой, и оператор об этом не узнаёт. Сценарий отдельный от NULL/NULL
+    // именно потому, что тот зелёный и при узком сравнении.
+    name: 'legacy unattributed history blocks merge against an attributed organization',
+    pair: ['121', '122'],
+    expected: 'block',
+    fixtures: (targetId, duplicateId) => [
+      nullOrgNote(targetId, DOCTOR),
+      note(duplicateId, ORG_A, uid('4')),
+    ],
+  },
+  {
     name: 'manual merge consolidates same-author same-day doctor notes',
     pair: ['107', '108'],
     expected: 'merge',

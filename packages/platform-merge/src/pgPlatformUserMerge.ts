@@ -222,11 +222,14 @@ async function assertAutomaticMergeHasNoMedicalHistory(
   // самочувствие и разминки лежат только в transfer-only категории: гейт их не касается, перенос
   // остаётся безусловным.
   //
-  // `IS NOT DISTINCT FROM`, а не обычное равенство: у части клинических таблиц `organization_id`
-  // допускает NULL (строки одноарендной эпохи). NULL против NULL при обычном сравнении дал бы «не
-  // совпало» и МОЛЧА пропустил бы слияние двух неатрибутированных историй. Гейт безопасности не имеет
-  // права расширяться от того, что данных о клинике не хватает, поэтому NULL считается совпадающим с
-  // NULL и такая пара по-прежнему блокируется.
+  // NULL совпадает с ЛЮБОЙ организацией, а не только с NULL: у части клинических таблиц
+  // `organization_id` допускает NULL (строки одноарендной эпохи). Такая строка фактически
+  // ПРИНАДЛЕЖИТ какой-то клинике — мы просто не знаем какой, потому что колонку завели позже.
+  // Гейт безопасности не имеет права расширяться от того, что данных о клинике не хватает, значит
+  // неатрибутированная история считается возможным конфликтом и с NULL-историей другой стороны
+  // (обычное `=` тут молча пропустило бы слияние двух неатрибутированных историй), и с любой
+  // атрибутированной. Разъехаться сторонам позволяет только случай, когда обе организации известны
+  // и РАЗНЫЕ: две клиники у одного человека — нормальное состояние, а не конфликт.
   const probesFor = (id: string) =>
     MEDICAL_HISTORY_RECORDS.map((record) => record.automaticProbe([id]));
   const result = await runMergeSql<{ conflict_organization_id: string | null }>(
@@ -234,7 +237,9 @@ async function assertAutomaticMergeHasNoMedicalHistory(
     sql`SELECT DISTINCT target.organization_id AS conflict_organization_id
           FROM (${sql.join(probesFor(targetId), sql` UNION ALL `)}) AS target(organization_id)
           JOIN (${sql.join(probesFor(duplicateId), sql` UNION ALL `)}) AS duplicate(organization_id)
-            ON duplicate.organization_id IS NOT DISTINCT FROM target.organization_id
+            ON (duplicate.organization_id IS NULL
+                OR target.organization_id IS NULL
+                OR duplicate.organization_id = target.organization_id)
          LIMIT 1`,
   );
   if (result.rows.length > 0) {
