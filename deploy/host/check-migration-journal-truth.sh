@@ -12,12 +12,17 @@
 # следующая миграция законно делает его ложным. Поэтому сравниваем с эталоном — базой, прошедшей
 # миграции по-настоящему (по умолчанию DEV).
 #
+# Что сверяется: миграции ВЫЛОЖЕННОГО на цель коммита, а не весь эталон. Эталон живёт впереди боя —
+# агент применяет на DEV миграцию под работу, которой на цели ещё нет, — и без этой рамки гейт
+# называл потерей то, чего цель и не должна была получать. Коммит передаёт вызывающая выкладка
+# через `BCB_JOURNAL_TRUTH_SCOPE_REF`; без него сверяется весь эталон, как раньше.
+#
 # Использование:
 #   bash deploy/host/check-migration-journal-truth.sh <база-цели> [ssh-хост-цели]
 # Примеры:
 #   bash deploy/host/check-migration-journal-truth.sh bersoncarebot_test
-#   bash deploy/host/check-migration-journal-truth.sh therapysto_prod bcb-build
-# Ненулевой код возврата — цель потеряла то, что на эталоне сбылось.
+#   BCB_JOURNAL_TRUTH_SCOPE_REF=<sha> bash deploy/host/check-migration-journal-truth.sh therapysto_prod bcb-build
+# Ненулевой код возврата — цель потеряла то, что на эталоне сбылось и что несёт её собственный код.
 set -Eeuo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -91,4 +96,29 @@ if [ -n "$TARGET_SSH" ]; then ask_remote "$TARGET_DB" > "$WORK/target.tsv"; else
 [ -s "$WORK/target.tsv" ] || { echo "ОТКАЗ: цель $TARGET_DB не ответила ни одной строкой" >&2; exit 2; }
 
 echo "эталон: $REFERENCE_DB ($(wc -l < "$WORK/reference.tsv") обещаний) · цель: $TARGET_DB ($(wc -l < "$WORK/target.tsv"))"
-node "$REPO/deploy/postgres/migration-journal-truth.mjs" --diff "$WORK/reference.tsv" "$WORK/target.tsv"
+
+# Область сверки — миграции ВЫЛОЖЕННОГО коммита, а не всё, что успел применить эталон. DEV живёт
+# впереди боя: там уже применена миграция под работу, которой на цели нет, и гейт называл это
+# потерей. Владелец 15.09: «гейт сравнивает прод не с выкаченным коммитом, а с DEV — исправить этот
+# бред». Ref передаёт вызывающая выкладка; без него сверяется весь эталон, как раньше.
+SCOPE_ARG=()
+if [ -n "${BCB_JOURNAL_TRUTH_SCOPE_REF:-}" ]; then
+  if git -C "$REPO" rev-parse --verify --quiet "$BCB_JOURNAL_TRUTH_SCOPE_REF^{commit}" >/dev/null; then
+    git -C "$REPO" ls-tree -r --name-only "$BCB_JOURNAL_TRUTH_SCOPE_REF" \
+      -- apps/webapp/db/drizzle-migrations |
+      sed -n 's|.*/\(.*\)\.sql$|\1|p' > "$WORK/scope.txt"
+    # Пустой список — это не «нет миграций», а «спросить не получилось»: сверять по нему значило бы
+    # молча пропустить всё. Тогда откатываемся к прежнему поведению и говорим об этом вслух.
+    if [ -s "$WORK/scope.txt" ]; then
+      SCOPE_ARG=("$WORK/scope.txt")
+      echo "область сверки: миграции коммита $BCB_JOURNAL_TRUTH_SCOPE_REF ($(wc -l < "$WORK/scope.txt"))"
+    else
+      echo "ВНИМАНИЕ: у $BCB_JOURNAL_TRUTH_SCOPE_REF не нашлось ни одной миграции — сверяю весь эталон" >&2
+    fi
+  else
+    echo "ВНИМАНИЕ: коммит $BCB_JOURNAL_TRUTH_SCOPE_REF не разрешается — сверяю весь эталон" >&2
+  fi
+fi
+
+node "$REPO/deploy/postgres/migration-journal-truth.mjs" --diff \
+  "$WORK/reference.tsv" "$WORK/target.tsv" "${SCOPE_ARG[@]}"

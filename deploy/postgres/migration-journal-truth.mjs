@@ -41,11 +41,27 @@ const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
  * Предикат, не сбывшийся на обеих, — устаревшая формулировка; не сбывшийся ТОЛЬКО на цели — потеря.
  */
 if (process.argv[2] === '--diff') {
-  const [reference, target] = process.argv.slice(3);
+  const [reference, target, scopeFile] = process.argv.slice(3);
   if (!reference || !target) {
-    process.stderr.write('использование: --diff <эталон.tsv> <цель.tsv>\n');
+    process.stderr.write('использование: --diff <эталон.tsv> <цель.tsv> [<список тегов выложенного кода>]\n');
     process.exit(2);
   }
+  /**
+   * Список миграций, которые НЕСЁТ выложенный код. Эталон (DEV) живёт впереди боя: агент применил
+   * там миграцию для работы, которой на цели ещё нет, — и гейт объявлял это «потерей», хотя цель
+   * согласована сама с собой. Владелец 15.09 про этот отчёт: «гейт сравнивает прод не с выкаченным
+   * коммитом, а с DEV — исправить этот бред». Теперь сверяем только то, что цель обязана была
+   * получить; остальное показываем отдельной строкой и вердикт им не портим. Без списка поведение
+   * прежнее — сверяется весь эталон.
+   */
+  const scope = scopeFile
+    ? new Set(
+        readFileSync(scopeFile, 'utf8')
+          .split(/\r?\n/u)
+          .map((line) => line.trim())
+          .filter(Boolean),
+      )
+    : null;
   const read = (path) =>
     new Map(
       readFileSync(path, 'utf8')
@@ -57,14 +73,27 @@ if (process.argv[2] === '--diff') {
   const held = read(reference);
   const actual = read(target);
   const lost = [];
+  const notDeployedYet = [];
   for (const [key, row] of held) {
     if (row.verdict !== 'СБЫЛОСЬ') continue;
     const there = actual.get(key);
+    // `key` — это `<тег>#<порядковый номер предиката>`; в область выкладки входит сам тег.
+    if (scope && !scope.has(key.slice(0, key.lastIndexOf('#')))) {
+      if (!there) notDeployedYet.push(key);
+      continue;
+    }
     if (!there) {
       lost.push(`${key} — на цели этой миграции нет в журнале`);
     } else if (there.verdict !== 'СБЫЛОСЬ') {
       lost.push(`${key} — ${there.verdict}: ${there.detail ?? ''}`);
     }
+  }
+  if (notDeployedYet.length !== 0) {
+    process.stdout.write(
+      `вне выложенного кода: ${notDeployedYet.length} миграций есть у эталона и нет в выкладке ` +
+        '(их код на цель ещё не приехал) — гейт по ним молчит\n',
+    );
+    for (const key of notDeployedYet) process.stdout.write(`  ${key}\n`);
   }
   const unjudged = [...actual.keys()].filter((key) => !held.has(key));
   if (unjudged.length !== 0) {

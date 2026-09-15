@@ -456,7 +456,9 @@ for attempt in $(seq 1 30); do
     run_e1_post_runtime_coverage_gate 9
     # Журнал миграций сам себя не проверяет: тег в нём — это обещание, а не доказательство. Гейт
     # спрашивает у TEST предикаты `BCB-MIGRATION-VERIFY` и сравнивает с честно отмигрированной DEV.
-    if ! bash "$SRC_REPO/deploy/host/check-migration-journal-truth.sh" "$DB"; then
+    # Область сверки — миграции выложенной головы, а не всё, что успел применить DEV.
+    if ! BCB_JOURNAL_TRUTH_SCOPE_REF="$(sudo -u deploy git -C "$DEPLOY_REPO" rev-parse HEAD)" \
+      bash "$SRC_REPO/deploy/host/check-migration-journal-truth.sh" "$DB"; then
       fail 'журнал миграций TEST врёт: службы подняты, но обещанного миграциями в базе нет (список выше)'
     fi
     printf 'deploy-test: PASS branch=%s head=%s B0/post-B0 only\n' \
