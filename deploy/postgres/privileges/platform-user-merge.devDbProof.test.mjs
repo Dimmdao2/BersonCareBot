@@ -339,6 +339,22 @@ const scenarios = [
     ],
   },
   {
+    // Весь список нужен вызывающему, чтобы создать по конфликту в каждой клинике. Потеря второй
+    // организации молчалива: её врач не увидит свой блокер, а пара останется неразрешимой.
+    name: 'all conflicting organizations are returned to the caller',
+    pair: ['123', '124'],
+    expected: 'block',
+    fixtures: (targetId, duplicateId) => [
+      note(targetId, ORG_A, DOCTOR),
+      note(targetId, ORG_B, uid('4')),
+      note(duplicateId, ORG_A, DOCTOR),
+      note(duplicateId, ORG_B, uid('4')),
+    ],
+    verifyBlock: (error) => {
+      assert.deepEqual(error.organizationIds, [ORG_A, ORG_B]);
+    },
+  },
+  {
     name: 'manual merge consolidates same-author same-day doctor notes',
     pair: ['107', '108'],
     expected: 'merge',
@@ -703,6 +719,7 @@ test(
               error?.name === 'MergeDependentConflictError'
             ) {
               actual = 'block';
+              if (scenario.verifyBlock) await scenario.verifyBlock(error);
             } else {
               actual = 'crash';
             }

@@ -111,8 +111,9 @@ async function main() {
     const indicator = await client.query(
       `SELECT count(*)::int AS pending
          FROM public.patient_merge_candidates
-        WHERE organization_id = $1::uuid AND status = 'pending' AND reason LIKE 'medical_history:%'`,
-      [clinicA.org_id],
+        WHERE id = $2::uuid AND organization_id = $1::uuid
+          AND status = 'pending' AND reason LIKE 'medical_history:%'`,
+      [clinicA.org_id, CONFLICT_A],
     );
     say(`doctor A indicator still shows pending medical conflicts: ${indicator.rows[0].pending}`);
 
