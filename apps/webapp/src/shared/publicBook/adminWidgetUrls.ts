@@ -2,6 +2,7 @@ import { publicBookPaths } from './paths';
 
 export type PublicBookingWidgetSelection = {
   orgSlug: string;
+  surface?: 'booking' | 'leads';
   branchId?: string;
   serviceId?: string;
   utmSource?: string;
@@ -24,7 +25,11 @@ export function buildPublicBookingWidgetUrl(
   selection: PublicBookingWidgetSelection,
 ): string {
   const query = selectionQuery(selection).toString();
-  const pageUrl = `${origin}${publicBookPaths.forSlug(selection.orgSlug)}`;
+  const pageUrl = `${origin}${
+    selection.surface === 'leads'
+      ? publicBookPaths.leadsForSlug(selection.orgSlug)
+      : publicBookPaths.forSlug(selection.orgSlug)
+  }`;
   return `${pageUrl}${query ? `?${query}` : ''}`;
 }
 
@@ -43,11 +48,14 @@ export function buildPublicBookingWidgetOutputs(
   const embedSeparator = pageUrl.includes('?') ? '&amp;' : '?';
   const scriptSrc = `${origin}${publicBookPaths.embedScript}`;
   const escapedUrl = pageUrl.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+  const isLeads = selection.surface === 'leads';
+  const title = isLeads ? 'Заявка' : 'Запись';
+  const intakeAttribute = isLeads ? ' data-intake="leads"' : '';
   return {
     pageUrl,
     previewUrl,
-    iframeSnippet: `<iframe src="${escapedUrl}${embedSeparator}embed=iframe" title="Запись" style="border:0;width:100%;min-height:720px" loading="lazy"></iframe>`,
-    scriptSnippet: `<script src="${scriptSrc}" data-booking-url="${escapedUrl}" data-mode="iframe" async></script>`,
-    popupSnippet: `<script src="${scriptSrc}" data-booking-url="${escapedUrl}" data-mode="popup" async></script>`,
+    iframeSnippet: `<iframe src="${escapedUrl}${embedSeparator}embed=iframe" title="${title}" style="border:0;width:100%;min-height:720px" loading="lazy"></iframe>`,
+    scriptSnippet: `<script src="${scriptSrc}" data-booking-url="${escapedUrl}"${intakeAttribute} data-mode="iframe" async></script>`,
+    popupSnippet: `<script src="${scriptSrc}" data-booking-url="${escapedUrl}"${intakeAttribute} data-mode="popup" async></script>`,
   };
 }

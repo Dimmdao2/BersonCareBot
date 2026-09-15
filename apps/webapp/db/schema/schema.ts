@@ -319,7 +319,11 @@ export const passwordLoginIdentifierProtection = pgTable(
   ],
 );
 
-/** Server-issued, cryptographically verified and atomically consumed ALTCHA challenges. */
+/**
+ * Server-issued, cryptographically verified and atomically consumed ALTCHA challenges.
+ * Два назначения на одной таблице: вход по паролю и публичная заявка — механизм одноразовости
+ * один и тот же (`consumed_at`), различает их `purpose`.
+ */
 export const passwordAltchaChallenges = pgTable(
   'password_altcha_challenges',
   {
@@ -336,9 +340,12 @@ export const passwordAltchaChallenges = pgTable(
   (table) => [
     check(
       'password_altcha_challenge_identifier_key_check',
-      sql`identifier_key ~ '^password-email:v1:[0-9a-f]{64}$'`,
+      sql`identifier_key ~ '^(password-email|lead-email):v1:[0-9a-f]{64}$'`,
     ),
-    check('password_altcha_challenge_purpose_check', sql`purpose = 'password_login'`),
+    check(
+      'password_altcha_challenge_purpose_check',
+      sql`purpose = ANY (ARRAY['password_login'::text, 'public_lead'::text])`,
+    ),
     check('password_altcha_challenge_digest_check', sql`challenge_digest ~ '^[0-9a-f]{64}$'`),
     index('idx_password_altcha_challenges_identifier_expiry').using(
       'btree',

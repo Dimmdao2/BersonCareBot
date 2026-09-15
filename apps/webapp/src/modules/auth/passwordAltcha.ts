@@ -18,6 +18,7 @@ import type {
 const MAX_PAYLOAD_LENGTH = 32_768;
 const CHALLENGE_LIFETIME_MS = 5 * 60 * 1000;
 const PURPOSE = 'password_login';
+const PUBLIC_LEAD_PURPOSE = 'public_lead';
 
 const payloadSchema = z.object({
   challenge: z.object({
@@ -33,6 +34,31 @@ const payloadSchema = z.object({
         challengeId: z.string().uuid(),
         purpose: z.literal(PURPOSE),
         identifierKey: z.string().regex(/^password-email:v1:[0-9a-f]{64}$/),
+      }),
+    }),
+    signature: z.string(),
+  }),
+  solution: z.object({
+    counter: z.number().int().nonnegative(),
+    derivedKey: z.string(),
+    time: z.number().optional(),
+  }),
+});
+
+const publicLeadPayloadSchema = z.object({
+  challenge: z.object({
+    parameters: z.object({
+      algorithm: z.string(),
+      nonce: z.string(),
+      salt: z.string(),
+      cost: z.number().int(),
+      keyLength: z.number().int(),
+      keyPrefix: z.string(),
+      expiresAt: z.number().int(),
+      data: z.object({
+        challengeId: z.string().uuid(),
+        purpose: z.literal(PUBLIC_LEAD_PURPOSE),
+        identifierKey: z.string().regex(/^lead-email:v1:[0-9a-f]{64}$/),
       }),
     }),
     signature: z.string(),
@@ -68,6 +94,22 @@ function decodePayload(rawPayload: string): Payload | null {
     const decoded = Buffer.from(rawPayload, 'base64').toString('utf8');
     if (decoded.length > MAX_PAYLOAD_LENGTH) return null;
     const parsed = payloadSchema.safeParse(JSON.parse(decoded) as unknown);
+    return parsed.success ? (parsed.data as Payload) : null;
+  } catch {
+    return null;
+  }
+}
+
+function publicLeadIdentifierKey(emailNormalized: string): string {
+  return `lead-email:v1:${createHash('sha256').update(emailNormalized).digest('hex')}`;
+}
+
+function decodePublicLeadPayload(rawPayload: string): Payload | null {
+  if (rawPayload.length === 0 || rawPayload.length > MAX_PAYLOAD_LENGTH) return null;
+  try {
+    const decoded = Buffer.from(rawPayload, 'base64').toString('utf8');
+    if (decoded.length > MAX_PAYLOAD_LENGTH) return null;
+    const parsed = publicLeadPayloadSchema.safeParse(JSON.parse(decoded) as unknown);
     return parsed.success ? (parsed.data as Payload) : null;
   } catch {
     return null;
@@ -255,6 +297,92 @@ export function createPasswordAltchaService(port: PasswordLoginProtectionPort) {
         },
         verifiedExternally: false,
       };
+    },
+
+    /** Same configured CAPTCHA provider, independently domain-bound to public lead submission. */
+    async issuePublicLead(emailNormalized: string): Promise<PasswordCaptchaChallenge | null> {
+      const config = await readCaptchaConfig(port);
+      if (config.provider === 'yandex') {
+        return config.yandexClientKey && config.yandexServerKey
+          ? { provider: 'yandex', clientKey: config.yandexClientKey }
+          : null;
+      }
+      const rootSecret = await port.readAltchaRootSecret();
+      if (!rootSecret) return null;
+      const challengeId = randomUUID();
+      const identifierKey = publicLeadIdentifierKey(emailNormalized);
+      const expiresAt = new Date(Date.now() + CHALLENGE_LIFETIME_MS);
+      const challenge = await createChallenge({
+        algorithm: 'PBKDF2/SHA-256',
+        cost: 5_000,
+        counter: randomInt(10_000, 5_000),
+        deriveKey,
+        expiresAt,
+        hmacSignatureSecret: signatureSecret(rootSecret),
+        data: {
+          challengeId,
+          purpose: PUBLIC_LEAD_PURPOSE,
+          identifierKey,
+        },
+      });
+      // Задачка регистрируется ЗДЕСЬ, как у входа по паролю: гасить при приёме можно только то,
+      // что сервер выдал и помнит. Без этой строки один решённый payload оставался действителен
+      // всё окно жизни задачки сколько угодно раз.
+      const issued = await port.registerPublicLeadAltchaChallenge({
+        identifierKey,
+        challengeId,
+        challengeDigest: challengeDigest(challenge),
+        expiresAt,
+      });
+      return issued ? { provider: 'altcha', challenge, expiresAt: expiresAt.toISOString() } : null;
+    },
+
+    async verifyPublicLead(
+      emailNormalized: string,
+      answer: string | undefined,
+      ip: string | null,
+    ): Promise<PasswordCaptchaVerification> {
+      if (!answer) return { verifiedExternally: false };
+      const config = await readCaptchaConfig(port);
+      if (config.provider === 'yandex') {
+        if (!config.yandexServerKey || !config.yandexClientKey) {
+          return { verifiedExternally: false };
+        }
+        const verdict = await verifyYandexToken(config.yandexServerKey, answer, ip);
+        return {
+          verifiedExternally: verdict === 'ok',
+          ...(verdict === 'unavailable' ? { providerUnavailable: true } : {}),
+        };
+      }
+      const payload = decodePublicLeadPayload(answer);
+      const data = payload?.challenge.parameters.data;
+      const identifierKey = publicLeadIdentifierKey(emailNormalized);
+      if (
+        !payload ||
+        data?.purpose !== PUBLIC_LEAD_PURPOSE ||
+        data.identifierKey !== identifierKey ||
+        typeof data.challengeId !== 'string'
+      ) {
+        return { verifiedExternally: false };
+      }
+      const rootSecret = await port.readAltchaRootSecret();
+      if (!rootSecret) return { verifiedExternally: false };
+      const result = await verifySolution({
+        challenge: payload.challenge,
+        solution: payload.solution,
+        deriveKey,
+        hmacSignatureSecret: signatureSecret(rootSecret),
+      });
+      if (!result.verified) return { verifiedExternally: false };
+      // Решение верное — но задачка одноразовая, и последнее слово за базой: она атомарно
+      // помечает строку `consumed_at` под `FOR UPDATE`. Повтор того же payload проиграет здесь,
+      // а не на крипто-проверке, которая его примет всегда.
+      const consumed = await port.consumePublicLeadAltchaChallenge({
+        identifierKey,
+        challengeId: data.challengeId,
+        challengeDigest: challengeDigest(payload.challenge),
+      });
+      return { verifiedExternally: consumed };
     },
   };
 }

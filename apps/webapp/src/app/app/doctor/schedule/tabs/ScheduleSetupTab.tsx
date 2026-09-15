@@ -36,9 +36,11 @@ import { DoctorModal, DoctorModalCompositeTitle } from '@/shared/ui/doctor/Docto
 import { DoctorResultCount } from '@/shared/ui/doctor/DoctorResultCount';
 import {
   DoctorDnaFlatList,
+  DoctorDnaFlatListSelectionStrip,
   doctorDnaFlatListClickableClass,
   doctorDnaFlatListRowClass,
 } from '@/shared/ui/doctor/DoctorDnaFlatListRow';
+import { useViewportMinWidth } from '@/shared/hooks/useViewportMinWidth';
 import { SYSTEM_SETTING_REGISTRY } from '@/modules/system-settings/registry';
 import type { PackageItemInput, SubscriptionPackageRecord } from '@/modules/memberships/types';
 import {
@@ -261,9 +263,32 @@ function formatValidityDays(value: number | null): string {
   return `${value} ${suffix}`;
 }
 
-function SectionPackages({ readOnly }: { readOnly: boolean }) {
+function SectionPackages({
+  readOnly,
+  fillHeight = false,
+}: {
+  readOnly: boolean;
+  /**
+   * Секция — единственное содержимое экрана и должна занять его высоту целиком. Владелец 15.09:
+   * «абонементы — чтобы были на всю высоту блоки без пустоты внизу (только нормальные отступы как
+   * везде)». В простыне управления клиникой секция стоит среди других и высоту не тянет.
+   */
+  fillHeight?: boolean;
+}) {
   const [state, setState] = useState<PackagesState>({ phase: 'loading' });
   const [, startTransition] = useTransition();
+  /**
+   * Владелец 15.09: «абонементы на десктопе сделать по шаблону упражнений / заявок — экран на две
+   * части, правая готова к созданию, кнопка создать в шапке левого блока». То, что раньше было
+   * одним блоком со списком и двумя модалками, на широком экране становится парой: слева список,
+   * справа форма. Порог 1280 — тот же, на котором «Расписание» разворачивает свою постоянную
+   * панель; на планшете двухколоночная раскладка сжала бы список до нечитаемого.
+   *
+   * Ветка по ширине даёт ДВА разных дерева разметки, а не один набор классов с перекрытием на
+   * брейкпоинте: скрытое `display:none` дерево всё равно осталось бы в DOM, и модалка с формой
+   * жила бы одновременно с той же формой в правом блоке — два поля с одним `id` на странице.
+   */
+  const isWidePackagesLayout = useViewportMinWidth(1280);
   const [packageView, setPackageView] = useState<'active' | 'archived'>('active');
   const [selectedCatalogPackage, setSelectedCatalogPackage] = useState<CatalogPackage | null>(null);
   const [packageFormOpen, setPackageFormOpen] = useState(false);
@@ -345,6 +370,12 @@ function SectionPackages({ readOnly }: { readOnly: boolean }) {
   function openCreateForm() {
     resetForm();
     setEditingPackage(null);
+    // На широком экране форма создания и так стоит в правом блоке — кнопка в шапке списка не
+    // открывает окно, а сбрасывает выбор и обнуляет поля, как «Новая задача» в «Задачах».
+    if (isWidePackagesLayout) {
+      setSelectedCatalogPackage(null);
+      return;
+    }
     setPackageFormOpen(true);
   }
 
@@ -363,7 +394,7 @@ function SectionPackages({ readOnly }: { readOnly: boolean }) {
     setItemServiceId('');
     setItemQuantity('1');
     setEditingPackage(pkg);
-    setPackageFormOpen(true);
+    if (!isWidePackagesLayout) setPackageFormOpen(true);
   }
 
   function closePackageForm() {
@@ -431,6 +462,14 @@ function SectionPackages({ readOnly }: { readOnly: boolean }) {
     });
   }
 
+  function selectPackage(pkg: CatalogPackage) {
+    setSelectedCatalogPackage(pkg);
+    // В правом блоке форма и карточка занимают одно и то же место: выбор строки показывает
+    // карточку, поэтому незакрытая правка соседнего абонемента должна уйти вместе с выбором.
+    if (isWidePackagesLayout && editingPackage) closePackageForm();
+    if (!soldPackages) void loadSoldPackages();
+  }
+
   if (state.phase === 'loading') {
     return <DoctorPanelLoading className="py-6" />;
   }
@@ -456,228 +495,362 @@ function SectionPackages({ readOnly }: { readOnly: boolean }) {
       ? soldPackages.filter((pkg) => pkg.subscriptionPackageId === selectedCatalogPackage.id).length
       : null;
 
-  return (
-    <>
-      <DoctorSection className="overflow-hidden p-0">
-        <DoctorSectionHeader className="flex-row items-center justify-between gap-3 px-[var(--doctor-block-padding,18px)] pt-[var(--doctor-block-padding,18px)]">
-          <DoctorSectionTitle>Абонементы</DoctorSectionTitle>
-          {!readOnly ? (
-            <Button
-              type="button"
-              size="icon"
-              variant="ghost"
-              className="text-primary hover:text-primary"
-              aria-label="Новый абонемент"
-              title="Новый абонемент"
-              onClick={openCreateForm}
-            >
-              <BadgePlus className="size-6" aria-hidden />
-            </Button>
-          ) : null}
-        </DoctorSectionHeader>
+  const scrollPaneClass = 'min-h-0 flex-1 overflow-y-auto [scrollbar-width:thin]';
+  const stretchPane = isWidePackagesLayout && fillHeight;
 
-        <div className="mt-3 flex items-center justify-between gap-3 border-y border-border/60 bg-muted/30 px-[var(--doctor-block-padding,18px)] py-2">
-          <DoctorResultCount
-            className="min-w-0 py-0"
-            label={packageView === 'active' ? 'Активных' : 'В архиве'}
-            value={visiblePackages.length}
+  const packagesListBlock = (
+    <DoctorSection className={cn('overflow-hidden p-0', stretchPane && 'h-full min-h-0')}>
+      <DoctorSectionHeader className="flex-row items-center justify-between gap-3 px-[var(--doctor-block-padding,18px)] pt-[var(--doctor-block-padding,18px)]">
+        <DoctorSectionTitle>Абонементы</DoctorSectionTitle>
+        {!readOnly ? (
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            className="text-primary hover:text-primary"
+            aria-label="Новый абонемент"
+            title="Новый абонемент"
+            onClick={openCreateForm}
+          >
+            <BadgePlus className="size-6" aria-hidden />
+          </Button>
+        ) : null}
+      </DoctorSectionHeader>
+
+      <div className="mt-3 flex items-center justify-between gap-3 border-y border-border/60 bg-muted/30 px-[var(--doctor-block-padding,18px)] py-2">
+        <DoctorResultCount
+          className="min-w-0 py-0"
+          label={packageView === 'active' ? 'Активных' : 'В архиве'}
+          value={visiblePackages.length}
+        />
+        <DoctorSectionActions className="shrink-0 flex-nowrap gap-1">
+          <Button
+            type="button"
+            size="icon"
+            variant="outline"
+            className={cn(
+              packageView === 'archived' &&
+                'border-primary bg-primary/5 text-primary hover:bg-primary/10 hover:text-primary',
+            )}
+            aria-label={packageView === 'active' ? 'Показать архивные' : 'Показать активные'}
+            aria-pressed={packageView === 'archived'}
+            title="Архив"
+            onClick={() => setPackageView((view) => (view === 'active' ? 'archived' : 'active'))}
+          >
+            <Archive className="size-4" aria-hidden />
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              setSoldOpen(true);
+            }}
+          >
+            <ShoppingBag className="size-4" aria-hidden />
+            Проданные
+          </Button>
+        </DoctorSectionActions>
+      </div>
+
+      <div className={cn(stretchPane && scrollPaneClass)}>
+      {visiblePackages.length > 0 ? (
+        <DoctorDnaFlatList>
+          {visiblePackages.map((pkg) => {
+            const totalSessions = pkg.items.reduce((sum, item) => sum + item.quantity, 0);
+            // Подсветка строки есть только в двухблочной раскладке: там выбор виден в правом
+            // блоке и остаётся на экране. В узкой строка открывает модалку и «выбранного» нет.
+            const selected =
+              isWidePackagesLayout && selectedCatalogPackage?.id === pkg.id;
+            return (
+              <li key={pkg.id}>
+                <button
+                  type="button"
+                  className={cn(
+                    doctorDnaFlatListRowClass,
+                    doctorDnaFlatListClickableClass,
+                    'grid w-full grid-cols-[minmax(0,1fr)_auto] text-left',
+                    selected && 'bg-primary/15 text-primary',
+                  )}
+                  onClick={() => selectPackage(pkg)}
+                >
+                  {selected ? <DoctorDnaFlatListSelectionStrip /> : null}
+                  <span className="flex min-w-0 flex-col gap-0.5">
+                    <span className="truncate text-base font-normal text-foreground">
+                      {pkg.title}
+                    </span>
+                    <span className="truncate text-sm text-muted-foreground">
+                      {pkg.items.length} {pluralizeServices(pkg.items.length)} · {totalSessions}{' '}
+                      {pluralizeSessions(totalSessions)}
+                    </span>
+                  </span>
+                  <span className="flex items-center gap-2">
+                    <span className="flex flex-col items-end gap-0.5 text-sm">
+                      <span>{formatPackageMoney(pkg.priceMinor, pkg.currency)}</span>
+                      <span className="text-muted-foreground">
+                        {formatValidityDays(pkg.validityDays)}
+                      </span>
+                    </span>
+                    <ChevronRight className="size-4 text-muted-foreground" aria-hidden />
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+        </DoctorDnaFlatList>
+      ) : (
+        <DoctorEmptyState>
+          {packageView === 'active' ? 'Активных абонементов нет' : 'Архивных абонементов нет'}
+        </DoctorEmptyState>
+      )}
+      </div>
+    </DoctorSection>
+  );
+
+  const packageFormBody = (
+    <div className="flex flex-col gap-4">
+      <div className="space-y-1.5">
+        <Label htmlFor="pkg-title">Название</Label>
+        <Input
+          id="pkg-title"
+          value={title}
+          onChange={(event) => setTitle(event.target.value)}
+          placeholder="Курс 10 занятий"
+        />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <Label htmlFor="pkg-price">Стоимость, ₽</Label>
+          <Input
+            id="pkg-price"
+            inputMode="decimal"
+            value={priceRub}
+            onChange={(event) => setPriceRub(event.target.value)}
+            placeholder="5000"
           />
-          <DoctorSectionActions className="shrink-0 flex-nowrap gap-1">
-            <Button
-              type="button"
-              size="icon"
-              variant="outline"
-              className={cn(
-                packageView === 'archived' &&
-                  'border-primary bg-primary/5 text-primary hover:bg-primary/10 hover:text-primary',
-              )}
-              aria-label={packageView === 'active' ? 'Показать архивные' : 'Показать активные'}
-              aria-pressed={packageView === 'archived'}
-              title="Архив"
-              onClick={() => setPackageView((view) => (view === 'active' ? 'archived' : 'active'))}
-            >
-              <Archive className="size-4" aria-hidden />
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                setSoldOpen(true);
-              }}
-            >
-              <ShoppingBag className="size-4" aria-hidden />
-              Проданные
-            </Button>
-          </DoctorSectionActions>
         </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="pkg-days">Срок, дней</Label>
+          <Input
+            id="pkg-days"
+            inputMode="numeric"
+            value={validityDays}
+            onChange={(event) => setValidityDays(event.target.value)}
+            placeholder="30"
+          />
+        </div>
+      </div>
 
-        {visiblePackages.length > 0 ? (
-          <DoctorDnaFlatList>
-            {visiblePackages.map((pkg) => {
-              const totalSessions = pkg.items.reduce((sum, item) => sum + item.quantity, 0);
+      <div className="space-y-2">
+        <Label>Состав</Label>
+        {formItems.length > 0 ? (
+          <ul className="m-0 list-none space-y-1.5 p-0">
+            {formItems.map((item, index) => {
+              const service = activeServices.find((candidate) => candidate.id === item.serviceId);
               return (
-                <li key={pkg.id}>
-                  <button
+                <li
+                  key={`${item.serviceId}:${index}`}
+                  className="flex items-center justify-between gap-2 rounded-lg bg-muted/30 px-3 py-2 text-sm"
+                >
+                  <span>
+                    {service?.title ?? item.serviceId} × {item.quantity}
+                  </span>
+                  <Button
                     type="button"
-                    className={cn(
-                      doctorDnaFlatListRowClass,
-                      doctorDnaFlatListClickableClass,
-                      'grid w-full grid-cols-[minmax(0,1fr)_auto] text-left',
-                    )}
-                    onClick={() => {
-                      setSelectedCatalogPackage(pkg);
-                      if (!soldPackages) void loadSoldPackages();
-                    }}
+                    variant="ghost"
+                    size="sm"
+                    className="text-destructive"
+                    onClick={() => removeFormItem(index)}
                   >
-                    <span className="flex min-w-0 flex-col gap-0.5">
-                      <span className="truncate text-base font-normal text-foreground">
-                        {pkg.title}
-                      </span>
-                      <span className="truncate text-sm text-muted-foreground">
-                        {pkg.items.length} {pluralizeServices(pkg.items.length)} · {totalSessions}{' '}
-                        {pluralizeSessions(totalSessions)}
-                      </span>
-                    </span>
-                    <span className="flex items-center gap-2">
-                      <span className="flex flex-col items-end gap-0.5 text-sm">
-                        <span>{formatPackageMoney(pkg.priceMinor, pkg.currency)}</span>
-                        <span className="text-muted-foreground">
-                          {formatValidityDays(pkg.validityDays)}
-                        </span>
-                      </span>
-                      <ChevronRight className="size-4 text-muted-foreground" aria-hidden />
-                    </span>
-                  </button>
+                    Убрать
+                  </Button>
                 </li>
               );
             })}
-          </DoctorDnaFlatList>
-        ) : (
-          <DoctorEmptyState>
-            {packageView === 'active' ? 'Активных абонементов нет' : 'Архивных абонементов нет'}
-          </DoctorEmptyState>
-        )}
-      </DoctorSection>
+          </ul>
+        ) : null}
+        <div className="grid grid-cols-[minmax(0,1fr)_5rem] gap-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="pkg-service">Услуга</Label>
+            <Select value={itemServiceId} onValueChange={(value) => setItemServiceId(value ?? '')}>
+              <SelectTrigger
+                id="pkg-service"
+                displayLabel={
+                  activeServices.find((service) => service.id === itemServiceId)?.title ??
+                  'Выберите услугу'
+                }
+              />
+              <SelectContent>
+                {activeServices.map((service) => (
+                  <SelectItem key={service.id} value={service.id} label={service.title}>
+                    {service.title}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="pkg-quantity">Сеансов</Label>
+            <Input
+              id="pkg-quantity"
+              inputMode="numeric"
+              value={itemQuantity}
+              onChange={(event) => setItemQuantity(event.target.value)}
+              placeholder="1"
+            />
+          </div>
+        </div>
+        <Button type="button" variant="secondary" size="sm" onClick={addFormItem}>
+          Добавить услугу
+        </Button>
+      </div>
+    </div>
+  );
+
+  const packageFormFooter = (
+    <>
+      <Button type="button" size="sm" variant="outline" onClick={closePackageForm}>
+        Отмена
+      </Button>
+      <Button type="button" size="sm" disabled={formPending} onClick={savePackage}>
+        {editingPackage ? 'Сохранить' : 'Добавить'}
+      </Button>
+    </>
+  );
+
+  const packageDetailsBody = selectedCatalogPackage ? (
+    <div className="flex flex-col gap-4">
+      <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm">
+        <dt className="text-muted-foreground">Стоимость</dt>
+        <dd>
+          {formatPackageMoney(selectedCatalogPackage.priceMinor, selectedCatalogPackage.currency)}
+        </dd>
+        <dt className="text-muted-foreground">Срок действия</dt>
+        <dd>{formatValidityDays(selectedCatalogPackage.validityDays)}</dd>
+        <dt className="text-muted-foreground">Продано</dt>
+        <dd>{selectedCatalogSoldCount ?? 'Загрузка…'}</dd>
+      </dl>
+      <div className="space-y-2">
+        <p className="text-sm font-medium">Состав</p>
+        <ul className="m-0 list-none space-y-1 p-0">
+          {selectedCatalogPackage.items.map((item) => {
+            const service = state.services.find((candidate) => candidate.id === item.serviceId);
+            return (
+              <li
+                key={item.id}
+                className="flex items-center justify-between gap-3 rounded-lg bg-muted/30 px-3 py-2 text-sm"
+              >
+                <span>{service?.title ?? 'Услуга'}</span>
+                <span className="text-muted-foreground">
+                  {item.quantity} {pluralizeSessions(item.quantity)}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    </div>
+  ) : null;
+
+  const packageDetailsFooter =
+    selectedCatalogPackage && !readOnly ? (
+      <>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => toggleActive(selectedCatalogPackage)}
+        >
+          {selectedCatalogPackage.isActive ? 'В архив' : 'Вернуть'}
+        </Button>
+        <Button type="button" size="sm" onClick={() => openEditForm(selectedCatalogPackage)}>
+          Изменить
+        </Button>
+      </>
+    ) : null;
+
+  const soldModal = (
+    <DoctorSoldMembershipsModal
+      open={soldOpen}
+      onOpenChange={setSoldOpen}
+      readOnly={readOnly}
+      onPackagesLoaded={setSoldPackages}
+    />
+  );
+
+  if (isWidePackagesLayout) {
+    /**
+     * Правый блок держит ровно одно из трёх состояний, и порядок здесь — приоритет:
+     * начатая правка важнее выбранной строки, выбранная строка важнее пустой формы создания.
+     * При `readOnly` формы нет вовсе: создавать и править нечем, остаётся карточка или подсказка.
+     */
+    const rightMode: 'form' | 'details' | 'empty' =
+      !readOnly && (editingPackage != null || selectedCatalogPackage == null)
+        ? 'form'
+        : selectedCatalogPackage != null
+          ? 'details'
+          : 'empty';
+    const rightFooter = rightMode === 'form' ? packageFormFooter : packageDetailsFooter;
+    return (
+      <>
+        {/* Пропорции — «тот же принцип что у упражнений» (владелец 15.09): там половина на
+            половину, `CatalogSplitLayout` без своей раскладки колонок. Списку узкой колонки
+            не хватало: цена и срок жались к названию. */}
+        <div
+          className={cn(
+            'grid grid-cols-2 gap-3',
+            stretchPane ? 'h-full min-h-0' : 'items-start',
+          )}
+        >
+          {packagesListBlock}
+          <DoctorSection className={cn(stretchPane && 'h-full min-h-0')}>
+            <DoctorSectionHeader>
+              <DoctorSectionTitle>
+                {rightMode === 'form' ? (
+                  editingPackage ? (
+                    'Изменить абонемент'
+                  ) : (
+                    'Новый абонемент'
+                  )
+                ) : (
+                  <DoctorModalCompositeTitle
+                    label="Абонемент"
+                    entity={selectedCatalogPackage?.title}
+                  />
+                )}
+              </DoctorSectionTitle>
+            </DoctorSectionHeader>
+            <div className={cn(stretchPane && scrollPaneClass)}>
+              {rightMode === 'form' ? packageFormBody : null}
+              {rightMode === 'details' ? packageDetailsBody : null}
+              {rightMode === 'empty' ? (
+                <DoctorEmptyState>Выберите абонемент</DoctorEmptyState>
+              ) : null}
+            </div>
+            {rightFooter ? (
+              <DoctorSectionActions className="justify-end gap-2">
+                {rightFooter}
+              </DoctorSectionActions>
+            ) : null}
+          </DoctorSection>
+        </div>
+        {soldModal}
+      </>
+    );
+  }
+
+  return (
+    <>
+      {packagesListBlock}
 
       <DoctorModal
         open={packageFormOpen}
         onClose={closePackageForm}
         title={editingPackage ? 'Изменить абонемент' : 'Новый абонемент'}
         desktopPresentation="right-sheet"
-        footer={
-          <>
-            <Button type="button" size="sm" variant="outline" onClick={closePackageForm}>
-              Отмена
-            </Button>
-            <Button type="button" size="sm" disabled={formPending} onClick={savePackage}>
-              {editingPackage ? 'Сохранить' : 'Добавить'}
-            </Button>
-          </>
-        }
+        footer={packageFormFooter}
       >
-        <div className="flex flex-col gap-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="pkg-title">Название</Label>
-            <Input
-              id="pkg-title"
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
-              placeholder="Курс 10 занятий"
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="pkg-price">Стоимость, ₽</Label>
-              <Input
-                id="pkg-price"
-                inputMode="decimal"
-                value={priceRub}
-                onChange={(event) => setPriceRub(event.target.value)}
-                placeholder="5000"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="pkg-days">Срок, дней</Label>
-              <Input
-                id="pkg-days"
-                inputMode="numeric"
-                value={validityDays}
-                onChange={(event) => setValidityDays(event.target.value)}
-                placeholder="30"
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Состав</Label>
-            {formItems.length > 0 ? (
-              <ul className="m-0 list-none space-y-1.5 p-0">
-                {formItems.map((item, index) => {
-                  const service = activeServices.find(
-                    (candidate) => candidate.id === item.serviceId,
-                  );
-                  return (
-                    <li
-                      key={`${item.serviceId}:${index}`}
-                      className="flex items-center justify-between gap-2 rounded-lg bg-muted/30 px-3 py-2 text-sm"
-                    >
-                      <span>
-                        {service?.title ?? item.serviceId} × {item.quantity}
-                      </span>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="text-destructive"
-                        onClick={() => removeFormItem(index)}
-                      >
-                        Убрать
-                      </Button>
-                    </li>
-                  );
-                })}
-              </ul>
-            ) : null}
-            <div className="grid grid-cols-[minmax(0,1fr)_5rem] gap-2">
-              <div className="space-y-1.5">
-                <Label htmlFor="pkg-service">Услуга</Label>
-                <Select
-                  value={itemServiceId}
-                  onValueChange={(value) => setItemServiceId(value ?? '')}
-                >
-                  <SelectTrigger
-                    id="pkg-service"
-                    displayLabel={
-                      activeServices.find((service) => service.id === itemServiceId)?.title ??
-                      'Выберите услугу'
-                    }
-                  />
-                  <SelectContent>
-                    {activeServices.map((service) => (
-                      <SelectItem key={service.id} value={service.id} label={service.title}>
-                        {service.title}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="pkg-quantity">Сеансов</Label>
-                <Input
-                  id="pkg-quantity"
-                  inputMode="numeric"
-                  value={itemQuantity}
-                  onChange={(event) => setItemQuantity(event.target.value)}
-                  placeholder="1"
-                />
-              </div>
-            </div>
-            <Button type="button" variant="secondary" size="sm" onClick={addFormItem}>
-              Добавить услугу
-            </Button>
-          </div>
-        </div>
+        {packageFormBody}
       </DoctorModal>
 
       <DoctorModal
@@ -687,70 +860,12 @@ function SectionPackages({ readOnly }: { readOnly: boolean }) {
           <DoctorModalCompositeTitle label="Абонемент" entity={selectedCatalogPackage?.title} />
         }
         desktopPresentation="right-sheet"
-        footer={
-          selectedCatalogPackage && !readOnly ? (
-            <>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => toggleActive(selectedCatalogPackage)}
-              >
-                {selectedCatalogPackage.isActive ? 'В архив' : 'Вернуть'}
-              </Button>
-              <Button type="button" size="sm" onClick={() => openEditForm(selectedCatalogPackage)}>
-                Изменить
-              </Button>
-            </>
-          ) : null
-        }
+        footer={packageDetailsFooter}
       >
-        {selectedCatalogPackage ? (
-          <div className="flex flex-col gap-4">
-            <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm">
-              <dt className="text-muted-foreground">Стоимость</dt>
-              <dd>
-                {formatPackageMoney(
-                  selectedCatalogPackage.priceMinor,
-                  selectedCatalogPackage.currency,
-                )}
-              </dd>
-              <dt className="text-muted-foreground">Срок действия</dt>
-              <dd>{formatValidityDays(selectedCatalogPackage.validityDays)}</dd>
-              <dt className="text-muted-foreground">Продано</dt>
-              <dd>{selectedCatalogSoldCount ?? 'Загрузка…'}</dd>
-            </dl>
-            <div className="space-y-2">
-              <p className="text-sm font-medium">Состав</p>
-              <ul className="m-0 list-none space-y-1 p-0">
-                {selectedCatalogPackage.items.map((item) => {
-                  const service = state.services.find(
-                    (candidate) => candidate.id === item.serviceId,
-                  );
-                  return (
-                    <li
-                      key={item.id}
-                      className="flex items-center justify-between gap-3 rounded-lg bg-muted/30 px-3 py-2 text-sm"
-                    >
-                      <span>{service?.title ?? 'Услуга'}</span>
-                      <span className="text-muted-foreground">
-                        {item.quantity} {pluralizeSessions(item.quantity)}
-                      </span>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          </div>
-        ) : null}
+        {packageDetailsBody}
       </DoctorModal>
 
-      <DoctorSoldMembershipsModal
-        open={soldOpen}
-        onOpenChange={setSoldOpen}
-        readOnly={readOnly}
-        onPackagesLoaded={setSoldPackages}
-      />
+      {soldModal}
     </>
   );
 }
@@ -903,7 +1018,16 @@ export function ScheduleSetupTab({
       data-testid="schedule-setup-tab"
     >
       <DoctorShellMobileSubsectionTabsRegistration content={mobileSubsectionTabs} />
-      <div className="flex flex-col gap-3 py-3">
+      {/* В режиме «только абонементы» секция одна и забирает высоту экрана целиком. Нижний
+          отступ там снимается: под блоком уже лежит общий нижний зазор страницы, и вместе с
+          `py-3` получалось 30px против 18px у «Упражнений» — на них владелец и указал как на
+          образец («только нормальные отступы как везде»). */}
+      <div
+        className={cn(
+          'flex flex-col gap-3 py-3',
+          setupPackagesOnly && 'xl:h-full xl:min-h-0 xl:pb-0',
+        )}
+      >
         {!setupPackagesOnly ? (
           <nav
             className="hidden flex-wrap gap-1 md:flex"
@@ -925,7 +1049,10 @@ export function ScheduleSetupTab({
           </nav>
         ) : null}
 
-        <div data-testid={`setup-section-${activeSection}`}>
+        <div
+          className={cn(setupPackagesOnly && 'xl:min-h-0 xl:flex-1')}
+          data-testid={`setup-section-${activeSection}`}
+        >
           {activeSection === 'locations' && <SectionLocations />}
           {activeSection === 'services' && <SectionServices />}
           {activeSection === 'specialists' && <SectionSpecialists />}
@@ -935,7 +1062,7 @@ export function ScheduleSetupTab({
             <SectionNotifications />
           )}
           {activeSection === 'packages' && packagesVisible && (
-            <SectionPackages readOnly={packagesReadOnly} />
+            <SectionPackages readOnly={packagesReadOnly} fillHeight={setupPackagesOnly} />
           )}
         </div>
       </div>

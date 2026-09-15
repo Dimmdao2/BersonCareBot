@@ -194,6 +194,43 @@ export function createPgPasswordLoginProtectionPort(): PasswordLoginProtectionPo
       );
       return result.rows[0]?.issued === true;
     },
+
+    async registerPublicLeadAltchaChallenge(params) {
+      const result = await runWithDbBootstrapPrincipal(
+        { source: 'password-login-protection/public-lead-altcha-issue' },
+        () =>
+          runWebappNamedRoot<{ issued: boolean }>(
+            getWebappSqlDb(),
+            'app.public_lead_issue_altcha_challenge(text,uuid,text,timestamp with time zone)',
+            [params.identifierKey, params.challengeId, params.challengeDigest, params.expiresAt],
+            sql`SELECT app.public_lead_issue_altcha_challenge(
+           ${params.identifierKey},
+           ${params.challengeId}::uuid,
+           ${params.challengeDigest},
+           ${params.expiresAt.toISOString()}::timestamptz
+         ) AS issued`,
+          ),
+      );
+      return result.rows[0]?.issued === true;
+    },
+
+    async consumePublicLeadAltchaChallenge(params) {
+      const result = await runWithDbBootstrapPrincipal(
+        { source: 'password-login-protection/public-lead-altcha-consume' },
+        () =>
+          runWebappNamedRoot<{ consumed: boolean }>(
+            getWebappSqlDb(),
+            'app.public_lead_consume_altcha_challenge(text,uuid,text)',
+            [params.identifierKey, params.challengeId, params.challengeDigest],
+            sql`SELECT app.public_lead_consume_altcha_challenge(
+           ${params.identifierKey},
+           ${params.challengeId}::uuid,
+           ${params.challengeDigest}
+         ) AS consumed`,
+          ),
+      );
+      return result.rows[0]?.consumed === true;
+    },
   };
 }
 
@@ -217,6 +254,12 @@ export const inMemoryPasswordLoginProtectionPort: PasswordLoginProtectionPort = 
     return { provider: 'altcha', yandexClientKey: null, yandexServerKey: null };
   },
   async registerAltchaChallenge() {
+    return false;
+  },
+  async registerPublicLeadAltchaChallenge() {
+    return false;
+  },
+  async consumePublicLeadAltchaChallenge() {
     return false;
   },
 };

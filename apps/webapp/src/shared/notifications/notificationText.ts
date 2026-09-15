@@ -70,6 +70,12 @@ export const notificationText = {
   leadChangeFailed: 'Не удалось изменить заявку. Повторите попытку.',
   leadContactCopied: 'Контакт скопирован.',
   leadContactCopyFailed: 'Не удалось скопировать контакт.',
+  leadFormLoadFailed: 'Форма заявки временно недоступна. Обновите страницу и повторите.',
+  leadSubmitFailed: 'Не удалось отправить заявку. Повторите попытку.',
+  leadSubmitted: 'Заявка отправлена.',
+  leadConsentRequired: 'Подтвердите согласие на обработку персональных данных.',
+  leadVerificationCodeSent: 'Введите код из письма.',
+  leadCaptchaRequired: 'Подтвердите, что вы человек.',
   // --- security / staff auth (ранее shared/ui/auth/staffSecurityErrorText.ts) ---
   authBindSpecialistFallback: 'Не удалось подключить рабочий кабинет. Повторите попытку позже.',
   authChangePasswordFallback: 'Пароль не изменён. Проверьте данные и повторите попытку.',

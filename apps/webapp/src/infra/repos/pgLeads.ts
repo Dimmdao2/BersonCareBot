@@ -1,4 +1,4 @@
-import { and, desc, eq, isNotNull, isNull } from 'drizzle-orm';
+import { and, desc, eq, isNotNull, isNull, sql } from 'drizzle-orm';
 import { getDrizzle, type DrizzleDb } from '@/app-layer/db/drizzle';
 import { orgEnrollments } from '../../../db/schema/bookingEngine';
 import { leads } from '../../../db/schema/leads';
@@ -8,6 +8,8 @@ import { createPgOutboundMessageQueue } from '@/infra/repos/pgOutboundMessageQue
 import type { LeadsPort } from '@/modules/leads/ports';
 import type { Lead } from '@/modules/leads/types';
 import { leadRejectionNotification } from '@/modules/leads/rejectionNotification';
+import { isCurrentPublicBookingPrincipal } from '@/app-layer/principal/publicBookingPrincipal';
+import { getWebappSqlDb, runWebappNamedRoot } from '@/infra/db/runWebappSql';
 
 /** Короткий стабильный ключ места для операторских сигналов, без персональных данных. */
 const LEAD_REJECTED_TOPIC = 'lead.rejected' as const;
@@ -35,6 +37,32 @@ async function readLead(
 export function createPgLeadsPort(): LeadsPort {
   return {
     async create(input, now) {
+      if (isCurrentPublicBookingPrincipal()) {
+        const result = await runWebappNamedRoot<{ lead: unknown }>(
+          getWebappSqlDb(),
+          'app.create_public_lead(uuid,text,text,text,text,text,text,text,text,timestamp with time zone)',
+          [
+            input.platformUserId,
+            input.firstName,
+            input.lastName,
+            input.patronymic,
+            input.emailNormalized,
+            input.phoneNormalized,
+            input.preferredContact,
+            input.messageText,
+            input.sourceSurface,
+            now,
+          ],
+          sql`SELECT app.create_public_lead(
+            ${input.platformUserId}::uuid, ${input.firstName}, ${input.lastName}, ${input.patronymic},
+            ${input.emailNormalized}, ${input.phoneNormalized}, ${input.preferredContact},
+            ${input.messageText}, ${input.sourceSurface}, ${now}::timestamptz
+          ) AS lead`,
+        );
+        const lead = result.rows[0]?.lead;
+        if (!lead || typeof lead !== 'object') throw new Error('lead_create_failed');
+        return lead as Lead;
+      }
       const rows = await getDrizzle()
         .insert(leads)
         .values({

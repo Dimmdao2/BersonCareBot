@@ -26152,6 +26152,17 @@ const REV10_CONTEXT = {
     password_login_issue_altcha_challenge: { port: 'webapp', sessionRole: 'app_patient',
       targetRole: 'app_pre_session', contextClass: 'pre_session', purpose: 'auth.password.altcha-issue',
       functionIdentity: 'app.password_login_issue_altcha_challenge(text,uuid,text,timestamp with time zone)' },
+    // Капча публичной заявки. Тот же одноразовый механизм, что у входа по паролю, и та же таблица
+    // `public.password_altcha_challenges`: задачка регистрируется при выдаче и гасится при приёме,
+    // иначе один решённый payload действителен всё окно жизни задачки сколько угодно раз. Класс
+    // `pre_session` — потому что дверь стоит ДО выбора арендатора и человека не знает: у неё на
+    // входе только производная от адреса почты.
+    public_lead_issue_altcha_challenge: { port: 'webapp', sessionRole: 'app_patient',
+      targetRole: 'app_pre_session', contextClass: 'pre_session', purpose: 'auth.public-lead.altcha-issue',
+      functionIdentity: 'app.public_lead_issue_altcha_challenge(text,uuid,text,timestamp with time zone)' },
+    public_lead_consume_altcha_challenge: { port: 'webapp', sessionRole: 'app_patient',
+      targetRole: 'app_pre_session', contextClass: 'pre_session', purpose: 'auth.public-lead.altcha-consume',
+      functionIdentity: 'app.public_lead_consume_altcha_challenge(text,uuid,text)' },
     email_password_find_login_candidate: { port: 'webapp', sessionRole: 'app_patient',
       targetRole: 'app_pre_session', contextClass: 'pre_session', purpose: 'auth.password.reset-candidate',
       functionIdentity: 'app.email_password_find_reset_candidate(text)' },
@@ -26484,7 +26495,11 @@ const REV10_CONTEXT = {
     list_public_booking_form_fields: { port: 'webapp', sessionRole: 'app_staff',
       targetRole: 'app_tenant_service', contextClass: 'tenant_service',
       purpose: 'booking.public-form-fields.read',
-      functionIdentity: 'app.list_public_booking_form_fields()' },
+      functionIdentity: 'app.list_public_booking_form_fields(text)' },
+    create_public_lead: { port: 'webapp', sessionRole: 'app_staff',
+      targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+      purpose: 'leads.public-submit.create',
+      functionIdentity: 'app.create_public_lead(uuid,text,text,text,text,text,text,text,text,timestamp with time zone)' },
     // Публичная визитка клиники `/{clinic}` (владелец 19.08). Анонимный посетитель читает ОДНУ
     // строку публичной проекции через дверь: прямой SELECT ему отозван целиком (42501).
     read_public_clinic_card: { port: 'webapp', sessionRole: 'app_patient',
@@ -27980,15 +27995,71 @@ const REV10_CONTEXT = {
     }),
     // Публичный близнец `app.read_current_patient_booking_form_fields()` возвращает
     // конфигурацию полей; единый флаг `is_active` определяет видимость в форме.
-    'app.list_public_booking_form_fields()': rev10Function({
+    'app.list_public_booking_form_fields(text)': rev10Function({
       owner: 'app_seam_public_booking_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
       execute: ['app_tenant_service'],
       purpose: 'return booking form field configuration of the published accepted organization',
-      typedArgs: [], volatility: 'STABLE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      typedArgs: ['text'], volatility: 'STABLE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
         { relation: 'public.be_booking_form_fields', columns: ['id', 'organization_id', 'field_key',
-          'field_type', 'label', 'placeholder', 'is_required', 'visible_to_patient', 'visible_to_staff',
+          'form_surface', 'field_type', 'label', 'placeholder', 'is_required', 'visible_to_patient', 'visible_to_staff',
           'sort_order', 'is_active', 'archived_at'], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.clinic_public_directory_entries', columns: ['organization_id', 'is_published'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    // Обе двери капчи заявки принадлежат `app_seam_password_auth_owner` — тому же владельцу, что и
+    // двери капчи входа: таблица задачек одна, и второй владелец на ней означал бы второй набор
+    // прав и политик на те же строки.
+    'app.public_lead_issue_altcha_challenge(text,uuid,text,timestamp with time zone)': rev10Function({
+      owner: 'app_seam_password_auth_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false,
+      execute: ['app_pre_session'],
+      purpose: 'register one single-use public lead captcha challenge for the submitted email',
+      typedArgs: ['text', 'uuid', 'text', 'timestamp with time zone'],
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.password_altcha_challenges', columns: ['challenge_id', 'identifier_key',
+          'purpose', 'challenge_digest', 'expires_at', 'consumed_at'],
+          operations: ['SELECT' as const, 'INSERT' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.public_lead_consume_altcha_challenge(text,uuid,text)': rev10Function({
+      owner: 'app_seam_password_auth_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false,
+      execute: ['app_pre_session'],
+      purpose: 'burn one public lead captcha challenge exactly once',
+      typedArgs: ['text', 'uuid', 'text'],
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        // `SELECT … FOR UPDATE` требует ТАБЛИЧНОЙ привилегии модификации: поколоночного SELECT ему
+        // не хватает (AGENTS.md §1, «разбор по телу»).
+        { relation: 'public.password_altcha_challenges', columns: ['challenge_id', 'identifier_key',
+          'purpose', 'challenge_digest', 'expires_at', 'consumed_at'],
+          operations: ['SELECT' as const, 'UPDATE' as const],
+          tableOperations: ['SELECT' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.create_public_lead(uuid,text,text,text,text,text,text,text,text,timestamp with time zone)': rev10Function({
+      owner: 'app_seam_public_booking_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
+      execute: ['app_tenant_service'], purpose: 'create one verified public lead for the published accepted organization',
+      typedArgs: ['uuid', 'text', 'text', 'text', 'text', 'text', 'text', 'text', 'text', 'timestamp with time zone'],
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        // `INSERT … RETURNING *` читает ВСЮ вставленную строку, включая колонки, которые тело не
+        // писало: `id`, `status` и метки жизненного цикла приходят из DEFAULT. PostgreSQL требует на
+        // `RETURNING` привилегию SELECT по каждой возвращаемой колонке, поэтому поверхность несёт обе
+        // операции: INSERT — по колонкам списка вставки, SELECT — по всей строке.
+        { relation: 'public.leads', columns: ['id', 'organization_id', 'platform_user_id',
+          'submitted_first_name', 'submitted_last_name', 'submitted_patronymic', 'submitted_email',
+          'submitted_phone', 'preferred_contact', 'message_text', 'status', 'rejection_comment',
+          'rejected_at', 'accepted_at', 'closed_at', 'archived_at', 'source_surface', 'created_at',
+          'updated_at'],
+          operations: ['INSERT' as const, 'SELECT' as const],
+          operationColumns: { INSERT: ['organization_id', 'platform_user_id', 'submitted_first_name',
+            'submitted_last_name', 'submitted_patronymic', 'submitted_email', 'submitted_phone',
+            'preferred_contact', 'message_text', 'source_surface', 'created_at', 'updated_at'] },
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.clinic_public_directory_entries', columns: ['organization_id', 'is_published'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
