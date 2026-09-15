@@ -9,7 +9,10 @@ export function RoleLoginPortalHeader({
 }: {
   portal: RoleLoginPortal;
   surfaceName: string;
-  /** Логотип арендатора с уже опознанной поверхности; `null` — логотипа нет. */
+  /**
+   * Знак арендатора с уже опознанной поверхности, ТОЛЬКО с публичной двери
+   * (`anonymousBrandLogoUrl`): экран входа смотрят без сессии. `null` — знака нет, остаётся имя.
+   */
   brandLogoUrl?: string | null;
   /** Поверхность клиники, а не общий TherapyGo: решает, чей знак показывать. */
   brandedSurface?: boolean;
@@ -64,7 +67,9 @@ export function RoleLoginPortalHeader({
     <div className="mt-2 flex flex-col items-center gap-3">
       {brandLogoUrl ? (
         <>
-          {/* eslint-disable-next-line @next/next/no-img-element -- server-validated /api/media URL */}
+          {/* eslint-disable-next-line @next/next/no-img-element -- публичный адрес знака клиники,
+              собранный сервером (`anonymousBrandLogoUrl`); экран входа анонимный, и сессионный
+              `/api/media` сюда попасть не должен — 15.09 именно так и вышла битая картинка */}
           <img
             src={brandLogoUrl}
             alt=""
