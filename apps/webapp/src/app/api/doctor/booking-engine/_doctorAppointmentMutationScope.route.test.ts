@@ -8,7 +8,6 @@ const mocks = vi.hoisted(() => ({
   createAppointment: vi.fn(),
   emitBookingEvent: vi.fn(),
   getAppointment: vi.fn(),
-  getSpecialistAppointmentReminderSettings: vi.fn(),
   loadLifecycleSettings: vi.fn(),
   loadReminderPlan: vi.fn(),
   requireDoctorBookingEngine: vi.fn(),
@@ -108,8 +107,8 @@ function appointment(specialistId: string): BeAppointment {
     packageUsageRef: null,
     phoneNormalized: null,
     attributionJson: {},
-    appointmentReminderAllowedPresetIds: [],
-    appointmentReminderPresetId: null,
+    appointmentReminderAvailableOffsetsMinutes: [],
+    appointmentReminderOffsetsMinutes: [],
     appointmentReminderSelectionSource: 'specialist_default',
   };
 }
@@ -122,7 +121,6 @@ function context(canManageAllSpecialists: boolean): DoctorBookingEngineContext {
     service: {
       getAppointment: mocks.getAppointment,
       createAppointment: mocks.createAppointment,
-      getSpecialistAppointmentReminderSettings: mocks.getSpecialistAppointmentReminderSettings,
       // PAY-APPT-03: ручное создание считает финансовый снимок и берёт цену услуги из каталога.
       services: { getService: vi.fn(async () => ({ priceMinor: 250_000 })) },
       catalog: {
@@ -153,10 +151,6 @@ function request(path: string, body: unknown): Request {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.getSpecialistAppointmentReminderSettings.mockResolvedValue({
-    allowedPresetIds: [],
-    defaultPresetId: null,
-  });
   mocks.requireDoctorBookingEngine.mockResolvedValue({ ok: true, ctx: context(false) });
   mocks.buildAppDeps.mockReturnValue({
     orgEntitlements: {
@@ -175,6 +169,7 @@ beforeEach(() => {
     systemSettings: { getSetting: vi.fn() },
   });
   mocks.loadLifecycleSettings.mockResolvedValue({});
+  mocks.loadReminderPlan.mockResolvedValue({ enabled: false, offsetsMinutes: [] });
   mocks.runStaffManualCancelAfterCanonical.mockResolvedValue({});
 });
 
@@ -256,7 +251,9 @@ describe('doctor appointment mutation scope', () => {
   it('ignores a hostile create specialist ID for a normal doctor', async () => {
     const created = appointment(OWN_ID);
     mocks.createAppointment.mockResolvedValue(created);
-    mocks.buildAppDeps.mockReturnValue({});
+    mocks.buildAppDeps.mockReturnValue({
+      systemSettings: { getSetting: vi.fn().mockResolvedValue(null) },
+    });
 
     const response = await createAppointment(
       request('/api/doctor/booking-engine/appointments/manual', {

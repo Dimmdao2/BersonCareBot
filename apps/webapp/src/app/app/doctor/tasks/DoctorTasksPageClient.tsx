@@ -8,7 +8,6 @@ import { DoctorCatalogPageLayout } from '@/shared/ui/doctor/catalog/DoctorCatalo
 import { CatalogSplitLayout } from '@/shared/ui/doctor/catalog/CatalogSplitLayout';
 import { CatalogLeftPane } from '@/shared/ui/doctor/catalog/CatalogLeftPane';
 import { CatalogRightPane } from '@/shared/ui/doctor/catalog/CatalogRightPane';
-import { DoctorCatalogFiltersToolbar } from '@/shared/ui/doctor/DoctorCatalogFiltersToolbar';
 import { DoctorSearchInput } from '@/shared/ui/doctor/DoctorSearchInput';
 import { DoctorResultCount } from '@/shared/ui/doctor/DoctorResultCount';
 import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
@@ -62,6 +61,11 @@ export function DoctorTasksPageClient({
   const [patientNames, setPatientNames] = useState(initialPatientNames);
   const [pane, setPane] = useState<Pane>(null);
   const [createOpen, setCreateOpen] = useState(false);
+  /**
+   * Счётчик сбрасывает пустую форму в правом блоке: она смонтирована постоянно, и нажать «Новая
+   * задача» после набранного наполовину текста должно давать чистый бланк, а не тот же.
+   */
+  const [createFormKey, setCreateFormKey] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
@@ -103,30 +107,59 @@ export function DoctorTasksPageClient({
   };
   const showingCompletedTasks = taskView === 'completed';
 
-  const taskFilters = (
+  /**
+   * «Новая задача» на десктопе не открывает окно: правый блок и так стоит с пустой формой, пока из
+   * списка ничего не выбрано, поэтому кнопка просто снимает выбор и обнуляет форму — как в
+   * «Упражнениях» (владелец 15.09). Ниже порога раздельной раскладки правого блока нет, там
+   * остаётся прежнее окно создания.
+   */
+  const startNewTask = () => {
+    if (hasSplitTaskDetails) {
+      setPane(null);
+      setCreateFormKey((current) => current + 1);
+      return;
+    }
+    setCreateOpen(true);
+  };
+
+  const completedToggle = (
+    <Button
+      type="button"
+      size="icon-sm"
+      variant="outline"
+      className={cn('shrink-0', showingCompletedTasks && DOCTOR_ACTIVE_FILTER_BUTTON_CLASS)}
+      aria-label={showingCompletedTasks ? 'Показать открытые задачи' : 'Показать выполненные задачи'}
+      title={showingCompletedTasks ? 'Показать открытые задачи' : 'Показать выполненные задачи'}
+      aria-pressed={showingCompletedTasks}
+      onClick={() => selectTaskView(showingCompletedTasks ? 'open' : 'completed')}
+      data-testid="tasks-completed-toggle"
+    >
+      <ListTodo className="size-4" aria-hidden />
+    </Button>
+  );
+
+  const taskSearch = (
+    <DoctorSearchInput
+      value={query}
+      onValueChange={setQuery}
+      onClear={() => setQuery('')}
+      placeholder="Поиск задач"
+      aria-label={`Поиск по задачам и ${patientGenPlural}`}
+    />
+  );
+
+  /**
+   * Мобильная строка чрома: поиск, переключатель выполненных и создание задачи. На десктопе этой
+   * строки нет вовсе — поиск переехал в левый блок списка, а «Новая задача» в шапку страницы
+   * (владелец 15.09: «в задачах на десктопе поиск надо сделать как в сообщениях и клиентах в левом
+   * блоке — верхнюю панель убрать, переключение завершенных справа от поиска, кнопка „Новая задача“ —
+   * в шапку справа»).
+   */
+  const mobileTaskFilters = (
     <div className="flex w-full min-w-0 items-center gap-1.5">
-      <DoctorSearchInput
-        value={query}
-        onValueChange={setQuery}
-        onClear={() => setQuery('')}
-        placeholder="Поиск задач"
-        aria-label={`Поиск по задачам и ${patientGenPlural}`}
-      />
+      {taskSearch}
       <div className="flex shrink-0 items-center gap-1" aria-label="Статус задач">
-        <Button
-          type="button"
-          size="icon-sm"
-          variant="outline"
-          className={cn(showingCompletedTasks && DOCTOR_ACTIVE_FILTER_BUTTON_CLASS)}
-          aria-label={
-            showingCompletedTasks ? 'Показать открытые задачи' : 'Показать выполненные задачи'
-          }
-          title={showingCompletedTasks ? 'Показать открытые задачи' : 'Показать выполненные задачи'}
-          aria-pressed={showingCompletedTasks}
-          onClick={() => selectTaskView(showingCompletedTasks ? 'open' : 'completed')}
-        >
-          <ListTodo className="size-4" aria-hidden />
-        </Button>
+        {completedToggle}
         {canMutate ? (
           <Button
             type="button"
@@ -141,6 +174,14 @@ export function DoctorTasksPageClient({
           </Button>
         ) : null}
       </div>
+    </div>
+  );
+
+  /** Тот же ряд, что у «Клиентов» в левом блоке: поиск и сразу справа от него фильтр состояния. */
+  const desktopListControls = (
+    <div className="flex min-w-0 items-center gap-1.5" data-testid="tasks-list-controls">
+      {taskSearch}
+      {completedToggle}
     </div>
   );
 
@@ -231,6 +272,16 @@ export function DoctorTasksPageClient({
           </div>
         ) : null}
       </div>
+    ) : canMutate ? (
+      // Ничего не выбрано — правый блок держит пустую форму создания, а не подпись «выберите задачу»:
+      // задача заводится прямо здесь, без окна поверх экрана (владелец 15.09, «все как в упражнениях»).
+      <SpecialistTaskFormContent
+        key={`new-${createFormKey}`}
+        patientUserId=""
+        editing={null}
+        onSaved={saveTask}
+        onClose={() => setCreateFormKey((current) => current + 1)}
+      />
     ) : (
       <p className="text-sm text-muted-foreground">Выберите задачу</p>
     );
@@ -238,19 +289,33 @@ export function DoctorTasksPageClient({
   return (
     <>
       <DoctorShellChromeRegistration title="Задачи" />
-      <DoctorPageHeader title="Задачи" toolbar={taskFilters} toolbarClassName="md:hidden" />
+      <DoctorPageHeader
+        title="Задачи"
+        tabs={
+          canMutate ? (
+            <div className="hidden w-full justify-end md:flex">
+              <Button
+                type="button"
+                size="sm"
+                className="shrink-0 gap-1.5"
+                onClick={startNewTask}
+              >
+                <ListPlus className="size-4" aria-hidden />
+                Новая задача
+              </Button>
+            </div>
+          ) : null
+        }
+        toolbar={mobileTaskFilters}
+        toolbarClassName="md:hidden"
+      />
       <DoctorCatalogPageLayout
         mobileEdgeToEdge
-        // Приклеивание к шапке теперь по умолчанию в самом `DoctorCatalogPageLayout` — одно место на все
-        // каталожные страницы, включая задачи.
+        // Верхняя панель фильтров на десктопе убрана (владелец 15.09): поиск и переключатель
+        // выполненных стоят в левом блоке списка, как на «Клиентах» и «Сообщениях». Вместе с панелью
+        // ушло и приклеивание к шапке — `DoctorCatalogPageLayout` приклеивает только страницы с
+        // тулбаром, поэтому «Задачи» получают обычный межблочный зазор под шапкой.
         className={cn('min-h-0 flex-1 gap-0 md:gap-3')}
-        toolbar={
-          <DoctorCatalogFiltersToolbar
-            className="hidden md:block"
-            withinRemainingHeight
-            filters={taskFilters}
-          />
-        }
       >
         <CatalogSplitLayout
           className={cn(DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE, 'min-h-0 flex-1')}
@@ -266,13 +331,29 @@ export function DoctorTasksPageClient({
             <CatalogLeftPane
               mobileEdgeToEdge
               stickySplit={false}
-              headerSlot={<p className="hidden text-sm font-medium md:block">Задачи</p>}
+              // Заголовок «Задачи» из левого блока убран: он повторял заголовок страницы, а место
+              // теперь занимает поиск — ровно как в левом блоке «Клиентов».
+              headerSlot={desktopListControls}
             >
+              {/*
+                Клик по пустому месту левого блока снимает выбор и возвращает в правый блок пустую
+                форму — второй, «ленивый» путь к тому же, что делает кнопка «Новая задача» (владелец
+                15.09). Считается только клик мимо строки: `closest` отсекает нажатия по самим
+                строкам, поиску и переключателю, иначе выбор снимался бы сразу после его установки
+                (клик по строке всплыл бы сюда). Клавиатурного дубля не добавляю: с клавиатуры то же
+                самое делает кнопка в шапке, а пустой контейнер в порядке обхода — мусор.
+              */}
               <div
                 className={cn(
                   DOCTOR_MOBILE_SCROLL_END_INSET_CLASS,
                   'flex min-h-0 flex-1 flex-col overflow-y-auto',
                 )}
+                onClick={(event) => {
+                  if (!hasSplitTaskDetails) return;
+                  if ((event.target as HTMLElement).closest('button, a, input, label')) return;
+                  if (!pane) return;
+                  setPane(null);
+                }}
               >
                 {visibleTaskGroups.map((group) => (
                   <section key={group.kind}>

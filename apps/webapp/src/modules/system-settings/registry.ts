@@ -219,7 +219,6 @@ export const SYSTEM_SETTING_REGISTRY = {
     'structured',
     '{"version":1,"channelDefaults":{"direct_chat":"all","program_comments":"on_support","program_media":"on_support"},"patientSymptomTrackingDefault":"all"}',
   ),
-  doctor_appointment_reminder_enabled: runtime('doctor', 'per_org', 'server', 'boolean', 'false'),
   doctor_appointment_reminder_offsets_minutes: runtime(
     'doctor',
     'per_org',

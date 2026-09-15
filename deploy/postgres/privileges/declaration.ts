@@ -10773,7 +10773,23 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "purpose": "evidence/25+30 narrow seam owned by app_seam_specialist_provision_owner",
     "typedArgs": [],
     "databases": ALL_DECLARED_DATABASES,
-    "relationSurfaces": [],
+    "relationSurfaces": [
+      {
+        "relation": "public.system_settings",
+        "columns": [
+          "key",
+          "scope",
+          "organization_id",
+          "value_json",
+          "updated_at",
+          "updated_by"
+        ],
+        "operations": [
+          "INSERT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      }
+    ],
     "delegatesTo": [
       "app.seed_reference_catalog_snapshot(uuid)"
     ],
@@ -11955,8 +11971,8 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "INSERT"
         ],
         "columns": [
-          "appointment_reminder_allowed_preset_ids",
-          "appointment_reminder_preset_id",
+          "appointment_reminder_available_offsets_minutes",
+          "appointment_reminder_offsets_minutes",
           "appointment_reminder_selection_source",
           "attribution_json",
           "branch_id",
@@ -12000,7 +12016,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "UPDATE"
         ],
         "columns": [
-          "appointment_reminder_preset_id",
+          "appointment_reminder_offsets_minutes",
           "appointment_reminder_selection_source",
           "branch_id",
           "deleted_at",
@@ -13738,8 +13754,6 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "INSERT"
         ],
         "columns": [
-          "appointment_reminder_allowed_preset_ids",
-          "appointment_reminder_default_preset_id",
           "avatar_media_id",
           "card_is_published",
           "created_at",
@@ -13759,8 +13773,6 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "UPDATE"
         ],
         "columns": [
-          "appointment_reminder_allowed_preset_ids",
-          "appointment_reminder_default_preset_id",
           "avatar_media_id",
           "card_is_published",
           "description",
@@ -24809,7 +24821,6 @@ const TENANT_WALL_CROSSINGS: Readonly<Record<string, Readonly<Record<string, str
   'app.read_current_patient_booking_creation_snapshot(uuid,uuid,text,text)': {
     'public.be_branches': 'организация взята из снимка соседнего корня app.read_current_patient_booking_slot_snapshot, который сам сузил её принципалом пациента',
     'public.be_clinic_services': 'та же организация из того же снимка соседнего корня; своего аргумента организации у двери нет',
-    'public.be_specialists': 'та же организация из того же снимка соседнего корня; своего аргумента организации у двери нет',
   },
 
   // Опознание получателя доставки: телефон/ручка канала — это то, чем интегратор называет человека,
@@ -25959,6 +25970,12 @@ const REV10_CONTEXT = {
       sessionRole: 'app_staff', targetRole: 'app_worker', contextClass: 'service',
       purpose: 'health.delivery-queue.aggregate',
       functionIdentity: 'app.read_operator_delivery_queue_health()' },
+    // Одна дверь чтения и записи отметки дедупликации алертов. Прямой доступ `app_staff` /
+    // `app_worker` к системной таблице намеренно отсутствует.
+    webapp_operator_alert_dedup_manage: { port: 'webapp', runtimeName: 'operator_alert_dedup_manage',
+      sessionRole: 'app_staff', targetRole: 'app_worker', contextClass: 'service',
+      purpose: 'health.operator-alert-dedup.manage',
+      functionIdentity: 'app.manage_operator_health_alert_dedup(text,text,integer,text)' },
     // Ежедневная проверка DNS/TLS получает только нормализованные публичные hostname. Прямой
     // cross-tenant SELECT по system_settings рабочей роли не выдаётся.
     webapp_custom_domain_health_list: { port: 'webapp', runtimeName: 'custom_domain_health_list',
@@ -26575,10 +26592,10 @@ const REV10_CONTEXT = {
       runtimeName: 'read_current_patient_booking_appointment', sessionRole: 'app_patient',
       targetRole: 'app_patient', contextClass: 'patient', purpose: 'booking.patient-appointment.read',
       functionIdentity: 'app.read_current_patient_booking_appointment(uuid)' },
-    set_current_patient_booking_reminder_preset: { port: 'webapp',
-      runtimeName: 'set_current_patient_booking_reminder_preset', sessionRole: 'app_patient',
-      targetRole: 'app_patient', contextClass: 'patient', purpose: 'booking.patient-reminder-preset.set',
-      functionIdentity: 'app.set_current_patient_booking_reminder_preset(uuid,text)' },
+    set_current_patient_booking_reminder_offsets: { port: 'webapp',
+      runtimeName: 'set_current_patient_booking_reminder_offsets', sessionRole: 'app_patient',
+      targetRole: 'app_patient', contextClass: 'patient', purpose: 'booking.patient-reminder-offsets.set',
+      functionIdentity: 'app.set_current_patient_booking_reminder_offsets(uuid,text)' },
     current_patient_lfk_sessions: { port: 'webapp',
       runtimeName: 'current_patient_lfk_sessions', sessionRole: 'app_patient',
       targetRole: 'app_patient', contextClass: 'patient', purpose: 'diary.patient-lfk-sessions',
@@ -28348,7 +28365,7 @@ const REV10_CONTEXT = {
           'id', 'organization_id', 'branch_id', 'room_id', 'specialist_id', 'service_id', 'platform_user_id',
           'start_at', 'end_at', 'duration_minutes', 'chain_id', 'chain_position', 'source', 'status', 'delivery_format',
           'original_start_at', 'reschedule_count', 'payment_ref', 'package_usage_ref', 'phone_normalized',
-          'attribution_json', 'appointment_reminder_allowed_preset_ids', 'appointment_reminder_preset_id',
+          'attribution_json', 'appointment_reminder_available_offsets_minutes', 'appointment_reminder_offsets_minutes',
           'appointment_reminder_selection_source', 'created_at', 'updated_at', 'deleted_at',
           'price_minor', 'price_currency', 'prepayment_mode', 'prepayment_percent_bps',
           'prepayment_amount_minor', 'prepayment_required_minor', 'prepayment_paid_minor',
@@ -28535,6 +28552,19 @@ const REV10_CONTEXT = {
         columns: ['status', 'next_retry_at', 'failure_class', 'created_at', 'channel', 'kind',
           'sent_at', 'updated_at'],
         operations: ['SELECT' as const],
+        evidence: 'pg16-function-body-lexical-upper-bound' as const }],
+    }),
+    // Одна дверь для всего lifecycle плоской дедупликации: проверить окно, записать успешную
+    // отправку или прочитать последнюю отметку для сводки. Runtime получает только EXECUTE.
+    'app.manage_operator_health_alert_dedup(text,text,integer,text)': rev10Function({
+      owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'jsonb',
+      returnsSet: false, execute: ['app_worker'],
+      purpose: 'manage only operator-alert deduplication marks through a closed action set',
+      typedArgs: ['text', 'text', 'integer', 'text'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [{ relation: 'public.operator_health_alert_sent',
+        columns: ['dedup_key', 'severity', 'sent_at'],
+        operations: ['SELECT' as const, 'INSERT' as const],
         evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
     // Единственная дверь постановки суточной сводки здоровья. До неё вебапп писал очередь прямым
@@ -29035,10 +29065,6 @@ const REV10_CONTEXT = {
             'prepayment_applicable', 'usable_in_packages', 'online_payment_applicable',
             'public_widget_visible', 'admin_manual_only', 'sort_order', 'is_active'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
-        { relation: 'public.be_specialists',
-          columns: ['id', 'organization_id', 'is_active', 'appointment_reminder_allowed_preset_ids',
-            'appointment_reminder_default_preset_id'], operations: ['SELECT' as const],
-          evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
     'app.read_current_patient_booking_payment_setting(text)': rev10Function({
@@ -29414,7 +29440,7 @@ const REV10_CONTEXT = {
           'id', 'organization_id', 'branch_id', 'room_id', 'specialist_id', 'service_id', 'platform_user_id',
           'start_at', 'end_at', 'duration_minutes', 'chain_id', 'chain_position', 'source', 'status', 'delivery_format',
           'original_start_at', 'reschedule_count', 'payment_ref', 'package_usage_ref', 'phone_normalized',
-          'attribution_json', 'appointment_reminder_allowed_preset_ids', 'appointment_reminder_preset_id',
+          'attribution_json', 'appointment_reminder_available_offsets_minutes', 'appointment_reminder_offsets_minutes',
           'appointment_reminder_selection_source', 'created_at', 'updated_at', 'deleted_at',
           'price_minor', 'price_currency', 'prepayment_mode', 'prepayment_percent_bps',
           'prepayment_amount_minor', 'prepayment_required_minor', 'prepayment_paid_minor',
@@ -29445,7 +29471,7 @@ const REV10_CONTEXT = {
           'id', 'organization_id', 'branch_id', 'room_id', 'specialist_id', 'service_id', 'platform_user_id',
           'start_at', 'end_at', 'duration_minutes', 'chain_id', 'chain_position', 'source', 'status', 'delivery_format',
           'original_start_at', 'reschedule_count', 'payment_ref', 'package_usage_ref', 'phone_normalized',
-          'attribution_json', 'appointment_reminder_allowed_preset_ids', 'appointment_reminder_preset_id',
+          'attribution_json', 'appointment_reminder_available_offsets_minutes', 'appointment_reminder_offsets_minutes',
           'appointment_reminder_selection_source', 'created_at', 'updated_at', 'deleted_at',
           'price_minor', 'price_currency', 'prepayment_mode', 'prepayment_percent_bps',
           'prepayment_amount_minor', 'prepayment_required_minor', 'prepayment_paid_minor',
@@ -29457,16 +29483,16 @@ const REV10_CONTEXT = {
         ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
-    'app.set_current_patient_booking_reminder_preset(uuid,text)': rev10Function({
+    'app.set_current_patient_booking_reminder_offsets(uuid,text)': rev10Function({
       owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false, execute: ['app_patient'],
-      purpose: 'update only the current patient own active appointment reminder preset to an allowed value',
+      purpose: 'update only the current patient own active appointment reminder offsets to an allowed subset',
       typedArgs: ['uuid', 'text'], volatility: 'VOLATILE', parallel: 'RESTRICTED',
       proconfig: ['search_path=pg_catalog'], relationSurfaces: [
         { relation: 'public.org_enrollments', columns: ['organization_id', 'platform_user_id', 'status'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.be_appointments', columns: [
           'id', 'organization_id', 'platform_user_id', 'status', 'deleted_at',
-          'appointment_reminder_allowed_preset_ids', 'appointment_reminder_preset_id',
+          'appointment_reminder_available_offsets_minutes', 'appointment_reminder_offsets_minutes',
           'appointment_reminder_selection_source', 'updated_at',
         ], operations: ['SELECT' as const, 'UPDATE' as const],
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
@@ -29646,7 +29672,7 @@ const REV10_CONTEXT = {
           'id', 'organization_id', 'branch_id', 'room_id', 'specialist_id', 'service_id', 'platform_user_id',
           'start_at', 'end_at', 'duration_minutes', 'chain_id', 'chain_position', 'source', 'status', 'delivery_format',
           'original_start_at', 'reschedule_count', 'payment_ref', 'package_usage_ref', 'phone_normalized',
-          'attribution_json', 'appointment_reminder_allowed_preset_ids', 'appointment_reminder_preset_id',
+          'attribution_json', 'appointment_reminder_available_offsets_minutes', 'appointment_reminder_offsets_minutes',
           'appointment_reminder_selection_source', 'created_at', 'updated_at', 'deleted_at',
           'price_minor', 'price_currency', 'prepayment_mode', 'prepayment_percent_bps',
           'prepayment_amount_minor', 'prepayment_required_minor', 'prepayment_paid_minor',
@@ -29660,7 +29686,7 @@ const REV10_CONTEXT = {
           'id', 'organization_id', 'branch_id', 'room_id', 'specialist_id', 'service_id', 'platform_user_id',
           'start_at', 'end_at', 'duration_minutes', 'chain_id', 'chain_position', 'source', 'status',
           'original_start_at', 'reschedule_count', 'payment_ref', 'package_usage_ref', 'phone_normalized',
-          'attribution_json', 'appointment_reminder_allowed_preset_ids', 'appointment_reminder_preset_id',
+          'attribution_json', 'appointment_reminder_available_offsets_minutes', 'appointment_reminder_offsets_minutes',
           'appointment_reminder_selection_source', 'created_at', 'updated_at', 'deleted_at',
         ] },
         evidence: 'pg16-function-body-lexical-upper-bound' as const },
@@ -29692,7 +29718,7 @@ const REV10_CONTEXT = {
           'id', 'organization_id', 'branch_id', 'room_id', 'specialist_id', 'service_id', 'platform_user_id',
           'start_at', 'end_at', 'duration_minutes', 'chain_id', 'chain_position', 'source', 'status', 'delivery_format',
           'original_start_at', 'reschedule_count', 'payment_ref', 'package_usage_ref', 'phone_normalized',
-          'attribution_json', 'appointment_reminder_allowed_preset_ids', 'appointment_reminder_preset_id',
+          'attribution_json', 'appointment_reminder_available_offsets_minutes', 'appointment_reminder_offsets_minutes',
           'appointment_reminder_selection_source', 'created_at', 'updated_at', 'deleted_at',
           'price_minor', 'price_currency', 'prepayment_mode', 'prepayment_percent_bps',
           'prepayment_amount_minor', 'prepayment_required_minor', 'prepayment_paid_minor',
@@ -29706,7 +29732,7 @@ const REV10_CONTEXT = {
           'id', 'organization_id', 'branch_id', 'room_id', 'specialist_id', 'service_id', 'platform_user_id',
           'start_at', 'end_at', 'duration_minutes', 'chain_id', 'chain_position', 'source', 'status',
           'original_start_at', 'reschedule_count', 'payment_ref', 'package_usage_ref', 'phone_normalized',
-          'attribution_json', 'appointment_reminder_allowed_preset_ids', 'appointment_reminder_preset_id',
+          'attribution_json', 'appointment_reminder_available_offsets_minutes', 'appointment_reminder_offsets_minutes',
           'appointment_reminder_selection_source', 'created_at', 'updated_at', 'deleted_at',
         ] },
         evidence: 'pg16-function-body-lexical-upper-bound' as const },

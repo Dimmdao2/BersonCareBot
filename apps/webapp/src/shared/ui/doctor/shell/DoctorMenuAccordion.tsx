@@ -7,6 +7,7 @@ import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Button, buttonVariants } from '@/shared/ui/doctor/primitives/button';
 import { cn } from '@/lib/utils';
+import { useDoctorShellDesktopRail } from '@/shared/ui/doctor/shell/DoctorShellChromeContext';
 import { useDoctorShellBadgeCounts } from '@/shared/hooks/useSupportUnreadPolling';
 import {
   getDoctorMenuItems,
@@ -183,6 +184,7 @@ function SidebarGroupFlyout({
   onNavigate?: () => void;
   tabletExpanded: boolean;
 }) {
+  const desktopRail = useDoctorShellDesktopRail();
   const [open, setOpen] = useState(false);
   const [flyoutPos, setFlyoutPos] = useState<{ top: number; left: number } | null>(null);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -244,7 +246,7 @@ function SidebarGroupFlyout({
           }
         }}
         className={doctorSidebarRowClassName(
-          tabletExpanded,
+          { tabletExpanded, desktopRail },
           anySubActive && 'font-medium text-primary hover:bg-muted focus-visible:bg-muted',
         )}
       >
@@ -473,6 +475,7 @@ export function DoctorMenuAccordion({
   tabletExpanded = false,
   showWorkspaceModeSwitch = false,
 }: DoctorMenuAccordionProps) {
+  const desktopRail = useDoctorShellDesktopRail();
   const terms = useDoctorPatientTerms();
   const items = useMemo(() => {
     const menuItems =
@@ -571,7 +574,7 @@ export function DoctorMenuAccordion({
               onClick={onNavigate}
               aria-label={aria}
               className={doctorSidebarRowClassName(
-                tabletExpanded,
+                { tabletExpanded, desktopRail },
                 isDoctorNavItemActive(item.href, pathname) &&
                   'bg-primary/15 font-medium text-primary hover:bg-primary/15 focus-visible:bg-primary/15',
               )}

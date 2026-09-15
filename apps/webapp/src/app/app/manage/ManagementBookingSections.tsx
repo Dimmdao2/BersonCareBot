@@ -28,6 +28,7 @@ export function ManagementBookingSections({
   notificationTemplatesVisible = true,
   specialistsVisible = true,
   doctorStatisticsEnabled = false,
+  flat = false,
 }: {
   defaultSection?: string;
   basePath?: string;
@@ -36,11 +37,13 @@ export function ManagementBookingSections({
   notificationTemplatesVisible?: boolean;
   specialistsVisible?: boolean;
   doctorStatisticsEnabled?: boolean;
+  /** Все секции подряд, без под-навигации; `?section=` в этом режиме не участвует. */
+  flat?: boolean;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const section = searchParams.get('section') ?? defaultSection;
-  if (!MANAGEMENT_BOOKING_SECTIONS.has(section)) return null;
+  if (!flat && !MANAGEMENT_BOOKING_SECTIONS.has(section)) return null;
 
   return (
     <ScheduleSetupTab
@@ -53,6 +56,7 @@ export function ManagementBookingSections({
         router.replace(`${basePath}${next.size ? `?${next.toString()}` : ''}`);
       }}
       isActive
+      setupFlat={flat}
       packagesVisible={packagesVisible}
       packagesReadOnly={packagesReadOnly}
       notificationTemplatesVisible={notificationTemplatesVisible}

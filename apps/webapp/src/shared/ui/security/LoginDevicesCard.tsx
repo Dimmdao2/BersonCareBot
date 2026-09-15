@@ -12,11 +12,15 @@
  * Клиентский компонент ради одного: время показывается в часовом поясе ЧИТАЮЩЕГО. На сервере то же
  * `toLocaleString` отрисовало бы поясом сервера, и человек в другом городе увидел бы чужое время.
  */
+import { useState } from 'react';
 import {
   DoctorSection,
+  DoctorSectionActions,
   DoctorSectionHeader,
   DoctorSectionTitle,
 } from '@/shared/ui/doctor/DoctorSection';
+import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
+import { Button } from '@/shared/ui/doctor/primitives/button';
 import { countriesSummary, deviceSummary, loginMethodLabel } from './loginHistoryText';
 // ⛔ ТОЛЬКО типы. Значение, импортированное отсюда, потянуло бы в клиентский набор весь путь до
 // драйвера базы (`ownLoginDevices` → `userLoginEventsRead` → `runWebappSql`), и сборка падает на
@@ -123,6 +127,25 @@ function loginCountText(count: number): string {
   return `${count} входов`;
 }
 
+function devicesCountText(count: number): string {
+  const tail = count % 100;
+  const last = count % 10;
+  if (tail >= 11 && tail <= 14) return `${count} устройств`;
+  if (last === 1) return `${count} устройство`;
+  if (last >= 2 && last <= 4) return `${count} устройства`;
+  return `${count} устройств`;
+}
+
+/**
+ * Сама карточка на экране — одна строка и кнопка; список открывается правой панелью (на мобильном —
+ * нижним листом). Владелец 15.09: «убери список устройств с которых входили в кнопку — открывать в
+ * правой панели или модалке».
+ *
+ * Причина не в одной длине: список устройств — это то, куда заходят по поводу («не я ли это входил»),
+ * а не то, что читают каждый раз, открывая настройки. Он занимал больше места, чем пароль и второй
+ * фактор вместе, и отодвигал их вниз. В свёрнутом виде на экране остаётся то, ради чего сюда и
+ * смотрят мельком, — сколько устройств и когда был последний вход.
+ */
 export function LoginDevicesCard({
   devices,
   loadFailed,
@@ -130,6 +153,13 @@ export function LoginDevicesCard({
   devices: OwnLoginDevice[];
   loadFailed: boolean;
 }) {
+  const [open, setOpen] = useState(false);
+  const lastSeenAt = devices.reduce<string | null>(
+    (latest, device) =>
+      latest === null || new Date(device.lastSeenAt) > new Date(latest) ? device.lastSeenAt : latest,
+    null,
+  );
+
   return (
     <DoctorSection>
       <DoctorSectionHeader>
@@ -142,6 +172,45 @@ export function LoginDevicesCard({
           работают.
         </p>
       ) : devices.length === 0 ? (
+        <p className="text-sm">Входов пока не записано.</p>
+      ) : (
+        <>
+          <p className="text-sm text-muted-foreground">
+            {devicesCountText(devices.length)}
+            {lastSeenAt ? `, последний вход ${whenText(lastSeenAt)}` : ''}
+          </p>
+          <DoctorSectionActions>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setOpen(true)}
+              data-testid="login-devices-open"
+            >
+              Показать устройства
+            </Button>
+          </DoctorSectionActions>
+        </>
+      )}
+
+      <DoctorModal
+        open={open}
+        onClose={() => setOpen(false)}
+        title="Устройства, с которых входили"
+        desktopPresentation="right-sheet"
+        size="lg"
+      >
+        <LoginDevicesList devices={devices} />
+      </DoctorModal>
+    </DoctorSection>
+  );
+}
+
+/** Содержимое панели: сам список и пояснения к нему — то, что раньше стояло прямо на странице. */
+function LoginDevicesList({ devices }: { devices: OwnLoginDevice[] }) {
+  return (
+    <div className="flex flex-col" data-testid="login-devices-list">
+      {devices.length === 0 ? (
         <p className="text-sm">Входов пока не записано.</p>
       ) : (
         <ul className="flex flex-col divide-y divide-border text-sm">
@@ -196,6 +265,6 @@ export function LoginDevicesCard({
         удаляются. Страна определяется по адресу на нашем сервере, по справочнику DB-IP (db-ip.com);
         сам адрес никуда не передаётся.
       </p>
-    </DoctorSection>
+    </div>
   );
 }

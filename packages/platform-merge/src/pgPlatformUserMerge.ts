@@ -43,7 +43,8 @@ export type MergePlatformUsersContext = {
  *    в другой клинике, и снять его может только её врач (канон §18б: врач решает за свою клинику);
  *  - `conflict_not_found` — у вызывающей клиники нет такого незакрытого медицинского конфликта.
  */
-export type MergePlatformUsersOutcome = 'merged' | 'awaiting_other_organization' | 'conflict_not_found';
+export type MergePlatformUsersOutcome =
+  'merged' | 'awaiting_other_organization' | 'conflict_not_found';
 
 export type MergePlatformUsersOptions = {
   resolution?: ManualMergeResolution;
@@ -58,71 +59,118 @@ export type MergePlatformUsersOptions = {
   };
 };
 
-/**
- * Owner rule D26 §5.2: automatic merge is only safe for an account with no
- * clinical history.  Manual support merge is intentionally excluded: support
- * is the only actor allowed to move a real history.
- */
-type MedicalHistoryRecord = {
-  automaticProbe?: (accountId: string) => SQL;
+/** Canon §18: only medical history on both accounts in the same organization blocks auto-merge. */
+type MergeTransferRecord = {
+  prepareTransfer?: (
+    client: PlatformMergeDbClient,
+    targetId: string,
+    duplicateId: string,
+  ) => Promise<void>;
   transfer: (targetId: string, duplicateId: string) => SQL[];
 };
 
+type BlockingMedicalHistoryRecord = MergeTransferRecord & {
+  automaticProbe: (accountIds: readonly string[]) => SQL;
+};
+
+type NonBlockingMergeRecord = MergeTransferRecord & {
+  automaticProbe?: never;
+};
+
 /**
- * D26 §5.2 / §5.8: one definition of patient medical history. Automatic merges
- * probe every applicable row for both accounts; manual support merges transfer
- * the same rows (plus the clinic link that makes the history reachable).
+ * Every record in this list is medical by construction: omitting its probe is a type error.
+ * Non-blocking history lives in the separately typed transfer-only list below.
  */
-const MEDICAL_HISTORY_RECORDS: readonly MedicalHistoryRecord[] = [
+const MEDICAL_HISTORY_RECORDS = [
   {
-    automaticProbe: (id) =>
-      sql`SELECT organization_id FROM clinical_visit WHERE patient_user_id = ${id}::uuid`,
+    automaticProbe: (ids) =>
+      sql`SELECT organization_id FROM clinical_visit WHERE patient_user_id = ANY(${sql.param(ids)}::uuid[])`,
     transfer: (targetId, duplicateId) => [
       sql`UPDATE clinical_visit SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
     ],
   },
   {
-    automaticProbe: (id) =>
-      sql`SELECT organization_id FROM clinical_complaint WHERE patient_user_id = ${id}::uuid`,
+    automaticProbe: (ids) =>
+      sql`SELECT organization_id FROM clinical_complaint WHERE patient_user_id = ANY(${sql.param(ids)}::uuid[])`,
     transfer: (targetId, duplicateId) => [
       sql`UPDATE clinical_complaint SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
     ],
   },
   {
-    automaticProbe: (id) =>
-      sql`SELECT organization_id FROM clinical_diagnosis WHERE patient_user_id = ${id}::uuid`,
+    automaticProbe: (ids) =>
+      sql`SELECT organization_id FROM clinical_diagnosis WHERE patient_user_id = ANY(${sql.param(ids)}::uuid[])`,
     transfer: (targetId, duplicateId) => [
       sql`UPDATE clinical_diagnosis SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
     ],
   },
   {
-    automaticProbe: (id) =>
-      sql`SELECT organization_id FROM clinical_anamnesis_trauma WHERE patient_user_id = ${id}::uuid`,
+    automaticProbe: (ids) =>
+      sql`SELECT organization_id FROM clinical_anamnesis_trauma WHERE patient_user_id = ANY(${sql.param(ids)}::uuid[])`,
     transfer: (targetId, duplicateId) => [
       sql`UPDATE clinical_anamnesis_trauma SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
     ],
   },
   {
-    automaticProbe: (id) =>
-      sql`SELECT organization_id FROM clinical_anamnesis_illness WHERE patient_user_id = ${id}::uuid`,
+    automaticProbe: (ids) =>
+      sql`SELECT organization_id FROM clinical_anamnesis_illness WHERE patient_user_id = ANY(${sql.param(ids)}::uuid[])`,
     transfer: (targetId, duplicateId) => [
       sql`UPDATE clinical_anamnesis_illness SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
     ],
   },
   {
-    automaticProbe: (id) =>
-      sql`SELECT organization_id FROM clinical_anamnesis_lifestyle WHERE patient_user_id = ${id}::uuid`,
+    automaticProbe: (ids) =>
+      sql`SELECT organization_id FROM clinical_anamnesis_lifestyle WHERE patient_user_id = ANY(${sql.param(ids)}::uuid[])`,
     transfer: (targetId, duplicateId) => [
       sql`UPDATE clinical_anamnesis_lifestyle SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
     ],
   },
   {
-    automaticProbe: (id) =>
-      sql`SELECT organization_id FROM doctor_notes WHERE user_id = ${id}::uuid`,
+    automaticProbe: (ids) =>
+      sql`SELECT organization_id FROM doctor_notes WHERE user_id = ANY(${sql.param(ids)}::uuid[])`,
+    prepareTransfer: async (client, targetId, duplicateId) => {
+      await consolidateDailyDoctorNotesForMerge(client, targetId, duplicateId);
+    },
     transfer: (targetId, duplicateId) => [
       sql`UPDATE doctor_notes SET user_id = ${targetId}::uuid WHERE user_id = ${duplicateId}::uuid`,
     ],
   },
+  {
+    automaticProbe: (ids) =>
+      sql`SELECT organization_id FROM symptom_trackings
+          WHERE (platform_user_id = ANY(${sql.param(ids)}::uuid[]) OR user_id = ANY(${sql.param(ids)}::text[]))
+            AND deleted_at IS NULL
+            AND (symptom_key IS NULL OR symptom_key NOT IN ('general_wellbeing', 'warmup_feeling'))`,
+    prepareTransfer: async (client, targetId, duplicateId) => {
+      for (const symptomKey of SINGLETON_SYMPTOM_KEYS) {
+        await dedupeSingletonSymptomTrackingsForMerge(client, targetId, duplicateId, symptomKey);
+      }
+    },
+    transfer: (targetId, duplicateId) => [
+      sql`UPDATE symptom_trackings SET user_id = ${targetId}::text, platform_user_id = ${targetId}::uuid
+          WHERE user_id = ${duplicateId}::text OR platform_user_id = ${duplicateId}::uuid`,
+      sql`UPDATE symptom_entries SET user_id = ${targetId}::text, platform_user_id = ${targetId}::uuid
+          WHERE user_id = ${duplicateId}::text OR platform_user_id = ${duplicateId}::uuid`,
+    ],
+  },
+  {
+    automaticProbe: (ids) =>
+      sql`SELECT organization_id FROM patient_lfk_assignments WHERE patient_user_id = ANY(${sql.param(ids)}::uuid[])`,
+    transfer: (targetId, duplicateId) => [
+      sql`UPDATE patient_lfk_assignments SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
+    ],
+  },
+  {
+    automaticProbe: (ids) =>
+      sql`SELECT organization_id FROM treatment_program_instances
+          WHERE patient_user_id = ANY(${sql.param(ids)}::uuid[]) AND assignment_source = 'doctor'`,
+    transfer: (targetId, duplicateId) => [
+      sql`UPDATE treatment_program_instances SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
+    ],
+  },
+] satisfies readonly BlockingMedicalHistoryRecord[];
+
+const NON_BLOCKING_MERGE_RECORDS = [
+  // Appointment history never blocks (canon §18), but both appointment stores are transferred.
   {
     transfer: (targetId, duplicateId) => [
       sql`UPDATE patient_bookings SET platform_user_id = ${targetId}::uuid WHERE platform_user_id = ${duplicateId}::uuid`,
@@ -131,14 +179,6 @@ const MEDICAL_HISTORY_RECORDS: readonly MedicalHistoryRecord[] = [
   {
     transfer: (targetId, duplicateId) => [
       sql`UPDATE be_appointments SET platform_user_id = ${targetId}::uuid WHERE platform_user_id = ${duplicateId}::uuid`,
-    ],
-  },
-  {
-    automaticProbe: (id) =>
-      sql`SELECT organization_id FROM treatment_program_instances
-          WHERE patient_user_id = ${id}::uuid AND assignment_source = 'doctor'`,
-    transfer: (targetId, duplicateId) => [
-      sql`UPDATE treatment_program_instances SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
     ],
   },
   {
@@ -179,6 +219,11 @@ const MEDICAL_HISTORY_RECORDS: readonly MedicalHistoryRecord[] = [
       sql`UPDATE patient_specialist_links SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
     ],
   },
+] satisfies readonly NonBlockingMergeRecord[];
+
+const MERGE_TRANSFER_RECORDS: readonly MergeTransferRecord[] = [
+  ...MEDICAL_HISTORY_RECORDS,
+  ...NON_BLOCKING_MERGE_RECORDS,
 ];
 
 async function assertAutomaticMergeHasNoMedicalHistory(
@@ -187,25 +232,37 @@ async function assertAutomaticMergeHasNoMedicalHistory(
   duplicateId: string,
   approvedOrganizationId?: string,
 ): Promise<void> {
-  // AUTH_AND_IDENTITY_CANON §18: блок только при РЕАЛЬНОМ КОНФЛИКТЕ — когда квалифицирующие
-  // медицинские данные (медкарта, заметки, назначения — записи ниже с automaticProbe) есть У ОБЕИХ
-  // сторон пары В ОДНОЙ организации. История записей/приёмов блокером не является.
-  // Если данные есть только у одной стороны (не важно, у target или у duplicate) — блокировать нечего:
-  // «зачем блокировать мерж, если только один аккаунт с данными и оба контакта подтверждены» — это
-  // штатный сценарий (вернувшийся пациент добавляет новый канал), и transferMedicalHistoryForMerge ниже
-  // спокойно переносит историю duplicate→target, как при любом merge. Переписка (чат/обсуждения) в
-  // список не входит вообще — у её записей automaticProbe нет, гейт её не касается. Разрешение врача
-  // снимает только конфликт его организации; конфликт другой организации продолжает блокировать merge.
+  // Канон §18: блокирует ТОЛЬКО конфликт медицинских данных ВНУТРИ ОДНОЙ организации — когда
+  // квалифицирующие записи (медкарточка, заметки, назначенные упражнения/программы и отслеживание
+  // симптомов) есть у ОБЕИХ сторон пары и относятся к ОДНОЙ И ТОЙ ЖЕ клинике. Данные в
+  // РАЗНЫХ организациях слиянию не мешают вовсе: у одного человека спокойно живут две клиники со
+  // своими назначениями, это нормальное состояние, а не конфликт. Данные только на одной стороне не
+  // блокировали и раньше — вернувшийся пациент добавляет новый канал. Записи на приём, переписка,
+  // самочувствие и разминки лежат только в transfer-only категории: гейт их не касается, перенос
+  // остаётся безусловным.
+  //
+  // NULL совпадает с ЛЮБОЙ организацией, а не только с NULL: у части клинических таблиц
+  // `organization_id` допускает NULL (строки одноарендной эпохи). Такая строка фактически
+  // ПРИНАДЛЕЖИТ какой-то клинике — мы просто не знаем какой, потому что колонку завели позже.
+  // Гейт безопасности не имеет права расширяться от того, что данных о клинике не хватает, значит
+  // неатрибутированная история считается возможным конфликтом и с NULL-историей другой стороны
+  // (обычное `=` тут молча пропустило бы слияние двух неатрибутированных историй), и с любой
+  // атрибутированной. Разъехаться сторонам позволяет только случай, когда обе организации известны
+  // и РАЗНЫЕ: две клиники у одного человека — нормальное состояние, а не конфликт.
+  // Возвращается ВЕСЬ список конфликтующих организаций, а не первая: по нему
+  // `pgPatientMergeCandidate` заводит по строке конфликта на каждую клинику, иначе врач второй
+  // клиники своего блокера никогда не увидит. Одобрение врача (`approvedOrganizationId`) снимает
+  // конфликт ТОЛЬКО его организации — конфликт соседней продолжает блокировать слияние (§18б).
   const probesFor = (id: string) =>
-    MEDICAL_HISTORY_RECORDS.flatMap((record) => (record.automaticProbe ? [record.automaticProbe(id)] : []));
-  const result = await runMergeSql<{
-    conflict_organization_id: string | null;
-  }>(
+    MEDICAL_HISTORY_RECORDS.map((record) => record.automaticProbe([id]));
+  const result = await runMergeSql<{ conflict_organization_id: string | null }>(
     client,
     sql`SELECT DISTINCT target.organization_id AS conflict_organization_id
           FROM (${sql.join(probesFor(targetId), sql` UNION ALL `)}) AS target(organization_id)
           JOIN (${sql.join(probesFor(duplicateId), sql` UNION ALL `)}) AS duplicate(organization_id)
-            ON duplicate.organization_id IS NOT DISTINCT FROM target.organization_id
+            ON (duplicate.organization_id IS NULL
+                OR target.organization_id IS NULL
+                OR duplicate.organization_id = target.organization_id)
          WHERE ${approvedOrganizationId ?? null}::uuid IS NULL
             OR target.organization_id IS DISTINCT FROM ${approvedOrganizationId ?? null}::uuid
          ORDER BY conflict_organization_id NULLS FIRST`,
@@ -213,7 +270,7 @@ async function assertAutomaticMergeHasNoMedicalHistory(
   if (result.rows.length > 0) {
     const organizationIds = result.rows.map((row) => row.conflict_organization_id ?? null);
     throw new MergeDependentConflictError(
-      'medical_history: automatic merge requires support; doctor review owns the organization conflict',
+      'medical_history: automatic merge requires support (conflict inside one organization)',
       [targetId, duplicateId],
       organizationIds[0] ?? null,
       { kind: 'medical_history', organizationIds },
@@ -221,12 +278,13 @@ async function assertAutomaticMergeHasNoMedicalHistory(
   }
 }
 
-async function transferMedicalHistoryForMerge(
+async function transferMergeRecords(
   client: PlatformMergeDbClient,
   targetId: string,
   duplicateId: string,
 ): Promise<void> {
-  for (const record of MEDICAL_HISTORY_RECORDS) {
+  for (const record of MERGE_TRANSFER_RECORDS) {
+    await record.prepareTransfer?.(client, targetId, duplicateId);
     for (const transfer of record.transfer(targetId, duplicateId)) {
       await runMergeSql(client, transfer);
     }
@@ -272,6 +330,69 @@ export type PickMergeTargetCandidate = {
 };
 
 const SINGLETON_SYMPTOM_KEYS = ['general_wellbeing', 'warmup_feeling'] as const;
+
+/**
+ * The daily-note invariant is per patient. A manual merge can therefore make two previously valid
+ * rows collide. Preserve both texts using the same chronological consolidation as the migration
+ * that introduced `uq_doctor_notes_daily_author`, then let the shared transfer repoint the keeper.
+ */
+async function consolidateDailyDoctorNotesForMerge(
+  client: PlatformMergeDbClient,
+  targetId: string,
+  duplicateId: string,
+): Promise<void> {
+  await runMergeSql(
+    client,
+    sql`WITH grouped AS (
+       SELECT organization_id,
+              author_id,
+              note_date,
+              MIN(created_at) AS earliest_created_at,
+              MAX(updated_at) AS latest_updated_at,
+              MAX(revision) + 1 AS merged_revision,
+              string_agg(text, E'\n\n' ORDER BY created_at, id) AS merged_text
+       FROM doctor_notes
+       WHERE user_id IN (${targetId}::uuid, ${duplicateId}::uuid)
+       GROUP BY organization_id, author_id, note_date
+       HAVING COUNT(*) > 1
+     ),
+     keepers AS (
+       SELECT DISTINCT ON (note.organization_id, note.author_id, note.note_date)
+              note.id,
+              note.organization_id,
+              note.author_id,
+              note.note_date,
+              grouped.earliest_created_at,
+              grouped.latest_updated_at,
+              grouped.merged_revision,
+              grouped.merged_text
+       FROM doctor_notes note
+       INNER JOIN grouped
+         ON note.organization_id IS NOT DISTINCT FROM grouped.organization_id
+        AND note.author_id = grouped.author_id
+        AND note.note_date = grouped.note_date
+       WHERE note.user_id IN (${targetId}::uuid, ${duplicateId}::uuid)
+       ORDER BY note.organization_id, note.author_id, note.note_date, note.created_at, note.id
+     ),
+     updated AS (
+       UPDATE doctor_notes target
+       SET text = keepers.merged_text,
+           revision = keepers.merged_revision,
+           created_at = keepers.earliest_created_at,
+           updated_at = keepers.latest_updated_at
+       FROM keepers
+       WHERE target.id = keepers.id
+       RETURNING target.id
+     )
+     DELETE FROM doctor_notes duplicate
+     USING keepers
+     WHERE duplicate.organization_id IS NOT DISTINCT FROM keepers.organization_id
+       AND duplicate.author_id = keepers.author_id
+       AND duplicate.note_date = keepers.note_date
+       AND duplicate.user_id IN (${targetId}::uuid, ${duplicateId}::uuid)
+       AND duplicate.id <> keepers.id`,
+  );
+}
 
 /**
  * Before bulk reassignment of `symptom_trackings.platform_user_id`, collapse duplicate singleton
@@ -422,6 +543,8 @@ export async function mergePlatformUsersInTransaction(
   }
 
   if (options?.medicalConflictApproval) {
+    // Дверь врача (§18б). Перенос зависимых строк делает SECURITY DEFINER-функция: роль врача сама
+    // их двигать не вправе, и она же сверяет, что конфликт принадлежит организации вызывающего.
     const approval = options.medicalConflictApproval;
     const transferred = await runMergeSql<{ transferred: string }>(
       client,
@@ -441,7 +564,9 @@ export async function mergePlatformUsersInTransaction(
         duplicateId,
         mergeContactsSaved: [],
         mergeOutcome:
-          outcome === 'awaiting_other_organization' ? 'awaiting_other_organization' : 'conflict_not_found',
+          outcome === 'awaiting_other_organization'
+            ? 'awaiting_other_organization'
+            : 'conflict_not_found',
       };
     }
   } else if (reason !== 'manual') {
@@ -463,14 +588,16 @@ export async function mergePlatformUsersInTransaction(
       duplicateId,
     ]);
   }
-  await assertSharedPhoneGuard(client, targetId, duplicateId, pA, pB);
-  if (!options?.medicalConflictApproval) {
-    await assertAutoMergePasswordCredentialsSafe(client, targetId, duplicateId, reason);
+  if (reason !== 'manual') {
+    await assertSharedPhoneGuard(client, targetId, duplicateId, pA, pB);
+    if (!options?.medicalConflictApproval) {
+      await assertAutoMergePasswordCredentialsSafe(client, targetId, duplicateId, reason);
+    }
+    await assertOpenTestAttemptsSafe(client, targetId, duplicateId);
   }
-  await assertPatientBookingsSafeToMerge(client, targetId, duplicateId);
-  await assertPatientLfkAssignmentsSafe(client, targetId, duplicateId);
-  await reconcileActiveTreatmentProgramInstancesForMerge(client, targetId, duplicateId);
-  await assertOpenTestAttemptsSafe(client, targetId, duplicateId);
+  await reconcileOpenTestAttemptsForMerge(client, targetId, duplicateId);
+  await reconcilePatientLfkAssignmentsForMerge(client, targetId, duplicateId, reason);
+  await reconcileActiveTreatmentProgramInstancesForMerge(client, targetId, duplicateId, reason);
 
   if (manualResolution) {
     await mergeChannelBindingsManual(client, targetId, duplicateId, manualResolution);
@@ -512,7 +639,12 @@ export async function mergePlatformUsersInTransaction(
     sql`DELETE FROM user_notification_topic_channels WHERE user_id = ${duplicateId}::uuid`,
   );
 
-  if (!options?.medicalConflictApproval) {
+  if (options?.medicalConflictApproval) {
+    // За дверью врача зависимые строки уже перенесла SECURITY DEFINER-функция БД, и повторять
+    // перенос здесь нельзя: роль врача таких прав не имеет, а вторая попытка ничего не находит.
+    // Контакты функция не трогает — их переводит на цель этот вызов.
+    await repointPlatformUserContactsForMerge(client, targetId, duplicateId);
+  } else {
     await runMergeSql(
       client,
       sql`UPDATE reminder_rules SET platform_user_id = ${targetId}::uuid WHERE platform_user_id = ${duplicateId}::uuid`,
@@ -521,7 +653,18 @@ export async function mergePlatformUsersInTransaction(
       client,
       sql`UPDATE content_access_grants_webapp SET platform_user_id = ${targetId}::uuid WHERE platform_user_id = ${duplicateId}::uuid`,
     );
-    await transferMedicalHistoryForMerge(client, targetId, duplicateId);
+    await transferMergeRecords(client, targetId, duplicateId);
+    const selectedPhoneForHistory = manualResolution
+      ? manualResolution.fields.phone_normalized === 'target'
+        ? pA
+        : pB
+      : (pA ?? pB);
+    await reconcileActivePhoneHistoryForMerge(
+      client,
+      targetId,
+      duplicateId,
+      selectedPhoneForHistory,
+    );
     await runMergeSql(
       client,
       sql`UPDATE user_phone_history SET platform_user_id = ${targetId}::uuid WHERE platform_user_id = ${duplicateId}::uuid`,
@@ -530,13 +673,7 @@ export async function mergePlatformUsersInTransaction(
       client,
       sql`UPDATE online_intake_requests SET user_id = ${targetId}::uuid WHERE user_id = ${duplicateId}::uuid`,
     );
-    await runMergeSql(
-      client,
-      sql`UPDATE patient_lfk_assignments SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
-    );
-  }
 
-  if (!options?.medicalConflictApproval) {
     if (manualResolution) {
       await mergeOauthBindingsManual(client, targetId, duplicateId, manualResolution);
     } else {
@@ -580,36 +717,20 @@ export async function mergePlatformUsersInTransaction(
        ON CONFLICT (user_id, email_normalized) DO UPDATE SET
          last_sent_at = GREATEST(email_send_cooldowns.last_sent_at, EXCLUDED.last_sent_at)`,
     );
-    await runMergeSql(client, sql`DELETE FROM email_send_cooldowns WHERE user_id = ${duplicateId}::uuid`);
+    await runMergeSql(
+      client,
+      sql`DELETE FROM email_send_cooldowns WHERE user_id = ${duplicateId}::uuid`,
+    );
 
     await runMergeSql(client, sql`DELETE FROM login_tokens WHERE user_id = ${duplicateId}::uuid`);
-  }
 
-  if (!options?.medicalConflictApproval) {
     await mergeUserChannelPreferences(
       client,
       targetId,
       duplicateId,
       manualResolution?.channelPreferences ?? 'keep_newer',
     );
-  }
 
-  if (!options?.medicalConflictApproval) {
-    for (const sk of SINGLETON_SYMPTOM_KEYS) {
-      await dedupeSingletonSymptomTrackingsForMerge(client, targetId, duplicateId, sk);
-    }
-
-    // PG cannot infer one type for the same $n used as both ::text and ::uuid — use distinct placeholders.
-    await runMergeSql(
-      client,
-      sql`UPDATE symptom_trackings SET user_id = ${targetId}::text, platform_user_id = ${targetId}::uuid
-       WHERE user_id = ${duplicateId}::text OR platform_user_id = ${duplicateId}::uuid`,
-    );
-    await runMergeSql(
-      client,
-      sql`UPDATE symptom_entries SET user_id = ${targetId}::text, platform_user_id = ${targetId}::uuid
-       WHERE user_id = ${duplicateId}::text OR platform_user_id = ${duplicateId}::uuid`,
-    );
     await runMergeSql(
       client,
       sql`UPDATE lfk_complexes SET user_id = ${targetId}::text, platform_user_id = ${targetId}::uuid
@@ -625,6 +746,7 @@ export async function mergePlatformUsersInTransaction(
       sql`UPDATE message_log SET user_id = ${targetId}::text, platform_user_id = ${targetId}::uuid
        WHERE user_id = ${duplicateId}::text OR platform_user_id = ${duplicateId}::uuid`,
     );
+
     await runMergeSql(
       client,
       sql`UPDATE media_files SET uploaded_by = ${targetId}::uuid WHERE uploaded_by = ${duplicateId}::uuid`,
@@ -633,9 +755,8 @@ export async function mergePlatformUsersInTransaction(
       client,
       sql`UPDATE media_upload_sessions SET owner_user_id = ${targetId}::uuid WHERE owner_user_id = ${duplicateId}::uuid`,
     );
+
     await mergeExtendedUserOwnedData(client, targetId, duplicateId);
-  } else {
-    await repointPlatformUserContactsForMerge(client, targetId, duplicateId);
   }
 
   if (manualResolution) {
@@ -651,13 +772,7 @@ export async function mergePlatformUsersInTransaction(
          updated_at = now()
        FROM platform_users dup
        WHERE pu.id = $1::uuid AND dup.id = $2::uuid`,
-      [
-        targetId,
-        duplicateId,
-        f.display_name,
-        f.first_name,
-        f.last_name,
-      ],
+      [targetId, duplicateId, f.display_name, f.first_name, f.last_name],
     );
   } else {
     await runMergePgText(
@@ -764,14 +879,23 @@ export async function mergePlatformUsersInTransaction(
     );
   }
 
-  await mutateCanonicalUserContacts(client, targetId, [{ action: 'merge-from', duplicatePlatformUserId: duplicateId }]);
+  await mutateCanonicalUserContacts(client, targetId, [
+    { action: 'merge-from', duplicatePlatformUserId: duplicateId },
+  ]);
 
   if (manualResolution) {
-    const selectedPhone = manualResolution.fields.phone_normalized === 'target' ? a.phone_normalized : b.phone_normalized;
+    const selectedPhone =
+      manualResolution.fields.phone_normalized === 'target'
+        ? a.phone_normalized
+        : b.phone_normalized;
     const selectedEmail = manualResolution.fields.email === 'target' ? a.email : b.email;
     await mutateCanonicalUserContacts(client, targetId, [
-      ...(selectedPhone ? [{ action: 'promote' as const, kind: 'phone' as const, valueNormalized: selectedPhone }] : []),
-      ...(selectedEmail ? [{ action: 'promote' as const, kind: 'email' as const, valueNormalized: selectedEmail }] : []),
+      ...(selectedPhone
+        ? [{ action: 'promote' as const, kind: 'phone' as const, valueNormalized: selectedPhone }]
+        : []),
+      ...(selectedEmail
+        ? [{ action: 'promote' as const, kind: 'email' as const, valueNormalized: selectedEmail }]
+        : []),
     ]);
   }
 
@@ -834,7 +958,10 @@ async function mergeChannelBindingsAuto(
   duplicateId: string,
 ): Promise<void> {
   await reassignAllUserChannelBindingsFromDuplicate(client, targetId, duplicateId);
-  await runMergeSql(client, sql`DELETE FROM user_channel_bindings WHERE user_id = ${duplicateId}::uuid`);
+  await runMergeSql(
+    client,
+    sql`DELETE FROM user_channel_bindings WHERE user_id = ${duplicateId}::uuid`,
+  );
 }
 
 async function mergeChannelBindingsManual(
@@ -850,7 +977,7 @@ async function mergeChannelBindingsManual(
         client,
         sql`SELECT user_id::text AS user_id
          FROM user_channel_bindings
-         WHERE user_id = ANY(${[targetId, duplicateId]}::uuid[]) AND channel_code = ${ch}`,
+         WHERE user_id = ANY(${sql.param([targetId, duplicateId])}::uuid[]) AND channel_code = ${ch}`,
       );
       const hasTargetBinding = bindingPresence.rows.some((row) =>
         uuidTextEquals(row.user_id, targetId),
@@ -890,7 +1017,10 @@ async function mergeChannelBindingsManual(
       );
     }
   }
-  await runMergeSql(client, sql`DELETE FROM user_channel_bindings WHERE user_id = ${duplicateId}::uuid`);
+  await runMergeSql(
+    client,
+    sql`DELETE FROM user_channel_bindings WHERE user_id = ${duplicateId}::uuid`,
+  );
 }
 
 async function mergeOauthBindingsAuto(
@@ -899,7 +1029,10 @@ async function mergeOauthBindingsAuto(
   duplicateId: string,
 ): Promise<void> {
   await reassignAllUserOauthBindingsFromDuplicate(client, targetId, duplicateId);
-  await runMergeSql(client, sql`DELETE FROM user_oauth_bindings WHERE user_id = ${duplicateId}::uuid`);
+  await runMergeSql(
+    client,
+    sql`DELETE FROM user_oauth_bindings WHERE user_id = ${duplicateId}::uuid`,
+  );
 }
 
 async function mergeOauthBindingsManual(
@@ -911,7 +1044,7 @@ async function mergeOauthBindingsManual(
   const r = await runMergeSql<OauthRow>(
     client,
     sql`SELECT user_id::text AS user_id, provider, provider_user_id, email, created_at
-     FROM user_oauth_bindings WHERE user_id = ANY(${[targetId, duplicateId]}::uuid[])`,
+     FROM user_oauth_bindings WHERE user_id = ANY(${sql.param([targetId, duplicateId])}::uuid[])`,
   );
   const byProvider = new Map<string, OauthRow[]>();
   for (const row of r.rows) {
@@ -964,7 +1097,10 @@ async function mergeOauthBindingsManual(
       }
     }
   }
-  await runMergeSql(client, sql`DELETE FROM user_oauth_bindings WHERE user_id = ${duplicateId}::uuid`);
+  await runMergeSql(
+    client,
+    sql`DELETE FROM user_oauth_bindings WHERE user_id = ${duplicateId}::uuid`,
+  );
 }
 
 async function mergeUserChannelPreferences(
@@ -1016,6 +1152,27 @@ async function mergeUserChannelPreferences(
          WHERE (t.user_id = ${targetId}::text OR t.platform_user_id = ${targetId}::uuid)
            AND t.channel_code = d.channel_code
        )`,
+  );
+
+  await runMergeSql(
+    client,
+    sql`WITH ranked AS (
+       SELECT id,
+              row_number() OVER (
+                ORDER BY updated_at DESC,
+                         (user_id = ${targetId}::text OR platform_user_id = ${targetId}::uuid) DESC,
+                         id
+              ) AS preference_rank
+       FROM user_channel_preferences
+       WHERE (user_id IN (${targetId}::text, ${duplicateId}::text)
+          OR platform_user_id IN (${targetId}::uuid, ${duplicateId}::uuid))
+         AND is_preferred_for_auth = true
+     )
+     UPDATE user_channel_preferences preference
+     SET is_preferred_for_auth = false, updated_at = now()
+     FROM ranked
+     WHERE preference.id = ranked.id
+       AND ranked.preference_rank > 1`,
   );
 
   await runMergeSql(
@@ -1080,37 +1237,31 @@ async function assertSharedPhoneGuard(
   }
 }
 
-async function assertPatientBookingsSafeToMerge(
+async function reconcilePatientLfkAssignmentsForMerge(
   client: PlatformMergeDbClient,
   targetId: string,
   duplicateId: string,
+  reason: MergePlatformUsersReason,
 ): Promise<void> {
-  const overlap = await runMergeSql<{ c: string }>(
-    client,
-    sql`SELECT COUNT(*)::text AS c
-     FROM patient_bookings pb1
-     INNER JOIN patient_bookings pb2
-       ON pb1.platform_user_id = ${targetId}::uuid
-      AND pb2.platform_user_id = ${duplicateId}::uuid
-      AND pb1.id <> pb2.id
-      AND tstzrange(pb1.slot_start, pb1.slot_end, '[)') && tstzrange(pb2.slot_start, pb2.slot_end, '[)')
-      AND pb1.status IN ('confirmed', 'rescheduled', 'creating', 'cancelling', 'cancel_failed')
-      AND pb2.status IN ('confirmed', 'rescheduled', 'creating', 'cancelling', 'cancel_failed')`,
-  );
-  const n = parseInt(overlap.rows[0]?.c ?? '0', 10);
-  if (n > 0) {
-    throw new MergeDependentConflictError(
-      'patient_bookings: overlapping active slots between merge candidates',
-      [targetId, duplicateId],
+  if (reason === 'manual') {
+    await runMergeSql(
+      client,
+      sql`UPDATE patient_lfk_assignments duplicate
+          SET is_active = false
+          WHERE duplicate.patient_user_id = ${duplicateId}::uuid
+            AND duplicate.is_active = true
+            AND EXISTS (
+              SELECT 1
+              FROM patient_lfk_assignments target
+              WHERE target.patient_user_id = ${targetId}::uuid
+                AND target.organization_id IS NOT DISTINCT FROM duplicate.organization_id
+                AND target.template_id = duplicate.template_id
+                AND target.is_active = true
+            )`,
     );
+    return;
   }
-}
 
-async function assertPatientLfkAssignmentsSafe(
-  client: PlatformMergeDbClient,
-  targetId: string,
-  duplicateId: string,
-): Promise<void> {
   const r = await runMergeSql<{ c: string }>(
     client,
     sql`SELECT COUNT(*)::text AS c
@@ -1133,6 +1284,7 @@ async function assertPatientLfkAssignmentsSafe(
 }
 
 type ActiveTreatmentProgramMergePair = {
+  organization_id: string | null;
   target_instance_id: string;
   target_assignment_source: string;
   target_template_id: string | null;
@@ -1258,16 +1410,20 @@ async function assertAutoMergePasswordCredentialsSafe(
  * A promo instance is the platform default, not a clinician/course assignment. When duplicate
  * identities each materialized an active plan, promo must not prevent identity reconciliation:
  * close the promo side first, then let the normal patient_user_id repoint preserve both histories.
- * Two real active assignments remain a hard blocker.
+ * Two real active assignments remain a hard blocker for automatic merge. Manual support explicitly
+ * chooses the surviving account, so its active instance wins inside an organization and the other
+ * instance is retained as completed history.
  */
 async function reconcileActiveTreatmentProgramInstancesForMerge(
   client: PlatformMergeDbClient,
   targetId: string,
   duplicateId: string,
+  reason: MergePlatformUsersReason,
 ): Promise<void> {
   const r = await runMergeSql<ActiveTreatmentProgramMergePair>(
     client,
-    sql`SELECT t.id::text AS target_instance_id,
+    sql`SELECT t.organization_id::text AS organization_id,
+            t.id::text AS target_instance_id,
             t.assignment_source AS target_assignment_source,
             t.template_id::text AS target_template_id,
             d.id::text AS duplicate_instance_id,
@@ -1275,47 +1431,49 @@ async function reconcileActiveTreatmentProgramInstancesForMerge(
             d.template_id::text AS duplicate_template_id
      FROM treatment_program_instances t
      INNER JOIN treatment_program_instances d
-       ON t.patient_user_id = ${targetId}::uuid
+      ON t.patient_user_id = ${targetId}::uuid
       AND d.patient_user_id = ${duplicateId}::uuid
+      AND t.organization_id IS NOT DISTINCT FROM d.organization_id
       AND t.status = 'active'
       AND d.status = 'active'`,
   );
-  const pair = r.rows[0];
-  if (!pair) return;
+  const closingInstanceIds: string[] = [];
+  for (const pair of r.rows) {
+    const targetIsPromo = pair.target_assignment_source === 'promo';
+    const duplicateIsPromo = pair.duplicate_assignment_source === 'promo';
+    if (!targetIsPromo && !duplicateIsPromo && reason !== 'manual') {
+      throw new MergeDependentConflictError(
+        'treatment_program_instances: active program on both merge candidates',
+        [targetId, duplicateId],
+      );
+    }
 
-  const targetIsPromo = pair.target_assignment_source === 'promo';
-  const duplicateIsPromo = pair.duplicate_assignment_source === 'promo';
-  if (!targetIsPromo && !duplicateIsPromo) {
-    throw new MergeDependentConflictError(
-      'treatment_program_instances: active program on both merge candidates',
-      [targetId, duplicateId],
+    if (
+      targetIsPromo &&
+      duplicateIsPromo &&
+      typeof pair.target_template_id === 'string' &&
+      pair.target_template_id === pair.duplicate_template_id
+    ) {
+      await consolidateMatchingPromoProgress(
+        client,
+        pair.target_instance_id,
+        pair.duplicate_instance_id,
+      );
+    }
+
+    closingInstanceIds.push(
+      targetIsPromo && !duplicateIsPromo ? pair.target_instance_id : pair.duplicate_instance_id,
     );
   }
-
-  if (
-    targetIsPromo &&
-    duplicateIsPromo &&
-    typeof pair.target_template_id === 'string' &&
-    pair.target_template_id === pair.duplicate_template_id
-  ) {
-    await consolidateMatchingPromoProgress(
-      client,
-      pair.target_instance_id,
-      pair.duplicate_instance_id,
-    );
-  }
-
-  const closingInstanceId =
-    targetIsPromo && !duplicateIsPromo ? pair.target_instance_id : pair.duplicate_instance_id;
+  if (closingInstanceIds.length === 0) return;
 
   await runMergePgText(
     client,
     `WITH closed AS (
        UPDATE treatment_program_instances
        SET status = 'completed', updated_at = now()
-       WHERE id = $1::uuid
+       WHERE id = ANY($1::uuid[])
          AND status = 'active'
-         AND assignment_source = 'promo'
        RETURNING id, organization_id
      )
      INSERT INTO treatment_program_events (
@@ -1335,7 +1493,7 @@ async function reconcileActiveTreatmentProgramInstancesForMerge(
             ),
             'platform_user_merge'
      FROM closed`,
-    [closingInstanceId],
+    [closingInstanceIds],
   );
 }
 
@@ -1362,6 +1520,102 @@ async function assertOpenTestAttemptsSafe(
       [targetId, duplicateId],
     );
   }
+}
+
+/**
+ * Support is allowed to merge accounts with two open drafts for the same program item. Keep the
+ * target draft, move every distinct result into it, and resolve a same-test collision by recency.
+ * Automatic merge still stops in `assertOpenTestAttemptsSafe` before reaching this reconciliation.
+ */
+async function reconcileOpenTestAttemptsForMerge(
+  client: PlatformMergeDbClient,
+  targetId: string,
+  duplicateId: string,
+): Promise<void> {
+  await runMergePgText(
+    client,
+    `WITH pairs AS MATERIALIZED (
+       SELECT target.id AS target_attempt_id, duplicate.id AS duplicate_attempt_id
+       FROM test_attempts target
+       INNER JOIN test_attempts duplicate
+         ON target.patient_user_id = $1::uuid
+        AND duplicate.patient_user_id = $2::uuid
+        AND target.submitted_at IS NULL
+        AND duplicate.submitted_at IS NULL
+        AND target.instance_stage_item_id = duplicate.instance_stage_item_id
+     )
+     INSERT INTO test_results (
+       organization_id, attempt_id, test_id, raw_value, normalized_decision, decided_by, created_at
+     )
+     SELECT result.organization_id,
+            pairs.target_attempt_id,
+            result.test_id,
+            result.raw_value,
+            result.normalized_decision,
+            result.decided_by,
+            result.created_at
+     FROM pairs
+     INNER JOIN test_results result ON result.attempt_id = pairs.duplicate_attempt_id
+     ON CONFLICT (attempt_id, test_id) DO UPDATE SET
+       organization_id = CASE
+         WHEN EXCLUDED.created_at >= test_results.created_at THEN EXCLUDED.organization_id
+         ELSE test_results.organization_id
+       END,
+       raw_value = CASE
+         WHEN EXCLUDED.created_at >= test_results.created_at THEN EXCLUDED.raw_value
+         ELSE test_results.raw_value
+       END,
+       normalized_decision = CASE
+         WHEN EXCLUDED.created_at >= test_results.created_at THEN EXCLUDED.normalized_decision
+         ELSE test_results.normalized_decision
+       END,
+       decided_by = CASE
+         WHEN EXCLUDED.created_at >= test_results.created_at THEN EXCLUDED.decided_by
+         ELSE test_results.decided_by
+       END,
+       created_at = GREATEST(test_results.created_at, EXCLUDED.created_at)`,
+    [targetId, duplicateId],
+  );
+  await runMergePgText(
+    client,
+    `DELETE FROM test_attempts duplicate
+     USING test_attempts target
+     WHERE target.patient_user_id = $1::uuid
+       AND duplicate.patient_user_id = $2::uuid
+       AND target.submitted_at IS NULL
+       AND duplicate.submitted_at IS NULL
+       AND target.instance_stage_item_id = duplicate.instance_stage_item_id`,
+    [targetId, duplicateId],
+  );
+}
+
+/** Keep every phone-history interval, but exactly one current interval for the surviving person. */
+async function reconcileActivePhoneHistoryForMerge(
+  client: PlatformMergeDbClient,
+  targetId: string,
+  duplicateId: string,
+  selectedPhone: string | null,
+): Promise<void> {
+  await runMergeSql(
+    client,
+    sql`WITH ranked AS (
+       SELECT id,
+              row_number() OVER (
+                ORDER BY (phone_normalized IS NOT DISTINCT FROM ${selectedPhone}) DESC,
+                         (platform_user_id = ${targetId}::uuid) DESC,
+                         valid_from DESC,
+                         id
+              ) AS active_rank
+       FROM user_phone_history
+       WHERE platform_user_id IN (${targetId}::uuid, ${duplicateId}::uuid)
+         AND valid_to IS NULL
+     )
+     UPDATE user_phone_history history
+     SET valid_to = GREATEST(history.valid_from, now())
+     FROM ranked
+     WHERE history.id = ranked.id
+       AND ranked.active_rank > 1`,
+  );
 }
 
 /**
@@ -1527,8 +1781,14 @@ async function mergeExtendedUserOwnedData(
     sql`UPDATE user_web_push_subscriptions SET user_id = ${targetId}::uuid WHERE user_id = ${duplicateId}::uuid`,
   );
 
-  await runMergeSql(client, sql`DELETE FROM native_push_targets d WHERE d.user_id = ${duplicateId}::uuid AND EXISTS (SELECT 1 FROM native_push_targets t WHERE t.user_id = ${targetId}::uuid AND t.app_id = d.app_id AND t.provider = d.provider AND t.installation_id_hash = d.installation_id_hash)`);
-  await runMergeSql(client, sql`UPDATE native_push_targets SET user_id = ${targetId}::uuid WHERE user_id = ${duplicateId}::uuid`);
+  await runMergeSql(
+    client,
+    sql`DELETE FROM native_push_targets d WHERE d.user_id = ${duplicateId}::uuid AND EXISTS (SELECT 1 FROM native_push_targets t WHERE t.user_id = ${targetId}::uuid AND t.app_id = d.app_id AND t.provider = d.provider AND (t.installation_id_hash = d.installation_id_hash OR t.token_hash = d.token_hash))`,
+  );
+  await runMergeSql(
+    client,
+    sql`UPDATE native_push_targets SET user_id = ${targetId}::uuid WHERE user_id = ${duplicateId}::uuid`,
+  );
 
   await runMergeSql(
     client,
@@ -1616,7 +1876,7 @@ export async function enrichPickMergeCandidatesWithBookingCounts(
     client,
     sql`SELECT platform_user_id::text AS uid, COUNT(*)::text AS c
      FROM patient_bookings
-     WHERE platform_user_id = ANY(${[a.id, b.id]}::uuid[])
+     WHERE platform_user_id = ANY(${sql.param([a.id, b.id])}::uuid[])
      GROUP BY platform_user_id`,
   );
   const map = new Map<string, number>();
