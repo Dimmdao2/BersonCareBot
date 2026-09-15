@@ -34,12 +34,12 @@
 
 - **Поддержка до входа:** **`/app/contact-support`** принимает **`?from=verify|login|reset`** и читает **`authFlowPendingStorage`**, чтобы подписать кнопку «назад» и ссылку внизу формы («Вернуться к коду» и т.д.).
 
-### Email + пароль (пациент)
+### Почта: код пациенту, пароль сотруднику
 
 - **`POST /api/auth/email-otp/register`** — каноническая passwordless-регистрация пациента: required `lastName` + `firstName`, optional `patronymic`; отправляет код на почту. Подтверждение идёт через `POST /api/auth/email-otp/confirm` с email и кодом.
-- ~~`POST /api/auth/email-password/lookup`~~ — **дверь удалена 13.09.2026 по решению владельца.** Неаутентифицированная, без ограничения частоты, отдавала состояние любой учётной записи по email (проверка чужих адресов). В приложении не вызывалась ниоткуда. Сам модуль `emailPasswordLookup` жив и используется маршрутами `forgot`, `register`, `setup-access`, `setup-code/complete`.
+- ~~`POST /api/auth/email-password/lookup`~~ — **дверь удалена 13.09.2026 по решению владельца.** Неаутентифицированная, без ограничения частоты, отдавала состояние любой учётной записи по email (проверка чужих адресов). В приложении не вызывалась ниоткуда. Сам модуль `emailPasswordLookup` жив и используется маршрутами `forgot`, `setup-access`, `setup-code/complete`.
 - **`POST /api/auth/email-password/setup-access`** — повторная отправка setup-кода для `needs_email_setup`; наружу всегда возвращает нейтральное принятое состояние без `challengeId`, а completion находит последний код по доказанному адресу.
-- **`POST /api/auth/email-password/login`** — при верном пароле и **`email_verified_at`** возвращает сессию и `redirectTo`. Если пароль верный, но email ещё не подтверждён — **409** `email_not_verified` (UI запускает повторную регистрацию/код).
+- **`POST /api/auth/email-password/login`** — при верном пароле и **`email_verified_at`** возвращает сессию и `redirectTo`. Если пароль верный, но email ещё не подтверждён — **409** `email_not_verified` — экран показывает ошибку и на этом останавливается (`AuthFlowV2.tsx:918-921`); повторную отправку кода он отсюда НЕ запускает.
   Вход использует общий per-IP чокпоинт `auth.confirm` (30 запросов / 10 минут) и атомарный протокол
   `password_login_acquire` → одна Argon2-проверка вне транзакции → `password_login_complete`. До Argon2
   сериализуются account + псевдонимный identifier (для неизвестного email — только identifier), выдаётся
