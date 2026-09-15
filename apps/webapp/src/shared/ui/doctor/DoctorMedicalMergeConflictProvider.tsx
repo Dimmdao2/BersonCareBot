@@ -204,6 +204,18 @@ function DoctorMedicalMergeConflictModal({
         if (
           action === 'merge' &&
           response.status === 409 &&
+          payload?.error === 'fio_decision_required'
+        ) {
+          // Конфликт остаётся открытым: врач ничего не сделал неправильно, но слить нечем, пока
+          // человек не выберет ФИО (§18а). Модалка не закрывается — решение врача ещё нужно.
+          toast.error(notificationText.doctorMedicalConflictFioDecisionRequired);
+          await onChanged();
+          await load();
+          return;
+        }
+        if (
+          action === 'merge' &&
+          response.status === 409 &&
           payload?.error === 'awaiting_other_organization'
         ) {
           toast.success(notificationText.doctorMedicalConflictAwaitingOtherOrganization);

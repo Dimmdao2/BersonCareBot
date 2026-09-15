@@ -33,6 +33,8 @@ export function messengerChannelLabelRu(channelCode: string): string {
 export function messengerPhoneBindReasonHumanRu(reason: string): string {
   const map: Record<string, string> = {
     no_channel_binding: 'Нет привязки канала к платформенному пользователю',
+    human_account_confirmation_required:
+      'Продолжите вход в приложении и подтвердите найденную учётную запись',
     phone_owned_by_other_user: 'Телефон уже принадлежит другому пользователю',
     integrator_id_mismatch: 'Несовпадение integrator user id с каноническим профилем',
     channel_already_bound_to_other_user: 'Конфликт привязки канала (уникальный ключ)',

@@ -1,0 +1,29 @@
+# Инъекции в продуктовый код: каждая возвращает ровно один из трёх дефектов второго аудита.
+# Дерево: f2ef7bd7e, база — 15 passed.
+
+== БАЗА ==
+ Test Files  1 passed (1)
+      Tests  14 passed (14)
+
+== ИНЪЕКЦИЯ A: Д-1, части ФИО снова переписываются оптом со стороны выбранной подписи ==
+     × keeps the FIO parts the person kept while writing the display name the person chose 12ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  |unit| src/infra/accountMergeMedicalHistory.unit.test.ts > automatic account merge human-decision safety gate > keeps the FIO parts the person kept while writing the display name the person chose
+      Tests  1 failed | 13 passed (14)
+
+== ИНЪЕКЦИЯ B: Д-2, пустое display_name найденной учётки снова затирает вторую сторону ==
+     × lets the empty display name of the recognized account be filled in, not overwrite the real one 7ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  |unit| src/infra/accountMergeMedicalHistory.unit.test.ts > automatic account merge human-decision safety gate > lets the empty display name of the recognized account be filled in, not overwrite the real one
+      Tests  1 failed | 13 passed (14)
+
+== ИНЪЕКЦИЯ C: Д-1, диалог снова спрашивает только про display_name ==
+     × asks about every FIO part the display-name choice can overwrite, instead of wiping it 8ms
+     × drops the FIO parts only when the person answered "not specified" for them 4ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  |unit| src/infra/accountMergeMedicalHistory.unit.test.ts > automatic account merge human-decision safety gate > asks about every FIO part the display-name choice can overwrite, instead of wiping it
+ FAIL  |unit| src/infra/accountMergeMedicalHistory.unit.test.ts > automatic account merge human-decision safety gate > drops the FIO parts only when the person answered "not specified" for them
+      Tests  2 failed | 12 passed (14)
+
+== ДЕРЕВО ВОССТАНОВЛЕНО ==
+?? docs/audit/evidence/merge-e3-round3-2026-09-15/injections.out

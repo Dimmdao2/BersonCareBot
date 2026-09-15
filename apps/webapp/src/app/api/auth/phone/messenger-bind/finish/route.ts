@@ -23,11 +23,14 @@ import { isPlatformUserUuid } from '@/shared/platform-user/isPlatformUserUuid';
 import { prepareVerifiedPrimaryLogin } from '@/modules/auth/verifiedStaffPrimaryLogin';
 import { isAuthChannelEnabled } from '@/modules/auth/authChannelPolicy';
 import { notificationText } from '@/shared/notifications/notificationText';
+import { humanMergeDecisionSchema } from '@/modules/auth/humanMergeDecisionSchema';
+import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 
 const bodySchema = z
   .object({
     setupToken: z.string().min(4),
     browserCalendarIana: z.string().max(120).optional(),
+    mergeDecision: humanMergeDecisionSchema.optional(),
   })
   .strict();
 
@@ -104,7 +107,24 @@ export async function POST(request: Request) {
   }
   const isRegistrationIntent = challenge?.isRegistrationIntent === true;
 
-  const result = await deps.auth.confirmPhoneAuth(resolved.challengeId, resolved.code);
+  let profileBindOrganizationId: string | undefined;
+  if (challenge?.profileBindUserId) {
+    const session = await getCurrentSession();
+    if (!session || session.user.userId !== challenge.profileBindUserId) {
+      return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 });
+    }
+    profileBindOrganizationId = getCurrentDbPrincipalOrganizationId();
+    if (!profileBindOrganizationId) {
+      return NextResponse.json(
+        { ok: false, error: 'organization_context_required' },
+        { status: 409 },
+      );
+    }
+  }
+  const result = await deps.auth.confirmPhoneAuth(resolved.challengeId, resolved.code, {
+    ...(parsed.data.mergeDecision ? { humanMergeDecision: parsed.data.mergeDecision } : {}),
+    ...(profileBindOrganizationId ? { profileBindOrganizationId } : {}),
+  });
   if (!result.ok) {
     if (isRegistrationIntent) {
       await recordAuthRegistrationFailure({
@@ -136,6 +156,10 @@ export async function POST(request: Request) {
     );
   }
 
+  if ('mergeRequired' in result && result.mergeRequired) {
+    return NextResponse.json({ ok: true, mergeRequired: true, prompt: result.prompt });
+  }
+
   if (isPlatformUserUuid(result.user.userId)) {
     enterStaffSecuritySelfPrincipal(
       result.user.userId,
@@ -145,6 +169,9 @@ export async function POST(request: Request) {
   const sessionUser = await deps.userByPhone.findByUserId(result.user.userId);
   if (!sessionUser) {
     return NextResponse.json({ ok: false, error: 'server_error' }, { status: 500 });
+  }
+  if (result.mergedAccountId) {
+    await deps.accountMergeNotifications.enqueue(sessionUser, result.mergedAccountId);
   }
   const postLoginHints = { phoneOtpChannel: result.deliveryChannel ?? deliveryChannel } as const;
 

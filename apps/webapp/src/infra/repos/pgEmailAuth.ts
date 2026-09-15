@@ -12,6 +12,8 @@ import {
 import {
   MergeConflictError,
   MergeDependentConflictError,
+  createHumanMergePrompt,
+  humanMergeDecisionMatchesPrompt,
   mergePlatformUsersInTransaction,
   type PlatformMergeDbClient,
 } from '@bersoncare/platform-merge';
@@ -276,12 +278,18 @@ export async function claimVerifiedEmail(
       runWebappTransaction(async (tx) => {
         const users = await runWebappSql<{
           id: string;
+          display_name: string;
+          first_name: string | null;
+          last_name: string | null;
+          patronymic: string | null;
+          created_at: string | Date;
           email_normalized: string | null;
           merged_into_id: string | null;
           role: string;
         }>(
           tx,
-          sql`SELECT pu.id::text, email.value_normalized AS email_normalized,
+          sql`SELECT pu.id::text, pu.display_name, pu.first_name, pu.last_name, pu.patronymic,
+                  pu.created_at, email.value_normalized AS email_normalized,
                   pu.merged_into_id::text, pu.role::text
          FROM platform_users pu
          LEFT JOIN user_contacts email ON email.platform_user_id = pu.id
@@ -306,18 +314,32 @@ export async function claimVerifiedEmail(
           throw new EmailClaimConflictError('email_owner_not_client');
         }
 
+        const summary = (row: typeof current) => ({
+          id: row.id,
+          displayName: row.display_name,
+          firstName: row.first_name,
+          lastName: row.last_name,
+          patronymic: row.patronymic,
+          createdAt: row.created_at,
+        });
+        const prompt = createHumanMergePrompt(summary(current), summary(owner), owner.id);
+        const humanDecision = options?.humanMergeDecision;
+        if (!humanDecision || !humanMergeDecisionMatchesPrompt(humanDecision, prompt)) {
+          return { ok: false, code: 'merge_confirmation_required' as const, prompt };
+        }
+
         await mergePlatformUsersInTransaction(
           mergeDbClientFromTx(tx),
           userId,
           owner.id,
           'email_bind',
-          { mergeContext: { source: 'email_confirmation' } },
+          { humanDecision, mergeContext: { source: 'email_confirmation' } },
         );
         await runWebappSql(
           tx,
           sql`SELECT app.email_auth_verify_user_email(${userId}::uuid, ${email})`,
         );
-        return { ok: true, merged: true };
+        return { ok: true, merged: true, mergedAccountId: owner.id };
       }),
     );
   } catch (err) {

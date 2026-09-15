@@ -12,10 +12,8 @@
  * (`app.integrator_upsert_channel_identity`, migration
  * `20260823T093000_channel_identity_root_becomes_lookup_only.sql`) removed the INSERT branch entirely
  * — this is not a TS-side filter around a still-creating root. Canonical account creation/binding
- * belongs exclusively to webapp-owned completion of the token-bound
- * `POST /api/auth/phone/messenger-bind/start` → `webapp.phoneMessengerBind.complete` flow
- * (`applyMessengerContactPreOtp`, `app.phone_messenger_bind_completion_state`) — never to a bare
- * webhook.
+ * belongs exclusively to webapp-owned browser completion of the token-bound
+ * `POST /api/auth/phone/messenger-bind/start` flow — never to a bare webhook.
  *
  * `collectPlatformUserCandidates` remains a thin wrapper over the shared
  * `@bersoncare/platform-merge` candidate lookup, used by other bounded direct-public writers

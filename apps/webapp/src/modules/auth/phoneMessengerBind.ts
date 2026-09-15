@@ -257,57 +257,11 @@ export async function completePhoneMessengerBindFromIntegrator(
   };
 
   try {
-    const completionState = await port.verifyCompletionState({
-      tokenHash: row.token_hash,
-      channelCode: params.channelCode,
-      externalId,
-      contactPhoneNormalized: contactPhone,
-    });
-
-    // The bot proves phone ownership. Only an authenticated profile-bind may write the binding
-    // here; a login attempt waits for the browser finish, where confirmPhoneAuth performs the
-    // existing create-or-bind transaction and may create the account as part of web registration.
-    if (bindPurpose === 'profile_bind' && !completionState.ready) {
-      const preOtp = await port.applyMessengerContactPreOtp({
-        phoneNormalized: contactPhone,
-        channelCode: params.channelCode,
-        externalId,
-        sessionUserId: row.user_id,
-      });
-      if (!preOtp.ok) {
-        await port.updateFailed(row.id, preOtp.code);
-        // D15b/6 conflict-audit correction: `applyMessengerContactPreOtp` (`app.pre_session_
-        // messenger_channel_resolve`) already records `messenger_phone_bind_blocked` itself, in the
-        // same atomic operation that decided the conflict — this caller has no relation door of its
-        // own to run a follow-up transaction under (bootstrap principal); see the port doc comment.
-        logger.warn({
-          event: 'phone_messenger_bind_complete_fail',
-          metric: 'phone_messenger_bind_complete_fail',
-          channelCode: params.channelCode,
-          purpose: bindPurpose,
-          failure_code: preOtp.code,
-          phoneSuffix: phoneSuffixForLog(contactPhone),
-        });
-        return { ok: false, code: preOtp.code };
-      }
-    }
-
-    if (bindPurpose === 'profile_bind') {
-      await port.markConsumed(row.id);
-      logger.info({
-        event: 'phone_messenger_bind_complete_ok',
-        metric: 'phone_messenger_bind_complete_ok',
-        channelCode: params.channelCode,
-        purpose: bindPurpose,
-        replay: false,
-        accountCreated: false,
-        phoneSuffix: phoneSuffixForLog(contactPhone),
-      });
-      return { ok: true as const, purpose: 'profile_bind' };
-    }
-
     const challenge = await createPhoneOtpChallenge(contactPhone, context, phoneAuthDeps, {
       registrationAttemptId: row.id,
+      ...(bindPurpose === 'profile_bind' && row.user_id
+        ? { profileBindUserId: row.user_id }
+        : {}),
     });
     if (!challenge.ok) {
       await port.updateFailed(row.id, challenge.code);
@@ -334,13 +288,15 @@ export async function completePhoneMessengerBindFromIntegrator(
       phoneSuffix: phoneSuffixForLog(contactPhone),
     });
 
-    return {
+    return bindPurpose === 'profile_bind'
+      ? { ok: true as const, purpose: 'profile_bind' }
+      : {
       ok: true as const,
       purpose: 'login',
       otpCode: challenge.code,
       accountCreated: false,
       challengeId: challenge.challengeId,
-    };
+      };
   } catch {
     logger.warn({
       event: 'phone_messenger_bind_complete_fail',
@@ -440,7 +396,7 @@ export async function resolvePhoneMessengerBindLoginChallenge(
     return { ok: false, code: 'not_found' };
   }
 
-  if (row.purpose !== 'login') {
+  if (row.purpose !== 'login' && row.purpose !== 'profile_bind') {
     return { ok: false, code: 'wrong_purpose' };
   }
 

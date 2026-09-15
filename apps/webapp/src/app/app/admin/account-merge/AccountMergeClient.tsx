@@ -47,13 +47,11 @@ const SCALAR_LABELS: Record<ScalarKey, string> = {
   display_name: 'Отображаемое имя',
   first_name: 'Имя',
   last_name: 'Фамилия',
+  patronymic: 'Отчество',
   email: 'Почта',
 };
 
-const AUTO_SCALAR_LABELS: Record<string, string> = {
-  ...SCALAR_LABELS,
-  patronymic: 'Отчество',
-};
+const AUTO_SCALAR_LABELS: Record<string, string> = { ...SCALAR_LABELS };
 
 const CHANNEL_LABELS: Record<'telegram' | 'max' | 'vk', string> = {
   telegram: 'Telegram',
@@ -142,7 +140,7 @@ export function AccountMergeClient({ targetId, duplicateId }: Props) {
     [],
   );
 
-  /** ФИО — один выбор на три поля: фамилия, имя и отображаемое имя едут с одной стороны. */
+  /** ФИО — один выбор на четыре поля: фамилия, имя, отчество и подпись едут с одной стороны. */
   const setFioWinner = useCallback((winner: 'target' | 'duplicate') => {
     setResolution((prev) =>
       prev
@@ -153,6 +151,7 @@ export function AccountMergeClient({ targetId, duplicateId }: Props) {
               display_name: winner,
               first_name: winner,
               last_name: winner,
+              patronymic: winner,
             },
           }
         : prev,

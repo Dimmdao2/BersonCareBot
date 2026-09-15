@@ -31,6 +31,8 @@ import {
   patientSectionTitleClass,
 } from '@/shared/ui/patient/patientVisual';
 import { notificationText } from '@/shared/notifications/notificationText';
+import { AccountMergeConfirmation } from './AccountMergeConfirmation';
+import type { HumanMergePrompt } from '@bersoncare/platform-merge';
 
 const WEB_CHAT_ID_KEY = 'bersoncare_web_chat_id';
 const POLL_MS = 2500;
@@ -86,7 +88,7 @@ export type PhoneMessengerAuthFlowProps = {
   hideBackOnPhoneStep?: boolean;
 };
 
-type FlowStep = 'phone' | 'messenger_pick' | 'code';
+type FlowStep = 'phone' | 'messenger_pick' | 'code' | 'merge';
 
 export function PhoneMessengerAuthFlow({
   channelPolicy = FAIL_CLOSED_AUTH_CHANNEL_UI_POLICY,
@@ -113,6 +115,8 @@ export function PhoneMessengerAuthFlow({
   const [challengeId, setChallengeId] = useState<string | null>(null);
   const [retryAfterSeconds, setRetryAfterSeconds] = useState(60);
   const [otpChannel, setOtpChannel] = useState<LoginOtpChannel>('automatic');
+  const [mergePrompt, setMergePrompt] = useState<HumanMergePrompt | null>(null);
+  const [verifiedCode, setVerifiedCode] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const clearPoll = useCallback(() => {
@@ -168,7 +172,32 @@ export function PhoneMessengerAuthFlow({
       if (statusData.status === 'otp_ready' && statusData.challengeId) {
         clearPoll();
         if (purpose === 'profile_bind') {
-          onProfileComplete?.();
+          const finishRes = await fetch('/api/auth/phone/messenger-bind/finish', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              setupToken: token,
+              browserCalendarIana: getBrowserCalendarIanaForAuth(),
+            }),
+          });
+          const finishData = (await finishRes.json().catch(() => ({}))) as {
+            ok?: boolean;
+            mergeRequired?: boolean;
+            prompt?: HumanMergePrompt;
+            message?: string;
+          };
+          if (finishData.ok && finishData.mergeRequired && finishData.prompt) {
+            setMergePrompt(finishData.prompt);
+            setChallengeId(statusData.challengeId);
+            setStep('merge');
+            return;
+          }
+          if (finishRes.ok && finishData.ok) {
+            onProfileComplete?.();
+            return;
+          }
+          toast.error(finishData.message ?? notificationText.authConfirmationFailed);
+          resetBindAttempt();
           return;
         }
         setChallengeId(statusData.challengeId);
@@ -205,6 +234,69 @@ export function PhoneMessengerAuthFlow({
       document.removeEventListener('visibilitychange', onResume);
     };
   }, [step, setupToken, bindChannel, pollBindStatus]);
+
+  if (
+    step === 'merge' &&
+    mergePrompt &&
+    ((challengeId && verifiedCode) || (purpose === 'profile_bind' && setupToken))
+  ) {
+    return (
+      <AccountMergeConfirmation
+        key={JSON.stringify(mergePrompt)}
+        prompt={mergePrompt}
+        busy={loading}
+        onReject={() => {
+          setMergePrompt(null);
+          setVerifiedCode(null);
+          setChallengeId(null);
+          setStep('phone');
+        }}
+        onConfirm={async (mergeDecision) => {
+          setLoading(true);
+          try {
+            const profileMessengerBind = purpose === 'profile_bind' && setupToken;
+            const res = await fetch(
+              profileMessengerBind
+                ? '/api/auth/phone/messenger-bind/finish'
+                : '/api/auth/phone/confirm',
+              {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({
+                  ...(profileMessengerBind ? { setupToken } : { challengeId, code: verifiedCode }),
+                  browserCalendarIana: getBrowserCalendarIanaForAuth(),
+                  mergeDecision,
+                }),
+              },
+            );
+            const data = (await res.json().catch(() => ({}))) as {
+              ok?: boolean;
+              mergeRequired?: boolean;
+              prompt?: HumanMergePrompt;
+              redirectTo?: string;
+              role?: 'client' | 'doctor' | 'admin';
+              message?: string;
+            };
+            if (data.ok && data.mergeRequired && data.prompt) {
+              setMergePrompt(data.prompt);
+              return;
+            }
+            if (!res.ok || !data.ok) {
+              toast.error(data.message ?? notificationText.authConfirmationFailed);
+              return;
+            }
+            clearPoll();
+            if (purpose === 'profile_bind') onProfileComplete?.();
+            else if (data.redirectTo) redirectOk(data.redirectTo, data.role);
+          } catch {
+            toast.error(notificationText.authConfirmationFailed);
+          } finally {
+            setLoading(false);
+          }
+        }}
+      />
+    );
+  }
 
   const startLoginPhoneOtp = async (
     normalized: string,
@@ -327,13 +419,11 @@ export function PhoneMessengerAuthFlow({
     if (!phone || !challengeId)
       return { kind: 'error', message: 'Нет данных для повторной отправки' };
     if (purpose === 'login') {
-      return startLoginPhoneOtp(
-        phone,
-        otpChannel === 'automatic' ? undefined : otpChannel,
-      ).then((ok) =>
-        ok
-          ? { kind: 'ok' as const }
-          : { kind: 'error' as const, message: 'Не удалось запросить код' },
+      return startLoginPhoneOtp(phone, otpChannel === 'automatic' ? undefined : otpChannel).then(
+        (ok) =>
+          ok
+            ? { kind: 'ok' as const }
+            : { kind: 'error' as const, message: 'Не удалось запросить код' },
       );
     }
     if (setupToken && bindChannel) {
@@ -388,9 +478,7 @@ export function PhoneMessengerAuthFlow({
             Назад
           </Button>
         ) : null}
-        <h2 className={cn(patientSectionTitleClass, 'text-center')}>
-          {title}
-        </h2>
+        <h2 className={cn(patientSectionTitleClass, 'text-center')}>{title}</h2>
         <InternationalPhoneInput
           disabled={loading}
           onSubmit={runCheckPhone}
@@ -488,9 +576,7 @@ export function PhoneMessengerAuthFlow({
             {bindManualCommand ? (
               <p className={patientCaptionTextClass}>
                 Если бот открылся без запроса контакта, отправьте команду:{' '}
-                <span className="font-mono patient-text-primary">
-                  {bindManualCommand}
-                </span>
+                <span className="font-mono patient-text-primary">{bindManualCommand}</span>
               </p>
             ) : null}
             <Button
@@ -533,7 +619,15 @@ export function PhoneMessengerAuthFlow({
                 message?: string;
                 error?: string;
                 retryAfterSeconds?: number;
+                mergeRequired?: boolean;
+                prompt?: HumanMergePrompt;
               };
+              if (data.ok && data.mergeRequired && data.prompt) {
+                setMergePrompt(data.prompt);
+                setVerifiedCode(code);
+                setStep('merge');
+                return { ok: true as const };
+              }
               if (data.ok && data.factorRequired) {
                 clearPoll();
                 if (purpose === 'login' && onStaffFactorRequired) {

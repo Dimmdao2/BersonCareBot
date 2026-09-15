@@ -2,7 +2,10 @@
  * D15b/6 audit MF-2: messenger phone bind writes the canonical contact before retaining history.
  */
 import { describe, expect, it } from 'vitest';
-import { applyMessengerPhonePublicBind, type MessengerPhoneBindDb } from '@bersoncare/platform-merge';
+import {
+  applyMessengerPhonePublicBind,
+  type MessengerPhoneBindDb,
+} from '@bersoncare/platform-merge';
 
 const PHONE = '+79180000022';
 const CHANNEL = 'telegram';
@@ -59,6 +62,30 @@ function makeDb(state: State) {
       return { rows: pu ? [{ platform_user_id: pu.id }] : [], rowCount: pu ? 1 : 0 };
     }
 
+    if (q.startsWith('select pu.id::text')) {
+      const hit = state.platformUsers.find(
+        (user) => user.id === p[0] && user.merged_into_id === null,
+      );
+      const primaryPhone = state.userContacts.find(
+        (contact) =>
+          contact.platform_user_id === hit?.id &&
+          contact.contact_kind === 'phone' &&
+          contact.is_primary,
+      )?.value_normalized;
+      return {
+        rows: hit
+          ? [
+              {
+                id: hit.id,
+                phone_normalized: primaryPhone ?? null,
+                created_at: new Date('2026-01-01T00:00:00.000Z'),
+              },
+            ]
+          : [],
+        rowCount: hit ? 1 : 0,
+      };
+    }
+
     if (q.includes('from user_contacts uc') && q.includes("contact_kind = 'phone'")) {
       const hits = state.userContacts
         .filter(
@@ -97,12 +124,20 @@ function makeDb(state: State) {
         return { rows: hit.map((u) => ({ id: u.id })), rowCount: hit.length };
       }
       const hit = live.find((u) => u.id === p[0]);
+      const primaryPhone = state.userContacts.find(
+        (contact) =>
+          contact.platform_user_id === hit?.id &&
+          contact.contact_kind === 'phone' &&
+          contact.is_primary,
+      )?.value_normalized;
       return {
         rows: hit
           ? [
               {
                 id: hit.id,
-                phone_normalized: hit.phone_normalized,
+                phone_normalized: q.includes('select uc.value_normalized')
+                  ? (primaryPhone ?? null)
+                  : hit.phone_normalized,
                 created_at: new Date('2026-01-01T00:00:00.000Z'),
               },
             ]
@@ -220,9 +255,7 @@ function makeDb(state: State) {
 describe('D15b/6 MF-2 — applyMessengerPhonePublicBind canonical contact write', () => {
   it('writes user_contacts without rebuilding it from platform_users', async () => {
     const state: State = {
-      platformUsers: [
-        { id: BIND_USER, phone_normalized: null, merged_into_id: null },
-      ],
+      platformUsers: [{ id: BIND_USER, phone_normalized: null, merged_into_id: null }],
       userContacts: [],
       bindings: [{ channel_code: CHANNEL, external_id: EXTERNAL, user_id: BIND_USER }],
       phoneHistory: [],
@@ -257,5 +290,37 @@ describe('D15b/6 MF-2 — applyMessengerPhonePublicBind canonical contact write'
     expect(db.statements.some((statement) => statement.includes('user_oauth_bindings'))).toBe(
       false,
     );
+  });
+
+  it('routes an existing-account collision to human confirmation', async () => {
+    const existingAccountId = 'pu-existing';
+    const state: State = {
+      platformUsers: [
+        { id: BIND_USER, phone_normalized: null, merged_into_id: null },
+        { id: existingAccountId, phone_normalized: null, merged_into_id: null },
+      ],
+      userContacts: [
+        {
+          platform_user_id: existingAccountId,
+          contact_kind: 'phone',
+          channel_code: null,
+          value_normalized: PHONE,
+          is_primary: true,
+        },
+      ],
+      bindings: [{ channel_code: CHANNEL, external_id: EXTERNAL, user_id: BIND_USER }],
+      phoneHistory: [],
+    };
+
+    await expect(
+      applyMessengerPhonePublicBind(makeDb(state) as MessengerPhoneBindDb, {
+        channelCode: CHANNEL,
+        externalId: EXTERNAL,
+        phoneNormalized: PHONE,
+      }),
+    ).rejects.toMatchObject({
+      code: 'human_account_confirmation_required',
+      candidateIds: [BIND_USER, existingAccountId],
+    });
   });
 });

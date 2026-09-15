@@ -3,6 +3,8 @@
  */
 export type {
   ManualMergeResolution,
+  HumanMergeDecision,
+  HumanMergePrompt,
   MergePlatformUsersContext,
   MergePlatformUsersOptions,
   MergePlatformUsersOutcome,

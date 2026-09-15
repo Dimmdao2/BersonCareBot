@@ -58,6 +58,9 @@
  */
 
 export const notificationText = {
+  authAccountMergedNewDeviceSubject: 'Новый вход в аккаунт',
+  authAccountMergedNewDevice:
+    'Ваши учётные записи объединены после входа с нового устройства. Если это были не вы, обратитесь в поддержку.',
   leadSubmissionBlocked:
     'Эта клиника больше не принимает от вас новые заявки. Свяжитесь с ней другим способом.',
   leadRejectedSubject: 'Ваша заявка отклонена',
@@ -362,6 +365,8 @@ export const notificationText = {
   doctorMedicalConflictEscalated: 'Конфликт передан администраторам платформы.',
   doctorMedicalConflictAwaitingOtherOrganization:
     'Решение записано. Слияние ждёт решения другой клиники.',
+  doctorMedicalConflictFioDecisionRequired:
+    'Учётные записи не объединены: клиент не выбрал, какое ФИО оставить. Попросите его войти и ответить на вопрос об имени.',
   doctorMedicalConflictUnavailable: 'Конфликт больше недоступен. Обновите страницу.',
   doctorMedicalConflictLoadFailed: 'Не удалось загрузить конфликт. Обновите страницу и повторите.',
   doctorMedicalConflictActionFailed: 'Не удалось применить решение. Повторите попытку.',

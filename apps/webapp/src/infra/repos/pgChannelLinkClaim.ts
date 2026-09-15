@@ -2,11 +2,6 @@ import { sql } from 'drizzle-orm';
 import type { Pool, PoolClient } from 'pg';
 
 import {
-  classifyMergeFailure,
-  mergePlatformUsersInTransaction,
-  MergeDependentConflictError,
-} from '@bersoncare/platform-merge';
-import {
   getWebappSqlFromPgClient,
   runWebappSql,
   type WebappSqlExecutor,
@@ -18,7 +13,6 @@ import {
   USER_CONTACTS_PRIMARY_PHONE_LATERAL,
   mutateCanonicalUserContactsWebapp,
 } from '@/infra/repos/userContactsSql';
-import { recordPatientMedicalMergeConflict } from '@/infra/repos/pgPatientMergeCandidate';
 
 export class ChannelLinkClaimRejectedError extends Error {
   readonly reason: string;
@@ -139,7 +133,13 @@ export type ClaimMessengerChannelBindingResult =
 export type ChannelLinkOwnersMergeResult =
   { ok: true } | { ok: false; reason: string; candidateIds: string[] };
 
-export async function tryMergeChannelLinkOwners(
+/**
+ * §18а: две живые учётки объединяются только после ответа человека «это ваш аккаунт?». Дверь
+ * channel-link такого диалога не показывает (человек стоит в боте, а диалог живёт в браузере),
+ * поэтому она не сливает молча и не выдаёт чужую причину: возвращает собственный код ожидания
+ * подтверждения и НЕ гасит одноразовый токен — привязку можно довести после подтверждения.
+ */
+export function tryMergeChannelLinkOwners(
   pool: Pool,
   params: {
     tokenUserId: string;
@@ -148,35 +148,12 @@ export async function tryMergeChannelLinkOwners(
     channelCode: string;
   },
 ): Promise<ChannelLinkOwnersMergeResult> {
-  try {
-    await withPoolTransaction(pool, async (client) => {
-      await mergePlatformUsersInTransaction(
-        client,
-        params.tokenUserId,
-        params.existingUserId,
-        'phone_bind',
-        { mergeContext: { channel: params.channelCode } },
-      );
-      await runWebappSql(
-        getWebappSqlFromPgClient(client),
-        sql`SELECT app.auth_channel_link_mark_secret_used_if_unused(${params.secretRowId}::uuid) AS marked`,
-      );
-    });
-    return { ok: true };
-  } catch (err) {
-    if (err instanceof MergeDependentConflictError) {
-      await recordPatientMedicalMergeConflict(err, 'phone_bind');
-    }
-    const classified = classifyMergeFailure(err, [params.tokenUserId, params.existingUserId]);
-    return {
-      ok: false,
-      reason: classified.code,
-      candidateIds:
-        classified.candidateIds.length > 0
-          ? classified.candidateIds
-          : [params.tokenUserId, params.existingUserId],
-    };
-  }
+  void pool;
+  return Promise.resolve({
+    ok: false,
+    reason: 'human_account_confirmation_required',
+    candidateIds: [params.tokenUserId, params.existingUserId],
+  });
 }
 
 export async function claimMessengerChannelBinding(

@@ -11,7 +11,7 @@ import { describe, expect, it, vi } from 'vitest';
  * схлопывался в `true` по дороге наружу.
  *
  * Независимый oracle — канон, а не реализация: проверяется наблюдаемый ответ HTTP-границы на каждый
- * из трёх исходов двери. Точные коды и тексты не фиксируются: их выбирает продукт.
+ * исход двери. Точные коды и тексты не фиксируются: их выбирает продукт.
  */
 const fakes = vi.hoisted(() => ({
   requireDoctorWorkspaceApiContext: vi.fn(),
@@ -71,6 +71,17 @@ describe('врач нажал «слить» — ответ соответств
     expect(waiting.status).not.toBe(200);
     // И это НЕ «такого конфликта у вас нет»: врачу есть что показать, и состояния разные.
     expect(waiting.body.error).not.toBe(missing.body.error);
+  });
+
+  it('человек не выбрал ФИО — слияния нет, и врачу об этом говорят отдельно', async () => {
+    // §18а: при конфликте полей подпись выбирает человек. Ответа нет — сливать нечем, и «успех»
+    // здесь означал бы карточку с именем, которого никто не выбирал.
+    const needsAnswer = await pressMerge('fio_decision_required');
+    const missing = await pressMerge('conflict_not_found');
+
+    expect(needsAnswer.body.ok).not.toBe(true);
+    expect(needsAnswer.status).not.toBe(200);
+    expect(needsAnswer.body.error).not.toBe(missing.body.error);
   });
 
   it('незакрытого конфликта этой клиники нет — отказ', async () => {

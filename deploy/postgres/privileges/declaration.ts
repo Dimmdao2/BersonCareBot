@@ -25919,12 +25919,12 @@ const REV10_CONTEXT = {
       runtimeName: 'patient_medical_merge_conflict_record', sessionRole: 'app_patient',
       targetRole: 'app_patient', contextClass: 'patient',
       purpose: 'identity.medical-merge-conflict.record',
-      functionIdentity: 'app.record_patient_medical_merge_conflict(uuid,uuid,uuid,text)' },
+      functionIdentity: 'app.record_patient_medical_merge_conflict(uuid,uuid,uuid,text,text)' },
     webapp_pre_session_patient_medical_merge_conflict_record: { port: 'webapp',
       runtimeName: 'pre_session_patient_medical_merge_conflict_record', sessionRole: 'app_patient',
       targetRole: 'app_pre_session', contextClass: 'pre_session',
       purpose: 'identity.medical-merge-conflict.record',
-      functionIdentity: 'app.record_patient_medical_merge_conflict(uuid,uuid,uuid,text)' },
+      functionIdentity: 'app.record_patient_medical_merge_conflict(uuid,uuid,uuid,text,text)' },
     webapp_staff_patient_medical_merge_conflict_read: { port: 'webapp',
       runtimeName: 'staff_patient_medical_merge_conflict_read', sessionRole: 'app_staff',
       targetRole: 'app_staff', contextClass: 'staff',
@@ -29292,10 +29292,10 @@ const REV10_CONTEXT = {
           operations: ['SELECT' as const, 'INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
-    'app.record_patient_medical_merge_conflict(uuid,uuid,uuid,text)': rev10Function({
+    'app.record_patient_medical_merge_conflict(uuid,uuid,uuid,text,text)': rev10Function({
       owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'uuid', returnsSet: false,
       execute: ['app_patient', 'app_pre_session'], purpose: 'persist or globally escalate one deferred medical merge conflict',
-      typedArgs: ['uuid', 'uuid', 'uuid', 'text'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      typedArgs: ['uuid', 'uuid', 'uuid', 'text', 'text'], volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
         { relation: 'public.patient_merge_candidates',

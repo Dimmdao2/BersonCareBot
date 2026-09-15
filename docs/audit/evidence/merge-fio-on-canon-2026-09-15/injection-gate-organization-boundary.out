@@ -1,0 +1,24 @@
+ИНЪЕКЦИЯ: условие соединения гейта заменено на ON true (граница организации снята)
+# PASS same-organization clinical_visit blocks automatic merge
+# PASS same-organization clinical_complaint blocks automatic merge
+# PASS same-organization clinical_diagnosis blocks automatic merge
+# PASS same-organization clinical_anamnesis_trauma blocks automatic merge
+# PASS same-organization clinical_anamnesis_illness blocks automatic merge
+# PASS same-organization clinical_anamnesis_lifestyle blocks automatic merge
+# PASS same-organization doctor_notes blocks automatic merge
+# PASS same-organization symptom_trackings blocks automatic merge
+# PASS same-organization patient_lfk_assignments blocks automatic merge
+# PASS same-organization treatment_program_instances blocks automatic merge
+# FAIL different-organization doctor notes merge: MergeDependentConflictError: medical_history: automatic merge requires support (conflict inside one organization)
+# PASS two unattributed medical histories block automatic merge
+# PASS legacy unattributed history blocks merge against an attributed organization
+# PASS manual merge consolidates same-author same-day doctor notes
+# PASS cross-organization active programs keep their organization boundary
+# FAIL canonical cross-organization notes merge with two active phone histories: MergeDependentConflictError: medical_history: automatic merge requires support (conflict inside one organization)
+# PASS manual merge keeps one preferred auth channel across different channels
+# PASS manual merge deduplicates the same native push token
+# PASS manual merge consolidates colliding open test attempts without losing results
+# PASS manual merge reconciles same-organization active doctor programs
+# PASS wellbeing diary entries stay visible after singleton tracking dedup
+# pass 1
+# fail 1

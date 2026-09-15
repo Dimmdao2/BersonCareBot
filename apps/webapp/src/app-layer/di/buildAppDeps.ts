@@ -33,6 +33,7 @@ import {
   startPhoneAuth as startPhoneAuthFlow,
   confirmPhoneAuth as confirmPhoneAuthFlow,
   consumePhoneOtpChallenge,
+  type ConfirmPhoneAuthOptions,
   type StartPhoneAuthOptions,
 } from '@/modules/auth/phoneAuth';
 import {
@@ -165,7 +166,10 @@ import { pgSymptomDiaryPort } from '@/infra/repos/pgSymptomDiary';
 import { pgLfkDiaryPort } from '@/infra/repos/pgLfkDiary';
 import { purgeAllDiaryDataForUserPg } from '@/infra/repos/pgDiaryPurge';
 import { readReminderWebappNotifyGate } from '@/infra/repos/pgReminderWebappNotifyGate';
-import { loadPlatformUserChannelBindings } from '@/infra/repos/loadPlatformUserChannelBindings';
+import {
+  loadPlatformUserChannelBindingRows,
+  loadPlatformUserChannelBindings,
+} from '@/infra/repos/loadPlatformUserChannelBindings';
 import { createPgAppointmentReminderMaterializationPort } from '@/infra/repos/pgAppointmentReminderMaterialization';
 import type { AppointmentReminderMaterializationPort } from '@/modules/booking-notifications/appointmentReminderMaterializationPort';
 import {
@@ -376,6 +380,7 @@ import { createPgIntegratorDeliveryTargetsPort } from '@/infra/repos/pgIntegrato
 import { inMemoryIntegratorDeliveryTargetsPort } from '@/infra/repos/inMemoryIntegratorDeliveryTargets';
 import { createPatientBookingService } from '@/modules/patient-booking/service';
 import { createPgOutboundMessageQueue } from '@/infra/repos/pgOutboundMessageQueue';
+import { enqueueAccountMergeLoginNotification } from '@/modules/auth/accountMergeNotification';
 import { createBookingCreatedEffects } from '@/app-layer/booking/bookingCreatedEffects';
 import { createBookingSyncPort } from '@/modules/integrator/bookingM2mApi';
 import { createAppointmentPaymentConfirmedHandler } from '@/app-layer/booking/appointmentPaymentConfirmedHandler';
@@ -1830,6 +1835,26 @@ function _buildAppDeps() {
     integratorDeliveryTargets: integratorDeliveryTargetsPort,
   };
   return {
+    accountMergeNotifications: {
+      enqueue: async (
+        user: import('@/shared/types/session').SessionUser,
+        mergedAccountId: string,
+      ) => {
+        const result = await enqueueAccountMergeLoginNotification(
+          user,
+          mergedAccountId,
+          await loadPlatformUserChannelBindingRows(user.userId),
+          createPgOutboundMessageQueue(),
+        );
+        if (result.failed > 0) {
+          logger.error({
+            event: 'account_merge_login_notification_enqueue_failed',
+            userId: user.userId,
+            failedTargets: result.failed,
+          });
+        }
+      },
+    },
     auth: {
       getCurrentSession,
       exchangeIntegratorToken: (token: string) =>
@@ -1853,9 +1878,14 @@ function _buildAppDeps() {
       startPhoneAuth: (phone: string, context: ChannelContext, opts?: StartPhoneAuthOptions) =>
         startPhoneAuthFlow(phone, context, phoneAuthDeps, opts),
       getPhoneChallenge: (challengeId: string) => challengeStore.get(challengeId),
-      confirmPhoneAuth: async (challengeId: string, code: string) => {
-        const result = await confirmPhoneAuthFlow(challengeId, code, phoneAuthDeps);
+      confirmPhoneAuth: async (
+        challengeId: string,
+        code: string,
+        options?: ConfirmPhoneAuthOptions,
+      ) => {
+        const result = await confirmPhoneAuthFlow(challengeId, code, phoneAuthDeps, options);
         if (!result.ok) return result;
+        if ('mergeRequired' in result && result.mergeRequired) return result;
         const envRole = resolveRoleFromEnv({
           phone: result.user.phone,
           telegramId: result.user.bindings?.telegramId,
@@ -1877,10 +1907,12 @@ function _buildAppDeps() {
             : { ...result.user, role: effectiveRole };
         return {
           ok: true as const,
+          mergeRequired: false as const,
           user,
           redirectTo: getRedirectPathForRole(effectiveRole),
           deliveryChannel: result.deliveryChannel,
           wasCreated: result.wasCreated,
+          mergedAccountId: result.mergedAccountId,
           registrationAttemptId: result.registrationAttemptId,
         };
       },

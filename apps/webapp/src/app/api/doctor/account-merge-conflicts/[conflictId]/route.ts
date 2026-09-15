@@ -62,6 +62,14 @@ export async function POST(request: Request, context: RouteContext) {
   if (outcome === 'conflict_not_found') {
     return NextResponse.json({ ok: false, error: 'forbidden' }, { status: 403 });
   }
+  if (outcome === 'fio_decision_required') {
+    // Слияния НЕ было: §18а требует ответа человека про ФИО, а его у нас нет. Ответить `ok: true`
+    // значило бы сказать врачу «слито» и оставить человеку подпись, которую никто не выбирал.
+    return NextResponse.json(
+      { ok: false, action: 'merge', error: 'fio_decision_required' },
+      { status: 409 },
+    );
+  }
   if (outcome === 'awaiting_other_organization') {
     // Слияния НЕ было: блокер второй клиники снимает только её врач. Отвечать `ok: true` здесь
     // значит сказать врачу «слито» про человека, который остался двумя учётками.
