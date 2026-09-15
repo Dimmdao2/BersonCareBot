@@ -53,6 +53,7 @@ import {
 import { normalizeAdminIncidentAlertConfigForAdminPatch } from '@/modules/admin-incidents/adminIncidentAlertConfig';
 import { normalizeOperatorHealthAlertConfigForAdminPatch } from '@/modules/operator-alerts/operatorHealthAlertConfig';
 import { normalizeOperatorAlertFallbackEmail } from '@/modules/operator-alerts/operatorAlertFallbackEmail';
+import { normalizeTelegramLoginBotUsername } from '@/modules/system-settings/telegramLoginBotUsernameInput';
 import { parseSmtpOutboundPatchValue } from '@/modules/system-settings/smtpOutboundPatch';
 import { SERVER_RUNTIME_INTEGER_DEFINITIONS } from '@/modules/system-settings/runtimeConfig';
 import {
@@ -1235,6 +1236,23 @@ export async function PATCH(request: Request) {
     const checked = normalizeOperatorHealthAlertConfigForAdminPatch(inner);
     if (!checked.ok) {
       return NextResponse.json({ ok: false, error: 'invalid_value' }, { status: 400 });
+    }
+    normalizedValue = { value: checked.value };
+  }
+
+  if (parsed.data.key === 'telegram_login_bot_username') {
+    const checked = normalizeTelegramLoginBotUsername(normalizedValue.value);
+    if (!checked.ok) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: 'telegram_login_bot_username_invalid',
+          message:
+            'Имя бота — 5–32 символа: буквы, цифры и подчёркивание, первый символ буква. ' +
+            'Можно вписать @имя или ссылку t.me/имя — лишнее уберём сами.',
+        },
+        { status: 400 },
+      );
     }
     normalizedValue = { value: checked.value };
   }

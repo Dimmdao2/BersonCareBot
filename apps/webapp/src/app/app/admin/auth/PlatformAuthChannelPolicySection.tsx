@@ -19,11 +19,9 @@ import type { AuthChannelUiPolicy } from '@/modules/auth/otpChannelUi';
 import { OAUTH_PROVIDER_REGISTRY, type OAuthProvider } from '@/modules/auth/oauthProviderRegistry';
 import {
   SURFACE_AUTH_CONTROLS,
-  SURFACE_AUTH_POLICY_NAMES,
-  surfaceAuthSettingKey,
+  patientSurfaceAuthSettingKey,
   type SurfaceAuthControl,
 } from '@/modules/auth/surfaceAuthSettings';
-import type { SurfaceAuthPolicyName } from '@/shared/lib/surface/requestSurface';
 import { notificationText } from '@/shared/notifications/notificationText';
 
 type PolicyKey = keyof AuthChannelUiPolicy;
@@ -32,13 +30,6 @@ type ConfigurationStatus = Readonly<{ enabled: boolean; configured: boolean }>;
 type ChannelConfigurationStatus = Readonly<Record<PolicyKey, ConfigurationStatus>>;
 type OAuthConfigurationStatus = Readonly<Record<OAuthProvider, ConfigurationStatus>>;
 type SurfacePolicy = Record<SurfaceAuthControl, boolean>;
-type SurfacePolicies = Record<SurfaceAuthPolicyName, SurfacePolicy>;
-
-const SURFACE_LABELS: Readonly<Record<SurfaceAuthPolicyName, string>> = {
-  staff: 'Персонал организаций',
-  platform_admin: 'Админ платформы',
-  patient: 'Пациенты',
-};
 
 const CONTROL_LABELS: ReadonlyArray<{
   control: SurfaceAuthControl;
@@ -61,13 +52,10 @@ const CONTROL_LABELS: ReadonlyArray<{
   },
 ];
 
-function emptyPolicies(): SurfacePolicies {
+function emptyPolicy(): SurfacePolicy {
   return Object.fromEntries(
-    SURFACE_AUTH_POLICY_NAMES.map((surface) => [
-      surface,
-      Object.fromEntries(SURFACE_AUTH_CONTROLS.map((control) => [control, false])),
-    ]),
-  ) as SurfacePolicies;
+    SURFACE_AUTH_CONTROLS.map((control) => [control, false]),
+  ) as SurfacePolicy;
 }
 
 const EMPTY_CHANNEL_STATUS: ChannelConfigurationStatus = {
@@ -90,6 +78,20 @@ function NotConfiguredHint() {
         <TooltipContent>Канал не настроен</TooltipContent>
       </Tooltip>
     </TooltipProvider>
+  );
+}
+
+/**
+ * Включённый, но ненастроенный канал — это ТИХИЙ отказ, и значок с подсказкой по наведению его не
+ * показывает. Владелец 15.09.2026 полчаса ждал код, которого никто не отправлял: переключатель
+ * Telegram стоял «включено», а имя бота было пустым, и код молча не уходил (`phone/start` отвечает
+ * нейтральным `200` независимо от доставки). Поэтому здесь строка словами, а не иконка.
+ */
+function NotConfiguredWhileEnabled() {
+  return (
+    <p className="text-xs text-destructive">
+      Включён, но не настроен — вход по этому каналу не работает.
+    </p>
   );
 }
 
@@ -117,7 +119,7 @@ function isConfigured(
 }
 
 export function PlatformAuthChannelPolicySection() {
-  const [policies, setPolicies] = useState<SurfacePolicies>(emptyPolicies);
+  const [policy, setPolicy] = useState<SurfacePolicy>(emptyPolicy);
   const [channelStatus, setChannelStatus] =
     useState<ChannelConfigurationStatus>(EMPTY_CHANNEL_STATUS);
   const [oauthStatus, setOauthStatus] = useState<OAuthConfigurationStatus>(EMPTY_OAUTH_STATUS);
@@ -138,16 +140,12 @@ export function PlatformAuthChannelPolicySection() {
         if (!active || !response.ok || !data.ok || !Array.isArray(data.settings)) {
           throw new Error('settings_unavailable');
         }
-        const next = emptyPolicies();
-        for (const surface of SURFACE_AUTH_POLICY_NAMES) {
-          for (const control of SURFACE_AUTH_CONTROLS) {
-            const key = surfaceAuthSettingKey(surface, control);
-            next[surface][control] = readBoolean(
-              data.settings.find((item) => item.key === key)?.valueJson,
-            );
-          }
+        const next = emptyPolicy();
+        for (const control of SURFACE_AUTH_CONTROLS) {
+          const key = patientSurfaceAuthSettingKey(control);
+          next[control] = readBoolean(data.settings.find((item) => item.key === key)?.valueJson);
         }
-        setPolicies(next);
+        setPolicy(next);
         setChannelStatus(data.channelPolicy ?? EMPTY_CHANNEL_STATUS);
         setOauthStatus(data.oauthProviderPolicy ?? EMPTY_OAUTH_STATUS);
         setUnsupportedClientFallbackEnabled(
@@ -166,16 +164,12 @@ export function PlatformAuthChannelPolicySection() {
   }, []);
 
   async function updateSurfaceControl(
-    surface: SurfaceAuthPolicyName,
     control: SurfaceAuthControl,
     enabled: boolean,
   ): Promise<void> {
-    const key = surfaceAuthSettingKey(surface, control);
-    const previous = policies[surface][control];
-    setPolicies((current) => ({
-      ...current,
-      [surface]: { ...current[surface], [control]: enabled },
-    }));
+    const key = patientSurfaceAuthSettingKey(control);
+    const previous = policy[control];
+    setPolicy((current) => ({ ...current, [control]: enabled }));
     setSaving(key);
     try {
       const response = await fetch('/api/platform/settings', {
@@ -186,10 +180,7 @@ export function PlatformAuthChannelPolicySection() {
       const data = (await response.json().catch(() => ({}))) as { ok?: boolean };
       if (!response.ok || !data.ok) throw new Error('save_failed');
     } catch {
-      setPolicies((current) => ({
-        ...current,
-        [surface]: { ...current[surface], [control]: previous },
-      }));
+      setPolicy((current) => ({ ...current, [control]: previous }));
       toast.error(notificationText.settingsSaveFailed);
     } finally {
       setSaving(null);
@@ -222,36 +213,28 @@ export function PlatformAuthChannelPolicySection() {
         <DoctorSectionHeader>
           <DoctorSectionTitle>Доступные способы входа</DoctorSectionTitle>
         </DoctorSectionHeader>
-        <div className="divide-y divide-border">
-          {SURFACE_AUTH_POLICY_NAMES.map((surface) => (
-            <div
-              key={surface}
-              className="grid gap-3 py-4 first:pt-0 last:pb-0 lg:grid-cols-[180px_1fr]"
-            >
-              <div className="text-sm font-medium">{SURFACE_LABELS[surface]}</div>
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                {CONTROL_LABELS.map(({ control, label, hint }) => {
-                  const configured = isConfigured(control, channelStatus, oauthStatus);
-                  return (
-                    <div key={control} className="flex items-start gap-1.5">
-                      <LabeledSwitch
-                        label={label}
-                        hint={hint}
-                        checked={policies[surface][control]}
-                        disabled={
-                          !loaded || saving !== null || (!policies[surface][control] && !configured)
-                        }
-                        onCheckedChange={(enabled) =>
-                          void updateSurfaceControl(surface, control, enabled)
-                        }
-                      />
-                      {!configured ? <NotConfiguredHint /> : null}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
+        <div className="grid gap-3 lg:grid-cols-[180px_1fr]">
+          <div className="text-sm font-medium">Пациенты</div>
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {CONTROL_LABELS.map(({ control, label, hint }) => {
+              const configured = isConfigured(control, channelStatus, oauthStatus);
+              return (
+                <div key={control} className="flex flex-col gap-1">
+                  <div className="flex items-start gap-1.5">
+                    <LabeledSwitch
+                      label={label}
+                      hint={hint}
+                      checked={policy[control]}
+                      disabled={!loaded || saving !== null || (!policy[control] && !configured)}
+                      onCheckedChange={(enabled) => void updateSurfaceControl(control, enabled)}
+                    />
+                    {!configured ? <NotConfiguredHint /> : null}
+                  </div>
+                  {loaded && policy[control] && !configured ? <NotConfiguredWhileEnabled /> : null}
+                </div>
+              );
+            })}
+          </div>
         </div>
       </DoctorSection>
       <DoctorSection>

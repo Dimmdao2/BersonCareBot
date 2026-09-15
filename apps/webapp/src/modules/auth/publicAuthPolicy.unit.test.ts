@@ -48,12 +48,8 @@ import {
   type OAuthProvider,
 } from './authChannelPolicy';
 import { getAuthChannelPolicyDetail } from './authChannelPolicyAdmin';
-import {
-  SURFACE_AUTH_CONTROLS,
-  SURFACE_AUTH_POLICY_NAMES,
-  surfaceAuthSettingKey,
-} from './surfaceAuthSettings';
-import { SYSTEM_SETTING_REGISTRY } from '@/modules/system-settings/registry';
+import { SURFACE_AUTH_CONTROLS, patientSurfaceAuthSettingKey } from './surfaceAuthSettings';
+import type { SurfaceAuthPolicyName } from '@/shared/lib/surface/surfaceAuthPolicy';
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -89,37 +85,25 @@ beforeEach(() => {
   fakes.getMaxBotApiKey.mockResolvedValue('fixture-max-key');
 });
 
-function selectPolicySurface(surface: (typeof SURFACE_AUTH_POLICY_NAMES)[number]): void {
+function selectPolicySurface(surface: SurfaceAuthPolicyName): void {
   fakes.requestSurface.value = surface === 'patient' ? 'patient_default' : surface;
 }
 
 describe('public auth policy', () => {
-  it('preserves every login toggle on all three surfaces after the legacy-value migration', async () => {
-    const migratedValues = {
-      email: true,
-      sms: false,
-      telegram: false,
-      max: false,
-      oauth_google: false,
-      oauth_yandex: false,
-      oauth_vk: false,
-      oauth_apple: false,
-      passkey: true,
-    } as const;
-
-    for (const surface of SURFACE_AUTH_POLICY_NAMES) {
+  it('ignores persisted staff/admin surface values and keeps their door composition in code', async () => {
+    for (const surface of ['staff', 'platform_admin'] as const) {
       for (const control of SURFACE_AUTH_CONTROLS) {
-        fakes.publicValues.set(surfaceAuthSettingKey(surface, control), migratedValues[control]);
+        fakes.publicValues.set(`auth_surface_${surface}_${control}_enabled`, control !== 'passkey');
       }
     }
     for (const provider of ['google', 'yandex', 'vk', 'apple'] as const) {
       fakes.publicValues.set(`oauth_${provider}_enabled`, true);
     }
 
-    for (const surface of SURFACE_AUTH_POLICY_NAMES) {
+    for (const surface of ['staff', 'platform_admin'] as const) {
       selectPolicySurface(surface);
       await expect(getAuthChannelPolicy()).resolves.toEqual({
-        email: true,
+        email: false,
         sms: false,
         telegram: false,
         max: false,
@@ -131,18 +115,49 @@ describe('public auth policy', () => {
     }
   });
 
-  it('isolates a changed surface toggle from the other two surfaces', async () => {
-    for (const surface of SURFACE_AUTH_POLICY_NAMES) {
-      for (const channel of ['email', 'sms', 'telegram', 'max'] as const) {
-        fakes.publicValues.set(surfaceAuthSettingKey(surface, channel), true);
-      }
+  it('keeps the patient door controlled by its persisted surface values', async () => {
+    const patientValues = {
+      email: true,
+      sms: false,
+      telegram: false,
+      max: false,
+      oauth_google: false,
+      oauth_yandex: false,
+      oauth_vk: false,
+      oauth_apple: false,
+      passkey: true,
+    } as const;
+
+    for (const control of SURFACE_AUTH_CONTROLS) {
+      fakes.publicValues.set(patientSurfaceAuthSettingKey(control), patientValues[control]);
     }
-    fakes.publicValues.set(surfaceAuthSettingKey('patient', 'email'), false);
+    for (const provider of ['google', 'yandex', 'vk', 'apple'] as const) {
+      fakes.publicValues.set(`oauth_${provider}_enabled`, true);
+    }
+
+    selectPolicySurface('patient');
+    await expect(getAuthChannelPolicy()).resolves.toEqual({
+      email: true,
+      sms: false,
+      telegram: false,
+      max: false,
+    });
+    await expect(isIndependentAuthMethodEnabled('passkey')).resolves.toBe(true);
+    for (const provider of ['google', 'yandex', 'vk', 'apple'] as const) {
+      await expect(isOAuthProviderEnabled(provider)).resolves.toBe(false);
+    }
+  });
+
+  it('applies a changed patient toggle only to the patient door', async () => {
+    for (const channel of ['email', 'sms', 'telegram', 'max'] as const) {
+      fakes.publicValues.set(patientSurfaceAuthSettingKey(channel), true);
+    }
+    fakes.publicValues.set(patientSurfaceAuthSettingKey('email'), false);
 
     selectPolicySurface('staff');
-    await expect(getAuthChannelPolicy()).resolves.toMatchObject({ email: true });
+    await expect(getAuthChannelPolicy()).resolves.toMatchObject({ email: false });
     selectPolicySurface('platform_admin');
-    await expect(getAuthChannelPolicy()).resolves.toMatchObject({ email: true });
+    await expect(getAuthChannelPolicy()).resolves.toMatchObject({ email: false });
     selectPolicySurface('patient');
     await expect(getAuthChannelPolicy()).resolves.toMatchObject({ email: false });
   });
@@ -155,40 +170,10 @@ describe('public auth policy', () => {
     expect(fakes.getPublicRuntimeBool).not.toHaveBeenCalled();
   });
 
-  const defaults = (surface: (typeof SURFACE_AUTH_POLICY_NAMES)[number]) =>
-    Object.fromEntries(
-      SURFACE_AUTH_CONTROLS.map((control) => [
-        control,
-        SYSTEM_SETTING_REGISTRY[surfaceAuthSettingKey(surface, control)].defaultValue,
-      ]),
-    );
-
-  it('defaults staff first launch to password-only authentication mechanics', () => {
-    expect(defaults('staff')).toMatchObject({
-      email: 'false',
-      sms: 'false',
-      oauth_google: 'false',
-      oauth_yandex: 'false',
-      oauth_vk: 'false',
-      oauth_apple: 'false',
-      passkey: 'false',
-    });
-  });
-
-  it('keeps the independent platform-admin defaults', () => {
-    expect(defaults('platform_admin')).toMatchObject({
-      email: 'true',
-      sms: 'false',
-      oauth_google: 'false',
-      oauth_yandex: 'false',
-      oauth_vk: 'false',
-      oauth_apple: 'false',
-    });
-  });
-
   it('uses only boolean capabilities to hide an unconfigured channel from anonymous login', async () => {
+    selectPolicySurface('patient');
     for (const channel of ['email', 'sms', 'telegram', 'max'] as const) {
-      fakes.publicValues.set(surfaceAuthSettingKey('staff', channel), true);
+      fakes.publicValues.set(patientSurfaceAuthSettingKey(channel), true);
     }
     fakes.configuredChannels.set('email', true);
     fakes.configuredChannels.set('sms', false);
@@ -204,13 +189,14 @@ describe('public auth policy', () => {
   });
 
   it('hides a configured channel when its global admin toggle is disabled', async () => {
+    selectPolicySurface('patient');
     for (const [control, value] of [
       ['email', true],
       ['sms', true],
       ['telegram', true],
       ['max', false],
     ] as const) {
-      fakes.publicValues.set(surfaceAuthSettingKey('staff', control), value);
+      fakes.publicValues.set(patientSurfaceAuthSettingKey(control), value);
     }
     for (const channel of ['email', 'sms', 'telegram', 'max']) {
       fakes.configuredChannels.set(channel, true);
@@ -232,7 +218,8 @@ describe('public auth policy', () => {
   ] as const)(
     'uses the %s public configured projection as the OAuth availability answer',
     async (provider, toggleControl, configuredKey) => {
-      fakes.publicValues.set(surfaceAuthSettingKey('staff', toggleControl), true);
+      selectPolicySurface('patient');
+      fakes.publicValues.set(patientSurfaceAuthSettingKey(toggleControl), true);
       fakes.publicValues.set(configuredKey, false);
 
       await expect(isOAuthProviderEnabled(provider as OAuthProvider)).resolves.toBe(false);
@@ -241,10 +228,10 @@ describe('public auth policy', () => {
 
   it('keeps credential-backed configured detail on the authenticated admin accessor', async () => {
     for (const channel of ['email', 'sms', 'telegram', 'max'] as const) {
-      fakes.publicValues.set(surfaceAuthSettingKey('staff', channel), true);
+      fakes.publicValues.set(patientSurfaceAuthSettingKey(channel), true);
     }
 
-    await expect(getAuthChannelPolicyDetail()).resolves.toEqual({
+    await expect(getAuthChannelPolicyDetail('patient')).resolves.toEqual({
       email: { enabled: true, configured: true },
       sms: { enabled: true, configured: true },
       telegram: { enabled: true, configured: true },

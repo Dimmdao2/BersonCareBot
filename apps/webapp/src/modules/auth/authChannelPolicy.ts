@@ -7,7 +7,9 @@ import type { SurfaceAuthPolicyName } from '@/shared/lib/surface/requestSurface'
 import { getOptionalResolvedSurface } from '@/shared/lib/surface/requestSurface.server';
 import {
   authPolicyNameForRequestSurface,
-  surfaceAuthSettingKey,
+  defaultSurfaceAuthControlEnabled,
+  patientSurfaceAuthSettingKey,
+  surfaceAuthControlAvailable,
   type SurfaceAuthControl,
 } from './surfaceAuthSettings';
 
@@ -35,7 +37,11 @@ async function getSurfaceAwareToggle(
 ): Promise<boolean> {
   const surface = await currentSurfacePolicyName(explicitSurface);
   if (!surface) return false;
-  return getPublicRuntimeBool(surfaceAuthSettingKey(surface, control), 'public_auth_config');
+  // У сотрудничьих дверей нет настроек состава: и наличие, и включённость метода задаёт код.
+  // Поэтому сохранённые legacy-строки `auth_surface_staff_*` / `platform_admin_*` не читаются.
+  if (!surfaceAuthControlAvailable(surface, control)) return false;
+  if (surface !== 'patient') return defaultSurfaceAuthControlEnabled(surface, control);
+  return getPublicRuntimeBool(patientSurfaceAuthSettingKey(control), 'public_auth_config');
 }
 
 /** Admin toggle only — unchanged contract (pre-existing, ~30 server-enforcing routes rely on this). */

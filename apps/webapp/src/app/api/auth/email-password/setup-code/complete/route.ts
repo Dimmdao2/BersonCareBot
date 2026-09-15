@@ -2,6 +2,7 @@ import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipa
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { completePasswordSetupAfterVerification } from '@/app-layer/auth/completePasswordSetup';
 import { ensureAuthModulePortsBound } from '@/app-layer/di/bindAuthModulePorts';
 import {
   AUTH_CHANNEL_DISABLED_ERROR,
@@ -16,16 +17,6 @@ import {
   consumeLatestEmailChallengeCodeForUser,
   normalizeEmail,
 } from '@/modules/auth/emailAuth';
-import { reconcileDbRoleWithEnvRole, resolveRoleFromEnv } from '@/modules/auth/envRole';
-import { getRedirectPathForRole } from '@/modules/auth/redirectPolicy';
-import { setSessionFromUser } from '@/modules/auth/service';
-import { hashPin } from '@/modules/auth/pinHash';
-import {
-  isPasswordEligibleRole,
-  PASSWORD_NOT_ALLOWED_FOR_ROLE_ERROR,
-} from '@/modules/auth/passwordEligibility';
-import { enterStaffSecuritySelfPrincipal } from '@/app-layer/principal/staffSecuritySelfPrincipal';
-import { isPlatformUserUuid } from '@/shared/platform-user/isPlatformUserUuid';
 
 const bodySchema = z.object({
   email: z.string().email(),
@@ -33,6 +24,12 @@ const bodySchema = z.object({
   code: z.string().min(4).max(32),
   password: z.string().min(8).max(128),
 });
+
+const DUMMY_SETUP_USER_ID = '00000000-0000-4000-8000-000000000000';
+
+function setupCodeNeutralFailureResponse() {
+  return NextResponse.json({ ok: false, error: 'invalid_code' }, { status: 400 });
+}
 
 /** Contact-only email setup by code: verify email, set password, create session. */
 export async function POST(request: Request) {
@@ -51,7 +48,7 @@ export async function POST(request: Request) {
     );
   }
 
-  if (!(await isAuthChannelEnabled('email'))) {
+  if (!(await isAuthChannelEnabled('email', undefined, 'transactional'))) {
     return NextResponse.json({ ok: false, error: AUTH_CHANNEL_DISABLED_ERROR }, { status: 503 });
   }
   const raw = (await request.json().catch(() => null)) as unknown;
@@ -63,83 +60,34 @@ export async function POST(request: Request) {
   const emailNorm = normalizeEmail(parsed.data.email);
   const deps = buildAppDeps();
   const state = await deps.emailPasswordLookup.resolveAuthState(emailNorm);
-  if (state.kind !== 'needs_email_setup') {
-    const status = state.kind === 'verified_with_password' ? 409 : 400;
-    return NextResponse.json(
-      {
-        ok: false,
-        error: state.kind === 'verified_with_password' ? 'already_has_login' : 'not_eligible',
-      },
-      { status },
-    );
-  }
+  const candidateUserId = state.kind === 'needs_email_setup' ? state.userId : DUMMY_SETUP_USER_ID;
 
   const confirmed = parsed.data.challengeId
     ? await confirmEmailChallenge(
-        state.userId,
+        candidateUserId,
         parsed.data.challengeId,
         parsed.data.code,
         'password_setup',
       )
     : await consumeLatestEmailChallengeCodeForUser(
-        state.userId,
+        candidateUserId,
         parsed.data.code,
         'password_setup',
       );
   if (!confirmed.ok) {
-    const status = confirmed.code === 'too_many_attempts' ? 429 : 400;
-    return NextResponse.json(
-      {
-        ok: false,
-        error: confirmed.code,
-        retryAfterSeconds: confirmed.retryAfterSeconds,
-      },
-      {
-        status,
-        ...(confirmed.retryAfterSeconds != null && {
-          headers: { 'Retry-After': String(confirmed.retryAfterSeconds) },
-        }),
-      },
-    );
+    return setupCodeNeutralFailureResponse();
   }
+  if (state.kind !== 'needs_email_setup') return setupCodeNeutralFailureResponse();
 
-  if (!isPlatformUserUuid(state.userId)) {
-    return NextResponse.json({ ok: false, error: 'server_error' }, { status: 500 });
-  }
-  let sessionUser = await deps.userByPhone.findByUserId(state.userId);
-  if (!sessionUser) {
-    return NextResponse.json({ ok: false, error: 'server_error' }, { status: 500 });
-  }
-  if (!isPasswordEligibleRole(sessionUser.role)) {
-    return NextResponse.json(
-      { ok: false, error: PASSWORD_NOT_ALLOWED_FOR_ROLE_ERROR },
-      { status: 403 },
-    );
-  }
-  enterStaffSecuritySelfPrincipal(
-    state.userId,
-    'api/auth/email-password/setup-code/complete:email-verified-self',
-  );
-  const passwordHash = await hashPin(parsed.data.password);
-  await deps.userPasswordCredentials.upsertPasswordHash(state.userId, emailNorm, passwordHash);
-
-  // C-4 (2026-07-26): the messenger/phone allowlists never grant role anymore (envRole.ts);
-  // reconciled so a resolver that only ever says "client" cannot demote an existing staff role.
-  const envRole = resolveRoleFromEnv({
-    phone: sessionUser.phone,
-    telegramId: sessionUser.bindings.telegramId,
-    maxId: sessionUser.bindings.maxId,
+  const completed = await completePasswordSetupAfterVerification({
+    deps,
+    userId: state.userId,
+    emailNormalized: emailNorm,
+    password: parsed.data.password,
+    principalSource: 'api/auth/email-password/setup-code/complete:email-verified-self',
   });
-  const reconciledRole = reconcileDbRoleWithEnvRole(sessionUser.role, envRole);
-  if (sessionUser.role !== reconciledRole) {
-    await deps.userProjection.updateRole(sessionUser.userId, reconciledRole);
-    sessionUser = { ...sessionUser, role: reconciledRole };
+  if (!completed.ok) {
+    return NextResponse.json({ ok: false, error: completed.error }, { status: completed.status });
   }
-
-  await setSessionFromUser(sessionUser, 'email_setup_code');
-  return NextResponse.json({
-    ok: true,
-    redirectTo: getRedirectPathForRole(sessionUser.role),
-    role: sessionUser.role,
-  });
+  return NextResponse.json(completed);
 }

@@ -36,9 +36,12 @@ import { markFreshLoginAfterAuth } from '@/shared/lib/webPush/freshLoginStorage'
 import { ChannelPicker } from '@/shared/ui/patient/auth/ChannelPicker';
 import {
   OtpCodeForm,
-  type OtpAlternativeEntry,
   type OtpResendOutcome,
 } from '@/shared/ui/patient/auth/OtpCodeForm';
+import {
+  buildPublicPhoneOtpAlternatives,
+  phoneLoginOtpDescription,
+} from '@/shared/ui/patient/auth/otpDoor';
 import { InternationalPhoneInput } from '@/shared/ui/patient/auth/InternationalPhoneInput';
 import {
   AUTH_LOGIN_ACCENT_TEXT_CLASS,
@@ -170,56 +173,6 @@ function hasPublicWebOtpChannel(methods: AuthMethodsPayload): boolean {
   );
 }
 
-function otpDescription(channel: OtpChannel): string {
-  switch (channel) {
-    case 'telegram':
-      return 'Введите код, отправленный вам в Telegram.';
-    case 'max':
-      return 'Введите код, отправленный вам в Max.';
-    case 'email':
-      return 'Введите код, отправленный вам на email.';
-    default:
-      return 'Введите код, отправленный вам.';
-  }
-}
-
-function buildAlternatives(
-  methods: AuthMethodsPayload,
-  currentChannel: OtpChannel,
-  onChoose: (ch: OtpChannel) => Promise<OtpResendOutcome>,
-): OtpAlternativeEntry[] {
-  const result: OtpAlternativeEntry[] = [];
-  for (const ch of OTP_PUBLIC_OTHER_CHANNELS_ORDER) {
-    if (ch === currentChannel) continue;
-    if (!isOtpChannelAvailablePublic(methods, ch)) continue;
-    if (ch === 'telegram') {
-      result.push({
-        label: 'Получить код в Telegram',
-        onClick: async () => {
-          await onChoose('telegram');
-        },
-      });
-      continue;
-    }
-    if (ch === 'max') {
-      result.push({
-        label: 'Получить код в Max',
-        onClick: async () => {
-          await onChoose('max');
-        },
-      });
-      continue;
-    }
-    result.push({
-      label: 'Получить код на email',
-      onClick: async () => {
-        await onChoose('email');
-      },
-    });
-  }
-  return result;
-}
-
 function withContactSupportReturn(
   supportHref: string | undefined,
   fromParam: string,
@@ -280,8 +233,9 @@ export function AuthFlowV2({
   const [step, setStep] = useState<AuthFlowStep>('entry_loading');
   const pendingHydratedRef = useRef(false);
   const initialDevViewAppliedRef = useRef(false);
-  const [oauthProviders, setOauthProviders] =
-    useState<OAuthProviderFlags>(EMPTY_OAUTH_PROVIDER_FLAGS);
+  const [oauthProviders, setOauthProviders] = useState<OAuthProviderFlags>(
+    EMPTY_OAUTH_PROVIDER_FLAGS,
+  );
   const [loading, setLoading] = useState(false);
   const [phone, setPhone] = useState<string | null>(null);
   const [methods, setMethods] = useState<AuthMethodsPayload | null>(null);
@@ -364,8 +318,7 @@ export function AuthFlowV2({
   const phoneLoginEnabled =
     surfaceAllows('phone_bot') &&
     (messengerPhoneEnabled || authChannelPolicy.sms || authChannelPolicy.email);
-  const passkeyEnabled =
-    surfaceAllows('passkey') && prefetchedAuthConfig?.passkeyEnabled === true;
+  const passkeyEnabled = surfaceAllows('passkey') && prefetchedAuthConfig?.passkeyEnabled === true;
   const patientRegistrationEnabled = roleLoginPortal !== 'doctor' && roleLoginPortal !== 'admin';
   const specialistSignupEntryEnabled = roleLoginPortal !== 'patient' && roleLoginPortal !== 'admin';
 
@@ -436,13 +389,7 @@ export function AuthFlowV2({
     } else if (passwordLoginEnabled) {
       setEmailAuthMode('password_login');
     }
-  }, [
-    engageInteractive,
-    initialDevView,
-    passwordLoginEnabled,
-    specialistSignupEnabled,
-    step,
-  ]);
+  }, [engageInteractive, initialDevView, passwordLoginEnabled, specialistSignupEnabled, step]);
 
   useEffect(() => {
     if (pendingHydratedRef.current) return;
@@ -745,9 +692,8 @@ export function AuthFlowV2({
   /**
    * Forgot/set password entry point (email+password login screen).
    * `/forgot` is uniform-response by design (OWASP ASVS 2.5 / CWE-204: never discloses whether the
-   * account exists) — it also transparently classifies a code-only account (owner's case: OTP login,
-   * no `user_password_credentials` row) as `setupRequired`, so this one entry point covers both
-   * "reset my forgotten password" and "set a password for the first time" without asking which one.
+   * account exists). Reset versus first-time setup is selected only after the submitted code proves
+   * the address, so this entry point never asks or reveals which account state was found.
    */
   /** Кнопка «Забыли пароль?» — это переход на шаг, а не отправка: адрес спрашиваем здесь. */
   const openForgotPassword = () => {
@@ -771,9 +717,7 @@ export function AuthFlowV2({
     try {
       const result = await fetchJsonSafe<{
         ok?: boolean;
-        challengeId?: string;
         retryAfterSeconds?: number;
-        setupRequired?: boolean;
         error?: string;
       }>('/api/auth/email-password/forgot', {
         method: 'POST',
@@ -791,8 +735,8 @@ export function AuthFlowV2({
       }
       setEmailLoginPassword('');
       setPwResetEmail(email);
-      setPwRecoveryPurpose(data.setupRequired ? 'setup' : 'reset');
-      setPwResetChallengeId(data.challengeId ?? null);
+      setPwRecoveryPurpose('reset');
+      setPwResetChallengeId(null);
       setPwResetCode('');
       setPwNewPassword('');
       setPwRecoveryPhase('reset_code');
@@ -1210,7 +1154,9 @@ export function AuthFlowV2({
         setPwResetCode('');
         setPwNewPassword('');
         toast.success(
-          pwRecoveryPurpose === 'setup' ? notificationText.authAccessConfigured : notificationText.authPasswordUpdatedPleaseLogin,
+          pwRecoveryPurpose === 'setup'
+            ? notificationText.authAccessConfigured
+            : notificationText.authPasswordUpdatedPleaseLogin,
         );
         setEmailLoginEmail(email);
         setEmailAuthMode('login');
@@ -1333,8 +1279,7 @@ export function AuthFlowV2({
     // 'oauth_first' — реальный шаг «выбор входа» только когда есть куда возвращаться
     // (OAuth/passkey-альтернативы); иначе (напр. doctor-портал — только email+пароль) кнопка
     // вела в тупик — владелец, скрин входа после разлогина.
-    const canReturnToOauthFirst =
-      emailPasswordReturn === 'oauth_first' && hasWebOauthAlternatives;
+    const canReturnToOauthFirst = emailPasswordReturn === 'oauth_first' && hasWebOauthAlternatives;
 
     const showEmailChromeBack =
       pwRecoveryPhase !== 'none' ||
@@ -2137,7 +2082,10 @@ export function AuthFlowV2({
                         };
                       }
                       if (data.error === 'invalid_code') {
-                        return { ok: false as const, message: notificationText.authCodeInvalidOrExpired };
+                        return {
+                          ok: false as const,
+                          message: notificationText.authCodeInvalidOrExpired,
+                        };
                       }
                       return {
                         ok: false as const,
@@ -2179,7 +2127,10 @@ export function AuthFlowV2({
                           retryAfterSeconds: data.retryAfterSeconds,
                         };
                       }
-                      return { ok: false as const, message: data.message ?? notificationText.authCodeInvalidOrExpired };
+                      return {
+                        ok: false as const,
+                        message: data.message ?? notificationText.authCodeInvalidOrExpired,
+                      };
                     }
                     if (emailVerifyPurpose === 'setup' && emailRegPassword.length < 8) {
                       return { ok: false as const, message: 'Пароль — не менее 8 символов.' };
@@ -2202,7 +2153,9 @@ export function AuthFlowV2({
                           emailVerifyPurpose === 'setup'
                             ? {
                                 email: emailLoginEmail.trim(),
-                                challengeId: emailRegChallengeId,
+                                ...(emailRegChallengeId
+                                  ? { challengeId: emailRegChallengeId }
+                                  : {}),
                                 code,
                                 password: emailRegPassword,
                               }
@@ -2433,10 +2386,10 @@ export function AuthFlowV2({
                       return { kind: 'error' as const, message: AUTH_NETWORK_ERROR_MESSAGE };
                     }
                     const { response: res, data } = resendRegisterResult;
-                    if (data.ok && data.challengeId) {
-                      setEmailRegChallengeId(data.challengeId);
+                    if (data.ok && (emailVerifyPurpose === 'setup' || Boolean(data.challengeId))) {
+                      setEmailRegChallengeId(data.challengeId ?? null);
                       setEmailRegRetrySec(data.retryAfterSeconds ?? 60);
-                      if (emailVerifyPurpose === 'registration') {
+                      if (emailVerifyPurpose === 'registration' && data.challengeId) {
                         saveRegisterVerifyPending({
                           email,
                           challengeId: data.challengeId,
@@ -2746,8 +2699,11 @@ export function AuthFlowV2({
   }
 
   if (step === 'code' && challengeId && methods) {
-    const alternatives = buildAlternatives(methods, otpChannel, (ch) =>
-      startPhoneOtp(ch, 'channel'),
+    const alternatives = buildPublicPhoneOtpAlternatives(
+      methods,
+      otpChannel,
+      (ch) => startPhoneOtp(ch, 'channel'),
+      emailOtpEnabled || passwordLoginEnabled ? () => openEmailPasswordLogin('phone') : null,
     );
 
     return (
@@ -2757,7 +2713,7 @@ export function AuthFlowV2({
           retryAfterSeconds={retryAfterSeconds}
           supportContactHref={supportContactHref}
           submitLabel="Войти"
-          description={otpDescription(otpChannel)}
+          description={phoneLoginOtpDescription(otpChannel)}
           alternatives={alternatives}
           onConfirm={async (code) => {
             engageInteractive();

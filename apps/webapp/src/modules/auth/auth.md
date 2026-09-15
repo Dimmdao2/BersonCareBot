@@ -39,7 +39,7 @@
 - **`POST /api/auth/email-password/register`** — compatibility registration API: required `lastName` + `firstName`, optional `patronymic`; создаёт канон с паролем в `user_password_credentials` и производный `display_name`, затем отправляет код на почту (`startEmailChallenge`). Ответ при успехе включает **`attemptId`** (корреляция с confirm). Если email уже на **contact-only** карточке (нет `user_password_credentials` или полноценного login) — **200** `{ ok: true, error: "existing_account_needs_email_setup", setupCodeSent: true, challengeId, attemptId? }`; пользователь вводит код в текущей форме, без magic-link. Основной public patient entry остаётся passwordless email-OTP; отдельный owner decision нужен, прежде чем требовать FIO в нём.
 - **`POST /api/auth/email-password/register/confirm`** — тело: `challengeId`, `code`, опционально **`attemptId`**; сессия после успеха; события `auth_register_*` в product analytics.
 - ~~`POST /api/auth/email-password/lookup`~~ — **дверь удалена 13.09.2026 по решению владельца.** Неаутентифицированная, без ограничения частоты, отдавала состояние любой учётной записи по email (проверка чужих адресов). В приложении не вызывалась ниоткуда. Сам модуль `emailPasswordLookup` жив и используется маршрутами `forgot`, `register`, `setup-access`, `setup-code/complete`.
-- **`POST /api/auth/email-password/setup-access`** — повторная отправка setup-кода для `needs_email_setup`, возвращает `challengeId`.
+- **`POST /api/auth/email-password/setup-access`** — повторная отправка setup-кода для `needs_email_setup`; наружу всегда возвращает нейтральное принятое состояние без `challengeId`, а completion находит последний код по доказанному адресу.
 - **`POST /api/auth/email-password/login`** — при верном пароле и **`email_verified_at`** возвращает сессию и `redirectTo`. Если пароль верный, но email ещё не подтверждён — **409** `email_not_verified` (UI запускает повторную регистрацию/код).
   Вход использует общий per-IP чокпоинт `auth.confirm` (30 запросов / 10 минут) и атомарный протокол
   `password_login_acquire` → одна Argon2-проверка вне транзакции → `password_login_complete`. До Argon2
@@ -52,9 +52,9 @@
   с `purpose=password_login`, identifier и expiry; криптографически проверенный proof потребляется атомарно
   вместе с admission и только один раз. CDN/Sentinel/внешней телеметрии нет. Реальный и неизвестный email
   проходят один и тот же внешний failure contract и real/dummy Argon2 после допуска.
-- **`POST /api/auth/email-password/forgot`** — сброс: код на почту для **verified + password**; для **contact-only** (`needs_email_setup`) — setup-код и `challengeId` для текущей формы (после lookup UI уже знает, что это setup flow). Если вкладка потеряла `challengeId`, `setup-code/complete` принимает код через latest active challenge пользователя.
-- **`POST /api/auth/email-password/setup-code/complete`** — contact-only setup по коду: подтверждает email, создаёт/обновляет пароль и ставит сессию.
-- **`POST /api/auth/email-password/reset`** — проверка кода через `consumeEmailChallengeCode` (если передан `challengeId`) или `consumeLatestEmailChallengeCodeForUser`, обновление хэша пароля; ошибки верификации кода (включая случай отсутствия пользователя) нормализуются в нейтральный `invalid_code`.
+- **`POST /api/auth/email-password/forgot`** — единый старт восстановления: для **verified + password** запускает reset-код, для **contact-only** (`needs_email_setup`) — setup-код; status/body и время ответа не сообщают найденное состояние, `challengeId` и признак setup/reset наружу не уходят.
+- **`POST /api/auth/email-password/setup-code/complete`** — contact-only setup по коду: до успешной проверки OTP неизвестный адрес, contact-only и существующий login получают один `invalid_code`; после проверки создаёт/обновляет пароль и ставит сессию.
+- **`POST /api/auth/email-password/reset`** — единый completion после нейтрального `forgot`: проверяет reset- либо setup-код и только после успешного OTP выбирает обновление существующего пароля или первичную установку; ошибки верификации кода (включая случай отсутствия пользователя) нормализуются в нейтральный `invalid_code`.
 - **`POST /api/account/security/password/change`** — смена пароля из авторизованного staff-аккаунта с той же
   атомарной защитой текущего пароля и ALTCHA после 5-й неудачи
   (`POST /api/account/security/password/change/challenge`); старые сессии отзываются через `session_epoch`,
@@ -73,7 +73,7 @@
 - Подсказки ссылок на ботов при `access_denied`/`max_unavailable` в `AuthBootstrap` берутся из серверного prefetch-конфига (`initialPublicAuthConfig`) без дополнительных клиентских запросов публичных auth-config.
 - **Диагностика:** `console.info` с префиксами `[auth/telegram-init]`, `[auth/max-init]`, `[auth/telegram-login]` для `resolution_hints` пишутся только при **`DEBUG_AUTH=1`** в env (не в `test`).
 - **exchangeIntegratorToken** — обмен JWT «войти в приложение» из бота на сессию вебаппа (payload: sub, role, displayName, phone, bindings, exp).
-- **`POST /api/auth/channel-link/start`** (привязка TG/Max с `/app/patient/bind-phone` в браузере) и **`POST /api/auth/messenger/start`** (deep link после ввода телефона): для Telegram — DB-backed `telegram_login_bot_username`, для MAX — DB-backed `max_login_bot_nickname`. При непустом нике ответ содержит диплинк `https://max.ru/<nick>?start=link_…` ([документация MAX](https://dev.max.ru/docs/chatbots/bots-coding/prepare)); пустое значение означает только команду `/start link_…` без автоперехода. Ошибка чтения не подменяется env или `CHANNEL_LIST`. **Не путать** с `ALLOWED_MAX_IDS` / whitelist (там — user id людей).
+- **`POST /api/auth/channel-link/start`** (привязка TG/Max с `/app/patient/bind-phone` в браузере): для Telegram — DB-backed `telegram_login_bot_username`, для MAX — DB-backed `max_login_bot_nickname`. При непустом нике ответ содержит диплинк `https://max.ru/<nick>?start=link_…` ([документация MAX](https://dev.max.ru/docs/chatbots/bots-coding/prepare)); пустое значение означает только команду `/start link_…` без автоперехода. Ошибка чтения не подменяется env или `CHANNEL_LIST`. **Не путать** с `ALLOWED_MAX_IDS` / whitelist (там — user id людей).
 
 ## OAuth (Яндекс и Google — веб-вход; Apple legacy)
 
@@ -167,7 +167,7 @@ Tier **`patient`** (доступ к основному пациентскому 
 
 ### Channel link (старт ссылки из сессии)
 
-- **`POST /api/auth/channel-link/start`** (авторизованный пациент): deep link Telegram (`t.me/…`) и при настроенном нике Max — `https://max.ru/<nick>?start=link_…`, иначе URL-заглушка и команда `/start link_…`. **Rate limit:** scope `auth.channel_link_start`, ключ — `userId` сессии (до **30** запросов за скользящий час в `auth_rate_limit_events`; без БД — in-memory fallback), аналогично `auth.messenger_start`. Ответ **429** `rate_limited` при превышении.
+- **`POST /api/auth/channel-link/start`** (авторизованный пациент): deep link Telegram (`t.me/…`) и при настроенном нике Max — `https://max.ru/<nick>?start=link_…`, иначе URL-заглушка и команда `/start link_…`. **Rate limit:** scope `auth.channel_link_start`, ключ — `userId` сессии (до **30** запросов за скользящий час в `auth_rate_limit_events`; без БД — in-memory fallback). Ответ **429** `rate_limited` при превышении.
 
 ### Channel link → integrator
 

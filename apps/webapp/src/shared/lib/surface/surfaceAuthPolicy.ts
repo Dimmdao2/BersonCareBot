@@ -19,13 +19,16 @@ export type SurfaceAuthPolicyConfig = Readonly<Record<SurfaceAuthPolicyName, Sur
 
 /** Client-safe single source for the surface authentication matrix. */
 export const DEFAULT_SURFACE_AUTH_POLICY_CONFIG = {
+  // Состав сотрудничьих дверей задаётся только этой матрицей, а не настройками поверхности.
+  // Email-код здесь не самостоятельная дверь: после проверки пароля существующая staffSecurity-
+  // цепочка отдельно выбирает личный TOTP либо email-код как второй фактор.
   staff: {
-    availableMethods: SURFACE_AUTH_METHODS,
-    enabledMethods: ['password', 'totp'],
+    availableMethods: ['password', 'totp', 'passkey'],
+    enabledMethods: ['password', 'totp', 'passkey'],
   },
   platform_admin: {
-    availableMethods: SURFACE_AUTH_METHODS,
-    enabledMethods: ['password', 'email_code', 'totp', 'passkey'],
+    availableMethods: ['password', 'totp', 'passkey'],
+    enabledMethods: ['password', 'totp', 'passkey'],
   },
   patient: {
     availableMethods: ['email_code', 'phone_bot', 'oauth', 'passkey'],

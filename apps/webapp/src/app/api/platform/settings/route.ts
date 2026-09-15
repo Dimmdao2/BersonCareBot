@@ -153,8 +153,8 @@ export async function GET() {
     buildAppDeps()
       .systemSettings.listSettingsByScope('admin', { organizationId: null })
       .then((rows) => rows.filter(isPlatformGlobalSetting).map((setting) => projectPlatformSettingForClient(setting, rows))),
-    getAuthChannelPolicyDetail(),
-    getOAuthProviderPolicyDetail(),
+    getAuthChannelPolicyDetail('patient'),
+    getOAuthProviderPolicyDetail('patient'),
   ]);
   // Read-only, computed status for the admin warning UI ("toggle is ON but not configured").
   // Never gates anything here — enforcement lives in authChannelPolicy.ts / the OAuth routes.
