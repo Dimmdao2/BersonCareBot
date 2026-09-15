@@ -23,8 +23,20 @@ export type PatientMergeConflictDetails = {
   organizationId: string;
   createdAt: string;
   source: string;
+  /** Врач этой клиники уже нажал «слить», и пара ждёт решения второй клиники. */
+  doctorApproved: boolean;
   parties: [PatientMergeConflictParty, PatientMergeConflictParty];
 };
+
+/**
+ * Чем кончилось нажатие врачом «слить». `merged` — учётки объединены; `awaiting_other_organization`
+ * — одобрение врача записано, но слияния НЕ было: у пары есть медицинский блокер второй клиники, и
+ * снять его может только её врач; `conflict_not_found` — незакрытого конфликта этой клиники нет.
+ */
+export type PatientMergeConflictMergeOutcome =
+  | 'merged'
+  | 'awaiting_other_organization'
+  | 'conflict_not_found';
 
 export type PatientMergeCandidateRecord = {
   id: string;
@@ -41,14 +53,6 @@ export type PatientMergeCandidateRecord = {
 };
 
 export type PatientMergeCandidatePort = {
-  upsertPendingCandidate(input: {
-    organizationId: string;
-    anchorUserId: string;
-    candidateUserId: string;
-    reason: string;
-    triggerAppointmentId?: string | null;
-    payload?: Record<string, unknown>;
-  }): Promise<PatientMergeCandidateRecord>;
   listPendingByOrganization(
     organizationId: string,
     limit?: number,
@@ -62,7 +66,7 @@ export type PatientMergeCandidatePort = {
     organizationId: string,
     conflictId: string,
     resolvedBy: string,
-  ): Promise<boolean>;
+  ): Promise<PatientMergeConflictMergeOutcome>;
   refuseMedicalConflict(
     organizationId: string,
     conflictId: string,

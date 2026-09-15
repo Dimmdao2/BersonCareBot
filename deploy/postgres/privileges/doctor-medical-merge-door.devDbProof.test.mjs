@@ -1,19 +1,25 @@
 /**
- * Живое доказательство разбора медицинского конфликта слияния врачом на именованной базе DEV.
+ * Живые доказательства разбора медицинского конфликта слияния врачом на именованной базе DEV.
  * Кандидатная миграция и кандидатные права применяются ТОЛЬКО внутри транзакции с `ROLLBACK`;
  * `migrate-dev --execute` и reconcile этот файл не зовёт, постоянных строк не остаётся.
  *
- * Отказ, который он ловит (уже случившийся, D2/E1): «Слить» падает с
- * `permission denied for table user_password_credentials`, потому что перенос учётных строк идёт
- * под `app_staff`, а не за дверью `SECURITY DEFINER`. Оракул — живой PostgreSQL, а не наш же текст.
+ * Три отказа, которые он ловит (все уже случившиеся):
+ *  E1 — «Слить» падает с `permission denied for table user_password_credentials`, потому что
+ *       перенос учётных строк идёт под `app_staff`, а не за дверью `SECURITY DEFINER`;
+ *  Д1 — конфликт есть в двух клиниках, врач первой жмёт «слить», ничего не сливается, а конфликт
+ *       уходит с его индикатора и маршрут отвечает успехом;
+ *  Д2 — `app_staff` сам вписывает себе основание для двери и двигает чужие учётные строки.
  *
- * Запуск:
+ * Оракул — живой PostgreSQL, а не наш же текст.
+ *
+ * Запуск (все три):
  *   RUN_DOCTOR_MEDICAL_MERGE_DOOR_DB=1 node --test \
  *     deploy/postgres/privileges/doctor-medical-merge-door.devDbProof.test.mjs
  *
- * Слепая поломка (у двери отбирают одну объявленную таблицу — proof обязан покраснеть):
- *   RUN_DOCTOR_MEDICAL_MERGE_DOOR_DB=1 DOCTOR_MEDICAL_MERGE_DOOR_FAULT=privilege node --test \
- *     deploy/postgres/privileges/doctor-medical-merge-door.devDbProof.test.mjs
+ * Слепые поломки — каждая возвращает поверхность к состоянию отказа, прогон обязан покраснеть:
+ *   DOCTOR_MEDICAL_MERGE_DOOR_FAULT=privilege            (у двери отбирают объявленную таблицу)
+ *   DOCTOR_MEDICAL_MERGE_DOOR_FAULT=two-clinic-blindness (дверь не видит блокер второй клиники)
+ *   DOCTOR_MEDICAL_MERGE_DOOR_FAULT=staff-insert         (роли врача возвращают колоночный INSERT)
  */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
@@ -25,13 +31,12 @@ import { fileURLToPath } from 'node:url';
 
 const ENABLED = process.env.RUN_DOCTOR_MEDICAL_MERGE_DOOR_DB === '1';
 const FAULT = process.env.DOCTOR_MEDICAL_MERGE_DOOR_FAULT ?? '';
-if (!['', 'privilege'].includes(FAULT)) {
+if (!['', 'privilege', 'two-clinic-blindness', 'staff-insert'].includes(FAULT)) {
   throw new Error(`unknown DOCTOR_MEDICAL_MERGE_DOOR_FAULT '${FAULT}'`);
 }
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, '..', '..', '..');
-const PROOF_BODY = path.join(scriptDir, 'doctor-medical-merge-door.proofBody.mjs');
 const MIGRATION = 'apps/webapp/db/drizzle-migrations/20260914T220000_doctor_resolves_medical_merge_conflict.sql';
 const PRIVILEGES = 'deploy/postgres/generated/privileges.bcb_webapp_dev.sql';
 
@@ -40,7 +45,7 @@ const PRIVILEGES = 'deploy/postgres/generated/privileges.bcb_webapp_dev.sql';
  * транзакции, а суперпользователь здесь ходит только по peer-сокету. Каталог бокса `postgres` не
  * читает, поэтому и бандл, и оба артефакта переезжают в общедоступный временный каталог.
  */
-function stage() {
+function stage(bodyFile) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bcb-doctor-merge-proof-'));
   const esbuild = fs
     .readdirSync(path.join(repoRoot, 'node_modules/.pnpm'))
@@ -49,7 +54,7 @@ function stage() {
       path.join(repoRoot, 'node_modules/.pnpm', entry, 'node_modules/@esbuild/linux-x64/bin/esbuild'),
     )
     .find((candidate) => fs.existsSync(candidate));
-  assert.ok(esbuild, 'esbuild недоступен — бандл proof-тела собрать нечем');
+  assert.ok(esbuild, 'esbuild недоступен — бандл проф-тела собрать нечем');
 
   // Свежий dist: proof обязан гонять код ветки, а не то, что лежало в dist с прошлой сборки.
   execFileSync('pnpm', ['--filter', '@bersoncare/platform-merge', 'build'], {
@@ -57,7 +62,7 @@ function stage() {
     stdio: 'pipe',
   });
   execFileSync(esbuild, [
-    PROOF_BODY,
+    path.join(scriptDir, bodyFile),
     '--bundle',
     '--platform=node',
     '--format=cjs',
@@ -91,21 +96,54 @@ function runProof(dir) {
   }
 }
 
-test('врач сливает медицинский конфликт целиком под своей рантайм-ролью', { skip: !ENABLED }, () => {
-  const dir = stage();
+function proof(bodyFile, assertions) {
+  const dir = stage(bodyFile);
   try {
     const output = runProof(dir);
     assert.match(output, /rolled back; fixture rows left in the database: 0/u, output);
+    assertions(output);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+test('врач сливает медицинский конфликт целиком под своей рантайм-ролью', { skip: !ENABLED }, () => {
+  proof('doctor-medical-merge-door.proofBody.mjs', (output) => {
     if (FAULT === 'privilege') {
       assert.match(output, /RESULT: FAIL/u, output);
       assert.match(output, /permission denied for table user_password_credentials/u, output);
       return;
     }
     assert.match(output, /runtime role installed: session_user=bcb_dev_webapp_staff current_user=app_staff/u, output);
-    assert.match(output, /"mergeCompleted":true/u, output);
+    assert.match(output, /"mergeOutcome":"merged"/u, output);
     assert.match(output, /RESULT: PASS/u, output);
     assert.doesNotMatch(output, /permission denied/u, output);
-  } finally {
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
+  });
+});
+
+test('конфликт в двух клиниках: первому врачу говорят правду, второй доводит слияние', { skip: !ENABLED }, () => {
+  proof('doctor-medical-merge-two-clinics.proofBody.mjs', (output) => {
+    if (FAULT === 'two-clinic-blindness' || FAULT === 'privilege') {
+      assert.match(output, /RESULT: FAIL/u, output);
+      return;
+    }
+    assert.match(output, /doctor A merge returned: .*"mergeOutcome":"awaiting_other_organization"/u, output);
+    assert.match(output, /doctor A still sees his conflict: yes, doctorApproved=true/u, output);
+    assert.match(output, /"duplicate_merged_into":null/u, output);
+    assert.match(output, /doctor B merge returned: .*"mergeOutcome":"merged"/u, output);
+    assert.match(output, /RESULT: PASS/u, output);
+  });
+});
+
+test('роль врача не может выписать себе основание для двери', { skip: !ENABLED }, () => {
+  proof('doctor-medical-merge-forged-conflict.proofBody.mjs', (output) => {
+    if (FAULT === 'staff-insert') {
+      assert.match(output, /INSERT SUCCEEDED/u, output);
+      assert.match(output, /RESULT: FAIL/u, output);
+      return;
+    }
+    assert.match(output, /forgery refused: 42501 permission denied for table patient_merge_candidates/u, output);
+    assert.match(output, /"dup_creds":1/u, output);
+    assert.match(output, /RESULT: PASS/u, output);
+  });
 });

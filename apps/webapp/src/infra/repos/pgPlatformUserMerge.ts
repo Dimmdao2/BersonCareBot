@@ -5,6 +5,7 @@ export type {
   ManualMergeResolution,
   MergePlatformUsersContext,
   MergePlatformUsersOptions,
+  MergePlatformUsersOutcome,
   MergePlatformUsersReason,
   PickMergeTargetCandidate,
 } from '@bersoncare/platform-merge';

@@ -46,13 +46,29 @@ export async function POST(request: Request, context: RouteContext) {
     return NextResponse.json({ ok: false, error: 'unavailable' }, { status: 503 });
   }
   const actorId = gate.ctx.session.user.userId;
-  const resolved = await withDoctorWorkspacePrincipal(gate.ctx, () =>
-    parsedBody.data.action === 'merge'
-      ? service.mergeMedicalConflict(gate.ctx.organizationId, conflictId, actorId)
-      : service.refuseMedicalConflict(gate.ctx.organizationId, conflictId, actorId),
+  if (parsedBody.data.action === 'refuse') {
+    const refused = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+      service.refuseMedicalConflict(gate.ctx.organizationId, conflictId, actorId),
+    );
+    if (!refused) {
+      return NextResponse.json({ ok: false, error: 'forbidden' }, { status: 403 });
+    }
+    return NextResponse.json({ ok: true, action: 'refuse' });
+  }
+
+  const outcome = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+    service.mergeMedicalConflict(gate.ctx.organizationId, conflictId, actorId),
   );
-  if (!resolved) {
+  if (outcome === 'conflict_not_found') {
     return NextResponse.json({ ok: false, error: 'forbidden' }, { status: 403 });
   }
-  return NextResponse.json({ ok: true, action: parsedBody.data.action });
+  if (outcome === 'awaiting_other_organization') {
+    // Слияния НЕ было: блокер второй клиники снимает только её врач. Отвечать `ok: true` здесь
+    // значит сказать врачу «слито» про человека, который остался двумя учётками.
+    return NextResponse.json(
+      { ok: false, action: 'merge', error: 'awaiting_other_organization' },
+      { status: 409 },
+    );
+  }
+  return NextResponse.json({ ok: true, action: 'merge' });
 }

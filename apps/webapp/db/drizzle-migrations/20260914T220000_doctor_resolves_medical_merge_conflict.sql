@@ -110,25 +110,8 @@ BEGIN
     RETURN v_conflict_id;
   END IF;
 
-  -- A prior doctor approval survives repeated login/bind attempts while another clinic decides.
-  SELECT candidate.id
-    INTO v_conflict_id
-    FROM public.patient_merge_candidates candidate
-   WHERE candidate.organization_id = p_organization_id
-     AND candidate.status = 'resolved'
-     AND candidate.reason LIKE 'medical_history:%'
-     AND candidate.payload @> '{"doctorApproved":true}'::jsonb
-     AND LEAST(candidate.anchor_user_id::text, candidate.candidate_user_id::text) =
-         LEAST(p_anchor_user_id::text, p_candidate_user_id::text)
-     AND GREATEST(candidate.anchor_user_id::text, candidate.candidate_user_id::text) =
-         GREATEST(p_anchor_user_id::text, p_candidate_user_id::text)
-   ORDER BY candidate.resolved_at DESC NULLS LAST, candidate.id
-   LIMIT 1;
-
-  IF v_conflict_id IS NOT NULL THEN
-    RETURN v_conflict_id;
-  END IF;
-
+  -- One pending row per clinic and pair. Repeated login/bind attempts land here, so a doctor
+  -- approval already recorded in this row's payload survives them instead of being reset.
   SELECT candidate.id
     INTO v_conflict_id
     FROM public.patient_merge_candidates candidate
@@ -262,7 +245,7 @@ CREATE OR REPLACE FUNCTION app.transfer_staff_approved_platform_user_merge_data(
   p_duplicate_user_id uuid,
   p_actor_id uuid
 )
-RETURNS boolean
+RETURNS text
 LANGUAGE plpgsql
 SECURITY DEFINER
 VOLATILE
@@ -288,11 +271,12 @@ BEGIN
            GREATEST(p_target_user_id::text, p_duplicate_user_id::text)
      FOR UPDATE
   ) THEN
-    RETURN false;
+    RETURN 'conflict_not_found';
   END IF;
 
-  -- A doctor may remove only their clinic's blocker. A second clinic must make its own decision;
-  -- a prior doctor approval is stored on that clinic's resolved candidate row.
+  -- A doctor may remove only their clinic's blocker. A second clinic must make its own decision, so
+  -- this doctor's approval is recorded on his STILL PENDING row: nothing merged yet, and a conflict
+  -- that has not been acted upon must not disappear from his indicator.
   IF EXISTS (
     SELECT 1
       FROM (
@@ -323,7 +307,7 @@ BEGIN
          SELECT 1
            FROM public.patient_merge_candidates approved
           WHERE approved.organization_id IS NOT DISTINCT FROM target_history.organization_id
-            AND approved.status = 'resolved'
+            AND approved.status IN ('pending', 'resolved')
             AND approved.reason LIKE 'medical_history:%'
             AND approved.payload @> '{"doctorApproved":true}'::jsonb
             AND LEAST(approved.anchor_user_id::text, approved.candidate_user_id::text) =
@@ -333,12 +317,12 @@ BEGIN
        )
   ) THEN
     UPDATE public.patient_merge_candidates
-       SET status = 'resolved',
-           resolved_at = pg_catalog.now(),
-           resolved_by = p_actor_id,
-           payload = payload || pg_catalog.jsonb_build_object('doctorApproved', true)
+       SET payload = payload || pg_catalog.jsonb_build_object(
+             'doctorApproved', true,
+             'doctorApprovedAt', pg_catalog.now(),
+             'doctorApprovedBy', p_actor_id::text)
      WHERE id = p_conflict_id;
-    RETURN false;
+    RETURN 'awaiting_other_organization';
   END IF;
 
   -- Identity/auth rows are deliberately inaccessible to app_staff. The same narrow door that
@@ -639,13 +623,17 @@ BEGIN
   UPDATE public.product_analytics_events_recent SET user_id = p_target_user_id
    WHERE user_id = p_duplicate_user_id;
 
+  -- The accounts are now one, so the blocker is gone for EVERY clinic, not only for the one whose
+  -- doctor pressed the button last: the rows other clinics approved while waiting close here too.
   UPDATE public.patient_merge_candidates
      SET status = 'resolved', resolved_at = pg_catalog.now(), resolved_by = p_actor_id
-   WHERE id = p_conflict_id
-     AND organization_id = v_organization_id
-     AND status = 'pending'
-     AND reason LIKE 'medical_history:%';
-  RETURN FOUND;
+   WHERE status = 'pending'
+     AND reason LIKE 'medical_history:%'
+     AND LEAST(anchor_user_id::text, candidate_user_id::text) =
+         LEAST(p_target_user_id::text, p_duplicate_user_id::text)
+     AND GREATEST(anchor_user_id::text, candidate_user_id::text) =
+         GREATEST(p_target_user_id::text, p_duplicate_user_id::text);
+  RETURN 'merged';
 END
 $function$;
 --> statement-breakpoint
@@ -678,6 +666,7 @@ BEGIN
     'organizationId', candidate.organization_id::text,
     'createdAt', candidate.created_at::text,
     'source', pg_catalog.substr(candidate.reason, pg_catalog.length('medical_history:') + 1),
+    'doctorApproved', COALESCE(candidate.payload @> '{"doctorApproved":true}'::jsonb, false),
     'parties', (
       SELECT pg_catalog.jsonb_agg(
         pg_catalog.jsonb_build_object(

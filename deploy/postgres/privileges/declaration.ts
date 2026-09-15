@@ -17790,25 +17790,6 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
       {
         "role": "app_staff",
         "operations": [
-          "INSERT"
-        ],
-        "columns": [
-          "anchor_user_id",
-          "candidate_user_id",
-          "created_at",
-          "id",
-          "organization_id",
-          "payload",
-          "reason",
-          "resolved_at",
-          "resolved_by",
-          "status",
-          "trigger_appointment_id"
-        ]
-      },
-      {
-        "role": "app_staff",
-        "operations": [
           "UPDATE"
         ],
         "columns": [
@@ -24733,7 +24714,7 @@ const TENANT_WALL_CROSSINGS: Readonly<Record<string, Readonly<Record<string, str
     'public.native_push_targets': 'patient devices follow the canonical account globally after the clinic-owned blocker is approved',
     'public.patient_daily_warmup_presentations': 'patient-owned warmup state follows the canonical account globally after the clinic-owned blocker is approved',
     'public.patient_diary_day_snapshots': 'patient-owned diary state follows the canonical account globally after the clinic-owned blocker is approved',
-    'public.patient_merge_candidates': 'the pending row of the CURRENT clinic is read with the organization predicate; the second read deliberately looks for an approval recorded by ANOTHER clinic, which is what lets the last doctor finish the merge',
+    'public.patient_merge_candidates': 'the pending row of the CURRENT clinic is read with the organization predicate; the second read deliberately looks for an approval recorded by ANOTHER clinic, which is what lets the last doctor finish the merge, and after the accounts actually become one the same door closes every clinic pending row of that pair — the blocker no longer exists anywhere',
     'public.patient_specialist_links': 'the exact pair is authorized by the current-clinic pending conflict; non-conflicting links then follow the canonical account',
     'public.product_analytics_user_hourly': 'platform analytics history follows the canonical account globally after the clinic-owned blocker is approved',
     'public.program_item_discussion_reads': 'patient-owned discussion state follows the canonical account globally after the clinic-owned blocker is approved',
@@ -29196,12 +29177,12 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.transfer_staff_approved_platform_user_merge_data(uuid,uuid,uuid,uuid)': rev10Function({
-      owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false,
+      owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'text', returnsSet: false,
       execute: ['app_staff'], purpose: 'move dependent rows only for an exact current-clinic doctor-approved conflict',
       typedArgs: ['uuid', 'uuid', 'uuid', 'uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog'], relationSurfaces: [
         patientSurface('public.patient_merge_candidates', ['id', 'organization_id', 'anchor_user_id',
-          'candidate_user_id', 'reason', 'status', 'resolved_at', 'resolved_by'], ['SELECT', 'UPDATE']),
+          'candidate_user_id', 'reason', 'status', 'resolved_at', 'resolved_by', 'payload'], ['SELECT', 'UPDATE']),
         patientSurface('public.user_password_credentials', ['user_id'], ['SELECT', 'UPDATE', 'DELETE']),
         patientSurface('public.channel_link_secrets', ['user_id'], ['SELECT', 'UPDATE']),
         patientSurface('public.email_challenges', ['user_id'], ['SELECT', 'UPDATE']),
@@ -29287,7 +29268,7 @@ const REV10_CONTEXT = {
       typedArgs: ['uuid'], volatility: 'STABLE', parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
         { relation: 'public.patient_merge_candidates', columns: ['id', 'organization_id', 'anchor_user_id',
-          'candidate_user_id', 'reason', 'status', 'created_at'], operations: ['SELECT' as const],
+          'candidate_user_id', 'reason', 'status', 'created_at', 'payload'], operations: ['SELECT' as const],
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.platform_users', columns: ['id', 'display_name', 'first_name', 'last_name', 'patronymic'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },

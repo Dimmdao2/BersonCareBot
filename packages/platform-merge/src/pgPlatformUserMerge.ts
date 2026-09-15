@@ -36,6 +36,15 @@ export type MergePlatformUsersContext = {
   actorId?: string | null;
 };
 
+/**
+ * Чем кончилось слияние. `merged` — учётки объединены; остальные значения означают, что слияния НЕ
+ * БЫЛО, и вызывающий обязан сказать об этом человеку, а не ответить успехом:
+ *  - `awaiting_other_organization` — врач своей клиники одобрил, но у пары есть медицинский блокер
+ *    в другой клинике, и снять его может только её врач (канон §18б: врач решает за свою клинику);
+ *  - `conflict_not_found` — у вызывающей клиники нет такого незакрытого медицинского конфликта.
+ */
+export type MergePlatformUsersOutcome = 'merged' | 'awaiting_other_organization' | 'conflict_not_found';
+
 export type MergePlatformUsersOptions = {
   resolution?: ManualMergeResolution;
   mergeContext?: MergePlatformUsersContext;
@@ -339,7 +348,7 @@ export async function mergePlatformUsersInTransaction(
   targetId: string;
   duplicateId: string;
   mergeContactsSaved: MergeContactsSaved[];
-  mergeCompleted: boolean;
+  mergeOutcome: MergePlatformUsersOutcome;
 }> {
   if (targetId === duplicateId) {
     throw new MergeConflictError('merge: target and duplicate are the same id', [targetId]);
@@ -414,7 +423,7 @@ export async function mergePlatformUsersInTransaction(
 
   if (options?.medicalConflictApproval) {
     const approval = options.medicalConflictApproval;
-    const transferred = await runMergeSql<{ transferred: boolean }>(
+    const transferred = await runMergeSql<{ transferred: string }>(
       client,
       sql`SELECT app.transfer_staff_approved_platform_user_merge_data(
             ${approval.conflictId}::uuid,
@@ -423,8 +432,17 @@ export async function mergePlatformUsersInTransaction(
             ${approval.actorId}::uuid
           ) AS transferred`,
     );
-    if (transferred.rows[0]?.transferred !== true) {
-      return { targetId, duplicateId, mergeContactsSaved: [], mergeCompleted: false };
+    const outcome = transferred.rows[0]?.transferred;
+    if (outcome !== 'merged') {
+      // Пара НЕ слита. Причину возвращаем наружу дословно: молчаливый «успех» здесь означал бы,
+      // что человек остался двумя учётками, а врач считает, что разобрал конфликт.
+      return {
+        targetId,
+        duplicateId,
+        mergeContactsSaved: [],
+        mergeOutcome:
+          outcome === 'awaiting_other_organization' ? 'awaiting_other_organization' : 'conflict_not_found',
+      };
     }
   } else if (reason !== 'manual') {
     await assertAutomaticMergeHasNoMedicalHistory(
@@ -780,7 +798,7 @@ export async function mergePlatformUsersInTransaction(
     '[merge] merged duplicate into target',
   );
   trustedPatientPhoneWriteAnchor(TrustedPatientPhoneSource.PlatformUserMerge);
-  return { targetId, duplicateId, mergeContactsSaved, mergeCompleted: true };
+  return { targetId, duplicateId, mergeContactsSaved, mergeOutcome: 'merged' };
 }
 
 /**

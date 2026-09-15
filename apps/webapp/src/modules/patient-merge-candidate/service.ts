@@ -1,12 +1,11 @@
-import type { PatientMergeCandidatePort, PatientMergeCandidateRecord } from './ports';
+import type {
+  PatientMergeCandidatePort,
+  PatientMergeCandidateRecord,
+  PatientMergeConflictMergeOutcome,
+} from './ports';
 
 export function createPatientMergeCandidateService(port: PatientMergeCandidatePort) {
   return {
-    upsertPending(
-      input: Parameters<PatientMergeCandidatePort['upsertPendingCandidate']>[0],
-    ): Promise<PatientMergeCandidateRecord> {
-      return port.upsertPendingCandidate(input);
-    },
     listPending(organizationId: string, limit?: number): Promise<PatientMergeCandidateRecord[]> {
       return port.listPendingByOrganization(organizationId, limit);
     },
@@ -23,7 +22,11 @@ export function createPatientMergeCandidateService(port: PatientMergeCandidatePo
     readMedicalConflictDetails(organizationId: string, conflictId: string) {
       return port.readMedicalConflictDetails(organizationId, conflictId);
     },
-    mergeMedicalConflict(organizationId: string, conflictId: string, resolvedBy: string) {
+    mergeMedicalConflict(
+      organizationId: string,
+      conflictId: string,
+      resolvedBy: string,
+    ): Promise<PatientMergeConflictMergeOutcome> {
       return port.mergeMedicalConflict(organizationId, conflictId, resolvedBy);
     },
     refuseMedicalConflict(organizationId: string, conflictId: string, resolvedBy: string) {

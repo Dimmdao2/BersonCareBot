@@ -14,6 +14,7 @@ import { patientMergeCandidates } from '../../../db/schema/patientMergeCandidate
 import type {
   PatientMergeCandidatePort,
   PatientMergeCandidateRecord,
+  PatientMergeConflictMergeOutcome,
 } from '@/modules/patient-merge-candidate/ports';
 
 const medicalConflictPartySchema = z.object({
@@ -39,6 +40,7 @@ const medicalConflictDetailsSchema = z.object({
   organizationId: z.string().uuid(),
   createdAt: z.string(),
   source: z.string(),
+  doctorApproved: z.boolean(),
   parties: z.tuple([medicalConflictPartySchema, medicalConflictPartySchema]),
 });
 
@@ -102,38 +104,6 @@ export async function recordPatientMedicalMergeConflict(
 
 export function createPgPatientMergeCandidatePort(): PatientMergeCandidatePort {
   return {
-    async upsertPendingCandidate(input) {
-      const db = getDrizzle();
-      const existing = await db
-        .select()
-        .from(patientMergeCandidates)
-        .where(
-          and(
-            eq(patientMergeCandidates.organizationId, input.organizationId),
-            eq(patientMergeCandidates.anchorUserId, input.anchorUserId),
-            eq(patientMergeCandidates.candidateUserId, input.candidateUserId),
-            eq(patientMergeCandidates.status, 'pending'),
-          ),
-        )
-        .limit(1);
-      if (existing[0]) {
-        return mapRow(existing[0]);
-      }
-      const inserted = await db
-        .insert(patientMergeCandidates)
-        .values({
-          organizationId: input.organizationId,
-          anchorUserId: input.anchorUserId,
-          candidateUserId: input.candidateUserId,
-          reason: input.reason,
-          status: 'pending',
-          triggerAppointmentId: input.triggerAppointmentId ?? null,
-          payload: input.payload ?? {},
-        })
-        .returning();
-      return mapRow(inserted[0]!);
-    },
-
     async listPendingByOrganization(organizationId, limit = 100) {
       const db = getDrizzle();
       const rows = await db
@@ -195,14 +165,17 @@ export function createPgPatientMergeCandidatePort(): PatientMergeCandidatePort {
         )
         .limit(1);
       const candidate = rows[0];
-      if (!candidate) return false;
+      if (!candidate) return 'conflict_not_found';
 
+      // Исход двери передаётся наверх как есть: слияние могло не состояться из-за блокера второй
+      // клиники, и тогда врачу нельзя отвечать успехом.
+      let outcome: PatientMergeConflictMergeOutcome = 'conflict_not_found';
       await withTwoUserLifecycleLocksExclusive(
         getPool(),
         candidate.anchorUserId,
         candidate.candidateUserId,
         async (client) => {
-          await mergePlatformUsersInTransaction(
+          const merged = await mergePlatformUsersInTransaction(
             client,
             candidate.anchorUserId,
             candidate.candidateUserId,
@@ -216,9 +189,10 @@ export function createPgPatientMergeCandidatePort(): PatientMergeCandidatePort {
               mergeContext: { actorId: resolvedBy, source: 'doctor_medical_conflict_review' },
             },
           );
+          outcome = merged.mergeOutcome;
         },
       );
-      return true;
+      return outcome;
     },
 
     async refuseMedicalConflict(organizationId, conflictId, resolvedBy) {
