@@ -55,6 +55,7 @@ const CONFLICT_NONMEDICAL = '00000000-0000-4000-8000-00000000fa13';
  * `reason LIKE 'medical_history:%'` остаётся незаметным.
  */
 const CONFLICT_PENDING_NONMEDICAL = '00000000-0000-4000-8000-00000000fa14';
+const UNKNOWN_CONFLICT = '00000000-0000-4000-8000-00000000fa99';
 
 const DOCTOR_A_COMMENT = 'Клиника А: это разные люди, я их обоих веду';
 const DOCTOR_B_COMMENT = 'Чужой врач не должен записать сюда ничего';
@@ -132,6 +133,37 @@ async function readRefusal(client, doctor, conflictId) {
   return result.rows[0]?.snapshot ?? null;
 }
 
+async function readNeighbourRows(client, clinicA) {
+  const neighbours = await client.query(
+    `SELECT id::text AS id, status, doctor_comment, resolved_by::text AS resolved_by
+       FROM public.patient_merge_candidates
+      WHERE id = ANY($1::uuid[])
+      ORDER BY id`,
+    [[CONFLICT_PENDING, CONFLICT_NONMEDICAL, CONFLICT_PENDING_NONMEDICAL, CONFLICT_A]],
+  );
+  const neighbourNames = {
+    [CONFLICT_PENDING]: 'pending',
+    [CONFLICT_NONMEDICAL]: 'nonMedical',
+    [CONFLICT_PENDING_NONMEDICAL]: 'pendingNonMedical',
+    [CONFLICT_A]: 'ownResolved',
+  };
+  return Object.fromEntries(
+    neighbours.rows.map((row) => [
+      neighbourNames[row.id],
+      {
+        status: row.status,
+        doctor_comment: row.doctor_comment,
+        resolvedBy:
+          row.resolved_by === null
+            ? null
+            : row.resolved_by === clinicA.staff_id
+              ? 'clinicA_doctor'
+              : 'someone_else',
+      },
+    ]),
+  );
+}
+
 async function main() {
   const { client, db, who } = await connect();
   say(`connected: db=${db} as=${who}`);
@@ -195,7 +227,9 @@ async function main() {
       // держит одну незакрытую строку на пару учёток в клинике независимо от рода данных.
       [CONFLICT_PENDING_NONMEDICAL, clinicA.org_id, DUPLICATE, THIRD],
     );
-    say('fixture inserted (3 accounts of clinic A; conflicts: one pending medical, one pending medical spare, one dismissed non-medical)');
+    say(
+      'fixture inserted (3 accounts of clinic A; conflicts: one pending medical, one pending medical spare, one dismissed non-medical)',
+    );
 
     // --- Ч2: чужой врач отказывает по нетронутому конфликту соседней клиники ---
     const foreignRefusal = await refuse(client, clinicB, CONFLICT_A, DOCTOR_B_COMMENT, true);
@@ -227,11 +261,23 @@ async function main() {
     if (!(await refuse(client, clinicA, CONFLICT_A, DOCTOR_A_COMMENT, false))) {
       throw new Error('clinic A could not refuse its own conflict — фикстура не годится');
     }
+    if (FAULT === 'refusal-write-any-row') {
+      // С `id <> p_conflict_id` дверь выбрала ровно единственную соседнюю pending-medical строку.
+      // Доводим прогон до машиночитаемого факта: внешний тест краснеет на её полях, а не на P0003.
+      const neighbourRows = await readNeighbourRows(client, clinicA);
+      say(`neighbour rows after the wrong-row refusal: ${JSON.stringify(neighbourRows)}`);
+      say(`FACTS: ${JSON.stringify({ neighbourRows })}`);
+      return;
+    }
     const ownSnapshot = await readRefusal(client, clinicA, CONFLICT_A);
     if (ownSnapshot?.doctorComment !== DOCTOR_A_COMMENT) {
       throw new Error('clinic A does not see its own refusal trace — фикстура не годится');
     }
     say(`clinic A sees its own trace: ${JSON.stringify(ownSnapshot?.doctorComment)}`);
+    const wrongRowTraceRead = await readRefusal(client, clinicA, UNKNOWN_CONFLICT);
+    say(
+      `clinic A asked for a refusal trace by an unrelated id: ${JSON.stringify(wrongRowTraceRead)}`,
+    );
 
     // --- след отказа виден с ОБЕИХ учёток и только своей клинике ---
     // Это тот же запрос, которым карточку пациента питает `listMedicalConflictRefusalsForUser`:
@@ -286,14 +332,18 @@ async function main() {
     // Читает СВОЙ врач со своим законным контекстом: стена организации тут ни при чём, и если
     // дверь ответит снимком, покраснеет именно предикат состояния, а не предикат клиники.
     const pendingTraceRead = await readRefusal(client, clinicA, CONFLICT_PENDING);
-    say(`clinic A asked for a trace of its own UNRESOLVED conflict: ${JSON.stringify(pendingTraceRead)}`);
+    say(
+      `clinic A asked for a trace of its own UNRESOLVED conflict: ${JSON.stringify(pendingTraceRead)}`,
+    );
     if (pendingTraceRead !== null) {
       throw new Error(
         `дверь отдала след отказа по конфликту в статусе '${pendingTraceRead.status}' — решения врача по нему ещё не было`,
       );
     }
     const nonMedicalTraceRead = await readRefusal(client, clinicA, CONFLICT_NONMEDICAL);
-    say(`clinic A asked for a trace of its own NON-MEDICAL candidate: ${JSON.stringify(nonMedicalTraceRead)}`);
+    say(
+      `clinic A asked for a trace of its own NON-MEDICAL candidate: ${JSON.stringify(nonMedicalTraceRead)}`,
+    );
     if (nonMedicalTraceRead !== null) {
       throw new Error(
         `дверь отдала немедицинский разбор как медицинский след отказа: комментарий=${JSON.stringify(
@@ -314,58 +364,66 @@ async function main() {
       emptyCommentApproval: await refusedWith(client, () =>
         approve(client, clinicA, CONFLICT_PENDING, TARGET, THIRD, '  '),
       ),
+      // ID и неупорядоченная пара — два независимых предиката записи комментария подтверждения.
+      // Неверный вызов возвращает тот же outcome, поэтому зуб виден в neighbourRows ниже.
+      approvalWithWrongRow: await approve(
+        client,
+        clinicA,
+        CONFLICT_PENDING_NONMEDICAL,
+        TARGET,
+        THIRD,
+        'подтверждение не той строки',
+      ),
+      approvalWithWrongPair: await approve(
+        client,
+        clinicA,
+        CONFLICT_PENDING,
+        DUPLICATE,
+        THIRD,
+        'подтверждение не той пары',
+      ),
       // Уже разобранный конфликт второй раз не разбирается ни одной из дверей.
       secondRefusalOfResolved: await refuse(client, clinicA, CONFLICT_A, 'повторный отказ', false),
       approvalOfResolved: await approve(
-        client, clinicA, CONFLICT_A, TARGET, DUPLICATE, 'повторное подтверждение',
+        client,
+        clinicA,
+        CONFLICT_A,
+        TARGET,
+        DUPLICATE,
+        'повторное подтверждение',
       ),
       // Немедицинский кандидат через медицинскую дверь не проходит вовсе — и в разобранном виде,
       // и в НЕразобранном: иначе фильтр статуса закрывает дверь раньше и род данных не проверяется.
       refusalOfNonMedical: await refuse(client, clinicA, CONFLICT_NONMEDICAL, 'не медицина', false),
       approvalOfNonMedical: await approve(
-        client, clinicA, CONFLICT_NONMEDICAL, DUPLICATE, THIRD, 'не медицина',
+        client,
+        clinicA,
+        CONFLICT_NONMEDICAL,
+        DUPLICATE,
+        THIRD,
+        'не медицина',
       ),
       refusalOfPendingNonMedical: await refuse(
-        client, clinicA, CONFLICT_PENDING_NONMEDICAL, 'не медицина, но ещё открыт', false,
+        client,
+        clinicA,
+        CONFLICT_PENDING_NONMEDICAL,
+        'не медицина, но ещё открыт',
+        false,
       ),
       approvalOfPendingNonMedical: await approve(
-        client, clinicA, CONFLICT_PENDING_NONMEDICAL, DUPLICATE, THIRD, 'не медицина, но открыт',
+        client,
+        clinicA,
+        CONFLICT_PENDING_NONMEDICAL,
+        DUPLICATE,
+        THIRD,
+        'не медицина, но открыт',
       ),
     };
     say(`admission gate answers: ${JSON.stringify(admission)}`);
 
     // Соседние строки той же клиники обязаны остаться нетронутыми: без сверки `id` дверь отказа
     // закрыла бы своим комментарием ВЕСЬ разбор клиники разом.
-    const neighbours = await client.query(
-      `SELECT id::text AS id, status, doctor_comment, resolved_by::text AS resolved_by
-         FROM public.patient_merge_candidates
-        WHERE id = ANY($1::uuid[])
-        ORDER BY id`,
-      [[CONFLICT_PENDING, CONFLICT_NONMEDICAL, CONFLICT_PENDING_NONMEDICAL, CONFLICT_A]],
-    );
-    const neighbourNames = {
-      [CONFLICT_PENDING]: 'pending',
-      [CONFLICT_NONMEDICAL]: 'nonMedical',
-      [CONFLICT_PENDING_NONMEDICAL]: 'pendingNonMedical',
-      [CONFLICT_A]: 'ownResolved',
-    };
-    const neighbourRows = Object.fromEntries(
-      neighbours.rows.map((row) => [
-        neighbourNames[row.id],
-        {
-          status: row.status,
-          doctor_comment: row.doctor_comment,
-          // Не сам идентификатор: он приезжает из живой базы DEV и в утверждении был бы привязкой к
-          // данным стенда. Значение здесь — кто именно закрыл строку: свой врач или никто.
-          resolvedBy:
-            row.resolved_by === null
-              ? null
-              : row.resolved_by === clinicA.staff_id
-                ? 'clinicA_doctor'
-                : 'someone_else',
-        },
-      ]),
-    );
+    const neighbourRows = await readNeighbourRows(client, clinicA);
     say(`neighbour rows after every decision: ${JSON.stringify(neighbourRows)}`);
 
     // Машиночитаемая строка фактов: тест сверяет ЗНАЧЕНИЯ, а не английские фразы журнала.
@@ -380,6 +438,7 @@ async function main() {
         foreignTraceRead: foreignSnapshot,
         pendingTraceRead,
         nonMedicalTraceRead,
+        wrongRowTraceRead,
         admission,
         neighbourRows,
       })}`,

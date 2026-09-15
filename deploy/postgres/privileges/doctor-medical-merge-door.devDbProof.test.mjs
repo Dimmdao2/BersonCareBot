@@ -65,9 +65,14 @@
  *     обязательность комментария → approval-comment-optional;
  *     запись комментария → approval-comment-not-saved;
  *     обе стены организации сразу → foreign-org-conflict;
+ *     id строки записи → approval-write-any-row; обе половины пары записи → approval-write-any-pair;
  *     ответ человека про ФИО → fio-decision-not-persisted.
  *   transfer (4 арг., внутренняя): блокер медицинской истории другой клиники →
- *     two-clinic-blindness; собственный допуск роли врача → staff-insert, privilege.
+ *     two-clinic-blindness; признание решения соседней клиники: organization_id →
+ *     neighbour-approval-any-org, status → neighbour-approval-any-status, reason →
+ *     neighbour-approval-any-reason, doctorApproved → neighbour-approval-not-required, пара →
+ *     neighbour-approval-any-pair; собственный допуск роли врача → staff-insert, privilege.
+ *   read refusal: id строки → refusal-read-any-row.
  *
  * `DOCTOR_MEDICAL_MERGE_DOOR_ECHO=1` печатает журнал каждого прогона, в том числе зелёного.
  */
@@ -105,6 +110,14 @@ if (
     'refusal-write-any-reason',
     'approval-any-status',
     'approval-any-reason',
+    'approval-write-any-row',
+    'approval-write-any-pair',
+    'refusal-read-any-row',
+    'neighbour-approval-any-org',
+    'neighbour-approval-any-status',
+    'neighbour-approval-any-reason',
+    'neighbour-approval-not-required',
+    'neighbour-approval-any-pair',
   ].includes(FAULT)
 ) {
   throw new Error(`unknown DOCTOR_MEDICAL_MERGE_DOOR_FAULT '${FAULT}'`);
@@ -284,6 +297,17 @@ test(
   () => {
     proof('doctor-medical-merge-two-clinics.proofBody.mjs', (output) => {
       const facts = readJsonLine(output, 'FACTS');
+      assert.deepEqual(
+        facts.neighbourAdmission,
+        {
+          wrongOrg: { outcome: 'awaiting_other_organization', duplicateMergedInto: null },
+          closed: { outcome: 'awaiting_other_organization', duplicateMergedInto: null },
+          nonMedical: { outcome: 'awaiting_other_organization', duplicateMergedInto: null },
+          notApproved: { outcome: 'awaiting_other_organization', duplicateMergedInto: null },
+          wrongPair: { outcome: 'awaiting_other_organization', duplicateMergedInto: null },
+        },
+        output,
+      );
       assert.equal(facts.firstOutcome, 'awaiting_other_organization', output);
       assert.equal(facts.pendingAfterFirst, 0, output);
       assert.deepEqual(
@@ -358,6 +382,25 @@ test(
       // Сверяем ЗНАЧЕНИЯ из машиночитаемой строки, а не английские фразы журнала: переформулировка
       // диагностики поведение не меняет и красить прогон не должна (§10a — тест не дублирует текст).
       const facts = readJsonLine(output, 'FACTS');
+      // Row-selection faults must reach observable database state, not merely throw before FACTS.
+      assert.deepEqual(
+        facts.neighbourRows,
+        {
+          pending: { status: 'pending', doctor_comment: null, resolvedBy: null },
+          nonMedical: {
+            status: 'dismissed',
+            doctor_comment: 'Разбор не про медицинские данные',
+            resolvedBy: null,
+          },
+          pendingNonMedical: { status: 'pending', doctor_comment: null, resolvedBy: null },
+          ownResolved: {
+            status: 'dismissed',
+            doctor_comment: 'Клиника А: это разные люди, я их обоих веду',
+            resolvedBy: 'clinicA_doctor',
+          },
+        },
+        output,
+      );
       assert.equal(facts.foreignRefusalAccepted, false, output);
       assert.deepEqual(
         facts.conflictAfterForeignRefusal,
@@ -381,6 +424,7 @@ test(
       // отказа у обоих быть не может, и молчание двери здесь стережёт предикаты `status` и `reason`.
       assert.equal(facts.pendingTraceRead, null, output);
       assert.equal(facts.nonMedicalTraceRead, null, output);
+      assert.equal(facts.wrongRowTraceRead, null, output);
       // Допуск к решению: обе двери обязаны отказать. Пустой комментарий — ошибка данных 22023;
       // повторный разбор и немедицинский кандидат — «строки для решения нет».
       assert.deepEqual(
@@ -388,6 +432,8 @@ test(
         {
           emptyCommentRefusal: '22023',
           emptyCommentApproval: '22023',
+          approvalWithWrongRow: 'conflict_not_found',
+          approvalWithWrongPair: 'conflict_not_found',
           secondRefusalOfResolved: false,
           approvalOfResolved: 'conflict_not_found',
           refusalOfNonMedical: false,
@@ -398,26 +444,6 @@ test(
         output,
       );
       // Соседние строки той же клиники ни одна дверь не трогает.
-      assert.deepEqual(
-        facts.neighbourRows,
-        {
-          pending: { status: 'pending', doctor_comment: null, resolvedBy: null },
-          nonMedical: {
-            status: 'dismissed',
-            doctor_comment: 'Разбор не про медицинские данные',
-            resolvedBy: null,
-          },
-          pendingNonMedical: { status: 'pending', doctor_comment: null, resolvedBy: null },
-          // Собственный разобранный конфликт: комментарий врача остался ТОТ, что он написал при
-          // отказе. Повторное подтверждение по этой же строке не смеет его переписать.
-          ownResolved: {
-            status: 'dismissed',
-            doctor_comment: 'Клиника А: это разные люди, я их обоих веду',
-            resolvedBy: 'clinicA_doctor',
-          },
-        },
-        output,
-      );
     });
   },
 );

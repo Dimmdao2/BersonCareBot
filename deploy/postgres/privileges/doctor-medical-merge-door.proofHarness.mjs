@@ -52,6 +52,14 @@ export const FAULTS = new Set([
   'refusal-write-any-reason',
   'approval-any-status',
   'approval-any-reason',
+  'approval-write-any-row',
+  'approval-write-any-pair',
+  'refusal-read-any-row',
+  'neighbour-approval-any-org',
+  'neighbour-approval-any-status',
+  'neighbour-approval-any-reason',
+  'neighbour-approval-not-required',
+  'neighbour-approval-any-pair',
 ]);
 
 export function faultFromEnv() {
@@ -66,6 +74,10 @@ export function faultFromEnv() {
  * молча уезжает в соседнюю функцию, прогон остаётся зелёным и выдаёт себя за доказательство.
  * Поэтому каждая замена проверяет, что якорь в склеенном источнике РОВНО один.
  */
+function markFaultInjected(fault) {
+  process.stdout.write(`FAULT INJECTED: ${fault}\n`);
+}
+
 function replaceOnce(source, marker, replacement, fault) {
   const count = source.split(marker).length - 1;
   if (count !== 1) {
@@ -73,7 +85,9 @@ function replaceOnce(source, marker, replacement, fault) {
       `fault ${fault}: marker matched ${count} times, expected exactly 1 — уточни якорь`,
     );
   }
-  return source.replace(marker, replacement);
+  const replaced = source.replace(marker, replacement);
+  markFaultInjected(fault);
+  return replaced;
 }
 
 function migrationSource(fault) {
@@ -204,6 +218,21 @@ function migrationSource(fault) {
       fault,
     );
   }
+  if (fault === 'refusal-read-any-row') {
+    // Известный врачу UUID не даёт права получить след ДРУГОГО конфликта той же клиники.
+    const marker =
+      '       WHERE c.id = p_conflict_id\n' +
+      '         AND c.organization_id = app.current_org_id()\n' +
+      "         AND c.status IN ('dismissed', 'escalated')";
+    source = replaceOnce(
+      source,
+      marker,
+      '       WHERE c.id <> p_conflict_id\n' +
+        '         AND c.organization_id = app.current_org_id()\n' +
+        "         AND c.status IN ('dismissed', 'escalated')",
+      fault,
+    );
+  }
   if (fault === 'approval-comment-foreign-row') {
     // Пятиаргументная дверь подтверждения перестаёт сверять организацию ИМЕННО в записи
     // комментария, оставляя стену четырёхаргументной двери на месте. Слияние по-прежнему
@@ -269,7 +298,9 @@ function migrationSource(fault) {
     const replacement = marker
       .replace(
         'WHERE id = p_conflict_id',
-        fault === 'refusal-write-any-row' ? 'WHERE TRUE' : 'WHERE id = p_conflict_id',
+        fault === 'refusal-write-any-row'
+          ? 'WHERE id <> p_conflict_id'
+          : 'WHERE id = p_conflict_id',
       )
       .replace(
         "AND status = 'pending'",
@@ -281,15 +312,30 @@ function migrationSource(fault) {
       );
     source = replaceOnce(source, marker, replacement, fault);
   }
-  if (fault === 'approval-any-status' || fault === 'approval-any-reason') {
+  if (
+    fault === 'approval-any-status' ||
+    fault === 'approval-any-reason' ||
+    fault === 'approval-write-any-row' ||
+    fault === 'approval-write-any-pair'
+  ) {
     // Тот же выбор строки у двери подтверждения: уже разобранный конфликт и немедицинский кандидат
     // не должны проходить через медицинскую дверь второй раз.
     const marker =
       '   WHERE candidate.id = p_conflict_id\n' +
       '     AND candidate.organization_id = app.current_org_id()\n' +
       "     AND candidate.status = 'pending'\n" +
-      "     AND candidate.reason LIKE 'medical_history:%'";
+      "     AND candidate.reason LIKE 'medical_history:%'\n" +
+      '     AND LEAST(candidate.anchor_user_id::text, candidate.candidate_user_id::text) =\n' +
+      '         LEAST(p_target_user_id::text, p_duplicate_user_id::text)\n' +
+      '     AND GREATEST(candidate.anchor_user_id::text, candidate.candidate_user_id::text) =\n' +
+      '         GREATEST(p_target_user_id::text, p_duplicate_user_id::text)';
     const replacement = marker
+      .replace(
+        'WHERE candidate.id = p_conflict_id',
+        fault === 'approval-write-any-row'
+          ? 'WHERE candidate.id <> p_conflict_id'
+          : 'WHERE candidate.id = p_conflict_id',
+      )
       .replace(
         "AND candidate.status = 'pending'",
         fault === 'approval-any-status' ? 'AND TRUE' : "AND candidate.status = 'pending'",
@@ -299,6 +345,73 @@ function migrationSource(fault) {
         fault === 'approval-any-reason'
           ? 'AND TRUE'
           : "AND candidate.reason LIKE 'medical_history:%'",
+      )
+      .replace(
+        'AND LEAST(candidate.anchor_user_id::text, candidate.candidate_user_id::text) =\n' +
+          '         LEAST(p_target_user_id::text, p_duplicate_user_id::text)\n' +
+          '     AND GREATEST(candidate.anchor_user_id::text, candidate.candidate_user_id::text) =\n' +
+          '         GREATEST(p_target_user_id::text, p_duplicate_user_id::text)',
+        fault === 'approval-write-any-pair'
+          ? 'AND TRUE\n     AND TRUE'
+          : 'AND LEAST(candidate.anchor_user_id::text, candidate.candidate_user_id::text) =\n' +
+              '         LEAST(p_target_user_id::text, p_duplicate_user_id::text)\n' +
+              '     AND GREATEST(candidate.anchor_user_id::text, candidate.candidate_user_id::text) =\n' +
+              '         GREATEST(p_target_user_id::text, p_duplicate_user_id::text)',
+      );
+    source = replaceOnce(source, marker, replacement, fault);
+  }
+  if (
+    fault === 'neighbour-approval-any-org' ||
+    fault === 'neighbour-approval-any-status' ||
+    fault === 'neighbour-approval-any-reason' ||
+    fault === 'neighbour-approval-not-required' ||
+    fault === 'neighbour-approval-any-pair'
+  ) {
+    const marker =
+      '          WHERE approved.organization_id IS NOT DISTINCT FROM target_history.organization_id\n' +
+      "            AND approved.status IN ('pending', 'resolved')\n" +
+      "            AND approved.reason LIKE 'medical_history:%'\n" +
+      `            AND approved.payload @> '{"doctorApproved":true}'::jsonb\n` +
+      '            AND LEAST(approved.anchor_user_id::text, approved.candidate_user_id::text) =\n' +
+      '                LEAST(p_target_user_id::text, p_duplicate_user_id::text)\n' +
+      '            AND GREATEST(approved.anchor_user_id::text, approved.candidate_user_id::text) =\n' +
+      '                GREATEST(p_target_user_id::text, p_duplicate_user_id::text)';
+    const replacement = marker
+      .replace(
+        'approved.organization_id IS NOT DISTINCT FROM target_history.organization_id',
+        fault === 'neighbour-approval-any-org'
+          ? 'TRUE'
+          : 'approved.organization_id IS NOT DISTINCT FROM target_history.organization_id',
+      )
+      .replace(
+        "approved.status IN ('pending', 'resolved')",
+        fault === 'neighbour-approval-any-status'
+          ? 'TRUE'
+          : "approved.status IN ('pending', 'resolved')",
+      )
+      .replace(
+        "approved.reason LIKE 'medical_history:%'",
+        fault === 'neighbour-approval-any-reason'
+          ? 'TRUE'
+          : "approved.reason LIKE 'medical_history:%'",
+      )
+      .replace(
+        `approved.payload @> '{"doctorApproved":true}'::jsonb`,
+        fault === 'neighbour-approval-not-required'
+          ? 'TRUE'
+          : `approved.payload @> '{"doctorApproved":true}'::jsonb`,
+      )
+      .replace(
+        'AND LEAST(approved.anchor_user_id::text, approved.candidate_user_id::text) =\n' +
+          '                LEAST(p_target_user_id::text, p_duplicate_user_id::text)\n' +
+          '            AND GREATEST(approved.anchor_user_id::text, approved.candidate_user_id::text) =\n' +
+          '                GREATEST(p_target_user_id::text, p_duplicate_user_id::text)',
+        fault === 'neighbour-approval-any-pair'
+          ? 'AND TRUE\n            AND TRUE'
+          : 'AND LEAST(approved.anchor_user_id::text, approved.candidate_user_id::text) =\n' +
+              '                LEAST(p_target_user_id::text, p_duplicate_user_id::text)\n' +
+              '            AND GREATEST(approved.anchor_user_id::text, approved.candidate_user_id::text) =\n' +
+              '                GREATEST(p_target_user_id::text, p_duplicate_user_id::text)',
       );
     source = replaceOnce(source, marker, replacement, fault);
   }
@@ -425,30 +538,6 @@ export async function installCandidate(client, fault, say) {
       ` (${skipped} one-time blocks of already-applied migrations skipped;` +
       ` pending in DEV: ${pending.length > 0 ? pending.join(', ') : 'none'})`,
   );
-  if (fault === 'two-clinic-blindness') {
-    say("FAULT INJECTED: the door no longer sees another clinic's blocker");
-  }
-  if (fault === 'foreign-org-conflict') {
-    say(
-      "FAULT INJECTED: the door no longer checks that the conflict belongs to the doctor's organization",
-    );
-  }
-  if (fault === 'fio-decision-not-persisted') {
-    say("FAULT INJECTED: the conflict row no longer keeps the person's FIO answer");
-  }
-  if (fault === 'support-always-escalates') say('FAULT INJECTED: support is always escalated');
-  if (fault === 'decision-stays-pending') say('FAULT INJECTED: accepted decision stays pending');
-  if (fault === 'comment-not-saved') say('FAULT INJECTED: refusal drops the doctor comment');
-  if (fault === 'approval-comment-not-saved') {
-    say('FAULT INJECTED: approval drops the doctor comment');
-  }
-  if (fault === 'refusal-read-any-org') {
-    say('FAULT INJECTED: the refusal-trace read door no longer checks the organization');
-  }
-  if (fault === 'refusal-write-any-org') {
-    say('FAULT INJECTED: the refusal write door no longer checks the organization');
-  }
-
   const privileges = candidatePrivilegeStatements(await alreadyGrantedPolicies(client));
   for (const statement of privileges) await client.query(statement);
   say(`candidate privileges applied: ${privileges.length} generated statements`);
@@ -457,14 +546,14 @@ export async function installCandidate(client, fault, say) {
     // Blind fault: take one declared table away from the door owner. A proof that stays green
     // here is not proving anything about privileges.
     await client.query(`REVOKE ALL ON TABLE public.user_password_credentials FROM ${SEAM}`);
-    say('FAULT INJECTED: user_password_credentials revoked from the door owner');
+    markFaultInjected(fault);
   }
   if (fault === 'staff-insert') {
     // Blind fault: вернуть самодельную доверенность — колоночный INSERT роли врача, снятый в Д2.
     await client.query(`GRANT INSERT ("anchor_user_id", "candidate_user_id", "created_at", "id",
       "organization_id", "payload", "reason", "resolved_at", "resolved_by", "status",
       "trigger_appointment_id") ON TABLE public.patient_merge_candidates TO app_staff`);
-    say('FAULT INJECTED: app_staff column INSERT on patient_merge_candidates granted back');
+    markFaultInjected(fault);
   }
 }
 

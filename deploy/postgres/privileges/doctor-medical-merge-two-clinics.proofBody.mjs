@@ -32,6 +32,14 @@ const DUPLICATE = '00000000-0000-4000-8000-00000000d1a2';
 const CONFLICT_A = '00000000-0000-4000-8000-00000000d1c1';
 const CONFLICT_B = '00000000-0000-4000-8000-00000000d1c2';
 
+const NEIGHBOUR_SCENARIOS = [
+  { key: 'wrongOrg', prefix: 'd2' },
+  { key: 'closed', prefix: 'd3' },
+  { key: 'nonMedical', prefix: 'd4' },
+  { key: 'notApproved', prefix: 'd5' },
+  { key: 'wrongPair', prefix: 'd6' },
+];
+
 const FAULT = faultFromEnv();
 const log = [];
 function say(line) {
@@ -48,9 +56,104 @@ async function main() {
     await installCandidate(client, FAULT, say);
 
     const capability = await staffCapability(client);
-    const [clinicA, clinicB] = await clinicsWithDoctors(client, 2, say);
+    const [clinicA, clinicB, clinicC] = await clinicsWithDoctors(client, 3, say);
     say(`clinic A=${clinicA.org_id} doctor=${clinicA.staff_id}`);
     say(`clinic B=${clinicB.org_id} doctor=${clinicB.staff_id}`);
+
+    // Пять независимых соседних строк: каждая отличается от настоящего решения клиники A ровно
+    // одним предикатом. Врач B не вправе принять ни одну из них за разрешение своей пары.
+    const neighbourAdmission = {};
+    for (const scenario of NEIGHBOUR_SCENARIOS) {
+      await client.query('SAVEPOINT neighbour_approval_probe');
+      const probeTarget = `00000000-0000-4000-8000-00000000${scenario.prefix}01`;
+      const probeDuplicate = `00000000-0000-4000-8000-00000000${scenario.prefix}02`;
+      const probeOther = `00000000-0000-4000-8000-00000000${scenario.prefix}03`;
+      const currentConflict = `00000000-0000-4000-8000-00000000${scenario.prefix}11`;
+      const decoyConflict = `00000000-0000-4000-8000-00000000${scenario.prefix}12`;
+
+      for (const id of [probeTarget, probeDuplicate, probeOther]) {
+        await client.query(
+          `INSERT INTO public.platform_users(id, display_name, role)
+           VALUES ($1::uuid, $2, 'client')`,
+          [id, `neighbour-${scenario.key}`],
+        );
+      }
+      for (const id of [probeTarget, probeDuplicate]) {
+        for (const clinic of [clinicA, clinicB]) {
+          await client.query(
+            `INSERT INTO public.org_enrollments(organization_id, platform_user_id, status)
+             VALUES ($1::uuid, $2::uuid, 'active')`,
+            [clinic.org_id, id],
+          );
+        }
+        await client.query(
+          `INSERT INTO public.clinical_visit(
+             patient_user_id, visit_type, visited_at, created_by, organization_id
+           ) VALUES ($1::uuid, 'first', now(), $2::uuid, $3::uuid)`,
+          [id, clinicA.staff_id, clinicA.org_id],
+        );
+        await client.query(
+          `INSERT INTO public.user_password_credentials(user_id, password_hash)
+           VALUES ($1::uuid, 'argon2-neighbour-proof')`,
+          [id],
+        );
+      }
+
+      await client.query(
+        `INSERT INTO public.patient_merge_candidates(
+           id, organization_id, anchor_user_id, candidate_user_id, reason, status
+         ) VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid,
+                   'medical_history:neighbour-proof', 'pending')`,
+        [currentConflict, clinicB.org_id, probeTarget, probeDuplicate],
+      );
+      await client.query(
+        `INSERT INTO public.patient_merge_candidates(
+           id, organization_id, anchor_user_id, candidate_user_id, reason, status, payload
+         ) VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5, $6, $7::jsonb)`,
+        [
+          decoyConflict,
+          scenario.key === 'wrongOrg' ? clinicC.org_id : clinicA.org_id,
+          probeTarget,
+          scenario.key === 'wrongPair' ? probeOther : probeDuplicate,
+          scenario.key === 'nonMedical' ? 'email_bind' : 'medical_history:neighbour-proof',
+          scenario.key === 'closed' ? 'dismissed' : 'resolved',
+          scenario.key === 'notApproved' ? '{}' : '{"doctorApproved":true}',
+        ],
+      );
+
+      await installDoctorContext(client, capability, clinicB);
+      const probe = await mergePlatformUsersInTransaction(
+        client,
+        probeTarget,
+        probeDuplicate,
+        'neighbour-proof',
+        {
+          medicalConflictApproval: {
+            conflictId: currentConflict,
+            organizationId: clinicB.org_id,
+            actorId: clinicB.staff_id,
+            doctorComment: `Клиника B: ${scenario.key}`,
+          },
+          mergeContext: {
+            actorId: clinicB.staff_id,
+            source: 'doctor_medical_conflict_review',
+          },
+        },
+      );
+      await clearDoctorContext(client);
+      const probeState = await client.query(
+        `SELECT merged_into_id::text AS duplicate_merged_into
+           FROM public.platform_users WHERE id = $1::uuid`,
+        [probeDuplicate],
+      );
+      neighbourAdmission[scenario.key] = {
+        outcome: probe.mergeOutcome,
+        duplicateMergedInto: probeState.rows[0].duplicate_merged_into,
+      };
+      await client.query('ROLLBACK TO SAVEPOINT neighbour_approval_probe');
+      await client.query('RELEASE SAVEPOINT neighbour_approval_probe');
+    }
+    say(`neighbour approval admission: ${JSON.stringify(neighbourAdmission)}`);
 
     // --- фикстура: одна пара учёток, медицинская история с обеих сторон в ОБЕИХ клиниках ---
     // ФИО обеих сторон намеренно ОДИНАКОВО: предмет этого прогона — права и границы двери, а не
@@ -202,6 +305,7 @@ async function main() {
 
     say(
       `FACTS: ${JSON.stringify({
+        neighbourAdmission,
         firstOutcome: first.mergeOutcome,
         pendingAfterFirst: indicator.rows[0].pending,
         afterFirst: a,
