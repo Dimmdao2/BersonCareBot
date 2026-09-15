@@ -358,6 +358,7 @@ export async function registerBersoncareRelayOutboundRoute(
             channel: parsed.channel,
             messageId: parsed.messageId,
             recipient: parsed.recipient.slice(0, 6) + '…',
+            environmentSuppressionReason: dispatchResult.environmentSuppressionReason,
           },
           'relay-outbound: suppressed by environment',
         );

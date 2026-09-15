@@ -3,10 +3,9 @@
  * Конфиг передаётся вызывающим кодом после restricted DB-only загрузки `smtp_outbound`
  * (см. config/smtpOutbound).
  *
- * Dev safety: email delivery is protected solely by the pre-fork redirect in dispatchPort
- * (applyPreForkDevRedirect). All email paths now route through dispatchPort → EmailDeliveryAdapter →
- * sendMail (S8/S9/S10). The interim ALLOW_DEV_EMAIL guard was retired in S15 after the redirect
- * was proven to cover this path (S11 dispatchPort.redirect.test.ts).
+ * Dev safety is enforced before this network boundary by the EmailDeliveryAdapter's single check
+ * of the resolved SMTP host. All email paths route through dispatchPort → EmailDeliveryAdapter →
+ * sendMail (S8/S9/S10).
  */
 import { createHash } from 'node:crypto';
 import nodemailer from 'nodemailer';
