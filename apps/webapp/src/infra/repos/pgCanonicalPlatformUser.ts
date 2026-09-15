@@ -1,9 +1,5 @@
 import { and, asc, eq, isNotNull, isNull, ne, or, sql } from 'drizzle-orm';
-import {
-  getWebappSqlDb,
-  runWebappNamedRoot,
-  type WebappSqlExecutor,
-} from '@/infra/db/runWebappSql';
+import { type WebappSqlExecutor } from '@/infra/db/runWebappSql';
 import { drizzlePrimaryPhoneCol } from '@/infra/repos/userContactsSql';
 import { drizzleFioCols, drizzleUserIdentityFioJoin } from '@/infra/repos/userIdentityFioSql';
 import {
@@ -153,22 +149,6 @@ export async function findTrustedCanonicalUserIdByPhone(
     viaContacts,
     '[canonical] multiple trusted canonical rows for phone via user_contacts (redacted)',
   );
-}
-
-/**
- * Та же проверка, но без исполнителя SQL в подписи: прикладной слой не держит дверь к базе —
- * `check-db-chokepoint` считает это признаком сырого доступа мимо порта.
- */
-export async function findTrustedCanonicalUserIdByPhoneFromPool(
-  phoneNormalized: string,
-): Promise<string | null> {
-  const result = await runWebappNamedRoot<{ platform_user_id: string | null }>(
-    getWebappSqlDb(),
-    'app.read_public_lead_trusted_phone_owner(text)',
-    [phoneNormalized],
-    sql`SELECT app.read_public_lead_trusted_phone_owner(${phoneNormalized}::text) AS platform_user_id`,
-  );
-  return result.rows[0]?.platform_user_id ?? null;
 }
 
 export async function findCanonicalUserIdByChannelBinding(

@@ -24799,14 +24799,6 @@ const TENANT_WALL_CROSSINGS: Readonly<Record<string, Readonly<Record<string, str
     'public.platform_users': 'та же дверь отбрасывает слитые записи опознанного человека; клиники на этом шаге нет',
   },
 
-  // Телефон — глобальная личность платформы, а не контакт внутри одной клиники. Заявка уже держит
-  // принятый контекст клиники, но owner-решение требует найти подтверждённый телефон и в ДРУГОЙ
-  // клинике, чтобы слить его каноническую учётку с только что подтверждённой почтой.
-  'app.read_public_lead_trusted_phone_owner(text)': {
-    'public.user_contacts': 'точный подтверждённый телефон является глобальным ключом личности и намеренно ищется среди всех клиник для канонического слияния заявки',
-    'public.platform_users': 'по найденному глобальному владельцу проверяется только отсутствие merge redirect; профиль или строки клиники корень не читает',
-  },
-
   'app.list_active_booking_cities()': {
     'public.booking_cities': 'глобальный справочник городов публичной записи: строки платформенные, клинике не принадлежат',
   },
@@ -26508,10 +26500,6 @@ const REV10_CONTEXT = {
       targetRole: 'app_tenant_service', contextClass: 'tenant_service',
       purpose: 'leads.public-submit.create',
       functionIdentity: 'app.create_public_lead(uuid,text,text,text,text,text,text,text,text,timestamp with time zone)' },
-    read_public_lead_trusted_phone_owner: { port: 'webapp', sessionRole: 'app_staff',
-      targetRole: 'app_tenant_service', contextClass: 'tenant_service',
-      purpose: 'leads.trusted-phone-owner.read',
-      functionIdentity: 'app.read_public_lead_trusted_phone_owner(text)' },
     read_clinic_lead_notification_profiles: { port: 'webapp', sessionRole: 'app_staff',
       targetRole: 'app_tenant_service', contextClass: 'tenant_service',
       purpose: 'leads.clinic-notification-profiles.read',
@@ -28077,24 +28065,6 @@ const REV10_CONTEXT = {
             'preferred_contact', 'message_text', 'source_surface', 'created_at', 'updated_at'] },
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.clinic_public_directory_entries', columns: ['organization_id', 'is_published'],
-          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
-      ],
-    }),
-    // Телефон заявки не подтверждён этой формой, но по owner-решению может связать уже
-    // подтверждённую телефонную учётку с подтверждённой почтой. Публичному tenant_service нельзя
-    // открывать глобальные таблицы личности: корень возвращает только UUID ровно одного
-    // канонического владельца подтверждённого телефона, не строки контактов или профиля.
-    'app.read_public_lead_trusted_phone_owner(text)': rev10Function({
-      owner: 'app_seam_public_booking_owner', security: 'DEFINER', returns: 'uuid', returnsSet: false,
-      execute: ['app_tenant_service'],
-      purpose: 'resolve the sole canonical owner of a confirmed phone for verified public lead identity merge',
-      typedArgs: ['text'], volatility: 'STABLE', parallel: 'RESTRICTED',
-      proconfig: ['search_path=pg_catalog'],
-      relationSurfaces: [
-        { relation: 'public.user_contacts', columns: [
-          'platform_user_id', 'contact_kind', 'value_normalized', 'confirmed_at',
-        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
-        { relation: 'public.platform_users', columns: ['id', 'merged_into_id'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),

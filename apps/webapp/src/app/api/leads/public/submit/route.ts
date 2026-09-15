@@ -75,8 +75,9 @@ export async function POST(request: Request) {
       async ({ organizationId, deps: publicDeps }) => {
         // Состав заявки задаёт КЛИНИКА, а не тело запроса: единственный источник значений ниже —
         // `accepted`, куда валидатор кладёт только ответы на включённые арендатором поля. Поэтому
-        // ответ на выключенное поле не доезжает ни до заявки, ни до `resolveVerifiedLeadApplicant`,
-        // который по телефону принимает решение о СЛИЯНИИ учётных записей.
+        // ответ на выключенное поле не доезжает до заявки вовсе. Личность заявителя телефон не
+        // выбирает: опознание — почта и код на неё (§18в канона идентичности), остальные контакты
+        // едут врачу полем заявки.
         const validation = await publicDeps.bookingForm!.validateAnswers(
           organizationId,
           'patient',
@@ -128,7 +129,6 @@ export async function POST(request: Request) {
         empty_lead_message: { status: 400, code: 'required_field_missing' },
         invalid_lead_phone: { status: 400, code: 'invalid_phone' },
         invalid_phone: { status: 400, code: 'invalid_phone' },
-        lead_identity_merge_conflict: { status: 409, code: 'email_conflict' },
       },
       fallback: { code: 'lead_submit_failed', status: 500 },
       logEvent: 'public_lead_submit_failed',

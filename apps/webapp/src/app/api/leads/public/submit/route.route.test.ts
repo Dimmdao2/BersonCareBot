@@ -1,5 +1,3 @@
-import { readFileSync } from 'node:fs';
-import { getCurrentDbPrincipal } from '@bersoncare/db-principal';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { solveChallenge } from 'altcha-lib';
 import { deriveKey } from 'altcha-lib/algorithms/pbkdf2';
@@ -8,10 +6,6 @@ import { createBookingFormService } from '@/modules/booking-form/service';
 import { createLeadsService } from '@/modules/leads/service';
 import type { BookingFormFieldRecord } from '@/modules/booking-form/ports';
 import { defaultDoctorWorkspaceComposition } from '@/modules/system-settings/doctorWorkspaceComposition';
-import {
-  webappPortContextPrincipal,
-  type PortCapabilityDescriptor,
-} from '@/infra/db/portContextRuntime';
 
 /**
  * Л3, публичный приём заявки. Дверь стоит снаружи сессии кабинета и принимает чужие персональные
@@ -24,8 +18,6 @@ const fakes = vi.hoisted(() => ({
   session: vi.fn(),
   rateLimited: vi.fn(),
   mechanicAccess: vi.fn(),
-  claimEmail: vi.fn(),
-  dbExecute: vi.fn(),
 }));
 
 vi.mock('@/app-layer/principal/bootstrapPrincipal', () => ({
@@ -33,14 +25,13 @@ vi.mock('@/app-layer/principal/bootstrapPrincipal', () => ({
 }));
 vi.mock('@/app-layer/di/bindAuthModulePorts', () => ({ ensureAuthModulePortsBound: vi.fn() }));
 vi.mock('@/modules/auth/service', () => ({ getCurrentSessionForIdentitySelf: fakes.session }));
-vi.mock('@/infra/repos/pgEmailAuth', () => ({ claimVerifiedEmail: fakes.claimEmail }));
-vi.mock('@/app-layer/db/drizzle', () => ({
-  getDrizzle: () => ({ execute: fakes.dbExecute }),
-}));
 vi.mock('@/modules/public-booking/publicBookingRateLimit', () => ({
   PUBLIC_LEAD_RATE_LIMIT_SEC: 3600,
   isPublicLeadSubmitRateLimited: fakes.rateLimited,
   resolvePublicBookingRateLimitClientKey: () => ({ ok: true, key: 'ip-1' }),
+}));
+vi.mock('@/app-layer/principal/withOrganizationPrincipal', () => ({
+  withExplicitOrganizationPrincipal: (_p: unknown, run: () => Promise<unknown>) => run(),
 }));
 vi.mock('@/modules/org-entitlements/service', () => ({
   resolveMechanicAccess: fakes.mechanicAccess,
@@ -55,7 +46,6 @@ import { POST } from './route';
 const ORG_A = '00000000-0000-4000-8000-0000000000aa';
 const ORG_B = '00000000-0000-4000-8000-0000000000bb';
 const USER = '00000000-0000-4000-8000-0000000000c1';
-const PHONE_OWNER = '00000000-0000-4000-8000-0000000000c2';
 const ROOT_SECRET = 'l3-audit-root-secret';
 
 type CreatedLead = {
@@ -69,34 +59,6 @@ let created: CreatedLead[] = [];
 let configuredFields: BookingFormFieldRecord[] = [];
 /** Состав кабинета арендатора: включена ли у него механика заявок. */
 let workspaceComposition = defaultDoctorWorkspaceComposition();
-
-/** The capability catalog that the privilege generator ships to the DEV webapp runtime. */
-function declaredWebappCapabilities(): Record<string, PortCapabilityDescriptor> {
-  const seed = readFileSync(
-    new URL(
-      '../../../../../../../../deploy/postgres/generated/port-context-capabilities.bcb_webapp_dev.sql',
-      import.meta.url,
-    ),
-    'utf8',
-  );
-  const rows = [
-    ...seed.matchAll(
-      /\('([0-9a-f-]{36})'::uuid, '(\w+)'::app\.port_name, '\w+'::name, '(\w+)'::name, '(\w+)'::app\.port_context_class, '([^']+)', (?:'([^']+)'::regprocedure|NULL::regprocedure)\)/gu,
-    ),
-  ];
-  const capabilities: Record<string, PortCapabilityDescriptor> = {};
-  for (const [, capabilityId, port, targetRole, contextClass, purpose, functionIdentity] of rows) {
-    if (port !== 'webapp') continue;
-    capabilities[functionIdentity ?? `${contextClass}:${purpose}`] = {
-      capabilityId,
-      targetRole,
-      contextClass: contextClass as PortCapabilityDescriptor['contextClass'],
-      purpose,
-      ...(functionIdentity ? { functionIdentity } : {}),
-    };
-  }
-  return capabilities;
-}
 
 function field(
   fieldKey: string,
@@ -237,22 +199,6 @@ beforeEach(() => {
   workspaceComposition = defaultDoctorWorkspaceComposition();
   fakes.rateLimited.mockResolvedValue(false);
   fakes.mechanicAccess.mockResolvedValue({ state: 'full_access' });
-  fakes.claimEmail.mockResolvedValue({ ok: true, merged: true });
-  fakes.dbExecute.mockImplementation(async () => {
-    const selected = webappPortContextPrincipal(
-      getCurrentDbPrincipal(),
-      declaredWebappCapabilities(),
-    );
-    expect(selected).toMatchObject({
-      pool: 'staff',
-      principal: {
-        targetRole: 'app_tenant_service',
-        contextClass: 'tenant_service',
-        organizationId: ORG_A,
-      },
-    });
-    return { rows: [{ platform_user_id: PHONE_OWNER }] };
-  });
   fakes.session.mockResolvedValue({
     user: {
       userId: USER,
@@ -309,19 +255,6 @@ describe('Л3 публичный приём заявки — отказ вмес
     expect(created).toHaveLength(1);
   });
 
-  it('заполненный разрешённый телефон проходит объявленный корень и заявка отвечает 201', async () => {
-    configuredFields = [...configuredFields, field('phone')];
-
-    const response = await post(
-      baseBody({ phone: '+79990000000', captcha: await solvedCaptchaFor(EMAIL) }),
-    );
-
-    expect(response.status).toBe(201);
-    expect(created).toMatchObject([
-      { platformUserId: PHONE_OWNER, phoneNormalized: '+79990000000' },
-    ]);
-  });
-
   // Д4: решённый payload криптографически верен всё окно жизни задачки, поэтому «капча пройдена»
   // без гашения означает «одно решение — сколько угодно заявок», то есть цены у капчи нет вовсе.
   it('один решённый payload принимается ровно один раз', async () => {
@@ -363,6 +296,19 @@ describe('Л3 публичный приём заявки — чужая клин
       'required_field_missing',
     ]);
     expect(created).toEqual([]);
+  });
+
+  it('заполненный телефон едет в заявку и личность заявителя не меняет', async () => {
+    // §18в канона идентичности: телефон из заявки идентичностью не становится. Заявитель — учётная
+    // запись подтверждённой почты, а телефон виден врачу как оставленный контакт.
+    configuredFields = [...configuredFields, field('phone')];
+    const response = await post(
+      baseBody({ phone: '+79990000000', captcha: await solvedCaptchaFor(EMAIL) }),
+    );
+    expect(response.status).toBe(201);
+    expect(created.map((lead) => [lead.platformUserId, lead.phoneNormalized])).toEqual([
+      [USER, '+79990000000'],
+    ]);
   });
 
   it('значение поля, выключенного клиникой, в заявку не попадает', async () => {
