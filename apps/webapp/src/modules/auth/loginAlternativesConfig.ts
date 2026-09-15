@@ -4,10 +4,7 @@ import {
   getPublicRuntimeValue,
 } from '@/modules/system-settings/configAdapter';
 import { normalizeMaxBotNicknameInput } from '@/modules/system-settings/maxLoginBotNickname';
-import {
-  getClientVisibleAuthChannelPolicy,
-  type AuthChannelPolicy,
-} from '@/modules/auth/authChannelPolicy';
+import { type AuthChannelPolicy } from '@/modules/auth/authChannelPolicy';
 import { getAnonymousClientVisibleAuthChannelPolicy } from '@/modules/auth/anonymousAuthChannelPolicy';
 import type { SurfaceAuthPolicyName } from '@/shared/lib/surface/surfaceAuthPolicy';
 
@@ -28,12 +25,14 @@ async function buildLoginAlternativesPublicConfig(
   // Do NOT expose Telegram Login as an active public provider on the public login screen.
   // Keep internal `/api/auth/telegram-login/config` unchanged for authenticated flows and do not
   // propagate the Telegram username through this public alternatives payload.
-  const [maxNickname, vkSetting, smsFallbackEnabled, resolvedAuthChannelPolicy] = await Promise.all([
-    getPublicRuntimeValue('max_login_bot_nickname'),
-    getPublicRuntimeValue('vk_web_login_url'),
-    getPublicRuntimeBool('public_sms_fallback_enabled'),
-    authChannelPolicy,
-  ]);
+  const [maxNickname, vkSetting, smsFallbackEnabled, resolvedAuthChannelPolicy] = await Promise.all(
+    [
+      getPublicRuntimeValue('max_login_bot_nickname'),
+      getPublicRuntimeValue('vk_web_login_url'),
+      getPublicRuntimeBool('public_sms_fallback_enabled'),
+      authChannelPolicy,
+    ],
+  );
   const nick = normalizeMaxBotNicknameInput(maxNickname);
   const maxBotOpenUrl = nick.length > 0 ? `https://max.ru/${encodeURIComponent(nick)}` : null;
 
@@ -47,11 +46,6 @@ async function buildLoginAlternativesPublicConfig(
     smsFallbackEnabled,
     authChannelPolicy: resolvedAuthChannelPolicy,
   };
-}
-
-/** Public API path with a stamped bootstrap principal. */
-export function getLoginAlternativesPublicConfig(): Promise<LoginAlternativesPublicConfig> {
-  return buildLoginAlternativesPublicConfig(getClientVisibleAuthChannelPolicy());
 }
 
 /** Anonymous RSC path: only public projections/capabilities are in its dependency graph. */

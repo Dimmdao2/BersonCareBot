@@ -32,6 +32,6 @@ export async function POST(request: Request) {
   }
 
   const emailNorm = normalizeEmail(parsed.data.email);
-  await requestPasswordRecoveryChallenge(emailNorm, 'forgot');
+  await requestPasswordRecoveryChallenge(emailNorm);
   return NextResponse.json(PASSWORD_RECOVERY_REQUEST_ACCEPTED);
 }

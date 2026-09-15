@@ -215,7 +215,7 @@ flowchart TD
   токен, резолв пользователя (`apps/webapp/src/app/api/auth/oauth/callback/vk/route.ts`,
   `apps/webapp/src/modules/auth/vkOAuthCallbackHandler.ts`, `oauthVkService.ts`, `oauthVkResolve.ts`
   — с юнит-тестами `oauthVkResolve.unit.test.ts`).
-- `GET /api/auth/oauth/providers` возвращает флаг `vk` в JSON наравне с остальными:
+- (устарело 16.09.2026: маршрут удалён, флаги живут в серверном снимке `publicAuthSnapshot`) `GET /api/auth/oauth/providers` возвращал флаг `vk` в JSON наравне с остальными:
   `apps/webapp/src/app/api/auth/oauth/providers/route.ts:15-22`.
 - Админка уже умеет включать/настраивать VK ID (application id, client secret, redirect URI):
   `apps/webapp/src/app/app/settings/AuthProvidersSection.tsx:17, 114-157, 263-315`
