@@ -608,6 +608,20 @@ describe('clinic-owner atomic settings readback', () => {
     );
   });
 
+  it('never persists a clinic Telegram username supplied by the browser', async () => {
+    fakes.fetchTelegramBotIdentity.mockResolvedValue({
+      ok: false,
+      error: 'telegram_unreachable',
+    });
+
+    await patch({
+      key: 'clinic_telegram_bot_token',
+      value: { value: 'new-token', botPublicId: 'browser_supplied_bot' },
+    });
+
+    expect(JSON.stringify(fakes.updateSetting.mock.calls)).not.toContain('browser_supplied_bot');
+  });
+
   it('computes the fixed app label server-side and ignores a browser-supplied prefix', async () => {
     fakes.setCustomDomainIntent.mockImplementationOnce(
       async (input: SetCustomDomainIntentInput) => ({
@@ -617,8 +631,7 @@ describe('clinic-owner atomic settings readback', () => {
           baseDomain: input.baseDomain,
           placement: input.placement,
           subdomainLabel: input.placement === 'subdomain' ? 'app' : null,
-          hostname:
-            input.placement === 'subdomain' ? `app.${input.baseDomain}` : input.baseDomain,
+          hostname: input.placement === 'subdomain' ? `app.${input.baseDomain}` : input.baseDomain,
           status: 'pending',
           statusReason: null,
           activatedAt: null,
@@ -837,30 +850,38 @@ describe('имя телеграм-бота берётся по токену', ()
     ).toHaveLength(0);
   });
 
-  it('прямая запись имени в обход интерфейса Telegram не дёргает — поле нередактируемое', async () => {
-    fakes.updateSetting.mockResolvedValue(savedSetting('telegram_login_bot_username', 'bersoncare_bot'));
+  it('прямая запись имени бота с кодами не может обойти деривацию по токену', async () => {
+    fakes.updateSetting.mockResolvedValue(
+      savedSetting('telegram_login_bot_username', 'bersoncare_bot'),
+    );
 
     const response = await patch({ key: 'telegram_login_bot_username', value: '@bersoncare_bot' });
 
-    expect(response.status).toBe(200);
+    expect(response.status).toBeGreaterThanOrEqual(400);
     expect(fakes.fetchTelegramBotIdentity).not.toHaveBeenCalled();
-    expect(fakes.updateSetting).toHaveBeenCalledWith(
-      'telegram_login_bot_username',
-      'admin',
-      { value: 'bersoncare_bot' },
-      platformSession.user.userId,
-      { organizationId: null, allowPlatformGlobalFallbackWrite: true },
-    );
+    expect(fakes.updateSetting).not.toHaveBeenCalled();
   });
 });
 
 /**
- * Бот Login Widget — не бот с кодами: у него свой токен, которым проверяется подпись кнопки.
- * Имя без токена дало бы кнопку, по которой вход всегда отказывает, — тот же класс «включено, но не
- * работает», из-за которого владелец 15.09.2026 ждал код, которого никто не слал.
+ * Бот Login Widget — не бот с кодами: у него свой токен, которым проверяется подпись кнопки, и своё
+ * имя. Имя здесь не вводят: аудит 16.09.2026 показал, что принятое на веру имя даёт кнопку бота A
+ * при подписи бота B — вход отказывает всегда. Владелец 16.09.2026 про имена ботов вообще: «имя,
+ * вписанное руками — убрать, сразу получать и показывать там как нередактируемое».
  */
-describe('бот Telegram Login Widget сохраняется только парой', () => {
-  it('имя без сохранённого токена не принимается', async () => {
+describe('имя бота Telegram Login Widget выводится по его токену', () => {
+  function savedSetting(key: string, value: unknown) {
+    return {
+      key,
+      scope: 'admin',
+      organizationId: null,
+      valueJson: { value },
+      updatedAt: '2026-09-16T00:00:00.000Z',
+      updatedBy: platformSession.user.userId,
+    };
+  }
+
+  it('прямая запись имени виджета не принимается', async () => {
     fakes.getSetting.mockResolvedValue(null);
 
     const response = await patch({
@@ -868,15 +889,62 @@ describe('бот Telegram Login Widget сохраняется только па�
       value: 'bersoncare_login_bot',
     });
 
-    expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toMatchObject({
-      ok: false,
-      error: 'telegram_login_widget_bot_token_required',
-    });
+    expect(response.status).toBeGreaterThanOrEqual(400);
     expect(fakes.updateSetting).not.toHaveBeenCalled();
   });
 
-  it('с сохранённым токеном имя принимается и нормализуется', async () => {
+  it('сохранение токена виджета подставляет имя его бота', async () => {
+    fakes.getSetting.mockResolvedValue(null);
+    fakes.fetchTelegramBotIdentity.mockResolvedValue({
+      ok: true,
+      username: 'bersoncare_login_bot',
+      botId: 76,
+    });
+    fakes.updateSetting.mockResolvedValue(
+      savedSetting('telegram_login_widget_bot_token', 'widget:AAsecret'),
+    );
+
+    const response = await patch({
+      key: 'telegram_login_widget_bot_token',
+      value: 'widget:AAsecret',
+    });
+
+    expect(response.status).toBe(200);
+    expect(fakes.fetchTelegramBotIdentity).toHaveBeenCalledWith({
+      scope: 'platform_login_widget',
+    });
+    expect(fakes.updateSetting).toHaveBeenCalledWith(
+      'telegram_login_widget_bot_username',
+      'admin',
+      { value: 'bersoncare_login_bot' },
+      platformSession.user.userId,
+      { organizationId: null, allowPlatformGlobalFallbackWrite: true },
+    );
+  });
+
+  it('отвергнутый Telegram токен снимает имя виджета', async () => {
+    fakes.getSetting.mockResolvedValue(null);
+    fakes.fetchTelegramBotIdentity.mockResolvedValue({ ok: false, error: 'telegram_rejected' });
+    fakes.updateSetting.mockResolvedValue(
+      savedSetting('telegram_login_widget_bot_token', 'widget:AAsecret'),
+    );
+
+    const response = await patch({
+      key: 'telegram_login_widget_bot_token',
+      value: 'widget:AAsecret',
+    });
+
+    expect(response.status).toBe(200);
+    expect(fakes.updateSetting).toHaveBeenCalledWith(
+      'telegram_login_widget_bot_username',
+      'admin',
+      { value: '' },
+      platformSession.user.userId,
+      { organizationId: null, allowPlatformGlobalFallbackWrite: true },
+    );
+  });
+
+  it('не принимает имя виджета, которое не принадлежит сохранённому токену', async () => {
     fakes.getSetting.mockImplementation(async (key: string) =>
       key === 'telegram_login_widget_bot_token'
         ? {
@@ -889,50 +957,26 @@ describe('бот Telegram Login Widget сохраняется только па�
           }
         : null,
     );
+    fakes.fetchTelegramBotIdentity.mockResolvedValue({
+      ok: true,
+      username: 'actual_widget_bot',
+      botId: 77,
+    });
     fakes.updateSetting.mockResolvedValue({
       key: 'telegram_login_widget_bot_username',
       scope: 'admin',
       organizationId: null,
-      valueJson: { value: 'bersoncare_login_bot' },
+      valueJson: { value: 'other_widget_bot' },
       updatedAt: '2026-09-16T00:00:00.000Z',
       updatedBy: platformSession.user.userId,
     });
 
     const response = await patch({
       key: 'telegram_login_widget_bot_username',
-      value: 'https://t.me/bersoncare_login_bot',
+      value: 'other_widget_bot',
     });
 
-    expect(response.status).toBe(200);
-    expect(fakes.updateSetting).toHaveBeenCalledWith(
-      'telegram_login_widget_bot_username',
-      'admin',
-      { value: 'bersoncare_login_bot' },
-      platformSession.user.userId,
-      { organizationId: null, allowPlatformGlobalFallbackWrite: true },
-    );
-  });
-
-  it('пустое имя выключает виджет и токена не требует', async () => {
-    fakes.getSetting.mockResolvedValue(null);
-    fakes.updateSetting.mockResolvedValue({
-      key: 'telegram_login_widget_bot_username',
-      scope: 'admin',
-      organizationId: null,
-      valueJson: { value: '' },
-      updatedAt: '2026-09-16T00:00:00.000Z',
-      updatedBy: platformSession.user.userId,
-    });
-
-    const response = await patch({ key: 'telegram_login_widget_bot_username', value: '' });
-
-    expect(response.status).toBe(200);
-    expect(fakes.updateSetting).toHaveBeenCalledWith(
-      'telegram_login_widget_bot_username',
-      'admin',
-      { value: '' },
-      platformSession.user.userId,
-      { organizationId: null, allowPlatformGlobalFallbackWrite: true },
-    );
+    expect(response.status).toBeGreaterThanOrEqual(400);
+    expect(fakes.updateSetting).not.toHaveBeenCalled();
   });
 });

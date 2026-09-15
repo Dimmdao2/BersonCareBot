@@ -1260,72 +1260,26 @@ export async function PATCH(request: Request) {
     normalizedValue = { value: checked.value };
   }
 
-  if (parsed.data.key === 'telegram_login_bot_username') {
-    const checked = normalizeTelegramLoginBotUsername(normalizedValue.value);
-    if (!checked.ok) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: 'telegram_login_bot_username_invalid',
-          message:
-            'Имя бота — 5–32 символа: буквы, цифры и подчёркивание, первый символ буква. ' +
-            'Можно вписать @имя или ссылку t.me/имя — лишнее уберём сами.',
-        },
-        { status: 400 },
-      );
-    }
-    // Имя принадлежит токену и подставляется по нему при сохранении токена (ниже). Здесь остаётся
-    // только нормализация: руками его больше никто не вводит — поле в настройках нередактируемое
-    // (владелец 16.09.2026: «имя, вписанное руками — убрать, сразу получать и показывать как
-    // нередактируемое»).
-    normalizedValue = { value: checked.value };
-  }
-
   /**
-   * Имя бота Login Widget принимается только вместе с его токеном. Без токена подпись виджета
-   * проверить нечем — кнопка появилась бы, а вход по ней всегда отказывал; ровно этот класс
-   * «включено, но не работает» владелец разбирал 15–16.09.2026. Токен задаётся отдельным ключом:
-   * это НЕ бот доставки кодов и не бот Mini App.
+   * Имена ботов эта дверь НЕ принимает. Владелец 16.09.2026: «имя, вписанное руками — убрать, сразу
+   * получать и показывать там как нередактируемое». Убрать поле из интерфейса мало: маршрут остаётся
+   * открытым, и записанное мимо интерфейса имя снова расходится с токеном — это и есть «левый бот»,
+   * на котором владелец 15.09 потерял полчаса. Имя ставит только вывод по `getMe` ниже в этом же
+   * обработчике, который пишет настройку через порт, а не через HTTP.
    */
-  if (parsed.data.key === 'telegram_login_widget_bot_username') {
-    const checked = normalizeTelegramLoginBotUsername(normalizedValue.value);
-    if (!checked.ok) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: 'telegram_login_widget_bot_username_invalid',
-          message:
-            'Имя бота — 5–32 символа: буквы, цифры и подчёркивание, первый символ буква. ' +
-            'Можно вписать @имя или ссылку t.me/имя — лишнее уберём сами.',
-        },
-        { status: 400 },
-      );
-    }
-    if (checked.value) {
-      const tokenRow = await deps.systemSettings.getSetting(
-        'telegram_login_widget_bot_token',
-        'admin',
-        { organizationId: null },
-      );
-      const storedToken = tokenRow?.valueJson;
-      const tokenPresent =
-        storedToken !== null &&
-        typeof storedToken === 'object' &&
-        'value' in storedToken &&
-        typeof (storedToken as { value?: unknown }).value === 'string' &&
-        ((storedToken as { value?: string }).value ?? '').trim().length > 0;
-      if (!tokenPresent) {
-        return NextResponse.json(
-          {
-            ok: false,
-            error: 'telegram_login_widget_bot_token_required',
-            message: 'Сначала сохраните токен бота Login Widget — без него вход кнопкой не работает.',
-          },
-          { status: 400 },
-        );
-      }
-    }
-    normalizedValue = { value: checked.value };
+  if (
+    parsed.data.key === 'telegram_login_bot_username' ||
+    parsed.data.key === 'telegram_login_widget_bot_username'
+  ) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: 'telegram_bot_username_derived_only',
+        message:
+          'Имя бота не вводится: оно берётся у Telegram по сохранённому токену. Сохраните токен — имя появится само.',
+      },
+      { status: 400 },
+    );
   }
 
   if (parsed.data.key === 'operator_alert_fallback_email') {
@@ -1377,6 +1331,7 @@ export async function PATCH(request: Request) {
     const checked = parseClinicBotPatchValue({
       patchEnvelope: normalizedValue,
       existingValueJson: clinicBotOldRowForAudit?.valueJson ?? null,
+      botPublicIdIsDerived: parsed.data.key === 'clinic_telegram_bot_token',
     });
     if (!checked.ok) {
       return NextResponse.json(
@@ -1490,12 +1445,48 @@ export async function PATCH(request: Request) {
     const identity = await fetchTelegramBotIdentity({ scope: 'platform', audience: 'patient' });
     const derived = identity.ok ? identity.username : null;
     const mustClear =
-      !identity.ok && (identity.error === 'telegram_rejected' || identity.error === 'bot_without_username');
+      !identity.ok &&
+      (identity.error === 'telegram_rejected' || identity.error === 'bot_without_username');
     if (derived !== null || mustClear) {
       try {
         await deps.systemSettings.updateSetting(
           'telegram_login_bot_username',
           settingScopeForKey('telegram_login_bot_username'),
+          { value: derived ?? '' },
+          session.user.userId,
+          {
+            organizationId,
+            ...(allowGlobalSettings ? { allowPlatformGlobalFallbackWrite: true as const } : {}),
+          },
+        );
+        if (derived !== null) telegramLoginBotUsername = derived;
+      } catch {
+        telegramLoginBotWarning =
+          'Токен сохранён, но имя бота записать не удалось — откройте настройки входа и повторите.';
+      }
+    }
+    if (!identity.ok && telegramLoginBotWarning === undefined) {
+      telegramLoginBotWarning = TELEGRAM_BOT_IDENTITY_MESSAGES[identity.error];
+    }
+  }
+
+  /**
+   * Бот LOGIN WIDGET — третий бот и то же правило. Аудит 16.09.2026 показал дыру: имя виджета
+   * принималось при наличии ЛЮБОГО сохранённого токена, без сверки принадлежности. Тогда кнопка на
+   * странице ведёт к боту A, а подпись Telegram проверяется токеном бота B — вход отказывает всегда.
+   * Теперь имя выводится по `getMe` его собственного токена, и админ его не вводит.
+   */
+  if (parsed.data.key === 'telegram_login_widget_bot_token') {
+    const identity = await fetchTelegramBotIdentity({ scope: 'platform_login_widget' });
+    const derived = identity.ok ? identity.username : null;
+    const mustClear =
+      !identity.ok &&
+      (identity.error === 'telegram_rejected' || identity.error === 'bot_without_username');
+    if (derived !== null || mustClear) {
+      try {
+        await deps.systemSettings.updateSetting(
+          'telegram_login_widget_bot_username',
+          settingScopeForKey('telegram_login_widget_bot_username'),
           { value: derived ?? '' },
           session.user.userId,
           {
@@ -1527,7 +1518,10 @@ export async function PATCH(request: Request) {
     const mustClear =
       !identity.ok &&
       (identity.error === 'telegram_rejected' || identity.error === 'bot_without_username');
-    if ((derived !== null && derived !== previous.botPublicId) || (mustClear && previous.botPublicId)) {
+    if (
+      (derived !== null && derived !== previous.botPublicId) ||
+      (mustClear && previous.botPublicId)
+    ) {
       try {
         setting = await deps.systemSettings.updateSetting(
           parsed.data.key,
