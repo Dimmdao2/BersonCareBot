@@ -71,10 +71,20 @@ fi
 # там под ещё не выложенную работу, потерей прода не является (владелец 15.09: «гейт сравнивает
 # прод не с выкаченным коммитом, а с DEV — исправить этот бред»).
 echo "==> проверяю, что журнал миграций прода не врёт"
+JOURNAL_TRUTH_STATUS=0
 BCB_JOURNAL_TRUTH_SSH_OPTS="${SSH_OPTS[*]}" \
 BCB_JOURNAL_TRUTH_SCOPE_REF="$COMMIT" \
 bash "$(dirname "${BASH_SOURCE[0]}")/../deploy/host/check-migration-journal-truth.sh" \
-  "${THERAPYSTO_PROD_DB:-therapysto_prod}" "$ACCOUNT@$PROD_HOST" || {
+  "${THERAPYSTO_PROD_DB:-therapysto_prod}" "$ACCOUNT@$PROD_HOST" || JOURNAL_TRUTH_STATUS=$?
+# «Спросить не получилось» — это НЕ «в базе нет миграций». 15.09 после выкладки `1cd78f666` ssh к
+# проду отвалился по таймауту, гейт честно сказал «цель не ответила ни одной строкой» (код 2), а эта
+# строка превратила его в приговор «в базе прода нет того, что миграции обещали» — и владелец
+# получил сообщение о несуществующей поломке боя. Код 2 = недостижимая цель, остальное = расхождение.
+if [ "$JOURNAL_TRUTH_STATUS" -eq 2 ]; then
+  echo "ГЕЙТ НЕ ПРОВЕРЕН: до прода не достучались (причина выше). Про базу это НИЧЕГО не говорит." >&2
+  echo "  повторить: BCB_JOURNAL_TRUTH_SCOPE_REF=$COMMIT bash deploy/host/check-migration-journal-truth.sh ${THERAPYSTO_PROD_DB:-therapysto_prod} $ACCOUNT@$PROD_HOST" >&2
+  exit 2
+elif [ "$JOURNAL_TRUTH_STATUS" -ne 0 ]; then
   echo "ОТКАЗ ГЕЙТА: выкатка прошла, но в базе прода нет того, что миграции обещали (список выше)" >&2
   exit 1
-}
+fi

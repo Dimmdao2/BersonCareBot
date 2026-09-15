@@ -1,4 +1,6 @@
+import type { Metadata } from 'next';
 import { notFound, permanentRedirect } from 'next/navigation';
+import { PATIENT_DEFAULT_SURFACE } from '@/config/productSurfaces';
 import { publicClinicCardPath, publicClinicSpecialistPath } from '@/shared/publicBook/paths';
 import {
   SpecialistPublicCardView,
@@ -10,6 +12,51 @@ import { clinicCardMediaPath, loadPublicSpecialistRsc } from '../../publicClinic
 export const dynamic = 'force-dynamic';
 
 type Props = { params: Promise<{ clinicSlug: string; specialistId: string }> };
+
+/**
+ * Превью ссылки на специалиста: его имя, короткое описание и его же аватар.
+ *
+ * Аватар берётся из набора медиа визитки — того самого, что и на самой странице, — и по его же
+ * публичному адресу: робот превью приходит без сессии. Нет аватара или страница не читается —
+ * картинку не заявляем, выдумывать замену нечем.
+ */
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { clinicSlug, specialistId } = await params;
+  const result = await loadPublicSpecialistRsc(clinicSlug, specialistId);
+  if (result.status !== 'ok') return {};
+  const { card, specialist } = result.page;
+  const description = specialist.shortDescription?.trim() || undefined;
+  const hasAvatar =
+    Boolean(specialist.avatarMediaId) &&
+    card.media.some((item) => item.id === specialist.avatarMediaId);
+  const image =
+    hasAvatar && specialist.avatarMediaId
+      ? absolutePublicUrl(clinicCardMediaPath(card.canonicalSlug, specialist.avatarMediaId))
+      : null;
+  return {
+    title: specialist.fullName,
+    ...(description ? { description } : {}),
+    openGraph: {
+      title: specialist.fullName,
+      ...(description ? { description } : {}),
+      type: 'profile',
+      siteName: card.displayName,
+      ...(image ? { images: [{ url: image, alt: specialist.fullName }] } : {}),
+    },
+    ...(image
+      ? { twitter: { card: 'summary', title: specialist.fullName, images: [image] } }
+      : {}),
+  };
+}
+
+/** Абсолютный адрес на пациентском origin: относительный робот превью не разрешит. */
+function absolutePublicUrl(path: string): string | null {
+  try {
+    return new URL(path, PATIENT_DEFAULT_SURFACE.origin).toString();
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Публичная страница специалиста `/{clinic}/specialist/{id}` — решение владельца 11.09 (план §17.G):
