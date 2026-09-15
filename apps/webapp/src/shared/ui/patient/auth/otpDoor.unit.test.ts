@@ -2,8 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import {
   buildPhoneMessengerOtpAlternatives,
   buildPublicPhoneOtpAlternatives,
-  phoneBindOtpDescription,
-  phoneLoginOtpDescription,
+  otpCodeDescription,
 } from './otpDoor';
 import type { AuthMethodsPayload } from '@/modules/auth/checkPhoneMethods';
 import type { AuthChannelUiPolicy } from '@/modules/auth/otpChannelUi';
@@ -18,18 +17,16 @@ const allChannels: AuthChannelUiPolicy = { telegram: true, max: true, email: tru
  * email» отправило код на адрес аккаунта, найденного по возможно ошибочному номеру.
  */
 describe('экран кода при входе по номеру', () => {
-  it('не утверждает отправку ни на одном канале', () => {
-    for (const channel of ['automatic', 'telegram', 'max', 'sms', 'email'] as const) {
-      const text = phoneLoginOtpDescription(channel);
-      expect(text, channel).toMatch(/^Если /);
-      expect(text, channel).not.toMatch(/Код отправлен|проверьте входящие/);
-    }
+  it('называет мессенджер, привязанный к номеру, и одинаково для любого номера', () => {
+    expect(otpCodeDescription('automatic')).toBe(
+      'Код отправлен в мессенджер, привязанный к вашему номеру.',
+    );
   });
 
-  it('при неизвестном канале называет оба бота и молчит про сам номер', () => {
-    expect(phoneLoginOtpDescription('automatic')).toBe(
-      'Если этот номер у нас есть, код уже пришёл в ваш бот — Telegram или Max.',
-    );
+  it('при явно выбранном канале называет его', () => {
+    expect(otpCodeDescription('telegram')).toBe('Код отправлен в Telegram.');
+    expect(otpCodeDescription('max')).toBe('Код отправлен в Max.');
+    expect(otpCodeDescription('sms')).toBe('Код отправлен SMS на указанный номер.');
   });
 
   it('почта из списка «другой способ» ведёт на свою дверь, а не шлёт код', async () => {
@@ -66,18 +63,5 @@ describe('экран кода при входе по номеру', () => {
     ]);
     await entries[0]?.onClick();
     expect(resend).toHaveBeenCalledWith('max');
-  });
-});
-
-/**
- * Привязка собственного номера — другая дверь: человек уже вошёл, отказ ему показывают отказом,
- * поэтому прятать факт отправки не от кого и незачем.
- */
-describe('экран кода при привязке номера', () => {
-  it('говорит об отправке прямо', () => {
-    expect(phoneBindOtpDescription('telegram')).toBe(
-      'Код отправлен в Telegram — откройте чат с ботом.',
-    );
-    expect(phoneBindOtpDescription('sms')).toBe('Код отправлен SMS на указанный номер.');
   });
 });

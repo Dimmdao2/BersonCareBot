@@ -344,12 +344,11 @@ const PAYMENT_ENTITLEMENT_SETTING_KEYS = new Set([
 ]);
 
 /**
- * Отказы двери настройки бота словами администратора. Ни один из них не показывает токен: ответ
- * Telegram на неверный токен содержит его в тексте запроса.
+ * Что сказать администратору, если имя бота по токену получить не удалось. Ни одна строка не
+ * показывает токен: ответ Telegram на неверный токен содержит его в тексте запроса.
  */
 const TELEGRAM_BOT_IDENTITY_MESSAGES: Readonly<Record<string, string>> = {
-  credential_missing:
-    'Сначала сохраните токен бота — имя подставится по нему само (Настройки → Боты доставки).',
+  credential_missing: 'Токен бота не сохранён — имя бота получить не у чего.',
   telegram_rejected: 'Telegram не признал сохранённый токен бота. Проверьте токен и повторите.',
   telegram_unreachable: 'Не удалось спросить Telegram — имя не проверено. Повторите попытку.',
   integrator_unreachable: 'Не удалось спросить Telegram — имя не проверено. Повторите попытку.',
@@ -1273,40 +1272,11 @@ export async function PATCH(request: Request) {
         { status: 400 },
       );
     }
-    // Имя, вписанное руками, сверяем с ТОКЕНОМ пациентского бота: именно этот бот присылает код
-    // входа и открывается ссылкой `t.me/<имя>`. Владелец 16.09.2026 получил в бою чужого бота —
-    // «там оказывается был какой то левый бот», — потому что имя и токен жили порознь и не
-    // сверялись ничем, а `app.is_telegram_login_configured()` считает канал настроенным по одному
-    // непустому имени. Непроверенное имя не сохраняем: молчащий вход хуже отказа при настройке.
-    if (checked.value) {
-      const identity = await fetchTelegramBotIdentity({ scope: 'platform', audience: 'patient' });
-      if (!identity.ok) {
-        return NextResponse.json(
-          {
-            ok: false,
-            error: `telegram_login_bot_username_${identity.error}`,
-            message: TELEGRAM_BOT_IDENTITY_MESSAGES[identity.error],
-          },
-          { status: 400 },
-        );
-      }
-      if (identity.username.toLowerCase() !== checked.value.toLowerCase()) {
-        return NextResponse.json(
-          {
-            ok: false,
-            error: 'telegram_login_bot_username_mismatch',
-            message:
-              `Сохранённый токен принадлежит боту @${identity.username}, а не @${checked.value}. ` +
-              'Впишите это имя или сначала замените токен.',
-          },
-          { status: 400 },
-        );
-      }
-      // Написание берём у самого Telegram: регистр в ссылке и виджете должен совпадать с ботом.
-      normalizedValue = { value: identity.username };
-    } else {
-      normalizedValue = { value: '' };
-    }
+    // Имя принадлежит токену и подставляется по нему при сохранении токена (ниже). Здесь остаётся
+    // только нормализация: руками его больше никто не вводит — поле в настройках нередактируемое
+    // (владелец 16.09.2026: «имя, вписанное руками — убрать, сразу получать и показывать как
+    // нередактируемое»).
+    normalizedValue = { value: checked.value };
   }
 
   if (parsed.data.key === 'operator_alert_fallback_email') {
@@ -1499,7 +1469,7 @@ export async function PATCH(request: Request) {
    * Бот КЛИНИКИ — та же дверь, то же правило: публичное имя принадлежит токену, а не памяти
    * администратора. Здесь оно нужно ссылке `t.me/<имя>` в брендированной поверхности, и владелец
    * 16.09.2026 споткнулся именно об это расхождение. Спросить Telegram можно только после записи
-   * (токен читает интегратор), поэтому вписанное руками имя заменяем настоящим и говорим об этом.
+   * (токен читает интегратор), поэтому имя подставляется сразу после записи токена.
    */
   if (parsed.data.key === 'clinic_telegram_bot_token' && organizationId) {
     const identity = await fetchTelegramBotIdentity({ scope: 'clinic', organizationId });
@@ -1520,10 +1490,6 @@ export async function PATCH(request: Request) {
           session.user.userId,
           { organizationId },
         );
-        if (derived !== null && previous.botPublicId && derived !== previous.botPublicId) {
-          telegramLoginBotWarning =
-            `Токен принадлежит боту @${derived} — имя бота исправлено на него.`;
-        }
       } catch {
         telegramLoginBotWarning =
           'Токен сохранён, но имя бота записать не удалось — откройте настройки и повторите.';

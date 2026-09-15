@@ -40,7 +40,7 @@ import {
 } from '@/shared/ui/patient/auth/OtpCodeForm';
 import {
   buildPublicPhoneOtpAlternatives,
-  phoneLoginOtpDescription,
+  otpCodeDescription,
 } from '@/shared/ui/patient/auth/otpDoor';
 import { InternationalPhoneInput } from '@/shared/ui/patient/auth/InternationalPhoneInput';
 import {
@@ -2713,7 +2713,7 @@ export function AuthFlowV2({
           retryAfterSeconds={retryAfterSeconds}
           supportContactHref={supportContactHref}
           submitLabel="Войти"
-          description={phoneLoginOtpDescription(otpChannel)}
+          description={otpCodeDescription(otpChannel)}
           alternatives={alternatives}
           onConfirm={async (code) => {
             engageInteractive();

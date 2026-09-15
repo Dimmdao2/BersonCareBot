@@ -761,13 +761,13 @@ describe('platform workspace settings refusal', () => {
 });
 
 /**
- * Имя бота принадлежит ТОКЕНУ. Владелец 16.09.2026 получил в бою чужого бота — «там оказывается был
- * какой то левый бот» — и код входа молча не доходил: имя и токен вводились в разных местах, не
- * сверялись ничем, а `app.is_telegram_login_configured()` считает канал настроенным по одному
- * непустому имени. Его решение: «при сохранении… проверять корректность имени по токену. И я не
- * понимаю почему нельзя его просто получать по токену не спрашивая».
+ * Имя бота принадлежит ТОКЕНУ и берётся у Telegram, а не у администратора. Владелец 16.09.2026
+ * получил в бою чужого бота — «там оказывается был какой то левый бот», — и код входа молча не
+ * доходил: имя вводили руками отдельно от токена, а `app.is_telegram_login_configured()` считает
+ * канал настроенным по одному непустому имени. Решение владельца: «имя, вписанное руками — убрать,
+ * сразу получать и показывать там как нередактируемое».
  */
-describe('имя телеграм-бота сверяется с токеном', () => {
+describe('имя телеграм-бота берётся по токену', () => {
   function savedSetting(key: string, value: unknown) {
     return {
       key,
@@ -778,62 +778,6 @@ describe('имя телеграм-бота сверяется с токеном'
       updatedBy: platformSession.user.userId,
     };
   }
-
-  it('не сохраняет имя чужого бота и называет настоящее', async () => {
-    const response = await patch({ key: 'telegram_login_bot_username', value: '@some_other_bot' });
-
-    expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toMatchObject({
-      ok: false,
-      error: 'telegram_login_bot_username_mismatch',
-      message: expect.stringContaining('@bersoncare_bot'),
-    });
-    expect(fakes.updateSetting).not.toHaveBeenCalled();
-  });
-
-  it('сохраняет совпавшее имя в написании самого Telegram', async () => {
-    fakes.updateSetting.mockResolvedValue(savedSetting('telegram_login_bot_username', 'bersoncare_bot'));
-
-    const response = await patch({ key: 'telegram_login_bot_username', value: 't.me/BersonCare_Bot' });
-
-    expect(response.status).toBe(200);
-    expect(fakes.updateSetting).toHaveBeenCalledWith(
-      'telegram_login_bot_username',
-      'admin',
-      { value: 'bersoncare_bot' },
-      platformSession.user.userId,
-      { organizationId: null, allowPlatformGlobalFallbackWrite: true },
-    );
-  });
-
-  it('без сохранённого токена имя не принимается вовсе', async () => {
-    fakes.fetchTelegramBotIdentity.mockResolvedValue({ ok: false, error: 'credential_missing' });
-
-    const response = await patch({ key: 'telegram_login_bot_username', value: 'bersoncare_bot' });
-
-    expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toMatchObject({
-      ok: false,
-      error: 'telegram_login_bot_username_credential_missing',
-    });
-    expect(fakes.updateSetting).not.toHaveBeenCalled();
-  });
-
-  it('снятие имени не требует Telegram — это выключение канала', async () => {
-    fakes.updateSetting.mockResolvedValue(savedSetting('telegram_login_bot_username', ''));
-
-    const response = await patch({ key: 'telegram_login_bot_username', value: '' });
-
-    expect(response.status).toBe(200);
-    expect(fakes.fetchTelegramBotIdentity).not.toHaveBeenCalled();
-    expect(fakes.updateSetting).toHaveBeenCalledWith(
-      'telegram_login_bot_username',
-      'admin',
-      { value: '' },
-      platformSession.user.userId,
-      { organizationId: null, allowPlatformGlobalFallbackWrite: true },
-    );
-  });
 
   it('сохранение токена подставляет имя само, не спрашивая администратора', async () => {
     fakes.updateSetting.mockImplementation(async (key: string, _scope, value) =>
@@ -891,5 +835,21 @@ describe('имя телеграм-бота сверяется с токеном'
     expect(
       fakes.updateSetting.mock.calls.filter(([key]) => key === 'telegram_login_bot_username'),
     ).toHaveLength(0);
+  });
+
+  it('прямая запись имени в обход интерфейса Telegram не дёргает — поле нередактируемое', async () => {
+    fakes.updateSetting.mockResolvedValue(savedSetting('telegram_login_bot_username', 'bersoncare_bot'));
+
+    const response = await patch({ key: 'telegram_login_bot_username', value: '@bersoncare_bot' });
+
+    expect(response.status).toBe(200);
+    expect(fakes.fetchTelegramBotIdentity).not.toHaveBeenCalled();
+    expect(fakes.updateSetting).toHaveBeenCalledWith(
+      'telegram_login_bot_username',
+      'admin',
+      { value: 'bersoncare_bot' },
+      platformSession.user.userId,
+      { organizationId: null, allowPlatformGlobalFallbackWrite: true },
+    );
   });
 });
