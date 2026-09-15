@@ -46,6 +46,11 @@ Bumping the pin is a deliberate change, and every one of these six things must m
 5. Re-run `deploy/jitsi/bin/check-latest-jitsi-tag.sh` — must report no drift for every component.
 6. Re-run `deploy/jitsi/bin/install.sh --check` on TEST and the full runbook before treating the new pin as
    accepted. A version bump is not covered by the one-pass evidence this branch carries at landing time.
+7. Посмотреть живьём раскладку звонка: `config/web/therapysto-call.css` держится за имена узлов Jitsi
+   (`#filmstripLocalVideo`, `#remoteVideos`, `.vertical-filmstrip`), снятые с stable-11146-2. Апстрим
+   может их переименовать, и тогда стиль перестанет действовать молча — плитка просто вернётся в
+   вертикальную плёнку. Проверка — открыть звонок вдвоём и увидеть собственное видео окном в правом
+   нижнем углу без миниатюры-дубля собеседника.
 
 ## Why these two projects and not alternatives
 
