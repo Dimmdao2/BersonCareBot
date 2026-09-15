@@ -173,4 +173,79 @@ SMS HTTP=200 BODY={"ok":true,"status":"skipped"}
 
 ## Вердикт для ведущего
 
-`PASS — Л5: DEV выпускает email только через петлевой SMTP в Mailpit; непетлевой SMTP получает отдельное подавление, Telegram/SMS остаются заглушены; production-ветка не изменена.`
+`PASS — Л5: DEV выпускает email только через петлевой SMTP в Mailpit; непетлевой SMTP получает отдельное подавление, Telegram/SMS остаются заглушены; production-ветка не изменена. Коррекция аудита закрыла стену TEST_ACCOUNT_EMAILS для email и привела §1b.2 в соответствие с этим поведением.`
+
+## Коррекция по аудиту
+
+Закрыты оба MUST FIX из
+`docs/_TODO/AUDIT_L5_DEV_MAIL_TRAP_2026-09-15.md`, без изменения продукта:
+
+- `apps/integrator/src/shared/testDeliverySafety.test.ts`: добавлен один поведенческий сценарий
+  `TEST suppresses a non-allowlisted email recipient before the adapter`. При
+  `NODE_ENV=production`, `TEST=true` и заданном `TEST_ACCOUNT_EMAILS` неразрешённый email получает
+  `{ suppressedByEnvironment: true }`, а адаптер не вызывается. Oracle — пункт Л5 и найденная
+  аудитом молчаливая регрессия: TEST не должен доставлять неразрешённому получателю.
+- `AGENTS.md` §1b.2: прежняя безусловная формулировка no-op заменена на действующее правило: на DEV
+  только `email` может достигать петлевого SMTP-приёмника (`127.0.0.1`, `::1`, `localhost`),
+  непетлевой SMTP подавляется до отправки, остальные каналы остаются no-op. Это сохраняет смысл
+  изоляции — DEV не может доставить письмо реальному человеку.
+
+### Инъекции и прогоны
+
+Финальный зелёный прогон:
+
+```bash
+/home/dev/brain/host-orch/run-tests.sh "pnpm --dir apps/integrator exec vitest run src/shared/testDeliverySafety.test.ts"
+```
+
+```text
+Test Files  1 passed (1)
+     Tests  9 passed (9)
+```
+
+Форма А: ранний выход `if (intendedChannel === 'email') return intent;` временно вынесен из
+ветки `isLocalDevelopmentDeliverySuppressed()` наружу. Применённую подмену подтвердил `git diff`,
+затем выполнена та же команда через общий замок:
+
+```text
+FAIL  src/shared/testDeliverySafety.test.ts > final TEST delivery safety gate > TEST suppresses a non-allowlisted email recipient before the adapter
+AssertionError: expected {} to deeply equal { suppressedByEnvironment: true }
+
+Test Files  1 failed (1)
+     Tests  1 failed | 8 passed (9)
+```
+
+Форма Б: стена TEST временно заменена на
+`if (intendedChannel !== 'email' && !isTestDeliveryRecipientAllowed(intendedChannel, recipient))`.
+Применённую подмену подтвердил `git diff`, затем выполнена та же команда через общий замок:
+
+```text
+FAIL  src/shared/testDeliverySafety.test.ts > final TEST delivery safety gate > TEST suppresses a non-allowlisted email recipient before the adapter
+AssertionError: expected {} to deeply equal { suppressedByEnvironment: true }
+
+Test Files  1 failed (1)
+     Tests  1 failed | 8 passed (9)
+```
+
+После каждой инъекции `apps/integrator/src/infra/adapters/dispatchPort.ts` восстановлен; проверка
+`git diff -- apps/integrator/src/infra/adapters/dispatchPort.ts` дала пустой вывод.
+
+### Поиск зеркал формулировки
+
+Выполнены точный и расширенный поиски:
+
+```bash
+rg -n -i -e 'no-op/мок' -e 'реально не шл' -e 'петлев(ой|ого) SMTP' -e 'Dev никогда не инициирует реальную доставку' AGENTS.md CLAUDE.md .cursor
+rg -n -i -e 'development.*доставк' -e 'development.*delivery' -e 'DEV.*(почт|email)' AGENTS.md CLAUDE.md
+```
+
+Единственное нормативное совпадение — новая строка `AGENTS.md:595`; в `CLAUDE.md` и `.cursor` зеркала нет.
+Расширенный поиск в `AGENTS.md` дополнительно нашёл только несвязанную строку о passwordless debug-email
+(`:549`).
+
+### НЕ СДЕЛАНО
+
+- Продуктовый delivery-код не менялся: это не требовалось обоими MUST FIX.
+- PROD и TEST не читались и не изменялись; миграции и привилегии не создавались и не применялись.
+- Полный CI, `scripts/ci-record.mjs`, автоматические UI-тесты и второй Next-сервер не запускались.
+- Строка независимого вердикта в `feat` не записывалась; текст выше предназначен ведущему.

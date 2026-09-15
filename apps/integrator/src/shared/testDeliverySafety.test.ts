@@ -183,6 +183,19 @@ describe('final TEST delivery safety gate', () => {
     expect(sent).toEqual([]);
   });
 
+  it('TEST suppresses a non-allowlisted email recipient before the adapter', async () => {
+    process.env.NODE_ENV = 'production';
+    process.env.TEST = 'true';
+    configureTestAccounts();
+    const { adapter, sent } = recordingAdapter();
+    const port = createDefaultDispatchPort({ adapters: [adapter] });
+
+    const result = await port.dispatchOutgoing(intent('email', { email: 'outside@example.org' }));
+
+    expect(result).toEqual({ suppressedByEnvironment: true });
+    expect(sent).toEqual([]);
+  });
+
   it('TEST delivers an allowlisted recipient unchanged', async () => {
     process.env.NODE_ENV = 'production';
     process.env.TEST = 'true';
