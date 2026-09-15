@@ -1,3 +1,5 @@
+-- BCB-MIGRATION-OWNER: app_seam_identity_lookup_owner
+-- BCB-MIGRATION-VERIFY: SELECT count(*) = 0 FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'app' AND p.proname = 'record_patient_medical_merge_conflict' AND pg_catalog.pg_get_function_identity_arguments(p.oid) = 'uuid, uuid, uuid, text'
 -- Канон §18а: при конфликте ФИО правильный вариант выбирает ЧЕЛОВЕК. Медицинский блокер §18 бросается
 -- ПОЗЖЕ этого выбора и откатывает транзакцию слияния вместе с ним, а строка конфликта хранила только
 -- пару, организацию и источник. Поэтому после одобрения врача (§18б) брать выбранную подпись было
@@ -7,8 +9,6 @@
 -- Ответ приходит ТЕКСТОМ, а не `jsonb`: контракт типизированных аргументов порт-контекста
 -- (`app.hash_port_typed_args`) знает ровно десять тегов, `jsonb` среди них нет. Текст хешируется
 -- ровно тем, что прислал рантайм, и разбирается в `jsonb` уже внутри двери.
--- BCB-MIGRATION-OWNER: app_seam_identity_lookup_owner
--- BCB-MIGRATION-VERIFY: SELECT count(*) = 0 FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'app' AND p.proname = 'record_patient_medical_merge_conflict' AND pg_catalog.pg_get_function_identity_arguments(p.oid) = 'uuid, uuid, uuid, text'
 DROP FUNCTION IF EXISTS app.record_patient_medical_merge_conflict(uuid, uuid, uuid, text);
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_identity_lookup_owner
