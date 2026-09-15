@@ -58,7 +58,18 @@ fi
 
 echo "==> запускаю blue/green-деплой на проде"
 if [ "$ACCOUNT" = deploy ]; then
-  exec ssh "${SSH_OPTS[@]}" "deploy@$PROD_HOST" "sudo -n $PIPELINE/therapysto-deploy $PROD_BRANCH"
+  ssh "${SSH_OPTS[@]}" "deploy@$PROD_HOST" "sudo -n $PIPELINE/therapysto-deploy $PROD_BRANCH"
 else
-  exec ssh "${SSH_OPTS[@]}" "root@$PROD_HOST" "$PIPELINE/therapysto-deploy $PROD_BRANCH"
+  ssh "${SSH_OPTS[@]}" "root@$PROD_HOST" "$PIPELINE/therapysto-deploy $PROD_BRANCH"
 fi
+
+# Журнал миграций сам себя не проверяет: тег в нём — обещание, а не доказательство, и на переезде
+# теги проставлял артефакт, а не мигратор. Спрашиваем у прода предикаты `BCB-MIGRATION-VERIFY` и
+# сравниваем с честно отмигрированной DEV. Отказ не откатывает выкатку — он делает потерю видимой.
+echo "==> проверяю, что журнал миграций прода не врёт"
+BCB_JOURNAL_TRUTH_SSH_OPTS="${SSH_OPTS[*]}" \
+bash "$(dirname "${BASH_SOURCE[0]}")/../deploy/host/check-migration-journal-truth.sh" \
+  "${THERAPYSTO_PROD_DB:-therapysto_prod}" "$ACCOUNT@$PROD_HOST" || {
+  echo "ОТКАЗ ГЕЙТА: выкатка прошла, но в базе прода нет того, что миграции обещали (список выше)" >&2
+  exit 1
+}
