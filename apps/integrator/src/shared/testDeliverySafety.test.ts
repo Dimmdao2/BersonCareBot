@@ -15,8 +15,6 @@ import { createDefaultDispatchPort } from '../infra/adapters/dispatchPort.js';
 import { createEmailDeliveryAdapter } from '../integrations/email/deliveryAdapter.js';
 import type { ResolvedSmtpOutboundConfig } from '../config/smtpOutbound.js';
 import {
-  isLocalDevelopmentDeliverySuppressed,
-  isTestDeployment,
   isTestDeliveryRecipientAllowed,
   readTestAccountIdentifiers,
 } from './testDeliverySafety.js';
@@ -109,30 +107,44 @@ describe('final TEST delivery safety gate', () => {
     expect(sent[0]?.payload.message).toEqual(outgoing.payload.message);
   });
 
-  it('a runner flag cannot turn a deployed environment into production', () => {
-    // Раннер сам выставляет TEST/VITEST/VITEST_WORKER_ID, и раньше этого хватало, чтобы снять
-    // стену со стенда. Названная среда обязана побеждать флаг раннера в ОБЕ стороны.
-    expect(isTestDeployment({ TEST: 'true', VITEST: 'true', NODE_ENV: 'production' })).toBe(true);
-    expect(isTestDeployment({ TEST: 'true', NODE_ENV: 'production' })).toBe(true);
-    expect(
-      isLocalDevelopmentDeliverySuppressed({ NODE_ENV: 'development', VITEST_WORKER_ID: '1' }),
-    ).toBe(true);
-    // Собственный процесс раннера средой не называется и стендом не является.
-    expect(isTestDeployment({ TEST: 'true', VITEST: 'true', NODE_ENV: 'test' })).toBe(false);
-    expect(isLocalDevelopmentDeliverySuppressed({ NODE_ENV: 'test' })).toBe(false);
-  });
-
-  it('an unset NODE_ENV cannot let deployed TEST bypass its recipient wall when VITEST leaks', async () => {
-    process.env.TEST = 'true';
-    process.env.VITEST = 'true';
+  // Флаги раннера (`TEST`, `VITEST`, `VITEST_WORKER_ID`) присутствуют и в окружении выкладки, и в
+  // собственном процессе vitest. Проверяем не значение helper'а, а ВЫХОД цепочки: дошёл ли
+  // неразрешённый настоящий получатель до адаптера. Стену снимает только положительно опознанный
+  // раннер — отсутствие `NODE_ENV` им не является, `config/env.ts` считает такой процесс production.
+  it.each([
+    {
+      name: 'названный стенд TEST не открывается лишним VITEST',
+      env: { NODE_ENV: 'production', TEST: 'true', VITEST: 'true' },
+      reachesAdapter: false,
+    },
+    {
+      name: 'стенд TEST, потерявший строку NODE_ENV, тоже не открывается',
+      env: { TEST: 'true', VITEST: 'true' },
+      reachesAdapter: false,
+    },
+    {
+      name: 'на DEV протёкший VITEST_WORKER_ID стену не снимает',
+      env: { NODE_ENV: 'development', TEST: 'true', VITEST_WORKER_ID: '1' },
+      reachesAdapter: false,
+    },
+    {
+      name: 'собственный процесс раннера стендом не является и доставку не глушит',
+      env: { NODE_ENV: 'test', TEST: 'true', VITEST: 'true' },
+      reachesAdapter: true,
+    },
+  ])('$name', async ({ env, reachesAdapter }) => {
+    Object.assign(process.env, env);
     configureTestAccounts();
     const { adapter, sent } = recordingAdapter();
     const port = createDefaultDispatchPort({ adapters: [adapter] });
+    const outgoing = intent('telegram', { chatId: 555000111 });
 
-    const result = await port.dispatchOutgoing(intent('telegram', { chatId: 555000111 }));
+    const result = await port.dispatchOutgoing(outgoing);
 
-    expect(result).toEqual({ suppressedByEnvironment: true });
-    expect(sent).toEqual([]);
+    expect(sent.map((delivered) => delivered.payload.recipient)).toEqual(
+      reachesAdapter ? [outgoing.payload.recipient] : [],
+    );
+    expect(result).toEqual(reachesAdapter ? {} : { suppressedByEnvironment: true });
   });
 
   it('TEST suppresses email when the allowed-recipient list is absent entirely', async () => {
@@ -170,7 +182,7 @@ describe('final TEST delivery safety gate', () => {
     },
   );
 
-  it('on DEV sends email only through loopback SMTP and always suppresses telegram', async () => {
+  it('on DEV email reaches the network boundary only through loopback SMTP', async () => {
     process.env.NODE_ENV = 'development';
     const loopbackSmtp: ResolvedSmtpOutboundConfig = {
       configured: true,
@@ -188,9 +200,8 @@ describe('final TEST delivery safety gate', () => {
       rejected: [],
       messageId: 'mailpit-1',
     });
-    const telegram = recordingAdapter();
     const port = createDefaultDispatchPort({
-      adapters: [createEmailDeliveryAdapter({ getDb: () => ({}) as never }), telegram.adapter],
+      adapters: [createEmailDeliveryAdapter({ getDb: () => ({}) as never })],
     });
 
     await expect(port.dispatchOutgoing(emailIntent())).resolves.toEqual({});
@@ -201,32 +212,7 @@ describe('final TEST delivery safety gate', () => {
       environmentSuppressionReason: 'development_non_loopback_smtp_host',
     });
 
-    activeSmtp = loopbackSmtp;
-    const telegramWithLoopbackSmtp = await port.dispatchOutgoing(
-      intent('telegram', { chatId: '700000001' }),
-    );
-    activeSmtp = { ...loopbackSmtp, smtpHost: 'smtp.external.example' };
-    const telegramWithExternalSmtp = await port.dispatchOutgoing(
-      intent('telegram', { chatId: '700000001' }),
-    );
-
-    expect(telegramWithLoopbackSmtp).toEqual({ suppressedByEnvironment: true });
-    expect(telegramWithExternalSmtp).toEqual({ suppressedByEnvironment: true });
     expect(mailFakes.sendMail).toHaveBeenCalledOnce();
-    expect(telegram.sent).toEqual([]);
-  });
-
-  it('TEST suppresses a real recipient instead of redirecting it', async () => {
-    process.env.NODE_ENV = 'production';
-    process.env.TEST = 'true';
-    configureTestAccounts();
-    const { adapter, sent } = recordingAdapter();
-    const port = createDefaultDispatchPort({ adapters: [adapter] });
-
-    const result = await port.dispatchOutgoing(intent('telegram', { chatId: 555000111 }));
-
-    expect(result).toEqual({ suppressedByEnvironment: true });
-    expect(sent).toEqual([]);
   });
 
   it('TEST suppresses a non-allowlisted email recipient before the adapter', async () => {

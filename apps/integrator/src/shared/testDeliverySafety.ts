@@ -48,15 +48,15 @@ export function parseTestFlag(value: string | undefined): boolean {
  * Развёрнутый стенд TEST против процесса тест-раннера.
  *
  * Раннер сам выставляет `TEST=true`, `VITEST=true` и `NODE_ENV=test` (замерено 15.09), поэтому
- * отличать его приходится. Но флаг раннера НЕ СМЕЕТ ослаблять явно названную развёрнутую среду:
- * лишний `VITEST` в окружении стенда раньше уводил `NODE_ENV=production, TEST=true` на путь
- * продакшена и выпускал письмо неразрешённому получателю. Поэтому названная среда решает первой, а
- * флагу раннера верим только там, где среда не названа.
+ * отличать его приходится. Но стена стенда снимается только там, где процесс ПОЛОЖИТЕЛЬНО опознан
+ * как раннер: `NODE_ENV=test` вместе с флагом `VITEST`. Отсутствие `NODE_ENV` раннером не является —
+ * `config/env.ts` нормализует такой процесс в production, то есть это развёрнутая выкладка, у
+ * которой потерялась строка среды; доверие к одному лишь `VITEST` выпускало оттуда настоящего
+ * неразрешённого получателя. Признак стенда — `TEST=true`; всё сомнительное закрыто.
  */
 export function isTestDeployment(source: EnvironmentSource = process.env): boolean {
   if (!parseTestFlag(source.TEST)) return false;
-  if (source.NODE_ENV === 'production' || source.NODE_ENV === 'development') return true;
-  return !parseTestFlag(source.VITEST);
+  return !(source.NODE_ENV === 'test' && parseTestFlag(source.VITEST));
 }
 
 /**
