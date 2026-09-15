@@ -18,6 +18,13 @@ import type { PatientVisibilityActor } from '@/modules/patient-visibility/ports'
 export type DoctorCommunicationsBadges = Partial<Record<CommunicationsTabId, number>>;
 
 export type DoctorCommunicationsBadgesDeps = {
+  leads?: {
+    list(params: {
+      organizationId: string;
+      archiveScope: 'active' | 'archived';
+      limit: number;
+    }): Promise<Array<{ status: string }>>;
+  };
   doctorClients: {
     filterPatientUserIdsByClientChannel(
       patientUserIds: readonly string[],
@@ -40,28 +47,38 @@ export type DoctorCommunicationsBadgesDeps = {
 export async function loadDoctorCommunicationsBadges(
   deps: DoctorCommunicationsBadgesDeps,
   context: { organizationId: string; visibilityActor: PatientVisibilityActor },
+  options: { includeChats?: boolean } = {},
 ): Promise<DoctorCommunicationsBadges> {
-  const unreadChats = await deps.messaging.doctorSupport
-    .listOpenConversations({ ...context, limit: 100, unreadOnly: true })
-    .then(async (conversations) => {
-      const allowed = await deps.doctorClients.filterPatientUserIdsByClientChannel(
-        conversations.flatMap((conversation) =>
-          conversation.platformUserId ? [conversation.platformUserId] : [],
-        ),
-        { organizationId: context.organizationId },
-        'directChatAllowed',
-      );
-      return conversations.reduce(
-        (sum, conversation) =>
-          conversation.platformUserId && allowed.has(conversation.platformUserId)
-            ? sum + conversation.unreadFromUserCount
-            : sum,
-        0,
-      );
-    })
+  const unreadChats =
+    options.includeChats === false
+      ? 0
+      : await deps.messaging.doctorSupport
+          .listOpenConversations({ ...context, limit: 100, unreadOnly: true })
+          .then(async (conversations) => {
+            const allowed = await deps.doctorClients.filterPatientUserIdsByClientChannel(
+              conversations.flatMap((conversation) =>
+                conversation.platformUserId ? [conversation.platformUserId] : [],
+              ),
+              { organizationId: context.organizationId },
+              'directChatAllowed',
+            );
+            return conversations.reduce(
+              (sum, conversation) =>
+                conversation.platformUserId && allowed.has(conversation.platformUserId)
+                  ? sum + conversation.unreadFromUserCount
+                  : sum,
+              0,
+            );
+          })
+          .catch(() => 0);
+
+  const newLeads = await deps.leads
+    ?.list({ organizationId: context.organizationId, archiveScope: 'active', limit: 200 })
+    .then((leads) => leads.filter((lead) => lead.status === 'new').length)
     .catch(() => 0);
 
   const badges: DoctorCommunicationsBadges = {};
   if (unreadChats > 0) badges.chats = unreadChats;
+  if (newLeads && newLeads > 0) badges.leads = newLeads;
   return badges;
 }

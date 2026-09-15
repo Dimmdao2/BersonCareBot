@@ -6,6 +6,7 @@ import { useDoctorPendingProgramTestsCount } from '@/modules/treatment-program/h
 import { useDoctorRegistrationSystemFailureCount } from '@/modules/auth/hooks/useDoctorRegistrationSystemFailureCount';
 import {
   DOCTOR_EXERCISE_COMMENTS_CHANGED_EVENT,
+  DOCTOR_LEADS_CHANGED_EVENT,
   DOCTOR_TASKS_CHANGED_EVENT,
 } from './doctorShellBadgeEvents';
 
@@ -17,14 +18,17 @@ type DoctorShellBadgeCounts = {
    */
   directChatVisible: boolean;
   programCommentsVisible: boolean;
+  leadsVisible: boolean;
   messagesUnread: number;
   unreadExerciseComments: number;
+  newLeads: number;
   overdueTasks: number;
   todayTasks: number;
   pendingProgramTests: number;
   registrationSystemFailures: number;
   messagesUnreadReady: boolean;
   unreadExerciseCommentsReady: boolean;
+  newLeadsReady: boolean;
   overdueTasksReady: boolean;
 };
 
@@ -36,6 +40,7 @@ export function DoctorSupportUnreadProvider({
   enabled = true,
   directChatEnabled = true,
   programCommentsEnabled = true,
+  leadsEnabled = false,
   rehabilitationEnabled = true,
   registrationFailuresEnabled = false,
 }: {
@@ -43,11 +48,13 @@ export function DoctorSupportUnreadProvider({
   enabled?: boolean;
   directChatEnabled?: boolean;
   programCommentsEnabled?: boolean;
+  leadsEnabled?: boolean;
   rehabilitationEnabled?: boolean;
   registrationFailuresEnabled?: boolean;
 }) {
   const messagesEnabled = enabled && directChatEnabled;
   const commentsEnabled = enabled && programCommentsEnabled;
+  const leadsRuntimeEnabled = enabled && leadsEnabled;
   const programTestsEnabled = enabled && rehabilitationEnabled;
   const messages = useDoctorSupportUnreadCountPolling(messagesEnabled);
   const pendingProgramTests = useDoctorPendingProgramTestsCount(programTestsEnabled);
@@ -59,6 +66,8 @@ export function DoctorSupportUnreadProvider({
     overdueTasks: 0,
     todayTasks: 0,
     unreadExerciseCommentsReady: false,
+    newLeads: 0,
+    newLeadsReady: false,
     overdueTasksReady: false,
   });
   const [nextTaskDueAt, setNextTaskDueAt] = useState<number | null>(null);
@@ -135,6 +144,24 @@ export function DoctorSupportUnreadProvider({
     }));
   }, []);
 
+  const refreshLeads = useCallback(async (signal?: AbortSignal) => {
+    const response = await fetch('/api/doctor/leads', { cache: 'no-store', signal });
+    if (!response.ok) return;
+    const payload: unknown = await response.json();
+    const leads =
+      payload !== null &&
+      typeof payload === 'object' &&
+      'leads' in payload &&
+      Array.isArray(payload.leads)
+        ? payload.leads
+        : [];
+    const newLeads = leads.reduce((count, lead) => {
+      if (lead === null || typeof lead !== 'object') return count;
+      return 'status' in lead && lead.status === 'new' ? count + 1 : count;
+    }, 0);
+    setNavigationAttention((current) => ({ ...current, newLeads, newLeadsReady: true }));
+  }, []);
+
   useEffect(() => {
     if (!enabled || nextTaskDueAt === null) return;
     const delay = Math.min(Math.max(0, nextTaskDueAt - Date.now() + 100), 2_147_483_647);
@@ -151,6 +178,7 @@ export function DoctorSupportUnreadProvider({
     const refreshVisible = () => {
       if (document.visibilityState !== 'visible') return;
       if (commentsEnabled) void refreshExerciseComments(controller.signal).catch(() => {});
+      if (leadsRuntimeEnabled) void refreshLeads(controller.signal).catch(() => {});
       void refreshTasks(controller.signal).catch(() => {});
     };
     const refreshComments = () => {
@@ -161,6 +189,10 @@ export function DoctorSupportUnreadProvider({
       if (document.visibilityState !== 'visible') return;
       void refreshTasks(controller.signal).catch(() => {});
     };
+    const refreshLeadAttention = () => {
+      if (document.visibilityState !== 'visible' || !leadsRuntimeEnabled) return;
+      void refreshLeads(controller.signal).catch(() => {});
+    };
 
     refreshVisible();
     const intervalId = window.setInterval(refreshVisible, 20_000);
@@ -168,6 +200,7 @@ export function DoctorSupportUnreadProvider({
     window.addEventListener('focus', refreshVisible);
     window.addEventListener(DOCTOR_EXERCISE_COMMENTS_CHANGED_EVENT, refreshComments);
     window.addEventListener(DOCTOR_TASKS_CHANGED_EVENT, refreshTaskAttention);
+    window.addEventListener(DOCTOR_LEADS_CHANGED_EVENT, refreshLeadAttention);
 
     return () => {
       controller.abort();
@@ -176,16 +209,26 @@ export function DoctorSupportUnreadProvider({
       window.removeEventListener('focus', refreshVisible);
       window.removeEventListener(DOCTOR_EXERCISE_COMMENTS_CHANGED_EVENT, refreshComments);
       window.removeEventListener(DOCTOR_TASKS_CHANGED_EVENT, refreshTaskAttention);
+      window.removeEventListener(DOCTOR_LEADS_CHANGED_EVENT, refreshLeadAttention);
     };
-  }, [commentsEnabled, enabled, refreshExerciseComments, refreshTasks]);
+  }, [
+    commentsEnabled,
+    enabled,
+    leadsRuntimeEnabled,
+    refreshExerciseComments,
+    refreshLeads,
+    refreshTasks,
+  ]);
 
   return (
     <DoctorShellBadgeContext.Provider
       value={{
         directChatVisible: directChatEnabled,
         programCommentsVisible: programCommentsEnabled,
+        leadsVisible: leadsEnabled,
         messagesUnread: messagesEnabled ? messages.count : 0,
         unreadExerciseComments: commentsEnabled ? navigationAttention.unreadExerciseComments : 0,
+        newLeads: leadsRuntimeEnabled ? navigationAttention.newLeads : 0,
         overdueTasks: enabled ? navigationAttention.overdueTasks : 0,
         todayTasks: enabled ? navigationAttention.todayTasks : 0,
         pendingProgramTests,
@@ -193,6 +236,7 @@ export function DoctorSupportUnreadProvider({
         messagesUnreadReady: messagesEnabled && messages.ready,
         unreadExerciseCommentsReady:
           commentsEnabled && navigationAttention.unreadExerciseCommentsReady,
+        newLeadsReady: leadsRuntimeEnabled && navigationAttention.newLeadsReady,
         overdueTasksReady: enabled && navigationAttention.overdueTasksReady,
       }}
     >
@@ -215,14 +259,17 @@ export function useOptionalDoctorShellBadgeCounts(): DoctorShellBadgeCounts {
       // Вне оболочки состав кабинета неизвестен — ничего не прячем.
       directChatVisible: true,
       programCommentsVisible: true,
+      leadsVisible: true,
       messagesUnread: 0,
       unreadExerciseComments: 0,
+      newLeads: 0,
       overdueTasks: 0,
       todayTasks: 0,
       pendingProgramTests: 0,
       registrationSystemFailures: 0,
       messagesUnreadReady: false,
       unreadExerciseCommentsReady: false,
+      newLeadsReady: false,
       overdueTasksReady: false,
     }
   );
