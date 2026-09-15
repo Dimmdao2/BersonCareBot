@@ -54,7 +54,9 @@ export function PublicLeadForm({ orgSlug, sourceSurface }: Props) {
   const email = values.email?.trim() ?? '';
 
   async function startEmailVerification() {
-    const response = await fetch('/api/auth/email-otp/register', {
+    // Дверь заявки, а НЕ общая регистрация пациента: там ФИО обязательны, и клиника, выключившая
+    // их в форме, не могла принять ни одной заявки вообще.
+    const response = await fetch('/api/leads/public/email-otp/start', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
@@ -163,8 +165,9 @@ export function PublicLeadForm({ orgSlug, sourceSurface }: Props) {
   return (
     <form id="lead-form" className="flex flex-col gap-4" onSubmit={handleSubmit}>
       {fields.map((field) => {
-        const required =
-          field.isRequired || field.fieldKey === 'first_name' || field.fieldKey === 'last_name';
+        // Обязательность поля — настройка КЛИНИКИ и только она. Зашитые сюда «имя и фамилия всегда
+        // обязательны» делали необязательное поле обязательным мимо её выбора.
+        const required = field.isRequired;
         const common = {
           id: `lead-${field.fieldKey}`,
           name: field.fieldKey,

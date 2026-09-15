@@ -30,8 +30,8 @@ vi.mock('@/app-layer/leads/resolveVerifiedLeadApplicant', () => ({
   resolveVerifiedLeadApplicant: fakes.resolveApplicant,
 }));
 vi.mock('@/modules/public-booking/publicBookingRateLimit', () => ({
-  PUBLIC_BOOKING_RATE_LIMIT_SEC: 3600,
-  isPublicBookingCreateRateLimited: fakes.rateLimited,
+  PUBLIC_LEAD_RATE_LIMIT_SEC: 3600,
+  isPublicLeadSubmitRateLimited: fakes.rateLimited,
   resolvePublicBookingRateLimitClientKey: () => ({ ok: true, key: 'ip-1' }),
 }));
 vi.mock('@/app-layer/principal/withOrganizationPrincipal', () => ({

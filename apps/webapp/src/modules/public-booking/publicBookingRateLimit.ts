@@ -25,6 +25,7 @@ import { env } from '@/config/env';
 import {
   isPublicBookingCreateRateLimited as isPublicBookingCreateRateLimitedCore,
   isPublicBookingConfirmRateLimited as isPublicBookingConfirmRateLimitedCore,
+  isPublicLeadSubmitRateLimited as isPublicLeadSubmitRateLimitedCore,
 } from '@/modules/auth/authRateLimits';
 import { logger } from '@/infra/logging/logger';
 
@@ -32,6 +33,7 @@ const SCOPE = 'booking.public_create';
 
 export const PUBLIC_BOOKING_RATE_LIMIT_SEC = 3600;
 export const PUBLIC_BOOKING_CONFIRM_RATE_LIMIT_SEC = 600;
+export const PUBLIC_LEAD_RATE_LIMIT_SEC = 3600;
 export const PUBLIC_BOOKING_FALLBACK_CLIENT_KEY = 'public_booking:missing_x_real_ip';
 
 export type PublicBookingRateLimitKeyResult =
@@ -71,4 +73,12 @@ export async function isPublicBookingCreateRateLimited(key: string): Promise<boo
 
 export async function isPublicBookingConfirmRateLimited(key: string): Promise<boolean> {
   return isPublicBookingConfirmRateLimitedCore(key);
+}
+
+/**
+ * Четвёртое измерение, для публичной ЗАЯВКИ: адрес клиента тот же, а ведро своё. Общее ведро с
+ * записью означало бы, что поток заявок закрывает клинике запись на приём, и наоборот.
+ */
+export async function isPublicLeadSubmitRateLimited(key: string): Promise<boolean> {
+  return isPublicLeadSubmitRateLimitedCore(key);
 }

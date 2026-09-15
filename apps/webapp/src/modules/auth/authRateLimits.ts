@@ -116,6 +116,24 @@ export const isPublicBookingCreateRateLimited = createSlidingWindowRateLimit({
 });
 
 /**
+ * Per-IP limit on the public LEAD submission (Д6 независимого аудита Л3).
+ *
+ * Своё ведро, а не общее с записью: раньше заявка считалась в `booking.public_create`, и два
+ * несвязанных действия ели один бюджет — поток заявок закрывал клинике запись на приём, и наоборот.
+ * Это ровно то разделение, ради которого рядом уже стоит пара `booking.public_create` /
+ * `booking.public_create_confirm` (ASVS 2.4.1).
+ *
+ * Порог тот же, 20 в час: до этой строки заявка де-факто жила под ним же, и менять число значило бы
+ * тихо поменять продуктовое поведение вместе с починкой дефекта.
+ */
+export const isPublicLeadSubmitRateLimited = createSlidingWindowRateLimit({
+  scope: 'leads.public_submit',
+  windowMs: 60 * 60 * 1000,
+  maxPerWindow: 20,
+  db: authRateLimitDb,
+});
+
+/**
  * Per-IP limit on the public booking CONFIRM step, deliberately a separate scope and threshold so
  * code guessing cannot be funded out of the intent budget (ASVS 2.4.1). Shaped after the existing
  * `patient_invite.email_confirm` pair. The per-code attempt cap and the per-phone lockout are

@@ -7,8 +7,8 @@ import { withPublicLeadsAccess } from '@/app-layer/leads/withPublicLeadsAccess';
 import { normalizeEmail } from '@/modules/auth/emailNormalize';
 import { getCurrentSessionForIdentitySelf } from '@/modules/auth/service';
 import {
-  isPublicBookingCreateRateLimited,
-  PUBLIC_BOOKING_RATE_LIMIT_SEC,
+  isPublicLeadSubmitRateLimited,
+  PUBLIC_LEAD_RATE_LIMIT_SEC,
   resolvePublicBookingRateLimitClientKey,
 } from '@/modules/public-booking/publicBookingRateLimit';
 import { jsonError, jsonOk } from '@/shared/http/apiResponse';
@@ -57,11 +57,13 @@ export async function POST(request: Request) {
   if (!captcha.verifiedExternally) {
     return jsonError('captcha_required', {}, { status: 403 });
   }
-  if (await isPublicBookingCreateRateLimited(rateKey.key)) {
+  // Своё ведро, не общее с публичной записью: иначе поток заявок съедает бюджет записи на приём,
+  // и наоборот — два несвязанных действия отказывают друг за друга (Д6).
+  if (await isPublicLeadSubmitRateLimited(rateKey.key)) {
     return jsonError(
       'rate_limited',
-      { retryAfterSeconds: PUBLIC_BOOKING_RATE_LIMIT_SEC },
-      { status: 429, headers: { 'Retry-After': String(PUBLIC_BOOKING_RATE_LIMIT_SEC) } },
+      { retryAfterSeconds: PUBLIC_LEAD_RATE_LIMIT_SEC },
+      { status: 429, headers: { 'Retry-After': String(PUBLIC_LEAD_RATE_LIMIT_SEC) } },
     );
   }
 
