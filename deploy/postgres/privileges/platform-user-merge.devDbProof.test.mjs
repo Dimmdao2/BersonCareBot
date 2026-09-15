@@ -62,11 +62,11 @@ const nullOrgNote = (userId, authorId) => [
   [userId, authorId, `note-${userId.slice(-3)}`],
 ];
 
-const program = (userId, organizationId, source, title) => [
+const program = (userId, organizationId, source, title, status = 'active') => [
   `INSERT INTO treatment_program_instances
      (patient_user_id, title, assignment_source, status, organization_id)
-   VALUES ($1::uuid, $2, $3, 'active', $4::uuid)`,
-  [userId, title, source, organizationId],
+   VALUES ($1::uuid, $2, $3, $5, $4::uuid)`,
+  [userId, title, source, organizationId, status],
 ];
 
 const phoneHistory = (userId, phone) => [
@@ -269,9 +269,13 @@ const BLOCKING_CATEGORY_FIXTURES = [
     ],
   },
   {
+    // Пройденные программы, а не активные: активные у обеих сторон автоматический путь
+    // останавливает и без гейта (`reconcileActiveTreatmentProgramInstancesForMerge`), и сценарий
+    // перестал бы быть двоичным. Гейт §18 шире той двери — он держит и ИСТОРИЮ назначений врача
+    // внутри одной клиники, которую reconcile не смотрит вовсе.
     table: 'treatment_program_instances',
     rows: (userId, side) => [
-      program(userId, ORG_A, 'doctor', `${side}-doctor-program`),
+      program(userId, ORG_A, 'doctor', `${side}-doctor-program`, 'completed'),
     ],
   },
 ];
