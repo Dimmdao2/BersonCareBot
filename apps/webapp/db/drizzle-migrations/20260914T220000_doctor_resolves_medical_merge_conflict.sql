@@ -110,6 +110,25 @@ BEGIN
     RETURN v_conflict_id;
   END IF;
 
+  -- A prior doctor approval survives repeated login/bind attempts while another clinic decides.
+  SELECT candidate.id
+    INTO v_conflict_id
+    FROM public.patient_merge_candidates candidate
+   WHERE candidate.organization_id = p_organization_id
+     AND candidate.status = 'resolved'
+     AND candidate.reason LIKE 'medical_history:%'
+     AND candidate.payload @> '{"doctorApproved":true}'::jsonb
+     AND LEAST(candidate.anchor_user_id::text, candidate.candidate_user_id::text) =
+         LEAST(p_anchor_user_id::text, p_candidate_user_id::text)
+     AND GREATEST(candidate.anchor_user_id::text, candidate.candidate_user_id::text) =
+         GREATEST(p_anchor_user_id::text, p_candidate_user_id::text)
+   ORDER BY candidate.resolved_at DESC NULLS LAST, candidate.id
+   LIMIT 1;
+
+  IF v_conflict_id IS NOT NULL THEN
+    RETURN v_conflict_id;
+  END IF;
+
   SELECT candidate.id
     INTO v_conflict_id
     FROM public.patient_merge_candidates candidate
@@ -251,7 +270,6 @@ SET search_path = pg_catalog
 AS $function$
 DECLARE
   v_organization_id uuid := app.current_org_id();
-  v_password_credentials_count integer;
 BEGIN
   -- This door is called inside the already-installed staff relation transaction.  EXECUTE belongs
   -- only to app_staff; the current organization plus the exact pending row are the capability.
@@ -273,7 +291,8 @@ BEGIN
     RETURN false;
   END IF;
 
-  -- A doctor may remove only their clinic's blocker. A second clinic must make its own decision.
+  -- A doctor may remove only their clinic's blocker. A second clinic must make its own decision;
+  -- a prior doctor approval is stored on that clinic's resolved candidate row.
   IF EXISTS (
     SELECT 1
       FROM (
@@ -300,8 +319,26 @@ BEGIN
       ) duplicate_history
         ON duplicate_history.organization_id IS NOT DISTINCT FROM target_history.organization_id
      WHERE target_history.organization_id IS DISTINCT FROM v_organization_id
+       AND NOT EXISTS (
+         SELECT 1
+           FROM public.patient_merge_candidates approved
+          WHERE approved.organization_id IS NOT DISTINCT FROM target_history.organization_id
+            AND approved.status = 'resolved'
+            AND approved.reason LIKE 'medical_history:%'
+            AND approved.payload @> '{"doctorApproved":true}'::jsonb
+            AND LEAST(approved.anchor_user_id::text, approved.candidate_user_id::text) =
+                LEAST(p_target_user_id::text, p_duplicate_user_id::text)
+            AND GREATEST(approved.anchor_user_id::text, approved.candidate_user_id::text) =
+                GREATEST(p_target_user_id::text, p_duplicate_user_id::text)
+       )
   ) THEN
-    RAISE EXCEPTION 'medical_merge_blocked_by_another_organization' USING ERRCODE = 'P0001';
+    UPDATE public.patient_merge_candidates
+       SET status = 'resolved',
+           resolved_at = pg_catalog.now(),
+           resolved_by = p_actor_id,
+           payload = payload || pg_catalog.jsonb_build_object('doctorApproved', true)
+     WHERE id = p_conflict_id;
+    RETURN false;
   END IF;
 
   -- Identity/auth rows are deliberately inaccessible to app_staff. The same narrow door that
@@ -311,14 +348,6 @@ BEGIN
    WHERE user_id IN (p_target_user_id, p_duplicate_user_id)
    ORDER BY user_id
    FOR UPDATE;
-  SELECT count(*)::integer
-    INTO v_password_credentials_count
-    FROM public.user_password_credentials
-   WHERE user_id IN (p_target_user_id, p_duplicate_user_id);
-  IF v_password_credentials_count > 1 THEN
-    RAISE EXCEPTION 'merge_both_password_credentials' USING ERRCODE = 'P0001';
-  END IF;
-
   UPDATE public.channel_link_secrets SET user_id = p_target_user_id
    WHERE user_id = p_duplicate_user_id;
   UPDATE public.email_challenges SET user_id = p_target_user_id

@@ -335,7 +335,12 @@ export async function mergePlatformUsersInTransaction(
   duplicateId: string,
   reason: MergePlatformUsersReason,
   options?: MergePlatformUsersOptions,
-): Promise<{ targetId: string; duplicateId: string; mergeContactsSaved: MergeContactsSaved[] }> {
+): Promise<{
+  targetId: string;
+  duplicateId: string;
+  mergeContactsSaved: MergeContactsSaved[];
+  mergeCompleted: boolean;
+}> {
   if (targetId === duplicateId) {
     throw new MergeConflictError('merge: target and duplicate are the same id', [targetId]);
   }
@@ -407,13 +412,26 @@ export async function mergePlatformUsersInTransaction(
     ]);
   }
 
-  if (reason !== 'manual') {
+  if (options?.medicalConflictApproval) {
+    const approval = options.medicalConflictApproval;
+    const transferred = await runMergeSql<{ transferred: boolean }>(
+      client,
+      sql`SELECT app.transfer_staff_approved_platform_user_merge_data(
+            ${approval.conflictId}::uuid,
+            ${targetId}::uuid,
+            ${duplicateId}::uuid,
+            ${approval.actorId}::uuid
+          ) AS transferred`,
+    );
+    if (transferred.rows[0]?.transferred !== true) {
+      return { targetId, duplicateId, mergeContactsSaved: [], mergeCompleted: false };
+    }
+  } else if (reason !== 'manual') {
     await assertAutomaticMergeHasNoMedicalHistory(
       client,
       targetId,
       duplicateId,
-      options?.medicalConflictApproval?.organizationId ??
-        options?.medicalConflictApprovedForOrganizationId,
+      options?.medicalConflictApprovedForOrganizationId,
     );
   }
 
@@ -440,25 +458,6 @@ export async function mergePlatformUsersInTransaction(
     await mergeChannelBindingsManual(client, targetId, duplicateId, manualResolution);
   } else {
     await mergeChannelBindingsAuto(client, targetId, duplicateId);
-  }
-
-  if (options?.medicalConflictApproval) {
-    const approval = options.medicalConflictApproval;
-    const transferred = await runMergeSql<{ transferred: boolean }>(
-      client,
-      sql`SELECT app.transfer_staff_approved_platform_user_merge_data(
-            ${approval.conflictId}::uuid,
-            ${targetId}::uuid,
-            ${duplicateId}::uuid,
-            ${approval.actorId}::uuid
-          ) AS transferred`,
-    );
-    if (transferred.rows[0]?.transferred !== true) {
-      throw new MergeConflictError('medical merge conflict changed during resolution', [
-        targetId,
-        duplicateId,
-      ]);
-    }
   }
 
   await runMergeSql(
@@ -781,7 +780,7 @@ export async function mergePlatformUsersInTransaction(
     '[merge] merged duplicate into target',
   );
   trustedPatientPhoneWriteAnchor(TrustedPatientPhoneSource.PlatformUserMerge);
-  return { targetId, duplicateId, mergeContactsSaved };
+  return { targetId, duplicateId, mergeContactsSaved, mergeCompleted: true };
 }
 
 /**
