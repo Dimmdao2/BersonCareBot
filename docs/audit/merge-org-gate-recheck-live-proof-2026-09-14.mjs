@@ -107,7 +107,7 @@ const SCENARIOS = [
       [`INSERT INTO doctor_notes(user_id, author_id, text, organization_id, note_date) VALUES ($1::uuid, $2::uuid, 'org A note', $3::uuid, CURRENT_DATE)`, [t, AUTHOR, ORG_A]],
       [`INSERT INTO clinical_visit(patient_user_id, visit_type, visited_at, created_by, organization_id) VALUES ($1::uuid, 'first', now(), $2::uuid, $3::uuid)`, [d, AUTHOR, ORG_B]],
     ],
-    after: async (q, t, d) => {
+    after: async (q, t) => {
       const r = await q(`SELECT count(*)::int c FROM clinical_visit WHERE patient_user_id = $1`, [t]);
       return { visits_on_target: r.rows[0].c, want: 1 };
     },
@@ -172,7 +172,7 @@ const SCENARIOS = [
       [`INSERT INTO clinical_visit(patient_user_id, visit_type, visited_at, created_by, organization_id) VALUES ($1::uuid, 'first', now(), $2::uuid, $3::uuid)`, [t, AUTHOR, ORG_A]],
       [`INSERT INTO clinical_visit(patient_user_id, visit_type, visited_at, created_by, organization_id) VALUES ($1::uuid, 'repeat', now(), $2::uuid, $3::uuid)`, [d, AUTHOR, ORG_A]],
     ],
-    after: async (q, t, d) => {
+    after: async (q, t) => {
       const n = await q(`SELECT count(*)::int c FROM doctor_notes WHERE user_id = $1`, [t]);
       const v = await q(`SELECT count(*)::int c FROM clinical_visit WHERE patient_user_id = $1`, [t]);
       return { notes_on_target: n.rows[0].c, visits_on_target: v.rows[0].c, want: 'notes 1, visits 2' };

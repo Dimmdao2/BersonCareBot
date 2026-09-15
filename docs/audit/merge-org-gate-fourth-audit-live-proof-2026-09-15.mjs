@@ -49,10 +49,6 @@ const diagnosis = (u, org) => [
   `INSERT INTO clinical_diagnosis(patient_user_id, text, organization_id) VALUES ($1::uuid,'M54.5',$2::uuid)`,
   [u, org],
 ];
-const visit = (u, org) => [
-  `INSERT INTO clinical_visit(patient_user_id, organization_id) VALUES ($1::uuid,$2::uuid)`,
-  [u, org],
-];
 const symptomReal = (u, org, key = 'knee_pain') => [
   `INSERT INTO symptom_trackings(user_id, platform_user_id, symptom_title, symptom_key, organization_id)
    VALUES ($1::text,$1::uuid,'колено',$2,$3::uuid)`,
