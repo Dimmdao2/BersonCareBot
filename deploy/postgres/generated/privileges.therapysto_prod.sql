@@ -4063,7 +4063,7 @@ INSERT INTO bcb_function_relation_surfaces(signature,relation_name,columns,opera
   ('app.save_pending_staff_totp(text)', 'public.staff_security_profiles', ARRAY['user_id', 'pending_totp_secret_ciphertext', 'failed_attempts', 'locked_until', 'updated_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
   ('app.save_public_clinic_card(uuid,text,text,text,text,uuid,text,boolean,text)', 'public.media_files', ARRAY['id', 'owner_kind', 'organization_id']::text[], ARRAY['SELECT']::text[]),
   ('app.save_public_clinic_card(uuid,text,text,text,text,uuid,text,boolean,text)', 'public.clinic_public_directory_entries', ARRAY['organization_id', 'description', 'full_description_markdown', 'public_contact_phone', 'public_contact_email', 'public_website_url', 'logo_media_id', 'photo_media_ids', 'card_is_published', 'updated_at']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
-  ('app.seed_reference_catalog_after_organization_insert()', 'public.system_settings', ARRAY['key', 'scope', 'organization_id', 'value_json', 'updated_at', 'updated_by']::text[], ARRAY['INSERT']::text[]),
+  ('app.seed_reference_catalog_after_organization_insert()', 'public.system_settings', ARRAY['key', 'scope', 'organization_id', 'value_json', 'updated_at', 'updated_by']::text[], ARRAY['SELECT', 'INSERT']::text[]),
   ('app.seed_reference_catalog_snapshot(uuid)', 'public.reference_catalog_baselines', ARRAY['version', 'definition_json']::text[], ARRAY['SELECT']::text[]),
   ('app.seed_reference_catalog_snapshot(uuid)', 'public.reference_catalog_snapshot_receipts', ARRAY['organization_id', 'baseline_version']::text[], ARRAY['SELECT', 'INSERT']::text[]),
   ('app.seed_reference_catalog_snapshot(uuid)', 'public.reference_categories', ARRAY['id', 'code', 'title', 'is_user_extensible', 'organization_id']::text[], ARRAY['SELECT', 'INSERT']::text[]),
@@ -25336,6 +25336,7 @@ GRANT SELECT ("key", "organization_id", "scope", "value_json") ON TABLE "public"
 GRANT SELECT ("key", "organization_id", "scope", "value_json") ON TABLE "public"."system_settings" TO "app_seam_settings_preauth_owner";
 GRANT SELECT ("key", "organization_id", "scope", "value_json") ON TABLE "public"."system_settings" TO "app_seam_settings_runtime_owner";
 GRANT SELECT ("key", "organization_id", "scope", "updated_at", "updated_by", "value_json") ON TABLE "public"."system_settings" TO "app_seam_settings_runtime_owner";
+GRANT SELECT ("key", "organization_id", "scope", "updated_at", "updated_by", "value_json") ON TABLE "public"."system_settings" TO "app_seam_specialist_provision_owner";
 GRANT INSERT ("key", "organization_id", "scope", "updated_at", "updated_by", "value_json") ON TABLE "public"."system_settings" TO "app_seam_specialist_provision_owner";
 GRANT SELECT ("key", "organization_id", "scope", "value_json") ON TABLE "public"."system_settings" TO "app_seam_telemetry_exclusion_owner";
 GRANT SELECT ("key", "organization_id", "scope", "updated_at", "value_json") ON TABLE "public"."system_settings" TO "app_seam_telemetry_operator_owner";

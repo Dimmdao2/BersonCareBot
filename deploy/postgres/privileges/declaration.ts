@@ -10785,9 +10785,10 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
           "updated_by"
         ],
         "operations": [
+          "SELECT",
           "INSERT"
         ],
-        "evidence": "pg16-function-body-lexical-upper-bound"
+        "evidence": "pg16-function-body-lexical-upper-bound; ON CONFLICT DO NOTHING ЧИТАЕТ конфликтующую строку, поэтому нужен и SELECT"
       }
     ],
     "delegatesTo": [
