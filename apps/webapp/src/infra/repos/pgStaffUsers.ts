@@ -1,9 +1,13 @@
-import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm';
+import { and, inArray, isNull, sql } from 'drizzle-orm';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import { getWebappSqlDb, runWebappNamedRoot } from '@/infra/db/runWebappSql';
 import type { StaffUsersPort } from '@/modules/doctor-notifications/staffUsersPort';
 import { platformUsers } from '../../../db/schema/schema';
-import { beOrganizationMembers } from '../../../db/schema/bookingEngine';
+
+function parseClinicAdminUserIds(payload: unknown): string[] {
+  if (!Array.isArray(payload)) throw new Error('lead_clinic_admin_audience_invalid');
+  return payload.filter((userId): userId is string => typeof userId === 'string');
+}
 
 function parseStaffOrganizationRecipients(
   payload: unknown,
@@ -31,26 +35,13 @@ export function createPgStaffUsersPort(): StaffUsersPort {
       return rows.map((r) => r.id);
     },
     async listActiveClinicAdminUserIds(organizationId) {
-      const db = getDrizzle();
-      const rows = await db
-        .select({ id: platformUsers.id })
-        .from(platformUsers)
-        .innerJoin(
-          beOrganizationMembers,
-          eq(beOrganizationMembers.platformUserId, platformUsers.id),
-        )
-        .where(
-          and(
-            inArray(platformUsers.role, ['doctor', 'admin']),
-            isNull(platformUsers.mergedIntoId),
-            eq(beOrganizationMembers.organizationId, organizationId),
-            eq(beOrganizationMembers.status, 'active'),
-            // §9.2 of the leads authority names the clinic administrator as the initial audience.
-            // An organization owner is the administrator of that clinic's own membership boundary.
-            or(eq(beOrganizationMembers.role, 'owner'), eq(beOrganizationMembers.role, 'admin')),
-          ),
-        );
-      return rows.map((r) => r.id);
+      const result = await runWebappNamedRoot<{ recipients: unknown }>(
+        getWebappSqlDb(),
+        'app.list_clinic_lead_notification_recipients(uuid)',
+        [organizationId],
+        sql`SELECT app.list_clinic_lead_notification_recipients(${organizationId}::uuid) AS recipients`,
+      );
+      return parseClinicAdminUserIds(result.rows[0]?.recipients);
     },
     /**
      * Готовая аудитория staff-веб-пуша операторского алерта. Корень сразу исключает заблокированные

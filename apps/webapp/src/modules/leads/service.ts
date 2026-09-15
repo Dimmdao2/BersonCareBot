@@ -8,6 +8,7 @@ type LeadsServiceDependencies = {
   assertWriteClearance?: (mechanic: 'leads') => void;
   now?: () => string;
   notifyClinicLeadCreated?: (lead: Lead) => Promise<void>;
+  reportClinicLeadNotificationError?: (error: unknown, lead: Lead) => void;
 };
 
 function optionalText(value: string | null | undefined): string | null {
@@ -58,7 +59,11 @@ export function createLeadsService(
       const normalized = normalizeSubmission(input);
       const row = await port.create(normalized, now());
       const lead = assertTenant(input.organizationId, row);
-      await dependencies.notifyClinicLeadCreated?.(lead);
+      if (dependencies.notifyClinicLeadCreated) {
+        void dependencies.notifyClinicLeadCreated(lead).catch((err: unknown) => {
+          dependencies.reportClinicLeadNotificationError?.(err, lead);
+        });
+      }
       return lead;
     },
     async list(input) {

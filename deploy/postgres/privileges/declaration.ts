@@ -26500,6 +26500,10 @@ const REV10_CONTEXT = {
       targetRole: 'app_tenant_service', contextClass: 'tenant_service',
       purpose: 'leads.public-submit.create',
       functionIdentity: 'app.create_public_lead(uuid,text,text,text,text,text,text,text,text,timestamp with time zone)' },
+    list_clinic_lead_notification_recipients: { port: 'webapp', sessionRole: 'app_staff',
+      targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+      purpose: 'leads.clinic-notification-audience.read',
+      functionIdentity: 'app.list_clinic_lead_notification_recipients(uuid)' },
     // Публичная визитка клиники `/{clinic}` (владелец 19.08). Анонимный посетитель читает ОДНУ
     // строку публичной проекции через дверь: прямой SELECT ему отозван целиком (42501).
     read_public_clinic_card: { port: 'webapp', sessionRole: 'app_patient',
@@ -28061,6 +28065,18 @@ const REV10_CONTEXT = {
             'preferred_contact', 'message_text', 'source_surface', 'created_at', 'updated_at'] },
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.clinic_public_directory_entries', columns: ['organization_id', 'is_published'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.list_clinic_lead_notification_recipients(uuid)': rev10Function({
+      owner: 'app_seam_public_booking_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
+      execute: ['app_tenant_service'],
+      purpose: 'return active owner/admin recipients only for the accepted lead organization',
+      typedArgs: ['uuid'], volatility: 'STABLE', parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.platform_users', columns: ['id', 'role', 'merged_into_id'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_organization_members', columns: ['organization_id', 'platform_user_id', 'role', 'status'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),

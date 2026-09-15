@@ -1312,6 +1312,16 @@ const leadsService = leadsPort
   ? createLeadsService(leadsPort, {
       assertWriteClearance: assertMechanicWriteClearance,
       notifyClinicLeadCreated: (lead) => notifyClinicLeadCreated(lead, doctorPatientMessageStaffDeps),
+      reportClinicLeadNotificationError: (err, lead) => {
+        logger.error(
+          {
+            err,
+            leadId: lead.id,
+            organizationId: lead.organizationId,
+          },
+          '[leads] clinic notification failed',
+        );
+      },
     })
   : null;
 registerAdminIncidentStaffPushDeps({

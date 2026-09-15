@@ -72,12 +72,11 @@ function devStaff(): Staff {
 describe.skipIf(!enabled)('аудитория уведомления о новой заявке на живом DEV', () => {
   let staff: Staff;
   let port: import('@/modules/doctor-notifications/staffUsersPort').StaffUsersPort;
-  let runWithDbStaffPrincipal: typeof import('@bersoncare/db-principal').runWithDbStaffPrincipal;
   let runWithDbOrganizationPrincipal: typeof import('@bersoncare/db-principal').runWithDbOrganizationPrincipal;
 
   beforeAll(async () => {
     process.env.DB_PRINCIPAL_CONTEXT_MODE = 'port-context';
-    ({ runWithDbStaffPrincipal, runWithDbOrganizationPrincipal } = await import('@bersoncare/db-principal'));
+    ({ runWithDbOrganizationPrincipal } = await import('@bersoncare/db-principal'));
     const { createPgStaffUsersPort } = await import('./pgStaffUsers');
     port = createPgStaffUsersPort();
     staff = devStaff();
@@ -118,9 +117,9 @@ describe.skipIf(!enabled)('аудитория уведомления о ново
     expect(residue, 'фикстура AUDITL4 обязана быть снята с DEV полностью').toBe('0');
   });
 
-  it('кабинетная дверь адресует только активных администраторов своей клиники', async () => {
-    const audience = await runWithDbStaffPrincipal(
-      { organizationId: staff.organizationId, platformUserId: staff.platformUserId, source: 'audit-l4' },
+  it('публичная дверь адресует только активных администраторов своей клиники', async () => {
+    const audience = await runWithDbOrganizationPrincipal(
+      staff.organizationId,
       () => port.listActiveClinicAdminUserIds(staff.organizationId),
     );
 
@@ -146,8 +145,8 @@ describe.skipIf(!enabled)('аудитория уведомления о ново
   });
 
   it('спросить чужую клинику под своим принципалом нельзя', async () => {
-    const audience = await runWithDbStaffPrincipal(
-      { organizationId: staff.organizationId, platformUserId: staff.platformUserId, source: 'audit-l4' },
+    const audience = await runWithDbOrganizationPrincipal(
+      staff.organizationId,
       () => port.listActiveClinicAdminUserIds(FOREIGN_ORG),
     );
     expect(audience, 'чужая организация не отдаёт своих людей даже по прямому запросу').toEqual([]);

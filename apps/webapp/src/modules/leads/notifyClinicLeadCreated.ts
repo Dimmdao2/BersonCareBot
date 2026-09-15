@@ -2,6 +2,7 @@ import {
   notifyDoctorPatientMessageToStaff,
   type NotifyDoctorPatientMessageToStaffDeps,
 } from '@/modules/doctor-notifications/notifyDoctorPatientMessageToStaff';
+import { env } from '@/config/env';
 import type { Lead } from './types';
 
 const LEAD_CREATED_TOPIC = 'lead.created' as const;
@@ -25,7 +26,7 @@ export async function notifyClinicLeadCreated(
       senderDisplayName: lead.submittedEmail,
       notificationText: 'Новая заявка',
       notificationTitle: 'Новая заявка',
-      notificationUrl: '/app/doctor/communications?tab=leads',
+      notificationUrl: `${env.APP_BASE_URL.replace(/\/$/, '')}/app/doctor/communications?tab=leads`,
       nativeRoute: '/app/doctor/communications',
     },
     deps,
