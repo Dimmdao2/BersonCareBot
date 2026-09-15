@@ -67,8 +67,10 @@ login/registration UI must reflect those toggles **dynamically**.
 ## Current state — RECON (verified 2026-07-24, `scratchpad/channel-auth-toggles-recon.md`)
 
 - **Login resolver:** `apps/webapp/src/modules/auth/authChannelPolicy.ts` + `loginAlternativesConfig.ts` →
-  `/api/auth/login/alternatives-config`, `/api/auth/telegram-login/config`, `/api/auth/oauth/providers` →
-  `AuthFlowV2.tsx`/`AuthBootstrap.tsx`. **Fail-closed by default**, and ~30 API routes ALSO server-enforce the channel
+  `publicAuthSnapshot.ts` (RSC props) и `/api/auth/telegram-login/config` →
+  `AuthFlowV2.tsx`/`AuthBootstrap.tsx`. ⚠️ Обновлено 16.09.2026: публичные адреса
+  `/api/auth/login/alternatives-config` и `/api/auth/oauth/providers` УДАЛЕНЫ по слову владельца
+  («удаляй, лишние дыры»); единственная проекция — серверный снимок. **Fail-closed by default**, and ~30 API routes ALSO server-enforce the channel
   flag (not just UI hiding — good). So the dynamic-gating machinery already exists; we extend its inputs.
 - **Per-method gating today:**
   - **email / sms / telegram / max** — ALREADY have individual `system_settings` booleans (`auth_email_enabled` etc.,
@@ -91,7 +93,7 @@ login/registration UI must reflect those toggles **dynamically**.
 1. **Extend the settings registry** with independent boolean toggles: `auth_oauth_google_enabled`,
    `auth_oauth_yandex_enabled`, (`auth_oauth_apple_enabled`?), `auth_2fa_enabled` — add to `registry.ts` +
    `PLATFORM_GLOBAL_SETTINGS_API_KEYS`. OAuth toggle becomes `enabled AND creds-present` (decouple from creds-only).
-2. **Login resolver:** feed the new toggles into `authChannelPolicy`/`oauth/providers` + the ~30 server-enforcing routes
+2. **Login resolver:** feed the new toggles into `authChannelPolicy`/`publicAuthSnapshot` + the ~30 server-enforcing routes
    so a disabled method vanishes from UI AND is rejected server-side (fail-closed).
 3. **2FA:** не возвращать удалённый boolean `auth_2fa_enabled`; добавить типизированную policy-настройку
    `disabled | optional | required` и один общий reader для login/guards/admin UI. `disabled` запрещает новое
