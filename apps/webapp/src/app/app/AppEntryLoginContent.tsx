@@ -32,8 +32,11 @@ type AppEntryLoginContentProps = {
   roleLoginPortal?: RoleLoginPortal | null;
   /** Resolved server-side product identity for the role-login presentation. */
   roleLoginSurfaceName?: string;
+  /** Логотип клиники с уже опознанной поверхности — знак над формой входа. */
+  roleLoginBrandLogoUrl?: string | null;
+  /** Вход на домене клиники, а не общий TherapyGo. */
+  roleLoginBrandedSurface?: boolean;
   /** Canonical cross-product login URL, never a role path on the current origin. */
-  alternateRoleLoginHref?: string | null;
   /** Auth methods allowed by proxy's already-resolved surface. */
   surfaceAuthPolicy?: SurfaceAuthPolicy;
   /** Surface-owned shell supplies its own header and legal footer; auth mechanics stay shared. */
@@ -51,7 +54,8 @@ export function AppEntryLoginContent({
   routeBoundMiniappEntry = false,
   roleLoginPortal = null,
   roleLoginSurfaceName,
-  alternateRoleLoginHref = null,
+  roleLoginBrandLogoUrl,
+  roleLoginBrandedSurface,
   surfaceAuthPolicy,
   embeddedInSurfaceShell = false,
   roleLoginInitialView = 'login',
@@ -69,7 +73,8 @@ export function AppEntryLoginContent({
         <RoleLoginPortalHeader
           portal={roleLoginPortal}
           surfaceName={roleLoginSurfaceName ?? ''}
-          alternateHref={alternateRoleLoginHref}
+          brandLogoUrl={roleLoginBrandLogoUrl ?? null}
+          brandedSurface={Boolean(roleLoginBrandedSurface)}
         />
       ) : null}
       <Suspense fallback={<AppContentLoading className="py-6" />}>

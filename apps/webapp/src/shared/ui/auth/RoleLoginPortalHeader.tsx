@@ -1,32 +1,18 @@
 import Image from 'next/image';
 import type { RoleLoginPortal } from '@/modules/auth/roleLogin';
-import { cn } from '@/lib/utils';
-
-const portalCopy: Record<
-  Exclude<RoleLoginPortal, 'doctor' | 'admin'>,
-  {
-    title: string;
-    description: string;
-    alternateLabel?: string;
-    className: string;
-  }
-> = {
-  patient: {
-    title: 'Войти в личный кабинет',
-    description: 'Продолжите в приложении выбранной организации.',
-    alternateLabel: 'Открыть кабинет специалистов',
-    className: 'border-emerald-200 bg-emerald-50/70',
-  },
-};
 
 export function RoleLoginPortalHeader({
   portal,
   surfaceName,
-  alternateHref,
+  brandLogoUrl = null,
+  brandedSurface = false,
 }: {
   portal: RoleLoginPortal;
   surfaceName: string;
-  alternateHref: string | null;
+  /** Логотип арендатора с уже опознанной поверхности; `null` — логотипа нет. */
+  brandLogoUrl?: string | null;
+  /** Поверхность клиники, а не общий TherapyGo: решает, чей знак показывать. */
+  brandedSurface?: boolean;
 }) {
   // Doctor-портал (вход после разлогина) — без описательного блока и без ссылки на пациентский
   // вход: только вертикальный лого-лок-ап Therapysto (иконка + подпись уже в самом файле).
@@ -66,19 +52,39 @@ export function RoleLoginPortalHeader({
     );
   }
 
-  const copy = portalCopy[portal];
+  // Пациентский вход. Владелец 15.09 про прежнюю зелёную карточку с заголовком и описанием:
+  // «Вырезать к черту. У обычного входа должен быть логотип терапиго, а у брендированных
+  // приложений — их логотип и название организации». Поэтому здесь не текстовый блок, а знак:
+  // на обычном входе — лок-ап TherapyGo (тот же файл, что в `TherapyGoLoginShell`), на домене
+  // клиники — её логотип и её имя. Клиника без загруженного логотипа остаётся с именем: пустого
+  // места на месте знака быть не должно. Ссылки «Открыть кабинет специалистов» здесь нет: владелец
+  // 15.09 велел убрать и её — пациентский вход не предлагает уйти в чужой кабинет. Кабинет
+  // специалистов живёт на своём хосте, и попадают туда по своему адресу.
   return (
-    <div className={cn('mt-2 flex flex-col gap-2 rounded-xl border p-5', copy.className)}>
-      <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
-        {surfaceName}
-      </p>
-      <h1 className="text-xl font-semibold text-foreground">{copy.title}</h1>
-      <p className="text-sm leading-6 text-muted-foreground">{copy.description}</p>
-      {copy.alternateLabel && alternateHref ? (
-        <a className="mt-1 text-sm text-muted-foreground underline" href={alternateHref}>
-          {copy.alternateLabel}
-        </a>
-      ) : null}
+    <div className="mt-2 flex flex-col items-center gap-3">
+      {brandLogoUrl ? (
+        <>
+          {/* eslint-disable-next-line @next/next/no-img-element -- server-validated /api/media URL */}
+          <img
+            src={brandLogoUrl}
+            alt=""
+            className="size-16 rounded-2xl object-cover"
+          />
+          <p className="text-center text-base font-semibold text-foreground">{surfaceName}</p>
+        </>
+      ) : brandedSurface ? (
+        <p className="text-center text-base font-semibold text-foreground">{surfaceName}</p>
+      ) : (
+        <Image
+          src="/brand/therapygo-lockup-horizontal.png"
+          alt="TherapyGo"
+          width={817}
+          height={302}
+          sizes="260px"
+          className="h-auto w-[200px]"
+          priority
+        />
+      )}
     </div>
   );
 }

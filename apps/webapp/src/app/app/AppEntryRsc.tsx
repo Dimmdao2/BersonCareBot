@@ -97,12 +97,9 @@ export async function AppEntryRsc({
         ? 'max'
         : 'browser';
   const shellTitle = surfaceDisplayName(resolvedSurface);
-  const alternateRoleLoginHref =
-    effectiveRoleLoginPortal === 'doctor'
-      ? new URL('/app/patient/login', PATIENT_DEFAULT_SURFACE.origin).toString()
-      : effectiveRoleLoginPortal === 'patient'
-        ? new URL('/app/doctor/login', STAFF_SURFACE.origin).toString()
-        : null;
+  // Перекрёстной ссылки между пациентским и врачебным входом больше нет: владелец 15.09 — «да убери
+  // ты блять это „открыть кабинет специалистов“». Каждый вход живёт на своём хосте и про соседний
+  // молчит.
   // A role-login door (`/app/{doctor,patient,admin}/login`) knows its own audience from the route,
   // which stays correct under the transitional single-Host DEV/TEST deployment where Host-based
   // surface resolution collapses staff and patient to `staff` (see `authPolicyNameForRoleLoginPortal`
@@ -121,7 +118,8 @@ export async function AppEntryRsc({
       routeBoundMiniappEntry={routeBoundMessengerSurface != null}
       roleLoginPortal={effectiveRoleLoginPortal}
       roleLoginSurfaceName={shellTitle}
-      alternateRoleLoginHref={alternateRoleLoginHref}
+      roleLoginBrandLogoUrl={resolvedSurface.effectivePatientBrand?.logoUrl ?? null}
+      roleLoginBrandedSurface={resolvedSurface.surface === 'patient_branded'}
       surfaceAuthPolicy={surfaceAuthPolicy}
       embeddedInSurfaceShell={therapyGoBrowserEntry}
       roleLoginInitialView={roleLoginInitialView}
