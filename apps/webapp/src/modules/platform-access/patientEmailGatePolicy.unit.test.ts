@@ -70,7 +70,6 @@ describe('patient email gate policy', () => {
     '/app/patient/profile',
     '/app/patient/support',
     '/app/patient/help/article',
-    '/app/patient/install',
     '/legal/terms',
     '/legal/privacy',
   ])('never blocks the escape path %s', (pathname) => {
@@ -82,6 +81,19 @@ describe('patient email gate policy', () => {
         pathname,
       }),
     ).toBe('none');
+  });
+
+  it('closes the install screen after the same deadline as its protected push APIs', () => {
+    const decisionFor = (pathname: string) =>
+      resolvePatientEmailGateDecision({
+        emailVerified: false,
+        emailFirstRequestedAt: daysAgo(14),
+        now: NOW,
+        pathname,
+      });
+
+    expect(decisionFor('/app/patient/install')).toBe('requirement');
+    expect(decisionFor('/app/patient')).toBe('requirement');
   });
 
   it('records the first cabinet request and asks the patient once', async () => {

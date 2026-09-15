@@ -53,7 +53,6 @@ const PATIENT_EMAIL_GATE_EXEMPT_PREFIXES = [
   '/app/patient/profile',
   '/app/patient/support',
   '/app/patient/help',
-  '/app/patient/install',
   '/api/auth/logout',
   '/legal',
 ] as const;

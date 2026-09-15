@@ -3,10 +3,8 @@ import { cookies } from 'next/headers';
 import type { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import { patientClientBusinessGate } from '@/app-layer/platform-access';
+import { requirePatientApiBusinessAccess } from '@/app-layer/guards/requireRole';
 import { resolvePatientOrganizationRequestContext } from '@/app-layer/patient-organization/requestContext';
-import { getCurrentSession } from '@/modules/auth/service';
-import { canAccessPatient } from '@/modules/roles/service';
 import {
   PATIENT_ORGANIZATION_CHANGE_RECEIPT_COOKIE,
   PATIENT_ORGANIZATION_PREFERENCE_COOKIE,
@@ -15,28 +13,13 @@ import { jsonError, jsonOk } from '@/shared/http/apiResponse';
 
 const switchSchema = z.object({ organizationId: z.string().uuid() }).strict();
 
-async function requirePatientContextAccount() {
-  const session = await getCurrentSession();
-  if (!session || !canAccessPatient(session.user.role)) {
-    return { ok: false as const, response: jsonError('unauthorized', {}, { status: 401 }) };
-  }
-  const gate = await patientClientBusinessGate(session);
-  if (gate !== 'allow') {
-    return {
-      ok: false as const,
-      response: jsonError('patient_activation_required', {}, { status: 403 }),
-    };
-  }
-  return { ok: true as const, session };
-}
-
 function noStore(response: NextResponse): NextResponse {
   response.headers.set('Cache-Control', 'private, no-store');
   return response;
 }
 
 export async function GET() {
-  const gate = await requirePatientContextAccount();
+  const gate = await requirePatientApiBusinessAccess();
   if (!gate.ok) return noStore(gate.response);
   const resolved = await resolvePatientOrganizationRequestContext(
     buildAppDeps().patientOrganization,
@@ -53,7 +36,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const gate = await requirePatientContextAccount();
+  const gate = await requirePatientApiBusinessAccess();
   if (!gate.ok) return noStore(gate.response);
   const cookieStore = await cookies();
   cookieStore.delete(PATIENT_ORGANIZATION_CHANGE_RECEIPT_COOKIE);
@@ -83,7 +66,7 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE() {
-  const gate = await requirePatientContextAccount();
+  const gate = await requirePatientApiBusinessAccess();
   if (!gate.ok) return noStore(gate.response);
   const cookieStore = await cookies();
   cookieStore.delete(PATIENT_ORGANIZATION_PREFERENCE_COOKIE);
