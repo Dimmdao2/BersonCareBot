@@ -219,8 +219,6 @@ import { createNoopEmailSetupAccessPort } from '@/modules/auth/emailSetupAccess/
 import { createPgEmailSetupAccessPort } from '@/infra/repos/pgEmailSetupAccessPort';
 import { pgOAuthBindingsPort } from '@/infra/repos/pgOAuthBindings';
 import { inMemoryOAuthBindingsPort } from '@/infra/repos/inMemoryOAuthBindings';
-import { pgLoginTokensPort } from '@/infra/repos/pgLoginTokens';
-import { inMemoryLoginTokensPort } from '@/infra/repos/inMemoryLoginTokens';
 import { pgReferencesPort } from '@/infra/repos/pgReferences';
 import { inMemoryReferencesPort } from '@/infra/repos/inMemoryReferences';
 import { createPgContentPagesPort, inMemoryContentPagesPort } from '@/infra/repos/pgContentPages';
@@ -613,7 +611,6 @@ const emailOtpPublicDbPort = !inMemoryRepos
   ? createPgEmailOtpPublicPort()
   : inMemoryEmailOtpPublicPort;
 const oauthBindingsPort = !inMemoryRepos ? pgOAuthBindingsPort : inMemoryOAuthBindingsPort;
-const loginTokensPort = !inMemoryRepos ? pgLoginTokensPort : inMemoryLoginTokensPort;
 const identityResolutionPort = !inMemoryRepos
   ? pgIdentityResolutionPort
   : inMemoryIdentityResolutionPort;
@@ -2257,7 +2254,6 @@ function _buildAppDeps() {
     emailOtpPublicDb: emailOtpPublicDbPort,
     emailSetupAccess: emailSetupAccessService,
     oauthBindings: oauthBindingsPort,
-    loginTokens: loginTokensPort,
     systemSettings: systemSettingsService,
     runtimeConfig,
     notifTemplates: notifTemplatesService,

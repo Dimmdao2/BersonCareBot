@@ -73,7 +73,7 @@
 - Подсказки ссылок на ботов при `access_denied`/`max_unavailable` в `AuthBootstrap` берутся из серверного prefetch-конфига (`initialPublicAuthConfig`) без дополнительных клиентских запросов публичных auth-config.
 - **Диагностика:** `console.info` с префиксами `[auth/telegram-init]`, `[auth/max-init]`, `[auth/telegram-login]` для `resolution_hints` пишутся только при **`DEBUG_AUTH=1`** в env (не в `test`).
 - **exchangeIntegratorToken** — обмен JWT «войти в приложение» из бота на сессию вебаппа (payload: sub, role, displayName, phone, bindings, exp).
-- **`POST /api/auth/channel-link/start`** (привязка TG/Max с `/app/patient/bind-phone` в браузере) и **`POST /api/auth/messenger/start`** (deep link после ввода телефона): для Telegram — DB-backed `telegram_login_bot_username`, для MAX — DB-backed `max_login_bot_nickname`. При непустом нике ответ содержит диплинк `https://max.ru/<nick>?start=link_…` ([документация MAX](https://dev.max.ru/docs/chatbots/bots-coding/prepare)); пустое значение означает только команду `/start link_…` без автоперехода. Ошибка чтения не подменяется env или `CHANNEL_LIST`. **Не путать** с `ALLOWED_MAX_IDS` / whitelist (там — user id людей).
+- **`POST /api/auth/channel-link/start`** (привязка TG/Max с `/app/patient/bind-phone` в браузере): для Telegram — DB-backed `telegram_login_bot_username`, для MAX — DB-backed `max_login_bot_nickname`. При непустом нике ответ содержит диплинк `https://max.ru/<nick>?start=link_…` ([документация MAX](https://dev.max.ru/docs/chatbots/bots-coding/prepare)); пустое значение означает только команду `/start link_…` без автоперехода. Ошибка чтения не подменяется env или `CHANNEL_LIST`. **Не путать** с `ALLOWED_MAX_IDS` / whitelist (там — user id людей).
 
 ## OAuth (Яндекс и Google — веб-вход; Apple legacy)
 
@@ -167,7 +167,7 @@ Tier **`patient`** (доступ к основному пациентскому 
 
 ### Channel link (старт ссылки из сессии)
 
-- **`POST /api/auth/channel-link/start`** (авторизованный пациент): deep link Telegram (`t.me/…`) и при настроенном нике Max — `https://max.ru/<nick>?start=link_…`, иначе URL-заглушка и команда `/start link_…`. **Rate limit:** scope `auth.channel_link_start`, ключ — `userId` сессии (до **30** запросов за скользящий час в `auth_rate_limit_events`; без БД — in-memory fallback), аналогично `auth.messenger_start`. Ответ **429** `rate_limited` при превышении.
+- **`POST /api/auth/channel-link/start`** (авторизованный пациент): deep link Telegram (`t.me/…`) и при настроенном нике Max — `https://max.ru/<nick>?start=link_…`, иначе URL-заглушка и команда `/start link_…`. **Rate limit:** scope `auth.channel_link_start`, ключ — `userId` сессии (до **30** запросов за скользящий час в `auth_rate_limit_events`; без БД — in-memory fallback). Ответ **429** `rate_limited` при превышении.
 
 ### Channel link → integrator
 

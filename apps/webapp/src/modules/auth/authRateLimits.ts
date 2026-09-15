@@ -61,13 +61,6 @@ export const isClientBootReportRateLimitedByKey = createSlidingWindowRateLimit({
   db: authRateLimitDb,
 });
 
-export const isMessengerStartRateLimited = createSlidingWindowRateLimit({
-  scope: 'auth.messenger_start',
-  windowMs: 60 * 60 * 1000,
-  maxPerWindow: 12,
-  db: authRateLimitDb,
-});
-
 /**
  * The ONE limiter scope whose key is the raw platform user id, not an IP or a phone — so its rows
  * are the only ones in `auth_rate_limit_events` that name a person.
