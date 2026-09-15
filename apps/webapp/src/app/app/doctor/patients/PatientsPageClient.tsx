@@ -51,6 +51,7 @@ import { CatalogSplitLayout } from '@/shared/ui/doctor/catalog/CatalogSplitLayou
 import { CatalogRightPane } from '@/shared/ui/doctor/catalog/CatalogRightPane';
 import { formatDoctorFio } from '@/shared/lib/fio';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
+import { useDoctorMedicalMergeConflicts } from '@/shared/ui/doctor/DoctorMedicalMergeConflictProvider';
 import {
   buildPatientListWorkspaceHref,
   patientCardHrefWithReturnTo,
@@ -460,6 +461,8 @@ function PatientsContent({
   onMobileFiltersOpenChange,
 }: PatientsContentProps) {
   const { patientGenPlural, appointmentPrepositional } = useDoctorPatientTerms();
+  const { conflictIdForClient, hasConflictForClient, openConflict } =
+    useDoctorMedicalMergeConflicts();
   const router = useRouter();
   const allClients = use(listPromise);
   const metrics = use(metricsPromise);
@@ -746,6 +749,8 @@ function PatientsContent({
                 {filtered.map((c, index) => {
                   const futureAppointmentCount = c.activeAppointmentsCount ?? 0;
                   const cardHref = patientCardHrefWithReturnTo(c.userId, workspaceState);
+                  const conflictId = conflictIdForClient(c.userId);
+                  const hasMedicalConflict = hasConflictForClient(c.userId);
                   return (
                     <li key={c.userId} id={`doctor-patients-item-${c.userId}`}>
                       <Link
@@ -754,12 +759,18 @@ function PatientsContent({
                         prefetch={false}
                         onMouseEnter={() => router.prefetch(cardHref)}
                         onFocus={() => router.prefetch(cardHref)}
+                        onClick={(event) => {
+                          if (!conflictId) return;
+                          event.preventDefault();
+                          openConflict(conflictId);
+                        }}
                         className={cn(
                           buttonVariants({ variant: 'ghost' }),
                           doctorDnaFlatListRowClass,
                           doctorDnaFlatListClickableClass,
                           'h-auto w-full rounded-none bg-transparent text-left shadow-none active:bg-muted/80 md:gap-3',
                           index === 0 && 'border-t-0',
+                          hasMedicalConflict && 'border-l-[3px] border-l-destructive font-medium',
                         )}
                       >
                         <div className="flex min-w-0 flex-1 items-center">

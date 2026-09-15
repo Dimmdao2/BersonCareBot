@@ -87,6 +87,7 @@ import { DoctorNotesPanel } from '@/app/app/doctor/clients/DoctorNotesPanel';
 import { DoctorModalSummaryBar } from '@/shared/ui/doctor/DoctorModalSummaryBar';
 import { DOCTOR_ACTIVE_FILTER_BUTTON_CLASS } from '@/shared/ui/doctor/calendar/DoctorSchedulePeriodNav';
 import { notifyDoctorTasksChanged } from '@/shared/ui/doctor/shell/doctorShellBadgeEvents';
+import { useDoctorMedicalMergeConflicts } from '@/shared/ui/doctor/DoctorMedicalMergeConflictProvider';
 
 // ---------------------------------------------------------------------------
 // Backend response types
@@ -913,6 +914,8 @@ export function PatientTabOverview({
   compositionMode,
 }: Props) {
   const { patientSingularLabel } = useDoctorPatientTerms();
+  const { conflictIdForClient, openConflict } = useDoctorMedicalMergeConflicts();
+  const medicalConflictId = conflictIdForClient(userId);
   const isComposed = compositionMode != null;
   const isOverviewComposition = compositionMode === 'overview';
   const seededExerciseCalendar = unwrapBootstrapEnvelope(initialExerciseCalendarSnapshot);
@@ -1694,6 +1697,24 @@ export function PatientTabOverview({
             : 'grid grid-cols-1 items-start gap-2.5 md:grid-cols-2',
       )}
     >
+      {medicalConflictId ? (
+        <section className="col-span-full flex flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2">
+          <div>
+            <p className={doctorSectionTitleClass}>Конфликт учётных записей</p>
+            <p className={cn(doctorMetaTextClass, 'mt-0.5')}>
+              Для этого клиента найдены две учётные записи с медицинскими данными.
+            </p>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => openConflict(medicalConflictId)}
+          >
+            Разобрать
+          </Button>
+        </section>
+      ) : null}
       {/* ===== LEFT COLUMN ===== */}
       <div className={cn(isComposed ? 'contents' : 'flex flex-col gap-2.5')}>
         {/* «+ Создать визит» entry point */}

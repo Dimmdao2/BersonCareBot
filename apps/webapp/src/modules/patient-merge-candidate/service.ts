@@ -17,6 +17,10 @@ export function createPatientMergeCandidateService(port: PatientMergeCandidatePo
         clientIds: [
           ...new Set(conflicts.flatMap((row) => [row.anchorUserId, row.candidateUserId])),
         ],
+        conflicts: conflicts.map((row) => ({
+          id: row.id,
+          clientIds: [row.anchorUserId, row.candidateUserId],
+        })),
       };
     },
     readMedicalConflictDetails(organizationId: string, conflictId: string) {

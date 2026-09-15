@@ -32,7 +32,8 @@ export type DoctorMenuBadgeKey =
   | 'pendingProgramTests'
   | 'todayAttention'
   | 'communicationsTotal'
-  | 'overdueTasks';
+  | 'overdueTasks'
+  | 'medicalMergeConflicts';
 
 export type DoctorMenuLinkItem = {
   id: string;
@@ -128,7 +129,12 @@ const RAW_DOCTOR_MENU_ITEMS: DoctorMenuLinkItem[] = [
     href: routePaths.doctorSchedule,
     accessTier: 'staff',
   },
-  { id: 'patients', label: 'Пациенты', href: '/app/doctor/patients' },
+  {
+    id: 'patients',
+    label: 'Пациенты',
+    href: '/app/doctor/patients',
+    badgeKey: 'medicalMergeConflicts',
+  },
   {
     id: 'tasks',
     label: 'Задачи',
