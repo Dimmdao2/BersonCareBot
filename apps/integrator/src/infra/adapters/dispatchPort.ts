@@ -230,9 +230,10 @@ type EnvironmentDeliveryResult = OutgoingIntent | typeof SUPPRESS;
 
 /**
  * Single pre-provider environment gate.
- * Local development is provider-free. When `TEST=true`, only original recipients listed in the
- * TEST_ACCOUNT_* env variables may reach an adapter. Nothing is redirected and no message body is
- * changed. In production (`TEST` absent/false) the original intent passes unchanged.
+ * Local development is provider-free except for email, whose adapter permits only a loopback SMTP
+ * sink. When `TEST=true`, only original recipients listed in the TEST_ACCOUNT_* env variables may
+ * reach an adapter. Nothing is redirected and no message body is changed. In production (`TEST`
+ * absent/false) the original intent passes unchanged.
  */
 function applyPreForkEnvironmentDeliveryPolicy(intent: OutgoingIntent): EnvironmentDeliveryResult {
   const payload = (intent.payload ?? {}) as DeliveryPayload & Record<string, unknown>;
@@ -240,6 +241,9 @@ function applyPreForkEnvironmentDeliveryPolicy(intent: OutgoingIntent): Environm
   const intendedChannel = readChannel(intent);
 
   if (isLocalDevelopmentDeliverySuppressed()) {
+    // The email adapter is the one place that knows the resolved platform/clinic SMTP host. Let
+    // only that channel reach it; the adapter fails closed before sendMail for a non-loopback host.
+    if (intendedChannel === 'email') return intent;
     logger.warn(
       {
         intendedChannel,
@@ -459,6 +463,7 @@ export function createDefaultDispatchPort(deps: {
         throw attemptedFailure;
       }
       const providerConfirmed =
+        sendResult?.suppressedByEnvironment !== true &&
         integrationId !== null &&
         (integrationId !== 'web_push' || sendResult?.webPushOutcome?.status === 'success');
       if (providerConfirmed && deps.onProviderDeliveryConfirmed) {
