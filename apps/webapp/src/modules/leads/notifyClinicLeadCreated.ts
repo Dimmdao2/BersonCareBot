@@ -15,9 +15,11 @@ export async function notifyClinicLeadCreated(
   lead: Lead,
   deps: NotifyDoctorPatientMessageToStaffDeps,
 ): Promise<void> {
+  const staffUserIds = await deps.staffUsers.listActiveClinicAdminUserIds(lead.organizationId);
   await notifyDoctorPatientMessageToStaff(
     {
       organizationId: lead.organizationId,
+      staffUserIds,
       topicCode: 'doctor_patient_messages',
       messageId: `${LEAD_CREATED_TOPIC}:${lead.id}`,
       senderDisplayName: lead.submittedEmail,

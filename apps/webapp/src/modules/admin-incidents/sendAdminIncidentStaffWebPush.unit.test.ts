@@ -22,6 +22,7 @@ it('does not restore raw staff fallback when the eligible push audience is empty
       {
         staffUsers: {
           listActiveStaffUserIds,
+          listActiveClinicAdminUserIds: async () => [],
           listActiveStaffOrganizationRecipients: async () => [],
         },
       },

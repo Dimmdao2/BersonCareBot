@@ -58,6 +58,12 @@ export type NotifyDoctorStaffTopicInput = {
   /** A producer-supplied neutral event label when the event is not a patient chat message. */
   notificationText?: string;
   notificationTitle?: string;
+  /**
+   * A producer-supplied audience. Given, it wins over both the patient profiles and the staff
+   * port: the producer of a non-patient event knows who must hear about it, and the shared
+   * staff list must not be reshaped to serve one event's rule.
+   */
+  staffUserIds?: string[];
 };
 
 export type NotifyDoctorPatientMessageToStaffResult = {
@@ -76,9 +82,11 @@ export async function notifyDoctorPatientMessageToStaff(
         topicCode: input.topicCode,
       })
     : null;
-  const staffIds = patientProfiles
-    ? patientProfiles.map((profile) => profile.userId)
-    : await deps.staffUsers.listActiveStaffUserIds(input.organizationId);
+  const staffIds = input.staffUserIds
+    ? input.staffUserIds
+    : patientProfiles
+      ? patientProfiles.map((profile) => profile.userId)
+      : await deps.staffUsers.listActiveStaffUserIds();
   const globalFallback = defaultDoctorTopicFallbackChannels(input.topicCode);
   const replyMarkup = input.replyMarkup;
   const notificationText =

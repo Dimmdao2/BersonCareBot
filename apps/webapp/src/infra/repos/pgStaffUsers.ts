@@ -20,7 +20,17 @@ function parseStaffOrganizationRecipients(
 
 export function createPgStaffUsersPort(): StaffUsersPort {
   return {
-    async listActiveStaffUserIds(organizationId) {
+    async listActiveStaffUserIds() {
+      const db = getDrizzle();
+      const rows = await db
+        .select({ id: platformUsers.id })
+        .from(platformUsers)
+        .where(
+          and(inArray(platformUsers.role, ['doctor', 'admin']), isNull(platformUsers.mergedIntoId)),
+        );
+      return rows.map((r) => r.id);
+    },
+    async listActiveClinicAdminUserIds(organizationId) {
       const db = getDrizzle();
       const rows = await db
         .select({ id: platformUsers.id })
@@ -29,18 +39,17 @@ export function createPgStaffUsersPort(): StaffUsersPort {
           beOrganizationMembers,
           eq(beOrganizationMembers.platformUserId, platformUsers.id),
         )
-        .where(and(
-          inArray(platformUsers.role, ['doctor', 'admin']),
-          isNull(platformUsers.mergedIntoId),
-          eq(beOrganizationMembers.organizationId, organizationId),
-          eq(beOrganizationMembers.status, 'active'),
-          // §9.2 of the leads authority names the clinic administrator as the initial audience.
-          // An organization owner is the administrator of that clinic's own membership boundary.
-          or(
-            eq(beOrganizationMembers.role, 'owner'),
-            eq(beOrganizationMembers.role, 'admin'),
+        .where(
+          and(
+            inArray(platformUsers.role, ['doctor', 'admin']),
+            isNull(platformUsers.mergedIntoId),
+            eq(beOrganizationMembers.organizationId, organizationId),
+            eq(beOrganizationMembers.status, 'active'),
+            // §9.2 of the leads authority names the clinic administrator as the initial audience.
+            // An organization owner is the administrator of that clinic's own membership boundary.
+            or(eq(beOrganizationMembers.role, 'owner'), eq(beOrganizationMembers.role, 'admin')),
           ),
-        ));
+        );
       return rows.map((r) => r.id);
     },
     /**
@@ -66,5 +75,6 @@ export function createPgStaffUsersPort(): StaffUsersPort {
 }
 
 export const inMemoryStaffUsersPort: StaffUsersPort = {
-  listActiveStaffUserIds: async (_organizationId) => [],
+  listActiveStaffUserIds: async () => [],
+  listActiveClinicAdminUserIds: async (_organizationId) => [],
 };
