@@ -21,7 +21,7 @@ const MIGRATION = path.join(
 const PRIVILEGES = path.join(REPO ?? '', 'deploy/postgres/generated', `privileges.${DB}.sql`);
 
 /** Слепые поломки: каждая возвращает поверхность к тому состоянию, ради которого фикс и делался. */
-export const FAULTS = new Set(['', 'privilege', 'two-clinic-blindness', 'staff-insert']);
+export const FAULTS = new Set(['', 'privilege', 'two-clinic-blindness', 'staff-insert', 'foreign-org-conflict']);
 
 export function faultFromEnv() {
   const fault = process.env.BCB_PROOF_FAULT ?? '';
@@ -37,6 +37,14 @@ function migrationBlocks(fault) {
     const marker = 'WHERE target_history.organization_id IS DISTINCT FROM v_organization_id';
     if (!source.includes(marker)) throw new Error('fault two-clinic-blindness: marker not found');
     source = source.replace(marker, 'WHERE false');
+  }
+  if (fault === 'foreign-org-conflict') {
+    // Дверь перестаёт сверять, ЧЬЕЙ организации конфликт — ровно то, что держит §18б («разбирает
+    // врач своей организации»). Прогон, который после этого остаётся зелёным, про принадлежность
+    // конфликта ничего не доказывает.
+    const marker = 'AND candidate.organization_id = v_organization_id';
+    if (!source.includes(marker)) throw new Error('fault foreign-org-conflict: marker not found');
+    source = source.replace(marker, 'AND TRUE');
   }
   return source.split('--> statement-breakpoint').map((block) => {
     const owner = /--\s*BCB-MIGRATION-OWNER:\s*([a-z_0-9]+)/u.exec(block)?.[1];
@@ -110,6 +118,9 @@ export async function installCandidate(client, fault, say) {
   say(`candidate migration applied: ${blocks.length} owner-ordered blocks`);
   if (fault === 'two-clinic-blindness') {
     say("FAULT INJECTED: the door no longer sees another clinic's blocker");
+  }
+  if (fault === 'foreign-org-conflict') {
+    say("FAULT INJECTED: the door no longer checks that the conflict belongs to the doctor's organization");
   }
 
   const privileges = candidatePrivilegeStatements(await alreadyGrantedPolicies(client));

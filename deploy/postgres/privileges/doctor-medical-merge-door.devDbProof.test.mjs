@@ -3,16 +3,20 @@
  * Кандидатная миграция и кандидатные права применяются ТОЛЬКО внутри транзакции с `ROLLBACK`;
  * `migrate-dev --execute` и reconcile этот файл не зовёт, постоянных строк не остаётся.
  *
- * Три отказа, которые он ловит (все уже случившиеся):
+ * Отказы, которые он ловит. E1/Д1/Д2 уже случались; Д3 — стена, которая сегодня стоит, и прогон
+ * держит её от сноса: §10a разрешает тест ровно там, где «снесли проверку — набор покраснел».
  *  E1 — «Слить» падает с `permission denied for table user_password_credentials`, потому что
  *       перенос учётных строк идёт под `app_staff`, а не за дверью `SECURITY DEFINER`;
  *  Д1 — конфликт есть в двух клиниках, врач первой жмёт «слить», ничего не сливается, а конфликт
  *       уходит с его индикатора и маршрут отвечает успехом;
- *  Д2 — `app_staff` сам вписывает себе основание для двери и двигает чужие учётные строки.
+ *  Д2 — `app_staff` сам вписывает себе основание для двери и двигает чужие учётные строки;
+ *  Д3 — врач ЧУЖОЙ организации со своим законным контекстом и известным `conflictId` проходит
+ *       дверь конфликта соседней клиники: дверь ставит от его имени отметку «врач одобрил» на
+ *       строку этой клиники, и последний блокер пары снимается без её решения.
  *
  * Оракул — живой PostgreSQL, а не наш же текст.
  *
- * Запуск (все три):
+ * Запуск (весь набор):
  *   RUN_DOCTOR_MEDICAL_MERGE_DOOR_DB=1 node --test \
  *     deploy/postgres/privileges/doctor-medical-merge-door.devDbProof.test.mjs
  *
@@ -20,6 +24,7 @@
  *   DOCTOR_MEDICAL_MERGE_DOOR_FAULT=privilege            (у двери отбирают объявленную таблицу)
  *   DOCTOR_MEDICAL_MERGE_DOOR_FAULT=two-clinic-blindness (дверь не видит блокер второй клиники)
  *   DOCTOR_MEDICAL_MERGE_DOOR_FAULT=staff-insert         (роли врача возвращают колоночный INSERT)
+ *   DOCTOR_MEDICAL_MERGE_DOOR_FAULT=foreign-org-conflict (дверь не сверяет организацию конфликта)
  *
  * `DOCTOR_MEDICAL_MERGE_DOOR_ECHO=1` печатает журнал каждого прогона, в том числе зелёного.
  */
@@ -33,7 +38,7 @@ import { fileURLToPath } from 'node:url';
 
 const ENABLED = process.env.RUN_DOCTOR_MEDICAL_MERGE_DOOR_DB === '1';
 const FAULT = process.env.DOCTOR_MEDICAL_MERGE_DOOR_FAULT ?? '';
-if (!['', 'privilege', 'two-clinic-blindness', 'staff-insert'].includes(FAULT)) {
+if (!['', 'privilege', 'two-clinic-blindness', 'staff-insert', 'foreign-org-conflict'].includes(FAULT)) {
   throw new Error(`unknown DOCTOR_MEDICAL_MERGE_DOOR_FAULT '${FAULT}'`);
 }
 
@@ -149,6 +154,19 @@ test('роль врача не может выписать себе основа
     }
     assert.match(output, /forgery refused: 42501 permission denied for table patient_merge_candidates/u, output);
     assert.match(output, /"dup_creds":1/u, output);
+    assert.match(output, /RESULT: PASS/u, output);
+  });
+});
+
+test('врач чужой организации не проходит дверь конфликта соседней клиники', { skip: !ENABLED }, () => {
+  proof('doctor-medical-merge-foreign-org.proofBody.mjs', (output) => {
+    if (FAULT === 'foreign-org-conflict') {
+      assert.match(output, /RESULT: FAIL/u, output);
+      return;
+    }
+    assert.match(output, /doctor B pressed merge on clinic A's conflict, door returned: .*"mergeOutcome":"conflict_not_found"/u, output);
+    assert.match(output, /"clinic_a_row":"pending\/null"/u, output);
+    assert.match(output, /"duplicate_merged_into":null/u, output);
     assert.match(output, /RESULT: PASS/u, output);
   });
 });
