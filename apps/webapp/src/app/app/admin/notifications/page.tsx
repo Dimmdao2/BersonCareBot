@@ -10,12 +10,12 @@ import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
 export default async function DoctorAdminNotificationsPage() {
   await requirePlatformOperationsPage();
   const deps = buildAppDeps();
-  const { session, workspaceContext } = await loadStaffAccountPageContext();
+  const { session, workspaceAccess } = await loadStaffAccountPageContext();
   const { diagnostics } = await loadAdminSettingsPageData();
   const personalNotifications = await loadStaffNotificationsSection(
     deps,
     session,
-    workspaceContext,
+    workspaceAccess,
   );
 
   return (

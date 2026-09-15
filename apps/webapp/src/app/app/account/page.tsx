@@ -31,7 +31,7 @@ export default async function AccountPage({
 }) {
   const sp = searchParams != null ? await searchParams : {};
   const requestedTab = parseTab(sp.tab);
-  const { session, workspaceContext } = await loadStaffAccountPageContext();
+  const { session, workspaceContext, workspaceAccess } = await loadStaffAccountPageContext();
   const restrictedSecuritySession = isRestrictedStaffSecuritySession(session);
   const isPlatformConsole = session.user.role === 'admin';
   if (isPlatformConsole) redirect('/app/admin');
@@ -65,7 +65,7 @@ export default async function AccountPage({
     showSecurity
       ? loadSecurityContent(deps, session, workspaceContext, recoveryOnly, isPlatformConsole)
       : null,
-    showNotifications ? loadStaffNotificationsSection(deps, session, workspaceContext) : null,
+    showNotifications ? loadStaffNotificationsSection(deps, session, workspaceAccess) : null,
   ]);
 
   const content = (
