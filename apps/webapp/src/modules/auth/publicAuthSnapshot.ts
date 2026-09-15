@@ -31,6 +31,8 @@ export async function buildPrefetchedPublicAuthConfig(
     passkeyEnabled,
     telegramBotUsername: alt.telegramBotUsername,
     maxBotOpenUrl: alt.maxBotOpenUrl,
+    vkWebLoginUrl: alt.vkWebLoginUrl,
+    smsFallbackEnabled: alt.smsFallbackEnabled,
     specialistSignupEnabled,
     authChannelPolicy: alt.authChannelPolicy,
     fetchedAt: Date.now(),

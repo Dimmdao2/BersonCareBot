@@ -187,6 +187,8 @@ export type PrefetchedPublicAuthConfig = {
   passkeyEnabled?: boolean;
   telegramBotUsername: string | null;
   maxBotOpenUrl: string | null;
+  vkWebLoginUrl: string | null;
+  smsFallbackEnabled: boolean;
   specialistSignupEnabled: boolean;
   authChannelPolicy?: AuthChannelUiPolicy;
   fetchedAt: number;
