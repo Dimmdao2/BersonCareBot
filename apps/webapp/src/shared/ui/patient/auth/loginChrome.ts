@@ -5,7 +5,12 @@ import { patientActionTextClass } from '@/shared/ui/patient/patientVisual';
  * Историческая ширина главных CTA (~242px) для выравнивания ряда входа; высота и скругление — как у patient-кнопок.
  */
 export const LOGIN_CTA_WIDTH_CLASS = 'w-[242px]';
-export const LOGIN_CTA_HEIGHT_CLASS = 'h-10';
+/**
+ * Высота главных CTA входа. 44px, а не прежние 40: владелец 15.09 о блоке входа — «размер блока
+ * входа сделай нормальный, а не сжатый по вертикали». Та же высота держит в одном ряду и обёртку
+ * Telegram-виджета (`TelegramLoginButton`), поэтому живёт одной константой.
+ */
+export const LOGIN_CTA_HEIGHT_CLASS = 'h-11';
 
 /**
  * Текст на кнопках и текстовых ссылках входа — темнее `--patient-color-primary` (#284da0) для контраста на белом.
@@ -59,5 +64,8 @@ export const AUTH_LOGIN_SHELL_CLASS = cn(
   'bg-[linear-gradient(205deg,#f1ecf1_10%,var(--patient-color-primary-soft)_52%,#fafaf5_80%)]',
   'text-[var(--patient-text-primary)]',
   'shadow-[var(--patient-shadow-card-mobile)] md:shadow-[var(--patient-shadow-card-desktop)]',
-  'flex flex-col gap-4 p-4 md:p-[18px]',
+  // Вертикальный ритм карточки: поля 24/28px вместо прежних 16/18. Владелец 15.09
+  // увидел прежнюю карточку как плоскую полосу: «размер блока входа сделай нормальный а не сжатый
+  // по вертикали». Горизонтальные поля не трогаем — ширину задаёт `max-w-sm` оболочки.
+  'flex flex-col gap-4 px-4 py-6 md:px-[18px] md:py-7',
 );

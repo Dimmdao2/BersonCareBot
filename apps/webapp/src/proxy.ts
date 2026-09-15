@@ -75,9 +75,16 @@ type SurfaceNotFoundExit = { href: string; action: string };
  * остаётся за прокси, а совпадает ВИД. Меняете `app/not-found.tsx` — поменяйте и здесь.
  */
 function surfaceNotFoundBody(exit: SurfaceNotFoundExit | null): string {
+  // Под заголовком либо ВЫХОД, либо ничего. Прежняя редакция без выхода объясняла отказ ссылкой
+  // («возможно, ссылка устарела… попросите отправить её заново»), и владелец 15.09 поймал это на
+  // своём же домене: «сообщение о ссылке откуда берётся и зачем, я захожу без ссылки». Догадка о
+  // том, как человек сюда попал, неверна чаще, чем верна: адрес набирают руками, открывают из
+  // закладки, приходят из установленного приложения. Сказать тут нечего — и мы молчим.
+  // Вёрстка выхода: поля по 24px и предел ширины. Без них строка упиралась в оба края экрана —
+  // владелец о том же снимке: «верстка нижнего текста в края — криво».
   const tail = exit
-    ? `<div style="margin-top:24px;font-size:14px"><a href="${exit.href}" style="color:inherit;text-decoration:underline">${exit.action}</a></div>`
-    : '<div style="margin-top:24px;font-size:14px">Возможно, ссылка устарела или открыта не на том сайте — попросите отправить её заново.</div>';
+    ? `<div style="margin-top:24px;font-size:14px;max-width:28rem;padding:0 1.5rem"><a href="${exit.href}" style="color:inherit;text-decoration:underline">${exit.action}</a></div>`
+    : '';
   return (
     '<!doctype html><html lang="ru"><head><meta charset="utf-8">' +
     '<meta name="viewport" content="width=device-width, initial-scale=1">' +
