@@ -793,15 +793,17 @@ function PatientsContent({
                         {conflictId ? <span className="size-7 shrink-0" aria-hidden /> : null}
                       </Link>
                       {conflictId ? (
-                        <button
+                        <Button
                           type="button"
                           id={`doctor-patients-conflict-${c.userId}`}
+                          variant="destructive"
+                          size="icon-xs"
                           onClick={() => openConflict(conflictId)}
                           aria-label={`Конфликт учётных записей: ${clientPrimaryName(c)}`}
-                          className="absolute top-1/2 right-[var(--doctor-list-inline-padding,18px)] inline-flex size-7 -translate-y-1/2 items-center justify-center rounded-[8px] text-destructive transition-colors hover:bg-destructive/10 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                          className="absolute top-1/2 right-[var(--doctor-list-inline-padding,18px)] -translate-y-1/2"
                         >
                           <AlertTriangle className="size-4" aria-hidden />
-                        </button>
+                        </Button>
                       ) : null}
                     </li>
                   );
