@@ -13,20 +13,20 @@ import { routePaths } from '@/app-layer/routes/paths';
  * `docs/_TODO/SETTINGS_TABS_RESTRUCTURE_2026-09-15.md`. Здесь только данные навигации; кто какую
  * вкладку видит, решает `page.tsx`.
  *
- * «Команда» в девятку владельца не входит: она про КЛИНИКУ, а девятка описана для соло. Вкладка
+ * Личные «Аккаунт», «Безопасность» и «Уведомления» живут отдельно на `/app/account`.
+ * «Команда» в набор владельца не входит: она про КЛИНИКУ. Вкладка
  * остаётся отдельной строкой и показывается только составу с командой — деление настроек клиники
  * владелец отложил («Для клиники там деление будет, но надо продумать, это позже»).
  */
 export type SettingsTabId =
-  | 'account'
   | 'profile'
   | 'public'
   | 'branding'
   | 'booking'
   | 'payments'
   | 'workspace'
-  | 'notifications'
   | 'integrations'
+  | 'tariff'
   | 'team';
 
 export type SettingsTab = {
@@ -37,11 +37,10 @@ export type SettingsTab = {
 
 const SETTINGS_BASE = routePaths.settings;
 
-/** Заголовок экрана; контейнер в шапке — ссылка с именем организации (владелец 15.09). */
+/** Заголовок организационных настроек. */
 export const SETTINGS_PAGE_TITLE = 'Профиль и настройки';
 
 export const ALL_SETTINGS_TABS: SettingsTab[] = [
-  { id: 'account', label: 'Аккаунт', href: `${SETTINGS_BASE}?tab=account` },
   // Владелец 10.09: в настройках говорим «организация», а не «клиника» — соло-специалист такой же
   // арендатор, и обе поверхности обслуживают одни и те же писатели.
   { id: 'profile', label: 'Профиль', href: `${SETTINGS_BASE}?tab=profile` },
@@ -50,8 +49,8 @@ export const ALL_SETTINGS_TABS: SettingsTab[] = [
   { id: 'booking', label: 'Запись', href: `${SETTINGS_BASE}?tab=booking` },
   { id: 'payments', label: 'Приём оплаты', href: `${SETTINGS_BASE}?tab=payments` },
   { id: 'workspace', label: 'Рабочее место', href: `${SETTINGS_BASE}?tab=workspace` },
-  { id: 'notifications', label: 'Уведомления', href: `${SETTINGS_BASE}?tab=notifications` },
   { id: 'integrations', label: 'Интеграции', href: `${SETTINGS_BASE}?tab=integrations` },
+  { id: 'tariff', label: 'Тариф', href: `${SETTINGS_BASE}?tab=tariff` },
   { id: 'team', label: 'Команда', href: `${SETTINGS_BASE}?tab=team` },
 ];
 
@@ -60,13 +59,13 @@ export const ALL_SETTINGS_TABS: SettingsTab[] = [
  * разделов, поэтому старое значение `?tab=` отвечает переходом на новое место, а не 404 и не
  * молчаливым «первая вкладка».
  *
- * `specialist` и `organization` оба уходят в «Профиль»: там теперь и ФИО специалиста, и имя
- * организации. `billing` — в «Аккаунт» (тариф и место владелец назвал именно там). `install` уходит
- * в «Рабочее место» («Установка приложения на устройство — это в настройках интерфейса»).
+ * `specialist` и `organization` оба уходят в «Профиль». `billing` — в «Тариф», `install` —
+ * в «Рабочее место». Старые `account` и `notifications` обрабатывает страница: они ведут в
+ * отдельный личный аккаунт.
  */
 export const LEGACY_SETTINGS_TAB_REDIRECTS: Record<string, SettingsTabId> = {
   organization: 'profile',
   specialist: 'profile',
-  billing: 'account',
+  billing: 'tariff',
   install: 'workspace',
 };

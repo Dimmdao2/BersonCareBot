@@ -477,7 +477,7 @@ const requireOrganizationWorkspaceContextRequestLocal = cache(
     }
     stampStaffPrincipal(resolved.ctx, 'requireOrganizationWorkspaceContext');
     if (!allowCabinetRecovery && (await cabinetEntryIsBlocked(resolved.ctx.organizationId))) {
-      redirect(`${routePaths.settings}?tab=account`);
+      redirect(`${routePaths.settings}?tab=tariff`);
     }
     return resolved.ctx;
   },

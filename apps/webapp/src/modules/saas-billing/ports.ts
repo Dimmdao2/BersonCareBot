@@ -1,6 +1,9 @@
 import type { PaymentProviderPort, PaymentReceipt } from '@/modules/payments/providerPort';
 import type { PaymentProviderConfig } from '@/modules/payments/types';
-import type { OrgCommercialLifecycleState } from '@/modules/org-entitlements/types';
+import type {
+  OrgCommercialLifecycleState,
+  TariffQuotaMap,
+} from '@/modules/org-entitlements/types';
 import type { BillingPeriodOption } from './billingPeriodCatalog';
 import type { StoragePackagePurchaseOffer } from './storagePackage';
 
@@ -494,6 +497,9 @@ export type SaasBillingRepositoryPort = {
     Array<{
       id: string;
       name: string;
+      description?: string;
+      mechanics?: Record<string, boolean>;
+      quotas?: TariffQuotaMap;
       periodPrices: Array<{ billingPeriodCode: string; priceMinor: number }>;
     }>
   >;

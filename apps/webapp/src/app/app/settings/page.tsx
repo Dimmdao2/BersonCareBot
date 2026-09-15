@@ -16,11 +16,8 @@ import { requireOrganizationWorkspaceContext } from '@/app-layer/guards/requireR
 import { routePaths } from '@/app-layer/routes/paths';
 import { isSeatConsumingMember } from '@/modules/clinic-seats/service';
 import { resolveDoctorWorkspaceComposition } from '@/modules/doctor-workspace/composition';
-import {
-  entitlementsFromSnapshot,
-  resolveOwnOrgQuotaProjections,
-} from '@/modules/org-entitlements/service';
-import { MECHANIC_REGISTRY, MECHANICS } from '@/modules/org-entitlements/types';
+import { resolveOwnOrgQuotaProjections } from '@/modules/org-entitlements/service';
+import { MECHANIC_REGISTRY } from '@/modules/org-entitlements/types';
 import { orgBrandLogoUrl, type OrgBrandingManagementContext } from '@/modules/org-branding/service';
 import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
 import {
@@ -33,7 +30,7 @@ import { ADMIN_TAB_REDIRECTS, parseHealthArchiveProbeParam } from './adminSettin
 import { AppointmentReminderSettingsSection } from './AppointmentReminderSettingsSection';
 import { GoogleCalendarSection } from './GoogleCalendarSection';
 import { storagePackageOffersBody } from '@/app/api/clinic/billing/storagePackagePurchase';
-import { BillingSection, type BillingMechanicRow } from './BillingSection';
+import { BillingSection } from './BillingSection';
 import { describeCommercialAccessState } from './billingCommercialState';
 import { DoctorTodayPreferencesSection } from './DoctorTodayPreferencesSection';
 import { ClinicSlugSection } from './ClinicSlugSection';
@@ -59,13 +56,7 @@ import {
   listCardSpecialistsForPreview,
 } from '@/modules/clinic-public-card/cabinetPreviewSelection';
 import { BookingSoloSpecialistsSection } from './BookingSoloSpecialistsSection';
-import {
-  InstallSection,
-  LogoutSection,
-  loadProfileContent,
-  loadSecurityContent,
-} from '@/app/app/account/accountSections';
-import { loadStaffNotificationsSection } from '@/app/app/account/staffNotificationsSection';
+import { InstallSection } from '@/app/app/account/accountSections';
 import { ManagementBookingSections } from '../manage/ManagementBookingSections';
 import { PATIENT_DEFAULT_SURFACE } from '@/config/productSurfaces';
 import { parseDoctorTodayPreferences } from '@/modules/system-settings/doctorTodayPreferences';
@@ -107,14 +98,14 @@ function dedicatedBotWebhookPath(channel: 'telegram' | 'max', valueJson: unknown
 }
 
 /**
- * Разбор `?tab=`. Неизвестное значение — «Аккаунт», первая вкладка: адрес из старого письма или
+ * Разбор `?tab=`. Неизвестное значение — «Профиль», первая вкладка: адрес из старого письма или
  * чужой закладки не должен ронять экран, но и молча показывать «что-то» вместо запрошенного тоже
  * нельзя — прежние значения переводит `LEGACY_SETTINGS_TAB_REDIRECTS` ДО этого разбора.
  */
 function parseTab(raw: string | string[] | undefined): SettingsTabId {
   const value = typeof raw === 'string' ? raw : raw?.[0];
-  if (value === undefined) return 'account';
-  return SETTINGS_TAB_IDS.includes(value as SettingsTabId) ? (value as SettingsTabId) : 'account';
+  if (value === undefined) return 'profile';
+  return SETTINGS_TAB_IDS.includes(value as SettingsTabId) ? (value as SettingsTabId) : 'profile';
 }
 
 function clinicBookingUrl(slug: string): string {
@@ -122,11 +113,8 @@ function clinicBookingUrl(slug: string): string {
 }
 
 /**
- * Тариф, использование включённого и докупка объёма — содержимое вкладки «Аккаунт».
- *
- * Владелец 15.09.2026 назвал их именно там: «тариф с возможностью выбрать новый, доступное место…
- * Отмена подписки и автоплатёж — ага». Отдельной вкладки «Тариф и биллинг» больше нет; прежний
- * адрес `?tab=billing` отвечает переходом сюда.
+ * Сводка тарифа, использование и докупка объёма. Выбор и сравнение тарифов живут на отдельной
+ * странице `/app/settings/tariffs`, чтобы сводка не превращалась в каталог.
  */
 async function loadBillingContent(
   workspace: Awaited<ReturnType<typeof requireOrganizationWorkspaceContext>>,
@@ -167,30 +155,18 @@ async function loadBillingContent(
       () => deps.saasBilling.listStoragePackageOffers(workspace.organizationId),
     ),
   );
-  const entitlements = entitlementsFromSnapshot(snapshot);
-  // Owner ruling 2026-09-10: a solo cabinet never mentions team capacity — neither the seat count
-  // nor a «Режим клиники» row, which would read as a mode marker. The clinic mode owns those rows.
-  const hideTeamCapacity = composition === 'solo';
-  const mechanicRows: BillingMechanicRow[] = MECHANICS.filter(
-    (mechanic) => !(hideTeamCapacity && mechanic === 'clinic_team'),
-  ).map((mechanic) => ({
-    mechanic,
-    label: MECHANIC_REGISTRY[mechanic].label,
-    enabled: entitlements[mechanic],
-  }));
   // §5a stage 6.1 — "использовано из включённого". Own-org usage, not the platform report's
   // cross-org `getEnforcedQuotaUsage` (see resolveOwnOrgQuotaProjections).
   const quotaUsage = (
     await resolveOwnOrgQuotaProjections(deps.orgEntitlements, workspace.organizationId)
   )
-    .filter((projection) => !(hideTeamCapacity && projection.mechanic === 'clinic_team'))
+    .filter((projection) => projection.mechanic !== 'clinic_team' || composition !== 'solo')
     .map((projection) => ({ ...projection, label: MECHANIC_REGISTRY[projection.mechanic].label }));
 
   return (
     <BillingSection
       tariffName={snapshot.tariff?.name ?? null}
       commercialStateLabel={describeCommercialAccessState(snapshot.access)}
-      mechanics={mechanicRows}
       quotaUsage={quotaUsage}
       billing={billing}
       tariffChange={tariffChange}
@@ -217,6 +193,8 @@ export default async function SettingsPage({
   }
 
   const requestedTab = typeof sp.tab === 'string' ? sp.tab : sp.tab?.[0];
+  if (requestedTab === 'account') redirect(routePaths.account);
+  if (requestedTab === 'notifications') redirect(`${routePaths.account}?tab=notifications`);
   // Прежние адреса вкладок живут вечно редиректом: закладка и ссылка в письме не умирают от того,
   // что разделы переставили (владелец 15.09 — разбор настроек на смысловые блоки).
   const legacyTarget = requestedTab ? LEGACY_SETTINGS_TAB_REDIRECTS[requestedTab] : undefined;
@@ -227,10 +205,9 @@ export default async function SettingsPage({
   const cabinetAccess = await buildAppDeps().orgEntitlements.resolveCabinetAccess(
     workspace.organizationId,
   );
-  // Вход в кабинет закрыт коммерчески — человеку доступен ровно один разговор: тариф. Он живёт во
-  // вкладке «Аккаунт» (владелец 15.09: тариф, место, отмена подписки — там).
-  if (isCabinetEntryBlocked(cabinetAccess) && tab !== 'account') {
-    redirect(`${routePaths.settings}?tab=account`);
+  // При коммерческой блокировке остаётся доступной сводка тарифа и переход к его выбору.
+  if (isCabinetEntryBlocked(cabinetAccess) && tab !== 'tariff') {
+    redirect(`${routePaths.settings}?tab=tariff`);
   }
   const isGlobalAdmin = workspace.session.user.role === 'admin';
   const canManageOrganization = workspace.canManageOrganization || isGlobalAdmin;
@@ -266,15 +243,14 @@ export default async function SettingsPage({
    */
   const paymentsTabVisibility = await getMechanicSurfaceVisibility(workspace, 'payments');
   const visibleTabs: SettingsTabId[] = [
-    'account',
     'profile',
     'public',
     'branding',
     ...(composition === 'solo' ? (['booking'] as const) : []),
     ...(paymentsTabVisibility.directUrl ? (['payments'] as const) : []),
     'workspace',
-    'notifications',
     'integrations',
+    ...(canAccessBilling ? (['tariff'] as const) : []),
     ...(composition === 'clinic' && teamEntitlement.ok ? (['team'] as const) : []),
   ];
 
@@ -602,27 +578,7 @@ export default async function SettingsPage({
 
     let content: ReactNode = null;
 
-    if (tab === 'account') {
-      // Личные разделы — тем же модулем, что рисует `/app/account` персоналу клиники: второго
-      // такого экрана не заводится (см. `accountSections.tsx`).
-      const [profileContent, securityContent, billingContent] = await Promise.all([
-        loadProfileContent(deps, workspace.session.user.userId, workspace, {
-          // Владелец 15.09: у СОЛО удалить SMS fallback и «показывать мне врачебные экраны».
-          hideSoloOnlyToggles: composition === 'solo',
-          withLogout: false,
-        }),
-        loadSecurityContent(deps, workspace.session, workspace, false, false),
-        canAccessBilling ? loadBillingContent(workspace, composition) : Promise.resolve(null),
-      ]);
-      content = (
-        <>
-          {profileContent}
-          {securityContent}
-          {billingContent}
-          <LogoutSection />
-        </>
-      );
-    } else if (tab === 'profile') {
+    if (tab === 'profile') {
       content = (
         <>
           {cabinetRecoveryNotice}
@@ -746,8 +702,6 @@ export default async function SettingsPage({
           <InstallSection />
         </>
       );
-    } else if (tab === 'notifications') {
-      content = await loadStaffNotificationsSection(deps, workspace.session, workspace);
     } else if (tab === 'integrations') {
       content = shouldShowGoogleCalendarSettings(
         isPlatformIntegrationAvailable(integrationAvailability, 'google_calendar'),
@@ -760,6 +714,8 @@ export default async function SettingsPage({
           googleConnectedEmail={clinicAdminValue('google_connected_email')}
         />
       ) : null;
+    } else if (tab === 'tariff') {
+      content = canAccessBilling ? await loadBillingContent(workspace, composition) : null;
     }
 
     // Ни одна вкладка настроек не идёт в `full-height`. До 15.09 «Запись» была исключением, и это
