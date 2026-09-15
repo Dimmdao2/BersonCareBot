@@ -112,22 +112,22 @@ state after the refused merge: {"users_last_name":"Иванов",…,"duplicate_
 tests 2 / pass 2 / fail 0; proof_status=PASS scenarios=22 rollback=complete residual_rows=0
 
 # Э3, автоматические сценарии §18а против движка ЭТОГО клона
-bash /tmp/e3-rerun.sh docs/audit/evidence/merge-fio-on-canon-2026-09-15/e3-live-fio-scenarios.rerun.mts AUDIT_PGHOST
-clones referenced by the bundle: /home/dev/dev-projects/bcb-wt-conflict-screens
+bash docs/audit/evidence/merge-fio-on-canon-fix-2026-09-15/e3-rerun.sh docs/audit/evidence/merge-fio-on-canon-2026-09-15/e3-live-fio-scenarios.rerun.mts AUDIT_PGHOST
+engine bundled from: /home/dev/dev-projects/bcb-wt-conflict-screens/packages/platform-merge/src
 PASS 1a … 1b … 1c … 2a … 2b … 2c … 2d … 3a … 3b  (9/9)
 RESIDUE {"platform_users":0,"user_identity":0}
 
 # Э3, ручная дверь §18а
-bash /tmp/e3-rerun.sh docs/audit/evidence/merge-fio-on-canon-2026-09-15/e3-live-manual-fio.rerun.mts LIVE_PGHOST
+bash docs/audit/evidence/merge-fio-on-canon-fix-2026-09-15/e3-rerun.sh docs/audit/evidence/merge-fio-on-canon-2026-09-15/e3-live-manual-fio.rerun.mts LIVE_PGHOST
 PASS M1 … M2 … M3  (3/3)
 RESIDUE {"platform_users":0,"user_identity":0}
 ```
 
 **Про зашитые абсолютные пути (требование брифа).** Проверено перед тем, как верить зелёному:
 `rg -n "/home/dev/dev-projects/" docs/audit/evidence/merge-fio-on-canon-2026-09-15` показывает только
-`bcb-wt-conflict-screens`, и собранный бандл тоже ссылается ТОЛЬКО на этот клон (строка
-`clones referenced by the bundle` печатается самим прогоном). Движок берётся из
-`packages/platform-merge/src` этого клона.
+`bcb-wt-conflict-screens`. Обёртка прогона вдобавок ОТКАЗЫВАЕТ, если путь движка ведёт в другой клон,
+и печатает его: `engine bundled from: …/bcb-wt-conflict-screens/packages/platform-merge/src`. Именно
+этим отказом ловится прежняя ложная зелень, когда движок приезжал из `bcb-wt-fio-dialog`.
 
 **Дословные команды Э3 из отчёта аудита сегодня не воспроизводятся** — это факт, не претензия к
 находке F1, которая подтвердилась независимо. Три причины, все транспортные: банер
@@ -135,7 +135,7 @@ RESIDUE {"platform_users":0,"user_identity":0}
 (`SyntaxError: Identifier 'createRequire' has already been declared`); OS-пользователь `postgres` не
 читает каталог бокса, поэтому `createRequire(<repo>/apps/webapp/package.json)('pg')` даёт
 `MODULE_NOT_FOUND`; `await import(\`${sourceRoot}/pgPlatformUserMerge.ts\`)` остаётся динамическим, и
-голый `node` TypeScript не исполняет. `/tmp/e3-rerun.sh` меняет ровно транспорт — драйвер `pg`
+голый `node` TypeScript не исполняет. Обёртка `docs/audit/evidence/merge-fio-on-canon-fix-2026-09-15/e3-rerun.sh` меняет ровно транспорт — драйвер `pg`
 вкладывается в бандл, путь движка становится литералом ТОГО ЖЕ каталога — и ничего в предмете
 проверки: сценарии, фикстуры и утверждения остаются авторскими.
 
