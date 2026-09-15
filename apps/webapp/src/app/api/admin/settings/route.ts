@@ -54,6 +54,11 @@ import { normalizeAdminIncidentAlertConfigForAdminPatch } from '@/modules/admin-
 import { normalizeOperatorHealthAlertConfigForAdminPatch } from '@/modules/operator-alerts/operatorHealthAlertConfig';
 import { normalizeOperatorAlertFallbackEmail } from '@/modules/operator-alerts/operatorAlertFallbackEmail';
 import { normalizeTelegramLoginBotUsername } from '@/modules/system-settings/telegramLoginBotUsernameInput';
+import { fetchTelegramBotIdentity } from '@/modules/messaging/telegramBotIdentity';
+import {
+  parseClinicBotPublicConfig,
+  withClinicBotPublicConfig,
+} from '@/modules/system-settings/clinicBotConfig';
 import { parseSmtpOutboundPatchValue } from '@/modules/system-settings/smtpOutboundPatch';
 import { SERVER_RUNTIME_INTEGER_DEFINITIONS } from '@/modules/system-settings/runtimeConfig';
 import {
@@ -337,6 +342,20 @@ const PAYMENT_ENTITLEMENT_SETTING_KEYS = new Set([
   'booking_payment_providers',
   'booking_payment_enabled',
 ]);
+
+/**
+ * Отказы двери настройки бота словами администратора. Ни один из них не показывает токен: ответ
+ * Telegram на неверный токен содержит его в тексте запроса.
+ */
+const TELEGRAM_BOT_IDENTITY_MESSAGES: Readonly<Record<string, string>> = {
+  credential_missing:
+    'Сначала сохраните токен бота — имя подставится по нему само (Настройки → Боты доставки).',
+  telegram_rejected: 'Telegram не признал сохранённый токен бота. Проверьте токен и повторите.',
+  telegram_unreachable: 'Не удалось спросить Telegram — имя не проверено. Повторите попытку.',
+  integrator_unreachable: 'Не удалось спросить Telegram — имя не проверено. Повторите попытку.',
+  bot_without_username:
+    'У бота с этим токеном нет публичного имени (@username). Задайте его в @BotFather.',
+};
 
 const EXTERNAL_CALENDAR_ENTITLEMENT_SETTING_KEYS = new Set([
   'google_refresh_token',
@@ -1254,7 +1273,40 @@ export async function PATCH(request: Request) {
         { status: 400 },
       );
     }
-    normalizedValue = { value: checked.value };
+    // Имя, вписанное руками, сверяем с ТОКЕНОМ пациентского бота: именно этот бот присылает код
+    // входа и открывается ссылкой `t.me/<имя>`. Владелец 16.09.2026 получил в бою чужого бота —
+    // «там оказывается был какой то левый бот», — потому что имя и токен жили порознь и не
+    // сверялись ничем, а `app.is_telegram_login_configured()` считает канал настроенным по одному
+    // непустому имени. Непроверенное имя не сохраняем: молчащий вход хуже отказа при настройке.
+    if (checked.value) {
+      const identity = await fetchTelegramBotIdentity({ scope: 'platform', audience: 'patient' });
+      if (!identity.ok) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error: `telegram_login_bot_username_${identity.error}`,
+            message: TELEGRAM_BOT_IDENTITY_MESSAGES[identity.error],
+          },
+          { status: 400 },
+        );
+      }
+      if (identity.username.toLowerCase() !== checked.value.toLowerCase()) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error: 'telegram_login_bot_username_mismatch',
+            message:
+              `Сохранённый токен принадлежит боту @${identity.username}, а не @${checked.value}. ` +
+              'Впишите это имя или сначала замените токен.',
+          },
+          { status: 400 },
+        );
+      }
+      // Написание берём у самого Telegram: регистр в ссылке и виджете должен совпадать с ботом.
+      normalizedValue = { value: identity.username };
+    } else {
+      normalizedValue = { value: '' };
+    }
   }
 
   if (parsed.data.key === 'operator_alert_fallback_email') {
@@ -1401,10 +1453,93 @@ export async function PATCH(request: Request) {
       throw error;
     }
 
+  /**
+   * Имя пациентского бота НИКТО не вводит: оно принадлежит токену и берётся у Telegram сразу после
+   * того, как токен сохранён. Владелец 16.09.2026: «не понимаю почему нельзя его просто получать по
+   * токену не спрашивая». Спросить можно только после записи — токен читает интегратор, а не мы, и
+   * по сети он не передаётся.
+   *
+   * Если Telegram токен не признал, старое имя СНИМАЕМ: иначе `app.is_telegram_login_configured()`
+   * продолжит считать канал настроенным по имени бота, которого здесь уже нет, и вход снова будет
+   * молча не доходить — ровно то, на чём владелец потерял полчаса 15.09. Недозвон до Telegram имя не
+   * трогает (тот же бот мог остаться) — администратор видит предупреждение и повторяет.
+   */
+  let telegramLoginBotWarning: string | undefined;
+  let telegramLoginBotUsername: string | undefined;
+
+  if (parsed.data.key === 'therapygo_telegram_bot_token') {
+    const identity = await fetchTelegramBotIdentity({ scope: 'platform', audience: 'patient' });
+    const derived = identity.ok ? identity.username : null;
+    const mustClear =
+      !identity.ok && (identity.error === 'telegram_rejected' || identity.error === 'bot_without_username');
+    if (derived !== null || mustClear) {
+      try {
+        await deps.systemSettings.updateSetting(
+          'telegram_login_bot_username',
+          settingScopeForKey('telegram_login_bot_username'),
+          { value: derived ?? '' },
+          session.user.userId,
+          {
+            organizationId,
+            ...(allowGlobalSettings ? { allowPlatformGlobalFallbackWrite: true as const } : {}),
+          },
+        );
+        if (derived !== null) telegramLoginBotUsername = derived;
+      } catch {
+        telegramLoginBotWarning =
+          'Токен сохранён, но имя бота записать не удалось — откройте настройки входа и повторите.';
+      }
+    }
+    if (!identity.ok && telegramLoginBotWarning === undefined) {
+      telegramLoginBotWarning = TELEGRAM_BOT_IDENTITY_MESSAGES[identity.error];
+    }
+  }
+
+  /**
+   * Бот КЛИНИКИ — та же дверь, то же правило: публичное имя принадлежит токену, а не памяти
+   * администратора. Здесь оно нужно ссылке `t.me/<имя>` в брендированной поверхности, и владелец
+   * 16.09.2026 споткнулся именно об это расхождение. Спросить Telegram можно только после записи
+   * (токен читает интегратор), поэтому вписанное руками имя заменяем настоящим и говорим об этом.
+   */
+  if (parsed.data.key === 'clinic_telegram_bot_token' && organizationId) {
+    const identity = await fetchTelegramBotIdentity({ scope: 'clinic', organizationId });
+    const previous = parseClinicBotPublicConfig(setting.valueJson);
+    const derived = identity.ok ? identity.username : null;
+    const mustClear =
+      !identity.ok &&
+      (identity.error === 'telegram_rejected' || identity.error === 'bot_without_username');
+    if ((derived !== null && derived !== previous.botPublicId) || (mustClear && previous.botPublicId)) {
+      try {
+        setting = await deps.systemSettings.updateSetting(
+          parsed.data.key,
+          settingScope,
+          withClinicBotPublicConfig(setting.valueJson, {
+            botPublicId: derived,
+            inboundForwarding: previous.inboundForwarding,
+          }) as { value: unknown },
+          session.user.userId,
+          { organizationId },
+        );
+        if (derived !== null && previous.botPublicId && derived !== previous.botPublicId) {
+          telegramLoginBotWarning =
+            `Токен принадлежит боту @${derived} — имя бота исправлено на него.`;
+        }
+      } catch {
+        telegramLoginBotWarning =
+          'Токен сохранён, но имя бота записать не удалось — откройте настройки и повторите.';
+      }
+    }
+    if (!identity.ok && telegramLoginBotWarning === undefined) {
+      telegramLoginBotWarning = TELEGRAM_BOT_IDENTITY_MESSAGES[identity.error];
+    }
+  }
+
   const clientSetting = redactAdminSettingsForClient([setting])[0]!;
   return NextResponse.json({
     ok: true,
     setting: clientSetting,
+    ...(telegramLoginBotUsername !== undefined ? { telegramLoginBotUsername } : {}),
+    ...(telegramLoginBotWarning !== undefined ? { telegramLoginBotWarning } : {}),
     ...(domainBinding !== undefined ? { domainBinding } : {}),
   });
 }

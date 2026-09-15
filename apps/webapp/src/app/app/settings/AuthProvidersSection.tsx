@@ -74,6 +74,7 @@ export function AuthProvidersSection({
   appleOauthRedirectUri,
 }: AuthProvidersSectionProps) {
   const [telegramBot, setTelegramBot] = useState(telegramLoginBotUsername);
+  const [resolvingBot, setResolvingBot] = useState(false);
   const [maxBotNick, setMaxBotNick] = useState(maxLoginBotNickname);
   const [maxApiKey, setMaxApiKey] = useState(maxBotApiKey);
   const [vkLoginUrl, setVkLoginUrl] = useState(vkWebLoginUrl);
@@ -189,6 +190,34 @@ export function AuthProvidersSection({
     });
   }
 
+  /**
+   * Имя бота принадлежит токену — спрашиваем у Telegram, а не у администратора. Кнопка нужна для
+   * УЖЕ сохранённого токена: без неё единственный способ заполнить пустое имя — заново вписать
+   * токен, которого под рукой может не быть, а пустое имя молча выключает вход через Telegram.
+   */
+  async function resolveTelegramBotName(): Promise<void> {
+    setResolvingBot(true);
+    setError(null);
+    try {
+      const response = await fetch('/api/admin/telegram-bot-identity', { method: 'POST' });
+      const data = (await response.json().catch(() => ({}))) as {
+        ok?: boolean;
+        username?: string;
+        message?: string;
+      };
+      if (!response.ok || !data.ok || !data.username) {
+        setError(data.message ?? notificationText.commonSaveFailed);
+        return;
+      }
+      setTelegramBot(data.username);
+      toast.success(`Бот: @${data.username}`);
+    } catch {
+      setError(notificationText.commonSaveFailed);
+    } finally {
+      setResolvingBot(false);
+    }
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <Card className="border-border">
@@ -207,17 +236,27 @@ export function AuthProvidersSection({
             <DoctorField
               label="Имя бота"
               htmlFor="auth-telegram-bot"
-              hint="Можно вписать @имя, просто имя или ссылку t.me/имя — лишнее уберём сами. Это публичный username бота, не числовой id. Пустое значение отключает диплинк."
+              hint="Имя принадлежит токену: при сохранении токена пациентского бота оно подставляется само, а вписанное руками сверяется с токеном и не сохраняется, если это другой бот. Пустое значение отключает вход через Telegram."
             >
-              <Input
-                id="auth-telegram-bot"
-                type="text"
-                placeholder="bersoncare_bot"
-                value={telegramBot}
-                onChange={(e) => setTelegramBot(e.target.value)}
-                disabled={isPending}
-                autoComplete="off"
-              />
+              <div className="flex items-center gap-2">
+                <Input
+                  id="auth-telegram-bot"
+                  type="text"
+                  placeholder="bersoncare_bot"
+                  value={telegramBot}
+                  onChange={(e) => setTelegramBot(e.target.value)}
+                  disabled={isPending || resolvingBot}
+                  autoComplete="off"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={isPending || resolvingBot}
+                  onClick={() => void resolveTelegramBotName()}
+                >
+                  {resolvingBot ? 'Спрашиваем…' : 'Определить по токену'}
+                </Button>
+              </div>
             </DoctorField>
           </section>
 
