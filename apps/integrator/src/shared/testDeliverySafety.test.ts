@@ -109,20 +109,53 @@ describe('final TEST delivery safety gate', () => {
     expect(sent[0]?.payload.message).toEqual(outgoing.payload.message);
   });
 
-  it('does not confuse the Vitest TEST variable with a deployed TEST environment', () => {
-    expect(isTestDeployment({ TEST: 'true', VITEST: 'true' })).toBe(false);
-    expect(isTestDeployment({ TEST: 'true' })).toBe(true);
+  it('a runner flag cannot turn a deployed environment into production', () => {
+    // Раннер сам выставляет TEST/VITEST/VITEST_WORKER_ID, и раньше этого хватало, чтобы снять
+    // стену со стенда. Названная среда обязана побеждать флаг раннера в ОБЕ стороны.
+    expect(isTestDeployment({ TEST: 'true', VITEST: 'true', NODE_ENV: 'production' })).toBe(true);
+    expect(isTestDeployment({ TEST: 'true', NODE_ENV: 'production' })).toBe(true);
+    expect(
+      isLocalDevelopmentDeliverySuppressed({ NODE_ENV: 'development', VITEST_WORKER_ID: '1' }),
+    ).toBe(true);
+    // Собственный процесс раннера средой не называется и стендом не является.
+    expect(isTestDeployment({ TEST: 'true', VITEST: 'true', NODE_ENV: 'test' })).toBe(false);
+    expect(isLocalDevelopmentDeliverySuppressed({ NODE_ENV: 'test' })).toBe(false);
   });
 
-  it('local development suppresses delivery while the Vitest process does not', () => {
-    expect(isLocalDevelopmentDeliverySuppressed({ NODE_ENV: 'development' })).toBe(true);
-    expect(
-      isLocalDevelopmentDeliverySuppressed({
-        NODE_ENV: 'development',
-        VITEST_WORKER_ID: '1',
-      }),
-    ).toBe(false);
+  it('TEST suppresses email when the allowed-recipient list is absent entirely', async () => {
+    // Список получателей приезжает из окружения выкладки. Пропал список — доставка обязана
+    // замолчать, а не выпустить кого угодно: иначе стенд молча пишет живым людям.
+    process.env.NODE_ENV = 'production';
+    process.env.TEST = 'true';
+    const { adapter, sent } = recordingAdapter();
+    const port = createDefaultDispatchPort({ adapters: [adapter] });
+    const result = await port.dispatchOutgoing(intent('email', { email: 'someone@example.org' }));
+    expect(result).toEqual({ suppressedByEnvironment: true });
+    expect(sent).toEqual([]);
   });
+
+  it.each(['telegram', 'max', 'vk', 'smsc', 'web_push'])(
+    'on DEV the %s channel never reaches its adapter',
+    async (channel) => {
+      // Исключение на DEV ровно одно — почта в петлевой приёмник. Всё остальное обязано молчать,
+      // и проверяется это по КАЖДОМУ каналу, а не по одному телеграму. Набор каналов — тот же,
+      // что пропускает политика исходящих (`outboundMessagePolicy.ts`): telegram, max, vk, smsc,
+      // web_push и email. `sms` публичным входом не является и до адаптера не доходит вовсе.
+      process.env.NODE_ENV = 'development';
+      const { adapter, sent } = recordingAdapter();
+      const port = createDefaultDispatchPort({ adapters: [adapter] });
+      const result = await port.dispatchOutgoing(
+        intent(channel, {
+          chatId: 555000111,
+          userId: 'u-1',
+          phoneNormalized: '+79990000001',
+          pushUserId: 'u-1',
+        }),
+      );
+      expect(result).toEqual({ suppressedByEnvironment: true });
+      expect(sent).toEqual([]);
+    },
+  );
 
   it('on DEV sends email only through loopback SMTP and always suppresses telegram', async () => {
     process.env.NODE_ENV = 'development';

@@ -44,15 +44,30 @@ export function parseTestFlag(value: string | undefined): boolean {
   return /^(?:1|true|yes)$/iu.test((value ?? '').trim());
 }
 
-/** Vitest itself exports TEST=true; that is not the deployed TEST environment. */
+/**
+ * Развёрнутый стенд TEST против процесса тест-раннера.
+ *
+ * Раннер сам выставляет `TEST=true`, `VITEST=true` и `NODE_ENV=test` (замерено 15.09), поэтому
+ * отличать его приходится. Но флаг раннера НЕ СМЕЕТ ослаблять явно названную развёрнутую среду:
+ * лишний `VITEST` в окружении стенда раньше уводил `NODE_ENV=production, TEST=true` на путь
+ * продакшена и выпускал письмо неразрешённому получателю. Поэтому названная среда решает первой, а
+ * флагу раннера верим только там, где среда не названа.
+ */
 export function isTestDeployment(source: EnvironmentSource = process.env): boolean {
-  return parseTestFlag(source.TEST) && !parseTestFlag(source.VITEST);
+  if (!parseTestFlag(source.TEST)) return false;
+  if (source.NODE_ENV === 'production' || source.NODE_ENV === 'development') return true;
+  return !parseTestFlag(source.VITEST);
 }
 
+/**
+ * `NODE_ENV=development` — это и есть локальный DEV. Прежнее исключение по `VITEST_WORKER_ID`
+ * снято: раннер работает с `NODE_ENV=test` и в эту ветку не попадает вовсе, а на самом DEV лишний
+ * флаг раннера снимал заглушку со ВСЕХ каналов сразу.
+ */
 export function isLocalDevelopmentDeliverySuppressed(
   source: EnvironmentSource = process.env,
 ): boolean {
-  return source.NODE_ENV === 'development' && !source.VITEST_WORKER_ID;
+  return source.NODE_ENV === 'development';
 }
 
 export function readTestAccountIdentifiers(
