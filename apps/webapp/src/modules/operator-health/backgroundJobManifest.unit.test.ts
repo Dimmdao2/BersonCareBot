@@ -129,6 +129,10 @@ describe('background job manifest', () => {
     expect(findBackgroundJob('operator_health_critical')?.deadMansSwitch).toBe(true);
   });
 
+const HOST_SHELL_COMMANDS: Record<string, string> = {
+  container_restart_watchdog: '/opt/therapysto/pipeline/therapysto-container-restart-watchdog',
+};
+
   it('cron-строка не копирует Host/Origin/секрет и не глушит вывод в /dev/null', () => {
     for (const envId of BACKGROUND_JOB_ENVIRONMENT_IDS) {
       const environment = BACKGROUND_JOB_ENVIRONMENTS[envId];
@@ -141,7 +145,11 @@ describe('background job manifest', () => {
             ? (entry.backupScriptPath ??
               `/opt/backups/scripts/postgres-backup.sh ${entry.backupMode}`)
             : entry.kind === 'host_shell'
-              ? entry.hostCommand
+              ? // ⛔ НЕ `entry.hostCommand`: реализация возвращает ровно это поле, и сверка поля с
+                // самим собой истинна при ЛЮБОМ его значении — включая опечатку в пути, из-за
+                // которой сторож не запустится никогда. Держим здесь ДОСЛОВНЫЙ путь установленного
+                // файла, чтобы опечатка красила тест (§10a: тест не дублирует код).
+                HOST_SHELL_COMMANDS[entry.id]
               : `${environment.projectRoot}/deploy/host/run-internal-job.sh ${envId} ${entry.id}`;
         expect(command).toBe(expectedCommand);
 

@@ -64,3 +64,54 @@ test('рост RestartCount того же контейнера сигналит,
   );
   assert.deepEqual(replacementWithHigherCount, []);
 });
+
+// Контейнер исчезает между `ps` и `inspect` — обычное дело на выкатке. docker печатает строки по
+// уцелевшим и выходит ненулевым кодом; до этой правки `set -e` съедал ВЕСЬ вывод, и
+// `therapysto-status` терял список контейнеров целиком там, где прежний `docker ps` показал бы
+// оставшиеся. Тест держит именно поведение: частичный ответ доходит, отказ живого демона — нет.
+const runStatusWithDockerStub = (stubBody) => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'therapysto-docker-stub-'));
+  try {
+    const stub = path.join(dir, 'docker');
+    writeFileSync(stub, stubBody, { mode: 0o755 });
+    return spawnSync('bash', [watchdogPath, '--status'], {
+      encoding: 'utf8',
+      env: { ...process.env, PATH: `${dir}:${process.env.PATH}` },
+    });
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+};
+
+test('исчезнувший между ps и inspect контейнер не уносит с собой весь список', () => {
+  const row = [
+    'alive-id',
+    '/therapysto-blue-webapp-1',
+    '0',
+    '2026-09-15T08:00:00.000000000Z',
+    'unless-stopped',
+    '0',
+    'therapysto-app:fixture',
+    'running',
+  ].join('\t');
+
+  const partial = runStatusWithDockerStub(
+    `#!/usr/bin/env bash
+if [ "$1" = ps ]; then printf '%s\\n' alive-id gone-id; exit 0; fi
+printf '%s\\n' "${row}"
+echo 'Error: No such object: gone-id' >&2
+exit 1
+`,
+  );
+  assert.equal(partial.status, 0, partial.stderr);
+  assert.match(partial.stdout, /therapysto-blue-webapp-1 {2}status=running {2}restarts=0/);
+
+  const daemonDown = runStatusWithDockerStub(
+    `#!/usr/bin/env bash
+if [ "$1" = ps ]; then printf '%s\\n' alive-id; exit 0; fi
+echo 'Cannot connect to the Docker daemon' >&2
+exit 1
+`,
+  );
+  assert.notEqual(daemonDown.status, 0);
+});

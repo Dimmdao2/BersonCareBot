@@ -27,7 +27,19 @@ collect_snapshot() {
   [ -n "$ids_text" ] || return 0
   mapfile -t ids <<< "$ids_text"
 
-  docker inspect --format '{{.Id}}\t{{.Name}}\t{{.RestartCount}}\t{{.State.StartedAt}}\t{{.HostConfig.RestartPolicy.Name}}\t{{.HostConfig.RestartPolicy.MaximumRetryCount}}\t{{.Config.Image}}\t{{.State.Status}}' "${ids[@]}"
+  # Контейнер может исчезнуть между `ps` и `inspect` — на выкатке это норма, а не поломка. docker в
+  # таком случае печатает строки по уцелевшим и ВСЁ РАВНО выходит с ненулевым кодом; под `set -e`
+  # это роняло весь вывод, и `therapysto-status` терял список контейнеров целиком — там, где прежний
+  # `docker ps` просто не показал бы исчезнувший. Частичный ответ принимаем, молчание при живом
+  # отказе демона — нет: пустой вывод с ненулевым кодом возвращаем наверх как отказ.
+  local inspected
+  local rc=0
+  inspected=$(docker inspect --format '{{.Id}}\t{{.Name}}\t{{.RestartCount}}\t{{.State.StartedAt}}\t{{.HostConfig.RestartPolicy.Name}}\t{{.HostConfig.RestartPolicy.MaximumRetryCount}}\t{{.Config.Image}}\t{{.State.Status}}' "${ids[@]}") || rc=$?
+  if [ -n "$inspected" ]; then
+    printf '%s\n' "$inspected"
+    return 0
+  fi
+  return "$rc"
 }
 
 # Emits one TSV row per observed restart: name, id, previous count, current count. A replacement
