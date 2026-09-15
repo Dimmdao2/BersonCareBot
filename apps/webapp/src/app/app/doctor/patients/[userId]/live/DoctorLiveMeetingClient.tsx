@@ -164,7 +164,7 @@ export function DoctorLiveMeetingClient({
       <section className="relative flex min-h-[320px] min-w-0 overflow-hidden rounded-lg bg-black lg:min-h-0">
         {!activeCall.isMobile && (activeCall.isActiveRoute || !activeCall.activeCall) ? (
           <VideoMeetingStage
-            className="relative flex min-h-0 flex-1 bg-black"
+            className="relative flex min-h-0 flex-1 items-center justify-center bg-black text-sm text-white"
             session={activeSession}
             onHangup={activeCall.completeFromRenderer}
             onDiagnostic={activeCall.reportDiagnostic}
