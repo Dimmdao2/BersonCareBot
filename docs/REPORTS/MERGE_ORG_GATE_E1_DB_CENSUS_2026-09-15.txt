@@ -1,0 +1,47 @@
+COMMAND residual census:
+/home/dev/brain/host-orch/run-tests.sh "sudo -n -u postgres psql -X -h /var/run/postgresql -p 5432 -d bcb_webapp_dev -v ON_ERROR_STOP=1 -P pager=off -c \"SELECT * FROM (SELECT 'platform_users' AS table_name, count(*)::int AS proof_rows FROM platform_users WHERE id::text LIKE 'a5e10000-0000-4000-8000-%' UNION ALL SELECT 'be_organizations', count(*)::int FROM be_organizations WHERE id::text LIKE 'a5e10000-0000-4000-8000-%' UNION ALL SELECT 'doctor_notes', count(*)::int FROM doctor_notes WHERE user_id::text LIKE 'a5e10000-0000-4000-8000-%' UNION ALL SELECT 'user_phone_history', count(*)::int FROM user_phone_history WHERE platform_user_id::text LIKE 'a5e10000-0000-4000-8000-%' UNION ALL SELECT 'treatment_program_instances', count(*)::int FROM treatment_program_instances WHERE patient_user_id::text LIKE 'a5e10000-0000-4000-8000-%' UNION ALL SELECT 'treatment_program_instance_stages', count(*)::int FROM treatment_program_instance_stages WHERE id::text LIKE 'a5e10000-0000-4000-8000-%' UNION ALL SELECT 'treatment_program_instance_stage_items', count(*)::int FROM treatment_program_instance_stage_items WHERE id::text LIKE 'a5e10000-0000-4000-8000-%' UNION ALL SELECT 'tests', count(*)::int FROM tests WHERE id::text LIKE 'a5e10000-0000-4000-8000-%' UNION ALL SELECT 'test_attempts', count(*)::int FROM test_attempts WHERE id::text LIKE 'a5e10000-0000-4000-8000-%' OR patient_user_id::text LIKE 'a5e10000-0000-4000-8000-%' UNION ALL SELECT 'test_results', count(*)::int FROM test_results WHERE attempt_id::text LIKE 'a5e10000-0000-4000-8000-%' OR test_id::text LIKE 'a5e10000-0000-4000-8000-%' UNION ALL SELECT 'clinical_visit', count(*)::int FROM clinical_visit WHERE patient_user_id::text LIKE 'a5e10000-0000-4000-8000-%' UNION ALL SELECT 'clinical_complaint', count(*)::int FROM clinical_complaint WHERE patient_user_id::text LIKE 'a5e10000-0000-4000-8000-%' UNION ALL SELECT 'clinical_diagnosis', count(*)::int FROM clinical_diagnosis WHERE patient_user_id::text LIKE 'a5e10000-0000-4000-8000-%' UNION ALL SELECT 'clinical_anamnesis_trauma', count(*)::int FROM clinical_anamnesis_trauma WHERE patient_user_id::text LIKE 'a5e10000-0000-4000-8000-%' UNION ALL SELECT 'clinical_anamnesis_illness', count(*)::int FROM clinical_anamnesis_illness WHERE patient_user_id::text LIKE 'a5e10000-0000-4000-8000-%' UNION ALL SELECT 'clinical_anamnesis_lifestyle', count(*)::int FROM clinical_anamnesis_lifestyle WHERE patient_user_id::text LIKE 'a5e10000-0000-4000-8000-%' UNION ALL SELECT 'patient_lfk_assignments', count(*)::int FROM patient_lfk_assignments WHERE patient_user_id::text LIKE 'a5e10000-0000-4000-8000-%' UNION ALL SELECT 'lfk_complex_templates', count(*)::int FROM lfk_complex_templates WHERE id::text LIKE 'a5e10000-0000-4000-8000-%' UNION ALL SELECT 'symptom_trackings', count(*)::int FROM symptom_trackings WHERE platform_user_id::text LIKE 'a5e10000-0000-4000-8000-%' UNION ALL SELECT 'symptom_entries', count(*)::int FROM symptom_entries WHERE platform_user_id::text LIKE 'a5e10000-0000-4000-8000-%' UNION ALL SELECT 'user_channel_preferences', count(*)::int FROM user_channel_preferences WHERE platform_user_id::text LIKE 'a5e10000-0000-4000-8000-%' UNION ALL SELECT 'native_push_targets', count(*)::int FROM native_push_targets WHERE user_id::text LIKE 'a5e10000-0000-4000-8000-%') residual ORDER BY table_name;\""
+
+OUTPUT residual census:
+               table_name               | proof_rows
+----------------------------------------+------------
+ be_organizations                       |          0
+ clinical_anamnesis_illness             |          0
+ clinical_anamnesis_lifestyle           |          0
+ clinical_anamnesis_trauma              |          0
+ clinical_complaint                     |          0
+ clinical_diagnosis                     |          0
+ clinical_visit                         |          0
+ doctor_notes                           |          0
+ lfk_complex_templates                  |          0
+ native_push_targets                    |          0
+ patient_lfk_assignments                |          0
+ platform_users                         |          0
+ symptom_entries                        |          0
+ symptom_trackings                      |          0
+ test_attempts                          |          0
+ test_results                           |          0
+ tests                                  |          0
+ treatment_program_instance_stage_items |          0
+ treatment_program_instance_stages      |          0
+ treatment_program_instances            |          0
+ user_channel_preferences               |          0
+ user_phone_history                     |          0
+(22 rows)
+
+COMMAND NULL census:
+/home/dev/brain/host-orch/run-tests.sh "sudo -n -u postgres psql -X -h /var/run/postgresql -p 5432 -d bcb_webapp_dev -v ON_ERROR_STOP=1 -P pager=off -c \"SELECT * FROM (SELECT 'clinical_visit' AS category, count(*) FILTER (WHERE organization_id IS NULL)::int AS null_rows FROM clinical_visit UNION ALL SELECT 'clinical_complaint', count(*) FILTER (WHERE organization_id IS NULL)::int FROM clinical_complaint UNION ALL SELECT 'clinical_diagnosis', count(*) FILTER (WHERE organization_id IS NULL)::int FROM clinical_diagnosis UNION ALL SELECT 'clinical_anamnesis_trauma', count(*) FILTER (WHERE organization_id IS NULL)::int FROM clinical_anamnesis_trauma UNION ALL SELECT 'clinical_anamnesis_illness', count(*) FILTER (WHERE organization_id IS NULL)::int FROM clinical_anamnesis_illness UNION ALL SELECT 'clinical_anamnesis_lifestyle', count(*) FILTER (WHERE organization_id IS NULL)::int FROM clinical_anamnesis_lifestyle UNION ALL SELECT 'doctor_notes', count(*) FILTER (WHERE organization_id IS NULL)::int FROM doctor_notes UNION ALL SELECT 'symptom_trackings', count(*) FILTER (WHERE organization_id IS NULL)::int FROM symptom_trackings UNION ALL SELECT 'patient_lfk_assignments', count(*) FILTER (WHERE organization_id IS NULL)::int FROM patient_lfk_assignments UNION ALL SELECT 'treatment_program_instances', count(*) FILTER (WHERE organization_id IS NULL AND assignment_source = 'doctor')::int FROM treatment_program_instances) s ORDER BY category;\""
+
+OUTPUT NULL census:
+           category           | null_rows
+------------------------------+-----------
+ clinical_anamnesis_illness   |         0
+ clinical_anamnesis_lifestyle |         0
+ clinical_anamnesis_trauma    |         0
+ clinical_complaint           |         0
+ clinical_diagnosis           |         0
+ clinical_visit               |         0
+ doctor_notes                 |         0
+ patient_lfk_assignments      |         0
+ symptom_trackings            |         0
+ treatment_program_instances  |         0
+(10 rows)
