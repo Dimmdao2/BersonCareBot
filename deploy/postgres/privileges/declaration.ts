@@ -26086,6 +26086,17 @@ const REV10_CONTEXT = {
     password_login_issue_altcha_challenge: { port: 'webapp', sessionRole: 'app_patient',
       targetRole: 'app_pre_session', contextClass: 'pre_session', purpose: 'auth.password.altcha-issue',
       functionIdentity: 'app.password_login_issue_altcha_challenge(text,uuid,text,timestamp with time zone)' },
+    // Капча публичной заявки. Тот же одноразовый механизм, что у входа по паролю, и та же таблица
+    // `public.password_altcha_challenges`: задачка регистрируется при выдаче и гасится при приёме,
+    // иначе один решённый payload действителен всё окно жизни задачки сколько угодно раз. Класс
+    // `pre_session` — потому что дверь стоит ДО выбора арендатора и человека не знает: у неё на
+    // входе только производная от адреса почты.
+    public_lead_issue_altcha_challenge: { port: 'webapp', sessionRole: 'app_patient',
+      targetRole: 'app_pre_session', contextClass: 'pre_session', purpose: 'auth.public-lead.altcha-issue',
+      functionIdentity: 'app.public_lead_issue_altcha_challenge(text,uuid,text,timestamp with time zone)' },
+    public_lead_consume_altcha_challenge: { port: 'webapp', sessionRole: 'app_patient',
+      targetRole: 'app_pre_session', contextClass: 'pre_session', purpose: 'auth.public-lead.altcha-consume',
+      functionIdentity: 'app.public_lead_consume_altcha_challenge(text,uuid,text)' },
     email_password_find_login_candidate: { port: 'webapp', sessionRole: 'app_patient',
       targetRole: 'app_pre_session', contextClass: 'pre_session', purpose: 'auth.password.reset-candidate',
       functionIdentity: 'app.email_password_find_reset_candidate(text)' },
@@ -27929,6 +27940,38 @@ const REV10_CONTEXT = {
           'sort_order', 'is_active', 'archived_at'], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.clinic_public_directory_entries', columns: ['organization_id', 'is_published'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    // Обе двери капчи заявки принадлежат `app_seam_password_auth_owner` — тому же владельцу, что и
+    // двери капчи входа: таблица задачек одна, и второй владелец на ней означал бы второй набор
+    // прав и политик на те же строки.
+    'app.public_lead_issue_altcha_challenge(text,uuid,text,timestamp with time zone)': rev10Function({
+      owner: 'app_seam_password_auth_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false,
+      execute: ['app_pre_session'],
+      purpose: 'register one single-use public lead captcha challenge for the submitted email',
+      typedArgs: ['text', 'uuid', 'text', 'timestamp with time zone'],
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.password_altcha_challenges', columns: ['challenge_id', 'identifier_key',
+          'purpose', 'challenge_digest', 'expires_at', 'consumed_at'],
+          operations: ['SELECT' as const, 'INSERT' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.public_lead_consume_altcha_challenge(text,uuid,text)': rev10Function({
+      owner: 'app_seam_password_auth_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false,
+      execute: ['app_pre_session'],
+      purpose: 'burn one public lead captcha challenge exactly once',
+      typedArgs: ['text', 'uuid', 'text'],
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        // `SELECT … FOR UPDATE` требует ТАБЛИЧНОЙ привилегии модификации: поколоночного SELECT ему
+        // не хватает (AGENTS.md §1, «разбор по телу»).
+        { relation: 'public.password_altcha_challenges', columns: ['challenge_id', 'identifier_key',
+          'purpose', 'challenge_digest', 'expires_at', 'consumed_at'],
+          operations: ['SELECT' as const, 'UPDATE' as const],
+          tableOperations: ['SELECT' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
     'app.create_public_lead(uuid,text,text,text,text,text,text,text,text,timestamp with time zone)': rev10Function({

@@ -81,6 +81,14 @@ function field(
   } as BookingFormFieldRecord;
 }
 
+/**
+ * Одноразовость задачки капчи живёт в базе (`password_altcha_challenges.consumed_at`), поэтому
+ * здесь подменяется ровно эта грань: выдача помнит задачку, приём гасит её атомарно и ровно раз.
+ * Крипто-проверка при этом настоящая — повтор payload она принимает всегда, и отбить его может
+ * только гашение.
+ */
+let issuedChallenges = new Map<string, { identifierKey: string; digest: string; consumed: boolean }>();
+
 const altcha = createPasswordAltchaService({
   readAltchaRootSecret: async () => ROOT_SECRET,
   readCaptchaConfig: async () => ({
@@ -88,6 +96,39 @@ const altcha = createPasswordAltchaService({
     yandexClientKey: null,
     yandexServerKey: null,
   }),
+  registerPublicLeadAltchaChallenge: async ({
+    identifierKey,
+    challengeId,
+    challengeDigest,
+  }: {
+    identifierKey: string;
+    challengeId: string;
+    challengeDigest: string;
+  }) => {
+    issuedChallenges.set(challengeId, { identifierKey, digest: challengeDigest, consumed: false });
+    return true;
+  },
+  consumePublicLeadAltchaChallenge: async ({
+    identifierKey,
+    challengeId,
+    challengeDigest,
+  }: {
+    identifierKey: string;
+    challengeId: string;
+    challengeDigest: string;
+  }) => {
+    const row = issuedChallenges.get(challengeId);
+    if (
+      !row ||
+      row.consumed ||
+      row.identifierKey !== identifierKey ||
+      row.digest !== challengeDigest
+    ) {
+      return false;
+    }
+    row.consumed = true;
+    return true;
+  },
 } as never);
 
 const bookingFormPort = {
@@ -152,6 +193,7 @@ function baseBody(overrides: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   created = [];
+  issuedChallenges = new Map();
   configuredFields = [field('email', { isRequired: true }), field('message', { isRequired: true })];
   workspaceComposition = defaultDoctorWorkspaceComposition();
   fakes.rateLimited.mockResolvedValue(false);
@@ -215,6 +257,17 @@ describe('Л3 публичный приём заявки — отказ вмес
   it('пройденная дверь создаёт ровно одну заявку', async () => {
     const response = await post(baseBody({ captcha: await solvedCaptchaFor(EMAIL) }));
     expect(response.status).toBe(201);
+    expect(created).toHaveLength(1);
+  });
+
+  // Д4: решённый payload криптографически верен всё окно жизни задачки, поэтому «капча пройдена»
+  // без гашения означает «одно решение — сколько угодно заявок», то есть цены у капчи нет вовсе.
+  it('один решённый payload принимается ровно один раз', async () => {
+    const captcha = await solvedCaptchaFor(EMAIL);
+    const first = await post(baseBody({ captcha }));
+    const second = await post(baseBody({ captcha }));
+    expect([first.status, second.status]).toEqual([201, 403]);
+    expect(await second.json()).toMatchObject({ error: 'captcha_required' });
     expect(created).toHaveLength(1);
   });
 });

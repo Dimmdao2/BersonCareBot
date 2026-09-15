@@ -309,6 +309,8 @@ export function createPasswordAltchaService(port: PasswordLoginProtectionPort) {
       }
       const rootSecret = await port.readAltchaRootSecret();
       if (!rootSecret) return null;
+      const challengeId = randomUUID();
+      const identifierKey = publicLeadIdentifierKey(emailNormalized);
       const expiresAt = new Date(Date.now() + CHALLENGE_LIFETIME_MS);
       const challenge = await createChallenge({
         algorithm: 'PBKDF2/SHA-256',
@@ -318,12 +320,21 @@ export function createPasswordAltchaService(port: PasswordLoginProtectionPort) {
         expiresAt,
         hmacSignatureSecret: signatureSecret(rootSecret),
         data: {
-          challengeId: randomUUID(),
+          challengeId,
           purpose: PUBLIC_LEAD_PURPOSE,
-          identifierKey: publicLeadIdentifierKey(emailNormalized),
+          identifierKey,
         },
       });
-      return { provider: 'altcha', challenge, expiresAt: expiresAt.toISOString() };
+      // Задачка регистрируется ЗДЕСЬ, как у входа по паролю: гасить при приёме можно только то,
+      // что сервер выдал и помнит. Без этой строки один решённый payload оставался действителен
+      // всё окно жизни задачки сколько угодно раз.
+      const issued = await port.registerPublicLeadAltchaChallenge({
+        identifierKey,
+        challengeId,
+        challengeDigest: challengeDigest(challenge),
+        expiresAt,
+      });
+      return issued ? { provider: 'altcha', challenge, expiresAt: expiresAt.toISOString() } : null;
     },
 
     async verifyPublicLead(
@@ -345,10 +356,12 @@ export function createPasswordAltchaService(port: PasswordLoginProtectionPort) {
       }
       const payload = decodePublicLeadPayload(answer);
       const data = payload?.challenge.parameters.data;
+      const identifierKey = publicLeadIdentifierKey(emailNormalized);
       if (
         !payload ||
         data?.purpose !== PUBLIC_LEAD_PURPOSE ||
-        data.identifierKey !== publicLeadIdentifierKey(emailNormalized)
+        data.identifierKey !== identifierKey ||
+        typeof data.challengeId !== 'string'
       ) {
         return { verifiedExternally: false };
       }
@@ -360,7 +373,16 @@ export function createPasswordAltchaService(port: PasswordLoginProtectionPort) {
         deriveKey,
         hmacSignatureSecret: signatureSecret(rootSecret),
       });
-      return { verifiedExternally: result.verified };
+      if (!result.verified) return { verifiedExternally: false };
+      // Решение верное — но задачка одноразовая, и последнее слово за базой: она атомарно
+      // помечает строку `consumed_at` под `FOR UPDATE`. Повтор того же payload проиграет здесь,
+      // а не на крипто-проверке, которая его примет всегда.
+      const consumed = await port.consumePublicLeadAltchaChallenge({
+        identifierKey,
+        challengeId: data.challengeId,
+        challengeDigest: challengeDigest(payload.challenge),
+      });
+      return { verifiedExternally: consumed };
     },
   };
 }
