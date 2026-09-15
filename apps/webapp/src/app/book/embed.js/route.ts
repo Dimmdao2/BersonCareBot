@@ -13,6 +13,7 @@ const EMBED_SCRIPT = `(function () {
     }
   }
   var mode = (script.getAttribute("data-mode") || "iframe").toLowerCase();
+  var intake = (script.getAttribute("data-intake") || "booking").toLowerCase();
   var canonicalUrl = script.getAttribute("data-booking-url");
   var params = new URLSearchParams();
   var pass = [
@@ -53,7 +54,7 @@ const EMBED_SCRIPT = `(function () {
   var h = script.getAttribute("data-height") || "720";
   var frame = document.createElement("iframe");
   frame.src = url;
-  frame.title = "Запись";
+  frame.title = intake === "leads" ? "Заявка" : "Запись";
   frame.setAttribute("loading", "lazy");
   frame.style.border = "0";
   frame.style.width = w;

@@ -64,6 +64,7 @@ export type BookingFormService = {
     answers: FormAnswerInput[],
   ): Promise<void>;
   listPatientFields(organizationId: string): Promise<BookingFormFieldRecord[]>;
+  listPublicFields(organizationId: string, surface: FormSurface): Promise<BookingFormFieldRecord[]>;
   listAdminFields(organizationId: string, surface?: FormSurface): Promise<BookingFormFieldRecord[]>;
   upsertAdminField(
     organizationId: string,

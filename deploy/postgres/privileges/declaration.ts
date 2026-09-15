@@ -26418,7 +26418,11 @@ const REV10_CONTEXT = {
     list_public_booking_form_fields: { port: 'webapp', sessionRole: 'app_staff',
       targetRole: 'app_tenant_service', contextClass: 'tenant_service',
       purpose: 'booking.public-form-fields.read',
-      functionIdentity: 'app.list_public_booking_form_fields()' },
+      functionIdentity: 'app.list_public_booking_form_fields(text)' },
+    create_public_lead: { port: 'webapp', sessionRole: 'app_staff',
+      targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+      purpose: 'leads.public-submit.create',
+      functionIdentity: 'app.create_public_lead(uuid,text,text,text,text,text,text,text,text,timestamp with time zone)' },
     // Публичная визитка клиники `/{clinic}` (владелец 19.08). Анонимный посетитель читает ОДНУ
     // строку публичной проекции через дверь: прямой SELECT ему отозван целиком (42501).
     read_public_clinic_card: { port: 'webapp', sessionRole: 'app_patient',
@@ -27914,15 +27918,28 @@ const REV10_CONTEXT = {
     }),
     // Публичный близнец `app.read_current_patient_booking_form_fields()` возвращает
     // конфигурацию полей; единый флаг `is_active` определяет видимость в форме.
-    'app.list_public_booking_form_fields()': rev10Function({
+    'app.list_public_booking_form_fields(text)': rev10Function({
       owner: 'app_seam_public_booking_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
       execute: ['app_tenant_service'],
       purpose: 'return booking form field configuration of the published accepted organization',
-      typedArgs: [], volatility: 'STABLE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      typedArgs: ['text@1'], volatility: 'STABLE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
         { relation: 'public.be_booking_form_fields', columns: ['id', 'organization_id', 'field_key',
-          'field_type', 'label', 'placeholder', 'is_required', 'visible_to_patient', 'visible_to_staff',
+          'form_surface', 'field_type', 'label', 'placeholder', 'is_required', 'visible_to_patient', 'visible_to_staff',
           'sort_order', 'is_active', 'archived_at'], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.clinic_public_directory_entries', columns: ['organization_id', 'is_published'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.create_public_lead(uuid,text,text,text,text,text,text,text,text,timestamp with time zone)': rev10Function({
+      owner: 'app_seam_public_booking_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
+      execute: ['app_tenant_service'], purpose: 'create one verified public lead for the published accepted organization',
+      typedArgs: ['uuid@1', 'text@1', 'text@1', 'text@1', 'text@1', 'text@1', 'text@1', 'text@1', 'text@1', 'timestamptz@1'],
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.leads', columns: ['organization_id', 'platform_user_id', 'submitted_first_name',
+          'submitted_last_name', 'submitted_patronymic', 'submitted_email', 'submitted_phone', 'preferred_contact',
+          'message_text', 'source_surface', 'created_at', 'updated_at'], operations: ['INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.clinic_public_directory_entries', columns: ['organization_id', 'is_published'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
