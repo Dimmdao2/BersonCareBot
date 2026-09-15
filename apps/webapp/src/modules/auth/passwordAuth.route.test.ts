@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { UserPasswordCredentialsPort } from '@/infra/repos/pgUserPasswordCredentials';
+import type { EmailPasswordLookupPort } from '@/modules/auth/emailPasswordLookup/ports';
 import type { PasswordAltchaService } from '@/modules/auth/passwordAltcha';
 import type { PasswordChangeService } from '@/modules/auth/passwordChange';
 import type { StaffSecurityService } from '@/modules/staff-security/service';
@@ -11,6 +12,9 @@ type CheckRateLimit =
 type ConsumeChallenge = typeof import('@/modules/auth/emailAuth').consumeEmailChallengeCode;
 type ConsumeLatest =
   typeof import('@/modules/auth/emailAuth').consumeLatestEmailChallengeCodeForUser;
+type ConfirmChallenge = typeof import('@/modules/auth/emailAuth').confirmEmailChallenge;
+type ConfirmLatest =
+  typeof import('@/modules/auth/emailAuth').confirmLatestEmailChallengeCodeForUser;
 type StartEmailChallenge = typeof import('@/modules/auth/emailAuth').startEmailChallenge;
 type HashPin = typeof import('@/modules/auth/pinHash').hashPin;
 type IssueStaffLoginContinuation =
@@ -27,7 +31,7 @@ const fakes = vi.hoisted(() => ({
   checkRateLimit: vi.fn<CheckRateLimit>(),
   verifyAltcha: vi.fn<PasswordAltchaService['verify']>(),
   verifyPassword: vi.fn<UserPasswordCredentialsPort['verifyEmailPasswordForLogin']>(),
-  findPasswordUser: vi.fn<UserPasswordCredentialsPort['findVerifiedUserIdWithPassword']>(),
+  resolveAuthState: vi.fn<EmailPasswordLookupPort['resolveAuthState']>(),
   updatePassword: vi.fn<UserPasswordCredentialsPort['updatePasswordHash']>(),
   findUser: vi.fn<UserByPhonePort['findByUserId']>(),
   getVerifiedEmail: vi.fn<UserByPhonePort['getVerifiedEmailForUser']>(),
@@ -41,6 +45,8 @@ const fakes = vi.hoisted(() => ({
   changePassword: vi.fn<PasswordChangeService['changePassword']>(),
   consumeChallenge: vi.fn<ConsumeChallenge>(),
   consumeLatest: vi.fn<ConsumeLatest>(),
+  confirmChallenge: vi.fn<ConfirmChallenge>(),
+  confirmLatest: vi.fn<ConfirmLatest>(),
   startEmailChallenge: vi.fn<StartEmailChallenge>(),
   hashPassword: vi.fn<HashPin>(),
   issueStaffLoginContinuation: vi.fn<IssueStaffLoginContinuation>(),
@@ -75,6 +81,8 @@ vi.mock('@/modules/auth/authConfirmRateLimit', () => ({
 vi.mock('@/modules/auth/emailAuth', () => ({
   consumeEmailChallengeCode: fakes.consumeChallenge,
   consumeLatestEmailChallengeCodeForUser: fakes.consumeLatest,
+  confirmEmailChallenge: fakes.confirmChallenge,
+  confirmLatestEmailChallengeCodeForUser: fakes.confirmLatest,
   startEmailChallenge: fakes.startEmailChallenge,
   normalizeEmail: (value: string) => value.trim().toLowerCase(),
 }));
@@ -93,9 +101,9 @@ vi.mock('@/app-layer/di/buildAppDeps', () => ({
     passwordAltcha: { verify: fakes.verifyAltcha },
     userPasswordCredentials: {
       verifyEmailPasswordForLogin: fakes.verifyPassword,
-      findVerifiedUserIdWithPassword: fakes.findPasswordUser,
       updatePasswordHash: fakes.updatePassword,
     },
+    emailPasswordLookup: { resolveAuthState: fakes.resolveAuthState },
     userByPhone: {
       findByUserId: fakes.findUser,
       getVerifiedEmailForUser: fakes.getVerifiedEmail,
@@ -176,6 +184,7 @@ beforeEach(() => {
     ok: true,
     challengeId: '00000000-0000-4000-8000-000000000209',
   });
+  fakes.resolveAuthState.mockResolvedValue({ kind: 'verified_with_password', userId });
   fakes.isAuthChannelEnabled.mockResolvedValue(true);
   fakes.resolveOrganizationForUser.mockResolvedValue({
     ok: true,
@@ -188,8 +197,9 @@ beforeEach(() => {
 
 describe('email/password forgot HTTP boundary', () => {
   it('keeps password recovery email available when passwordless email login is disabled', async () => {
-    fakes.isAuthChannelEnabled.mockResolvedValue(false);
-    fakes.findPasswordUser.mockResolvedValue(userId);
+    fakes.isAuthChannelEnabled.mockImplementation(async (_channel, _surface, use) => {
+      return use === 'transactional';
+    });
     fakes.findUser.mockResolvedValue({ ...user, role: 'client' });
 
     const response = await forgotPassword(
@@ -264,7 +274,10 @@ describe('email/password login HTTP boundary', () => {
     // Решение владельца 14.09 («значит не пускать»): молчание Яндекса — не пропуск. И не неудачная
     // попытка: дверь входа не должна быть тронута вовсе, иначе чужая недоступность приближала бы
     // человека к паузе и к блокировке.
-    fakes.verifyAltcha.mockResolvedValueOnce({ verifiedExternally: false, providerUnavailable: true });
+    fakes.verifyAltcha.mockResolvedValueOnce({
+      verifiedExternally: false,
+      providerUnavailable: true,
+    });
 
     const response = await login(request());
 
@@ -294,11 +307,9 @@ describe('email/password login HTTP boundary', () => {
       redirectTo: '/app/doctor',
     });
     expect(fakes.setSession).toHaveBeenCalledOnce();
-    expect(fakes.getSetting).toHaveBeenCalledWith(
-      'doctor_staff_second_factor_required',
-      'doctor',
-      { organizationId: '00000000-0000-4000-8000-000000000301' },
-    );
+    expect(fakes.getSetting).toHaveBeenCalledWith('doctor_staff_second_factor_required', 'doctor', {
+      organizationId: '00000000-0000-4000-8000-000000000301',
+    });
   });
 
   it('allows a correct password on its matching explicit staff portal', async () => {
@@ -589,7 +600,9 @@ describe('email/password reset HTTP boundary', () => {
     });
 
   it('uses only the password-reset OTP purpose and keeps unknown/wrong-code failures neutral', async () => {
-    fakes.findPasswordUser.mockResolvedValueOnce(null).mockResolvedValueOnce(userId);
+    fakes.resolveAuthState
+      .mockResolvedValueOnce({ kind: 'free' })
+      .mockResolvedValueOnce({ kind: 'verified_with_password', userId });
     fakes.consumeChallenge.mockResolvedValue({ ok: false, code: 'invalid_code' });
     fakes.findUser.mockResolvedValue(user);
 
@@ -618,7 +631,7 @@ describe('email/password reset HTTP boundary', () => {
   });
 
   it('does not report reset success when the session-revocation port fails', async () => {
-    fakes.findPasswordUser.mockResolvedValue(userId);
+    fakes.resolveAuthState.mockResolvedValue({ kind: 'verified_with_password', userId });
     fakes.consumeChallenge.mockResolvedValue({ ok: true });
     fakes.invalidateSessions.mockRejectedValue(new Error('revocation unavailable'));
     fakes.findUser.mockResolvedValue(user);
@@ -631,7 +644,7 @@ describe('email/password reset HTTP boundary', () => {
   });
 
   it('blocks reset for a patient account even with a valid code (patients have no password)', async () => {
-    fakes.findPasswordUser.mockResolvedValue(userId);
+    fakes.resolveAuthState.mockResolvedValue({ kind: 'verified_with_password', userId });
     fakes.consumeChallenge.mockResolvedValue({ ok: true });
     fakes.findUser.mockResolvedValue({ ...user, role: 'client' });
 

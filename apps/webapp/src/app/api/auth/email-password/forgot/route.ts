@@ -1,34 +1,30 @@
 import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipal';
-import { logger } from '@/app-layer/logging/logger';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import { normalizeEmail, startEmailChallenge } from '@/modules/auth/emailAuth';
-import { OTP_RESEND_COOLDOWN_SEC } from '@/modules/auth/otpConstants';
-import { platformMailProfileForRecipientRole } from '@/modules/auth/mailProfile';
-import { enterStaffSecuritySelfPrincipal } from '@/app-layer/principal/staffSecuritySelfPrincipal';
+import { normalizeEmail } from '@/modules/auth/emailAuth';
+import {
+  AUTH_CHANNEL_DISABLED_ERROR,
+  isAuthChannelEnabled,
+} from '@/modules/auth/authChannelPolicy';
+import {
+  PASSWORD_RECOVERY_REQUEST_ACCEPTED,
+  requestPasswordRecoveryChallenge,
+} from '@/app-layer/auth/passwordRecovery';
 
 const bodySchema = z.object({
   email: z.string().email(),
 });
 
-function forgotPasswordNeutralResponse(challengeRetryAfter?: number) {
-  return NextResponse.json({
-    ok: true,
-    retryAfterSeconds: challengeRetryAfter ?? OTP_RESEND_COOLDOWN_SEC,
-  });
-}
-
 /**
  * Запрос сброса пароля: код на почту (тот же контур `email_challenges`, что и верификация регистрации).
- * Ответ **одинаковый** при отсутствии учётки, ошибке отправки и rate limit — без `challengeId` и без перечисления email.
- * Подтверждение: {@link consumeLatestEmailChallengeCodeForUser} или `POST …/reset` с `challengeId`.
- *
- * Contact-only email (созданный врачом, `email_verified_at` NULL, нет `user_password_credentials`) получает
- * setup-код через тот же email challenge; явный UI lookup уже перевёл пользователя в setup-password flow.
+ * Ответ **одинаковый** для любого состояния адреса — без `challengeId` и без признака setup/reset.
+ * Выбор reset/setup происходит только после проверки одноразового кода в `POST …/reset`.
  */
 export async function POST(request: Request) {
   stampBootstrapPrincipal('api/auth/email-password/forgot:POST', request);
+  if (!(await isAuthChannelEnabled('email', undefined, 'transactional'))) {
+    return NextResponse.json({ ok: false, error: AUTH_CHANNEL_DISABLED_ERROR }, { status: 503 });
+  }
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {
@@ -36,63 +32,6 @@ export async function POST(request: Request) {
   }
 
   const emailNorm = normalizeEmail(parsed.data.email);
-  const deps = buildAppDeps();
-  const userId = await deps.userPasswordCredentials.findVerifiedUserIdWithPassword(emailNorm);
-  if (userId) {
-    // The reset candidate root deliberately exposes only an id.  Adopt that exact user's
-    // self-scoped principal to load its role, then restore the pre-session bootstrap before
-    // issuing the challenge.  Sender identity follows the actual recipient, not this route.
-    enterStaffSecuritySelfPrincipal(
-      userId,
-      'api/auth/email-password/forgot:reset-candidate-profile',
-    );
-    const recipient = await deps.userByPhone.findByUserId(userId);
-    stampBootstrapPrincipal('api/auth/email-password/forgot:POST:challenge');
-    if (!recipient) {
-      return forgotPasswordNeutralResponse();
-    }
-    void startEmailChallenge(
-      userId,
-      emailNorm,
-      'password_reset',
-      platformMailProfileForRecipientRole(recipient.role),
-    ).then(
-      (result) => {
-        if (!result.ok && result.code === 'email_send_failed') {
-          logger.warn(
-            { route: 'auth/email-password/forgot', outcome: 'email_delivery_failed' },
-            'auth/email-password/forgot delivery failed',
-          );
-        }
-      },
-      () => {
-        logger.warn(
-          { route: 'auth/email-password/forgot', outcome: 'email_delivery_exception' },
-          'auth/email-password/forgot delivery failed',
-        );
-      },
-    );
-    return forgotPasswordNeutralResponse(OTP_RESEND_COOLDOWN_SEC);
-  }
-
-  const state = await deps.emailPasswordLookup.resolveAuthState(emailNorm);
-  if (state.kind === 'needs_email_setup') {
-    const challenge = await startEmailChallenge(
-      state.userId,
-      emailNorm,
-      'password_setup',
-      platformMailProfileForRecipientRole('client'),
-    );
-    if (challenge.ok) {
-      return NextResponse.json({
-        ok: true,
-        challengeId: challenge.challengeId,
-        retryAfterSeconds: challenge.retryAfterSeconds ?? OTP_RESEND_COOLDOWN_SEC,
-        setupRequired: true,
-      });
-    }
-    return forgotPasswordNeutralResponse(challenge.retryAfterSeconds);
-  }
-
-  return forgotPasswordNeutralResponse();
+  await requestPasswordRecoveryChallenge(emailNorm, 'forgot');
+  return NextResponse.json(PASSWORD_RECOVERY_REQUEST_ACCEPTED);
 }
