@@ -23,7 +23,9 @@ import {
   connect,
   faultFromEnv,
   installCandidate,
+  installCandidateNamedRootCapability,
   installDoctorContext,
+  installDoctorNamedRootContext,
   staffCapability,
 } from './doctor-medical-merge-door.proofHarness.mjs';
 
@@ -48,7 +50,7 @@ async function main() {
     await installCandidate(client, FAULT, say);
 
     const capability = await staffCapability(client);
-    const [clinicA, clinicB] = await clinicsWithDoctors(client, 2);
+    const [clinicA, clinicB] = await clinicsWithDoctors(client, 2, say);
     say(`clinic A=${clinicA.org_id} doctor=${clinicA.staff_id}`);
     say(`clinic B=${clinicB.org_id} doctor=${clinicB.staff_id}`);
 
@@ -105,7 +107,22 @@ async function main() {
     });
     say(`doctor A merge returned: ${JSON.stringify(first)}`);
 
-    // Что видит сам врач A после своего нажатия — его модалка, его роль.
+    // Индикатор врача — ровно тот запрос, которым его строит продукт (listPendingMedicalByOrganization).
+    const indicator = await client.query(
+      `SELECT count(*)::int AS pending
+         FROM public.patient_merge_candidates
+        WHERE organization_id = $1::uuid AND status = 'pending' AND reason LIKE 'medical_history:%'`,
+      [clinicA.org_id],
+    );
+    say(`doctor A indicator still shows pending medical conflicts: ${indicator.rows[0].pending}`);
+
+    // И его модалка: тот же конфликт, но уже с пометкой «учтено, ждём вторую клинику».
+    await clearDoctorContext(client);
+    const readCapability = await installCandidateNamedRootCapability(
+      client,
+      'app.read_staff_patient_medical_merge_conflict(uuid)',
+    );
+    await installDoctorNamedRootContext(client, readCapability, clinicA, [CONFLICT_A]);
     const ownView = await client.query(
       `SELECT app.read_staff_patient_medical_merge_conflict($1::uuid) AS snapshot`,
       [CONFLICT_A],
@@ -119,6 +136,7 @@ async function main() {
     const afterFirst = await client.query(
       `SELECT (SELECT merged_into_id::text FROM public.platform_users WHERE id = $2::uuid) AS duplicate_merged_into,
               (SELECT count(*)::int FROM public.user_password_credentials WHERE user_id = $2::uuid) AS duplicate_credentials,
+              (SELECT count(*)::int FROM public.user_password_credentials WHERE user_id = $1::uuid) AS target_credentials,
               (SELECT status || '/' || COALESCE(payload->>'doctorApproved', 'null')
                  FROM public.patient_merge_candidates WHERE id = $3::uuid) AS clinic_a_row,
               (SELECT status || '/' || COALESCE(payload->>'doctorApproved', 'null')
@@ -134,11 +152,17 @@ async function main() {
     if (a.duplicate_merged_into !== null) {
       throw new Error('the pair was merged while the second clinic still blocks it');
     }
+    if (a.duplicate_credentials !== 1 || a.target_credentials !== 1) {
+      throw new Error('identity rows moved even though no merge happened');
+    }
     if (a.clinic_a_row !== 'pending/true') {
       throw new Error(`clinic A row is '${a.clinic_a_row}', expected 'pending/true' (still on the indicator)`);
     }
     if (a.clinic_b_row !== 'pending/null') {
       throw new Error(`clinic B row is '${a.clinic_b_row}', expected an untouched 'pending/null'`);
+    }
+    if (indicator.rows[0].pending !== 1) {
+      throw new Error(`clinic A indicator shows ${indicator.rows[0].pending} pending conflicts, expected 1`);
     }
     if (snapshot == null || snapshot.doctorApproved !== true) {
       throw new Error('the doctor lost his own conflict, or it does not say that he already approved');

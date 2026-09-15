@@ -721,7 +721,10 @@ BEGIN
     )
   ) END INTO v_snapshot
     FROM (
-      SELECT c.*
+      -- Поимённо, а не `c.*`: владелец шва имеет КОЛОНОЧНЫЕ гранты, и звёздочка требует их на
+      -- все столбцы сразу — включая те, которые этой двери не нужны и потому не объявлены.
+      SELECT c.id, c.organization_id, c.anchor_user_id, c.candidate_user_id, c.reason,
+             c.created_at, c.payload
         FROM public.patient_merge_candidates c
        WHERE c.id = p_conflict_id
          AND c.organization_id = app.current_org_id()

@@ -48,7 +48,7 @@ async function main() {
     await installCandidate(client, FAULT, say);
 
     const capability = await staffCapability(client);
-    const [clinic] = await clinicsWithDoctors(client, 1);
+    const [clinic] = await clinicsWithDoctors(client, 1, say);
     say(`clinic=${clinic.org_id} doctor=${clinic.staff_id}`);
 
     // Фикстура намеренно постороннняя: две учётки БЕЗ записи в эту клинику и БЕЗ медицинской

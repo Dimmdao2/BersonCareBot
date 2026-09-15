@@ -20,6 +20,8 @@
  *   DOCTOR_MEDICAL_MERGE_DOOR_FAULT=privilege            (у двери отбирают объявленную таблицу)
  *   DOCTOR_MEDICAL_MERGE_DOOR_FAULT=two-clinic-blindness (дверь не видит блокер второй клиники)
  *   DOCTOR_MEDICAL_MERGE_DOOR_FAULT=staff-insert         (роли врача возвращают колоночный INSERT)
+ *
+ * `DOCTOR_MEDICAL_MERGE_DOOR_ECHO=1` печатает журнал каждого прогона, в том числе зелёного.
  */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
@@ -39,6 +41,7 @@ const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, '..', '..', '..');
 const MIGRATION = 'apps/webapp/db/drizzle-migrations/20260914T220000_doctor_resolves_medical_merge_conflict.sql';
 const PRIVILEGES = 'deploy/postgres/generated/privileges.bcb_webapp_dev.sql';
+const PORT_CONTEXT = 'deploy/postgres/generated/port-context-capabilities.bcb_webapp_dev.sql';
 
 /**
  * Процесс обязан быть от OS-пользователя `postgres`: кандидатные объекты и роль врача живут в одной
@@ -73,7 +76,7 @@ function stage(bodyFile) {
     '--external:cloudflare:sockets',
   ], { stdio: 'pipe' });
 
-  for (const relative of [MIGRATION, PRIVILEGES]) {
+  for (const relative of [MIGRATION, PRIVILEGES, PORT_CONTEXT]) {
     const destination = path.join(dir, 'repo', relative);
     fs.mkdirSync(path.dirname(destination), { recursive: true });
     fs.copyFileSync(path.join(repoRoot, relative), destination);
@@ -100,6 +103,8 @@ function proof(bodyFile, assertions) {
   const dir = stage(bodyFile);
   try {
     const output = runProof(dir);
+    // Журнал прогона нужен и когда всё зелёное: им отчитываются о живой проверке.
+    if (process.env.DOCTOR_MEDICAL_MERGE_DOOR_ECHO === '1') process.stdout.write(`${output}\n`);
     assert.match(output, /rolled back; fixture rows left in the database: 0/u, output);
     assertions(output);
   } finally {

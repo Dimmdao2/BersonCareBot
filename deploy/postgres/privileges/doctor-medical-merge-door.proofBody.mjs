@@ -45,7 +45,7 @@ async function main() {
 
     // --- fixture: one clinic, its doctor, two patient accounts with a real medical conflict ---
     const capability = await staffCapability(client);
-    const [clinic] = await clinicsWithDoctors(client, 1);
+    const [clinic] = await clinicsWithDoctors(client, 1, say);
     say(`fixture clinic=${clinic.org_id} doctor=${clinic.staff_id} login=${capability.login}`);
 
     for (const [id, name] of [
