@@ -43,6 +43,7 @@ const manualResolution = (targetId, duplicateId) => ({
     display_name: 'target',
     first_name: 'target',
     last_name: 'target',
+    patronymic: 'target',
     email: 'target',
   },
   bindings: { telegram: 'both', max: 'both', vk: 'both' },
@@ -591,6 +592,38 @@ test(
       import(pathToFileURL(enginePath).href),
     ]);
     const mergePlatformUsersInTransaction = engine[ENGINE_MERGE_EXPORT];
+    const { createHumanMergePrompt, createHumanMergeDecision } = await import(
+      pathToFileURL(path.join(path.dirname(enginePath), 'humanMergeDecision.ts')).href
+    );
+
+    /**
+     * §18а: автоматическое слияние идёт только после ответа человека «это ваш аккаунт?», поэтому
+     * живая проба зовёт движок ровно так, как его зовут двери продукта, — с ответом человека по
+     * каждому полю, о котором диалог его спросил. Ответ собирается из строк, уже лежащих в базе:
+     * подделать его мимо того, что человек видел, движок всё равно не даст.
+     */
+    const humanDecisionForPair = async (targetId, duplicateId) => {
+      const rows = await query(
+        `SELECT id::text AS id, display_name, first_name, last_name, patronymic, created_at
+           FROM platform_users WHERE id IN ($1::uuid, $2::uuid)`,
+        [targetId, duplicateId],
+      );
+      const summary = (id) => {
+        const row = rows.rows.find((candidate) => candidate.id === id);
+        return {
+          id: row.id,
+          displayName: row.display_name,
+          firstName: row.first_name,
+          lastName: row.last_name,
+          patronymic: row.patronymic,
+          createdAt: row.created_at,
+        };
+      };
+      const prompt = createHumanMergePrompt(summary(targetId), summary(duplicateId), duplicateId);
+      const fio = {};
+      for (const field of prompt.conflicts) fio[field] = { source: 'target' };
+      return createHumanMergeDecision(prompt, fio);
+    };
 
     if (typeof process.setuid === 'function' && process.getuid?.() === 0) {
       process.setgid('postgres');
@@ -662,7 +695,7 @@ test(
               scenario.reason ?? 'phone_bind',
               scenario.reason === 'manual'
                 ? { resolution: manualResolution(targetId, duplicateId) }
-                : undefined,
+                : { humanDecision: await humanDecisionForPair(targetId, duplicateId) },
             );
           } catch (error) {
             if (
