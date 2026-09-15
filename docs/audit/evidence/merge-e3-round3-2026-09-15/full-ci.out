@@ -1,0 +1,82 @@
+[2026-09-15T04:37:29+03:00] pid=1704350 WAITING for test lock :: pnpm install --frozen-lockfile && pnpm run ci
+[2026-09-15T04:37:29+03:00] pid=1704350 ACQUIRED test lock :: pnpm install --frozen-lockfile && pnpm run ci
+Scope: all 10 workspace projects
+Lockfile is up to date, resolution step is skipped
+Already up to date
+
+╭ Warning ─────────────────────────────────────────────────────────────────────╮
+│                                                                              │
+│   Ignored build scripts: esbuild@0.28.1, esbuild@0.28.2, msw@2.12.14,        │
+│   unrs-resolver@1.12.2.                                                      │
+│   Run "pnpm approve-builds" to pick which dependencies should be allowed     │
+│   to run scripts.                                                            │
+│                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────╯
+Done in 1.3s using pnpm v10.33.0
+
+> berson-care-bot@1.0.0 ci /home/dev/dev-projects/bcb-wt-fio-dialog
+> node scripts/ci-record.mjs
+
+
+> berson-care-bot@1.0.0 ci:steps /home/dev/dev-projects/bcb-wt-fio-dialog
+> node scripts/ci-steps.mjs
+
+ci-steps: PHASE 1/5 (2 lanes)
+ci-steps: START lint
+ci-steps: START typecheck
+
+> berson-care-bot@1.0.0 lint /home/dev/dev-projects/bcb-wt-fio-dialog
+> eslint . && node scripts/check-db-chokepoint.mjs && node scripts/check-no-new-raw-sql.mjs && node scripts/check-queue-port-boundary.mjs && node scripts/check-test-runner-visibility.mjs && node scripts/check-c4-migration-owned-function-bodies.mjs && pnpm --dir apps/webapp run lint
+
+
+> berson-care-bot@1.0.0 typecheck /home/dev/dev-projects/bcb-wt-fio-dialog
+> pnpm --dir packages/operator-db-schema run build && pnpm --dir packages/db-principal run build && pnpm --dir packages/shared-contracts run build && pnpm --dir packages/platform-merge run build && pnpm --dir packages/error-tracking run build && pnpm -r --parallel run typecheck
+
+
+> @bersoncare/operator-db-schema@1.0.0 build /home/dev/dev-projects/bcb-wt-fio-dialog/packages/operator-db-schema
+> tsc -p tsconfig.json
+
+
+> @bersoncare/db-principal@1.0.0 build /home/dev/dev-projects/bcb-wt-fio-dialog/packages/db-principal
+> tsc -p tsconfig.json
+
+
+> @bersoncare/shared-contracts@1.0.0 build /home/dev/dev-projects/bcb-wt-fio-dialog/packages/shared-contracts
+> tsc -p tsconfig.json
+
+
+> @bersoncare/platform-merge@1.0.0 build /home/dev/dev-projects/bcb-wt-fio-dialog/packages/platform-merge
+> tsc -p tsconfig.json
+
+
+> @bersoncare/error-tracking@1.0.0 build /home/dev/dev-projects/bcb-wt-fio-dialog/packages/error-tracking
+> tsc -p tsconfig.json
+
+Scope: 9 of 10 workspace projects
+apps/integrator typecheck$ tsc --noEmit
+apps/media-worker typecheck$ tsc --noEmit
+apps/mobile-shell typecheck$ tsc --noEmit -p tsconfig.json
+apps/webapp typecheck$ tsc --noEmit
+packages/db-principal typecheck$ tsc --noEmit -p tsconfig.json
+packages/error-tracking typecheck$ tsc --noEmit -p tsconfig.json
+packages/platform-merge typecheck$ tsc --noEmit -p tsconfig.json
+packages/shared-contracts typecheck$ tsc --noEmit -p tsconfig.json
+apps/mobile-shell typecheck: Done
+packages/shared-contracts typecheck: Done
+packages/db-principal typecheck: Done
+packages/platform-merge typecheck: Done
+check-db-chokepoint: OK
+packages/error-tracking typecheck: Done
+apps/media-worker typecheck: Done
+check-no-new-raw-sql: OK (integrator low-level DB port: 4; integrator migration/deploy SQL executor: 1; webapp low-level DB port: 5; package:db-principal low-level DB port: 2; package:platform-merge low-level DB port: 1; production debt: 0)
+apps/integrator typecheck: Done
+check-queue-port-boundary: OK
+check-test-runner-visibility: integrator: диск=129 раннер=129 невидимых=0
+check-test-runner-visibility: webapp: диск=559 раннер=559 невидимых=0
+check-test-runner-visibility: media-worker: диск=21 раннер=21 невидимых=0
+check-test-runner-visibility: OK
+check-c4-migration-owned-function-bodies: OK
+
+> @bersoncare/webapp@0.1.0 lint /home/dev/dev-projects/bcb-wt-fio-dialog/apps/webapp
+> eslint . && node ../../scripts/check-no-new-raw-sql.mjs && node ../../scripts/check-webapp-infra-import-boundary.mjs && node ../../scripts/check-webapp-infra-import-boundary.mjs --self-test && node ../../scripts/check-media-delivery-chokepoint.mjs && node ../../scripts/check-transaction-quota-port-boundary.mjs && node ../../scripts/check-transaction-quota-port-boundary.mjs --self-test && node ../../scripts/check-migration-privileges.mjs && node ../../scripts/check-migration-privileges.mjs --self-test && node ../../scripts/check-prorated-purchase-single-door.mjs && node ../../scripts/check-prorated-purchase-single-door.mjs --self-test && bash scripts/check-legacy-migrations-frozen.sh && bash scripts/check-drizzle-migration-order.sh && node scripts/check-media-upload-door.mjs && node scripts/check-media-upload-door.mjs --self-test && node scripts/check-safe-user-error-door.mjs && node scripts/check-safe-user-error-door.mjs --self-test --self-test-only && node scripts/check-safe-error-transport.mjs && node scripts/check-safe-error-transport.mjs --self-test && node scripts/check-appointment-word-single-source.mjs && node scripts/check-appointment-word-single-source.mjs --self-test && node scripts/check-notification-text-coverage.mjs --self-test && node scripts/check-notification-text-coverage.mjs
+
