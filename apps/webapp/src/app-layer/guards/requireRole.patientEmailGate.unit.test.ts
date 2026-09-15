@@ -107,4 +107,38 @@ describe('patient email requirement at protected data doors', () => {
       requirePatientApiBusinessAccess({ returnPath: '/app/patient/messages' }),
     ).resolves.toEqual({ ok: true, session: patientSession });
   });
+
+  it('keeps the email door on activation-pending aggregate reads', async () => {
+    fakes.patientClientBusinessGate.mockResolvedValue('need_activation');
+
+    await expect(
+      requirePatientApiBusinessAccess({
+        returnPath: '/app/patient',
+        businessAccess: 'optional',
+      }),
+    ).resolves.toEqual({
+      ok: true,
+      session: patientSession,
+      hasBusinessAccess: false,
+    });
+
+    fakes.patientEmailGateForProtectedData.mockResolvedValue({
+      decision: 'requirement',
+      shouldMarkFirstRequest: false,
+      blocksProtectedData: true,
+      emailVerified: false,
+      shouldPromptNow: true,
+    });
+
+    const result = await requirePatientApiBusinessAccess({
+      returnPath: '/app/patient',
+      businessAccess: 'optional',
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error('expected patient email refusal');
+    expect(result.response.status).toBe(403);
+    await expect(result.response.json()).resolves.toMatchObject({
+      error: 'patient_email_required',
+    });
+  });
 });
