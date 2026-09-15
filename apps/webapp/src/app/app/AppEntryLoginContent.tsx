@@ -89,7 +89,7 @@ export function AppEntryLoginContent({
         routeBoundMiniappEntry={routeBoundMiniappEntry}
         roleLoginPortal={roleLoginPortal}
         surfaceAuthPolicy={surfaceAuthPolicy}
-        preferEmailEntry={embeddedInSurfaceShell}
+        preferEmailEntry={embeddedInSurfaceShell || roleLoginPortal === 'doctor'}
         roleLoginInitialView={roleLoginInitialView}
       />
     </Suspense>

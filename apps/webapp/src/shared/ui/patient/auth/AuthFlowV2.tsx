@@ -1276,10 +1276,12 @@ export function AuthFlowV2({
   }
 
   if (step === 'email_password') {
-    // 'oauth_first' — реальный шаг «выбор входа» только когда есть куда возвращаться
-    // (OAuth/passkey-альтернативы); иначе (напр. doctor-портал — только email+пароль) кнопка
-    // вела в тупик — владелец, скрин входа после разлогина.
-    const canReturnToOauthFirst = emailPasswordReturn === 'oauth_first' && hasWebOauthAlternatives;
+    // У специалиста отдельного экрана выбора нет: email+пароль — первый экран, passkey остаётся
+    // вторичной ссылкой прямо на форме (владелец 16.09). У остальных дверей oauth_first остаётся
+    // реальным шагом выбора, когда есть OAuth/passkey-альтернативы.
+    const doctorEmailFirst = roleLoginPortal === 'doctor';
+    const canReturnToOauthFirst =
+      !doctorEmailFirst && emailPasswordReturn === 'oauth_first' && hasWebOauthAlternatives;
 
     const showEmailChromeBack =
       pwRecoveryPhase !== 'none' ||
@@ -1637,6 +1639,17 @@ export function AuthFlowV2({
                 >
                   Забыли пароль?
                 </Button>
+                {doctorEmailFirst && passkeyEnabled ? (
+                  <Button
+                    type="button"
+                    variant="link"
+                    className={authLinkButtonClass}
+                    disabled={loading}
+                    onClick={() => void startPasskeyLogin()}
+                  >
+                    Войти с Passkey
+                  </Button>
+                ) : null}
                 {emailOtpEnabled ? (
                   <Button
                     type="button"
