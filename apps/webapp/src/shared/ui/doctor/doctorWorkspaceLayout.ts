@@ -73,6 +73,16 @@ export const DOCTOR_FULL_HEIGHT_PAGE_CLASS =
   'mx-auto w-full max-w-7xl flex min-h-0 flex-1 flex-col overflow-hidden md:pb-[var(--doctor-page-bottom-gutter,18px)]';
 
 /**
+ * Контейнер страницы-ПОВЕРХНОСТИ (видеовстреча): то же, что full-height, но БЕЗ потолка ширины.
+ * Общий потолок `max-w-7xl` держит текстовые страницы читаемыми, а на поверхности он вредит: когда
+ * левое меню свёрнуто в полоску, свободного места становится больше 1280px, страница начинает
+ * центрироваться, и освободившаяся ширина уходит в серые поля по бокам вместо видео — заодно шапка
+ * перестаёт доставать до краёв (владелец 15.09.2026: «а шапка то почему по краям обрезана?»).
+ */
+export const DOCTOR_SURFACE_PAGE_CLASS =
+  'w-full flex min-h-0 flex-1 flex-col overflow-hidden md:pb-[var(--doctor-page-bottom-gutter,18px)]';
+
+/**
  * Mobile dashboard inset above the bottom-navigation row.
  * Continuous list/calendar surfaces intentionally do not use it: their white scroll surface
  * reaches the navigation and owns the small trailing space after the final row.
