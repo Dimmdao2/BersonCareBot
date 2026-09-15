@@ -269,12 +269,7 @@ async function main() {
       `INSERT INTO public.patient_merge_candidates(
          id, organization_id, anchor_user_id, candidate_user_id, reason, status
        ) VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, 'legacy_match', 'pending')`,
-      [
-        LEGACY_TARGET_CHOICE_PENDING,
-        clinic.org_id,
-        TARGET_CHOICE.target,
-        TARGET_CHOICE.duplicate,
-      ],
+      [LEGACY_TARGET_CHOICE_PENDING, clinic.org_id, TARGET_CHOICE.target, TARGET_CHOICE.duplicate],
     );
     say('fixture inserted (4 pairs, conflicting last names, medical history on both sides)');
 
@@ -301,7 +296,9 @@ async function main() {
          FROM public.patient_merge_candidates WHERE id = $1::uuid`,
       [lostConflict],
     );
-    say(`medical conflict orientation beside the legacy row: ${JSON.stringify(lostOrientation.rows[0])}`);
+    say(
+      `medical conflict orientation beside the legacy row: ${JSON.stringify(lostOrientation.rows[0])}`,
+    );
     const lostOutcome = await doctorPressesMerge(client, staff, clinic, lostConflict);
     say(`doctor merge WITHOUT a stored answer returned: ${JSON.stringify(lostOutcome)}`);
     const lost = await fioAfter(client, LOST);
@@ -321,12 +318,7 @@ async function main() {
     say(
       `next entry updated the same pending conflict: ${recoveredConflict === lostConflict ? 'yes' : 'NO'}`,
     );
-    const recoveredOutcome = await doctorPressesMerge(
-      client,
-      staff,
-      clinic,
-      recoveredConflict,
-    );
+    const recoveredOutcome = await doctorPressesMerge(client, staff, clinic, recoveredConflict);
     say(`doctor merge after the person's new answer returned: ${JSON.stringify(recoveredOutcome)}`);
     const recovered = await fioAfter(client, LOST);
     say(`FIO after the recovered loop: ${JSON.stringify(recovered)}`);
@@ -334,11 +326,7 @@ async function main() {
     // Та же перевёрнутая строка, но человек выбрал роль `target`. Это доказывает, что роль
     // относится к показанной учётке, а не к позиции anchor/candidate в служебной строке.
     const targetDecision = await answerFioQuestion(client, TARGET_CHOICE, 'target');
-    const targetBlocker = await deferredByMedicalBlocker(
-      client,
-      TARGET_CHOICE,
-      targetDecision,
-    );
+    const targetBlocker = await deferredByMedicalBlocker(client, TARGET_CHOICE, targetDecision);
     const targetConflict = await recordConflict(
       client,
       recordCapability,
@@ -368,15 +356,38 @@ async function main() {
     say(`foreign-pair answer returned: ${JSON.stringify(foreignOutcome)}`);
     say(`foreign-pair accounts unchanged: ${foreignUnchanged ? 'yes' : 'NO'}`);
 
+    say(
+      `FACTS: ${JSON.stringify({
+        medicalBlockerCarriedDecision: Boolean(blocker.humanFioDecision),
+        keptOutcome: keptOutcome.mergeOutcome,
+        kept,
+        lostOrientation: lostOrientation.rows[0],
+        lostOutcome: lostOutcome.mergeOutcome,
+        lost,
+        recoveredSameConflict: recoveredConflict === lostConflict,
+        recoveredOutcome: recoveredOutcome.mergeOutcome,
+        recovered,
+        targetOrientation: targetOrientation.rows[0],
+        targetOutcome: targetOutcome.mergeOutcome,
+        targetFio,
+        foreignOutcome: foreignOutcome.mergeOutcome,
+        foreignUnchanged,
+      })}`,
+    );
+
     const failures = [];
     if (keptOutcome.mergeOutcome !== 'merged') {
       failures.push(`scenario 1: expected merged, got ${keptOutcome.mergeOutcome}`);
     }
     if (kept.users_last_name !== 'Сидоров') {
-      failures.push(`scenario 1: platform_users.last_name is '${kept.users_last_name}', not the chosen 'Сидоров'`);
+      failures.push(
+        `scenario 1: platform_users.last_name is '${kept.users_last_name}', not the chosen 'Сидоров'`,
+      );
     }
     if (kept.identity_last_name !== 'Сидоров') {
-      failures.push(`scenario 1: user_identity.last_name is '${kept.identity_last_name}', not the chosen 'Сидоров'`);
+      failures.push(
+        `scenario 1: user_identity.last_name is '${kept.identity_last_name}', not the chosen 'Сидоров'`,
+      );
     }
     if (kept.duplicate_merged_into !== KEPT.target) {
       failures.push('scenario 1: the duplicate was not actually merged into the target');
@@ -394,16 +405,22 @@ async function main() {
       failures.push('scenario 2: fixture did not exercise the reversed medical-conflict row');
     }
     if (recoveredConflict !== lostConflict) {
-      failures.push('scenario 2: the next entry created another conflict instead of updating the pending row');
+      failures.push(
+        'scenario 2: the next entry created another conflict instead of updating the pending row',
+      );
     }
     if (recoveredOutcome.mergeOutcome !== 'merged') {
       failures.push(`scenario 2: expected recovered merge, got ${recoveredOutcome.mergeOutcome}`);
     }
     if (recovered.users_last_name !== 'Сидоров') {
-      failures.push(`scenario 2: platform_users.last_name is '${recovered.users_last_name}', not the newly chosen 'Сидоров'`);
+      failures.push(
+        `scenario 2: platform_users.last_name is '${recovered.users_last_name}', not the newly chosen 'Сидоров'`,
+      );
     }
     if (recovered.identity_last_name !== 'Сидоров') {
-      failures.push(`scenario 2: user_identity.last_name is '${recovered.identity_last_name}', not the newly chosen 'Сидоров'`);
+      failures.push(
+        `scenario 2: user_identity.last_name is '${recovered.identity_last_name}', not the newly chosen 'Сидоров'`,
+      );
     }
     if (recovered.duplicate_merged_into !== LOST.target) {
       failures.push('scenario 2: the duplicate was not merged after the person answered again');
@@ -435,7 +452,9 @@ async function main() {
       say("RESULT: FAIL — the person's FIO answer does not survive the doctor door");
       process.exitCode = 1;
     } else {
-      say("RESULT: PASS — the person's chosen surname survived the defer, and an old row recovered after the next answer");
+      say(
+        "RESULT: PASS — the person's chosen surname survived the defer, and an old row recovered after the next answer",
+      );
     }
   } catch (err) {
     say(`RESULT: FAIL — ${err.code ? `${err.code} ` : ''}${err.message}`);
@@ -450,6 +469,7 @@ async function main() {
       [ALL_IDS],
     );
     say(`rolled back; fixture rows left in the database: ${check.rows[0].leftovers}`);
+    say(`ROLLBACK_FACTS: ${JSON.stringify({ fixtureRows: check.rows[0].leftovers })}`);
     await client.end();
   }
 }

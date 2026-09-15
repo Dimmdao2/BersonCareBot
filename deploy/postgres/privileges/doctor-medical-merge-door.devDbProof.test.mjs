@@ -88,7 +88,12 @@ function stage(bodyFile) {
     .readdirSync(path.join(repoRoot, 'node_modules/.pnpm'))
     .filter((entry) => entry.startsWith('@esbuild+linux-x64@'))
     .map((entry) =>
-      path.join(repoRoot, 'node_modules/.pnpm', entry, 'node_modules/@esbuild/linux-x64/bin/esbuild'),
+      path.join(
+        repoRoot,
+        'node_modules/.pnpm',
+        entry,
+        'node_modules/@esbuild/linux-x64/bin/esbuild',
+      ),
     )
     .find((candidate) => fs.existsSync(candidate));
   assert.ok(esbuild, 'esbuild недоступен — бандл проф-тела собрать нечем');
@@ -98,17 +103,21 @@ function stage(bodyFile) {
     cwd: repoRoot,
     stdio: 'pipe',
   });
-  execFileSync(esbuild, [
-    path.join(scriptDir, bodyFile),
-    '--bundle',
-    '--platform=node',
-    '--format=cjs',
-    `--outfile=${path.join(dir, 'proof.cjs')}`,
-    `--alias:pg=${path.join(repoRoot, 'apps/webapp/node_modules/pg')}`,
-    `--alias:@bersoncare/platform-merge=${path.join(repoRoot, 'packages/platform-merge/dist/index.js')}`,
-    '--external:pg-native',
-    '--external:cloudflare:sockets',
-  ], { stdio: 'pipe' });
+  execFileSync(
+    esbuild,
+    [
+      path.join(scriptDir, bodyFile),
+      '--bundle',
+      '--platform=node',
+      '--format=cjs',
+      `--outfile=${path.join(dir, 'proof.cjs')}`,
+      `--alias:pg=${path.join(repoRoot, 'apps/webapp/node_modules/pg')}`,
+      `--alias:@bersoncare/platform-merge=${path.join(repoRoot, 'packages/platform-merge/dist/index.js')}`,
+      '--external:pg-native',
+      '--external:cloudflare:sockets',
+    ],
+    { stdio: 'pipe' },
+  );
 
   for (const relative of [...MIGRATIONS, PRIVILEGES, PORT_CONTEXT]) {
     const destination = path.join(dir, 'repo', relative);
@@ -123,8 +132,16 @@ function runProof(dir) {
   try {
     return execFileSync(
       'sudo',
-      ['-n', '-u', 'postgres', 'env', `BCB_PROOF_REPO=${path.join(dir, 'repo')}`,
-       `BCB_PROOF_FAULT=${FAULT}`, '/usr/bin/node', path.join(dir, 'proof.cjs')],
+      [
+        '-n',
+        '-u',
+        'postgres',
+        'env',
+        `BCB_PROOF_REPO=${path.join(dir, 'repo')}`,
+        `BCB_PROOF_FAULT=${FAULT}`,
+        '/usr/bin/node',
+        path.join(dir, 'proof.cjs'),
+      ],
       { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 },
     );
   } catch (err) {
@@ -133,122 +150,250 @@ function runProof(dir) {
   }
 }
 
+function readJsonLine(output, label) {
+  const prefix = `${label}: `;
+  const lines = output.split('\n').filter((line) => line.startsWith(prefix));
+  assert.equal(lines.length, 1, `expected exactly one ${label} line:\n${output}`);
+  return JSON.parse(lines[0].slice(prefix.length));
+}
+
 function proof(bodyFile, assertions) {
   const dir = stage(bodyFile);
   try {
     const output = runProof(dir);
     // Журнал прогона нужен и когда всё зелёное: им отчитываются о живой проверке.
     if (process.env.DOCTOR_MEDICAL_MERGE_DOOR_ECHO === '1') process.stdout.write(`${output}\n`);
-    assert.match(output, /rolled back; fixture rows left in the database: 0/u, output);
+    assert.deepEqual(readJsonLine(output, 'ROLLBACK_FACTS'), { fixtureRows: 0 }, output);
     assertions(output);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
 }
 
-test('врач сливает медицинский конфликт целиком под своей рантайм-ролью', { skip: !ENABLED }, () => {
-  proof('doctor-medical-merge-door.proofBody.mjs', (output) => {
-    if (FAULT === 'privilege') {
-      assert.match(output, /RESULT: FAIL/u, output);
-      assert.match(output, /permission denied for table user_password_credentials/u, output);
-      return;
-    }
-    assert.match(output, /runtime role installed: session_user=bcb_dev_webapp_staff current_user=app_staff/u, output);
-    assert.match(output, /"mergeOutcome":"merged"/u, output);
-    assert.match(output, /RESULT: PASS/u, output);
-    assert.doesNotMatch(output, /permission denied/u, output);
-  });
-});
+test(
+  'врач сливает медицинский конфликт целиком под своей рантайм-ролью',
+  { skip: !ENABLED },
+  () => {
+    proof('doctor-medical-merge-door.proofBody.mjs', (output) => {
+      const facts = readJsonLine(output, 'FACTS');
+      assert.equal(facts.runtime.role, 'app_staff', output);
+      assert.equal(facts.runtime.org, facts.clinicOrg, output);
+      assert.equal(facts.mergeOutcome, 'merged', output);
+      assert.deepEqual(
+        facts.state,
+        {
+          duplicate_merged_into: '00000000-0000-4000-8000-00000000e1a1',
+          duplicate_credentials: 0,
+          target_visits: 2,
+          conflict_status: 'resolved',
+        },
+        output,
+      );
+    });
+  },
+);
 
-test('решение врача хранит комментарий, гасит pending и только явно отправляет обращение', { skip: !ENABLED }, () => {
-  proof('doctor-medical-merge-decision.proofBody.mjs', (output) => {
-    assert.match(output, /"target_marks":1,"duplicate_marks":1/u, output);
-    assert.match(output, /"support_rows":0,"pending_rows":0/u, output);
-    assert.match(output, /support refusal: .*"support_rows":1/u, output);
-    assert.match(output, /RESULT: PASS/u, output);
-  });
-});
+test(
+  'решение врача хранит комментарий, гасит pending и только явно отправляет обращение',
+  { skip: !ENABLED },
+  () => {
+    proof('doctor-medical-merge-decision.proofBody.mjs', (output) => {
+      const facts = readJsonLine(output, 'FACTS');
+      assert.deepEqual(
+        facts.local,
+        {
+          status: 'dismissed',
+          doctor_comment: 'Это разные люди; обращение в поддержку не требуется',
+          support_requested: false,
+          support_rows: 0,
+          pending_rows: 0,
+          target_marks: 1,
+          duplicate_marks: 1,
+        },
+        output,
+      );
+      assert.equal(
+        facts.details.doctorComment,
+        'Это разные люди; обращение в поддержку не требуется',
+        output,
+      );
+      assert.equal(facts.details.partyCount, 2, output);
+      assert.deepEqual(facts.details.contactValues, ['+79990000002', 'one@example.test'], output);
+      assert.equal(facts.details.resolvedByUserId, facts.details.expectedResolverUserId, output);
+      assert.equal(facts.details.initiatedByUserId, '00000000-0000-4000-8000-00000000a4c1', output);
+      assert.deepEqual(
+        facts.support,
+        {
+          status: 'escalated',
+          doctor_comment: 'Это разные люди; нужен разбор техподдержки',
+          support_requested: true,
+          support_rows: 1,
+        },
+        output,
+      );
+    });
+  },
+);
 
-test('конфликт в двух клиниках: первому врачу говорят правду, второй доводит слияние', { skip: !ENABLED }, () => {
-  proof('doctor-medical-merge-two-clinics.proofBody.mjs', (output) => {
-    if (FAULT === 'two-clinic-blindness' || FAULT === 'privilege') {
-      assert.match(output, /RESULT: FAIL/u, output);
-      return;
-    }
-    assert.match(output, /doctor A merge returned: .*"mergeOutcome":"awaiting_other_organization"/u, output);
-    assert.match(output, /doctor A pending conflicts after decision: 0/u, output);
-    assert.match(output, /"duplicate_merged_into":null/u, output);
-    assert.match(output, /doctor B merge returned: .*"mergeOutcome":"merged"/u, output);
-    assert.match(output, /RESULT: PASS/u, output);
-  });
-});
+test(
+  'конфликт в двух клиниках: первому врачу говорят правду, второй доводит слияние',
+  { skip: !ENABLED },
+  () => {
+    proof('doctor-medical-merge-two-clinics.proofBody.mjs', (output) => {
+      const facts = readJsonLine(output, 'FACTS');
+      assert.equal(facts.firstOutcome, 'awaiting_other_organization', output);
+      assert.equal(facts.pendingAfterFirst, 0, output);
+      assert.deepEqual(
+        facts.afterFirst,
+        {
+          duplicate_merged_into: null,
+          duplicate_credentials: 1,
+          target_credentials: 1,
+          clinic_a_row: 'resolved/true/Клиника A подтверждает совпадение',
+          clinic_b_row: 'pending/null',
+        },
+        output,
+      );
+      assert.equal(facts.secondOutcome, 'merged', output);
+      assert.deepEqual(
+        facts.afterSecond,
+        {
+          duplicate_merged_into: '00000000-0000-4000-8000-00000000d1a1',
+          duplicate_credentials: 0,
+          clinic_a_row: 'resolved',
+          clinic_b_row: 'resolved',
+          target_visits: 4,
+        },
+        output,
+      );
+    });
+  },
+);
 
 test('роль врача не может выписать себе основание для двери', { skip: !ENABLED }, () => {
   proof('doctor-medical-merge-forged-conflict.proofBody.mjs', (output) => {
-    if (FAULT === 'staff-insert') {
-      assert.match(output, /INSERT SUCCEEDED/u, output);
-      assert.match(output, /RESULT: FAIL/u, output);
-      return;
-    }
-    assert.match(output, /forgery refused: 42501 permission denied for table patient_merge_candidates/u, output);
-    assert.match(output, /"dup_creds":1/u, output);
-    assert.match(output, /RESULT: PASS/u, output);
+    const facts = readJsonLine(output, 'FACTS');
+    assert.equal(facts.forgeRefusal.code, '42501', output);
+    assert.equal(facts.doorOutcome, null, output);
+    assert.deepEqual(facts.state, { tgt_creds: 1, dup_creds: 1, forged_rows: 0 }, output);
   });
 });
 
-test('врач чужой организации не проходит дверь конфликта соседней клиники', { skip: !ENABLED }, () => {
-  // Ветки «под этой поломкой ждём FAIL» здесь намеренно НЕТ: она инвертирует сигнал и делает
-  // прогон под инъекцией зелёным. Этот сценарий обязан краснеть по-настоящему — им и доказывается,
-  // что снос сверки организации в двери набор замечает.
-  proof('doctor-medical-merge-foreign-org.proofBody.mjs', (output) => {
-    assert.match(output, /doctor B pressed merge on clinic A's conflict, door returned: .*"mergeOutcome":"conflict_not_found"/u, output);
-    assert.match(output, /"clinic_a_row":"pending\/null"/u, output);
-    assert.match(output, /"duplicate_merged_into":null/u, output);
-    assert.match(output, /RESULT: PASS/u, output);
-  });
-});
+test(
+  'врач чужой организации не проходит дверь конфликта соседней клиники',
+  { skip: !ENABLED },
+  () => {
+    // Ветки «под этой поломкой ждём FAIL» здесь намеренно НЕТ: она инвертирует сигнал и делает
+    // прогон под инъекцией зелёным. Этот сценарий обязан краснеть по-настоящему — им и доказывается,
+    // что снос сверки организации в двери набор замечает.
+    proof('doctor-medical-merge-foreign-org.proofBody.mjs', (output) => {
+      const facts = readJsonLine(output, 'FACTS');
+      assert.equal(facts.attempt.mergeOutcome, 'conflict_not_found', output);
+      assert.deepEqual(
+        facts.state,
+        {
+          duplicate_merged_into: null,
+          duplicate_credentials: 1,
+          target_credentials: 1,
+          clinic_a_row: 'pending/null',
+          clinic_b_row: 'pending/null',
+        },
+        output,
+      );
+    });
+  },
+);
 
-test('врач чужой организации не читает и не переписывает отказ соседней клиники', { skip: !ENABLED }, () => {
-  // Ветки «под этой поломкой ждём FAIL» здесь намеренно НЕТ: она инвертирует сигнал и красит
-  // прогон под инъекцией зелёным. Этот сценарий обязан краснеть по-настоящему.
-  proof('doctor-medical-merge-refusal-foreign-org.proofBody.mjs', (output) => {
-    // Сверяем ЗНАЧЕНИЯ из машиночитаемой строки, а не английские фразы журнала: переформулировка
-    // диагностики поведение не меняет и красить прогон не должна (§10a — тест не дублирует текст).
-    const facts = JSON.parse(/^FACTS: (.+)$/mu.exec(output)?.[1] ?? 'null');
-    assert.ok(facts, `в выводе пробы нет строки FACTS:\n${output}`);
-    assert.equal(facts.foreignRefusalAccepted, false, output);
-    assert.deepEqual(
-      facts.conflictAfterForeignRefusal,
-      {
-        status: 'pending',
-        doctor_comment: null,
-        support_requested: null,
-        resolved_by: null,
-        platform_requests: 0,
-      },
-      output,
-    );
-    assert.equal(typeof facts.ownTraceComment, 'string', output);
-    assert.deepEqual(facts.marks, { clinicA_target: 1, clinicA_duplicate: 1, clinicB_target: 0 }, output);
-    assert.equal(facts.foreignTraceRead, null, output);
-    assert.match(output, /RESULT: PASS/u, output);
-  });
-});
+test(
+  'врач чужой организации не читает и не переписывает отказ соседней клиники',
+  { skip: !ENABLED },
+  () => {
+    // Ветки «под этой поломкой ждём FAIL» здесь намеренно НЕТ: она инвертирует сигнал и красит
+    // прогон под инъекцией зелёным. Этот сценарий обязан краснеть по-настоящему.
+    proof('doctor-medical-merge-refusal-foreign-org.proofBody.mjs', (output) => {
+      // Сверяем ЗНАЧЕНИЯ из машиночитаемой строки, а не английские фразы журнала: переформулировка
+      // диагностики поведение не меняет и красить прогон не должна (§10a — тест не дублирует текст).
+      const facts = readJsonLine(output, 'FACTS');
+      assert.equal(facts.foreignRefusalAccepted, false, output);
+      assert.deepEqual(
+        facts.conflictAfterForeignRefusal,
+        {
+          status: 'pending',
+          doctor_comment: null,
+          support_requested: null,
+          resolved_by: null,
+          platform_requests: 0,
+        },
+        output,
+      );
+      assert.equal(facts.ownTraceComment, 'Клиника А: это разные люди, я их обоих веду', output);
+      assert.deepEqual(
+        facts.marks,
+        { clinicA_target: 1, clinicA_duplicate: 1, clinicB_target: 0 },
+        output,
+      );
+      assert.equal(facts.foreignTraceRead, null, output);
+    });
+  },
+);
 
-test('выбранное человеком ФИО переживает медицинский defer и одобрение врача', { skip: !ENABLED }, () => {
-  // Ветки «под этой поломкой ждём FAIL» здесь НЕТ намеренно: она инвертирует сигнал и красит
-  // прогон под инъекцией зелёным. Этот сценарий обязан краснеть по-настоящему.
-  proof('doctor-medical-merge-fio.proofBody.mjs', (output) => {
-    assert.match(output, /automatic merge deferred by the medical blocker; answer carried out with it: yes/u, output);
-    assert.match(output, /stored human FIO answer = yes/u, output);
-    assert.match(output, /doctor merge returned: .*"mergeOutcome":"merged"/u, output);
-    assert.match(output, /"users_last_name":"Сидоров"/u, output);
-    assert.match(output, /"identity_last_name":"Сидоров"/u, output);
-    assert.match(output, /doctor merge WITHOUT a stored answer returned: .*"mergeOutcome":"fio_decision_required"/u, output);
-    assert.match(output, /source target on reversed row returned: .*"mergeOutcome":"merged"/u, output);
-    assert.match(output, /source target FIO after merge: .*"users_last_name":"Иванов".*"identity_last_name":"Иванов"/u, output);
-    assert.match(output, /foreign-pair answer returned: .*"mergeOutcome":"fio_decision_required"/u, output);
-    assert.match(output, /foreign-pair accounts unchanged: yes/u, output);
-    assert.match(output, /RESULT: PASS/u, output);
-  });
-});
+test(
+  'выбранное человеком ФИО переживает медицинский defer и одобрение врача',
+  { skip: !ENABLED },
+  () => {
+    // Ветки «под этой поломкой ждём FAIL» здесь НЕТ намеренно: она инвертирует сигнал и красит
+    // прогон под инъекцией зелёным. Этот сценарий обязан краснеть по-настоящему.
+    proof('doctor-medical-merge-fio.proofBody.mjs', (output) => {
+      const facts = readJsonLine(output, 'FACTS');
+      assert.equal(facts.medicalBlockerCarriedDecision, true, output);
+      assert.equal(facts.keptOutcome, 'merged', output);
+      assert.deepEqual(
+        facts.kept,
+        {
+          users_last_name: 'Сидоров',
+          users_display_name: 'Сидоров Пётр',
+          identity_last_name: 'Сидоров',
+          duplicate_merged_into: '00000000-0000-4000-8000-00000000f2a1',
+        },
+        output,
+      );
+      assert.deepEqual(
+        facts.lostOrientation,
+        {
+          anchor: '00000000-0000-4000-8000-00000000f2b2',
+          candidate: '00000000-0000-4000-8000-00000000f2b1',
+        },
+        output,
+      );
+      assert.equal(facts.lostOutcome, 'fio_decision_required', output);
+      assert.equal(facts.lost.duplicate_merged_into, null, output);
+      assert.equal(facts.recoveredSameConflict, true, output);
+      assert.equal(facts.recoveredOutcome, 'merged', output);
+      assert.equal(facts.recovered.users_last_name, 'Сидоров', output);
+      assert.equal(facts.recovered.identity_last_name, 'Сидоров', output);
+      assert.equal(
+        facts.recovered.duplicate_merged_into,
+        '00000000-0000-4000-8000-00000000f2b1',
+        output,
+      );
+      assert.deepEqual(
+        facts.targetOrientation,
+        {
+          anchor: '00000000-0000-4000-8000-00000000f2d2',
+          candidate: '00000000-0000-4000-8000-00000000f2d1',
+        },
+        output,
+      );
+      assert.equal(facts.targetOutcome, 'merged', output);
+      assert.equal(facts.targetFio.users_last_name, 'Иванов', output);
+      assert.equal(facts.targetFio.identity_last_name, 'Иванов', output);
+      assert.equal(
+        facts.targetFio.duplicate_merged_into,
+        '00000000-0000-4000-8000-00000000f2d1',
+        output,
+      );
+      assert.equal(facts.foreignOutcome, 'fio_decision_required', output);
+      assert.equal(facts.foreignUnchanged, true, output);
+    });
+  },
+);

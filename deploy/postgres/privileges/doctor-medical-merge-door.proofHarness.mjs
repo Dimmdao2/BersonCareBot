@@ -57,8 +57,10 @@ function migrationSource(fault) {
   if (fault === 'fio-decision-not-persisted') {
     // Дверь записи конфликта перестаёт класть ответ человека про ФИО в строку конфликта — ровно то
     // состояние, из-за которого после одобрения врача выживала подпись, выбранная движком (§18а).
-    const marker = "|| pg_catalog.jsonb_build_object('humanFioDecision', p_human_fio_decision::jsonb)";
-    if (!source.includes(marker)) throw new Error('fault fio-decision-not-persisted: marker not found');
+    const marker =
+      "|| pg_catalog.jsonb_build_object('humanFioDecision', p_human_fio_decision::jsonb)";
+    if (!source.includes(marker))
+      throw new Error('fault fio-decision-not-persisted: marker not found');
     source = source.replace(marker, "|| '{}'::jsonb");
   }
   if (fault === 'two-clinic-blindness') {
@@ -72,17 +74,29 @@ function migrationSource(fault) {
     // Дверь перестаёт сверять, ЧЬЕЙ организации конфликт — ровно то, что держит §18б («разбирает
     // врач своей организации»). Прогон, который после этого остаётся зелёным, про принадлежность
     // конфликта ничего не доказывает.
-    const marker = 'AND candidate.organization_id = v_organization_id';
-    if (!source.includes(marker)) throw new Error('fault foreign-org-conflict: marker not found');
-    source = source.replace(marker, 'AND TRUE');
+    // The active path has two overloads: the latest five-argument wrapper validates the row, then
+    // calls the four-argument transfer door, which validates it again. The fault means the tenant
+    // wall is absent, so both live predicates must be removed; mutating either one alone leaves the
+    // other wall standing and makes the injector ineffective.
+    const markers = [
+      'AND candidate.organization_id = app.current_org_id()',
+      'AND candidate.organization_id = v_organization_id',
+    ];
+    for (const marker of markers) {
+      if (!source.includes(marker))
+        throw new Error(`fault foreign-org-conflict: marker not found: ${marker}`);
+      source = source.replace(marker, 'AND TRUE');
+    }
   }
   if (fault === 'support-always-escalates') {
     const marker = 'IF p_support_requested THEN\n    INSERT INTO public.admin_audit_log';
-    if (!source.includes(marker)) throw new Error('fault support-always-escalates: marker not found');
+    if (!source.includes(marker))
+      throw new Error('fault support-always-escalates: marker not found');
     source = source.replace(marker, 'IF TRUE THEN\n    INSERT INTO public.admin_audit_log');
   }
   if (fault === 'decision-stays-pending') {
-    const marker = "IF v_outcome = 'awaiting_other_organization' THEN\n    UPDATE public.patient_merge_candidates\n       SET status = 'resolved', resolved_at = pg_catalog.now(), resolved_by = p_actor_id";
+    const marker =
+      "IF v_outcome = 'awaiting_other_organization' THEN\n    UPDATE public.patient_merge_candidates\n       SET status = 'resolved', resolved_at = pg_catalog.now(), resolved_by = p_actor_id";
     if (!source.includes(marker)) throw new Error('fault decision-stays-pending: marker not found');
     source = source.replace(
       marker,
@@ -90,21 +104,30 @@ function migrationSource(fault) {
     );
   }
   if (fault === 'comment-not-saved') {
-    const marker = 'doctor_comment = pg_catalog.btrim(p_doctor_comment),\n         support_requested = p_support_requested';
+    const marker =
+      'doctor_comment = pg_catalog.btrim(p_doctor_comment),\n         support_requested = p_support_requested';
     if (!source.includes(marker)) throw new Error('fault comment-not-saved: marker not found');
-    source = source.replace(marker, "doctor_comment = NULL,\n         support_requested = p_support_requested");
+    source = source.replace(
+      marker,
+      'doctor_comment = NULL,\n         support_requested = p_support_requested',
+    );
   }
   if (fault === 'refusal-read-any-org') {
     // Дверь чтения следа отказа перестаёт сверять организацию конфликта, а §18б держит разбор за
     // врачом СВОЕЙ клиники. Прогон, зелёный после этого, про стену чтения не говорит ничего.
-    const marker = "AND c.organization_id = app.current_org_id()\n         AND c.status IN ('dismissed', 'escalated')";
+    const marker =
+      "AND c.organization_id = app.current_org_id()\n         AND c.status IN ('dismissed', 'escalated')";
     if (!source.includes(marker)) throw new Error('fault refusal-read-any-org: marker not found');
-    source = source.replace(marker, "AND TRUE\n         AND c.status IN ('dismissed', 'escalated')");
+    source = source.replace(
+      marker,
+      "AND TRUE\n         AND c.status IN ('dismissed', 'escalated')",
+    );
   }
   if (fault === 'refusal-write-any-org') {
     // Дверь записи отказа перестаёт сверять организацию конфликта. Приложение здесь не
     // подстраховывает: маршрут отдаёт в дверь `conflictId` из URL без единой сверки организации.
-    const marker = 'support_requested = p_support_requested\n   WHERE id = p_conflict_id\n     AND organization_id = app.current_org_id()';
+    const marker =
+      'support_requested = p_support_requested\n   WHERE id = p_conflict_id\n     AND organization_id = app.current_org_id()';
     if (!source.includes(marker)) throw new Error('fault refusal-write-any-org: marker not found');
     source = source.replace(
       marker,
@@ -114,7 +137,8 @@ function migrationSource(fault) {
   if (fault === 'approval-comment-not-saved') {
     const marker =
       'UPDATE public.patient_merge_candidates candidate\n     SET doctor_comment = pg_catalog.btrim(p_doctor_comment)';
-    if (!source.includes(marker)) throw new Error('fault approval-comment-not-saved: marker not found');
+    if (!source.includes(marker))
+      throw new Error('fault approval-comment-not-saved: marker not found');
     source = source.replace(
       marker,
       'UPDATE public.patient_merge_candidates candidate\n     SET doctor_comment = NULL',
@@ -176,7 +200,8 @@ function candidatePrivilegeStatements(installed) {
   // переигрываются целиком: сначала REVOKE артефакта, затем его GRANT'ы, в порядке файла. Иначе
   // снятый в декларации колоночный INSERT роли врача до прогона не доезжает, и прогон проверяет
   // старое состояние базы вместо кандидатного.
-  const doorTableRe = /^(GRANT|REVOKE) .* ON TABLE "public"\."patient_merge_candidates" (TO|FROM) /u;
+  const doorTableRe =
+    /^(GRANT|REVOKE) .* ON TABLE "public"\."patient_merge_candidates" (TO|FROM) /u;
   const newDoors =
     /^GRANT EXECUTE ON FUNCTION app\.(record_patient_medical_merge_conflict|transfer_staff_approved_platform_user_merge_data|read_staff_patient_medical_merge_conflict|read_staff_patient_medical_merge_refusal|refuse_staff_patient_medical_merge_conflict|resolve_platform_patient_medical_merge_conflicts)\(/u;
   // Фикстура «конфликт в двух клиниках» заводит вторую клинику (живая на DEV одна), а на INSERT в
@@ -246,7 +271,9 @@ export async function installCandidate(client, fault, say) {
     say("FAULT INJECTED: the door no longer sees another clinic's blocker");
   }
   if (fault === 'foreign-org-conflict') {
-    say("FAULT INJECTED: the door no longer checks that the conflict belongs to the doctor's organization");
+    say(
+      "FAULT INJECTED: the door no longer checks that the conflict belongs to the doctor's organization",
+    );
   }
   if (fault === 'fio-decision-not-persisted') {
     say("FAULT INJECTED: the conflict row no longer keeps the person's FIO answer");
@@ -347,7 +374,10 @@ export async function clinicsWithDoctors(client, count, say) {
       [staffId, actorRef],
     );
     clinics.push({ staff_id: staffId, org_id: orgId, actor_ref: actorRef, synthesized: true });
-    if (say) say(`clinic ${orgId} synthesized inside the rollback transaction (DEV has ${real.rows.length})`);
+    if (say)
+      say(
+        `clinic ${orgId} synthesized inside the rollback transaction (DEV has ${real.rows.length})`,
+      );
   }
   return clinics;
 }

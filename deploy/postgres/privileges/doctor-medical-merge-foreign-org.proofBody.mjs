@@ -95,11 +95,15 @@ async function main() {
         [conflictId, clinic.org_id, TARGET, DUPLICATE],
       );
     }
-    say('fixture inserted (2 accounts, clinical history in BOTH clinics, one pending row per clinic)');
+    say(
+      'fixture inserted (2 accounts, clinical history in BOTH clinics, one pending row per clinic)',
+    );
 
     // --- врач клиники Б подаёт в дверь conflictId клиники А ---
     const runtimeB = await installDoctorContext(client, capability, clinicB);
-    say(`doctor B runtime: session_user=${runtimeB.login} current_user=${runtimeB.role} org=${runtimeB.org}`);
+    say(
+      `doctor B runtime: session_user=${runtimeB.login} current_user=${runtimeB.role} org=${runtimeB.org}`,
+    );
     if (runtimeB.org !== clinicB.org_id) {
       throw new Error(`doctor B runtime org is ${runtimeB.org}, expected ${clinicB.org_id}`);
     }
@@ -139,7 +143,9 @@ async function main() {
       );
     }
     if (state.clinic_b_row !== 'pending/null') {
-      throw new Error(`clinic B's own row is '${state.clinic_b_row}', expected an untouched 'pending/null'`);
+      throw new Error(
+        `clinic B's own row is '${state.clinic_b_row}', expected an untouched 'pending/null'`,
+      );
     }
     if (state.duplicate_merged_into !== null) {
       throw new Error('the pair was merged by a doctor of another organization');
@@ -150,7 +156,10 @@ async function main() {
       );
     }
 
-    say("RESULT: PASS — a doctor of another organization is refused and clinic A's conflict is untouched");
+    say(`FACTS: ${JSON.stringify({ attempt, state })}`);
+    say(
+      "RESULT: PASS — a doctor of another organization is refused and clinic A's conflict is untouched",
+    );
   } catch (err) {
     say(`RESULT: FAIL — ${err.code ? `${err.code} ` : ''}${err.message}`);
     if (err.where) say(`  where: ${String(err.where)}`);
@@ -165,6 +174,7 @@ async function main() {
       [TARGET, DUPLICATE, CONFLICT_A, CONFLICT_B],
     );
     say(`rolled back; fixture rows left in the database: ${check.rows[0].leftovers}`);
+    say(`ROLLBACK_FACTS: ${JSON.stringify({ fixtureRows: check.rows[0].leftovers })}`);
     await client.end();
   }
 }

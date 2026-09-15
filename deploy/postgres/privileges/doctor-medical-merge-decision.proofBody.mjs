@@ -117,12 +117,9 @@ async function main() {
       throw new Error(`local refusal has the wrong observable state: ${JSON.stringify(localRow)}`);
     }
 
-    await openNamedRoot(
-      client,
-      clinic,
-      'app.read_staff_patient_medical_merge_refusal(uuid)',
-      [REFUSAL_LOCAL],
-    );
+    await openNamedRoot(client, clinic, 'app.read_staff_patient_medical_merge_refusal(uuid)', [
+      REFUSAL_LOCAL,
+    ]);
     const detail = await client.query(
       `SELECT app.read_staff_patient_medical_merge_refusal($1::uuid) AS snapshot`,
       [REFUSAL_LOCAL],
@@ -173,7 +170,23 @@ async function main() {
       throw new Error('support refusal did not create exactly one platform request');
     }
 
-    say('RESULT: PASS — both accounts keep the refusal trace; support follows the explicit answer; pending indicators are empty');
+    say(
+      `FACTS: ${JSON.stringify({
+        local: localRow,
+        details: {
+          doctorComment: snapshot.doctorComment,
+          partyCount: snapshot.parties.length,
+          contactValues: [...contactValues].sort(),
+          resolvedByUserId: snapshot.resolvedBy.userId,
+          expectedResolverUserId: clinic.staff_id,
+          initiatedByUserId: snapshot.initiatedBy.userId,
+        },
+        support: support.rows[0],
+      })}`,
+    );
+    say(
+      'RESULT: PASS — both accounts keep the refusal trace; support follows the explicit answer; pending indicators are empty',
+    );
   } catch (error) {
     say(`RESULT: FAIL — ${error.code ? `${error.code} ` : ''}${error.message}`);
     process.exitCode = 1;
@@ -184,6 +197,7 @@ async function main() {
       [TARGET, DUPLICATE],
     );
     say(`rolled back; fixture rows left in the database: ${residual.rows[0].rows}`);
+    say(`ROLLBACK_FACTS: ${JSON.stringify({ fixtureRows: residual.rows[0].rows })}`);
     await client.end();
   }
 }

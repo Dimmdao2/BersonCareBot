@@ -137,7 +137,9 @@ async function main() {
     const row = after.rows[0];
     say(`clinic A's conflict after the foreign refusal: ${JSON.stringify(row)}`);
     if (foreignRefusal) {
-      throw new Error("дверь ответила врачу ЧУЖОЙ организации успехом на отказ по конфликту клиники А");
+      throw new Error(
+        'дверь ответила врачу ЧУЖОЙ организации успехом на отказ по конфликту клиники А',
+      );
     }
     if (row.status !== 'pending' || row.doctor_comment !== null || row.resolved_by !== null) {
       throw new Error(`строку клиники А переписал врач чужой организации: ${JSON.stringify(row)}`);
@@ -193,7 +195,9 @@ async function main() {
 
     // --- Ч1: чужой врач читает след отказа соседней клиники ---
     const foreignSnapshot = await readRefusal(client, clinicB, CONFLICT_A);
-    say(`doctor B read clinic A's refusal trace, door returned: ${JSON.stringify(foreignSnapshot)}`);
+    say(
+      `doctor B read clinic A's refusal trace, door returned: ${JSON.stringify(foreignSnapshot)}`,
+    );
     if (foreignSnapshot !== null) {
       const contacts = (foreignSnapshot.parties ?? [])
         .flatMap((party) => (party.contacts ?? []).map((contact) => contact.value))
@@ -217,7 +221,9 @@ async function main() {
         foreignTraceRead: foreignSnapshot,
       })}`,
     );
-    say('RESULT: PASS — a doctor of another organization neither reads nor writes clinic A\'s refusal');
+    say(
+      "RESULT: PASS — a doctor of another organization neither reads nor writes clinic A's refusal",
+    );
   } catch (error) {
     say(`RESULT: FAIL — ${error.code ? `${error.code} ` : ''}${error.message}`);
     process.exitCode = 1;
@@ -230,6 +236,7 @@ async function main() {
       [TARGET, DUPLICATE, CONFLICT_A, CONFLICT_A],
     );
     say(`rolled back; fixture rows left in the database: ${residual.rows[0].rows}`);
+    say(`ROLLBACK_FACTS: ${JSON.stringify({ fixtureRows: residual.rows[0].rows })}`);
     await client.end();
   }
 }

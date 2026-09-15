@@ -94,11 +94,15 @@ async function main() {
         [conflictId, clinic.org_id, TARGET, DUPLICATE],
       );
     }
-    say('fixture inserted (2 accounts, clinical history in BOTH clinics, one pending row per clinic)');
+    say(
+      'fixture inserted (2 accounts, clinical history in BOTH clinics, one pending row per clinic)',
+    );
 
     // --- шаг 1: «слить» жмёт врач клиники A ---
     const runtimeA = await installDoctorContext(client, capability, clinicA);
-    say(`doctor A runtime: session_user=${runtimeA.login} current_user=${runtimeA.role} org=${runtimeA.org}`);
+    say(
+      `doctor A runtime: session_user=${runtimeA.login} current_user=${runtimeA.role} org=${runtimeA.org}`,
+    );
     const first = await mergePlatformUsersInTransaction(client, TARGET, DUPLICATE, 'projection', {
       medicalConflictApproval: {
         conflictId: CONFLICT_A,
@@ -134,7 +138,9 @@ async function main() {
 
     const a = afterFirst.rows[0];
     if (first.mergeOutcome !== 'awaiting_other_organization') {
-      throw new Error(`doctor A got '${first.mergeOutcome}', expected 'awaiting_other_organization'`);
+      throw new Error(
+        `doctor A got '${first.mergeOutcome}', expected 'awaiting_other_organization'`,
+      );
     }
     if (a.duplicate_merged_into !== null) {
       throw new Error('the pair was merged while the second clinic still blocks it');
@@ -143,18 +149,24 @@ async function main() {
       throw new Error('identity rows moved even though no merge happened');
     }
     if (a.clinic_a_row !== 'resolved/true/Клиника A подтверждает совпадение') {
-      throw new Error(`clinic A row is '${a.clinic_a_row}', expected a resolved approval with its comment`);
+      throw new Error(
+        `clinic A row is '${a.clinic_a_row}', expected a resolved approval with its comment`,
+      );
     }
     if (a.clinic_b_row !== 'pending/null') {
       throw new Error(`clinic B row is '${a.clinic_b_row}', expected an untouched 'pending/null'`);
     }
     if (indicator.rows[0].pending !== 0) {
-      throw new Error(`clinic A indicators still see ${indicator.rows[0].pending} pending conflicts`);
+      throw new Error(
+        `clinic A indicators still see ${indicator.rows[0].pending} pending conflicts`,
+      );
     }
 
     // --- шаг 2: «слить» жмёт врач клиники B ---
     const runtimeB = await installDoctorContext(client, capability, clinicB);
-    say(`doctor B runtime: session_user=${runtimeB.login} current_user=${runtimeB.role} org=${runtimeB.org}`);
+    say(
+      `doctor B runtime: session_user=${runtimeB.login} current_user=${runtimeB.role} org=${runtimeB.org}`,
+    );
     const second = await mergePlatformUsersInTransaction(client, TARGET, DUPLICATE, 'projection', {
       medicalConflictApproval: {
         conflictId: CONFLICT_B,
@@ -183,10 +195,23 @@ async function main() {
     }
     if (b.duplicate_merged_into !== TARGET) throw new Error('the pair did not actually merge');
     if (b.clinic_a_row !== 'resolved' || b.clinic_b_row !== 'resolved') {
-      throw new Error(`stale indicator: clinic A '${b.clinic_a_row}', clinic B '${b.clinic_b_row}'`);
+      throw new Error(
+        `stale indicator: clinic A '${b.clinic_a_row}', clinic B '${b.clinic_b_row}'`,
+      );
     }
 
-    say('RESULT: PASS — the first clinic got a truthful refusal, the second one completed the merge');
+    say(
+      `FACTS: ${JSON.stringify({
+        firstOutcome: first.mergeOutcome,
+        pendingAfterFirst: indicator.rows[0].pending,
+        afterFirst: a,
+        secondOutcome: second.mergeOutcome,
+        afterSecond: b,
+      })}`,
+    );
+    say(
+      'RESULT: PASS — the first clinic got a truthful refusal, the second one completed the merge',
+    );
   } catch (err) {
     say(`RESULT: FAIL — ${err.code ? `${err.code} ` : ''}${err.message}`);
     if (err.where) say(`  where: ${String(err.where)}`);
@@ -199,6 +224,7 @@ async function main() {
       [TARGET, DUPLICATE],
     );
     say(`rolled back; fixture rows left in the database: ${check.rows[0].leftovers}`);
+    say(`ROLLBACK_FACTS: ${JSON.stringify({ fixtureRows: check.rows[0].leftovers })}`);
     await client.end();
   }
 }
