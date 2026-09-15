@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -128,4 +128,44 @@ exit 1
 `,
   );
   assert.notEqual(daemonDown.status, 0);
+});
+
+// Живой прод 15.09: `therapysto-status` печатал восемь строк с пустыми `status=` и `image=` и без
+// имён контейнеров. Причина — `\t` в ТЕКСТЕ Go-шаблона: `docker inspect` отдаёт `--format` шаблону
+// как есть и escape-последовательности в тексте не разбирает, поэтому разделителем шли два символа
+// `\` и `t`, а вся строка попадала в первое поле. Заглушки выше это поймать не могли: они печатают
+// готовые строки и `--format` не смотрят. Проверяем то единственное, что здесь ломается, — что вне
+// `{{…}}` в шаблоне нет ни одного обратного слэша; табуляцию обязан давать `{{"\t"}}`.
+test('разделитель полей задан действием шаблона, а не escape в тексте', () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'therapysto-docker-fmt-'));
+  try {
+    const stub = path.join(dir, 'docker');
+    const captured = path.join(dir, 'format.txt');
+    writeFileSync(
+      stub,
+      `#!/usr/bin/env bash
+if [ "$1" = ps ]; then printf '%s\\n' only-id; exit 0; fi
+while [ "$#" -gt 0 ]; do
+  if [ "$1" = --format ]; then printf '%s' "$2" > ${JSON.stringify(captured)}; fi
+  shift
+done
+exit 1
+`,
+      { mode: 0o755 },
+    );
+    spawnSync('bash', [watchdogPath, '--status'], {
+      encoding: 'utf8',
+      env: { ...process.env, PATH: `${dir}:${process.env.PATH}` },
+    });
+
+    const format = readFileSync(captured, 'utf8');
+    assert.ok(format.includes('{{.RestartCount}}'), `шаблон не дошёл до docker: ${format}`);
+    const literalText = format.replace(/\{\{[^}]*\}\}/g, '');
+    assert.ok(
+      !literalText.includes('\\'),
+      `вне {{…}} шаблона есть escape, docker его не разберёт: ${JSON.stringify(literalText)}`,
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

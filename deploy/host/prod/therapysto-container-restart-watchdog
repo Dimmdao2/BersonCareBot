@@ -34,7 +34,15 @@ collect_snapshot() {
   # отказе демона — нет: пустой вывод с ненулевым кодом возвращаем наверх как отказ.
   local inspected
   local rc=0
-  inspected=$(docker inspect --format '{{.Id}}\t{{.Name}}\t{{.RestartCount}}\t{{.State.StartedAt}}\t{{.HostConfig.RestartPolicy.Name}}\t{{.HostConfig.RestartPolicy.MaximumRetryCount}}\t{{.Config.Image}}\t{{.State.Status}}' "${ids[@]}") || rc=$?
+  # Разделитель — ИМЕННО `{{"\t"}}`, а не `\t` в тексте шаблона: `docker inspect` отдаёт свой
+  # `--format` в Go-шаблон как есть, и обратный слэш в тексте остаётся двумя символами. Живой прод
+  # 15.09 печатал `…c69b\t/therapysto-green-webapp-1\trunning` — вся строка попадала в первое поле,
+  # а `therapysto-status` показывал восемь строк с пустыми `status=`, `image=` и без имён. В кавычках
+  # шаблон разбирает escape сам, поэтому табуляция получается настоящей.
+  local fmt='{{.Id}}{{"\t"}}{{.Name}}{{"\t"}}{{.RestartCount}}{{"\t"}}{{.State.StartedAt}}'
+  fmt+='{{"\t"}}{{.HostConfig.RestartPolicy.Name}}{{"\t"}}{{.HostConfig.RestartPolicy.MaximumRetryCount}}'
+  fmt+='{{"\t"}}{{.Config.Image}}{{"\t"}}{{.State.Status}}'
+  inspected=$(docker inspect --format "$fmt" "${ids[@]}") || rc=$?
   if [ -n "$inspected" ]; then
     printf '%s\n' "$inspected"
     return 0
