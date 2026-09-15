@@ -21,7 +21,7 @@ const MIGRATION = path.join(
 const PRIVILEGES = path.join(REPO ?? '', 'deploy/postgres/generated', `privileges.${DB}.sql`);
 
 /** Слепые поломки: каждая возвращает поверхность к тому состоянию, ради которого фикс и делался. */
-export const FAULTS = new Set(['', 'privilege', 'two-clinic-blindness', 'staff-insert']);
+export const FAULTS = new Set(['', 'privilege', 'two-clinic-blindness', 'staff-insert', 'foreign-org-conflict']);
 
 export function faultFromEnv() {
   const fault = process.env.BCB_PROOF_FAULT ?? '';
@@ -37,6 +37,14 @@ function migrationBlocks(fault) {
     const marker = 'WHERE target_history.organization_id IS DISTINCT FROM v_organization_id';
     if (!source.includes(marker)) throw new Error('fault two-clinic-blindness: marker not found');
     source = source.replace(marker, 'WHERE false');
+  }
+  if (fault === 'foreign-org-conflict') {
+    // Дверь перестаёт сверять, ЧЬЕЙ организации конфликт — ровно то, что держит §18б («разбирает
+    // врач своей организации»). Прогон, который после этого остаётся зелёным, про принадлежность
+    // конфликта ничего не доказывает.
+    const marker = 'AND candidate.organization_id = v_organization_id';
+    if (!source.includes(marker)) throw new Error('fault foreign-org-conflict: marker not found');
+    source = source.replace(marker, 'AND TRUE');
   }
   return source.split('--> statement-breakpoint').map((block) => {
     const owner = /--\s*BCB-MIGRATION-OWNER:\s*([a-z_0-9]+)/u.exec(block)?.[1];
@@ -68,6 +76,14 @@ function candidatePrivilegeStatements(installed) {
   const doorTableRe = /^(GRANT|REVOKE) .* ON TABLE "public"\."patient_merge_candidates" (TO|FROM) /u;
   const newDoors =
     /^GRANT EXECUTE ON FUNCTION app\.(record_patient_medical_merge_conflict|transfer_staff_approved_platform_user_merge_data|read_staff_patient_medical_merge_conflict|refuse_staff_patient_medical_merge_conflict|resolve_platform_patient_medical_merge_conflicts)\(/u;
+  // Фикстура «конфликт в двух клиниках» заводит вторую клинику (живая на DEV одна), а на INSERT в
+  // `be_organizations` висит триггер `app.seed_reference_catalog_after_organization_insert()`. Его
+  // `ON CONFLICT … DO NOTHING` требует SELECT по колонкам арбитра, которого у владельца шва на DEV
+  // ещё нет: права реконсайлились с декларации, где объявлен был только INSERT. Кандидатный GRANT
+  // доезжает сюда по тому же принципу, что и права двери, — иначе прогон меряет старое состояние
+  // базы вместо кандидатного и краснеет на фикстуре, не дойдя до предмета проверки.
+  const seedTriggerGrant =
+    /^GRANT SELECT \(.*\) ON TABLE "public"\."system_settings" TO "app_seam_specialist_provision_owner";$/u;
   const policyRe = /^CREATE POLICY "([^"]+)" ON ("[^"]+"\."[^"]+")/u;
   for (const raw of lines) {
     const line = raw.trim();
@@ -75,7 +91,7 @@ function candidatePrivilegeStatements(installed) {
       out.push(line);
       continue;
     }
-    if (grantRe.test(line) || newDoors.test(line)) {
+    if (grantRe.test(line) || newDoors.test(line) || seedTriggerGrant.test(line)) {
       out.push(line);
       continue;
     }
@@ -110,6 +126,9 @@ export async function installCandidate(client, fault, say) {
   say(`candidate migration applied: ${blocks.length} owner-ordered blocks`);
   if (fault === 'two-clinic-blindness') {
     say("FAULT INJECTED: the door no longer sees another clinic's blocker");
+  }
+  if (fault === 'foreign-org-conflict') {
+    say("FAULT INJECTED: the door no longer checks that the conflict belongs to the doctor's organization");
   }
 
   const privileges = candidatePrivilegeStatements(await alreadyGrantedPolicies(client));

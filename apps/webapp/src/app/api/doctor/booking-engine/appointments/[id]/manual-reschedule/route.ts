@@ -5,7 +5,7 @@ import { staffBookingContactNameFromAppointment } from '@/app-layer/booking/staf
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { createBookingSyncPort } from '@/modules/integrator/bookingM2mApi';
-import { appointmentReminderPlanForPreset } from '@/modules/booking-notifications/appointmentReminderPresets';
+import { appointmentReminderPlanForOffsets } from '@/modules/booking-notifications/appointmentReminderSchedule';
 import {
   assertStaffMayRewriteFinancials,
   resolveStaffAppointmentFinancials,
@@ -269,8 +269,8 @@ export async function POST(request: Request, context: RouteContext) {
   const lifecycleNotificationSettings = await loadBookingLifecycleNotificationsFromSystemSettings(
     (key, scope) => deps.systemSettings.getSetting(key, scope),
   );
-  const reminderPlan = appointmentReminderPlanForPreset(
-    currentAppointment.appointmentReminderPresetId,
+  const reminderPlan = appointmentReminderPlanForOffsets(
+    currentAppointment.appointmentReminderOffsetsMinutes,
   );
   await applyStaffRescheduleSideEffects({
     lifecycle,

@@ -45,7 +45,7 @@ import { OrgBrandingSection } from './OrgBrandingSection';
 import { OrgCustomDomainSection } from './OrgCustomDomainSection';
 import { SettingsForm } from './SettingsForm';
 import { ClinicStaffSecuritySection } from './ClinicStaffSecuritySection';
-import { SettingsTabsNav } from './SettingsTabsNav';
+import { SettingsTabsLayout } from './SettingsTabsNav';
 import {
   ALL_SETTINGS_TABS,
   LEGACY_SETTINGS_TAB_REDIRECTS,
@@ -72,7 +72,7 @@ import { parseDoctorTodayPreferences } from '@/modules/system-settings/doctorTod
 import { isPlatformIntegrationAvailable } from '@/modules/system-settings/platformIntegrationAvailability';
 import { smtpInnerFromValueJson } from '@/modules/system-settings/smtpOutboundPatch';
 import { shouldShowGoogleCalendarSettings } from './googleCalendarVisibility';
-import { type AppointmentReminderSpecialistSettings } from '@/modules/booking-notifications/appointmentReminderPresets';
+import { parseAppointmentReminderSettings } from '@/modules/booking-notifications/appointmentReminderSchedule';
 import { parseClinicDeliveryReadiness } from '@/modules/system-settings/clinicDeliveryReadiness';
 import { parseClinicBotPublicConfig } from '@/modules/system-settings/clinicBotConfig';
 import { parseBookingPaymentSettingsValue } from '@/modules/payments/bookingPaymentSettings';
@@ -431,13 +431,11 @@ export default async function SettingsPage({
       client_portal: true,
       video_meetings: videoMeetingsVisibility.directUrl,
     };
-    const appointmentReminderSettings: AppointmentReminderSpecialistSettings =
-      workspace.specialistId
-        ? ((await deps.bookingEngine?.getSpecialistAppointmentReminderSettings({
-            organizationId: workspace.organizationId,
-            specialistId: workspace.specialistId,
-          })) ?? { allowedPresetIds: [], defaultPresetId: null })
-        : { allowedPresetIds: [], defaultPresetId: null };
+    const appointmentReminderSettings = parseAppointmentReminderSettings(
+      doctorSettings.find(
+        (setting) => setting.key === 'doctor_appointment_reminder_offsets_minutes',
+      )?.valueJson ?? null,
+    );
     const todayPreferences = parseDoctorTodayPreferences(
       doctorSettings.find((setting) => setting.key === 'doctor_today_preferences')?.valueJson,
     );
@@ -693,11 +691,12 @@ export default async function SettingsPage({
               specialists={bookingLinkOptions.specialists}
             />
           ) : null}
-          {workspace.specialistId ? (
-            <AppointmentReminderSettingsSection initialSettings={appointmentReminderSettings} />
-          ) : null}
+          <AppointmentReminderSettingsSection initialSettings={appointmentReminderSettings} />
           {composition === 'solo' ? (
             <ManagementBookingSections
+              // Одной простынёй: во вкладке настроек под-навигация была бы вкладками внутри
+              // вкладок (владелец 15.09).
+              flat
               basePath={routePaths.settings}
               notificationTemplatesVisible={notificationTemplatesVisibility.specialistNavigation}
               doctorStatisticsEnabled={doctorStatisticsVisibility.specialistNavigation}
@@ -763,15 +762,17 @@ export default async function SettingsPage({
       ) : null;
     }
 
+    // Ни одна вкладка настроек не идёт в `full-height`. До 15.09 «Запись» была исключением, и это
+    // читалось как чужая страница: экран прибит к высоте окна, сами настройки прокручиваются внутри
+    // маленькой коробки, а блоки над ней («Ссылка на запись», «Напоминания») не уезжают никогда.
+    // Владелец 15.09: «у тебя вкладка запись живет своей жизнью — одна колонка и не прокручивается».
+    // Теперь страница прокручивается целиком, как на остальных восьми вкладках.
     return (
-      <DoctorAppShell
-        title={SETTINGS_PAGE_TITLE}
-        user={workspace.session.user}
-        {...(tab === 'booking' ? { layout: 'full-height' as const } : {})}
-      >
+      <DoctorAppShell title={SETTINGS_PAGE_TITLE} user={workspace.session.user}>
         <DoctorPageHeader title={SETTINGS_PAGE_TITLE} />
-        <SettingsTabsNav activeTab={tab} visibleTabs={visibleTabs} />
-        {content}
+        <SettingsTabsLayout activeTab={tab} visibleTabs={visibleTabs}>
+          {content}
+        </SettingsTabsLayout>
       </DoctorAppShell>
     );
   }
@@ -804,30 +805,31 @@ export default async function SettingsPage({
     return (
       <DoctorAppShell title={SETTINGS_PAGE_TITLE} user={workspace.session.user}>
         <DoctorPageHeader title={SETTINGS_PAGE_TITLE} />
-        <SettingsTabsNav activeTab="team" visibleTabs={visibleTabs} />
-        <TeamSection
-          members={members.map((member) => ({
-            id: member.id,
-            displayName: member.displayName,
-            role: member.role,
-            status: member.status,
-            seatConsuming: isSeatConsumingMember(member),
-            specialistLinked: member.specialistId !== null,
-            appointmentsManageOwn: member.appointmentsManageOwn,
-            availabilityManageOwn: member.availabilityManageOwn,
-          }))}
-          invites={invites.map((invite) => ({
-            id: invite.id,
-            invitedEmail: invite.invitedEmail,
-            invitedRole: invite.invitedRole,
-            expiresAt: invite.expiresAt,
-          }))}
-          seats={seats}
-          canMutateTeam={mutationAvailability.available}
-        />
-        {workspace.membershipRole === 'owner' ? (
-          <ClinicStaffSecuritySection initialRequired={Boolean(staffSecondFactorRequired)} />
-        ) : null}
+        <SettingsTabsLayout activeTab="team" visibleTabs={visibleTabs}>
+          <TeamSection
+            members={members.map((member) => ({
+              id: member.id,
+              displayName: member.displayName,
+              role: member.role,
+              status: member.status,
+              seatConsuming: isSeatConsumingMember(member),
+              specialistLinked: member.specialistId !== null,
+              appointmentsManageOwn: member.appointmentsManageOwn,
+              availabilityManageOwn: member.availabilityManageOwn,
+            }))}
+            invites={invites.map((invite) => ({
+              id: invite.id,
+              invitedEmail: invite.invitedEmail,
+              invitedRole: invite.invitedRole,
+              expiresAt: invite.expiresAt,
+            }))}
+            seats={seats}
+            canMutateTeam={mutationAvailability.available}
+          />
+          {workspace.membershipRole === 'owner' ? (
+            <ClinicStaffSecuritySection initialRequired={Boolean(staffSecondFactorRequired)} />
+          ) : null}
+        </SettingsTabsLayout>
       </DoctorAppShell>
     );
   }

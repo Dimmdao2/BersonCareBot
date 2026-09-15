@@ -1,4 +1,5 @@
 import type { IntegratorBookingEventType } from '@/modules/patient-booking/bookingLifecycleNotifications';
+import { parseAppointmentReminderSettings } from './appointmentReminderSchedule';
 
 export type BookingLifecycleNotificationEventKey = IntegratorBookingEventType;
 
@@ -81,22 +82,16 @@ export async function loadBookingLifecycleNotificationsFromSystemSettings(
 export async function loadAppointmentReminderPlanFromSystemSettings(
   organizationId: string,
   getSetting: (
-    key: 'doctor_appointment_reminder_enabled' | 'doctor_appointment_reminder_offsets_minutes',
+    key: 'doctor_appointment_reminder_offsets_minutes',
     scope: 'doctor',
     options: { organizationId: string },
   ) => Promise<{ valueJson: unknown } | null>,
 ): Promise<AppointmentReminderPlan> {
-  const [enabledRow, offsetsRow] = await Promise.all([
-    getSetting('doctor_appointment_reminder_enabled', 'doctor', { organizationId }),
-    getSetting('doctor_appointment_reminder_offsets_minutes', 'doctor', { organizationId }),
-  ]);
-  const rawOffsets = offsetsRow?.valueJson;
-  return {
-    enabled: enabledRow?.valueJson === true,
-    offsetsMinutes: Array.isArray(rawOffsets)
-      ? rawOffsets.filter((value): value is number => Number.isInteger(value) && value > 0)
-      : [],
-  };
+  const row = await getSetting('doctor_appointment_reminder_offsets_minutes', 'doctor', {
+    organizationId,
+  });
+  const { offsetsMinutes } = parseAppointmentReminderSettings(row?.valueJson ?? null);
+  return { enabled: offsetsMinutes.length > 0, offsetsMinutes };
 }
 
 export function resolveBookingNotifyTargets(

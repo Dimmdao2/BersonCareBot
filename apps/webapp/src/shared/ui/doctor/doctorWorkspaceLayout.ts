@@ -18,6 +18,13 @@ export const DOCTOR_PAGE_HEADER_HEIGHT_VAR = '--doctor-page-header-h';
 export const DOCTOR_ADMIN_SIDEBAR_WIDTH_CLASS = 'md:w-14 lg:w-56';
 
 /**
+ * Тот же sidebar на странице-поверхности (видеовстреча): полоска на всех ширинах, разворот —
+ * только кнопкой поверх содержимого. Владелец 15.09.2026: «меню на десктопе при этом сворачиваем
+ * в полоску как на планшете».
+ */
+export const DOCTOR_ADMIN_SIDEBAR_RAIL_WIDTH_CLASS = 'md:w-14';
+
+/**
  * `position: sticky` сайдбара: на desktop глобальной шапки нет, поэтому липнет к верху вьюпорта.
  * (Сайдбар скрыт на <md, поэтому мобильный кейс не нужен.)
  */
@@ -64,6 +71,16 @@ export const DOCTOR_PAGE_CONTAINER_CLASS =
  */
 export const DOCTOR_FULL_HEIGHT_PAGE_CLASS =
   'mx-auto w-full max-w-7xl flex min-h-0 flex-1 flex-col overflow-hidden md:pb-[var(--doctor-page-bottom-gutter,18px)]';
+
+/**
+ * Контейнер страницы-ПОВЕРХНОСТИ (видеовстреча): то же, что full-height, но БЕЗ потолка ширины.
+ * Общий потолок `max-w-7xl` держит текстовые страницы читаемыми, а на поверхности он вредит: когда
+ * левое меню свёрнуто в полоску, свободного места становится больше 1280px, страница начинает
+ * центрироваться, и освободившаяся ширина уходит в серые поля по бокам вместо видео — заодно шапка
+ * перестаёт доставать до краёв (владелец 15.09.2026: «а шапка то почему по краям обрезана?»).
+ */
+export const DOCTOR_SURFACE_PAGE_CLASS =
+  'w-full flex min-h-0 flex-1 flex-col overflow-hidden md:pb-[var(--doctor-page-bottom-gutter,18px)]';
 
 /**
  * Mobile dashboard inset above the bottom-navigation row.

@@ -29,6 +29,15 @@ export type ScheduleTabProps = {
   specialistsVisible?: boolean;
   /** The only remaining solo Schedule setup section is the existing package writer. */
   setupPackagesOnly?: boolean;
+  /**
+   * Настройки записи одной простынёй: все секции подряд, без под-навигации.
+   *
+   * Так они стоят в «Профиле и настройках», вкладка «Запись» (владелец 15.09: «настройки во вкладке
+   * запись я сказал разложить в одну простыню блоков, а не сделать вкладки внутри вкладок»). В
+   * «Расписании» тот же компонент остаётся с под-навигацией: там это отдельный раздел рабочего
+   * экрана, а не одна из вкладок настроек.
+   */
+  setupFlat?: boolean;
   /** Server-resolved role/specialist capabilities shared by calendar/KPI/create. */
   scheduleScopeBootstrap?: DoctorScheduleScopeBootstrap;
   /** Server-resolved own-appointment mutation capability; components never infer it from role. */

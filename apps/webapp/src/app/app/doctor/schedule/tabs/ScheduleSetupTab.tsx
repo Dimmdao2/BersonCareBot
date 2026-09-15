@@ -811,6 +811,7 @@ export function ScheduleSetupTab({
   packagesReadOnly = false,
   specialistsVisible = true,
   setupPackagesOnly = false,
+  setupFlat = false,
 }: ScheduleTabProps) {
   const sectionVisibility: SetupSectionVisibility = useMemo(
     () => ({
@@ -861,7 +862,7 @@ export function ScheduleSetupTab({
   // registration stores the node — a new element every render would re-register forever.
   const mobileSubsectionTabs = useMemo(
     () =>
-      isActive === false || setupPackagesOnly ? null : (
+      isActive === false || setupPackagesOnly || setupFlat ? null : (
         <DoctorMobileSectionTabs
           tabs={visibleSections}
           activeTab={activeSection}
@@ -870,8 +871,31 @@ export function ScheduleSetupTab({
           scrollable
         />
       ),
-    [activeSection, isActive, setActiveSection, setupPackagesOnly, visibleSections],
+    [activeSection, isActive, setActiveSection, setupFlat, setupPackagesOnly, visibleSections],
   );
+
+  /**
+   * Простыня: все доступные секции подряд, без под-навигации и без собственного прокручиваемого
+   * бокса — страница-хозяин прокручивается целиком. Порядок тот же, что был в под-навигации, так что
+   * привычка «филиалы, потом услуги, потом форма» сохраняется.
+   */
+  if (setupFlat) {
+    return (
+      <div className="flex flex-col gap-3" data-testid="schedule-setup-tab">
+        {visibleSections.map((sec) => (
+          <div key={sec.id} data-testid={`setup-section-${sec.id}`}>
+            {sec.id === 'locations' && <SectionLocations />}
+            {sec.id === 'services' && <SectionServices />}
+            {sec.id === 'specialists' && <SectionSpecialists />}
+            {sec.id === 'form' && <SectionForm />}
+            {sec.id === 'rules' && <SectionRules />}
+            {sec.id === 'notifications' && <SectionNotifications />}
+            {sec.id === 'packages' && <SectionPackages readOnly={packagesReadOnly} />}
+          </div>
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div

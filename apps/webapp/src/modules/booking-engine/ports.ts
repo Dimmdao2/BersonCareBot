@@ -15,10 +15,6 @@ import type {
   UpdateAppointmentFinancialSnapshotInput,
   AppointmentFinancialSnapshotRecord,
 } from './types';
-import type {
-  AppointmentReminderSpecialistSettings,
-  AppointmentReminderPresetId,
-} from '@/modules/booking-notifications/appointmentReminderPresets';
 
 export type OrganizationPort = {
   getDefaultOrganizationId(): Promise<string>;
@@ -214,24 +210,15 @@ export type ServiceAvailabilityPort = {
 };
 
 export type BookingEnginePort = {
-  getSpecialistAppointmentReminderSettings(input: {
-    organizationId: string;
-    specialistId: string;
-  }): Promise<AppointmentReminderSpecialistSettings | null>;
-  updateSpecialistAppointmentReminderSettings(input: {
-    organizationId: string;
-    specialistId: string;
-    settings: AppointmentReminderSpecialistSettings;
-  }): Promise<boolean>;
-  setPatientAppointmentReminderPreset(input: {
+  setPatientAppointmentReminderOffsets(input: {
     appointmentId: string;
-    presetId: AppointmentReminderPresetId | null;
+    offsetsMinutes: number[];
   }): Promise<boolean>;
   getPatientAppointmentReminderPreference(appointmentId: string): Promise<{
     organizationId: string;
     status: AppointmentStatus;
-    allowedPresetIds: AppointmentReminderPresetId[];
-    presetId: AppointmentReminderPresetId | null;
+    availableOffsetsMinutes: number[];
+    selectedOffsetsMinutes: number[];
     selectionSource: 'specialist_default' | 'patient';
   } | null>;
   getAppointment(id: string): Promise<BeAppointment | null>;

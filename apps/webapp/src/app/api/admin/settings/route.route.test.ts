@@ -311,6 +311,55 @@ describe('global-admin settings HTTP boundary', () => {
     );
   });
 
+  it.each([[1440, 120, 30], []])(
+    'persists an appointment reminder schedule in the clinic from the trusted gate',
+    async (...offsetsMinutes) => {
+      const doctorSession = {
+        ...platformSession,
+        user: { ...platformSession.user, role: 'doctor' },
+      };
+      const organizationId = '00000000-0000-4000-8000-000000000118';
+      fakes.getCurrentSession.mockResolvedValue(doctorSession);
+      fakes.requireClinic.mockResolvedValue({
+        ok: true,
+        ctx: { session: doctorSession, organizationId, membershipRole: 'owner' },
+      });
+      fakes.updateSetting.mockResolvedValue({
+        key: 'doctor_appointment_reminder_offsets_minutes',
+        scope: 'doctor',
+        organizationId,
+        valueJson: { value: offsetsMinutes },
+        updatedAt: '2026-09-15T00:00:00.000Z',
+        updatedBy: doctorSession.user.userId,
+      });
+
+      const response = await patch({
+        key: 'doctor_appointment_reminder_offsets_minutes',
+        value: offsetsMinutes,
+        organizationId: '99999999-9999-4999-8999-999999999999',
+      });
+
+      expect(response.status).toBe(200);
+      expect(fakes.updateSetting).toHaveBeenCalledWith(
+        'doctor_appointment_reminder_offsets_minutes',
+        'doctor',
+        { value: offsetsMinutes },
+        doctorSession.user.userId,
+        { organizationId },
+      );
+    },
+  );
+
+  it('rejects a fourth appointment reminder before the settings writer is reached', async () => {
+    const response = await patch({
+      key: 'doctor_appointment_reminder_offsets_minutes',
+      value: [1440, 120, 60, 30],
+    });
+
+    expect(response.status).toBe(400);
+    expect(fakes.updateSetting).not.toHaveBeenCalled();
+  });
+
   it('writes the branded-root flag only for the organization from the trusted gate', async () => {
     const doctorSession = {
       ...platformSession,

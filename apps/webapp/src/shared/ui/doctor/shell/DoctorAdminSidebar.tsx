@@ -9,12 +9,14 @@ import { Button } from '@/shared/ui/doctor/primitives/button';
 import { routePaths } from '@/app-layer/routes/paths';
 import { cn } from '@/lib/utils';
 import { DoctorMenuAccordion } from '@/shared/ui/doctor/shell/DoctorMenuAccordion';
+import { useDoctorShellDesktopRail } from '@/shared/ui/doctor/shell/DoctorShellChromeContext';
 import {
   DoctorSidebarRowContent,
   doctorSidebarRowClassName,
 } from '@/shared/ui/doctor/shell/DoctorSidebarRowContent';
 import { NAV_STRIP_ICON_STROKE } from '@/shared/ui/doctor/navChrome';
 import {
+  DOCTOR_ADMIN_SIDEBAR_RAIL_WIDTH_CLASS,
   DOCTOR_ADMIN_SIDEBAR_STICKY_TOP_CLASS,
   DOCTOR_ADMIN_SIDEBAR_WIDTH_CLASS,
 } from '@/shared/ui/doctor/doctorWorkspaceLayout';
@@ -51,6 +53,11 @@ export function DoctorAdminSidebar({
 }: DoctorAdminSidebarProps) {
   const pathname = usePathname() ?? '/app/doctor';
   const [tabletExpanded, setTabletExpanded] = useState(false);
+  /*
+   * Страница-поверхность (видеовстреча) просит полоску и на десктопе. Тогда меню ведёт себя ровно
+   * как на планшете: узкий rail, разворот — кнопкой поверх содержимого, а не по ширине экрана.
+   */
+  const desktopRail = useDoctorShellDesktopRail();
   const accountDisplayName = brand?.displayName ?? userDisplayName ?? 'Аккаунт';
   const accountInitial = accountDisplayName.trim().charAt(0).toUpperCase() || 'А';
   /**
@@ -71,7 +78,10 @@ export function DoctorAdminSidebar({
   return (
     <aside
       id="doctor-admin-sidebar"
-      className={cn('relative z-40 hidden shrink-0 md:block', DOCTOR_ADMIN_SIDEBAR_WIDTH_CLASS)}
+      className={cn(
+        'relative z-40 hidden shrink-0 md:block',
+        desktopRail ? DOCTOR_ADMIN_SIDEBAR_RAIL_WIDTH_CLASS : DOCTOR_ADMIN_SIDEBAR_WIDTH_CLASS,
+      )}
       aria-label="Разделы кабинета"
     >
       <div
@@ -80,7 +90,7 @@ export function DoctorAdminSidebar({
           'md:sticky md:h-[100dvh] md:self-start md:overflow-y-auto',
           DOCTOR_ADMIN_SIDEBAR_STICKY_TOP_CLASS,
           tabletExpanded && 'md:w-56 md:shadow-xl',
-          'lg:w-56 lg:shadow-none',
+          !desktopRail && 'lg:w-56 lg:shadow-none',
         )}
       >
         <Link
@@ -88,12 +98,18 @@ export function DoctorAdminSidebar({
           prefetch={false}
           id="doctor-sidebar-brand"
           className={doctorSidebarRowClassName(
-            tabletExpanded,
+            { tabletExpanded, desktopRail },
             'mb-3 no-underline',
             'transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
           )}
         >
-          <span className="flex min-w-0 items-center justify-center lg:justify-start lg:gap-2">
+          <span
+            className={cn(
+              'flex min-w-0 items-center justify-center',
+              !desktopRail && 'lg:justify-start lg:gap-2',
+              desktopRail && tabletExpanded && 'md:justify-start md:gap-2',
+            )}
+          >
             <Image
               src="/brand/therapysto-mark.png"
               alt=""
@@ -104,7 +120,8 @@ export function DoctorAdminSidebar({
             />
             <span
               className={cn(
-                'hidden min-w-0 truncate font-semibold tracking-tight text-foreground lg:block',
+                'hidden min-w-0 truncate font-semibold tracking-tight text-foreground',
+                !desktopRail && 'lg:block',
                 tabletExpanded && 'md:block',
               )}
             >
@@ -118,7 +135,11 @@ export function DoctorAdminSidebar({
             type="button"
             variant="ghost"
             id="doctor-sidebar-tablet-toggle"
-            className={doctorSidebarRowClassName(tabletExpanded, 'hidden md:flex lg:hidden')}
+            className={doctorSidebarRowClassName(
+              { tabletExpanded, desktopRail },
+              'hidden md:flex',
+              !desktopRail && 'lg:hidden',
+            )}
             aria-label={tabletExpanded ? 'Свернуть боковую панель' : 'Развернуть боковую панель'}
             aria-expanded={tabletExpanded}
             onClick={() => setTabletExpanded((expanded) => !expanded)}
@@ -134,7 +155,13 @@ export function DoctorAdminSidebar({
               tabletExpanded={tabletExpanded}
             />
           </Button>
-          <p className="hidden px-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground lg:block">
+          <p
+            className={cn(
+              'hidden px-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground',
+              !desktopRail && 'lg:block',
+              desktopRail && tabletExpanded && 'md:block',
+            )}
+          >
             Разделы
           </p>
         </div>
@@ -163,7 +190,7 @@ export function DoctorAdminSidebar({
           aria-current={accountActive ? 'page' : undefined}
           onClick={() => setTabletExpanded(false)}
           className={doctorSidebarRowClassName(
-            tabletExpanded,
+            { tabletExpanded, desktopRail },
             'mt-3 no-underline transition-colors',
             accountActive
               ? 'bg-primary/15 font-medium text-primary hover:bg-primary/15'
