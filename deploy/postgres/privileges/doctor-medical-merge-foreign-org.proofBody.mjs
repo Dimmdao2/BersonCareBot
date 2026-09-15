@@ -125,6 +125,11 @@ async function main() {
               (SELECT count(*)::int FROM public.user_password_credentials WHERE user_id = $1::uuid) AS target_credentials,
               (SELECT status || '/' || COALESCE(payload->>'doctorApproved', 'null')
                  FROM public.patient_merge_candidates WHERE id = $3::uuid) AS clinic_a_row,
+              -- Комментарий врача пишет ПЯТИАРГУМЕНТНАЯ дверь ДО того, как четырёхаргументная
+              -- откажет по организации. Если сверять только статус и payload, снос стены именно в
+              -- этой записи остаётся незамеченным: слияния нет, а запись в чужую строку уже есть.
+              (SELECT doctor_comment
+                 FROM public.patient_merge_candidates WHERE id = $3::uuid) AS clinic_a_comment,
               (SELECT status || '/' || COALESCE(payload->>'doctorApproved', 'null')
                  FROM public.patient_merge_candidates WHERE id = $4::uuid) AS clinic_b_row`,
       [TARGET, DUPLICATE, CONFLICT_A, CONFLICT_B],
@@ -140,6 +145,13 @@ async function main() {
     if (state.clinic_a_row !== 'pending/null') {
       throw new Error(
         `clinic A's row is '${state.clinic_a_row}', expected an untouched 'pending/null' — a foreign doctor stamped its approval`,
+      );
+    }
+    if (state.clinic_a_comment !== null) {
+      throw new Error(
+        `в строку клиники А лёг комментарий врача ЧУЖОЙ организации: ${JSON.stringify(
+          state.clinic_a_comment,
+        )} — решение врача имеет вес только в своей организации`,
       );
     }
     if (state.clinic_b_row !== 'pending/null') {

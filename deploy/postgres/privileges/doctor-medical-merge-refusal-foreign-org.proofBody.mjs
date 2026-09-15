@@ -42,9 +42,17 @@ import {
 const TARGET = '00000000-0000-4000-8000-00000000fa01';
 const DUPLICATE = '00000000-0000-4000-8000-00000000fa02';
 const CONFLICT_A = '00000000-0000-4000-8000-00000000fa11';
+/** Третья учётка той же клиники — нужна, чтобы завести ещё две строки БЕЗ нарушения
+ * уникального индекса пары (`uq_patient_merge_candidates_org_pending_unordered_pair`). */
+const THIRD = '00000000-0000-4000-8000-00000000fa03';
+/** Конфликт своей клиники, который врач ещё НЕ разобрал: следа отказа у него быть не может. */
+const CONFLICT_PENDING = '00000000-0000-4000-8000-00000000fa12';
+/** Разобранный кандидат своей клиники, но НЕ медицинский: Э4c про него ничего не обещает. */
+const CONFLICT_NONMEDICAL = '00000000-0000-4000-8000-00000000fa13';
 
 const DOCTOR_A_COMMENT = 'Клиника А: это разные люди, я их обоих веду';
 const DOCTOR_B_COMMENT = 'Чужой врач не должен записать сюда ничего';
+const NONMEDICAL_COMMENT = 'Разбор не про медицинские данные';
 
 const FAULT = faultFromEnv();
 function say(line) {
@@ -99,6 +107,7 @@ async function main() {
     for (const [id, name, kind, value] of [
       [TARGET, 'Ч1 учётка один', 'email', 'foreign-one@example.test'],
       [DUPLICATE, 'Ч1 учётка два', 'phone', '+79990000042'],
+      [THIRD, 'Ч1 учётка три', 'email', 'foreign-three@example.test'],
     ]) {
       await client.query(
         `INSERT INTO public.platform_users(id, display_name, role) VALUES ($1::uuid, $2, 'client')`,
@@ -122,7 +131,25 @@ async function main() {
        ) VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, 'medical_history:email_bind', 'pending')`,
       [CONFLICT_A, clinicA.org_id, TARGET, DUPLICATE],
     );
-    say('fixture inserted (2 accounts of clinic A, one pending conflict of clinic A)');
+    // Две строки СВОЕЙ клиники, по которым дверь чтения обязана молчать: первая ещё не разобрана,
+    // вторая разобрана, но она не про медицинские данные. Без них снятие предикатов `status` и
+    // `reason` в читающем корне нечем поймать — состояния просто нет в фикстуре (находки F1/F2
+    // четвёртого круга аудита).
+    await client.query(
+      `INSERT INTO public.patient_merge_candidates(
+         id, organization_id, anchor_user_id, candidate_user_id, reason, status
+       ) VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, 'medical_history:phone_bind', 'pending')`,
+      [CONFLICT_PENDING, clinicA.org_id, TARGET, THIRD],
+    );
+    await client.query(
+      `INSERT INTO public.patient_merge_candidates(
+         id, organization_id, anchor_user_id, candidate_user_id, reason, status,
+         doctor_comment, resolved_at
+       ) VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, 'email_bind', 'dismissed',
+                 $5::text, pg_catalog.now())`,
+      [CONFLICT_NONMEDICAL, clinicA.org_id, DUPLICATE, THIRD, NONMEDICAL_COMMENT],
+    );
+    say('fixture inserted (3 accounts of clinic A; conflicts: one pending medical, one pending medical spare, one dismissed non-medical)');
 
     // --- Ч2: чужой врач отказывает по нетронутому конфликту соседней клиники ---
     const foreignRefusal = await refuse(client, clinicB, CONFLICT_A, DOCTOR_B_COMMENT, true);
@@ -209,6 +236,26 @@ async function main() {
       );
     }
 
+    // --- Ч3: своя клиника, но состояние, которого след отказа иметь не может ---
+    // Читает СВОЙ врач со своим законным контекстом: стена организации тут ни при чём, и если
+    // дверь ответит снимком, покраснеет именно предикат состояния, а не предикат клиники.
+    const pendingTraceRead = await readRefusal(client, clinicA, CONFLICT_PENDING);
+    say(`clinic A asked for a trace of its own UNRESOLVED conflict: ${JSON.stringify(pendingTraceRead)}`);
+    if (pendingTraceRead !== null) {
+      throw new Error(
+        `дверь отдала след отказа по конфликту в статусе '${pendingTraceRead.status}' — решения врача по нему ещё не было`,
+      );
+    }
+    const nonMedicalTraceRead = await readRefusal(client, clinicA, CONFLICT_NONMEDICAL);
+    say(`clinic A asked for a trace of its own NON-MEDICAL candidate: ${JSON.stringify(nonMedicalTraceRead)}`);
+    if (nonMedicalTraceRead !== null) {
+      throw new Error(
+        `дверь отдала немедицинский разбор как медицинский след отказа: комментарий=${JSON.stringify(
+          nonMedicalTraceRead.doctorComment,
+        )} — Э4c живёт внутри §18б, про медицинские данные`,
+      );
+    }
+
     // Машиночитаемая строка фактов: тест сверяет ЗНАЧЕНИЯ, а не английские фразы журнала.
     // Переформулировка любой диагностической строки выше не должна красить прогон (§10a: тест не
     // дублирует текст), а подмена самого факта — обязана.
@@ -219,6 +266,8 @@ async function main() {
         ownTraceComment: ownSnapshot?.doctorComment ?? null,
         marks,
         foreignTraceRead: foreignSnapshot,
+        pendingTraceRead,
+        nonMedicalTraceRead,
       })}`,
     );
     say(

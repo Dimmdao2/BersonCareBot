@@ -42,12 +42,31 @@ export const FAULTS = new Set([
   'approval-comment-not-saved',
   'refusal-read-any-org',
   'refusal-write-any-org',
+  'refusal-read-any-status',
+  'refusal-read-any-reason',
+  'approval-comment-foreign-row',
 ]);
 
 export function faultFromEnv() {
   const fault = process.env.BCB_PROOF_FAULT ?? '';
   if (!FAULTS.has(fault)) throw new Error(`unknown BCB_PROOF_FAULT '${fault}'`);
   return fault;
+}
+
+/**
+ * Поломка обязана доехать ровно в ту дверь, ради которой написана. Тексты предикатов в трёх
+ * миграциях повторяются дословно, а `String.replace` меняет ТОЛЬКО ПЕРВОЕ вхождение — так инжектор
+ * молча уезжает в соседнюю функцию, прогон остаётся зелёным и выдаёт себя за доказательство.
+ * Поэтому каждая замена проверяет, что якорь в склеенном источнике РОВНО один.
+ */
+function replaceOnce(source, marker, replacement, fault) {
+  const count = source.split(marker).length - 1;
+  if (count !== 1) {
+    throw new Error(
+      `fault ${fault}: marker matched ${count} times, expected exactly 1 — уточни якорь`,
+    );
+  }
+  return source.replace(marker, replacement);
 }
 
 function migrationSource(fault) {
@@ -59,16 +78,13 @@ function migrationSource(fault) {
     // состояние, из-за которого после одобрения врача выживала подпись, выбранная движком (§18а).
     const marker =
       "|| pg_catalog.jsonb_build_object('humanFioDecision', p_human_fio_decision::jsonb)";
-    if (!source.includes(marker))
-      throw new Error('fault fio-decision-not-persisted: marker not found');
-    source = source.replace(marker, "|| '{}'::jsonb");
+    source = replaceOnce(source, marker, "|| '{}'::jsonb", fault);
   }
   if (fault === 'two-clinic-blindness') {
     // Дверь перестаёт видеть блокер ЧУЖОЙ клиники — ровно то, что чинит Д1. Прогон, который после
     // этого остаётся зелёным, про «второй клинике решать самой» ничего не доказывает.
     const marker = 'WHERE target_history.organization_id IS DISTINCT FROM v_organization_id';
-    if (!source.includes(marker)) throw new Error('fault two-clinic-blindness: marker not found');
-    source = source.replace(marker, 'WHERE false');
+    source = replaceOnce(source, marker, 'WHERE false', fault);
   }
   if (fault === 'foreign-org-conflict') {
     // Дверь перестаёт сверять, ЧЬЕЙ организации конфликт — ровно то, что держит §18б («разбирает
@@ -83,33 +99,37 @@ function migrationSource(fault) {
       'AND candidate.organization_id = v_organization_id',
     ];
     for (const marker of markers) {
-      if (!source.includes(marker))
-        throw new Error(`fault foreign-org-conflict: marker not found: ${marker}`);
-      source = source.replace(marker, 'AND TRUE');
+      source = replaceOnce(source, marker, 'AND TRUE', fault);
     }
   }
   if (fault === 'support-always-escalates') {
     const marker = 'IF p_support_requested THEN\n    INSERT INTO public.admin_audit_log';
-    if (!source.includes(marker))
-      throw new Error('fault support-always-escalates: marker not found');
-    source = source.replace(marker, 'IF TRUE THEN\n    INSERT INTO public.admin_audit_log');
+    source = replaceOnce(
+      source,
+      marker,
+      'IF TRUE THEN\n    INSERT INTO public.admin_audit_log',
+      fault,
+      fault,
+    );
   }
   if (fault === 'decision-stays-pending') {
     const marker =
       "IF v_outcome = 'awaiting_other_organization' THEN\n    UPDATE public.patient_merge_candidates\n       SET status = 'resolved', resolved_at = pg_catalog.now(), resolved_by = p_actor_id";
-    if (!source.includes(marker)) throw new Error('fault decision-stays-pending: marker not found');
-    source = source.replace(
+    source = replaceOnce(
+      source,
       marker,
       "IF v_outcome = 'awaiting_other_organization' THEN\n    UPDATE public.patient_merge_candidates\n       SET resolved_at = pg_catalog.now(), resolved_by = p_actor_id",
+      fault,
     );
   }
   if (fault === 'comment-not-saved') {
     const marker =
       'doctor_comment = pg_catalog.btrim(p_doctor_comment),\n         support_requested = p_support_requested';
-    if (!source.includes(marker)) throw new Error('fault comment-not-saved: marker not found');
-    source = source.replace(
+    source = replaceOnce(
+      source,
       marker,
       'doctor_comment = NULL,\n         support_requested = p_support_requested',
+      fault,
     );
   }
   if (fault === 'refusal-read-any-org') {
@@ -117,10 +137,11 @@ function migrationSource(fault) {
     // врачом СВОЕЙ клиники. Прогон, зелёный после этого, про стену чтения не говорит ничего.
     const marker =
       "AND c.organization_id = app.current_org_id()\n         AND c.status IN ('dismissed', 'escalated')";
-    if (!source.includes(marker)) throw new Error('fault refusal-read-any-org: marker not found');
-    source = source.replace(
+    source = replaceOnce(
+      source,
       marker,
       "AND TRUE\n         AND c.status IN ('dismissed', 'escalated')",
+      fault,
     );
   }
   if (fault === 'refusal-write-any-org') {
@@ -128,20 +149,72 @@ function migrationSource(fault) {
     // подстраховывает: маршрут отдаёт в дверь `conflictId` из URL без единой сверки организации.
     const marker =
       'support_requested = p_support_requested\n   WHERE id = p_conflict_id\n     AND organization_id = app.current_org_id()';
-    if (!source.includes(marker)) throw new Error('fault refusal-write-any-org: marker not found');
-    source = source.replace(
+    source = replaceOnce(
+      source,
       marker,
       'support_requested = p_support_requested\n   WHERE id = p_conflict_id\n     AND TRUE',
+      fault,
     );
   }
   if (fault === 'approval-comment-not-saved') {
     const marker =
       'UPDATE public.patient_merge_candidates candidate\n     SET doctor_comment = pg_catalog.btrim(p_doctor_comment)';
-    if (!source.includes(marker))
-      throw new Error('fault approval-comment-not-saved: marker not found');
-    source = source.replace(
+    source = replaceOnce(
+      source,
       marker,
       'UPDATE public.patient_merge_candidates candidate\n     SET doctor_comment = NULL',
+      fault,
+    );
+  }
+  if (fault === 'refusal-read-any-status') {
+    // Дверь чтения следа отказа перестаёт требовать, чтобы решение врача УЖЕ состоялось, и отдаёт
+    // снимок по ещё не разобранному `pending`. По Э4c след появляется ПОСЛЕ решения врача.
+    const marker =
+      "AND c.status IN ('dismissed', 'escalated')\n         AND c.reason LIKE 'medical_history:%'";
+    source = replaceOnce(
+      source,
+      marker,
+      "AND TRUE\n         AND c.reason LIKE 'medical_history:%'",
+      fault,
+      fault,
+    );
+  }
+  if (fault === 'refusal-read-any-reason') {
+    // Дверь перестаёт отличать МЕДИЦИНСКИЙ конфликт от любого другого кандидата слияния и отдаёт
+    // чужой по смыслу разбор как медицинский след. Э4c живёт внутри §18б — медицинских данных.
+    // Якорь обязан включать строку статуса: без неё тот же текст стоит ещё и в СОСЕДНЕЙ двери
+    // чтения pending-конфликта, а `String.replace` меняет только ПЕРВОЕ вхождение — поломка уехала
+    // бы не в ту дверь и осталась бы незамеченной (ровно так этот инжектор и родился зелёным).
+    const marker =
+      "AND c.status IN ('dismissed', 'escalated')\n" +
+      "         AND c.reason LIKE 'medical_history:%'\n" +
+      '       LIMIT 1';
+    source = replaceOnce(
+      source,
+      marker,
+      "AND c.status IN ('dismissed', 'escalated')\n         AND TRUE\n       LIMIT 1",
+      fault,
+      fault,
+    );
+  }
+  if (fault === 'approval-comment-foreign-row') {
+    // Пятиаргументная дверь подтверждения перестаёт сверять организацию ИМЕННО в записи
+    // комментария, оставляя стену четырёхаргументной двери на месте. Слияние по-прежнему
+    // отказывает (`conflict_not_found`), но комментарий врача чужой клиники УЖЕ лёг в строку
+    // соседа — отличие от `foreign-org-conflict`, который сносит обе стены сразу.
+    const marker =
+      'UPDATE public.patient_merge_candidates candidate\n' +
+      '     SET doctor_comment = pg_catalog.btrim(p_doctor_comment)\n' +
+      '   WHERE candidate.id = p_conflict_id\n' +
+      '     AND candidate.organization_id = app.current_org_id()';
+    source = replaceOnce(
+      source,
+      marker,
+      'UPDATE public.patient_merge_candidates candidate\n' +
+        '     SET doctor_comment = pg_catalog.btrim(p_doctor_comment)\n' +
+        '   WHERE candidate.id = p_conflict_id\n' +
+        '     AND TRUE',
+      fault,
     );
   }
   return source;

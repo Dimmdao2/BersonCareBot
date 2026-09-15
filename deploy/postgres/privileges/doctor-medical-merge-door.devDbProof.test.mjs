@@ -35,6 +35,26 @@
  *   DOCTOR_MEDICAL_MERGE_DOOR_FAULT=approval-comment-not-saved (подтверждение теряет комментарий)
  *   DOCTOR_MEDICAL_MERGE_DOOR_FAULT=refusal-read-any-org  (дверь следа отказа не сверяет организацию)
  *   DOCTOR_MEDICAL_MERGE_DOOR_FAULT=refusal-write-any-org (дверь записи отказа не сверяет организацию)
+ *   DOCTOR_MEDICAL_MERGE_DOOR_FAULT=refusal-read-any-status (след отказа отдаётся по ещё не
+ *                                                            разобранному pending)
+ *   DOCTOR_MEDICAL_MERGE_DOOR_FAULT=refusal-read-any-reason (немедицинский кандидат отдаётся как
+ *                                                            медицинский след отказа)
+ *   DOCTOR_MEDICAL_MERGE_DOOR_FAULT=approval-comment-foreign-row (подтверждение пишет комментарий
+ *                                                            в строку чужой клиники)
+ *
+ * ⛔ КРИТЕРИЙ ПОЛНОТЫ НАБОРА (введён после четвёртого круга аудита, 15.09). Доказательство обязано
+ * краснеть на снятии КАЖДОГО предиката дверей Э4c поимённо — перечень конечен и проверяется, а не
+ * выдумывается заново каждым аудитом. Предикаты и стерегущие их поломки:
+ *   read_staff_patient_medical_merge_refusal: organization_id → refusal-read-any-org;
+ *     status IN (dismissed, escalated) → refusal-read-any-status;
+ *     reason LIKE medical_history:% → refusal-read-any-reason.
+ *   refuse_staff_patient_medical_merge_conflict: organization_id → refusal-write-any-org;
+ *     запись комментария → comment-not-saved; признак поддержки → support-always-escalates;
+ *     гашение красного входа → decision-stays-pending.
+ *   transfer_staff_approved_platform_user_merge_data (5 арг.): organization_id в записи
+ *     комментария → approval-comment-foreign-row; запись комментария → approval-comment-not-saved;
+ *     обе стены сразу → foreign-org-conflict; ответ человека про ФИО → fio-decision-not-persisted.
+ * Новый предикат в любой из этих дверей обязан приехать со своей поломкой в этом перечне.
  *
  * `DOCTOR_MEDICAL_MERGE_DOOR_ECHO=1` печатает журнал каждого прогона, в том числе зелёного.
  */
@@ -62,6 +82,9 @@ if (
     'approval-comment-not-saved',
     'refusal-read-any-org',
     'refusal-write-any-org',
+    'refusal-read-any-status',
+    'refusal-read-any-reason',
+    'approval-comment-foreign-row',
   ].includes(FAULT)
 ) {
   throw new Error(`unknown DOCTOR_MEDICAL_MERGE_DOOR_FAULT '${FAULT}'`);
@@ -296,6 +319,7 @@ test(
           duplicate_credentials: 1,
           target_credentials: 1,
           clinic_a_row: 'pending/null',
+          clinic_a_comment: null,
           clinic_b_row: 'pending/null',
         },
         output,
@@ -333,6 +357,10 @@ test(
         output,
       );
       assert.equal(facts.foreignTraceRead, null, output);
+      // Своя клиника, но состояние без решения врача и разбор не про медицинские данные: следа
+      // отказа у обоих быть не может, и молчание двери здесь стережёт предикаты `status` и `reason`.
+      assert.equal(facts.pendingTraceRead, null, output);
+      assert.equal(facts.nonMedicalTraceRead, null, output);
     });
   },
 );
