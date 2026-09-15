@@ -125,4 +125,20 @@ describe('empty notification audience reporter', () => {
     ).resolves.toEqual({ counterTotal: 1, fallback: 'failed' });
     expect(dependencies.recordCounterFailure).toHaveBeenCalledOnce();
   });
+
+  it('в режиме ТЕСТ считает, но письмо не шлёт (владелец 15.09 — «чтобы не орал»)', async () => {
+    const dependencies = createDependencies({ outboundSuppressed: () => true });
+    const report = createEmptyAudienceReporter(dependencies);
+
+    await expect(
+      report({
+        topic: 'operator_health',
+        severity: 'operational',
+        channels: ['email'],
+      }),
+    ).resolves.toEqual({ counterTotal: 1, fallback: 'suppressed' });
+    expect(dependencies.sendFallbackEmail).not.toHaveBeenCalled();
+    /* Замер остаётся честным: молчит рупор, а не счётчик. */
+    expect(dependencies.readCounterMeta).toHaveBeenCalledOnce();
+  });
 });

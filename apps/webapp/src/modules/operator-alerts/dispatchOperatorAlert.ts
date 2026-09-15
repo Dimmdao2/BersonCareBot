@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { env } from '@/config/env';
 import { logger } from '@/infra/logging/logger';
 import { relayOperatorAlert } from './relayOperatorAlert';
 import { getConfigValue } from '@/modules/system-settings/configAdapter';
@@ -100,7 +101,7 @@ export type DispatchOperatorAlertInput = {
 
 export type DispatchOperatorAlertResult = {
   dispatched: boolean;
-  reason?: 'disabled' | 'dedup' | 'empty_text' | 'no_recipients' | 'delivery_failed';
+  reason?: 'disabled' | 'test_mode' | 'dedup' | 'empty_text' | 'no_recipients' | 'delivery_failed';
 };
 
 async function fireOperatorRelay(input: {
@@ -153,6 +154,19 @@ async function fireOperatorRelay(input: {
 export async function dispatchOperatorAlert(
   input: DispatchOperatorAlertInput,
 ): Promise<DispatchOperatorAlertResult> {
+  /**
+   * Режим ТЕСТ не орёт (владелец 15.09.2026: «надо дописать чтобы не орал»).
+   *
+   * До этого режим глушил ТОЛЬКО проверки бэкапов (`collectCriticalHealthSignals`), а всё
+   * остальное — отказ провайдера доставки, зависшая очередь, пустая аудитория — будило владельца
+   * с тестового стенда наравне с боем. Стенд шлёт наружу по-настоящему и живых людей на нём нет,
+   * поэтому каждый такой алерт — заведомо ложная тревога, а ложная тревога учит не смотреть.
+   *
+   * Глушится именно ОТПРАВКА, и как можно раньше — до чтения настроек и аудитории. Сигналы
+   * по-прежнему считаются и видны в «Здоровье системы»: замер остаётся честным, молчит только рупор.
+   */
+  if (env.TEST) return { dispatched: false, reason: 'test_mode' };
+
   const cfg = await loadConfig();
   if (!isOperatorAlertBlockEnabled(cfg, input.block)) {
     return { dispatched: false, reason: 'disabled' };

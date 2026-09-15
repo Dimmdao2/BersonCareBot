@@ -9,6 +9,7 @@ import {
 } from '@/modules/operator-alerts/emptyAudience';
 import { parseOperatorAlertFallbackEmailSetting } from '@/modules/operator-alerts/operatorAlertFallbackEmail';
 import { runWithDbInfraPrincipal } from '@bersoncare/db-principal';
+import { env } from '@/config/env';
 import { STAFF_SURFACE } from '@/config/productSurfaces';
 
 /**
@@ -45,6 +46,12 @@ export type EmptyAudienceReporterDependencies = {
   readFallbackEmail: () => Promise<string | null>;
   sendFallbackEmail: (input: FallbackEmailInput) => Promise<boolean>;
   now: () => Date;
+  /**
+   * Режим ТЕСТ: считаем и логируем, но наружу не пишем (владелец 15.09.2026 — «чтобы не орал»).
+   * Отдельный признак, а не пустой адрес: «некуда слать» и «есть куда, но молчим» — разные
+   * состояния, и результат обязан их различать.
+   */
+  outboundSuppressed?: () => boolean;
 };
 
 async function bumpCounter(
@@ -101,7 +108,7 @@ async function deliverToFallback(
 
 export type ReportEmptyAudienceResult = {
   counterTotal: number | null;
-  fallback: 'skipped' | 'sent' | 'failed' | 'not_applicable';
+  fallback: 'skipped' | 'sent' | 'failed' | 'not_applicable' | 'suppressed';
 };
 
 export function createEmptyAudienceReporter(dependencies: EmptyAudienceReporterDependencies) {
@@ -113,9 +120,11 @@ export function createEmptyAudienceReporter(dependencies: EmptyAudienceReporterD
     const counterTotal = await bumpCounter(dependencies, event, nowIso);
 
     const fallback =
-      event.severity === 'operational'
-        ? await deliverToFallback(dependencies, event, nowIso)
-        : ('not_applicable' as const);
+      event.severity !== 'operational'
+        ? ('not_applicable' as const)
+        : dependencies.outboundSuppressed?.()
+          ? ('suppressed' as const)
+          : await deliverToFallback(dependencies, event, nowIso);
 
     return { counterTotal, fallback };
   };
@@ -157,6 +166,7 @@ export async function reportEmptyNotificationAudience(
         return sendOperatorFallbackEmail(input);
       },
       now: () => new Date(),
+      outboundSuppressed: () => env.TEST,
     });
     return report(event);
   });
