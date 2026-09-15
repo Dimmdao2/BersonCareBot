@@ -83,7 +83,7 @@ describe('runtime settings public boundary', () => {
   it('routes a registered public auth-surface key through the pre-session definer only', async () => {
     fakes.runWebappNamedRoot.mockResolvedValueOnce({
       rows: [{
-        key: 'auth_surface_staff_email_enabled',
+        key: 'auth_surface_patient_email_enabled',
         scope: 'admin',
         organization_id: null,
         audience: 'public',
@@ -93,12 +93,12 @@ describe('runtime settings public boundary', () => {
     const port = createPgAppRuntimeSettingsPort();
 
     await expect(port.getEffective({
-      key: 'auth_surface_staff_email_enabled',
+      key: 'auth_surface_patient_email_enabled',
       scope: 'admin',
       organizationId: null,
       allowedAudiences: ['public'],
       operationFamily: 'public_auth_config',
-    })).resolves.toMatchObject({ key: 'auth_surface_staff_email_enabled', valueJson: { value: true } });
+    })).resolves.toMatchObject({ key: 'auth_surface_patient_email_enabled', valueJson: { value: true } });
 
     expect(fakes.runWebappNamedRoot).toHaveBeenCalledOnce();
     expect(fakes.runWebappNamedRoot.mock.calls[0]?.[1]).toBe(
