@@ -419,6 +419,10 @@ export function createPaymentsService(deps: {
       return deps.port.listHistoryForUser(platformUserId, organizationId);
     },
 
+    async listPaymentHistoryForOrganization(organizationId: string, limit?: number) {
+      return deps.port.listHistoryForOrganization(organizationId, limit);
+    },
+
     /** Org-scoped: never returns another organization's intent, even for a valid id. */
     async getIntentForOrganization(intentId: string, organizationId: string) {
       const intent = await deps.port.findIntentById(intentId);

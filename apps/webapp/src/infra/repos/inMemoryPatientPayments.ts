@@ -27,6 +27,13 @@ export const inMemoryPatientPaymentsPort: PatientPaymentsPort = {
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   },
 
+  async listOrganizationPayments(limit = 100): Promise<PatientPayment[]> {
+    return payments
+      .slice()
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .slice(0, limit);
+  },
+
   async addCashPayment(input: AddCashPaymentInput): Promise<PatientPayment> {
     if (!Number.isInteger(input.amountMinor) || input.amountMinor <= 0) {
       throw new Error('payment_amount_must_be_positive_integer');

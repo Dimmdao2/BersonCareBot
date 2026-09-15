@@ -16,63 +16,15 @@ import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
-import type { PatientPayment } from '@/modules/patient-payments/ports';
 import type { PaymentHistoryEventRecord } from '@/modules/payments/types';
+import {
+  buildPaymentTimeline,
+  summarizePatientPayments,
+} from '@/app-layer/payments/paymentTimeline';
 
 // ---------------------------------------------------------------------------
 // Unified timeline entry
 // ---------------------------------------------------------------------------
-
-export type PaymentTimelineEntry = {
-  id: string;
-  /** ISO timestamp; list is sorted newest-first. */
-  occurredAt: string;
-  kind: 'cash' | 'acquiring' | 'booking_prepayment' | 'booking_refund';
-  status: string;
-  amountMinor: number | null;
-  currency: string;
-  description: string | null;
-  provider: string | null;
-  appointmentId: string | null;
-};
-
-// ---------------------------------------------------------------------------
-// Mapping helpers
-// ---------------------------------------------------------------------------
-
-function mapPatientPayment(p: PatientPayment): PaymentTimelineEntry {
-  return {
-    id: p.id,
-    occurredAt: p.createdAt,
-    kind: p.kind,
-    status: p.status,
-    amountMinor: p.amountMinor,
-    currency: p.currency,
-    description: p.service ?? p.comment ?? null,
-    provider: p.provider ?? null,
-    appointmentId: p.visitId ?? null,
-  };
-}
-
-/**
- * Maps a booking-engine payment history event to a timeline entry.
- * eventType examples: "payment.captured", "payment.refunded", "payment.failed", etc.
- * Anything containing "refund" → booking_refund; everything else → booking_prepayment.
- */
-function mapHistoryEvent(e: PaymentHistoryEventRecord): PaymentTimelineEntry {
-  const isRefund = e.eventType.toLowerCase().includes('refund');
-  return {
-    id: e.id,
-    occurredAt: e.occurredAt,
-    kind: isRefund ? 'booking_refund' : 'booking_prepayment',
-    status: e.status ?? e.eventType,
-    amountMinor: e.amountMinor,
-    currency: e.currency ?? 'RUB',
-    description: e.purpose ?? e.comment ?? null,
-    provider: e.providerId ?? null,
-    appointmentId: e.appointmentId ?? null,
-  };
-}
 
 // ---------------------------------------------------------------------------
 // Route handler
@@ -108,22 +60,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ use
   ]);
 
   // Map to unified entries
-  const fromPatient = patientPayments.map(mapPatientPayment);
-  const fromHistory = historyEvents.map(mapHistoryEvent);
-
-  // Merge and sort newest-first
-  const timeline: PaymentTimelineEntry[] = [...fromPatient, ...fromHistory].sort((a, b) =>
-    b.occurredAt.localeCompare(a.occurredAt),
-  );
-
-  // Aggregates (only patient_payment rows, since history events are booking prepayments)
-  const totalCashMinor = patientPayments
-    .filter((p: PatientPayment) => p.kind === 'cash' && p.status === 'paid')
-    .reduce((sum: number, p: PatientPayment) => sum + p.amountMinor, 0);
-
-  const totalAcquiringMinor = patientPayments
-    .filter((p: PatientPayment) => p.kind === 'acquiring' && p.status === 'paid')
-    .reduce((sum: number, p: PatientPayment) => sum + p.amountMinor, 0);
+  const timeline = buildPaymentTimeline(patientPayments, historyEvents);
+  const { totalCashMinor, totalAcquiringMinor } = summarizePatientPayments(patientPayments);
 
   return NextResponse.json({ ok: true, timeline, totalCashMinor, totalAcquiringMinor });
 }

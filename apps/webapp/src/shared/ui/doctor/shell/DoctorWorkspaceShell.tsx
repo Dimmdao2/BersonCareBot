@@ -122,8 +122,6 @@ export function DoctorWorkspaceShell({
     specialistTasksEnabled,
     workspaceModules,
     communicationsSurface,
-    // Solo has no cabinet-mode switch, so its own menu carries the settings entry.
-    soloSettingsHub: workspaceComposition === 'solo',
   };
   const homeHref = getDoctorShellHomeHref(menuAccess);
   const showClinicalShortcuts = capabilities.includes('clinical.workspace');
