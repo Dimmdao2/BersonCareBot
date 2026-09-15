@@ -455,6 +455,7 @@ import { createPgBookingFormPort } from '@/infra/repos/pgBookingForm';
 import { createBookingFormService } from '@/modules/booking-form/service';
 import { createPgLeadsPort } from '@/infra/repos/pgLeads';
 import { createLeadsService } from '@/modules/leads/service';
+import { notifyClinicLeadCreated } from '@/modules/leads/notifyClinicLeadCreated';
 import { createPgPatientMergeCandidatePort } from '@/infra/repos/pgPatientMergeCandidate';
 import { createPatientMergeCandidateService } from '@/modules/patient-merge-candidate/service';
 import {
@@ -874,12 +875,6 @@ const clientHistoryService = createClientHistoryService(clientHistoryPort);
 const bookingFormPort = !inMemoryRepos ? createPgBookingFormPort() : null;
 const bookingFormService = bookingFormPort
   ? createBookingFormService(bookingFormPort, {
-      assertWriteClearance: assertMechanicWriteClearance,
-    })
-  : null;
-const leadsPort = !inMemoryRepos ? createPgLeadsPort() : null;
-const leadsService = leadsPort
-  ? createLeadsService(leadsPort, {
       assertWriteClearance: assertMechanicWriteClearance,
     })
   : null;
@@ -1312,6 +1307,13 @@ const doctorPatientMessageStaffDeps = {
   getChannelBindings: loadPlatformUserChannelBindings,
   patientStaffNotificationProfiles: patientStaffNotificationProfilesPort,
 };
+const leadsPort = !inMemoryRepos ? createPgLeadsPort() : null;
+const leadsService = leadsPort
+  ? createLeadsService(leadsPort, {
+      assertWriteClearance: assertMechanicWriteClearance,
+      notifyClinicLeadCreated: (lead) => notifyClinicLeadCreated(lead, doctorPatientMessageStaffDeps),
+    })
+  : null;
 registerAdminIncidentStaffPushDeps({
   staffUsers: staffUsersPort,
 });

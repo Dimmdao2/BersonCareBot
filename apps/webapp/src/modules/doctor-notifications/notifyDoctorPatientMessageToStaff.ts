@@ -55,6 +55,9 @@ export type NotifyDoctorStaffTopicInput = {
    */
   nativeRoute?: string;
   replyMarkup?: { inline_keyboard: RelayInlineButton[][] };
+  /** A producer-supplied neutral event label when the event is not a patient chat message. */
+  notificationText?: string;
+  notificationTitle?: string;
 };
 
 export type NotifyDoctorPatientMessageToStaffResult = {
@@ -75,17 +78,23 @@ export async function notifyDoctorPatientMessageToStaff(
     : null;
   const staffIds = patientProfiles
     ? patientProfiles.map((profile) => profile.userId)
-    : await deps.staffUsers.listActiveStaffUserIds();
-  const patientLabelSetting = await deps.systemSettings.getSetting('patient_label', 'doctor', {
-    organizationId: input.organizationId,
-  });
+    : await deps.staffUsers.listActiveStaffUserIds(input.organizationId);
   const globalFallback = defaultDoctorTopicFallbackChannels(input.topicCode);
   const replyMarkup = input.replyMarkup;
-  const notificationText = buildPersonalChatNotificationText(
-    input.senderDisplayName,
-    'patient',
-    resolvePatientTerms({ patientLabel: patientLabelSetting?.valueJson, appointmentLabel: undefined }),
-  );
+  const notificationText =
+    input.notificationText ??
+    buildPersonalChatNotificationText(
+      input.senderDisplayName,
+      'patient',
+      resolvePatientTerms({
+        patientLabel: (
+          await deps.systemSettings.getSetting('patient_label', 'doctor', {
+            organizationId: input.organizationId,
+          })
+        )?.valueJson,
+        appointmentLabel: undefined,
+      }),
+    );
   const messengerText = `${notificationText}\n\n${input.notificationUrl}`;
 
   let telegramDelivered = 0;
@@ -155,6 +164,7 @@ export async function notifyDoctorPatientMessageToStaff(
       const recipient = bindings.telegramId.trim();
       const result = await relayOutbound({
         messageId: `${input.messageId}:tg:${userId}:${recipient}`,
+        organizationId: input.organizationId,
         channel: 'telegram',
         recipient,
         text: messengerText,
@@ -172,6 +182,7 @@ export async function notifyDoctorPatientMessageToStaff(
       const recipient = bindings.maxId.trim();
       const result = await relayOutbound({
         messageId: `${input.messageId}:max:${userId}:${recipient}`,
+        organizationId: input.organizationId,
         channel: 'max',
         recipient,
         text: messengerText,
@@ -197,7 +208,7 @@ export async function notifyDoctorPatientMessageToStaff(
         recipient: userId,
         text: notificationText,
         metadata: {
-          title: 'Новое сообщение',
+          title: input.notificationTitle ?? 'Новое сообщение',
           url: input.notificationUrl,
           pushExtras: {
             tag,

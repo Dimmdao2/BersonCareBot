@@ -1,8 +1,9 @@
-import { and, inArray, isNull, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import { getWebappSqlDb, runWebappNamedRoot } from '@/infra/db/runWebappSql';
 import type { StaffUsersPort } from '@/modules/doctor-notifications/staffUsersPort';
 import { platformUsers } from '../../../db/schema/schema';
+import { beOrganizationMembers } from '../../../db/schema/bookingEngine';
 
 function parseStaffOrganizationRecipients(
   payload: unknown,
@@ -19,14 +20,27 @@ function parseStaffOrganizationRecipients(
 
 export function createPgStaffUsersPort(): StaffUsersPort {
   return {
-    async listActiveStaffUserIds() {
+    async listActiveStaffUserIds(organizationId) {
       const db = getDrizzle();
       const rows = await db
         .select({ id: platformUsers.id })
         .from(platformUsers)
-        .where(
-          and(inArray(platformUsers.role, ['doctor', 'admin']), isNull(platformUsers.mergedIntoId)),
-        );
+        .innerJoin(
+          beOrganizationMembers,
+          eq(beOrganizationMembers.platformUserId, platformUsers.id),
+        )
+        .where(and(
+          inArray(platformUsers.role, ['doctor', 'admin']),
+          isNull(platformUsers.mergedIntoId),
+          eq(beOrganizationMembers.organizationId, organizationId),
+          eq(beOrganizationMembers.status, 'active'),
+          // §9.2 of the leads authority names the clinic administrator as the initial audience.
+          // An organization owner is the administrator of that clinic's own membership boundary.
+          or(
+            eq(beOrganizationMembers.role, 'owner'),
+            eq(beOrganizationMembers.role, 'admin'),
+          ),
+        ));
       return rows.map((r) => r.id);
     },
     /**
@@ -52,5 +66,5 @@ export function createPgStaffUsersPort(): StaffUsersPort {
 }
 
 export const inMemoryStaffUsersPort: StaffUsersPort = {
-  listActiveStaffUserIds: async () => [],
+  listActiveStaffUserIds: async (_organizationId) => [],
 };

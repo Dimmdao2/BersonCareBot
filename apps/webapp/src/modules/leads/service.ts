@@ -7,6 +7,7 @@ import type { Lead, NormalizedLeadInput, SubmitLeadInput } from './types';
 type LeadsServiceDependencies = {
   assertWriteClearance?: (mechanic: 'leads') => void;
   now?: () => string;
+  notifyClinicLeadCreated?: (lead: Lead) => Promise<void>;
 };
 
 function optionalText(value: string | null | undefined): string | null {
@@ -56,7 +57,9 @@ export function createLeadsService(
       assertWrite();
       const normalized = normalizeSubmission(input);
       const row = await port.create(normalized, now());
-      return assertTenant(input.organizationId, row);
+      const lead = assertTenant(input.organizationId, row);
+      await dependencies.notifyClinicLeadCreated?.(lead);
+      return lead;
     },
     async list(input) {
       const rows = await port.list(input);
