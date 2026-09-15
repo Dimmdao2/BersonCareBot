@@ -1222,10 +1222,21 @@ export function ScheduleCalendarTab({
   const listVisibleDateRef = useRef<string | null>(null);
   const listVisibleCommitTimerRef = useRef<number | null>(null);
 
+  /**
+   * Прокрутка сообщает сюда КАЖДЫЙ новый день наверху экрана, а подпись периода в списке — только
+   * месяц (владелец 15.09: «давай в списке показывать только месяц просто - так и обновлять дату
+   * при прокрутке дешевле»). Поэтому точную дату мы по-прежнему запоминаем — на ней держится место
+   * при перезапросе по фильтрам, и месяц вместо неё увёл бы ленту на первое число, — а подпись и
+   * состояние трогаем только на переходе через границу месяца. День внутри месяца не вызывает ни
+   * записи в DOM, ни перерисовки.
+   */
   const handleListVisibleDateChange = useCallback(
     (dateKey: string) => {
-      if (listVisibleDateRef.current === dateKey) return;
+      const previous = listVisibleDateRef.current;
+      if (previous === dateKey) return;
       listVisibleDateRef.current = dateKey;
+      const monthKey = dateKey.slice(0, 7);
+      if (previous !== null && previous.slice(0, 7) === monthKey) return;
       const text = listPeriodNavLabel(dateKey, currentTimeZone);
       for (const node of periodLabelNodesRef.current.values()) node.textContent = text;
       if (listVisibleCommitTimerRef.current !== null) {
