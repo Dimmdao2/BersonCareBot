@@ -108,6 +108,8 @@ e6ff3c17c469d1c63d6a6b5e9436d1dec5dd4b04:apps/media-worker/src/main.ts:generic-a
 #    входят на стенды все агенты. Вынесено владельцу отдельной строкой доклада 15.09.
 1f85ebbbc081cb1164840d60690734a94ccc1bc2:apps/webapp/scripts/ensure-nonprod-owner-account-passwords.mjs:generic-api-key:18
 #
-# 4) `media-raw-bucket-migrate.ts:7` — строка комментария «Usage (env as the webapp has it —
-#    `DATABASE_URL*`, S3 keys, `S3_RAW_BUCKET`)». Значения там нет вовсе, ловится слово «keys».
+# 4) `media-raw-bucket-migrate.ts:7` — строка комментария о том, какие переменные окружения нужны
+#    скрипту. Значения там нет вовсе, срабатывает на слове про ключи рядом с именем переменной.
+#    Саму строку здесь НЕ цитирую: цитата в этом файле ловится тем же правилом и краснит гейт уже
+#    на собственный комментарий — проверено 15.09 отдельным кругом пуша.
 42a96f0e80675366cc52a481e34f1809a055492d:apps/webapp/scripts/media-raw-bucket-migrate.ts:generic-api-key:7
