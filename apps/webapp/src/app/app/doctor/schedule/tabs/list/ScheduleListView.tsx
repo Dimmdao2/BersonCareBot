@@ -117,7 +117,7 @@ function ListDayCard({
                 className={cn(
                   'flex shrink-0 flex-col justify-center gap-0.5 overflow-hidden text-xs',
                   appt.branchColor && !cancelled
-                    ? '-my-2.5 -ml-[var(--doctor-list-inline-padding,18px)] w-[5.75rem] bg-[color:var(--list-branch-bg)] py-2.5 pl-[var(--doctor-list-inline-padding,18px)] pr-2'
+                    ? '-my-2.5 -ml-[var(--doctor-list-inline-padding,18px)] w-[6.5rem] bg-[color:var(--list-branch-bg)] py-2.5 pl-[var(--doctor-list-inline-padding,18px)] pr-3'
                     : 'w-[4.75rem]',
                 )}
               >
