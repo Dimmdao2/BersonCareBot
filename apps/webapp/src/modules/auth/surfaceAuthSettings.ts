@@ -10,6 +10,11 @@ export const SURFACE_AUTH_CONTROLS = [
   'sms',
   'telegram',
   'max',
+  // Telegram Login Widget — НЕ вход по боту: человек не получает код в чат, а подтверждает себя
+  // кнопкой Telegram на странице. Владелец 16.09.2026: «Login Widget указывается отдельно… и только
+  // если телеграм оаус админ включил на платформе», «это не тоже самое что вход по боту». Поэтому
+  // свой переключатель и свой бот, а не общая строка с каналом `telegram`.
+  'telegram_login_widget',
   'oauth_google',
   'oauth_yandex',
   'oauth_vk',
@@ -25,6 +30,7 @@ const METHOD_BY_CONTROL = {
   sms: 'phone_bot',
   telegram: 'phone_bot',
   max: 'phone_bot',
+  telegram_login_widget: 'oauth',
   oauth_google: 'oauth',
   oauth_yandex: 'oauth',
   oauth_vk: 'oauth',
@@ -64,6 +70,8 @@ export function defaultSurfaceAuthControlEnabled(
   // Yandex registration enabled, while the other patient providers stay disabled by default.
   if (control === 'oauth_yandex') return surface === 'patient';
   if (control.startsWith('oauth_')) return false;
+  // Виджет выключен по умолчанию: он требует отдельного бота с привязанным доменом в @BotFather.
+  if (control === 'telegram_login_widget') return false;
   // SMS remains implemented but is deliberately off in the base delivery configuration on every
   // surface; patient phone proof uses the existing messenger-contact route instead.
   if (control === 'sms') return false;

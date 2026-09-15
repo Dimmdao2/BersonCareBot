@@ -36,9 +36,12 @@ import { markFreshLoginAfterAuth } from '@/shared/lib/webPush/freshLoginStorage'
 import { ChannelPicker } from '@/shared/ui/patient/auth/ChannelPicker';
 import {
   OtpCodeForm,
-  type OtpAlternativeEntry,
   type OtpResendOutcome,
 } from '@/shared/ui/patient/auth/OtpCodeForm';
+import {
+  buildPublicPhoneOtpAlternatives,
+  otpCodeDescription,
+} from '@/shared/ui/patient/auth/otpDoor';
 import { InternationalPhoneInput } from '@/shared/ui/patient/auth/InternationalPhoneInput';
 import {
   AUTH_LOGIN_ACCENT_TEXT_CLASS,
@@ -170,56 +173,6 @@ function hasPublicWebOtpChannel(methods: AuthMethodsPayload): boolean {
   );
 }
 
-function otpDescription(channel: OtpChannel): string {
-  switch (channel) {
-    case 'telegram':
-      return 'Введите код, отправленный вам в Telegram.';
-    case 'max':
-      return 'Введите код, отправленный вам в Max.';
-    case 'email':
-      return 'Введите код, отправленный вам на email.';
-    default:
-      return 'Введите код, отправленный вам.';
-  }
-}
-
-function buildAlternatives(
-  methods: AuthMethodsPayload,
-  currentChannel: OtpChannel,
-  onChoose: (ch: OtpChannel) => Promise<OtpResendOutcome>,
-): OtpAlternativeEntry[] {
-  const result: OtpAlternativeEntry[] = [];
-  for (const ch of OTP_PUBLIC_OTHER_CHANNELS_ORDER) {
-    if (ch === currentChannel) continue;
-    if (!isOtpChannelAvailablePublic(methods, ch)) continue;
-    if (ch === 'telegram') {
-      result.push({
-        label: 'Получить код в Telegram',
-        onClick: async () => {
-          await onChoose('telegram');
-        },
-      });
-      continue;
-    }
-    if (ch === 'max') {
-      result.push({
-        label: 'Получить код в Max',
-        onClick: async () => {
-          await onChoose('max');
-        },
-      });
-      continue;
-    }
-    result.push({
-      label: 'Получить код на email',
-      onClick: async () => {
-        await onChoose('email');
-      },
-    });
-  }
-  return result;
-}
-
 function withContactSupportReturn(
   supportHref: string | undefined,
   fromParam: string,
@@ -311,10 +264,9 @@ export function AuthFlowV2({
     | 'staff_factor'
   >('login');
   const [emailVerifyPurpose, setEmailVerifyPurpose] = useState<
-    'registration' | 'patient_registration' | 'setup' | 'email_otp' | 'specialist_signup'
-  >('registration');
+    'patient_registration' | 'setup' | 'email_otp' | 'specialist_signup'
+  >('patient_registration');
   const [emailRegChallengeId, setEmailRegChallengeId] = useState<string | null>(null);
-  const [emailRegAttemptId, setEmailRegAttemptId] = useState<string | null>(null);
   const [emailRegRetrySec, setEmailRegRetrySec] = useState(60);
   const [emailPasswordReturn, setEmailPasswordReturn] = useState<
     'oauth_first' | 'phone' | 'email_password'
@@ -457,6 +409,10 @@ export function AuthFlowV2({
       ? 'oauth_first'
       : 'email_password';
     if (p.mode === 'register_verify') {
+      if (p.purpose !== 'patient_email_otp') {
+        clearAuthFlowPending();
+        return;
+      }
       engageInteractive();
       setStep('email_password');
       setEmailPasswordReturn(prefetchedOauthReturn);
@@ -465,10 +421,7 @@ export function AuthFlowV2({
       setEmailRegFirstName(p.firstName ?? '');
       setEmailRegPatronymic(p.patronymic ?? '');
       setEmailRegChallengeId(p.challengeId);
-      setEmailRegAttemptId(p.attemptId ?? null);
-      setEmailVerifyPurpose(
-        p.purpose === 'patient_email_otp' ? 'patient_registration' : 'registration',
-      );
+      setEmailVerifyPurpose('patient_registration');
       setEmailAuthMode('verify');
       setEmailRegRetrySec(p.retryAfterSeconds);
     } else if (p.mode === 'specialist_signup_verify') {
@@ -559,7 +512,7 @@ export function AuthFlowV2({
 
   const resetEmailAuthFields = () => {
     setEmailAuthMode('login');
-    setEmailVerifyPurpose('registration');
+    setEmailVerifyPurpose('patient_registration');
     setEmailRegChallengeId(null);
     setEmailRegRetrySec(60);
     setEmailRegPassword('');
@@ -1972,7 +1925,7 @@ export function AuthFlowV2({
                     onClick={() => {
                       clearAuthFlowPending();
                       setEmailAuthMode('login');
-                      setEmailVerifyPurpose('registration');
+                      setEmailVerifyPurpose('patient_registration');
                       setEmailRegChallengeId(null);
                       setEmailRegRetrySec(60);
                     }}
@@ -2087,7 +2040,7 @@ export function AuthFlowV2({
                       }
                       if (data.error === 'security_setup_pending') {
                         setEmailRegChallengeId(null);
-                        setEmailVerifyPurpose('registration');
+                        setEmailVerifyPurpose('patient_registration');
                         setEmailAuthMode('login');
                         toast.error(
                           data.message ?? notificationText.authReenterPasswordToContinueSetup,
@@ -2189,31 +2142,16 @@ export function AuthFlowV2({
                       error?: string;
                       message?: string;
                       retryAfterSeconds?: number;
-                    }>(
-                      emailVerifyPurpose === 'setup'
-                        ? '/api/auth/email-password/setup-code/complete'
-                        : '/api/auth/email-password/register/confirm',
-                      {
+                    }>('/api/auth/email-password/setup-code/complete', {
                         method: 'POST',
                         headers: { 'content-type': 'application/json' },
-                        body: JSON.stringify(
-                          emailVerifyPurpose === 'setup'
-                            ? {
-                                email: emailLoginEmail.trim(),
-                                ...(emailRegChallengeId
-                                  ? { challengeId: emailRegChallengeId }
-                                  : {}),
-                                code,
-                                password: emailRegPassword,
-                              }
-                            : {
-                                challengeId: emailRegChallengeId,
-                                code,
-                                ...(emailRegAttemptId ? { attemptId: emailRegAttemptId } : {}),
-                              },
-                        ),
-                      },
-                    );
+                        body: JSON.stringify({
+                          email: emailLoginEmail.trim(),
+                          ...(emailRegChallengeId ? { challengeId: emailRegChallengeId } : {}),
+                          code,
+                          password: emailRegPassword,
+                        }),
+                      });
                     if (!confirmEmailResult.ok) {
                       return { ok: false as const, message: AUTH_NETWORK_ERROR_MESSAGE };
                     }
@@ -2393,11 +2331,7 @@ export function AuthFlowV2({
                         message: data.message ?? 'Не удалось отправить код',
                       };
                     }
-                    const password = emailRegPassword;
-                    const lastName = emailRegLastName.trim();
-                    const firstName = emailRegFirstName.trim();
-                    const patronymic = emailRegPatronymic.trim();
-                    if (!email || !password || !lastName || !firstName) {
+                    if (!email) {
                       return {
                         kind: 'error' as const,
                         message: 'Нет данных для повторной отправки',
@@ -2409,43 +2343,18 @@ export function AuthFlowV2({
                       retryAfterSeconds?: number;
                       error?: string;
                       message?: string;
-                    }>(
-                      emailVerifyPurpose === 'setup'
-                        ? '/api/auth/email-password/setup-access'
-                        : '/api/auth/email-password/register',
-                      {
+                    }>('/api/auth/email-password/setup-access', {
                         method: 'POST',
                         headers: { 'content-type': 'application/json' },
-                        body: JSON.stringify(
-                          emailVerifyPurpose === 'setup'
-                            ? { email }
-                            : {
-                                email,
-                                password,
-                                lastName,
-                                firstName,
-                                patronymic: patronymic || undefined,
-                              },
-                        ),
-                      },
-                    );
+                        body: JSON.stringify({ email }),
+                      });
                     if (!resendRegisterResult.ok) {
                       return { kind: 'error' as const, message: AUTH_NETWORK_ERROR_MESSAGE };
                     }
                     const { response: res, data } = resendRegisterResult;
-                    if (data.ok && (emailVerifyPurpose === 'setup' || Boolean(data.challengeId))) {
+                    if (data.ok) {
                       setEmailRegChallengeId(data.challengeId ?? null);
                       setEmailRegRetrySec(data.retryAfterSeconds ?? 60);
-                      if (emailVerifyPurpose === 'registration' && data.challengeId) {
-                        saveRegisterVerifyPending({
-                          email,
-                          challengeId: data.challengeId,
-                          retryAfterSeconds: data.retryAfterSeconds ?? 60,
-                          lastName,
-                          firstName,
-                          patronymic,
-                        });
-                      }
                       return { kind: 'ok' as const };
                     }
                     if (res.status === 429 || data.error === 'rate_limited') {
@@ -2480,7 +2389,7 @@ export function AuthFlowV2({
                       setEmailVerifyPurpose(
                         emailVerifyPurpose === 'patient_registration'
                           ? 'patient_registration'
-                          : 'registration',
+                          : 'email_otp',
                       );
                       setEmailAuthMode(
                         emailVerifyPurpose === 'patient_registration'
@@ -2746,8 +2655,11 @@ export function AuthFlowV2({
   }
 
   if (step === 'code' && challengeId && methods) {
-    const alternatives = buildAlternatives(methods, otpChannel, (ch) =>
-      startPhoneOtp(ch, 'channel'),
+    const alternatives = buildPublicPhoneOtpAlternatives(
+      methods,
+      otpChannel,
+      (ch) => startPhoneOtp(ch, 'channel'),
+      emailOtpEnabled || passwordLoginEnabled ? () => openEmailPasswordLogin('phone') : null,
     );
 
     return (
@@ -2757,7 +2669,7 @@ export function AuthFlowV2({
           retryAfterSeconds={retryAfterSeconds}
           supportContactHref={supportContactHref}
           submitLabel="Войти"
-          description={otpDescription(otpChannel)}
+          description={otpCodeDescription(otpChannel)}
           alternatives={alternatives}
           onConfirm={async (code) => {
             engageInteractive();

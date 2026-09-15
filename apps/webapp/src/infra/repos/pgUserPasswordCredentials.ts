@@ -1,4 +1,4 @@
-/** Wave 3 phase 15B — domain SQL via the webapp port; `registerPendingVerification` — named root. */
+/** Password credentials through the webapp DB port. */
 import { sql } from 'drizzle-orm';
 import { getWebappSqlDb, runWebappNamedRoot, runWebappSql } from '@/infra/db/runWebappSql';
 import argon2 from 'argon2';
@@ -12,14 +12,6 @@ import type { LoginAttemptOrigin } from '@/modules/auth/loginAttemptOrigin';
 import { recordLoginFailure } from '@/infra/loginFailureTally';
 
 export type UserPasswordCredentialsPort = {
-  /** Регистрация клиента с паролем до подтверждения email (`email_verified_at` заполняется challenge). */
-  registerPendingVerification(params: {
-    emailNormalized: string;
-    passwordHash: string;
-    lastName: string;
-    firstName: string;
-    patronymic: string | null;
-  }): Promise<{ ok: true; userId: string } | { ok: false; reason: 'duplicate_email' }>;
   /** Регистрация специалиста с паролем до подтверждения email; role остаётся doctor для compat projection. */
   registerPendingSpecialistVerification(params: {
     emailNormalized: string;
@@ -28,14 +20,11 @@ export type UserPasswordCredentialsPort = {
     firstName: string;
     patronymic: string | null;
   }): Promise<{ ok: true; userId: string } | { ok: false; reason: 'duplicate_email' }>;
-  /** Удалить канон без подтверждения email (откат после сбоя отправки кода и т.п.). */
+  /** Удалить неподтверждённую password-регистрацию специалиста после сбоя отправки кода. */
   deleteUnverifiedEmailPasswordRegistration(userId: string): Promise<void>;
-  /** Владелец активного челленджа на email (для публичного подтверждения после регистрации). */
+  /** Владелец активного челленджа для подтверждения регистрации специалиста. */
   findUserIdByEmailChallengeId(challengeId: string): Promise<string | null>;
-  /**
-   * Неподтверждённая регистрация с тем же email: проверка пароля и повторная отправка кода
-   * (тот же контракт ответа, что у успешного `registerPendingVerification` + `startEmailChallenge`).
-   */
+  /** Проверить неподтверждённую регистрацию специалиста и повторно отправить код. */
   tryResendRegistrationChallenge(params: {
     emailNormalized: string;
     plainPassword: string;
@@ -74,13 +63,13 @@ export type UserPasswordCredentialsPort = {
 export function createPgUserPasswordCredentialsPort(
   protection: PasswordLoginProtectionPort,
 ): UserPasswordCredentialsPort {
-  async function registerPendingVerificationWithRole(params: {
+  async function registerPendingSpecialistVerification(params: {
     emailNormalized: string;
     passwordHash: string;
     lastName: string;
     firstName: string;
     patronymic: string | null;
-    role: 'client' | 'doctor';
+    role: 'doctor';
   }): Promise<{ ok: true; userId: string } | { ok: false; reason: 'duplicate_email' }> {
     const args = [
       params.emailNormalized,
@@ -203,12 +192,8 @@ export function createPgUserPasswordCredentialsPort(
   }
 
   return {
-    async registerPendingVerification(params) {
-      return registerPendingVerificationWithRole({ ...params, role: 'client' });
-    },
-
     async registerPendingSpecialistVerification(params) {
-      return registerPendingVerificationWithRole({ ...params, role: 'doctor' });
+      return registerPendingSpecialistVerification({ ...params, role: 'doctor' });
     },
 
     async deleteUnverifiedEmailPasswordRegistration(userId) {
@@ -304,9 +289,6 @@ export function createPgUserPasswordCredentialsPort(
 }
 
 export const inMemoryUserPasswordCredentialsPort: UserPasswordCredentialsPort = {
-  async registerPendingVerification() {
-    return { ok: false, reason: 'duplicate_email' };
-  },
   async registerPendingSpecialistVerification() {
     return { ok: false, reason: 'duplicate_email' };
   },

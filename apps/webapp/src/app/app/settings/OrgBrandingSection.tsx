@@ -216,12 +216,20 @@ function ClinicBotControls({
       </div>
       {configured ? (
         <div className="flex flex-col gap-2">
+          {/*
+            Имя телеграм-бота принадлежит токену: оно подставляется по нему при сохранении токена и
+            здесь только показывается. Владелец 16.09.2026: «имя, вписанное руками — убрать, сразу
+            получать и показывать там как нередактируемое» — руками введённое имя уже приводило к
+            чужому боту в ссылке, и код входа уходил в другой чат. У MAX такого запроса к платформе
+            нет, поэтому его ник остаётся полем ввода.
+          */}
           <Input
             value={botPublicId}
             onChange={(event) => setBotPublicId(event.target.value)}
             placeholder={handleLabel}
             spellCheck={false}
-            disabled={pending}
+            readOnly={channel === 'telegram'}
+            disabled={pending || channel === 'telegram'}
           />
           <label className="flex items-center gap-2 text-sm">
             <input
