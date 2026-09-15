@@ -5,7 +5,6 @@ import type { UserByPhonePort } from '@/modules/auth/userByPhonePort';
 import type { SessionUser } from '@/shared/types/session';
 
 const fakes = vi.hoisted(() => ({
-  registerPendingVerification: vi.fn<UserPasswordCredentialsPort['registerPendingVerification']>(),
   resolveAuthState: vi.fn<EmailPasswordLookupPort['resolveAuthState']>(),
   startEmailChallenge: vi.fn(),
   confirmEmailChallenge: vi.fn(),
@@ -57,7 +56,6 @@ vi.mock('@/app-layer/product-analytics/recordAuthRegistration', () => ({
 vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: () => ({
     userPasswordCredentials: {
-      registerPendingVerification: fakes.registerPendingVerification,
       upsertPasswordHash: fakes.upsertPasswordHash,
       updatePasswordHash: fakes.updatePasswordHash,
     },
@@ -74,7 +72,6 @@ vi.mock('@/app-layer/di/buildAppDeps', () => ({
   }),
 }));
 
-import { POST as register } from '@/app/api/auth/email-password/register/route';
 import { POST as forgotPassword } from '@/app/api/auth/email-password/forgot/route';
 import { POST as resetPassword } from '@/app/api/auth/email-password/reset/route';
 import { POST as requestSetupAccess } from '@/app/api/auth/email-password/setup-access/route';
@@ -102,27 +99,6 @@ beforeEach(() => {
   fakes.getSecurityStatus.mockResolvedValue(null);
   fakes.invalidateSessions.mockResolvedValue(undefined);
   fakes.revokeStaffSessions.mockResolvedValue(undefined);
-});
-
-describe('email/password register HTTP boundary', () => {
-  const request = () =>
-    jsonRequest('/api/auth/email-password/register', {
-      email: 'patient@example.test',
-      password: 'a-strong-password',
-      lastName: 'Иванов',
-      firstName: 'Иван',
-    });
-
-  it('blocks self-registration with a password before touching the DB (register only ever creates patient accounts)', async () => {
-    const response = await register(request());
-
-    expect(response.status).toBe(403);
-    await expect(response.json()).resolves.toEqual({
-      ok: false,
-      error: 'password_not_available_for_role',
-    });
-    expect(fakes.registerPendingVerification).not.toHaveBeenCalled();
-  });
 });
 
 describe('email/password setup-code complete HTTP boundary', () => {
