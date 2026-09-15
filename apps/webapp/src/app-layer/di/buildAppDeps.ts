@@ -1014,7 +1014,8 @@ const videoMeetingsService = !inMemoryRepos
        * capability: tenant_service»). Поэтому имя специалиста берётся на кабинетном маршруте под
        * его же staff-принципалом, а имя клиента — на пациентском маршруте его собственной дверью
        * `getCurrentPatientFio`. Гостевая ссылка сессии человека не несёт вовсе: там имени взять
-       * законно неоткуда, и участник подписывается нейтральным «Клиент», а не подписью провайдера.
+       * законно неоткуда, и участник подписывается нейтральным «Гость» (решение владельца 15.09.2026:
+       * настоящее ФИО того не стоит), а не подписью провайдера.
        */
       resolveDisplayName: async ({ meeting, role }) => {
         try {
@@ -1027,10 +1028,10 @@ const videoMeetingsService = !inMemoryRepos
             formatDoctorFioShort(
               { lastName: fio?.lastName ?? null, firstName: fio?.firstName ?? null, patronymic: null },
               fio?.displayName?.trim() ?? '',
-            ) || 'Клиент'
+            ) || 'Гость'
           );
         } catch {
-          return role === 'patient' ? 'Клиент' : null;
+          return role === 'patient' ? 'Гость' : null;
         }
       },
       logDiagnostic: (payload) => logger.info(payload, 'video_meeting_diagnostic'),
