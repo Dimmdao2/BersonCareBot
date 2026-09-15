@@ -207,52 +207,6 @@ afterEach(() => {
 });
 
 describe('phone login automatic delivery fallback', () => {
-  /**
-   * ОТКРЫТЫЙ ВОПРОС ВЛАДЕЛЬЦУ (#1005, 16.09.2026) — тест ждёт его слова, не чинится сам.
-   * Дословно владелец: «по телефону можно отправлять только в ботов, то есть в макс или телеграм».
-   * Буквально это убирает и SMS, но другой двери у SMS нет: выключить её здесь значит выключить
-   * SMS-вход целиком, а причина решения (нельзя ввести данные другого канала) к SMS не относится —
-   * код уходит на тот самый введённый номер. Сейчас `auth_sms_enabled = false`, поэтому на всех
-   * контурах разницы нет. Ответ «выпиливаем» — снять `.skip` у обоих тестов и убрать SMS из
-   * `/api/auth/phone/start`; ответ «остаётся» — удалить оба вместе с этим блоком.
-   */
-  it.skip('does not bootstrap phone login via SMS when no bot channel is resolved', async () => {
-    const response = await finishResponse(
-      startPhone(
-        request({
-          phone: '+79991234567',
-          channel: 'web',
-          chatId: 'browser-1005',
-          purpose: 'login',
-        }),
-      ),
-    );
-
-    expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({
-      ok: true,
-      challengeId: 'real-challenge-id-1005',
-      retryAfterSeconds: 60,
-      deliveryChannel: 'automatic',
-    });
-    expect(fakes.startPhoneAuth.mock.calls.at(-1)?.[2]).toEqual(
-      expect.objectContaining({
-        delivery: undefined,
-        deferredDelivery: expect.objectContaining({
-          schedule: fakes.after,
-          suppressDelivery: true,
-        }),
-      }),
-    );
-    expect(fakes.getVerifiedEmail).not.toHaveBeenCalled();
-  });
-
-  /**
-   * Правило владельца 16.09.2026: «по телефону можно отправлять только в ботов, то есть в макс или
-   * телеграм. По имейл — надо ввести имейл». Раньше почта была доставкой по номеру, и при опечатке в
-   * номере код уходил на адрес ЧУЖОГО аккаунта. Теперь по номеру письмо не уходит никому — ни
-   * известному номеру, ни неизвестному, — и обе ветки по-прежнему неотличимы снаружи.
-   */
   it('never delivers an email code at the phone door, and stays indistinguishable', async () => {
     fakes.getClientVisiblePolicy.mockResolvedValue({
       email: true,
@@ -488,27 +442,6 @@ describe('phone login automatic delivery fallback', () => {
       deliveryChannel: 'telegram',
     });
     expect(String(unknownBody.challengeId)).toHaveLength(String(linkedBody.challengeId).length);
-  });
-
-  // Тот же открытый вопрос владельцу, см. блок выше.
-  it.skip('refuses an explicit SMS request before looking up the account', async () => {
-    fakes.isChannelEnabled.mockImplementation(async (channel) => channel === 'sms');
-
-    const response = await finishResponse(
-      startPhone(
-        request({
-          phone: '+79991234567',
-          channel: 'web',
-          chatId: 'browser-1005',
-          purpose: 'login',
-          deliveryChannel: 'sms',
-        }),
-      ),
-    );
-
-    expect(response.status).toBeGreaterThanOrEqual(400);
-    expect(fakes.findByPhone).not.toHaveBeenCalled();
-    expect(fakes.startPhoneAuth).not.toHaveBeenCalled();
   });
 
   it('stays silent when the resolved channel is not enabled+configured (no SMS fallback)', async () => {
