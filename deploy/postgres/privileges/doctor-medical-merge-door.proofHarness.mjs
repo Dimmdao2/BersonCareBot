@@ -45,6 +45,13 @@ export const FAULTS = new Set([
   'refusal-read-any-status',
   'refusal-read-any-reason',
   'approval-comment-foreign-row',
+  'approval-comment-optional',
+  'refusal-comment-optional',
+  'refusal-write-any-row',
+  'refusal-write-any-status',
+  'refusal-write-any-reason',
+  'approval-any-status',
+  'approval-any-reason',
 ]);
 
 export function faultFromEnv() {
@@ -216,6 +223,84 @@ function migrationSource(fault) {
         '     AND TRUE',
       fault,
     );
+  }
+  if (fault === 'approval-comment-optional') {
+    // Дверь ПОДТВЕРЖДЕНИЯ перестаёт требовать комментарий врача. План владельца: «Принять открывает
+    // дополнительное подтверждение с комментарием врача» — без обязательности решение остаётся без
+    // объяснения, а слияние всё равно происходит.
+    const marker =
+      '  v_outcome text;\nBEGIN\n' +
+      "  IF pg_catalog.btrim(COALESCE(p_doctor_comment, '')) = '' OR\n" +
+      '     pg_catalog.length(pg_catalog.btrim(p_doctor_comment)) > 2000 THEN';
+    source = replaceOnce(source, marker, '  v_outcome text;\nBEGIN\n  IF FALSE THEN', fault);
+  }
+  if (fault === 'refusal-comment-optional') {
+    // То же у двери ОТКАЗА: след отказа обязан нести объяснение врача, иначе пометка в обеих учётках
+    // ничего не сообщает ни второй клинике, ни платформе.
+    const marker =
+      "    'app.refuse_staff_patient_medical_merge_conflict(uuid,uuid,text,boolean)'::regprocedure\n" +
+      '  );\n\n' +
+      "  IF pg_catalog.btrim(COALESCE(p_doctor_comment, '')) = '' OR\n" +
+      '     pg_catalog.length(pg_catalog.btrim(p_doctor_comment)) > 2000 THEN';
+    source = replaceOnce(
+      source,
+      marker,
+      "    'app.refuse_staff_patient_medical_merge_conflict(uuid,uuid,text,boolean)'::regprocedure\n" +
+        '  );\n\n  IF FALSE THEN',
+      fault,
+    );
+  }
+  if (
+    fault === 'refusal-write-any-row' ||
+    fault === 'refusal-write-any-status' ||
+    fault === 'refusal-write-any-reason'
+  ) {
+    // Выбор строки в двери отказа: какой конфликт, в каком состоянии и про какие данные. Снятие
+    // любого из трёх означает, что врач закрывает своим комментарием не тот разбор.
+    // Якорь начинается со строки `support_requested`: тот же WHERE-блок стоит и в ПРЕЖНЕЙ редакции
+    // двери из первой миграции, а колонка признака поддержки есть только в нынешней.
+    const marker =
+      '         support_requested = p_support_requested\n' +
+      '   WHERE id = p_conflict_id\n' +
+      '     AND organization_id = app.current_org_id()\n' +
+      "     AND status = 'pending'\n" +
+      "     AND reason LIKE 'medical_history:%'\n" +
+      '  RETURNING id, organization_id';
+    const replacement = marker
+      .replace(
+        'WHERE id = p_conflict_id',
+        fault === 'refusal-write-any-row' ? 'WHERE TRUE' : 'WHERE id = p_conflict_id',
+      )
+      .replace(
+        "AND status = 'pending'",
+        fault === 'refusal-write-any-status' ? 'AND TRUE' : "AND status = 'pending'",
+      )
+      .replace(
+        "AND reason LIKE 'medical_history:%'",
+        fault === 'refusal-write-any-reason' ? 'AND TRUE' : "AND reason LIKE 'medical_history:%'",
+      );
+    source = replaceOnce(source, marker, replacement, fault);
+  }
+  if (fault === 'approval-any-status' || fault === 'approval-any-reason') {
+    // Тот же выбор строки у двери подтверждения: уже разобранный конфликт и немедицинский кандидат
+    // не должны проходить через медицинскую дверь второй раз.
+    const marker =
+      '   WHERE candidate.id = p_conflict_id\n' +
+      '     AND candidate.organization_id = app.current_org_id()\n' +
+      "     AND candidate.status = 'pending'\n" +
+      "     AND candidate.reason LIKE 'medical_history:%'";
+    const replacement = marker
+      .replace(
+        "AND candidate.status = 'pending'",
+        fault === 'approval-any-status' ? 'AND TRUE' : "AND candidate.status = 'pending'",
+      )
+      .replace(
+        "AND candidate.reason LIKE 'medical_history:%'",
+        fault === 'approval-any-reason'
+          ? 'AND TRUE'
+          : "AND candidate.reason LIKE 'medical_history:%'",
+      );
+    source = replaceOnce(source, marker, replacement, fault);
   }
   return source;
 }

@@ -49,6 +49,12 @@ const THIRD = '00000000-0000-4000-8000-00000000fa03';
 const CONFLICT_PENDING = '00000000-0000-4000-8000-00000000fa12';
 /** Разобранный кандидат своей клиники, но НЕ медицинский: Э4c про него ничего не обещает. */
 const CONFLICT_NONMEDICAL = '00000000-0000-4000-8000-00000000fa13';
+/**
+ * Немедицинский кандидат, который ЕЩЁ НЕ разобран. Нужен, чтобы отделить предикат рода данных от
+ * предиката состояния: на разобранной строке фильтр статуса закрывает дверь первым, и снятие
+ * `reason LIKE 'medical_history:%'` остаётся незаметным.
+ */
+const CONFLICT_PENDING_NONMEDICAL = '00000000-0000-4000-8000-00000000fa14';
 
 const DOCTOR_A_COMMENT = 'Клиника А: это разные люди, я их обоих веду';
 const DOCTOR_B_COMMENT = 'Чужой врач не должен записать сюда ничего';
@@ -80,6 +86,38 @@ async function refuse(client, doctor, conflictId, comment, supportRequested) {
   );
   await clearDoctorContext(client);
   return result.rows[0]?.resolved === true;
+}
+
+/**
+ * Пятиаргументная дверь подтверждения. Именованным корнем порта она НЕ является — внутри нет
+ * `require_accepted_context`, её зовёт рантайм-роль врача под своим обычным принципалом
+ * (`pgPlatformUserMerge.ts`). Поэтому здесь ставится тот же контекст врача, а не оснастка корня.
+ */
+async function approve(client, doctor, conflictId, targetId, duplicateId, comment) {
+  const capability = await staffCapability(client);
+  await installDoctorContext(client, capability, doctor);
+  const result = await client.query(
+    `SELECT app.transfer_staff_approved_platform_user_merge_data(
+       $1::uuid, $2::uuid, $3::uuid, $4::uuid, $5::text
+     ) AS outcome`,
+    [conflictId, targetId, duplicateId, doctor.staff_id, comment],
+  );
+  await clearDoctorContext(client);
+  return result.rows[0]?.outcome ?? null;
+}
+
+/** Ожидаемый отказ двери: возвращаем код ошибки, а не роняем прогон. */
+async function refusedWith(client, run) {
+  await client.query('SAVEPOINT door_probe');
+  try {
+    await run();
+    await client.query('RELEASE SAVEPOINT door_probe');
+    return null;
+  } catch (error) {
+    await client.query('ROLLBACK TO SAVEPOINT door_probe');
+    await clearDoctorContext(client).catch(() => {});
+    return error.code ?? String(error.message ?? error);
+  }
 }
 
 async function readRefusal(client, doctor, conflictId) {
@@ -148,6 +186,14 @@ async function main() {
        ) VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, 'email_bind', 'dismissed',
                  $5::text, pg_catalog.now())`,
       [CONFLICT_NONMEDICAL, clinicA.org_id, DUPLICATE, THIRD, NONMEDICAL_COMMENT],
+    );
+    await client.query(
+      `INSERT INTO public.patient_merge_candidates(
+         id, organization_id, anchor_user_id, candidate_user_id, reason, status
+       ) VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, 'email_bind', 'pending')`,
+      // Пара берётся ТРЕТЬЯ: частичный уникальный индекс `uq_patient_merge_candidates_org_pending_pair`
+      // держит одну незакрытую строку на пару учёток в клинике независимо от рода данных.
+      [CONFLICT_PENDING_NONMEDICAL, clinicA.org_id, DUPLICATE, THIRD],
     );
     say('fixture inserted (3 accounts of clinic A; conflicts: one pending medical, one pending medical spare, one dismissed non-medical)');
 
@@ -256,6 +302,72 @@ async function main() {
       );
     }
 
+    // --- Ч4: допуск к решению — что дверь обязана ОТКАЗАТЬ ---
+    // Проверяется не поведение «после решения», а сам допуск: обязателен ли комментарий, та ли
+    // строка выбрана, в том ли она состоянии и про те ли это данные. Каждая проверка стережёт один
+    // названный предикат двери (перечень — в шапке `doctor-medical-merge-door.devDbProof.test.mjs`).
+    const admission = {
+      // Комментарий врача обязателен в ОБЕИХ дверях: решение без объяснения не решение.
+      emptyCommentRefusal: await refusedWith(client, () =>
+        refuse(client, clinicA, CONFLICT_PENDING, '   ', false),
+      ),
+      emptyCommentApproval: await refusedWith(client, () =>
+        approve(client, clinicA, CONFLICT_PENDING, TARGET, THIRD, '  '),
+      ),
+      // Уже разобранный конфликт второй раз не разбирается ни одной из дверей.
+      secondRefusalOfResolved: await refuse(client, clinicA, CONFLICT_A, 'повторный отказ', false),
+      approvalOfResolved: await approve(
+        client, clinicA, CONFLICT_A, TARGET, DUPLICATE, 'повторное подтверждение',
+      ),
+      // Немедицинский кандидат через медицинскую дверь не проходит вовсе — и в разобранном виде,
+      // и в НЕразобранном: иначе фильтр статуса закрывает дверь раньше и род данных не проверяется.
+      refusalOfNonMedical: await refuse(client, clinicA, CONFLICT_NONMEDICAL, 'не медицина', false),
+      approvalOfNonMedical: await approve(
+        client, clinicA, CONFLICT_NONMEDICAL, DUPLICATE, THIRD, 'не медицина',
+      ),
+      refusalOfPendingNonMedical: await refuse(
+        client, clinicA, CONFLICT_PENDING_NONMEDICAL, 'не медицина, но ещё открыт', false,
+      ),
+      approvalOfPendingNonMedical: await approve(
+        client, clinicA, CONFLICT_PENDING_NONMEDICAL, DUPLICATE, THIRD, 'не медицина, но открыт',
+      ),
+    };
+    say(`admission gate answers: ${JSON.stringify(admission)}`);
+
+    // Соседние строки той же клиники обязаны остаться нетронутыми: без сверки `id` дверь отказа
+    // закрыла бы своим комментарием ВЕСЬ разбор клиники разом.
+    const neighbours = await client.query(
+      `SELECT id::text AS id, status, doctor_comment, resolved_by::text AS resolved_by
+         FROM public.patient_merge_candidates
+        WHERE id = ANY($1::uuid[])
+        ORDER BY id`,
+      [[CONFLICT_PENDING, CONFLICT_NONMEDICAL, CONFLICT_PENDING_NONMEDICAL, CONFLICT_A]],
+    );
+    const neighbourNames = {
+      [CONFLICT_PENDING]: 'pending',
+      [CONFLICT_NONMEDICAL]: 'nonMedical',
+      [CONFLICT_PENDING_NONMEDICAL]: 'pendingNonMedical',
+      [CONFLICT_A]: 'ownResolved',
+    };
+    const neighbourRows = Object.fromEntries(
+      neighbours.rows.map((row) => [
+        neighbourNames[row.id],
+        {
+          status: row.status,
+          doctor_comment: row.doctor_comment,
+          // Не сам идентификатор: он приезжает из живой базы DEV и в утверждении был бы привязкой к
+          // данным стенда. Значение здесь — кто именно закрыл строку: свой врач или никто.
+          resolvedBy:
+            row.resolved_by === null
+              ? null
+              : row.resolved_by === clinicA.staff_id
+                ? 'clinicA_doctor'
+                : 'someone_else',
+        },
+      ]),
+    );
+    say(`neighbour rows after every decision: ${JSON.stringify(neighbourRows)}`);
+
     // Машиночитаемая строка фактов: тест сверяет ЗНАЧЕНИЯ, а не английские фразы журнала.
     // Переформулировка любой диагностической строки выше не должна красить прогон (§10a: тест не
     // дублирует текст), а подмена самого факта — обязана.
@@ -268,6 +380,8 @@ async function main() {
         foreignTraceRead: foreignSnapshot,
         pendingTraceRead,
         nonMedicalTraceRead,
+        admission,
+        neighbourRows,
       })}`,
     );
     say(

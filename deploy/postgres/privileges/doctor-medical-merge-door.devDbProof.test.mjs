@@ -42,19 +42,32 @@
  *   DOCTOR_MEDICAL_MERGE_DOOR_FAULT=approval-comment-foreign-row (подтверждение пишет комментарий
  *                                                            в строку чужой клиники)
  *
- * ⛔ КРИТЕРИЙ ПОЛНОТЫ НАБОРА (введён после четвёртого круга аудита, 15.09). Доказательство обязано
- * краснеть на снятии КАЖДОГО предиката дверей Э4c поимённо — перечень конечен и проверяется, а не
- * выдумывается заново каждым аудитом. Предикаты и стерегущие их поломки:
+ * ⛔ КРИТЕРИЙ ПОЛНОТЫ НАБОРА (введён после четвёртого круга аудита, уточнён после пятого, 15.09).
+ * Доказательство обязано краснеть на снятии каждого предиката ДОПУСКА К РЕШЕНИЮ — то есть того,
+ * который отвечает на четыре вопроса: КТО решает (организация), КАКУЮ строку (идентификатор пары и
+ * конфликта), ДОПУСТИМО ЛИ решение сейчас (состояние строки и род данных) и ЧЕМ оно обосновано
+ * (обязательный комментарий врача). Перечень конечен и записан ниже; предложения по строкам, которые
+ * ПЕРЕНОСЯТ данные уже ПОСЛЕ принятого решения, в него намеренно не входят — их стережёт результат
+ * слияния, а не отдельная поломка. Новый предикат допуска обязан приехать со своей поломкой сюда.
+ *
  *   read_staff_patient_medical_merge_refusal: organization_id → refusal-read-any-org;
  *     status IN (dismissed, escalated) → refusal-read-any-status;
  *     reason LIKE medical_history:% → refusal-read-any-reason.
  *   refuse_staff_patient_medical_merge_conflict: organization_id → refusal-write-any-org;
+ *     id = p_conflict_id → refusal-write-any-row; status = pending → refusal-write-any-status;
+ *     reason LIKE medical_history:% → refusal-write-any-reason;
+ *     обязательность комментария → refusal-comment-optional;
  *     запись комментария → comment-not-saved; признак поддержки → support-always-escalates;
  *     гашение красного входа → decision-stays-pending.
  *   transfer_staff_approved_platform_user_merge_data (5 арг.): organization_id в записи
- *     комментария → approval-comment-foreign-row; запись комментария → approval-comment-not-saved;
- *     обе стены сразу → foreign-org-conflict; ответ человека про ФИО → fio-decision-not-persisted.
- * Новый предикат в любой из этих дверей обязан приехать со своей поломкой в этом перечне.
+ *     комментария → approval-comment-foreign-row; status = pending → approval-any-status;
+ *     reason LIKE medical_history:% → approval-any-reason;
+ *     обязательность комментария → approval-comment-optional;
+ *     запись комментария → approval-comment-not-saved;
+ *     обе стены организации сразу → foreign-org-conflict;
+ *     ответ человека про ФИО → fio-decision-not-persisted.
+ *   transfer (4 арг., внутренняя): блокер медицинской истории другой клиники →
+ *     two-clinic-blindness; собственный допуск роли врача → staff-insert, privilege.
  *
  * `DOCTOR_MEDICAL_MERGE_DOOR_ECHO=1` печатает журнал каждого прогона, в том числе зелёного.
  */
@@ -85,6 +98,13 @@ if (
     'refusal-read-any-status',
     'refusal-read-any-reason',
     'approval-comment-foreign-row',
+    'approval-comment-optional',
+    'refusal-comment-optional',
+    'refusal-write-any-row',
+    'refusal-write-any-status',
+    'refusal-write-any-reason',
+    'approval-any-status',
+    'approval-any-reason',
   ].includes(FAULT)
 ) {
   throw new Error(`unknown DOCTOR_MEDICAL_MERGE_DOOR_FAULT '${FAULT}'`);
@@ -361,6 +381,43 @@ test(
       // отказа у обоих быть не может, и молчание двери здесь стережёт предикаты `status` и `reason`.
       assert.equal(facts.pendingTraceRead, null, output);
       assert.equal(facts.nonMedicalTraceRead, null, output);
+      // Допуск к решению: обе двери обязаны отказать. Пустой комментарий — ошибка данных 22023;
+      // повторный разбор и немедицинский кандидат — «строки для решения нет».
+      assert.deepEqual(
+        facts.admission,
+        {
+          emptyCommentRefusal: '22023',
+          emptyCommentApproval: '22023',
+          secondRefusalOfResolved: false,
+          approvalOfResolved: 'conflict_not_found',
+          refusalOfNonMedical: false,
+          approvalOfNonMedical: 'conflict_not_found',
+          refusalOfPendingNonMedical: false,
+          approvalOfPendingNonMedical: 'conflict_not_found',
+        },
+        output,
+      );
+      // Соседние строки той же клиники ни одна дверь не трогает.
+      assert.deepEqual(
+        facts.neighbourRows,
+        {
+          pending: { status: 'pending', doctor_comment: null, resolvedBy: null },
+          nonMedical: {
+            status: 'dismissed',
+            doctor_comment: 'Разбор не про медицинские данные',
+            resolvedBy: null,
+          },
+          pendingNonMedical: { status: 'pending', doctor_comment: null, resolvedBy: null },
+          // Собственный разобранный конфликт: комментарий врача остался ТОТ, что он написал при
+          // отказе. Повторное подтверждение по этой же строке не смеет его переписать.
+          ownResolved: {
+            status: 'dismissed',
+            doctor_comment: 'Клиника А: это разные люди, я их обоих веду',
+            resolvedBy: 'clinicA_doctor',
+          },
+        },
+        output,
+      );
     });
   },
 );
