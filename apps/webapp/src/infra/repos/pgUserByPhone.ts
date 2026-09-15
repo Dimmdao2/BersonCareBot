@@ -448,8 +448,8 @@ export const pgUserByPhonePort: UserByPhonePort = {
       // D15b/6 messenger confirm-path correction: `POST /api/auth/phone/messenger-bind/finish`'s
       // `confirmPhoneAuth` reaches this with a messenger channel key under the same bootstrap
       // principal as the plain-phone branch above — the channel binding was already established
-      // pre-OTP (`applyMessengerContactPreOtpImpl` → `app.pre_session_messenger_channel_resolve`),
-      // so this call re-resolves the SAME channel binding to refresh the now-OTP-proven phone
+      // by the claimed provider identity, so this call re-resolves the SAME channel binding to
+      // refresh the now-OTP-proven phone
       // contact and mint a session, atomically, under the same named root — never the relation-based
       // transaction below, which the bootstrap principal has no capability for. Keyed by the channel
       // binding (not just the phone), so it never risks a duplicate identity for an already
@@ -557,6 +557,7 @@ export const pgUserByPhonePort: UserByPhonePort = {
 
         let userId: string;
         let wasCreated = false;
+        let mergedAccountId: string | undefined;
         const requestedProfileId = options?.profileBindUserId?.trim() || null;
         const canonicalProfileId = requestedProfileId
           ? ((await resolveCanonicalUserId(getWebappSqlFromPgClient(client), requestedProfileId)) ??
@@ -622,6 +623,7 @@ export const pgUserByPhonePort: UserByPhonePort = {
                   mergeContext: { channel: parsedContext.channel, source: 'otp' },
                 },
               );
+              mergedAccountId = canonicalOwnerId;
             }
           } else {
             await applyPlatformUserPhoneHistoryTransition(client, {
@@ -744,6 +746,7 @@ export const pgUserByPhonePort: UserByPhonePort = {
                 throw e;
               }
               userId = target;
+              mergedAccountId = duplicate;
             }
           }
         }
@@ -752,7 +755,7 @@ export const pgUserByPhonePort: UserByPhonePort = {
           trustedPatientPhoneWriteAnchor(TrustedPatientPhoneSource.OtpCreateOrBind);
           await markPatientPhoneTrusted(client, userId, normalized);
         }
-        return { kind: 'complete' as const, userId, wasCreated };
+        return { kind: 'complete' as const, userId, wasCreated, mergedAccountId };
       });
 
     const bound = profileBindOrganizationId
@@ -769,9 +772,7 @@ export const pgUserByPhonePort: UserByPhonePort = {
       kind: 'complete',
       user,
       wasCreated: bound.wasCreated,
-      ...(options?.humanMergeDecision
-        ? { mergedAccountId: options.humanMergeDecision.prompt.duplicate.id }
-        : {}),
+      ...(bound.mergedAccountId ? { mergedAccountId: bound.mergedAccountId } : {}),
     };
   },
 };

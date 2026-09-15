@@ -5,18 +5,14 @@ import type { Pool, QueryResultRow } from 'pg';
  */
 import { getPool } from '@/infra/db/client';
 import { getWebappSqlDb, runWebappNamedRoot } from '@/infra/db/runWebappSql';
-import { channelToBindingKey } from '@/modules/auth/channelContext';
 import type {
   PhoneMessengerBindChannel,
   PhoneMessengerBindClaimRow,
   PhoneMessengerBindPort,
-  PhoneMessengerBindPreOtpFailure,
 } from '@/modules/auth/phoneMessengerBind.ports';
 import {
   mapPhoneMessengerBindSecretRow,
   mapPhoneMessengerBindClaimRow,
-  parseIdentityRow,
-  preSessionMessengerChannelResolveSchema,
 } from '@/infra/repos/identityPhoneRowSchemas';
 
 async function runPhoneMessengerBindSecretRoot<T extends QueryResultRow = QueryResultRow>(
@@ -54,33 +50,6 @@ async function runPhoneMessengerBindSecretRoot<T extends QueryResultRow = QueryR
   );
 }
 
-type PhoneMessengerBindCompletionStateRow = QueryResultRow & {
-  ready: boolean;
-  account_created: boolean;
-  sync_target_user_id: string | null;
-  canonical_user_id: string | null;
-};
-
-async function runPhoneMessengerBindCompletionStateRoot(params: {
-  tokenHash: string;
-  channelCode: PhoneMessengerBindChannel;
-  externalId: string;
-  contactPhoneNormalized: string;
-}) {
-  const args = [
-    params.tokenHash,
-    params.channelCode,
-    params.externalId,
-    params.contactPhoneNormalized,
-  ] as const;
-  return runWebappNamedRoot<PhoneMessengerBindCompletionStateRow>(
-    getWebappSqlDb(),
-    'app.phone_messenger_bind_completion_state(text,text,text,text)',
-    args,
-    sql`SELECT * FROM app.phone_messenger_bind_completion_state(${params.tokenHash}::text, ${params.channelCode}::text, ${params.externalId}::text, ${params.contactPhoneNormalized}::text)`,
-  );
-}
-
 async function runPhoneMessengerBindClaimRoot(params: {
   tokenHash: string;
   channelCode: PhoneMessengerBindChannel;
@@ -107,73 +76,6 @@ async function runPhoneMessengerBindClaimedSecretRoot(params: {
     args,
     sql`SELECT * FROM app.phone_messenger_bind_claimed_secret(${params.tokenHash ?? null}::text, ${params.channelCode}::text, ${params.externalId}::text)`,
   );
-}
-
-/**
- * D15b/6 messenger confirm-path correction. This used to open its own relation transaction
- * (`auth_phone_bind_lock_channel_binding`-style raw SQL, `mergePlatformUsersInTransaction` /
- * `applyMessengerPhonePublicBind` for a channel/phone-owner conflict) under whatever principal the
- * caller's `withTransaction` happened to install — for both reachable callers (the signed integrator
- * webhook and `createOrBind`'s messenger branch) that principal is the bootstrap principal, which has
- * no unnamed relation door (`portContextRuntime.ts`, `capabilities['pre_session']` purpose=relation is
- * intentionally absent). One named SECURITY DEFINER root
- * (`app.pre_session_messenger_channel_resolve`, same owner as `app.pre_session_phone_confirm_resolve`)
- * now resolves-or-creates the canonical holder for a messenger channel binding atomically and returns
- * the full session-identity payload. A channel-owner/phone-owner/session-owner disagreement is a real
- * merge decision `mergePlatformUsersInTransaction` (`packages/platform-merge`, ~1.6k lines) cannot run
- * under this principal and this root does not duplicate — it fails closed with `outcome: 'conflict'`
- * and the candidate ids, which this function maps to the existing `merge_blocked_ambiguous_candidates`
- * classification. D15b/6 conflict-audit correction (2026-08-21): the root ITSELF now records the
- * `messenger_phone_bind_blocked` case in `admin_audit_log`, atomically, in the same statement that
- * decides the conflict — a caller-side follow-up transaction had no relation door under the bootstrap
- * principal and always failed before its first query, silently, leaving the admin manual-merge review
- * with no case to resolve. This JS layer no longer attempts that write.
- */
-async function applyMessengerContactPreOtpImpl(params: {
-  phoneNormalized: string;
-  channelCode: PhoneMessengerBindChannel;
-  externalId: string;
-  sessionUserId?: string | null;
-}): Promise<{ ok: true; accountCreated: boolean } | PhoneMessengerBindPreOtpFailure> {
-  const channelCode = params.channelCode;
-  const key = channelToBindingKey(channelCode);
-  if (!key) return { ok: false, code: 'unsupported_channel' };
-
-  const sessionUserId = params.sessionUserId?.trim() || null;
-  if (!sessionUserId) return { ok: false, code: 'session_required' };
-
-  const result = await runWebappNamedRoot<{ result: unknown }>(
-    getWebappSqlDb(),
-    'app.pre_session_messenger_channel_resolve(text,text,text,text,text,uuid)',
-    [channelCode, params.externalId, params.phoneNormalized, null, channelCode, sessionUserId],
-    sql`SELECT app.pre_session_messenger_channel_resolve(
-      ${channelCode}::text,
-      ${params.externalId}::text,
-      ${params.phoneNormalized}::text,
-      ${null}::text,
-      ${channelCode}::text,
-      ${sessionUserId}::uuid
-    ) AS result`,
-  );
-  const payload = parseIdentityRow(
-    preSessionMessengerChannelResolveSchema,
-    result.rows[0]?.result,
-    'pre_session_messenger_channel_resolve',
-  );
-  if (payload.outcome === 'conflict') {
-    if (payload.candidate_ids && payload.candidate_ids.length > 0) {
-      return {
-        ok: false,
-        code: 'merge_blocked_ambiguous_candidates',
-        candidateIds: payload.candidate_ids,
-      };
-    }
-    return { ok: false, code: 'invalid_phone' };
-  }
-  if (payload.is_archived || payload.is_blocked) {
-    return { ok: false, code: 'account_archived' };
-  }
-  return { ok: true, accountCreated: payload.was_created };
 }
 
 // `_pool` kept only for call-site/test signature parity with the port factory family — this port no
@@ -297,19 +199,5 @@ export function createPgPhoneMessengerBindPort(_pool: Pool = getPool()): PhoneMe
         null,
       );
     },
-
-    async verifyCompletionState(params) {
-      const result = await runPhoneMessengerBindCompletionStateRoot(params);
-      const row = result.rows[0];
-      return {
-        ready: row?.ready === true,
-        accountCreated: row?.account_created === true,
-        syncTargetUserId:
-          typeof row?.sync_target_user_id === 'string' ? row.sync_target_user_id : null,
-        canonicalUserId: typeof row?.canonical_user_id === 'string' ? row.canonical_user_id : null,
-      };
-    },
-
-    applyMessengerContactPreOtp: applyMessengerContactPreOtpImpl,
   };
 }

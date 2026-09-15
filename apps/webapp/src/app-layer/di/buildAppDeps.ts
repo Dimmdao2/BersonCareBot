@@ -166,7 +166,10 @@ import { pgSymptomDiaryPort } from '@/infra/repos/pgSymptomDiary';
 import { pgLfkDiaryPort } from '@/infra/repos/pgLfkDiary';
 import { purgeAllDiaryDataForUserPg } from '@/infra/repos/pgDiaryPurge';
 import { readReminderWebappNotifyGate } from '@/infra/repos/pgReminderWebappNotifyGate';
-import { loadPlatformUserChannelBindings } from '@/infra/repos/loadPlatformUserChannelBindings';
+import {
+  loadPlatformUserChannelBindingRows,
+  loadPlatformUserChannelBindings,
+} from '@/infra/repos/loadPlatformUserChannelBindings';
 import { createPgAppointmentReminderMaterializationPort } from '@/infra/repos/pgAppointmentReminderMaterialization';
 import type { AppointmentReminderMaterializationPort } from '@/modules/booking-notifications/appointmentReminderMaterializationPort';
 import {
@@ -1777,6 +1780,7 @@ function _buildAppDeps() {
         const result = await enqueueAccountMergeLoginNotification(
           user,
           mergedAccountId,
+          await loadPlatformUserChannelBindingRows(user.userId),
           createPgOutboundMessageQueue(),
         );
         if (result.failed > 0) {

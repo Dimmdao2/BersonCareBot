@@ -1,9 +1,22 @@
-export const HUMAN_MERGE_FIO_FIELDS = ['last_name', 'first_name', 'patronymic'] as const;
+export const HUMAN_MERGE_FIO_FIELDS = [
+  'display_name',
+  'last_name',
+  'first_name',
+  'patronymic',
+] as const;
 
 export type HumanMergeFioField = (typeof HUMAN_MERGE_FIO_FIELDS)[number];
 
+declare const humanMergeCustomFioValueBrand: unique symbol;
+
+export type HumanMergeCustomFioValue = string & {
+  readonly [humanMergeCustomFioValueBrand]: true;
+};
+
 export type HumanMergeFioSelection =
-  { source: 'target' } | { source: 'duplicate' } | { source: 'custom'; value: string };
+  | { source: 'target' }
+  | { source: 'duplicate' }
+  | { source: 'custom'; value: HumanMergeCustomFioValue };
 
 export type HumanMergeFioSelections = Partial<Record<HumanMergeFioField, HumanMergeFioSelection>>;
 
@@ -43,12 +56,27 @@ function normalizedPart(value: string | null): string | null {
   return trimmed || null;
 }
 
+export function isHumanMergeCustomFioValue(value: string): value is HumanMergeCustomFioValue {
+  return value.trim().length > 0 && !/[A-Za-z]/.test(value);
+}
+
+export function createHumanMergeCustomFioValue(value: string): HumanMergeCustomFioValue {
+  const normalized = value.trim();
+  if (!isHumanMergeCustomFioValue(normalized)) {
+    throw new Error('merge: custom FIO must be non-empty and contain no Latin letters');
+  }
+  return normalized;
+}
+
 export function createHumanMergePrompt(
   target: HumanMergeAccountSummaryInput,
   duplicate: HumanMergeAccountSummaryInput,
   foundAccountId: string,
 ): HumanMergePrompt {
-  const conflicts = HUMAN_MERGE_FIO_FIELDS.filter((field) => {
+  const structuredFields = HUMAN_MERGE_FIO_FIELDS.filter(
+    (field): field is Exclude<HumanMergeFioField, 'display_name'> => field !== 'display_name',
+  );
+  const structuredConflicts = structuredFields.filter((field) => {
     const targetValue =
       field === 'last_name'
         ? target.lastName
@@ -65,6 +93,34 @@ export function createHumanMergePrompt(
     const right = normalizedPart(duplicateValue);
     return left !== null && right !== null && left !== right;
   });
+  const targetHasStructuredFio = structuredFields.some((field) =>
+    normalizedPart(
+      field === 'last_name'
+        ? target.lastName
+        : field === 'first_name'
+          ? target.firstName
+          : target.patronymic,
+    ),
+  );
+  const duplicateHasStructuredFio = structuredFields.some((field) =>
+    normalizedPart(
+      field === 'last_name'
+        ? duplicate.lastName
+        : field === 'first_name'
+          ? duplicate.firstName
+          : duplicate.patronymic,
+    ),
+  );
+  const targetDisplayName = normalizedPart(target.displayName);
+  const duplicateDisplayName = normalizedPart(duplicate.displayName);
+  const displayNameConflict =
+    (!targetHasStructuredFio || !duplicateHasStructuredFio) &&
+    targetDisplayName !== null &&
+    duplicateDisplayName !== null &&
+    targetDisplayName !== duplicateDisplayName;
+  const conflicts: HumanMergeFioField[] = displayNameConflict
+    ? ['display_name']
+    : structuredConflicts;
   return {
     target: { ...target, createdAt: new Date(target.createdAt).toISOString() },
     duplicate: { ...duplicate, createdAt: new Date(duplicate.createdAt).toISOString() },

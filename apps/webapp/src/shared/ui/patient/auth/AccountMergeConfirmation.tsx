@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import {
   createHumanMergeDecision,
+  createHumanMergeCustomFioValue,
   type HumanMergeDecision,
   type HumanMergeFioField,
   type HumanMergeFioSelection,
@@ -14,6 +15,7 @@ import { patientMutedTextClass, patientSectionTitleClass } from '@/shared/ui/pat
 import { FIO_LATIN_REJECTED_TEXT, formatDoctorFio, isCyrillicFioInput } from '@/shared/lib/fio';
 
 const FIELD_LABELS: Record<HumanMergeFioField, string> = {
+  display_name: 'ФИО',
   last_name: 'Фамилия',
   first_name: 'Имя',
   patronymic: 'Отчество',
@@ -27,11 +29,13 @@ function accountValue(
   side: 'target' | 'duplicate',
 ) {
   const account = prompt[side];
-  return field === 'last_name'
-    ? account.lastName
-    : field === 'first_name'
-      ? account.firstName
-      : account.patronymic;
+  return field === 'display_name'
+    ? account.displayName
+    : field === 'last_name'
+      ? account.lastName
+      : field === 'first_name'
+        ? account.firstName
+        : account.patronymic;
 }
 
 export function AccountMergeConfirmation(props: {
@@ -144,7 +148,10 @@ export function AccountMergeConfirmation(props: {
                   onClick={() => {
                     setSelections((current) => ({
                       ...current,
-                      [field]: { source: 'custom', value: custom.trim() },
+                      [field]: {
+                        source: 'custom',
+                        value: createHumanMergeCustomFioValue(custom),
+                      },
                     }));
                     setCustomField(null);
                   }}

@@ -1,5 +1,8 @@
 import { z } from 'zod';
-import type { HumanMergeDecision } from '@bersoncare/platform-merge';
+import {
+  createHumanMergeCustomFioValue,
+  type HumanMergeDecision,
+} from '@bersoncare/platform-merge';
 import { FIO_LATIN_REJECTED_MESSAGE, isCyrillicFioInput } from '@/shared/lib/fio';
 
 const fioSelectionSchema = z.discriminatedUnion('source', [
@@ -13,7 +16,8 @@ const fioSelectionSchema = z.discriminatedUnion('source', [
         .trim()
         .min(1)
         .max(100)
-        .refine(isCyrillicFioInput, FIO_LATIN_REJECTED_MESSAGE),
+        .refine(isCyrillicFioInput, FIO_LATIN_REJECTED_MESSAGE)
+        .transform(createHumanMergeCustomFioValue),
     })
     .strict(),
 ]);
@@ -29,7 +33,7 @@ const accountSummarySchema = z
   })
   .strict();
 
-const fioFieldSchema = z.enum(['last_name', 'first_name', 'patronymic']);
+const fioFieldSchema = z.enum(['display_name', 'last_name', 'first_name', 'patronymic']);
 
 export const humanMergeDecisionSchema: z.ZodType<HumanMergeDecision> = z
   .object({
@@ -39,11 +43,12 @@ export const humanMergeDecisionSchema: z.ZodType<HumanMergeDecision> = z
         target: accountSummarySchema,
         duplicate: accountSummarySchema,
         foundAccountId: z.string().uuid(),
-        conflicts: z.array(fioFieldSchema).max(3),
+        conflicts: z.array(fioFieldSchema).max(4),
       })
       .strict(),
     fio: z
       .object({
+        display_name: fioSelectionSchema.optional(),
         last_name: fioSelectionSchema.optional(),
         first_name: fioSelectionSchema.optional(),
         patronymic: fioSelectionSchema.optional(),

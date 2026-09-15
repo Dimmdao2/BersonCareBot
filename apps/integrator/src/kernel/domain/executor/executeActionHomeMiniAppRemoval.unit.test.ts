@@ -234,9 +234,8 @@ describe('main menu mini-app retirement', () => {
         context('telegram'),
         {
           webappEventsPort: {
-            // D25: webapp now applies the canonical phone/binding itself (applyMessengerContactPreOtp)
-            // inside this ONE call — even when the bind wasn't already in place — instead of
-            // returning `phone_sync_required` and expecting the integrator to write it and call back.
+            // D25: this call records provider proof; the browser finish owns the canonical bind.
+            // The integrator must not write `user.phone.link` or call a sync endpoint afterward.
             completePhoneMessengerBind: async () => {
               completionCalls += 1;
               return { ok: true, purpose: 'profile_bind' as const };

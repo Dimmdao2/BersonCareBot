@@ -434,10 +434,8 @@ export async function executeAction(
         };
       }
 
-      // D25: webapp's phone-messenger-bind/complete now applies the canonical phone/binding
-      // itself (applyMessengerContactPreOtp), in the same request — it never returns
-      // `phone_sync_required` asking the integrator to write `user.phone.link` and call back.
-      // `result.ok === true` here already means the canonical write is done.
+      // D25: the integrator never writes `user.phone.link`. This request records the provider proof
+      // and opens an OTP-ready attempt; the browser finish owns the canonical bind/merge decision.
 
       const successIntents: OutgoingIntent[] = [];
       const bindPurpose = result.purpose === 'profile_bind' ? 'profile_bind' : 'login';

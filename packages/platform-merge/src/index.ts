@@ -5,6 +5,7 @@ export type {
 } from './manualMergeResolution.js';
 export type {
   HumanMergeDecision,
+  HumanMergeCustomFioValue,
   HumanMergeFioField,
   HumanMergeFioSelection,
   HumanMergeFioSelections,
@@ -13,9 +14,11 @@ export type {
 } from './humanMergeDecision.js';
 export {
   HUMAN_MERGE_FIO_FIELDS,
+  createHumanMergeCustomFioValue,
   createHumanMergeDecision,
   createHumanMergePrompt,
   humanMergeDecisionMatchesPrompt,
+  isHumanMergeCustomFioValue,
 } from './humanMergeDecision.js';
 export { assertManualMergeResolutionIds } from './manualMergeResolution.js';
 

@@ -11,7 +11,11 @@ import type {
   HumanMergeFioField,
   HumanMergeFioSelection,
 } from './humanMergeDecision.js';
-import { createHumanMergePrompt, humanMergeDecisionMatchesPrompt } from './humanMergeDecision.js';
+import {
+  createHumanMergePrompt,
+  humanMergeDecisionMatchesPrompt,
+  isHumanMergeCustomFioValue,
+} from './humanMergeDecision.js';
 import {
   collectMergeLosingContacts,
   persistMergeLosingContacts,
@@ -283,8 +287,8 @@ function resolveHumanFioField(
   if (selection.source === 'target') return target;
   if (selection.source === 'duplicate') return duplicate;
   const custom = normalizedFioPart(selection.value);
-  if (!custom) {
-    throw new MergeConflictError(`merge: custom human choice is empty for ${field}`, [
+  if (!custom || !isHumanMergeCustomFioValue(custom)) {
+    throw new MergeConflictError(`merge: invalid custom human choice for ${field}`, [
       ...candidateIds,
     ]);
   }
@@ -709,35 +713,70 @@ export async function mergePlatformUsersInTransaction(
         duplicateId,
       ]);
     }
-    const lastName = resolveHumanFioField(
+    let lastName = resolveHumanFioField(
       'last_name',
       a.last_name,
       b.last_name,
       humanDecision.fio.last_name,
       [targetId, duplicateId],
     );
-    const firstName = resolveHumanFioField(
+    let firstName = resolveHumanFioField(
       'first_name',
       a.first_name,
       b.first_name,
       humanDecision.fio.first_name,
       [targetId, duplicateId],
     );
-    const patronymic = resolveHumanFioField(
+    let patronymic = resolveHumanFioField(
       'patronymic',
       a.patronymic,
       b.patronymic,
       humanDecision.fio.patronymic,
       [targetId, duplicateId],
     );
-    const recognizedAccount = humanDecision.prompt.foundAccountId === targetId ? a : b;
-    const fallbackDisplayName = normalizedFioPart(recognizedAccount.display_name) ?? '';
-    const displayName = formatResolvedDisplayName({
-      lastName,
-      firstName,
-      patronymic,
-      fallback: fallbackDisplayName,
-    });
+    const displayNameConflict = humanDecision.prompt.conflicts.includes('display_name');
+    let displayName: string;
+    if (displayNameConflict) {
+      const selection = humanDecision.fio.display_name;
+      if (!selection) {
+        throw new MergeConflictError('merge: human choice required for display_name', [
+          targetId,
+          duplicateId,
+        ]);
+      }
+      if (selection.source === 'target') {
+        displayName = a.display_name;
+        lastName = normalizedFioPart(a.last_name);
+        firstName = normalizedFioPart(a.first_name);
+        patronymic = normalizedFioPart(a.patronymic);
+      } else if (selection.source === 'duplicate') {
+        displayName = b.display_name;
+        lastName = normalizedFioPart(b.last_name);
+        firstName = normalizedFioPart(b.first_name);
+        patronymic = normalizedFioPart(b.patronymic);
+      } else {
+        const custom = normalizedFioPart(selection.value);
+        if (!custom || !isHumanMergeCustomFioValue(custom)) {
+          throw new MergeConflictError('merge: invalid custom human choice for display_name', [
+            targetId,
+            duplicateId,
+          ]);
+        }
+        displayName = custom;
+        lastName = null;
+        firstName = null;
+        patronymic = null;
+      }
+    } else {
+      const recognizedAccount = humanDecision.prompt.foundAccountId === targetId ? a : b;
+      const fallbackDisplayName = normalizedFioPart(recognizedAccount.display_name) ?? '';
+      displayName = formatResolvedDisplayName({
+        lastName,
+        firstName,
+        patronymic,
+        fallback: fallbackDisplayName,
+      });
+    }
     await runMergePgText(
       client,
       `UPDATE platform_users

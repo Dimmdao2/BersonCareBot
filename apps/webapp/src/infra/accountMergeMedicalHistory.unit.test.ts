@@ -1,11 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   mergePlatformUsersInTransaction,
+  type AutomaticMergePlatformUsersOptions,
   type PlatformMergeDbClient,
 } from '../../../../packages/platform-merge/src/pgPlatformUserMerge';
 import {
   createHumanMergeDecision,
   createHumanMergePrompt,
+  type HumanMergeCustomFioValue,
+  type HumanMergeDecision,
+  type HumanMergePrompt,
 } from '../../../../packages/platform-merge/src/humanMergeDecision';
 import type { ManualMergeResolution } from '../../../../packages/platform-merge/src/manualMergeResolution';
 
@@ -58,7 +62,22 @@ function clientWithMedicalHistory(): PlatformMergeDbClient & { query: ReturnType
   } as PlatformMergeDbClient & { query: ReturnType<typeof vi.fn> };
 }
 
-function platformUserRow(id: string, displayName: string) {
+type TestPlatformUserRow = {
+  id: string;
+  phone_normalized: string | null;
+  patient_phone_trust_at: Date | null;
+  merged_into_id: string | null;
+  display_name: string;
+  first_name: string | null;
+  last_name: string | null;
+  patronymic: string | null;
+  email: string | null;
+  email_verified_at: Date | null;
+  role: string;
+  created_at: Date;
+};
+
+function platformUserRow(id: string, displayName: string): TestPlatformUserRow {
   return {
     id,
     phone_normalized: null,
@@ -73,6 +92,56 @@ function platformUserRow(id: string, displayName: string) {
     role: 'client',
     created_at: new Date('2026-01-01T00:00:00Z'),
   };
+}
+
+function promptForRows(
+  target: TestPlatformUserRow,
+  duplicate: TestPlatformUserRow,
+): HumanMergePrompt {
+  return createHumanMergePrompt(
+    {
+      id: target.id,
+      displayName: target.display_name,
+      firstName: target.first_name,
+      lastName: target.last_name,
+      patronymic: target.patronymic,
+      createdAt: target.created_at,
+    },
+    {
+      id: duplicate.id,
+      displayName: duplicate.display_name,
+      firstName: duplicate.first_name,
+      lastName: duplicate.last_name,
+      patronymic: duplicate.patronymic,
+      createdAt: duplicate.created_at,
+    },
+    duplicate.id,
+  );
+}
+
+function clientForHumanDecision(target: TestPlatformUserRow, duplicate: TestPlatformUserRow) {
+  let writtenDisplayName: unknown;
+  const client = {
+    query: vi.fn(async (query: string, values?: unknown[]) => {
+      if (query.includes('FROM platform_users pu') && query.includes('FOR UPDATE OF pu')) {
+        return { rows: [target, duplicate] };
+      }
+      if (query.includes('AS target_has')) {
+        return { rows: [{ target_has: false, duplicate_has: false }] };
+      }
+      if (
+        writtenDisplayName === undefined &&
+        query.includes('UPDATE platform_users') &&
+        query.includes('display_name') &&
+        query.includes('first_name') &&
+        query.includes('patronymic')
+      ) {
+        writtenDisplayName = values?.[0];
+      }
+      return { rows: [] };
+    }),
+  } as PlatformMergeDbClient & { query: ReturnType<typeof vi.fn> };
+  return { client, writtenDisplayName: () => writtenDisplayName };
 }
 
 function manualResolution(target: string, duplicate: string): ManualMergeResolution {
@@ -131,29 +200,31 @@ function clientWithMedicalHistoryOnDuplicateOnly(): PlatformMergeDbClient {
 }
 
 describe('automatic account merge medical-history gate', () => {
-  const humanDecision = (targetDisplayName: string, duplicateDisplayName: string) =>
-    createHumanMergeDecision(
-      createHumanMergePrompt(
-        {
-          id: targetId,
-          displayName: targetDisplayName,
-          firstName: null,
-          lastName: null,
-          patronymic: null,
-          createdAt: new Date('2026-01-01T00:00:00Z'),
-        },
-        {
-          id: duplicateId,
-          displayName: duplicateDisplayName,
-          firstName: null,
-          lastName: null,
-          patronymic: null,
-          createdAt: new Date('2026-01-01T00:00:00Z'),
-        },
-        duplicateId,
-      ),
-      {},
+  const humanDecision = (targetDisplayName: string, duplicateDisplayName: string) => {
+    const prompt = createHumanMergePrompt(
+      {
+        id: targetId,
+        displayName: targetDisplayName,
+        firstName: null,
+        lastName: null,
+        patronymic: null,
+        createdAt: new Date('2026-01-01T00:00:00Z'),
+      },
+      {
+        id: duplicateId,
+        displayName: duplicateDisplayName,
+        firstName: null,
+        lastName: null,
+        patronymic: null,
+        createdAt: new Date('2026-01-01T00:00:00Z'),
+      },
+      duplicateId,
     );
+    return createHumanMergeDecision(
+      prompt,
+      prompt.conflicts.includes('display_name') ? { display_name: { source: 'target' } } : {},
+    );
+  };
 
   it('rejects an automatic merge when BOTH sides have qualifying history — a real conflict', async () => {
     const db = clientWithMedicalHistory();
@@ -187,6 +258,111 @@ describe('automatic account merge medical-history gate', () => {
         { humanDecision: humanDecision('New account without history', 'Old account with history') },
       ),
     ).resolves.not.toThrow();
+  });
+});
+
+describe('automatic account merge human-decision safety gate', () => {
+  const plainRows = () => {
+    const target = platformUserRow(targetId, 'Иванов Иван Петрович');
+    const duplicate = platformUserRow(duplicateId, 'Сидорова Анна Сергеевна');
+    duplicate.created_at = new Date('2025-01-01T00:00:00Z');
+    return { target, duplicate };
+  };
+
+  it('refuses an automatic merge without a human confirmation', async () => {
+    const { target, duplicate } = plainRows();
+    const { client } = clientForHumanDecision(target, duplicate);
+
+    await expect(
+      mergePlatformUsersInTransaction(
+        client,
+        targetId,
+        duplicateId,
+        'phone_bind',
+        {} as unknown as AutomaticMergePlatformUsersOptions,
+      ),
+    ).rejects.toThrow('automatic merge requires a human decision');
+  });
+
+  it('refuses a confirmation when the locked account snapshot changed after it was shown', async () => {
+    const { target, duplicate } = plainRows();
+    const shownPrompt = promptForRows(target, duplicate);
+    const decision = createHumanMergeDecision(shownPrompt, {
+      display_name: { source: 'target' },
+    });
+    const changedTarget = { ...target, display_name: 'Петров Пётр Петрович' };
+    const { client } = clientForHumanDecision(changedTarget, duplicate);
+
+    await expect(
+      mergePlatformUsersInTransaction(client, targetId, duplicateId, 'phone_bind', {
+        humanDecision: decision,
+      }),
+    ).rejects.toThrow('shown account details changed before confirmation');
+  });
+
+  it('refuses a structured FIO conflict until the person chooses the value', async () => {
+    const target = {
+      ...platformUserRow(targetId, 'Иванов Иван'),
+      last_name: 'Иванов',
+      first_name: 'Иван',
+    };
+    const duplicate = {
+      ...platformUserRow(duplicateId, 'Сидорова Анна'),
+      last_name: 'Сидорова',
+      first_name: 'Анна',
+    };
+    const prompt = promptForRows(target, duplicate);
+    const { client } = clientForHumanDecision(target, duplicate);
+
+    await expect(
+      mergePlatformUsersInTransaction(client, targetId, duplicateId, 'phone_bind', {
+        humanDecision: createHumanMergeDecision(prompt, {}),
+      }),
+    ).rejects.toThrow('human choice required for last_name');
+  });
+
+  it('treats different legacy display-only FIO as a human conflict and writes the chosen variant', async () => {
+    const { target, duplicate } = plainRows();
+    const prompt = promptForRows(target, duplicate);
+    const missingChoice = clientForHumanDecision(target, duplicate);
+
+    await expect(
+      mergePlatformUsersInTransaction(missingChoice.client, targetId, duplicateId, 'phone_bind', {
+        humanDecision: createHumanMergeDecision(prompt, {}),
+      }),
+    ).rejects.toThrow('human choice required for display_name');
+
+    const { client, writtenDisplayName } = clientForHumanDecision(target, duplicate);
+
+    await mergePlatformUsersInTransaction(client, targetId, duplicateId, 'phone_bind', {
+      humanDecision: createHumanMergeDecision(prompt, {
+        display_name: { source: 'duplicate' },
+      }),
+    });
+
+    expect(writtenDisplayName()).toBe('Сидорова Анна Сергеевна');
+  });
+
+  it('rejects a Latin custom FIO even when a caller bypasses the request schema', async () => {
+    const { target, duplicate } = plainRows();
+    const prompt = promptForRows(target, duplicate);
+    const forgedDecision: HumanMergeDecision = {
+      accountConfirmed: true,
+      prompt,
+      fio: {
+        display_name: {
+          source: 'custom',
+          value: 'Smith John' as unknown as HumanMergeCustomFioValue,
+        },
+      },
+    };
+    const { client } = clientForHumanDecision(target, duplicate);
+
+    await expect(
+      mergePlatformUsersInTransaction(client, targetId, duplicateId, 'phone_bind', {
+        humanDecision: forgedDecision,
+      }),
+    ).rejects.toThrow('invalid custom human choice for display_name');
   });
 });
 

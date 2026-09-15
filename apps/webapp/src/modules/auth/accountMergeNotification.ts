@@ -7,19 +7,23 @@ import type { SessionUser } from '@/shared/types/session';
 import { notificationText } from '@/shared/notifications/notificationText';
 
 type Target = { channel: OutboundMessageChannel; recipient: string };
+type MessengerBindingRow = { channelCode: string; externalId: string };
 
-function mergeNotificationTargets(user: SessionUser): Target[] {
+function mergeNotificationTargets(
+  user: SessionUser,
+  messengerBindings: readonly MessengerBindingRow[],
+): Target[] {
   const targets: Target[] = [];
   for (const contact of user.contacts ?? []) {
     if (!contact.confirmedAt) continue;
     if (contact.kind === 'email') targets.push({ channel: 'email', recipient: contact.value });
     if (contact.kind === 'phone') targets.push({ channel: 'sms', recipient: contact.value });
   }
-  if (user.bindings.telegramId?.trim()) {
-    targets.push({ channel: 'telegram', recipient: user.bindings.telegramId.trim() });
-  }
-  if (user.bindings.maxId?.trim()) {
-    targets.push({ channel: 'max', recipient: user.bindings.maxId.trim() });
+  for (const binding of messengerBindings) {
+    const recipient = binding.externalId.trim();
+    if (!recipient) continue;
+    if (binding.channelCode === 'telegram') targets.push({ channel: 'telegram', recipient });
+    if (binding.channelCode === 'max') targets.push({ channel: 'max', recipient });
   }
   targets.push({ channel: 'web_push', recipient: user.userId });
   return targets.filter(
@@ -34,9 +38,10 @@ function mergeNotificationTargets(user: SessionUser): Target[] {
 export async function enqueueAccountMergeLoginNotification(
   user: SessionUser,
   mergedAccountId: string,
+  messengerBindings: readonly MessengerBindingRow[],
   queue: OutboundMessageQueuePort,
 ): Promise<{ failed: number }> {
-  const targets = mergeNotificationTargets(user);
+  const targets = mergeNotificationTargets(user, messengerBindings);
   const results = await Promise.allSettled(
     targets.map((target) =>
       queue.enqueue({
