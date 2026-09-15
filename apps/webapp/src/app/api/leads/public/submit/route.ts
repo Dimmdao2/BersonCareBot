@@ -95,11 +95,9 @@ export async function POST(request: Request) {
         );
         if (!validation.ok) throw new Error(validation.error);
         const { accepted } = validation;
-        const applicant = await resolveVerifiedLeadApplicant({
-          organizationId,
+        const applicant = resolveVerifiedLeadApplicant({
           verifiedEmailUserId: session.user.userId,
           emailNormalized: email,
-          submittedPhone: accepted.get('phone') ?? null,
           proof: 'authenticated_session',
         });
         return publicDeps.leads!.submit({
@@ -127,6 +125,9 @@ export async function POST(request: Request) {
       literalRules: {
         required_field_missing: { status: 400, code: 'required_field_missing' },
         empty_lead_message: { status: 400, code: 'required_field_missing' },
+        // Бросает сервис заявок (`modules/leads/service.ts`) — единственное место, где формат
+        // телефона проверяется по E.164 перед записью. Общий сервис формы отсеивает раньше только
+        // грубый мусор (меньше десяти цифр), поэтому оба литерала живые.
         invalid_lead_phone: { status: 400, code: 'invalid_phone' },
         invalid_phone: { status: 400, code: 'invalid_phone' },
       },

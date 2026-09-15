@@ -333,6 +333,18 @@ describe('Л3 публичный приём заявки — чужая клин
     expect(created).toEqual([]);
   });
 
+  it('цифровой мусор, который проходит форму, отсекается по E.164 и заявку не создаёт', async () => {
+    // Общий сервис формы пропускает всё, где хотя бы десять цифр, поэтому такую строку отсекает
+    // только проверка формата перед записью. Класс входа отдельный: он не попадает под сценарий
+    // «not-a-phone», и без него снятие E.164-проверки ничем не наблюдается.
+    configuredFields = [...configuredFields, field('phone')];
+    const response = await post(
+      baseBody({ phone: '12345678901234567890', captcha: await solvedCaptchaFor(EMAIL) }),
+    );
+    expect([response.status, (await response.json()).error]).toEqual([400, 'invalid_phone']);
+    expect(created).toEqual([]);
+  });
+
   it('значение поля, выключенного клиникой, в заявку не попадает', async () => {
     configuredFields = [...configuredFields, field('phone', { isActive: false })];
     await post(baseBody({ phone: '+79990000000', captcha: await solvedCaptchaFor(EMAIL) }));

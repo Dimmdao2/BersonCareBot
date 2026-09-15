@@ -1,5 +1,3 @@
-import { normalizePhone } from '@/modules/auth/phoneNormalize';
-import { isValidPhoneE164 } from '@/modules/auth/phoneValidation';
 import type { VerifiedLeadApplicant } from '@/modules/leads/types';
 
 /**
@@ -14,18 +12,17 @@ import type { VerifiedLeadApplicant } from '@/modules/leads/types';
  * едет врачу полем заявки. Слияние остаётся в единственной точке, где его начинает сам человек, —
  * подтверждение контакта в своём кабинете.
  *
- * Проверка формата остаётся: поле телефона у клиники может быть обязательным (§9 плана заявок), и
- * мусор в нём — ошибка ввода (`400`), а не личность.
+ * Формат телефона здесь НЕ проверяется: поля заявки проверяет общий сервис формы
+ * (`createBookingFormService.validateAnswers`), тот же, что у публичной записи, — мусор в телефоне
+ * отвечает `400 invalid_phone` оттуда. Своя копия проверки была вторым chokepoint'ом на то же
+ * правило: её снятие ничего не меняло для человека и ловилось бы только тестом на написание кода,
+ * что запрещает §10a.
  */
-export async function resolveVerifiedLeadApplicant(input: {
-  organizationId: string;
+export function resolveVerifiedLeadApplicant(input: {
   verifiedEmailUserId: string;
   emailNormalized: string;
-  submittedPhone?: string | null;
   proof?: VerifiedLeadApplicant['proof'];
-}): Promise<VerifiedLeadApplicant> {
-  const phone = input.submittedPhone ? normalizePhone(input.submittedPhone) : null;
-  if (phone && !isValidPhoneE164(phone)) throw new Error('invalid_lead_phone');
+}): VerifiedLeadApplicant {
   return {
     platformUserId: input.verifiedEmailUserId,
     emailNormalized: input.emailNormalized,
