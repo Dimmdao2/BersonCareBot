@@ -71,13 +71,10 @@ export async function POST(request: Request) {
       'api/leads/public/submit:POST',
       'mutation',
       async ({ organizationId, deps: publicDeps }) => {
-        const applicant = await resolveVerifiedLeadApplicant({
-          organizationId,
-          verifiedEmailUserId: session.user.userId,
-          emailNormalized: email,
-          submittedPhone: body.phone,
-          proof: 'authenticated_session',
-        });
+        // Состав заявки задаёт КЛИНИКА, а не тело запроса: единственный источник значений ниже —
+        // `accepted`, куда валидатор кладёт только ответы на включённые арендатором поля. Поэтому
+        // ответ на выключенное поле не доезжает ни до заявки, ни до `resolveVerifiedLeadApplicant`,
+        // который по телефону принимает решение о СЛИЯНИИ учётных записей.
         const validation = await publicDeps.bookingForm!.validateAnswers(
           organizationId,
           'patient',
@@ -94,16 +91,26 @@ export async function POST(request: Request) {
           'leads',
         );
         if (!validation.ok) throw new Error(validation.error);
+        const { accepted } = validation;
+        const applicant = await resolveVerifiedLeadApplicant({
+          organizationId,
+          verifiedEmailUserId: session.user.userId,
+          emailNormalized: email,
+          submittedPhone: accepted.get('phone') ?? null,
+          proof: 'authenticated_session',
+        });
         return publicDeps.leads!.submit({
           organizationId,
           applicant,
-          firstName: body.firstName,
-          lastName: body.lastName,
-          patronymic: body.patronymic,
+          firstName: accepted.get('first_name'),
+          lastName: accepted.get('last_name'),
+          patronymic: accepted.get('patronymic'),
+          // Почта берётся из ПОДТВЕРЖДЁННОЙ сессии, а не из конфигурации полей: она доказана
+          // отдельно от формы, и заявка без неё не принадлежит никому.
           email,
-          phone: body.phone,
-          preferredContact: body.preferredContact,
-          messageText: body.messageText,
+          phone: accepted.get('phone'),
+          preferredContact: accepted.get('preferred_contact'),
+          messageText: accepted.get('message') ?? '',
           sourceSurface: body.sourceSurface,
         });
       },
@@ -116,6 +123,7 @@ export async function POST(request: Request) {
       error,
       literalRules: {
         required_field_missing: { status: 400, code: 'required_field_missing' },
+        empty_lead_message: { status: 400, code: 'required_field_missing' },
         invalid_lead_phone: { status: 400, code: 'invalid_phone' },
         invalid_phone: { status: 400, code: 'invalid_phone' },
         lead_identity_merge_conflict: { status: 409, code: 'email_conflict' },
