@@ -89,6 +89,8 @@ export type DeliverySendResult = {
    * must terminalize this as an expected non-dispatch, never as success or provider failure.
    */
   suppressedByEnvironment?: true;
+  /** Safe reason token persisted by queue-backed callers for a more specific suppression. */
+  environmentSuppressionReason?: 'development_non_loopback_smtp_host';
   telegramMessageId?: number;
   /** MAX Platform message id (`body.mid`) для `user_reminder_delivery_logs`. */
   maxMessageId?: string;

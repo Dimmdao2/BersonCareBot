@@ -1,6 +1,19 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DeliveryAdapter, OutgoingIntent } from '../kernel/contracts/index.js';
+
+const mailFakes = vi.hoisted(() => ({
+  resolveSmtpOutboundConfig: vi.fn(),
+  sendMail: vi.fn(),
+}));
+
+vi.mock('../config/smtpOutbound.js', () => ({
+  resolveSmtpOutboundConfig: mailFakes.resolveSmtpOutboundConfig,
+}));
+vi.mock('../integrations/email/mailer.js', () => ({ sendMail: mailFakes.sendMail }));
+
 import { createDefaultDispatchPort } from '../infra/adapters/dispatchPort.js';
+import { createEmailDeliveryAdapter } from '../integrations/email/deliveryAdapter.js';
+import type { ResolvedSmtpOutboundConfig } from '../config/smtpOutbound.js';
 import {
   isLocalDevelopmentDeliverySuppressed,
   isTestDeployment,
@@ -11,6 +24,7 @@ import {
 const TEST_ENV_KEYS = [
   'NODE_ENV',
   'VITEST',
+  'VITEST_WORKER_ID',
   'TEST',
   'TEST_ACCOUNT_PHONES',
   'TEST_ACCOUNT_TELEGRAM_IDS',
@@ -22,6 +36,7 @@ const TEST_ENV_KEYS = [
 let savedEnv: Record<string, string | undefined>;
 
 beforeEach(() => {
+  vi.clearAllMocks();
   savedEnv = Object.fromEntries(TEST_ENV_KEYS.map((key) => [key, process.env[key]]));
   for (const key of TEST_ENV_KEYS) delete process.env[key];
 });
@@ -50,6 +65,11 @@ function intent(channel: string, recipient: Record<string, unknown>): OutgoingIn
       delivery: { channels: [channel] },
     },
   };
+}
+
+function emailIntent(): OutgoingIntent {
+  const outgoing = intent('email', { email: 'recipient@example.test' });
+  return { ...outgoing, payload: { ...outgoing.payload, subject: 'DEV mail trap proof' } };
 }
 
 function recordingAdapter(): { adapter: DeliveryAdapter; sent: OutgoingIntent[] } {
@@ -102,6 +122,52 @@ describe('final TEST delivery safety gate', () => {
         VITEST_WORKER_ID: '1',
       }),
     ).toBe(false);
+  });
+
+  it('on DEV sends email only through loopback SMTP and always suppresses telegram', async () => {
+    process.env.NODE_ENV = 'development';
+    const loopbackSmtp: ResolvedSmtpOutboundConfig = {
+      configured: true,
+      smtpHost: '127.0.0.1',
+      smtpPort: 1025,
+      smtpSecure: false,
+      smtpUser: 'dev',
+      smtpPass: 'dev',
+      fromAddress: 'dev-staff@therapysto.local',
+    };
+    let activeSmtp = loopbackSmtp;
+    mailFakes.resolveSmtpOutboundConfig.mockImplementation(async () => activeSmtp);
+    mailFakes.sendMail.mockResolvedValue({
+      accepted: ['recipient@example.test'],
+      rejected: [],
+      messageId: 'mailpit-1',
+    });
+    const telegram = recordingAdapter();
+    const port = createDefaultDispatchPort({
+      adapters: [createEmailDeliveryAdapter({ getDb: () => ({}) as never }), telegram.adapter],
+    });
+
+    await expect(port.dispatchOutgoing(emailIntent())).resolves.toEqual({});
+
+    activeSmtp = { ...loopbackSmtp, smtpHost: 'smtp.external.example' };
+    await expect(port.dispatchOutgoing(emailIntent())).resolves.toEqual({
+      suppressedByEnvironment: true,
+      environmentSuppressionReason: 'development_non_loopback_smtp_host',
+    });
+
+    activeSmtp = loopbackSmtp;
+    const telegramWithLoopbackSmtp = await port.dispatchOutgoing(
+      intent('telegram', { chatId: '700000001' }),
+    );
+    activeSmtp = { ...loopbackSmtp, smtpHost: 'smtp.external.example' };
+    const telegramWithExternalSmtp = await port.dispatchOutgoing(
+      intent('telegram', { chatId: '700000001' }),
+    );
+
+    expect(telegramWithLoopbackSmtp).toEqual({ suppressedByEnvironment: true });
+    expect(telegramWithExternalSmtp).toEqual({ suppressedByEnvironment: true });
+    expect(mailFakes.sendMail).toHaveBeenCalledOnce();
+    expect(telegram.sent).toEqual([]);
   });
 
   it('TEST suppresses a real recipient instead of redirecting it', async () => {

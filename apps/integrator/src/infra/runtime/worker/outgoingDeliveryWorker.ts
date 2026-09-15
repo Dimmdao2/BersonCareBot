@@ -158,11 +158,12 @@ function queueMarkDispatching(db: DbPort, id: string): Promise<void> {
 async function finalizeEnvironmentSuppressed(
   db: DbPort,
   row: OutgoingDeliveryQueueRow,
+  reason: DeliverySendResult['environmentSuppressionReason'],
 ): Promise<void> {
   await queueMarkDead(
     db,
     row.id,
-    ENVIRONMENT_DELIVERY_SUPPRESSED,
+    reason ?? ENVIRONMENT_DELIVERY_SUPPRESSED,
     NOT_DISPATCHED_FAILURE_CLASS,
   );
   if (row.kind === DOCTOR_BROADCAST_INTENT_QUEUE_KIND) {
@@ -857,7 +858,7 @@ export async function processOutgoingDeliveryRow(
     try {
       sendResult = await dispatchOutgoing(intent);
       if (sendResult.suppressedByEnvironment === true) {
-        await finalizeEnvironmentSuppressed(db, row);
+        await finalizeEnvironmentSuppressed(db, row, sendResult.environmentSuppressionReason);
         return;
       }
       if (channel === 'web_push') {
@@ -996,7 +997,7 @@ export async function processOutgoingDeliveryRow(
     try {
       const sendResult = await dispatchOutgoing(toSend);
       if (sendResult.suppressedByEnvironment === true) {
-        await finalizeEnvironmentSuppressed(db, row);
+        await finalizeEnvironmentSuppressed(db, row, sendResult.environmentSuppressionReason);
         return;
       }
     } catch (err) {
@@ -1074,7 +1075,7 @@ export async function processOutgoingDeliveryRow(
     try {
       const sendResult = await dispatchOutgoing(intent);
       if (sendResult.suppressedByEnvironment === true) {
-        await finalizeEnvironmentSuppressed(db, row);
+        await finalizeEnvironmentSuppressed(db, row, sendResult.environmentSuppressionReason);
         return;
       }
     } catch (err) {

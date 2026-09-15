@@ -26,6 +26,7 @@ import { readChannel } from '../../infra/adapters/channelRouting.js';
 import { resolveSmtpOutboundConfig } from '../../config/smtpOutbound.js';
 import type { ResolvedSmtpOutboundConfig } from '../../config/smtpOutbound.js';
 import { logger } from '../../infra/observability/logger.js';
+import { isLocalDevelopmentDeliverySuppressed } from '../../shared/testDeliverySafety.js';
 import { sendMail } from './mailer.js';
 import type { MailAttachment } from './mailer.js';
 import { resolveAndRenderAuthCodeMailProfile } from './mailProfile.js';
@@ -60,6 +61,10 @@ type EmailDeliveryPayload = {
 
 function asString(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined;
+}
+
+function isLoopbackSmtpHost(host: string): boolean {
+  return host === '127.0.0.1' || host === '::1' || host.toLowerCase() === 'localhost';
 }
 
 export function createEmailDeliveryAdapter(deps: { getDb: () => DbPort }): DeliveryAdapter {
@@ -126,6 +131,18 @@ export function createEmailDeliveryAdapter(deps: { getDb: () => DbPort }): Deliv
 
       if (!smtpConfig.configured) {
         throw new Error('EMAIL_NOT_CONFIGURED');
+      }
+
+      // This is the single mail-path check: only here is the actually selected platform/clinic
+      // SMTP config known. DEV may reach Mailpit, but must become a no-op if a real SMTP host ever
+      // returns to the copied database.
+      if (isLocalDevelopmentDeliverySuppressed() && !isLoopbackSmtpHost(smtpConfig.smtpHost)) {
+        const environmentSuppressionReason = 'development_non_loopback_smtp_host' as const;
+        logger.warn(
+          { environmentSuppressionReason, smtpHost: smtpConfig.smtpHost },
+          'email_delivery_suppressed_by_environment',
+        );
+        return { suppressedByEnvironment: true, environmentSuppressionReason };
       }
 
       const result = await sendMail(smtpConfig, {

@@ -3,8 +3,9 @@
  *
  * Business code and previews always operate on the real recipient. Only the integrator,
  * immediately before the provider fork, applies this process-level environment policy:
- * local development suppresses every external send; TEST delivers only to explicitly listed
- * test-account contacts; production passes the original recipient unchanged.
+ * local development suppresses every external send except email handed to the SMTP-loopback gate;
+ * TEST delivers only to explicitly listed test-account contacts; production passes the original
+ * recipient unchanged.
  */
 
 export type TestAccountIdentifiers = {
