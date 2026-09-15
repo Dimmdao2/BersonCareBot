@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const fakes = vi.hoisted(() => ({
-  isOAuthProviderEnabled: vi.fn<(provider: 'google' | 'yandex' | 'apple' | 'vk') => Promise<boolean>>(),
+  isOAuthProviderEnabled:
+    vi.fn<(provider: 'google' | 'yandex' | 'apple' | 'vk') => Promise<boolean>>(),
   resolveRateLimitClientKey: vi.fn(),
   isRateLimited: vi.fn<() => Promise<boolean>>(),
   recordFailure: vi.fn(),
@@ -59,7 +60,6 @@ vi.mock('@/modules/system-settings/integrationRuntime', () => ({
   getAppleOauthPrivateKey: () => Promise.resolve('private-key'),
 }));
 
-import { GET as listProviders } from '@/app/api/auth/oauth/providers/route';
 import { POST as startOAuth } from '@/app/api/auth/oauth/start/route';
 import { POST as appleCallback } from '@/app/api/auth/oauth/callback/apple/route';
 
@@ -73,20 +73,7 @@ beforeEach(() => {
 });
 
 describe('public OAuth provider boundary', () => {
-  it('rejects Apple in both public entry points when its independent toggle is off', async () => {
-    const providersResponse = await listProviders(
-      new Request('https://app.example.test/api/auth/oauth/providers'),
-    );
-
-    expect(providersResponse.status).toBe(200);
-    await expect(providersResponse.json()).resolves.toEqual({
-      ok: true,
-      yandex: true,
-      google: true,
-      apple: false,
-      vk: true,
-    });
-
+  it('rejects Apple at OAuth start when its independent toggle is off', async () => {
     const startResponse = await startOAuth(
       new Request('https://app.example.test/api/auth/oauth/start', {
         method: 'POST',
@@ -131,7 +118,10 @@ describe('public OAuth provider boundary', () => {
     );
 
     expect(enabledStart.status).toBe(200);
-    await expect(enabledStart.json()).resolves.toMatchObject({ ok: true, authUrl: expect.any(String) });
+    await expect(enabledStart.json()).resolves.toMatchObject({
+      ok: true,
+      authUrl: expect.any(String),
+    });
     expect(enabledCallback.headers.get('location')).toContain('reason=invalid_content_type');
   });
 

@@ -77,7 +77,6 @@ vi.mock('@/app-layer/di/buildAppDeps', () => ({
 import { POST as register } from '@/app/api/auth/email-password/register/route';
 import { POST as forgotPassword } from '@/app/api/auth/email-password/forgot/route';
 import { POST as resetPassword } from '@/app/api/auth/email-password/reset/route';
-import { POST as requestSetupAccess } from '@/app/api/auth/email-password/setup-access/route';
 import { POST as setupCodeComplete } from '@/app/api/auth/email-password/setup-code/complete/route';
 
 const userId = '00000000-0000-4000-8000-000000000301';
@@ -207,7 +206,6 @@ describe('password recovery doors before code verification', () => {
     fakes.confirmEmailChallenge.mockResolvedValue({ ok: false, code: 'invalid_code' });
 
     const forgotFingerprints = [];
-    const setupAccessFingerprints = [];
     const setupCompleteFingerprints = [];
     for (let attempt = 0; attempt < 2; attempt += 1) {
       forgotFingerprints.push(
@@ -216,15 +214,6 @@ describe('password recovery doors before code verification', () => {
             forgotPassword(jsonRequest('/api/auth/email-password/forgot', { email })).then(
               publicFingerprint,
             ),
-          ),
-        )),
-      );
-      setupAccessFingerprints.push(
-        ...(await Promise.all(
-          accountStates.map(({ email }) =>
-            requestSetupAccess(
-              jsonRequest('/api/auth/email-password/setup-access', { email }),
-            ).then(publicFingerprint),
           ),
         )),
       );
@@ -261,7 +250,6 @@ describe('password recovery doors before code verification', () => {
       redirected: false,
     };
     expect(forgotFingerprints).toEqual(accountStates.flatMap(() => [accepted, accepted]));
-    expect(setupAccessFingerprints).toEqual(accountStates.flatMap(() => [accepted, accepted]));
     expect(setupCompleteFingerprints).toEqual(
       accountStates.flatMap(() => [invalidCode, invalidCode]),
     );
@@ -276,18 +264,9 @@ describe('password recovery doors before code verification', () => {
       const forgotStatus = forgotPassword(
         jsonRequest('/api/auth/email-password/forgot', { email: 'contact-only@example.test' }),
       ).then((response) => response.status);
-      const setupAccessStatus = requestSetupAccess(
-        jsonRequest('/api/auth/email-password/setup-access', {
-          email: 'contact-only@example.test',
-        }),
-      ).then((response) => response.status);
-
       await vi.advanceTimersByTimeAsync(0);
 
       await expect(Promise.race([forgotStatus, Promise.resolve('not settled')])).resolves.toBe(200);
-      await expect(Promise.race([setupAccessStatus, Promise.resolve('not settled')])).resolves.toBe(
-        200,
-      );
     } finally {
       vi.useRealTimers();
     }

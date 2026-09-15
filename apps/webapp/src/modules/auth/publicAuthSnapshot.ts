@@ -1,6 +1,7 @@
 /**
  * Серверный снимок публичных конфигов входа для `/app` без лишних client fetch.
- * Логика совпадает с GET `/api/auth/oauth/providers`, `/api/auth/telegram-login/config`, `/api/auth/login/alternatives-config`.
+ * Это единственная проекция публичной auth-конфигурации для экрана входа.
+ * Клиент получает только перечисленные ниже public-поля через RSC props.
  */
 import { isOAuthProviderEnabled } from '@/modules/auth/authChannelPolicy';
 import { isIndependentAuthMethodEnabled } from '@/modules/auth/authChannelPolicy';

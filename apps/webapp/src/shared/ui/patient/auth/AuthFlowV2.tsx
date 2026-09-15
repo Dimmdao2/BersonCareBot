@@ -2411,7 +2411,7 @@ export function AuthFlowV2({
                       message?: string;
                     }>(
                       emailVerifyPurpose === 'setup'
-                        ? '/api/auth/email-password/setup-access'
+                        ? '/api/auth/email-password/forgot'
                         : '/api/auth/email-password/register',
                       {
                         method: 'POST',
