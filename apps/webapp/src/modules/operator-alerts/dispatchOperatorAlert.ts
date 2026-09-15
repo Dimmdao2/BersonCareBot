@@ -164,8 +164,25 @@ export async function dispatchOperatorAlert(
    *
    * Глушится именно ОТПРАВКА, и как можно раньше — до чтения настроек и аудитории. Сигналы
    * по-прежнему считаются и видны в «Здоровье системы»: замер остаётся честным, молчит только рупор.
+   *
+   * И подавленный алерт ОБЯЗАН остаться в журнале — владелец 15.09: «прод пусть молчит, но логи
+   * пишет». Иначе режим ТЕСТ не приглушает тревогу, а стирает её: разбирать инцидент было бы не по
+   * чему. Строка несёт тему и ключ дедупа, то есть ровно то, по чему алерт ищут потом.
    */
-  if (env.TEST) return { dispatched: false, reason: 'test_mode' };
+  if (env.TEST) {
+    logger.warn(
+      {
+        scope: 'operator_alert',
+        event: 'operator_alert_suppressed_test_mode',
+        block: input.block,
+        topic: input.topic,
+        dedupKey: input.dedupKey,
+        lines: input.lines,
+      },
+      '[operator_alert] suppressed: TEST mode',
+    );
+    return { dispatched: false, reason: 'test_mode' };
+  }
 
   const cfg = await loadConfig();
   if (!isOperatorAlertBlockEnabled(cfg, input.block)) {
@@ -199,8 +216,7 @@ export async function dispatchOperatorAlert(
   const pushUrl = input.pushUrl ?? '/app/admin/technical';
 
   const attempts: Array<Promise<boolean>> = [];
-  const relayChannelsEnabled =
-    channels.telegram || channels.max || channels.sms || channels.email;
+  const relayChannelsEnabled = channels.telegram || channels.max || channels.sms || channels.email;
   const relayAudienceResolved = !relayChannelsEnabled || relayAudience.resolved;
   const hasRelayAudience =
     (channels.telegram && telegramTargets.length > 0) ||

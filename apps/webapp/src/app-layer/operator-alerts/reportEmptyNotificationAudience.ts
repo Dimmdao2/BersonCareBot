@@ -123,7 +123,12 @@ export function createEmptyAudienceReporter(dependencies: EmptyAudienceReporterD
       event.severity !== 'operational'
         ? ('not_applicable' as const)
         : dependencies.outboundSuppressed?.()
-          ? ('suppressed' as const)
+          ? (logger.warn(
+              { topic: event.topic, event: 'empty_audience_fallback_suppressed_test_mode' },
+              // Владелец 15.09: «прод пусть молчит, но логи пишет» — письмо не ушло, но факт есть.
+              'empty audience fallback suppressed: TEST mode',
+            ),
+            'suppressed' as const)
           : await deliverToFallback(dependencies, event, nowIso);
 
     return { counterTotal, fallback };

@@ -10,8 +10,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('@/config/env', () => ({
   env: { APP_BASE_URL: 'https://test.bersoncare.ru', TEST: true },
 }));
+const warn = vi.hoisted(() => vi.fn());
 vi.mock('@/infra/logging/logger', () => ({
-  logger: { debug: vi.fn(), error: vi.fn(), info: vi.fn(), warn: vi.fn() },
+  logger: { debug: vi.fn(), error: vi.fn(), info: vi.fn(), warn },
 }));
 const getConfigValue = vi.hoisted(() => vi.fn(async () => ''));
 vi.mock('@/modules/system-settings/configAdapter', () => ({ getConfigValue }));
@@ -34,6 +35,7 @@ import { registerAdminNotificationTargetsPort } from './adminNotificationTargets
 describe('dispatchOperatorAlert в режиме ТЕСТ', () => {
   beforeEach(() => {
     relayCalls.length = 0;
+    warn.mockClear();
     getConfigValue.mockClear();
     registerAdminNotificationTargetsPort({
       loadTargets: async () => ({
@@ -61,6 +63,15 @@ describe('dispatchOperatorAlert в режиме ТЕСТ', () => {
 
     expect(result).toEqual({ dispatched: false, reason: 'test_mode' });
     expect(relayCalls).toEqual([]);
+    // Владелец 15.09: «прод пусть молчит, но логи пишет» — подавленный алерт остаётся в журнале
+    // вместе с темой, иначе разбирать инцидент будет не по чему.
+    expect(warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: 'operator_alert_suppressed_test_mode',
+        topic: 'outbound_delivery_provider',
+      }),
+      expect.any(String),
+    );
   });
 
   it('молчит до чтения настроек и аудитории — лишних поездок в базу нет', async () => {
