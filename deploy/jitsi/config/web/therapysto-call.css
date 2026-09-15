@@ -16,7 +16,7 @@
 /* Плёнка перестаёт быть полосой во всю высоту и становится плавающим окном в углу. */
 #videoconference_page.vertical-filmstrip .filmstrip {
   position: absolute !important;
-  inset: auto 16px 96px auto !important;
+  inset: 16px 16px auto auto !important;
   width: auto !important;
   height: auto !important;
   background: none !important;
@@ -40,10 +40,17 @@
   display: none !important;
 }
 
-/* Собственное видео — компактное окно со скруглением и тенью, как в привычных мессенджерах. */
+/*
+ * Собственное видео — окно со скруглением и тенью, как в привычных мессенджерах. Размер задан
+ * долей ширины экрана, а не пикселями: владелец 15.09.2026 на живом звонке про прежние
+ * фиксированные 224×126 — «очень маленький собственный экран». 26% ширины дают 374×211 на
+ * ноутбучном 1440 и столько же по ощущению на большом мониторе; нижняя и верхняя границы
+ * держат окно читаемым на телефоне и не дают ему заслонить собеседника на 4K.
+ */
 #videoconference_page.vertical-filmstrip #filmstripLocalVideo {
-  width: 224px !important;
-  height: 126px !important;
+  width: clamp(200px, 26vw, 460px) !important;
+  height: auto !important;
+  aspect-ratio: 16 / 9 !important;
   margin: 0 !important;
   border-radius: 12px !important;
   overflow: hidden !important;
@@ -56,4 +63,60 @@
   width: 100% !important;
   height: 100% !important;
   border-radius: 12px !important;
+}
+
+/*
+ * Размытая подложка под главным видео снята. Провайдер подкладывает под картинку собеседника
+ * размытую копию ТОГО ЖЕ потока, чтобы заполнить поле, которое остаётся, когда пропорции сцены
+ * не совпадают с пропорциями видео. Владелец 15.09.2026, увидев это на экране врача: «экран
+ * собеседника в два слоя как будто». Пустое поле мы убираем по-настоящему — сцена на странице
+ * врача приведена к 16:9, — а подложка снимается, чтобы второго слоя не возникало и на других
+ * пропорциях (телефон в портрете, узкое окно).
+ */
+#largeVideoBackgroundContainer {
+  display: none !important;
+}
+
+/*
+ * Дальше — доводка до вида привычной звонилки. Владелец 15.09.2026: «неужели не взять как это
+ * сделано в нормальных звонилках и не сделать красиво». За образец взято общее место всех
+ * массовых звонилок (Meet, Zoom, WhatsApp, FaceTime): собеседник заполняет кадр, собственная
+ * плитка — скруглённое окно поверх БЕЗ собственной подписи, имя собеседника — неброская плашка в
+ * нижнем левом углу, кнопки — плавающая «таблетка» по центру снизу, а не полоса во всю ширину.
+ *
+ * Классы вида `css-XXXX-badge` генерирует emotion, их хвост меняется от сборки к сборке — поэтому
+ * здесь только выборка по вхождению суффикса, а не по целому имени.
+ */
+
+/* Своя плитка: человек и так знает, кто он. Подпись и служебные значки на ней — лишний шум. */
+#videoconference_page.vertical-filmstrip #filmstripLocalVideo #localDisplayName,
+#videoconference_page.vertical-filmstrip #filmstripLocalVideo [class*="-indicatorsContainer"],
+#videoconference_page.vertical-filmstrip #filmstripLocalVideo [class*="-indicatorsBackground"] {
+  display: none !important;
+}
+
+/* Имя собеседника — в нижний левый угол неброской плашкой вместо чёрного прямоугольника по центру. */
+#videoconference_page #dominantSpeaker [class*="-badge"],
+#videoconference_page #largeVideoContainer [class*="-badge"] {
+  position: absolute !important;
+  inset: auto auto 88px 16px !important;
+  max-width: calc(100% - 32px) !important;
+  padding: 4px 10px !important;
+  border-radius: 999px !important;
+  background: rgba(0, 0, 0, 0.45) !important;
+  backdrop-filter: blur(6px) !important;
+  font-weight: 500 !important;
+}
+
+/* Кнопки — плавающая «таблетка» поверх видео, а не панель во всю ширину. */
+#videoconference_page .new-toolbox .toolbox-content-wrapper {
+  border-radius: 999px !important;
+  background: rgba(0, 0, 0, 0.55) !important;
+  backdrop-filter: blur(10px) !important;
+  padding: 0 8px !important;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35) !important;
+}
+
+#videoconference_page .new-toolbox .toolbox-content {
+  background: none !important;
 }
