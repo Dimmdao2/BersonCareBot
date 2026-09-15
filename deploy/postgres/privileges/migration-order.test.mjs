@@ -395,6 +395,7 @@ test('ограничение соседнего оператора не прип
     'ALTER TABLE public.first_table',
     "  ADD CONSTRAINT first_table_shape_check CHECK (kind = ANY (ARRAY['a'::text, 'b'::text]));",
     'ALTER TABLE public.second_table',
+    '  DROP CONSTRAINT IF EXISTS second_table_shape_check,',
     '  ADD CONSTRAINT second_table_shape_check CHECK (value > 0);',
   ].join('\n');
 
