@@ -12,6 +12,7 @@
  *     deploy/postgres/privileges/platform-user-merge.devDbProof.test.mjs'
  */
 import assert from 'node:assert/strict';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -22,6 +23,12 @@ const ALLOWED_DATABASES = new Set(['bcb_webapp_dev', 'bersoncarebot_test']);
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, '..', '..', '..');
+
+// Единственное место, где названы движок и его вход: и живая проба ниже, и гейт связи
+// («proof stays bound…») берут путь и имя отсюда, поэтому разъехаться они не могут.
+const ENGINE_RELATIVE_PATH = 'packages/platform-merge/src/pgPlatformUserMerge.ts';
+const ENGINE_MERGE_EXPORT = 'mergePlatformUsersInTransaction';
+const enginePath = path.join(repoRoot, ...ENGINE_RELATIVE_PATH.split('/'));
 const prefix = 'a5e10000-0000-4000-8000-';
 const uid = (suffix) => `${prefix}${suffix.padStart(12, '0')}`;
 const ORG_A = uid('1');
@@ -131,16 +138,157 @@ const openAttemptFixtures = (targetId, duplicateId) => {
   ];
 };
 
-const scenarios = [
+
+const TEMPLATE_A = uid('921');
+const TEMPLATE_B = uid('922');
+const WELLBEING_TARGET_TRACKING = uid('923');
+const WELLBEING_DUPLICATE_TRACKING = uid('924');
+
+const lfkTemplates = () => [
+  [
+    `INSERT INTO lfk_complex_templates (id, title, organization_id)
+     VALUES ($1::uuid, 'merge proof template A', $3::uuid),
+            ($2::uuid, 'merge proof template B', $3::uuid)`,
+    [TEMPLATE_A, TEMPLATE_B, ORG_A],
+  ],
+];
+
+const wellbeingDiary = (userId, trackingId, value) => [
+  [
+    `INSERT INTO symptom_trackings
+       (id, user_id, platform_user_id, organization_id, symptom_key, symptom_title)
+     VALUES ($1::uuid, $2::text, $2::uuid, $3::uuid, 'general_wellbeing', 'Самочувствие')`,
+    [trackingId, userId, ORG_A],
+  ],
+  [
+    `INSERT INTO symptom_entries
+       (user_id, platform_user_id, organization_id, tracking_id, value_0_10, entry_type, recorded_at, source)
+     VALUES ($1::text, $1::uuid, $2::uuid, $3::uuid, $4, 'daily', now(), 'webapp')`,
+    [userId, ORG_A, trackingId, value],
+  ],
+];
+
+/**
+ * Приёмочная строка Э1: «две учётки с назначениями в ОДНОЙ клинике не сливаются». Канон §18
+ * называет блокирующие категории поимённо, и гейт держит десять таблиц — по одному сценарию на
+ * каждую: одна строка ЭТОЙ категории у обеих сторон внутри ОДНОЙ организации обязана остановить
+ * автоматический путь. Вынос категории из блокирующего списка законен по типам (пятый аудит,
+ * Н1) и до этих сценариев оставлял пробу зелёной; теперь такой вынос красит ровно её сценарий:
+ * блок превращается в молчаливое слияние. Фикстуры независимы от списка в движке — они названы
+ * здесь, поэтому сокращение списка не сокращает проверку.
+ */
+const BLOCKING_CATEGORY_FIXTURES = [
   {
-    name: 'same-organization doctor notes block automatic merge',
-    pair: ['101', '102'],
-    expected: 'block',
-    fixtures: (targetId, duplicateId) => [
-      note(targetId, ORG_A),
-      note(duplicateId, ORG_A, uid('4')),
+    table: 'clinical_visit',
+    rows: (userId) => [
+      [
+        `INSERT INTO clinical_visit (patient_user_id, organization_id, visit_type, visited_at, created_by)
+         VALUES ($1::uuid, $2::uuid, 'first', now(), $3::uuid)`,
+        [userId, ORG_A, DOCTOR],
+      ],
     ],
   },
+  {
+    table: 'clinical_complaint',
+    rows: (userId) => [
+      [
+        `INSERT INTO clinical_complaint (patient_user_id, organization_id, text)
+         VALUES ($1::uuid, $2::uuid, 'боль в колене')`,
+        [userId, ORG_A],
+      ],
+    ],
+  },
+  {
+    table: 'clinical_diagnosis',
+    rows: (userId) => [
+      [
+        `INSERT INTO clinical_diagnosis (patient_user_id, organization_id, text)
+         VALUES ($1::uuid, $2::uuid, 'гонартроз')`,
+        [userId, ORG_A],
+      ],
+    ],
+  },
+  {
+    table: 'clinical_anamnesis_trauma',
+    rows: (userId) => [
+      [
+        `INSERT INTO clinical_anamnesis_trauma
+           (patient_user_id, organization_id, year, what, type, created_by)
+         VALUES ($1::uuid, $2::uuid, '2019', 'перелом', 'спорт', $3::uuid)`,
+        [userId, ORG_A, DOCTOR],
+      ],
+    ],
+  },
+  {
+    table: 'clinical_anamnesis_illness',
+    rows: (userId) => [
+      [
+        `INSERT INTO clinical_anamnesis_illness
+           (patient_user_id, organization_id, period, what, created_by)
+         VALUES ($1::uuid, $2::uuid, '2020', 'бронхит', $3::uuid)`,
+        [userId, ORG_A, DOCTOR],
+      ],
+    ],
+  },
+  {
+    table: 'clinical_anamnesis_lifestyle',
+    rows: (userId) => [
+      [
+        `INSERT INTO clinical_anamnesis_lifestyle
+           (patient_user_id, organization_id, record_date, text, created_by)
+         VALUES ($1::uuid, $2::uuid, '2026-09-15', 'сидячая работа', $3::uuid)`,
+        [userId, ORG_A, DOCTOR],
+      ],
+    ],
+  },
+  {
+    table: 'doctor_notes',
+    rows: (userId, side) => [note(userId, ORG_A, side === 'target' ? DOCTOR : uid('4'))],
+  },
+  {
+    table: 'symptom_trackings',
+    rows: (userId) => [
+      [
+        `INSERT INTO symptom_trackings (user_id, platform_user_id, organization_id, symptom_title)
+         VALUES ($1::text, $1::uuid, $2::uuid, 'колено')`,
+        [userId, ORG_A],
+      ],
+    ],
+  },
+  {
+    // Разные шаблоны у сторон: совпадающий шаблон остановил бы автоматический путь и без гейта
+    // (`reconcilePatientLfkAssignmentsForMerge`), и сценарий перестал бы быть двоичным.
+    table: 'patient_lfk_assignments',
+    setup: lfkTemplates,
+    rows: (userId, side) => [
+      [
+        `INSERT INTO patient_lfk_assignments (patient_user_id, organization_id, template_id)
+         VALUES ($1::uuid, $2::uuid, $3::uuid)`,
+        [userId, ORG_A, side === 'target' ? TEMPLATE_A : TEMPLATE_B],
+      ],
+    ],
+  },
+  {
+    table: 'treatment_program_instances',
+    rows: (userId, side) => [
+      program(userId, ORG_A, 'doctor', `${side}-doctor-program`),
+    ],
+  },
+];
+
+const blockingCategoryScenarios = BLOCKING_CATEGORY_FIXTURES.map((category, index) => ({
+  name: `same-organization ${category.table} blocks automatic merge`,
+  pair: [String(201 + index * 2), String(202 + index * 2)],
+  expected: 'block',
+  fixtures: (targetId, duplicateId) => [
+    ...(category.setup?.() ?? []),
+    ...category.rows(targetId, 'target'),
+    ...category.rows(duplicateId, 'duplicate'),
+  ],
+}));
+
+const scenarios = [
+  ...blockingCategoryScenarios,
   {
     name: 'different-organization doctor notes merge',
     pair: ['103', '104'],
@@ -327,7 +475,89 @@ const scenarios = [
       });
     },
   },
+  {
+    // Пятый аудит, Н2: из десяти непокрытых уникальных индексов ТИХИЙ класс здесь один.
+    // Дневник самочувствия — синглтон на учётку (`uq_symptom_trackings_general_wellbeing_active_
+    // platform_user`), поэтому перед переносом дубликатный дневник гасится (`deleted_at`), а его
+    // отметки переподвешиваются на дневник выжившего. Потеряется переподвешивание — база смолчит
+    // (гашение снимает коллизию, 23505 не будет), а отметки останутся висеть на погашенном
+    // дневнике: КАЖДЫЙ читатель отметок в продукте джойнит `symptom_trackings … deleted_at IS NULL`
+    // (`apps/webapp/src/infra/repos/pgSymptomDiary.ts`), то есть история самочувствия человека
+    // исчезает из приложения целиком и молча. Утверждение ниже смотрит ровно этим предикатом
+    // видимости, а не наличием строк в таблице.
+    name: 'wellbeing diary entries stay visible after singleton tracking dedup',
+    pair: ['221', '222'],
+    expected: 'merge',
+    fixtures: (targetId, duplicateId) => [
+      ...wellbeingDiary(targetId, WELLBEING_TARGET_TRACKING, 7),
+      ...wellbeingDiary(duplicateId, WELLBEING_DUPLICATE_TRACKING, 3),
+    ],
+    verify: async (query, targetId, duplicateId) => {
+      const visible = await query(
+        `SELECT count(*)::int AS visible_entries,
+                count(*) FILTER (WHERE entry.platform_user_id = $2::uuid)::int AS duplicate_rows
+           FROM symptom_entries entry
+           JOIN symptom_trackings tracking ON tracking.id = entry.tracking_id
+          WHERE entry.platform_user_id = ANY($1::uuid[])
+            AND tracking.deleted_at IS NULL`,
+        [[targetId, duplicateId], duplicateId],
+      );
+      assert.deepEqual(visible.rows[0], { visible_entries: 2, duplicate_rows: 0 });
+      const trackings = await query(
+        `SELECT count(*) FILTER (WHERE deleted_at IS NULL)::int AS active
+           FROM symptom_trackings
+          WHERE platform_user_id = ANY($1::uuid[]) AND symptom_key = 'general_wellbeing'`,
+        [[targetId, duplicateId]],
+      );
+      assert.deepEqual(trackings.rows[0], { active: 1 });
+    },
+  },
 ];
+
+/**
+ * Связь пробы с предметом — единственная проверка этого файла, которая идёт БЕЗ базы и потому
+ * реально исполняется в CI (`pnpm test:db-privileges`). Названный дорогой и молчаливый отказ:
+ * движок переименовали или перенесли, все TypeScript-вызовы поправили — `tsc` зелёный, CI зелёный,
+ * а живая проба ниже подключается строкой пути и именем символа и с этого момента не проверяет
+ * ничего. Форму исходника здесь не сверяют: файл разбирается компилятором TypeScript, поэтому
+ * переформатирование, кавычки и переносы строк проверку не трогают — только реальная пропажа
+ * экспорта. Ступень 3 канона (§10a, «защита от отката»): условие снятия — проба, которую CI гоняет
+ * против живой базы, тогда эта косвенная проверка не нужна.
+ */
+test('the proof stays bound to the live merge engine export', async () => {
+  assert.ok(
+    existsSync(enginePath),
+    `движок merge не найден по ${ENGINE_RELATIVE_PATH}: проба подключается к нему строкой пути и ` +
+      'без него молча не проверяет ничего — почини путь в ENGINE_RELATIVE_PATH или верни файл',
+  );
+  const ts = (await import('typescript')).default;
+  const parsed = ts.createSourceFile(
+    enginePath,
+    readFileSync(enginePath, 'utf8'),
+    ts.ScriptTarget.Latest,
+    true,
+  );
+  const exportedNames = new Set();
+  for (const statement of parsed.statements) {
+    const exported =
+      (ts.getCombinedModifierFlags(statement) & ts.ModifierFlags.Export) !== 0 ||
+      (ts.canHaveModifiers(statement) &&
+        (ts.getModifiers(statement) ?? []).some((m) => m.kind === ts.SyntaxKind.ExportKeyword));
+    if (!exported) continue;
+    if (ts.isFunctionDeclaration(statement) && statement.name) {
+      exportedNames.add(statement.name.text);
+    } else if (ts.isVariableStatement(statement)) {
+      for (const declaration of statement.declarationList.declarations) {
+        if (ts.isIdentifier(declaration.name)) exportedNames.add(declaration.name.text);
+      }
+    }
+  }
+  assert.ok(
+    exportedNames.has(ENGINE_MERGE_EXPORT),
+    `${ENGINE_RELATIVE_PATH} больше не экспортирует ${ENGINE_MERGE_EXPORT}: живая проба ниже ` +
+      'подключается к движку по этому имени и без него проверяет пустоту',
+  );
+});
 
 test(
   'live PostgreSQL enforces the organization merge gate and completes collision-prone transfers',
@@ -336,17 +566,11 @@ test(
     assert.ok(ALLOWED_DATABASES.has(DATABASE), `refusing to run merge proof on ${DATABASE}`);
 
     const pgPath = path.join(repoRoot, 'apps', 'webapp', 'node_modules', 'pg', 'lib', 'index.js');
-    const mergePath = path.join(
-      repoRoot,
-      'packages',
-      'platform-merge',
-      'src',
-      'pgPlatformUserMerge.ts',
-    );
-    const [{ default: pg }, { mergePlatformUsersInTransaction }] = await Promise.all([
+    const [{ default: pg }, engine] = await Promise.all([
       import(pathToFileURL(pgPath).href),
-      import(pathToFileURL(mergePath).href),
+      import(pathToFileURL(enginePath).href),
     ]);
+    const mergePlatformUsersInTransaction = engine[ENGINE_MERGE_EXPORT];
 
     if (typeof process.setuid === 'function' && process.getuid?.() === 0) {
       process.setgid('postgres');
@@ -450,7 +674,17 @@ test(
            (SELECT count(*) FROM be_organizations WHERE id::text LIKE $1) +
            (SELECT count(*) FROM doctor_notes WHERE user_id::text LIKE $1) +
            (SELECT count(*) FROM user_phone_history WHERE platform_user_id::text LIKE $1) +
-           (SELECT count(*) FROM treatment_program_instances WHERE patient_user_id::text LIKE $1)
+           (SELECT count(*) FROM treatment_program_instances WHERE patient_user_id::text LIKE $1) +
+           (SELECT count(*) FROM clinical_visit WHERE patient_user_id::text LIKE $1) +
+           (SELECT count(*) FROM clinical_complaint WHERE patient_user_id::text LIKE $1) +
+           (SELECT count(*) FROM clinical_diagnosis WHERE patient_user_id::text LIKE $1) +
+           (SELECT count(*) FROM clinical_anamnesis_trauma WHERE patient_user_id::text LIKE $1) +
+           (SELECT count(*) FROM clinical_anamnesis_illness WHERE patient_user_id::text LIKE $1) +
+           (SELECT count(*) FROM clinical_anamnesis_lifestyle WHERE patient_user_id::text LIKE $1) +
+           (SELECT count(*) FROM patient_lfk_assignments WHERE patient_user_id::text LIKE $1) +
+           (SELECT count(*) FROM lfk_complex_templates WHERE id::text LIKE $1) +
+           (SELECT count(*) FROM symptom_trackings WHERE platform_user_id::text LIKE $1) +
+           (SELECT count(*) FROM symptom_entries WHERE platform_user_id::text LIKE $1)
          )::int AS count`,
         [`${prefix}%`],
       );
