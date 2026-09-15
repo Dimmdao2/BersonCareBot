@@ -24,6 +24,11 @@ export const PUBLIC_BOOKING_PRINCIPAL_SOURCES = [
   'api/booking/public/form-fields:GET',
   'api/booking/public/create:POST',
   'api/booking/public/create/confirm:POST',
+  'api/leads/public/form-fields:GET',
+  'api/leads/public/captcha:POST',
+  'api/leads/public/submit:POST',
+  'app/[clinicSlug]:lead-availability',
+  'app/[clinicSlug]/lead:page',
 ] as const;
 
 const PUBLIC_BOOKING_SOURCE_SET: ReadonlySet<string> = new Set(PUBLIC_BOOKING_PRINCIPAL_SOURCES);

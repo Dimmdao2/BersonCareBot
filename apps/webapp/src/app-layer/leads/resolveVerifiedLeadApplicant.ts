@@ -21,6 +21,7 @@ export async function resolveVerifiedLeadApplicant(
     verifiedEmailUserId: string;
     emailNormalized: string;
     submittedPhone?: string | null;
+    proof?: VerifiedLeadApplicant['proof'];
   },
   dependencies?: ResolveVerifiedLeadApplicantDeps,
 ): Promise<VerifiedLeadApplicant> {
@@ -36,7 +37,7 @@ export async function resolveVerifiedLeadApplicant(
     return {
       platformUserId: input.verifiedEmailUserId,
       emailNormalized: input.emailNormalized,
-      proof: 'email_otp',
+      proof: input.proof ?? 'email_otp',
     } as VerifiedLeadApplicant;
   }
 
@@ -45,7 +46,7 @@ export async function resolveVerifiedLeadApplicant(
     return {
       platformUserId: input.verifiedEmailUserId,
       emailNormalized: input.emailNormalized,
-      proof: 'email_otp',
+      proof: input.proof ?? 'email_otp',
     } as VerifiedLeadApplicant;
   }
   const claimed = await deps.claimEmail(phoneOwnerId, input.emailNormalized, {
@@ -55,6 +56,6 @@ export async function resolveVerifiedLeadApplicant(
   return {
     platformUserId: phoneOwnerId,
     emailNormalized: input.emailNormalized,
-    proof: 'email_otp',
+    proof: input.proof ?? 'email_otp',
   } as VerifiedLeadApplicant;
 }

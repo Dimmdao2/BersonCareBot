@@ -12,6 +12,7 @@ export const publicBookPaths = {
    * а domain/clinic/booking». Прежний `/book/{slug}` жив как вечный 308-редирект сюда.
    */
   forSlug: (slug: string) => `/${encodeURIComponent(slug)}/booking`,
+  leadsForSlug: (slug: string) => `/${encodeURIComponent(slug)}/lead`,
 } as const;
 
 /** Canonical clinic-card path shared by the slug page and Host-based patient routing. */

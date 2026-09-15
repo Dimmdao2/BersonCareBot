@@ -23,6 +23,8 @@ const protection: PasswordLoginProtectionPort = {
   completePasswordProof: vi.fn(),
   readAltchaRootSecret: vi.fn(),
   registerAltchaChallenge: vi.fn(),
+  registerPublicLeadAltchaChallenge: vi.fn(),
+  consumePublicLeadAltchaChallenge: vi.fn(),
 };
 
 beforeEach(() => {
