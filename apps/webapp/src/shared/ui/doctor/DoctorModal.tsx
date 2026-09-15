@@ -161,6 +161,13 @@ export function DoctorModalTextEditorField({
   );
 }
 
+/**
+ * Зазор между левой и правой колонками страницы врача (`gap-3` у `.doctor-today-two-pane-grid`).
+ * Правый лист повторяет ширину правой колонки, а значит обязан этот зазор из своей ширины вычесть —
+ * иначе он накрывает просвет между половинами страницы.
+ */
+const PAGE_TWO_PANE_GAP = 12;
+
 /** Десктоп: ограничение ширины по размеру. Мобила — всегда bottom-sheet во всю ширину. */
 const sizeMaxWidth: Record<DoctorModalSize, string> = {
   sm: 'sm:max-w-sm',
@@ -355,7 +362,12 @@ export function DoctorModal({
     const updateGeometry = () => {
       const rect = pageContent.getBoundingClientRect();
       const widthRatio = isWideDesktop ? 0.5 : 0.45;
-      const nextWidth = `calc(${rect.width * widthRatio}px + 0.375rem)`;
+      // Владелец 15.09: «слишком сильно, не видно расстояние между правым и левым блоками
+      // страницы — надо чуть уменьшить, желательно по левый край правого блока». Панель была
+      // шире правой колонки ровно на межколоночный зазор и накрывала его целиком, поэтому на
+      // дашборде казалось, что она села вплотную на левую половину. Вычитаем зазор — левый край
+      // панели встаёт ровно на левый край правой колонки, и просвет между половинами остаётся.
+      const nextWidth = `${Math.max(0, (rect.width - PAGE_TWO_PANE_GAP) * widthRatio)}px`;
       setRightSheetWidth((current) => (current === nextWidth ? current : nextWidth));
       // Владелец 14.09: «правая панель вылезает далековато и закрывает пробел между правой
       // и левой частью экрана». Пикселем это оказался `right: 0` — панель садится вплотную
@@ -589,7 +601,7 @@ export function DoctorModal({
               right: rightSheetInset ?? 0,
               width:
                 rightSheetWidth ??
-                (isWideDesktop ? 'calc(50vw + 0.375rem)' : 'calc(45vw + 0.375rem)'),
+                (isWideDesktop ? 'calc(50vw - 0.375rem)' : 'calc(45vw - 0.3375rem)'),
               maxWidth: 'none',
             }}
           >
