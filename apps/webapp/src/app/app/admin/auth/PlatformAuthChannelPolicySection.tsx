@@ -81,6 +81,20 @@ function NotConfiguredHint() {
   );
 }
 
+/**
+ * Включённый, но ненастроенный канал — это ТИХИЙ отказ, и значок с подсказкой по наведению его не
+ * показывает. Владелец 15.09.2026 полчаса ждал код, которого никто не отправлял: переключатель
+ * Telegram стоял «включено», а имя бота было пустым, и код молча не уходил (`phone/start` отвечает
+ * нейтральным `200` независимо от доставки). Поэтому здесь строка словами, а не иконка.
+ */
+function NotConfiguredWhileEnabled() {
+  return (
+    <p className="text-xs text-destructive">
+      Включён, но не настроен — вход по этому каналу не работает.
+    </p>
+  );
+}
+
 function readBoolean(valueJson: unknown): boolean {
   if (typeof valueJson === 'boolean') return valueJson;
   if (valueJson && typeof valueJson === 'object' && 'value' in valueJson) {
@@ -205,15 +219,18 @@ export function PlatformAuthChannelPolicySection() {
             {CONTROL_LABELS.map(({ control, label, hint }) => {
               const configured = isConfigured(control, channelStatus, oauthStatus);
               return (
-                <div key={control} className="flex items-start gap-1.5">
-                  <LabeledSwitch
-                    label={label}
-                    hint={hint}
-                    checked={policy[control]}
-                    disabled={!loaded || saving !== null || (!policy[control] && !configured)}
-                    onCheckedChange={(enabled) => void updateSurfaceControl(control, enabled)}
-                  />
-                  {!configured ? <NotConfiguredHint /> : null}
+                <div key={control} className="flex flex-col gap-1">
+                  <div className="flex items-start gap-1.5">
+                    <LabeledSwitch
+                      label={label}
+                      hint={hint}
+                      checked={policy[control]}
+                      disabled={!loaded || saving !== null || (!policy[control] && !configured)}
+                      onCheckedChange={(enabled) => void updateSurfaceControl(control, enabled)}
+                    />
+                    {!configured ? <NotConfiguredHint /> : null}
+                  </div>
+                  {loaded && policy[control] && !configured ? <NotConfiguredWhileEnabled /> : null}
                 </div>
               );
             })}
