@@ -60,8 +60,8 @@ function fakeAppointment(overrides: Partial<BeAppointment> = {}): BeAppointment 
     packageUsageRef: null,
     phoneNormalized: '+79990000000',
     attributionJson: { contact_name: 'Пациент' },
-    appointmentReminderAllowedPresetIds: [],
-    appointmentReminderPresetId: null,
+    appointmentReminderAvailableOffsetsMinutes: [],
+    appointmentReminderOffsetsMinutes: [],
     appointmentReminderSelectionSource: 'specialist_default',
     ...overrides,
   };

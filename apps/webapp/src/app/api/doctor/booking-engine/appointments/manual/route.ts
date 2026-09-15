@@ -32,7 +32,7 @@ import {
   staffBookingContactNameFromAppointment,
   staffBookingServiceTitleFromAppointment,
 } from '@/app-layer/booking/staffBookingIntegratorEvent';
-import { appointmentReminderPlanForPreset } from '@/modules/booking-notifications/appointmentReminderPresets';
+import { loadAppointmentReminderPlanFromSystemSettings } from '@/modules/booking-notifications/settings';
 import { createBookingSyncPort } from '@/modules/integrator/bookingM2mApi';
 import { resolveStaffAppointmentFinancials } from '@/app-layer/booking/staffAppointmentFinancials';
 import { initialAppointmentStatusForSnapshot } from '@/modules/payments/appointmentFinancialSnapshot';
@@ -112,10 +112,10 @@ export async function POST(request: Request) {
       'doctor.booking-engine.appointments.manual-create',
       async () => {
         const resolvedSpecialistId = specialistResolution.specialistId;
-        const reminderSettings = await ctx.service.getSpecialistAppointmentReminderSettings({
-          organizationId: ctx.organizationId,
-          specialistId: resolvedSpecialistId,
-        });
+        const reminderPlan = await loadAppointmentReminderPlanFromSystemSettings(
+          ctx.organizationId,
+          deps.systemSettings.getSetting,
+        );
         // ENCOUNTER-APPOINTMENT-05: `allowOverlap` — не общий bypass, а retry ПОСЛЕ реально
         // найденного конфликта. На свободном слоте он оставляет обычную запись без долгоживущего
         // маркера; другой отказ scheduling не превращается в согласие.
@@ -183,8 +183,8 @@ export async function POST(request: Request) {
           deliveryFormat: parsed.data.deliveryFormat,
           phoneNormalized: parsed.data.phoneNormalized ?? null,
           actorId: ctx.session.user.userId,
-          appointmentReminderAllowedPresetIds: reminderSettings?.allowedPresetIds ?? [],
-          appointmentReminderPresetId: reminderSettings?.defaultPresetId ?? null,
+          appointmentReminderAvailableOffsetsMinutes: reminderPlan.offsetsMinutes,
+          appointmentReminderOffsetsMinutes: reminderPlan.offsetsMinutes,
           priceMinor: financials.priceMinor,
           priceCurrency: financials.priceCurrency,
           prepaymentMode: financials.prepaymentMode,
@@ -261,9 +261,6 @@ export async function POST(request: Request) {
           });
         }
         try {
-          const reminderPlan = appointmentReminderPlanForPreset(
-            created.appointmentReminderPresetId,
-          );
           await syncPort.emitBookingEvent({
             eventType: 'booking.created',
             idempotencyKey: `staff.booking.created:${created.id}:${created.startAt}`,

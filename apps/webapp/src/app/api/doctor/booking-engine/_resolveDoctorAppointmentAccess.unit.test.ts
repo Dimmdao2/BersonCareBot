@@ -40,8 +40,8 @@ function appointment(specialistId: string | null, organizationId = ORGANIZATION_
     packageUsageRef: null,
     phoneNormalized: null,
     attributionJson: {},
-    appointmentReminderAllowedPresetIds: [],
-    appointmentReminderPresetId: null,
+    appointmentReminderAvailableOffsetsMinutes: [],
+    appointmentReminderOffsetsMinutes: [],
     appointmentReminderSelectionSource: 'specialist_default',
   };
 }

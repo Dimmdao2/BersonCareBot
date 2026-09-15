@@ -26,7 +26,8 @@ const ONLINE_SLOT_MINUTE_MS = 60_000;
 const MAX_ONLINE_CHAIN_MINUTES = 8 * 60;
 
 function assertUuid(id: string, label = 'id'): void {
-  if (!UUID_RE.test(id.trim())) throw new UserFacingError(notificationTextFactory.invalidUuid(label));
+  if (!UUID_RE.test(id.trim()))
+    throw new UserFacingError(notificationTextFactory.invalidUuid(label));
 }
 
 function assertAppointmentStatus(s: string): asserts s is AppointmentStatus {
@@ -62,21 +63,9 @@ export function createBookingEngineService(
   dependencies: BookingEngineServiceDependencies = {},
 ) {
   const engine: BookingEnginePort = {
-    async getSpecialistAppointmentReminderSettings(input) {
-      assertUuid(input.organizationId, 'organizationId');
-      assertUuid(input.specialistId, 'specialistId');
-      return port.getSpecialistAppointmentReminderSettings(input);
-    },
-
-    async updateSpecialistAppointmentReminderSettings(input) {
-      assertUuid(input.organizationId, 'organizationId');
-      assertUuid(input.specialistId, 'specialistId');
-      return port.updateSpecialistAppointmentReminderSettings(input);
-    },
-
-    async setPatientAppointmentReminderPreset(input) {
+    async setPatientAppointmentReminderOffsets(input) {
       assertUuid(input.appointmentId, 'appointmentId');
-      return port.setPatientAppointmentReminderPreset(input);
+      return port.setPatientAppointmentReminderOffsets(input);
     },
 
     async getPatientAppointmentReminderPreference(appointmentId) {
@@ -176,7 +165,8 @@ export function createBookingEngineService(
         if (visitedAtMs > Date.now() + 2 * 60_000) throw new Error('visit_in_future');
         return port.createManualPatientVisit(input);
       }
-      if (!input.appointment.branchId) throw new UserFacingError(notificationText.bookingSpecifyBranch);
+      if (!input.appointment.branchId)
+        throw new UserFacingError(notificationText.bookingSpecifyBranch);
       assertUuid(input.appointment.branchId, 'branchId');
       const status = input.appointment.status ?? 'confirmed';
       assertAppointmentStatus(status);

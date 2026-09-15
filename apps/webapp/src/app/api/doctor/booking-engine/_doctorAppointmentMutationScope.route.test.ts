@@ -8,7 +8,6 @@ const mocks = vi.hoisted(() => ({
   createAppointment: vi.fn(),
   emitBookingEvent: vi.fn(),
   getAppointment: vi.fn(),
-  getSpecialistAppointmentReminderSettings: vi.fn(),
   loadLifecycleSettings: vi.fn(),
   loadReminderPlan: vi.fn(),
   requireDoctorBookingEngine: vi.fn(),
@@ -108,8 +107,8 @@ function appointment(specialistId: string): BeAppointment {
     packageUsageRef: null,
     phoneNormalized: null,
     attributionJson: {},
-    appointmentReminderAllowedPresetIds: [],
-    appointmentReminderPresetId: null,
+    appointmentReminderAvailableOffsetsMinutes: [],
+    appointmentReminderOffsetsMinutes: [],
     appointmentReminderSelectionSource: 'specialist_default',
   };
 }
@@ -122,7 +121,6 @@ function context(canManageAllSpecialists: boolean): DoctorBookingEngineContext {
     service: {
       getAppointment: mocks.getAppointment,
       createAppointment: mocks.createAppointment,
-      getSpecialistAppointmentReminderSettings: mocks.getSpecialistAppointmentReminderSettings,
       // PAY-APPT-03: ручное создание считает финансовый снимок и берёт цену услуги из каталога.
       services: { getService: vi.fn(async () => ({ priceMinor: 250_000 })) },
       catalog: {
@@ -153,10 +151,6 @@ function request(path: string, body: unknown): Request {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.getSpecialistAppointmentReminderSettings.mockResolvedValue({
-    allowedPresetIds: [],
-    defaultPresetId: null,
-  });
   mocks.requireDoctorBookingEngine.mockResolvedValue({ ok: true, ctx: context(false) });
   mocks.buildAppDeps.mockReturnValue({
     orgEntitlements: {

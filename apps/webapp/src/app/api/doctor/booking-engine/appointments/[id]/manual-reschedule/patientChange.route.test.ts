@@ -101,7 +101,7 @@ beforeEach(() => {
       id: APPOINTMENT_ID,
       organizationId: ORGANIZATION_ID,
       platformUserId: NEXT_PATIENT_ID,
-      appointmentReminderPresetId: null,
+      appointmentReminderOffsetsMinutes: [],
     },
     reschedulePolicy: { id: 'default' },
   }));

@@ -61,9 +61,7 @@ function buildCatalogService() {
     createManualPatientVisit: vi.fn(),
     createAppointmentChain: vi.fn(),
     transitionAppointmentStatus: vi.fn(),
-    getSpecialistAppointmentReminderSettings: vi.fn(),
-    updateSpecialistAppointmentReminderSettings: vi.fn(),
-    setPatientAppointmentReminderPreset: vi.fn(),
+    setPatientAppointmentReminderOffsets: vi.fn(),
     getPatientAppointmentReminderPreference: vi.fn(),
   } as unknown as BookingEngineCorePort;
 

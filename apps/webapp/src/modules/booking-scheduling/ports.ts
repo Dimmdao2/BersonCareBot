@@ -1,5 +1,4 @@
 import type { BookingSlotsByDate } from '@/modules/patient-booking/types';
-import type { AppointmentReminderPresetId } from '@/modules/booking-notifications/appointmentReminderPresets';
 
 export type SchedulingContext = {
   organizationId: string;
@@ -42,8 +41,6 @@ export type CanonicalBookingContext = {
     servicePublicWidgetVisible: boolean;
     serviceAdminManualOnly: boolean;
     serviceSortOrder: number;
-    specialistReminderAllowedPresetIds: AppointmentReminderPresetId[];
-    specialistReminderDefaultPresetId: AppointmentReminderPresetId | null;
   };
 };
 

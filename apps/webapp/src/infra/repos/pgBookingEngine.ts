@@ -49,7 +49,11 @@ import { pickPreferredSsaId } from '@/modules/booking-scheduling/ssaResolve';
 import { isChainFree } from '@/modules/booking-scheduling/computeSlots';
 import { listBookingBusyIntervals } from '@/infra/repos/pgBookingScheduling';
 import type { BookingEngineCorePort } from '@/modules/booking-engine/ports';
-import { normalizeAppointmentReminderSettings } from '@/modules/booking-notifications/appointmentReminderPresets';
+import {
+  deserializeAppointmentReminderOffsets,
+  parseAppointmentReminderOffsets,
+  serializeAppointmentReminderOffsets,
+} from '@/modules/booking-notifications/appointmentReminderSchedule';
 import {
   ONLINE_LOCATION_CITY_CODE,
   ONLINE_LOCATION_TITLE,
@@ -108,10 +112,6 @@ function mapRoom(row: typeof beRooms.$inferSelect): BeRoom {
 }
 
 function mapSpecialist(row: typeof beSpecialists.$inferSelect): BeSpecialist {
-  const reminderSettings = normalizeAppointmentReminderSettings({
-    allowedPresetIds: row.appointmentReminderAllowedPresetIds ?? [],
-    defaultPresetId: row.appointmentReminderDefaultPresetId ?? null,
-  });
   return {
     id: row.id,
     organizationId: row.organizationId,
@@ -120,8 +120,6 @@ function mapSpecialist(row: typeof beSpecialists.$inferSelect): BeSpecialist {
     avatarMediaId: row.avatarMediaId ?? null,
     fullDescriptionMarkdown: row.fullDescriptionMarkdown ?? null,
     cardIsPublished: row.cardIsPublished === true,
-    appointmentReminderAllowedPresetIds: reminderSettings.allowedPresetIds,
-    appointmentReminderDefaultPresetId: reminderSettings.defaultPresetId,
     isActive: row.isActive,
     sortOrder: row.sortOrder,
   };
@@ -147,10 +145,6 @@ function mapService(row: typeof beClinicServices.$inferSelect): BeClinicService 
 }
 
 function mapAppointment(row: typeof beAppointments.$inferSelect): BeAppointment {
-  const reminderSettings = normalizeAppointmentReminderSettings({
-    allowedPresetIds: row.appointmentReminderAllowedPresetIds ?? [],
-    defaultPresetId: row.appointmentReminderPresetId ?? null,
-  });
   return {
     id: row.id,
     organizationId: row.organizationId,
@@ -181,8 +175,11 @@ function mapAppointment(row: typeof beAppointments.$inferSelect): BeAppointment 
     packageUsageRef: row.packageUsageRef ?? null,
     phoneNormalized: row.phoneNormalized ?? null,
     attributionJson: (row.attributionJson ?? {}) as Record<string, unknown>,
-    appointmentReminderAllowedPresetIds: reminderSettings.allowedPresetIds,
-    appointmentReminderPresetId: reminderSettings.defaultPresetId,
+    appointmentReminderAvailableOffsetsMinutes:
+      parseAppointmentReminderOffsets(row.appointmentReminderAvailableOffsetsMinutes) ?? [],
+    appointmentReminderOffsetsMinutes: deserializeAppointmentReminderOffsets(
+      row.appointmentReminderOffsetsToken,
+    ),
     appointmentReminderSelectionSource:
       row.appointmentReminderSelectionSource === 'patient' ? 'patient' : 'specialist_default',
   };
@@ -218,16 +215,12 @@ type CurrentPatientAppointmentRow = {
   package_usage_ref: string | null;
   phone_normalized: string | null;
   attribution_json: Record<string, unknown> | null;
-  appointment_reminder_allowed_preset_ids: string[] | null;
+  appointment_reminder_allowed_preset_ids: number[] | null;
   appointment_reminder_preset_id: string | null;
   appointment_reminder_selection_source: string;
 };
 
 function mapCurrentPatientAppointment(row: CurrentPatientAppointmentRow): BeAppointment {
-  const reminderSettings = normalizeAppointmentReminderSettings({
-    allowedPresetIds: row.appointment_reminder_allowed_preset_ids ?? [],
-    defaultPresetId: row.appointment_reminder_preset_id,
-  });
   return {
     id: row.id,
     organizationId: row.organization_id,
@@ -258,8 +251,11 @@ function mapCurrentPatientAppointment(row: CurrentPatientAppointmentRow): BeAppo
     packageUsageRef: row.package_usage_ref,
     phoneNormalized: row.phone_normalized,
     attributionJson: row.attribution_json ?? {},
-    appointmentReminderAllowedPresetIds: reminderSettings.allowedPresetIds,
-    appointmentReminderPresetId: reminderSettings.defaultPresetId,
+    appointmentReminderAvailableOffsetsMinutes:
+      parseAppointmentReminderOffsets(row.appointment_reminder_allowed_preset_ids) ?? [],
+    appointmentReminderOffsetsMinutes: deserializeAppointmentReminderOffsets(
+      row.appointment_reminder_preset_id,
+    ),
     appointmentReminderSelectionSource:
       row.appointment_reminder_selection_source === 'patient' ? 'patient' : 'specialist_default',
   };
@@ -465,8 +461,11 @@ async function insertAppointmentInTransaction(
       rescheduleCount: 0,
       phoneNormalized: input.phoneNormalized ?? null,
       attributionJson: input.attributionJson ?? {},
-      appointmentReminderAllowedPresetIds: input.appointmentReminderAllowedPresetIds ?? [],
-      appointmentReminderPresetId: input.appointmentReminderPresetId ?? null,
+      appointmentReminderAvailableOffsetsMinutes:
+        input.appointmentReminderAvailableOffsetsMinutes ?? [],
+      appointmentReminderOffsetsToken: serializeAppointmentReminderOffsets(
+        input.appointmentReminderOffsetsMinutes ?? [],
+      ),
       appointmentReminderSelectionSource:
         input.appointmentReminderSelectionSource ?? 'specialist_default',
       // Финансовый снимок пишется здесь и только здесь — тем же контрактом, что и у пациентской
@@ -1464,65 +1463,26 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
       );
     },
 
-
-    async getSpecialistAppointmentReminderSettings({ organizationId, specialistId }) {
-      const db = getDrizzle();
-      const rows = await db
-        .select({
-          allowedPresetIds: beSpecialists.appointmentReminderAllowedPresetIds,
-          defaultPresetId: beSpecialists.appointmentReminderDefaultPresetId,
-        })
-        .from(beSpecialists)
-        .where(
-          and(eq(beSpecialists.id, specialistId), eq(beSpecialists.organizationId, organizationId)),
-        )
-        .limit(1);
-      const row = rows[0];
-      return row
-        ? normalizeAppointmentReminderSettings({
-            allowedPresetIds: row.allowedPresetIds ?? [],
-            defaultPresetId: row.defaultPresetId ?? null,
-          })
-        : null;
-    },
-
-    async updateSpecialistAppointmentReminderSettings({ organizationId, specialistId, settings }) {
-      const db = getDrizzle();
-      const result = await db
-        .update(beSpecialists)
-        .set({
-          appointmentReminderAllowedPresetIds: settings.allowedPresetIds,
-          appointmentReminderDefaultPresetId: settings.defaultPresetId,
-          updatedAt: new Date().toISOString(),
-        })
-        .where(
-          and(eq(beSpecialists.id, specialistId), eq(beSpecialists.organizationId, organizationId)),
-        );
-      return (result.rowCount ?? 0) === 1;
-    },
-
-    async setPatientAppointmentReminderPreset({ appointmentId, presetId }) {
+    async setPatientAppointmentReminderOffsets({ appointmentId, offsetsMinutes }) {
+      const token = serializeAppointmentReminderOffsets(offsetsMinutes);
       if (isCurrentPatientPrincipal()) {
         const result = await runWebappNamedRoot<{ updated: boolean }>(
           getWebappSqlDb(),
-          'app.set_current_patient_booking_reminder_preset(uuid,text)',
-          [appointmentId, presetId],
-          sql`SELECT app.set_current_patient_booking_reminder_preset(
+          'app.set_current_patient_booking_reminder_offsets(uuid,text)',
+          [appointmentId, token],
+          sql`SELECT app.set_current_patient_booking_reminder_offsets(
             ${appointmentId}::uuid,
-            ${presetId}::text
+            ${token}::text
           ) AS updated`,
         );
         return result.rows[0]?.updated === true;
       }
       const db = getDrizzle();
-      const allowedPresetPredicate =
-        presetId === null
-          ? undefined
-          : sql`${beAppointments.appointmentReminderAllowedPresetIds} @> ${JSON.stringify([presetId])}::jsonb`;
+      const selectedOffsetsPredicate = sql`${beAppointments.appointmentReminderAvailableOffsetsMinutes} @> ${JSON.stringify(offsetsMinutes)}::jsonb`;
       const result = await db
         .update(beAppointments)
         .set({
-          appointmentReminderPresetId: presetId,
+          appointmentReminderOffsetsToken: token,
           appointmentReminderSelectionSource: 'patient',
           updatedAt: new Date().toISOString(),
         })
@@ -1530,7 +1490,7 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
           and(
             eq(beAppointments.id, appointmentId),
             inArray(beAppointments.status, ['confirmed', 'rescheduled']),
-            allowedPresetPredicate,
+            selectedOffsetsPredicate,
           ),
         );
       return (result.rowCount ?? 0) === 1;
@@ -1540,15 +1500,11 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
       if (isCurrentPatientPrincipal()) {
         const appointment = await readCurrentPatientBookingAppointment(appointmentId);
         if (!appointment) return null;
-        const reminderSettings = normalizeAppointmentReminderSettings({
-          allowedPresetIds: appointment.appointmentReminderAllowedPresetIds,
-          defaultPresetId: appointment.appointmentReminderPresetId,
-        });
         return {
           organizationId: appointment.organizationId,
           status: appointment.status,
-          allowedPresetIds: reminderSettings.allowedPresetIds,
-          presetId: reminderSettings.defaultPresetId,
+          availableOffsetsMinutes: appointment.appointmentReminderAvailableOffsetsMinutes,
+          selectedOffsetsMinutes: appointment.appointmentReminderOffsetsMinutes,
           selectionSource: appointment.appointmentReminderSelectionSource,
         };
       }
@@ -1557,8 +1513,8 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
         .select({
           organizationId: beAppointments.organizationId,
           status: beAppointments.status,
-          allowedPresetIds: beAppointments.appointmentReminderAllowedPresetIds,
-          presetId: beAppointments.appointmentReminderPresetId,
+          availableOffsetsMinutes: beAppointments.appointmentReminderAvailableOffsetsMinutes,
+          offsetsToken: beAppointments.appointmentReminderOffsetsToken,
           selectionSource: beAppointments.appointmentReminderSelectionSource,
         })
         .from(beAppointments)
@@ -1566,15 +1522,11 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
         .limit(1);
       const row = rows[0];
       if (!row) return null;
-      const reminderSettings = normalizeAppointmentReminderSettings({
-        allowedPresetIds: row.allowedPresetIds ?? [],
-        defaultPresetId: row.presetId ?? null,
-      });
       return {
         organizationId: row.organizationId,
         status: row.status as AppointmentStatus,
-        allowedPresetIds: reminderSettings.allowedPresetIds,
-        presetId: reminderSettings.defaultPresetId,
+        availableOffsetsMinutes: parseAppointmentReminderOffsets(row.availableOffsetsMinutes) ?? [],
+        selectedOffsetsMinutes: deserializeAppointmentReminderOffsets(row.offsetsToken),
         selectionSource: row.selectionSource === 'patient' ? 'patient' : 'specialist_default',
       };
     },

@@ -36,7 +36,7 @@ import {
   resolveBookingNotifyTargets,
   type BookingLifecycleNotificationsSettings,
 } from './bookingLifecycleNotifications';
-import { appointmentReminderPlanForPreset } from '@/modules/booking-notifications/appointmentReminderPresets';
+import { appointmentReminderPlanForOffsets } from '@/modules/booking-notifications/appointmentReminderSchedule';
 import { sendBookingConfirmationEmail } from './sendBookingConfirmationEmail';
 import type { OutboundMessageQueuePort } from '@/modules/messaging/outboundMessageQueuePort';
 import type { BookingCreatedEffectsPort } from '@/modules/booking-notifications/bookingCreatedEffectsPort';
@@ -99,6 +99,7 @@ export type CanonicalBookingDeps = {
   platformUserContacts?: PlatformUserContactsService | null;
   getPlatformUserIdentityContacts?: (userId: string) => Promise<IdentityContactFields | null>;
   getBookingLifecycleNotificationSettings?: () => Promise<BookingLifecycleNotificationsSettings | null>;
+  getAppointmentReminderOffsets?: (organizationId: string) => Promise<number[]>;
   /** D14(3): часовой пояс организации для текста пациентского сообщения. Отсутствие — DEFAULT_APP_DISPLAY_TIMEZONE. */
   getAppDisplayTimeZone?: () => Promise<string>;
   /**
@@ -419,19 +420,7 @@ export async function createBookingOnCanonicalEngine(
     coveredByPackage: packageCoversVisit,
   });
   const needsPrepayment = initialAppointmentStatus === 'awaiting_payment';
-  const specialistReminderSettings = inPersonCtx?.patientCatalogSnapshot
-    ? {
-        allowedPresetIds:
-          inPersonCtx.patientCatalogSnapshot.specialistReminderAllowedPresetIds,
-        defaultPresetId:
-          inPersonCtx.patientCatalogSnapshot.specialistReminderDefaultPresetId,
-      }
-    : canonicalSpecialistId
-      ? await deps.bookingEngine.getSpecialistAppointmentReminderSettings({
-          organizationId: orgId,
-          specialistId: canonicalSpecialistId,
-        })
-      : null;
+  const appointmentReminderOffsets = (await deps.getAppointmentReminderOffsets?.(orgId)) ?? [];
 
   const phoneNormalized =
     normalizeRuPhoneE164(createInput.contactPhone) ?? createInput.contactPhone.trim();
@@ -463,17 +452,14 @@ export async function createBookingOnCanonicalEngine(
             ...(createInput.attribution ?? {}),
             ...(createInput.contactFio ? { contactFio: createInput.contactFio } : {}),
           },
-          appointmentReminderAllowedPresetIds:
-            specialistReminderSettings?.allowedPresetIds ?? [],
-          appointmentReminderPresetId: specialistReminderSettings?.defaultPresetId ?? null,
+          appointmentReminderAvailableOffsetsMinutes: appointmentReminderOffsets,
+          appointmentReminderOffsetsMinutes: appointmentReminderOffsets,
           priceMinor: financialSnapshot.priceMinor,
           priceCurrency: financialSnapshot.priceCurrency,
           prepaymentMode: financialSnapshot.prepaymentMode,
           prepaymentPercentBps: financialSnapshot.prepaymentPercentBps,
           prepaymentAmountMinor: financialSnapshot.prepaymentAmountMinor,
-          prepaymentRequiredMinor: needsPrepayment
-            ? financialSnapshot.prepaymentRequiredMinor
-            : 0,
+          prepaymentRequiredMinor: needsPrepayment ? financialSnapshot.prepaymentRequiredMinor : 0,
           paymentDeadlineAt: needsPrepayment ? financialSnapshot.paymentDeadlineAt : null,
         };
       },
@@ -731,7 +717,7 @@ export async function createBookingOnCanonicalEngine(
             cityCodeSnapshot: row.cityCodeSnapshot,
             serviceTitleSnapshot: row.serviceTitleSnapshot,
             canonicalAppointmentId: item.id,
-            reminderPlan: appointmentReminderPlanForPreset(item.appointmentReminderPresetId),
+            reminderPlan: appointmentReminderPlanForOffsets(item.appointmentReminderOffsetsMinutes),
             cancelPendingReminders: true,
             suppressPatientNotification: true,
             doctorNotify: createNotify.notifyStaff,
@@ -756,21 +742,24 @@ export async function createBookingOnCanonicalEngine(
   // абсолютно точно». `await` остаётся НАМЕРЕННО: он ждёт одну постановку строки в очередь, а не
   // SMTP. Плавающий промис здесь недопустим — ответ убил бы его, и письма не было бы вовсе; ждать
   // при этом больше нечего, потому что отправляет воркер доставки интегратора.
-  await sendBookingConfirmationEmail({
-    bookingId: (confirmed ?? pending).id,
-    organizationId: orgId,
-    contactEmail: createInput.contactEmail,
-    slotStart: pendingRow.slotStart,
-    slotEnd: pendingRow.slotEnd,
-    serviceTitle: pendingRow.serviceTitleSnapshot ?? pendingRow.category,
-    locationLabel:
-      pendingRow.branchTitleSnapshot ?? (pendingRow.bookingType === 'online' ? 'Онлайн' : null),
-    contactName: createInput.contactName,
-    mailProfile: createInput.mailProfile,
-  }, {
-    outboundMessageQueue: deps.outboundMessageQueue,
-    resolvePatientPublicOrigin: deps.resolvePatientPublicOrigin,
-  });
+  await sendBookingConfirmationEmail(
+    {
+      bookingId: (confirmed ?? pending).id,
+      organizationId: orgId,
+      contactEmail: createInput.contactEmail,
+      slotStart: pendingRow.slotStart,
+      slotEnd: pendingRow.slotEnd,
+      serviceTitle: pendingRow.serviceTitleSnapshot ?? pendingRow.category,
+      locationLabel:
+        pendingRow.branchTitleSnapshot ?? (pendingRow.bookingType === 'online' ? 'Онлайн' : null),
+      contactName: createInput.contactName,
+      mailProfile: createInput.mailProfile,
+    },
+    {
+      outboundMessageQueue: deps.outboundMessageQueue,
+      resolvePatientPublicOrigin: deps.resolvePatientPublicOrigin,
+    },
+  );
 
   await persistBookingFormContacts(deps, createInput);
   return confirmed ?? pending;

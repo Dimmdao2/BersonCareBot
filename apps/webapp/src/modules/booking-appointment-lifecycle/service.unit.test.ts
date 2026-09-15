@@ -38,8 +38,8 @@ const baseAppointment: BeAppointment = {
   packageUsageRef: null,
   phoneNormalized: '+79990001122',
   attributionJson: {},
-  appointmentReminderAllowedPresetIds: [],
-  appointmentReminderPresetId: null,
+  appointmentReminderAvailableOffsetsMinutes: [],
+  appointmentReminderOffsetsMinutes: [],
   appointmentReminderSelectionSource: 'specialist_default',
 };
 

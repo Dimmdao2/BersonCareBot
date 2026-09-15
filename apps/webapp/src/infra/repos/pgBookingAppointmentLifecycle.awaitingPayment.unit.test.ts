@@ -64,8 +64,8 @@ function appointmentRow(over: Record<string, unknown> = {}) {
     packageUsageRef: null,
     phoneNormalized: null,
     attributionJson: {},
-    appointmentReminderAllowedPresetIds: [],
-    appointmentReminderPresetId: null,
+    appointmentReminderAvailableOffsetsMinutes: [],
+    appointmentReminderOffsetsMinutes: [],
     appointmentReminderSelectionSource: 'specialist_default',
     createdAt: '2026-09-06T10:00:00.000Z',
     updatedAt: '2026-09-06T10:00:00.000Z',
@@ -167,7 +167,11 @@ describe('applyReschedule и запись в ожидании предоплат
 
   it('запись без требования предоплаты переносом подтверждается', async () => {
     const { sets } = runTransactionOver(
-      appointmentRow({ status: 'confirmed', prepaymentMode: 'disabled', prepaymentRequiredMinor: 0 }),
+      appointmentRow({
+        status: 'confirmed',
+        prepaymentMode: 'disabled',
+        prepaymentRequiredMinor: 0,
+      }),
     );
 
     await createPgBookingAppointmentLifecyclePort().applyReschedule(RESCHEDULE_INPUT as never);
@@ -190,9 +194,7 @@ describe('applyReschedule и запись в ожидании предоплат
       status: 'awaiting_payment',
       rescheduleCount: 0,
     });
-    expect(sets).toEqual([
-      expect.objectContaining({ deliveryFormat: 'online' }),
-    ]);
+    expect(sets).toEqual([expect.objectContaining({ deliveryFormat: 'online' })]);
     expect(sets[0]).not.toHaveProperty('status');
     expect(sets[0]).not.toHaveProperty('rescheduleCount');
     expect(inserted).toEqual([]);

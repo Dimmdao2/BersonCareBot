@@ -203,11 +203,6 @@ export const beSpecialists = pgTable(
     fullDescriptionMarkdown: text('full_description_markdown'),
     /** Публикует клиника, а не платформа: выключено — специалиста снаружи не существует. */
     cardIsPublished: boolean('card_is_published').default(false).notNull(),
-    appointmentReminderAllowedPresetIds: jsonb('appointment_reminder_allowed_preset_ids')
-      .$type<string[]>()
-      .notNull()
-      .default(sql`'[]'::jsonb`),
-    appointmentReminderDefaultPresetId: text('appointment_reminder_default_preset_id'),
     isActive: boolean('is_active').default(true).notNull(),
     sortOrder: integer('sort_order').default(0).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
@@ -567,11 +562,11 @@ export const beAppointments = pgTable(
       .$type<Record<string, unknown>>()
       .notNull()
       .default(sql`'{}'::jsonb`),
-    appointmentReminderAllowedPresetIds: jsonb('appointment_reminder_allowed_preset_ids')
-      .$type<string[]>()
+    appointmentReminderAvailableOffsetsMinutes: jsonb('appointment_reminder_allowed_preset_ids')
+      .$type<number[]>()
       .notNull()
       .default(sql`'[]'::jsonb`),
-    appointmentReminderPresetId: text('appointment_reminder_preset_id'),
+    appointmentReminderOffsetsToken: text('appointment_reminder_preset_id'),
     appointmentReminderSelectionSource: text('appointment_reminder_selection_source')
       .notNull()
       .default('specialist_default'),

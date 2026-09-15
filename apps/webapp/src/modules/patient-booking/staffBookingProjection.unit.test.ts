@@ -121,8 +121,8 @@ describe('staff booking payment projection', () => {
       packageUsageRef: null,
       phoneNormalized: '+79990000000',
       attributionJson: {},
-      appointmentReminderAllowedPresetIds: [],
-      appointmentReminderPresetId: null,
+      appointmentReminderAvailableOffsetsMinutes: [],
+      appointmentReminderOffsetsMinutes: [],
       appointmentReminderSelectionSource: 'specialist_default',
     };
     const patientBooking = createPatientBookingService({
@@ -298,13 +298,19 @@ describe('staff booking payment projection', () => {
       bookingEngine: {
         catalog: {
           getBranch: async () => ({
-            id: 'branch-1', organizationId: 'org-1', title: 'Санкт-Петербург', cityCode: 'spb',
+            id: 'branch-1',
+            organizationId: 'org-1',
+            title: 'Санкт-Петербург',
+            cityCode: 'spb',
           }),
         },
         // Каталог подорожал ВТРОЕ уже после того, как запись была создана.
         services: {
           getService: async () => ({
-            id: 'service-60', organizationId: 'org-1', title: 'Сеанс 60 мин', priceMinor: 750_000,
+            id: 'service-60',
+            organizationId: 'org-1',
+            title: 'Сеанс 60 мин',
+            priceMinor: 750_000,
           }),
         },
       } as unknown as Parameters<typeof createPatientBookingService>[0]['bookingEngine'],

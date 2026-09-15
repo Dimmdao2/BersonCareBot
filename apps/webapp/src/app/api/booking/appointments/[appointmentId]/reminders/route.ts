@@ -4,13 +4,13 @@ import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requirePatientApiBusinessAccess } from '@/app-layer/guards/requireRole';
 import { routePaths } from '@/app-layer/routes/paths';
 import {
-  appointmentReminderPlanForPreset,
-  isAppointmentReminderPresetId,
-} from '@/modules/booking-notifications/appointmentReminderPresets';
+  appointmentReminderPlanForOffsets,
+  isAppointmentReminderSelectionAllowed,
+} from '@/modules/booking-notifications/appointmentReminderSchedule';
 import { staffBookingContactNameFromAppointment } from '@/app-layer/booking/staffBookingIntegratorEvent';
 
 const bodySchema = z.object({
-  presetId: z.string().nullable(),
+  offsetsMinutes: z.array(z.number().int().positive()).max(3),
   mutationId: z.string().uuid(),
 });
 
@@ -34,25 +34,30 @@ export async function GET(_: Request, { params }: { params: Promise<{ appointmen
   return NextResponse.json({ ok: true, preference });
 }
 
-export async function PATCH(request: Request, { params }: { params: Promise<{ appointmentId: string }> }) {
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ appointmentId: string }> },
+) {
   const gate = await requirePatientApiBusinessAccess({ returnPath: routePaths.patientBooking });
   if (!gate.ok) return gate.response;
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json({ ok: false, error: 'invalid_value' }, { status: 400 });
   }
-  const presetId = parsed.data.presetId;
-  if (presetId !== null && !isAppointmentReminderPresetId(presetId)) {
-    return NextResponse.json({ ok: false, error: 'invalid_value' }, { status: 400 });
-  }
   const { appointmentId } = await params;
   const { deps, preference } = await loadOwnConfirmedPreference(appointmentId);
-  if (!preference || (presetId !== null && !preference.allowedPresetIds.includes(presetId))) {
+  if (
+    !preference ||
+    !isAppointmentReminderSelectionAllowed(
+      preference.availableOffsetsMinutes,
+      parsed.data.offsetsMinutes,
+    )
+  ) {
     return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
-  const updated = await deps.bookingEngine?.setPatientAppointmentReminderPreset({
+  const updated = await deps.bookingEngine?.setPatientAppointmentReminderOffsets({
     appointmentId,
-    presetId,
+    offsetsMinutes: parsed.data.offsetsMinutes,
   });
   if (!updated) return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
 
@@ -80,7 +85,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ap
         contactPhone: booking?.contactPhone ?? appointment.phoneNormalized ?? '+70000000000',
         contactEmail: booking?.contactEmail ?? undefined,
         canonicalAppointmentId: appointmentId,
-        reminderPlan: appointmentReminderPlanForPreset(presetId),
+        reminderPlan: appointmentReminderPlanForOffsets(parsed.data.offsetsMinutes),
         cancelPendingReminders: true,
       },
       // Ждём НАМЕРЕННО: отказ этого события человек видит как 503 `schedule_sync_failed` ниже.

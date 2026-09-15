@@ -108,10 +108,6 @@ beforeEach(() => {
       session: { user: { userId: 'user-1' } },
       service: {
         getAppointment: async () => null,
-        getSpecialistAppointmentReminderSettings: async () => ({
-          allowedPresetIds: [],
-          defaultPresetId: null,
-        }),
         createManualPatientVisit: fakes.createManualPatientVisit,
       },
     },
@@ -126,7 +122,7 @@ beforeEach(() => {
       organizationId: ORGANIZATION_ID,
       startAt: '2027-03-10T09:00:00.000Z',
       endAt: '2027-03-10T09:30:00.000Z',
-      appointmentReminderPresetId: null,
+      appointmentReminderOffsetsMinutes: [],
       attributionJson: {},
     },
     clinicalVisitId: 'visit-1',
@@ -151,24 +147,21 @@ function clientRequest(body: Record<string, unknown>) {
 }
 
 function visitRequest(body: Record<string, unknown>) {
-  return new Request(
-    'http://test/api/doctor/booking-engine/appointments/manual-patient-visit',
-    {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        requestId: REQUEST_ID,
-        kind: 'scheduled',
-        branchId: BRANCH_ID,
-        serviceId: SERVICE_ID,
-        specialistId: SPECIALIST_ID,
-        startAt: '2027-03-10T09:00:00.000Z',
-        endAt: '2027-03-10T09:30:00.000Z',
-        durationMinutes: 30,
-        ...body,
-      }),
-    },
-  );
+  return new Request('http://test/api/doctor/booking-engine/appointments/manual-patient-visit', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      requestId: REQUEST_ID,
+      kind: 'scheduled',
+      branchId: BRANCH_ID,
+      serviceId: SERVICE_ID,
+      specialistId: SPECIALIST_ID,
+      startAt: '2027-03-10T09:00:00.000Z',
+      endAt: '2027-03-10T09:30:00.000Z',
+      durationMinutes: 30,
+      ...body,
+    }),
+  });
 }
 
 describe('doctor patient identity — фамилия необязательна (APPT-FORM-05)', () => {
