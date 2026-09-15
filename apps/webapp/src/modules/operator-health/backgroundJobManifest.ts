@@ -181,6 +181,7 @@ export const BACKUP_SCRIPT_PATH = '/opt/backups/scripts/postgres-backup.sh';
  * дотягивается) и он не трогает базу вовсе.
  */
 export const CADDY_STORE_BACKUP_SCRIPT_PATH = '/opt/backups/scripts/caddy-store-backup.sh';
+export const OFFSITE_PUSH_SCRIPT_PATH = '/opt/backups/scripts/offsite-push.sh';
 
 export type BackgroundJobRoute = {
   readonly method: 'POST';
@@ -668,6 +669,35 @@ const BACKGROUND_JOB_MANIFEST_SOURCE = [
     staleAfterSec: 28 * 60 * 60,
     required: true,
     why: 'Потеря хранилища — не потеря данных, но повторный выпуск упирается в лимит Let\'s Encrypt (50 новых сертификатов в неделю на домен). При десятках клиник это дни без TLS у части из них; копия снимает риск целиком.',
+  },
+  {
+    id: 'backup_offsite_push',
+    jobFamily: OPERATOR_BACKUP_JOB_FAMILY,
+    jobKey: 'backup.offsite_push',
+    label: 'Отправка бэкапов на отдельный сервер',
+    kind: 'backup_shell',
+    scheduleOwner: 'host_cron',
+    /*
+     * Через десять минут после часового дампа: к этому времени артефакт и его контрольная сумма уже
+     * опубликованы, и отправлять есть что. Раньше — уехал бы предыдущий набор, а свежий ждал бы час.
+     */
+    scheduleHint: 'ежечасно, в 27 минут — через десять минут после часового дампа',
+    cron: '27 * * * *',
+    artifactSlug: 'backup-offsite-push',
+    backupScriptPath: OFFSITE_PUSH_SCRIPT_PATH,
+    // Каталог дампов закрыт 0700 на `postgres`, копия хранилища края — на `root`. Отправлять надо и
+    // то и другое, поэтому задание идёт от root, а отметку в журнале пишет через `runuser -u postgres`.
+    cronUser: 'root',
+    environments: ['prod'],
+    // Три часа — как у часового дампа: один пропуск ещё не потеря, два подряд означают, что копии
+    // вне машины нет, а на самой машине бэкапы при этом могут идти и выглядеть здоровыми.
+    staleAfterSec: 3 * 60 * 60,
+    principal: 'host_shell',
+    surfaceIdentity: 'none',
+    required: true,
+    why: 'Бэкапы лежат на том же диске, что и база: пожар, потеря машины или ошибка раздела уносят ' +
+      'базу и её копии одним движением. Отправка наружу — единственное, что это закрывает, и её ' +
+      'молчание должно быть аварией, а не тишиной.',
   },
 ] as const satisfies readonly BackgroundJobManifestEntry[];
 
