@@ -9,6 +9,7 @@ import {
   parsePublicBookingIntent,
   type PublicBookingIntent,
 } from '@/modules/public-booking/publicBookingIntent';
+import type { HumanMergePrompt } from '@bersoncare/platform-merge';
 
 const OTP_DELIVERY_KEYS = new Set(['sms', 'telegram', 'max', 'email']);
 
@@ -69,6 +70,14 @@ function publicBookingIntentFromRow(row: {
   );
 }
 
+function mergePromptFromRow(row: { channel_context: unknown }): HumanMergePrompt | undefined {
+  const raw = row.channel_context;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+  const value = (raw as Record<string, unknown>).mergePrompt;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  return value as HumanMergePrompt;
+}
+
 function mergeChannelContextJson(payload: PhoneChallengePayload): string | null {
   if (
     !payload.channelContext &&
@@ -76,6 +85,7 @@ function mergeChannelContextJson(payload: PhoneChallengePayload): string | null 
     payload.phoneNumberProven == null &&
     !payload.profileBindUserId &&
     !payload.profileBindOrganizationId &&
+    !payload.mergePrompt &&
     !payload.publicBookingIntent
   )
     return null;
@@ -94,6 +104,9 @@ function mergeChannelContextJson(payload: PhoneChallengePayload): string | null 
   }
   if (payload.profileBindOrganizationId) {
     o.profileBindOrganizationId = payload.profileBindOrganizationId;
+  }
+  if (payload.mergePrompt) {
+    o.mergePrompt = payload.mergePrompt;
   }
   if (payload.publicBookingIntent) {
     o.publicBookingIntent = payload.publicBookingIntent;
@@ -148,6 +161,7 @@ export function createPgPhoneChallengeStore(): PhoneChallengeStore {
       const profileBindUserId = profileBindUserIdFromRow(row);
       const profileBindOrganizationId = profileBindOrganizationIdFromRow(row);
       const publicBookingIntent = publicBookingIntentFromRow(row);
+      const mergePrompt = mergePromptFromRow(row);
       return {
         phone: row.phone,
         expiresAt,
@@ -159,6 +173,7 @@ export function createPgPhoneChallengeStore(): PhoneChallengeStore {
         profileBindUserId,
         profileBindOrganizationId,
         publicBookingIntent,
+        mergePrompt,
       };
     },
     async delete(challengeId: string): Promise<void> {

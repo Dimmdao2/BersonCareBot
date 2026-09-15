@@ -1,0 +1,32 @@
+BASELINE
+Test Files  2 passed (2)
+Tests       15 passed (15)
+
+INJECTION A — restore bulk structured-FIO overwrite from selected display-name side
+Test Files  1 failed | 1 passed (2)
+Tests       1 failed | 14 passed (15)
+FAILED      keeps the FIO parts the person kept while writing the display name the person chose
+EXPECTED    firstName="Иван", lastName="Иванов"
+RECEIVED    firstName=null, lastName=null
+
+INJECTION B — remove the other-account fallback for an empty recognized display_name
+Test Files  1 failed | 1 passed (2)
+Tests       1 failed | 14 passed (15)
+FAILED      lets the empty display name of the recognized account be filled in, not overwrite the real one
+EXPECTED    "Иванов Иван Петрович"
+RECEIVED    ""
+
+INJECTION C — ignore whether the person was asked about a one-sided structured field
+Test Files  1 failed | 1 passed (2)
+Tests       2 failed | 13 passed (15)
+FAILED      asks about every FIO part the display-name choice can overwrite, instead of wiping it
+RECEIVED    merge resolved instead of rejecting on unanswered last_name
+FAILED      drops the FIO parts only when the person answered "not specified" for them
+EXPECTED    firstName=null, lastName=null
+RECEIVED    firstName="Иван", lastName="Иванов"
+
+NEW ACCEPTANCE TEST — manual patronymic conflict has no human choice
+Test Files  1 failed | 1 passed (2)
+Tests       1 failed | 15 passed (16)
+FAILED      refuses a manual merge when patronymics conflict but the resolution has no human choice
+RECEIVED    merge resolved instead of rejecting with "human choice required for patronymic"

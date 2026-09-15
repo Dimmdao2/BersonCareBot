@@ -58,6 +58,9 @@
  */
 
 export const notificationText = {
+  authAccountMergedNewDeviceSubject: 'Новый вход в аккаунт',
+  authAccountMergedNewDevice:
+    'Ваши учётные записи объединены после входа с нового устройства. Если это были не вы, обратитесь в поддержку.',
   leadSubmissionBlocked:
     'Эта клиника больше не принимает от вас новые заявки. Свяжитесь с ней другим способом.',
   leadRejectedSubject: 'Ваша заявка отклонена',

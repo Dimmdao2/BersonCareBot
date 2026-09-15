@@ -1,5 +1,6 @@
 import type { ChannelContext } from './channelContext';
 import type { PublicBookingIntent } from '@/modules/public-booking/publicBookingIntent';
+import type { HumanMergePrompt } from '@bersoncare/platform-merge';
 
 /**
  * Хранилище челленджей SMS: challengeId -> { phone, expiresAt, code?, channelContext? }.
@@ -30,6 +31,8 @@ export type PhoneChallengePayload = {
   profileBindUserId?: string;
   /** Server-resolved organization scope for the authenticated profile merge. */
   profileBindOrganizationId?: string;
+  /** Exact account pair shown after OTP; pins the follow-up human answer server-side. */
+  mergePrompt?: HumanMergePrompt;
   /**
    * Server-validated public booking payload, pinned at start and replayed only after the code
    * verifies (A-3). Same discipline as `profileBind*` above: fixed from a server-approved source

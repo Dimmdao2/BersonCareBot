@@ -21,9 +21,9 @@ const bodySchema = z.object({
 
 /**
  * Optional M2M: signed POST for an **external** caller (not the unified-DB hot path used by the bot).
- * Same TX semantics as webapp's own binding-first canonical write (`applyMessengerContactPreOtp` in
- * `modules/auth/phoneMessengerBind.ts`) — see `executeMessengerPhoneHttpBind`. Integrator's parallel
- * `user.phone.link` write was retired 2026-08-26.
+ * See `executeMessengerPhoneHttpBind`. Integrator's parallel `user.phone.link` write was retired
+ * 2026-08-26; collisions return the browser continuation URL instead of claiming that the phone
+ * belongs to a different person.
  */
 export async function POST(request: Request) {
   const timestamp = request.headers.get('x-bersoncare-timestamp');
@@ -116,7 +116,15 @@ export async function POST(request: Request) {
   if (result.phoneLinkIndeterminate) {
     failBody.indeterminate = true;
   }
+  if (result.continuationPath) {
+    failBody.continuationUrl = new URL(result.continuationPath, request.url).toString();
+  }
 
-  const status = result.reason === 'db_transient_failure' ? 503 : 422;
+  const status =
+    result.reason === 'db_transient_failure'
+      ? 503
+      : result.reason === 'human_account_confirmation_required'
+        ? 409
+        : 422;
   return NextResponse.json(failBody, { status });
 }

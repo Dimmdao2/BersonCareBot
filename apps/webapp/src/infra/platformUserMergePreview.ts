@@ -7,12 +7,6 @@ import type { Pool } from 'pg';
 import { runPgPoolSql } from '@/infra/db/runWebappSql';
 import { FIO, USER_IDENTITY_FIO_JOIN } from '@/infra/repos/userIdentityFioSql';
 import { CONTACTS, USER_CONTACTS_PRIMARY_LATERALS } from '@/infra/repos/userContactsSql';
-import {
-  effectiveAutoMergedDisplayName,
-  effectiveAutoMergedFirstName,
-  effectiveAutoMergedLastName,
-  effectiveAutoMergedPatronymic,
-} from '@/infra/repos/autoMergeScalarEffective';
 import { pickMergeTargetId } from '@/infra/repos/pgPlatformUserMerge';
 import { logger } from '@/infra/logging/logger';
 
@@ -179,132 +173,10 @@ function emailsEqual(a: string | null, b: string | null): boolean {
   return na.toLowerCase() === nb.toLowerCase();
 }
 
-/** Всё, из чего человек читает имя карточки. */
-function fioParts(u: MergePreviewPlatformUserRow): string[] {
-  return [u.last_name, u.first_name, u.patronymic, u.display_name]
-    .map(normStr)
-    .filter((v): v is string => v != null);
-}
-
-const CYRILLIC_LETTER = /\p{Script=Cyrillic}/u;
-
-function fioIsCyrillic(u: MergePreviewPlatformUserRow): boolean {
-  return CYRILLIC_LETTER.test(fioParts(u).join(' '));
-}
-
-/**
- * Насколько полно записано имя: фамилия, имя, отчество — три очка из трёх.
- *
- * Если ни одно из трёх полей не заполнено, карточка всё равно может нести имя одной строкой
- * (`display_name`) — тогда считаем слова в ней, не больше трёх. Иначе карточка «Иванов Иван
- * Иванович», записанная одной строкой, проиграла бы карточке, где заполнено единственное поле «Иван».
- */
-function fioCompleteness(u: MergePreviewPlatformUserRow): number {
-  const triple = [u.last_name, u.first_name, u.patronymic].filter((v) => normStr(v) != null).length;
-  if (triple > 0) return triple;
-  const words = (normStr(u.display_name) ?? '').split(/\s+/).filter((w) => w !== '');
-  return Math.min(words.length, 3);
-}
-
-export type MergePreviewFioSourceReason =
-  | 'cyrillic_fio_preferred'
-  | 'treatment_program_card_preferred'
-  | 'fuller_fio_preferred'
-  | 'more_contacts_preferred'
-  | 'fresher_login_preferred'
-  | 'older_created_at_preferred';
-
-export type MergePreviewFioSource = {
-  winner: 'target' | 'duplicate';
-  reason: MergePreviewFioSourceReason;
-};
-
-export type MergePreviewFioSignals = {
-  targetHasTreatmentProgram: boolean;
-  duplicateHasTreatmentProgram: boolean;
-  targetContactsCount: number;
-  duplicateContactsCount: number;
-  targetLastLoginAt: Date | null;
-  duplicateLastLoginAt: Date | null;
-};
-
-/**
- * Из какой карточки предлагать ФИО при ручном слиянии — решение владельца 13.09.
- *
- * Дословно: «Фио из карточки с назначенной программой или большей заполненностью фио (напр фио
- * против фи или только имени выиграет) или с большим кол вом контактов в карточке или более свежим
- * логином. Проверки идут в таком порядке и до первой успешной проверки… В фио еще русский язык
- * должен побеждать всегда, это кстати первое.»
- *
- * Порядок здесь ровно такой: кириллица → назначенная программа лечения → заполненность ФИО → число
- * контактов → свежесть входа. Решает первая проверка, которая различила стороны; если не различила
- * ни одна — остаётся прежнее правило «старше созданная карточка».
- *
- * Это ПРЕДЛОЖЕНИЕ, а не решение: на экране слияния оператор переключает выбор руками, и в базу
- * пишется именно его выбор. Автоматическое слияние этим правилом не затрагивается — по нему
- * владелец решения не принимал («при авто мерже — не знаю»).
- *
- * ФИО берётся ЦЕЛИКОМ из одной карточки: фамилия, имя и отображаемое имя не могут приехать с разных
- * сторон, иначе на выходе получится человек, которого не существует.
- */
-export function pickFioSourceSide(
-  target: MergePreviewPlatformUserRow,
-  duplicate: MergePreviewPlatformUserRow,
-  signals: MergePreviewFioSignals,
-): MergePreviewFioSource {
-  const tCyr = fioIsCyrillic(target);
-  const dCyr = fioIsCyrillic(duplicate);
-  if (tCyr !== dCyr) {
-    return { winner: tCyr ? 'target' : 'duplicate', reason: 'cyrillic_fio_preferred' };
-  }
-
-  if (signals.targetHasTreatmentProgram !== signals.duplicateHasTreatmentProgram) {
-    return {
-      winner: signals.targetHasTreatmentProgram ? 'target' : 'duplicate',
-      reason: 'treatment_program_card_preferred',
-    };
-  }
-
-  const tFull = fioCompleteness(target);
-  const dFull = fioCompleteness(duplicate);
-  if (tFull !== dFull) {
-    return { winner: tFull > dFull ? 'target' : 'duplicate', reason: 'fuller_fio_preferred' };
-  }
-
-  if (signals.targetContactsCount !== signals.duplicateContactsCount) {
-    return {
-      winner: signals.targetContactsCount > signals.duplicateContactsCount ? 'target' : 'duplicate',
-      reason: 'more_contacts_preferred',
-    };
-  }
-
-  const tLogin = signals.targetLastLoginAt?.getTime() ?? null;
-  const dLogin = signals.duplicateLastLoginAt?.getTime() ?? null;
-  if (tLogin !== dLogin && (tLogin != null || dLogin != null)) {
-    return {
-      winner: (tLogin ?? -Infinity) > (dLogin ?? -Infinity) ? 'target' : 'duplicate',
-      reason: 'fresher_login_preferred',
-    };
-  }
-
-  return {
-    winner: target.created_at.getTime() <= duplicate.created_at.getTime() ? 'target' : 'duplicate',
-    reason: 'older_created_at_preferred',
-  };
-}
-
-/** Поля, которые оператор получает одним решением «ФИО берём отсюда». */
-const FIO_CONFLICT_FIELDS = new Set<MergePreviewScalarFieldKey>([
-  'display_name',
-  'first_name',
-  'last_name',
-]);
-
 function scalarConflict(
   field: MergePreviewScalarFieldKey,
   target: MergePreviewPlatformUserRow,
   duplicate: MergePreviewPlatformUserRow,
-  fioSource: MergePreviewFioSource,
 ): MergePreviewScalarConflict | null {
   let tv: string | null;
   let dv: string | null;
@@ -339,22 +211,20 @@ function scalarConflict(
   if (tv == null || dv == null || tv === dv) return null;
   if (field === 'email' && emailsEqual(tv, dv)) return null;
 
-  // Отчество оператор не арбитрирует: движок слияния берёт его как «отчество основной карточки, иначе
-  // отчество второй» и другого ему сказать нечем (`ManualMergeResolution.fields` отчества не знает).
-  // Значит расхождение по отчеству — не выбор, а сообщение: каким оно станет, видно в «Заполнится само».
-  if (field === 'patronymic') return null;
-
-  // Фамилия, имя и отображаемое имя приезжают ЦЕЛИКОМ с одной стороны — по правилу владельца 13.09
-  // (`pickFioSourceSide`). Раньше при совпадающих телефонах эти расхождения вообще не показывались
-  // оператору: их молча решал движок «кто старше». Но пара с одним телефоном — это и есть обычный
-  // дубль из журнала конфликтов, так что правило владельца без этого не работало бы никогда.
-  if (FIO_CONFLICT_FIELDS.has(field)) {
+  // §18а: отчество арбитрирует человек наравне с фамилией и именем — движкового приоритета для него
+  // больше нет ни в автоматическом слиянии, ни в ручном.
+  if (
+    field === 'display_name' ||
+    field === 'first_name' ||
+    field === 'last_name' ||
+    field === 'patronymic'
+  ) {
     return {
       field,
       targetValue: tv,
       duplicateValue: dv,
-      recommendedWinner: fioSource.winner,
-      reason: fioSource.reason,
+      recommendedWinner: 'target',
+      reason: 'human_choice_required',
     };
   }
 
@@ -431,18 +301,9 @@ export function analyzeMergePreviewModel(
   const pT = normStr(target.phone_normalized);
   const pD = normStr(duplicate.phone_normalized);
 
-  const fioSource = pickFioSourceSide(target, duplicate, {
-    targetHasTreatmentProgram: opts.dependentCounts.target.treatmentProgramInstances > 0,
-    duplicateHasTreatmentProgram: opts.dependentCounts.duplicate.treatmentProgramInstances > 0,
-    targetContactsCount: opts.dependentCounts.target.platformUserContacts,
-    duplicateContactsCount: opts.dependentCounts.duplicate.platformUserContacts,
-    targetLastLoginAt: opts.targetLastLoginAt,
-    duplicateLastLoginAt: opts.duplicateLastLoginAt,
-  });
-
   const scalarConflicts: MergePreviewScalarConflict[] = [];
   for (const f of SCALAR_FIELDS) {
-    const c = scalarConflict(f, target, duplicate, fioSource);
+    const c = scalarConflict(f, target, duplicate);
     if (c) scalarConflicts.push(c);
   }
 
@@ -512,24 +373,20 @@ export function analyzeMergePreviewModel(
         note = 'COALESCE after pickMergeTargetId — matches merge engine (auto).';
         break;
       case 'display_name':
-        effective = effectiveAutoMergedDisplayName(mergePu, mergeDup);
-        note =
-          'Phone-holding row, then older created_at — matches mergePlatformUsersInTransaction (auto).';
+        effective = null;
+        note = 'Display name is derived after the person resolves FIO.';
         break;
       case 'first_name':
-        effective = effectiveAutoMergedFirstName(mergePu, mergeDup);
-        note =
-          'Phone / older-created name priority — matches mergePlatformUsersInTransaction (auto).';
+        effective = normStr(mergePu.first_name) ?? normStr(mergeDup.first_name);
+        note = 'A single non-empty value is preserved without a question.';
         break;
       case 'last_name':
-        effective = effectiveAutoMergedLastName(mergePu, mergeDup);
-        note =
-          'Phone / older-created name priority — matches mergePlatformUsersInTransaction (auto).';
+        effective = normStr(mergePu.last_name) ?? normStr(mergeDup.last_name);
+        note = 'A single non-empty value is preserved without a question.';
         break;
       case 'patronymic':
-        effective = effectiveAutoMergedPatronymic(mergePu, mergeDup);
-        note =
-          'Target patronymic, then duplicate patronymic — matches mergePlatformUsersInTransaction (auto).';
+        effective = normStr(mergePu.patronymic) ?? normStr(mergeDup.patronymic);
+        note = 'A single non-empty value is preserved without a question.';
         break;
       case 'email':
         effective = normStr(mergePu.email) ?? normStr(mergeDup.email);

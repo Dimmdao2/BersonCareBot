@@ -2,9 +2,9 @@
  * Wave 3 phase 15E — optional signed HTTP bind orchestration.
  * Domain SQL/TX helpers live in `infra/repos/pgMessengerPhoneHttpBind`.
  *
- * Logic is kept in sync with the binding-first canonical write in `modules/auth/phoneMessengerBind.ts`
- * (`applyMessengerContactPreOtp` / `completePhoneMessengerBindFromIntegrator`) — integrator's own parallel
- * `user.phone.link` write was retired 2026-08-26; webapp owns the confirmed-phone write end-to-end.
+ * Integrator's own parallel `user.phone.link` write was retired 2026-08-26; webapp owns the
+ * confirmed-phone write end-to-end. A collision is continued through the browser auth flow, where
+ * the shared account/FIO prompt can collect the required human decision.
  *
  * Implemented here (not imported from `apps/integrator`) so Next.js production build does not bundle integrator sources with `.js` import paths.
  */
@@ -59,6 +59,7 @@ export type MessengerPhoneHttpBindResult =
       ok: false;
       reason: MessengerPhoneHttpBindFailureReason;
       phoneLinkIndeterminate?: boolean;
+      continuationPath?: '/app';
     };
 
 export async function executeMessengerPhoneHttpBind(
@@ -236,7 +237,13 @@ export async function executeMessengerPhoneHttpBind(
         if (err.code === 'db_transient_failure') {
           return { ok: false, reason: 'db_transient_failure', phoneLinkIndeterminate: true };
         }
-        return { ok: false, reason: err.code };
+        return {
+          ok: false,
+          reason: err.code,
+          ...(err.code === 'human_account_confirmation_required'
+            ? { continuationPath: '/app' as const }
+            : {}),
+        };
       }
       const sqlState = pgSqlStateFromUnknown(err);
       logger.error(

@@ -1,0 +1,6 @@
+channel-link door              -> human_account_confirmation_required ["t-1","e-2"]
+identity projection collapse   -> human_account_confirmation_required ["t-1","e-2"]
+engine: no decision            -> human_account_confirmation_required ["t-1","e-2"]
+engine: field unanswered       -> human_account_confirmation_required ["t-1","e-2"]
+engine: snapshot moved         -> human_account_confirmation_required ["t-1","e-2"]
+real blocker (must stay)       -> merge_blocked_distinct_real_users ["t-1","e-2"]

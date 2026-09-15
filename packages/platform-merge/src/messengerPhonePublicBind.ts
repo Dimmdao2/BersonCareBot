@@ -7,9 +7,6 @@ import { classifyMergeFailure } from './mergeFailureClassification.js';
 import { mergeLogger as logger } from './mergeLogger.js';
 import { runMergeSql } from './mergeSql.js';
 import {
-  mergePlatformUsersInTransaction,
-  pickMergeTargetId,
-  enrichPickMergeCandidatesWithBookingCounts,
   type PickMergeTargetCandidate,
   type PlatformMergeDbClient,
 } from './pgPlatformUserMerge.js';
@@ -21,6 +18,7 @@ export type MessengerPhoneBindDb = PlatformMergeDbClient;
 
 export type MessengerPhoneLinkFailureCode =
   | 'no_channel_binding'
+  | 'human_account_confirmation_required'
   | 'phone_owned_by_other_user'
   | 'channel_already_bound_to_other_user'
   | 'merge_blocked_booking_overlap'
@@ -111,10 +109,16 @@ async function writeConfirmedPhoneAndMirror(
   phoneNormalized: string,
 ): Promise<void> {
   await syncPlatformUserPhoneHistoryOnConfirm(db, platformUserId, phoneNormalized, 'messenger');
-  await mutateCanonicalUserContacts(db as PlatformMergeDbClient, platformUserId, [{
-    action: 'upsert', kind: 'phone', valueNormalized: phoneNormalized, isPrimary: true,
-    confirmedAt: new Date().toISOString(), sourceOrigin: 'direct',
-  }]);
+  await mutateCanonicalUserContacts(db as PlatformMergeDbClient, platformUserId, [
+    {
+      action: 'upsert',
+      kind: 'phone',
+      valueNormalized: phoneNormalized,
+      isPrimary: true,
+      confirmedAt: new Date().toISOString(),
+      sourceOrigin: 'direct',
+    },
+  ]);
 }
 
 async function resolveBoundPlatformUserId(
@@ -181,10 +185,10 @@ async function mergePairIfDistinct(
       candidateIds: [idA, idB],
     });
   }
-  const [ea, eb] = await enrichPickMergeCandidatesWithBookingCounts(mergeClient, a, b);
-  const { target, duplicate } = pickMergeTargetId(ea, eb);
-  await mergePlatformUsersInTransaction(mergeClient, target, duplicate, 'phone_bind', {
-    mergeContext: { channel: channelCode },
+  void mergeClient;
+  void channelCode;
+  throw new MessengerPhoneLinkError('human_account_confirmation_required', {
+    candidateIds: [idA, idB],
   });
 }
 
@@ -218,10 +222,7 @@ export async function applyMessengerPhonePublicBind(
   };
 
   if (preferredPlatformUserId) {
-    const preferredCanonicalId = await resolveCanonicalPlatformUserId(
-      db,
-      preferredPlatformUserId,
-    );
+    const preferredCanonicalId = await resolveCanonicalPlatformUserId(db, preferredPlatformUserId);
     if (!preferredCanonicalId) {
       throw new MessengerPhoneLinkError('merge_blocked_ambiguous_candidates', {
         candidateIds: [platformUserId, preferredPlatformUserId],
@@ -263,11 +264,7 @@ export async function applyMessengerPhonePublicBind(
 
   for (let writeAttempt = 0; writeAttempt < 2; writeAttempt++) {
     try {
-      await writeConfirmedPhoneAndMirror(
-        db,
-        platformUserId,
-        phoneNormalized,
-      );
+      await writeConfirmedPhoneAndMirror(db, platformUserId, phoneNormalized);
       return { platformUserId };
     } catch (err) {
       if (err instanceof MessengerPhoneLinkError) throw err;

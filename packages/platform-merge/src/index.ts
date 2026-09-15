@@ -3,6 +3,23 @@ export type {
   ScalarFieldWinner,
   ChannelBindingWinner,
 } from './manualMergeResolution.js';
+export type {
+  HumanMergeDecision,
+  HumanMergeCustomFioValue,
+  HumanMergeFioField,
+  HumanMergeFioSelection,
+  HumanMergeFioSelections,
+  HumanMergeAccountSummary,
+  HumanMergePrompt,
+} from './humanMergeDecision.js';
+export {
+  HUMAN_MERGE_FIO_FIELDS,
+  createHumanMergeCustomFioValue,
+  createHumanMergeDecision,
+  createHumanMergePrompt,
+  humanMergeDecisionMatchesPrompt,
+  isHumanMergeCustomFioValue,
+} from './humanMergeDecision.js';
 export { assertManualMergeResolutionIds } from './manualMergeResolution.js';
 
 export { MergeConflictError, MergeDependentConflictError } from './platformUserMergeErrors.js';
@@ -14,6 +31,8 @@ export type {
   MergePlatformUsersContext,
   MergePlatformUsersOptions,
   MergePlatformUsersOutcome,
+  AutomaticMergePlatformUsersOptions,
+  ManualMergePlatformUsersOptions,
   MergeContactsSaved,
 } from './pgPlatformUserMerge.js';
 
@@ -82,7 +101,10 @@ export {
 } from './identityProjectionWrite.js';
 
 export { syncUserIdentityFioMirror } from './userIdentityFioWrite.js';
-export { mutateCanonicalUserContacts, type CanonicalContactMutation } from './userContactsMirrorWrite.js';
+export {
+  mutateCanonicalUserContacts,
+  type CanonicalContactMutation,
+} from './userContactsMirrorWrite.js';
 
 export type { MergeSqlExecutor } from './mergeSql.js';
 export { runMergeSql, runMergePgText, mergeDbClientToSqlExecutor } from './mergeSql.js';

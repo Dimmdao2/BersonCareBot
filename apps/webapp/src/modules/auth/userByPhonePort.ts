@@ -1,11 +1,17 @@
 import type { SessionUser } from '@/shared/types/session';
 import type { ChannelContext } from './channelContext';
 import { channelToBindingKey } from './channelContext';
+import type { HumanMergeDecision, HumanMergePrompt } from '@bersoncare/platform-merge';
 
-export type CreateOrBindResult = {
-  user: SessionUser;
-  wasCreated: boolean;
-};
+export type CreateOrBindResult =
+  | { kind: 'complete'; user: SessionUser; wasCreated: boolean; mergedAccountId?: string }
+  | {
+      kind: 'merge_required';
+      prompt: HumanMergePrompt;
+      user?: undefined;
+      wasCreated?: undefined;
+      mergedAccountId?: undefined;
+    };
 
 export type CreateOrBindOptions = {
   /**
@@ -19,6 +25,8 @@ export type CreateOrBindOptions = {
   profileBindOrganizationId?: string;
   /** OTP delivery channel of the confirmed challenge — recorded as `user_phone_history.confirming_channel` (§3.1 default provenance). */
   confirmingChannel?: 'sms' | 'telegram' | 'max' | 'email';
+  /** Present only after the person answered the account/FIO prompt pinned in the OTP challenge. */
+  humanMergeDecision?: HumanMergeDecision;
 };
 
 /**

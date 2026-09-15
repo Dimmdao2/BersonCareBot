@@ -15,13 +15,8 @@
  *     (`phone_mismatch`) — this is the one that stops "prove your own number, get bound to someone
  *     else's registration".
  *
- * Every refusal must also NOT create anything: `applyMessengerContactPreOtp` (the only canonical
- * create/bind door on this path) must never be reached. That is asserted on each case, because a
- * guard that returns an error AFTER writing would satisfy a code-shaped test and still break the
- * owner boundary.
- *
- * The last two cases pin replay semantics for an already-`otp_ready` attempt: profile_bind replays
- * idempotently and consumes the token, and neither replay re-enters the canonical write.
+ * Refusals are observed before challenge creation; the retired pre-OTP canonical write no longer
+ * exists on this path.
  */
 import { describe, expect, it, vi } from 'vitest';
 import type {
@@ -37,14 +32,17 @@ vi.mock('@/config/env', async (importOriginal) => {
   return { ...actual, webappReposAreInMemory: () => false };
 });
 
-const { claimPhoneMessengerBindFromIntegrator, completePhoneMessengerBindFromIntegrator } = await import('./phoneMessengerBind');
+const { claimPhoneMessengerBindFromIntegrator, completePhoneMessengerBindFromIntegrator } =
+  await import('./phoneMessengerBind');
 
 const SESSION_USER_ID = '00000000-0000-4000-8000-0000000e0001';
 const ATTEMPT_PHONE = '+79180000011';
 const OTHER_PHONE = '+79180000022';
 const TOKEN = 'auth_abc123';
 
-function baseRow(overrides: Partial<PhoneMessengerBindSecretRow> = {}): PhoneMessengerBindSecretRow {
+function baseRow(
+  overrides: Partial<PhoneMessengerBindSecretRow> = {},
+): PhoneMessengerBindSecretRow {
   return {
     id: 'secret-1',
     phone_normalized: ATTEMPT_PHONE,
@@ -76,13 +74,6 @@ function buildFakePort(
     updateOtpReady: vi.fn(async () => {}),
     markConsumed: vi.fn(async () => {}),
     markConsumedByChallenge: vi.fn(async () => {}),
-    verifyCompletionState: vi.fn(async () => ({
-      ready: false,
-      accountCreated: false,
-      syncTargetUserId: SESSION_USER_ID,
-      canonicalUserId: null,
-    })),
-    applyMessengerContactPreOtp: vi.fn(async () => ({ ok: true as const, accountCreated: false })),
     ...overrides,
   };
 }
@@ -117,9 +108,10 @@ describe('D25 — token-bound completion refuses every unproven combination and 
 
     expect(result).toEqual({ ok: true });
     expect(port.claimToken).toHaveBeenCalledWith({
-      tokenHash: expect.any(String), channelCode: 'telegram', externalId: 'tg-1',
+      tokenHash: expect.any(String),
+      channelCode: 'telegram',
+      externalId: 'tg-1',
     });
-    expect(port.applyMessengerContactPreOtp).not.toHaveBeenCalled();
   });
 
   it('a provider-owned contact without the matching live claim is rejected before canonical contact handling', async () => {
@@ -128,7 +120,6 @@ describe('D25 — token-bound completion refuses every unproven combination and 
     const result = await complete(port, { setupToken: undefined });
 
     expect(result).toEqual({ ok: false, code: 'no_live_claim' });
-    expect(port.applyMessengerContactPreOtp).not.toHaveBeenCalled();
   });
 
   it('a token that is not an auth_ setup token is refused before the port is touched', async () => {
@@ -138,7 +129,6 @@ describe('D25 — token-bound completion refuses every unproven combination and 
 
     expect(result).toEqual({ ok: false, code: 'invalid_token' });
     expect(port.findLiveClaim).not.toHaveBeenCalled();
-    expect(port.applyMessengerContactPreOtp).not.toHaveBeenCalled();
   });
 
   it('an unknown token hash is refused as unknown_or_expired and creates nothing', async () => {
@@ -147,7 +137,6 @@ describe('D25 — token-bound completion refuses every unproven combination and 
     const result = await complete(port);
 
     expect(result).toEqual({ ok: false, code: 'no_live_claim' });
-    expect(port.applyMessengerContactPreOtp).not.toHaveBeenCalled();
   });
 
   it('a consumed token cannot be replayed into a new bind (used_token), and creates nothing', async () => {
@@ -158,20 +147,16 @@ describe('D25 — token-bound completion refuses every unproven combination and 
     const result = await complete(port);
 
     expect(result).toEqual({ ok: false, code: 'used_token' });
-    expect(port.applyMessengerContactPreOtp).not.toHaveBeenCalled();
     expect(port.markConsumed).not.toHaveBeenCalled();
   });
 
   it('an expired attempt is refused AND marked expired, and creates nothing', async () => {
-    const port = buildFakePort(
-      baseRow({ expires_at: new Date(Date.now() - 1_000).toISOString() }),
-    );
+    const port = buildFakePort(baseRow({ expires_at: new Date(Date.now() - 1_000).toISOString() }));
 
     const result = await complete(port);
 
     expect(result).toEqual({ ok: false, code: 'expired' });
     expect(port.updateExpired).toHaveBeenCalledWith('secret-1');
-    expect(port.applyMessengerContactPreOtp).not.toHaveBeenCalled();
   });
 
   it('a contact proven on another channel than the attempt is refused (channel_mismatch)', async () => {
@@ -180,7 +165,6 @@ describe('D25 — token-bound completion refuses every unproven combination and 
     const result = await complete(port, { channelCode: 'telegram' });
 
     expect(result).toEqual({ ok: false, code: 'channel_mismatch' });
-    expect(port.applyMessengerContactPreOtp).not.toHaveBeenCalled();
   });
 
   it('a proven phone that is not the attempt phone is refused AND fails the attempt, creating nothing', async () => {
@@ -190,7 +174,6 @@ describe('D25 — token-bound completion refuses every unproven combination and 
 
     expect(result).toEqual({ ok: false, code: 'phone_mismatch' });
     expect(port.updateFailed).toHaveBeenCalledWith('secret-1', 'phone_mismatch');
-    expect(port.applyMessengerContactPreOtp).not.toHaveBeenCalled();
   });
 
   it('a phone that is not a valid E.164 number at all is refused before the token is looked up', async () => {
@@ -200,7 +183,6 @@ describe('D25 — token-bound completion refuses every unproven combination and 
 
     expect(result).toEqual({ ok: false, code: 'invalid_contact_phone' });
     expect(port.findLiveClaim).not.toHaveBeenCalled();
-    expect(port.applyMessengerContactPreOtp).not.toHaveBeenCalled();
   });
 
   it('a consumed/otp-ready attempt has no live claim and cannot re-enter canonical completion', async () => {
@@ -213,8 +195,6 @@ describe('D25 — token-bound completion refuses every unproven combination and 
 
     expect(result).toEqual({ ok: false, code: 'no_live_claim' });
     expect(port.markConsumed).not.toHaveBeenCalled();
-    expect(port.applyMessengerContactPreOtp).not.toHaveBeenCalled();
-    expect(port.verifyCompletionState).not.toHaveBeenCalled();
   });
 
   it('a replay with a different phone cannot ride an otp-ready attempt', async () => {
@@ -226,6 +206,5 @@ describe('D25 — token-bound completion refuses every unproven combination and 
 
     expect(result).toEqual({ ok: false, code: 'phone_mismatch' });
     expect(port.markConsumed).not.toHaveBeenCalled();
-    expect(port.applyMessengerContactPreOtp).not.toHaveBeenCalled();
   });
 });

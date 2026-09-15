@@ -20,12 +20,14 @@ import { isPlatformUserUuid } from '@/shared/platform-user/isPlatformUserUuid';
 import { prepareVerifiedPrimaryLogin } from '@/modules/auth/verifiedStaffPrimaryLogin';
 import { isAuthChannelEnabled } from '@/modules/auth/authChannelPolicy';
 import { notificationText } from '@/shared/notifications/notificationText';
+import { humanMergeDecisionSchema } from '@/modules/auth/humanMergeDecisionSchema';
 
 const bodySchema = z.object({
   challengeId: z.string().trim().min(1),
   code: z.string().trim().min(1),
   browserCalendarIana: z.string().max(120).optional(),
   attemptId: z.string().uuid().optional(),
+  mergeDecision: humanMergeDecisionSchema.optional(),
 });
 
 /**
@@ -84,7 +86,9 @@ export async function POST(request: Request) {
         ? ('max' as const)
         : ('browser' as const);
 
-  const result = await deps.auth.confirmPhoneAuth(challengeId, code);
+  const result = await deps.auth.confirmPhoneAuth(challengeId, code, {
+    ...(parsed.data.mergeDecision ? { humanMergeDecision: parsed.data.mergeDecision } : {}),
+  });
 
   if (!result.ok) {
     if (isRegistrationIntent) {
@@ -120,12 +124,19 @@ export async function POST(request: Request) {
     );
   }
 
+  if ('mergeRequired' in result && result.mergeRequired) {
+    return NextResponse.json({ ok: true, mergeRequired: true, prompt: result.prompt });
+  }
+
   if (isPlatformUserUuid(result.user.userId)) {
     enterStaffSecuritySelfPrincipal(result.user.userId, 'api/auth/phone/confirm:otp-verified-self');
   }
   const sessionUser = await deps.userByPhone.findByUserId(result.user.userId);
   if (!sessionUser) {
     return NextResponse.json({ ok: false, error: 'server_error' }, { status: 500 });
+  }
+  if (result.mergedAccountId) {
+    await deps.accountMergeNotifications.enqueue(sessionUser, result.mergedAccountId);
   }
   const postLoginHints = { phoneOtpChannel: result.deliveryChannel ?? deliveryChannel } as const;
 

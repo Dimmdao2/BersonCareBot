@@ -1,4 +1,5 @@
 import type { MailProfileRequest } from './mailProfile';
+import type { HumanMergeDecision, HumanMergePrompt } from '@bersoncare/platform-merge';
 
 /**
  * C-2 step 4 (OWASP ASVS V6.6.2 / NIST SP 800-63B §5.1.3): the intent an email challenge was minted
@@ -41,12 +42,14 @@ export type EmailChallengeCodeRow = {
 };
 
 export type ClaimVerifiedEmailResult =
-  | { ok: true; merged: boolean }
+  | { ok: true; merged: boolean; mergedAccountId?: string }
+  | { ok: false; code: 'merge_confirmation_required'; prompt: HumanMergePrompt }
   | { ok: false; code: 'email_conflict' };
 
 export type ClaimVerifiedEmailOptions = {
   /** Server-resolved organization scope used only for an authenticated profile merge. */
   profileBindOrganizationId?: string;
+  humanMergeDecision?: HumanMergeDecision;
 };
 
 export type EmailAuthDbPort = {

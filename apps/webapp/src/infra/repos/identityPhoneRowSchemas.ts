@@ -169,6 +169,7 @@ export const puMergeRowSchema = z.object({
   display_name: z.string(),
   first_name: z.string().nullable(),
   last_name: z.string().nullable(),
+  patronymic: z.string().nullable(),
   email: z.string().nullable(),
   created_at: z.coerce.date(),
 });

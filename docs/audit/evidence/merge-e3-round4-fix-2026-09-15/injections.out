@@ -1,0 +1,32 @@
+# Инъекция 1 — вернул движковый выбор отчества (COALESCE(target, duplicate)) в ручной ветке
+# packages/platform-merge/src/pgPlatformUserMerge.ts, resolveManualFioParts:
+#   patronymic: normalizedFioPart(target.patronymic) ?? normalizedFioPart(duplicate.patronymic)
+
+$ /home/dev/brain/host-orch/run-tests.sh "pnpm --dir apps/webapp exec vitest run --project unit \
+    src/infra/accountMergeMedicalHistory.unit.test.ts src/modules/auth/accountMergeNotification.unit.test.ts"
+     × writes the patronymic of the card the person chose when the two patronymics conflict 9ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+AssertionError: expected { …(4) } to deeply equal { …(4) }
+ Test Files  1 failed | 1 passed (2)
+      Tests  1 failed | 16 passed (17)
+
+$ /home/dev/brain/host-orch/run-tests.sh "bash docs/audit/evidence/merge-e3-round4-fix-2026-09-15/run-live.sh \
+    docs/audit/evidence/merge-e3-round4-fix-2026-09-15/live-manual-fio.mts"
+AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+    displayName: 'E3FIX_MANUAL_20260915 Иванов Иван Сергеевич',
++   patronymic: 'Петрович'
+-   patronymic: 'Сергеевич'
+
+# Инъекция 2 — вернул массив-параметр drizzle в чтение oauth ручной ветки
+#   FROM user_oauth_bindings WHERE user_id = ANY(${[targetId, duplicateId]}::uuid[])
+
+$ /home/dev/brain/host-orch/run-tests.sh "bash docs/audit/evidence/merge-e3-round4-fix-2026-09-15/run-live.sh \
+    docs/audit/evidence/merge-e3-round4-fix-2026-09-15/live-manual-fio.mts"
+error: cannot cast type record to uuid[]
+  code: '42846',
+
+# После обеих инъекций продуктовый код восстановлен (git checkout), набор снова зелёный:
+$ /home/dev/brain/host-orch/run-tests.sh "pnpm --dir apps/webapp exec vitest run --project unit \
+    src/infra/accountMergeMedicalHistory.unit.test.ts src/modules/auth/accountMergeNotification.unit.test.ts"
+ Test Files  2 passed (2)
+      Tests  17 passed (17)
