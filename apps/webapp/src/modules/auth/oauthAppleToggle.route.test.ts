@@ -1,11 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const fakes = vi.hoisted(() => ({
-  isOAuthProviderEnabled: vi.fn<(provider: 'google' | 'yandex' | 'apple' | 'vk') => Promise<boolean>>(),
+  isOAuthProviderEnabled:
+    vi.fn<
+      (
+        provider: 'google' | 'yandex' | 'apple' | 'vk',
+        surface?: 'staff' | 'platform_admin' | 'patient',
+      ) => Promise<boolean>
+    >(),
   resolveRateLimitClientKey: vi.fn(),
   isRateLimited: vi.fn<() => Promise<boolean>>(),
   recordFailure: vi.fn(),
   resolveYandexOAuthConfig: vi.fn(),
+  resolvedSurface: vi.fn(),
+  platformHostsDistinct: vi.fn(),
+  canSurfaceEnterRoute: vi.fn(),
 }));
 
 vi.mock('@/app-layer/principal/bootstrapPrincipal', () => ({
@@ -37,11 +46,13 @@ vi.mock('@/modules/auth/oauthSignedState', () => ({
   parseVerifiedSignedOAuthState: vi.fn(),
 }));
 vi.mock('@/shared/lib/surface/requestSurface.server', () => ({
-  getResolvedSurface: vi.fn().mockResolvedValue({
-    surface: 'patient_default',
-    publicOrigin: 'https://app.example.test',
-    authPolicy: { availableMethods: ['oauth'], enabledMethods: ['oauth'] },
-  }),
+  getResolvedSurface: fakes.resolvedSurface,
+}));
+vi.mock('@/shared/lib/surface/requestSurface', () => ({
+  arePlatformSurfaceHostsDistinct: fakes.platformHostsDistinct,
+}));
+vi.mock('@/config/surfaceRoutes', () => ({
+  canSurfaceEnterRoute: fakes.canSurfaceEnterRoute,
 }));
 vi.mock('@/modules/auth/yandexOAuthConfig', () => ({
   resolveYandexOAuthConfig: fakes.resolveYandexOAuthConfig,
@@ -70,6 +81,13 @@ beforeEach(() => {
   fakes.isRateLimited.mockResolvedValue(false);
   fakes.recordFailure.mockResolvedValue(undefined);
   fakes.resolveYandexOAuthConfig.mockResolvedValue(null);
+  fakes.resolvedSurface.mockResolvedValue({
+    surface: 'patient_default',
+    publicOrigin: 'https://app.example.test',
+    authPolicy: { availableMethods: ['oauth'], enabledMethods: ['oauth'] },
+  });
+  fakes.platformHostsDistinct.mockReturnValue(true);
+  fakes.canSurfaceEnterRoute.mockReturnValue(true);
 });
 
 describe('public OAuth provider boundary', () => {
@@ -131,8 +149,56 @@ describe('public OAuth provider boundary', () => {
     );
 
     expect(enabledStart.status).toBe(200);
-    await expect(enabledStart.json()).resolves.toMatchObject({ ok: true, authUrl: expect.any(String) });
+    await expect(enabledStart.json()).resolves.toMatchObject({
+      ok: true,
+      authUrl: expect.any(String),
+    });
     expect(enabledCallback.headers.get('location')).toContain('reason=invalid_content_type');
+  });
+
+  it('uses the named patient door instead of the shared Host policy at OAuth start', async () => {
+    fakes.resolvedSurface.mockResolvedValue({
+      surface: 'staff',
+      publicOrigin: 'https://shared.example.test',
+      authPolicy: { availableMethods: ['password'], enabledMethods: ['password'] },
+    });
+    fakes.platformHostsDistinct.mockReturnValue(false);
+    fakes.isOAuthProviderEnabled.mockImplementation(
+      async (provider, surface) => provider === 'google' && surface === 'patient',
+    );
+
+    const response = await startOAuth(
+      new Request('https://shared.example.test/api/auth/oauth/start', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ provider: 'google', roleLoginPortal: 'patient' }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ ok: true, authUrl: expect.any(String) });
+  });
+
+  it('refuses a named patient door on a distinct staff Host', async () => {
+    fakes.resolvedSurface.mockResolvedValue({
+      surface: 'staff',
+      publicOrigin: 'https://staff.example.test',
+      authPolicy: { availableMethods: ['password'], enabledMethods: ['password'] },
+    });
+    fakes.platformHostsDistinct.mockReturnValue(true);
+    fakes.canSurfaceEnterRoute.mockReturnValue(false);
+    fakes.isOAuthProviderEnabled.mockResolvedValue(true);
+
+    const response = await startOAuth(
+      new Request('https://staff.example.test/api/auth/oauth/start', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ provider: 'google', roleLoginPortal: 'patient' }),
+      }),
+    );
+
+    expect(response.status).toBe(501);
+    await expect(response.json()).resolves.toMatchObject({ ok: false, error: 'oauth_disabled' });
   });
 
   it('returns a typed our-side failure instead of an empty body when resolving provider config throws', async () => {

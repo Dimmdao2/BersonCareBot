@@ -322,7 +322,7 @@ export function AuthProvidersSection({
               <Input
                 id="auth-vk-redirect"
                 type="url"
-                placeholder="https://example.com/api/auth/oauth/callback/vk-id"
+                placeholder="https://example.com/api/auth/oauth/callback/vk"
                 value={vkIdRedirect}
                 onChange={(e) => setVkIdRedirect(e.target.value)}
                 disabled={isPending}
