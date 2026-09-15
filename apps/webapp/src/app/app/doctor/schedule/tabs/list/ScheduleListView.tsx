@@ -31,28 +31,29 @@ type ListDayCardProps = {
 
 // R29: фон строки списка повторяет статусную палитру календаря (eventClassName);
 // прошедшие приглушаются, отменённые — destructive + line-through.
+//
+// Владелец 15.09.2026: «в списке давай красить в цвет филиала только колонку с датой-временем и
+// коротким названием филиала. Само называние филиала писать черным». Поэтому цвет филиала больше
+// не заливает СТРОКУ — он живёт ровно в левой колонке (см. `branchColumnClass`), а строка остаётся
+// нейтральной. Статусная палитра (отменённая, прошедшая) по-прежнему принадлежит строке: это не
+// про филиал.
 function listRowClass(appt: CalendarAppointmentEvent, timeZone: string): string {
   if (isCancelledAppointmentStatus(appt.status))
     return 'border-destructive/25 bg-destructive/10 text-destructive/80 hover:bg-destructive/15';
   const isPast = parseFeedInstant(appt.startAt, timeZone) < DateTime.now();
   const base = appt.branchColor
-    ? 'border-[color:var(--list-branch-border)] bg-[color:var(--list-branch-bg)] text-foreground hover:brightness-[0.98]'
+    ? 'border-border/60 bg-transparent text-foreground hover:bg-muted/50'
     : 'border-primary/30 bg-primary/10 hover:bg-primary/15';
   return cn(base, isPast && 'opacity-60');
 }
 
 function listRowStyle(appt: CalendarAppointmentEvent): CSSProperties | undefined {
   if (!appt.branchColor || isCancelledAppointmentStatus(appt.status)) return undefined;
-  const background = doctorCalendarBranchColorRgba(appt.branchColor, 0.16);
-  const border = doctorCalendarBranchColorRgba(appt.branchColor, 0.42);
-  if (!background || !border) return undefined;
-  return {
-    '--list-branch-bg': background,
-    '--list-branch-border': border,
-    // Подпись филиала красится полным цветом — как часы филиала в «Графике работы». Заливка в 16%
-    // сама по себе на телефоне не различается, из-за чего строки читались «одним цветом».
-    '--list-branch-text': appt.branchColor,
-  } as CSSProperties;
+  // Заливка колонки заметно плотнее прежней строчной (0.16): раньше цвет дублировался подписью
+  // филиала, теперь подпись чёрная и заливка осталась единственным носителем цвета.
+  const background = doctorCalendarBranchColorRgba(appt.branchColor, 0.3);
+  if (!background) return undefined;
+  return { '--list-branch-bg': background } as CSSProperties;
 }
 
 function ListDayCard({
@@ -97,7 +98,7 @@ function ListDayCard({
               onClick={() => onSelect(appt)}
               style={listRowStyle(appt)}
               className={cn(
-                'flex h-auto min-h-0 w-full items-start gap-3 whitespace-normal rounded-none border-0 border-b border-border/60 px-[var(--doctor-list-inline-padding,18px)] py-2.5 text-left text-sm',
+                'flex h-auto min-h-0 w-full items-stretch gap-3 whitespace-normal rounded-none border-0 border-b border-border/60 px-[var(--doctor-list-inline-padding,18px)] py-2.5 text-left text-sm',
                 listRowClass(appt, timeZone),
                 // APPT-LIST-01: отметка ближайшей записи идёт ПОСЛЕ палитры строки — иначе
                 // tailwind-merge считает `border-primary/30` из палитры конфликтующим и
@@ -107,7 +108,19 @@ function ListDayCard({
               )}
               data-testid={`list-appt-${appt.id}`}
             >
-              <span className="flex w-[4.75rem] shrink-0 flex-col gap-0.5 overflow-hidden text-xs">
+              {/* Единственное место, где живёт цвет филиала: КОЛОНКА «время + короткое имя
+                  филиала» — сплошная полоса во всю высоту строки, вплотную к левому краю.
+                  Отрицательные отступы гасят паддинги строки, поэтому это колонка, а не таблетка
+                  внутри строки. Подпись филиала печатается обычным чёрным текстом; цвет несёт
+                  только заливка. */}
+              <span
+                className={cn(
+                  'flex shrink-0 flex-col justify-center gap-0.5 overflow-hidden text-xs',
+                  appt.branchColor && !cancelled
+                    ? '-my-2.5 -ml-[var(--doctor-list-inline-padding,18px)] w-[6.5rem] bg-[color:var(--list-branch-bg)] py-2.5 pl-[var(--doctor-list-inline-padding,18px)] pr-3'
+                    : 'w-[4.75rem]',
+                )}
+              >
                 <span className="whitespace-nowrap font-semibold tabular-nums">
                   {start}–{end}
                 </span>
@@ -115,11 +128,7 @@ function ListDayCard({
                   <span
                     className={cn(
                       'truncate',
-                      // Цвет филиала читается по подписи, а не только по бледной заливке строки.
-                      // У отменённой записи своя палитра — её не перебиваем.
-                      appt.branchColor && !cancelled
-                        ? 'font-medium text-[color:var(--list-branch-text)]'
-                        : 'text-muted-foreground',
+                      appt.branchColor && !cancelled ? 'font-medium' : 'text-muted-foreground',
                     )}
                     title={appt.branchTitle ?? undefined}
                   >
@@ -281,7 +290,15 @@ export function ListView({
     ) {
       return;
     }
-    const isExplicitTodayRequest = scrollToTodayRequest > positionedTodayRequestRef.current;
+    // Прокрутка МГНОВЕННАЯ, а не плавная — даже по явному «Сегодня».
+    //
+    // Владелец 15.09.2026: «после нескольких переключений … календарь сошёл с ума и на кнопку
+    // сегодня стал показывать на три-четыре месяца раньше». Плавная прокрутка едет сотни
+    // миллисекунд, и ВСЁ это время верхний сторож бесконечной ленты остаётся на экране: он честно
+    // срабатывает и подгружает ещё три месяца истории. Новые дни встают НАД текущей позицией,
+    // прокрутка уезжает в прошлое — и человек оказывается дальше от сегодня, чем был. Прыжок без
+    // анимации не даёт сторожу ни одного кадра. Показывать анимацию пролёта через три месяца
+    // записей всё равно нечего.
     const frame = window.requestAnimationFrame(() => {
       // Владелец 14.09: наверху экрана должна быть ДАТА, а не строка ближайшей записи — «я вижу
       // весь сегодняшний день». Поэтому цель прокрутки всегда заголовок дня; отметка ближайшей
@@ -291,9 +308,17 @@ export function ListView({
         targetNode.getBoundingClientRect().top -
         scrollNode.getBoundingClientRect().top +
         scrollNode.scrollTop;
-      scrollNode.scrollTo({
-        top: Math.max(0, targetTop - 8),
-        behavior: isExplicitTodayRequest ? 'smooth' : 'auto',
+      scrollNode.scrollTo({ top: Math.max(0, targetTop - 8), behavior: 'auto' });
+      // Доводчик на следующем кадре: высоты успевают устояться (пропал блок загрузки, дорисовались
+      // строки), и первая прокрутка могла не довести до цели.
+      window.requestAnimationFrame(() => {
+        const settledTop =
+          targetNode.getBoundingClientRect().top -
+          scrollNode.getBoundingClientRect().top +
+          scrollNode.scrollTop;
+        if (Math.abs(settledTop - scrollNode.scrollTop - 8) > 2) {
+          scrollNode.scrollTo({ top: Math.max(0, settledTop - 8), behavior: 'auto' });
+        }
       });
       positionedAnchorRef.current = anchorDate;
       positionedTodayRequestRef.current = scrollToTodayRequest;
