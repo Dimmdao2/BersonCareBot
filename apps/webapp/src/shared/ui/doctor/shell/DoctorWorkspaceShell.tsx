@@ -121,8 +121,6 @@ export function DoctorWorkspaceShell({
     specialistTasksEnabled,
     workspaceModules,
     communicationsSurface,
-    // Solo has no cabinet-mode switch, so its own menu carries the settings entry.
-    soloSettingsHub: workspaceComposition === 'solo',
   };
   const homeHref = getDoctorShellHomeHref(menuAccess);
   const showClinicalShortcuts = capabilities.includes('clinical.workspace');
@@ -143,6 +141,7 @@ export function DoctorWorkspaceShell({
         enabled={clinicalRuntimeEnabled}
         directChatEnabled={visibleCommunicationsTabIds.includes('chats')}
         programCommentsEnabled={visibleCommunicationsTabIds.includes('comments')}
+        leadsEnabled={visibleCommunicationsTabIds.includes('leads')}
         rehabilitationEnabled={workspaceModules?.rehabilitation ?? clinicalRuntimeEnabled}
         registrationFailuresEnabled={
           clinicalRuntimeEnabled && capabilities.includes('platform.operations')

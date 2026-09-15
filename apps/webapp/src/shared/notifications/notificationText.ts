@@ -65,6 +65,11 @@ export const notificationText = {
     'Эта клиника больше не принимает от вас новые заявки. Свяжитесь с ней другим способом.',
   leadRejectedSubject: 'Ваша заявка отклонена',
   leadRejectedWithoutComment: 'Клиника отклонила вашу заявку.',
+  leadAlreadyInProgress: 'Заявка уже в работе.',
+  leadListLoadFailed: 'Не удалось загрузить заявки. Обновите страницу и повторите.',
+  leadChangeFailed: 'Не удалось изменить заявку. Повторите попытку.',
+  leadContactCopied: 'Контакт скопирован.',
+  leadContactCopyFailed: 'Не удалось скопировать контакт.',
   // --- security / staff auth (ранее shared/ui/auth/staffSecurityErrorText.ts) ---
   authBindSpecialistFallback: 'Не удалось подключить рабочий кабинет. Повторите попытку позже.',
   authChangePasswordFallback: 'Пароль не изменён. Проверьте данные и повторите попытку.',

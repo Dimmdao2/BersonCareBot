@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/primitives/card';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
@@ -13,6 +13,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/shared/ui/doctor/primitives/select';
+import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
+import { notificationText } from '@/shared/notifications/notificationText';
+import type { PaymentTimelineEntry } from '@/app-layer/payments/paymentTimeline';
 import { patchAdminSetting } from './patchAdminSetting';
 
 /**
@@ -113,6 +117,111 @@ type Props = {
   };
 };
 
+type PaymentHistoryResponse = {
+  ok: boolean;
+  timeline: PaymentTimelineEntry[];
+};
+
+const PAYMENT_KIND_LABEL: Record<PaymentTimelineEntry['kind'], string> = {
+  cash: 'Наличные',
+  acquiring: 'Эквайринг',
+  booking_prepayment: 'Предоплата',
+  booking_refund: 'Возврат',
+};
+
+const PAYMENT_STATUS_LABEL: Record<string, string> = {
+  paid: 'Оплачен',
+  pending: 'Ожидает',
+  refunded: 'Возврат',
+  failed: 'Отклонён',
+  captured: 'Оплачен',
+  succeeded: 'Оплачен',
+};
+
+function formatPaymentAmount(amountMinor: number | null, currency: string): string {
+  if (amountMinor === null) return '—';
+  return `${(amountMinor / 100).toLocaleString('ru-RU', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}\u00a0${currency === 'RUB' ? '₽' : currency}`;
+}
+
+function formatPaymentDate(occurredAt: string): string {
+  const date = new Date(occurredAt);
+  if (Number.isNaN(date.getTime())) return '—';
+  return date.toLocaleString('ru-RU', {
+    timeZone: 'Europe/Moscow',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function PaymentHistoryPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const [timeline, setTimeline] = useState<PaymentTimelineEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    void fetch('/api/doctor/payments/history', { credentials: 'include' })
+      .then(async (response) => {
+        if (!response.ok) throw new Error('payment_history_load_failed');
+        const payload = (await response.json()) as PaymentHistoryResponse;
+        if (!payload.ok) throw new Error('payment_history_load_failed');
+        if (active) setTimeline(payload.timeline);
+      })
+      .catch(() => {
+        if (active) setFailed(true);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  return (
+    <DoctorModal
+      open={open}
+      onClose={onClose}
+      title="История платежей"
+      size="content"
+      desktopPresentation="right-sheet"
+    >
+      {loading ? <DoctorPanelLoading /> : null}
+      {failed ? <p className="text-sm text-destructive">{notificationText.commonGenericError}</p> : null}
+      {!loading && !failed && timeline.length === 0 ? (
+        <p className="text-sm text-muted-foreground">Платежей пока нет.</p>
+      ) : null}
+      {!loading && !failed && timeline.length > 0 ? (
+        <div className="divide-y divide-border/60">
+          {timeline.map((payment) => (
+            <div key={payment.id} className="flex items-start justify-between gap-4 py-3">
+              <div className="min-w-0">
+                <p className="text-base font-normal">{PAYMENT_KIND_LABEL[payment.kind]}</p>
+                <p className="text-sm text-muted-foreground">
+                  {formatPaymentDate(payment.occurredAt)} ·{' '}
+                  {PAYMENT_STATUS_LABEL[payment.status] ?? notificationText.commonUnknownStatus}
+                </p>
+                {payment.description ? (
+                  <p className="truncate text-sm text-muted-foreground">{payment.description}</p>
+                ) : null}
+              </div>
+              <p className="shrink-0 text-base font-normal">
+                {formatPaymentAmount(payment.amountMinor, payment.currency)}
+              </p>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </DoctorModal>
+  );
+}
+
 export function BookingPaymentsSection({
   paymentEnabled: initialEnabled,
   providersJson,
@@ -137,6 +246,7 @@ export function BookingPaymentsSection({
   const [gatewayUrls, setGatewayUrls] = useState<Record<string, string>>({});
   const [publicIds, setPublicIds] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [pending, startTransition] = useTransition();
 
   function save() {
@@ -184,6 +294,9 @@ export function BookingPaymentsSection({
             Настройки приёма оплат доступны только для просмотра по текущему тарифу.
           </p>
         ) : null}
+        <Button type="button" variant="outline" onClick={() => setHistoryOpen(true)}>
+          История платежей
+        </Button>
         <fieldset disabled={readOnly} className="space-y-4">
           <LabeledSwitch
             label="Включить оплату записи"
@@ -406,6 +519,9 @@ export function BookingPaymentsSection({
           </Button>
         </fieldset>
       </CardContent>
+      {historyOpen ? (
+        <PaymentHistoryPanel open onClose={() => setHistoryOpen(false)} />
+      ) : null}
     </Card>
   );
 }

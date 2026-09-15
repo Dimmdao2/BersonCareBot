@@ -3,13 +3,16 @@ import type {
   WorkspaceModuleEffective,
 } from '@/modules/system-settings/doctorWorkspaceComposition';
 
-export type CommunicationsSurfaceTabId = 'chats' | 'comments';
+export type CommunicationsSurfaceTabId = 'chats' | 'comments' | 'leads';
 
 type CommunicationsSurfaceTab = Readonly<{
   id: CommunicationsSurfaceTabId;
   label: string;
-  workspaceModule: Extract<keyof WorkspaceModuleEffective, 'direct_chat' | 'program_comments'>;
-  channelDefault: Extract<
+  workspaceModule: Extract<
+    keyof WorkspaceModuleEffective,
+    'direct_chat' | 'program_comments' | 'leads'
+  >;
+  channelDefault?: Extract<
     keyof DoctorWorkspaceClientDefaults['channelDefaults'],
     'direct_chat' | 'program_comments'
   >;
@@ -27,6 +30,11 @@ export const COMMUNICATIONS_SURFACE_TABS: readonly CommunicationsSurfaceTab[] = 
     label: 'Комментарии',
     workspaceModule: 'program_comments',
     channelDefault: 'program_comments',
+  },
+  {
+    id: 'leads',
+    label: 'Заявки',
+    workspaceModule: 'leads',
   },
 ];
 
@@ -49,7 +57,7 @@ export type CommunicationsSurface =
 
 type CommunicationsWorkspaceModules = Pick<
   WorkspaceModuleEffective,
-  'direct_chat' | 'program_comments'
+  'direct_chat' | 'program_comments' | 'leads'
 >;
 
 type CommunicationsChannelDefaults = Pick<
@@ -66,7 +74,9 @@ export function resolveCommunicationsSurface(
   channelDefaults: CommunicationsChannelDefaults,
 ): CommunicationsSurface {
   const visibleTabs = COMMUNICATIONS_SURFACE_TABS.filter(
-    (tab) => workspaceModules[tab.workspaceModule] && channelDefaults[tab.channelDefault] !== 'off',
+    (tab) =>
+      workspaceModules[tab.workspaceModule] &&
+      (tab.channelDefault === undefined || channelDefaults[tab.channelDefault] !== 'off'),
   );
 
   if (visibleTabs.length === 0) {
@@ -86,7 +96,7 @@ export function resolveCommunicationsSurface(
 }
 
 export const DEFAULT_COMMUNICATIONS_SURFACE = resolveCommunicationsSurface(
-  { direct_chat: true, program_comments: true },
+  { direct_chat: true, program_comments: true, leads: true },
   { direct_chat: 'all', program_comments: 'on_support' },
 ) as Exclude<CommunicationsSurface, { kind: 'hidden' }>;
 
