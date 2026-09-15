@@ -100,7 +100,11 @@ export function SpecialistTaskRow({
         <button
           type="button"
           className={cn(
-            'grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-3 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
+            // `cursor-pointer` здесь не украшение: это голый `<button>`, а не наша кнопка-примитив,
+            // и браузер рисует над ним обычную стрелку. Строка списка кликабельна целиком, курсор
+            // обязан это показывать (владелец 15.09: «при наведении на список показывать не стрелку
+            // а руку»). У соседних плоских списков рука приходит из `doctorDnaFlatListClickableClass`.
+            'grid w-full min-w-0 cursor-pointer grid-cols-[minmax(0,1fr)_auto] gap-3 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
             getDoctorSectionItemClass(!completed && overdue ? 'urgent' : 'neutral'),
             // Владелец 14.09: «стандартный плоский список … заполнение так же как на мобиле,
             // а контейнер … как на десктопных клиентах / чатах» — на десктопе строка раньше
