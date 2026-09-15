@@ -72,6 +72,7 @@ export const routePaths = {
   /** Журнал занятий ЛФК. */
   diaryLfkJournal: '/app/patient/diary/lfk/journal',
   bindPhone: '/app/patient/bind-phone',
+  bindEmail: '/app/patient/bind-email',
   /** Сообщения пациента (поддержка, webapp-чат). */
   patientMessages: '/app/patient/messages',
   /** Справка (не в основном меню; прямой URL). */

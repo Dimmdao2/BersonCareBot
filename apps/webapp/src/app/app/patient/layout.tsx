@@ -2,9 +2,10 @@ import type { ReactNode } from 'react';
 import { sessionMatchesTestAccountIdentifiers } from '@/config/testAccounts';
 import { headers } from 'next/headers';
 import { notFound, redirect } from 'next/navigation';
-import { patientClientBusinessGate } from '@/app-layer/platform-access';
+import { loadPatientEmailGateState, patientClientBusinessGate } from '@/app-layer/platform-access';
 import {
   patientPathRequiresBoundPhone,
+  resolvePatientEmailGateDecision,
   resolvePatientLayoutPathname,
 } from '@/modules/platform-access';
 import { logger } from '@/infra/logging/logger';
@@ -47,6 +48,7 @@ function patientPathAllowsGlobalAccountWithoutCareContext(pathname: string): boo
     routePaths.profile,
     routePaths.patientOrganizations,
     routePaths.bindPhone,
+    routePaths.bindEmail,
     routePaths.notifications,
     routePaths.patientInstall,
   ].some((path) => pathname === path || pathname.startsWith(`${path}/`));
@@ -91,6 +93,34 @@ export default async function PatientLayout({ children }: { children: ReactNode 
     }
   } else if (!session.user.phone?.trim() && patientPathRequiresBoundPhone(pathname)) {
     redirect(`${routePaths.bindPhone}?next=${encodeURIComponent(returnTo)}`);
+  }
+
+  // Every session-producing door reaches this one post-auth decision. The first soft request sets
+  // the only persistent clock; later requests in the grace period must not trap cabinet navigation.
+  if (databaseConfigured && session.user.role === 'client') {
+    const now = new Date();
+    let emailGateState = await loadPatientEmailGateState(false);
+    let emailGateDecision = resolvePatientEmailGateDecision({
+      ...emailGateState,
+      now,
+      pathname,
+    });
+    const isFirstRequest =
+      emailGateDecision === 'request' && emailGateState.emailFirstRequestedAt === null;
+    if (isFirstRequest) {
+      emailGateState = await loadPatientEmailGateState(true);
+      emailGateDecision = resolvePatientEmailGateDecision({
+        ...emailGateState,
+        now,
+        pathname,
+      });
+    }
+    if (
+      emailGateDecision === 'requirement' ||
+      (emailGateDecision === 'request' && isFirstRequest)
+    ) {
+      redirect(`${routePaths.bindEmail}?next=${encodeURIComponent(returnTo)}`);
+    }
   }
 
   if (session.user.role === 'client') {

@@ -14,6 +14,33 @@ import type { ClientAccessTier } from './types';
 /** Чтение заголовка как в Next `headers()` (case-insensitive имена нормализует рантайм). */
 export type HeaderGetter = (name: string) => string | null;
 
+export type PatientEmailGateDecision = 'none' | 'request' | 'requirement';
+
+export type PatientEmailGateInput = {
+  emailVerified: boolean;
+  emailFirstRequestedAt: string | null;
+  now: Date;
+  pathname: string;
+};
+
+const PATIENT_EMAIL_REQUIREMENT_DELAY_MS = 14 * 24 * 60 * 60 * 1000;
+
+const PATIENT_EMAIL_GATE_EXEMPT_PREFIXES = [
+  '/app/patient/bind-email',
+  '/app/patient/profile',
+  '/app/patient/support',
+  '/app/patient/help',
+  '/app/patient/install',
+  '/api/auth/logout',
+  '/legal',
+] as const;
+
+function patientEmailGatePathIsExempt(path: string): boolean {
+  return PATIENT_EMAIL_GATE_EXEMPT_PREFIXES.some(
+    (prefix) => path === prefix || path.startsWith(`${prefix}/`),
+  );
+}
+
 function normalizeAppPatientPath(pathname: string): string {
   let path = pathname.trim();
   if (!path.startsWith('/app/patient')) {
@@ -48,6 +75,7 @@ export function resolvePatientLayoutPathname(getHeader: HeaderGetter): string {
  */
 const PATIENT_PAGE_PREFIXES_WITHOUT_PATIENT_TIER = [
   '/app/patient/bind-phone',
+  '/app/patient/bind-email',
   '/app/patient/profile',
   '/app/patient/organizations',
   '/app/patient/sections',
@@ -84,6 +112,29 @@ function pathMatchesAnyPrefix(path: string, prefixes: readonly string[]): boolea
 }
 
 /**
+ * Post-auth email policy for the patient cabinet. The first request starts one persistent clock;
+ * exactly fourteen days later the same outcome becomes blocking. Account/profile, help and exit
+ * paths stay reachable so the person can satisfy the requirement or leave.
+ */
+export function resolvePatientEmailGateDecision({
+  emailVerified,
+  emailFirstRequestedAt,
+  now,
+  pathname,
+}: PatientEmailGateInput): PatientEmailGateDecision {
+  const path = pathname.trim().split(/[?#]/u, 1)[0] ?? '';
+  if (patientEmailGatePathIsExempt(path)) return 'none';
+  if (emailVerified) return 'none';
+  if (!emailFirstRequestedAt) return 'request';
+
+  const firstRequestedAtMs = Date.parse(emailFirstRequestedAt);
+  if (!Number.isFinite(firstRequestedAtMs)) return 'requirement';
+  return now.getTime() - firstRequestedAtMs >= PATIENT_EMAIL_REQUIREMENT_DELAY_MS
+    ? 'requirement'
+    : 'request';
+}
+
+/**
  * Страницы, где сессия **опциональна** (гость): как в RSC с `getOptionalPatientSession`.
  * Не использовать префикс `/app/patient` целиком — иначе совпадёт с profile и т.д.
  */
@@ -109,6 +160,7 @@ function patientPageAllowsGuestOptionalSession(path: string): boolean {
  */
 const PATH_PREFIXES_ALLOWED_DURING_PHONE_ACTIVATION = [
   '/app/patient/bind-phone',
+  '/app/patient/bind-email',
   '/app/patient/help',
   '/app/patient/support',
   '/app/patient/sections',

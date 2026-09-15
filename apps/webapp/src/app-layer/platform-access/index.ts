@@ -10,6 +10,7 @@ import {
   resolvePlatformAccessContext as resolvePlatformAccessContextModule,
   type ResolvePlatformAccessContextInput,
 } from '@/modules/platform-access';
+import { getPlatformAccessPort } from '@/modules/platform-access/ports';
 
 export type { PatientBusinessGate } from '@/modules/platform-access';
 export type { PlatformAccessContext } from '@/modules/platform-access';
@@ -24,6 +25,11 @@ export async function resolvePlatformAccessContext(input: ResolvePlatformAccessC
 export async function patientClientBusinessGate(session: AppSession) {
   ensurePlatformAccessPortsBound();
   return patientClientBusinessGateModule(session);
+}
+
+export async function loadPatientEmailGateState(markFirstRequest: boolean) {
+  ensurePlatformAccessPortsBound();
+  return getPlatformAccessPort().loadPatientEmailGateState(markFirstRequest);
 }
 
 export async function resolvePatientCanViewAuthOnlyContent(

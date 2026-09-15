@@ -26,7 +26,10 @@ export {
   patientPathsAllowedDuringPhoneActivation,
   patientServerActionPageAllowsOnboardingOnly,
   patientSessionSnapshotHasPhone,
+  resolvePatientEmailGateDecision,
   resolvePatientLayoutPathname,
+  type PatientEmailGateDecision,
+  type PatientEmailGateInput,
 } from './patientRouteApiPolicy';
 export { patientOnboardingServerActionSurfaceOk } from './onboardingServerActionSurface';
 export { resolvePatientCanViewAuthOnlyContent } from './resolvePatientCanViewAuthOnlyContent';
