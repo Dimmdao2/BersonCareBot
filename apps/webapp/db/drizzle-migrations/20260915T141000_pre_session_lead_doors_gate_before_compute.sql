@@ -7,11 +7,10 @@
 -- lead door.  The landed L3 bodies initialized app.current_org_id()/statement_timestamp() in
 -- DECLARE, which computes before require_accepted_context.  This replacement preserves each
 -- body and moves only those initializations after its exact gate.
+
 CREATE OR REPLACE FUNCTION app.list_public_booking_form_fields(p_surface text) RETURNS jsonb
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path TO 'pg_catalog' AS $$
-DECLARE
-  v_org uuid;
-  v_fields jsonb;
+DECLARE v_org uuid; v_fields jsonb;
 BEGIN
   PERFORM app.require_accepted_context('app_seam_public_booking_owner'::name, 'app_tenant_service'::name, 'tenant_service'::app.port_context_class, 'booking.public-form-fields.read', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg]), 'app.list_public_booking_form_fields(text)'::regprocedure);
   v_org := app.current_org_id();
@@ -22,10 +21,6 @@ BEGIN
   RETURN v_fields;
 END $$;
 
---> statement-breakpoint
--- BCB-MIGRATION-OWNER: app_seam_public_booking_owner
--- BCB-MIGRATION-SCHEMA-CREATE: app
--- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 CREATE OR REPLACE FUNCTION app.create_public_lead(
   p_platform_user_id uuid,
   p_first_name text,
@@ -39,9 +34,7 @@ CREATE OR REPLACE FUNCTION app.create_public_lead(
   p_now timestamptz
 ) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'pg_catalog' AS $$
-DECLARE
-  v_org uuid;
-  v_lead public.leads%ROWTYPE;
+DECLARE v_org uuid; v_lead public.leads%ROWTYPE;
 BEGIN
   PERFORM app.require_accepted_context('app_seam_public_booking_owner'::name, 'app_tenant_service'::name, 'tenant_service'::app.port_context_class, 'leads.public-submit.create', app.hash_port_typed_args(ARRAY[ROW('uuid@1', pg_catalog.uuid_send($1))::app.port_typed_arg,ROW('text@1', pg_catalog.textsend($2))::app.port_typed_arg,ROW('text@1', pg_catalog.textsend($3))::app.port_typed_arg,ROW('text@1', pg_catalog.textsend($4))::app.port_typed_arg,ROW('text@1', pg_catalog.textsend($5))::app.port_typed_arg,ROW('text@1', pg_catalog.textsend($6))::app.port_typed_arg,ROW('text@1', pg_catalog.textsend($7))::app.port_typed_arg,ROW('text@1', pg_catalog.textsend($8))::app.port_typed_arg,ROW('text@1', pg_catalog.textsend($9))::app.port_typed_arg,ROW('timestamptz@1', pg_catalog.timestamptz_send($10))::app.port_typed_arg]), 'app.create_public_lead(uuid,text,text,text,text,text,text,text,text,timestamp with time zone)'::regprocedure);
   v_org := app.current_org_id();
@@ -53,10 +46,6 @@ BEGIN
   RETURN jsonb_build_object('id',v_lead.id,'organizationId',v_lead.organization_id,'platformUserId',v_lead.platform_user_id,'submittedFirstName',v_lead.submitted_first_name,'submittedLastName',v_lead.submitted_last_name,'submittedPatronymic',v_lead.submitted_patronymic,'submittedEmail',v_lead.submitted_email,'submittedPhone',v_lead.submitted_phone,'preferredContact',v_lead.preferred_contact,'messageText',v_lead.message_text,'status',v_lead.status,'rejectionComment',v_lead.rejection_comment,'rejectedAt',v_lead.rejected_at,'acceptedAt',v_lead.accepted_at,'closedAt',v_lead.closed_at,'archivedAt',v_lead.archived_at,'sourceSurface',v_lead.source_surface,'createdAt',v_lead.created_at,'updatedAt',v_lead.updated_at);
 END $$;
 
---> statement-breakpoint
--- BCB-MIGRATION-OWNER: app_seam_password_auth_owner
--- BCB-MIGRATION-SCHEMA-CREATE: app
--- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 CREATE OR REPLACE FUNCTION app.public_lead_issue_altcha_challenge(
   p_identifier_key text,
   p_challenge_id uuid,
@@ -70,6 +59,7 @@ DECLARE
 BEGIN
   PERFORM app.require_accepted_context('app_seam_password_auth_owner'::name, 'app_pre_session'::name, 'pre_session'::app.port_context_class, 'auth.public-lead.altcha-issue', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg,ROW('uuid@1', pg_catalog.uuid_send($2))::app.port_typed_arg,ROW('text@1', pg_catalog.textsend($3))::app.port_typed_arg,ROW('timestamptz@1', pg_catalog.timestamptz_send($4))::app.port_typed_arg]), 'app.public_lead_issue_altcha_challenge(text,uuid,text,timestamp with time zone)'::regprocedure);
   v_now := statement_timestamp();
+
   IF p_identifier_key IS NULL
     OR p_identifier_key !~ '^lead-email:v1:[0-9a-f]{64}$'
     OR p_challenge_id IS NULL
@@ -81,6 +71,7 @@ BEGIN
   THEN
     RETURN false;
   END IF;
+
   SELECT count(*)::integer
   INTO v_live_count
   FROM public.password_altcha_challenges AS challenge
@@ -88,20 +79,19 @@ BEGIN
     AND challenge.purpose = 'public_lead'
     AND challenge.consumed_at IS NULL
     AND challenge.expires_at > v_now;
+
   IF v_live_count >= 3 THEN
     RETURN false;
   END IF;
+
   INSERT INTO public.password_altcha_challenges (
     challenge_id, identifier_key, purpose, challenge_digest, expires_at
   )
   VALUES (p_challenge_id, p_identifier_key, 'public_lead', p_challenge_digest, p_expires_at);
+
   RETURN true;
 END $$;
 
---> statement-breakpoint
--- BCB-MIGRATION-OWNER: app_seam_password_auth_owner
--- BCB-MIGRATION-SCHEMA-CREATE: app
--- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 CREATE OR REPLACE FUNCTION app.public_lead_consume_altcha_challenge(
   p_identifier_key text,
   p_challenge_id uuid,
@@ -114,14 +104,17 @@ DECLARE
 BEGIN
   PERFORM app.require_accepted_context('app_seam_password_auth_owner'::name, 'app_pre_session'::name, 'pre_session'::app.port_context_class, 'auth.public-lead.altcha-consume', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg,ROW('uuid@1', pg_catalog.uuid_send($2))::app.port_typed_arg,ROW('text@1', pg_catalog.textsend($3))::app.port_typed_arg]), 'app.public_lead_consume_altcha_challenge(text,uuid,text)'::regprocedure);
   v_now := statement_timestamp();
+
   IF p_identifier_key IS NULL OR p_challenge_id IS NULL OR p_challenge_digest IS NULL THEN
     RETURN false;
   END IF;
+
   SELECT challenge.*
   INTO v_challenge
   FROM public.password_altcha_challenges AS challenge
   WHERE challenge.challenge_id = p_challenge_id
   FOR UPDATE;
+
   IF NOT FOUND
     OR v_challenge.purpose IS DISTINCT FROM 'public_lead'
     OR v_challenge.identifier_key IS DISTINCT FROM p_identifier_key
@@ -131,8 +124,10 @@ BEGIN
   THEN
     RETURN false;
   END IF;
+
   UPDATE public.password_altcha_challenges AS challenge
   SET consumed_at = v_now
   WHERE challenge.challenge_id = p_challenge_id;
+
   RETURN true;
 END $$;
