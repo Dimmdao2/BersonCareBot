@@ -42,6 +42,7 @@ import {
 import { InternationalPhoneInput } from '@/shared/ui/patient/auth/InternationalPhoneInput';
 import {
   AUTH_LOGIN_ACCENT_TEXT_CLASS,
+  AUTH_LOGIN_ENTRY_SHELL_PADDING_CLASS,
   AUTH_LOGIN_FORM_PRIMARY_BUTTON_CLASS,
   AUTH_LOGIN_OUTLINE_BUTTON_CLASS,
   AUTH_LOGIN_PRIMARY_BUTTON_CLASS,
@@ -2532,7 +2533,11 @@ export function AuthFlowV2({
     return (
       <div
         id="auth-flow-v2-oauth-first"
-        className={cn(authFlowShellClass, 'items-center text-center')}
+        className={cn(
+          authFlowShellClass,
+          AUTH_LOGIN_ENTRY_SHELL_PADDING_CLASS,
+          'items-center text-center',
+        )}
       >
         <div className="flex w-full flex-col items-center gap-3">
           {passkeyEnabled ? (
@@ -2591,6 +2596,15 @@ export function AuthFlowV2({
           >
             Войти по номеру телефона
           </Button>
+        ) : null}
+        {/* Связь с поддержкой — в самом низу блока с кнопками (владелец 15.09). Это первый экран
+            входа: именно здесь человек застревает, если ни один способ ему не подходит, и здесь же
+            ссылка на помощь стоит у почти всех, у кого мы смотрели. Из правового подвала страницы
+            она убрана, чтобы не стоять в двух местах сразу. */}
+        {supportContactHref ? (
+          <SupportContactLink href={supportContactHref} className={authLinkButtonClass}>
+            Связь с поддержкой
+          </SupportContactLink>
         ) : null}
       </div>
     );

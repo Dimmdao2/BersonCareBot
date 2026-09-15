@@ -35,6 +35,12 @@ export type PatientAppShellProps = {
   patientHideHome?: boolean;
   patientHideRightIcons?: boolean;
   patientBrandTitleBar?: boolean;
+  /**
+   * Убрать верхнюю плашку целиком. Нужна пациентской двери входа: владелец 15.09 — «шапку убрать с
+   * этого экрана». Знак организации там и так стоит над формой, а плашка с именем платформы лишь
+   * повторяла его и съедала верх экрана. Двери врача и админа плашку сохраняют.
+   */
+  patientHideGatedHeader?: boolean;
   patientTitleBadge?: string;
   patientHideBottomNav?: boolean;
   patientSuppressShellTitle?: boolean;
@@ -54,6 +60,7 @@ export function PatientAppShell({
   patientHideHome = false,
   patientHideRightIcons = false,
   patientBrandTitleBar = false,
+  patientHideGatedHeader = false,
   patientTitleBadge,
   patientHideBottomNav = false,
   patientSuppressShellTitle = false,
@@ -135,7 +142,7 @@ export function PatientAppShell({
             ) : null}
           </>
         ) : null}
-        {showPatientShellNav ? null : (
+        {showPatientShellNav || patientHideGatedHeader ? null : (
           <div data-testid="patient-gated-header-wrap">
             <PatientGatedHeader
               pageTitle={title}

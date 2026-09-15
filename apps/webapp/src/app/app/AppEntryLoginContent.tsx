@@ -43,6 +43,14 @@ type AppEntryLoginContentProps = {
   embeddedInSurfaceShell?: boolean;
   /** `/app/doctor/register`: its own door, not a same-page toggle off `/app/doctor/login`. */
   roleLoginInitialView?: 'login' | 'register';
+  /**
+   * Раскладка пациентской двери: группа прижата к верху фиксированным отступом, а правовые ссылки
+   * уходят в самый низ экрана. Владелец 15.09: «иконку терапиго поднять на половину верхнего
+   * пространства… не надо делать её адаптивной… ссылки на документы убрать в самый низ». Прежняя
+   * раскладка центрировала всю группу по высоте viewport — то есть зависела от телефона; здесь
+   * высота задана числом. Двери врача и админа остаются на прежней центрированной раскладке.
+   */
+  topAnchoredLayout?: boolean;
 };
 
 export function AppEntryLoginContent({
@@ -59,7 +67,49 @@ export function AppEntryLoginContent({
   surfaceAuthPolicy,
   embeddedInSurfaceShell = false,
   roleLoginInitialView = 'login',
+  topAnchoredLayout = false,
 }: AppEntryLoginContentProps) {
+  const portalHeader =
+    roleLoginPortal && !embeddedInSurfaceShell ? (
+      <RoleLoginPortalHeader
+        portal={roleLoginPortal}
+        surfaceName={roleLoginSurfaceName ?? ''}
+        brandLogoUrl={roleLoginBrandLogoUrl ?? null}
+        brandedSurface={Boolean(roleLoginBrandedSurface)}
+      />
+    ) : null;
+  const authFlow = (
+    <Suspense fallback={<AppContentLoading className="py-6" />}>
+      <AuthBootstrap
+        supportContactHref={supportContactHref}
+        initialPublicAuthConfig={prefetchedPublicAuth ?? null}
+        serverPlatformMessengerCookie={Boolean(serverPlatformMessengerCookie)}
+        serverMessengerSurface={serverMessengerSurface ?? null}
+        entryClassification={entryClassification}
+        routeBoundMiniappEntry={routeBoundMiniappEntry}
+        roleLoginPortal={roleLoginPortal}
+        surfaceAuthPolicy={surfaceAuthPolicy}
+        preferEmailEntry={embeddedInSurfaceShell}
+        roleLoginInitialView={roleLoginInitialView}
+      />
+    </Suspense>
+  );
+
+  if (topAnchoredLayout) {
+    // Три числа вместо центрирования: отступ сверху до знака, шаг до карточки и правовые ссылки,
+    // прижатые к низу экрана (`mt-auto`). Связи с поддержкой здесь нет — она переехала внутрь
+    // карточки, в самый низ блока с кнопками (владелец 15.09).
+    return (
+      <div id={CLIENT_BOOT_ACTIVE_CONTENT_ID} className="flex flex-1 flex-col">
+        <div className="flex flex-col gap-6 pt-[84px]">
+          {portalHeader}
+          {authFlow}
+        </div>
+        <LegalFooterLinks className="mt-auto pb-6 pt-8" />
+      </div>
+    );
+  }
+
   return (
     // Один flex-столбец на весь блок (шапка портала + форма + footer) вместо двух несвязанных
     // секций — иначе рёбра между ними определял голый document flow, а не системный gap. `flex-1
@@ -69,28 +119,8 @@ export function AppEntryLoginContent({
       id={CLIENT_BOOT_ACTIVE_CONTENT_ID}
       className="flex flex-1 flex-col justify-center gap-6"
     >
-      {roleLoginPortal && !embeddedInSurfaceShell ? (
-        <RoleLoginPortalHeader
-          portal={roleLoginPortal}
-          surfaceName={roleLoginSurfaceName ?? ''}
-          brandLogoUrl={roleLoginBrandLogoUrl ?? null}
-          brandedSurface={Boolean(roleLoginBrandedSurface)}
-        />
-      ) : null}
-      <Suspense fallback={<AppContentLoading className="py-6" />}>
-        <AuthBootstrap
-          supportContactHref={supportContactHref}
-          initialPublicAuthConfig={prefetchedPublicAuth ?? null}
-          serverPlatformMessengerCookie={Boolean(serverPlatformMessengerCookie)}
-          serverMessengerSurface={serverMessengerSurface ?? null}
-          entryClassification={entryClassification}
-          routeBoundMiniappEntry={routeBoundMiniappEntry}
-          roleLoginPortal={roleLoginPortal}
-          surfaceAuthPolicy={surfaceAuthPolicy}
-          preferEmailEntry={embeddedInSurfaceShell}
-          roleLoginInitialView={roleLoginInitialView}
-        />
-      </Suspense>
+      {portalHeader}
+      {authFlow}
       {embeddedInSurfaceShell ? null : (
         <LegalFooterLinks className="mt-2" supportHref={supportContactHref} />
       )}

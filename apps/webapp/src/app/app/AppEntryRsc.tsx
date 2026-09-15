@@ -123,6 +123,7 @@ export async function AppEntryRsc({
       surfaceAuthPolicy={surfaceAuthPolicy}
       embeddedInSurfaceShell={therapyGoBrowserEntry}
       roleLoginInitialView={roleLoginInitialView}
+      topAnchoredLayout={effectiveRoleLoginPortal === 'patient' && !therapyGoBrowserEntry}
     />
   );
   const unsupportedClientFallback = clientEnvironment ? (
@@ -171,6 +172,9 @@ export async function AppEntryRsc({
     );
   }
 
+  // Пациентская дверь входа — без верхней плашки: владелец 15.09 «шапку убрать с этого экрана».
+  // Знак организации стоит над формой, и плашка с тем же именем только повторяла его. Остальные
+  // случаи этой ветки (miniapp-входы Telegram/MAX) плашку сохраняют — их разбираем отдельно.
   return (
     <PatientAppShell
       title={shellTitle}
@@ -178,6 +182,7 @@ export async function AppEntryRsc({
       patientHideHome
       patientHideRightIcons
       patientBrandTitleBar
+      patientHideGatedHeader={effectiveRoleLoginPortal === 'patient'}
       patientHideBottomNav
     >
       {loginContent}
