@@ -29,6 +29,7 @@ import { parseSupportedClientEnvironment } from '@/modules/auth/supportedClientM
 import { authPolicyNameForRoleLoginPortal, type RoleLoginPortal } from '@/modules/auth/roleLogin';
 import { TherapyGoLoginShell } from '@/shared/ui/patient/auth/TherapyGoLoginShell';
 import { AdminLoginShell } from '@/shared/ui/auth/AdminLoginShell';
+import { anonymousBrandLogoUrl } from '@/shared/lib/brand/anonymousBrandLogo';
 import { StaffLoginShell } from '@/shared/ui/auth/StaffLoginShell';
 
 export type AppEntrySearchParams = { next?: string; t?: string; token?: string; switch?: string };
@@ -118,7 +119,7 @@ export async function AppEntryRsc({
       routeBoundMiniappEntry={routeBoundMessengerSurface != null}
       roleLoginPortal={effectiveRoleLoginPortal}
       roleLoginSurfaceName={shellTitle}
-      roleLoginBrandLogoUrl={resolvedSurface.effectivePatientBrand?.logoUrl ?? null}
+      roleLoginBrandLogoUrl={anonymousBrandLogoUrl(resolvedSurface.effectivePatientBrand)}
       roleLoginBrandedSurface={resolvedSurface.surface === 'patient_branded'}
       surfaceAuthPolicy={surfaceAuthPolicy}
       embeddedInSurfaceShell={therapyGoBrowserEntry}

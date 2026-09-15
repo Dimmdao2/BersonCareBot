@@ -1,9 +1,10 @@
+import { anonymousBrandLogoUrl } from '@/shared/lib/brand/anonymousBrandLogo';
 import type { JoinBrand } from './JoinPatientClient';
 
 /** Бренд поверхности, на которой открыли приглашение. Ровно то, что нужно решению. */
 export type JoinSurfaceBrand = {
   organizationId: string | undefined;
-  patientBrand: { logoUrl?: string } | undefined;
+  patientBrand: { appIconMediaId?: string } | undefined;
 };
 
 /**
@@ -30,5 +31,8 @@ export function joinBrandFor(
   if (!patientBrand) return { platformLockup: true };
   const sameClinic =
     inviteOrganizationId !== null && surface?.organizationId === inviteOrganizationId;
-  return sameClinic && patientBrand.logoUrl ? { clinicLogoUrl: patientBrand.logoUrl } : {};
+  // Экран приглашения открывают БЕЗ сессии, поэтому знак берётся из публичной двери, а не из
+  // сессионного `/api/media` — см. `anonymousBrandLogoUrl`.
+  const clinicLogoUrl = sameClinic ? anonymousBrandLogoUrl(patientBrand) : null;
+  return clinicLogoUrl ? { clinicLogoUrl } : {};
 }
