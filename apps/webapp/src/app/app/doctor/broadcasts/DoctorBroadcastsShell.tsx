@@ -37,7 +37,7 @@ export function DoctorBroadcastsShell({
         title="Рассылки"
         info={
           <Link
-            href="/app/settings?tab=organization#clinic-delivery-channels"
+            href="/app/settings?tab=branding#clinic-delivery-channels"
             className={buttonVariants({ variant: 'outline', size: 'sm' })}
           >
             <Settings aria-hidden className="size-4" />

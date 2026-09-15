@@ -160,7 +160,11 @@ describe('settings organization branding read', () => {
   });
 
   it('reads clinic A branding inside its trusted workspace principal, including read-only state', async () => {
-    await expect(SettingsPage({})).resolves.toBeTruthy();
+    // Бренд организации правится во вкладке «Профиль» (разбор настроек 15.09.2026); без вкладки
+    // экран открывает «Аккаунт», где бренда нет вовсе.
+    await expect(
+      SettingsPage({ searchParams: Promise.resolve({ tab: 'profile' }) }),
+    ).resolves.toBeTruthy();
 
     expect(fakes.withDoctorWorkspacePrincipal).toHaveBeenCalledWith(
       expect.objectContaining({ organizationId }),

@@ -58,7 +58,7 @@ import { routePaths } from '@/app-layer/routes/paths';
  * "Оплатить тариф" button (`PayTariffButton.tsx`), whether the payer got there by clicking it (K0)
  * or is only seeing the resulting invoice later after an unattended autopay tick (К5).
  */
-const SAAS_BILLING_RETURN_URL = `${env.APP_BASE_URL}${routePaths.settings}?tab=billing`;
+const SAAS_BILLING_RETURN_URL = `${env.APP_BASE_URL}${routePaths.settings}?tab=account`;
 
 /**
  * §5a/2.1c — INVARIANT OF THE TWO MONEY FLOWS. The path by which a clinic pays US for its tariff is
@@ -493,7 +493,7 @@ export function createSaasBillingService(dependencies: {
     },
     storage_package: {
       idempotencyNamespace: 'saas_storage_package',
-      returnUrl: `${env.APP_BASE_URL}${routePaths.settings}?tab=billing`,
+      returnUrl: `${env.APP_BASE_URL}${routePaths.settings}?tab=account`,
       returnUrlParam: 'storagePayment',
       intentPurpose: 'saas_billing_storage_package',
       description: SAAS_BILLING_STORAGE_PACKAGE_DESCRIPTION,

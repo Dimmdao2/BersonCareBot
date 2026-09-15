@@ -32,7 +32,7 @@ export default async function DoctorSectionLayout({ children }: { children: Reac
     if (shell.canRenderClinicalChildren) {
       return children;
     }
-    redirect('/app/settings?tab=organization');
+    redirect('/app/settings?tab=profile');
   }
 
   return (

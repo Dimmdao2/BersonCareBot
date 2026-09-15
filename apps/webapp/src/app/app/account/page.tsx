@@ -1,159 +1,27 @@
-import type { ReactNode } from 'react';
 import { redirect } from 'next/navigation';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import { DoctorAccountEmailSection } from '@/app/app/settings/DoctorAccountEmailSection';
-import { DoctorScreensToggleSection } from '@/app/app/settings/DoctorScreensToggleSection';
-import { SettingsForm } from '@/app/app/settings/SettingsForm';
 import { loadStaffNotificationsSection } from '@/app/app/account/staffNotificationsSection';
 import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
-import { LogoutForm } from '@/shared/ui/LogoutForm';
-import { StaffPwaInstallSection } from '@/shared/ui/doctor/pwa/StaffPwaInstallSection';
 import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
-import { Button } from '@/shared/ui/doctor/primitives/button';
-import {
-  DoctorSection,
-  DoctorSectionHeader,
-  DoctorSectionTitle,
-} from '@/shared/ui/doctor/DoctorSection';
+import { routePaths } from '@/app-layer/routes/paths';
 import { AccountTabs, type AccountTab } from './AccountTabs';
 import { loadStaffAccountPageContext } from './accountContext';
-import { StaffSecuritySection } from './StaffSecuritySection';
-import { StaffPasskeySection } from './StaffPasskeySection';
-import { LoginDevicesCard } from '@/shared/ui/security/LoginDevicesCard';
-import { loadOwnLoginDevices } from '@/app-layer/identity/ownLoginDevices';
+import { InstallSection, loadProfileContent, loadSecurityContent } from './accountSections';
 import { isRestrictedStaffSecuritySession } from '@/app-layer/guards/requireRole';
-import { runWithStaffSecuritySelfPrincipal } from '@/app-layer/principal/staffSecuritySelfPrincipal';
-import { isIndependentAuthMethodEnabled } from '@/modules/auth/authChannelPolicy';
-import type { DoctorWorkspaceContext } from '@/modules/doctor-workspace/types';
 
-function valueOf<T>(valueJson: unknown, fallback: T): T {
-  return valueJson !== null &&
-    typeof valueJson === 'object' &&
-    'value' in (valueJson as Record<string, unknown>)
-    ? ((valueJson as Record<string, unknown>).value as T)
-    : fallback;
-}
+/** Куда уходит личная вкладка, когда у человека есть «Профиль и настройки». */
+const ACCOUNT_TAB_IN_SETTINGS: Record<AccountTab, string> = {
+  profile: 'account',
+  security: 'account',
+  notifications: 'notifications',
+  install: 'workspace',
+};
 
 function parseTab(raw: string | string[] | undefined): AccountTab {
   const value = typeof raw === 'string' ? raw : raw?.[0];
   return value === 'security' || value === 'notifications' || value === 'install'
     ? value
     : 'profile';
-}
-
-function InstallSection() {
-  return (
-    <DoctorSection>
-      <DoctorSectionHeader>
-        <DoctorSectionTitle>Установка на устройство</DoctorSectionTitle>
-      </DoctorSectionHeader>
-      <StaffPwaInstallSection />
-    </DoctorSection>
-  );
-}
-
-function LogoutSection() {
-  return (
-    <DoctorSection>
-      <DoctorSectionHeader>
-        <DoctorSectionTitle>Сеанс</DoctorSectionTitle>
-      </DoctorSectionHeader>
-      <LogoutForm>
-        <Button type="submit" variant="destructive">
-          Выйти
-        </Button>
-      </LogoutForm>
-    </DoctorSection>
-  );
-}
-
-async function loadProfileContent(
-  deps: ReturnType<typeof buildAppDeps>,
-  userId: string,
-  workspaceContext: DoctorWorkspaceContext | null,
-): Promise<ReactNode> {
-  const accountEmail = await deps.userProjection.getProfileEmailFields(userId);
-  const doctorSettings = workspaceContext?.canAccessClinicalWorkspace
-    ? await deps.systemSettings.listSettingsByScope('doctor', {
-        organizationId: workspaceContext.organizationId,
-      })
-    : [];
-  return (
-    <>
-      <DoctorAccountEmailSection
-        initialEmail={accountEmail.email}
-        emailVerified={Boolean(accountEmail.emailVerifiedAt)}
-      />
-      {workspaceContext?.canManageOrganization && workspaceContext.specialistId != null ? (
-        <DoctorScreensToggleSection initialDisabled={workspaceContext.doctorScreensDisabled} />
-      ) : null}
-      {workspaceContext?.canAccessClinicalWorkspace ? (
-        <SettingsForm
-          patientLabel="пациент"
-          smsFallbackEnabled={valueOf(
-            doctorSettings.find(
-              (setting) =>
-                setting.key === 'sms_fallback_enabled' &&
-                setting.organizationId === workspaceContext.organizationId,
-            )?.valueJson,
-            false,
-          )}
-          supportCommentsWithoutSupportDefault={false}
-          supportMediaWithoutSupportDefault={false}
-          showPatientLabel={false}
-          showSmsFallback
-          showSupportDefaults={false}
-        />
-      ) : null}
-      <LogoutSection />
-    </>
-  );
-}
-
-async function loadSecurityContent(
-  deps: ReturnType<typeof buildAppDeps>,
-  session: Awaited<ReturnType<typeof loadStaffAccountPageContext>>['session'],
-  workspaceContext: DoctorWorkspaceContext | null,
-  recoveryOnly: boolean,
-  isPlatformConsole: boolean,
-): Promise<ReactNode> {
-  const [storedStatus, passkeyEnabled, loginDevices] = await Promise.all([
-    runWithStaffSecuritySelfPrincipal(session.user.userId, 'app/account:security-self', () =>
-      deps.staffSecurity.getStatus(),
-    ),
-    recoveryOnly ? Promise.resolve(false) : isIndependentAuthMethodEnabled('passkey'),
-    // Во время восстановления защиты экран урезан до самого восстановления — список устройств там
-    // лишний шум, а не помощь. См. ветку `recoveryOnly` в `AccountPage`.
-    recoveryOnly ? Promise.resolve(null) : loadOwnLoginDevices(),
-  ]);
-  const status = storedStatus ?? {
-    enrolled: false,
-    recoveryConfirmed: false,
-    replacementRequired: false,
-    lockedUntil: null,
-    sessionVersion: 0,
-  };
-  return (
-    <>
-      <StaffSecuritySection
-        initialStatus={status}
-        hasProfileName={Boolean(session.user.displayName.trim())}
-        hasOrganization={workspaceContext !== null}
-        hasSpecialistBinding={workspaceContext?.specialistId != null}
-        showSpecialistFirstRun={!isPlatformConsole}
-        recoveryOnly={recoveryOnly}
-      />
-      {passkeyEnabled ? <StaffPasskeySection /> : null}
-      {/*
-        #1112, Л-6д. Решение владельца 14.09: «раскатывай в Учетку -> Безопасность». Кнопки
-        «завершить другие сеансы» здесь НЕ добавляется — она уже есть выше, в `StaffSecuritySection`,
-        и вторая копия читалась бы как второе, другое действие.
-      */}
-      {loginDevices ? (
-        <LoginDevicesCard devices={loginDevices.devices} loadFailed={loginDevices.loadFailed} />
-      ) : null}
-    </>
-  );
 }
 
 export default async function AccountPage({
@@ -171,6 +39,20 @@ export default async function AccountPage({
     session.staffSecurity?.assurance === 'recovery' ||
     session.staffSecurity?.assurance === 'recovery_confirmation';
   const tab = restrictedSecuritySession ? 'security' : requestedTab;
+
+  /**
+   * У кого есть право управлять организацией, у того личные разделы теперь живут вкладками
+   * «Профиля и настроек» (владелец 15.09.2026: «перенести ВСЕ настройки для СОЛО в блок аккаунта…
+   * все в одно место»). Отдельная страница остаётся персоналу клиники БЕЗ этого права — им в
+   * настройки организации нельзя, и второго места у них не появляется.
+   *
+   * Сеанс восстановления и урезанный сеанс сюда не попадают: там экран нарочно сведён к самому
+   * восстановлению, и уводить человека в настройки посреди него нельзя.
+   */
+  if (!recoveryOnly && !restrictedSecuritySession && workspaceContext?.canManageOrganization) {
+    redirect(`${routePaths.settings}?tab=${ACCOUNT_TAB_IN_SETTINGS[tab]}`);
+  }
+
   const deps = buildAppDeps();
 
   const showProfile = tab === 'profile';
