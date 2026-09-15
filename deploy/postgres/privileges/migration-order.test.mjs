@@ -383,3 +383,29 @@ test('the real migration folder has no collision outside the frozen baseline', (
 
   assert.deepEqual(collisions, [], collisions.map((c) => `${c.timestamp}: ${c.tags.join(', ')}`).join('\n'));
 });
+
+test('ограничение соседнего оператора не приписывается таблице предыдущего', () => {
+  // 15.09.2026: блок режется только по `--> statement-breakpoint`, поэтому два ALTER TABLE через
+  // `;` приезжали в разбор одной строкой, и список изменений второго доставался таблице первого.
+  // Живое следствие: гейт искал org_enrollments_portal_activation_check на be_booking_form_fields,
+  // не находил и отказывал КАЖДОЙ выкатке TEST, хотя ограничение стояло там, где и должно.
+  const source = [
+    '-- BCB-MIGRATION-OWNER: app_object_owner',
+    '-- BCB-MIGRATION-VERIFY: SELECT 1',
+    'ALTER TABLE public.first_table',
+    "  ADD CONSTRAINT first_table_shape_check CHECK (kind = ANY (ARRAY['a'::text, 'b'::text]));",
+    'ALTER TABLE public.second_table',
+    '  ADD CONSTRAINT second_table_shape_check CHECK (value > 0);',
+  ].join('\n');
+
+  const objects = collectExpectedObjects([
+    { tag: '20260101T000000_two_alters', path: '20260101T000000_two_alters.sql', source, hash: '' },
+  ]);
+
+  const second = objects.find((object) => object.name === 'second_table_shape_check');
+  const first = objects.find((object) => object.name === 'first_table_shape_check');
+
+  assert.equal(first?.relation?.name, 'first_table');
+  // Разбор второго оператора не обязателен; обязательно — не приписать его первой таблице.
+  assert.notEqual(second?.relation?.name, 'first_table');
+});
