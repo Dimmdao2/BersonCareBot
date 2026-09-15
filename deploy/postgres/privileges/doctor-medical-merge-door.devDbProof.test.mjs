@@ -159,11 +159,10 @@ test('роль врача не может выписать себе основа
 });
 
 test('врач чужой организации не проходит дверь конфликта соседней клиники', { skip: !ENABLED }, () => {
+  // Ветки «под этой поломкой ждём FAIL» здесь намеренно НЕТ: она инвертирует сигнал и делает
+  // прогон под инъекцией зелёным. Этот сценарий обязан краснеть по-настоящему — им и доказывается,
+  // что снос сверки организации в двери набор замечает.
   proof('doctor-medical-merge-foreign-org.proofBody.mjs', (output) => {
-    if (FAULT === 'foreign-org-conflict') {
-      assert.match(output, /RESULT: FAIL/u, output);
-      return;
-    }
     assert.match(output, /doctor B pressed merge on clinic A's conflict, door returned: .*"mergeOutcome":"conflict_not_found"/u, output);
     assert.match(output, /"clinic_a_row":"pending\/null"/u, output);
     assert.match(output, /"duplicate_merged_into":null/u, output);
