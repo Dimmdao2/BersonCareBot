@@ -23,6 +23,7 @@ import { saveContentPage } from '../actions';
 import { applyContentLifecycle } from '../lifecycleActions';
 import { saveContentSection } from './actions';
 import type { OrgEntitlementsPort } from '@/modules/org-entitlements/ports';
+import { serializeTiptapRichText } from '@/shared/lib/richText';
 
 const organizationId = '11111111-1111-4111-8111-111111111111';
 
@@ -179,7 +180,15 @@ describe('saveContentSection entitlement boundary', () => {
     const data = pageFormData();
     data.set(
       'body_md',
-      '[long-video.mp4](/api/media/00000000-0000-4000-8000-0000000000c3)',
+      serializeTiptapRichText({
+        type: 'doc',
+        content: [
+          {
+            type: 'video',
+            attrs: { src: '/api/media/00000000-0000-4000-8000-0000000000c3' },
+          },
+        ],
+      }),
     );
     const upsert = vi.fn();
     const getVideoAttachmentDurationRejection = vi.fn().mockResolvedValue({
