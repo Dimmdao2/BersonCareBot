@@ -41,10 +41,6 @@ vi.mock('@/modules/auth/oauthService', () => ({
 vi.mock('@/app-layer/product-analytics/recordAuthLogin', () => ({ recordAuthLogin: vi.fn() }));
 vi.mock('@/modules/auth/service', () => ({ setSessionFromUser: vi.fn() }));
 vi.mock('@/modules/auth/redirectPolicy', () => ({ getPostAuthRedirectTarget: vi.fn() }));
-vi.mock('@/modules/auth/envRole', () => ({
-  reconcileDbRoleWithEnvRole: vi.fn(),
-  resolveRoleAsync: vi.fn(),
-}));
 vi.mock('@/modules/auth/oauthYandexResolve', () => ({ resolveUserIdForYandexOAuth: vi.fn() }));
 vi.mock('@/app-layer/principal/staffSecuritySelfPrincipal', () => ({
   enterStaffSecuritySelfPrincipal: vi.fn(),

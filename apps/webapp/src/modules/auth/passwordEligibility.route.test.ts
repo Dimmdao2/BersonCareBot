@@ -40,10 +40,6 @@ vi.mock('@/modules/auth/emailAuth', () => ({
 }));
 vi.mock('@/modules/auth/pinHash', () => ({ hashPin: vi.fn().mockResolvedValue('hashed') }));
 vi.mock('@/modules/auth/service', () => ({ setSessionFromUser: fakes.setSession }));
-vi.mock('@/modules/auth/envRole', () => ({
-  resolveRoleFromEnv: vi.fn().mockResolvedValue('client'),
-  reconcileDbRoleWithEnvRole: (dbRole: string) => dbRole,
-}));
 vi.mock('@/shared/platform-user/isPlatformUserUuid', () => ({
   isPlatformUserUuid: vi.fn(() => true),
 }));

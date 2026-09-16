@@ -33,7 +33,7 @@ vi.mock('@/modules/auth/emailOtpPublic', () => ({
   confirmPublicEmailOtpChallenge: fakes.confirmPublicEmailOtpChallenge,
 }));
 vi.mock('@/modules/auth/service', () => ({ setSessionFromUser: fakes.setSessionFromUser }));
-vi.mock('@/modules/auth/envRole', () => ({
+vi.mock('@/modules/auth/emailAuth', () => ({
   isVerifiedEmailGlobalAdminAsync: fakes.isVerifiedEmailGlobalAdminAsync,
 }));
 vi.mock('@/app-layer/principal/staffSecuritySelfPrincipal', () => ({

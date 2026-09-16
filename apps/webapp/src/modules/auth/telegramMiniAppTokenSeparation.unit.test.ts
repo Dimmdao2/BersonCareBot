@@ -6,11 +6,17 @@ const fakes = vi.hoisted(() => ({
   cookieSet: vi.fn(),
   getTelegramBotToken: vi.fn<() => Promise<string>>(),
   getTelegramLoginWidgetBotToken: vi.fn<() => Promise<string>>(),
+  resolvedSurfaceHeader: '',
 }));
 
 vi.mock('next/headers', () => ({
   cookies: async () => ({ get: () => undefined, set: fakes.cookieSet }),
-  headers: async () => new Headers(),
+  headers: async () =>
+    new Headers(
+      fakes.resolvedSurfaceHeader
+        ? { 'x-bc-resolved-surface': fakes.resolvedSurfaceHeader }
+        : undefined,
+    ),
 }));
 vi.mock('@/config/env', () => ({
   env: {
@@ -24,11 +30,8 @@ vi.mock('@/config/env', () => ({
   isProduction: false,
   webappRuntimeDatabaseIsConfigured: () => false,
 }));
-vi.mock('./envRole', () => ({
+vi.mock('./emailAuth', () => ({
   isVerifiedEmailGlobalAdminAsync: vi.fn(async () => false),
-  reconcileDbRoleWithEnvRole: vi.fn((role: string) => role),
-  resolveRoleAsync: vi.fn(async () => 'client'),
-  isWhitelistedAsync: vi.fn(async () => true),
 }));
 vi.mock('@/modules/system-settings/integrationRuntime', () => ({
   getIntegratorWebappEntrySecret: vi.fn(async () => ''),
@@ -49,6 +52,7 @@ vi.mock('@/app-layer/di/bindAuthModulePorts', () => ({
 }));
 
 import { exchangeTelegramInitData } from './service';
+import { serializeResolvedSurface } from '@/shared/lib/surface/requestSurface';
 
 function telegramInitData(botToken: string): string {
   const entries = [
@@ -87,6 +91,11 @@ beforeEach(() => {
   vi.clearAllMocks();
   fakes.getTelegramBotToken.mockResolvedValue('delivery-bot-token');
   fakes.getTelegramLoginWidgetBotToken.mockResolvedValue('widget-bot-token');
+  fakes.resolvedSurfaceHeader = serializeResolvedSurface({
+    surface: 'patient_default',
+    publicOrigin: 'https://therapygo.example.test',
+    authPolicy: { availableMethods: ['phone_bot'], enabledMethods: ['phone_bot'] },
+  });
 });
 
 afterEach(() => {
@@ -103,6 +112,25 @@ describe('Telegram Mini App token separation', () => {
     await expect(
       exchangeTelegramInitData(telegramInitData('widget-bot-token'), identityPort),
     ).resolves.toBeNull();
+    expect(fakes.cookieSet).not.toHaveBeenCalled();
+  });
+
+  it('does not mint a staff session through the patient Mini App surface', async () => {
+    vi.mocked(identityPort.resolveByChannelBinding).mockResolvedValueOnce({
+      user: {
+        userId: '00000000-0000-4000-8000-000000001005',
+        role: 'doctor',
+        displayName: 'Test doctor',
+        bindings: { telegramId: '1005' },
+        contacts: [],
+        sessionEpoch: 0,
+      },
+      accountOutcome: 'linked_existing',
+    });
+
+    await expect(
+      exchangeTelegramInitData(telegramInitData('delivery-bot-token'), identityPort),
+    ).rejects.toThrow('auth_surface_role_mismatch');
     expect(fakes.cookieSet).not.toHaveBeenCalled();
   });
 });

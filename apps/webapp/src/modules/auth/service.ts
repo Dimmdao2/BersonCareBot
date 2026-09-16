@@ -5,12 +5,7 @@ import { decodeBase64Url } from '@/shared/utils/base64url';
 import { isProduction, webappRuntimeDatabaseIsConfigured } from '@/config/env';
 import type { AppSession, SessionUser, UserRole } from '@/shared/types/session';
 import { isPlatformUserUuid } from '@/shared/platform-user/isPlatformUserUuid';
-import {
-  isVerifiedEmailGlobalAdminAsync,
-  reconcileDbRoleWithEnvRole,
-  resolveRoleAsync,
-  isWhitelistedAsync,
-} from './envRole';
+import { isVerifiedEmailGlobalAdminAsync } from './emailAuth';
 import type { IdentityResolutionPort } from './identityResolutionPort';
 import type { AccountOutcome } from './oauthYandexResolve';
 import { getRedirectPathForRole } from './redirectPolicy';
@@ -241,6 +236,15 @@ async function persistNewAuthSession(
   session: AppSession,
   method: string,
 ): Promise<AppSession> {
+  // TEST/legacy may deliberately run staff and patient trees on one Host. Once deploy origins are
+  // distinct, every browser login must match the product selected by proxy's trusted surface
+  // header. This is the single mint-side gate shared by every session-producing path in this file.
+  if (arePlatformSurfaceHostsDistinct()) {
+    const resolvedSurface = await getOptionalResolvedSurface();
+    if (resolvedSurface && !roleCanUseRequestSurface(session.user.role, resolvedSurface.surface)) {
+      throw new Error('auth_surface_role_mismatch');
+    }
+  }
   const stamped = await withFreshSessionEpoch(session);
   cookieStore.set(
     SESSION_COOKIE_NAME,
@@ -438,36 +442,6 @@ export async function classifyVerifiedIntegratorTokenChannel(
     : null;
 }
 
-async function isAllowedByWhitelist(
-  parsed: IntegratorTokenPayload,
-  identityResolutionPort?: IdentityResolutionPort | null,
-): Promise<boolean> {
-  if (parsed.role === 'admin') return true;
-  const eff = effectiveMessengerBinding(parsed);
-  const tokenIds = {
-    telegramId: eff?.channelCode === 'telegram' ? eff.externalId : parsed.bindings?.telegramId,
-    maxId: eff?.channelCode === 'max' ? eff.externalId : parsed.bindings?.maxId,
-    phone: parsed.phone?.trim(),
-  };
-  if (await isWhitelistedAsync(tokenIds)) return true;
-
-  // For messenger entry tokens (especially MAX), token may not contain phone.
-  // If binding already exists, re-check whitelist against canonical user ids + phone.
-  if (!identityResolutionPort) return false;
-  const binding = eff;
-  if (!binding) return false;
-  const existing = await identityResolutionPort.findByChannelBinding({
-    channelCode: binding.channelCode,
-    externalId: binding.externalId,
-  });
-  if (!existing) return false;
-  return isWhitelistedAsync({
-    telegramId: existing.bindings?.telegramId ?? tokenIds.telegramId,
-    maxId: existing.bindings?.maxId ?? tokenIds.maxId,
-    phone: existing.phone?.trim() || tokenIds.phone,
-  });
-}
-
 /**
  * Legacy / compact entry tokens may encode messenger id only in `sub` (`tg:…`, `max:…`) without `bindings`.
  */
@@ -505,7 +479,6 @@ function webappEntryTokenMatchesVerifiedMessenger(
 /** Validates Telegram Web App initData (from window.Telegram.WebApp.initData). Returns user id and role or null. */
 async function validateTelegramInitData(initData: string): Promise<{
   telegramId: string;
-  role: UserRole;
   displayName?: string;
   startParam?: string;
 } | null> {
@@ -544,9 +517,6 @@ async function validateTelegramInitData(initData: string): Promise<{
   const telegramId = user.id != null ? String(user.id) : '';
   if (!telegramId) return null;
 
-  if (!(await isWhitelistedAsync({ telegramId }))) return null;
-
-  const role: UserRole = await resolveRoleAsync({ telegramId });
   const displayName =
     [user.first_name, user.last_name].filter(Boolean).join(' ').trim() || undefined;
 
@@ -554,13 +524,13 @@ async function validateTelegramInitData(initData: string): Promise<{
   const startParam =
     startParamRaw != null && startParamRaw.trim() !== '' ? startParamRaw.trim() : undefined;
 
-  return { telegramId, role, displayName, ...(startParam ? { startParam } : {}) };
+  return { telegramId, displayName, ...(startParam ? { startParam } : {}) };
 }
 
 function tokenToUser(token: IntegratorTokenPayload): SessionUser {
   return {
     userId: token.sub,
-    role: token.role,
+    role: 'client',
     displayName: token.displayName ?? token.sub,
     contacts: token.phone
       ? [
@@ -594,7 +564,6 @@ function firstBinding(
 export async function exchangeIntegratorToken(
   token: string,
   identityResolutionPort?: IdentityResolutionPort | null,
-  updateRoleFn?: ((platformUserId: string, role: string) => Promise<void>) | null,
 ): Promise<ExchangeResult | null> {
   const parsed = await parseIntegratorToken(token);
   if (!parsed) {
@@ -604,57 +573,31 @@ export async function exchangeIntegratorToken(
     return null;
   }
 
-  if (!(await isAllowedByWhitelist(parsed, identityResolutionPort))) {
-    if (process.env.NODE_ENV !== 'test') {
-      console.info(
-        '[auth/exchange] whitelist_rejected sub=%s telegramId=%s',
-        parsed.sub,
-        parsed.bindings?.telegramId,
-      );
-    }
-    return null;
-  }
+  const binding = effectiveMessengerBinding(parsed);
+  // Every active issuer names a Telegram/MAX identity. A signed token without that channel
+  // identity has no channel policy to pass and is not an authentication credential.
+  if (!binding || binding.channelCode === 'vk') return null;
 
   let user: SessionUser;
   let accountOutcome: AccountOutcome | undefined;
   if (identityResolutionPort) {
-    const binding = effectiveMessengerBinding(parsed);
-    if (binding) {
-      const resolved = await identityResolutionPort.resolveByChannelBinding({
-        channelCode: binding.channelCode,
-        externalId: binding.externalId,
-        displayName: parsed.displayName,
-        role: parsed.role,
-      });
-      // Track D (#987): a signed link whose binding names nobody is a dead end, not a sign-up.
-      if (!resolved) {
-        if (process.env.NODE_ENV !== 'test') {
-          console.info(
-            '[auth/exchange] binding_resolves_no_account channel=%s',
-            binding.channelCode,
-          );
-        }
-        return null;
+    const resolved = await identityResolutionPort.resolveByChannelBinding({
+      channelCode: binding.channelCode,
+      externalId: binding.externalId,
+      displayName: parsed.displayName,
+    });
+    // Track D (#987): a signed link whose binding names nobody is a dead end, not a sign-up.
+    if (!resolved) {
+      if (process.env.NODE_ENV !== 'test') {
+        console.info(
+          '[auth/exchange] binding_resolves_no_account channel=%s',
+          binding.channelCode,
+        );
       }
-      user = resolved.user;
-      accountOutcome = resolved.accountOutcome;
-    } else {
-      const subTrim = parsed.sub.trim();
-      // Phase C: bare platform UUID in `sub` (no messenger binding in token) → load canon from DB.
-      if (webappRuntimeDatabaseIsConfigured() && isPlatformUserUuid(subTrim)) {
-        enterStaffSecuritySelfPrincipal(subTrim, 'auth/exchange:signed-platform-self');
-        const fromDb = await requireSessionUserPort().findByUserId(subTrim);
-        if (!fromDb) {
-          if (process.env.NODE_ENV !== 'test') {
-            console.info('[auth/exchange] uuid_sub_no_platform_row');
-          }
-          return null;
-        }
-        user = fromDb;
-      } else {
-        user = tokenToUser(parsed);
-      }
+      return null;
     }
+    user = resolved.user;
+    accountOutcome = resolved.accountOutcome;
   } else {
     user = tokenToUser(parsed);
   }
@@ -667,21 +610,6 @@ export async function exchangeIntegratorToken(
     process.env.NODE_ENV !== 'test'
   ) {
     console.info('[auth/exchange] client_session_transport=legacy_non_uuid_onboarding_only');
-  }
-
-  // C-4: the messenger/phone allowlists never promote anyone anymore (envRole.ts), so this only
-  // ever composes back to `user.role` unchanged — see reconcileDbRoleWithEnvRole's doc comment.
-  // Kept (rather than deleted) so a role source that resolves something other than "client" here
-  // again in the future still cannot demote an existing DB-persisted staff role.
-  const envRole = await resolveRoleAsync({
-    phone: user.phone ?? parsed.phone,
-    telegramId: user.bindings?.telegramId ?? parsed.bindings?.telegramId,
-    maxId: user.bindings?.maxId ?? parsed.bindings?.maxId,
-  });
-  const reconciledRole = reconcileDbRoleWithEnvRole(user.role, envRole);
-  if (user.role !== reconciledRole) {
-    if (updateRoleFn) await updateRoleFn(user.userId, reconciledRole);
-    user = { ...user, role: reconciledRole };
   }
 
   const built = buildSession(user);
@@ -705,7 +633,6 @@ export async function exchangeIntegratorToken(
 export async function exchangeTelegramInitData(
   initData: string,
   identityResolutionPort?: IdentityResolutionPort | null,
-  updateRoleFn?: ((platformUserId: string, role: string) => Promise<void>) | null,
 ): Promise<ExchangeResult | null> {
   const parsed = await validateTelegramInitData(initData);
   if (!parsed) return null;
@@ -717,7 +644,6 @@ export async function exchangeTelegramInitData(
       channelCode: 'telegram',
       externalId: parsed.telegramId,
       displayName: parsed.displayName,
-      role: parsed.role,
     });
     // Track D (#987): opening the Mini App proves a Telegram id, not an account. No row → no session.
     if (!resolved) {
@@ -732,23 +658,11 @@ export async function exchangeTelegramInitData(
     // No DB port (tests): `tg:…` transport — onboarding-only for client tier; see `sessionCanonicalUserIdPolicy.ts`.
     user = {
       userId: `tg:${parsed.telegramId}`,
-      role: parsed.role,
+      role: 'client',
       displayName: parsed.displayName ?? parsed.telegramId,
       contacts: [],
       bindings: { telegramId: parsed.telegramId },
     };
-  }
-
-  // C-4: see the comment on the equivalent block in exchangeIntegratorToken above.
-  const envRole = await resolveRoleAsync({
-    phone: user.phone,
-    telegramId: parsed.telegramId,
-    maxId: user.bindings?.maxId,
-  });
-  const reconciledRole = reconcileDbRoleWithEnvRole(user.role, envRole);
-  if (user.role !== reconciledRole) {
-    if (updateRoleFn) await updateRoleFn(user.userId, reconciledRole);
-    user = { ...user, role: reconciledRole };
   }
 
   const cookieStore = await cookies();
@@ -778,7 +692,6 @@ export type MaxInitExchangeDenied = { denied: true; reason: MaxInitDenyReason };
 
 type ValidateMaxOk = {
   maxUserId: string;
-  role: UserRole;
   displayName?: string;
   startParam?: string;
 };
@@ -790,12 +703,10 @@ async function validateMaxInitData(
   if (!botToken) return { ok: false, reason: 'max_bot_api_key_missing' };
   const parseRes = parseMaxWebAppInitDataDetailed(initData, botToken);
   if (!parseRes.ok) return { ok: false, reason: parseRes.reason };
-  const role: UserRole = await resolveRoleAsync({ maxId: parseRes.data.maxUserId });
   return {
     ok: true,
     data: {
       maxUserId: parseRes.data.maxUserId,
-      role,
       ...(parseRes.data.displayName ? { displayName: parseRes.data.displayName } : {}),
       ...(parseRes.data.startParam ? { startParam: parseRes.data.startParam } : {}),
     },
@@ -806,7 +717,6 @@ async function validateMaxInitData(
 export async function exchangeMaxInitData(
   initData: string,
   identityResolutionPort?: IdentityResolutionPort | null,
-  updateRoleFn?: ((platformUserId: string, role: string) => Promise<void>) | null,
 ): Promise<ExchangeResult | MaxInitExchangeDenied> {
   const validated = await validateMaxInitData(initData);
   if (!validated.ok) return { denied: true, reason: validated.reason };
@@ -819,7 +729,6 @@ export async function exchangeMaxInitData(
       channelCode: 'max',
       externalId: parsed.maxUserId,
       displayName: parsed.displayName,
-      role: parsed.role,
     });
     // Track D (#987): same rule as Telegram — a valid MAX signature is not an account.
     if (!resolved) return { denied: true, reason: 'binding_resolves_no_account' };
@@ -828,23 +737,11 @@ export async function exchangeMaxInitData(
   } else {
     user = {
       userId: `max:${parsed.maxUserId}`,
-      role: parsed.role,
+      role: 'client',
       displayName: parsed.displayName ?? parsed.maxUserId,
       contacts: [],
       bindings: { maxId: parsed.maxUserId },
     };
-  }
-
-  // C-4: see the comment on the equivalent block in exchangeIntegratorToken above.
-  const envRole = await resolveRoleAsync({
-    phone: user.phone,
-    telegramId: user.bindings?.telegramId,
-    maxId: parsed.maxUserId,
-  });
-  const reconciledRole = reconcileDbRoleWithEnvRole(user.role, envRole);
-  if (user.role !== reconciledRole) {
-    if (updateRoleFn) await updateRoleFn(user.userId, reconciledRole);
-    user = { ...user, role: reconciledRole };
   }
 
   const cookieStore = await cookies();
@@ -870,7 +767,6 @@ export async function exchangeMaxInitData(
 export async function exchangeTelegramLoginWidget(
   raw: TelegramLoginWidgetPayload,
   identityResolutionPort?: IdentityResolutionPort | null,
-  updateRoleFn?: ((platformUserId: string, role: string) => Promise<void>) | null,
   webappEntryToken?: string | null,
 ): Promise<ExchangeResult | null> {
   // Подпись виджета проверяется токеном ЕГО бота, а не бота доставки и не бота Mini App: это разные
@@ -883,13 +779,9 @@ export async function exchangeTelegramLoginWidget(
 
   const telegramId = verified.telegramId;
 
-  if (!(await isWhitelistedAsync({ telegramId }))) return null;
-
   const fn = typeof raw.first_name === 'string' ? raw.first_name.trim() : '';
   const ln = typeof raw.last_name === 'string' ? raw.last_name.trim() : '';
   const displayName = [fn, ln].filter(Boolean).join(' ').trim();
-
-  const role = await resolveRoleAsync({ telegramId });
 
   let user: SessionUser;
   let accountOutcome: AccountOutcome | undefined;
@@ -898,7 +790,6 @@ export async function exchangeTelegramLoginWidget(
       channelCode: 'telegram',
       externalId: telegramId,
       displayName: displayName || undefined,
-      role,
     });
     // Track D (#987): the Login Widget signature proves the Telegram id, never an account.
     if (!resolved) {
@@ -913,23 +804,11 @@ export async function exchangeTelegramLoginWidget(
     // No DB port (tests): `tg:…` — onboarding-only for client; see `sessionCanonicalUserIdPolicy.ts`.
     user = {
       userId: `tg:${telegramId}`,
-      role,
+      role: 'client',
       displayName: displayName || telegramId,
       contacts: [],
       bindings: { telegramId },
     };
-  }
-
-  // C-4: see the comment on the equivalent block in exchangeIntegratorToken above.
-  const envRole = await resolveRoleAsync({
-    phone: user.phone,
-    telegramId,
-    maxId: user.bindings?.maxId,
-  });
-  const reconciledRole = reconcileDbRoleWithEnvRole(user.role, envRole);
-  if (user.role !== reconciledRole) {
-    if (updateRoleFn) await updateRoleFn(user.userId, reconciledRole);
-    user = { ...user, role: reconciledRole };
   }
 
   const cookieStore = await cookies();
@@ -1059,15 +938,8 @@ async function getCurrentSessionWithPrincipalMode(
       verifiedEmail = undefined;
     }
   }
-  // C-4 (2026-07-26, ADMIN_ACCESS_MODEL.md): admin/doctor used to be re-derived from the
-  // messenger/phone allowlists on every session refresh and PERSISTED over `session.user.role`
-  // whenever it differed. That path could only ever demote — `resolveRoleAsync` never promotes
-  // anyone anymore, see envRole.ts — and would have overwritten a legitimately DB-persisted
-  // staff role (e.g. the demo doctor account, whose bound phone used to also appear in
-  // `doctor_phones`) back to "client" on every request. `session.user.role` here is already the
-  // fresh `platform_users.role` (from `resolveSessionIdentityAgainstDb` above) or, for a
-  // non-DB-backed identity, the cookie's own role, which self-registration can never make staff
-  // (ADMIN_ACCESS_MODEL.md) — so it is used as-is; the lists are not consulted at all.
+  // The current DB projection is the only staff-role source. A non-DB-backed compatibility
+  // identity keeps the already signed cookie role; public sign-up paths cannot make it staff.
   const nextSession = session;
 
   if (await isVerifiedEmailGlobalAdminAsync(verifiedEmail)) {
@@ -1161,16 +1033,6 @@ export async function setSessionFromUser(
     staffSecurity?: AppSession['staffSecurity'];
   },
 ): Promise<void> {
-  // TEST/legacy may deliberately run staff and patient trees on one Host. Once deploy origins are
-  // distinct, every browser login must match the product selected by proxy's trusted surface
-  // header. This is the single mint-side gate shared by password, OTP, messenger, passkey and
-  // OAuth flows; no auth route may mint a cross-product session by forgetting its own check.
-  if (arePlatformSurfaceHostsDistinct()) {
-    const resolvedSurface = await getOptionalResolvedSurface();
-    if (resolvedSurface && !roleCanUseRequestSurface(user.role, resolvedSurface.surface)) {
-      throw new Error('auth_surface_role_mismatch');
-    }
-  }
   const session = buildSession(user);
   const full: AppSession = {
     ...session,

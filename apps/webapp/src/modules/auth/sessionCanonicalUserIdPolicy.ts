@@ -19,8 +19,7 @@
  * - any call path that omits `IdentityResolutionPort` (should be rare outside tests).
  *
  * **Not** a second class of “production patient id”: main login flows with DB inject `pgIdentityResolutionPort`
- * and write UUIDs. Integrator tokens with bare UUID `sub` and no messenger binding load the row via
- * `pgUserByPhonePort.findByUserId` in `exchangeIntegratorToken`.
+ * and write UUIDs. Integrator tokens without a messenger binding are rejected before session mint.
  *
  * **Server patient business:** Route Handlers под `/api/patient/*`, **`/api/booking/*`** и server actions с
  * `requirePatientAccessWithPhone` требуют `tier === "patient"` через **`patientClientBusinessGate`**

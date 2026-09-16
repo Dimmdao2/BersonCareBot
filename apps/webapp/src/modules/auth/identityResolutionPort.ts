@@ -29,7 +29,6 @@ export type IdentityResolutionPort = {
     channelCode: 'telegram' | 'max' | 'vk';
     externalId: string;
     displayName?: string;
-    role?: SessionUser['role'];
   }): Promise<ResolveByChannelBindingResult | null>;
   findByChannelBinding(params: {
     channelCode: 'telegram' | 'max' | 'vk';

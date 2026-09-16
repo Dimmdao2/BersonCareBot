@@ -129,6 +129,19 @@ async function resetEmailOtpLockoutForUser(userId: string): Promise<void> {
 
 export { normalizeEmail };
 
+/**
+ * The platform owner identity is the sole deliberate session-derived role exception to the
+ * persisted `platform_users.role`. It is checked against a verified email and fails closed.
+ */
+export async function isVerifiedEmailGlobalAdminAsync(
+  email: string | undefined,
+): Promise<boolean> {
+  const normalized = normalizeEmail(email ?? '');
+  if (!normalized) return false;
+  const pinned = normalizeEmail(env.PLATFORM_OWNER_IDENTITY ?? '');
+  return Boolean(pinned) && pinned === normalized;
+}
+
 function emailCodePepper(): string {
   return integratorWebhookSecret() || env.SESSION_COOKIE_SECRET || 'test-email-pepper';
 }

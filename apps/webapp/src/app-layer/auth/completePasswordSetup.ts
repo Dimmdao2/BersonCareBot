@@ -1,6 +1,5 @@
 import type { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { enterStaffSecuritySelfPrincipal } from '@/app-layer/principal/staffSecuritySelfPrincipal';
-import { reconcileDbRoleWithEnvRole, resolveRoleFromEnv } from '@/modules/auth/envRole';
 import { hashPin } from '@/modules/auth/pinHash';
 import {
   isPasswordEligibleRole,
@@ -31,7 +30,7 @@ export async function completePasswordSetupAfterVerification(params: {
   if (!isPlatformUserUuid(params.userId)) {
     return { ok: false, error: 'server_error', status: 500 };
   }
-  let sessionUser = await params.deps.userByPhone.findByUserId(params.userId);
+  const sessionUser = await params.deps.userByPhone.findByUserId(params.userId);
   if (!sessionUser) {
     return { ok: false, error: 'server_error', status: 500 };
   }
@@ -46,17 +45,6 @@ export async function completePasswordSetupAfterVerification(params: {
     params.emailNormalized,
     passwordHash,
   );
-
-  const envRole = resolveRoleFromEnv({
-    phone: sessionUser.phone,
-    telegramId: sessionUser.bindings.telegramId,
-    maxId: sessionUser.bindings.maxId,
-  });
-  const reconciledRole = reconcileDbRoleWithEnvRole(sessionUser.role, envRole);
-  if (sessionUser.role !== reconciledRole) {
-    await params.deps.userProjection.updateRole(sessionUser.userId, reconciledRole);
-    sessionUser = { ...sessionUser, role: reconciledRole };
-  }
 
   await setSessionFromUser(sessionUser, 'email_setup_code');
   return {
