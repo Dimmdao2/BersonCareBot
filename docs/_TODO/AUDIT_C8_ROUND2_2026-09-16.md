@@ -1,69 +1,87 @@
-# AUDIT C8 ROUND 2: коррекция почтового гейта
+# AUDIT C8 ROUND 2/3: коррекция почтового гейта
 
 Verdict: **FAIL**
 
-Source oracle: `docs/_TODO/STAFF_DOORS_HARDCODED_2026-09-16.md` — C8 «Почтовый код обязан доставляться там, где поверхность сама его потребовала» и решение «Второй фактор — выбор самого сотрудника». Самостоятельный `login` по коду остаётся пациентской дверью; в сотрудничьих дверях такого способа нет, а почтовый код сотрудника допустим только как уже выбранный второй фактор после проверки основного способа.
+Source oracle: `docs/_TODO/STAFF_DOORS_HARDCODED_2026-09-16.md` — C8 «Почтовый код обязан доставляться там, где поверхность сама его потребовала» и «Второй фактор — выбор самого сотрудника». Третий круг проверял SHA `e4425ec60` после коррекции теста clinic invite. Тема platform-admin login одним verified email не повторялась: она вынесена brief-ом в `wt/admin-otp-hole-measure`.
 
 ## MUST FIX: 2
 
-1. **Платформенный администратор всё ещё может получить роль `admin` только по подтверждённой почте, без пароля и второго фактора.**
+1. **`apps/webapp/src/app/api/doctor/patients/[userId]/email-change/route.ts:55` — route-level выбор `transactional` не защищён тестом.**
 
-   Классификация: **тест** (повторяемая security-семантика) + **взгляд** (route/session wiring).
+   Классификация: **тест**. Это повторяемое route-поведение, не UI: clinic admin on staff surface changes a patient email; email-code login door is closed, transactional email is configured. Expected observable result: route continues to `startEmailChallenge(..., 'patient_email_change', ...)` and returns success; it must not answer `503 auth_channel_disabled` before the challenge.
 
-   - `apps/webapp/src/app/api/auth/email-otp/confirm/route.ts:122-142` после обычного email OTP подменяет роль на `admin`, когда `isVerifiedEmailGlobalAdminAsync(email)` вернул `true`, и чеканит сессию методом `email_code`.
-   - `apps/webapp/src/modules/auth/service.ts:920-952` повторяет то же повышение при каждом чтении сессии по `PLATFORM_OWNER_IDENTITY`.
-   - `apps/webapp/src/app/api/auth/email-otp/confirm/route.route.test.ts:113-126` прямо закрепляет запрещённый результат `200` и admin-сессию «from verified email alone», то есть тест защищает старый oracle против решения владельца.
-
-   Достижимый обход: на patient-branded host почтовая дверь разрешена; при конфигурации с общим staff/patient origin proxy не ограничивает route audience (`apps/webapp/src/proxy.ts:217-230`), а `persistNewAuthSession` не выполняет surface-role gate (`apps/webapp/src/modules/auth/service.ts:239-247`). Запрос без `roleLoginPortal` проходит по ambient patient policy, verified owner email повышается до `admin`, после чего создаётся admin-сессия; на том же host доступны admin routes, потому что proxy пропустил surface-route gate. Это ровно зависимость двери от env/topology, которую C8 запрещает. Исправление уже существует отдельно (`4f3dfc5f9`), но команда `git merge-base --is-ancestor 4f3dfc5f9 HEAD` вернула `rc=1`: оно не является предком проверяемого `6c62af77f` и в candidate отсутствует.
-
-   Impact: пароль и выбранный сотрудником фактор перестают быть обязательными для платформенного администратора.
-
-2. **Коррекция outer gate у clinic invite не защищена тестом: возврат найденного первым аудитом дефекта остаётся зелёным.**
-
-   Классификация: **тест** — это уже случившийся и подтверждённый incident-regression, поэтому он проходит фильтр §10a; конечное последствие — приглашённый сотрудник не получает код и не может принять приглашение на staff host.
-
-   Временная мутация в `apps/webapp/src/app/api/clinic/invites/accept/start/route.ts:22` вернула
-   `isAuthChannelEnabled('email', undefined, 'transactional')` к `isAuthChannelEnabled('email')`. Команда:
+   Fault injection: changed this line from `isAuthChannelEnabled('email', undefined, 'transactional')` to `isAuthChannelEnabled('email')`, together with the patient confirm route below. Existing targeted tests stayed green:
 
    ```text
-   /home/dev/brain/host-orch/run-tests.sh "pnpm --filter @bersoncare/webapp exec vitest --run src/app/api/clinic/invites/route.route.test.ts src/infra/integrations/email/integratorEmailAdapter.deliveryPurpose.unit.test.ts"
+   /home/dev/brain/host-orch/run-tests.sh "pnpm --dir apps/webapp exec vitest --run --project=unit --project=route src/infra/integrations/email/integratorEmailAdapter.deliveryPurpose.unit.test.ts src/app/api/clinic/invites/route.route.test.ts src/modules/auth/authDeliveryGate.unit.test.ts src/app/api/auth/email-otp/confirm/route.route.test.ts src/modules/auth/passwordAuth.route.test.ts"
    ```
 
-   осталась зелёной: **2 files passed / 15 tests passed**. Причина видна в `apps/webapp/src/app/api/clinic/invites/route.route.test.ts:14-17`: policy подменена безусловным `true`, поэтому тест не различает login-door и transactional gate. Новый exhaustive purpose-тест проверяет нижний adapter mapping, но не route-level отказ до adapter. Мутация полностью откачена; production tree после неё чист.
+   Result with the injected defect: **5 files passed / 46 tests passed**, `rc=0`. Command proving no existing route test covers this path:
 
-## Что проверено
+   ```text
+   rg --files apps/webapp/src/app/api/doctor/patients apps/webapp/src/app/api/patient/email-change apps/webapp/src/modules/auth | rg 'email-change|patientEmailChange|emailAuth\.patientEmailChange'
+   ```
 
-- **Четыре исправленных маршрута — выбор `transactional` верен.**
-  - Clinic invite start: bearer-token проверяется через `lookupPendingByToken` до создания challenge (`apps/webapp/src/app/api/clinic/invites/accept/start/route.ts:31-48`); адрес доставки берётся из найденной записи приглашения, а не из пользовательского поля. Токен создаётся 32 случайными байтами и хранится по SHA-256 (`apps/webapp/src/modules/organization-invites/service.ts:17-23,50-58`).
-  - Clinic invite confirm повторно проверяет тот же token до OTP и принятия (`apps/webapp/src/app/api/clinic/invites/accept/confirm/route.ts:48-81`). Поэтому ссылка-приглашение уже устанавливает конкретное приглашение и его адрес до почтового кода; это не самостоятельная дверь email login.
-  - Doctor-initiated patient email change требует clinic-admin session до доставки (`apps/webapp/src/app/api/doctor/patients/[userId]/email-change/route.ts:35-55`).
-  - Patient email-change confirm требует patient session до подтверждения (`apps/webapp/src/app/api/patient/email-change/confirm/route.ts:32-50`).
+   Result: only the two route files plus `apps/webapp/src/modules/auth/emailAuth.patientEmailChange.unit.test.ts`. No `*.route.test.ts` exists for either route; the unit test covers lower email-auth purpose filtering, not this route's surface-vs-transactional gate.
 
-- **Полнота `isAuthChannelEnabled`.** Выполнена точная команда из brief:
+2. **`apps/webapp/src/app/api/patient/email-change/confirm/route.ts:50` — route-level выбор `transactional` не защищён тестом.**
+
+   Классификация: **тест**. This is authenticated patient route behavior: patient session exists, email-code login door is closed, transactional email is configured. Expected observable result: route continues to `confirmLatestEmailChallengeCodeForUser(..., 'patient_email_change', ...)` and returns `{ ok: true }` or the domain result; it must not fail early with `503 auth_channel_disabled`.
+
+   The same fault injection above changed this line to `isAuthChannelEnabled('email')`; the same targeted run remained green. Required fix is a route test that makes policy behave like the real staff/patient surface split: login-door lookup returns false, transactional lookup returns true, and the route still reaches the patient-email-change confirmation boundary.
+
+## Checked
+
+- **Entry rules and test policy.**
+
+  ```text
+  grep -n "^## \|^### " AGENTS.md
+  sed -n '205,516p' AGENTS.md
+  sed -n '1381,1669p' AGENTS.md
+  sed -n '2123,2258p' AGENTS.md
+  sed -n '1,220p' README.md
+  sed -n '1,180p' .cursor/rules/000-start-here.mdc
+  sed -n '1,180p' .cursor/rules/tests-check-behaviour-not-circumstances.mdc
+  ```
+
+- **Полнота `isAuthChannelEnabled`.**
+
+  Exact command from brief:
 
   ```text
   grep -rn "isAuthChannelEnabled" apps/webapp/src
   ```
 
-  Оставшиеся вызовы без `transactional` относятся к самостоятельным login/channel doors либо к patient-invite login на patient surface; дополнительные non-door вызовы, требующие той же коррекции, не найдены. В четырёх исправленных местах сейчас явно передаётся `transactional`.
+  Result by inspection: the four corrected routes now use `isAuthChannelEnabled('email', undefined, 'transactional')`; public login doors (`email-otp/*`, Telegram/MAX init, exchange, phone/messenger login/bind paths) still use surface/login policy; no login door was converted to `transactional`.
 
-- **Purpose не теряется на adapter-пути.** `EmailChallengePurpose` передаётся через `EmailSendPort` и `sendEmailCodeViaIntegrator` до `deliveryPurposeForEmailChallenge`; `login` единственный отображается в `login_door`, остальные — в `surface_requested` (`apps/webapp/src/app-layer/di/bindAuthModulePorts.ts:33-37`, `apps/webapp/src/infra/integrations/email/integratorEmailAdapter.ts:37-39,91-110`). При DB runtime durable enqueue идёт через `pgEmailAuth.startEmailChallengeInDb`, поэтому route-level gates выше остаются отдельной обязательной границей, которую adapter-тест не заменяет (`apps/webapp/src/modules/auth/emailAuth.ts:365-389`, `apps/webapp/src/infra/repos/pgEmailAuth.ts:47-100`).
+- **Clinic invite identity before code delivery.**
 
-- **Новый `Record<EmailChallengePurpose, ...>` не признан пересказом ветвления.** Его outcomes взяты из C8 (только самостоятельный `login` запрещён), а наблюдаемый результат — внешний send request / отказ до него. Это независимый security oracle, не копия `purpose === 'login'` из production-кода. Но этот тест покрывает только adapter boundary и не доказывает четыре outer route gate — это показала четвёртая мутация выше.
+  `apps/webapp/src/app/api/clinic/invites/accept/start/route.ts:31-47` resolves a pending invite by token and sends only to `lookup.invite.invitedEmail`; it does not accept an arbitrary email as the delivery identity. Confirm repeats token lookup and accepts with `expectedEmail: lookup.invite.invitedEmail` at `apps/webapp/src/app/api/clinic/invites/accept/confirm/route.ts:48-81`. This makes the `transactional` choice correct for this route pair.
 
-- **Baseline targeted run** на неизменённом `6c62af77f`:
+- **Email-change routes are correctly written but not test-held.**
+
+  `apps/webapp/src/app/api/doctor/patients/[userId]/email-change/route.ts:38-55` requires clinic-admin context before the transactional gate; `apps/webapp/src/app/api/patient/email-change/confirm/route.ts:35-50` requires patient session before the transactional gate. The code is correct; the finding is that reverting either route to the login-door gate is not caught.
+
+- **Purpose cannot silently bypass the adapter gate.**
+
+  `apps/webapp/src/infra/integrations/email/integratorEmailAdapter.ts:37-39` maps only `EmailChallengePurpose = 'login'` to `login_door`; every other `EmailChallengePurpose` maps to `surface_requested`. The exhaustive `Record<EmailChallengePurpose, 'delivered' | 'refused'>` in `apps/webapp/src/infra/integrations/email/integratorEmailAdapter.deliveryPurpose.unit.test.ts:75-115` is acceptable under §10a: the oracle is the C8 behavior contract, and the observed output is actual integrator `fetchImpl` call vs refusal before send, not source-text matching.
+
+- **e4425 correction for clinic invite test.**
+
+  Fault injection: changed `apps/webapp/src/app/api/clinic/invites/accept/start/route.ts:22` back to `isAuthChannelEnabled('email')`.
 
   ```text
-  /home/dev/brain/host-orch/run-tests.sh "pnpm --filter @bersoncare/webapp exec vitest --run src/infra/integrations/email/integratorEmailAdapter.deliveryPurpose.unit.test.ts src/modules/auth/authDeliveryGate.unit.test.ts src/modules/auth/authChannelPolicy.staffPhoneDoor.unit.test.ts src/modules/auth/publicAuthPolicy.unit.test.ts src/app/api/auth/email-otp/confirm/route.route.test.ts src/modules/auth/passwordAuth.route.test.ts src/app/api/clinic/invites/route.route.test.ts"
+  /home/dev/brain/host-orch/run-tests.sh "pnpm --dir apps/webapp exec vitest --run --project=route src/app/api/clinic/invites/route.route.test.ts"
   ```
 
-  Результат: **7 files passed / 68 tests passed**, `rc=0`. Полный CI не запускался.
+  Result: **1 file failed / 1 failed, 4 passed**, `rc=1`; failure was `expected 503 to be 200` at `apps/webapp/src/app/api/clinic/invites/route.route.test.ts:173`. The e4425 mock correction therefore observes the route's choice now.
 
-- **Слепой kill-set и результат.**
-  - Схлопнуть назначения в один surface gate → уже проверено ведущим, краснеет.
-  - Сделать `login` transactional → уже проверено ведущим, краснеет.
-  - Оставить transactional только двум назначениям → уже проверено ведущим, краснеет после коррекции.
-  - Вернуть clinic-invite outer gate к login policy → **не краснеет**, 2 files / 15 tests green; MUST FIX #2.
-  - Потерять/подменить purpose по route → adapter → integrator и открыть admin через verified email → чтением найден существующий обход; MUST FIX #1.
+- **Baseline after reverting all temporary mutations.**
 
-Временные production-мутации откачены. Изменён только этот audit-artifact.
+  ```text
+  /home/dev/brain/host-orch/run-tests.sh "pnpm --dir apps/webapp exec vitest --run --project=unit --project=route src/infra/integrations/email/integratorEmailAdapter.deliveryPurpose.unit.test.ts src/app/api/clinic/invites/route.route.test.ts src/modules/auth/authDeliveryGate.unit.test.ts src/app/api/auth/email-otp/confirm/route.route.test.ts src/modules/auth/passwordAuth.route.test.ts"
+  ```
+
+  Result: **5 files passed / 46 tests passed**, `rc=0`. The run logs one expected exercised error path from `passwordAuth.route.test.ts:500` (`permission denied for table platform_users`) while the test suite passes.
+
+Temporary production-code mutations were reverted. This commit changes only this audit artifact.
