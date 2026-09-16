@@ -440,13 +440,13 @@ async function publicLoginAccepted(
 function errorMessage(code: string, retryAfterSeconds?: number): string {
   switch (code) {
     case 'sms_disabled_web':
-      return 'SMS для входа с сайта отключён. Используйте код в Telegram или Max.';
+      return notificationText.authSmsDisabledOnWeb;
     case 'sms_ru_only':
       return notificationText.authSmsRussianNumbersOnly;
     case 'invalid_phone':
       return notificationText.authPhoneInvalidFormat;
     case 'delivery_failed':
-      return 'Не удалось отправить код. Попробуйте позже.';
+      return notificationText.authCodeSendFailed;
     case 'rate_limited':
       return retryAfterSeconds != null
         ? formatOtpRetryAfterMessage(retryAfterSeconds)
@@ -454,6 +454,6 @@ function errorMessage(code: string, retryAfterSeconds?: number): string {
     case 'too_many_attempts':
       return OTP_TOO_MANY_ATTEMPTS_MESSAGE;
     default:
-      return 'Ошибка отправки кода.';
+      return notificationText.authCodeSendFailed;
   }
 }

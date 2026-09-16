@@ -76,12 +76,11 @@
  *      2. Точечный маркер `// notification-text-gate: не подпись для человека — <причина>`
  *         освобождает ОДНУ строку правила G6 и требует непустую причину. Это не файловое
  *         исключение: соседний код в том же файле по-прежнему проверяется.
- *      3. Indirection is resolved exactly ONE level, and only within the same file: a module-level
- *         `const X = '…'` referenced at a shown-text call site or in a `message:` property is
- *         followed (final-audit MAJOR, 13.09 — before that a hoisted const was a silent exemption,
- *         live in `AuthFlowV2.tsx` and `specialist-signup/confirm/route.ts`). A const IMPORTED from
- *         another module, a const holding a const, or text assembled at runtime is still invisible
- *         to this gate. Do not read a green run as "no hand-typed copy anywhere".
+ *      3. G4 resolves one module-level literal const. G4b resolves same-file `const` declarations
+ *         in enclosing statement scopes and also follows `.concat`, literal-array `.join`, keyed
+ *         reads from object-literal consts, and return expressions of locally declared functions.
+ *         Imported identifiers are NOT followed across module boundaries. Do not read a green run
+ *         as "no hand-typed copy anywhere".
  *
  *    ЧЕСТНЫЕ ОГРАНИЧЕНИЯ правил G5/G6 (названы адверсарным аудитом 13.09, находка Б2 — до неё
  *    у этих правил не было объявлено ни одного ограничения, что само по себе было неправдой):
@@ -403,55 +402,217 @@ function responseJsonMessageLiteralOf(node, consts = EMPTY_CONSTS) {
  * разложенные по подстановкам. Форма записи не меняет того, что наружу уходит inline-фраза мимо
  * словаря, поэтому разворачиваем все эти формы к одному виду.
  */
-function templateCandidatesOf(expr, moduleTemplates, seen = new Set()) {
-  if (!expr) return [];
-  if (ts.isParenthesizedExpression(expr)) return templateCandidatesOf(expr.expression, moduleTemplates, seen);
-  if (ts.isAsExpression(expr) || ts.isSatisfiesExpression(expr)) {
-    return templateCandidatesOf(expr.expression, moduleTemplates, seen);
+function createSameFileResolver() {
+  const enclosingStatementScopes = (node) => {
+    const scopes = [];
+    for (let current = node.parent; current; current = current.parent) {
+      if (ts.isBlock(current) || ts.isSourceFile(current) || ts.isCaseBlock(current)) scopes.push(current);
+    }
+    return scopes;
+  };
+  const declarationOf = (identifier) => {
+    for (const scope of enclosingStatementScopes(identifier)) {
+      const statements = ts.isCaseBlock(scope)
+        ? scope.clauses.flatMap((clause) => [...clause.statements])
+        : scope.statements;
+      for (const statement of statements) {
+        if (ts.isFunctionDeclaration(statement) && statement.name?.text === identifier.text) {
+          return statement;
+        }
+        if (
+          ts.isVariableStatement(statement) &&
+          (statement.declarationList.flags & ts.NodeFlags.Const) !== 0
+        ) {
+          for (const declaration of statement.declarationList.declarations) {
+            if (ts.isIdentifier(declaration.name) && declaration.name.text === identifier.text) {
+              return declaration;
+            }
+          }
+        }
+      }
+    }
+    return undefined;
+  };
+  return { declarationOf };
+}
+
+function unwrapExpression(expr) {
+  let current = expr;
+  while (
+    ts.isParenthesizedExpression(current) ||
+    ts.isAsExpression(current) ||
+    ts.isSatisfiesExpression(current) ||
+    ts.isTypeAssertionExpression(current) ||
+    ts.isNonNullExpression(current)
+  ) {
+    current = current.expression;
   }
-  if (ts.isConditionalExpression(expr)) {
-    return [
-      ...templateCandidatesOf(expr.whenTrue, moduleTemplates, seen),
-      ...templateCandidatesOf(expr.whenFalse, moduleTemplates, seen),
-    ];
+  return current;
+}
+
+function functionReturnExpressions(fn) {
+  if (!fn.body) return [];
+  if (!ts.isBlock(fn.body)) return [fn.body];
+  const returns = [];
+  const visit = (node) => {
+    if (ts.isReturnStatement(node) && node.expression) {
+      returns.push(node.expression);
+      return;
+    }
+    if (node !== fn.body && ts.isFunctionLike(node)) return;
+    ts.forEachChild(node, visit);
+  };
+  visit(fn.body);
+  return returns;
+}
+
+function resolvedConstInitializer(identifier, resolver) {
+  const declaration = resolver.declarationOf(identifier);
+  return declaration && ts.isVariableDeclaration(declaration) ? declaration.initializer : undefined;
+}
+
+function resolvedLocalFunction(identifier, resolver) {
+  const declaration = resolver.declarationOf(identifier);
+  if (declaration && ts.isFunctionDeclaration(declaration)) return declaration;
+  if (declaration && ts.isVariableDeclaration(declaration) && declaration.initializer) {
+    const initializer = unwrapExpression(declaration.initializer);
+    if (ts.isArrowFunction(initializer) || ts.isFunctionExpression(initializer)) return initializer;
+  }
+  return undefined;
+}
+
+function staticPropertyKey(expr, resolver, seen) {
+  const current = unwrapExpression(expr);
+  if (ts.isStringLiteral(current) || ts.isNoSubstitutionTemplateLiteral(current)) return current.text;
+  if (ts.isIdentifier(current)) {
+    const initializer = resolvedConstInitializer(current, resolver);
+    if (initializer && !seen.has(initializer)) {
+      return staticPropertyKey(initializer, resolver, new Set(seen).add(initializer));
+    }
+  }
+  return undefined;
+}
+
+function objectLiteralPropertyInitializer(expr, resolver, seen) {
+  const current = unwrapExpression(expr);
+  if (!ts.isElementAccessExpression(current) || !current.argumentExpression) return undefined;
+  const key = staticPropertyKey(current.argumentExpression, resolver, seen);
+  if (key === undefined) return undefined;
+  let object = unwrapExpression(current.expression);
+  if (ts.isIdentifier(object)) {
+    const initializer = resolvedConstInitializer(object, resolver);
+    if (!initializer || seen.has(initializer)) return undefined;
+    object = unwrapExpression(initializer);
+  }
+  if (!ts.isObjectLiteralExpression(object)) return undefined;
+  for (const property of object.properties) {
+    if (!ts.isPropertyAssignment(property)) continue;
+    let propertyKey;
+    if (
+      ts.isIdentifier(property.name) ||
+      ts.isStringLiteral(property.name) ||
+      ts.isNumericLiteral(property.name)
+    ) {
+      propertyKey = property.name.text;
+    } else if (ts.isComputedPropertyName(property.name)) {
+      propertyKey = staticPropertyKey(property.name.expression, resolver, seen);
+    }
+    if (propertyKey === key) return property.initializer;
+  }
+  return undefined;
+}
+
+/** Статически видимые куски составной фразы; динамика остаётся плейсхолдером. */
+function staticPhraseParts(expr, resolver, seen = new Set()) {
+  if (!expr) return [];
+  const current = unwrapExpression(expr);
+  if (seen.has(current)) return [];
+  const nextSeen = new Set(seen).add(current);
+  if (ts.isStringLiteral(current) || ts.isNoSubstitutionTemplateLiteral(current)) return [current.text];
+  if (ts.isTaggedTemplateExpression(current)) return staticPhraseParts(current.template, resolver, nextSeen);
+  if (ts.isTemplateExpression(current)) {
+    const parts = [current.head.text];
+    for (const span of current.templateSpans) {
+      parts.push(span.literal.text);
+      const visit = (node) => {
+        if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) parts.push(node.text);
+        ts.forEachChild(node, visit);
+      };
+      visit(span.expression);
+    }
+    return parts;
+  }
+  if (ts.isIdentifier(current)) {
+    return staticPhraseParts(resolvedConstInitializer(current, resolver), resolver, nextSeen);
+  }
+  const propertyInitializer = objectLiteralPropertyInitializer(current, resolver, nextSeen);
+  if (propertyInitializer) return staticPhraseParts(propertyInitializer, resolver, nextSeen);
+  if (
+    ts.isCallExpression(current) &&
+    ts.isPropertyAccessExpression(current.expression) &&
+    current.expression.name.text === 'concat'
+  ) {
+    return [current.expression.expression, ...current.arguments].flatMap((part) =>
+      staticPhraseParts(part, resolver, nextSeen),
+    );
   }
   if (
-    ts.isBinaryExpression(expr) &&
-    (expr.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken ||
-      expr.operatorToken.kind === ts.SyntaxKind.BarBarToken)
+    ts.isCallExpression(current) &&
+    ts.isPropertyAccessExpression(current.expression) &&
+    current.expression.name.text === 'join'
   ) {
-    return [
-      ...templateCandidatesOf(expr.left, moduleTemplates, seen),
-      ...templateCandidatesOf(expr.right, moduleTemplates, seen),
-    ];
-  }
-  /* `String.raw`ᐟtag` — тот же шаблон, только с тегом. */
-  if (ts.isTaggedTemplateExpression(expr)) return templateCandidatesOf(expr.template, moduleTemplates, seen);
-  if (ts.isTemplateExpression(expr)) return [expr];
-  /* Шаблон, вынесенный в константу модуля: смотрим её значение, но не зацикливаемся. */
-  if (ts.isIdentifier(expr) && moduleTemplates.has(expr.text) && !seen.has(expr.text)) {
-    seen.add(expr.text);
-    return templateCandidatesOf(moduleTemplates.get(expr.text), moduleTemplates, seen);
+    let receiver = unwrapExpression(current.expression.expression);
+    if (ts.isIdentifier(receiver)) {
+      receiver = unwrapExpression(resolvedConstInitializer(receiver, resolver) ?? receiver);
+    }
+    if (ts.isArrayLiteralExpression(receiver)) {
+      return receiver.elements.flatMap((element) => staticPhraseParts(element, resolver, nextSeen));
+    }
   }
   return [];
 }
 
-/** Слова, статически видимые в шаблоне: и в его кусках, и в строковых литералах подстановок. */
-function staticWordsOfTemplate(expr) {
-  const parts = [expr.head.text];
-  for (const span of expr.templateSpans) {
-    parts.push(span.literal.text);
-    /* Круг 1, форма 5: слова, перенесённые в подстановки, остаются словами. */
-    const visit = (n) => {
-      if (ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n)) parts.push(n.text);
-      ts.forEachChild(n, visit);
-    };
-    visit(span.expression);
+/** Разворачивает показываемое выражение по объявлениям и возвратам в том же файле. */
+function phraseCandidatesOf(expr, resolver, seen = new Set()) {
+  if (!expr) return [];
+  const current = unwrapExpression(expr);
+  if (seen.has(current)) return [];
+  const nextSeen = new Set(seen).add(current);
+  if (ts.isConditionalExpression(current)) {
+    return [
+      ...phraseCandidatesOf(current.whenTrue, resolver, nextSeen),
+      ...phraseCandidatesOf(current.whenFalse, resolver, nextSeen),
+    ];
   }
-  return { parts, words: parts.join(' ').match(/[\p{L}]{2,}/gu) ?? [] };
+  if (
+    ts.isBinaryExpression(current) &&
+    (current.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken ||
+      current.operatorToken.kind === ts.SyntaxKind.BarBarToken)
+  ) {
+    return [
+      ...phraseCandidatesOf(current.left, resolver, nextSeen),
+      ...phraseCandidatesOf(current.right, resolver, nextSeen),
+    ];
+  }
+  if (ts.isIdentifier(current)) {
+    const initializer = resolvedConstInitializer(current, resolver);
+    return initializer ? phraseCandidatesOf(initializer, resolver, nextSeen) : [];
+  }
+  const propertyInitializer = objectLiteralPropertyInitializer(current, resolver, nextSeen);
+  if (propertyInitializer) return phraseCandidatesOf(propertyInitializer, resolver, nextSeen);
+  if (ts.isCallExpression(current) && ts.isIdentifier(current.expression)) {
+    const fn = resolvedLocalFunction(current.expression, resolver);
+    if (fn && !nextSeen.has(fn)) {
+      return functionReturnExpressions(fn).flatMap((returned) =>
+        phraseCandidatesOf(returned, resolver, new Set(nextSeen).add(fn)),
+      );
+    }
+  }
+  const parts = staticPhraseParts(current, resolver, seen);
+  return parts.length > 0 ? [{ expr: current, parts }] : [];
 }
 
-function templateMessageSentenceOf(node, moduleTemplates) {
+function resolvedTemplateMessageSentenceOf(node, resolver) {
   let arg = responseBuilderBodyArg(node);
   if (arg === undefined) return undefined;
   if (ts.isParenthesizedExpression(arg)) arg = arg.expression;
@@ -459,24 +620,14 @@ function templateMessageSentenceOf(node, moduleTemplates) {
   for (const prop of arg.properties) {
     if (!ts.isPropertyAssignment(prop) || !ts.isIdentifier(prop.name)) continue;
     if (prop.name.text !== 'message') continue;
-    for (const expr of templateCandidatesOf(prop.initializer, moduleTemplates)) {
-      const { parts, words } = staticWordsOfTemplate(expr);
-      if (words.length >= 3) return { expr: prop.initializer, sample: parts.join('…').trim() };
+    for (const candidate of phraseCandidatesOf(prop.initializer, resolver)) {
+      const words = candidate.parts.join(' ').match(/[\p{L}]{2,}/gu) ?? [];
+      if (words.length >= 3) {
+        return { expr: candidate.expr, sample: candidate.parts.join('…').trim() };
+      }
     }
   }
   return undefined;
-}
-
-/** Константы модуля, чьё значение — шаблон: `const X = `…`;` на верхнем уровне файла. */
-function moduleTemplateConsts(sf) {
-  const map = new Map();
-  for (const st of sf.statements) {
-    if (!ts.isVariableStatement(st)) continue;
-    for (const d of st.declarationList.declarations) {
-      if (ts.isIdentifier(d.name) && d.initializer) map.set(d.name.text, d.initializer);
-    }
-  }
-  return map;
 }
 
 /**
@@ -813,7 +964,7 @@ function checkSource(relativePath, text) {
   );
 
   const consts = moduleConstStringLiterals(sf);
-  const moduleTemplates = moduleTemplateConsts(sf);
+  const sameFileResolver = createSameFileResolver();
   const sourceLines = text.split('\n');
   // Сколько попаданий правила G6 на каждой строке — считаем до обхода, чтобы маркер не мог
   // освободить строку, на которой их несколько.
@@ -869,7 +1020,7 @@ function checkSource(relativePath, text) {
     }
 
     // G4b: шаблонная строка-ПРЕДЛОЖЕНИЕ в том же `message` — см. комментарий у helper.
-    const templateSentence = templateMessageSentenceOf(node, moduleTemplates);
+    const templateSentence = resolvedTemplateMessageSentenceOf(node, sameFileResolver);
     if (templateSentence) {
       const { line } = sf.getLineAndCharacterOfPosition(templateSentence.expr.getStart(sf));
       findings.push(
@@ -970,15 +1121,36 @@ function selfTest() {
       "return NextResponse.json({ ok: false, message: `Введите текст сообщения (до ${MAX} символов)` }, { status: 400 });"],
     // Круг 1 аудита (16.09): пять форм записи того же самого, которые правило раньше пропускало.
     ['G4b: шаблон-предложение внутри тернарника',
-      "return NextResponse.json({ ok: false, message: ru ? `Введите текст сообщения до ${MAX} символов` : 'x' }, { status: 400 });"],
+      "return NextResponse.json({ ok: false, message: ru ? `Введите текст сообщения до ${MAX} символов` : notificationText.otherKey }, { status: 400 });",
+      "return NextResponse.json({ ok: false, message: ru ? notificationText.someKey : notificationText.otherKey }, { status: 400 });"],
     ['G4b: шаблон-предложение после ??',
-      "return NextResponse.json({ ok: false, message: custom ?? `Введите текст сообщения до ${MAX} символов` }, { status: 400 });"],
+      "return NextResponse.json({ ok: false, message: custom ?? `Введите текст сообщения до ${MAX} символов` }, { status: 400 });",
+      "return NextResponse.json({ ok: false, message: custom ?? notificationText.someKey }, { status: 400 });"],
     ['G4b: шаблон-предложение вынесен в константу модуля',
-      "const TEXT = `Введите текст сообщения до ${MAX} символов`;\nreturn NextResponse.json({ ok: false, message: TEXT }, { status: 400 });"],
+      "const TEXT = `Введите текст сообщения до ${MAX} символов`;\nreturn NextResponse.json({ ok: false, message: TEXT }, { status: 400 });",
+      "const TEXT = notificationText.someKey;\nreturn NextResponse.json({ ok: false, message: TEXT }, { status: 400 });"],
     ['G4b: шаблон-предложение через String.raw',
-      "return NextResponse.json({ ok: false, message: String.raw`Введите текст сообщения до ${MAX} символов` }, { status: 400 });"],
+      "return NextResponse.json({ ok: false, message: String.raw`Введите текст сообщения до ${MAX} символов` }, { status: 400 });",
+      "return NextResponse.json({ ok: false, message: notificationText.someKey }, { status: 400 });"],
     ['G4b: слова предложения перенесены в подстановки',
-      "return NextResponse.json({ ok: false, message: `${'Введите'} ${'текст'} ${'сообщения'}` }, { status: 400 });"],
+      "return NextResponse.json({ ok: false, message: `${'Введите'} ${'текст'} ${'сообщения'}` }, { status: 400 });",
+      "return NextResponse.json({ ok: false, message: `${notificationText.someKey} ${id}` }, { status: 400 });"],
+    // Круг 2 (16.09): один same-file resolver закрывает идентификатор и все соседние формы склейки.
+    ['G4b: шаблон-предложение в function-scoped const',
+      "function handler() {\n  const local = `Введите текст сообщения до ${LIMIT} символов`;\n  return NextResponse.json({ message: local });\n}",
+      "function handler() {\n  const local = notificationText.someKey;\n  return NextResponse.json({ message: local });\n}"],
+    ['G4b: фраза собрана через .concat',
+      "return NextResponse.json({ message: 'Введите текст сообщения'.concat(` до ${LIMIT} символов`) });",
+      "return NextResponse.json({ message: notificationText.someKey });"],
+    ['G4b: фраза собрана литералом массива и .join',
+      "return NextResponse.json({ message: ['Введите', 'текст сообщения', `до ${LIMIT}`].join(' ') });",
+      "return NextResponse.json({ message: notificationText.someKey });"],
+    ['G4b: шаблон-предложение в object-literal const по ключу',
+      "const MESSAGE_KEY = 'tooLong';\nconst MESSAGE_BY_KEY = { tooLong: `Введите текст сообщения до ${LIMIT} символов` };\nreturn NextResponse.json({ message: MESSAGE_BY_KEY[MESSAGE_KEY] });",
+      "const MESSAGE_KEY = 'tooLong';\nconst MESSAGE_BY_KEY = { tooLong: notificationText.someKey };\nreturn NextResponse.json({ message: MESSAGE_BY_KEY[MESSAGE_KEY] });"],
+    ['G4b: шаблон-предложение в возврате локальной фабрики',
+      "function wrappedUserMessage(limit: number) { return `Введите текст сообщения до ${limit} символов`; }\nreturn NextResponse.json({ message: wrappedUserMessage(LIMIT) });",
+      "function wrappedUserMessage(limit: number) { return notificationText.someKey; }\nreturn NextResponse.json({ message: wrappedUserMessage(LIMIT) });"],
     // Owner check, 14.09: the branch shapes the toast rule had always walked were invisible here.
     ['NextResponse.json message ternary',
       "return NextResponse.json({ error: 'x', message: locked ? 'Слишком много попыток.' : 'Пароль неверен.' });"],
@@ -1111,15 +1283,25 @@ function selfTest() {
       "return NextResponse.json({ ok: false, message: `Укажите ${missing.join(', ')}.` }, { status: 400 });"],
     ['G4b: шаблон вокруг ключа словаря — фраза берётся из словаря',
       "return NextResponse.json({ ok: false, message: `${notificationText.commonGenericError} ${id}` }, { status: 400 });"],
+    ['технический console.error с длинным шаблоном не является user-facing message',
+      "console.error(`Не удалось выполнить техническую операцию ${error}`);"],
     ['Map с текстовым запасным вариантом',
       "const t = labels.get(code) ?? notificationText.commonUnknownValue;"],
     ['тернарник через `in` с текстом в запасной ветке',
       "const t = code in M ? M[code] : notificationText.commonUnknownValue;"],
   ];
 
-  for (const [name, source] of leaking) {
+  let mutationChecks = 0;
+  for (const [name, source, mutation] of leaking) {
     if (checkSource('fixture.ts', source).length === 0) {
       throw new Error(`self-test stayed green on a leak: ${name}`);
+    }
+    if (mutation !== undefined) {
+      mutationChecks += 1;
+      const findings = checkSource('fixture.ts', mutation);
+      if (findings.length > 0) {
+        throw new Error(`self-test mutation stayed red after removing the target leak: ${name}\n${findings.join('\n')}`);
+      }
     }
   }
   for (const [name, source] of safe) {
@@ -1134,7 +1316,8 @@ function selfTest() {
   // из 32 освобождённых файлов перенесены в словарь, поэтому исключений больше нет вовсе.
 
   console.log(
-    `notification text coverage self-test: OK (${leaking.length} leak fixtures red, ${safe.length} safe shapes green)`,
+    `notification text coverage self-test: OK (${leaking.length} leak fixtures red, ` +
+      `${safe.length} safe shapes green, ${mutationChecks} targeted mutations green)`,
   );
 }
 

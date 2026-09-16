@@ -14,6 +14,7 @@ import type {
   OrgMechanic,
 } from '@/modules/org-entitlements/types';
 import { MECHANIC_REGISTRY } from '@/modules/org-entitlements/types';
+import { notificationTextFactory } from '@/shared/notifications/notificationText';
 import {
   ensureMechanicWriteClearanceContext,
   enterWithMechanicWriteClearance,
@@ -41,13 +42,13 @@ export function entitlementMutationRefusalMessage(
 ): string {
   switch (reason) {
     case 'commercial_read_only':
-      return `Невозможно ${action}: раздел сейчас доступен только для просмотра по вашему тарифу.`;
+      return notificationTextFactory.entitlementMutationReadOnly(action);
     case 'commercial_blocked':
-      return `Невозможно ${action}: доступ к этому разделу временно приостановлен по вашему тарифу.`;
+      return notificationTextFactory.entitlementMutationBlocked(action);
     case 'access_lifecycle_unconfigured':
-      return `Невозможно ${action}: для этого раздела не настроены условия доступа в вашем тарифе.`;
+      return notificationTextFactory.entitlementMutationUnconfigured(action);
     case 'entitlement_required':
-      return `Невозможно ${action}: этот раздел не входит в ваш тариф.`;
+      return notificationTextFactory.entitlementMutationRequired(action);
   }
 }
 

@@ -188,7 +188,7 @@ export async function POST(request: Request) {
 function errorMessage(code: string, retryAfterSeconds?: number): string {
   switch (code) {
     case 'invalid_code':
-      return 'Неверный или просроченный код';
+      return notificationText.authCodeInvalidOrExpired;
     case 'too_many_attempts':
       return OTP_TOO_MANY_ATTEMPTS_MESSAGE;
     case 'rate_limited':

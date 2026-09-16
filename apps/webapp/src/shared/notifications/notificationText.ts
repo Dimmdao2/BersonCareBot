@@ -838,6 +838,14 @@ export type NotificationTextKey = keyof typeof notificationText;
  * вынесены в отдельный объект, потому что содержимое не `string`, а `(...) => string`.
  */
 export const notificationTextFactory = {
+  entitlementMutationReadOnly: (action: string) =>
+    `Невозможно ${action}: раздел сейчас доступен только для просмотра по вашему тарифу.`,
+  entitlementMutationBlocked: (action: string) =>
+    `Невозможно ${action}: доступ к этому разделу временно приостановлен по вашему тарифу.`,
+  entitlementMutationUnconfigured: (action: string) =>
+    `Невозможно ${action}: для этого раздела не настроены условия доступа в вашем тарифе.`,
+  entitlementMutationRequired: (action: string) =>
+    `Невозможно ${action}: этот раздел не входит в ваш тариф.`,
   leadRejectedWithComment: (comment: string) =>
     `Клиника отклонила вашу заявку. Комментарий клиники: ${comment}`,
   /**
