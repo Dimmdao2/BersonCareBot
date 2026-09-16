@@ -109,11 +109,8 @@ export async function POST(request: Request) {
     );
   }
 
-  const deps = buildAppDeps();
-  const user = await deps.userByPhone.findByPhone(normalized);
-
-  let delivery: PhoneOtpDelivery | undefined;
-
+  // Дверь стоит ДО чтения по введённому номеру: иначе неавторизованный запрос успевает выполнить
+  // поиск пользователя по произвольному номеру и получает отказ уже после обращения к базе.
   const session = await getCurrentSession();
   if (!session || !canAccessPatient(session.user.role)) {
     return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 });
@@ -126,6 +123,11 @@ export async function POST(request: Request) {
       { status: 409 },
     );
   }
+
+  const deps = buildAppDeps();
+  const user = await deps.userByPhone.findByPhone(normalized);
+
+  let delivery: PhoneOtpDelivery | undefined;
 
   if (deliveryChannel === 'sms') {
     delivery = { channel: 'sms' };
