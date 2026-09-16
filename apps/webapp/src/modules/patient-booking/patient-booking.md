@@ -37,7 +37,7 @@ remain in the database for migration audit, but runtime does not read them.
 
 ## Публичный вход
 
-**Публичный канал (этап 3):** UI `/book` (очный + онлайн), embed `/book/embed.js`; read-API `GET /api/booking/public/catalog/*`, `slots`, `form-fields`; `POST /api/booking/public/create` — без сессии, rate-limit (`booking.public_create`), UTM → `be_appointments.attribution_json`, `bookingChannel: public_widget`; пользователь через `resolveOrCreateUserByPhone` (`TrustedPatientPhoneSource.PublicBookingByPhone`); кандидаты мерджа — `patient_merge_candidates` + admin `/api/admin/booking-engine/merge-candidates`, UI `/app/doctor/admin/booking`, `/app/doctor/booking-merge`.
+**Публичный канал (этап 3):** UI `/book` (очный + онлайн), embed `/book/embed.js`; read-API `slots`, `form-fields` (адреса `GET /api/booking/public/catalog/cities|services` сняты 16.09.2026: обе были заглушками, всегда отвечавшими 409, и вызывающих не имели); `POST /api/booking/public/create` — без сессии, rate-limit (`booking.public_create`), UTM → `be_appointments.attribution_json`, `bookingChannel: public_widget`; пользователь через `resolveOrCreateUserByPhone` (`TrustedPatientPhoneSource.PublicBookingByPhone`); кандидаты мерджа — `patient_merge_candidates` + admin `/api/admin/booking-engine/merge-candidates`, UI `/app/doctor/admin/booking`, `/app/doctor/booking-merge`.
 
 Встроенная локация **«Онлайн»** использует тот же canonical service → specialist → slot путь, что и
 очная локация (`type=in_person` остаётся техническим параметром текущего движка). Она показывается
