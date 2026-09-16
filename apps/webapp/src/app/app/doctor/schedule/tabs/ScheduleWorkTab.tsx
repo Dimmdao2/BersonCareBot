@@ -1730,9 +1730,7 @@ export function ScheduleWorkTab({
         {/* `py-3` здесь — тот самый отступ, о котором владелец 15.09: «проверь чтобы когда
             уберешь тулбар блоки не прилипли кверху». Замерено на живом `:5200`: от низа шапки
             до верха первого блока 12px — ровно столько же, сколько у соседних вкладок. */}
-        <div
-          className={cn('flex flex-col gap-3 py-3', isWideWorkLayout && 'md:h-full md:min-h-0')}
-        >
+        <div className={cn('flex flex-col gap-3 py-3', isWideWorkLayout && 'md:h-full md:min-h-0')}>
           {/* Errors / feedback */}
           {loadError ? (
             <p className="text-sm text-destructive" data-testid="load-error">
@@ -1779,12 +1777,7 @@ export function ScheduleWorkTab({
             }}
           >
             {/* LEFT: month grid */}
-            <div
-              className={cn(
-                'flex min-w-0 flex-col gap-2',
-                isWideWorkLayout && 'md:min-h-0',
-              )}
-            >
+            <div className={cn('flex min-w-0 flex-col gap-2', isWideWorkLayout && 'md:min-h-0')}>
               <div
                 className={cn(
                   doctorSectionCardClass,
@@ -1990,6 +1983,7 @@ export function ScheduleWorkTab({
       </div>
 
       <DoctorModal
+        variant="panel"
         open={tplDialogOpen}
         onClose={() => setTplDialogOpen(false)}
         title="Создать шаблон расписания"
@@ -2051,6 +2045,7 @@ export function ScheduleWorkTab({
       </DoctorModal>
 
       <DoctorModal
+        variant="panel"
         open={scheduleModalOpen && selectionMode === 'dates'}
         onClose={() => setScheduleModalOpen(false)}
         title={`Задать расписание для ${selectedCount} ${selectedCount === 1 ? 'дня' : 'дней'}`}
@@ -2099,6 +2094,7 @@ export function ScheduleWorkTab({
       <DoctorModal
         open={clearConfirmOpen}
         onClose={() => setClearConfirmOpen(false)}
+        variant="dialog"
         title="Очистить расписание"
         size="sm"
         footer={
@@ -2121,6 +2117,7 @@ export function ScheduleWorkTab({
       </DoctorModal>
 
       <DoctorModal
+        variant="panel"
         open={weekdayModalOpen && selectedWeekday !== null}
         onClose={closeWeekdayModal}
         title={`Задать постоянное расписание по ${
@@ -2170,6 +2167,7 @@ export function ScheduleWorkTab({
       <DoctorModal
         open={monthPickerOpen}
         onClose={() => setMonthPickerOpen(false)}
+        variant="dialog"
         title="Выбрать месяц"
         size="sm"
         bodyVariant="list"
@@ -2206,6 +2204,7 @@ export function ScheduleWorkTab({
       <DoctorModal
         open={branchPickerOpen}
         onClose={() => setBranchPickerOpen(false)}
+        variant="dialog"
         title="Филиалы"
         size="sm"
         bodyClassName="p-0"

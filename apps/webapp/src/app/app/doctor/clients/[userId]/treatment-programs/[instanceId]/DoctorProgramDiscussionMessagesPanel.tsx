@@ -82,7 +82,7 @@ function AssignmentToolbar({
         open={videoOpen}
         onClose={() => setVideoOpen(false)}
         title="Видео упражнения"
-        presentation="fullscreen-media"
+        variant="fullscreen-media"
       >
         <DoctorExerciseMediaPlayer
           media={assignment.media}

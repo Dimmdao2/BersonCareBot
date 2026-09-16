@@ -434,13 +434,19 @@ function SectionPackages({
             }),
           },
         );
-        toast.success(editingPackage ? notificationText.doctorSubscriptionPackageUpdated : notificationText.doctorSubscriptionPackageAdded);
+        toast.success(
+          editingPackage
+            ? notificationText.doctorSubscriptionPackageUpdated
+            : notificationText.doctorSubscriptionPackageAdded,
+        );
         if (editingPackage) setSelectedCatalogPackage(json.package);
         closePackageForm();
         load();
       } catch {
         toast.error(
-          editingPackage ? notificationText.doctorSubscriptionPackageUpdateFailed : notificationText.doctorSubscriptionPackageAddFailed,
+          editingPackage
+            ? notificationText.doctorSubscriptionPackageUpdateFailed
+            : notificationText.doctorSubscriptionPackageAddFailed,
         );
       }
     });
@@ -454,7 +460,11 @@ function SectionPackages({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ isActive: !pkg.isActive }),
         });
-        toast.success(pkg.isActive ? notificationText.doctorSubscriptionPackageArchived : notificationText.doctorSubscriptionPackageRestored);
+        toast.success(
+          pkg.isActive
+            ? notificationText.doctorSubscriptionPackageArchived
+            : notificationText.doctorSubscriptionPackageRestored,
+        );
         setSelectedCatalogPackage(null);
         load();
       } catch {
@@ -555,55 +565,54 @@ function SectionPackages({
       </div>
 
       <div className={cn(stretchPane && scrollPaneClass)}>
-      {visiblePackages.length > 0 ? (
-        <DoctorDnaFlatList>
-          {visiblePackages.map((pkg) => {
-            const totalSessions = pkg.items.reduce((sum, item) => sum + item.quantity, 0);
-            // Подсветка строки есть только в двухблочной раскладке: там выбор виден в правом
-            // блоке и остаётся на экране. В узкой строка открывает модалку и «выбранного» нет.
-            const selected =
-              isWidePackagesLayout && selectedCatalogPackage?.id === pkg.id;
-            return (
-              <li key={pkg.id}>
-                <button
-                  type="button"
-                  className={cn(
-                    doctorDnaFlatListRowClass,
-                    doctorDnaFlatListClickableClass,
-                    'grid w-full grid-cols-[minmax(0,1fr)_auto] text-left',
-                    selected && 'bg-primary/15 text-primary',
-                  )}
-                  onClick={() => selectPackage(pkg)}
-                >
-                  {selected ? <DoctorDnaFlatListSelectionStrip /> : null}
-                  <span className="flex min-w-0 flex-col gap-0.5">
-                    <span className="truncate text-base font-normal text-foreground">
-                      {pkg.title}
-                    </span>
-                    <span className="truncate text-sm text-muted-foreground">
-                      {pkg.items.length} {pluralizeServices(pkg.items.length)} · {totalSessions}{' '}
-                      {pluralizeSessions(totalSessions)}
-                    </span>
-                  </span>
-                  <span className="flex items-center gap-2">
-                    <span className="flex flex-col items-end gap-0.5 text-sm">
-                      <span>{formatPackageMoney(pkg.priceMinor, pkg.currency)}</span>
-                      <span className="text-muted-foreground">
-                        {formatValidityDays(pkg.validityDays)}
+        {visiblePackages.length > 0 ? (
+          <DoctorDnaFlatList>
+            {visiblePackages.map((pkg) => {
+              const totalSessions = pkg.items.reduce((sum, item) => sum + item.quantity, 0);
+              // Подсветка строки есть только в двухблочной раскладке: там выбор виден в правом
+              // блоке и остаётся на экране. В узкой строка открывает модалку и «выбранного» нет.
+              const selected = isWidePackagesLayout && selectedCatalogPackage?.id === pkg.id;
+              return (
+                <li key={pkg.id}>
+                  <button
+                    type="button"
+                    className={cn(
+                      doctorDnaFlatListRowClass,
+                      doctorDnaFlatListClickableClass,
+                      'grid w-full grid-cols-[minmax(0,1fr)_auto] text-left',
+                      selected && 'bg-primary/15 text-primary',
+                    )}
+                    onClick={() => selectPackage(pkg)}
+                  >
+                    {selected ? <DoctorDnaFlatListSelectionStrip /> : null}
+                    <span className="flex min-w-0 flex-col gap-0.5">
+                      <span className="truncate text-base font-normal text-foreground">
+                        {pkg.title}
+                      </span>
+                      <span className="truncate text-sm text-muted-foreground">
+                        {pkg.items.length} {pluralizeServices(pkg.items.length)} · {totalSessions}{' '}
+                        {pluralizeSessions(totalSessions)}
                       </span>
                     </span>
-                    <ChevronRight className="size-4 text-muted-foreground" aria-hidden />
-                  </span>
-                </button>
-              </li>
-            );
-          })}
-        </DoctorDnaFlatList>
-      ) : (
-        <DoctorEmptyState>
-          {packageView === 'active' ? 'Активных абонементов нет' : 'Архивных абонементов нет'}
-        </DoctorEmptyState>
-      )}
+                    <span className="flex items-center gap-2">
+                      <span className="flex flex-col items-end gap-0.5 text-sm">
+                        <span>{formatPackageMoney(pkg.priceMinor, pkg.currency)}</span>
+                        <span className="text-muted-foreground">
+                          {formatValidityDays(pkg.validityDays)}
+                        </span>
+                      </span>
+                      <ChevronRight className="size-4 text-muted-foreground" aria-hidden />
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </DoctorDnaFlatList>
+        ) : (
+          <DoctorEmptyState>
+            {packageView === 'active' ? 'Активных абонементов нет' : 'Архивных абонементов нет'}
+          </DoctorEmptyState>
+        )}
       </div>
     </DoctorSection>
   );
@@ -798,10 +807,7 @@ function SectionPackages({
             половину, `CatalogSplitLayout` без своей раскладки колонок. Списку узкой колонки
             не хватало: цена и срок жались к названию. */}
         <div
-          className={cn(
-            'grid grid-cols-2 gap-3',
-            stretchPane ? 'h-full min-h-0' : 'items-start',
-          )}
+          className={cn('grid grid-cols-2 gap-3', stretchPane ? 'h-full min-h-0' : 'items-start')}
         >
           {packagesListBlock}
           <DoctorSection className={cn(stretchPane && 'h-full min-h-0')}>
@@ -848,7 +854,7 @@ function SectionPackages({
         open={packageFormOpen}
         onClose={closePackageForm}
         title={editingPackage ? 'Изменить абонемент' : 'Новый абонемент'}
-        desktopPresentation="right-sheet"
+        variant="panel"
         footer={packageFormFooter}
       >
         {packageFormBody}
@@ -860,7 +866,7 @@ function SectionPackages({
         title={
           <DoctorModalCompositeTitle label="Абонемент" entity={selectedCatalogPackage?.title} />
         }
-        desktopPresentation="right-sheet"
+        variant="panel"
         footer={packageDetailsFooter}
       >
         {packageDetailsBody}

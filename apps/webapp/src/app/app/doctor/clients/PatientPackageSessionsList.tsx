@@ -261,6 +261,7 @@ export function PatientPackageSessionsList({
       <DoctorModal
         open={confirmStep === 1}
         onClose={() => setConfirmStep(0)}
+        variant="dialog"
         title="Подтверждение"
         size="sm"
         footer={
@@ -282,6 +283,7 @@ export function PatientPackageSessionsList({
       <DoctorModal
         open={confirmStep === 2}
         onClose={() => setConfirmStep(0)}
+        variant="dialog"
         title="Прошедшая запись"
         size="sm"
         footer={
@@ -301,6 +303,7 @@ export function PatientPackageSessionsList({
       <DoctorModal
         open={lateChoice !== null}
         onClose={() => setLateChoice(null)}
+        variant="dialog"
         title="Поздняя отвязка"
         size="sm"
       >

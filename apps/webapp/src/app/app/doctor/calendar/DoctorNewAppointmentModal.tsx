@@ -70,7 +70,10 @@ type CreatePanelProps = {
   onClose: () => void;
   onChanged?: () => void;
   onCreated?: (appointmentId: string) => void;
-  createContinuation?: { onOffline: (appointmentId: string) => void; onOnline: (appointmentId: string) => void };
+  createContinuation?: {
+    onOffline: (appointmentId: string) => void;
+    onOnline: (appointmentId: string) => void;
+  };
   appointmentsManageOwn?: boolean;
 };
 
@@ -206,7 +209,7 @@ export function DoctorNewAppointmentModal({
         )
       }
       size="lg"
-      desktopPresentation="right-sheet"
+      variant="panel"
     >
       <DoctorAppointmentCreatePanel
         active={open}

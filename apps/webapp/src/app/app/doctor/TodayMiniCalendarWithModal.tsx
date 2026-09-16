@@ -59,20 +59,22 @@ function TodayMiniCalendarShellFallback({
       )}
     >
       {!flushChrome ? <DoctorSectionTitle>{todayDateLabel}</DoctorSectionTitle> : null}
-      {appointments.length === 0 ? (
-        <p className="text-xs text-muted-foreground">Записей на сегодня нет</p>
-      ) : (
-        <ul className="space-y-1 text-sm" aria-label="Записи на сегодня">
-          {appointments.map((appt) => (
-            <li key={appt.id}>
-              <a href={appt.href} className="text-primary hover:underline">
-                {appt.time} · {appt.clientLabel}
-              </a>
-            </li>
-          ))}
-        </ul>
-      )}
-      <DoctorPanelLoading className="mt-2 min-h-48" />
+      {!flushChrome ? (
+        appointments.length === 0 ? (
+          <p className="text-xs text-muted-foreground">Записей на сегодня нет</p>
+        ) : (
+          <ul className="space-y-1 text-sm" aria-label="Записи на сегодня">
+            {appointments.map((appt) => (
+              <li key={appt.id}>
+                <a href={appt.href} className="text-primary hover:underline">
+                  {appt.time} · {appt.clientLabel}
+                </a>
+              </li>
+            ))}
+          </ul>
+        )
+      ) : null}
+      <DoctorPanelLoading className={cn('min-h-48', !flushChrome && 'mt-2')} />
     </DoctorSection>
   );
 }
@@ -261,7 +263,7 @@ export function TodayMiniCalendarWithModal({
           />
         }
         size="lg"
-        desktopPresentation="right-sheet"
+        variant="panel"
       >
         {selected ? (
           <DoctorCalendarEventPanel

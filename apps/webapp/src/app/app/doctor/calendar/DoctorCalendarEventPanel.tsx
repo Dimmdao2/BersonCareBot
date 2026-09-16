@@ -714,6 +714,7 @@ function DoctorCalendarEventPanelInner({
         <DoctorModal
           open={overlapConfirmOpen}
           onClose={() => setOverlapConfirmOpen(false)}
+          variant="dialog"
           title="Время занято"
           size="sm"
         >
@@ -1272,7 +1273,7 @@ function DoctorCalendarEventPanelInner({
           />
         }
         size="lg"
-        desktopPresentation="right-sheet"
+        variant="panel"
       >
         <DoctorAppointmentForm
           mode="edit"

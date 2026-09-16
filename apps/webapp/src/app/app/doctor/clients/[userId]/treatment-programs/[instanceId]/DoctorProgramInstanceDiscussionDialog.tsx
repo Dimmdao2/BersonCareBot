@@ -106,7 +106,9 @@ export function DoctorProgramInstanceDiscussionDialog(props: {
       const data = (await res.json().catch(() => null)) as DiscussionPageResponse | null;
       if (generation !== loadGenerationRef.current) return null;
       if (!res.ok || !data?.ok || !Array.isArray(data.messages)) {
-        throw new Error(readSafeApiErrorText(data, notificationText.patientProgramItemDiscussionLoadFailed));
+        throw new Error(
+          readSafeApiErrorText(data, notificationText.patientProgramItemDiscussionLoadFailed),
+        );
       }
       const loaded = data.messages;
       setMessages((current) => reconcileMessages(current, loaded, appendOlder));
@@ -189,6 +191,7 @@ export function DoctorProgramInstanceDiscussionDialog(props: {
 
   return (
     <DoctorModal
+      variant="panel"
       open={open}
       onClose={() => onOpenChange(false)}
       title="Комментарии"
@@ -233,9 +236,7 @@ export function DoctorProgramInstanceDiscussionDialog(props: {
               await loadPage(null, false, generation);
             } catch {
               if (generation === loadGenerationRef.current) {
-                toast.error(
-                  notificationText.doctorFileDeletedListStale,
-                );
+                toast.error(notificationText.doctorFileDeletedListStale);
               }
             }
             return { ok: true as const };

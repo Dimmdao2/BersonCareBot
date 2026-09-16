@@ -7,7 +7,7 @@ import {
   type ReactNode,
   useState,
 } from 'react';
-import { DoctorModal, type DoctorModalDesktopPresentation } from './DoctorModal';
+import { DoctorModal, type DoctorModalVariant } from './DoctorModal';
 import { Button } from './primitives/button';
 import { Input } from './primitives/input';
 import { DoctorPanelLoading } from './DoctorPanelLoading';
@@ -51,7 +51,7 @@ export type KpiPreviewModalProps<T> = {
   emptyState?: ReactNode;
   /** Whether data is still loading (shows skeleton) */
   loading?: boolean;
-  desktopPresentation?: DoctorModalDesktopPresentation;
+  variant?: DoctorModalVariant;
 };
 
 /**
@@ -77,7 +77,7 @@ export function KpiPreviewModal<T>({
   quickFilters,
   emptyState,
   loading = false,
-  desktopPresentation,
+  variant = 'panel',
 }: KpiPreviewModalProps<T>) {
   const [query, setQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<number | null>(null);
@@ -115,7 +115,7 @@ export function KpiPreviewModal<T>({
       }
       size="lg"
       bodyVariant="list"
-      desktopPresentation={desktopPresentation}
+      variant={variant}
       headerAction={headerAction}
       footer={footer}
     >

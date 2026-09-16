@@ -86,14 +86,8 @@ export function DoctorTodayMiniCalendar({
   onCanonicalEventClick,
   onEventClick,
 }: Props) {
-  const scrollTime = deriveCalendarInitialScrollTime(
-    workingBounds,
-    calendarEvents,
-    displayIana,
-  );
-  const workingEvents = (calendarEvents ?? []).filter(
-    (event) => event.kind === 'working',
-  );
+  const scrollTime = deriveCalendarInitialScrollTime(workingBounds, calendarEvents, displayIana);
+  const workingEvents = (calendarEvents ?? []).filter((event) => event.kind === 'working');
   const bgFillEvent =
     calendarEvents !== undefined
       ? buildDoctorCalendarNonWorkingRanges(workingEvents, displayIana, [todayIso]).map(
@@ -177,7 +171,7 @@ export function DoctorTodayMiniCalendar({
       {!flushChrome ? <DoctorSectionTitle>{todayDateLabel}</DoctorSectionTitle> : null}
 
       {/* R1: empty-state hint; the FC day stays visible regardless. */}
-      {appointments.length === 0 ? (
+      {!flushChrome && appointments.length === 0 ? (
         <p className="text-xs text-muted-foreground">Записей на сегодня нет</p>
       ) : null}
 

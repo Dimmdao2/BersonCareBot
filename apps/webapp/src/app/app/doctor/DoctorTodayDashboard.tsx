@@ -354,9 +354,19 @@ export function DoctorTodayDashboard({
               title={<span className="whitespace-nowrap">Записи сегодня</span>}
               value={activeTodayAppointments.length}
               valuePlacement="side-center"
-              opensDetails
-              detailsIcon={<CalendarDays className="size-3.5" strokeWidth={1.5} />}
-              onClick={() => setMobileModal('calendar')}
+              className={
+                activeTodayAppointments.length === 0
+                  ? 'border-border/60 hover:border-border/60'
+                  : undefined
+              }
+              opensDetails={isMobile}
+              detailsIcon={
+                <CalendarDays
+                  className={isMobile ? 'size-3.5' : 'size-3.5 opacity-0'}
+                  strokeWidth={1.5}
+                />
+              }
+              onClick={isMobile ? () => setMobileModal('calendar') : undefined}
             />
           </DoctorMetricList>
 
@@ -415,7 +425,7 @@ export function DoctorTodayDashboard({
         title={supportGroupLabel}
         size="lg"
         bodyVariant="list"
-        desktopPresentation="right-sheet"
+        variant="panel"
       >
         <DoctorTodayPeopleSection
           data={data}
@@ -428,6 +438,7 @@ export function DoctorTodayDashboard({
         />
       </DoctorModal>
       <DoctorModal
+        variant="panel"
         open={mobileModal === 'calendar'}
         onClose={() => setMobileModal(null)}
         title="Записей сегодня"
@@ -449,7 +460,7 @@ export function DoctorTodayDashboard({
         title={mobileModal === 'week-primary' ? 'Первичные на неделе' : 'Записи на неделе'}
         size="lg"
         bodyVariant="list"
-        desktopPresentation="right-sheet"
+        variant="panel"
       >
         <DoctorTodayAppointmentsList
           appointments={

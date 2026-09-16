@@ -507,7 +507,7 @@ export function ClinicPublicCardSection({
         onClose={closeFullDescriptionEditor}
         title="Подробное описание"
         size="lg"
-        desktopPresentation="right-sheet"
+        variant="panel"
         bodyClassName="!pt-0"
         rightSheetAnchorId="clinic-public-settings-section"
         footer={

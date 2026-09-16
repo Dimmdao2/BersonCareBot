@@ -122,7 +122,7 @@ export function DoctorSoldMembershipsModal({
         }}
         title="Проданные абонементы"
         bodyVariant="list"
-        desktopPresentation="right-sheet"
+        variant="panel"
         bodyHeader={
           state.phase === 'ready' ? (
             <DoctorModalSummaryBar>Всего {packages.length}</DoctorModalSummaryBar>
@@ -192,7 +192,7 @@ export function DoctorSoldMembershipsModal({
             patientHref={selected ? patientCardHref(selected.platformUserId) : null}
           />
         }
-        desktopPresentation="right-sheet"
+        variant="panel"
       >
         {selected ? (
           <div className="flex flex-col gap-4">

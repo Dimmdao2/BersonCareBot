@@ -43,16 +43,18 @@ function SheetContent({
   showCloseButton = true,
   showOverlay = true,
   overlayClassName,
+  overlayStyle,
   ...props
 }: SheetPrimitive.Popup.Props & {
   side?: 'top' | 'right' | 'bottom' | 'left';
   showCloseButton?: boolean;
   showOverlay?: boolean;
   overlayClassName?: string;
+  overlayStyle?: React.CSSProperties;
 }) {
   return (
     <SheetPortal>
-      {showOverlay ? <SheetOverlay className={overlayClassName} /> : null}
+      {showOverlay ? <SheetOverlay className={overlayClassName} style={overlayStyle} /> : null}
       <SheetPrimitive.Popup
         data-slot="sheet-content"
         data-side={side}

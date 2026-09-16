@@ -43,7 +43,7 @@ export function DoctorGlobalQuickActions({
             <UserPlus className="size-[22px]" strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden />
           }
           compactOnMobile
-          desktopPresentation="right-sheet"
+          variant="panel"
         />
       </div>
 

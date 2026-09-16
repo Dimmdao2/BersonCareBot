@@ -84,7 +84,7 @@ export function TariffDetailsModal({ tariffName, details }: Props) {
         title="Состав тарифа"
         titleSubject={tariffName}
         size="content"
-        desktopPresentation="right-sheet"
+        variant="panel"
       >
         <div className="flex flex-col gap-4">
           <section className="flex flex-col gap-2">

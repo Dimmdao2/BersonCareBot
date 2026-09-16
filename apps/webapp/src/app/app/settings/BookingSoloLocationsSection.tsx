@@ -343,6 +343,7 @@ export function BookingSoloLocationsSection() {
       </DoctorSection>
 
       <DoctorModal
+        variant="panel"
         open={createOpen}
         onClose={() => setCreateOpen(false)}
         title="Новый филиал"
@@ -404,6 +405,7 @@ export function BookingSoloLocationsSection() {
       </DoctorModal>
 
       <DoctorModal
+        variant="panel"
         open={editedBranch !== null}
         onClose={() => setEditedBranch(null)}
         title="Редактировать филиал"

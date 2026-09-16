@@ -582,6 +582,7 @@ function ServiceModal({
   const prefix = mode === 'create' ? 'service-create' : 'service-edit';
   return (
     <DoctorModal
+      variant="panel"
       open={open}
       onClose={onClose}
       title={mode === 'create' ? 'Новая услуга' : 'Редактировать услугу'}

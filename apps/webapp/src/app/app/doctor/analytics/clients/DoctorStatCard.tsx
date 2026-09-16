@@ -151,20 +151,26 @@ export function DoctorStatCard({
   const detailsIndicatorIsActive = Boolean(opensDetails || href || onClick);
   const inner =
     valuePlacement === 'side-center' ? (
-      <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] grid-rows-[auto_auto] items-start gap-x-1.5">
-        <div className="col-start-1 row-start-1">{label}</div>
-        <div className="col-start-2 row-span-2 row-start-1 flex self-center justify-end">
-          {metric}
+      hint ? (
+        <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] grid-rows-[auto_auto] items-start gap-x-1.5">
+          <div className="col-start-1 row-start-1">{label}</div>
+          <div className="col-start-2 row-span-2 row-start-1 flex self-center justify-end">
+            {metric}
+          </div>
+          <div className="col-start-1 row-start-2">{hintNode}</div>
         </div>
-        {hint ? <div className="col-start-1 row-start-2">{hintNode}</div> : null}
-      </div>
+      ) : (
+        <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-1.5">
+          <div className="translate-y-0.5">{label}</div>
+          <div className="relative left-2.5 flex items-center justify-end md:left-1">{metric}</div>
+        </div>
+      )
     ) : valuePlacement === 'row-until-wide' ? (
-      <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] grid-rows-[auto_auto] items-center gap-x-1.5 xl:block">
-        <div className="col-start-1 row-start-1">{label}</div>
-        <div className="col-start-2 row-span-2 row-start-1 flex self-center justify-end xl:mt-0.5 xl:block">
+      <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-1.5 xl:block">
+        <div className="translate-y-0.5 xl:translate-y-0">{label}</div>
+        <div className="relative left-2.5 flex items-center justify-end md:left-1 xl:left-0 xl:mt-0.5 xl:block">
           {metric}
         </div>
-        {hint ? <div className="col-start-1 row-start-2">{hintNode}</div> : null}
       </div>
     ) : (
       <div
@@ -191,7 +197,7 @@ export function DoctorStatCard({
       </div>
     );
   const detailsIndicator = detailsIcon ? (
-    <span className={doctorStatCardChevronClass} aria-hidden>
+    <span className={cn(doctorStatCardChevronClass, 'translate-y-0.5')} aria-hidden>
       {detailsIcon}
     </span>
   ) : (
@@ -217,7 +223,7 @@ export function DoctorStatCard({
       </span>
     </div>
   ) : (
-    <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+    <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-1">
       <div className="min-w-0">{inner}</div>
       <span
         className={cn(

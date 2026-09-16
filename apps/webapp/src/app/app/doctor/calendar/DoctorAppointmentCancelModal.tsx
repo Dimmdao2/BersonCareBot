@@ -62,6 +62,7 @@ export function DoctorAppointmentCancelModal({
     <DoctorModal
       open={open}
       onClose={onClose}
+      variant="dialog"
       title={
         <DoctorModalStackedTitle
           label="Отмена записи"

@@ -259,7 +259,7 @@ export function PatientEncounterStartModal({
         />
       }
       size="lg"
-      desktopPresentation="right-sheet"
+      variant="panel"
       bodyVariant={mode === 'select' ? 'list' : 'default'}
       bodyHeader={
         <div className="px-4 py-3">

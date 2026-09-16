@@ -571,7 +571,7 @@ function RecommendationsContent({
         onClose={() => setMobileSheet(null)}
         title={mobileSheet?.recommendation?.title ?? 'Новая рекомендация'}
         size="content"
-        desktopPresentation="right-sheet"
+        variant="panel"
       >
         {!isDesktopViewport && mobileSheet !== null ? (
           <RecommendationForm

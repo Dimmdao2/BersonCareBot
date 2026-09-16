@@ -435,7 +435,7 @@ function LfkTemplatesContent({
         }}
         title={creating ? 'Новый комплекс' : (mobileSheet?.title ?? 'Комплекс')}
         size="content"
-        desktopPresentation="right-sheet"
+        variant="panel"
       >
         {!isDesktopViewport && mobileDetailOpen ? (
           creating ? (

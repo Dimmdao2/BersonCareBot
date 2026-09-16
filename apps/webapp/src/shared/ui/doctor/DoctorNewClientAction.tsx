@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useState, type ReactNode } from 'react';
 import { routePaths } from '@/app-layer/routes/paths';
 import { cn } from '@/lib/utils';
-import { DoctorModal, type DoctorModalDesktopPresentation } from './DoctorModal';
+import { DoctorModal, type DoctorModalVariant } from './DoctorModal';
 import { Button } from './primitives/button';
 import { Input } from './primitives/input';
 import { Label } from './primitives/label';
@@ -33,7 +33,7 @@ type DoctorNewClientActionProps = {
   showIcon?: boolean;
   compactOnMobile?: boolean;
   desktopTriggerLabel?: string;
-  desktopPresentation?: DoctorModalDesktopPresentation;
+  variant?: DoctorModalVariant;
   triggerIcon?: ReactNode;
 };
 
@@ -44,7 +44,7 @@ export function DoctorNewClientAction({
   showIcon = true,
   compactOnMobile = true,
   desktopTriggerLabel,
-  desktopPresentation,
+  variant = 'panel',
   triggerIcon,
 }: DoctorNewClientActionProps) {
   const router = useRouter();
@@ -151,7 +151,7 @@ export function DoctorNewClientAction({
         onClose={close}
         title={triggerLabel}
         size="md"
-        desktopPresentation={desktopPresentation}
+        variant={variant}
         footer={
           <>
             <Button type="button" variant="outline" disabled={pending} onClick={close}>

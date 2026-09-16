@@ -125,7 +125,7 @@ export function TodayAppointmentFullModal({
         />
       }
       size="lg"
-      desktopPresentation="right-sheet"
+      variant="panel"
     >
       {loading ? (
         <DoctorPanelLoading className="min-h-32" />

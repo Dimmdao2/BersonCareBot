@@ -242,7 +242,7 @@ export function DoctorTodayLeftKpiRow({
          * Раньше на десктопе она уводила навигацией (`router.push`), и человек терял «Сегодня»
          * целиком ради трёх строк. Соседние плитки — «Сообщения» и «Комментарии» — так себя не
          * вели никогда: обе открывают тот же список правой панелью на десктопе и нижним листом на
-         * мобильном (`desktopPresentation="right-sheet"` у `KpiPreviewModal`). Теперь ветки по
+         * мобильном (`variant="panel"` у `KpiPreviewModal`). Теперь ветки по
          * ширине нет вовсе — одна и та же панель на всех ширинах. Полная страница остаётся в
          * одном клике: кнопка «Все задачи» в подвале панели.
          */
@@ -292,7 +292,7 @@ export function DoctorTodayLeftKpiRow({
         title="Сообщения"
         count={messageTotal}
         showCount={false}
-        desktopPresentation="right-sheet"
+        variant="panel"
         nestedModals={
           <DoctorConversationChatModal
             conversationId={selectedConversation?.conversationId ?? null}
@@ -336,7 +336,7 @@ export function DoctorTodayLeftKpiRow({
         title="Задачи на сегодня"
         count={attentionTasks.length}
         showCount={false}
-        desktopPresentation="right-sheet"
+        variant="panel"
         items={attentionTasks}
         nestedModals={
           <>

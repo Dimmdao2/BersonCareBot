@@ -1,14 +1,7 @@
 'use client';
 
 import 'react-day-picker/style.css';
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  useTransition,
-} from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import dynamic from 'next/dynamic';
 import { DateTime } from 'luxon';
 import { DayPicker } from 'react-day-picker';
@@ -1205,9 +1198,7 @@ export function ScheduleCalendarTab({
    * остановилась, чтобы следующая штатная перерисовка не вернула устаревшую подпись.
    */
   const periodLabelNodesRef = useRef(new Map<string, HTMLButtonElement>());
-  const periodLabelSettersRef = useRef(
-    new Map<string, (node: HTMLButtonElement | null) => void>(),
-  );
+  const periodLabelSettersRef = useRef(new Map<string, (node: HTMLButtonElement | null) => void>());
   const registerPeriodLabelNode = useCallback((key: string) => {
     const cached = periodLabelSettersRef.current.get(key);
     if (cached) return cached;
@@ -1481,8 +1472,8 @@ export function ScheduleCalendarTab({
       (data?.events ?? []).filter(
         (event) =>
           event.kind !== 'appointment' ||
-          (includeCancelledAppointments || !isCancelledAppointmentStatus(event.status)) &&
-            (!kpiFilterPredicate || kpiFilterPredicate(event)),
+          ((includeCancelledAppointments || !isCancelledAppointmentStatus(event.status)) &&
+            (!kpiFilterPredicate || kpiFilterPredicate(event))),
       ),
     [data?.events, includeCancelledAppointments, kpiFilterPredicate],
   );
@@ -3080,6 +3071,7 @@ export function ScheduleCalendarTab({
       </div>
 
       <DoctorModal
+        variant="panel"
         open={openWorkingHoursDialog !== null}
         onClose={() => {
           setOpenWorkingHoursDialog(null);
@@ -3154,6 +3146,7 @@ export function ScheduleCalendarTab({
       <DoctorModal
         open={datePickerOpen}
         onClose={() => setDatePickerOpen(false)}
+        variant="dialog"
         title="Перейти к дате"
         size="content"
       >
@@ -3179,7 +3172,7 @@ export function ScheduleCalendarTab({
         onClose={() => setFiltersPanelOpen(false)}
         title="Фильтры"
         size="lg"
-        desktopPresentation="right-sheet"
+        variant="panel"
         bodyClassName="p-4"
       >
         <div id="schedule-filters-panel" className="flex flex-col gap-3">
@@ -3214,7 +3207,7 @@ export function ScheduleCalendarTab({
           }}
           title={eventPanelTitle}
           size="lg"
-          desktopPresentation="right-sheet"
+          variant="panel"
           bodyClassName="p-4"
         >
           {eventPanelNode}
@@ -3223,6 +3216,7 @@ export function ScheduleCalendarTab({
 
       {isMobileViewport ? (
         <DoctorModal
+          variant="panel"
           open={eventPanelOpen}
           onClose={clearDraftAndPanel}
           title={eventPanelTitle}
@@ -3242,7 +3236,6 @@ export function ScheduleCalendarTab({
         onConfirm={confirmRescheduleConfirm}
         onCancel={cancelRescheduleConfirm}
       />
-
     </div>
   );
 }

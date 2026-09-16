@@ -275,6 +275,7 @@ export function ClinicMembersClient({ initialMembers, initialInvites }: Props) {
       </DoctorSection>
 
       <DoctorModal
+        variant="panel"
         open={inviteOpen}
         onClose={() => setInviteOpen(false)}
         title="Пригласить врача"

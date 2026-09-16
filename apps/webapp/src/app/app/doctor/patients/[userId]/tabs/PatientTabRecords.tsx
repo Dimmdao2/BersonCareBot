@@ -542,7 +542,7 @@ export function PatientTabRecords({
           }
           size="lg"
           bodyVariant="list"
-          desktopPresentation="right-sheet"
+          variant="panel"
         >
           <DoctorModalSummaryBar className="flex items-start justify-between gap-3">
             <span className="grid min-w-0 grid-cols-2 gap-x-4 gap-y-1">
@@ -685,7 +685,7 @@ export function PatientTabRecords({
           }
           size="lg"
           bodyVariant="list"
-          desktopPresentation="right-sheet"
+          variant="panel"
         >
           {activePackages.length > 0 ? (
             <DoctorModalSummaryBar>

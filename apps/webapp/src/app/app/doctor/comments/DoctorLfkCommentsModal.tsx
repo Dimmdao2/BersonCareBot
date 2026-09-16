@@ -83,7 +83,7 @@ export function DoctorLfkCommentsModal({
       }
       size="lg"
       bodyVariant="list"
-      desktopPresentation="right-sheet"
+      variant="panel"
     >
       {loading ? (
         <DoctorPanelLoading className="py-10" />

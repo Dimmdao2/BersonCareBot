@@ -26,7 +26,7 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from './primitives/drawer';
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from './primitives/sheet';
+import { Sheet, SheetClose, SheetContent, SheetHeader, SheetTitle } from './primitives/sheet';
 import { useIsMobileViewport } from './primitives/useIsMobileViewport';
 import { useViewportMinWidth } from '@/shared/hooks/useViewportMinWidth';
 import { DOCTOR_VIEWPORT } from '@/shared/ui/doctor/doctorViewports';
@@ -84,10 +84,10 @@ type DoctorModalBodyVariant = 'default' | 'list';
  * covers the whole visible viewport with no drawer handle/top gap; on desktop it is a no-op and
  * falls back to the standard dialog/right-sheet geometry with top-oriented text entry.
  */
-type DoctorModalPresentation = 'standard' | 'fullscreen-media' | 'fullscreen-text';
-export type DoctorModalDesktopPresentation = 'dialog' | 'right-sheet';
+export type DoctorModalVariant = 'panel' | 'dialog' | 'fullscreen-media' | 'fullscreen-text';
 
 type FullscreenTextViewportGeometry = { top: number; height: number };
+type DoctorModalBodyOverlayBounds = { top: number; left: number; right: number };
 
 /**
  * MODAL-TEXT-05/06: geometry для мобильного fullscreen-текстового редактора. Следит за
@@ -203,14 +203,12 @@ type DoctorModalProps = {
   bodyClassName?: string;
   /** A flat list owns no local scroll or card chrome: the modal body is its only scroll owner. */
   bodyVariant?: DoctorModalBodyVariant;
-  /** Right-sheet presentation starts at 540px; other mobile presentations keep the shell breakpoint. */
-  desktopPresentation?: DoctorModalDesktopPresentation;
+  /** Explicit geometry contract; every modal must declare one of the four supported types. */
+  variant: DoctorModalVariant;
   /** Align a right sheet's left edge to this element instead of the generic half-page column. */
   rightSheetAnchorId?: string;
   /** Called before a non-modal right sheet closes from a pointer press outside it. */
   onRightSheetOutsidePress?: () => void;
-  /** Full-viewport media viewer which keeps the underlying modal mounted. */
-  presentation?: DoctorModalPresentation;
 };
 
 export function DoctorModalCompositeTitle({
@@ -304,8 +302,8 @@ export function DoctorModalStackedTitle({
  *   (высота ограничена с приятными отступами сверху/снизу).
  * — Опциональный подвал с кнопками, закреплён снизу.
  * — Размеры sm/md/lg/content (content = широкая+высокая, под чат и обсуждения).
- * — Правая панель включается с 540px; до 539px тот же feature открывается bottom-sheet снизу.
- * — Обычные диалоги сохраняют общий mobile-shell breakpoint.
+ * — Правая панель включается по умолчанию с 540px; до 539px модалка открывается bottom-sheet снизу.
+ * — Диалоговая презентация остаётся только явным opt-out через variant="dialog".
  *
  * size="content" отдаёт телу гибкую flex-колонку под контент со СВОИМ внутренним
  * скроллом (чат, панель обсуждений); остальные размеры прокручивают тело сами.
@@ -324,38 +322,41 @@ export function DoctorModal({
   bodyHeader,
   bodyClassName,
   bodyVariant = 'default',
-  desktopPresentation = 'dialog',
+  variant,
   rightSheetAnchorId,
   onRightSheetOutsidePress,
-  presentation = 'standard',
 }: DoctorModalProps) {
+  const isFullscreenMedia = variant === 'fullscreen-media';
+  const isFullscreenText = variant === 'fullscreen-text';
+  const desktopPresentation = variant === 'dialog' ? 'dialog' : 'right-sheet';
   const isMobileShell = useIsMobileViewport();
   const supportsRightPanel = useViewportMinWidth(DOCTOR_VIEWPORT.rightPanelMin);
-  // Навигационный mobile-shell живёт до md (768px), но запрошенная caller'ом правая панель
-  // включается раньше: 540px уже достаточно для её планшетной геометрии. Обычные
-  // dialog-презентации не меняют breakpoint вместе с ней.
+  // Навигационный mobile-shell живёт до md (768px), но стандартная правая панель
+  // включается раньше: 540px уже достаточно для её планшетной геометрии. Явный
+  // `variant="dialog"` сохраняет диалоговую презентацию до md.
   const promotesRightSheetToTablet =
     isMobileShell &&
     supportsRightPanel &&
     desktopPresentation === 'right-sheet' &&
-    presentation !== 'fullscreen-media';
+    !isFullscreenMedia;
   const isMobile = isMobileShell && !promotesRightSheetToTablet;
   const isWideDesktop = useViewportMinWidth(DOCTOR_VIEWPORT.wideWorkspaceMin);
-  // Правая панель — слой рядом со страницей, а не поверх неё: она не затемняет и не мешает
-  // затемнять модалке, открытой из неё. Все остальные пути (десктопный диалог, мобильный
-  // bottom-sheet, полноэкранные режимы) — обычные накрывающие слои.
-  const usesRightSheet =
-    !isMobile && desktopPresentation === 'right-sheet' && presentation !== 'fullscreen-media';
-  const layerKind: DoctorModalLayerKind = usesRightSheet ? 'panel' : 'backdrop';
+  // Компактная панель 540–767px остаётся рядом со страницей без backdrop. Начиная с md
+  // правая панель перекрывает левую часть workspace, поэтому первый слой владеет общим
+  // затемнением; вложенные панели второй backdrop не добавляют.
+  const usesRightSheet = !isMobile && desktopPresentation === 'right-sheet' && !isFullscreenMedia;
+  const layerKind: DoctorModalLayerKind = usesRightSheet && isMobileShell ? 'panel' : 'backdrop';
   const showOverlay = useDoctorModalOverlay(open, layerKind);
   const isContent = size === 'content';
   const isListBody = bodyVariant === 'list';
-  const isFullscreenText = presentation === 'fullscreen-text';
   const fullscreenTextGeometry = useDoctorModalFullscreenTextGeometry(
     isFullscreenText && isMobile && open,
   );
   const [rightSheetWidth, setRightSheetWidth] = useState<string | null>(null);
   const [rightSheetInset, setRightSheetInset] = useState<number | null>(null);
+  const [bodyOverlayBounds, setBodyOverlayBounds] = useState<DoctorModalBodyOverlayBounds | null>(
+    null,
+  );
   const [footerSlotElement, setFooterSlotElement] = useState<HTMLDivElement | null>(null);
   const [hasSlottedFooter, setHasSlottedFooter] = useState(false);
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -374,12 +375,14 @@ export function DoctorModal({
 
     const pageContent = document.getElementById('app-shell-content');
     if (!pageContent) return;
+    const pageHeader = pageContent.querySelector<HTMLElement>('[data-doctor-page-header]');
     const rightSheetAnchor = rightSheetAnchorId
       ? document.getElementById(rightSheetAnchorId)
       : null;
 
     const updateGeometry = () => {
       const rect = pageContent.getBoundingClientRect();
+      const pageHeaderBottom = pageHeader?.getBoundingClientRect().bottom ?? rect.top;
       const widthRatio = isWideDesktop ? 0.5 : 0.45;
       // Владелец 15.09: «слишком сильно, не видно расстояние между правым и левым блоками
       // страницы — надо чуть уменьшить, желательно по левый край правого блока». Панель была
@@ -403,6 +406,18 @@ export function DoctorModal({
       // Держим правый край панели там же, где кончается контейнер страницы, а не у края окна.
       const nextInset = Math.max(0, window.innerWidth - rect.right);
       setRightSheetInset((current) => (current === nextInset ? current : nextInset));
+      const nextOverlayBounds = {
+        top: Math.max(0, pageHeaderBottom),
+        left: Math.max(0, rect.left),
+        right: nextInset,
+      };
+      setBodyOverlayBounds((current) =>
+        current?.top === nextOverlayBounds.top &&
+        current.left === nextOverlayBounds.left &&
+        current.right === nextOverlayBounds.right
+          ? current
+          : nextOverlayBounds,
+      );
     };
 
     updateGeometry();
@@ -410,6 +425,7 @@ export function DoctorModal({
     const resizeObserver =
       typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(updateGeometry);
     resizeObserver?.observe(pageContent);
+    if (pageHeader) resizeObserver?.observe(pageHeader);
     if (rightSheetAnchor) resizeObserver?.observe(rightSheetAnchor);
     return () => {
       window.removeEventListener('resize', updateGeometry);
@@ -487,7 +503,7 @@ export function DoctorModal({
     if (!v) onClose();
   };
 
-  if (presentation === 'fullscreen-media') {
+  if (isFullscreenMedia) {
     const fullscreenBody = (
       <div className="relative flex h-full min-h-0 w-full flex-1 flex-col bg-black text-white">
         {!isMobile ? (
@@ -622,11 +638,29 @@ export function DoctorModal({
       >
         <SheetContent
           side="right"
-          showOverlay={false}
-          className="gap-0 bg-card p-0 !max-w-none !shadow-md"
+          showCloseButton={!promotesRightSheetToTablet}
+          showOverlay={showOverlay && (isMobileShell || bodyOverlayBounds !== null)}
+          overlayStyle={
+            !isMobileShell && bodyOverlayBounds
+              ? {
+                  top: bodyOverlayBounds.top,
+                  left: bodyOverlayBounds.left,
+                  right: bodyOverlayBounds.right,
+                  bottom: 0,
+                }
+              : undefined
+          }
+          className={cn(
+            'gap-0 bg-card p-0 !max-w-none !shadow-md',
+            promotesRightSheetToTablet && 'rounded-l-[4px] pl-3',
+          )}
           style={{
-            top: 'var(--doctor-page-header-h, 2.75rem)',
-            height: 'calc(100dvh - var(--doctor-page-header-h, 2.75rem))',
+            top: promotesRightSheetToTablet
+              ? 'var(--doctor-header-height, 3rem)'
+              : 'var(--doctor-page-header-h, 2.75rem)',
+            height: promotesRightSheetToTablet
+              ? 'calc(100dvh - var(--doctor-header-height, 3rem))'
+              : 'calc(100dvh - var(--doctor-page-header-h, 2.75rem))',
             right: rightSheetInset ?? 0,
             width:
               rightSheetWidth ??
@@ -636,9 +670,24 @@ export function DoctorModal({
             maxWidth: 'none',
           }}
         >
+          {promotesRightSheetToTablet ? (
+            <SheetClose
+              aria-label="Закрыть панель"
+              className="absolute inset-y-0 left-0 z-20 flex w-3 cursor-pointer items-center justify-center rounded-l-[4px] border-r border-border/60 bg-muted/40 outline-none hover:bg-muted/70 focus-visible:ring-2 focus-visible:ring-primary/40"
+            >
+              <span aria-hidden className="h-8 w-0.5 rounded-full bg-muted-foreground/45" />
+            </SheetClose>
+          ) : null}
           <SheetHeader
-            className="shrink-0 justify-center border-b border-border/60 px-4 py-1 pr-12"
-            style={{ minHeight: 'var(--doctor-page-header-h, 2.75rem)' }}
+            className={cn(
+              'shrink-0 justify-center border-b border-border/60 px-4 py-1',
+              promotesRightSheetToTablet ? 'pr-4' : 'pr-12',
+            )}
+            style={{
+              minHeight: promotesRightSheetToTablet
+                ? 'var(--doctor-header-height, 3rem)'
+                : 'var(--doctor-page-header-h, 2.75rem)',
+            }}
           >
             <div className="flex min-w-0 items-center justify-between gap-2">
               <div className="flex min-w-0 flex-1 flex-col gap-0.5">

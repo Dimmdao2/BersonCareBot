@@ -415,7 +415,7 @@ function TestSetsContent({
         }}
         title={creating ? 'Новый набор тестов' : (mobileSheet?.title ?? 'Набор тестов')}
         size="content"
-        desktopPresentation="right-sheet"
+        variant="panel"
       >
         {!isDesktopViewport && mobileDetailOpen ? (
           <TestSetForm

@@ -95,8 +95,8 @@ function FailureLines({ failures }: { failures: OwnLoginDeviceFailures }) {
       ) : null}
       {failures.unknownPasswords > 0 ? (
         <span>
-          {beforeLoginText(failures.unknownAt)} {timesText(failures.unknownPasswords)} ввели неверный
-          пароль от вашей учётной записи с устройств, с которых к нам не входили
+          {beforeLoginText(failures.unknownAt)} {timesText(failures.unknownPasswords)} ввели
+          неверный пароль от вашей учётной записи с устройств, с которых к нам не входили
           {failures.unknownSources > 0
             ? ` — с ${addressesText(failures.unknownSources, failures.unknownSourcesCapped)}`
             : ''}
@@ -156,7 +156,9 @@ export function LoginDevicesCard({
   const [open, setOpen] = useState(false);
   const lastSeenAt = devices.reduce<string | null>(
     (latest, device) =>
-      latest === null || new Date(device.lastSeenAt) > new Date(latest) ? device.lastSeenAt : latest,
+      latest === null || new Date(device.lastSeenAt) > new Date(latest)
+        ? device.lastSeenAt
+        : latest,
     null,
   );
 
@@ -197,7 +199,7 @@ export function LoginDevicesCard({
         open={open}
         onClose={() => setOpen(false)}
         title="Устройства, с которых входили"
-        desktopPresentation="right-sheet"
+        variant="panel"
         size="lg"
       >
         <LoginDevicesList devices={devices} />
@@ -242,8 +244,8 @@ function LoginDevicesList({ devices }: { devices: OwnLoginDevice[] }) {
                 {device.identifiedByMarker ? null : (
                   <span className="text-xs text-muted-foreground">
                     Это устройство узнано только по названию браузера — одинаковые телефоны здесь
-                    сольются в одну строку. Так показываются входы, сделанные до того, как устройства
-                    стали помечаться.
+                    сольются в одну строку. Так показываются входы, сделанные до того, как
+                    устройства стали помечаться.
                   </span>
                 )}
               </li>
@@ -253,17 +255,17 @@ function LoginDevicesList({ devices }: { devices: OwnLoginDevice[] }) {
       )}
 
       <p className="mt-3 text-xs text-muted-foreground">
-        Одно и то же устройство узнаётся даже при смене адреса, поэтому вход через VPN виден как то же
-        устройство, но из другой страны. Если почистить в браузере сохранённые данные сайта или зайти
-        в приватном окне, устройство будет показано как новое — так устроено везде.
+        Одно и то же устройство узнаётся даже при смене адреса, поэтому вход через VPN виден как то
+        же устройство, но из другой страны. Если почистить в браузере сохранённые данные сайта или
+        зайти в приватном окне, устройство будет показано как новое — так устроено везде.
       </p>
       <p className="mt-1 text-xs text-muted-foreground">
         Список собран по двум тысячам последних входов, поэтому счётчик рядом с устройством — это
         входы в том же отрезке, а не за всё время. Неудачные попытки считаются между входами и
         обнуляются, как только вход удался, поэтому здесь показано наибольшее число за отрезок и
-        день, когда оно набралось. Сами записи о входах хранятся 13 месяцев, дальше
-        удаляются. Страна определяется по адресу на нашем сервере, по справочнику DB-IP (db-ip.com);
-        сам адрес никуда не передаётся.
+        день, когда оно набралось. Сами записи о входах хранятся 13 месяцев, дальше удаляются.
+        Страна определяется по адресу на нашем сервере, по справочнику DB-IP (db-ip.com); сам адрес
+        никуда не передаётся.
       </p>
     </div>
   );

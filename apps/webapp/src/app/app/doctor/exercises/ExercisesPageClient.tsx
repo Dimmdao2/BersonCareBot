@@ -481,7 +481,7 @@ function ExercisesContent({
           onClose={() => setMobileSheet(null)}
           title={mobileSheet?.exercise?.title ?? 'Новое упражнение'}
           size="content"
-          desktopPresentation="right-sheet"
+          variant="panel"
         >
           {!isDesktopViewport && mobileSheet !== null ? (
             <ExerciseForm

@@ -67,7 +67,9 @@ async function patchStageItem(
   );
   const payload = (await response.json().catch(() => null)) as PatchStageItemResponse | null;
   if (!response.ok || !payload?.ok || !payload.item) {
-    throw new Error(readSafeApiErrorText(payload, notificationText.doctorExerciseRecommendationsSaveFailed));
+    throw new Error(
+      readSafeApiErrorText(payload, notificationText.doctorExerciseRecommendationsSaveFailed),
+    );
   }
   return toViewItem(payload.item);
 }
@@ -174,6 +176,7 @@ export function DoctorExerciseRecommendationsModal(props: {
 
   return (
     <DoctorModal
+      variant="panel"
       open={open}
       onClose={onClose}
       title={

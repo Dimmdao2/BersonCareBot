@@ -290,7 +290,10 @@ function EmailChange({ userId }: { userId: string }) {
       } | null;
       if (!res.ok) {
         setError(
-          body?.message ?? (body?.error === 'invalid_body' ? notificationText.commonSpecifyValidEmail : 'Не удалось'),
+          body?.message ??
+            (body?.error === 'invalid_body'
+              ? notificationText.commonSpecifyValidEmail
+              : 'Не удалось'),
         );
         return;
       }
@@ -450,6 +453,7 @@ function PersonalDataEditModal({
 
   return (
     <DoctorModal
+      variant="panel"
       open={open}
       onClose={onClose}
       title="Личные данные"
@@ -902,6 +906,7 @@ export function PatientTabAccount({
         onSaved={() => router.refresh()}
       />
       <DoctorModal
+        variant="panel"
         open={contactsModalOpen}
         onClose={() => setContactsModalOpen(false)}
         title="Контакты"
@@ -915,6 +920,7 @@ export function PatientTabAccount({
       </DoctorModal>
 
       <DoctorModal
+        variant="panel"
         open={supportModalOpen}
         onClose={() => setSupportModalOpen(false)}
         title={supportGroupLabel}

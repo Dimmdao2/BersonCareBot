@@ -820,6 +820,7 @@ export function DoctorExerciseStatisticsModal({
 
   return (
     <DoctorModal
+      variant="panel"
       open={open}
       onClose={onClose}
       title={

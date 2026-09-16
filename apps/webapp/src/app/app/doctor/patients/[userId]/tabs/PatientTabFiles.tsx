@@ -514,7 +514,13 @@ function FilePreviewModal({
   const isAudio = file?.mimeType.startsWith('audio/') ?? false;
 
   return (
-    <DoctorModal open={file !== null} onClose={onClose} title={file?.fileName ?? 'Файл'} size="lg">
+    <DoctorModal
+      variant="panel"
+      open={file !== null}
+      onClose={onClose}
+      title={file?.fileName ?? 'Файл'}
+      size="lg"
+    >
       {file ? (
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-center overflow-hidden rounded-lg bg-[repeating-linear-gradient(45deg,hsl(var(--muted)/0.4),hsl(var(--muted)/0.4)_12px,hsl(var(--muted)/0.7)_12px,hsl(var(--muted)/0.7)_24px)]">

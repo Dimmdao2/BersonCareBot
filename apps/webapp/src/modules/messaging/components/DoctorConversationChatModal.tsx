@@ -50,7 +50,7 @@ export function DoctorConversationChatModal({
         />
       }
       size="content"
-      desktopPresentation="right-sheet"
+      variant="panel"
       bodyClassName="p-0"
     >
       {loading ? (

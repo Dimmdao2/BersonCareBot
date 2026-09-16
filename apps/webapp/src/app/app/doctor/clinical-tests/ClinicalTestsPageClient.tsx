@@ -557,7 +557,7 @@ function ClinicalTestsContent({
         onClose={() => setMobileSheet(null)}
         title={mobileSheet?.test?.title ?? 'Новый тест'}
         size="content"
-        desktopPresentation="right-sheet"
+        variant="panel"
       >
         {!isDesktopViewport && mobileSheet !== null ? (
           <ClinicalTestForm

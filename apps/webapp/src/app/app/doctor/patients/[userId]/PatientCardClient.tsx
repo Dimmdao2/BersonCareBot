@@ -894,7 +894,7 @@ function PatientCardTabPanels({
           />
         }
         size="lg"
-        desktopPresentation="right-sheet"
+        variant="panel"
       >
         <DoctorClientMembershipsPanel
           platformUserId={identity.userId}

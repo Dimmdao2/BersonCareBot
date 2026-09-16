@@ -108,7 +108,8 @@ function ConflictDetails({ conflict }: { conflict: PatientMergeConflictDetails }
             </div>
             <div>Специалист: {conflict.resolvedBy?.displayName || 'не указан'}</div>
             <div>
-              Обращение в техподдержку: {conflict.supportRequested ? 'отправлено' : 'не отправлялось'}
+              Обращение в техподдержку:{' '}
+              {conflict.supportRequested ? 'отправлено' : 'не отправлялось'}
             </div>
           </dl>
           <p className={cn(doctorBodyTextClass, 'mt-2 whitespace-pre-wrap break-words')}>
@@ -314,11 +315,11 @@ function DoctorMedicalMergeConflictModal({
     [close, comment, conflictId, load, onChanged, supportRequested],
   );
 
-  const isRefusalTrace =
-    conflict?.status === 'dismissed' || conflict?.status === 'escalated';
+  const isRefusalTrace = conflict?.status === 'dismissed' || conflict?.status === 'escalated';
 
   return (
     <DoctorModal
+      variant="panel"
       open={conflictId !== null}
       onClose={close}
       title="Конфликт учётных записей"

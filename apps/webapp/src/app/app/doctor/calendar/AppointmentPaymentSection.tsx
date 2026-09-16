@@ -33,7 +33,13 @@ function formatRemaining(msLeft: number): string {
     const mod100 = days % 100;
     const mod10 = days % 10;
     const word =
-      mod100 >= 11 && mod100 <= 14 ? 'дней' : mod10 === 1 ? 'день' : mod10 >= 2 && mod10 <= 4 ? 'дня' : 'дней';
+      mod100 >= 11 && mod100 <= 14
+        ? 'дней'
+        : mod10 === 1
+          ? 'день'
+          : mod10 >= 2 && mod10 <= 4
+            ? 'дня'
+            : 'дней';
     return `${days} ${word}`;
   }
   const hours = Math.floor(totalMinutes / 60);
@@ -228,7 +234,8 @@ export function AppointmentPaymentSection({
   // а вместе с ним не мог наступить и `invoiceExpired` — истёкший счёт продолжал бы показывать
   // ссылку. Аудит S6 этого не поймал, потому что читал код, а не экран.
   const deadlineMsRaw = deadlineAt ? parseBusinessInstant(deadlineAt, timeZone).getTime() : null;
-  const deadlineMs = deadlineMsRaw !== null && Number.isFinite(deadlineMsRaw) ? deadlineMsRaw : null;
+  const deadlineMs =
+    deadlineMsRaw !== null && Number.isFinite(deadlineMsRaw) ? deadlineMsRaw : null;
   const [nowMs, setNowMs] = useState(() => Date.now());
   useEffect(() => {
     if (!collectOpen || deadlineMs === null || !Number.isFinite(deadlineMs)) return;
@@ -274,6 +281,7 @@ export function AppointmentPaymentSection({
         <p className="text-muted-foreground">Стоимость записи не определена.</p>
       ) : null}
       <DoctorModal
+        variant="panel"
         open={collectOpen}
         onClose={() => setCollectOpen(false)}
         title="Приём оплаты"

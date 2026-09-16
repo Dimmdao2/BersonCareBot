@@ -343,6 +343,7 @@ export function DoctorAnalyticsShell({
       <DoctorModal
         open={branchPickerOpen}
         onClose={() => setBranchPickerOpen(false)}
+        variant="dialog"
         title="Филиал"
         size="sm"
         bodyClassName="p-0"

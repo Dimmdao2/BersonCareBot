@@ -129,7 +129,9 @@ export function DoctorTasksPageClient({
       size="icon-sm"
       variant="outline"
       className={cn('shrink-0', showingCompletedTasks && DOCTOR_ACTIVE_FILTER_BUTTON_CLASS)}
-      aria-label={showingCompletedTasks ? 'Показать открытые задачи' : 'Показать выполненные задачи'}
+      aria-label={
+        showingCompletedTasks ? 'Показать открытые задачи' : 'Показать выполненные задачи'
+      }
       title={showingCompletedTasks ? 'Показать открытые задачи' : 'Показать выполненные задачи'}
       aria-pressed={showingCompletedTasks}
       onClick={() => selectTaskView(showingCompletedTasks ? 'open' : 'completed')}
@@ -295,12 +297,7 @@ export function DoctorTasksPageClient({
         tabs={
           canMutate ? (
             <div className="hidden w-full justify-end md:flex">
-              <Button
-                type="button"
-                size="sm"
-                className="shrink-0 gap-1.5"
-                onClick={startNewTask}
-              >
+              <Button type="button" size="sm" className="shrink-0 gap-1.5" onClick={startNewTask}>
                 <ListPlus className="size-4" aria-hidden />
                 Новая задача
               </Button>
@@ -419,7 +416,7 @@ export function DoctorTasksPageClient({
           displayIana={displayIana}
           canMutate={canMutate}
           busy={busy}
-          desktopPresentation="right-sheet"
+          variant="panel"
           onComplete={complete}
           onTaskSaved={saveTask}
           onTaskDeleted={deleteTask}

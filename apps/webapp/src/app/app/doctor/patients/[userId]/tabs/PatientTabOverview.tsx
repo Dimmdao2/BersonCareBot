@@ -915,8 +915,7 @@ export function PatientTabOverview({
   compositionMode,
 }: Props) {
   const { patientSingularLabel } = useDoctorPatientTerms();
-  const { conflictIdForClient, openConflict, decisionRevision } =
-    useDoctorMedicalMergeConflicts();
+  const { conflictIdForClient, openConflict, decisionRevision } = useDoctorMedicalMergeConflicts();
   const medicalConflictId = conflictIdForClient(userId);
   const [mergeRefusals, setMergeRefusals] = useState<PatientMergeConflictRefusalSummary[]>([]);
   const isComposed = compositionMode != null;
@@ -1979,7 +1978,7 @@ export function PatientTabOverview({
             }
             size="lg"
             bodyVariant="list"
-            desktopPresentation="right-sheet"
+            variant="panel"
           >
             <DoctorNotesPanel userId={userId} embedded />
           </DoctorModal>
@@ -2022,7 +2021,7 @@ export function PatientTabOverview({
               }
               size="lg"
               bodyVariant="list"
-              desktopPresentation="right-sheet"
+              variant="panel"
               footer={
                 specialistTasksAvailable ? (
                   <>
@@ -2124,7 +2123,7 @@ export function PatientTabOverview({
                   displayIana={tasksDisplayIana}
                   canMutate={specialistTasksAvailable}
                   busy={taskBusy}
-                  desktopPresentation="right-sheet"
+                  variant="panel"
                   onComplete={handleTaskComplete}
                   onTaskSaved={handleTaskSaved}
                   onTaskDeleted={handleTaskDeleted}
@@ -2221,6 +2220,7 @@ export function PatientTabOverview({
         </div>
 
         <DoctorModal
+          variant="panel"
           open={canOpenProgram && stageExercisesModalOpen}
           onClose={() => {
             setStageExercisesModalOpen(false);

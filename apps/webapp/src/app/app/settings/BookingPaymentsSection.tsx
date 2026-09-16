@@ -190,10 +190,12 @@ function PaymentHistoryPanel({ open, onClose }: { open: boolean; onClose: () => 
       onClose={onClose}
       title="История платежей"
       size="content"
-      desktopPresentation="right-sheet"
+      variant="panel"
     >
       {loading ? <DoctorPanelLoading /> : null}
-      {failed ? <p className="text-sm text-destructive">{notificationText.commonGenericError}</p> : null}
+      {failed ? (
+        <p className="text-sm text-destructive">{notificationText.commonGenericError}</p>
+      ) : null}
       {!loading && !failed && timeline.length === 0 ? (
         <p className="text-sm text-muted-foreground">Платежей пока нет.</p>
       ) : null}
@@ -519,9 +521,7 @@ export function BookingPaymentsSection({
           </Button>
         </fieldset>
       </CardContent>
-      {historyOpen ? (
-        <PaymentHistoryPanel open onClose={() => setHistoryOpen(false)} />
-      ) : null}
+      {historyOpen ? <PaymentHistoryPanel open onClose={() => setHistoryOpen(false)} /> : null}
     </Card>
   );
 }

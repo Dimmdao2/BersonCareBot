@@ -258,7 +258,9 @@ function TreatmentProgramTemplatesContent({
           setDetail(json.item);
         } else {
           setDetail(null);
-          setDetailError(readSafeApiErrorText(json, notificationText.treatmentProgramTemplateLoadFailed));
+          setDetailError(
+            readSafeApiErrorText(json, notificationText.treatmentProgramTemplateLoadFailed),
+          );
         }
       })
       .catch((err: unknown) => {
@@ -516,7 +518,7 @@ function TreatmentProgramTemplatesContent({
         }}
         title={creating ? 'Новый шаблон программы' : (mobileSheet?.title ?? 'Шаблон программы')}
         size="content"
-        desktopPresentation="right-sheet"
+        variant="panel"
       >
         {!isDesktopViewport && mobileDetailOpen ? renderRightInner(true) : null}
       </DoctorModal>

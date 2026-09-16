@@ -279,7 +279,9 @@ export function SpecialistTaskFormContent({
           placeholder="Кратко"
           maxLength={500}
           aria-invalid={titleInvalid || undefined}
-          className={titleInvalid ? 'border-destructive focus-visible:ring-destructive/30' : undefined}
+          className={
+            titleInvalid ? 'border-destructive focus-visible:ring-destructive/30' : undefined
+          }
         />
         {titleInvalid ? (
           <span role="alert" className="w-fit rounded bg-white px-1 text-sm text-destructive">
@@ -316,6 +318,7 @@ export function SpecialistTaskFormContent({
       <DoctorModal
         open={deleteConfirmOpen}
         onClose={() => setDeleteConfirmOpen(false)}
+        variant="dialog"
         title="Удалить задачу?"
         size="sm"
         footer={
@@ -410,6 +413,7 @@ export function SpecialistTaskFormDialog({
 
   return (
     <DoctorModal
+      variant="panel"
       open={open}
       onClose={() => onOpenChange(false)}
       title={

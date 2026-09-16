@@ -39,6 +39,7 @@ export function EncounterViewModal({
 
   return (
     <DoctorModal
+      variant="panel"
       open={visit !== null}
       onClose={onClose}
       size="md"

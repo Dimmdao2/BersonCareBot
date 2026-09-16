@@ -159,9 +159,7 @@ function SymptomPatientTrackingSwitch({
         const trackings = Array.isArray(json?.trackings)
           ? json.trackings.filter(isSymptomTrackingLookup)
           : [];
-        const match = trackings.find(
-          (t) => t.symptomTitle.trim() === symptomTitle.trim(),
-        );
+        const match = trackings.find((t) => t.symptomTitle.trim() === symptomTitle.trim());
         setTrackingId(match?.id ?? null);
         setEnabled(match ? match.patientTrackingEnabled : Boolean(json?.createDefault));
         setReady(true);
@@ -347,7 +345,9 @@ function ClinicalListBlock({
       />
       {loading ? <DoctorPanelLoading className="py-5" /> : null}
       {!loading && error ? (
-        <p className="px-[var(--doctor-block-padding,18px)] text-sm text-destructive">{errorText}</p>
+        <p className="px-[var(--doctor-block-padding,18px)] text-sm text-destructive">
+          {errorText}
+        </p>
       ) : null}
       {!loading && !error ? (
         <>
@@ -355,8 +355,7 @@ function ClinicalListBlock({
           {currentRows.length > 0 ? (
             <DoctorDnaFlatList
               className={cn(
-                showHistorySection &&
-                  'border-t border-t-[var(--doctor-flat-list-divider,#f0efeb)]',
+                showHistorySection && 'border-t border-t-[var(--doctor-flat-list-divider,#f0efeb)]',
               )}
             >
               {currentRows}
@@ -710,7 +709,9 @@ export function PatientClinicalSections({
     );
     if (!ok) return;
     setUpdateNote('');
-    toast.success(resolved ? notificationText.doctorSymptomClosed : notificationText.doctorClinicalValueAdded);
+    toast.success(
+      resolved ? notificationText.doctorSymptomClosed : notificationText.doctorClinicalValueAdded,
+    );
     onClinicalRefresh();
     if (resolved) setSelectedComplaint(null);
   };
@@ -743,7 +744,11 @@ export function PatientClinicalSections({
       { status },
     );
     if (!ok) return;
-    toast.success(status === 'закрытый' ? notificationText.doctorDiagnosisClosed : notificationText.doctorDiagnosisStatusChanged);
+    toast.success(
+      status === 'закрытый'
+        ? notificationText.doctorDiagnosisClosed
+        : notificationText.doctorDiagnosisStatusChanged,
+    );
     onClinicalRefresh();
     if (status === 'закрытый') setSelectedDiagnosis(null);
   };
@@ -873,6 +878,7 @@ export function PatientClinicalSections({
       />
 
       <DoctorModal
+        variant="panel"
         open={selectedComplaint !== null}
         onClose={() => setSelectedComplaint(null)}
         title={patientTitle('Симптом', patientName, patientOnSupport, selectedComplaint?.text)}
@@ -979,6 +985,7 @@ export function PatientClinicalSections({
       />
 
       <DoctorModal
+        variant="panel"
         open={selectedDiagnosis !== null}
         onClose={() => setSelectedDiagnosis(null)}
         title={patientTitle('Диагноз', patientName, patientOnSupport, selectedDiagnosis?.text)}
@@ -1074,10 +1081,7 @@ export function PatientClinicalCreateModal({
     const complaint = kind === 'complaint';
     const text = (complaint ? complaintDraft.text : diagnosisDraft.text).trim();
     const severity = Number(complaintDraft.severity);
-    if (
-      !text ||
-      (complaint && (!Number.isInteger(severity) || severity < 0 || severity > 10))
-    ) {
+    if (!text || (complaint && (!Number.isInteger(severity) || severity < 0 || severity > 10))) {
       setSaveError(true);
       return;
     }
@@ -1108,7 +1112,9 @@ export function PatientClinicalCreateModal({
         },
       );
       if (!response.ok) throw new Error(`status ${response.status}`);
-      toast.success(complaint ? notificationText.doctorSymptomAdded : notificationText.doctorDiagnosisAdded);
+      toast.success(
+        complaint ? notificationText.doctorSymptomAdded : notificationText.doctorDiagnosisAdded,
+      );
       onSaved();
       onClose();
     } catch {
@@ -1172,6 +1178,7 @@ function ComplaintFormModal({
 }) {
   return (
     <DoctorModal
+      variant="panel"
       open={open}
       onClose={onClose}
       title={modalTitle}
@@ -1241,6 +1248,7 @@ function DiagnosisFormModal({
 }) {
   return (
     <DoctorModal
+      variant="panel"
       open={open}
       onClose={onClose}
       title={modalTitle}
@@ -1415,11 +1423,7 @@ function DiseaseAnamnesisSection({
                   aria-label={expanded ? 'Свернуть' : 'Показать полностью'}
                   onClick={() => setExpanded((value) => !value)}
                 >
-                  {expanded ? (
-                    <ChevronUp className="size-4" />
-                  ) : (
-                    <ChevronDown className="size-4" />
-                  )}
+                  {expanded ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
                 </Button>
               ) : null}
             </div>
@@ -1434,7 +1438,7 @@ function DiseaseAnamnesisSection({
         onClose={() => setOpen(false)}
         title={patientTitle('Анамнез заболевания', patientName, patientOnSupport)}
         size="md"
-        presentation="fullscreen-text"
+        variant="fullscreen-text"
         bodyClassName="flex flex-1 flex-col gap-2 p-0"
         footer={
           <>
@@ -1720,6 +1724,7 @@ function LifeAnamnesisSection({
         внешней вложенной карточки. Перечислены все четыре раздела, включая пустые.
       */}
       <DoctorModal
+        variant="panel"
         open={lifeEditorOpen}
         onClose={() => setLifeEditorOpen(false)}
         title={patientTitle('Анамнез жизни', patientName, patientOnSupport)}
@@ -1779,7 +1784,7 @@ function LifeAnamnesisSection({
           onClose={() => setEditor(null)}
           title={patientTitle('Образ жизни', patientName, patientOnSupport)}
           size="md"
-          presentation="fullscreen-text"
+          variant="fullscreen-text"
           bodyClassName="flex flex-1 flex-col p-0"
           footer={
             <>
@@ -1804,6 +1809,7 @@ function LifeAnamnesisSection({
         </DoctorModal>
       ) : (
         <DoctorModal
+          variant="panel"
           open={editor !== null}
           onClose={() => setEditor(null)}
           title={patientTitle(
@@ -1850,7 +1856,10 @@ function LifeAnamnesisSection({
 
 /** Значения подсекции на карте — одна плоская строка на запись, без плашки и без служебных дат. */
 function joinValueParts(parts: Array<string | null | undefined>): string {
-  return parts.map((part) => part?.trim()).filter(Boolean).join(' · ');
+  return parts
+    .map((part) => part?.trim())
+    .filter(Boolean)
+    .join(' · ');
 }
 
 /**
@@ -1897,12 +1906,7 @@ function LifestyleSubsection({
   return (
     <section className="border-b border-border last:border-b-0">
       <div className="flex items-center justify-between px-[var(--doctor-list-inline-padding,18px)] py-2.5">
-        <h4
-          className={cn(
-            lifeSubsectionTitleClass,
-            !hasText && 'text-muted-foreground',
-          )}
-        >
+        <h4 className={cn(lifeSubsectionTitleClass, !hasText && 'text-muted-foreground')}>
           {title}
         </h4>
         <Button

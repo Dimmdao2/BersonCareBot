@@ -70,7 +70,7 @@ export function DoctorTodayQuickActions({
           showIcon={placement === 'mobile-header'}
           triggerIcon={<UserPlus className="size-[22px]" aria-hidden />}
           compactOnMobile={placement === 'mobile-header'}
-          desktopPresentation="right-sheet"
+          variant="panel"
         />
       </div>
 

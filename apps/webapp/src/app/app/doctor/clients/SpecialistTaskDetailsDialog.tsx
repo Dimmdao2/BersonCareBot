@@ -15,7 +15,7 @@ import { DEFAULT_APP_DISPLAY_TIMEZONE } from '@/modules/system-settings/calendar
 import {
   DoctorModal,
   DoctorModalStackedTitle,
-  type DoctorModalDesktopPresentation,
+  type DoctorModalVariant,
 } from '@/shared/ui/doctor/DoctorModal';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import {
@@ -41,7 +41,7 @@ type Props = {
   displayIana?: string;
   canMutate: boolean;
   busy?: boolean;
-  desktopPresentation?: DoctorModalDesktopPresentation;
+  variant?: DoctorModalVariant;
   onComplete: (taskId: string) => Promise<boolean>;
   onTaskSaved: (task: SpecialistTaskRow, patientDisplayName?: string) => void;
   onTaskDeleted?: (taskId: string) => void;
@@ -168,7 +168,7 @@ export function SpecialistTaskDetailsDialog({
   displayIana,
   canMutate,
   busy = false,
-  desktopPresentation,
+  variant = 'panel',
   onComplete,
   onTaskSaved,
   onTaskDeleted,
@@ -211,7 +211,7 @@ export function SpecialistTaskDetailsDialog({
         />
       }
       size="sm"
-      desktopPresentation={desktopPresentation}
+      variant={variant}
       footer={
         canMutate ? (
           <>

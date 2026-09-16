@@ -561,7 +561,7 @@ function SpecialistProfileFields({
         onClose={closeFullDescriptionEditor}
         title="Подробное описание"
         size="lg"
-        desktopPresentation="right-sheet"
+        variant="panel"
         bodyClassName="!pt-0"
         rightSheetAnchorId={rightSheetAnchorId}
         footer={
@@ -635,6 +635,7 @@ function SpecialistModal({
   const prefix = mode === 'create' ? 'specialist-create' : 'specialist-edit';
   return (
     <DoctorModal
+      variant="panel"
       open={open}
       onClose={onClose}
       title={mode === 'create' ? 'Новый специалист' : 'Редактировать специалиста'}

@@ -122,9 +122,7 @@ export function DoctorDateTimePicker({
   const [draftDate, setDraftDate] = useState<Date | undefined>(selectedDate);
   const [draftTime, setDraftTime] = useState(time);
   const [draftTimeEnabled, setDraftTimeEnabled] = useState(!optionalTime || hasExplicitTime);
-  const [desktopTimeEnabled, setDesktopTimeEnabled] = useState(
-    !optionalTime || hasExplicitTime,
-  );
+  const [desktopTimeEnabled, setDesktopTimeEnabled] = useState(!optionalTime || hasExplicitTime);
 
   useEffect(() => {
     if (open && isMobile) {
@@ -192,6 +190,7 @@ export function DoctorDateTimePicker({
         <DoctorModal
           open={open}
           onClose={() => setOpen(false)}
+          variant="dialog"
           title={
             isTimeOnly ? 'Выберите время' : isDateOnly ? 'Выберите дату' : 'Выберите дату и время'
           }

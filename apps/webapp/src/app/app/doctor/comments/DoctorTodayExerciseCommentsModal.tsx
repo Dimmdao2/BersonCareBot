@@ -124,7 +124,7 @@ export function DoctorTodayExerciseCommentsModal({
       title="Комментарии"
       size="lg"
       bodyVariant="list"
-      desktopPresentation="right-sheet"
+      variant="panel"
     >
       {groups.length > 0 ? (
         groups.map((group) => (

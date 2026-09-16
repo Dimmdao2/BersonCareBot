@@ -37,6 +37,7 @@ export function EncounterHistoryModal({
   const { appointmentGenPlural } = useDoctorPatientTerms();
   return (
     <DoctorModal
+      variant="panel"
       open={open}
       onClose={onClose}
       title={

@@ -53,7 +53,10 @@ export function DoctorCatalogMobileToolbar({
           type="button"
           size="icon"
           variant="outline"
-          className={cn('relative size-9 shrink-0', filterActive && DOCTOR_ACTIVE_FILTER_BUTTON_CLASS)}
+          className={cn(
+            'relative size-9 shrink-0',
+            filterActive && DOCTOR_ACTIVE_FILTER_BUTTON_CLASS,
+          )}
           onClick={() => setFiltersOpen(true)}
           aria-label="Фильтры"
           title="Фильтры"
@@ -108,6 +111,7 @@ export function DoctorCatalogMobileToolbar({
     <>
       <DoctorShellMobileBottomTabsRegistration content={content} />
       <DoctorModal
+        variant="panel"
         open={filtersOpen}
         onClose={() => setFiltersOpen(false)}
         title="Фильтры"

@@ -887,6 +887,7 @@ function PatientsContent({
         }
       />
       <DoctorModal
+        variant="panel"
         open={mobileFiltersOpen}
         onClose={() => onMobileFiltersOpenChange(false)}
         title="Фильтры"
