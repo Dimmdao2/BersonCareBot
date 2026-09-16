@@ -139,6 +139,23 @@ afterEach(() => {
 });
 
 describe('public email OTP start anti-enumeration', () => {
+  // Конец цепочки, а не политика: дверь входа по коду обязана отказать сотруднику и
+  // платформенному администратору на общем хосте, а пациентскому порталу — открыть. Проверять это
+  // на уровне политики недостаточно: состав двери задан кодом именно здесь (план С3).
+  it('allows the explicit patient portal but rejects admin email-code login on a shared staff host', async () => {
+    fakes.publicValues.set('auth_surface_patient_email_enabled', true);
+
+    const patientResponse = await resolveAfterPublicFloor(
+      POST(request('patient@example.test', 'patient')),
+    );
+    const adminResponse = await resolveAfterPublicFloor(
+      POST(request('admin@example.test', 'admin')),
+    );
+
+    expect([patientResponse.status, adminResponse.status]).toEqual([200, 503]);
+    expect(fakes.startPublicEmailOtpChallenge).toHaveBeenCalledOnce();
+  });
+
   it('keeps the unknown-address body byte-identical to a known-address response and logs suppressed outcomes', async () => {
     const results: StartResult[] = [
       { ok: true, challengeId: '00000000-0000-4000-8000-000000000101', retryAfterSeconds: 60 },
