@@ -122,7 +122,9 @@ export function AppEntryLoginContent({
     // внизу viewport — владелец, «пространство распредели», 12.09.
     <div
       id={CLIENT_BOOT_ACTIVE_CONTENT_ID}
-      className="flex flex-1 flex-col justify-center gap-6"
+      className={`flex flex-1 flex-col justify-center ${
+        roleLoginPortal === 'doctor' ? 'gap-2' : 'gap-6'
+      }`}
     >
       {portalHeader}
       {authFlow}

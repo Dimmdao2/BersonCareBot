@@ -17,18 +17,16 @@ export function RoleLoginPortalHeader({
   /** Поверхность клиники, а не общий TherapyGo: решает, чей знак показывать. */
   brandedSurface?: boolean;
 }) {
-  // Doctor-портал (вход после разлогина) — без описательного блока и без ссылки на пациентский
-  // вход: только вертикальный лого-лок-ап Therapysto (иконка + подпись уже в самом файле).
-  // Родитель (AppEntryLoginContent) центрирует всю группу по высоте — этому блоку своя
-  // вертикальная поправка не нужна — владелец, 12.09.
+  // Doctor-портал (вход после разлогина) — без верхней шапки, описательного блока и ссылки на
+  // пациентский вход. Вертикальный лок-ап уменьшен на 30% и прижат к форме — владелец, 16.09.
   if (portal === 'doctor') {
     return (
       <div className="flex flex-col items-center">
         <Image
           src="/brand/therapysto-lockup-vertical.png"
           alt="Therapysto"
-          width={132}
-          height={130}
+          width={92}
+          height={91}
           priority
           unoptimized
         />
