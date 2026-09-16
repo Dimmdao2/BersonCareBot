@@ -27,6 +27,7 @@ import type { PlatformOrganizationSummary } from '@/modules/org-entitlements/por
 import {
   ACCESS_NOTIFICATION_VARIABLES,
   renderAccessNotification,
+  renderAccessNotificationRichText,
 } from '@/modules/org-entitlements/accessNotifications';
 import {
   DoctorSection,
@@ -41,7 +42,7 @@ import { Checkbox } from '@/shared/ui/doctor/primitives/checkbox';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Label } from '@/shared/ui/doctor/primitives/label';
 import { MarkdownContent } from '@/shared/ui/doctor/markdown/MarkdownContent';
-import { MarkdownEditor } from '@/shared/ui/doctor/markdown/MarkdownEditor';
+import { TiptapEditor } from '@/shared/ui/doctor/TiptapEditor';
 import {
   Select,
   SelectContent,
@@ -2436,7 +2437,7 @@ export function CommercialConstructorClient() {
                   }
                 />
               </div>
-              <MarkdownEditor
+        <TiptapEditor
                 name={`mailing-template-${selectedMailingTemplate.id}-body`}
                 label="Текст письма"
                 helpText="Форматирование и картинки, как в рассылках врача."
@@ -2477,7 +2478,7 @@ export function CommercialConstructorClient() {
                     ) || '(тема не заполнена)'}
                   </div>
                   <MarkdownContent
-                    text={renderAccessNotification(
+                    text={renderAccessNotificationRichText(
                       selectedMailingTemplate.body,
                       MAILING_PREVIEW_VARIABLES,
                     )}

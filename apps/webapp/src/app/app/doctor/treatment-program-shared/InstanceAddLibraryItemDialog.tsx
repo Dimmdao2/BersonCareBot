@@ -25,7 +25,7 @@ import {
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Label } from '@/shared/ui/doctor/primitives/label';
 import { cn } from '@/lib/utils';
-import { MarkdownEditor } from '@/shared/ui/doctor/markdown/MarkdownEditor';
+import { TiptapEditor } from '@/shared/ui/doctor/TiptapEditor';
 import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
 import { Checkbox } from '@/shared/ui/doctor/primitives/checkbox';
 import { Card, CardContent } from '@/shared/ui/doctor/primitives/card';
@@ -671,7 +671,7 @@ export function InstanceAddLibraryItemDialog(props: {
               />
             </div>
             <div className="flex flex-col gap-2">
-              <MarkdownEditor
+        <TiptapEditor
                 name="freeform_body_md"
                 label="Текст"
                 value={freeformBody}

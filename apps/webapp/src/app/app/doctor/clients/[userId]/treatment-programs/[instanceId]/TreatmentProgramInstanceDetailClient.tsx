@@ -22,7 +22,7 @@ import { Badge } from '@/shared/ui/doctor/primitives/badge';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Label } from '@/shared/ui/doctor/primitives/label';
 import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
-import { MarkdownEditor } from '@/shared/ui/doctor/markdown/MarkdownEditor';
+import { TiptapEditor } from '@/shared/ui/doctor/TiptapEditor';
 import {
   Dialog,
   DialogContent,
@@ -2212,7 +2212,7 @@ function StageDoctorControls(props: {
               />
             </div>
             <div className="flex flex-col gap-1.5">
-              <MarkdownEditor
+        <TiptapEditor
                 name={`stage_goals_md_${stageId}`}
                 label="Цель этапа"
                 helpText={null}
@@ -2223,7 +2223,7 @@ function StageDoctorControls(props: {
               />
             </div>
             <div className="flex flex-col gap-1.5">
-              <MarkdownEditor
+              <TiptapEditor
                 name={`stage_objectives_md_${stageId}`}
                 label="Задачи этапа"
                 helpText={null}

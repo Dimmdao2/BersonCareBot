@@ -1,4 +1,5 @@
 import type { Recommendation } from '@/modules/recommendations/types';
+import { richTextToPlainText } from '@/shared/lib/richText';
 
 export const VISIT_MANIPULATION_REFERENCE_CATEGORY_CODE = 'visit_manipulation';
 
@@ -35,7 +36,7 @@ export function formatRecommendationForVisit(option: Recommendation): VisitCatal
     normalizeTextPart(option.frequencyText),
     normalizeTextPart(option.durationText),
   ].filter(Boolean);
-  const body = normalizeTextPart(option.bodyMd);
+  const body = richTextToPlainText(normalizeTextPart(option.bodyMd));
   return {
     id: option.id,
     title: option.title,

@@ -285,7 +285,8 @@ export const notificationText = {
   commonUnknownStatusLower: 'неизвестен',
   commonUnknownValue: 'Неизвестно',
   messagingOpenBotChat: 'Откройте чат с ботом и отправьте контакт по кнопке.',
-  authEmailCodeSent: 'Отправили код на почту.',
+  authEmailCodeDeliveryHint: 'Отправим 6-значный код на вашу почту.',
+  authEmailCodeSent: 'Код отправлен на почту:',
   authSignupPasswordTooShort: 'Пароль — не менее 8 символов.',
   authResendCooldown: 'Подождите минуту перед повторной отправкой.',
   // C2 (copy audit): было грамматически некорректно («в моменте» + «только что» вместе).

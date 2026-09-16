@@ -338,6 +338,14 @@ export function AuthFlowV2({
     pendingHydratedRef.current = true;
     const p = readAuthFlowPending();
     if (!p) return;
+    // A password-reset draft can survive in sessionStorage while the person moves between doors.
+    // Patient surfaces have no password method, so they must return to their working email-code
+    // entry instead of hydrating the staff-only reset form.
+    if (p.mode === 'password_reset' && !passwordLoginEnabled) {
+      clearAuthFlowPending();
+      setEmailAuthMode('login');
+      return;
+    }
     if (!emailOtpEnabled && passwordLoginEnabled && p.mode !== 'password_reset') {
       clearAuthFlowPending();
       setEmailAuthMode('password_login');
@@ -1250,7 +1258,9 @@ export function AuthFlowV2({
                 className="mt-3 flex w-full flex-col gap-3"
                 onSubmit={(e) => void submitEmailOtpStart(e)}
               >
-                <p className={authStepMutedParagraphClass}>Отправим 6-значный код на вашу почту.</p>
+                <p className={authStepMutedParagraphClass}>
+                  {notificationText.authEmailCodeDeliveryHint}
+                </p>
                 <div className="flex flex-col gap-1">
                   <label htmlFor="auth-email-otp-input" className={authFormFieldLabelClass}>
                     Email
@@ -2222,7 +2232,7 @@ export function AuthFlowV2({
                 />
                 <div className="mt-3 flex flex-col gap-2">
                   <p className={cn(patientMutedTextClass, 'break-all')}>
-                    Код отправлен на {emailLoginEmail.trim()}
+                    {notificationText.authEmailCodeSent} {emailLoginEmail.trim()}
                   </p>
                   <Button
                     type="button"

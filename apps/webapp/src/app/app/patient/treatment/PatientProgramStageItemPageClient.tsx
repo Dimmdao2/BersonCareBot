@@ -48,6 +48,7 @@ import {
   patientSimpleCompleteDoneButtonToneClass,
 } from '@/shared/ui/patient/patientVisual';
 import { cn } from '@/lib/utils';
+import { richTextToPlainText } from '@/shared/lib/richText';
 import {
   PatientSegmentedPagerDisabledCell,
   PatientSegmentedPagerLabel,
@@ -135,9 +136,10 @@ function trimSnapshotString(v: unknown): string {
 
 /** Текст описания пункта «упражнение»: каталог и снимок дают `description`; остальное — запасные поля / старые снимки. */
 function exerciseSnapshotDescriptionBody(snap: Record<string, unknown>): string {
+  const legacyBody = trimSnapshotString(snap.bodyMd);
   return (
     trimSnapshotString(snap.description) ||
-    trimSnapshotString(snap.bodyMd) ||
+    richTextToPlainText(legacyBody) ||
     trimSnapshotString(snap.bodyPreview) ||
     trimSnapshotString(snap.summary)
   );

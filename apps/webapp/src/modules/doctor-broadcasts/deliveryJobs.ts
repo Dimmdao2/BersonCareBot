@@ -2,6 +2,7 @@ import type { ClientListItem } from '@/modules/doctor-clients/ports';
 import { normalizePhone } from '@/modules/auth/phoneNormalize';
 import { isValidPhoneE164 } from '@/modules/auth/phoneValidation';
 import { escapeHtml } from '@/shared/lib/escapeHtml';
+import { richTextToMessengerHtml, richTextToPlainText } from '@/shared/lib/richText';
 import type { BroadcastChannel } from './broadcastChannels';
 import type {
   BroadcastAudienceFilter,
@@ -25,7 +26,7 @@ import { buildBroadcastEmailHtml } from './emailDelivery';
 const MESSAGE_TEXT_MAX = 3500;
 
 export function buildBroadcastMessageText(title: string, body: string): string {
-  const raw = `${title.trim()}\n\n${body.trim()}`;
+  const raw = `${title.trim()}\n\n${richTextToPlainText(body).trim()}`;
   if (raw.length <= MESSAGE_TEXT_MAX) return raw;
   return `${raw.slice(0, MESSAGE_TEXT_MAX - 1)}…`;
 }
@@ -41,59 +42,22 @@ export function splitBroadcastPlainCombined(combined: string): { title: string; 
   };
 }
 
-/**
- * Convert simple Markdown to Telegram HTML parse_mode text.
- * Supported: **bold**, _italic_, ~~strikethrough~~, `code`, - / * bullet lists.
- * Text is HTML-escaped first; formatting tags are injected after escaping
- * so user content can never inject raw HTML.
- */
-export function markdownToTelegramHtml(md: string): string {
-  // HTML-escape the raw text so user-supplied < > & are safe.
-  let t = escapeHtml(md.trim());
-
-  // Bold: **text** (no newlines inside)
-  t = t.replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>');
-
-  // Italic: _text_ (no underscores or newlines inside; not inside a word like snake_case)
-  t = t.replace(/(?<![a-zA-Z0-9])_([^_\n]+)_(?![a-zA-Z0-9])/g, '<i>$1</i>');
-
-  // Strikethrough: ~~text~~
-  t = t.replace(/~~([^~\n]+)~~/g, '<s>$1</s>');
-
-  // Inline code: `code` (no newlines inside)
-  t = t.replace(/`([^`\n]+)`/g, '<code>$1</code>');
-
-  // Unordered list: "- item" or "* item" at start of line → "• item"
-  t = t.replace(/^[*-] (.+)$/gm, '• $1');
-
-  return t;
+/** Tiptap JSON converted to the safe HTML subset of Telegram/MAX. */
+export function richTextToTelegramHtml(value: string): string {
+  const richHtml = richTextToMessengerHtml(value);
+  if (richHtml !== null) return richHtml;
+  return escapeHtml(value.trim());
 }
 
-/**
- * Strip simple Markdown to clean plain text for channels that have no markup
- * (SMS, in-app chat copy, email): removes bold/italic/strike/code markers, keeps
- * the text, bulletises "- item" / "* item" into "• item", preserves line breaks.
- * Mirrors the patterns of markdownToTelegramHtml so the renditions stay in sync.
- */
-export function stripMarkdownToPlain(md: string): string {
-  let t = md;
-  // Bullet list first (uses *) before bold strips **: "- item" / "* item" → "• item"
-  t = t.replace(/^[*-] (.+)$/gm, '• $1');
-  // Bold **text** → text
-  t = t.replace(/\*\*([^*\n]+)\*\*/g, '$1');
-  // Italic _text_ → text (not snake_case)
-  t = t.replace(/(?<![a-zA-Z0-9])_([^_\n]+)_(?![a-zA-Z0-9])/g, '$1');
-  // Strikethrough ~~text~~ → text
-  t = t.replace(/~~([^~\n]+)~~/g, '$1');
-  // Inline code `code` → code
-  t = t.replace(/`([^`\n]+)`/g, '$1');
-  return t;
+/** Tiptap JSON converted to plain text for channels without markup. */
+export function broadcastTextToPlain(value: string): string {
+  return richTextToPlainText(value);
 }
 
-/** Telegram/MAX HTML: bold title, Markdown body converted to Telegram HTML. */
+/** Telegram/MAX HTML: bold title and a safely converted rich body. */
 export function buildBroadcastMessengerHtml(title: string, body: string): string {
   const t = title.trim();
-  const b = markdownToTelegramHtml(body);
+  const b = richTextToTelegramHtml(body);
   const head = t ? `<b>${escapeHtml(t)}</b>` : '';
   if (!b) return head || '';
   return head ? `${head}\n\n${b}` : b;
@@ -243,9 +207,15 @@ export function buildDoctorBroadcastDeliveryJobs(
   const attachMenu = input.attachMenu === true;
   const plainCombined = buildBroadcastMessageText(input.messageTitle, input.messageBodyPlain);
   const { title: truncatedTitle, body: truncatedBody } = splitBroadcastPlainCombined(plainCombined);
-  const messengerText = buildBroadcastMessengerHtml(truncatedTitle, truncatedBody);
-  // SMS has no markup → strip markdown markers (keep bullets/line breaks).
-  const smsText = stripMarkdownToPlain(plainCombined);
+  const richMessengerBody = richTextToMessengerHtml(input.messageBodyPlain);
+  const richMessengerText = richMessengerBody
+    ? `${truncatedTitle ? `<b>${escapeHtml(truncatedTitle)}</b>\n\n` : ''}${richMessengerBody}`
+    : null;
+  const messengerText =
+    richMessengerText && richMessengerText.length <= MESSAGE_TEXT_MAX
+      ? richMessengerText
+      : buildBroadcastMessengerHtml(truncatedTitle, truncatedBody);
+  const smsText = broadcastTextToPlain(plainCombined);
 
   for (const client of input.eligibleClients) {
     const prefs = resolveBroadcastNotificationPrefsFromBatch(prefsMap, client.userId);
@@ -339,7 +309,7 @@ export function buildDoctorBroadcastDeliveryJobs(
     const email = input.verifiedEmailByUserId?.get(client.userId)?.trim();
     if (wantsEmail && email && unsubscribeUrl && input.unsubscribeTopicTitle) {
       const eventId = stableEventId(input.auditId, 'email', client.userId, 'email');
-      const emailBody = `${stripMarkdownToPlain(input.messageTitle)}\n\n${stripMarkdownToPlain(input.messageBodyPlain)}\n\nОтписаться от «${input.unsubscribeTopicTitle}»: ${unsubscribeUrl}`;
+      const emailBody = `${broadcastTextToPlain(input.messageTitle)}\n\n${broadcastTextToPlain(input.messageBodyPlain)}\n\nОтписаться от «${input.unsubscribeTopicTitle}»: ${unsubscribeUrl}`;
       jobs.push({
         eventId,
         kind: DOCTOR_BROADCAST_QUEUE_KIND,
@@ -357,7 +327,7 @@ export function buildDoctorBroadcastDeliveryJobs(
             body: emailBody,
             html: buildBroadcastEmailHtml({
               title: input.messageTitle,
-              body: stripMarkdownToPlain(input.messageBodyPlain),
+              body: broadcastTextToPlain(input.messageBodyPlain),
               mediaUrl: input.imageUrl ?? null,
               unsubscribeUrl,
               unsubscribeTopicTitle: input.unsubscribeTopicTitle,

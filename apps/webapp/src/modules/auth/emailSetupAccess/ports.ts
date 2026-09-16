@@ -1,4 +1,4 @@
-/** Источник выпуска setup-кода (legacy token-link остаётся только для старых ссылок). */
+/** Источник выпуска кода доступа для contact-only пациента. */
 export type EmailSetupAccessSource = 'doctor_profile' | 'manual_resend' | 'registration_claim';
 
 export type RequestContactEmailSetupParams = {
@@ -14,7 +14,7 @@ export type RequestContactEmailSetupResult =
   | { ok: false; reason: 'invalid_email' | 'not_configured' };
 
 export type EmailSetupAccessPort = {
-  /** Contact/unverified email: отправка setup-кода через `email_challenges`. */
+  /** Contact/unverified email: отправка passwordless login-кода через `email_challenges`. */
   requestContactEmailSetup(
     params: RequestContactEmailSetupParams,
   ): Promise<RequestContactEmailSetupResult>;

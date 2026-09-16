@@ -10,6 +10,10 @@ import {
   isCyrillicFioInput,
   isFioLatinRejection,
 } from '@/shared/lib/fio';
+import {
+  RICH_TEXT_SERIALIZED_MAX_LENGTH,
+  richTextWithinCharacterLimit,
+} from '@/shared/lib/richText';
 
 const PatchSchema = z.object({
   // §20 канона идентичности: правка ФИО специалиста принимает только кириллицу — тот же запрет, что
@@ -22,7 +26,12 @@ const PatchSchema = z.object({
     .optional(),
   description: z.union([z.string().max(2000), z.null()]).optional(),
   avatarMediaId: z.union([z.string().uuid(), z.null()]).optional(),
-  fullDescriptionMarkdown: z.union([z.string().max(50_000), z.null()]).optional(),
+  fullDescriptionMarkdown: z
+    .string()
+    .max(RICH_TEXT_SERIALIZED_MAX_LENGTH)
+    .refine((value) => richTextWithinCharacterLimit(value, 50_000))
+    .nullable()
+    .optional(),
   cardIsPublished: z.boolean().optional(),
   isActive: z.boolean().optional(),
   sortOrder: z.number().int().optional(),

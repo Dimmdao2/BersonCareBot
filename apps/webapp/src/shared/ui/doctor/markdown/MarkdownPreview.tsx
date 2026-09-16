@@ -10,7 +10,7 @@ type Props = {
 export function MarkdownPreview({ markdown, className }: Props) {
   return (
     <div className={className ?? 'markdown-preview text-sm'}>
-      <MarkdownBodyTree>{markdown.length > 0 ? markdown : '*Пусто*'}</MarkdownBodyTree>
+      <MarkdownBodyTree>{markdown.length > 0 ? markdown : 'Пусто'}</MarkdownBodyTree>
     </div>
   );
 }
