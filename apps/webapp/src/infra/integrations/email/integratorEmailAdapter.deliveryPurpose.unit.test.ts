@@ -28,6 +28,7 @@ vi.mock('@/modules/system-settings/configAdapter', () => ({
 }));
 vi.mock('next/headers', () => ({ headers: fakes.headers }));
 
+import type { EmailChallengePurpose } from '@/modules/auth/emailAuthPort';
 import { createIntegratorEmailAdapter } from './integratorEmailAdapter';
 
 const STAFF_HEADERS = new Headers({
@@ -71,16 +72,45 @@ describe('email-code delivery purpose on an ambient staff surface', () => {
     expect(fakes.fetchImpl).not.toHaveBeenCalled();
   });
 
-  it('delivers specialist-signup confirmation on the same ambient staff surface', async () => {
-    const adapter = createIntegratorEmailAdapter({
-      integratorBaseUrl: 'https://integrator.example.test',
-      sharedSecret: 'test-secret',
-      fetchImpl: fakes.fetchImpl,
-    });
+  // Полное отображение назначений, а не два выбранных: `Record` по объединению не даст добавить
+  // новое значение `EmailChallengePurpose`, не решив здесь его судьбу. Именно эту дыру нашёл аудит —
+  // правка, оставлявшая доставку только двум назначениям, прежде проходила зелёной.
+  const DELIVERY_ON_STAFF_SURFACE: Record<EmailChallengePurpose, 'delivered' | 'refused'> = {
+    // Единственная самостоятельная дверь: на сотрудничьей поверхности её нет, и настройкой не вернуть.
+    login: 'refused',
+    public_registration: 'delivered',
+    clinic_invite: 'delivered',
+    specialist_signup: 'delivered',
+    password_reset: 'delivered',
+    password_setup: 'delivered',
+    email_verify: 'delivered',
+    patient_email_change: 'delivered',
+    staff_login_factor: 'delivered',
+  };
 
-    await expect(
-      adapter.sendEmailCode('new-doctor@example.test', '123456', MAIL_PROFILE, 'specialist_signup'),
-    ).resolves.toEqual({ ok: true });
-    expect(fakes.fetchImpl).toHaveBeenCalledOnce();
-  });
+  it.each(Object.entries(DELIVERY_ON_STAFF_SURFACE))(
+    'purpose %s on the ambient staff surface is %s',
+    async (purpose, expectation) => {
+      const adapter = createIntegratorEmailAdapter({
+        integratorBaseUrl: 'https://integrator.example.test',
+        sharedSecret: 'test-secret',
+        fetchImpl: fakes.fetchImpl,
+      });
+
+      const result = await adapter.sendEmailCode(
+        'person@example.test',
+        '123456',
+        MAIL_PROFILE,
+        purpose as EmailChallengePurpose,
+      );
+
+      if (expectation === 'delivered') {
+        expect(result).toEqual({ ok: true });
+        expect(fakes.fetchImpl).toHaveBeenCalledOnce();
+      } else {
+        expect(result).toEqual({ ok: false, error: 'auth_channel_disabled' });
+        expect(fakes.fetchImpl).not.toHaveBeenCalled();
+      }
+    },
+  );
 });
