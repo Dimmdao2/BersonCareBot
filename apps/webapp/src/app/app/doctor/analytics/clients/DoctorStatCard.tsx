@@ -171,7 +171,7 @@ export function DoctorStatCard({
             valuePlacement === 'responsive' &&
               'col-start-2 flex items-baseline justify-end gap-0.5 md:mt-0.5 md:w-full md:justify-start md:gap-1',
             isStacked && 'mt-0.5 flex justify-end',
-            isStacked && opensDetails && 'pr-5',
+            isStacked && 'pr-5',
           )}
         >
           {metricRow}
@@ -195,22 +195,24 @@ export function DoctorStatCard({
   // теряли последнюю букву), поэтому здесь шеврон не в grid-колонке, а наложен абсолютным
   // позиционированием поверх правого паддинга карточки — по высоте он центрируется относительно
   // ВСЕЙ карточки (подпись + число), а не по строке числа.
-  const content = opensDetails ? (
-    isStacked ? (
-      <div className="relative w-full min-w-0">
-        {inner}
+  const content = isStacked ? (
+    <div className="relative w-full min-w-0">
+      {inner}
+      {opensDetails ? (
         <span className="absolute right-0 top-1/2 -translate-y-1/2">
           {detailsIndicator}
         </span>
-      </div>
-    ) : (
-      <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-1">
-        <div className="min-w-0">{inner}</div>
-        {detailsIndicator}
-      </div>
-    )
+      ) : null}
+    </div>
   ) : (
-    inner
+    <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-1">
+      <div className="min-w-0">{inner}</div>
+      {opensDetails ? (
+        detailsIndicator
+      ) : (
+        <span className={doctorStatCardChevronClass} aria-hidden />
+      )}
+    </div>
   );
 
   if (actionIcon && actionLabel && onActionClick) {
