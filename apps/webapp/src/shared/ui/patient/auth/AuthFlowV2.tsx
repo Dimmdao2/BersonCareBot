@@ -202,7 +202,6 @@ export function AuthFlowV2({
   const [staffFactorCode, setStaffFactorCode] = useState('');
   const [staffFactorUseRecovery, setStaffFactorUseRecovery] = useState(false);
   const [staffFactorMethod, setStaffFactorMethod] = useState<'totp' | 'email'>('totp');
-  const [emailRegPassword, setEmailRegPassword] = useState('');
   const [emailAuthMode, setEmailAuthMode] = useState<
     | 'login'
     | 'patient_registration'
@@ -212,7 +211,7 @@ export function AuthFlowV2({
     | 'staff_factor'
   >('login');
   const [emailVerifyPurpose, setEmailVerifyPurpose] = useState<
-    'patient_registration' | 'setup' | 'email_otp' | 'specialist_signup'
+    'patient_registration' | 'email_otp' | 'specialist_signup'
   >('patient_registration');
   const [emailRegChallengeId, setEmailRegChallengeId] = useState<string | null>(null);
   const [emailRegRetrySec, setEmailRegRetrySec] = useState(60);
@@ -246,9 +245,7 @@ export function AuthFlowV2({
   const [pwRecoveryPhase, setPwRecoveryPhase] = useState<'none' | 'request_email' | 'reset_code'>(
     'none',
   );
-  const [pwRecoveryPurpose, setPwRecoveryPurpose] = useState<'reset' | 'setup'>('reset');
   const [pwResetEmail, setPwResetEmail] = useState('');
-  const [pwResetChallengeId, setPwResetChallengeId] = useState<string | null>(null);
   const [pwResetCode, setPwResetCode] = useState('');
   const [pwNewPassword, setPwNewPassword] = useState('');
   const specialistSignupEnabled = prefetchedAuthConfig?.specialistSignupEnabled === true;
@@ -397,9 +394,7 @@ export function AuthFlowV2({
       setEmailPasswordReturn(prefetchedOauthReturn);
       setEmailAuthMode('login');
       setPwRecoveryPhase('reset_code');
-      setPwRecoveryPurpose('reset');
       setPwResetEmail(p.email);
-      setPwResetChallengeId(p.challengeId ?? null);
     }
   }, [
     step,
@@ -463,7 +458,6 @@ export function AuthFlowV2({
     setEmailVerifyPurpose('patient_registration');
     setEmailRegChallengeId(null);
     setEmailRegRetrySec(60);
-    setEmailRegPassword('');
     setEmailRegLastName('');
     setEmailRegFirstName('');
     setEmailRegPatronymic('');
@@ -475,9 +469,7 @@ export function AuthFlowV2({
     setSpecialistSignupOrganizationTitle('');
     setSpecialistSignupPassword('');
     setPwRecoveryPhase('none');
-    setPwRecoveryPurpose('reset');
     setPwResetEmail('');
-    setPwResetChallengeId(null);
     setPwResetCode('');
     setPwNewPassword('');
   };
@@ -638,8 +630,6 @@ export function AuthFlowV2({
   /** Кнопка «Забыли пароль?» — это переход на шаг, а не отправка: адрес спрашиваем здесь. */
   const openForgotPassword = () => {
     setPwResetEmail(emailLoginEmail.trim());
-    setPwRecoveryPurpose('reset');
-    setPwResetChallengeId(null);
     setPwResetCode('');
     setPwNewPassword('');
     setPwRecoveryPhase('request_email');
@@ -675,8 +665,6 @@ export function AuthFlowV2({
       }
       setEmailLoginPassword('');
       setPwResetEmail(email);
-      setPwRecoveryPurpose('reset');
-      setPwResetChallengeId(null);
       setPwResetCode('');
       setPwNewPassword('');
       setPwRecoveryPhase('reset_code');
@@ -1052,10 +1040,6 @@ export function AuthFlowV2({
     }
     setLoading(true);
     try {
-      const endpoint =
-        pwRecoveryPurpose === 'setup'
-          ? '/api/auth/email-password/setup-code/complete'
-          : '/api/auth/email-password/reset';
       const resetResult = await fetchJsonSafe<{
         ok?: boolean;
         redirectTo?: string;
@@ -1063,19 +1047,10 @@ export function AuthFlowV2({
         error?: string;
         message?: string;
         retryAfterSeconds?: number;
-      }>(endpoint, {
+      }>('/api/auth/email-password/reset', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(
-          pwRecoveryPurpose === 'setup'
-            ? {
-                email,
-                challengeId: pwResetChallengeId,
-                code: pwResetCode.trim(),
-                password: pwNewPassword,
-              }
-            : { email, code: pwResetCode.trim(), newPassword: pwNewPassword },
-        ),
+        body: JSON.stringify({ email, code: pwResetCode.trim(), newPassword: pwNewPassword }),
       });
       if (!resetResult.ok) {
         toast.error(AUTH_NETWORK_ERROR_MESSAGE);
@@ -1089,15 +1064,9 @@ export function AuthFlowV2({
       if (data.ok) {
         clearAuthFlowPending();
         setPwRecoveryPhase('none');
-        setPwRecoveryPurpose('reset');
-        setPwResetChallengeId(null);
         setPwResetCode('');
         setPwNewPassword('');
-        toast.success(
-          pwRecoveryPurpose === 'setup'
-            ? notificationText.authAccessConfigured
-            : notificationText.authPasswordUpdatedPleaseLogin,
-        );
+        toast.success(notificationText.authPasswordUpdatedPleaseLogin);
         setEmailLoginEmail(email);
         setEmailAuthMode('login');
         return;
@@ -1155,11 +1124,9 @@ export function AuthFlowV2({
             onClick={() => {
               if (pwRecoveryPhase !== 'none') {
                 setPwRecoveryPhase('none');
-                setPwRecoveryPurpose('reset');
                 setPwResetCode('');
                 setPwNewPassword('');
                 setPwResetEmail('');
-                setPwResetChallengeId(null);
                 return;
               }
               if (emailAuthMode === 'verify') {
@@ -1953,70 +1920,26 @@ export function AuthFlowV2({
                         message: data.message ?? 'Не удалось подтвердить код',
                       };
                     }
-                    if (
-                      emailVerifyPurpose === 'email_otp' ||
-                      emailVerifyPurpose === 'patient_registration'
-                    ) {
-                      // Passwordless email-OTP confirm
-                      const r = await fetchJsonSafe<{
-                        ok?: boolean;
-                        redirectTo?: string;
-                        role?: 'client' | 'doctor' | 'admin';
-                        error?: string;
-                        message?: string;
-                        retryAfterSeconds?: number;
-                      }>('/api/auth/email-otp/confirm', {
-                        method: 'POST',
-                        headers: { 'content-type': 'application/json' },
-                        body: JSON.stringify({
-                          email: emailLoginEmail.trim(),
-                          code,
-                          ...(roleLoginPortal ? { roleLoginPortal } : {}),
-                        }),
-                      });
-                      if (!r.ok) return { ok: false as const, message: AUTH_NETWORK_ERROR_MESSAGE };
-                      const { response: res, data } = r;
-                      if (data.ok && data.redirectTo) {
-                        redirectOk(data.redirectTo, data.role);
-                        return { ok: true as const, redirectTo: data.redirectTo };
-                      }
-                      if (res.status === 429 || data.error === 'too_many_attempts') {
-                        return {
-                          ok: false as const,
-                          message: data.message ?? '',
-                          code: 'too_many_attempts',
-                          retryAfterSeconds: data.retryAfterSeconds,
-                        };
-                      }
-                      return {
-                        ok: false as const,
-                        message: data.message ?? notificationText.authCodeInvalidOrExpired,
-                      };
-                    }
-                    if (emailVerifyPurpose === 'setup' && emailRegPassword.length < 8) {
-                      return { ok: false as const, message: 'Пароль — не менее 8 символов.' };
-                    }
-                    const confirmEmailResult = await fetchJsonSafe<{
+                    // Дальше цель только одна по устройству: вход по коду и регистрация пациента
+                    // идут одной passwordless-дверью, установки пароля в пациентском потоке нет.
+                    const r = await fetchJsonSafe<{
                       ok?: boolean;
                       redirectTo?: string;
                       role?: 'client' | 'doctor' | 'admin';
                       error?: string;
                       message?: string;
                       retryAfterSeconds?: number;
-                    }>('/api/auth/email-password/setup-code/complete', {
+                    }>('/api/auth/email-otp/confirm', {
                       method: 'POST',
                       headers: { 'content-type': 'application/json' },
                       body: JSON.stringify({
                         email: emailLoginEmail.trim(),
-                        ...(emailRegChallengeId ? { challengeId: emailRegChallengeId } : {}),
                         code,
-                        password: emailRegPassword,
+                        ...(roleLoginPortal ? { roleLoginPortal } : {}),
                       }),
                     });
-                    if (!confirmEmailResult.ok) {
-                      return { ok: false as const, message: AUTH_NETWORK_ERROR_MESSAGE };
-                    }
-                    const { response: res, data } = confirmEmailResult;
+                    if (!r.ok) return { ok: false as const, message: AUTH_NETWORK_ERROR_MESSAGE };
+                    const { response: res, data } = r;
                     if (data.ok && data.redirectTo) {
                       redirectOk(data.redirectTo, data.role);
                       return { ok: true as const, redirectTo: data.redirectTo };
@@ -2029,7 +1952,10 @@ export function AuthFlowV2({
                         retryAfterSeconds: data.retryAfterSeconds,
                       };
                     }
-                    return { ok: false as const, message: data.message ?? 'Ошибка' };
+                    return {
+                      ok: false as const,
+                      message: data.message ?? notificationText.authCodeInvalidOrExpired,
+                    };
                   }}
                   onResend={async () => {
                     const email = emailLoginEmail.trim();
@@ -2140,89 +2066,53 @@ export function AuthFlowV2({
                         message: data.message ?? 'Не удалось отправить код',
                       };
                     }
-                    if (emailVerifyPurpose === 'patient_registration') {
-                      const lastName = emailRegLastName.trim();
-                      const firstName = emailRegFirstName.trim();
-                      const patronymic = emailRegPatronymic.trim();
-                      if (!email || !lastName || !firstName)
-                        return {
-                          kind: 'error' as const,
-                          message: 'Нет данных для повторной отправки',
-                        };
-                      const r = await fetchJsonSafe<{
-                        ok?: boolean;
-                        challengeId?: string;
-                        retryAfterSeconds?: number;
-                        error?: string;
-                        message?: string;
-                      }>('/api/auth/email-otp/register', {
-                        method: 'POST',
-                        headers: { 'content-type': 'application/json' },
-                        body: JSON.stringify({
-                          email,
-                          lastName,
-                          firstName,
-                          patronymic: patronymic || undefined,
-                        }),
-                      });
-                      if (!r.ok)
-                        return { kind: 'error' as const, message: AUTH_NETWORK_ERROR_MESSAGE };
-                      const { response: res, data } = r;
-                      if (data.ok && data.challengeId) {
-                        setEmailRegChallengeId(data.challengeId);
-                        setEmailRegRetrySec(data.retryAfterSeconds ?? 60);
-                        saveRegisterVerifyPending({
-                          email,
-                          challengeId: data.challengeId,
-                          retryAfterSeconds: data.retryAfterSeconds ?? 60,
-                          lastName,
-                          firstName,
-                          patronymic,
-                          purpose: 'patient_email_otp',
-                        });
-                        return { kind: 'ok' as const };
-                      }
-                      if (res.status === 429 || data.error === 'rate_limited')
-                        return {
-                          kind: 'rate_limited' as const,
-                          retryAfterSeconds: Math.max(1, Math.ceil(data.retryAfterSeconds ?? 60)),
-                        };
-                      return {
-                        kind: 'error' as const,
-                        message: data.message ?? 'Не удалось отправить код',
-                      };
-                    }
-                    if (!email) {
+                    // Остаётся одна цель — регистрация пациента: у установки пароля своей двери больше нет.
+                    const lastName = emailRegLastName.trim();
+                    const firstName = emailRegFirstName.trim();
+                    const patronymic = emailRegPatronymic.trim();
+                    if (!email || !lastName || !firstName)
                       return {
                         kind: 'error' as const,
                         message: 'Нет данных для повторной отправки',
                       };
-                    }
-                    const resendRegisterResult = await fetchJsonSafe<{
+                    const r = await fetchJsonSafe<{
                       ok?: boolean;
                       challengeId?: string;
                       retryAfterSeconds?: number;
                       error?: string;
                       message?: string;
-                    }>('/api/auth/email-password/forgot', {
+                    }>('/api/auth/email-otp/register', {
                       method: 'POST',
                       headers: { 'content-type': 'application/json' },
-                      body: JSON.stringify({ email }),
+                      body: JSON.stringify({
+                        email,
+                        lastName,
+                        firstName,
+                        patronymic: patronymic || undefined,
+                      }),
                     });
-                    if (!resendRegisterResult.ok) {
+                    if (!r.ok)
                       return { kind: 'error' as const, message: AUTH_NETWORK_ERROR_MESSAGE };
-                    }
-                    const { response: res, data } = resendRegisterResult;
-                    if (data.ok) {
-                      setEmailRegChallengeId(data.challengeId ?? null);
+                    const { response: res, data } = r;
+                    if (data.ok && data.challengeId) {
+                      setEmailRegChallengeId(data.challengeId);
                       setEmailRegRetrySec(data.retryAfterSeconds ?? 60);
+                      saveRegisterVerifyPending({
+                        email,
+                        challengeId: data.challengeId,
+                        retryAfterSeconds: data.retryAfterSeconds ?? 60,
+                        lastName,
+                        firstName,
+                        patronymic,
+                        purpose: 'patient_email_otp',
+                      });
                       return { kind: 'ok' as const };
                     }
-                    if (res.status === 429 || data.error === 'rate_limited') {
-                      const sec = Math.max(1, Math.ceil(data.retryAfterSeconds ?? 60));
-                      setEmailRegRetrySec(sec);
-                      return { kind: 'rate_limited' as const, retryAfterSeconds: sec };
-                    }
+                    if (res.status === 429 || data.error === 'rate_limited')
+                      return {
+                        kind: 'rate_limited' as const,
+                        retryAfterSeconds: Math.max(1, Math.ceil(data.retryAfterSeconds ?? 60)),
+                      };
                     return {
                       kind: 'error' as const,
                       message: data.message ?? 'Не удалось отправить код',
@@ -2263,28 +2153,17 @@ export function AuthFlowV2({
                       ? 'Изменить данные'
                       : 'Изменить email'}
                   </Button>
-                  {emailVerifyPurpose !== 'email_otp' &&
-                  emailVerifyPurpose !== 'patient_registration' ? (
+                  {emailVerifyPurpose === 'specialist_signup' ? (
                     <div className="flex flex-col gap-1 pt-2">
                       <label htmlFor="auth-verify-resend-pwd" className={authFormFieldLabelClass}>
-                        {emailVerifyPurpose === 'setup'
-                          ? 'Пароль'
-                          : 'Пароль (для повторной отправки кода)'}
+                        Пароль (для повторной отправки кода)
                       </label>
                       <Input
                         id="auth-verify-resend-pwd"
                         type="password"
                         autoComplete="new-password"
-                        value={
-                          emailVerifyPurpose === 'specialist_signup'
-                            ? specialistSignupPassword
-                            : emailRegPassword
-                        }
-                        onChange={(e) =>
-                          emailVerifyPurpose === 'specialist_signup'
-                            ? setSpecialistSignupPassword(e.target.value)
-                            : setEmailRegPassword(e.target.value)
-                        }
+                        value={specialistSignupPassword}
+                        onChange={(e) => setSpecialistSignupPassword(e.target.value)}
                         disabled={loading}
                         className={authEmailInputClass}
                       />
