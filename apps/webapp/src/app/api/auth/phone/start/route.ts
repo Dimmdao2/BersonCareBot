@@ -132,7 +132,7 @@ export async function POST(request: Request) {
       {
         ok: false,
         error: 'channel_unavailable',
-        message: 'Код на почту отправляется по входу через email — введите адрес там.',
+        message: notificationText.authEmailCodeGoesThroughEmailDoor,
       },
       { status: 400 },
     );

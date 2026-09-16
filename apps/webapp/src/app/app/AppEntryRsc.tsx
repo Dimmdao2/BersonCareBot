@@ -124,7 +124,10 @@ export async function AppEntryRsc({
       surfaceAuthPolicy={surfaceAuthPolicy}
       embeddedInSurfaceShell={therapyGoBrowserEntry}
       roleLoginInitialView={roleLoginInitialView}
-      topAnchoredLayout={effectiveRoleLoginPortal === 'patient' && !therapyGoBrowserEntry}
+      topAnchoredLayout={
+        effectiveRoleLoginPortal === 'admin' ||
+        (effectiveRoleLoginPortal === 'patient' && !therapyGoBrowserEntry)
+      }
     />
   );
   const unsupportedClientFallback = clientEnvironment ? (

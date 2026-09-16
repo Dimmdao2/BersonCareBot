@@ -27,8 +27,8 @@ export const DEFAULT_SURFACE_AUTH_POLICY_CONFIG = {
     enabledMethods: ['password', 'totp', 'passkey'],
   },
   platform_admin: {
-    availableMethods: ['password', 'totp', 'passkey'],
-    enabledMethods: ['password', 'totp', 'passkey'],
+    availableMethods: ['password', 'totp'],
+    enabledMethods: ['password', 'totp'],
   },
   patient: {
     availableMethods: ['email_code', 'phone_bot', 'oauth', 'passkey'],

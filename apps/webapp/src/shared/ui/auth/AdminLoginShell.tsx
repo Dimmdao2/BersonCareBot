@@ -12,9 +12,9 @@ type AdminLoginShellProps = {
  * used to hand admin, doctor and non-browser patient miniapp entries the exact same `PatientAppShell`
  * call — the "one screen, three modes" the owner named 12.09. Structure-only pass: still renders
  * through `PatientAppShell` internally (so the shared patient-primitive form controls AuthFlowV2/
- * AppEntryLoginContent use keep today's styling unchanged, zero visual regression), but now lives
- * in its own file/CSS module so admin can be themed and edited independently of staff/patient —
- * see [[StaffLoginShell]] for the doctor-portal twin.
+ * AppEntryLoginContent use keep the auth mechanics shared), but the admin door owns its shell,
+ * palette and icon treatment independently of staff/patient — see [[StaffLoginShell]] for the
+ * doctor-portal twin.
  */
 export function AdminLoginShell({ title, children }: AdminLoginShellProps) {
   return (
@@ -25,6 +25,7 @@ export function AdminLoginShell({ title, children }: AdminLoginShellProps) {
         patientHideHome
         patientHideRightIcons
         patientBrandTitleBar
+        patientHideGatedHeader
         patientHideBottomNav
       >
         {children}

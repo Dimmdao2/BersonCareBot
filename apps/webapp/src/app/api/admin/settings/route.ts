@@ -1275,8 +1275,7 @@ export async function PATCH(request: Request) {
       {
         ok: false,
         error: 'telegram_bot_username_derived_only',
-        message:
-          'Имя бота не вводится: оно берётся у Telegram по сохранённому токену. Сохраните токен — имя появится само.',
+        message: notificationText.adminTelegramBotUsernameDerivedOnly,
       },
       { status: 400 },
     );
