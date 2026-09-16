@@ -97,8 +97,8 @@ describe('B1.2 email confirmation', () => {
    * только если вызывающий сам прислал `roleLoginPortal`, и достаточно было это поле опустить.
    *
    * До этого правила набор здесь утверждал ОБРАТНОЕ — что учётка `admin` по такому запросу получает
-   * сессию с кодом 200. Проверка переписана на закрытую границу; заодно ниже отдельно закреплено
-   * ЕДИНСТВЕННОЕ намеренное исключение, чтобы вместе с дырой не закрыть и его.
+   * сессию с кодом 200. Проверка переписана на закрытую границу. Решение владельца С9 от 16.09 сняло
+   * последнее исключение по `PLATFORM_OWNER_IDENTITY`: email-код не меняет сохранённую роль.
    */
   it('refuses a bare email+code session for a staff/admin DB role even without an explicit portal', async () => {
     fakes.findByUserId.mockResolvedValue({ ...user, role: 'admin' });
@@ -110,20 +110,14 @@ describe('B1.2 email confirmation', () => {
     expect(fakes.setSessionFromUser).not.toHaveBeenCalled();
   });
 
-  it('keeps the deliberate global-admin-by-policy escalation working from verified email alone', async () => {
+  it('keeps a listed email at its persisted client role after OTP confirmation', async () => {
     fakes.isVerifiedEmailGlobalAdminAsync.mockResolvedValue(true);
-    fakes.isAuthChannelEnabled.mockImplementation(
-      async (_channel: string, policy: string | undefined) => policy === 'platform_admin',
-    );
 
-    const response = await POST(request('admin'));
+    const response = await POST(request());
 
     expect(response.status).toBe(200);
-    expect(fakes.isAuthChannelEnabled).toHaveBeenCalledWith('email', 'platform_admin');
-    expect(fakes.setSessionFromUser).toHaveBeenCalledWith(
-      expect.objectContaining({ role: 'admin' }),
-      'email_code',
-    );
+    await expect(response.json()).resolves.toMatchObject({ ok: true, role: 'client' });
+    expect(fakes.setSessionFromUser).toHaveBeenCalledWith(user, 'email_code');
   });
 
   it('denies an OTP-confirmed credential on an incompatible explicit portal before session minting', async () => {

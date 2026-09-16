@@ -13,6 +13,7 @@ const fakes = vi.hoisted(() => ({
   }),
   findByUserId: vi.fn(),
   getVerifiedEmailForUser: vi.fn(),
+  isVerifiedEmailGlobalAdminAsync: vi.fn(),
 }));
 
 vi.mock('next/headers', () => ({
@@ -74,7 +75,7 @@ vi.mock('@bersoncare/db-principal', async (importOriginal) => ({
   ensureDbPrincipalContext: vi.fn(),
 }));
 vi.mock('@/modules/auth/emailAuth', () => ({
-  isVerifiedEmailGlobalAdminAsync: vi.fn(async () => false),
+  isVerifiedEmailGlobalAdminAsync: fakes.isVerifiedEmailGlobalAdminAsync,
 }));
 vi.mock('@/modules/system-settings/integrationRuntime', () => ({
   getIntegratorWebappEntrySecret: vi.fn(),
@@ -100,6 +101,7 @@ beforeEach(() => {
   fakes.calls.length = 0;
   fakes.findByUserId.mockResolvedValue(user);
   fakes.getVerifiedEmailForUser.mockResolvedValue(null);
+  fakes.isVerifiedEmailGlobalAdminAsync.mockResolvedValue(false);
   fakes.cookie = encodeSessionCookie({
     user,
     issuedAt: Math.floor(Date.now() / 1000),
@@ -115,6 +117,22 @@ describe('cold route session composition', () => {
 
     expect(fakes.calls.slice(0, 2)).toEqual(['bind', 'require-port']);
     expect(fakes.findByUserId).toHaveBeenCalledWith(user.userId);
+  });
+
+  it('keeps a listed email at its persisted client role during later session resolution', async () => {
+    const client = { ...user, role: 'client' as const };
+    fakes.findByUserId.mockResolvedValue(client);
+    fakes.getVerifiedEmailForUser.mockResolvedValue('payer@example.test');
+    fakes.isVerifiedEmailGlobalAdminAsync.mockResolvedValue(true);
+    fakes.cookie = encodeSessionCookie({
+      user: client,
+      issuedAt: Math.floor(Date.now() / 1000),
+      expiresAt: Math.floor(Date.now() / 1000) + 3600,
+    });
+
+    await expect(getCurrentSessionForIdentitySelf()).resolves.toMatchObject({
+      user: { role: 'client' },
+    });
   });
 });
 
