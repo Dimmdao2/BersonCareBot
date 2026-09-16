@@ -200,7 +200,7 @@ describe('email/password forgot HTTP boundary', () => {
     fakes.isAuthChannelEnabled.mockImplementation(async (_channel, _surface, use) => {
       return use === 'transactional';
     });
-    fakes.findUser.mockResolvedValue({ ...user, role: 'client' });
+    fakes.findUser.mockResolvedValue(user);
 
     const response = await forgotPassword(
       jsonRequest('/api/auth/email-password/forgot', { email: 'person@example.test' }),

@@ -6,20 +6,18 @@ import type {
 import { startEmailChallenge } from '@/modules/auth/emailAuth';
 import { platformMailProfileForRecipientRole } from '@/modules/auth/mailProfile';
 
-/** Contact email setup uses the live one-time-code flow; legacy setup-link tokens are retired. */
+/** A doctor-created patient's contact email receives a passwordless login code. */
 export function createPgEmailSetupAccessPort(): EmailSetupAccessPort {
   return {
     async requestContactEmailSetup(
       params: RequestContactEmailSetupParams,
     ): Promise<RequestContactEmailSetupResult> {
-      // Contact-only email setup access for a doctor/admin-created client is
-      // confirmed through the same POST /api/auth/email-password/setup-code/complete as
-      // email-password/setup-access and email-password/forgot's needs_email_setup branch --
-      // "password_setup" purpose (C-2 step 4).
+      // Patients never receive a password setup promise. The `login` purpose is consumed by the
+      // existing POST /api/auth/email-otp/confirm door and opens the passwordless patient session.
       const started = await startEmailChallenge(
         params.userId,
         params.emailNormalized,
-        'password_setup',
+        'login',
         platformMailProfileForRecipientRole('client'),
       );
       if (!started.ok) {
