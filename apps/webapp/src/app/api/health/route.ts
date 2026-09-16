@@ -1,15 +1,14 @@
 import { NextResponse } from 'next/server';
 import { runWithDbInfraPrincipal } from '@bersoncare/db-principal';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipal';
 
-export async function GET() {
-  const db = await runWithDbInfraPrincipal({ source: 'api/health:GET' }, async () => {
+export async function GET(request: Request) {
+  stampBootstrapPrincipal('api/health:GET', request);
+  const healthy = await runWithDbInfraPrincipal({ source: 'api/health:GET' }, async () => {
     const deps = buildAppDeps();
-    return (await deps.health.checkDbHealth()) ? 'up' : 'down';
+    return deps.health.checkDbHealth();
   });
 
-  return NextResponse.json({
-    ok: true,
-    db,
-  });
+  return NextResponse.json({ ok: healthy }, { status: healthy ? 200 : 503 });
 }

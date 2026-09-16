@@ -15,6 +15,14 @@ export type SlidingWindowRateLimitConfig = {
   };
   /** Optional cap on in-memory bucket map size before prune. */
   pruneBucketThreshold?: number;
+  /**
+   * Process-local ceiling checked before the persistent limiter. It bounds DB/log amplification
+   * for optional public telemetry even when an attacker rotates the persistent per-key identity.
+   */
+  processRequestCap?: {
+    windowMs: number;
+    maxPerWindow: number;
+  };
 };
 
 /**
@@ -25,7 +33,18 @@ export function createSlidingWindowRateLimit(config: SlidingWindowRateLimitConfi
   let dbUnavailable = false;
   let scopePruneInFlight = false;
   let nextScopePruneAt = 0;
+  let processRequestTimes: number[] = [];
   const pruneThreshold = config.pruneBucketThreshold ?? 2000;
+
+  function isProcessRequestLimited(): boolean {
+    if (!config.processRequestCap) return false;
+    const now = Date.now();
+    const windowStart = now - config.processRequestCap.windowMs;
+    processRequestTimes = processRequestTimes.filter((time) => time > windowStart);
+    if (processRequestTimes.length >= config.processRequestCap.maxPerWindow) return true;
+    processRequestTimes.push(now);
+    return false;
+  }
 
   function pruneEmptyBuckets(windowStart: number): void {
     if (buckets.size < pruneThreshold) return;
@@ -95,6 +114,7 @@ export function createSlidingWindowRateLimit(config: SlidingWindowRateLimitConfi
   }
 
   return async function isRateLimited(key: string): Promise<boolean> {
+    if (isProcessRequestLimited()) return true;
     if (!webappRuntimeDatabaseIsConfigured() || dbUnavailable) {
       return isLimitedInMemory(key);
     }

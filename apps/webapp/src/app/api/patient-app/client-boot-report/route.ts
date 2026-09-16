@@ -72,14 +72,7 @@ export async function POST(request: Request) {
 
   const rateLimit = await checkClientBootReportRateLimit(request);
   if (rateLimit === 'configuration_error') return jsonError('proxy_configuration', 503);
-  if (rateLimit === 'rate_limited') {
-    logger.warn({
-      scope: 'patient_client_env',
-      event: 'unsupported_client_boot',
-      outcome: 'rate_limited',
-    });
-    return jsonError('rate_limited', 429);
-  }
+  if (rateLimit === 'rate_limited') return jsonError('rate_limited', 429);
 
   const body = await readBoundedUtf8Body(request, CLIENT_BOOT_REPORT_MAX_BYTES);
   if (!body.ok) return jsonError(body.reason, body.reason === 'payload_too_large' ? 413 : 400);

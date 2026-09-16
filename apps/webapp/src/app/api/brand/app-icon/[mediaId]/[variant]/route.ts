@@ -1,4 +1,5 @@
 import { deliveryGetPrivateObjectBuffer } from '@/app-layer/media/s3DeliveryClient';
+import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipal';
 import {
   isOrgAppIconMediaId,
   orgAppIconObjectKey,
@@ -21,9 +22,10 @@ import {
  * кэшируется навсегда и пациент не получит вчерашний фавикон.
  */
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ mediaId: string; variant: string }> },
 ) {
+  stampBootstrapPrincipal('api/brand/app-icon:GET', request);
   const { mediaId, variant } = await params;
   const normalizedMediaId = (mediaId ?? '').trim().toLowerCase();
   const parsedVariant = parseOrgAppIconVariantSegment((variant ?? '').trim().toLowerCase());

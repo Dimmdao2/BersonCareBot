@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipal';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,13 +14,11 @@ function resolveBuildId(): string {
   return String(APP_STARTED_AT);
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  stampBootstrapPrincipal('api/version:GET', request);
   const buildId = resolveBuildId();
   return NextResponse.json(
-    {
-      buildId,
-      startedAt: APP_STARTED_AT,
-    },
+    { buildId },
     {
       headers: {
         'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
