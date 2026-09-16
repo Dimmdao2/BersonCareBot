@@ -228,3 +228,139 @@ global-admin-by-policy вход по одному email-коду, хотя ка�
 Нет.
 
 VERDICT: PASS
+
+---
+
+## Подтверждающий круг — коррекция двух остатков
+
+Дата: 2026-09-16
+
+Candidate: `deb46d30952a5cfec75dabd40a317214e337774b`
+
+Parent: `aefc1f6844c45a9ce12c086b883dc585618f8538`
+
+Уровень: `local`, два файла
+
+Проверен только diff `aefc1f684..deb46d309`. Текущий HEAD содержит поверх candidate лишь прежний
+audit-artifact; команда
+
+```bash
+git diff --exit-code deb46d309 HEAD -- \
+  apps/webapp/src/shared/ui/patient/auth/AuthFlowV2.tsx \
+  apps/webapp/src/shared/ui/patient/auth/authFlowPendingStorage.ts \
+  apps/webapp/src/app/api/auth/email-otp/start \
+  apps/webapp/src/app/api/auth/specialist-signup/start
+```
+
+вернула `rc=0`: проверенное продуктовое дерево побайтно соответствует candidate.
+
+### Evidence по пунктам brief
+
+1 → PASS → на parent закрытый union `emailVerifyPurpose` содержал только
+`patient_registration | email_otp | specialist_signup` (`AuthFlowV2.tsx:213-215`). Точный проход
+
+```bash
+git grep -n -E "emailVerifyPurpose|setEmailVerifyPurpose" aefc1f684 -- \
+  apps/webapp/src/shared/ui/patient/auth/AuthFlowV2.tsx
+```
+
+не нашёл четвёртой цели: живые ветви resend исчерпывались specialist signup
+(`1962-2028`), email-code login (`2030-2067`) и patient registration (`2069-2120`), и каждая
+возвращала результат. Поэтому хвост `2121-2155` с `/api/auth/email-password/forgot` не имел живой
+цели уже на parent. После распрямления на candidate прежние первые две ветви остались без изменений,
+а третья занимает `2069-2119`; её исходы `missing data`, network error, success, rate limit и обычная
+ошибка явно возвращают значение. `tsc` подтвердил типовую исчерпанность.
+
+Живые адреса повторной отправки на candidate:
+
+- регистрация специалиста — `/api/auth/specialist-signup/start`, `AuthFlowV2.tsx:1962-2028`;
+- вход по email-коду — `/api/auth/email-otp/start`, `AuthFlowV2.tsx:2030-2067`;
+- регистрация пациента — `/api/auth/email-otp/register`, `AuthFlowV2.tsx:2069-2119`.
+
+Точный поиск
+
+```bash
+git grep -n "email-password/forgot" aefc1f684 -- \
+  apps/webapp/src/shared/ui/patient/auth/AuthFlowV2.tsx
+git grep -n "email-password/forgot" deb46d309 -- \
+  apps/webapp/src/shared/ui/patient/auth/AuthFlowV2.tsx
+```
+
+дал на parent две строки (`652`, `2133`), а на candidate только живую staff recovery-ветвь `652`:
+удалён именно недостижимый resend-хвост, не штатное восстановление пароля.
+
+2 → PASS → поле `challengeId` удалено только из варианта `password_reset`; варианты
+`register_verify` и `specialist_signup_verify` закономерно продолжают его читать. Точный поиск
+
+```bash
+git grep -n -E "savePasswordResetPending|p\\.challengeId|password_reset.*challengeId|challengeId.*password_reset" \
+  aefc1f684 -- apps/webapp/src ':!**/*.map'
+git grep -n -E "savePasswordResetPending|p\\.challengeId|password_reset.*challengeId|challengeId.*password_reset" \
+  deb46d309 -- apps/webapp/src ':!**/*.map'
+```
+
+на обоих SHA показал только два чтения `p.challengeId` в других discriminated-union ветвях
+(`AuthFlowV2.tsx:368,387`) и декларацию `savePasswordResetPending`; чтения challenge у
+`password_reset` нет. Restore не изменён: `readRaw` для `password_reset` по-прежнему принимает
+`email + retryAfterSeconds` (`authFlowPendingStorage.ts:87-88`), игнорирует лишнее поле старого JSON,
+а hydration по-прежнему восстанавливает `reset_code` и email на staff surface
+(`AuthFlowV2.tsx:391-398`) либо очищает draft и возвращает patient surface к email-code login
+(`341-345`). Diff не затрагивает ни одну из этих строк.
+
+3 → PASS → `savePasswordResetPending` намеренно сохранён. Команда из пункта 2 на parent нашла только
+само объявление (`authFlowPendingStorage.ts:186`), без вызывающих; на candidate — снова только
+объявление (`:184`). Helper не участвует ни в одном runtime-пути, а его вход после удаления поля
+состоит только из уже принимаемых restore-парсером `email` и `retryAfterSeconds`; сохранение экспорта
+не меняет поведение и не ломает типы.
+
+4 → PASS → обязательные проверки:
+
+```bash
+/home/dev/brain/host-orch/run-tests.sh \
+  "pnpm -C apps/webapp exec tsc --noEmit -p tsconfig.json"
+```
+
+`rc=0`, 9 секунд.
+
+```bash
+/home/dev/brain/host-orch/run-tests.sh \
+  "pnpm -C apps/webapp exec vitest run --project=route \
+  src/app/api/auth/email-otp/start/route.route.test.ts \
+  src/app/api/auth/specialist-signup/start/route.route.test.ts"
+```
+
+`2 passed` files, `11 passed` tests, `rc=0`, 1 секунда.
+
+```bash
+/home/dev/brain/host-orch/run-tests.sh \
+  "pnpm -C apps/webapp exec vitest run --project=route \
+  src/modules/auth/passwordEligibility.route.test.ts \
+  src/modules/auth/passwordAuth.route.test.ts \
+  src/app/api/auth/email-otp/confirm/route.route.test.ts"
+```
+
+`3 passed` files, `34 passed` tests, `rc=0`, 2 секунды. Лог `permission denied for table
+platform_users` — намеренная exception-инъекция существующего зелёного теста, как и в предыдущем
+круге.
+
+Fault injection: в `email-otp/start/route.ts` успешный ответ сохранённой email-code resend-двери
+временно заменён на HTTP 500, затем выполнено:
+
+```bash
+/home/dev/brain/host-orch/run-tests.sh \
+  "pnpm -C apps/webapp exec vitest run --project=route \
+  src/app/api/auth/email-otp/start/route.route.test.ts"
+```
+
+Получен требуемый красный сигнал: `1 failed` file, `6 failed | 2 passed` tests, `rc=1`; в частности,
+ожидаемый status `200` стал `500` (`route.route.test.ts:152`). Инъекция отменена; команда
+
+```bash
+git diff --exit-code HEAD -- apps/webapp/src/app/api/auth/email-otp/start/route.ts
+```
+
+вернула `rc=0`. Продуктовый код после инъекции не изменён.
+
+MUST FIX: нет.
+
+VERDICT: PASS
