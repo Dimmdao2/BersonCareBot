@@ -233,12 +233,24 @@ DOCTOR_PAGE_CONTAINER_CLASS =
 
 Прямое использование `DOCTOR_PAGE_CONTAINER_CLASS` — только если не используется `AppShell`.
 
-Навигационный chrome задаёт `DoctorWorkspaceShell`: на mobile `<768px` workspace состоит из трёх
-настоящих строк `DoctorHeader → page content → DoctorBottomNav`; прокруткой владеет только средняя
-строка. Панель фильтров/настроек располагается сверху страницы под `DoctorHeader`. На tablet `768–1023px`
-используется узкий sidebar rail шириной `3.5rem`, раскрываемый поверх
-контента; на desktop `≥1024px` — полный sidebar шириной `14rem`. Верх sidebar всегда показывает
-платформенный бренд `Therapysto`, ссылка аккаунта с круглым аватаром закреплена снизу.
+Канонические границы doctor-zone живут в `shared/ui/doctor/doctorViewports.ts`. В JS нельзя повторять
+их числа напрямую: `matchMedia` и `useViewportMinWidth` получают значение из `DOCTOR_VIEWPORT` /
+`DOCTOR_VIEWPORT_QUERY`. Tailwind использует соответствующие стандартные `md`, `lg`, `xl`; граница
+правой панели `540px` остаётся отдельной семантической границей.
+
+| Режим | Ширина | Контракт |
+| --- | ---: | --- |
+| Phone | `0–539px` | Одна колонка, mobile header/bottom-nav, feature-модалки снизу |
+| Compact tablet | `540–767px` | Mobile header/bottom-nav сохраняются, `right-sheet` уже открывается правой панелью |
+| Tablet (`md`) | `768–1023px` | Sidebar rail `3.5rem`, правая панель, без постоянного split-pane |
+| Desktop (`lg`) | `1024–1279px` | Полный sidebar `14rem`, master-detail split-pane |
+| Wide desktop (`xl`) | `≥1280px` | Разрешены постоянные вспомогательные панели |
+
+Навигационный chrome задаёт `DoctorWorkspaceShell`: до `768px` workspace состоит из трёх настоящих
+строк `DoctorHeader → page content → DoctorBottomNav`; прокруткой владеет только средняя строка. На
+tablet `768–1023px` используется узкий sidebar rail, раскрываемый поверх контента; на desktop
+`≥1024px` — полный sidebar. Верх sidebar всегда показывает платформенный бренд `Therapysto`, ссылка
+аккаунта с круглым аватаром закреплена снизу.
 
 ---
 
@@ -817,7 +829,9 @@ tplToolbarTextBtnClass; // кнопки в шапке
 
 ## 14. Диалоги
 
-Feature-модалки открывать через `DoctorModal`: на мобильном он всегда использует один канонический bottom-drawer со свайпом вниз, на desktop/tablet — dialog или правую панель через `desktopPresentation`. Legacy `doctor/primitives/Dialog` остаётся совместимым адаптером и на mobile делегирует тому же drawer; локальная mobile-разметка модалки запрещена.
+Feature-модалки открывать через `DoctorModal`: presentation `desktopPresentation="right-sheet"` до `539px` использует канонический bottom-drawer со свайпом вниз, а с `540px` становится правой панелью. Обычные диалоги и навигационный mobile-shell сохраняют границу `md` (`768px`). Legacy `doctor/primitives/Dialog` остаётся совместимым адаптером и на mobile делегирует тому же drawer; локальная mobile-разметка модалки запрещена.
+
+Правая панель сохраняет минимальную рабочую ширину `384px` (`24rem`), но никогда не становится шире доступного контейнера страницы. На широком viewport её левый край по-прежнему выравнивается по правому блоку страницы.
 
 ```tsx
 <DoctorModal

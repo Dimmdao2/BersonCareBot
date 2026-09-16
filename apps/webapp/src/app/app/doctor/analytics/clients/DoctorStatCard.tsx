@@ -35,6 +35,7 @@ type Props = {
   hintClassName?: string;
   testId?: string;
   valuePlacement?: 'responsive' | 'inline' | 'side-center' | 'stacked';
+  detailsIcon?: ReactNode;
   actionIcon?: ReactNode;
   actionLabel?: string;
   onActionClick?: () => void;
@@ -57,6 +58,7 @@ export function DoctorStatCard({
   hintClassName,
   testId,
   valuePlacement = 'responsive',
+  detailsIcon,
   actionIcon,
   actionLabel,
   onActionClick,
@@ -74,7 +76,7 @@ export function DoctorStatCard({
   const isStacked = valuePlacement === 'stacked';
   const shellClass = cn(
     tone === 'warning' ? doctorStatCardShellWarningClass : doctorStatCardShellClass,
-    isStacked && 'flex items-center p-2.5',
+    isStacked && 'flex items-center py-2.5 pr-2 pl-2.5',
     (href || onClick) && doctorStatCardInteractiveClass,
     tone === 'neutral' && (href || onClick) && doctorStatCardInteractiveNeutralClass,
     selected &&
@@ -168,6 +170,8 @@ export function DoctorStatCard({
           className={cn(
             valuePlacement === 'responsive' &&
               'col-start-2 flex items-baseline justify-end gap-0.5 md:mt-0.5 md:w-full md:justify-start md:gap-1',
+            isStacked && 'mt-0.5 flex justify-end',
+            isStacked && opensDetails && 'pr-5',
           )}
         >
           {metricRow}
@@ -177,6 +181,13 @@ export function DoctorStatCard({
         <div className={cn(valuePlacement === 'responsive' && 'col-span-full')}>{hintNode}</div>
       ) : null}
     </div>
+  );
+  const detailsIndicator = detailsIcon ? (
+    <span className={doctorStatCardChevronClass} aria-hidden>
+      {detailsIcon}
+    </span>
+  ) : (
+    <ChevronRight className={doctorStatCardChevronClass} aria-hidden />
   );
   // Владелец 14.09: «сдвинь галочку правую ближе к краю и вертикально по центру» — на квадратной
   // плитке (isStacked, три КПИ в ряд на телефоне) подпись по-прежнему обязана владеть всей
@@ -188,15 +199,14 @@ export function DoctorStatCard({
     isStacked ? (
       <div className="relative w-full min-w-0">
         {inner}
-        <ChevronRight
-          className={cn(doctorStatCardChevronClass, 'absolute right-0 top-1/2 -translate-y-1/2')}
-          aria-hidden
-        />
+        <span className="absolute right-0 top-1/2 -translate-y-1/2">
+          {detailsIndicator}
+        </span>
       </div>
     ) : (
-      <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+      <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-1">
         <div className="min-w-0">{inner}</div>
-        <ChevronRight className={doctorStatCardChevronClass} aria-hidden />
+        {detailsIndicator}
       </div>
     )
   ) : (

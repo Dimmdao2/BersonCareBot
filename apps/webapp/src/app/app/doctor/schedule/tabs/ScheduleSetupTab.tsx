@@ -41,6 +41,7 @@ import {
   doctorDnaFlatListRowClass,
 } from '@/shared/ui/doctor/DoctorDnaFlatListRow';
 import { useViewportMinWidth } from '@/shared/hooks/useViewportMinWidth';
+import { DOCTOR_VIEWPORT } from '@/shared/ui/doctor/doctorViewports';
 import { SYSTEM_SETTING_REGISTRY } from '@/modules/system-settings/registry';
 import type { PackageItemInput, SubscriptionPackageRecord } from '@/modules/memberships/types';
 import {
@@ -288,7 +289,7 @@ function SectionPackages({
    * брейкпоинте: скрытое `display:none` дерево всё равно осталось бы в DOM, и модалка с формой
    * жила бы одновременно с той же формой в правом блоке — два поля с одним `id` на странице.
    */
-  const isWidePackagesLayout = useViewportMinWidth(1280);
+  const isWidePackagesLayout = useViewportMinWidth(DOCTOR_VIEWPORT.wideWorkspaceMin);
   const [packageView, setPackageView] = useState<'active' | 'archived'>('active');
   const [selectedCatalogPackage, setSelectedCatalogPackage] = useState<CatalogPackage | null>(null);
   const [packageFormOpen, setPackageFormOpen] = useState(false);

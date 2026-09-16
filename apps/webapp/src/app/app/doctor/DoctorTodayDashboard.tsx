@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { CalendarDays } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { SpecialistTaskRow } from '@/modules/specialist-tasks/types';
@@ -202,7 +203,7 @@ export function DoctorTodayDashboard({
   specialistTasksReadable,
   appointmentsManageOwn = true,
 }: Props) {
-  const { supportGroupLabel } = useDoctorPatientTerms();
+  const { patientPluralLabel, supportGroupLabel } = useDoctorPatientTerms();
   const router = useRouter();
   const isMobile = useIsMobileViewport();
   const [mobileModal, setMobileModal] = useState<
@@ -247,6 +248,18 @@ export function DoctorTodayDashboard({
   const activeTodayAppointments = data.todayAppointments.filter(
     (appointment) => !isCancelledAppointmentStatus(appointment.status),
   );
+  const supportKpiTitle =
+    supportGroupLabel === 'Избранные' ? (
+      <>
+        <span className="block">Избранные</span>{' '}
+        <span className="block">{patientPluralLabel.toLowerCase()}</span>
+      </>
+    ) : (
+      <>
+        <span className="block">{patientPluralLabel}</span>{' '}
+        <span className="block">на сопровождении</span>
+      </>
+    );
 
   const handleTaskSaved = (task: SpecialistTaskRow, patientDisplayName?: string) => {
     setTaskOverrides((current) => ({ ...current, [task.id]: task }));
@@ -343,21 +356,25 @@ export function DoctorTodayDashboard({
           <DoctorMetricList columns="two" aria-label="Сводка дня">
             <DoctorStatCard
               id="doctor-today-mobile-kpi-support"
-              title={supportGroupLabel}
+              title={supportKpiTitle}
               value={data.onSupportPeopleCount}
+              valuePlacement="side-center"
               opensDetails={data.onSupportPeopleCount > 0}
               onClick={data.onSupportPeopleCount > 0 ? () => setMobileModal('support') : undefined}
             />
             <DoctorStatCard
               id="doctor-today-mobile-kpi-appointments"
-              title="Записей сегодня"
-              value={activeTodayAppointments.length}
-              opensDetails={isMobile && activeTodayAppointments.length > 0}
-              onClick={
-                isMobile && activeTodayAppointments.length > 0
-                  ? () => setMobileModal('calendar')
-                  : undefined
+              title={
+                <>
+                  <span className="block">Записи</span>{' '}
+                  <span className="block">сегодня</span>
+                </>
               }
+              value={activeTodayAppointments.length}
+              valuePlacement="side-center"
+              opensDetails={isMobile}
+              detailsIcon={<CalendarDays className="size-full" />}
+              onClick={isMobile ? () => setMobileModal('calendar') : undefined}
             />
           </DoctorMetricList>
 

@@ -59,6 +59,7 @@ import { DoctorResultCount } from '@/shared/ui/doctor/DoctorResultCount';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 import { useIsMobileViewport } from '@/shared/ui/doctor/primitives/useIsMobileViewport';
 import { useViewportMinWidth } from '@/shared/hooks/useViewportMinWidth';
+import { DOCTOR_VIEWPORT, DOCTOR_VIEWPORT_QUERY } from '@/shared/ui/doctor/doctorViewports';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 import { Switch } from '@/shared/ui/doctor/primitives/switch';
 import {
@@ -276,7 +277,7 @@ export function ScheduleCalendarTab({
   const activeKpiFilters = showKpi ? selectedKpiFilters : NO_KPI_FILTERS;
   const [filterCacheReady, setFilterCacheReady] = useState(false);
   const isMobileViewport = useIsMobileViewport();
-  const isWideScheduleLayout = useViewportMinWidth(1280);
+  const isWideScheduleLayout = useViewportMinWidth(DOCTOR_VIEWPORT.wideWorkspaceMin);
   // #227: ref к FullCalendar для вызова unselect() при отмене создания
   const calendarRef = useRef<FullCalendarInstance>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -363,7 +364,7 @@ export function ScheduleCalendarTab({
   const [rescheduleBusy, setRescheduleBusy] = useState(false);
 
   useEffect(() => {
-    const mediaQuery = window.matchMedia('(min-width: 1280px)');
+    const mediaQuery = window.matchMedia(DOCTOR_VIEWPORT_QUERY.wideWorkspace);
     const handleWideLayout = (event: MediaQueryListEvent) => {
       if (event.matches) setFiltersPanelOpen(false);
     };

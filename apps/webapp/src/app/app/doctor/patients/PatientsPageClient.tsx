@@ -35,7 +35,8 @@ import { DoctorSearchInput } from '@/shared/ui/doctor/DoctorSearchInput';
 import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
 import { DoctorResultCount } from '@/shared/ui/doctor/DoctorResultCount';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
-import { DoctorPatientName, DoctorSupportStar } from '@/shared/ui/doctor/DoctorSupportStar';
+import { DoctorPatientName } from '@/shared/ui/doctor/DoctorSupportStar';
+import { DoctorSupportQuickFilterButton } from '@/shared/ui/doctor/DoctorSupportQuickFilterButton';
 import { TooltipProvider } from '@/shared/ui/doctor/primitives/tooltip';
 import {
   doctorDnaFlatListClass,
@@ -666,26 +667,10 @@ function PatientsContent({
           />
           {mobile ? (
             <>
-              <Button
-                type="button"
-                size="icon-sm"
-                variant="outline"
-                className={cn(
-                  'relative size-8 shrink-0',
-                  supportFilterActive && DOCTOR_ACTIVE_FILTER_BUTTON_CLASS,
-                )}
+              <DoctorSupportQuickFilterButton
+                active={supportFilterActive}
                 onClick={() => onSegmentToggle('on_support')}
-                aria-label={`Только: ${supportGroupLabel}`}
-                aria-pressed={supportFilterActive}
-              >
-                <DoctorSupportStar
-                  className={cn(
-                    'top-0 ml-0 text-xs',
-                    supportFilterActive ? 'text-primary' : 'text-muted-foreground',
-                  )}
-                />
-                <DoctorAttentionBadge count={supportFilterActive ? 1 : 0} dot />
-              </Button>
+              />
               <Button
                 type="button"
                 size="icon-sm"

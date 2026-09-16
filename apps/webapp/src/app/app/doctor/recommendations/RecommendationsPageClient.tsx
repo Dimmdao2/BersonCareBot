@@ -13,6 +13,7 @@ import type {
 import type { RecommendationDomain } from '@/modules/recommendations/recommendationDomain';
 import { cn } from '@/lib/utils';
 import { useViewportMinWidth } from '@/shared/hooks/useViewportMinWidth';
+import { DOCTOR_VIEWPORT } from '@/shared/ui/doctor/doctorViewports';
 import {
   doctorCatalogViewStorageKey,
   readDoctorCatalogViewPreference,
@@ -290,7 +291,7 @@ function RecommendationsContent({
     );
   }, [desktopSelectedId, displayRecommendations, initialItems]);
 
-  const isDesktopViewport = useViewportMinWidth(1024);
+  const isDesktopViewport = useViewportMinWidth(DOCTOR_VIEWPORT.splitPaneMin);
   const n = displayRecommendations.length;
   const tileColsDesktop = desktopRecommendationsTileColumns(n);
   const tileColsMobile = mobileRecommendationsTileColumns();

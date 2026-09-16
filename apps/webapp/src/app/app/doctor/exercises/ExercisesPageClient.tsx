@@ -23,6 +23,7 @@ import type {
 import type { RecommendationListFilterScope } from '@/shared/lib/doctorCatalogListStatus';
 import { cn } from '@/lib/utils';
 import { useViewportMinWidth } from '@/shared/hooks/useViewportMinWidth';
+import { DOCTOR_VIEWPORT } from '@/shared/ui/doctor/doctorViewports';
 import {
   doctorCatalogViewStorageKey,
   readDoctorCatalogViewPreference,
@@ -233,7 +234,7 @@ function ExercisesContent({
     },
   );
 
-  const isDesktopViewport = useViewportMinWidth(1024);
+  const isDesktopViewport = useViewportMinWidth(DOCTOR_VIEWPORT.splitPaneMin);
   const n = displayExercises.length;
   const tileColsDesktop = desktopExerciseTileColumns(n);
   const tileColsMobile = mobileExerciseTileColumns();

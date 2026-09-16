@@ -1,9 +1,10 @@
 'use client';
 
 import { useSyncExternalStore } from 'react';
+import { DOCTOR_VIEWPORT_QUERY } from '@/shared/ui/doctor/doctorViewports';
 
 /** Совпадает с Tailwind `md`: mobile-shell действует только до ширины 768px. */
-const MOBILE_QUERY = '(max-width: 767px)';
+const MOBILE_QUERY = DOCTOR_VIEWPORT_QUERY.mobileShell;
 
 function subscribe(onStoreChange: () => void) {
   if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {

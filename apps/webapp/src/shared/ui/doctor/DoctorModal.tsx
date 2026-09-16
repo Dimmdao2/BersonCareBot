@@ -29,6 +29,7 @@ import {
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from './primitives/sheet';
 import { useIsMobileViewport } from './primitives/useIsMobileViewport';
 import { useViewportMinWidth } from '@/shared/hooks/useViewportMinWidth';
+import { DOCTOR_VIEWPORT } from '@/shared/ui/doctor/doctorViewports';
 import {
   type DoctorModalLayerKind,
   useDoctorModalOverlay,
@@ -167,6 +168,8 @@ export function DoctorModalTextEditorField({
  * иначе он накрывает просвет между половинами страницы.
  */
 const PAGE_TWO_PANE_GAP = 12;
+/** Минимальная рабочая ширина правой панели: уже этой границы формы и KPI начинают ломаться. */
+const RIGHT_SHEET_MIN_WIDTH = 384;
 
 /** Десктоп: ограничение ширины по размеру. Мобила — всегда bottom-sheet во всю ширину. */
 const sizeMaxWidth: Record<DoctorModalSize, string> = {
@@ -200,7 +203,7 @@ type DoctorModalProps = {
   bodyClassName?: string;
   /** A flat list owns no local scroll or card chrome: the modal body is its only scroll owner. */
   bodyVariant?: DoctorModalBodyVariant;
-  /** Desktop/tablet presentation. Mobile always uses the canonical bottom drawer. */
+  /** Right-sheet presentation starts at 540px; other mobile presentations keep the shell breakpoint. */
   desktopPresentation?: DoctorModalDesktopPresentation;
   /** Align a right sheet's left edge to this element instead of the generic half-page column. */
   rightSheetAnchorId?: string;
@@ -301,8 +304,8 @@ export function DoctorModalStackedTitle({
  *   (высота ограничена с приятными отступами сверху/снизу).
  * — Опциональный подвал с кнопками, закреплён снизу.
  * — Размеры sm/md/lg/content (content = широкая+высокая, под чат и обсуждения).
- * — Десктоп/планшет: диалог по центру либо единая правая панель без затемнения.
- * — Мобила: bottom-sheet снизу.
+ * — Правая панель включается с 540px; до 539px тот же feature открывается bottom-sheet снизу.
+ * — Обычные диалоги сохраняют общий mobile-shell breakpoint.
  *
  * size="content" отдаёт телу гибкую flex-колонку под контент со СВОИМ внутренним
  * скроллом (чат, панель обсуждений); остальные размеры прокручивают тело сами.
@@ -326,8 +329,18 @@ export function DoctorModal({
   onRightSheetOutsidePress,
   presentation = 'standard',
 }: DoctorModalProps) {
-  const isMobile = useIsMobileViewport();
-  const isWideDesktop = useViewportMinWidth(1280);
+  const isMobileShell = useIsMobileViewport();
+  const supportsRightPanel = useViewportMinWidth(DOCTOR_VIEWPORT.rightPanelMin);
+  // Навигационный mobile-shell живёт до md (768px), но запрошенная caller'ом правая панель
+  // включается раньше: 540px уже достаточно для её планшетной геометрии. Обычные
+  // dialog-презентации не меняют breakpoint вместе с ней.
+  const promotesRightSheetToTablet =
+    isMobileShell &&
+    supportsRightPanel &&
+    desktopPresentation === 'right-sheet' &&
+    presentation !== 'fullscreen-media';
+  const isMobile = isMobileShell && !promotesRightSheetToTablet;
+  const isWideDesktop = useViewportMinWidth(DOCTOR_VIEWPORT.wideWorkspaceMin);
   // Правая панель — слой рядом со страницей, а не поверх неё: она не затемняет и не мешает
   // затемнять модалке, открытой из неё. Все остальные пути (десктопный диалог, мобильный
   // bottom-sheet, полноэкранные режимы) — обычные накрывающие слои.
@@ -373,9 +386,13 @@ export function DoctorModal({
       // шире правой колонки ровно на межколоночный зазор и накрывала его целиком, поэтому на
       // дашборде казалось, что она села вплотную на левую половину. Вычитаем зазор — левый край
       // панели встаёт ровно на левый край правой колонки, и просвет между половинами остаётся.
-      const nextWidth = rightSheetAnchor
-        ? `${Math.max(0, rect.right - rightSheetAnchor.getBoundingClientRect().left)}px`
-        : `${Math.max(0, (rect.width - PAGE_TWO_PANE_GAP) * widthRatio)}px`;
+      const preferredWidth = rightSheetAnchor
+        ? rect.right - rightSheetAnchor.getBoundingClientRect().left
+        : (rect.width - PAGE_TWO_PANE_GAP) * widthRatio;
+      const nextWidth = `${Math.min(
+        Math.max(0, rect.width),
+        Math.max(RIGHT_SHEET_MIN_WIDTH, preferredWidth),
+      )}px`;
       setRightSheetWidth((current) => (current === nextWidth ? current : nextWidth));
       // Владелец 14.09: «правая панель вылезает далековато и закрывает пробел между правой
       // и левой частью экрана». Пикселем это оказался `right: 0` — панель садится вплотную
@@ -613,7 +630,9 @@ export function DoctorModal({
             right: rightSheetInset ?? 0,
             width:
               rightSheetWidth ??
-              (isWideDesktop ? 'calc(50vw - 0.375rem)' : 'calc(45vw - 0.3375rem)'),
+              (isWideDesktop
+                ? `max(${RIGHT_SHEET_MIN_WIDTH}px, calc(50vw - 0.375rem))`
+                : `max(${RIGHT_SHEET_MIN_WIDTH}px, calc(45vw - 0.3375rem))`),
             maxWidth: 'none',
           }}
         >

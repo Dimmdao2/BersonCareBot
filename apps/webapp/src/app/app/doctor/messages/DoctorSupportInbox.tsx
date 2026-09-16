@@ -7,11 +7,13 @@ import { ClipboardList, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { DoctorSearchInput } from '@/shared/ui/doctor/DoctorSearchInput';
+import { DoctorSupportQuickFilterButton } from '@/shared/ui/doctor/DoctorSupportQuickFilterButton';
 import { DoctorChatPanel } from '@/modules/messaging/components/DoctorChatPanel';
 import { DoctorConversationChatModal } from '@/modules/messaging/components/DoctorConversationChatModal';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
 import { useViewportMinWidth } from '@/shared/hooks/useViewportMinWidth';
+import { DOCTOR_VIEWPORT, DOCTOR_VIEWPORT_QUERY } from '@/shared/ui/doctor/doctorViewports';
 import { doctorDnaFlatListClass } from '@/shared/ui/doctor/DoctorDnaFlatListRow';
 import { DoctorConversationListRow } from '@/modules/messaging/components/DoctorConversationListRow';
 import { CatalogSplitLayout } from '@/shared/ui/doctor/catalog/CatalogSplitLayout';
@@ -100,10 +102,11 @@ export function DoctorSupportInbox({
   const [allList, setAllList] = useState<ConvRow[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
+  const [onSupportOnly, setOnSupportOnly] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [overviewOpen, setOverviewOpen] = useState(false);
-  const hasSplitChat = useViewportMinWidth(1024);
+  const hasSplitChat = useViewportMinWidth(DOCTOR_VIEWPORT.splitPaneMin);
   const [mobileToolbarTarget, setMobileToolbarTarget] = useState<HTMLElement | null>(null);
   const sigRef = useRef<string>('');
   const selectedIdRef = useRef<string | null>(null);
@@ -145,7 +148,7 @@ export function DoctorSupportInbox({
 
   useEffect(() => {
     if (!active || loading) return;
-    const mobileMedia = window.matchMedia('(max-width: 767px)');
+    const mobileMedia = window.matchMedia(DOCTOR_VIEWPORT_QUERY.mobileShell);
     const alignListStart = () => {
       if (mobileMedia.matches && listScrollRef.current) {
         listScrollRef.current.scrollTop = 0;
@@ -251,8 +254,9 @@ export function DoctorSupportInbox({
     };
   }, [active, fetchList, selectedId]);
 
+  const supportFilteredList = onSupportOnly ? allList.filter((c) => c.onSupport) : allList;
   const filteredList = query.trim()
-    ? allList.filter((c) => {
+    ? supportFilteredList.filter((c) => {
         const q = query.trim().toLocaleLowerCase('ru-RU');
         const searchable = [c.lastName, c.firstName, c.displayName, c.lastMessageText]
           .filter(Boolean)
@@ -260,7 +264,7 @@ export function DoctorSupportInbox({
           .toLocaleLowerCase('ru-RU');
         return searchable.includes(q);
       })
-    : allList;
+    : supportFilteredList;
 
   if (loading) {
     return <DoctorPanelLoading className="h-full" />;
@@ -276,13 +280,22 @@ export function DoctorSupportInbox({
     : '';
 
   const renderListControls = () => (
-    <DoctorSearchInput
-      placeholder="Поиск по имени и сообщению"
-      value={query}
-      onValueChange={setQuery}
-      onClear={() => setQuery('')}
-      aria-label="Поиск по имени и сообщению"
-    />
+    <div className="flex min-w-0 items-center gap-1.5">
+      <DoctorSearchInput
+        placeholder="Поиск по имени и сообщению"
+        value={query}
+        onValueChange={setQuery}
+        onClear={() => setQuery('')}
+        aria-label="Поиск по имени и сообщению"
+      />
+      <DoctorSupportQuickFilterButton
+        active={onSupportOnly}
+        onClick={() => {
+          selectConversation(null);
+          setOnSupportOnly((current) => !current);
+        }}
+      />
+    </div>
   );
 
   const leftPane = (

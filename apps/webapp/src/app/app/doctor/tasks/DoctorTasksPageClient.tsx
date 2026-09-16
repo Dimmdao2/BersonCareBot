@@ -18,6 +18,7 @@ import {
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { cn } from '@/lib/utils';
 import { useViewportMinWidth } from '@/shared/hooks/useViewportMinWidth';
+import { DOCTOR_VIEWPORT } from '@/shared/ui/doctor/doctorViewports';
 import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
 import { DoctorShellChromeRegistration } from '@/shared/ui/doctor/shell/DoctorShellChromeContext';
 import { DOCTOR_ACTIVE_FILTER_BUTTON_CLASS } from '@/shared/ui/doctor/calendar/DoctorSchedulePeriodNav';
@@ -70,7 +71,7 @@ export function DoctorTasksPageClient({
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [taskView, setTaskView] = useState<TaskView>('open');
-  const hasSplitTaskDetails = useViewportMinWidth(1024);
+  const hasSplitTaskDetails = useViewportMinWidth(DOCTOR_VIEWPORT.splitPaneMin);
   const selected = useMemo(
     () =>
       pane && 'taskId' in pane ? (tasks.find((task) => task.id === pane.taskId) ?? null) : null,

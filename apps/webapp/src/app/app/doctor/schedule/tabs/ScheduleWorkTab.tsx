@@ -39,6 +39,7 @@ import {
 } from '@/shared/ui/doctor/calendar/DoctorSchedulePeriodNav';
 import { DoctorAttentionBadge } from '@/shared/ui/doctor/DoctorAttentionBadge';
 import { useViewportMinWidth } from '@/shared/hooks/useViewportMinWidth';
+import { DOCTOR_VIEWPORT } from '@/shared/ui/doctor/doctorViewports';
 import { DoctorDateTimePicker } from '@/shared/ui/doctor/DoctorDateTimePicker';
 import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
 import { emitDoctorScheduleCalendarRefresh } from '../scheduleCalendarEvents';
@@ -873,8 +874,8 @@ export function ScheduleWorkTab({
    * `data-testid` и `aria-*`, и второй скрытый экземпляр каждого дал бы на странице две кнопки
    * «Предыдущий месяц» — для чтения с экрана и для тестов это две РАЗНЫЕ кнопки.
    */
-  const isWideWorkLayout = useViewportMinWidth(768);
-  const isDesktopWorkLayout = useViewportMinWidth(1280);
+  const isWideWorkLayout = useViewportMinWidth(DOCTOR_VIEWPORT.navigationRailMin);
+  const isDesktopWorkLayout = useViewportMinWidth(DOCTOR_VIEWPORT.wideWorkspaceMin);
 
   const [selectionMode, setSelectionMode] = useState<'dates' | 'weekday'>('dates');
   const [selectedWeekday, setSelectedWeekday] = useState<number | null>(null);

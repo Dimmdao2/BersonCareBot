@@ -8,6 +8,7 @@ import type { ReferenceItem } from '@/modules/references/types';
 import { buildClinicalAssessmentKindSelectOptions } from '@/modules/tests/clinicalTestAssessmentKind';
 import { cn } from '@/lib/utils';
 import { useViewportMinWidth } from '@/shared/hooks/useViewportMinWidth';
+import { DOCTOR_VIEWPORT } from '@/shared/ui/doctor/doctorViewports';
 import {
   doctorCatalogViewStorageKey,
   readDoctorCatalogViewPreference,
@@ -264,7 +265,7 @@ function ClinicalTestsContent({
     );
   }, [desktopSelectedId, displayTests, initialItems]);
 
-  const isDesktopViewport = useViewportMinWidth(1024);
+  const isDesktopViewport = useViewportMinWidth(DOCTOR_VIEWPORT.splitPaneMin);
   const n = displayTests.length;
   const tileColsDesktop = desktopClinicalTestsTileColumns(n);
   const tileColsMobile = mobileClinicalTestsTileColumns();

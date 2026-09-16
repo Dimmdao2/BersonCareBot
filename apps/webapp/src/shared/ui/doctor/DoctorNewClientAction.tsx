@@ -139,8 +139,8 @@ export function DoctorNewClientAction({
           </>
         ) : compactOnMobile ? (
           <>
-            <span className="hidden sm:inline">{triggerLabel}</span>
-            <span className="sr-only sm:hidden">{triggerLabel}</span>
+            <span className="hidden md:inline">{triggerLabel}</span>
+            <span className="sr-only md:hidden">{triggerLabel}</span>
           </>
         ) : (
           <span>{triggerLabel}</span>

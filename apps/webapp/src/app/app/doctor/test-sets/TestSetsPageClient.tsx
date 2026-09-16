@@ -43,6 +43,7 @@ import { clinicalTestMediaItemToPreviewUi } from '@/shared/ui/doctor/media/media
 import type { ClinicalTestLibraryPickRow } from './clinicalTestLibraryRows';
 import { TestSetForm } from './TestSetForm';
 import { useViewportMinWidth } from '@/shared/hooks/useViewportMinWidth';
+import { DOCTOR_VIEWPORT } from '@/shared/ui/doctor/doctorViewports';
 import { DoctorCatalogMobileToolbar } from '@/shared/ui/doctor/DoctorCatalogMobileToolbar';
 import { CatalogStatusFilters } from '@/shared/ui/doctor/CatalogStatusFilters';
 import { DoctorCatalogTitleSortSelect } from '@/shared/ui/doctor/DoctorCatalogTitleSortSelect';
@@ -97,7 +98,7 @@ function TestSetsContent({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [mobileSheet, setMobileSheet] = useState<TestSet | null>(null);
-  const isDesktopViewport = useViewportMinWidth(1024);
+  const isDesktopViewport = useViewportMinWidth(DOCTOR_VIEWPORT.splitPaneMin);
 
   const filterScope = useMemo(() => ({ ...filters, titleSort }), [filters, titleSort]);
   const mergedFilters = useDoctorCatalogClientFilterMerge(filterScope);

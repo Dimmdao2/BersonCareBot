@@ -45,6 +45,7 @@ import { loadTreatmentProgramLibrary } from './loadTreatmentProgramLibrary';
 import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
 import { notificationText } from '@/shared/notifications/notificationText';
 import { useViewportMinWidth } from '@/shared/hooks/useViewportMinWidth';
+import { DOCTOR_VIEWPORT } from '@/shared/ui/doctor/doctorViewports';
 import { DoctorCatalogMobileToolbar } from '@/shared/ui/doctor/DoctorCatalogMobileToolbar';
 import { CatalogStatusFilters } from '@/shared/ui/doctor/CatalogStatusFilters';
 import { DoctorCatalogTitleSortSelect } from '@/shared/ui/doctor/DoctorCatalogTitleSortSelect';
@@ -152,7 +153,7 @@ function TreatmentProgramTemplatesContent({
   const [library, setLibrary] = useState<TreatmentProgramLibraryPickers | null>(null);
   const [libraryLoading, setLibraryLoading] = useState(false);
   const [libraryError, setLibraryError] = useState<string | null>(null);
-  const isDesktopViewport = useViewportMinWidth(1024);
+  const isDesktopViewport = useViewportMinWidth(DOCTOR_VIEWPORT.splitPaneMin);
   const detailFetchGenRef = useRef(0);
   const libraryFetchGenRef = useRef(0);
 

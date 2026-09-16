@@ -42,6 +42,7 @@ import {
   DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE,
 } from '@/shared/ui/doctor/doctorWorkspaceLayout';
 import { useViewportMinWidth } from '@/shared/hooks/useViewportMinWidth';
+import { DOCTOR_VIEWPORT } from '@/shared/ui/doctor/doctorViewports';
 import { DoctorCatalogMobileToolbar } from '@/shared/ui/doctor/DoctorCatalogMobileToolbar';
 import { CatalogStatusFilters } from '@/shared/ui/doctor/CatalogStatusFilters';
 import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
@@ -107,7 +108,7 @@ function LfkTemplatesContent({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [mobileSheet, setMobileSheet] = useState<Template | null>(null);
-  const isDesktopViewport = useViewportMinWidth(1024);
+  const isDesktopViewport = useViewportMinWidth(DOCTOR_VIEWPORT.splitPaneMin);
 
   const filterScope = useMemo(() => ({ ...filters, titleSort }), [filters, titleSort]);
   const mergedFilters = useDoctorCatalogClientFilterMerge(filterScope);

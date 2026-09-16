@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
 import { DoctorPatientName } from '@/shared/ui/doctor/DoctorSupportStar';
+import { DoctorSupportQuickFilterButton } from '@/shared/ui/doctor/DoctorSupportQuickFilterButton';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 import type { TodayExerciseCommentAttentionItem } from '../loadDoctorExerciseCommentAttention';
 import type { DoctorExerciseCommentCursor } from '@/modules/program-item-discussion/types';
@@ -17,8 +18,8 @@ import {
   doctorDnaFlatListSelectedPrimaryClass,
   doctorDnaFlatListUnreadTextClass,
 } from '@/shared/ui/doctor/DoctorDnaFlatListRow';
-import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Button } from '@/shared/ui/doctor/primitives/button';
+import { DoctorSearchInput } from '@/shared/ui/doctor/DoctorSearchInput';
 import { CatalogSplitLayout } from '@/shared/ui/doctor/catalog/CatalogSplitLayout';
 import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
@@ -114,13 +115,9 @@ function PatientRow({
  * комментариев ЛФК один путь на весь кабинет.
  */
 function DoctorCommentsPatientsTab({ initialPatients, active = true }: DoctorCommentsTabProps) {
-  const { patientGenPlural, patientSingularLower, supportGroupLabel } = useDoctorPatientTerms();
-  // ── View mode: «Непрочитанные» (unread) or «Все» (all) ──
-  // Default: «Все» — показать всю историю комментариев; «Непрочитанные» — только непрочитанные.
-  const [viewMode, setViewMode] = useState<'unread' | 'all'>('all');
+  const { patientGenPlural, patientSingularLower } = useDoctorPatientTerms();
 
-  // ── «Сопровождение» — независимый toggle-фильтр (не визуальный маркер).
-  // Комбинируется с viewMode: оба фильтра действуют независимо друг от друга.
+  // ── «Сопровождение» — быстрый toggle-фильтр (не визуальный маркер).
   const [onSupportOnly, setOnSupportOnly] = useState(false);
 
   // ── Search / filter state ──
@@ -225,24 +222,12 @@ function DoctorCommentsPatientsTab({ initialPatients, active = true }: DoctorCom
     void fetchAllMode();
   }, [fetchAllMode]);
 
-  // ── Computed: patients list for left pane, depends on viewMode ──
-  // In "unread" mode: SSR-provided patients (already filtered to unreadCount>0).
-  // In "all" mode: lazy-fetched allModePatients (all on-support with any comment).
-  const activePatients = viewMode === 'all' ? (allModePatients ?? []) : patients;
-  // «Сопровождение» — независимый toggle-фильтр (комбинируется с viewMode, а не заменяет его).
+  // The full list is the visible dataset; the SSR unread rows are a stable fallback while it loads.
+  const activePatients = allModePatients ?? patients;
   const onSupportFilteredPatients = onSupportOnly
     ? activePatients.filter((p) => p.isOnSupport)
     : activePatients;
-  const patientsToShowRaw = filterPatients(onSupportFilteredPatients, query);
-  // «Непрочитанные» mode: keep only patients with unread, but always keep selected patient
-  // so it doesn't disappear from under the cursor while the doctor is reading.
-  // «Все» mode: show all patients that have any comment (unreadCount may be 0).
-  const patientsToShow =
-    viewMode === 'unread'
-      ? patientsToShowRaw.filter(
-          (p) => p.unreadCount > 0 || p.patientUserId === selectedPatient?.patientUserId,
-        )
-      : patientsToShowRaw;
+  const patientsToShow = filterPatients(onSupportFilteredPatients, query);
 
   /** Тред прочитан внутри модалки — гасим ровно столько непрочитанных у пациента. */
   const applyPatientUnreadCleared = useCallback((patientUserId: string, clearedUnread: number) => {
@@ -259,29 +244,13 @@ function DoctorCommentsPatientsTab({ initialPatients, active = true }: DoctorCom
 
   // ── Left pane ────────────────────────────────────────────────────────────
 
-  // Стабильный источник счётчиков для обоих toggle-фильтров (полная выборка,
-  // не зависит от того, какой из фильтров сейчас активен) — иначе счётчик
-  // «прыгал» бы при переключении соседнего фильтра.
-  const badgeCountSource = allModePatients ?? patients;
-  const totalUnread = badgeCountSource.reduce((s, p) => s + p.unreadCount, 0);
-  const onSupportCount = badgeCountSource.filter((p) => p.isOnSupport).length;
-
-  // Handle view mode switch: reset navigation + query, then switch mode.
-  function handleSwitchViewMode(mode: 'unread' | 'all') {
-    if (mode === viewMode) return;
-    setSelectedPatient(null);
-    setQuery('');
-    setViewMode(mode);
-  }
-
   function handleToggleOnSupportOnly() {
     setSelectedPatient(null);
     setOnSupportOnly((v) => !v);
   }
 
-  // Loading/error state for left pane in "all" mode
-  const patientsLoading = viewMode === 'all' && allModePatientsLoading;
-  const patientsError = viewMode === 'all' ? allModePatientsError : null;
+  const patientsLoading = allModePatients === null && allModePatientsLoading;
+  const patientsError = allModePatients === null ? allModePatientsError : null;
 
   useEffect(() => {
     if (!active) {
@@ -291,50 +260,16 @@ function DoctorCommentsPatientsTab({ initialPatients, active = true }: DoctorCom
     setMobileToolbarTarget(document.getElementById('doctor-communications-mobile-toolbar'));
   }, [active]);
 
-  const renderListControls = (showFilters: boolean) => (
-    <div className="space-y-1.5">
-      <Input
-        type="search"
+  const renderListControls = () => (
+    <div className="flex min-w-0 items-center gap-1.5">
+      <DoctorSearchInput
         placeholder="Поиск"
         value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        className="h-8 w-full"
+        onValueChange={setQuery}
+        onClear={() => setQuery('')}
         aria-label={`Поиск ${patientGenPlural}`}
       />
-      {showFilters ? (
-        <div className="flex flex-wrap gap-1.5">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => handleSwitchViewMode(viewMode === 'unread' ? 'all' : 'unread')}
-            className={cn(
-              'h-auto cursor-pointer rounded-md px-2 py-1 text-xs font-medium transition-colors',
-              viewMode === 'unread'
-                ? 'bg-destructive/15 text-destructive'
-                : 'border border-border text-muted-foreground hover:bg-muted/40',
-            )}
-            aria-pressed={viewMode === 'unread'}
-          >
-            Непрочитанные{totalUnread > 0 ? ` ${totalUnread}` : ''}
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={handleToggleOnSupportOnly}
-            className={cn(
-              'h-auto cursor-pointer rounded-md px-2 py-1 text-xs font-medium transition-colors',
-              onSupportOnly
-                ? 'bg-primary/15 text-primary'
-                : 'border border-border text-muted-foreground hover:bg-muted/40',
-            )}
-            aria-pressed={onSupportOnly}
-          >
-            ★ {supportGroupLabel}{onSupportCount > 0 ? ` ${onSupportCount}` : ''}
-          </Button>
-        </div>
-      ) : null}
+      <DoctorSupportQuickFilterButton active={onSupportOnly} onClick={handleToggleOnSupportOnly} />
     </div>
   );
 
@@ -345,7 +280,7 @@ function DoctorCommentsPatientsTab({ initialPatients, active = true }: DoctorCom
     >
       {/* Search + filters header */}
       <div className="hidden shrink-0 space-y-1.5 border-b border-border bg-muted/20 px-3 py-2 md:block">
-        {renderListControls(true)}
+        {renderListControls()}
       </div>
 
       {/* Patient list */}
@@ -361,11 +296,7 @@ function DoctorCommentsPatientsTab({ initialPatients, active = true }: DoctorCom
           </DoctorEmptyState>
         ) : patientsToShow.length === 0 ? (
           <DoctorEmptyState size="xs" className="flex flex-1 items-center justify-center py-6">
-            {query.trim()
-              ? 'Ничего не найдено'
-              : viewMode === 'all'
-                ? `Нет ${patientGenPlural} с комментариями`
-                : `Нет ${patientGenPlural} с непрочитанными комментариями`}
+            {query.trim() ? 'Ничего не найдено' : `Нет ${patientGenPlural} с комментариями`}
           </DoctorEmptyState>
         ) : (
           <ul className={doctorDnaFlatListClass}>
@@ -395,7 +326,7 @@ function DoctorCommentsPatientsTab({ initialPatients, active = true }: DoctorCom
 
   return (
     <>
-      {mobileToolbarTarget ? createPortal(renderListControls(false), mobileToolbarTarget) : null}
+      {mobileToolbarTarget ? createPortal(renderListControls(), mobileToolbarTarget) : null}
       <CatalogSplitLayout
         mobileEdgeToEdge
         left={leftPane}

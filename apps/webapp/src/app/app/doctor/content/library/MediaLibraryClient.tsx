@@ -59,6 +59,7 @@ import { canRenderInlineImage } from './mediaPreview';
 import type { MediaPreviewStatus, VideoProcessingStatus } from '@/modules/media/types';
 import { MediaThumb } from '@/shared/ui/doctor/media/MediaThumb';
 import { buildCrumbsForMediaFolder } from '@/shared/ui/doctor/media/mediaFolderScopeUtils';
+import { DOCTOR_VIEWPORT_QUERY } from '@/shared/ui/doctor/doctorViewports';
 import { useFlatMediaFolders } from '@/shared/ui/doctor/media/useFlatMediaFolders';
 import {
   findClientFilesRootFolder,
@@ -533,7 +534,7 @@ export function MediaLibraryClient({
   }, [reloadKey]);
 
   useEffect(() => {
-    const mq = window.matchMedia('(max-width: 767px), (pointer: coarse)');
+    const mq = window.matchMedia(`${DOCTOR_VIEWPORT_QUERY.mobileShell}, (pointer: coarse)`);
     const applyViewport = () => {
       const mobile = mq.matches;
       setIsMobileUploadUi(mobile);
