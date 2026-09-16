@@ -81,7 +81,7 @@ export function AppEntryLoginContent({
   const authFlow = (
     <Suspense fallback={<AppContentLoading className="py-6" />}>
       <AuthBootstrap
-        supportContactHref={supportContactHref}
+        supportContactHref={roleLoginPortal === 'admin' ? '' : supportContactHref}
         initialPublicAuthConfig={prefetchedPublicAuth ?? null}
         serverPlatformMessengerCookie={Boolean(serverPlatformMessengerCookie)}
         serverMessengerSurface={serverMessengerSurface ?? null}
@@ -89,7 +89,9 @@ export function AppEntryLoginContent({
         routeBoundMiniappEntry={routeBoundMiniappEntry}
         roleLoginPortal={roleLoginPortal}
         surfaceAuthPolicy={surfaceAuthPolicy}
-        preferEmailEntry={embeddedInSurfaceShell || roleLoginPortal === 'doctor'}
+        preferEmailEntry={
+          embeddedInSurfaceShell || roleLoginPortal === 'doctor' || roleLoginPortal === 'admin'
+        }
         roleLoginInitialView={roleLoginInitialView}
       />
     </Suspense>
@@ -105,7 +107,10 @@ export function AppEntryLoginContent({
           {portalHeader}
           {authFlow}
         </div>
-        <LegalFooterLinks className="mt-auto pb-6 pt-8" />
+        <LegalFooterLinks
+          className="mt-auto pb-6 pt-8"
+          supportHref={roleLoginPortal === 'admin' ? undefined : supportContactHref}
+        />
       </div>
     );
   }
@@ -122,7 +127,10 @@ export function AppEntryLoginContent({
       {portalHeader}
       {authFlow}
       {embeddedInSurfaceShell ? null : (
-        <LegalFooterLinks className="mt-2" supportHref={supportContactHref} />
+        <LegalFooterLinks
+          className="mt-2"
+          supportHref={roleLoginPortal === 'admin' ? undefined : supportContactHref}
+        />
       )}
     </div>
   );

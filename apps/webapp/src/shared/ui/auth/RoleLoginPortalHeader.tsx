@@ -36,18 +36,16 @@ export function RoleLoginPortalHeader({
     );
   }
 
-  // Admin-портал — глобал-админ платформы, один вход без выбора режима: только сама форма, без
-  // описания и без ссылки на другой логин (владелец, 12.09: «только форма входа без всяких ссылок
-  // на другие режимы входа и лишних пояснений»). Свой mark пространства вместо общего Therapysto —
-  // тот же admin-mark-transparent-source.png, из которого уже собран admin PWA-манифест/иконки.
+  // Admin-портал — маленький знак над формой. Большой лок-ап и верхняя шапка сняты; дверь сразу
+  // показывает email+пароль без выбора других способов (владелец, 16.09).
   if (portal === 'admin') {
     return (
       <div className="flex flex-col items-center">
         <Image
           src="/brand/admin-mark-transparent-source.png"
           alt="Therapysto Admin"
-          width={112}
-          height={98}
+          width={48}
+          height={42}
           priority
           unoptimized
         />

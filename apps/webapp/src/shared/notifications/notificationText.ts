@@ -209,6 +209,8 @@ export const notificationText = {
     'Max не привязан к этому номеру. Привяжите его или выберите другой способ.',
   authTelegramChatUnknown: 'Не удалось определить ваш чат в Telegram. Откройте бот и повторите.',
   authPhoneAndChannelRequired: 'Укажите номер телефона и способ связи.',
+  authEmailCodeGoesThroughEmailDoor:
+    'Код на почту отправляется по входу через email — введите адрес там.',
   authMessengerBindUnavailable: 'Привязка мессенджера сейчас недоступна. Повторите попытку позже.',
   authTelegramSessionStale: 'Вход через Telegram устарел. Начните вход заново.',
   commonSpecifyValidEmail: 'Укажите корректный email',
@@ -223,6 +225,8 @@ export const notificationText = {
   commonUserNotFound: 'Пользователь не найден.',
   bookingConfirmedPhoneRequired: 'Для записи на приём нужен подтверждённый номер телефона.',
   adminAccountsMerged: 'Карточки объединены.',
+  adminTelegramBotUsernameDerivedOnly:
+    'Имя бота не вводится: оно берётся у Telegram по сохранённому токену. Сохраните токен — имя появится само.',
   adminGoogleCalendarNotConnected: 'Google Календарь не подключён. Подключите его в настройках.',
   adminGoogleOauthNotConfigured:
     'Подключение Google Календаря не настроено. Обратитесь к администратору платформы.',
