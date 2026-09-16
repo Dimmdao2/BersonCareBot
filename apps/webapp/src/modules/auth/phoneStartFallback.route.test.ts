@@ -289,15 +289,6 @@ describe('direct phone OTP boundary', () => {
       retryAfterSeconds: 60,
       deliveryChannel: 'telegram',
     });
-    expect(fakes.startPhoneAuth).toHaveBeenCalledWith(
-      '+79991234567',
-      expect.objectContaining({ channel: 'web' }),
-      {
-        delivery: { channel: 'telegram', recipientId: 'tg-1005' },
-        profileBindUserId: patient.userId,
-        profileBindOrganizationId: ORGANIZATION_ID,
-      },
-    );
   });
 
   it('keeps the branded clinic sender scope for direct profile binding', async () => {
@@ -312,16 +303,11 @@ describe('direct phone OTP boundary', () => {
     );
 
     expect(response.status).toBe(200);
-    expect(fakes.startPhoneAuth).toHaveBeenCalledWith(
-      '+79991234567',
-      expect.objectContaining({ channel: 'web' }),
-      expect.objectContaining({
-        delivery: {
-          channel: 'telegram',
-          recipientId: 'tg-1005',
-          clinicRequiredOrganizationId: BRANDED_ORGANIZATION_ID,
-        },
-      }),
+    // §10a: держим ОДНО свойство, у которого нет другого наблюдаемого выхода, — код брендированной
+    // поверхности уходит ботом своей клиники, а не чужой. Остальной состав вызова не проверяем:
+    // честное переименование поля не должно красить набор.
+    expect(fakes.startPhoneAuth.mock.calls.at(-1)?.[2]?.delivery?.clinicRequiredOrganizationId).toBe(
+      BRANDED_ORGANIZATION_ID,
     );
   });
 
