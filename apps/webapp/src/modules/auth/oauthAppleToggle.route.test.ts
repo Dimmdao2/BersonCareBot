@@ -54,6 +54,11 @@ vi.mock('@/modules/auth/oauthSignedState', () => ({
   roleLoginPortalFromOAuthState: (state: { roleLoginPortal?: 'doctor' | 'patient' | 'admin' }) =>
     state.roleLoginPortal ?? 'patient',
 }));
+vi.mock('@/modules/auth/oauthStateBinding.server', () => ({
+  OAUTH_STATE_BINDING_TTL_SECONDS: 600,
+  issueOAuthStateBrowserBinding: vi.fn().mockResolvedValue('binding-hash'),
+  consumeBrowserBoundOAuthState: fakes.parseSignedState,
+}));
 vi.mock('@/shared/lib/surface/requestSurface.server', () => ({
   getResolvedSurface: fakes.resolvedSurface,
 }));

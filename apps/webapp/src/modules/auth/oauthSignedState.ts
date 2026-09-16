@@ -34,6 +34,7 @@ type Payload = {
   p: OAuthStatePurpose;
   exp: number;
   n: string;
+  bh?: string;
   nonce?: string;
   tz?: string;
   org?: string;
@@ -52,8 +53,8 @@ function signPayload(payload: Payload): string {
 }
 
 /**
- * Одноразовый подписанный `state` для OAuth (без cookie): провайдер видит только opaque строку;
- * сервер проверяет HMAC, срок и назначение.
+ * Подписанный `state` для OAuth: провайдер видит только opaque строку; сервер проверяет HMAC,
+ * срок и назначение. Публичные OAuth-двери дополнительно кладут сюда хеш browser-binding cookie.
  */
 export function createSignedOAuthState(
   purpose: OAuthStatePurpose,
@@ -65,10 +66,13 @@ export function createSignedOAuthState(
     publicOrigin?: string | null;
     next?: string | null;
     roleLoginPortal?: RoleLoginPortal | null;
+    browserBindingHash?: string | null;
   },
 ): string {
   const exp = Math.floor(Date.now() / 1000) + ttlSeconds;
   const payload: Payload = { p: purpose, exp, n: randomUUID() };
+  const browserBindingHash = options?.browserBindingHash?.trim();
+  if (browserBindingHash) payload.bh = browserBindingHash;
   const rawTz = options?.browserCalendarIana?.trim();
   if (rawTz && rawTz.length <= 120) {
     payload.tz = rawTz;
@@ -110,11 +114,14 @@ export function createAppleSignedOAuthState(
     browserCalendarIana?: string | null;
     next?: string | null;
     roleLoginPortal?: RoleLoginPortal | null;
+    browserBindingHash?: string | null;
   },
 ): { state: string; nonce: string } {
   const exp = Math.floor(Date.now() / 1000) + ttlSeconds;
   const nonce = randomUUID();
   const payload: Payload = { p: 'apple', exp, n: randomUUID(), nonce };
+  const browserBindingHash = options?.browserBindingHash?.trim();
+  if (browserBindingHash) payload.bh = browserBindingHash;
   const rawTz = options?.browserCalendarIana?.trim();
   if (rawTz && rawTz.length <= 120) {
     payload.tz = rawTz;
@@ -132,8 +139,8 @@ export function createAppleSignedOAuthState(
 const VK_PKCE_HMAC_INFO = 'vk-pkce-code-verifier';
 
 /**
- * VK ID (OAuth 2.1) requires PKCE. This app keeps OAuth `state` signed-but-stateless (no server
- * session to key a stored `code_verifier` by), so instead of adding storage, `code_verifier` is
+ * VK ID (OAuth 2.1) requires PKCE. This app keeps OAuth `state` without server-side storage, so
+ * instead of adding storage, `code_verifier` is
  * derived deterministically from the same HMAC secret that signs `state` plus that state's own
  * one-time `attemptId`. Only the server holding `SESSION_COOKIE_SECRET` can compute it, so an
  * attacker who intercepts `code`+`state` off the wire — exactly what PKCE defends against — still
@@ -155,11 +162,14 @@ export function createVkSignedOAuthState(
     browserCalendarIana?: string | null;
     next?: string | null;
     roleLoginPortal?: RoleLoginPortal | null;
+    browserBindingHash?: string | null;
   },
 ): { state: string; attemptId: string; codeVerifier: string; codeChallenge: string } {
   const exp = Math.floor(Date.now() / 1000) + ttlSeconds;
   const attemptId = randomUUID();
   const payload: Payload = { p: 'vk', exp, n: attemptId };
+  const browserBindingHash = options?.browserBindingHash?.trim();
+  if (browserBindingHash) payload.bh = browserBindingHash;
   const rawTz = options?.browserCalendarIana?.trim();
   if (rawTz && rawTz.length <= 120) {
     payload.tz = rawTz;
@@ -182,6 +192,7 @@ export function createVkSignedOAuthState(
 
 export type VerifiedOAuthState = {
   attemptId?: string;
+  browserBindingHash?: string;
   nonce?: string;
   browserCalendarIana?: string;
   organizationId?: string;
@@ -224,7 +235,7 @@ function verifyTokenInternal(
     return null;
   }
 
-  const { p, exp, n, nonce, tz, org, surface, origin, next, portal } = payloadRaw as Record<string, unknown>;
+  const { p, exp, n, bh, nonce, tz, org, surface, origin, next, portal } = payloadRaw as Record<string, unknown>;
   if (p !== expectedPurpose || typeof exp !== 'number' || typeof n !== 'string' || !n) {
     return null;
   }
@@ -243,6 +254,7 @@ function verifyTokenInternal(
   if (!timingSafeEqual(gotSig, expectedSig)) return null;
 
   if (nonce !== undefined && typeof nonce !== 'string') return null;
+  if (bh !== undefined && (typeof bh !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(bh))) return null;
   if (tz !== undefined && (typeof tz !== 'string' || tz.length > 120)) return null;
   if (
     org !== undefined &&
@@ -276,6 +288,7 @@ function verifyTokenInternal(
     return null;
 
   const out: VerifiedOAuthState = { attemptId: n };
+  if (typeof bh === 'string') out.browserBindingHash = bh;
   if (typeof nonce === 'string') out.nonce = nonce;
   if (typeof tz === 'string' && tz.trim().length > 0) {
     out.browserCalendarIana = tz.trim();

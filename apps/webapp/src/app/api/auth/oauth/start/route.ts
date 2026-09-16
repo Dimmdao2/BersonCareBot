@@ -1,6 +1,7 @@
 import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipal';
 import { logger } from '@/app-layer/logging/logger';
 import { randomUUID } from 'node:crypto';
+import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { ensureAuthModulePortsBound } from '@/app-layer/di/bindAuthModulePorts';
 import type { AuthRegistrationAuthMethod } from '@/app-layer/product-analytics/recordAuthRegistration';
@@ -47,8 +48,12 @@ import { getResolvedSurface } from '@/shared/lib/surface/requestSurface.server';
 import { arePlatformSurfaceHostsDistinct } from '@/shared/lib/surface/requestSurface';
 import { resolveYandexOAuthConfig } from '@/modules/auth/yandexOAuthConfig';
 import { notificationText } from '@/shared/notifications/notificationText';
+import {
+  issueOAuthStateBrowserBinding,
+  OAUTH_STATE_BINDING_TTL_SECONDS,
+} from '@/modules/auth/oauthStateBinding.server';
 
-const OAUTH_STATE_TTL_SECONDS = 600;
+const OAUTH_STATE_TTL_SECONDS = OAUTH_STATE_BINDING_TTL_SECONDS;
 
 const bodySchema = z.object({
   provider: z.enum(['yandex', 'google', 'apple', 'vk']),
@@ -56,6 +61,8 @@ const bodySchema = z.object({
   next: z.string().max(2048).optional(),
   roleLoginPortal: z.enum(['doctor', 'patient', 'admin']).optional(),
 });
+type OAuthStartInput = z.infer<typeof bodySchema>;
+type OAuthStartResponseMode = 'json' | 'redirect';
 
 const GOOGLE_LOGIN_SCOPES = ['openid', 'email', 'profile'].join(' ');
 /** ⚠️ Best-effort per VK ID docs — confirm against the live app once real credentials land. */
@@ -75,6 +82,27 @@ function oauthStatePurpose(provider: z.infer<typeof bodySchema>['provider']): OA
   if (provider === 'apple') return 'apple';
   if (provider === 'vk') return 'vk';
   return 'yandex';
+}
+
+function globalStartUrl(redirectUri: string, input: OAuthStartInput): URL {
+  const url = new URL('/api/auth/oauth/start', new URL(redirectUri).origin);
+  url.searchParams.set('provider', input.provider);
+  if (input.browserCalendarIana) {
+    url.searchParams.set('browserCalendarIana', input.browserCalendarIana);
+  }
+  if (input.roleLoginPortal) url.searchParams.set('roleLoginPortal', input.roleLoginPortal);
+  if (input.next) url.searchParams.set('next', input.next);
+  return url;
+}
+
+function responseForAuthUrl(mode: OAuthStartResponseMode, authUrl: URL): Response {
+  return mode === 'redirect'
+    ? NextResponse.redirect(authUrl)
+    : jsonOk({ authUrl: authUrl.toString() });
+}
+
+function needsGlobalStartHandoff(request: Request, redirectUri: string): boolean {
+  return new URL(request.url).origin !== new URL(redirectUri).origin;
 }
 
 async function logOAuthStartAttempt(
@@ -114,8 +142,8 @@ async function logOAuthStartFailure(
  * Apple remains a recognized legacy request value only so it can fail with the established
  * `oauth_disabled` response instead of being mistaken for malformed JSON.
  */
-export async function POST(request: Request) {
-  stampBootstrapPrincipal('api/auth/oauth/start:POST', request);
+async function handleOAuthStart(request: Request, mode: OAuthStartResponseMode) {
+  stampBootstrapPrincipal(`api/auth/oauth/start:${request.method}`, request);
   ensureAuthModulePortsBound();
 
   const identity = resolveOAuthStartRateLimitClientKey(request);
@@ -138,7 +166,9 @@ export async function POST(request: Request) {
     );
   }
 
-  const raw = (await request.json().catch(() => null)) as unknown;
+  const raw = mode === 'json'
+    ? ((await request.json().catch(() => null)) as unknown)
+    : Object.fromEntries(new URL(request.url).searchParams.entries());
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {
     await logOAuthStartFailure(null, 'invalid_body');
@@ -193,6 +223,7 @@ export async function POST(request: Request) {
       }
       const state = createSignedOAuthState('yandex', OAUTH_STATE_TTL_SECONDS, {
         ...tzOpt,
+        browserBindingHash: await issueOAuthStateBrowserBinding('yandex'),
         organizationId: surface.organizationId,
         surface: surface.surface,
         publicOrigin: surface.publicOrigin,
@@ -204,7 +235,7 @@ export async function POST(request: Request) {
       authUrl.searchParams.set('redirect_uri', config.redirectUri);
       authUrl.searchParams.set('scope', 'login:info login:email login:default_phone');
       authUrl.searchParams.set('state', state);
-      return jsonOk({ authUrl: authUrl.toString() });
+      return responseForAuthUrl(mode, authUrl);
     }
 
     if (provider === 'google') {
@@ -222,7 +253,13 @@ export async function POST(request: Request) {
           { status: 501 },
         );
       }
-      const state = createSignedOAuthState('google_login', OAUTH_STATE_TTL_SECONDS, tzOpt);
+      if (needsGlobalStartHandoff(request, redirectUri)) {
+        return responseForAuthUrl(mode, globalStartUrl(redirectUri, parsed.data));
+      }
+      const state = createSignedOAuthState('google_login', OAUTH_STATE_TTL_SECONDS, {
+        ...tzOpt,
+        browserBindingHash: await issueOAuthStateBrowserBinding('google_login'),
+      });
       await logOAuthStartAttempt(provider, state);
       const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
       authUrl.searchParams.set('client_id', clientId);
@@ -232,7 +269,7 @@ export async function POST(request: Request) {
       authUrl.searchParams.set('state', state);
       authUrl.searchParams.set('access_type', 'online');
       authUrl.searchParams.set('include_granted_scopes', 'true');
-      return jsonOk({ authUrl: authUrl.toString() });
+      return responseForAuthUrl(mode, authUrl);
     }
 
     if (provider === 'vk') {
@@ -250,7 +287,13 @@ export async function POST(request: Request) {
           { status: 501 },
         );
       }
-      const { state, codeChallenge } = createVkSignedOAuthState(OAUTH_STATE_TTL_SECONDS, tzOpt);
+      if (needsGlobalStartHandoff(request, redirectUri)) {
+        return responseForAuthUrl(mode, globalStartUrl(redirectUri, parsed.data));
+      }
+      const { state, codeChallenge } = createVkSignedOAuthState(OAUTH_STATE_TTL_SECONDS, {
+        ...tzOpt,
+        browserBindingHash: await issueOAuthStateBrowserBinding('vk'),
+      });
       await logOAuthStartAttempt(provider, state);
       // ⚠️ Best-effort endpoint/params per VK ID (OAuth 2.1) docs — confirm against the live app
       // once real credentials land (see oauthVkService.ts header).
@@ -262,7 +305,7 @@ export async function POST(request: Request) {
       authUrl.searchParams.set('state', state);
       authUrl.searchParams.set('code_challenge', codeChallenge);
       authUrl.searchParams.set('code_challenge_method', 'S256');
-      return jsonOk({ authUrl: authUrl.toString() });
+      return responseForAuthUrl(mode, authUrl);
     }
 
     const [appleEnabled, clientId, redirectUri, teamId, keyId, privateKey] = await Promise.all([
@@ -282,7 +325,14 @@ export async function POST(request: Request) {
       );
     }
 
-    const { state, nonce } = createAppleSignedOAuthState(OAUTH_STATE_TTL_SECONDS, tzOpt);
+    if (needsGlobalStartHandoff(request, redirectUri)) {
+      return responseForAuthUrl(mode, globalStartUrl(redirectUri, parsed.data));
+    }
+
+    const { state, nonce } = createAppleSignedOAuthState(OAUTH_STATE_TTL_SECONDS, {
+      ...tzOpt,
+      browserBindingHash: await issueOAuthStateBrowserBinding('apple'),
+    });
     await logOAuthStartAttempt(provider, state);
     const authUrl = new URL('https://appleid.apple.com/auth/authorize');
     authUrl.searchParams.set('client_id', clientId);
@@ -292,7 +342,7 @@ export async function POST(request: Request) {
     authUrl.searchParams.set('scope', 'name email');
     authUrl.searchParams.set('state', state);
     authUrl.searchParams.set('nonce', nonce);
-    return jsonOk({ authUrl: authUrl.toString() });
+    return responseForAuthUrl(mode, authUrl);
   } catch (error) {
     logger.error({ error, provider }, '[auth/oauth/start] unhandled failure');
     return jsonError(
@@ -301,4 +351,12 @@ export async function POST(request: Request) {
       { status: 500 },
     );
   }
+}
+
+export async function POST(request: Request) {
+  return handleOAuthStart(request, 'json');
+}
+
+export async function GET(request: Request) {
+  return handleOAuthStart(request, 'redirect');
 }

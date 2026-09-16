@@ -16,9 +16,9 @@ import {
 } from '@/modules/system-settings/integrationRuntime';
 import {
   deriveVkPkceCodeVerifier,
-  parseVerifiedSignedOAuthState,
   roleLoginPortalFromOAuthState,
 } from '@/modules/auth/oauthSignedState';
+import { consumeBrowserBoundOAuthState } from '@/modules/auth/oauthStateBinding.server';
 import { isOAuthProviderEnabled } from '@/modules/auth/authChannelPolicy';
 import { notificationText } from '@/shared/notifications/notificationText';
 import { authPolicyNameForRoleLoginPortal } from '@/modules/auth/roleLogin';
@@ -71,7 +71,7 @@ export async function handleVkOAuthCallbackGet(
   const url = new URL(request.url);
   const stateFromQuery = url.searchParams.get('state') ?? '';
 
-  const verifiedState = parseVerifiedSignedOAuthState(stateFromQuery, 'vk');
+  const verifiedState = await consumeBrowserBoundOAuthState(stateFromQuery, 'vk');
   const attemptId = registrationAttemptIdFromOAuthState(verifiedState);
   if (!verifiedState) {
     await logOAuthFailure(attemptId, 'oauth_csrf', 'callback');
