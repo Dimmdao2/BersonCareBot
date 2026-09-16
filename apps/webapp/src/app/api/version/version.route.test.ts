@@ -23,21 +23,42 @@ describe('GET /api/version', () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.unstubAllEnvs();
+    vi.doUnmock('node:fs');
   });
 
   /** D4: an exact restart timestamp silently exposes operational churn to every anonymous caller. */
-  it('uses an opaque stable process id without exposing process start time', async () => {
+  it('never answers with the moment the process started', async () => {
     const processStartedAt = String(Date.now());
-    const first = await readVersionResponse();
-    const second = await readVersionResponse();
+    const answer = await readVersionResponse();
 
-    expect(first).not.toHaveProperty('startedAt');
-    expect(first.buildId).toEqual(expect.any(String));
-    expect(first.buildId).not.toBe(processStartedAt);
-    expect(second.buildId).toBe(first.buildId);
+    expect(answer).not.toHaveProperty('startedAt');
+    expect(answer.buildId).toEqual(expect.any(String));
+    expect(answer.buildId).not.toBe(processStartedAt);
+    expect(answer.buildId).not.toBe(new Date().toISOString());
+  });
 
+  /**
+   * Вкладка перезагружается, когда её идентификатор сборки разошёлся с серверным. Значит два
+   * процесса ОДНОЙ сборки обязаны отвечать одинаково, иначе обычный рестарт выбрасывает человека
+   * из открытой страницы.
+   */
+  it('gives every process of one build the same answer', async () => {
+    vi.doMock('node:fs', async (importOriginal) => {
+      const actual = await importOriginal<typeof import('node:fs')>();
+      return { ...actual, readFileSync: () => 'one-and-the-same-build\n' };
+    });
+
+    const firstProcess = await readVersionResponse();
     vi.resetModules();
-    const nextProcess = await readVersionResponse();
-    expect(nextProcess.buildId).not.toBe(first.buildId);
+    const secondProcess = await readVersionResponse();
+
+    expect(firstProcess.buildId).toBe('one-and-the-same-build');
+    expect(secondProcess.buildId).toBe(firstProcess.buildId);
+  });
+
+  it('prefers the identifier the deploy declared', async () => {
+    vi.stubEnv('BUILD_ID', 'deploy-declared-id');
+    const answer = await readVersionResponse();
+    expect(answer.buildId).toBe('deploy-declared-id');
   });
 });
