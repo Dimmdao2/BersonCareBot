@@ -562,6 +562,7 @@ function SpecialistProfileFields({
         title="Подробное описание"
         size="lg"
         desktopPresentation="right-sheet"
+        bodyClassName="!pt-0"
         rightSheetAnchorId={rightSheetAnchorId}
         footer={
           <>
