@@ -54,11 +54,11 @@ import { env } from '@/config/env';
 import { routePaths } from '@/app-layer/routes/paths';
 
 /**
- * B1.1 — the door's "куда вернуть" for every tariff payment: the settings screen holding the
+ * B1.1 — the door's "куда вернуть" for every tariff payment: the account screen holding the
  * "Оплатить тариф" button (`PayTariffButton.tsx`), whether the payer got there by clicking it (K0)
  * or is only seeing the resulting invoice later after an unattended autopay tick (К5).
  */
-const SAAS_BILLING_RETURN_URL = `${env.APP_BASE_URL}${routePaths.settings}?tab=tariff`;
+const SAAS_BILLING_RETURN_URL = `${env.APP_BASE_URL}${routePaths.account}#tariff`;
 
 /**
  * §5a/2.1c — INVARIANT OF THE TWO MONEY FLOWS. The path by which a clinic pays US for its tariff is
@@ -493,7 +493,7 @@ export function createSaasBillingService(dependencies: {
     },
     storage_package: {
       idempotencyNamespace: 'saas_storage_package',
-      returnUrl: `${env.APP_BASE_URL}${routePaths.settings}?tab=tariff`,
+      returnUrl: `${env.APP_BASE_URL}${routePaths.account}#tariff`,
       returnUrlParam: 'storagePayment',
       intentPurpose: 'saas_billing_storage_package',
       description: SAAS_BILLING_STORAGE_PACKAGE_DESCRIPTION,

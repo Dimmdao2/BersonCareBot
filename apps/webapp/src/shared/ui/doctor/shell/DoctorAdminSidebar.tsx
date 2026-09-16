@@ -175,7 +175,7 @@ export function DoctorAdminSidebar({
 
         {managesOrganization ? (
           <Link
-            href={`${routePaths.settings}?tab=profile`}
+            href={`${routePaths.settings}?tab=public`}
             prefetch={false}
             id="doctor-sidebar-settings"
             aria-current={settingsActive ? 'page' : undefined}

@@ -168,7 +168,7 @@ export function DoctorHeader({
             <div className="shrink-0 border-t border-border/70 py-2">
               {menuAccess.capabilities.includes('organization.management') ? (
                 <Link
-                  href={`${routePaths.settings}?tab=profile`}
+                  href={`${routePaths.settings}?tab=public`}
                   className={cn(
                     DOCTOR_MENU_ITEM_RADIUS_CLASS,
                     'flex min-h-10 items-center gap-2 px-3 py-2 text-sm font-normal text-foreground no-underline hover:bg-muted/60',

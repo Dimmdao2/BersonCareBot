@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import {
   DoctorSection,
@@ -19,6 +20,11 @@ import {
 } from '@/shared/ui/doctor/primitives/select';
 import { Switch } from '@/shared/ui/doctor/primitives/switch';
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/shared/ui/doctor/primitives/tooltip';
+import {
   defaultDoctorWorkspaceClientDefaults,
   defaultDoctorWorkspaceComposition,
   DOCTOR_WORKSPACE_CLIENT_DEFAULTS_KEY,
@@ -27,13 +33,13 @@ import {
   WORKSPACE_CLIENT_CHANNEL_KEYS,
   WORKSPACE_CLIENT_DEFAULT_MODES,
   WORKSPACE_MODULE_DEPENDENCIES,
-  WORKSPACE_MODULE_KEYS,
+  WORKSPACE_MODULE_CONFIG_KEYS,
   type DoctorWorkspaceClientDefaults,
   type DoctorWorkspaceComposition,
   type WorkspaceClientChannelKey,
   type WorkspaceClientDefaultMode,
   type WorkspaceModuleAvailability,
-  type WorkspaceModuleKey,
+  type WorkspaceModuleConfigKey,
 } from '@/modules/system-settings/doctorWorkspaceComposition';
 import {
   APPOINTMENT_LABEL_KEY,
@@ -50,7 +56,7 @@ import {
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 import { notificationText } from '@/shared/notifications/notificationText';
 
-const WORKSPACE_MODULE_LABELS: Readonly<Record<WorkspaceModuleKey, string>> = {
+const WORKSPACE_MODULE_LABELS: Readonly<Record<WorkspaceModuleConfigKey, string>> = {
   medical_record: 'Медкарта',
   encounters: 'Приёмы',
   rehabilitation: 'Реабилитация',
@@ -61,7 +67,37 @@ const WORKSPACE_MODULE_LABELS: Readonly<Record<WorkspaceModuleKey, string>> = {
   analytics: 'Аналитика',
   client_portal: 'Кабинет',
   video_meetings: 'Видеовстречи',
+  leads: 'Заявки',
+  content: 'Контент',
+  courses: 'Курсы',
 };
+
+const WORKSPACE_REQUIREMENT_LABELS: Readonly<
+  Partial<Record<WorkspaceModuleConfigKey, { label: string; single: string }>>
+> = {
+  rehabilitation: { label: 'реабилитация', single: 'Требуется реабилитация' },
+  program_comments: {
+    label: 'комментарии к программе',
+    single: 'Требуются комментарии к программе',
+  },
+  client_portal: { label: 'кабинет', single: 'Требуется кабинет' },
+};
+
+function workspaceDependencyHint(
+  key: WorkspaceModuleConfigKey,
+  effectiveModules: Readonly<Partial<Record<WorkspaceModuleConfigKey, boolean>>>,
+): string | null {
+  const requirements = WORKSPACE_MODULE_DEPENDENCIES[key]
+    .filter((dependency) => effectiveModules[dependency] !== true)
+    .map((dependency) => {
+      const configured = WORKSPACE_REQUIREMENT_LABELS[dependency];
+      const label = configured?.label ?? WORKSPACE_MODULE_LABELS[dependency].toLowerCase();
+      return { label, single: configured?.single ?? `Требуется ${label}` };
+    });
+  if (requirements.length === 0) return null;
+  if (requirements.length === 1) return requirements[0]!.single;
+  return `Требуются: ${requirements.map((requirement) => requirement.label).join(' и ')}`;
+}
 
 const WORKSPACE_CHANNEL_LABELS: Readonly<Record<WorkspaceClientChannelKey, string>> = {
   direct_chat: 'Чат по умолчанию',
@@ -109,6 +145,7 @@ export function SettingsForm({
   workspaceModuleAvailability,
   supportGroupLabel = 'on_support',
 }: SettingsFormProps) {
+  const router = useRouter();
   const { patientGenitive, patientPluralLabel } = useDoctorPatientTerms();
   const [label, setLabel] = useState<PatientLabelValue>(
     normalizePatientLabel(patientLabel) ?? 'пациент',
@@ -135,8 +172,8 @@ export function SettingsForm({
     workspaceModuleAvailability !== undefined;
   const shouldShowSmsFallback = showSmsFallback ?? showSupportDefaults;
   const fallbackAvailability = Object.fromEntries(
-    WORKSPACE_MODULE_KEYS.map((key) => [key, true]),
-  ) as Record<WorkspaceModuleKey, boolean>;
+    WORKSPACE_MODULE_CONFIG_KEYS.map((key) => [key, true]),
+  ) as Record<WorkspaceModuleConfigKey, boolean>;
   const availability = workspaceModuleAvailability ?? fallbackAvailability;
   const availableModules = resolveWorkspaceModuleEffective(
     defaultDoctorWorkspaceComposition(),
@@ -241,6 +278,7 @@ export function SettingsForm({
           }
         }
         toast.success(notificationText.commonSaved);
+        if (workspaceMode) router.refresh();
       } catch {
         toast.error(notificationText.commonSaveFailed);
       }
@@ -258,9 +296,23 @@ export function SettingsForm({
         {workspaceMode ? (
           <>
             <div className="grid gap-3 md:grid-cols-2">
-              {WORKSPACE_MODULE_KEYS.filter((key) => availableModules[key]).map((key) => {
+              {WORKSPACE_MODULE_CONFIG_KEYS.filter((key) => availableModules[key]).map((key) => {
                 const dependenciesMet = WORKSPACE_MODULE_DEPENDENCIES[key].every(
                   (parent) => effectiveModules[parent],
+                );
+                const dependencyHint = workspaceDependencyHint(key, effectiveModules);
+                const switchControl = (
+                  <Switch
+                    id={`workspace-module-${key}`}
+                    checked={dependenciesMet ? composition.modules[key] : false}
+                    onCheckedChange={(checked) =>
+                      setComposition((current) => ({
+                        ...current,
+                        modules: { ...current.modules, [key]: checked },
+                      }))
+                    }
+                    disabled={isPending || !dependenciesMet}
+                  />
                 );
                 return (
                   <div key={key} className="flex items-center justify-between gap-3">
@@ -269,17 +321,24 @@ export function SettingsForm({
                         ? `${WORKSPACE_MODULE_LABELS[key]} ${patientGenitive}`
                         : WORKSPACE_MODULE_LABELS[key]}
                     </Label>
-                    <Switch
-                      id={`workspace-module-${key}`}
-                      checked={dependenciesMet ? composition.modules[key] : false}
-                      onCheckedChange={(checked) =>
-                        setComposition((current) => ({
-                          ...current,
-                          modules: { ...current.modules, [key]: checked },
-                        }))
-                      }
-                      disabled={isPending || !dependenciesMet}
-                    />
+                    {dependencyHint ? (
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={
+                            <span
+                              className="inline-flex cursor-help"
+                              tabIndex={0}
+                              aria-label={dependencyHint}
+                            >
+                              {switchControl}
+                            </span>
+                          }
+                        />
+                        <TooltipContent>{dependencyHint}</TooltipContent>
+                      </Tooltip>
+                    ) : (
+                      switchControl
+                    )}
                   </div>
                 );
               })}

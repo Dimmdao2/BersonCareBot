@@ -18,10 +18,11 @@ export function RoleLoginPortalHeader({
   brandedSurface?: boolean;
 }) {
   // Doctor-портал (вход после разлогина) — без верхней шапки, описательного блока и ссылки на
-  // пациентский вход. Вертикальный лок-ап уменьшен на 30% и прижат к форме — владелец, 16.09.
+  // пациентский вход. Вертикальный лок-ап уменьшен на 30% и поднят независимо от формы —
+  // владелец, 16.09.
   if (portal === 'doctor') {
     return (
-      <div className="flex flex-col items-center">
+      <div className="flex -translate-y-6 flex-col items-center">
         <Image
           src="/brand/therapysto-lockup-vertical.png"
           alt="Therapysto"

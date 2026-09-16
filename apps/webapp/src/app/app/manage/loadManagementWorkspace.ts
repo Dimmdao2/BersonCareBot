@@ -21,7 +21,7 @@ export const loadManagementWorkspace = cache(async () => {
     seats,
   });
 
-  if (workspaceComposition === 'solo') redirect('/app/settings?tab=profile');
+  if (workspaceComposition === 'solo') redirect('/app/settings?tab=public');
 
   return {
     workspace,
