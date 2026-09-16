@@ -1,18 +1,11 @@
 import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipal';
-import { after, NextResponse } from 'next/server';
-import { randomBytes, randomUUID } from 'node:crypto';
+import { NextResponse } from 'next/server';
+import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import {
-  newRegistrationAttemptId,
-  recordAuthRegistrationAttempt,
-  recordAuthRegistrationFailure,
-  recordAuthRegistrationSuccess,
-} from '@/app-layer/product-analytics/recordAuthRegistration';
 import type { ChannelContext } from '@/modules/auth/channelContext';
-import type { SessionUser } from '@/shared/types/session';
 import { normalizePhone } from '@/modules/auth/phoneNormalize';
-import type { PhoneOtpDelivery, SendCodeResult } from '@/modules/auth/smsPort';
+import type { PhoneOtpDelivery } from '@/modules/auth/smsPort';
 import { isRuMobile, isValidPhoneE164 } from '@/modules/auth/phoneValidation';
 import {
   formatOtpRetryAfterMessage,
@@ -21,33 +14,9 @@ import {
 import { getCurrentSession } from '@/modules/auth/service';
 import { canAccessPatient } from '@/modules/roles/service';
 import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
-import {
-  getClientVisibleAuthChannelPolicy,
-  isAuthChannelEnabled,
-} from '@/modules/auth/authChannelPolicy';
+import { isAuthChannelEnabled } from '@/modules/auth/authChannelPolicy';
 import { requireResolvedSurface } from '@/shared/lib/surface/requestSurface';
 import { notificationText } from '@/shared/notifications/notificationText';
-
-const PUBLIC_LOGIN_START_MIN_RESPONSE_MS = 500;
-const PUBLIC_LOGIN_DECOY_USER_ID = '00000000-0000-4000-8000-000000000000';
-
-/**
- * D15b/6: `user` here always comes from `deps.userByPhone.findByPhone(normalized)` above, which
- * (after the D15b/6 repair) already carries the full `contacts` array in one pre-session door
- * call. `deps.userByPhone.isPhoneTrustedForUser`/`getVerifiedEmailForUser` derive the identical
- * answer (primary contact of this kind, confirmed) from a SEPARATE relation read keyed by user id
- * — a door bootstrap/pre-session has no capability for (see `pgUserByPhone.ts`). Reading the same
- * fact off the payload already fetched needs no second door and preserves the decoy-lookup timing
- * symmetry (`PUBLIC_LOGIN_DECOY_USER_ID`): a missing `user` was already zero extra DB calls before,
- * and still is.
- */
-function primaryConfirmedContactValue(
-  user: SessionUser | null,
-  kind: 'phone' | 'email',
-): string | null {
-  const contact = user?.contacts?.find((c) => c.kind === kind && c.isPrimary);
-  return contact?.confirmedAt ? contact.value : null;
-}
 
 const bodySchema = z.object({
   phone: z.string().min(1),
@@ -59,17 +28,16 @@ const bodySchema = z.object({
 });
 
 /**
- * Start phone auth. Unauthenticated login always receives web context; a caller cannot make its
- * body trusted by claiming `channel: telegram`. Authenticated profile-bind preserves its channel.
- * Для публичного web-login без deliveryChannel сервер разрешает канал автоматически (не лестницей):
- * явный профильный выбор либо канал, впервые подтвердивший номер (IDENTITY_AND_MERGE_SCHEME.md §3.1);
- * SMS — только bootstrap, когда ни того ни другого нет. Если резолвнутый канал не enabled+configured —
- * тишина, подмены другим каналом нет (Р-D27, §2.3). Явный deliveryChannel позволяет нейтрально
- * повторить отправку или выбрать другой включённый канал.
+ * Direct OTP is retained only for an authenticated patient binding a phone to the current profile.
+ * Login by an entered phone must prove the contact through `phone/messenger-bind/*`.
  */
 export async function POST(request: Request) {
-  const startedAt = Date.now();
   stampBootstrapPrincipal('api/auth/phone/start:POST', request);
+  const resolvedSurface = requireResolvedSurface(request.headers);
+  if (!resolvedSurface.authPolicy.availableMethods.includes('phone_bot')) {
+    return NextResponse.json({ ok: false, error: 'auth_method_disabled' }, { status: 403 });
+  }
+
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {
@@ -80,18 +48,23 @@ export async function POST(request: Request) {
   }
 
   const { phone, displayName } = parsed.data;
-  const resolvedSurface = requireResolvedSurface(request.headers);
   const clinicRequiredOrganizationId =
     resolvedSurface.surface === 'patient_branded' ? resolvedSurface.organizationId : undefined;
   const channel = parsed.data.channel ?? 'web';
   const purpose = parsed.data.purpose ?? 'login';
-  const publicLogin = purpose === 'login';
-  const automaticPublicLogin = publicLogin && parsed.data.deliveryChannel == null;
-  let deliveryChannel = parsed.data.deliveryChannel ?? 'sms';
+  const deliveryChannel = parsed.data.deliveryChannel;
+
+  if (purpose === 'login') {
+    return NextResponse.json({ ok: false, error: 'direct_phone_login_disabled' }, { status: 403 });
+  }
+
+  if (!deliveryChannel) {
+    return NextResponse.json({ ok: false, error: 'delivery_channel_required' }, { status: 400 });
+  }
 
   let context: ChannelContext;
 
-  if (!publicLogin && channel === 'telegram') {
+  if (channel === 'telegram') {
     const chatId = parsed.data.chatId?.trim();
     if (!chatId) {
       return NextResponse.json(
@@ -121,26 +94,7 @@ export async function POST(request: Request) {
     );
   }
 
-  // Вход ПО НОМЕРУ доставляет код только туда, что привязано к самому номеру, — в бота Telegram или
-  // MAX. Почта сюда не входит, и вот почему (владелец 16.09.2026): «если я выбираю „другой способ
-  // ввода“ — я ввожу данные другого канала… если я случайно ошибся в номере и такой аккаунт уже
-  // есть, а я думаю, что это проблема с телеграм, я хочу поменять способ входа — но не могу ввести
-  // правильный имейл». Прежнее поведение брало адрес у аккаунта, найденного ПО ВВЕДЁННОМУ НОМЕРУ:
-  // при опечатке код молча уходил постороннему, а человек ждал письмо, которого ему никто не слал.
-  // Почтовый вход — отдельная дверь, где адрес вводит сам человек; отказ здесь ничего не сообщает
-  // о номере, потому что не зависит от него.
-  if (publicLogin && deliveryChannel === 'email') {
-    return NextResponse.json(
-      {
-        ok: false,
-        error: 'channel_unavailable',
-        message: notificationText.authEmailCodeGoesThroughEmailDoor,
-      },
-      { status: 400 },
-    );
-  }
-
-  if (!automaticPublicLogin && !(await isAuthChannelEnabled(deliveryChannel))) {
+  if (!(await isAuthChannelEnabled(deliveryChannel, 'patient'))) {
     return NextResponse.json({ ok: false, error: 'auth_channel_disabled' }, { status: 403 });
   }
 
@@ -155,217 +109,89 @@ export async function POST(request: Request) {
     );
   }
 
+  // Дверь стоит ДО чтения по введённому номеру: иначе неавторизованный запрос успевает выполнить
+  // поиск пользователя по произвольному номеру и получает отказ уже после обращения к базе.
+  const session = await getCurrentSession();
+  if (!session || !canAccessPatient(session.user.role)) {
+    return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 });
+  }
+  const profileBindUserId = session.user.userId;
+  const profileBindOrganizationId = getCurrentDbPrincipalOrganizationId();
+  if (!profileBindOrganizationId) {
+    return NextResponse.json(
+      { ok: false, error: 'organization_context_required' },
+      { status: 409 },
+    );
+  }
+
   const deps = buildAppDeps();
   const user = await deps.userByPhone.findByPhone(normalized);
 
   let delivery: PhoneOtpDelivery | undefined;
-  // Automatic public login никогда не перебирает каналы по жёсткой лестнице (искоренено 31.07,
-  // IDENTITY_AND_MERGE_SCHEME.md §3.1-3.2): код уходит либо в явно выбранный человеком канал
-  // настроек, либо в канал, впервые подтвердивший номер; SMS — только bootstrap, когда ни того
-  // ни другого нет (например регистрация нового номера, для которого ещё нечего "предпочитать").
-  let automaticChannel: typeof deliveryChannel | null = null;
-  if (automaticPublicLogin) {
-    const effectivePolicy = await getClientVisibleAuthChannelPolicy();
-    const lookupUserId = user?.userId ?? PUBLIC_LOGIN_DECOY_USER_ID;
-    const resolved = await deps.channelPreferences.resolveAuthOtpChannel(lookupUserId);
-    if (resolved) {
-      deliveryChannel = resolved;
-      if (effectivePolicy[resolved]) {
-        automaticChannel = resolved;
-        // Почта в автоподборе по номеру больше не участвует совсем (владелец 16.09.2026): вход по
-        // номеру доставляет только в бота, привязанного к этому номеру. Прежняя проверка «номер
-        // доверен аккаунту» закрывала утечку, но не главное — человек не мог назвать СВОЙ адрес и
-        // получал молчание вместо письма. Почтовый вход стоит отдельной дверью.
-        if (resolved === 'email') automaticChannel = null;
-      }
-      // else: резолвнутый канал не enabled+configured — тишина, а не подмена SMS (Р-D27, §2.3,
-      // D27-B1 note в WORK_ORDER.md).
-    } else if (isRuMobile(normalized) && effectivePolicy.sms) {
-      deliveryChannel = 'sms';
-      automaticChannel = 'sms';
-    }
-  }
 
-  let profileBindUserId: string | undefined;
-  let profileBindOrganizationId: string | undefined;
-  if (purpose === 'profile_bind') {
-    const session = await getCurrentSession();
-    if (!session || !canAccessPatient(session.user.role)) {
-      return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 });
-    }
-    profileBindUserId = session.user.userId;
-    profileBindOrganizationId = getCurrentDbPrincipalOrganizationId();
-    if (!profileBindOrganizationId) {
+  if (deliveryChannel === 'sms') {
+    delivery = { channel: 'sms' };
+  } else if (deliveryChannel === 'telegram') {
+    const recipientId = user?.bindings?.telegramId;
+    if (!recipientId) {
       return NextResponse.json(
-        { ok: false, error: 'organization_context_required' },
-        { status: 409 },
+        {
+          ok: false,
+          error: 'channel_unavailable',
+          message: notificationText.authTelegramNotLinkedToPhone,
+        },
+        { status: 400 },
+      );
+    } else {
+      delivery = {
+        channel: 'telegram',
+        recipientId,
+        ...(clinicRequiredOrganizationId ? { clinicRequiredOrganizationId } : {}),
+      };
+    }
+  } else if (deliveryChannel === 'max') {
+    const recipientId = user?.bindings?.maxId;
+    if (!recipientId) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: 'channel_unavailable',
+          message: notificationText.authMaxNotLinkedToPhone,
+        },
+        { status: 400 },
+      );
+    } else {
+      delivery = {
+        channel: 'max',
+        recipientId,
+        ...(clinicRequiredOrganizationId ? { clinicRequiredOrganizationId } : {}),
+      };
+    }
+  } else {
+    const emailContact = user?.contacts?.find(
+      (contact) => contact.kind === 'email' && contact.isPrimary && contact.confirmedAt,
+    );
+    const email = emailContact?.value;
+    if (!user || !email) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: 'channel_unavailable',
+          message: notificationText.authConfirmEmailInProfileFirst,
+        },
+        { status: 400 },
       );
     }
-  }
-  const isRegistrationIntent = purpose === 'login' && !user;
-  const registrationAttemptId = isRegistrationIntent ? newRegistrationAttemptId() : undefined;
-  const entryChannel =
-    context.channel === 'telegram' ? ('telegram' as const) : ('browser' as const);
-  let deferredRegistrationAttempt: (() => Promise<void>) | undefined;
-
-  if (isRegistrationIntent) {
-    const recordAttempt = () =>
-      recordAuthRegistrationAttempt({
-        attemptId: registrationAttemptId!,
-        authMethod: 'phone_otp',
-        stage: 'start',
-        entryChannel,
-        contactType: 'phone',
-        contactValue: normalized,
-      });
-    if (publicLogin) {
-      deferredRegistrationAttempt = recordAttempt;
-    } else {
-      await recordAttempt();
-    }
-  }
-  const recordDeferredDeliveryResult =
-    publicLogin && isRegistrationIntent && registrationAttemptId
-      ? async (deliveryResult: SendCodeResult): Promise<void> => {
-          await deferredRegistrationAttempt?.();
-          if (deliveryResult.ok) {
-            await recordAuthRegistrationSuccess({
-              attemptId: registrationAttemptId,
-              authMethod: 'phone_otp',
-              stage: 'challenge_sent',
-              entryChannel,
-              contactType: 'phone',
-              contactValue: normalized,
-              challengeId: deliveryResult.challengeId,
-              isNewAccount: true,
-            });
-            return;
-          }
-          await recordAuthRegistrationFailure({
-            attemptId: registrationAttemptId,
-            authMethod: 'phone_otp',
-            stage: 'start',
-            entryChannel,
-            contactType: 'phone',
-            contactValue: normalized,
-            errorCode: deliveryResult.code,
-          });
-        }
-      : undefined;
-
-  if (!automaticPublicLogin || automaticChannel != null) {
-    if (deliveryChannel === 'sms') {
-      delivery = { channel: 'sms' };
-    } else if (deliveryChannel === 'telegram') {
-      const recipientId = user?.bindings?.telegramId;
-      if (!recipientId) {
-        if (!publicLogin) {
-          return NextResponse.json(
-            {
-              ok: false,
-              error: 'channel_unavailable',
-              message: notificationText.authTelegramNotLinkedToPhone,
-            },
-            { status: 400 },
-          );
-        }
-      } else {
-        delivery = {
-          channel: 'telegram',
-          recipientId,
-          ...(clinicRequiredOrganizationId ? { clinicRequiredOrganizationId } : {}),
-        };
-      }
-    } else if (deliveryChannel === 'max') {
-      const recipientId = user?.bindings?.maxId;
-      if (!recipientId) {
-        if (!publicLogin) {
-          return NextResponse.json(
-            {
-              ok: false,
-              error: 'channel_unavailable',
-              message: notificationText.authMaxNotLinkedToPhone,
-            },
-            { status: 400 },
-          );
-        }
-      } else {
-        delivery = {
-          channel: 'max',
-          recipientId,
-          ...(clinicRequiredOrganizationId ? { clinicRequiredOrganizationId } : {}),
-        };
-      }
-    } else {
-      const email = user || publicLogin ? primaryConfirmedContactValue(user, 'email') : null;
-      if (!user) {
-        if (!publicLogin) {
-          return NextResponse.json(
-            {
-              ok: false,
-              error: 'channel_unavailable',
-              message: notificationText.authConfirmEmailInProfileFirst,
-            },
-            { status: 400 },
-          );
-        }
-      } else if (!email) {
-        if (!publicLogin) {
-          return NextResponse.json(
-            {
-              ok: false,
-              error: 'channel_unavailable',
-              message: notificationText.authConfirmEmailInProfileFirst,
-            },
-            { status: 400 },
-          );
-        }
-      } else {
-        delivery = { channel: 'email', email };
-      }
-    }
+    delivery = { channel: 'email', email };
   }
 
   const result = await deps.auth.startPhoneAuth(normalized, context, {
     delivery,
-    ...(publicLogin
-      ? {
-          deferredDelivery: {
-            schedule: after,
-            ...(delivery ? {} : { suppressDelivery: true }),
-            ...(delivery ? {} : { challengeDeliveryChannel: deliveryChannel }),
-            ...(recordDeferredDeliveryResult
-              ? { onDeliveryResult: recordDeferredDeliveryResult }
-              : {}),
-          },
-        }
-      : {}),
-    ...(registrationAttemptId ? { registrationAttemptId, isRegistrationIntent: true } : {}),
-    ...(profileBindUserId ? { profileBindUserId } : {}),
-    ...(profileBindOrganizationId ? { profileBindOrganizationId } : {}),
+    profileBindUserId,
+    profileBindOrganizationId,
   });
 
   if (!result.ok) {
-    if (isRegistrationIntent && registrationAttemptId) {
-      const recordFailure = () =>
-        recordAuthRegistrationFailure({
-          attemptId: registrationAttemptId,
-          authMethod: 'phone_otp',
-          stage: 'start',
-          entryChannel,
-          contactType: 'phone',
-          contactValue: normalized,
-          errorCode: result.code,
-        });
-      if (publicLogin) {
-        after(async () => {
-          await deferredRegistrationAttempt?.();
-          await recordFailure();
-        });
-      } else {
-        await recordFailure();
-      }
-    }
     const status =
       result.code === 'rate_limited' || result.code === 'too_many_attempts'
         ? 429
@@ -388,65 +214,22 @@ export async function POST(request: Request) {
     );
   }
 
-  if (!publicLogin && isRegistrationIntent && registrationAttemptId) {
-    const recordSuccess = () =>
-      recordAuthRegistrationSuccess({
-        attemptId: registrationAttemptId,
-        authMethod: 'phone_otp',
-        stage: 'challenge_sent',
-        entryChannel,
-        contactType: 'phone',
-        contactValue: normalized,
-        challengeId: result.challengeId,
-        isNewAccount: true,
-      });
-    await recordSuccess();
-  }
-
-  if (publicLogin) {
-    return publicLoginAccepted(
-      startedAt,
-      result.challengeId,
-      automaticPublicLogin ? 'automatic' : deliveryChannel,
-    );
-  }
-
   return NextResponse.json({
     ok: true,
     challengeId: result.challengeId,
     retryAfterSeconds: result.retryAfterSeconds,
-    deliveryChannel,
-    ...(registrationAttemptId ? { attemptId: registrationAttemptId } : {}),
-  });
-}
-
-async function publicLoginAccepted(
-  startedAt: number,
-  challengeId = randomBytes(16).toString('base64url'),
-  deliveryChannel: 'automatic' | 'sms' | 'telegram' | 'max' | 'email' = 'automatic',
-): Promise<NextResponse> {
-  const remainingMs = PUBLIC_LOGIN_START_MIN_RESPONSE_MS - (Date.now() - startedAt);
-  if (remainingMs > 0) {
-    await new Promise((resolve) => setTimeout(resolve, remainingMs));
-  }
-  return NextResponse.json({
-    ok: true,
-    challengeId,
-    retryAfterSeconds: 60,
     deliveryChannel,
   });
 }
 
 function errorMessage(code: string, retryAfterSeconds?: number): string {
   switch (code) {
-    case 'sms_disabled_web':
-      return 'SMS для входа с сайта отключён. Используйте код в Telegram или Max.';
     case 'sms_ru_only':
       return notificationText.authSmsRussianNumbersOnly;
     case 'invalid_phone':
       return notificationText.authPhoneInvalidFormat;
     case 'delivery_failed':
-      return 'Не удалось отправить код. Попробуйте позже.';
+      return notificationText.authCodeSendFailed;
     case 'rate_limited':
       return retryAfterSeconds != null
         ? formatOtpRetryAfterMessage(retryAfterSeconds)
@@ -454,6 +237,6 @@ function errorMessage(code: string, retryAfterSeconds?: number): string {
     case 'too_many_attempts':
       return OTP_TOO_MANY_ATTEMPTS_MESSAGE;
     default:
-      return 'Ошибка отправки кода.';
+      return notificationText.authCodeSendFailed;
   }
 }

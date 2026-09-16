@@ -83,7 +83,7 @@ export async function POST(request: Request) {
       {
         ok: false,
         error: 'invalid_message',
-        message: `Введите текст сообщения (до ${MAX_MESSAGE_LEN} символов)`,
+        message: notificationText.supportMessageTextRequired,
       },
       { status: 400 },
     );

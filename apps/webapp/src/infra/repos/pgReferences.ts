@@ -101,26 +101,6 @@ function rowItem(row: {
 }
 
 export const pgReferencesPort: ReferencesPort = {
-  async listPublicBaselineItemsByCategoryCode(categoryCode) {
-    const res = await runWebappNamedRoot<{
-      id: string;
-      category_id: string;
-      code: string;
-      title: string;
-      sort_order: number;
-      is_active: boolean;
-      deleted_at: Date | string | null;
-      meta_json: Record<string, unknown>;
-    }>(
-      getWebappSqlDb(),
-      'app.get_public_reference_baseline(text)',
-      [categoryCode],
-      sql`SELECT id, category_id, code, title, sort_order, is_active, deleted_at, meta_json
-          FROM app.get_public_reference_baseline(${categoryCode}::text)`,
-    );
-    return res.rows.map(rowItem);
-  },
-
   async listCategories() {
     const organizationId = currentPrincipalOrganizationId();
     const res = await runWebappSql<ReferenceCategoryRow>(

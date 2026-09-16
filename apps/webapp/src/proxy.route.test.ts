@@ -173,9 +173,12 @@ describe('surface auth policy', () => {
       availableMethods: ['password', 'totp', 'passkey'],
       enabledMethods: ['password', 'totp', 'passkey'],
     });
+    // С9 плана `docs/_TODO/STAFF_DOORS_HARDCODED_2026-09-16.md`: дверь платформенного
+    // администратора — только почта и пароль (плюс второй фактор). Passkey у неё снят, и экран это
+    // уже показывает; ожидание отстало от продукта.
     expect(platformAdmin?.authPolicy).toEqual({
-      availableMethods: ['password', 'totp', 'passkey'],
-      enabledMethods: ['password', 'totp', 'passkey'],
+      availableMethods: ['password', 'totp'],
+      enabledMethods: ['password', 'totp'],
     });
     expect(patient?.authPolicy).toEqual({
       availableMethods: ['email_code', 'phone_bot', 'oauth', 'passkey'],

@@ -12,9 +12,8 @@
 import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { logger } from '@/app-layer/logging/logger';
-import { getCurrentSession } from '@/modules/auth/service';
+import { requirePatientApiSession } from '@/app-layer/guards/requireRole';
 import { patientClientBusinessGate } from '@/app-layer/platform-access';
-import { canAccessPatient } from '@/modules/roles/service';
 import { relaySupportSubmission } from '@/app-layer/support/relaySupportSubmission';
 import { notificationText } from '@/shared/notifications/notificationText';
 
@@ -82,10 +81,13 @@ function buildSupportLines(params: {
 }
 
 export async function POST(request: Request) {
-  const session = await getCurrentSession();
-  if (!session || !canAccessPatient(session.user.role)) {
-    return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 });
-  }
+  // Общий проход сессии пациента: он же ставит принципал БД, без которого дальнейшие чтения
+  // (`patientClientBusinessGate`) и запись недоставленного обращения идут без пациентского
+  // контекста. Почтовый гейт здесь НЕ применяется намеренно: поддержка — объявленный выход из
+  // него (`E5_EMAIL_AT_LOGIN_GROUND_2026-09-15.md` §5 п.1).
+  const apiSession = await requirePatientApiSession();
+  if (!apiSession.ok) return apiSession.response;
+  const session = apiSession.session;
 
   const gate = await patientClientBusinessGate(session);
   if (gate === 'stale_session') {
@@ -113,7 +115,7 @@ export async function POST(request: Request) {
       {
         ok: false,
         error: 'invalid_message',
-        message: `Введите текст сообщения (до ${MAX_MESSAGE_LEN} символов)`,
+        message: notificationText.supportMessageTextRequired,
       },
       { status: 400 },
     );
