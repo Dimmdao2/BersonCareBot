@@ -27,8 +27,6 @@ export type AuthFlowPendingStored =
       email: string;
       retryAfterSeconds: number;
       savedAt: number;
-      /** Если клиент уже знает challenge (редко — forgot не возвращает id) */
-      challengeId?: string;
     }
   | {
       v: 1;

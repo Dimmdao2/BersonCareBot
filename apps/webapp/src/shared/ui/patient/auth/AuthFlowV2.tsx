@@ -2066,89 +2066,53 @@ export function AuthFlowV2({
                         message: data.message ?? 'Не удалось отправить код',
                       };
                     }
-                    if (emailVerifyPurpose === 'patient_registration') {
-                      const lastName = emailRegLastName.trim();
-                      const firstName = emailRegFirstName.trim();
-                      const patronymic = emailRegPatronymic.trim();
-                      if (!email || !lastName || !firstName)
-                        return {
-                          kind: 'error' as const,
-                          message: 'Нет данных для повторной отправки',
-                        };
-                      const r = await fetchJsonSafe<{
-                        ok?: boolean;
-                        challengeId?: string;
-                        retryAfterSeconds?: number;
-                        error?: string;
-                        message?: string;
-                      }>('/api/auth/email-otp/register', {
-                        method: 'POST',
-                        headers: { 'content-type': 'application/json' },
-                        body: JSON.stringify({
-                          email,
-                          lastName,
-                          firstName,
-                          patronymic: patronymic || undefined,
-                        }),
-                      });
-                      if (!r.ok)
-                        return { kind: 'error' as const, message: AUTH_NETWORK_ERROR_MESSAGE };
-                      const { response: res, data } = r;
-                      if (data.ok && data.challengeId) {
-                        setEmailRegChallengeId(data.challengeId);
-                        setEmailRegRetrySec(data.retryAfterSeconds ?? 60);
-                        saveRegisterVerifyPending({
-                          email,
-                          challengeId: data.challengeId,
-                          retryAfterSeconds: data.retryAfterSeconds ?? 60,
-                          lastName,
-                          firstName,
-                          patronymic,
-                          purpose: 'patient_email_otp',
-                        });
-                        return { kind: 'ok' as const };
-                      }
-                      if (res.status === 429 || data.error === 'rate_limited')
-                        return {
-                          kind: 'rate_limited' as const,
-                          retryAfterSeconds: Math.max(1, Math.ceil(data.retryAfterSeconds ?? 60)),
-                        };
-                      return {
-                        kind: 'error' as const,
-                        message: data.message ?? 'Не удалось отправить код',
-                      };
-                    }
-                    if (!email) {
+                    // Остаётся одна цель — регистрация пациента: у установки пароля своей двери больше нет.
+                    const lastName = emailRegLastName.trim();
+                    const firstName = emailRegFirstName.trim();
+                    const patronymic = emailRegPatronymic.trim();
+                    if (!email || !lastName || !firstName)
                       return {
                         kind: 'error' as const,
                         message: 'Нет данных для повторной отправки',
                       };
-                    }
-                    const resendRegisterResult = await fetchJsonSafe<{
+                    const r = await fetchJsonSafe<{
                       ok?: boolean;
                       challengeId?: string;
                       retryAfterSeconds?: number;
                       error?: string;
                       message?: string;
-                    }>('/api/auth/email-password/forgot', {
+                    }>('/api/auth/email-otp/register', {
                       method: 'POST',
                       headers: { 'content-type': 'application/json' },
-                      body: JSON.stringify({ email }),
+                      body: JSON.stringify({
+                        email,
+                        lastName,
+                        firstName,
+                        patronymic: patronymic || undefined,
+                      }),
                     });
-                    if (!resendRegisterResult.ok) {
+                    if (!r.ok)
                       return { kind: 'error' as const, message: AUTH_NETWORK_ERROR_MESSAGE };
-                    }
-                    const { response: res, data } = resendRegisterResult;
-                    if (data.ok) {
-                      setEmailRegChallengeId(data.challengeId ?? null);
+                    const { response: res, data } = r;
+                    if (data.ok && data.challengeId) {
+                      setEmailRegChallengeId(data.challengeId);
                       setEmailRegRetrySec(data.retryAfterSeconds ?? 60);
+                      saveRegisterVerifyPending({
+                        email,
+                        challengeId: data.challengeId,
+                        retryAfterSeconds: data.retryAfterSeconds ?? 60,
+                        lastName,
+                        firstName,
+                        patronymic,
+                        purpose: 'patient_email_otp',
+                      });
                       return { kind: 'ok' as const };
                     }
-                    if (res.status === 429 || data.error === 'rate_limited') {
-                      const sec = Math.max(1, Math.ceil(data.retryAfterSeconds ?? 60));
-                      setEmailRegRetrySec(sec);
-                      return { kind: 'rate_limited' as const, retryAfterSeconds: sec };
-                    }
+                    if (res.status === 429 || data.error === 'rate_limited')
+                      return {
+                        kind: 'rate_limited' as const,
+                        retryAfterSeconds: Math.max(1, Math.ceil(data.retryAfterSeconds ?? 60)),
+                      };
                     return {
                       kind: 'error' as const,
                       message: data.message ?? 'Не удалось отправить код',
