@@ -39,3 +39,19 @@ MUST FIX: тесты не ловят точную поломку «валидн�
 Возврат человека с Google/VK/Apple обратно на брендированный host клиники после входа не считаю дефектом: в плане это явно записано как вопрос владельцу, а не работа.
 
 VERDICT: FAIL — MUST FIX: добавить поведенческую проверку, что signed `state` без `browserBindingHash` отвергается даже при наличии unrelated binding-cookie.
+
+## Круг 2
+
+`D9-Q2-R2-baseline → PASS →` команда `/home/dev/brain/host-orch/run-tests.sh "pnpm --dir apps/webapp exec vitest run src/modules/auth/oauthStateBinding.route.test.ts"` на чистом candidate перед мутациями дала `1 passed (1)`, `3 passed (3)`.
+
+`D9-Q2-R2-hashless-state-mutation → PASS →` повторена точная мутация прежнего FAIL: в `consumeBrowserBoundOAuthState` заменил обязательный `state?.browserBindingHash` на ветку `if (!state.browserBindingHash) return state;`. Та же команда дала красный набор: `oauthStateBinding.route.test.ts > rejects a signed state that carries no browser binding at all`, `expected 307 to be 403`. Причина прежнего FAIL закрыта.
+
+`D9-Q2-R2-cookie-consume-mutation → PASS →` дополнительная обязательная мутация защиты: убрать погашение `bersoncare_oauth_state_binding` cookie на callback. Та же команда дала красный набор: `oauthStateBinding.route.test.ts > rejects the same state after its first callback consumed the browser cookie`, `expected 307 to be 403`. One-shot защита ловится.
+
+`D9-Q2-R2-test-10a-line → PASS →` новый тест проходит линейку §10a. Само не упадёт: снятие требования `browserBindingHash` оставляет подпись, cookie и route живыми, runtime не падает. При честном изменении кода править тест не надо: oracle — owner-решение «state одноразовый и привязан к браузеру», проверяется наблюдаемый HTTP-выход callback `403 oauth_csrf`, а не внутренняя форма DTO. Конец цепочки виден: start ставит чужую binding-cookie, hashless signed state приходит в публичный Google callback, результатом должен быть отказ.
+
+`D9-Q2-R2-final-rollback-baseline → PASS →` после отката обеих временных мутаций команда `/home/dev/brain/host-orch/run-tests.sh "pnpm --dir apps/webapp exec vitest run src/modules/auth/oauthStateBinding.route.test.ts"` снова дала `1 passed (1)`, `3 passed (3)`. `git diff -- apps/webapp/src/modules/auth/oauthStateBinding.server.ts apps/webapp/src/modules/auth/oauthStateBinding.route.test.ts` пустой.
+
+Возврат человека на брендированный host клиники после Google/VK/Apple входа остаётся OWNER QUESTION из authority, не дефект этого круга.
+
+VERDICT: PASS
