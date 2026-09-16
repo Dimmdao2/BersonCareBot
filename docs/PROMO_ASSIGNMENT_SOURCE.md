@@ -127,7 +127,7 @@ flowchart TD
 
 - Условие: нет ни одного `active` + валидный ключ промо + tier **patient** (email/OAuth/телефон по §3 SPEC; **не** анонимный guest).
 - Поверхности: карточка на [`/app/patient/treatment`](../apps/webapp/src/app/app/patient/treatment/page.tsx), прямой [`/app/patient/treatment/promo`](../apps/webapp/src/app/app/patient/treatment/promo/page.tsx), deeplink [`/app/patient/go/plan-start-lesson`](../apps/webapp/src/app/app/patient/go/[kind]/page.tsx).
-- Терминология UX: «программа реабилитации» (см. `.cursor/rules/patient-lfk-means-rehab-program.mdc`).
+- Терминология UX: «программа реабилитации» (см. [`AGENTS.md` §18](../AGENTS.md#18-пациент-лфк--программа-реабилитации)).
 - После материализации: [`revalidatePatientTreatmentProgramUi`](../apps/webapp/src/app-layer/cache/revalidatePatientTreatmentProgramUi.ts).
 
 ### Напоминания `rehab_program`
