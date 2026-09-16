@@ -6,12 +6,14 @@ import { useCallback, useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import {
   DoctorSection,
+  DoctorSectionActions,
   DoctorSectionHeader,
   DoctorSectionTitle,
 } from '@/shared/ui/doctor/DoctorSection';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { STAFF_SURFACE_NAME } from '@/config/productSurfaceNames';
 import { notificationText } from '@/shared/notifications/notificationText';
+import { doctorSectionItemClass } from '@/shared/ui/doctor/doctorVisual';
 
 type CredentialSummary = {
   credentialId: string;
@@ -131,9 +133,9 @@ export function StaffPasskeySection() {
       {credentials.map((credential, index) => (
         <div
           key={credential.credentialId}
-          className="flex items-center justify-between gap-3 rounded-lg border p-3"
+          className={`${doctorSectionItemClass} flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between`}
         >
-          <div>
+          <div className="min-w-0">
             <p className="text-sm font-medium">Ключ доступа {index + 1}</p>
             <p className="text-sm text-muted-foreground">
               Добавлен {new Date(credential.createdAt).toLocaleDateString('ru-RU')}
@@ -142,7 +144,7 @@ export function StaffPasskeySection() {
           </div>
           <Button
             type="button"
-            variant="outline"
+            variant="destructive"
             size="sm"
             disabled={loading}
             onClick={() => void removePasskey(credential.credentialId)}
@@ -151,16 +153,17 @@ export function StaffPasskeySection() {
           </Button>
         </div>
       ))}
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        className="w-fit"
-        disabled={loading}
-        onClick={() => void addPasskey()}
-      >
-        {credentials.length > 0 ? 'Добавить ещё ключ' : 'Добавить ключ доступа'}
-      </Button>
+      <DoctorSectionActions>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={loading}
+          onClick={() => void addPasskey()}
+        >
+          {credentials.length > 0 ? 'Добавить ещё ключ' : 'Добавить ключ доступа'}
+        </Button>
+      </DoctorSectionActions>
     </DoctorSection>
   );
 }

@@ -4,7 +4,8 @@ import { useState, type FormEvent } from 'react';
 import toast from 'react-hot-toast';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
-import { Label } from '@/shared/ui/doctor/primitives/label';
+import { DoctorField } from '@/shared/ui/doctor/DoctorField';
+import { DoctorSectionActions } from '@/shared/ui/doctor/DoctorSection';
 import { PasswordAltchaChallenge } from '@/shared/ui/auth/PasswordAltchaChallenge';
 import {
   staffSecurityErrorText,
@@ -71,9 +72,8 @@ export function PasswordChangeForm({ successHref }: Props) {
   }
 
   return (
-    <form className="grid max-w-md gap-2" onSubmit={changePassword}>
-      <div className="grid gap-1">
-        <Label htmlFor="account-current-password">Текущий пароль</Label>
+    <form className="grid max-w-md gap-3" onSubmit={changePassword}>
+      <DoctorField label="Текущий пароль" htmlFor="account-current-password">
         <Input
           id="account-current-password"
           type="password"
@@ -83,9 +83,8 @@ export function PasswordChangeForm({ successHref }: Props) {
           value={currentPassword}
           onChange={(event) => setCurrentPassword(event.target.value)}
         />
-      </div>
-      <div className="grid gap-1">
-        <Label htmlFor="account-new-password">Новый пароль</Label>
+      </DoctorField>
+      <DoctorField label="Новый пароль" htmlFor="account-new-password">
         <Input
           id="account-new-password"
           type="password"
@@ -96,7 +95,7 @@ export function PasswordChangeForm({ successHref }: Props) {
           value={newPassword}
           onChange={(event) => setNewPassword(event.target.value)}
         />
-      </div>
+      </DoctorField>
       {altchaRequired ? (
         <PasswordAltchaChallenge
           key={altchaGeneration}
@@ -104,14 +103,11 @@ export function PasswordChangeForm({ successHref }: Props) {
           onVerified={setAltchaPayload}
         />
       ) : null}
-      <Button
-        className="w-fit"
-        size="sm"
-        type="submit"
-        disabled={busy || (altchaRequired && !altchaPayload)}
-      >
-        Сменить пароль
-      </Button>
+      <DoctorSectionActions>
+        <Button size="sm" type="submit" disabled={busy || (altchaRequired && !altchaPayload)}>
+          Сменить пароль
+        </Button>
+      </DoctorSectionActions>
     </form>
   );
 }
