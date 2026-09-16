@@ -59,7 +59,10 @@ export function entitlementMutationRefusalMessage(
  * `branch_quota_reached`.
  */
 export function quotaLimitReachedRefusalMessage(mechanic: OrgMechanic, action: string): string {
-  return `Невозможно ${action}: в вашем тарифе исчерпан лимит «${MECHANIC_REGISTRY[mechanic].label}».`;
+  return notificationTextFactory.entitlementQuotaLimitReached(
+    action,
+    MECHANIC_REGISTRY[mechanic].label,
+  );
 }
 
 /**

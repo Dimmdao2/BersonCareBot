@@ -286,6 +286,12 @@ export const notificationText = {
   messagingOpenBotChat: 'Откройте чат с ботом и отправьте контакт по кнопке.',
   authEmailCodeSent: 'Отправили код на почту.',
   authSignupPasswordTooShort: 'Пароль — не менее 8 символов.',
+  /* Не близнец `authResendCooldown` (§21a): та фраза называет ИЗВЕСТНОЕ окно в минуту на экранах
+     привязки, где правило фиксировано. Здесь окно приходит с сервера в `retryAfterSeconds` и
+     минутой не является, поэтому длительность не называется. Смысл тоже другой, чем у
+     `authTooManyAttempts`: там исчерпаны попытки ВВОДА кода, здесь слишком рано запрошена НОВАЯ
+     отправка — человеку надо повторить разные действия. */
+  authResendTooSoon: 'Слишком частые запросы. Подождите перед повторной отправкой.',
   authResendCooldown: 'Подождите минуту перед повторной отправкой.',
   // C2 (copy audit): было грамматически некорректно («в моменте» + «только что» вместе).
   patientDiaryDuplicateEntry: 'Похожая запись уже была сохранена только что.',
@@ -838,6 +844,8 @@ export type NotificationTextKey = keyof typeof notificationText;
  * вынесены в отдельный объект, потому что содержимое не `string`, а `(...) => string`.
  */
 export const notificationTextFactory = {
+  entitlementQuotaLimitReached: (action: string, mechanicLabel: string) =>
+    `Невозможно ${action}: в вашем тарифе исчерпан лимит «${mechanicLabel}».`,
   entitlementMutationReadOnly: (action: string) =>
     `Невозможно ${action}: раздел сейчас доступен только для просмотра по вашему тарифу.`,
   entitlementMutationBlocked: (action: string) =>
