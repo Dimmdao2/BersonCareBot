@@ -162,15 +162,13 @@ export function DoctorStatCard({
       ) : (
         <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-1.5">
           <div className="translate-y-0.5">{label}</div>
-          <div className="relative left-2.5 flex items-center justify-end md:left-1">{metric}</div>
+          <div className="flex items-center justify-end">{metric}</div>
         </div>
       )
     ) : valuePlacement === 'row-until-wide' ? (
       <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-1.5 xl:block">
         <div className="translate-y-0.5 xl:translate-y-0">{label}</div>
-        <div className="relative left-2.5 flex items-center justify-end md:left-1 xl:left-0 xl:mt-0.5 xl:block">
-          {metric}
-        </div>
+        <div className="flex items-center justify-end xl:mt-0.5 xl:block">{metric}</div>
       </div>
     ) : (
       <div
@@ -197,7 +195,13 @@ export function DoctorStatCard({
       </div>
     );
   const detailsIndicator = detailsIcon ? (
-    <span className={cn(doctorStatCardChevronClass, 'translate-y-0.5')} aria-hidden>
+    <span
+      className={cn(
+        doctorStatCardChevronClass,
+        'inline-flex translate-y-0.5 items-center justify-center leading-none',
+      )}
+      aria-hidden
+    >
       {detailsIcon}
     </span>
   ) : (
@@ -223,7 +227,7 @@ export function DoctorStatCard({
       </span>
     </div>
   ) : (
-    <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-1">
+    <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
       <div className="min-w-0">{inner}</div>
       <span
         className={cn(
