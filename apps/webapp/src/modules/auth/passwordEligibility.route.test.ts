@@ -77,6 +77,8 @@ import { POST as resetPassword } from '@/app/api/auth/email-password/reset/route
 import { POST as setupCodeComplete } from '@/app/api/auth/email-password/setup-code/complete/route';
 
 const userId = '00000000-0000-4000-8000-000000000301';
+const contactOnlyPatientUserId = '00000000-0000-4000-8000-000000000303';
+const legacyPasswordPatientUserId = '00000000-0000-4000-8000-000000000304';
 const doctorUser: SessionUser = {
   userId,
   role: 'doctor',
@@ -143,7 +145,7 @@ describe('password recovery doors before code verification', () => {
     { email: 'unknown@example.test', state: { kind: 'free' as const } },
     {
       email: 'contact-only@example.test',
-      state: { kind: 'needs_email_setup' as const, userId },
+      state: { kind: 'needs_email_setup' as const, userId: contactOnlyPatientUserId },
     },
     {
       email: 'password@example.test',
@@ -153,7 +155,7 @@ describe('password recovery doors before code verification', () => {
       email: 'owner-patient@example.test',
       state: {
         kind: 'verified_with_password' as const,
-        userId: '00000000-0000-4000-8000-000000000304',
+        userId: legacyPasswordPatientUserId,
       },
     },
   ];
@@ -173,7 +175,11 @@ describe('password recovery doors before code verification', () => {
       if (!account) throw new Error(`unexpected email: ${email}`);
       return account.state;
     });
-    fakes.findUser.mockResolvedValue(doctorUser);
+    fakes.findUser.mockImplementation(async (candidateUserId) =>
+      candidateUserId === userId
+        ? doctorUser
+        : { ...doctorUser, userId: candidateUserId, role: 'client' },
+    );
     fakes.startEmailChallenge.mockResolvedValue({
       ok: true,
       challengeId: '00000000-0000-4000-8000-000000000305',
@@ -229,6 +235,25 @@ describe('password recovery doors before code verification', () => {
     expect(setupCompleteFingerprints).toEqual(
       accountStates.flatMap(() => [invalidCode, invalidCode]),
     );
+    await vi.waitFor(() => expect(fakes.startEmailChallenge).toHaveBeenCalledTimes(2));
+    expect(
+      fakes.startEmailChallenge.mock.calls.map(([candidateUserId, email, purpose]) => ({
+        candidateUserId,
+        email,
+        purpose,
+      })),
+    ).toEqual([
+      {
+        candidateUserId: userId,
+        email: 'password@example.test',
+        purpose: 'password_reset',
+      },
+      {
+        candidateUserId: userId,
+        email: 'password@example.test',
+        purpose: 'password_reset',
+      },
+    ]);
   });
 
   it('does not wait on candidate-only delivery work or timers before returning the neutral pre-code response', async () => {
