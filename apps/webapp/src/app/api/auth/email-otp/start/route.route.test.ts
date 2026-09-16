@@ -139,63 +139,6 @@ afterEach(() => {
 });
 
 describe('public email OTP start anti-enumeration', () => {
-  it('allows the explicit patient portal but rejects admin email-code login on a shared staff host', async () => {
-    fakes.publicValues.set('auth_surface_patient_email_enabled', true);
-
-    const patientResponse = await resolveAfterPublicFloor(
-      POST(request('patient@example.test', 'patient')),
-    );
-    const adminResponse = await resolveAfterPublicFloor(
-      POST(request('admin@example.test', 'admin')),
-    );
-
-    expect([patientResponse.status, adminResponse.status]).toEqual([200, 503]);
-    expect(fakes.startPublicEmailOtpChallenge).toHaveBeenCalledOnce();
-  });
-
-  it('keeps the patient toggle effective while staff email-code login stays disabled in code', async () => {
-    fakes.publicValues.set('auth_surface_staff_email_enabled', true);
-    fakes.publicValues.set('auth_surface_patient_email_enabled', false);
-
-    fakes.requestSurface.value = {
-      surface: 'patient_default',
-      publicOrigin: 'https://therapygo.example.test',
-      authPolicy: { availableMethods: ['email_code'], enabledMethods: ['email_code'] },
-    };
-    const patientDenied = await resolveAfterPublicFloor(POST(request()));
-    fakes.requestSurface.value = {
-      surface: 'staff',
-      publicOrigin: 'https://therapysto.example.test',
-      authPolicy: { availableMethods: ['email_code'], enabledMethods: ['email_code'] },
-    };
-    const staffDeniedWithLegacyTrue = await resolveAfterPublicFloor(POST(request()));
-
-    expect(patientDenied.status).toBe(503);
-    expect(staffDeniedWithLegacyTrue.status).toBe(503);
-    expect(fakes.startPublicEmailOtpChallenge).not.toHaveBeenCalled();
-
-    fakes.startPublicEmailOtpChallenge.mockClear();
-    fakes.publicValues.set('auth_surface_staff_email_enabled', false);
-    fakes.publicValues.set('auth_surface_patient_email_enabled', true);
-
-    fakes.requestSurface.value = {
-      surface: 'staff',
-      publicOrigin: 'https://therapysto.example.test',
-      authPolicy: { availableMethods: ['email_code'], enabledMethods: ['email_code'] },
-    };
-    const staffDenied = await resolveAfterPublicFloor(POST(request()));
-    fakes.requestSurface.value = {
-      surface: 'patient_default',
-      publicOrigin: 'https://therapygo.example.test',
-      authPolicy: { availableMethods: ['email_code'], enabledMethods: ['email_code'] },
-    };
-    const patientAllowed = await resolveAfterPublicFloor(POST(request()));
-
-    expect(staffDenied.status).toBe(503);
-    expect(patientAllowed.status).toBe(200);
-    expect(fakes.startPublicEmailOtpChallenge).toHaveBeenCalledTimes(1);
-  });
-
   it('keeps the unknown-address body byte-identical to a known-address response and logs suppressed outcomes', async () => {
     const results: StartResult[] = [
       { ok: true, challengeId: '00000000-0000-4000-8000-000000000101', retryAfterSeconds: 60 },

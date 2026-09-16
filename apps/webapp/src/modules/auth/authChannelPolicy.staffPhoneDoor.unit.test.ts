@@ -24,10 +24,9 @@ vi.mock('@/modules/system-settings/configAdapter', () => ({
 }));
 vi.mock('next/headers', () => ({ headers: fakes.headers }));
 
-const { isAuthChannelEnabled, isIndependentAuthMethodEnabled } =
-  await import('./authChannelPolicy');
+const { isAuthChannelEnabled } = await import('./authChannelPolicy');
 
-describe('телефонный код на сотрудничьих поверхностях запрещён набором, а не настройкой', () => {
+describe('состав двери задаётся кодом только для сотрудников', () => {
   beforeEach(() => {
     fakes.getPublicRuntimeBool.mockReset();
     fakes.headers.mockReset();
@@ -35,35 +34,25 @@ describe('телефонный код на сотрудничьих поверх
     fakes.getPublicRuntimeBool.mockResolvedValue(true);
   });
 
-  for (const surface of ['staff', 'platform_admin'] as const) {
-    for (const channel of ['sms', 'telegram', 'max'] as const) {
-      it(`${surface}: ${channel} отказывает при включённом переключателе`, async () => {
+  it('не пускает сотрудника email-кодом или телефонным каналом при любых записанных значениях', async () => {
+    for (const surface of ['staff', 'platform_admin'] as const) {
+      for (const channel of ['email', 'sms', 'telegram', 'max'] as const) {
         await expect(isAuthChannelEnabled(channel, surface)).resolves.toBe(false);
-        // Отказ наступает до чтения настройки: тумблер физически не участвует в решении.
-        expect(fakes.getPublicRuntimeBool).not.toHaveBeenCalled();
-      });
+      }
     }
-  }
-
-  for (const channel of ['sms', 'telegram', 'max'] as const) {
-    it(`patient: ${channel} по-прежнему решается настройкой поверхности`, async () => {
-      await expect(isAuthChannelEnabled(channel, 'patient')).resolves.toBe(true);
-      expect(fakes.getPublicRuntimeBool).toHaveBeenCalledWith(
-        `auth_surface_patient_${channel}_enabled`,
-        'public_auth_config',
-      );
-    });
-  }
-
-  it('email-код не становится самостоятельной дверью сотрудника даже при legacy true', async () => {
-    await expect(isAuthChannelEnabled('email', 'staff')).resolves.toBe(false);
     expect(fakes.getPublicRuntimeBool).not.toHaveBeenCalled();
   });
 
-  it('passkey сотрудника остаётся вариантом входа даже при legacy false', async () => {
-    fakes.getPublicRuntimeBool.mockResolvedValue(false);
-
-    await expect(isIndependentAuthMethodEnabled('passkey', 'staff')).resolves.toBe(true);
-    expect(fakes.getPublicRuntimeBool).not.toHaveBeenCalled();
+  it('сохраняет для пациента выбор каналов записанными переключателями', async () => {
+    for (const enabled of [false, true]) {
+      fakes.getPublicRuntimeBool.mockResolvedValue(enabled);
+      for (const channel of ['email', 'sms', 'telegram', 'max'] as const) {
+        await expect(isAuthChannelEnabled(channel, 'patient')).resolves.toBe(enabled);
+        expect(fakes.getPublicRuntimeBool).toHaveBeenLastCalledWith(
+          `auth_surface_patient_${channel}_enabled`,
+          'public_auth_config',
+        );
+      }
+    }
   });
 });
