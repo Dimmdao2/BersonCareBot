@@ -15,6 +15,7 @@ import { Input } from '@/shared/ui/doctor/primitives/input';
 import { DoctorField } from '@/shared/ui/doctor/DoctorField';
 import {
   DoctorSection,
+  DoctorSectionActions,
   DoctorSectionHeader,
   DoctorSectionTitle,
 } from '@/shared/ui/doctor/DoctorSection';
@@ -162,48 +163,46 @@ export function DoctorAccountEmailSection({ initialEmail, emailVerified }: Props
       </DoctorSectionHeader>
 
       {step === 'view' ? (
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-wrap items-start justify-between gap-2">
-            <div className="min-w-0 flex-1">
-              {initialEmail ? (
-                <p className="text-sm">
-                  {initialEmail}
-                  <span className="text-muted-foreground ml-2 text-xs">
-                    {emailVerified ? '(подтверждён)' : '(не подтверждён)'}
-                  </span>
-                </p>
-              ) : (
-                <p className="text-muted-foreground text-sm">Не указан</p>
-              )}
-            </div>
-            <div className="flex flex-wrap gap-2">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0 flex-1">
+            {initialEmail ? (
+              <p className="text-sm">
+                {initialEmail}
+                <span className="text-muted-foreground ml-2 text-xs">
+                  {emailVerified ? '(подтверждён)' : '(не подтверждён)'}
+                </span>
+              </p>
+            ) : (
+              <p className="text-muted-foreground text-sm">Не указан</p>
+            )}
+          </div>
+          <DoctorSectionActions className="shrink-0">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setStep('enter');
+                setEmailDraft(initialEmail ?? '');
+                setStartError(null);
+              }}
+            >
+              {initialEmail ? 'Изменить' : 'Добавить'}
+            </Button>
+            {initialEmail ? (
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
                 onClick={() => {
-                  setStep('enter');
-                  setEmailDraft(initialEmail ?? '');
-                  setStartError(null);
+                  setDeleteError(null);
+                  setDeleteDialogOpen(true);
                 }}
               >
-                {initialEmail ? 'Изменить' : 'Добавить'}
+                Удалить
               </Button>
-              {initialEmail ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setDeleteError(null);
-                    setDeleteDialogOpen(true);
-                  }}
-                >
-                  Удалить
-                </Button>
-              ) : null}
-            </div>
-          </div>
+            ) : null}
+          </DoctorSectionActions>
         </div>
       ) : null}
 
@@ -251,7 +250,7 @@ export function DoctorAccountEmailSection({ initialEmail, emailVerified }: Props
             />
           </DoctorField>
           {startError ? <p className="text-destructive text-sm">{startError}</p> : null}
-          <div className="flex flex-wrap gap-2">
+          <DoctorSectionActions>
             <Button type="button" size="sm" onClick={() => void startEmail()}>
               Получить код
             </Button>
@@ -267,7 +266,7 @@ export function DoctorAccountEmailSection({ initialEmail, emailVerified }: Props
             >
               Отмена
             </Button>
-          </div>
+          </DoctorSectionActions>
         </div>
       ) : null}
 
@@ -290,7 +289,7 @@ export function DoctorAccountEmailSection({ initialEmail, emailVerified }: Props
             />
           </DoctorField>
           {codeError ? <p className="text-destructive text-sm">{codeError}</p> : null}
-          <div className="flex flex-wrap gap-2">
+          <DoctorSectionActions>
             <Button
               type="button"
               size="sm"
@@ -319,7 +318,7 @@ export function DoctorAccountEmailSection({ initialEmail, emailVerified }: Props
                 Повтор через {resendCountdown} с
               </span>
             ) : null}
-          </div>
+          </DoctorSectionActions>
         </div>
       ) : null}
     </DoctorSection>

@@ -21,8 +21,16 @@ export const WORKSPACE_MODULE_KEYS = [
 
 export type WorkspaceModuleKey = (typeof WORKSPACE_MODULE_KEYS)[number];
 
-/** Persisted switches include server-owned modules that do not yet have a settings screen. */
-export const WORKSPACE_MODULE_CONFIG_KEYS = [...WORKSPACE_MODULE_KEYS, 'leads'] as const;
+/**
+ * Persisted switches also include tariff-owned navigation surfaces. Owner 16.09.2026: «Заявки»,
+ * «Контент» and «Курсы» are configured in the same workspace section instead of bypassing it.
+ */
+export const WORKSPACE_MODULE_CONFIG_KEYS = [
+  ...WORKSPACE_MODULE_KEYS,
+  'leads',
+  'content',
+  'courses',
+] as const;
 export type WorkspaceModuleConfigKey = (typeof WORKSPACE_MODULE_CONFIG_KEYS)[number];
 
 function isWorkspaceModuleKey(value: string): value is WorkspaceModuleConfigKey {
@@ -51,6 +59,8 @@ export const WORKSPACE_MODULE_DEPENDENCIES: Readonly<
   client_portal: [],
   video_meetings: [],
   leads: [],
+  content: [],
+  courses: [],
 };
 
 export const DOCTOR_WORKSPACE_COMPOSITION_KEY = 'doctor_workspace_composition' as const;

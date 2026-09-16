@@ -32,14 +32,11 @@ export default async function TariffsPage() {
     <DoctorAppShell
       title="Выбор тарифа"
       user={workspace.session.user}
-      backHref={`${routePaths.settings}?tab=tariff`}
+      backHref={`${routePaths.account}#tariff`}
       backLabel="К тарифу"
     >
       <DoctorPageHeader title="Выбор тарифа" />
-      <TariffComparison
-        tariffChange={tariffChange}
-        billingEmail={billing.billingEmail}
-      />
+      <TariffComparison tariffChange={tariffChange} billingEmail={billing.billingEmail} />
     </DoctorAppShell>
   );
 }
