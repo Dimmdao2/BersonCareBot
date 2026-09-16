@@ -102,11 +102,11 @@ function errMsg(code: string): string {
     case 'invalid_code':
       return notificationText.authCodeInvalidOrExpired;
     case 'expired_code':
-      return 'Код истёк. Попросите администратора выслать новый.';
+      return notificationText.authCodeExpiredAskAdminForNew;
     case 'too_many_attempts':
       return notificationText.authTooManyAttempts;
     case 'email_conflict':
-      return 'Этот email уже используется другим аккаунтом';
+      return notificationText.authEmailAlreadyUsedByAnotherAccount;
     default:
       return notificationText.authConfirmationFailed;
   }

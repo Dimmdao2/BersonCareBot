@@ -209,6 +209,9 @@ export const notificationText = {
     'Max не привязан к этому номеру. Привяжите его или выберите другой способ.',
   authTelegramChatUnknown: 'Не удалось определить ваш чат в Telegram. Откройте бот и повторите.',
   authPhoneAndChannelRequired: 'Укажите номер телефона и способ связи.',
+  supportMessageTextRequired: 'Введите текст сообщения (до 4000 символов).',
+  authCodeExpiredAskAdminForNew: 'Код истёк. Попросите администратора выслать новый.',
+  authEmailAlreadyUsedByAnotherAccount: 'Этот email уже используется другим аккаунтом.',
   authEmailCodeGoesThroughEmailDoor:
     'Код на почту отправляется по входу через email — введите адрес там.',
   authMessengerBindUnavailable: 'Привязка мессенджера сейчас недоступна. Повторите попытку позже.',

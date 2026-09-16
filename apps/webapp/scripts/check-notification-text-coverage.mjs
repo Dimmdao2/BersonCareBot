@@ -381,6 +381,37 @@ function responseJsonMessageLiteralOf(node, consts = EMPTY_CONSTS) {
 
 
 /**
+ * G4b (ведущий, 16.09 — по прямому слову владельца «исправляй все находки»).
+ *
+ * Класс, который G4 пропускал НАМЕРЕННО: шаблонная строка с подстановкой. Комментарий G4 считал её
+ * «динамической, а значит уже безопасной» — и это неверно, когда статическая часть сама по себе
+ * законченная фраза. Живой пример: `Введите текст сообщения (до ${MAX_MESSAGE_LEN} символов)` стоял
+ * ДВУМЯ разными копиями — в пациентской поддержке и в публичной, — то есть ровно тот расходящийся
+ * дубль, против которого правило и заведено. Динамическим остаётся только то, где статика — связка
+ * из одного-двух слов (`Укажите ${missing.join(', ')}.`): такое собрать из словаря нечем.
+ *
+ * Признак: сумма слов (последовательностей из двух и более букв) во всех статических кусках шаблона
+ * не меньше трёх. Порог выбран по замеру, а не на глаз: на 16.09 во всём webapp шаблонных `message:`
+ * ровно два, и порог 3 отделяет живой дубль от законной склейки.
+ */
+function templateMessageSentenceOf(node) {
+  let arg = responseBuilderBodyArg(node);
+  if (arg === undefined) return undefined;
+  if (ts.isParenthesizedExpression(arg)) arg = arg.expression;
+  if (!ts.isObjectLiteralExpression(arg)) return undefined;
+  for (const prop of arg.properties) {
+    if (!ts.isPropertyAssignment(prop) || !ts.isIdentifier(prop.name)) continue;
+    if (prop.name.text !== 'message') continue;
+    const expr = prop.initializer;
+    if (!ts.isTemplateExpression(expr)) continue;
+    const staticParts = [expr.head.text, ...expr.templateSpans.map((span) => span.literal.text)];
+    const words = staticParts.join(' ').match(/[\p{L}]{2,}/gu) ?? [];
+    if (words.length >= 3) return { expr, sample: staticParts.join('…').trim() };
+  }
+  return undefined;
+}
+
+/**
  * G5 (владелец, 13.09 — «ни в коем случае врач не должен видеть сырой машинный код»).
  *
  * Класс, который все прошлые правила пропускали: функция-ПОДПИСЬ. Она существует ровно затем,
@@ -768,6 +799,17 @@ function checkSource(relativePath, text) {
       );
     }
 
+    // G4b: шаблонная строка-ПРЕДЛОЖЕНИЕ в том же `message` — см. комментарий у helper.
+    const templateSentence = templateMessageSentenceOf(node);
+    if (templateSentence) {
+      const { line } = sf.getLineAndCharacterOfPosition(templateSentence.expr.getStart(sf));
+      findings.push(
+        `${relativePath}:${line + 1}: template sentence in a NextResponse.json/Response.json ` +
+          `"message" property — put the wording in notificationText.ts and interpolate around the ` +
+          `key instead (${JSON.stringify(templateSentence.sample).slice(0, 60)})`,
+      );
+    }
+
     // G5: функция-подпись, возвращающая собственный вход (сырой машинный код) человеку.
     if (
       ts.isFunctionDeclaration(node) ||
@@ -854,6 +896,9 @@ function selfTest() {
     ['NextResponse.json message literal',
       "return NextResponse.json({ ok: false, error: 'x', message: 'Некорректные данные' }, { status: 400 });"],
     ['Response.json message literal', "return Response.json({ error: 'x', message: 'Ошибка' });"],
+    // G4b (ведущий, 16.09): шаблонная строка-предложение в том же `message`.
+    ['NextResponse.json message — шаблонная строка-предложение',
+      "return NextResponse.json({ ok: false, message: `Введите текст сообщения (до ${MAX} символов)` }, { status: 400 });"],
     // Owner check, 14.09: the branch shapes the toast rule had always walked were invisible here.
     ['NextResponse.json message ternary',
       "return NextResponse.json({ error: 'x', message: locked ? 'Слишком много попыток.' : 'Пароль неверен.' });"],
@@ -982,6 +1027,10 @@ function selfTest() {
       "// notification-text-gate: не подпись для человека — транслитерация символа\nconst out = MAP[char] ?? char;"],
     ['цепочка словарей с ДРУГИМ значением в конце — не эта форма',
       "const t = A[code] ?? B[code] ?? notificationText.commonUnknownValue;"],
+    ['G4b: шаблон-склейка из одного слова и подстановки — законная динамика, не предложение',
+      "return NextResponse.json({ ok: false, message: `Укажите ${missing.join(', ')}.` }, { status: 400 });"],
+    ['G4b: шаблон вокруг ключа словаря — фраза берётся из словаря',
+      "return NextResponse.json({ ok: false, message: `${notificationText.commonGenericError} ${id}` }, { status: 400 });"],
     ['Map с текстовым запасным вариантом',
       "const t = labels.get(code) ?? notificationText.commonUnknownValue;"],
     ['тернарник через `in` с текстом в запасной ветке',
