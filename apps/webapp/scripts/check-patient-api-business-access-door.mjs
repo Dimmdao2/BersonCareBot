@@ -655,7 +655,9 @@ function firstDataReadPortInAwaitedExpression(node, depsVars, seenBodies) {
       for (const body of resolved.bodies) {
         if (seenBodies.has(body)) continue;
         const nestedSeen = new Set(seenBodies).add(body);
-        const nested = firstDataReadPortIn(body, depsVars, nestedSeen);
+        // The invoked helper is already below the outer await. Its body may return the data
+        // promise directly (`async () => repo.read()`), without spelling another inner await.
+        const nested = firstDataReadPortInAwaitedExpression(body, depsVars, nestedSeen);
         if (nested !== undefined) {
           found = nested;
           return;
@@ -837,26 +839,42 @@ function selfTest() {
     [
       'круг 9: объектная деструктуризация helper не скрывает чтение данных',
       'patient/x/route.ts',
-      `${guardImport} import { buildAppDeps } from '@/app-layer/di/buildAppDeps'; export async function GET() { const box = { pull: async () => await buildAppDeps().treatmentProgram.getForPatient({}) }; const { pull } = box; const plan = await pull(); ${guarded} return Response.json(plan); }`,
+      `${guardImport} import { buildAppDeps } from '@/app-layer/di/buildAppDeps'; export async function GET() { const box = { pull: async () => buildAppDeps().treatmentProgram.getForPatient({}) }; const { pull } = box; const plan = await pull(); ${guarded} return Response.json(plan); }`,
       new Map(),
       'reads data through `treatmentProgram` BEFORE',
-      `${guardImport} import { buildAppDeps } from '@/app-layer/di/buildAppDeps'; export async function GET() { const box = { pull: async () => await buildAppDeps().treatmentProgram.getForPatient({}) }; const { pull } = box; ${guarded} const plan = await pull(); return Response.json(plan); }`,
+      `${guardImport} import { buildAppDeps } from '@/app-layer/di/buildAppDeps'; export async function GET() { const box = { pull: async () => buildAppDeps().treatmentProgram.getForPatient({}) }; const { pull } = box; ${guarded} const plan = await pull(); return Response.json(plan); }`,
     ],
     [
       'круг 9: массивная деструктуризация helper не скрывает чтение данных',
       'patient/x/route.ts',
-      `${guardImport} import { buildAppDeps } from '@/app-layer/di/buildAppDeps'; export async function GET() { const box = [async () => await buildAppDeps().treatmentProgram.getForPatient({})]; const [pull] = box; const plan = await pull(); ${guarded} return Response.json(plan); }`,
+      `${guardImport} import { buildAppDeps } from '@/app-layer/di/buildAppDeps'; export async function GET() { const box = [async () => buildAppDeps().treatmentProgram.getForPatient({})]; const [pull] = box; const plan = await pull(); ${guarded} return Response.json(plan); }`,
       new Map(),
       'reads data through `treatmentProgram` BEFORE',
-      `${guardImport} import { buildAppDeps } from '@/app-layer/di/buildAppDeps'; export async function GET() { const box = [async () => await buildAppDeps().treatmentProgram.getForPatient({})]; const [pull] = box; ${guarded} const plan = await pull(); return Response.json(plan); }`,
+      `${guardImport} import { buildAppDeps } from '@/app-layer/di/buildAppDeps'; export async function GET() { const box = [async () => buildAppDeps().treatmentProgram.getForPatient({})]; const [pull] = box; ${guarded} const plan = await pull(); return Response.json(plan); }`,
     ],
     [
       'круг 9: вычислимое строковое имя свойства не скрывает чтение данных',
       'patient/x/route.ts',
-      `${guardImport} import { buildAppDeps } from '@/app-layer/di/buildAppDeps'; export async function GET() { const pull = async () => await buildAppDeps().treatmentProgram.getForPatient({}); const box = { ['pull']: pull }; const plan = await box.pull(); ${guarded} return Response.json(plan); }`,
+      `${guardImport} import { buildAppDeps } from '@/app-layer/di/buildAppDeps'; export async function GET() { const pull = async () => buildAppDeps().treatmentProgram.getForPatient({}); const box = { ['pull']: pull }; const plan = await box.pull(); ${guarded} return Response.json(plan); }`,
       new Map(),
       'reads data through `treatmentProgram` BEFORE',
-      `${guardImport} import { buildAppDeps } from '@/app-layer/di/buildAppDeps'; export async function GET() { const pull = async () => await buildAppDeps().treatmentProgram.getForPatient({}); const box = { ['pull']: pull }; ${guarded} const plan = await box.pull(); return Response.json(plan); }`,
+      `${guardImport} import { buildAppDeps } from '@/app-layer/di/buildAppDeps'; export async function GET() { const pull = async () => buildAppDeps().treatmentProgram.getForPatient({}); const box = { ['pull']: pull }; ${guarded} const plan = await box.pull(); return Response.json(plan); }`,
+    ],
+    [
+      'круг 9: вычислимое числовое имя свойства не скрывает чтение данных',
+      'patient/x/route.ts',
+      `${guardImport} import { buildAppDeps } from '@/app-layer/di/buildAppDeps'; export async function GET() { const pull = async () => buildAppDeps().treatmentProgram.getForPatient({}); const box = { [0]: pull }; const plan = await box[0](); ${guarded} return Response.json(plan); }`,
+      new Map(),
+      'reads data through `treatmentProgram` BEFORE',
+      `${guardImport} import { buildAppDeps } from '@/app-layer/di/buildAppDeps'; export async function GET() { const pull = async () => buildAppDeps().treatmentProgram.getForPatient({}); const box = { [0]: pull }; ${guarded} const plan = await box[0](); return Response.json(plan); }`,
+    ],
+    [
+      'круг 9: неразрешимый путь деструктурированного handler закрывается',
+      'patient/x/route.ts',
+      `${guardImport} const box = {}; const { pull } = box; export const GET = pull;`,
+      new Map(),
+      'exported GET must fail closed',
+      `${guardImport} const box = { pull: async () => { ${guarded} return Response.json({ ok: true }); } }; const { pull } = box; export const GET = pull;`,
     ],
     [
       'круг 6, MF1: локальный helper ВЫЗВАН до двери — читает он, а не объявление',
