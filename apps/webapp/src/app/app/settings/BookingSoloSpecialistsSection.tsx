@@ -32,7 +32,7 @@ import {
   doctorDnaFlatListPrimaryClass,
 } from '@/shared/ui/doctor/DoctorDnaFlatListRow';
 import { DoctorSortableSettingsRow } from '@/shared/ui/doctor/DoctorSortableSettingsRow';
-import { MarkdownEditor } from '@/shared/ui/doctor/markdown/MarkdownEditor';
+import { TiptapEditor } from '@/shared/ui/doctor/TiptapEditor';
 import { MediaPickerShell } from '@/shared/ui/doctor/media/MediaPickerShell';
 import { MediaPickerPanel } from '@/shared/ui/doctor/media/MediaPickerPanel';
 import type { MediaListItem } from '@/shared/ui/doctor/media/MediaPickerList';
@@ -405,7 +405,7 @@ export function BookingSoloSpecialistsSection({
  * Две копии этой формы разошлись бы при первой же правке одной из них.
  *
  * Пикер медиа — тот же `MediaPickerShell`/`MediaPickerPanel`, что у визитки клиники (§20), а
- * подробное описание — тот же `MarkdownEditor`, что стоит в семи местах кабинета: второго
+ * подробное описание — тот же `TiptapEditor`, что стоит во всех rich-text полях кабинета: второго
  * редактора и второго пикера здесь не заводится (§5).
  */
 function SpecialistProfileFields({
@@ -489,7 +489,7 @@ function SpecialistProfileFields({
       </div>
 
       <div className="flex min-h-0 flex-col gap-1">
-        <MarkdownEditor
+        <TiptapEditor
           name={`${idPrefix}-full-description`}
           label="Подробное описание"
           helpText={null}

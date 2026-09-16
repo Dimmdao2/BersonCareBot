@@ -15,7 +15,7 @@ import {
 } from '@/shared/ui/doctor/primitives/select';
 import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
 import { MarkdownContent } from '@/shared/ui/doctor/markdown/MarkdownContent';
-import { MarkdownEditor } from '@/shared/ui/doctor/markdown/MarkdownEditor';
+import { TiptapEditor } from '@/shared/ui/doctor/TiptapEditor';
 import type { ContentSectionRow } from '@/modules/content-sections/ports';
 import {
   HELP_CANONICAL_ARTICLE_IA,
@@ -550,7 +550,7 @@ export function ContentForm({
               </div>
             </>
           ) : (
-            <MarkdownEditor
+        <TiptapEditor
               name="body_md"
               defaultValue={bodyMdValue}
               key={`body-${page?.id ?? 'new'}`}

@@ -14,6 +14,7 @@ import type {
   MechanicAccessWarning,
   AccessPeriodSource,
 } from './types';
+import { mapRichTextText } from '@/shared/lib/richText';
 
 const DAY_MS = 86_400_000;
 type BillingInvoiceForAccessNotification = Pick<
@@ -134,6 +135,14 @@ export function renderAccessNotification(
   return template.replace(PLACEHOLDER, (placeholder, name: string) =>
     Object.prototype.hasOwnProperty.call(variables, name) ? variables[name]! : placeholder,
   );
+}
+
+/** Substitutes variables inside a Tiptap document without rewriting its JSON structure. */
+export function renderAccessNotificationRichText(
+  template: string,
+  variables: Readonly<Record<string, string>>,
+): string {
+  return mapRichTextText(template, (text) => renderAccessNotification(text, variables));
 }
 
 /** Every variable an owner referenced in a template — used to show what a text still needs. */

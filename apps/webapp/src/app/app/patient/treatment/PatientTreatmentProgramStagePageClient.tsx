@@ -48,6 +48,7 @@ import {
 import { patientHomeCardHeroClass } from '@/app/app/patient/home/patientHomeCardStyles';
 import { cn } from '@/lib/utils';
 import { DateTime } from 'luxon';
+import { MarkdownContent } from '@/shared/ui/patient/markdown/MarkdownContent';
 
 type Stage = TreatmentProgramInstanceDetail['stages'][number];
 
@@ -338,17 +339,21 @@ export function PatientTreatmentProgramStagePageClient(props: {
         {stageForUi.goals?.trim() ? (
           <div>
             <h3 className={patientFormLabelClass}>Цель</h3>
-            <p className={cn(patientBodyTextClass, 'mt-1 whitespace-pre-wrap')}>
-              {stageForUi.goals.trim()}
-            </p>
+            <MarkdownContent
+              text={stageForUi.goals.trim()}
+              bodyFormat="markdown"
+              className={cn('markdown-preview mt-1', patientBodyTextClass)}
+            />
           </div>
         ) : null}
         {stageForUi.objectives?.trim() ? (
           <div className={stageForUi.goals?.trim() ? 'mt-3' : ''}>
             <h3 className={patientFormLabelClass}>Задачи</h3>
-            <p className={cn(patientBodyTextClass, 'mt-1 whitespace-pre-wrap')}>
-              {stageForUi.objectives.trim()}
-            </p>
+            <MarkdownContent
+              text={stageForUi.objectives.trim()}
+              bodyFormat="markdown"
+              className={cn('markdown-preview mt-1', patientBodyTextClass)}
+            />
           </div>
         ) : null}
       </CollapsibleContent>

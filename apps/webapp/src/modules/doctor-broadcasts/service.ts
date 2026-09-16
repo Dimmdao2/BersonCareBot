@@ -13,7 +13,7 @@ import { normalizeBroadcastChannels, type BroadcastChannel } from './broadcastCh
 import {
   buildBroadcastMessageText,
   buildDoctorBroadcastDeliveryJobs,
-  stripMarkdownToPlain,
+  broadcastTextToPlain,
 } from './deliveryJobs';
 import { BROADCAST_DELIVERY_CAP_EXCEEDED_CODE } from './deliveryQueueKind';
 import {
@@ -199,8 +199,7 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
         ? await deps.resolvePatientPublicOrigin(options.organizationId)
         : '';
       const notificationOpenUrl = buildPatientNotificationsOpenUrl(patientOrigin);
-      // In-app chat has no markup → patient sees clean text, not raw **/-/_ markers.
-      const messageBodyPlainText = stripMarkdownToPlain(messageBody);
+      const messageBodyPlainText = broadcastTextToPlain(messageBody);
       const auditId = randomUUID();
       const topicCode = broadcastNotificationTopicCode(command.category);
       const topicTitle = await deps.getTopicDisplayTitle(topicCode, options.organizationId);

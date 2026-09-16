@@ -6,6 +6,15 @@ import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitle
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { doctorTreatmentProgramInstanceRouteErrorStatus } from '@/modules/treatment-program/doctorInstanceRouteErrorStatus';
 import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
+import {
+  RICH_TEXT_SERIALIZED_MAX_LENGTH,
+  richTextWithinCharacterLimit,
+} from '@/shared/lib/richText';
+
+const richStageTextSchema = z
+  .string()
+  .max(RICH_TEXT_SERIALIZED_MAX_LENGTH)
+  .refine((value) => richTextWithinCharacterLimit(value, 200_000));
 
 const patchBodySchema = z
   .object({
@@ -13,8 +22,8 @@ const patchBodySchema = z
     reason: z.string().max(20000).optional().nullable(),
     title: z.string().min(1).max(2000).optional(),
     description: z.string().max(200000).optional().nullable(),
-    goals: z.string().max(200000).optional().nullable(),
-    objectives: z.string().max(200000).optional().nullable(),
+    goals: richStageTextSchema.optional().nullable(),
+    objectives: richStageTextSchema.optional().nullable(),
     expectedDurationDays: z.number().int().min(0).max(36500).optional().nullable(),
     expectedDurationText: z.string().max(20000).optional().nullable(),
   })

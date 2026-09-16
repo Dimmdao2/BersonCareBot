@@ -13,7 +13,7 @@ import type {
   ClinicPublicCardSpecialistPreview,
 } from '@/modules/clinic-public-card/cabinetPreviewSelection';
 import { ClinicPublicCardView } from '@/shared/ui/clinicPublicCard/ClinicPublicCardView';
-import { MarkdownEditor } from '@/shared/ui/doctor/markdown/MarkdownEditor';
+import { TiptapEditor } from '@/shared/ui/doctor/TiptapEditor';
 import {
   DoctorSection,
   DoctorSectionHeader,
@@ -65,15 +65,15 @@ type Props = {
 };
 
 /**
- * Идентификаторы медиа из markdown-материала. В предпросмотре файл берётся сессионной дверью
+ * Идентификаторы медиа из форматированного материала Tiptap JSON. В предпросмотре файл берётся сессионной дверью
  * `/api/media/{uuid}` — ровно как логотип и фотографии выше: публичный адрес у выключенной
  * страницы ещё не работает. Тип файла здесь неизвестен и НЕ угадывается: картинка нарисуется
  * картинкой, всё прочее останется ссылкой, а не превратится в выдуманный плеер.
  */
-function previewMarkdownAssetIds(markdown: string | null): string[] {
-  if (!markdown) return [];
+function previewRichTextAssetIds(value: string | null): string[] {
+  if (!value) return [];
   const ids = new Set<string>();
-  for (const match of markdown.matchAll(
+  for (const match of value.matchAll(
     /\/api\/media\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/gi,
   )) {
     ids.add(match[1]!.toLowerCase());
@@ -220,7 +220,7 @@ export function ClinicPublicCardSection({
    * Готовность всех картинок предпросмотра — одной дверью и только пока предпросмотр открыт:
    * закрытый предпросмотр не должен опрашивать библиотеку на каждой загрузке страницы.
    */
-  const markdownAssetIds = previewMarkdownAssetIds(settings.fullDescriptionMarkdown);
+  const markdownAssetIds = previewRichTextAssetIds(settings.fullDescriptionMarkdown);
   const previewMediaIds = previewOpen
     ? [
         settings.logoMediaId,
@@ -339,10 +339,10 @@ export function ClinicPublicCardSection({
           />
         </DoctorField>
 
-        {/* Полное описание материалом — ТОТ ЖЕ `MarkdownEditor`, что стоит у специалиста и ещё в
+        {/* Полное описание материалом — ТОТ ЖЕ `TiptapEditor`, что стоит у специалиста и ещё в
             семи местах кабинета, и тот же пикер медиа внутри него (§5, §20). Второго редактора и
             второго пикера здесь не заводится. */}
-        <MarkdownEditor
+        <TiptapEditor
           name="clinic-card-full-description"
           label="Подробное описание"
           helpText="Материал с фотографиями и видео. Его увидит посетитель страницы организации."
