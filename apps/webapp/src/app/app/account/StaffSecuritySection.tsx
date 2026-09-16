@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import {
   DoctorSection,
+  DoctorSectionActions,
   DoctorSectionHeader,
   DoctorSectionTitle,
 } from '@/shared/ui/doctor/DoctorSection';
@@ -116,7 +117,7 @@ export function StaffSecuritySection(props: Props) {
       );
       if (!result.ok) return toast.error(staffSecurityErrorText(result.error, 'confirm_recovery'));
       setRecoveryCodes([]);
-      router.replace('/app/account?tab=security');
+      router.replace('/app/account');
       router.refresh();
     } catch {
       toast.error(staffSecurityNetworkErrorText('confirm_recovery'));
@@ -156,7 +157,7 @@ export function StaffSecuritySection(props: Props) {
       );
       if (!result.ok)
         return toast.error(staffSecurityErrorText(result.error, 'retry_provisioning'));
-      window.location.assign(result.redirectTo ?? '/app/account?tab=security');
+      window.location.assign(result.redirectTo ?? '/app/account');
     } catch {
       toast.error(staffSecurityNetworkErrorText('retry_provisioning'));
     }
@@ -189,7 +190,7 @@ export function StaffSecuritySection(props: Props) {
             <li>{props.hasSpecialistBinding ? '○' : '—'} Услуга, место и доступность для записи</li>
             <li>{props.hasSpecialistBinding ? '○' : '—'} Готовность пригласить первого пациента</li>
           </ul>
-          <div className="mt-3 flex flex-wrap gap-2">
+          <DoctorSectionActions className="mt-3">
             <Link className="text-sm underline" href="/app/account">
               Профиль специалиста
             </Link>
@@ -203,7 +204,7 @@ export function StaffSecuritySection(props: Props) {
                 Настроить запись
               </Link>
             ) : null}
-          </div>
+          </DoctorSectionActions>
           {/* Desktop hides DoctorHeader/DoctorAdminSidebar (no clinical/org capability yet) while this
             checklist is incomplete, so a stuck first-run account otherwise has no way to sign out. */}
           <LogoutForm className="mt-2">
@@ -251,7 +252,7 @@ export function StaffSecuritySection(props: Props) {
             <a className="underline" href={uri ?? undefined}>
               Открыть в приложении
             </a>
-            <div className="flex gap-2">
+            <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
               <Input
                 aria-label="Код из приложения"
                 inputMode="numeric"
@@ -282,7 +283,7 @@ export function StaffSecuritySection(props: Props) {
         props.hasOrganization &&
         !props.hasSpecialistBinding ? (
           specialistFioRequired ? (
-            <div className="flex flex-wrap gap-2">
+            <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
               <Input
                 aria-label="ФИО специалиста"
                 placeholder="ФИО специалиста"
@@ -299,12 +300,19 @@ export function StaffSecuritySection(props: Props) {
             </Button>
           )
         ) : null}
-        {securityReady && !props.recoveryOnly ? (
-          <div className="flex flex-wrap gap-2">
-            <Button size="sm" variant="outline" onClick={revokeSessions}>
-              Завершить другие сеансы
-            </Button>
-          </div>
+        {!props.recoveryOnly ? (
+          <DoctorSectionActions className="border-t border-border/70 pt-3">
+            {securityReady ? (
+              <Button size="sm" variant="outline" onClick={revokeSessions}>
+                Завершить другие сеансы
+              </Button>
+            ) : null}
+            <LogoutForm>
+              <Button type="submit" size="sm" variant="destructive">
+                Выйти
+              </Button>
+            </LogoutForm>
+          </DoctorSectionActions>
         ) : null}
       </DoctorSection>
     </div>

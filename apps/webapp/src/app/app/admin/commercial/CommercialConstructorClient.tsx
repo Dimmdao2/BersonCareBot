@@ -52,6 +52,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/doctor/primitives/tabs';
 import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
 import { notificationText } from '@/shared/notifications/notificationText';
+import { errorCodeText } from '@/shared/notifications/errorCodeText';
 import { safeUserMessage, UserFacingError } from '@/shared/errors/userFacingError';
 
 /** §T3 preview — sample values so an admin sees a rendered letter, not raw `{{тариф}}` tokens. */
@@ -1208,11 +1209,20 @@ export function CommercialConstructorClient() {
         body: JSON.stringify(body),
       });
       const payload = (await response.json()) as CommercialMutationResponse;
-      if (!response.ok) throw new Error(payload.error ?? 'commercial_operation_failed');
-      await loadState();
+      if (!response.ok) {
+        toast.error(
+          errorCodeText(payload.error, notificationText.commonSaveFailed),
+        );
+        return;
+      }
       toast.success(typeof success === 'function' ? success(payload.result) : success);
+      try {
+        await loadState();
+      } catch {
+        toast.error(notificationText.adminCommercialRefreshFailed);
+      }
     } catch (error) {
-      toast.error(safeUserMessage(error, notificationText.commonGenericError));
+      toast.error(safeUserMessage(error, notificationText.commonNoServerConnection));
     } finally {
       setBusy(false);
     }

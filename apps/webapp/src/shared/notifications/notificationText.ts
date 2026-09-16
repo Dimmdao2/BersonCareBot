@@ -448,6 +448,7 @@ export const notificationText = {
   commonSaved: 'Сохранено',
   adminLocationColorsSaved: 'Цвета локаций сохранены',
   adminSelectActionAfterPaidPeriod: 'Выберите действие после оплаченного периода',
+  adminCommercialRefreshFailed: 'Изменения сохранены, но данные не обновились. Обновите страницу.',
   adminSelectActionAfterTrial: 'Выберите действие после триала',
 
   // --- settings ---

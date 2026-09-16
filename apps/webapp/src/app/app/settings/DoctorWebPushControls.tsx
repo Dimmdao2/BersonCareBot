@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { Button } from '@/shared/ui/doctor/primitives/button';
+import { DoctorSectionActions } from '@/shared/ui/doctor/DoctorSection';
+import { doctorSectionItemClass } from '@/shared/ui/doctor/doctorVisual';
 import { useNativeRuntime } from '@/shared/hooks/useNativeRuntime';
 import { fetchStaffWebPushStatus } from '@/shared/lib/webPush/staffWebPushApi';
 import {
@@ -134,12 +136,14 @@ export function DoctorWebPushControls({ initialHasSubscription, initialGlobalEna
   const pushActive = hasSubscription && globalEnabled;
 
   return (
-    <div className="flex flex-col gap-2 rounded-lg border border-border px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+    <div
+      className={`${doctorSectionItemClass} flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between`}
+    >
       <div>
         <p className="text-sm font-medium">Push в приложении</p>
         <p className="text-xs text-muted-foreground">{pushActive ? 'Включено' : 'Не включено'}</p>
       </div>
-      <div className="flex shrink-0 gap-2">
+      <DoctorSectionActions className="shrink-0">
         {pushActive ? (
           <Button
             type="button"
@@ -166,7 +170,7 @@ export function DoctorWebPushControls({ initialHasSubscription, initialGlobalEna
             </Button>
           </>
         )}
-      </div>
+      </DoctorSectionActions>
     </div>
   );
 }

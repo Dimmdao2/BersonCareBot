@@ -139,7 +139,7 @@ export default async function DoctorPage() {
             Кабинет создан. Чтобы открыть {terms.patientGenPlural} и клинические данные, подключите
             двухфакторную защиту и сохраните резервные коды.
           </p>
-          <Link className={buttonVariants({ size: 'sm' })} href="/app/account?tab=security">
+          <Link className={buttonVariants({ size: 'sm' })} href="/app/account">
             Настроить двухфакторную защиту
           </Link>
         </DoctorSection>
