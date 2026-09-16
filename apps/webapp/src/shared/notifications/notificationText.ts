@@ -209,6 +209,8 @@ export const notificationText = {
     'Max не привязан к этому номеру. Привяжите его или выберите другой способ.',
   authTelegramChatUnknown: 'Не удалось определить ваш чат в Telegram. Откройте бот и повторите.',
   authPhoneAndChannelRequired: 'Укажите номер телефона и способ связи.',
+  supportMessageTextRequired: 'Введите текст сообщения (до 4000 символов).',
+  authCodeExpiredAskAdminForNew: 'Код истёк. Попросите администратора выслать новый.',
   authEmailCodeGoesThroughEmailDoor:
     'Код на почту отправляется по входу через email — введите адрес там.',
   authMessengerBindUnavailable: 'Привязка мессенджера сейчас недоступна. Повторите попытку позже.',
@@ -496,6 +498,8 @@ export const notificationText = {
   settingsIntegrationDisabledByPlatform: 'Интеграция отключена платформой.',
   settingsSmtpDisabledByPlatform: 'SMTP отключён платформой.',
   settingsDeliveryTestNoEmail: 'У вашей учётной записи нет адреса почты для проверки.',
+  settingsDeliveryTestNoMessenger: (messenger: string) =>
+    `У вашей учётной записи не подключён ${messenger} для проверки.`,
 
   // --- domain/booking-engine ---
   // Публичная запись: отказ инфраструктуры (не прошёл reverse proxy) — читателю здесь нечего
@@ -834,6 +838,16 @@ export type NotificationTextKey = keyof typeof notificationText;
  * вынесены в отдельный объект, потому что содержимое не `string`, а `(...) => string`.
  */
 export const notificationTextFactory = {
+  entitlementQuotaLimitReached: (action: string, mechanicLabel: string) =>
+    `Невозможно ${action}: в вашем тарифе исчерпан лимит «${mechanicLabel}».`,
+  entitlementMutationReadOnly: (action: string) =>
+    `Невозможно ${action}: раздел сейчас доступен только для просмотра по вашему тарифу.`,
+  entitlementMutationBlocked: (action: string) =>
+    `Невозможно ${action}: доступ к этому разделу временно приостановлен по вашему тарифу.`,
+  entitlementMutationUnconfigured: (action: string) =>
+    `Невозможно ${action}: для этого раздела не настроены условия доступа в вашем тарифе.`,
+  entitlementMutationRequired: (action: string) =>
+    `Невозможно ${action}: этот раздел не входит в ваш тариф.`,
   leadRejectedWithComment: (comment: string) =>
     `Клиника отклонила вашу заявку. Комментарий клиники: ${comment}`,
   /**

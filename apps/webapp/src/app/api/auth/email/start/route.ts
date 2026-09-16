@@ -78,14 +78,14 @@ export async function POST(request: Request) {
 function errMsg(code: string): string {
   switch (code) {
     case 'invalid_email':
-      return 'Некорректный адрес email';
+      return notificationText.commonSpecifyValidEmail;
     case 'rate_limited':
-      return 'Слишком частые запросы. Подождите перед повторной отправкой.';
+      return notificationText.authResendCooldown;
     case 'too_many_attempts':
       return notificationText.authTooManyAttempts;
     case 'email_send_failed':
-      return 'Не удалось отправить код на email';
+      return notificationText.authCodeSendFailed;
     default:
-      return 'Не удалось отправить код';
+      return notificationText.authCodeSendFailed;
   }
 }
