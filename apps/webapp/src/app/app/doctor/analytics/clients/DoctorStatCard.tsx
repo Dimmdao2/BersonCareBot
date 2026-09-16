@@ -148,6 +148,7 @@ export function DoctorStatCard({
     </div>
   );
   const metricRow = metric;
+  const detailsIndicatorIsActive = Boolean(opensDetails || href || onClick);
   const inner =
     valuePlacement === 'side-center' ? (
       <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] grid-rows-[auto_auto] items-start gap-x-1.5">
@@ -158,7 +159,7 @@ export function DoctorStatCard({
         {hint ? <div className="col-start-1 row-start-2">{hintNode}</div> : null}
       </div>
     ) : valuePlacement === 'row-until-wide' ? (
-      <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] grid-rows-[auto_auto] items-start gap-x-1.5 xl:block">
+      <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] grid-rows-[auto_auto] items-center gap-x-1.5 xl:block">
         <div className="col-start-1 row-start-1">{label}</div>
         <div className="col-start-2 row-span-2 row-start-1 flex self-center justify-end xl:mt-0.5 xl:block">
           {metric}
@@ -205,17 +206,29 @@ export function DoctorStatCard({
   const content = isStacked ? (
     <div className="relative w-full min-w-0">
       {inner}
-      {opensDetails ? (
-        <span className="absolute -right-1.5 top-1/2 -translate-y-1/2">{detailsIndicator}</span>
-      ) : null}
-    </div>
-  ) : opensDetails ? (
-    <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
-      <div className="min-w-0">{inner}</div>
-      <span className="translate-x-3 md:translate-x-1.5">{detailsIndicator}</span>
+      <span
+        className={cn(
+          'absolute top-1/2 inline-flex size-4 -translate-y-1/2 items-center justify-center',
+          detailsIcon ? '-right-1.5' : '-right-2',
+          !detailsIndicatorIsActive && 'opacity-10',
+        )}
+      >
+        {detailsIndicator}
+      </span>
     </div>
   ) : (
-    inner
+    <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+      <div className="min-w-0">{inner}</div>
+      <span
+        className={cn(
+          'inline-flex size-4 items-center justify-center',
+          detailsIcon ? 'translate-x-3 md:translate-x-1.5' : 'translate-x-3.5 md:translate-x-2',
+          !detailsIndicatorIsActive && 'opacity-10',
+        )}
+      >
+        {detailsIndicator}
+      </span>
+    </div>
   );
 
   if (actionIcon && actionLabel && onActionClick) {
