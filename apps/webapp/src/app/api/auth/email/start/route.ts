@@ -80,7 +80,7 @@ function errMsg(code: string): string {
     case 'invalid_email':
       return notificationText.commonSpecifyValidEmail;
     case 'rate_limited':
-      return notificationText.authResendTooSoon;
+      return notificationText.authResendCooldown;
     case 'too_many_attempts':
       return notificationText.authTooManyAttempts;
     case 'email_send_failed':

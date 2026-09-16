@@ -24,6 +24,7 @@ vi.mock('@/app-layer/principal/withOrganizationPrincipal', () => ({
 }));
 
 import { POST } from './route';
+import { quotaLimitReachedRefusalMessage } from '@/app-layer/guards/requireEntitlement';
 
 const ORGANIZATION_ID = '11111111-1111-4111-8111-111111111111';
 
@@ -91,12 +92,14 @@ describe('clinic-owner branch create', () => {
     const response = await POST(request());
 
     expect(response.status).toBe(409);
+    // §10a: ожидание держит ПОВЕДЕНИЕ — отказ по исчерпанному лимиту назван кодом и механикой, и
+    // человеку пришла та самая фраза словаря. Дословную копию предложения тест не хранит: честная
+    // редактура словаря не должна красить маршрут.
     await expect(response.json()).resolves.toEqual({
       ok: false,
       error: 'branch_quota_reached',
       mechanic: 'branches',
-      message:
-        'Невозможно создать локацию: в вашем тарифе исчерпан лимит «Филиалы».',
+      message: quotaLimitReachedRefusalMessage('branches', 'создать локацию'),
     });
     expect(fakes.createPhysicalBranch).toHaveBeenCalledTimes(1);
   });
