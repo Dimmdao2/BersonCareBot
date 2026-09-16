@@ -14,7 +14,6 @@ import {
 import { confirmPublicEmailOtpChallenge } from '@/modules/auth/emailOtpPublic';
 import { setSessionFromUser } from '@/modules/auth/service';
 import { getRedirectPathForRole } from '@/modules/auth/redirectPolicy';
-import { isVerifiedEmailGlobalAdminAsync } from '@/modules/auth/emailAuth';
 import {
   formatOtpRetryAfterMessage,
   OTP_TOO_MANY_ATTEMPTS_MESSAGE,
@@ -113,43 +112,28 @@ export async function POST(request: Request) {
     );
   }
 
-  // The code proves control of `email`; policy decides whether that verified identity is a global admin.
-  // Email-derived staff access intentionally stays session-derived: every later session refresh rechecks the
-  // DB-backed allowlist, so removing the address revokes access without a stale role row.
-  // On policy removal/outage, use the freshly loaded DB role rather than retaining
-  // an earlier email-derived session role. The B1c migration removes the only
-  // historical persisted owner-email artifact.
-  const isGlobalAdminByPolicy = await isVerifiedEmailGlobalAdminAsync(email);
-  const role = isGlobalAdminByPolicy ? 'admin' : user.role;
-  const sessionUser = role === user.role ? user : { ...user, role };
   // Bare email+code proves control of an inbox, nothing else — it must never be sufficient to
   // authenticate a `doctor`/`admin` DB account, which is required to hold a password (+ optional
-  // staff 2FA). The one deliberate exception is the global-admin-by-policy escalation above: that
-  // path is *designed* to be session-derived from verified email control alone. Everyone else who
-  // isn't `client` (the only role with no password at all) is turned away here, unconditionally —
-  // previously this only ran when the caller happened to send `roleLoginPortal`, so omitting that
-  // field logged a doctor/admin straight in with zero password check.
-  if (sessionUser.role !== 'client' && !isGlobalAdminByPolicy) {
+  // staff 2FA). Everyone who isn't `client` (the only role with no password at all) is turned away
+  // here unconditionally — the persisted DB role is the sole authority.
+  if (user.role !== 'client') {
     return NextResponse.json({ ok: false, error: 'portal_access_denied' }, { status: 403 });
   }
-  if (
-    parsed.data.roleLoginPortal &&
-    !roleCanUsePortal(sessionUser.role, parsed.data.roleLoginPortal)
-  ) {
+  if (parsed.data.roleLoginPortal && !roleCanUsePortal(user.role, parsed.data.roleLoginPortal)) {
     return NextResponse.json({ ok: false, error: 'portal_access_denied' }, { status: 403 });
   }
 
-  await setSessionFromUser(sessionUser, 'email_code');
+  await setSessionFromUser(user, 'email_code');
 
   const tz = parsed.data.browserCalendarIana?.trim();
   if (tz) {
-    await deps.patientCalendarTimezone.syncFromDevice(sessionUser.userId, tz);
+    await deps.patientCalendarTimezone.syncFromDevice(user.userId, tz);
   }
 
   return NextResponse.json({
     ok: true,
-    redirectTo: getRedirectPathForRole(sessionUser.role),
-    role: sessionUser.role,
+    redirectTo: getRedirectPathForRole(user.role),
+    role: user.role,
   });
 }
 

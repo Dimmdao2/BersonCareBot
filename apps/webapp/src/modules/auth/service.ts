@@ -5,7 +5,6 @@ import { decodeBase64Url } from '@/shared/utils/base64url';
 import { isProduction, webappRuntimeDatabaseIsConfigured } from '@/config/env';
 import type { AppSession, SessionUser, UserRole } from '@/shared/types/session';
 import { isPlatformUserUuid } from '@/shared/platform-user/isPlatformUserUuid';
-import { isVerifiedEmailGlobalAdminAsync } from './emailAuth';
 import type { IdentityResolutionPort } from './identityResolutionPort';
 import type { AccountOutcome } from './oauthYandexResolve';
 import { getRedirectPathForRole } from './redirectPolicy';
@@ -920,42 +919,9 @@ async function getCurrentSessionWithPrincipalMode(
     };
   }
 
-  let verifiedEmail: string | undefined;
-  // Email elevation is independent from legacy phone/TG/MAX bindings. It is
-  // evaluated fresh on every session and is never projected into
-  // platform_users.role.
-  if (isPlatformUserUuid(session.user.userId)) {
-    try {
-      verifiedEmail = await runWithStaffSecuritySelfPrincipal(
-        session.user.userId,
-        'getCurrentSession:verified-email-role-resolution',
-        async () => {
-          return (
-            (await requireSessionUserPort().getVerifiedEmailForUser(session.user.userId)) ??
-            undefined
-          );
-        },
-      );
-    } catch {
-      // The access elevation is fail-closed; an existing client session remains a client session.
-      verifiedEmail = undefined;
-    }
-  }
   // The current DB projection is the only staff-role source. A non-DB-backed compatibility
   // identity keeps the already signed cookie role; public sign-up paths cannot make it staff.
-  const nextSession = session;
-
-  if (await isVerifiedEmailGlobalAdminAsync(verifiedEmail)) {
-    const emailAdminSession: AppSession = {
-      ...buildSession({ ...nextSession.user, role: 'admin' }),
-      postLoginHints: nextSession.postLoginHints,
-      reauth: nextSession.reauth,
-      staffSecurity: nextSession.staffSecurity,
-    };
-    return finalizeCurrentSession(emailAdminSession, patientOrganizationHint, options);
-  }
-
-  return finalizeCurrentSession(nextSession, patientOrganizationHint, options);
+  return finalizeCurrentSession(session, patientOrganizationHint, options);
 }
 
 /**
@@ -968,10 +934,9 @@ export async function getCurrentSession(): Promise<AppSession | null> {
 }
 
 /**
- * Resolves and verifies the signed session (including verified-email global-admin
- * elevation), but deliberately does not resolve an organization or stamp a staff
- * principal. The caller must authorize its narrow personal capability and install the
- * exact identity-self principal before any DB work.
+ * Resolves and verifies the signed session, but deliberately does not resolve an organization or
+ * stamp a staff principal. The caller must authorize its narrow personal capability and install
+ * the exact identity-self principal before any DB work.
  */
 export async function getCurrentSessionForIdentitySelf(): Promise<AppSession | null> {
   return getCurrentSessionWithPrincipalMode({ stampDbPrincipal: false });
