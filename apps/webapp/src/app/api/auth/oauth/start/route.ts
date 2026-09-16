@@ -36,8 +36,15 @@ import {
 } from '@/modules/auth/oauthStartRateLimit';
 import { jsonError, jsonOk } from '@/shared/http/apiResponse';
 import { isOAuthProviderEnabled } from '@/modules/auth/authChannelPolicy';
-import { isSafeRolePortalNext } from '@/modules/auth/roleLogin';
+import {
+  authPolicyNameForRoleLoginPortal,
+  getRoleLoginPath,
+  isSafeRolePortalNext,
+} from '@/modules/auth/roleLogin';
+import { authPolicyNameForRequestSurface } from '@/modules/auth/surfaceAuthSettings';
+import { canSurfaceEnterRoute } from '@/config/surfaceRoutes';
 import { getResolvedSurface } from '@/shared/lib/surface/requestSurface.server';
+import { arePlatformSurfaceHostsDistinct } from '@/shared/lib/surface/requestSurface';
 import { resolveYandexOAuthConfig } from '@/modules/auth/yandexOAuthConfig';
 import { notificationText } from '@/shared/notifications/notificationText';
 
@@ -135,7 +142,11 @@ export async function POST(request: Request) {
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {
     await logOAuthStartFailure(null, 'invalid_body');
-    return jsonError('invalid_body', { message: notificationText.authOauthProviderRequired }, { status: 400 });
+    return jsonError(
+      'invalid_body',
+      { message: notificationText.authOauthProviderRequired },
+      { status: 400 },
+    );
   }
 
   const { provider, browserCalendarIana, next, roleLoginPortal } = parsed.data;
@@ -144,19 +155,41 @@ export async function POST(request: Request) {
   const tzOpt = {
     browserCalendarIana: browserCalendarIana?.trim() || null,
     next: safeNext,
-    roleLoginPortal: safeNext ? roleLoginPortal : null,
+    roleLoginPortal: roleLoginPortal ?? null,
   };
 
   try {
+    const surface = await getResolvedSurface();
+    // `roleLoginPortal` is client input. It can choose the explicit door only when that door may
+    // exist on this Host; on the shared DEV/TEST Host the portal routes are intentionally shared.
+    if (
+      roleLoginPortal &&
+      arePlatformSurfaceHostsDistinct() &&
+      !canSurfaceEnterRoute(surface.surface, getRoleLoginPath(roleLoginPortal))
+    ) {
+      await logOAuthStartFailure(provider, 'oauth_disabled');
+      return jsonError(
+        'oauth_disabled',
+        { message: notificationText.authProviderUnavailable },
+        { status: 501 },
+      );
+    }
+    const authPolicySurface = roleLoginPortal
+      ? authPolicyNameForRoleLoginPortal(roleLoginPortal)
+      : authPolicyNameForRequestSurface(surface.surface);
+
     if (provider === 'yandex') {
-      const surface = await getResolvedSurface();
-      const config = await resolveYandexOAuthConfig(surface);
+      const config = await resolveYandexOAuthConfig(surface, authPolicySurface);
       // Reuses the same enabled+configured gate the public providers list applies; not just an
       // extra credential re-check — a disabled admin toggle must refuse the request even if
       // credentials happen to be present (owner ruling 2026-07-24, R2 fail-closed).
       if (!config) {
         await logOAuthStartFailure(provider, 'oauth_disabled');
-        return jsonError('oauth_disabled', { message: notificationText.authProviderUnavailable }, { status: 501 });
+        return jsonError(
+          'oauth_disabled',
+          { message: notificationText.authProviderUnavailable },
+          { status: 501 },
+        );
       }
       const state = createSignedOAuthState('yandex', OAUTH_STATE_TTL_SECONDS, {
         ...tzOpt,
@@ -176,7 +209,7 @@ export async function POST(request: Request) {
 
     if (provider === 'google') {
       const [googleOAuthEnabled, clientId, clientSecret, redirectUri] = await Promise.all([
-        isOAuthProviderEnabled('google'),
+        isOAuthProviderEnabled('google', authPolicySurface),
         getGoogleClientId().then((v) => v.trim()),
         getGoogleClientSecret().then((v) => v.trim()),
         getGoogleOauthLoginRedirectUri().then((v) => v.trim()),
@@ -204,14 +237,18 @@ export async function POST(request: Request) {
 
     if (provider === 'vk') {
       const [vkOAuthEnabled, clientId, redirectUri, secret] = await Promise.all([
-        isOAuthProviderEnabled('vk'),
+        isOAuthProviderEnabled('vk', authPolicySurface),
         getVkIdApplicationId().then((v) => v.trim()),
         getVkIdRedirectUri().then((v) => v.trim()),
         getVkIdClientSecret().then((v) => v.trim()),
       ]);
       if (!vkOAuthEnabled || !clientId || !redirectUri || !secret) {
         await logOAuthStartFailure(provider, 'oauth_disabled');
-        return jsonError('oauth_disabled', { message: notificationText.authProviderUnavailable }, { status: 501 });
+        return jsonError(
+          'oauth_disabled',
+          { message: notificationText.authProviderUnavailable },
+          { status: 501 },
+        );
       }
       const { state, codeChallenge } = createVkSignedOAuthState(OAUTH_STATE_TTL_SECONDS, tzOpt);
       await logOAuthStartAttempt(provider, state);
@@ -229,7 +266,7 @@ export async function POST(request: Request) {
     }
 
     const [appleEnabled, clientId, redirectUri, teamId, keyId, privateKey] = await Promise.all([
-      isOAuthProviderEnabled('apple'),
+      isOAuthProviderEnabled('apple', authPolicySurface),
       getAppleOauthClientId().then((value) => value.trim()),
       getAppleOauthRedirectUri().then((value) => value.trim()),
       getAppleOauthTeamId().then((value) => value.trim()),

@@ -2,7 +2,6 @@ import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createHash } from 'node:crypto';
-import { runWithDbClinicBillingPrincipal } from '@bersoncare/db-principal';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import {
   getMechanicMutationAvailability,
@@ -16,11 +15,6 @@ import { requireOrganizationWorkspaceContext } from '@/app-layer/guards/requireR
 import { routePaths } from '@/app-layer/routes/paths';
 import { isSeatConsumingMember } from '@/modules/clinic-seats/service';
 import { resolveDoctorWorkspaceComposition } from '@/modules/doctor-workspace/composition';
-import {
-  entitlementsFromSnapshot,
-  resolveOwnOrgQuotaProjections,
-} from '@/modules/org-entitlements/service';
-import { MECHANIC_REGISTRY, MECHANICS } from '@/modules/org-entitlements/types';
 import { orgBrandLogoUrl, type OrgBrandingManagementContext } from '@/modules/org-branding/service';
 import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
 import {
@@ -32,9 +26,6 @@ import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
 import { ADMIN_TAB_REDIRECTS, parseHealthArchiveProbeParam } from './adminSettingsData';
 import { AppointmentReminderSettingsSection } from './AppointmentReminderSettingsSection';
 import { GoogleCalendarSection } from './GoogleCalendarSection';
-import { storagePackageOffersBody } from '@/app/api/clinic/billing/storagePackagePurchase';
-import { BillingSection, type BillingMechanicRow } from './BillingSection';
-import { describeCommercialAccessState } from './billingCommercialState';
 import { DoctorTodayPreferencesSection } from './DoctorTodayPreferencesSection';
 import { ClinicSlugSection } from './ClinicSlugSection';
 import { ClinicPublicCardSection } from './ClinicPublicCardSection';
@@ -59,13 +50,7 @@ import {
   listCardSpecialistsForPreview,
 } from '@/modules/clinic-public-card/cabinetPreviewSelection';
 import { BookingSoloSpecialistsSection } from './BookingSoloSpecialistsSection';
-import {
-  InstallSection,
-  LogoutSection,
-  loadProfileContent,
-  loadSecurityContent,
-} from '@/app/app/account/accountSections';
-import { loadStaffNotificationsSection } from '@/app/app/account/staffNotificationsSection';
+import { InstallSection } from '@/app/app/account/accountSections';
 import { ManagementBookingSections } from '../manage/ManagementBookingSections';
 import { PATIENT_DEFAULT_SURFACE } from '@/config/productSurfaces';
 import { parseDoctorTodayPreferences } from '@/modules/system-settings/doctorTodayPreferences';
@@ -107,96 +92,18 @@ function dedicatedBotWebhookPath(channel: 'telegram' | 'max', valueJson: unknown
 }
 
 /**
- * Разбор `?tab=`. Неизвестное значение — «Аккаунт», первая вкладка: адрес из старого письма или
+ * Разбор `?tab=`. Неизвестное значение — «Публичная страница», первая вкладка: адрес из старого письма или
  * чужой закладки не должен ронять экран, но и молча показывать «что-то» вместо запрошенного тоже
  * нельзя — прежние значения переводит `LEGACY_SETTINGS_TAB_REDIRECTS` ДО этого разбора.
  */
 function parseTab(raw: string | string[] | undefined): SettingsTabId {
   const value = typeof raw === 'string' ? raw : raw?.[0];
-  if (value === undefined) return 'account';
-  return SETTINGS_TAB_IDS.includes(value as SettingsTabId) ? (value as SettingsTabId) : 'account';
+  if (value === undefined) return 'public';
+  return SETTINGS_TAB_IDS.includes(value as SettingsTabId) ? (value as SettingsTabId) : 'public';
 }
 
 function clinicBookingUrl(slug: string): string {
   return new URL(`/book/${encodeURIComponent(slug)}`, PATIENT_DEFAULT_SURFACE.origin).toString();
-}
-
-/**
- * Тариф, использование включённого и докупка объёма — содержимое вкладки «Аккаунт».
- *
- * Владелец 15.09.2026 назвал их именно там: «тариф с возможностью выбрать новый, доступное место…
- * Отмена подписки и автоплатёж — ага». Отдельной вкладки «Тариф и биллинг» больше нет; прежний
- * адрес `?tab=billing` отвечает переходом сюда.
- */
-async function loadBillingContent(
-  workspace: Awaited<ReturnType<typeof requireOrganizationWorkspaceContext>>,
-  composition: ReturnType<typeof resolveDoctorWorkspaceComposition>,
-): Promise<ReactNode> {
-  const deps = buildAppDeps();
-  // Страж рабочего пространства ставит обычный принципал сотрудника. Снимок тарифа читаем этим путём,
-  // а запрос к таблицам биллинга сужаем до отдельной роли админа клиники (§29). Последовательно, а не
-  // Promise.all: принципал биллинга подменяет роль подключения, и параллельный запрос в том же соединении
-  // прочитал бы снимок уже под ней.
-  const snapshot = await deps.orgEntitlements.getSnapshot(workspace.organizationId);
-  const billing = await runWithDbClinicBillingPrincipal(
-    {
-      organizationId: workspace.organizationId,
-      platformUserId: workspace.session.user.userId,
-      source: 'clinic-billing-settings-read',
-    },
-    () => deps.saasBilling.getOrganizationBillingOverview(workspace.organizationId),
-  );
-  const tariffChange = await runWithDbClinicBillingPrincipal(
-    {
-      organizationId: workspace.organizationId,
-      platformUserId: workspace.session.user.userId,
-      source: 'clinic-billing-settings-tariff-change-read',
-    },
-    () => deps.saasBilling.getOwnTariffChangeState(workspace.organizationId),
-  );
-  // Витрина докупки объёма — через ту же функцию, что отдаёт её маршруту `GET /api/clinic/billing`:
-  // второго расчёта цены (и второго места, где выписывается котировка) не существует.
-  const storage = storagePackageOffersBody(
-    workspace.organizationId,
-    await runWithDbClinicBillingPrincipal(
-      {
-        organizationId: workspace.organizationId,
-        platformUserId: workspace.session.user.userId,
-        source: 'clinic-billing-settings-read',
-      },
-      () => deps.saasBilling.listStoragePackageOffers(workspace.organizationId),
-    ),
-  );
-  const entitlements = entitlementsFromSnapshot(snapshot);
-  // Owner ruling 2026-09-10: a solo cabinet never mentions team capacity — neither the seat count
-  // nor a «Режим клиники» row, which would read as a mode marker. The clinic mode owns those rows.
-  const hideTeamCapacity = composition === 'solo';
-  const mechanicRows: BillingMechanicRow[] = MECHANICS.filter(
-    (mechanic) => !(hideTeamCapacity && mechanic === 'clinic_team'),
-  ).map((mechanic) => ({
-    mechanic,
-    label: MECHANIC_REGISTRY[mechanic].label,
-    enabled: entitlements[mechanic],
-  }));
-  // §5a stage 6.1 — "использовано из включённого". Own-org usage, not the platform report's
-  // cross-org `getEnforcedQuotaUsage` (see resolveOwnOrgQuotaProjections).
-  const quotaUsage = (
-    await resolveOwnOrgQuotaProjections(deps.orgEntitlements, workspace.organizationId)
-  )
-    .filter((projection) => !(hideTeamCapacity && projection.mechanic === 'clinic_team'))
-    .map((projection) => ({ ...projection, label: MECHANIC_REGISTRY[projection.mechanic].label }));
-
-  return (
-    <BillingSection
-      tariffName={snapshot.tariff?.name ?? null}
-      commercialStateLabel={describeCommercialAccessState(snapshot.access)}
-      mechanics={mechanicRows}
-      quotaUsage={quotaUsage}
-      billing={billing}
-      tariffChange={tariffChange}
-      storage={storage}
-    />
-  );
 }
 
 export default async function SettingsPage({
@@ -217,6 +124,11 @@ export default async function SettingsPage({
   }
 
   const requestedTab = typeof sp.tab === 'string' ? sp.tab : sp.tab?.[0];
+  if (requestedTab === 'account') redirect(routePaths.account);
+  if (requestedTab === 'notifications') redirect(routePaths.account);
+  if (requestedTab === 'tariff' || requestedTab === 'billing') {
+    redirect(`${routePaths.account}#tariff`);
+  }
   // Прежние адреса вкладок живут вечно редиректом: закладка и ссылка в письме не умирают от того,
   // что разделы переставили (владелец 15.09 — разбор настроек на смысловые блоки).
   const legacyTarget = requestedTab ? LEGACY_SETTINGS_TAB_REDIRECTS[requestedTab] : undefined;
@@ -227,19 +139,15 @@ export default async function SettingsPage({
   const cabinetAccess = await buildAppDeps().orgEntitlements.resolveCabinetAccess(
     workspace.organizationId,
   );
-  // Вход в кабинет закрыт коммерчески — человеку доступен ровно один разговор: тариф. Он живёт во
-  // вкладке «Аккаунт» (владелец 15.09: тариф, место, отмена подписки — там).
-  if (isCabinetEntryBlocked(cabinetAccess) && tab !== 'account') {
-    redirect(`${routePaths.settings}?tab=account`);
+  // При коммерческой блокировке остаётся доступной сводка тарифа в личном аккаунте.
+  if (isCabinetEntryBlocked(cabinetAccess)) {
+    redirect(`${routePaths.account}#tariff`);
   }
   const isGlobalAdmin = workspace.session.user.role === 'admin';
   const canManageOrganization = workspace.canManageOrganization || isGlobalAdmin;
   if (!canManageOrganization) redirect(routePaths.account);
 
-  // Resolved once up front (not just inside the "team"/"billing" branches) so every rendered tab
-  // can show the same nav with only the sections this viewer may actually open — Defect #1
-  // 2026-07-25: the page had no nav at all, so `?tab=team`/`?tab=billing` were reachable only by
-  // typing the URL.
+  // Состав рабочего пространства вычисляется один раз: от него зависят вкладки записи и команды.
   const depsForComposition = buildAppDeps();
   const [teamEntitlement, seatStatus] = await Promise.all([
     requireEntitlementForReadAction({ organizationId: workspace.organizationId }, 'clinic_team'),
@@ -252,11 +160,6 @@ export default async function SettingsPage({
     clinicTeamEntitled: teamEntitlement.ok,
     seats: seatStatus,
   });
-  // §29 владельца: биллинг клиники видит владелец И администратор клиники («админ клиники или соло-специалист
-  // — равноценно»), а обычный персонал не видит. Условие потеряно лидом при разрешении конфликта слияния
-  // 28.07 и возвращено: тест «shows billing to owner and clinic admin» падал на редиректе админа.
-  const canAccessBilling =
-    workspace.membershipRole === 'owner' || workspace.membershipRole === 'admin' || isGlobalAdmin;
   /**
    * Порядок — как у владельца (15.09). «Приём оплаты» показывается только при механике тарифа
    * («Далее „Прием оплаты“ если есть в тарифе»), «Команда» — только составу с командой.
@@ -266,14 +169,11 @@ export default async function SettingsPage({
    */
   const paymentsTabVisibility = await getMechanicSurfaceVisibility(workspace, 'payments');
   const visibleTabs: SettingsTabId[] = [
-    'account',
-    'profile',
     'public',
     'branding',
     ...(composition === 'solo' ? (['booking'] as const) : []),
     ...(paymentsTabVisibility.directUrl ? (['payments'] as const) : []),
     'workspace',
-    'notifications',
     'integrations',
     ...(composition === 'clinic' && teamEntitlement.ok ? (['team'] as const) : []),
   ];
@@ -307,6 +207,9 @@ export default async function SettingsPage({
       mailingsVisibility,
       analyticsVisibility,
       videoMeetingsVisibility,
+      leadsVisibility,
+      contentVisibility,
+      coursesVisibility,
     ] = await Promise.all([
       deps.systemSettings.listSettingsByScope('doctor', {
         organizationId: workspace.organizationId,
@@ -369,6 +272,9 @@ export default async function SettingsPage({
       getMechanicSurfaceVisibility(workspace, 'mailings'),
       getMechanicSurfaceVisibility(workspace, 'doctor_statistics'),
       getMechanicSurfaceVisibility(workspace, 'video_meetings'),
+      getMechanicSurfaceVisibility(workspace, 'leads'),
+      getMechanicSurfaceVisibility(workspace, 'cms_pages'),
+      getMechanicSurfaceVisibility(workspace, 'courses'),
     ]);
     const publishedBrand = brandingState.published;
     const publishedLogoUrl =
@@ -430,6 +336,9 @@ export default async function SettingsPage({
       analytics: analyticsVisibility.directUrl,
       client_portal: true,
       video_meetings: videoMeetingsVisibility.directUrl,
+      leads: leadsVisibility.directUrl,
+      content: contentVisibility.directUrl,
+      courses: coursesVisibility.directUrl,
     };
     const appointmentReminderSettings = parseAppointmentReminderSettings(
       doctorSettings.find(
@@ -567,7 +476,7 @@ export default async function SettingsPage({
     ]);
 
     /**
-     * Владелец без привязанного профиля специалиста: предупреждение висит на «Профиле» — именно
+     * Владелец без привязанного профиля специалиста: предупреждение висит на «Публичной странице» — именно
      * там человек ищет своё имя и фотографию и не находит их.
      */
     const cabinetRecoveryNotice =
@@ -580,7 +489,7 @@ export default async function SettingsPage({
             К членству владельца не привязан профиль специалиста. Перейдите в личный аккаунт и
             подключите рабочий кабинет.
           </p>
-          <Link className="text-sm underline" href="/app/account?tab=security">
+          <Link className="text-sm underline" href="/app/account">
             Перейти в личный аккаунт
           </Link>
         </DoctorSection>
@@ -602,37 +511,10 @@ export default async function SettingsPage({
 
     let content: ReactNode = null;
 
-    if (tab === 'account') {
-      // Личные разделы — тем же модулем, что рисует `/app/account` персоналу клиники: второго
-      // такого экрана не заводится (см. `accountSections.tsx`).
-      const [profileContent, securityContent, billingContent] = await Promise.all([
-        loadProfileContent(deps, workspace.session.user.userId, workspace, {
-          // Владелец 15.09: у СОЛО удалить SMS fallback и «показывать мне врачебные экраны».
-          hideSoloOnlyToggles: composition === 'solo',
-          withLogout: false,
-        }),
-        loadSecurityContent(deps, workspace.session, workspace, false, false),
-        canAccessBilling ? loadBillingContent(workspace, composition) : Promise.resolve(null),
-      ]);
-      content = (
-        <>
-          {profileContent}
-          {securityContent}
-          {billingContent}
-          <LogoutSection />
-        </>
-      );
-    } else if (tab === 'profile') {
+    if (tab === 'public') {
       content = (
         <>
           {cabinetRecoveryNotice}
-          {brandingState.brandingVisible ? (
-            <OrgBrandingSection
-              key={`profile:${brandingSectionKey}`}
-              scope="profile"
-              {...brandingSectionProps}
-            />
-          ) : null}
           {slugState ? (
             <ClinicSlugSection
               initialState={slugState}
@@ -642,20 +524,19 @@ export default async function SettingsPage({
           {composition === 'solo' && workspace.specialistId !== null ? (
             <BookingSoloSpecialistsSection variant="solo-profile" />
           ) : null}
+          {cardSettings ? (
+            <ClinicPublicCardSection
+              initialSettings={cardSettings}
+              showSpecialistCardsInBooking={showSpecialistCardsInBooking}
+              identity={cardIdentity}
+              locations={bookingLinkOptions?.cardLocations ?? []}
+              specialists={bookingLinkOptions?.cardSpecialists ?? []}
+              services={bookingLinkOptions?.cardServices ?? []}
+              patientOrigin={PATIENT_DEFAULT_SURFACE.origin}
+            />
+          ) : null}
         </>
       );
-    } else if (tab === 'public') {
-      content = cardSettings ? (
-        <ClinicPublicCardSection
-          initialSettings={cardSettings}
-          showSpecialistCardsInBooking={showSpecialistCardsInBooking}
-          identity={cardIdentity}
-          locations={bookingLinkOptions?.cardLocations ?? []}
-          specialists={bookingLinkOptions?.cardSpecialists ?? []}
-          services={bookingLinkOptions?.cardServices ?? []}
-          patientOrigin={PATIENT_DEFAULT_SURFACE.origin}
-        />
-      ) : null;
     } else if (tab === 'branding') {
       content = (
         <>
@@ -701,7 +582,7 @@ export default async function SettingsPage({
               notificationTemplatesVisible={notificationTemplatesVisibility.specialistNavigation}
               doctorStatisticsEnabled={doctorStatisticsVisibility.specialistNavigation}
               // Составы членств остаются у писателя «Расписания», единственный специалист правится
-              // во вкладке «Профиль» — один писатель на одно место, без дублей.
+              // во вкладке «Публичная страница» — один писатель на одно место, без дублей.
               packagesVisible={false}
               specialistsVisible={false}
             />
@@ -746,8 +627,6 @@ export default async function SettingsPage({
           <InstallSection />
         </>
       );
-    } else if (tab === 'notifications') {
-      content = await loadStaffNotificationsSection(deps, workspace.session, workspace);
     } else if (tab === 'integrations') {
       content = shouldShowGoogleCalendarSettings(
         isPlatformIntegrationAvailable(integrationAvailability, 'google_calendar'),
@@ -766,7 +645,7 @@ export default async function SettingsPage({
     // читалось как чужая страница: экран прибит к высоте окна, сами настройки прокручиваются внутри
     // маленькой коробки, а блоки над ней («Ссылка на запись», «Напоминания») не уезжают никогда.
     // Владелец 15.09: «у тебя вкладка запись живет своей жизнью — одна колонка и не прокручивается».
-    // Теперь страница прокручивается целиком, как на остальных восьми вкладках.
+    // Теперь страница прокручивается целиком, как на остальных вкладках.
     return (
       <DoctorAppShell title={SETTINGS_PAGE_TITLE} user={workspace.session.user}>
         <DoctorPageHeader title={SETTINGS_PAGE_TITLE} />
@@ -779,7 +658,7 @@ export default async function SettingsPage({
 
   if (tab === 'team') {
     if (composition !== 'clinic' || !teamEntitlement.ok)
-      redirect(`${routePaths.settings}?tab=profile`);
+      redirect(`${routePaths.settings}?tab=public`);
 
     const deps = buildAppDeps();
     const [members, invites, seats, mutationAvailability, teamDoctorSettings] = await Promise.all([

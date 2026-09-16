@@ -25,9 +25,8 @@ export function getDoctorScreenTitle(
   const exact: Record<string, string> = {
     [routePaths.doctorInstall]: 'Установить приложение',
     [routePaths.doctorTasks]: 'Задачи',
-    // Заголовок экрана — «Профиль и настройки» (владелец 15.09.2026), а отдельного пункта меню
-    // «Настройки» больше нет: контейнер — ссылка с именем организации.
-    '/app/settings': 'Профиль и настройки',
+    // Заголовок экрана — «Настройки», как и отдельный пункт меню.
+    '/app/settings': 'Настройки',
     '/app/doctor/analytics': 'Аналитика',
     '/app/doctor/analytics/clients': `По ${patientDativePlural}`,
     '/app/doctor/analytics/notifications': 'По уведомлениям',

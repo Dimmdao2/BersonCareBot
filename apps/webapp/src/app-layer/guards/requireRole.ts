@@ -486,7 +486,7 @@ const requireOrganizationWorkspaceContextRequestLocal = cache(
     }
     stampStaffPrincipal(resolved.ctx, 'requireOrganizationWorkspaceContext');
     if (!allowCabinetRecovery && (await cabinetEntryIsBlocked(resolved.ctx.organizationId))) {
-      redirect(`${routePaths.settings}?tab=account`);
+      redirect(`${routePaths.account}#tariff`);
     }
     return resolved.ctx;
   },
@@ -516,7 +516,7 @@ export async function requireDoctorWorkspaceContext(
   if (!contextHasCapability(ctx, 'clinical.workspace')) {
     redirect(
       contextHasCapability(ctx, 'organization.management')
-        ? `${routePaths.settings}?tab=profile`
+        ? `${routePaths.settings}?tab=public`
         : routePaths.account,
     );
   }
@@ -749,9 +749,7 @@ export async function requireAccountWebPushSelfApiSession(): Promise<
  */
 export async function requireStaffSecurityApiSession(
   options: { allowPasswordChangeRequired?: boolean } = {},
-): Promise<
-  { ok: true; session: AppSession } | { ok: false; response: NextResponse }
-> {
+): Promise<{ ok: true; session: AppSession } | { ok: false; response: NextResponse }> {
   ensureDbPrincipalContext({ source: 'requireStaffSecurityApiSession:pending' });
   const session = options.allowPasswordChangeRequired
     ? await getCurrentSessionForPasswordChange()

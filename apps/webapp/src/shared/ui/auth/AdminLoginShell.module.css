@@ -1,10 +1,13 @@
 /*
- * Admin space's own CSS scope. `display: contents` so this wrapper adds no layout box of its own
- * (custom properties still cascade through it to PatientAppShell's children) — it exists purely as
- * the hook for the admin palette. Structure-only pass, 12.09: no overrides yet, owner tunes colors
- * and iconography here directly later, same mechanism TherapyGoLoginShell already uses for the
- * patient space (local `--patient-color-primary*` overrides), without touching today's look.
+ * Admin space's own CSS scope. `display: contents` keeps the shared mechanics without adding an
+ * extra layout box; the admin door owns its neutral card independently of staff/patient.
  */
 .space {
   display: contents;
+}
+
+.space :global(#auth-flow-v2-email-password) {
+  border-color: #d8dce2;
+  background: #f2f3f5;
+  box-shadow: none;
 }

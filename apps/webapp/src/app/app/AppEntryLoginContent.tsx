@@ -81,7 +81,7 @@ export function AppEntryLoginContent({
   const authFlow = (
     <Suspense fallback={<AppContentLoading className="py-6" />}>
       <AuthBootstrap
-        supportContactHref={supportContactHref}
+        supportContactHref={roleLoginPortal === 'admin' ? '' : supportContactHref}
         initialPublicAuthConfig={prefetchedPublicAuth ?? null}
         serverPlatformMessengerCookie={Boolean(serverPlatformMessengerCookie)}
         serverMessengerSurface={serverMessengerSurface ?? null}
@@ -89,7 +89,9 @@ export function AppEntryLoginContent({
         routeBoundMiniappEntry={routeBoundMiniappEntry}
         roleLoginPortal={roleLoginPortal}
         surfaceAuthPolicy={surfaceAuthPolicy}
-        preferEmailEntry={embeddedInSurfaceShell}
+        preferEmailEntry={
+          embeddedInSurfaceShell || roleLoginPortal === 'doctor' || roleLoginPortal === 'admin'
+        }
         roleLoginInitialView={roleLoginInitialView}
       />
     </Suspense>
@@ -105,7 +107,10 @@ export function AppEntryLoginContent({
           {portalHeader}
           {authFlow}
         </div>
-        <LegalFooterLinks className="mt-auto pb-6 pt-8" />
+        <LegalFooterLinks
+          className="mt-auto pb-6 pt-8"
+          supportHref={roleLoginPortal === 'admin' ? undefined : supportContactHref}
+        />
       </div>
     );
   }
@@ -117,12 +122,17 @@ export function AppEntryLoginContent({
     // внизу viewport — владелец, «пространство распредели», 12.09.
     <div
       id={CLIENT_BOOT_ACTIVE_CONTENT_ID}
-      className="flex flex-1 flex-col justify-center gap-6"
+      className={`flex flex-1 flex-col justify-center ${
+        roleLoginPortal === 'doctor' ? 'gap-2' : 'gap-6'
+      }`}
     >
       {portalHeader}
       {authFlow}
       {embeddedInSurfaceShell ? null : (
-        <LegalFooterLinks className="mt-2" supportHref={supportContactHref} />
+        <LegalFooterLinks
+          className="mt-2"
+          supportHref={roleLoginPortal === 'admin' ? undefined : supportContactHref}
+        />
       )}
     </div>
   );

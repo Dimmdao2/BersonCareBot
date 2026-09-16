@@ -34,6 +34,7 @@ const ERROR_CODE_TEXT: Record<string, string> = {
   patient_email_required: notificationText.patientEmailRequired,
   captcha_required: notificationText.leadCaptchaRequired,
   captcha_unavailable: notificationText.authCaptchaUnavailable,
+  oauth_role_not_allowed: notificationText.authOauthRoleNotAllowed,
 
   // --- коды входа и подтверждения ---
   expired_code: notificationText.authCodeInvalidOrExpired,

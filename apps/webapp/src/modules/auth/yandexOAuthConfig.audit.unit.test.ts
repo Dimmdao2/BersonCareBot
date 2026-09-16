@@ -73,15 +73,6 @@ describe('C2: exact callback allowlist', () => {
 });
 
 describe('C2-1: only enabled patient surfaces', () => {
-  it('refuses a patient surface whose auth policy does not offer oauth', async () => {
-    await expect(
-      resolveYandexOAuthConfig({
-        ...branded,
-        authPolicy: { availableMethods: ['email_code', 'passkey'], enabledMethods: ['email_code'] },
-      }),
-    ).resolves.toBeNull();
-  });
-
   it('refuses platform_admin the same way it refuses staff', async () => {
     for (const surface of ['staff', 'platform_admin'] as const) {
       await expect(

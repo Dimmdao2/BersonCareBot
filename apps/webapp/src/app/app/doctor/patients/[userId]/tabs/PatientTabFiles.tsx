@@ -551,7 +551,9 @@ function FilePreviewModal({
             ) : (
               <div className="flex flex-col items-center gap-2 px-6 py-10 text-center">
                 <span className="text-4xl">{fileIcon(file.mimeType)}</span>
-                <span className="text-xs text-muted-foreground">Встроенный просмотр недоступен</span>
+                <span className="text-xs text-muted-foreground">
+                  Встроенный просмотр недоступен
+                </span>
               </div>
             )}
           </div>
@@ -573,13 +575,13 @@ function FilePreviewModal({
 
           <div className="flex flex-wrap items-center gap-3">
             {/*
-              * Две РАЗНЫЕ вещи, и путать их нельзя.
-              * «Исходник» — то, из чего мы сделали свою версию (видео, картинка): его отдаёт
-              * только загрузивший специалист, вложением, по решению владельца 10.09.
-              * Обычный файл — документ или аудио, у которого нашей версии не бывает: его скачивает
-              * каждый, кто и так имеет право видеть карточку пациента. Иначе присланный пациентом
-              * PDF анализов не смог бы открыть никто, включая лечащего врача (аудит 12.09, п.2).
-              */}
+             * Две РАЗНЫЕ вещи, и путать их нельзя.
+             * «Исходник» — то, из чего мы сделали свою версию (видео, картинка): его отдаёт
+             * только загрузивший специалист, вложением, по решению владельца 10.09.
+             * Обычный файл — документ или аудио, у которого нашей версии не бывает: его скачивает
+             * каждый, кто и так имеет право видеть карточку пациента. Иначе присланный пациентом
+             * PDF анализов не смог бы открыть никто, включая лечащего врача (аудит 12.09, п.2).
+             */}
             {file.previewUrl && !isImage && !isVideo ? (
               <a
                 href={file.previewUrl}
@@ -673,7 +675,9 @@ export function PatientTabFiles({
 
   /** Native selection (M5-04): large media stays a native content URI and streams through the
    * same already-authorized multipart door the single-PUT browser path already uses below. */
-  async function uploadNativePickedMedia(selection: Extract<DeviceMediaSelection, { origin: 'native' }>) {
+  async function uploadNativePickedMedia(
+    selection: Extract<DeviceMediaSelection, { origin: 'native' }>,
+  ) {
     setUploading(true);
     setUploadError(null);
     try {
@@ -811,7 +815,7 @@ export function PatientTabFiles({
           {uploadError === 'file_storage_limit_reached' ? (
             <>
               {' '}
-              <Link className="underline" href={`${routePaths.settings}?tab=account`}>
+              <Link className="underline" href={`${routePaths.account}#tariff`}>
                 Увеличить место
               </Link>
             </>

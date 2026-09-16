@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { PanelLeftClose, PanelLeftOpen, Settings } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { routePaths } from '@/app-layer/routes/paths';
@@ -60,20 +60,11 @@ export function DoctorAdminSidebar({
   const desktopRail = useDoctorShellDesktopRail();
   const accountDisplayName = brand?.displayName ?? userDisplayName ?? 'Аккаунт';
   const accountInitial = accountDisplayName.trim().charAt(0).toUpperCase() || 'А';
-  /**
-   * Ссылка с именем организации — контейнер «Профиля и настроек» (владелец 15.09.2026:
-   * «Контейнером становится ссылка с именем организации, заголовок в шапке „Профиль и настройки“»).
-   * У кого права управлять организацией нет, тот по-прежнему уходит в свой личный раздел: настроек
-   * организации ему не показывают, и вести его туда значило бы вести в отказ.
-   */
   const managesOrganization = menuAccess.capabilities.includes('organization.management');
-  const accountHref = managesOrganization
-    ? `${routePaths.settings}?tab=account`
-    : routePaths.account;
   const accountActive =
-    pathname === routePaths.account ||
-    pathname.startsWith(`${routePaths.account}/`) ||
-    (managesOrganization && pathname === routePaths.settings);
+    pathname === routePaths.account || pathname.startsWith(`${routePaths.account}/`);
+  const settingsActive =
+    pathname === routePaths.settings || pathname.startsWith(`${routePaths.settings}/`);
 
   return (
     <aside
@@ -182,8 +173,31 @@ export function DoctorAdminSidebar({
           />
         </nav>
 
+        {managesOrganization ? (
+          <Link
+            href={`${routePaths.settings}?tab=public`}
+            prefetch={false}
+            id="doctor-sidebar-settings"
+            aria-current={settingsActive ? 'page' : undefined}
+            onClick={() => setTabletExpanded(false)}
+            className={doctorSidebarRowClassName(
+              { tabletExpanded, desktopRail },
+              'mt-3 no-underline transition-colors',
+              settingsActive
+                ? 'bg-primary/15 font-medium text-primary hover:bg-primary/15'
+                : 'text-foreground hover:bg-muted/60',
+            )}
+          >
+            <DoctorSidebarRowContent
+              icon={<Settings size={18} strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden />}
+              label="Настройки"
+              tabletExpanded={tabletExpanded}
+            />
+          </Link>
+        ) : null}
+
         <Link
-          href={accountHref}
+          href={routePaths.account}
           prefetch={false}
           id="doctor-sidebar-account"
           title={accountDisplayName}
@@ -191,7 +205,9 @@ export function DoctorAdminSidebar({
           onClick={() => setTabletExpanded(false)}
           className={doctorSidebarRowClassName(
             { tabletExpanded, desktopRail },
-            'mt-3 no-underline transition-colors',
+            managesOrganization
+              ? 'mt-0.5 no-underline transition-colors'
+              : 'mt-3 no-underline transition-colors',
             accountActive
               ? 'bg-primary/15 font-medium text-primary hover:bg-primary/15'
               : 'text-foreground hover:bg-muted/60',

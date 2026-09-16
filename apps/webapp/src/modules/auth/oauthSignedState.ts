@@ -94,9 +94,11 @@ export function createSignedOAuthState(
     payload.origin = publicOrigin;
   }
   const next = options?.next?.trim();
+  if (options?.roleLoginPortal) {
+    payload.portal = options.roleLoginPortal;
+  }
   if (next && next.length <= 2048 && options?.roleLoginPortal) {
     payload.next = next;
-    payload.portal = options.roleLoginPortal;
   }
   return signPayload(payload);
 }
@@ -118,9 +120,11 @@ export function createAppleSignedOAuthState(
     payload.tz = rawTz;
   }
   const next = options?.next?.trim();
+  if (options?.roleLoginPortal) {
+    payload.portal = options.roleLoginPortal;
+  }
   if (next && next.length <= 2048 && options?.roleLoginPortal) {
     payload.next = next;
-    payload.portal = options.roleLoginPortal;
   }
   return { state: signPayload(payload), nonce };
 }
@@ -161,9 +165,11 @@ export function createVkSignedOAuthState(
     payload.tz = rawTz;
   }
   const next = options?.next?.trim();
+  if (options?.roleLoginPortal) {
+    payload.portal = options.roleLoginPortal;
+  }
   if (next && next.length <= 2048 && options?.roleLoginPortal) {
     payload.next = next;
-    payload.portal = options.roleLoginPortal;
   }
   const codeVerifier = deriveVkPkceCodeVerifier(attemptId);
   return {
@@ -265,7 +271,7 @@ function verifyTokenInternal(
   if (
     (next !== undefined && (typeof next !== 'string' || next.length > 2048)) ||
     (portal !== undefined && portal !== 'doctor' && portal !== 'patient' && portal !== 'admin') ||
-    (next === undefined) !== (portal === undefined)
+    (next !== undefined && portal === undefined)
   )
     return null;
 
@@ -277,14 +283,22 @@ function verifyTokenInternal(
   if (typeof org === 'string') out.organizationId = org;
   if (typeof surface === 'string') out.surface = surface as RequestSurface;
   if (typeof origin === 'string') out.publicOrigin = origin;
-  if (
-    typeof next === 'string' &&
-    (portal === 'doctor' || portal === 'patient' || portal === 'admin')
-  ) {
-    out.next = next;
+  if (portal === 'doctor' || portal === 'patient' || portal === 'admin') {
     out.roleLoginPortal = portal;
   }
+  if (typeof next === 'string') {
+    out.next = next;
+  }
   return out;
+}
+
+/**
+ * States minted before D5 did not carry a named door unless they also carried `next`. Their TTL is
+ * only ten minutes, but treating that live compatibility window as the patient door keeps patient
+ * OAuth working without reopening OAuth for staff: the canon assigns OAuth only to patients.
+ */
+export function roleLoginPortalFromOAuthState(state: VerifiedOAuthState): RoleLoginPortal {
+  return state.roleLoginPortal ?? 'patient';
 }
 
 export function verifySignedOAuthState(token: string, expectedPurpose: OAuthStatePurpose): boolean {

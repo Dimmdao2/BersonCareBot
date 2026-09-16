@@ -17,18 +17,17 @@ export function RoleLoginPortalHeader({
   /** Поверхность клиники, а не общий TherapyGo: решает, чей знак показывать. */
   brandedSurface?: boolean;
 }) {
-  // Doctor-портал (вход после разлогина) — без описательного блока и без ссылки на пациентский
-  // вход: только вертикальный лого-лок-ап Therapysto (иконка + подпись уже в самом файле).
-  // Родитель (AppEntryLoginContent) центрирует всю группу по высоте — этому блоку своя
-  // вертикальная поправка не нужна — владелец, 12.09.
+  // Doctor-портал (вход после разлогина) — без верхней шапки, описательного блока и ссылки на
+  // пациентский вход. Вертикальный лок-ап уменьшен на 30% и поднят независимо от формы —
+  // владелец, 16.09.
   if (portal === 'doctor') {
     return (
-      <div className="flex flex-col items-center">
+      <div className="flex -translate-y-6 flex-col items-center">
         <Image
           src="/brand/therapysto-lockup-vertical.png"
           alt="Therapysto"
-          width={132}
-          height={130}
+          width={92}
+          height={91}
           priority
           unoptimized
         />
@@ -36,18 +35,16 @@ export function RoleLoginPortalHeader({
     );
   }
 
-  // Admin-портал — глобал-админ платформы, один вход без выбора режима: только сама форма, без
-  // описания и без ссылки на другой логин (владелец, 12.09: «только форма входа без всяких ссылок
-  // на другие режимы входа и лишних пояснений»). Свой mark пространства вместо общего Therapysto —
-  // тот же admin-mark-transparent-source.png, из которого уже собран admin PWA-манифест/иконки.
+  // Admin-портал — маленький знак над формой. Большой лок-ап и верхняя шапка сняты; дверь сразу
+  // показывает email+пароль без выбора других способов (владелец, 16.09).
   if (portal === 'admin') {
     return (
       <div className="flex flex-col items-center">
         <Image
           src="/brand/admin-mark-transparent-source.png"
           alt="Therapysto Admin"
-          width={112}
-          height={98}
+          width={48}
+          height={42}
           priority
           unoptimized
         />

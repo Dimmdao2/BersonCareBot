@@ -17,11 +17,3 @@ export async function POST(request: NextRequest) {
   await deps.auth.clearSession();
   return NextResponse.redirect(loginRedirectUrl(request));
 }
-
-/** GET также очищает сессию (закладка на URL не оставляет пользователя залогиненным). */
-export async function GET(request: NextRequest) {
-  stampBootstrapPrincipal('api/auth/logout:GET', request);
-  const deps = buildAppDeps();
-  await deps.auth.clearSession();
-  return NextResponse.redirect(loginRedirectUrl(request));
-}

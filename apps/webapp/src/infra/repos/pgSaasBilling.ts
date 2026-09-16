@@ -737,6 +737,9 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           .select({
             id: saasTariffs.id,
             name: saasTariffs.name,
+            description: saasTariffs.description,
+            mechanics: saasTariffs.mechanics,
+            quotas: saasTariffs.quotas,
             billingPeriodCode: saasTariffPeriodPrices.billingPeriodCode,
             priceMinor: saasTariffPeriodPrices.priceMinor,
           })
@@ -751,11 +754,28 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
       const selectableCodes = new Set(
         catalog.filter((period) => period.isSelectable).map((period) => period.code),
       );
-      const byTariff = new Map<string, { id: string; name: string; periodPrices: Array<{ billingPeriodCode: string; priceMinor: number }> }>();
+      const byTariff = new Map<
+        string,
+        {
+          id: string;
+          name: string;
+          description: string;
+          mechanics: Record<string, boolean>;
+          quotas: typeof rows[number]['quotas'];
+          periodPrices: Array<{ billingPeriodCode: string; priceMinor: number }>;
+        }
+      >();
       for (const row of rows) {
         let choice = byTariff.get(row.id);
         if (!choice) {
-          choice = { id: row.id, name: row.name, periodPrices: [] };
+          choice = {
+            id: row.id,
+            name: row.name,
+            description: row.description,
+            mechanics: row.mechanics,
+            quotas: row.quotas,
+            periodPrices: [],
+          };
           byTariff.set(row.id, choice);
         }
         if (

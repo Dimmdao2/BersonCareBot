@@ -10,8 +10,8 @@ type StaffLoginShellProps = {
 /**
  * Staff (doctor/clinic) space's own login shell — the twin of [[AdminLoginShell]] for the
  * `/app/doctor/login` door. Same structure-only split: still wraps `PatientAppShell` internally so
- * today's form styling is unchanged, but now lives in its own file/CSS module so the clinic space
- * can be themed and edited independently of admin/patient.
+ * the auth mechanics stay shared, but the clinic door owns its shell and icon treatment
+ * independently of admin/patient.
  */
 export function StaffLoginShell({ title, children }: StaffLoginShellProps) {
   return (
@@ -22,6 +22,7 @@ export function StaffLoginShell({ title, children }: StaffLoginShellProps) {
         patientHideHome
         patientHideRightIcons
         patientBrandTitleBar
+        patientHideGatedHeader
         patientHideBottomNav
       >
         {children}
