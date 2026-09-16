@@ -46,7 +46,7 @@ export function buildAdminMediaListUrl(args: {
   return `/api/admin/media?${p.toString()}`;
 }
 
-export type MediaLibraryPickerKindFilter = 'image' | 'video' | 'image_or_video' | 'all';
+export type MediaLibraryPickerKindFilter = 'image' | 'video' | 'file' | 'image_or_video' | 'all';
 
 /**
  * After server list: for `image_or_video` the API uses `kind=all`, so narrow to image|video in UI.
@@ -58,6 +58,7 @@ export function narrowMediaLibraryPickerItemsByKind(
   if (kind === 'image_or_video') {
     return items.filter((i) => i.kind === 'image' || i.kind === 'video');
   }
+  if (kind !== 'all') return items.filter((i) => i.kind === kind);
   return items;
 }
 

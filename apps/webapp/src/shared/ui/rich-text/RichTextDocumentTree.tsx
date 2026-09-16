@@ -7,6 +7,7 @@ import { useMemo, type ReactNode } from 'react';
 import { createRichTextSchemaExtensions } from '@/shared/lib/richTextExtensions';
 import { safeRichTextUrl } from '@/shared/lib/richText';
 import { mediaPreviewMdUrl } from '@/shared/lib/mediaPreviewUrls';
+import { RichTextFileAttachment } from '@/shared/ui/rich-text/RichTextFileAttachment';
 
 export type RichTextLinkRenderProps = {
   href: string;
@@ -27,18 +28,31 @@ export type RichTextVideoRenderProps = {
   title: string;
 };
 
+export type RichTextFileRenderProps = {
+  src: string;
+  title: string;
+  mimeType?: string;
+};
+
 type Props = {
   document: JSONContent;
   renderLink?: (props: RichTextLinkRenderProps) => ReactNode;
   renderImage?: (props: RichTextImageRenderProps) => ReactNode;
   renderVideo?: (props: RichTextVideoRenderProps) => ReactNode;
+  renderFile?: (props: RichTextFileRenderProps) => ReactNode;
 };
 
 function stringAttribute(value: unknown): string | undefined {
   return typeof value === 'string' && value.length > 0 ? value : undefined;
 }
 
-export function RichTextDocumentTree({ document, renderLink, renderImage, renderVideo }: Props) {
+export function RichTextDocumentTree({
+  document,
+  renderLink,
+  renderImage,
+  renderVideo,
+  renderFile,
+}: Props) {
   return useMemo(() => {
     try {
       return renderToReactElement({
@@ -107,11 +121,27 @@ export function RichTextDocumentTree({ document, renderLink, renderImage, render
                 </a>
               );
             },
+            fileAttachment: ({ node }: { node: Node }) => {
+              const src = safeRichTextUrl(node.attrs.src);
+              if (!src) return null;
+              const props: RichTextFileRenderProps = {
+                src,
+                title: stringAttribute(node.attrs.title) ?? 'Файл',
+                ...(stringAttribute(node.attrs.mimeType)
+                  ? { mimeType: String(node.attrs.mimeType) }
+                  : {}),
+              };
+              return renderFile ? (
+                renderFile(props)
+              ) : (
+                <RichTextFileAttachment href={props.src} title={props.title} />
+              );
+            },
           },
         },
       });
     } catch {
       return null;
     }
-  }, [document, renderImage, renderLink, renderVideo]);
+  }, [document, renderFile, renderImage, renderLink, renderVideo]);
 }

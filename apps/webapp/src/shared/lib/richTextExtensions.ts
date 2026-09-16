@@ -64,6 +64,50 @@ const RichTextVideo = TiptapNode.create({
   },
 });
 
+const RichTextFileAttachment = TiptapNode.create({
+  name: 'fileAttachment',
+  group: 'block',
+  atom: true,
+  draggable: true,
+  selectable: true,
+  addAttributes() {
+    return {
+      src: {
+        default: null,
+        parseHTML: (element) => element.getAttribute('data-src'),
+      },
+      title: {
+        default: null,
+        parseHTML: (element) => element.getAttribute('data-title'),
+      },
+      mimeType: {
+        default: null,
+        parseHTML: (element) => element.getAttribute('data-mime-type'),
+      },
+    };
+  },
+  parseHTML() {
+    return [{ tag: '[data-rich-text-file]' }];
+  },
+  renderHTML({ HTMLAttributes }) {
+    const storedSrc = typeof HTMLAttributes.src === 'string' ? HTMLAttributes.src : '';
+    const title = typeof HTMLAttributes.title === 'string' ? HTMLAttributes.title : 'Файл';
+    const mimeType = typeof HTMLAttributes.mimeType === 'string' ? HTMLAttributes.mimeType : '';
+    return [
+      'div',
+      {
+        'data-rich-text-file': '',
+        'data-src': storedSrc,
+        'data-title': title,
+        'data-mime-type': mimeType,
+        contenteditable: 'false',
+      },
+      ['span', { 'data-rich-text-file-icon': '', 'aria-hidden': 'true' }],
+      ['span', { 'data-rich-text-file-title': '' }, title],
+    ];
+  },
+});
+
 export function createRichTextSchemaExtensions() {
   return [
     StarterKit.configure({
@@ -80,6 +124,7 @@ export function createRichTextSchemaExtensions() {
     Highlight.configure({ multicolor: true }),
     RichTextImage.configure({ allowBase64: false, inline: false }),
     RichTextVideo,
+    RichTextFileAttachment,
     Typography,
     Superscript,
     Subscript,

@@ -5,10 +5,12 @@ import { toHostedVideoEmbedSrc } from '@/shared/lib/hostingEmbedUrls';
 import { parseTiptapRichText } from '@/shared/lib/richText';
 import {
   RichTextDocumentTree,
+  type RichTextFileRenderProps,
   type RichTextImageRenderProps,
   type RichTextLinkRenderProps,
   type RichTextVideoRenderProps,
 } from '@/shared/ui/rich-text/RichTextDocumentTree';
+import { RichTextFileAttachment } from '@/shared/ui/rich-text/RichTextFileAttachment';
 
 /**
  * Один файл, который ОПУБЛИКОВАННЫЙ материал имеет право показать анониму.
@@ -153,6 +155,14 @@ export function PublicMarkdownMaterial({ markdown, media }: Props) {
     return renderRichTextLink({ href: src, title, children: title });
   }
 
+  function renderRichTextFile({ src, title }: RichTextFileRenderProps) {
+    const asset = assetForHref(src);
+    if (!asset && mediaIdFromHref(src)) return null;
+    return (
+      <RichTextFileAttachment href={asset?.src ?? src} title={title} download={Boolean(asset)} />
+    );
+  }
+
   return (
     <div className="clinic-public-markdown flex flex-col gap-2 text-sm leading-relaxed [&_blockquote]:my-2 [&_blockquote]:border-l-2 [&_blockquote]:border-border [&_blockquote]:pl-3 [&_blockquote]:italic [&_code]:rounded [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_h1]:mt-4 [&_h1]:text-lg [&_h1]:font-semibold [&_h2]:mt-4 [&_h2]:text-base [&_h2]:font-semibold [&_h3]:mt-3 [&_h3]:font-semibold [&_img]:max-w-full [&_li]:pl-0.5 [&_ol]:list-decimal [&_ol]:pl-5 [&_pre]:overflow-x-auto [&_pre]:rounded-md [&_pre]:bg-muted [&_pre]:p-3 [&_table]:w-full [&_ul]:list-disc [&_ul]:pl-5">
       {document ? (
@@ -161,6 +171,7 @@ export function PublicMarkdownMaterial({ markdown, media }: Props) {
           renderLink={renderRichTextLink}
           renderImage={renderRichTextImage}
           renderVideo={renderRichTextVideo}
+          renderFile={renderRichTextFile}
         />
       ) : (
         <span className="whitespace-pre-wrap">{markdown}</span>

@@ -51,7 +51,7 @@ export function plainTextToTiptapDocument(value: string): JSONContent {
 
 function hasDocumentContent(node: JSONContent): boolean {
   if (typeof node.text === 'string' && node.text.length > 0) return true;
-  if (node.type === 'image' || node.type === 'video') return true;
+  if (node.type === 'image' || node.type === 'video' || node.type === 'fileAttachment') return true;
   return node.content?.some(hasDocumentContent) ?? false;
 }
 
@@ -95,6 +95,10 @@ function nodePlainText(node: JSONContent): string {
   if (node.type === 'video') {
     const attrs = node.attrs as Record<string, unknown> | undefined;
     return typeof attrs?.title === 'string' ? attrs.title : 'Видео';
+  }
+  if (node.type === 'fileAttachment') {
+    const attrs = node.attrs as Record<string, unknown> | undefined;
+    return typeof attrs?.title === 'string' ? attrs.title : 'Файл';
   }
 
   const text = node.content?.map(nodePlainText).join('') ?? '';
@@ -163,6 +167,12 @@ function nodeMessengerHtml(node: JSONContent): string {
     const attrs = node.attrs as Record<string, unknown> | undefined;
     const src = safeRichTextUrl(attrs?.src);
     const title = typeof attrs?.title === 'string' ? attrs.title : 'Видео';
+    return src ? `<a href="${escapeHtml(src)}">${escapeHtml(title)}</a>` : escapeHtml(title);
+  }
+  if (node.type === 'fileAttachment') {
+    const attrs = node.attrs as Record<string, unknown> | undefined;
+    const src = safeRichTextUrl(attrs?.src);
+    const title = typeof attrs?.title === 'string' ? attrs.title : 'Файл';
     return src ? `<a href="${escapeHtml(src)}">${escapeHtml(title)}</a>` : escapeHtml(title);
   }
 

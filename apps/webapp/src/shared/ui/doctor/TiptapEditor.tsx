@@ -335,11 +335,9 @@ export function TiptapEditor({
         .chain()
         .focus()
         .insertContent({
-          type: 'text',
-          text: labelText,
-          marks: [{ type: 'link', attrs: { href: url } }],
+          type: 'fileAttachment',
+          attrs: { src: url, title: labelText, mimeType: meta?.mimeType ?? null },
         })
-        .insertContent(' ')
         .run();
     },
     [editor],

@@ -37,8 +37,11 @@ import { MediaPickerShell } from '@/shared/ui/doctor/media/MediaPickerShell';
 import { MediaPickerPanel } from '@/shared/ui/doctor/media/MediaPickerPanel';
 import type { MediaListItem } from '@/shared/ui/doctor/media/MediaPickerList';
 import { MediaIdThumb } from '@/shared/ui/doctor/media/MediaIdThumb';
+import { RichTextDetailPreview } from '@/shared/ui/doctor/RichTextDetailPreview';
+import { useUnsavedChangesGuard } from '@/shared/ui/doctor/useUnsavedChangesGuard';
 import { apiJson } from '@/app/app/settings/bookingSoloAdminApi';
 import { FIO_LATIN_REJECTED_TEXT, isCyrillicFioInput } from '@/shared/lib/fio';
+import { cn } from '@/lib/utils';
 
 const BASE = '/api/admin/booking-engine';
 
@@ -147,6 +150,15 @@ export function BookingSoloSpecialistsSection({
   // background reload never overwrites what the owner is typing.
   const soloSpecialist = specialists.length === 1 ? specialists[0] : null;
   const soloSpecialistId = soloSpecialist?.id ?? null;
+  const savedSoloDraft = soloSpecialist ? draftOf(soloSpecialist) : EMPTY_DRAFT;
+  const soloProfileDirty =
+    variant === 'solo-profile' &&
+    !pending &&
+    JSON.stringify(draftBody(editDraft)) !== JSON.stringify(draftBody(savedSoloDraft));
+  const { unsavedDialog: soloPageUnsavedDialog } = useUnsavedChangesGuard({
+    isDirty: soloProfileDirty,
+    guardPageExit: true,
+  });
   useEffect(() => {
     if (variant !== 'solo-profile' || soloSpecialistId === null) return;
     const loaded = specialists.find((specialist) => specialist.id === soloSpecialistId);
@@ -285,32 +297,37 @@ export function BookingSoloSpecialistsSection({
 
   if (variant === 'solo-profile' && specialists.length <= 1) {
     return (
-      <DoctorSection>
-        <DoctorSectionHeader>
-          <DoctorSectionTitle>Профиль специалиста</DoctorSectionTitle>
-        </DoctorSectionHeader>
+      <>
+        <DoctorSection id="specialist-profile-settings-section">
+          <DoctorSectionHeader>
+            <DoctorSectionTitle>Профиль специалиста</DoctorSectionTitle>
+          </DoctorSectionHeader>
 
-        {loadError ? <p className="text-sm text-destructive">{loadError}</p> : null}
-        {actionError ? <p className="text-sm text-destructive">{actionError}</p> : null}
+          {loadError ? <p className="text-sm text-destructive">{loadError}</p> : null}
+          {actionError ? <p className="text-sm text-destructive">{actionError}</p> : null}
 
-        <SpecialistProfileFields
-          idPrefix="specialist-solo"
-          draft={editDraft}
-          onChange={(next) => setEditDraft((current) => ({ ...current, ...next }))}
-          disabled={pending}
-          shortDescriptionHint="Это имя и описание видят при онлайн-записи."
-        />
-        <div>
-          <Button
-            type="button"
-            size="sm"
-            disabled={pending || !editDraft.fullName.trim()}
-            onClick={saveSoloProfile}
-          >
-            Сохранить
-          </Button>
-        </div>
-      </DoctorSection>
+          <SpecialistProfileFields
+            idPrefix="specialist-solo"
+            draft={editDraft}
+            onChange={(next) => setEditDraft((current) => ({ ...current, ...next }))}
+            disabled={pending}
+            shortDescriptionHint="Это имя и описание видят при онлайн-записи."
+            sideBySide
+            rightSheetAnchorId="specialist-profile-settings-section"
+          />
+          <div>
+            <Button
+              type="button"
+              size="sm"
+              disabled={pending || !editDraft.fullName.trim()}
+              onClick={saveSoloProfile}
+            >
+              Сохранить
+            </Button>
+          </div>
+        </DoctorSection>
+        {soloPageUnsavedDialog}
+      </>
     );
   }
 
@@ -414,102 +431,161 @@ function SpecialistProfileFields({
   onChange,
   disabled,
   shortDescriptionHint,
+  sideBySide = false,
+  rightSheetAnchorId,
 }: {
   idPrefix: string;
   draft: SpecialistDraft;
   onChange: (next: Partial<SpecialistDraft>) => void;
   disabled: boolean;
   shortDescriptionHint?: string;
+  sideBySide?: boolean;
+  rightSheetAnchorId?: string;
 }) {
   const [avatarPickerOpen, setAvatarPickerOpen] = useState(false);
+  const [fullDescriptionEditorOpen, setFullDescriptionEditorOpen] = useState(false);
+  const [fullDescriptionBaseline, setFullDescriptionBaseline] = useState('');
+  const fullDescriptionDirty = draft.fullDescriptionMarkdown !== fullDescriptionBaseline;
+  const { requestAction: requestEditorClose, unsavedDialog: editorUnsavedDialog } =
+    useUnsavedChangesGuard({ isDirty: fullDescriptionDirty });
+
+  function openFullDescriptionEditor() {
+    setFullDescriptionBaseline(draft.fullDescriptionMarkdown);
+    setFullDescriptionEditorOpen(true);
+  }
+
+  function applyFullDescription() {
+    setFullDescriptionBaseline(draft.fullDescriptionMarkdown);
+    setFullDescriptionEditorOpen(false);
+  }
+
+  function closeFullDescriptionEditor() {
+    requestEditorClose(() => {
+      onChange({ fullDescriptionMarkdown: fullDescriptionBaseline });
+      setFullDescriptionEditorOpen(false);
+    });
+  }
 
   return (
     <div className="flex min-h-0 flex-col gap-3">
-      <div className="flex flex-col gap-1">
-        <Label htmlFor={`${idPrefix}-name`}>ФИО</Label>
-        <Input
-          id={`${idPrefix}-name`}
-          value={draft.fullName}
-          disabled={disabled}
-          onChange={(event) => onChange({ fullName: event.target.value })}
-        />
-      </div>
+      <div className={cn('grid min-h-0 gap-3', sideBySide && 'lg:grid-cols-2 lg:items-start')}>
+        <div className="flex min-h-0 flex-col gap-3">
+          <div className="flex flex-col gap-1">
+            <Label htmlFor={`${idPrefix}-name`}>ФИО</Label>
+            <Input
+              id={`${idPrefix}-name`}
+              value={draft.fullName}
+              disabled={disabled}
+              onChange={(event) => onChange({ fullName: event.target.value })}
+            />
+          </div>
 
-      <div className="flex flex-col gap-1">
-        <Label>Фотография</Label>
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Общий контрол картинки по идентификатору: «готовится» вместо битого значка, пока
-              очередь превью не доделала файл, и без перезагрузки страницы (§20). */}
-          <MediaIdThumb
-            mediaId={draft.avatarMediaId}
-            className="size-12 overflow-hidden rounded-full border border-border/60 bg-muted/30"
-            imgClassName="size-12 rounded-full object-cover"
-            sizes="48px"
-            lazy={false}
-            density="compact"
-            labels={{ skipped: 'Превью не создаётся', failed: 'Превью не получилось' }}
-            empty={
-              <div aria-hidden className="size-12 rounded-full border border-border/60 bg-muted/30" />
-            }
-          />
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            disabled={disabled}
-            onClick={() => setAvatarPickerOpen(true)}
-          >
-            Установить
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            disabled={disabled || !draft.avatarMediaId}
-            onClick={() => onChange({ avatarMediaId: null })}
-          >
-            Очистить
-          </Button>
+          <div className="flex flex-col gap-1">
+            <Label>Фотография</Label>
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Общий контрол картинки по идентификатору: «готовится» вместо битого значка, пока
+                  очередь превью не доделала файл, и без перезагрузки страницы (§20). */}
+              <MediaIdThumb
+                mediaId={draft.avatarMediaId}
+                className="size-12 overflow-hidden rounded-full border border-border/60 bg-muted/30"
+                imgClassName="size-12 rounded-full object-cover"
+                sizes="48px"
+                lazy={false}
+                density="compact"
+                labels={{ skipped: 'Превью не создаётся', failed: 'Превью не получилось' }}
+                empty={
+                  <div
+                    aria-hidden
+                    className="size-12 rounded-full border border-border/60 bg-muted/30"
+                  />
+                }
+              />
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={disabled}
+                onClick={() => setAvatarPickerOpen(true)}
+              >
+                Установить
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={disabled || !draft.avatarMediaId}
+                onClick={() => onChange({ avatarMediaId: null })}
+              >
+                Очистить
+              </Button>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <Label htmlFor={`${idPrefix}-description`}>Короткое описание</Label>
+            <Textarea
+              id={`${idPrefix}-description`}
+              rows={3}
+              className="min-h-20 resize-y"
+              value={draft.description}
+              disabled={disabled}
+              onChange={(event) => onChange({ description: event.target.value })}
+            />
+            {shortDescriptionHint ? (
+              <p className="text-sm text-muted-foreground">{shortDescriptionHint}</p>
+            ) : null}
+          </div>
+
+          <label className="flex items-start gap-2 text-sm" htmlFor={`${idPrefix}-published`}>
+            <Checkbox
+              id={`${idPrefix}-published`}
+              checked={draft.cardIsPublished}
+              disabled={disabled}
+              onCheckedChange={(checked) => onChange({ cardIsPublished: checked === true })}
+              className="mt-0.5"
+            />
+            <span>Показывать страницу специалиста</span>
+          </label>
         </div>
-      </div>
 
-      <div className="flex flex-col gap-1">
-        <Label htmlFor={`${idPrefix}-description`}>Короткое описание</Label>
-        <Textarea
-          id={`${idPrefix}-description`}
-          rows={3}
-          className="min-h-20 resize-y"
-          value={draft.description}
+        <RichTextDetailPreview
+          id={`${idPrefix}-full-description-preview`}
+          value={draft.fullDescriptionMarkdown}
           disabled={disabled}
-          onChange={(event) => onChange({ description: event.target.value })}
+          onEdit={openFullDescriptionEditor}
         />
-        {shortDescriptionHint ? (
-          <p className="text-sm text-muted-foreground">{shortDescriptionHint}</p>
-        ) : null}
       </div>
 
-      <div className="flex min-h-0 flex-col gap-1">
+      <DoctorModal
+        open={fullDescriptionEditorOpen}
+        onClose={closeFullDescriptionEditor}
+        title="Подробное описание"
+        size="lg"
+        desktopPresentation="right-sheet"
+        rightSheetAnchorId={rightSheetAnchorId}
+        footer={
+          <>
+            <Button type="button" size="sm" variant="outline" onClick={closeFullDescriptionEditor}>
+              Отмена
+            </Button>
+            <Button type="button" size="sm" onClick={applyFullDescription}>
+              Готово
+            </Button>
+          </>
+        }
+      >
         <TiptapEditor
           name={`${idPrefix}-full-description`}
-          label="Подробное описание"
+          label={null}
           helpText={null}
           value={draft.fullDescriptionMarkdown}
           disabled={disabled}
-          minHeight={180}
+          minHeight={420}
           onChange={(value) => onChange({ fullDescriptionMarkdown: value })}
         />
-      </div>
+      </DoctorModal>
 
-      <label className="flex items-start gap-2 text-sm" htmlFor={`${idPrefix}-published`}>
-        <Checkbox
-          id={`${idPrefix}-published`}
-          checked={draft.cardIsPublished}
-          disabled={disabled}
-          onCheckedChange={(checked) => onChange({ cardIsPublished: checked === true })}
-          className="mt-0.5"
-        />
-        <span>Показывать страницу специалиста</span>
-      </label>
+      {editorUnsavedDialog}
 
       <MediaPickerShell
         title="Фотография специалиста"

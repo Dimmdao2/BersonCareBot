@@ -128,6 +128,14 @@ const VIEW_MODE_STORAGE_KEY = 'doctor-media-library-view-v2';
 const VIEW_MODE_LEGACY_KEY = 'doctor-media-library-view';
 const PAGE_SIZE = 24;
 
+const MEDIA_KIND_FILTER_LABELS: Record<MediaKindFilter, string> = {
+  all: 'Все типы',
+  image: 'Изображения',
+  video: 'Видео',
+  audio: 'Аудио',
+  file: 'Документы',
+};
+
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   const kb = bytes / 1024;
@@ -1196,8 +1204,9 @@ export function MediaLibraryClient({
               <DialogHeader>
                 <DialogTitle>Файл используется</DialogTitle>
                 <DialogDescription>
-                  Этот файл всё ещё используется в контенте или диалогах {patientSingularLabel.toLowerCase()}. Удаление может
-                  сломать ссылки и историю сообщений.
+                  Этот файл всё ещё используется в контенте или диалогах{' '}
+                  {patientSingularLabel.toLowerCase()}. Удаление может сломать ссылки и историю
+                  сообщений.
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-3 text-sm">
@@ -1600,17 +1609,15 @@ export function MediaLibraryClient({
             </div>
 
             <label className="flex min-w-[9rem] flex-col gap-1 text-sm">
-              <span className="text-xs text-muted-foreground">Категория</span>
+              <span className="text-xs text-muted-foreground">Тип файла</span>
               <Select value={kind} onValueChange={(v) => setKind((v ?? 'all') as MediaKindFilter)}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
+                <SelectTrigger className="w-full" displayLabel={MEDIA_KIND_FILTER_LABELS[kind]} />
                 <SelectContent>
-                  <SelectItem value="all">Все</SelectItem>
+                  <SelectItem value="all">Все типы</SelectItem>
                   <SelectItem value="image">Изображения</SelectItem>
                   <SelectItem value="video">Видео</SelectItem>
                   <SelectItem value="audio">Аудио</SelectItem>
-                  <SelectItem value="file">Файлы</SelectItem>
+                  <SelectItem value="file">Документы</SelectItem>
                 </SelectContent>
               </Select>
             </label>

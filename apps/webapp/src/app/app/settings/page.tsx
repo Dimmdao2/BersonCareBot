@@ -515,15 +515,6 @@ export default async function SettingsPage({
       content = (
         <>
           {cabinetRecoveryNotice}
-          {slugState ? (
-            <ClinicSlugSection
-              initialState={slugState}
-              patientOrigin={PATIENT_DEFAULT_SURFACE.origin}
-            />
-          ) : null}
-          {composition === 'solo' && workspace.specialistId !== null ? (
-            <BookingSoloSpecialistsSection variant="solo-profile" />
-          ) : null}
           {cardSettings ? (
             <ClinicPublicCardSection
               initialSettings={cardSettings}
@@ -532,6 +523,15 @@ export default async function SettingsPage({
               locations={bookingLinkOptions?.cardLocations ?? []}
               specialists={bookingLinkOptions?.cardSpecialists ?? []}
               services={bookingLinkOptions?.cardServices ?? []}
+              patientOrigin={PATIENT_DEFAULT_SURFACE.origin}
+            />
+          ) : null}
+          {composition === 'solo' && workspace.specialistId !== null ? (
+            <BookingSoloSpecialistsSection variant="solo-profile" />
+          ) : null}
+          {slugState ? (
+            <ClinicSlugSection
+              initialState={slugState}
               patientOrigin={PATIENT_DEFAULT_SURFACE.origin}
             />
           ) : null}

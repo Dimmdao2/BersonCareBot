@@ -39,6 +39,20 @@ export const MAX_MEDIA_BYTES = 3 * 1024 * 1024 * 1024;
  *  Proxy buffers the full body in Node memory, so keep this low. */
 export const MAX_PROXY_UPLOAD_BYTES = 50 * 1024 * 1024;
 
+const DOCUMENT_FILE_INPUT_ACCEPT_VALUES = [
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-powerpoint',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'text/plain',
+  'text/csv',
+];
+
+export const DOCUMENT_FILE_INPUT_ACCEPT = DOCUMENT_FILE_INPUT_ACCEPT_VALUES.join(',');
+
 /**
  * HTML `accept` for CMS file pickers — mirrors ALLOWED_MEDIA_MIME (browser/OS support varies).
  * HEIC/HEIF as extensions: iOS may not map them to image/* alone.
@@ -49,13 +63,5 @@ export const FILE_INPUT_ACCEPT = [
   'audio/*',
   '.heic',
   '.heif',
-  'application/pdf',
-  'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'application/vnd.ms-excel',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  'application/vnd.ms-powerpoint',
-  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-  'text/plain',
-  'text/csv',
+  ...DOCUMENT_FILE_INPUT_ACCEPT_VALUES,
 ].join(',');

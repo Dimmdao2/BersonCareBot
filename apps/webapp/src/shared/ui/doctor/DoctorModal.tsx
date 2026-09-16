@@ -202,6 +202,8 @@ type DoctorModalProps = {
   bodyVariant?: DoctorModalBodyVariant;
   /** Desktop/tablet presentation. Mobile always uses the canonical bottom drawer. */
   desktopPresentation?: DoctorModalDesktopPresentation;
+  /** Align a right sheet's left edge to this element instead of the generic half-page column. */
+  rightSheetAnchorId?: string;
   /** Called before a non-modal right sheet closes from a pointer press outside it. */
   onRightSheetOutsidePress?: () => void;
   /** Full-viewport media viewer which keeps the underlying modal mounted. */
@@ -320,6 +322,7 @@ export function DoctorModal({
   bodyClassName,
   bodyVariant = 'default',
   desktopPresentation = 'dialog',
+  rightSheetAnchorId,
   onRightSheetOutsidePress,
   presentation = 'standard',
 }: DoctorModalProps) {
@@ -358,6 +361,9 @@ export function DoctorModal({
 
     const pageContent = document.getElementById('app-shell-content');
     if (!pageContent) return;
+    const rightSheetAnchor = rightSheetAnchorId
+      ? document.getElementById(rightSheetAnchorId)
+      : null;
 
     const updateGeometry = () => {
       const rect = pageContent.getBoundingClientRect();
@@ -367,7 +373,9 @@ export function DoctorModal({
       // шире правой колонки ровно на межколоночный зазор и накрывала его целиком, поэтому на
       // дашборде казалось, что она села вплотную на левую половину. Вычитаем зазор — левый край
       // панели встаёт ровно на левый край правой колонки, и просвет между половинами остаётся.
-      const nextWidth = `${Math.max(0, (rect.width - PAGE_TWO_PANE_GAP) * widthRatio)}px`;
+      const nextWidth = rightSheetAnchor
+        ? `${Math.max(0, rect.right - rightSheetAnchor.getBoundingClientRect().left)}px`
+        : `${Math.max(0, (rect.width - PAGE_TWO_PANE_GAP) * widthRatio)}px`;
       setRightSheetWidth((current) => (current === nextWidth ? current : nextWidth));
       // Владелец 14.09: «правая панель вылезает далековато и закрывает пробел между правой
       // и левой частью экрана». Пикселем это оказался `right: 0` — панель садится вплотную
@@ -385,11 +393,12 @@ export function DoctorModal({
     const resizeObserver =
       typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(updateGeometry);
     resizeObserver?.observe(pageContent);
+    if (rightSheetAnchor) resizeObserver?.observe(rightSheetAnchor);
     return () => {
       window.removeEventListener('resize', updateGeometry);
       resizeObserver?.disconnect();
     };
-  }, [desktopPresentation, isMobile, isWideDesktop, open]);
+  }, [desktopPresentation, isMobile, isWideDesktop, open, rightSheetAnchorId]);
 
   const body = (
     <div
@@ -413,7 +422,10 @@ export function DoctorModal({
   // MODAL-TEXT-04: wrapper never scrolls itself — it is a plain flex column filling the space
   // between header and footer, so the sole textarea inside is the only scroll owner.
   const fullscreenTextBody = (
-    <div ref={bodyRef} className={cn('flex min-h-0 flex-1 flex-col overflow-hidden', bodyClassName)}>
+    <div
+      ref={bodyRef}
+      className={cn('flex min-h-0 flex-1 flex-col overflow-hidden', bodyClassName)}
+    >
       <DoctorModalFooterSlotContext.Provider value={footerSlot}>
         {children}
       </DoctorModalFooterSlotContext.Provider>
@@ -482,32 +494,32 @@ export function DoctorModal({
 
     if (isMobile) {
       return (
-          <Drawer open={open} onOpenChange={handleOpenChange}>
-            <DrawerContent
-              showCloseButton={false}
-              showHandle
-              showOverlay={showOverlay}
-              className="doctor-fullscreen-media-drawer !h-dvh !max-h-dvh gap-0 rounded-none border-0 bg-black p-0 shadow-none"
-            >
-              <DrawerTitle className="sr-only">{title}</DrawerTitle>
-              {fullscreenBody}
-            </DrawerContent>
-          </Drawer>
+        <Drawer open={open} onOpenChange={handleOpenChange}>
+          <DrawerContent
+            showCloseButton={false}
+            showHandle
+            showOverlay={showOverlay}
+            className="doctor-fullscreen-media-drawer !h-dvh !max-h-dvh gap-0 rounded-none border-0 bg-black p-0 shadow-none"
+          >
+            <DrawerTitle className="sr-only">{title}</DrawerTitle>
+            {fullscreenBody}
+          </DrawerContent>
+        </Drawer>
       );
     }
 
     return (
-        <Dialog open={open} onOpenChange={handleOpenChange} ownsLayer={false}>
-          <DialogContent
-            fullScreen
-            showCloseButton={false}
-            showOverlay={showOverlay}
-            className="flex bg-black p-0 shadow-none"
-          >
-            <DialogTitle className="sr-only">{title}</DialogTitle>
-            {fullscreenBody}
-          </DialogContent>
-        </Dialog>
+      <Dialog open={open} onOpenChange={handleOpenChange} ownsLayer={false}>
+        <DialogContent
+          fullScreen
+          showCloseButton={false}
+          showOverlay={showOverlay}
+          className="flex bg-black p-0 shadow-none"
+        >
+          <DialogTitle className="sr-only">{title}</DialogTitle>
+          {fullscreenBody}
+        </DialogContent>
+      </Dialog>
     );
   }
 
@@ -526,130 +538,130 @@ export function DoctorModal({
       : undefined;
 
     return (
-        <Drawer open={open} onOpenChange={handleOpenChange}>
-          <DrawerContent
-            showCloseButton={false}
-            showHandle={false}
-            showOverlay={showOverlay}
-            style={geometryStyle}
-            className="h-dvh max-h-dvh translate-y-0 gap-0 rounded-none border-0 bg-card p-0 shadow-none"
-          >
-            <DrawerHeader className="shrink-0 border-b border-border/60 px-4 pb-3 pt-[calc(0.375rem+env(safe-area-inset-top,0px))]">
-              <div className="flex min-w-0 items-center justify-between gap-2">
-                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                  <DrawerTitle className={doctorModalTitleClass}>{title}</DrawerTitle>
-                  {titleSubjectNode}
-                </div>
-                {headerTrailingNode}
+      <Drawer open={open} onOpenChange={handleOpenChange}>
+        <DrawerContent
+          showCloseButton={false}
+          showHandle={false}
+          showOverlay={showOverlay}
+          style={geometryStyle}
+          className="h-dvh max-h-dvh translate-y-0 gap-0 rounded-none border-0 bg-card p-0 shadow-none"
+        >
+          <DrawerHeader className="shrink-0 border-b border-border/60 px-4 pb-3 pt-[calc(0.375rem+env(safe-area-inset-top,0px))]">
+            <div className="flex min-w-0 items-center justify-between gap-2">
+              <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <DrawerTitle className={doctorModalTitleClass}>{title}</DrawerTitle>
+                {titleSubjectNode}
               </div>
-              {description && <DrawerDescription>{description}</DrawerDescription>}
-            </DrawerHeader>
-            {bodyHeaderNode}
-            {fullscreenTextBody}
-            {footerNode}
-          </DrawerContent>
-        </Drawer>
+              {headerTrailingNode}
+            </div>
+            {description && <DrawerDescription>{description}</DrawerDescription>}
+          </DrawerHeader>
+          {bodyHeaderNode}
+          {fullscreenTextBody}
+          {footerNode}
+        </DrawerContent>
+      </Drawer>
     );
   }
 
   if (isMobile) {
     return (
-        <Drawer open={open} onOpenChange={handleOpenChange}>
-          <DrawerContent
-            showCloseButton={false}
-            showOverlay={showOverlay}
-            className="gap-0 bg-card p-0"
-          >
-            <DrawerHeader className="shrink-0 border-b border-border/60 px-4 pt-1.5 pb-3">
-              <div className="flex min-w-0 items-center justify-between gap-2">
-                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                  <DrawerTitle className={doctorModalTitleClass}>{title}</DrawerTitle>
-                  {titleSubjectNode}
-                </div>
-                {headerTrailingNode}
+      <Drawer open={open} onOpenChange={handleOpenChange}>
+        <DrawerContent
+          showCloseButton={false}
+          showOverlay={showOverlay}
+          className="gap-0 bg-card p-0"
+        >
+          <DrawerHeader className="shrink-0 border-b border-border/60 px-4 pt-1.5 pb-3">
+            <div className="flex min-w-0 items-center justify-between gap-2">
+              <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <DrawerTitle className={doctorModalTitleClass}>{title}</DrawerTitle>
+                {titleSubjectNode}
               </div>
-              {description && <DrawerDescription>{description}</DrawerDescription>}
-            </DrawerHeader>
-            {bodyHeaderNode}
-            {body}
-            {footerNode}
-            {mobileSafeAreaNode}
-          </DrawerContent>
-        </Drawer>
+              {headerTrailingNode}
+            </div>
+            {description && <DrawerDescription>{description}</DrawerDescription>}
+          </DrawerHeader>
+          {bodyHeaderNode}
+          {body}
+          {footerNode}
+          {mobileSafeAreaNode}
+        </DrawerContent>
+      </Drawer>
     );
   }
 
   if (desktopPresentation === 'right-sheet') {
     return (
-        <Sheet
-          open={open}
-          modal={false}
-          onOpenChange={(nextOpen, eventDetails) => {
-            if (!nextOpen && eventDetails.reason === 'outside-press') {
-              onRightSheetOutsidePress?.();
-            }
-            handleOpenChange(nextOpen);
+      <Sheet
+        open={open}
+        modal={false}
+        onOpenChange={(nextOpen, eventDetails) => {
+          if (!nextOpen && eventDetails.reason === 'outside-press') {
+            onRightSheetOutsidePress?.();
+          }
+          handleOpenChange(nextOpen);
+        }}
+      >
+        <SheetContent
+          side="right"
+          showOverlay={false}
+          className="gap-0 bg-card p-0 !max-w-none !shadow-md"
+          style={{
+            top: 'var(--doctor-page-header-h, 2.75rem)',
+            height: 'calc(100dvh - var(--doctor-page-header-h, 2.75rem))',
+            right: rightSheetInset ?? 0,
+            width:
+              rightSheetWidth ??
+              (isWideDesktop ? 'calc(50vw - 0.375rem)' : 'calc(45vw - 0.3375rem)'),
+            maxWidth: 'none',
           }}
         >
-          <SheetContent
-            side="right"
-            showOverlay={false}
-            className="gap-0 bg-card p-0 !max-w-none !shadow-md"
-            style={{
-              top: 'var(--doctor-page-header-h, 2.75rem)',
-              height: 'calc(100dvh - var(--doctor-page-header-h, 2.75rem))',
-              right: rightSheetInset ?? 0,
-              width:
-                rightSheetWidth ??
-                (isWideDesktop ? 'calc(50vw - 0.375rem)' : 'calc(45vw - 0.3375rem)'),
-              maxWidth: 'none',
-            }}
+          <SheetHeader
+            className="shrink-0 justify-center border-b border-border/60 px-4 py-1 pr-12"
+            style={{ minHeight: 'var(--doctor-page-header-h, 2.75rem)' }}
           >
-            <SheetHeader
-              className="shrink-0 justify-center border-b border-border/60 px-4 py-1 pr-12"
-              style={{ minHeight: 'var(--doctor-page-header-h, 2.75rem)' }}
-            >
-              <div className="flex min-w-0 items-center justify-between gap-2">
-                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                  <SheetTitle className={doctorModalTitleClass}>{title}</SheetTitle>
-                  {titleSubjectNode}
-                </div>
-                {headerTrailingNode}
-              </div>
-              {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
-            </SheetHeader>
-            {bodyHeaderNode}
-            {body}
-            {footerNode}
-          </SheetContent>
-        </Sheet>
-    );
-  }
-
-  return (
-      <Dialog open={open} onOpenChange={handleOpenChange} ownsLayer={false}>
-        <DialogContent
-          showCloseButton
-          showOverlay={showOverlay}
-          className={cn(
-            'flex max-h-[calc(100dvh-3rem)] flex-col gap-0 overflow-hidden bg-card p-0',
-            sizeMaxWidth[size],
-          )}
-        >
-          <DialogHeader className="shrink-0 border-b border-border/60 px-4 pt-4 pb-3 pr-12">
             <div className="flex min-w-0 items-center justify-between gap-2">
               <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                <DialogTitle className={doctorModalTitleClass}>{title}</DialogTitle>
+                <SheetTitle className={doctorModalTitleClass}>{title}</SheetTitle>
                 {titleSubjectNode}
               </div>
               {headerTrailingNode}
             </div>
-            {description && <p className="text-sm text-muted-foreground">{description}</p>}
-          </DialogHeader>
+            {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
+          </SheetHeader>
           {bodyHeaderNode}
           {body}
           {footerNode}
-        </DialogContent>
-      </Dialog>
+        </SheetContent>
+      </Sheet>
+    );
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange} ownsLayer={false}>
+      <DialogContent
+        showCloseButton
+        showOverlay={showOverlay}
+        className={cn(
+          'flex max-h-[calc(100dvh-3rem)] flex-col gap-0 overflow-hidden bg-card p-0',
+          sizeMaxWidth[size],
+        )}
+      >
+        <DialogHeader className="shrink-0 border-b border-border/60 px-4 pt-4 pb-3 pr-12">
+          <div className="flex min-w-0 items-center justify-between gap-2">
+            <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+              <DialogTitle className={doctorModalTitleClass}>{title}</DialogTitle>
+              {titleSubjectNode}
+            </div>
+            {headerTrailingNode}
+          </div>
+          {description && <p className="text-sm text-muted-foreground">{description}</p>}
+        </DialogHeader>
+        {bodyHeaderNode}
+        {body}
+        {footerNode}
+      </DialogContent>
+    </Dialog>
   );
 }

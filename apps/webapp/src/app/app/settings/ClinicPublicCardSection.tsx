@@ -14,6 +14,8 @@ import type {
 } from '@/modules/clinic-public-card/cabinetPreviewSelection';
 import { ClinicPublicCardView } from '@/shared/ui/clinicPublicCard/ClinicPublicCardView';
 import { TiptapEditor } from '@/shared/ui/doctor/TiptapEditor';
+import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
+import { RichTextDetailPreview } from '@/shared/ui/doctor/RichTextDetailPreview';
 import {
   DoctorSection,
   DoctorSectionHeader,
@@ -29,6 +31,7 @@ import { MediaPickerPanel } from '@/shared/ui/doctor/media/MediaPickerPanel';
 import type { MediaListItem } from '@/shared/ui/doctor/media/MediaPickerList';
 import { useMediaPreviewUiMap } from '@/shared/ui/doctor/media/useMediaPreviewUi';
 import type { MediaPreviewUiModel } from '@/shared/ui/doctor/media/mediaPreviewUiModel';
+import { useUnsavedChangesGuard } from '@/shared/ui/doctor/useUnsavedChangesGuard';
 import { patchAdminSettingWithResult } from './patchAdminSetting';
 import { notificationText } from '@/shared/notifications/notificationText';
 
@@ -159,6 +162,7 @@ export function ClinicPublicCardSection({
   const specialistCardsId = useId();
 
   const [settings, setSettings] = useState(initialSettings);
+  const [savedSettings, setSavedSettings] = useState(initialSettings);
   const [pending, setPending] = useState(false);
   const [showSpecialistCardsInBooking, setShowSpecialistCardsInBooking] = useState(
     initialShowSpecialistCardsInBooking,
@@ -167,6 +171,17 @@ export function ClinicPublicCardSection({
   const [logoPickerOpen, setLogoPickerOpen] = useState(false);
   const [photoPickerOpen, setPhotoPickerOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [fullDescriptionEditorOpen, setFullDescriptionEditorOpen] = useState(false);
+  const [fullDescriptionBaseline, setFullDescriptionBaseline] = useState('');
+
+  const settingsDirty = JSON.stringify(settings) !== JSON.stringify(savedSettings);
+  const fullDescriptionDirty = (settings.fullDescriptionMarkdown ?? '') !== fullDescriptionBaseline;
+  const { unsavedDialog: pageUnsavedDialog } = useUnsavedChangesGuard({
+    isDirty: settingsDirty,
+    guardPageExit: true,
+  });
+  const { requestAction: requestEditorClose, unsavedDialog: editorUnsavedDialog } =
+    useUnsavedChangesGuard({ isDirty: fullDescriptionDirty });
 
   const publicUrl = identity ? livePageUrl(identity.slug, patientOrigin) : null;
 
@@ -174,28 +189,51 @@ export function ClinicPublicCardSection({
     setSettings((current) => ({ ...current, ...next }));
   }
 
-  async function save() {
+  async function saveSettings(nextSettings: ClinicPublicCardSettings): Promise<boolean> {
     setPending(true);
     try {
       const response = await fetch('/api/clinic/public-card', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(settings),
+        body: JSON.stringify(nextSettings),
       });
       const body = (await response.json()) as
-        | { ok: true; settings: ClinicPublicCardSettings }
-        | { ok: false; error: string };
+        { ok: true; settings: ClinicPublicCardSettings } | { ok: false; error: string };
       if (!response.ok || !body.ok) {
         toast.error(clinicPublicCardErrorMessage(body.ok ? 'invalid_body' : body.error));
-        return;
+        return false;
       }
       setSettings(body.settings);
+      setSavedSettings(body.settings);
       toast.success(notificationText.commonSaved);
+      return true;
     } catch {
       toast.error(notificationText.settingsPageSaveFailedRetry);
+      return false;
     } finally {
       setPending(false);
     }
+  }
+
+  async function save() {
+    await saveSettings(settings);
+  }
+
+  function openFullDescriptionEditor() {
+    setFullDescriptionBaseline(settings.fullDescriptionMarkdown ?? '');
+    setFullDescriptionEditorOpen(true);
+  }
+
+  function closeFullDescriptionEditor() {
+    requestEditorClose(() => {
+      patch({ fullDescriptionMarkdown: fullDescriptionBaseline });
+      setFullDescriptionEditorOpen(false);
+    });
+  }
+
+  async function saveFullDescription() {
+    const saved = await saveSettings(settings);
+    if (saved) setFullDescriptionEditorOpen(false);
   }
 
   /**
@@ -235,235 +273,283 @@ export function ClinicPublicCardSection({
   ).length;
 
   return (
-    <DoctorSection>
+    <DoctorSection id="clinic-public-settings-section">
       <DoctorSectionHeader>
         <DoctorSectionTitle>Страница организации</DoctorSectionTitle>
       </DoctorSectionHeader>
 
-      <div className="flex flex-col gap-4">
-        {publicUrl && identity ? (
-          <div className="flex flex-col gap-2">
-            <a
-              href={publicUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-fit break-all text-sm text-primary underline underline-offset-2"
-            >
-              {publicUrl}
-            </a>
-            {!settings.cardIsPublished ? (
-              <p className="text-sm text-muted-foreground">
-                Страница выключена: по этому адресу посетитель увидит название организации и вход в
-                кабинет, без визитки. Посмотрите её здесь и включите галкой ниже.
-              </p>
-            ) : null}
-            <Button
-              type="button"
-              variant="outline"
-              className="w-fit"
-              onClick={() => setPreviewOpen((open) => !open)}
-            >
-              {previewOpen ? 'Скрыть предпросмотр' : 'Предпросмотр'}
-            </Button>
-            {previewOpen ? (
-              // Ровно тот же компонент, что рисует публичную страницу: клиника правит то, что
-              // увидит посетитель, а не похожую копию. Картинки идут через общий `/api/media`,
-              // потому что публичный медиа-адрес у выключенной страницы ещё не работает, и только
-              // те, что уже прошли стандартный рендишн (см. `previewMediaSrc`).
-              <div className="flex flex-col gap-2 rounded-md border border-border bg-background p-4">
-                {previewMediaNotReady > 0 ? (
-                  <p className="text-sm text-muted-foreground" role="status">
-                    {previewMediaNotReady === 1
-                      ? 'Одно изображение ещё готовится — посетитель его пока не увидит.'
-                      : `${previewMediaNotReady} изображения ещё готовятся — посетитель их пока не увидит.`}
-                  </p>
-                ) : null}
-                <ClinicPublicCardView
-                  card={{
-                    displayName: identity.displayName,
-                    description: settings.description,
-                    logoSrc: previewMediaSrc(
-                      settings.logoMediaId ? previewMedia[settings.logoMediaId] : undefined,
-                    ),
-                    photoSrcs: settings.photoMediaIds
-                      .map((id) => previewMediaSrc(previewMedia[id]))
-                      .filter((src): src is string => Boolean(src)),
-                    locations,
-                    services,
-                    fullDescriptionMarkdown: settings.fullDescriptionMarkdown,
-                    fullDescriptionMedia: markdownAssetIds.flatMap((id) => {
-                      const src = previewMediaSrc(previewMedia[id]);
-                      return src ? [{ id, mimeType: '', src }] : [];
-                    }),
-                    // Адреса картинок — общий `/api/media` под сессией сотрудника, как у логотипа:
-                    // публичный медиа-адрес у выключенной страницы ещё не работает. Ссылки на
-                    // страницу специалиста в предпросмотре нет по той же причине.
-                    specialists: specialists.map((specialist) => ({
-                      id: specialist.id,
-                      fullName: specialist.fullName,
-                      shortDescription: specialist.shortDescription,
-                      avatarSrc: previewMediaSrc(
-                        specialist.avatarMediaId
-                          ? previewMedia[specialist.avatarMediaId]
-                          : undefined,
+      <div className="grid min-w-0 gap-3 lg:grid-cols-2 lg:items-start">
+        <div className="flex min-w-0 flex-col gap-4">
+          {publicUrl && identity ? (
+            <div className="flex flex-col gap-2">
+              <a
+                href={publicUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-fit break-all text-sm text-primary underline underline-offset-2"
+              >
+                {publicUrl}
+              </a>
+              {!settings.cardIsPublished ? (
+                <p className="text-sm text-muted-foreground">
+                  Страница выключена: по этому адресу посетитель увидит название организации и вход
+                  в кабинет, без визитки. Посмотрите её здесь и включите галкой ниже.
+                </p>
+              ) : null}
+              <Button
+                type="button"
+                variant="outline"
+                className="w-fit"
+                onClick={() => setPreviewOpen((open) => !open)}
+              >
+                {previewOpen ? 'Скрыть предпросмотр' : 'Предпросмотр'}
+              </Button>
+              {previewOpen ? (
+                // Ровно тот же компонент, что рисует публичную страницу: клиника правит то, что
+                // увидит посетитель, а не похожую копию. Картинки идут через общий `/api/media`,
+                // потому что публичный медиа-адрес у выключенной страницы ещё не работает, и только
+                // те, что уже прошли стандартный рендишн (см. `previewMediaSrc`).
+                <div className="flex flex-col gap-2 rounded-md border border-border bg-background p-4">
+                  {previewMediaNotReady > 0 ? (
+                    <p className="text-sm text-muted-foreground" role="status">
+                      {previewMediaNotReady === 1
+                        ? 'Одно изображение ещё готовится — посетитель его пока не увидит.'
+                        : `${previewMediaNotReady} изображения ещё готовятся — посетитель их пока не увидит.`}
+                    </p>
+                  ) : null}
+                  <ClinicPublicCardView
+                    card={{
+                      displayName: identity.displayName,
+                      description: settings.description,
+                      logoSrc: previewMediaSrc(
+                        settings.logoMediaId ? previewMedia[settings.logoMediaId] : undefined,
                       ),
-                      href: null,
-                    })),
-                    publicContactPhone: settings.publicContactPhone,
-                    publicContactEmail: settings.publicContactEmail,
-                    publicWebsiteUrl: settings.publicWebsiteUrl,
-                    bookingHref: null,
-                  }}
-                />
-              </div>
-            ) : null}
-          </div>
-        ) : (
-          <p className="text-sm text-muted-foreground">
-            Сначала задайте адрес организации в разделе «Публичная запись».
-          </p>
-        )}
+                      photoSrcs: settings.photoMediaIds
+                        .map((id) => previewMediaSrc(previewMedia[id]))
+                        .filter((src): src is string => Boolean(src)),
+                      locations,
+                      services,
+                      fullDescriptionMarkdown: settings.fullDescriptionMarkdown,
+                      fullDescriptionMedia: markdownAssetIds.flatMap((id) => {
+                        const src = previewMediaSrc(previewMedia[id]);
+                        return src ? [{ id, mimeType: '', src }] : [];
+                      }),
+                      // Адреса картинок — общий `/api/media` под сессией сотрудника, как у логотипа:
+                      // публичный медиа-адрес у выключенной страницы ещё не работает. Ссылки на
+                      // страницу специалиста в предпросмотре нет по той же причине.
+                      specialists: specialists.map((specialist) => ({
+                        id: specialist.id,
+                        fullName: specialist.fullName,
+                        shortDescription: specialist.shortDescription,
+                        avatarSrc: previewMediaSrc(
+                          specialist.avatarMediaId
+                            ? previewMedia[specialist.avatarMediaId]
+                            : undefined,
+                        ),
+                        href: null,
+                      })),
+                      publicContactPhone: settings.publicContactPhone,
+                      publicContactEmail: settings.publicContactEmail,
+                      publicWebsiteUrl: settings.publicWebsiteUrl,
+                      bookingHref: null,
+                    }}
+                  />
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Сначала задайте адрес организации в разделе «Публичная запись».
+            </p>
+          )}
 
-        <DoctorField
-          label="Описание"
-          htmlFor={descriptionId}
-          hint={`Обычный текст, до ${CLINIC_PUBLIC_CARD_LIMITS.descriptionMaxLength} символов.`}
-        >
-          <Textarea
-            id={descriptionId}
-            rows={6}
-            value={settings.description ?? ''}
-            maxLength={CLINIC_PUBLIC_CARD_LIMITS.descriptionMaxLength}
-            onChange={(event) => patch({ description: event.currentTarget.value })}
+          <DoctorField
+            label="Описание"
+            htmlFor={descriptionId}
+            hint={`Обычный текст, до ${CLINIC_PUBLIC_CARD_LIMITS.descriptionMaxLength} символов.`}
+          >
+            <Textarea
+              id={descriptionId}
+              rows={6}
+              value={settings.description ?? ''}
+              maxLength={CLINIC_PUBLIC_CARD_LIMITS.descriptionMaxLength}
+              onChange={(event) => patch({ description: event.currentTarget.value })}
+              disabled={pending}
+            />
+          </DoctorField>
+
+          <DoctorField label="Телефон" htmlFor={phoneId}>
+            <Input
+              id={phoneId}
+              value={settings.publicContactPhone ?? ''}
+              onChange={(event) => patch({ publicContactPhone: event.currentTarget.value })}
+              disabled={pending}
+            />
+          </DoctorField>
+
+          <DoctorField label="E-mail" htmlFor={emailId}>
+            <Input
+              id={emailId}
+              type="email"
+              value={settings.publicContactEmail ?? ''}
+              onChange={(event) => patch({ publicContactEmail: event.currentTarget.value })}
+              disabled={pending}
+            />
+          </DoctorField>
+
+          <DoctorField label="Сайт" htmlFor={websiteId}>
+            <Input
+              id={websiteId}
+              value={settings.publicWebsiteUrl ?? ''}
+              onChange={(event) => patch({ publicWebsiteUrl: event.currentTarget.value })}
+              disabled={pending}
+            />
+          </DoctorField>
+
+          <DoctorField label="Логотип" hint="Картинка, до готовности конвертации не показывается.">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm text-muted-foreground">
+                {settings.logoMediaId ? 'Логотип выбран' : 'Логотип не выбран'}
+              </span>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={pending}
+                onClick={() => setLogoPickerOpen(true)}
+              >
+                Установить
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={pending || !settings.logoMediaId}
+                onClick={() => patch({ logoMediaId: null })}
+              >
+                Очистить
+              </Button>
+            </div>
+          </DoctorField>
+
+          <DoctorField
+            label="Фотографии"
+            hint={`Картинки, не больше ${CLINIC_PUBLIC_CARD_LIMITS.maxPhotos}.`}
+          >
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm text-muted-foreground">
+                Выбрано: {settings.photoMediaIds.length}
+              </span>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={pending || photosFull}
+                onClick={() => setPhotoPickerOpen(true)}
+              >
+                Добавить
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={pending || settings.photoMediaIds.length === 0}
+                onClick={() => patch({ photoMediaIds: [] })}
+              >
+                Очистить
+              </Button>
+            </div>
+          </DoctorField>
+
+          <label className="flex items-start gap-2 text-sm" htmlFor={publishId}>
+            <Checkbox
+              id={publishId}
+              checked={settings.cardIsPublished}
+              onCheckedChange={(checked) => patch({ cardIsPublished: checked === true })}
+              disabled={pending}
+              className="mt-0.5"
+            />
+            <span>Показывать страницу организации</span>
+          </label>
+
+          <label className="flex items-start gap-2 text-sm" htmlFor={specialistCardsId}>
+            <Checkbox
+              id={specialistCardsId}
+              checked={showSpecialistCardsInBooking}
+              onCheckedChange={(checked) => void saveSpecialistCards(checked === true)}
+              disabled={pending || savingSpecialistCards}
+              className="mt-0.5"
+            />
+            <span>Показывать визитки специалистов в модуле записи</span>
+          </label>
+
+          <Button
+            type="button"
+            size="sm"
+            className="self-start"
             disabled={pending}
-          />
-        </DoctorField>
+            onClick={() => void save()}
+          >
+            {pending ? 'Сохранение…' : 'Сохранить'}
+          </Button>
+        </div>
 
-        {/* Полное описание материалом — ТОТ ЖЕ `TiptapEditor`, что стоит у специалиста и ещё в
-            семи местах кабинета, и тот же пикер медиа внутри него (§5, §20). Второго редактора и
-            второго пикера здесь не заводится. */}
-        <TiptapEditor
-          name="clinic-card-full-description"
-          label="Подробное описание"
-          helpText="Материал с фотографиями и видео. Его увидит посетитель страницы организации."
+        <RichTextDetailPreview
+          id="clinic-public-full-description-preview"
           value={settings.fullDescriptionMarkdown ?? ''}
           disabled={pending}
-          minHeight={220}
-          onChange={(value) => patch({ fullDescriptionMarkdown: value })}
+          onEdit={openFullDescriptionEditor}
         />
+      </div>
 
-        <DoctorField label="Телефон" htmlFor={phoneId}>
-          <Input
-            id={phoneId}
-            value={settings.publicContactPhone ?? ''}
-            onChange={(event) => patch({ publicContactPhone: event.currentTarget.value })}
-            disabled={pending}
-          />
-        </DoctorField>
-
-        <DoctorField label="E-mail" htmlFor={emailId}>
-          <Input
-            id={emailId}
-            type="email"
-            value={settings.publicContactEmail ?? ''}
-            onChange={(event) => patch({ publicContactEmail: event.currentTarget.value })}
-            disabled={pending}
-          />
-        </DoctorField>
-
-        <DoctorField label="Сайт" htmlFor={websiteId}>
-          <Input
-            id={websiteId}
-            value={settings.publicWebsiteUrl ?? ''}
-            onChange={(event) => patch({ publicWebsiteUrl: event.currentTarget.value })}
-            disabled={pending}
-          />
-        </DoctorField>
-
-        <DoctorField label="Логотип" hint="Картинка, до готовности конвертации не показывается.">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm text-muted-foreground">
-              {settings.logoMediaId ? 'Логотип выбран' : 'Логотип не выбран'}
-            </span>
+      <DoctorModal
+        open={fullDescriptionEditorOpen}
+        onClose={closeFullDescriptionEditor}
+        title="Подробное описание"
+        size="lg"
+        desktopPresentation="right-sheet"
+        rightSheetAnchorId="clinic-public-settings-section"
+        footer={
+          <>
             <Button
               type="button"
               size="sm"
               variant="outline"
               disabled={pending}
-              onClick={() => setLogoPickerOpen(true)}
+              onClick={closeFullDescriptionEditor}
             >
-              Установить
+              Отмена
             </Button>
             <Button
               type="button"
               size="sm"
-              variant="outline"
-              disabled={pending || !settings.logoMediaId}
-              onClick={() => patch({ logoMediaId: null })}
+              disabled={pending}
+              onClick={() => void saveFullDescription()}
             >
-              Очистить
+              {pending ? 'Сохранение…' : 'Сохранить'}
             </Button>
-          </div>
-        </DoctorField>
+          </>
+        }
+      >
+        <TiptapEditor
+          name="clinic-card-full-description"
+          label={null}
+          helpText={null}
+          value={settings.fullDescriptionMarkdown ?? ''}
+          disabled={pending}
+          minHeight={420}
+          onChange={(value) => patch({ fullDescriptionMarkdown: value })}
+        />
+      </DoctorModal>
 
-        <DoctorField
-          label="Фотографии"
-          hint={`Картинки, не больше ${CLINIC_PUBLIC_CARD_LIMITS.maxPhotos}.`}
-        >
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm text-muted-foreground">
-              Выбрано: {settings.photoMediaIds.length}
-            </span>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={pending || photosFull}
-              onClick={() => setPhotoPickerOpen(true)}
-            >
-              Добавить
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={pending || settings.photoMediaIds.length === 0}
-              onClick={() => patch({ photoMediaIds: [] })}
-            >
-              Очистить
-            </Button>
-          </div>
-        </DoctorField>
+      {editorUnsavedDialog}
+      {pageUnsavedDialog}
 
-        <label className="flex items-start gap-2 text-sm" htmlFor={publishId}>
-          <Checkbox
-            id={publishId}
-            checked={settings.cardIsPublished}
-            onCheckedChange={(checked) => patch({ cardIsPublished: checked === true })}
-            disabled={pending}
-            className="mt-0.5"
-          />
-          <span>Показывать страницу организации</span>
-        </label>
-
-        <label className="flex items-start gap-2 text-sm" htmlFor={specialistCardsId}>
-          <Checkbox
-            id={specialistCardsId}
-            checked={showSpecialistCardsInBooking}
-            onCheckedChange={(checked) => void saveSpecialistCards(checked === true)}
-            disabled={pending || savingSpecialistCards}
-            className="mt-0.5"
-          />
-          <span>Показывать визитки специалистов в модуле записи</span>
-        </label>
-
-
-        <Button type="button" size="sm" className="self-start" disabled={pending} onClick={() => void save()}>
-          {pending ? 'Сохранение…' : 'Сохранить'}
-        </Button>
-      </div>
-
-      <MediaPickerShell title="Логотип организации" open={logoPickerOpen} onOpenChange={setLogoPickerOpen}>
+      <MediaPickerShell
+        title="Логотип организации"
+        open={logoPickerOpen}
+        onOpenChange={setLogoPickerOpen}
+      >
         <MediaPickerPanel
           key={logoPickerOpen ? 'clinic-card-logo-open' : 'clinic-card-logo-closed'}
           open={logoPickerOpen}

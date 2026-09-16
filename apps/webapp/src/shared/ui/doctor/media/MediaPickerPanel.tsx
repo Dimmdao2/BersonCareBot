@@ -24,7 +24,7 @@ import { PickerSearchField } from '@/shared/ui/doctor/PickerSearchField';
 import { fetchAdminMediaListItem } from '@/shared/ui/doctor/media/fetchAdminMediaListItem';
 import { UploadRequestError, uploadWithProgress } from '@/shared/lib/media/uploadTransport';
 import { readImageFileDimensions } from '@/shared/lib/media/readImageFileDimensions';
-import { FILE_INPUT_ACCEPT } from '@/modules/media/uploadAllowedMime';
+import { DOCUMENT_FILE_INPUT_ACCEPT, FILE_INPUT_ACCEPT } from '@/modules/media/uploadAllowedMime';
 import { MediaLibraryFolderScopeSelect } from '@/shared/ui/doctor/media/MediaLibraryFolderScopeSelect';
 import { mediaFolderPathLabel } from '@/shared/ui/doctor/media/mediaFolderScopeUtils';
 import {
@@ -53,6 +53,18 @@ function kindFromMimeForListItem(mimeType: string): MediaListItem['kind'] {
   if (lower.startsWith('audio/')) return 'audio';
   return 'file';
 }
+
+type MediaLibraryBrowseKind = Extract<
+  MediaLibraryPickerKindFilter,
+  'all' | 'image' | 'video' | 'file'
+>;
+
+const MEDIA_LIBRARY_BROWSE_KIND_LABELS: Record<MediaLibraryBrowseKind, string> = {
+  all: 'Все типы',
+  image: 'Изображения',
+  video: 'Видео',
+  file: 'Документы',
+};
 
 type UploadOkSingle = {
   ok?: boolean;
@@ -96,6 +108,7 @@ function isPickedRowAllowedForKind(
   if (kind === 'all') return true;
   if (kind === 'image') return item.kind === 'image';
   if (kind === 'video') return item.kind === 'video';
+  if (kind === 'file') return item.kind === 'file';
   if (kind === 'image_or_video') return item.kind === 'image' || item.kind === 'video';
   return true;
 }
@@ -106,6 +119,8 @@ function uploadKindRejectedRuMessage(kind: MediaLibraryPickerKindFilter): string
       return 'Для этого поля можно прикрепить только изображение.';
     case 'video':
       return 'Для этого поля можно прикрепить только видео.';
+    case 'file':
+      return 'Для этого поля можно прикрепить только документ.';
     case 'image_or_video':
       return 'Для этого поля можно прикрепить только изображение или видео.';
     default:
@@ -140,6 +155,8 @@ function fileInputAcceptForPickerKind(kind: MediaLibraryPickerKindFilter): strin
       return 'image/*,.heic,.heif,.avif,.tiff,.tif,.svg';
     case 'video':
       return 'video/*';
+    case 'file':
+      return DOCUMENT_FILE_INPUT_ACCEPT;
     case 'image_or_video':
       return 'image/*,video/*,.heic,.heif,.avif,.tiff,.tif';
     case 'all':
@@ -193,6 +210,7 @@ export function MediaPickerPanel({
   const nativeRuntime = useNativeRuntime();
   const nativeMediaAvailable = isNativeDeviceMediaAvailable(nativeRuntime);
   const [query, setQuery] = useState('');
+  const [libraryKind, setLibraryKind] = useState<MediaLibraryBrowseKind>('all');
   const [listSortPreset, setListSortPreset] = useState<MediaLibraryListSortPreset>('date:desc');
   const [folders, setFolders] = useState<MediaFolderRecord[]>([]);
   const [foldersLoaded, setFoldersLoaded] = useState(false);
@@ -218,15 +236,18 @@ export function MediaPickerPanel({
     [listSortPreset],
   );
 
+  const effectiveListKind = kind === 'all' ? libraryKind : kind;
+  const effectiveApiKind = kind === 'all' ? libraryKind : apiKind;
+
   const listUrl = useMemo(
     () =>
       buildAdminMediaListUrl({
-        apiKind,
+        apiKind: effectiveApiKind,
         folderId,
         sortBy: showSort ? listSortBy : 'date',
         sortDir: showSort ? listSortDir : 'desc',
       }),
-    [apiKind, folderId, listSortBy, listSortDir, showSort],
+    [effectiveApiKind, folderId, listSortBy, listSortDir, showSort],
   );
 
   const {
@@ -243,7 +264,7 @@ export function MediaPickerPanel({
   } = useMediaPickerFilteredList({
     open,
     listUrl,
-    kind,
+    kind: effectiveListKind,
     query,
     reloadKey: libraryReloadKey,
   });
@@ -251,7 +272,10 @@ export function MediaPickerPanel({
   const usageRequestRef = useRef(0);
 
   useEffect(() => {
-    if (!open) setQuery('');
+    if (!open) {
+      setQuery('');
+      setLibraryKind('all');
+    }
   }, [open]);
 
   useEffect(() => {
@@ -565,6 +589,28 @@ export function MediaPickerPanel({
           value={query}
           onValueChange={setQuery}
         />
+
+        {kind === 'all' ? (
+          <div className="flex min-w-[12rem] max-w-md flex-col gap-1">
+            <span className="text-xs text-muted-foreground">Тип файла</span>
+            <Select
+              value={libraryKind}
+              onValueChange={(value) => setLibraryKind((value ?? 'all') as MediaLibraryBrowseKind)}
+            >
+              <SelectTrigger
+                size="sm"
+                className="w-full text-left"
+                displayLabel={MEDIA_LIBRARY_BROWSE_KIND_LABELS[libraryKind]}
+              />
+              <SelectContent>
+                <SelectItem value="all">Все типы</SelectItem>
+                <SelectItem value="image">Изображения</SelectItem>
+                <SelectItem value="video">Видео</SelectItem>
+                <SelectItem value="file">Документы</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        ) : null}
 
         {showSort ? (
           <div className="flex min-w-[12rem] max-w-md flex-col gap-1">
