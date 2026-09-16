@@ -11,6 +11,10 @@ import {
   isRecommendationUsageConfirmationRequiredError,
 } from '@/modules/recommendations/errors';
 import { userFacingMessage } from '@/shared/errors/userFacingError';
+import {
+  RICH_TEXT_SERIALIZED_MAX_LENGTH,
+  richTextWithinCharacterLimit,
+} from '@/shared/lib/richText';
 
 const mediaItemSchema = z.object({
   mediaUrl: z.string().min(1),
@@ -20,7 +24,11 @@ const mediaItemSchema = z.object({
 
 const patchBodySchema = z.object({
   title: z.string().min(1).max(2000).optional(),
-  bodyMd: z.string().max(100000).optional(),
+  bodyMd: z
+    .string()
+    .max(RICH_TEXT_SERIALIZED_MAX_LENGTH)
+    .refine((value) => richTextWithinCharacterLimit(value, 100_000))
+    .optional(),
   media: z.array(mediaItemSchema).nullable().optional(),
   tags: z.array(z.string()).optional().nullable(),
   domain: z.string().max(64).nullable().optional(),

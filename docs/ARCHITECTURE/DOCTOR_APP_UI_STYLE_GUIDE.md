@@ -15,7 +15,7 @@
 **Companion-файл констант:** `apps/webapp/src/shared/ui/doctor/doctorVisual.ts`  
 **Зональные токены:** `apps/webapp/src/app/styles/doctor.css` (`#app-shell-doctor`)
 
-> **Как читать гайд.** §A–§C — визуальный язык, единая шкала и общий стиль компонентов (целевой дизайн, эталон — экран упражнений). §1–§21 — конкретные паттерны экранов и константы. Актуальные owner-параметры: белый page header, canvas `#F2F2F0`, page/KPI/control radius `12/8/8px`, padding 18px. При конфликте величин приоритет у §A–§B.
+> **Как читать гайд.** §A–§C — визуальный язык, единая шкала и общий стиль компонентов (целевой дизайн, эталон — экран упражнений). §1–§21 — конкретные паттерны экранов и константы. Актуальные owner-параметры: белый page header, canvas `#F2F2F0`, page/KPI/control radius `10/8/7px`, padding 18px. При конфликте величин приоритет у §A–§B.
 
 ---
 
@@ -64,14 +64,14 @@
 
 | Уровень                                | Радиус                                       |
 | -------------------------------------- | -------------------------------------------- |
-| Page section / основной блок           | `12px` (`--doctor-page-block-radius`)        |
+| Page section / основной блок           | `10px` (`--doctor-page-block-radius`)        |
 | KPI                                    | `8px` (`--doctor-kpi-radius`)                |
 | Панель внутри карточки                 | `rounded-lg`                                 |
 | Строка списка / item                   | `rounded-md`                                 |
-| Doctor button                          | `8px` (`--doctor-button-radius`)             |
-| Doctor input                           | `8px` (`--doctor-control-radius`)             |
-| Doctor select trigger                  | `8px` (`--doctor-button-radius`)              |
-| Doctor textarea                        | `8px` (`--doctor-control-radius`)             |
+| Doctor button                          | `7px` (`--doctor-button-radius`)             |
+| Doctor input                           | `7px` (`--doctor-control-radius`)             |
+| Doctor select trigger                  | `7px` (`--doctor-button-radius`)              |
+| Doctor textarea                        | `7px` (`--doctor-control-radius`)             |
 | Main sidebar / mobile menu item        | минимальный shared menu radius; не 24px pill |
 
 `rounded-2xl` — запрещён для page-level секций. Явные caller overrides (`rounded-none`, icon-only форма и т.п.) сохраняются.
@@ -127,9 +127,10 @@
 
 | Контрол                                     | Высота         | Радиус |
 | ------------------------------------------- | -------------- | ------ |
-| Input / Select / база тулбара               | `h-8` (32)     | `24px` |
-| Button база doctor (`sm`)                   | `h-9` (36)     | `8px`  |
-| Button главный CTA (`lg`, редко)            | `h-10` (40)    | `8px`  |
+| Input / база тулбара                        | `h-8` (32)     | `7px`  |
+| Select                                      | `h-8` (32)     | `7px`  |
+| Button база doctor (`sm`)                   | `h-9` (36)     | `7px`  |
+| Button главный CTA (`lg`, редко)            | `h-10` (40)    | `7px`  |
 | Header icon-кнопки (исключение, тач-таргет) | `size-10` (40) | —      |
 
 - В одной строке формы/тулбара поле и select совпадают по высоте (32px); стандартная doctor-кнопка — 36px.
@@ -163,12 +164,12 @@
 ### C.2. Левая колонка (master-list) — `CatalogLeftPane`
 
 ```
-aside: flex min-h-0 flex-1 flex-col overflow-hidden rounded-[12px] border border-border bg-card
+aside: flex min-h-0 flex-1 flex-col overflow-hidden rounded-[10px] border border-border bg-card
   headerSlot: shrink-0 px-[18px] pb-1 pt-1.5 // DoctorCatalogMasterListHeader
   body:       min-h-0 flex-1 overflow-hidden // список, внутренний скролл
 ```
 
-- Контур — **один** с радиусом 12px и `border border-border`, без `shadow`.
+- Контур — **один** с радиусом 10px и `border border-border`, без `shadow`.
 - Шапка списка (`DoctorCatalogMasterListHeader`): слева сортировка/scope, справа счётчик `text-xs text-muted-foreground` + view-toggle `size-[32px]`.
 
 ### C.3. Правая колонка (detail) — `CatalogRightPane`
@@ -302,7 +303,7 @@ DOCTOR_PAGE_CONTAINER_CLASS =
 Используется для блоков прямо на странице: «Сегодня», «Записи», «Аналитика», «Сигналы».
 
 ```
-rounded-[12px] border border-border bg-card p-[18px] flex flex-col gap-3
+rounded-[10px] border border-border bg-card p-[18px] flex flex-col gap-3
 ```
 
 - `p-[18px]` (18px внутренний отступ)
@@ -341,7 +342,7 @@ rounded-lg border border-border bg-card p-3 shadow-sm
 
 ```
 Я рисую…
-├── Блок прямо на странице → rounded-[12px] border border-border bg-card p-[18px]
+├── Блок прямо на странице → rounded-[10px] border border-border bg-card p-[18px]
 ├── Панель в overview-сетке клиента
 │   ├── Основная (программа, задачи) → doctorClientOverviewPrimaryCardClass
 │   └── Вспомогательная (хронология, сигналы) → doctorClientOverviewSecondaryCardClass
@@ -352,7 +353,7 @@ rounded-lg border border-border bg-card p-3 shadow-sm
 
 **Антипаттерны (не вводить в новом коде; при ревью — исправлять):**
 
-- `rounded-2xl` в page-level секциях → `doctorSectionCardClass` / радиус 12px
+- `rounded-2xl` в page-level секциях → `doctorSectionCardClass` / радиус 10px
 - `rounded-lg border border-border bg-card p-4 shadow-sm` на page-section без stat-карточек → `doctorSectionCardClass`, без лишнего `shadow-sm`
 - `p-4` / `p-3` в page-level секциях без особого контракта → общий padding 18px
 
@@ -995,7 +996,7 @@ import { cn } from '@/lib/utils';
 
 /** Page-level секция: основной контейнер на странице. */
 export const doctorSectionCardClass =
-  'rounded-[var(--doctor-page-block-radius,12px)] border border-border bg-card p-[var(--doctor-block-padding,18px)] flex flex-col gap-3';
+  'rounded-[var(--doctor-page-block-radius,10px)] border border-border bg-card p-[var(--doctor-block-padding,18px)] flex flex-col gap-3';
 
 /** Вложенная строка-карточка внутри page-section (записи, заявки, инсайты). */
 export const doctorSectionItemClass =
@@ -1074,7 +1075,7 @@ Overview-сетка и панели уровня 2 — в `doctorClientCardChrom
 При добавлении нового экрана или блока в `/app/doctor/**`:
 
 - [ ] Нет голого `<h2>` / `<h3>` без className
-- [ ] Page-level секция: радиус 12px, `border border-border bg-card`, padding 18px (не `rounded-2xl`)
+- [ ] Page-level секция: радиус 10px, `border border-border bg-card`, padding 18px (не `rounded-2xl`)
 - [ ] `shadow-sm` добавлен только на медиакарточки или card-internal панели (§4)
 - [ ] Основной page-block использует padding 18px; локальные внутренние панели — только по своему контракту
 - [ ] Каталожный toolbar: `DoctorCatalogFiltersToolbar` (не кастомный sticky)
@@ -1088,7 +1089,7 @@ Overview-сетка и панели уровня 2 — в `doctorClientCardChrom
 - [ ] Карточка сущности (если нужна) — по §9, используя `doctorClientCardChrome.ts`
 - [ ] График — через shadcn Card + recharts по §7 (не кастомный контейнер)
 - [ ] Размеры текста — только из набора §B.1 (нет `text-[13px]`/`text-lg`/`text-xl`/`text-3xl`; `text-[10px]`/`text-[11px]` только в micro-роли)
-- [ ] Doctor button/select/input/textarea используют радиус 8px; поля белые; явные `rounded-none`/icon overrides сохранены (§B.2)
+- [ ] Doctor button/select/input/textarea используют радиус 7px; поля белые; явные `rounded-none`/icon overrides сохранены (§B.2)
 - [ ] KPI-число — `text-[18px]` через общую роль (не локальный `text-2xl`/`text-3xl`)
 - [ ] KPI: радиус 8px, подпись сверху, число снизу
 - [ ] Основной flat-list: `1px` divider, padding 18px по горизонтали, первичная строка `text-base font-normal`

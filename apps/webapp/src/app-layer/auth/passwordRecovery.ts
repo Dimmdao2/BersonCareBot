@@ -5,6 +5,7 @@ import { enterStaffSecuritySelfPrincipal } from '@/app-layer/principal/staffSecu
 import { startEmailChallenge, type EmailChallengePurpose } from '@/modules/auth/emailAuth';
 import { platformMailProfileForRecipientRole } from '@/modules/auth/mailProfile';
 import { OTP_RESEND_COOLDOWN_SEC } from '@/modules/auth/otpConstants';
+import { isPasswordEligibleRole } from '@/modules/auth/passwordEligibility';
 
 export const PASSWORD_RECOVERY_REQUEST_ACCEPTED = {
   ok: true,
@@ -34,7 +35,10 @@ export async function requestPasswordRecoveryChallenge(emailNormalized: string):
     );
     const recipient = await deps.userByPhone.findByUserId(candidate.userId);
     stampBootstrapPrincipal('api/auth/email-password/forgot:challenge');
-    if (!recipient) return;
+    // Password recovery is a staff-only door. The lookup state deliberately says only whether a
+    // credential exists; the role check belongs here, before any message promises a password.
+    // `setup-code/complete` keeps its own role guard as the lower safety net after OTP verification.
+    if (!recipient || !isPasswordEligibleRole(recipient.role)) return;
     const result = await startEmailChallenge(
       candidate.userId,
       emailNormalized,

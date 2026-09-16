@@ -36,4 +36,21 @@ describe('surface route audience', () => {
     expect(canSurfaceEnterRoute('staff', '/manifest-admin.webmanifest')).toBe(false);
     expect(canSurfaceEnterRoute('patient_default', '/manifest-admin.webmanifest')).toBe(false);
   });
+
+  /**
+   * Страница заявки существует (`app/[clinicSlug]/lead/page.tsx`) и её адрес — тот самый, который
+   * виджет даёт человеку. Пока правила для него не было, обе пациентские поверхности отвечали на
+   * него 404: живая приёмка Л4 на TEST упёрлась именно в это и до формы не дошла.
+   */
+  it('lets a patient reach the clinic lead form the widget sends them to', () => {
+    expect(canSurfaceEnterRoute('patient_branded', '/clinic-a/lead')).toBe(true);
+    expect(canSurfaceEnterRoute('patient_default', '/clinic-a/lead')).toBe(true);
+    expect(canSurfaceEnterRoute('staff', '/clinic-a/lead')).toBe(false);
+    expect(canSurfaceEnterRoute('platform_admin', '/clinic-a/lead')).toBe(false);
+  });
+
+  it('opens nothing deeper than the clinic pages it names', () => {
+    expect(canSurfaceEnterRoute('patient_branded', '/clinic-a/lead/extra')).toBe(false);
+    expect(canSurfaceEnterRoute('patient_branded', '/clinic-a/leads')).toBe(false);
+  });
 });

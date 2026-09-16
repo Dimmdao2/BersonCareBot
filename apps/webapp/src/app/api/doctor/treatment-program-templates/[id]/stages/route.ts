@@ -5,12 +5,21 @@ import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole
 import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
+import {
+  RICH_TEXT_SERIALIZED_MAX_LENGTH,
+  richTextWithinCharacterLimit,
+} from '@/shared/lib/richText';
+
+const richStageTextSchema = z
+  .string()
+  .max(RICH_TEXT_SERIALIZED_MAX_LENGTH)
+  .refine((value) => richTextWithinCharacterLimit(value, 200_000));
 
 const postBodySchema = z.object({
   title: z.string().min(1).max(2000),
   description: z.string().max(20000).optional().nullable(),
-  goals: z.string().max(200000).optional().nullable(),
-  objectives: z.string().max(200000).optional().nullable(),
+  goals: richStageTextSchema.optional().nullable(),
+  objectives: richStageTextSchema.optional().nullable(),
   expectedDurationDays: z.number().int().min(0).max(36500).optional().nullable(),
   expectedDurationText: z.string().max(20000).optional().nullable(),
 });

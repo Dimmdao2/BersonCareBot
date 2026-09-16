@@ -3,8 +3,13 @@ import { getPool } from '@/infra/db/client';
 import { getCurrentDbPrincipal } from '@bersoncare/db-principal';
 import { resolveCanonicalUserId } from '@/infra/repos/pgCanonicalPlatformUser';
 import { CONTACTS, USER_CONTACTS_PRIMARY_LATERALS } from '@/infra/repos/userContactsSql';
-import { getWebappSqlDb, runWebappSql } from '@/infra/db/runWebappSql';
-import type { PlatformAccessCanonRow, PlatformAccessPort } from '@/modules/platform-access/ports';
+import { getWebappSqlDb, runWebappNamedRoot, runWebappSql } from '@/infra/db/runWebappSql';
+import { nullableToIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
+import type {
+  PatientEmailGateState,
+  PlatformAccessCanonRow,
+  PlatformAccessPort,
+} from '@/modules/platform-access/ports';
 
 function credentialPresenceSql(): string {
   const principal = getCurrentDbPrincipal();
@@ -36,5 +41,22 @@ export const pgPlatformAccessPort: PlatformAccessPort = {
        WHERE pu.id = ${canonicalUserId}::uuid`,
     );
     return r.rows[0] ?? null;
+  },
+  async loadPatientEmailGateState(markFirstRequest) {
+    const result = await runWebappNamedRoot<{
+      email_verified: boolean;
+      email_first_requested_at: Date | string | null;
+    }>(
+      getWebappSqlDb(),
+      'app.patient_email_gate_state(boolean)',
+      [markFirstRequest],
+      sql`SELECT * FROM app.patient_email_gate_state(${markFirstRequest}::boolean)`,
+    );
+    const row = result.rows[0];
+    if (!row) throw new Error('patient_email_gate_state_missing');
+    return {
+      emailVerified: row.email_verified,
+      emailFirstRequestedAt: nullableToIsoStringSafe(row.email_first_requested_at),
+    } satisfies PatientEmailGateState;
   },
 };

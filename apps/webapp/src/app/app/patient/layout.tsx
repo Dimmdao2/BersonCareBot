@@ -2,7 +2,10 @@ import type { ReactNode } from 'react';
 import { sessionMatchesTestAccountIdentifiers } from '@/config/testAccounts';
 import { headers } from 'next/headers';
 import { notFound, redirect } from 'next/navigation';
-import { patientClientBusinessGate } from '@/app-layer/platform-access';
+import {
+  patientClientBusinessGate,
+  patientEmailGateForCabinetEntry,
+} from '@/app-layer/platform-access';
 import {
   patientPathRequiresBoundPhone,
   resolvePatientLayoutPathname,
@@ -47,6 +50,7 @@ function patientPathAllowsGlobalAccountWithoutCareContext(pathname: string): boo
     routePaths.profile,
     routePaths.patientOrganizations,
     routePaths.bindPhone,
+    routePaths.bindEmail,
     routePaths.notifications,
     routePaths.patientInstall,
   ].some((path) => pathname === path || pathname.startsWith(`${path}/`));
@@ -91,6 +95,16 @@ export default async function PatientLayout({ children }: { children: ReactNode 
     }
   } else if (!session.user.phone?.trim() && patientPathRequiresBoundPhone(pathname)) {
     redirect(`${routePaths.bindPhone}?next=${encodeURIComponent(returnTo)}`);
+  }
+
+  // The shared policy owns the first-request decision and clock write. This layout only presents
+  // the request/requirement screen selected for this cabinet entry.
+  const emailGate = await patientEmailGateForCabinetEntry({
+    sessionRole: session.user.role,
+    pathname,
+  });
+  if (emailGate.shouldPromptNow) {
+    redirect(`${routePaths.bindEmail}?next=${encodeURIComponent(returnTo)}`);
   }
 
   if (session.user.role === 'client') {

@@ -58,7 +58,7 @@ import {
 import { TreatmentProgramTemplateStatusBadge } from '../TreatmentProgramTemplateStatusBadge';
 import { TemplateReorderChevrons } from '@/shared/ui/doctor/TemplateReorderChevrons';
 import { cn } from '@/lib/utils';
-import { MarkdownEditor } from '@/shared/ui/doctor/markdown/MarkdownEditor';
+import { TiptapEditor } from '@/shared/ui/doctor/TiptapEditor';
 import {
   TreatmentProgramPipelineStagesDnd,
   TreatmentProgramSortablePipelineStage,
@@ -1935,7 +1935,7 @@ export function TreatmentProgramConstructorClient({
               />
             </div>
             <div className="flex flex-col gap-1.5">
-              <MarkdownEditor
+        <TiptapEditor
                 name="stage_goals_md"
                 label="Цель этапа"
                 helpText={null}
@@ -1946,7 +1946,7 @@ export function TreatmentProgramConstructorClient({
               />
             </div>
             <div className="flex flex-col gap-1.5">
-              <MarkdownEditor
+              <TiptapEditor
                 name="stage_objectives_md"
                 label="Задачи этапа"
                 helpText={null}
@@ -2145,7 +2145,7 @@ export function TreatmentProgramConstructorClient({
               onChange={(e) => setNewStageTitle(e.target.value)}
               maxLength={2000}
             />
-            <MarkdownEditor
+            <TiptapEditor
               name="new_stage_goals_md"
               label="Цель этапа (опционально)"
               helpText={null}
@@ -2153,7 +2153,7 @@ export function TreatmentProgramConstructorClient({
               onChange={setNewStageGoals}
               minHeight={96}
             />
-            <MarkdownEditor
+            <TiptapEditor
               name="new_stage_objectives_md"
               label="Задачи этапа (опционально)"
               helpText={null}

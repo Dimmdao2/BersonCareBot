@@ -13,7 +13,7 @@ export const doctorTimezoneSelectStyles: StylesConfig<ITimezone, false> = {
   control: (base, state) => ({
     ...base,
     minHeight: 32,
-    borderRadius: 'var(--doctor-control-radius, calc(var(--radius) - 2px))',
+    borderRadius: 'var(--doctor-control-radius, 7px)',
     borderColor: state.isFocused ? 'var(--ring)' : 'var(--border)',
     backgroundColor: 'var(--background)',
     boxShadow: state.isFocused
@@ -27,7 +27,7 @@ export const doctorTimezoneSelectStyles: StylesConfig<ITimezone, false> = {
   menuPortal: (base) => ({ ...base, zIndex: 60 }),
   menu: (base) => ({
     ...base,
-    borderRadius: 'calc(var(--radius) - 2px)',
+    borderRadius: 'var(--doctor-control-radius, 7px)',
     border: '1px solid var(--border)',
     overflow: 'hidden',
     backgroundColor: 'var(--popover)',

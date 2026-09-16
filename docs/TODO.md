@@ -7,7 +7,9 @@
 - **[docs/ARCHITECTURE/TOOLING_AND_PACKAGES_DECISIONS.md](ARCHITECTURE/TOOLING_AND_PACKAGES_DECISIONS.md)** — что внедряем/откладываем/не берём из списка сторонних инструментов и библиотек (разбор 2026-07-19). Перед тем как тащить новый self-hosted сервис или npm-пакет — свериться там.
 - **Инфраструктура и Security CI** (host/LUKS/S3/backups/secrets/Gitleaks/Semgrep/Trivy/ZAP): единый канон —
   **[docs/\_TODO/INFRASTRUCTURE_SECURITY_PLAN.md](_TODO/INFRASTRUCTURE_SECURITY_PLAN.md)**.
-- **Редактор текстов — Tiptap Simple Editor (не raw-markdown UI и не AI-editor).** Замена markdown-редакторов **везде, где они стоят** (рассылки/CMS-статьи/рекомендации + discovery-sweep) — вариант 1 (markdown остаётся форматом хранения, миграции нет): подчинённый checklist **[docs/\_TODO/EDITOR_TIPTAP_MIGRATION_PLAN.md](_TODO/EDITOR_TIPTAP_MIGRATION_PLAN.md)**, taskdb **#931**. Исполнение — по решению основного оркестратора; N1B/#930 не блокирует.
+- **Редактор текстов — единый Tiptap Simple Editor (не raw-markdown UI и не AI-editor).** Все форматированные
+  write-поверхности используют один примитив; единственный формат хранения — versioned Tiptap JSON:
+  **[docs/\_TODO/EDITOR_TIPTAP_MIGRATION_PLAN.md](_TODO/EDITOR_TIPTAP_MIGRATION_PLAN.md)**.
 - **Брендированный конверт транзакционных писем (не Tiptap).** Уведомления/напоминания о записи/OTP-коды: текст — как сейчас (простой шаблон); HTML-каркас принадлежит серверу, а организация настраивает только разрешённые поля бренда и предпросмотр без ввода HTML/CSS. Часть **N1B (#930)**; канон — TOOLING_AND_PACKAGES_DECISIONS.md §«Конверт транзакционных писем».
 - **Сверх product/SaaS roadmap — RU privacy и production readiness:** privacy/legal порядок и owner gates —
   **[docs/\_TODO/RU_PRIVACY_AND_PRODUCTION_READINESS/](_TODO/RU_PRIVACY_AND_PRODUCTION_READINESS/README.md)**;

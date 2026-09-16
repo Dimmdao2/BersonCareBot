@@ -3,6 +3,7 @@ import type { RecommendationMediaItem } from '@/modules/recommendations/types';
 import type { TreatmentProgramInstanceDetail } from '@/modules/treatment-program/types';
 import { formatRelativePatientCalendarDayRu } from '@/modules/treatment-program/stage-semantics';
 import type { ExerciseLoadType } from '@/modules/lfk-exercises/types';
+import { richTextToPlainText } from '@/shared/lib/richText';
 
 const PATIENT_EXERCISE_LOAD_LABEL_RU: Record<string, string> = {
   strength: 'Сила / укрепление',
@@ -127,10 +128,10 @@ export function parseRecommendationMediaFromSnapshot(
   return parseSnapshotMediaForRowThumb(snapshot);
 }
 
-/** Plain-текст из `bodyMd` снимка рекомендации для превью в списке (без рендера MD). */
+/** Plain-текст из Tiptap JSON либо legacy `bodyMd` для компактного превью в списке. */
 export function recommendationBodyMdPreviewPlain(bodyMd: unknown): string {
   if (typeof bodyMd !== 'string' || !bodyMd.trim()) return '';
-  let s = bodyMd.trim();
+  let s = richTextToPlainText(bodyMd.trim());
   s = s.replace(/```[\s\S]*?```/g, ' ');
   s = s.replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1 ');
   s = s.replace(/\[([^\]]*)\]\([^)]*\)/g, '$1');

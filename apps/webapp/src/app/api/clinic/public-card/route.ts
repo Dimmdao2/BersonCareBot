@@ -3,13 +3,20 @@ import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireClinicManagementApiContext } from '@/app-layer/guards/requireRole';
 import { CLINIC_PUBLIC_CARD_LIMITS } from '@/modules/clinic-public-card/ports';
+import {
+  RICH_TEXT_SERIALIZED_MAX_LENGTH,
+  richTextWithinCharacterLimit,
+} from '@/shared/lib/richText';
 
 const bodySchema = z
   .object({
     description: z.string().max(CLINIC_PUBLIC_CARD_LIMITS.descriptionMaxLength).nullable(),
     fullDescriptionMarkdown: z
       .string()
-      .max(CLINIC_PUBLIC_CARD_LIMITS.fullDescriptionMaxLength)
+      .max(RICH_TEXT_SERIALIZED_MAX_LENGTH)
+      .refine((value) =>
+        richTextWithinCharacterLimit(value, CLINIC_PUBLIC_CARD_LIMITS.fullDescriptionMaxLength),
+      )
       .nullable(),
     publicContactPhone: z.string().max(CLINIC_PUBLIC_CARD_LIMITS.phoneMaxLength).nullable(),
     publicContactEmail: z.string().max(CLINIC_PUBLIC_CARD_LIMITS.emailMaxLength).nullable(),

@@ -6,7 +6,9 @@ import {
   dueLifecycleNotifications,
   organizationHasPaidSinceTrial,
   renderAccessNotification,
+  renderAccessNotificationRichText,
 } from './accessNotifications';
+import { richTextToPlainText, serializeTiptapRichText } from '@/shared/lib/richText';
 import type { AccessNotificationRule, MechanicAccessWarning } from './types';
 
 /**
@@ -43,6 +45,22 @@ describe('access ladder notifications', () => {
       }),
     ).toBe('01.09.2026');
     expect(accessNotificationVariables('{{тариф}} и {{сумма}}')).toEqual(['тариф', 'сумма']);
+  });
+
+  it('substitutes variables inside Tiptap text without corrupting the document', () => {
+    const template = serializeTiptapRichText({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [{ type: 'text', text: 'Тариф {{тариф}}', marks: [{ type: 'bold' }] }],
+        },
+      ],
+    });
+    const rendered = renderAccessNotificationRichText(template, { тариф: 'Базовый' });
+
+    expect(richTextToPlainText(rendered)).toBe('Тариф Базовый');
+    expect(rendered).toContain('"type":"bold"');
   });
 
   // Breakage: the warning reads a live tariff or invents a value when billing has no invoice for

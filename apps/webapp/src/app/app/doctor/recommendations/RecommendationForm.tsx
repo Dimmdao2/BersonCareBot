@@ -11,7 +11,7 @@ import {
   DialogTitle,
 } from '@/shared/ui/doctor/primitives/dialog';
 import { Input } from '@/shared/ui/doctor/primitives/input';
-import { MarkdownEditor } from '@/shared/ui/doctor/markdown/MarkdownEditor';
+import { TiptapEditor } from '@/shared/ui/doctor/TiptapEditor';
 import {
   buildRecommendationDomainSelectOptions,
   type RecommendationDomain,
@@ -432,7 +432,7 @@ export function RecommendationForm({
             </DoctorField>
 
             <DoctorField label="Описание" width="full">
-              <MarkdownEditor
+        <TiptapEditor
                 key={`rec-body-${recordKey}`}
                 name="bodyMd"
                 // Начальное значение берётся из ПРОПА, а не из `values`, и это не косметика.

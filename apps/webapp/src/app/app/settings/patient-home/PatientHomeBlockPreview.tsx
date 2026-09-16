@@ -32,7 +32,7 @@ export function PatientHomeBlockPreview({
     .sort((a, b) => a.sortOrder - b.sortOrder);
   if (visibleItems.length === 0) {
     return (
-      <div className="rounded-xl border border-dashed border-border/70 bg-muted/20 p-3 text-sm text-muted-foreground">
+      <div className="rounded-[var(--doctor-page-block-radius,10px)] border border-dashed border-border/70 bg-muted/20 p-3 text-sm text-muted-foreground">
         {emptyPreviewText}
       </div>
     );
@@ -45,7 +45,7 @@ export function PatientHomeBlockPreview({
         return (
           <div
             key={item.id}
-            className="rounded-xl border border-border bg-card p-3"
+            className="rounded-[var(--doctor-page-block-radius,10px)] border border-border bg-card p-3"
             data-testid="patient-home-preview-item"
           >
             <div className="text-sm font-medium">{title}</div>

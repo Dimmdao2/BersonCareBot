@@ -148,6 +148,7 @@ export const notificationText = {
   authUnauthorized: 'Сеанс входа истёк. Войдите снова и повторите действие.',
   authVerifiedEmailRequired:
     'Email не подтверждён. Подтвердите email и повторите настройку защиты.',
+  patientEmailRequired: 'Подтвердите email, чтобы продолжить.',
   authWeakNewPassword:
     'Новый пароль должен содержать от 8 до 128 символов. Измените пароль и повторите.',
   authWrongCurrentPassword: 'Текущий пароль указан неверно. Проверьте его и повторите попытку.',
@@ -284,7 +285,8 @@ export const notificationText = {
   commonUnknownStatusLower: 'неизвестен',
   commonUnknownValue: 'Неизвестно',
   messagingOpenBotChat: 'Откройте чат с ботом и отправьте контакт по кнопке.',
-  authEmailCodeSent: 'Отправили код на почту.',
+  authEmailCodeDeliveryHint: 'Отправим 6-значный код на вашу почту.',
+  authEmailCodeSent: 'Код отправлен на почту:',
   authSignupPasswordTooShort: 'Пароль — не менее 8 символов.',
   authResendCooldown: 'Подождите минуту перед повторной отправкой.',
   // C2 (copy audit): было грамматически некорректно («в моменте» + «только что» вместе).

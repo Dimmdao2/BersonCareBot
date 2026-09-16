@@ -58,7 +58,7 @@ Full-page route (separate navigate), not a slide-in right-pane. Uses `DoctorAppS
 
 **`apps/webapp/src/app/app/doctor/content/ContentForm.tsx`** (L1-343)
 
-Fields: title, section (select), slug (with auto-gen), summary (Textarea), body_md (MarkdownEditorToastUi), isPublished (checkbox), requiresAuth (checkbox), linkedCourseId (select), image (MediaLibraryPickerDialog), video (MediaLibraryPickerDialog), preview toggle. Saves via `saveContentPage` server action in `actions.ts`. Rating summary shown read-only from `deps.materialRating.getPublicAggregate`.
+Fields: title, section (select), slug (with auto-gen), summary (Textarea), body_md (единый `TiptapEditor`), isPublished (checkbox), requiresAuth (checkbox), linkedCourseId (select), image (MediaLibraryPickerDialog), video (MediaLibraryPickerDialog), preview toggle. Saves via `saveContentPage` server action in `actions.ts`. Rating summary shown read-only from `deps.materialRating.getPublicAggregate`.
 
 ### New page route
 
@@ -365,7 +365,7 @@ Nav items for Главная пациента and Файлы и медиа can i
 - `apps/webapp/src/app/app/doctor/content/page.tsx` — replace `ContentPagesSectionList` calls with `ContentSectionPanel`. The existing `/content/edit/[id]` route remains as a fallback deep-link; it is not removed.
 - `apps/webapp/src/app/app/doctor/content/actions.ts` — `saveContentPage` already revalidates paths; it also needs to update `selectedPageId` after save. Pass `onSaved` callback from `ContentSectionPanel`.
 
-**Important risk**: `ContentForm` uses `MarkdownEditorToastUi` (dynamic import) which has known hydration sensitivity. Wrap in `Suspense` with a loading skeleton. Test markdown editor mount in the right pane carefully before marking done.
+**Important risk**: `ContentForm` uses client-only `TiptapEditor`. Test its mount and record switching in the right pane carefully before marking done.
 
 **Layer touched**: UI (new components), page component. No new backend needed.
 
@@ -441,7 +441,7 @@ Both are already marked as lock-only in the wireframe (line 1963, 1970: `🔒 В
 
 ## Biggest risks
 
-1. **MarkdownEditorToastUi in right pane (Step 4)**: `dynamic(() => import("./ExerciseForm"), { loading: ... })` pattern used in exercises works. The content form must follow the same `dynamic` import. If Toast UI editor has CSS/SSR issues in a pane (not a full page), tests on actual dev instance are essential before shipping Step 4.
+1. **TiptapEditor in right pane (Step 4)**: editor state must reset with the selected record and preserve its client-only mount inside the pane. Test record switching on the actual dev instance before shipping Step 4.
 
 2. **Batch rating query (Step 3)**: The `material_ratings` table may be large. The `listAggregates` query must filter by `target_kind = 'content_page' AND target_id = ANY($1)`. Verify the existing index covers this (check schema for `idx_material_ratings_*`).
 

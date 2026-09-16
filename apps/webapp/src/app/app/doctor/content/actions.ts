@@ -18,6 +18,10 @@ import {
   HOSTED_VIDEO_ALLOWED_HOSTS_RU,
   parseHostedVideoLink,
 } from '@/shared/lib/hostingEmbedUrls';
+import {
+  RICH_TEXT_SERIALIZED_MAX_LENGTH,
+  richTextWithinCharacterLimit,
+} from '@/shared/lib/richText';
 
 export type SaveContentPageState = { ok: boolean; error?: string };
 
@@ -68,7 +72,12 @@ export async function saveContentPage(
   const bodyHtmlLegacy = (formData.get('body_html') as string) ?? '';
   if (title.length > 500) return { ok: false, error: 'Заголовок слишком длинный' };
   if (summary.length > 2000) return { ok: false, error: 'Краткое описание слишком длинное' };
-  if (bodyMd.length > 50000) return { ok: false, error: 'Текст страницы слишком большой' };
+  if (
+    bodyMd.length > RICH_TEXT_SERIALIZED_MAX_LENGTH ||
+    !richTextWithinCharacterLimit(bodyMd, 50_000)
+  ) {
+    return { ok: false, error: 'Текст страницы слишком большой' };
+  }
   if (bodyHtmlLegacy.length > 50000) return { ok: false, error: 'HTML слишком большой' };
   const bodyMdStored = bodyMd.length > 0 ? bodyMd : '';
   const bodyHtmlStored = bodyMd.length > 0 ? '' : bodyHtmlLegacy;

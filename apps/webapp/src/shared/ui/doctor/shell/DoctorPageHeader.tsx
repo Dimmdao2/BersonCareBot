@@ -44,7 +44,7 @@ export type DoctorPageHeaderProps = {
  *   `tabs` (право — вкладки раздела), `toolbar` (док-зона липких тулбаров под шапкой).
  *
  * Визуальный язык по `DOCTOR_APP_UI_STYLE_GUIDE` §A/§B: page-title `text-base`,
- * глубина — границы, не тени; радиусы page `rounded-xl` / панель `rounded-lg`.
+ * глубина — границы, не тени; page-контейнеры используют общий радиус 10px.
  */
 export function DoctorPageHeader({
   title,

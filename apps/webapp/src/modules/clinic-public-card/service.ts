@@ -8,6 +8,7 @@ import {
   type ClinicPublicCardSpecialist,
   type SaveClinicPublicCardInput,
 } from './ports';
+import { richTextWithinCharacterLimit } from '@/shared/lib/richText';
 
 /** Страница специалиста всегда показывается ВМЕСТЕ с тем, чьей клиники она часть. */
 export type ClinicPublicSpecialistPage = {
@@ -135,7 +136,10 @@ export function createClinicPublicCardService(
       }
       if (
         fullDescription &&
-        fullDescription.length > CLINIC_PUBLIC_CARD_LIMITS.fullDescriptionMaxLength
+        !richTextWithinCharacterLimit(
+          fullDescription,
+          CLINIC_PUBLIC_CARD_LIMITS.fullDescriptionMaxLength,
+        )
       ) {
         return { ok: false, code: 'full_description_too_long' };
       }

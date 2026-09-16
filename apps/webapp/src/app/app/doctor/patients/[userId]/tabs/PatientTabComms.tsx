@@ -80,7 +80,7 @@ export function PatientTabComms({ userId, initialProgramInstances }: Props) {
       ================================================================ */}
       <div
         className={cn(
-          'rounded-xl border border-border bg-card',
+          'rounded-[var(--doctor-page-block-radius,10px)] border border-border bg-card',
           'flex flex-col overflow-hidden',
           CHAT_CARD_HEIGHT,
         )}

@@ -15,7 +15,7 @@ import {
 } from '@/shared/ui/doctor/primitives/select';
 import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
 import { MarkdownContent } from '@/shared/ui/doctor/markdown/MarkdownContent';
-import { MarkdownEditor } from '@/shared/ui/doctor/markdown/MarkdownEditor';
+import { TiptapEditor } from '@/shared/ui/doctor/TiptapEditor';
 import type { ContentSectionRow } from '@/modules/content-sections/ports';
 import {
   HELP_CANONICAL_ARTICLE_IA,
@@ -528,7 +528,7 @@ export function ContentForm({
           {hasLegacyHtmlOnly && !legacyReplacementStarted ? (
             <>
               <input type="hidden" name="body_md" value="" readOnly />
-              <div className="flex flex-col gap-3 rounded-xl border border-border bg-muted/10 p-[18px]">
+              <div className="flex flex-col gap-3 rounded-[var(--doctor-page-block-radius,10px)] border border-border bg-muted/10 p-[18px]">
                 <div className="flex flex-col gap-1">
                   <span className={fieldLabelClass}>Содержимое в старом формате</span>
                   <p className="m-0 text-sm text-muted-foreground">
@@ -550,7 +550,7 @@ export function ContentForm({
               </div>
             </>
           ) : (
-            <MarkdownEditor
+        <TiptapEditor
               name="body_md"
               defaultValue={bodyMdValue}
               key={`body-${page?.id ?? 'new'}`}

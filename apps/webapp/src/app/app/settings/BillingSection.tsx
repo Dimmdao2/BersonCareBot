@@ -110,7 +110,7 @@ export function BillingSection({
             href="/app/settings/tariffs"
             className={cn(
               buttonVariants({ size: 'sm', variant: 'outline' }),
-              'h-9 w-fit rounded-[var(--doctor-button-radius,8px)] bg-[var(--doctor-page-gap-background,var(--bc-canvas,#f2f2f0))]',
+              'h-9 w-fit rounded-[var(--doctor-button-radius,7px)] bg-[var(--doctor-page-gap-background,var(--bc-canvas,#f2f2f0))]',
             )}
           >
             Изменить тариф

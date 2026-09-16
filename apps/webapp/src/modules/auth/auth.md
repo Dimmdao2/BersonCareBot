@@ -47,9 +47,10 @@
   с `purpose=password_login`, identifier и expiry; криптографически проверенный proof потребляется атомарно
   вместе с admission и только один раз. CDN/Sentinel/внешней телеметрии нет. Реальный и неизвестный email
   проходят один и тот же внешний failure contract и real/dummy Argon2 после допуска.
-- **`POST /api/auth/email-password/forgot`** — единый старт восстановления: для **verified + password** запускает reset-код, для **contact-only** (`needs_email_setup`) — setup-код; status/body и время ответа не сообщают найденное состояние, `challengeId` и признак setup/reset наружу не уходят.
+- **`POST /api/auth/email-password/forgot`** — единый нейтральный старт восстановления: challenge выпускается только для роли, которой разрешён пароль; **verified + password** получает reset-код, staff **contact-only** (`needs_email_setup`) — setup-код. Пациент не получает парольное письмо ни в одном из состояний. Status/body и время ответа не сообщают найденное состояние, `challengeId` и признак setup/reset наружу не уходят.
 - **`POST /api/auth/email-password/setup-code/complete`** — contact-only setup по коду: до успешной проверки OTP неизвестный адрес, contact-only и существующий login получают один `invalid_code`; после проверки создаёт/обновляет пароль и ставит сессию.
-- **`POST /api/auth/email-password/reset`** — единый completion после нейтрального `forgot`: проверяет reset- либо setup-код и только после успешного OTP выбирает обновление существующего пароля или первичную установку; ошибки верификации кода (включая случай отсутствия пользователя) нормализуются в нейтральный `invalid_code`.
+- **`POST /api/auth/email-password/reset`** — единый completion после нейтрального `forgot`: проверяет reset- либо setup-код и только после успешного OTP выбирает обновление существующего пароля или первичную установку; ошибки верификации кода (включая случай отсутствия пользователя) нормализуются в нейтральный `invalid_code`. Role guard остаётся нижней страховкой обоих completion-путей.
+- **Contact-only пациент, созданный врачом**, получает обычный challenge назначения `login`; тот же `POST /api/auth/email-otp/confirm`, что у самостоятельного входа по email-коду, подтверждает адрес и открывает пациентскую сессию без пароля.
 - **`POST /api/account/security/password/change`** — смена пароля из авторизованного staff-аккаунта с той же
   атомарной защитой текущего пароля и ALTCHA после 5-й неудачи
   (`POST /api/account/security/password/change/challenge`); старые сессии отзываются через `session_epoch`,
@@ -198,7 +199,7 @@ Tier **`patient`** (доступ к основному пациентскому 
 - **Предпочтение канала для кода входа** (`user_channel_preferences.is_preferred_for_auth`): задать можно только **`telegram`**, **`max`**, **`email`**, **`sms`** — см. **`assertChannelAllowedForPreferredAuth`** / **`isChannelAllowedForPreferredAuth`** в `modules/channel-preferences/preferredAuthChannelPolicy.ts`. **`web_push`** и **`vk`** для этого флага **недопустимы** (запись — ошибка **`PreferredAuthChannelNotAllowedError`**); устаревшие строки в БД при **чтении** маскируются, чтобы не расходились карточки каналов и OTP-выбор.
 - **Экран входа по email+паролю на `/app`:** кнопка «Войти по email» (из **`oauth_first`**) или сразу форма (**без OAuth**): **Вход** / **Регистрация** → при необходимости **`POST …/login`**, регистрация **`POST …/register`**, код → **`POST …/register/confirm`**. Повтор кода через повтор **`register`** с тем же email и паролем.
 
-- **Восстановление пароля:** в том же **`email_password`**-шаге — **`POST /api/auth/email-password/forgot`** (ответ всегда **ok**) и **`POST /api/auth/email-password/reset`**; состояние сброса может храниться в **`authFlowPendingStorage`** до входа после смены пароля.
+- **Восстановление пароля персонала:** в том же **`email_password`**-шаге — **`POST /api/auth/email-password/forgot`** (ответ всегда **ok**) и **`POST /api/auth/email-password/reset`**; состояние сброса может храниться в **`authFlowPendingStorage`** до входа после смены пароля. Patient-surface сохранённый reset-draft отбрасывает и оставляет действующий вход по email-коду.
 
 ## Телефон и OTP
 

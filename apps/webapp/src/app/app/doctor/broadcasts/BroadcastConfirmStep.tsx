@@ -25,7 +25,7 @@ export function BroadcastConfirmStep({ preview, command, onConfirm, onCancel, is
   return (
     <div
       id="broadcast-confirm-step"
-      className="rounded-xl border border-border bg-card p-4 flex flex-col gap-4"
+      className="rounded-[var(--doctor-page-block-radius,10px)] border border-border bg-card p-4 flex flex-col gap-4"
     >
       <h3 className="text-sm font-semibold">Подтверждение рассылки</h3>
 

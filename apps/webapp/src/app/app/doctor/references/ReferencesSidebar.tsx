@@ -18,7 +18,7 @@ export function ReferencesSidebar({
   const pathname = usePathname();
 
   return (
-    <aside className="flex shrink-0 flex-col overflow-visible rounded-[var(--doctor-page-block-radius,12px)] border border-border bg-card p-3 md:min-h-0 md:shrink md:overflow-hidden">
+    <aside className="flex shrink-0 flex-col overflow-visible rounded-[var(--doctor-page-block-radius,10px)] border border-border bg-card p-3 md:min-h-0 md:shrink md:overflow-hidden">
       {systemLinks.length > 0 ? (
         <div className="mb-3 border-b border-border pb-3">
           <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">

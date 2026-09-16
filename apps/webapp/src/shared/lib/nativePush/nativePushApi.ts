@@ -3,11 +3,16 @@
  * callers pass only the confirmed native kind, never an app id they chose themselves (M6-03/M6-09).
  */
 import type { NativeRuntimeKind } from '@/shared/lib/platform';
+import { redirectIfPatientAccessRequired } from '@/shared/http/apiErrorCode';
 
 export type NativePushAppKind = Extract<NativeRuntimeKind, 'therapygo_android' | 'therapysto_android'>;
 
 function routeFor(kind: NativePushAppKind): string {
   return kind === 'therapygo_android' ? '/api/patient/native-push' : '/api/account/native-push';
+}
+
+function redirectPatientAccess(body: unknown): boolean {
+  return redirectIfPatientAccessRequired(body, (path) => window.location.assign(path));
 }
 
 export type NativePushStatusResponse = {
@@ -21,7 +26,10 @@ export type NativePushStatusResponse = {
 export async function fetchNativePushStatus(kind: NativePushAppKind): Promise<NativePushStatusResponse | null> {
   try {
     const res = await fetch(routeFor(kind), { credentials: 'include' });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      redirectPatientAccess(await res.json().catch(() => null));
+      return null;
+    }
     const body = (await res.json()) as Record<string, unknown>;
     if (body.ok !== true) return null;
     const projectId = typeof body.projectId === 'string' ? body.projectId.trim() : '';
@@ -51,6 +59,8 @@ export async function registerNativePushInstallation(
       body: JSON.stringify({ installationId: input.installationId, token: input.token, provider: 'rustore' }),
     });
     if (res.ok) return 'ok';
+    const body = await res.json().catch(() => null);
+    if (redirectPatientAccess(body)) return 'error';
     if (res.status === 409) return 'installation_conflict';
     if (res.status === 503) return 'unavailable';
     return 'error';
@@ -71,6 +81,7 @@ export async function revokeNativePushInstallation(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ installationId: input.installationId, provider: input.provider ?? 'rustore' }),
     });
+    if (!res.ok) redirectPatientAccess(await res.json().catch(() => null));
     return res.ok;
   } catch {
     return false;

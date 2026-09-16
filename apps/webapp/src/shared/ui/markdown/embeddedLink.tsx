@@ -6,7 +6,6 @@ import { parseHostedVideoLink } from '@/shared/lib/hostingEmbedUrls';
 import { parseApiMediaIdFromMarkdownHref } from '@/shared/lib/parseApiMediaIdFromPlayableUrl';
 import type { ComponentType } from 'react';
 import { type AnchorHTMLAttributes, type ReactNode, useEffect, useState } from 'react';
-import type { Components } from 'react-markdown';
 
 /**
  * Чем зона рисует видео из библиотеки и видео с хостинга. Единственное, чем пациентская и
@@ -155,8 +154,21 @@ function MarkdownDeferredLibraryMedia({
 }
 
 /** Готовый компонент ссылки для зоны: подставь её плееры — получишь её `a`. */
-export function createMarkdownEmbeddedLink(players: MarkdownMediaPlayers): Components['a'] {
-  return function MarkdownEmbeddedLink({ href, children, className, node: _node, ...rest }) {
+export type EmbeddedRichTextLinkProps = Omit<
+  AnchorHTMLAttributes<HTMLAnchorElement>,
+  'href' | 'children'
+> & {
+  href?: string;
+  children: ReactNode;
+};
+
+export function createMarkdownEmbeddedLink(players: MarkdownMediaPlayers) {
+  return function MarkdownEmbeddedLink({
+    href,
+    children,
+    className,
+    ...rest
+  }: EmbeddedRichTextLinkProps) {
     if (!href) {
       return (
         <a className={className} {...rest}>
