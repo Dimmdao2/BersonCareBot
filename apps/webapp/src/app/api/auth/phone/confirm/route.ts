@@ -4,10 +4,6 @@ import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { ensureAuthModulePortsBound } from '@/app-layer/di/bindAuthModulePorts';
 import {
-  recordAuthRegistrationFailure,
-  recordAuthRegistrationSuccess,
-} from '@/app-layer/product-analytics/recordAuthRegistration';
-import {
   AUTH_CONFIRM_RATE_LIMIT_SEC,
   checkAuthConfirmRateLimit,
 } from '@/modules/auth/authConfirmRateLimit';
@@ -15,9 +11,6 @@ import {
   formatOtpRetryAfterMessage,
   OTP_TOO_MANY_ATTEMPTS_MESSAGE,
 } from '@/modules/auth/otpConstants';
-import { enterStaffSecuritySelfPrincipal } from '@/app-layer/principal/staffSecuritySelfPrincipal';
-import { isPlatformUserUuid } from '@/shared/platform-user/isPlatformUserUuid';
-import { prepareVerifiedPrimaryLogin } from '@/modules/auth/verifiedStaffPrimaryLogin';
 import { isAuthChannelEnabled } from '@/modules/auth/authChannelPolicy';
 import { notificationText } from '@/shared/notifications/notificationText';
 import { humanMergeDecisionSchema } from '@/modules/auth/humanMergeDecisionSchema';
@@ -26,14 +19,10 @@ const bodySchema = z.object({
   challengeId: z.string().trim().min(1),
   code: z.string().trim().min(1),
   browserCalendarIana: z.string().max(120).optional(),
-  attemptId: z.string().uuid().optional(),
   mergeDecision: humanMergeDecisionSchema.optional(),
 });
 
-/**
- * Confirm phone code. Channel/chatId/displayName are never read from body;
- * binding uses only the context stored in the challenge at start.
- */
+/** Confirm a direct OTP challenge issued for an authenticated profile bind. */
 export async function POST(request: Request) {
   stampBootstrapPrincipal('api/auth/phone/confirm:POST', request);
 
@@ -72,37 +61,21 @@ export async function POST(request: Request) {
 
   const deps = buildAppDeps();
   const challenge = await deps.auth.getPhoneChallenge(challengeId);
-  const deliveryChannel = challenge?.deliveryChannel ?? 'sms';
-  if (challenge && !(await isAuthChannelEnabled(deliveryChannel))) {
+  // Direct OTP confirmation is retained only for an authenticated profile bind. Login challenges
+  // are completed server-side by phone/messenger-bind/finish after the bot proved the contact.
+  if (!challenge?.profileBindUserId) {
+    return NextResponse.json({ ok: false, error: 'direct_phone_login_disabled' }, { status: 403 });
+  }
+  const deliveryChannel = challenge.deliveryChannel ?? 'sms';
+  if (!(await isAuthChannelEnabled(deliveryChannel, 'patient'))) {
     return NextResponse.json({ ok: false, error: 'auth_channel_disabled' }, { status: 403 });
   }
-  const attemptId =
-    parsed.data.attemptId?.trim() || challenge?.registrationAttemptId?.trim() || challengeId;
-  const isRegistrationIntent = challenge?.isRegistrationIntent === true;
-  const entryChannel =
-    challenge?.channelContext?.channel === 'telegram'
-      ? ('telegram' as const)
-      : challenge?.channelContext?.channel === 'max'
-        ? ('max' as const)
-        : ('browser' as const);
 
   const result = await deps.auth.confirmPhoneAuth(challengeId, code, {
     ...(parsed.data.mergeDecision ? { humanMergeDecision: parsed.data.mergeDecision } : {}),
   });
 
   if (!result.ok) {
-    if (isRegistrationIntent) {
-      await recordAuthRegistrationFailure({
-        attemptId,
-        authMethod: 'phone_otp',
-        stage: 'confirm',
-        entryChannel,
-        contactType: 'phone',
-        contactValue: challenge?.phone ?? null,
-        challengeId,
-        errorCode: result.code,
-      });
-    }
     const publicCode =
       result.code === 'invalid_code' || result.code === 'expired_code'
         ? 'invalid_code'
@@ -128,9 +101,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, mergeRequired: true, prompt: result.prompt });
   }
 
-  if (isPlatformUserUuid(result.user.userId)) {
-    enterStaffSecuritySelfPrincipal(result.user.userId, 'api/auth/phone/confirm:otp-verified-self');
-  }
   const sessionUser = await deps.userByPhone.findByUserId(result.user.userId);
   if (!sessionUser) {
     return NextResponse.json({ ok: false, error: 'server_error' }, { status: 500 });
@@ -138,45 +108,11 @@ export async function POST(request: Request) {
   if (result.mergedAccountId) {
     await deps.accountMergeNotifications.enqueue(sessionUser, result.mergedAccountId);
   }
-  const postLoginHints = { phoneOtpChannel: result.deliveryChannel ?? deliveryChannel } as const;
 
   const tz = browserCalendarIana?.trim();
   if (tz) {
     await deps.patientCalendarTimezone.syncFromDevice(sessionUser.userId, tz);
   }
-
-  if (isRegistrationIntent && result.wasCreated) {
-    await recordAuthRegistrationSuccess({
-      attemptId,
-      authMethod: 'phone_otp',
-      stage: 'session_set',
-      entryChannel,
-      contactType: 'phone',
-      contactValue: sessionUser.phone ?? challenge?.phone ?? null,
-      userId: sessionUser.userId,
-      challengeId,
-      isNewAccount: true,
-    });
-  }
-
-  if (challenge?.profileBindUserId) {
-    return NextResponse.json({
-      ok: true,
-      redirectTo: result.redirectTo,
-      role: sessionUser.role,
-    });
-  }
-
-  const prepared = await prepareVerifiedPrimaryLogin({
-    user: sessionUser,
-    staffSecurity: deps.staffSecurity,
-    postLoginHints,
-  });
-  if (prepared.factorRequired) {
-    return NextResponse.json({ ok: true, factorRequired: true });
-  }
-
-  await deps.auth.setSessionFromUser(sessionUser, 'phone_otp', prepared.sessionOptions);
 
   return NextResponse.json({
     ok: true,

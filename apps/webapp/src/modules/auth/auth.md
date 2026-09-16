@@ -17,7 +17,7 @@
 
 2. **Email + пароль** — когда OAuth всё выключено, браузер сразу открывает шаг **`email_password`**: вход, регистрация, код из письма, **восстановление пароля** и ссылка **«Войти по номеру телефона»**. Состояние «ожидается код»/`reset` сохраняется в **`sessionStorage`** (`authFlowPendingStorage.ts`), чтобы пережить обновление и возврат с **`/app/contact-support?from=`**.
 
-3. **Телефон в публичном браузере / PWA** — ссылка **«Войти по номеру телефона»** доступна и с **`oauth_first`**, и с **`email_password`** только на пациентской поверхности с методом `phone_bot`. `PhoneMessengerAuthFlow` (`purpose: login`) предлагает человеку Telegram/MAX и проходит единый путь подтверждения контакта `phone/messenger-bind/{start,status,finish}`. Автоматического подбора канала, SMS-bootstrap, подбора email по номеру и отдельной формы кода нет. В Telegram/MAX Mini App по-прежнему шаг **`phone`** в `AuthFlowV2`; прямой `/phone/start` принимает только явно выбранный человеком канал. Привязка/смена номера в профиле — redirect из `PatientProfileHero` на **`/app/patient/bind-phone?next=/app/patient/profile`**, далее тот же `PhoneMessengerAuthFlow` (`purpose: profile_bind`) в браузере без inline «Назад» над полем номера. Если подтверждённый номер принадлежит другому пациентскому аккаунту, браузер показывает его ФИО и дату создания, спрашивает владельца и только после ответа объединяет его **в текущий профиль**, не переключая сессию. **`bind-phone`** не редиректит только из‑за `tier === patient` без **`phoneTrustedForPatient`**.
+3. **Телефон в публичном браузере / PWA / Mini App** — ссылка **«Войти по номеру телефона»** доступна и с **`oauth_first`**, и с **`email_password`** только на пациентской поверхности с методом `phone_bot`. Все поверхности используют один `PhoneMessengerAuthFlow` (`purpose: login`): человек выбирает Telegram/MAX и проходит подтверждение контакта `phone/messenger-bind/{start,status,finish}`. Автоматического подбора канала, SMS-bootstrap, подбора email по номеру, direct OTP и отдельной формы кода нет. Привязка/смена номера в профиле — redirect из `PatientProfileHero` на **`/app/patient/bind-phone?next=/app/patient/profile`**, далее тот же `PhoneMessengerAuthFlow` (`purpose: profile_bind`) в браузере без inline «Назад» над полем номера. Если подтверждённый номер принадлежит другому пациентскому аккаунту, браузер показывает его ФИО и дату создания, спрашивает владельца и только после ответа объединяет его **в текущий профиль**, не переключая сессию. **`bind-phone`** не редиректит только из‑за `tier === patient` без **`phoneTrustedForPatient`**.
 
 **PIN** на плоскости входа **не показывается**; re-auth для чувствительных действий — отдельные API (`pin/verify` и т.д.).
 
@@ -25,12 +25,9 @@
 
 - **Оболочка:** `AppShell` с `variant="patient"` (как у кабинета пациента). RSC `AppEntryRsc` (`/app`, `/app/tg`, `/app/max`): при отсутствии сессии — `AppEntryLoginContent` + `AuthBootstrap`.
 - **`AppEntryLoginContent`:** только `Suspense` + `AuthBootstrap`; synthetic dev-login panel отсутствует. **Отдельной плашки** «войдите или зарегистрируйтесь» нет.
-- **`AuthFlowV2`:** компактные шаги без дублирующих заголовков «Вход» и без лишних вводных. В браузере: **`oauth_first`** или сразу **`email_password`**, из обоих доступен **`phone_login`**; **`phone`** / `choose_channel` / `code` — для Mini App или редких чужеземных кейсов после `check-phone`; `new_user_foreign` / `foreign_no_otp_channel` при необходимости.
-- **Patient-оформление:** контент шага в **`patientCardClass` + `patientInnerPageStackClass`** (`max-w-sm`, центрирование для OAuth / email форм и Mini App-потока). Кнопки OAuth и формы — **`shared/ui/auth/loginChrome.ts`**. **`InternationalPhoneInput`** и submit в **`OtpCodeForm`** — основная CTA по ширине карточки на шагах **`phone`/`code`**.
-- **`ChannelPicker`:** без вводной строки над кнопкой — сразу основной канал и при необходимости «Другие способы».
+- **`AuthFlowV2`:** компактные шаги без дублирующих заголовков «Вход» и без лишних вводных. В браузере: **`oauth_first`** или сразу **`email_password`**, из обоих доступен **`phone_login`**; Mini App открывает тот же `phone_login`, без собственного выбора OTP-канала и формы кода.
+- **Patient-оформление:** контент шага в **`patientCardClass` + `patientInnerPageStackClass`** (`max-w-sm`, центрирование для OAuth / email форм и Mini App-потока). Кнопки OAuth и формы — **`shared/ui/auth/loginChrome.ts`**. Ввод номера и выбор мессенджера принадлежат `PhoneMessengerAuthFlow`.
 - **Профиль:** смена/привязка номера — redirect из hero на **`bind-phone`** (`?next=profile`); в браузере — `PhoneMessengerAuthFlow` с `hideBackOnPhoneStep`, назад через AppShell. Mini App на **`bind-phone`** — `PatientBindPhoneClient`. Привязка Telegram/MAX — секция «Мессенджеры» с **`ConnectMessengersBlock`** (`grid-cols-2`). На **`bind-phone`** без мессенджеров — **`PatientBrowserMessengerBindPanel`**.
-
-- **`OTP_PUBLIC_OTHER_CHANNELS_ORDER`** (**max** → **email** → **telegram**) и отсутствие **sms** для публичного веба относятся к входу через **Mini App / phone** или к редким веткам после `check-phone`, не к основному браузерному `/app`.
 
 - **Поддержка до входа:** **`/app/contact-support`** принимает **`?from=verify|login|reset`** и читает **`authFlowPendingStorage`**, чтобы подписать кнопку «назад» и ссылку внизу формы («Вернуться к коду» и т.д.).
 
@@ -149,7 +146,7 @@ Tier **`patient`** (доступ к основному пациентскому 
 
 ### Phone messenger bind (вход / привязка по `auth_*`)
 
-Поток для **публичного браузера/PWA** и **inline-привязки в профиле**, когда у номера ещё нет привязки TG/Max для OTP: вместо SMS — deep link в бота, контакт; дальше ветка по **`purpose`**.
+Поток для **публичного браузера/PWA** и **inline-привязки в профиле**: вместо direct OTP — deep link в бота, контакт; дальше ветка по **`purpose`**.
 
 - **`POST /api/auth/phone/messenger-bind/start`** — тело `{ phone, channelCode: "telegram"|"max", purpose: "login"|"profile_bind" }`. **`profile_bind`** требует сессию пациента. Ответ: `{ ok, setupToken, url, expiresAtIso, manualCommand? }` (`setupToken` = `auth_*`). **Rate limit:** scope `auth.phone_messenger_bind_start` (ключ — userId для `profile_bind`, иначе IP/anon), до **30**/час в `auth_rate_limit_events`.
 - **`POST /api/auth/phone/messenger-bind/status`** — `{ setupToken }` → `pending_contact` \| `otp_ready` (+ `challengeId`) \| `failed` \| `expired` \| `consumed`.
@@ -158,7 +155,7 @@ Tier **`patient`** (доступ к основному пациентскому 
   - **`purpose: login`** — OTP-challenge, secret → `otp_ready`; integrator ничего не пишет (`user.phone.link` выведен из рантайма 2026-08-26), а PWA завершает вход server-side через **`phone/messenger-bind/finish`**; **replay** `otp_ready` → меню без повторной выдачи секрета.
   - **`purpose: profile_bind`** — создаётся серверный OTP challenge, secret → `otp_ready`; PWA передаёт его server-side finish после возврата в тот же авторизованный браузер.
   - **`used_token`** / secret уже `consumed` → **200** `{ status: "already_used" }`.
-- **`POST /api/auth/phone/confirm`** — direct OTP через `phone/start` с явно выбранным каналом. Verify + bind → при ошибке post-steps **`server_error`** → `consumePhoneOtpChallenge` при полном успехе.
+- **`POST /api/auth/phone/start`** и **`POST /api/auth/phone/confirm`** — legacy direct OTP сохранён только для `profile_bind`: start требует действующую пациентскую сессию и сохраняет её `userId`/organization-scope в challenge, confirm отказывает challenge без `profileBindUserId`. Для login оба маршрута отвечают `direct_phone_login_disabled`.
 
 Клиент: `PhoneMessengerAuthFlow` для обоих purpose опрашивает `status` и при `otp_ready`/`consumed` вызывает `finish`, без формы кода. Mini App на bind-phone — по-прежнему `PatientBindPhoneClient` (request-contact). Открытие deep link — `finishChannelLinkNavigation` (как channel-link); при ручном fallback MAX клиент показывает `/start auth_*` на экране ожидания. Логи: `phone_messenger_bind_start`, `phone_messenger_bind_complete_ok|fail` (без `otpCode`). Runbook: `docs/OPERATIONS/PHONE_MESSENGER_AUTH_RUNBOOK.md`. Планы A/B: `.cursor/plans/archive/phone_messenger_bind_pwa_autologin.plan.md`, `.cursor/plans/archive/phone_messenger_bind_bot_ux.plan.md` (`status: completed`); ручной smoke — `docs/LOGIN_REGISTER_NEW_LOGIC/LOG.md` §«Приёмка A+B».
 
@@ -205,12 +202,9 @@ Tier **`patient`** (доступ к основному пациентскому 
 ## Телефон и OTP
 
 - **startPhoneAuth** / **confirmPhoneAuth** (`phoneAuth.ts`) — челленджи, лимиты (`phoneOtpLimits`: **4** неверных ввода → блок 10 мин, resend cooldown **60 с**), верификация кода; успешный verify **не** удаляет челлендж (удаление — `consumePhoneOtpChallenge` после post-steps в DI). Доставка — `PhoneOtpDelivery` (telegram / max / email / sms).
-- HTTP `POST /api/auth/phone/start` сначала требует пациентскую поверхность с методом `phone_bot`, а затем
-  обязательный явно выбранный `deliveryChannel`. Публичные `sms` и `email` отклоняются; Telegram/MAX сохраняют
-  нейтральный ответ и не сообщают, привязан ли канал к владельцу номера. Основной браузерный путь использует
-  `phone/messenger-bind/{start,status,finish}`, а не этот direct OTP route.
-- `POST /api/auth/phone/confirm`: опционально **`browserCalendarIana`** (IANA из `Intl`, до 120 символов) — после успешного входа выставляет `platform_users.calendar_timezone`, если поле ещё `null`.
-- Для direct OTP **`profile_bind`** `userId` и organization-scope берутся только из сессии на `/phone/start`, сохраняются в challenge и не принимаются телом `/phone/confirm`.
+- HTTP `POST /api/auth/phone/start` принимает только direct OTP **`profile_bind`**: требует пациентскую поверхность с методом `phone_bot`, действующую пациентскую сессию и явно выбранный `deliveryChannel`. `userId` и organization-scope берутся только из сессии и текущего principal, сохраняются в challenge и не принимаются телом confirm.
+- `POST /api/auth/phone/confirm` принимает только challenge с `profileBindUserId`; challenge входа по номеру отклоняется. Опциональный **`browserCalendarIana`** остаётся совместимым полем direct profile-bind confirm.
+- Вход по номеру использует только `phone/messenger-bind/{start,status,finish}`.
 - Порты: **SmsPort**, **PhoneChallengeStore**, **UserByPhonePort**.
 
 ## Роль пользователя
@@ -250,7 +244,7 @@ Tier **`patient`** (доступ к основному пациентскому 
 
 **`authMethod`:** `email_password`, `oauth_yandex`, `oauth_google`, `oauth_apple`, `phone_otp`, `messenger_bind`, `telegram_init`, `max_init`, `integrator_exchange`.
 
-**Корреляция `attemptId`:** email register возвращает `{ attemptId }` в JSON; клиент передаёт в `register/confirm`. OAuth — поле `n` подписанного `state`. Phone OTP — в challenge metadata + опционально в ответе `phone/start`. Messenger bind — `setupToken` (`auth_*`).
+**Корреляция `attemptId`:** email register возвращает `{ attemptId }` в JSON; клиент передаёт в `register/confirm`. OAuth — поле `n` подписанного `state`. Messenger bind — `setupToken` (`auth_*`).
 
 **Success только для регистрации:** OAuth/phone/exchange/mini-app — когда создан новый аккаунт (`accountOutcome=created` / `wasCreated`); обычный login не пишет `auth_register_success`.
 

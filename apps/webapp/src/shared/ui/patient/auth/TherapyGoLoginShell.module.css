@@ -114,11 +114,7 @@
 .auth :global(#auth-flow-v2-entry-loading),
 .auth :global(#auth-flow-v2-email-password),
 .auth :global(#auth-flow-v2-oauth-first),
-.auth :global(#auth-flow-v2-phone-login),
-.auth :global(#auth-flow-v2-phone),
-.auth :global(#auth-flow-v2-foreign-no-otp),
-.auth :global(#auth-flow-v2-channel),
-.auth :global(#auth-flow-v2-code) {
+.auth :global(#auth-flow-v2-phone-login) {
   max-width: none;
   padding: 0;
   border: 0;

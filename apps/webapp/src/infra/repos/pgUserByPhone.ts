@@ -359,11 +359,11 @@ export const pgUserByPhonePort: UserByPhonePort = {
   },
 
   /**
-   * D15b/6 repair: the bootstrap principal that runs `POST /api/auth/phone/start` has no unnamed
-   * relation door (`portContextRuntime.ts`, `capabilities['pre_session']` purpose=relation is
-   * intentionally absent) — the previous two-step implementation (`findCanonicalUserIdByPhone` +
+   * D15b/6 repair: callers resolving a phone before proof have no unnamed relation door
+   * (`portContextRuntime.ts`, `capabilities['pre_session']` purpose=relation is intentionally
+   * absent) — the previous two-step implementation (`findCanonicalUserIdByPhone` +
    * `loadSessionIdentityUser`, both plain relation reads) failed with "Missing declared webapp
-   * port capability: pre_session" before OTP delivery was ever attempted. One named SECURITY
+   * port capability: pre_session" before the operation could continue. One named SECURITY
    * DEFINER root now resolves the canonical holder AND assembles the full session-identity
    * payload — same shape `loadSessionIdentityUser` used to build from two follow-up relation
    * reads — so no unnamed read remains on this path. Phone lookup is not authentication proof:
@@ -400,13 +400,13 @@ export const pgUserByPhonePort: UserByPhonePort = {
     const profileBindOrganizationId = options?.profileBindOrganizationId?.trim();
 
     if (!key && !profileBindOrganizationId) {
-      // D15b/6 confirm-path correction: `POST /api/auth/phone/confirm` (existing-user login and
-      // new-user registration) reaches this under the bootstrap principal — no channel to bind
-      // (`web`) and no already-authenticated profile-bind session — so it goes through the atomic
-      // `pre_session` root instead of the relation-based transaction below, which the bootstrap
-      // principal has no capability for (see below for the messenger-channel branch, and
-      // `runWithDbOrganizationPrincipal` below for the `profileBindOrganizationId` case — the only
-      // sub-case still using that transaction, under a real, non-bootstrap principal).
+      // D15b/6 confirm-path correction: server-side messenger login finish reaches this under the
+      // bootstrap principal — no channel to bind (`web`) and no already-authenticated profile-bind
+      // session — so it goes through the atomic `pre_session` root instead of the relation-based
+      // transaction below, which the bootstrap principal has no capability for (see below for the
+      // messenger-channel branch, and `runWithDbOrganizationPrincipal` below for the
+      // `profileBindOrganizationId` case — the only sub-case still using that transaction, under
+      // a real, non-bootstrap principal).
       const result = await runWebappNamedRoot<{ result: unknown }>(
         getWebappSqlDb(),
         'app.pre_session_phone_confirm_resolve(text,text,boolean,text)',
