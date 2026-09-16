@@ -74,6 +74,7 @@ import { EncounterViewModal } from './tabs/karta/EncounterViewModal';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 import { useActiveCall } from '@/shared/ui/video/ActiveCallCoordinator';
 import { notificationText } from '@/shared/notifications/notificationText';
+import { useIsMobileViewport } from '@/shared/ui/doctor/primitives/useIsMobileViewport';
 
 function formatSupportStartedAt(value: string): string {
   const date = new Date(value);
@@ -168,6 +169,8 @@ type TabPanelsProps = Props & {
   onHistoryClose: () => void;
   onStartEncounter: (appointmentId?: string) => void;
   header: NonNullable<DoctorPatientCardShellMeta['cardHeader']>;
+  desktopCombined: boolean;
+  overviewLead: ReactNode;
 };
 
 type TabId = PatientCardTabId;
@@ -368,6 +371,7 @@ export function PatientCardClient({
 }: Props) {
   const router = useRouter();
   const { activeCall } = useActiveCall();
+  const isMobileViewport = useIsMobileViewport();
   const { patientGenitive, patientSingularLabel, supportGroupLabel, appointmentAccusative } =
     useDoctorPatientTerms();
   const header = shellMeta.cardHeader;
@@ -492,13 +496,14 @@ export function PatientCardClient({
   // `DoctorAppShell` full-height contract (already used for Пациенты/Коммуникации/Заявки) only
   // while this specific tab is active keeps every other patient-card tab's current page-scroll
   // behaviour byte-for-byte unchanged.
-  const isFilesTabActive = activeTab === 'files';
+  const desktopCombined = !isMobileViewport;
+  const usesFullHeightLayout = activeTab === 'files';
 
   const { identity, support } = header;
   const supportStartedAt = support.startedAt ?? shellMeta.currentProgramStartedAt;
   const supportDuration = supportStartedAt ? formatSupportDuration(supportStartedAt) : null;
 
-  // ФИО/дата рождения — редактируются только через стандартную модалку вкладки «Учётка»
+  // ФИО/дата рождения — редактируются только через стандартную модалку вкладки «Профиль»
   // (ACCOUNT-01/04): глобальная шапка карточки — read-only витрина identity.
   const resolvedBirthDate = identity.birthDate;
   const fioDisplay = formatDoctorFio(
@@ -515,42 +520,33 @@ export function PatientCardClient({
   return (
     <DoctorAppShell
       title={`Карточка ${patientGenitive}`}
-      mobileBottomGutter={!isFilesTabActive}
-      layout={isFilesTabActive ? 'full-height' : 'default'}
+      mobileBottomGutter={!usesFullHeightLayout}
+      layout={usesFullHeightLayout ? 'full-height' : 'default'}
     >
       <DoctorShellMobileBottomTabsRegistration content={mobileBottomTabs} />
       <DoctorPageHeader
         id="doctor-patient-card-header"
         title={`Карточка ${patientGenitive}`}
         className="hidden md:flex"
-        tabs={
-          <div className="flex min-w-0 items-center gap-2">
-            <PatientCardDesktopTabs
-              activeTab={activeTab}
-              onTabChange={selectTab}
-              workspaceModules={workspaceModules}
-            />
-          </div>
-        }
       />
       <section
         className={cn(
           doctorPageStackClass,
           'flex flex-col gap-3 pt-3 pb-3 md:pt-0 md:pb-0',
-          isFilesTabActive && 'min-h-0 flex-1 overflow-hidden',
+          usesFullHeightLayout && 'min-h-0 flex-1 overflow-hidden',
         )}
       >
         {/* ================================================================
           IDENTITY HEADER CARD — READ ONLY
-          Displaying patient identity; all edits live in «Учётка» tab.
-          Tab navigation lives in DoctorPageHeader's tabs slot above.
+          Displaying patient identity; all edits live in «Профиль» tab.
+          Tablet/desktop tab navigation is the bottom strip of this card.
       ================================================================ */}
         <div className="overflow-hidden rounded-[var(--doctor-page-block-radius,10px)] border border-border bg-card">
           {/* Main header body */}
-          <div className="px-4 pt-3.5 pb-2.5 flex flex-wrap gap-3.5 items-start">
+          <div className="flex flex-wrap items-start gap-3.5 px-4 pt-3.5 pb-2.5 md:flex-nowrap">
             {/* LEFT: identity */}
             <div className="flex-1 min-w-0 flex flex-col gap-0">
-              {/* FIO (primary) — read-only; edits live in «Учётка» (ACCOUNT-01/04) */}
+              {/* FIO (primary) — read-only; edits live in «Профиль» (ACCOUNT-01/04) */}
               <div className="flex items-start gap-2 flex-wrap">
                 <div className="flex flex-col gap-0.5 flex-1 min-w-0">
                   <div className="flex items-center gap-2.5 flex-wrap">
@@ -591,68 +587,58 @@ export function PatientCardClient({
                   initialState={shellMeta.portalState}
                 />
               ) : null}
+            </div>
 
-              {workspaceModules?.encounters !== false || workspaceModules?.video_meetings ? (
-                <div className="mt-3 flex w-full flex-nowrap gap-1 sm:gap-2">
-                  {workspaceModules?.encounters !== false ? (
-                    <>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="shrink-0"
-                        onClick={() => setEncounterHistoryOpen(true)}
-                      >
-                        История визитов
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        className="shrink-0"
-                        onClick={() => openEncounterStart()}
-                      >
-                        Начать {appointmentAccusative}
-                      </Button>
-                    </>
-                  ) : null}
-                  {workspaceModules?.video_meetings ? (
+            {workspaceModules?.encounters !== false || workspaceModules?.video_meetings ? (
+              <div className="flex w-full flex-nowrap gap-1 sm:gap-2 md:mt-0 md:ml-auto md:w-auto md:shrink-0">
+                {workspaceModules?.encounters !== false ? (
+                  <>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="shrink-0"
+                      onClick={() => setEncounterHistoryOpen(true)}
+                    >
+                      История визитов
+                    </Button>
                     <Button
                       type="button"
                       size="sm"
-                      className="min-w-9 flex-1 px-2"
-                      onClick={() =>
-                        router.push(
-                          activeCall?.returnUrl ??
-                            `/app/doctor/patients/${encodeURIComponent(identity.userId)}/live`,
-                        )
-                      }
-                      title={activeCall ? 'Вернуться к звонку' : 'Видеосессия'}
-                      aria-label={activeCall ? 'Вернуться к звонку' : 'Видеосессия'}
+                      className="shrink-0"
+                      onClick={() => openEncounterStart()}
                     >
-                      <Video className="size-4 shrink-0" aria-hidden />
+                      Начать {appointmentAccusative}
                     </Button>
-                  ) : null}
-                </div>
-              ) : null}
-            </div>
+                  </>
+                ) : null}
+                {workspaceModules?.video_meetings ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="min-w-9 flex-1 px-2 md:w-11 md:flex-none"
+                    onClick={() =>
+                      router.push(
+                        activeCall?.returnUrl ??
+                          `/app/doctor/patients/${encodeURIComponent(identity.userId)}/live`,
+                      )
+                    }
+                    title={activeCall ? 'Вернуться к звонку' : 'Видеосессия'}
+                    aria-label={activeCall ? 'Вернуться к звонку' : 'Видеосессия'}
+                  >
+                    <Video className="size-4 shrink-0" aria-hidden />
+                  </Button>
+                ) : null}
+              </div>
+            ) : null}
           </div>
-        </div>
 
-        {activeTab === 'overview' ? (
-          <div className="rounded-[var(--doctor-page-block-radius,10px)] border border-border bg-card px-4 py-2.5">
-            <PatientContactActions
-              identity={identity}
-              hasTelegram={hasTelegram}
-              hasMax={hasMax}
-              hasEmail={hasEmail}
-              chatButtonHighlighted={chatButtonHighlighted}
-              chatUnreadCount={chatUnreadCount}
-              onChatUnreadChange={setChatUnreadCount}
-              patientOnSupport={support.isOnSupport}
-              directChatEnabled={workspaceModules?.direct_chat !== false}
-            />
-          </div>
-        ) : null}
+          <PatientCardDesktopTabs
+            activeTab={activeTab}
+            onTabChange={selectTab}
+            workspaceModules={workspaceModules}
+          />
+        </div>
 
         {/* TAB PANELS — mount on first visit; tab data streams in via Suspense.
             FILES-09: while the Files tab is active, this wrapper fills the remaining flex
@@ -660,7 +646,9 @@ export function PatientCardClient({
             tab's own file list scrolls; every other tab renders through the same plain
             wrapper as before (no classes) and keeps its current page-scroll behaviour. */}
         <Suspense fallback={<PatientTabPanelLoading />}>
-          <div className={cn(isFilesTabActive && 'flex min-h-0 flex-1 flex-col overflow-hidden')}>
+          <div
+            className={cn(usesFullHeightLayout && 'flex min-h-0 flex-1 flex-col overflow-hidden')}
+          >
             <PatientCardTabPanels
               shellMeta={shellMeta}
               tabPromise={tabPromise}
@@ -677,6 +665,22 @@ export function PatientCardClient({
               onHistoryClose={() => setEncounterHistoryOpen(false)}
               onStartEncounter={openEncounterStart}
               header={header}
+              desktopCombined={desktopCombined}
+              overviewLead={
+                <div className="rounded-[var(--doctor-page-block-radius,10px)] border border-border bg-card px-4 py-2.5">
+                  <PatientContactActions
+                    identity={identity}
+                    hasTelegram={hasTelegram}
+                    hasMax={hasMax}
+                    hasEmail={hasEmail}
+                    chatButtonHighlighted={chatButtonHighlighted}
+                    chatUnreadCount={chatUnreadCount}
+                    onChatUnreadChange={setChatUnreadCount}
+                    patientOnSupport={support.isOnSupport}
+                    directChatEnabled={workspaceModules?.direct_chat !== false}
+                  />
+                </div>
+              }
               workspaceModules={workspaceModules}
               appointmentsManageOwn={appointmentsManageOwn}
             />
@@ -718,6 +722,8 @@ function PatientCardTabPanels({
   onHistoryClose,
   onStartEncounter,
   header,
+  desktopCombined,
+  overviewLead,
   workspaceModules,
   appointmentsManageOwn = true,
 }: TabPanelsProps) {
@@ -737,86 +743,110 @@ function PatientCardTabPanels({
   const appointments = unwrapBootstrapEnvelope(tab.initialAppointments) ?? [];
   const packages = unwrapBootstrapEnvelope(tab.initialPackages) ?? [];
   const visits = unwrapBootstrapEnvelope(tab.initialVisits) ?? [];
+  const kartaGroupActive = activeTab === 'overview' || activeTab === 'karta';
+  const profileGroupActive = activeTab === 'files' || activeTab === 'account';
+  const renderOverview = desktopCombined ? kartaGroupActive : visitedTabs.has('overview');
+  const renderKarta =
+    availableTabIds.has('karta') && (desktopCombined ? kartaGroupActive : visitedTabs.has('karta'));
+  const renderFiles = desktopCombined ? profileGroupActive : visitedTabs.has('files');
+  const renderAccount = desktopCombined ? profileGroupActive : visitedTabs.has('account');
 
   return (
     <>
-      {visitedTabs.has('overview') ? (
-        <div className={cn('flex flex-col gap-2.5', activeTab !== 'overview' && 'hidden')}>
-          <PatientTabRecords
-            userId={identity.userId}
-            header={header}
-            compositionMode="master"
-            onCreateVisitFromAppointment={(prefill) => {
-              setSelectedVisitAppointmentId(null);
-              onStartEncounter(prefill.id);
-            }}
-            onOpenVisitNotes={(appointmentId) => {
-              setSelectedVisitAppointmentId(appointmentId);
-              setMobilePane('detail');
-              selectTab('karta');
-            }}
-            onOpenMembershipConfiguration={() => setMembershipConfigurationOpen(true)}
-            initialAppointments={appointments}
-            initialPackages={packages}
-            membershipsVisible={membershipsVisible}
-            membershipMutationsAllowed={membershipMutationsAllowed}
-            displayIana={shellMeta.displayIana}
-            encountersEnabled={workspaceModules?.encounters !== false}
-            appointmentsManageOwn={appointmentsManageOwn}
-          />
-          <PatientTabOverview
-            active={activeTab === 'overview'}
-            userId={identity.userId}
-            header={header}
-            compositionMode="overview"
-            onTabSwitch={(tabId) => {
-              if (tabId === 'program') selectTab('program');
-              if (tabId === 'karta') selectTab('karta');
-            }}
-            canOpenKarta={availableTabIds.has('karta')}
-            canOpenProgram={availableTabIds.has('program')}
-            canCreateEncounter={workspaceModules?.encounters !== false}
-            medicalRecordEnabled={workspaceModules?.medical_record !== false}
-            encountersEnabled={workspaceModules?.encounters !== false}
-            initialClinicalState={tab.initialClinicalState}
-            initialVisits={tab.initialVisits}
-            initialNotes={tab.initialNotes}
-            initialTasks={tab.initialTasks}
-            initialProgramActivity={tab.initialProgramActivity}
-            initialAppointments={tab.initialAppointments}
-            initialPackages={tab.initialPackages}
-            initialProgramInstances={tab.initialProgramInstances}
-            initialProgramInstanceDetail={tab.initialProgramInstanceDetail}
-            initialExerciseCalendarSnapshot={tab.initialExerciseCalendarSnapshot}
-            initialMessagesSnapshot={tab.initialMessagesSnapshot}
-            membershipsVisible={membershipsVisible}
-            specialistTasksAvailable={specialistTasksAvailable}
-            specialistTasksReadable={specialistTasksReadable}
-            tasksDisplayIana={shellMeta.displayIana}
-            tasksTodayIso={shellMeta.todayIso}
-          />
-        </div>
-      ) : null}
-      {visitedTabs.has('karta') ? (
-        <div className={cn(activeTab !== 'karta' && 'hidden')}>
-          <PatientTabKarta
-            userId={identity.userId}
-            header={header}
-            initialClinicalState={unwrapBootstrapEnvelope(tab.initialClinicalState)}
-            initialVisits={unwrapBootstrapEnvelope(tab.initialVisits)}
-            initialAnamnesis={unwrapBootstrapEnvelope(tab.initialAnamnesis)}
-            initialComorbidities={unwrapBootstrapEnvelope(tab.initialComorbidities)}
-            medicalRecordEnabled={workspaceModules?.medical_record !== false}
-            encountersEnabled={workspaceModules?.encounters !== false}
-            composition={{
-              leftContent: null,
-              rightContent: null,
-              selectedAppointmentId: selectedVisitAppointmentId,
-              onCloseSelectedVisit: () => setSelectedVisitAppointmentId(null),
-              mobilePane,
-              onMobilePaneChange: setMobilePane,
-            }}
-          />
+      {renderOverview || renderKarta ? (
+        <div
+          className={cn(
+            desktopCombined
+              ? 'grid min-h-0 items-start gap-3 md:grid-cols-2'
+              : 'flex min-h-0 flex-col',
+            !kartaGroupActive && 'hidden',
+          )}
+        >
+          {renderOverview ? (
+            <div
+              className={cn(
+                'flex min-w-0 flex-col gap-2.5',
+                activeTab !== 'overview' && 'max-md:hidden',
+              )}
+            >
+              {overviewLead}
+              <PatientTabRecords
+                userId={identity.userId}
+                header={header}
+                compositionMode="master"
+                onCreateVisitFromAppointment={(prefill) => {
+                  setSelectedVisitAppointmentId(null);
+                  onStartEncounter(prefill.id);
+                }}
+                onOpenVisitNotes={(appointmentId) => {
+                  setSelectedVisitAppointmentId(appointmentId);
+                  setMobilePane('detail');
+                  selectTab('karta');
+                }}
+                onOpenMembershipConfiguration={() => setMembershipConfigurationOpen(true)}
+                initialAppointments={appointments}
+                initialPackages={packages}
+                membershipsVisible={membershipsVisible}
+                membershipMutationsAllowed={membershipMutationsAllowed}
+                displayIana={shellMeta.displayIana}
+                encountersEnabled={workspaceModules?.encounters !== false}
+                appointmentsManageOwn={appointmentsManageOwn}
+              />
+              <PatientTabOverview
+                active={desktopCombined ? kartaGroupActive : activeTab === 'overview'}
+                userId={identity.userId}
+                header={header}
+                compositionMode={desktopCombined ? 'right-pane' : 'overview'}
+                onTabSwitch={(tabId) => {
+                  if (tabId === 'program') selectTab('program');
+                  if (tabId === 'karta') selectTab('karta');
+                }}
+                canOpenKarta={availableTabIds.has('karta')}
+                canOpenProgram={availableTabIds.has('program')}
+                canCreateEncounter={workspaceModules?.encounters !== false}
+                medicalRecordEnabled={workspaceModules?.medical_record !== false}
+                encountersEnabled={workspaceModules?.encounters !== false}
+                initialClinicalState={tab.initialClinicalState}
+                initialVisits={tab.initialVisits}
+                initialNotes={tab.initialNotes}
+                initialTasks={tab.initialTasks}
+                initialProgramActivity={tab.initialProgramActivity}
+                initialAppointments={tab.initialAppointments}
+                initialPackages={tab.initialPackages}
+                initialProgramInstances={tab.initialProgramInstances}
+                initialProgramInstanceDetail={tab.initialProgramInstanceDetail}
+                initialExerciseCalendarSnapshot={tab.initialExerciseCalendarSnapshot}
+                initialMessagesSnapshot={tab.initialMessagesSnapshot}
+                membershipsVisible={membershipsVisible}
+                specialistTasksAvailable={specialistTasksAvailable}
+                specialistTasksReadable={specialistTasksReadable}
+                tasksDisplayIana={shellMeta.displayIana}
+                tasksTodayIso={shellMeta.todayIso}
+              />
+            </div>
+          ) : null}
+          {renderKarta ? (
+            <div className={cn('min-w-0', activeTab !== 'karta' && 'max-md:hidden')}>
+              <PatientTabKarta
+                userId={identity.userId}
+                header={header}
+                initialClinicalState={unwrapBootstrapEnvelope(tab.initialClinicalState)}
+                initialVisits={unwrapBootstrapEnvelope(tab.initialVisits)}
+                initialAnamnesis={unwrapBootstrapEnvelope(tab.initialAnamnesis)}
+                initialComorbidities={unwrapBootstrapEnvelope(tab.initialComorbidities)}
+                medicalRecordEnabled={workspaceModules?.medical_record !== false}
+                encountersEnabled={workspaceModules?.encounters !== false}
+                composition={{
+                  leftContent: null,
+                  rightContent: null,
+                  selectedAppointmentId: selectedVisitAppointmentId,
+                  onCloseSelectedVisit: () => setSelectedVisitAppointmentId(null),
+                  mobilePane,
+                  onMobilePaneChange: setMobilePane,
+                }}
+              />
+            </div>
+          ) : null}
         </div>
       ) : null}
       {visitedTabs.has('program') ? (
@@ -832,31 +862,47 @@ function PatientCardTabPanels({
           )}
         </div>
       ) : null}
-      {visitedTabs.has('files') ? (
+      {renderFiles || renderAccount ? (
         <div
           className={cn(
-            'flex min-h-0 flex-1 flex-col overflow-hidden',
-            activeTab !== 'files' && 'hidden',
+            desktopCombined
+              ? 'grid min-h-0 flex-1 items-stretch gap-3 overflow-hidden md:grid-cols-2'
+              : 'flex min-h-0 flex-1 flex-col overflow-hidden',
+            !profileGroupActive && 'hidden',
           )}
         >
-          <PatientTabFiles
-            userId={identity.userId}
-            header={header}
-            initialFiles={unwrapBootstrapEnvelope(tab.initialFiles) ?? undefined}
-            encountersEnabled={workspaceModules?.encounters !== false}
-          />
-        </div>
-      ) : null}
-      {visitedTabs.has('account') ? (
-        <div className={cn(activeTab !== 'account' && 'hidden')}>
-          <PatientTabAccount
-            userId={identity.userId}
-            header={header}
-            active={activeTab === 'account'}
-            portalState={shellMeta.portalState}
-            initialSupplementaryContacts={unwrapBootstrapEnvelope(tab.initialSupplementaryContacts)}
-            isAdmin={isAdmin}
-          />
+          {renderFiles ? (
+            <div
+              className={cn(
+                'flex min-h-0 min-w-0 flex-col overflow-hidden',
+                activeTab !== 'files' && 'max-md:hidden',
+              )}
+            >
+              <PatientTabFiles
+                userId={identity.userId}
+                header={header}
+                initialFiles={unwrapBootstrapEnvelope(tab.initialFiles) ?? undefined}
+                encountersEnabled={workspaceModules?.encounters !== false}
+              />
+            </div>
+          ) : null}
+          {renderAccount ? (
+            <div
+              className={cn('min-w-0 overflow-y-auto', activeTab !== 'account' && 'max-md:hidden')}
+            >
+              <PatientTabAccount
+                userId={identity.userId}
+                header={header}
+                active={desktopCombined ? profileGroupActive : activeTab === 'account'}
+                portalState={shellMeta.portalState}
+                initialSupplementaryContacts={unwrapBootstrapEnvelope(
+                  tab.initialSupplementaryContacts,
+                )}
+                isAdmin={isAdmin}
+                layout={desktopCombined ? 'split-pane' : 'default'}
+              />
+            </div>
+          ) : null}
         </div>
       ) : null}
       {workspaceModules?.encounters !== false ? (

@@ -9,7 +9,7 @@ export const PATIENT_CARD_TABS: readonly PatientCardTab[] = [
   { id: 'karta', label: 'Карта' },
   { id: 'program', label: 'ЛФК' },
   { id: 'files', label: 'Файлы' },
-  { id: 'account', label: 'Учётка' },
+  { id: 'account', label: 'Профиль' },
 ];
 
 const LEGACY_PATIENT_CARD_TABS = new Set(['records', 'comms', 'finances']);

@@ -63,7 +63,7 @@ type Props = {
   userId: string;
   header?: PatientCardHeader;
   /**
-   * Whether the «Учётка» tab is the active tab. Tabs mount once on card load
+   * Whether the «Профиль» tab is the active tab. Tabs mount once on card load
    * (load-once + client-side switching), so admin-only fetches here (merge
    * candidates, audit log) must stay suspended until the tab is actually
    * opened — otherwise every patient-card view fires wasteful 403s for
@@ -75,6 +75,8 @@ type Props = {
   initialSupplementaryContacts?: SupplementaryContact[] | null;
   /** Hides the «Администрирование» section (UUID, Telegram ID, merge, audit) for non-admin doctors. */
   isAdmin?: boolean;
+  /** Keeps the account cards in one column when the profile itself occupies a split pane. */
+  layout?: 'default' | 'split-pane';
 };
 
 type Gender = 'male' | 'female';
@@ -548,6 +550,7 @@ export function PatientTabAccount({
   portalState,
   initialSupplementaryContacts,
   isAdmin = false,
+  layout = 'default',
 }: Props) {
   const { patientSingularLabel, patientGenitive, supportGroupLabel } = useDoctorPatientTerms();
   const router = useRouter();
@@ -580,8 +583,28 @@ export function PatientTabAccount({
   );
   const [supportModalOpen, setSupportModalOpen] = useState(false);
   useEffect(() => {
-    setSupplementaryContacts(initialSupplementaryContacts ?? []);
-  }, [initialSupplementaryContacts]);
+    if (initialSupplementaryContacts != null) {
+      setSupplementaryContacts(initialSupplementaryContacts);
+      return;
+    }
+
+    let cancelled = false;
+    void fetch(`/api/doctor/clients/${encodeURIComponent(userId)}/supplementary-contacts`)
+      .then(async (response) => {
+        const payload = (await response.json().catch(() => null)) as {
+          ok?: boolean;
+          contacts?: SupplementaryContact[];
+        } | null;
+        if (!cancelled && response.ok && payload?.ok && Array.isArray(payload.contacts)) {
+          setSupplementaryContacts(payload.contacts);
+        }
+      })
+      .catch(() => undefined);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [initialSupplementaryContacts, userId]);
   const handleSupplementaryContactsChange = useCallback(
     (contacts: SupplementaryContact[]) => setSupplementaryContacts(contacts),
     [],
@@ -673,7 +696,12 @@ export function PatientTabAccount({
   // ---------------------------------------------------------------------------
 
   return (
-    <div className="grid grid-cols-1 items-start gap-3 md:grid-cols-2">
+    <div
+      className={cn(
+        'grid grid-cols-1 items-start gap-3 md:grid-cols-2',
+        layout === 'split-pane' && 'md:grid-cols-1',
+      )}
+    >
       {/* ====================================================================
           LEFT COLUMN
       ==================================================================== */}
