@@ -89,6 +89,7 @@ vi.mock('@/modules/auth/oauthWebSession', () => ({
 
 import { POST as startOAuth } from '@/app/api/auth/oauth/start/route';
 import { GET as googleCallback } from '@/app/api/auth/oauth/callback/google/route';
+import { createSignedOAuthState } from '@/modules/auth/oauthSignedState';
 
 async function startGoogleLogin(): Promise<string> {
   const response = await startOAuth(
@@ -130,6 +131,21 @@ describe('OAuth state browser binding door', () => {
     );
     expect(replay.status).toBe(403);
     await expect(replay.json()).resolves.toMatchObject({ error: 'oauth_csrf' });
+  });
+
+  // Требование хеша привязки — это и есть сама защита. Без этой проверки её можно снять одной
+  // строкой, и подписанный `state` снова станет достаточным сам по себе: cookie в браузере есть
+  // всегда, она просто не та. Поэтому случай «подпись верна, хеша привязки нет, cookie чужая».
+  it('rejects a signed state that carries no browser binding at all', async () => {
+    await startGoogleLogin();
+    const unboundState = createSignedOAuthState('google_login', 600);
+
+    const response = await googleCallback(
+      new Request(`https://app.example.test/api/auth/oauth/callback/google?state=${unboundState}`),
+    );
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({ error: 'oauth_csrf' });
   });
 
   it('rejects a valid signed state in a browser without the issuing cookie', async () => {
