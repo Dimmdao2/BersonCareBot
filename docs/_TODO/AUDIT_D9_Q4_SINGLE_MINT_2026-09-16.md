@@ -35,3 +35,15 @@ Authority:
 2. Усилить happy-path test так, чтобы no-op финального `updateCurrentSessionFromUser` краснел, либо переименовать/сузить его oracle до факта одного рождения. Если oracle заявляет refresh provisioned session, входные данные должны отличать pre-provision user от post-provision user наблюдаемым полем итоговой session projection.
 
 VERDICT: FAIL
+
+## Круг 2
+
+Кандидат коррекции: `b9e2f2beba2d9263a83374b54af5ae9008cfe24f` поверх `8aa623a97`.
+Классификация по brief: `local`; оба прежних MUST FIX проверены тестом/fault injection, остальное из первого круга заново не перепроверял.
+
+1. `MUST-FIX-2` → PASS → финальный no-op `updateCurrentSessionFromUser` теперь краснит постоянный route-test. Мутация: в `apps/webapp/src/app/api/auth/specialist-signup/confirm/route.ts` заменить финальный `await updateCurrentSessionFromUser(...)` на `void sessionUser;`. Команда `/home/dev/brain/host-orch/run-tests.sh "pnpm --dir apps/webapp exec vitest run src/app/api/auth/specialist-signup/confirm/route.route.test.ts"` → FAIL: `route.route.test.ts:184` ожидал `displayName: "Иван Иванов, клиника"`, получил `"Иван Иванов"`. Фикстура честная, не подгонка: реальный `app.provision_specialist_owner` пишет post-provision projection (`deploy/postgres/specialist-owner-provisioning-rls.sql:217-220` меняет `platform_users.role/display_name`, `:291-309` создаёт membership, `:328-350` создаёт specialist и связывает membership, `:353-358` помечает intent provisioned). Поэтому правдивое отличие после провижининга — как минимум новая `displayName` из `specialist_full_name` и созданная staff/org projection; прежнее отличие только ролью не ловило no-op, потому что первый mint уже принудительно ставит `role: 'doctor'`.
+2. `MUST-FIX-1` → PASS → постоянный refusal-test есть в `route.route.test.ts:200-219` и по §10a держит наблюдаемый выход цепочки: HTTP `503`, `error: provisioning_pending`, `redirectTo: /app/account?tab=security`, сохранённая рабочая doctor pending-enrollment session cookie и один login birth side effect. Это не упадёт само: без теста route может честно вернуть 503 и при этом оставить пользователя без сессии. При честной правке кода тест править не надо, пока oracle остаётся тем же route-level контрактом отказа; он не закрепляет внутренний порядок вызовов, а читает ответ и декодированную session cookie. Мутация отказного пути: заменить первый `await setSessionFromUser(...)` перед `provisionSpecialistOwner` на `void verifiedSessionUser;`. Команда `/home/dev/brain/host-orch/run-tests.sh "pnpm --dir apps/webapp exec vitest run src/app/api/auth/specialist-signup/confirm/route.route.test.ts -t 'keeps the working session when provisioning refuses'"` → FAIL: `route.route.test.ts:211` ожидал `recordUserLoginEvent` once, получил 0; дальше тот же сценарий не получил бы рабочую session cookie.
+
+Контроль после отката обеих мутаций: `/home/dev/brain/host-orch/run-tests.sh "pnpm --dir apps/webapp exec vitest run src/app/api/auth/specialist-signup/confirm/route.route.test.ts"` → PASS, 1 файл / 2 теста.
+
+VERDICT: PASS
